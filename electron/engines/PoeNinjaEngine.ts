@@ -1,8 +1,9 @@
 import { ipcMain } from "electron";
+import type { SessionPriceSnapshot } from "../../types/data-stores";
 import type {
   PoeNinjaExchangeResponse,
-  PoeNinjaStashResponse,
   PoeNinjaPriceData,
+  PoeNinjaStashResponse,
 } from "../../types/poe-ninja";
 
 type PoeNinjaApiType = "exchange" | "stash";
@@ -192,6 +193,54 @@ class PoeNinjaEngine {
 
       throw error;
     }
+  }
+
+  /**
+   * Get current price snapshot for session storage
+   * Captures BOTH exchange and stash pricing for complete historical data
+   */
+  public async getPriceSnapshot(league: string): Promise<SessionPriceSnapshot> {
+    console.log(
+      `Fetching complete price snapshot (exchange + stash) for league: ${league}...`,
+    );
+
+    // Fetch both APIs (will use cache if fresh)
+    const [exchangeData, stashData] = await Promise.all([
+      this.fetchExchangePrices(league),
+      this.fetchStashPrices(league),
+    ]);
+
+    // Convert exchange data
+    const exchangePrices: Record<string, CardPriceSnapshot> = {};
+    for (const [cardName, data] of Object.entries(exchangeData.cardPrices)) {
+      exchangePrices[cardName] = {
+        chaosValue: data.chaosValue,
+        divineValue: data.divineValue,
+        stackSize: data.stackSize,
+      };
+    }
+
+    // Convert stash data
+    const stashPrices: Record<string, CardPriceSnapshot> = {};
+    for (const [cardName, data] of Object.entries(stashData.cardPrices)) {
+      stashPrices[cardName] = {
+        chaosValue: data.chaosValue,
+        divineValue: data.divineValue,
+        stackSize: data.stackSize,
+      };
+    }
+
+    return {
+      timestamp: new Date().toISOString(),
+      exchange: {
+        chaosToDivineRatio: exchangeData.chaosToDivineRatio,
+        cardPrices: exchangePrices,
+      },
+      stash: {
+        chaosToDivineRatio: stashData.chaosToDivineRatio,
+        cardPrices: stashPrices,
+      },
+    };
   }
 }
 

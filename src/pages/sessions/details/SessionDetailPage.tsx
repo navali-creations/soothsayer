@@ -1,14 +1,15 @@
-import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "@tanstack/react-router";
-import { FiArrowLeft, FiClock, FiCalendar } from "react-icons/fi";
+import { useNavigate, useParams } from "@tanstack/react-router";
+import { createColumnHelper } from "@tanstack/react-table";
+import { useEffect, useState } from "react";
+import { FiArrowLeft } from "react-icons/fi";
 import { GiCardExchange, GiLockedChest } from "react-icons/gi";
+import type { SessionPriceSnapshot } from "../../../../types/data-stores";
+import { formatCurrency } from "../../../api/poe-ninja";
 import { Button, Flex, Table } from "../../../components";
 import {
   usePoeNinjaExchangePrices,
   usePoeNinjaStashPrices,
 } from "../../../hooks";
-import { createColumnHelper } from "@tanstack/react-table";
-import { formatCurrency } from "../../../api/poe-ninja";
 
 type SessionData = {
   id: string;
@@ -18,6 +19,7 @@ type SessionData = {
   endedAt: string | null;
   totalCount: number;
   cards: Record<string, { count: number; processedIds: string[] }>;
+  priceSnapshot?: SessionPriceSnapshot;
 };
 
 type CardEntry = {
@@ -39,21 +41,16 @@ const SessionDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [priceSource, setPriceSource] = useState<PriceSource>("exchange");
 
-  // Fetch price data
+  // Only fetch live data when there's no snapshot (fallback)
+  const shouldFetchLive = !session?.priceSnapshot;
   const exchangeData = usePoeNinjaExchangePrices(
     session?.league || "Keepers",
-    priceSource === "exchange",
+    shouldFetchLive && priceSource === "exchange",
   );
   const stashData = usePoeNinjaStashPrices(
     session?.league || "Keepers",
-    priceSource === "stash",
+    shouldFetchLive && priceSource === "stash",
   );
-
-  const {
-    chaosToDivineRatio,
-    cardPrices,
-    isLoading: pricesLoading,
-  } = priceSource === "exchange" ? exchangeData : stashData;
 
   useEffect(() => {
     loadSession();
@@ -68,6 +65,43 @@ const SessionDetailPage = () => {
     setSession(sessionData);
     setLoading(false);
   };
+
+  // Determine which price data to use
+  const getPriceData = () => {
+    // Use snapshot data if available
+    if (session?.priceSnapshot) {
+      const snapshotData =
+        priceSource === "stash"
+          ? session.priceSnapshot.stash
+          : session.priceSnapshot.exchange;
+
+      return {
+        chaosToDivineRatio: snapshotData.chaosToDivineRatio,
+        cardPrices: snapshotData.cardPrices,
+        isLoading: false,
+        source: priceSource,
+        isSnapshot: true,
+      };
+    }
+
+    // Fall back to live pricing if no snapshot
+    const liveData = priceSource === "stash" ? stashData : exchangeData;
+    return {
+      chaosToDivineRatio: liveData.chaosToDivineRatio,
+      cardPrices: liveData.cardPrices,
+      isLoading: liveData.isLoading,
+      source: priceSource,
+      isSnapshot: false,
+    };
+  };
+
+  const {
+    chaosToDivineRatio,
+    cardPrices,
+    isLoading: pricesLoading,
+    source,
+    isSnapshot,
+  } = getPriceData();
 
   const calculateDuration = () => {
     if (!session) return "—";
@@ -239,6 +273,49 @@ const SessionDetailPage = () => {
           </Flex>
         </Flex>
 
+        {/* Pricing Source Info */}
+        {isSnapshot ? (
+          <div className="alert alert-success">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              className="stroke-current shrink-0 w-6 h-6"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <span>
+              Using {source} pricing snapshot from session start (
+              {new Date(session!.priceSnapshot!.timestamp).toLocaleString()}) •
+              Divine = {chaosToDivineRatio.toFixed(2)}c
+            </span>
+          </div>
+        ) : (
+          <div className="alert alert-warning">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              className="stroke-current shrink-0 w-6 h-6"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+            <span>
+              No pricing snapshot available. Using live {source} pricing.
+            </span>
+          </div>
+        )}
+
         {/* Stats Summary */}
         <div className="flex w-full shadow rounded-box overflow-hidden">
           <div className="stat flex-1 basis-1/4">
@@ -269,7 +346,7 @@ const SessionDetailPage = () => {
 
           <div className="stat flex-1 basis-1/4 bg-gradient-to-tl from-primary/10 to-secondary/10 relative">
             <div className="absolute right-1 bottom-1">
-              {priceSource === "exchange" ? (
+              {source === "exchange" ? (
                 <GiCardExchange size={50} opacity={0.1} />
               ) : (
                 <GiLockedChest size={50} opacity={0.1} />

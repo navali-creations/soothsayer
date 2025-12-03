@@ -12,6 +12,26 @@ export interface DetailedCardEntry {
   processedIds: string[];
 }
 
+// Price snapshot for a specific card
+export interface CardPriceSnapshot {
+  chaosValue: number;
+  divineValue: number;
+  stackSize?: number;
+}
+
+// Session price snapshot (captured at session start)
+export interface SessionPriceSnapshot {
+  timestamp: string;
+  exchange: {
+    chaosToDivineRatio: number;
+    cardPrices: Record<string, CardPriceSnapshot>;
+  };
+  stash: {
+    chaosToDivineRatio: number;
+    cardPrices: Record<string, CardPriceSnapshot>;
+  };
+}
+
 // Simple divination card stats (no processedIds)
 export interface SimpleDivinationCardStats {
   totalCount: number;
@@ -27,6 +47,8 @@ export interface DetailedDivinationCardStats {
   endedAt?: string | null;
   league?: string;
   lastUpdated?: string;
+  // Price snapshot captured at session start
+  priceSnapshot?: SessionPriceSnapshot;
 }
 
 // Global stats across all games

@@ -1,13 +1,14 @@
-import Store from "electron-store";
-import { BrowserWindow, ipcMain } from "electron";
-import type {
-  GameType,
-  DetailedDivinationCardStats,
-  DetailedCardEntry,
-} from "../../types/data-stores";
-import { DataStoreEngine } from "./DataStoreEngine";
 import fs from "node:fs";
 import path from "node:path";
+import { BrowserWindow, ipcMain } from "electron";
+import Store from "electron-store";
+import type {
+  DetailedCardEntry,
+  DetailedDivinationCardStats,
+  GameType,
+  SessionPriceSnapshot,
+} from "../../types/data-stores";
+import { DataStoreEngine, PoeNinjaEngine } from ".";
 
 // Store for tracking last processed IDs globally (prevents replay on new session)
 interface ProcessedIdsTracker {
@@ -38,6 +39,7 @@ class SessionEngine {
     null;
 
   private dataStore: DataStoreEngine;
+  private poeNinjaEngine: PoeNinjaEngine;
 
   static getInstance() {
     if (!SessionEngine._instance) {
@@ -49,6 +51,7 @@ class SessionEngine {
 
   constructor() {
     this.dataStore = DataStoreEngine.getInstance();
+    this.poeNinjaEngine = PoeNinjaEngine.getInstance();
 
     // Initialize global processed IDs stores (keeps last ~1000 IDs to prevent replays)
     this.poe1GlobalProcessedIdsStore = new Store<ProcessedIdsTracker>({
@@ -112,12 +115,12 @@ class SessionEngine {
    * Setup IPC handlers for session control from renderer
    */
   private setupHandlers() {
-    // Start session
+    // Start session (now async)
     ipcMain.handle(
       "session:start",
-      (_event, game: GameType, league: string) => {
+      async (_event, game: GameType, league: string) => {
         try {
-          this.startSession(game, league);
+          await this.startSession(game, league);
           this.emitSessionStateChange(game);
           return { success: true };
         } catch (error) {
@@ -171,7 +174,7 @@ class SessionEngine {
   /**
    * Start a new session for a game
    */
-  public startSession(game: GameType, league: string): void {
+  public async startSession(game: GameType, league: string): Promise<void> {
     const activeSession =
       game === "poe1" ? this.poe1ActiveSession : this.poe2ActiveSession;
 
@@ -180,6 +183,22 @@ class SessionEngine {
     }
 
     const startedAt = new Date().toISOString();
+
+    // Fetch price snapshot for this league
+    let priceSnapshot: SessionPriceSnapshot | undefined;
+    try {
+      console.log(`Fetching price snapshot for ${game} league: ${league}...`);
+      priceSnapshot = await this.poeNinjaEngine.getPriceSnapshot(league);
+      console.log(
+        `Price snapshot captured: Exchange (${Object.keys(priceSnapshot.exchange.cardPrices).length} cards, Divine = ${priceSnapshot.exchange.chaosToDivineRatio.toFixed(2)}c), ` +
+          `Stash (${Object.keys(priceSnapshot.stash.cardPrices).length} cards, Divine = ${priceSnapshot.stash.chaosToDivineRatio.toFixed(2)}c)`,
+      );
+    } catch (error) {
+      console.error("Failed to fetch price snapshot:", error);
+
+      // Continue without price snapshot - session can still work
+      priceSnapshot = undefined;
+    }
 
     // Create current session store
     const sessionStore = new Store<DetailedDivinationCardStats>({
@@ -190,6 +209,7 @@ class SessionEngine {
         startedAt,
         endedAt: null,
         league,
+        priceSnapshot,
       },
     });
 
@@ -200,6 +220,7 @@ class SessionEngine {
     sessionStore.set("startedAt", startedAt);
     sessionStore.set("endedAt", null);
     sessionStore.set("league", league);
+    sessionStore.set("priceSnapshot", priceSnapshot);
 
     if (game === "poe1") {
       this.poe1CurrentSessionStore = sessionStore;

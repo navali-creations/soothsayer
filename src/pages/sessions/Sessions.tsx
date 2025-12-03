@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FiClock, FiFilter } from "react-icons/fi";
-import { GiCardExchange } from "react-icons/gi";
+import { GiCardExchange, GiLockedChest } from "react-icons/gi";
+import type { SessionPriceSnapshot } from "../../../types/data-stores";
 import { formatCurrency } from "../../api/poe-ninja";
-import { usePoeNinjaExchangePrices } from "../../hooks";
 import { Link } from "../../components";
 
 type SessionData = {
@@ -13,17 +13,13 @@ type SessionData = {
   endedAt: string | null;
   totalCount: number;
   cards: Record<string, { count: number; processedIds: string[] }>;
+  priceSnapshot?: SessionPriceSnapshot;
 };
 
 const SessionsPage = () => {
   const [sessions, setSessions] = useState<SessionData[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedLeague, setSelectedLeague] = useState<string>("all");
-
-  const { chaosToDivineRatio, cardPrices } = usePoeNinjaExchangePrices(
-    "Keepers",
-    true,
-  );
 
   useEffect(() => {
     loadSessions();
@@ -71,14 +67,30 @@ const SessionsPage = () => {
     return `${minutes}m`;
   };
 
-  const calculateTotalValue = (cards: Record<string, { count: number }>) => {
-    let total = 0;
-    for (const [name, entry] of Object.entries(cards)) {
-      const price = cardPrices[name];
-      const chaosValue = price?.chaosValue || 0;
-      total += chaosValue * entry.count;
+  const calculateTotalValues = (
+    cards: Record<string, { count: number }>,
+    priceSnapshot?: SessionPriceSnapshot,
+  ) => {
+    // If no price snapshot, return null to indicate N/A
+    if (!priceSnapshot) {
+      return { exchange: null, stash: null };
     }
-    return total;
+
+    let exchangeTotal = 0;
+    let stashTotal = 0;
+
+    for (const [name, entry] of Object.entries(cards)) {
+      const exchangePrice = priceSnapshot.exchange.cardPrices[name];
+      const stashPrice = priceSnapshot.stash.cardPrices[name];
+
+      exchangeTotal += (exchangePrice?.chaosValue || 0) * entry.count;
+      stashTotal += (stashPrice?.chaosValue || 0) * entry.count;
+    }
+
+    return {
+      exchange: exchangeTotal,
+      stash: stashTotal,
+    };
   };
 
   const formatSessionDate = (dateString: string) => {
@@ -149,77 +161,109 @@ const SessionsPage = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredSessions.map((session) => (
-              <Link
-                key={session.id}
-                to="/sessions/$sessionId"
-                params={{ sessionId: session.id }}
-                className="card bg-base-100 shadow-xl hover:shadow-2xl transition-all cursor-pointer border-2 border-transparent hover:border-primary no-underline"
-              >
-                <div className="card-body">
-                  {/* Header */}
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h2 className="card-title text-lg">
-                        {formatSessionDate(session.startedAt)}
-                        {session.isActive && (
-                          <div className="badge badge-success badge-sm">
-                            Active
-                          </div>
-                        )}
-                      </h2>
-                      <p className="text-xs text-base-content/60">
-                        {formatSessionTime(session.startedAt)}
-                      </p>
-                    </div>
-                    <GiCardExchange
-                      size={32}
-                      className="text-base-content/20"
-                    />
-                  </div>
+            {filteredSessions.map((session) => {
+              const totalValues = calculateTotalValues(
+                session.cards,
+                session.priceSnapshot,
+              );
 
-                  {/* Stats */}
-                  <div className="space-y-2 mt-4">
-                    {/* League Badge */}
-                    <div className="flex items-center gap-2">
-                      <div className="badge badge-outline badge-primary">
-                        {session.league}
+              return (
+                <Link
+                  key={session.id}
+                  to="/sessions/$sessionId"
+                  params={{ sessionId: session.id }}
+                  className="card bg-base-100 shadow-xl hover:shadow-2xl transition-all cursor-pointer border-2 border-transparent hover:border-primary no-underline"
+                >
+                  <div className="card-body">
+                    {/* Header */}
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h2 className="card-title text-lg">
+                          {formatSessionDate(session.startedAt)}
+                          {session.isActive && (
+                            <div className="badge badge-success badge-sm">
+                              Active
+                            </div>
+                          )}
+                        </h2>
+                        <p className="text-xs text-base-content/60">
+                          {formatSessionTime(session.startedAt)}
+                        </p>
+                      </div>
+                      <GiCardExchange
+                        size={32}
+                        className="text-base-content/20"
+                      />
+                    </div>
+
+                    {/* Stats */}
+                    <div className="space-y-2 mt-4">
+                      {/* League Badge */}
+                      <div className="flex items-center gap-2">
+                        <div className="badge badge-outline badge-primary">
+                          {session.league}
+                        </div>
+                      </div>
+
+                      {/* Duration */}
+                      <div className="flex items-center gap-2 text-sm">
+                        <FiClock className="text-base-content/50" />
+                        <span className="text-base-content/70">Duration:</span>
+                        <span className="font-semibold tabular-nums">
+                          {calculateDuration(
+                            session.startedAt,
+                            session.endedAt,
+                          )}
+                        </span>
+                      </div>
+
+                      {/* Decks Opened */}
+                      <div className="flex items-center gap-2 text-sm">
+                        <GiCardExchange className="text-base-content/50" />
+                        <span className="text-base-content/70">Decks:</span>
+                        <span className="font-semibold tabular-nums">
+                          {session.totalCount}
+                        </span>
+                      </div>
+
+                      {/* Total Value - Exchange */}
+                      <div className="flex items-center gap-2 text-sm">
+                        <GiCardExchange className="text-base-content/50" />
+                        <span className="text-base-content/70">Exchange:</span>
+                        {totalValues.exchange === null ||
+                        !session.priceSnapshot ? (
+                          <span className="text-base-content/50">N/A</span>
+                        ) : (
+                          <span className="font-semibold tabular-nums text-success">
+                            {formatCurrency(
+                              totalValues.exchange,
+                              session.priceSnapshot.exchange.chaosToDivineRatio,
+                            )}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Total Value - Stash */}
+                      <div className="flex items-center gap-2 text-sm">
+                        <GiLockedChest className="text-base-content/50" />
+                        <span className="text-base-content/70">Stash:</span>
+                        {totalValues.stash === null ||
+                        !session.priceSnapshot ? (
+                          <span className="text-base-content/50">N/A</span>
+                        ) : (
+                          <span className="font-semibold tabular-nums text-success">
+                            {formatCurrency(
+                              totalValues.stash,
+                              session.priceSnapshot.stash.chaosToDivineRatio,
+                            )}
+                          </span>
+                        )}
                       </div>
                     </div>
-
-                    {/* Duration */}
-                    <div className="flex items-center gap-2 text-sm">
-                      <FiClock className="text-base-content/50" />
-                      <span className="text-base-content/70">Duration:</span>
-                      <span className="font-semibold tabular-nums">
-                        {calculateDuration(session.startedAt, session.endedAt)}
-                      </span>
-                    </div>
-
-                    {/* Decks Opened */}
-                    <div className="flex items-center gap-2 text-sm">
-                      <GiCardExchange className="text-base-content/50" />
-                      <span className="text-base-content/70">Decks:</span>
-                      <span className="font-semibold tabular-nums">
-                        {session.totalCount}
-                      </span>
-                    </div>
-
-                    {/* Total Value */}
-                    <div className="flex items-center gap-2 text-sm">
-                      <GiCardExchange className="text-base-content/50" />
-                      <span className="text-base-content/70">Value:</span>
-                      <span className="font-semibold tabular-nums text-success">
-                        {formatCurrency(
-                          calculateTotalValue(session.cards),
-                          chaosToDivineRatio,
-                        )}
-                      </span>
-                    </div>
                   </div>
-                </div>
-              </Link>
-            ))}
+                </Link>
+              );
+            })}
           </div>
         )}
       </div>
