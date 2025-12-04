@@ -17,6 +17,7 @@ export interface CardPriceSnapshot {
   chaosValue: number;
   divineValue: number;
   stackSize?: number;
+  hidePrice?: boolean; // Flag to exclude this price from calculations due to anomalies
 }
 
 // Session price snapshot (captured at session start)

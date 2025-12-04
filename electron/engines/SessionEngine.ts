@@ -169,6 +169,36 @@ class SessionEngine {
         return this.getSessionById(game, sessionId);
       },
     );
+
+    // Update card price visibility
+    ipcMain.handle(
+      "session:update-card-price-visibility",
+      (
+        _event,
+        game: GameType,
+        sessionId: string,
+        priceSource: "exchange" | "stash",
+        cardName: string,
+        hidePrice: boolean,
+      ) => {
+        try {
+          const result = this.updateCardPriceVisibility(
+            game,
+            sessionId,
+            priceSource,
+            cardName,
+            hidePrice,
+          );
+          if (result && sessionId === "current") {
+            this.emitSessionStateChange(game);
+          }
+          return { success: result };
+        } catch (error) {
+          console.error("Error updating card price visibility:", error);
+          return { success: false, error: (error as Error).message };
+        }
+      },
+    );
   }
 
   /**
@@ -270,7 +300,18 @@ class SessionEngine {
     const sessionData = sessionStore.store;
     archivedSession.store = { ...sessionData, endedAt };
 
-    // Clear current session
+    // Delete the current session file (using the path property)
+    try {
+      const sessionPath = sessionStore.path;
+      if (fs.existsSync(sessionPath)) {
+        fs.unlinkSync(sessionPath);
+        console.log(`Deleted current session file: ${sessionPath}`);
+      }
+    } catch (error) {
+      console.error(`Failed to delete current session file:`, error);
+    }
+
+    // Clear current session in memory
     if (game === "poe1") {
       this.poe1CurrentSessionStore = null;
       this.poe1ActiveSession = null;
@@ -526,6 +567,69 @@ class SessionEngine {
     } catch (error) {
       console.error("Error loading session:", error);
       return null;
+    }
+  }
+
+  /**
+   * Update hidePrice flag for a card in a session's price snapshot
+   */
+  public updateCardPriceVisibility(
+    game: GameType,
+    sessionId: string,
+    priceSource: "exchange" | "stash",
+    cardName: string,
+    hidePrice: boolean,
+  ): boolean {
+    try {
+      let sessionStore: Store<DetailedDivinationCardStats>;
+
+      if (sessionId === "current") {
+        const currentStore =
+          game === "poe1"
+            ? this.poe1CurrentSessionStore
+            : this.poe2CurrentSessionStore;
+
+        if (!currentStore) {
+          throw new Error(`No active session for ${game}`);
+        }
+        sessionStore = currentStore;
+      } else {
+        sessionStore = new Store<DetailedDivinationCardStats>({
+          name: `${game}-session-data/${sessionId}`,
+        });
+      }
+
+      const stats = sessionStore.store;
+      if (!stats.priceSnapshot) {
+        throw new Error("Session has no price snapshot");
+      }
+
+      const source = stats.priceSnapshot[priceSource];
+      if (!source.cardPrices[cardName]) {
+        throw new Error(`Card ${cardName} not found in ${priceSource} prices`);
+      }
+
+      // Update the hidePrice flag
+      const updatedPrices = { ...source.cardPrices };
+      updatedPrices[cardName] = {
+        ...updatedPrices[cardName],
+        hidePrice,
+      };
+
+      // Update the store
+      sessionStore.set(
+        `priceSnapshot.${priceSource}.cardPrices`,
+        updatedPrices,
+      );
+
+      console.log(
+        `Updated hidePrice for ${cardName} in ${game} session ${sessionId} (${priceSource}): ${hidePrice}`,
+      );
+
+      return true;
+    } catch (error) {
+      console.error("Error updating card price visibility:", error);
+      return false;
     }
   }
 }

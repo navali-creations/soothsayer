@@ -1,7 +1,7 @@
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useEffect, useState } from "react";
-import { FiArrowLeft } from "react-icons/fi";
+import { FiArrowLeft, FiEye, FiEyeOff } from "react-icons/fi";
 import { GiCardExchange, GiLockedChest } from "react-icons/gi";
 import type { SessionPriceSnapshot } from "../../../../types/data-stores";
 import { formatCurrency } from "../../../api/poe-ninja";
@@ -28,6 +28,7 @@ type CardEntry = {
   ratio: number;
   chaosValue: number;
   totalValue: number;
+  hidePrice?: boolean;
 };
 
 const columnHelper = createColumnHelper<CardEntry>();
@@ -64,6 +65,29 @@ const SessionDetailPage = () => {
     );
     setSession(sessionData);
     setLoading(false);
+  };
+
+  // Toggle card price visibility
+  const toggleCardPriceVisibility = async (
+    cardName: string,
+    currentHideState: boolean,
+  ) => {
+    if (!session?.priceSnapshot) {
+      return; // Only allow toggling when using snapshot
+    }
+
+    const result = await window.electron?.session?.updateCardPriceVisibility(
+      "poe1",
+      sessionId,
+      priceSource,
+      cardName,
+      !currentHideState,
+    );
+
+    if (result?.success) {
+      // Reload session to get updated data
+      await loadSession();
+    }
   };
 
   // Determine which price data to use
@@ -125,6 +149,7 @@ const SessionDetailPage = () => {
           const price = cardPrices[name];
           const chaosValue = price?.chaosValue || 0;
           const totalValue = chaosValue * entry.count;
+          const hidePrice = price?.hidePrice || false;
 
           return {
             name,
@@ -132,6 +157,7 @@ const SessionDetailPage = () => {
             ratio: (entry.count / session.totalCount) * 100,
             chaosValue,
             totalValue,
+            hidePrice,
           };
         })
         .sort((a, b) => b.count - a.count)
@@ -142,16 +168,79 @@ const SessionDetailPage = () => {
       ? cardData.reduce((max, card) => (card.count > max.count ? card : max))
       : null;
 
-  const totalProfit = cardData.reduce((sum, card) => sum + card.totalValue, 0);
+  // Calculate total profit excluding hidden prices
+  const totalProfit = cardData.reduce((sum, card) => {
+    if (card.hidePrice) return sum;
+    return sum + card.totalValue;
+  }, 0);
 
   const columns = [
+    // Visibility toggle column
+    columnHelper.display({
+      id: "visibility",
+      header: () => (
+        <div
+          className="tooltip tooltip-right"
+          data-tip="Toggle price visibility (affects totals)"
+        >
+          <FiEye className="opacity-50" />
+        </div>
+      ),
+      cell: (info) => {
+        const row = info.row.original;
+        const isHidden = row.hidePrice || false;
+        const canToggle = isSnapshot;
+
+        return (
+          <button
+            className={`btn btn-ghost btn-xs ${!canToggle ? "btn-disabled opacity-30" : ""}`}
+            onClick={() => toggleCardPriceVisibility(row.name, isHidden)}
+            disabled={!canToggle}
+            title={
+              canToggle
+                ? isHidden
+                  ? "Click to include in totals"
+                  : "Click to exclude from totals"
+                : "Only available when using price snapshot"
+            }
+          >
+            {isHidden ? (
+              <FiEyeOff className="text-error" />
+            ) : (
+              <FiEye className="text-success" />
+            )}
+          </button>
+        );
+      },
+    }),
     columnHelper.accessor("name", {
       header: () => <div className="border-b-transparent">Card Name</div>,
-      cell: (info) => <span className="font-semibold">{info.getValue()}</span>,
+      cell: (info) => {
+        const row = info.row.original;
+        const isHidden = row.hidePrice || false;
+        return (
+          <span
+            className={`font-semibold ${isHidden ? "opacity-40 line-through" : ""}`}
+          >
+            {info.getValue()}
+            {isHidden && (
+              <span className="badge badge-error badge-xs ml-2">Hidden</span>
+            )}
+          </span>
+        );
+      },
     }),
     columnHelper.accessor("count", {
       header: () => <div className="border-b border-b-transparent">Count</div>,
-      cell: (info) => <div className="badge badge-soft">{info.getValue()}</div>,
+      cell: (info) => {
+        const row = info.row.original;
+        const isHidden = row.hidePrice || false;
+        return (
+          <div className={`badge badge-soft ${isHidden ? "opacity-40" : ""}`}>
+            {info.getValue()}
+          </div>
+        );
+      },
     }),
     columnHelper.accessor("ratio", {
       header: () => (
@@ -164,20 +253,34 @@ const SessionDetailPage = () => {
           </Flex>
         </div>
       ),
-      cell: (info) => (
-        <div className="badge badge-soft">{info.getValue().toFixed(2)}%</div>
-      ),
+      cell: (info) => {
+        const row = info.row.original;
+        const isHidden = row.hidePrice || false;
+        return (
+          <div className={`badge badge-soft ${isHidden ? "opacity-40" : ""}`}>
+            {info.getValue().toFixed(2)}%
+          </div>
+        );
+      },
     }),
     columnHelper.accessor("chaosValue", {
       header: () => (
         <div className="border-b border-b-transparent">Value (Each)</div>
       ),
       cell: (info) => {
+        const row = info.row.original;
+        const isHidden = row.hidePrice || false;
         const value = info.getValue();
         if (value === 0)
-          return <span className="text-base-content/50">N/A</span>;
+          return (
+            <span
+              className={`text-base-content/50 ${isHidden ? "opacity-40" : ""}`}
+            >
+              N/A
+            </span>
+          );
         return (
-          <div className="badge badge-soft">
+          <div className={`badge badge-soft ${isHidden ? "opacity-40" : ""}`}>
             {formatCurrency(value, chaosToDivineRatio)}
           </div>
         );
@@ -186,11 +289,21 @@ const SessionDetailPage = () => {
     columnHelper.accessor("totalValue", {
       header: () => <div className="border-b-transparent">Total Value</div>,
       cell: (info) => {
+        const row = info.row.original;
+        const isHidden = row.hidePrice || false;
         const value = info.getValue();
         if (value === 0)
-          return <span className="text-base-content/50">N/A</span>;
+          return (
+            <span
+              className={`text-base-content/50 ${isHidden ? "opacity-40" : ""}`}
+            >
+              N/A
+            </span>
+          );
         return (
-          <div className="badge badge-soft badge-success">
+          <div
+            className={`badge badge-soft badge-success ${isHidden ? "opacity-40" : ""}`}
+          >
             {formatCurrency(value, chaosToDivineRatio)}
           </div>
         );
@@ -292,7 +405,8 @@ const SessionDetailPage = () => {
             <span>
               Using {source} pricing snapshot from session start (
               {new Date(session!.priceSnapshot!.timestamp).toLocaleString()}) •
-              Divine = {chaosToDivineRatio.toFixed(2)}c
+              Divine = {chaosToDivineRatio.toFixed(2)}c • Toggle eye icon to
+              hide anomalous prices
             </span>
           </div>
         ) : (

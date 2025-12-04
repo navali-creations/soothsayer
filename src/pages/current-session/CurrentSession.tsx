@@ -4,6 +4,8 @@ import {
   FiCalendar,
   FiClock,
   FiDownload,
+  FiEye,
+  FiEyeOff,
   FiPlay,
   FiSquare,
 } from "react-icons/fi";
@@ -23,6 +25,7 @@ type CardEntry = {
   ratio: number;
   chaosValue: number;
   totalValue: number;
+  hidePrice?: boolean;
 };
 
 const columnHelper = createColumnHelper<CardEntry>();
@@ -31,7 +34,7 @@ type PriceSource = "exchange" | "stash";
 
 const CurrentSessionPage = () => {
   const session = useSession({ game: "poe1" });
-  const { stats, loading } = useDivinationCards();
+  const { stats, loading, reload } = useDivinationCards(); // Add 'reload' here
   const [selectedLeague, setSelectedLeague] = useState("Keepers");
   const [priceSource, setPriceSource] = useState<PriceSource>("exchange");
 
@@ -96,6 +99,9 @@ const CurrentSessionPage = () => {
 
     if (!result.success) {
       alert(`Failed to stop session: ${result.error}`);
+    } else {
+      // Clear the table by reloading stats (will return empty when session is inactive)
+      await reload();
     }
   };
 
@@ -114,6 +120,30 @@ const CurrentSessionPage = () => {
     }
   };
 
+  const handleTogglePriceVisibility = async (
+    cardName: string,
+    currentHidePrice: boolean,
+  ) => {
+    try {
+      const result = await window.electron.session.updateCardPriceVisibility(
+        "poe1",
+        "current",
+        priceSource,
+        cardName,
+        !currentHidePrice,
+      );
+
+      if (result.success) {
+        // Immediately reload stats to reflect the change
+        await reload();
+      } else {
+        alert(`Failed to update price visibility: ${result.error}`);
+      }
+    } catch (error) {
+      console.error("Error toggling price visibility:", error);
+      alert("Failed to update price visibility. Please try again.");
+    }
+  };
   // Calculate session duration
   const getSessionDuration = () => {
     if (!session.sessionInfo) return "—";
@@ -137,6 +167,7 @@ const CurrentSessionPage = () => {
         .map(([name, entry]) => {
           const price = cardPrices[name];
           const chaosValue = price?.chaosValue || 0;
+          const hidePrice = price?.hidePrice || false;
           const totalValue = chaosValue * entry.count;
 
           return {
@@ -145,6 +176,7 @@ const CurrentSessionPage = () => {
             ratio: (entry.count / stats.totalCount) * 100,
             chaosValue,
             totalValue,
+            hidePrice,
           };
         })
         .sort((a, b) => b.count - a.count)
@@ -155,12 +187,61 @@ const CurrentSessionPage = () => {
       ? cardData.reduce((max, card) => (card.count > max.count ? card : max))
       : null;
 
-  const totalProfit = cardData.reduce((sum, card) => sum + card.totalValue, 0);
+  // Calculate total profit excluding hidden prices
+  const totalProfit = cardData.reduce(
+    (sum, card) => (card.hidePrice ? sum : sum + card.totalValue),
+    0,
+  );
 
   const columns = [
+    columnHelper.accessor("hidePrice", {
+      header: () => (
+        <div
+          className="tooltip tooltip-right"
+          data-tip="Hide anomalous prices from total calculations"
+        >
+          <Flex className="gap-1 items-center border-b border-dotted">
+            <FiEye size={14} /> <sup>?</sup>
+          </Flex>
+        </div>
+      ),
+      cell: (info) => {
+        const hidePrice = info.getValue() || false;
+        const cardName = info.row.original.name;
+
+        return (
+          <div className="flex justify-center">
+            <input
+              type="checkbox"
+              className="checkbox checkbox-sm"
+              checked={!hidePrice}
+              onChange={() => handleTogglePriceVisibility(cardName, hidePrice)}
+              disabled={!isSnapshot}
+              title={
+                !isSnapshot
+                  ? "Price visibility can only be changed when using snapshot prices"
+                  : hidePrice
+                    ? "Price hidden from calculations"
+                    : "Price included in calculations"
+              }
+            />
+          </div>
+        );
+      },
+      size: 50,
+    }),
     columnHelper.accessor("name", {
       header: () => <div className="border-b-transparent">Card Name</div>,
-      cell: (info) => <span className="font-semibold">{info.getValue()}</span>,
+      cell: (info) => {
+        const hidePrice = info.row.original.hidePrice;
+        return (
+          <span
+            className={`font-semibold ${hidePrice ? "opacity-50 line-through" : ""}`}
+          >
+            {info.getValue()}
+          </span>
+        );
+      },
     }),
     columnHelper.accessor("count", {
       header: () => <div className="border-b border-b-transparent">Count</div>,
@@ -187,10 +268,11 @@ const CurrentSessionPage = () => {
       ),
       cell: (info) => {
         const value = info.getValue();
+        const hidePrice = info.row.original.hidePrice;
         if (value === 0)
           return <span className="text-base-content/50">N/A</span>;
         return (
-          <div className="badge badge-soft">
+          <div className={`badge badge-soft ${hidePrice ? "opacity-50" : ""}`}>
             {formatCurrency(value, chaosToDivineRatio)}
           </div>
         );
@@ -200,11 +282,15 @@ const CurrentSessionPage = () => {
       header: () => <div className="border-b-transparent">Total Value</div>,
       cell: (info) => {
         const value = info.getValue();
+        const hidePrice = info.row.original.hidePrice;
         if (value === 0)
           return <span className="text-base-content/50">N/A</span>;
         return (
-          <div className="badge badge-soft badge-success">
+          <div
+            className={`badge badge-soft ${hidePrice ? "badge-warning opacity-50" : "badge-success"}`}
+          >
             {formatCurrency(value, chaosToDivineRatio)}
+            {hidePrice && " (hidden)"}
           </div>
         );
       },
@@ -339,7 +425,8 @@ const CurrentSessionPage = () => {
             <span>
               Using {source} pricing snapshot from session start (
               {new Date(stats!.priceSnapshot!.timestamp).toLocaleString()}) •
-              Divine = {chaosToDivineRatio.toFixed(2)}c
+              Divine = {chaosToDivineRatio.toFixed(2)}c • Use checkboxes to hide
+              anomalous prices
             </span>
           </div>
         ) : (

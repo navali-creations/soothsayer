@@ -83,8 +83,15 @@ const SessionsPage = () => {
       const exchangePrice = priceSnapshot.exchange.cardPrices[name];
       const stashPrice = priceSnapshot.stash.cardPrices[name];
 
-      exchangeTotal += (exchangePrice?.chaosValue || 0) * entry.count;
-      stashTotal += (stashPrice?.chaosValue || 0) * entry.count;
+      // Skip hidden prices for exchange
+      if (!exchangePrice?.hidePrice) {
+        exchangeTotal += (exchangePrice?.chaosValue || 0) * entry.count;
+      }
+
+      // Skip hidden prices for stash
+      if (!stashPrice?.hidePrice) {
+        stashTotal += (stashPrice?.chaosValue || 0) * entry.count;
+      }
     }
 
     return {

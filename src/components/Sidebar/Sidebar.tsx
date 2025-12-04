@@ -1,25 +1,44 @@
+import { useEffect, useMemo, useState } from "react";
 import { FiActivity, FiBarChart2, FiSettings } from "react-icons/fi";
 import { GiCardExchange } from "react-icons/gi";
-import { Link, Flex } from "..";
+import pkgJson from "../../../package.json" with { type: "json" };
+import { formatCurrency } from "../../api/poe-ninja";
 import {
-  useSession,
   useDivinationCards,
   usePoeNinjaExchangePrices,
+  useSession,
 } from "../../hooks";
-import { formatCurrency } from "../../api/poe-ninja";
-import { useMemo, useEffect, useState } from "react";
-import pkgJson from "../../../package.json" with { type: "json" };
+import { Flex, Link } from "..";
 
 const Sidebar = () => {
   const session = useSession({ game: "poe1" });
   const { stats } = useDivinationCards();
   const [time, setTime] = useState({ hours: 0, minutes: 0, seconds: 0 });
 
-  // Fetch exchange prices for the active session's league
-  const { chaosToDivineRatio, cardPrices } = usePoeNinjaExchangePrices(
+  // Fetch live exchange prices (fallback when no snapshot)
+  const shouldFetchLive = !stats?.priceSnapshot;
+  const liveExchangeData = usePoeNinjaExchangePrices(
     session.sessionInfo?.league || "Keepers",
-    session.isActive,
+    session.isActive && shouldFetchLive,
   );
+
+  // Determine which price data to use
+  const { chaosToDivineRatio, cardPrices } = useMemo(() => {
+    // Use snapshot data if available (includes hidePrice flags)
+    if (stats?.priceSnapshot) {
+      const snapshotData = stats.priceSnapshot.exchange;
+      return {
+        chaosToDivineRatio: snapshotData.chaosToDivineRatio,
+        cardPrices: snapshotData.cardPrices,
+      };
+    }
+
+    // Fall back to live pricing
+    return {
+      chaosToDivineRatio: liveExchangeData.chaosToDivineRatio,
+      cardPrices: liveExchangeData.cardPrices,
+    };
+  }, [stats?.priceSnapshot, liveExchangeData]);
 
   // Update time every second when session is active
   useEffect(() => {
@@ -49,13 +68,18 @@ const Sidebar = () => {
     return () => clearInterval(interval);
   }, [session.isActive, session.sessionInfo]);
 
-  // Calculate total profit
+  // Calculate total profit excluding hidden prices
   const totalProfit = useMemo(() => {
     if (!stats) return 0;
 
     return Object.entries(stats.cards).reduce((sum, [name, entry]) => {
       const price = cardPrices[name];
       const chaosValue = price?.chaosValue || 0;
+      const hidePrice = price?.hidePrice || false;
+
+      // Skip hidden prices
+      if (hidePrice) return sum;
+
       return sum + chaosValue * entry.count;
     }, 0);
   }, [stats, cardPrices]);

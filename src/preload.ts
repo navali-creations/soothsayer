@@ -91,6 +91,21 @@ contextBridge.exposeInMainWorld("electron", {
       ipcRenderer.invoke("session:get-all", game),
     getById: (game: "poe1" | "poe2", sessionId: string) =>
       ipcRenderer.invoke("session:get-by-id", game, sessionId),
+    updateCardPriceVisibility: (
+      game: "poe1" | "poe2",
+      sessionId: string,
+      priceSource: "exchange" | "stash",
+      cardName: string,
+      hidePrice: boolean,
+    ) =>
+      ipcRenderer.invoke(
+        "session:update-card-price-visibility",
+        game,
+        sessionId,
+        priceSource,
+        cardName,
+        hidePrice,
+      ),
     onStateChanged: (
       callback: (data: {
         game: string;
