@@ -1,23 +1,11 @@
 import { createColumnHelper } from "@tanstack/react-table";
-import { useState } from "react";
-import {
-  FiCalendar,
-  FiClock,
-  FiDownload,
-  FiEye,
-  FiEyeOff,
-  FiPlay,
-  FiSquare,
-} from "react-icons/fi";
+import { useMemo, useState } from "react";
+import { FiDownload, FiEye, FiPlay, FiSquare } from "react-icons/fi";
 import { GiCardExchange, GiLockedChest } from "react-icons/gi";
 import { formatCurrency } from "../../api/poe-ninja";
 import { Button, Flex, Table } from "../../components";
-import {
-  useDivinationCards,
-  usePoeNinjaExchangePrices,
-  usePoeNinjaStashPrices,
-  useSession,
-} from "../../hooks";
+import { usePoeNinjaExchangePrices, usePoeNinjaStashPrices } from "../../hooks";
+import { useBoundStore } from "../../store/store";
 
 type CardEntry = {
   name: string;
@@ -33,30 +21,40 @@ const columnHelper = createColumnHelper<CardEntry>();
 type PriceSource = "exchange" | "stash";
 
 const CurrentSessionPage = () => {
-  const session = useSession({ game: "poe1" });
-  const { stats, loading, reload } = useDivinationCards(); // Add 'reload' here
-  const [selectedLeague, setSelectedLeague] = useState("Keepers");
+  // Use Zustand for all session state
+  const isActive = useBoundStore((state) => state.isActive("poe1"));
+  const sessionInfo = useBoundStore((state) => state.getSessionInfo("poe1"));
+  const sessionData = useBoundStore((state) => state.getSession("poe1"));
+  const isLoading = useBoundStore((state) => state.isLoading);
+  const startSession = useBoundStore((state) => state.startSession);
+  const stopSession = useBoundStore((state) => state.stopSession);
+
+  // Local UI state
+  const [selectedLeague, setSelectedLeague] = useState(
+    sessionInfo?.league || "Keepers",
+  );
   const [priceSource, setPriceSource] = useState<PriceSource>("exchange");
+  const [error, setError] = useState<string | null>(null);
 
   // Only fetch live data when there's no snapshot (fallback)
-  const shouldFetchLive = !stats?.priceSnapshot;
+  const shouldFetchLive = !sessionData?.priceSnapshot;
   const exchangeData = usePoeNinjaExchangePrices(
-    selectedLeague,
+    sessionInfo?.league || selectedLeague,
     shouldFetchLive && priceSource === "exchange",
   );
   const stashData = usePoeNinjaStashPrices(
-    selectedLeague,
+    sessionInfo?.league || selectedLeague,
     shouldFetchLive && priceSource === "stash",
   );
 
   // Determine which price data to use
   const getPriceData = () => {
     // Use snapshot data if available
-    if (stats?.priceSnapshot) {
+    if (sessionData?.priceSnapshot) {
       const snapshotData =
         priceSource === "stash"
-          ? stats.priceSnapshot.stash
-          : stats.priceSnapshot.exchange;
+          ? sessionData.priceSnapshot.stash
+          : sessionData.priceSnapshot.exchange;
 
       return {
         chaosToDivineRatio: snapshotData.chaosToDivineRatio,
@@ -87,21 +85,20 @@ const CurrentSessionPage = () => {
   } = getPriceData();
 
   const handleStartSession = async () => {
-    const result = await session.start(selectedLeague);
-
-    if (!result.success) {
-      alert(`Failed to start session: ${result.error}`);
+    try {
+      setError(null);
+      await startSession("poe1", selectedLeague);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to start session");
     }
   };
 
   const handleStopSession = async () => {
-    const result = await session.stop();
-
-    if (!result.success) {
-      alert(`Failed to stop session: ${result.error}`);
-    } else {
-      // Clear the table by reloading stats (will return empty when session is inactive)
-      await reload();
+    try {
+      setError(null);
+      await stopSession("poe1");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to stop session");
     }
   };
 
@@ -133,10 +130,7 @@ const CurrentSessionPage = () => {
         !currentHidePrice,
       );
 
-      if (result.success) {
-        // Immediately reload stats to reflect the change
-        await reload();
-      } else {
+      if (!result.success) {
         alert(`Failed to update price visibility: ${result.error}`);
       }
     } catch (error) {
@@ -146,9 +140,9 @@ const CurrentSessionPage = () => {
   };
   // Calculate session duration
   const getSessionDuration = () => {
-    if (!session.sessionInfo) return "—";
+    if (!sessionInfo) return "—";
 
-    const start = new Date(session.sessionInfo.startedAt);
+    const start = new Date(sessionInfo.startedAt);
     const now = new Date();
     const diff = now.getTime() - start.getTime();
 
@@ -162,35 +156,44 @@ const CurrentSessionPage = () => {
   };
 
   // Prepare card data for table
-  const cardData: CardEntry[] = stats
-    ? Object.entries(stats.cards)
-        .map(([name, entry]) => {
-          const price = cardPrices[name];
-          const chaosValue = price?.chaosValue || 0;
-          const hidePrice = price?.hidePrice || false;
-          const totalValue = chaosValue * entry.count;
+  const cardData: CardEntry[] = useMemo(() => {
+    if (!sessionData?.cards) return [];
 
-          return {
-            name,
-            count: entry.count,
-            ratio: (entry.count / stats.totalCount) * 100,
-            chaosValue,
-            totalValue,
-            hidePrice,
-          };
-        })
-        .sort((a, b) => b.count - a.count)
-    : [];
+    return Object.entries(sessionData.cards)
+      .map(([name, entry]) => {
+        const price = cardPrices[name];
+        const chaosValue = price?.chaosValue || 0;
+        const hidePrice = price?.hidePrice || false;
+        const totalValue = chaosValue * entry.count;
 
-  const mostCommonCard =
-    cardData.length > 0
-      ? cardData.reduce((max, card) => (card.count > max.count ? card : max))
-      : null;
+        return {
+          name,
+          count: entry.count,
+          ratio: (entry.count / sessionData.totalCount) * 100,
+          chaosValue,
+          totalValue,
+          hidePrice,
+        };
+      })
+      .sort((a, b) => b.count - a.count);
+  }, [sessionData, cardPrices]);
+
+  const mostCommonCard = useMemo(
+    () =>
+      cardData.length > 0
+        ? cardData.reduce((max, card) => (card.count > max.count ? card : max))
+        : null,
+    [cardData],
+  );
 
   // Calculate total profit excluding hidden prices
-  const totalProfit = cardData.reduce(
-    (sum, card) => (card.hidePrice ? sum : sum + card.totalValue),
-    0,
+  const totalProfit = useMemo(
+    () =>
+      cardData.reduce(
+        (sum, card) => (card.hidePrice ? sum : sum + card.totalValue),
+        0,
+      ),
+    [cardData],
   );
 
   const columns = [
@@ -297,14 +300,6 @@ const CurrentSessionPage = () => {
     }),
   ];
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-base-200 flex items-center justify-center">
-        <span className="loading loading-spinner loading-lg"></span>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-base-200 p-6">
       <div className="mx-auto space-y-6">
@@ -318,9 +313,13 @@ const CurrentSessionPage = () => {
           </div>
           <Flex className="gap-2 items-center">
             {/* Session Controls */}
-            {session.isActive ? (
+            {isActive ? (
               <>
-                <Button variant="error" onClick={handleStopSession}>
+                <Button
+                  variant="error"
+                  onClick={handleStopSession}
+                  disabled={isLoading}
+                >
                   <FiSquare /> Stop Session
                 </Button>
               </>
@@ -330,11 +329,16 @@ const CurrentSessionPage = () => {
                   className="select select-bordered"
                   value={selectedLeague}
                   onChange={(e) => setSelectedLeague(e.target.value)}
+                  disabled={isLoading}
                 >
                   <option value="Keepers">Keepers</option>
                   <option value="Standard">Standard</option>
                 </select>
-                <Button variant="success" onClick={handleStartSession}>
+                <Button
+                  variant="success"
+                  onClick={handleStartSession}
+                  disabled={isLoading}
+                >
                   <FiPlay /> Start Session
                 </Button>
               </>
@@ -365,7 +369,7 @@ const CurrentSessionPage = () => {
         </Flex>
 
         {/* Session Status Alerts */}
-        {!session.isActive && (
+        {!isActive && (
           <div className="alert alert-info">
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -387,7 +391,7 @@ const CurrentSessionPage = () => {
           </div>
         )}
 
-        {session.error && (
+        {error && (
           <div className="alert alert-error">
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -402,7 +406,7 @@ const CurrentSessionPage = () => {
                 d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
               />
             </svg>
-            <span>{session.error}</span>
+            <span>{error}</span>
           </div>
         )}
 
@@ -424,9 +428,9 @@ const CurrentSessionPage = () => {
             </svg>
             <span>
               Using {source} pricing snapshot from session start (
-              {new Date(stats!.priceSnapshot!.timestamp).toLocaleString()}) •
-              Divine = {chaosToDivineRatio.toFixed(2)}c • Use checkboxes to hide
-              anomalous prices
+              {new Date(sessionData!.priceSnapshot!.timestamp).toLocaleString()}
+              ) • Divine = {chaosToDivineRatio.toFixed(2)}c • Use checkboxes to
+              hide anomalous prices
             </span>
           </div>
         ) : (
@@ -455,7 +459,7 @@ const CurrentSessionPage = () => {
           <div className="stat flex-1 basis-1/4">
             <div className="stat-title">Stacked Decks Opened</div>
             <div className="stat-value tabular-nums">
-              {stats?.totalCount || 0}
+              {sessionData?.totalCount || 0}
             </div>
             <div className="stat-desc">This session</div>
           </div>
@@ -463,7 +467,7 @@ const CurrentSessionPage = () => {
           <div className="stat flex-1 basis-1/4">
             <div className="stat-title">Unique Cards</div>
             <div className="stat-value tabular-nums">
-              {stats ? Object.keys(stats.cards).length : 0}
+              {sessionData ? Object.keys(sessionData.cards).length : 0}
             </div>
             <div className="stat-desc">Different cards found</div>
           </div>
@@ -517,11 +521,11 @@ const CurrentSessionPage = () => {
           <div className="card-body">
             <h2 className="card-title">Cards Opened</h2>
 
-            {!stats || cardData.length === 0 ? (
+            {!sessionData || cardData.length === 0 ? (
               <div className="text-center py-12 text-base-content/50">
                 <p className="text-lg">No cards in this session yet</p>
                 <p className="text-sm">
-                  {session.isActive
+                  {isActive
                     ? "Start opening stacked decks in Path of Exile!"
                     : "Start a session to begin tracking"}
                 </p>

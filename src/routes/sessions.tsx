@@ -1,9 +1,6 @@
-import { createFileRoute, Outlet } from "@tanstack/react-router";
-
-const SessionsLayout = () => {
-  return <Outlet />;
-};
+import { createFileRoute } from "@tanstack/react-router";
+import SessionsPage from "../pages/sessions/Sessions";
 
 export const Route = createFileRoute("/sessions")({
-  component: SessionsLayout,
+  component: SessionsPage,
 });

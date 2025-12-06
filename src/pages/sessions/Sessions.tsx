@@ -25,7 +25,7 @@ const SessionsPage = () => {
     loadSessions();
 
     // Listen for session state changes to reload
-    const cleanup = window.electron?.session?.onStateChanged(() => {
+    const cleanup = window.electron.session.onStateChanged(() => {
       loadSessions();
     });
 
@@ -34,7 +34,7 @@ const SessionsPage = () => {
 
   const loadSessions = async () => {
     setLoading(true);
-    const allSessions = await window.electron?.session?.getAll("poe1");
+    const allSessions = await window.electron.session.getAll("poe1");
     setSessions(allSessions || []);
     setLoading(false);
   };

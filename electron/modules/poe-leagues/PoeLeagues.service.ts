@@ -104,9 +104,9 @@ class PoeLeaguesService {
   }
 
   private getSelectedLeague(): string {
-    const selectedGame = this.settingsStore.get(SettingsKey.SelectedGame);
+    const activeGame = this.settingsStore.get(SettingsKey.ActiveGame);
 
-    if (selectedGame === "poe1") {
+    if (activeGame === "poe1") {
       return this.settingsStore.get(SettingsKey.SelectedPoe1League);
     } else {
       return this.settingsStore.get(SettingsKey.SelectedPoe2League);
@@ -117,15 +117,15 @@ class PoeLeaguesService {
     success: boolean;
     league: string;
   } {
-    const selectedGame = this.settingsStore.get(SettingsKey.SelectedGame);
+    const activeGame = this.settingsStore.get(SettingsKey.ActiveGame);
 
-    if (selectedGame === "poe1") {
+    if (activeGame === "poe1") {
       this.settingsStore.set(SettingsKey.SelectedPoe1League, leagueId);
     } else {
       this.settingsStore.set(SettingsKey.SelectedPoe2League, leagueId);
     }
 
-    console.log(`Selected league for ${selectedGame} changed to: ${leagueId}`);
+    console.log(`Selected league for ${activeGame} changed to: ${leagueId}`);
     return { success: true, league: leagueId };
   }
 

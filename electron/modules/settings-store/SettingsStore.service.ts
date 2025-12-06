@@ -126,13 +126,13 @@ class SettingsStoreService {
 
     // Selected game
     ipcMain.handle(SettingsStoreChannel.GetSelectedGame, () => {
-      return this.get(SettingsKey.SelectedGame);
+      return this.get(SettingsKey.InstalledGames);
     });
 
     ipcMain.handle(
       SettingsStoreChannel.SetSelectedGame,
       (_event, game: GameVersion) => {
-        this.set(SettingsKey.SelectedGame, game);
+        this.set(SettingsKey.InstalledGames, game);
       },
     );
 
@@ -193,13 +193,17 @@ class SettingsStoreService {
       [SettingsKey.Poe1ClientTxtPath]: this.get(SettingsKey.Poe1ClientTxtPath),
       [SettingsKey.Poe2ClientTxtPath]: this.get(SettingsKey.Poe2ClientTxtPath),
       [SettingsKey.CollectionPath]: this.get(SettingsKey.CollectionPath),
-      [SettingsKey.SelectedGame]: this.get(SettingsKey.SelectedGame),
+      [SettingsKey.InstalledGames]: this.get(SettingsKey.InstalledGames),
       [SettingsKey.SelectedPoe1League]: this.get(
         SettingsKey.SelectedPoe1League,
       ),
       [SettingsKey.SelectedPoe2League]: this.get(
         SettingsKey.SelectedPoe2League,
       ),
+      [SettingsKey.TourCompleted]: this.get(SettingsKey.TourCompleted),
+      [SettingsKey.SetupCompleted]: this.get(SettingsKey.SetupCompleted),
+      [SettingsKey.SetupStep]: this.get(SettingsKey.SetupStep),
+      [SettingsKey.SetupVersion]: this.get(SettingsKey.SetupVersion),
     };
   }
 }

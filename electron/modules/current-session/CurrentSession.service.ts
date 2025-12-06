@@ -9,7 +9,9 @@ import type {
   SessionPriceSnapshot,
 } from "../../../types/data-stores";
 import {
+  CurrentSessionChannel,
   DataStoreService,
+  type GameVersion,
   PerformanceLoggerService,
   PoeNinjaService,
 } from "../../modules";
@@ -199,7 +201,7 @@ class CurrentSessionService {
   private setupHandlers() {
     // Start session (now async)
     ipcMain.handle(
-      "session:start",
+      CurrentSessionChannel.Start,
       async (_event, game: GameType, league: string) => {
         try {
           await this.startSession(game, league);
@@ -213,7 +215,7 @@ class CurrentSessionService {
     );
 
     // Stop session
-    ipcMain.handle("session:stop", (_event, game: GameType) => {
+    ipcMain.handle(CurrentSessionChannel.Stop, (_event, game: GameType) => {
       try {
         this.stopSession(game);
         this.emitSessionStateChange(game);
@@ -225,28 +227,28 @@ class CurrentSessionService {
     });
 
     // Check if session is active
-    ipcMain.handle("session:is-active", (_event, game: GameType) => {
+    ipcMain.handle(CurrentSessionChannel.IsActive, (_event, game: GameType) => {
       return this.isSessionActive(game);
     });
 
     // Get current session
-    ipcMain.handle("session:get-current", (_event, game: GameType) => {
+    ipcMain.handle(CurrentSessionChannel.Get, (_event, game: GameType) => {
       return this.getCurrentSession(game);
     });
 
     // Get session info
-    ipcMain.handle("session:get-info", (_event, game: GameType) => {
+    ipcMain.handle(CurrentSessionChannel.Info, (_event, game: GameType) => {
       return this.getActiveSessionInfo(game);
     });
 
     // Get all sessions (archived + current)
-    ipcMain.handle("session:get-all", (_event, game: GameType) => {
+    ipcMain.handle(CurrentSessionChannel.GetAll, (_event, game: GameType) => {
       return this.getAllSessions(game);
     });
 
     // Get specific session by ID
     ipcMain.handle(
-      "session:get-by-id",
+      CurrentSessionChannel.GetById,
       (_event, game: GameType, sessionId: string) => {
         return this.getSessionById(game, sessionId);
       },
@@ -254,7 +256,7 @@ class CurrentSessionService {
 
     // Update card price visibility
     ipcMain.handle(
-      "session:update-card-price-visibility",
+      CurrentSessionChannel.UpdateCardPriceVisibility,
       (
         _event,
         game: GameType,
@@ -336,11 +338,9 @@ class CurrentSessionService {
 
     if (game === "poe1") {
       this.poe1CurrentSessionStore = sessionStore;
-      // Don't clear processedIds - we keep global history to prevent replays
       this.poe1ActiveSession = { league, startedAt };
     } else {
       this.poe2CurrentSessionStore = sessionStore;
-      // Don't clear processedIds - we keep global history to prevent replays
       this.poe2ActiveSession = { league, startedAt };
     }
 
@@ -397,11 +397,9 @@ class CurrentSessionService {
     if (game === "poe1") {
       this.poe1CurrentSessionStore = null;
       this.poe1ActiveSession = null;
-      // Note: We DON'T clear processedIds - they persist globally
     } else {
       this.poe2CurrentSessionStore = null;
       this.poe2ActiveSession = null;
-      // Note: We DON'T clear processedIds - they persist globally
     }
 
     console.log(`Session stopped for ${game}, archived as: ${archiveName}`);
@@ -500,7 +498,7 @@ class CurrentSessionService {
   /**
    * Check if a session is active
    */
-  public isSessionActive(game: GameType): boolean {
+  public isSessionActive(game: GameVersion): boolean {
     return game === "poe1"
       ? this.poe1ActiveSession !== null
       : this.poe2ActiveSession !== null;
@@ -509,7 +507,9 @@ class CurrentSessionService {
   /**
    * Get current session stats
    */
-  public getCurrentSession(game: GameType): DetailedDivinationCardStats | null {
+  public getCurrentSession(
+    game: GameVersion,
+  ): DetailedDivinationCardStats | null {
     const sessionStore =
       game === "poe1"
         ? this.poe1CurrentSessionStore
@@ -529,7 +529,7 @@ class CurrentSessionService {
   /**
    * Reset current session (clears all data but keeps session active)
    */
-  public resetCurrentSession(game: GameType): void {
+  public resetCurrentSession(game: GameVersion): void {
     const sessionStore =
       game === "poe1"
         ? this.poe1CurrentSessionStore
@@ -550,7 +550,7 @@ class CurrentSessionService {
   /**
    * Clear global processed IDs tracker (use with caution!)
    */
-  public clearGlobalProcessedIds(game: GameType): void {
+  public clearGlobalProcessedIds(game: GameVersion): void {
     const store =
       game === "poe1"
         ? this.poe1GlobalProcessedIdsStore
@@ -567,13 +567,13 @@ class CurrentSessionService {
   /**
    * Emit session state change to all renderer windows
    */
-  private emitSessionStateChange(game: GameType): void {
+  private emitSessionStateChange(game: GameVersion): void {
     const windows = BrowserWindow.getAllWindows();
     const isActive = this.isSessionActive(game);
     const sessionInfo = this.getActiveSessionInfo(game);
 
     for (const window of windows) {
-      window.webContents.send("session:state-changed", {
+      window.webContents.send(CurrentSessionChannel.StateChanged, {
         game,
         isActive,
         sessionInfo,
@@ -585,7 +585,7 @@ class CurrentSessionService {
    * Emit session data update to all renderer windows
    * (used when cards are added to session)
    */
-  private emitSessionDataUpdate(game: GameType): void {
+  private emitSessionDataUpdate(game: GameVersion): void {
     const windows = BrowserWindow.getAllWindows();
     const sessionData = this.getCurrentSession(game);
 
@@ -664,7 +664,7 @@ class CurrentSessionService {
    * Get a specific session by ID
    */
   public getSessionById(
-    game: GameType,
+    game: GameVersion,
     sessionId: string,
   ): (DetailedDivinationCardStats & { id: string; isActive: boolean }) | null {
     if (sessionId === "current") {
@@ -700,7 +700,7 @@ class CurrentSessionService {
    * Update hidePrice flag for a card in a session's price snapshot
    */
   public updateCardPriceVisibility(
-    game: GameType,
+    game: GameVersion,
     sessionId: string,
     priceSource: "exchange" | "stash",
     cardName: string,

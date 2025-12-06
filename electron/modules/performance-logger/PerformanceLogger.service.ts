@@ -32,13 +32,6 @@ class PerformanceLoggerService {
   }
 
   /**
-   * Check if performance logging is enabled
-   */
-  public isEnabled(): boolean {
-    return this.enabled;
-  }
-
-  /**
    * Log a performance message with optional context
    * Returns immediately with no overhead when disabled
    */
@@ -113,9 +106,9 @@ class PerformanceLoggerService {
     label: string,
     fn: () => T | Promise<T>,
     context?: PerformanceLogContext,
-  ): Promise<T> {
+  ): Promise<T | undefined> {
     if (!this.enabled) {
-      return await fn();
+      return;
     }
 
     const start = performance.now();

@@ -36,11 +36,11 @@ class CsvService {
         }
 
         // Get the selected game from settings
-        const selectedGame = this.settingsStore.get(SettingsKey.SelectedGame);
+        const activeGame = this.settingsStore.get(SettingsKey.ActiveGame);
 
         // Get divination cards data from DataStore (all-time stats for selected game)
         const stats: SimpleDivinationCardStats =
-          this.dataStore.getAllTimeStats(selectedGame);
+          this.dataStore.getAllTimeStats(activeGame);
 
         // Transform the data to be compatible with jsonToCsv
         const csvData: Record<string, number> = {};
@@ -53,8 +53,8 @@ class CsvService {
 
         // Show save dialog
         const result = await dialog.showSaveDialog(mainWindow, {
-          title: `Export ${selectedGame.toUpperCase()} Divination Cards`,
-          defaultPath: `${selectedGame}-cards-${new Date().toISOString().split("T")[0]}.csv`,
+          title: `Export ${activeGame.toUpperCase()} Divination Cards`,
+          defaultPath: `${activeGame}-cards-${new Date().toISOString().split("T")[0]}.csv`,
           filters: [{ name: "CSV Files", extensions: ["csv"] }],
         });
 

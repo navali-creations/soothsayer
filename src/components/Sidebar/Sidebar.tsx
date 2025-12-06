@@ -3,23 +3,24 @@ import { FiActivity, FiBarChart2, FiSettings } from "react-icons/fi";
 import { GiCardExchange } from "react-icons/gi";
 import pkgJson from "../../../package.json" with { type: "json" };
 import { formatCurrency } from "../../api/poe-ninja";
-import {
-  useDivinationCards,
-  usePoeNinjaExchangePrices,
-  useSession,
-} from "../../hooks";
+import { useDivinationCards, usePoeNinjaExchangePrices } from "../../hooks";
+import { useBoundStore } from "../../store/store";
 import { Flex, Link } from "..";
 
 const Sidebar = () => {
-  const session = useSession({ game: "poe1" });
+  // Use Zustand instead of useSession hook
+  const isActive = useBoundStore((state) => state.isActive("poe1"));
+  const sessionInfo = useBoundStore((state) => state.getSessionInfo("poe1"));
+  const session = useBoundStore((state) => state.getSession("poe1"));
+
   const { stats } = useDivinationCards();
   const [time, setTime] = useState({ hours: 0, minutes: 0, seconds: 0 });
 
   // Fetch live exchange prices (fallback when no snapshot)
   const shouldFetchLive = !stats?.priceSnapshot;
   const liveExchangeData = usePoeNinjaExchangePrices(
-    session.sessionInfo?.league || "Keepers",
-    session.isActive && shouldFetchLive,
+    sessionInfo?.league || "Keepers",
+    isActive && shouldFetchLive,
   );
 
   // Determine which price data to use
@@ -42,13 +43,13 @@ const Sidebar = () => {
 
   // Update time every second when session is active
   useEffect(() => {
-    if (!session.isActive || !session.sessionInfo) {
+    if (!isActive || !sessionInfo) {
       setTime({ hours: 0, minutes: 0, seconds: 0 });
       return;
     }
 
     const updateTime = () => {
-      const start = new Date(session.sessionInfo!.startedAt);
+      const start = new Date(sessionInfo.startedAt);
       const now = new Date();
       const diff = now.getTime() - start.getTime();
 
@@ -66,7 +67,7 @@ const Sidebar = () => {
     const interval = setInterval(updateTime, 1000);
 
     return () => clearInterval(interval);
-  }, [session.isActive, session.sessionInfo]);
+  }, [isActive, sessionInfo]);
 
   // Calculate total profit excluding hidden prices
   const totalProfit = useMemo(() => {
@@ -90,7 +91,7 @@ const Sidebar = () => {
       <div className="p-3 space-y-2">
         {/* Session Status Card */}
         <div
-          className={`border-l-4 ${session.isActive ? "border-l-warning bg-base-100" : "border-l-base-300 bg-base-100"} rounded-r-lg p-3 transition-colors`}
+          className={`border-l-4 ${isActive ? "border-l-warning bg-base-100" : "border-l-base-300 bg-base-100"} rounded-r-lg p-3 transition-colors`}
         >
           <Flex className="justify-between items-start">
             <div className="flex-1">
@@ -98,9 +99,9 @@ const Sidebar = () => {
                 Session
               </div>
               <div className="font-semibold mb-2 text-base-content">
-                {session.isActive ? "Active" : "Waiting"}
+                {isActive ? "Active" : "Waiting"}
               </div>
-              {session.isActive && (
+              {isActive && (
                 <div className="space-y-2">
                   {/* Duration label */}
                   <div className="text-xs text-base-content/60 font-medium">
@@ -172,13 +173,13 @@ const Sidebar = () => {
             </div>
             <FiActivity
               size={24}
-              className={`transition-colors ${session.isActive ? "text-warning" : "text-base-content/30"}`}
+              className={`transition-colors ${isActive ? "text-warning" : "text-base-content/30"}`}
             />
           </Flex>
         </div>
 
         {/* Profit Card */}
-        {session.isActive && (
+        {isActive && (
           <div className="bg-base-100 border-l-4 border-l-base-300 rounded-r-lg p-3">
             <Flex className="justify-between items-start">
               <div className="flex-1">
@@ -188,9 +189,9 @@ const Sidebar = () => {
                 <div className="font-semibold tabular-nums text-base-content">
                   {formatCurrency(totalProfit, chaosToDivineRatio)}
                 </div>
-                {session.sessionInfo && (
+                {sessionInfo && (
                   <div className="text-xs text-base-content/70 mt-1">
-                    {session.sessionInfo.league}
+                    {sessionInfo.league}
                   </div>
                 )}
               </div>

@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { BrowserWindow, ipcMain } from "electron";
+import { BrowserWindow, dialog, ipcMain } from "electron";
 import { updateElectronApp } from "update-electron-app";
 
 import {
@@ -79,6 +79,7 @@ class MainWindowService {
 
     // Caption events
     this.emitCaptionEvents();
+    this.emitFileDialogEvents(); // Add this line
     this.emitOnMainWindowClose(isQuitting);
 
     TrayService.getInstance().createTray();
@@ -87,6 +88,20 @@ class MainWindowService {
     ClientLogReaderService.getInstance(this.mainWindow)
       .on("clientlog-start", (data) => {})
       .on("clientlog-stop", (data) => {});
+  }
+
+  private emitFileDialogEvents() {
+    // Handler for file selection
+    ipcMain.handle("select-file", async (_event, options: any) => {
+      const result = await dialog.showOpenDialog(this.mainWindow, {
+        title: options.title || "Select File",
+        filters: options.filters || [],
+        properties: options.properties || ["openFile"],
+      });
+
+      // Return the first selected file path, or undefined if cancelled
+      return result.canceled ? undefined : result.filePaths[0];
+    });
   }
 
   private emitCaptionEvents() {

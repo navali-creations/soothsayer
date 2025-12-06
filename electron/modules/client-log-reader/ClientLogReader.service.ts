@@ -1,22 +1,25 @@
 import EventEmitter from "node:events";
 import fs from "node:fs";
+import path from "node:path";
 import type { GameType } from "../../../types/data-stores";
 import {
   CurrentSessionService,
+  type GameVersion,
   type MainWindowService,
   PerformanceLoggerService,
+  SettingsKey,
   SettingsStoreService,
 } from "../../modules";
 import { parseCards, readLastLines } from "./utils";
 
 class ClientLogReaderService extends EventEmitter {
   private static _instance: ClientLogReaderService;
-  private readonly clientLogPath: string;
   private mainWindow: MainWindowService;
   private session: CurrentSessionService;
   private settingsStore: SettingsStoreService;
   private perfLogger: PerformanceLoggerService;
-  private game: GameType = "poe1"; // Default to PoE1, will be determined by path
+  private game: Omit<GameVersion, "both">;
+  private clientLogPath: string;
 
   static getInstance(mainWindow: MainWindowService) {
     if (!ClientLogReaderService._instance) {
@@ -28,17 +31,12 @@ class ClientLogReaderService extends EventEmitter {
 
   constructor(mainWindow: MainWindowService) {
     super();
-    this.clientLogPath =
-      "E:/Steam/steamapps/common/Path of Exile/logs/Client.txt";
     this.mainWindow = mainWindow;
     this.session = CurrentSessionService.getInstance();
     this.settingsStore = SettingsStoreService.getInstance();
     this.perfLogger = PerformanceLoggerService.getInstance();
-
-    // Determine which game based on path (you'll improve this later with saved paths)
-    this.game = this.clientLogPath.includes("Path of Exile 2")
-      ? "poe2"
-      : "poe1";
+    this.game = this.settingsStore.get(SettingsKey.ActiveGame);
+    this.clientLogPath = this.settingsStore.get(SettingsKey.Poe1ClientTxtPath)!;
 
     this.watchFile(this.clientLogPath);
   }
@@ -51,7 +49,9 @@ class ClientLogReaderService extends EventEmitter {
       try {
         // Check if there's an active session for this game
         perf?.start("sessionCheck");
-        if (!this.session.isSessionActive(this.game)) {
+        const isActive = this.session.isSessionActive(this.game);
+
+        if (!isActive) {
           // No active session, skip processing
           return;
         }
