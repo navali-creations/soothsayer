@@ -122,25 +122,25 @@ class DataStoreService {
     const perf = this.perfLogger.startTimers();
 
     // 1. Update global stats (single atomic write)
-    perf.start("global");
+    perf?.start("global");
     const globalStats = this.globalStore.store;
     this.globalStore.store = {
       totalStackedDecksOpened: globalStats.totalStackedDecksOpened + 1,
     };
-    const globalTime = perf.end("global");
+    const globalTime = perf?.end("global") ?? 0;
 
     // 2. Update all-time stats (already optimized - single atomic write)
-    perf.start("allTime");
+    perf?.start("allTime");
     const allTimeStore =
       game === "poe1" ? this.poe1AllTimeStore : this.poe2AllTimeStore;
     this.incrementCardInStore(allTimeStore, cardName);
-    const allTimeTime = perf.end("allTime");
+    const allTimeTime = perf?.end("allTime") ?? 0;
 
     // 3. Update league stats (already optimized - single atomic write)
-    perf.start("league");
+    perf?.start("league");
     const leagueStore = this.getLeagueStore(game, league);
     this.incrementCardInStore(leagueStore, cardName);
-    const leagueTime = perf.end("league");
+    const leagueTime = perf?.end("league") ?? 0;
 
     this.perfLogger.log("Cascade stores", {
       Global: globalTime,

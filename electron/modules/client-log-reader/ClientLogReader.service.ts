@@ -50,30 +50,30 @@ class ClientLogReaderService extends EventEmitter {
 
       try {
         // Check if there's an active session for this game
-        perf.start("sessionCheck");
+        perf?.start("sessionCheck");
         if (!this.session.isSessionActive(this.game)) {
           // No active session, skip processing
           return;
         }
-        const sessionCheckTime = perf.end("sessionCheck");
+        const sessionCheckTime = perf?.end("sessionCheck") ?? 0;
 
         // Get current league from active session
-        perf.start("sessionInfo");
+        perf?.start("sessionInfo");
         const sessionInfo = this.session.getActiveSessionInfo(this.game);
         if (!sessionInfo) {
           return;
         }
-        const sessionInfoTime = perf.end("sessionInfo");
+        const sessionInfoTime = perf?.end("sessionInfo") ?? 0;
 
         // Read last 10 lines since we're checking frequently
-        perf.start("read");
+        perf?.start("read");
         const lines = await readLastLines(clientLogPath, 10);
-        const readTime = perf.end("read");
+        const readTime = perf?.end("read") ?? 0;
 
         // Parse divination cards from recent lines
-        perf.start("parse");
+        perf?.start("parse");
         const newCards = parseCards(lines, new Set());
-        const parseTime = perf.end("parse");
+        const parseTime = perf?.end("parse") ?? 0;
 
         if (newCards.totalCount > 0) {
           this.perfLogger.log("File processing", {
@@ -86,7 +86,7 @@ class ClientLogReaderService extends EventEmitter {
           // Process each new card found
           for (const [cardName, entry] of Object.entries(newCards.cards)) {
             for (const processedId of entry.processedIds) {
-              perf.start("addCard");
+              perf?.start("addCard");
 
               // CurrentSessionService.addCard handles:
               // 1. Duplicate detection (via processedIds)
@@ -99,7 +99,7 @@ class ClientLogReaderService extends EventEmitter {
                 processedId,
               );
 
-              const addCardTime = perf.end("addCard");
+              const addCardTime = perf?.end("addCard") ?? 0;
 
               if (added) {
                 this.perfLogger.log(`Card added: ${cardName}`, {
@@ -117,7 +117,7 @@ class ClientLogReaderService extends EventEmitter {
           }
 
           // Get updated session stats and emit to renderer
-          perf.start("emit");
+          perf?.start("emit");
           const currentSession = this.session.getCurrentSession(this.game);
           if (currentSession) {
             this.emit("divination-cards-update", currentSession);
@@ -126,9 +126,9 @@ class ClientLogReaderService extends EventEmitter {
               currentSession,
             );
           }
-          const emitTime = perf.end("emit");
+          const emitTime = perf?.end("emit") ?? 0;
 
-          overallTimer({
+          overallTimer?.({
             Emit: emitTime,
             "Cards processed": newCards.totalCount,
           });

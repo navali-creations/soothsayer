@@ -2,6 +2,14 @@ type PerformanceLogContext = {
   [key: string]: string | number | boolean | undefined;
 };
 
+type TimerEndFunction = (context?: PerformanceLogContext) => void;
+
+type TimersObject = {
+  start: (name: string) => void;
+  end: (name: string) => number;
+  log: (message: string, timings: Record<string, number>) => void;
+};
+
 class PerformanceLoggerService {
   private static _instance: PerformanceLoggerService;
   private enabled: boolean;
@@ -32,6 +40,7 @@ class PerformanceLoggerService {
 
   /**
    * Log a performance message with optional context
+   * Returns immediately with no overhead when disabled
    */
   public log(message: string, context?: PerformanceLogContext): void {
     if (!this.enabled) {
@@ -56,11 +65,11 @@ class PerformanceLoggerService {
 
   /**
    * Start a timer and return a function to log the elapsed time
+   * Returns null when disabled for zero overhead
    */
-  public startTimer(label: string): (context?: PerformanceLogContext) => void {
+  public startTimer(label: string): TimerEndFunction | null {
     if (!this.enabled) {
-      // Return a no-op function when disabled
-      return () => {};
+      return null;
     }
 
     const start = performance.now();
@@ -73,19 +82,11 @@ class PerformanceLoggerService {
 
   /**
    * Start multiple named timers and return an object to end each one
+   * Returns null when disabled for zero overhead
    */
-  public startTimers(): {
-    start: (name: string) => void;
-    end: (name: string) => number;
-    log: (message: string, timings: Record<string, number>) => void;
-  } {
+  public startTimers(): TimersObject | null {
     if (!this.enabled) {
-      // Return no-op functions when disabled
-      return {
-        start: () => {},
-        end: () => 0,
-        log: () => {},
-      };
+      return null;
     }
 
     const timers = new Map<string, number>();

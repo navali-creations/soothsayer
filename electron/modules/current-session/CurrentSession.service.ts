@@ -157,15 +157,17 @@ class CurrentSessionService {
     const last20Ids = allIds.slice(-20);
 
     // Atomic write
+    timers?.start("IDs written");
     store.store = { lastProcessedIds: last20Ids };
-    const writeTime = timers.end("IDs written");
+    const writeTime = timers?.end("IDs written") ?? 0;
 
     // Trim in-memory set to match disk (prevent unbounded growth)
+    timers?.start("In-memory IDs");
     processedSet.clear();
     for (const id of last20Ids) {
       processedSet.add(id);
     }
-    const memoryTime = timers.end("In-memory IDs");
+    const memoryTime = timers?.end("In-memory IDs") ?? 0;
 
     this.perfLogger.log(
       `Tracker flush | Game: ${game} | IDs written: ${writeTime.toFixed(2)}ms | In-memory IDs: ${memoryTime.toFixed(2)}ms`,
@@ -432,22 +434,22 @@ class CurrentSessionService {
     }
 
     // Check if already processed GLOBALLY (includes previous sessions)
-    perf.start("dup");
+    perf?.start("dup");
     if (processedIds.has(processedId)) {
       return false; // Duplicate, skip (could be from previous session)
     }
-    const dupCheckTime = perf.end("dup");
+    const dupCheckTime = perf?.end("dup") ?? 0;
 
     // Add to in-memory set (global)
     processedIds.add(processedId);
 
     // Save to global persistent tracker
-    perf.start("tracker");
+    perf?.start("tracker");
     this.saveProcessedIdGlobally(game, processedId);
-    const trackerTime = perf.end("tracker");
+    const trackerTime = perf?.end("tracker") ?? 0;
 
     // Update session store
-    perf.start("session");
+    perf?.start("session");
     const stats = sessionStore.store;
     const cards = { ...stats.cards };
 
@@ -470,19 +472,19 @@ class CurrentSessionService {
       totalCount: stats.totalCount + 1,
       lastUpdated: new Date().toISOString(),
     };
-    const sessionUpdateTime = perf.end("session");
+    const sessionUpdateTime = perf?.end("session") ?? 0;
 
     // Cascade to data stores (league, all-time, global)
-    perf.start("cascade");
+    perf?.start("cascade");
     this.dataStore.addCard(game, league, cardName);
-    const cascadeTime = perf.end("cascade");
+    const cascadeTime = perf?.end("cascade") ?? 0;
 
     // Emit update event to renderer
-    perf.start("emit");
+    perf?.start("emit");
     this.emitSessionDataUpdate(game);
-    const emitTime = perf.end("emit");
+    const emitTime = perf?.end("emit") ?? 0;
 
-    perf.log(`addCard breakdown: ${cardName}`, {
+    perf?.log(`addCard breakdown: ${cardName}`, {
       Total:
         dupCheckTime + trackerTime + sessionUpdateTime + cascadeTime + emitTime,
       Dup: dupCheckTime,
