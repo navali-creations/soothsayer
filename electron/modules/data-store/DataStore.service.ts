@@ -1,11 +1,13 @@
 import { ipcMain } from "electron";
 import Store from "electron-store";
 import type { GameType, GlobalStats } from "../../../types/data-stores";
+import { PerformanceLoggerService } from "../../modules";
 import { DataStoreChannel } from "./DataStore.channels";
 import type { SimpleDivinationCardStats } from "./DataStore.schemas";
 
 class DataStoreService {
   private static _instance: DataStoreService;
+  private perfLogger: PerformanceLoggerService;
 
   // Store instances
   private globalStore: Store<GlobalStats>;
@@ -23,6 +25,8 @@ class DataStoreService {
   }
 
   constructor() {
+    this.perfLogger = PerformanceLoggerService.getInstance();
+
     // Initialize global stats store
     this.globalStore = new Store<GlobalStats>({
       name: "global-stats",
@@ -115,25 +119,40 @@ class DataStoreService {
    * Add a card to all relevant stores (cascading update)
    */
   public addCard(game: GameType, league: string, cardName: string): void {
-    // 1. Update global stats
-    const globalStats = this.globalStore.store;
-    this.globalStore.set(
-      "totalStackedDecksOpened",
-      globalStats.totalStackedDecksOpened + 1,
-    );
+    const perf = this.perfLogger.startTimers();
 
-    // 2. Update all-time stats
+    // 1. Update global stats (single atomic write)
+    perf.start("global");
+    const globalStats = this.globalStore.store;
+    this.globalStore.store = {
+      totalStackedDecksOpened: globalStats.totalStackedDecksOpened + 1,
+    };
+    const globalTime = perf.end("global");
+
+    // 2. Update all-time stats (already optimized - single atomic write)
+    perf.start("allTime");
     const allTimeStore =
       game === "poe1" ? this.poe1AllTimeStore : this.poe2AllTimeStore;
     this.incrementCardInStore(allTimeStore, cardName);
+    const allTimeTime = perf.end("allTime");
 
-    // 3. Update league stats
+    // 3. Update league stats (already optimized - single atomic write)
+    perf.start("league");
     const leagueStore = this.getLeagueStore(game, league);
     this.incrementCardInStore(leagueStore, cardName);
+    const leagueTime = perf.end("league");
+
+    this.perfLogger.log("Cascade stores", {
+      Global: globalTime,
+      AllTime: allTimeTime,
+      League: leagueTime,
+      Total: globalTime + allTimeTime + leagueTime,
+    });
   }
 
   /**
    * Helper to increment a card count in a simple store
+   * Already optimized - single atomic write
    */
   private incrementCardInStore(
     store: Store<SimpleDivinationCardStats>,
@@ -148,9 +167,11 @@ class DataStoreService {
       cards[cardName] = { count: 1 };
     }
 
-    store.set("cards", cards);
-    store.set("totalCount", stats.totalCount + 1);
-    store.set("lastUpdated", new Date().toISOString());
+    store.store = {
+      cards,
+      totalCount: stats.totalCount + 1,
+      lastUpdated: new Date().toISOString(),
+    };
   }
 
   /**

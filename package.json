@@ -6,6 +6,7 @@
   "main": ".vite/build/main.js",
   "scripts": {
     "start": "electron-forge start",
+    "start:perf": "cross-env PERF_DEBUG=true electron-forge start",
     "package": "electron-forge package",
     "make": "electron-forge make",
     "publish": "electron-forge publish",
@@ -42,6 +43,7 @@
     "@typescript-eslint/parser": "^5.62.0",
     "@vitejs/plugin-react": "^5.1.1",
     "clsx": "^2.1.1",
+    "cross-env": "^10.1.0",
     "daisyui": "^5.5.5",
     "electron": "39.2.4",
     "electron-squirrel-startup": "^1.0.1",

@@ -8,7 +8,11 @@ import type {
   GameType,
   SessionPriceSnapshot,
 } from "../../../types/data-stores";
-import { DataStoreService, PoeNinjaService } from "../../modules";
+import {
+  DataStoreService,
+  PerformanceLoggerService,
+  PoeNinjaService,
+} from "../../modules";
 
 // Store for tracking last processed IDs globally (prevents replay on new session)
 interface ProcessedIdsTracker {
@@ -38,8 +42,18 @@ class CurrentSessionService {
   private poe2ActiveSession: { league: string; startedAt: string } | null =
     null;
 
+  private trackerWriteQueue: Map<GameType, Set<string>> = new Map([
+    ["poe1", new Set()],
+    ["poe2", new Set()],
+  ]);
+  private trackerWriteTimeout: Map<GameType, NodeJS.Timeout | null> = new Map([
+    ["poe1", null],
+    ["poe2", null],
+  ]);
+
   private dataStore: DataStoreService;
   private poeNinja: PoeNinjaService;
+  private perfLogger: PerformanceLoggerService;
 
   static getInstance() {
     if (!CurrentSessionService._instance) {
@@ -52,6 +66,7 @@ class CurrentSessionService {
   constructor() {
     this.dataStore = DataStoreService.getInstance();
     this.poeNinja = PoeNinjaService.getInstance();
+    this.perfLogger = PerformanceLoggerService.getInstance();
 
     // Initialize global processed IDs stores (keeps last ~1000 IDs to prevent replays)
     this.poe1GlobalProcessedIdsStore = new Store<ProcessedIdsTracker>({
@@ -87,28 +102,93 @@ class CurrentSessionService {
       game === "poe1" ? this.poe1ProcessedIds : this.poe2ProcessedIds;
 
     const tracker = store.store;
-    tracker.lastProcessedIds.forEach((id) => processedIds.add(id));
+    for (const id of tracker.lastProcessedIds) {
+      processedIds.add(id);
+    }
 
     console.log(`Loaded ${processedIds.size} global processed IDs for ${game}`);
   }
 
   /**
-   * Save processed ID to global tracker (keeps last 20 to prevent unbounded growth)
+   * Save processed ID to global tracker (debounced to reduce disk writes)
    */
   private saveProcessedIdGlobally(game: GameType, processedId: string) {
+    // Add to in-memory queue
+    this.trackerWriteQueue.get(game)!.add(processedId);
+
+    // Clear existing timeout
+    const existingTimeout = this.trackerWriteTimeout.get(game);
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
+    }
+
+    // Debounce: write after 500ms of no new cards
+    const timeout = setTimeout(() => {
+      this.flushTrackerQueue(game);
+    }, 500);
+
+    this.trackerWriteTimeout.set(game, timeout);
+  }
+
+  /**
+   * Flush the tracker write queue to disk
+   */
+  public flushTrackerQueue(game: GameType) {
+    const queue = this.trackerWriteQueue.get(game)!;
+    if (queue.size === 0) return;
+
+    const timers = this.perfLogger.startTimers();
+
     const store =
       game === "poe1"
         ? this.poe1GlobalProcessedIdsStore
         : this.poe2GlobalProcessedIdsStore;
-    const tracker = store.store;
 
-    // Add new ID
-    const updatedIds = [...tracker.lastProcessedIds, processedId];
+    const processedSet =
+      game === "poe1" ? this.poe1ProcessedIds : this.poe2ProcessedIds;
 
-    // Keep only last 20 IDs (sliding window - enough to cover last 10 lines + buffer)
-    const trimmedIds = updatedIds.slice(-20);
+    // Add queued IDs to the in-memory set
+    for (const id of queue) {
+      processedSet.add(id);
+    }
 
-    store.set("lastProcessedIds", trimmedIds);
+    // Write to persistent store - keep only last 20 IDs
+    const allIds = Array.from(processedSet);
+    const last20Ids = allIds.slice(-20);
+
+    // Atomic write
+    store.store = { lastProcessedIds: last20Ids };
+    const writeTime = timers.end("IDs written");
+
+    // Trim in-memory set to match disk (prevent unbounded growth)
+    processedSet.clear();
+    for (const id of last20Ids) {
+      processedSet.add(id);
+    }
+    const memoryTime = timers.end("In-memory IDs");
+
+    this.perfLogger.log(
+      `Tracker flush | Game: ${game} | IDs written: ${writeTime.toFixed(2)}ms | In-memory IDs: ${memoryTime.toFixed(2)}ms`,
+    );
+
+    // Clear the queue
+    queue.clear();
+
+    // Clear the timeout
+    this.trackerWriteTimeout.set(game, null);
+  }
+
+  /**
+   * Flush all tracker queues (used on app shutdown)
+   */
+  public async flushAllTrackers(): Promise<void> {
+    this.perfLogger.log("Flushing all tracker queues before shutdown...");
+
+    // Flush both games synchronously
+    this.flushTrackerQueue("poe1");
+    this.flushTrackerQueue("poe2");
+
+    this.perfLogger.log("All tracker queues flushed successfully");
   }
 
   /**
@@ -334,6 +414,8 @@ class CurrentSessionService {
     cardName: string,
     processedId: string,
   ): boolean {
+    const perf = this.perfLogger.startTimers();
+
     const sessionStore =
       game === "poe1"
         ? this.poe1CurrentSessionStore
@@ -350,17 +432,22 @@ class CurrentSessionService {
     }
 
     // Check if already processed GLOBALLY (includes previous sessions)
+    perf.start("dup");
     if (processedIds.has(processedId)) {
       return false; // Duplicate, skip (could be from previous session)
     }
+    const dupCheckTime = perf.end("dup");
 
     // Add to in-memory set (global)
     processedIds.add(processedId);
 
     // Save to global persistent tracker
+    perf.start("tracker");
     this.saveProcessedIdGlobally(game, processedId);
+    const trackerTime = perf.end("tracker");
 
     // Update session store
+    perf.start("session");
     const stats = sessionStore.store;
     const cards = { ...stats.cards };
 
@@ -377,15 +464,33 @@ class CurrentSessionService {
       };
     }
 
-    sessionStore.set("cards", cards);
-    sessionStore.set("totalCount", stats.totalCount + 1);
-    sessionStore.set("lastUpdated", new Date().toISOString());
+    sessionStore.store = {
+      ...stats,
+      cards,
+      totalCount: stats.totalCount + 1,
+      lastUpdated: new Date().toISOString(),
+    };
+    const sessionUpdateTime = perf.end("session");
 
     // Cascade to data stores (league, all-time, global)
+    perf.start("cascade");
     this.dataStore.addCard(game, league, cardName);
+    const cascadeTime = perf.end("cascade");
 
     // Emit update event to renderer
+    perf.start("emit");
     this.emitSessionDataUpdate(game);
+    const emitTime = perf.end("emit");
+
+    perf.log(`addCard breakdown: ${cardName}`, {
+      Total:
+        dupCheckTime + trackerTime + sessionUpdateTime + cascadeTime + emitTime,
+      Dup: dupCheckTime,
+      Tracker: trackerTime,
+      Session: sessionUpdateTime,
+      Cascade: cascadeTime,
+      Emit: emitTime,
+    });
 
     return true;
   }

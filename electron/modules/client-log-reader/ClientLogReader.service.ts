@@ -4,6 +4,7 @@ import type { GameType } from "../../../types/data-stores";
 import {
   CurrentSessionService,
   type MainWindowService,
+  PerformanceLoggerService,
   SettingsStoreService,
 } from "../../modules";
 import { parseCards, readLastLines } from "./utils";
@@ -14,6 +15,7 @@ class ClientLogReaderService extends EventEmitter {
   private mainWindow: MainWindowService;
   private session: CurrentSessionService;
   private settingsStore: SettingsStoreService;
+  private perfLogger: PerformanceLoggerService;
   private game: GameType = "poe1"; // Default to PoE1, will be determined by path
 
   static getInstance(mainWindow: MainWindowService) {
@@ -31,6 +33,7 @@ class ClientLogReaderService extends EventEmitter {
     this.mainWindow = mainWindow;
     this.session = CurrentSessionService.getInstance();
     this.settingsStore = SettingsStoreService.getInstance();
+    this.perfLogger = PerformanceLoggerService.getInstance();
 
     // Determine which game based on path (you'll improve this later with saved paths)
     this.game = this.clientLogPath.includes("Path of Exile 2")
@@ -42,30 +45,49 @@ class ClientLogReaderService extends EventEmitter {
 
   public watchFile(clientLogPath: string) {
     fs.watchFile(clientLogPath, { interval: 100 }, async () => {
+      const perf = this.perfLogger.startTimers();
+      const overallTimer = this.perfLogger.startTimer("Processing summary");
+
       try {
         // Check if there's an active session for this game
+        perf.start("sessionCheck");
         if (!this.session.isSessionActive(this.game)) {
           // No active session, skip processing
           return;
         }
+        const sessionCheckTime = perf.end("sessionCheck");
 
         // Get current league from active session
+        perf.start("sessionInfo");
         const sessionInfo = this.session.getActiveSessionInfo(this.game);
         if (!sessionInfo) {
           return;
         }
+        const sessionInfoTime = perf.end("sessionInfo");
 
         // Read last 10 lines since we're checking frequently
+        perf.start("read");
         const lines = await readLastLines(clientLogPath, 10);
+        const readTime = perf.end("read");
 
         // Parse divination cards from recent lines
-        // We don't need to pass processedIds - CurrentSessionService handles that
+        perf.start("parse");
         const newCards = parseCards(lines, new Set());
+        const parseTime = perf.end("parse");
 
         if (newCards.totalCount > 0) {
+          this.perfLogger.log("File processing", {
+            "File read": readTime,
+            Parse: parseTime,
+            "Session check": sessionCheckTime,
+            "Session info": sessionInfoTime,
+          });
+
           // Process each new card found
           for (const [cardName, entry] of Object.entries(newCards.cards)) {
             for (const processedId of entry.processedIds) {
+              perf.start("addCard");
+
               // CurrentSessionService.addCard handles:
               // 1. Duplicate detection (via processedIds)
               // 2. Updating current session
@@ -77,15 +99,25 @@ class ClientLogReaderService extends EventEmitter {
                 processedId,
               );
 
+              const addCardTime = perf.end("addCard");
+
               if (added) {
-                console.log(
-                  `New card: ${cardName} (${this.game}, ${sessionInfo.league})`,
-                );
+                this.perfLogger.log(`Card added: ${cardName}`, {
+                  Game: this.game,
+                  League: sessionInfo.league,
+                  "addCard()": addCardTime,
+                });
+              } else {
+                // Card was duplicate, log it too for debugging
+                this.perfLogger.log(`Duplicate: ${cardName}`, {
+                  "addCard()": addCardTime,
+                });
               }
             }
           }
 
           // Get updated session stats and emit to renderer
+          perf.start("emit");
           const currentSession = this.session.getCurrentSession(this.game);
           if (currentSession) {
             this.emit("divination-cards-update", currentSession);
@@ -94,9 +126,15 @@ class ClientLogReaderService extends EventEmitter {
               currentSession,
             );
           }
+          const emitTime = perf.end("emit");
+
+          overallTimer({
+            Emit: emitTime,
+            "Cards processed": newCards.totalCount,
+          });
         }
       } catch (error) {
-        console.error("Error processing divination cards:", error);
+        console.error(`[ERROR] Processing failed:`, error);
       }
     });
   }
