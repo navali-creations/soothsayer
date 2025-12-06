@@ -93,8 +93,8 @@ class AppService {
    * that need to be cleaned up.
    */
   public beforeQuitCloseWindowsAndDestroyElements() {
-    this.app.on(AppChannel.BeforeQuit, () => {
-      // Stop any active sessions before quitting
+    this.app.on(AppChannel.BeforeQuit, async () => {
+      await this.sessionStorage.flushAllTrackers();
 
       if (this.sessionStorage.isSessionActive("poe1")) {
         this.sessionStorage.stopSession("poe1");
