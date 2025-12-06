@@ -1,11 +1,6 @@
 // Game type
 export type GameType = "poe1" | "poe2";
 
-// Simple card entry (for league and all-time stats)
-export interface SimpleCardEntry {
-  count: number;
-}
-
 // Detailed card entry (for session data with processedIds)
 export interface DetailedCardEntry {
   count: number;
@@ -31,13 +26,6 @@ export interface SessionPriceSnapshot {
     chaosToDivineRatio: number;
     cardPrices: Record<string, CardPriceSnapshot>;
   };
-}
-
-// Simple divination card stats (no processedIds)
-export interface SimpleDivinationCardStats {
-  totalCount: number;
-  cards: Record<string, SimpleCardEntry>;
-  lastUpdated?: string;
 }
 
 // Detailed divination card stats (with processedIds for sessions)

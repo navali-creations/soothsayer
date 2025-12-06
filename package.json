@@ -28,6 +28,7 @@
     "@electron-forge/plugin-vite": "^7.10.2",
     "@electron-forge/publisher-github": "^7.10.2",
     "@electron/fuses": "^1.8.0",
+    "@redux-devtools/extension": "^3.3.0",
     "@tailwindcss/vite": "^4.1.17",
     "@tanstack/react-query": "^5.90.11",
     "@tanstack/react-router": "^1.139.11",
@@ -45,12 +46,14 @@
     "electron": "39.2.4",
     "electron-squirrel-startup": "^1.0.1",
     "electron-store": "^11.0.2",
+    "immer": "^11.0.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-icons": "^5.5.0",
     "tailwindcss": "^4.1.17",
     "typescript": "^5.9.3",
     "update-electron-app": "^3.1.1",
-    "vite": "^5.4.21"
+    "vite": "^5.4.21",
+    "zustand": "^5.0.9"
   }
 }

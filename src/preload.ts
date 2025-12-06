@@ -1,79 +1,35 @@
 import { contextBridge, ipcRenderer } from "electron";
-import { LocalStorageEvent, MainWindowEvent } from "../enums";
+import {
+  DataStoreAPI,
+  MainWindowAPI,
+  PoeLeaguesAPI,
+  PoeNinjaAPI,
+  PoeProcessAPI,
+  SettingsStoreAPI,
+} from "../electron/modules";
 
 contextBridge.exposeInMainWorld("electron", {
-  // App Controls API
-  app: {
-    minimize: () => ipcRenderer.invoke(MainWindowEvent.HandleWindowMinimize),
-    maximize: () => ipcRenderer.invoke(MainWindowEvent.HandleWindowMaximize),
-    unmaximize: () =>
-      ipcRenderer.invoke(MainWindowEvent.HandleWindowUnmaximize),
-    isMaximized: () => ipcRenderer.invoke(MainWindowEvent.IsWindowMaximized),
-    close: () => ipcRenderer.invoke(MainWindowEvent.HandleWindowClose),
-  },
-
-  // Settings API
-  settings: {
-    getSettings: () => ipcRenderer.invoke(LocalStorageEvent.FetchLocalSettings),
-    set: (key: string, value: any) =>
-      ipcRenderer.invoke(LocalStorageEvent.SetSetting, { key, value }),
-  },
-
-  // PoE Process API
-  poeProcess: {
-    getState: () => ipcRenderer.invoke("is-poe-running"),
-    onStart: (callback: (state: any) => void) => {
-      ipcRenderer.on("poe-process-start", (_event, state) => callback(state));
-    },
-    onStop: (callback: (state: any) => void) => {
-      ipcRenderer.on("poe-process-stop", (_event, state) => callback(state));
-    },
-    onState: (callback: (state: any) => void) => {
-      ipcRenderer.on("poe-process-state", (_event, state) => callback(state));
-    },
-    onError: (callback: (error: any) => void) => {
-      ipcRenderer.on("poe-process-error", (_event, error) => callback(error));
-    },
-  },
-
-  // File & Config API (for setup page)
   selectFile: (options: any) => ipcRenderer.invoke("select-file", options),
-  saveConfig: (config: any) => ipcRenderer.invoke("save-config", config),
-  getConfig: () => ipcRenderer.invoke("get-config"),
-  getConfigValue: (key: string) => ipcRenderer.invoke("get-config-value", key),
-  setConfigValue: (key: string, value: any) =>
-    ipcRenderer.invoke("set-config-value", key, value),
-  resetConfig: () => ipcRenderer.invoke("reset-config"),
-  checkClientTxtForCode: (filePath: string, code: string) =>
-    ipcRenderer.invoke("check-client-txt-for-code", filePath, code),
 
   clientTxtPaths: {
-    get: () => ipcRenderer.invoke(LocalStorageEvent.GetClientTxtPaths),
-    set: (paths: { poe1?: string; poe2?: string }) =>
-      ipcRenderer.invoke(LocalStorageEvent.SetClientTxtPaths, paths),
+    get: () =>
+      SettingsStoreAPI.getPoe1ClientPath().then((poe1) =>
+        SettingsStoreAPI.getPoe2ClientPath().then((poe2) => ({ poe1, poe2 })),
+      ),
+    set: (paths: { poe1?: string; poe2?: string }) => {
+      const promises = [];
+      if (paths.poe1 !== undefined) {
+        promises.push(SettingsStoreAPI.setPoe1ClientPath(paths.poe1));
+      }
+      if (paths.poe2 !== undefined) {
+        promises.push(SettingsStoreAPI.setPoe2ClientPath(paths.poe2));
+      }
+      return Promise.all(promises);
+    },
   },
 
   divinationCards: {
-    getStats: () => ipcRenderer.invoke(LocalStorageEvent.GetDivinationCards),
-    reset: () => ipcRenderer.invoke(LocalStorageEvent.ResetDivinationCards),
-    onUpdate: (callback: (stats: any) => void) => {
-      const handler = (_event: any, stats: any) => callback(stats);
-      ipcRenderer.on("divination-cards-update", handler);
-      // Return cleanup function
-      return () =>
-        ipcRenderer.removeListener("divination-cards-update", handler);
-    },
     exportCsv: () => ipcRenderer.invoke("export-divination-cards-csv"),
-  },
-
-  dataStore: {
-    getAllTime: (game: "poe1" | "poe2") =>
-      ipcRenderer.invoke("data-store:get-all-time", game),
-    getLeague: (game: "poe1" | "poe2", league: string) =>
-      ipcRenderer.invoke("data-store:get-league", game, league),
-    getLeagues: (game: "poe1" | "poe2") =>
-      ipcRenderer.invoke("data-store:get-leagues", game),
-    getGlobal: () => ipcRenderer.invoke("data-store:get-global"),
   },
 
   // Session API
@@ -117,19 +73,17 @@ contextBridge.exposeInMainWorld("electron", {
       ipcRenderer.on("session:state-changed", handler);
       return () => ipcRenderer.removeListener("session:state-changed", handler);
     },
+    onDataUpdated: (callback: (data: { game: string; data: any }) => void) => {
+      const handler = (_event: any, data: any) => callback(data);
+      ipcRenderer.on("session:data-updated", handler);
+      return () => ipcRenderer.removeListener("session:data-updated", handler);
+    },
   },
 
-  poeNinja: {
-    fetchExchangePrices: (league: string = "Keepers") =>
-      ipcRenderer.invoke("poe-ninja:fetch-exchange-prices", league),
-    fetchStashPrices: (league: string = "Keepers") =>
-      ipcRenderer.invoke("poe-ninja:fetch-stash-prices", league),
-  },
-
-  poeLeagues: {
-    fetchLeagues: () => ipcRenderer.invoke("poe-leagues:fetch-leagues"),
-    getSelected: () => ipcRenderer.invoke("poe-leagues:get-selected"),
-    setSelected: (leagueId: string) =>
-      ipcRenderer.invoke("poe-leagues:set-selected", leagueId),
-  },
+  app: MainWindowAPI,
+  poeProcess: PoeProcessAPI,
+  dataStore: DataStoreAPI,
+  poeNinja: PoeNinjaAPI,
+  poeLeagues: PoeLeaguesAPI,
+  settings: SettingsStoreAPI,
 });

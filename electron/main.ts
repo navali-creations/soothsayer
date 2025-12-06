@@ -1,8 +1,8 @@
 import { app as electronApp } from "electron";
-import { AppEngine, MainWindowEngine } from "./engines";
+import { AppService, MainWindowService } from "./modules";
 
-const app = AppEngine.getInstance();
-const mainWindow = MainWindowEngine.getInstance();
+const app = AppService.getInstance();
+const mainWindow = MainWindowService.getInstance();
 
 if (!electronApp.requestSingleInstanceLock()) {
   // Quit any new instance created to prevent multiple instances of the same app

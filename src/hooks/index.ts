@@ -1,9 +1,10 @@
 export { useAppControls } from "./useAppControls";
 export { useDivinationCards } from "./useDivinationCards";
+export { usePoeLeagues } from "./usePoeLeagues";
 export {
   usePoeNinjaExchangePrices,
   usePoeNinjaStashPrices,
 } from "./usePoeNinjaPrices";
-export { usePoeLeagues } from "./usePoeLeagues";
+export { usePoeProcess } from "./usePoeProcess";
 export { useSession } from "./useSession";
 export { useSettings } from "./useSettings";

@@ -1,28 +1,18 @@
+import type { DataStoreAPI } from "../electron/modules/data-store";
+import type { MainWindowAPI } from "../electron/modules/main-window";
+import type { PoeLeaguesAPI } from "../electron/modules/poe-leagues";
+import type { PoeNinjaAPI } from "../electron/modules/poe-ninja";
+import type { PoeProcessAPI } from "../electron/modules/poe-process";
 import type {
-  AppControlsAPI,
-  FilePathsSectionItemType,
-  IpcRendererOnEvent,
-  LocalStorageKeys,
-  Settings,
-} from ".";
-import type { PoeNinjaPriceData } from "./poe-ninja";
-import type { PoeLeague } from "./poe-league";
+  DivinationCardStats,
+  SettingsStoreAPI,
+} from "../electron/modules/settings-store";
 
-export interface CardEntry {
-  count: number;
-  processedIds: string[];
-}
-
-export interface DivinationCardStats {
-  totalCount: number;
-  cards: Record<string, CardEntry>;
-  lastUpdated?: string;
-}
-
+/**
+ * Divination Cards API
+ * Manages divination card CSV exports
+ */
 export interface DivinationCardsAPI {
-  getStats: () => Promise<DivinationCardStats>;
-  reset: () => Promise<{ success: boolean }>;
-  onUpdate: (callback: (stats: DivinationCardStats) => void) => () => void; // Returns cleanup function
   exportCsv: () => Promise<{
     success: boolean;
     filePath?: string;
@@ -44,72 +34,53 @@ export interface SessionAPI {
   getInfo: (
     game: "poe1" | "poe2",
   ) => Promise<{ league: string; startedAt: string } | null>;
+  getAll: (game: "poe1" | "poe2") => Promise<any>;
+  getById: (game: "poe1" | "poe2", sessionId: string) => Promise<any>;
+  updateCardPriceVisibility: (
+    game: "poe1" | "poe2",
+    sessionId: string,
+    priceSource: "exchange" | "stash",
+    cardName: string,
+    hidePrice: boolean,
+  ) => Promise<void>;
+  onStateChanged: (
+    callback: (data: {
+      game: string;
+      isActive: boolean;
+      sessionInfo: any;
+    }) => void,
+  ) => () => void;
+  onDataUpdated: (
+    callback: (data: {
+      game: string;
+      data: DivinationCardStats | null;
+    }) => void,
+  ) => () => void;
 }
 
-export interface PoeNinjaAPI {
-  fetchExchangePrices: (league?: string) => Promise<PoeNinjaPriceData>;
-  fetchStashPrices: (league?: string) => Promise<PoeNinjaPriceData>;
-}
-
-export interface PoeLeaguesAPI {
-  fetchLeagues: () => Promise<PoeLeague[]>;
-  getSelected: () => Promise<string>;
-  setSelected: (
-    leagueId: string,
-  ) => Promise<{ success: boolean; league: string }>;
-}
-
+/**
+ * Client.txt Paths API
+ * Manages paths to PoE client.txt files
+ */
 export interface ClientTxtPathsAPI {
   get: () => Promise<{ poe1?: string; poe2?: string }>;
-  set: (paths: {
-    poe1?: string;
-    poe2?: string;
-  }) => Promise<{ success: boolean }>;
+  set: (paths: { poe1?: string; poe2?: string }) => Promise<void>;
 }
 
-export interface PoeProcessAPI {
-  getState: () => Promise<any>;
-  onStart: (callback: (state: any) => void) => () => void; // Returns cleanup function
-  onStop: (callback: (state: any) => void) => () => void; // Returns cleanup function
-  onState: (callback: (state: any) => void) => () => void; // Returns cleanup function
-  onError: (callback: (error: any) => void) => () => void; // Returns cleanup function
-}
-
+/**
+ * Main Electron API exposed to renderer process
+ */
 export type ElectronAPI = {
-  app: AppControlsAPI;
-  collection: any;
-  getIsPoeRunning: (listener: IpcRendererOnEvent<boolean>) => void;
-  settings: {
-    getSettings: () => Promise<Settings>;
-    set: (
-      item: FilePathsSectionItemType | LocalStorageKeys,
-      value: string | boolean | null,
-    ) => Promise<ReleaseChannel | AppExitAction | FilePathsSectionItemType>;
-  };
+  app: typeof MainWindowAPI;
+  settings: typeof SettingsStoreAPI;
   divinationCards: DivinationCardsAPI;
   session: SessionAPI;
-  poeNinja: PoeNinjaAPI;
-  poeLeagues: PoeLeaguesAPI;
+  poeNinja: typeof PoeNinjaAPI;
+  poeLeagues: typeof PoeLeaguesAPI;
   clientTxtPaths: ClientTxtPathsAPI;
-  recordingOverlay: {
-    show: () => Promise<void>;
-    close: () => Promise<void>;
-    isVisible: () => void;
-  };
-  appUpdater: {
-    checkIfUpdateIsAvailable: (
-      listener: IpcRendererOnEvent<UpdateAvailable>,
-    ) => void;
-  };
-  removeListener: (listener: Listeners) => void;
-  selectFile?: (options: any) => Promise<string | null>;
-  saveConfig?: (config: any) => Promise<any>;
-  getConfig?: () => Promise<any>;
-  getConfigValue?: (key: string) => Promise<any>;
-  setConfigValue?: (key: string, value: any) => Promise<any>;
-  resetConfig?: () => Promise<any>;
-  checkClientTxtForCode?: (filePath: string, code: string) => Promise<boolean>;
-  poeProcess?: PoeProcessAPI;
+  dataStore: typeof DataStoreAPI;
+  poeProcess: typeof PoeProcessAPI;
+  selectFile: (options: any) => Promise<string | null>;
 };
 
 declare global {

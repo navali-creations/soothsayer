@@ -35,10 +35,10 @@ export const useDivinationCards = (options: UseDivinationCardsOptions = {}) => {
           loadedStats = { totalCount: 0, cards: {} };
         }
       } else if (scope === "all-time") {
-        // Load all-time stats from DataStoreEngine
+        // Load all-time stats from DataStore Service
         loadedStats = await window.electron?.dataStore?.getAllTime(game);
       } else if (scope === "league" && league) {
-        // Load league-specific stats from DataStoreEngine
+        // Load league-specific stats from DataStore Service
         loadedStats = await window.electron?.dataStore?.getLeague(game, league);
       }
 
@@ -65,44 +65,40 @@ export const useDivinationCards = (options: UseDivinationCardsOptions = {}) => {
     loadStats();
     loadAvailableLeagues();
 
-    // Listen for real-time updates (only for session scope)
-    if (scope === "session") {
-      const handleUpdate = (newStats: DivinationCardStats) => {
-        setStats(newStats);
-      };
-
-      const cleanupUpdate =
-        window.electron?.divinationCards?.onUpdate(handleUpdate);
-
-      return () => {
-        cleanupUpdate?.();
-      };
-    }
-
     // Listen for session state changes to reload data
-    const handleSessionStateChange = () => {
-      loadStats();
+    const handleSessionStateChange = (data: {
+      game: string;
+      isActive: boolean;
+      sessionInfo: any;
+    }) => {
+      if (data.game === game) {
+        loadStats();
+      }
+    };
+
+    // Listen for real-time session data updates (when cards are added)
+    const handleSessionDataUpdate = (data: { game: string; data: any }) => {
+      if (scope === "session" && data.game === game) {
+        setStats(data.data);
+      }
     };
 
     const cleanupSession = window.electron?.session?.onStateChanged(
       handleSessionStateChange,
     );
+    const cleanupData = window.electron?.session?.onDataUpdated(
+      handleSessionDataUpdate,
+    );
 
     return () => {
       cleanupSession?.();
+      cleanupData?.();
     };
-  }, [loadStats, loadAvailableLeagues, scope]);
-
-  const reset = useCallback(async () => {
-    // This resets the old LocalStorage stats - might want to update this
-    await window.electron?.divinationCards?.reset();
-    await loadStats();
-  }, [loadStats]);
+  }, [loadStats, loadAvailableLeagues, game, scope]);
 
   return {
     stats,
     loading,
-    reset,
     reload: loadStats,
     availableLeagues,
   };
