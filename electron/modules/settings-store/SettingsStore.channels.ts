@@ -21,8 +21,10 @@ enum SettingsStoreChannel {
   SetStartMinimized = "settings-store:set-start-minimized",
 
   // Game and league selection
-  GetSelectedGame = "settings-store:get-selected-game",
-  SetSelectedGame = "settings-store:set-selected-game",
+  SetActiveGame = "settings-store:set-active-game",
+  GetActiveGame = "settings-store:get-active-game",
+  GetInstalledGames = "settings-store:get-installed-games",
+  SetInstalledGames = "settings-store:set-installed-games",
   GetSelectedPoe1League = "settings-store:get-selected-poe1-league",
   SetSelectedPoe1League = "settings-store:set-selected-poe1-league",
   GetSelectedPoe2League = "settings-store:get-selected-poe2-league",

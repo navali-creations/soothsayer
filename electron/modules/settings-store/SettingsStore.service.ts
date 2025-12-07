@@ -124,13 +124,25 @@ class SettingsStoreService {
       },
     );
 
-    // Selected game
-    ipcMain.handle(SettingsStoreChannel.GetSelectedGame, () => {
+    // Installed games
+    ipcMain.handle(SettingsStoreChannel.GetActiveGame, () => {
+      return this.get(SettingsKey.ActiveGame);
+    });
+
+    ipcMain.handle(
+      SettingsStoreChannel.SetActiveGame,
+      (_event, game: Omit<GameVersion, 'both'>) => {
+        this.set(SettingsKey.ActiveGame, game);
+      },
+    );
+
+    // Installed games
+    ipcMain.handle(SettingsStoreChannel.GetInstalledGames, () => {
       return this.get(SettingsKey.InstalledGames);
     });
 
     ipcMain.handle(
-      SettingsStoreChannel.SetSelectedGame,
+      SettingsStoreChannel.SetInstalledGames,
       (_event, game: GameVersion) => {
         this.set(SettingsKey.InstalledGames, game);
       },
@@ -189,7 +201,7 @@ class SettingsStoreService {
       [SettingsKey.AppOpenAtLoginMinimized]: this.get(
         SettingsKey.AppOpenAtLoginMinimized,
       ),
-      [SettingsKey.Poe1Path]: this.get(SettingsKey.Poe1Path),
+      [SettingsKey.ActiveGame]: this.get(SettingsKey.ActiveGame),
       [SettingsKey.Poe1ClientTxtPath]: this.get(SettingsKey.Poe1ClientTxtPath),
       [SettingsKey.Poe2ClientTxtPath]: this.get(SettingsKey.Poe2ClientTxtPath),
       [SettingsKey.CollectionPath]: this.get(SettingsKey.CollectionPath),

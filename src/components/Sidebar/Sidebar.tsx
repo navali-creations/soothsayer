@@ -86,7 +86,7 @@ const Sidebar = () => {
   }, [stats, cardPrices]);
 
   return (
-    <aside className="w-64 bg-base-200 border-r border-base-300 flex flex-col h-screen">
+    <aside className="w-[160px] bg-base-200 border-r border-base-300 flex flex-col h-screen">
       {/* Status Cards */}
       <div className="p-3 space-y-2">
         {/* Session Status Card */}
@@ -161,20 +161,9 @@ const Sidebar = () => {
                       </span>
                     </div>
                   </div>
-                  {/* Stacked Decks count */}
-                  <div className="text-xs text-base-content/60 font-medium">
-                    Stacked Decks Opened
-                  </div>
-                  <div className="font-semibold tabular-nums text-base-content">
-                    {stats?.totalCount || 0}
-                  </div>
                 </div>
               )}
             </div>
-            <FiActivity
-              size={24}
-              className={`transition-colors ${isActive ? "text-warning" : "text-base-content/30"}`}
-            />
           </Flex>
         </div>
 
@@ -184,7 +173,7 @@ const Sidebar = () => {
             <Flex className="justify-between items-start">
               <div className="flex-1">
                 <div className="text-xs text-base-content/50 uppercase tracking-wide font-medium mb-0.5">
-                  Total Opened Value
+                  Total Value
                 </div>
                 <div className="font-semibold tabular-nums text-base-content">
                   {formatCurrency(totalProfit, chaosToDivineRatio)}
@@ -195,7 +184,6 @@ const Sidebar = () => {
                   </div>
                 )}
               </div>
-              <GiCardExchange size={24} className="text-base-content/30" />
             </Flex>
           </div>
         )}

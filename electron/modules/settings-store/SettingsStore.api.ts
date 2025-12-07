@@ -57,9 +57,9 @@ const SettingsStoreAPI = {
 
   // Game and league selection
   getSelectedGame: (): Promise<GameVersion> =>
-    ipcRenderer.invoke(SettingsStoreChannel.GetSelectedGame),
+    ipcRenderer.invoke(SettingsStoreChannel.GetInstalledGames),
   setSelectedGame: (game: GameVersion): Promise<void> =>
-    ipcRenderer.invoke(SettingsStoreChannel.SetSelectedGame, game),
+    ipcRenderer.invoke(SettingsStoreChannel.SetInstalledGames, game),
 
   getSelectedPoe1League: (): Promise<string> =>
     ipcRenderer.invoke(SettingsStoreChannel.GetSelectedPoe1League),

@@ -3,6 +3,27 @@
   themes: coffee;
 }
 
+.divider-color {
+  border-color: color-mix(in oklab, var(--color-base-content) 10%, transparent);
+}
+
+@layer utilities {
+  .tabs-lift {
+    & > .tab {
+      background-color: var(--color-base-200);
+      /* override the gradients that ::before uses */
+
+      --tab-radius-grad:
+        transparent calc(69% - var(--border)),
+        color-mix(in oklab, var(--color-base-content) 10%, transparent)
+          calc(calc(69% - var(--border)) + 0.25px),
+        color-mix(in oklab, var(--color-base-content) 10%, transparent)
+          calc(calc(69% - var(--border)) + var(--border)),
+        var(--tab-bg) calc(calc(69% - var(--border)) + var(--border) + 0.25px);
+    }
+  }
+}
+
 .drag {
   -webkit-app-region: drag;
   app-region: drag;
