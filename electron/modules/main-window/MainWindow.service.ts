@@ -49,6 +49,8 @@ class MainWindowService {
       width: 800,
       height: 800,
       minWidth: 800,
+      backgroundColor: "#261b25",
+      show: false, // This line prevents electron's default #1E1E1E bg load before html renders and html blank screen (white flash)
       webPreferences: {
         preload,
         nodeIntegration: true,
