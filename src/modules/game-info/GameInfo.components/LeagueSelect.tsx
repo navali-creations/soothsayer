@@ -17,20 +17,21 @@ const LeagueSelect = ({ game }: LeagueSelectProps) => {
   const selectedLeague =
     game === "poe1" ? getSelectedPoe1League() : getSelectedPoe2League();
 
-  const handleLeagueChange = async (game: string) => {
+  const handleLeagueChange = async (league: string) => {
     const key =
       game === "poe1"
         ? SettingsKey.SelectedPoe1League
         : SettingsKey.SelectedPoe2League;
-    await updateSetting(key, selectedLeague);
+    await updateSetting(key, league);
   };
 
   return (
-    <label className="select select-xs w-[160px] no-drag">
+    <label className="select select-xs w-max no-drag">
       <span className="label">League</span>
       <select
         value={selectedLeague}
         onChange={(e) => handleLeagueChange(e.target.value)}
+        className="-me-[30px] -ms-[18px]"
       >
         {poeLeague.map((league) => (
           <option key={league.id} value={league.id}>

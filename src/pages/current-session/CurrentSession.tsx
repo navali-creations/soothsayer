@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { FiDownload, FiEye, FiPlay, FiSquare } from "react-icons/fi";
 import { GiCardExchange, GiLockedChest } from "react-icons/gi";
 import { formatCurrency } from "../../api/poe-ninja";
-import { Button, Flex, Table } from "../../components";
+import { Button, Flex, PageContainer, Table } from "../../components";
 import { usePoeNinjaExchangePrices, usePoeNinjaStashPrices } from "../../hooks";
 import { useBoundStore } from "../../store/store";
 
@@ -22,28 +22,31 @@ type PriceSource = "exchange" | "stash";
 
 const CurrentSessionPage = () => {
   // Use Zustand for all session state
-  const isActive = useBoundStore((state) => state.isActive("poe1"));
-  const sessionInfo = useBoundStore((state) => state.getSessionInfo("poe1"));
-  const sessionData = useBoundStore((state) => state.getSession("poe1"));
-  const isLoading = useBoundStore((state) => state.isLoading);
-  const startSession = useBoundStore((state) => state.startSession);
-  const stopSession = useBoundStore((state) => state.stopSession);
+  const {
+    currentSession: {
+      getIsCurrentSessionActive,
+      isLoading,
+      startSession,
+      stopSession,
+      getSession,
+    },
+    settings: { getActiveGameViewSelectedLeague },
+  } = useBoundStore();
+  const selectedLeague = getActiveGameViewSelectedLeague();
+  const isActive = getIsCurrentSessionActive();
+  const sessionData = getSession();
 
-  // Local UI state
-  const [selectedLeague, setSelectedLeague] = useState(
-    sessionInfo?.league || "Keepers",
-  );
   const [priceSource, setPriceSource] = useState<PriceSource>("exchange");
   const [error, setError] = useState<string | null>(null);
 
   // Only fetch live data when there's no snapshot (fallback)
   const shouldFetchLive = !sessionData?.priceSnapshot;
   const exchangeData = usePoeNinjaExchangePrices(
-    sessionInfo?.league || selectedLeague,
+    selectedLeague,
     shouldFetchLive && priceSource === "exchange",
   );
   const stashData = usePoeNinjaStashPrices(
-    sessionInfo?.league || selectedLeague,
+    selectedLeague,
     shouldFetchLive && priceSource === "stash",
   );
 
@@ -84,39 +87,6 @@ const CurrentSessionPage = () => {
     isSnapshot,
   } = getPriceData();
 
-  const handleStartSession = async () => {
-    try {
-      setError(null);
-      await startSession("poe1", selectedLeague);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to start session");
-    }
-  };
-
-  const handleStopSession = async () => {
-    try {
-      setError(null);
-      await stopSession("poe1");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to stop session");
-    }
-  };
-
-  const handleExportCurrentSession = async () => {
-    try {
-      const result = await window.electron.divinationCards.exportCsv();
-      if (result.success) {
-        console.log("CSV exported successfully to:", result.filePath);
-      } else if (!result.canceled) {
-        console.error("Failed to export CSV:", result.error);
-        alert("Failed to export CSV. Please try again.");
-      }
-    } catch (error) {
-      console.error("Error exporting CSV:", error);
-      alert("Failed to export CSV. Please try again.");
-    }
-  };
-
   const handleTogglePriceVisibility = async (
     cardName: string,
     currentHidePrice: boolean,
@@ -137,22 +107,6 @@ const CurrentSessionPage = () => {
       console.error("Error toggling price visibility:", error);
       alert("Failed to update price visibility. Please try again.");
     }
-  };
-  // Calculate session duration
-  const getSessionDuration = () => {
-    if (!sessionInfo) return "—";
-
-    const start = new Date(sessionInfo.startedAt);
-    const now = new Date();
-    const diff = now.getTime() - start.getTime();
-
-    const hours = Math.floor(diff / 3600000);
-    const minutes = Math.floor((diff % 3600000) / 60000);
-
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    }
-    return `${minutes}m`;
   };
 
   // Prepare card data for table
@@ -301,47 +255,28 @@ const CurrentSessionPage = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-base-200 p-6">
-      <div className="mx-auto space-y-6">
-        {/* Header */}
-        <Flex className="justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold">Current Session</h1>
-            <p className="text-base-content/70">
-              Track your active farming session in real-time
-            </p>
-          </div>
+    <PageContainer>
+      <PageContainer.Header
+        title="Current Session"
+        subtitle="Track your active opening session in real-time"
+        actions={
           <Flex className="gap-2 items-center">
-            {/* Session Controls */}
             {isActive ? (
-              <>
-                <Button
-                  variant="error"
-                  onClick={handleStopSession}
-                  disabled={isLoading}
-                >
-                  <FiSquare /> Stop Session
-                </Button>
-              </>
+              <Button
+                variant="error"
+                onClick={stopSession}
+                disabled={isLoading}
+              >
+                <FiSquare /> Stop Session
+              </Button>
             ) : (
-              <>
-                <select
-                  className="select select-bordered"
-                  value={selectedLeague}
-                  onChange={(e) => setSelectedLeague(e.target.value)}
-                  disabled={isLoading}
-                >
-                  <option value="Keepers">Keepers</option>
-                  <option value="Standard">Standard</option>
-                </select>
-                <Button
-                  variant="success"
-                  onClick={handleStartSession}
-                  disabled={isLoading}
-                >
-                  <FiPlay /> Start Session
-                </Button>
-              </>
+              <Button
+                variant="success"
+                onClick={startSession}
+                disabled={isLoading}
+              >
+                <FiPlay /> Start Session
+              </Button>
             )}
             {/* Price Source Toggle */}
             <div role="tablist" className="tabs tabs-border">
@@ -362,15 +297,13 @@ const CurrentSessionPage = () => {
                 Stash
               </button>
             </div>
-            <Button variant="ghost" onClick={handleExportCurrentSession}>
-              <FiDownload /> Export CSV
-            </Button>
           </Flex>
-        </Flex>
-
+        }
+      />
+      <div className="mx-auto space-y-6">
         {/* Session Status Alerts */}
         {!isActive && (
-          <div className="alert alert-info">
+          <div className="alert alert-soft alert-info">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
@@ -392,7 +325,7 @@ const CurrentSessionPage = () => {
         )}
 
         {error && (
-          <div className="alert alert-error">
+          <div className="alert alert-soft alert-error">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               className="stroke-current shrink-0 h-6 w-6"
@@ -412,7 +345,7 @@ const CurrentSessionPage = () => {
 
         {/* Pricing Source Info */}
         {isSnapshot ? (
-          <div className="alert alert-success">
+          <div className="alert alert-soft alert-success">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
@@ -434,7 +367,7 @@ const CurrentSessionPage = () => {
             </span>
           </div>
         ) : (
-          <div className="alert alert-warning">
+          <div className="alert alert-soft alert-warning">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
@@ -543,7 +476,7 @@ const CurrentSessionPage = () => {
           </div>
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 };
 

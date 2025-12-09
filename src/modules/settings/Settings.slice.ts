@@ -36,7 +36,8 @@ export interface SettingsSlice {
     getCollectionPath: () => string | undefined;
 
     // Getters - Game and league selection
-    getActiveGame: () => Omit<GameVersion, "both"> | undefined;
+    getActiveGame: () => Omit<GameVersion, "both">;
+    getActiveGameViewSelectedLeague: () => string | undefined;
     getInstalledGames: () => GameVersion | undefined;
     getSelectedPoe1League: () => string;
     getSelectedPoe2League: () => string;
@@ -210,6 +211,16 @@ export const createSettingsSlice: StateCreator<
     getActiveGame: () => {
       const { settings } = get();
       return settings.data?.["active-game"];
+    },
+
+    getActiveGameViewSelectedLeague: () => {
+      const { settings } = get();
+      const activeGameView = settings.getActiveGame() as Extract<
+        GameVersion,
+        "poe1" | "poe2"
+      >;
+
+      return settings.data?.[`selected-${activeGameView}-league`];
     },
 
     getInstalledGames: () => {

@@ -46,9 +46,9 @@ class MainWindowService {
 
     this.mainWindow = new BrowserWindow({
       title: "Soothsayer",
-      width: 800,
+      width: 1200,
       height: 800,
-      minWidth: 800,
+      minWidth: 1200,
       backgroundColor: "#261b25",
       show: false, // This line prevents electron's default #1E1E1E bg load before html renders and html blank screen (white flash)
       webPreferences: {

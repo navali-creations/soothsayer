@@ -6,8 +6,14 @@ import { ProcessPoller } from "./ProcessPoller";
  */
 export class PoeProcessPoller extends ProcessPoller {
   private static readonly POE_PROCESSES = [
+    // PoE 1
     "PathOfExileSteam.exe",
     "PathOfExile.exe",
+    // PoE 2
+    "PathOfExile2Steam.exe",
+    "PathOfExile2.exe",
+    "PathOfExile_x64Steam.exe", // Alternative name if different
+    "PathOfExile_x64.exe",
   ];
 
   private static readonly POLL_INTERVAL_MS = 5000;

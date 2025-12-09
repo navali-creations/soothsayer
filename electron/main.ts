@@ -1,9 +1,6 @@
 import { app as electronApp } from "electron";
-import {
-  AppService,
-  AppSetupService,
-  MainWindowService,
-} from "./modules";
+import { installExtension, REDUX_DEVTOOLS } from "electron-devtools-installer";
+import { AppService, AppSetupService, MainWindowService } from "./modules";
 
 const app = AppService.getInstance();
 const mainWindow = MainWindowService.getInstance();
@@ -14,6 +11,10 @@ if (!electronApp.requestSingleInstanceLock()) {
   app.quit();
 } else {
   electronApp.whenReady().then(async () => {
+    installExtension(REDUX_DEVTOOLS)
+      .then((ext) => console.log(`Added Extension:  ${ext.name}`))
+      .catch((err) => console.log("An error occurred: ", err));
+
     await mainWindow.createMainWindow(app.isQuitting);
     app.emitSecondInstance(mainWindow);
     app.emitRestart();

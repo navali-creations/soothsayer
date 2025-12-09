@@ -6,30 +6,32 @@ import { CurrentSessionChannel } from "./CurrentSession.channels";
 export const CurrentSessionAPI = {
   // Start a session
   start: (
-    game: GameVersion,
+    activeGameView: Extract<GameVersion, "poe1" | "poe2">,
     league: string,
   ): Promise<{ success: boolean; error?: string }> =>
-    ipcRenderer.invoke(CurrentSessionChannel.Start, game, league),
+    ipcRenderer.invoke(CurrentSessionChannel.Start, activeGameView, league),
 
   // Stop a session
-  stop: (game: GameVersion): Promise<{ success: boolean; error?: string }> =>
-    ipcRenderer.invoke(CurrentSessionChannel.Stop, game),
+  stop: (
+    activeGameView: Extract<GameVersion, "poe1" | "poe2">,
+  ): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(CurrentSessionChannel.Stop, activeGameView),
 
   // Check if session is active
-  isActive: (game: GameVersion): Promise<boolean> =>
-    ipcRenderer.invoke(CurrentSessionChannel.IsActive, game),
+  isActive: (activeGameView: GameVersion): Promise<boolean> =>
+    ipcRenderer.invoke(CurrentSessionChannel.IsActive, activeGameView),
 
   // Get current session data
   getCurrent: (
-    game: GameVersion,
+    activeGameView: GameVersion,
   ): Promise<DetailedDivinationCardStats | null> =>
-    ipcRenderer.invoke(CurrentSessionChannel.Get, game),
+    ipcRenderer.invoke(CurrentSessionChannel.Get, activeGameView),
 
   // Get session info (league, startedAt)
   getInfo: (
-    game: GameVersion,
+    activeGameView: GameVersion,
   ): Promise<{ league: string; startedAt: string } | null> =>
-    ipcRenderer.invoke(CurrentSessionChannel.Info, game),
+    ipcRenderer.invoke(CurrentSessionChannel.Info, activeGameView),
 
   // Listen for session state changes
   onStateChanged: (

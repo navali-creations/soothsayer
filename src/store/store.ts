@@ -49,7 +49,7 @@ export const useBoundStore = create<BoundStore>()(
           await Promise.all([
             settingsSlice.settings.hydrate(),
             setupSlice.hydrate(),
-            sessionSlice.hydrate(),
+            sessionSlice.currentSession.hydrate(),
             appMenuSlice.appMenu.hydrate(),
             gameInfoSlice.gameInfo.hydrate(),
           ]);
@@ -57,7 +57,8 @@ export const useBoundStore = create<BoundStore>()(
 
         // Start all listeners
         startListeners: () => {
-          const unsubscribeSession = sessionSlice.startListening();
+          const unsubscribeSession =
+            sessionSlice.currentSession.startListening();
           const unsubscribeGameInfo = gameInfoSlice.gameInfo.startListening();
 
           return () => {
@@ -77,8 +78,8 @@ export const useBoundStore = create<BoundStore>()(
             state.setupState = null;
 
             // Reset session
-            state.poe1Session = null;
-            state.poe2Session = null;
+            state.currentSession.poe1Session = null;
+            state.currentSession.poe2Session = null;
             state.isLoading = false;
             state.error = null;
 

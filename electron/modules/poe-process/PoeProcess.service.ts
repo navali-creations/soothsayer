@@ -9,6 +9,10 @@ import { PoeProcessPoller } from "../../pollers/PoeProcessPoller";
 class PoeProcessService {
   private static _instance: PoeProcessService;
   private poller: PoeProcessPoller;
+  private currentState: { isRunning: boolean; processName: string } = {
+    isRunning: false,
+    processName: "",
+  };
   private mainWindow: MainWindowService | null = null;
 
   static getInstance(): PoeProcessService {
@@ -46,17 +50,20 @@ class PoeProcessService {
     // PoE process started
     this.poller.on("start", (state) => {
       console.log("PoE process started:", state);
+      this.currentState = state;
       this.sendToRenderer(PoeProcessChannel.Start, state);
     });
 
     // PoE process stopped
     this.poller.on("stop", (previousState) => {
       console.log("PoE process stopped:", previousState);
+      this.currentState = { isRunning: false, processName: "" };
       this.sendToRenderer(PoeProcessChannel.Stop, previousState);
     });
 
     // PoE process state (emitted on every poll)
     this.poller.on("data", (state) => {
+      this.currentState = state;
       this.sendToRenderer(PoeProcessChannel.GetState, state);
     });
 
@@ -72,9 +79,7 @@ class PoeProcessService {
   private setupIpcHandlers(): void {
     // Get current PoE process state
     ipcMain.handle(PoeProcessChannel.IsRunning, () => {
-      return {
-        isRunning: this.poller.isPollerRunning,
-      };
+      return this.currentState;
     });
   }
 

@@ -71,6 +71,25 @@ export const createGameInfoSlice: StateCreator<
     // Hydrate - fetch leagues on app start
     hydrate: async () => {
       const { gameInfo } = get();
+
+      // Fetch initial process state
+      try {
+        const processState = await window.electron.poeProcess.getState();
+        console.log("[GameInfo] Initial process state:", processState);
+
+        // Set initial state if a process is running
+        if (processState?.isRunning && processState?.processName) {
+          if (processState.processName.includes("PathOfExile2")) {
+            gameInfo.setPoe2ProcessState(processState);
+          } else {
+            gameInfo.setPoe1ProcessState(processState);
+          }
+        }
+      } catch (error) {
+        console.error("[GameInfo] Failed to get initial process state:", error);
+      }
+
+      // Fetch leagues
       await Promise.all([
         gameInfo.fetchLeagues("poe1"),
         gameInfo.fetchLeagues("poe2"),
@@ -89,7 +108,7 @@ export const createGameInfoSlice: StateCreator<
       );
 
       try {
-        const leagues = await window.electron.poeLeagues.fetchLeagues();
+        const leagues = await window.electron.poeLeagues.fetchLeagues(game);
 
         set(
           ({ gameInfo }) => {

@@ -1,6 +1,7 @@
 import { ipcMain } from "electron";
 import type { PoeLeague, PoeLeagueFullData } from "../../../types/poe-league";
 import {
+  type GameVersion,
   PoeLeaguesChannel,
   SettingsKey,
   SettingsStoreService,
@@ -8,8 +9,8 @@ import {
 
 class PoeLeaguesService {
   private static _instance: PoeLeaguesService;
-  private cachedLeagues: PoeLeague[] | null = null;
-  private lastFetchTime: number = 0;
+  private cachedLeagues: Map<"poe1" | "poe2", PoeLeague[]> = new Map();
+  private lastFetchTime: Map<"poe1" | "poe2", number> = new Map();
   private readonly CACHE_DURATION = 60 * 60 * 1000; // 1 hour
   private settingsStore: SettingsStoreService;
 
@@ -27,9 +28,12 @@ class PoeLeaguesService {
   }
 
   private setupIpcHandlers() {
-    ipcMain.handle(PoeLeaguesChannel.FetchLeagues, async () => {
-      return this.fetchLeagues();
-    });
+    ipcMain.handle(
+      PoeLeaguesChannel.FetchLeagues,
+      async (_event, game: Extract<GameVersion, "poe1" | "poe2">) => {
+        return this.fetchLeagues(game);
+      },
+    );
 
     ipcMain.handle(PoeLeaguesChannel.GetSelectedLeague, () => {
       return this.getSelectedLeague();
@@ -43,19 +47,27 @@ class PoeLeaguesService {
     );
   }
 
-  private async fetchLeagues(): Promise<PoeLeague[]> {
+  private async fetchLeagues(
+    game: Extract<GameVersion, "poe1" | "poe2">,
+  ): Promise<PoeLeague[]> {
     const now = Date.now();
+    const cachedData = this.cachedLeagues.get(game);
+    const lastFetch = this.lastFetchTime.get(game) || 0;
 
     // Return cached data if it's still fresh
-    if (this.cachedLeagues && now - this.lastFetchTime < this.CACHE_DURATION) {
-      console.log("Returning cached PoE leagues data");
-      return this.cachedLeagues;
+    if (cachedData && now - lastFetch < this.CACHE_DURATION) {
+      console.log(`Returning cached PoE ${game} leagues data`);
+      return cachedData;
     }
 
-    console.log("Fetching PoE leagues from API");
+    console.log(`Fetching PoE ${game === "poe2" ? 2 : 1} leagues from API`);
+    const url =
+      game === "poe2"
+        ? "https://www.pathofexile.com/api/trade2/data/leagues"
+        : "https://www.pathofexile.com/api/leagues";
 
     try {
-      const response = await fetch("https://www.pathofexile.com/api/leagues", {
+      const response = await fetch(url, {
         headers: {
           "User-Agent":
             "Soothsayer/1.0.0 (Electron App for PoE Divination Card Tracking)",
@@ -67,23 +79,39 @@ class PoeLeaguesService {
         throw new Error(`Failed to fetch PoE leagues: ${response.statusText}`);
       }
 
-      const data: PoeLeagueFullData[] = await response.json();
+      let leagues: PoeLeague[];
 
-      // Filter out Solo leagues and map to simplified format
-      const leagues: PoeLeague[] = data
-        .filter((league) => {
-          // Exclude leagues with "Solo" in any rule name
-          return !league.rules.some((rule) => rule.name === "Solo");
-        })
-        .map((league) => ({
+      if (game === "poe2") {
+        // PoE2 API returns: { result: Array<{ id, realm, text }> }
+        const data: {
+          result: Array<{ id: string; realm: string; text: string }>;
+        } = await response.json();
+
+        leagues = data.result.map((league) => ({
           id: league.id,
-          name: league.name,
-          startAt: league.startAt,
-          endAt: league.endAt,
+          name: league.text,
+          startAt: null,
+          endAt: null,
         }));
+      } else {
+        // PoE1 API returns: PoeLeagueFullData[]
+        const data: PoeLeagueFullData[] = await response.json();
 
-      this.cachedLeagues = leagues;
-      this.lastFetchTime = now;
+        leagues = data
+          .filter((league) => {
+            // Exclude leagues with "Solo" in any rule name
+            return !league.rules.some((rule) => rule.name === "Solo");
+          })
+          .map((league) => ({
+            id: league.id,
+            name: league.name,
+            startAt: league.startAt,
+            endAt: league.endAt,
+          }));
+      }
+
+      this.cachedLeagues.set(game, leagues);
+      this.lastFetchTime.set(game, now);
 
       console.log(
         `Fetched ${leagues.length} leagues (excluding Solo variants)`,
@@ -94,9 +122,13 @@ class PoeLeaguesService {
       console.error("Error fetching PoE leagues:", error);
 
       // Return cached data if available, even if stale
-      if (this.cachedLeagues) {
-        console.log("Returning stale cached leagues due to fetch error");
-        return this.cachedLeagues;
+      const cachedData = this.cachedLeagues.get(game);
+      if (cachedData) {
+        console.log(
+          `Returning stale cached ${game} leagues due to fetch error`,
+        );
+
+        return cachedData;
       }
 
       throw error;
@@ -130,9 +162,11 @@ class PoeLeaguesService {
   }
 
   // Public method to refresh cache
-  public async refreshCache(): Promise<PoeLeague[]> {
-    this.lastFetchTime = 0; // Force refresh
-    return this.fetchLeagues();
+  public async refreshCache(
+    game: Extract<GameVersion, "poe1" | "poe2">,
+  ): Promise<PoeLeague[]> {
+    this.lastFetchTime.set(game, 0); // Force refresh
+    return this.fetchLeagues(game);
   }
 }
 

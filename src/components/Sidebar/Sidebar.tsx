@@ -8,10 +8,13 @@ import { useBoundStore } from "../../store/store";
 import { Flex, Link } from "..";
 
 const Sidebar = () => {
+  const {
+    currentSession: { getIsCurrentSessionActive },
+    currentSession: { getSessionInfo },
+  } = useBoundStore();
   // Use Zustand instead of useSession hook
-  const isActive = useBoundStore((state) => state.isActive("poe1"));
-  const sessionInfo = useBoundStore((state) => state.getSessionInfo("poe1"));
-  const session = useBoundStore((state) => state.getSession("poe1"));
+  const isActive = getIsCurrentSessionActive();
+  const sessionInfo = getSessionInfo();
 
   const { stats } = useDivinationCards();
   const [time, setTime] = useState({ hours: 0, minutes: 0, seconds: 0 });

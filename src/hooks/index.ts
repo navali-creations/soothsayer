@@ -1,5 +1,4 @@
 export { useDivinationCards } from "./useDivinationCards";
-export { usePoeLeagues } from "./usePoeLeagues";
 export {
   usePoeNinjaExchangePrices,
   usePoeNinjaStashPrices,
