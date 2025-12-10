@@ -1,4 +1,5 @@
 import { ipcRenderer } from "electron";
+import type { PriceSource } from "../../../types/data-stores";
 import { SettingsStoreChannel } from "./SettingsStore.channels";
 import type {
   AppExitActions,
@@ -70,6 +71,16 @@ const SettingsStoreAPI = {
     ipcRenderer.invoke(SettingsStoreChannel.GetSelectedPoe2League),
   setSelectedPoe2League: (leagueId: string): Promise<void> =>
     ipcRenderer.invoke(SettingsStoreChannel.SetSelectedPoe2League, leagueId),
+
+  getSelectedPoe1PriceSource: (): Promise<PriceSource> =>
+    ipcRenderer.invoke(SettingsStoreChannel.GetSelectedPoe1PriceSource),
+  setSelectedPoe1PriceSource: (source: PriceSource): Promise<void> =>
+    ipcRenderer.invoke(SettingsStoreChannel.SetSelectedPoe1PriceSource, source),
+
+  getSelectedPoe2PriceSource: (): Promise<PriceSource> =>
+    ipcRenderer.invoke(SettingsStoreChannel.GetSelectedPoe2PriceSource),
+  setSelectedPoe2PriceSource: (source: PriceSource): Promise<void> =>
+    ipcRenderer.invoke(SettingsStoreChannel.SetSelectedPoe2PriceSource, source),
 };
 
 export { SettingsStoreAPI };

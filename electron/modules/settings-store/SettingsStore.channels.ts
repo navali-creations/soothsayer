@@ -29,6 +29,12 @@ enum SettingsStoreChannel {
   SetSelectedPoe1League = "settings-store:set-selected-poe1-league",
   GetSelectedPoe2League = "settings-store:get-selected-poe2-league",
   SetSelectedPoe2League = "settings-store:set-selected-poe2-league",
+
+  // Price source selection (add after league selection)
+  GetSelectedPoe1PriceSource = "settings-store:get-selected-poe1-price-source",
+  SetSelectedPoe1PriceSource = "settings-store:set-selected-poe1-price-source",
+  GetSelectedPoe2PriceSource = "settings-store:get-selected-poe2-price-source",
+  SetSelectedPoe2PriceSource = "settings-store:set-selected-poe2-price-source",
 }
 
 export { SettingsStoreChannel };

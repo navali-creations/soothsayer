@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import CurrentSessionPage from "../pages/current-session/CurrentSession";
+import CurrentSessionPage from "../modules/current-session/CurrentSession.page";
 
 export const Route = createFileRoute("/current-session")({
   component: CurrentSessionPage,

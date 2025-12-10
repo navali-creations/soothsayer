@@ -1,4 +1,5 @@
 import type { ReleaseChannel } from "../../../enums/release-channel";
+import type { PriceSource } from "../../../types/data-stores";
 import type { AppChannel } from "../app/App.channels";
 
 // Re-export types for convenience
@@ -37,6 +38,10 @@ export const SettingsKey = {
   SetupCompleted: "setup-completed",
   SetupStep: "setup-step",
   SetupVersion: "setup-version", // Track setup flow version for future migrations
+
+  // Price source selection (add after league selection)
+  SelectedPoe1PriceSource: "selected-poe1-price-source",
+  SelectedPoe2PriceSource: "selected-poe2-price-source",
 } as const;
 
 // Settings store schema - using type instead of interface to support computed keys
@@ -63,6 +68,10 @@ export type SettingsStoreSchema = {
   [SettingsKey.SetupCompleted]: boolean;
   [SettingsKey.SetupStep]: SetupStep;
   [SettingsKey.SetupVersion]: number;
+
+  // Price source selection
+  [SettingsKey.SelectedPoe1PriceSource]: PriceSource;
+  [SettingsKey.SelectedPoe2PriceSource]: PriceSource;
 };
 
 // Settings store keys (string literal union type)
@@ -85,4 +94,6 @@ export const DEFAULT_SETTINGS: SettingsStoreSchema = {
   [SettingsKey.SetupCompleted]: false,
   [SettingsKey.SetupStep]: 0,
   [SettingsKey.SetupVersion]: 1, // Current setup flow version
+  [SettingsKey.SelectedPoe1PriceSource]: "exchange",
+  [SettingsKey.SelectedPoe2PriceSource]: "exchange",
 };

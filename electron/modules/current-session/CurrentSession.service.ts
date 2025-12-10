@@ -3,10 +3,13 @@ import path from "node:path";
 import { BrowserWindow, ipcMain } from "electron";
 import Store from "electron-store";
 import type {
+  CardEntry,
+  CardPriceInfo,
   DetailedCardEntry,
   DetailedDivinationCardStats,
   GameType,
   SessionPriceSnapshot,
+  SessionTotal,
 } from "../../../types/data-stores";
 import {
   CurrentSessionChannel,
@@ -273,10 +276,7 @@ class CurrentSessionService {
             cardName,
             hidePrice,
           );
-          if (result && sessionId === "current") {
-            this.emitSessionStateChange(game);
-          }
-          return { success: result };
+          return result;
         } catch (error) {
           console.error("Error updating card price visibility:", error);
           return { success: false, error: (error as Error).message };
@@ -425,59 +425,96 @@ class CurrentSessionService {
     const activeSession =
       game === "poe1" ? this.poe1ActiveSession : this.poe2ActiveSession;
 
-    // Check if session is active
     if (!sessionStore || !activeSession) {
       console.warn(`No active session for ${game}, card not recorded`);
       return false;
     }
 
-    // Check if already processed GLOBALLY (includes previous sessions)
     perf?.start("dup");
     if (processedIds.has(processedId)) {
-      return false; // Duplicate, skip (could be from previous session)
+      return false;
     }
     const dupCheckTime = perf?.end("dup") ?? 0;
 
-    // Add to in-memory set (global)
     processedIds.add(processedId);
 
-    // Save to global persistent tracker
     perf?.start("tracker");
     this.saveProcessedIdGlobally(game, processedId);
     const trackerTime = perf?.end("tracker") ?? 0;
 
-    // Update session store
     perf?.start("session");
     const stats = sessionStore.store;
-    const cards = { ...stats.cards };
 
-    if (cards[cardName]) {
-      const existingIds = cards[cardName].processedIds || [];
-      cards[cardName] = {
-        count: cards[cardName].count + 1,
-        processedIds: [...existingIds, processedId],
-      };
-    } else {
-      cards[cardName] = {
-        count: 1,
-        processedIds: [processedId],
-      };
+    // NO CONVERSION - work directly with object
+    const cards = stats.cards as Record<string, DetailedCardEntry>; // Type assertion
+    const priceSnapshot = stats.priceSnapshot;
+
+    const existingCard = cards[cardName];
+    const existingCount = existingCard?.count || 0;
+    const existingIds = existingCard?.processedIds || [];
+    const newCount = existingCount + 1;
+
+    // Calculate prices
+    let stashPrice: CardPriceInfo | undefined;
+    let exchangePrice: CardPriceInfo | undefined;
+
+    if (priceSnapshot) {
+      const stashData = priceSnapshot.stash.cardPrices[cardName];
+      const exchangeData = priceSnapshot.exchange.cardPrices[cardName];
+
+      if (stashData) {
+        const stashValue = stashData.chaosValue * newCount;
+        stashPrice = {
+          chaosValue: stashData.chaosValue,
+          divineValue: stashData.divineValue,
+          totalValue: stashValue,
+          hidePrice: existingCard?.stashPrice?.hidePrice || false,
+        };
+      }
+
+      if (exchangeData) {
+        const exchangeValue = exchangeData.chaosValue * newCount;
+        exchangePrice = {
+          chaosValue: exchangeData.chaosValue,
+          divineValue: exchangeData.divineValue,
+          totalValue: exchangeValue,
+          hidePrice: existingCard?.exchangePrice?.hidePrice || false,
+        };
+      }
     }
+
+    // Update card (O(1))
+    cards[cardName] = {
+      count: newCount,
+      processedIds: [...existingIds, processedId],
+      stashPrice,
+      exchangePrice,
+    };
+
+    const newTotalCount = stats.totalCount + 1;
+
+    // INCREMENTAL totals update (O(1) instead of O(n))
+    const totals = this.updateTotalsIncremental(
+      stats.totals,
+      existingCard,
+      cards[cardName],
+      priceSnapshot,
+    );
 
     sessionStore.store = {
       ...stats,
-      cards,
-      totalCount: stats.totalCount + 1,
+      cards, // Keep as object
+      totalCount: newTotalCount,
       lastUpdated: new Date().toISOString(),
+      totals,
     };
     const sessionUpdateTime = perf?.end("session") ?? 0;
 
-    // Cascade to data stores (league, all-time, global)
+    // Cascade and emit
     perf?.start("cascade");
     this.dataStore.addCard(game, league, cardName);
     const cascadeTime = perf?.end("cascade") ?? 0;
 
-    // Emit update event to renderer
     perf?.start("emit");
     this.emitSessionDataUpdate(game);
     const emitTime = perf?.end("emit") ?? 0;
@@ -493,6 +530,101 @@ class CurrentSessionService {
     });
 
     return true;
+  }
+
+  private updateTotalsIncremental(
+    currentTotals: SessionTotals | undefined,
+    oldCard: DetailedCardEntry | undefined,
+    newCard: DetailedCardEntry,
+    priceSnapshot: SessionPriceSnapshot | undefined,
+  ): SessionTotals | undefined {
+    if (!priceSnapshot || !currentTotals) {
+      // First card or no snapshot - calculate from scratch
+      return priceSnapshot
+        ? this.calculateSessionTotals(
+            { [newCard.name]: newCard } as any,
+            priceSnapshot,
+          )
+        : undefined;
+    }
+
+    let stashDelta = 0;
+    let exchangeDelta = 0;
+
+    // Subtract old values (if card existed)
+    if (oldCard) {
+      if (oldCard.stashPrice && !oldCard.stashPrice.hidePrice) {
+        stashDelta -= oldCard.stashPrice.totalValue;
+      }
+      if (oldCard.exchangePrice && !oldCard.exchangePrice.hidePrice) {
+        exchangeDelta -= oldCard.exchangePrice.totalValue;
+      }
+    }
+
+    // Add new values
+    if (newCard.stashPrice && !newCard.stashPrice.hidePrice) {
+      stashDelta += newCard.stashPrice.totalValue;
+    }
+    if (newCard.exchangePrice && !newCard.exchangePrice.hidePrice) {
+      exchangeDelta += newCard.exchangePrice.totalValue;
+    }
+
+    return {
+      stash: {
+        totalValue: currentTotals.stash.totalValue + stashDelta,
+        chaosToDivineRatio: priceSnapshot.stash.chaosToDivineRatio,
+      },
+      exchange: {
+        totalValue: currentTotals.exchange.totalValue + exchangeDelta,
+        chaosToDivineRatio: priceSnapshot.exchange.chaosToDivineRatio,
+      },
+    };
+  }
+
+  private calculateSessionTotals(
+    cards: Record<string, DetailedCardEntry>,
+    priceSnapshot: SessionPriceSnapshot,
+  ): SessionTotals {
+    let stashTotal = 0;
+    let exchangeTotal = 0;
+
+    for (const card of Object.values(cards)) {
+      // Only include if hidePrice is false or undefined
+      if (card.stashPrice && !card.stashPrice.hidePrice) {
+        stashTotal += card.stashPrice.totalValue;
+      }
+      if (card.exchangePrice && !card.exchangePrice.hidePrice) {
+        exchangeTotal += card.exchangePrice.totalValue;
+      }
+    }
+
+    return {
+      stash: {
+        totalValue: stashTotal,
+        chaosToDivineRatio: priceSnapshot.stash.chaosToDivineRatio,
+      },
+      exchange: {
+        totalValue: exchangeTotal,
+        chaosToDivineRatio: priceSnapshot.exchange.chaosToDivineRatio,
+      },
+    };
+  }
+
+  /**
+   * Convert cards object to sorted array with pre-calculated ratios
+   */
+  private convertCardsToArray(
+    cardsObject: Record<string, DetailedCardEntry>,
+    totalCount: number,
+  ): CardEntry[] {
+    return Object.entries(cardsObject).map(([name, entry]) => ({
+      name,
+      count: entry.count,
+      // ratio: (entry.count / totalCount) * 100,
+      processedIds: entry.processedIds,
+      stashPrice: entry.stashPrice,
+      exchangePrice: entry.exchangePrice,
+    }));
   }
 
   /**
@@ -514,7 +646,21 @@ class CurrentSessionService {
       game === "poe1"
         ? this.poe1CurrentSessionStore
         : this.poe2CurrentSessionStore;
-    return sessionStore ? sessionStore.store : null;
+
+    if (!sessionStore) return null;
+
+    const stats = sessionStore.store;
+
+    // Convert cards object to array for UI
+    const cardsArray = this.convertCardsToArray(
+      stats.cards as Record<string, DetailedCardEntry>,
+      stats.totalCount,
+    );
+
+    return {
+      ...stats,
+      cards: cardsArray, // Return as array for UI
+    };
   }
 
   /**
@@ -700,62 +846,105 @@ class CurrentSessionService {
    * Update hidePrice flag for a card in a session's price snapshot
    */
   public updateCardPriceVisibility(
-    game: GameVersion,
+    gameVersion: GameType,
     sessionId: string,
     priceSource: "exchange" | "stash",
     cardName: string,
     hidePrice: boolean,
-  ): boolean {
+  ): { success: boolean; error?: string } {
     try {
-      let sessionStore: Store<DetailedDivinationCardStats>;
+      let sessionStore: Store<DetailedDivinationCardStats> | undefined;
 
       if (sessionId === "current") {
         const currentStore =
-          game === "poe1"
+          gameVersion === "poe1"
             ? this.poe1CurrentSessionStore
             : this.poe2CurrentSessionStore;
 
         if (!currentStore) {
-          throw new Error(`No active session for ${game}`);
+          return {
+            success: false,
+            error: "No active current session",
+          };
         }
+
         sessionStore = currentStore;
       } else {
         sessionStore = new Store<DetailedDivinationCardStats>({
-          name: `${game}-session-data/${sessionId}`,
+          name: `${gameVersion}-session-data/${sessionId}`,
         });
       }
 
       const stats = sessionStore.store;
-      if (!stats.priceSnapshot) {
-        throw new Error("Session has no price snapshot");
+
+      // Work with cards as object (not array)
+      const cards = stats.cards as Record<string, DetailedCardEntry>;
+
+      if (!cards[cardName]) {
+        return {
+          success: false,
+          error: `Card "${cardName}" not found in session`,
+        };
       }
 
-      const source = stats.priceSnapshot[priceSource];
-      if (!source.cardPrices[cardName]) {
-        throw new Error(`Card ${cardName} not found in ${priceSource} prices`);
+      // Get the price source data
+      const priceKey = priceSource === "stash" ? "stashPrice" : "exchangePrice";
+      const cardPrice = cards[cardName][priceKey];
+
+      if (!cardPrice) {
+        return {
+          success: false,
+          error: `No ${priceSource} price data for card "${cardName}"`,
+        };
+      }
+
+      // Check if value is already set to what we want - no need to update
+      if (cardPrice.hidePrice === hidePrice) {
+        console.log(
+          `[CurrentSession] hidePrice already set to ${hidePrice}, skipping update`,
+        );
+        return { success: true };
       }
 
       // Update the hidePrice flag
-      const updatedPrices = { ...source.cardPrices };
-      updatedPrices[cardName] = {
-        ...updatedPrices[cardName],
-        hidePrice,
+      const updatedCard = {
+        ...cards[cardName],
+        [priceKey]: {
+          ...cardPrice,
+          hidePrice,
+        },
       };
 
-      // Update the store
-      sessionStore.set(
-        `priceSnapshot.${priceSource}.cardPrices`,
-        updatedPrices,
-      );
+      const updatedCards = {
+        ...cards,
+        [cardName]: updatedCard,
+      };
 
-      console.log(
-        `Updated hidePrice for ${cardName} in ${game} session ${sessionId} (${priceSource}): ${hidePrice}`,
-      );
+      // Recalculate totals
+      const totals = stats.priceSnapshot
+        ? this.calculateSessionTotals(updatedCards, stats.priceSnapshot)
+        : undefined;
 
-      return true;
+      sessionStore.store = {
+        ...stats,
+        cards: updatedCards,
+        totals,
+        lastUpdated: new Date().toISOString(),
+      };
+
+      // Emit update if it's the current session
+      if (sessionId === "current") {
+        this.emitSessionDataUpdate(gameVersion);
+      }
+
+      return { success: true };
     } catch (error) {
       console.error("Error updating card price visibility:", error);
-      return false;
+      return {
+        success: false,
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
+      };
     }
   }
 }

@@ -131,7 +131,7 @@ class SettingsStoreService {
 
     ipcMain.handle(
       SettingsStoreChannel.SetActiveGame,
-      (_event, game: Omit<GameVersion, 'both'>) => {
+      (_event, game: Omit<GameVersion, "both">) => {
         this.set(SettingsKey.ActiveGame, game);
       },
     );
@@ -169,6 +169,29 @@ class SettingsStoreService {
       SettingsStoreChannel.SetSelectedPoe2League,
       (_event, leagueId: string) => {
         this.set(SettingsKey.SelectedPoe2League, leagueId);
+      },
+    );
+
+    ipcMain.handle(SettingsStoreChannel.GetSelectedPoe1PriceSource, () => {
+      return this.get(SettingsKey.SelectedPoe1PriceSource);
+    });
+
+    ipcMain.handle(
+      SettingsStoreChannel.SetSelectedPoe1PriceSource,
+      (_event, source: PriceSource) => {
+        this.set(SettingsKey.SelectedPoe1PriceSource, source);
+      },
+    );
+
+    // Selected PoE2 price source
+    ipcMain.handle(SettingsStoreChannel.GetSelectedPoe2PriceSource, () => {
+      return this.get(SettingsKey.SelectedPoe2PriceSource);
+    });
+
+    ipcMain.handle(
+      SettingsStoreChannel.SetSelectedPoe2PriceSource,
+      (_event, source: PriceSource) => {
+        this.set(SettingsKey.SelectedPoe2PriceSource, source);
       },
     );
   }
@@ -216,6 +239,13 @@ class SettingsStoreService {
       [SettingsKey.SetupCompleted]: this.get(SettingsKey.SetupCompleted),
       [SettingsKey.SetupStep]: this.get(SettingsKey.SetupStep),
       [SettingsKey.SetupVersion]: this.get(SettingsKey.SetupVersion),
+
+      [SettingsKey.SelectedPoe1PriceSource]: this.get(
+        SettingsKey.SelectedPoe1PriceSource,
+      ),
+      [SettingsKey.SelectedPoe2PriceSource]: this.get(
+        SettingsKey.SelectedPoe2PriceSource,
+      ),
     };
   }
 }

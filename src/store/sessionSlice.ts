@@ -19,6 +19,10 @@ export interface SessionSlice {
     startListening: () => () => void;
     startSession: () => Promise<void>;
     stopSession: () => Promise<void>;
+    toggleCardPriceVisibility: (
+      cardName: string,
+      priceSource: "exchange" | "stash",
+    ) => Promise<void>;
 
     // Internal setters
     updateSession: (
@@ -36,6 +40,7 @@ export interface SessionSlice {
     getSessionInfo: () => { league: string; startedAt: string } | null;
     getIsCurrentSessionActive: () => boolean;
     getTotalCards: (game: GameType) => number;
+    getChaosToDivineRatio: () => number;
   };
 }
 
@@ -125,25 +130,11 @@ export const createSessionSlice: StateCreator<
       // Listen for session data updates (card counts)
       const unsubscribeDataUpdate = window.electron.session.onDataUpdated(
         (payload) => {
-          console.log("[SessionSlice] Data update received:", {
-            game: payload.game,
-            totalCards: payload.data?.totalCards,
-            cardCount: Object.keys(payload.data?.cards || {}).length,
-          });
-
           set(({ currentSession }) => {
             if (payload.data) {
               if (payload.game === "poe1") {
-                console.log("[SessionSlice] Updating poe1Session", {
-                  oldTotal: currentSession.poe1Session?.totalCount,
-                  newTotal: payload.data.totalCount,
-                });
                 currentSession.poe1Session = payload.data;
               } else {
-                console.log("[SessionSlice] Updating poe2Session", {
-                  oldTotal: currentSession.poe2Session?.totalCount,
-                  newTotal: payload.data.totalCount,
-                });
                 currentSession.poe2Session = payload.data;
               }
             } else {
@@ -154,8 +145,6 @@ export const createSessionSlice: StateCreator<
               }
             }
           });
-
-          console.log("[SessionSlice] State updated after data update");
         },
       );
 
@@ -297,6 +286,50 @@ export const createSessionSlice: StateCreator<
     getTotalCards: () => {
       const session = get().currentSession.getSession();
       return session?.totalCount ?? 0;
+    },
+
+    getChaosToDivineRatio: () => {
+      const { currentSession, settings } = get();
+      const session = currentSession.getSession();
+      const priceSource = settings.getActiveGameViewPriceSource();
+
+      if (!session?.totals) return 0;
+      return session.totals[priceSource].chaosToDivineRatio;
+    },
+
+    toggleCardPriceVisibility: async (
+      cardName: string,
+      priceSource: "exchange" | "stash",
+    ) => {
+      const {
+        settings: { getActiveGame },
+        currentSession: { getSession },
+      } = get();
+
+      const activeGameView = getActiveGame();
+      const session = getSession();
+
+      if (!session) return;
+
+      // Find current card and get current hidePrice state
+      const card = session.cards.find((c) => c.name === cardName);
+      if (!card) return;
+
+      const currentHidePrice =
+        priceSource === "stash"
+          ? card.stashPrice?.hidePrice || false
+          : card.exchangePrice?.hidePrice || false;
+
+      // Call backend to update
+      await window.electron.session.updateCardPriceVisibility(
+        activeGameView,
+        "current",
+        priceSource,
+        cardName,
+        !currentHidePrice,
+      );
+
+      // State update will come via listener, no need to manually update
     },
   },
 });

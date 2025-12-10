@@ -5,3 +5,4 @@ export { default as Link } from "./Link/Link";
 export { default as PageContainer } from "./PageContainer/PageContainer";
 export { default as Sidebar } from "./Sidebar/Sidebar";
 export { default as Table } from "./Table/Table";
+export { default as TableHeader } from "./Table/TableHeader";

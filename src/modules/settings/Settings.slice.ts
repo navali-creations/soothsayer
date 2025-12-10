@@ -3,6 +3,7 @@ import type {
   GameVersion,
   SettingsStoreSchema,
 } from "../../../electron/modules/settings-store/SettingsStore.schemas";
+import type { PriceSource } from "../../../types/data-stores";
 
 export interface SettingsSlice {
   settings: {
@@ -36,7 +37,7 @@ export interface SettingsSlice {
     getCollectionPath: () => string | undefined;
 
     // Getters - Game and league selection
-    getActiveGame: () => Omit<GameVersion, "both">;
+    getActiveGame: () => Omit<GameVersion, "both"> | undefined;
     getActiveGameViewSelectedLeague: () => string | undefined;
     getInstalledGames: () => GameVersion | undefined;
     getSelectedPoe1League: () => string;
@@ -47,6 +48,8 @@ export interface SettingsSlice {
     isSetupComplete: () => boolean;
     getSetupStep: () => SettingsStoreSchema["setup-step"];
     getSetupVersion: () => number;
+    getActiveGameViewPriceSource: () => PriceSource;
+    setActiveGameViewPriceSource: (source: PriceSource) => Promise<void>;
   };
 }
 
@@ -257,6 +260,24 @@ export const createSettingsSlice: StateCreator<
     getSetupVersion: () => {
       const { settings } = get();
       return settings.data?.["setup-version"] ?? 1;
+    },
+
+    getActiveGameViewPriceSource: () => {
+      const { settings } = get();
+      const activeGame = get().settings.getActiveGame();
+      return activeGame === "poe1"
+        ? (settings.data?.["selected-poe1-price-source"] ?? "exchange")
+        : (settings.data?.["selected-poe2-price-source"] ?? "exchange");
+    },
+
+    // NEW: Set price source for active game
+    setActiveGameViewPriceSource: async (source: PriceSource) => {
+      const activeGame = get().settings.getActiveGame();
+      const key =
+        activeGame === "poe1"
+          ? "selected-poe1-price-source"
+          : "selected-poe2-price-source";
+      await get().settings.updateSetting(key, source);
     },
   },
 });

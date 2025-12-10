@@ -1,18 +1,33 @@
 // Game type
 export type GameType = "poe1" | "poe2";
 
-// Detailed card entry (for session data with processedIds)
-export interface DetailedCardEntry {
-  count: number;
-  processedIds: string[];
+// Price source type
+export type PriceSource = "exchange" | "stash";
+
+// Calculated price info for a card
+export interface CardPriceInfo {
+  chaosValue: number;
+  divineValue: number;
+  totalValue: number; // chaosValue * count
+  hidePrice?: boolean; // Flag to exclude from calculations
 }
 
-// Price snapshot for a specific card
+// Card entry for UI display (already flattened with both prices)
+export interface CardEntry {
+  name: string;
+  count: number;
+  // ratio: number; // Percentage of total cards
+  processedIds: string[];
+  stashPrice?: CardPriceInfo;
+  exchangePrice?: CardPriceInfo;
+}
+
+// Price snapshot for a specific card (from poe.ninja API)
 export interface CardPriceSnapshot {
   chaosValue: number;
   divineValue: number;
   stackSize?: number;
-  hidePrice?: boolean; // Flag to exclude this price from calculations due to anomalies
+  hidePrice?: boolean;
 }
 
 // Session price snapshot (captured at session start)
@@ -28,16 +43,28 @@ export interface SessionPriceSnapshot {
   };
 }
 
+// Aggregate totals for quick access
+export interface SessionTotals {
+  stash: {
+    totalValue: number;
+    chaosToDivineRatio: number;
+  };
+  exchange: {
+    totalValue: number;
+    chaosToDivineRatio: number;
+  };
+}
+
 // Detailed divination card stats (with processedIds for sessions)
 export interface DetailedDivinationCardStats {
   totalCount: number;
-  cards: Record<string, DetailedCardEntry>;
+  cards: Record<string, DetailedCardEntry>; // <- Changed from CardEntry[]
   startedAt?: string;
   endedAt?: string | null;
   league?: string;
   lastUpdated?: string;
-  // Price snapshot captured at session start
   priceSnapshot?: SessionPriceSnapshot;
+  totals?: SessionTotals;
 }
 
 // Global stats across all games
