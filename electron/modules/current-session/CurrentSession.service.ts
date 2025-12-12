@@ -1,52 +1,48 @@
-import fs from "node:fs";
-import path from "node:path";
+import crypto from "node:crypto";
 import { BrowserWindow, ipcMain } from "electron";
-import Store from "electron-store";
 import type {
   CardEntry,
-  CardPriceInfo,
-  DetailedCardEntry,
   DetailedDivinationCardStats,
   GameType,
   SessionPriceSnapshot,
-  SessionTotal,
+  SessionTotals,
 } from "../../../types/data-stores";
-import {
-  CurrentSessionChannel,
-  DataStoreService,
-  type GameVersion,
-  PerformanceLoggerService,
-  PoeNinjaService,
-} from "../../modules";
+import { DatabaseService } from "../database/Database.service";
+import { DataStoreService } from "../data-store/DataStore.service";
+import { PerformanceLoggerService } from "../performance-logger/PerformanceLogger.service";
+import { SnapshotService } from "../snapshots/Snapshot.service";
+import { CurrentSessionChannel } from "./CurrentSession.channels";
 
-// Store for tracking last processed IDs globally (prevents replay on new session)
-interface ProcessedIdsTracker {
-  lastProcessedIds: string[];
+interface ActiveSessionInfo {
+  sessionId: string;
+  league: string;
+  startedAt: string;
 }
 
+/**
+ * SQLite-based CurrentSession service
+ * Manages active sessions and their card tracking
+ */
 class CurrentSessionService {
   private static _instance: CurrentSessionService;
+  private db: DatabaseService;
+  private dataStore: DataStoreService;
+  private snapshotService: SnapshotService;
+  private perfLogger: PerformanceLoggerService;
 
-  // Current session stores (one per game)
-  private poe1CurrentSessionStore: Store<DetailedDivinationCardStats> | null =
-    null;
-  private poe2CurrentSessionStore: Store<DetailedDivinationCardStats> | null =
-    null;
+  // Active session tracking
+  private poe1ActiveSession: ActiveSessionInfo | null = null;
+  private poe2ActiveSession: ActiveSessionInfo | null = null;
 
-  // Global processed IDs tracker (persists across sessions)
-  private poe1GlobalProcessedIdsStore: Store<ProcessedIdsTracker>;
-  private poe2GlobalProcessedIdsStore: Store<ProcessedIdsTracker>;
-
-  // In-memory processed IDs for quick lookup (current session + global history)
+  // In-memory processed IDs for current session (prevents duplicates)
   private poe1ProcessedIds: Set<string> = new Set();
   private poe2ProcessedIds: Set<string> = new Set();
 
-  // Track active sessions
-  private poe1ActiveSession: { league: string; startedAt: string } | null =
-    null;
-  private poe2ActiveSession: { league: string; startedAt: string } | null =
-    null;
+  // Global processed IDs (persisted to DB)
+  private poe1GlobalProcessedIds: Set<string> = new Set();
+  private poe2GlobalProcessedIds: Set<string> = new Set();
 
+  // Write queue for processed IDs (batch writes)
   private trackerWriteQueue: Map<GameType, Set<string>> = new Map([
     ["poe1", new Set()],
     ["poe2", new Set()],
@@ -56,69 +52,141 @@ class CurrentSessionService {
     ["poe2", null],
   ]);
 
-  private dataStore: DataStoreService;
-  private poeNinja: PoeNinjaService;
-  private perfLogger: PerformanceLoggerService;
+  // Prepared statements
+  private statements: {
+    insertSession: ReturnType<
+      typeof DatabaseService.prototype.getDb
+    >["prepare"];
+    updateSession: ReturnType<
+      typeof DatabaseService.prototype.getDb
+    >["prepare"];
+    getActiveSession: ReturnType<
+      typeof DatabaseService.prototype.getDb
+    >["prepare"];
+    upsertSessionCard: ReturnType<
+      typeof DatabaseService.prototype.getDb
+    >["prepare"];
+    getSessionCards: ReturnType<
+      typeof DatabaseService.prototype.getDb
+    >["prepare"];
+    getSession: ReturnType<typeof DatabaseService.prototype.getDb>["prepare"];
+    deactivateSession: ReturnType<
+      typeof DatabaseService.prototype.getDb
+    >["prepare"];
+    addProcessedId: ReturnType<
+      typeof DatabaseService.prototype.getDb
+    >["prepare"];
+    getProcessedIds: ReturnType<
+      typeof DatabaseService.prototype.getDb
+    >["prepare"];
+  };
 
-  static getInstance() {
+  static getInstance(): CurrentSessionService {
     if (!CurrentSessionService._instance) {
       CurrentSessionService._instance = new CurrentSessionService();
     }
-
     return CurrentSessionService._instance;
   }
 
   constructor() {
+    this.db = DatabaseService.getInstance();
     this.dataStore = DataStoreService.getInstance();
-    this.poeNinja = PoeNinjaService.getInstance();
+    this.snapshotService = SnapshotService.getInstance();
     this.perfLogger = PerformanceLoggerService.getInstance();
 
-    // Initialize global processed IDs stores (keeps last ~1000 IDs to prevent replays)
-    this.poe1GlobalProcessedIdsStore = new Store<ProcessedIdsTracker>({
-      name: "poe1-data/processed-ids-tracker",
-      defaults: {
-        lastProcessedIds: [],
-      },
-    });
+    // Prepare statements
+    const dbInstance = this.db.getDb();
 
-    this.poe2GlobalProcessedIdsStore = new Store<ProcessedIdsTracker>({
-      name: "poe2-data/processed-ids-tracker",
-      defaults: {
-        lastProcessedIds: [],
-      },
-    });
+    this.statements = {
+      insertSession: dbInstance.prepare(`
+        INSERT INTO sessions
+        (id, game, league_id, snapshot_id, started_at, is_active)
+        VALUES (?, ?, ?, ?, ?, 1)
+      `),
+      updateSession: dbInstance.prepare(`
+        UPDATE sessions
+        SET total_count = ?, ended_at = ?, is_active = ?
+        WHERE id = ?
+      `),
+      getActiveSession: dbInstance.prepare(`
+        SELECT s.id, s.started_at, l.name as league
+        FROM sessions s
+        JOIN leagues l ON s.league_id = l.id
+        WHERE s.game = ? AND s.is_active = 1
+        LIMIT 1
+      `),
+      upsertSessionCard: dbInstance.prepare(`
+        INSERT INTO session_cards (session_id, card_name, count, first_seen_at, last_seen_at)
+        VALUES (?, ?, 1, datetime('now'), datetime('now'))
+        ON CONFLICT(session_id, card_name)
+        DO UPDATE SET
+          count = count + 1,
+          last_seen_at = datetime('now')
+      `),
+      getSessionCards: dbInstance.prepare(`
+        SELECT card_name, count, first_seen_at, last_seen_at
+        FROM session_cards
+        WHERE session_id = ?
+      `),
+      getSession: dbInstance.prepare(`
+        SELECT s.*, l.name as league
+        FROM sessions s
+        JOIN leagues l ON s.league_id = l.id
+        WHERE s.id = ?
+      `),
+      deactivateSession: dbInstance.prepare(`
+        UPDATE sessions
+        SET is_active = 0, ended_at = ?
+        WHERE id = ?
+      `),
+      addProcessedId: dbInstance.prepare(`
+        INSERT OR IGNORE INTO processed_ids (game, scope, processed_id)
+        VALUES (?, ?, ?)
+      `),
+      getProcessedIds: dbInstance.prepare(`
+        SELECT processed_id
+        FROM processed_ids
+        WHERE game = ? AND scope = 'global'
+        ORDER BY created_at ASC, processed_id ASC
+      `),
+    };
 
-    // Load global processed IDs into memory
     this.loadGlobalProcessedIds("poe1");
     this.loadGlobalProcessedIds("poe2");
-
     this.setupHandlers();
   }
 
   /**
-   * Load global processed IDs from disk into memory
+   * Load global processed IDs from database into memory
    */
-  private loadGlobalProcessedIds(game: GameType) {
-    const store =
+  private loadGlobalProcessedIds(game: GameType): void {
+    const rows = this.statements.getProcessedIds.all(game) as Array<{
+      processed_id: string;
+    }>;
+
+    const processedSet =
       game === "poe1"
-        ? this.poe1GlobalProcessedIdsStore
-        : this.poe2GlobalProcessedIdsStore;
-    const processedIds =
-      game === "poe1" ? this.poe1ProcessedIds : this.poe2ProcessedIds;
+        ? this.poe1GlobalProcessedIds
+        : this.poe2GlobalProcessedIds;
 
-    const tracker = store.store;
-    for (const id of tracker.lastProcessedIds) {
-      processedIds.add(id);
+    processedSet.clear();
+    for (const row of rows) {
+      processedSet.add(row.processed_id);
     }
-
-    console.log(`Loaded ${processedIds.size} global processed IDs for ${game}`);
   }
 
   /**
-   * Save processed ID to global tracker (debounced to reduce disk writes)
+   * Save processed ID globally (with batching)
    */
-  private saveProcessedIdGlobally(game: GameType, processedId: string) {
-    // Add to in-memory queue
+  private saveProcessedIdGlobally(game: GameType, processedId: string): void {
+    // Add to in-memory set
+    const globalSet =
+      game === "poe1"
+        ? this.poe1GlobalProcessedIds
+        : this.poe2GlobalProcessedIds;
+    globalSet.add(processedId);
+
+    // Add to write queue
     this.trackerWriteQueue.get(game)!.add(processedId);
 
     // Clear existing timeout
@@ -127,92 +195,90 @@ class CurrentSessionService {
       clearTimeout(existingTimeout);
     }
 
-    // Debounce: write after 500ms of no new cards
+    // Set new timeout (batch write after 1 second)
     const timeout = setTimeout(() => {
       this.flushTrackerQueue(game);
-    }, 500);
+    }, 1000);
 
     this.trackerWriteTimeout.set(game, timeout);
   }
 
   /**
-   * Flush the tracker write queue to disk
+   * Flush queued processed IDs to database (batched for performance)
    */
-  public flushTrackerQueue(game: GameType) {
-    const queue = this.trackerWriteQueue.get(game)!;
-    if (queue.size === 0) return;
-
-    const timers = this.perfLogger.startTimers();
-
-    const store =
+  private flushTrackerQueue(game: GameType, prune: boolean = false): void {
+    const queue = this.trackerWriteQueue.get(game);
+    const globalSet =
       game === "poe1"
-        ? this.poe1GlobalProcessedIdsStore
-        : this.poe2GlobalProcessedIdsStore;
+        ? this.poe1GlobalProcessedIds
+        : this.poe2GlobalProcessedIds;
 
-    const processedSet =
-      game === "poe1" ? this.poe1ProcessedIds : this.poe2ProcessedIds;
+    // Add any queued IDs to in-memory global set
+    if (queue && queue.size > 0) {
+      for (const id of queue) {
+        globalSet.add(id);
+      }
 
-    // Add queued IDs to the in-memory set
-    for (const id of queue) {
-      processedSet.add(id);
+      queue.clear();
     }
 
-    // Write to persistent store - keep only last 20 IDs
-    const allIds = Array.from(processedSet);
-    const last20Ids = allIds.slice(-20);
+    // If pruning, trim to last 20 IDs by insertion order (matching old electron-store behavior)
+    if (prune) {
+      if (globalSet.size === 0) {
+        return;
+      }
 
-    // Atomic write
-    timers?.start("IDs written");
-    store.store = { lastProcessedIds: last20Ids };
-    const writeTime = timers?.end("IDs written") ?? 0;
+      const allIds = Array.from(globalSet);
+      const last20Ids = allIds.slice(-20);
 
-    // Trim in-memory set to match disk (prevent unbounded growth)
-    timers?.start("In-memory IDs");
-    processedSet.clear();
-    for (const id of last20Ids) {
-      processedSet.add(id);
+      // Clear and rebuild set with only the last 20
+      globalSet.clear();
+      for (const id of last20Ids) {
+        globalSet.add(id);
+      }
     }
-    const memoryTime = timers?.end("In-memory IDs") ?? 0;
 
-    this.perfLogger.log(
-      `Tracker flush | Game: ${game} | IDs written: ${writeTime.toFixed(2)}ms | In-memory IDs: ${memoryTime.toFixed(2)}ms`,
-    );
+    // If there's nothing to write, skip database operation
+    if (globalSet.size === 0) {
+      return;
+    }
 
-    // Clear the queue
-    queue.clear();
+    // Write current global set to database
+    const idsToWrite = Array.from(globalSet);
 
-    // Clear the timeout
-    this.trackerWriteTimeout.set(game, null);
+    this.db.transaction(() => {
+      // Clear existing global IDs for this game
+      this.db
+        .getDb()
+        .prepare(
+          "DELETE FROM processed_ids WHERE game = ? AND scope = 'global'",
+        )
+        .run(game);
+
+      // Write all current IDs
+      for (const id of idsToWrite) {
+        this.statements.addProcessedId.run(game, "global", id);
+      }
+    });
   }
 
   /**
-   * Flush all tracker queues (used on app shutdown)
+   * Setup IPC handlers
    */
-  public async flushAllTrackers(): Promise<void> {
-    this.perfLogger.log("Flushing all tracker queues before shutdown...");
-
-    // Flush both games synchronously
-    this.flushTrackerQueue("poe1");
-    this.flushTrackerQueue("poe2");
-
-    this.perfLogger.log("All tracker queues flushed successfully");
-  }
-
-  /**
-   * Setup IPC handlers for session control from renderer
-   */
-  private setupHandlers() {
-    // Start session (now async)
+  private setupHandlers(): void {
+    // Start session
     ipcMain.handle(
       CurrentSessionChannel.Start,
       async (_event, game: GameType, league: string) => {
         try {
           await this.startSession(game, league);
-          this.emitSessionStateChange(game);
           return { success: true };
         } catch (error) {
-          console.error("Error starting session:", error);
-          return { success: false, error: (error as Error).message };
+          console.error("Failed to start session:", error);
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : "Unknown error",
+          };
         }
       },
     );
@@ -221,15 +287,17 @@ class CurrentSessionService {
     ipcMain.handle(CurrentSessionChannel.Stop, (_event, game: GameType) => {
       try {
         this.stopSession(game);
-        this.emitSessionStateChange(game);
         return { success: true };
       } catch (error) {
-        console.error("Error stopping session:", error);
-        return { success: false, error: (error as Error).message };
+        console.error("Failed to stop session:", error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+        };
       }
     });
 
-    // Check if session is active
+    // Is active
     ipcMain.handle(CurrentSessionChannel.IsActive, (_event, game: GameType) => {
       return this.isSessionActive(game);
     });
@@ -244,23 +312,10 @@ class CurrentSessionService {
       return this.getActiveSessionInfo(game);
     });
 
-    // Get all sessions (archived + current)
-    ipcMain.handle(CurrentSessionChannel.GetAll, (_event, game: GameType) => {
-      return this.getAllSessions(game);
-    });
-
-    // Get specific session by ID
-    ipcMain.handle(
-      CurrentSessionChannel.GetById,
-      (_event, game: GameType, sessionId: string) => {
-        return this.getSessionById(game, sessionId);
-      },
-    );
-
     // Update card price visibility
     ipcMain.handle(
       CurrentSessionChannel.UpdateCardPriceVisibility,
-      (
+      async (
         _event,
         game: GameType,
         sessionId: string,
@@ -269,24 +324,26 @@ class CurrentSessionService {
         hidePrice: boolean,
       ) => {
         try {
-          const result = this.updateCardPriceVisibility(
+          await this.updateCardPriceVisibility(
             game,
             sessionId,
             priceSource,
             cardName,
             hidePrice,
           );
-          return result;
+          return { success: true };
         } catch (error) {
-          console.error("Error updating card price visibility:", error);
-          return { success: false, error: (error as Error).message };
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : "Unknown error",
+          };
         }
       },
     );
   }
 
   /**
-   * Start a new session for a game
+   * Start a new session
    */
   public async startSession(game: GameType, league: string): Promise<void> {
     const activeSession =
@@ -296,117 +353,206 @@ class CurrentSessionService {
       throw new Error(`Session already active for ${game}`);
     }
 
+    // Get or create snapshot for this league
+    const { snapshotId } = await this.snapshotService.getSnapshotForSession(
+      game,
+      league,
+    );
+
+    // Start auto-refresh for this league
+    this.snapshotService.startAutoRefresh(game, league);
+
+    const sessionId = crypto.randomUUID();
     const startedAt = new Date().toISOString();
 
-    // Fetch price snapshot for this league
-    let priceSnapshot: SessionPriceSnapshot | undefined;
-    try {
-      console.log(`Fetching price snapshot for ${game} league: ${league}...`);
-      priceSnapshot = await this.poeNinja.getPriceSnapshot(league);
-      console.log(
-        `Price snapshot captured: Exchange (${Object.keys(priceSnapshot.exchange.cardPrices).length} cards, Divine = ${priceSnapshot.exchange.chaosToDivineRatio.toFixed(2)}c), ` +
-          `Stash (${Object.keys(priceSnapshot.stash.cardPrices).length} cards, Divine = ${priceSnapshot.stash.chaosToDivineRatio.toFixed(2)}c)`,
-      );
-    } catch (error) {
-      console.error("Failed to fetch price snapshot:", error);
+    // Get league ID
+    const leagueRow = this.db
+      .getDb()
+      .prepare("SELECT id FROM leagues WHERE game = ? AND name = ?")
+      .get(game, league) as { id: string } | undefined;
 
-      // Continue without price snapshot - session can still work
-      priceSnapshot = undefined;
+    if (!leagueRow) {
+      throw new Error(`League not found: ${game}/${league}`);
     }
 
-    // Create current session store
-    const sessionStore = new Store<DetailedDivinationCardStats>({
-      name: `${game}-session-data/current-session`,
-      defaults: {
-        totalCount: 0,
-        cards: {},
-        startedAt,
-        endedAt: null,
-        league,
-        priceSnapshot,
-      },
-    });
+    // Create session in database
+    this.statements.insertSession.run(
+      sessionId,
+      game,
+      leagueRow.id,
+      snapshotId,
+      startedAt,
+    );
 
-    // Clear the store (in case there was leftover data)
-    sessionStore.clear();
-    sessionStore.set("totalCount", 0);
-    sessionStore.set("cards", {});
-    sessionStore.set("startedAt", startedAt);
-    sessionStore.set("endedAt", null);
-    sessionStore.set("league", league);
-    sessionStore.set("priceSnapshot", priceSnapshot);
+    // Set active session
+    const sessionInfo: ActiveSessionInfo = { sessionId, league, startedAt };
 
     if (game === "poe1") {
-      this.poe1CurrentSessionStore = sessionStore;
-      this.poe1ActiveSession = { league, startedAt };
+      this.poe1ActiveSession = sessionInfo;
+      this.poe1ProcessedIds.clear();
     } else {
-      this.poe2CurrentSessionStore = sessionStore;
-      this.poe2ActiveSession = { league, startedAt };
+      this.poe2ActiveSession = sessionInfo;
+      this.poe2ProcessedIds.clear();
     }
 
-    console.log(`Session started for ${game} in league ${league}`);
-    console.log(
-      `Global processed IDs in memory: ${game === "poe1" ? this.poe1ProcessedIds.size : this.poe2ProcessedIds.size}`,
-    );
+    this.emitSessionStateChange(game);
   }
 
   /**
-   * Stop the current session and archive it
+   * Stop the active session
    */
   public stopSession(game: GameType): void {
-    const sessionStore =
-      game === "poe1"
-        ? this.poe1CurrentSessionStore
-        : this.poe2CurrentSessionStore;
     const activeSession =
       game === "poe1" ? this.poe1ActiveSession : this.poe2ActiveSession;
 
-    if (!sessionStore || !activeSession) {
+    if (!activeSession) {
       throw new Error(`No active session for ${game}`);
     }
 
     const endedAt = new Date().toISOString();
-    sessionStore.set("endedAt", endedAt);
 
-    // Create archived session file name
-    const timestamp = activeSession.startedAt
-      .replace(/:/g, "-")
-      .replace(/\..+/, "");
-    const archiveName = `${game}-session-data/${activeSession.league}-session-${timestamp}`;
-
-    // Copy current session to archived session
-    const archivedSession = new Store<DetailedDivinationCardStats>({
-      name: archiveName,
-    });
-
-    const sessionData = sessionStore.store;
-    archivedSession.store = { ...sessionData, endedAt };
-
-    // Delete the current session file (using the path property)
-    try {
-      const sessionPath = sessionStore.path;
-      if (fs.existsSync(sessionPath)) {
-        fs.unlinkSync(sessionPath);
-        console.log(`Deleted current session file: ${sessionPath}`);
-      }
-    } catch (error) {
-      console.error(`Failed to delete current session file:`, error);
+    // Clear any pending flush timeout and flush immediately
+    const existingTimeout = this.trackerWriteTimeout.get(game);
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
+      this.trackerWriteTimeout.delete(game);
     }
 
-    // Clear current session in memory
+    // Flush any pending processed IDs before stopping
+    this.flushTrackerQueue(game, true);
+
+    // Get total count
+    const totalCount = this.db
+      .getDb()
+      .prepare(
+        `SELECT COALESCE(SUM(count), 0) as total
+           FROM session_cards
+           WHERE session_id = ?`,
+      )
+      .get(activeSession.sessionId) as { total: number };
+
+    // Update session
+    this.statements.updateSession.run(
+      totalCount.total,
+      endedAt,
+      0, // is_active = false
+      activeSession.sessionId,
+    );
+
+    // Create session summary for fast list queries
+    this.createSessionSummary(
+      activeSession.sessionId,
+      game,
+      activeSession.league,
+      endedAt,
+    );
+
+    // Stop auto-refresh
+    this.snapshotService.stopAutoRefresh(game, activeSession.league);
+
+    // Clear active session
     if (game === "poe1") {
-      this.poe1CurrentSessionStore = null;
       this.poe1ActiveSession = null;
+      this.poe1ProcessedIds.clear();
     } else {
-      this.poe2CurrentSessionStore = null;
       this.poe2ActiveSession = null;
+      this.poe2ProcessedIds.clear();
     }
 
-    console.log(`Session stopped for ${game}, archived as: ${archiveName}`);
+    this.emitSessionStateChange(game);
   }
 
   /**
-   * Add a card to the current session (and cascade to other stores)
+   * Create a session summary with pre-calculated totals
+   */
+  private createSessionSummary(
+    sessionId: string,
+    game: GameType,
+    league: string,
+    endedAt: string,
+  ): void {
+    const dbInstance = this.db.getDb();
+
+    // Get session data
+    const session = this.statements.getSession.get(sessionId) as any;
+    if (!session) return;
+
+    // Get session cards
+    const cards = this.statements.getSessionCards.all(sessionId) as Array<{
+      card_name: string;
+      count: number;
+    }>;
+
+    // Load snapshot
+    const priceSnapshot = session.snapshot_id
+      ? this.snapshotService.loadSnapshot(session.snapshot_id)
+      : null;
+
+    if (!priceSnapshot) {
+      console.warn(
+        `[CurrentSession] No price snapshot for session ${sessionId}, skipping summary creation`,
+      );
+      return;
+    }
+
+    // Calculate totals
+    let exchangeTotal = 0;
+    let stashTotal = 0;
+
+    for (const card of cards) {
+      const exchangePrice = priceSnapshot.exchange.cardPrices[card.card_name];
+      const stashPrice = priceSnapshot.stash.cardPrices[card.card_name];
+
+      if (exchangePrice && !exchangePrice.hidePrice) {
+        exchangeTotal += exchangePrice.chaosValue * card.count;
+      }
+
+      if (stashPrice && !stashPrice.hidePrice) {
+        stashTotal += stashPrice.chaosValue * card.count;
+      }
+    }
+
+    // Calculate duration in minutes
+    const start = new Date(session.started_at);
+    const end = new Date(endedAt);
+    const durationMinutes = Math.floor(
+      (end.getTime() - start.getTime()) / 60000,
+    );
+
+    // Insert summary
+    dbInstance
+      .prepare(
+        `INSERT OR REPLACE INTO session_summaries (
+          session_id,
+          game,
+          league,
+          started_at,
+          ended_at,
+          duration_minutes,
+          total_decks_opened,
+          total_exchange_value,
+          total_stash_value,
+          exchange_chaos_to_divine,
+          stash_chaos_to_divine
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        sessionId,
+        game,
+        league,
+        session.started_at,
+        endedAt,
+        durationMinutes,
+        session.total_count,
+        exchangeTotal,
+        stashTotal,
+        priceSnapshot.exchange.chaosToDivineRatio,
+        priceSnapshot.stash.chaosToDivineRatio,
+      );
+  }
+
+  /**
+   * Add a card to the current session
    */
   public addCard(
     game: GameType,
@@ -416,185 +562,232 @@ class CurrentSessionService {
   ): boolean {
     const perf = this.perfLogger.startTimers();
 
-    const sessionStore =
-      game === "poe1"
-        ? this.poe1CurrentSessionStore
-        : this.poe2CurrentSessionStore;
-    const processedIds =
-      game === "poe1" ? this.poe1ProcessedIds : this.poe2ProcessedIds;
     const activeSession =
       game === "poe1" ? this.poe1ActiveSession : this.poe2ActiveSession;
 
-    if (!sessionStore || !activeSession) {
-      console.warn(`No active session for ${game}, card not recorded`);
+    if (!activeSession) {
+      console.warn(`No active session for ${game}, skipping card: ${cardName}`);
       return false;
     }
 
-    perf?.start("dup");
-    if (processedIds.has(processedId)) {
+    // Check for duplicates
+    perf?.start("dupCheck");
+    const sessionProcessedIds =
+      game === "poe1" ? this.poe1ProcessedIds : this.poe2ProcessedIds;
+    const globalProcessedIds =
+      game === "poe1"
+        ? this.poe1GlobalProcessedIds
+        : this.poe2GlobalProcessedIds;
+
+    if (
+      sessionProcessedIds.has(processedId) ||
+      globalProcessedIds.has(processedId)
+    ) {
+      const dupCheckTime = perf?.end("dupCheck") ?? 0;
+      this.perfLogger.log("Card skipped (duplicate)", {
+        Card: cardName,
+        DupCheck: dupCheckTime,
+      });
+
       return false;
     }
-    const dupCheckTime = perf?.end("dup") ?? 0;
 
-    processedIds.add(processedId);
+    sessionProcessedIds.add(processedId);
+    perf?.end("dupCheck") ?? 0;
 
+    // Save globally (batched)
     perf?.start("tracker");
     this.saveProcessedIdGlobally(game, processedId);
-    const trackerTime = perf?.end("tracker") ?? 0;
+    perf?.end("tracker") ?? 0;
 
+    // Add to session in transaction
     perf?.start("session");
-    const stats = sessionStore.store;
+    this.db.transaction(() => {
+      // Update session card
+      this.statements.upsertSessionCard.run(activeSession.sessionId, cardName);
 
-    // NO CONVERSION - work directly with object
-    const cards = stats.cards as Record<string, DetailedCardEntry>; // Type assertion
-    const priceSnapshot = stats.priceSnapshot;
+      // Update total count
+      const totalCount = this.db
+        .getDb()
+        .prepare(
+          `SELECT COALESCE(SUM(count), 0) as total
+           FROM session_cards
+           WHERE session_id = ?`,
+        )
+        .get(activeSession.sessionId) as { total: number };
 
-    const existingCard = cards[cardName];
-    const existingCount = existingCard?.count || 0;
-    const existingIds = existingCard?.processedIds || [];
-    const newCount = existingCount + 1;
+      this.db
+        .getDb()
+        .prepare("UPDATE sessions SET total_count = ? WHERE id = ?")
+        .run(totalCount.total, activeSession.sessionId);
+    });
+    perf?.end("session") ?? 0;
 
-    // Calculate prices
-    let stashPrice: CardPriceInfo | undefined;
-    let exchangePrice: CardPriceInfo | undefined;
-
-    if (priceSnapshot) {
-      const stashData = priceSnapshot.stash.cardPrices[cardName];
-      const exchangeData = priceSnapshot.exchange.cardPrices[cardName];
-
-      if (stashData) {
-        const stashValue = stashData.chaosValue * newCount;
-        stashPrice = {
-          chaosValue: stashData.chaosValue,
-          divineValue: stashData.divineValue,
-          totalValue: stashValue,
-          hidePrice: existingCard?.stashPrice?.hidePrice || false,
-        };
-      }
-
-      if (exchangeData) {
-        const exchangeValue = exchangeData.chaosValue * newCount;
-        exchangePrice = {
-          chaosValue: exchangeData.chaosValue,
-          divineValue: exchangeData.divineValue,
-          totalValue: exchangeValue,
-          hidePrice: existingCard?.exchangePrice?.hidePrice || false,
-        };
-      }
-    }
-
-    // Update card (O(1))
-    cards[cardName] = {
-      count: newCount,
-      processedIds: [...existingIds, processedId],
-      stashPrice,
-      exchangePrice,
-    };
-
-    const newTotalCount = stats.totalCount + 1;
-
-    // INCREMENTAL totals update (O(1) instead of O(n))
-    const totals = this.updateTotalsIncremental(
-      stats.totals,
-      existingCard,
-      cards[cardName],
-      priceSnapshot,
-    );
-
-    sessionStore.store = {
-      ...stats,
-      cards, // Keep as object
-      totalCount: newTotalCount,
-      lastUpdated: new Date().toISOString(),
-      totals,
-    };
-    const sessionUpdateTime = perf?.end("session") ?? 0;
-
-    // Cascade and emit
+    // Cascade to data store
     perf?.start("cascade");
     this.dataStore.addCard(game, league, cardName);
-    const cascadeTime = perf?.end("cascade") ?? 0;
+    perf?.end("cascade") ?? 0;
 
+    // Emit update
     perf?.start("emit");
     this.emitSessionDataUpdate(game);
-    const emitTime = perf?.end("emit") ?? 0;
-
-    perf?.log(`addCard breakdown: ${cardName}`, {
-      Total:
-        dupCheckTime + trackerTime + sessionUpdateTime + cascadeTime + emitTime,
-      Dup: dupCheckTime,
-      Tracker: trackerTime,
-      Session: sessionUpdateTime,
-      Cascade: cascadeTime,
-      Emit: emitTime,
-    });
-
+    perf?.end("emit") ?? 0;
     return true;
   }
 
-  private updateTotalsIncremental(
-    currentTotals: SessionTotals | undefined,
-    oldCard: DetailedCardEntry | undefined,
-    newCard: DetailedCardEntry,
-    priceSnapshot: SessionPriceSnapshot | undefined,
-  ): SessionTotals | undefined {
-    if (!priceSnapshot || !currentTotals) {
-      // First card or no snapshot - calculate from scratch
-      return priceSnapshot
-        ? this.calculateSessionTotals(
-            { [newCard.name]: newCard } as any,
-            priceSnapshot,
-          )
-        : undefined;
-    }
+  /**
+   * Check if session is active
+   */
+  public isSessionActive(game: GameType): boolean {
+    const activeSession =
+      game === "poe1" ? this.poe1ActiveSession : this.poe2ActiveSession;
+    return activeSession !== null;
+  }
 
-    let stashDelta = 0;
-    let exchangeDelta = 0;
+  /**
+   * Get active session info
+   */
+  public getActiveSessionInfo(
+    game: GameType,
+  ): { league: string; startedAt: string } | null {
+    const activeSession =
+      game === "poe1" ? this.poe1ActiveSession : this.poe2ActiveSession;
 
-    // Subtract old values (if card existed)
-    if (oldCard) {
-      if (oldCard.stashPrice && !oldCard.stashPrice.hidePrice) {
-        stashDelta -= oldCard.stashPrice.totalValue;
-      }
-      if (oldCard.exchangePrice && !oldCard.exchangePrice.hidePrice) {
-        exchangeDelta -= oldCard.exchangePrice.totalValue;
-      }
-    }
-
-    // Add new values
-    if (newCard.stashPrice && !newCard.stashPrice.hidePrice) {
-      stashDelta += newCard.stashPrice.totalValue;
-    }
-    if (newCard.exchangePrice && !newCard.exchangePrice.hidePrice) {
-      exchangeDelta += newCard.exchangePrice.totalValue;
-    }
+    if (!activeSession) return null;
 
     return {
-      stash: {
-        totalValue: currentTotals.stash.totalValue + stashDelta,
-        chaosToDivineRatio: priceSnapshot.stash.chaosToDivineRatio,
-      },
-      exchange: {
-        totalValue: currentTotals.exchange.totalValue + exchangeDelta,
-        chaosToDivineRatio: priceSnapshot.exchange.chaosToDivineRatio,
-      },
+      league: activeSession.league,
+      startedAt: activeSession.startedAt,
     };
   }
 
+  /**
+   * Get current session data with prices
+   */
+  public getCurrentSession(game: GameType): DetailedDivinationCardStats | null {
+    const activeSession =
+      game === "poe1" ? this.poe1ActiveSession : this.poe2ActiveSession;
+
+    if (!activeSession) return null;
+
+    const dbInstance = this.db.getDb();
+
+    // Get session from DB
+    const session = this.statements.getSession.get(
+      activeSession.sessionId,
+    ) as any;
+
+    if (!session) return null;
+
+    // Load snapshot
+    const priceSnapshot = session.snapshot_id
+      ? this.snapshotService.loadSnapshot(session.snapshot_id)
+      : undefined;
+
+    // Get session cards with hidePrice flags
+    const cards = dbInstance
+      .prepare(
+        `SELECT card_name, count, hide_price_exchange, hide_price_stash
+             FROM session_cards
+             WHERE session_id = ?`,
+      )
+      .all(activeSession.sessionId) as Array<{
+      card_name: string;
+      count: number;
+      hide_price_exchange: number;
+      hide_price_stash: number;
+    }>;
+
+    // Build cards object
+    const cardsObject: Record<string, any> = {};
+
+    for (const card of cards) {
+      const cardEntry: any = {
+        count: card.count,
+        processedIds: [],
+      };
+
+      // Add prices if snapshot available
+      if (priceSnapshot) {
+        const exchangeData = priceSnapshot.exchange.cardPrices[card.card_name];
+        const stashData = priceSnapshot.stash.cardPrices[card.card_name];
+
+        if (exchangeData) {
+          cardEntry.exchangePrice = {
+            chaosValue: exchangeData.chaosValue,
+            divineValue: exchangeData.divineValue,
+            totalValue: exchangeData.chaosValue * card.count,
+            hidePrice: Boolean(card.hide_price_exchange),
+          };
+        }
+
+        if (stashData) {
+          cardEntry.stashPrice = {
+            chaosValue: stashData.chaosValue,
+            divineValue: stashData.divineValue,
+            totalValue: stashData.chaosValue * card.count,
+            hidePrice: Boolean(card.hide_price_stash),
+          };
+        }
+      }
+
+      cardsObject[card.card_name] = cardEntry;
+    }
+
+    // Calculate totals
+    const totals = priceSnapshot
+      ? this.calculateSessionTotals(cardsObject, priceSnapshot)
+      : undefined;
+
+    // Convert cards object to array for UI
+    const cardsArray = this.convertCardsToArray(
+      cardsObject,
+      session.total_count,
+    );
+
+    return {
+      totalCount: session.total_count,
+      cards: cardsArray, // Return as array for UI
+      startedAt: session.started_at,
+      endedAt: session.ended_at,
+      league: session.league,
+      priceSnapshot,
+      totals,
+    };
+  }
+
+  /**
+   * Convert cards object to sorted array with card names
+   */
+  private convertCardsToArray(
+    cardsObject: Record<string, any>,
+    totalCount: number,
+  ): CardEntry[] {
+    return Object.entries(cardsObject).map(([name, entry]) => ({
+      name,
+      count: entry.count,
+      processedIds: entry.processedIds || [],
+      stashPrice: entry.stashPrice,
+      exchangePrice: entry.exchangePrice,
+    }));
+  }
+
+  /**
+   * Calculate session totals
+   */
   private calculateSessionTotals(
-    cards: Record<string, DetailedCardEntry>,
+    cards: Record<string, any>,
     priceSnapshot: SessionPriceSnapshot,
   ): SessionTotals {
     let stashTotal = 0;
     let exchangeTotal = 0;
 
-    for (const card of Object.values(cards)) {
-      // Only include if hidePrice is false or undefined
-      if (card.stashPrice && !card.stashPrice.hidePrice) {
-        stashTotal += card.stashPrice.totalValue;
+    for (const [cardName, cardData] of Object.entries(cards)) {
+      if (cardData.stashPrice && !cardData.stashPrice.hidePrice) {
+        stashTotal += cardData.stashPrice.totalValue;
       }
-      if (card.exchangePrice && !card.exchangePrice.hidePrice) {
-        exchangeTotal += card.exchangePrice.totalValue;
+      if (cardData.exchangePrice && !cardData.exchangePrice.hidePrice) {
+        exchangeTotal += cardData.exchangePrice.totalValue;
       }
     }
 
@@ -611,109 +804,51 @@ class CurrentSessionService {
   }
 
   /**
-   * Convert cards object to sorted array with pre-calculated ratios
+   * Update card price visibility (for hiding cards from totals)
    */
-  private convertCardsToArray(
-    cardsObject: Record<string, DetailedCardEntry>,
-    totalCount: number,
-  ): CardEntry[] {
-    return Object.entries(cardsObject).map(([name, entry]) => ({
-      name,
-      count: entry.count,
-      // ratio: (entry.count / totalCount) * 100,
-      processedIds: entry.processedIds,
-      stashPrice: entry.stashPrice,
-      exchangePrice: entry.exchangePrice,
-    }));
-  }
-
-  /**
-   * Check if a session is active
-   */
-  public isSessionActive(game: GameVersion): boolean {
-    return game === "poe1"
-      ? this.poe1ActiveSession !== null
-      : this.poe2ActiveSession !== null;
-  }
-
-  /**
-   * Get current session stats
-   */
-  public getCurrentSession(
-    game: GameVersion,
-  ): DetailedDivinationCardStats | null {
-    const sessionStore =
-      game === "poe1"
-        ? this.poe1CurrentSessionStore
-        : this.poe2CurrentSessionStore;
-
-    if (!sessionStore) return null;
-
-    const stats = sessionStore.store;
-
-    // Convert cards object to array for UI
-    const cardsArray = this.convertCardsToArray(
-      stats.cards as Record<string, DetailedCardEntry>,
-      stats.totalCount,
-    );
-
-    return {
-      ...stats,
-      cards: cardsArray, // Return as array for UI
-    };
-  }
-
-  /**
-   * Get active session info
-   */
-  public getActiveSessionInfo(
+  public async updateCardPriceVisibility(
     game: GameType,
-  ): { league: string; startedAt: string } | null {
-    return game === "poe1" ? this.poe1ActiveSession : this.poe2ActiveSession;
-  }
+    sessionId: string,
+    priceSource: "exchange" | "stash",
+    cardName: string,
+    hidePrice: boolean,
+  ): Promise<void> {
+    const dbInstance = this.db.getDb();
 
-  /**
-   * Reset current session (clears all data but keeps session active)
-   */
-  public resetCurrentSession(game: GameVersion): void {
-    const sessionStore =
-      game === "poe1"
-        ? this.poe1CurrentSessionStore
-        : this.poe2CurrentSessionStore;
+    // Resolve "current" to actual session ID
+    let actualSessionId = sessionId;
+    if (sessionId === "current") {
+      const activeSession =
+        game === "poe1" ? this.poe1ActiveSession : this.poe2ActiveSession;
 
-    if (!sessionStore) {
-      throw new Error(`No active session for ${game}`);
+      if (!activeSession) {
+        console.warn(`No active session for ${game}, cannot update visibility`);
+        return;
+      }
+
+      actualSessionId = activeSession.sessionId;
     }
 
-    sessionStore.set("totalCount", 0);
-    sessionStore.set("cards", {});
-    sessionStore.set("lastUpdated", new Date().toISOString());
-    // Note: We DON'T clear global processedIds
+    const column =
+      priceSource === "exchange" ? "hide_price_exchange" : "hide_price_stash";
 
-    console.log(`Session reset for ${game}`);
+    // Update the hidePrice flag in the database
+    dbInstance
+      .prepare(
+        `UPDATE session_cards
+         SET ${column} = ?
+         WHERE session_id = ? AND card_name = ?`,
+      )
+      .run(hidePrice ? 1 : 0, actualSessionId, cardName);
+
+    // Emit update to refresh the UI
+    this.emitSessionDataUpdate(game);
   }
 
   /**
-   * Clear global processed IDs tracker (use with caution!)
+   * Emit session state change event
    */
-  public clearGlobalProcessedIds(game: GameVersion): void {
-    const store =
-      game === "poe1"
-        ? this.poe1GlobalProcessedIdsStore
-        : this.poe2GlobalProcessedIdsStore;
-    const processedIds =
-      game === "poe1" ? this.poe1ProcessedIds : this.poe2ProcessedIds;
-
-    store.set("lastProcessedIds", []);
-    processedIds.clear();
-
-    console.log(`Cleared global processed IDs for ${game}`);
-  }
-
-  /**
-   * Emit session state change to all renderer windows
-   */
-  private emitSessionStateChange(game: GameVersion): void {
+  private emitSessionStateChange(game: GameType): void {
     const windows = BrowserWindow.getAllWindows();
     const isActive = this.isSessionActive(game);
     const sessionInfo = this.getActiveSessionInfo(game);
@@ -728,10 +863,9 @@ class CurrentSessionService {
   }
 
   /**
-   * Emit session data update to all renderer windows
-   * (used when cards are added to session)
+   * Emit session data update event
    */
-  private emitSessionDataUpdate(game: GameVersion): void {
+  private emitSessionDataUpdate(game: GameType): void {
     const windows = BrowserWindow.getAllWindows();
     const sessionData = this.getCurrentSession(game);
 
@@ -744,208 +878,17 @@ class CurrentSessionService {
   }
 
   /**
-   * Get all sessions (current + archived) for a game
+   * Get all processed IDs for a game (session + global) for deduplication in parser
    */
-  public getAllSessions(
-    game: GameType,
-  ): Array<DetailedDivinationCardStats & { id: string; isActive: boolean }> {
-    const sessions: Array<
-      DetailedDivinationCardStats & { id: string; isActive: boolean }
-    > = [];
+  public getAllProcessedIds(game: GameType): Set<string> {
+    const sessionProcessedIds =
+      game === "poe1" ? this.poe1ProcessedIds : this.poe2ProcessedIds;
+    const globalProcessedIds =
+      game === "poe1"
+        ? this.poe1GlobalProcessedIds
+        : this.poe2GlobalProcessedIds;
 
-    // Add current session if active
-    const currentSession = this.getCurrentSession(game);
-    if (currentSession) {
-      sessions.push({
-        ...currentSession,
-        id: "current",
-        isActive: true,
-      });
-    }
-
-    // Get archived sessions from electron-store
-    try {
-      // Get the config directory from an existing store instance
-      const tempStore = new Store({ name: "temp-path-getter" });
-      const configPath = path.dirname(tempStore.path);
-      const sessionDir = path.join(configPath, `${game}-session-data`);
-
-      if (fs.existsSync(sessionDir)) {
-        const files = fs.readdirSync(sessionDir);
-
-        for (const file of files) {
-          if (file.endsWith(".json") && file !== "current-session.json") {
-            try {
-              const sessionStore = new Store<DetailedDivinationCardStats>({
-                name: `${game}-session-data/${path.basename(file, ".json")}`,
-              });
-
-              const sessionData = sessionStore.store;
-              sessions.push({
-                ...sessionData,
-                id: path.basename(file, ".json"),
-                isActive: false,
-              });
-            } catch (error) {
-              console.error(`Error loading session file ${file}:`, error);
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Error reading archived sessions:", error);
-    }
-
-    // Sort by startedAt (newest first)
-    sessions.sort((a, b) => {
-      const dateA = new Date(a.startedAt || 0).getTime();
-      const dateB = new Date(b.startedAt || 0).getTime();
-      return dateB - dateA;
-    });
-
-    return sessions;
-  }
-
-  /**
-   * Get a specific session by ID
-   */
-  public getSessionById(
-    game: GameVersion,
-    sessionId: string,
-  ): (DetailedDivinationCardStats & { id: string; isActive: boolean }) | null {
-    if (sessionId === "current") {
-      const currentSession = this.getCurrentSession(game);
-      if (currentSession) {
-        return {
-          ...currentSession,
-          id: "current",
-          isActive: true,
-        };
-      }
-      return null;
-    }
-
-    // Load archived session
-    try {
-      const sessionStore = new Store<DetailedDivinationCardStats>({
-        name: `${game}-session-data/${sessionId}`,
-      });
-
-      return {
-        ...sessionStore.store,
-        id: sessionId,
-        isActive: false,
-      };
-    } catch (error) {
-      console.error("Error loading session:", error);
-      return null;
-    }
-  }
-
-  /**
-   * Update hidePrice flag for a card in a session's price snapshot
-   */
-  public updateCardPriceVisibility(
-    gameVersion: GameType,
-    sessionId: string,
-    priceSource: "exchange" | "stash",
-    cardName: string,
-    hidePrice: boolean,
-  ): { success: boolean; error?: string } {
-    try {
-      let sessionStore: Store<DetailedDivinationCardStats> | undefined;
-
-      if (sessionId === "current") {
-        const currentStore =
-          gameVersion === "poe1"
-            ? this.poe1CurrentSessionStore
-            : this.poe2CurrentSessionStore;
-
-        if (!currentStore) {
-          return {
-            success: false,
-            error: "No active current session",
-          };
-        }
-
-        sessionStore = currentStore;
-      } else {
-        sessionStore = new Store<DetailedDivinationCardStats>({
-          name: `${gameVersion}-session-data/${sessionId}`,
-        });
-      }
-
-      const stats = sessionStore.store;
-
-      // Work with cards as object (not array)
-      const cards = stats.cards as Record<string, DetailedCardEntry>;
-
-      if (!cards[cardName]) {
-        return {
-          success: false,
-          error: `Card "${cardName}" not found in session`,
-        };
-      }
-
-      // Get the price source data
-      const priceKey = priceSource === "stash" ? "stashPrice" : "exchangePrice";
-      const cardPrice = cards[cardName][priceKey];
-
-      if (!cardPrice) {
-        return {
-          success: false,
-          error: `No ${priceSource} price data for card "${cardName}"`,
-        };
-      }
-
-      // Check if value is already set to what we want - no need to update
-      if (cardPrice.hidePrice === hidePrice) {
-        console.log(
-          `[CurrentSession] hidePrice already set to ${hidePrice}, skipping update`,
-        );
-        return { success: true };
-      }
-
-      // Update the hidePrice flag
-      const updatedCard = {
-        ...cards[cardName],
-        [priceKey]: {
-          ...cardPrice,
-          hidePrice,
-        },
-      };
-
-      const updatedCards = {
-        ...cards,
-        [cardName]: updatedCard,
-      };
-
-      // Recalculate totals
-      const totals = stats.priceSnapshot
-        ? this.calculateSessionTotals(updatedCards, stats.priceSnapshot)
-        : undefined;
-
-      sessionStore.store = {
-        ...stats,
-        cards: updatedCards,
-        totals,
-        lastUpdated: new Date().toISOString(),
-      };
-
-      // Emit update if it's the current session
-      if (sessionId === "current") {
-        this.emitSessionDataUpdate(gameVersion);
-      }
-
-      return { success: true };
-    } catch (error) {
-      console.error("Error updating card price visibility:", error);
-      return {
-        success: false,
-        error:
-          error instanceof Error ? error.message : "Unknown error occurred",
-      };
-    }
+    return new Set([...sessionProcessedIds, ...globalProcessedIds]);
   }
 }
 

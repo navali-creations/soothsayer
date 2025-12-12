@@ -4,7 +4,6 @@ import path from "node:path";
 import type { GameType } from "../../../types/data-stores";
 import {
   CurrentSessionService,
-  type GameVersion,
   type MainWindowService,
   PerformanceLoggerService,
   SettingsKey,
@@ -12,18 +11,26 @@ import {
 } from "../../modules";
 import { parseCards, readLastLines } from "./utils";
 
+/**
+ * SQLite-based ClientLogReader service
+ * Watches client.txt for new divination cards and adds them to the active session
+ */
 class ClientLogReaderService extends EventEmitter {
   private static _instance: ClientLogReaderService;
   private mainWindow: MainWindowService;
   private session: CurrentSessionService;
   private settingsStore: SettingsStoreService;
   private perfLogger: PerformanceLoggerService;
-  private game: Omit<GameVersion, "both">;
+  private game: GameType;
   private clientLogPath: string;
 
-  static getInstance(mainWindow: MainWindowService) {
+  static getInstance(
+    mainWindow: MainWindowService,
+  ): ClientLogReaderService {
     if (!ClientLogReaderService._instance) {
-      ClientLogReaderService._instance = new ClientLogReaderService(mainWindow);
+      ClientLogReaderService._instance = new ClientLogReaderService(
+        mainWindow,
+      );
     }
 
     return ClientLogReaderService._instance;
@@ -35,13 +42,13 @@ class ClientLogReaderService extends EventEmitter {
     this.session = CurrentSessionService.getInstance();
     this.settingsStore = SettingsStoreService.getInstance();
     this.perfLogger = PerformanceLoggerService.getInstance();
-    this.game = this.settingsStore.get(SettingsKey.ActiveGame);
+    this.game = this.settingsStore.get(SettingsKey.ActiveGame) as GameType;
     this.clientLogPath = this.settingsStore.get(SettingsKey.Poe1ClientTxtPath)!;
 
     this.watchFile(this.clientLogPath);
   }
 
-  public watchFile(clientLogPath: string) {
+  public watchFile(clientLogPath: string): void {
     fs.watchFile(clientLogPath, { interval: 100 }, async () => {
       const perf = this.perfLogger.startTimers();
       const overallTimer = this.perfLogger.startTimer("Processing summary");
@@ -70,9 +77,20 @@ class ClientLogReaderService extends EventEmitter {
         const lines = await readLastLines(clientLogPath, 10);
         const readTime = perf?.end("read") ?? 0;
 
-        // Parse divination cards from recent lines
+        // Parse divination cards from recent lines, excluding already processed IDs
         perf?.start("parse");
-        const newCards = parseCards(lines, new Set());
+        const allProcessedIds = this.session.getAllProcessedIds(this.game);
+
+        console.log(
+          `[ClientLogReader] Parsing with ${allProcessedIds.size} processed IDs for ${this.game}`,
+        );
+
+        const newCards = parseCards(lines, allProcessedIds);
+
+        console.log(
+          `[ClientLogReader] Found ${newCards.totalCount} new cards after filtering`,
+        );
+
         const parseTime = perf?.end("parse") ?? 0;
 
         if (newCards.totalCount > 0) {
@@ -90,7 +108,7 @@ class ClientLogReaderService extends EventEmitter {
 
               // CurrentSessionService.addCard handles:
               // 1. Duplicate detection (via processedIds)
-              // 2. Updating current session
+              // 2. Updating current session in SQLite
               // 3. Cascading to league, all-time, and global stats
               const added = this.session.addCard(
                 this.game,
@@ -139,16 +157,17 @@ class ClientLogReaderService extends EventEmitter {
     });
   }
 
-  public stopWatchFile() {
+  public stopWatchFile(): void {
     fs.unwatchFile(this.clientLogPath);
   }
 
   /**
    * Update which client.txt file to watch and which game it's for
    */
-  public setClientLogPath(path: string, game: GameType) {
+  public setClientLogPath(path: string, game: GameType): void {
     this.stopWatchFile();
     this.game = game;
+    this.clientLogPath = path;
     this.watchFile(path);
   }
 }

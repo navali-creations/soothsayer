@@ -55,6 +55,8 @@ export interface SessionTotals {
   };
 }
 
+export type DetailedCardEntry = Omit<CardEntry, "name">;
+
 // Detailed divination card stats (with processedIds for sessions)
 export interface DetailedDivinationCardStats {
   totalCount: number;

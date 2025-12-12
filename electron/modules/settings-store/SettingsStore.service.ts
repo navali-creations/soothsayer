@@ -10,6 +10,8 @@ import {
   type SettingsStoreKey,
   type SettingsStoreSchema,
 } from "./SettingsStore.schemas";
+import { PriceSource } from "../../../types/data-stores";
+import { DatabaseService } from "../database";
 
 class SettingsStoreService {
   private static _instance: SettingsStoreService;
@@ -194,6 +196,20 @@ class SettingsStoreService {
         this.set(SettingsKey.SelectedPoe2PriceSource, source);
       },
     );
+
+    // Database management
+    ipcMain.handle(SettingsStoreChannel.ResetDatabase, async () => {
+      try {
+        const db = DatabaseService.getInstance();
+        db.reset();
+
+        // Return success with restart required flag
+        return { success: true, requiresRestart: true };
+      } catch (error) {
+        console.error("[Settings] Failed to reset database:", error);
+        return { success: false, error: (error as Error).message };
+      }
+    });
   }
 
   /**

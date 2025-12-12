@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import { BrowserWindow, dialog, ipcMain } from "electron";
 import type { SimpleDivinationCardStats } from "../data-store/DataStore.schemas";
-import { DataStoreService } from "../data-store/DataStore.service";
+import { DataStoreService } from "../data-store/DataStoreService";
 import { SettingsKey, SettingsStoreService } from "../settings-store";
 import { jsonToCsv } from "./utils";
 

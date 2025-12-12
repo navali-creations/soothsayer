@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 import {
+  AnalyticsAPI,
   AppSetupAPI,
   CurrentSessionAPI,
   DataStoreAPI,
@@ -7,6 +8,7 @@ import {
   PoeLeaguesAPI,
   PoeNinjaAPI,
   PoeProcessAPI,
+  SessionsAPI,
   SettingsStoreAPI,
 } from "../electron/modules";
 
@@ -18,6 +20,7 @@ contextBridge.exposeInMainWorld("electron", {
   },
 
   session: CurrentSessionAPI,
+  sessions: SessionsAPI,
   app: MainWindowAPI,
   appSetup: AppSetupAPI,
   poeProcess: PoeProcessAPI,
@@ -25,4 +28,5 @@ contextBridge.exposeInMainWorld("electron", {
   poeNinja: PoeNinjaAPI,
   poeLeagues: PoeLeaguesAPI,
   settings: SettingsStoreAPI,
+  analytics: AnalyticsAPI,
 });

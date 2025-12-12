@@ -3,10 +3,12 @@ import { type App, app, ipcMain } from "electron";
 import { System } from "../../../enums";
 import {
   CurrentSessionService,
+  DatabaseService,
   type MainWindowServiceType,
   PoeProcessService,
   SettingsKey,
   SettingsStoreService,
+  SnapshotService,
   TrayService,
 } from "../../modules";
 import { AppChannel } from "./App.channels";
@@ -18,6 +20,8 @@ class AppService {
     SettingsStoreService.getInstance();
   private sessionStorage: CurrentSessionService =
     CurrentSessionService.getInstance();
+  private snapshotService: SnapshotService = SnapshotService.getInstance();
+  private database: DatabaseService = DatabaseService.getInstance();
   private static _instance: AppService;
 
   static getInstance() {
@@ -94,18 +98,45 @@ class AppService {
    */
   public beforeQuitCloseWindowsAndDestroyElements() {
     this.app.on(AppChannel.BeforeQuit, async () => {
-      await this.sessionStorage.flushAllTrackers();
+      console.log("[Shutdown] Starting cleanup...");
 
+      // Stop all snapshot auto-refresh timers
+      console.log("[Shutdown] Stopping snapshot auto-refresh...");
+      this.snapshotService.stopAllAutoRefresh();
+
+      // Stop active sessions (this will flush processed IDs)
       if (this.sessionStorage.isSessionActive("poe1")) {
+        console.log("[Shutdown] Stopping POE1 session...");
         this.sessionStorage.stopSession("poe1");
       }
       if (this.sessionStorage.isSessionActive("poe2")) {
+        console.log("[Shutdown] Stopping POE2 session...");
         this.sessionStorage.stopSession("poe2");
       }
 
+      // Stop POE process monitoring
+      console.log("[Shutdown] Stopping POE process monitoring...");
       PoeProcessService.getInstance().stop();
+
+      // Optimize database before closing
+      console.log("[Shutdown] Optimizing database...");
+      try {
+        this.database.optimize();
+        console.log("[Shutdown] Database optimized");
+      } catch (error) {
+        console.error("[Shutdown] Database optimization failed:", error);
+      }
+
+      // Close database connection
+      console.log("[Shutdown] Closing database...");
+      this.database.close();
+
+      // Destroy tray
+      console.log("[Shutdown] Destroying tray...");
       TrayService.getInstance().destroyTray();
+
       this.isQuitting = true;
+      console.log("[Shutdown] Cleanup complete, quitting now...");
     });
   }
 

@@ -1,61 +1,78 @@
 import { ipcMain } from "electron";
-import Store from "electron-store";
 import type { GameType, GlobalStats } from "../../../types/data-stores";
-import { PerformanceLoggerService } from "../../modules";
+import { DatabaseService } from "../database/Database.service";
+import { PerformanceLoggerService } from "../performance-logger/PerformanceLogger.service";
 import { DataStoreChannel } from "./DataStore.channels";
 import type { SimpleDivinationCardStats } from "./DataStore.schemas";
 
+/**
+ * SQLite-based DataStore service
+ * Replaces electron-store with better-sqlite3 for improved performance
+ */
 class DataStoreService {
   private static _instance: DataStoreService;
+  private db: DatabaseService;
   private perfLogger: PerformanceLoggerService;
 
-  // Store instances
-  private globalStore: Store<GlobalStats>;
-  private poe1AllTimeStore: Store<SimpleDivinationCardStats>;
-  private poe2AllTimeStore: Store<SimpleDivinationCardStats>;
-  private poe1LeagueStores: Map<string, Store<SimpleDivinationCardStats>>;
-  private poe2LeagueStores: Map<string, Store<SimpleDivinationCardStats>>;
+  // Prepared statements for performance
+  private statements: {
+    getGlobalStat: ReturnType<
+      typeof DatabaseService.prototype.getDb
+    >["prepare"];
+    updateGlobalStat: ReturnType<
+      typeof DatabaseService.prototype.getDb
+    >["prepare"];
+    getCard: ReturnType<typeof DatabaseService.prototype.getDb>["prepare"];
+    upsertCard: ReturnType<typeof DatabaseService.prototype.getDb>["prepare"];
+    getAllCards: ReturnType<typeof DatabaseService.prototype.getDb>["prepare"];
+    getTotalCount: ReturnType<
+      typeof DatabaseService.prototype.getDb
+    >["prepare"];
+    resetCards: ReturnType<typeof DatabaseService.prototype.getDb>["prepare"];
+  };
 
-  static getInstance() {
+  static getInstance(): DataStoreService {
     if (!DataStoreService._instance) {
       DataStoreService._instance = new DataStoreService();
     }
-
     return DataStoreService._instance;
   }
 
   constructor() {
+    this.db = DatabaseService.getInstance();
     this.perfLogger = PerformanceLoggerService.getInstance();
 
-    // Initialize global stats store
-    this.globalStore = new Store<GlobalStats>({
-      name: "global-stats",
-      defaults: {
-        totalStackedDecksOpened: 0,
-      },
-    });
+    // Prepare statements for better performance
+    const dbInstance = this.db.getDb();
 
-    // Initialize PoE 1 all-time store
-    this.poe1AllTimeStore = new Store<SimpleDivinationCardStats>({
-      name: "poe1-data/all-time",
-      defaults: {
-        totalCount: 0,
-        cards: {},
-      },
-    });
-
-    // Initialize PoE 2 all-time store
-    this.poe2AllTimeStore = new Store<SimpleDivinationCardStats>({
-      name: "poe2-data/all-time",
-      defaults: {
-        totalCount: 0,
-        cards: {},
-      },
-    });
-
-    // Initialize league store maps
-    this.poe1LeagueStores = new Map();
-    this.poe2LeagueStores = new Map();
+    this.statements = {
+      getGlobalStat: dbInstance.prepare(
+        "SELECT value FROM global_stats WHERE key = ?",
+      ),
+      updateGlobalStat: dbInstance.prepare(
+        "UPDATE global_stats SET value = value + ? WHERE key = ?",
+      ),
+      getCard: dbInstance.prepare(
+        "SELECT count FROM cards WHERE game = ? AND scope = ? AND card_name = ?",
+      ),
+      upsertCard: dbInstance.prepare(`
+        INSERT INTO cards (game, scope, card_name, count, last_updated)
+        VALUES (?, ?, ?, 1, ?)
+        ON CONFLICT(game, scope, card_name)
+        DO UPDATE SET
+          count = count + 1,
+          last_updated = ?
+      `),
+      getAllCards: dbInstance.prepare(
+        "SELECT card_name, count FROM cards WHERE game = ? AND scope = ?",
+      ),
+      getTotalCount: dbInstance.prepare(
+        "SELECT COALESCE(SUM(count), 0) as total FROM cards WHERE game = ? AND scope = ?",
+      ),
+      resetCards: dbInstance.prepare(
+        "DELETE FROM cards WHERE game = ? AND scope = ?",
+      ),
+    };
 
     this.setupHandlers();
   }
@@ -63,7 +80,7 @@ class DataStoreService {
   /**
    * Setup IPC handlers for data access from renderer
    */
-  private setupHandlers() {
+  private setupHandlers(): void {
     // Get all-time stats
     ipcMain.handle(
       DataStoreChannel.GetAllTimeStats,
@@ -92,102 +109,57 @@ class DataStoreService {
   }
 
   /**
-   * Get or create a league-specific store
-   */
-  private getLeagueStore(
-    game: GameType,
-    league: string,
-  ): Store<SimpleDivinationCardStats> {
-    const storeMap =
-      game === "poe1" ? this.poe1LeagueStores : this.poe2LeagueStores;
-
-    if (!storeMap.has(league)) {
-      const store = new Store<SimpleDivinationCardStats>({
-        name: `${game}-data/${league}`,
-        defaults: {
-          totalCount: 0,
-          cards: {},
-        },
-      });
-      storeMap.set(league, store);
-    }
-
-    return storeMap.get(league)!;
-  }
-
-  /**
    * Add a card to all relevant stores (cascading update)
    */
   public addCard(game: GameType, league: string, cardName: string): void {
     const perf = this.perfLogger.startTimers();
 
-    // 1. Update global stats (single atomic write)
-    perf?.start("global");
-    const globalStats = this.globalStore.store;
-    this.globalStore.store = {
-      totalStackedDecksOpened: globalStats.totalStackedDecksOpened + 1,
-    };
-    const globalTime = perf?.end("global") ?? 0;
+    // Execute all updates in a single transaction
+    this.db.transaction(() => {
+      const now = new Date().toISOString();
 
-    // 2. Update all-time stats (already optimized - single atomic write)
-    perf?.start("allTime");
-    const allTimeStore =
-      game === "poe1" ? this.poe1AllTimeStore : this.poe2AllTimeStore;
-    this.incrementCardInStore(allTimeStore, cardName);
-    const allTimeTime = perf?.end("allTime") ?? 0;
+      // 1. Update global stats
+      perf?.start("global");
+      this.statements.updateGlobalStat.run(1, "totalStackedDecksOpened");
+      const globalTime = perf?.end("global") ?? 0;
 
-    // 3. Update league stats (already optimized - single atomic write)
-    perf?.start("league");
-    const leagueStore = this.getLeagueStore(game, league);
-    this.incrementCardInStore(leagueStore, cardName);
-    const leagueTime = perf?.end("league") ?? 0;
+      // 2. Update all-time stats
+      perf?.start("allTime");
+      this.statements.upsertCard.run(game, "all-time", cardName, now, now);
+      const allTimeTime = perf?.end("allTime") ?? 0;
 
-    this.perfLogger.log("Cascade stores", {
-      Global: globalTime,
-      AllTime: allTimeTime,
-      League: leagueTime,
-      Total: globalTime + allTimeTime + leagueTime,
+      // 3. Update league stats
+      perf?.start("league");
+      this.statements.upsertCard.run(game, league, cardName, now, now);
+      const leagueTime = perf?.end("league") ?? 0;
+
+      this.perfLogger.log("Cascade stores (SQLite)", {
+        Global: globalTime,
+        AllTime: allTimeTime,
+        League: leagueTime,
+        Total: globalTime + allTimeTime + leagueTime,
+      });
     });
-  }
-
-  /**
-   * Helper to increment a card count in a simple store
-   * Already optimized - single atomic write
-   */
-  private incrementCardInStore(
-    store: Store<SimpleDivinationCardStats>,
-    cardName: string,
-  ): void {
-    const stats = store.store;
-    const cards = { ...stats.cards };
-
-    if (cards[cardName]) {
-      cards[cardName] = { count: cards[cardName].count + 1 };
-    } else {
-      cards[cardName] = { count: 1 };
-    }
-
-    store.store = {
-      cards,
-      totalCount: stats.totalCount + 1,
-      lastUpdated: new Date().toISOString(),
-    };
   }
 
   /**
    * Get global stats
    */
   public getGlobalStats(): GlobalStats {
-    return this.globalStore.store;
+    const result = this.statements.getGlobalStat.get(
+      "totalStackedDecksOpened",
+    ) as { value: number } | undefined;
+
+    return {
+      totalStackedDecksOpened: result?.value ?? 0,
+    };
   }
 
   /**
    * Get all-time stats for a game
    */
   public getAllTimeStats(game: GameType): SimpleDivinationCardStats {
-    const store =
-      game === "poe1" ? this.poe1AllTimeStore : this.poe2AllTimeStore;
-    return store.store;
+    return this.getStatsForScope(game, "all-time");
   }
 
   /**
@@ -197,45 +169,86 @@ class DataStoreService {
     game: GameType,
     league: string,
   ): SimpleDivinationCardStats {
-    const leagueStore = this.getLeagueStore(game, league);
-    return leagueStore.store;
+    return this.getStatsForScope(game, league);
+  }
+
+  /**
+   * Helper to get stats for a specific scope
+   */
+  private getStatsForScope(
+    game: GameType,
+    scope: string,
+  ): SimpleDivinationCardStats {
+    // Get all cards for this scope
+    const cards = this.statements.getAllCards.all(game, scope) as Array<{
+      card_name: string;
+      count: number;
+    }>;
+
+    // Get total count
+    const totalResult = this.statements.getTotalCount.get(game, scope) as {
+      total: number;
+    };
+
+    // Get last updated timestamp
+    const lastUpdatedResult = this.db
+      .getDb()
+      .prepare(
+        "SELECT last_updated FROM cards WHERE game = ? AND scope = ? ORDER BY last_updated DESC LIMIT 1",
+      )
+      .get(game, scope) as { last_updated: string } | undefined;
+
+    // Build the cards object
+    const cardsObj: Record<string, { count: number }> = {};
+    for (const card of cards) {
+      cardsObj[card.card_name] = { count: card.count };
+    }
+
+    return {
+      totalCount: totalResult.total,
+      cards: cardsObj,
+      lastUpdated: lastUpdatedResult?.last_updated,
+    };
   }
 
   /**
    * Reset all-time stats for a game
    */
   public resetAllTimeStats(game: GameType): void {
-    const store =
-      game === "poe1" ? this.poe1AllTimeStore : this.poe2AllTimeStore;
-    store.set("totalCount", 0);
-    store.set("cards", {});
-    store.set("lastUpdated", new Date().toISOString());
+    this.statements.resetCards.run(game, "all-time");
   }
 
   /**
    * Reset league stats
    */
   public resetLeagueStats(game: GameType, league: string): void {
-    const leagueStore = this.getLeagueStore(game, league);
-    leagueStore.set("totalCount", 0);
-    leagueStore.set("cards", {});
-    leagueStore.set("lastUpdated", new Date().toISOString());
+    this.statements.resetCards.run(game, league);
   }
 
   /**
    * Reset global stats
    */
   public resetGlobalStats(): void {
-    this.globalStore.set("totalStackedDecksOpened", 0);
+    this.db
+      .getDb()
+      .prepare(
+        "UPDATE global_stats SET value = 0 WHERE key = 'totalStackedDecksOpened'",
+      )
+      .run();
   }
 
   /**
    * Get all available leagues for a game
    */
   public getAvailableLeagues(game: GameType): string[] {
-    const storeMap =
-      game === "poe1" ? this.poe1LeagueStores : this.poe2LeagueStores;
-    return Array.from(storeMap.keys());
+    const result = this.db
+      .getDb()
+      .prepare(
+        "SELECT DISTINCT scope FROM cards WHERE game = ? AND scope != 'all-time' ORDER BY scope",
+      )
+      .all(game) as Array<{ scope: string }>;
+
+    return result.map((row) => row.scope);
   }
 
   /**

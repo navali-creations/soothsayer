@@ -81,6 +81,13 @@ const SettingsStoreAPI = {
     ipcRenderer.invoke(SettingsStoreChannel.GetSelectedPoe2PriceSource),
   setSelectedPoe2PriceSource: (source: PriceSource): Promise<void> =>
     ipcRenderer.invoke(SettingsStoreChannel.SetSelectedPoe2PriceSource, source),
+
+  // Database management
+  resetDatabase: (): Promise<{
+    success: boolean;
+    requiresRestart?: boolean;
+    error?: string;
+  }> => ipcRenderer.invoke(SettingsStoreChannel.ResetDatabase),
 };
 
 export { SettingsStoreAPI };

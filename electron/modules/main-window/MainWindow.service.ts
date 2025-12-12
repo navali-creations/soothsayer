@@ -7,6 +7,7 @@ import {
   ClientLogReaderService,
   CsvService,
   CurrentSessionService,
+  DatabaseService,
   DataStoreService,
   MainWindowChannel,
   PoeLeaguesService,
@@ -14,6 +15,9 @@ import {
   PoeProcessService,
   SettingsKey,
   SettingsStoreService,
+  SnapshotService,
+  AnalyticsService,
+  SessionsService,
   TrayService,
 } from "../../modules";
 
@@ -21,11 +25,7 @@ class MainWindowService {
   private mainWindow: BrowserWindow;
   private url: string = MAIN_WINDOW_VITE_DEV_SERVER_URL;
   private settingsStore: SettingsStoreService | null = null;
-  private poeNinja: PoeNinjaService | null = null;
-  private poeLeagues: PoeLeaguesService | null = null;
-  private csv: CsvService | null = null;
-  private dataStore: DataStoreService | null = null;
-  private session: CurrentSessionService | null = null;
+  private database: DatabaseService | null = null;
 
   private static _instance: MainWindowService;
 
@@ -60,12 +60,45 @@ class MainWindowService {
       frame: false,
     });
 
+    // Initialize services in correct order
+    console.log("[Init] Initializing services...");
+
+    // 1. Settings (no dependencies)
     this.settingsStore = SettingsStoreService.getInstance();
-    this.poeNinja = PoeNinjaService.getInstance();
-    this.poeLeagues = PoeLeaguesService.getInstance();
-    this.csv = CsvService.getInstance();
-    this.dataStore = DataStoreService.getInstance();
-    this.session = CurrentSessionService.getInstance();
+    console.log("[Init] ✓ Settings");
+
+    // 2. Database (core dependency)
+    this.database = DatabaseService.getInstance();
+    console.log("[Init] ✓ Database");
+    console.log(`[Init] Database location: ${this.database.getPath()}`);
+
+    // 3. POE.ninja (external API)
+    PoeNinjaService.getInstance();
+    PoeLeaguesService.getInstance();
+    console.log("[Init] ✓ POE Services");
+
+    // 4. Snapshot service (depends on database + poe.ninja)
+    SnapshotService.getInstance();
+    console.log("[Init] ✓ Snapshots");
+
+    // 5. Data stores (depend on database)
+    DataStoreService.getInstance();
+    console.log("[Init] ✓ Data Store");
+
+    // 6. Session management (depends on database + snapshots + dataStore)
+    CurrentSessionService.getInstance();
+    SessionsService.getInstance();
+    console.log("[Init] ✓ Sessions");
+
+    // 7. Analytics (depends on database)
+    AnalyticsService.getInstance();
+    console.log("[Init] ✓ Analytics");
+
+    // 8. CSV (utility)
+    CsvService.getInstance();
+    console.log("[Init] ✓ CSV");
+
+    console.log("[Init] All services initialized successfully");
 
     this.showAppOnceReadyToShow();
 
@@ -77,11 +110,11 @@ class MainWindowService {
     }
 
     // Initialize PoE Process monitoring
-    PoeProcessService.getInstance().initialize(this.mainWindow);
+    PoeProcessService.getInstance().initialize(this.mainWindow as MainWindowServiceType);
 
     // Caption events
     this.emitCaptionEvents();
-    this.emitFileDialogEvents(); // Add this line
+    this.emitFileDialogEvents();
     this.emitOnMainWindowClose(isQuitting);
 
     TrayService.getInstance().createTray();
@@ -90,6 +123,8 @@ class MainWindowService {
     ClientLogReaderService.getInstance(this.mainWindow)
       .on("clientlog-start", (data) => {})
       .on("clientlog-stop", (data) => {});
+
+    console.log("[Init] Main window created and ready");
   }
 
   private emitFileDialogEvents() {

@@ -35,6 +35,9 @@ enum SettingsStoreChannel {
   SetSelectedPoe1PriceSource = "settings-store:set-selected-poe1-price-source",
   GetSelectedPoe2PriceSource = "settings-store:get-selected-poe2-price-source",
   SetSelectedPoe2PriceSource = "settings-store:set-selected-poe2-price-source",
+
+  // Database management
+  ResetDatabase = "settings-store:reset-database",
 }
 
 export { SettingsStoreChannel };
