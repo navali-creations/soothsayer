@@ -107,11 +107,13 @@ class AppService {
       // Stop active sessions (this will flush processed IDs)
       if (this.sessionStorage.isSessionActive("poe1")) {
         console.log("[Shutdown] Stopping POE1 session...");
-        this.sessionStorage.stopSession("poe1");
+        await this.sessionStorage.stopSession("poe1");
+        console.log("[Shutdown] POE1 session stopped");
       }
       if (this.sessionStorage.isSessionActive("poe2")) {
         console.log("[Shutdown] Stopping POE2 session...");
-        this.sessionStorage.stopSession("poe2");
+        await this.sessionStorage.stopSession("poe2");
+        console.log("[Shutdown] POE2 session stopped");
       }
 
       // Stop POE process monitoring

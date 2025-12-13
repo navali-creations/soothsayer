@@ -1,6 +1,8 @@
 import path from "node:path";
 import { app } from "electron";
 import Database from "better-sqlite3";
+import { Kysely, SqliteDialect } from "kysely";
+import type { Database as DatabaseSchema } from "./Database.types";
 
 /**
  * Core database service that manages the SQLite connection
@@ -9,6 +11,7 @@ import Database from "better-sqlite3";
 class DatabaseService {
   private static _instance: DatabaseService;
   private db: Database.Database;
+  private kysely: Kysely<DatabaseSchema>;
   private dbPath: string;
 
   static getInstance(): DatabaseService {
@@ -23,6 +26,8 @@ class DatabaseService {
     const userDataPath = app.getPath("userData");
     this.dbPath = path.join(userDataPath, "soothsayer.db");
 
+    console.log(`[Init] Database location: ${this.dbPath}`);
+
     // Initialize database connection
     this.db = new Database(this.dbPath, {
       // verbose: process.env.NODE_ENV === "development" ? console.log : undefined,
@@ -33,6 +38,13 @@ class DatabaseService {
 
     // Enable foreign keys
     this.db.pragma("foreign_keys = ON");
+
+    // Initialize Kysely with the same database instance
+    this.kysely = new Kysely<DatabaseSchema>({
+      dialect: new SqliteDialect({
+        database: this.db,
+      }),
+    });
 
     // Initialize schema
     this.initializeSchema();
@@ -278,14 +290,25 @@ class DatabaseService {
   }
 
   /**
-   * Get the database instance
+   * Get the raw better-sqlite3 database instance
+   * Use this for transactions or when Kysely isn't suitable
+   * @deprecated Prefer using getKysely() for type-safe queries
    */
   public getDb(): Database.Database {
     return this.db;
   }
 
   /**
-   * Execute a transaction
+   * Get the Kysely query builder
+   * Use this for type-safe, composable queries
+   */
+  public getKysely(): Kysely<DatabaseSchema> {
+    return this.kysely;
+  }
+
+  /**
+   * Execute a transaction with better-sqlite3
+   * @deprecated Prefer using Kysely transactions
    */
   public transaction<T>(fn: () => T): T {
     const transaction = this.db.transaction(fn);
@@ -296,6 +319,7 @@ class DatabaseService {
    * Close the database connection
    */
   public close(): void {
+    this.kysely.destroy();
     this.db.close();
   }
 
@@ -322,6 +346,7 @@ class DatabaseService {
     const fs = require("fs");
 
     // Close the database connection
+    this.kysely.destroy();
     this.db.close();
 
     // Delete the database file
@@ -339,10 +364,15 @@ class DatabaseService {
     this.db = new Database(this.dbPath);
     this.db.pragma("journal_mode = WAL");
     this.db.pragma("foreign_keys = ON");
-    this.initializeSchema();
 
-    // Reset the singleton instance to force reinitialization of all services
-    DatabaseService._instance = null as any;
+    // Reinitialize Kysely
+    this.kysely = new Kysely<DatabaseSchema>({
+      dialect: new SqliteDialect({
+        database: this.db,
+      }),
+    });
+
+    this.initializeSchema();
 
     console.log("[Database] Database reset completed");
   }

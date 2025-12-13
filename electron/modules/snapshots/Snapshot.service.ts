@@ -2,22 +2,7 @@ import crypto from "node:crypto";
 import type { SessionPriceSnapshot } from "../../../types/data-stores";
 import { DatabaseService } from "../database/Database.service";
 import { PoeNinjaService } from "../poe-ninja/PoeNinja.service";
-
-interface SnapshotData {
-  id: string;
-  league_id: string;
-  fetched_at: string;
-  exchange_chaos_to_divine: number;
-  stash_chaos_to_divine: number;
-}
-
-interface SnapshotCardPrice {
-  card_name: string;
-  price_source: "exchange" | "stash";
-  chaos_value: number;
-  divine_value: number;
-  stack_size: number | null;
-}
+import { SnapshotRepository } from "./Snapshot.repository";
 
 /**
  * Service for managing price snapshots
@@ -25,7 +10,7 @@ interface SnapshotCardPrice {
  */
 class SnapshotService {
   private static _instance: SnapshotService;
-  private db: DatabaseService;
+  private repository: SnapshotRepository;
   private poeNinja: PoeNinjaService;
   private refreshIntervals: Map<string, NodeJS.Timeout> = new Map();
 
@@ -43,24 +28,21 @@ class SnapshotService {
   }
 
   constructor() {
-    this.db = DatabaseService.getInstance();
+    const db = DatabaseService.getInstance();
+    this.repository = new SnapshotRepository(db.getKysely());
     this.poeNinja = PoeNinjaService.getInstance();
   }
 
   /**
    * Get or create a league in the database
    */
-  private async ensureLeague(
+  public async ensureLeague(
     game: string,
     leagueName: string,
     startDate?: string,
   ): Promise<string> {
-    const dbInstance = this.db.getDb();
-
     // Check if league exists
-    const existing = dbInstance
-      .prepare("SELECT id FROM leagues WHERE game = ? AND name = ?")
-      .get(game, leagueName) as { id: string } | undefined;
+    const existing = await this.repository.getLeagueByName(game, leagueName);
 
     if (existing) {
       return existing.id;
@@ -68,165 +50,56 @@ class SnapshotService {
 
     // Create new league
     const leagueId = crypto.randomUUID();
-    dbInstance
-      .prepare(
-        `INSERT INTO leagues (id, game, name, start_date)
-         VALUES (?, ?, ?, ?)`,
-      )
-      .run(leagueId, game, leagueName, startDate || null);
+    await this.repository.createLeague({
+      id: leagueId,
+      game,
+      name: leagueName,
+      startDate,
+    });
 
     console.log(`Created new league: ${game}/${leagueName} (${leagueId})`);
     return leagueId;
   }
 
   /**
-   * Get the most recent snapshot for a league
-   * Returns snapshot if it exists and is fresh enough
-   */
-  private getRecentSnapshot(leagueId: string): SnapshotData | null {
-    const dbInstance = this.db.getDb();
-
-    const hoursAgo = SnapshotService.SNAPSHOT_REUSE_THRESHOLD_HOURS;
-    const result = dbInstance
-      .prepare(
-        `SELECT id, league_id, fetched_at, exchange_chaos_to_divine, stash_chaos_to_divine
-         FROM snapshots
-         WHERE league_id = ?
-           AND fetched_at > datetime('now', '-${hoursAgo} hours')
-         ORDER BY fetched_at DESC
-         LIMIT 1`,
-      )
-      .get(leagueId) as SnapshotData | undefined;
-
-    return result || null;
-  }
-
-  /**
-   * Store a snapshot in the database
-   */
-  private storeSnapshot(
-    leagueId: string,
-    snapshotData: SessionPriceSnapshot,
-  ): string {
-    const snapshotId = crypto.randomUUID();
-    const dbInstance = this.db.getDb();
-
-    return this.db.transaction(() => {
-      // Insert snapshot metadata
-      dbInstance
-        .prepare(
-          `INSERT INTO snapshots
-           (id, league_id, fetched_at, exchange_chaos_to_divine, stash_chaos_to_divine)
-           VALUES (?, ?, ?, ?, ?)`,
-        )
-        .run(
-          snapshotId,
-          leagueId,
-          snapshotData.timestamp,
-          snapshotData.exchange.chaosToDivineRatio,
-          snapshotData.stash.chaosToDivineRatio,
-        );
-
-      // Insert exchange card prices
-      const insertPrice = dbInstance.prepare(
-        `INSERT INTO snapshot_card_prices
-         (snapshot_id, card_name, price_source, chaos_value, divine_value, stack_size)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-      );
-
-      for (const [cardName, priceData] of Object.entries(
-        snapshotData.exchange.cardPrices,
-      )) {
-        insertPrice.run(
-          snapshotId,
-          cardName,
-          "exchange",
-          priceData.chaosValue,
-          priceData.divineValue,
-          priceData.stackSize || null,
-        );
-      }
-
-      // Insert stash card prices
-      for (const [cardName, priceData] of Object.entries(
-        snapshotData.stash.cardPrices,
-      )) {
-        insertPrice.run(
-          snapshotId,
-          cardName,
-          "stash",
-          priceData.chaosValue,
-          priceData.divineValue,
-          priceData.stackSize || null,
-        );
-      }
-
-      console.log(
-        `Stored snapshot ${snapshotId} for league ${leagueId} with ${Object.keys(snapshotData.exchange.cardPrices).length + Object.keys(snapshotData.stash.cardPrices).length} card prices`,
-      );
-
-      return snapshotId;
-    });
-  }
-
-  /**
    * Load a snapshot from the database and convert to SessionPriceSnapshot format
    */
-  public loadSnapshot(snapshotId: string): SessionPriceSnapshot | null {
-    const dbInstance = this.db.getDb();
-
-    // Get snapshot metadata
-    const snapshot = dbInstance
-      .prepare(
-        `SELECT fetched_at, exchange_chaos_to_divine, stash_chaos_to_divine
-         FROM snapshots WHERE id = ?`,
-      )
-      .get(snapshotId) as
-      | {
-          fetched_at: string;
-          exchange_chaos_to_divine: number;
-          stash_chaos_to_divine: number;
-        }
-      | undefined;
-
-    if (!snapshot) {
+  public async loadSnapshot(
+    snapshotId: string,
+  ): Promise<SessionPriceSnapshot | null> {
+    const result = await this.repository.loadSnapshot(snapshotId);
+    if (!result) {
       return null;
     }
 
-    // Get all card prices
-    const prices = dbInstance
-      .prepare(
-        `SELECT card_name, price_source, chaos_value, divine_value, stack_size
-         FROM snapshot_card_prices WHERE snapshot_id = ?`,
-      )
-      .all(snapshotId) as SnapshotCardPrice[];
+    const { snapshot, cardPrices } = result;
 
     // Separate exchange and stash prices
     const exchangePrices: SessionPriceSnapshot["exchange"]["cardPrices"] = {};
     const stashPrices: SessionPriceSnapshot["stash"]["cardPrices"] = {};
 
-    for (const price of prices) {
+    for (const price of cardPrices) {
       const priceData = {
-        chaosValue: price.chaos_value,
-        divineValue: price.divine_value,
-        stackSize: price.stack_size || undefined,
+        chaosValue: price.chaosValue,
+        divineValue: price.divineValue,
+        stackSize: price.stackSize ?? undefined,
       };
 
-      if (price.price_source === "exchange") {
-        exchangePrices[price.card_name] = priceData;
+      if (price.priceSource === "exchange") {
+        exchangePrices[price.cardName] = priceData;
       } else {
-        stashPrices[price.card_name] = priceData;
+        stashPrices[price.cardName] = priceData;
       }
     }
 
     return {
-      timestamp: snapshot.fetched_at,
+      timestamp: snapshot.fetchedAt,
       exchange: {
-        chaosToDivineRatio: snapshot.exchange_chaos_to_divine,
+        chaosToDivineRatio: snapshot.exchangeChaosToDivine,
         cardPrices: exchangePrices,
       },
       stash: {
-        chaosToDivineRatio: snapshot.stash_chaos_to_divine,
+        chaosToDivineRatio: snapshot.stashChaosToDivine,
         cardPrices: stashPrices,
       },
     };
@@ -244,13 +117,16 @@ class SnapshotService {
     const leagueId = await this.ensureLeague(game, leagueName);
 
     // Try to reuse recent snapshot
-    const recentSnapshot = this.getRecentSnapshot(leagueId);
+    const recentSnapshot = await this.repository.getRecentSnapshot(
+      leagueId,
+      SnapshotService.SNAPSHOT_REUSE_THRESHOLD_HOURS,
+    );
 
     if (recentSnapshot) {
       console.log(
-        `Reusing snapshot ${recentSnapshot.id} from ${recentSnapshot.fetched_at}`,
+        `Reusing snapshot ${recentSnapshot.id} from ${recentSnapshot.fetchedAt}`,
       );
-      const data = this.loadSnapshot(recentSnapshot.id);
+      const data = await this.loadSnapshot(recentSnapshot.id);
       if (data) {
         return { snapshotId: recentSnapshot.id, data };
       }
@@ -261,7 +137,16 @@ class SnapshotService {
     const snapshotData = await this.poeNinja.getPriceSnapshot(leagueName);
 
     // Store it
-    const snapshotId = this.storeSnapshot(leagueId, snapshotData);
+    const snapshotId = crypto.randomUUID();
+    await this.repository.createSnapshot({
+      id: snapshotId,
+      leagueId,
+      snapshotData,
+    });
+
+    console.log(
+      `Stored snapshot ${snapshotId} for league ${leagueId} with ${Object.keys(snapshotData.exchange.cardPrices).length + Object.keys(snapshotData.stash.cardPrices).length} card prices`,
+    );
 
     return { snapshotId, data: snapshotData };
   }
@@ -286,7 +171,14 @@ class SnapshotService {
         console.log(`Auto-refreshing snapshot for ${game}/${leagueName}...`);
         const leagueId = await this.ensureLeague(game, leagueName);
         const snapshotData = await this.poeNinja.getPriceSnapshot(leagueName);
-        this.storeSnapshot(leagueId, snapshotData);
+
+        const snapshotId = crypto.randomUUID();
+        await this.repository.createSnapshot({
+          id: snapshotId,
+          leagueId,
+          snapshotData,
+        });
+
         console.log(`Auto-refresh complete for ${game}/${leagueName}`);
       } catch (error) {
         console.error(`Failed to auto-refresh snapshot for ${key}:`, error);

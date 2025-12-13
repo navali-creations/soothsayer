@@ -24,13 +24,9 @@ class ClientLogReaderService extends EventEmitter {
   private game: GameType;
   private clientLogPath: string;
 
-  static getInstance(
-    mainWindow: MainWindowService,
-  ): ClientLogReaderService {
+  static getInstance(mainWindow: MainWindowService): ClientLogReaderService {
     if (!ClientLogReaderService._instance) {
-      ClientLogReaderService._instance = new ClientLogReaderService(
-        mainWindow,
-      );
+      ClientLogReaderService._instance = new ClientLogReaderService(mainWindow);
     }
 
     return ClientLogReaderService._instance;
@@ -110,7 +106,8 @@ class ClientLogReaderService extends EventEmitter {
               // 1. Duplicate detection (via processedIds)
               // 2. Updating current session in SQLite
               // 3. Cascading to league, all-time, and global stats
-              const added = this.session.addCard(
+              // 4. Emitting session data updates to renderer
+              await this.session.addCard(
                 this.game,
                 sessionInfo.league,
                 cardName,
@@ -119,35 +116,15 @@ class ClientLogReaderService extends EventEmitter {
 
               const addCardTime = perf?.end("addCard") ?? 0;
 
-              if (added) {
-                this.perfLogger.log(`Card added: ${cardName}`, {
-                  Game: this.game,
-                  League: sessionInfo.league,
-                  "addCard()": addCardTime,
-                });
-              } else {
-                // Card was duplicate, log it too for debugging
-                this.perfLogger.log(`Duplicate: ${cardName}`, {
-                  "addCard()": addCardTime,
-                });
-              }
+              this.perfLogger.log(`Card added: ${cardName}`, {
+                Game: this.game,
+                League: sessionInfo.league,
+                "addCard()": addCardTime,
+              });
             }
           }
 
-          // Get updated session stats and emit to renderer
-          perf?.start("emit");
-          const currentSession = this.session.getCurrentSession(this.game);
-          if (currentSession) {
-            this.emit("divination-cards-update", currentSession);
-            this.mainWindow?.webContents?.send(
-              "divination-cards-update",
-              currentSession,
-            );
-          }
-          const emitTime = perf?.end("emit") ?? 0;
-
           overallTimer?.({
-            Emit: emitTime,
             "Cards processed": newCards.totalCount,
           });
         }

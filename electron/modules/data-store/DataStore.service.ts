@@ -4,32 +4,16 @@ import { DatabaseService } from "../database/Database.service";
 import { PerformanceLoggerService } from "../performance-logger/PerformanceLogger.service";
 import { DataStoreChannel } from "./DataStore.channels";
 import type { SimpleDivinationCardStats } from "./DataStore.schemas";
+import { DataStoreRepository } from "./DataStore.repository";
 
 /**
- * SQLite-based DataStore service
- * Replaces electron-store with better-sqlite3 for improved performance
+ * SQLite-based DataStore service - Refactored with Kysely
+ * Manages all-time and league statistics
  */
 class DataStoreService {
   private static _instance: DataStoreService;
-  private db: DatabaseService;
+  private repository: DataStoreRepository;
   private perfLogger: PerformanceLoggerService;
-
-  // Prepared statements for performance
-  private statements: {
-    getGlobalStat: ReturnType<
-      typeof DatabaseService.prototype.getDb
-    >["prepare"];
-    updateGlobalStat: ReturnType<
-      typeof DatabaseService.prototype.getDb
-    >["prepare"];
-    getCard: ReturnType<typeof DatabaseService.prototype.getDb>["prepare"];
-    upsertCard: ReturnType<typeof DatabaseService.prototype.getDb>["prepare"];
-    getAllCards: ReturnType<typeof DatabaseService.prototype.getDb>["prepare"];
-    getTotalCount: ReturnType<
-      typeof DatabaseService.prototype.getDb
-    >["prepare"];
-    resetCards: ReturnType<typeof DatabaseService.prototype.getDb>["prepare"];
-  };
 
   static getInstance(): DataStoreService {
     if (!DataStoreService._instance) {
@@ -39,40 +23,9 @@ class DataStoreService {
   }
 
   constructor() {
-    this.db = DatabaseService.getInstance();
+    const db = DatabaseService.getInstance();
+    this.repository = new DataStoreRepository(db.getKysely());
     this.perfLogger = PerformanceLoggerService.getInstance();
-
-    // Prepare statements for better performance
-    const dbInstance = this.db.getDb();
-
-    this.statements = {
-      getGlobalStat: dbInstance.prepare(
-        "SELECT value FROM global_stats WHERE key = ?",
-      ),
-      updateGlobalStat: dbInstance.prepare(
-        "UPDATE global_stats SET value = value + ? WHERE key = ?",
-      ),
-      getCard: dbInstance.prepare(
-        "SELECT count FROM cards WHERE game = ? AND scope = ? AND card_name = ?",
-      ),
-      upsertCard: dbInstance.prepare(`
-        INSERT INTO cards (game, scope, card_name, count, last_updated)
-        VALUES (?, ?, ?, 1, ?)
-        ON CONFLICT(game, scope, card_name)
-        DO UPDATE SET
-          count = count + 1,
-          last_updated = ?
-      `),
-      getAllCards: dbInstance.prepare(
-        "SELECT card_name, count FROM cards WHERE game = ? AND scope = ?",
-      ),
-      getTotalCount: dbInstance.prepare(
-        "SELECT COALESCE(SUM(count), 0) as total FROM cards WHERE game = ? AND scope = ?",
-      ),
-      resetCards: dbInstance.prepare(
-        "DELETE FROM cards WHERE game = ? AND scope = ?",
-      ),
-    };
 
     this.setupHandlers();
   }
@@ -84,7 +37,7 @@ class DataStoreService {
     // Get all-time stats
     ipcMain.handle(
       DataStoreChannel.GetAllTimeStats,
-      (_event, game: GameType) => {
+      async (_event, game: GameType) => {
         return this.getAllTimeStats(game);
       },
     );
@@ -92,18 +45,18 @@ class DataStoreService {
     // Get league stats
     ipcMain.handle(
       DataStoreChannel.GetLeagueStats,
-      (_event, game: GameType, league: string) => {
+      async (_event, game: GameType, league: string) => {
         return this.getLeagueStats(game, league);
       },
     );
 
     // Get available leagues
-    ipcMain.handle("data-store:get-leagues", (_event, game: GameType) => {
+    ipcMain.handle("data-store:get-leagues", async (_event, game: GameType) => {
       return this.getAvailableLeagues(game);
     });
 
     // Get global stats
-    ipcMain.handle("data-store:get-global", () => {
+    ipcMain.handle("data-store:get-global", async () => {
       return this.getGlobalStats();
     });
   }
@@ -111,29 +64,44 @@ class DataStoreService {
   /**
    * Add a card to all relevant stores (cascading update)
    */
-  public addCard(game: GameType, league: string, cardName: string): void {
+  public async addCard(
+    game: GameType,
+    league: string,
+    cardName: string,
+  ): Promise<void> {
     const perf = this.perfLogger.startTimers();
+    const now = new Date().toISOString();
 
     // Execute all updates in a single transaction
-    this.db.transaction(() => {
-      const now = new Date().toISOString();
+    await this.repository.kysely.transaction().execute(async (trx) => {
+      const repo = new DataStoreRepository(trx);
 
       // 1. Update global stats
       perf?.start("global");
-      this.statements.updateGlobalStat.run(1, "totalStackedDecksOpened");
+      await repo.incrementGlobalStat("totalStackedDecksOpened", 1);
       const globalTime = perf?.end("global") ?? 0;
 
       // 2. Update all-time stats
       perf?.start("allTime");
-      this.statements.upsertCard.run(game, "all-time", cardName, now, now);
+      await repo.upsertCard({
+        game,
+        scope: "all-time",
+        cardName,
+        timestamp: now,
+      });
       const allTimeTime = perf?.end("allTime") ?? 0;
 
       // 3. Update league stats
       perf?.start("league");
-      this.statements.upsertCard.run(game, league, cardName, now, now);
+      await repo.upsertCard({
+        game,
+        scope: league,
+        cardName,
+        timestamp: now,
+      });
       const leagueTime = perf?.end("league") ?? 0;
 
-      this.perfLogger.log("Cascade stores (SQLite)", {
+      this.perfLogger.log("Cascade stores (Kysely)", {
         Global: globalTime,
         AllTime: allTimeTime,
         League: leagueTime,
@@ -145,119 +113,100 @@ class DataStoreService {
   /**
    * Get global stats
    */
-  public getGlobalStats(): GlobalStats {
-    const result = this.statements.getGlobalStat.get(
-      "totalStackedDecksOpened",
-    ) as { value: number } | undefined;
+  public async getGlobalStats(): Promise<GlobalStats> {
+    const stat = await this.repository.getGlobalStat("totalStackedDecksOpened");
 
     return {
-      totalStackedDecksOpened: result?.value ?? 0,
+      totalStackedDecksOpened: stat?.value ?? 0,
     };
   }
 
   /**
    * Get all-time stats for a game
    */
-  public getAllTimeStats(game: GameType): SimpleDivinationCardStats {
+  public async getAllTimeStats(
+    game: GameType,
+  ): Promise<SimpleDivinationCardStats> {
     return this.getStatsForScope(game, "all-time");
   }
 
   /**
    * Get league stats for a game
    */
-  public getLeagueStats(
+  public async getLeagueStats(
     game: GameType,
     league: string,
-  ): SimpleDivinationCardStats {
+  ): Promise<SimpleDivinationCardStats> {
     return this.getStatsForScope(game, league);
   }
 
   /**
    * Helper to get stats for a specific scope
    */
-  private getStatsForScope(
+  private async getStatsForScope(
     game: GameType,
     scope: string,
-  ): SimpleDivinationCardStats {
+  ): Promise<SimpleDivinationCardStats> {
     // Get all cards for this scope
-    const cards = this.statements.getAllCards.all(game, scope) as Array<{
-      card_name: string;
-      count: number;
-    }>;
+    const cards = await this.repository.getCardsByScope(game, scope);
 
     // Get total count
-    const totalResult = this.statements.getTotalCount.get(game, scope) as {
-      total: number;
-    };
+    const totalCount = await this.repository.getTotalCountByScope(game, scope);
 
     // Get last updated timestamp
-    const lastUpdatedResult = this.db
-      .getDb()
-      .prepare(
-        "SELECT last_updated FROM cards WHERE game = ? AND scope = ? ORDER BY last_updated DESC LIMIT 1",
-      )
-      .get(game, scope) as { last_updated: string } | undefined;
+    const lastUpdated = await this.repository.getLastUpdatedByScope(
+      game,
+      scope,
+    );
 
     // Build the cards object
     const cardsObj: Record<string, { count: number }> = {};
     for (const card of cards) {
-      cardsObj[card.card_name] = { count: card.count };
+      cardsObj[card.cardName] = { count: card.count };
     }
 
     return {
-      totalCount: totalResult.total,
+      totalCount,
       cards: cardsObj,
-      lastUpdated: lastUpdatedResult?.last_updated,
+      lastUpdated: lastUpdated ?? undefined,
     };
   }
 
   /**
    * Reset all-time stats for a game
    */
-  public resetAllTimeStats(game: GameType): void {
-    this.statements.resetCards.run(game, "all-time");
+  public async resetAllTimeStats(game: GameType): Promise<void> {
+    await this.repository.deleteCardsByScope(game, "all-time");
   }
 
   /**
    * Reset league stats
    */
-  public resetLeagueStats(game: GameType, league: string): void {
-    this.statements.resetCards.run(game, league);
+  public async resetLeagueStats(game: GameType, league: string): Promise<void> {
+    await this.repository.deleteCardsByScope(game, league);
   }
 
   /**
    * Reset global stats
    */
-  public resetGlobalStats(): void {
-    this.db
-      .getDb()
-      .prepare(
-        "UPDATE global_stats SET value = 0 WHERE key = 'totalStackedDecksOpened'",
-      )
-      .run();
+  public async resetGlobalStats(): Promise<void> {
+    await this.repository.resetGlobalStat("totalStackedDecksOpened");
   }
 
   /**
    * Get all available leagues for a game
    */
-  public getAvailableLeagues(game: GameType): string[] {
-    const result = this.db
-      .getDb()
-      .prepare(
-        "SELECT DISTINCT scope FROM cards WHERE game = ? AND scope != 'all-time' ORDER BY scope",
-      )
-      .all(game) as Array<{ scope: string }>;
-
-    return result.map((row) => row.scope);
+  public async getAvailableLeagues(game: GameType): Promise<string[]> {
+    return this.repository.getAvailableLeagues(game);
   }
 
   /**
    * Export data for a specific scope
    */
-  public exportData(
+  public async exportData(
     game: GameType,
     scope: "all-time" | string,
-  ): SimpleDivinationCardStats {
+  ): Promise<SimpleDivinationCardStats> {
     if (scope === "all-time") {
       return this.getAllTimeStats(game);
     } else {
