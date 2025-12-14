@@ -57,10 +57,22 @@ export interface SessionTotals {
 
 export type DetailedCardEntry = Omit<CardEntry, "name">;
 
-// Detailed divination card stats (with processedIds for sessions)
+export interface RecentDrop {
+  cardName: string;
+  exchangePrice: {
+    chaosValue: number;
+    divineValue: number;
+  };
+  stashPrice: {
+    chaosValue: number;
+    divineValue: number;
+  };
+}
+
 export interface DetailedDivinationCardStats {
   totalCount: number;
-  cards: Record<string, DetailedCardEntry>; // <- Changed from CardEntry[]
+  cards: Record<string, DetailedCardEntry>;
+  recentDrops?: RecentDrop[];
   startedAt?: string;
   endedAt?: string | null;
   league?: string;

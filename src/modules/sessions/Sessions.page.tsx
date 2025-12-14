@@ -152,6 +152,14 @@ const SessionsPage = () => {
                               Active
                             </div>
                           )}
+                          {!session.isActive && !session.endedAt && (
+                            <div
+                              className="badge badge-error badge-sm gap-1 tooltip tooltip-right"
+                              data-tip="Session ended abruptly due to app crash or force close"
+                            >
+                              Corrupted
+                            </div>
+                          )}
                         </h2>
                         <p className="text-xs text-base-content/60">
                           {formatSessionTime(session.startedAt)}
@@ -177,7 +185,11 @@ const SessionsPage = () => {
                         <FiClock className="text-base-content/50" />
                         <span className="text-base-content/70">Duration:</span>
                         <span className="font-semibold tabular-nums">
-                          {formatDuration(session.durationMinutes)}
+                          {session.durationMinutes == null
+                            ? "Unknown"
+                            : session.durationMinutes >= 60
+                              ? `${Math.floor(session.durationMinutes / 60)}h ${session.durationMinutes % 60}m`
+                              : `${session.durationMinutes}m`}
                         </span>
                       </div>
 
@@ -194,24 +206,34 @@ const SessionsPage = () => {
                       <div className="flex items-center gap-2 text-sm">
                         <GiCardExchange className="text-base-content/50" />
                         <span className="text-base-content/70">Exchange:</span>
-                        <span className="font-semibold tabular-nums text-success">
-                          {formatCurrency(
-                            session.totalExchangeValue,
-                            session.exchangeChaosToDivine,
-                          )}
-                        </span>
+                        {session.totalExchangeValue == null ||
+                        session.exchangeChaosToDivine == null ? (
+                          <span className="text-base-content/50">N/A</span>
+                        ) : (
+                          <span className="font-semibold tabular-nums text-success">
+                            {formatCurrency(
+                              session.totalExchangeValue,
+                              session.exchangeChaosToDivine,
+                            )}
+                          </span>
+                        )}
                       </div>
 
                       {/* Total Value - Stash */}
                       <div className="flex items-center gap-2 text-sm">
                         <GiLockedChest className="text-base-content/50" />
                         <span className="text-base-content/70">Stash:</span>
-                        <span className="font-semibold tabular-nums text-success">
-                          {formatCurrency(
-                            session.totalStashValue,
-                            session.stashChaosToDivine,
-                          )}
-                        </span>
+                        {session.totalStashValue == null ||
+                        session.stashChaosToDivine == null ? (
+                          <span className="text-base-content/50">N/A</span>
+                        ) : (
+                          <span className="font-semibold tabular-nums text-success">
+                            {formatCurrency(
+                              session.totalStashValue,
+                              session.stashChaosToDivine,
+                            )}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>

@@ -19,6 +19,7 @@ import {
   AnalyticsService,
   SessionsService,
   TrayService,
+  OverlayService,
 } from "../../modules";
 
 class MainWindowService {
@@ -49,7 +50,7 @@ class MainWindowService {
       width: 1200,
       height: 800,
       minWidth: 1200,
-      backgroundColor: "#261b25",
+      backgroundColor: "transparent",
       show: false, // This line prevents electron's default #1E1E1E bg load before html renders and html blank screen (white flash)
       webPreferences: {
         preload,
@@ -86,7 +87,8 @@ class MainWindowService {
     console.log("[Init] ✓ Data Store");
 
     // 6. Session management (depends on database + snapshots + dataStore)
-    CurrentSessionService.getInstance();
+    const currentSessionService = CurrentSessionService.getInstance();
+    await currentSessionService.initialize();
     SessionsService.getInstance();
     console.log("[Init] ✓ Sessions");
 
@@ -97,6 +99,10 @@ class MainWindowService {
     // 8. CSV (utility)
     CsvService.getInstance();
     console.log("[Init] ✓ CSV");
+
+    // 9. Overlay (UI overlay window)
+    OverlayService.getInstance();
+    console.log("[Init] ✓ Overlay");
 
     console.log("[Init] All services initialized successfully");
 
@@ -110,7 +116,9 @@ class MainWindowService {
     }
 
     // Initialize PoE Process monitoring
-    PoeProcessService.getInstance().initialize(this.mainWindow as MainWindowServiceType);
+    PoeProcessService.getInstance().initialize(
+      this.mainWindow as MainWindowServiceType,
+    );
 
     // Caption events
     this.emitCaptionEvents();
@@ -176,6 +184,7 @@ class MainWindowService {
         !shouldAppQuitBasedOnUserPreference;
 
       if (shouldAppQuitBasedOnUserPreference || byDefaultQuitApp) {
+        OverlayService.getInstance().destroy();
         this.mainWindow?.close?.();
       }
 

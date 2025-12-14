@@ -57,7 +57,6 @@ class SnapshotService {
       startDate,
     });
 
-    console.log(`Created new league: ${game}/${leagueName} (${leagueId})`);
     return leagueId;
   }
 

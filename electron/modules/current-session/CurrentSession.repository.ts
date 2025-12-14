@@ -90,6 +90,7 @@ export class CurrentSessionRepository {
       .updateTable("sessions")
       .set({ is_active: 0 })
       .where("game", "=", game)
+      .where("is_active", "=", 1)
       .execute();
   }
 
@@ -236,6 +237,7 @@ export class CurrentSessionRepository {
               game,
               scope: "global" as const,
               processed_id: id,
+              card_name: null,
             })),
           )
           .execute();
@@ -249,6 +251,74 @@ export class CurrentSessionRepository {
       .where("game", "=", game)
       .where("scope", "=", "global")
       .execute();
+  }
+
+  async saveProcessedId(
+    game: GameType,
+    processedId: string,
+    cardName: string,
+  ): Promise<void> {
+    await this.kysely
+      .insertInto("processed_ids")
+      .values({
+        game,
+        scope: "global" as const,
+        processed_id: processedId,
+        card_name: cardName,
+      })
+      .onConflict((oc) => oc.doNothing()) // Skip if duplicate
+      .execute();
+  }
+
+  async getRecentDrops(game: GameType, limit: number = 20): Promise<string[]> {
+    const results = await this.kysely
+      .selectFrom("processed_ids")
+      .select("card_name")
+      .where("game", "=", game)
+      .where("scope", "=", "global")
+      .where("card_name", "is not", null)
+      .orderBy("processed_id", "desc")
+      .limit(limit)
+      .execute();
+
+    return results.map((r) => r.card_name!);
+  }
+
+  async clearRecentDrops(game: GameType): Promise<void> {
+    await this.kysely.transaction().execute(async (trx) => {
+      // First, clear card_name to hide from recent drops UI
+      await trx
+        .updateTable("processed_ids")
+        .set({ card_name: sql`NULL` })
+        .where("game", "=", game)
+        .where("scope", "=", "global")
+        .execute();
+
+      // Then, prune old entries - keep only the most recent 20 for deduplication
+      // This prevents unbounded growth of the processed_ids table
+      const keepCount = 20;
+
+      // Get the created_at timestamp of the 20th most recent entry
+      const cutoffResult = await trx
+        .selectFrom("processed_ids")
+        .select("created_at")
+        .where("game", "=", game)
+        .where("scope", "=", "global")
+        .orderBy("created_at", "desc")
+        .limit(1)
+        .offset(keepCount - 1)
+        .executeTakeFirst();
+
+      // If we have more than keepCount entries, delete the older ones
+      if (cutoffResult) {
+        await trx
+          .deleteFrom("processed_ids")
+          .where("game", "=", game)
+          .where("scope", "=", "global")
+          .where("created_at", "<", cutoffResult.created_at)
+          .execute();
+      }
+    });
   }
 
   // ============================================================================

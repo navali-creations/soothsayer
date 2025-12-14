@@ -73,6 +73,25 @@ class CurrentSessionService {
     this.setupHandlers();
   }
 
+  /**
+   * Cleans up orphaned sessions from abrupt shutdowns
+   */
+  public async initialize(): Promise<void> {
+    console.log(
+      "[CurrentSession] Initializing and cleaning up orphaned sessions...",
+    );
+
+    // Deactivate any sessions that were left active from previous run
+    await this.repository.deactivateAllSessions("poe1");
+    await this.repository.deactivateAllSessions("poe2");
+
+    // Clear recent drops from previous sessions
+    await this.repository.clearRecentDrops("poe1");
+    await this.repository.clearRecentDrops("poe2");
+
+    console.log("[CurrentSession] Orphaned sessions cleaned up");
+  }
+
   // ============================================================================
   // Processed IDs Management
   // ============================================================================
@@ -91,35 +110,6 @@ class CurrentSessionService {
     for (const row of rows) {
       processedSet.add(row.processedId);
     }
-
-    console.log(`Loaded ${processedSet.size} global processed IDs for ${game}`);
-  }
-
-  /**
-   * Save processed ID globally (with batching)
-   */
-  private saveProcessedIdGlobally(game: GameType, processedId: string): void {
-    const globalSet =
-      game === "poe1"
-        ? this.poe1GlobalProcessedIds
-        : this.poe2GlobalProcessedIds;
-    globalSet.add(processedId);
-
-    // Add to write queue
-    this.trackerWriteQueue.get(game)!.add(processedId);
-
-    // Clear existing timeout
-    const existingTimeout = this.trackerWriteTimeout.get(game);
-    if (existingTimeout) {
-      clearTimeout(existingTimeout);
-    }
-
-    // Set new timeout (batch write after 1 second)
-    const timeout = setTimeout(() => {
-      this.flushTrackerQueue(game);
-    }, 1000);
-
-    this.trackerWriteTimeout.set(game, timeout);
   }
 
   /**
@@ -141,17 +131,12 @@ class CurrentSessionService {
         globalSet.add(id);
       }
 
-      console.log(
-        `[ProcessedIDs] Added ${queue.size} IDs to ${game} global set (now ${globalSet.size} total)`,
-      );
-
       queue.clear();
     }
 
     // If pruning, trim to last 20 IDs by insertion order (matching old electron-store behavior)
     if (prune) {
       if (globalSet.size === 0) {
-        console.log(`[ProcessedIDs] No IDs to prune for ${game}`);
         return;
       }
 
@@ -163,23 +148,16 @@ class CurrentSessionService {
       for (const id of last20Ids) {
         globalSet.add(id);
       }
-
-      console.log(
-        `[ProcessedIDs] Pruned ${game} global set to last 20 IDs (removed ${allIds.length - 20})`,
-      );
     }
 
     // If there's nothing to write, skip database operation
     if (globalSet.size === 0) {
-      console.log(`[ProcessedIDs] No IDs to flush for ${game}`);
       return;
     }
 
     // Write current global set to database via repository
     const idsToWrite = Array.from(globalSet);
     await this.repository.replaceProcessedIds(game, idsToWrite);
-
-    console.log(`[ProcessedIDs] Flushed ${idsToWrite.length} IDs for ${game}`);
   }
 
   /**
@@ -302,10 +280,6 @@ class CurrentSessionService {
     const { snapshotId, data: priceSnapshot } =
       await this.snapshotService.getSnapshotForSession(game, league);
 
-    console.log(
-      `Using snapshot ${snapshotId} for session (Exchange: ${Object.keys(priceSnapshot.exchange.cardPrices).length} cards, Stash: ${Object.keys(priceSnapshot.stash.cardPrices).length} cards)`,
-    );
-
     // Start auto-refresh for this league
     this.snapshotService.startAutoRefresh(game, league);
 
@@ -337,10 +311,6 @@ class CurrentSessionService {
       this.poe2ActiveSession = sessionInfo;
       this.poe2ProcessedIds.clear();
     }
-
-    console.log(
-      `Session started for ${game} in league ${league} (${sessionId})`,
-    );
     this.emitSessionStateChange(game);
   }
 
@@ -365,10 +335,7 @@ class CurrentSessionService {
     }
 
     // Flush any pending processed IDs before stopping
-    console.log(
-      `[StopSession] Flushing processed IDs for ${game} before stopping...`,
-    );
-    await this.flushTrackerQueue(game, true);
+    // await this.flushTrackerQueue(game, true);
 
     // Get total count via repository
     const totalCount = await this.repository.getSessionTotalCount(
@@ -390,6 +357,9 @@ class CurrentSessionService {
       endedAt,
     );
 
+    // Clear recent drops (processed_ids table)
+    await this.repository.clearRecentDrops(game);
+
     // Stop auto-refresh
     this.snapshotService.stopAutoRefresh(game, activeSession.league);
 
@@ -402,7 +372,6 @@ class CurrentSessionService {
       this.poe2ProcessedIds.clear();
     }
 
-    console.log(`Session stopped for ${game}`);
     this.emitSessionStateChange(game);
   }
 
@@ -506,14 +475,15 @@ class CurrentSessionService {
 
     const dupCheckTime = perf?.end("dupCheck") ?? 0;
 
-    console.log(`[Card] ${cardName} for ${game}`);
-    console.log(`[DupCheck] ${dupCheckTime.toFixed(2)}ms`);
-
     // Add to session-scoped set
     sessionProcessedIds.add(processedId);
 
-    // Queue for global tracking
-    this.saveProcessedIdGlobally(game, processedId);
+    // Add to global set immediately (for in-memory duplicate prevention)
+    const globalSet =
+      game === "poe1"
+        ? this.poe1GlobalProcessedIds
+        : this.poe2GlobalProcessedIds;
+    globalSet.add(processedId);
 
     // Increment card count via repository
     const now = new Date().toISOString();
@@ -523,11 +493,14 @@ class CurrentSessionService {
       now,
     );
 
+    // Save processed ID with card name immediately (for recent drops)
+    await this.repository.saveProcessedId(game, processedId, cardName);
+
     // Cascade to data store (all-time and league stats)
     await this.dataStore.addCard(game, league, cardName);
 
     // Emit update
-    this.emitSessionDataUpdate(game);
+    await this.emitSessionDataUpdate(game);
   }
 
   // ============================================================================
@@ -650,16 +623,35 @@ class CurrentSessionService {
     // Convert to array for UI
     const cardsArray = this.convertCardsToArray(cardsObject);
 
+    // Get recent drops (last 20 individual card drops in chronological order)
+    const recentDropsRaw = await this.repository.getRecentDrops(game, 20);
+
+    const recentDrops = recentDropsRaw.map((cardName) => {
+      const cardData = cardsObject[cardName];
+
+      return {
+        cardName,
+        exchangePrice: {
+          chaosValue: cardData?.exchangePrice?.chaosValue || 0,
+          divineValue: cardData?.exchangePrice?.divineValue || 0,
+        },
+        stashPrice: {
+          chaosValue: cardData?.stashPrice?.chaosValue || 0,
+          divineValue: cardData?.stashPrice?.divineValue || 0,
+        },
+      };
+    });
+
     const result = {
       totalCount: session.totalCount,
       cards: cardsArray,
+      recentDrops,
       startedAt: session.startedAt,
       endedAt: session.endedAt,
       league: activeSession.league,
       totals,
       priceSnapshot,
     };
-
     return result;
   }
 
@@ -669,15 +661,13 @@ class CurrentSessionService {
   private convertCardsToArray(
     cards: Record<string, CardEntry>,
   ): Array<{ name: string } & CardEntry> {
-    return Object.entries(cards)
-      .map(([name, entry]) => ({
-        name,
-        count: entry.count,
-        processedIds: entry.processedIds,
-        stashPrice: entry.stashPrice,
-        exchangePrice: entry.exchangePrice,
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+    return Object.entries(cards).map(([name, entry]) => ({
+      name,
+      count: entry.count,
+      processedIds: entry.processedIds,
+      stashPrice: entry.stashPrice,
+      exchangePrice: entry.exchangePrice,
+    }));
   }
 
   /**
@@ -743,7 +733,7 @@ class CurrentSessionService {
 
     // Emit update for active session
     if (sessionId === "current") {
-      this.emitSessionDataUpdate(game);
+      await this.emitSessionDataUpdate(game);
     }
   }
 
@@ -768,19 +758,15 @@ class CurrentSessionService {
     }
   }
 
-  /**
-   * Emit session data update event
-   */
-  private emitSessionDataUpdate(game: GameType): void {
+  private async emitSessionDataUpdate(game: GameType): Promise<void> {
+    const sessionData = await this.getCurrentSession(game);
     const windows = BrowserWindow.getAllWindows();
-    this.getCurrentSession(game).then((sessionData) => {
-      for (const window of windows) {
-        window.webContents.send("session:data-updated", {
-          game,
-          data: sessionData,
-        });
-      }
-    });
+    for (const window of windows) {
+      window.webContents.send("session:data-updated", {
+        game,
+        data: sessionData,
+      });
+    }
   }
 }
 

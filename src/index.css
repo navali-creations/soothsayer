@@ -1,4 +1,19 @@
+@font-face {
+  font-family: "Fontin";
+  src: url("./assets/fonts/Fontin-Regular.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 @import "tailwindcss";
+
+@layer utilities {
+  .font-fontin {
+    font-family: "Fontin", sans-serif;
+  }
+}
+
 @plugin "daisyui" {
   themes: coffee;
 }

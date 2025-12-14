@@ -4,6 +4,7 @@ import type { CurrentSessionAPI } from "../electron/modules/current-session/Curr
 import type { DataStoreAPI } from "../electron/modules/data-store/DataStore.api";
 import type { DivinationCardsAPI } from "../electron/modules/divination-cards/DivinationCards.api";
 import type { MainWindowAPI } from "../electron/modules/main-window/MainWindow.api";
+import type { OverlayAPI } from "../electron/modules/overlay/Overlay.api";
 import type { PoeLeaguesAPI } from "../electron/modules/poe-leagues/PoeLeagues.api";
 import type { PoeNinjaAPI } from "../electron/modules/poe-ninja/PoeNinja.api";
 import type { PoeProcessAPI } from "../electron/modules/poe-process/PoeProcess.api";
@@ -21,6 +22,7 @@ export type ElectronAPI = {
   poeNinja: typeof PoeNinjaAPI;
   poeLeagues: typeof PoeLeaguesAPI;
   poeProcess: typeof PoeProcessAPI;
+  overlay: typeof OverlayAPI;
   analytics: typeof AnalyticsAPI;
   selectFile: (options: any) => Promise<string | null>;
 };

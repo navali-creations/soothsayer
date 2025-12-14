@@ -26,8 +26,6 @@ class DatabaseService {
     const userDataPath = app.getPath("userData");
     this.dbPath = path.join(userDataPath, "soothsayer.db");
 
-    console.log(`[Init] Database location: ${this.dbPath}`);
-
     // Initialize database connection
     this.db = new Database(this.dbPath, {
       // verbose: process.env.NODE_ENV === "development" ? console.log : undefined,
@@ -255,6 +253,7 @@ class DatabaseService {
           game TEXT NOT NULL,
           scope TEXT NOT NULL,
           processed_id TEXT NOT NULL,
+          card_name TEXT,
           created_at TEXT NOT NULL DEFAULT (datetime('now')),
           PRIMARY KEY (game, scope, processed_id)
         )
@@ -263,6 +262,11 @@ class DatabaseService {
       this.db.exec(`
         CREATE INDEX IF NOT EXISTS idx_processed_ids_game_scope
         ON processed_ids(game, scope)
+      `);
+
+      this.db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_processed_ids_recent_drops
+        ON processed_ids(game, scope, created_at DESC)
       `);
 
       // ═══════════════════════════════════════════════════════════════
@@ -373,8 +377,6 @@ class DatabaseService {
     });
 
     this.initializeSchema();
-
-    console.log("[Database] Database reset completed");
   }
 }
 

@@ -75,7 +75,6 @@ export const createGameInfoSlice: StateCreator<
       // Fetch initial process state
       try {
         const processState = await window.electron.poeProcess.getState();
-        console.log("[GameInfo] Initial process state:", processState);
 
         // Set initial state if a process is running
         if (processState?.isRunning && processState?.processName) {

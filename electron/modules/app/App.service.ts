@@ -5,6 +5,7 @@ import {
   CurrentSessionService,
   DatabaseService,
   type MainWindowServiceType,
+  OverlayService,
   PoeProcessService,
   SettingsKey,
   SettingsStoreService,
@@ -22,6 +23,7 @@ class AppService {
     CurrentSessionService.getInstance();
   private snapshotService: SnapshotService = SnapshotService.getInstance();
   private database: DatabaseService = DatabaseService.getInstance();
+  private overlay: OverlayService = OverlayService.getInstance();
   private static _instance: AppService;
 
   static getInstance() {
@@ -63,7 +65,9 @@ class AppService {
     });
   }
 
-  public quitOnAllWindowsClosed(windows: [MainWindowServiceType | null]) {
+  public quitOnAllWindowsClosed(
+    windows: [MainWindowServiceType | OverlayService | null],
+  ) {
     this.app.on(AppChannel.WindowAllClosed, () => {
       windows?.map((window) => {
         window = null;
@@ -99,6 +103,10 @@ class AppService {
   public beforeQuitCloseWindowsAndDestroyElements() {
     this.app.on(AppChannel.BeforeQuit, async () => {
       console.log("[Shutdown] Starting cleanup...");
+
+      // Close overlay window
+      console.log("[Shutdown] Closing overlay...");
+      this.overlay.destroy();
 
       // Stop all snapshot auto-refresh timers
       console.log("[Shutdown] Stopping snapshot auto-refresh...");

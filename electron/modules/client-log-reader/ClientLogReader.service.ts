@@ -77,15 +77,7 @@ class ClientLogReaderService extends EventEmitter {
         perf?.start("parse");
         const allProcessedIds = this.session.getAllProcessedIds(this.game);
 
-        console.log(
-          `[ClientLogReader] Parsing with ${allProcessedIds.size} processed IDs for ${this.game}`,
-        );
-
         const newCards = parseCards(lines, allProcessedIds);
-
-        console.log(
-          `[ClientLogReader] Found ${newCards.totalCount} new cards after filtering`,
-        );
 
         const parseTime = perf?.end("parse") ?? 0;
 

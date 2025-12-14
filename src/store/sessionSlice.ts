@@ -81,13 +81,6 @@ export const createSessionSlice: StateCreator<
           currentSession.poe2SessionInfo = poe2Info;
           currentSession.isLoading = false;
         });
-
-        console.log("[SessionSlice] Hydrated:", {
-          poe1Session,
-          poe2Session,
-          poe1Info,
-          poe2Info,
-        });
       } catch (error) {
         console.error("[SessionSlice] Failed to hydrate:", error);
         set(({ currentSession }) => {
@@ -98,13 +91,9 @@ export const createSessionSlice: StateCreator<
 
     // Start listening to real-time updates
     startListening: () => {
-      console.log("[SessionSlice] Starting listeners...");
-
       // Listen for session state changes (start/stop)
       const unsubscribeStateChange = window.electron.session.onStateChanged(
         (payload) => {
-          console.log("[SessionSlice] State change received:", payload);
-
           set(({ currentSession }) => {
             if (payload.game === "poe1") {
               currentSession.poe1SessionInfo = payload.isActive
@@ -122,8 +111,6 @@ export const createSessionSlice: StateCreator<
               }
             }
           });
-
-          console.log("[SessionSlice] State updated after state change");
         },
       );
 
@@ -150,7 +137,6 @@ export const createSessionSlice: StateCreator<
 
       // Return cleanup function
       return () => {
-        console.log("[SessionSlice] Cleaning up listeners...");
         unsubscribeStateChange();
         unsubscribeDataUpdate();
       };
@@ -177,8 +163,7 @@ export const createSessionSlice: StateCreator<
         );
 
         if (result.success) {
-          // Session info will be updated via the listener
-          console.log(`[SessionSlice] Session started for ${activeGameView}`);
+          // Session info will be updated via the listener;
         } else {
           throw new Error(result.error || "Failed to start session");
         }
@@ -206,7 +191,6 @@ export const createSessionSlice: StateCreator<
         const result = await window.electron.session.stop(activeGameView);
 
         if (result.success) {
-          console.log(`[SessionSlice] Session stopped for ${activeGameView}`);
         } else {
           throw new Error(result.error || "Failed to stop session");
         }
@@ -222,10 +206,6 @@ export const createSessionSlice: StateCreator<
 
     // Internal setters
     updateSession: (game, session) => {
-      console.log(`[SessionSlice] updateSession called for ${game}`, {
-        totalCards: session.totalCount,
-      });
-
       set(({ currentSession }) => {
         if (game === "poe1") {
           currentSession.poe1Session = session;
@@ -236,8 +216,6 @@ export const createSessionSlice: StateCreator<
     },
 
     updateSessionInfo: (game, info) => {
-      console.log(`[SessionSlice] updateSessionInfo called for ${game}`, info);
-
       set(({ currentSession }) => {
         if (game === "poe1") {
           currentSession.poe1SessionInfo = info;
@@ -248,8 +226,6 @@ export const createSessionSlice: StateCreator<
     },
 
     clearSession: (game) => {
-      console.log(`[SessionSlice] clearSession called for ${game}`);
-
       set(({ currentSession }) => {
         if (game === "poe1") {
           currentSession.poe1Session = null;

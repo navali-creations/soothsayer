@@ -10,6 +10,10 @@ import {
   type GameInfoSlice,
 } from "../modules/game-info/GameInfo.slice";
 import {
+  createOverlaySlice,
+  type OverlaySlice,
+} from "../modules/overlay/Overlay.slice";
+import {
   createSettingsSlice,
   type SettingsSlice,
 } from "../modules/settings/Settings.slice";
@@ -37,6 +41,7 @@ type BoundStore = GameInfoSlice &
   SessionsSlice &
   SessionDetailsSlice &
   AppMenuSlice &
+  OverlaySlice &
   RootActions;
 
 export const useBoundStore = create<BoundStore>()(
@@ -49,6 +54,7 @@ export const useBoundStore = create<BoundStore>()(
       const sessionDetailsSlice = createSessionDetailsSlice(...a);
       const appMenuSlice = createAppMenuSlice(...a);
       const gameInfoSlice = createGameInfoSlice(...a);
+      const overlaySlice = createOverlaySlice(...a);
 
       return {
         ...settingsSlice,
@@ -58,6 +64,7 @@ export const useBoundStore = create<BoundStore>()(
         ...sessionDetailsSlice,
         ...appMenuSlice,
         ...gameInfoSlice,
+        ...overlaySlice,
 
         hydrate: async () => {
           await Promise.all([
@@ -66,6 +73,7 @@ export const useBoundStore = create<BoundStore>()(
             sessionSlice.currentSession.hydrate(),
             appMenuSlice.appMenu.hydrate(),
             gameInfoSlice.gameInfo.hydrate(),
+            overlaySlice.overlay.hydrate(),
           ]);
         },
 
@@ -89,6 +97,7 @@ export const useBoundStore = create<BoundStore>()(
               gameInfo,
               sessions,
               sessionDetails,
+              overlay,
               ...state
             }) => {
               // Reset settings
@@ -127,6 +136,11 @@ export const useBoundStore = create<BoundStore>()(
               gameInfo.leaguesError = null;
               gameInfo.poe1Process = { isRunning: false, processName: "" };
               gameInfo.poe2Process = { isRunning: false, processName: "" };
+
+              // Reset overlay
+              overlay.isVisible = false;
+              overlay.isLoading = false;
+              overlay.error = null;
             },
           );
         },

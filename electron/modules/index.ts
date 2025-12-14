@@ -5,6 +5,7 @@ export * from "./csv";
 export * from "./current-session";
 export * from "./data-store";
 export * from "./main-window";
+export * from "./overlay";
 export * from "./performance-logger";
 export * from "./poe-leagues";
 export * from "./poe-ninja";

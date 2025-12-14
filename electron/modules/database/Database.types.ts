@@ -85,6 +85,7 @@ export interface ProcessedIdsTable {
   game: string;
   scope: string;
   processed_id: string;
+  card_name: string | null;
   created_at: ColumnType<string, string | undefined, never>;
 }
 

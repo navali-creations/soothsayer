@@ -135,7 +135,9 @@ function Table<TData>({
                 {row.getVisibleCells().map((cell, index) => (
                   <td
                     key={cell.id}
-                    className={clsx({ "text-center pl-0": index > 0 })}
+                    className={clsx({
+                      "text-center pl-0": index > 0,
+                    })}
                   >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>

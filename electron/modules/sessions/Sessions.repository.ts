@@ -1,4 +1,4 @@
-import type { Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 import type { Database } from "../database/Database.types";
 import type { GameVersion } from "../settings-store/SettingsStore.schemas";
 import type {
@@ -29,7 +29,7 @@ export class SessionsRepository {
   }
 
   /**
-   * Get paginated sessions for a game
+   * Get paginated sessions for a game with calculated values
    */
   async getSessionsPage(
     game: GameVersion,
@@ -40,28 +40,69 @@ export class SessionsRepository {
       .selectFrom("sessions as s")
       .leftJoin("session_summaries as ss", "s.id", "ss.session_id")
       .innerJoin("leagues as l", "s.league_id", "l.id")
+      .leftJoin("snapshots as snap", "s.snapshot_id", "snap.id")
       .select([
         "s.id as sessionId",
         "s.game as game",
         "l.name as league",
         "s.started_at as startedAt",
         "s.ended_at as endedAt",
-        "ss.duration_minutes as durationMinutes",
-        "ss.total_decks_opened as totalDecksOpened",
-        "ss.total_exchange_value as totalExchangeValue",
-        "ss.total_stash_value as totalStashValue",
-        "ss.exchange_chaos_to_divine as exchangeChaosToDivine",
-        "ss.stash_chaos_to_divine as stashChaosToDivine",
+        "s.is_active as isActive",
+        // Duration: use summary if exists, otherwise calculate
+        sql<number>`
+          COALESCE(
+            ss.duration_minutes,
+            CASE
+              WHEN s.ended_at IS NOT NULL
+              THEN CAST((JULIANDAY(s.ended_at) - JULIANDAY(s.started_at)) * 24 * 60 AS INTEGER)
+              ELSE NULL
+            END
+          )
+        `.as("durationMinutes"),
+        // Total decks: use summary if exists, otherwise use session total_count
+        sql<number>`COALESCE(ss.total_decks_opened, s.total_count)`.as(
+          "totalDecksOpened",
+        ),
+        // Exchange value: use summary if exists, otherwise calculate from session_cards + snapshot_card_prices
+        sql<number>`
+          COALESCE(
+            ss.total_exchange_value,
+            (
+              SELECT COALESCE(SUM(sc.count * scp.chaos_value), 0)
+              FROM session_cards sc
+              LEFT JOIN snapshot_card_prices scp
+                ON scp.snapshot_id = s.snapshot_id
+                AND scp.card_name = sc.card_name
+                AND scp.price_source = 'exchange'
+              WHERE sc.session_id = s.id
+                AND sc.hide_price_exchange = 0
+            )
+          )
+        `.as("totalExchangeValue"),
+        // Stash value: use summary if exists, otherwise calculate
+        sql<number>`
+          COALESCE(
+            ss.total_stash_value,
+            (
+              SELECT COALESCE(SUM(sc.count * scp.chaos_value), 0)
+              FROM session_cards sc
+              LEFT JOIN snapshot_card_prices scp
+                ON scp.snapshot_id = s.snapshot_id
+                AND scp.card_name = sc.card_name
+                AND scp.price_source = 'stash'
+              WHERE sc.session_id = s.id
+                AND sc.hide_price_stash = 0
+            )
+          )
+        `.as("totalStashValue"),
+        // Chaos to Divine ratios from snapshot
+        sql<number>`COALESCE(ss.exchange_chaos_to_divine, snap.exchange_chaos_to_divine, 0)`.as(
+          "exchangeChaosToDivine",
+        ),
+        sql<number>`COALESCE(ss.stash_chaos_to_divine, snap.stash_chaos_to_divine, 0)`.as(
+          "stashChaosToDivine",
+        ),
       ])
-      .select((eb) =>
-        eb
-          .case()
-          .when("s.ended_at", "is", null)
-          .then(1)
-          .else(0)
-          .end()
-          .as("isActive"),
-      )
       .where("s.game", "=", game)
       .orderBy("s.started_at", "desc")
       .limit(limit)

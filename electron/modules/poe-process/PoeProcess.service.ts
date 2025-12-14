@@ -35,7 +35,6 @@ class PoeProcessService {
   public initialize(mainWindow: MainWindowService): void {
     this.mainWindow = mainWindow;
     this.poller.start();
-    console.log("PoE Process Service initialized");
   }
 
   /**
@@ -43,20 +42,17 @@ class PoeProcessService {
    */
   public stop(): void {
     this.poller.stop();
-    console.log("PoE Process Service stopped");
   }
 
   private setupPollerListeners(): void {
     // PoE process started
     this.poller.on("start", (state) => {
-      console.log("PoE process started:", state);
       this.currentState = state;
       this.sendToRenderer(PoeProcessChannel.Start, state);
     });
 
     // PoE process stopped
     this.poller.on("stop", (previousState) => {
-      console.log("PoE process stopped:", previousState);
       this.currentState = { isRunning: false, processName: "" };
       this.sendToRenderer(PoeProcessChannel.Stop, previousState);
     });

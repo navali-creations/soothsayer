@@ -67,9 +67,7 @@ const StatsPage = () => {
     try {
       const result = await window.electron.divinationCards.exportCsv();
       if (result.success) {
-        console.log("CSV exported successfully to:", result.filePath);
       } else if (!result.canceled) {
-        console.error("Failed to export CSV:", result.error);
         alert("Failed to export CSV. Please try again.");
       }
     } catch (error) {

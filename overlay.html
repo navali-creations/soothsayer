@@ -1,0 +1,34 @@
+<!doctype html>
+<html data-theme="coffee" style="background: transparent">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Soothsayer Overlay</title>
+    <style>
+      /* Prevent white flash on overlay */
+      body {
+        background: transparent !important;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+      }
+      #overlay-root {
+        background: transparent !important;
+        width: 100vw;
+        height: 100vh;
+      }
+    </style>
+    <script type="module">
+      // Enable HMR for the overlay
+      if (import.meta.hot) {
+        import.meta.hot.accept(() => {
+          console.log("[Overlay] HMR update detected, reloading...");
+          location.reload();
+        });
+      }
+    </script>
+  </head>
+  <body>
+    <div id="overlay-root"></div>
+    <script type="module" src="/src/modules/overlay/Overlay.page.tsx"></script>
+  </body>
+</html>

@@ -49,7 +49,14 @@ const SessionDetailsPage = () => {
 
   const calculateDuration = () => {
     if (!session) return "—";
-    const start = new Date(session.startedAt!);
+
+    const start = new Date(session.startedAt);
+
+    // If session is not active and has no endedAt, it's corrupted
+    if (!session.isActive && !session.endedAt) {
+      return "Unknown (Corrupted)";
+    }
+
     const end = session.endedAt ? new Date(session.endedAt) : new Date();
     const diff = end.getTime() - start.getTime();
 

@@ -16,7 +16,7 @@ const CurrentSessionNameCell = (cellProps: CellContext<CardEntry, string>) => {
 
   return (
     <span
-      className={`font-semibold ${hidePrice ? "opacity-50 line-through" : ""}`}
+      className={`font-fontin ${hidePrice ? "opacity-50 line-through" : ""}`}
     >
       {cellProps.getValue()}
     </span>

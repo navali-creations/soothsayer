@@ -1,16 +1,33 @@
 import { FiCopy, FiMinus, FiSettings, FiSquare, FiX } from "react-icons/fi";
+import {
+  RiPictureInPictureExitLine,
+  RiPictureInPictureLine,
+} from "react-icons/ri";
 import { Button, Flex, Link } from "../../../../components";
 import { useBoundStore } from "../../../../store/store";
 
 const AppControls = () => {
   const {
     appMenu: { minimize, maximize, unmaximize, close, isMaximized },
+    overlay: { toggle: toggleOverlay, isVisible: isOverlayVisible },
   } = useBoundStore();
 
   return (
     <Flex className="gap-0">
+      <Button
+        onClick={toggleOverlay}
+        variant="ghost"
+        size="sm"
+        title={isOverlayVisible ? "Hide Overlay" : "Show Overlay"}
+      >
+        {isOverlayVisible ? (
+          <RiPictureInPictureExitLine size={16} />
+        ) : (
+          <RiPictureInPictureLine size={16} />
+        )}
+      </Button>
       <Link to="/settings" asButton variant="ghost" size="sm">
-        <FiSettings />
+        <FiSettings size={14} />
       </Link>
       <Button onClick={minimize} variant="ghost" size="sm">
         <FiMinus />

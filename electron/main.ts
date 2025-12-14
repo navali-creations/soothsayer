@@ -1,9 +1,15 @@
 import { app as electronApp } from "electron";
 import { installExtension, REDUX_DEVTOOLS } from "electron-devtools-installer";
-import { AppService, AppSetupService, MainWindowService } from "./modules";
+import {
+  AppService,
+  AppSetupService,
+  MainWindowService,
+  OverlayService,
+} from "./modules";
 
 const app = AppService.getInstance();
 const mainWindow = MainWindowService.getInstance();
+const overlay = OverlayService.getInstance();
 const appSetup = AppSetupService.getInstance();
 
 if (!electronApp.requestSingleInstanceLock()) {
@@ -22,5 +28,5 @@ if (!electronApp.requestSingleInstanceLock()) {
 }
 
 app.emitActivate(mainWindow);
-app.quitOnAllWindowsClosed([mainWindow]);
+app.quitOnAllWindowsClosed([mainWindow, overlay]);
 app.beforeQuitCloseWindowsAndDestroyElements();
