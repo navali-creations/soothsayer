@@ -1,12 +1,16 @@
 import type { CellContext } from "@tanstack/react-table";
+import { useId, useEffect } from "react";
 import type { CardEntry } from "../../../../../../../types/data-stores";
 import { useBoundStore } from "../../../../../../store/store";
+import { usePopover } from "../../../../../../hooks/usePopover";
+import DivinationCard from "../../../../../../components/DivinationCard/DivinationCard";
 
 const CurrentSessionNameCell = (cellProps: CellContext<CardEntry, string>) => {
   const {
     settings: { getActiveGameViewPriceSource },
   } = useBoundStore();
   const priceSource = getActiveGameViewPriceSource();
+  const popoverId = useId();
 
   const priceInfo =
     priceSource === "stash"
@@ -14,12 +18,34 @@ const CurrentSessionNameCell = (cellProps: CellContext<CardEntry, string>) => {
       : cellProps.row.original.exchangePrice;
   const hidePrice = priceInfo?.hidePrice || false;
 
+  const { triggerRef, popoverRef } = usePopover({
+    // trigger: "click",
+  });
+
+  // Only show popover if divination card data exists
+  const hasCardData = !!cellProps.row.original.divinationCard;
+
   return (
-    <span
-      className={`font-fontin ${hidePrice ? "opacity-50 line-through" : ""}`}
-    >
-      {cellProps.getValue()}
-    </span>
+    <>
+      <span
+        ref={hasCardData ? triggerRef : null}
+        className={`font-fontin ${hidePrice ? "opacity-50 line-through" : ""} ${hasCardData ? "cursor-help underline decoration-dotted" : ""}`}
+      >
+        {cellProps.getValue()}
+      </span>
+
+      {hasCardData && (
+        <div
+          id={popoverId}
+          ref={popoverRef}
+          // @ts-ignore - popover attribute is valid but not in types yet
+          popover="manual"
+          className="m-0 p-0 border-0 bg-transparent backdrop:bg-black/50"
+        >
+          <DivinationCard card={cellProps.row.original} />
+        </div>
+      )}
+    </>
   );
 };
 

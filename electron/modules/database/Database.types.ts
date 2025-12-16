@@ -98,6 +98,37 @@ export interface CardsTable {
   last_updated: string | null;
 }
 
+export interface DivinationCardsTable {
+  id: string; // Slug-based ID like "poe1_a-chilling-wind"
+  name: string;
+  stack_size: number;
+  description: string;
+  reward_html: string;
+  art_src: string;
+  flavour_html: string;
+  game: "poe1" | "poe2";
+  data_hash: string;
+  created_at: ColumnType<string, string | undefined, never>;
+  updated_at: ColumnType<string, string | undefined, string | undefined>;
+}
+
+/**
+ * Main database interface
+ * Maps table names to their types
+ */
+export interface Database {
+  global_stats: GlobalStatsTable;
+  leagues: LeaguesTable;
+  snapshots: SnapshotsTable;
+  snapshot_card_prices: SnapshotCardPricesTable;
+  sessions: SessionsTable;
+  session_cards: SessionCardsTable;
+  session_summaries: SessionSummariesTable;
+  processed_ids: ProcessedIdsTable;
+  cards: CardsTable;
+  divination_cards: DivinationCardsTable;
+}
+
 /**
  * Main database interface
  * Maps table names to their types

@@ -288,6 +288,41 @@ class DatabaseService {
         CREATE INDEX IF NOT EXISTS idx_cards_game_scope
         ON cards(game, scope)
       `);
+
+      // ═══════════════════════════════════════════════════════════════
+      // DIVINATION CARDS (static reference data from JSON)
+      // ═══════════════════════════════════════════════════════════════
+      this.db.exec(`
+      CREATE TABLE IF NOT EXISTS divination_cards (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        stack_size INTEGER NOT NULL,
+        description TEXT NOT NULL,
+        reward_html TEXT NOT NULL,
+        art_src TEXT NOT NULL,
+        flavour_html TEXT,
+        game TEXT NOT NULL CHECK(game IN ('poe1', 'poe2')),
+        data_hash TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(game, name)
+      )
+    `);
+
+      this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_divination_cards_game_name
+      ON divination_cards(game, name)
+    `);
+
+      this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_divination_cards_name
+      ON divination_cards(name)
+    `);
+
+      this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_divination_cards_stack_size
+      ON divination_cards(stack_size)
+    `);
     });
 
     transaction();

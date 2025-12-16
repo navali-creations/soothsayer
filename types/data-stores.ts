@@ -12,6 +12,16 @@ export interface CardPriceInfo {
   hidePrice?: boolean; // Flag to exclude from calculations
 }
 
+// Divination card metadata from static data
+export interface DivinationCardMetadata {
+  id: string;
+  stackSize: number;
+  description: string;
+  rewardHtml: string;
+  artSrc: string;
+  flavourHtml: string;
+}
+
 // Card entry for UI display (already flattened with both prices)
 export interface CardEntry {
   name: string;
@@ -20,6 +30,7 @@ export interface CardEntry {
   processedIds: string[];
   stashPrice?: CardPriceInfo;
   exchangePrice?: CardPriceInfo;
+  divinationCard?: DivinationCardMetadata; // Joined from divination_cards table
 }
 
 // Price snapshot for a specific card (from poe.ninja API)

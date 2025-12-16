@@ -559,7 +559,6 @@ class CurrentSessionService {
       ? await this.snapshotService.loadSnapshot(session.snapshotId)
       : null;
 
-    // Get session cards
     const cards = await this.repository.getSessionCards(
       activeSession.sessionId,
     );
@@ -569,8 +568,10 @@ class CurrentSessionService {
 
     for (const card of cards) {
       const cardEntry: CardEntry = {
+        name: card.cardName,
         count: card.count,
         processedIds: [], // Not tracking individual IDs per card anymore
+        divinationCard: card.divinationCard, // Include divination card metadata
       };
 
       // Add price data if snapshot exists
@@ -662,11 +663,8 @@ class CurrentSessionService {
     cards: Record<string, CardEntry>,
   ): Array<{ name: string } & CardEntry> {
     return Object.entries(cards).map(([name, entry]) => ({
+      ...entry,
       name,
-      count: entry.count,
-      processedIds: entry.processedIds,
-      stashPrice: entry.stashPrice,
-      exchangePrice: entry.exchangePrice,
     }));
   }
 

@@ -8,6 +8,9 @@ export default defineConfig({
       external: [
         // Native modules
         "better-sqlite3",
+        // Scraper-only deps (not used in Electron app)
+        "cheerio",
+        "puppeteer",
       ],
       output: {
         format: "cjs",

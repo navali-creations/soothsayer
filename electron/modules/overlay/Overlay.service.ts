@@ -110,7 +110,11 @@ class OverlayService {
       await this.overlayWindow.loadURL(overlayUrl);
       this.overlayWindow.webContents.openDevTools({ mode: "detach" });
     } else {
-      const overlayHtml = join(__dirname, "../renderer/overlay.html");
+      // In production, overlay.html is built alongside index.html
+      const overlayHtml = join(
+        __dirname,
+        `../renderer/${MAIN_WINDOW_VITE_NAME}/overlay.html`,
+      );
       await this.overlayWindow.loadFile(overlayHtml);
     }
 

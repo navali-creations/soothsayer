@@ -20,6 +20,7 @@ import {
   SessionsService,
   TrayService,
   OverlayService,
+  DivinationCardsService,
 } from "../../modules";
 
 class MainWindowService {
@@ -72,6 +73,11 @@ class MainWindowService {
     this.database = DatabaseService.getInstance();
     console.log("[Init] ✓ Database");
     console.log(`[Init] Database location: ${this.database.getPath()}`);
+
+    // 2.5. Divination Cards (static data, depends on database)
+    const divinationCards = DivinationCardsService.getInstance();
+    await divinationCards.initialize();
+    console.log("[Init] ✓ Divination Cards");
 
     // 3. POE.ninja (external API)
     PoeNinjaService.getInstance();

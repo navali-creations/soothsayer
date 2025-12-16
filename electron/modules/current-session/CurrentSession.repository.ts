@@ -171,12 +171,31 @@ export class CurrentSessionRepository {
         .execute();
     });
   }
-
   async getSessionCards(sessionId: string): Promise<SessionCardDTO[]> {
     const rows = await this.kysely
-      .selectFrom("session_cards")
-      .selectAll()
-      .where("session_id", "=", sessionId)
+      .selectFrom("session_cards as sc")
+      .leftJoin("sessions as s", "sc.session_id", "s.id")
+      .leftJoin("divination_cards as dc", (join) =>
+        join
+          .onRef("dc.name", "=", "sc.card_name")
+          .onRef("dc.game", "=", "s.game"),
+      )
+      .select([
+        "sc.card_name as cardName",
+        "sc.count",
+        "sc.first_seen_at as firstSeenAt",
+        "sc.last_seen_at as lastSeenAt",
+        "sc.hide_price_exchange as hidePriceExchange",
+        "sc.hide_price_stash as hidePriceStash",
+        // Divination card metadata (may be null if card not in reference data)
+        "dc.id as divinationCardId",
+        "dc.stack_size as stackSize",
+        "dc.description",
+        "dc.reward_html as rewardHtml",
+        "dc.art_src as artSrc",
+        "dc.flavour_html as flavourHtml",
+      ])
+      .where("sc.session_id", "=", sessionId)
       .execute();
 
     return rows.map(CurrentSessionMapper.toSessionCardDTO);

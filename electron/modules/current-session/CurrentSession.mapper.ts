@@ -33,16 +33,35 @@ export class CurrentSessionMapper {
 
   /**
    * Convert database session card row to DTO
+   * Handles joined divination card metadata if available
    */
-  static toSessionCardDTO(row: SessionCardsTable): SessionCardDTO {
-    return {
-      cardName: row.card_name,
+  /**
+   * Convert database session card row to DTO
+   * Handles joined divination card metadata if available
+   */
+  static toSessionCardDTO(row: any): SessionCardDTO {
+    const dto: SessionCardDTO = {
+      cardName: row.cardName,
       count: row.count,
-      firstSeenAt: row.first_seen_at,
-      lastSeenAt: row.last_seen_at,
-      hidePriceExchange: row.hide_price_exchange === 1,
-      hidePriceStash: row.hide_price_stash === 1,
+      firstSeenAt: row.firstSeenAt,
+      lastSeenAt: row.lastSeenAt,
+      hidePriceExchange: row.hidePriceExchange === 1,
+      hidePriceStash: row.hidePriceStash === 1,
     };
+
+    // Add divination card metadata if it exists (was joined)
+    if (row.divinationCardId) {
+      dto.divinationCard = {
+        id: row.divinationCardId,
+        stackSize: row.stackSize,
+        description: row.description,
+        rewardHtml: row.rewardHtml,
+        artSrc: row.artSrc,
+        flavourHtml: row.flavourHtml,
+      };
+    }
+
+    return dto;
   }
 
   /**
