@@ -23,6 +23,15 @@ export interface SessionCardDTO {
   lastSeenAt: string;
   hidePriceExchange: boolean;
   hidePriceStash: boolean;
+  divinationCard?: {
+    id: string;
+    stackSize: number;
+    description: string;
+    rewardHtml: string;
+    artSrc: string;
+    flavourHtml: string;
+    rarity: number;
+  };
 }
 
 export interface ProcessedIdDTO {

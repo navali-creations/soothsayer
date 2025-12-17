@@ -58,6 +58,7 @@ export class CurrentSessionMapper {
         rewardHtml: row.rewardHtml,
         artSrc: row.artSrc,
         flavourHtml: row.flavourHtml,
+        rarity: row.rarity,
       };
     }
 

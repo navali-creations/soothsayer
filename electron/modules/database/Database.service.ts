@@ -301,6 +301,7 @@ class DatabaseService {
         reward_html TEXT NOT NULL,
         art_src TEXT NOT NULL,
         flavour_html TEXT,
+        rarity INTEGER NOT NULL DEFAULT 4,
         game TEXT NOT NULL CHECK(game IN ('poe1', 'poe2')),
         data_hash TEXT NOT NULL,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),

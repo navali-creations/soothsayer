@@ -140,6 +140,7 @@ export class DivinationCardsRepository {
     artSrc: string,
     flavourHtml: string,
     dataHash: string,
+    rarity: number = 4, // Default to 4 (common)
   ): Promise<void> {
     const id = this.generateId(game, name);
 
@@ -154,6 +155,7 @@ export class DivinationCardsRepository {
         reward_html: rewardHtml,
         art_src: artSrc,
         flavour_html: flavourHtml,
+        rarity,
         data_hash: dataHash,
       })
       .execute();
@@ -171,20 +173,28 @@ export class DivinationCardsRepository {
     artSrc: string,
     flavourHtml: string,
     dataHash: string,
+    rarity?: number,
   ): Promise<void> {
     const id = this.generateId(game, name);
 
+    const updateData: any = {
+      stack_size: stackSize,
+      description,
+      reward_html: rewardHtml,
+      art_src: artSrc,
+      flavour_html: flavourHtml,
+      data_hash: dataHash,
+      updated_at: sql`datetime('now')`,
+    };
+
+    // Only update rarity if provided
+    if (rarity !== undefined) {
+      updateData.rarity = rarity;
+    }
+
     await this.kysely
       .updateTable("divination_cards")
-      .set({
-        stack_size: stackSize,
-        description,
-        reward_html: rewardHtml,
-        art_src: artSrc,
-        flavour_html: flavourHtml,
-        data_hash: dataHash,
-        updated_at: sql`datetime('now')`,
-      })
+      .set(updateData)
       .where("id", "=", id)
       .execute();
   }
@@ -200,5 +210,38 @@ export class DivinationCardsRepository {
       .executeTakeFirst();
 
     return result?.last_updated ?? null;
+  }
+
+  /**
+   * Update rarity for a specific card by name
+   */
+  async updateRarity(
+    game: "poe1" | "poe2",
+    name: string,
+    rarity: number,
+  ): Promise<void> {
+    const id = this.generateId(game, name);
+
+    await this.kysely
+      .updateTable("divination_cards")
+      .set({
+        rarity,
+        updated_at: sql`datetime('now')`,
+      })
+      .where("id", "=", id)
+      .execute();
+  }
+
+  /**
+   * Bulk update rarities for multiple cards
+   */
+  async updateRarities(
+    game: "poe1" | "poe2",
+    updates: Array<{ name: string; rarity: number }>,
+  ): Promise<void> {
+    // Use transaction for bulk updates
+    for (const { name, rarity } of updates) {
+      await this.updateRarity(game, name, rarity);
+    }
   }
 }

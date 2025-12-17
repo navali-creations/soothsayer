@@ -98,6 +98,50 @@ const OverlayApp = () => {
             const isNew = index === 0;
             const price = drop[`${sessionData.priceSource}Price`];
             const chaosValue = price.chaosValue;
+            const rarity = drop.rarity || 4;
+            // Determine styling based on rarity
+            const getRarityStyles = () => {
+              switch (rarity) {
+                case 1: // Extremely rare
+                  return {
+                    bgGradient:
+                      "linear-gradient(to right, rgb(255, 255, 255) 50%, transparent)",
+                    text: "rgb(0, 0, 255)",
+                    border: "rgb(0, 0, 255)",
+                    beam: "orangered",
+                    showBeam: true,
+                  };
+                case 2: // Rare
+                  return {
+                    bgGradient:
+                      "linear-gradient(to right, rgb(0, 20, 180) 50%, transparent)",
+                    text: "rgb(255, 255, 255)",
+                    border: "rgb(255, 255, 255)",
+                    beam: "yellow",
+                    showBeam: true,
+                  };
+                case 3: // Less common
+                  return {
+                    bgGradient:
+                      "linear-gradient(to right, rgb(0, 220, 240) 50%, transparent)",
+                    text: "rgb(0, 0, 0)",
+                    border: "rgb(0, 0, 0)",
+                    beam: "",
+                    showBeam: false,
+                  };
+                case 4: // Common
+                default:
+                  return {
+                    bgGradient: "",
+                    text: "",
+                    border: "",
+                    beam: "",
+                    showBeam: false,
+                  };
+              }
+            };
+
+            const rarityStyles = getRarityStyles();
 
             return (
               <motion.div
@@ -114,19 +158,31 @@ const OverlayApp = () => {
                 className="relative z-20 flex"
               >
                 <div className="w-[50px] relative">
-                  {/*{isNew && (
-                    <Beam className="absolute inset-0" color="orangered" />
-                  )}*/}
+                  {rarityStyles.showBeam && (
+                    <Beam
+                      className="absolute inset-0"
+                      color={rarityStyles.beam}
+                    />
+                  )}
                 </div>
 
                 <div
-                  className={clsx(
-                    // isNew &&
-                    // "bg-gradient-to-r from-white from-50% to-transparent text-blue-950 border border-blue-950",
-                    "font-fontin flex-1 flex justify-between text-sm py-0.5 px-1 gap-2 border border-transparent",
-                  )}
+                  className="font-fontin flex-1 flex justify-between text-sm py-0.5 px-1 gap-2"
+                  style={{
+                    background: rarityStyles.bgGradient,
+                    borderWidth: rarityStyles.border ? "1px" : "0",
+                    borderStyle: rarityStyles.border ? "solid" : "none",
+                    borderColor: rarityStyles.border || "transparent",
+                  }}
                 >
-                  <span className="truncate flex-1">{drop.cardName}</span>
+                  <span
+                    className="truncate flex-1"
+                    style={{
+                      color: rarityStyles.text || "inherit",
+                    }}
+                  >
+                    {drop.cardName}
+                  </span>
                   <span className="text-amber-300 shrink-0">
                     {chaosValue > 0 ? `${chaosValue.toFixed(1)}c` : "—"}
                   </span>

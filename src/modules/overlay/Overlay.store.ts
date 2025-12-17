@@ -7,6 +7,7 @@ interface CardEntry {
 
 interface RecentDrop {
   cardName: string;
+  rarity: number; // 1=extremely rare, 2=rare, 3=less common, 4=common
   exchangePrice: {
     chaosValue: number;
     divineValue: number;

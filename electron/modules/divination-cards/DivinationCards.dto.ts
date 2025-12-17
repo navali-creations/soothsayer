@@ -10,6 +10,7 @@ export interface DivinationCardDTO {
   rewardHtml: string;
   artSrc: string;
   flavourHtml: string;
+  rarity: number; // 1=extremely rare, 2=rare, 3=less common, 4=common
   game: "poe1" | "poe2";
   createdAt: string;
   updatedAt: string;

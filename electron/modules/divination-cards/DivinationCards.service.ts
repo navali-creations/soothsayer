@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { app, ipcMain } from "electron";
 import { DatabaseService } from "../database";
+import { SettingsStoreService, SettingsKey } from "../settings-store";
+import { PoeNinjaService } from "../poe-ninja/PoeNinja.service";
 import { DivinationCardsChannel } from "./DivinationCards.channels";
 import { DivinationCardsRepository } from "./DivinationCards.repository";
 import type {
@@ -27,6 +29,7 @@ interface DivinationCardJson {
 class DivinationCardsService {
   private static _instance: DivinationCardsService;
   private repository: DivinationCardsRepository;
+  private poeNinja: PoeNinjaService;
   private poe1CardsJsonPath: string;
   private poe2CardsJsonPath: string;
 
@@ -40,6 +43,7 @@ class DivinationCardsService {
   private constructor() {
     const database = DatabaseService.getInstance();
     this.repository = new DivinationCardsRepository(database.getKysely());
+    this.poeNinja = PoeNinjaService.getInstance();
 
     // Determine paths based on whether app is packaged
     const basePath = app.isPackaged ? process.resourcesPath : app.getAppPath();
@@ -65,9 +69,43 @@ class DivinationCardsService {
       // await this.initializeGameCards("poe2", this.poe2CardsJsonPath);
 
       console.log("[DivinationCards] Successfully initialized all cards");
+
+      // Update rarities based on current prices
+      await this.initializeRarities();
     } catch (error) {
       console.error("[DivinationCards] Failed to initialize:", error);
       throw error;
+    }
+  }
+
+  /**
+   * Initialize card rarities from poe.ninja prices
+   * Called during app startup after cards are synced
+   */
+  private async initializeRarities(): Promise<void> {
+    try {
+      const settingsStore = SettingsStoreService.getInstance();
+      const activeGame = settingsStore.get(SettingsKey.ActiveGame);
+      const activeLeague =
+        activeGame === "poe1"
+          ? settingsStore.get(SettingsKey.SelectedPoe1League)
+          : activeGame === "poe2"
+            ? settingsStore.get(SettingsKey.SelectedPoe2League)
+            : null;
+
+      if (activeGame && activeLeague) {
+        await this.updateRaritiesFromLeague(activeGame, activeLeague);
+      } else {
+        console.log(
+          "[DivinationCards] ⚠ Skipping rarity update - no active game or league selected",
+        );
+      }
+    } catch (error) {
+      console.warn(
+        "[DivinationCards] Failed to update card rarities on launch:",
+        error,
+      );
+      // Don't throw - we don't want to prevent app from starting if price fetch fails
     }
   }
 
@@ -248,6 +286,78 @@ class DivinationCardsService {
         return { success: true };
       },
     );
+  }
+
+  public async updateRaritiesFromPrices(
+    game: "poe1" | "poe2",
+    exchangeChaosToDivine: number,
+    cardPrices: Record<string, { chaosValue: number }>,
+  ): Promise<void> {
+    const updates: Array<{ name: string; rarity: number }> = [];
+
+    for (const [cardName, priceData] of Object.entries(cardPrices)) {
+      const chaosValue = priceData.chaosValue;
+      const divineValue = chaosValue / exchangeChaosToDivine;
+      const percentOfDivine = divineValue * 100; // Convert to percentage
+
+      let rarity: number;
+
+      if (percentOfDivine >= 80) {
+        // 80%+ of divine = extremely rare
+        rarity = 1;
+      } else if (percentOfDivine >= 50) {
+        // 50-80% of divine = rare
+        rarity = 2;
+      } else if (percentOfDivine >= 10) {
+        // 10-50% of divine = less common
+        rarity = 3;
+      } else {
+        // < 10% of divine, 0 value, or N/A = common
+        rarity = 4;
+      }
+
+      updates.push({ name: cardName, rarity });
+    }
+
+    if (updates.length > 0) {
+      await this.repository.updateRarities(game, updates);
+      console.log(
+        `[DivinationCards] Updated rarities for ${updates.length} ${game.toUpperCase()} cards`,
+      );
+    }
+  }
+
+  /**
+   * Update card rarities from poe.ninja for a specific league
+   * Called on app launch to ensure rarities are current
+   */
+  public async updateRaritiesFromLeague(
+    game: "poe1" | "poe2",
+    leagueName: string,
+  ): Promise<void> {
+    try {
+      console.log(
+        `[DivinationCards] Fetching prices for ${game.toUpperCase()}/${leagueName} to update rarities...`,
+      );
+
+      const priceSnapshot = await this.poeNinja.getPriceSnapshot(leagueName);
+
+      await this.updateRaritiesFromPrices(
+        game,
+        priceSnapshot.exchange.chaosToDivineRatio,
+        priceSnapshot.exchange.cardPrices,
+      );
+
+      console.log(
+        `[DivinationCards] Successfully updated rarities for ${game.toUpperCase()}/${leagueName}`,
+      );
+    } catch (error) {
+      console.error(
+        `[DivinationCards] Failed to update rarities for ${game.toUpperCase()}/${leagueName}:`,
+        error,
+      );
+      // Don't throw - we don't want to prevent app from starting if price fetch fails
+    }
   }
 }
 

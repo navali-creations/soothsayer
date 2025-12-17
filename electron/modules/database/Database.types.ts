@@ -106,6 +106,7 @@ export interface DivinationCardsTable {
   reward_html: string;
   art_src: string;
   flavour_html: string;
+  rarity: number; // 1=extremely rare, 2=rare, 3=less common, 4=common
   game: "poe1" | "poe2";
   data_hash: string;
   created_at: ColumnType<string, string | undefined, never>;
@@ -127,20 +128,4 @@ export interface Database {
   processed_ids: ProcessedIdsTable;
   cards: CardsTable;
   divination_cards: DivinationCardsTable;
-}
-
-/**
- * Main database interface
- * Maps table names to their types
- */
-export interface Database {
-  global_stats: GlobalStatsTable;
-  leagues: LeaguesTable;
-  snapshots: SnapshotsTable;
-  snapshot_card_prices: SnapshotCardPricesTable;
-  sessions: SessionsTable;
-  session_cards: SessionCardsTable;
-  session_summaries: SessionSummariesTable;
-  processed_ids: ProcessedIdsTable;
-  cards: CardsTable;
 }

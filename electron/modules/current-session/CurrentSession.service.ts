@@ -554,7 +554,7 @@ class CurrentSessionService {
       return null;
     }
 
-    // Get price snapshot - FIXED: use loadSnapshot instead of getSnapshotById
+    // Get price snapshot
     const priceSnapshot = session.snapshotId
       ? await this.snapshotService.loadSnapshot(session.snapshotId)
       : null;
@@ -632,6 +632,7 @@ class CurrentSessionService {
 
       return {
         cardName,
+        rarity: cardData?.divinationCard?.rarity || 4, // Default to 4 (common) if not available
         exchangePrice: {
           chaosValue: cardData?.exchangePrice?.chaosValue || 0,
           divineValue: cardData?.exchangePrice?.divineValue || 0,

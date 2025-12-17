@@ -194,6 +194,7 @@ export class CurrentSessionRepository {
         "dc.reward_html as rewardHtml",
         "dc.art_src as artSrc",
         "dc.flavour_html as flavourHtml",
+        "dc.rarity as rarity",
       ])
       .where("sc.session_id", "=", sessionId)
       .execute();

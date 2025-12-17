@@ -74,23 +74,19 @@ class MainWindowService {
     console.log("[Init] ✓ Database");
     console.log(`[Init] Database location: ${this.database.getPath()}`);
 
-    // 2.5. Divination Cards (static data, depends on database)
-    const divinationCards = DivinationCardsService.getInstance();
-    await divinationCards.initialize();
-    console.log("[Init] ✓ Divination Cards");
-
     // 3. POE.ninja (external API)
     PoeNinjaService.getInstance();
     PoeLeaguesService.getInstance();
     console.log("[Init] ✓ POE Services");
 
-    // 4. Snapshot service (depends on database + poe.ninja)
+    // 4. Divination Cards (static data + rarity updates, depends on database + poe.ninja)
+    const divinationCards = DivinationCardsService.getInstance();
+    await divinationCards.initialize();
+    console.log("[Init] ✓ Divination Cards");
+
+    // 5. Snapshot service (depends on database + poe.ninja)
     SnapshotService.getInstance();
     console.log("[Init] ✓ Snapshots");
-
-    // 5. Data stores (depend on database)
-    DataStoreService.getInstance();
-    console.log("[Init] ✓ Data Store");
 
     // 6. Session management (depends on database + snapshots + dataStore)
     const currentSessionService = CurrentSessionService.getInstance();

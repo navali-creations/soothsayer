@@ -13,6 +13,7 @@ export class DivinationCardsMapper {
       rewardHtml: row.reward_html,
       artSrc: row.art_src,
       flavourHtml: row.flavour_html,
+      rarity: row.rarity ?? 4, // Default to 4 (common) if not set
       game: row.game,
       createdAt: row.created_at,
       updatedAt: row.updated_at,

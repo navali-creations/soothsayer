@@ -3,6 +3,7 @@ import type { SessionPriceSnapshot } from "../../../types/data-stores";
 import { DatabaseService } from "../database/Database.service";
 import { PoeNinjaService } from "../poe-ninja/PoeNinja.service";
 import { SnapshotRepository } from "./Snapshot.repository";
+import { DivinationCardsService } from "../divination-cards/DivinationCards.service";
 
 /**
  * Service for managing price snapshots
@@ -12,6 +13,7 @@ class SnapshotService {
   private static _instance: SnapshotService;
   private repository: SnapshotRepository;
   private poeNinja: PoeNinjaService;
+  private divinationCards: DivinationCardsService;
   private refreshIntervals: Map<string, NodeJS.Timeout> = new Map();
 
   // How old can a snapshot be before we fetch a new one (in hours)
@@ -31,6 +33,7 @@ class SnapshotService {
     const db = DatabaseService.getInstance();
     this.repository = new SnapshotRepository(db.getKysely());
     this.poeNinja = PoeNinjaService.getInstance();
+    this.divinationCards = DivinationCardsService.getInstance();
   }
 
   /**
@@ -135,6 +138,14 @@ class SnapshotService {
     console.log(`Fetching new snapshot for ${game}/${leagueName}...`);
     const snapshotData = await this.poeNinja.getPriceSnapshot(leagueName);
 
+    // Update card rarities based on exchange prices
+    const gameType = game === "poe1" ? "poe1" : "poe2";
+    await this.divinationCards.updateRaritiesFromPrices(
+      gameType,
+      snapshotData.exchange.chaosToDivineRatio,
+      snapshotData.exchange.cardPrices,
+    );
+
     // Store it
     const snapshotId = crypto.randomUUID();
     await this.repository.createSnapshot({
@@ -170,6 +181,14 @@ class SnapshotService {
         console.log(`Auto-refreshing snapshot for ${game}/${leagueName}...`);
         const leagueId = await this.ensureLeague(game, leagueName);
         const snapshotData = await this.poeNinja.getPriceSnapshot(leagueName);
+
+        // Update card rarities based on exchange prices
+        const gameType = game === "poe1" ? "poe1" : "poe2";
+        await this.divinationCards.updateRaritiesFromPrices(
+          gameType,
+          snapshotData.exchange.chaosToDivineRatio,
+          snapshotData.exchange.cardPrices,
+        );
 
         const snapshotId = crypto.randomUUID();
         await this.repository.createSnapshot({
