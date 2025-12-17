@@ -10,6 +10,7 @@ import { PoeNinjaAPI } from "../electron/modules/poe-ninja/PoeNinja.api";
 import { PoeProcessAPI } from "../electron/modules/poe-process/PoeProcess.api";
 import { SessionsAPI } from "../electron/modules/sessions/Sessions.api";
 import { SettingsStoreAPI } from "../electron/modules/settings-store/SettingsStore.api";
+import { DivinationCardsApi } from "../electron/modules/divination-cards/DivinationCards.api";
 
 contextBridge.exposeInMainWorld("electron", {
   selectFile: (options: any) => ipcRenderer.invoke("select-file", options),
@@ -29,4 +30,5 @@ contextBridge.exposeInMainWorld("electron", {
   poeLeagues: PoeLeaguesAPI,
   settings: SettingsStoreAPI,
   analytics: AnalyticsAPI,
+  divinationCards: DivinationCardsApi,
 });

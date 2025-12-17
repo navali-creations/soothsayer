@@ -2,6 +2,10 @@ import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 import {
+  createCardsSlice,
+  type CardsSlice,
+} from "../modules/cards/Cards.slice";
+import {
   type AppMenuSlice,
   createAppMenuSlice,
 } from "../modules/app-menu/AppMenu.slice";
@@ -40,6 +44,7 @@ type BoundStore = GameInfoSlice &
   SessionSlice &
   SessionsSlice &
   SessionDetailsSlice &
+  CardsSlice &
   AppMenuSlice &
   OverlaySlice &
   RootActions;
@@ -55,6 +60,7 @@ export const useBoundStore = create<BoundStore>()(
       const appMenuSlice = createAppMenuSlice(...a);
       const gameInfoSlice = createGameInfoSlice(...a);
       const overlaySlice = createOverlaySlice(...a);
+      const cardsSlice = createCardsSlice(...a);
 
       return {
         ...settingsSlice,
@@ -65,6 +71,7 @@ export const useBoundStore = create<BoundStore>()(
         ...appMenuSlice,
         ...gameInfoSlice,
         ...overlaySlice,
+        ...cardsSlice,
 
         hydrate: async () => {
           await Promise.all([
@@ -98,6 +105,7 @@ export const useBoundStore = create<BoundStore>()(
               sessions,
               sessionDetails,
               overlay,
+              cards,
               ...state
             }) => {
               // Reset settings
@@ -141,6 +149,11 @@ export const useBoundStore = create<BoundStore>()(
               overlay.isVisible = false;
               overlay.isLoading = false;
               overlay.error = null;
+
+              // Reset cards
+              cards.allCards = [];
+              cards.isLoading = false;
+              cards.error = null;
             },
           );
         },

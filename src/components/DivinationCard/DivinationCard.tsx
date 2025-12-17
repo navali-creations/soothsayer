@@ -45,7 +45,7 @@ function DivinationCard({ card }: DivinationCardProps) {
       </div>
 
       {/* Reward and Flavour - positioned in the bottom dark area */}
-      <div className="absolute z-30 bottom-[25px] top-[265px] left-[30px] right-[30px] flex flex-col justify-center">
+      <div className="font-fontin absolute z-30 bottom-[25px] top-[265px] left-[30px] right-[30px] flex flex-col justify-center">
         <div className="flex flex-col items-center gap-3">
           {/* Reward */}
           <div className="text-center text-white text-[14px] leading-tight">

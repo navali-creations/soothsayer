@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { FiActivity, FiBarChart2, FiSettings } from "react-icons/fi";
-import { GiCardExchange } from "react-icons/gi";
+import { GiCardExchange, GiCardRandom } from "react-icons/gi";
 import pkgJson from "../../../package.json" with { type: "json" };
 import { formatCurrency } from "../../api/poe-ninja";
 import { useDivinationCards, usePoeNinjaExchangePrices } from "../../hooks";
@@ -225,6 +225,15 @@ const Sidebar = () => {
             >
               <FiBarChart2 size={20} />
               <span className="font-medium">Statistics</span>
+            </Link>
+          </li>
+          <li>
+            <Link
+              to="/cards"
+              className="[&.active]:bg-primary [&.active]:text-primary-content"
+            >
+              <GiCardRandom size={20} />
+              <span className="font-medium">Cards</span>
             </Link>
           </li>
         </ul>
