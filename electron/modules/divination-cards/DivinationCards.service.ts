@@ -302,17 +302,17 @@ class DivinationCardsService {
 
       let rarity: number;
 
-      if (percentOfDivine >= 80) {
-        // 80%+ of divine = extremely rare
+      if (percentOfDivine >= 70) {
+        // 87%+ of divine = extremely rare
         rarity = 1;
-      } else if (percentOfDivine >= 50) {
+      } else if (percentOfDivine >= 35) {
         // 50-80% of divine = rare
         rarity = 2;
-      } else if (percentOfDivine >= 10) {
-        // 10-50% of divine = less common
+      } else if (percentOfDivine >= 5) {
+        // 5-50% of divine = less common
         rarity = 3;
       } else {
-        // < 10% of divine, 0 value, or N/A = common
+        // < 5% of divine, 0 value, or N/A = common
         rarity = 4;
       }
 

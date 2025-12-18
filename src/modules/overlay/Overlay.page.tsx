@@ -1,4 +1,4 @@
-import { StrictMode, useEffect } from "react";
+import { StrictMode, useEffect, useRef } from "react";
 import ReactDOM from "react-dom/client";
 import "../../index.css";
 import { GiCardExchange } from "react-icons/gi";
@@ -9,6 +9,7 @@ import { Beam } from "./Beam";
 
 const OverlayApp = () => {
   const { sessionData, setSessionData } = useOverlayStore();
+  const previousDropsRef = useRef<any[]>([]);
 
   useEffect(() => {
     // Fetch initial session data
@@ -75,6 +76,33 @@ const OverlayApp = () => {
       unsubscribeDataUpdate?.();
     };
   }, [setSessionData]);
+
+  useEffect(() => {
+    if (!sessionData.recentDrops || sessionData.recentDrops.length === 0) {
+      previousDropsRef.current = [];
+      return;
+    }
+
+    const currentFirst = sessionData.recentDrops[0];
+    const previousFirst = previousDropsRef.current[0];
+
+    // Check if we have a new drop (different card at index 0)
+    if (
+      currentFirst &&
+      (!previousFirst || currentFirst.cardName !== previousFirst.cardName)
+    ) {
+      const rarity = currentFirst.rarity || 4;
+
+      // Only play sound for rarity 1, 2, 3
+      if (rarity >= 1 && rarity <= 3) {
+        const audio = new Audio(`./src/assets/audio/rarity${rarity}.mp3`);
+        audio.volume = 0.5; // Adjust volume as needed (0.0 to 1.0)
+        audio.play().catch((err) => console.error("Audio play failed:", err));
+      }
+    }
+
+    previousDropsRef.current = sessionData.recentDrops;
+  }, [sessionData.recentDrops]);
 
   if (!sessionData.isActive) {
     return (

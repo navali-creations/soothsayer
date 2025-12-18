@@ -189,7 +189,7 @@ const CardsPage = () => {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 pb-4">
+          <div className="p-1.5 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 pb-4">
             {paginatedCards.map((card) => (
               <div key={card.id} className="flex flex-col items-center gap-2">
                 <div className="w-full flex justify-center">
