@@ -1,3 +1,4 @@
+import { motion } from "framer-motion";
 import type { ReactNode } from "react";
 import PageContent from "./PageContent/PageContent";
 import PageHeader from "./PageHeader/PageHeader";
@@ -7,11 +8,29 @@ type PageContainerProps = {
   className?: string;
 };
 
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1,
+      delayChildren: 0.05,
+    },
+  },
+};
+
 const PageContainer = ({ children, className = "" }: PageContainerProps) => {
   return (
-    <div className={`min-h-screen bg-base-200 p-6 ${className}`}>
-      <div className="mx-auto space-y-6">{children}</div>
-    </div>
+    <motion.div
+      className={`h-full flex flex-col bg-base-300 p-6 pr-4 ${className}`}
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+    >
+      <div className="mx-auto w-full flex flex-col h-full space-y-6">
+        {children}
+      </div>
+    </motion.div>
   );
 };
 

@@ -5,7 +5,7 @@ import { useBoundStore } from "../store/store";
 
 const SetupRoute = () => {
   const navigate = useNavigate();
-  const isSetupComplete = useBoundStore((state) => state.isSetupComplete);
+  const { isSetupComplete } = useBoundStore();
 
   useEffect(() => {
     // If setup is already complete, redirect to home

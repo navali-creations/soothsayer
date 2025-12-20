@@ -35,10 +35,6 @@ export class CurrentSessionMapper {
    * Convert database session card row to DTO
    * Handles joined divination card metadata if available
    */
-  /**
-   * Convert database session card row to DTO
-   * Handles joined divination card metadata if available
-   */
   static toSessionCardDTO(row: any): SessionCardDTO {
     const dto: SessionCardDTO = {
       cardName: row.cardName,

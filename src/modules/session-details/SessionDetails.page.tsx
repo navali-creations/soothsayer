@@ -253,7 +253,7 @@ const SessionDetailsPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-base-200 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <span className="loading loading-spinner loading-lg"></span>
       </div>
     );
@@ -261,7 +261,7 @@ const SessionDetailsPage = () => {
 
   if (!session) {
     return (
-      <div className="min-h-screen bg-base-200 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <p className="text-xl text-base-content/60">Session not found</p>
           <Button
@@ -277,7 +277,7 @@ const SessionDetailsPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-base-200 p-6">
+    <div className="min-h-screen p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -301,7 +301,7 @@ const SessionDetailsPage = () => {
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Duration */}
-          <div className="card bg-base-100 shadow-xl">
+          <div className="card bg-base-200 shadow-xl">
             <div className="card-body">
               <h2 className="card-title text-sm opacity-60">Duration</h2>
               <p className="text-2xl font-bold">{calculateDuration()}</p>
@@ -309,7 +309,7 @@ const SessionDetailsPage = () => {
           </div>
 
           {/* Total Decks */}
-          <div className="card bg-base-100 shadow-xl">
+          <div className="card bg-base-200 shadow-xl">
             <div className="card-body">
               <h2 className="card-title text-sm opacity-60">Decks Opened</h2>
               <p className="text-2xl font-bold">{session.totalCount}</p>
@@ -317,7 +317,7 @@ const SessionDetailsPage = () => {
           </div>
 
           {/* Most Common Card */}
-          <div className="card bg-base-100 shadow-xl">
+          <div className="card bg-base-200 shadow-xl">
             <div className="card-body">
               <h2 className="card-title text-sm opacity-60">Most Common</h2>
               <p className="text-lg font-bold truncate">
@@ -332,7 +332,7 @@ const SessionDetailsPage = () => {
           </div>
 
           {/* Total Profit */}
-          <div className="card bg-base-100 shadow-xl">
+          <div className="card bg-base-200 shadow-xl">
             <div className="card-body">
               <h2 className="card-title text-sm opacity-60">Total Value</h2>
               <p className="text-2xl font-bold text-success">
@@ -343,7 +343,7 @@ const SessionDetailsPage = () => {
         </div>
 
         {/* Price Source Toggle */}
-        <div className="card bg-base-100 shadow-xl">
+        <div className="card bg-base-200 shadow-xl">
           <div className="card-body">
             <Flex className="items-center justify-between">
               <div>

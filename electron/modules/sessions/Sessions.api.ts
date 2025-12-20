@@ -37,6 +37,19 @@ const SessionsAPI = {
     ipcRenderer.invoke(SessionsChannel.GetAll, game, page, pageSize),
   getById: (sessionId: string): Promise<DetailedDivinationCardStats | null> =>
     ipcRenderer.invoke(SessionsChannel.GetById, sessionId),
+  searchByCard: (
+    game: GameType,
+    cardName: string,
+    page?: number,
+    pageSize?: number,
+  ): Promise<SessionsPage> =>
+    ipcRenderer.invoke(
+      SessionsChannel.SearchByCard,
+      game,
+      cardName,
+      page,
+      pageSize,
+    ),
 };
 
 export { SessionsAPI };

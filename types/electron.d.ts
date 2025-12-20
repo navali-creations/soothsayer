@@ -1,34 +1,36 @@
-import type { AnalyticsAPI } from "../electron/modules/analytics/Analytics.api";
-import type { AppSetupAPI } from "../electron/modules/app-setup/AppSetup.api";
-import type { CurrentSessionAPI } from "../electron/modules/current-session/CurrentSession.api";
-import type { DataStoreAPI } from "../electron/modules/data-store/DataStore.api";
-import type { DivinationCardsAPI } from "../electron/modules/divination-cards/DivinationCards.api";
-import type { MainWindowAPI } from "../electron/modules/main-window/MainWindow.api";
-import type { OverlayAPI } from "../electron/modules/overlay/Overlay.api";
-import type { PoeLeaguesAPI } from "../electron/modules/poe-leagues/PoeLeagues.api";
-import type { PoeNinjaAPI } from "../electron/modules/poe-ninja/PoeNinja.api";
-import type { PoeProcessAPI } from "../electron/modules/poe-process/PoeProcess.api";
-import type { SessionsAPI } from "../electron/modules/sessions/Sessions.api";
-import type { SettingsStoreAPI } from "../electron/modules/settings-store/SettingsStore.api";
+import { contextBridge, ipcRenderer } from "electron";
+import { AnalyticsAPI } from "../electron/modules/analytics/Analytics.api";
+import { AppSetupAPI } from "../electron/modules/app-setup/AppSetup.api";
+import { CurrentSessionAPI } from "../electron/modules/current-session/CurrentSession.api";
+import { DataStoreAPI } from "../electron/modules/data-store/DataStore.api";
+import { MainWindowAPI } from "../electron/modules/main-window/MainWindow.api";
+import { OverlayAPI } from "../electron/modules/overlay/Overlay.api";
+import { PoeLeaguesAPI } from "../electron/modules/poe-leagues/PoeLeagues.api";
+import { PoeNinjaAPI } from "../electron/modules/poe-ninja/PoeNinja.api";
+import { PoeProcessAPI } from "../electron/modules/poe-process/PoeProcess.api";
+import { SessionsAPI } from "../electron/modules/sessions/Sessions.api";
+import { SettingsStoreAPI } from "../electron/modules/settings-store/SettingsStore.api";
+import { DivinationCardsApi } from "../electron/modules/divination-cards/DivinationCards.api";
+import { SnapshotAPI } from "../electron/modules/snapshots/Snapshot.api";
 
-export type ElectronAPI = {
-  app: typeof MainWindowAPI;
-  appSetup: typeof AppSetupAPI;
-  settings: typeof SettingsStoreAPI;
-  session: typeof CurrentSessionAPI;
-  sessions: typeof SessionsAPI;
-  divinationCards: typeof DivinationCardsAPI;
-  dataStore: typeof DataStoreAPI;
-  poeNinja: typeof PoeNinjaAPI;
-  poeLeagues: typeof PoeLeaguesAPI;
-  poeProcess: typeof PoeProcessAPI;
-  overlay: typeof OverlayAPI;
-  analytics: typeof AnalyticsAPI;
-  selectFile: (options: any) => Promise<string | null>;
-};
+contextBridge.exposeInMainWorld("electron", {
+  selectFile: (options: any) => ipcRenderer.invoke("select-file", options),
 
-declare global {
-  interface Window {
-    electron: ElectronAPI;
-  }
-}
+  // divinationCards: {
+  //   exportCsv: () => ipcRenderer.invoke("export-divination-cards-csv"),
+  // },
+
+  session: CurrentSessionAPI,
+  sessions: SessionsAPI,
+  app: MainWindowAPI,
+  overlay: OverlayAPI,
+  appSetup: AppSetupAPI,
+  poeProcess: PoeProcessAPI,
+  dataStore: DataStoreAPI,
+  poeNinja: PoeNinjaAPI,
+  poeLeagues: PoeLeaguesAPI,
+  settings: SettingsStoreAPI,
+  analytics: AnalyticsAPI,
+  divinationCards: DivinationCardsApi,
+  snapshots: SnapshotAPI,
+});

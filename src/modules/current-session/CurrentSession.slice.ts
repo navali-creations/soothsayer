@@ -1,9 +1,8 @@
-// src/store/sessionSlice.ts
-
-import type { SettingsSlice } from "src/modules/settings/Settings.slice";
+import type { SettingsSlice } from "../../modules/settings/Settings.slice";
+import type { PoeNinjaSlice } from "../poe-ninja/PoeNinja.slice";
 import type { StateCreator } from "zustand";
-import type { GameVersion as GameType } from "../../electron/modules/settings-store/SettingsStore.schemas";
-import type { DetailedDivinationCardStats } from "../../types/data-stores";
+import type { GameVersion as GameType } from "../../../electron/modules/settings-store/SettingsStore.schemas";
+import type { DetailedDivinationCardStats } from "../../../types/data-stores";
 
 export interface SessionSlice {
   currentSession: {
@@ -45,7 +44,7 @@ export interface SessionSlice {
 }
 
 export const createSessionSlice: StateCreator<
-  SessionSlice & SettingsSlice,
+  SessionSlice & SettingsSlice & PoeNinjaSlice,
   [["zustand/devtools", never], ["zustand/immer", never]],
   [],
   SessionSlice
@@ -74,12 +73,32 @@ export const createSessionSlice: StateCreator<
             window.electron.session.getInfo("poe2"),
           ]);
 
-        set(({ currentSession }) => {
+        set(({ currentSession, poeNinja }) => {
           currentSession.poe1Session = poe1Session;
           currentSession.poe2Session = poe2Session;
           currentSession.poe1SessionInfo = poe1Info;
           currentSession.poe2SessionInfo = poe2Info;
           currentSession.isLoading = false;
+
+          // Sync snapshot to poeNinja slice if we have one
+          const activeSession = poe1Info ? poe1Session : poe2Session;
+          const activeInfo = poe1Info || poe2Info;
+
+          if (activeSession?.priceSnapshot && activeInfo) {
+            const [game, league] = activeInfo.league.split(":");
+            poeNinja.setCurrentSnapshot({
+              id: "session-snapshot", // We don't have the snapshot ID from session data
+              leagueId: activeInfo.league,
+              league: league || activeInfo.league,
+              game: game || "poe1",
+              fetchedAt: activeSession.priceSnapshot.timestamp,
+              exchangeChaosToDivine:
+                activeSession.priceSnapshot.exchange.chaosToDivineRatio,
+              stashChaosToDivine:
+                activeSession.priceSnapshot.stash.chaosToDivineRatio,
+              isReused: false,
+            });
+          }
         });
       } catch (error) {
         console.error("[SessionSlice] Failed to hydrate:", error);
@@ -163,7 +182,38 @@ export const createSessionSlice: StateCreator<
         );
 
         if (result.success) {
-          // Session info will be updated via the listener;
+          // Immediately fetch the current session data (including priceSnapshot)
+          const sessionData =
+            await window.electron.session.getCurrent(activeGameView);
+          const sessionInfo =
+            await window.electron.session.getInfo(activeGameView);
+
+          set(({ currentSession, poeNinja }) => {
+            if (activeGameView === "poe1") {
+              currentSession.poe1Session = sessionData;
+              currentSession.poe1SessionInfo = sessionInfo;
+            } else {
+              currentSession.poe2Session = sessionData;
+              currentSession.poe2SessionInfo = sessionInfo;
+            }
+
+            // Sync snapshot to poeNinja slice if we have one
+            if (sessionData?.priceSnapshot && sessionInfo) {
+              const [game, league] = sessionInfo.league.split(":");
+              poeNinja.setCurrentSnapshot({
+                id: "session-snapshot",
+                leagueId: sessionInfo.league,
+                league: league || sessionInfo.league,
+                game: game || activeGameView,
+                fetchedAt: sessionData.priceSnapshot.timestamp,
+                exchangeChaosToDivine:
+                  sessionData.priceSnapshot.exchange.chaosToDivineRatio,
+                stashChaosToDivine:
+                  sessionData.priceSnapshot.stash.chaosToDivineRatio,
+                isReused: false,
+              });
+            }
+          });
         } else {
           throw new Error(result.error || "Failed to start session");
         }

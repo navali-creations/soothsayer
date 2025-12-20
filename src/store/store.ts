@@ -29,8 +29,15 @@ import {
   createSessionDetailsSlice,
   type SessionDetailsSlice,
 } from "../modules/session-details";
-import { createSessionSlice, type SessionSlice } from "./sessionSlice";
+import {
+  createSessionSlice,
+  type SessionSlice,
+} from "../modules/current-session/CurrentSession.slice";
 import { createSetupSlice, type SetupSlice } from "./setupSlice";
+import {
+  createPoeNinjaSlice,
+  type PoeNinjaSlice,
+} from "../modules/poe-ninja/PoeNinja.slice";
 
 interface RootActions {
   hydrate: () => Promise<void>;
@@ -47,6 +54,7 @@ type BoundStore = GameInfoSlice &
   CardsSlice &
   AppMenuSlice &
   OverlaySlice &
+  PoeNinjaSlice &
   RootActions;
 
 export const useBoundStore = create<BoundStore>()(
@@ -61,6 +69,7 @@ export const useBoundStore = create<BoundStore>()(
       const gameInfoSlice = createGameInfoSlice(...a);
       const overlaySlice = createOverlaySlice(...a);
       const cardsSlice = createCardsSlice(...a);
+      const poeNinjaSlice = createPoeNinjaSlice(...a);
 
       return {
         ...settingsSlice,
@@ -72,6 +81,7 @@ export const useBoundStore = create<BoundStore>()(
         ...gameInfoSlice,
         ...overlaySlice,
         ...cardsSlice,
+        ...poeNinjaSlice,
 
         hydrate: async () => {
           await Promise.all([
@@ -89,10 +99,12 @@ export const useBoundStore = create<BoundStore>()(
           const unsubscribeSession =
             sessionSlice.currentSession.startListening();
           const unsubscribeGameInfo = gameInfoSlice.gameInfo.startListening();
+          const unsubscribePoeNinja = poeNinjaSlice.poeNinja.startListening();
 
           return () => {
             unsubscribeSession();
             unsubscribeGameInfo();
+            unsubscribePoeNinja();
           };
         },
 
@@ -106,6 +118,7 @@ export const useBoundStore = create<BoundStore>()(
               sessionDetails,
               overlay,
               cards,
+              poeNinja,
               ...state
             }) => {
               // Reset settings
@@ -125,6 +138,7 @@ export const useBoundStore = create<BoundStore>()(
               // Reset sessions history
               sessions.allSessions = [];
               sessions.currentSessionDetail = null;
+              sessions.searchQuery = "";
               sessions.isLoading = false;
               sessions.error = null;
 
@@ -154,6 +168,20 @@ export const useBoundStore = create<BoundStore>()(
               cards.allCards = [];
               cards.isLoading = false;
               cards.error = null;
+
+              // Reset poeNinja
+              poeNinja.currentSnapshot = null;
+              poeNinja.autoRefreshes = new Map();
+              poeNinja.exchangeCacheStatus = {
+                isCached: false,
+                lastFetchTime: null,
+              };
+              poeNinja.stashCacheStatus = {
+                isCached: false,
+                lastFetchTime: null,
+              };
+              poeNinja.isLoading = false;
+              poeNinja.error = null;
             },
           );
         },

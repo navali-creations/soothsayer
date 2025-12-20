@@ -23,7 +23,13 @@ const GameSelectorTab = ({ game }: GameSelectorTabProps) => {
   };
 
   return (
-    <div role="tab" className={clsx({ "tab-active": isActive }, "tab gap-2")}>
+    <div
+      role="tab"
+      className={clsx(
+        { "tab-active": isActive },
+        "tab tab-border-half gap-2 relative",
+      )}
+    >
       <Button onClick={handleGameSelect} variant="ghost" className="p-0">
         <span className="font-fontin">{label}</span>
         <StatusBadge game={game} />

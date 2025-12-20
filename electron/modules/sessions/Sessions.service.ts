@@ -45,6 +45,19 @@ class SessionsService {
         return this.getSessionById(sessionId);
       },
     );
+
+    ipcMain.handle(
+      SessionsChannel.SearchByCard,
+      async (
+        _event,
+        game: GameVersion,
+        cardName: string,
+        page: number = 1,
+        pageSize: number = 20,
+      ): Promise<SessionsPageDTO> => {
+        return this.searchSessionsByCard(game, cardName, page, pageSize);
+      },
+    );
   }
 
   /**
@@ -176,6 +189,37 @@ class SessionsService {
       league: session.league,
       priceSnapshot,
       totals,
+    };
+  }
+
+  /**
+   * Search sessions by card name with pagination
+   */
+  private async searchSessionsByCard(
+    game: GameVersion,
+    cardName: string,
+    page: number = 1,
+    pageSize: number = 20,
+  ): Promise<SessionsPageDTO> {
+    // Get total count
+    const total = await this.repository.getSessionCountByCard(game, cardName);
+    const totalPages = Math.ceil(total / pageSize);
+    const offset = (page - 1) * pageSize;
+
+    // Get paginated sessions
+    const sessions = await this.repository.searchSessionsByCard(
+      game,
+      cardName,
+      pageSize,
+      offset,
+    );
+
+    return {
+      sessions,
+      total,
+      page,
+      pageSize,
+      totalPages,
     };
   }
 }

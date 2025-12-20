@@ -15,9 +15,9 @@ import { DivinationCardsApi } from "../electron/modules/divination-cards/Divinat
 contextBridge.exposeInMainWorld("electron", {
   selectFile: (options: any) => ipcRenderer.invoke("select-file", options),
 
-  divinationCards: {
-    exportCsv: () => ipcRenderer.invoke("export-divination-cards-csv"),
-  },
+  // divinationCards: {
+  //   exportCsv: () => ipcRenderer.invoke("export-divination-cards-csv"),
+  // },
 
   session: CurrentSessionAPI,
   sessions: SessionsAPI,

@@ -1,10 +1,6 @@
 import type { StateCreator } from "zustand";
-import type { GameType } from "../../../types/data-stores";
 import type { SettingsSlice } from "../settings/Settings.slice";
-import type {
-  SessionSummary,
-  SessionsPage,
-} from "../../../electron/modules/sessions";
+import type { SessionSummary } from "../../../electron/modules/sessions";
 import type { DetailedDivinationCardStats } from "../../../types/data-stores";
 
 export interface SessionsSlice {
@@ -19,13 +15,19 @@ export interface SessionsSlice {
     pageSize: number;
     totalPages: number;
     totalSessions: number;
+    // Filter state
+    selectedLeague: string;
+    searchQuery: string;
 
     // Actions
-    loadAllSessions: (game: GameType, page?: number) => Promise<void>;
+    loadAllSessions: (page?: number) => Promise<void>;
     loadSessionDetail: (sessionId: string) => Promise<void>;
     clearSessionDetail: () => void;
     setPage: (page: number) => void;
     setPageSize: (pageSize: number) => void;
+    setSelectedLeague: (league: string) => void;
+    searchSessions: (cardName: string, page?: number) => Promise<void>;
+    setSearchQuery: (query: string) => void;
 
     // Getters
     getAllSessions: () => SessionSummary[];
@@ -36,6 +38,10 @@ export interface SessionsSlice {
     getPageSize: () => number;
     getTotalPages: () => number;
     getTotalSessions: () => number;
+    getSelectedLeague: () => string;
+    getSearchQuery: () => string;
+    getUniqueLeagues: () => string[];
+    getFilteredSessions: () => SessionSummary[];
   };
 }
 
@@ -55,20 +61,23 @@ export const createSessionsSlice: StateCreator<
     pageSize: 20,
     totalPages: 0,
     totalSessions: 0,
+    selectedLeague: "all",
+    searchQuery: "",
 
     // Load all sessions for a game with pagination
-    loadAllSessions: async (game: GameType, page?: number) => {
+    loadAllSessions: async (page?: number) => {
       set(({ sessions }) => {
         sessions.isLoading = true;
         sessions.error = null;
       });
 
       try {
+        const activeGame = get().settings.getActiveGame();
         const currentPage = page ?? get().sessions.currentPage;
         const pageSize = get().sessions.pageSize;
 
         const response = await window.electron.sessions.getAll(
-          game,
+          activeGame,
           currentPage,
           pageSize,
         );
@@ -123,30 +132,38 @@ export const createSessionsSlice: StateCreator<
     // Set current page and reload
     setPage: (page: number) => {
       const { loadAllSessions } = get().sessions;
-      const activeGame = get().settings.getActiveGame() as GameType | undefined;
 
       set(({ sessions }) => {
         sessions.currentPage = page;
       });
 
-      if (activeGame) {
-        loadAllSessions(activeGame, page);
-      }
+      loadAllSessions(page);
     },
 
     // Set page size
     setPageSize: (pageSize: number) => {
       const { loadAllSessions } = get().sessions;
-      const activeGame = get().settings.getActiveGame() as GameType | undefined;
 
       set(({ sessions }) => {
         sessions.pageSize = pageSize;
         sessions.currentPage = 1; // Reset to first page when changing page size
       });
 
-      if (activeGame) {
-        loadAllSessions(activeGame, 1);
-      }
+      loadAllSessions(1);
+    },
+
+    // Set selected league filter
+    setSelectedLeague: (league: string) => {
+      set(({ sessions }) => {
+        sessions.selectedLeague = league;
+      });
+    },
+
+    // Set search query
+    setSearchQuery: (query: string) => {
+      set(({ sessions }) => {
+        sessions.searchQuery = query;
+      });
     },
 
     // Getters
@@ -158,5 +175,61 @@ export const createSessionsSlice: StateCreator<
     getPageSize: () => get().sessions.pageSize,
     getTotalPages: () => get().sessions.totalPages,
     getTotalSessions: () => get().sessions.totalSessions,
+    getSelectedLeague: () => get().sessions.selectedLeague,
+    getSearchQuery: () => get().sessions.searchQuery,
+
+    // Get unique leagues from all sessions
+    getUniqueLeagues: () => {
+      const allSessions = get().sessions.allSessions;
+      const uniqueLeagues = new Set(allSessions.map((s) => s.league));
+      return ["all", ...Array.from(uniqueLeagues)];
+    },
+
+    // Get filtered sessions based on selected league
+    getFilteredSessions: () => {
+      const allSessions = get().sessions.allSessions;
+      const selectedLeague = get().sessions.selectedLeague;
+
+      if (selectedLeague === "all") {
+        return allSessions;
+      }
+      return allSessions.filter((s) => s.league === selectedLeague);
+    },
+
+    // Search sessions by card name
+    searchSessions: async (cardName: string, page?: number) => {
+      set(({ sessions }) => {
+        sessions.isLoading = true;
+        sessions.error = null;
+      });
+
+      try {
+        const activeGame = get().settings.getActiveGame();
+        const currentPage = page ?? get().sessions.currentPage;
+        const pageSize = get().sessions.pageSize;
+
+        const response = await window.electron.sessions.searchByCard(
+          activeGame,
+          cardName,
+          currentPage,
+          pageSize,
+        );
+
+        set(({ sessions: sessionsState }) => {
+          sessionsState.allSessions = response.sessions;
+          sessionsState.currentPage = response.page;
+          sessionsState.pageSize = response.pageSize;
+          sessionsState.totalPages = response.totalPages;
+          sessionsState.totalSessions = response.total;
+          sessionsState.isLoading = false;
+        });
+      } catch (error) {
+        console.error("[SessionsSlice] Failed to search sessions:", error);
+        set(({ sessions }) => {
+          sessions.error = (error as Error).message;
+          sessions.isLoading = false;
+        });
+      }
+    },
   },
 });

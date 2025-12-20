@@ -1,9 +1,11 @@
 import crypto from "node:crypto";
+import { ipcMain, BrowserWindow } from "electron";
 import type { SessionPriceSnapshot } from "../../../types/data-stores";
 import { DatabaseService } from "../database/Database.service";
 import { PoeNinjaService } from "../poe-ninja/PoeNinja.service";
 import { SnapshotRepository } from "./Snapshot.repository";
 import { DivinationCardsService } from "../divination-cards/DivinationCards.service";
+import { SnapshotChannel } from "./Snapshot.channels";
 
 /**
  * Service for managing price snapshots
@@ -34,6 +36,42 @@ class SnapshotService {
     this.repository = new SnapshotRepository(db.getKysely());
     this.poeNinja = PoeNinjaService.getInstance();
     this.divinationCards = DivinationCardsService.getInstance();
+    this.setupIpcHandlers();
+  }
+
+  /**
+   * Setup IPC handlers for snapshot info queries
+   */
+  private setupIpcHandlers() {
+    ipcMain.handle(
+      SnapshotChannel.GetLatestSnapshot,
+      async (_event, game: string, league: string) => {
+        try {
+          const leagueId = await this.ensureLeague(game, league);
+          const snapshot = await this.repository.getRecentSnapshot(
+            leagueId,
+            SnapshotService.SNAPSHOT_REUSE_THRESHOLD_HOURS,
+          );
+          return snapshot;
+        } catch (error) {
+          console.error(
+            "[SnapshotService] Failed to get latest snapshot:",
+            error,
+          );
+          return null;
+        }
+      },
+    );
+  }
+
+  /**
+   * Emit snapshot event to all renderer windows
+   */
+  private emitSnapshotEvent(channel: string, ...args: any[]) {
+    const windows = BrowserWindow.getAllWindows();
+    for (const window of windows) {
+      window.webContents.send(channel, ...args);
+    }
   }
 
   /**
@@ -128,6 +166,18 @@ class SnapshotService {
       console.log(
         `Reusing snapshot ${recentSnapshot.id} from ${recentSnapshot.fetchedAt}`,
       );
+
+      // Emit reused snapshot event
+      this.emitSnapshotEvent(SnapshotChannel.OnSnapshotReused, {
+        id: recentSnapshot.id,
+        leagueId: recentSnapshot.leagueId,
+        league: leagueName,
+        game,
+        fetchedAt: recentSnapshot.fetchedAt,
+        exchangeChaosToDivine: recentSnapshot.exchangeChaosToDivine,
+        stashChaosToDivine: recentSnapshot.stashChaosToDivine,
+      });
+
       const data = await this.loadSnapshot(recentSnapshot.id);
       if (data) {
         return { snapshotId: recentSnapshot.id, data };
@@ -157,6 +207,17 @@ class SnapshotService {
     console.log(
       `Stored snapshot ${snapshotId} for league ${leagueId} with ${Object.keys(snapshotData.exchange.cardPrices).length + Object.keys(snapshotData.stash.cardPrices).length} card prices`,
     );
+
+    // Emit created snapshot event
+    this.emitSnapshotEvent(SnapshotChannel.OnSnapshotCreated, {
+      id: snapshotId,
+      leagueId,
+      league: leagueName,
+      game,
+      fetchedAt: snapshotData.timestamp,
+      exchangeChaosToDivine: snapshotData.exchange.chaosToDivineRatio,
+      stashChaosToDivine: snapshotData.stash.chaosToDivineRatio,
+    });
 
     return { snapshotId, data: snapshotData };
   }
@@ -207,6 +268,13 @@ class SnapshotService {
     console.log(
       `Started auto-refresh for ${key} (every ${SnapshotService.AUTO_REFRESH_INTERVAL_HOURS}h)`,
     );
+
+    // Emit auto-refresh started event
+    this.emitSnapshotEvent(SnapshotChannel.OnAutoRefreshStarted, {
+      game,
+      league: leagueName,
+      intervalHours: SnapshotService.AUTO_REFRESH_INTERVAL_HOURS,
+    });
   }
 
   /**
@@ -220,6 +288,12 @@ class SnapshotService {
       clearInterval(interval);
       this.refreshIntervals.delete(key);
       console.log(`Stopped auto-refresh for ${key}`);
+
+      // Emit auto-refresh stopped event
+      this.emitSnapshotEvent(SnapshotChannel.OnAutoRefreshStopped, {
+        game,
+        league: leagueName,
+      });
     }
   }
 

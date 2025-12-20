@@ -78,7 +78,7 @@ const StatsPage = () => {
 
   if (loading || !stats) {
     return (
-      <div className="min-h-screen bg-base-200 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <span className="loading loading-spinner loading-lg"></span>
       </div>
     );
@@ -162,7 +162,7 @@ const StatsPage = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-base-200 p-6">
+    <div className="min-h-screen p-6">
       <div className="mx-auto space-y-6">
         {/* Header */}
         <Flex className="justify-between items-center">
@@ -305,7 +305,7 @@ const StatsPage = () => {
         </div>
 
         {/* Cards Table */}
-        <div className="card bg-base-100 shadow-xl">
+        <div className="card bg-base-200 shadow-xl">
           <div className="card-body">
             <h2 className="card-title">
               Card Collection

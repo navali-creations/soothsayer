@@ -36,7 +36,7 @@ export interface CardsSlice {
     pageSize: number;
 
     // Actions
-    loadCards: (game: "poe1" | "poe2") => Promise<void>;
+    loadCards: () => Promise<void>;
     setSearchQuery: (query: string) => void;
     setRarityFilter: (rarity: number | "all") => void;
     setSortField: (field: SortField) => void;
@@ -74,14 +74,16 @@ export const createCardsSlice: StateCreator<
     pageSize: 20,
 
     // Load all cards for a game
-    loadCards: async (game: "poe1" | "poe2") => {
+    loadCards: async () => {
+      const activeGame = get().settings.getActiveGame();
       set(({ cards }) => {
         cards.isLoading = true;
         cards.error = null;
       });
 
       try {
-        const fetchedCards = await window.electron.divinationCards.getAll(game);
+        const fetchedCards =
+          await window.electron.divinationCards.getAll(activeGame);
 
         set(({ cards }) => {
           cards.allCards = fetchedCards;

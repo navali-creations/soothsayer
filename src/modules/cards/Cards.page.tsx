@@ -38,10 +38,8 @@ const CardsPage = () => {
 
   // Fetch cards on mount or when active game changes
   useEffect(() => {
-    if (activeGame) {
-      loadCards(activeGame);
-    }
-  }, [activeGame, loadCards]);
+    loadCards();
+  }, [loadCards]);
 
   // Convert to CardEntry format for DivinationCard component
   const convertToCardEntry = (card: any): CardEntry => ({

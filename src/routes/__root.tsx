@@ -42,7 +42,7 @@ const RootLayout = () => {
   // Show loading screen while hydrating
   if (isHydrating) {
     return (
-      <div className="flex items-center justify-center h-screen bg-base-100">
+      <div className="flex items-center justify-center h-screen bg-base-300">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
         </div>

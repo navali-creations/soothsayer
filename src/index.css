@@ -8,9 +8,34 @@
 
 @import "tailwindcss";
 
+@layer base {
+  :root {
+    --page-scroll-bg: var(--color-base-300);
+    --root-bg: var(--color-base-300);
+  }
+}
+
 @layer utilities {
   .font-fontin {
     font-family: "Fontin", sans-serif;
+  }
+
+  .tab-border-half::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 75%;
+    height: 3px;
+    border-radius: 6px;
+    background-color: currentColor;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  .tab-border-half.tab-active::after {
+    opacity: 1;
   }
 }
 

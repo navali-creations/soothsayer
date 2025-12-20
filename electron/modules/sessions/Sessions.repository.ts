@@ -170,4 +170,111 @@ export class SessionsRepository {
       hidePriceStash: row.hidePriceStash === 1,
     }));
   }
+
+  /**
+   * Search sessions by card name
+   */
+  async searchSessionsByCard(
+    game: GameVersion,
+    cardName: string,
+    limit: number,
+    offset: number,
+  ): Promise<SessionSummaryDTO[]> {
+    const rows = await this.kysely
+      .selectFrom("sessions as s")
+      .leftJoin("session_summaries as ss", "s.id", "ss.session_id")
+      .innerJoin("leagues as l", "s.league_id", "l.id")
+      .leftJoin("snapshots as snap", "s.snapshot_id", "snap.id")
+      .innerJoin("session_cards as sc", "s.id", "sc.session_id")
+      .select([
+        "s.id as sessionId",
+        "s.game as game",
+        "l.name as league",
+        "s.started_at as startedAt",
+        "s.ended_at as endedAt",
+        "s.is_active as isActive",
+        // Duration: use summary if exists, otherwise calculate
+        sql<number>`
+          COALESCE(
+            ss.duration_minutes,
+            CASE
+              WHEN s.ended_at IS NOT NULL
+              THEN CAST((JULIANDAY(s.ended_at) - JULIANDAY(s.started_at)) * 24 * 60 AS INTEGER)
+              ELSE NULL
+            END
+          )
+        `.as("durationMinutes"),
+        // Total decks: use summary if exists, otherwise use session total_count
+        sql<number>`COALESCE(ss.total_decks_opened, s.total_count)`.as(
+          "totalDecksOpened",
+        ),
+        // Exchange value: use summary if exists, otherwise calculate from session_cards + snapshot_card_prices
+        sql<number>`
+          COALESCE(
+            ss.total_exchange_value,
+            (
+              SELECT COALESCE(SUM(sc2.count * scp.chaos_value), 0)
+              FROM session_cards sc2
+              LEFT JOIN snapshot_card_prices scp
+                ON scp.snapshot_id = s.snapshot_id
+                AND scp.card_name = sc2.card_name
+                AND scp.price_source = 'exchange'
+              WHERE sc2.session_id = s.id
+                AND sc2.hide_price_exchange = 0
+            )
+          )
+        `.as("totalExchangeValue"),
+        // Stash value: use summary if exists, otherwise calculate
+        sql<number>`
+          COALESCE(
+            ss.total_stash_value,
+            (
+              SELECT COALESCE(SUM(sc2.count * scp.chaos_value), 0)
+              FROM session_cards sc2
+              LEFT JOIN snapshot_card_prices scp
+                ON scp.snapshot_id = s.snapshot_id
+                AND scp.card_name = sc2.card_name
+                AND scp.price_source = 'stash'
+              WHERE sc2.session_id = s.id
+                AND sc2.hide_price_stash = 0
+            )
+          )
+        `.as("totalStashValue"),
+        // Chaos to Divine ratios from snapshot
+        sql<number>`COALESCE(ss.exchange_chaos_to_divine, snap.exchange_chaos_to_divine, 0)`.as(
+          "exchangeChaosToDivine",
+        ),
+        sql<number>`COALESCE(ss.stash_chaos_to_divine, snap.stash_chaos_to_divine, 0)`.as(
+          "stashChaosToDivine",
+        ),
+      ])
+      .where("s.game", "=", game)
+      .where("sc.card_name", "like", `%${cardName}%`)
+      .groupBy("s.id")
+      .orderBy("s.started_at", "desc")
+      .limit(limit)
+      .offset(offset)
+      .execute();
+
+    return rows.map(SessionsMapper.toSessionSummaryDTO);
+  }
+
+  /**
+   * Get count of sessions containing a specific card
+   */
+  async getSessionCountByCard(
+    game: GameVersion,
+    cardName: string,
+  ): Promise<number> {
+    const result = await this.kysely
+      .selectFrom("sessions as s")
+      .innerJoin("session_cards as sc", "s.id", "sc.session_id")
+      .select((eb) => eb.fn.countAll<number>().as("count"))
+      .where("s.game", "=", game)
+      .where("sc.card_name", "like", `%${cardName}%`)
+      .groupBy("s.id")
+      .execute();
+
+    return result.length;
+  }
 }
