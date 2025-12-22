@@ -38,6 +38,10 @@ import {
   createPoeNinjaSlice,
   type PoeNinjaSlice,
 } from "../modules/poe-ninja/PoeNinja.slice";
+import {
+  createStatisticsSlice,
+  type StatisticsSlice,
+} from "../modules/statistics/Statistics.slice";
 
 interface RootActions {
   hydrate: () => Promise<void>;
@@ -55,6 +59,7 @@ type BoundStore = GameInfoSlice &
   AppMenuSlice &
   OverlaySlice &
   PoeNinjaSlice &
+  StatisticsSlice &
   RootActions;
 
 export const useBoundStore = create<BoundStore>()(
@@ -70,6 +75,7 @@ export const useBoundStore = create<BoundStore>()(
       const overlaySlice = createOverlaySlice(...a);
       const cardsSlice = createCardsSlice(...a);
       const poeNinjaSlice = createPoeNinjaSlice(...a);
+      const statisticsSlice = createStatisticsSlice(...a);
 
       return {
         ...settingsSlice,
@@ -82,6 +88,7 @@ export const useBoundStore = create<BoundStore>()(
         ...overlaySlice,
         ...cardsSlice,
         ...poeNinjaSlice,
+        ...statisticsSlice,
 
         hydrate: async () => {
           await Promise.all([
@@ -119,6 +126,7 @@ export const useBoundStore = create<BoundStore>()(
               overlay,
               cards,
               poeNinja,
+              statistics,
               ...state
             }) => {
               // Reset settings
@@ -182,6 +190,10 @@ export const useBoundStore = create<BoundStore>()(
               };
               poeNinja.isLoading = false;
               poeNinja.error = null;
+
+              // Reset statistics
+              statistics.statScope = "all-time";
+              statistics.selectedLeague = "Keepers";
             },
           );
         },

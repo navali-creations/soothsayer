@@ -156,10 +156,12 @@ class SnapshotService {
     // Ensure league exists
     const leagueId = await this.ensureLeague(game, leagueName);
 
-    // Try to reuse recent snapshot
+    // Try to reuse recent snapshot - use auto-refresh interval for consistency
+    // This ensures snapshots are refreshed at the same cadence whether the app
+    // stays open (auto-refresh) or is restarted frequently
     const recentSnapshot = await this.repository.getRecentSnapshot(
       leagueId,
-      SnapshotService.SNAPSHOT_REUSE_THRESHOLD_HOURS,
+      SnapshotService.AUTO_REFRESH_INTERVAL_HOURS,
     );
 
     if (recentSnapshot) {
@@ -259,6 +261,17 @@ class SnapshotService {
         });
 
         console.log(`Auto-refresh complete for ${game}/${leagueName}`);
+
+        // Emit created snapshot event so frontend updates
+        this.emitSnapshotEvent(SnapshotChannel.OnSnapshotCreated, {
+          id: snapshotId,
+          leagueId,
+          league: leagueName,
+          game,
+          fetchedAt: snapshotData.timestamp,
+          exchangeChaosToDivine: snapshotData.exchange.chaosToDivineRatio,
+          stashChaosToDivine: snapshotData.stash.chaosToDivineRatio,
+        });
       } catch (error) {
         console.error(`Failed to auto-refresh snapshot for ${key}:`, error);
       }

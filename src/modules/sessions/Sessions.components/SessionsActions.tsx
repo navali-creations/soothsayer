@@ -1,6 +1,5 @@
 import { useState, useEffect, ChangeEvent } from "react";
-import { FiSearch } from "react-icons/fi";
-import { Flex } from "../../../components";
+import { Flex, Search } from "../../../components";
 import { useBoundStore } from "../../../store/store";
 import { useDebounce } from "../../../hooks";
 
@@ -39,10 +38,6 @@ export const SessionsActions = () => {
     storedSearchQuery,
   ]);
 
-  const handleSearchChange = (e: ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(e.target.value);
-  };
-
   const handleLeagueChange = (e: ChangeEvent<HTMLSelectElement>) => {
     setSelectedLeague(e.target.value);
   };
@@ -50,19 +45,17 @@ export const SessionsActions = () => {
   return (
     <Flex className="gap-2 items-center">
       {/* Search Input */}
-      <label className="input input-border input-sm flex items-center gap-2 w-[300px]">
-        <FiSearch className="opacity-70" />
-        <input
-          type="text"
-          className="grow"
-          placeholder="Search by card name..."
-          onChange={handleSearchChange}
-        />
-      </label>
+      <Search
+        size="sm"
+        className="w-[170px]"
+        placeholder="Search by card name..."
+        value={searchQuery}
+        onChange={setSearchQuery}
+      />
 
       {/* League Filter Dropdown */}
       <select
-        className="select select-sm select-border"
+        className="select select-sm select-bordered w-[120px]"
         value={selectedLeague}
         onChange={handleLeagueChange}
       >

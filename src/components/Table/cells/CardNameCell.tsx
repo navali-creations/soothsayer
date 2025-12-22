@@ -1,11 +1,11 @@
 import type { CellContext } from "@tanstack/react-table";
-import { useId, useEffect } from "react";
-import type { CardEntry } from "../../../../../../../types/data-stores";
-import { useBoundStore } from "../../../../../../store/store";
-import { usePopover } from "../../../../../../hooks/usePopover";
-import DivinationCard from "../../../../../../components/DivinationCard/DivinationCard";
+import { useId } from "react";
+import type { CardEntry } from "../../../../types/data-stores";
+import { useBoundStore } from "../../../store/store";
+import { usePopover } from "../../../hooks/usePopover";
+import DivinationCard from "../../../components/DivinationCard/DivinationCard";
 
-const CurrentSessionNameCell = (cellProps: CellContext<CardEntry, string>) => {
+const CardNameCell = (cellProps: CellContext<CardEntry, string>) => {
   const {
     settings: { getActiveGameViewPriceSource },
   } = useBoundStore();
@@ -38,7 +38,6 @@ const CurrentSessionNameCell = (cellProps: CellContext<CardEntry, string>) => {
         <div
           id={popoverId}
           ref={popoverRef}
-          // @ts-ignore - popover attribute is valid but not in types yet
           popover="manual"
           className="m-0 p-0 border-0 bg-transparent backdrop:bg-black/50"
         >
@@ -49,4 +48,4 @@ const CurrentSessionNameCell = (cellProps: CellContext<CardEntry, string>) => {
   );
 };
 
-export default CurrentSessionNameCell;
+export default CardNameCell;

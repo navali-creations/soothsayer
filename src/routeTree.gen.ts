@@ -9,7 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as StatsRouteImport } from './routes/stats'
+import { Route as StatisticsRouteImport } from './routes/statistics'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SessionsRouteImport } from './routes/sessions'
@@ -20,9 +20,9 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as SessionsIndexRouteImport } from './routes/sessions.index'
 import { Route as SessionsSessionIdRouteImport } from './routes/sessions.$sessionId'
 
-const StatsRoute = StatsRouteImport.update({
-  id: '/stats',
-  path: '/stats',
+const StatisticsRoute = StatisticsRouteImport.update({
+  id: '/statistics',
+  path: '/statistics',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SetupRoute = SetupRouteImport.update({
@@ -79,7 +79,7 @@ export interface FileRoutesByFullPath {
   '/sessions': typeof SessionsRouteWithChildren
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
-  '/stats': typeof StatsRoute
+  '/statistics': typeof StatisticsRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRoute
   '/sessions/': typeof SessionsIndexRoute
 }
@@ -90,7 +90,7 @@ export interface FileRoutesByTo {
   '/current-session': typeof CurrentSessionRoute
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
-  '/stats': typeof StatsRoute
+  '/statistics': typeof StatisticsRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRoute
   '/sessions': typeof SessionsIndexRoute
 }
@@ -103,7 +103,7 @@ export interface FileRoutesById {
   '/sessions': typeof SessionsRouteWithChildren
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
-  '/stats': typeof StatsRoute
+  '/statistics': typeof StatisticsRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRoute
   '/sessions/': typeof SessionsIndexRoute
 }
@@ -117,7 +117,7 @@ export interface FileRouteTypes {
     | '/sessions'
     | '/settings'
     | '/setup'
-    | '/stats'
+    | '/statistics'
     | '/sessions/$sessionId'
     | '/sessions/'
   fileRoutesByTo: FileRoutesByTo
@@ -128,7 +128,7 @@ export interface FileRouteTypes {
     | '/current-session'
     | '/settings'
     | '/setup'
-    | '/stats'
+    | '/statistics'
     | '/sessions/$sessionId'
     | '/sessions'
   id:
@@ -140,7 +140,7 @@ export interface FileRouteTypes {
     | '/sessions'
     | '/settings'
     | '/setup'
-    | '/stats'
+    | '/statistics'
     | '/sessions/$sessionId'
     | '/sessions/'
   fileRoutesById: FileRoutesById
@@ -153,16 +153,16 @@ export interface RootRouteChildren {
   SessionsRoute: typeof SessionsRouteWithChildren
   SettingsRoute: typeof SettingsRoute
   SetupRoute: typeof SetupRoute
-  StatsRoute: typeof StatsRoute
+  StatisticsRoute: typeof StatisticsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/stats': {
-      id: '/stats'
-      path: '/stats'
-      fullPath: '/stats'
-      preLoaderRoute: typeof StatsRouteImport
+    '/statistics': {
+      id: '/statistics'
+      path: '/statistics'
+      fullPath: '/statistics'
+      preLoaderRoute: typeof StatisticsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/setup': {
@@ -253,7 +253,7 @@ const rootRouteChildren: RootRouteChildren = {
   SessionsRoute: SessionsRouteWithChildren,
   SettingsRoute: SettingsRoute,
   SetupRoute: SetupRoute,
-  StatsRoute: StatsRoute,
+  StatisticsRoute: StatisticsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

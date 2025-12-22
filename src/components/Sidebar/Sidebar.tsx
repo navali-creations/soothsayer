@@ -220,7 +220,7 @@ const Sidebar = () => {
           </li>
           <li>
             <Link
-              to="/stats"
+              to="/statistics"
               className="[&.active]:bg-primary [&.active]:text-primary-content"
             >
               <FiBarChart2 size={20} />

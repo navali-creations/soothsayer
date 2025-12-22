@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useBoundStore } from "../../../../store/store";
 import { Stat } from "../../../../components";
+import { formatCurrency } from "../../../../api/poe-ninja";
 
 const CurrentSessionMostValuableStat = () => {
   const {
@@ -39,11 +40,18 @@ const CurrentSessionMostValuableStat = () => {
   const cardPrice = priceInfo?.chaosValue || 0;
   const cardName = mostValuableCard?.name || "—";
 
+  const chaosToDivineRatio =
+    priceSource === "stash"
+      ? sessionData?.priceSnapshot?.stash?.chaosToDivineRatio || 0
+      : sessionData?.priceSnapshot?.exchange?.chaosToDivineRatio || 0;
+
   return (
     <Stat className="flex-1 basis-1/4 min-w-0">
       <Stat.Title>Most Valuable</Stat.Title>
       <Stat.Value>
-        {hasSnapshot && mostValuableCard ? `${cardPrice.toFixed(2)}c` : "—"}
+        {hasSnapshot && mostValuableCard
+          ? formatCurrency(cardPrice, chaosToDivineRatio)
+          : "—"}
       </Stat.Value>
       <Stat.Desc className="tabular-nums">
         {hasSnapshot ? cardName : "No pricing data"}

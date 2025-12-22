@@ -56,7 +56,7 @@ export class SnapshotRepository {
       .selectAll()
       .where("league_id", "=", leagueId)
       .where(
-        "fetched_at",
+        sql`datetime(fetched_at)`,
         ">",
         sql`datetime('now', '-${sql.lit(hoursAgo)} hours')`,
       )

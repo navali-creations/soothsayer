@@ -1,4 +1,5 @@
 import type { StateCreator } from "zustand";
+import type { SessionData, OverlayTab } from "./Overlay.types";
 
 export interface OverlaySlice {
   overlay: {
@@ -6,6 +7,8 @@ export interface OverlaySlice {
     isVisible: boolean;
     isLoading: boolean;
     error: string | null;
+    sessionData: SessionData;
+    activeTab: OverlayTab;
 
     // Actions
     hydrate: () => Promise<void>;
@@ -15,7 +18,9 @@ export interface OverlaySlice {
     setIsVisible: (isVisible: boolean) => void;
     setPosition: (x: number, y: number) => Promise<void>;
     setSize: (width: number, height: number) => Promise<void>;
-    setOpacity: (opacity: number) => Promise<void>;
+    setSessionData: (data: SessionData) => void;
+    setActiveTab: (tab: OverlayTab) => void;
+    getFilteredDrops: () => SessionData["recentDrops"];
   };
 }
 
@@ -24,12 +29,22 @@ export const createOverlaySlice: StateCreator<
   [["zustand/devtools", never], ["zustand/immer", never]],
   [],
   OverlaySlice
-> = (set) => ({
+> = (set, get) => ({
   overlay: {
     // Initial state
     isVisible: false,
     isLoading: false,
     error: null,
+    sessionData: {
+      totalCount: 0,
+      totalProfit: 0,
+      chaosToDivineRatio: 0,
+      priceSource: "exchange",
+      cards: [],
+      recentDrops: [],
+      isActive: false,
+    },
+    activeTab: "all",
 
     // Hydrate overlay visibility state
     hydrate: async () => {
@@ -99,8 +114,39 @@ export const createOverlaySlice: StateCreator<
       await window.electron?.overlay.setSize(width, height);
     },
 
-    setOpacity: async (opacity) => {
-      await window.electron?.overlay.setOpacity(opacity);
+    setSessionData: (sessionData) => {
+      set(
+        ({ overlay }) => {
+          overlay.sessionData = sessionData;
+        },
+        false,
+        "overlaySlice/setSessionData",
+      );
+    },
+
+    setActiveTab: (tab) => {
+      set(
+        ({ overlay }) => {
+          overlay.activeTab = tab;
+        },
+        false,
+        "overlaySlice/setActiveTab",
+      );
+    },
+
+    getFilteredDrops: () => {
+      const { sessionData, activeTab } = get().overlay;
+
+      if (!sessionData?.recentDrops) {
+        return [];
+      }
+
+      if (activeTab === "all") {
+        return sessionData.recentDrops;
+      }
+
+      // valuable = exclude rarity 4 (common)
+      return sessionData.recentDrops.filter((drop) => drop.rarity < 4);
     },
   },
 });

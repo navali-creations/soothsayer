@@ -39,6 +39,8 @@ function DivinationCard({ card }: DivinationCardProps) {
         transform: `perspective(${CARD_EFFECTS.PERSPECTIVE}px) rotateX(${isHovered ? rotateX : 0}deg) rotateY(${isHovered ? rotateY : 0}deg)`,
         transformStyle: "preserve-3d",
         willChange: "transform",
+        filter:
+          "drop-shadow(0 0 2px rgba(255, 255, 255, 0.3)) drop-shadow(0 0 4px rgba(255, 255, 255, 0.2))",
       }}
     >
       <CardFrame />

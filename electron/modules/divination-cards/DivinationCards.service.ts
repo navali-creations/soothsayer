@@ -295,6 +295,11 @@ class DivinationCardsService {
   ): Promise<void> {
     const updates: Array<{ name: string; rarity: number }> = [];
 
+    // Get all cards for this game
+    const allCards = await this.repository.getAllByGame(game);
+    const pricedCardNames = new Set(Object.keys(cardPrices));
+
+    // Update rarity for cards with prices
     for (const [cardName, priceData] of Object.entries(cardPrices)) {
       const chaosValue = priceData.chaosValue;
       const divineValue = chaosValue / exchangeChaosToDivine;
@@ -303,26 +308,33 @@ class DivinationCardsService {
       let rarity: number;
 
       if (percentOfDivine >= 70) {
-        // 87%+ of divine = extremely rare
+        // 70%+ of divine = extremely rare
         rarity = 1;
       } else if (percentOfDivine >= 35) {
-        // 50-80% of divine = rare
+        // 35-70% of divine = rare
         rarity = 2;
       } else if (percentOfDivine >= 5) {
-        // 5-50% of divine = less common
+        // 5-35% of divine = less common
         rarity = 3;
       } else {
-        // < 5% of divine, 0 value, or N/A = common
+        // < 5% of divine = common
         rarity = 4;
       }
 
       updates.push({ name: cardName, rarity });
     }
 
+    // Set all cards WITHOUT prices to rarity 4 (common)
+    for (const card of allCards) {
+      if (!pricedCardNames.has(card.name)) {
+        updates.push({ name: card.name, rarity: 4 });
+      }
+    }
+
     if (updates.length > 0) {
       await this.repository.updateRarities(game, updates);
       console.log(
-        `[DivinationCards] Updated rarities for ${updates.length} ${game.toUpperCase()} cards`,
+        `[DivinationCards] Updated rarities for ${updates.length} ${game.toUpperCase()} cards (${pricedCardNames.size} priced, ${updates.length - pricedCardNames.size} unpriced)`,
       );
     }
   }

@@ -24,7 +24,7 @@ interface SessionData {
   chaosToDivineRatio: number;
   priceSource: "exchange" | "stash";
   cards: CardEntry[];
-  recentDrops: RecentDrop[]; // Changed from string[]
+  recentDrops: RecentDrop[];
   isActive: boolean;
 }
 
@@ -43,7 +43,7 @@ export const useOverlayStore = create<OverlayStore>((set) => ({
     chaosToDivineRatio: 0,
     priceSource: "exchange",
     cards: [],
-    recentDrops: [], // Add this
+    recentDrops: [],
     isActive: false,
   },
   setOpacity: (opacity) => {

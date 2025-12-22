@@ -250,6 +250,7 @@ export class SessionsRepository {
       ])
       .where("s.game", "=", game)
       .where("sc.card_name", "like", `%${cardName}%`)
+      .where("s.total_count", ">", 0)
       .groupBy("s.id")
       .orderBy("s.started_at", "desc")
       .limit(limit)
@@ -272,6 +273,7 @@ export class SessionsRepository {
       .select((eb) => eb.fn.countAll<number>().as("count"))
       .where("s.game", "=", game)
       .where("sc.card_name", "like", `%${cardName}%`)
+      .where("s.total_count", ">", 0)
       .groupBy("s.id")
       .execute();
 

@@ -40,7 +40,7 @@ class CsvService {
 
         // Get divination cards data from DataStore (all-time stats for selected game)
         const stats: SimpleDivinationCardStats =
-          this.dataStore.getAllTimeStats(activeGame);
+          await this.dataStore.getAllTimeStats(activeGame);
 
         // Transform the data to be compatible with jsonToCsv
         const csvData: Record<string, number> = {};

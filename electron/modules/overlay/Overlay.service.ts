@@ -56,8 +56,8 @@ class OverlayService {
       // Use saved position
       x = savedBounds.x;
       y = savedBounds.y;
-      overlayWidth = savedBounds.width || 400;
-      overlayHeight = savedBounds.height || 100;
+      overlayWidth = savedBounds.width || 250;
+      overlayHeight = savedBounds.height || 145;
     } else {
       // Detect the monitor where the cursor is (likely the game monitor)
       const primaryDisplay = screen.getPrimaryDisplay();
@@ -68,7 +68,7 @@ class OverlayService {
 
       // Custom overlay dimensions
       overlayWidth = 250;
-      overlayHeight = 145;
+      overlayHeight = 175;
 
       // Position: centered horizontally, 300px from bottom
       x = screenX + screenWidth - overlayWidth;

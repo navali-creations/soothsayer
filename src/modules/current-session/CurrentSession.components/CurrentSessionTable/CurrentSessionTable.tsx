@@ -1,11 +1,13 @@
 import { useMemo } from "react";
-import { Table } from "../../../../components";
+import {
+  Table,
+  createCardNameColumn,
+  createCardCountColumn,
+} from "../../../../components";
 import { useBoundStore } from "../../../../store/store";
 import {
   createCurrentSessionChaosValueColumn,
-  createCurrentSessionCountColumn,
   createCurrentSessionHidePriceColumn,
-  createCurrentSessionNameColumn,
   createCurrentSessionRatioColumn,
   createCurrentSessionTotalValueColumn,
 } from "./columns";
@@ -23,8 +25,8 @@ const CurrentSessionTable = () => {
   const columns = useMemo(
     () => [
       createCurrentSessionHidePriceColumn(),
-      createCurrentSessionNameColumn(),
-      createCurrentSessionCountColumn(),
+      createCardNameColumn(),
+      createCardCountColumn(),
       createCurrentSessionRatioColumn(),
       createCurrentSessionChaosValueColumn(priceSource),
       createCurrentSessionTotalValueColumn(priceSource),
