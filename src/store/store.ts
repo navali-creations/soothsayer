@@ -2,46 +2,50 @@ import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 import {
-  createCardsSlice,
-  type CardsSlice,
-} from "../modules/cards/Cards.slice";
-import {
   type AppMenuSlice,
   createAppMenuSlice,
 } from "../modules/app-menu/AppMenu.slice";
+import {
+  type CardsSlice,
+  createCardsSlice,
+} from "../modules/cards/Cards.slice";
+import {
+  createSessionSlice,
+  type SessionSlice,
+} from "../modules/current-session/CurrentSession.slice";
 import {
   createGameInfoSlice,
   type GameInfoSlice,
 } from "../modules/game-info/GameInfo.slice";
 import {
+  createOnboardingSlice,
+  type OnboardingSlice,
+} from "../modules/onboarding/Onboarding.slice";
+import {
   createOverlaySlice,
   type OverlaySlice,
 } from "../modules/overlay/Overlay.slice";
-import {
-  createSettingsSlice,
-  type SettingsSlice,
-} from "../modules/settings/Settings.slice";
-import {
-  createSessionsSlice,
-  type SessionsSlice,
-} from "../modules/sessions/Sessions.slice";
-import {
-  createSessionDetailsSlice,
-  type SessionDetailsSlice,
-} from "../modules/session-details";
-import {
-  createSessionSlice,
-  type SessionSlice,
-} from "../modules/current-session/CurrentSession.slice";
-import { createSetupSlice, type SetupSlice } from "./setupSlice";
 import {
   createPoeNinjaSlice,
   type PoeNinjaSlice,
 } from "../modules/poe-ninja/PoeNinja.slice";
 import {
+  createSessionDetailsSlice,
+  type SessionDetailsSlice,
+} from "../modules/session-details";
+import {
+  createSessionsSlice,
+  type SessionsSlice,
+} from "../modules/sessions/Sessions.slice";
+import {
+  createSettingsSlice,
+  type SettingsSlice,
+} from "../modules/settings/Settings.slice";
+import {
   createStatisticsSlice,
   type StatisticsSlice,
 } from "../modules/statistics/Statistics.slice";
+import { createSetupSlice, type SetupSlice } from "./setupSlice";
 
 interface RootActions {
   hydrate: () => Promise<void>;
@@ -60,6 +64,7 @@ type BoundStore = GameInfoSlice &
   OverlaySlice &
   PoeNinjaSlice &
   StatisticsSlice &
+  OnboardingSlice &
   RootActions;
 
 export const useBoundStore = create<BoundStore>()(
@@ -76,6 +81,7 @@ export const useBoundStore = create<BoundStore>()(
       const cardsSlice = createCardsSlice(...a);
       const poeNinjaSlice = createPoeNinjaSlice(...a);
       const statisticsSlice = createStatisticsSlice(...a);
+      const onboardingSlice = createOnboardingSlice(...a);
 
       return {
         ...settingsSlice,
@@ -89,6 +95,7 @@ export const useBoundStore = create<BoundStore>()(
         ...cardsSlice,
         ...poeNinjaSlice,
         ...statisticsSlice,
+        ...onboardingSlice,
 
         hydrate: async () => {
           await Promise.all([
@@ -98,6 +105,7 @@ export const useBoundStore = create<BoundStore>()(
             appMenuSlice.appMenu.hydrate(),
             gameInfoSlice.gameInfo.hydrate(),
             overlaySlice.overlay.hydrate(),
+            onboardingSlice.onboarding.hydrate(),
           ]);
         },
 
@@ -127,6 +135,7 @@ export const useBoundStore = create<BoundStore>()(
               cards,
               poeNinja,
               statistics,
+              onboarding,
               ...state
             }) => {
               // Reset settings
@@ -194,6 +203,10 @@ export const useBoundStore = create<BoundStore>()(
               // Reset statistics
               statistics.statScope = "all-time";
               statistics.selectedLeague = "Keepers";
+
+              // Reset onboarding
+              onboarding.isLoading = false;
+              onboarding.error = null;
             },
           );
         },

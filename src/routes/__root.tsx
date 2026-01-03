@@ -1,11 +1,20 @@
-import { createRootRoute, Outlet, useNavigate } from "@tanstack/react-router";
+import { Beacons } from "@repere/react";
+import {
+  createRootRoute,
+  Outlet,
+  useLocation,
+  useNavigate,
+} from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { useEffect, useState } from "react";
 import { AppMenu, Sidebar } from "../components";
+import { onboardingConfig } from "../modules/onboarding";
 import { useBoundStore } from "../store/store";
+import "@repere/react/styles.css";
 
 const RootLayout = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [isHydrating, setIsHydrating] = useState(true);
   const hydrate = useBoundStore((state) => state.hydrate);
   const startListeners = useBoundStore((state) => state.startListeners);
@@ -39,7 +48,6 @@ const RootLayout = () => {
     return cleanup;
   }, [hydrate, startListeners, navigate, isSetupComplete]);
 
-  // Show loading screen while hydrating
   if (isHydrating) {
     return (
       <div className="flex items-center justify-center h-screen bg-base-300">
@@ -50,12 +58,10 @@ const RootLayout = () => {
     );
   }
 
-  // If setup is not complete, only show the setup page (no sidebar/menu)
   if (!setupState?.isComplete) {
     return <Outlet />;
   }
 
-  // Normal layout with sidebar and menu
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       <AppMenu />
@@ -65,6 +71,11 @@ const RootLayout = () => {
           <Outlet />
         </main>
       </div>
+      <Beacons
+        config={onboardingConfig}
+        currentPath={location.pathname}
+        enabled={!isHydrating}
+      />
       <TanStackRouterDevtools />
     </div>
   );

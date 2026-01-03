@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { FiFolder, FiTrash2 } from "react-icons/fi";
 import { Button, Flex } from "../../components";
 import { useBoundStore } from "../../store/store";
+import { OnboardingButton } from "../../modules/onboarding";
 
 const SettingsPage = () => {
   const settings = useBoundStore((state) => state.settings);
@@ -113,109 +114,104 @@ const SettingsPage = () => {
       dataPaths: {
         title: "Data Storage",
         description:
-          "Configure where your divination card collection is stored",
+          "Configure where your collection and session data is stored",
         settings: [
           {
             key: "collection-path" as const,
             label: "Collection Path",
             value: settings["collection-path"],
-            placeholder: "No path selected",
-            onSelect: () =>
-              handleSelectFile("collection-path", "Select Collection Path"),
+            placeholder: "No file selected",
+            onSelect: () => handleSelectFile("collection-path", "Collection"),
           },
         ],
       },
       appBehavior: {
         title: "Application Behavior",
-        description: "Control how the application behaves",
+        description: "Customize how the application behaves",
         settings: [
           {
             type: "select" as const,
             key: "app-exit-action" as const,
-            label: "When closing the app",
+            label: "When closing the window",
             value: settings["app-exit-action"],
             options: [
-              { value: "exit", label: "Exit application" },
-              { value: "minimize-to-tray", label: "Minimize to tray" },
+              { value: "minimize-to-tray", label: "Minimize to Tray" },
+              { value: "quit", label: "Quit Application" },
             ],
             onChange: (value: string) =>
-              updateSetting("app-exit-action", value),
+              updateSetting("app-exit-action", value as any),
           },
           {
             type: "toggle" as const,
             key: "app-open-at-login" as const,
-            label: "Open at login",
+            label: "Launch on startup",
             value: settings["app-open-at-login"],
             onChange: (value: boolean) =>
               updateSetting("app-open-at-login", value),
           },
-          ...(settings["app-open-at-login"]
-            ? [
-                {
-                  type: "toggle" as const,
-                  key: "app-open-at-login-minimized" as const,
-                  label: "Open at login minimized",
-                  value: settings["app-open-at-login-minimized"],
-                  onChange: (value: boolean) =>
-                    updateSetting("app-open-at-login-minimized", value),
-                },
-              ]
-            : []),
+          {
+            type: "toggle" as const,
+            key: "app-open-at-login-minimized" as const,
+            label: "Start minimized",
+            value: settings["app-open-at-login-minimized"],
+            onChange: (value: boolean) =>
+              updateSetting("app-open-at-login-minimized", value),
+          },
         ],
       },
       updates: {
-        title: "Updates & Releases",
-        description: "Choose which version channel you'd like to receive",
+        title: "Updates",
+        description: "Configure how you receive application updates",
         settings: [
           {
             type: "select" as const,
             key: "release-channel" as const,
-            label: "Release Channel",
+            label: "Update Channel",
             value: settings["release-channel"],
             options: [
-              { value: "stable", label: "Stable (Recommended)" },
-              { value: "beta", label: "Beta (Early Access)" },
+              { value: "stable", label: "Stable" },
+              { value: "beta", label: "Beta" },
             ],
             onChange: (value: string) =>
-              updateSetting("release-channel", value),
+              updateSetting("release-channel", value as any),
           },
         ],
       },
       gameSelection: {
         title: "Game Selection",
-        description: "Choose which game and leagues to track",
+        description: "Choose which version of Path of Exile you're playing",
         settings: [
           {
             type: "select" as const,
-            key: "selected-game" as const,
-            label: "Active Game",
-            value: settings["selected-game"],
+            key: "installed-games" as const,
+            label: "Installed Games",
+            value: settings["installed-games"],
             options: [
               { value: "poe1", label: "Path of Exile 1" },
               { value: "poe2", label: "Path of Exile 2" },
-              { value: "both", label: "Both Games" },
+              { value: "both", label: "Both" },
             ],
-            onChange: (value: string) => updateSetting("selected-game", value),
+            onChange: updateSetting,
           },
           {
             type: "text" as const,
             key: "selected-poe1-league" as const,
-            label: "Path of Exile 1 League",
+            label: "PoE1 League",
             value: settings["selected-poe1-league"],
-            placeholder: "e.g., Standard, Affliction",
+            placeholder: "Standard",
             onChange: (value: string) =>
               updateSetting("selected-poe1-league", value),
-            hidden: settings["selected-game"] === "poe2",
+            hidden: settings["installed-games"] === "poe2",
           },
           {
             type: "text" as const,
             key: "selected-poe2-league" as const,
-            label: "Path of Exile 2 League",
+            label: "PoE2 League",
             value: settings["selected-poe2-league"],
-            placeholder: "e.g., Standard, Early Access",
+            placeholder: "Standard",
             onChange: (value: string) =>
               updateSetting("selected-poe2-league", value),
-            hidden: settings["selected-game"] === "poe1",
+            hidden: settings["installed-games"] === "poe1",
           },
         ],
       },
@@ -314,7 +310,7 @@ const SettingsPage = () => {
 
             <div className="space-y-4 mt-4">
               {categories.gameSelection.settings.map((setting) => {
-                if ("hidden" in setting && setting.hidden) return null;
+                if (setting.hidden) return null;
 
                 if (setting.type === "select") {
                   return (
@@ -394,8 +390,10 @@ const SettingsPage = () => {
                 if (setting.type === "toggle") {
                   return (
                     <div key={setting.key} className="form-control">
-                      <label className="label cursor-pointer">
-                        <span className="label-text">{setting.label}</span>
+                      <label className="label cursor-pointer justify-start gap-4">
+                        <span className="label-text flex-1">
+                          {setting.label}
+                        </span>
                         <input
                           type="checkbox"
                           className="toggle toggle-primary"
@@ -446,6 +444,29 @@ const SettingsPage = () => {
 
                 return null;
               })}
+            </div>
+          </div>
+        </div>
+
+        {/* App Help Section */}
+        <div className="card bg-base-100 shadow-xl">
+          <div className="card-body">
+            <h2 className="card-title">App Help</h2>
+            <p className="text-sm text-base-content/60">
+              Need help getting started or want a refresher?
+            </p>
+
+            <div className="divider"></div>
+
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
+                <h3 className="font-semibold">App Tour</h3>
+                <p className="text-sm text-base-content/60 mt-1">
+                  Interactive beacons guide you through Soothsayer's features.
+                  Dismissed a beacon? Reset the tour to see them all again.
+                </p>
+              </div>
+              <OnboardingButton variant="button" />
             </div>
           </div>
         </div>

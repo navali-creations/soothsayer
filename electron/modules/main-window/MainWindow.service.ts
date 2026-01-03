@@ -1,26 +1,26 @@
 import { join } from "node:path";
-import { BrowserWindow, dialog, ipcMain } from "electron";
+import { BrowserWindow, dialog, ipcMain, Menu } from "electron";
 import { updateElectronApp } from "update-electron-app";
 
 import {
+  AnalyticsService,
   AppChannel,
   ClientLogReaderService,
   CsvService,
   CurrentSessionService,
   DatabaseService,
   DataStoreService,
+  DivinationCardsService,
   MainWindowChannel,
+  OverlayService,
   PoeLeaguesService,
   PoeNinjaService,
   PoeProcessService,
+  SessionsService,
   SettingsKey,
   SettingsStoreService,
   SnapshotService,
-  AnalyticsService,
-  SessionsService,
   TrayService,
-  OverlayService,
-  DivinationCardsService,
 } from "../../modules";
 
 class MainWindowService {

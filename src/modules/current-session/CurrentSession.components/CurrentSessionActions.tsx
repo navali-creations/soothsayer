@@ -34,7 +34,11 @@ const CurrentSessionActions = () => {
           </Button>
         )}
         {/* Price Source Toggle */}
-        <div role="tablist" className="tabs tabs-border">
+        <div
+          role="tablist"
+          className="tabs tabs-border"
+          data-onboarding="current-session-pricing"
+        >
           <button
             role="tab"
             className={`tab flex flex-row items-center gap-1 ${priceSource === "exchange" ? "tab-active" : ""}`}

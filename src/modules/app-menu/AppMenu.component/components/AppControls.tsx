@@ -19,6 +19,7 @@ const AppControls = () => {
         variant="ghost"
         size="sm"
         title={isOverlayVisible ? "Hide Overlay" : "Show Overlay"}
+        data-onboarding="overlay-icon"
       >
         {isOverlayVisible ? (
           <RiPictureInPictureExitLine size={16} />

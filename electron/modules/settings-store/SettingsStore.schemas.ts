@@ -34,7 +34,7 @@ export const SettingsKey = {
   SelectedPoe2League: "selected-poe2-league",
 
   // Setup and onboarding
-  TourCompleted: "tour-completed",
+  OnboardingDismissedBeacons: "onboarding-dismissed-beacons",
   SetupCompleted: "setup-completed",
   SetupStep: "setup-step",
   SetupVersion: "setup-version", // Track setup flow version for future migrations
@@ -64,7 +64,7 @@ export type SettingsStoreSchema = {
   [SettingsKey.SelectedPoe2League]: string;
 
   // Setup and onboarding
-  [SettingsKey.TourCompleted]: boolean;
+  [SettingsKey.OnboardingDismissedBeacons]: string[];
   [SettingsKey.SetupCompleted]: boolean;
   [SettingsKey.SetupStep]: SetupStep;
   [SettingsKey.SetupVersion]: number;
@@ -90,7 +90,7 @@ export const DEFAULT_SETTINGS: SettingsStoreSchema = {
   [SettingsKey.InstalledGames]: undefined,
   [SettingsKey.SelectedPoe1League]: "Standard",
   [SettingsKey.SelectedPoe2League]: "Standard",
-  [SettingsKey.TourCompleted]: false,
+  [SettingsKey.OnboardingDismissedBeacons]: [],
   [SettingsKey.SetupCompleted]: false,
   [SettingsKey.SetupStep]: 0,
   [SettingsKey.SetupVersion]: 1, // Current setup flow version

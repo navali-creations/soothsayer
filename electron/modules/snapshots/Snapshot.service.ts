@@ -169,19 +169,28 @@ class SnapshotService {
         `Reusing snapshot ${recentSnapshot.id} from ${recentSnapshot.fetchedAt}`,
       );
 
-      // Emit reused snapshot event
-      this.emitSnapshotEvent(SnapshotChannel.OnSnapshotReused, {
-        id: recentSnapshot.id,
-        leagueId: recentSnapshot.leagueId,
-        league: leagueName,
-        game,
-        fetchedAt: recentSnapshot.fetchedAt,
-        exchangeChaosToDivine: recentSnapshot.exchangeChaosToDivine,
-        stashChaosToDivine: recentSnapshot.stashChaosToDivine,
-      });
-
       const data = await this.loadSnapshot(recentSnapshot.id);
       if (data) {
+        // Update card rarities from the reused snapshot's prices
+        // This ensures rarities match the snapshot being used for the session
+        const gameType = game === "poe1" ? "poe1" : "poe2";
+        await this.divinationCards.updateRaritiesFromPrices(
+          gameType,
+          data.exchange.chaosToDivineRatio,
+          data.exchange.cardPrices,
+        );
+
+        // Emit reused snapshot event
+        this.emitSnapshotEvent(SnapshotChannel.OnSnapshotReused, {
+          id: recentSnapshot.id,
+          leagueId: recentSnapshot.leagueId,
+          league: leagueName,
+          game,
+          fetchedAt: recentSnapshot.fetchedAt,
+          exchangeChaosToDivine: recentSnapshot.exchangeChaosToDivine,
+          stashChaosToDivine: recentSnapshot.stashChaosToDivine,
+        });
+
         return { snapshotId: recentSnapshot.id, data };
       }
     }

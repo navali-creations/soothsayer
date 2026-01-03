@@ -1,15 +1,20 @@
+import clsx from "clsx";
 import type { ReactNode } from "react";
 import Flex from "../Flex/Flex";
 
 type TableHeaderProps = {
   children: ReactNode;
   tooltip?: string;
+  className?: string;
 };
 
-const TableHeader = ({ children, tooltip }: TableHeaderProps) => {
+const TableHeader = ({ children, tooltip, className }: TableHeaderProps) => {
   if (tooltip) {
     return (
-      <div className="tooltip tooltip-right tooltip-primary" data-tip={tooltip}>
+      <div
+        className={clsx("tooltip tooltip-right tooltip-primary", className)}
+        data-tip={tooltip}
+      >
         <Flex className="gap-1 items-center border-b border-dotted">
           {children} <sup>?</sup>
         </Flex>

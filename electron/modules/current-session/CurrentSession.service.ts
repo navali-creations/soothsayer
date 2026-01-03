@@ -630,9 +630,22 @@ class CurrentSessionService {
     const recentDrops = recentDropsRaw.map((cardName) => {
       const cardData = cardsObject[cardName];
 
+      // Get the actual rarity from divination card metadata
+      const actualRarity = cardData?.divinationCard?.rarity || 4;
+
+      // Check if the card is marked as hidden for either price source
+      // Hidden cards are typically those with unreliable pricing due to market manipulation
+      const isHiddenExchange = cardData?.exchangePrice?.hidePrice || false;
+      const isHiddenStash = cardData?.stashPrice?.hidePrice || false;
+
+      // If the card is hidden for either source, treat it as common (rarity 4)
+      // This prevents showing inflated rarity for poorly-priced cards
+      const displayRarity =
+        isHiddenExchange || isHiddenStash ? 4 : actualRarity;
+
       return {
         cardName,
-        rarity: cardData?.divinationCard?.rarity || 4, // Default to 4 (common) if not available
+        rarity: displayRarity,
         exchangePrice: {
           chaosValue: cardData?.exchangePrice?.chaosValue || 0,
           divineValue: cardData?.exchangePrice?.divineValue || 0,

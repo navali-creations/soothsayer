@@ -10,7 +10,10 @@ export const createCurrentSessionHidePriceColumn = () => {
   return columnHelper.accessor("name", {
     id: "hidePrice",
     header: () => (
-      <TableHeader tooltip="Hide anomalous prices from total calculations">
+      <TableHeader
+        tooltip="Hide anomalous prices from total calculations"
+        className="flex w-full justify-center pl-1"
+      >
         <FiEye size={14} />
       </TableHeader>
     ),

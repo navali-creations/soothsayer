@@ -1,8 +1,8 @@
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { GiCardExchange } from "react-icons/gi";
-import { useBoundStore } from "../../../store/store";
 import { formatCurrency } from "../../../api/poe-ninja";
-import { Beam } from "../Beam";
+import { useBoundStore } from "../../../store/store";
+import { Beam } from "../Overlay.components";
 
 export const OverlayDropsList = () => {
   const {
@@ -40,7 +40,6 @@ export const OverlayDropsList = () => {
           beam: "",
           showBeam: false,
         };
-      case 4: // Common
       default:
         return {
           bgGradient: "",
