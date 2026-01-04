@@ -1,7 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { SETUP_STEPS } from "../../../electron/modules/app-setup/AppSetup.types";
-import type { GameVersion } from "../../../electron/modules/settings-store/SettingsStore.schemas";
 import { useBoundStore } from "../../store/store";
 
 const SetupPage = () => {
@@ -23,10 +22,12 @@ const SetupPage = () => {
   const skipSetup = useBoundStore((state) => state.skipSetup);
 
   // Settings actions
-  const updateSetting = useBoundStore((state) => state.updateSetting);
+  const updateSetting = useBoundStore((state) => state.settings.updateSetting);
 
   // Local UI state
-  const [selectedGame, setSelectedGame] = useState<GameVersion | null>(null);
+  const [selectedGame, setSelectedGame] = useState<"poe1" | "poe2" | null>(
+    null,
+  );
   const [poe1League, setPoe1League] = useState("");
   const [poe2League, setPoe2League] = useState("");
   const [poe1ClientPath, setPoe1ClientPath] = useState("");
@@ -53,9 +54,9 @@ const SetupPage = () => {
   const currentStep = setupState?.currentStep ?? 0;
 
   // Step 1: Select Game
-  const handleGameSelect = async (game: GameVersion) => {
+  const handleGameSelect = async (game: "poe1" | "poe2") => {
     setSelectedGame(game);
-    await updateSetting("installed-games", game);
+    await updateSetting("selectedGame", game);
     // Re-validate after selection
     await validateCurrentStep();
   };
@@ -63,14 +64,14 @@ const SetupPage = () => {
   // Step 2: Select League(s)
   const handlePoe1LeagueSelect = async (league: string) => {
     setPoe1League(league);
-    await updateSetting("selected-poe1-league", league);
+    await updateSetting("poe1SelectedLeague", league);
     // Re-validate after selection
     await validateCurrentStep();
   };
 
   const handlePoe2LeagueSelect = async (league: string) => {
     setPoe2League(league);
-    await updateSetting("selected-poe2-league", league);
+    await updateSetting("poe2SelectedLeague", league);
     // Re-validate after selection
     await validateCurrentStep();
   };
@@ -85,7 +86,7 @@ const SetupPage = () => {
 
     if (filePath) {
       setPoe1ClientPath(filePath);
-      await updateSetting("poe1-client-txt-path", filePath);
+      await updateSetting("poe1ClientTxtPath", filePath);
       // Re-validate after setting the path
       await validateCurrentStep();
     }
@@ -100,7 +101,7 @@ const SetupPage = () => {
 
     if (filePath) {
       setPoe2ClientPath(filePath);
-      await updateSetting("poe2-client-txt-path", filePath);
+      await updateSetting("poe2ClientTxtPath", filePath);
       // Re-validate after setting the path
       await validateCurrentStep();
     }
@@ -208,11 +209,10 @@ const SetupPage = () => {
               <h2 className="text-2xl font-semibold text-white mb-4">
                 Which game do you play?
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[
                   { value: "poe1" as const, label: "Path of Exile 1" },
                   { value: "poe2" as const, label: "Path of Exile 2" },
-                  { value: "both" as const, label: "Both Games" },
                 ].map((game) => (
                   <button
                     key={game.value}
@@ -236,10 +236,10 @@ const SetupPage = () => {
           {currentStep === SETUP_STEPS.SELECT_LEAGUE && (
             <div>
               <h2 className="text-2xl font-semibold text-white mb-4">
-                Select your league(s)
+                Select your league
               </h2>
 
-              {(selectedGame === "poe1" || selectedGame === "both") && (
+              {selectedGame === "poe1" && (
                 <div className="mb-6">
                   <label className="block text-gray-300 mb-2">
                     Path of Exile 1 League
@@ -254,7 +254,7 @@ const SetupPage = () => {
                 </div>
               )}
 
-              {(selectedGame === "poe2" || selectedGame === "both") && (
+              {selectedGame === "poe2" && (
                 <div className="mb-6">
                   <label className="block text-gray-300 mb-2">
                     Path of Exile 2 League
@@ -275,10 +275,10 @@ const SetupPage = () => {
           {currentStep === SETUP_STEPS.SELECT_CLIENT_PATH && (
             <div>
               <h2 className="text-2xl font-semibold text-white mb-4">
-                Select Client.txt location(s)
+                Select Client.txt location
               </h2>
 
-              {(selectedGame === "poe1" || selectedGame === "both") && (
+              {selectedGame === "poe1" && (
                 <div className="mb-6">
                   <label className="block text-gray-300 mb-2">
                     Path of Exile 1 Client.txt
@@ -301,7 +301,7 @@ const SetupPage = () => {
                 </div>
               )}
 
-              {(selectedGame === "poe2" || selectedGame === "both") && (
+              {selectedGame === "poe2" && (
                 <div className="mb-6">
                   <label className="block text-gray-300 mb-2">
                     Path of Exile 2 Client.txt

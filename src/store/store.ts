@@ -205,6 +205,7 @@ export const useBoundStore = create<BoundStore>()(
               statistics.selectedLeague = "Keepers";
 
               // Reset onboarding
+              onboarding.dismissedBeacons = [];
               onboarding.isLoading = false;
               onboarding.error = null;
             },

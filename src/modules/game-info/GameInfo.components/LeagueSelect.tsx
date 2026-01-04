@@ -1,11 +1,7 @@
-import {
-  type GameVersion,
-  SettingsKey,
-} from "../../../../electron/modules/settings-store/SettingsStore.schemas";
 import { useBoundStore } from "../../../store/store";
 
 type LeagueSelectProps = {
-  game: Extract<GameVersion, "poe1" | "poe2">;
+  game: "poe1" | "poe2";
 };
 
 const LeagueSelect = ({ game }: LeagueSelectProps) => {
@@ -18,10 +14,7 @@ const LeagueSelect = ({ game }: LeagueSelectProps) => {
     game === "poe1" ? getSelectedPoe1League() : getSelectedPoe2League();
 
   const handleLeagueChange = async (league: string) => {
-    const key =
-      game === "poe1"
-        ? SettingsKey.SelectedPoe1League
-        : SettingsKey.SelectedPoe2League;
+    const key = game === "poe1" ? "poe1SelectedLeague" : "poe2SelectedLeague";
     await updateSetting(key, league);
   };
 

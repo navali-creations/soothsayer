@@ -113,6 +113,43 @@ export interface DivinationCardsTable {
   updated_at: ColumnType<string, string | undefined, string | undefined>;
 }
 
+export interface UserSettingsTable {
+  id: ColumnType<number, never, never>; // Single row table, always id=1
+
+  // App settings
+  app_exit_action: string; // "exit" | "minimize"
+  app_open_at_login: number; // SQLite boolean (0 or 1)
+  app_open_at_login_minimized: number; // SQLite boolean (0 or 1)
+
+  // Onboarding settings
+  onboarding_dismissed_beacons: string; // JSON array of beacon IDs
+
+  // Overlay settings
+  overlay_bounds: string | null; // JSON string of { x, y, width, height }
+
+  // PoE1 settings
+  poe1_client_txt_path: string | null;
+  poe1_selected_league: string;
+  poe1_price_source: string; // "exchange" | "stash"
+
+  // PoE2 settings
+  poe2_client_txt_path: string | null;
+  poe2_selected_league: string;
+  poe2_price_source: string; // "exchange" | "stash"
+
+  // Game selection
+  selected_game: string; // "poe1" | "poe2"
+
+  // Setup and onboarding
+  setup_completed: number; // SQLite boolean (0 or 1)
+  setup_step: number; // 0-3
+  setup_version: number;
+
+  // Metadata
+  created_at: ColumnType<string, string | undefined, never>;
+  updated_at: ColumnType<string, string | undefined, string | undefined>;
+}
+
 /**
  * Main database interface
  * Maps table names to their types
@@ -128,4 +165,5 @@ export interface Database {
   processed_ids: ProcessedIdsTable;
   cards: CardsTable;
   divination_cards: DivinationCardsTable;
+  user_settings: UserSettingsTable;
 }

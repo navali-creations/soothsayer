@@ -1,5 +1,4 @@
 import type { StateCreator } from "zustand";
-import type { GameVersion } from "../../../electron/modules/settings-store/SettingsStore.schemas";
 import type { PoeLeague } from "../../../types/poe-league";
 import type { SettingsSlice } from "../settings/Settings.slice";
 
@@ -22,9 +21,7 @@ export interface GameInfoSlice {
 
     // Actions - Leagues
     hydrate: () => Promise<void>;
-    fetchLeagues: (
-      game: Extract<GameVersion, "poe1" | "poe2">,
-    ) => Promise<void>;
+    fetchLeagues: (game: "poe1" | "poe2") => Promise<void>;
     refreshLeagues: () => Promise<void>;
 
     // Actions - Process updates (called by IPC listeners)
@@ -32,12 +29,10 @@ export interface GameInfoSlice {
     setPoe2ProcessState: (state: GameProcessState) => void;
 
     // Getters
-    getLeaguesForGame: (
-      game: Extract<GameVersion, "poe1" | "poe2">,
-    ) => PoeLeague[];
-    isGameOnline: (game: Extract<GameVersion, "poe1" | "poe2">) => boolean;
+    getLeaguesForGame: (game: "poe1" | "poe2") => PoeLeague[];
+    isGameOnline: (game: "poe1" | "poe2") => boolean;
     getActiveGameStatus: () => {
-      game: Extract<GameVersion, "poe1" | "poe2"> | undefined;
+      game: "poe1" | "poe2";
       isOnline: boolean;
       leagues: PoeLeague[];
     };
@@ -185,11 +180,7 @@ export const createGameInfoSlice: StateCreator<
     // Get active game status (combines settings + game info)
     getActiveGameStatus: () => {
       const state = get();
-      const activeGame = state.settings?.data?.["active-game"];
-
-      if (!activeGame) {
-        return { game: undefined, isOnline: false, leagues: [] };
-      }
+      const activeGame = state.settings.getSelectedGame();
 
       const { gameInfo } = state;
       const isOnline = gameInfo.isGameOnline(activeGame);

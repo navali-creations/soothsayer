@@ -1,6 +1,6 @@
 import type { StateCreator } from "zustand";
-import type { SettingsSlice } from "../settings/Settings.slice";
 import type { DetailedDivinationCardStats } from "../../../types/data-stores";
+import type { SettingsSlice } from "../settings/Settings.slice";
 
 export type PriceSource = "exchange" | "stash";
 
@@ -106,7 +106,7 @@ export const createSessionDetailsSlice: StateCreator<
       });
 
       // Persist to backend
-      const activeGame = settings.getActiveGame();
+      const activeGame = settings.getSelectedGame();
       if (activeGame && session.startedAt) {
         try {
           await window.electron.session.updateCardPriceVisibility(

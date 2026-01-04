@@ -1,4 +1,5 @@
 import type { StateCreator } from "zustand";
+import { SettingsKey } from "../../../electron/modules/settings-store/SettingsStore.keys";
 
 export interface OnboardingSlice {
   onboarding: {
@@ -41,12 +42,15 @@ export const createOnboardingSlice: StateCreator<
 
       try {
         const dismissed = await window.electron.settings.get(
-          "onboarding-dismissed-beacons",
+          SettingsKey.OnboardingDismissedBeacons,
         );
 
         set(
           ({ onboarding }) => {
-            onboarding.dismissedBeacons = dismissed;
+            // Ensure we always have an array, even if the setting doesn't exist
+            onboarding.dismissedBeacons = Array.isArray(dismissed)
+              ? dismissed
+              : [];
             onboarding.isLoading = false;
           },
           false,
@@ -69,7 +73,8 @@ export const createOnboardingSlice: StateCreator<
     // Check if a beacon is dismissed
     isDismissed: (key: string) => {
       const { onboarding } = get();
-      return onboarding.dismissedBeacons.includes(key);
+      const beacons = onboarding.dismissedBeacons || [];
+      return beacons.includes(key);
     },
 
     // Dismiss a beacon
@@ -82,7 +87,7 @@ export const createOnboardingSlice: StateCreator<
       try {
         const newDismissed = [...onboarding.dismissedBeacons, key];
         await window.electron.settings.set(
-          "onboarding-dismissed-beacons",
+          SettingsKey.OnboardingDismissedBeacons,
           newDismissed,
         );
 
@@ -117,7 +122,7 @@ export const createOnboardingSlice: StateCreator<
           (k) => k !== key,
         );
         await window.electron.settings.set(
-          "onboarding-dismissed-beacons",
+          SettingsKey.OnboardingDismissedBeacons,
           newDismissed,
         );
 
@@ -144,7 +149,10 @@ export const createOnboardingSlice: StateCreator<
     // Reset all beacons
     resetAll: async () => {
       try {
-        await window.electron.settings.set("onboarding-dismissed-beacons", []);
+        await window.electron.settings.set(
+          SettingsKey.OnboardingDismissedBeacons,
+          [],
+        );
 
         set(
           ({ onboarding }) => {

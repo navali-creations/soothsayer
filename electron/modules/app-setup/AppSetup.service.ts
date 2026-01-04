@@ -1,11 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { ipcMain } from "electron";
-import {
-  type GameVersion,
-  SettingsKey,
-  type SetupStep,
-} from "../settings-store/SettingsStore.schemas";
+import type { SetupStep } from "../settings-store/SettingsStore.dto";
 import { SettingsStoreService } from "../settings-store/SettingsStore.service";
 import { AppSetupChannel } from "./AppSetup.channels";
 import {
@@ -32,13 +28,13 @@ class AppSetupService {
 
   private setupIpcHandlers() {
     // Get current setup state
-    ipcMain.handle(AppSetupChannel.GetSetupState, () => {
-      return this.getSetupState();
+    ipcMain.handle(AppSetupChannel.GetSetupState, async () => {
+      return await this.getSetupState();
     });
 
     // Check if setup is complete
-    ipcMain.handle(AppSetupChannel.IsSetupComplete, () => {
-      return this.isSetupComplete();
+    ipcMain.handle(AppSetupChannel.IsSetupComplete, async () => {
+      return await this.isSetupComplete();
     });
 
     // Advance to next step
@@ -47,66 +43,71 @@ class AppSetupService {
     });
 
     // Go to specific step
-    ipcMain.handle(AppSetupChannel.GoToStep, (_event, step: SetupStep) => {
-      return this.goToStep(step);
-    });
+    ipcMain.handle(
+      AppSetupChannel.GoToStep,
+      async (_event, step: SetupStep) => {
+        return await this.goToStep(step);
+      },
+    );
 
     // Validate current step
-    ipcMain.handle(AppSetupChannel.ValidateCurrentStep, () => {
-      return this.validateCurrentStep();
+    ipcMain.handle(AppSetupChannel.ValidateCurrentStep, async () => {
+      return await this.validateCurrentStep();
     });
 
     // Complete setup
-    ipcMain.handle(AppSetupChannel.CompleteSetup, () => {
-      return this.completeSetup();
+    ipcMain.handle(AppSetupChannel.CompleteSetup, async () => {
+      return await this.completeSetup();
     });
 
     // Reset setup
-    ipcMain.handle(AppSetupChannel.ResetSetup, () => {
-      return this.resetSetup();
+    ipcMain.handle(AppSetupChannel.ResetSetup, async () => {
+      return await this.resetSetup();
     });
 
     // Skip setup (for power users)
-    ipcMain.handle(AppSetupChannel.SkipSetup, () => {
-      return this.skipSetup();
+    ipcMain.handle(AppSetupChannel.SkipSetup, async () => {
+      return await this.skipSetup();
     });
   }
 
   /**
    * Get the current setup state
    */
-  public getSetupState(): SetupState {
+  public async getSetupState(): Promise<SetupState> {
+    const settings = await this.settingsStore.getAllSettings();
+
     return {
-      currentStep: this.settingsStore.get(SettingsKey.SetupStep),
-      isComplete: this.settingsStore.get(SettingsKey.SetupCompleted),
-      selectedGame: this.settingsStore.get(SettingsKey.InstalledGames),
-      poe1League: this.settingsStore.get(SettingsKey.SelectedPoe1League),
-      poe2League: this.settingsStore.get(SettingsKey.SelectedPoe2League),
-      poe1ClientPath: this.settingsStore.get(SettingsKey.Poe1ClientTxtPath),
-      poe2ClientPath: this.settingsStore.get(SettingsKey.Poe2ClientTxtPath),
+      currentStep: settings.setupStep,
+      isComplete: settings.setupCompleted,
+      selectedGame: settings.selectedGame,
+      poe1League: settings.poe1SelectedLeague,
+      poe2League: settings.poe2SelectedLeague,
+      poe1ClientPath: settings.poe1ClientTxtPath,
+      poe2ClientPath: settings.poe2ClientTxtPath,
     };
   }
 
   /**
    * Check if setup is complete
    */
-  public isSetupComplete(): boolean {
-    return this.settingsStore.get(SettingsKey.SetupCompleted);
+  public async isSetupComplete(): Promise<boolean> {
+    return await this.settingsStore.get("setupCompleted");
   }
 
   /**
    * Validate the current setup step
    */
-  public validateCurrentStep(): StepValidationResult {
-    const currentStep = this.settingsStore.get(SettingsKey.SetupStep);
+  public async validateCurrentStep(): Promise<StepValidationResult> {
+    const currentStep = await this.settingsStore.get("setupStep");
 
     switch (currentStep) {
       case SETUP_STEPS.SELECT_GAME:
-        return this.validateGameSelection();
+        return await this.validateGameSelection();
       case SETUP_STEPS.SELECT_LEAGUE:
-        return this.validateLeagueSelection();
+        return await this.validateLeagueSelection();
       case SETUP_STEPS.SELECT_CLIENT_PATH:
-        return this.validateClientPaths();
+        return await this.validateClientPaths();
       default:
         return { isValid: true, errors: [] };
     }
@@ -115,12 +116,12 @@ class AppSetupService {
   /**
    * Validate game selection (Step 1)
    */
-  private validateGameSelection(): StepValidationResult {
-    const selectedGame = this.settingsStore.get(SettingsKey.InstalledGames);
+  private async validateGameSelection(): Promise<StepValidationResult> {
+    const selectedGame = await this.settingsStore.get("selectedGame");
     const errors: string[] = [];
 
     if (!selectedGame) {
-      errors.push("Please select at least one game");
+      errors.push("Please select a game");
     }
 
     return {
@@ -132,19 +133,19 @@ class AppSetupService {
   /**
    * Validate league selection (Step 2)
    */
-  private validateLeagueSelection(): StepValidationResult {
-    const selectedGame = this.settingsStore.get(SettingsKey.InstalledGames);
-    const poe1League = this.settingsStore.get(SettingsKey.SelectedPoe1League);
-    const poe2League = this.settingsStore.get(SettingsKey.SelectedPoe2League);
+  private async validateLeagueSelection(): Promise<StepValidationResult> {
+    const selectedGame = await this.settingsStore.get("selectedGame");
+    const poe1League = await this.settingsStore.get("poe1SelectedLeague");
+    const poe2League = await this.settingsStore.get("poe2SelectedLeague");
     const errors: string[] = [];
 
-    if (selectedGame === "poe1" || selectedGame === "both") {
+    if (selectedGame === "poe1") {
       if (!poe1League || poe1League.trim() === "") {
         errors.push("Please select a PoE1 league");
       }
     }
 
-    if (selectedGame === "poe2" || selectedGame === "both") {
+    if (selectedGame === "poe2") {
       if (!poe2League || poe2League.trim() === "") {
         errors.push("Please select a PoE2 league");
       }
@@ -159,13 +160,13 @@ class AppSetupService {
   /**
    * Validate client.txt paths (Step 3)
    */
-  private validateClientPaths(): StepValidationResult {
-    const selectedGame = this.settingsStore.get(SettingsKey.InstalledGames);
-    const poe1Path = this.settingsStore.get(SettingsKey.Poe1ClientTxtPath);
-    const poe2Path = this.settingsStore.get(SettingsKey.Poe2ClientTxtPath);
+  private async validateClientPaths(): Promise<StepValidationResult> {
+    const selectedGame = await this.settingsStore.get("selectedGame");
+    const poe1Path = await this.settingsStore.get("poe1ClientTxtPath");
+    const poe2Path = await this.settingsStore.get("poe2ClientTxtPath");
     const errors: string[] = [];
 
-    if (selectedGame === "poe1" || selectedGame === "both") {
+    if (selectedGame === "poe1") {
       if (!poe1Path) {
         errors.push("Please select PoE1 Client.txt path");
       } else if (!this.isValidClientPath(poe1Path)) {
@@ -173,7 +174,7 @@ class AppSetupService {
       }
     }
 
-    if (selectedGame === "poe2" || selectedGame === "both") {
+    if (selectedGame === "poe2") {
       if (!poe2Path) {
         errors.push("Please select PoE2 Client.txt path");
       } else if (!this.isValidClientPath(poe2Path)) {
@@ -221,7 +222,7 @@ class AppSetupService {
    */
   public async advanceStep(): Promise<{ success: boolean; error?: string }> {
     // Validate current step before advancing
-    const validation = this.validateCurrentStep();
+    const validation = await this.validateCurrentStep();
     if (!validation.isValid) {
       return {
         success: false,
@@ -229,23 +230,25 @@ class AppSetupService {
       };
     }
 
-    const currentStep = this.settingsStore.get(SettingsKey.SetupStep);
+    const currentStep = await this.settingsStore.get("setupStep");
     const nextStep = (currentStep + 1) as SetupStep;
 
     // If we've completed all steps, mark setup as complete
     if (nextStep > SETUP_STEPS.SELECT_CLIENT_PATH) {
-      return this.completeSetup();
+      return await this.completeSetup();
     }
 
-    this.settingsStore.set(SettingsKey.SetupStep, nextStep);
+    await this.settingsStore.set("setupStep", nextStep);
     return { success: true };
   }
 
   /**
    * Go to a specific setup step
    */
-  public goToStep(step: SetupStep): { success: boolean; error?: string } {
-    const currentStep = this.settingsStore.get(SettingsKey.SetupStep);
+  public async goToStep(
+    step: SetupStep,
+  ): Promise<{ success: boolean; error?: string }> {
+    const currentStep = await this.settingsStore.get("setupStep");
 
     // Don't allow skipping ahead
     if (step > currentStep + 1) {
@@ -255,18 +258,18 @@ class AppSetupService {
       };
     }
 
-    this.settingsStore.set(SettingsKey.SetupStep, step);
+    await this.settingsStore.set("setupStep", step);
     return { success: true };
   }
 
   /**
    * Complete the setup process
    */
-  public completeSetup(): { success: boolean; error?: string } {
+  public async completeSetup(): Promise<{ success: boolean; error?: string }> {
     // Validate all steps one final time
-    const gameValidation = this.validateGameSelection();
-    const leagueValidation = this.validateLeagueSelection();
-    const pathValidation = this.validateClientPaths();
+    const gameValidation = await this.validateGameSelection();
+    const leagueValidation = await this.validateLeagueSelection();
+    const pathValidation = await this.validateClientPaths();
 
     const allErrors = [
       ...gameValidation.errors,
@@ -282,8 +285,8 @@ class AppSetupService {
     }
 
     // Mark setup as complete
-    this.settingsStore.set(SettingsKey.SetupCompleted, true);
-    this.settingsStore.set(SettingsKey.SetupStep, 3);
+    await this.settingsStore.set("setupCompleted", true);
+    await this.settingsStore.set("setupStep", 3);
 
     return { success: true };
   }
@@ -291,18 +294,17 @@ class AppSetupService {
   /**
    * Reset setup (for re-running the wizard)
    */
-  public resetSetup(): void {
-    this.settingsStore.set(SettingsKey.SetupCompleted, false);
-    this.settingsStore.set(SettingsKey.SetupStep, 0);
-    this.settingsStore.set(SettingsKey.TourCompleted, false);
+  public async resetSetup(): Promise<void> {
+    await this.settingsStore.set("setupCompleted", false);
+    await this.settingsStore.set("setupStep", 0);
   }
 
   /**
    * Skip setup (for power users who want to configure manually)
    */
-  public skipSetup(): void {
-    this.settingsStore.set(SettingsKey.SetupCompleted, true);
-    this.settingsStore.set(SettingsKey.SetupStep, 3);
+  public async skipSetup(): Promise<void> {
+    await this.settingsStore.set("setupCompleted", true);
+    await this.settingsStore.set("setupStep", 3);
   }
 }
 

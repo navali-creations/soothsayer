@@ -1,6 +1,6 @@
 import path from "node:path";
-import { app } from "electron";
 import Database from "better-sqlite3";
+import { app } from "electron";
 import { Kysely, SqliteDialect } from "kysely";
 import type { Database as DatabaseSchema } from "./Database.types";
 
@@ -324,6 +324,53 @@ class DatabaseService {
       CREATE INDEX IF NOT EXISTS idx_divination_cards_stack_size
       ON divination_cards(stack_size)
     `);
+
+      // ═══════════════════════════════════════════════════════════════
+      // USER SETTINGS (single row table for application settings)
+      // ═══════════════════════════════════════════════════════════════
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS user_settings (
+          id INTEGER PRIMARY KEY CHECK(id = 1),
+
+          -- App settings
+          app_exit_action TEXT NOT NULL DEFAULT 'exit' CHECK(app_exit_action IN ('exit', 'minimize')),
+          app_open_at_login INTEGER NOT NULL DEFAULT 0,
+          app_open_at_login_minimized INTEGER NOT NULL DEFAULT 0,
+
+          -- Onboarding settings
+          onboarding_dismissed_beacons TEXT NOT NULL DEFAULT '[]',
+
+          -- Overlay settings
+          overlay_bounds TEXT,
+
+          -- PoE1 settings
+          poe1_client_txt_path TEXT,
+          poe1_selected_league TEXT NOT NULL DEFAULT 'Standard',
+          poe1_price_source TEXT NOT NULL DEFAULT 'exchange' CHECK(poe1_price_source IN ('exchange', 'stash')),
+
+          -- PoE2 settings
+          poe2_client_txt_path TEXT,
+          poe2_selected_league TEXT NOT NULL DEFAULT 'Standard',
+          poe2_price_source TEXT NOT NULL DEFAULT 'stash' CHECK(poe2_price_source IN ('exchange', 'stash')),
+
+          -- Game selection
+          selected_game TEXT NOT NULL DEFAULT 'poe1' CHECK(selected_game IN ('poe1', 'poe2')),
+
+          -- Setup and onboarding
+          setup_completed INTEGER NOT NULL DEFAULT 0,
+          setup_step INTEGER NOT NULL DEFAULT 0 CHECK(setup_step >= 0 AND setup_step <= 3),
+          setup_version INTEGER NOT NULL DEFAULT 1,
+
+          -- Metadata
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+      `);
+
+      // Initialize settings row if it doesn't exist
+      this.db.exec(`
+        INSERT OR IGNORE INTO user_settings (id) VALUES (1)
+      `);
     });
 
     transaction();

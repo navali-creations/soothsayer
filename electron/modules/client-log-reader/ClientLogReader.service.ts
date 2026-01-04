@@ -21,12 +21,16 @@ class ClientLogReaderService extends EventEmitter {
   private session: CurrentSessionService;
   private settingsStore: SettingsStoreService;
   private perfLogger: PerformanceLoggerService;
-  private game: GameType;
-  private clientLogPath: string;
+  private game: GameType | null = null;
+  private clientLogPath: string | null = null;
+  private initialized: boolean = false;
 
-  static getInstance(mainWindow: MainWindowService): ClientLogReaderService {
+  static async getInstance(
+    mainWindow: MainWindowService,
+  ): Promise<ClientLogReaderService> {
     if (!ClientLogReaderService._instance) {
       ClientLogReaderService._instance = new ClientLogReaderService(mainWindow);
+      await ClientLogReaderService._instance.initialize();
     }
 
     return ClientLogReaderService._instance;
@@ -38,13 +42,33 @@ class ClientLogReaderService extends EventEmitter {
     this.session = CurrentSessionService.getInstance();
     this.settingsStore = SettingsStoreService.getInstance();
     this.perfLogger = PerformanceLoggerService.getInstance();
-    this.game = this.settingsStore.get(SettingsKey.ActiveGame) as GameType;
-    this.clientLogPath = this.settingsStore.get(SettingsKey.Poe1ClientTxtPath)!;
+  }
 
-    this.watchFile(this.clientLogPath);
+  private async initialize(): Promise<void> {
+    if (this.initialized) return;
+
+    this.game = (await this.settingsStore.get(
+      SettingsKey.ActiveGame,
+    )) as GameType;
+    this.clientLogPath = await this.settingsStore.get(
+      SettingsKey.Poe1ClientTxtPath,
+    );
+
+    if (this.clientLogPath) {
+      this.watchFile(this.clientLogPath);
+    }
+
+    this.initialized = true;
   }
 
   public watchFile(clientLogPath: string): void {
+    if (!this.game) {
+      console.warn(
+        "[ClientLogReader] Cannot watch file - game not initialized",
+      );
+      return;
+    }
+
     fs.watchFile(clientLogPath, { interval: 100 }, async () => {
       const perf = this.perfLogger.startTimers();
       const overallTimer = this.perfLogger.startTimer("Processing summary");
@@ -127,7 +151,9 @@ class ClientLogReaderService extends EventEmitter {
   }
 
   public stopWatchFile(): void {
-    fs.unwatchFile(this.clientLogPath);
+    if (this.clientLogPath) {
+      fs.unwatchFile(this.clientLogPath);
+    }
   }
 
   /**

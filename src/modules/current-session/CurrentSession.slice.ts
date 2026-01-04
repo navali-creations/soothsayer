@@ -1,8 +1,7 @@
+import type { StateCreator } from "zustand";
+import type { DetailedDivinationCardStats } from "../../../types/data-stores";
 import type { SettingsSlice } from "../../modules/settings/Settings.slice";
 import type { PoeNinjaSlice } from "../poe-ninja/PoeNinja.slice";
-import type { StateCreator } from "zustand";
-import type { GameVersion as GameType } from "../../../electron/modules/settings-store/SettingsStore.schemas";
-import type { DetailedDivinationCardStats } from "../../../types/data-stores";
 
 export interface SessionSlice {
   currentSession: {
@@ -25,20 +24,20 @@ export interface SessionSlice {
 
     // Internal setters
     updateSession: (
-      game: GameType,
+      game: "poe1" | "poe2",
       session: DetailedDivinationCardStats,
     ) => void;
     updateSessionInfo: (
-      game: GameType,
+      game: "poe1" | "poe2",
       info: { league: string; startedAt: string } | null,
     ) => void;
-    clearSession: (game: GameType) => void;
+    clearSession: (game: "poe1" | "poe2") => void;
 
     // Getters
     getSession: () => DetailedDivinationCardStats | null;
     getSessionInfo: () => { league: string; startedAt: string } | null;
     getIsCurrentSessionActive: () => boolean;
-    getTotalCards: (game: GameType) => number;
+    getTotalCards: (game: "poe1" | "poe2") => number;
     getChaosToDivineRatio: () => number;
   };
 }
@@ -164,9 +163,9 @@ export const createSessionSlice: StateCreator<
     // Start a session
     startSession: async () => {
       const {
-        settings: { getActiveGame, getActiveGameViewSelectedLeague },
+        settings: { getSelectedGame, getActiveGameViewSelectedLeague },
       } = get();
-      const activeGameView = getActiveGame();
+      const activeGameView = getSelectedGame();
       const activeGameViewSelectedLeague = getActiveGameViewSelectedLeague();
 
       if (!activeGameView || !activeGameViewSelectedLeague) return;
@@ -230,9 +229,9 @@ export const createSessionSlice: StateCreator<
     // Stop a session
     stopSession: async () => {
       const {
-        settings: { getActiveGame },
+        settings: { getSelectedGame },
       } = get();
-      const activeGameView = getActiveGame();
+      const activeGameView = getSelectedGame();
       set(({ currentSession }) => {
         currentSession.isLoading = true;
       });
@@ -290,7 +289,7 @@ export const createSessionSlice: StateCreator<
     // Getters
     getSession: () => {
       const { currentSession, settings } = get();
-      const activeGameView = settings.getActiveGame();
+      const activeGameView = settings.getSelectedGame();
       return activeGameView === "poe1"
         ? currentSession.poe1Session
         : currentSession.poe2Session;
@@ -298,7 +297,7 @@ export const createSessionSlice: StateCreator<
 
     getSessionInfo: () => {
       const { currentSession, settings } = get();
-      const activeGameView = settings.getActiveGame();
+      const activeGameView = settings.getSelectedGame();
 
       return activeGameView === "poe1"
         ? currentSession.poe1SessionInfo
@@ -328,11 +327,11 @@ export const createSessionSlice: StateCreator<
       priceSource: "exchange" | "stash",
     ) => {
       const {
-        settings: { getActiveGame },
+        settings: { getSelectedGame },
         currentSession: { getSession },
       } = get();
 
-      const activeGameView = getActiveGame();
+      const activeGameView = getSelectedGame();
       const session = getSession();
 
       if (!session) return;

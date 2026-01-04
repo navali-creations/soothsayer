@@ -1,49 +1,36 @@
 import { ipcRenderer } from "electron";
-import type { PriceSource } from "../../../types/data-stores";
 import { SettingsStoreChannel } from "./SettingsStore.channels";
-import type {
-  AppExitActions,
-  GameVersion,
-  ReleaseChannels,
-  SettingsStoreSchema,
-} from "./SettingsStore.schemas";
+import type { UserSettingsDTO } from "./SettingsStore.dto";
 
 const SettingsStoreAPI = {
   // Get all settings
-  getAll: (): Promise<SettingsStoreSchema> =>
+  getAll: (): Promise<UserSettingsDTO> =>
     ipcRenderer.invoke(SettingsStoreChannel.GetAllSettings),
 
   // Generic get/set
-  get: <K extends keyof SettingsStoreSchema>(
-    key: K,
-  ): Promise<SettingsStoreSchema[K]> =>
+  get: <K extends keyof UserSettingsDTO>(key: K): Promise<UserSettingsDTO[K]> =>
     ipcRenderer.invoke(SettingsStoreChannel.GetSetting, key),
-  set: <K extends keyof SettingsStoreSchema>(
+  set: <K extends keyof UserSettingsDTO>(
     key: K,
-    value: SettingsStoreSchema[K],
+    value: UserSettingsDTO[K],
   ): Promise<void> =>
     ipcRenderer.invoke(SettingsStoreChannel.SetSetting, key, value),
 
   // Client paths
-  getPoe1ClientPath: (): Promise<string | undefined> =>
+  getPoe1ClientPath: (): Promise<string | null> =>
     ipcRenderer.invoke(SettingsStoreChannel.GetPoe1ClientPath),
   setPoe1ClientPath: (path: string): Promise<void> =>
     ipcRenderer.invoke(SettingsStoreChannel.SetPoe1ClientPath, path),
 
-  getPoe2ClientPath: (): Promise<string | undefined> =>
+  getPoe2ClientPath: (): Promise<string | null> =>
     ipcRenderer.invoke(SettingsStoreChannel.GetPoe2ClientPath),
   setPoe2ClientPath: (path: string): Promise<void> =>
     ipcRenderer.invoke(SettingsStoreChannel.SetPoe2ClientPath, path),
 
   // App behavior
-  getReleaseChannel: (): Promise<ReleaseChannels> =>
-    ipcRenderer.invoke(SettingsStoreChannel.GetReleaseChannel),
-  setReleaseChannel: (channel: ReleaseChannels): Promise<void> =>
-    ipcRenderer.invoke(SettingsStoreChannel.SetReleaseChannel, channel),
-
-  getAppExitBehavior: (): Promise<AppExitActions> =>
+  getAppExitBehavior: (): Promise<"exit" | "minimize"> =>
     ipcRenderer.invoke(SettingsStoreChannel.GetAppExitBehavior),
-  setAppExitBehavior: (behavior: AppExitActions): Promise<void> =>
+  setAppExitBehavior: (behavior: "exit" | "minimize"): Promise<void> =>
     ipcRenderer.invoke(SettingsStoreChannel.SetAppExitBehavior, behavior),
 
   getLaunchOnStartup: (): Promise<boolean> =>
@@ -56,12 +43,13 @@ const SettingsStoreAPI = {
   setStartMinimized: (enabled: boolean): Promise<void> =>
     ipcRenderer.invoke(SettingsStoreChannel.SetStartMinimized, enabled),
 
-  // Game and league selection
-  getSelectedGame: (): Promise<GameVersion> =>
-    ipcRenderer.invoke(SettingsStoreChannel.GetInstalledGames),
-  setSelectedGame: (game: GameVersion): Promise<void> =>
-    ipcRenderer.invoke(SettingsStoreChannel.SetInstalledGames, game),
+  // Game selection
+  getActiveGame: (): Promise<"poe1" | "poe2"> =>
+    ipcRenderer.invoke(SettingsStoreChannel.GetActiveGame),
+  setActiveGame: (game: "poe1" | "poe2"): Promise<void> =>
+    ipcRenderer.invoke(SettingsStoreChannel.SetActiveGame, game),
 
+  // League selection
   getSelectedPoe1League: (): Promise<string> =>
     ipcRenderer.invoke(SettingsStoreChannel.GetSelectedPoe1League),
   setSelectedPoe1League: (leagueId: string): Promise<void> =>
@@ -72,14 +60,15 @@ const SettingsStoreAPI = {
   setSelectedPoe2League: (leagueId: string): Promise<void> =>
     ipcRenderer.invoke(SettingsStoreChannel.SetSelectedPoe2League, leagueId),
 
-  getSelectedPoe1PriceSource: (): Promise<PriceSource> =>
+  // Price source selection
+  getSelectedPoe1PriceSource: (): Promise<"exchange" | "stash"> =>
     ipcRenderer.invoke(SettingsStoreChannel.GetSelectedPoe1PriceSource),
-  setSelectedPoe1PriceSource: (source: PriceSource): Promise<void> =>
+  setSelectedPoe1PriceSource: (source: "exchange" | "stash"): Promise<void> =>
     ipcRenderer.invoke(SettingsStoreChannel.SetSelectedPoe1PriceSource, source),
 
-  getSelectedPoe2PriceSource: (): Promise<PriceSource> =>
+  getSelectedPoe2PriceSource: (): Promise<"exchange" | "stash"> =>
     ipcRenderer.invoke(SettingsStoreChannel.GetSelectedPoe2PriceSource),
-  setSelectedPoe2PriceSource: (source: PriceSource): Promise<void> =>
+  setSelectedPoe2PriceSource: (source: "exchange" | "stash"): Promise<void> =>
     ipcRenderer.invoke(SettingsStoreChannel.SetSelectedPoe2PriceSource, source),
 
   // Database management

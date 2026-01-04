@@ -1,55 +1,45 @@
 import type { StateCreator } from "zustand";
-import type {
-  GameVersion,
-  SettingsStoreSchema,
-} from "../../../electron/modules/settings-store/SettingsStore.schemas";
-import type { PriceSource } from "../../../types/data-stores";
+import type { UserSettingsDTO } from "../../../electron/modules/settings-store/SettingsStore.dto";
 
 export interface SettingsSlice {
-  settings: {
-    // State
-    data: SettingsStoreSchema | null;
+  settings: UserSettingsDTO & {
+    // Additional state (not persisted in DB)
     isLoading: boolean;
     error: string | null;
 
     // Actions
     hydrate: () => Promise<void>;
-    updateSetting: <K extends keyof SettingsStoreSchema>(
+    updateSetting: <K extends keyof UserSettingsDTO>(
       key: K,
-      value: SettingsStoreSchema[K],
+      value: UserSettingsDTO[K],
     ) => Promise<void>;
-    setSetting: <K extends keyof SettingsStoreSchema>(
+    setSetting: <K extends keyof UserSettingsDTO>(
       key: K,
-      value: SettingsStoreSchema[K],
+      value: UserSettingsDTO[K],
     ) => void;
-    setSettings: (settings: SettingsStoreSchema) => void;
+    setSettings: (settings: UserSettingsDTO) => void;
     setError: (error: string | null) => void;
 
     // Getters - App behavior
-    getReleaseChannel: () => SettingsStoreSchema["release-channel"];
-    getAppExitAction: () => SettingsStoreSchema["app-exit-action"];
+    getAppExitAction: () => "exit" | "minimize";
     getAppOpenAtLogin: () => boolean;
     getAppOpenAtLoginMinimized: () => boolean;
 
     // Getters - File paths
-    getPoe1ClientTxtPath: () => string | undefined;
-    getPoe2ClientTxtPath: () => string | undefined;
-    getCollectionPath: () => string | undefined;
+    getPoe1ClientTxtPath: () => string | null;
+    getPoe2ClientTxtPath: () => string | null;
 
     // Getters - Game and league selection
-    getActiveGame: () => Omit<GameVersion, "both"> | undefined;
-    getActiveGameViewSelectedLeague: () => string | undefined;
-    getInstalledGames: () => GameVersion | undefined;
+    getSelectedGame: () => "poe1" | "poe2";
+    getActiveGameViewSelectedLeague: () => string;
     getSelectedPoe1League: () => string;
     getSelectedPoe2League: () => string;
 
-    // Getters - Setup and onboarding
-    isTourComplete: () => boolean;
-    isSetupComplete: () => boolean;
-    getSetupStep: () => SettingsStoreSchema["setup-step"];
-    getSetupVersion: () => number;
-    getActiveGameViewPriceSource: () => PriceSource;
-    setActiveGameViewPriceSource: (source: PriceSource) => Promise<void>;
+    // Getters - Price sources
+    getActiveGameViewPriceSource: () => "exchange" | "stash";
+    setActiveGameViewPriceSource: (
+      source: "exchange" | "stash",
+    ) => Promise<void>;
   };
 }
 
@@ -60,8 +50,22 @@ export const createSettingsSlice: StateCreator<
   SettingsSlice
 > = (set, get) => ({
   settings: {
-    // Initial state
-    data: null,
+    // Initial state from UserSettingsDTO (with defaults)
+    appExitAction: "exit",
+    appOpenAtLogin: false,
+    appOpenAtLoginMinimized: false,
+    poe1ClientTxtPath: null,
+    poe1SelectedLeague: "Standard",
+    poe1PriceSource: "exchange",
+    poe2ClientTxtPath: null,
+    poe2SelectedLeague: "Standard",
+    poe2PriceSource: "stash",
+    selectedGame: "poe1",
+    setupCompleted: false,
+    setupStep: 0,
+    setupVersion: 1,
+
+    // Additional state
     isLoading: false,
     error: null,
 
@@ -80,7 +84,20 @@ export const createSettingsSlice: StateCreator<
         const data = await window.electron.settings.getAll();
         set(
           ({ settings }) => {
-            settings.data = data;
+            // Only assign DTO properties
+            settings.appExitAction = data.appExitAction;
+            settings.appOpenAtLogin = data.appOpenAtLogin;
+            settings.appOpenAtLoginMinimized = data.appOpenAtLoginMinimized;
+            settings.poe1ClientTxtPath = data.poe1ClientTxtPath;
+            settings.poe1SelectedLeague = data.poe1SelectedLeague;
+            settings.poe1PriceSource = data.poe1PriceSource;
+            settings.poe2ClientTxtPath = data.poe2ClientTxtPath;
+            settings.poe2SelectedLeague = data.poe2SelectedLeague;
+            settings.poe2PriceSource = data.poe2PriceSource;
+            settings.selectedGame = data.selectedGame;
+            settings.setupCompleted = data.setupCompleted;
+            settings.setupStep = data.setupStep;
+            settings.setupVersion = data.setupVersion;
             settings.isLoading = false;
           },
           false,
@@ -101,17 +118,17 @@ export const createSettingsSlice: StateCreator<
     },
 
     // Update a setting (optimistic update)
-    updateSetting: async (key, value) => {
+    updateSetting: async <K extends keyof UserSettingsDTO>(
+      key: K,
+      value: UserSettingsDTO[K],
+    ) => {
       const { settings } = get();
-      if (!settings.data) return;
 
       // Optimistic update - update Zustand immediately
-      const previousValue = settings.data[key];
+      const previousValue = settings[key];
       set(
         ({ settings }) => {
-          if (settings.data) {
-            settings.data[key] = value;
-          }
+          (settings as any)[key] = value;
         },
         false,
         `settingsSlice/updateSetting/${String(key)}`,
@@ -126,9 +143,7 @@ export const createSettingsSlice: StateCreator<
         // Rollback on error
         set(
           ({ settings }) => {
-            if (settings.data) {
-              settings.data[key] = previousValue;
-            }
+            (settings as any)[key] = previousValue;
             settings.error =
               error instanceof Error ? error.message : "Update failed";
           },
@@ -139,12 +154,13 @@ export const createSettingsSlice: StateCreator<
     },
 
     // Direct setter (for IPC listeners)
-    setSetting: (key, value) => {
+    setSetting: <K extends keyof UserSettingsDTO>(
+      key: K,
+      value: UserSettingsDTO[K],
+    ) => {
       set(
         ({ settings }) => {
-          if (settings.data) {
-            settings.data[key] = value;
-          }
+          (settings as any)[key] = value;
         },
         false,
         `settingsSlice/setSetting/${String(key)}`,
@@ -152,10 +168,23 @@ export const createSettingsSlice: StateCreator<
     },
 
     // Set all settings at once
-    setSettings: (newSettings) => {
+    setSettings: (newSettings: UserSettingsDTO) => {
       set(
         ({ settings }) => {
-          settings.data = newSettings;
+          settings.appExitAction = newSettings.appExitAction;
+          settings.appOpenAtLogin = newSettings.appOpenAtLogin;
+          settings.appOpenAtLoginMinimized =
+            newSettings.appOpenAtLoginMinimized;
+          settings.poe1ClientTxtPath = newSettings.poe1ClientTxtPath;
+          settings.poe1SelectedLeague = newSettings.poe1SelectedLeague;
+          settings.poe1PriceSource = newSettings.poe1PriceSource;
+          settings.poe2ClientTxtPath = newSettings.poe2ClientTxtPath;
+          settings.poe2SelectedLeague = newSettings.poe2SelectedLeague;
+          settings.poe2PriceSource = newSettings.poe2PriceSource;
+          settings.selectedGame = newSettings.selectedGame;
+          settings.setupCompleted = newSettings.setupCompleted;
+          settings.setupStep = newSettings.setupStep;
+          settings.setupVersion = newSettings.setupVersion;
         },
         false,
         "settingsSlice/setSettings",
@@ -174,110 +203,70 @@ export const createSettingsSlice: StateCreator<
     },
 
     // Getters - App behavior
-    getReleaseChannel: () => {
-      const { settings } = get();
-      return settings.data?.["release-channel"] ?? "stable";
-    },
-
     getAppExitAction: () => {
       const { settings } = get();
-      return settings.data?.["app-exit-action"] ?? "minimize-to-tray";
+      return settings.appExitAction;
     },
 
     getAppOpenAtLogin: () => {
       const { settings } = get();
-      return settings.data?.["app-open-at-login"] ?? false;
+      return settings.appOpenAtLogin;
     },
 
     getAppOpenAtLoginMinimized: () => {
       const { settings } = get();
-      return settings.data?.["app-open-at-login-minimized"] ?? false;
+      return settings.appOpenAtLoginMinimized;
     },
 
     // Getters - File paths
     getPoe1ClientTxtPath: () => {
       const { settings } = get();
-      return settings.data?.["poe1-client-txt-path"];
+      return settings.poe1ClientTxtPath;
     },
 
     getPoe2ClientTxtPath: () => {
       const { settings } = get();
-      return settings.data?.["poe2-client-txt-path"];
-    },
-
-    getCollectionPath: () => {
-      const { settings } = get();
-      return settings.data?.["collection-path"];
+      return settings.poe2ClientTxtPath;
     },
 
     // Getters - Game and league selection
-    getActiveGame: () => {
+    getSelectedGame: () => {
       const { settings } = get();
-      return settings.data?.["active-game"];
+      return settings.selectedGame;
     },
 
     getActiveGameViewSelectedLeague: () => {
       const { settings } = get();
-      const activeGameView = settings.getActiveGame() as Extract<
-        GameVersion,
-        "poe1" | "poe2"
-      >;
-
-      return settings.data?.[`selected-${activeGameView}-league`];
-    },
-
-    getInstalledGames: () => {
-      const { settings } = get();
-      return settings.data?.["installed-games"];
+      const activeGame = settings.selectedGame;
+      return activeGame === "poe1"
+        ? settings.poe1SelectedLeague
+        : settings.poe2SelectedLeague;
     },
 
     getSelectedPoe1League: () => {
       const { settings } = get();
-      return settings.data?.["selected-poe1-league"] ?? "Standard";
+      return settings.poe1SelectedLeague;
     },
 
     getSelectedPoe2League: () => {
       const { settings } = get();
-      return settings.data?.["selected-poe2-league"] ?? "Standard";
+      return settings.poe2SelectedLeague;
     },
 
-    // Getters - Setup and onboarding
-    isTourComplete: () => {
-      const { settings } = get();
-      return settings.data?.["tour-completed"] ?? false;
-    },
-
-    isSetupComplete: () => {
-      const { settings } = get();
-      return settings.data?.["setup-completed"] ?? false;
-    },
-
-    getSetupStep: () => {
-      const { settings } = get();
-      return settings.data?.["setup-step"] ?? 0;
-    },
-
-    getSetupVersion: () => {
-      const { settings } = get();
-      return settings.data?.["setup-version"] ?? 1;
-    },
-
+    // Getters - Price sources
     getActiveGameViewPriceSource: () => {
       const { settings } = get();
-      const activeGame = get().settings.getActiveGame();
+      const activeGame = settings.selectedGame;
       return activeGame === "poe1"
-        ? (settings.data?.["selected-poe1-price-source"] ?? "exchange")
-        : (settings.data?.["selected-poe2-price-source"] ?? "exchange");
+        ? settings.poe1PriceSource
+        : settings.poe2PriceSource;
     },
 
-    // NEW: Set price source for active game
-    setActiveGameViewPriceSource: async (source: PriceSource) => {
-      const activeGame = get().settings.getActiveGame();
-      const key =
-        activeGame === "poe1"
-          ? "selected-poe1-price-source"
-          : "selected-poe2-price-source";
-      await get().settings.updateSetting(key, source);
+    setActiveGameViewPriceSource: async (source: "exchange" | "stash") => {
+      const { settings } = get();
+      const activeGame = settings.selectedGame;
+      const key = activeGame === "poe1" ? "poe1PriceSource" : "poe2PriceSource";
+      await settings.updateSetting(key, source);
     },
   },
 });

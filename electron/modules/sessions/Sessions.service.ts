@@ -2,10 +2,9 @@ import { ipcMain } from "electron";
 import type { DetailedDivinationCardStats } from "../../../types/data-stores";
 import { DatabaseService } from "../database/Database.service";
 import { SnapshotService } from "../snapshots/Snapshot.service";
-import type { GameVersion } from "../settings-store/SettingsStore.schemas";
 import { SessionsChannel } from "./Sessions.channels";
-import { SessionsRepository } from "./Sessions.repository";
 import type { SessionSummaryDTO, SessionsPageDTO } from "./Sessions.dto";
+import { SessionsRepository } from "./Sessions.repository";
 
 class SessionsService {
   private static _instance: SessionsService;
@@ -31,7 +30,7 @@ class SessionsService {
       SessionsChannel.GetAll,
       async (
         _event,
-        game: GameVersion,
+        game: "poe1" | "poe2",
         page: number = 1,
         pageSize: number = 20,
       ): Promise<SessionsPageDTO> => {
@@ -50,7 +49,7 @@ class SessionsService {
       SessionsChannel.SearchByCard,
       async (
         _event,
-        game: GameVersion,
+        game: "poe1" | "poe2",
         cardName: string,
         page: number = 1,
         pageSize: number = 20,
@@ -64,7 +63,7 @@ class SessionsService {
    * Get all sessions for a game with pagination
    */
   private async getAllSessions(
-    game: GameVersion,
+    game: "poe1" | "poe2",
     page: number = 1,
     pageSize: number = 20,
   ): Promise<SessionsPageDTO> {
@@ -196,7 +195,7 @@ class SessionsService {
    * Search sessions by card name with pagination
    */
   private async searchSessionsByCard(
-    game: GameVersion,
+    game: "poe1" | "poe2",
     cardName: string,
     page: number = 1,
     pageSize: number = 20,

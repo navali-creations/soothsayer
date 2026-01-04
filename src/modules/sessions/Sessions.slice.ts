@@ -1,7 +1,7 @@
 import type { StateCreator } from "zustand";
-import type { SettingsSlice } from "../settings/Settings.slice";
 import type { SessionSummary } from "../../../electron/modules/sessions";
 import type { DetailedDivinationCardStats } from "../../../types/data-stores";
+import type { SettingsSlice } from "../settings/Settings.slice";
 
 export interface SessionsSlice {
   sessions: {
@@ -72,7 +72,7 @@ export const createSessionsSlice: StateCreator<
       });
 
       try {
-        const activeGame = get().settings.getActiveGame();
+        const activeGame = get().settings.getSelectedGame();
         const currentPage = page ?? get().sessions.currentPage;
         const pageSize = get().sessions.pageSize;
 
@@ -204,7 +204,7 @@ export const createSessionsSlice: StateCreator<
       });
 
       try {
-        const activeGame = get().settings.getActiveGame();
+        const activeGame = get().settings.getSelectedGame();
         const currentPage = page ?? get().sessions.currentPage;
         const pageSize = get().sessions.pageSize;
 

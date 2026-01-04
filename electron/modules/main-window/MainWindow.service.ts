@@ -130,7 +130,10 @@ class MainWindowService {
     TrayService.getInstance().createTray();
     // updateElectronApp();
 
-    ClientLogReaderService.getInstance(this.mainWindow)
+    const clientLogReader = await ClientLogReaderService.getInstance(
+      this.mainWindow,
+    );
+    clientLogReader
       .on("clientlog-start", (data) => {})
       .on("clientlog-stop", (data) => {});
 
@@ -176,9 +179,10 @@ class MainWindowService {
      */
     ipcMain.handle(MainWindowChannel.Close, async () => {
       const shouldAppQuitBasedOnUserPreference =
-        this.settingsStore?.get(SettingsKey.AppExitAction) === AppChannel.Quit;
+        (await this.settingsStore.get(SettingsKey.AppExitAction)) ===
+        AppChannel.Quit;
       const shouldAppHideBasedOnUserPreference =
-        this.settingsStore?.get(SettingsKey.AppExitAction) ===
+        (await this.settingsStore.get(SettingsKey.AppExitAction)) ===
         AppChannel.MinimizeToTray;
 
       const byDefaultQuitApp =
@@ -210,11 +214,11 @@ class MainWindowService {
   public showAppOnceReadyToShow() {
     if (!((this.mainWindow as BrowserWindow) instanceof BrowserWindow)) return;
 
-    this.mainWindow?.once?.(MainWindowChannel.ReadyToShow, () => {
-      const openAtLogin = this.settingsStore?.store.get(
+    this.mainWindow?.once?.(MainWindowChannel.ReadyToShow, async () => {
+      const openAtLogin = await this.settingsStore?.get(
         SettingsKey.AppOpenAtLogin,
       );
-      const openAtLoginMinimized = this.settingsStore?.store.get(
+      const openAtLoginMinimized = await this.settingsStore?.get(
         SettingsKey.AppOpenAtLoginMinimized,
       );
 

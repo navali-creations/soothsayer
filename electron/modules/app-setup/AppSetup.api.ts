@@ -1,5 +1,5 @@
 import { ipcRenderer } from "electron";
-import type { SetupStep } from "../settings-store/SettingsStore.schemas";
+import type { SetupStep } from "../settings-store/SettingsStore.dto";
 import { AppSetupChannel } from "./AppSetup.channels";
 import type { SetupState, StepValidationResult } from "./AppSetup.types";
 

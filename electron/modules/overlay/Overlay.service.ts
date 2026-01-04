@@ -1,8 +1,8 @@
 import { join } from "node:path";
 import { BrowserWindow, ipcMain, screen } from "electron";
-import { OverlayChannel } from "./Overlay.channels";
-import { SettingsKey, SettingsStoreService } from "../settings-store";
 import { CurrentSessionService } from "../current-session";
+import { SettingsKey, SettingsStoreService } from "../settings-store";
+import { OverlayChannel } from "./Overlay.channels";
 
 interface OverlayBounds {
   x: number;
@@ -41,12 +41,14 @@ class OverlayService {
    */
   public async createOverlay(): Promise<void> {
     if (this.overlayWindow) {
+      console.log("[Overlay] Window already exists, skipping creation");
       return;
     }
 
+    console.log("[Overlay] Creating overlay window...");
     const preload = join(__dirname, "preload.js");
 
-    const savedBounds = this.settingsStore.get("overlayBounds" as any);
+    const savedBounds = await this.settingsStore.get(SettingsKey.OverlayBounds);
     let x: number;
     let y: number;
     let overlayWidth: number;
@@ -54,6 +56,7 @@ class OverlayService {
 
     if (savedBounds) {
       // Use saved position
+      console.log("[Overlay] Using saved bounds:", savedBounds);
       x = savedBounds.x;
       y = savedBounds.y;
       overlayWidth = savedBounds.width || 250;
@@ -73,6 +76,12 @@ class OverlayService {
       // Position: centered horizontally, 300px from bottom
       x = screenX + screenWidth - overlayWidth;
       y = screenY + screenHeight - overlayHeight - 632;
+      console.log("[Overlay] Using default position:", {
+        x,
+        y,
+        overlayWidth,
+        overlayHeight,
+      });
     }
 
     this.overlayWindow = new BrowserWindow({
@@ -120,22 +129,32 @@ class OverlayService {
 
     // Add ready-to-show handler to prevent white flash
     this.overlayWindow.once("ready-to-show", () => {
+      console.log(
+        "[Overlay] ready-to-show event fired, isVisible:",
+        this.isVisible,
+      );
       if (this.isVisible) {
+        console.log("[Overlay] Showing window via showInactive()");
         this.overlayWindow?.showInactive();
+      } else {
+        console.log("[Overlay] Not showing window (isVisible is false)");
       }
     });
 
     this.overlayWindow.on("closed", () => {
+      console.log("[Overlay] Window closed");
       this.overlayWindow = null;
       this.isVisible = false;
     });
+
+    console.log("[Overlay] Window created, waiting for ready-to-show event");
   }
 
   /**
    * Get current session data formatted for overlay
    */
   private async getSessionData() {
-    const activeGame = this.settingsStore.get(SettingsKey.ActiveGame);
+    const activeGame = await this.settingsStore.get(SettingsKey.ActiveGame);
     const isActive = this.currentSessionService.isSessionActive(activeGame);
 
     if (!isActive) {
@@ -232,18 +251,39 @@ class OverlayService {
   }
 
   public async show(): Promise<void> {
+    console.log("[Overlay] show() called, current state:", {
+      hasWindow: !!this.overlayWindow,
+      isVisible: this.isVisible,
+    });
+
+    this.isVisible = true;
+
     if (!this.overlayWindow) {
-      this.isVisible = true;
       await this.createOverlay();
+      // After createOverlay completes, if ready-to-show already fired and missed isVisible=true,
+      // we need to explicitly show it
+      const window = this.overlayWindow;
+      if (window && !window.isVisible()) {
+        console.log("[Overlay] Window created but not visible, showing now");
+        window.showInactive();
+      }
     } else {
-      this.overlayWindow?.showInactive();
+      console.log("[Overlay] Window exists, showing via showInactive()");
+      this.overlayWindow.showInactive();
       this.isVisible = true;
     }
+
+    console.log(
+      "[Overlay] show() completed, window visible:",
+      this.overlayWindow?.isVisible(),
+    );
   }
 
   public hide(): void {
-    this.overlayWindow?.hide();
+    console.log("[Overlay] hide() called");
     this.isVisible = false;
+    this.overlayWindow?.hide();
+    console.log("[Overlay] hide() completed");
   }
 
   public async toggle(): Promise<void> {

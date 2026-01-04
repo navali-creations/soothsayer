@@ -165,8 +165,8 @@ class AppService {
     process.exit(0);
   }
 
-  public openAtLogin() {
-    const openAtLogin = this.settingsStore.store.get(
+  public async openAtLogin() {
+    const openAtLogin = await this.settingsStore.get(
       SettingsKey.AppOpenAtLogin,
     );
 

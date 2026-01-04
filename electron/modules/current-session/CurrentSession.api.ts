@@ -1,42 +1,41 @@
 import { ipcRenderer } from "electron";
 import type { DetailedDivinationCardStats } from "../../../types/data-stores";
-import type { GameVersion } from "../settings-store/SettingsStore.schemas";
 import { CurrentSessionChannel } from "./CurrentSession.channels";
 
 export const CurrentSessionAPI = {
   // Start a session
   start: (
-    activeGameView: Extract<GameVersion, "poe1" | "poe2">,
+    game: "poe1" | "poe2",
     league: string,
   ): Promise<{ success: boolean; error?: string }> =>
-    ipcRenderer.invoke(CurrentSessionChannel.Start, activeGameView, league),
+    ipcRenderer.invoke(CurrentSessionChannel.Start, game, league),
 
   // Stop a session
   stop: (
-    activeGameView: Extract<GameVersion, "poe1" | "poe2">,
+    game: "poe1" | "poe2",
   ): Promise<{ success: boolean; error?: string }> =>
-    ipcRenderer.invoke(CurrentSessionChannel.Stop, activeGameView),
+    ipcRenderer.invoke(CurrentSessionChannel.Stop, game),
 
   // Check if session is active
-  isActive: (activeGameView: GameVersion): Promise<boolean> =>
-    ipcRenderer.invoke(CurrentSessionChannel.IsActive, activeGameView),
+  isActive: (game: "poe1" | "poe2"): Promise<boolean> =>
+    ipcRenderer.invoke(CurrentSessionChannel.IsActive, game),
 
   // Get current session data
   getCurrent: (
-    activeGameView: GameVersion,
+    game: "poe1" | "poe2",
   ): Promise<DetailedDivinationCardStats | null> =>
-    ipcRenderer.invoke(CurrentSessionChannel.Get, activeGameView),
+    ipcRenderer.invoke(CurrentSessionChannel.Get, game),
 
   // Get session info (league, startedAt)
   getInfo: (
-    activeGameView: GameVersion,
+    game: "poe1" | "poe2",
   ): Promise<{ league: string; startedAt: string } | null> =>
-    ipcRenderer.invoke(CurrentSessionChannel.Info, activeGameView),
+    ipcRenderer.invoke(CurrentSessionChannel.Info, game),
 
   // Listen for session state changes
   onStateChanged: (
     callback: (data: {
-      game: GameVersion;
+      game: "poe1" | "poe2";
       isActive: boolean;
       sessionInfo: { league: string; startedAt: string } | null;
     }) => void,
@@ -50,7 +49,7 @@ export const CurrentSessionAPI = {
   // Listen for session data updates
   onDataUpdated: (
     callback: (data: {
-      game: GameVersion;
+      game: "poe1" | "poe2";
       data: DetailedDivinationCardStats | null;
     }) => void,
   ) => {
@@ -61,7 +60,7 @@ export const CurrentSessionAPI = {
 
   // Update card price visibility
   updateCardPriceVisibility: (
-    game: GameVersion,
+    game: "poe1" | "poe2",
     sessionId: string,
     priceSource: "exchange" | "stash",
     cardName: string,
@@ -76,12 +75,12 @@ export const CurrentSessionAPI = {
       hidePrice,
     ),
 
-  getAll: (game: GameVersion): Promise<SessionWithMetadata[]> =>
+  getAll: (game: "poe1" | "poe2"): Promise<SessionWithMetadata[]> =>
     ipcRenderer.invoke(CurrentSessionChannel.GetAll, game),
 
   // Get specific session by ID
   getById: (
-    game: GameVersion,
+    game: "poe1" | "poe2",
     sessionId: string,
   ): Promise<SessionWithMetadata | null> =>
     ipcRenderer.invoke(CurrentSessionChannel.GetById, game, sessionId),

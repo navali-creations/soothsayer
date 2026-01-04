@@ -1,7 +1,4 @@
-import type {
-  GameVersion,
-  SetupStep,
-} from "../settings-store/SettingsStore.schemas";
+import type { SetupStep } from "../settings-store/SettingsStore.dto";
 
 /**
  * Setup step names for clarity
@@ -19,11 +16,11 @@ export const SETUP_STEPS = {
 export type SetupState = {
   currentStep: SetupStep;
   isComplete: boolean;
-  selectedGame?: GameVersion;
-  poe1League?: string;
-  poe2League?: string;
-  poe1ClientPath?: string;
-  poe2ClientPath?: string;
+  selectedGame: "poe1" | "poe2";
+  poe1League: string;
+  poe2League: string;
+  poe1ClientPath: string | null;
+  poe2ClientPath: string | null;
 };
 
 /**

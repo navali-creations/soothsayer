@@ -1,10 +1,9 @@
-import { sql, type Kysely } from "kysely";
+import { type Kysely, sql } from "kysely";
 import type { Database } from "../database/Database.types";
-import type { GameVersion } from "../settings-store/SettingsStore.schemas";
 import type {
-  SessionSummaryDTO,
-  SessionDetailsDTO,
   SessionCardDetailsDTO,
+  SessionDetailsDTO,
+  SessionSummaryDTO,
 } from "./Sessions.dto";
 import { SessionsMapper } from "./Sessions.mapper";
 
@@ -18,7 +17,7 @@ export class SessionsRepository {
   /**
    * Get total count of sessions for a game
    */
-  async getSessionCount(game: GameVersion): Promise<number> {
+  async getSessionCount(game: "poe1" | "poe2"): Promise<number> {
     const result = await this.kysely
       .selectFrom("sessions")
       .select((eb) => eb.fn.countAll<number>().as("count"))
@@ -32,7 +31,7 @@ export class SessionsRepository {
    * Get paginated sessions for a game with calculated values
    */
   async getSessionsPage(
-    game: GameVersion,
+    game: "poe1" | "poe2",
     limit: number,
     offset: number,
   ): Promise<SessionSummaryDTO[]> {
@@ -175,7 +174,7 @@ export class SessionsRepository {
    * Search sessions by card name
    */
   async searchSessionsByCard(
-    game: GameVersion,
+    game: "poe1" | "poe2",
     cardName: string,
     limit: number,
     offset: number,
@@ -264,7 +263,7 @@ export class SessionsRepository {
    * Get count of sessions containing a specific card
    */
   async getSessionCountByCard(
-    game: GameVersion,
+    game: "poe1" | "poe2",
     cardName: string,
   ): Promise<number> {
     const result = await this.kysely

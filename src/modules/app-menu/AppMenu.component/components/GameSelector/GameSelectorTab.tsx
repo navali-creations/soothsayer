@@ -1,25 +1,21 @@
 import clsx from "clsx";
-import {
-  type GameVersion,
-  SettingsKey,
-} from "../../../../../../electron/modules/settings-store/SettingsStore.schemas";
 import { Button } from "../../../../../components";
 import { LeagueSelect, StatusBadge } from "../../../../../modules/game-info";
 import { useBoundStore } from "../../../../../store/store";
 
 type GameSelectorTabProps = {
-  game: Extract<GameVersion, "poe1" | "poe2">;
+  game: "poe1" | "poe2";
 };
 
 const GameSelectorTab = ({ game }: GameSelectorTabProps) => {
   const {
-    settings: { getActiveGame, setSetting },
+    settings: { getSelectedGame, updateSetting },
   } = useBoundStore();
-  const isActive = game === getActiveGame();
+  const isActive = game === getSelectedGame();
   const label = game === "poe1" ? "Path of Exile 1" : "Path of Exile 2";
 
   const handleGameSelect = () => {
-    setSetting(SettingsKey.ActiveGame, game);
+    updateSetting("selectedGame", game);
   };
 
   return (

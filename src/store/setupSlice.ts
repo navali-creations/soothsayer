@@ -3,12 +3,13 @@ import type {
   SetupState,
   StepValidationResult,
 } from "../../electron/modules/app-setup/AppSetup.types";
-import type { SetupStep } from "../../electron/modules/settings-store/SettingsStore.schemas";
+import type { SetupStep } from "../../electron/modules/settings-store/SettingsStore.dto";
 
 export interface SetupSlice {
   // State
   setupState: SetupState | null;
   validation: StepValidationResult | null;
+
   isLoading: boolean;
   error: string | null;
 

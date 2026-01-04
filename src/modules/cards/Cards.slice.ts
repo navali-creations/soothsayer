@@ -75,7 +75,7 @@ export const createCardsSlice: StateCreator<
 
     // Load all cards for a game
     loadCards: async () => {
-      const activeGame = get().settings.getActiveGame();
+      const activeGame = get().settings.getSelectedGame();
       set(({ cards }) => {
         cards.isLoading = true;
         cards.error = null;
