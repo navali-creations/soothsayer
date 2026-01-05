@@ -2,7 +2,7 @@ import { OnboardingButton } from "../../onboarding";
 
 const AppHelpCard = () => {
   return (
-    <div className="card bg-base-100 shadow-xl">
+    <div className="card bg-base-100 shadow-xl h-full">
       <div className="card-body">
         <h2 className="card-title">App Help</h2>
         <p className="text-sm text-base-content/60">

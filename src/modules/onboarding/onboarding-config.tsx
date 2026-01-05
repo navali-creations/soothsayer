@@ -1,5 +1,6 @@
 import { Animation, Position, type RepereReactConfig } from "@repere/react";
 import CurrentSessionPricingBeacon from "../current-session/CurrentSession.beacons/CurrentSessionPricingBeacon";
+import CurrentSessionStartSessionBeacon from "../current-session/CurrentSession.beacons/CurrentSessionStartSessionBeacon";
 import GameInfoBeacon from "../game-info/GameInfo.beacon";
 import OverlayBeacon from "../overlay/Overlay.beacon";
 import Trigger from "./Onboarding.components/Trigger";
@@ -8,6 +9,7 @@ import { repereStoreAdapter } from "./repereStoreAdapter";
 export const onboardingConfig: RepereReactConfig = {
   store: repereStoreAdapter,
   trigger: {
+    delay: 500,
     component: Trigger,
     animations: {
       onRender: Animation.SlideDown,
@@ -74,6 +76,23 @@ export const onboardingConfig: RepereReactConfig = {
           popover: {
             component: CurrentSessionPricingBeacon,
             position: Position.BottomRight,
+            offset: {
+              y: 10,
+            },
+          },
+        },
+        {
+          id: "start-session",
+          selector: "[data-onboarding='start-session']",
+          trigger: {
+            position: Position.LeftCenter,
+            offset: {
+              y: 0,
+            },
+          },
+          popover: {
+            component: CurrentSessionStartSessionBeacon,
+            position: Position.BottomLeft,
             offset: {
               y: 10,
             },

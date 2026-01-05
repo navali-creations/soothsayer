@@ -24,15 +24,17 @@ const CurrentSessionActions = () => {
   return (
     <>
       <Flex className="gap-2 items-center">
-        {isActive ? (
-          <Button variant="ghost" onClick={stopSession} disabled={isLoading}>
-            <FiSquare /> Stop Session
-          </Button>
-        ) : (
-          <Button variant="ghost" onClick={startSession} disabled={isLoading}>
-            <FiPlay /> Start Session
-          </Button>
-        )}
+        <div data-onboarding="start-session">
+          {isActive ? (
+            <Button variant="ghost" onClick={stopSession} disabled={isLoading}>
+              <FiSquare /> Stop Session
+            </Button>
+          ) : (
+            <Button variant="ghost" onClick={startSession} disabled={isLoading}>
+              <FiPlay /> Start Session
+            </Button>
+          )}
+        </div>
         {/* Price Source Toggle */}
         <div
           role="tablist"

@@ -53,8 +53,8 @@ importers:
         specifier: ^3.3.0
         version: 3.3.0(redux@5.0.1)
       '@repere/react':
-        specifier: ^0.1.1
-        version: 0.1.1(motion@12.23.26(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        specifier: ^0.2.2
+        version: 0.2.2(motion@12.23.26(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@tailwindcss/vite':
         specifier: ^4.1.17
         version: 4.1.18(vite@5.4.21(@types/node@25.0.3)(lightningcss@1.30.2)(terser@5.44.1))
@@ -947,8 +947,8 @@ packages:
     peerDependencies:
       redux: ^3.1.0 || ^4.0.0 || ^5.0.0
 
-  '@repere/react@0.1.1':
-    resolution: {integrity: sha512-vFR8jDnlWXO+D7vOaagiL8MTugxGWBSJblvo/CzquXAjG9wf/pXqM7x9ZMffUWH3/gNfMtD8GEVWsUPv/Oss8w==}
+  '@repere/react@0.2.2':
+    resolution: {integrity: sha512-ZzYN/5CmHaAxF3j1exz3TdYIttYhN31uyAOsRcYzbosjDHLWBzsP/6uYPuWN6D8hCo0y0IoIqhPJYZwrL0e/nw==}
     peerDependencies:
       motion: ^12.0.0
       react: ^18.0.0 || ^19.0.0
@@ -5127,8 +5127,9 @@ snapshots:
       immutable: 4.3.7
       redux: 5.0.1
 
-  '@repere/react@0.1.1(motion@12.23.26(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
+  '@repere/react@0.2.2(motion@12.23.26(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
     dependencies:
+      '@repere/core': link:../../AppData/Local/pnpm/global/5/node_modules/@repere/core
       motion: 12.23.26(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)

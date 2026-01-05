@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { PageContainer } from "../../components";
+import { Grid, PageContainer } from "../../components";
 import { useBoundStore } from "../../store/store";
 import {
   AppHelpCard,
@@ -54,22 +54,20 @@ const SettingsPage = () => {
         subtitle="Configure your application preferences and game paths"
       />
       <PageContainer.Content>
-        <div className="max-w-4xl mx-auto space-y-6">
-          {/* Game Paths Section */}
-          <FilePathSettingCard category={categories.gamePaths} />
-
-          {/* Game Selection Section */}
-          <SettingsCategoryCard category={categories.gameSelection} />
-
-          {/* Application Behavior Section */}
-          <SettingsCategoryCard category={categories.appBehavior} />
-
-          {/* App Help Section */}
-          <AppHelpCard />
-
-          {/* Danger Zone Section */}
-          <DangerZoneCard />
-        </div>
+        <Grid className="grid-cols-2 ">
+          <Grid.Col>
+            <FilePathSettingCard category={categories.gamePaths} />
+          </Grid.Col>
+          <Grid.Col>
+            <SettingsCategoryCard category={categories.appBehavior} />
+          </Grid.Col>
+          <Grid.Col>
+            <AppHelpCard />
+          </Grid.Col>
+          <Grid.Col>
+            <DangerZoneCard />
+          </Grid.Col>
+        </Grid>
       </PageContainer.Content>
     </PageContainer>
   );

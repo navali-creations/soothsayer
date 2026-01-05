@@ -55,7 +55,7 @@ const DangerZoneCard = () => {
   };
 
   return (
-    <div className="card bg-base-100 shadow-xl border-2 border-error">
+    <div className="card bg-base-100 shadow-xl border-2 border-error h-full">
       <div className="card-body">
         <h2 className="card-title text-error">
           <FiTrash2 className="w-5 h-5" />
