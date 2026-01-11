@@ -26,7 +26,11 @@ const GameSelectorTab = ({ game }: GameSelectorTabProps) => {
         "tab tab-border-half gap-2 relative",
       )}
     >
-      <Button onClick={handleGameSelect} variant="ghost" className="p-0">
+      <Button
+        onClick={handleGameSelect}
+        variant="ghost"
+        className="p-0 hover:bg-base-300"
+      >
         <span className="font-fontin">{label}</span>
         <StatusBadge game={game} />
       </Button>

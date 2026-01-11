@@ -1,13 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
+import CurrentSessionPage from "../modules/current-session/CurrentSession.page";
 
 export const Route = createFileRoute("/")({
-  component: Index,
+  component: CurrentSessionPage,
 });
-
-function Index() {
-  return (
-    <div className="p-2">
-      <h3>Welcome Home!</h3>
-    </div>
-  );
-}

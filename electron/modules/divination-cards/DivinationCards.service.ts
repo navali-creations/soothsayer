@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { app, ipcMain } from "electron";
 import { DatabaseService } from "../database";
 import { SettingsStoreService, SettingsKey } from "../settings-store";
-import { PoeNinjaService } from "../poe-ninja/PoeNinja.service";
+import { PoeNinjaService } from "../poe-ninja";
 import { DivinationCardsChannel } from "./DivinationCards.channels";
 import { DivinationCardsRepository } from "./DivinationCards.repository";
 import type {
@@ -30,8 +30,8 @@ class DivinationCardsService {
   private static _instance: DivinationCardsService;
   private repository: DivinationCardsRepository;
   private poeNinja: PoeNinjaService;
-  private poe1CardsJsonPath: string;
-  private poe2CardsJsonPath: string;
+  private readonly poe1CardsJsonPath: string;
+  private readonly poe2CardsJsonPath: string;
 
   static getInstance(): DivinationCardsService {
     if (!DivinationCardsService._instance) {
@@ -85,12 +85,12 @@ class DivinationCardsService {
   private async initializeRarities(): Promise<void> {
     try {
       const settingsStore = SettingsStoreService.getInstance();
-      const activeGame = settingsStore.get(SettingsKey.ActiveGame);
+      const activeGame = await settingsStore.get(SettingsKey.ActiveGame);
       const activeLeague =
         activeGame === "poe1"
-          ? settingsStore.get(SettingsKey.SelectedPoe1League)
+          ? await settingsStore.get(SettingsKey.SelectedPoe1League)
           : activeGame === "poe2"
-            ? settingsStore.get(SettingsKey.SelectedPoe2League)
+            ? await settingsStore.get(SettingsKey.SelectedPoe2League)
             : null;
 
       if (activeGame && activeLeague) {

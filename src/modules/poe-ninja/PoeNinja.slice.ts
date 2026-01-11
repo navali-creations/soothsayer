@@ -1,5 +1,4 @@
 import type { StateCreator } from "zustand";
-import type { SessionPriceSnapshot } from "../../../types/data-stores";
 
 export interface SnapshotInfo {
   id: string;

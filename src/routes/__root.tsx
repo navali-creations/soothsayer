@@ -7,8 +7,9 @@ import {
 } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { useEffect, useState } from "react";
-import { AppMenu, Sidebar } from "../components";
+import { AppMenu } from "../modules/app-menu";
 import { onboardingConfig } from "../modules/onboarding";
+import { Sidebar } from "../modules/sidebar";
 import { useBoundStore } from "../store/store";
 import "@repere/react/styles.css";
 
@@ -67,7 +68,7 @@ const RootLayout = () => {
       <AppMenu />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-auto relative z-0">
           <Outlet />
         </main>
       </div>

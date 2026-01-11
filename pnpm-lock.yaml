@@ -12,6 +12,9 @@ importers:
 
   .:
     dependencies:
+      '@repere/react':
+        specifier: link:../../AppData/Local/pnpm/global/5/node_modules/@repere/react
+        version: link:../../AppData/Local/pnpm/global/5/node_modules/@repere/react
       better-sqlite3:
         specifier: ^12.5.0
         version: 12.5.0
@@ -52,9 +55,6 @@ importers:
       '@redux-devtools/extension':
         specifier: ^3.3.0
         version: 3.3.0(redux@5.0.1)
-      '@repere/react':
-        specifier: ^0.2.2
-        version: 0.2.2(motion@12.23.26(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@tailwindcss/vite':
         specifier: ^4.1.17
         version: 4.1.18(vite@5.4.21(@types/node@25.0.3)(lightningcss@1.30.2)(terser@5.44.1))
@@ -946,13 +946,6 @@ packages:
     resolution: {integrity: sha512-X34S/rC8S/M1BIrkYD1mJ5f8vlH0BDqxXrs96cvxSBo4FhMdbhU+GUGsmNYov1xjSyLMHgo8NYrUG8bNX7525g==}
     peerDependencies:
       redux: ^3.1.0 || ^4.0.0 || ^5.0.0
-
-  '@repere/react@0.2.2':
-    resolution: {integrity: sha512-ZzYN/5CmHaAxF3j1exz3TdYIttYhN31uyAOsRcYzbosjDHLWBzsP/6uYPuWN6D8hCo0y0IoIqhPJYZwrL0e/nw==}
-    peerDependencies:
-      motion: ^12.0.0
-      react: ^18.0.0 || ^19.0.0
-      react-dom: ^18.0.0 || ^19.0.0
 
   '@rolldown/pluginutils@1.0.0-beta.53':
     resolution: {integrity: sha512-vENRlFU4YbrwVqNDZ7fLvy+JR1CRkyr01jhSiDpE1u6py3OMzQfztQU2jxykW3ALNxO4kSlqIDeYyD0Y9RcQeQ==}
@@ -5126,13 +5119,6 @@ snapshots:
       '@babel/runtime': 7.28.4
       immutable: 4.3.7
       redux: 5.0.1
-
-  '@repere/react@0.2.2(motion@12.23.26(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
-    dependencies:
-      '@repere/core': link:../../AppData/Local/pnpm/global/5/node_modules/@repere/core
-      motion: 12.23.26(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      react: 19.2.3
-      react-dom: 19.2.3(react@19.2.3)
 
   '@rolldown/pluginutils@1.0.0-beta.53': {}
 

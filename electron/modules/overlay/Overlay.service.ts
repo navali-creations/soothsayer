@@ -113,21 +113,7 @@ class OverlayService {
 
     this.overlayWindow.setBackgroundColor("rgba(0,0,0,0)");
 
-    // Load overlay HTML
-    if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-      const overlayUrl = `${MAIN_WINDOW_VITE_DEV_SERVER_URL}/overlay.html`;
-      await this.overlayWindow.loadURL(overlayUrl);
-      this.overlayWindow.webContents.openDevTools({ mode: "detach" });
-    } else {
-      // In production, overlay.html is built alongside index.html
-      const overlayHtml = join(
-        __dirname,
-        `../renderer/${MAIN_WINDOW_VITE_NAME}/overlay.html`,
-      );
-      await this.overlayWindow.loadFile(overlayHtml);
-    }
-
-    // Add ready-to-show handler to prevent white flash
+    // Add ready-to-show handler BEFORE loading to prevent race condition
     this.overlayWindow.once("ready-to-show", () => {
       console.log(
         "[Overlay] ready-to-show event fired, isVisible:",
@@ -145,7 +131,23 @@ class OverlayService {
       console.log("[Overlay] Window closed");
       this.overlayWindow = null;
       this.isVisible = false;
+      // Notify main window that overlay is now hidden
+      this.notifyVisibilityChanged(false);
     });
+
+    // Load overlay HTML
+    if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+      const overlayUrl = `${MAIN_WINDOW_VITE_DEV_SERVER_URL}/overlay.html`;
+      await this.overlayWindow.loadURL(overlayUrl);
+      this.overlayWindow.webContents.openDevTools({ mode: "detach" });
+    } else {
+      // In production, overlay.html is built alongside index.html
+      const overlayHtml = join(
+        __dirname,
+        `../renderer/${MAIN_WINDOW_VITE_NAME}/overlay.html`,
+      );
+      await this.overlayWindow.loadFile(overlayHtml);
+    }
 
     console.log("[Overlay] Window created, waiting for ready-to-show event");
   }
@@ -238,13 +240,6 @@ class OverlayService {
       return this.getBounds();
     });
 
-    ipcMain.handle(
-      OverlayChannel.SetOpacity,
-      async (_event, opacity: number) => {
-        return this.setOpacity(opacity);
-      },
-    );
-
     ipcMain.handle("overlay:get-session-data", async () => {
       return this.getSessionData();
     });
@@ -273,17 +268,20 @@ class OverlayService {
       this.isVisible = true;
     }
 
+    this.notifyVisibilityChanged(true);
+
     console.log(
       "[Overlay] show() completed, window visible:",
       this.overlayWindow?.isVisible(),
     );
   }
 
-  public hide(): void {
-    console.log("[Overlay] hide() called");
-    this.isVisible = false;
-    this.overlayWindow?.hide();
-    console.log("[Overlay] hide() completed");
+  public async hide(): Promise<void> {
+    if (this.overlayWindow) {
+      this.overlayWindow.hide();
+      this.isVisible = false;
+      this.notifyVisibilityChanged(false);
+    }
   }
 
   public async toggle(): Promise<void> {
@@ -323,15 +321,6 @@ class OverlayService {
     };
   }
 
-  public setOpacity(opacity: number): void {
-    if (!this.overlayWindow) {
-      console.warn("[Overlay] Cannot set opacity - window not created");
-      return;
-    }
-    const clampedOpacity = Math.max(0, Math.min(1, opacity));
-    this.overlayWindow.setOpacity(clampedOpacity);
-  }
-
   public destroy(): void {
     if (this.overlayWindow) {
       this.overlayWindow.close();
@@ -342,6 +331,23 @@ class OverlayService {
 
   public getWindow(): BrowserWindow | null {
     return this.overlayWindow;
+  }
+
+  /**
+   * Notify main window of visibility changes
+   */
+  private notifyVisibilityChanged(isVisible: boolean): void {
+    const allWindows = BrowserWindow.getAllWindows();
+
+    const mainWindow = allWindows.find(
+      (win) =>
+        !win.isDestroyed() &&
+        !win.webContents.getURL().includes("overlay.html"),
+    );
+
+    if (mainWindow) {
+      mainWindow.webContents.send(OverlayChannel.VisibilityChanged, isVisible);
+    }
   }
 }
 

@@ -14,9 +14,20 @@ const OverlayAPI = {
     ipcRenderer.invoke(OverlayChannel.SetSize, width, height),
   getBounds: (): Promise<OverlayBounds | null> =>
     ipcRenderer.invoke(OverlayChannel.GetBounds),
-  setOpacity: (opacity: number) =>
-    ipcRenderer.invoke(OverlayChannel.SetOpacity, opacity),
   getSessionData: () => ipcRenderer.invoke("overlay:get-session-data"),
+  onVisibilityChanged: (callback: (isVisible: boolean) => void) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      isVisible: boolean,
+    ) => {
+      callback(isVisible);
+    };
+    ipcRenderer.on(OverlayChannel.VisibilityChanged, listener);
+    // Return cleanup function
+    return () => {
+      ipcRenderer.removeListener(OverlayChannel.VisibilityChanged, listener);
+    };
+  },
 };
 
 export { OverlayAPI };

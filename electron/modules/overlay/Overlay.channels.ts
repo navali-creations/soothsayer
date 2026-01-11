@@ -7,14 +7,12 @@ enum OverlayChannel {
   Hide = "overlay:hide",
   Toggle = "overlay:toggle",
   IsVisible = "overlay:is-visible",
+  VisibilityChanged = "overlay:visibility-changed",
 
   // Position & size
   SetPosition = "overlay:set-position",
   SetSize = "overlay:set-size",
   GetBounds = "overlay:get-bounds",
-
-  // Opacity
-  SetOpacity = "overlay:set-opacity",
 
   // Data
   GetSessionData = "overlay:get-session-data",

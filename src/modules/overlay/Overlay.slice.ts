@@ -1,5 +1,5 @@
 import type { StateCreator } from "zustand";
-import type { SessionData, OverlayTab } from "./Overlay.types";
+import type { OverlayTab, SessionData } from "./Overlay.types";
 
 export interface OverlaySlice {
   overlay: {
@@ -21,6 +21,7 @@ export interface OverlaySlice {
     setSessionData: (data: SessionData) => void;
     setActiveTab: (tab: OverlayTab) => void;
     getFilteredDrops: () => SessionData["recentDrops"];
+    startListening: () => () => void;
   };
 }
 
@@ -147,6 +148,31 @@ export const createOverlaySlice: StateCreator<
 
       // valuable = exclude rarity 4 (common)
       return sessionData.recentDrops.filter((drop) => drop.rarity < 4);
+    },
+
+    startListening: () => {
+      if (!window.electron?.overlay?.onVisibilityChanged) {
+        console.log("[OverlaySlice] onVisibilityChanged not available");
+        return () => {};
+      }
+
+      console.log("[OverlaySlice] Setting up visibility change listener");
+
+      // Listen for visibility changes from main process
+      const cleanup = window.electron.overlay.onVisibilityChanged(
+        (isVisible: boolean) => {
+          console.log("[OverlaySlice] Visibility changed to:", isVisible);
+          set(
+            ({ overlay }) => {
+              overlay.isVisible = isVisible;
+            },
+            false,
+            "overlaySlice/visibilityChanged",
+          );
+        },
+      );
+
+      return cleanup;
     },
   },
 });

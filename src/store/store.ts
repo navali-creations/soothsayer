@@ -115,11 +115,13 @@ export const useBoundStore = create<BoundStore>()(
             sessionSlice.currentSession.startListening();
           const unsubscribeGameInfo = gameInfoSlice.gameInfo.startListening();
           const unsubscribePoeNinja = poeNinjaSlice.poeNinja.startListening();
+          const unsubscribeOverlay = overlaySlice.overlay.startListening();
 
           return () => {
             unsubscribeSession();
             unsubscribeGameInfo();
             unsubscribePoeNinja();
+            unsubscribeOverlay();
           };
         },
 

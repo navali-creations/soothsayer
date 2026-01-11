@@ -6,6 +6,5 @@ export { default as Grid } from "./Grid/Grid";
 export { default as Link } from "./Link/Link";
 export { default as PageContainer } from "./PageContainer/PageContainer";
 export { default as Search } from "./Search/Search";
-export { default as Sidebar } from "./Sidebar/Sidebar";
 export { GroupedStats, Stat } from "./Stat/Stat";
 export * from "./Table";

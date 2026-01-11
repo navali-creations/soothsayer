@@ -1,4 +1,9 @@
-import { Animation, Position, type RepereReactConfig } from "@repere/react";
+import {
+  AnchorPoint,
+  Animation,
+  PositioningStrategy,
+  type RepereReactConfig,
+} from "@repere/react";
 import CurrentSessionPricingBeacon from "../current-session/CurrentSession.beacons/CurrentSessionPricingBeacon";
 import CurrentSessionStartSessionBeacon from "../current-session/CurrentSession.beacons/CurrentSessionStartSessionBeacon";
 import GameInfoBeacon from "../game-info/GameInfo.beacon";
@@ -11,6 +16,7 @@ export const onboardingConfig: RepereReactConfig = {
   trigger: {
     delay: 500,
     component: Trigger,
+    positioningStrategy: PositioningStrategy.Absolute,
     animations: {
       onRender: Animation.SlideDown,
       onDismiss: Animation.Fade,
@@ -32,7 +38,7 @@ export const onboardingConfig: RepereReactConfig = {
           id: "game-selector",
           selector: "[data-onboarding='game-selector']",
           trigger: {
-            position: Position.BottomCenter,
+            anchorPoint: AnchorPoint.BottomCenter,
             offset: {
               y: 5,
             },
@@ -48,11 +54,11 @@ export const onboardingConfig: RepereReactConfig = {
           id: "overlay-icon",
           selector: "[data-onboarding='overlay-icon']",
           trigger: {
-            position: Position.BottomCenter,
+            anchorPoint: AnchorPoint.BottomCenter,
           },
           popover: {
             component: OverlayBeacon,
-            position: Position.BottomRight,
+            anchorPoint: AnchorPoint.BottomRight,
             offset: {
               y: 10,
             },
@@ -68,14 +74,14 @@ export const onboardingConfig: RepereReactConfig = {
           id: "stash-prices",
           selector: "[data-onboarding='current-session-pricing']",
           trigger: {
-            position: Position.BottomCenter,
+            anchorPoint: AnchorPoint.BottomCenter,
             offset: {
               y: 15,
             },
           },
           popover: {
             component: CurrentSessionPricingBeacon,
-            position: Position.BottomRight,
+            anchorPoint: AnchorPoint.BottomRight,
             offset: {
               y: 10,
             },
@@ -85,14 +91,14 @@ export const onboardingConfig: RepereReactConfig = {
           id: "start-session",
           selector: "[data-onboarding='start-session']",
           trigger: {
-            position: Position.LeftCenter,
+            anchorPoint: AnchorPoint.LeftCenter,
             offset: {
               y: 0,
             },
           },
           popover: {
             component: CurrentSessionStartSessionBeacon,
-            position: Position.BottomLeft,
+            anchorPoint: AnchorPoint.BottomLeft,
             offset: {
               y: 10,
             },

@@ -27,7 +27,7 @@ const AppControls = () => {
           <RiPictureInPictureLine size={16} />
         )}
       </Button>
-      <Link to="/settings" asButton variant="ghost" size="sm">
+      <Link to="/settings" asButton variant="ghost" size="sm" className="p-1">
         <FiSettings size={14} />
       </Link>
       <Button onClick={minimize} variant="ghost" size="sm">

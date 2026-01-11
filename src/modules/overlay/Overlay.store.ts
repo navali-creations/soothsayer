@@ -29,9 +29,7 @@ interface SessionData {
 }
 
 interface OverlayStore {
-  opacity: number;
   sessionData: SessionData;
-  setOpacity: (opacity: number) => void;
   setSessionData: (data: SessionData) => void;
 }
 
@@ -45,10 +43,6 @@ export const useOverlayStore = create<OverlayStore>((set) => ({
     cards: [],
     recentDrops: [],
     isActive: false,
-  },
-  setOpacity: (opacity) => {
-    set({ opacity });
-    window.electron?.overlay.setOpacity(opacity);
   },
   setSessionData: (sessionData) => {
     set({ sessionData });
