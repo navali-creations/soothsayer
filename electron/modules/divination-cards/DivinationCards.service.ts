@@ -30,6 +30,7 @@ class DivinationCardsService {
   private static _instance: DivinationCardsService;
   private repository: DivinationCardsRepository;
   private poeNinja: PoeNinjaService;
+  private settingsStore: SettingsStoreService;
   private readonly poe1CardsJsonPath: string;
   private readonly poe2CardsJsonPath: string;
 
@@ -44,6 +45,7 @@ class DivinationCardsService {
     const database = DatabaseService.getInstance();
     this.repository = new DivinationCardsRepository(database.getKysely());
     this.poeNinja = PoeNinjaService.getInstance();
+    this.settingsStore = SettingsStoreService.getInstance();
 
     // Determine paths based on whether app is packaged
     const basePath = app.isPackaged ? process.resourcesPath : app.getAppPath();
@@ -218,14 +220,29 @@ class DivinationCardsService {
     ipcMain.handle(
       DivinationCardsChannel.GetAll,
       async (_event, game: "poe1" | "poe2"): Promise<DivinationCardDTO[]> => {
-        return this.repository.getAllByGame(game);
+        // Get the active league for this game
+        const leagueKey =
+          game === "poe1"
+            ? SettingsKey.SelectedPoe1League
+            : SettingsKey.SelectedPoe2League;
+        const league = await this.settingsStore.get(leagueKey);
+
+        return this.repository.getAllByGame(game, league || undefined);
       },
     );
 
     ipcMain.handle(
       DivinationCardsChannel.GetById,
       async (_event, id: string): Promise<DivinationCardDTO | null> => {
-        return this.repository.getById(id);
+        // Extract game from id (format: "poe1_card-name" or "poe2_card-name")
+        const game = id.startsWith("poe1_") ? "poe1" : "poe2";
+        const leagueKey =
+          game === "poe1"
+            ? SettingsKey.SelectedPoe1League
+            : SettingsKey.SelectedPoe2League;
+        const league = await this.settingsStore.get(leagueKey);
+
+        return this.repository.getById(id, league || undefined);
       },
     );
 
@@ -236,7 +253,13 @@ class DivinationCardsService {
         game: "poe1" | "poe2",
         name: string,
       ): Promise<DivinationCardDTO | null> => {
-        return this.repository.getByName(game, name);
+        const leagueKey =
+          game === "poe1"
+            ? SettingsKey.SelectedPoe1League
+            : SettingsKey.SelectedPoe2League;
+        const league = await this.settingsStore.get(leagueKey);
+
+        return this.repository.getByName(game, name, league || undefined);
       },
     );
 
@@ -247,7 +270,17 @@ class DivinationCardsService {
         game: "poe1" | "poe2",
         query: string,
       ): Promise<DivinationCardSearchDTO> => {
-        const cards = await this.repository.searchByName(game, query);
+        const leagueKey =
+          game === "poe1"
+            ? SettingsKey.SelectedPoe1League
+            : SettingsKey.SelectedPoe2League;
+        const league = await this.settingsStore.get(leagueKey);
+
+        const cards = await this.repository.searchByName(
+          game,
+          query,
+          league || undefined,
+        );
         return {
           cards,
           total: cards.length,
@@ -290,6 +323,7 @@ class DivinationCardsService {
 
   public async updateRaritiesFromPrices(
     game: "poe1" | "poe2",
+    league: string,
     exchangeChaosToDivine: number,
     cardPrices: Record<string, { chaosValue: number }>,
   ): Promise<void> {
@@ -332,9 +366,9 @@ class DivinationCardsService {
     }
 
     if (updates.length > 0) {
-      await this.repository.updateRarities(game, updates);
+      await this.repository.updateRarities(game, league, updates);
       console.log(
-        `[DivinationCards] Updated rarities for ${updates.length} ${game.toUpperCase()} cards (${pricedCardNames.size} priced, ${updates.length - pricedCardNames.size} unpriced)`,
+        `[DivinationCards] Updated rarities for ${updates.length} ${game.toUpperCase()}/${league} cards (${pricedCardNames.size} priced, ${updates.length - pricedCardNames.size} unpriced)`,
       );
     }
   }
@@ -356,6 +390,7 @@ class DivinationCardsService {
 
       await this.updateRaritiesFromPrices(
         game,
+        leagueName,
         priceSnapshot.exchange.chaosToDivineRatio,
         priceSnapshot.exchange.cardPrices,
       );
@@ -368,7 +403,6 @@ class DivinationCardsService {
         `[DivinationCards] Failed to update rarities for ${game.toUpperCase()}/${leagueName}:`,
         error,
       );
-      // Don't throw - we don't want to prevent app from starting if price fetch fails
     }
   }
 }

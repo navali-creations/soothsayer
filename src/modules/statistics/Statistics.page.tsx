@@ -21,15 +21,16 @@ const StatisticsPage = () => {
     league: statScope === "league" ? selectedLeague : undefined,
   });
 
-  // Set first available league as default when leagues load
+  // Set first available league as default when leagues load (only when in league scope)
   useEffect(() => {
     if (
+      statScope === "league" &&
       availableLeagues.length > 0 &&
       !availableLeagues.includes(selectedLeague)
     ) {
       setSelectedLeague(availableLeagues[0]);
     }
-  }, [availableLeagues, selectedLeague, setSelectedLeague]);
+  }, [availableLeagues, selectedLeague, setSelectedLeague, statScope]);
 
   const handleExportCsv = async () => {
     try {

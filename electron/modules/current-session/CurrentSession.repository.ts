@@ -175,10 +175,17 @@ export class CurrentSessionRepository {
     const rows = await this.kysely
       .selectFrom("session_cards as sc")
       .leftJoin("sessions as s", "sc.session_id", "s.id")
+      .leftJoin("leagues as l", "s.league_id", "l.id")
       .leftJoin("divination_cards as dc", (join) =>
         join
           .onRef("dc.name", "=", "sc.card_name")
           .onRef("dc.game", "=", "s.game"),
+      )
+      .leftJoin("divination_card_rarities as dcr", (join) =>
+        join
+          .onRef("dcr.card_name", "=", "sc.card_name")
+          .onRef("dcr.game", "=", "s.game")
+          .onRef("dcr.league", "=", "l.name"),
       )
       .select([
         "sc.card_name as cardName",
@@ -194,7 +201,7 @@ export class CurrentSessionRepository {
         "dc.reward_html as rewardHtml",
         "dc.art_src as artSrc",
         "dc.flavour_html as flavourHtml",
-        "dc.rarity as rarity",
+        sql<number>`COALESCE(dcr.rarity, 4)`.as("rarity"), // Default to 4 (common) if no rarity data
       ])
       .where("sc.session_id", "=", sessionId)
       .execute();

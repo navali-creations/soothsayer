@@ -3,6 +3,7 @@ import Database from "better-sqlite3";
 import { app } from "electron";
 import { Kysely, SqliteDialect } from "kysely";
 import type { Database as DatabaseSchema } from "./Database.types";
+import { MigrationRunner, migrations } from "./migrations";
 
 /**
  * Core database service that manages the SQLite connection
@@ -13,6 +14,7 @@ class DatabaseService {
   private db: Database.Database;
   private kysely: Kysely<DatabaseSchema>;
   private dbPath: string;
+  private migrationRunner: MigrationRunner;
 
   static getInstance(): DatabaseService {
     if (!DatabaseService._instance) {
@@ -44,8 +46,24 @@ class DatabaseService {
       }),
     });
 
-    // Initialize schema
+    // Initialize schema (for initial table creation)
     this.initializeSchema();
+
+    // Initialize migration runner and run pending migrations
+    this.migrationRunner = new MigrationRunner(this.db);
+    this.runMigrations();
+  }
+
+  /**
+   * Run all pending migrations
+   */
+  private runMigrations(): void {
+    try {
+      this.migrationRunner.runMigrations(migrations);
+    } catch (error) {
+      console.error("[Database] Migration failed:", error);
+      throw error;
+    }
   }
 
   private initializeSchema(): void {
@@ -291,6 +309,7 @@ class DatabaseService {
 
       // ═══════════════════════════════════════════════════════════════
       // DIVINATION CARDS (static reference data from JSON)
+      // Note: rarity field will be migrated to separate table
       // ═══════════════════════════════════════════════════════════════
       this.db.exec(`
       CREATE TABLE IF NOT EXISTS divination_cards (
@@ -378,8 +397,7 @@ class DatabaseService {
 
   /**
    * Get the raw better-sqlite3 database instance
-   * Use this for transactions or when Kysely isn't suitable
-   * @deprecated Prefer using getKysely() for type-safe queries
+   * Use sparingly - prefer using Kysely for type safety
    */
   public getDb(): Database.Database {
     return this.db;
@@ -387,19 +405,20 @@ class DatabaseService {
 
   /**
    * Get the Kysely query builder
-   * Use this for type-safe, composable queries
+   * This is the preferred way to interact with the database
    */
   public getKysely(): Kysely<DatabaseSchema> {
     return this.kysely;
   }
 
   /**
-   * Execute a transaction with better-sqlite3
-   * @deprecated Prefer using Kysely transactions
+   * Create a transaction using Kysely
    */
-  public transaction<T>(fn: () => T): T {
-    const transaction = this.db.transaction(fn);
-    return transaction();
+  public async transaction<T>(
+    callback: (trx: Kysely<DatabaseSchema>) => Promise<T>,
+  ): Promise<T> {
+    const transaction = await this.kysely.transaction().execute(callback);
+    return transaction;
   }
 
   /**
@@ -411,23 +430,30 @@ class DatabaseService {
   }
 
   /**
-   * Get database path
+   * Get the path to the database file
    */
   public getPath(): string {
     return this.dbPath;
   }
 
   /**
-   * Optimize database (vacuum, analyze)
+   * Optimize the database
    */
   public optimize(): void {
-    this.db.exec("VACUUM");
-    this.db.exec("ANALYZE");
+    this.db.pragma("optimize");
   }
 
   /**
-   * Reset database (wipe all data and recreate schema)
-   * WARNING: This deletes ALL data!
+   * Get the migration runner instance
+   * Useful for debugging or manual migration management
+   */
+  public getMigrationRunner(): MigrationRunner {
+    return this.migrationRunner;
+  }
+
+  /**
+   * Reset the entire database
+   * ⚠️ WARNING: This will delete ALL data!
    */
   public reset(): void {
     const fs = require("fs");
@@ -460,6 +486,10 @@ class DatabaseService {
     });
 
     this.initializeSchema();
+
+    // Reinitialize migration runner and run migrations
+    this.migrationRunner = new MigrationRunner(this.db);
+    this.runMigrations();
   }
 }
 

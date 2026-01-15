@@ -106,11 +106,24 @@ export interface DivinationCardsTable {
   reward_html: string;
   art_src: string;
   flavour_html: string;
-  rarity: number; // 1=extremely rare, 2=rare, 3=less common, 4=common
   game: "poe1" | "poe2";
   data_hash: string;
   created_at: ColumnType<string, string | undefined, never>;
   updated_at: ColumnType<string, string | undefined, string | undefined>;
+}
+
+export interface DivinationCardRaritiesTable {
+  game: "poe1" | "poe2";
+  league: string;
+  card_name: string;
+  rarity: number; // 1=extremely rare, 2=rare, 3=less common, 4=common
+  last_updated: ColumnType<string, string | undefined, string | undefined>;
+}
+
+export interface MigrationsTable {
+  id: string;
+  description: string;
+  applied_at: ColumnType<string, string | undefined, never>;
 }
 
 export interface UserSettingsTable {
@@ -150,6 +163,12 @@ export interface UserSettingsTable {
   updated_at: ColumnType<string, string | undefined, string | undefined>;
 }
 
+export interface UserPreferencesTable {
+  id: number;
+  theme: string;
+  created_at: ColumnType<string, string | undefined, never>;
+}
+
 /**
  * Main database interface
  * Maps table names to their types
@@ -165,5 +184,7 @@ export interface Database {
   processed_ids: ProcessedIdsTable;
   cards: CardsTable;
   divination_cards: DivinationCardsTable;
+  divination_card_rarities: DivinationCardRaritiesTable;
+  migrations: MigrationsTable;
   user_settings: UserSettingsTable;
 }

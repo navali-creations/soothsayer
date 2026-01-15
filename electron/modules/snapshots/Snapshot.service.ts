@@ -176,6 +176,7 @@ class SnapshotService {
         const gameType = game === "poe1" ? "poe1" : "poe2";
         await this.divinationCards.updateRaritiesFromPrices(
           gameType,
+          leagueName,
           data.exchange.chaosToDivineRatio,
           data.exchange.cardPrices,
         );
@@ -203,6 +204,7 @@ class SnapshotService {
     const gameType = game === "poe1" ? "poe1" : "poe2";
     await this.divinationCards.updateRaritiesFromPrices(
       gameType,
+      leagueName,
       snapshotData.exchange.chaosToDivineRatio,
       snapshotData.exchange.cardPrices,
     );
@@ -258,6 +260,7 @@ class SnapshotService {
         const gameType = game === "poe1" ? "poe1" : "poe2";
         await this.divinationCards.updateRaritiesFromPrices(
           gameType,
+          leagueName,
           snapshotData.exchange.chaosToDivineRatio,
           snapshotData.exchange.cardPrices,
         );

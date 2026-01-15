@@ -81,6 +81,7 @@ class OverlayService {
         y,
         overlayWidth,
         overlayHeight,
+        screenBounds: { screenX, screenY, screenWidth, screenHeight },
       });
     }
 
