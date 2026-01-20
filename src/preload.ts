@@ -11,6 +11,7 @@ import { PoeProcessAPI } from "../electron/modules/poe-process/PoeProcess.api";
 import { SessionsAPI } from "../electron/modules/sessions/Sessions.api";
 import { SettingsStoreAPI } from "../electron/modules/settings-store/SettingsStore.api";
 import { DivinationCardsApi } from "../electron/modules/divination-cards/DivinationCards.api";
+import { SnapshotAPI } from "../electron/modules/snapshots/Snapshot.api";
 
 contextBridge.exposeInMainWorld("electron", {
   selectFile: (options: any) => ipcRenderer.invoke("select-file", options),
@@ -21,6 +22,7 @@ contextBridge.exposeInMainWorld("electron", {
 
   session: CurrentSessionAPI,
   sessions: SessionsAPI,
+  snapshots: SnapshotAPI,
   app: MainWindowAPI,
   overlay: OverlayAPI,
   appSetup: AppSetupAPI,

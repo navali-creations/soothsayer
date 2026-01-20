@@ -129,3 +129,39 @@
     var(--color-base-200) 14px
   );
 }
+
+.animation-stagger {
+  transition: all 0.3s ease-out;
+  transition-delay: calc(200ms + (sibling-index() - 1) * 100ms);
+  top: 0;
+  position: relative;
+
+  @starting-style {
+    opacity: 0;
+    top: 20px;
+  }
+}
+
+@layer utilities {
+  .animation-fade-in {
+    opacity: 1;
+    transition: opacity 0.3s ease-out;
+    transition-delay: var(--fade-in-delay, 0ms);
+
+    @starting-style {
+      opacity: 0;
+    }
+  }
+
+  .scroll-hint {
+    box-shadow: none;
+  }
+
+  @container scroll-state(scrollable) {
+    .scroll-hint {
+      opacity: 1;
+      border: 1px solid white;
+      box-shadow: 0 0 10px black inset;
+    }
+  }
+}

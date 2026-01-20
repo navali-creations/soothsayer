@@ -14,7 +14,7 @@ import {
   MainWindowChannel,
   OverlayService,
   PoeLeaguesService,
-  PoeNinjaService,
+  SupabaseClientService,
   PoeProcessService,
   SessionsService,
   SettingsKey,
@@ -74,35 +74,45 @@ class MainWindowService {
     console.log("[Init] ✓ Database");
     console.log(`[Init] Database location: ${this.database.getPath()}`);
 
-    // 3. POE.ninja (external API)
-    PoeNinjaService.getInstance();
-    PoeLeaguesService.getInstance();
-    console.log("[Init] ✓ POE Services");
+    // 3. Supabase (external API - replaces direct poe.ninja calls)
+    // Note: Supabase is already configured in main.ts before window creation
+    const supabase = SupabaseClientService.getInstance();
+    if (supabase.isConfigured()) {
+      console.log("[Init] ✓ Supabase (configured)");
+    } else {
+      console.warn(
+        "[Init] ⚠ Supabase (not configured - will use local fallback only)",
+      );
+    }
 
-    // 4. Divination Cards (static data + rarity updates, depends on database + poe.ninja)
+    // 4. POE Leagues (still needed for league selection UI)
+    PoeLeaguesService.getInstance();
+    console.log("[Init] ✓ POE Leagues");
+
+    // 5. Divination Cards (static data + rarity updates, depends on database + snapshot data)
     const divinationCards = DivinationCardsService.getInstance();
     await divinationCards.initialize();
     console.log("[Init] ✓ Divination Cards");
 
-    // 5. Snapshot service (depends on database + poe.ninja)
+    // 6. Snapshot service (depends on database + Supabase)
     SnapshotService.getInstance();
     console.log("[Init] ✓ Snapshots");
 
-    // 6. Session management (depends on database + snapshots + dataStore)
+    // 7. Session management (depends on database + snapshots + dataStore)
     const currentSessionService = CurrentSessionService.getInstance();
     await currentSessionService.initialize();
     SessionsService.getInstance();
     console.log("[Init] ✓ Sessions");
 
-    // 7. Analytics (depends on database)
+    // 8. Analytics (depends on database)
     AnalyticsService.getInstance();
     console.log("[Init] ✓ Analytics");
 
-    // 8. CSV (utility)
+    // 9. CSV (utility)
     CsvService.getInstance();
     console.log("[Init] ✓ CSV");
 
-    // 9. Overlay (UI overlay window)
+    // 10. Overlay (UI overlay window)
     OverlayService.getInstance();
     console.log("[Init] ✓ Overlay");
 
@@ -118,9 +128,7 @@ class MainWindowService {
     }
 
     // Initialize PoE Process monitoring
-    PoeProcessService.getInstance().initialize(
-      this.mainWindow as MainWindowServiceType,
-    );
+    PoeProcessService.getInstance().initialize(this);
 
     // Caption events
     this.emitCaptionEvents();
@@ -228,6 +236,27 @@ class MainWindowService {
 
       this.mainWindow?.show?.();
     });
+  }
+
+  /**
+   * Get the BrowserWindow instance
+   */
+  public getWindow(): BrowserWindow | null {
+    return this.mainWindow || null;
+  }
+
+  /**
+   * Check if the main window is destroyed
+   */
+  public isDestroyed(): boolean {
+    return !this.mainWindow || this.mainWindow.isDestroyed();
+  }
+
+  /**
+   * Get webContents safely
+   */
+  public getWebContents() {
+    return this.mainWindow?.webContents;
   }
 }
 

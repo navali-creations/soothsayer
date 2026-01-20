@@ -1,4 +1,4 @@
-import { motion, AnimatePresence, type Variants } from "framer-motion";
+import { motion } from "motion/react";
 import { GiCardRandom } from "react-icons/gi";
 import DivinationCard from "../../../components/DivinationCard/DivinationCard";
 import type { CardEntry } from "../../../../types/data-stores";
@@ -8,42 +8,6 @@ import { useBoundStore } from "../../../store/store";
 interface CardsGridProps {
   cards: DivinationCardRow[];
 }
-
-const containerVariants: Variants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.05,
-      delayChildren: 0.2,
-    },
-  },
-};
-
-const itemVariants: Variants = {
-  hidden: {
-    opacity: 0,
-    y: 20,
-    scale: 0.9,
-  },
-  visible: {
-    opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: {
-      duration: 0.4,
-      ease: [0.4, 0, 0.2, 1],
-    },
-  },
-  exit: {
-    opacity: 0,
-    scale: 0.8,
-    transition: {
-      duration: 0.2,
-      ease: [0.4, 0, 1, 1],
-    },
-  },
-};
 
 export const CardsGrid = ({ cards }: CardsGridProps) => {
   const {
@@ -73,7 +37,7 @@ export const CardsGrid = ({ cards }: CardsGridProps) => {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 0.2 }}
+        transition={{ delay: 1 }}
         className="flex items-center justify-center h-full"
       >
         <div className="text-center">
@@ -88,29 +52,22 @@ export const CardsGrid = ({ cards }: CardsGridProps) => {
   }
 
   return (
-    <motion.div
+    <ul
       key={gridKey}
       className="p-1.5 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 pb-4 overflow-hidden"
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
     >
-      <AnimatePresence mode="popLayout">
-        {cards.map((card) => (
-          <motion.div
-            key={card.id}
-            className="flex flex-col items-center gap-2"
-            variants={itemVariants}
-            layout
-          >
-            <div className="w-full flex justify-center">
-              <div className="scale-70 origin-top -mb-36">
-                <DivinationCard card={convertToCardEntry(card)} />
-              </div>
+      {cards.map((card) => (
+        <li
+          key={`${gridKey}-${card.id}`}
+          className="flex flex-col items-center gap-2 animation-stagger"
+        >
+          <div className="w-full flex justify-center">
+            <div className="scale-70 origin-top -mb-36">
+              <DivinationCard card={convertToCardEntry(card)} />
             </div>
-          </motion.div>
-        ))}
-      </AnimatePresence>
-    </motion.div>
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 };

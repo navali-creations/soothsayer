@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { app, ipcMain } from "electron";
 import { DatabaseService } from "../database";
 import { SettingsStoreService, SettingsKey } from "../settings-store";
-import { PoeNinjaService } from "../poe-ninja";
 import { DivinationCardsChannel } from "./DivinationCards.channels";
 import { DivinationCardsRepository } from "./DivinationCards.repository";
 import type {
@@ -29,7 +28,6 @@ interface DivinationCardJson {
 class DivinationCardsService {
   private static _instance: DivinationCardsService;
   private repository: DivinationCardsRepository;
-  private poeNinja: PoeNinjaService;
   private settingsStore: SettingsStoreService;
   private readonly poe1CardsJsonPath: string;
   private readonly poe2CardsJsonPath: string;
@@ -44,7 +42,6 @@ class DivinationCardsService {
   private constructor() {
     const database = DatabaseService.getInstance();
     this.repository = new DivinationCardsRepository(database.getKysely());
-    this.poeNinja = PoeNinjaService.getInstance();
     this.settingsStore = SettingsStoreService.getInstance();
 
     // Determine paths based on whether app is packaged
@@ -72,42 +69,11 @@ class DivinationCardsService {
 
       console.log("[DivinationCards] Successfully initialized all cards");
 
-      // Update rarities based on current prices
-      await this.initializeRarities();
+      // Note: Rarities are now updated by Snapshot.service.ts when it fetches price data
+      // This avoids duplicate API calls and ensures consistency with snapshot data
     } catch (error) {
       console.error("[DivinationCards] Failed to initialize:", error);
       throw error;
-    }
-  }
-
-  /**
-   * Initialize card rarities from poe.ninja prices
-   * Called during app startup after cards are synced
-   */
-  private async initializeRarities(): Promise<void> {
-    try {
-      const settingsStore = SettingsStoreService.getInstance();
-      const activeGame = await settingsStore.get(SettingsKey.ActiveGame);
-      const activeLeague =
-        activeGame === "poe1"
-          ? await settingsStore.get(SettingsKey.SelectedPoe1League)
-          : activeGame === "poe2"
-            ? await settingsStore.get(SettingsKey.SelectedPoe2League)
-            : null;
-
-      if (activeGame && activeLeague) {
-        await this.updateRaritiesFromLeague(activeGame, activeLeague);
-      } else {
-        console.log(
-          "[DivinationCards] ⚠ Skipping rarity update - no active game or league selected",
-        );
-      }
-    } catch (error) {
-      console.warn(
-        "[DivinationCards] Failed to update card rarities on launch:",
-        error,
-      );
-      // Don't throw - we don't want to prevent app from starting if price fetch fails
     }
   }
 
@@ -321,6 +287,13 @@ class DivinationCardsService {
     );
   }
 
+  /**
+   * Update card rarities from price data
+   * Called by Snapshot.service.ts whenever it fetches/loads a price snapshot
+   *
+   * This ensures card rarities are always in sync with the snapshot being used
+   * for the current session.
+   */
   public async updateRaritiesFromPrices(
     game: "poe1" | "poe2",
     league: string,
@@ -369,39 +342,6 @@ class DivinationCardsService {
       await this.repository.updateRarities(game, league, updates);
       console.log(
         `[DivinationCards] Updated rarities for ${updates.length} ${game.toUpperCase()}/${league} cards (${pricedCardNames.size} priced, ${updates.length - pricedCardNames.size} unpriced)`,
-      );
-    }
-  }
-
-  /**
-   * Update card rarities from poe.ninja for a specific league
-   * Called on app launch to ensure rarities are current
-   */
-  public async updateRaritiesFromLeague(
-    game: "poe1" | "poe2",
-    leagueName: string,
-  ): Promise<void> {
-    try {
-      console.log(
-        `[DivinationCards] Fetching prices for ${game.toUpperCase()}/${leagueName} to update rarities...`,
-      );
-
-      const priceSnapshot = await this.poeNinja.getPriceSnapshot(leagueName);
-
-      await this.updateRaritiesFromPrices(
-        game,
-        leagueName,
-        priceSnapshot.exchange.chaosToDivineRatio,
-        priceSnapshot.exchange.cardPrices,
-      );
-
-      console.log(
-        `[DivinationCards] Successfully updated rarities for ${game.toUpperCase()}/${leagueName}`,
-      );
-    } catch (error) {
-      console.error(
-        `[DivinationCards] Failed to update rarities for ${game.toUpperCase()}/${leagueName}:`,
-        error,
       );
     }
   }

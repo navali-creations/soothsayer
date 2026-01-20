@@ -3,16 +3,7 @@ import { Search } from "../../../components";
 
 export const CardsActions = () => {
   const {
-    cards: {
-      searchQuery,
-      rarityFilter,
-      sortField,
-      sortDirection,
-      setSearchQuery,
-      setRarityFilter,
-      setSortField,
-      toggleSortDirection,
-    },
+    cards: { searchQuery, rarityFilter, setSearchQuery, setRarityFilter },
   } = useBoundStore();
 
   return (

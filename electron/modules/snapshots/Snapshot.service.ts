@@ -2,26 +2,28 @@ import crypto from "node:crypto";
 import { ipcMain, BrowserWindow } from "electron";
 import type { SessionPriceSnapshot } from "../../../types/data-stores";
 import { DatabaseService } from "../database/Database.service";
-import { PoeNinjaService } from "../poe-ninja/PoeNinja.service";
+import { SupabaseClientService } from "../supabase/Supabase.service";
 import { SnapshotRepository } from "./Snapshot.repository";
 import { DivinationCardsService } from "../divination-cards/DivinationCards.service";
 import { SnapshotChannel } from "./Snapshot.channels";
 
 /**
  * Service for managing price snapshots
- * Handles fetching, storing, and reusing poe.ninja price data
+ * Handles fetching from Supabase, storing locally, and reusing snapshot data
  */
 class SnapshotService {
   private static _instance: SnapshotService;
   private repository: SnapshotRepository;
-  private poeNinja: PoeNinjaService;
+  private supabase: SupabaseClientService;
   private divinationCards: DivinationCardsService;
   private refreshIntervals: Map<string, NodeJS.Timeout> = new Map();
 
   // How old can a snapshot be before we fetch a new one (in hours)
+  // Since Supabase updates every 4 hours, we can reuse for longer
   private static SNAPSHOT_REUSE_THRESHOLD_HOURS = 6;
 
   // How often to refresh snapshots while app is open (in hours)
+  // Align with Supabase's 4-hour update schedule
   private static AUTO_REFRESH_INTERVAL_HOURS = 4;
 
   static getInstance(): SnapshotService {
@@ -34,7 +36,7 @@ class SnapshotService {
   constructor() {
     const db = DatabaseService.getInstance();
     this.repository = new SnapshotRepository(db.getKysely());
-    this.poeNinja = PoeNinjaService.getInstance();
+    this.supabase = SupabaseClientService.getInstance();
     this.divinationCards = DivinationCardsService.getInstance();
     this.setupIpcHandlers();
   }
@@ -70,7 +72,21 @@ class SnapshotService {
   private emitSnapshotEvent(channel: string, ...args: any[]) {
     const windows = BrowserWindow.getAllWindows();
     for (const window of windows) {
-      window.webContents.send(channel, ...args);
+      try {
+        if (
+          window &&
+          !window.isDestroyed() &&
+          window.webContents &&
+          !window.webContents.isDestroyed()
+        ) {
+          window.webContents.send(channel, ...args);
+        }
+      } catch (error) {
+        console.warn(
+          `[SnapshotService] Failed to emit event (${channel}):`,
+          error instanceof Error ? error.message : String(error),
+        );
+      }
     }
   }
 
@@ -146,8 +162,60 @@ class SnapshotService {
   }
 
   /**
+   * Fetch snapshot from Supabase with local SQLite fallback
+   */
+  private async fetchSnapshotWithFallback(
+    game: "poe1" | "poe2",
+    leagueName: string,
+    leagueId: string,
+  ): Promise<SessionPriceSnapshot> {
+    // Try Supabase first
+    if (this.supabase.isConfigured()) {
+      try {
+        console.log(
+          `[SnapshotService] Fetching from Supabase for ${game}/${leagueName}...`,
+        );
+        const snapshotData = await this.supabase.getLatestSnapshot(
+          game,
+          leagueName,
+        );
+        return snapshotData;
+      } catch (error) {
+        console.error(
+          "[SnapshotService] Supabase fetch failed, checking local fallback:",
+          error,
+        );
+      }
+    } else {
+      console.warn(
+        "[SnapshotService] Supabase not configured, using local data only",
+      );
+    }
+
+    // Fallback: try to load most recent local snapshot
+    const recentLocal = await this.repository.getRecentSnapshot(
+      leagueId,
+      24 * 30, // Allow even very old snapshots as fallback
+    );
+
+    if (recentLocal) {
+      console.log(
+        `[SnapshotService] Using local fallback snapshot from ${recentLocal.fetchedAt}`,
+      );
+      const data = await this.loadSnapshot(recentLocal.id);
+      if (data) {
+        return data;
+      }
+    }
+
+    throw new Error(
+      `No snapshot available for ${game}/${leagueName}. Supabase is unavailable and no local cache exists.`,
+    );
+  }
+
+  /**
    * Get or fetch a snapshot for a session
-   * Reuses recent snapshots or fetches new one
+   * Reuses recent snapshots or fetches new one from Supabase
    */
   public async getSnapshotForSession(
     game: string,
@@ -166,7 +234,7 @@ class SnapshotService {
 
     if (recentSnapshot) {
       console.log(
-        `Reusing snapshot ${recentSnapshot.id} from ${recentSnapshot.fetchedAt}`,
+        `[SnapshotService] Reusing snapshot ${recentSnapshot.id} from ${recentSnapshot.fetchedAt}`,
       );
 
       const data = await this.loadSnapshot(recentSnapshot.id);
@@ -196,12 +264,18 @@ class SnapshotService {
       }
     }
 
-    // Fetch new snapshot
-    console.log(`Fetching new snapshot for ${game}/${leagueName}...`);
-    const snapshotData = await this.poeNinja.getPriceSnapshot(leagueName);
+    // Fetch new snapshot from Supabase (with local fallback)
+    console.log(
+      `[SnapshotService] Fetching new snapshot for ${game}/${leagueName}...`,
+    );
+    const gameType = game === "poe1" ? "poe1" : "poe2";
+    const snapshotData = await this.fetchSnapshotWithFallback(
+      gameType,
+      leagueName,
+      leagueId,
+    );
 
     // Update card rarities based on exchange prices
-    const gameType = game === "poe1" ? "poe1" : "poe2";
     await this.divinationCards.updateRaritiesFromPrices(
       gameType,
       leagueName,
@@ -209,7 +283,7 @@ class SnapshotService {
       snapshotData.exchange.cardPrices,
     );
 
-    // Store it
+    // Store it locally
     const snapshotId = crypto.randomUUID();
     await this.repository.createSnapshot({
       id: snapshotId,
@@ -218,7 +292,7 @@ class SnapshotService {
     });
 
     console.log(
-      `Stored snapshot ${snapshotId} for league ${leagueId} with ${Object.keys(snapshotData.exchange.cardPrices).length + Object.keys(snapshotData.stash.cardPrices).length} card prices`,
+      `[SnapshotService] Stored snapshot ${snapshotId} for league ${leagueId} with ${Object.keys(snapshotData.exchange.cardPrices).length + Object.keys(snapshotData.stash.cardPrices).length} card prices`,
     );
 
     // Emit created snapshot event
@@ -252,12 +326,18 @@ class SnapshotService {
 
     const interval = setInterval(async () => {
       try {
-        console.log(`Auto-refreshing snapshot for ${game}/${leagueName}...`);
+        console.log(
+          `[SnapshotService] Auto-refreshing snapshot for ${game}/${leagueName}...`,
+        );
         const leagueId = await this.ensureLeague(game, leagueName);
-        const snapshotData = await this.poeNinja.getPriceSnapshot(leagueName);
+        const gameType = game === "poe1" ? "poe1" : "poe2";
+        const snapshotData = await this.fetchSnapshotWithFallback(
+          gameType,
+          leagueName,
+          leagueId,
+        );
 
         // Update card rarities based on exchange prices
-        const gameType = game === "poe1" ? "poe1" : "poe2";
         await this.divinationCards.updateRaritiesFromPrices(
           gameType,
           leagueName,
@@ -272,7 +352,9 @@ class SnapshotService {
           snapshotData,
         });
 
-        console.log(`Auto-refresh complete for ${game}/${leagueName}`);
+        console.log(
+          `[SnapshotService] Auto-refresh complete for ${game}/${leagueName}`,
+        );
 
         // Emit created snapshot event so frontend updates
         this.emitSnapshotEvent(SnapshotChannel.OnSnapshotCreated, {
@@ -285,13 +367,16 @@ class SnapshotService {
           stashChaosToDivine: snapshotData.stash.chaosToDivineRatio,
         });
       } catch (error) {
-        console.error(`Failed to auto-refresh snapshot for ${key}:`, error);
+        console.error(
+          `[SnapshotService] Failed to auto-refresh snapshot for ${key}:`,
+          error,
+        );
       }
     }, intervalMs);
 
     this.refreshIntervals.set(key, interval);
     console.log(
-      `Started auto-refresh for ${key} (every ${SnapshotService.AUTO_REFRESH_INTERVAL_HOURS}h)`,
+      `[SnapshotService] Started auto-refresh for ${key} (every ${SnapshotService.AUTO_REFRESH_INTERVAL_HOURS}h)`,
     );
 
     // Emit auto-refresh started event
@@ -312,7 +397,7 @@ class SnapshotService {
     if (interval) {
       clearInterval(interval);
       this.refreshIntervals.delete(key);
-      console.log(`Stopped auto-refresh for ${key}`);
+      console.log(`[SnapshotService] Stopped auto-refresh for ${key}`);
 
       // Emit auto-refresh stopped event
       this.emitSnapshotEvent(SnapshotChannel.OnAutoRefreshStopped, {
@@ -328,7 +413,7 @@ class SnapshotService {
   public stopAllAutoRefresh(): void {
     for (const [key, interval] of this.refreshIntervals) {
       clearInterval(interval);
-      console.log(`Stopped auto-refresh for ${key}`);
+      console.log(`[SnapshotService] Stopped auto-refresh for ${key}`);
     }
     this.refreshIntervals.clear();
   }

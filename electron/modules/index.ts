@@ -8,7 +8,7 @@ export * from "./main-window";
 export * from "./overlay";
 export * from "./performance-logger";
 export * from "./poe-leagues";
-export * from "./poe-ninja";
+export * from "./supabase";
 export * from "./poe-process";
 export * from "./settings-store";
 export * from "./tray";

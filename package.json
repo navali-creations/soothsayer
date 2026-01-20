@@ -12,7 +12,8 @@
     "publish": "electron-forge publish",
     "lint": "eslint --ext .ts,.tsx .",
     "postinstall": "electron-rebuild -f -w better-sqlite3",
-    "migration:create": "node electron/modules/database/migrations/create-migration.ts"
+    "migration:create": "node electron/modules/database/migrations/create-migration.ts",
+    "tsc": "tsc --noEmit"
   },
   "keywords": [],
   "author": {
@@ -34,6 +35,7 @@
     "@electron/rebuild": "^4.0.2",
     "@redux-devtools/extension": "^3.3.0",
     "@repere/react": "^0.2.2",
+    "@supabase/supabase-js": "^2.90.1",
     "@tailwindcss/vite": "^4.1.17",
     "@tanstack/react-query": "^5.90.11",
     "@tanstack/react-router": "^1.139.11",
@@ -44,15 +46,12 @@
     "@types/electron-squirrel-startup": "^1.0.2",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
-    "@typescript-eslint/eslint-plugin": "^5.62.0",
-    "@typescript-eslint/parser": "^5.62.0",
     "@vitejs/plugin-react": "^5.1.1",
     "cheerio": "^1.1.2",
     "clsx": "^2.1.1",
     "cross-env": "^10.1.0",
     "daisyui": "^5.5.5",
-    "driver.js": "^1.4.0",
-    "electron": "39.2.4",
+    "electron": "40.0.0",
     "electron-devtools-installer": "^4.0.0",
     "electron-squirrel-startup": "^1.0.1",
     "electron-store": "^11.0.2",
@@ -72,6 +71,6 @@
     "zustand": "^5.0.9"
   },
   "dependencies": {
-    "better-sqlite3": "^12.5.0"
+    "better-sqlite3": "^12.6.2"
   }
 }

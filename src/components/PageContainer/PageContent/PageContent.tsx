@@ -32,7 +32,7 @@ const contentVariants: Variants = {
 const PageContent = ({ children, className = "" }: PageContentProps) => {
   return (
     <motion.div
-      className={`flex-1 overflow-y-auto space-y-6 pr-3 ${className}`}
+      className={`flex-1 overflow-y-auto space-y-6 pr-3 ${className} scroll-hint`}
       variants={contentVariants}
     >
       {children}

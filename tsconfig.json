@@ -15,13 +15,13 @@
     "resolveJsonModule": true,
     "strictNullChecks": true,
     "isolatedModules": true,
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "electron/**/*", "types/**/*", "forge.env.d.ts"],
   "exclude": [
     "vite.config.ts",
     "vite.*.config.mts",
     "*.config.ts",
-    "*.config.mts"
-  ]
+    "*.config.mts",
+  ],
 }

@@ -80,8 +80,18 @@ class PoeProcessService {
   }
 
   private sendToRenderer(channel: string, data?: any): void {
-    if (this.mainWindow && !this.mainWindow.isDestroyed?.()) {
-      this.mainWindow.webContents?.send(channel, data);
+    if (!this.mainWindow) return;
+
+    try {
+      const webContents = this.mainWindow.getWebContents();
+      if (webContents && !webContents.isDestroyed()) {
+        webContents.send(channel, data);
+      }
+    } catch (error) {
+      console.warn(
+        `[PoeProcess] Failed to send to renderer (${channel}):`,
+        error instanceof Error ? error.message : String(error),
+      );
     }
   }
 }
