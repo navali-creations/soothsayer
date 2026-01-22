@@ -1,11 +1,11 @@
 import crypto from "node:crypto";
-import { ipcMain, BrowserWindow } from "electron";
+import { BrowserWindow, ipcMain } from "electron";
+import { DatabaseService } from "~/electron/modules/database";
+import { DivinationCardsService } from "~/electron/modules/divination-cards";
+import { SupabaseClientService } from "~/electron/modules/supabase";
 import type { SessionPriceSnapshot } from "../../../types/data-stores";
-import { DatabaseService } from "../database/Database.service";
-import { SupabaseClientService } from "../supabase/Supabase.service";
-import { SnapshotRepository } from "./Snapshot.repository";
-import { DivinationCardsService } from "../divination-cards/DivinationCards.service";
 import { SnapshotChannel } from "./Snapshot.channels";
+import { SnapshotRepository } from "./Snapshot.repository";
 
 /**
  * Service for managing price snapshots

@@ -1,11 +1,11 @@
-import { sql, type Kysely } from "kysely";
-import type { Database } from "../database/Database.types";
+import { type Kysely, sql } from "kysely";
+import type { Database } from "~/electron/modules/database";
 import type {
-  SnapshotDTO,
-  SnapshotCardPriceDTO,
-  LeagueDTO,
   CreateLeagueDTO,
   CreateSnapshotDTO,
+  LeagueDTO,
+  SnapshotCardPriceDTO,
+  SnapshotDTO,
 } from "./Snapshot.dto";
 import { SnapshotMapper } from "./Snapshot.mapper";
 

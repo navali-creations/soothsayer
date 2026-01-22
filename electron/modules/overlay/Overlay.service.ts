@@ -1,7 +1,10 @@
 import { join } from "node:path";
 import { BrowserWindow, ipcMain, screen } from "electron";
-import { CurrentSessionService } from "../current-session";
-import { SettingsKey, SettingsStoreService } from "../settings-store";
+import { CurrentSessionService } from "~/electron/modules/current-session";
+import {
+  SettingsKey,
+  SettingsStoreService,
+} from "~/electron/modules/settings-store";
 import { OverlayChannel } from "./Overlay.channels";
 
 interface OverlayBounds {

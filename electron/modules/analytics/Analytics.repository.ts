@@ -1,6 +1,6 @@
-import { sql } from "kysely";
 import type { Kysely } from "kysely";
-import type { Database } from "../database/Database.types";
+import { sql } from "kysely";
+import type { Database } from "~/electron/modules/database";
 import type {
   CardOccurrenceRatioDTO,
   CardPriceHistoryDTO,

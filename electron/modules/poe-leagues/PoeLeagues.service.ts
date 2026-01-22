@@ -1,11 +1,11 @@
 import { ipcMain } from "electron";
-import type { PoeLeague, PoeLeagueFullData } from "../../../types/poe-league";
 import {
   type GameVersion,
   PoeLeaguesChannel,
   SettingsKey,
   SettingsStoreService,
-} from "../../modules";
+} from "~/electron/modules";
+import type { PoeLeague, PoeLeagueFullData } from "../../../types/poe-league";
 
 class PoeLeaguesService {
   private static _instance: PoeLeaguesService;

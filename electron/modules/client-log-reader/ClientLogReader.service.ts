@@ -1,6 +1,5 @@
 import EventEmitter from "node:events";
 import fs from "node:fs";
-import path from "node:path";
 import type { GameType } from "../../../types/data-stores";
 import {
   CurrentSessionService,

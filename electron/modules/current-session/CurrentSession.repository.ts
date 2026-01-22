@@ -1,14 +1,14 @@
-import { sql, type Kysely } from "kysely";
-import type { Database } from "../database/Database.types";
+import { type Kysely, sql } from "kysely";
+import type { Database } from "~/electron/modules/database";
 import type { GameType } from "../../../types/data-stores";
-import {
-  type CreateSessionDTO,
-  type UpdateSessionDTO,
-  type UpsertSessionCardDTO,
-  type SessionDTO,
-  type SessionCardDTO,
-  type ProcessedIdDTO,
-  type SessionSummaryDTO,
+import type {
+  CreateSessionDTO,
+  ProcessedIdDTO,
+  SessionCardDTO,
+  SessionDTO,
+  SessionSummaryDTO,
+  UpdateSessionDTO,
+  UpsertSessionCardDTO,
 } from "./CurrentSession.dto";
 import { CurrentSessionMapper } from "./CurrentSession.mapper";
 

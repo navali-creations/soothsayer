@@ -1,12 +1,12 @@
 import type {
-  SnapshotsTable,
-  SnapshotCardPricesTable,
   LeaguesTable,
-} from "../database/Database.types";
+  SnapshotCardPricesTable,
+  SnapshotsTable,
+} from "~/electron/modules/database";
 import type {
-  SnapshotDTO,
-  SnapshotCardPriceDTO,
   LeagueDTO,
+  SnapshotCardPriceDTO,
+  SnapshotDTO,
 } from "./Snapshot.dto";
 
 /**

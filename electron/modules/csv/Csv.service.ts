@@ -1,8 +1,13 @@
 import { promises as fs } from "node:fs";
 import { BrowserWindow, dialog, ipcMain } from "electron";
-import type { SimpleDivinationCardStats } from "../data-store/DataStore.schemas";
-import { DataStoreService } from "../data-store/DataStore.service";
-import { SettingsKey, SettingsStoreService } from "../settings-store";
+import {
+  DataStoreService,
+  type SimpleDivinationCardStats,
+} from "~/electron/modules/data-store";
+import {
+  SettingsKey,
+  SettingsStoreService,
+} from "~/electron/modules/settings-store";
 import { jsonToCsv } from "./utils";
 
 class CsvService {

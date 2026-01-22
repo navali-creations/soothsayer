@@ -6,5 +6,9 @@ onlyBuiltDependencies:
   - puppeteer
 
 overrides:
-  '@repere/core': link:../../AppData/Local/pnpm/global/5/node_modules/@repere/core
-  '@repere/react': link:../../AppData/Local/pnpm/global/5/node_modules/@repere/react
+  "@repere/core": link:../../AppData/Local/pnpm/global/5/node_modules/@repere/core
+  "@repere/react": link:../../AppData/Local/pnpm/global/5/node_modules/@repere/react
+
+packages:
+  - "apps/*"
+  - "packages/*"

@@ -1,7 +1,19 @@
+import { resolve } from "node:path";
 import { defineConfig } from "vite";
 import { externalizeDeps } from "vite-plugin-externalize-deps";
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      "~/src": resolve(__dirname, "./src"),
+      "~/electron": resolve(__dirname, "./electron"),
+      "@types": resolve(__dirname, "./types"),
+      "@enums": resolve(__dirname, "./enums"),
+    },
+    // Some libs that can run in both Web and Node.js envs
+    // will export different bundles based on this
+    mainFields: ["module", "jsnext:main", "jsnext"],
+  },
   build: {
     rollupOptions: {
       plugins: [externalizeDeps()],
@@ -18,10 +30,5 @@ export default defineConfig({
     },
     // Ensure source maps work in development
     sourcemap: true,
-  },
-  resolve: {
-    // Some libs that can run in both Web and Node.js envs
-    // will export different bundles based on this
-    mainFields: ["module", "jsnext:main", "jsnext"],
   },
 });

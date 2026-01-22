@@ -14,14 +14,14 @@ import {
   MainWindowChannel,
   OverlayService,
   PoeLeaguesService,
-  SupabaseClientService,
   PoeProcessService,
   SessionsService,
   SettingsKey,
   SettingsStoreService,
   SnapshotService,
+  SupabaseClientService,
   TrayService,
-} from "../../modules";
+} from "~/electron/modules";
 
 class MainWindowService {
   private mainWindow: BrowserWindow;

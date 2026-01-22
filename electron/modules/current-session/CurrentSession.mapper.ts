@@ -1,12 +1,12 @@
 import type {
-  SessionsTable,
   SessionCardsTable,
   SessionSummariesTable,
-} from "../database/Database.types";
+  SessionsTable,
+} from "~/electron/modules/database";
 import type { GameType } from "../../../types/data-stores";
 import type {
-  SessionDTO,
   SessionCardDTO,
+  SessionDTO,
   SessionSummaryDTO,
 } from "./CurrentSession.dto";
 

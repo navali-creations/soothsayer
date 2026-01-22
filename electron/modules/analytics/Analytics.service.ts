@@ -1,5 +1,5 @@
 import { ipcMain } from "electron";
-import { DatabaseService } from "../database/Database.service";
+import { DatabaseService } from "~/electron/modules/database";
 import { AnalyticsChannel } from "./Analytics.channels";
 import type {
   CardOccurrenceRatio,

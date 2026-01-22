@@ -1,5 +1,5 @@
 import { type Kysely, sql } from "kysely";
-import type { Database } from "../database/Database.types";
+import type { Database } from "~/electron/modules/database";
 import type {
   SessionCardDetailsDTO,
   SessionDetailsDTO,

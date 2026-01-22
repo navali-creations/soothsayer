@@ -3,6 +3,7 @@ export type {
   AppSettingsDTO,
   Poe1SettingsDTO,
   Poe2SettingsDTO,
+  SetupStep,
   UserSettingsDTO,
 } from "./SettingsStore.dto";
 export { SettingsKey } from "./SettingsStore.keys";

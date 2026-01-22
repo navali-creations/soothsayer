@@ -1,4 +1,4 @@
-import type { SetupStep } from "../settings-store/SettingsStore.dto";
+import type { SetupStep } from "~/electron/modules/settings-store";
 
 /**
  * Setup step names for clarity

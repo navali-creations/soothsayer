@@ -1,3 +1,4 @@
+import { enableMapSet } from "immer";
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
@@ -46,6 +47,8 @@ import {
   type StatisticsSlice,
 } from "../modules/statistics/Statistics.slice";
 import { createSetupSlice, type SetupSlice } from "./setupSlice";
+
+enableMapSet();
 
 interface RootActions {
   hydrate: () => Promise<void>;

@@ -1,5 +1,5 @@
-import { sql, type Kysely } from "kysely";
-import type { Database } from "../database/Database.types";
+import { type Kysely, sql } from "kysely";
+import type { Database } from "~/electron/modules/database";
 import type { DivinationCardDTO } from "./DivinationCards.dto";
 import { DivinationCardsMapper } from "./DivinationCards.mapper";
 
@@ -29,7 +29,7 @@ export class DivinationCardsRepository {
     game: "poe1" | "poe2",
     league?: string,
   ): Promise<DivinationCardDTO[]> {
-    let query = this.kysely
+    const query = this.kysely
       .selectFrom("divination_cards as dc")
       .select([
         "dc.id",
@@ -78,7 +78,7 @@ export class DivinationCardsRepository {
     id: string,
     league?: string,
   ): Promise<DivinationCardDTO | null> {
-    let query = this.kysely
+    const query = this.kysely
       .selectFrom("divination_cards as dc")
       .select([
         "dc.id",
@@ -124,7 +124,7 @@ export class DivinationCardsRepository {
     name: string,
     league?: string,
   ): Promise<DivinationCardDTO | null> {
-    let query = this.kysely
+    const query = this.kysely
       .selectFrom("divination_cards as dc")
       .select([
         "dc.id",
@@ -171,7 +171,7 @@ export class DivinationCardsRepository {
     query: string,
     league?: string,
   ): Promise<DivinationCardDTO[]> {
-    let queryBuilder = this.kysely
+    const queryBuilder = this.kysely
       .selectFrom("divination_cards as dc")
       .select([
         "dc.id",

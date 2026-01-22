@@ -1,7 +1,7 @@
 import { ipcRenderer } from "electron";
 import type {
-  GameType,
   DetailedDivinationCardStats,
+  GameType,
 } from "../../../types/data-stores";
 import { SessionsChannel } from "./Sessions.channels";
 

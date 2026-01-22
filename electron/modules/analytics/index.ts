@@ -1,13 +1,13 @@
-export { AnalyticsService } from "./Analytics.service";
 export { AnalyticsAPI } from "./Analytics.api";
 export { AnalyticsChannel } from "./Analytics.channels";
-export { AnalyticsRepository } from "./Analytics.repository";
+export type * from "./Analytics.dto";
 export type {
-  CardStatistic,
+  CardOccurrenceRatio,
   CardPriceHistory,
   CardPricePeak,
+  CardStatistic,
   LeagueAnalytics,
   SessionComparison,
-  CardOccurrenceRatio,
 } from "./Analytics.mapper";
-export type * from "./Analytics.dto";
+export { AnalyticsRepository } from "./Analytics.repository";
+export { AnalyticsService } from "./Analytics.service";

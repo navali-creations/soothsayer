@@ -1,5 +1,5 @@
 import { ipcMain } from "electron";
-import { type MainWindowService, PoeProcessChannel } from "../../modules";
+import { type MainWindowService, PoeProcessChannel } from "~/electron/modules";
 import { PoeProcessPoller } from "../../pollers/PoeProcessPoller";
 
 /**

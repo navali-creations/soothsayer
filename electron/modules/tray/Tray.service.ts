@@ -3,7 +3,7 @@ import {
   AppService,
   MainWindowService,
   type MainWindowServiceType,
-} from "../../modules";
+} from "~/electron/modules";
 
 class TrayService {
   private tray: Tray | null = null;

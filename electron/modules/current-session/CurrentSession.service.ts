@@ -1,5 +1,9 @@
 import crypto from "node:crypto";
 import { BrowserWindow, ipcMain } from "electron";
+import { DataStoreService } from "~/electron/modules/data-store";
+import { DatabaseService } from "~/electron/modules/database";
+import { PerformanceLoggerService } from "~/electron/modules/performance-logger";
+import { SnapshotService } from "~/electron/modules/snapshots";
 import type {
   CardEntry,
   CardPriceInfo,
@@ -7,10 +11,6 @@ import type {
   SessionPriceSnapshot,
   SessionTotals,
 } from "../../../types/data-stores";
-import { DatabaseService } from "../database/Database.service";
-import { DataStoreService } from "../data-store/DataStore.service";
-import { PerformanceLoggerService } from "../performance-logger/PerformanceLogger.service";
-import { SnapshotService } from "../snapshots/Snapshot.service";
 import { CurrentSessionChannel } from "./CurrentSession.channels";
 import { CurrentSessionRepository } from "./CurrentSession.repository";
 

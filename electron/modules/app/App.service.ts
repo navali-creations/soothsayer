@@ -1,6 +1,5 @@
 import { resolve } from "node:path";
 import { type App, app, ipcMain } from "electron";
-import { System } from "../../../enums";
 import {
   CurrentSessionService,
   DatabaseService,
@@ -11,7 +10,8 @@ import {
   SettingsStoreService,
   SnapshotService,
   TrayService,
-} from "../../modules";
+} from "~/electron/modules";
+import { System } from "../../../enums";
 import { AppChannel } from "./App.channels";
 
 class AppService {

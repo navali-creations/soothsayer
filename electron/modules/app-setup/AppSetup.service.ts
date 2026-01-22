@@ -1,8 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { ipcMain } from "electron";
-import type { SetupStep } from "../settings-store/SettingsStore.dto";
-import { SettingsStoreService } from "../settings-store/SettingsStore.service";
+import {
+  SettingsStoreService,
+  type SetupStep,
+} from "~/electron/modules/settings-store";
 import { AppSetupChannel } from "./AppSetup.channels";
 import {
   SETUP_STEPS,

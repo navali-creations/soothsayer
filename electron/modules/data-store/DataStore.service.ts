@@ -1,10 +1,10 @@
 import { ipcMain } from "electron";
+import { DatabaseService } from "~/electron/modules/database";
+import { PerformanceLoggerService } from "~/electron/modules/performance-logger";
 import type { GameType, GlobalStats } from "../../../types/data-stores";
-import { DatabaseService } from "../database/Database.service";
-import { PerformanceLoggerService } from "../performance-logger/PerformanceLogger.service";
 import { DataStoreChannel } from "./DataStore.channels";
-import type { SimpleDivinationCardStats } from "./DataStore.schemas";
 import { DataStoreRepository } from "./DataStore.repository";
+import type { SimpleDivinationCardStats } from "./DataStore.schemas";
 
 /**
  * SQLite-based DataStore service - Refactored with Kysely

@@ -2,15 +2,18 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { app, ipcMain } from "electron";
-import { DatabaseService } from "../database";
-import { SettingsStoreService, SettingsKey } from "../settings-store";
+import { DatabaseService } from "~/electron/modules/database";
+import {
+  SettingsKey,
+  SettingsStoreService,
+} from "~/electron/modules/settings-store";
 import { DivinationCardsChannel } from "./DivinationCards.channels";
-import { DivinationCardsRepository } from "./DivinationCards.repository";
 import type {
   DivinationCardDTO,
   DivinationCardSearchDTO,
   DivinationCardStatsDTO,
 } from "./DivinationCards.dto";
+import { DivinationCardsRepository } from "./DivinationCards.repository";
 
 interface DivinationCardJson {
   name: string;
