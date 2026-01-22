@@ -95,3 +95,5 @@ out/
 ./supabase
 
 .idea
+
+.claude

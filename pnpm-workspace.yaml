@@ -10,5 +10,4 @@ overrides:
   "@repere/react": link:../../AppData/Local/pnpm/global/5/node_modules/@repere/react
 
 packages:
-  - "apps/*"
-  - "packages/*"
+  - "projects/*"

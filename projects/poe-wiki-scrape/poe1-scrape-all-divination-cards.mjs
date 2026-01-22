@@ -1,10 +1,13 @@
-import * as cheerio from "cheerio";
 import fs from "node:fs/promises";
 import path from "node:path";
+import * as cheerio from "cheerio";
 import puppeteer from "puppeteer";
 
 const PAGE_URL = "https://www.poewiki.net/wiki/List_of_divination_cards";
-const OUT_ASSETS_DIR = path.resolve("./src/assets/poe1/divination-card-images");
+const OUT_ASSETS_DIR = path.resolve(
+  "../app/renderer/assets/poe1/divination-card-images",
+);
+const OUT_JSON_PATH = path.resolve("../app/renderer/assets/poe1/cards.json");
 
 /** Make a filename-safe slug, but keep it readable */
 function slugify(name) {
@@ -170,7 +173,7 @@ async function main() {
       const reward_html = (sortReward ?? $descTd.html() ?? "").trim();
       const description = $descTd.text().replace(/\s+/g, " ").trim();
 
-      const art_src = `./src/assets/poe1/${slugify(name)}`;
+      const art_src = `${slugify(name)}`;
       const flavour_html = "";
 
       const row = {
@@ -306,9 +309,9 @@ async function main() {
       console.error(`  ⚠ No new images to download!`);
     }
 
-    console.error("\nStep 9: Outputting JSON...");
-    console.log(JSON.stringify(cards, null, 2));
-    console.error("  ✓ Done!");
+    console.error("\nStep 9: Writing JSON to file...");
+    await fs.writeFile(OUT_JSON_PATH, JSON.stringify(cards, null, 2));
+    console.error(`  ✓ Written to: ${OUT_JSON_PATH}`);
   } catch (error) {
     await browser.close();
     throw error;

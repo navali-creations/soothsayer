@@ -5,7 +5,7 @@ import { externalizeDeps } from "vite-plugin-externalize-deps";
 export default defineConfig({
   resolve: {
     alias: {
-      "~/src": resolve(__dirname, "./src"),
+      "~/renderer": resolve(__dirname, "./renderer"),
       "~/electron": resolve(__dirname, "./electron"),
       "@types": resolve(__dirname, "./types"),
       "@enums": resolve(__dirname, "./enums"),

@@ -1,0 +1,19 @@
+{
+  "name": "@soothsayer/poe-wiki-scrape",
+  "version": "0.0.0",
+  "description": "PoE Wiki divination card scraper",
+  "type": "module",
+  "scripts": {
+    "scrape:poe1": "node poe1-scrape-all-divination-cards.mjs"
+  },
+  "keywords": [],
+  "author": {
+    "name": "Sebastian Krzyżanowski",
+    "email": "eskrzy@gmail.com"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "cheerio": "^1.1.2",
+    "puppeteer": "^24.33.0"
+  }
+}

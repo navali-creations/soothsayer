@@ -50,8 +50,8 @@ class DivinationCardsService {
     // Determine paths based on whether app is packaged
     const basePath = app.isPackaged ? process.resourcesPath : app.getAppPath();
 
-    this.poe1CardsJsonPath = join(basePath, "cards.json");
-    this.poe2CardsJsonPath = join(basePath, "cards-poe2.json"); // For future use
+    this.poe1CardsJsonPath = join(basePath, "renderer/assets/poe1/cards.json");
+    this.poe2CardsJsonPath = join(basePath, "renderer/assets/poe2/cards.json"); // For future use
 
     this.setupIpcHandlers();
 
