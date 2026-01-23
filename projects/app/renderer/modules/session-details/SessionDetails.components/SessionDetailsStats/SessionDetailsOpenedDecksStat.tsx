@@ -1,4 +1,4 @@
-import { Stat } from "../../../../components";
+import { Stat } from "~/renderer/components";
 
 interface SessionDetailsOpenedDecksStatProps {
   totalCount: number;

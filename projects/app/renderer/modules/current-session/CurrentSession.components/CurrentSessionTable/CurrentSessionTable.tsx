@@ -1,9 +1,9 @@
 import { useMemo } from "react";
 import {
-  Table,
-  createCardNameColumn,
   createCardCountColumn,
-} from "../../../../components";
+  createCardNameColumn,
+  Table,
+} from "~/renderer/components";
 import { useBoundStore } from "~/renderer/store";
 import {
   createCurrentSessionChaosValueColumn,

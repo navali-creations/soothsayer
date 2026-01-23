@@ -3,7 +3,7 @@ import {
   RiPictureInPictureExitLine,
   RiPictureInPictureLine,
 } from "react-icons/ri";
-import { Button, Flex, Link } from "../../../../components";
+import { Button, Flex, Link } from "~/renderer/components";
 import { useBoundStore } from "~/renderer/store";
 
 const AppControls = () => {

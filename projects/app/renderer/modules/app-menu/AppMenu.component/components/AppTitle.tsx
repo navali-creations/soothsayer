@@ -1,5 +1,5 @@
+import { Flex } from "~/renderer/components";
 import pkgJson from "../../../../../package.json" with { type: "json" };
-import { Flex } from "../../../../components";
 
 const AppTitle = () => {
   return (

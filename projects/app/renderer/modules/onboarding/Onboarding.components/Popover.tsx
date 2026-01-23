@@ -1,6 +1,6 @@
 import { type PopoverComponentProps, ReperePopover } from "@repere/react";
 import type { ReactNode } from "react";
-import { Button } from "../../../components";
+import { Button } from "~/renderer/components";
 
 type PopoverProps = {
   title: string;

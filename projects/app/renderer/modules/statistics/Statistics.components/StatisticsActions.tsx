@@ -1,6 +1,6 @@
 import { FiDownload } from "react-icons/fi";
 
-import { Button, Flex } from "../../../components";
+import { Button, Flex } from "~/renderer/components";
 import { useBoundStore } from "~/renderer/store";
 
 interface StatisticsActionsProps {

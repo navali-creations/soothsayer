@@ -1,4 +1,4 @@
-import { Flex } from "../../../components";
+import { Flex } from "~/renderer/components";
 import AppControls from "./components/AppControls";
 import AppTitle from "./components/AppTitle";
 import GameSelector from "./components/GameSelector/GameSelector";

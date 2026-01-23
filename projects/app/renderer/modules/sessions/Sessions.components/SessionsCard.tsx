@@ -1,7 +1,9 @@
 import { FiClock } from "react-icons/fi";
 import { GiCardExchange, GiLockedChest } from "react-icons/gi";
-import { Link } from "../../../components";
-import { formatCurrency } from "../../../utils";
+
+import { Link } from "~/renderer/components";
+import { formatCurrency } from "~/renderer/utils";
+
 import type { SessionsSummary } from "../Sessions.types";
 import { formatSessionDate, formatSessionTime } from "../Sessions.utils";
 

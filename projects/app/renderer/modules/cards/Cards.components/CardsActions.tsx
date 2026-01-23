@@ -1,5 +1,5 @@
+import { Search } from "~/renderer/components";
 import { useBoundStore } from "~/renderer/store";
-import { Search } from "../../../components";
 
 export const CardsActions = () => {
   const {

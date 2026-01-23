@@ -1,7 +1,7 @@
-import { FiSettings, FiX } from "react-icons/fi";
-import { useBoundStore } from "~/renderer/store";
-import { Button } from "../../../components";
 import clsx from "clsx";
+import { FiSettings, FiX } from "react-icons/fi";
+import { Button } from "~/renderer/components";
+import { useBoundStore } from "~/renderer/store";
 
 export const OverlayTabs = () => {
   const {

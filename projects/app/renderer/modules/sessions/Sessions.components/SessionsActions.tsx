@@ -1,7 +1,8 @@
 import { type ChangeEvent, useEffect, useState } from "react";
+
+import { Flex, Search } from "~/renderer/components";
+import { useDebounce } from "~/renderer/hooks";
 import { useBoundStore } from "~/renderer/store";
-import { Flex, Search } from "../../../components";
-import { useDebounce } from "../../../hooks";
 
 export const SessionsActions = () => {
   const {

@@ -1,4 +1,4 @@
-import { Stat } from "../../../../components";
+import { Stat } from "~/renderer/components";
 
 interface SessionDetailsMostCommonCardStatProps {
   mostCommonCard: { name: string; count: number; ratio: number } | null;

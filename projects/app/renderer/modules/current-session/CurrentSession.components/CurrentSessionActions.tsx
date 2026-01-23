@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { FiPlay } from "react-icons/fi";
 import { GiCardExchange, GiLockedChest } from "react-icons/gi";
-import { Button, Flex } from "../../../components";
+import { Button, Flex } from "~/renderer/components";
 import { useBoundStore } from "~/renderer/store";
 
 const CurrentSessionActions = () => {

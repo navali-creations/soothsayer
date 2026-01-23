@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { FiTrash2 } from "react-icons/fi";
-import { Button } from "../../../components";
+import { Button } from "~/renderer/components";
 
 const DangerZoneCard = () => {
   const [isResetting, setIsResetting] = useState(false);

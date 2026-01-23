@@ -1,11 +1,11 @@
 import {
-  FiChevronsLeft,
-  FiChevronsRight,
   FiChevronLeft,
   FiChevronRight,
+  FiChevronsLeft,
+  FiChevronsRight,
 } from "react-icons/fi";
+import { Button } from "~/renderer/components";
 import { useBoundStore } from "~/renderer/store";
-import { Button } from "../../../components";
 
 export const SessionsPagination = () => {
   const {

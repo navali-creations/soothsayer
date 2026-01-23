@@ -1,5 +1,5 @@
-import { Stat } from "../../../../components";
-import { formatCurrency } from "../../../../utils";
+import { Stat } from "~/renderer/components";
+import { formatCurrency } from "~/renderer/utils";
 
 interface SessionDetailsTotalValueStatProps {
   totalProfit: number;

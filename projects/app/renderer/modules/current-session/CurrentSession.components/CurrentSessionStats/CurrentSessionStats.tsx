@@ -1,9 +1,9 @@
-import { GroupedStats } from "../../../../components";
+import { GroupedStats } from "~/renderer/components";
 import {
-  CurrentSessionOpenedDecksStat,
-  CurrentSessionUniqueCardsStat,
   CurrentSessionMostValueableCardStat,
+  CurrentSessionOpenedDecksStat,
   CurrentSessionTotalValueStat,
+  CurrentSessionUniqueCardsStat,
 } from ".";
 
 const CurrentSessionStats = () => {

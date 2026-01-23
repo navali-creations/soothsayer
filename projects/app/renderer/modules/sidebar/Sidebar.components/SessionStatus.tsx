@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { Flex } from "../../../components";
+import { Flex } from "~/renderer/components";
 import { useBoundStore } from "~/renderer/store";
 
 const SessionStatus = () => {
   const {
-    currentSession: {getIsCurrentSessionActive, getSessionInfo},
+    currentSession: { getIsCurrentSessionActive, getSessionInfo },
   } = useBoundStore();
 
   const isActive = getIsCurrentSessionActive();

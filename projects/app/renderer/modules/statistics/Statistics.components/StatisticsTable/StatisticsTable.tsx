@@ -4,9 +4,9 @@ import {
   createCardNameColumn,
   createCardRatioColumn,
   Table,
-} from "../../../../components";
-import type { CardEntry } from "../../Statistics.types";
+} from "~/renderer/components";
 import { useBoundStore } from "~/renderer/store";
+import type { CardEntry } from "../../Statistics.types";
 
 interface StatisticsTableProps {
   cardData: CardEntry[];

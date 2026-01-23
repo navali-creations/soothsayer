@@ -1,6 +1,6 @@
 import clsx from "clsx";
-import { Button } from "../../../../../components";
-import { LeagueSelect, StatusBadge } from "../../../../../modules/game-info";
+import { Button } from "~/renderer/components";
+import { LeagueSelect, StatusBadge } from "~/renderer/modules/game-info";
 import { useBoundStore } from "~/renderer/store";
 
 type GameSelectorTabProps = {

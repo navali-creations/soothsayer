@@ -1,7 +1,7 @@
 import { useMemo } from "react";
-import { Stat } from "../../../../components";
+import { Stat } from "~/renderer/components";
 import { useBoundStore } from "~/renderer/store";
-import { formatCurrency } from "../../../../utils";
+import { formatCurrency } from "~/renderer/utils";
 
 const CurrentSessionMostValuableStat = () => {
   const {

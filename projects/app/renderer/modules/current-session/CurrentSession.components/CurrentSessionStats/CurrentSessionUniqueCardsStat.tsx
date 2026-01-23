@@ -1,5 +1,5 @@
-import { ReactNode } from "react";
-import { Stat } from "../../../../components";
+import type { ReactNode } from "react";
+import { Stat } from "~/renderer/components";
 import { useBoundStore } from "~/renderer/store";
 
 const CurrentSessionUniqueCardsStat = () => {

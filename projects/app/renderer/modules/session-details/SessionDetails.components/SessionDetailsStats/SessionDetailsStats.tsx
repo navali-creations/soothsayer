@@ -1,4 +1,4 @@
-import { GroupedStats } from "../../../../components";
+import { GroupedStats } from "~/renderer/components";
 import {
   SessionDetailsDurationStat,
   SessionDetailsMostCommonCardStat,

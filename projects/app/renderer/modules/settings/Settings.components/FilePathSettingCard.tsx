@@ -1,5 +1,5 @@
 import { FiFolder } from "react-icons/fi";
-import { Button, Flex } from "../../../components";
+import { Button, Flex } from "~/renderer/components";
 import type { FilePathCategory } from "../Settings.types";
 
 interface FilePathSettingCardProps {
