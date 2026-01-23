@@ -1,5 +1,5 @@
-import { formatCurrency } from "../../../../api/poe-ninja";
 import { Stat } from "../../../../components";
+import { formatCurrency } from "../../../../utils";
 
 interface SessionDetailsTotalValueStatProps {
   totalProfit: number;

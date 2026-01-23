@@ -1,9 +1,9 @@
 import { createColumnHelper } from "@tanstack/react-table";
 import { useMemo } from "react";
 import { FiEye, FiEyeOff } from "react-icons/fi";
-import { formatCurrency } from "../../../../api/poe-ninja";
 import { Table } from "../../../../components";
 import { useBoundStore } from "../../../../store/store";
+import { formatCurrency } from "../../../../utils";
 import type { CardEntry } from "../../SessionDetails.types";
 
 interface SessionDetailsTableProps {

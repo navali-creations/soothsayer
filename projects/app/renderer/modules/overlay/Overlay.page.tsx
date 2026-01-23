@@ -1,12 +1,21 @@
 import { StrictMode, useEffect, useRef } from "react";
 import ReactDOM from "react-dom/client";
 import "../../index.css";
+import rarity1Sound from "~/renderer/assets/audio/rarity1.mp3";
+import rarity2Sound from "~/renderer/assets/audio/rarity2.mp3";
+import rarity3Sound from "~/renderer/assets/audio/rarity3.mp3";
 import { useBoundStore } from "../../store/store";
 import {
-  OverlayTabs,
   OverlayDropsList,
   OverlayEmpty,
+  OverlayTabs,
 } from "./Overlay.components";
+
+const raritySounds: Record<number, string> = {
+  1: rarity1Sound,
+  2: rarity2Sound,
+  3: rarity3Sound,
+};
 
 const OverlayApp = () => {
   const {
@@ -99,9 +108,12 @@ const OverlayApp = () => {
 
       // Only play sound for rarity 1, 2, 3
       if (rarity >= 1 && rarity <= 3) {
-        const audio = new Audio(`./src/assets/audio/rarity${rarity}.mp3`);
-        audio.volume = 0.5;
-        audio.play().catch((err) => console.error("Audio play failed:", err));
+        const soundUrl = raritySounds[rarity];
+        if (soundUrl) {
+          const audio = new Audio(soundUrl);
+          audio.volume = 0.5;
+          audio.play().catch((err) => console.error("Audio play failed:", err));
+        }
       }
     }
 

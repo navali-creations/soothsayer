@@ -1,8 +1,8 @@
 import { useMemo } from "react";
-import { useBoundStore } from "../../../../store/store";
 import { GiCardExchange, GiLockedChest } from "react-icons/gi";
-import { formatCurrency } from "../../../../api/poe-ninja";
 import { Stat } from "../../../../components";
+import { useBoundStore } from "../../../../store/store";
+import { formatCurrency } from "../../../../utils";
 
 const CurrentSessionTotalValueStat = () => {
   const {

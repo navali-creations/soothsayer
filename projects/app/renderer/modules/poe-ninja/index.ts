@@ -1,6 +1,6 @@
 export {
+  type AutoRefreshInfo,
   createPoeNinjaSlice,
   type PoeNinjaSlice,
   type SnapshotInfo,
-  type AutoRefreshInfo,
 } from "./PoeNinja.slice";

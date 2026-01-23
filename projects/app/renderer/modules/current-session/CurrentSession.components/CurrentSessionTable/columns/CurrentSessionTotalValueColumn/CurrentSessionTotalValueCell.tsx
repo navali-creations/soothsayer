@@ -1,7 +1,7 @@
 import type { CellContext } from "@tanstack/react-table";
 import type { CardEntry } from "../../../../../../../types/data-stores";
-import { formatCurrency } from "../../../../../../api/poe-ninja";
 import { useBoundStore } from "../../../../../../store/store";
+import { formatCurrency } from "../../../../../../utils";
 
 const CurrentSessionTotalValueCell = (
   cellProps: CellContext<CardEntry, number>,

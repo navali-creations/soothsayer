@@ -1,7 +1,7 @@
 import { useMemo } from "react";
-import { useBoundStore } from "../../../../store/store";
 import { Stat } from "../../../../components";
-import { formatCurrency } from "../../../../api/poe-ninja";
+import { useBoundStore } from "../../../../store/store";
+import { formatCurrency } from "../../../../utils";
 
 const CurrentSessionMostValuableStat = () => {
   const {

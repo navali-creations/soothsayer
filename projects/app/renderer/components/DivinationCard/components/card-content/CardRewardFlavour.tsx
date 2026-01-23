@@ -1,3 +1,5 @@
+import cardSeparator from "~/renderer/assets/poe1/Divination_card_separator.png";
+
 interface CardRewardFlavourProps {
   processedRewardHtml: string;
   flavourHtml: string;
@@ -24,11 +26,7 @@ export function CardRewardFlavour({
         {/* Divider line (if there's flavour text) */}
         {flavourHtml && (
           <div className="flex justify-center w-full">
-            <img
-              src="./src/assets/poe1/Divination_card_separator.png"
-              alt=""
-              className="h-0.5"
-            />
+            <img src={cardSeparator} alt="" className="h-0.5" />
           </div>
         )}
 
