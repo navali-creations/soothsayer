@@ -1,5 +1,7 @@
 import { type Kysely, sql } from "kysely";
+
 import type { Database } from "~/electron/modules/database";
+
 import type {
   CreateLeagueDTO,
   CreateSnapshotDTO,

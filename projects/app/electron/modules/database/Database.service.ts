@@ -1,7 +1,9 @@
 import path from "node:path";
+
 import Database from "better-sqlite3";
 import { app } from "electron";
 import { Kysely, SqliteDialect } from "kysely";
+
 import type { Database as DatabaseSchema } from "./Database.types";
 import { MigrationRunner, migrations } from "./migrations";
 
@@ -456,7 +458,7 @@ class DatabaseService {
    * ⚠️ WARNING: This will delete ALL data!
    */
   public reset(): void {
-    const fs = require("fs");
+    const fs = require("node:fs");
 
     // Close the database connection
     this.kysely.destroy();

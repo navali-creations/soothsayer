@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { FiTrash2 } from "react-icons/fi";
+
 import { Button } from "~/renderer/components";
 
 const DangerZoneCard = () => {

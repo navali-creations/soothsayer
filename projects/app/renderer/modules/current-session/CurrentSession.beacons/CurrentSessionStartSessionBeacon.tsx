@@ -1,5 +1,6 @@
 import type { PopoverComponentProps } from "@repere/react";
 import { FiInfo } from "react-icons/fi";
+
 import Popover from "../../onboarding/Onboarding.components/Popover";
 
 const CurrentSessionStartSessionBeacon = (props: PopoverComponentProps) => {

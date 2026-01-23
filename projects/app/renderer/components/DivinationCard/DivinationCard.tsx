@@ -1,32 +1,35 @@
-import { useRef, useMemo } from "react";
-import type { DivinationCardProps } from "./types";
-import { processRewardHtml } from "./utils/htmlProcessor";
-import { useCardMouseEffects } from "./hooks/useCardMouseEffects";
+import { useMemo, useRef } from "react";
+
 import { CardFrame } from "./components/CardFrame";
 import { CardArt } from "./components/card-content/CardArt";
 import { CardName } from "./components/card-content/CardName";
-import { CardStackSize } from "./components/card-content/CardStackSize";
 import { CardRewardFlavour } from "./components/card-content/CardRewardFlavour";
-import { RarityEffects } from "./effects/RarityEffects";
+import { CardStackSize } from "./components/card-content/CardStackSize";
 import { CARD_EFFECTS } from "./constants";
+import { RarityEffects } from "./effects/RarityEffects";
+import { useCardMouseEffects } from "./hooks/useCardMouseEffects";
+import type { DivinationCardProps } from "./types";
+import { processRewardHtml } from "./utils/htmlProcessor";
 
 function DivinationCard({ card }: DivinationCardProps) {
+  const cardRef = useRef<HTMLDivElement>(null);
+  const { mousePos, isHovered, rotateX, rotateY } =
+    useCardMouseEffects(cardRef);
+
+  const processedRewardHtml = useMemo(
+    () =>
+      card.divinationCard
+        ? processRewardHtml(card.divinationCard.rewardHtml)
+        : "",
+    [card.divinationCard],
+  );
+
   if (!card.divinationCard) {
     return null;
   }
 
   const { count } = card;
-  const { artSrc, stackSize, rewardHtml, flavourHtml, rarity } =
-    card.divinationCard;
-
-  const processedRewardHtml = useMemo(
-    () => processRewardHtml(rewardHtml),
-    [rewardHtml],
-  );
-
-  const cardRef = useRef<HTMLDivElement>(null);
-  const { mousePos, isHovered, rotateX, rotateY } =
-    useCardMouseEffects(cardRef);
+  const { artSrc, stackSize, flavourHtml, rarity } = card.divinationCard;
 
   const posX = mousePos.x;
   const posY = mousePos.y;

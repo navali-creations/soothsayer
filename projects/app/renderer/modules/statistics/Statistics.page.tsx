@@ -1,7 +1,9 @@
 import { useEffect, useMemo } from "react";
+
 import { PageContainer } from "~/renderer/components";
 import { useDivinationCards } from "~/renderer/hooks";
 import { useBoundStore } from "~/renderer/store";
+
 import {
   StatisticsActions,
   StatisticsStats,

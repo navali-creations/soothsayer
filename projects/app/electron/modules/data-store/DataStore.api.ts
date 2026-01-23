@@ -1,4 +1,5 @@
 import { ipcRenderer } from "electron";
+
 import { DataStoreChannel } from "./DataStore.channels";
 
 const DataStoreAPI = {

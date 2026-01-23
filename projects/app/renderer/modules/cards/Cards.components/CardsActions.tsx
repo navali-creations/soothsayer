@@ -23,7 +23,7 @@ export const CardsActions = () => {
         value={rarityFilter}
         onChange={(e) =>
           setRarityFilter(
-            e.target.value === "all" ? "all" : parseInt(e.target.value),
+            e.target.value === "all" ? "all" : parseInt(e.target.value, 10),
           )
         }
       >

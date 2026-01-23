@@ -1,4 +1,5 @@
 import { ipcRenderer } from "electron";
+
 import { AnalyticsChannel } from "./Analytics.channels";
 
 const AnalyticsAPI = {

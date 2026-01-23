@@ -1,4 +1,5 @@
 import { ipcRenderer } from "electron";
+
 import { SettingsStoreChannel } from "./SettingsStore.channels";
 import type { UserSettingsDTO } from "./SettingsStore.dto";
 

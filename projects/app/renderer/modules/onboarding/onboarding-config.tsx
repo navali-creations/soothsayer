@@ -4,6 +4,7 @@ import {
   PositioningStrategy,
   type RepereReactConfig,
 } from "@repere/react";
+
 import CurrentSessionPricingBeacon from "../current-session/CurrentSession.beacons/CurrentSessionPricingBeacon";
 import CurrentSessionStartSessionBeacon from "../current-session/CurrentSession.beacons/CurrentSessionStartSessionBeacon";
 import GameInfoBeacon from "../game-info/GameInfo.beacon";

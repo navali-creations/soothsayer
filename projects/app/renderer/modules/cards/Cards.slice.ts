@@ -1,4 +1,5 @@
 import type { StateCreator } from "zustand";
+
 import type { SettingsSlice } from "../settings/Settings.slice";
 
 interface DivinationCardDTO {

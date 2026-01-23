@@ -26,20 +26,20 @@
       "~/renderer/*": ["./renderer/*"],
       "~/electron/*": ["./electron/*"],
       "~/types/*": ["./types/*"],
-      "~/enums/*": ["./enums/*"],
-    },
+      "~/enums/*": ["./enums/*"]
+    }
   },
   "include": [
     "renderer/**/*",
     "electron/**/*",
     "types/**/*",
     "enums/**/*",
-    "forge.env.d.ts",
+    "forge.env.d.ts"
   ],
   "exclude": [
     "vite.config.ts",
     "vite.*.config.mts",
     "*.config.ts",
-    "*.config.mts",
-  ],
+    "*.config.mts"
+  ]
 }

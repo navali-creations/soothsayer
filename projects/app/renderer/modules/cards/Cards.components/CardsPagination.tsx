@@ -1,4 +1,5 @@
 import clsx from "clsx";
+
 import { useBoundStore } from "~/renderer/store";
 
 interface CardsPaginationProps {

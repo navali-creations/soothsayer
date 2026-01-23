@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+
 import {
   createCardCountColumn,
   createCardNameColumn,
@@ -6,6 +7,7 @@ import {
   Table,
 } from "~/renderer/components";
 import { useBoundStore } from "~/renderer/store";
+
 import type { CardEntry } from "../../Statistics.types";
 
 interface StatisticsTableProps {

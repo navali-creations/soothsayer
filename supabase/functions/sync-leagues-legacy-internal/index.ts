@@ -46,7 +46,9 @@ serve(async (req) => {
 
     // Filter out Solo leagues and upsert
     for (const league of poe1Leagues) {
-      const hasSolo = league.rules?.some((rule: any) => rule.name === "Solo");
+      const hasSolo = league.rules?.some(
+        (rule: { name: string }) => rule.name === "Solo",
+      );
       if (hasSolo) continue;
 
       const { error } = await supabase.from("poe_leagues").upsert(

@@ -1,6 +1,7 @@
 import type React from "react";
 import { useState } from "react";
 import { FaRedo } from "react-icons/fa";
+
 import Button from "~/renderer/components/Button/Button";
 import { useBoundStore } from "~/renderer/store";
 

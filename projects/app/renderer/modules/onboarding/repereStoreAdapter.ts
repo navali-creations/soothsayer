@@ -1,4 +1,5 @@
 import type { BeaconState, BeaconStore } from "@repere/react";
+
 import { useBoundStore } from "~/renderer/store";
 
 /**

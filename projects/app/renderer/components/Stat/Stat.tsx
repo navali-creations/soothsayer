@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import type { ReactNode, HTMLAttributes } from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 
 type GroupedStatsDirection = "horizontal" | "vertical";
 

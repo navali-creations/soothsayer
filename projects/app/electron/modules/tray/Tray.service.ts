@@ -1,4 +1,5 @@
 import { Menu, shell, Tray } from "electron";
+
 import {
   AppService,
   MainWindowService,

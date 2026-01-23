@@ -1,6 +1,8 @@
 import type { CellContext } from "@tanstack/react-table";
-import type { CardEntry } from "../../../../../../../types/data-stores";
+
 import { useBoundStore } from "~/renderer/store";
+
+import type { CardEntry } from "../../../../../../../types/data-stores";
 
 const CurrentSessionRatioCell = (cellProps: CellContext<CardEntry, number>) => {
   const {

@@ -1,5 +1,5 @@
-import type { CardEffectProps } from "../types";
 import { CARD_EFFECTS } from "../constants";
+import type { CardEffectProps } from "../types";
 
 export function RareEffect({
   mousePos,

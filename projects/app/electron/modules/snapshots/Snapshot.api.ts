@@ -1,4 +1,5 @@
 import { ipcRenderer } from "electron";
+
 import { SnapshotChannel } from "./Snapshot.channels";
 
 export const SnapshotAPI = {

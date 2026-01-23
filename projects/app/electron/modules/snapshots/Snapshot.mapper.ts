@@ -3,6 +3,7 @@ import type {
   SnapshotCardPricesTable,
   SnapshotsTable,
 } from "~/electron/modules/database";
+
 import type {
   LeagueDTO,
   SnapshotCardPriceDTO,

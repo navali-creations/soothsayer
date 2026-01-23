@@ -1,5 +1,6 @@
 import { FiActivity, FiBarChart2 } from "react-icons/fi";
 import { GiCardRandom } from "react-icons/gi";
+
 import { Link } from "~/renderer/components";
 
 const Navigation = () => {

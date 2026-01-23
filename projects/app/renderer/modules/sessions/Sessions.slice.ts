@@ -1,4 +1,5 @@
 import type { StateCreator } from "zustand";
+
 import type { SessionSummary } from "../../../electron/modules/sessions";
 import type { DetailedDivinationCardStats } from "../../../types/data-stores";
 import type { SettingsSlice } from "../settings/Settings.slice";

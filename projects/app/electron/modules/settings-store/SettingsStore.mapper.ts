@@ -1,4 +1,5 @@
 import type { UserSettingsTable } from "~/electron/modules/database";
+
 import type {
   AppSettingsDTO,
   Poe1SettingsDTO,

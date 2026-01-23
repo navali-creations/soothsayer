@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+
 import { Stat } from "~/renderer/components";
 import { useBoundStore } from "~/renderer/store";
 import { formatCurrency } from "~/renderer/utils";

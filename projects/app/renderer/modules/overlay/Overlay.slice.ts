@@ -1,4 +1,5 @@
 import type { StateCreator } from "zustand";
+
 import type { OverlayTab, SessionData } from "./Overlay.types";
 
 export interface OverlaySlice {

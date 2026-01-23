@@ -1,4 +1,5 @@
 import type { CellContext } from "@tanstack/react-table";
+
 import type { CardEntry } from "../../../../types/data-stores";
 
 const CardCountCell = (cellProps: CellContext<CardEntry, number>) => {

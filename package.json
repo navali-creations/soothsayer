@@ -9,12 +9,20 @@
     "app:package": "pnpm --filter @soothsayer/app package",
     "app:make": "pnpm --filter @soothsayer/app make",
     "app:tsc": "pnpm --filter @soothsayer/app tsc",
-    "scrape:poe1": "pnpm --filter @soothsayer/poe-wiki-scrape scrape:poe1"
+    "scrape:poe1": "pnpm --filter @soothsayer/poe-wiki-scrape scrape:poe1",
+    "lint": "biome lint .",
+    "lint:fix": "biome lint --write .",
+    "format": "biome format --write .",
+    "check": "biome check .",
+    "check:fix": "biome check --write ."
   },
   "keywords": [],
   "author": {
     "name": "Sebastian Krzyżanowski",
     "email": "eskrzy@gmail.com"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@biomejs/biome": "2.3.12"
+  }
 }

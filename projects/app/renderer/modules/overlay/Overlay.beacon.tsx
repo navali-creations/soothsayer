@@ -1,6 +1,7 @@
 import type { PopoverComponentProps } from "@repere/react";
 import { useState } from "react";
 import { FiInfo } from "react-icons/fi";
+
 import Popover from "../onboarding/Onboarding.components/Popover";
 
 const OverlayBeacon = (props: PopoverComponentProps) => {

@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import type { ReactNode } from "react";
+
 import Flex from "../Flex/Flex";
 
 type TableHeaderProps = {

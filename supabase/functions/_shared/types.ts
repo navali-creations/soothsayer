@@ -54,3 +54,9 @@ export interface PoeNinjaStashResponse {
     stackSize: number;
   }>;
 }
+
+export interface CardPriceData {
+  chaosValue: number;
+  divineValue: number;
+  stackSize: number | null;
+}

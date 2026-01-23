@@ -1,5 +1,7 @@
 import { ipcMain } from "electron";
+
 import { DatabaseService } from "~/electron/modules/database";
+
 import { SettingsStoreChannel } from "./SettingsStore.channels";
 import type { UserSettingsDTO } from "./SettingsStore.dto";
 import { SettingsStoreRepository } from "./SettingsStore.repository";

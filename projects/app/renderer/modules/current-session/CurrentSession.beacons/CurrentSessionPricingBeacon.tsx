@@ -1,4 +1,5 @@
 import type { PopoverComponentProps } from "@repere/react";
+
 import Popover from "../../onboarding/Onboarding.components/Popover";
 
 const CurrentSessionPricingBeacon = (props: PopoverComponentProps) => {

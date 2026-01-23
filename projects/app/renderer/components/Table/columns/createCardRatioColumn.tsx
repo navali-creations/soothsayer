@@ -1,4 +1,5 @@
 import { createColumnHelper } from "@tanstack/react-table";
+
 import type { CardEntry } from "../../../../types/data-stores";
 import { CardRatioCell } from "../cells";
 import TableHeader from "../TableHeader";

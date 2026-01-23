@@ -1,4 +1,5 @@
 import type { StateCreator } from "zustand";
+
 import { SettingsKey } from "../../../electron/modules/settings-store/SettingsStore.keys";
 
 export interface OnboardingSlice {

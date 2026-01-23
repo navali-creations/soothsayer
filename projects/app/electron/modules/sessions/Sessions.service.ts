@@ -1,6 +1,8 @@
 import { ipcMain } from "electron";
+
 import { DatabaseService } from "~/electron/modules/database";
 import { SnapshotService } from "~/electron/modules/snapshots";
+
 import type { DetailedDivinationCardStats } from "../../../types/data-stores";
 import { SessionsChannel } from "./Sessions.channels";
 import type { SessionSummaryDTO, SessionsPageDTO } from "./Sessions.dto";

@@ -4,6 +4,7 @@ import {
   FiChevronsLeft,
   FiChevronsRight,
 } from "react-icons/fi";
+
 import { Button } from "~/renderer/components";
 import { useBoundStore } from "~/renderer/store";
 

@@ -1,4 +1,5 @@
 import { ipcRenderer } from "electron";
+
 import { MainWindowChannel } from "./MainWindow.channels";
 
 const MainWindowAPI = {

@@ -1,8 +1,9 @@
 import { useMemo } from "react";
+
 import type { CardEntry } from "../../Statistics.types";
+import { StatisticsMostCommonCardStat } from "./StatisticsMostCommonCardStat";
 import { StatisticsOpenedDecksStat } from "./StatisticsOpenedDecksStat";
 import { StatisticsUniqueCardsStat } from "./StatisticsUniqueCardsStat";
-import { StatisticsMostCommonCardStat } from "./StatisticsMostCommonCardStat";
 
 interface StatisticsStatsProps {
   totalCount: number;

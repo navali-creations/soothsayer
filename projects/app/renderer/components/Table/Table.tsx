@@ -1,23 +1,24 @@
 import {
+  type ColumnDef,
   flexRender,
   getCoreRowModel,
-  getSortedRowModel,
   getPaginationRowModel,
-  useReactTable,
-  type ColumnDef,
-  type SortingState,
+  getSortedRowModel,
   type PaginationState,
+  type SortingState,
+  useReactTable,
 } from "@tanstack/react-table";
-import { useState } from "react";
 import clsx from "clsx";
+import { useState } from "react";
 import {
   FiChevronDown,
-  FiChevronUp,
-  FiChevronsLeft,
-  FiChevronsRight,
   FiChevronLeft,
   FiChevronRight,
+  FiChevronsLeft,
+  FiChevronsRight,
+  FiChevronUp,
 } from "react-icons/fi";
+
 import { Button } from "..";
 
 interface TableProps<TData> {
@@ -27,7 +28,7 @@ interface TableProps<TData> {
   enableSorting?: boolean;
   enablePagination?: boolean;
   pageSize?: number;
-  striped?: boolean;
+  _striped?: boolean;
   hoverable?: boolean;
   compact?: boolean;
   zebraStripes?: boolean;
@@ -41,7 +42,7 @@ function Table<TData>({
   enableSorting = true,
   enablePagination = false,
   pageSize = 10,
-  striped = false,
+  _striped = false,
   hoverable = true,
   compact = false,
   zebraStripes = false,

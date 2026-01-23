@@ -1,6 +1,7 @@
-import { useState, useEffect, RefObject } from "react";
-import type { MousePosition } from "../types";
+import { type RefObject, useEffect, useState } from "react";
+
 import { CARD_EFFECTS } from "../constants";
+import type { MousePosition } from "../types";
 
 interface UseCardMouseEffectsReturn {
   mousePos: MousePosition;

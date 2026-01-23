@@ -1,8 +1,10 @@
 import type { CellContext } from "@tanstack/react-table";
 import { useId } from "react";
+
 import DivinationCard from "~/renderer/components/DivinationCard/DivinationCard";
 import { usePopover } from "~/renderer/hooks/usePopover";
 import { useBoundStore } from "~/renderer/store";
+
 import type { CardEntry } from "../../../../types/data-stores";
 
 const CardNameCell = (cellProps: CellContext<CardEntry, string>) => {

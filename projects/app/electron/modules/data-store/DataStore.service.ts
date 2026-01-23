@@ -1,6 +1,8 @@
 import { ipcMain } from "electron";
+
 import { DatabaseService } from "~/electron/modules/database";
 import { PerformanceLoggerService } from "~/electron/modules/performance-logger";
+
 import type { GameType, GlobalStats } from "../../../types/data-stores";
 import { DataStoreChannel } from "./DataStore.channels";
 import { DataStoreRepository } from "./DataStore.repository";

@@ -1,6 +1,8 @@
 import { useEffect } from "react";
+
 import { PageContainer } from "~/renderer/components";
 import { useBoundStore } from "~/renderer/store";
+
 import { CardsActions, CardsGrid, CardsPagination } from "./Cards.components";
 
 const CardsPage = () => {

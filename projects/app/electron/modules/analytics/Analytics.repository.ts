@@ -1,12 +1,13 @@
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
+
 import type { Database } from "~/electron/modules/database";
+
 import type {
   CardOccurrenceRatioDTO,
   CardPriceHistoryDTO,
   CardPricePeakDTO,
   CardStatisticDTO,
-  LeagueSessionCountDTO,
   LeagueStatsDTO,
   SessionComparisonDTO,
 } from "./Analytics.dto";

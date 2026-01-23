@@ -1,4 +1,5 @@
 import type { CardsTable, GlobalStatsTable } from "~/electron/modules/database";
+
 import type { CardDTO, GlobalStatDTO } from "./DataStore.dto";
 
 /**

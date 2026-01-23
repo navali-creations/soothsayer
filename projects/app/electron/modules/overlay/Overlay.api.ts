@@ -1,4 +1,5 @@
 import { ipcRenderer } from "electron";
+
 import { OverlayChannel } from "./Overlay.channels";
 import type { OverlayBounds } from "./Overlay.service";
 

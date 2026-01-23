@@ -1,5 +1,6 @@
 import { RepereTrigger } from "@repere/react";
 import { TiInfoLargeOutline } from "react-icons/ti";
+
 import { Button } from "~/renderer/components";
 
 const Trigger = () => {

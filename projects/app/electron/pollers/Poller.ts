@@ -40,21 +40,21 @@ export abstract class Poller<T = any> extends EventEmitter {
   /**
    * Optional hook called when state transitions from inactive to active
    */
-  protected onStart(state: T): void {
+  protected onStart(_state: T): void {
     // Override in subclass if needed
   }
 
   /**
    * Optional hook called when state transitions from active to inactive
    */
-  protected onStop(previousState: T): void {
+  protected onStop(_previousState: T): void {
     // Override in subclass if needed
   }
 
   /**
    * Optional hook called on every poll with current state
    */
-  protected onData(state: T): void {
+  protected onData(_state: T): void {
     // Override in subclass if needed
   }
 

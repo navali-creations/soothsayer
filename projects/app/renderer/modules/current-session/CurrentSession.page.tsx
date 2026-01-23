@@ -1,6 +1,8 @@
 import { AnimatePresence, motion } from "motion/react";
+
 import { PageContainer } from "~/renderer/components";
 import { useBoundStore } from "~/renderer/store";
+
 import {
   CurrentSessionActions,
   CurrentSessionStats,

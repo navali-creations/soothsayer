@@ -1,3 +1,5 @@
+import type { DivinationCardsTable } from "~/electron/modules/database";
+
 import type { DivinationCardDTO } from "./DivinationCards.dto";
 
 /**
@@ -23,7 +25,7 @@ function cleanWikiMarkup(html: string): string {
  * Mappers convert between database rows and DTOs
  */
 export class DivinationCardsMapper {
-  static toDTO(row: any): DivinationCardDTO {
+  static toDTO(row: DivinationCardsTable): DivinationCardDTO {
     return {
       id: row.id,
       name: row.name,

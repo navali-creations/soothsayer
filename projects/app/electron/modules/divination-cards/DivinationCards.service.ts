@@ -1,12 +1,15 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+
 import { app, ipcMain } from "electron";
+
 import { DatabaseService } from "~/electron/modules/database";
 import {
   SettingsKey,
   SettingsStoreService,
 } from "~/electron/modules/settings-store";
+
 import { DivinationCardsChannel } from "./DivinationCards.channels";
 import type {
   DivinationCardDTO,

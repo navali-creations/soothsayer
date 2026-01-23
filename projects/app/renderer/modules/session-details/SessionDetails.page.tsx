@@ -1,8 +1,10 @@
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useEffect, useMemo } from "react";
 import { FiArrowLeft } from "react-icons/fi";
+
 import { Button, PageContainer } from "~/renderer/components";
 import { useBoundStore } from "~/renderer/store";
+
 import {
   SessionDetailsActions,
   SessionDetailsStats,

@@ -1,7 +1,9 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { SETUP_STEPS } from "../../../electron/modules/app-setup/AppSetup.types";
+
 import { useBoundStore } from "~/renderer/store";
+
+import { SETUP_STEPS } from "../../../electron/modules/app-setup/AppSetup.types";
 
 const SetupPage = () => {
   const navigate = useNavigate();
@@ -49,7 +51,7 @@ const SetupPage = () => {
     if (setupState && setupState.currentStep > 0) {
       validateCurrentStep();
     }
-  }, [setupState?.currentStep, validateCurrentStep]);
+  }, [setupState?.currentStep, validateCurrentStep, setupState]);
 
   const currentStep = setupState?.currentStep ?? 0;
 

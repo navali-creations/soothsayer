@@ -1,4 +1,5 @@
 import type { StateCreator } from "zustand";
+
 import type { DetailedDivinationCardStats } from "../../../types/data-stores";
 import type { SettingsSlice } from "../settings/Settings.slice";
 
@@ -100,7 +101,7 @@ export const createSessionDetailsSlice: StateCreator<
       // Optimistically update UI
       set(({ sessionDetails }) => {
         const card = sessionDetails.session?.cards?.[cardName];
-        if (card && card[priceKey]) {
+        if (card?.[priceKey]) {
           card[priceKey]!.hidePrice = !currentHidePrice;
         }
       });
@@ -121,7 +122,7 @@ export const createSessionDetailsSlice: StateCreator<
           // Revert optimistic update on error
           set(({ sessionDetails }) => {
             const card = sessionDetails.session?.cards?.[cardName];
-            if (card && card[priceKey]) {
+            if (card?.[priceKey]) {
               card[priceKey]!.hidePrice = currentHidePrice;
             }
           });

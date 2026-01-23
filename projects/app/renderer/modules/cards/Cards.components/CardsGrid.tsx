@@ -1,7 +1,9 @@
 import { motion } from "motion/react";
 import { GiCardRandom } from "react-icons/gi";
+
 import DivinationCard from "~/renderer/components/DivinationCard/DivinationCard";
 import { useBoundStore } from "~/renderer/store";
+
 import type { CardEntry } from "../../../../types/data-stores";
 import type { DivinationCardRow } from "../Cards.types";
 

@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
+
 import { AnalyticsAPI } from "../electron/modules/analytics/Analytics.api";
 import { AppSetupAPI } from "../electron/modules/app-setup/AppSetup.api";
 import { CurrentSessionAPI } from "../electron/modules/current-session/CurrentSession.api";

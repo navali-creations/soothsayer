@@ -1,5 +1,7 @@
 import { AnimatePresence, motion } from "motion/react";
+
 import { useBoundStore } from "~/renderer/store";
+
 import Navigation from "./Sidebar.components/Nav";
 import SessionStatus from "./Sidebar.components/SessionStatus";
 

@@ -7,7 +7,7 @@ export function processRewardHtml(html: string): string {
   if (!html) return html;
 
   // Match all class attributes and replace them with inline styles
-  return html.replace(/class="([^"]+)"/g, (match, classes) => {
+  return html.replace(/class="([^"]+)"/g, (_match, classes) => {
     const classList = classes.split(" ");
     const colors = classList
       .filter((cls: string) => cls.startsWith("-"))

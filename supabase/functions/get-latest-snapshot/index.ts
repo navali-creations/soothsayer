@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import type { CardPriceData } from "../_shared/types.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -89,8 +90,8 @@ serve(async (req) => {
     }
 
     // 4. Format response
-    const exchangePrices: Record<string, any> = {};
-    const stashPrices: Record<string, any> = {};
+    const exchangePrices: Record<string, CardPriceData> = {};
+    const stashPrices: Record<string, CardPriceData> = {};
 
     for (const price of cardPrices || []) {
       const priceData = {

@@ -1,5 +1,7 @@
 import { promises as fs } from "node:fs";
+
 import { BrowserWindow, dialog, ipcMain } from "electron";
+
 import {
   DataStoreService,
   type SimpleDivinationCardStats,
@@ -8,6 +10,7 @@ import {
   SettingsKey,
   SettingsStoreService,
 } from "~/electron/modules/settings-store";
+
 import { jsonToCsv } from "./utils";
 
 class CsvService {

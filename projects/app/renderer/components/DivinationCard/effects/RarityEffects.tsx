@@ -1,7 +1,7 @@
 import type { CardEffectProps } from "../types";
+import { CommonEffect } from "./CommonEffect";
 import { ExtremelyRareEffect } from "./ExtremelyRareEffect";
 import { RareEffect } from "./RareEffect";
-import { CommonEffect } from "./CommonEffect";
 
 interface RarityEffectsProps extends CardEffectProps {
   rarity: number;

@@ -1,5 +1,7 @@
 import { type Kysely, sql } from "kysely";
+
 import type { Database } from "~/electron/modules/database";
+
 import type { GameType } from "../../../types/data-stores";
 import type { CardDTO, GlobalStatDTO, UpsertCardDTO } from "./DataStore.dto";
 import { DataStoreMapper } from "./DataStore.mapper";

@@ -1,4 +1,5 @@
 import { ipcRenderer } from "electron";
+
 import { PoeProcessChannel } from "./PoeProcess.channels";
 
 const PoeProcessAPI = {

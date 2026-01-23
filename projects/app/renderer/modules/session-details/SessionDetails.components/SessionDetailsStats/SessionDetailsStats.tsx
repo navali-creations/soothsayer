@@ -1,4 +1,5 @@
 import { GroupedStats } from "~/renderer/components";
+
 import {
   SessionDetailsDurationStat,
   SessionDetailsMostCommonCardStat,

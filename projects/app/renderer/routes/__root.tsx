@@ -7,10 +7,12 @@ import {
 } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { useEffect, useState } from "react";
+
+import { useBoundStore } from "~/renderer/store";
+
 import { AppMenu } from "../modules/app-menu";
 import { onboardingConfig } from "../modules/onboarding";
 import { Sidebar } from "../modules/sidebar";
-import { useBoundStore } from "~/renderer/store";
 import "@repere/react/styles.css";
 
 const RootLayout = () => {

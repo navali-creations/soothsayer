@@ -12,7 +12,7 @@ export const formatSessionDate = (dateString: string): string => {
   if (!dateString) return "Unknown date";
 
   const date = new Date(dateString);
-  if (isNaN(date.getTime())) {
+  if (Number.isNaN(date.getTime())) {
     console.error("Invalid date string:", dateString);
     return "Invalid date";
   }

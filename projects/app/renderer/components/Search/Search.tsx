@@ -1,11 +1,9 @@
-import { type ChangeEvent, type InputHTMLAttributes } from "react";
-import { FiSearch } from "react-icons/fi";
 import clsx from "clsx";
+import type { ChangeEvent, InputHTMLAttributes } from "react";
+import { FiSearch } from "react-icons/fi";
 
-interface SearchProps extends Omit<
-  InputHTMLAttributes<HTMLInputElement>,
-  "onChange" | "size"
-> {
+interface SearchProps
+  extends Omit<InputHTMLAttributes<HTMLInputElement>, "onChange" | "size"> {
   value?: string;
   onChange?: (value: string) => void;
   placeholder?: string;

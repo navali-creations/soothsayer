@@ -1,7 +1,8 @@
 import { createColumnHelper } from "@tanstack/react-table";
+
 import type { CardEntry } from "../../../../types/data-stores";
-import TableHeader from "../TableHeader";
 import { CardNameCell } from "../cells";
+import TableHeader from "../TableHeader";
 
 const columnHelper = createColumnHelper<CardEntry>();
 

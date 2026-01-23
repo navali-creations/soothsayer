@@ -226,7 +226,7 @@ export const createPoeNinjaSlice: StateCreator<
           const key = `${game}:${league}`;
           const info = poeNinja.autoRefreshes.get(key);
 
-          if (info && info.isActive) {
+          if (info?.isActive) {
             const nextRefreshTime = new Date();
             nextRefreshTime.setHours(
               nextRefreshTime.getHours() + info.intervalHours,
@@ -298,7 +298,7 @@ export const createPoeNinjaSlice: StateCreator<
       const { poeNinja } = get();
       const info = poeNinja.getAutoRefreshInfo(game, league);
 
-      if (info && info.nextRefreshTime) {
+      if (info?.nextRefreshTime) {
         return new Date(info.nextRefreshTime);
       }
 
