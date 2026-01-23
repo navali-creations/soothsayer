@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Stat } from "../../../../components";
-import { useBoundStore } from "../../../../store/store";
+import { useBoundStore } from "~/renderer/store";
 
 const CurrentSessionUniqueCardsStat = () => {
   const {

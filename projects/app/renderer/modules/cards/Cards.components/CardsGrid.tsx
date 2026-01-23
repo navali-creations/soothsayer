@@ -3,7 +3,7 @@ import { GiCardRandom } from "react-icons/gi";
 import DivinationCard from "../../../components/DivinationCard/DivinationCard";
 import type { CardEntry } from "../../../../types/data-stores";
 import type { DivinationCardRow } from "../Cards.types";
-import { useBoundStore } from "../../../store/store";
+import { useBoundStore } from "~/renderer/store";
 
 interface CardsGridProps {
   cards: DivinationCardRow[];

@@ -1,5 +1,5 @@
 import { FiSettings, FiX } from "react-icons/fi";
-import { useBoundStore } from "../../../store/store";
+import { useBoundStore } from "~/renderer/store";
 import { Button } from "../../../components";
 import clsx from "clsx";
 

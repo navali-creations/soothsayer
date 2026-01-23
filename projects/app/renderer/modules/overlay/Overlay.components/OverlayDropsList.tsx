@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
 import { GiCardExchange } from "react-icons/gi";
-import { useBoundStore } from "../../../store/store";
+import { useBoundStore } from "~/renderer/store";
 import { formatCurrency } from "../../../utils";
 import { Beam } from "../Overlay.components";
 

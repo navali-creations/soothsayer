@@ -2,7 +2,7 @@ import type React from "react";
 import { useState } from "react";
 import { FaRedo } from "react-icons/fa";
 import Button from "../../components/Button/Button";
-import { useBoundStore } from "../../store/store";
+import { useBoundStore } from "~/renderer/store";
 
 interface OnboardingButtonProps {
   variant?: "icon" | "button";

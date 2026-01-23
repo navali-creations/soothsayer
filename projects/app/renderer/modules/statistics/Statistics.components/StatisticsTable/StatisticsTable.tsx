@@ -6,7 +6,7 @@ import {
   Table,
 } from "../../../../components";
 import type { CardEntry } from "../../Statistics.types";
-import { useBoundStore } from "../../../../store/store";
+import { useBoundStore } from "~/renderer/store";
 
 interface StatisticsTableProps {
   cardData: CardEntry[];

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Flex } from "../../../components";
-import { useBoundStore } from "../../../store/store";
+import { useBoundStore } from "~/renderer/store";
 
 const SessionStatus = () => {
   const {

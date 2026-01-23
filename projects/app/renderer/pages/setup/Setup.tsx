@@ -1,7 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { SETUP_STEPS } from "../../../electron/modules/app-setup/AppSetup.types";
-import { useBoundStore } from "../../store/store";
+import { useBoundStore } from "~/renderer/store";
 
 const SetupPage = () => {
   const navigate = useNavigate();

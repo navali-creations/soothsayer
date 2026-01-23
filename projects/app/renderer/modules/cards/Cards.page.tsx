@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useBoundStore } from "../../store/store";
+import { useBoundStore } from "~/renderer/store";
 import { PageContainer } from "../../components";
 import { CardsActions, CardsGrid, CardsPagination } from "./Cards.components";
 

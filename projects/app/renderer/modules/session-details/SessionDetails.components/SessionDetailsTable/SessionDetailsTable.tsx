@@ -2,7 +2,7 @@ import { createColumnHelper } from "@tanstack/react-table";
 import { useMemo } from "react";
 import { FiEye, FiEyeOff } from "react-icons/fi";
 import { Table } from "../../../../components";
-import { useBoundStore } from "../../../../store/store";
+import { useBoundStore } from "~/renderer/store";
 import { formatCurrency } from "../../../../utils";
 import type { CardEntry } from "../../SessionDetails.types";
 

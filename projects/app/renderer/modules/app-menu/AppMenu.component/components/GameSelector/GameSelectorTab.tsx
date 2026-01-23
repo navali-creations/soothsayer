@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import { Button } from "../../../../../components";
 import { LeagueSelect, StatusBadge } from "../../../../../modules/game-info";
-import { useBoundStore } from "../../../../../store/store";
+import { useBoundStore } from "~/renderer/store";
 
 type GameSelectorTabProps = {
   game: "poe1" | "poe2";

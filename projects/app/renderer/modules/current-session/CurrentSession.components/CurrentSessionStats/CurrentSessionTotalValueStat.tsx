@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { GiCardExchange, GiLockedChest } from "react-icons/gi";
 import { Stat } from "../../../../components";
-import { useBoundStore } from "../../../../store/store";
+import { useBoundStore } from "~/renderer/store";
 import { formatCurrency } from "../../../../utils";
 
 const CurrentSessionTotalValueStat = () => {

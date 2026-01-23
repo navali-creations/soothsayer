@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useBoundStore } from "../../../../store/store";
+import { useBoundStore } from "~/renderer/store";
 import type React from "react";
 
 const PriceSnapshotAlert = () => {

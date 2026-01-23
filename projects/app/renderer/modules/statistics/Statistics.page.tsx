@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from "react";
 import { PageContainer } from "../../components";
-import { useBoundStore } from "../../store/store";
+import { useBoundStore } from "~/renderer/store";
 import { useDivinationCards } from "../../hooks";
 import {
   StatisticsActions,

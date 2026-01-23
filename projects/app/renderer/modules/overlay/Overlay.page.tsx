@@ -4,7 +4,7 @@ import "../../index.css";
 import rarity1Sound from "~/renderer/assets/audio/rarity1.mp3";
 import rarity2Sound from "~/renderer/assets/audio/rarity2.mp3";
 import rarity3Sound from "~/renderer/assets/audio/rarity3.mp3";
-import { useBoundStore } from "../../store/store";
+import { useBoundStore } from "~/renderer/store";
 import {
   OverlayDropsList,
   OverlayEmpty,

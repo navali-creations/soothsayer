@@ -4,7 +4,7 @@ import {
   RiPictureInPictureLine,
 } from "react-icons/ri";
 import { Button, Flex, Link } from "../../../../components";
-import { useBoundStore } from "../../../../store/store";
+import { useBoundStore } from "~/renderer/store";
 
 const AppControls = () => {
   const {

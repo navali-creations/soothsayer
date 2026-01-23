@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useBoundStore } from "../../store/store";
+import { useBoundStore } from "~/renderer/store";
 import {
   SessionsActions,
   SessionsGrid,

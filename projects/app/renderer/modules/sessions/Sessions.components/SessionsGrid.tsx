@@ -1,4 +1,4 @@
-import { useBoundStore } from "../../../store/store";
+import { useBoundStore } from "~/renderer/store";
 import { SessionCard } from "./SessionsCard";
 
 export const SessionsGrid = () => {

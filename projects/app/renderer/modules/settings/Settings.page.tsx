@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Grid, PageContainer } from "../../components";
-import { useBoundStore } from "../../store/store";
+import { useBoundStore } from "~/renderer/store";
 import {
   AppHelpCard,
   DangerZoneCard,

@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import type { ReactNode } from "react";
-import { useBoundStore } from "../../store/store";
+import { useBoundStore } from "~/renderer/store";
 import PageContent from "./PageContent/PageContent";
 import PageHeader from "./PageHeader/PageHeader";
 

@@ -1,4 +1,4 @@
-import { useBoundStore } from "../../../store/store";
+import { useBoundStore } from "~/renderer/store";
 
 type LeagueSelectProps = {
   game: "poe1" | "poe2";

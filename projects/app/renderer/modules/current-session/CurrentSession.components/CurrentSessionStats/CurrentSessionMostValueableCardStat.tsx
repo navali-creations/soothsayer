@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Stat } from "../../../../components";
-import { useBoundStore } from "../../../../store/store";
+import { useBoundStore } from "~/renderer/store";
 import { formatCurrency } from "../../../../utils";
 
 const CurrentSessionMostValuableStat = () => {

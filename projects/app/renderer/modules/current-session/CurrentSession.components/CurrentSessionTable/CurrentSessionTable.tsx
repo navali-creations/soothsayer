@@ -4,7 +4,7 @@ import {
   createCardNameColumn,
   createCardCountColumn,
 } from "../../../../components";
-import { useBoundStore } from "../../../../store/store";
+import { useBoundStore } from "~/renderer/store";
 import {
   createCurrentSessionChaosValueColumn,
   createCurrentSessionHidePriceColumn,

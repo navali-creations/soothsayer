@@ -1,6 +1,6 @@
-import { useState, useEffect, ChangeEvent } from "react";
+import { type ChangeEvent, useEffect, useState } from "react";
+import { useBoundStore } from "~/renderer/store";
 import { Flex, Search } from "../../../components";
-import { useBoundStore } from "../../../store/store";
 import { useDebounce } from "../../../hooks";
 
 export const SessionsActions = () => {
@@ -31,12 +31,7 @@ export const SessionsActions = () => {
       // Only reload all if we had a previous search
       loadAllSessions(1);
     }
-  }, [
-    debouncedSearchQuery,
-    loadAllSessions,
-    searchSessions,
-    storedSearchQuery,
-  ]);
+  }, [debouncedSearchQuery, loadAllSessions, searchSessions]);
 
   const handleLeagueChange = (e: ChangeEvent<HTMLSelectElement>) => {
     setSelectedLeague(e.target.value);

@@ -2,7 +2,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { FiArrowLeft } from "react-icons/fi";
 import { GiCardExchange, GiLockedChest } from "react-icons/gi";
 import { Button, Flex } from "../../../../components";
-import { useBoundStore } from "../../../../store/store";
+import { useBoundStore } from "~/renderer/store";
 
 const SessionDetailsActions = () => {
   const navigate = useNavigate();

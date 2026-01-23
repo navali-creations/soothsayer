@@ -1,5 +1,5 @@
 import type { BeaconState, BeaconStore } from "@repere/react";
-import { useBoundStore } from "../../store/store";
+import { useBoundStore } from "~/renderer/store";
 
 /**
  * BeaconStore adapter that delegates to the Zustand onboarding slice

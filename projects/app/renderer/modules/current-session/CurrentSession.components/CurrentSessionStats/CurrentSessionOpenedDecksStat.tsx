@@ -1,5 +1,5 @@
 import { Stat } from "../../../../components";
-import { useBoundStore } from "../../../../store/store";
+import { useBoundStore } from "~/renderer/store";
 
 const CurrentSessionOpenedDecksStat = () => {
   const {

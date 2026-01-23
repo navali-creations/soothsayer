@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { SetupPage } from "../pages/setup/Setup";
-import { useBoundStore } from "../store/store";
+import { useBoundStore } from "~/renderer/store";
 
 const SetupRoute = () => {
   const navigate = useNavigate();

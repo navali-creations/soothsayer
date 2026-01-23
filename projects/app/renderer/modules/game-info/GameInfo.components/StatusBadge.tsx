@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import type { GameVersion } from "electron/modules";
 import { FiCheckCircle, FiSlash } from "react-icons/fi";
-import { useBoundStore } from "../../../store/store";
+import { useBoundStore } from "~/renderer/store";
 
 type StatusBadgeProps = {
   game: Extract<GameVersion, "poe1" | "poe2">;

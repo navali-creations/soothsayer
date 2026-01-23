@@ -1,7 +1,7 @@
 import { FiDownload } from "react-icons/fi";
 
 import { Button, Flex } from "../../../components";
-import { useBoundStore } from "../../../store/store";
+import { useBoundStore } from "~/renderer/store";
 
 interface StatisticsActionsProps {
   availableLeagues: string[];
