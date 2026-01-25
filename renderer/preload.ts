@@ -1,17 +1,17 @@
 import { contextBridge, ipcRenderer } from "electron";
 
-import { AnalyticsAPI } from "~/electron/modules/analytics/Analytics.api";
-import { AppSetupAPI } from "~/electron/modules/app-setup/AppSetup.api";
-import { CurrentSessionAPI } from "~/electron/modules/current-session/CurrentSession.api";
-import { DataStoreAPI } from "~/electron/modules/data-store/DataStore.api";
-import { DivinationCardsApi } from "~/electron/modules/divination-cards/DivinationCards.api";
-import { MainWindowAPI } from "~/electron/modules/main-window/MainWindow.api";
-import { OverlayAPI } from "~/electron/modules/overlay/Overlay.api";
-import { PoeLeaguesAPI } from "~/electron/modules/poe-leagues/PoeLeagues.api";
-import { PoeProcessAPI } from "~/electron/modules/poe-process/PoeProcess.api";
-import { SessionsAPI } from "~/electron/modules/sessions/Sessions.api";
-import { SettingsStoreAPI } from "~/electron/modules/settings-store/SettingsStore.api";
-import { SnapshotAPI } from "~/electron/modules/snapshots/Snapshot.api";
+import { AnalyticsAPI } from "~/main/modules/analytics/Analytics.api";
+import { AppSetupAPI } from "~/main/modules/app-setup/AppSetup.api";
+import { CurrentSessionAPI } from "~/main/modules/current-session/CurrentSession.api";
+import { DataStoreAPI } from "~/main/modules/data-store/DataStore.api";
+import { DivinationCardsApi } from "~/main/modules/divination-cards/DivinationCards.api";
+import { MainWindowAPI } from "~/main/modules/main-window/MainWindow.api";
+import { OverlayAPI } from "~/main/modules/overlay/Overlay.api";
+import { PoeLeaguesAPI } from "~/main/modules/poe-leagues/PoeLeagues.api";
+import { PoeProcessAPI } from "~/main/modules/poe-process/PoeProcess.api";
+import { SessionsAPI } from "~/main/modules/sessions/Sessions.api";
+import { SettingsStoreAPI } from "~/main/modules/settings-store/SettingsStore.api";
+import { SnapshotAPI } from "~/main/modules/snapshots/Snapshot.api";
 
 contextBridge.exposeInMainWorld("electron", {
   selectFile: (options: any) => ipcRenderer.invoke("select-file", options),

@@ -24,14 +24,14 @@
       "~/renderer/routes/*": ["./renderer/routes/*"],
       "~/renderer/store": ["./renderer/store/index.ts"],
       "~/renderer/*": ["./renderer/*"],
-      "~/electron/*": ["./electron/*"],
+      "~/main/*": ["./main/*"],
       "~/types/*": ["./types/*"],
       "~/enums/*": ["./enums/*"]
     }
   },
   "include": [
     "renderer/**/*",
-    "electron/**/*",
+    "main/**/*",
     "types/**/*",
     "enums/**/*",
     "forge.env.d.ts",

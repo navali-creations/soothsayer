@@ -3,8 +3,8 @@ import type { StateCreator } from "zustand";
 import type {
   SetupState,
   StepValidationResult,
-} from "~/electron/modules/app-setup/AppSetup.types";
-import type { SetupStep } from "~/electron/modules/settings-store/SettingsStore.dto";
+} from "~/main/modules/app-setup/AppSetup.types";
+import type { SetupStep } from "~/main/modules/settings-store/SettingsStore.dto";
 
 export interface SetupSlice {
   // State

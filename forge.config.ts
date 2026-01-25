@@ -37,7 +37,7 @@ const config: ForgeConfig = {
       build: [
         {
           // `entry` is just an alias for `build.lib.entry` in the corresponding file of `config`.
-          entry: "electron/main.ts",
+          entry: "main/main.ts",
           config: "vite.main.config.mts",
           target: "main",
         },

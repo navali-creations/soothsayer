@@ -1,6 +1,6 @@
 import type { StateCreator } from "zustand";
 
-import type { UserSettingsDTO } from "~/electron/modules/settings-store/SettingsStore.dto";
+import type { UserSettingsDTO } from "~/main/modules/settings-store/SettingsStore.dto";
 
 export interface SettingsSlice {
   settings: UserSettingsDTO & {

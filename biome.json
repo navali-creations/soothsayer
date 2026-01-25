@@ -60,7 +60,7 @@
               ":BLANK_LINE:",
               [":PACKAGE:"],
               ":BLANK_LINE:",
-              ["~/electron/**"],
+              ["~/main/**"],
               ["~/renderer/**"],
               ["~/types/**", "~/enums/**"],
               ":BLANK_LINE:",

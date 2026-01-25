@@ -1,4 +1,4 @@
-import type { UserSettingsDTO } from "~/electron/modules/settings-store/SettingsStore.dto";
+import type { UserSettingsDTO } from "~/main/modules/settings-store/SettingsStore.dto";
 
 export interface FilePathSetting {
   key: keyof Pick<UserSettingsDTO, "poe1ClientTxtPath" | "poe2ClientTxtPath">;

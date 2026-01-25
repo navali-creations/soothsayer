@@ -1,16 +1,16 @@
-import type { AnalyticsAPI } from "../electron/modules/analytics/Analytics.api";
-import type { AppSetupAPI } from "../electron/modules/app-setup/AppSetup.api";
-import type { CurrentSessionAPI } from "../electron/modules/current-session/CurrentSession.api";
-import type { DataStoreAPI } from "../electron/modules/data-store/DataStore.api";
-import type { MainWindowAPI } from "../electron/modules/main-window/MainWindow.api";
-import type { OverlayAPI } from "../electron/modules/overlay/Overlay.api";
-import type { PoeLeaguesAPI } from "../electron/modules/poe-leagues/PoeLeagues.api";
-import type { PoeNinjaAPI } from "../electron/modules/poe-ninja/PoeNinja.api";
-import type { PoeProcessAPI } from "../electron/modules/poe-process/PoeProcess.api";
-import type { SessionsAPI } from "../electron/modules/sessions/Sessions.api";
-import type { SettingsStoreAPI } from "../electron/modules/settings-store/SettingsStore.api";
-import type { DivinationCardsApi } from "../electron/modules/divination-cards/DivinationCards.api";
-import type { SnapshotAPI } from "../electron/modules/snapshots/Snapshot.api";
+import type { AnalyticsAPI } from "../main/modules/analytics/Analytics.api";
+import type { AppSetupAPI } from "../main/modules/app-setup/AppSetup.api";
+import type { CurrentSessionAPI } from "../main/modules/current-session/CurrentSession.api";
+import type { DataStoreAPI } from "../main/modules/data-store/DataStore.api";
+import type { DivinationCardsApi } from "../main/modules/divination-cards/DivinationCards.api";
+import type { MainWindowAPI } from "../main/modules/main-window/MainWindow.api";
+import type { OverlayAPI } from "../main/modules/overlay/Overlay.api";
+import type { PoeLeaguesAPI } from "../main/modules/poe-leagues/PoeLeagues.api";
+import type { PoeNinjaAPI } from "../main/modules/poe-ninja/PoeNinja.api";
+import type { PoeProcessAPI } from "../main/modules/poe-process/PoeProcess.api";
+import type { SessionsAPI } from "../main/modules/sessions/Sessions.api";
+import type { SettingsStoreAPI } from "../main/modules/settings-store/SettingsStore.api";
+import type { SnapshotAPI } from "../main/modules/snapshots/Snapshot.api";
 
 declare global {
   interface Window {
