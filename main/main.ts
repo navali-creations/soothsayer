@@ -1,3 +1,7 @@
+import { SentryService } from "./modules/sentry";
+
+SentryService.getInstance().initialize();
+
 import { app as electronApp } from "electron";
 import { installExtension, REDUX_DEVTOOLS } from "electron-devtools-installer";
 

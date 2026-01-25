@@ -1,3 +1,4 @@
+import { sentryVitePlugin } from "@sentry/vite-plugin";
 import { resolve } from "node:path";
 
 import { defineConfig } from "vite";
@@ -15,6 +16,7 @@ export default defineConfig({
     // will export different bundles based on this
     mainFields: ["module", "jsnext:main", "jsnext"],
   },
+
   build: {
     rollupOptions: {
       plugins: [externalizeDeps()],
@@ -29,4 +31,9 @@ export default defineConfig({
     // Ensure source maps work in development
     sourcemap: true,
   },
+
+  plugins: [sentryVitePlugin({
+    org: "navali-creations",
+    project: "electron"
+  })]
 });

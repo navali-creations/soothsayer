@@ -1,6 +1,7 @@
 import { join } from "node:path";
 
 import { BrowserWindow, dialog, ipcMain } from "electron";
+import { updateElectronApp } from "update-electron-app";
 
 import {
   AnalyticsService,
@@ -142,6 +143,8 @@ class MainWindowService {
       .on("clientlog-stop", (_data) => {});
 
     console.log("[Init] Main window created and ready");
+
+    updateElectronApp();
   }
 
   private emitFileDialogEvents() {

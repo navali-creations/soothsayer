@@ -1,6 +1,10 @@
 import { StrictMode, useEffect, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
+
+import { initSentry } from "~/renderer/sentry";
 import "../../index.css";
+
+initSentry();
 
 import rarity1Sound from "~/renderer/assets/audio/rarity1.mp3";
 import rarity2Sound from "~/renderer/assets/audio/rarity2.mp3";

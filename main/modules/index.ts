@@ -12,6 +12,7 @@ export * from "./overlay";
 export * from "./performance-logger";
 export * from "./poe-leagues";
 export * from "./poe-process";
+export * from "./sentry";
 export * from "./sessions";
 export * from "./settings-store";
 export * from "./snapshots";

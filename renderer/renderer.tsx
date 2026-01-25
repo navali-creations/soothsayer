@@ -1,7 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
 import ReactDOM from "react-dom/client";
+
+import { initSentry } from "./sentry";
 import "./index.css";
+
+initSentry();
 
 // Import the generated route tree
 import { routeTree } from "./routeTree.gen";
