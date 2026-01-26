@@ -20,8 +20,16 @@ export const CurrentSessionAPI = {
   // Stop a session
   stop: (
     game: "poe1" | "poe2",
-  ): Promise<{ success: boolean; error?: string }> =>
-    ipcRenderer.invoke(CurrentSessionChannel.Stop, game),
+  ): Promise<
+    | {
+        success: true;
+        game: "poe1" | "poe2";
+        league: string;
+        durationMs: number;
+        totalCount: number;
+      }
+    | { success: false; error: string }
+  > => ipcRenderer.invoke(CurrentSessionChannel.Stop, game),
 
   // Check if session is active
   isActive: (game: "poe1" | "poe2"): Promise<boolean> =>

@@ -1,5 +1,8 @@
 import type { StateCreator } from "zustand";
 
+import { OverlayChannel } from "~/main/modules/overlay/Overlay.channels";
+import { trackEvent } from "~/renderer/modules/umami";
+
 import type { OverlayTab, SessionData } from "./Overlay.types";
 
 export interface OverlaySlice {
@@ -73,6 +76,7 @@ export const createOverlaySlice: StateCreator<
         false,
         "overlaySlice/show",
       );
+      trackEvent(OverlayChannel.Show, { isVisible: true });
     },
 
     hide: async () => {
@@ -84,6 +88,7 @@ export const createOverlaySlice: StateCreator<
         false,
         "overlaySlice/hide",
       );
+      trackEvent(OverlayChannel.Hide, { isVisible: false });
     },
 
     toggle: async () => {
@@ -96,6 +101,8 @@ export const createOverlaySlice: StateCreator<
         false,
         "overlaySlice/toggle",
       );
+
+      trackEvent(OverlayChannel.Toggle, { isVisible });
     },
 
     setIsVisible: (isVisible) => {
@@ -153,16 +160,12 @@ export const createOverlaySlice: StateCreator<
 
     startListening: () => {
       if (!window.electron?.overlay?.onVisibilityChanged) {
-        console.log("[OverlaySlice] onVisibilityChanged not available");
         return () => {};
       }
-
-      console.log("[OverlaySlice] Setting up visibility change listener");
 
       // Listen for visibility changes from main process
       const cleanup = window.electron.overlay.onVisibilityChanged(
         (isVisible: boolean) => {
-          console.log("[OverlaySlice] Visibility changed to:", isVisible);
           set(
             ({ overlay }) => {
               overlay.isVisible = isVisible;

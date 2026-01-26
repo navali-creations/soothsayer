@@ -145,8 +145,8 @@ class CurrentSessionService {
       CurrentSessionChannel.Stop,
       async (_event, game: GameType) => {
         try {
-          await this.stopSession(game);
-          return { success: true };
+          const result = await this.stopSession(game);
+          return { success: true, ...result };
         } catch (error) {
           console.error("Failed to stop session:", error);
           return {
@@ -261,7 +261,12 @@ class CurrentSessionService {
   /**
    * Stop the active session
    */
-  public async stopSession(game: GameType): Promise<void> {
+  public async stopSession(game: GameType): Promise<{
+    totalCount: number;
+    durationMs: number;
+    league: string;
+    game: GameType;
+  }> {
     const activeSession =
       game === "poe1" ? this.poe1ActiveSession : this.poe2ActiveSession;
 
@@ -270,6 +275,8 @@ class CurrentSessionService {
     }
 
     const endedAt = new Date().toISOString();
+    const startedAt = new Date(activeSession.startedAt).getTime();
+    const durationMs = Date.now() - startedAt;
 
     // Get total count via repository
     const totalCount = await this.repository.getSessionTotalCount(
@@ -297,6 +304,9 @@ class CurrentSessionService {
     // Stop auto-refresh
     this.snapshotService.stopAutoRefresh(game, activeSession.league);
 
+    // Capture league before clearing
+    const league = activeSession.league;
+
     // Clear active session
     if (game === "poe1") {
       this.poe1ActiveSession = null;
@@ -307,6 +317,8 @@ class CurrentSessionService {
     }
 
     this.emitSessionStateChange(game);
+
+    return { totalCount, durationMs, league, game };
   }
 
   /**

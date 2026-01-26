@@ -1,22 +1,24 @@
 import { StrictMode, useEffect, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
 
-import { initSentry } from "~/renderer/sentry";
-import "../../index.css";
-
-initSentry();
-
 import rarity1Sound from "~/renderer/assets/audio/rarity1.mp3";
 import rarity2Sound from "~/renderer/assets/audio/rarity2.mp3";
 import rarity3Sound from "~/renderer/assets/audio/rarity3.mp3";
+import { initSentry } from "~/renderer/sentry";
 import { useBoundStore } from "~/renderer/store";
 
+import { initUmami } from "../umami";
 import {
   OverlayDropsList,
   OverlayEmpty,
   OverlayTabs,
 } from "./Overlay.components";
 import type { SessionData } from "./Overlay.types";
+
+import "../../index.css";
+
+initSentry();
+initUmami();
 
 const raritySounds: Record<number, string> = {
   1: rarity1Sound,

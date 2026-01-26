@@ -99,7 +99,8 @@ class OverlayService {
       transparent: true,
       backgroundColor: "#00000000",
       frame: false,
-      alwaysOnTop: true,
+      // Don't set alwaysOnTop in constructor - set it after creation to avoid Windows rendering bug
+      alwaysOnTop: false,
       skipTaskbar: true,
       resizable: false,
       hasShadow: false,
@@ -120,6 +121,10 @@ class OverlayService {
 
     this.overlayWindow.setBackgroundColor("rgba(0,0,0,0)");
 
+    // Set alwaysOnTop AFTER window creation with "screen-saver" level for game overlay support
+    // This avoids the Windows bug where transparent + alwaysOnTop in constructor causes invisible windows
+    this.overlayWindow.setAlwaysOnTop(true, "screen-saver");
+
     // Add ready-to-show handler BEFORE loading to prevent race condition
     this.overlayWindow.once("ready-to-show", () => {
       console.log(
@@ -128,14 +133,21 @@ class OverlayService {
       );
       if (this.isVisible && this.overlayWindow) {
         console.log("[Overlay] Showing window via show() + blur workaround");
-        // On Windows, showInactive() on transparent windows can fail on first startup
-        // Use show() then immediately blur to avoid stealing focus
-        this.overlayWindow.show();
-        this.overlayWindow.blur();
-        // Force a repaint by toggling opacity
-        this.overlayWindow.setOpacity(0.99);
+        // Small delay to ensure GPU/compositor is ready (fixes first-launch visibility issues)
         setTimeout(() => {
-          this.overlayWindow?.setOpacity(1);
+          if (!this.overlayWindow) return;
+          // On Windows, showInactive() on transparent windows can fail on first startup
+          // Use show() then immediately blur to avoid stealing focus
+          this.overlayWindow.show();
+          this.overlayWindow.blur();
+          // Force a repaint by toggling opacity
+          this.overlayWindow.setOpacity(0.99);
+          setTimeout(() => {
+            this.overlayWindow?.setOpacity(1);
+            console.log(
+              "[Overlay] Opacity reset to 1, window should be visible now",
+            );
+          }, 100);
         }, 50);
       } else {
         console.log("[Overlay] Not showing window (isVisible is false)");
@@ -276,17 +288,18 @@ class OverlayService {
     // we need to explicitly show it
     if (this.overlayWindow && !this.overlayWindow.isVisible()) {
       console.log("[Overlay] Window created but not visible, showing now");
+      this.overlayWindow.setAlwaysOnTop(true, "screen-saver");
       this.overlayWindow.show();
       this.overlayWindow.blur();
       this.overlayWindow.setOpacity(0.99);
       setTimeout(() => {
         this.overlayWindow?.setOpacity(1);
-      }, 50);
+      }, 100);
     } else if (this.overlayWindow) {
       console.log("[Overlay] Window exists, showing via show()");
+      this.overlayWindow.setAlwaysOnTop(true, "screen-saver");
       this.overlayWindow.show();
       this.overlayWindow.blur();
-      this.isVisible = true;
     }
 
     this.notifyVisibilityChanged(true);

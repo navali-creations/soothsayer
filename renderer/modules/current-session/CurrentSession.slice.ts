@@ -1,8 +1,11 @@
 import type { StateCreator } from "zustand";
 
+import { CurrentSessionChannel } from "~/main/modules/current-session/CurrentSession.channels";
+import type { SettingsSlice } from "~/renderer/modules/settings";
+import { trackEvent } from "~/renderer/modules/umami";
 import type { DetailedDivinationCardStats } from "~/types/data-stores";
 
-import type { SettingsSlice } from "../../modules/settings/Settings.slice";
+import type { OverlaySlice } from "../overlay";
 import type { PoeNinjaSlice } from "../poe-ninja/PoeNinja.slice";
 
 export interface SessionSlice {
@@ -45,7 +48,7 @@ export interface SessionSlice {
 }
 
 export const createSessionSlice: StateCreator<
-  SessionSlice & SettingsSlice & PoeNinjaSlice,
+  SessionSlice & SettingsSlice & PoeNinjaSlice & OverlaySlice,
   [["zustand/devtools", never], ["zustand/immer", never]],
   [],
   SessionSlice
@@ -166,6 +169,7 @@ export const createSessionSlice: StateCreator<
     startSession: async () => {
       const {
         settings: { getSelectedGame, getActiveGameViewSelectedLeague },
+        overlay: { isVisible },
       } = get();
       const activeGameView = getSelectedGame();
       const activeGameViewSelectedLeague = getActiveGameViewSelectedLeague();
@@ -183,6 +187,12 @@ export const createSessionSlice: StateCreator<
         );
 
         if (result.success) {
+          trackEvent(CurrentSessionChannel.Start, {
+            game: activeGameView,
+            league: activeGameViewSelectedLeague,
+            overlayVisible: isVisible,
+          });
+
           // Immediately fetch the current session data (including priceSnapshot)
           const sessionData =
             await window.electron.session.getCurrent(activeGameView);
@@ -232,6 +242,7 @@ export const createSessionSlice: StateCreator<
     stopSession: async () => {
       const {
         settings: { getSelectedGame },
+        overlay: { isVisible },
       } = get();
       const activeGameView = getSelectedGame();
       set(({ currentSession }) => {
@@ -242,6 +253,13 @@ export const createSessionSlice: StateCreator<
         const result = await window.electron.session.stop(activeGameView);
 
         if (result.success) {
+          trackEvent(CurrentSessionChannel.Stop, {
+            game: result.game,
+            league: result.league,
+            durationMs: result.durationMs,
+            totalCount: result.totalCount,
+            overlayVisible: isVisible,
+          });
         } else {
           throw new Error(result.error || "Failed to stop session");
         }

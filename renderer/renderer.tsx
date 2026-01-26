@@ -2,10 +2,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
 import ReactDOM from "react-dom/client";
 
+import { initUmami, trackPageView } from "~/renderer/modules/umami";
+
 import { initSentry } from "./sentry";
 import "./index.css";
 
 initSentry();
+initUmami();
 
 // Import the generated route tree
 import { routeTree } from "./routeTree.gen";
@@ -26,6 +29,14 @@ const router = createRouter({
   routeTree,
   defaultPreload: "intent",
   defaultPreloadStaleTime: 0,
+});
+
+// Track page views with Umami (only when path actually changes)
+router.subscribe("onResolved", ({ toLocation, pathChanged, fromLocation }) => {
+  // Track if path changed, or if it's the initial load (no fromLocation)
+  if (pathChanged || !fromLocation) {
+    trackPageView(toLocation.pathname);
+  }
 });
 
 // Register the router instance for type safety
