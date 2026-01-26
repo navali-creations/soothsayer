@@ -1,6 +1,6 @@
-import { join } from "node:path";
+import path, { join } from "node:path";
 
-import { BrowserWindow, ipcMain, screen } from "electron";
+import { app, BrowserWindow, ipcMain, nativeImage, screen } from "electron";
 
 import { CurrentSessionService } from "~/main/modules/current-session";
 import {
@@ -40,6 +40,22 @@ class OverlayService {
     this.settingsStore = SettingsStoreService.getInstance();
     this.currentSessionService = CurrentSessionService.getInstance();
     this.setupHandlers();
+  }
+
+  private getAppIcon(): Electron.NativeImage {
+    const isDev = !app.isPackaged;
+    const basePath = isDev
+      ? path.join(app.getAppPath(), "renderer/assets/logo")
+      : path.join(process.resourcesPath, "logo");
+
+    const iconPath =
+      process.platform === "win32"
+        ? path.join(basePath, "windows/icon.ico")
+        : process.platform === "darwin"
+          ? path.join(basePath, "macos/512x512.png")
+          : path.join(basePath, "linux/icons/512x512.png");
+
+    return nativeImage.createFromPath(iconPath);
   }
 
   /**
@@ -96,6 +112,7 @@ class OverlayService {
       height: overlayHeight,
       x,
       y,
+      icon: this.getAppIcon(),
       transparent: true,
       backgroundColor: "#00000000",
       frame: false,

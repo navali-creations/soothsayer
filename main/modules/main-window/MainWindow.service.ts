@@ -1,6 +1,6 @@
-import { join } from "node:path";
+import path, { join } from "node:path";
 
-import { BrowserWindow, dialog, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, nativeImage } from "electron";
 import { updateElectronApp } from "update-electron-app";
 
 import {
@@ -38,6 +38,22 @@ class MainWindowService {
     return MainWindowService._instance;
   }
 
+  private getAppIcon(): Electron.NativeImage {
+    const isDev = !app.isPackaged;
+    const basePath = isDev
+      ? path.join(app.getAppPath(), "renderer/assets/logo")
+      : path.join(process.resourcesPath, "logo");
+
+    const iconPath =
+      process.platform === "win32"
+        ? path.join(basePath, "windows/icon.ico")
+        : process.platform === "darwin"
+          ? path.join(basePath, "macos/512x512.png")
+          : path.join(basePath, "linux/icons/512x512.png");
+
+    return nativeImage.createFromPath(iconPath);
+  }
+
   public async createMainWindow(isQuitting: boolean = false) {
     const indexHtml = join(
       __dirname,
@@ -47,6 +63,7 @@ class MainWindowService {
 
     this.mainWindow = new BrowserWindow({
       title: "Soothsayer",
+      icon: this.getAppIcon(),
       width: 1200,
       height: 800,
       minWidth: 1200,

@@ -1,4 +1,6 @@
-import { Menu, shell, Tray } from "electron";
+import path from "node:path";
+
+import { app, Menu, nativeImage, shell, Tray } from "electron";
 
 import {
   AppService,
@@ -10,11 +12,6 @@ class TrayService {
   private tray: Tray | null = null;
   private readonly mainWindow: MainWindowServiceType;
   private readonly app: AppService;
-  // private trayIconPath: string = path.join(__dirname, "../../icon512x512.png");
-  // private macosTrayIconPath: string = path.join(
-  // __dirname,
-  // "../../tray_mac.png",
-  // );
   private static _instance: TrayService;
 
   static getInstance() {
@@ -24,18 +21,43 @@ class TrayService {
 
     return TrayService._instance;
   }
+
   constructor() {
     this.mainWindow = MainWindowService.getInstance();
     this.app = AppService.getInstance();
   }
 
-  private setIcon() {
-    // if (process.platform === System.MacOS) {
-    //   this.tray = new Tray(this.macosTrayIconPath);
-    // }
-    // if (process.platform !== System.MacOS) {
-    //   this.tray = new Tray(this.trayIconPath);
-    // }
+  private getIconPath(): string {
+    // In development, app.getAppPath() points to the project root
+    // In production, it points to the app.asar or resources folder
+    const isDev = !app.isPackaged;
+    const basePath = isDev
+      ? path.join(app.getAppPath(), "renderer/assets/logo")
+      : path.join(process.resourcesPath, "logo");
+
+    switch (process.platform) {
+      case "win32":
+        return path.join(basePath, "windows/icon.ico");
+      case "darwin":
+        return path.join(basePath, "macos/16x16.png");
+      default:
+        return path.join(basePath, "linux/icons/32x32.png");
+    }
+  }
+
+  private createIcon(): Tray {
+    const iconPath = this.getIconPath();
+    const icon = nativeImage.createFromPath(iconPath);
+
+    if (icon.isEmpty()) {
+      console.error("[Tray] Failed to load icon from:", iconPath);
+    }
+
+    if (process.platform === "darwin") {
+      icon.setTemplateImage(true);
+    }
+
+    return new Tray(icon);
   }
 
   private createContextMenu() {
@@ -70,10 +92,10 @@ class TrayService {
   public destroyTray = () => this.tray instanceof Tray && this.tray.destroy();
 
   public createTray() {
-    this.setIcon();
-    this.tray?.setToolTip("Soothsayer");
-    this.tray?.on("click", () => this.mainWindow.show?.());
-    this.tray?.setIgnoreDoubleClickEvents(true);
+    this.tray = this.createIcon();
+    this.tray.setToolTip("Soothsayer");
+    this.tray.on("click", () => this.mainWindow.show?.());
+    this.tray.setIgnoreDoubleClickEvents(true);
     this.createContextMenu();
   }
 }

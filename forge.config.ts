@@ -12,6 +12,8 @@ const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
     prune: true,
+    icon: "./renderer/assets/logo/windows/icon",
+    extraResource: ["./renderer/assets/logo"],
     ignore: (file: string) => {
       if (!file) return false;
       const keep =

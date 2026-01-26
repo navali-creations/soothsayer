@@ -1,0 +1,10 @@
+@layer base {
+  :root {
+    --page-scroll-bg: var(--color-base-300);
+    --root-bg: var(--color-base-300);
+  }
+}
+
+.divider-color {
+  border-color: color-mix(in oklab, var(--color-base-content) 10%, transparent);
+}

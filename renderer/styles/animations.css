@@ -1,0 +1,65 @@
+@layer utilities {
+  @keyframes pulse-ring {
+    0% {
+      box-shadow: 0 0 0 0
+        color-mix(in oklab, var(--color-accent) 100%, transparent);
+    }
+    70% {
+      box-shadow: 0 0 0 15px
+        color-mix(in oklab, var(--color-accent) 0%, transparent);
+    }
+    100% {
+      box-shadow: 0 0 0 0
+        color-mix(in oklab, var(--color-accent) 0%, transparent);
+    }
+  }
+
+  .animate-pulse-ring {
+    position: relative;
+    z-index: 1;
+    animation: pulse-ring 2s ease-out infinite;
+  }
+
+  .animate-pulse-ring::before {
+    content: "";
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    border-radius: 50%;
+    box-shadow: 0 0 40px var(--color-primary);
+  }
+
+  @keyframes stop-session {
+    to {
+      stroke-dashoffset: -100;
+    }
+  }
+
+  .animate-stop-session {
+    animation: stop-session 4s linear infinite;
+  }
+
+  .animation-fade-in {
+    opacity: 1;
+    transition: opacity 0.3s ease-out;
+    transition-delay: var(--fade-in-delay, 0ms);
+
+    @starting-style {
+      opacity: 0;
+    }
+  }
+}
+
+.animation-stagger {
+  transition: all 0.3s ease-out;
+  transition-delay: calc(200ms + (sibling-index() - 1) * 100ms);
+  top: 0;
+  position: relative;
+
+  @starting-style {
+    opacity: 0;
+    top: 20px;
+  }
+}

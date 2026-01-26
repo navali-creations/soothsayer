@@ -1,167 +1,35 @@
-@font-face {
-  font-family: "Fontin";
-  src: url("./assets/fonts/Fontin-Regular.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-}
-
+@import "./styles/fonts.css";
 @import "tailwindcss";
+@import "./styles/base.css";
+@import "./styles/animations.css";
+@import "./styles/components.css";
+@import "./styles/electron.css";
 
-@layer base {
-  :root {
-    --page-scroll-bg: var(--color-base-300);
-    --root-bg: var(--color-base-300);
-  }
-}
+@plugin "daisyui";
 
-@layer utilities {
-  .font-fontin {
-    font-family: "Fontin", sans-serif;
-  }
+@plugin "daisyui/theme" {
+  name: "coffee";
+  default: true;
 
-  .tab-border-half::after {
-    content: "";
-    position: absolute;
-    bottom: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 75%;
-    height: 3px;
-    border-radius: 6px;
-    background-color: currentColor;
-    opacity: 0;
-    transition: opacity 0.2s ease;
-  }
+  /*--color-primary: #8f3d9e;
+  --color-primary-content: #f5e9fa;
 
-  .tab-border-half.tab-active::after {
-    opacity: 1;
-  }
+  --color-secondary: #c44dff;
+  --color-secondary-content: #2a0833;
 
-  @keyframes pulse-ring {
-    0% {
-      box-shadow: 0 0 0 0
-        color-mix(in oklab, var(--color-accent) 100%, transparent);
-    }
-    70% {
-      box-shadow: 0 0 0 15px
-        color-mix(in oklab, var(--color-accent) 0%, transparent);
-    }
-    100% {
-      box-shadow: 0 0 0 0
-        color-mix(in oklab, var(--color-accent) 0%, transparent);
-    }
-  }
+  --color-accent: #6e274f;
+  --color-accent-content: #ffe6f0;
 
-  .animate-pulse-ring {
-    position: relative;
-    z-index: 1;
-    animation: pulse-ring 2s ease-out infinite;
-  }
+  --color-neutral: #4b1f5a;
+  --color-neutral-content: #ead6f2;
 
-  .animate-pulse-ring::before {
-    content: "";
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    position: absolute;
-    border-radius: 50%;
-    box-shadow: 0 0 40px var(--color-primary);
-  }
+  --color-base-100: #1a0e1f;
+  --color-base-200: #241028;
+  --color-base-300: #2e1433;
+  --color-base-content: #e6d6ee;
 
-  @keyframes stop-session {
-    to {
-      stroke-dashoffset: -100;
-    }
-  }
-
-  .animate-stop-session {
-    animation: stop-session 4s linear infinite;
-  }
-}
-
-@plugin "daisyui" {
-  themes: coffee;
-}
-
-.divider-color {
-  border-color: color-mix(in oklab, var(--color-base-content) 10%, transparent);
-}
-
-@layer utilities {
-  .tabs-lift {
-    & > .tab {
-      background-color: var(--color-base-200);
-      /* override the gradients that ::before uses */
-
-      --tab-radius-grad:
-        transparent calc(69% - var(--border)),
-        color-mix(in oklab, var(--color-base-content) 10%, transparent)
-          calc(calc(69% - var(--border)) + 0.25px),
-        color-mix(in oklab, var(--color-base-content) 10%, transparent)
-          calc(calc(69% - var(--border)) + var(--border)),
-        var(--tab-bg) calc(calc(69% - var(--border)) + var(--border) + 0.25px);
-    }
-  }
-}
-
-.drag {
-  -webkit-app-region: drag;
-  app-region: drag;
-}
-
-.no-drag {
-  -webkit-app-region: no-drag;
-  app-region: no-drag;
-}
-
-.preview {
-  box-shadow: 0 0 10px oklch(from var(--color-primary) l c h / 0.75) inset;
-  border-radius: 4px;
-  margin-left: 1px;
-  background: black;
-  background-image: repeating-linear-gradient(
-    -45deg,
-    oklch(from var(--color-base-300) l c h / 0.5),
-    oklch(from var(--color-base-300) l c h / 0.5) 13px,
-    var(--color-base-200) 13px,
-    var(--color-base-200) 14px
-  );
-}
-
-.animation-stagger {
-  transition: all 0.3s ease-out;
-  transition-delay: calc(200ms + (sibling-index() - 1) * 100ms);
-  top: 0;
-  position: relative;
-
-  @starting-style {
-    opacity: 0;
-    top: 20px;
-  }
-}
-
-@layer utilities {
-  .animation-fade-in {
-    opacity: 1;
-    transition: opacity 0.3s ease-out;
-    transition-delay: var(--fade-in-delay, 0ms);
-
-    @starting-style {
-      opacity: 0;
-    }
-  }
-
-  .scroll-hint {
-    box-shadow: none;
-  }
-
-  @container scroll-state(scrollable) {
-    .scroll-hint {
-      opacity: 1;
-      border: 1px solid white;
-      box-shadow: 0 0 10px black inset;
-    }
-  }
+  --color-info: #7b4ccf;
+  --color-success: #5e3ba8;
+  --color-warning: #b35c8a;
+  --color-error: #8a2d4f;*/
 }
