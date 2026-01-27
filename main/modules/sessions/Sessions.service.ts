@@ -2,6 +2,7 @@ import { ipcMain } from "electron";
 
 import { DatabaseService } from "~/main/modules/database";
 import { SnapshotService } from "~/main/modules/snapshots";
+import { cleanWikiMarkup } from "~/main/utils/cleanWikiMarkup";
 
 import type { DetailedDivinationCardStats } from "../../../types/data-stores";
 import { SessionsChannel } from "./Sessions.channels";
@@ -117,6 +118,19 @@ class SessionsService {
         count: card.count,
         processedIds: [],
       };
+
+      // Add divination card metadata if available
+      if (card.divinationCard) {
+        cardEntry.divinationCard = {
+          id: card.divinationCard.id,
+          stackSize: card.divinationCard.stackSize,
+          description: card.divinationCard.description,
+          rewardHtml: cleanWikiMarkup(card.divinationCard.rewardHtml),
+          artSrc: card.divinationCard.artSrc,
+          flavourHtml: cleanWikiMarkup(card.divinationCard.flavourHtml),
+          rarity: card.divinationCard.rarity,
+        };
+      }
 
       // Add prices if snapshot available
       if (priceSnapshot) {

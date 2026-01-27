@@ -20,7 +20,9 @@ const CardNameCell = (cellProps: CellContext<CardEntry, string>) => {
   const hidePrice = priceInfo?.hidePrice || false;
 
   const { triggerRef, popoverRef } = usePopover({
-    // trigger: "click",
+    placement: "right",
+    offset: 12,
+    scale: 0.75,
   });
 
   // Only show popover if divination card data exists
@@ -40,7 +42,7 @@ const CardNameCell = (cellProps: CellContext<CardEntry, string>) => {
           id={popoverId}
           ref={popoverRef}
           popover="manual"
-          className="m-0 p-0 border-0 bg-transparent backdrop:bg-black/50"
+          className="p-0 border-0 bg-transparent"
         >
           <DivinationCard card={cellProps.row.original} />
         </div>

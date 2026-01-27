@@ -1,12 +1,68 @@
+import type { CellContext } from "@tanstack/react-table";
 import { createColumnHelper } from "@tanstack/react-table";
-import { useMemo } from "react";
+import { useId, useMemo } from "react";
 import { FiEye, FiEyeOff } from "react-icons/fi";
 
-import { Table } from "~/renderer/components";
+import { DivinationCard, Table } from "~/renderer/components";
+import { usePopover } from "~/renderer/hooks/usePopover";
 import { useBoundStore } from "~/renderer/store";
 import { formatCurrency } from "~/renderer/utils";
+import type { CardEntry as GlobalCardEntry } from "~/types/data-stores";
 
 import type { CardEntry } from "../../SessionDetails.types";
+
+// Card name cell with popover
+const SessionCardNameCell = ({
+  info,
+}: {
+  info: CellContext<CardEntry, string>;
+}) => {
+  const popoverId = useId();
+  const row = info.row.original;
+  const isHidden = row.hidePrice || false;
+  const hasCardData = !!row.divinationCard;
+
+  const { triggerRef, popoverRef } = usePopover({
+    placement: "right",
+    offset: 8,
+    scale: 0.75,
+  });
+
+  // Convert to GlobalCardEntry format for DivinationCard component
+  const cardEntry: GlobalCardEntry | null = hasCardData
+    ? {
+        name: row.name,
+        count: row.count,
+        processedIds: [],
+        divinationCard: row.divinationCard,
+      }
+    : null;
+
+  return (
+    <>
+      <span
+        ref={hasCardData ? triggerRef : null}
+        className={`font-semibold ${isHidden ? "opacity-40 line-through" : ""} ${hasCardData ? "cursor-help underline decoration-dotted" : ""}`}
+      >
+        {info.getValue()}
+        {isHidden && (
+          <span className="badge badge-error badge-xs ml-2">Hidden</span>
+        )}
+      </span>
+
+      {hasCardData && cardEntry && (
+        <div
+          id={popoverId}
+          ref={popoverRef}
+          popover="manual"
+          className="p-0 border-0 bg-transparent"
+        >
+          <DivinationCard card={cardEntry} />
+        </div>
+      )}
+    </>
+  );
+};
 
 interface SessionDetailsTableProps {
   cardData: CardEntry[];
@@ -63,20 +119,7 @@ const SessionDetailsTable = ({
       }),
       columnHelper.accessor("name", {
         header: "Card Name",
-        cell: (info) => {
-          const row = info.row.original;
-          const isHidden = row.hidePrice || false;
-          return (
-            <span
-              className={`font-semibold ${isHidden ? "opacity-40 line-through" : ""}`}
-            >
-              {info.getValue()}
-              {isHidden && (
-                <span className="badge badge-error badge-xs ml-2">Hidden</span>
-              )}
-            </span>
-          );
-        },
+        cell: (info) => <SessionCardNameCell info={info} />,
       }),
       columnHelper.accessor("count", {
         header: "Count",

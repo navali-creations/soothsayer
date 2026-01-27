@@ -1,3 +1,5 @@
+import type { DivinationCardMetadata } from "~/types/data-stores";
+
 export type CardEntry = {
   name: string;
   count: number;
@@ -5,4 +7,5 @@ export type CardEntry = {
   chaosValue: number;
   totalValue: number;
   hidePrice?: boolean;
+  divinationCard?: DivinationCardMetadata;
 };

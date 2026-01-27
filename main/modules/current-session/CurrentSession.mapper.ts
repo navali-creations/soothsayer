@@ -2,6 +2,7 @@ import type {
   SessionSummariesTable,
   SessionsRow,
 } from "~/main/modules/database";
+import { cleanWikiMarkup } from "~/main/utils/cleanWikiMarkup";
 
 import type { GameType } from "../../../types/data-stores";
 import type {
@@ -72,9 +73,9 @@ export class CurrentSessionMapper {
         id: row.divinationCardId,
         stackSize: row.stackSize,
         description: row.description,
-        rewardHtml: row.rewardHtml,
+        rewardHtml: cleanWikiMarkup(row.rewardHtml),
         artSrc: row.artSrc,
-        flavourHtml: row.flavourHtml,
+        flavourHtml: cleanWikiMarkup(row.flavourHtml),
         rarity: row.rarity,
       };
     }

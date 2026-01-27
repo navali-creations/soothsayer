@@ -100,6 +100,7 @@ const SessionDetailsPage = () => {
           chaosValue,
           totalValue,
           hidePrice,
+          divinationCard: entry.divinationCard,
         };
       })
       .sort((a, b) => b.count - a.count);

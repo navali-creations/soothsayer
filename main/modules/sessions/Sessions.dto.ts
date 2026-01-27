@@ -42,4 +42,13 @@ export interface SessionCardDetailsDTO {
   count: number;
   hidePriceExchange: boolean;
   hidePriceStash: boolean;
+  divinationCard?: {
+    id: string;
+    stackSize?: number | null;
+    description?: string | null;
+    rewardHtml?: string | null;
+    artSrc?: string | null;
+    flavourHtml?: string | null;
+    rarity?: number;
+  };
 }

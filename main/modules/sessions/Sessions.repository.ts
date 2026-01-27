@@ -150,18 +150,39 @@ export class SessionsRepository {
   }
 
   /**
-   * Get session cards by session ID
+   * Get session cards by session ID with divination card metadata
    */
   async getSessionCards(sessionId: string): Promise<SessionCardDetailsDTO[]> {
     const rows = await this.kysely
-      .selectFrom("session_cards")
+      .selectFrom("session_cards as sc")
+      .leftJoin("sessions as s", "sc.session_id", "s.id")
+      .leftJoin("leagues as l", "s.league_id", "l.id")
+      .leftJoin("divination_cards as dc", (join) =>
+        join
+          .onRef("dc.name", "=", "sc.card_name")
+          .onRef("dc.game", "=", "s.game"),
+      )
+      .leftJoin("divination_card_rarities as dcr", (join) =>
+        join
+          .onRef("dcr.card_name", "=", "sc.card_name")
+          .onRef("dcr.game", "=", "s.game")
+          .onRef("dcr.league", "=", "l.name"),
+      )
       .select([
-        "card_name as cardName",
-        "count",
-        "hide_price_exchange as hidePriceExchange",
-        "hide_price_stash as hidePriceStash",
+        "sc.card_name as cardName",
+        "sc.count",
+        "sc.hide_price_exchange as hidePriceExchange",
+        "sc.hide_price_stash as hidePriceStash",
+        // Divination card metadata
+        "dc.id as divinationCardId",
+        "dc.stack_size as stackSize",
+        "dc.description",
+        "dc.reward_html as rewardHtml",
+        "dc.art_src as artSrc",
+        "dc.flavour_html as flavourHtml",
+        sql<number>`COALESCE(dcr.rarity, 4)`.as("rarity"),
       ])
-      .where("session_id", "=", sessionId)
+      .where("sc.session_id", "=", sessionId)
       .execute();
 
     return rows.map((row) => ({
@@ -169,6 +190,17 @@ export class SessionsRepository {
       count: row.count,
       hidePriceExchange: row.hidePriceExchange === 1,
       hidePriceStash: row.hidePriceStash === 1,
+      divinationCard: row.divinationCardId
+        ? {
+            id: row.divinationCardId,
+            stackSize: row.stackSize,
+            description: row.description,
+            rewardHtml: row.rewardHtml,
+            artSrc: row.artSrc,
+            flavourHtml: row.flavourHtml,
+            rarity: row.rarity,
+          }
+        : undefined,
     }));
   }
 
