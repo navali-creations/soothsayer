@@ -1,7 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
-
-import CurrentSessionPage from "../modules/current-session/CurrentSession.page";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/")({
-  component: CurrentSessionPage,
+  beforeLoad: () => {
+    throw redirect({ to: "/current-session" });
+  },
 });

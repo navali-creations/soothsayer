@@ -93,7 +93,7 @@ class TrayService {
 
   public createTray() {
     this.tray = this.createIcon();
-    this.tray.setToolTip("Soothsayer");
+    this.tray.setToolTip("soothsayer");
     this.tray.on("click", () => this.mainWindow.show?.());
     this.tray.setIgnoreDoubleClickEvents(true);
     this.createContextMenu();

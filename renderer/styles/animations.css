@@ -50,16 +50,16 @@
       opacity: 0;
     }
   }
-}
 
-.animation-stagger {
-  transition: all 0.3s ease-out;
-  transition-delay: calc(200ms + (sibling-index() - 1) * 100ms);
-  top: 0;
-  position: relative;
+  .animation-stagger {
+    transition: all 0.3s ease-out;
+    transition-delay: calc(200ms + (sibling-index() - 1) * 100ms);
+    top: 0;
+    position: relative;
 
-  @starting-style {
-    opacity: 0;
-    top: 20px;
+    @starting-style {
+      opacity: 0;
+      top: 20px;
+    }
   }
 }

@@ -11,25 +11,32 @@
   name: "coffee";
   default: true;
 
-  /*--color-primary: #8f3d9e;
-  --color-primary-content: #f5e9fa;
+  --color-primary: #8f3d9e;
+  --color-primary-content: #fdf7ff;
 
-  --color-secondary: #c44dff;
-  --color-secondary-content: #2a0833;
+  --color-secondary: #d06cff;
+  --color-secondary-content: #1a061f;
 
-  --color-accent: #6e274f;
-  --color-accent-content: #ffe6f0;
+  --color-accent: #d43b87;
+  --color-accent-content: #0f0712;
 
-  --color-neutral: #4b1f5a;
-  --color-neutral-content: #ead6f2;
+  --color-neutral: #2b0f34;
+  --color-neutral-content: #f1e7f6;
 
-  --color-base-100: #1a0e1f;
-  --color-base-200: #241028;
-  --color-base-300: #2e1433;
-  --color-base-content: #e6d6ee;
+  --color-base-100: #0f0712;
+  --color-base-200: #14091a;
+  --color-base-300: #1b0c22;
+  --color-base-content: #e9ddf0;
 
-  --color-info: #7b4ccf;
-  --color-success: #5e3ba8;
-  --color-warning: #b35c8a;
-  --color-error: #8a2d4f;*/
+  --color-info: #6a6dff;
+  --color-info-content: #0f0712;
+
+  --color-success: #2dd4bf;
+  --color-success-content: #04201b;
+
+  --color-warning: #f59e0b;
+  --color-warning-content: #1a0e1f;
+
+  --color-error: #ef4444;
+  --color-error-content: #1a0e1f;
 }

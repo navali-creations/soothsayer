@@ -12,7 +12,7 @@ import PriceSnapshotAlert from "./CurrentSession.components/PriceSnapshotAlert/P
 
 const CurrentSessionPage = () => {
   const {
-    currentSession: { getIsCurrentSessionActive },
+    currentSession: { getIsCurrentSessionActive, isLoading },
   } = useBoundStore();
 
   const isActive = getIsCurrentSessionActive();
@@ -27,7 +27,21 @@ const CurrentSessionPage = () => {
       <PageContainer.Content>
         {/* Session Status Alert */}
         <AnimatePresence mode="wait" initial={false}>
-          {!isActive ? (
+          {isLoading && !isActive ? (
+            <motion.div
+              key="loading-alert"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2, ease: "easeInOut" }}
+              style={{ overflow: "hidden" }}
+            >
+              <div className="alert alert-soft alert-info bg-base-200 mb-4">
+                <span className="loading loading-spinner loading-sm"></span>
+                <span>Fetching latest prices from poe.ninja...</span>
+              </div>
+            </motion.div>
+          ) : !isActive ? (
             <motion.div
               key="inactive-alert"
               initial={{ opacity: 0, height: 0 }}

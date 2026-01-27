@@ -33,6 +33,8 @@ const router = createRouter({
 
 // Track page views with Umami (only when path actually changes)
 router.subscribe("onResolved", ({ toLocation, pathChanged, fromLocation }) => {
+  // Skip root path (it redirects to /current-session)
+  if (toLocation.pathname === "/") return;
   // Track if path changed, or if it's the initial load (no fromLocation)
   if (pathChanged || !fromLocation) {
     trackPageView(toLocation.pathname);

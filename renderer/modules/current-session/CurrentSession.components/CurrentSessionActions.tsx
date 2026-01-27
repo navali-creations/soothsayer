@@ -27,7 +27,20 @@ const CurrentSessionActions = () => {
     <Flex className="gap-2 items-center">
       <div data-onboarding="start-session" className="relative">
         <AnimatePresence mode="wait" initial={false}>
-          {isActive ? (
+          {isLoading ? (
+            <motion.div
+              key="loading"
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -20, opacity: 0 }}
+              transition={{ duration: 0.1, ease: "easeInOut" }}
+            >
+              <Button variant="ghost" disabled>
+                <span className="mt-0.5 mr-1 loading loading-spinner loading-xs" />
+                Starting session...
+              </Button>
+            </motion.div>
+          ) : isActive ? (
             <motion.div
               key="stop"
               initial={{ y: -20, opacity: 0 }}

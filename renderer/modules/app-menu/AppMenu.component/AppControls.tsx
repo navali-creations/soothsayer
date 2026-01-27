@@ -44,7 +44,7 @@ const AppControls = () => {
         </Button>
       )}
       <Button onClick={close} variant="ghost" size="sm">
-        <FiX />
+        <FiX size={16} />
       </Button>
     </Flex>
   );
