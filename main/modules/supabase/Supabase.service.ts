@@ -398,30 +398,15 @@ class SupabaseClientService {
     await this.ensureAuthenticated();
 
     // Debug: Check current session
-    const { data: sessionData, error: sessionError } =
-      await this.client.auth.getSession();
-    console.log("[SupabaseClient] Current session check:", {
-      hasSession: !!sessionData.session,
-      userId: sessionData.session?.user?.id,
-      expiresAt: sessionData.session?.expires_at,
-      tokenLength: sessionData.session?.access_token?.length,
-      error: sessionError,
-    });
+    const { data: sessionData } = await this.client.auth.getSession();
 
     if (!sessionData.session) {
-      console.error("[SupabaseClient] No active session found!");
       throw new Error("No active session. Authentication may have failed.");
     }
 
     // Verify the token is valid by testing getUser
     const { data: userData, error: userError } =
       await this.client.auth.getUser();
-    console.log("[SupabaseClient] User verification:", {
-      hasUser: !!userData.user,
-      userId: userData.user?.id,
-      userRole: userData.user?.role,
-      error: userError,
-    });
 
     if (userError || !userData.user) {
       console.error("[SupabaseClient] Token validation failed:", userError);
@@ -465,15 +450,6 @@ class SupabaseClientService {
         throw new Error("Supabase credentials not available");
       }
 
-      console.log(
-        "[SupabaseClient] Making Edge Function request with headers:",
-        {
-          hasApiKey: !!this.supabaseAnonKey,
-          hasAuthToken: !!accessToken,
-          tokenLength: accessToken.length,
-        },
-      );
-
       // Use raw fetch to ensure all headers are sent correctly
       const response = await fetch(
         `${this.supabaseUrl}/functions/v1/get-latest-snapshot`,
@@ -490,17 +466,7 @@ class SupabaseClientService {
 
       const responseText = await response.text();
 
-      console.log("[SupabaseClient] Edge Function response:", {
-        status: response.status,
-        statusText: response.statusText,
-        responseLength: responseText.length,
-      });
-
       if (!response.ok) {
-        console.error(
-          "[SupabaseClient] Edge Function error response:",
-          responseText,
-        );
         throw new Error(
           `Edge Function failed (${response.status}): ${responseText}`,
         );
@@ -517,10 +483,6 @@ class SupabaseClientService {
 
       // Validate response structure
       if (!responseData.snapshot || !responseData.cardPrices) {
-        console.error(
-          "[SupabaseClient] Invalid response structure:",
-          responseData,
-        );
         throw new Error("Invalid response structure from Supabase");
       }
 
@@ -539,10 +501,6 @@ class SupabaseClientService {
 
       // Cache the result
       this.cachedSnapshots.set(cacheKey, { data: snapshot, timestamp: now });
-
-      console.log(
-        `[SupabaseClient] Fetched snapshot with ${Object.keys(snapshot.exchange.cardPrices).length} exchange + ${Object.keys(snapshot.stash.cardPrices).length} stash prices`,
-      );
 
       return snapshot;
     } catch (error) {

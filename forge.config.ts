@@ -73,10 +73,10 @@ const config: ForgeConfig = {
       name: "@electron-forge/publisher-github",
       config: {
         repository: {
-          owner: "me",
-          name: "awesome-thing",
+          owner: "navali-creations",
+          name: "soothsayer",
         },
-        prerelease: true,
+        prerelease: false,
       },
     },
   ],
