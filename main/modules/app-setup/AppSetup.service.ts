@@ -85,7 +85,12 @@ class AppSetupService {
     return {
       currentStep: settings.setupStep,
       isComplete: settings.setupCompleted,
-      selectedGame: settings.selectedGame,
+      // Keep selectedGame for backwards compatibility (use first game or default to poe1)
+      selectedGame:
+        settings.installedGames.length > 0
+          ? settings.installedGames[0]
+          : settings.selectedGame,
+      selectedGames: settings.installedGames,
       poe1League: settings.poe1SelectedLeague,
       poe2League: settings.poe2SelectedLeague,
       poe1ClientPath: settings.poe1ClientTxtPath,
@@ -120,13 +125,14 @@ class AppSetupService {
 
   /**
    * Validate game selection (Step 1)
+   * Now validates that at least one game is selected
    */
   private async validateGameSelection(): Promise<StepValidationResult> {
-    const selectedGame = await this.settingsStore.get("selectedGame");
+    const installedGames = await this.settingsStore.get("installedGames");
     const errors: string[] = [];
 
-    if (!selectedGame) {
-      errors.push("Please select a game");
+    if (!installedGames || installedGames.length === 0) {
+      errors.push("Please select at least one game");
     }
 
     return {
@@ -137,22 +143,23 @@ class AppSetupService {
 
   /**
    * Validate league selection (Step 2)
+   * Validates that each selected game has a league chosen
    */
   private async validateLeagueSelection(): Promise<StepValidationResult> {
-    const selectedGame = await this.settingsStore.get("selectedGame");
+    const installedGames = await this.settingsStore.get("installedGames");
     const poe1League = await this.settingsStore.get("poe1SelectedLeague");
     const poe2League = await this.settingsStore.get("poe2SelectedLeague");
     const errors: string[] = [];
 
-    if (selectedGame === "poe1") {
+    if (installedGames.includes("poe1")) {
       if (!poe1League || poe1League.trim() === "") {
-        errors.push("Please select a PoE1 league");
+        errors.push("Please select a Path of Exile 1 league");
       }
     }
 
-    if (selectedGame === "poe2") {
+    if (installedGames.includes("poe2")) {
       if (!poe2League || poe2League.trim() === "") {
-        errors.push("Please select a PoE2 league");
+        errors.push("Please select a Path of Exile 2 league");
       }
     }
 
@@ -164,26 +171,31 @@ class AppSetupService {
 
   /**
    * Validate client.txt paths (Step 3)
+   * Validates that each selected game has a valid client.txt path
    */
   private async validateClientPaths(): Promise<StepValidationResult> {
-    const selectedGame = await this.settingsStore.get("selectedGame");
+    const installedGames = await this.settingsStore.get("installedGames");
     const poe1Path = await this.settingsStore.get("poe1ClientTxtPath");
     const poe2Path = await this.settingsStore.get("poe2ClientTxtPath");
     const errors: string[] = [];
 
-    if (selectedGame === "poe1") {
+    if (installedGames.includes("poe1")) {
       if (!poe1Path) {
-        errors.push("Please select PoE1 Client.txt path");
+        errors.push("Please select Path of Exile 1 Client.txt path");
       } else if (!this.isValidClientPath(poe1Path)) {
-        errors.push("PoE1 Client.txt path is invalid or file does not exist");
+        errors.push(
+          "Path of Exile 1 Client.txt path is invalid or file does not exist",
+        );
       }
     }
 
-    if (selectedGame === "poe2") {
+    if (installedGames.includes("poe2")) {
       if (!poe2Path) {
-        errors.push("Please select PoE2 Client.txt path");
+        errors.push("Please select Path of Exile 2 Client.txt path");
       } else if (!this.isValidClientPath(poe2Path)) {
-        errors.push("PoE2 Client.txt path is invalid or file does not exist");
+        errors.push(
+          "Path of Exile 2 Client.txt path is invalid or file does not exist",
+        );
       }
     }
 
@@ -287,6 +299,12 @@ class AppSetupService {
         success: false,
         error: `Setup incomplete: ${allErrors.join(", ")}`,
       };
+    }
+
+    // Set the active game to the first installed game
+    const installedGames = await this.settingsStore.get("installedGames");
+    if (installedGames.length > 0) {
+      await this.settingsStore.set("selectedGame", installedGames[0]);
     }
 
     // Mark setup as complete

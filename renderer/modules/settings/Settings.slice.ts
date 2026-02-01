@@ -64,6 +64,7 @@ export const createSettingsSlice: StateCreator<
     poe2SelectedLeague: "Standard",
     poe2PriceSource: "stash",
     selectedGame: "poe1",
+    installedGames: ["poe1"],
     setupCompleted: false,
     setupStep: 0,
     setupVersion: 1,
@@ -98,6 +99,7 @@ export const createSettingsSlice: StateCreator<
             settings.poe2SelectedLeague = data.poe2SelectedLeague;
             settings.poe2PriceSource = data.poe2PriceSource;
             settings.selectedGame = data.selectedGame;
+            settings.installedGames = data.installedGames;
             settings.setupCompleted = data.setupCompleted;
             settings.setupStep = data.setupStep;
             settings.setupVersion = data.setupVersion;
@@ -185,6 +187,7 @@ export const createSettingsSlice: StateCreator<
           settings.poe2SelectedLeague = newSettings.poe2SelectedLeague;
           settings.poe2PriceSource = newSettings.poe2PriceSource;
           settings.selectedGame = newSettings.selectedGame;
+          settings.installedGames = newSettings.installedGames;
           settings.setupCompleted = newSettings.setupCompleted;
           settings.setupStep = newSettings.setupStep;
           settings.setupVersion = newSettings.setupVersion;

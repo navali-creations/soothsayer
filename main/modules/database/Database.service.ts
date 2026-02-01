@@ -376,6 +376,7 @@ class DatabaseService {
 
           -- Game selection
           selected_game TEXT NOT NULL DEFAULT 'poe1' CHECK(selected_game IN ('poe1', 'poe2')),
+          installed_games TEXT NOT NULL DEFAULT '["poe1"]',
 
           -- Setup and onboarding
           setup_completed INTEGER NOT NULL DEFAULT 0,

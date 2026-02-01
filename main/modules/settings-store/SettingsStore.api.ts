@@ -50,6 +50,12 @@ const SettingsStoreAPI = {
   setActiveGame: (game: "poe1" | "poe2"): Promise<void> =>
     ipcRenderer.invoke(SettingsStoreChannel.SetActiveGame, game),
 
+  // Installed games (multi-game selection)
+  getInstalledGames: (): Promise<("poe1" | "poe2")[]> =>
+    ipcRenderer.invoke(SettingsStoreChannel.GetInstalledGames),
+  setInstalledGames: (games: ("poe1" | "poe2")[]): Promise<void> =>
+    ipcRenderer.invoke(SettingsStoreChannel.SetInstalledGames, games),
+
   // League selection
   getSelectedPoe1League: (): Promise<string> =>
     ipcRenderer.invoke(SettingsStoreChannel.GetSelectedPoe1League),

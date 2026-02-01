@@ -8,7 +8,7 @@ declare global {
       track: {
         (eventName: string, data?: Record<string, unknown>): void;
         (
-          callback: (props: Record<string, unknown>) => Record<string, unknown>,
+          callback: (props: Record<string, unknown>) => Record<string, unknown>
         ): void;
       };
       identify: (sessionId?: string, data?: Record<string, unknown>) => void;
@@ -54,7 +54,7 @@ export function trackPageView(url: string, title?: string): void {
 
 export function trackEvent(
   eventName: string,
-  data?: Record<string, unknown>,
+  data?: Record<string, unknown>
 ): void {
   if (!window.umami) return;
 

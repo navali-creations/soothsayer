@@ -44,10 +44,13 @@ import {
   type SettingsSlice,
 } from "../modules/settings/Settings.slice";
 import {
+  createSetupSlice,
+  type SetupSlice,
+} from "../modules/setup/Setup.slice";
+import {
   createStatisticsSlice,
   type StatisticsSlice,
 } from "../modules/statistics/Statistics.slice";
-import { createSetupSlice, type SetupSlice } from "./setupSlice";
 
 enableMapSet();
 
@@ -104,7 +107,7 @@ export const useBoundStore = create<BoundStore>()(
         hydrate: async () => {
           await Promise.all([
             settingsSlice.settings.hydrate(),
-            setupSlice.hydrate(),
+            setupSlice.setup.hydrate(),
             sessionSlice.currentSession.hydrate(),
             appMenuSlice.appMenu.hydrate(),
             gameInfoSlice.gameInfo.hydrate(),
@@ -134,6 +137,7 @@ export const useBoundStore = create<BoundStore>()(
             ({
               appMenu,
               settings,
+              setup,
               gameInfo,
               sessions,
               sessionDetails,
@@ -149,7 +153,10 @@ export const useBoundStore = create<BoundStore>()(
               settings.error = null;
 
               // Reset setup
-              state.setupState = null;
+              setup.setupState = null;
+              setup.validation = null;
+              setup.isLoading = false;
+              setup.error = null;
 
               // Reset session
               state.currentSession.poe1Session = null;

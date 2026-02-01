@@ -19,10 +19,11 @@ const RootLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isHydrating, setIsHydrating] = useState(true);
-  const hydrate = useBoundStore((state) => state.hydrate);
-  const startListeners = useBoundStore((state) => state.startListeners);
-  const isSetupComplete = useBoundStore((state) => state.isSetupComplete);
-  const setupState = useBoundStore((state) => state.setupState);
+  const {
+    hydrate,
+    startListeners,
+    setup: { isSetupComplete, setupState },
+  } = useBoundStore();
 
   useEffect(() => {
     // Hydrate all data on app mount
@@ -51,6 +52,8 @@ const RootLayout = () => {
     return cleanup;
   }, [hydrate, startListeners, navigate, isSetupComplete]);
 
+  const isSetupMode = !setupState?.isComplete;
+
   if (isHydrating) {
     return (
       <div className="flex items-center justify-center h-screen bg-base-300">
@@ -61,24 +64,23 @@ const RootLayout = () => {
     );
   }
 
-  if (!setupState?.isComplete) {
-    return <Outlet />;
-  }
-
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       <AppMenu />
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar />
+        {/* Only show sidebar when setup is complete */}
+        {!isSetupMode && <Sidebar />}
         <main className="flex-1 overflow-auto relative z-0">
           <Outlet />
         </main>
       </div>
-      <Beacons
-        config={onboardingConfig}
-        currentPath={location.pathname}
-        enabled={!isHydrating}
-      />
+      {!isSetupMode && (
+        <Beacons
+          config={onboardingConfig}
+          currentPath={location.pathname}
+          enabled={!isHydrating}
+        />
+      )}
       <TanStackRouterDevtools />
     </div>
   );

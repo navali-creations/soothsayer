@@ -535,6 +535,56 @@ class SupabaseClientService {
   }
 
   /**
+   * Call a Supabase Edge Function with authentication
+   * Generic method for calling any edge function
+   */
+  public async callEdgeFunction<T = unknown>(
+    functionName: string,
+    body: Record<string, unknown>,
+  ): Promise<T> {
+    if (!this.client) {
+      throw new Error("Supabase client not configured");
+    }
+
+    // Ensure we're authenticated before making the request
+    await this.ensureAuthenticated();
+
+    const { data: sessionData } = await this.client.auth.getSession();
+    if (!sessionData.session) {
+      throw new Error("No active session");
+    }
+
+    if (!this.supabaseUrl || !this.supabaseAnonKey) {
+      throw new Error("Supabase credentials not available");
+    }
+
+    const accessToken = sessionData.session.access_token;
+
+    const response = await fetch(
+      `${this.supabaseUrl}/functions/v1/${functionName}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: this.supabaseAnonKey,
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(body),
+      },
+    );
+
+    const responseText = await response.text();
+
+    if (!response.ok) {
+      throw new Error(
+        `Edge Function ${functionName} failed (${response.status}): ${responseText}`,
+      );
+    }
+
+    return JSON.parse(responseText) as T;
+  }
+
+  /**
    * Clear authentication and sign out
    */
   public async signOut(): Promise<void> {

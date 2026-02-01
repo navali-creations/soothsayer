@@ -119,6 +119,18 @@ class SettingsStoreService {
       },
     );
 
+    // Installed games
+    ipcMain.handle(SettingsStoreChannel.GetInstalledGames, async () => {
+      return this.repository.getInstalledGames();
+    });
+
+    ipcMain.handle(
+      SettingsStoreChannel.SetInstalledGames,
+      async (_event, games: ("poe1" | "poe2")[]) => {
+        await this.repository.setInstalledGames(games);
+      },
+    );
+
     // Selected PoE1 league
     ipcMain.handle(SettingsStoreChannel.GetSelectedPoe1League, async () => {
       return this.repository.getPoe1SelectedLeague();

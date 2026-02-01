@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { ipcMain, powerMonitor } from "electron";
 
 import { type MainWindowService, PoeProcessChannel } from "~/main/modules";
 
@@ -16,6 +16,7 @@ class PoeProcessService {
     processName: "",
   };
   private mainWindow: MainWindowService | null = null;
+  private isSystemSuspended = false;
 
   static getInstance(): PoeProcessService {
     if (!PoeProcessService._instance) {
@@ -28,6 +29,7 @@ class PoeProcessService {
     this.poller = new PoeProcessPoller();
     this.setupPollerListeners();
     this.setupIpcHandlers();
+    this.setupPowerMonitor();
   }
 
   /**
@@ -36,7 +38,10 @@ class PoeProcessService {
    */
   public initialize(mainWindow: MainWindowService): void {
     this.mainWindow = mainWindow;
-    this.poller.start();
+    // Only start polling if system is not suspended
+    if (!this.isSystemSuspended) {
+      this.poller.start();
+    }
   }
 
   /**
@@ -78,6 +83,34 @@ class PoeProcessService {
     // Get current PoE process state
     ipcMain.handle(PoeProcessChannel.IsRunning, () => {
       return this.currentState;
+    });
+  }
+
+  private setupPowerMonitor(): void {
+    // Stop polling when system is about to suspend/sleep
+    powerMonitor.on("suspend", () => {
+      console.log("[PoeProcess] System suspending, stopping poller");
+      this.isSystemSuspended = true;
+      this.poller.stop();
+    });
+
+    // Resume polling when system wakes up
+    powerMonitor.on("resume", () => {
+      console.log("[PoeProcess] System resumed, starting poller");
+      this.isSystemSuspended = false;
+      // Only restart if we have a main window (service was initialized)
+      if (this.mainWindow) {
+        this.poller.start();
+      }
+    });
+
+    // Also handle lock/unlock events on Windows
+    powerMonitor.on("lock-screen", () => {
+      console.log("[PoeProcess] Screen locked");
+    });
+
+    powerMonitor.on("unlock-screen", () => {
+      console.log("[PoeProcess] Screen unlocked");
     });
   }
 

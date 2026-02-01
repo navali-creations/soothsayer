@@ -14,6 +14,7 @@ export const SettingsKey = {
   SelectedPoe2League: "poe2SelectedLeague",
   Poe2PriceSource: "poe2PriceSource",
   ActiveGame: "selectedGame",
+  InstalledGames: "installedGames",
   SetupCompleted: "setupCompleted",
   SetupStep: "setupStep",
   SetupVersion: "setupVersion",

@@ -51,6 +51,8 @@ export class SettingsStoreRepository {
       dbValue = JSON.stringify(value);
     } else if (key === "onboardingDismissedBeacons") {
       dbValue = JSON.stringify(value);
+    } else if (key === "installedGames") {
+      dbValue = JSON.stringify(value);
     } else {
       dbValue = value;
     }
@@ -136,6 +138,14 @@ export class SettingsStoreRepository {
 
   async setSelectedGame(value: "poe1" | "poe2"): Promise<void> {
     return this.set("selectedGame", value);
+  }
+
+  async getInstalledGames(): Promise<("poe1" | "poe2")[]> {
+    return this.get("installedGames");
+  }
+
+  async setInstalledGames(value: ("poe1" | "poe2")[]): Promise<void> {
+    return this.set("installedGames", value);
   }
 
   async getPoe1SelectedLeague(): Promise<string> {

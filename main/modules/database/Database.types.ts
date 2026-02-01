@@ -120,6 +120,25 @@ export interface DivinationCardRaritiesTable {
   last_updated: ColumnType<string, string | undefined, string | undefined>;
 }
 
+export interface PoeLeaguesCacheTable {
+  id: string;
+  game: "poe1" | "poe2";
+  league_id: string;
+  name: string;
+  start_at: string | null;
+  end_at: string | null;
+  is_active: number; // SQLite boolean (0 or 1)
+  updated_at: string | null;
+  fetched_at: string;
+  created_at: ColumnType<string, string | undefined, never>;
+}
+
+export interface PoeLeaguesCacheMetadataTable {
+  game: "poe1" | "poe2";
+  last_fetched_at: string;
+  created_at: ColumnType<string, string | undefined, never>;
+}
+
 export interface MigrationsTable {
   id: string;
   description: string;
@@ -152,6 +171,7 @@ export interface UserSettingsTable {
 
   // Game selection
   selected_game: string; // "poe1" | "poe2"
+  installed_games: string; // JSON array: '["poe1"]', '["poe2"]', or '["poe1", "poe2"]'
 
   // Setup and onboarding
   setup_completed: number; // SQLite boolean (0 or 1)
@@ -185,6 +205,8 @@ export interface Database {
   cards: CardsTable;
   divination_cards: DivinationCardsTable;
   divination_card_rarities: DivinationCardRaritiesTable;
+  poe_leagues_cache: PoeLeaguesCacheTable;
+  poe_leagues_cache_metadata: PoeLeaguesCacheMetadataTable;
   migrations: MigrationsTable;
   user_settings: UserSettingsTable;
 }
@@ -200,3 +222,6 @@ export type SnapshotsRow = Selectable<SnapshotsTable>;
 export type SnapshotCardPricesRow = Selectable<SnapshotCardPricesTable>;
 export type DivinationCardsRow = Selectable<DivinationCardsTable>;
 export type UserSettingsRow = Selectable<UserSettingsTable>;
+export type PoeLeaguesCacheRow = Selectable<PoeLeaguesCacheTable>;
+export type PoeLeaguesCacheMetadataRow =
+  Selectable<PoeLeaguesCacheMetadataTable>;

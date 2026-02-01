@@ -1,6 +1,10 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { authorize, responseJson } from "../_shared/utils.ts";
+
+type Body = { game?: "poe1" | "poe2"; league?: string };
 
 serve(async (req: Request) => {
   const authResult = await authorize({
@@ -14,7 +18,7 @@ serve(async (req: Request) => {
 
   const token = authResult;
 
-  const body = (await req.json().catch(() => ({}))) as Body;
+  const body: Body = await req.json().catch(() => ({}));
   const game = body.game;
   const leagueId = body.league;
 

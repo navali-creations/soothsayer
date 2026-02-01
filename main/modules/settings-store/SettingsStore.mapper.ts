@@ -34,6 +34,9 @@ export function toUserSettingsDTO(row: UserSettingsRow): UserSettingsDTO {
     poe2SelectedLeague: row.poe2_selected_league,
     poe2PriceSource: row.poe2_price_source as "exchange" | "stash",
     selectedGame: row.selected_game as "poe1" | "poe2",
+    installedGames: row.installed_games
+      ? JSON.parse(row.installed_games)
+      : ["poe1"],
     setupCompleted: Boolean(row.setup_completed),
     setupStep: row.setup_step as 0 | 1 | 2 | 3,
     setupVersion: row.setup_version,
@@ -101,6 +104,7 @@ export function toDBKey(key: keyof UserSettingsDTO): keyof UserSettingsTable {
     poe2SelectedLeague: "poe2_selected_league",
     poe2PriceSource: "poe2_price_source",
     selectedGame: "selected_game",
+    installedGames: "installed_games",
     setupCompleted: "setup_completed",
     setupStep: "setup_step",
     setupVersion: "setup_version",

@@ -15,6 +15,7 @@ export interface UserSettingsDTO {
   poe2SelectedLeague: string;
   poe2PriceSource: "exchange" | "stash";
   selectedGame: "poe1" | "poe2";
+  installedGames: ("poe1" | "poe2")[];
   setupCompleted: boolean;
   setupStep: SetupStep;
   setupVersion: number;

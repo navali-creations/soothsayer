@@ -11,26 +11,39 @@ const AppControls = () => {
   const {
     appMenu: { minimize, maximize, unmaximize, close, isMaximized },
     overlay: { toggle: toggleOverlay, isVisible: isOverlayVisible },
+    setup: { setupState },
   } = useBoundStore();
+
+  const isSetupMode = !setupState?.isComplete;
 
   return (
     <Flex className="gap-0">
-      <Button
-        onClick={toggleOverlay}
-        variant="ghost"
-        size="sm"
-        title={isOverlayVisible ? "Hide Overlay" : "Show Overlay"}
-        data-onboarding="overlay-icon"
-      >
-        {isOverlayVisible ? (
-          <RiPictureInPictureExitLine size={16} />
-        ) : (
-          <RiPictureInPictureLine size={16} />
-        )}
-      </Button>
-      <Link to="/settings" asButton variant="ghost" size="sm" className="p-1">
-        <FiSettings size={14} />
-      </Link>
+      {!isSetupMode && (
+        <>
+          <Button
+            onClick={toggleOverlay}
+            variant="ghost"
+            size="sm"
+            title={isOverlayVisible ? "Hide Overlay" : "Show Overlay"}
+            data-onboarding="overlay-icon"
+          >
+            {isOverlayVisible ? (
+              <RiPictureInPictureExitLine size={16} />
+            ) : (
+              <RiPictureInPictureLine size={16} />
+            )}
+          </Button>
+          <Link
+            to="/settings"
+            asButton
+            variant="ghost"
+            size="sm"
+            className="p-1"
+          >
+            <FiSettings size={14} />
+          </Link>
+        </>
+      )}
       <Button onClick={minimize} variant="ghost" size="sm">
         <FiMinus />
       </Button>
