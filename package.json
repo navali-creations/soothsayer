@@ -21,7 +21,11 @@
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "migration:create": "node main/modules/database/migrations/create-migration.ts",
-    "postinstall": "electron-rebuild -f -w better-sqlite3"
+    "postinstall": "electron-rebuild -f -w better-sqlite3",
+    "supabase:start": "bash scripts/setup-local-dev.sh",
+    "supabase:start:fresh": "bash scripts/setup-local-dev-fresh.sh",
+    "supabase:stop": "bash scripts/stop-local-dev.sh",
+    "supabase:functions:serve": "npx supabase functions serve"
   },
   "keywords": [],
   "author": {

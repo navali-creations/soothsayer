@@ -21,6 +21,20 @@ export const migration_20240322_000001_add_installed_games: Migration = {
     "Add installed_games column to user_settings for multi-game selection",
 
   up(db: Database.Database): void {
+    // Check if column already exists
+    const columnExists = db
+      .prepare(
+        `SELECT COUNT(*) as count FROM pragma_table_info('user_settings') WHERE name = 'installed_games'`,
+      )
+      .get() as { count: number };
+
+    if (columnExists.count > 0) {
+      console.log(
+        "[Migration] ⚠ installed_games column already exists, skipping",
+      );
+      return;
+    }
+
     // Add installed_games column with default value for backwards compatibility
     // Default to an array containing just the currently selected game
     db.exec(`

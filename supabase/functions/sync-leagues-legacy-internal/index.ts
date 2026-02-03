@@ -1,10 +1,28 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// Helper function to check if a league should be filtered out
+function shouldFilterLeague(league: any): boolean {
+  // Filter Solo leagues (PoE1 only has rules)
+  const hasSolo = league.rules?.some((rule: any) => rule.name === "Solo");
+  if (hasSolo) return true;
+
+  // Filter HC/Hardcore/Ruthless leagues
+  const leagueId = league.id.toLowerCase();
+  const leagueName = (league.name || league.text || league.id).toLowerCase();
+
+  return (
+    leagueId.includes("hardcore") ||
+    leagueId.includes(" hc") ||
+    leagueName.includes("hardcore") ||
+    leagueName.includes(" hc") ||
+    leagueId.includes("ruthless") ||
+    leagueName.includes("ruthless")
+  );
+}
+
 serve(async (req) => {
   try {
-    console.log(req);
-
     const incomingSecret = req.headers.get("x-cron-secret");
 
     if (incomingSecret !== Deno.env.get("INTERNAL_CRON_SECRET")) {
@@ -28,9 +46,7 @@ serve(async (req) => {
       },
     );
 
-    let totalSynced = 0;
-
-    // 1. Fetch PoE1 leagues
+    // Fetch PoE1 leagues
     console.log("Fetching PoE1 leagues...");
     const poe1Response = await fetch(
       "https://www.pathofexile.com/api/leagues",
@@ -48,35 +64,7 @@ serve(async (req) => {
 
     const poe1Leagues = await poe1Response.json();
 
-    // Filter out Solo leagues and upsert
-    for (const league of poe1Leagues) {
-      const hasSolo = league.rules?.some((rule: any) => rule.name === "Solo");
-      if (hasSolo) continue;
-
-      const { error } = await supabase.from("poe_leagues").upsert(
-        {
-          game: "poe1",
-          league_id: league.id,
-          name: league.name || league.id,
-          start_at: league.startAt || null,
-          end_at: league.endAt || null,
-          is_active: !league.endAt || new Date(league.endAt) > new Date(),
-        },
-        {
-          onConflict: "game,league_id",
-        },
-      );
-
-      if (error) {
-        console.error(`Failed to upsert PoE1 league ${league.id}:`, error);
-      } else {
-        totalSynced++;
-      }
-    }
-
-    console.log(`Synced ${totalSynced} PoE1 leagues`);
-
-    // 2. Fetch PoE2 leagues
+    // Fetch PoE2 leagues
     console.log("Fetching PoE2 leagues...");
     const poe2Response = await fetch(
       "https://www.pathofexile.com/api/trade2/data/leagues",
@@ -93,17 +81,45 @@ serve(async (req) => {
     }
 
     const poe2Data = await poe2Response.json();
-    const poe2Count = totalSynced;
 
-    for (const league of poe2Data.result || []) {
+    // Process all leagues with game metadata
+    const allLeagues = [
+      ...poe1Leagues.map((league: any) => ({
+        game: "poe1",
+        league_id: league.id,
+        name: league.name || league.id,
+        start_at: league.startAt || null,
+        end_at: league.endAt || null,
+        is_active: !league.endAt || new Date(league.endAt) > new Date(),
+        raw: league,
+      })),
+      ...(poe2Data.result || []).map((league: any) => ({
+        game: "poe2",
+        league_id: league.id,
+        name: league.text || league.id,
+        start_at: null,
+        end_at: null,
+        is_active: true,
+        raw: league,
+      })),
+    ];
+
+    let totalSynced = 0;
+    let poe1Count = 0;
+    let poe2Count = 0;
+
+    for (const league of allLeagues) {
+      // Filter unwanted leagues
+      if (shouldFilterLeague(league.raw)) continue;
+
       const { error } = await supabase.from("poe_leagues").upsert(
         {
-          game: "poe2",
-          league_id: league.id,
-          name: league.text || league.id,
-          start_at: null,
-          end_at: null,
-          is_active: true,
+          game: league.game,
+          league_id: league.league_id,
+          name: league.name,
+          start_at: league.start_at,
+          end_at: league.end_at,
+          is_active: league.is_active,
         },
         {
           onConflict: "game,league_id",
@@ -111,20 +127,27 @@ serve(async (req) => {
       );
 
       if (error) {
-        console.error(`Failed to upsert PoE2 league ${league.id}:`, error);
+        console.error(
+          `Failed to upsert ${league.game} league ${league.league_id}:`,
+          error,
+        );
       } else {
         totalSynced++;
+        if (league.game === "poe1") poe1Count++;
+        else poe2Count++;
       }
     }
 
-    console.log(`Synced ${totalSynced - poe2Count} PoE2 leagues`);
+    console.log(
+      `Synced ${poe1Count} PoE1 leagues and ${poe2Count} PoE2 leagues`,
+    );
 
     return new Response(
       JSON.stringify({
         success: true,
         totalSynced,
-        poe1Count: poe2Count,
-        poe2Count: totalSynced - poe2Count,
+        poe1Count,
+        poe2Count,
       }),
       { headers: { "Content-Type": "application/json" } },
     );

@@ -26,8 +26,6 @@ export interface SetupSlice {
     // Actions
     hydrate: () => Promise<void>;
     validateCurrentStep: () => Promise<void>;
-    /** @deprecated Use toggleGame instead for multi-game selection */
-    selectGame: (game: GameType) => Promise<void>;
     /** Toggle a game on/off in the selected games list */
     toggleGame: (game: GameType) => Promise<void>;
     selectLeague: (game: "poe1" | "poe2", league: string) => Promise<void>;
@@ -103,31 +101,7 @@ export const createSetupSlice: StateCreator<
       }
     },
 
-    // Select game (Step 1) - Legacy single-game selection, now just toggles
-    selectGame: async (game: GameType) => {
-      // For backwards compatibility, this now sets the game as the only selected game
-      const { settings } = get();
-      await settings.updateSetting("installedGames", [game]);
-      // Also update legacy selectedGame for compatibility
-      await settings.updateSetting("selectedGame", game);
-
-      // Track game selection
-      trackEvent("setup-game-selected", {
-        games: [game],
-        selection_type: getGameSelectionType([game]),
-      });
-
-      // Refresh setup state from backend to reflect the change
-      const setupState = await window.electron.appSetup.getSetupState();
-      set(({ setup }) => {
-        setup.setupState = setupState;
-      });
-
-      // Re-validate
-      await get().setup.validateCurrentStep();
-    },
-
-    // Toggle game on/off (Step 1) - New multi-game selection
+    // Toggle game on/off (Step 1)
     toggleGame: async (game: GameType) => {
       const { setup, settings } = get();
       const currentGames = setup.setupState?.selectedGames || [];

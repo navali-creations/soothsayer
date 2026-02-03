@@ -28,7 +28,17 @@ class DatabaseService {
   private constructor() {
     // Store database in user data directory
     const userDataPath = app.getPath("userData");
-    this.dbPath = path.join(userDataPath, "soothsayer.db");
+
+    // Use different database file for local development
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "";
+    const isLocalDev =
+      supabaseUrl.includes("127.0.0.1") || supabaseUrl.includes("localhost");
+    const dbFilename = isLocalDev ? "soothsayer.local.db" : "soothsayer.db";
+    this.dbPath = path.join(userDataPath, dbFilename);
+
+    console.log(
+      `[Database] Using database: ${dbFilename} (isLocalDev: ${isLocalDev}, url: ${supabaseUrl})`,
+    );
 
     // Initialize database connection
     this.db = new Database(this.dbPath, {

@@ -1,27 +1,31 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { responseJson } from "../_shared/utils.ts";
 
 serve(async (req) => {
   try {
     const secret = req.headers.get("x-cron-secret");
-    if (secret !== Deno.env.get("INTERNAL_CRON_SECRET")) {
-      return new Response("Unauthorized", { status: 401 });
+    const expectedSecret = Deno.env.get("INTERNAL_CRON_SECRET");
+
+    if (secret !== expectedSecret) {
+      return responseJson({ status: 401, body: { error: "Unauthorized" } });
     }
 
     // Only allow POST requests
     if (req.method !== "POST") {
-      return new Response("Method not allowed", { status: 405 });
+      return responseJson({
+        status: 405,
+        body: { error: "Method not allowed" },
+      });
     }
 
     const { game, leagueId } = await req.json();
 
     if (!game || !leagueId) {
-      return new Response(
-        JSON.stringify({
-          error: "Missing required parameters: game, leagueId",
-        }),
-        { status: 400, headers: { "Content-Type": "application/json" } },
-      );
+      return responseJson({
+        status: 400,
+        body: { error: "Missing required parameters: game, leagueId" },
+      });
     }
 
     console.log(`Creating snapshot for ${game}/${leagueId}...`);
@@ -47,10 +51,7 @@ serve(async (req) => {
 
     if (leagueError || !league) {
       console.error("League not found:", leagueId);
-      return new Response(JSON.stringify({ error: "League not found" }), {
-        status: 404,
-        headers: { "Content-Type": "application/json" },
-      });
+      return responseJson({ status: 404, body: { error: "League not found" } });
     }
 
     // 2. Check for recent snapshot (< 10 minutes) to prevent duplicates
@@ -68,18 +69,20 @@ serve(async (req) => {
       console.log(
         `Recent snapshot exists (${recentSnapshot.fetched_at}), skipping...`,
       );
-      return new Response(
-        JSON.stringify({
+      return responseJson({
+        status: 200,
+        body: {
           message: "Recent snapshot exists",
           snapshot: recentSnapshot,
-        }),
-        { headers: { "Content-Type": "application/json" } },
-      );
+        },
+      });
     }
 
     // 3. Fetch from poe.ninja exchange API
     console.log(`Fetching poe.ninja exchange data for ${league.name}...`);
-    const exchangeUrl = `https://poe.ninja/poe1/api/economy/exchange/current/overview?league=${encodeURIComponent(league.name)}&type=DivinationCard`;
+    const exchangeUrl = `https://poe.ninja/poe1/api/economy/exchange/current/overview?league=${encodeURIComponent(
+      league.name,
+    )}&type=DivinationCard`;
     const exchangeResponse = await fetch(exchangeUrl);
 
     if (!exchangeResponse.ok) {
@@ -114,7 +117,9 @@ serve(async (req) => {
 
     // 4. Fetch from poe.ninja stash API
     console.log(`Fetching poe.ninja stash data for ${league.name}...`);
-    const stashUrl = `https://poe.ninja/api/data/itemoverview?league=${encodeURIComponent(league.name)}&type=DivinationCard`;
+    const stashUrl = `https://poe.ninja/api/data/itemoverview?league=${encodeURIComponent(
+      league.name,
+    )}&type=DivinationCard`;
     const stashResponse = await fetch(stashUrl);
 
     if (!stashResponse.ok) {
@@ -183,8 +188,9 @@ serve(async (req) => {
 
     console.log(`Inserted ${allCardPrices.length} card prices`);
 
-    return new Response(
-      JSON.stringify({
+    return responseJson({
+      status: 200,
+      body: {
         success: true,
         snapshot: {
           id: snapshot.id,
@@ -194,14 +200,10 @@ serve(async (req) => {
           stashChaosToDivine: snapshot.stash_chaos_to_divine,
           cardCount: allCardPrices.length,
         },
-      }),
-      { headers: { "Content-Type": "application/json" } },
-    );
+      },
+    });
   } catch (error) {
     console.error("Error in create-snapshot-internal:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    return responseJson({ status: 500, body: { error: error.message } });
   }
 });
