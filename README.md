@@ -37,7 +37,7 @@ On subsequent runs, it will:
 # Sync fresh data from PoE/poe.ninja (leagues, snapshots, prices)
 pnpm supabase:sync
 
-# Stop Supabase when done (keeps all data)
+# Stop Supabase when done (keeps all data, switches to production mode)
 pnpm supabase:stop
 
 # Start only Supabase (without the app)
@@ -56,16 +56,23 @@ pnpx supabase stop --no-backup
 - `pnpm supabase:sync` fetches fresh data from PoE API without restarting
 - `pnpm supabase:start:fresh` wipes everything for a clean slate
 
-**Production mode:** 
+**Local vs Production mode:**
+- When Supabase is running locally, the app uses `.env.local` (local dev credentials)
+- When you run `pnpm supabase:stop`, `.env.local` is removed automatically
+- After stopping, `pnpm start` will use production credentials from `.env`
+- This allows seamless switching between local development and production testing
 
-To use the app with a deployed Supabase project, create a `.env` file in the root:
+**Production credentials:** 
+
+Your `.env` file contains production Supabase credentials:
 
 ```env
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your_service_role_jwt_here
 ```
 
-Then just run `pnpm start` (no local Supabase needed).
+- With Supabase stopped, `pnpm start` uses these production credentials
+- With Supabase running, `pnpm start` uses local dev (`.env.local` overrides `.env`)
 
 ## Deploy to Production
 

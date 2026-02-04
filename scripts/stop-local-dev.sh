@@ -24,14 +24,23 @@ else
     echo -e "${YELLOW}[!]${NC} Supabase stop had issues"
 fi
 
+# Remove .env.local so production credentials are used
+if [ -f ".env.local" ]; then
+    echo "[*] Removing .env.local (restoring production credentials)..."
+    rm -f .env.local
+    echo -e "${GREEN}[OK]${NC} Local environment file removed"
+fi
+
 echo ""
 echo "========================================"
 echo -e "${GREEN}>> Cleanup Complete!${NC}"
 echo "========================================"
 echo ""
+echo "Supabase stopped. Your app will now use production credentials."
+echo ""
 echo "Next time you run 'pnpm supabase:start':"
 echo "  - All data will be preserved"
-echo "  - Everything picks up where you left off"
+echo "  - .env.local will be recreated for local development"
 echo ""
 echo "To start fresh (delete all data):"
 echo "  pnpm supabase:start:fresh"
