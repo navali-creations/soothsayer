@@ -81,7 +81,7 @@ export const createGameInfoSlice: StateCreator<
           }
         }
       } catch (error) {
-        console.error("[GameInfo] Failed to get initial process state:", error);
+        // Silently handle - IPC handlers may not be ready during initial load
       }
 
       // Fetch leagues

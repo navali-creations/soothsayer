@@ -37,7 +37,7 @@ export const createAppMenuSlice: StateCreator<
           "appMenuSlice/hydrate",
         );
       } catch (error) {
-        console.error("Failed to get initial window state:", error);
+        // Silently handle - IPC handlers may not be ready during initial load
         set(
           ({ appMenu }) => {
             appMenu.isMaximized = false;

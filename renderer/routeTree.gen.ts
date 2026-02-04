@@ -13,7 +13,6 @@ import { Route as StatisticsRouteImport } from './routes/statistics'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SessionsRouteImport } from './routes/sessions'
-import { Route as CurrentSessionRouteImport } from './routes/current-session'
 import { Route as CardsRouteImport } from './routes/cards'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
@@ -38,11 +37,6 @@ const SettingsRoute = SettingsRouteImport.update({
 const SessionsRoute = SessionsRouteImport.update({
   id: '/sessions',
   path: '/sessions',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CurrentSessionRoute = CurrentSessionRouteImport.update({
-  id: '/current-session',
-  path: '/current-session',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CardsRoute = CardsRouteImport.update({
@@ -75,7 +69,6 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/cards': typeof CardsRoute
-  '/current-session': typeof CurrentSessionRoute
   '/sessions': typeof SessionsRouteWithChildren
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
@@ -87,7 +80,6 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/cards': typeof CardsRoute
-  '/current-session': typeof CurrentSessionRoute
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/statistics': typeof StatisticsRoute
@@ -99,7 +91,6 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/cards': typeof CardsRoute
-  '/current-session': typeof CurrentSessionRoute
   '/sessions': typeof SessionsRouteWithChildren
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
@@ -113,7 +104,6 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/cards'
-    | '/current-session'
     | '/sessions'
     | '/settings'
     | '/setup'
@@ -125,7 +115,6 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/cards'
-    | '/current-session'
     | '/settings'
     | '/setup'
     | '/statistics'
@@ -136,7 +125,6 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/cards'
-    | '/current-session'
     | '/sessions'
     | '/settings'
     | '/setup'
@@ -149,7 +137,6 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
   CardsRoute: typeof CardsRoute
-  CurrentSessionRoute: typeof CurrentSessionRoute
   SessionsRoute: typeof SessionsRouteWithChildren
   SettingsRoute: typeof SettingsRoute
   SetupRoute: typeof SetupRoute
@@ -184,13 +171,6 @@ declare module '@tanstack/react-router' {
       path: '/sessions'
       fullPath: '/sessions'
       preLoaderRoute: typeof SessionsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/current-session': {
-      id: '/current-session'
-      path: '/current-session'
-      fullPath: '/current-session'
-      preLoaderRoute: typeof CurrentSessionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cards': {
@@ -249,7 +229,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
   CardsRoute: CardsRoute,
-  CurrentSessionRoute: CurrentSessionRoute,
   SessionsRoute: SessionsRouteWithChildren,
   SettingsRoute: SettingsRoute,
   SetupRoute: SetupRoute,

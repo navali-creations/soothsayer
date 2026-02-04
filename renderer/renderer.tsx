@@ -1,5 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createRouter, RouterProvider } from "@tanstack/react-router";
+import {
+  createHashHistory,
+  createRouter,
+  RouterProvider,
+} from "@tanstack/react-router";
 import ReactDOM from "react-dom/client";
 
 import { initUmami, trackPageView } from "~/renderer/modules/umami";
@@ -24,17 +28,19 @@ const queryClient = new QueryClient({
   },
 });
 
+// Use hash history for Electron (file:// protocol doesn't support browser history)
+const hashHistory = createHashHistory();
+
 // Create a new router instance
 const router = createRouter({
   routeTree,
+  history: hashHistory,
   defaultPreload: "intent",
   defaultPreloadStaleTime: 0,
 });
 
 // Track page views with Umami (only when path actually changes)
 router.subscribe("onResolved", ({ toLocation, pathChanged, fromLocation }) => {
-  // Skip root path (it redirects to /current-session)
-  if (toLocation.pathname === "/") return;
   // Track if path changed, or if it's the initial load (no fromLocation)
   if (pathChanged || !fromLocation) {
     trackPageView(toLocation.pathname);

@@ -16,9 +16,6 @@
     "make": "electron-forge make",
     "publish": "electron-forge publish",
     "typecheck": "tsc --noEmit",
-    "lint": "biome lint .",
-    "lint:fix": "biome lint --write .",
-    "format": "biome format --write .",
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "migration:create": "node main/modules/database/migrations/create-migration.ts",
@@ -27,8 +24,8 @@
     "supabase:start:fresh": "bash scripts/setup-local-dev-fresh.sh",
     "supabase:stop": "bash scripts/stop-local-dev.sh",
     "supabase:sync": "bash scripts/sync-data.sh",
-    "supabase:logs": "npx supabase functions serve --inspect-mode=run",
-    "supabase:functions:serve": "npx supabase functions serve"
+    "supabase:logs": "pnpx supabase functions serve --inspect-mode=run",
+    "supabase:functions:serve": "pnpx supabase functions serve"
   },
   "keywords": [],
   "author": {

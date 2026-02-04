@@ -9,7 +9,7 @@ const Navigation = () => {
       <ul className="menu menu-sm p-0 gap-1">
         <li>
           <Link
-            to="/current-session"
+            to="/"
             className="[&.active]:bg-primary/10 [&.active]:text-base-content"
           >
             <FiActivity size={20} />
