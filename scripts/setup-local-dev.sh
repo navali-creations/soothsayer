@@ -32,16 +32,23 @@ else
     echo -e "${GREEN}[OK]${NC} Docker network exists"
 fi
 
+# Check if volumes already exist (indicates existing data)
+EXISTING_VOLUMES=$(docker volume ls -q | grep -c "supabase_db_soothsayer" || true)
+if [ "$EXISTING_VOLUMES" -gt 0 ]; then
+    echo -e "${GREEN}[INFO]${NC} Existing Supabase volumes found - your data will be preserved"
+fi
+
 # Start Supabase (preserves data via Docker volumes)
 echo "[*] Starting Supabase (this may take a minute)..."
 if ! pnpx supabase start --network-id local-network; then
     echo ""
     echo -e "${YELLOW}[!]${NC} Failed to start - likely container conflicts"
-    echo "[*] Cleaning up containers and retrying..."
+    echo "[*] Cleaning up containers and retrying (volumes preserved)..."
 
-    # Stop and remove containers (data persists in volumes)
+    # Stop Supabase cleanly (does NOT remove volumes by default)
     pnpx supabase stop > /dev/null 2>&1 || true
 
+    # Force remove any stuck containers
     CONTAINERS=$(docker ps -aq --filter "name=supabase_")
     if [ -n "$CONTAINERS" ]; then
         echo "$CONTAINERS" | while read container; do
@@ -142,6 +149,22 @@ else
     echo -e "${YELLOW}[!]${NC} Cron jobs will not work until local_config is populated"
 fi
 
+# Check and report existing data
+echo ""
+echo "[*] Checking existing data..."
+SNAPSHOT_COUNT=$(docker exec supabase_db_soothsayer psql -U postgres -t -c "SELECT COUNT(*) FROM snapshots;" 2>/dev/null | tr -d ' ' || echo "0")
+CARD_PRICE_COUNT=$(docker exec supabase_db_soothsayer psql -U postgres -t -c "SELECT COUNT(*) FROM card_prices;" 2>/dev/null | tr -d ' ' || echo "0")
+LEAGUE_COUNT=$(docker exec supabase_db_soothsayer psql -U postgres -t -c "SELECT COUNT(*) FROM poe_leagues;" 2>/dev/null | tr -d ' ' || echo "0")
+
+if [ "$SNAPSHOT_COUNT" != "0" ] || [ "$CARD_PRICE_COUNT" != "0" ] || [ "$LEAGUE_COUNT" != "0" ]; then
+    echo -e "${GREEN}[OK]${NC} Found existing data:"
+    echo "     - Leagues: $LEAGUE_COUNT"
+    echo "     - Snapshots: $SNAPSHOT_COUNT"
+    echo "     - Card prices: $CARD_PRICE_COUNT"
+else
+    echo -e "${YELLOW}[INFO]${NC} No existing data found (fresh database)"
+fi
+
 # Helper function to create clickable links (OSC 8 hyperlinks)
 hyperlink() {
     local url="$1"
@@ -173,7 +196,7 @@ echo "3. API Endpoint:"
 echo -n "   🔗 "
 hyperlink "http://127.0.0.1:54321" "http://127.0.0.1:54321"
 echo ""
-echo "[TIP] Data persists in Docker volumes (survives container removal)"
-echo "[TIP] Use 'pnpm supabase:stop' when done"
-echo "[TIP] Use 'pnpm supabase:start:fresh' for clean slate"
+echo "[INFO] Data is stored in Docker volumes and persists between restarts"
+echo "[TIP] 'pnpm supabase:stop' - Stop containers (keeps data)"
+echo "[TIP] 'pnpm supabase:start:fresh' - Complete reset (deletes all data)"
 echo ""
