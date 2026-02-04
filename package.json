@@ -10,6 +10,7 @@
     "url": "git+https://github.com/navali-creations/soothsayer.git"
   },
   "scripts": {
+    "dev": "pnpm supabase:start && pnpm start",
     "start": "electron-forge start",
     "package": "electron-forge package",
     "make": "electron-forge make",
@@ -25,6 +26,8 @@
     "supabase:start": "bash scripts/setup-local-dev.sh",
     "supabase:start:fresh": "bash scripts/setup-local-dev-fresh.sh",
     "supabase:stop": "bash scripts/stop-local-dev.sh",
+    "supabase:sync": "bash scripts/sync-data.sh",
+    "supabase:logs": "npx supabase functions serve --inspect-mode=run",
     "supabase:functions:serve": "npx supabase functions serve"
   },
   "keywords": [],

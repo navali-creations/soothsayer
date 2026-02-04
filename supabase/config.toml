@@ -388,3 +388,9 @@ verify_jwt = false
 
 [functions.get-leagues-legacy]
 verify_jwt = false
+
+[functions.sync-leagues-legacy-internal]
+verify_jwt = false
+
+[functions.create-snapshot-internal]
+verify_jwt = false

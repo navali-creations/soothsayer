@@ -14,5 +14,5 @@
 -- Seed default leagues for local development
 INSERT INTO poe_leagues (game, league_id, name, is_active) VALUES
   ('poe1', 'Standard', 'Standard', true),
-  ('poe2', 'Standard', 'Standard', true),
+  ('poe2', 'Standard', 'Standard', true)
 ON CONFLICT (game, league_id) DO NOTHING;

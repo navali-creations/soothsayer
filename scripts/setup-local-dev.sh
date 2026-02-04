@@ -114,6 +114,18 @@ EOF
     echo "INTERNAL_CRON_SECRET=$GENERATED_CRON_SECRET" >> supabase/functions/.env
 
     echo -e "${GREEN}[OK]${NC} supabase/functions/.env created with generated INTERNAL_CRON_SECRET"
+
+    # Restart Edge Runtime to pick up new .env file
+    echo "[*] Restarting Edge Runtime to load environment variables..."
+    docker restart supabase_edge_runtime_soothsayer > /dev/null 2>&1 || true
+fi
+
+# Always restart Edge Runtime if it's running (to ensure .env is loaded)
+if docker ps | grep -q "supabase_edge_runtime_soothsayer"; then
+    echo "[*] Restarting Edge Runtime to ensure environment variables are loaded..."
+    docker restart supabase_edge_runtime_soothsayer > /dev/null 2>&1
+    echo "[*] Waiting for Edge Runtime to be ready..."
+    sleep 5
 fi
 
 # Populate local_config table with values from supabase/functions/.env
@@ -156,13 +168,44 @@ SNAPSHOT_COUNT=$(docker exec supabase_db_soothsayer psql -U postgres -t -c "SELE
 CARD_PRICE_COUNT=$(docker exec supabase_db_soothsayer psql -U postgres -t -c "SELECT COUNT(*) FROM card_prices;" 2>/dev/null | tr -d ' ' || echo "0")
 LEAGUE_COUNT=$(docker exec supabase_db_soothsayer psql -U postgres -t -c "SELECT COUNT(*) FROM poe_leagues;" 2>/dev/null | tr -d ' ' || echo "0")
 
-if [ "$SNAPSHOT_COUNT" != "0" ] || [ "$CARD_PRICE_COUNT" != "0" ] || [ "$LEAGUE_COUNT" != "0" ]; then
+if [ "$SNAPSHOT_COUNT" != "0" ] || [ "$CARD_PRICE_COUNT" != "0" ]; then
     echo -e "${GREEN}[OK]${NC} Found existing data:"
     echo "     - Leagues: $LEAGUE_COUNT"
     echo "     - Snapshots: $SNAPSHOT_COUNT"
     echo "     - Card prices: $CARD_PRICE_COUNT"
 else
-    echo -e "${YELLOW}[INFO]${NC} No existing data found (fresh database)"
+    echo -e "${YELLOW}[INFO]${NC} No snapshot data found (fresh database)"
+    echo ""
+    echo "[*] Populating initial data from PoE/poe.ninja..."
+    echo "[*] Waiting for Edge Runtime to be fully ready..."
+    sleep 5
+
+    echo "[*] Syncing leagues from API..."
+    docker exec supabase_db_soothsayer psql -U postgres -c "SELECT sync_leagues_from_api();" > /dev/null 2>&1
+
+    # Wait for pg_net to process the request
+    sleep 3
+
+    echo "[*] Creating snapshots for active leagues (this may take a minute)..."
+    docker exec supabase_db_soothsayer psql -U postgres -c "SELECT create_snapshots_for_active_leagues();" > /dev/null 2>&1
+
+    # Wait for pg_net to process the requests
+    sleep 10
+
+    # Re-check data counts
+    SNAPSHOT_COUNT=$(docker exec supabase_db_soothsayer psql -U postgres -t -c "SELECT COUNT(*) FROM snapshots;" 2>/dev/null | tr -d ' ' || echo "0")
+    CARD_PRICE_COUNT=$(docker exec supabase_db_soothsayer psql -U postgres -t -c "SELECT COUNT(*) FROM card_prices;" 2>/dev/null | tr -d ' ' || echo "0")
+    LEAGUE_COUNT=$(docker exec supabase_db_soothsayer psql -U postgres -t -c "SELECT COUNT(*) FROM poe_leagues;" 2>/dev/null | tr -d ' ' || echo "0")
+
+    if [ "$SNAPSHOT_COUNT" != "0" ] && [ "$CARD_PRICE_COUNT" != "0" ]; then
+        echo -e "${GREEN}[OK]${NC} Data populated:"
+        echo "     - Leagues: $LEAGUE_COUNT"
+        echo "     - Snapshots: $SNAPSHOT_COUNT"
+        echo "     - Card prices: $CARD_PRICE_COUNT"
+    else
+        echo -e "${YELLOW}[!]${NC} Data population may still be in progress"
+        echo "     Run 'pnpm supabase:sync' to check/retry"
+    fi
 fi
 
 # Helper function to create clickable links (OSC 8 hyperlinks)
@@ -197,6 +240,9 @@ echo -n "   🔗 "
 hyperlink "http://127.0.0.1:54321" "http://127.0.0.1:54321"
 echo ""
 echo "[INFO] Data is stored in Docker volumes and persists between restarts"
-echo "[TIP] 'pnpm supabase:stop' - Stop containers (keeps data)"
-echo "[TIP] 'pnpm supabase:start:fresh' - Complete reset (deletes all data)"
+echo ""
+echo "[TIP] Useful commands:"
+echo "      pnpm supabase:sync        - Fetch fresh data from PoE/poe.ninja"
+echo "      pnpm supabase:stop        - Stop containers (keeps data)"
+echo "      pnpm supabase:start:fresh - Complete reset (deletes all data)"
 echo ""
