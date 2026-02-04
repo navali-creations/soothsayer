@@ -36,7 +36,7 @@ export const createAppMenuSlice: StateCreator<
           false,
           "appMenuSlice/hydrate",
         );
-      } catch (error) {
+      } catch (_error) {
         // Silently handle - IPC handlers may not be ready during initial load
         set(
           ({ appMenu }) => {

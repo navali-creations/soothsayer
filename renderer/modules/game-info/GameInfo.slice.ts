@@ -80,7 +80,7 @@ export const createGameInfoSlice: StateCreator<
             gameInfo.setPoe1ProcessState(processState);
           }
         }
-      } catch (error) {
+      } catch (_error) {
         // Silently handle - IPC handlers may not be ready during initial load
       }
 

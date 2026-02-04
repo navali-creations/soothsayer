@@ -161,8 +161,7 @@ export const useBoundStore = create<BoundStore>()(
               // Reset session
               state.currentSession.poe1Session = null;
               state.currentSession.poe2Session = null;
-              state.isLoading = false;
-              state.error = null;
+              state.currentSession.isLoading = false;
 
               // Reset sessions history
               sessions.allSessions = [];

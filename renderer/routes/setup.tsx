@@ -15,7 +15,7 @@ const SetupRoute = () => {
   useEffect(() => {
     // If setup is already complete, redirect to home
     if (isComplete) {
-      navigate({ to: "/current-session" });
+      navigate({ to: "/" });
     }
   }, [isComplete, navigate]);
 
