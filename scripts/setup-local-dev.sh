@@ -90,32 +90,56 @@ EOF
     fi
 fi
 
-# Auto-configure snapshot settings
+# Create supabase/functions/.env if it doesn't exist
+if [ ! -f "supabase/functions/.env" ]; then
+    echo ""
+    echo "[*] Creating supabase/functions/.env..."
+
+    # Generate a random cron secret
+    GENERATED_CRON_SECRET=$(openssl rand -hex 32 2>/dev/null || cat /dev/urandom | tr -dc 'a-f0-9' | fold -w 64 | head -n 1)
+
+    cat > supabase/functions/.env << 'EOF'
+# Custom env vars that don't conflict with auto-injected SUPABASE_* vars
+MY_SUPABASE_URL=http://kong:8000
+MY_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+MY_SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
+EOF
+    echo "INTERNAL_CRON_SECRET=$GENERATED_CRON_SECRET" >> supabase/functions/.env
+
+    echo -e "${GREEN}[OK]${NC} supabase/functions/.env created with generated INTERNAL_CRON_SECRET"
+fi
+
+# Populate local_config table with values from supabase/functions/.env
 echo ""
-echo "[*] Configuring snapshot settings..."
+echo "[*] Configuring local_config for cron jobs..."
 
-# Get secret key from supabase status
-# The new table format has: │ Secret │ sb_secret_... │
-# We need to extract the second column (the actual key)
-SECRET_KEY=$(pnpx supabase status | grep "Secret" | awk -F'│' '{print $3}' | tr -d ' ')
+# Read secrets from Edge Functions .env file
+SERVICE_ROLE_KEY=$(grep "^MY_SUPABASE_SERVICE_ROLE_KEY=" supabase/functions/.env | cut -d'=' -f2)
+CRON_SECRET=$(grep "^INTERNAL_CRON_SECRET=" supabase/functions/.env | cut -d'=' -f2)
 
-if [ -n "$SECRET_KEY" ]; then
-    # Get cron secret from Edge Functions .env file
-    CRON_SECRET=""
-    if [ -f "supabase/functions/.env" ]; then
-        CRON_SECRET=$(grep "^INTERNAL_CRON_SECRET=" supabase/functions/.env | cut -d'=' -f2)
-    fi
-
-    # Run the INSERT query with kong:8000 for Docker network and cron secret
-    docker exec supabase_db_soothsayer psql -U postgres -c "INSERT INTO snapshot_settings (id, supabase_url, service_role_key, cron_secret, updated_at) VALUES (1, 'http://kong:8000', '$SECRET_KEY', '$CRON_SECRET', NOW()) ON CONFLICT (id) DO UPDATE SET supabase_url = EXCLUDED.supabase_url, service_role_key = EXCLUDED.service_role_key, cron_secret = EXCLUDED.cron_secret, updated_at = NOW();" > /dev/null 2>&1
+if [ -n "$SERVICE_ROLE_KEY" ] && [ -n "$CRON_SECRET" ]; then
+    # Insert config values into local_config table
+    docker exec supabase_db_soothsayer psql -U postgres -c "
+        INSERT INTO local_config (key, value) VALUES
+            ('supabase_url', 'http://host.docker.internal:54321'),
+            ('cron_secret', '$CRON_SECRET'),
+            ('service_role_key', '$SERVICE_ROLE_KEY')
+        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+    " > /dev/null 2>&1
 
     if [ $? -eq 0 ]; then
-        echo -e "${GREEN}[OK]${NC} Snapshot settings configured automatically!"
+        echo -e "${GREEN}[OK]${NC} local_config populated from supabase/functions/.env"
     else
-        echo -e "${YELLOW}[!]${NC} Could not auto-configure. You can do it manually in Studio."
+        echo -e "${YELLOW}[!]${NC} Could not populate local_config (table may not exist yet)"
     fi
 else
-    echo -e "${YELLOW}[!]${NC} Could not detect secret key. Configure manually if needed."
+    if [ -z "$CRON_SECRET" ]; then
+        echo -e "${YELLOW}[!]${NC} Missing INTERNAL_CRON_SECRET in supabase/functions/.env"
+    fi
+    if [ -z "$SERVICE_ROLE_KEY" ]; then
+        echo -e "${YELLOW}[!]${NC} Could not detect service role key"
+    fi
+    echo -e "${YELLOW}[!]${NC} Cron jobs will not work until local_config is populated"
 fi
 
 # Helper function to create clickable links (OSC 8 hyperlinks)
@@ -135,8 +159,7 @@ echo "     - Production: soothsayer.db (untouched)"
 echo "     - Local Dev:  soothsayer.local.db (auto-created)"
 echo "     - Automatic switching based on Supabase URL"
 echo ""
-echo "[OK] Snapshot settings: Configured automatically"
-echo ""
+
 echo "Next steps:"
 echo ""
 echo "1. Start the app:"
