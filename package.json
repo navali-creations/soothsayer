@@ -27,6 +27,7 @@
     "supabase:logs": "pnpx supabase functions serve --inspect-mode=run",
     "supabase:functions:serve": "pnpx supabase functions serve"
   },
+  "packageManager": "pnpm@10.28.0",
   "keywords": [],
   "author": {
     "name": "Sebastian Krzyżanowski",
