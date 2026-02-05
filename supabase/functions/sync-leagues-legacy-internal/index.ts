@@ -16,6 +16,8 @@ function shouldFilterLeague(league: any): boolean {
     leagueId.includes(" hc") ||
     leagueName.includes("hardcore") ||
     leagueName.includes(" hc") ||
+    leagueName.includes("hc") ||
+    leagueId.includes("hc") ||
     leagueId.includes("ruthless") ||
     leagueName.includes("ruthless")
   );
@@ -43,7 +45,7 @@ serve(async (req) => {
           persistSession: false,
           autoRefreshToken: false,
         },
-      },
+      }
     );
 
     // Fetch PoE1 leagues
@@ -55,7 +57,7 @@ serve(async (req) => {
           "User-Agent":
             "Soothsayer/1.0.0 (Supabase Edge Function) (contact: eskrzy@gmail.com)",
         },
-      },
+      }
     );
 
     if (!poe1Response.ok) {
@@ -73,7 +75,7 @@ serve(async (req) => {
           "User-Agent":
             "Soothsayer/1.0.0 (Supabase Edge Function) (contact: eskrzy@gmail.com)",
         },
-      },
+      }
     );
 
     if (!poe2Response.ok) {
@@ -104,14 +106,24 @@ serve(async (req) => {
       })),
     ];
 
+    // Filter out unwanted leagues and collect valid league IDs
+    const validLeagues = allLeagues.filter(
+      (league) => !shouldFilterLeague(league.raw)
+    );
+
+    const poe1LeagueIds = validLeagues
+      .filter((l) => l.game === "poe1")
+      .map((l) => l.league_id);
+    const poe2LeagueIds = validLeagues
+      .filter((l) => l.game === "poe2")
+      .map((l) => l.league_id);
+
+    // Upsert all valid leagues
     let totalSynced = 0;
     let poe1Count = 0;
     let poe2Count = 0;
 
-    for (const league of allLeagues) {
-      // Filter unwanted leagues
-      if (shouldFilterLeague(league.raw)) continue;
-
+    for (const league of validLeagues) {
       const { error } = await supabase.from("poe_leagues").upsert(
         {
           game: league.game,
@@ -123,13 +135,13 @@ serve(async (req) => {
         },
         {
           onConflict: "game,league_id",
-        },
+        }
       );
 
       if (error) {
         console.error(
           `Failed to upsert ${league.game} league ${league.league_id}:`,
-          error,
+          error
         );
       } else {
         totalSynced++;
@@ -138,8 +150,41 @@ serve(async (req) => {
       }
     }
 
+    // Delete stale leagues that are no longer in the API response
+    let deletedCount = 0;
+
+    // Delete stale PoE1 leagues
+    if (poe1LeagueIds.length > 0) {
+      const { error: deletePoe1Error, count: poe1DeletedCount } = await supabase
+        .from("poe_leagues")
+        .delete({ count: "exact" })
+        .eq("game", "poe1")
+        .not("league_id", "in", `(${poe1LeagueIds.join(",")})`);
+
+      if (deletePoe1Error) {
+        console.error("Failed to delete stale PoE1 leagues:", deletePoe1Error);
+      } else {
+        deletedCount += poe1DeletedCount || 0;
+      }
+    }
+
+    // Delete stale PoE2 leagues
+    if (poe2LeagueIds.length > 0) {
+      const { error: deletePoe2Error, count: poe2DeletedCount } = await supabase
+        .from("poe_leagues")
+        .delete({ count: "exact" })
+        .eq("game", "poe2")
+        .not("league_id", "in", `(${poe2LeagueIds.join(",")})`);
+
+      if (deletePoe2Error) {
+        console.error("Failed to delete stale PoE2 leagues:", deletePoe2Error);
+      } else {
+        deletedCount += poe2DeletedCount || 0;
+      }
+    }
+
     console.log(
-      `Synced ${poe1Count} PoE1 leagues and ${poe2Count} PoE2 leagues`,
+      `Synced ${poe1Count} PoE1 leagues and ${poe2Count} PoE2 leagues. Deleted ${deletedCount} stale leagues.`
     );
 
     return new Response(
@@ -148,8 +193,9 @@ serve(async (req) => {
         totalSynced,
         poe1Count,
         poe2Count,
+        deletedCount,
       }),
-      { headers: { "Content-Type": "application/json" } },
+      { headers: { "Content-Type": "application/json" } }
     );
   } catch (error) {
     console.error("Error in sync-leagues-legacy-internal:", error);
