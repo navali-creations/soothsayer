@@ -2,6 +2,7 @@ import { type PopoverComponentProps, ReperePopover } from "@repere/react";
 import type { ReactNode } from "react";
 
 import { Button } from "~/renderer/components";
+import { trackEvent } from "~/renderer/modules/umami";
 
 type PopoverProps = {
   title: string;
@@ -10,10 +11,16 @@ type PopoverProps = {
 } & PopoverComponentProps;
 
 const Popover = ({ title, subtitle, children, ...props }: PopoverProps) => {
+  const handleAcknowledge = () => {
+    trackEvent("onboarding-step-acknowledged", {
+      beaconId: props.beaconId,
+    });
+  };
+
   return (
     <ReperePopover
       {...props}
-      className="w-[400px] p-3 rounded-2xl shadow-lg shadow-primary/50 border-2 border-primary [background:color-mix(in_oklab,var(--color-accent)_50%,black)]"
+      className="w-[400px] p-3 rounded-2xl shadow-lg shadow-primary/50 border-2 border-primary [background:color-mix(in_oklab,var(--color-accent)_30%,black)]"
     >
       <ReperePopover.Title>
         <span className="text-lg font-bold text-primary">{title}</span>
@@ -33,6 +40,7 @@ const Popover = ({ title, subtitle, children, ...props }: PopoverProps) => {
           variant="primary"
           className="h-8"
           block
+          onClick={handleAcknowledge}
         >
           Got it
         </ReperePopover.AcknowledgeButton>

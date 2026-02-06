@@ -45,7 +45,7 @@ serve(async (req) => {
           persistSession: false,
           autoRefreshToken: false,
         },
-      }
+      },
     );
 
     // Fetch PoE1 leagues
@@ -57,7 +57,7 @@ serve(async (req) => {
           "User-Agent":
             "Soothsayer/1.0.0 (Supabase Edge Function) (contact: eskrzy@gmail.com)",
         },
-      }
+      },
     );
 
     if (!poe1Response.ok) {
@@ -75,7 +75,7 @@ serve(async (req) => {
           "User-Agent":
             "Soothsayer/1.0.0 (Supabase Edge Function) (contact: eskrzy@gmail.com)",
         },
-      }
+      },
     );
 
     if (!poe2Response.ok) {
@@ -108,7 +108,7 @@ serve(async (req) => {
 
     // Filter out unwanted leagues and collect valid league IDs
     const validLeagues = allLeagues.filter(
-      (league) => !shouldFilterLeague(league.raw)
+      (league) => !shouldFilterLeague(league.raw),
     );
 
     const poe1LeagueIds = validLeagues
@@ -135,13 +135,13 @@ serve(async (req) => {
         },
         {
           onConflict: "game,league_id",
-        }
+        },
       );
 
       if (error) {
         console.error(
           `Failed to upsert ${league.game} league ${league.league_id}:`,
-          error
+          error,
         );
       } else {
         totalSynced++;
@@ -150,41 +150,53 @@ serve(async (req) => {
       }
     }
 
-    // Delete stale leagues that are no longer in the API response
-    let deletedCount = 0;
+    // Instead of deleting, mark stale leagues as inactive to preserve historical data
+    let deactivatedCount = 0;
 
-    // Delete stale PoE1 leagues
+    // Deactivate stale PoE1 leagues
     if (poe1LeagueIds.length > 0) {
-      const { error: deletePoe1Error, count: poe1DeletedCount } = await supabase
-        .from("poe_leagues")
-        .delete({ count: "exact" })
-        .eq("game", "poe1")
-        .not("league_id", "in", `(${poe1LeagueIds.join(",")})`);
+      const { error: deactivatePoe1Error, count: poe1DeactivatedCount } =
+        await supabase
+          .from("poe_leagues")
+          .update({ is_active: false })
+          .eq("game", "poe1")
+          .eq("is_active", true)
+          .not("league_id", "in", `(${poe1LeagueIds.join(",")})`)
+          .select("id", { count: "exact", head: true });
 
-      if (deletePoe1Error) {
-        console.error("Failed to delete stale PoE1 leagues:", deletePoe1Error);
+      if (deactivatePoe1Error) {
+        console.error(
+          "Failed to deactivate stale PoE1 leagues:",
+          deactivatePoe1Error,
+        );
       } else {
-        deletedCount += poe1DeletedCount || 0;
+        deactivatedCount += poe1DeactivatedCount || 0;
       }
     }
 
-    // Delete stale PoE2 leagues
+    // Deactivate stale PoE2 leagues
     if (poe2LeagueIds.length > 0) {
-      const { error: deletePoe2Error, count: poe2DeletedCount } = await supabase
-        .from("poe_leagues")
-        .delete({ count: "exact" })
-        .eq("game", "poe2")
-        .not("league_id", "in", `(${poe2LeagueIds.join(",")})`);
+      const { error: deactivatePoe2Error, count: poe2DeactivatedCount } =
+        await supabase
+          .from("poe_leagues")
+          .update({ is_active: false })
+          .eq("game", "poe2")
+          .eq("is_active", true)
+          .not("league_id", "in", `(${poe2LeagueIds.join(",")})`)
+          .select("id", { count: "exact", head: true });
 
-      if (deletePoe2Error) {
-        console.error("Failed to delete stale PoE2 leagues:", deletePoe2Error);
+      if (deactivatePoe2Error) {
+        console.error(
+          "Failed to deactivate stale PoE2 leagues:",
+          deactivatePoe2Error,
+        );
       } else {
-        deletedCount += poe2DeletedCount || 0;
+        deactivatedCount += poe2DeactivatedCount || 0;
       }
     }
 
     console.log(
-      `Synced ${poe1Count} PoE1 leagues and ${poe2Count} PoE2 leagues. Deleted ${deletedCount} stale leagues.`
+      `Synced ${poe1Count} PoE1 leagues and ${poe2Count} PoE2 leagues. Deactivated ${deactivatedCount} stale leagues (historical data preserved).`,
     );
 
     return new Response(
@@ -193,9 +205,9 @@ serve(async (req) => {
         totalSynced,
         poe1Count,
         poe2Count,
-        deletedCount,
+        deactivatedCount,
       }),
-      { headers: { "Content-Type": "application/json" } }
+      { headers: { "Content-Type": "application/json" } },
     );
   } catch (error) {
     console.error("Error in sync-leagues-legacy-internal:", error);

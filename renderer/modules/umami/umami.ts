@@ -1,5 +1,5 @@
 const UMAMI_SCRIPT_URL = "https://cloud.umami.is/script.js";
-const WEBSITE_ID = "be4ac602-55bb-4958-96df-819d3dd33abe";
+const WEBSITE_ID = import.meta.env.VITE_UMAMI_ID;
 const APP_HOSTNAME = "soothsayer.app";
 
 declare global {
@@ -28,6 +28,12 @@ function normalizeUrl(url: string): string {
 
 export function initUmami(): void {
   if (initialized) return;
+
+  // Only initialize if VITE_UMAMI_ID is provided
+  if (!WEBSITE_ID) {
+    console.info("Umami tracking disabled: VITE_UMAMI_ID not set");
+    return;
+  }
 
   const script = document.createElement("script");
   script.src = UMAMI_SCRIPT_URL;

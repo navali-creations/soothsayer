@@ -63,11 +63,9 @@ class OverlayService {
    */
   public async createOverlay(): Promise<void> {
     if (this.overlayWindow) {
-      console.log("[Overlay] Window already exists, skipping creation");
       return;
     }
 
-    console.log("[Overlay] Creating overlay window...");
     const preload = join(__dirname, "preload.js");
 
     const savedBounds = await this.settingsStore.get(SettingsKey.OverlayBounds);
@@ -78,7 +76,6 @@ class OverlayService {
 
     if (savedBounds) {
       // Use saved position
-      console.log("[Overlay] Using saved bounds:", savedBounds);
       x = savedBounds.x;
       y = savedBounds.y;
       overlayWidth = savedBounds.width || 250;
@@ -98,13 +95,6 @@ class OverlayService {
       // Position: centered horizontally, 300px from bottom
       x = screenX + screenWidth - overlayWidth;
       y = screenY + screenHeight - overlayHeight - 632;
-      console.log("[Overlay] Using default position:", {
-        x,
-        y,
-        overlayWidth,
-        overlayHeight,
-        screenBounds: { screenX, screenY, screenWidth, screenHeight },
-      });
     }
 
     this.overlayWindow = new BrowserWindow({
@@ -144,12 +134,7 @@ class OverlayService {
 
     // Add ready-to-show handler BEFORE loading to prevent race condition
     this.overlayWindow.once("ready-to-show", () => {
-      console.log(
-        "[Overlay] ready-to-show event fired, isVisible:",
-        this.isVisible,
-      );
       if (this.isVisible && this.overlayWindow) {
-        console.log("[Overlay] Showing window via show() + blur workaround");
         // Small delay to ensure GPU/compositor is ready (fixes first-launch visibility issues)
         setTimeout(() => {
           if (!this.overlayWindow) return;
@@ -161,18 +146,12 @@ class OverlayService {
           this.overlayWindow.setOpacity(0.99);
           setTimeout(() => {
             this.overlayWindow?.setOpacity(1);
-            console.log(
-              "[Overlay] Opacity reset to 1, window should be visible now",
-            );
           }, 100);
         }, 50);
-      } else {
-        console.log("[Overlay] Not showing window (isVisible is false)");
       }
     });
 
     this.overlayWindow.on("closed", () => {
-      console.log("[Overlay] Window closed");
       this.overlayWindow = null;
       this.isVisible = false;
       // Notify main window that overlay is now hidden
@@ -192,8 +171,6 @@ class OverlayService {
       );
       await this.overlayWindow.loadFile(overlayHtml);
     }
-
-    console.log("[Overlay] Window created, waiting for ready-to-show event");
   }
 
   /**
@@ -290,11 +267,6 @@ class OverlayService {
   }
 
   public async show(): Promise<void> {
-    console.log("[Overlay] show() called, current state:", {
-      hasWindow: !!this.overlayWindow,
-      isVisible: this.isVisible,
-    });
-
     this.isVisible = true;
 
     if (!this.overlayWindow) {
@@ -304,7 +276,6 @@ class OverlayService {
     // After createOverlay completes, if ready-to-show already fired and missed isVisible=true,
     // we need to explicitly show it
     if (this.overlayWindow && !this.overlayWindow.isVisible()) {
-      console.log("[Overlay] Window created but not visible, showing now");
       this.overlayWindow.setAlwaysOnTop(true, "screen-saver");
       this.overlayWindow.show();
       this.overlayWindow.blur();
@@ -313,18 +284,12 @@ class OverlayService {
         this.overlayWindow?.setOpacity(1);
       }, 100);
     } else if (this.overlayWindow) {
-      console.log("[Overlay] Window exists, showing via show()");
       this.overlayWindow.setAlwaysOnTop(true, "screen-saver");
       this.overlayWindow.show();
       this.overlayWindow.blur();
     }
 
     this.notifyVisibilityChanged(true);
-
-    console.log(
-      "[Overlay] show() completed, window visible:",
-      this.overlayWindow?.isVisible(),
-    );
   }
 
   public async hide(): Promise<void> {

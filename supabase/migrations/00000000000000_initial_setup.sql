@@ -20,7 +20,7 @@ CREATE INDEX idx_poe_leagues_updated ON poe_leagues(updated_at DESC);
 
 CREATE TABLE snapshots (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  league_id UUID NOT NULL REFERENCES poe_leagues(id) ON DELETE CASCADE,
+  league_id UUID NOT NULL REFERENCES poe_leagues(id) ON DELETE RESTRICT,
   fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   exchange_chaos_to_divine NUMERIC(10, 2) NOT NULL,
   stash_chaos_to_divine NUMERIC(10, 2) NOT NULL,
@@ -32,7 +32,7 @@ CREATE INDEX idx_snapshots_created ON snapshots(created_at DESC);
 
 CREATE TABLE card_prices (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  snapshot_id UUID NOT NULL REFERENCES snapshots(id) ON DELETE CASCADE,
+  snapshot_id UUID NOT NULL REFERENCES snapshots(id) ON DELETE RESTRICT,
   card_name TEXT NOT NULL,
   price_source TEXT NOT NULL CHECK (price_source IN ('exchange', 'stash')),
   chaos_value NUMERIC(10, 2) NOT NULL,
