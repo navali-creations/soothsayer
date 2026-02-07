@@ -24,8 +24,11 @@ CREATE TABLE snapshots (
   fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   exchange_chaos_to_divine NUMERIC(10, 2) NOT NULL,
   stash_chaos_to_divine NUMERIC(10, 2) NOT NULL,
+  stacked_deck_chaos_cost NUMERIC(10, 4) NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+COMMENT ON COLUMN snapshots.stacked_deck_chaos_cost IS 'Chaos cost of a single Stacked Deck from poe.ninja Currency API at snapshot time';
 
 CREATE INDEX idx_snapshots_league_fetched ON snapshots(league_id, fetched_at DESC);
 CREATE INDEX idx_snapshots_created ON snapshots(created_at DESC);

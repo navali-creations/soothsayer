@@ -353,10 +353,10 @@ class CurrentSessionService {
       const exchangePrice = priceSnapshot.exchange.cardPrices[card.cardName];
       const stashPrice = priceSnapshot.stash.cardPrices[card.cardName];
 
-      if (exchangePrice) {
+      if (exchangePrice && !card.hidePriceExchange) {
         exchangeTotal += exchangePrice.chaosValue * card.count;
       }
-      if (stashPrice) {
+      if (stashPrice && !card.hidePriceStash) {
         stashTotal += stashPrice.chaosValue * card.count;
       }
     }

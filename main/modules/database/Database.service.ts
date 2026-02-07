@@ -134,6 +134,7 @@ class DatabaseService {
           fetched_at TEXT NOT NULL,
           exchange_chaos_to_divine REAL NOT NULL,
           stash_chaos_to_divine REAL NOT NULL,
+          stacked_deck_chaos_cost REAL NOT NULL DEFAULT 0,
           created_at TEXT NOT NULL DEFAULT (datetime('now')),
           FOREIGN KEY (league_id) REFERENCES leagues(id) ON DELETE CASCADE
         )
@@ -255,6 +256,9 @@ class DatabaseService {
           total_stash_value REAL NOT NULL,
           exchange_chaos_to_divine REAL NOT NULL,
           stash_chaos_to_divine REAL NOT NULL,
+          stacked_deck_chaos_cost REAL NOT NULL DEFAULT 0,
+          total_exchange_net_profit REAL,
+          total_stash_net_profit REAL,
           created_at TEXT NOT NULL DEFAULT (datetime('now')),
           FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
         )
@@ -321,7 +325,6 @@ class DatabaseService {
 
       // ═══════════════════════════════════════════════════════════════
       // DIVINATION CARDS (static reference data from JSON)
-      // Note: rarity field will be migrated to separate table
       // ═══════════════════════════════════════════════════════════════
       this.db.exec(`
       CREATE TABLE IF NOT EXISTS divination_cards (
@@ -332,7 +335,6 @@ class DatabaseService {
         reward_html TEXT NOT NULL,
         art_src TEXT NOT NULL,
         flavour_html TEXT,
-        rarity INTEGER NOT NULL DEFAULT 4,
         game TEXT NOT NULL CHECK(game IN ('poe1', 'poe2')),
         data_hash TEXT NOT NULL,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -355,6 +357,67 @@ class DatabaseService {
       CREATE INDEX IF NOT EXISTS idx_divination_cards_stack_size
       ON divination_cards(stack_size)
     `);
+
+      // ═══════════════════════════════════════════════════════════════
+      // DIVINATION CARD RARITIES (league-specific rarity data)
+      // ═══════════════════════════════════════════════════════════════
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS divination_card_rarities (
+          game TEXT NOT NULL,
+          league TEXT NOT NULL,
+          card_name TEXT NOT NULL,
+          rarity INTEGER NOT NULL CHECK(rarity >= 1 AND rarity <= 4),
+          last_updated TEXT NOT NULL DEFAULT (datetime('now')),
+          PRIMARY KEY (game, league, card_name)
+        )
+      `);
+
+      this.db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_card_rarities_game_league
+        ON divination_card_rarities(game, league)
+      `);
+
+      this.db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_card_rarities_card_name
+        ON divination_card_rarities(card_name)
+      `);
+
+      // ═══════════════════════════════════════════════════════════════
+      // POE LEAGUES CACHE (cached from Supabase for offline use)
+      // ═══════════════════════════════════════════════════════════════
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS poe_leagues_cache (
+          id TEXT NOT NULL,
+          game TEXT NOT NULL CHECK (game IN ('poe1', 'poe2')),
+          league_id TEXT NOT NULL,
+          name TEXT NOT NULL,
+          start_at TEXT,
+          end_at TEXT,
+          is_active INTEGER NOT NULL DEFAULT 1,
+          updated_at TEXT,
+          fetched_at TEXT NOT NULL,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          PRIMARY KEY (game, league_id)
+        )
+      `);
+
+      this.db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_poe_leagues_cache_game
+        ON poe_leagues_cache (game)
+      `);
+
+      this.db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_poe_leagues_cache_game_active
+        ON poe_leagues_cache (game, is_active)
+      `);
+
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS poe_leagues_cache_metadata (
+          game TEXT NOT NULL PRIMARY KEY CHECK (game IN ('poe1', 'poe2')),
+          last_fetched_at TEXT NOT NULL,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+      `);
 
       // ═══════════════════════════════════════════════════════════════
       // USER SETTINGS (single row table for application settings)

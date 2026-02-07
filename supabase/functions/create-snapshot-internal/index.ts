@@ -1,8 +1,9 @@
-import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+
+import { createClient } from "jsr:@supabase/supabase-js@2";
 import { responseJson } from "../_shared/utils.ts";
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   try {
     const secret = req.headers.get("x-cron-secret");
     const expectedSecret = Deno.env.get("INTERNAL_CRON_SECRET");

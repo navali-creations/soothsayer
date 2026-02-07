@@ -86,3 +86,21 @@ pnpx supabase db push
 # Deploy Edge Functions
 pnpx supabase functions deploy
 ```
+
+## Troubleshooting
+
+### Malwarebytes Blocking Edge Functions
+
+If Supabase fails to start with errors about `deno.land` being unreachable:
+
+```
+Import 'https://deno.land/std/http/status.ts' failed: Network is unreachable
+```
+
+**Cause:** Malwarebytes Web Protection blocks `deno.land` as a false positive and redirects it to `127.236.0.2`, breaking Docker containers.
+
+**Solution:** Disable Malwarebytes Web Protection while developing locally:
+1. Open Malwarebytes → **Settings** → **Web Protection** → Toggle **Off**
+2. Restart Supabase: `pnpm supabase:stop && pnpm supabase:start`
+
+**Note:** `deno.land` is the official Deno runtime package registry used by Supabase Edge Functions. The threat detection is a false positive.

@@ -1,12 +1,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "jsr:@supabase/supabase-js@2";
 import { authorize, responseJson } from "../_shared/utils.ts";
 
 type Body = { game?: "poe1" | "poe2"; league?: string };
 
-serve(async (req: Request) => {
+Deno.serve(async (req: Request) => {
   const authResult = await authorize({
     req,
     endpoint: "get-leagues-legacy",
