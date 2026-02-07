@@ -153,6 +153,7 @@ class SnapshotService {
 
     return {
       timestamp: snapshot.fetchedAt,
+      stackedDeckChaosCost: snapshot.stackedDeckChaosCost ?? 0,
       exchange: {
         chaosToDivineRatio: snapshot.exchangeChaosToDivine,
         cardPrices: exchangePrices,
@@ -295,7 +296,10 @@ class SnapshotService {
     });
 
     console.log(
-      `[SnapshotService] Stored snapshot ${snapshotId} for league ${leagueId} with ${Object.keys(snapshotData.exchange.cardPrices).length + Object.keys(snapshotData.stash.cardPrices).length} card prices`,
+      `[SnapshotService] Stored snapshot ${snapshotId} for league ${leagueId} with ${
+        Object.keys(snapshotData.exchange.cardPrices).length +
+        Object.keys(snapshotData.stash.cardPrices).length
+      } card prices`,
     );
 
     // Emit created snapshot event

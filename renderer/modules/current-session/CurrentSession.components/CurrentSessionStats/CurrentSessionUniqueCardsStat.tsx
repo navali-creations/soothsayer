@@ -1,6 +1,4 @@
-import type { ReactNode } from "react";
-
-import { Stat } from "~/renderer/components";
+import { AnimatedNumber, Stat } from "~/renderer/components";
 import { useBoundStore } from "~/renderer/store";
 
 const CurrentSessionUniqueCardsStat = () => {
@@ -13,7 +11,9 @@ const CurrentSessionUniqueCardsStat = () => {
   return (
     <Stat className="flex-1 basis-1/4">
       <Stat.Title>Unique Cards</Stat.Title>
-      <Stat.Value>{(sessionData?.cards?.length as ReactNode) || 0}</Stat.Value>
+      <Stat.Value>
+        <AnimatedNumber value={sessionData?.cards?.length || 0} />
+      </Stat.Value>
       <Stat.Desc>Different cards found</Stat.Desc>
     </Stat>
   );

@@ -7,9 +7,9 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatCurrency(
   chaosValue: number,
-  chaosToDivineRatio: number,
+  chaosToDivineRatio: number
 ): string {
-  if (chaosValue >= chaosToDivineRatio) {
+  if (Math.abs(chaosValue) >= chaosToDivineRatio) {
     const divineValue = chaosValue / chaosToDivineRatio;
     return `${divineValue.toFixed(2)}d`;
   }

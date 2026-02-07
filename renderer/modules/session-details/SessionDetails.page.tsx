@@ -120,6 +120,17 @@ const SessionDetailsPage = () => {
     }, 0);
   }, [cardData]);
 
+  // Calculate net profit (total value minus stacked deck cost)
+  const { netProfit, totalDeckCost } = useMemo(() => {
+    const deckCost = session?.priceSnapshot?.stackedDeckChaosCost ?? 0;
+    const deckCount = session?.totalCount ?? 0;
+    const cost = deckCost * deckCount;
+    return {
+      netProfit: totalProfit - cost,
+      totalDeckCost: cost,
+    };
+  }, [totalProfit, session]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -162,6 +173,8 @@ const SessionDetailsPage = () => {
           totalCount={session.totalCount}
           mostCommonCard={mostCommonCard}
           totalProfit={totalProfit}
+          netProfit={netProfit}
+          totalDeckCost={totalDeckCost}
           chaosToDivineRatio={priceData.chaosToDivineRatio}
         />
         <SessionDetailsTable

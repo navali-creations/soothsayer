@@ -90,6 +90,7 @@ export class SnapshotRepository {
           exchange_chaos_to_divine:
             data.snapshotData.exchange.chaosToDivineRatio,
           stash_chaos_to_divine: data.snapshotData.stash.chaosToDivineRatio,
+          stacked_deck_chaos_cost: data.snapshotData.stackedDeckChaosCost ?? 0,
         })
         .execute();
 

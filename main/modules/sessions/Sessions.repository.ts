@@ -96,12 +96,47 @@ export class SessionsRepository {
             )
           )
         `.as("totalStashValue"),
+        // Net profit: use summary if exists, otherwise calculate (total value - deck cost * deck count)
+        sql<number>`
+          COALESCE(
+            ss.total_exchange_net_profit,
+            (
+              SELECT COALESCE(SUM(sc.count * scp.chaos_value), 0)
+              FROM session_cards sc
+              LEFT JOIN snapshot_card_prices scp
+                ON scp.snapshot_id = s.snapshot_id
+                AND scp.card_name = sc.card_name
+                AND scp.price_source = 'exchange'
+              WHERE sc.session_id = s.id
+                AND sc.hide_price_exchange = 0
+            ) - COALESCE(snap.stacked_deck_chaos_cost, 0) * s.total_count
+          )
+        `.as("totalExchangeNetProfit"),
+        sql<number>`
+          COALESCE(
+            ss.total_stash_net_profit,
+            (
+              SELECT COALESCE(SUM(sc.count * scp.chaos_value), 0)
+              FROM session_cards sc
+              LEFT JOIN snapshot_card_prices scp
+                ON scp.snapshot_id = s.snapshot_id
+                AND scp.card_name = sc.card_name
+                AND scp.price_source = 'stash'
+              WHERE sc.session_id = s.id
+                AND sc.hide_price_stash = 0
+            ) - COALESCE(snap.stacked_deck_chaos_cost, 0) * s.total_count
+          )
+        `.as("totalStashNetProfit"),
         // Chaos to Divine ratios from snapshot
         sql<number>`COALESCE(ss.exchange_chaos_to_divine, snap.exchange_chaos_to_divine, 0)`.as(
           "exchangeChaosToDivine",
         ),
         sql<number>`COALESCE(ss.stash_chaos_to_divine, snap.stash_chaos_to_divine, 0)`.as(
           "stashChaosToDivine",
+        ),
+        // Stacked deck chaos cost
+        sql<number>`COALESCE(ss.stacked_deck_chaos_cost, snap.stacked_deck_chaos_cost, 0)`.as(
+          "stackedDeckChaosCost",
         ),
       ])
       .where("s.game", "=", game)
@@ -273,12 +308,47 @@ export class SessionsRepository {
             )
           )
         `.as("totalStashValue"),
+        // Net profit: use summary if exists, otherwise calculate (total value - deck cost * deck count)
+        sql<number>`
+          COALESCE(
+            ss.total_exchange_net_profit,
+            (
+              SELECT COALESCE(SUM(sc2.count * scp.chaos_value), 0)
+              FROM session_cards sc2
+              LEFT JOIN snapshot_card_prices scp
+                ON scp.snapshot_id = s.snapshot_id
+                AND scp.card_name = sc2.card_name
+                AND scp.price_source = 'exchange'
+              WHERE sc2.session_id = s.id
+                AND sc2.hide_price_exchange = 0
+            ) - COALESCE(snap.stacked_deck_chaos_cost, 0) * s.total_count
+          )
+        `.as("totalExchangeNetProfit"),
+        sql<number>`
+          COALESCE(
+            ss.total_stash_net_profit,
+            (
+              SELECT COALESCE(SUM(sc2.count * scp.chaos_value), 0)
+              FROM session_cards sc2
+              LEFT JOIN snapshot_card_prices scp
+                ON scp.snapshot_id = s.snapshot_id
+                AND scp.card_name = sc2.card_name
+                AND scp.price_source = 'stash'
+              WHERE sc2.session_id = s.id
+                AND sc2.hide_price_stash = 0
+            ) - COALESCE(snap.stacked_deck_chaos_cost, 0) * s.total_count
+          )
+        `.as("totalStashNetProfit"),
         // Chaos to Divine ratios from snapshot
         sql<number>`COALESCE(ss.exchange_chaos_to_divine, snap.exchange_chaos_to_divine, 0)`.as(
           "exchangeChaosToDivine",
         ),
         sql<number>`COALESCE(ss.stash_chaos_to_divine, snap.stash_chaos_to_divine, 0)`.as(
           "stashChaosToDivine",
+        ),
+        // Stacked deck chaos cost
+        sql<number>`COALESCE(ss.stacked_deck_chaos_cost, snap.stacked_deck_chaos_cost, 0)`.as(
+          "stackedDeckChaosCost",
         ),
       ])
       .where("s.game", "=", game)

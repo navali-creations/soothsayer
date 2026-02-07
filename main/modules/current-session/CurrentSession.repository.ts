@@ -385,8 +385,11 @@ export class CurrentSessionRepository {
         total_decks_opened: data.totalDecksOpened,
         total_exchange_value: data.totalExchangeValue,
         total_stash_value: data.totalStashValue,
+        total_exchange_net_profit: data.totalExchangeNetProfit,
+        total_stash_net_profit: data.totalStashNetProfit,
         exchange_chaos_to_divine: data.exchangeChaosToDivine,
         stash_chaos_to_divine: data.stashChaosToDivine,
+        stacked_deck_chaos_cost: data.stackedDeckChaosCost,
       })
       .execute();
   }

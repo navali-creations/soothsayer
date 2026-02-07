@@ -15,8 +15,11 @@ export class SessionsMapper {
       totalDecksOpened: row.totalDecksOpened,
       totalExchangeValue: row.totalExchangeValue,
       totalStashValue: row.totalStashValue,
+      totalExchangeNetProfit: row.totalExchangeNetProfit,
+      totalStashNetProfit: row.totalStashNetProfit,
       exchangeChaosToDivine: row.exchangeChaosToDivine,
       stashChaosToDivine: row.stashChaosToDivine,
+      stackedDeckChaosCost: row.stackedDeckChaosCost,
       isActive: Boolean(row.isActive),
     };
   }

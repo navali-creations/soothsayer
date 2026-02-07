@@ -361,6 +361,12 @@ class CurrentSessionService {
       }
     }
 
+    // Calculate net profit (subtract stacked deck investment)
+    const deckCost = priceSnapshot.stackedDeckChaosCost ?? 0;
+    const totalDeckCost = deckCost * session.totalCount;
+    const exchangeNetProfit = exchangeTotal - totalDeckCost;
+    const stashNetProfit = stashTotal - totalDeckCost;
+
     // Calculate duration
     const start = new Date(session.startedAt).getTime();
     const end = new Date(endedAt).getTime();
@@ -377,8 +383,11 @@ class CurrentSessionService {
       totalDecksOpened: session.totalCount,
       totalExchangeValue: exchangeTotal,
       totalStashValue: stashTotal,
+      totalExchangeNetProfit: exchangeNetProfit,
+      totalStashNetProfit: stashNetProfit,
       exchangeChaosToDivine: priceSnapshot.exchange.chaosToDivineRatio,
       stashChaosToDivine: priceSnapshot.stash.chaosToDivineRatio,
+      stackedDeckChaosCost: deckCost,
     });
   }
 
@@ -561,10 +570,16 @@ class CurrentSessionService {
 
     // Calculate totals - handle null priceSnapshot
     const totals = priceSnapshot
-      ? this.calculateSessionTotals(cardsObject, priceSnapshot)
+      ? this.calculateSessionTotals(
+          cardsObject,
+          priceSnapshot,
+          session.totalCount,
+        )
       : {
-          exchange: { totalValue: 0, chaosToDivineRatio: 0 },
-          stash: { totalValue: 0, chaosToDivineRatio: 0 },
+          exchange: { totalValue: 0, netProfit: 0, chaosToDivineRatio: 0 },
+          stash: { totalValue: 0, netProfit: 0, chaosToDivineRatio: 0 },
+          stackedDeckChaosCost: 0,
+          totalDeckCost: 0,
         };
 
     // Get recent drops (last 20 individual card drops in chronological order)
@@ -625,6 +640,7 @@ class CurrentSessionService {
   private calculateSessionTotals(
     cards: Record<string, CardEntry>,
     priceSnapshot: SessionPriceSnapshot,
+    totalDecksOpened: number,
   ): SessionTotals {
     let stashTotal = 0;
     let exchangeTotal = 0;
@@ -638,15 +654,22 @@ class CurrentSessionService {
       }
     }
 
+    const deckCost = priceSnapshot.stackedDeckChaosCost ?? 0;
+    const totalDeckCost = deckCost * totalDecksOpened;
+
     return {
       stash: {
         totalValue: stashTotal,
+        netProfit: stashTotal - totalDeckCost,
         chaosToDivineRatio: priceSnapshot.stash.chaosToDivineRatio,
       },
       exchange: {
         totalValue: exchangeTotal,
+        netProfit: exchangeTotal - totalDeckCost,
         chaosToDivineRatio: priceSnapshot.exchange.chaosToDivineRatio,
       },
+      stackedDeckChaosCost: deckCost,
+      totalDeckCost,
     };
   }
 

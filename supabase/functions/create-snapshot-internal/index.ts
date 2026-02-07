@@ -1,4 +1,4 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { responseJson } from "../_shared/utils.ts";
 
@@ -115,7 +115,35 @@ serve(async (req) => {
 
     console.log(`Fetched ${exchangeCardPrices.length} exchange prices`);
 
-    // 4. Fetch from poe.ninja stash API
+    // 4. Fetch Stacked Deck price from poe.ninja Currency API
+    let stackedDeckChaosCost = 0;
+    try {
+      console.log(`Fetching stacked deck price for ${league.name}...`);
+      const currencyUrl = `https://poe.ninja/poe1/api/economy/exchange/current/overview?league=${encodeURIComponent(
+        league.name,
+      )}&type=Currency`;
+      const currencyResponse = await fetch(currencyUrl);
+
+      if (!currencyResponse.ok) {
+        console.warn(
+          `poe.ninja currency API failed: ${currencyResponse.statusText}, defaulting stacked deck cost to 0`,
+        );
+      } else {
+        const currencyData = await currencyResponse.json();
+        const stackedDeck = currencyData.lines?.find(
+          (line: any) => line.id === "stacked-deck",
+        );
+        stackedDeckChaosCost = stackedDeck?.primaryValue || 0;
+        console.log(`Stacked Deck cost: ${stackedDeckChaosCost} chaos`);
+      }
+    } catch (currencyError) {
+      console.warn(
+        "Failed to fetch stacked deck price, defaulting to 0:",
+        currencyError,
+      );
+    }
+
+    // 5. Fetch from poe.ninja stash API
     console.log(`Fetching poe.ninja stash data for ${league.name}...`);
     const stashUrl = `https://poe.ninja/api/data/itemoverview?league=${encodeURIComponent(
       league.name,
@@ -153,7 +181,7 @@ serve(async (req) => {
 
     console.log(`Fetched ${stashCardPrices.length} stash prices`);
 
-    // 5. Insert snapshot and card prices in transaction
+    // 6. Insert snapshot and card prices in transaction
     const { data: snapshot, error: snapshotError } = await supabase
       .from("snapshots")
       .insert({
@@ -161,6 +189,7 @@ serve(async (req) => {
         fetched_at: new Date().toISOString(),
         exchange_chaos_to_divine: chaosToDivineRatio,
         stash_chaos_to_divine: stashChaosToDivineRatio,
+        stacked_deck_chaos_cost: stackedDeckChaosCost,
       })
       .select()
       .single();
@@ -171,7 +200,7 @@ serve(async (req) => {
 
     console.log(`Created snapshot ${snapshot.id}`);
 
-    // 6. Insert all card prices
+    // 7. Insert all card prices
     const allCardPrices = [
       ...exchangeCardPrices.map((p) => ({ ...p, snapshot_id: snapshot.id })),
       ...stashCardPrices.map((p) => ({ ...p, snapshot_id: snapshot.id })),
@@ -198,6 +227,7 @@ serve(async (req) => {
           fetchedAt: snapshot.fetched_at,
           exchangeChaosToDivine: snapshot.exchange_chaos_to_divine,
           stashChaosToDivine: snapshot.stash_chaos_to_divine,
+          stackedDeckChaosCost: snapshot.stacked_deck_chaos_cost,
           cardCount: allCardPrices.length,
         },
       },

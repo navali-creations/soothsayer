@@ -7,7 +7,10 @@ export interface SessionsSummary {
   durationMinutes: number | null;
   totalDecksOpened: number;
   totalExchangeValue: number | null;
-  exchangeChaosToDivine: number | null;
   totalStashValue: number | null;
+  totalExchangeNetProfit: number | null;
+  totalStashNetProfit: number | null;
+  exchangeChaosToDivine: number | null;
   stashChaosToDivine: number | null;
+  stackedDeckChaosCost: number | null;
 }

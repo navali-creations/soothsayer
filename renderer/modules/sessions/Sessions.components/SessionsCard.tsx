@@ -1,5 +1,5 @@
 import { FiClock } from "react-icons/fi";
-import { GiCardExchange, GiLockedChest } from "react-icons/gi";
+import { GiCardExchange, GiLockedChest, GiReceiveMoney } from "react-icons/gi";
 
 import { Link } from "~/renderer/components";
 import { formatCurrency } from "~/renderer/utils";
@@ -57,7 +57,9 @@ export const SessionCard = ({ session }: SessionCardProps) => {
               {session.durationMinutes == null
                 ? "Unknown"
                 : session.durationMinutes >= 60
-                  ? `${Math.floor(session.durationMinutes / 60)}h ${session.durationMinutes % 60}m`
+                  ? `${Math.floor(session.durationMinutes / 60)}h ${
+                      session.durationMinutes % 60
+                    }m`
                   : `${session.durationMinutes}m`}
             </span>
           </div>
@@ -104,6 +106,32 @@ export const SessionCard = ({ session }: SessionCardProps) => {
               </span>
             )}
           </div>
+
+          {/* Net Profit */}
+          {session.totalExchangeNetProfit != null &&
+            session.exchangeChaosToDivine != null && (
+              <div className="flex items-center gap-2 text-sm">
+                <GiReceiveMoney className="text-base-content/50" />
+                <span
+                  className="text-base-content/70 underline decoration-dotted cursor-help"
+                  title="Total Value minus the cost of Stacked Decks opened"
+                >
+                  Net Profit:
+                </span>
+                <span
+                  className={`font-semibold tabular-nums ${
+                    session.totalExchangeNetProfit < 0
+                      ? "text-error"
+                      : "text-success"
+                  }`}
+                >
+                  {formatCurrency(
+                    session.totalExchangeNetProfit,
+                    session.exchangeChaosToDivine,
+                  )}
+                </span>
+              </div>
+            )}
         </div>
       </div>
     </Link>

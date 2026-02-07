@@ -29,6 +29,7 @@ export interface SnapshotsTable {
   fetched_at: string;
   exchange_chaos_to_divine: number;
   stash_chaos_to_divine: number;
+  stacked_deck_chaos_cost: number;
   created_at: ColumnType<string, string | undefined, never>;
 }
 
@@ -76,8 +77,11 @@ export interface SessionSummariesTable {
   total_decks_opened: number;
   total_exchange_value: number;
   total_stash_value: number;
+  total_exchange_net_profit: number | null;
+  total_stash_net_profit: number | null;
   exchange_chaos_to_divine: number;
   stash_chaos_to_divine: number;
+  stacked_deck_chaos_cost: number;
   created_at: ColumnType<string, string | undefined, never>;
 }
 

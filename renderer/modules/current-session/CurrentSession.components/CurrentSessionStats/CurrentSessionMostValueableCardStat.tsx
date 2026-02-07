@@ -1,17 +1,16 @@
 import { useMemo } from "react";
 
-import { Stat } from "~/renderer/components";
+import { AnimatedNumber, Stat } from "~/renderer/components";
 import { useBoundStore } from "~/renderer/store";
-import { formatCurrency } from "~/renderer/utils";
 
 const CurrentSessionMostValuableStat = () => {
-  const {
-    currentSession: { getSession },
-    settings: { getActiveGameViewPriceSource },
-  } = useBoundStore();
+  const sessionData = useBoundStore((state) =>
+    state.currentSession.getSession(),
+  );
+  const priceSource = useBoundStore((state) =>
+    state.settings.getActiveGameViewPriceSource(),
+  );
 
-  const sessionData = getSession();
-  const priceSource = getActiveGameViewPriceSource();
   const cardData = sessionData?.cards || [];
   const hasSnapshot = !!sessionData?.priceSnapshot;
 
@@ -20,8 +19,19 @@ const CurrentSessionMostValuableStat = () => {
       return null;
     }
 
+    // Filter out cards with hidePrice flag for the active price source
+    const visibleCards = cardData.filter((card) =>
+      priceSource === "stash"
+        ? !card.stashPrice?.hidePrice
+        : !card.exchangePrice?.hidePrice,
+    );
+
+    if (visibleCards.length === 0) {
+      return null;
+    }
+
     // Find card with highest SINGLE card price (not total value)
-    return cardData.reduce((max, card) => {
+    return visibleCards.reduce((max, card) => {
       const currentPriceInfo =
         priceSource === "stash" ? card.stashPrice : card.exchangePrice;
       const maxPriceInfo =
@@ -50,9 +60,19 @@ const CurrentSessionMostValuableStat = () => {
     <Stat className="flex-1 basis-1/4 min-w-0">
       <Stat.Title>Most Valuable</Stat.Title>
       <Stat.Value>
-        {hasSnapshot && mostValuableCard
-          ? formatCurrency(cardPrice, chaosToDivineRatio)
-          : "—"}
+        {hasSnapshot && mostValuableCard ? (
+          cardPrice >= chaosToDivineRatio ? (
+            <AnimatedNumber
+              value={cardPrice / chaosToDivineRatio}
+              decimals={2}
+              suffix="d"
+            />
+          ) : (
+            <AnimatedNumber value={cardPrice} decimals={2} suffix="c" />
+          )
+        ) : (
+          "—"
+        )}
       </Stat.Value>
       <Stat.Desc className="tabular-nums">
         {hasSnapshot ? cardName : "No pricing data"}

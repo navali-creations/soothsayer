@@ -2,6 +2,7 @@ import { GroupedStats } from "~/renderer/components";
 
 import {
   CurrentSessionMostValueableCardStat,
+  CurrentSessionNetProfitStat,
   CurrentSessionOpenedDecksStat,
   CurrentSessionTotalValueStat,
   CurrentSessionUniqueCardsStat,
@@ -14,6 +15,7 @@ const CurrentSessionStats = () => {
       <CurrentSessionUniqueCardsStat />
       <CurrentSessionMostValueableCardStat />
       <CurrentSessionTotalValueStat />
+      <CurrentSessionNetProfitStat />
     </GroupedStats>
   );
 };

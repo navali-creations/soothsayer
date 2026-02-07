@@ -1,4 +1,5 @@
 export { default as AppMenu } from "../modules/app-menu/AppMenu.component/AppMenu";
+export { default as AnimatedNumber } from "./AnimatedNumber/AnimatedNumber";
 export { default as Button } from "./Button/Button";
 export { default as DivinationCard } from "./DivinationCard";
 export { default as Flex } from "./Flex/Flex";

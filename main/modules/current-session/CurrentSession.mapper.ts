@@ -97,8 +97,11 @@ export class CurrentSessionMapper {
       totalDecksOpened: row.total_decks_opened,
       totalExchangeValue: row.total_exchange_value,
       totalStashValue: row.total_stash_value,
+      totalExchangeNetProfit: row.total_exchange_net_profit,
+      totalStashNetProfit: row.total_stash_net_profit,
       exchangeChaosToDivine: row.exchange_chaos_to_divine,
       stashChaosToDivine: row.stash_chaos_to_divine,
+      stackedDeckChaosCost: row.stacked_deck_chaos_cost,
     };
   }
 

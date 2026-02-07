@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { authorize, responseJson } from "../_shared/utils.ts";
 
@@ -57,7 +57,7 @@ serve(async (req: Request) => {
   const { data: snapshot, error: snapshotError } = await supabase
     .from("snapshots")
     .select(
-      "id, league_id, fetched_at, exchange_chaos_to_divine, stash_chaos_to_divine",
+      "id, league_id, fetched_at, exchange_chaos_to_divine, stash_chaos_to_divine, stacked_deck_chaos_cost",
     )
     .eq("league_id", league.id)
     .order("fetched_at", { ascending: false })
@@ -101,6 +101,7 @@ serve(async (req: Request) => {
         fetchedAt: snapshot.fetched_at,
         exchangeChaosToDivine: snapshot.exchange_chaos_to_divine,
         stashChaosToDivine: snapshot.stash_chaos_to_divine,
+        stackedDeckChaosCost: snapshot.stacked_deck_chaos_cost ?? 0,
       },
       cardPrices: { exchange: exchangePrices, stash: stashPrices },
     },

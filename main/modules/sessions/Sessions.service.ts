@@ -183,16 +183,23 @@ class SessionsService {
       }
     }
 
+    const deckCost = priceSnapshot?.stackedDeckChaosCost ?? 0;
+    const totalDeckCost = deckCost * session.totalCount;
+
     const totals = priceSnapshot
       ? {
           stash: {
             totalValue: stashTotal,
+            netProfit: stashTotal - totalDeckCost,
             chaosToDivineRatio: priceSnapshot.stash.chaosToDivineRatio,
           },
           exchange: {
             totalValue: exchangeTotal,
+            netProfit: exchangeTotal - totalDeckCost,
             chaosToDivineRatio: priceSnapshot.exchange.chaosToDivineRatio,
           },
+          stackedDeckChaosCost: deckCost,
+          totalDeckCost,
         }
       : undefined;
 

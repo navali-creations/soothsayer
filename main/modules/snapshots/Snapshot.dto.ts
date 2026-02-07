@@ -10,6 +10,7 @@ export interface SnapshotDTO {
   fetchedAt: string;
   exchangeChaosToDivine: number;
   stashChaosToDivine: number;
+  stackedDeckChaosCost: number;
 }
 
 export interface SnapshotCardPriceDTO {

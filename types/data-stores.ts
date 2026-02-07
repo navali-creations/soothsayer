@@ -45,6 +45,7 @@ export interface CardPriceSnapshot {
 // Session price snapshot (captured at session start)
 export interface SessionPriceSnapshot {
   timestamp: string;
+  stackedDeckChaosCost: number;
   exchange: {
     chaosToDivineRatio: number;
     cardPrices: Record<string, CardPriceSnapshot>;
@@ -59,12 +60,16 @@ export interface SessionPriceSnapshot {
 export interface SessionTotals {
   stash: {
     totalValue: number;
+    netProfit: number;
     chaosToDivineRatio: number;
   };
   exchange: {
     totalValue: number;
+    netProfit: number;
     chaosToDivineRatio: number;
   };
+  stackedDeckChaosCost: number;
+  totalDeckCost: number;
 }
 
 export interface RecentDrop {

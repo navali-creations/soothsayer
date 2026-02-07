@@ -12,8 +12,11 @@ export interface SessionSummaryDTO {
   totalDecksOpened: number;
   totalExchangeValue: number;
   totalStashValue: number;
+  totalExchangeNetProfit: number | null;
+  totalStashNetProfit: number | null;
   exchangeChaosToDivine: number;
   stashChaosToDivine: number;
+  stackedDeckChaosCost: number;
   isActive: boolean;
 }
 

@@ -62,4 +62,51 @@
       top: 20px;
     }
   }
+
+  @property --animated-value {
+    syntax: "<number>";
+    initial-value: 0;
+    inherits: false;
+  }
+
+  @property --int-part {
+    syntax: "<integer>";
+    initial-value: 0;
+    inherits: false;
+  }
+
+  @property --dec-part {
+    syntax: "<integer>";
+    initial-value: 0;
+    inherits: false;
+  }
+
+  .animated-number {
+    display: inline-block;
+    --animated-value: var(--target-value, 0);
+    transition: --animated-value var(--animation-duration, 0.8s) ease-out;
+  }
+
+  /* Integer only (0 decimals) */
+  .animated-number--decimals-0 {
+    --int-part: max(var(--animated-value) - 0.5, 0);
+    counter-reset: int var(--int-part);
+  }
+
+  .animated-number--decimals-0::before {
+    content: attr(data-sign) counter(int) attr(data-suffix);
+  }
+
+  /* 2 decimal places */
+  .animated-number--decimals-2 {
+    --temp: calc(var(--animated-value) * 100);
+    --int-part: max(var(--animated-value) - 0.5, 0);
+    --dec-part: max(calc((var(--temp) - var(--int-part) * 100)) - 0.5, 0);
+    counter-reset: int var(--int-part) dec var(--dec-part);
+  }
+
+  .animated-number--decimals-2::before {
+    content: attr(data-sign) counter(int) "." counter(dec, decimal-leading-zero)
+      attr(data-suffix);
+  }
 }

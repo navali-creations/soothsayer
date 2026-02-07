@@ -1,9 +1,8 @@
 import { useMemo } from "react";
 import { GiCardExchange, GiLockedChest } from "react-icons/gi";
 
-import { Stat } from "~/renderer/components";
+import { AnimatedNumber, Stat } from "~/renderer/components";
 import { useBoundStore } from "~/renderer/store";
-import { formatCurrency } from "~/renderer/utils";
 
 const CurrentSessionTotalValueStat = () => {
   const {
@@ -39,10 +38,20 @@ const CurrentSessionTotalValueStat = () => {
       <Stat.Value>
         {!hasSnapshot ? (
           <span className="text-base-content/50">N/A</span>
+        ) : totalProfit >= chaosToDivineRatio ? (
+          <AnimatedNumber
+            value={totalProfit / chaosToDivineRatio}
+            decimals={2}
+            suffix="d"
+            className="tabular-nums"
+          />
         ) : (
-          <span className="tabular-nums">
-            {formatCurrency(totalProfit, chaosToDivineRatio)}
-          </span>
+          <AnimatedNumber
+            value={totalProfit}
+            decimals={2}
+            suffix="c"
+            className="tabular-nums"
+          />
         )}
       </Stat.Value>
       <Stat.Desc>
@@ -50,12 +59,17 @@ const CurrentSessionTotalValueStat = () => {
           <span className="text-base-content/50">No pricing data</span>
         ) : totalProfit >= chaosToDivineRatio ? (
           <span className="flex gap-1">
-            <span className="-mt-0.5">≈</span> {Math.floor(totalProfit)} chaos
+            <span className="-mt-0.5">≈</span>{" "}
+            <AnimatedNumber value={totalProfit} decimals={0} suffix=" chaos" />
           </span>
         ) : (
           <span className="flex gap-1">
-            <span className="-mt-0.5">≈</span>
-            {(totalProfit / chaosToDivineRatio).toFixed(2)} divine
+            <span className="-mt-0.5">≈</span>{" "}
+            <AnimatedNumber
+              value={totalProfit / chaosToDivineRatio}
+              decimals={2}
+              suffix=" divine"
+            />
           </span>
         )}
       </Stat.Desc>

@@ -3,6 +3,7 @@ import { GroupedStats } from "~/renderer/components";
 import {
   SessionDetailsDurationStat,
   SessionDetailsMostCommonCardStat,
+  SessionDetailsNetProfitStat,
   SessionDetailsOpenedDecksStat,
   SessionDetailsTotalValueStat,
 } from "./";
@@ -12,6 +13,8 @@ interface SessionDetailsStatsProps {
   totalCount: number;
   mostCommonCard: { name: string; count: number; ratio: number } | null;
   totalProfit: number;
+  netProfit: number;
+  totalDeckCost: number;
   chaosToDivineRatio: number;
 }
 
@@ -20,6 +23,8 @@ const SessionDetailsStats = ({
   totalCount,
   mostCommonCard,
   totalProfit,
+  netProfit,
+  totalDeckCost,
   chaosToDivineRatio,
 }: SessionDetailsStatsProps) => {
   return (
@@ -29,6 +34,11 @@ const SessionDetailsStats = ({
       <SessionDetailsMostCommonCardStat mostCommonCard={mostCommonCard} />
       <SessionDetailsTotalValueStat
         totalProfit={totalProfit}
+        chaosToDivineRatio={chaosToDivineRatio}
+      />
+      <SessionDetailsNetProfitStat
+        netProfit={netProfit}
+        totalDeckCost={totalDeckCost}
         chaosToDivineRatio={chaosToDivineRatio}
       />
     </GroupedStats>
