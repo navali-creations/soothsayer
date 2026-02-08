@@ -104,3 +104,55 @@ Import 'https://deno.land/std/http/status.ts' failed: Network is unreachable
 2. Restart Supabase: `pnpm supabase:stop && pnpm supabase:start`
 
 **Note:** `deno.land` is the official Deno runtime package registry used by Supabase Edge Functions. The threat detection is a false positive.
+
+## License
+
+This project is licensed under the **Personal Use Non-Commercial Source-Available
+License (PUNCSA) v1.0**.
+
+In short:
+- ✔ Free for personal Path of Exile gameplay use
+- ✔ Modifications allowed for personal use
+- ✔ Streaming and content creation allowed
+- ❌ No commercial use
+- ❌ No SaaS or hosted services
+- ❌ No enterprise or internal organizational use
+- ❌ No monetized forks, communities, or derivatives
+- ❌ No competing or replacement products
+
+Forks are allowed only under the same license terms and must remain non-commercial.
+
+## Forking & Self-Hosting
+
+Forks and self-hosted versions are allowed for personal or community use,
+provided they remain non-commercial and comply with the project license.
+
+If you modify or self-host this project:
+- You are responsible for complying with all third-party service terms
+- Forked versions must clearly identify themselves as forks
+- Forked versions must not impersonate or present themselves as the original project
+
+Abuse of third-party services or misrepresentation of forked versions may
+result in termination of license rights.
+
+## Third-Party Data & Disclaimer
+
+This project uses gameplay-related and pricing data from third-party services,
+including community-operated services such as **poe.ninja**.
+
+All Path of Exile trademarks, assets, and related intellectual property belong
+to **Grinding Gear Games**.
+
+This product is not affiliated with or endorsed by Grinding Gear Games in any way.
+
+## Contributions
+
+Contributions are welcome and appreciated.
+
+Please note:
+- Contributions are voluntary
+- Contributors are not entitled to compensation or revenue sharing
+- If the project ever receives funding, the author may choose to compensate
+  contributors at their discretion
+
+By contributing, you agree to the terms of the project license.

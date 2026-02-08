@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "Path of Exile divination card tracker",
+  "license": "PUNCSA v1.0",
   "main": ".vite/build/main.js",
   "repository": {
     "type": "git",
