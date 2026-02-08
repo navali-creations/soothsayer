@@ -149,6 +149,38 @@ export class PoeLeaguesRepository {
       .execute();
   }
 
+  /**
+   * Mark leagues as inactive if they are not in the provided list
+   * This preserves historical data while keeping the cache in sync
+   */
+  async deactivateStaleLeagues(
+    game: "poe1" | "poe2",
+    activeLeagueIds: string[],
+  ): Promise<number> {
+    if (activeLeagueIds.length === 0) {
+      // If no active leagues provided, mark all as inactive
+      const result = await this.kysely
+        .updateTable("poe_leagues_cache")
+        .set({ is_active: 0 })
+        .where("game", "=", game)
+        .where("is_active", "=", 1)
+        .executeTakeFirst();
+
+      return Number(result.numUpdatedRows || 0);
+    }
+
+    // Mark leagues as inactive if they're not in the active list
+    const result = await this.kysely
+      .updateTable("poe_leagues_cache")
+      .set({ is_active: 0 })
+      .where("game", "=", game)
+      .where("is_active", "=", 1)
+      .where("league_id", "not in", activeLeagueIds)
+      .executeTakeFirst();
+
+    return Number(result.numUpdatedRows || 0);
+  }
+
   // ============================================================================
   // Metadata Operations
   // ============================================================================

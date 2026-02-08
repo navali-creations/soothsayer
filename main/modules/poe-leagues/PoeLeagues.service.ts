@@ -19,6 +19,24 @@ import { PoeLeaguesRepository } from "./PoeLeagues.repository";
  * Fetches leagues from Supabase get-leagues-legacy edge function and caches
  * them locally in SQLite. Due to Supabase's 1 request per 24h rate limit,
  * we use aggressive local caching and only refresh when the cache is stale.
+ *
+ * Cache Synchronization Strategy:
+ * --------------------------------
+ * When syncing with Supabase (poe_leagues table), this service:
+ * 1. Upserts all leagues returned from Supabase (marks them as active)
+ * 2. Deactivates leagues in cache that are NOT in the Supabase response
+ * 3. Preserves all historical data by NEVER deleting league records
+ *
+ * This approach ensures:
+ * - Active leagues are always current with Supabase
+ * - Historical snapshots, prices, and other data remain intact
+ * - No CASCADE delete issues (leagues are marked inactive, not deleted)
+ * - Users can still view historical data for leagues that have ended
+ *
+ * Example:
+ * - Cache has: ["Standard", "Keepers", "Old League"]
+ * - Supabase returns: ["Standard", "Keepers", "New League"]
+ * - Result: "Old League" is marked is_active=0, others remain/become active
  */
 class PoeLeaguesService {
   private static _instance: PoeLeaguesService;
@@ -163,6 +181,9 @@ class PoeLeaguesService {
 
   /**
    * Update the local cache with fresh league data
+   * Syncs with Supabase by:
+   * 1. Upserting all active leagues from Supabase
+   * 2. Marking leagues not in Supabase as inactive (preserves historical data)
    */
   private async updateCache(
     game: "poe1" | "poe2",
@@ -170,7 +191,7 @@ class PoeLeaguesService {
   ): Promise<void> {
     const now = new Date().toISOString();
 
-    // Convert to upsert DTOs
+    // Convert to upsert DTOs - only active leagues from Supabase
     const upsertDTOs: UpsertPoeLeagueCacheDTO[] = leagues.map((league) => ({
       id: `${game}_${league.id}`,
       game,
@@ -178,13 +199,27 @@ class PoeLeaguesService {
       name: league.name,
       startAt: league.startAt,
       endAt: league.endAt,
-      isActive: true, // Assume all fetched leagues are active
+      isActive: true, // All leagues from Supabase are considered active
       updatedAt: now,
       fetchedAt: now,
     }));
 
-    // Upsert all leagues
+    // Upsert all active leagues
     await this.repository.upsertLeagues(upsertDTOs);
+
+    // Deactivate leagues that are no longer in Supabase
+    // This preserves historical data (snapshots, prices, etc.) while keeping cache in sync
+    const activeLeagueIds = leagues.map((league) => league.id);
+    const deactivatedCount = await this.repository.deactivateStaleLeagues(
+      game,
+      activeLeagueIds,
+    );
+
+    if (deactivatedCount > 0) {
+      console.log(
+        `[PoeLeaguesService] Deactivated ${deactivatedCount} stale leagues for ${game} (historical data preserved)`,
+      );
+    }
 
     // Update the cache metadata
     await this.repository.upsertCacheMetadata(game, now);
