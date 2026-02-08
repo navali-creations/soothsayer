@@ -1,6 +1,15 @@
 import { ipcMain } from "electron";
 
 import { DatabaseService } from "~/main/modules/database";
+import {
+  assertBoundedString,
+  assertCardName,
+  assertGameType,
+  assertLimit,
+  assertPriceSource,
+  assertSessionId,
+  handleValidationError,
+} from "~/main/utils/ipc-validation";
 
 import { AnalyticsChannel } from "./Analytics.channels";
 import type {
@@ -38,7 +47,25 @@ class AnalyticsService {
     ipcMain.handle(
       AnalyticsChannel.GetMostCommonCards,
       async (_event, game: string, league: string, limit: number) => {
-        return this.getMostCommonCards(game, league, limit);
+        try {
+          assertGameType(game, AnalyticsChannel.GetMostCommonCards);
+          assertBoundedString(
+            league,
+            "league",
+            AnalyticsChannel.GetMostCommonCards,
+            256,
+          );
+          const validLimit = assertLimit(
+            limit,
+            AnalyticsChannel.GetMostCommonCards,
+          );
+          return this.getMostCommonCards(game, league, validLimit);
+        } catch (error) {
+          return handleValidationError(
+            error,
+            AnalyticsChannel.GetMostCommonCards,
+          );
+        }
       },
     );
 
@@ -51,12 +78,31 @@ class AnalyticsService {
         priceSource: string,
         limit: number,
       ) => {
-        return this.getHighestValueCards(
-          game,
-          league,
-          priceSource as "exchange" | "stash",
-          limit,
-        );
+        try {
+          assertGameType(game, AnalyticsChannel.GetHighestValueCards);
+          assertBoundedString(
+            league,
+            "league",
+            AnalyticsChannel.GetHighestValueCards,
+            256,
+          );
+          assertPriceSource(priceSource, AnalyticsChannel.GetHighestValueCards);
+          const validLimit = assertLimit(
+            limit,
+            AnalyticsChannel.GetHighestValueCards,
+          );
+          return this.getHighestValueCards(
+            game,
+            league,
+            priceSource,
+            validLimit,
+          );
+        } catch (error) {
+          return handleValidationError(
+            error,
+            AnalyticsChannel.GetHighestValueCards,
+          );
+        }
       },
     );
 
@@ -69,33 +115,78 @@ class AnalyticsService {
         cardName: string,
         priceSource: string,
       ) => {
-        return this.getCardPriceHistory(
-          game,
-          league,
-          cardName,
-          priceSource as "exchange" | "stash",
-        );
+        try {
+          assertGameType(game, AnalyticsChannel.GetCardPriceHistory);
+          assertBoundedString(
+            league,
+            "league",
+            AnalyticsChannel.GetCardPriceHistory,
+            256,
+          );
+          assertCardName(cardName, AnalyticsChannel.GetCardPriceHistory);
+          assertPriceSource(priceSource, AnalyticsChannel.GetCardPriceHistory);
+          return this.getCardPriceHistory(game, league, cardName, priceSource);
+        } catch (error) {
+          return handleValidationError(
+            error,
+            AnalyticsChannel.GetCardPriceHistory,
+          );
+        }
       },
     );
 
     ipcMain.handle(
       AnalyticsChannel.GetLeagueAnalytics,
       async (_event, game: string, league: string) => {
-        return this.getLeagueAnalytics(game, league);
+        try {
+          assertGameType(game, AnalyticsChannel.GetLeagueAnalytics);
+          assertBoundedString(
+            league,
+            "league",
+            AnalyticsChannel.GetLeagueAnalytics,
+            256,
+          );
+          return this.getLeagueAnalytics(game, league);
+        } catch (error) {
+          return handleValidationError(
+            error,
+            AnalyticsChannel.GetLeagueAnalytics,
+          );
+        }
       },
     );
 
     ipcMain.handle(
       AnalyticsChannel.CompareSessions,
       async (_event, sessionId1: string, sessionId2: string) => {
-        return this.compareSessions(sessionId1, sessionId2);
+        try {
+          assertSessionId(sessionId1, AnalyticsChannel.CompareSessions);
+          assertSessionId(sessionId2, AnalyticsChannel.CompareSessions);
+          return this.compareSessions(sessionId1, sessionId2);
+        } catch (error) {
+          return handleValidationError(error, AnalyticsChannel.CompareSessions);
+        }
       },
     );
 
     ipcMain.handle(
       AnalyticsChannel.GetOccurrenceRatios,
       async (_event, game: string, league: string) => {
-        return this.getOccurrenceRatios(game, league);
+        try {
+          assertGameType(game, AnalyticsChannel.GetOccurrenceRatios);
+          assertBoundedString(
+            league,
+            "league",
+            AnalyticsChannel.GetOccurrenceRatios,
+            256,
+          );
+          return this.getOccurrenceRatios(game, league);
+        } catch (error) {
+          return handleValidationError(
+            error,
+            AnalyticsChannel.GetOccurrenceRatios,
+          );
+        }
       },
     );
   }

@@ -39,9 +39,11 @@ if (!electronApp.requestSingleInstanceLock()) {
   app.quit();
 } else {
   electronApp.whenReady().then(async () => {
-    installExtension(REDUX_DEVTOOLS)
-      .then((ext) => console.log(`Added Extension:  ${ext.name}`))
-      .catch((err) => console.log("An error occurred: ", err));
+    if (!electronApp.isPackaged) {
+      installExtension(REDUX_DEVTOOLS)
+        .then((ext) => console.log(`Added Extension:  ${ext.name}`))
+        .catch((err) => console.log("An error occurred: ", err));
+    }
 
     initializeSupabase();
 

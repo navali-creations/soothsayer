@@ -23,7 +23,7 @@ const StatusBadge = ({ game }: StatusBadgeProps) => {
       {isOnline ? (
         <>
           <FiCheckCircle />
-          Online
+          Running
         </>
       ) : (
         <>

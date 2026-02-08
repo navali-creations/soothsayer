@@ -6,6 +6,16 @@ import { DataStoreService } from "~/main/modules/data-store";
 import { DatabaseService } from "~/main/modules/database";
 import { PerformanceLoggerService } from "~/main/modules/performance-logger";
 import { SnapshotService } from "~/main/modules/snapshots";
+import {
+  assertBoolean,
+  assertCardName,
+  assertGameType,
+  assertPriceSource,
+  assertSessionId,
+  assertString,
+  handleValidationError,
+  IpcValidationError,
+} from "~/main/utils/ipc-validation";
 
 import type {
   CardEntry,
@@ -128,9 +138,15 @@ class CurrentSessionService {
       CurrentSessionChannel.Start,
       async (_event, game: GameType, league: string) => {
         try {
+          assertGameType(game, CurrentSessionChannel.Start);
+          assertString(league, "league", CurrentSessionChannel.Start);
           await this.startSession(game, league);
           return { success: true };
         } catch (error) {
+          if (error instanceof IpcValidationError) {
+            console.warn(`[Security] ${error.message}`);
+            return { success: false, error: `Invalid input: ${error.detail}` };
+          }
           console.error("Failed to start session:", error);
           return {
             success: false,
@@ -145,9 +161,14 @@ class CurrentSessionService {
       CurrentSessionChannel.Stop,
       async (_event, game: GameType) => {
         try {
+          assertGameType(game, CurrentSessionChannel.Stop);
           const result = await this.stopSession(game);
           return { success: true, ...result };
         } catch (error) {
+          if (error instanceof IpcValidationError) {
+            console.warn(`[Security] ${error.message}`);
+            return { success: false, error: `Invalid input: ${error.detail}` };
+          }
           console.error("Failed to stop session:", error);
           return {
             success: false,
@@ -159,20 +180,35 @@ class CurrentSessionService {
 
     // Is active
     ipcMain.handle(CurrentSessionChannel.IsActive, (_event, game: GameType) => {
-      return this.isSessionActive(game);
+      try {
+        assertGameType(game, CurrentSessionChannel.IsActive);
+        return this.isSessionActive(game);
+      } catch (error) {
+        return handleValidationError(error, CurrentSessionChannel.IsActive);
+      }
     });
 
     // Get current session
     ipcMain.handle(
       CurrentSessionChannel.Get,
       async (_event, game: GameType) => {
-        return await this.getCurrentSession(game);
+        try {
+          assertGameType(game, CurrentSessionChannel.Get);
+          return await this.getCurrentSession(game);
+        } catch (error) {
+          return handleValidationError(error, CurrentSessionChannel.Get);
+        }
       },
     );
 
     // Get session info
     ipcMain.handle(CurrentSessionChannel.Info, (_event, game: GameType) => {
-      return this.getActiveSessionInfo(game);
+      try {
+        assertGameType(game, CurrentSessionChannel.Info);
+        return this.getActiveSessionInfo(game);
+      } catch (error) {
+        return handleValidationError(error, CurrentSessionChannel.Info);
+      }
     });
 
     // Update card price visibility
@@ -187,6 +223,24 @@ class CurrentSessionService {
         hidePrice: boolean,
       ) => {
         try {
+          assertGameType(game, CurrentSessionChannel.UpdateCardPriceVisibility);
+          assertSessionId(
+            sessionId,
+            CurrentSessionChannel.UpdateCardPriceVisibility,
+          );
+          assertPriceSource(
+            priceSource,
+            CurrentSessionChannel.UpdateCardPriceVisibility,
+          );
+          assertCardName(
+            cardName,
+            CurrentSessionChannel.UpdateCardPriceVisibility,
+          );
+          assertBoolean(
+            hidePrice,
+            "hidePrice",
+            CurrentSessionChannel.UpdateCardPriceVisibility,
+          );
           await this.updateCardPriceVisibility(
             game,
             sessionId,
@@ -196,6 +250,10 @@ class CurrentSessionService {
           );
           return { success: true };
         } catch (error) {
+          if (error instanceof IpcValidationError) {
+            console.warn(`[Security] ${error.message}`);
+            return { success: false, error: `Invalid input: ${error.detail}` };
+          }
           return {
             success: false,
             error: error instanceof Error ? error.message : "Unknown error",

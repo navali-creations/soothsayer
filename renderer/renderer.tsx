@@ -1,4 +1,3 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createHashHistory,
   createRouter,
@@ -16,17 +15,6 @@ initUmami();
 
 // Import the generated route tree
 import { routeTree } from "./routeTree.gen";
-
-// Create a QueryClient instance
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      refetchOnWindowFocus: false,
-      retry: false,
-    },
-  },
-});
 
 // Use hash history for Electron (file:// protocol doesn't support browser history)
 const hashHistory = createHashHistory();
@@ -60,9 +48,7 @@ if (!rootElement.innerHTML) {
   const root = ReactDOM.createRoot(rootElement);
   root.render(
     // <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>,
+    <RouterProvider router={router} />,
     // </StrictMode>,
   );
 }

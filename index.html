@@ -1,7 +1,21 @@
-<!doctype html>
+<!DOCTYPE html>
 <html data-theme="coffee">
   <head>
     <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="
+        default-src 'self';
+        script-src 'self' https://cloud.umami.is;
+        style-src 'self' 'unsafe-inline';
+        img-src 'self' data: https:;
+        font-src 'self' data:;
+        connect-src 'self' https://*.supabase.co https://cloud.umami.is https://api-gateway.umami.dev https://*.sentry.io;
+        object-src 'none';
+        base-uri 'self';
+        form-action 'self';
+      "
+    />
   </head>
   <body>
     <div id="root"></div>

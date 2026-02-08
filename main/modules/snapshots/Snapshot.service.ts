@@ -5,6 +5,11 @@ import { BrowserWindow, ipcMain } from "electron";
 import { DatabaseService } from "~/main/modules/database";
 import { DivinationCardsService } from "~/main/modules/divination-cards";
 import { SupabaseClientService } from "~/main/modules/supabase";
+import {
+  assertBoundedString,
+  assertGameType,
+  handleValidationError,
+} from "~/main/utils/ipc-validation";
 
 import type { SessionPriceSnapshot } from "../../../types/data-stores";
 import { SnapshotChannel } from "./Snapshot.channels";
@@ -52,6 +57,13 @@ class SnapshotService {
       SnapshotChannel.GetLatestSnapshot,
       async (_event, game: string, league: string) => {
         try {
+          assertGameType(game, SnapshotChannel.GetLatestSnapshot);
+          assertBoundedString(
+            league,
+            "league",
+            SnapshotChannel.GetLatestSnapshot,
+            256,
+          );
           const leagueId = await this.ensureLeague(game, league);
           const snapshot = await this.repository.getRecentSnapshot(
             leagueId,
@@ -59,11 +71,10 @@ class SnapshotService {
           );
           return snapshot;
         } catch (error) {
-          console.error(
-            "[SnapshotService] Failed to get latest snapshot:",
+          return handleValidationError(
             error,
+            SnapshotChannel.GetLatestSnapshot,
           );
-          return null;
         }
       },
     );

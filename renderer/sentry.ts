@@ -8,7 +8,7 @@ export function initSentry() {
   }
 
   Sentry.init({
-    dsn: "https://c6b4bfe8b20513cdc8016e60aab96365@o4510771036291072.ingest.de.sentry.io/4510771040157776",
+    dsn: import.meta.env.SENTRY_DSN,
   });
 
   initialized = true;

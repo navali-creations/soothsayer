@@ -2,6 +2,11 @@ import { ipcMain } from "electron";
 
 import { DatabaseService } from "~/main/modules/database";
 import { PerformanceLoggerService } from "~/main/modules/performance-logger";
+import {
+  assertBoundedString,
+  assertGameType,
+  handleValidationError,
+} from "~/main/utils/ipc-validation";
 
 import type { GameType, GlobalStats } from "../../../types/data-stores";
 import { DataStoreChannel } from "./DataStore.channels";
@@ -41,7 +46,12 @@ class DataStoreService {
     ipcMain.handle(
       DataStoreChannel.GetAllTimeStats,
       async (_event, game: GameType) => {
-        return this.getAllTimeStats(game);
+        try {
+          assertGameType(game, DataStoreChannel.GetAllTimeStats);
+          return this.getAllTimeStats(game);
+        } catch (error) {
+          return handleValidationError(error, DataStoreChannel.GetAllTimeStats);
+        }
       },
     );
 
@@ -49,13 +59,29 @@ class DataStoreService {
     ipcMain.handle(
       DataStoreChannel.GetLeagueStats,
       async (_event, game: GameType, league: string) => {
-        return this.getLeagueStats(game, league);
+        try {
+          assertGameType(game, DataStoreChannel.GetLeagueStats);
+          assertBoundedString(
+            league,
+            "league",
+            DataStoreChannel.GetLeagueStats,
+            256,
+          );
+          return this.getLeagueStats(game, league);
+        } catch (error) {
+          return handleValidationError(error, DataStoreChannel.GetLeagueStats);
+        }
       },
     );
 
     // Get available leagues
     ipcMain.handle("data-store:get-leagues", async (_event, game: GameType) => {
-      return this.getAvailableLeagues(game);
+      try {
+        assertGameType(game, "data-store:get-leagues");
+        return this.getAvailableLeagues(game);
+      } catch (error) {
+        return handleValidationError(error, "data-store:get-leagues");
+      }
     });
 
     // Get global stats

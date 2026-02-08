@@ -9,6 +9,11 @@ import {
   SettingsKey,
   SettingsStoreService,
 } from "~/main/modules/settings-store";
+import {
+  assertBoundedString,
+  assertGameType,
+  handleValidationError,
+} from "~/main/utils/ipc-validation";
 
 import { DivinationCardsChannel } from "./DivinationCards.channels";
 import type {
@@ -94,7 +99,9 @@ class DivinationCardsService {
       const cards = this.loadCardsFromJson(jsonPath);
       await this.syncCards(game, cards);
       console.log(
-        `[DivinationCards] Initialized ${game.toUpperCase()} with ${cards.length} cards`,
+        `[DivinationCards] Initialized ${game.toUpperCase()} with ${
+          cards.length
+        } cards`,
       );
     } catch (error) {
       // If file doesn't exist (like poe2 cards), just log and continue
@@ -191,30 +198,47 @@ class DivinationCardsService {
   private setupIpcHandlers(): void {
     ipcMain.handle(
       DivinationCardsChannel.GetAll,
-      async (_event, game: "poe1" | "poe2"): Promise<DivinationCardDTO[]> => {
-        // Get the active league for this game
-        const leagueKey =
-          game === "poe1"
-            ? SettingsKey.SelectedPoe1League
-            : SettingsKey.SelectedPoe2League;
-        const league = await this.settingsStore.get(leagueKey);
+      async (
+        _event,
+        game: "poe1" | "poe2",
+      ): Promise<DivinationCardDTO[] | { success: false; error: string }> => {
+        try {
+          assertGameType(game, DivinationCardsChannel.GetAll);
+          const leagueKey =
+            game === "poe1"
+              ? SettingsKey.SelectedPoe1League
+              : SettingsKey.SelectedPoe2League;
+          const league = await this.settingsStore.get(leagueKey);
 
-        return this.repository.getAllByGame(game, league || undefined);
+          return this.repository.getAllByGame(game, league || undefined);
+        } catch (error) {
+          return handleValidationError(error, DivinationCardsChannel.GetAll);
+        }
       },
     );
 
     ipcMain.handle(
       DivinationCardsChannel.GetById,
-      async (_event, id: string): Promise<DivinationCardDTO | null> => {
-        // Extract game from id (format: "poe1_card-name" or "poe2_card-name")
-        const game = id.startsWith("poe1_") ? "poe1" : "poe2";
-        const leagueKey =
-          game === "poe1"
-            ? SettingsKey.SelectedPoe1League
-            : SettingsKey.SelectedPoe2League;
-        const league = await this.settingsStore.get(leagueKey);
+      async (
+        _event,
+        id: string,
+      ): Promise<
+        DivinationCardDTO | null | { success: false; error: string }
+      > => {
+        try {
+          assertBoundedString(id, "id", DivinationCardsChannel.GetById, 512);
+          // Extract game from id (format: "poe1_card-name" or "poe2_card-name")
+          const game = id.startsWith("poe1_") ? "poe1" : "poe2";
+          const leagueKey =
+            game === "poe1"
+              ? SettingsKey.SelectedPoe1League
+              : SettingsKey.SelectedPoe2League;
+          const league = await this.settingsStore.get(leagueKey);
 
-        return this.repository.getById(id, league || undefined);
+          return this.repository.getById(id, league || undefined);
+        } catch (error) {
+          return handleValidationError(error, DivinationCardsChannel.GetById);
+        }
       },
     );
 
@@ -224,14 +248,27 @@ class DivinationCardsService {
         _event,
         game: "poe1" | "poe2",
         name: string,
-      ): Promise<DivinationCardDTO | null> => {
-        const leagueKey =
-          game === "poe1"
-            ? SettingsKey.SelectedPoe1League
-            : SettingsKey.SelectedPoe2League;
-        const league = await this.settingsStore.get(leagueKey);
+      ): Promise<
+        DivinationCardDTO | null | { success: false; error: string }
+      > => {
+        try {
+          assertGameType(game, DivinationCardsChannel.GetByName);
+          assertBoundedString(
+            name,
+            "name",
+            DivinationCardsChannel.GetByName,
+            256,
+          );
+          const leagueKey =
+            game === "poe1"
+              ? SettingsKey.SelectedPoe1League
+              : SettingsKey.SelectedPoe2League;
+          const league = await this.settingsStore.get(leagueKey);
 
-        return this.repository.getByName(game, name, league || undefined);
+          return this.repository.getByName(game, name, league || undefined);
+        } catch (error) {
+          return handleValidationError(error, DivinationCardsChannel.GetByName);
+        }
       },
     );
 
@@ -241,29 +278,53 @@ class DivinationCardsService {
         _event,
         game: "poe1" | "poe2",
         query: string,
-      ): Promise<DivinationCardSearchDTO> => {
-        const leagueKey =
-          game === "poe1"
-            ? SettingsKey.SelectedPoe1League
-            : SettingsKey.SelectedPoe2League;
-        const league = await this.settingsStore.get(leagueKey);
+      ): Promise<
+        DivinationCardSearchDTO | { success: false; error: string }
+      > => {
+        try {
+          assertGameType(game, DivinationCardsChannel.SearchByName);
+          assertBoundedString(
+            query,
+            "query",
+            DivinationCardsChannel.SearchByName,
+            256,
+          );
+          const leagueKey =
+            game === "poe1"
+              ? SettingsKey.SelectedPoe1League
+              : SettingsKey.SelectedPoe2League;
+          const league = await this.settingsStore.get(leagueKey);
 
-        const cards = await this.repository.searchByName(
-          game,
-          query,
-          league || undefined,
-        );
-        return {
-          cards,
-          total: cards.length,
-        };
+          const cards = await this.repository.searchByName(
+            game,
+            query,
+            league || undefined,
+          );
+          return {
+            cards,
+            total: cards.length,
+          };
+        } catch (error) {
+          return handleValidationError(
+            error,
+            DivinationCardsChannel.SearchByName,
+          );
+        }
       },
     );
 
     ipcMain.handle(
       DivinationCardsChannel.GetCount,
-      async (_event, game: "poe1" | "poe2"): Promise<number> => {
-        return this.repository.getCardCount(game);
+      async (
+        _event,
+        game: "poe1" | "poe2",
+      ): Promise<number | { success: false; error: string }> => {
+        try {
+          assertGameType(game, DivinationCardsChannel.GetCount);
+          return this.repository.getCardCount(game);
+        } catch (error) {
+          return handleValidationError(error, DivinationCardsChannel.GetCount);
+        }
       },
     );
 
@@ -272,23 +333,38 @@ class DivinationCardsService {
       async (
         _event,
         game: "poe1" | "poe2",
-      ): Promise<DivinationCardStatsDTO> => {
-        return {
-          game,
-          totalCards: await this.repository.getCardCount(game),
-          lastUpdated: (await this.repository.getLastUpdated(game)) || "",
-        };
+      ): Promise<
+        DivinationCardStatsDTO | { success: false; error: string }
+      > => {
+        try {
+          assertGameType(game, DivinationCardsChannel.GetStats);
+          return {
+            game,
+            totalCards: await this.repository.getCardCount(game),
+            lastUpdated: (await this.repository.getLastUpdated(game)) || "",
+          };
+        } catch (error) {
+          return handleValidationError(error, DivinationCardsChannel.GetStats);
+        }
       },
     );
 
     ipcMain.handle(
       DivinationCardsChannel.ForceSync,
-      async (_event, game: "poe1" | "poe2"): Promise<{ success: boolean }> => {
-        const jsonPath =
-          game === "poe1" ? this.poe1CardsJsonPath : this.poe2CardsJsonPath;
-        const cards = this.loadCardsFromJson(jsonPath);
-        await this.syncCards(game, cards);
-        return { success: true };
+      async (
+        _event,
+        game: "poe1" | "poe2",
+      ): Promise<{ success: boolean } | { success: false; error: string }> => {
+        try {
+          assertGameType(game, DivinationCardsChannel.ForceSync);
+          const jsonPath =
+            game === "poe1" ? this.poe1CardsJsonPath : this.poe2CardsJsonPath;
+          const cards = this.loadCardsFromJson(jsonPath);
+          await this.syncCards(game, cards);
+          return { success: true };
+        } catch (error) {
+          return handleValidationError(error, DivinationCardsChannel.ForceSync);
+        }
       },
     );
   }
@@ -347,7 +423,11 @@ class DivinationCardsService {
     if (updates.length > 0) {
       await this.repository.updateRarities(game, league, updates);
       console.log(
-        `[DivinationCards] Updated rarities for ${updates.length} ${game.toUpperCase()}/${league} cards (${pricedCardNames.size} priced, ${updates.length - pricedCardNames.size} unpriced)`,
+        `[DivinationCards] Updated rarities for ${
+          updates.length
+        } ${game.toUpperCase()}/${league} cards (${
+          pricedCardNames.size
+        } priced, ${updates.length - pricedCardNames.size} unpriced)`,
       );
     }
   }

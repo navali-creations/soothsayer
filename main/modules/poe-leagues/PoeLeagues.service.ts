@@ -3,6 +3,11 @@ import { ipcMain } from "electron";
 import { SettingsKey, SettingsStoreService } from "~/main/modules";
 import { DatabaseService } from "~/main/modules/database";
 import { SupabaseClientService } from "~/main/modules/supabase";
+import {
+  assertBoundedString,
+  assertGameType,
+  handleValidationError,
+} from "~/main/utils/ipc-validation";
 
 import type { GameType } from "../../../types/data-stores";
 import type { PoeLeague } from "../../../types/poe-league";
@@ -67,7 +72,12 @@ class PoeLeaguesService {
     ipcMain.handle(
       PoeLeaguesChannel.FetchLeagues,
       async (_event, game: GameType) => {
-        return this.fetchLeagues(game);
+        try {
+          assertGameType(game, PoeLeaguesChannel.FetchLeagues);
+          return this.fetchLeagues(game);
+        } catch (error) {
+          return handleValidationError(error, PoeLeaguesChannel.FetchLeagues);
+        }
       },
     );
 
@@ -78,7 +88,17 @@ class PoeLeaguesService {
     ipcMain.handle(
       PoeLeaguesChannel.SelectLeague,
       (_event, leagueId: string) => {
-        return this.setSelectedLeague(leagueId);
+        try {
+          assertBoundedString(
+            leagueId,
+            "leagueId",
+            PoeLeaguesChannel.SelectLeague,
+            40,
+          );
+          return this.setSelectedLeague(leagueId);
+        } catch (error) {
+          return handleValidationError(error, PoeLeaguesChannel.SelectLeague);
+        }
       },
     );
   }
@@ -166,10 +186,10 @@ class PoeLeaguesService {
   }
 
   /**
-   * Get cached leagues from SQLite
+   * Get cached leagues from SQLite (active only)
    */
   private async getCachedLeagues(game: "poe1" | "poe2"): Promise<PoeLeague[]> {
-    const cachedLeagues = await this.repository.getLeaguesByGame(game);
+    const cachedLeagues = await this.repository.getActiveLeaguesByGame(game);
 
     return cachedLeagues.map((league) => ({
       id: league.leagueId,

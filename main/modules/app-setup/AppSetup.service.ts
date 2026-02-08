@@ -7,6 +7,10 @@ import {
   SettingsStoreService,
   type SetupStep,
 } from "~/main/modules/settings-store";
+import {
+  assertSetupStep,
+  handleValidationError,
+} from "~/main/utils/ipc-validation";
 
 import { AppSetupChannel } from "./AppSetup.channels";
 import {
@@ -51,7 +55,12 @@ class AppSetupService {
     ipcMain.handle(
       AppSetupChannel.GoToStep,
       async (_event, step: SetupStep) => {
-        return await this.goToStep(step);
+        try {
+          assertSetupStep(step, AppSetupChannel.GoToStep);
+          return await this.goToStep(step);
+        } catch (error) {
+          return handleValidationError(error, AppSetupChannel.GoToStep);
+        }
       },
     );
 

@@ -1,6 +1,13 @@
 import path, { join } from "node:path";
 
-import { app, BrowserWindow, dialog, ipcMain, nativeImage } from "electron";
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  nativeImage,
+  shell,
+} from "electron";
 import { updateElectronApp } from "update-electron-app";
 
 import {
@@ -21,6 +28,7 @@ import {
   SupabaseClientService,
   TrayService,
 } from "~/main/modules";
+import { validateFileDialogOptions } from "~/main/utils/ipc-validation";
 
 class MainWindowService {
   private mainWindow: BrowserWindow;
@@ -71,7 +79,8 @@ class MainWindowService {
       show: false, // This line prevents electron's default #1E1E1E bg load before html renders and html blank screen (white flash)
       webPreferences: {
         preload,
-        nodeIntegration: true,
+        nodeIntegration: false,
+        sandbox: true,
         webSecurity: true,
         contextIsolation: true,
       },
@@ -138,10 +147,36 @@ class MainWindowService {
 
     if (this.url) {
       await this.mainWindow.loadURL?.(this.url);
-      this.mainWindow.webContents?.openDevTools();
+      if (!app.isPackaged) {
+        this.mainWindow.webContents?.openDevTools();
+      }
     } else {
       await this.mainWindow.loadFile?.(indexHtml);
     }
+
+    // Security: Restrict navigation to prevent the renderer from loading external URLs
+    this.mainWindow.webContents.on("will-navigate", (event, url) => {
+      const allowedOrigins = this.url
+        ? [new URL(this.url).origin]
+        : ["file://"];
+
+      const isAllowed = allowedOrigins.some((origin) => url.startsWith(origin));
+
+      if (!isAllowed) {
+        console.warn(`[Security] Blocked navigation to untrusted URL: ${url}`);
+        event.preventDefault();
+      }
+    });
+
+    // Security: Prevent new windows from being opened — open external links in the OS browser instead
+    this.mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+      if (url.startsWith("https://") || url.startsWith("http://")) {
+        shell.openExternal(url);
+      } else {
+        console.warn(`[Security] Blocked window.open for non-HTTP URL: ${url}`);
+      }
+      return { action: "deny" };
+    });
 
     // Initialize PoE Process monitoring
     PoeProcessService.getInstance().initialize(this);
@@ -165,17 +200,22 @@ class MainWindowService {
   }
 
   private emitFileDialogEvents() {
-    // Handler for file selection
-    ipcMain.handle("select-file", async (_event, options: any) => {
-      const result = await dialog.showOpenDialog(this.mainWindow, {
-        title: options.title || "Select File",
-        filters: options.filters || [],
-        properties: options.properties || ["openFile"],
-      });
+    // Handler for file selection — validates and allowlists options from renderer
+    ipcMain.handle(
+      "select-file",
+      async (_event, options: Electron.OpenDialogOptions) => {
+        const validated = validateFileDialogOptions(options, "select-file");
 
-      // Return the first selected file path, or undefined if cancelled
-      return result.canceled ? undefined : result.filePaths[0];
-    });
+        const result = await dialog.showOpenDialog(this.mainWindow, {
+          title: validated.title,
+          filters: validated.filters,
+          properties: validated.properties,
+        });
+
+        // Return the first selected file path, or undefined if cancelled
+        return result.canceled ? undefined : result.filePaths[0];
+      },
+    );
   }
 
   private emitCaptionEvents() {

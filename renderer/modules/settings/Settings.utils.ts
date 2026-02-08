@@ -1,4 +1,5 @@
 import type { UserSettingsDTO } from "~/main/modules/settings-store/SettingsStore.dto";
+import { trackEvent } from "~/renderer/modules/umami";
 
 import type { FilePathCategory, SettingsCategory } from "./Settings.types";
 
@@ -50,22 +51,33 @@ export const createAppBehaviorCategory = (
         { value: "exit", label: "Exit Application" },
         { value: "minimize", label: "Minimize to Tray" },
       ],
-      onChange: (value) =>
-        updateSetting("appExitAction", value as "exit" | "minimize"),
+      onChange: (value) => {
+        updateSetting("appExitAction", value as "exit" | "minimize");
+        trackEvent("settings-change", { setting: "appExitAction", value });
+      },
     },
     {
       type: "toggle",
       key: "appOpenAtLogin",
       label: "Launch on startup",
       value: settings.appOpenAtLogin,
-      onChange: (value) => updateSetting("appOpenAtLogin", value),
+      onChange: (value) => {
+        updateSetting("appOpenAtLogin", value);
+        trackEvent("settings-change", { setting: "appOpenAtLogin", value });
+      },
     },
     {
       type: "toggle",
       key: "appOpenAtLoginMinimized",
       label: "Start minimized",
       value: settings.appOpenAtLoginMinimized,
-      onChange: (value) => updateSetting("appOpenAtLoginMinimized", value),
+      onChange: (value) => {
+        updateSetting("appOpenAtLoginMinimized", value);
+        trackEvent("settings-change", {
+          setting: "appOpenAtLoginMinimized",
+          value,
+        });
+      },
     },
   ],
 });

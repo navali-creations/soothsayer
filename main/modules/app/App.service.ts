@@ -51,11 +51,11 @@ class AppService {
 
   public setAppProtocol() {
     if (!this.app.isPackaged && process.platform !== System.MacOS) {
-      this.app.setAsDefaultProtocolClient("smoothsayer", process.execPath, [
+      this.app.setAsDefaultProtocolClient("soothsayer", process.execPath, [
         resolve(process.argv[1]),
       ]);
     } else {
-      this.app.setAsDefaultProtocolClient("smoothsayer");
+      this.app.setAsDefaultProtocolClient("soothsayer");
     }
   }
 

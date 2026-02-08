@@ -7,7 +7,6 @@ type RateLimitContext = {
   windowMs: number;
   maxHits: number;
   appVersion?: string | null;
-  ip?: string | null;
 };
 
 function createAdminClient(): SupabaseClient {
@@ -18,6 +17,20 @@ function createAdminClient(): SupabaseClient {
   );
 }
 
+/**
+ * Atomic rate limit enforcement via the `check_and_log_request` Postgres function.
+ *
+ * This replaces the previous TOCTOU-vulnerable pattern (SELECT count → fire-and-forget INSERT)
+ * with a single atomic RPC call that:
+ *   1. Checks if the user is banned
+ *   2. Counts existing requests in the time window
+ *   3. Inserts the request log row
+ *
+ * All three steps happen in a single Postgres function call, eliminating the race
+ * condition where concurrent requests could both pass the count check.
+ *
+ * No IP addresses are collected or stored (privacy-first).
+ */
 export async function enforceRateLimit({
   adminClient = createAdminClient(),
   userId,
@@ -25,42 +38,46 @@ export async function enforceRateLimit({
   windowMs,
   maxHits,
   appVersion,
-  ip,
 }: RateLimitContext): Promise<void> {
-  const cutoff = new Date(Date.now() - windowMs).toISOString();
+  const windowMinutes = Math.ceil(windowMs / 60_000);
 
-  const { count, error } = await adminClient
-    .from("api_requests")
-    .select("*", { head: true, count: "exact" })
-    .eq("user_id", userId)
-    .eq("endpoint", endpoint)
-    .gte("created_at", cutoff);
+  const { data, error } = await adminClient.rpc("check_and_log_request", {
+    p_user_id: userId,
+    p_endpoint: endpoint,
+    p_window_minutes: windowMinutes,
+    p_max_hits: maxHits,
+    p_app_version: appVersion ?? null,
+  });
 
   if (error) {
-    console.error("[RateLimit] count failed:", error);
+    console.error("[RateLimit] check_and_log_request RPC failed:", error);
+    // Fail closed — if we can't verify the rate limit, reject the request
     throw new Error("Rate limit check failed");
   }
 
-  if ((count ?? 0) >= maxHits) {
-    const err = new Error("Rate limit exceeded");
-    (err as any).status = 429;
-    throw err;
+  if (!data || typeof data !== "object") {
+    console.error("[RateLimit] Unexpected RPC response:", data);
+    throw new Error("Rate limit check failed");
   }
 
-  // fire-and-forget logging (no .catch chaining)
-  (async () => {
-    try {
-      const { error: logErr } = await adminClient.from("api_requests").insert({
-        user_id: userId,
-        endpoint,
-        app_version: appVersion,
-        ip,
-      });
-      if (logErr) console.error("[RateLimit] log failed:", logErr);
-    } catch (err) {
-      console.error("[RateLimit] log failed:", err);
+  if (!data.allowed) {
+    if (data.reason === "banned") {
+      const err = new Error(data.detail ?? "Account suspended");
+      (err as any).status = 403;
+      throw err;
     }
-  })();
+
+    if (data.reason === "rate_limited") {
+      const err = new Error("Rate limit exceeded");
+      (err as any).status = 429;
+      throw err;
+    }
+
+    // Unknown rejection reason — fail closed
+    const err = new Error(data.detail ?? "Request rejected");
+    (err as any).status = 403;
+    throw err;
+  }
 }
 
 type ResponseJson = {
@@ -149,9 +166,8 @@ export async function authorize({
 
   const userId = claims.claims.sub;
 
-  // Collect telemetry headers
+  // Collect optional telemetry (no IP — privacy-first)
   const appVersion = req.headers.get("x-app-version") ?? null;
-  const ip = req.headers.get("x-forwarded-for") ?? null;
 
   try {
     await enforceRateLimit({
@@ -160,19 +176,28 @@ export async function authorize({
       windowMs,
       maxHits,
       appVersion,
-      ip,
     });
   } catch (error) {
-    if ((error as any).status === 429) {
+    const status = (error as any).status;
+
+    if (status === 403) {
+      return responseJson({
+        status: 403,
+        body: { error: (error as Error).message || "Forbidden" },
+      });
+    }
+
+    if (status === 429) {
       return responseJson({
         status: 429,
         body: { error: "Rate limit exceeded. Try again later." },
       });
     }
+
     console.error("[RateLimit] Unexpected error:", error);
     return responseJson({
       status: 500,
-      body: { error },
+      body: { error: "Internal server error" },
     });
   }
 

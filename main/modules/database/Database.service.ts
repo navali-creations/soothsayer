@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 
 import Database from "better-sqlite3";
@@ -532,8 +533,6 @@ class DatabaseService {
    * ⚠️ WARNING: This will delete ALL data!
    */
   public reset(): void {
-    const fs = require("node:fs");
-
     // Close the database connection
     this.kysely.destroy();
     this.db.close();

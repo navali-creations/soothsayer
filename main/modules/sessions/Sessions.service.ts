@@ -3,6 +3,14 @@ import { ipcMain } from "electron";
 import { DatabaseService } from "~/main/modules/database";
 import { SnapshotService } from "~/main/modules/snapshots";
 import { cleanWikiMarkup } from "~/main/utils/cleanWikiMarkup";
+import {
+  assertCardName,
+  assertGameType,
+  assertPage,
+  assertPageSize,
+  assertSessionId,
+  handleValidationError,
+} from "~/main/utils/ipc-validation";
 
 import type { DetailedDivinationCardStats } from "../../../types/data-stores";
 import { SessionsChannel } from "./Sessions.channels";
@@ -36,15 +44,30 @@ class SessionsService {
         game: "poe1" | "poe2",
         page: number = 1,
         pageSize: number = 20,
-      ): Promise<SessionsPageDTO> => {
-        return this.getAllSessions(game, page, pageSize);
+      ): Promise<SessionsPageDTO | { success: false; error: string }> => {
+        try {
+          assertGameType(game, SessionsChannel.GetAll);
+          const validatedPage = assertPage(page, SessionsChannel.GetAll);
+          const validatedPageSize = assertPageSize(
+            pageSize,
+            SessionsChannel.GetAll,
+          );
+          return this.getAllSessions(game, validatedPage, validatedPageSize);
+        } catch (error) {
+          return handleValidationError(error, SessionsChannel.GetAll);
+        }
       },
     );
 
     ipcMain.handle(
       SessionsChannel.GetById,
       async (_event, sessionId: string) => {
-        return this.getSessionById(sessionId);
+        try {
+          assertSessionId(sessionId, SessionsChannel.GetById);
+          return this.getSessionById(sessionId);
+        } catch (error) {
+          return handleValidationError(error, SessionsChannel.GetById);
+        }
       },
     );
 
@@ -56,8 +79,24 @@ class SessionsService {
         cardName: string,
         page: number = 1,
         pageSize: number = 20,
-      ): Promise<SessionsPageDTO> => {
-        return this.searchSessionsByCard(game, cardName, page, pageSize);
+      ): Promise<SessionsPageDTO | { success: false; error: string }> => {
+        try {
+          assertGameType(game, SessionsChannel.SearchByCard);
+          assertCardName(cardName, SessionsChannel.SearchByCard);
+          const validatedPage = assertPage(page, SessionsChannel.SearchByCard);
+          const validatedPageSize = assertPageSize(
+            pageSize,
+            SessionsChannel.SearchByCard,
+          );
+          return this.searchSessionsByCard(
+            game,
+            cardName,
+            validatedPage,
+            validatedPageSize,
+          );
+        } catch (error) {
+          return handleValidationError(error, SessionsChannel.SearchByCard);
+        }
       },
     );
   }

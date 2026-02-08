@@ -1,4 +1,5 @@
 import cardSeparator from "~/renderer/assets/poe1/Divination_card_separator.png";
+import { sanitizeHtml } from "~/renderer/sanitize";
 
 interface CardRewardFlavourProps {
   processedRewardHtml: string;
@@ -19,7 +20,9 @@ export function CardRewardFlavour({
         <div className="text-center text-white leading-tight">
           <div
             className="font-fontin poe-card-text"
-            dangerouslySetInnerHTML={{ __html: processedRewardHtml }}
+            dangerouslySetInnerHTML={{
+              __html: sanitizeHtml(processedRewardHtml),
+            }}
           />
         </div>
 
@@ -35,7 +38,9 @@ export function CardRewardFlavour({
           <div className="font-fontin text-center text-[rgb(175,96,37)] italic text-[17px] leading-tight">
             <div
               className="poe-card-text"
-              dangerouslySetInnerHTML={{ __html: flavourHtml }}
+              dangerouslySetInnerHTML={{
+                __html: sanitizeHtml(flavourHtml),
+              }}
             />
           </div>
         )}

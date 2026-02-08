@@ -1,7 +1,21 @@
-<!doctype html>
+<!DOCTYPE html>
 <html data-theme="coffee" style="background: transparent">
   <head>
     <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="
+        default-src 'self';
+        script-src 'self';
+        style-src 'self' 'unsafe-inline';
+        img-src 'self' data: https:;
+        connect-src 'self' https://*.supabase.co https://*.sentry.io;
+        font-src 'self' data:;
+        object-src 'none';
+        base-uri 'self';
+        form-action 'self';
+      "
+    />
     <title>Soothsayer Overlay</title>
     <style>
       /* Prevent white flash on overlay */
@@ -17,18 +31,12 @@
         height: 100vh;
       }
     </style>
-    <script type="module">
-      // Enable HMR for the overlay
-      if (import.meta.hot) {
-        import.meta.hot.accept(() => {
-          console.log("[Overlay] HMR update detected, reloading...");
-          location.reload();
-        });
-      }
-    </script>
   </head>
   <body>
     <div id="overlay-root"></div>
-    <script type="module" src="/renderer/modules/overlay/Overlay.page.tsx"></script>
+    <script
+      type="module"
+      src="/renderer/modules/overlay/Overlay.page.tsx"
+    ></script>
   </body>
 </html>

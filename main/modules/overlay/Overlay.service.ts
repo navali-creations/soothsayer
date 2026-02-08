@@ -7,6 +7,10 @@ import {
   SettingsKey,
   SettingsStoreService,
 } from "~/main/modules/settings-store";
+import {
+  assertInteger,
+  handleValidationError,
+} from "~/main/utils/ipc-validation";
 
 import { OverlayChannel } from "./Overlay.channels";
 
@@ -116,6 +120,7 @@ class OverlayService {
       webPreferences: {
         preload,
         nodeIntegration: false,
+        sandbox: true,
         contextIsolation: true,
         webSecurity: true,
       },
@@ -159,10 +164,25 @@ class OverlayService {
     });
 
     // Load overlay HTML
+    // Security: Restrict navigation in overlay window
+    this.overlayWindow.webContents.on("will-navigate", (event, url) => {
+      // Overlay should never navigate anywhere
+      console.warn(`[Security] Blocked overlay navigation to: ${url}`);
+      event.preventDefault();
+    });
+
+    // Security: Prevent new windows from overlay
+    this.overlayWindow.webContents.setWindowOpenHandler(({ url }) => {
+      console.warn(`[Security] Blocked overlay window.open for: ${url}`);
+      return { action: "deny" };
+    });
+
     if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
       const overlayUrl = `${MAIN_WINDOW_VITE_DEV_SERVER_URL}/overlay.html`;
       await this.overlayWindow.loadURL(overlayUrl);
-      this.overlayWindow.webContents.openDevTools({ mode: "detach" });
+      if (!app.isPackaged) {
+        this.overlayWindow.webContents.openDevTools({ mode: "detach" });
+      }
     } else {
       // In production, overlay.html is built alongside index.html
       const overlayHtml = join(
@@ -246,14 +266,38 @@ class OverlayService {
     ipcMain.handle(
       OverlayChannel.SetPosition,
       async (_event, x: number, y: number) => {
-        return this.setPosition(x, y);
+        try {
+          assertInteger(x, "x", OverlayChannel.SetPosition, {
+            min: -100_000,
+            max: 100_000,
+          });
+          assertInteger(y, "y", OverlayChannel.SetPosition, {
+            min: -100_000,
+            max: 100_000,
+          });
+          return this.setPosition(x, y);
+        } catch (error) {
+          return handleValidationError(error, OverlayChannel.SetPosition);
+        }
       },
     );
 
     ipcMain.handle(
       OverlayChannel.SetSize,
       async (_event, width: number, height: number) => {
-        return this.setSize(width, height);
+        try {
+          assertInteger(width, "width", OverlayChannel.SetSize, {
+            min: 1,
+            max: 100_000,
+          });
+          assertInteger(height, "height", OverlayChannel.SetSize, {
+            min: 1,
+            max: 100_000,
+          });
+          return this.setSize(width, height);
+        } catch (error) {
+          return handleValidationError(error, OverlayChannel.SetSize);
+        }
       },
     );
 
