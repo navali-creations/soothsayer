@@ -168,12 +168,21 @@ class MainWindowService {
       }
     });
 
-    // Security: Prevent new windows from being opened — open external links in the OS browser instead
+    // Security: Only allow opening URLs from a strict allowlist in the OS browser
+    const allowedExternalUrls = [
+      "https://www.pathofexile.com/oauth/authorize",
+      "https://discord.gg/",
+      "https://discord.com/",
+      "https://github.com/navali-creations",
+    ];
+
     this.mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-      if (url.startsWith("https://") || url.startsWith("http://")) {
+      if (allowedExternalUrls.some((allowed) => url.startsWith(allowed))) {
         shell.openExternal(url);
       } else {
-        console.warn(`[Security] Blocked window.open for non-HTTP URL: ${url}`);
+        console.warn(
+          `[Security] Blocked window.open for non-allowlisted URL: ${url}`,
+        );
       }
       return { action: "deny" };
     });

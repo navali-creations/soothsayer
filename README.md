@@ -68,7 +68,11 @@ Your `.env` file contains production Supabase credentials:
 
 ```env
 VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your_service_role_jwt_here
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key_here
+VITE_UMAMI_ID="be4ac602-55bb-4958-96df-819d3dd33abe"
+SENTRY_AUTH_TOKEN=
+SENTRY_DSN="https://<dsn>.ingest.de.sentry.io/<projectId>"
+
 ```
 
 - With Supabase stopped, `pnpm start` uses these production credentials
