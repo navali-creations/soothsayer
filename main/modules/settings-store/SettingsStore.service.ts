@@ -58,7 +58,7 @@ class SettingsStoreService {
         } catch (error) {
           return handleValidationError(error, SettingsStoreChannel.GetSetting);
         }
-      }
+      },
     );
 
     ipcMain.handle(
@@ -66,7 +66,7 @@ class SettingsStoreService {
       async <K extends keyof UserSettingsDTO>(
         _event: IpcMainInvokeEvent,
         key: K,
-        value: UserSettingsDTO[K]
+        value: UserSettingsDTO[K],
       ) => {
         const ch = SettingsStoreChannel.SetSetting;
         try {
@@ -74,7 +74,7 @@ class SettingsStoreService {
           if (value === undefined) {
             throw new IpcValidationError(
               ch,
-              `Value for setting "${key}" cannot be undefined`
+              `Value for setting "${key}" cannot be undefined`,
             );
           }
           // Validate value type based on the specific key to prevent
@@ -127,7 +127,7 @@ class SettingsStoreService {
                 if (typeof value !== "object") {
                   throw new IpcValidationError(
                     ch,
-                    `Expected "overlayBounds" to be an object or null, got ${typeof value}`
+                    `Expected "overlayBounds" to be an object or null, got ${typeof value}`,
                   );
                 }
                 const bounds = value as Record<string, unknown>;
@@ -156,7 +156,7 @@ class SettingsStoreService {
         } catch (error) {
           return handleValidationError(error, ch);
         }
-      }
+      },
     );
 
     // Client paths
@@ -173,10 +173,10 @@ class SettingsStoreService {
         } catch (error) {
           return handleValidationError(
             error,
-            SettingsStoreChannel.SetPoe1ClientPath
+            SettingsStoreChannel.SetPoe1ClientPath,
           );
         }
-      }
+      },
     );
 
     ipcMain.handle(SettingsStoreChannel.GetPoe2ClientPath, async () => {
@@ -192,10 +192,10 @@ class SettingsStoreService {
         } catch (error) {
           return handleValidationError(
             error,
-            SettingsStoreChannel.SetPoe2ClientPath
+            SettingsStoreChannel.SetPoe2ClientPath,
           );
         }
-      }
+      },
     );
 
     // App exit behavior
@@ -212,10 +212,10 @@ class SettingsStoreService {
         } catch (error) {
           return handleValidationError(
             error,
-            SettingsStoreChannel.SetAppExitBehavior
+            SettingsStoreChannel.SetAppExitBehavior,
           );
         }
-      }
+      },
     );
 
     // Launch on startup
@@ -230,16 +230,16 @@ class SettingsStoreService {
           assertBoolean(
             enabled,
             "enabled",
-            SettingsStoreChannel.SetLaunchOnStartup
+            SettingsStoreChannel.SetLaunchOnStartup,
           );
           await this.repository.setAppOpenAtLogin(enabled);
         } catch (error) {
           return handleValidationError(
             error,
-            SettingsStoreChannel.SetLaunchOnStartup
+            SettingsStoreChannel.SetLaunchOnStartup,
           );
         }
-      }
+      },
     );
 
     // Start minimized
@@ -254,16 +254,16 @@ class SettingsStoreService {
           assertBoolean(
             enabled,
             "enabled",
-            SettingsStoreChannel.SetStartMinimized
+            SettingsStoreChannel.SetStartMinimized,
           );
           await this.repository.setAppOpenAtLoginMinimized(enabled);
         } catch (error) {
           return handleValidationError(
             error,
-            SettingsStoreChannel.SetStartMinimized
+            SettingsStoreChannel.SetStartMinimized,
           );
         }
-      }
+      },
     );
 
     // Active game
@@ -280,10 +280,10 @@ class SettingsStoreService {
         } catch (error) {
           return handleValidationError(
             error,
-            SettingsStoreChannel.SetActiveGame
+            SettingsStoreChannel.SetActiveGame,
           );
         }
-      }
+      },
     );
 
     // Installed games
@@ -300,10 +300,10 @@ class SettingsStoreService {
         } catch (error) {
           return handleValidationError(
             error,
-            SettingsStoreChannel.SetInstalledGames
+            SettingsStoreChannel.SetInstalledGames,
           );
         }
-      }
+      },
     );
 
     // Selected PoE1 league
@@ -318,16 +318,16 @@ class SettingsStoreService {
           assertString(
             leagueId,
             "leagueId",
-            SettingsStoreChannel.SetSelectedPoe1League
+            SettingsStoreChannel.SetSelectedPoe1League,
           );
           await this.repository.setPoe1SelectedLeague(leagueId);
         } catch (error) {
           return handleValidationError(
             error,
-            SettingsStoreChannel.SetSelectedPoe1League
+            SettingsStoreChannel.SetSelectedPoe1League,
           );
         }
-      }
+      },
     );
 
     // Selected PoE2 league
@@ -342,16 +342,16 @@ class SettingsStoreService {
           assertString(
             leagueId,
             "leagueId",
-            SettingsStoreChannel.SetSelectedPoe2League
+            SettingsStoreChannel.SetSelectedPoe2League,
           );
           await this.repository.setPoe2SelectedLeague(leagueId);
         } catch (error) {
           return handleValidationError(
             error,
-            SettingsStoreChannel.SetSelectedPoe2League
+            SettingsStoreChannel.SetSelectedPoe2League,
           );
         }
-      }
+      },
     );
 
     // Selected PoE1 price source
@@ -359,7 +359,7 @@ class SettingsStoreService {
       SettingsStoreChannel.GetSelectedPoe1PriceSource,
       async () => {
         return this.repository.getPoe1PriceSource();
-      }
+      },
     );
 
     ipcMain.handle(
@@ -368,16 +368,16 @@ class SettingsStoreService {
         try {
           assertPriceSource(
             source,
-            SettingsStoreChannel.SetSelectedPoe1PriceSource
+            SettingsStoreChannel.SetSelectedPoe1PriceSource,
           );
           await this.repository.setPoe1PriceSource(source);
         } catch (error) {
           return handleValidationError(
             error,
-            SettingsStoreChannel.SetSelectedPoe1PriceSource
+            SettingsStoreChannel.SetSelectedPoe1PriceSource,
           );
         }
-      }
+      },
     );
 
     // Selected PoE2 price source
@@ -385,7 +385,7 @@ class SettingsStoreService {
       SettingsStoreChannel.GetSelectedPoe2PriceSource,
       async () => {
         return this.repository.getPoe2PriceSource();
-      }
+      },
     );
 
     ipcMain.handle(
@@ -394,16 +394,16 @@ class SettingsStoreService {
         try {
           assertPriceSource(
             source,
-            SettingsStoreChannel.SetSelectedPoe2PriceSource
+            SettingsStoreChannel.SetSelectedPoe2PriceSource,
           );
           await this.repository.setPoe2PriceSource(source);
         } catch (error) {
           return handleValidationError(
             error,
-            SettingsStoreChannel.SetSelectedPoe2PriceSource
+            SettingsStoreChannel.SetSelectedPoe2PriceSource,
           );
         }
-      }
+      },
     );
 
     // Database management — requires native OS confirmation dialog
@@ -449,7 +449,7 @@ class SettingsStoreService {
    * Get a setting value by key
    */
   public async get<K extends keyof UserSettingsDTO>(
-    key: K
+    key: K,
   ): Promise<UserSettingsDTO[K]> {
     return this.repository.get(key);
   }
@@ -459,7 +459,7 @@ class SettingsStoreService {
    */
   public async set<K extends keyof UserSettingsDTO>(
     key: K,
-    value: UserSettingsDTO[K]
+    value: UserSettingsDTO[K],
   ): Promise<void> {
     await this.repository.set(key, value);
   }

@@ -226,7 +226,7 @@ class DivinationCardsService {
         DivinationCardDTO | null | { success: false; error: string }
       > => {
         try {
-          assertBoundedString(id, "id", DivinationCardsChannel.GetById, 512);
+          assertBoundedString(id, "id", DivinationCardsChannel.GetById, 40);
           // Extract game from id (format: "poe1_card-name" or "poe2_card-name")
           const game = id.startsWith("poe1_") ? "poe1" : "poe2";
           const leagueKey =
@@ -257,7 +257,7 @@ class DivinationCardsService {
             name,
             "name",
             DivinationCardsChannel.GetByName,
-            256,
+            40,
           );
           const leagueKey =
             game === "poe1"
@@ -287,7 +287,7 @@ class DivinationCardsService {
             query,
             "query",
             DivinationCardsChannel.SearchByName,
-            256,
+            40,
           );
           const leagueKey =
             game === "poe1"
