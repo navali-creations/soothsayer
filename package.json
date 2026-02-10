@@ -74,7 +74,7 @@
     "@types/electron-squirrel-startup": "^1.0.2",
     "@types/react": "^19.2.13",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^5.1.1",
+    "@vitejs/plugin-react": "^5.1.4",
     "@vitest/coverage-v8": "^4.0.18",
     "@vitest/ui": "^4.0.18",
     "clsx": "^2.1.1",
@@ -95,7 +95,7 @@
     "tailwindcss": "^4.1.17",
     "typescript": "^5.9.3",
     "update-electron-app": "^3.1.2",
-    "vite": "^5.4.21",
+    "vite": "^7.3.1",
     "vite-plugin-externalize-deps": "^0.10.0",
     "vitest": "^4.0.18",
     "zustand": "^5.0.11"
