@@ -4,8 +4,9 @@ Path of Exile divination card tracker
 
 ## Requirements
 
-- Node.js 18+
-- Docker Desktop
+- Node.js >= 22
+- pnpm >= 10
+- docker
 
 ## Development
 
@@ -93,21 +94,7 @@ pnpx supabase functions deploy
 
 ## Troubleshooting
 
-### Malwarebytes Blocking Edge Functions
-
-If Supabase fails to start with errors about `deno.land` being unreachable:
-
-```
-Import 'https://deno.land/std/http/status.ts' failed: Network is unreachable
-```
-
-**Cause:** Malwarebytes Web Protection blocks `deno.land` as a false positive and redirects it to `127.236.0.2`, breaking Docker containers.
-
-**Solution:** Disable Malwarebytes Web Protection while developing locally:
-1. Open Malwarebytes → **Settings** → **Web Protection** → Toggle **Off**
-2. Restart Supabase: `pnpm supabase:stop && pnpm supabase:start`
-
-**Note:** `deno.land` is the official Deno runtime package registry used by Supabase Edge Functions. The threat detection is a false positive.
+See [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
 ## License
 
