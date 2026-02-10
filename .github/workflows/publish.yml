@@ -49,10 +49,11 @@ jobs:
           fi
 
   make:
-    name: Make (${{ matrix.os }})
+    name: Build (${{ matrix.os }})
     needs: check-version
     if: needs.check-version.outputs.should_publish == 'true'
     strategy:
+      fail-fast: true
       matrix:
         os: [windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
@@ -69,8 +70,25 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - name: Install dependencies
-        run: pnpm install
+      # Skip all lifecycle scripts during install to avoid supabase CLI
+      # download failures on Windows (not needed for building the app)
+      - name: Install dependencies (skip lifecycle scripts)
+        run: pnpm install --ignore-scripts
+
+      # Rebuild only the packages needed for building the Electron app
+      - name: Rebuild required dependencies
+        run: pnpm rebuild better-sqlite3 electron esbuild
+
+      # electron-winstaller needs its install script to select the correct
+      # 7z binary for Squirrel packaging
+      - name: Rebuild Windows-specific dependencies
+        if: runner.os == 'Windows'
+        run: pnpm rebuild electron-winstaller
+
+      # Run root postinstall: electron-rebuild -f -w better-sqlite3
+      # This rebuilds better-sqlite3 for the Electron ABI (required for packaging)
+      - name: Rebuild better-sqlite3 for Electron ABI
+        run: pnpm run postinstall
 
       - name: Create .env file
         run: |
@@ -79,8 +97,33 @@ jobs:
 
       - name: Make distributables
         run: pnpm make
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
-      - name: Publish to GitHub
-        run: pnpm publish
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: distributables-${{ matrix.os }}
+          path: out/make/**/*
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub Release
+    needs: [check-version, make]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.check-version.outputs.version }}
+          name: soothsayer v${{ needs.check-version.outputs.version }}
+          files: artifacts/**/*
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

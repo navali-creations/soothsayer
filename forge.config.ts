@@ -12,6 +12,7 @@ const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
     prune: true,
+    executableName: "soothsayer",
     icon: "./renderer/assets/logo/windows/icon",
     extraResource: ["./renderer/assets/logo"],
     ignore: (file: string) => {
