@@ -206,8 +206,26 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Start Supabase
-        run: pnpx supabase start
+      - name: Cache Supabase Docker images
+        id: cache-supabase-images
+        uses: actions/cache@v4
+        with:
+          path: /tmp/supabase-docker-images.tar.zst
+          key: supabase-docker-v1-${{ hashFiles('pnpm-lock.yaml', 'supabase/config.toml') }}
+          restore-keys: |
+            supabase-docker-v1-
+
+      - name: Load cached Docker images
+        if: steps.cache-supabase-images.outputs.cache-hit == 'true'
+        run: zstd -d /tmp/supabase-docker-images.tar.zst --stdout | docker load
+
+      - name: Start Supabase (DB only)
+        run: pnpx supabase start -x gotrue,realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor,inbucket,pg_meta
+
+      - name: Save Docker images for cache
+        if: steps.cache-supabase-images.outputs.cache-hit != 'true'
+        run: |
+          docker images --format '{{.Repository}}:{{.Tag}}' | grep -v '<none>' | grep -E 'supabase|postgres' | xargs docker save | zstd -o /tmp/supabase-docker-images.tar.zst
 
       - name: Run database tests
         run: pnpx supabase test db
