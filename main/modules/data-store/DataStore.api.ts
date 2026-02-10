@@ -8,8 +8,8 @@ const DataStoreAPI = {
   getLeague: (game: "poe1" | "poe2", league: string) =>
     ipcRenderer.invoke(DataStoreChannel.GetLeagueStats, game, league),
   getLeagues: (game: "poe1" | "poe2") =>
-    ipcRenderer.invoke("data-store:get-leagues", game),
-  getGlobal: () => ipcRenderer.invoke("data-store:get-global"),
+    ipcRenderer.invoke(DataStoreChannel.GetLeagues, game),
+  getGlobal: () => ipcRenderer.invoke(DataStoreChannel.GetGlobal),
 };
 
 export { DataStoreAPI };

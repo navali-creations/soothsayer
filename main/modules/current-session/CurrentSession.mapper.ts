@@ -1,3 +1,5 @@
+import type { Selectable } from "kysely";
+
 import type {
   SessionSummariesTable,
   SessionsRow,
@@ -86,7 +88,9 @@ export class CurrentSessionMapper {
   /**
    * Convert database session summary row to DTO
    */
-  static toSessionSummaryDTO(row: SessionSummariesTable): SessionSummaryDTO {
+  static toSessionSummaryDTO(
+    row: Selectable<SessionSummariesTable>,
+  ): SessionSummaryDTO {
     return {
       sessionId: row.session_id,
       game: row.game as GameType,

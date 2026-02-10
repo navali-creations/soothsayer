@@ -1,0 +1,74 @@
+{
+  "version": "5",
+  "specifiers": {
+    "jsr:@supabase/functions-js@*": "2.95.3",
+    "jsr:@supabase/functions-js@2.4.4": "2.4.4"
+  },
+  "jsr": {
+    "@supabase/functions-js@2.4.4": {
+      "integrity": "38456509a6e22fb116b118464cbb36357256f9048d3580632b63af91f63769f7"
+    },
+    "@supabase/functions-js@2.95.3": {
+      "integrity": "cedb60df283f2d9dabf39655a8829f2c99d173e5e11a867c46e6987c59a1d582"
+    }
+  },
+  "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:@biomejs/biome@2.3.12",
+        "npm:@changesets/cli@^2.29.8",
+        "npm:@electron-forge/cli@^7.10.2",
+        "npm:@electron-forge/maker-deb@^7.10.2",
+        "npm:@electron-forge/maker-rpm@^7.10.2",
+        "npm:@electron-forge/maker-squirrel@^7.10.2",
+        "npm:@electron-forge/maker-zip@^7.10.2",
+        "npm:@electron-forge/plugin-auto-unpack-natives@^7.10.2",
+        "npm:@electron-forge/plugin-fuses@^7.10.2",
+        "npm:@electron-forge/plugin-vite@^7.10.2",
+        "npm:@electron-forge/publisher-github@^7.10.2",
+        "npm:@electron/fuses@^1.8.0",
+        "npm:@electron/rebuild@^4.0.3",
+        "npm:@redux-devtools/extension@^3.3.0",
+        "npm:@repere/react@~0.3.2",
+        "npm:@sentry/electron@^7.6.0",
+        "npm:@sentry/vite-plugin@^4.7.0",
+        "npm:@supabase/supabase-js@^2.90.1",
+        "npm:@tailwindcss/vite@^4.1.17",
+        "npm:@tanstack/react-router-devtools@^1.139.11",
+        "npm:@tanstack/react-router@^1.139.11",
+        "npm:@tanstack/react-table@^8.21.3",
+        "npm:@tanstack/router-plugin@^1.139.11",
+        "npm:@types/better-sqlite3@^7.6.13",
+        "npm:@types/electron-squirrel-startup@^1.0.2",
+        "npm:@types/react-dom@^19.2.3",
+        "npm:@types/react@^19.2.7",
+        "npm:@vitejs/plugin-react@^5.1.1",
+        "npm:@vitest/coverage-v8@^4.0.18",
+        "npm:@vitest/ui@^4.0.18",
+        "npm:better-sqlite3@^12.6.2",
+        "npm:clsx@^2.1.1",
+        "npm:daisyui@^5.5.5",
+        "npm:dompurify@^3.3.1",
+        "npm:electron-devtools-installer@4",
+        "npm:electron-squirrel-startup@^1.0.1",
+        "npm:electron-store@^11.0.2",
+        "npm:electron@40.0.0",
+        "npm:immer@^11.0.1",
+        "npm:kysely@~0.28.8",
+        "npm:motion@^12.23.26",
+        "npm:react-dom@^19.2.3",
+        "npm:react-icons@^5.5.0",
+        "npm:react@^19.2.3",
+        "npm:supabase@^2.74.5",
+        "npm:tailwind-merge@^3.4.0",
+        "npm:tailwindcss@^4.1.17",
+        "npm:typescript@^5.9.3",
+        "npm:update-electron-app@^3.1.2",
+        "npm:vite-plugin-externalize-deps@0.10",
+        "npm:vite@^5.4.21",
+        "npm:vitest@^4.0.18",
+        "npm:zustand@^5.0.9"
+      ]
+    }
+  }
+}

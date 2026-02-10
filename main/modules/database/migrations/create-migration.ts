@@ -25,7 +25,7 @@ import { fileURLToPath } from "node:url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-function createMigration(description: string): void {
+export function createMigration(description: string): void {
   if (!description) {
     console.error("❌ Error: Migration description is required\n");
     console.log("Usage:");
@@ -181,17 +181,29 @@ export const ${variableName}: Migration = {
   }
 }
 
-// Main execution
-const args = process.argv.slice(2);
-const description = args[0];
+// Main execution — only runs when the script is executed directly, not when imported
+export function main(): void {
+  const args = process.argv.slice(2);
+  const description = args[0];
 
-if (!description) {
-  console.error("❌ Error: No description provided\n");
-  console.log("Usage:");
-  console.log("  npm run migration:create <description>");
-  console.log("\nExample:");
-  console.log("  npm run migration:create add_user_preferences\n");
-  process.exit(1);
+  if (!description) {
+    console.error("❌ Error: No description provided\n");
+    console.log("Usage:");
+    console.log("  pnpm migration:create <description>");
+    console.log("\nExample:");
+    console.log("  pnpm migration:create add_user_preferences\n");
+    process.exit(1);
+  }
+
+  createMigration(description);
 }
 
-createMigration(description);
+// Guard: only execute when run directly as a script (not when imported by tests/other modules)
+const isDirectExecution =
+  process.argv[1] &&
+  (process.argv[1] === __filename ||
+    process.argv[1] === fileURLToPath(import.meta.url));
+
+if (isDirectExecution) {
+  main();
+}

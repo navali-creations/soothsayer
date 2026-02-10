@@ -75,17 +75,20 @@ class DataStoreService {
     );
 
     // Get available leagues
-    ipcMain.handle("data-store:get-leagues", async (_event, game: GameType) => {
-      try {
-        assertGameType(game, "data-store:get-leagues");
-        return this.getAvailableLeagues(game);
-      } catch (error) {
-        return handleValidationError(error, "data-store:get-leagues");
-      }
-    });
+    ipcMain.handle(
+      DataStoreChannel.GetLeagues,
+      async (_event, game: GameType) => {
+        try {
+          assertGameType(game, DataStoreChannel.GetLeagues);
+          return this.getAvailableLeagues(game);
+        } catch (error) {
+          return handleValidationError(error, DataStoreChannel.GetLeagues);
+        }
+      },
+    );
 
     // Get global stats
-    ipcMain.handle("data-store:get-global", async () => {
+    ipcMain.handle(DataStoreChannel.GetGlobal, async () => {
       return this.getGlobalStats();
     });
   }

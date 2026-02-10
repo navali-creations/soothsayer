@@ -26,7 +26,18 @@
     "supabase:stop": "bash scripts/stop-local-dev.sh",
     "supabase:sync": "bash scripts/sync-data.sh",
     "supabase:logs": "pnpx supabase functions serve --inspect-mode=run",
-    "supabase:functions:serve": "pnpx supabase functions serve"
+    "supabase:functions:serve": "pnpx supabase functions serve",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage",
+    "test:db": "bash scripts/test-db.sh",
+    "test:edge": "bash scripts/test-edge.sh",
+    "test:all": "pnpm test && pnpm test:db && pnpm test:edge"
+  },
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=10"
   },
   "packageManager": "pnpm@10.28.0",
   "keywords": [],
@@ -63,6 +74,8 @@
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
+    "@vitest/coverage-v8": "^4.0.18",
+    "@vitest/ui": "^4.0.18",
     "clsx": "^2.1.1",
     "daisyui": "^5.5.5",
     "dompurify": "^3.3.1",
@@ -83,6 +96,7 @@
     "update-electron-app": "^3.1.2",
     "vite": "^5.4.21",
     "vite-plugin-externalize-deps": "^0.10.0",
+    "vitest": "^4.0.18",
     "zustand": "^5.0.9"
   },
   "dependencies": {

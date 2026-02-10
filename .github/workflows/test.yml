@@ -1,0 +1,76 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+env:
+  CI: true
+
+jobs:
+  test-unit:
+    name: Unit Tests (Vitest)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Run unit tests
+        run: pnpm test
+
+  test-edge:
+    name: Edge Function Tests (Deno)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Run edge function tests
+        run: deno test --allow-all --config supabase/functions/deno.json supabase/functions/tests/
+
+  test-db:
+    name: Database Tests (pgTAP)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Start Supabase
+        run: pnpx supabase start
+
+      - name: Run database tests
+        run: pnpx supabase test db
+
+      - name: Stop Supabase
+        if: always()
+        run: pnpx supabase stop --no-backup

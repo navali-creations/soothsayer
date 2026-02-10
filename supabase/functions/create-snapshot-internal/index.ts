@@ -233,8 +233,9 @@ Deno.serve(async (req) => {
         },
       },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Error in create-snapshot-internal:", error);
-    return responseJson({ status: 500, body: { error: error.message } });
+    const message = error instanceof Error ? error.message : String(error);
+    return responseJson({ status: 500, body: { error: message } });
   }
 });

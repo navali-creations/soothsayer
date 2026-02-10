@@ -159,11 +159,10 @@ Deno.serve(async (req) => {
       const { error: deactivatePoe1Error, count: poe1DeactivatedCount } =
         await supabase
           .from("poe_leagues")
-          .update({ is_active: false })
+          .update({ is_active: false }, { count: "exact" })
           .eq("game", "poe1")
           .eq("is_active", true)
-          .not("league_id", "in", `(${poe1LeagueIds.join(",")})`)
-          .select("id", { count: "exact", head: true });
+          .not("league_id", "in", `(${poe1LeagueIds.join(",")})`);
 
       if (deactivatePoe1Error) {
         console.error(
@@ -180,11 +179,10 @@ Deno.serve(async (req) => {
       const { error: deactivatePoe2Error, count: poe2DeactivatedCount } =
         await supabase
           .from("poe_leagues")
-          .update({ is_active: false })
+          .update({ is_active: false }, { count: "exact" })
           .eq("game", "poe2")
           .eq("is_active", true)
-          .not("league_id", "in", `(${poe2LeagueIds.join(",")})`)
-          .select("id", { count: "exact", head: true });
+          .not("league_id", "in", `(${poe2LeagueIds.join(",")})`);
 
       if (deactivatePoe2Error) {
         console.error(
@@ -212,7 +210,8 @@ Deno.serve(async (req) => {
     );
   } catch (error) {
     console.error("Error in sync-leagues-legacy-internal:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    const message = error instanceof Error ? error.message : String(error);
+    return new Response(JSON.stringify({ error: message }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
     });
