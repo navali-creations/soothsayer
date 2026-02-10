@@ -60,7 +60,7 @@ class AppSetupService {
         } catch (error) {
           return handleValidationError(error, AppSetupChannel.GoToStep);
         }
-      }
+      },
     );
 
     // Validate current step
@@ -192,7 +192,7 @@ class AppSetupService {
         errors.push("Please select Path of Exile 1 Client.txt path");
       } else if (!this.isValidClientPath(poe1Path)) {
         errors.push(
-          "Path of Exile 1 Client.txt path is invalid or file does not exist"
+          "Path of Exile 1 Client.txt path is invalid or file does not exist",
         );
       }
     }
@@ -202,7 +202,7 @@ class AppSetupService {
         errors.push("Please select Path of Exile 2 Client.txt path");
       } else if (!this.isValidClientPath(poe2Path)) {
         errors.push(
-          "Path of Exile 2 Client.txt path is invalid or file does not exist"
+          "Path of Exile 2 Client.txt path is invalid or file does not exist",
         );
       }
     }
@@ -272,7 +272,7 @@ class AppSetupService {
    * Go to a specific setup step
    */
   public async goToStep(
-    step: SetupStep
+    step: SetupStep,
   ): Promise<{ success: boolean; error?: string }> {
     const currentStep = await this.settingsStore.get("setupStep");
 
