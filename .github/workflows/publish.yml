@@ -1,11 +1,10 @@
 name: Publish
 
 on:
-  push:
-    branches:
-      - master
-    paths:
-      - "package.json"
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [master]
   workflow_dispatch:
 
 permissions:
@@ -18,6 +17,9 @@ jobs:
   check-version:
     name: Check if version changed
     runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
     outputs:
       should_publish: ${{ steps.check.outputs.should_publish }}
       version: ${{ steps.check.outputs.version }}
@@ -48,77 +50,9 @@ jobs:
             echo "should_publish=false" >> $GITHUB_OUTPUT
           fi
 
-  check:
-    name: Lint
-    needs: check-version
-    if: needs.check-version.outputs.should_publish == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code repository
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: "pnpm"
-
-      - name: Get pnpm store directory
-        shell: bash
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Cache node_modules
-        uses: actions/cache@v4
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-node-modules-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-node-modules-
-
-      - name: Install dependencies
-        run: pnpm install
-
-      - name: Run Biome checks
-        run: pnpm check
-
-  typecheck:
-    name: Typecheck
-    needs: check-version
-    if: needs.check-version.outputs.should_publish == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code repository
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: "pnpm"
-
-      - name: Cache node_modules
-        uses: actions/cache@v4
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-node-modules-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-node-modules-
-
-      - name: Install dependencies
-        run: pnpm install
-
-      - name: Run type checks
-        run: pnpm typecheck
-
   make:
     name: Make (${{ matrix.os }})
-    needs: [check-version, check, typecheck]
+    needs: check-version
     if: needs.check-version.outputs.should_publish == 'true'
     strategy:
       matrix:
@@ -134,16 +68,8 @@ jobs:
       - name: Setup node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: "pnpm"
-
-      - name: Cache node_modules
-        uses: actions/cache@v4
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-node-modules-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-node-modules-
+          node-version: 22
+          cache: pnpm
 
       - name: Install dependencies
         run: pnpm install
