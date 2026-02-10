@@ -70,7 +70,7 @@ Your `.env` file contains production Supabase credentials:
 ```env
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key_here
-VITE_UMAMI_ID="your_umami_website_id_here"
+VITE_UMAMI_ID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 SENTRY_AUTH_TOKEN=
 SENTRY_DSN="https://<dsn>.ingest.de.sentry.io/<projectId>"
 

@@ -60,7 +60,7 @@ typings/
 
 # dotenv environment variables file
 .env
-.env*
+.env.local
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
@@ -97,8 +97,5 @@ out/
 .idea
 
 .claude
-
-# Sentry Config File
-.env.sentry-build-plugin
 
 *timestamp*
