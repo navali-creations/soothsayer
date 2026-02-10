@@ -1,5 +1,0 @@
----
-"soothsayer": patch
----
-
-Initial release.
