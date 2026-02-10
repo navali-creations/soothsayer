@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // ─── Hoisted mock functions (available inside vi.mock factories) ─────────────
 const {
   mockAppGetPath,
+  mockAppIsPackaged,
   mockDbClose,
   mockDbPragma,
   mockDbExec,
@@ -16,6 +17,7 @@ const {
   mockFsUnlinkSync,
 } = vi.hoisted(() => ({
   mockAppGetPath: vi.fn(() => "/mock-user-data"),
+  mockAppIsPackaged: { value: false },
   mockDbClose: vi.fn(),
   mockDbPragma: vi.fn(),
   mockDbExec: vi.fn(),
@@ -81,6 +83,9 @@ vi.mock("kysely", () => {
 vi.mock("electron", () => ({
   app: {
     getPath: mockAppGetPath,
+    get isPackaged() {
+      return mockAppIsPackaged.value;
+    },
   },
   ipcMain: {
     handle: vi.fn(),
@@ -138,9 +143,10 @@ describe("DatabaseService", () => {
     vi.clearAllMocks();
     dbInstances = [];
 
-    // Reset singleton
+    // Reset singleton and isPackaged
     // @ts-expect-error — accessing private static for testing
     DatabaseService._instance = undefined;
+    mockAppIsPackaged.value = false;
 
     // Reset mocks that may have had their implementation changed (e.g., by migration error tests)
     mockMigrationRunnerRunMigrations.mockReset();
@@ -200,10 +206,14 @@ describe("DatabaseService", () => {
     it("should create a better-sqlite3 Database with the correct path", () => {
       DatabaseService.getInstance();
 
+      // Default env is remote Supabase + not packaged → soothsayer.db
       expect(mockDatabaseConstructor).toHaveBeenCalledWith(
         expect.stringContaining("soothsayer.db"),
         expect.any(Object),
       );
+      const dbPath = mockDatabaseConstructor.mock.calls[0][0];
+      expect(dbPath).not.toContain("local");
+      expect(dbPath).not.toContain("prod");
     });
 
     it("should enable WAL mode", () => {
@@ -300,7 +310,33 @@ describe("DatabaseService", () => {
   // ─── Database filename based on environment ──────────────────────────────
 
   describe("database filename", () => {
-    it("should use soothsayer.db for production Supabase URL", () => {
+    it("should use soothsayer.local.db for local Supabase URL (localhost)", () => {
+      vi.stubEnv("VITE_SUPABASE_URL", "http://localhost:54321");
+
+      // @ts-expect-error
+      DatabaseService._instance = undefined;
+      DatabaseService.getInstance();
+
+      expect(mockDatabaseConstructor).toHaveBeenCalledWith(
+        expect.stringContaining("soothsayer.local.db"),
+        expect.any(Object),
+      );
+    });
+
+    it("should use soothsayer.local.db for local Supabase URL (127.0.0.1)", () => {
+      vi.stubEnv("VITE_SUPABASE_URL", "http://127.0.0.1:54321");
+
+      // @ts-expect-error
+      DatabaseService._instance = undefined;
+      DatabaseService.getInstance();
+
+      expect(mockDatabaseConstructor).toHaveBeenCalledWith(
+        expect.stringContaining("soothsayer.local.db"),
+        expect.any(Object),
+      );
+    });
+
+    it("should use soothsayer.db for remote Supabase URL when not packaged", () => {
       vi.stubEnv("VITE_SUPABASE_URL", "https://project.supabase.co");
 
       // @ts-expect-error
@@ -311,9 +347,38 @@ describe("DatabaseService", () => {
         expect.stringContaining("soothsayer.db"),
         expect.any(Object),
       );
-      // Should NOT contain "local"
       const dbPath = mockDatabaseConstructor.mock.calls[0][0];
       expect(dbPath).not.toContain("local");
+      expect(dbPath).not.toContain("prod");
+    });
+
+    it("should use soothsayer.prod.db for remote Supabase URL when packaged", () => {
+      vi.stubEnv("VITE_SUPABASE_URL", "https://project.supabase.co");
+      mockAppIsPackaged.value = true;
+
+      // @ts-expect-error
+      DatabaseService._instance = undefined;
+      DatabaseService.getInstance();
+
+      expect(mockDatabaseConstructor).toHaveBeenCalledWith(
+        expect.stringContaining("soothsayer.prod.db"),
+        expect.any(Object),
+      );
+    });
+
+    it("should use soothsayer.local.db even when packaged if Supabase URL is local", () => {
+      vi.stubEnv("VITE_SUPABASE_URL", "http://localhost:54321");
+      mockAppIsPackaged.value = true;
+
+      // @ts-expect-error
+      DatabaseService._instance = undefined;
+      DatabaseService.getInstance();
+
+      // Local Supabase always wins regardless of isPackaged
+      expect(mockDatabaseConstructor).toHaveBeenCalledWith(
+        expect.stringContaining("soothsayer.local.db"),
+        expect.any(Object),
+      );
     });
   });
 
@@ -658,7 +723,7 @@ describe("DatabaseService", () => {
       const service = DatabaseService.getInstance();
       expect(service).toBeInstanceOf(DatabaseService);
 
-      // 2. Get path
+      // 2. Get path (not packaged + remote URL → soothsayer.db)
       const dbPath = service.getPath();
       expect(dbPath).toContain("soothsayer.db");
 
@@ -738,6 +803,7 @@ describe("DatabaseService", () => {
       // Should only unlink the main db file
       const unlinkCalls = mockFsUnlinkSync.mock.calls.map(([p]: [string]) => p);
       expect(unlinkCalls).toHaveLength(1);
+      // Not packaged + remote URL → soothsayer.db
       expect(unlinkCalls[0]).toContain("soothsayer.db");
     });
 
@@ -750,6 +816,7 @@ describe("DatabaseService", () => {
 
       const dbPath = service.getPath();
       expect(dbPath).toContain("some user");
+      // Not packaged + remote URL → soothsayer.db
       expect(dbPath).toContain("soothsayer.db");
     });
 

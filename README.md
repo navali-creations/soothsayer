@@ -63,6 +63,18 @@ pnpx supabase stop --no-backup
 - After stopping, `pnpm start` will use production credentials from `.env`
 - This allows seamless switching between local development and production testing
 
+**SQLite databases:**
+
+The app uses separate SQLite databases to keep data isolated between environments:
+
+| Database | When used | Scenario |
+|---|---|---|
+| `soothsayer.local.db` | Supabase URL is `localhost` / `127.0.0.1` | `pnpm dev` with local Supabase |
+| `soothsayer.db` | Remote Supabase URL + app not packaged | `pnpm start` with production `.env` |
+| `soothsayer.prod.db` | Remote Supabase URL + packaged app | Installed release build |
+
+All databases are stored in `%AppData%\Soothsayer\` (Windows) or `~/Library/Application Support/Soothsayer/` (macOS).
+
 **Production credentials:** 
 
 Your `.env` file contains production Supabase credentials:

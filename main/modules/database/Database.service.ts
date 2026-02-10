@@ -30,15 +30,27 @@ class DatabaseService {
     // Store database in user data directory
     const userDataPath = app.getPath("userData");
 
-    // Use different database file for local development
+    // Three-tier database naming:
+    //   soothsayer.local.db  — local Supabase (localhost/127.0.0.1)
+    //   soothsayer.db        — dev with production Supabase credentials
+    //   soothsayer.prod.db   — packaged release build
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "";
-    const isLocalDev =
+    const isLocalSupabase =
       supabaseUrl.includes("127.0.0.1") || supabaseUrl.includes("localhost");
-    const dbFilename = isLocalDev ? "soothsayer.local.db" : "soothsayer.db";
+
+    let dbFilename: string;
+    if (isLocalSupabase) {
+      dbFilename = "soothsayer.local.db";
+    } else if (app.isPackaged) {
+      dbFilename = "soothsayer.prod.db";
+    } else {
+      dbFilename = "soothsayer.db";
+    }
+
     this.dbPath = path.join(userDataPath, dbFilename);
 
     console.log(
-      `[Database] Using database: ${dbFilename} (isLocalDev: ${isLocalDev}, url: ${supabaseUrl})`,
+      `[Database] Using database: ${dbFilename} (packaged: ${app.isPackaged}, localSupabase: ${isLocalSupabase})`,
     );
 
     // Initialize database connection

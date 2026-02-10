@@ -94,6 +94,8 @@ jobs:
         run: |
           echo "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" > .env
           echo "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}" >> .env
+          echo "VITE_UMAMI_ID=${{ secrets.VITE_UMAMI_ID }}" >> .env
+          echo "SENTRY_DSN=${{ secrets.SENTRY_DSN }}" >> .env
 
       - name: Make distributables
         run: pnpm make
@@ -112,6 +114,21 @@ jobs:
     needs: [check-version, make]
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code repository
+        uses: actions/checkout@v6
+
+      - name: Extract release notes from CHANGELOG.md
+        id: changelog
+        run: |
+          VERSION="${{ needs.check-version.outputs.version }}"
+          # Extract the section for the current version from CHANGELOG.md
+          # Matches from "## $VERSION" until the next "## " heading or end of file
+          NOTES=$(tr -d '\r' < CHANGELOG.md | awk "BEGIN{found=0} /^## ${VERSION}$/{found=1; next} /^## /{if(found) exit} found{print}")
+          # Use a delimiter to handle multi-line output
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Download all artifacts
         uses: actions/download-artifact@v7
         with:
@@ -122,8 +139,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.check-version.outputs.version }}
-          name: soothsayer v${{ needs.check-version.outputs.version }}
+          name: Soothsayer v${{ needs.check-version.outputs.version }}
+          body: ${{ steps.changelog.outputs.notes }}
           files: artifacts/**/*
-          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
