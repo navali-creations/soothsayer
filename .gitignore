@@ -92,7 +92,7 @@ typings/
 # Electron-Forge
 out/
 
-./supabase
+.supabase
 
 .idea
 
