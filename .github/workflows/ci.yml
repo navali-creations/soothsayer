@@ -62,8 +62,9 @@ jobs:
   changes:
     name: Detect Changes
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: "!contains(github.event.head_commit.message, '[ci] release')"
     outputs:
+      app-code: ${{ steps.filter.outputs.app-code }}
       supabase-db: ${{ steps.filter.outputs.supabase-db }}
       supabase-edge: ${{ steps.filter.outputs.supabase-edge }}
       dep-supabase: ${{ steps.deps.outputs.supabase }}
@@ -78,6 +79,10 @@ jobs:
         uses: dorny/paths-filter@v3
         with:
           filters: |
+            app-code:
+              - 'main/**'
+              - 'renderer/**'
+              - 'vitest.config.*'
             supabase-db:
               - 'supabase/migrations/**'
               - 'supabase/tests/**'
@@ -119,8 +124,7 @@ jobs:
       needs.lint.result == 'success' &&
       needs.typecheck.result == 'success' &&
       (
-        github.event_name == 'push' ||
-        !startsWith(github.head_ref, 'dependabot/') ||
+        needs.changes.outputs.app-code == 'true' ||
         needs.changes.outputs.dep-supabase == 'true' ||
         needs.changes.outputs.dep-kysely == 'true' ||
         needs.changes.outputs.dep-better-sqlite3 == 'true'
@@ -157,7 +161,6 @@ jobs:
       needs.lint.result == 'success' &&
       needs.typecheck.result == 'success' &&
       (
-        github.event_name == 'push' ||
         needs.changes.outputs.supabase-edge == 'true' ||
         needs.changes.outputs.dep-supabase == 'true'
       )
@@ -183,7 +186,6 @@ jobs:
       needs.lint.result == 'success' &&
       needs.typecheck.result == 'success' &&
       (
-        github.event_name == 'push' ||
         needs.changes.outputs.supabase-db == 'true' ||
         needs.changes.outputs.dep-supabase == 'true'
       )
