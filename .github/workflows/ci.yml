@@ -66,6 +66,9 @@ jobs:
     outputs:
       supabase-db: ${{ steps.filter.outputs.supabase-db }}
       supabase-edge: ${{ steps.filter.outputs.supabase-edge }}
+      dep-supabase: ${{ steps.deps.outputs.supabase }}
+      dep-kysely: ${{ steps.deps.outputs.kysely }}
+      dep-better-sqlite3: ${{ steps.deps.outputs.better-sqlite3 }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -83,10 +86,45 @@ jobs:
             supabase-edge:
               - 'supabase/functions/**'
 
+      - name: Detect dependency updates
+        id: deps
+        run: |
+          BRANCH="${{ github.head_ref }}"
+          echo "Branch: $BRANCH"
+
+          if echo "$BRANCH" | grep -qi 'supabase'; then
+            echo "supabase=true" >> $GITHUB_OUTPUT
+          else
+            echo "supabase=false" >> $GITHUB_OUTPUT
+          fi
+
+          if echo "$BRANCH" | grep -qi 'kysely'; then
+            echo "kysely=true" >> $GITHUB_OUTPUT
+          else
+            echo "kysely=false" >> $GITHUB_OUTPUT
+          fi
+
+          if echo "$BRANCH" | grep -qi 'better-sqlite3'; then
+            echo "better-sqlite3=true" >> $GITHUB_OUTPUT
+          else
+            echo "better-sqlite3=false" >> $GITHUB_OUTPUT
+          fi
+
   test-unit:
     name: Unit Tests (Vitest)
-    needs: [lint, typecheck]
-    if: "!contains(github.event.head_commit.message, '[ci] release')"
+    needs: [lint, typecheck, changes]
+    if: >-
+      always() &&
+      !contains(github.event.head_commit.message, '[ci] release') &&
+      needs.lint.result == 'success' &&
+      needs.typecheck.result == 'success' &&
+      (
+        github.event_name == 'push' ||
+        !startsWith(github.head_ref, 'dependabot/') ||
+        needs.changes.outputs.dep-supabase == 'true' ||
+        needs.changes.outputs.dep-kysely == 'true' ||
+        needs.changes.outputs.dep-better-sqlite3 == 'true'
+      )
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -118,7 +156,11 @@ jobs:
       !contains(github.event.head_commit.message, '[ci] release') &&
       needs.lint.result == 'success' &&
       needs.typecheck.result == 'success' &&
-      (github.event_name == 'push' || needs.changes.outputs.supabase-edge == 'true')
+      (
+        github.event_name == 'push' ||
+        needs.changes.outputs.supabase-edge == 'true' ||
+        needs.changes.outputs.dep-supabase == 'true'
+      )
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -140,7 +182,11 @@ jobs:
       !contains(github.event.head_commit.message, '[ci] release') &&
       needs.lint.result == 'success' &&
       needs.typecheck.result == 'success' &&
-      (github.event_name == 'push' || needs.changes.outputs.supabase-db == 'true')
+      (
+        github.event_name == 'push' ||
+        needs.changes.outputs.supabase-db == 'true' ||
+        needs.changes.outputs.dep-supabase == 'true'
+      )
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
