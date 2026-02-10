@@ -5,22 +5,26 @@ on:
   push:
     branches: [master]
 
+permissions:
+  pull-requests: read
+
 env:
   CI: true
 
 jobs:
   lint:
     name: Lint
+    if: "!contains(github.event.head_commit.message, '[ci] release')"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: pnpm
@@ -33,16 +37,17 @@ jobs:
 
   typecheck:
     name: Typecheck
+    if: "!contains(github.event.head_commit.message, '[ci] release')"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: pnpm
@@ -62,7 +67,7 @@ jobs:
       supabase-edge: ${{ steps.filter.outputs.supabase-edge }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Detect file changes
         id: filter
@@ -80,16 +85,17 @@ jobs:
   test-unit:
     name: Unit Tests (Vitest)
     needs: [lint, typecheck]
+    if: "!contains(github.event.head_commit.message, '[ci] release')"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: pnpm
@@ -108,13 +114,14 @@ jobs:
     needs: [lint, typecheck, changes]
     if: >-
       always() &&
+      !contains(github.event.head_commit.message, '[ci] release') &&
       needs.lint.result == 'success' &&
       needs.typecheck.result == 'success' &&
       (github.event_name == 'push' || needs.changes.outputs.supabase-edge == 'true')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Deno
         uses: denoland/setup-deno@v2
@@ -129,19 +136,20 @@ jobs:
     needs: [lint, typecheck, changes]
     if: >-
       always() &&
+      !contains(github.event.head_commit.message, '[ci] release') &&
       needs.lint.result == 'success' &&
       needs.typecheck.result == 'success' &&
       (github.event_name == 'push' || needs.changes.outputs.supabase-db == 'true')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: pnpm
@@ -158,3 +166,27 @@ jobs:
       - name: Stop Supabase
         if: always()
         run: pnpx supabase stop --no-backup
+
+  build:
+    name: Build Check
+    needs: [lint, typecheck]
+    if: "!contains(github.event.head_commit.message, '[ci] release')"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Package app (dry run)
+        run: pnpm package
