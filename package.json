@@ -85,7 +85,7 @@
     "electron-squirrel-startup": "^1.0.1",
     "electron-store": "^11.0.2",
     "immer": "^11.0.1",
-    "kysely": "^0.28.8",
+    "kysely": "^0.28.11",
     "motion": "^12.23.26",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",

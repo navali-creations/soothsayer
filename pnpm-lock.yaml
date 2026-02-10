@@ -134,8 +134,8 @@ importers:
         specifier: ^11.0.1
         version: 11.1.3
       kysely:
-        specifier: ^0.28.8
-        version: 0.28.10
+        specifier: ^0.28.11
+        version: 0.28.11
       motion:
         specifier: ^12.23.26
         version: 12.29.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -2937,8 +2937,8 @@ packages:
   keyv@4.5.4:
     resolution: {integrity: sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==}
 
-  kysely@0.28.10:
-    resolution: {integrity: sha512-ksNxfzIW77OcZ+QWSAPC7yDqUSaIVwkTWnTPNiIy//vifNbwsSgQ57OkkncHxxpcBHM3LRfLAZVEh7kjq5twVA==}
+  kysely@0.28.11:
+    resolution: {integrity: sha512-zpGIFg0HuoC893rIjYX1BETkVWdDnzTzF5e0kWXJFg5lE0k1/LfNWBejrcnOFu8Q2Rfq/hTDTU7XLUM8QOrpzg==}
     engines: {node: '>=20.0.0'}
 
   lie@3.3.0:
@@ -5457,7 +5457,7 @@ snapshots:
 
   '@npmcli/fs@4.0.0':
     dependencies:
-      semver: 7.7.3
+      semver: 7.7.4
 
   '@npmcli/move-file@2.0.1':
     dependencies:
@@ -7769,7 +7769,7 @@ snapshots:
     dependencies:
       json-buffer: 3.0.1
 
-  kysely@0.28.10: {}
+  kysely@0.28.11: {}
 
   lie@3.3.0:
     dependencies:
