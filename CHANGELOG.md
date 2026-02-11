@@ -1,5 +1,15 @@
 # soothsayer
 
+## 0.1.4
+
+### Patch Changes
+
+- [`f8b14d8`](https://github.com/navali-creations/soothsayer/commit/f8b14d8a80f42da47d9f408403118fc525cdb039) Thanks [@sbsrnt](https://github.com/sbsrnt)! - Auto-update improvements:
+
+  - **Smoother updates:** Updates now install in the background without intrusive pop-up dialogs. When a new version is ready, a small green icon appears in the title bar so you can update at your convenience.
+
+  - **Linux update notifications:** Linux users will now see a notification icon when a new version is available. Clicking it opens the GitHub Releases page where you can download the latest package.
+
 ## 0.1.3
 
 ### Patch Changes
