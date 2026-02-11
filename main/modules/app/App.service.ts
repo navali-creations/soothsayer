@@ -18,7 +18,7 @@ import { System } from "../../../enums";
 import { AppChannel } from "./App.channels";
 
 class AppService {
-  public isQuitting: boolean = true;
+  public isQuitting: boolean = false;
   private app: App;
   private settingsStore: SettingsStoreService =
     SettingsStoreService.getInstance();
@@ -60,9 +60,8 @@ class AppService {
   }
 
   public emitRestart() {
-    ipcMain.handle(AppChannel.Restart, (e) => {
+    ipcMain.handle(AppChannel.Restart, () => {
       if (this.isQuitting) return;
-      e.preventDefault();
       this.app.relaunch();
       this.app.exit(0);
     });

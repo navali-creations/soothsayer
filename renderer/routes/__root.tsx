@@ -6,7 +6,7 @@ import {
   useNavigate,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useBoundStore } from "~/renderer/store";
 
@@ -19,6 +19,8 @@ const RootLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isHydrating, setIsHydrating] = useState(true);
+  const [isSlow, setIsSlow] = useState(false);
+  const slowTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const {
     hydrate,
     startListeners,
@@ -27,6 +29,8 @@ const RootLayout = () => {
 
   useEffect(() => {
     // Hydrate all data on app mount
+    slowTimerRef.current = setTimeout(() => setIsSlow(true), 5000);
+
     const initialize = async () => {
       try {
         await hydrate();
@@ -41,6 +45,7 @@ const RootLayout = () => {
       } catch (error) {
         console.error("Failed to initialize app:", error);
       } finally {
+        clearTimeout(slowTimerRef.current);
         setIsHydrating(false);
       }
     };
@@ -59,6 +64,12 @@ const RootLayout = () => {
       <div className="flex items-center justify-center h-screen bg-base-300">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-base-content/70 text-sm">Loading Soothsayer...</p>
+          {isSlow && (
+            <p className="text-base-content/50 text-xs mt-2">
+              This is taking longer than usual. Hang tight...
+            </p>
+          )}
         </div>
       </div>
     );

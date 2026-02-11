@@ -22,7 +22,7 @@ import { PoeLeaguesRepository } from "./PoeLeagues.repository";
  * Service for managing PoE Leagues
  *
  * Fetches leagues from Supabase get-leagues-legacy edge function and caches
- * them locally in SQLite. Due to Supabase's 1 request per 24h rate limit,
+ * them locally in SQLite. Due to Supabase's 2 requests per 24h rate limit,
  * we use aggressive local caching and only refresh when the cache is stale.
  *
  * Cache Synchronization Strategy:
@@ -49,9 +49,15 @@ class PoeLeaguesService {
   private supabase: SupabaseClientService;
   private settingsStore: SettingsStoreService;
 
-  // Cache duration in hours - matches Supabase rate limit of 1 per 24h
+  // Cache duration in hours - matches Supabase rate limit of 2 per 24h
   // We use 23 hours to have some buffer before the rate limit resets
   private static readonly CACHE_MAX_AGE_HOURS = 23;
+
+  // Fallback league when both Supabase and local cache are unavailable.
+  // "Standard" is a permanent league that always exists for both poe1 and poe2.
+  private static readonly FALLBACK_LEAGUES: PoeLeague[] = [
+    { id: "Standard", name: "Standard", startAt: null, endAt: null },
+  ];
 
   static getInstance(): PoeLeaguesService {
     if (!PoeLeaguesService._instance) {
@@ -74,9 +80,20 @@ class PoeLeaguesService {
       async (_event, game: GameType) => {
         try {
           assertGameType(game, PoeLeaguesChannel.FetchLeagues);
-          return this.fetchLeagues(game);
+          return await this.fetchLeagues(game);
         } catch (error) {
-          return handleValidationError(error, PoeLeaguesChannel.FetchLeagues);
+          // Validation errors return a structured error response.
+          // Non-validation errors (network, edge function, etc.) are caught
+          // so the renderer always gets a usable response, never a thrown IPC error.
+          try {
+            return handleValidationError(error, PoeLeaguesChannel.FetchLeagues);
+          } catch {
+            console.error(
+              `[PoeLeaguesService] Failed to fetch leagues:`,
+              error,
+            );
+            return PoeLeaguesService.FALLBACK_LEAGUES;
+          }
         }
       },
     );
@@ -154,8 +171,12 @@ class PoeLeaguesService {
         return cachedLeagues;
       }
 
-      // No cache available, throw the error
-      throw error;
+      // No cache available — return "Standard" as a safe fallback so the user
+      // isn't stuck on an empty league selector. They can retry or refresh later.
+      console.warn(
+        `[PoeLeaguesService] No cached leagues available for ${game} and Supabase fetch failed. Falling back to Standard league.`,
+      );
+      return PoeLeaguesService.FALLBACK_LEAGUES;
     }
   }
 

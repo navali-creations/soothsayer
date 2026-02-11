@@ -7,6 +7,8 @@ const {
   mockDatabaseReset,
   mockShowMessageBox,
   mockGetFocusedWindow,
+  mockClientLogReaderSetClientLogPath,
+  mockClientLogReaderGetInstance,
   mockRepositoryGetPoe1ClientTxtPath,
   mockRepositorySetPoe1ClientTxtPath,
   mockRepositoryGetPoe2ClientTxtPath,
@@ -32,57 +34,65 @@ const {
   mockRepositoryGet,
   mockRepositorySet,
   mockRepositoryGetAll,
-} = vi.hoisted(() => ({
-  mockIpcHandle: vi.fn(),
-  mockGetKysely: vi.fn(),
-  mockDatabaseReset: vi.fn(),
-  mockShowMessageBox: vi.fn(),
-  mockGetFocusedWindow: vi.fn(() => null),
-  mockRepositoryGetPoe1ClientTxtPath: vi.fn().mockResolvedValue(null),
-  mockRepositorySetPoe1ClientTxtPath: vi.fn().mockResolvedValue(undefined),
-  mockRepositoryGetPoe2ClientTxtPath: vi.fn().mockResolvedValue(null),
-  mockRepositorySetPoe2ClientTxtPath: vi.fn().mockResolvedValue(undefined),
-  mockRepositoryGetAppExitAction: vi.fn().mockResolvedValue("exit"),
-  mockRepositorySetAppExitAction: vi.fn().mockResolvedValue(undefined),
-  mockRepositoryGetAppOpenAtLogin: vi.fn().mockResolvedValue(false),
-  mockRepositorySetAppOpenAtLogin: vi.fn().mockResolvedValue(undefined),
-  mockRepositoryGetAppOpenAtLoginMinimized: vi.fn().mockResolvedValue(false),
-  mockRepositorySetAppOpenAtLoginMinimized: vi
-    .fn()
-    .mockResolvedValue(undefined),
-  mockRepositoryGetSelectedGame: vi.fn().mockResolvedValue("poe1"),
-  mockRepositorySetSelectedGame: vi.fn().mockResolvedValue(undefined),
-  mockRepositoryGetInstalledGames: vi.fn().mockResolvedValue(["poe1"]),
-  mockRepositorySetInstalledGames: vi.fn().mockResolvedValue(undefined),
-  mockRepositoryGetPoe1SelectedLeague: vi.fn().mockResolvedValue(""),
-  mockRepositorySetPoe1SelectedLeague: vi.fn().mockResolvedValue(undefined),
-  mockRepositoryGetPoe2SelectedLeague: vi.fn().mockResolvedValue(""),
-  mockRepositorySetPoe2SelectedLeague: vi.fn().mockResolvedValue(undefined),
-  mockRepositoryGetPoe1PriceSource: vi.fn().mockResolvedValue("exchange"),
-  mockRepositorySetPoe1PriceSource: vi.fn().mockResolvedValue(undefined),
-  mockRepositoryGetPoe2PriceSource: vi.fn().mockResolvedValue("exchange"),
-  mockRepositorySetPoe2PriceSource: vi.fn().mockResolvedValue(undefined),
-  mockRepositoryGet: vi.fn().mockResolvedValue(null),
-  mockRepositorySet: vi.fn().mockResolvedValue(undefined),
-  mockRepositoryGetAll: vi.fn().mockResolvedValue({
-    appExitAction: "exit",
-    appOpenAtLogin: false,
-    appOpenAtLoginMinimized: false,
-    onboardingDismissedBeacons: [],
-    overlayBounds: null,
-    poe1ClientTxtPath: null,
-    poe1SelectedLeague: "",
-    poe1PriceSource: "exchange",
-    poe2ClientTxtPath: null,
-    poe2SelectedLeague: "",
-    poe2PriceSource: "exchange",
-    selectedGame: "poe1",
-    installedGames: ["poe1"],
-    setupCompleted: false,
-    setupStep: 0,
-    setupVersion: 0,
-  }),
-}));
+} = vi.hoisted(() => {
+  const mockClientLogReaderSetClientLogPath = vi.fn();
+  const mockClientLogReaderGetInstance = vi.fn().mockResolvedValue({
+    setClientLogPath: mockClientLogReaderSetClientLogPath,
+  });
+  return {
+    mockIpcHandle: vi.fn(),
+    mockGetKysely: vi.fn(),
+    mockDatabaseReset: vi.fn(),
+    mockShowMessageBox: vi.fn(),
+    mockGetFocusedWindow: vi.fn(() => null),
+    mockClientLogReaderSetClientLogPath,
+    mockClientLogReaderGetInstance,
+    mockRepositoryGetPoe1ClientTxtPath: vi.fn().mockResolvedValue(null),
+    mockRepositorySetPoe1ClientTxtPath: vi.fn().mockResolvedValue(undefined),
+    mockRepositoryGetPoe2ClientTxtPath: vi.fn().mockResolvedValue(null),
+    mockRepositorySetPoe2ClientTxtPath: vi.fn().mockResolvedValue(undefined),
+    mockRepositoryGetAppExitAction: vi.fn().mockResolvedValue("exit"),
+    mockRepositorySetAppExitAction: vi.fn().mockResolvedValue(undefined),
+    mockRepositoryGetAppOpenAtLogin: vi.fn().mockResolvedValue(false),
+    mockRepositorySetAppOpenAtLogin: vi.fn().mockResolvedValue(undefined),
+    mockRepositoryGetAppOpenAtLoginMinimized: vi.fn().mockResolvedValue(false),
+    mockRepositorySetAppOpenAtLoginMinimized: vi
+      .fn()
+      .mockResolvedValue(undefined),
+    mockRepositoryGetSelectedGame: vi.fn().mockResolvedValue("poe1"),
+    mockRepositorySetSelectedGame: vi.fn().mockResolvedValue(undefined),
+    mockRepositoryGetInstalledGames: vi.fn().mockResolvedValue(["poe1"]),
+    mockRepositorySetInstalledGames: vi.fn().mockResolvedValue(undefined),
+    mockRepositoryGetPoe1SelectedLeague: vi.fn().mockResolvedValue(""),
+    mockRepositorySetPoe1SelectedLeague: vi.fn().mockResolvedValue(undefined),
+    mockRepositoryGetPoe2SelectedLeague: vi.fn().mockResolvedValue(""),
+    mockRepositorySetPoe2SelectedLeague: vi.fn().mockResolvedValue(undefined),
+    mockRepositoryGetPoe1PriceSource: vi.fn().mockResolvedValue("exchange"),
+    mockRepositorySetPoe1PriceSource: vi.fn().mockResolvedValue(undefined),
+    mockRepositoryGetPoe2PriceSource: vi.fn().mockResolvedValue("exchange"),
+    mockRepositorySetPoe2PriceSource: vi.fn().mockResolvedValue(undefined),
+    mockRepositoryGet: vi.fn().mockResolvedValue(null),
+    mockRepositorySet: vi.fn().mockResolvedValue(undefined),
+    mockRepositoryGetAll: vi.fn().mockResolvedValue({
+      appExitAction: "exit",
+      appOpenAtLogin: false,
+      appOpenAtLoginMinimized: false,
+      onboardingDismissedBeacons: [],
+      overlayBounds: null,
+      poe1ClientTxtPath: null,
+      poe1SelectedLeague: "",
+      poe1PriceSource: "exchange",
+      poe2ClientTxtPath: null,
+      poe2SelectedLeague: "",
+      poe2PriceSource: "exchange",
+      selectedGame: "poe1",
+      installedGames: ["poe1"],
+      setupCompleted: false,
+      setupStep: 0,
+      setupVersion: 0,
+    }),
+  };
+});
 
 // ─── Mock Electron ───────────────────────────────────────────────────────────
 vi.mock("electron", () => ({
@@ -103,6 +113,18 @@ vi.mock("electron", () => ({
   dialog: {
     showMessageBox: mockShowMessageBox,
     showSaveDialog: vi.fn(),
+  },
+}));
+
+// ─── Mock @sentry/electron (loaded transitively via barrel → SentryService) ─
+vi.mock("@sentry/electron", () => ({
+  init: vi.fn(),
+}));
+
+// ─── Mock ClientLogReaderService ─────────────────────────────────────────────
+vi.mock("~/main/modules/client-log-reader", () => ({
+  ClientLogReaderService: {
+    getInstance: mockClientLogReaderGetInstance,
   },
 }));
 
@@ -172,7 +194,7 @@ function getIpcHandler(channel: string): (...args: any[]) => any {
 describe("SettingsStoreService — IPC handlers", () => {
   let _service: SettingsStoreService;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
 
     // Re-apply default implementations after clearAllMocks
@@ -308,6 +330,11 @@ describe("SettingsStoreService — IPC handlers", () => {
         "poe1ClientTxtPath",
         "C:\\Users\\test\\client.txt",
       );
+      expect(mockClientLogReaderGetInstance).toHaveBeenCalled();
+      expect(mockClientLogReaderSetClientLogPath).toHaveBeenCalledWith(
+        "C:\\Users\\test\\client.txt",
+        "poe1",
+      );
     });
 
     it("should accept null for poe1ClientTxtPath (clear it)", async () => {
@@ -315,6 +342,8 @@ describe("SettingsStoreService — IPC handlers", () => {
       await h({}, "poe1ClientTxtPath", null);
 
       expect(mockRepositorySet).toHaveBeenCalledWith("poe1ClientTxtPath", null);
+      // Should NOT notify ClientLogReader when value is null
+      expect(mockClientLogReaderSetClientLogPath).not.toHaveBeenCalled();
     });
 
     it("should reject non-string for poe1ClientTxtPath", async () => {
@@ -339,13 +368,18 @@ describe("SettingsStoreService — IPC handlers", () => {
 
     // ── poe2ClientTxtPath ──
 
-    it("should accept a valid file path for poe2ClientTxtPath", async () => {
+    it("should accept a valid file path for poe2ClientTxtPath and notify ClientLogReader", async () => {
       const h = handler();
       await h({}, "poe2ClientTxtPath", "/home/user/poe2/client.txt");
 
       expect(mockRepositorySet).toHaveBeenCalledWith(
         "poe2ClientTxtPath",
         "/home/user/poe2/client.txt",
+      );
+      expect(mockClientLogReaderGetInstance).toHaveBeenCalled();
+      expect(mockClientLogReaderSetClientLogPath).toHaveBeenCalledWith(
+        "/home/user/poe2/client.txt",
+        "poe2",
       );
     });
 
@@ -1041,12 +1075,17 @@ describe("SettingsStoreService — IPC handlers", () => {
   describe("individual typed setter handlers", () => {
     // ── SetPoe1ClientPath ──
 
-    it("should set poe1 client path with valid path", async () => {
+    it("should set poe1 client path with valid path and notify ClientLogReader", async () => {
       const handler = getIpcHandler("settings-store:set-poe1-client-path");
       await handler({}, "C:\\Program Files\\PoE\\client.txt");
 
       expect(mockRepositorySetPoe1ClientTxtPath).toHaveBeenCalledWith(
         "C:\\Program Files\\PoE\\client.txt",
+      );
+      expect(mockClientLogReaderGetInstance).toHaveBeenCalled();
+      expect(mockClientLogReaderSetClientLogPath).toHaveBeenCalledWith(
+        "C:\\Program Files\\PoE\\client.txt",
+        "poe1",
       );
     });
 
@@ -1072,12 +1111,17 @@ describe("SettingsStoreService — IPC handlers", () => {
 
     // ── SetPoe2ClientPath ──
 
-    it("should set poe2 client path with valid path", async () => {
+    it("should set poe2 client path with valid path and notify ClientLogReader", async () => {
       const handler = getIpcHandler("settings-store:set-poe2-client-path");
       await handler({}, "/home/user/poe2/client.txt");
 
       expect(mockRepositorySetPoe2ClientTxtPath).toHaveBeenCalledWith(
         "/home/user/poe2/client.txt",
+      );
+      expect(mockClientLogReaderGetInstance).toHaveBeenCalled();
+      expect(mockClientLogReaderSetClientLogPath).toHaveBeenCalledWith(
+        "/home/user/poe2/client.txt",
+        "poe2",
       );
     });
 
@@ -1342,28 +1386,7 @@ describe("SettingsStoreService — IPC handlers", () => {
   // ─── ResetDatabase handler ────────────────────────────────────────────
 
   describe("ResetDatabase handler", () => {
-    it("should show a native confirmation dialog", async () => {
-      mockShowMessageBox.mockResolvedValue({ response: 0 }); // Cancel
-      const handler = getIpcHandler("settings-store:reset-database");
-      await handler({});
-
-      expect(mockShowMessageBox).toHaveBeenCalled();
-    });
-
-    it("should cancel reset when user clicks Cancel (response 0)", async () => {
-      mockShowMessageBox.mockResolvedValue({ response: 0 });
-      const handler = getIpcHandler("settings-store:reset-database");
-      const result = await handler({});
-
-      expect(result).toEqual({
-        success: false,
-        error: "Reset cancelled by user",
-      });
-      expect(mockDatabaseReset).not.toHaveBeenCalled();
-    });
-
-    it("should perform reset when user confirms (response 1)", async () => {
-      mockShowMessageBox.mockResolvedValue({ response: 1 });
+    it("should call database reset and return success", async () => {
       const handler = getIpcHandler("settings-store:reset-database");
       const result = await handler({});
 
@@ -1374,58 +1397,7 @@ describe("SettingsStoreService — IPC handlers", () => {
       });
     });
 
-    it("should use focused window for dialog when available", async () => {
-      const mockWindow = { id: 1 };
-      mockGetFocusedWindow.mockReturnValue(mockWindow as any);
-      mockShowMessageBox.mockResolvedValue({ response: 0 });
-
-      const handler = getIpcHandler("settings-store:reset-database");
-      await handler({});
-
-      expect(mockShowMessageBox).toHaveBeenCalledWith(
-        mockWindow,
-        expect.objectContaining({
-          type: "warning",
-          title: "Reset Database",
-        }),
-      );
-    });
-
-    it("should show dialog without window when no window is focused", async () => {
-      mockGetFocusedWindow.mockReturnValue(null);
-      mockShowMessageBox.mockResolvedValue({ response: 0 });
-
-      const handler = getIpcHandler("settings-store:reset-database");
-      await handler({});
-
-      // Called with just the options (no window argument)
-      expect(mockShowMessageBox).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: "warning",
-          title: "Reset Database",
-        }),
-      );
-    });
-
-    it("should include warning details in the dialog", async () => {
-      mockShowMessageBox.mockResolvedValue({ response: 0 });
-      const handler = getIpcHandler("settings-store:reset-database");
-      await handler({});
-
-      const dialogCall = mockShowMessageBox.mock.calls[0];
-      // dialogOptions is the first or second arg depending on window
-      const options = dialogCall.length === 2 ? dialogCall[1] : dialogCall[0];
-
-      expect(options.type).toBe("warning");
-      expect(options.buttons).toContain("Cancel");
-      expect(options.buttons).toContain("Reset Database");
-      expect(options.defaultId).toBe(0);
-      expect(options.cancelId).toBe(0);
-      expect(options.detail).toContain("permanently delete");
-    });
-
     it("should return error when database reset throws", async () => {
-      mockShowMessageBox.mockResolvedValue({ response: 1 });
       mockDatabaseReset.mockImplementation(() => {
         throw new Error("Database file locked");
       });
@@ -1436,18 +1408,6 @@ describe("SettingsStoreService — IPC handlers", () => {
       expect(result).toEqual({
         success: false,
         error: "Database file locked",
-      });
-    });
-
-    it("should return error when dialog throws", async () => {
-      mockShowMessageBox.mockRejectedValue(new Error("Dialog failed"));
-
-      const handler = getIpcHandler("settings-store:reset-database");
-      const result = await handler({});
-
-      expect(result).toEqual({
-        success: false,
-        error: "Dialog failed",
       });
     });
   });

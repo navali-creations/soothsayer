@@ -28,7 +28,7 @@ export const createAppMenuSlice: StateCreator<
     // Hydrate initial maximized state from Electron
     hydrate: async () => {
       try {
-        const isMaximized = await window.electron?.app.isMaximized();
+        const isMaximized = await window.electron?.mainWindow.isMaximized();
         set(
           ({ appMenu }) => {
             appMenu.isMaximized = isMaximized ?? false;
@@ -50,12 +50,12 @@ export const createAppMenuSlice: StateCreator<
 
     // Window control actions
     minimize: () => {
-      window.electron?.app.minimize();
+      window.electron?.mainWindow.minimize();
     },
 
     maximize: async () => {
-      await window.electron?.app.maximize();
-      const newState = await window.electron?.app.isMaximized();
+      await window.electron?.mainWindow.maximize();
+      const newState = await window.electron?.mainWindow.isMaximized();
       set(
         ({ appMenu }) => {
           appMenu.isMaximized = newState ?? false;
@@ -66,8 +66,8 @@ export const createAppMenuSlice: StateCreator<
     },
 
     unmaximize: async () => {
-      await window.electron?.app.unmaximize();
-      const newState = await window.electron?.app.isMaximized();
+      await window.electron?.mainWindow.unmaximize();
+      const newState = await window.electron?.mainWindow.isMaximized();
       set(
         ({ appMenu }) => {
           appMenu.isMaximized = newState ?? false;
@@ -78,7 +78,7 @@ export const createAppMenuSlice: StateCreator<
     },
 
     close: () => {
-      window.electron?.app.close();
+      window.electron?.mainWindow.close();
     },
 
     setIsMaximized: (isMaximized) => {

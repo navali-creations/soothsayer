@@ -25,9 +25,14 @@ class ClientLogReaderService extends EventEmitter {
   private initialized: boolean = false;
 
   static async getInstance(
-    mainWindow: MainWindowServiceType,
+    mainWindow?: MainWindowServiceType,
   ): Promise<ClientLogReaderService> {
     if (!ClientLogReaderService._instance) {
+      if (!mainWindow) {
+        throw new Error(
+          "ClientLogReaderService requires mainWindow for first initialization",
+        );
+      }
       ClientLogReaderService._instance = new ClientLogReaderService(mainWindow);
       await ClientLogReaderService._instance.initialize();
     }
@@ -104,9 +109,7 @@ class ClientLogReaderService extends EventEmitter {
         // Parse divination cards from recent lines, excluding already processed IDs
         perf?.start("parse");
         const allProcessedIds = this.session.getAllProcessedIds(currentGame);
-
         const newCards = parseCards(lines, allProcessedIds);
-
         const parseTime = perf?.end("parse") ?? 0;
 
         if (newCards.totalCount > 0) {
@@ -149,7 +152,7 @@ class ClientLogReaderService extends EventEmitter {
           });
         }
       } catch (error) {
-        console.error(`[ERROR] Processing failed:`, error);
+        console.error(`[ClientLogReader] Processing failed:`, error);
       }
     });
   }

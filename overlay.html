@@ -6,10 +6,10 @@
       http-equiv="Content-Security-Policy"
       content="
         default-src 'self';
-        script-src 'self';
+        script-src 'self' https://cloud.umami.is;
         style-src 'self' 'unsafe-inline';
         img-src 'self' data: https:;
-        connect-src 'self' https://*.supabase.co https://*.sentry.io;
+        connect-src 'self' https://*.supabase.co https://cloud.umami.is https://api-gateway.umami.dev https://*.sentry.io;
         font-src 'self' data:;
         object-src 'none';
         base-uri 'self';

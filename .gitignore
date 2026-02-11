@@ -99,3 +99,6 @@ out/
 .claude
 
 *timestamp*
+
+# Deno lockfile (causes version conflicts with Supabase Edge Runtime)
+supabase/functions/deno.lock

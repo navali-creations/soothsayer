@@ -394,24 +394,12 @@ describe("main.ts", () => {
       expect(mockMainWindowCreateMainWindow).toHaveBeenCalledTimes(1);
     });
 
-    it("should pass isQuitting to createMainWindow", async () => {
-      mockAppIsQuitting.value = true;
-
+    it("should call createMainWindow without arguments", async () => {
       const capture = setupWhenReadyCapture();
       await importMain();
       await capture.invoke();
 
-      expect(mockMainWindowCreateMainWindow).toHaveBeenCalledWith(true);
-    });
-
-    it("should pass isQuitting=false to createMainWindow when not quitting", async () => {
-      mockAppIsQuitting.value = false;
-
-      const capture = setupWhenReadyCapture();
-      await importMain();
-      await capture.invoke();
-
-      expect(mockMainWindowCreateMainWindow).toHaveBeenCalledWith(false);
+      expect(mockMainWindowCreateMainWindow).toHaveBeenCalledWith();
     });
 
     it("should call emitSecondInstance with mainWindow after window creation", async () => {

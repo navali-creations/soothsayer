@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 
 import { AnalyticsAPI } from "~/main/modules/analytics/Analytics.api";
+import { AppAPI } from "~/main/modules/app/App.api";
 import { AppSetupAPI } from "~/main/modules/app-setup/AppSetup.api";
 import { CurrentSessionAPI } from "~/main/modules/current-session/CurrentSession.api";
 import { DataStoreAPI } from "~/main/modules/data-store/DataStore.api";
@@ -23,7 +24,8 @@ contextBridge.exposeInMainWorld("electron", {
   session: CurrentSessionAPI,
   sessions: SessionsAPI,
   snapshots: SnapshotAPI,
-  app: MainWindowAPI,
+  mainWindow: MainWindowAPI,
+  app: AppAPI,
   overlay: OverlayAPI,
   appSetup: AppSetupAPI,
   poeProcess: PoeProcessAPI,

@@ -101,14 +101,12 @@ export const createPoeNinjaSlice: StateCreator<
       const unsubscribeSnapshotCreated =
         window.electron?.snapshots?.onSnapshotCreated?.((snapshotInfo) => {
           const { poeNinja } = get();
-          console.log("[PoeNinja] Snapshot created:", snapshotInfo);
           poeNinja.updateSnapshotOnCreate(snapshotInfo);
         });
 
       const unsubscribeSnapshotReused =
         window.electron?.snapshots?.onSnapshotReused?.((snapshotInfo) => {
           const { poeNinja } = get();
-          console.log("[PoeNinja] Snapshot reused:", snapshotInfo);
           poeNinja.updateSnapshotOnReuse(
             snapshotInfo.id,
             snapshotInfo.fetchedAt,
@@ -118,7 +116,6 @@ export const createPoeNinjaSlice: StateCreator<
       const unsubscribeAutoRefreshStarted =
         window.electron?.snapshots?.onAutoRefreshStarted?.((info) => {
           const { poeNinja } = get();
-          console.log("[PoeNinja] Auto-refresh started:", info);
           poeNinja.setAutoRefreshActive(
             info.game,
             info.league,
@@ -129,7 +126,6 @@ export const createPoeNinjaSlice: StateCreator<
       const unsubscribeAutoRefreshStopped =
         window.electron?.snapshots?.onAutoRefreshStopped?.((info) => {
           const { poeNinja } = get();
-          console.log("[PoeNinja] Auto-refresh stopped:", info);
           poeNinja.setAutoRefreshInactive(info.game, info.league);
         });
 

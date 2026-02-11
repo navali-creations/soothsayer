@@ -234,6 +234,24 @@ describe("ClientLogReaderService", () => {
       );
       expect(instance1).toBe(instance2);
     });
+
+    it("should throw when called without mainWindow on first initialization", async () => {
+      await expect(ClientLogReaderService.getInstance()).rejects.toThrow(
+        "ClientLogReaderService requires mainWindow for first initialization",
+      );
+    });
+
+    it("should succeed without mainWindow on subsequent calls after instance exists", async () => {
+      // First call with mainWindow creates the instance
+      const instance1 = await ClientLogReaderService.getInstance(
+        mockMainWindow as any,
+      );
+
+      // Subsequent call without mainWindow should return the existing instance
+      const instance2 = await ClientLogReaderService.getInstance();
+
+      expect(instance2).toBe(instance1);
+    });
   });
 
   // ─── Initialization ────────────────────────────────────────────────────

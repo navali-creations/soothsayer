@@ -540,6 +540,8 @@ class SupabaseClientService {
    * Call a Supabase Edge Function with authentication
    * Generic method for calling any edge function
    */
+  private static readonly EDGE_FUNCTION_TIMEOUT_MS = 10_000; // 10 seconds
+
   public async callEdgeFunction<T = unknown>(
     functionName: string,
     body: Record<string, unknown>,
@@ -562,18 +564,40 @@ class SupabaseClientService {
 
     const accessToken = sessionData.session.access_token;
 
-    const response = await fetch(
-      `${this.supabaseUrl}/functions/v1/${functionName}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          apikey: this.supabaseAnonKey,
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify(body),
-      },
+    // Abort the request if it takes too long (e.g. cold-start, 502 stalls)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      SupabaseClientService.EDGE_FUNCTION_TIMEOUT_MS,
     );
+
+    let response: Response;
+    try {
+      response = await fetch(
+        `${this.supabaseUrl}/functions/v1/${functionName}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: this.supabaseAnonKey,
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        },
+      );
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new Error(
+          `Edge Function ${functionName} timed out after ${
+            SupabaseClientService.EDGE_FUNCTION_TIMEOUT_MS / 1000
+          }s`,
+        );
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     const responseText = await response.text();
 

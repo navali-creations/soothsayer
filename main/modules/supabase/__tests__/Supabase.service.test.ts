@@ -970,6 +970,48 @@ describe("SupabaseClientService", () => {
         "Edge Function my-function failed (401): Unauthorized",
       );
     });
+
+    it("should pass an AbortSignal to fetch", async () => {
+      const service = await configureService();
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve(JSON.stringify({ ok: true })),
+      });
+
+      await service.callEdgeFunction("my-function", { key: "value" });
+
+      const fetchCall = mockFetch.mock.calls[0];
+      const fetchOptions = fetchCall[1];
+      expect(fetchOptions.signal).toBeInstanceOf(AbortSignal);
+    });
+
+    it("should throw a descriptive timeout error when fetch exceeds the timeout", async () => {
+      const service = await configureService();
+
+      // Simulate an AbortError (what fetch throws when the signal is aborted)
+      const abortError = new DOMException(
+        "The operation was aborted",
+        "AbortError",
+      );
+      mockFetch.mockRejectedValue(abortError);
+
+      await expect(service.callEdgeFunction("my-function", {})).rejects.toThrow(
+        "Edge Function my-function timed out after 10s",
+      );
+    });
+
+    it("should propagate non-abort network errors unchanged", async () => {
+      const service = await configureService();
+
+      const networkError = new TypeError("Failed to fetch");
+      mockFetch.mockRejectedValue(networkError);
+
+      await expect(service.callEdgeFunction("my-function", {})).rejects.toThrow(
+        networkError,
+      );
+    });
   });
 
   // ═══════════════════════════════════════════════════════════════

@@ -10,7 +10,7 @@ Deno.serve(async (req: Request) => {
     req,
     endpoint: "get-leagues-legacy",
     windowMs: 24 * 60 * 60 * 1000, // 24h
-    maxHits: 1,
+    maxHits: 2,
   });
 
   if (authResult instanceof Response) return authResult;

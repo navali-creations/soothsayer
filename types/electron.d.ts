@@ -1,4 +1,5 @@
 import type { AnalyticsAPI } from "../main/modules/analytics/Analytics.api";
+import type { AppAPI } from "../main/modules/app/App.api";
 import type { AppSetupAPI } from "../main/modules/app-setup/AppSetup.api";
 import type { CurrentSessionAPI } from "../main/modules/current-session/CurrentSession.api";
 import type { DataStoreAPI } from "../main/modules/data-store/DataStore.api";
@@ -22,7 +23,8 @@ declare global {
       session: typeof CurrentSessionAPI;
       sessions: typeof SessionsAPI;
       snapshots: typeof SnapshotAPI;
-      app: typeof MainWindowAPI;
+      mainWindow: typeof MainWindowAPI;
+      app: typeof AppAPI;
       overlay: typeof OverlayAPI;
       appSetup: typeof AppSetupAPI;
       poeProcess: typeof PoeProcessAPI;

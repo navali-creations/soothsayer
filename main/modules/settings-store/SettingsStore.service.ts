@@ -1,10 +1,6 @@
-import {
-  BrowserWindow,
-  dialog,
-  type IpcMainInvokeEvent,
-  ipcMain,
-} from "electron";
+import { type IpcMainInvokeEvent, ipcMain } from "electron";
 
+import { ClientLogReaderService } from "~/main/modules/client-log-reader";
 import { DatabaseService } from "~/main/modules/database";
 import {
   assertBoolean,
@@ -153,6 +149,16 @@ class SettingsStoreService {
               throw new IpcValidationError(ch, `Unknown setting key "${key}"`);
           }
           await this.set(key, value);
+
+          // Notify ClientLogReader when client.txt path changes
+          if (
+            (key === "poe1ClientTxtPath" || key === "poe2ClientTxtPath") &&
+            value !== null
+          ) {
+            const game = key === "poe1ClientTxtPath" ? "poe1" : "poe2";
+            const reader = await ClientLogReaderService.getInstance();
+            reader.setClientLogPath(value as string, game);
+          }
         } catch (error) {
           return handleValidationError(error, ch);
         }
@@ -170,6 +176,10 @@ class SettingsStoreService {
         try {
           assertFilePath(path, "path", SettingsStoreChannel.SetPoe1ClientPath);
           await this.repository.setPoe1ClientTxtPath(path);
+
+          // Notify ClientLogReader to start watching the new path
+          const clientLogReader = await ClientLogReaderService.getInstance();
+          clientLogReader.setClientLogPath(path, "poe1");
         } catch (error) {
           return handleValidationError(
             error,
@@ -189,6 +199,10 @@ class SettingsStoreService {
         try {
           assertFilePath(path, "path", SettingsStoreChannel.SetPoe2ClientPath);
           await this.repository.setPoe2ClientTxtPath(path);
+
+          // Notify ClientLogReader to start watching the new path
+          const clientLogReader = await ClientLogReaderService.getInstance();
+          clientLogReader.setClientLogPath(path, "poe2");
         } catch (error) {
           return handleValidationError(
             error,
@@ -406,37 +420,11 @@ class SettingsStoreService {
       },
     );
 
-    // Database management — requires native OS confirmation dialog
+    // Database management — confirmation is handled by the renderer UI
     ipcMain.handle(SettingsStoreChannel.ResetDatabase, async () => {
       try {
-        // Security: show a native OS-level confirmation dialog in the main process.
-        // This ensures that even if the renderer is compromised and calls this
-        // IPC channel directly, the user still gets an unforgeable native dialog.
-        const focusedWindow = BrowserWindow.getFocusedWindow();
-        const dialogOptions: Electron.MessageBoxOptions = {
-          type: "warning",
-          buttons: ["Cancel", "Reset Database"],
-          defaultId: 0,
-          cancelId: 0,
-          title: "Reset Database",
-          message: "Are you sure you want to reset the database?",
-          detail:
-            "This will permanently delete ALL your data including sessions, card statistics, and price snapshots. This action cannot be undone.",
-        };
-
-        const result = focusedWindow
-          ? await dialog.showMessageBox(focusedWindow, dialogOptions)
-          : await dialog.showMessageBox(dialogOptions);
-
-        // "Cancel" is index 0, "Reset Database" is index 1
-        if (result.response !== 1) {
-          return { success: false, error: "Reset cancelled by user" };
-        }
-
         const db = DatabaseService.getInstance();
         db.reset();
-
-        // Return success with restart required flag
         return { success: true, requiresRestart: true };
       } catch (error) {
         console.error("[Settings] Failed to reset database:", error);

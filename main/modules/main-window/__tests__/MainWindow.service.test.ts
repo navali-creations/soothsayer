@@ -30,6 +30,7 @@ const {
   mockShellOpenExternal,
   mockDialogShowOpenDialog,
   mockValidateFileDialogOptions,
+  mockAppServiceIsQuitting,
 } = vi.hoisted(() => ({
   mockIpcHandle: vi.fn(),
   mockSettingsGet: vi.fn(),
@@ -63,6 +64,7 @@ const {
     filters: raw?.filters ?? [],
     properties: raw?.properties ?? ["openFile"],
   })),
+  mockAppServiceIsQuitting: { value: false },
 }));
 
 // ─── Track BrowserWindow instances ───────────────────────────────────────────
@@ -136,6 +138,16 @@ vi.mock("~/main/utils/ipc-validation", () => ({
 // ─── Mock all services from barrel ───────────────────────────────────────────
 vi.mock("~/main/modules", () => ({
   AnalyticsService: { getInstance: vi.fn(() => ({})) },
+  AppService: {
+    getInstance: vi.fn(() => ({
+      get isQuitting() {
+        return mockAppServiceIsQuitting.value;
+      },
+      set isQuitting(val: boolean) {
+        mockAppServiceIsQuitting.value = val;
+      },
+    })),
+  },
   ClientLogReaderService: {
     getInstance: vi.fn(() =>
       Promise.resolve({
@@ -819,7 +831,8 @@ describe("MainWindowService", () => {
 
   describe("emitOnMainWindowClose", () => {
     it("should hide window when isQuitting is false and close is triggered", async () => {
-      await service.createMainWindow(false);
+      mockAppServiceIsQuitting.value = false;
+      await service.createMainWindow();
 
       const closeHandler = getWindowOnHandler("close");
       const mockEvent = { preventDefault: vi.fn() };
@@ -831,12 +844,76 @@ describe("MainWindowService", () => {
     });
 
     it("should allow close when isQuitting is true", async () => {
-      await service.createMainWindow(true);
+      mockAppServiceIsQuitting.value = true;
+      await service.createMainWindow();
 
       const closeHandler = getWindowOnHandler("close");
       const mockEvent = { preventDefault: vi.fn() };
 
       closeHandler(mockEvent);
+
+      expect(mockEvent.preventDefault).not.toHaveBeenCalled();
+      expect(mockBrowserWindowHide).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─── Combined: IPC close + native close interaction ──────────────────────
+
+  describe("combined: IPC close handler + emitOnMainWindowClose interaction", () => {
+    it("should allow app to quit even when user prefers minimize (isQuitting = true)", async () => {
+      mockAppServiceIsQuitting.value = false;
+      await service.createMainWindow();
+      ipcHandlerCalls = captureIpcHandlers();
+
+      // Get both handlers before any mock clearing
+      const ipcCloseHandler = getIpcHandler(
+        "main-window:close",
+        ipcHandlerCalls,
+      );
+      const nativeCloseHandler = getWindowOnHandler("close");
+
+      // Step 1: User clicks X with minimize preference → window hides
+      mockSettingsGet.mockResolvedValue("minimize");
+      await ipcCloseHandler();
+
+      expect(mockBrowserWindowHide).toHaveBeenCalled();
+      expect(mockBrowserWindowClose).not.toHaveBeenCalled();
+
+      // Step 2: Later, the app is truly quitting (e.g. "Quit" from tray)
+      mockAppServiceIsQuitting.value = true;
+      mockBrowserWindowHide.mockClear();
+
+      const mockEvent = { preventDefault: vi.fn() };
+      nativeCloseHandler(mockEvent);
+
+      // Native close should NOT be intercepted — app should quit
+      expect(mockEvent.preventDefault).not.toHaveBeenCalled();
+      expect(mockBrowserWindowHide).not.toHaveBeenCalled();
+    });
+
+    it("should not intercept native close when user prefers exit and clicks X", async () => {
+      mockAppServiceIsQuitting.value = false;
+      await service.createMainWindow();
+      ipcHandlerCalls = captureIpcHandlers();
+
+      const ipcCloseHandler = getIpcHandler(
+        "main-window:close",
+        ipcHandlerCalls,
+      );
+      const nativeCloseHandler = getWindowOnHandler("close");
+
+      // User clicks X with exit preference
+      mockSettingsGet.mockResolvedValue("exit");
+      await ipcCloseHandler();
+
+      // IPC handler should call close() and destroy overlay
+      expect(mockOverlayDestroy).toHaveBeenCalled();
+      expect(mockBrowserWindowClose).toHaveBeenCalled();
+
+      // Simulate what Electron does: close() triggers the native "close" event.
+      // Since the user explicitly chose "exit", this should NOT be intercepted.
+      const mockEvent = { preventDefault: vi.fn() };
+      nativeCloseHandler(mockEvent);
 
       expect(mockEvent.preventDefault).not.toHaveBeenCalled();
       expect(mockBrowserWindowHide).not.toHaveBeenCalled();
@@ -1087,7 +1164,7 @@ describe("MainWindowService", () => {
   describe("full lifecycle", () => {
     it("should handle create -> use caption events -> security -> close", async () => {
       // 1. Create window
-      await service.createMainWindow(false);
+      await service.createMainWindow();
       ipcHandlerCalls = captureIpcHandlers();
 
       expect(browserWindowInstances).toHaveLength(1);
@@ -1151,7 +1228,8 @@ describe("MainWindowService", () => {
 
     it("should handle close intercepted by emitOnMainWindowClose", async () => {
       // Create with isQuitting=false so close is intercepted
-      await service.createMainWindow(false);
+      mockAppServiceIsQuitting.value = false;
+      await service.createMainWindow();
 
       const closeHandler = getWindowOnHandler("close");
       const mockEvent = { preventDefault: vi.fn() };

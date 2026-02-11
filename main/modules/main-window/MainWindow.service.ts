@@ -12,6 +12,7 @@ import { updateElectronApp } from "update-electron-app";
 
 import {
   AnalyticsService,
+  AppService,
   ClientLogReaderService,
   CsvService,
   CurrentSessionService,
@@ -62,7 +63,7 @@ class MainWindowService {
     return nativeImage.createFromPath(iconPath);
   }
 
-  public async createMainWindow(isQuitting: boolean = false) {
+  public async createMainWindow() {
     const indexHtml = join(
       __dirname,
       `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`,
@@ -141,6 +142,10 @@ class MainWindowService {
     OverlayService.getInstance();
     console.log("[Init] ✓ Overlay");
 
+    // 11. Client Log Reader (watches client.txt for divination cards)
+    await ClientLogReaderService.getInstance(this);
+    console.log("[Init] ✓ Client Log Reader");
+
     console.log("[Init] All services initialized successfully");
 
     this.showAppOnceReadyToShow();
@@ -193,7 +198,7 @@ class MainWindowService {
     // Caption events
     this.emitCaptionEvents();
     this.emitFileDialogEvents();
-    this.emitOnMainWindowClose(isQuitting);
+    this.emitOnMainWindowClose();
 
     TrayService.getInstance().createTray();
     // updateElectronApp();
@@ -263,6 +268,7 @@ class MainWindowService {
 
       if (shouldAppQuitBasedOnUserPreference || byDefaultQuitApp) {
         OverlayService.getInstance().destroy();
+        AppService.getInstance().isQuitting = true;
         this.mainWindow?.close?.();
       }
 
@@ -272,9 +278,9 @@ class MainWindowService {
     });
   }
 
-  private emitOnMainWindowClose(isQuitting: boolean) {
+  private emitOnMainWindowClose() {
     this.mainWindow?.on?.("close", (e) => {
-      if (isQuitting) return;
+      if (AppService.getInstance().isQuitting) return;
       e.preventDefault();
       this.mainWindow?.hide?.();
     });

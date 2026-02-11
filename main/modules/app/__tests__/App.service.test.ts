@@ -337,10 +337,8 @@ describe("AppService", () => {
       service.emitRestart();
 
       const handler = getIpcHandler(AppChannel.Restart);
-      const mockEvent = { preventDefault: vi.fn() };
-      handler(mockEvent);
+      handler();
 
-      expect(mockEvent.preventDefault).toHaveBeenCalled();
       expect(mockAppRelaunch).toHaveBeenCalled();
       expect(mockAppExit).toHaveBeenCalledWith(0);
     });
@@ -350,10 +348,8 @@ describe("AppService", () => {
       service.emitRestart();
 
       const handler = getIpcHandler(AppChannel.Restart);
-      const mockEvent = { preventDefault: vi.fn() };
-      handler(mockEvent);
+      handler();
 
-      expect(mockEvent.preventDefault).not.toHaveBeenCalled();
       expect(mockAppRelaunch).not.toHaveBeenCalled();
       expect(mockAppExit).not.toHaveBeenCalled();
     });
@@ -781,11 +777,11 @@ describe("AppService", () => {
   // ─── isQuitting state ────────────────────────────────────────────────────
 
   describe("isQuitting state", () => {
-    it("should default to true", () => {
+    it("should default to false", () => {
       // @ts-expect-error
       AppService._instance = undefined;
       const svc = new AppService();
-      expect(svc.isQuitting).toBe(true);
+      expect(svc.isQuitting).toBe(false);
     });
 
     it("should be settable to false", () => {

@@ -47,7 +47,7 @@ if (!electronApp.requestSingleInstanceLock()) {
 
     initializeSupabase();
 
-    await mainWindow.createMainWindow(app.isQuitting);
+    await mainWindow.createMainWindow();
     app.emitSecondInstance(mainWindow);
     app.emitRestart();
   });

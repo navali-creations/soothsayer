@@ -84,11 +84,15 @@ export const createGameInfoSlice: StateCreator<
         // Silently handle - IPC handlers may not be ready during initial load
       }
 
-      // Fetch leagues
-      await Promise.all([
+      // Fetch leagues in the background — don't block app startup.
+      // If the edge function is slow or down, the app still loads immediately.
+      // Leagues will populate once the fetch completes; UI shows loading state.
+      Promise.all([
         gameInfo.fetchLeagues("poe1"),
         gameInfo.fetchLeagues("poe2"),
-      ]);
+      ]).catch((error) => {
+        console.error("[GameInfo] Background league fetch failed:", error);
+      });
     },
 
     // Fetch leagues for a specific game
