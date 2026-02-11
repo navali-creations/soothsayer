@@ -4,6 +4,7 @@ SentryService.getInstance().initialize();
 
 import { app as electronApp } from "electron";
 import { installExtension, REDUX_DEVTOOLS } from "electron-devtools-installer";
+import started from "electron-squirrel-startup";
 
 import {
   AppService,
@@ -12,6 +13,13 @@ import {
   OverlayService,
   SupabaseClientService,
 } from "./modules";
+
+// Handle Squirrel.Windows installer events (creates/removes shortcuts, etc.)
+// This must be called early — if it returns true, the app is being run by the
+// Squirrel installer and should quit immediately.
+if (started) {
+  electronApp.quit();
+}
 
 const app = AppService.getInstance();
 const mainWindow = MainWindowService.getInstance();

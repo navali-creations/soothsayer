@@ -26,7 +26,12 @@ const config: ForgeConfig = {
     force: true,
   },
   makers: [
-    new MakerSquirrel({}),
+    new MakerSquirrel({
+      name: "soothsayer",
+      setupIcon: "./renderer/assets/logo/windows/icon.ico",
+      iconUrl:
+        "https://raw.githubusercontent.com/navali-creations/soothsayer/master/renderer/assets/logo/windows/icon.ico",
+    }),
     new MakerZIP({}, ["darwin"]),
     new MakerRpm({}),
     new MakerDeb({}),

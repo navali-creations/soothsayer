@@ -79,10 +79,9 @@ jobs:
       - name: Rebuild required dependencies
         run: pnpm rebuild better-sqlite3 electron esbuild
 
-      # electron-winstaller needs its install script to select the correct
-      # 7z binary for Squirrel packaging
-      - name: Rebuild Windows-specific dependencies
-        if: runner.os == 'Windows'
+      # Rebuild electron-winstaller for Squirrel maker (Windows only)
+      - name: Rebuild electron-winstaller for Squirrel
+        if: matrix.os == 'windows-latest'
         run: pnpm rebuild electron-winstaller
 
       # Run root postinstall: electron-rebuild -f -w better-sqlite3

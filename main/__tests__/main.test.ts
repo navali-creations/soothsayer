@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // ─── Hoisted mock functions (available inside vi.mock factories) ─────────────
 const {
+  mockSquirrelStartup,
   mockSentryInitialize,
   mockSentryGetInstance,
   mockAppGetInstance,
@@ -24,6 +25,7 @@ const {
   mockInstallExtension,
   mockREDUX_DEVTOOLS,
 } = vi.hoisted(() => ({
+  mockSquirrelStartup: { value: false },
   mockSentryInitialize: vi.fn(),
   mockSentryGetInstance: vi.fn(),
   mockAppGetInstance: vi.fn(),
@@ -54,6 +56,11 @@ const mockEnv = vi.hoisted(() => ({
   VITE_SUPABASE_URL: "https://test.supabase.co",
   VITE_SUPABASE_ANON_KEY: "test-anon-key",
   SENTRY_DSN: "https://sentry.example.com/123",
+}));
+
+// ─── Mock electron-squirrel-startup ──────────────────────────────────────────
+vi.mock("electron-squirrel-startup", () => ({
+  default: mockSquirrelStartup.value,
 }));
 
 // ─── Mock SentryService (must be first — imported at top of main.ts) ────────

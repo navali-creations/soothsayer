@@ -8,7 +8,6 @@ import {
   nativeImage,
   shell,
 } from "electron";
-import { updateElectronApp } from "update-electron-app";
 
 import {
   AnalyticsService,
@@ -28,6 +27,7 @@ import {
   SnapshotService,
   SupabaseClientService,
   TrayService,
+  UpdaterService,
 } from "~/main/modules";
 import { validateFileDialogOptions } from "~/main/utils/ipc-validation";
 
@@ -201,7 +201,10 @@ class MainWindowService {
     this.emitOnMainWindowClose();
 
     TrayService.getInstance().createTray();
-    // updateElectronApp();
+
+    // Initialize update checker (checks GitHub releases for new versions)
+    UpdaterService.getInstance().initialize(this.mainWindow);
+    console.log("[Init] ✓ Updater");
 
     const clientLogReader = await ClientLogReaderService.getInstance(this);
     clientLogReader
@@ -209,8 +212,6 @@ class MainWindowService {
       .on("clientlog-stop", (_data) => {});
 
     console.log("[Init] Main window created and ready");
-
-    updateElectronApp();
   }
 
   private emitFileDialogEvents() {

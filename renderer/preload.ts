@@ -13,6 +13,7 @@ import { PoeProcessAPI } from "~/main/modules/poe-process/PoeProcess.api";
 import { SessionsAPI } from "~/main/modules/sessions/Sessions.api";
 import { SettingsStoreAPI } from "~/main/modules/settings-store/SettingsStore.api";
 import { SnapshotAPI } from "~/main/modules/snapshots/Snapshot.api";
+import { UpdaterAPI } from "~/main/modules/updater/Updater.api";
 
 contextBridge.exposeInMainWorld("electron", {
   selectFile: (options: any) => ipcRenderer.invoke("select-file", options),
@@ -34,4 +35,5 @@ contextBridge.exposeInMainWorld("electron", {
   settings: SettingsStoreAPI,
   analytics: AnalyticsAPI,
   divinationCards: DivinationCardsApi,
+  updater: UpdaterAPI,
 });

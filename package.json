@@ -95,7 +95,6 @@
     "tailwind-merge": "^3.4.0",
     "tailwindcss": "^4.1.17",
     "typescript": "^5.9.3",
-    "update-electron-app": "^3.1.2",
     "vite": "^7.3.1",
     "vite-plugin-externalize-deps": "^0.10.0",
     "vitest": "^4.0.18",

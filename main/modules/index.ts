@@ -18,3 +18,4 @@ export * from "./settings-store";
 export * from "./snapshots";
 export * from "./supabase";
 export * from "./tray";
+export * from "./updater";

@@ -12,6 +12,7 @@ import type { PoeProcessAPI } from "../main/modules/poe-process/PoeProcess.api";
 import type { SessionsAPI } from "../main/modules/sessions/Sessions.api";
 import type { SettingsStoreAPI } from "../main/modules/settings-store/SettingsStore.api";
 import type { SnapshotAPI } from "../main/modules/snapshots/Snapshot.api";
+import type { UpdaterAPI } from "../main/modules/updater/Updater.api";
 
 declare global {
   interface Window {
@@ -34,6 +35,7 @@ declare global {
       settings: typeof SettingsStoreAPI;
       analytics: typeof AnalyticsAPI;
       divinationCards: typeof DivinationCardsApi;
+      updater: typeof UpdaterAPI;
     };
   }
 }

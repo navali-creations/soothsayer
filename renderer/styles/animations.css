@@ -1,4 +1,16 @@
 @layer utilities {
+  @keyframes indeterminate {
+    0% {
+      transform: translateX(-100%);
+    }
+    50% {
+      transform: translateX(200%);
+    }
+    100% {
+      transform: translateX(-100%);
+    }
+  }
+
   @keyframes pulse-ring {
     0% {
       box-shadow: 0 0 0 0

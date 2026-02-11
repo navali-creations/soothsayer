@@ -5,6 +5,7 @@ import {
 } from "react-icons/ri";
 
 import { Button, Flex, Link } from "~/renderer/components";
+import UpdateIndicator from "~/renderer/modules/updater/UpdateIndicator";
 import { useBoundStore } from "~/renderer/store";
 
 const AppControls = () => {
@@ -20,6 +21,7 @@ const AppControls = () => {
     <Flex className="gap-0">
       {!isSetupMode && (
         <>
+          <UpdateIndicator />
           <Button
             onClick={toggleOverlay}
             variant="ghost"

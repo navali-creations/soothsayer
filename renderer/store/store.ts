@@ -51,6 +51,10 @@ import {
   createStatisticsSlice,
   type StatisticsSlice,
 } from "../modules/statistics/Statistics.slice";
+import {
+  createUpdaterSlice,
+  type UpdaterSlice,
+} from "../modules/updater/Updater.slice";
 
 enableMapSet();
 
@@ -72,6 +76,7 @@ type BoundStore = GameInfoSlice &
   PoeNinjaSlice &
   StatisticsSlice &
   OnboardingSlice &
+  UpdaterSlice &
   RootActions;
 
 export const useBoundStore = create<BoundStore>()(
@@ -89,6 +94,7 @@ export const useBoundStore = create<BoundStore>()(
       const poeNinjaSlice = createPoeNinjaSlice(...a);
       const statisticsSlice = createStatisticsSlice(...a);
       const onboardingSlice = createOnboardingSlice(...a);
+      const updaterSlice = createUpdaterSlice(...a);
 
       return {
         ...settingsSlice,
@@ -103,6 +109,7 @@ export const useBoundStore = create<BoundStore>()(
         ...poeNinjaSlice,
         ...statisticsSlice,
         ...onboardingSlice,
+        ...updaterSlice,
 
         hydrate: async () => {
           await Promise.all([
@@ -123,12 +130,14 @@ export const useBoundStore = create<BoundStore>()(
           const unsubscribeGameInfo = gameInfoSlice.gameInfo.startListening();
           const unsubscribePoeNinja = poeNinjaSlice.poeNinja.startListening();
           const unsubscribeOverlay = overlaySlice.overlay.startListening();
+          const unsubscribeUpdater = updaterSlice.updater.startListening();
 
           return () => {
             unsubscribeSession();
             unsubscribeGameInfo();
             unsubscribePoeNinja();
             unsubscribeOverlay();
+            unsubscribeUpdater();
           };
         },
 
@@ -146,6 +155,7 @@ export const useBoundStore = create<BoundStore>()(
               poeNinja,
               statistics,
               onboarding,
+              updater,
               ...state
             }) => {
               // Reset settings
@@ -219,6 +229,18 @@ export const useBoundStore = create<BoundStore>()(
               onboarding.dismissedBeacons = [];
               onboarding.isLoading = false;
               onboarding.error = null;
+
+              // Reset updater
+              updater.updateInfo = null;
+              updater.updateAvailable = false;
+              updater.isDismissed = false;
+              updater.status = "idle";
+              updater.downloadProgress = {
+                percent: 0,
+                transferredBytes: 0,
+                totalBytes: 0,
+              };
+              updater.error = null;
             },
           );
         },

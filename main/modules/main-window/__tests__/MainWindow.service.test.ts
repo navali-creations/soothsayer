@@ -125,11 +125,6 @@ vi.mock("electron", () => {
   };
 });
 
-// ─── Mock update-electron-app ────────────────────────────────────────────────
-vi.mock("update-electron-app", () => ({
-  updateElectronApp: vi.fn(),
-}));
-
 // ─── Mock IPC validation ─────────────────────────────────────────────────────
 vi.mock("~/main/utils/ipc-validation", () => ({
   validateFileDialogOptions: mockValidateFileDialogOptions,
@@ -212,6 +207,12 @@ vi.mock("~/main/modules", () => ({
   TrayService: {
     getInstance: vi.fn(() => ({
       createTray: vi.fn(),
+    })),
+  },
+  UpdaterService: {
+    getInstance: vi.fn(() => ({
+      initialize: vi.fn(),
+      destroy: vi.fn(),
     })),
   },
 }));
