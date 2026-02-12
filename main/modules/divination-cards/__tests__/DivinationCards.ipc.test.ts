@@ -16,6 +16,7 @@ const {
   mockRepositoryInsertCard,
   mockRepositoryUpdateCard,
   mockRepositoryUpdateRarities,
+  mockElectronApp,
 } = vi.hoisted(() => ({
   mockIpcHandle: vi.fn(),
   mockReadFileSync: vi.fn(),
@@ -31,9 +32,15 @@ const {
   mockRepositoryInsertCard: vi.fn(),
   mockRepositoryUpdateCard: vi.fn(),
   mockRepositoryUpdateRarities: vi.fn(),
+  mockElectronApp: {
+    isPackaged: false,
+    getAppPath: vi.fn(() => "/mock-app-path"),
+    getPath: vi.fn(() => "/mock-path"),
+  },
 }));
 
 // ─── Mock Electron ───────────────────────────────────────────────────────────
+
 vi.mock("electron", () => ({
   ipcMain: {
     handle: mockIpcHandle,
@@ -44,11 +51,7 @@ vi.mock("electron", () => ({
     getAllWindows: vi.fn(() => []),
     getFocusedWindow: vi.fn(() => null),
   },
-  app: {
-    isPackaged: false,
-    getAppPath: vi.fn(() => "/mock-app-path"),
-    getPath: vi.fn(() => "/mock-path"),
-  },
+  app: mockElectronApp,
   dialog: {
     showMessageBox: vi.fn(),
     showSaveDialog: vi.fn(),
@@ -1080,6 +1083,109 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
         success: false,
         error: expect.stringContaining("Invalid input"),
       });
+    });
+  });
+
+  // ─── Path resolution ────────────────────────────────────────────────────
+
+  describe("card JSON path resolution", () => {
+    it("should use app.getAppPath() based path when NOT packaged", async () => {
+      // The default beforeEach already sets isPackaged = false
+      mockRepositoryGetCardHash.mockResolvedValue(null);
+
+      await service.initialize();
+
+      // readFileSync should have been called with the dev path
+      const callPath = mockReadFileSync.mock.calls[0][0] as string;
+      // Normalize separators for cross-platform
+      const normalized = callPath.replace(/\\/g, "/");
+      expect(normalized).toBe("/mock-app-path/renderer/assets/poe1/cards.json");
+    });
+
+    it("should use process.resourcesPath based path when packaged", async () => {
+      // Reset singleton so we can create a fresh one with isPackaged = true
+      // @ts-expect-error — accessing private static for testing
+      DivinationCardsService._instance = undefined;
+      vi.clearAllMocks();
+      mockReadFileSync.mockReturnValue(SAMPLE_CARDS_JSON);
+      mockRepositoryGetCardHash.mockResolvedValue(null);
+      mockRepositoryInsertCard.mockResolvedValue(undefined);
+
+      // Set packaged mode and resourcesPath
+      mockElectronApp.isPackaged = true;
+      const originalResourcesPath = process.resourcesPath;
+      Object.defineProperty(process, "resourcesPath", {
+        value: "/mock-resources",
+        writable: true,
+        configurable: true,
+      });
+
+      try {
+        const packagedService = DivinationCardsService.getInstance();
+        await packagedService.initialize();
+
+        // readFileSync should have been called with the packaged path
+        const callPath = mockReadFileSync.mock.calls[0][0] as string;
+        const normalized = callPath.replace(/\\/g, "/");
+        expect(normalized).toBe("/mock-resources/poe1/cards.json");
+
+        // Crucially: NOT the old broken path that included renderer/assets/
+        expect(normalized).not.toContain("renderer/assets");
+      } finally {
+        // Restore
+        mockElectronApp.isPackaged = false;
+        Object.defineProperty(process, "resourcesPath", {
+          value: originalResourcesPath,
+          writable: true,
+          configurable: true,
+        });
+        // @ts-expect-error — accessing private static for testing
+        DivinationCardsService._instance = undefined;
+      }
+    });
+
+    it("should NOT use renderer/assets in packaged path (regression guard)", async () => {
+      // This test specifically guards against the bug where the packaged app
+      // tried to read from process.resourcesPath/renderer/assets/poe1/cards.json
+      // which doesn't exist because extraResource copies directories as
+      // resources/<dirname>/ not resources/renderer/assets/<dirname>/
+
+      // @ts-expect-error — accessing private static for testing
+      DivinationCardsService._instance = undefined;
+      vi.clearAllMocks();
+      mockReadFileSync.mockReturnValue(SAMPLE_CARDS_JSON);
+      mockRepositoryGetCardHash.mockResolvedValue(null);
+      mockRepositoryInsertCard.mockResolvedValue(undefined);
+
+      mockElectronApp.isPackaged = true;
+      const originalResourcesPath = process.resourcesPath;
+      Object.defineProperty(process, "resourcesPath", {
+        value: "C:\\Users\\test\\AppData\\Local\\soothsayer\\resources",
+        writable: true,
+        configurable: true,
+      });
+
+      try {
+        const packagedService = DivinationCardsService.getInstance();
+        await packagedService.initialize();
+
+        const callPath = mockReadFileSync.mock.calls[0][0] as string;
+        const normalized = callPath.replace(/\\/g, "/");
+
+        // The path should end with /poe1/cards.json directly under resources
+        expect(normalized).toMatch(/\/resources\/poe1\/cards\.json$/);
+        // And must NOT contain the old broken renderer/assets prefix
+        expect(normalized).not.toContain("renderer/assets");
+      } finally {
+        mockElectronApp.isPackaged = false;
+        Object.defineProperty(process, "resourcesPath", {
+          value: originalResourcesPath,
+          writable: true,
+          configurable: true,
+        });
+        // @ts-expect-error — accessing private static for testing
+        DivinationCardsService._instance = undefined;
+      }
     });
   });
 });

@@ -12,6 +12,10 @@ import {
   createCardsSlice,
 } from "../modules/cards/Cards.slice";
 import {
+  type ChangelogSlice,
+  createChangelogSlice,
+} from "../modules/changelog/Changelog.slice";
+import {
   createSessionSlice,
   type SessionSlice,
 } from "../modules/current-session/CurrentSession.slice";
@@ -72,6 +76,7 @@ type BoundStore = GameInfoSlice &
   SessionDetailsSlice &
   CardsSlice &
   AppMenuSlice &
+  ChangelogSlice &
   OverlaySlice &
   PoeNinjaSlice &
   StatisticsSlice &
@@ -90,6 +95,7 @@ export const useBoundStore = create<BoundStore>()(
       const appMenuSlice = createAppMenuSlice(...a);
       const gameInfoSlice = createGameInfoSlice(...a);
       const overlaySlice = createOverlaySlice(...a);
+      const changelogSlice = createChangelogSlice(...a);
       const cardsSlice = createCardsSlice(...a);
       const poeNinjaSlice = createPoeNinjaSlice(...a);
       const statisticsSlice = createStatisticsSlice(...a);
@@ -103,6 +109,7 @@ export const useBoundStore = create<BoundStore>()(
         ...sessionsSlice,
         ...sessionDetailsSlice,
         ...appMenuSlice,
+        ...changelogSlice,
         ...gameInfoSlice,
         ...overlaySlice,
         ...cardsSlice,
@@ -152,6 +159,7 @@ export const useBoundStore = create<BoundStore>()(
               sessionDetails,
               overlay,
               cards,
+              changelog,
               poeNinja,
               statistics,
               onboarding,
@@ -188,6 +196,11 @@ export const useBoundStore = create<BoundStore>()(
 
               // Reset app menu
               appMenu.isMaximized = false;
+              appMenu.isWhatsNewOpen = false;
+              appMenu.whatsNewRelease = null;
+              appMenu.whatsNewIsLoading = false;
+              appMenu.whatsNewError = null;
+              appMenu.whatsNewHasFetched = false;
 
               // Reset game info
               gameInfo.poe1Leagues = [];
@@ -201,6 +214,12 @@ export const useBoundStore = create<BoundStore>()(
               overlay.isVisible = false;
               overlay.isLoading = false;
               overlay.error = null;
+
+              // Reset changelog
+              changelog.releases = [];
+              changelog.isLoading = false;
+              changelog.error = null;
+              changelog.hasFetched = false;
 
               // Reset cards
               cards.allCards = [];

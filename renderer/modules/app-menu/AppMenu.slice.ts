@@ -1,9 +1,16 @@
 import type { StateCreator } from "zustand";
 
+import type { LatestReleaseInfo } from "~/main/modules/updater/Updater.api";
+
 export interface AppMenuSlice {
   appMenu: {
     // State
     isMaximized: boolean;
+    isWhatsNewOpen: boolean;
+    whatsNewRelease: LatestReleaseInfo | null;
+    whatsNewIsLoading: boolean;
+    whatsNewError: string | null;
+    whatsNewHasFetched: boolean;
 
     // Actions
     hydrate: () => Promise<void>;
@@ -12,6 +19,8 @@ export interface AppMenuSlice {
     unmaximize: () => Promise<void>;
     close: () => void;
     setIsMaximized: (isMaximized: boolean) => void;
+    openWhatsNew: () => Promise<void>;
+    closeWhatsNew: () => void;
   };
 }
 
@@ -20,10 +29,15 @@ export const createAppMenuSlice: StateCreator<
   [["zustand/devtools", never], ["zustand/immer", never]],
   [],
   AppMenuSlice
-> = (set) => ({
+> = (set, get) => ({
   appMenu: {
     // Initial state
     isMaximized: false,
+    isWhatsNewOpen: false,
+    whatsNewRelease: null,
+    whatsNewIsLoading: false,
+    whatsNewError: null,
+    whatsNewHasFetched: false,
 
     // Hydrate initial maximized state from Electron
     hydrate: async () => {
@@ -88,6 +102,77 @@ export const createAppMenuSlice: StateCreator<
         },
         false,
         "appMenuSlice/setIsMaximized",
+      );
+    },
+
+    // What's New modal actions
+    openWhatsNew: async () => {
+      set(
+        ({ appMenu }) => {
+          appMenu.isWhatsNewOpen = true;
+        },
+        false,
+        "appMenuSlice/openWhatsNew",
+      );
+
+      // Skip fetch if we already have the release info
+      if (get().appMenu.whatsNewHasFetched && get().appMenu.whatsNewRelease) {
+        return;
+      }
+
+      set(
+        ({ appMenu }) => {
+          appMenu.whatsNewIsLoading = true;
+          appMenu.whatsNewError = null;
+        },
+        false,
+        "appMenuSlice/openWhatsNew/fetchStart",
+      );
+
+      try {
+        const result = await window.electron.updater.getLatestRelease();
+
+        if (result) {
+          set(
+            ({ appMenu }) => {
+              appMenu.whatsNewRelease = result;
+              appMenu.whatsNewIsLoading = false;
+              appMenu.whatsNewHasFetched = true;
+            },
+            false,
+            "appMenuSlice/openWhatsNew/fetchSuccess",
+          );
+        } else {
+          set(
+            ({ appMenu }) => {
+              appMenu.whatsNewError = "Could not fetch release information.";
+              appMenu.whatsNewIsLoading = false;
+              appMenu.whatsNewHasFetched = true;
+            },
+            false,
+            "appMenuSlice/openWhatsNew/fetchEmpty",
+          );
+        }
+      } catch (err) {
+        set(
+          ({ appMenu }) => {
+            appMenu.whatsNewError = (err as Error).message;
+            appMenu.whatsNewIsLoading = false;
+            appMenu.whatsNewHasFetched = true;
+          },
+          false,
+          "appMenuSlice/openWhatsNew/fetchError",
+        );
+      }
+    },
+
+    closeWhatsNew: () => {
+      set(
+        ({ appMenu }) => {
+          appMenu.isWhatsNewOpen = false;
+        },
+        false,
+        "appMenuSlice/closeWhatsNew",
       );
     },
   },

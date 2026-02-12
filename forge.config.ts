@@ -14,7 +14,11 @@ const config: ForgeConfig = {
     prune: true,
     executableName: "soothsayer",
     icon: "./renderer/assets/logo/windows/icon",
-    extraResource: ["./renderer/assets/logo"],
+    extraResource: [
+      "./renderer/assets/logo",
+      "./renderer/assets/poe1",
+      "./CHANGELOG.md",
+    ],
     ignore: (file: string) => {
       if (!file) return false;
       const keep =

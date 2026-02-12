@@ -56,14 +56,44 @@ class DivinationCardsService {
     this.settingsStore = SettingsStoreService.getInstance();
 
     // Determine paths based on whether app is packaged
-    const basePath = app.isPackaged ? process.resourcesPath : app.getAppPath();
-
-    this.poe1CardsJsonPath = join(basePath, "renderer/assets/poe1/cards.json");
-    this.poe2CardsJsonPath = join(basePath, "renderer/assets/poe2/cards.json"); // For future use
+    // When packaged, extraResource copies directories to resources/<dirname>/
+    // e.g. ./renderer/assets/poe1 -> resources/poe1/
+    if (app.isPackaged) {
+      this.poe1CardsJsonPath = join(
+        process.resourcesPath,
+        "poe1",
+        "cards.json",
+      );
+      this.poe2CardsJsonPath = join(
+        process.resourcesPath,
+        "poe2",
+        "cards.json",
+      );
+    } else {
+      const basePath = app.getAppPath();
+      this.poe1CardsJsonPath = join(
+        basePath,
+        "renderer",
+        "assets",
+        "poe1",
+        "cards.json",
+      );
+      this.poe2CardsJsonPath = join(
+        basePath,
+        "renderer",
+        "assets",
+        "poe2",
+        "cards.json",
+      );
+    }
 
     this.setupIpcHandlers();
 
-    console.log("[DivinationCards] Service initialized");
+    console.log(
+      `[DivinationCards] Service initialized (packaged: ${app.isPackaged})`,
+    );
+    console.log(`[DivinationCards] PoE1 cards path: ${this.poe1CardsJsonPath}`);
+    console.log(`[DivinationCards] PoE2 cards path: ${this.poe2CardsJsonPath}`);
   }
 
   /**

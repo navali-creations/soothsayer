@@ -1,5 +1,9 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { app, autoUpdater, type BrowserWindow, ipcMain, shell } from "electron";
 
+import type { ChangelogEntry, ChangelogRelease } from "./Updater.api";
 import { UpdaterChannel } from "./Updater.channels";
 
 interface GitHubRelease {
@@ -230,6 +234,50 @@ class UpdaterService {
     ipcMain.handle(UpdaterChannel.InstallUpdate, async () => {
       return this.installUpdate();
     });
+
+    // Fetch the latest GitHub release (for "What's New" modal)
+    ipcMain.handle(UpdaterChannel.GetLatestRelease, async () => {
+      try {
+        const release = await this.fetchLatestRelease();
+        if (!release) return null;
+
+        const body = release.body || "";
+        const parsed = this.parseReleaseBody(body);
+
+        return {
+          version: release.tag_name.replace(/^v/, ""),
+          name: release.name || release.tag_name,
+          body,
+          publishedAt: release.published_at,
+          url: release.html_url,
+          changeType: parsed.changeType,
+          entries: parsed.entries,
+        };
+      } catch (error) {
+        console.error("[Updater] Failed to fetch latest release:", error);
+        return null;
+      }
+    });
+
+    // Read and parse CHANGELOG.md from disk (for Changelog page)
+    ipcMain.handle(UpdaterChannel.GetChangelog, async () => {
+      try {
+        const changelogPath = app.isPackaged
+          ? join(process.resourcesPath, "CHANGELOG.md")
+          : join(app.getAppPath(), "CHANGELOG.md");
+
+        const content = readFileSync(changelogPath, "utf-8");
+        const releases = this.parseChangelog(content);
+        return { success: true, releases };
+      } catch (error) {
+        console.error("[Updater] Failed to read CHANGELOG.md:", error);
+        return {
+          success: false,
+          releases: [],
+          error: (error as Error).message,
+        };
+      }
+    });
   }
 
   // ─── Public methods ───────────────────────────────────────────────────
@@ -408,6 +456,143 @@ class UpdaterService {
 
     const match = releaseName.match(/(\d+\.\d+\.\d+)/);
     return match ? match[1] : releaseName;
+  }
+
+  // ─── Release body parsing ─────────────────────────────────────────────
+
+  /**
+   * Parse a single GitHub release body into structured entries.
+   * Wraps it as a fake versioned release and delegates to parseChangelog.
+   */
+  private parseReleaseBody(body: string): {
+    changeType: string;
+    entries: ChangelogEntry[];
+  } {
+    // Wrap body in a synthetic version header so parseChangelog can handle it
+    const wrapped = `## 0.0.0\n\n${body}`;
+    const releases = this.parseChangelog(wrapped);
+
+    if (releases.length > 0) {
+      return {
+        changeType: releases[0].changeType,
+        entries: releases[0].entries,
+      };
+    }
+
+    return { changeType: "Changes", entries: [] };
+  }
+
+  // ─── Changelog parsing ────────────────────────────────────────────────
+
+  /**
+   * Parse a CHANGELOG.md string into structured release objects.
+   * Handles Windows \r\n line endings.
+   */
+  private parseChangelog(markdown: string): ChangelogRelease[] {
+    const releases: ChangelogRelease[] = [];
+    // Normalize line endings to handle Windows \r\n
+    const lines = markdown.replace(/\r\n/g, "\n").split("\n");
+
+    let currentRelease: ChangelogRelease | null = null;
+    let currentEntry: ChangelogEntry | null = null;
+
+    for (const line of lines) {
+      // Version header: ## X.Y.Z
+      const versionMatch = line.match(/^## (\d+\.\d+\.\d+.*)$/);
+      if (versionMatch) {
+        if (currentEntry && currentRelease) {
+          currentRelease.entries.push(currentEntry);
+          currentEntry = null;
+        }
+        currentRelease = {
+          version: versionMatch[1].trim(),
+          changeType: "Changes",
+          entries: [],
+        };
+        releases.push(currentRelease);
+        continue;
+      }
+
+      // Change type header: ### Patch Changes / ### Minor Changes / etc.
+      const changeTypeMatch = line.match(/^### (.+)$/);
+      if (changeTypeMatch && currentRelease) {
+        if (currentEntry) {
+          currentRelease.entries.push(currentEntry);
+          currentEntry = null;
+        }
+        currentRelease.changeType = changeTypeMatch[1].trim();
+        continue;
+      }
+
+      // Top-level list item (starts with "- ")
+      if (line.match(/^- /) && currentRelease) {
+        if (currentEntry) {
+          currentRelease.entries.push(currentEntry);
+        }
+        currentEntry = this.parseChangelogEntry(line);
+        continue;
+      }
+
+      // Sub-item (indented list item, e.g. "  - something")
+      if (line.match(/^\s{2,}-\s/) && currentEntry) {
+        const subText = line.replace(/^\s+-\s*/, "").trim();
+        if (subText) {
+          if (!currentEntry.subItems) {
+            currentEntry.subItems = [];
+          }
+          currentEntry.subItems.push(subText);
+        }
+        continue;
+      }
+
+      // Continuation text (non-empty, non-header line belonging to current entry)
+      if (line.trim() && currentEntry && !line.startsWith("#")) {
+        currentEntry.description += " " + line.trim();
+      }
+    }
+
+    // Flush last entry
+    if (currentEntry && currentRelease) {
+      currentRelease.entries.push(currentEntry);
+    }
+
+    return releases;
+  }
+
+  /**
+   * Parse a single changelog list-item line into a ChangelogEntry.
+   */
+  private parseChangelogEntry(line: string): ChangelogEntry {
+    const trimmed = line.replace(/^-\s*/, "").trim();
+
+    // Pattern: [`commitHash`](url) Thanks [@user](url)! - Description
+    const richPattern =
+      /^\[`([a-f0-9]+)`\]\((https?:\/\/[^\s)]+)\)\s*Thanks\s*\[@([^\]]+)\]\((https?:\/\/[^\s)]+)\)!\s*-\s*(.+)$/;
+    const richMatch = trimmed.match(richPattern);
+
+    if (richMatch) {
+      return {
+        description: richMatch[5].trim(),
+        commitHash: richMatch[1],
+        commitUrl: richMatch[2],
+        contributor: richMatch[3],
+        contributorUrl: richMatch[4],
+      };
+    }
+
+    // Pattern: commitHash: Description (simple)
+    const simplePattern = /^([a-f0-9]{7,40}):\s*(.+)$/;
+    const simpleMatch = trimmed.match(simplePattern);
+
+    if (simpleMatch) {
+      return {
+        description: simpleMatch[2].trim(),
+        commitHash: simpleMatch[1],
+      };
+    }
+
+    // Plain text entry
+    return { description: trimmed };
   }
 
   /**

@@ -3,6 +3,37 @@ import { ipcRenderer } from "electron";
 import { UpdaterChannel } from "./Updater.channels";
 import type { DownloadProgress, UpdateInfo } from "./Updater.service";
 
+export interface LatestReleaseInfo {
+  version: string;
+  name: string;
+  body: string;
+  publishedAt: string;
+  url: string;
+  changeType: string;
+  entries: ChangelogEntry[];
+}
+
+export interface ChangelogEntry {
+  description: string;
+  commitHash?: string;
+  commitUrl?: string;
+  contributor?: string;
+  contributorUrl?: string;
+  subItems?: string[];
+}
+
+export interface ChangelogRelease {
+  version: string;
+  changeType: string;
+  entries: ChangelogEntry[];
+}
+
+export interface ChangelogResult {
+  success: boolean;
+  releases: ChangelogRelease[];
+  error?: string;
+}
+
 const UpdaterAPI = {
   checkForUpdates: (): Promise<UpdateInfo | null> =>
     ipcRenderer.invoke(UpdaterChannel.CheckForUpdates),
@@ -12,6 +43,10 @@ const UpdaterAPI = {
     ipcRenderer.invoke(UpdaterChannel.DownloadUpdate),
   installUpdate: (): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke(UpdaterChannel.InstallUpdate),
+  getLatestRelease: (): Promise<LatestReleaseInfo | null> =>
+    ipcRenderer.invoke(UpdaterChannel.GetLatestRelease),
+  getChangelog: (): Promise<ChangelogResult> =>
+    ipcRenderer.invoke(UpdaterChannel.GetChangelog),
   onUpdateAvailable: (callback: (updateInfo: UpdateInfo) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, info: UpdateInfo) =>
       callback(info);
