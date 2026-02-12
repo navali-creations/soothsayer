@@ -547,7 +547,7 @@ class UpdaterService {
 
       // Continuation text (non-empty, non-header line belonging to current entry)
       if (line.trim() && currentEntry && !line.startsWith("#")) {
-        currentEntry.description += " " + line.trim();
+        currentEntry.description += ` ${line.trim()}`;
       }
     }
 

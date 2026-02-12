@@ -75,14 +75,14 @@ import { UpdaterService } from "../Updater.service";
 
 function getIpcHandler(channel: string): (...args: any[]) => any {
   const call = mockIpcHandle.mock.calls.find(
-    ([ch]: [string]) => ch === channel
+    ([ch]: [string]) => ch === channel,
   );
   if (!call) {
     const registered = mockIpcHandle.mock.calls
       .map(([ch]: [string]) => ch)
       .join(", ");
     throw new Error(
-      `ipcMain.handle was not called with "${channel}". Registered: ${registered}`
+      `ipcMain.handle was not called with "${channel}". Registered: ${registered}`,
     );
   }
   return call[1];
@@ -204,7 +204,7 @@ describe("UpdaterService", () => {
       service.initialize(mockWindow);
 
       const registeredChannels = mockIpcHandle.mock.calls.map(
-        ([ch]: [string]) => ch
+        ([ch]: [string]) => ch,
       );
 
       expect(registeredChannels).toContain(UpdaterChannel.CheckForUpdates);
@@ -325,7 +325,7 @@ describe("UpdaterService", () => {
       service.initialize(mockWindow);
 
       const registeredChannels = mockIpcHandle.mock.calls.map(
-        ([ch]: [string]) => ch
+        ([ch]: [string]) => ch,
       );
 
       const expectedChannels = [
@@ -545,7 +545,7 @@ describe("UpdaterService", () => {
       service.installUpdate();
 
       expect(mockShellOpenExternal).toHaveBeenCalledWith(
-        "https://github.com/navali-creations/soothsayer/releases/tag/v2.0.0"
+        "https://github.com/navali-creations/soothsayer/releases/tag/v2.0.0",
       );
     });
 
@@ -566,7 +566,7 @@ describe("UpdaterService", () => {
       service.installUpdate();
 
       expect(mockShellOpenExternal).toHaveBeenCalledWith(
-        "https://github.com/navali-creations/soothsayer/releases/latest"
+        "https://github.com/navali-creations/soothsayer/releases/latest",
       );
     });
   });
@@ -688,7 +688,7 @@ describe("UpdaterService", () => {
         expect(result.name).toBe("Soothsayer v2.0.0");
         expect(result.publishedAt).toBe("2025-01-15T00:00:00Z");
         expect(result.url).toBe(
-          "https://github.com/navali-creations/soothsayer/releases/tag/v2.0.0"
+          "https://github.com/navali-creations/soothsayer/releases/tag/v2.0.0",
         );
         expect(result.body).toBe(SAMPLE_GITHUB_RELEASE.body);
         expect(result.entries).toBeInstanceOf(Array);
@@ -939,7 +939,7 @@ describe("UpdaterService", () => {
       expect(releases).toHaveLength(1);
       expect(releases[0].entries).toHaveLength(1);
       expect(releases[0].entries[0].description).toBe(
-        "First line of description continuation of description"
+        "First line of description continuation of description",
       );
     });
 
@@ -954,7 +954,7 @@ describe("UpdaterService", () => {
       expect(entry.description).toBe("Added a feature");
       expect(entry.commitHash).toBe("abc1234");
       expect(entry.commitUrl).toBe(
-        "https://github.com/navali-creations/soothsayer/commit/abc1234"
+        "https://github.com/navali-creations/soothsayer/commit/abc1234",
       );
       expect(entry.contributor).toBe("contributor");
       expect(entry.contributorUrl).toBe("https://github.com/contributor");
@@ -996,7 +996,7 @@ describe("UpdaterService", () => {
       expect(releases[0].entries.length).toBeGreaterThanOrEqual(2);
       expect(releases[0].entries[0].description).toBe("Fixed a critical bug");
       expect(releases[0].entries[1].description).toBe(
-        "Added new overlay feature"
+        "Added new overlay feature",
       );
       expect(releases[0].entries[1].subItems).toEqual([
         "Sub-feature one",
@@ -1060,7 +1060,7 @@ describe("UpdaterService", () => {
       expect(releases).toHaveLength(1);
       expect(releases[0].entries).toHaveLength(1);
       expect(releases[0].entries[0].description).toBe(
-        "Last entry without trailing newline"
+        "Last entry without trailing newline",
       );
     });
   });
@@ -1133,7 +1133,7 @@ describe("UpdaterService", () => {
       expect(entry.description).toBe("Added feature");
       expect(entry.commitHash).toBe("abc1234");
       expect(entry.commitUrl).toBe(
-        "https://github.com/org/repo/commit/abc1234"
+        "https://github.com/org/repo/commit/abc1234",
       );
       expect(entry.contributor).toBe("user");
       expect(entry.contributorUrl).toBe("https://github.com/user");
@@ -1214,7 +1214,7 @@ describe("UpdaterService", () => {
 
     it("should return the original string when no version found", () => {
       expect(callParseVersionFromName("no-version-here")).toBe(
-        "no-version-here"
+        "no-version-here",
       );
     });
 
@@ -1299,7 +1299,7 @@ describe("UpdaterService", () => {
           headers: expect.objectContaining({
             Accept: "application/vnd.github.v3+json",
           }),
-        })
+        }),
       );
     });
 
@@ -1319,7 +1319,7 @@ describe("UpdaterService", () => {
           headers: expect.objectContaining({
             "User-Agent": "Soothsayer/1.5.0",
           }),
-        })
+        }),
       );
     });
 
@@ -1389,7 +1389,7 @@ describe("UpdaterService", () => {
 
       expect(mockWebContentsSend).toHaveBeenCalledWith(
         UpdaterChannel.OnUpdateAvailable,
-        expect.objectContaining({ updateAvailable: true })
+        expect.objectContaining({ updateAvailable: true }),
       );
     });
 
@@ -1410,7 +1410,7 @@ describe("UpdaterService", () => {
 
       expect(mockWebContentsSend).not.toHaveBeenCalledWith(
         UpdaterChannel.OnUpdateAvailable,
-        expect.anything()
+        expect.anything(),
       );
     });
 
@@ -1431,7 +1431,7 @@ describe("UpdaterService", () => {
 
       expect(mockWebContentsSend).not.toHaveBeenCalledWith(
         UpdaterChannel.OnUpdateAvailable,
-        expect.anything()
+        expect.anything(),
       );
     });
 
@@ -1488,7 +1488,7 @@ describe("UpdaterService", () => {
       service.initialize(mockWindow);
 
       const registeredEvents = mockAutoUpdaterOn.mock.calls.map(
-        ([event]: [string]) => event
+        ([event]: [string]) => event,
       );
 
       expect(registeredEvents).toContain("checking-for-update");
@@ -1514,7 +1514,7 @@ describe("UpdaterService", () => {
       service.initialize(mockWindow);
 
       const updateAvailableHandler = mockAutoUpdaterOn.mock.calls.find(
-        ([event]: [string]) => event === "update-available"
+        ([event]: [string]) => event === "update-available",
       )?.[1];
 
       expect(updateAvailableHandler).toBeDefined();
@@ -1540,14 +1540,14 @@ describe("UpdaterService", () => {
       service.initialize(mockWindow);
 
       const updateAvailableHandler = mockAutoUpdaterOn.mock.calls.find(
-        ([event]: [string]) => event === "update-available"
+        ([event]: [string]) => event === "update-available",
       )?.[1];
 
       updateAvailableHandler();
 
       expect(mockWebContentsSend).toHaveBeenCalledWith(
         UpdaterChannel.OnDownloadProgress,
-        { percent: -1, transferredBytes: 0, totalBytes: 0 }
+        { percent: -1, transferredBytes: 0, totalBytes: 0 },
       );
     });
 
@@ -1567,7 +1567,7 @@ describe("UpdaterService", () => {
       service.initialize(mockWindow);
 
       const handler = mockAutoUpdaterOn.mock.calls.find(
-        ([event]: [string]) => event === "update-not-available"
+        ([event]: [string]) => event === "update-not-available",
       )?.[1];
 
       handler();
@@ -1593,7 +1593,7 @@ describe("UpdaterService", () => {
       service.initialize(mockWindow);
 
       const handler = mockAutoUpdaterOn.mock.calls.find(
-        ([event]: [string]) => event === "update-downloaded"
+        ([event]: [string]) => event === "update-downloaded",
       )?.[1];
 
       handler(
@@ -1601,7 +1601,7 @@ describe("UpdaterService", () => {
         "Release notes here", // releaseNotes
         "Soothsayer v2.0.0", // releaseName
         new Date(), // _releaseDate
-        "https://example.com/update" // updateURL
+        "https://example.com/update", // updateURL
       );
 
       // @ts-expect-error — accessing private for testing
@@ -1620,13 +1620,13 @@ describe("UpdaterService", () => {
         expect.objectContaining({
           updateAvailable: true,
           latestVersion: "2.0.0",
-        })
+        }),
       );
 
       // Should send 100% progress
       expect(mockWebContentsSend).toHaveBeenCalledWith(
         UpdaterChannel.OnDownloadProgress,
-        expect.objectContaining({ percent: 100 })
+        expect.objectContaining({ percent: 100 }),
       );
     });
 
@@ -1646,7 +1646,7 @@ describe("UpdaterService", () => {
       service.initialize(mockWindow);
 
       const handler = mockAutoUpdaterOn.mock.calls.find(
-        ([event]: [string]) => event === "error"
+        ([event]: [string]) => event === "error",
       )?.[1];
 
       handler(new Error("Update error"));
@@ -1702,15 +1702,13 @@ describe("UpdaterService", () => {
 
       // Advance past initial delay
       vi.advanceTimersByTime(10_000);
-      const callsAfterInitial =
-        mockAutoUpdaterCheckForUpdates.mock.calls.length;
 
       // Advance by one interval (10 minutes)
       mockAutoUpdaterCheckForUpdates.mockClear();
       vi.advanceTimersByTime(10 * 60 * 1000);
 
       expect(
-        mockAutoUpdaterCheckForUpdates.mock.calls.length
+        mockAutoUpdaterCheckForUpdates.mock.calls.length,
       ).toBeGreaterThanOrEqual(1);
     });
   });
@@ -1730,7 +1728,7 @@ describe("UpdaterService", () => {
 
       expect(mockWebContentsSend).toHaveBeenCalledWith(
         UpdaterChannel.OnDownloadProgress,
-        progress
+        progress,
       );
     });
 
@@ -1821,7 +1819,7 @@ describe("UpdaterService", () => {
       service.initialize(mockWindow);
 
       const handler = mockAutoUpdaterOn.mock.calls.find(
-        ([event]: [string]) => event === "update-downloaded"
+        ([event]: [string]) => event === "update-downloaded",
       )?.[1];
 
       handler(
@@ -1829,7 +1827,7 @@ describe("UpdaterService", () => {
         "", // releaseNotes
         null, // releaseName
         new Date(),
-        null // updateURL
+        null, // updateURL
       );
 
       // @ts-expect-error — accessing private for testing
@@ -1838,7 +1836,7 @@ describe("UpdaterService", () => {
       expect(service.lastUpdateInfo.latestVersion).toBe("0.0.0");
       // @ts-expect-error — accessing private for testing
       expect(service.lastUpdateInfo.releaseUrl).toContain(
-        "github.com/navali-creations/soothsayer/releases/latest"
+        "github.com/navali-creations/soothsayer/releases/latest",
       );
     });
 

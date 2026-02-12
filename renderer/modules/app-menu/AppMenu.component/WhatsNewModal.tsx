@@ -63,7 +63,7 @@ const WhatsNewModal = () => {
           <div className="text-xs text-base-content/50 mb-4">
             {whatsNewRelease.publishedAt &&
               `Released ${new Date(
-                whatsNewRelease.publishedAt
+                whatsNewRelease.publishedAt,
               ).toLocaleDateString(undefined, {
                 year: "numeric",
                 month: "long",
