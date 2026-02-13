@@ -4,13 +4,15 @@
 
 ### Patch Changes
 
-- [`168e98c`](https://github.com/navali-creations/soothsayer/commit/168e98c20bd02d9d4d5ebcea90ed0a543ff890ef) Thanks [@sbsrnt](https://github.com/sbsrnt)! - Fixed a startup crash that could occur when upgrading from a previous version. The app now starts reliably whether you're installing fresh or upgrading from an older release. Additional tests have been added to catch these issues before release, improving overall reliability.
+- [`168e98c`](https://github.com/navali-creations/soothsayer/commit/168e98c20bd02d9d4d5ebcea90ed0a543ff890ef) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+  - Fixed a startup crash that could occur when upgrading from a previous version. The app now starts reliably whether you're installing fresh or upgrading from an older release. Additional tests have been added to catch these issues before release, improving overall reliability.
 
 ## 0.2.0
 
 ### Minor Changes
 
-- [`28b02f7`](https://github.com/navali-creations/soothsayer/commit/28b02f79d75168236c7a94246a4c15a07173f20a) Thanks [@sbsrnt](https://github.com/sbsrnt)! - - **Audio settings:** You can now enable/disable drop sounds, adjust volume, and assign custom `.mp3` sounds for each rarity tier directly from Settings.
+- [`28b02f7`](https://github.com/navali-creations/soothsayer/commit/28b02f79d75168236c7a94246a4c15a07173f20a) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+  - **Audio settings:** You can now enable/disable drop sounds, adjust volume, and assign custom `.mp3` sounds for each rarity tier directly from Settings.
 
   - **Custom sounds:** Load your own sounds from your PoE filter sounds folder with a single click, preview them, and assign them to rarity tiers.
 
@@ -28,7 +30,7 @@
 
 ### Patch Changes
 
-- [`ae4e71f`](https://github.com/navali-creations/soothsayer/commit/ae4e71f62ecb25fcf008571ee0b4aec93d2bb36a) Thanks [@sbsrnt](https://github.com/sbsrnt)! - New features and bug fixes:
+- [`ae4e71f`](https://github.com/navali-creations/soothsayer/commit/ae4e71f62ecb25fcf008571ee0b4aec93d2bb36a) Thanks [@sbsrnt](https://github.com/sbsrnt)!
 
   - **New title bar menu:** The settings icon in the title bar has been replaced with a dropdown menu. Settings, along with other new items, can now be found there.
 
@@ -44,7 +46,7 @@
 
 ### Patch Changes
 
-- [`f8b14d8`](https://github.com/navali-creations/soothsayer/commit/f8b14d8a80f42da47d9f408403118fc525cdb039) Thanks [@sbsrnt](https://github.com/sbsrnt)! - Auto-update improvements:
+- [`f8b14d8`](https://github.com/navali-creations/soothsayer/commit/f8b14d8a80f42da47d9f408403118fc525cdb039) Thanks [@sbsrnt](https://github.com/sbsrnt)!
 
   - **Smoother updates:** Updates now install in the background without intrusive pop-up dialogs. When a new version is ready, a small green icon appears in the title bar so you can update at your convenience.
 
@@ -54,7 +56,7 @@
 
 ### Patch Changes
 
-- [`e4c6eaf`](https://github.com/navali-creations/soothsayer/commit/e4c6eaf37d5b4055b35058cd8f6be8d8656a4781) Thanks [@sbsrnt](https://github.com/sbsrnt)! - Bug fixes and improvements:
+- [`e4c6eaf`](https://github.com/navali-creations/soothsayer/commit/e4c6eaf37d5b4055b35058cd8f6be8d8656a4781) Thanks [@sbsrnt](https://github.com/sbsrnt)!
 
   - **Fixed cards not tracking on first launch**: Divination cards are now properly detected right away, even when you open the app for the first time
   - **Fixed app freezing after database reset**: The app now correctly restarts after resetting your data instead of getting stuck
@@ -65,17 +67,17 @@
 
 ### Patch Changes
 
-- [`192ee4d`](https://github.com/navali-creations/soothsayer/commit/192ee4d7063eeb71b94bc70ffe589451861b8759) Thanks [@sbsrnt](https://github.com/sbsrnt)! - **Database separation:** Introduced 3-tier SQLite database naming to isolate data between environments:
-
-  - `soothsayer.local.db` — local Supabase (localhost/127.0.0.1)
-  - `soothsayer.db` — development with production Supabase credentials
-  - `soothsayer.prod.db` — packaged release builds
+- [`192ee4d`](https://github.com/navali-creations/soothsayer/commit/192ee4d7063eeb71b94bc70ffe589451861b8759) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+  - **Database separation:** Introduced 3-tier SQLite database naming to isolate data between environments:
+    - `soothsayer.local.db` — local Supabase (localhost/127.0.0.1)
+    - `soothsayer.db` — development with production Supabase credentials
+    - `soothsayer.prod.db` — packaged release builds
 
   This prevents development data from polluting production installs and vice versa.
 
-  **Release notes:** GitHub Releases now use changeset-generated notes from `CHANGELOG.md` instead of auto-generated commit lists, eliminating dependabot noise.
+  - **Release notes:** GitHub Releases now use changeset-generated notes from `CHANGELOG.md` instead of auto-generated commit lists, eliminating dependabot noise.
 
-  **Changelog links:** Switched to `@changesets/changelog-github` for clickable commit hashes, PR links, and contributor mentions in release notes.
+  - **Changelog links:** Switched to `@changesets/changelog-github` for clickable commit hashes, PR links, and contributor mentions in release notes.
 
 ## 0.1.1
 
