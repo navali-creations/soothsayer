@@ -1,6 +1,7 @@
 export { SettingsStoreChannel } from "./SettingsStore.channels";
 export type {
   AppSettingsDTO,
+  CustomSoundFile,
   Poe1SettingsDTO,
   Poe2SettingsDTO,
   SetupStep,

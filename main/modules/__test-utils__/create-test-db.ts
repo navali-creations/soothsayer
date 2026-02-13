@@ -394,6 +394,13 @@ function initializeSchema(db: Database.Database): void {
         setup_step INTEGER NOT NULL DEFAULT 0 CHECK(setup_step >= 0 AND setup_step <= 3),
         setup_version INTEGER NOT NULL DEFAULT 1,
 
+        -- Audio settings
+        audio_enabled INTEGER NOT NULL DEFAULT 1,
+        audio_volume REAL NOT NULL DEFAULT 0.5,
+        audio_rarity1_path TEXT,
+        audio_rarity2_path TEXT,
+        audio_rarity3_path TEXT,
+
         -- Metadata
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))

@@ -18,6 +18,11 @@ export const SettingsKey = {
   SetupCompleted: "setupCompleted",
   SetupStep: "setupStep",
   SetupVersion: "setupVersion",
+  AudioEnabled: "audioEnabled",
+  AudioVolume: "audioVolume",
+  AudioRarity1Path: "audioRarity1Path",
+  AudioRarity2Path: "audioRarity2Path",
+  AudioRarity3Path: "audioRarity3Path",
 } as const;
 
 export type SettingsKeyType = (typeof SettingsKey)[keyof typeof SettingsKey];

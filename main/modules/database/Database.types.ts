@@ -182,6 +182,13 @@ export interface UserSettingsTable {
   setup_step: number; // 0-3
   setup_version: number;
 
+  // Audio settings
+  audio_enabled: number; // SQLite boolean (0 or 1)
+  audio_volume: number; // 0.0 - 1.0
+  audio_rarity1_path: string | null; // Custom sound file path for rarity 1
+  audio_rarity2_path: string | null; // Custom sound file path for rarity 2
+  audio_rarity3_path: string | null; // Custom sound file path for rarity 3
+
   // Metadata
   created_at: ColumnType<string, string | undefined, never>;
   updated_at: ColumnType<string, string | undefined, string | undefined>;

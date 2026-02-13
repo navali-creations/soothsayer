@@ -42,6 +42,11 @@ describe("SettingsStoreRepository", () => {
       expect(settings.setupCompleted).toBe(false);
       expect(settings.setupStep).toBe(0);
       expect(settings.setupVersion).toBe(1);
+      expect(settings.audioEnabled).toBe(true);
+      expect(settings.audioVolume).toBe(0.5);
+      expect(settings.audioRarity1Path).toBeNull();
+      expect(settings.audioRarity2Path).toBeNull();
+      expect(settings.audioRarity3Path).toBeNull();
     });
 
     it("should return boolean types for boolean fields", async () => {
@@ -50,6 +55,7 @@ describe("SettingsStoreRepository", () => {
       expect(typeof settings.appOpenAtLogin).toBe("boolean");
       expect(typeof settings.appOpenAtLoginMinimized).toBe("boolean");
       expect(typeof settings.setupCompleted).toBe("boolean");
+      expect(typeof settings.audioEnabled).toBe("boolean");
     });
 
     it("should return array types for array fields", async () => {

@@ -40,6 +40,11 @@ export function toUserSettingsDTO(row: UserSettingsRow): UserSettingsDTO {
     setupCompleted: Boolean(row.setup_completed),
     setupStep: row.setup_step as 0 | 1 | 2 | 3,
     setupVersion: row.setup_version,
+    audioEnabled: Boolean(row.audio_enabled),
+    audioVolume: row.audio_volume,
+    audioRarity1Path: row.audio_rarity1_path,
+    audioRarity2Path: row.audio_rarity2_path,
+    audioRarity3Path: row.audio_rarity3_path,
   };
 }
 
@@ -108,6 +113,11 @@ export function toDBKey(key: keyof UserSettingsDTO): keyof UserSettingsTable {
     setupCompleted: "setup_completed",
     setupStep: "setup_step",
     setupVersion: "setup_version",
+    audioEnabled: "audio_enabled",
+    audioVolume: "audio_volume",
+    audioRarity1Path: "audio_rarity1_path",
+    audioRarity2Path: "audio_rarity2_path",
+    audioRarity3Path: "audio_rarity3_path",
   };
   return mapping[key];
 }

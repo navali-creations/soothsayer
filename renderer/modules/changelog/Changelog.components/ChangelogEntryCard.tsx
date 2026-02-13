@@ -3,6 +3,8 @@ import { FiGitCommit, FiUser } from "react-icons/fi";
 import type { ChangelogEntry } from "~/main/modules/updater/Updater.api";
 import { Badge } from "~/renderer/components";
 
+import ChangelogContent from "./ChangelogContent";
+
 const ChangelogEntryCard = ({ entry }: { entry: ChangelogEntry }) => {
   // Strip bold markdown markers for cleaner display
   const cleanDescription = entry.description.replace(/\*\*([^*]+)\*\*/g, "$1");
@@ -12,6 +14,8 @@ const ChangelogEntryCard = ({ entry }: { entry: ChangelogEntry }) => {
       <p className="text-sm text-base-content/80 leading-relaxed">
         {cleanDescription}
       </p>
+
+      {entry.content && <ChangelogContent content={entry.content} />}
 
       {entry.subItems && entry.subItems.length > 0 && (
         <ul className="space-y-1.5 ml-1">

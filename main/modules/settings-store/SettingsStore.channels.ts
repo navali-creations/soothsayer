@@ -36,6 +36,11 @@ enum SettingsStoreChannel {
   GetSelectedPoe2PriceSource = "settings-store:get-selected-poe2-price-source",
   SetSelectedPoe2PriceSource = "settings-store:set-selected-poe2-price-source",
 
+  // Audio
+  ScanCustomSounds = "settings-store:scan-custom-sounds",
+  GetCustomSoundData = "settings-store:get-custom-sound-data",
+  OpenCustomSoundsFolder = "settings-store:open-custom-sounds-folder",
+
   // Database management
   ResetDatabase = "settings-store:reset-database",
 }

@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useRef, useState } from "react";
+import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
 
 import rarity1Sound from "~/renderer/assets/audio/rarity1.mp3";
@@ -20,11 +20,17 @@ import "../../index.css";
 initSentry();
 initUmami();
 
-const raritySounds: Record<number, string> = {
+const defaultRaritySounds: Record<number, string> = {
   1: rarity1Sound,
   2: rarity2Sound,
   3: rarity3Sound,
 };
+
+interface AudioSettings {
+  enabled: boolean;
+  volume: number;
+  customSounds: Record<number, string>; // rarity -> data URL
+}
 
 const OverlayApp = () => {
   const {
@@ -34,6 +40,45 @@ const OverlayApp = () => {
   const [isElectronReady, setIsElectronReady] = useState(
     () => !!window.electron?.overlay && !!window.electron?.session,
   );
+  const audioSettingsRef = useRef<AudioSettings>({
+    enabled: true,
+    volume: 0.5,
+    customSounds: {},
+  });
+
+  // Load audio settings from main process
+  const loadAudioSettings = useCallback(async () => {
+    try {
+      const settings = await window.electron.settings.getAll();
+      const customSounds: Record<number, string> = {};
+
+      // Load custom sound data for each rarity if paths are set
+      const paths = [
+        settings.audioRarity1Path,
+        settings.audioRarity2Path,
+        settings.audioRarity3Path,
+      ];
+
+      for (let i = 0; i < paths.length; i++) {
+        const soundPath = paths[i];
+        if (soundPath) {
+          const dataUrl =
+            await window.electron.settings.getCustomSoundData(soundPath);
+          if (dataUrl) {
+            customSounds[i + 1] = dataUrl;
+          }
+        }
+      }
+
+      audioSettingsRef.current = {
+        enabled: settings.audioEnabled,
+        volume: settings.audioVolume,
+        customSounds,
+      };
+    } catch (error) {
+      console.error("[Overlay] Failed to load audio settings:", error);
+    }
+  }, []);
 
   // Wait for window.electron to be ready
   useEffect(() => {
@@ -58,6 +103,9 @@ const OverlayApp = () => {
     // Guard against window.electron not being ready yet
     if (!isElectronReady) return;
 
+    // Load audio settings
+    loadAudioSettings();
+
     // Fetch initial session data
     window.electron.overlay.getSessionData().then((data) => {
       if (data) {
@@ -69,7 +117,8 @@ const OverlayApp = () => {
     const unsubscribeStateChange = window.electron.session.onStateChanged(
       (update) => {
         if (update.isActive) {
-          // Session started - fetch the full data
+          // Session started - fetch the full data and refresh audio settings
+          loadAudioSettings();
           window.electron?.overlay.getSessionData().then((data) => {
             if (data) {
               setSessionData(data);
@@ -124,7 +173,7 @@ const OverlayApp = () => {
       unsubscribeStateChange?.();
       unsubscribeDataUpdate?.();
     };
-  }, [isElectronReady, setSessionData]);
+  }, [isElectronReady, setSessionData, loadAudioSettings]);
 
   // Play sound for rare drops
   useEffect(() => {
@@ -142,13 +191,14 @@ const OverlayApp = () => {
       (!previousFirst || currentFirst.cardName !== previousFirst.cardName)
     ) {
       const rarity = currentFirst.rarity || 4;
+      const { enabled, volume, customSounds } = audioSettingsRef.current;
 
-      // Only play sound for rarity 1, 2, 3
-      if (rarity >= 1 && rarity <= 3) {
-        const soundUrl = raritySounds[rarity];
+      // Only play sound for rarity 1, 2, 3 and if audio is enabled
+      if (enabled && rarity >= 1 && rarity <= 3) {
+        const soundUrl = customSounds[rarity] || defaultRaritySounds[rarity];
         if (soundUrl) {
           const audio = new Audio(soundUrl);
-          audio.volume = 0.5;
+          audio.volume = volume;
           audio.play().catch((err) => console.error("Audio play failed:", err));
         }
       }

@@ -1,12 +1,20 @@
 import type { StateCreator } from "zustand";
 
-import type { UserSettingsDTO } from "~/main/modules/settings-store/SettingsStore.dto";
+import type {
+  CustomSoundFile,
+  UserSettingsDTO,
+} from "~/main/modules/settings-store/SettingsStore.dto";
 
 export interface SettingsSlice {
   settings: UserSettingsDTO & {
     // Additional state (not persisted in DB)
     isLoading: boolean;
     error: string | null;
+
+    // Audio UI state (not persisted)
+    audioDetectedFiles: CustomSoundFile[];
+    audioIsScanning: boolean;
+    audioPreviewingFile: string | null;
 
     // Actions
     hydrate: () => Promise<void>;
@@ -20,6 +28,10 @@ export interface SettingsSlice {
     ) => void;
     setSettings: (settings: UserSettingsDTO) => void;
     setError: (error: string | null) => void;
+
+    // Audio UI actions
+    scanCustomSounds: () => Promise<void>;
+    setAudioPreviewingFile: (filePath: string | null) => void;
 
     // Getters - App behavior
     getAppExitAction: () => "exit" | "minimize";
@@ -68,10 +80,20 @@ export const createSettingsSlice: StateCreator<
     setupCompleted: false,
     setupStep: 0,
     setupVersion: 1,
+    audioEnabled: true,
+    audioVolume: 0.5,
+    audioRarity1Path: null,
+    audioRarity2Path: null,
+    audioRarity3Path: null,
 
     // Additional state
     isLoading: false,
     error: null,
+
+    // Audio UI state
+    audioDetectedFiles: [],
+    audioIsScanning: false,
+    audioPreviewingFile: null,
 
     // Hydrate settings from main process on app load
     hydrate: async () => {
@@ -103,6 +125,11 @@ export const createSettingsSlice: StateCreator<
             settings.setupCompleted = data.setupCompleted;
             settings.setupStep = data.setupStep;
             settings.setupVersion = data.setupVersion;
+            settings.audioEnabled = data.audioEnabled;
+            settings.audioVolume = data.audioVolume;
+            settings.audioRarity1Path = data.audioRarity1Path;
+            settings.audioRarity2Path = data.audioRarity2Path;
+            settings.audioRarity3Path = data.audioRarity3Path;
             settings.isLoading = false;
           },
           false,
@@ -158,6 +185,48 @@ export const createSettingsSlice: StateCreator<
       }
     },
 
+    // Audio UI actions
+    scanCustomSounds: async () => {
+      set(
+        ({ settings }) => {
+          settings.audioIsScanning = true;
+        },
+        false,
+        "settingsSlice/scanCustomSounds/start",
+      );
+
+      try {
+        const files = await window.electron.settings.scanCustomSounds();
+        set(
+          ({ settings }) => {
+            settings.audioDetectedFiles = files;
+            settings.audioIsScanning = false;
+          },
+          false,
+          "settingsSlice/scanCustomSounds/success",
+        );
+      } catch (error) {
+        console.error("Failed to scan custom sounds:", error);
+        set(
+          ({ settings }) => {
+            settings.audioIsScanning = false;
+          },
+          false,
+          "settingsSlice/scanCustomSounds/error",
+        );
+      }
+    },
+
+    setAudioPreviewingFile: (filePath: string | null) => {
+      set(
+        ({ settings }) => {
+          settings.audioPreviewingFile = filePath;
+        },
+        false,
+        "settingsSlice/setAudioPreviewingFile",
+      );
+    },
+
     // Direct setter (for IPC listeners)
     setSetting: <K extends keyof UserSettingsDTO>(
       key: K,
@@ -191,6 +260,11 @@ export const createSettingsSlice: StateCreator<
           settings.setupCompleted = newSettings.setupCompleted;
           settings.setupStep = newSettings.setupStep;
           settings.setupVersion = newSettings.setupVersion;
+          settings.audioEnabled = newSettings.audioEnabled;
+          settings.audioVolume = newSettings.audioVolume;
+          settings.audioRarity1Path = newSettings.audioRarity1Path;
+          settings.audioRarity2Path = newSettings.audioRarity2Path;
+          settings.audioRarity3Path = newSettings.audioRarity3Path;
         },
         false,
         "settingsSlice/setSettings",

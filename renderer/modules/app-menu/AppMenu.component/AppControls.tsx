@@ -1,4 +1,11 @@
-import { FiCopy, FiMinus, FiSettings, FiSquare, FiX } from "react-icons/fi";
+import {
+  FiCopy,
+  FiGithub,
+  FiMinus,
+  FiSettings,
+  FiSquare,
+  FiX,
+} from "react-icons/fi";
 import { IoNewspaperOutline } from "react-icons/io5";
 import { MdOutlineNewReleases } from "react-icons/md";
 import {
@@ -15,6 +22,7 @@ import { useBoundStore } from "~/renderer/store";
 import WhatsNewModal from "./WhatsNewModal";
 
 const DISCORD_URL = "https://discord.gg/yxuBrPY";
+const REPO_URL = "https://github.com/navali-creations/soothsayer";
 
 const AppControls = () => {
   const {
@@ -37,77 +45,94 @@ const AppControls = () => {
       {!isSetupMode && (
         <>
           <UpdateIndicator />
-          <Button
-            onClick={toggleOverlay}
-            variant="ghost"
-            size="sm"
-            title={isOverlayVisible ? "Hide Overlay" : "Show Overlay"}
-            data-onboarding="overlay-icon"
+          <div
+            className="tooltip tooltip-bottom"
+            data-tip={isOverlayVisible ? "Hide Overlay" : "Show Overlay"}
           >
-            {isOverlayVisible ? (
-              <RiPictureInPictureExitLine size={16} />
-            ) : (
-              <RiPictureInPictureLine size={16} />
-            )}
-          </Button>
-          <Dropdown
-            trigger={<RxCaretDown size={18} />}
-            className="btn btn-ghost btn-sm"
-            position="dropdown-end"
-            width="w-[180px]"
-          >
-            <li>
-              <Link
-                to="/settings"
-                className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg hover:bg-base-300 transition-colors no-drag"
-              >
-                <FiSettings size={14} className="text-base-content/60" />
-                <span className="text-sm">Settings</span>
-              </Link>
-            </li>
+            <Button
+              onClick={toggleOverlay}
+              variant="ghost"
+              size="sm"
+              data-onboarding="overlay-icon"
+            >
+              {isOverlayVisible ? (
+                <RiPictureInPictureExitLine size={16} />
+              ) : (
+                <RiPictureInPictureLine size={16} />
+              )}
+            </Button>
+          </div>
+          <div className="tooltip tooltip-bottom" data-tip="More options">
+            <Dropdown
+              trigger={<RxCaretDown size={18} />}
+              className="btn btn-ghost btn-sm"
+              position="dropdown-end"
+              width="w-[180px]"
+            >
+              <li>
+                <Link
+                  to="/settings"
+                  className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg hover:bg-base-300 transition-colors no-drag"
+                >
+                  <span className="text-sm">Settings</span>
+                  <FiSettings size={14} className="text-base-content/60" />
+                </Link>
+              </li>
 
-            <div className="divider my-1 px-2" />
+              <div className="divider my-0 px-2" />
 
-            <li>
-              <button
-                type="button"
-                className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg hover:bg-base-300 transition-colors w-full text-left no-drag"
-                onClick={() => openWhatsNew()}
-              >
-                <MdOutlineNewReleases
-                  size={15}
-                  className="text-base-content/60"
-                />
-                <span className="text-sm">What&apos;s New</span>
-              </button>
-            </li>
-            <li>
-              <Link
-                to="/changelog"
-                className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg hover:bg-base-300 transition-colors no-drag"
-              >
-                <IoNewspaperOutline
-                  size={14}
-                  className="text-base-content/60"
-                />
-                <span className="text-sm">Changelog</span>
-              </Link>
-            </li>
+              <li>
+                <button
+                  type="button"
+                  className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg hover:bg-base-300 transition-colors w-full text-left no-drag"
+                  onClick={() => openWhatsNew()}
+                >
+                  <span className="text-sm">What&apos;s New</span>
+                  <MdOutlineNewReleases
+                    size={15}
+                    className="text-base-content/60"
+                  />
+                </button>
+              </li>
+              <li>
+                <Link
+                  to="/changelog"
+                  className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg hover:bg-base-300 transition-colors no-drag"
+                >
+                  <span className="text-sm">Changelog</span>
+                  <IoNewspaperOutline
+                    size={14}
+                    className="text-base-content/60"
+                  />
+                </Link>
+              </li>
 
-            <div className="divider my-1 px-2" />
+              <div className="divider my-0 px-2" />
 
-            <li>
-              <a
-                href={DISCORD_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg hover:bg-base-300 transition-colors no-drag"
-              >
-                <VscFeedback size={14} className="text-base-content/60" />
-                <span className="text-sm">Feedback</span>
-              </a>
-            </li>
-          </Dropdown>
+              <li>
+                <a
+                  href={REPO_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg hover:bg-base-300 transition-colors no-drag"
+                >
+                  <span className="text-sm">View Source</span>
+                  <FiGithub size={14} className="text-base-content/60" />
+                </a>
+              </li>
+              <li>
+                <a
+                  href={DISCORD_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg hover:bg-base-300 transition-colors no-drag"
+                >
+                  <span className="text-sm">Feedback</span>
+                  <VscFeedback size={14} className="text-base-content/60" />
+                </a>
+              </li>
+            </Dropdown>
+          </div>
         </>
       )}
       <Button onClick={minimize} variant="ghost" size="sm">

@@ -37,6 +37,11 @@ function createSettingsRow(
     setup_completed: 0,
     setup_step: 0,
     setup_version: 1,
+    audio_enabled: 1,
+    audio_volume: 0.5,
+    audio_rarity1_path: null,
+    audio_rarity2_path: null,
+    audio_rarity3_path: null,
     created_at: "2025-01-01T00:00:00Z",
     updated_at: "2025-01-01T00:00:00Z",
     ...overrides,
@@ -219,6 +224,11 @@ describe("SettingsStore.mapper", () => {
         setup_completed: 1,
         setup_step: 3,
         setup_version: 2,
+        audio_enabled: 0,
+        audio_volume: 0.75,
+        audio_rarity1_path: "C:\\sounds\\rarity1.mp3",
+        audio_rarity2_path: "C:\\sounds\\rarity2.mp3",
+        audio_rarity3_path: null,
       });
       const dto = toUserSettingsDTO(row);
 
@@ -239,6 +249,11 @@ describe("SettingsStore.mapper", () => {
         setupCompleted: true,
         setupStep: 3,
         setupVersion: 2,
+        audioEnabled: false,
+        audioVolume: 0.75,
+        audioRarity1Path: "C:\\sounds\\rarity1.mp3",
+        audioRarity2Path: "C:\\sounds\\rarity2.mp3",
+        audioRarity3Path: null,
       });
     });
   });
@@ -508,6 +523,11 @@ describe("SettingsStore.mapper", () => {
         "setupCompleted",
         "setupStep",
         "setupVersion",
+        "audioEnabled",
+        "audioVolume",
+        "audioRarity1Path",
+        "audioRarity2Path",
+        "audioRarity3Path",
       ] as const;
 
       for (const key of allKeys) {

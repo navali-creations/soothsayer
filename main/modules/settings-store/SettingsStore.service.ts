@@ -1,4 +1,7 @@
-import { type IpcMainInvokeEvent, ipcMain } from "electron";
+import { promises as fs } from "node:fs";
+import path from "node:path";
+
+import { app, type IpcMainInvokeEvent, ipcMain, shell } from "electron";
 
 import { ClientLogReaderService } from "~/main/modules/client-log-reader";
 import { DatabaseService } from "~/main/modules/database";
@@ -9,6 +12,7 @@ import {
   assertGameType,
   assertInstalledGames,
   assertInteger,
+  assertNumber,
   assertPriceSource,
   assertSetupStep,
   assertString,
@@ -18,7 +22,7 @@ import {
 } from "~/main/utils/ipc-validation";
 
 import { SettingsStoreChannel } from "./SettingsStore.channels";
-import type { UserSettingsDTO } from "./SettingsStore.dto";
+import type { CustomSoundFile, UserSettingsDTO } from "./SettingsStore.dto";
 import { SettingsStoreRepository } from "./SettingsStore.repository";
 
 class SettingsStoreService {
@@ -37,6 +41,14 @@ class SettingsStoreService {
     const db = DatabaseService.getInstance();
     this.repository = new SettingsStoreRepository(db.getKysely());
     this.setupIpcHandlers();
+  }
+
+  /**
+   * Get the Path of Exile custom sounds directory
+   */
+  private getPoeSoundsDirectory(): string {
+    const documentsPath = app.getPath("documents");
+    return path.join(documentsPath, "My Games", "Path of Exile");
   }
 
   private setupIpcHandlers() {
@@ -89,6 +101,7 @@ class SettingsStoreService {
             case "appOpenAtLogin":
             case "appOpenAtLoginMinimized":
             case "setupCompleted":
+            case "audioEnabled":
               assertBoolean(value, key, ch);
               break;
             case "selectedGame":
@@ -143,6 +156,22 @@ class SettingsStoreService {
                   min: 1,
                   max: 100_000,
                 });
+              }
+              break;
+            case "audioVolume":
+              assertNumber(value, "audioVolume", ch);
+              if ((value as number) < 0 || (value as number) > 1) {
+                throw new IpcValidationError(
+                  ch,
+                  `Expected "audioVolume" to be between 0 and 1, got ${value}`,
+                );
+              }
+              break;
+            case "audioRarity1Path":
+            case "audioRarity2Path":
+            case "audioRarity3Path":
+              if (value !== null) {
+                assertFilePath(value, key, ch);
               }
               break;
             default:
@@ -416,6 +445,83 @@ class SettingsStoreService {
             error,
             SettingsStoreChannel.SetSelectedPoe2PriceSource,
           );
+        }
+      },
+    );
+
+    // Audio: Scan custom sounds directory
+    ipcMain.handle(
+      SettingsStoreChannel.ScanCustomSounds,
+      async (): Promise<CustomSoundFile[]> => {
+        try {
+          const soundsDir = this.getPoeSoundsDirectory();
+          const entries = await fs.readdir(soundsDir).catch(() => []);
+          const mp3Files = entries.filter((f) =>
+            f.toLowerCase().endsWith(".mp3"),
+          );
+          return mp3Files.map((filename) => ({
+            filename,
+            fullPath: path.join(soundsDir, filename),
+          }));
+        } catch (error) {
+          console.error("[Settings] Failed to scan custom sounds:", error);
+          return [];
+        }
+      },
+    );
+
+    // Audio: Get custom sound file as base64 data URL
+    ipcMain.handle(
+      SettingsStoreChannel.GetCustomSoundData,
+      async (_event, filePath: string): Promise<string | null> => {
+        try {
+          assertFilePath(
+            filePath,
+            "filePath",
+            SettingsStoreChannel.GetCustomSoundData,
+          );
+
+          // Security: ensure the path is within the PoE sounds directory
+          const soundsDir = this.getPoeSoundsDirectory();
+          const resolved = path.resolve(filePath);
+          if (!resolved.startsWith(soundsDir)) {
+            console.warn(
+              `[Settings] Rejected sound file outside PoE directory: ${filePath}`,
+            );
+            return null;
+          }
+
+          const buffer = await fs.readFile(resolved);
+          const base64 = buffer.toString("base64");
+          return `data:audio/mpeg;base64,${base64}`;
+        } catch (error) {
+          console.error("[Settings] Failed to read custom sound:", error);
+          return null;
+        }
+      },
+    );
+
+    // Audio: Open custom sounds folder in file explorer
+    ipcMain.handle(
+      SettingsStoreChannel.OpenCustomSoundsFolder,
+      async (): Promise<{ success: boolean; path: string }> => {
+        try {
+          const soundsDir = this.getPoeSoundsDirectory();
+
+          // Create directory if it doesn't exist
+          await fs.mkdir(soundsDir, { recursive: true });
+
+          await shell.openPath(soundsDir);
+          return { success: true, path: soundsDir };
+        } catch (error) {
+          console.error(
+            "[Settings] Failed to open custom sounds folder:",
+            error,
+          );
+          return {
+            success: false,
+            path: this.getPoeSoundsDirectory(),
+          };
         }
       },
     );

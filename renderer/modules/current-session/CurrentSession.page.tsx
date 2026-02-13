@@ -7,6 +7,9 @@ import {
   CurrentSessionActions,
   CurrentSessionStats,
   CurrentSessionTable,
+  InactiveSessionAlert,
+  LoadingAlert,
+  TrackingInfoAlert,
 } from "./CurrentSession.components";
 import PriceSnapshotAlert from "./CurrentSession.components/PriceSnapshotAlert/PriceSnapshotAlert";
 
@@ -36,10 +39,7 @@ const CurrentSessionPage = () => {
               transition={{ duration: 0.2, ease: "easeInOut" }}
               style={{ overflow: "hidden" }}
             >
-              <div className="alert alert-soft alert-info bg-base-200 mb-4">
-                <span className="loading loading-spinner loading-sm"></span>
-                <span>Fetching latest prices from poe.ninja...</span>
-              </div>
+              <LoadingAlert />
             </motion.div>
           ) : !isActive ? (
             <motion.div
@@ -50,25 +50,8 @@ const CurrentSessionPage = () => {
               transition={{ duration: 0.2, ease: "easeInOut" }}
               style={{ overflow: "hidden" }}
             >
-              <div className="alert alert-soft alert-info bg-base-200 mb-4">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  className="stroke-current shrink-0 w-6 h-6"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-                <span>
-                  No active session. Select a league and click "Start Session"
-                  to begin tracking.
-                </span>
-              </div>
+              <TrackingInfoAlert />
+              <InactiveSessionAlert />
             </motion.div>
           ) : (
             <motion.div

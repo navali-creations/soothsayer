@@ -5,6 +5,7 @@ import { useBoundStore } from "~/renderer/store";
 
 import {
   AppHelpCard,
+  AudioSettingsCard,
   DangerZoneCard,
   FilePathSettingCard,
   SettingsCategoryCard,
@@ -56,12 +57,15 @@ const SettingsPage = () => {
         subtitle="Configure your application preferences and game paths"
       />
       <PageContainer.Content>
-        <Grid className="grid-cols-2 ">
+        <Grid className="grid-cols-2 items-start">
           <Grid.Col>
             <FilePathSettingCard category={categories.gamePaths} />
           </Grid.Col>
           <Grid.Col>
             <SettingsCategoryCard category={categories.appBehavior} />
+          </Grid.Col>
+          <Grid.Col>
+            <AudioSettingsCard />
           </Grid.Col>
           <Grid.Col>
             <AppHelpCard />

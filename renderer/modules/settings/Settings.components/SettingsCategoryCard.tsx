@@ -7,7 +7,7 @@ interface SettingsCategoryCardProps {
 
 const SettingsCategoryCard = ({ category }: SettingsCategoryCardProps) => {
   return (
-    <div className="card bg-base-100 shadow-xl  h-full">
+    <div className="card bg-base-100 shadow-xl">
       <div className="card-body">
         <h2 className="card-title">{category.title}</h2>
         <p className="text-sm text-base-content/60">{category.description}</p>

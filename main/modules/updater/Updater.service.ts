@@ -495,15 +495,30 @@ class UpdaterService {
 
     let currentRelease: ChangelogRelease | null = null;
     let currentEntry: ChangelogEntry | null = null;
+    // Tracks whether we've passed the description line and entered rich content
+    // (i.e. after the first blank line following the entry's description).
+    let contentStarted = false;
+
+    const flushEntry = () => {
+      if (currentEntry && currentRelease) {
+        // Trim trailing whitespace from accumulated content
+        if (currentEntry.content) {
+          currentEntry.content = currentEntry.content.trim();
+          if (!currentEntry.content) {
+            delete currentEntry.content;
+          }
+        }
+        currentRelease.entries.push(currentEntry);
+        currentEntry = null;
+      }
+      contentStarted = false;
+    };
 
     for (const line of lines) {
       // Version header: ## X.Y.Z
       const versionMatch = line.match(/^## (\d+\.\d+\.\d+.*)$/);
       if (versionMatch) {
-        if (currentEntry && currentRelease) {
-          currentRelease.entries.push(currentEntry);
-          currentEntry = null;
-        }
+        flushEntry();
         currentRelease = {
           version: versionMatch[1].trim(),
           changeType: "Changes",
@@ -514,21 +529,17 @@ class UpdaterService {
       }
 
       // Change type header: ### Patch Changes / ### Minor Changes / etc.
+      // Only matches exactly 3 hashes (#### sub-headers are handled as content below)
       const changeTypeMatch = line.match(/^### (.+)$/);
-      if (changeTypeMatch && currentRelease) {
-        if (currentEntry) {
-          currentRelease.entries.push(currentEntry);
-          currentEntry = null;
-        }
+      if (changeTypeMatch && !line.startsWith("####") && currentRelease) {
+        flushEntry();
         currentRelease.changeType = changeTypeMatch[1].trim();
         continue;
       }
 
       // Top-level list item (starts with "- ")
       if (line.match(/^- /) && currentRelease) {
-        if (currentEntry) {
-          currentRelease.entries.push(currentEntry);
-        }
+        flushEntry();
         currentEntry = this.parseChangelogEntry(line);
         continue;
       }
@@ -545,16 +556,45 @@ class UpdaterService {
         continue;
       }
 
-      // Continuation text (non-empty, non-header line belonging to current entry)
-      if (line.trim() && currentEntry && !line.startsWith("#")) {
-        currentEntry.description += ` ${line.trim()}`;
+      // ---- Rich content & continuation handling ----
+      if (!currentEntry) continue;
+
+      const trimmed = line.trim();
+
+      // #### sub-section headers always start/append to content
+      if (line.startsWith("####")) {
+        contentStarted = true;
+        if (!currentEntry.content) currentEntry.content = "";
+        currentEntry.content += `${line}\n`;
+        continue;
+      }
+
+      // Blank line
+      if (!trimmed) {
+        if (contentStarted) {
+          // Preserve blank lines inside content
+          if (!currentEntry.content) currentEntry.content = "";
+          currentEntry.content += "\n";
+        } else {
+          // First blank line after entry description → content starts
+          contentStarted = true;
+        }
+        continue;
+      }
+
+      // Non-blank, non-#### line
+      if (contentStarted) {
+        // We're in content mode — accumulate preserving markdown
+        if (!currentEntry.content) currentEntry.content = "";
+        currentEntry.content += `${line}\n`;
+      } else if (!line.startsWith("#")) {
+        // Simple description continuation (before any blank line)
+        currentEntry.description += ` ${trimmed}`;
       }
     }
 
     // Flush last entry
-    if (currentEntry && currentRelease) {
-      currentRelease.entries.push(currentEntry);
-    }
+    flushEntry();
 
     return releases;
   }

@@ -90,6 +90,11 @@ const {
       setupCompleted: false,
       setupStep: 0,
       setupVersion: 0,
+      audioEnabled: true,
+      audioVolume: 0.5,
+      audioRarity1Path: null,
+      audioRarity2Path: null,
+      audioRarity3Path: null,
     }),
   };
 });
@@ -260,6 +265,9 @@ describe("SettingsStoreService — IPC handlers", () => {
         "settings-store:set-selected-poe1-price-source",
         "settings-store:get-selected-poe2-price-source",
         "settings-store:set-selected-poe2-price-source",
+        "settings-store:scan-custom-sounds",
+        "settings-store:get-custom-sound-data",
+        "settings-store:open-custom-sounds-folder",
         "settings-store:reset-database",
       ];
 

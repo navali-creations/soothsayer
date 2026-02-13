@@ -15,6 +15,7 @@ export interface LatestReleaseInfo {
 
 export interface ChangelogEntry {
   description: string;
+  content?: string;
   commitHash?: string;
   commitUrl?: string;
   contributor?: string;

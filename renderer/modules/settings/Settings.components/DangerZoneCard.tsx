@@ -37,7 +37,7 @@ const DangerZoneCard = () => {
 
   return (
     <>
-      <div className="card bg-base-100 shadow-xl border-2 border-error h-full">
+      <div className="card bg-base-100 shadow-xl border-2 border-error">
         <div className="card-body">
           <h2 className="card-title text-error">
             <FiTrash2 className="w-5 h-5" />
@@ -60,6 +60,7 @@ const DangerZoneCard = () => {
               </div>
               <Button
                 variant="error"
+                size="sm"
                 onClick={openModal}
                 className="whitespace-nowrap"
               >
@@ -74,7 +75,7 @@ const DangerZoneCard = () => {
       <dialog ref={modalRef} className="modal modal-bottom sm:modal-middle">
         <div className="modal-box border border-error">
           <div className="flex items-center gap-3 text-error mb-4">
-            <FiAlertTriangle className="w-6 h-6 flex-shrink-0" />
+            <FiAlertTriangle className="w-6 h-6 shrink-0" />
             <h3 className="font-bold text-lg">Reset Database</h3>
           </div>
 
@@ -97,11 +98,17 @@ const DangerZoneCard = () => {
           )}
 
           <div className="modal-action">
-            <Button variant="ghost" onClick={closeModal} disabled={isResetting}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={closeModal}
+              disabled={isResetting}
+            >
               Cancel
             </Button>
             <Button
               variant="error"
+              size="sm"
               onClick={handleResetDatabase}
               disabled={isResetting}
             >

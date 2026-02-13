@@ -10,7 +10,7 @@ interface FilePathSettingCardProps {
 
 const FilePathSettingCard = ({ category }: FilePathSettingCardProps) => {
   return (
-    <div className="card bg-base-100 shadow-xl h-full">
+    <div className="card bg-base-100 shadow-xl">
       <div className="card-body">
         <h2 className="card-title">{category.title}</h2>
         <p className="text-sm text-base-content/60">{category.description}</p>
@@ -24,12 +24,12 @@ const FilePathSettingCard = ({ category }: FilePathSettingCardProps) => {
               <Flex className="gap-2">
                 <input
                   type="text"
-                  className="input input-bordered flex-1"
+                  className="input input-bordered input-sm flex-1"
                   value={setting.value || ""}
                   readOnly
                   placeholder={setting.placeholder}
                 />
-                <Button variant="primary" onClick={setting.onSelect}>
+                <Button variant="primary" size="sm" onClick={setting.onSelect}>
                   <FiFolder />
                 </Button>
               </Flex>

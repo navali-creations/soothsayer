@@ -310,6 +310,11 @@ describe("SettingsStoreService", () => {
       expect(settings).toHaveProperty("setupVersion");
       expect(settings).toHaveProperty("onboardingDismissedBeacons");
       expect(settings).toHaveProperty("overlayBounds");
+      expect(settings).toHaveProperty("audioEnabled");
+      expect(settings).toHaveProperty("audioVolume");
+      expect(settings).toHaveProperty("audioRarity1Path");
+      expect(settings).toHaveProperty("audioRarity2Path");
+      expect(settings).toHaveProperty("audioRarity3Path");
     });
 
     it("should reflect individual set operations", async () => {

@@ -19,6 +19,11 @@ export interface UserSettingsDTO {
   setupCompleted: boolean;
   setupStep: SetupStep;
   setupVersion: number;
+  audioEnabled: boolean;
+  audioVolume: number;
+  audioRarity1Path: string | null;
+  audioRarity2Path: string | null;
+  audioRarity3Path: string | null;
 }
 
 /**
@@ -60,4 +65,12 @@ export interface SetupSettingsDTO {
   completed: boolean;
   step: SetupStep;
   version: number;
+}
+
+/**
+ * Detected custom sound file info
+ */
+export interface CustomSoundFile {
+  filename: string;
+  fullPath: string;
 }

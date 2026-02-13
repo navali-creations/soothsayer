@@ -1063,6 +1063,132 @@ describe("UpdaterService", () => {
         "Last entry without trailing newline",
       );
     });
+
+    it("should parse #### sub-section headers into content", () => {
+      const md = [
+        "## 1.0.0",
+        "",
+        "### Patch Changes",
+        "",
+        "- New features and bug fixes:",
+        "",
+        "#### Feedback link",
+        "Quickly jump to Discord.",
+        "",
+        "#### New title bar menu",
+        "Settings icon replaced with a dropdown.",
+      ].join("\n");
+      const releases = callParseChangelog(md);
+
+      expect(releases).toHaveLength(1);
+      expect(releases[0].entries).toHaveLength(1);
+
+      const entry = releases[0].entries[0];
+      expect(entry.description).toBe("New features and bug fixes:");
+      expect(entry.content).toBeDefined();
+      expect(entry.content).toContain("#### Feedback link");
+      expect(entry.content).toContain("Quickly jump to Discord.");
+      expect(entry.content).toContain("#### New title bar menu");
+      expect(entry.content).toContain(
+        "Settings icon replaced with a dropdown.",
+      );
+    });
+
+    it("should parse <img> tags and --- dividers into content", () => {
+      const md = [
+        "## 1.0.0",
+        "",
+        "### Patch Changes",
+        "",
+        "- Release highlights:",
+        "",
+        "#### Feature one",
+        "Description of feature.",
+        "",
+        '<img width="1200" height="800" alt="screenshot" src="https://example.com/image.png" />',
+        "",
+        "---",
+        "",
+        "#### Feature two",
+        "Another description.",
+      ].join("\n");
+      const releases = callParseChangelog(md);
+
+      const entry = releases[0].entries[0];
+      expect(entry.description).toBe("Release highlights:");
+      expect(entry.content).toContain("#### Feature one");
+      expect(entry.content).toContain("Description of feature.");
+      expect(entry.content).toContain('<img width="1200"');
+      expect(entry.content).toContain('src="https://example.com/image.png"');
+      expect(entry.content).toContain("---");
+      expect(entry.content).toContain("#### Feature two");
+      expect(entry.content).toContain("Another description.");
+    });
+
+    it("should not set content when there is no rich body", () => {
+      const md = `## 1.0.0\n\n### Patch Changes\n\n- Simple fix\n`;
+      const releases = callParseChangelog(md);
+
+      expect(releases[0].entries[0].description).toBe("Simple fix");
+      expect(releases[0].entries[0].content).toBeUndefined();
+    });
+
+    it("should keep simple continuation in description and not in content", () => {
+      const md = `## 1.0.0\n\n### Patch Changes\n\n- First line\ncontinuation line\n`;
+      const releases = callParseChangelog(md);
+
+      const entry = releases[0].entries[0];
+      expect(entry.description).toBe("First line continuation line");
+      expect(entry.content).toBeUndefined();
+    });
+
+    it("should trim trailing whitespace from content", () => {
+      const md = [
+        "## 1.0.0",
+        "",
+        "### Patch Changes",
+        "",
+        "- Entry:",
+        "",
+        "#### Section",
+        "Text here.",
+        "",
+        "",
+      ].join("\n");
+      const releases = callParseChangelog(md);
+
+      const entry = releases[0].entries[0];
+      expect(entry.content).toBeDefined();
+      // Should not end with whitespace/newlines
+      expect(entry.content).toBe(entry.content!.trim());
+    });
+
+    it("should handle multiple entries where only some have rich content", () => {
+      const md = [
+        "## 1.0.0",
+        "",
+        "### Patch Changes",
+        "",
+        "- Simple bugfix",
+        "- Rich entry:",
+        "",
+        "#### Detail",
+        "Some detail text.",
+        "- Another simple entry",
+      ].join("\n");
+      const releases = callParseChangelog(md);
+
+      expect(releases[0].entries).toHaveLength(3);
+      expect(releases[0].entries[0].description).toBe("Simple bugfix");
+      expect(releases[0].entries[0].content).toBeUndefined();
+
+      expect(releases[0].entries[1].description).toBe("Rich entry:");
+      expect(releases[0].entries[1].content).toContain("#### Detail");
+      expect(releases[0].entries[1].content).toContain("Some detail text.");
+
+      expect(releases[0].entries[2].description).toBe("Another simple entry");
+      expect(releases[0].entries[2].content).toBeUndefined();
+    });
   });
 
   // ─── parseReleaseBody (private — tested via accessor) ──────────────────

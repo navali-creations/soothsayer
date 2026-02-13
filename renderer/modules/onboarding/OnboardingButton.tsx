@@ -7,11 +7,13 @@ import { useBoundStore } from "~/renderer/store";
 
 interface OnboardingButtonProps {
   variant?: "icon" | "button";
+  size?: "lg" | "md" | "sm" | "xs";
   className?: string;
 }
 
 export const OnboardingButton: React.FC<OnboardingButtonProps> = ({
   variant = "button",
+  size,
   className = "",
 }) => {
   const [isResetting, setIsResetting] = useState(false);
@@ -34,6 +36,7 @@ export const OnboardingButton: React.FC<OnboardingButtonProps> = ({
       <Button
         onClick={handleReset}
         variant="ghost"
+        size={size}
         circle
         className={className}
         title="Reset Onboarding Tour"
@@ -49,6 +52,7 @@ export const OnboardingButton: React.FC<OnboardingButtonProps> = ({
     <Button
       onClick={handleReset}
       variant="primary"
+      size={size}
       className={className}
       disabled={isResetting}
       data-onboarding="onboarding-button"

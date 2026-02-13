@@ -1,7 +1,7 @@
 import { ipcRenderer } from "electron";
 
 import { SettingsStoreChannel } from "./SettingsStore.channels";
-import type { UserSettingsDTO } from "./SettingsStore.dto";
+import type { CustomSoundFile, UserSettingsDTO } from "./SettingsStore.dto";
 
 const SettingsStoreAPI = {
   // Get all settings
@@ -77,6 +77,14 @@ const SettingsStoreAPI = {
     ipcRenderer.invoke(SettingsStoreChannel.GetSelectedPoe2PriceSource),
   setSelectedPoe2PriceSource: (source: "exchange" | "stash"): Promise<void> =>
     ipcRenderer.invoke(SettingsStoreChannel.SetSelectedPoe2PriceSource, source),
+
+  // Audio
+  scanCustomSounds: (): Promise<CustomSoundFile[]> =>
+    ipcRenderer.invoke(SettingsStoreChannel.ScanCustomSounds),
+  getCustomSoundData: (filePath: string): Promise<string | null> =>
+    ipcRenderer.invoke(SettingsStoreChannel.GetCustomSoundData, filePath),
+  openCustomSoundsFolder: (): Promise<{ success: boolean; path: string }> =>
+    ipcRenderer.invoke(SettingsStoreChannel.OpenCustomSoundsFolder),
 
   // Database management
   resetDatabase: (): Promise<{

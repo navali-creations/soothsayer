@@ -1,6 +1,14 @@
 # Soothsayer
 
-Path of Exile divination card tracker
+`soothsayer` is a real-time stacked deck opening tracker for Path of Exile. 
+
+Additionally `soothayer` calculates live profit based on current market prices, and gives you a clear picture of whether your session is paying off (spoiler: it most likely doesn't but you never know!). 
+
+Path of Exile 2 support is ready and waiting for when stacked decks become available.
+
+[![Download Latest Release](https://img.shields.io/github/v/release/navali-creations/soothsayer?style=for-the-badge&label=Download&color=blue)](https://github.com/navali-creations/soothsayer/releases/latest)
+
+---
 
 ## Requirements
 
@@ -108,36 +116,6 @@ pnpx supabase functions deploy
 
 See [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
-## License
-
-This project is licensed under the **Personal Use Non-Commercial Source-Available
-License (PUNCSA) v1.0**.
-
-In short:
-- ✔ Free for personal Path of Exile gameplay use
-- ✔ Modifications allowed for personal use
-- ✔ Streaming and content creation allowed
-- ❌ No commercial use
-- ❌ No SaaS or hosted services
-- ❌ No enterprise or internal organizational use
-- ❌ No monetized forks, communities, or derivatives
-- ❌ No competing or replacement products
-
-Forks are allowed only under the same license terms and must remain non-commercial.
-
-## Forking & Self-Hosting
-
-Forks and self-hosted versions are allowed for personal or community use,
-provided they remain non-commercial and comply with the project license.
-
-If you modify or self-host this project:
-- You are responsible for complying with all third-party service terms
-- Forked versions must clearly identify themselves as forks
-- Forked versions must not impersonate or present themselves as the original project
-
-Abuse of third-party services or misrepresentation of forked versions may
-result in termination of license rights.
-
 ## Third-Party Data & Disclaimer
 
 This project uses gameplay-related and pricing data from third-party services,
@@ -147,6 +125,10 @@ All Path of Exile trademarks, assets, and related intellectual property belong
 to **Grinding Gear Games**.
 
 This product is not affiliated with or endorsed by Grinding Gear Games in any way.
+
+## License
+
+This project is licensed under the [GNU Affero General Public License v3.0 (AGPL-3.0)](https://www.gnu.org/licenses/agpl-3.0.html). See the [LICENSE](LICENSE) file for details.
 
 ## Contributions
 
