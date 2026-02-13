@@ -1,5 +1,11 @@
 # soothsayer
 
+## 0.2.1
+
+### Patch Changes
+
+- [`168e98c`](https://github.com/navali-creations/soothsayer/commit/168e98c20bd02d9d4d5ebcea90ed0a543ff890ef) Thanks [@sbsrnt](https://github.com/sbsrnt)! - Fixed a startup crash that could occur when upgrading from a previous version. The app now starts reliably whether you're installing fresh or upgrading from an older release. Additional tests have been added to catch these issues before release, improving overall reliability.
+
 ## 0.2.0
 
 ### Minor Changes
