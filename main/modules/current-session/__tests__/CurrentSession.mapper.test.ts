@@ -268,7 +268,7 @@ describe("CurrentSessionMapper", () => {
       expect(result.divinationCard!.stackSize).toBe(8);
       expect(result.divinationCard!.description).toBe("A powerful card");
       expect(result.divinationCard!.artSrc).toBe(
-        "https://example.com/doctor.png"
+        "https://example.com/doctor.png",
       );
       expect(result.divinationCard!.rarity).toBe(1);
       expect(result.divinationCard!.filterRarity).toBe(2);
