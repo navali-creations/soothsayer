@@ -205,7 +205,10 @@ export class FilterScanner {
   ): Promise<ScannedFilterMetadata | null> {
     try {
       const stats = await fs.stat(filePath);
-      const fileName = path.basename(filePath);
+      // Use path.win32.basename because it handles both / and \ separators,
+      // unlike path.posix.basename which only handles /. This ensures correct
+      // behavior on both Windows and Linux.
+      const fileName = path.win32.basename(filePath);
       const filterName = fileName.replace(
         new RegExp(`\\${LOCAL_FILTER_EXTENSION}$`, "i"),
         "",
@@ -250,8 +253,9 @@ export class FilterScanner {
 
       const parsed = FilterScanner.parseOnlineHeader(headerLines);
 
-      // If we couldn't find a name, use the filename as fallback
-      const fileName = path.basename(filePath);
+      // If we couldn't find a name, use the filename as fallback.
+      // Use path.win32.basename because it handles both / and \ separators.
+      const fileName = path.win32.basename(filePath);
       const filterName = parsed.name || fileName;
 
       return {
