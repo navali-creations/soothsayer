@@ -78,11 +78,11 @@ function buildPriceSnapshot(
     stashChaosToDivine?: number;
     exchangeCardPrices?: Record<
       string,
-      { chaosValue: number; divineValue: number; stackSize?: number }
+      { chaosValue: number; divineValue: number }
     >;
     stashCardPrices?: Record<
       string,
-      { chaosValue: number; divineValue: number; stackSize?: number }
+      { chaosValue: number; divineValue: number }
     >;
   } = {},
 ): SessionPriceSnapshot {

@@ -133,6 +133,13 @@ export const createSessionSlice: StateCreator<
                 currentSession.poe2Session = null;
               }
             }
+
+            // If the backend confirms a session is now active (or stopped),
+            // clear the loading flag so the UI exits "Starting session…"
+            // even if the startSession() IPC call chain is still in-flight.
+            if (currentSession.isLoading) {
+              currentSession.isLoading = false;
+            }
           });
         },
       );
@@ -230,7 +237,6 @@ export const createSessionSlice: StateCreator<
         }
       } catch (error) {
         console.error("[SessionSlice] Failed to start session:", error);
-        throw error;
       } finally {
         set(({ currentSession }) => {
           currentSession.isLoading = false;
@@ -265,7 +271,6 @@ export const createSessionSlice: StateCreator<
         }
       } catch (error) {
         console.error("[SessionSlice] Failed to stop session:", error);
-        throw error;
       } finally {
         set(({ currentSession }) => {
           currentSession.isLoading = false;

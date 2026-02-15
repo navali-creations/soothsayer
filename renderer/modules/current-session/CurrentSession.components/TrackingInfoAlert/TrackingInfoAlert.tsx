@@ -15,8 +15,6 @@ const TrackingInfoAlert = () => {
         </span>{" "}
         on the stacked deck or hold <kbd className="kbd kbd-xs">Ctrl</kbd>
         {" + "}
-        <kbd className="kbd kbd-xs">Shift</kbd>
-        {" + "}
         <span
           className="tooltip tooltip-bottom tooltip-primary"
           data-tip="Left click"

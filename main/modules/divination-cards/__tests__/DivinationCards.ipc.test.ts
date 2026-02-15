@@ -96,6 +96,8 @@ vi.mock("~/main/modules/settings-store", () => ({
     ActiveGame: "selectedGame",
     SelectedPoe1League: "poe1SelectedLeague",
     SelectedPoe2League: "poe2SelectedLeague",
+    RaritySource: "raritySource",
+    SelectedFilterId: "selectedFilterId",
   },
 }));
 
@@ -112,6 +114,19 @@ vi.mock("../DivinationCards.repository", () => ({
     insertCard = mockRepositoryInsertCard;
     updateCard = mockRepositoryUpdateCard;
     updateRarities = mockRepositoryUpdateRarities;
+    getAllCardNames = vi.fn().mockResolvedValue([]);
+  },
+}));
+
+// ─── Mock FilterRepository ───────────────────────────────────────────────────
+vi.mock("~/main/modules/filters/Filter.repository", () => ({
+  FilterRepository: class MockFilterRepository {
+    getAll = vi.fn().mockResolvedValue([]);
+    getById = vi.fn().mockResolvedValue(null);
+    getCardRarities = vi.fn().mockResolvedValue([]);
+    replaceCardRarities = vi.fn().mockResolvedValue(undefined);
+    getCardRarityCount = vi.fn().mockResolvedValue(0);
+    getCardRarity = vi.fn().mockResolvedValue(null);
   },
 }));
 
@@ -236,6 +251,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
       expect(registeredChannels).toContain("divination-cards:get-count");
       expect(registeredChannels).toContain("divination-cards:get-stats");
       expect(registeredChannels).toContain("divination-cards:force-sync");
+      expect(registeredChannels).toContain("divination-cards:update-rarity");
     });
   });
 
@@ -249,6 +265,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
       expect(mockRepositoryGetAllByGame).toHaveBeenCalledWith(
         "poe1",
         "Settlers",
+        null,
       );
       expect(result).toEqual([SAMPLE_CARD_DTO]);
     });
@@ -261,6 +278,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
       expect(mockRepositoryGetAllByGame).toHaveBeenCalledWith(
         "poe1",
         undefined,
+        null,
       );
     });
 
@@ -329,6 +347,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
       expect(mockRepositoryGetById).toHaveBeenCalledWith(
         "poe1_the-doctor",
         "Settlers",
+        null,
       );
       expect(result).toEqual(SAMPLE_CARD_DTO);
     });
@@ -356,6 +375,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
       expect(mockRepositoryGetById).toHaveBeenCalledWith(
         "poe1_test",
         undefined,
+        null,
       );
     });
 
@@ -400,6 +420,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
         "poe1",
         "The Doctor",
         "Settlers",
+        null,
       );
       expect(result).toEqual(SAMPLE_CARD_DTO);
     });
@@ -454,6 +475,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
         "poe1",
         "Doctor",
         "Settlers",
+        null,
       );
       expect(result).toEqual({
         cards: [SAMPLE_CARD_DTO],
@@ -803,10 +825,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
         "poe1",
         "Settlers",
         expect.arrayContaining([
-          { name: "The Doctor", rarity: 1 },
-          { name: "Rain of Chaos", rarity: 4 },
-          { name: "The Gambler", rarity: 2 },
-          { name: "Unpriced Card", rarity: 4 }, // No price → rarity 4
+          { name: "The Doctor", rarity: 1, clearOverride: true },
+          { name: "Rain of Chaos", rarity: 4, clearOverride: true },
+          { name: "The Gambler", rarity: 2, clearOverride: true },
+          { name: "Unpriced Card", rarity: 0, clearOverride: false }, // No price → rarity 0 (Unknown)
         ]),
       );
     });
@@ -822,7 +844,9 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
       expect(mockRepositoryUpdateRarities).toHaveBeenCalledWith(
         "poe1",
         "Settlers",
-        expect.arrayContaining([{ name: "Expensive Card", rarity: 1 }]),
+        expect.arrayContaining([
+          { name: "Expensive Card", rarity: 1, clearOverride: true },
+        ]),
       );
     });
 
@@ -837,7 +861,9 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
       expect(mockRepositoryUpdateRarities).toHaveBeenCalledWith(
         "poe1",
         "Settlers",
-        expect.arrayContaining([{ name: "Medium Card", rarity: 2 }]),
+        expect.arrayContaining([
+          { name: "Medium Card", rarity: 2, clearOverride: true },
+        ]),
       );
     });
 
@@ -852,7 +878,9 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
       expect(mockRepositoryUpdateRarities).toHaveBeenCalledWith(
         "poe1",
         "Settlers",
-        expect.arrayContaining([{ name: "Uncommon Card", rarity: 3 }]),
+        expect.arrayContaining([
+          { name: "Uncommon Card", rarity: 3, clearOverride: true },
+        ]),
       );
     });
 
@@ -867,11 +895,13 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
       expect(mockRepositoryUpdateRarities).toHaveBeenCalledWith(
         "poe1",
         "Settlers",
-        expect.arrayContaining([{ name: "Common Card", rarity: 4 }]),
+        expect.arrayContaining([
+          { name: "Common Card", rarity: 4, clearOverride: true },
+        ]),
       );
     });
 
-    it("should set rarity 4 for all unpriced cards", async () => {
+    it("should set rarity 0 for all unpriced cards", async () => {
       const divine = 200;
       mockRepositoryGetAllByGame.mockResolvedValue([
         { name: "Card A", rarity: 1 },
@@ -884,8 +914,8 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
         "poe1",
         "Settlers",
         expect.arrayContaining([
-          { name: "Card A", rarity: 4 },
-          { name: "Card B", rarity: 4 },
+          { name: "Card A", rarity: 0, clearOverride: false },
+          { name: "Card B", rarity: 0, clearOverride: false },
         ]),
       );
     });
@@ -909,7 +939,9 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
       expect(mockRepositoryUpdateRarities).toHaveBeenCalledWith(
         "poe1",
         "Settlers",
-        expect.arrayContaining([{ name: "Boundary Card", rarity: 2 }]),
+        expect.arrayContaining([
+          { name: "Boundary Card", rarity: 2, clearOverride: true },
+        ]),
       );
     });
 
@@ -924,7 +956,9 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
       expect(mockRepositoryUpdateRarities).toHaveBeenCalledWith(
         "poe1",
         "Settlers",
-        expect.arrayContaining([{ name: "Boundary Card", rarity: 3 }]),
+        expect.arrayContaining([
+          { name: "Boundary Card", rarity: 3, clearOverride: true },
+        ]),
       );
     });
 
@@ -942,6 +976,100 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
         expect.any(Array),
       );
     });
+
+    it("should set rarity 0 for low-confidence cards regardless of price", async () => {
+      const divine = 200;
+      mockRepositoryGetAllByGame.mockResolvedValue([]);
+
+      await service.updateRaritiesFromPrices("poe1", "Settlers", divine, {
+        "Nook's Crown": { chaosValue: 176.2, confidence: 3 }, // Would be rarity 1 if confident
+        History: { chaosValue: 17444, confidence: 3 }, // Would be rarity 1 if confident
+      });
+
+      expect(mockRepositoryUpdateRarities).toHaveBeenCalledWith(
+        "poe1",
+        "Settlers",
+        expect.arrayContaining([
+          { name: "Nook's Crown", rarity: 0, clearOverride: false },
+          { name: "History", rarity: 0, clearOverride: false },
+        ]),
+      );
+    });
+
+    it("should calculate normal rarity for medium-confidence cards", async () => {
+      const divine = 200;
+      mockRepositoryGetAllByGame.mockResolvedValue([]);
+
+      await service.updateRaritiesFromPrices("poe1", "Settlers", divine, {
+        "Unrequited Love": { chaosValue: 10872, confidence: 2 }, // 5436% → rarity 1
+      });
+
+      expect(mockRepositoryUpdateRarities).toHaveBeenCalledWith(
+        "poe1",
+        "Settlers",
+        expect.arrayContaining([
+          { name: "Unrequited Love", rarity: 1, clearOverride: true },
+        ]),
+      );
+    });
+
+    it("should calculate normal rarity for high-confidence cards", async () => {
+      const divine = 200;
+      mockRepositoryGetAllByGame.mockResolvedValue([]);
+
+      await service.updateRaritiesFromPrices("poe1", "Settlers", divine, {
+        "House of Mirrors": { chaosValue: 21814, confidence: 1 },
+      });
+
+      expect(mockRepositoryUpdateRarities).toHaveBeenCalledWith(
+        "poe1",
+        "Settlers",
+        expect.arrayContaining([
+          { name: "House of Mirrors", rarity: 1, clearOverride: true },
+        ]),
+      );
+    });
+
+    it("should default to high confidence when confidence is not specified", async () => {
+      const divine = 100;
+      mockRepositoryGetAllByGame.mockResolvedValue([]);
+
+      await service.updateRaritiesFromPrices("poe1", "Settlers", divine, {
+        "Legacy Card": { chaosValue: 70 }, // No confidence field → default high → rarity 1
+      });
+
+      expect(mockRepositoryUpdateRarities).toHaveBeenCalledWith(
+        "poe1",
+        "Settlers",
+        expect.arrayContaining([
+          { name: "Legacy Card", rarity: 1, clearOverride: true },
+        ]),
+      );
+    });
+
+    it("should handle mix of confidence levels correctly", async () => {
+      const divine = 200;
+      mockRepositoryGetAllByGame.mockResolvedValue([
+        { name: "Unpriced Card", rarity: 1 },
+      ]);
+
+      await service.updateRaritiesFromPrices("poe1", "Settlers", divine, {
+        "High Conf": { chaosValue: 1500, confidence: 1 }, // rarity 1
+        "Med Conf": { chaosValue: 50, confidence: 2 }, // 25% → rarity 3
+        "Low Conf": { chaosValue: 5000, confidence: 3 }, // rarity 0 (low confidence)
+      });
+
+      expect(mockRepositoryUpdateRarities).toHaveBeenCalledWith(
+        "poe1",
+        "Settlers",
+        expect.arrayContaining([
+          { name: "High Conf", rarity: 1, clearOverride: true },
+          { name: "Med Conf", rarity: 3, clearOverride: true },
+          { name: "Low Conf", rarity: 0, clearOverride: false },
+          { name: "Unpriced Card", rarity: 0, clearOverride: false },
+        ]),
+      );
+    });
   });
 
   // ─── League-specific IPC behavior ─────────────────────────────────────
@@ -956,6 +1084,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
       expect(mockRepositoryGetAllByGame).toHaveBeenCalledWith(
         "poe1",
         "Necropolis",
+        null,
       );
     });
 
@@ -968,6 +1097,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
       expect(mockRepositoryGetAllByGame).toHaveBeenCalledWith(
         "poe2",
         "Standard",
+        null,
       );
     });
 
@@ -980,6 +1110,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
         "poe1",
         "The Doctor",
         "Necropolis",
+        null,
       );
     });
 
@@ -1006,6 +1137,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
         "poe1",
         "Doc",
         "League123",
+        null,
       );
     });
   });

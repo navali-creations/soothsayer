@@ -1,7 +1,9 @@
 import {
   type ColumnDef,
+  type FilterFn,
   flexRender,
   getCoreRowModel,
+  getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
   type PaginationState,
@@ -33,6 +35,12 @@ interface TableProps<TData> {
   compact?: boolean;
   zebraStripes?: boolean;
   initialSorting?: SortingState;
+  /** TanStack global filter value (e.g. a debounced search string) */
+  globalFilter?: string;
+  /** Custom global filter function. Defaults to case-insensitive substring match on all string accessors. */
+  globalFilterFn?: FilterFn<TData>;
+  /** Additional class name(s) applied to each `<tr>` in the body */
+  rowClassName?: string;
 }
 
 function Table<TData>({
@@ -47,6 +55,9 @@ function Table<TData>({
   compact = false,
   zebraStripes = false,
   initialSorting = [],
+  globalFilter,
+  globalFilterFn,
+  rowClassName,
 }: TableProps<TData>) {
   const [sorting, setSorting] = useState<SortingState>(initialSorting);
   const [pagination, setPagination] = useState<PaginationState>({
@@ -54,10 +65,13 @@ function Table<TData>({
     pageSize,
   });
 
+  const enableGlobalFilter = globalFilter !== undefined;
+
   const table = useReactTable({
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: enableGlobalFilter ? getFilteredRowModel() : undefined,
     getSortedRowModel: enableSorting ? getSortedRowModel() : undefined,
     getPaginationRowModel: enablePagination
       ? getPaginationRowModel()
@@ -67,7 +81,9 @@ function Table<TData>({
     state: {
       sorting,
       pagination: enablePagination ? pagination : undefined,
+      globalFilter: enableGlobalFilter ? globalFilter : undefined,
     },
+    ...(globalFilterFn ? { globalFilterFn } : {}),
   });
 
   return (
@@ -129,9 +145,7 @@ function Table<TData>({
             {table.getRowModel().rows.map((row) => (
               <tr
                 key={row.id}
-                className={clsx({
-                  hover: hoverable,
-                })}
+                className={clsx("group", hoverable && "hover", rowClassName)}
               >
                 {row.getVisibleCells().map((cell, index) => (
                   <td

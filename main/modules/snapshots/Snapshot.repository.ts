@@ -1,6 +1,7 @@
 import { type Kysely, sql } from "kysely";
 
 import type { Database } from "~/main/modules/database";
+import type { Confidence } from "~/types/data-stores";
 
 import type {
   CreateLeagueDTO,
@@ -101,7 +102,7 @@ export class SnapshotRepository {
         price_source: "exchange" | "stash";
         chaos_value: number;
         divine_value: number;
-        stack_size: number | null;
+        confidence: Confidence;
       }> = [];
 
       // Add exchange prices
@@ -114,7 +115,7 @@ export class SnapshotRepository {
           price_source: "exchange",
           chaos_value: priceData.chaosValue,
           divine_value: priceData.divineValue,
-          stack_size: priceData.stackSize ?? null,
+          confidence: priceData.confidence ?? 1,
         });
       }
 
@@ -128,7 +129,7 @@ export class SnapshotRepository {
           price_source: "stash",
           chaos_value: priceData.chaosValue,
           divine_value: priceData.divineValue,
-          stack_size: priceData.stackSize ?? null,
+          confidence: priceData.confidence ?? 1,
         });
       }
 

@@ -14,6 +14,18 @@ function getColumnNames(db: Database.Database, table: string): string[] {
 }
 
 /**
+ * Returns the names of all tables in the database (excluding internal SQLite tables).
+ */
+function getTableNames(db: Database.Database): string[] {
+  const tables = db
+    .prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+    )
+    .all() as { name: string }[];
+  return tables.map((t) => t.name);
+}
+
+/**
  * Creates the current baseline schema (mirrors Database.service.ts initializeSchema).
  * This is what a fresh install gets before migrations run.
  */
@@ -190,6 +202,31 @@ function createBaselineSchema(db: Database.Database): void {
   `);
 
   db.exec(`
+    CREATE TABLE IF NOT EXISTS filter_metadata (
+      id TEXT PRIMARY KEY,
+      filter_type TEXT NOT NULL CHECK(filter_type IN ('local', 'online')),
+      file_path TEXT NOT NULL UNIQUE,
+      filter_name TEXT NOT NULL,
+      last_update TEXT,
+      is_fully_parsed INTEGER NOT NULL DEFAULT 0,
+      parsed_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS filter_card_rarities (
+      filter_id TEXT NOT NULL,
+      card_name TEXT NOT NULL,
+      rarity INTEGER NOT NULL CHECK(rarity >= 1 AND rarity <= 4),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (filter_id, card_name),
+      FOREIGN KEY (filter_id) REFERENCES filter_metadata(id) ON DELETE CASCADE
+    )
+  `);
+
+  db.exec(`
     CREATE TABLE IF NOT EXISTS user_settings (
       id INTEGER PRIMARY KEY CHECK(id = 1),
       app_exit_action TEXT NOT NULL DEFAULT 'exit' CHECK(app_exit_action IN ('exit', 'minimize')),
@@ -213,6 +250,8 @@ function createBaselineSchema(db: Database.Database): void {
       audio_rarity1_path TEXT,
       audio_rarity2_path TEXT,
       audio_rarity3_path TEXT,
+      rarity_source TEXT NOT NULL DEFAULT 'poe.ninja' CHECK(rarity_source IN ('poe.ninja', 'filter', 'prohibited-library')),
+      selected_filter_id TEXT REFERENCES filter_metadata(id) ON DELETE SET NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
@@ -256,6 +295,55 @@ function createPreAudioSchema(db: Database.Database): void {
     )
   `);
   db.exec(`INSERT OR IGNORE INTO user_settings (id) VALUES (1)`);
+
+  // Also drop filter tables since they didn't exist before either
+  db.exec(`DROP TABLE IF EXISTS filter_card_rarities`);
+  db.exec(`DROP TABLE IF EXISTS filter_metadata`);
+}
+
+/**
+ * Creates the pre-filter baseline schema (what users who have audio but not filter support have).
+ * Has audio columns in user_settings but NO filter tables and NO rarity_source/selected_filter_id columns.
+ */
+function createPreFilterSchema(db: Database.Database): void {
+  // Create all tables normally first
+  createBaselineSchema(db);
+
+  // Drop filter tables to simulate a user who doesn't have them yet
+  db.exec(`DROP TABLE IF EXISTS filter_card_rarities`);
+  db.exec(`DROP TABLE IF EXISTS filter_metadata`);
+
+  // Recreate user_settings WITH audio columns but WITHOUT filter columns
+  db.exec(`DROP TABLE user_settings`);
+  db.exec(`
+    CREATE TABLE user_settings (
+      id INTEGER PRIMARY KEY CHECK(id = 1),
+      app_exit_action TEXT NOT NULL DEFAULT 'exit' CHECK(app_exit_action IN ('exit', 'minimize')),
+      app_open_at_login INTEGER NOT NULL DEFAULT 0,
+      app_open_at_login_minimized INTEGER NOT NULL DEFAULT 0,
+      onboarding_dismissed_beacons TEXT NOT NULL DEFAULT '[]',
+      overlay_bounds TEXT,
+      poe1_client_txt_path TEXT,
+      poe1_selected_league TEXT NOT NULL DEFAULT 'Standard',
+      poe1_price_source TEXT NOT NULL DEFAULT 'exchange' CHECK(poe1_price_source IN ('exchange', 'stash')),
+      poe2_client_txt_path TEXT,
+      poe2_selected_league TEXT NOT NULL DEFAULT 'Standard',
+      poe2_price_source TEXT NOT NULL DEFAULT 'stash' CHECK(poe2_price_source IN ('exchange', 'stash')),
+      selected_game TEXT NOT NULL DEFAULT 'poe1' CHECK(selected_game IN ('poe1', 'poe2')),
+      installed_games TEXT NOT NULL DEFAULT '["poe1"]',
+      setup_completed INTEGER NOT NULL DEFAULT 0,
+      setup_step INTEGER NOT NULL DEFAULT 0 CHECK(setup_step >= 0 AND setup_step <= 3),
+      setup_version INTEGER NOT NULL DEFAULT 1,
+      audio_enabled INTEGER NOT NULL DEFAULT 1,
+      audio_volume REAL NOT NULL DEFAULT 0.5,
+      audio_rarity1_path TEXT,
+      audio_rarity2_path TEXT,
+      audio_rarity3_path TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+  db.exec(`INSERT OR IGNORE INTO user_settings (id) VALUES (1)`);
 }
 
 // ─── Expected final state ────────────────────────────────────────────────────
@@ -266,6 +354,32 @@ const EXPECTED_AUDIO_COLUMNS = [
   "audio_rarity1_path",
   "audio_rarity2_path",
   "audio_rarity3_path",
+];
+
+const EXPECTED_FILTER_SETTINGS_COLUMNS = [
+  "rarity_source",
+  "selected_filter_id",
+];
+
+const EXPECTED_FILTER_TABLES = ["filter_metadata", "filter_card_rarities"];
+
+const EXPECTED_FILTER_METADATA_COLUMNS = [
+  "id",
+  "filter_type",
+  "file_path",
+  "filter_name",
+  "last_update",
+  "is_fully_parsed",
+  "parsed_at",
+  "created_at",
+  "updated_at",
+];
+
+const EXPECTED_FILTER_CARD_RARITIES_COLUMNS = [
+  "filter_id",
+  "card_name",
+  "rarity",
+  "created_at",
 ];
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -302,6 +416,48 @@ describe("Migrations Integration", () => {
       for (const col of EXPECTED_AUDIO_COLUMNS) {
         expect(columns).toContain(col);
       }
+    });
+
+    it("should have all filter settings columns after migrations", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      const columns = getColumnNames(db, "user_settings");
+      for (const col of EXPECTED_FILTER_SETTINGS_COLUMNS) {
+        expect(columns).toContain(col);
+      }
+    });
+
+    it("should have filter_metadata and filter_card_rarities tables after migrations", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      const tables = getTableNames(db);
+      for (const table of EXPECTED_FILTER_TABLES) {
+        expect(tables).toContain(table);
+      }
+    });
+
+    it("should have correct columns in filter_metadata table", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      const columns = getColumnNames(db, "filter_metadata");
+      expect(columns.sort()).toEqual(EXPECTED_FILTER_METADATA_COLUMNS.sort());
+    });
+
+    it("should have correct columns in filter_card_rarities table", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      const columns = getColumnNames(db, "filter_card_rarities");
+      expect(columns.sort()).toEqual(
+        EXPECTED_FILTER_CARD_RARITIES_COLUMNS.sort(),
+      );
     });
 
     it("should record all migrations as applied", () => {
@@ -350,7 +506,7 @@ describe("Migrations Integration", () => {
     });
   });
 
-  // ─── Upgrade from Previous Version ─────────────────────────────────────
+  // ─── Upgrade from Pre-Audio Version ────────────────────────────────────
 
   describe("upgrade (pre-audio schema + migrations)", () => {
     it("should run all migrations without errors on an older database", () => {
@@ -403,6 +559,24 @@ describe("Migrations Integration", () => {
       expect(row.audio_rarity3_path).toBeNull();
     });
 
+    it("should also add filter tables and columns during pre-audio upgrade", () => {
+      createPreAudioSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      // Filter tables should exist
+      const tables = getTableNames(db);
+      for (const table of EXPECTED_FILTER_TABLES) {
+        expect(tables).toContain(table);
+      }
+
+      // Filter settings columns should exist
+      const columns = getColumnNames(db, "user_settings");
+      for (const col of EXPECTED_FILTER_SETTINGS_COLUMNS) {
+        expect(columns).toContain(col);
+      }
+    });
+
     it("should preserve existing user settings during upgrade", () => {
       createPreAudioSchema(db);
 
@@ -429,6 +603,316 @@ describe("Migrations Integration", () => {
     });
   });
 
+  // ─── Upgrade from Pre-Filter Version (has audio, no filters) ───────────
+
+  describe("upgrade (pre-filter schema + filter migration)", () => {
+    it("should run all migrations without errors on a pre-filter database", () => {
+      createPreFilterSchema(db);
+      const runner = new MigrationRunner(db);
+
+      expect(() => runner.runMigrations(migrations)).not.toThrow();
+    });
+
+    it("should create filter_metadata table", () => {
+      createPreFilterSchema(db);
+
+      // Verify table doesn't exist yet
+      const beforeTables = getTableNames(db);
+      expect(beforeTables).not.toContain("filter_metadata");
+
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      // Verify table now exists with correct columns
+      const afterTables = getTableNames(db);
+      expect(afterTables).toContain("filter_metadata");
+
+      const columns = getColumnNames(db, "filter_metadata");
+      expect(columns.sort()).toEqual(EXPECTED_FILTER_METADATA_COLUMNS.sort());
+    });
+
+    it("should create filter_card_rarities table", () => {
+      createPreFilterSchema(db);
+
+      // Verify table doesn't exist yet
+      const beforeTables = getTableNames(db);
+      expect(beforeTables).not.toContain("filter_card_rarities");
+
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      // Verify table now exists with correct columns
+      const afterTables = getTableNames(db);
+      expect(afterTables).toContain("filter_card_rarities");
+
+      const columns = getColumnNames(db, "filter_card_rarities");
+      expect(columns.sort()).toEqual(
+        EXPECTED_FILTER_CARD_RARITIES_COLUMNS.sort(),
+      );
+    });
+
+    it("should add rarity_source and selected_filter_id columns to user_settings", () => {
+      createPreFilterSchema(db);
+
+      // Verify columns don't exist yet
+      const before = getColumnNames(db, "user_settings");
+      for (const col of EXPECTED_FILTER_SETTINGS_COLUMNS) {
+        expect(before).not.toContain(col);
+      }
+
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      // Verify columns now exist
+      const after = getColumnNames(db, "user_settings");
+      for (const col of EXPECTED_FILTER_SETTINGS_COLUMNS) {
+        expect(after).toContain(col);
+      }
+    });
+
+    it("should set correct default values for rarity_source and selected_filter_id", () => {
+      createPreFilterSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      const row = db
+        .prepare(
+          "SELECT rarity_source, selected_filter_id FROM user_settings WHERE id = 1",
+        )
+        .get() as {
+        rarity_source: string;
+        selected_filter_id: string | null;
+      };
+
+      expect(row.rarity_source).toBe("poe.ninja");
+      expect(row.selected_filter_id).toBeNull();
+    });
+
+    it("should preserve existing user settings during filter upgrade", () => {
+      createPreFilterSchema(db);
+
+      db.prepare(
+        "UPDATE user_settings SET app_exit_action = 'minimize', audio_volume = 0.8, poe1_selected_league = 'Keepers' WHERE id = 1",
+      ).run();
+
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      const row = db
+        .prepare(
+          "SELECT app_exit_action, audio_volume, poe1_selected_league, rarity_source FROM user_settings WHERE id = 1",
+        )
+        .get() as {
+        app_exit_action: string;
+        audio_volume: number;
+        poe1_selected_league: string;
+        rarity_source: string;
+      };
+
+      expect(row.app_exit_action).toBe("minimize");
+      expect(row.audio_volume).toBe(0.8);
+      expect(row.poe1_selected_league).toBe("Keepers");
+      expect(row.rarity_source).toBe("poe.ninja");
+    });
+
+    it("should enforce rarity_source CHECK constraint", () => {
+      createPreFilterSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      // Valid values should work
+      expect(() =>
+        db
+          .prepare(
+            "UPDATE user_settings SET rarity_source = 'filter' WHERE id = 1",
+          )
+          .run(),
+      ).not.toThrow();
+
+      expect(() =>
+        db
+          .prepare(
+            "UPDATE user_settings SET rarity_source = 'prohibited-library' WHERE id = 1",
+          )
+          .run(),
+      ).not.toThrow();
+
+      expect(() =>
+        db
+          .prepare(
+            "UPDATE user_settings SET rarity_source = 'poe.ninja' WHERE id = 1",
+          )
+          .run(),
+      ).not.toThrow();
+
+      // Invalid value should throw
+      expect(() =>
+        db
+          .prepare(
+            "UPDATE user_settings SET rarity_source = 'invalid' WHERE id = 1",
+          )
+          .run(),
+      ).toThrow();
+    });
+
+    it("should enforce filter_metadata CHECK constraints", () => {
+      createPreFilterSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      // Valid filter_type values
+      expect(() =>
+        db
+          .prepare(
+            "INSERT INTO filter_metadata (id, filter_type, file_path, filter_name) VALUES ('f1', 'local', '/path/to/filter.filter', 'Test Filter')",
+          )
+          .run(),
+      ).not.toThrow();
+
+      expect(() =>
+        db
+          .prepare(
+            "INSERT INTO filter_metadata (id, filter_type, file_path, filter_name) VALUES ('f2', 'online', '/path/to/online-filter', 'Online Filter')",
+          )
+          .run(),
+      ).not.toThrow();
+
+      // Invalid filter_type should throw
+      expect(() =>
+        db
+          .prepare(
+            "INSERT INTO filter_metadata (id, filter_type, file_path, filter_name) VALUES ('f3', 'custom', '/path/to/custom', 'Custom')",
+          )
+          .run(),
+      ).toThrow();
+    });
+
+    it("should enforce filter_card_rarities rarity CHECK constraint", () => {
+      createPreFilterSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      // Insert a filter first
+      db.prepare(
+        "INSERT INTO filter_metadata (id, filter_type, file_path, filter_name) VALUES ('f1', 'local', '/path/filter.filter', 'Test')",
+      ).run();
+
+      // Valid rarity values (1-4)
+      for (let rarity = 1; rarity <= 4; rarity++) {
+        expect(() =>
+          db
+            .prepare(
+              `INSERT INTO filter_card_rarities (filter_id, card_name, rarity) VALUES ('f1', 'Card ${rarity}', ${rarity})`,
+            )
+            .run(),
+        ).not.toThrow();
+      }
+
+      // Invalid rarity values
+      expect(() =>
+        db
+          .prepare(
+            "INSERT INTO filter_card_rarities (filter_id, card_name, rarity) VALUES ('f1', 'Bad Card 0', 0)",
+          )
+          .run(),
+      ).toThrow();
+
+      expect(() =>
+        db
+          .prepare(
+            "INSERT INTO filter_card_rarities (filter_id, card_name, rarity) VALUES ('f1', 'Bad Card 5', 5)",
+          )
+          .run(),
+      ).toThrow();
+    });
+
+    it("should cascade delete filter_card_rarities when filter_metadata is deleted", () => {
+      createPreFilterSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      // Insert a filter and some card rarities
+      db.prepare(
+        "INSERT INTO filter_metadata (id, filter_type, file_path, filter_name) VALUES ('f1', 'local', '/path/filter.filter', 'Test')",
+      ).run();
+      db.prepare(
+        "INSERT INTO filter_card_rarities (filter_id, card_name, rarity) VALUES ('f1', 'The Doctor', 1)",
+      ).run();
+      db.prepare(
+        "INSERT INTO filter_card_rarities (filter_id, card_name, rarity) VALUES ('f1', 'Rain of Chaos', 4)",
+      ).run();
+
+      // Verify rarities exist
+      const before = db
+        .prepare(
+          "SELECT COUNT(*) as count FROM filter_card_rarities WHERE filter_id = 'f1'",
+        )
+        .get() as { count: number };
+      expect(before.count).toBe(2);
+
+      // Delete the filter
+      db.prepare("DELETE FROM filter_metadata WHERE id = 'f1'").run();
+
+      // Rarities should be cascade deleted
+      const after = db
+        .prepare(
+          "SELECT COUNT(*) as count FROM filter_card_rarities WHERE filter_id = 'f1'",
+        )
+        .get() as { count: number };
+      expect(after.count).toBe(0);
+    });
+
+    it("should set selected_filter_id to NULL when referenced filter is deleted", () => {
+      createPreFilterSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      // Insert a filter
+      db.prepare(
+        "INSERT INTO filter_metadata (id, filter_type, file_path, filter_name) VALUES ('f1', 'local', '/path/filter.filter', 'Test')",
+      ).run();
+
+      // Set it as the selected filter
+      db.prepare(
+        "UPDATE user_settings SET selected_filter_id = 'f1', rarity_source = 'filter' WHERE id = 1",
+      ).run();
+
+      // Verify it's set
+      const before = db
+        .prepare("SELECT selected_filter_id FROM user_settings WHERE id = 1")
+        .get() as { selected_filter_id: string | null };
+      expect(before.selected_filter_id).toBe("f1");
+
+      // Delete the filter
+      db.prepare("DELETE FROM filter_metadata WHERE id = 'f1'").run();
+
+      // selected_filter_id should be NULL (ON DELETE SET NULL)
+      const after = db
+        .prepare("SELECT selected_filter_id FROM user_settings WHERE id = 1")
+        .get() as { selected_filter_id: string | null };
+      expect(after.selected_filter_id).toBeNull();
+    });
+
+    it("should enforce unique file_path in filter_metadata", () => {
+      createPreFilterSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      db.prepare(
+        "INSERT INTO filter_metadata (id, filter_type, file_path, filter_name) VALUES ('f1', 'local', '/path/filter.filter', 'Filter 1')",
+      ).run();
+
+      // Same file_path with different id should throw
+      expect(() =>
+        db
+          .prepare(
+            "INSERT INTO filter_metadata (id, filter_type, file_path, filter_name) VALUES ('f2', 'local', '/path/filter.filter', 'Filter 2')",
+          )
+          .run(),
+      ).toThrow();
+    });
+  });
+
   // ─── Rollback ──────────────────────────────────────────────────────────
 
   describe("rollback", () => {
@@ -444,6 +928,37 @@ describe("Migrations Integration", () => {
       // Audio columns should be gone
       const columns = getColumnNames(db, "user_settings");
       for (const col of EXPECTED_AUDIO_COLUMNS) {
+        expect(columns).not.toContain(col);
+      }
+    });
+
+    it("should remove filter tables on rollback", () => {
+      createPreFilterSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      // Verify tables exist after migration
+      const beforeTables = getTableNames(db);
+      for (const table of EXPECTED_FILTER_TABLES) {
+        expect(beforeTables).toContain(table);
+      }
+
+      // Rollback the filter migration (second migration)
+      const filterMigration = migrations.find((m) =>
+        m.id.includes("add_filter_tables"),
+      );
+      expect(filterMigration).toBeDefined();
+      runner.rollbackMigration(filterMigration!);
+
+      // Filter tables should be gone
+      const afterTables = getTableNames(db);
+      for (const table of EXPECTED_FILTER_TABLES) {
+        expect(afterTables).not.toContain(table);
+      }
+
+      // Filter settings columns should be gone
+      const columns = getColumnNames(db, "user_settings");
+      for (const col of EXPECTED_FILTER_SETTINGS_COLUMNS) {
         expect(columns).not.toContain(col);
       }
     });
@@ -467,6 +982,42 @@ describe("Migrations Integration", () => {
       for (const col of EXPECTED_AUDIO_COLUMNS) {
         expect(columns).toContain(col);
       }
+      for (const col of EXPECTED_FILTER_SETTINGS_COLUMNS) {
+        expect(columns).toContain(col);
+      }
+
+      const tables = getTableNames(db);
+      for (const table of EXPECTED_FILTER_TABLES) {
+        expect(tables).toContain(table);
+      }
+    });
+
+    it("should allow re-applying filter migration after rollback", () => {
+      createPreFilterSchema(db);
+      const runner = new MigrationRunner(db);
+
+      // Apply
+      runner.runMigrations(migrations);
+
+      // Rollback filter migration only
+      const filterMigration = migrations.find((m) =>
+        m.id.includes("add_filter_tables"),
+      );
+      expect(filterMigration).toBeDefined();
+      runner.rollbackMigration(filterMigration!);
+
+      // Re-apply
+      expect(() => runner.runMigrations(migrations)).not.toThrow();
+
+      const tables = getTableNames(db);
+      for (const table of EXPECTED_FILTER_TABLES) {
+        expect(tables).toContain(table);
+      }
+
+      const columns = getColumnNames(db, "user_settings");
+      for (const col of EXPECTED_FILTER_SETTINGS_COLUMNS) {
+        expect(columns).toContain(col);
+      }
     });
   });
 
@@ -483,7 +1034,7 @@ describe("Migrations Integration", () => {
       const freshColumns = getColumnNames(freshDb, "user_settings").sort();
       freshDb.close();
 
-      // Upgrade
+      // Upgrade from pre-audio
       const upgradeDb = new Database(":memory:");
       upgradeDb.pragma("foreign_keys = ON");
       createPreAudioSchema(upgradeDb);
@@ -493,6 +1044,103 @@ describe("Migrations Integration", () => {
       upgradeDb.close();
 
       expect(freshColumns).toEqual(upgradeColumns);
+    });
+
+    it("should produce the same user_settings columns whether fresh install or pre-filter upgrade", () => {
+      // Fresh install
+      const freshDb = new Database(":memory:");
+      freshDb.pragma("foreign_keys = ON");
+      createBaselineSchema(freshDb);
+      const freshRunner = new MigrationRunner(freshDb);
+      freshRunner.runMigrations(migrations);
+      const freshColumns = getColumnNames(freshDb, "user_settings").sort();
+      freshDb.close();
+
+      // Upgrade from pre-filter
+      const upgradeDb = new Database(":memory:");
+      upgradeDb.pragma("foreign_keys = ON");
+      createPreFilterSchema(upgradeDb);
+      const upgradeRunner = new MigrationRunner(upgradeDb);
+      upgradeRunner.runMigrations(migrations);
+      const upgradeColumns = getColumnNames(upgradeDb, "user_settings").sort();
+      upgradeDb.close();
+
+      expect(freshColumns).toEqual(upgradeColumns);
+    });
+
+    it("should produce the same filter_metadata columns whether fresh install or pre-filter upgrade", () => {
+      // Fresh install
+      const freshDb = new Database(":memory:");
+      freshDb.pragma("foreign_keys = ON");
+      createBaselineSchema(freshDb);
+      const freshRunner = new MigrationRunner(freshDb);
+      freshRunner.runMigrations(migrations);
+      const freshColumns = getColumnNames(freshDb, "filter_metadata").sort();
+      freshDb.close();
+
+      // Upgrade from pre-filter
+      const upgradeDb = new Database(":memory:");
+      upgradeDb.pragma("foreign_keys = ON");
+      createPreFilterSchema(upgradeDb);
+      const upgradeRunner = new MigrationRunner(upgradeDb);
+      upgradeRunner.runMigrations(migrations);
+      const upgradeColumns = getColumnNames(
+        upgradeDb,
+        "filter_metadata",
+      ).sort();
+      upgradeDb.close();
+
+      expect(freshColumns).toEqual(upgradeColumns);
+    });
+
+    it("should produce the same filter_card_rarities columns whether fresh install or pre-filter upgrade", () => {
+      // Fresh install
+      const freshDb = new Database(":memory:");
+      freshDb.pragma("foreign_keys = ON");
+      createBaselineSchema(freshDb);
+      const freshRunner = new MigrationRunner(freshDb);
+      freshRunner.runMigrations(migrations);
+      const freshColumns = getColumnNames(
+        freshDb,
+        "filter_card_rarities",
+      ).sort();
+      freshDb.close();
+
+      // Upgrade from pre-filter
+      const upgradeDb = new Database(":memory:");
+      upgradeDb.pragma("foreign_keys = ON");
+      createPreFilterSchema(upgradeDb);
+      const upgradeRunner = new MigrationRunner(upgradeDb);
+      upgradeRunner.runMigrations(migrations);
+      const upgradeColumns = getColumnNames(
+        upgradeDb,
+        "filter_card_rarities",
+      ).sort();
+      upgradeDb.close();
+
+      expect(freshColumns).toEqual(upgradeColumns);
+    });
+
+    it("should have the same tables whether fresh install or full upgrade path", () => {
+      // Fresh install
+      const freshDb = new Database(":memory:");
+      freshDb.pragma("foreign_keys = ON");
+      createBaselineSchema(freshDb);
+      const freshRunner = new MigrationRunner(freshDb);
+      freshRunner.runMigrations(migrations);
+      const freshTables = getTableNames(freshDb).sort();
+      freshDb.close();
+
+      // Upgrade from pre-audio (oldest upgrade path)
+      const upgradeDb = new Database(":memory:");
+      upgradeDb.pragma("foreign_keys = ON");
+      createPreAudioSchema(upgradeDb);
+      const upgradeRunner = new MigrationRunner(upgradeDb);
+      upgradeRunner.runMigrations(migrations);
+      const upgradeTables = getTableNames(upgradeDb).sort();
+      upgradeDb.close();
+
+      expect(freshTables).toEqual(upgradeTables);
     });
   });
 });

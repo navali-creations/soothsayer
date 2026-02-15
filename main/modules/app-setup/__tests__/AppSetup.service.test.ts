@@ -185,7 +185,6 @@ describe("AppSetupService", () => {
       expect(state).toEqual({
         currentStep: 0,
         isComplete: false,
-        selectedGame: "poe1",
         selectedGames: ["poe1"],
         poe1League: "Settlers",
         poe2League: "",
@@ -194,25 +193,15 @@ describe("AppSetupService", () => {
       });
     });
 
-    it("should use selectedGame fallback when installedGames is empty", async () => {
-      mockSettingsGetAllSettings.mockResolvedValue(
-        makeDefaultSettings({ installedGames: [], selectedGame: "poe2" }),
-      );
-
-      const state = await service.getSetupState();
-      expect(state.selectedGame).toBe("poe2");
-    });
-
-    it("should use the first installed game when installedGames has entries", async () => {
+    it("should return installedGames as selectedGames", async () => {
       mockSettingsGetAllSettings.mockResolvedValue(
         makeDefaultSettings({
           installedGames: ["poe2", "poe1"],
-          selectedGame: "poe1",
         }),
       );
 
       const state = await service.getSetupState();
-      expect(state.selectedGame).toBe("poe2");
+      expect(state.selectedGames).toEqual(["poe2", "poe1"]);
     });
 
     it("should work through the IPC handler", async () => {

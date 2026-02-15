@@ -154,8 +154,11 @@ export const createOverlaySlice: StateCreator<
         return sessionData.recentDrops;
       }
 
-      // valuable = exclude rarity 4 (common)
-      return sessionData.recentDrops.filter((drop) => drop.rarity < 4);
+      // valuable = exclude rarity 0 (unknown) and rarity 4 (common)
+      return sessionData.recentDrops.filter(
+        (drop) =>
+          drop.rarity !== undefined && drop.rarity >= 1 && drop.rarity <= 3,
+      );
     },
 
     startListening: () => {

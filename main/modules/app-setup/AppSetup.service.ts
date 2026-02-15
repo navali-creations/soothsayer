@@ -93,11 +93,6 @@ class AppSetupService {
     return {
       currentStep: settings.setupStep,
       isComplete: settings.setupCompleted,
-      // Keep selectedGame for backwards compatibility (use first game or default to poe1)
-      selectedGame:
-        settings.installedGames.length > 0
-          ? settings.installedGames[0]
-          : settings.selectedGame,
       selectedGames: settings.installedGames,
       poe1League: settings.poe1SelectedLeague,
       poe2League: settings.poe2SelectedLeague,

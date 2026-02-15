@@ -169,8 +169,7 @@ class DatabaseService {
           price_source TEXT NOT NULL CHECK(price_source IN ('exchange', 'stash')),
           chaos_value REAL NOT NULL,
           divine_value REAL NOT NULL,
-          stack_size INTEGER,
-          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          confidence INTEGER NOT NULL DEFAULT 1 CHECK(confidence IN (1, 2, 3)),
           FOREIGN KEY (snapshot_id) REFERENCES snapshots(id) ON DELETE CASCADE,
           UNIQUE(snapshot_id, card_name, price_source)
         )
@@ -379,7 +378,8 @@ class DatabaseService {
           game TEXT NOT NULL,
           league TEXT NOT NULL,
           card_name TEXT NOT NULL,
-          rarity INTEGER NOT NULL CHECK(rarity >= 1 AND rarity <= 4),
+          rarity INTEGER NOT NULL CHECK(rarity >= 0 AND rarity <= 4),
+          override_rarity INTEGER CHECK(override_rarity IS NULL OR (override_rarity >= 0 AND override_rarity <= 4)),
           last_updated TEXT NOT NULL DEFAULT (datetime('now')),
           PRIMARY KEY (game, league, card_name)
         )
@@ -433,6 +433,57 @@ class DatabaseService {
       `);
 
       // ═══════════════════════════════════════════════════════════════
+      // FILTER METADATA (discovered filter files)
+      // ═══════════════════════════════════════════════════════════════
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS filter_metadata (
+          id TEXT PRIMARY KEY,
+          filter_type TEXT NOT NULL CHECK(filter_type IN ('local', 'online')),
+          file_path TEXT NOT NULL UNIQUE,
+          filter_name TEXT NOT NULL,
+          last_update TEXT,
+          is_fully_parsed INTEGER NOT NULL DEFAULT 0,
+          parsed_at TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+      `);
+
+      this.db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_filter_metadata_type
+        ON filter_metadata(filter_type)
+      `);
+
+      this.db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_filter_metadata_file_path
+        ON filter_metadata(file_path)
+      `);
+
+      // ═══════════════════════════════════════════════════════════════
+      // FILTER CARD RARITIES (per-filter card-to-rarity mappings)
+      // ═══════════════════════════════════════════════════════════════
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS filter_card_rarities (
+          filter_id TEXT NOT NULL,
+          card_name TEXT NOT NULL,
+          rarity INTEGER NOT NULL CHECK(rarity >= 1 AND rarity <= 4),
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          PRIMARY KEY (filter_id, card_name),
+          FOREIGN KEY (filter_id) REFERENCES filter_metadata(id) ON DELETE CASCADE
+        )
+      `);
+
+      this.db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_filter_card_rarities_filter
+        ON filter_card_rarities(filter_id)
+      `);
+
+      this.db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_filter_card_rarities_card
+        ON filter_card_rarities(card_name)
+      `);
+
+      // ═══════════════════════════════════════════════════════════════
       // USER SETTINGS (single row table for application settings)
       // ═══════════════════════════════════════════════════════════════
       this.db.exec(`
@@ -475,6 +526,10 @@ class DatabaseService {
           audio_rarity1_path TEXT,
           audio_rarity2_path TEXT,
           audio_rarity3_path TEXT,
+
+          -- Filter / rarity source settings
+          rarity_source TEXT NOT NULL DEFAULT 'poe.ninja' CHECK(rarity_source IN ('poe.ninja', 'filter', 'prohibited-library')),
+          selected_filter_id TEXT REFERENCES filter_metadata(id) ON DELETE SET NULL,
 
           -- Metadata
           created_at TEXT NOT NULL DEFAULT (datetime('now')),

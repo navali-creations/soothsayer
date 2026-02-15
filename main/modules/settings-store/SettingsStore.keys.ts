@@ -23,6 +23,8 @@ export const SettingsKey = {
   AudioRarity1Path: "audioRarity1Path",
   AudioRarity2Path: "audioRarity2Path",
   AudioRarity3Path: "audioRarity3Path",
+  RaritySource: "raritySource",
+  SelectedFilterId: "selectedFilterId",
 } as const;
 
 export type SettingsKeyType = (typeof SettingsKey)[keyof typeof SettingsKey];

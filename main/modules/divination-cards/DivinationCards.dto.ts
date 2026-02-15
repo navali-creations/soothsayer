@@ -1,3 +1,5 @@
+import type { KnownRarity, Rarity } from "~/types/data-stores";
+
 /**
  * Data Transfer Objects for Divination Cards module
  */
@@ -10,7 +12,8 @@ export interface DivinationCardDTO {
   rewardHtml: string;
   artSrc: string;
   flavourHtml: string;
-  rarity: number; // 1=extremely rare, 2=rare, 3=less common, 4=common
+  rarity: Rarity; // 0=unknown, 1=extremely rare, 2=rare, 3=less common, 4=common (from poe.ninja pricing)
+  filterRarity: KnownRarity | null; // 1=extremely rare, 2=rare, 3=less common, 4=common (from loot filter), null if no filter selected or card not in filter
   game: "poe1" | "poe2";
   createdAt: string;
   updatedAt: string;

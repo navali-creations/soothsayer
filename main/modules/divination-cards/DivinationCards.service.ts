@@ -5,15 +5,19 @@ import { join } from "node:path";
 import { app, ipcMain } from "electron";
 
 import { DatabaseService } from "~/main/modules/database";
+import { FilterRepository } from "~/main/modules/filters/Filter.repository";
 import {
   SettingsKey,
   SettingsStoreService,
 } from "~/main/modules/settings-store";
 import {
   assertBoundedString,
+  assertCardName,
   assertGameType,
+  assertInteger,
   handleValidationError,
 } from "~/main/utils/ipc-validation";
+import type { Confidence, Rarity } from "~/types/data-stores";
 
 import { DivinationCardsChannel } from "./DivinationCards.channels";
 import type {
@@ -39,6 +43,7 @@ interface DivinationCardJson {
 class DivinationCardsService {
   private static _instance: DivinationCardsService;
   private repository: DivinationCardsRepository;
+  private filterRepository: FilterRepository;
   private settingsStore: SettingsStoreService;
   private readonly poe1CardsJsonPath: string;
   private readonly poe2CardsJsonPath: string;
@@ -53,6 +58,7 @@ class DivinationCardsService {
   private constructor() {
     const database = DatabaseService.getInstance();
     this.repository = new DivinationCardsRepository(database.getKysely());
+    this.filterRepository = new FilterRepository(database.getKysely());
     this.settingsStore = SettingsStoreService.getInstance();
 
     // Determine paths based on whether app is packaged
@@ -239,8 +245,13 @@ class DivinationCardsService {
               ? SettingsKey.SelectedPoe1League
               : SettingsKey.SelectedPoe2League;
           const league = await this.settingsStore.get(leagueKey);
+          const filterId = await this.getSelectedFilterId();
 
-          return this.repository.getAllByGame(game, league || undefined);
+          return this.repository.getAllByGame(
+            game,
+            league || undefined,
+            filterId,
+          );
         } catch (error) {
           return handleValidationError(error, DivinationCardsChannel.GetAll);
         }
@@ -264,8 +275,9 @@ class DivinationCardsService {
               ? SettingsKey.SelectedPoe1League
               : SettingsKey.SelectedPoe2League;
           const league = await this.settingsStore.get(leagueKey);
+          const filterId = await this.getSelectedFilterId();
 
-          return this.repository.getById(id, league || undefined);
+          return this.repository.getById(id, league || undefined, filterId);
         } catch (error) {
           return handleValidationError(error, DivinationCardsChannel.GetById);
         }
@@ -294,8 +306,14 @@ class DivinationCardsService {
               ? SettingsKey.SelectedPoe1League
               : SettingsKey.SelectedPoe2League;
           const league = await this.settingsStore.get(leagueKey);
+          const filterId = await this.getSelectedFilterId();
 
-          return this.repository.getByName(game, name, league || undefined);
+          return this.repository.getByName(
+            game,
+            name,
+            league || undefined,
+            filterId,
+          );
         } catch (error) {
           return handleValidationError(error, DivinationCardsChannel.GetByName);
         }
@@ -324,11 +342,13 @@ class DivinationCardsService {
               ? SettingsKey.SelectedPoe1League
               : SettingsKey.SelectedPoe2League;
           const league = await this.settingsStore.get(leagueKey);
+          const filterId = await this.getSelectedFilterId();
 
           const cards = await this.repository.searchByName(
             game,
             query,
             league || undefined,
+            filterId,
           );
           return {
             cards,
@@ -397,6 +417,101 @@ class DivinationCardsService {
         }
       },
     );
+
+    ipcMain.handle(
+      DivinationCardsChannel.UpdateRarity,
+      async (
+        _event,
+        game: "poe1" | "poe2",
+        cardName: string,
+        rarity: Rarity,
+      ): Promise<{ success: boolean } | { success: false; error: string }> => {
+        try {
+          assertGameType(game, DivinationCardsChannel.UpdateRarity);
+          assertCardName(cardName, DivinationCardsChannel.UpdateRarity);
+          assertInteger(rarity, "rarity", DivinationCardsChannel.UpdateRarity, {
+            min: 1,
+            max: 4,
+          });
+
+          const leagueKey =
+            game === "poe1"
+              ? SettingsKey.SelectedPoe1League
+              : SettingsKey.SelectedPoe2League;
+          const league = await this.settingsStore.get(leagueKey);
+
+          if (!league) {
+            return { success: false, error: "No league selected" };
+          }
+
+          await this.repository.updateRarity(game, league, cardName, rarity);
+          console.log(
+            `[DivinationCards] Updated rarity for "${cardName}" to ${rarity} (${game}/${league})`,
+          );
+          return { success: true };
+        } catch (error) {
+          return handleValidationError(
+            error,
+            DivinationCardsChannel.UpdateRarity,
+          );
+        }
+      },
+    );
+  }
+
+  /**
+   * Update card rarities from a parsed loot filter.
+   *
+   * Reads the filter's card rarities from `filter_card_rarities` and writes
+   * them into `divination_card_rarities` for the given game/league. Cards
+   * not present in the filter default to rarity 4 (common).
+   *
+   * This is the filter-based counterpart to `updateRaritiesFromPrices()`.
+   * Called by SnapshotService when rarity source is "filter".
+   *
+   * @param filterId - The ID of the selected, fully-parsed filter
+   * @param game - The game type ("poe1" or "poe2")
+   * @param league - The league name
+   */
+  public async updateRaritiesFromFilter(
+    filterId: string,
+    game: "poe1" | "poe2",
+    league: string,
+  ): Promise<void> {
+    // Load filter card rarities
+    const filterRarities =
+      await this.filterRepository.getCardRarities(filterId);
+
+    // Build a lookup map: card name → rarity
+    const filterRarityMap = new Map<string, number>();
+    for (const entry of filterRarities) {
+      filterRarityMap.set(entry.cardName, entry.rarity);
+    }
+
+    // Get all card names for this game
+    const allCardNames = await this.repository.getAllCardNames(game);
+
+    const updates: Array<{ name: string; rarity: Rarity }> = [];
+
+    for (const cardName of allCardNames) {
+      // If card is in the filter → use filter rarity
+      // If card is NOT in the filter → default to rarity 4 (common)
+      const rarity = (filterRarityMap.get(cardName) ?? 4) as Rarity;
+      updates.push({ name: cardName, rarity });
+    }
+
+    if (updates.length > 0) {
+      await this.repository.updateRarities(game, league, updates);
+      console.log(
+        `[DivinationCards] Updated rarities from filter for ${
+          updates.length
+        } ${game.toUpperCase()}/${league} cards (${
+          filterRarityMap.size
+        } in filter, ${
+          updates.length - filterRarityMap.size
+        } defaulted to common)`,
+      );
+    }
   }
 
   /**
@@ -405,14 +520,51 @@ class DivinationCardsService {
    *
    * This ensures card rarities are always in sync with the snapshot being used
    * for the current session.
+   *
+   * Confidence affects rarity assignment:
+   * - 3 (low) confidence → rarity 0 (Unknown), regardless of price
+   * - 2 (medium) or 1 (high) confidence → rarity 1-4 based on price
+   * - Cards with no price data at all → rarity 0 (Unknown)
+   *
+   * When confidence improves from low to medium/high, any user override
+   * (override_rarity) is cleared so the system-calculated rarity takes effect.
    */
   public async updateRaritiesFromPrices(
     game: "poe1" | "poe2",
     league: string,
     exchangeChaosToDivine: number,
-    cardPrices: Record<string, { chaosValue: number }>,
+    cardPrices: Record<string, { chaosValue: number; confidence?: Confidence }>,
   ): Promise<void> {
-    const updates: Array<{ name: string; rarity: number }> = [];
+    // Coerce exchange rate to a number — Supabase PostgREST may return
+    // NUMERIC columns as strings to preserve precision.
+    const exchangeRate = Number(exchangeChaosToDivine);
+
+    console.log(
+      `[DivinationCards] updateRaritiesFromPrices called: game=${game}, league="${league}", ` +
+        `exchangeChaosToDivine=${exchangeChaosToDivine} (type=${typeof exchangeChaosToDivine}), ` +
+        `coerced exchangeRate=${exchangeRate}, pricedCards=${
+          Object.keys(cardPrices).length
+        }`,
+    );
+
+    if (!league) {
+      console.warn(
+        "[DivinationCards] updateRaritiesFromPrices called with empty league — rarities will not be queryable",
+      );
+    }
+
+    if (!Number.isFinite(exchangeRate) || exchangeRate <= 0) {
+      console.error(
+        `[DivinationCards] Invalid exchangeChaosToDivine: ${exchangeChaosToDivine} — skipping rarity update`,
+      );
+      return;
+    }
+
+    const updates: Array<{
+      name: string;
+      rarity: Rarity;
+      clearOverride: boolean;
+    }> = [];
 
     // Get all cards for this game
     const allCards = await this.repository.getAllByGame(game);
@@ -420,11 +572,24 @@ class DivinationCardsService {
 
     // Update rarity for cards with prices
     for (const [cardName, priceData] of Object.entries(cardPrices)) {
-      const chaosValue = priceData.chaosValue;
-      const divineValue = chaosValue / exchangeChaosToDivine;
+      const confidence = priceData.confidence ?? 1;
+
+      // Low confidence (3) → rarity 0 (Unknown), keep any existing user override
+      if (confidence === 3) {
+        console.log(
+          `[DivinationCards]   "${cardName}" confidence=3 (low) → rarity 0 (Unknown)`,
+        );
+        updates.push({ name: cardName, rarity: 0, clearOverride: false });
+        continue;
+      }
+
+      // Medium/high confidence → calculate rarity from price
+      // Coerce chaosValue to number — PostgREST may return NUMERIC as string
+      const chaosValue = Number(priceData.chaosValue);
+      const divineValue = chaosValue / exchangeRate;
       const percentOfDivine = divineValue * 100; // Convert to percentage
 
-      let rarity: number;
+      let rarity: Rarity;
 
       if (percentOfDivine >= 70) {
         // 70%+ of divine = extremely rare
@@ -440,14 +605,29 @@ class DivinationCardsService {
         rarity = 4;
       }
 
-      updates.push({ name: cardName, rarity });
+      console.log(
+        `[DivinationCards]   "${cardName}" chaos=${chaosValue} (raw type=${typeof priceData.chaosValue}) ` +
+          `divine=${divineValue.toFixed(4)} pct=${percentOfDivine.toFixed(
+            1,
+          )}% confidence=${confidence} → rarity ${rarity}`,
+      );
+
+      // Confidence is 1 (high) or 2 (medium) → clear any previous user override
+      // (the system now has reliable data for this card)
+      updates.push({ name: cardName, rarity, clearOverride: true });
     }
 
-    // Set all cards WITHOUT prices to rarity 4 (common)
+    // Set all cards WITHOUT prices to rarity 0 (Unknown) — no data available
     for (const card of allCards) {
       if (!pricedCardNames.has(card.name)) {
-        updates.push({ name: card.name, rarity: 4 });
+        updates.push({ name: card.name, rarity: 0, clearOverride: false });
       }
+    }
+
+    // Log rarity distribution
+    const distribution = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 };
+    for (const u of updates) {
+      distribution[u.rarity]++;
     }
 
     if (updates.length > 0) {
@@ -455,11 +635,44 @@ class DivinationCardsService {
       console.log(
         `[DivinationCards] Updated rarities for ${
           updates.length
-        } ${game.toUpperCase()}/${league} cards (${
-          pricedCardNames.size
-        } priced, ${updates.length - pricedCardNames.size} unpriced)`,
+        } ${game.toUpperCase()}/${league} cards ` +
+          `(${pricedCardNames.size} priced, ${
+            updates.length - pricedCardNames.size
+          } unpriced). ` +
+          `Distribution: r0=${distribution[0]} r1=${distribution[1]} r2=${distribution[2]} r3=${distribution[3]} r4=${distribution[4]}`,
       );
     }
+  }
+  // ─── Helpers ───────────────────────────────────────────────────────────
+
+  /**
+   * Get the currently selected filter ID from settings.
+   * Returns the filter ID if rarity source is "filter" and a filter is selected,
+   * otherwise returns null.
+   */
+  public async getSelectedFilterId(): Promise<string | null> {
+    try {
+      const raritySource = await this.settingsStore.get(
+        SettingsKey.RaritySource,
+      );
+      if (raritySource !== "filter") {
+        return null;
+      }
+
+      const filterId = await this.settingsStore.get(
+        SettingsKey.SelectedFilterId,
+      );
+      return filterId || null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Get the repository instance (for testing or advanced usage)
+   */
+  public getRepository(): DivinationCardsRepository {
+    return this.repository;
   }
 }
 

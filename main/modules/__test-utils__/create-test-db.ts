@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import { Kysely, SqliteDialect } from "kysely";
 
 import type { Database as DatabaseSchema } from "~/main/modules/database";
+import type { Confidence, KnownRarity, Rarity } from "~/types/data-stores";
 
 /**
  * Result from creating a test database.
@@ -94,8 +95,7 @@ function initializeSchema(db: Database.Database): void {
         price_source TEXT NOT NULL CHECK(price_source IN ('exchange', 'stash')),
         chaos_value REAL NOT NULL,
         divine_value REAL NOT NULL,
-        stack_size INTEGER,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        confidence INTEGER NOT NULL DEFAULT 1 CHECK(confidence IN (1, 2, 3)),
         FOREIGN KEY (snapshot_id) REFERENCES snapshots(id) ON DELETE CASCADE,
         UNIQUE(snapshot_id, card_name, price_source)
       )
@@ -304,7 +304,8 @@ function initializeSchema(db: Database.Database): void {
         game TEXT NOT NULL,
         league TEXT NOT NULL,
         card_name TEXT NOT NULL,
-        rarity INTEGER NOT NULL CHECK(rarity >= 1 AND rarity <= 4),
+        rarity INTEGER NOT NULL CHECK(rarity >= 0 AND rarity <= 4),
+        override_rarity INTEGER CHECK(override_rarity IS NULL OR (override_rarity >= 0 AND override_rarity <= 4)),
         last_updated TEXT NOT NULL DEFAULT (datetime('now')),
         PRIMARY KEY (game, league, card_name)
       )
@@ -358,6 +359,57 @@ function initializeSchema(db: Database.Database): void {
     `);
 
     // ═══════════════════════════════════════════════════════════════
+    // FILTER METADATA
+    // ═══════════════════════════════════════════════════════════════
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS filter_metadata (
+        id TEXT PRIMARY KEY,
+        filter_type TEXT NOT NULL CHECK(filter_type IN ('local', 'online')),
+        file_path TEXT NOT NULL UNIQUE,
+        filter_name TEXT NOT NULL,
+        last_update TEXT,
+        is_fully_parsed INTEGER NOT NULL DEFAULT 0,
+        parsed_at TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_filter_metadata_type
+      ON filter_metadata(filter_type)
+    `);
+
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_filter_metadata_file_path
+      ON filter_metadata(file_path)
+    `);
+
+    // ═══════════════════════════════════════════════════════════════
+    // FILTER CARD RARITIES
+    // ═══════════════════════════════════════════════════════════════
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS filter_card_rarities (
+        filter_id TEXT NOT NULL,
+        card_name TEXT NOT NULL,
+        rarity INTEGER NOT NULL CHECK(rarity >= 1 AND rarity <= 4),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (filter_id, card_name),
+        FOREIGN KEY (filter_id) REFERENCES filter_metadata(id) ON DELETE CASCADE
+      )
+    `);
+
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_filter_card_rarities_filter
+      ON filter_card_rarities(filter_id)
+    `);
+
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_filter_card_rarities_card
+      ON filter_card_rarities(card_name)
+    `);
+
+    // ═══════════════════════════════════════════════════════════════
     // USER SETTINGS
     // ═══════════════════════════════════════════════════════════════
     db.exec(`
@@ -400,6 +452,11 @@ function initializeSchema(db: Database.Database): void {
         audio_rarity1_path TEXT,
         audio_rarity2_path TEXT,
         audio_rarity3_path TEXT,
+
+        -- Filter / rarity source settings
+        rarity_source TEXT NOT NULL DEFAULT 'poe.ninja'
+          CHECK(rarity_source IN ('poe.ninja', 'filter', 'prohibited-library')),
+        selected_filter_id TEXT REFERENCES filter_metadata(id) ON DELETE SET NULL,
 
         -- Metadata
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -526,7 +583,7 @@ export async function seedSnapshot(
       priceSource: "exchange" | "stash";
       chaosValue: number;
       divineValue: number;
-      stackSize?: number;
+      confidence?: Confidence;
     }>;
   },
 ): Promise<string> {
@@ -554,7 +611,7 @@ export async function seedSnapshot(
           price_source: cp.priceSource,
           chaos_value: cp.chaosValue,
           divine_value: cp.divineValue,
-          stack_size: cp.stackSize ?? null,
+          confidence: cp.confidence ?? 1,
         })),
       )
       .execute();
@@ -710,7 +767,7 @@ export async function seedDivinationCardRarity(
     game?: "poe1" | "poe2";
     league: string;
     cardName: string;
-    rarity: 1 | 2 | 3 | 4;
+    rarity: Rarity;
   },
 ): Promise<void> {
   await kysely
@@ -765,4 +822,76 @@ export async function seedSessionSummary(
       stacked_deck_chaos_cost: options.stackedDeckChaosCost ?? 3,
     })
     .execute();
+}
+
+/**
+ * Insert filter metadata into the test database.
+ * Returns the filter ID.
+ */
+export async function seedFilterMetadata(
+  kysely: Kysely<DatabaseSchema>,
+  options: {
+    id: string;
+    filterType?: "local" | "online";
+    filePath: string;
+    filterName: string;
+    lastUpdate?: string | null;
+    isFullyParsed?: boolean;
+    parsedAt?: string | null;
+  },
+): Promise<string> {
+  await kysely
+    .insertInto("filter_metadata")
+    .values({
+      id: options.id,
+      filter_type: options.filterType ?? "local",
+      file_path: options.filePath,
+      filter_name: options.filterName,
+      last_update: options.lastUpdate ?? null,
+      is_fully_parsed: options.isFullyParsed ? 1 : 0,
+      parsed_at: options.parsedAt ?? null,
+    })
+    .execute();
+
+  return options.id;
+}
+
+/**
+ * Insert a filter card rarity into the test database.
+ * The filter must already exist in filter_metadata (foreign key constraint).
+ */
+export async function seedFilterCardRarity(
+  kysely: Kysely<DatabaseSchema>,
+  options: {
+    filterId: string;
+    cardName: string;
+    rarity: KnownRarity;
+  },
+): Promise<void> {
+  await kysely
+    .insertInto("filter_card_rarities")
+    .values({
+      filter_id: options.filterId,
+      card_name: options.cardName,
+      rarity: options.rarity,
+    })
+    .execute();
+}
+
+/**
+ * Bulk insert filter card rarities into the test database.
+ * Convenience wrapper around seedFilterCardRarity for multiple cards.
+ */
+export async function seedFilterCardRarities(
+  kysely: Kysely<DatabaseSchema>,
+  filterId: string,
+  rarities: Array<{ cardName: string; rarity: KnownRarity }>,
+): Promise<void> {
+  for (const entry of rarities) {
+    await seedFilterCardRarity(kysely, {
+      filterId,
+      cardName: entry.cardName,
+      rarity: entry.rarity,
+    });
+  }
 }

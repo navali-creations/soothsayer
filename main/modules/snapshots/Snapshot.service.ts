@@ -4,6 +4,11 @@ import { BrowserWindow, ipcMain } from "electron";
 
 import { DatabaseService } from "~/main/modules/database";
 import { DivinationCardsService } from "~/main/modules/divination-cards";
+import { FilterService } from "~/main/modules/filters/Filter.service";
+import {
+  SettingsKey,
+  SettingsStoreService,
+} from "~/main/modules/settings-store";
 import { SupabaseClientService } from "~/main/modules/supabase";
 import {
   assertBoundedString,
@@ -11,7 +16,10 @@ import {
   handleValidationError,
 } from "~/main/utils/ipc-validation";
 
-import type { SessionPriceSnapshot } from "../../../types/data-stores";
+import type {
+  Confidence,
+  SessionPriceSnapshot,
+} from "../../../types/data-stores";
 import { SnapshotChannel } from "./Snapshot.channels";
 import { SnapshotRepository } from "./Snapshot.repository";
 
@@ -24,6 +32,8 @@ class SnapshotService {
   private repository: SnapshotRepository;
   private supabase: SupabaseClientService;
   private divinationCards: DivinationCardsService;
+  private filterService: FilterService;
+  private settingsStore: SettingsStoreService;
   private refreshIntervals: Map<string, NodeJS.Timeout> = new Map();
 
   // How old can a snapshot be before we fetch a new one (in hours)
@@ -46,6 +56,8 @@ class SnapshotService {
     this.repository = new SnapshotRepository(db.getKysely());
     this.supabase = SupabaseClientService.getInstance();
     this.divinationCards = DivinationCardsService.getInstance();
+    this.filterService = FilterService.getInstance();
+    this.settingsStore = SettingsStoreService.getInstance();
     this.setupIpcHandlers();
   }
 
@@ -152,7 +164,7 @@ class SnapshotService {
       const priceData = {
         chaosValue: price.chaosValue,
         divineValue: price.divineValue,
-        stackSize: price.stackSize ?? undefined,
+        confidence: price.confidence ?? 1,
       };
 
       if (price.priceSource === "exchange") {
@@ -254,15 +266,19 @@ class SnapshotService {
 
       const data = await this.loadSnapshot(recentSnapshot.id);
       if (data) {
-        // Update card rarities from the reused snapshot's prices
-        // This ensures rarities match the snapshot being used for the session
+        // Update card rarities — always update price-based rarities,
+        // and also apply filter-based rarities if that's the active source
         const gameType = game === "poe1" ? "poe1" : "poe2";
+        const mergedPrices = this.mergeCardPrices(data);
         await this.divinationCards.updateRaritiesFromPrices(
           gameType,
           leagueName,
           data.exchange.chaosToDivineRatio,
-          data.exchange.cardPrices,
+          mergedPrices,
         );
+
+        // If rarity source is "filter", also apply filter-based rarities
+        await this.applyFilterRaritiesIfNeeded(gameType, leagueName);
 
         // Emit reused snapshot event
         this.emitSnapshotEvent(SnapshotChannel.OnSnapshotReused, {
@@ -290,13 +306,17 @@ class SnapshotService {
       leagueId,
     );
 
-    // Update card rarities based on exchange prices
+    // Update card rarities based on merged exchange + stash prices
+    const mergedPrices = this.mergeCardPrices(snapshotData);
     await this.divinationCards.updateRaritiesFromPrices(
       gameType,
       leagueName,
       snapshotData.exchange.chaosToDivineRatio,
-      snapshotData.exchange.cardPrices,
+      mergedPrices,
     );
+
+    // If rarity source is "filter", also apply filter-based rarities
+    await this.applyFilterRaritiesIfNeeded(gameType, leagueName);
 
     // Store it locally
     const snapshotId = crypto.randomUUID();
@@ -355,13 +375,17 @@ class SnapshotService {
           leagueId,
         );
 
-        // Update card rarities based on exchange prices
+        // Update card rarities based on merged exchange + stash prices
+        const mergedPrices = this.mergeCardPrices(snapshotData);
         await this.divinationCards.updateRaritiesFromPrices(
           gameType,
           leagueName,
           snapshotData.exchange.chaosToDivineRatio,
-          snapshotData.exchange.cardPrices,
+          mergedPrices,
         );
+
+        // If rarity source is "filter", also apply filter-based rarities
+        await this.applyFilterRaritiesIfNeeded(gameType, leagueName);
 
         const snapshotId = crypto.randomUUID();
         await this.repository.createSnapshot({
@@ -422,6 +446,115 @@ class SnapshotService {
         game,
         league: leagueName,
       });
+    }
+  }
+
+  /**
+   * Merge exchange and stash card prices into a single map.
+   *
+   * Exchange prices are preferred where available (they're based on actual
+   * trade volume and are generally more reliable for high-value cards).
+   * Stash prices are used as fallback for cards not listed on the exchange
+   * (typically less popular / lower-value cards).
+   *
+   * Without this merge, cards that only appear in the stash API (the majority
+   * of divination cards — ~370 out of ~520) would be treated as "unpriced"
+   * and default to rarity 0 (Unknown), regardless of their actual value.
+   */
+  private mergeCardPrices(
+    snapshot: SessionPriceSnapshot,
+  ): Record<string, { chaosValue: number; confidence: Confidence }> {
+    const merged: Record<
+      string,
+      { chaosValue: number; confidence: Confidence }
+    > = {};
+
+    // Start with stash prices (lower priority)
+    for (const [name, data] of Object.entries(snapshot.stash.cardPrices)) {
+      merged[name] = {
+        chaosValue: data.chaosValue,
+        confidence: data.confidence ?? 1,
+      };
+    }
+
+    // Override with exchange prices where available (higher priority)
+    // Exchange prices are always high confidence (from actual trades)
+    for (const [name, data] of Object.entries(snapshot.exchange.cardPrices)) {
+      merged[name] = {
+        chaosValue: data.chaosValue,
+        confidence: 1,
+      };
+    }
+
+    const exchangeCount = Object.keys(snapshot.exchange.cardPrices).length;
+    const stashCount = Object.keys(snapshot.stash.cardPrices).length;
+    const mergedCount = Object.keys(merged).length;
+    const stashOnlyCount = mergedCount - exchangeCount;
+
+    // Count confidence distribution
+    let lowCount = 0;
+    let mediumCount = 0;
+    let highCount = 0;
+    for (const data of Object.values(merged)) {
+      if (data.confidence === 3) lowCount++;
+      else if (data.confidence === 2) mediumCount++;
+      else highCount++;
+    }
+
+    console.log(
+      `[SnapshotService] Merged card prices: ${exchangeCount} exchange + ${stashCount} stash = ${mergedCount} unique cards (${stashOnlyCount} stash-only). Confidence: ${highCount} high, ${mediumCount} medium, ${lowCount} low`,
+    );
+
+    return merged;
+  }
+
+  /**
+   * Apply filter-based rarities if the rarity source is set to "filter".
+   *
+   * This checks the rarity_source setting and, if it's "filter", ensures
+   * the selected filter is parsed and applies its rarities to the
+   * divination_card_rarities table for the given game/league.
+   *
+   * This runs alongside (not instead of) the poe.ninja price-based rarity
+   * update, so both rarity sources are always available in the database.
+   * The consumer (frontend/session service) decides which to display.
+   */
+  private async applyFilterRaritiesIfNeeded(
+    game: "poe1" | "poe2",
+    league: string,
+  ): Promise<void> {
+    try {
+      const raritySource = await this.settingsStore.get(
+        SettingsKey.RaritySource,
+      );
+      if (raritySource !== "filter") {
+        return;
+      }
+
+      const selectedFilterId = await this.settingsStore.get(
+        SettingsKey.SelectedFilterId,
+      );
+      if (!selectedFilterId) {
+        console.warn(
+          "[SnapshotService] Rarity source is 'filter' but no filter is selected — skipping filter rarity application",
+        );
+        return;
+      }
+
+      console.log(
+        `[SnapshotService] Applying filter rarities for ${game}/${league} from filter ${selectedFilterId}...`,
+      );
+      await this.filterService.applyFilterRarities(
+        selectedFilterId,
+        game,
+        league,
+      );
+    } catch (error) {
+      console.error(
+        "[SnapshotService] Failed to apply filter rarities:",
+        error instanceof Error ? error.message : String(error),
+      );
+      // Don't throw — filter rarity failure shouldn't block snapshot flow
     }
   }
 

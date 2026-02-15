@@ -4,6 +4,7 @@ import {
   createTestDatabase,
   type TestDatabase,
 } from "~/main/modules/__test-utils__/create-test-db";
+import type { Rarity } from "~/types/data-stores";
 
 import { DivinationCardsRepository } from "../DivinationCards.repository";
 
@@ -184,12 +185,12 @@ describe("DivinationCardsRepository", () => {
       expect(card!.updatedAt).toBeDefined();
     });
 
-    it("should default rarity to 4 when no rarity data exists", async () => {
+    it("should default rarity to 0 (Unknown) when no rarity data exists", async () => {
       await insertCard("poe1", "The Doctor");
       const card = await repository.getById("poe1_the-doctor");
 
       expect(card).not.toBeNull();
-      expect(card!.rarity).toBe(4);
+      expect(card!.rarity).toBe(0);
     });
 
     it("should include rarity when league is provided and rarity exists", async () => {
@@ -201,13 +202,13 @@ describe("DivinationCardsRepository", () => {
       expect(card!.rarity).toBe(1);
     });
 
-    it("should default rarity to 4 when league is provided but no rarity for that league", async () => {
+    it("should default rarity to 0 (Unknown) when league is provided but no rarity for that league", async () => {
       await insertCard("poe1", "The Doctor");
       await repository.updateRarity("poe1", "Settlers", "The Doctor", 1);
 
       const card = await repository.getById("poe1_the-doctor", "OtherLeague");
       expect(card).not.toBeNull();
-      expect(card!.rarity).toBe(4);
+      expect(card!.rarity).toBe(0);
     });
   });
 
@@ -298,11 +299,11 @@ describe("DivinationCardsRepository", () => {
       expect(cards[2].name).toBe("The Fiend");
     });
 
-    it("should default rarity to 4 without league parameter", async () => {
+    it("should default rarity to 0 (Unknown) without league parameter", async () => {
       await insertCard("poe1", "The Doctor");
       const cards = await repository.getAllByGame("poe1");
 
-      expect(cards[0].rarity).toBe(4);
+      expect(cards[0].rarity).toBe(0);
     });
 
     it("should include rarity data when league parameter is provided", async () => {
@@ -319,13 +320,13 @@ describe("DivinationCardsRepository", () => {
       expect(rain!.rarity).toBe(4);
     });
 
-    it("should default rarity to 4 for cards without rarity in specified league", async () => {
+    it("should default rarity to 0 (Unknown) for cards without rarity in specified league", async () => {
       await insertCard("poe1", "The Doctor");
       // No rarity set for "OtherLeague"
       await repository.updateRarity("poe1", "Settlers", "The Doctor", 1);
 
       const cards = await repository.getAllByGame("poe1", "OtherLeague");
-      expect(cards[0].rarity).toBe(4);
+      expect(cards[0].rarity).toBe(0);
     });
   });
 
@@ -676,7 +677,7 @@ describe("DivinationCardsRepository", () => {
     });
 
     it("should accept all valid rarity values (1-4)", async () => {
-      for (const rarity of [1, 2, 3, 4]) {
+      for (const rarity of [1, 2, 3, 4] as Rarity[]) {
         await repository.updateRarity("poe1", "Settlers", "The Doctor", rarity);
         const card = await repository.getByName(
           "poe1",
@@ -699,8 +700,8 @@ describe("DivinationCardsRepository", () => {
 
     it("should bulk update rarities for multiple cards", async () => {
       await repository.updateRarities("poe1", "Settlers", [
-        { name: "The Doctor", rarity: 1 },
-        { name: "Rain of Chaos", rarity: 4 },
+        { name: "The Doctor", rarity: 1 as Rarity },
+        { name: "Rain of Chaos", rarity: 4 as Rarity },
         { name: "The Fiend", rarity: 2 },
       ]);
 
@@ -718,9 +719,9 @@ describe("DivinationCardsRepository", () => {
       await repository.updateRarities("poe1", "Settlers", []);
 
       const cards = await repository.getAllByGame("poe1", "Settlers");
-      // All should have default rarity
+      // All should have default rarity 0 (Unknown) since no rarity data exists
       for (const card of cards) {
-        expect(card.rarity).toBe(4);
+        expect(card.rarity).toBe(0);
       }
     });
 
@@ -741,7 +742,7 @@ describe("DivinationCardsRepository", () => {
       );
 
       expect(doctor!.rarity).toBe(1);
-      expect(rain!.rarity).toBe(4); // default
+      expect(rain!.rarity).toBe(0); // default (Unknown)
     });
 
     it("should overwrite previously set rarities", async () => {
@@ -841,7 +842,7 @@ describe("DivinationCardsRepository", () => {
       // 3. Get by name
       let card = await repository.getByName("poe1", "The Doctor");
       expect(card!.description).toBe("Original description");
-      expect(card!.rarity).toBe(4); // default
+      expect(card!.rarity).toBe(0); // default (Unknown)
 
       // 4. Update rarity
       await repository.updateRarity("poe1", "Settlers", "The Doctor", 1);
@@ -879,7 +880,11 @@ describe("DivinationCardsRepository", () => {
 
     it("should support a multi-card, multi-game dataset", async () => {
       // Seed a realistic dataset
-      const poe1Cards = [
+      const poe1Cards: Array<{
+        name: string;
+        stackSize: number;
+        rarity: Rarity;
+      }> = [
         { name: "The Doctor", stackSize: 8, rarity: 1 },
         { name: "Rain of Chaos", stackSize: 8, rarity: 4 },
         { name: "The Fiend", stackSize: 11, rarity: 1 },

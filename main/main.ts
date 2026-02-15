@@ -9,6 +9,7 @@ import started from "electron-squirrel-startup";
 import {
   AppService,
   AppSetupService,
+  FilterService,
   MainWindowService,
   OverlayService,
   SupabaseClientService,
@@ -25,6 +26,7 @@ const app = AppService.getInstance();
 const mainWindow = MainWindowService.getInstance();
 const overlay = OverlayService.getInstance();
 const _appSetup = AppSetupService.getInstance();
+const _filterService = FilterService.getInstance();
 const supabase = SupabaseClientService.getInstance();
 
 function initializeSupabase() {

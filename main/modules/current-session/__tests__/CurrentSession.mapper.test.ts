@@ -258,6 +258,7 @@ describe("CurrentSessionMapper", () => {
         artSrc: "https://example.com/doctor.png",
         flavourHtml: "<i>A taste of power</i>",
         rarity: 1,
+        filterRarity: 2,
       };
 
       const result = CurrentSessionMapper.toSessionCardDTO(row);
@@ -267,9 +268,60 @@ describe("CurrentSessionMapper", () => {
       expect(result.divinationCard!.stackSize).toBe(8);
       expect(result.divinationCard!.description).toBe("A powerful card");
       expect(result.divinationCard!.artSrc).toBe(
-        "https://example.com/doctor.png",
+        "https://example.com/doctor.png"
       );
       expect(result.divinationCard!.rarity).toBe(1);
+      expect(result.divinationCard!.filterRarity).toBe(2);
+    });
+
+    it("should default filterRarity to null when not provided", () => {
+      const row: SessionCardJoinedRow = {
+        cardName: "The Doctor",
+        count: 1,
+        firstSeenAt: "2025-01-15T10:05:00Z",
+        lastSeenAt: "2025-01-15T10:05:00Z",
+        hidePriceExchange: 0,
+        hidePriceStash: 0,
+        divinationCardId: "poe1_the-doctor",
+        stackSize: 8,
+        description: "A powerful card",
+        rewardHtml: "<span>Headhunter</span>",
+        artSrc: "https://example.com/doctor.png",
+        flavourHtml: "<i>A taste of power</i>",
+        rarity: 1,
+      };
+
+      const result = CurrentSessionMapper.toSessionCardDTO(row);
+
+      expect(result.divinationCard).toBeDefined();
+      expect(result.divinationCard!.filterRarity).toBeNull();
+    });
+
+    it("should preserve all filterRarity levels (1-4)", () => {
+      const rarities = [1, 2, 3, 4] as const;
+
+      for (const filterRarity of rarities) {
+        const row: SessionCardJoinedRow = {
+          cardName: `Card FilterRarity ${filterRarity}`,
+          count: 1,
+          firstSeenAt: "2025-01-15T10:00:00Z",
+          lastSeenAt: "2025-01-15T10:00:00Z",
+          hidePriceExchange: 0,
+          hidePriceStash: 0,
+          divinationCardId: `poe1_card-filter-${filterRarity}`,
+          stackSize: 1,
+          description: "Test",
+          rewardHtml: "<span>Test</span>",
+          artSrc: "https://example.com/art.png",
+          flavourHtml: "<i>Test</i>",
+          rarity: 4,
+          filterRarity,
+        };
+
+        const result = CurrentSessionMapper.toSessionCardDTO(row);
+
+        expect(result.divinationCard!.filterRarity).toBe(filterRarity);
+      }
     });
 
     it("should convert hidePriceExchange = 1 to true", () => {

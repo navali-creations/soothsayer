@@ -2,8 +2,8 @@ import { AnimatePresence, motion } from "motion/react";
 import { GiCardExchange } from "react-icons/gi";
 
 import { useBoundStore } from "~/renderer/store";
+import { formatCurrency, getRarityStyles } from "~/renderer/utils";
 
-import { formatCurrency } from "../../../utils";
 import { Beam } from "../Overlay.components";
 
 export const OverlayDropsList = () => {
@@ -12,46 +12,6 @@ export const OverlayDropsList = () => {
   } = useBoundStore();
 
   const filteredDrops = getFilteredDrops() || [];
-
-  const getRarityStyles = (rarity: number) => {
-    switch (rarity) {
-      case 1: // Extremely rare
-        return {
-          bgGradient:
-            "linear-gradient(to right, rgb(255, 255, 255) 50%, transparent)",
-          text: "rgb(0, 0, 255)",
-          border: "rgb(0, 0, 255)",
-          beam: "orangered",
-          showBeam: true,
-        };
-      case 2: // Rare
-        return {
-          bgGradient:
-            "linear-gradient(to right, rgb(0, 20, 180) 50%, transparent)",
-          text: "rgb(255, 255, 255)",
-          border: "rgb(255, 255, 255)",
-          beam: "yellow",
-          showBeam: true,
-        };
-      case 3: // Less common
-        return {
-          bgGradient:
-            "linear-gradient(to right, rgb(0, 220, 240) 50%, transparent)",
-          text: "rgb(0, 0, 0)",
-          border: "rgb(0, 0, 0)",
-          beam: "",
-          showBeam: false,
-        };
-      default:
-        return {
-          bgGradient: "",
-          text: "",
-          border: "",
-          beam: "",
-          showBeam: false,
-        };
-    }
-  };
 
   if (filteredDrops.length === 0) {
     const isValuableTab = activeTab === "valuable";
@@ -85,7 +45,7 @@ export const OverlayDropsList = () => {
         const isNew = index === 0;
         const price = drop[`${sessionData.priceSource}Price`];
         const chaosValue = price?.chaosValue || 0;
-        const rarity = drop.rarity || 4;
+        const rarity = drop.rarity ?? 0;
         const rarityStyles = getRarityStyles(rarity);
 
         return (

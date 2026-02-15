@@ -24,6 +24,7 @@ const {
   mockDbPrepare: vi.fn(() => ({
     get: vi.fn(() => ({ count: 0 })),
     run: vi.fn(),
+    all: vi.fn(() => []),
   })),
   mockDbTransaction: vi.fn((fn: () => void) => {
     // The transaction function in better-sqlite3 returns a wrapped function
@@ -163,6 +164,7 @@ describe("DatabaseService", () => {
     mockDbPrepare.mockReturnValue({
       get: vi.fn(() => ({ count: 0 })),
       run: vi.fn(),
+      all: vi.fn(() => []),
     });
     mockFsExistsSync.mockReturnValue(true);
 
@@ -246,6 +248,7 @@ describe("DatabaseService", () => {
       mockDbPrepare.mockReturnValue({
         get: vi.fn(() => ({ count: 0 })),
         run: vi.fn(),
+        all: vi.fn(() => []),
       });
 
       DatabaseService.getInstance();
@@ -263,6 +266,7 @@ describe("DatabaseService", () => {
       mockDbPrepare.mockReturnValue({
         get: vi.fn(() => ({ count: 5 })),
         run: mockRun,
+        all: vi.fn(() => []),
       });
 
       DatabaseService.getInstance();

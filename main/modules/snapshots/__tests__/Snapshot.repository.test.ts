@@ -264,12 +264,10 @@ describe("SnapshotRepository", () => {
               "The Doctor": {
                 chaosValue: 1200,
                 divineValue: 6.0,
-                stackSize: 8,
               },
               "Rain of Chaos": {
                 chaosValue: 0.5,
                 divineValue: 0.0025,
-                stackSize: 8,
               },
             },
           },
@@ -279,7 +277,6 @@ describe("SnapshotRepository", () => {
               "The Doctor": {
                 chaosValue: 1100,
                 divineValue: 5.64,
-                stackSize: 8,
               },
             },
           },
@@ -311,7 +308,6 @@ describe("SnapshotRepository", () => {
               "The Doctor": {
                 chaosValue: 1200,
                 divineValue: 6.0,
-                stackSize: 8,
               },
             },
           },
@@ -329,7 +325,6 @@ describe("SnapshotRepository", () => {
       expect(cardPrices[0].priceSource).toBe("exchange");
       expect(cardPrices[0].chaosValue).toBe(1200);
       expect(cardPrices[0].divineValue).toBe(6.0);
-      expect(cardPrices[0].stackSize).toBe(8);
     });
 
     it("should store stash card prices", async () => {
@@ -351,7 +346,6 @@ describe("SnapshotRepository", () => {
               "Rain of Chaos": {
                 chaosValue: 0.5,
                 divineValue: 0.0025,
-                stackSize: 8,
               },
             },
           },
@@ -381,12 +375,10 @@ describe("SnapshotRepository", () => {
               "The Doctor": {
                 chaosValue: 1200,
                 divineValue: 6.0,
-                stackSize: 8,
               },
               "Rain of Chaos": {
                 chaosValue: 0.5,
                 divineValue: 0.0025,
-                stackSize: 8,
               },
             },
           },
@@ -396,12 +388,10 @@ describe("SnapshotRepository", () => {
               "The Doctor": {
                 chaosValue: 1100,
                 divineValue: 5.64,
-                stackSize: 8,
               },
               "The Fiend": {
                 chaosValue: 5000,
                 divineValue: 25.0,
-                stackSize: 11,
               },
             },
           },
@@ -447,7 +437,7 @@ describe("SnapshotRepository", () => {
       expect(cardPrices).toEqual([]);
     });
 
-    it("should handle null stackSize in card prices", async () => {
+    it("should handle card prices without optional fields", async () => {
       const leagueId = await seedLeague(testDb.kysely);
 
       await repository.createSnapshot({
@@ -462,7 +452,6 @@ describe("SnapshotRepository", () => {
               "Unknown Card": {
                 chaosValue: 10,
                 divineValue: 0.05,
-                // no stackSize
               },
             },
           },
@@ -476,7 +465,7 @@ describe("SnapshotRepository", () => {
       const cardPrices =
         await repository.getSnapshotCardPrices("snap-null-stack");
       expect(cardPrices).toHaveLength(1);
-      expect(cardPrices[0].stackSize).toBeNull();
+      expect(cardPrices[0].cardName).toBe("Unknown Card");
     });
 
     it("should handle zero stacked deck cost", async () => {
@@ -556,7 +545,6 @@ describe("SnapshotRepository", () => {
             price_source: "exchange",
             chaos_value: 1200,
             divine_value: 6.0,
-            stack_size: 8,
           },
           {
             snapshot_id: "snap-prices",
@@ -564,7 +552,6 @@ describe("SnapshotRepository", () => {
             price_source: "stash",
             chaos_value: 0.5,
             divine_value: 0.0025,
-            stack_size: null,
           },
         ])
         .execute();
@@ -579,12 +566,11 @@ describe("SnapshotRepository", () => {
       expect(doctor!.priceSource).toBe("exchange");
       expect(doctor!.chaosValue).toBe(1200);
       expect(doctor!.divineValue).toBe(6.0);
-      expect(doctor!.stackSize).toBe(8);
 
       expect(rain).toBeDefined();
       expect(rain!.priceSource).toBe("stash");
       expect(rain!.chaosValue).toBe(0.5);
-      expect(rain!.stackSize).toBeNull();
+      expect(rain!.divineValue).toBe(0.0025);
     });
 
     it("should not return prices from other snapshots", async () => {
@@ -621,7 +607,6 @@ describe("SnapshotRepository", () => {
             price_source: "exchange",
             chaos_value: 1200,
             divine_value: 6.0,
-            stack_size: 8,
           },
           {
             snapshot_id: "snap-b",
@@ -629,7 +614,6 @@ describe("SnapshotRepository", () => {
             price_source: "exchange",
             chaos_value: 0.5,
             divine_value: 0.0025,
-            stack_size: 8,
           },
         ])
         .execute();
@@ -786,7 +770,6 @@ describe("SnapshotRepository", () => {
               "The Doctor": {
                 chaosValue: 1200,
                 divineValue: 6.0,
-                stackSize: 8,
               },
             },
           },
@@ -796,7 +779,6 @@ describe("SnapshotRepository", () => {
               "Rain of Chaos": {
                 chaosValue: 0.5,
                 divineValue: 0.0025,
-                stackSize: 8,
               },
             },
           },
@@ -860,13 +842,12 @@ describe("SnapshotRepository", () => {
 
       const exchangePrices: Record<
         string,
-        { chaosValue: number; divineValue: number; stackSize?: number }
+        { chaosValue: number; divineValue: number }
       > = {};
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 50; i++) {
         exchangePrices[`Card ${i}`] = {
-          chaosValue: i * 100,
-          divineValue: i * 0.5,
-          stackSize: 8,
+          chaosValue: i * 10,
+          divineValue: i * 0.05,
         };
       }
 
@@ -889,8 +870,8 @@ describe("SnapshotRepository", () => {
 
       const result = await repository.loadSnapshot("snap-many");
       expect(result).not.toBeNull();
-      // 10 exchange + 10 stash = 20
-      expect(result!.cardPrices).toHaveLength(20);
+      // 50 exchange + 50 stash = 100
+      expect(result!.cardPrices).toHaveLength(100);
     });
   });
 
@@ -924,12 +905,10 @@ describe("SnapshotRepository", () => {
               "The Doctor": {
                 chaosValue: 1200,
                 divineValue: 6.0,
-                stackSize: 8,
               },
               "Rain of Chaos": {
                 chaosValue: 0.5,
                 divineValue: 0.0025,
-                stackSize: 8,
               },
             },
           },
@@ -939,7 +918,6 @@ describe("SnapshotRepository", () => {
               "The Doctor": {
                 chaosValue: 1100,
                 divineValue: 5.64,
-                stackSize: 8,
               },
             },
           },
@@ -977,7 +955,6 @@ describe("SnapshotRepository", () => {
                 "The Doctor": {
                   chaosValue: 1200 + i * 10,
                   divineValue: 6.0 + i * 0.05,
-                  stackSize: 8,
                 },
               },
             },
@@ -1014,7 +991,6 @@ describe("SnapshotRepository", () => {
               "The Doctor": {
                 chaosValue: 1200,
                 divineValue: 6.0,
-                stackSize: 8,
               },
             },
           },
@@ -1055,12 +1031,10 @@ describe("SnapshotRepository", () => {
               "The King's Heart": {
                 chaosValue: 500,
                 divineValue: 2.5,
-                stackSize: 16,
               },
               "Brother's Stash": {
-                chaosValue: 3000,
-                divineValue: 15.0,
-                stackSize: 3,
+                chaosValue: 2000,
+                divineValue: 10.0,
               },
             },
           },
@@ -1081,11 +1055,11 @@ describe("SnapshotRepository", () => {
 
       expect(kingsHeart).toBeDefined();
       expect(kingsHeart!.chaosValue).toBe(500);
-      expect(kingsHeart!.stackSize).toBe(16);
+      expect(kingsHeart!.divineValue).toBe(2.5);
 
       expect(brothersStash).toBeDefined();
-      expect(brothersStash!.chaosValue).toBe(3000);
-      expect(brothersStash!.stackSize).toBe(3);
+      expect(brothersStash!.chaosValue).toBe(2000);
+      expect(brothersStash!.divineValue).toBe(10.0);
     });
   });
 });

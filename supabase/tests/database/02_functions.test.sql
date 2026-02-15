@@ -9,7 +9,7 @@
 
 BEGIN;
 
-SELECT plan(40);
+SELECT plan(46);
 
 -- ═══════════════════════════════════════════════════════════════
 -- VERIFY FUNCTIONS EXIST
@@ -459,6 +459,55 @@ SELECT throws_ok(
   '23514', -- check_violation
   NULL,
   'card_prices should reject invalid price_source (CHECK constraint)'
+);
+
+-- ═══════════════════════════════════════════════════════════════
+-- TEST: card_prices confidence CHECK constraint and DEFAULT
+-- ═══════════════════════════════════════════════════════════════
+
+-- Default value: inserting without confidence should default to 1
+SELECT results_eq(
+  $$INSERT INTO card_prices (snapshot_id, card_name, price_source, chaos_value, divine_value)
+    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'Confidence Default', 'exchange', 5.00, 0.03)
+    RETURNING confidence::int$$,
+  ARRAY[1],
+  'card_prices.confidence should default to 1 when not specified'
+);
+
+-- Accepts valid confidence values: 1, 2, 3
+SELECT lives_ok(
+  $$INSERT INTO card_prices (snapshot_id, card_name, price_source, chaos_value, divine_value, confidence)
+    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'Confidence 1', 'stash', 5.00, 0.03, 1)$$,
+  'card_prices should accept confidence = 1'
+);
+
+SELECT lives_ok(
+  $$INSERT INTO card_prices (snapshot_id, card_name, price_source, chaos_value, divine_value, confidence)
+    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'Confidence 2', 'stash', 5.00, 0.03, 2)$$,
+  'card_prices should accept confidence = 2'
+);
+
+SELECT lives_ok(
+  $$INSERT INTO card_prices (snapshot_id, card_name, price_source, chaos_value, divine_value, confidence)
+    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'Confidence 3', 'stash', 5.00, 0.03, 3)$$,
+  'card_prices should accept confidence = 3'
+);
+
+-- Rejects invalid confidence values
+SELECT throws_ok(
+  $$INSERT INTO card_prices (snapshot_id, card_name, price_source, chaos_value, divine_value, confidence)
+    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'Confidence 0', 'stash', 5.00, 0.03, 0)$$,
+  '23514', -- check_violation
+  NULL,
+  'card_prices should reject confidence = 0 (CHECK constraint)'
+);
+
+SELECT throws_ok(
+  $$INSERT INTO card_prices (snapshot_id, card_name, price_source, chaos_value, divine_value, confidence)
+    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'Confidence 4', 'stash', 5.00, 0.03, 4)$$,
+  '23514', -- check_violation
+  NULL,
+  'card_prices should reject confidence = 4 (CHECK constraint)'
 );
 
 -- ═══════════════════════════════════════════════════════════════

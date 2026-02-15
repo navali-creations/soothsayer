@@ -89,6 +89,31 @@ vi.mock("~/main/modules/divination-cards", () => ({
   },
 }));
 
+// ─── Mock FilterService ─────────────────────────────────────────────────────
+vi.mock("~/main/modules/filters/Filter.service", () => ({
+  FilterService: {
+    getInstance: vi.fn(() => ({
+      applyFilterRarities: vi.fn().mockResolvedValue(undefined),
+      ensureFilterParsed: vi.fn().mockResolvedValue(null),
+    })),
+  },
+}));
+
+// ─── Mock SettingsStoreService ───────────────────────────────────────────────
+vi.mock("~/main/modules/settings-store", () => ({
+  SettingsStoreService: {
+    getInstance: vi.fn(() => ({
+      get: vi.fn().mockResolvedValue(null),
+      set: vi.fn().mockResolvedValue(undefined),
+      getAllSettings: vi.fn().mockResolvedValue({}),
+    })),
+  },
+  SettingsKey: {
+    RaritySource: "raritySource",
+    SelectedFilterId: "selectedFilterId",
+  },
+}));
+
 // ─── Mock SnapshotRepository ─────────────────────────────────────────────────
 vi.mock("../Snapshot.repository", () => ({
   SnapshotRepository: class MockSnapshotRepository {

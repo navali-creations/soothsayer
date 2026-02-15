@@ -7,7 +7,10 @@ import {
 } from "@supabase/supabase-js";
 import { app, safeStorage } from "electron";
 
-import type { SessionPriceSnapshot } from "../../../types/data-stores";
+import type {
+  Confidence,
+  SessionPriceSnapshot,
+} from "../../../types/data-stores";
 
 /**
  * Response from Supabase get-latest-snapshot Edge Function
@@ -27,7 +30,7 @@ interface SupabaseSnapshotResponse {
       {
         chaosValue: number;
         divineValue: number;
-        stackSize?: number;
+        confidence?: Confidence;
       }
     >;
     stash: Record<
@@ -35,7 +38,7 @@ interface SupabaseSnapshotResponse {
       {
         chaosValue: number;
         divineValue: number;
-        stackSize?: number;
+        confidence?: Confidence;
       }
     >;
   };
@@ -488,6 +491,7 @@ class SupabaseClientService {
       }
 
       // Convert to SessionPriceSnapshot format
+      // Confidence is passed through from the edge function response
       const snapshot: SessionPriceSnapshot = {
         timestamp: responseData.snapshot.fetchedAt,
         stackedDeckChaosCost: responseData.snapshot.stackedDeckChaosCost ?? 0,

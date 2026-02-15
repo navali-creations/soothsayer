@@ -71,7 +71,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: cardPrices, error: pricesError } = await supabase
     .from("card_prices")
-    .select("card_name, price_source, chaos_value, divine_value, stack_size")
+    .select("card_name, price_source, chaos_value, divine_value, confidence")
     .eq("snapshot_id", snapshot.id);
 
   if (pricesError)
@@ -84,7 +84,7 @@ Deno.serve(async (req: Request) => {
     const priceData = {
       chaosValue: price.chaos_value,
       divineValue: price.divine_value,
-      stackSize: price.stack_size ?? undefined,
+      confidence: price.confidence ?? 1,
     };
     if (price.price_source === "exchange")
       exchangePrices[price.card_name] = priceData;

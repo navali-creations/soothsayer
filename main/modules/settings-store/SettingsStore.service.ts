@@ -7,6 +7,8 @@ import { ClientLogReaderService } from "~/main/modules/client-log-reader";
 import { DatabaseService } from "~/main/modules/database";
 import {
   assertBoolean,
+  assertBoundedString,
+  assertEnum,
   assertExitBehavior,
   assertFilePath,
   assertGameType,
@@ -172,6 +174,19 @@ class SettingsStoreService {
             case "audioRarity3Path":
               if (value !== null) {
                 assertFilePath(value, key, ch);
+              }
+              break;
+            case "raritySource":
+              assertEnum(value, "raritySource", ch, [
+                "poe.ninja",
+                "filter",
+                "prohibited-library",
+              ] as const);
+              break;
+            case "selectedFilterId":
+              // Can be null (cleared) or a bounded string
+              if (value !== null) {
+                assertBoundedString(value, "selectedFilterId", ch, 256);
               }
               break;
             default:

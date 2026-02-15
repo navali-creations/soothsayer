@@ -20,6 +20,14 @@ import {
   type SessionSlice,
 } from "../modules/current-session/CurrentSession.slice";
 import {
+  createFilterSlice,
+  type FilterSlice,
+} from "../modules/filters/Filter.slice";
+import {
+  createFilterComparisonSlice,
+  type FilterComparisonSlice,
+} from "../modules/filters/FilterComparison.slice";
+import {
   createGameInfoSlice,
   type GameInfoSlice,
 } from "../modules/game-info/GameInfo.slice";
@@ -82,6 +90,8 @@ type BoundStore = GameInfoSlice &
   StatisticsSlice &
   OnboardingSlice &
   UpdaterSlice &
+  FilterSlice &
+  FilterComparisonSlice &
   RootActions;
 
 export const useBoundStore = create<BoundStore>()(
@@ -101,6 +111,8 @@ export const useBoundStore = create<BoundStore>()(
       const statisticsSlice = createStatisticsSlice(...a);
       const onboardingSlice = createOnboardingSlice(...a);
       const updaterSlice = createUpdaterSlice(...a);
+      const filterSlice = createFilterSlice(...a);
+      const filterComparisonSlice = createFilterComparisonSlice(...a);
 
       return {
         ...settingsSlice,
@@ -117,6 +129,8 @@ export const useBoundStore = create<BoundStore>()(
         ...statisticsSlice,
         ...onboardingSlice,
         ...updaterSlice,
+        ...filterSlice,
+        ...filterComparisonSlice,
 
         hydrate: async () => {
           await Promise.all([
@@ -164,6 +178,7 @@ export const useBoundStore = create<BoundStore>()(
               statistics,
               onboarding,
               updater,
+              filters,
               ...state
             }) => {
               // Reset settings
@@ -260,6 +275,22 @@ export const useBoundStore = create<BoundStore>()(
                 totalBytes: 0,
               };
               updater.error = null;
+
+              // Reset filters
+              filters.availableFilters = [];
+              filters.selectedFilterId = null;
+              filters.isScanning = false;
+              filters.isParsing = false;
+              filters.scanError = null;
+              filters.parseError = null;
+              filters.lastScannedAt = null;
+
+              // Reset filter comparison
+              state.filterComparison.selectedFilters = [];
+              state.filterComparison.parsedResults = new Map();
+              state.filterComparison.parsingFilterId = null;
+              state.filterComparison.parseErrors = new Map();
+              state.filterComparison.showDiffsOnly = false;
             },
           );
         },

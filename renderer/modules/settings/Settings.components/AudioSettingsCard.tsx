@@ -8,12 +8,7 @@ import rarity3Sound from "~/renderer/assets/audio/rarity3.mp3";
 import { Button } from "~/renderer/components";
 import { trackEvent } from "~/renderer/modules/umami";
 import { useBoundStore } from "~/renderer/store";
-
-const RARITY_LABELS: Record<number, string> = {
-  1: "Extremely Rare",
-  2: "Rare",
-  3: "Less Common",
-};
+import { RARITY_LABELS } from "~/renderer/utils";
 
 const RARITY_SETTING_KEYS = [
   "audioRarity1Path",

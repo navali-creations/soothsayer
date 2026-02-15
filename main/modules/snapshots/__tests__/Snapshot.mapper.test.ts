@@ -35,8 +35,7 @@ function createSnapshotCardPriceRow(
     price_source: "exchange" as const,
     chaos_value: 1200.5,
     divine_value: 6.0,
-    stack_size: 8,
-    created_at: "2025-01-15T10:00:00Z",
+    confidence: 1 as const,
     ...overrides,
   };
 }
@@ -159,7 +158,7 @@ describe("Snapshot.mapper", () => {
       expect(dto.priceSource).toBe("exchange");
       expect(dto.chaosValue).toBe(1200.5);
       expect(dto.divineValue).toBe(6.0);
-      expect(dto.stackSize).toBe(8);
+      expect(dto.confidence).toBe(1);
     });
 
     it("should map snake_case fields to camelCase", () => {
@@ -168,7 +167,6 @@ describe("Snapshot.mapper", () => {
         price_source: "stash",
         chaos_value: 0.5,
         divine_value: 0.0025,
-        stack_size: 8,
       });
       const dto = SnapshotMapper.toSnapshotCardPriceDTO(row);
 
@@ -176,7 +174,6 @@ describe("Snapshot.mapper", () => {
       expect(dto.priceSource).toBe("stash");
       expect(dto.chaosValue).toBe(0.5);
       expect(dto.divineValue).toBe(0.0025);
-      expect(dto.stackSize).toBe(8);
     });
 
     it("should handle exchange price source", () => {
@@ -193,29 +190,34 @@ describe("Snapshot.mapper", () => {
       expect(dto.priceSource).toBe("stash");
     });
 
-    it("should handle null stack_size", () => {
-      const row = createSnapshotCardPriceRow({ stack_size: null });
+    it("should map confidence 1 (high)", () => {
+      const row = createSnapshotCardPriceRow({ confidence: 1 });
       const dto = SnapshotMapper.toSnapshotCardPriceDTO(row);
 
-      expect(dto.stackSize).toBeNull();
+      expect(dto.confidence).toBe(1);
     });
 
-    it("should handle numeric stack_size", () => {
-      const row = createSnapshotCardPriceRow({ stack_size: 16 });
+    it("should map confidence 2 (medium)", () => {
+      const row = createSnapshotCardPriceRow({ confidence: 2 });
       const dto = SnapshotMapper.toSnapshotCardPriceDTO(row);
 
-      expect(dto.stackSize).toBe(16);
+      expect(dto.confidence).toBe(2);
     });
 
-    it("should not include snapshot_id, id, or created_at in the DTO", () => {
+    it("should map confidence 3 (low)", () => {
+      const row = createSnapshotCardPriceRow({ confidence: 3 });
+      const dto = SnapshotMapper.toSnapshotCardPriceDTO(row);
+
+      expect(dto.confidence).toBe(3);
+    });
+
+    it("should not include snapshot_id or id in the DTO", () => {
       const row = createSnapshotCardPriceRow();
       const dto = SnapshotMapper.toSnapshotCardPriceDTO(row);
 
       expect("snapshotId" in dto).toBe(false);
       expect("snapshot_id" in dto).toBe(false);
       expect("id" in dto).toBe(false);
-      expect("createdAt" in dto).toBe(false);
-      expect("created_at" in dto).toBe(false);
     });
 
     it("should produce a DTO with exactly the expected keys", () => {
@@ -225,9 +227,9 @@ describe("Snapshot.mapper", () => {
       expect(Object.keys(dto).sort()).toEqual([
         "cardName",
         "chaosValue",
+        "confidence",
         "divineValue",
         "priceSource",
-        "stackSize",
       ]);
     });
 

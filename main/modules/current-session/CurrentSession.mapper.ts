@@ -6,7 +6,7 @@ import type {
 } from "~/main/modules/database";
 import { cleanWikiMarkup } from "~/main/utils/cleanWikiMarkup";
 
-import type { GameType } from "../../../types/data-stores";
+import type { GameType, KnownRarity, Rarity } from "../../../types/data-stores";
 import type {
   SessionCardDTO,
   SessionDTO,
@@ -29,7 +29,8 @@ interface SessionCardJoinedRow {
   rewardHtml?: string | null;
   artSrc?: string | null;
   flavourHtml?: string | null;
-  rarity?: number;
+  rarity?: Rarity;
+  filterRarity?: KnownRarity | null;
 }
 
 export type { SessionCardJoinedRow };
@@ -79,6 +80,7 @@ export class CurrentSessionMapper {
         artSrc: row.artSrc,
         flavourHtml: cleanWikiMarkup(row.flavourHtml),
         rarity: row.rarity,
+        filterRarity: row.filterRarity ?? null,
       };
     }
 

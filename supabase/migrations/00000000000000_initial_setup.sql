@@ -43,10 +43,11 @@ CREATE TABLE card_prices (
   card_name TEXT NOT NULL,
   price_source TEXT NOT NULL CHECK (price_source IN ('exchange', 'stash')),
   chaos_value NUMERIC(10, 2) NOT NULL,
-  divine_value NUMERIC(10, 4) NOT NULL,
-  stack_size INTEGER,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  divine_value NUMERIC(10, 2) NOT NULL,
+  confidence SMALLINT NOT NULL DEFAULT 1 CHECK (confidence IN (1, 2, 3))
 );
+
+COMMENT ON COLUMN card_prices.confidence IS 'poe.ninja price confidence: 1 = high/reliable, 2 = medium/thin sample, 3 = low/unreliable. Exchange prices are always 1.';
 
 CREATE INDEX idx_card_prices_snapshot ON card_prices(snapshot_id);
 CREATE INDEX idx_card_prices_snapshot_source ON card_prices(snapshot_id, price_source);

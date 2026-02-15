@@ -17,6 +17,7 @@ const {
   mockMainWindowCreateMainWindow,
   mockOverlayGetInstance,
   mockAppSetupGetInstance,
+  mockFilterServiceGetInstance,
   mockSupabaseGetInstance,
   mockSupabaseConfigure,
   mockRequestSingleInstanceLock,
@@ -40,6 +41,7 @@ const {
   mockMainWindowCreateMainWindow: vi.fn(),
   mockOverlayGetInstance: vi.fn(),
   mockAppSetupGetInstance: vi.fn(),
+  mockFilterServiceGetInstance: vi.fn(),
   mockSupabaseGetInstance: vi.fn(),
   mockSupabaseConfigure: vi.fn(),
   mockRequestSingleInstanceLock: vi.fn(() => true),
@@ -106,6 +108,9 @@ vi.mock("~/main/modules", () => {
   const mockAppSetupInstance = {};
   mockAppSetupGetInstance.mockReturnValue(mockAppSetupInstance);
 
+  const mockFilterServiceInstance = {};
+  mockFilterServiceGetInstance.mockReturnValue(mockFilterServiceInstance);
+
   const mockSupabaseInstance = {
     configure: mockSupabaseConfigure,
   };
@@ -130,6 +135,7 @@ vi.mock("~/main/modules", () => {
     MainWindowService: { getInstance: mockMainWindowGetInstance },
     OverlayService: { getInstance: mockOverlayGetInstance },
     AppSetupService: { getInstance: mockAppSetupGetInstance },
+    FilterService: { getInstance: mockFilterServiceGetInstance },
     SupabaseClientService: { getInstance: mockSupabaseGetInstance },
   };
 });

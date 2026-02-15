@@ -1,6 +1,10 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
+
+/** poe.ninja price confidence: 1 = high/reliable, 2 = medium/thin sample, 3 = low/unreliable */
+type Confidence = 1 | 2 | 3;
+
 import { responseJson } from "../_shared/utils.ts";
 
 Deno.serve(async (req) => {
@@ -99,20 +103,23 @@ Deno.serve(async (req) => {
       ? 1 / exchangeData.core.rates.divine
       : 100;
 
-    // Build exchange card prices
+    // Build exchange card prices (exchange data is always high confidence)
     const exchangeCardPrices: Array<any> = [];
-    exchangeData.items?.forEach((item: any, index: number) => {
-      const line = exchangeData.lines[index];
+    const items = exchangeData.items ?? [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const line = exchangeData.lines[i];
       if (line && item.category === "Cards") {
         exchangeCardPrices.push({
           card_name: item.name,
           price_source: "exchange",
           chaos_value: line.primaryValue,
-          divine_value: line.primaryValue / chaosToDivineRatio,
-          stack_size: null,
+          divine_value:
+            Math.round((line.primaryValue / chaosToDivineRatio) * 100) / 100,
+          confidence: 1,
         });
       }
-    });
+    }
 
     console.log(`Fetched ${exchangeCardPrices.length} exchange prices`);
 
@@ -168,19 +175,42 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Build stash card prices
+    // Compute confidence level from poe.ninja stash data.
+    //
+    // poe.ninja signals its own confidence via sparkLine vs lowConfidenceSparkLine:
+    //   - sparkLine.data is empty → poe.ninja considers data low confidence
+    //   - sparkLine.data is populated → poe.ninja considers data reliable
+    // We combine this with the sample count for a three-tier classification:
+    //   - 3 (low):    sparkLine empty (regardless of count)
+    //   - 2 (medium): sparkLine populated but count < 10
+    //   - 1 (high):   sparkLine populated and count >= 10
+    function computeConfidence(card: any): Confidence {
+      const hasSparkLine =
+        Array.isArray(card.sparkLine?.data) && card.sparkLine.data.length > 0;
+
+      if (!hasSparkLine) return 3;
+      if ((card.count ?? 0) >= 10) return 1;
+      return 2;
+    }
+
+    // Build stash card prices with confidence
     const stashCardPrices: Array<any> = [];
-    stashData.lines?.forEach((card: any) => {
+    const confidenceCounts = { 1: 0, 2: 0, 3: 0 };
+    for (const card of stashData.lines ?? []) {
+      const confidence = computeConfidence(card);
+      confidenceCounts[confidence]++;
       stashCardPrices.push({
         card_name: card.name,
         price_source: "stash",
         chaos_value: card.chaosValue,
-        divine_value: card.divineValue,
-        stack_size: card.stackSize,
+        divine_value: Math.round(card.divineValue * 100) / 100,
+        confidence,
       });
-    });
+    }
 
-    console.log(`Fetched ${stashCardPrices.length} stash prices`);
+    console.log(
+      `Fetched ${stashCardPrices.length} stash prices. Confidence: ${confidenceCounts[1]} high, ${confidenceCounts[2]} medium, ${confidenceCounts[3]} low`,
+    );
 
     // 6. Insert snapshot and card prices in transaction
     const { data: snapshot, error: snapshotError } = await supabase

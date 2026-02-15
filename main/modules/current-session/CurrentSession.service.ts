@@ -4,7 +4,12 @@ import { BrowserWindow, ipcMain } from "electron";
 
 import { DataStoreService } from "~/main/modules/data-store";
 import { DatabaseService } from "~/main/modules/database";
+import { FilterService } from "~/main/modules/filters/Filter.service";
 import { PerformanceLoggerService } from "~/main/modules/performance-logger";
+import {
+  SettingsKey,
+  SettingsStoreService,
+} from "~/main/modules/settings-store";
 import { SnapshotService } from "~/main/modules/snapshots";
 import {
   assertBoolean,
@@ -43,6 +48,8 @@ class CurrentSessionService {
   private dataStore: DataStoreService;
   private snapshotService: SnapshotService;
   private perfLogger: PerformanceLoggerService;
+  private filterService: FilterService;
+  private settingsStore: SettingsStoreService;
 
   // Active session tracking
   private poe1ActiveSession: ActiveSessionInfo | null = null;
@@ -69,6 +76,8 @@ class CurrentSessionService {
     this.dataStore = DataStoreService.getInstance();
     this.snapshotService = SnapshotService.getInstance();
     this.perfLogger = PerformanceLoggerService.getInstance();
+    this.filterService = FilterService.getInstance();
+    this.settingsStore = SettingsStoreService.getInstance();
 
     this.loadGlobalProcessedIds("poe1");
     this.loadGlobalProcessedIds("poe2");
@@ -276,6 +285,40 @@ class CurrentSessionService {
 
     if (activeSession) {
       throw new Error(`Session already active for ${game}`);
+    }
+
+    // If rarity source is "filter", ensure the selected filter is parsed before starting
+    const raritySource = await this.settingsStore.get(SettingsKey.RaritySource);
+    if (raritySource === "filter") {
+      const selectedFilterId = await this.settingsStore.get(
+        SettingsKey.SelectedFilterId,
+      );
+
+      if (!selectedFilterId) {
+        console.warn(
+          "[CurrentSession] Rarity source is 'filter' but no filter is selected — falling back to poe.ninja rarities",
+        );
+      } else {
+        console.log(
+          `[CurrentSession] Rarity source is 'filter' — ensuring filter ${selectedFilterId} is parsed...`,
+        );
+        const parseResult =
+          await this.filterService.ensureFilterParsed(selectedFilterId);
+
+        if (!parseResult) {
+          console.warn(
+            `[CurrentSession] Selected filter ${selectedFilterId} not found — falling back to poe.ninja rarities`,
+          );
+        } else if (!parseResult.hasDivinationSection) {
+          console.warn(
+            `[CurrentSession] Selected filter "${parseResult.filterName}" has no divination section — falling back to poe.ninja rarities`,
+          );
+        } else {
+          console.log(
+            `[CurrentSession] Filter "${parseResult.filterName}" is ready with ${parseResult.totalCards} card rarities`,
+          );
+        }
+      }
     }
 
     // Get or create snapshot for this league
@@ -572,8 +615,12 @@ class CurrentSessionService {
       ? await this.snapshotService.loadSnapshot(session.snapshotId)
       : null;
 
+    // Get the selected filter ID for filter-based rarity lookups
+    const selectedFilterId = await this.getActiveFilterId();
+
     const cards = await this.repository.getSessionCards(
       activeSession.sessionId,
+      selectedFilterId,
     );
 
     // Build cards object with prices
@@ -640,14 +687,24 @@ class CurrentSessionService {
           totalDeckCost: 0,
         };
 
+    // Determine which rarity source is active for display purposes
+    const raritySource = await this.settingsStore.get(SettingsKey.RaritySource);
+
     // Get recent drops (last 20 individual card drops in chronological order)
     const recentDropsRaw = await this.repository.getRecentDrops(game, 20);
 
     const recentDrops = recentDropsRaw.map((cardName) => {
       const cardData = cardsObject[cardName];
 
-      // Get the actual rarity from divination card metadata
-      const actualRarity = cardData?.divinationCard?.rarity || 4;
+      // Get the actual rarity from divination card metadata.
+      // If rarity source is "filter" and filter rarity is available, use it.
+      // Otherwise fall back to poe.ninja price-based rarity.
+      const filterRarity = cardData?.divinationCard?.filterRarity;
+      const priceRarity = cardData?.divinationCard?.rarity || 4;
+      const actualRarity =
+        raritySource === "filter" && filterRarity != null
+          ? filterRarity
+          : priceRarity;
 
       // Check if the card is marked as hidden for either price source
       // Hidden cards are typically those with unreliable pricing due to market manipulation
@@ -785,6 +842,27 @@ class CurrentSessionService {
         isActive,
         sessionInfo,
       });
+    }
+  }
+
+  /**
+   * Get the active filter ID if rarity source is "filter".
+   * Returns null if rarity source is not "filter" or no filter is selected.
+   */
+  private async getActiveFilterId(): Promise<string | null> {
+    try {
+      const raritySource = await this.settingsStore.get(
+        SettingsKey.RaritySource,
+      );
+      if (raritySource !== "filter") {
+        return null;
+      }
+      const filterId = await this.settingsStore.get(
+        SettingsKey.SelectedFilterId,
+      );
+      return filterId || null;
+    } catch {
+      return null;
     }
   }
 

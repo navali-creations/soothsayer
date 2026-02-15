@@ -4,6 +4,15 @@ export type GameType = "poe1" | "poe2";
 // Price source type
 export type PriceSource = "exchange" | "stash";
 
+/** poe.ninja price confidence: 1 = high/reliable, 2 = medium/thin sample, 3 = low/unreliable */
+export type Confidence = 1 | 2 | 3;
+
+/** Divination card rarity: 0=unknown, 1=extremely rare, 2=rare, 3=less common, 4=common */
+export type Rarity = 0 | 1 | 2 | 3 | 4;
+
+/** Known rarity (excludes unknown). Used for filter-derived rarities where every card has an explicit tier. */
+export type KnownRarity = 1 | 2 | 3 | 4;
+
 // Calculated price info for a card
 export interface CardPriceInfo {
   chaosValue: number;
@@ -20,7 +29,8 @@ export interface DivinationCardMetadata {
   rewardHtml?: string | null;
   artSrc?: string | null;
   flavourHtml?: string | null;
-  rarity?: number;
+  rarity?: Rarity;
+  filterRarity?: KnownRarity | null;
 }
 
 // Card entry for UI display (already flattened with both prices)
@@ -38,8 +48,8 @@ export interface CardEntry {
 export interface CardPriceSnapshot {
   chaosValue: number;
   divineValue: number;
-  stackSize?: number;
   hidePrice?: boolean;
+  confidence?: Confidence;
 }
 
 // Session price snapshot (captured at session start)
@@ -74,7 +84,7 @@ export interface SessionTotals {
 
 export interface RecentDrop {
   cardName: string;
-  rarity?: number; // 1=extremely rare, 2=rare, 3=less common, 4=common
+  rarity?: Rarity;
   exchangePrice: {
     chaosValue: number;
     divineValue: number;

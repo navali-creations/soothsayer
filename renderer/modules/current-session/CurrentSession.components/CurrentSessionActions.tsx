@@ -1,9 +1,16 @@
 import { AnimatePresence, motion } from "motion/react";
+import { useCallback, useEffect } from "react";
 import { FiPlay } from "react-icons/fi";
 import { GiCardExchange, GiLockedChest } from "react-icons/gi";
 
 import { Button, Flex } from "~/renderer/components";
+import { trackEvent } from "~/renderer/modules/umami";
 import { useBoundStore } from "~/renderer/store";
+import {
+  decodeRaritySourceValue,
+  encodeRaritySourceValue,
+  getAnalyticsRaritySource,
+} from "~/renderer/utils";
 
 const CurrentSessionActions = () => {
   const {
@@ -13,18 +20,124 @@ const CurrentSessionActions = () => {
       startSession,
       stopSession,
     },
-    settings: { getActiveGameViewPriceSource, setActiveGameViewPriceSource },
+    settings: {
+      raritySource,
+      selectedFilterId,
+      updateSetting,
+      getActiveGameViewPriceSource,
+      setActiveGameViewPriceSource,
+    },
+    filters: {
+      availableFilters,
+      isScanning,
+      scanFilters,
+      selectFilter,
+      clearSelectedFilter,
+      getLocalFilters,
+      getOnlineFilters,
+    },
   } = useBoundStore();
 
   const isActive = getIsCurrentSessionActive();
   const priceSource = getActiveGameViewPriceSource();
+  const localFilters = getLocalFilters();
+  const onlineFilters = getOnlineFilters();
+
+  // Lazy scan: if no filters loaded yet, scan on mount
+  useEffect(() => {
+    if (availableFilters.length === 0 && !isScanning) {
+      scanFilters();
+    }
+  }, [availableFilters.length, isScanning, scanFilters]);
 
   const handlePriceSourceChange = async (source: "exchange" | "stash") => {
     await setActiveGameViewPriceSource(source);
   };
 
+  const handleDropdownChange = useCallback(
+    async (value: string) => {
+      const { raritySource: newSource, filterId: newFilterId } =
+        decodeRaritySourceValue(value);
+
+      // Update rarity source setting
+      await updateSetting("raritySource", newSource);
+      trackEvent("settings-change", {
+        setting: "raritySource",
+        value: getAnalyticsRaritySource(
+          newSource,
+          newFilterId,
+          availableFilters,
+        ),
+      });
+
+      if (newSource === "filter" && newFilterId) {
+        await selectFilter(newFilterId);
+        await updateSetting("selectedFilterId", newFilterId);
+      } else {
+        if (selectedFilterId) {
+          await clearSelectedFilter();
+          await updateSetting("selectedFilterId", null);
+        }
+      }
+    },
+    [
+      updateSetting,
+      selectFilter,
+      clearSelectedFilter,
+      selectedFilterId,
+      availableFilters,
+    ],
+  );
+
+  const dropdownValue = encodeRaritySourceValue(raritySource, selectedFilterId);
+
   return (
     <Flex className="gap-2 items-center">
+      {/* Unified Rarity Source Dropdown */}
+      <select
+        className="select select-bordered select-xs w-48"
+        value={dropdownValue}
+        onChange={(e) => handleDropdownChange(e.target.value)}
+        disabled={isActive || isScanning}
+        title={
+          isActive
+            ? "Cannot change rarity source while session is active"
+            : "Select rarity source"
+        }
+      >
+        {/* Dataset-driven sources */}
+        <optgroup label="Dataset Driven">
+          <option value="poe.ninja">poe.ninja (price-based)</option>
+          <option value="prohibited-library" disabled>
+            Prohibited Library (coming soon)
+          </option>
+        </optgroup>
+
+        {/* Online filters */}
+        {onlineFilters.length > 0 && (
+          <optgroup label="Online Filters">
+            {onlineFilters.map((filter) => (
+              <option key={filter.id} value={`filter:${filter.id}`}>
+                {filter.name}
+                {filter.isOutdated ? " (outdated)" : ""}
+              </option>
+            ))}
+          </optgroup>
+        )}
+
+        {/* Local filters */}
+        {localFilters.length > 0 && (
+          <optgroup label="Local Filters">
+            {localFilters.map((filter) => (
+              <option key={filter.id} value={`filter:${filter.id}`}>
+                {filter.name}
+                {filter.isOutdated ? " (outdated)" : ""}
+              </option>
+            ))}
+          </optgroup>
+        )}
+      </select>
+
       <div data-onboarding="start-session" className="relative">
         <AnimatePresence mode="wait" initial={false}>
           {isLoading ? (
@@ -102,7 +215,9 @@ const CurrentSessionActions = () => {
       >
         <button
           role="tab"
-          className={`tab flex flex-row items-center gap-1 ${priceSource === "exchange" ? "tab-active" : ""}`}
+          className={`tab flex flex-row items-center gap-1 ${
+            priceSource === "exchange" ? "tab-active" : ""
+          }`}
           onClick={() => handlePriceSourceChange("exchange")}
         >
           <GiCardExchange />
@@ -110,7 +225,9 @@ const CurrentSessionActions = () => {
         </button>
         <button
           role="tab"
-          className={`tab flex flex-row items-center gap-1 ${priceSource === "stash" ? "tab-active" : ""}`}
+          className={`tab flex flex-row items-center gap-1 ${
+            priceSource === "stash" ? "tab-active" : ""
+          }`}
           onClick={() => handlePriceSourceChange("stash")}
         >
           <GiLockedChest />

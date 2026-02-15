@@ -1,4 +1,4 @@
-import type { GameType } from "../../../types/data-stores";
+import type { GameType, KnownRarity, Rarity } from "../../../types/data-stores";
 
 /**
  * Data Transfer Objects for CurrentSession module
@@ -30,7 +30,8 @@ export interface SessionCardDTO {
     rewardHtml?: string | null;
     artSrc?: string | null;
     flavourHtml?: string | null;
-    rarity?: number;
+    rarity?: Rarity;
+    filterRarity?: KnownRarity | null;
   };
 }
 

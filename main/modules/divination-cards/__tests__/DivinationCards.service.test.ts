@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { Rarity } from "~/types/data-stores";
+
 // ─── Mock Electron before any imports that use it ────────────────────────────
 vi.mock("electron", () => ({
   ipcMain: {
@@ -271,7 +273,7 @@ describe("DivinationCardsService — updateRaritiesFromPrices", () => {
       exchangeChaosToDivine: number,
       cardPrices: Record<string, { chaosValue: number }>,
     ): Promise<void> {
-      const updates: Array<{ name: string; rarity: number }> = [];
+      const updates: Array<{ name: string; rarity: Rarity }> = [];
       const allCards = await repository.getAllByGame(game);
       const pricedCardNames = new Set(Object.keys(cardPrices));
 
@@ -280,7 +282,7 @@ describe("DivinationCardsService — updateRaritiesFromPrices", () => {
         const divineValue = chaosValue / exchangeChaosToDivine;
         const percentOfDivine = divineValue * 100;
 
-        let rarity: number;
+        let rarity: Rarity;
         if (percentOfDivine >= 70) {
           rarity = 1;
         } else if (percentOfDivine >= 35) {
@@ -825,11 +827,12 @@ describe("DivinationCardsService — updateRaritiesFromPrices", () => {
       const cards = await repository.getAllByGame("poe1", "Settlers");
       const doctor = cards.find((c) => c.name === "The Doctor");
       expect(doctor).toBeDefined();
-      // Without a rarity entry, the repository defaults to 4 (common)
-      // or returns undefined/null depending on the LEFT JOIN result
+      // Without a rarity entry, the repository defaults to 0 (Unknown)
+      // via COALESCE(override_rarity, rarity, 0)
       expect(
         doctor!.rarity === undefined ||
           doctor!.rarity === null ||
+          doctor!.rarity === 0 ||
           doctor!.rarity === 4,
       ).toBe(true);
     });

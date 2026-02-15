@@ -1,4 +1,7 @@
-import type { SessionPriceSnapshot } from "../../../types/data-stores";
+import type {
+  Confidence,
+  SessionPriceSnapshot,
+} from "../../../types/data-stores";
 
 /**
  * Data Transfer Objects for Snapshot module
@@ -18,7 +21,7 @@ export interface SnapshotCardPriceDTO {
   priceSource: "exchange" | "stash";
   chaosValue: number;
   divineValue: number;
-  stackSize: number | null;
+  confidence: Confidence;
 }
 
 export interface LeagueDTO {

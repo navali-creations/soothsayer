@@ -1,5 +1,7 @@
 import type { StateCreator } from "zustand";
 
+import type { Rarity } from "~/types/data-stores";
+
 import type { SettingsSlice } from "../settings/Settings.slice";
 
 interface DivinationCardDTO {
@@ -10,7 +12,7 @@ interface DivinationCardDTO {
   rewardHtml: string;
   artSrc: string;
   flavourHtml: string;
-  rarity: number;
+  rarity: Rarity;
   game: "poe1" | "poe2";
   createdAt: string;
   updatedAt: string;

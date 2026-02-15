@@ -6,6 +6,7 @@ enum DivinationCardsChannel {
   GetCount = "divination-cards:get-count",
   GetStats = "divination-cards:get-stats",
   ForceSync = "divination-cards:force-sync",
+  UpdateRarity = "divination-cards:update-rarity",
 }
 
 export { DivinationCardsChannel };

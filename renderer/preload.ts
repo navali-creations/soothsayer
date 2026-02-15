@@ -6,6 +6,7 @@ import { AppSetupAPI } from "~/main/modules/app-setup/AppSetup.api";
 import { CurrentSessionAPI } from "~/main/modules/current-session/CurrentSession.api";
 import { DataStoreAPI } from "~/main/modules/data-store/DataStore.api";
 import { DivinationCardsApi } from "~/main/modules/divination-cards/DivinationCards.api";
+import { FilterAPI } from "~/main/modules/filters/Filter.api";
 import { MainWindowAPI } from "~/main/modules/main-window/MainWindow.api";
 import { OverlayAPI } from "~/main/modules/overlay/Overlay.api";
 import { PoeLeaguesAPI } from "~/main/modules/poe-leagues/PoeLeagues.api";
@@ -36,4 +37,5 @@ contextBridge.exposeInMainWorld("electron", {
   analytics: AnalyticsAPI,
   divinationCards: DivinationCardsApi,
   updater: UpdaterAPI,
+  filters: FilterAPI,
 });

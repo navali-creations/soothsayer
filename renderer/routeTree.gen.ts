@@ -18,7 +18,9 @@ import { Route as CardsRouteImport } from './routes/cards'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SessionsIndexRouteImport } from './routes/sessions.index'
+import { Route as CardsIndexRouteImport } from './routes/cards.index'
 import { Route as SessionsSessionIdRouteImport } from './routes/sessions.$sessionId'
+import { Route as CardsRaritiesRouteImport } from './routes/cards.rarities'
 
 const StatisticsRoute = StatisticsRouteImport.update({
   id: '/statistics',
@@ -65,46 +67,61 @@ const SessionsIndexRoute = SessionsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => SessionsRoute,
 } as any)
+const CardsIndexRoute = CardsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => CardsRoute,
+} as any)
 const SessionsSessionIdRoute = SessionsSessionIdRouteImport.update({
   id: '/$sessionId',
   path: '/$sessionId',
   getParentRoute: () => SessionsRoute,
 } as any)
+const CardsRaritiesRoute = CardsRaritiesRouteImport.update({
+  id: '/rarities',
+  path: '/rarities',
+  getParentRoute: () => CardsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
-  '/cards': typeof CardsRoute
+  '/cards': typeof CardsRouteWithChildren
   '/changelog': typeof ChangelogRoute
   '/sessions': typeof SessionsRouteWithChildren
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/statistics': typeof StatisticsRoute
+  '/cards/rarities': typeof CardsRaritiesRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRoute
+  '/cards/': typeof CardsIndexRoute
   '/sessions/': typeof SessionsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
-  '/cards': typeof CardsRoute
   '/changelog': typeof ChangelogRoute
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/statistics': typeof StatisticsRoute
+  '/cards/rarities': typeof CardsRaritiesRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRoute
+  '/cards': typeof CardsIndexRoute
   '/sessions': typeof SessionsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
-  '/cards': typeof CardsRoute
+  '/cards': typeof CardsRouteWithChildren
   '/changelog': typeof ChangelogRoute
   '/sessions': typeof SessionsRouteWithChildren
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/statistics': typeof StatisticsRoute
+  '/cards/rarities': typeof CardsRaritiesRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRoute
+  '/cards/': typeof CardsIndexRoute
   '/sessions/': typeof SessionsIndexRoute
 }
 export interface FileRouteTypes {
@@ -118,18 +135,21 @@ export interface FileRouteTypes {
     | '/settings'
     | '/setup'
     | '/statistics'
+    | '/cards/rarities'
     | '/sessions/$sessionId'
+    | '/cards/'
     | '/sessions/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/about'
-    | '/cards'
     | '/changelog'
     | '/settings'
     | '/setup'
     | '/statistics'
+    | '/cards/rarities'
     | '/sessions/$sessionId'
+    | '/cards'
     | '/sessions'
   id:
     | '__root__'
@@ -141,14 +161,16 @@ export interface FileRouteTypes {
     | '/settings'
     | '/setup'
     | '/statistics'
+    | '/cards/rarities'
     | '/sessions/$sessionId'
+    | '/cards/'
     | '/sessions/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
-  CardsRoute: typeof CardsRoute
+  CardsRoute: typeof CardsRouteWithChildren
   ChangelogRoute: typeof ChangelogRoute
   SessionsRoute: typeof SessionsRouteWithChildren
   SettingsRoute: typeof SettingsRoute
@@ -221,6 +243,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SessionsIndexRouteImport
       parentRoute: typeof SessionsRoute
     }
+    '/cards/': {
+      id: '/cards/'
+      path: '/'
+      fullPath: '/cards/'
+      preLoaderRoute: typeof CardsIndexRouteImport
+      parentRoute: typeof CardsRoute
+    }
     '/sessions/$sessionId': {
       id: '/sessions/$sessionId'
       path: '/$sessionId'
@@ -228,8 +257,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SessionsSessionIdRouteImport
       parentRoute: typeof SessionsRoute
     }
+    '/cards/rarities': {
+      id: '/cards/rarities'
+      path: '/rarities'
+      fullPath: '/cards/rarities'
+      preLoaderRoute: typeof CardsRaritiesRouteImport
+      parentRoute: typeof CardsRoute
+    }
   }
 }
+
+interface CardsRouteChildren {
+  CardsRaritiesRoute: typeof CardsRaritiesRoute
+  CardsIndexRoute: typeof CardsIndexRoute
+}
+
+const CardsRouteChildren: CardsRouteChildren = {
+  CardsRaritiesRoute: CardsRaritiesRoute,
+  CardsIndexRoute: CardsIndexRoute,
+}
+
+const CardsRouteWithChildren = CardsRoute._addFileChildren(CardsRouteChildren)
 
 interface SessionsRouteChildren {
   SessionsSessionIdRoute: typeof SessionsSessionIdRoute
@@ -248,7 +296,7 @@ const SessionsRouteWithChildren = SessionsRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
-  CardsRoute: CardsRoute,
+  CardsRoute: CardsRouteWithChildren,
   ChangelogRoute: ChangelogRoute,
   SessionsRoute: SessionsRouteWithChildren,
   SettingsRoute: SettingsRoute,

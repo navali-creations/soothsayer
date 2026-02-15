@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { DivinationCardsRow } from "~/main/modules/database";
+import type { KnownRarity, Rarity } from "~/types/data-stores";
 
 import { DivinationCardsMapper } from "../DivinationCards.mapper";
 
@@ -8,7 +9,8 @@ import { DivinationCardsMapper } from "../DivinationCards.mapper";
  * Row type with optional rarity (mirrors the joined type used in the mapper)
  */
 interface DivinationCardWithRarityRow extends DivinationCardsRow {
-  rarity?: number;
+  rarity?: Rarity;
+  filter_rarity?: KnownRarity | null;
 }
 
 /**
@@ -91,12 +93,33 @@ describe("DivinationCards.mapper", () => {
   // ─── Rarity Handling ─────────────────────────────────────────────────
 
   describe("rarity", () => {
-    it("should default rarity to 4 (common) when not provided", () => {
+    it("should default rarity to 0 (Unknown) when not provided", () => {
       const row = createDivinationCardRow();
       // rarity is undefined by default from factory
       const dto = DivinationCardsMapper.toDTO(row);
 
-      expect(dto.rarity).toBe(4);
+      expect(dto.rarity).toBe(0);
+    });
+
+    it("should default filterRarity to null when not provided", () => {
+      const row = createDivinationCardRow();
+      const dto = DivinationCardsMapper.toDTO(row);
+
+      expect(dto.filterRarity).toBeNull();
+    });
+
+    it("should use provided filter_rarity when present", () => {
+      const row = createDivinationCardRow({ filter_rarity: 2 });
+      const dto = DivinationCardsMapper.toDTO(row);
+
+      expect(dto.filterRarity).toBe(2);
+    });
+
+    it("should map filter_rarity null to filterRarity null", () => {
+      const row = createDivinationCardRow({ filter_rarity: null });
+      const dto = DivinationCardsMapper.toDTO(row);
+
+      expect(dto.filterRarity).toBeNull();
     });
 
     it("should use provided rarity when present", () => {
@@ -134,11 +157,18 @@ describe("DivinationCards.mapper", () => {
       expect(dto.rarity).toBe(4);
     });
 
-    it("should default rarity to 4 when rarity is explicitly undefined", () => {
+    it("should map rarity 0 (unknown)", () => {
+      const row = createDivinationCardRow({ rarity: 0 });
+      const dto = DivinationCardsMapper.toDTO(row);
+
+      expect(dto.rarity).toBe(0);
+    });
+
+    it("should default rarity to 0 when rarity is explicitly undefined", () => {
       const row = createDivinationCardRow({ rarity: undefined });
       const dto = DivinationCardsMapper.toDTO(row);
 
-      expect(dto.rarity).toBe(4);
+      expect(dto.rarity).toBe(0);
     });
   });
 
@@ -240,6 +270,7 @@ describe("DivinationCards.mapper", () => {
         "artSrc",
         "flavourHtml",
         "rarity",
+        "filterRarity",
         "game",
         "createdAt",
         "updatedAt",
@@ -274,6 +305,7 @@ describe("DivinationCards.mapper", () => {
         artSrc: "https://example.com/rain-of-chaos.png",
         flavourHtml: "Chaos reigns",
         rarity: 4,
+        filterRarity: null,
         game: "poe1",
         createdAt: "2025-03-01T12:00:00Z",
         updatedAt: "2025-03-10T15:30:00Z",

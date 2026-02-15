@@ -67,7 +67,7 @@ SELECT has_column('public', 'card_prices', 'card_name', 'card_prices should have
 SELECT has_column('public', 'card_prices', 'price_source', 'card_prices should have price_source column');
 SELECT has_column('public', 'card_prices', 'chaos_value', 'card_prices should have chaos_value column');
 SELECT has_column('public', 'card_prices', 'divine_value', 'card_prices should have divine_value column');
-SELECT has_column('public', 'card_prices', 'stack_size', 'card_prices should have stack_size column');
+SELECT has_column('public', 'card_prices', 'confidence', 'card_prices should have confidence column');
 
 SELECT col_is_pk('public', 'card_prices', 'id', 'card_prices.id should be primary key');
 SELECT col_not_null('public', 'card_prices', 'snapshot_id', 'card_prices.snapshot_id should be NOT NULL');

@@ -85,6 +85,8 @@ export const createSettingsSlice: StateCreator<
     audioRarity1Path: null,
     audioRarity2Path: null,
     audioRarity3Path: null,
+    raritySource: "poe.ninja",
+    selectedFilterId: null,
 
     // Additional state
     isLoading: false,
@@ -130,6 +132,8 @@ export const createSettingsSlice: StateCreator<
             settings.audioRarity1Path = data.audioRarity1Path;
             settings.audioRarity2Path = data.audioRarity2Path;
             settings.audioRarity3Path = data.audioRarity3Path;
+            settings.raritySource = data.raritySource;
+            settings.selectedFilterId = data.selectedFilterId;
             settings.isLoading = false;
           },
           false,
@@ -265,6 +269,8 @@ export const createSettingsSlice: StateCreator<
           settings.audioRarity1Path = newSettings.audioRarity1Path;
           settings.audioRarity2Path = newSettings.audioRarity2Path;
           settings.audioRarity3Path = newSettings.audioRarity3Path;
+          settings.raritySource = newSettings.raritySource;
+          settings.selectedFilterId = newSettings.selectedFilterId;
         },
         false,
         "settingsSlice/setSettings",

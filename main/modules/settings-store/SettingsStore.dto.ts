@@ -24,6 +24,8 @@ export interface UserSettingsDTO {
   audioRarity1Path: string | null;
   audioRarity2Path: string | null;
   audioRarity3Path: string | null;
+  raritySource: "poe.ninja" | "filter" | "prohibited-library";
+  selectedFilterId: string | null;
 }
 
 /**

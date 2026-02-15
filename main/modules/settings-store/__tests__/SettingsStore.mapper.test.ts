@@ -42,6 +42,8 @@ function createSettingsRow(
     audio_rarity1_path: null,
     audio_rarity2_path: null,
     audio_rarity3_path: null,
+    rarity_source: "poe.ninja",
+    selected_filter_id: null,
     created_at: "2025-01-01T00:00:00Z",
     updated_at: "2025-01-01T00:00:00Z",
     ...overrides,
@@ -254,6 +256,8 @@ describe("SettingsStore.mapper", () => {
         audioRarity1Path: "C:\\sounds\\rarity1.mp3",
         audioRarity2Path: "C:\\sounds\\rarity2.mp3",
         audioRarity3Path: null,
+        raritySource: "poe.ninja",
+        selectedFilterId: null,
       });
     });
   });

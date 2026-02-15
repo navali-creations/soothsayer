@@ -1,11 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // ─── Mock Electron before any imports that use it ────────────────────────────
-// ─── Mock @sentry/electron (loaded transitively via barrel → SentryService) ─
-vi.mock("@sentry/electron", () => ({
-  init: vi.fn(),
-}));
-
 vi.mock("electron", () => ({
   ipcMain: {
     handle: vi.fn(),

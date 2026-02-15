@@ -8,6 +8,7 @@ import {
   AudioSettingsCard,
   DangerZoneCard,
   FilePathSettingCard,
+  FilterSettingsCard,
   SettingsCategoryCard,
 } from "./Settings.components";
 import {
@@ -63,6 +64,9 @@ const SettingsPage = () => {
           </Grid.Col>
           <Grid.Col>
             <SettingsCategoryCard category={categories.appBehavior} />
+          </Grid.Col>
+          <Grid.Col>
+            <FilterSettingsCard />
           </Grid.Col>
           <Grid.Col>
             <AudioSettingsCard />

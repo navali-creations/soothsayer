@@ -210,14 +210,12 @@ describe("SnapshotService", () => {
             priceSource: "exchange",
             chaosValue: 800,
             divineValue: 4.0,
-            stackSize: 8,
           },
           {
             cardName: "The Doctor",
             priceSource: "stash",
             chaosValue: 780,
             divineValue: 3.9,
-            stackSize: 8,
           },
           {
             cardName: "Rain of Chaos",
@@ -239,12 +237,12 @@ describe("SnapshotService", () => {
       expect(result!.exchange.cardPrices["The Doctor"]).toEqual({
         chaosValue: 800,
         divineValue: 4.0,
-        stackSize: 8,
+        confidence: 1,
       });
       expect(result!.exchange.cardPrices["Rain of Chaos"]).toEqual({
         chaosValue: 1,
         divineValue: 0.005,
-        stackSize: undefined,
+        confidence: 1,
       });
 
       // Stash prices
@@ -252,7 +250,7 @@ describe("SnapshotService", () => {
       expect(result!.stash.cardPrices["The Doctor"]).toEqual({
         chaosValue: 780,
         divineValue: 3.9,
-        stackSize: 8,
+        confidence: 1,
       });
     });
 
@@ -323,29 +321,6 @@ describe("SnapshotService", () => {
       expect(result!.stackedDeckChaosCost).toBe(5);
       expect(Object.keys(result!.exchange.cardPrices)).toHaveLength(0);
       expect(Object.keys(result!.stash.cardPrices)).toHaveLength(0);
-    });
-
-    it("should handle stackSize being null (returns undefined in DTO)", async () => {
-      const leagueId = await seedLeague(testDb.kysely);
-
-      const snapshotId = await seedSnapshot(testDb.kysely, {
-        leagueId,
-        cardPrices: [
-          {
-            cardName: "The Gambler",
-            priceSource: "exchange",
-            chaosValue: 2,
-            divineValue: 0.01,
-            // stackSize not provided → null in DB
-          },
-        ],
-      });
-
-      const result = await service.loadSnapshot(snapshotId);
-
-      expect(
-        result!.exchange.cardPrices["The Gambler"].stackSize,
-      ).toBeUndefined();
     });
 
     it("should return stackedDeckChaosCost as 0 when null in DB", async () => {
@@ -515,7 +490,56 @@ describe("SnapshotService", () => {
         "poe1",
         "Settlers",
         200,
-        { "The Doctor": { chaosValue: 800, divineValue: 4.0 } },
+        { "The Doctor": { chaosValue: 800, confidence: 1 } },
+      );
+    });
+
+    it("should merge exchange and stash prices for rarity calculation, preferring exchange", async () => {
+      const mockSnapshotData = {
+        timestamp: new Date().toISOString(),
+        stackedDeckChaosCost: 3,
+        exchange: {
+          chaosToDivineRatio: 200,
+          cardPrices: {
+            // "The Doctor" exists in both exchange and stash — exchange should win
+            "The Doctor": { chaosValue: 800, divineValue: 4.0 },
+          },
+        },
+        stash: {
+          chaosToDivineRatio: 195,
+          cardPrices: {
+            // "The Doctor" also in stash with different price — should be overridden by exchange
+            "The Doctor": { chaosValue: 750, divineValue: 3.8 },
+            // "Fire Of Unknown Origin" only in stash — was previously ignored entirely,
+            // causing it to default to rarity 4 (common) regardless of its actual value
+            "Fire Of Unknown Origin": {
+              chaosValue: 50,
+              divineValue: 0.25,
+            },
+            // Another stash-only card
+            "Brother's Gift": {
+              chaosValue: 30,
+              divineValue: 0.15,
+            },
+          },
+        },
+      };
+
+      mockGetLatestSnapshot.mockResolvedValue(mockSnapshotData);
+
+      await service.getSnapshotForSession("poe1", "Settlers");
+
+      expect(mockUpdateRaritiesFromPrices).toHaveBeenCalledWith(
+        "poe1",
+        "Settlers",
+        200,
+        {
+          // Exchange price wins for The Doctor (800, not 750)
+          "The Doctor": { chaosValue: 800, confidence: 1 },
+          // Stash-only cards are now included in rarity calculation
+          "Fire Of Unknown Origin": { chaosValue: 50, confidence: 1 },
+          "Brother's Gift": { chaosValue: 30, confidence: 1 },
+        },
       );
     });
 
@@ -970,7 +994,7 @@ describe("SnapshotService", () => {
           "poe1",
           "Settlers",
           210,
-          { "The Doctor": { chaosValue: 5000, divineValue: 23.8 } },
+          { "The Doctor": { chaosValue: 5000, confidence: 1 } },
         );
 
         // A new snapshot should have been stored in the database

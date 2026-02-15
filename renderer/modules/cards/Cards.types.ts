@@ -1,3 +1,5 @@
+import type { Rarity } from "~/types/data-stores";
+
 export interface DivinationCardRow {
   id: string;
   name: string;
@@ -6,5 +8,5 @@ export interface DivinationCardRow {
   rewardHtml: string;
   artSrc: string;
   flavourHtml: string;
-  rarity: number;
+  rarity: Rarity;
 }

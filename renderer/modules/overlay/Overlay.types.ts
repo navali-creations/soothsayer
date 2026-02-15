@@ -1,3 +1,5 @@
+import type { Rarity } from "~/types/data-stores";
+
 export interface CardEntry {
   cardName: string;
   count: number;
@@ -5,7 +7,7 @@ export interface CardEntry {
 
 export interface RecentDrop {
   cardName: string;
-  rarity: number; // 1=extremely rare, 2=rare, 3=less common, 4=common
+  rarity: Rarity;
   exchangePrice: {
     chaosValue: number;
     divineValue: number;

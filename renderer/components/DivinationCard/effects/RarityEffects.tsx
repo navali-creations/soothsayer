@@ -1,10 +1,12 @@
+import type { Rarity } from "~/types/data-stores";
+
 import type { CardEffectProps } from "../types";
 import { CommonEffect } from "./CommonEffect";
 import { ExtremelyRareEffect } from "./ExtremelyRareEffect";
 import { RareEffect } from "./RareEffect";
 
 interface RarityEffectsProps extends CardEffectProps {
-  rarity: number;
+  rarity: Rarity;
 }
 
 /**

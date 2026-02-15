@@ -2,7 +2,7 @@ import { type Kysely, sql } from "kysely";
 
 import type { Database } from "~/main/modules/database";
 
-import type { GameType } from "../../../types/data-stores";
+import type { GameType, KnownRarity, Rarity } from "../../../types/data-stores";
 import type {
   CreateSessionDTO,
   ProcessedIdDTO,
@@ -173,8 +173,11 @@ export class CurrentSessionRepository {
         .execute();
     });
   }
-  async getSessionCards(sessionId: string): Promise<SessionCardDTO[]> {
-    const rows = await this.kysely
+  async getSessionCards(
+    sessionId: string,
+    filterId?: string | null,
+  ): Promise<SessionCardDTO[]> {
+    let query = this.kysely
       .selectFrom("session_cards as sc")
       .leftJoin("sessions as s", "sc.session_id", "s.id")
       .leftJoin("leagues as l", "s.league_id", "l.id")
@@ -203,10 +206,24 @@ export class CurrentSessionRepository {
         "dc.reward_html as rewardHtml",
         "dc.art_src as artSrc",
         "dc.flavour_html as flavourHtml",
-        sql<number>`COALESCE(dcr.rarity, 4)`.as("rarity"), // Default to 4 (common) if no rarity data
+        sql<Rarity>`COALESCE(dcr.override_rarity, dcr.rarity, 0)`.as("rarity"), // Default to 0 (Unknown) if no rarity data
       ])
-      .where("sc.session_id", "=", sessionId)
-      .execute();
+      .where("sc.session_id", "=", sessionId);
+
+    // Join with filter-based rarities if a filter ID is provided
+    if (filterId) {
+      query = query
+        .leftJoin("filter_card_rarities as fcr", (join) =>
+          join
+            .onRef("fcr.card_name", "=", "sc.card_name")
+            .on("fcr.filter_id", "=", filterId),
+        )
+        .select(sql<KnownRarity | null>`fcr.rarity`.as("filterRarity"));
+    } else {
+      query = query.select(sql<null>`NULL`.as("filterRarity"));
+    }
+
+    const rows = await query.execute();
 
     return rows.map(CurrentSessionMapper.toSessionCardDTO);
   }

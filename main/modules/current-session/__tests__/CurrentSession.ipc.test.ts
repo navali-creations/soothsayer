@@ -192,6 +192,34 @@ vi.mock("../CurrentSession.repository", () => ({
   },
 }));
 
+// ─── Mock FilterService ─────────────────────────────────────────────────────
+vi.mock("~/main/modules/filters/Filter.service", () => ({
+  FilterService: {
+    getInstance: vi.fn(() => ({
+      applyFilterRarities: vi.fn().mockResolvedValue(undefined),
+      ensureFilterParsed: vi.fn().mockResolvedValue(null),
+    })),
+  },
+}));
+
+// ─── Mock SettingsStoreService ───────────────────────────────────────────────
+vi.mock("~/main/modules/settings-store", () => ({
+  SettingsStoreService: {
+    getInstance: vi.fn(() => ({
+      get: vi.fn().mockResolvedValue(null),
+      set: vi.fn().mockResolvedValue(undefined),
+      getAllSettings: vi.fn().mockResolvedValue({}),
+    })),
+  },
+  SettingsKey: {
+    RaritySource: "raritySource",
+    SelectedFilterId: "selectedFilterId",
+    ActiveGame: "selectedGame",
+    Poe1SelectedLeague: "poe1SelectedLeague",
+    Poe2SelectedLeague: "poe2SelectedLeague",
+  },
+}));
+
 // ─── Mock IPC validation utils ───────────────────────────────────────────────
 vi.mock("~/main/utils/ipc-validation", () => ({
   assertGameType: mockAssertGameType,
@@ -233,13 +261,13 @@ const MOCK_SNAPSHOT = {
     exchange: {
       chaosToDivineRatio: 200,
       cardPrices: {
-        "The Doctor": { chaosValue: 1200, divineValue: 6.0, stackSize: 8 },
+        "The Doctor": { chaosValue: 1200, divineValue: 6.0 },
       },
     },
     stash: {
       chaosToDivineRatio: 195,
       cardPrices: {
-        "The Doctor": { chaosValue: 1100, divineValue: 5.64, stackSize: 8 },
+        "The Doctor": { chaosValue: 1100, divineValue: 5.64 },
       },
     },
   },

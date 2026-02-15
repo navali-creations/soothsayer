@@ -1,5 +1,7 @@
 import { create } from "zustand";
 
+import type { Rarity } from "~/types/data-stores";
+
 interface CardEntry {
   cardName: string;
   count: number;
@@ -7,7 +9,7 @@ interface CardEntry {
 
 interface RecentDrop {
   cardName: string;
-  rarity: number; // 1=extremely rare, 2=rare, 3=less common, 4=common
+  rarity: Rarity;
   exchangePrice: {
     chaosValue: number;
     divineValue: number;

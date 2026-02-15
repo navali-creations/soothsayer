@@ -765,7 +765,7 @@ describe("CurrentSessionRepository", () => {
       const cards = await repository.getSessionCards("session-default-rarity");
       expect(cards).toHaveLength(1);
       expect(cards[0].divinationCard).toBeDefined();
-      expect(cards[0].divinationCard!.rarity).toBe(4);
+      expect(cards[0].divinationCard!.rarity).toBe(0);
     });
 
     it("should handle cards without matching divination card data", async () => {

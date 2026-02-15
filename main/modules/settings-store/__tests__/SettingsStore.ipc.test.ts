@@ -121,11 +121,6 @@ vi.mock("electron", () => ({
   },
 }));
 
-// ─── Mock @sentry/electron (loaded transitively via barrel → SentryService) ─
-vi.mock("@sentry/electron", () => ({
-  init: vi.fn(),
-}));
-
 // ─── Mock ClientLogReaderService ─────────────────────────────────────────────
 vi.mock("~/main/modules/client-log-reader", () => ({
   ClientLogReaderService: {

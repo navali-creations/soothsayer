@@ -1,5 +1,7 @@
 import type { ColumnType, Selectable } from "kysely";
 
+import type { Confidence, KnownRarity, Rarity } from "~/types/data-stores";
+
 /**
  * Database schema types for Kysely
  * These types represent the actual database structure
@@ -40,8 +42,7 @@ export interface SnapshotCardPricesTable {
   price_source: "exchange" | "stash";
   chaos_value: number;
   divine_value: number;
-  stack_size: number | null;
-  created_at: ColumnType<string, string | undefined, never>;
+  confidence: ColumnType<Confidence, Confidence | undefined, Confidence>;
 }
 
 export interface SessionsTable {
@@ -120,7 +121,8 @@ export interface DivinationCardRaritiesTable {
   game: "poe1" | "poe2";
   league: string;
   card_name: string;
-  rarity: number; // 1=extremely rare, 2=rare, 3=less common, 4=common
+  rarity: Rarity; // 0=unknown, 1=extremely rare, 2=rare, 3=less common, 4=common
+  override_rarity: Rarity | null; // User-set rarity override for low-confidence/unknown cards; NULL = use system rarity
   last_updated: ColumnType<string, string | undefined, string | undefined>;
 }
 
@@ -189,9 +191,32 @@ export interface UserSettingsTable {
   audio_rarity2_path: string | null; // Custom sound file path for rarity 2
   audio_rarity3_path: string | null; // Custom sound file path for rarity 3
 
+  // Filter / rarity source settings
+  rarity_source: string; // "poe.ninja" | "filter" | "prohibited-library"
+  selected_filter_id: string | null;
+
   // Metadata
   created_at: ColumnType<string, string | undefined, never>;
   updated_at: ColumnType<string, string | undefined, string | undefined>;
+}
+
+export interface FilterMetadataTable {
+  id: string;
+  filter_type: "local" | "online";
+  file_path: string;
+  filter_name: string;
+  last_update: string | null;
+  is_fully_parsed: number; // SQLite boolean (0 or 1)
+  parsed_at: string | null;
+  created_at: ColumnType<string, string | undefined, never>;
+  updated_at: ColumnType<string, string | undefined, string | undefined>;
+}
+
+export interface FilterCardRaritiesTable {
+  filter_id: string;
+  card_name: string;
+  rarity: KnownRarity; // 1=extremely rare, 2=rare, 3=less common, 4=common (no unknown — filters always assign a tier)
+  created_at: ColumnType<string, string | undefined, never>;
 }
 
 export interface UserPreferencesTable {
@@ -220,6 +245,8 @@ export interface Database {
   poe_leagues_cache_metadata: PoeLeaguesCacheMetadataTable;
   migrations: MigrationsTable;
   user_settings: UserSettingsTable;
+  filter_metadata: FilterMetadataTable;
+  filter_card_rarities: FilterCardRaritiesTable;
 }
 
 /**
@@ -236,3 +263,5 @@ export type UserSettingsRow = Selectable<UserSettingsTable>;
 export type PoeLeaguesCacheRow = Selectable<PoeLeaguesCacheTable>;
 export type PoeLeaguesCacheMetadataRow =
   Selectable<PoeLeaguesCacheMetadataTable>;
+export type FilterMetadataRow = Selectable<FilterMetadataTable>;
+export type FilterCardRaritiesRow = Selectable<FilterCardRaritiesTable>;

@@ -123,7 +123,7 @@ export const createSetupSlice: StateCreator<
       newGames.sort();
 
       await settings.updateSetting("installedGames", newGames);
-      // Update legacy selectedGame to first selected game
+      // Keep active game in sync (set to first selected game)
       await settings.updateSetting("selectedGame", newGames[0]);
 
       // Track game selection change

@@ -1,5 +1,7 @@
 import { ipcRenderer } from "electron";
 
+import type { Rarity } from "~/types/data-stores";
+
 import { DivinationCardsChannel } from "./DivinationCards.channels";
 import type {
   DivinationCardDTO,
@@ -61,5 +63,24 @@ export const DivinationCardsApi = {
    */
   forceSync: (game: "poe1" | "poe2"): Promise<{ success: boolean }> => {
     return ipcRenderer.invoke(DivinationCardsChannel.ForceSync, game);
+  },
+
+  /**
+   * Update the rarity of a single card (manual override)
+   * @param game - The game type ("poe1" or "poe2")
+   * @param cardName - The name of the card to update
+   * @param rarity - The new rarity value (1-4)
+   */
+  updateRarity: (
+    game: "poe1" | "poe2",
+    cardName: string,
+    rarity: Rarity,
+  ): Promise<{ success: boolean }> => {
+    return ipcRenderer.invoke(
+      DivinationCardsChannel.UpdateRarity,
+      game,
+      cardName,
+      rarity,
+    );
   },
 };

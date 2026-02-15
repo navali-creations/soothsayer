@@ -45,6 +45,11 @@ export function toUserSettingsDTO(row: UserSettingsRow): UserSettingsDTO {
     audioRarity1Path: row.audio_rarity1_path,
     audioRarity2Path: row.audio_rarity2_path,
     audioRarity3Path: row.audio_rarity3_path,
+    raritySource: row.rarity_source as
+      | "poe.ninja"
+      | "filter"
+      | "prohibited-library",
+    selectedFilterId: row.selected_filter_id,
   };
 }
 
@@ -118,6 +123,8 @@ export function toDBKey(key: keyof UserSettingsDTO): keyof UserSettingsTable {
     audioRarity1Path: "audio_rarity1_path",
     audioRarity2Path: "audio_rarity2_path",
     audioRarity3Path: "audio_rarity3_path",
+    raritySource: "rarity_source",
+    selectedFilterId: "selected_filter_id",
   };
   return mapping[key];
 }

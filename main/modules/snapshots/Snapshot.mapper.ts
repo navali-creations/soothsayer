@@ -3,6 +3,7 @@ import type {
   SnapshotCardPricesRow,
   SnapshotsRow,
 } from "~/main/modules/database";
+import type { Confidence } from "~/types/data-stores";
 
 import type {
   LeagueDTO,
@@ -33,7 +34,7 @@ export class SnapshotMapper {
       priceSource: row.price_source as "exchange" | "stash",
       chaosValue: row.chaos_value,
       divineValue: row.divine_value,
-      stackSize: row.stack_size,
+      confidence: (row.confidence as Confidence) ?? 1,
     };
   }
 

@@ -35,8 +35,6 @@ export function getGameSelectionType(
 export type SetupState = {
   currentStep: SetupStep;
   isComplete: boolean;
-  /** @deprecated Use selectedGames instead. Kept for backwards compatibility. */
-  selectedGame: "poe1" | "poe2";
   /** Array of games the user has selected to play */
   selectedGames: ("poe1" | "poe2")[];
   poe1League: string;
