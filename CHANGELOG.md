@@ -4,13 +4,13 @@
 
 ### Minor Changes
 
-- [`f3c33ee`](https://github.com/navali-creations/soothsayer/commit/f3c33ee25ab2789bca502a91847acf27de51350f) Thanks [@sbsrnt](https://github.com/sbsrnt)! - - **Loot filter support:** Soothsayer can now read your Path of Exile loot filters and use their tier assignments to set card rarities. Both local filters (from your PoE folder) and online filters (e.g. NeverSink) are automatically detected and available to select.
+- [`f3c33ee`](https://github.com/navali-creations/soothsayer/commit/f3c33ee25ab2789bca502a91847acf27de51350f) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+ 
+  - **Loot filter support:** Soothsayer can now read your Path of Exile loot filters and use their tier assignments to set card rarities. Both local filters (from your PoE folder) and online filters (e.g. NeverSink) are automatically detected and available to select.
 
-  - **Rarity source picker:** A new dropdown on the Cards page, Current Session, and Settings lets you choose how card rarities are determined — either price-based via poe.ninja (the default) or driven by one of your installed loot filters.
+  - **Rarity source picker:** A new dropdown on the Cards page and Current Session lets you choose how card rarities are determined — either price-based via poe.ninja (the default) or driven by one of your installed loot filters.
 
-  - **Filter rarity comparison:** A new "Rarities" tab under Cards lets you compare how different filters classify each divination card side-by-side. You can select multiple filters, search by card name, and even override individual card rarities.
-
-  - **Filter settings:** A dedicated settings card lets you manage your rarity source and selected filter without leaving the Settings page. Filters can be rescanned at any time to pick up new or updated files.
+  - **Rarity Model:** A new "Rarity Model" page lets you compare how different filters classify each divination card side-by-side. You can select multiple filters, search by card name, and even override individual card rarities.
 
   - **Price confidence indicators:** Card prices from poe.ninja now include a confidence level (high, medium, or low) so you can tell at a glance how reliable a price estimate is. This information flows through from the backend all the way to the UI.
 
@@ -22,7 +22,9 @@
 
 ### Patch Changes
 
-- [`3d13ace`](https://github.com/navali-creations/soothsayer/commit/3d13ace60f953bd0fd2b0d160a9fd428e3fd138b) Thanks [@sbsrnt](https://github.com/sbsrnt)! - Add debug logger for better development experience
+- [`3d13ace`](https://github.com/navali-creations/soothsayer/commit/3d13ace60f953bd0fd2b0d160a9fd428e3fd138b) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  - Add debug logger for better development experience
 
 ## 0.2.1
 
