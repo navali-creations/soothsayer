@@ -1,5 +1,11 @@
 # soothsayer
 
+## 0.3.5
+
+### Patch Changes
+
+- [`055d2b0`](https://github.com/navali-creations/soothsayer/commit/055d2b08f6106bd2202470bbdd542fb70b9010ee) Thanks [@sbsrnt](https://github.com/sbsrnt)! - 5 times the charm as they say.
+
 ## 0.3.4
 
 ### Patch Changes
