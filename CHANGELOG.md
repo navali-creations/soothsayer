@@ -1,5 +1,11 @@
 # soothsayer
 
+## 0.3.2
+
+### Patch Changes
+
+- [`e67a0a2`](https://github.com/navali-creations/soothsayer/commit/e67a0a250b78261cc371e3fdff80cb82c519459d) Thanks [@sbsrnt](https://github.com/sbsrnt)! - Next signing attempt.
+
 ## 0.3.1
 
 ### Patch Changes
