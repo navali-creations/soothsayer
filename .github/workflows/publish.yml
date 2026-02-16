@@ -74,7 +74,7 @@ jobs:
       - name: Checkout code repository
         uses: actions/checkout@v6
 
-      - name: Prepare toolcache directory (Windows)
+      - name: Prepare writable directories (Windows)
         if: startsWith(matrix.name, 'windows')
         shell: powershell
         run: |

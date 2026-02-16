@@ -1,3 +1,5 @@
+import path from "node:path";
+
 import { FuseV1Options, FuseVersion } from "@electron/fuses";
 import { MakerDeb } from "@electron-forge/maker-deb";
 import { MakerRpm } from "@electron-forge/maker-rpm";
@@ -13,7 +15,7 @@ const config: ForgeConfig = {
     asar: true,
     prune: true,
     executableName: "soothsayer",
-    icon: "./renderer/assets/logo/windows/icon",
+    icon: path.resolve(__dirname, "renderer/assets/logo/windows/icon"),
     extraResource: [
       "./renderer/assets/logo",
       "./renderer/assets/poe1",
@@ -32,7 +34,10 @@ const config: ForgeConfig = {
   makers: [
     new MakerSquirrel({
       name: "soothsayer",
-      setupIcon: "./renderer/assets/logo/windows/icon.ico",
+      setupIcon: path.resolve(
+        __dirname,
+        "renderer/assets/logo/windows/icon.ico",
+      ),
       iconUrl:
         "https://raw.githubusercontent.com/navali-creations/soothsayer/master/renderer/assets/logo/windows/icon.ico",
     }),
