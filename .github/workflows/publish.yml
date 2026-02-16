@@ -72,7 +72,7 @@ jobs:
 
       - name: Prepare toolcache directory (Windows)
         if: startsWith(matrix.name, 'windows')
-        shell: pwsh
+        shell: powershell
         run: |
           New-Item -ItemType Directory -Force -Path "C:\toolcache" | Out-Null
 
