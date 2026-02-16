@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { app, ipcMain } from "electron";
 
 import { DatabaseService } from "~/main/modules/database";
+import { LoggerService } from "~/main/modules/logger";
 import { RarityModelRepository } from "~/main/modules/rarity-model/RarityModel.repository";
 import {
   SettingsKey,
@@ -42,6 +43,7 @@ interface DivinationCardJson {
  */
 class DivinationCardsService {
   private static _instance: DivinationCardsService;
+  private readonly logger = LoggerService.createLogger("DivinationCards");
   private repository: DivinationCardsRepository;
   private rarityModelRepository: RarityModelRepository;
   private settingsStore: SettingsStoreService;
@@ -97,11 +99,9 @@ class DivinationCardsService {
 
     this.setupIpcHandlers();
 
-    console.log(
-      `[DivinationCards] Service initialized (packaged: ${app.isPackaged})`,
-    );
-    console.log(`[DivinationCards] PoE1 cards path: ${this.poe1CardsJsonPath}`);
-    console.log(`[DivinationCards] PoE2 cards path: ${this.poe2CardsJsonPath}`);
+    this.logger.log(`Service initialized (packaged: ${app.isPackaged})`);
+    this.logger.log(`PoE1 cards path: ${this.poe1CardsJsonPath}`);
+    this.logger.log(`PoE2 cards path: ${this.poe2CardsJsonPath}`);
   }
 
   /**
@@ -116,12 +116,12 @@ class DivinationCardsService {
       // Initialize PoE2 cards (when available)
       // await this.initializeGameCards("poe2", this.poe2CardsJsonPath);
 
-      console.log("[DivinationCards] Successfully initialized all cards");
+      this.logger.log("Successfully initialized all cards");
 
       // Note: Rarities are now updated by Snapshot.service.ts when it fetches price data
       // This avoids duplicate API calls and ensures consistency with snapshot data
     } catch (error) {
-      console.error("[DivinationCards] Failed to initialize:", error);
+      this.logger.error("Failed to initialize:", error);
       throw error;
     }
   }
@@ -136,17 +136,13 @@ class DivinationCardsService {
     try {
       const cards = this.loadCardsFromJson(jsonPath);
       await this.syncCards(game, cards);
-      console.log(
-        `[DivinationCards] Initialized ${game.toUpperCase()} with ${
-          cards.length
-        } cards`,
+      this.logger.log(
+        `Initialized ${game.toUpperCase()} with ${cards.length} cards`,
       );
     } catch (error) {
       // If file doesn't exist (like poe2 cards), just log and continue
       if ((error as any)?.code === "ENOENT") {
-        console.log(
-          `[DivinationCards] ${game.toUpperCase()} cards file not found, skipping`,
-        );
+        this.logger.log(`${game.toUpperCase()} cards file not found, skipping`);
       } else {
         throw error;
       }
@@ -225,8 +221,8 @@ class DivinationCardsService {
       }
     }
 
-    console.log(
-      `[DivinationCards] ${game.toUpperCase()} sync: ${inserted} inserted, ${updated} updated, ${unchanged} unchanged`,
+    this.logger.log(
+      `${game.toUpperCase()} sync: ${inserted} inserted, ${updated} updated, ${unchanged} unchanged`,
     );
   }
 
@@ -447,8 +443,8 @@ class DivinationCardsService {
           }
 
           await this.repository.updateRarity(game, league, cardName, rarity);
-          console.log(
-            `[DivinationCards] Updated rarity for "${cardName}" to ${rarity} (${game}/${league})`,
+          this.logger.log(
+            `Updated rarity for "${cardName}" to ${rarity} (${game}/${league})`,
           );
           return { success: true };
         } catch (error) {
@@ -504,8 +500,8 @@ class DivinationCardsService {
 
     if (updates.length > 0) {
       await this.repository.updateRarities(game, league, updates);
-      console.log(
-        `[DivinationCards] Updated rarities from filter for ${
+      this.logger.log(
+        `Updated rarities from filter for ${
           updates.length
         } ${game.toUpperCase()}/${league} cards (${
           filterRarityMap.size
@@ -541,8 +537,8 @@ class DivinationCardsService {
     // NUMERIC columns as strings to preserve precision.
     const exchangeRate = Number(exchangeChaosToDivine);
 
-    console.log(
-      `[DivinationCards] updateRaritiesFromPrices called: game=${game}, league="${league}", ` +
+    this.logger.log(
+      `updateRaritiesFromPrices called: game=${game}, league="${league}", ` +
         `exchangeChaosToDivine=${exchangeChaosToDivine} (type=${typeof exchangeChaosToDivine}), ` +
         `coerced exchangeRate=${exchangeRate}, pricedCards=${
           Object.keys(cardPrices).length
@@ -550,14 +546,14 @@ class DivinationCardsService {
     );
 
     if (!league) {
-      console.warn(
-        "[DivinationCards] updateRaritiesFromPrices called with empty league — rarities will not be queryable",
+      this.logger.warn(
+        "updateRaritiesFromPrices called with empty league — rarities will not be queryable",
       );
     }
 
     if (!Number.isFinite(exchangeRate) || exchangeRate <= 0) {
-      console.error(
-        `[DivinationCards] Invalid exchangeChaosToDivine: ${exchangeChaosToDivine} — skipping rarity update`,
+      this.logger.error(
+        `Invalid exchangeChaosToDivine: ${exchangeChaosToDivine} — skipping rarity update`,
       );
       return;
     }
@@ -578,8 +574,8 @@ class DivinationCardsService {
 
       // Low confidence (3) → rarity 0 (Unknown), keep any existing user override
       if (confidence === 3) {
-        console.log(
-          `[DivinationCards]   "${cardName}" confidence=3 (low) → rarity 0 (Unknown)`,
+        this.logger.debug(
+          `  "${cardName}" confidence=3 (low) → rarity 0 (Unknown)`,
         );
         updates.push({ name: cardName, rarity: 0, clearOverride: false });
         continue;
@@ -607,8 +603,8 @@ class DivinationCardsService {
         rarity = 4;
       }
 
-      console.log(
-        `[DivinationCards]   "${cardName}" chaos=${chaosValue} (raw type=${typeof priceData.chaosValue}) ` +
+      this.logger.debug(
+        `  "${cardName}" chaos=${chaosValue} (raw type=${typeof priceData.chaosValue}) ` +
           `divine=${divineValue.toFixed(4)} pct=${percentOfDivine.toFixed(
             1,
           )}% confidence=${confidence} → rarity ${rarity}`,
@@ -634,8 +630,8 @@ class DivinationCardsService {
 
     if (updates.length > 0) {
       await this.repository.updateRarities(game, league, updates);
-      console.log(
-        `[DivinationCards] Updated rarities for ${
+      this.logger.log(
+        `Updated rarities for ${
           updates.length
         } ${game.toUpperCase()}/${league} cards ` +
           `(${pricedCardNames.size} priced, ${

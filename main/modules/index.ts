@@ -7,6 +7,7 @@ export * from "./current-session";
 export * from "./data-store";
 export * from "./database";
 export * from "./divination-cards";
+export * from "./logger";
 export * from "./main-window";
 export * from "./overlay";
 export * from "./performance-logger";
