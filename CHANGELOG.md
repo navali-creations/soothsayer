@@ -1,5 +1,11 @@
 # soothsayer
 
+## 0.3.6
+
+### Patch Changes
+
+- [`e1f7089`](https://github.com/navali-creations/soothsayer/commit/e1f70899b5f4a8eddcfea2c8fab51282d278e302) Thanks [@sbsrnt](https://github.com/sbsrnt)! - 6 time the charm?
+
 ## 0.3.5
 
 ### Patch Changes
