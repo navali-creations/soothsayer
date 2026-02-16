@@ -30,11 +30,9 @@ jobs:
       - name: Check version change
         id: check
         run: |
-          # Get current version
           CURRENT_VERSION=$(node -p "require('./package.json').version")
           echo "Current version: $CURRENT_VERSION"
 
-          # Get previous version
           git show HEAD~1:package.json > /tmp/prev-package.json 2>/dev/null || echo '{"version":"0.0.0"}' > /tmp/prev-package.json
           PREVIOUS_VERSION=$(node -p "require('/tmp/prev-package.json').version")
           echo "Previous version: $PREVIOUS_VERSION"
@@ -49,14 +47,20 @@ jobs:
           fi
 
   make:
-    name: Build (${{ matrix.os }})
+    name: Build (${{ matrix.name }})
     needs: check-version
     if: needs.check-version.outputs.should_publish == 'true'
     strategy:
       fail-fast: true
       matrix:
-        os: [windows-latest, ubuntu-latest]
-    runs-on: ${{ matrix.os }}
+        include:
+          - name: ubuntu
+            runs_on: ubuntu-latest
+          - name: windows-signed
+            runs_on: [self-hosted, windows, x64]
+
+    runs-on: ${{ matrix.runs_on }}
+
     steps:
       - name: Checkout code repository
         uses: actions/checkout@v6
@@ -70,8 +74,7 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      # Skip all lifecycle scripts during install to avoid supabase CLI
-      # download failures on Windows (not needed for building the app)
+      # Skip all lifecycle scripts during install to avoid supabase CLI download failures on Windows
       - name: Install dependencies (skip lifecycle scripts)
         run: pnpm install --ignore-scripts
 
@@ -80,16 +83,16 @@ jobs:
         run: pnpm rebuild better-sqlite3 electron esbuild
 
       # Rebuild electron-winstaller for Squirrel maker (Windows only)
-      - name: Rebuild electron-winstaller for Squirrel
-        if: matrix.os == 'windows-latest'
+      - name: Rebuild electron-winstaller for Squirrel (Windows only)
+        if: startsWith(matrix.name, 'windows')
         run: pnpm rebuild electron-winstaller
 
       # Run root postinstall: electron-rebuild -f -w better-sqlite3
-      # This rebuilds better-sqlite3 for the Electron ABI (required for packaging)
       - name: Rebuild better-sqlite3 for Electron ABI
         run: pnpm run postinstall
 
       - name: Create .env file
+        shell: bash
         run: |
           echo "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" > .env
           echo "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}" >> .env
@@ -101,10 +104,38 @@ jobs:
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
+      - name: Sign Windows artifacts (SimplySign / Authenticode)
+        if: startsWith(matrix.name, 'windows')
+        shell: pwsh
+        run: |
+          # Find signtool.exe (prefer newest Windows Kits path)
+          $kitsRoot = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\bin"
+          if (!(Test-Path $kitsRoot)) { throw "Windows Kits not found at: $kitsRoot" }
+
+          $signtool = Get-ChildItem $kitsRoot -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match "\\x64\\signtool\.exe$" -or $_.FullName -match "\\x86\\signtool\.exe$" } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1 -ExpandProperty FullName
+
+          if (-not $signtool) { throw "signtool.exe not found under: $kitsRoot" }
+          Write-Host "Using signtool: $signtool"
+
+          # Sign what you upload to GitHub Releases (out/make/**)
+          $targets = Get-ChildItem ".\out\make" -Recurse -File |
+            Where-Object { $_.Extension -in ".exe",".msi",".msix",".dll" }
+
+          if (-not $targets) { throw "No signable files found under .\out\make" }
+
+          foreach ($t in $targets) {
+            Write-Host "Signing: $($t.FullName)"
+            & $signtool sign /fd sha256 /td sha256 /tr http://time.certum.pl /a $t.FullName
+            if ($LASTEXITCODE -ne 0) { throw "Signing failed: $($t.FullName)" }
+          }
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v6
         with:
-          name: distributables-${{ matrix.os }}
+          name: distributables-${{ matrix.name }}
           path: out/make/**/*
           if-no-files-found: error
 
@@ -118,12 +149,10 @@ jobs:
 
       - name: Extract release notes from CHANGELOG.md
         id: changelog
+        shell: bash
         run: |
           VERSION="${{ needs.check-version.outputs.version }}"
-          # Extract the section for the current version from CHANGELOG.md
-          # Matches from "## $VERSION" until the next "## " heading or end of file
           NOTES=$(tr -d '\r' < CHANGELOG.md | awk "BEGIN{found=0} /^## ${VERSION}$/{found=1; next} /^## /{if(found) exit} found{print}")
-          # Use a delimiter to handle multi-line output
           echo "notes<<EOF" >> $GITHUB_OUTPUT
           echo "$NOTES" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
