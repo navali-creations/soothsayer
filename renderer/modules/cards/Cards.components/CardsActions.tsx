@@ -19,7 +19,7 @@ export const CardsActions = () => {
       loadCards,
     },
     settings: { raritySource, selectedFilterId, updateSetting },
-    filters: {
+    rarityModel: {
       availableFilters,
       isScanning,
       scanFilters,

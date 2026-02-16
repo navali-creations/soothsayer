@@ -8,19 +8,19 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from './routes/__root'
-import { Route as StatisticsRouteImport } from './routes/statistics'
-import { Route as SetupRouteImport } from './routes/setup'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as SessionsRouteImport } from './routes/sessions'
-import { Route as ModifyRaritiesRouteImport } from './routes/modify-rarities'
-import { Route as ChangelogRouteImport } from './routes/changelog'
-import { Route as CardsRouteImport } from './routes/cards'
-import { Route as AboutRouteImport } from './routes/about'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as SessionsIndexRouteImport } from './routes/sessions.index'
-import { Route as CardsIndexRouteImport } from './routes/cards.index'
-import { Route as SessionsSessionIdRouteImport } from './routes/sessions.$sessionId'
+import { Route as rootRouteImport } from "./routes/__root";
+import { Route as StatisticsRouteImport } from "./routes/statistics";
+import { Route as SetupRouteImport } from "./routes/setup";
+import { Route as SettingsRouteImport } from "./routes/settings";
+import { Route as SessionsRouteImport } from "./routes/sessions";
+import { Route as RarityModelRouteImport } from "./routes/rarity-model";
+import { Route as ChangelogRouteImport } from "./routes/changelog";
+import { Route as CardsRouteImport } from "./routes/cards";
+import { Route as AboutRouteImport } from "./routes/about";
+import { Route as IndexRouteImport } from "./routes/index";
+import { Route as SessionsIndexRouteImport } from "./routes/sessions.index";
+import { Route as CardsIndexRouteImport } from "./routes/cards.index";
+import { Route as SessionsSessionIdRouteImport } from "./routes/sessions.$sessionId";
 
 const StatisticsRoute = StatisticsRouteImport.update({
   id: '/statistics',
@@ -41,10 +41,10 @@ const SessionsRoute = SessionsRouteImport.update({
   id: '/sessions',
   path: '/sessions',
   getParentRoute: () => rootRouteImport,
-} as any)
-const ModifyRaritiesRoute = ModifyRaritiesRouteImport.update({
-  id: '/modify-rarities',
-  path: '/modify-rarities',
+} as any);
+const RarityModelRoute = RarityModelRouteImport.update({
+  id: "/rarity-model",
+  path: "/rarity-model",
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChangelogRoute = ChangelogRouteImport.update({
@@ -84,187 +84,187 @@ const SessionsSessionIdRoute = SessionsSessionIdRouteImport.update({
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/about': typeof AboutRoute
-  '/cards': typeof CardsRouteWithChildren
-  '/changelog': typeof ChangelogRoute
-  '/modify-rarities': typeof ModifyRaritiesRoute
-  '/sessions': typeof SessionsRouteWithChildren
-  '/settings': typeof SettingsRoute
-  '/setup': typeof SetupRoute
-  '/statistics': typeof StatisticsRoute
-  '/sessions/$sessionId': typeof SessionsSessionIdRoute
-  '/cards/': typeof CardsIndexRoute
-  '/sessions/': typeof SessionsIndexRoute
+  "/": typeof IndexRoute;
+  "/about": typeof AboutRoute;
+  "/cards": typeof CardsRouteWithChildren;
+  "/changelog": typeof ChangelogRoute;
+  "/rarity-model": typeof RarityModelRoute;
+  "/sessions": typeof SessionsRouteWithChildren;
+  "/settings": typeof SettingsRoute;
+  "/setup": typeof SetupRoute;
+  "/statistics": typeof StatisticsRoute;
+  "/sessions/$sessionId": typeof SessionsSessionIdRoute;
+  "/cards/": typeof CardsIndexRoute;
+  "/sessions/": typeof SessionsIndexRoute;
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/about': typeof AboutRoute
-  '/changelog': typeof ChangelogRoute
-  '/modify-rarities': typeof ModifyRaritiesRoute
-  '/settings': typeof SettingsRoute
-  '/setup': typeof SetupRoute
-  '/statistics': typeof StatisticsRoute
-  '/sessions/$sessionId': typeof SessionsSessionIdRoute
-  '/cards': typeof CardsIndexRoute
-  '/sessions': typeof SessionsIndexRoute
+  "/": typeof IndexRoute;
+  "/about": typeof AboutRoute;
+  "/changelog": typeof ChangelogRoute;
+  "/rarity-model": typeof RarityModelRoute;
+  "/settings": typeof SettingsRoute;
+  "/setup": typeof SetupRoute;
+  "/statistics": typeof StatisticsRoute;
+  "/sessions/$sessionId": typeof SessionsSessionIdRoute;
+  "/cards": typeof CardsIndexRoute;
+  "/sessions": typeof SessionsIndexRoute;
 }
 export interface FileRoutesById {
-  __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/about': typeof AboutRoute
-  '/cards': typeof CardsRouteWithChildren
-  '/changelog': typeof ChangelogRoute
-  '/modify-rarities': typeof ModifyRaritiesRoute
-  '/sessions': typeof SessionsRouteWithChildren
-  '/settings': typeof SettingsRoute
-  '/setup': typeof SetupRoute
-  '/statistics': typeof StatisticsRoute
-  '/sessions/$sessionId': typeof SessionsSessionIdRoute
-  '/cards/': typeof CardsIndexRoute
-  '/sessions/': typeof SessionsIndexRoute
+  __root__: typeof rootRouteImport;
+  "/": typeof IndexRoute;
+  "/about": typeof AboutRoute;
+  "/cards": typeof CardsRouteWithChildren;
+  "/changelog": typeof ChangelogRoute;
+  "/rarity-model": typeof RarityModelRoute;
+  "/sessions": typeof SessionsRouteWithChildren;
+  "/settings": typeof SettingsRoute;
+  "/setup": typeof SetupRoute;
+  "/statistics": typeof StatisticsRoute;
+  "/sessions/$sessionId": typeof SessionsSessionIdRoute;
+  "/cards/": typeof CardsIndexRoute;
+  "/sessions/": typeof SessionsIndexRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    | '/'
-    | '/about'
-    | '/cards'
-    | '/changelog'
-    | '/modify-rarities'
-    | '/sessions'
-    | '/settings'
-    | '/setup'
-    | '/statistics'
-    | '/sessions/$sessionId'
-    | '/cards/'
-    | '/sessions/'
-  fileRoutesByTo: FileRoutesByTo
+    | "/"
+    | "/about"
+    | "/cards"
+    | "/changelog"
+    | "/rarity-model"
+    | "/sessions"
+    | "/settings"
+    | "/setup"
+    | "/statistics"
+    | "/sessions/$sessionId"
+    | "/cards/"
+    | "/sessions/";
+  fileRoutesByTo: FileRoutesByTo;
   to:
-    | '/'
-    | '/about'
-    | '/changelog'
-    | '/modify-rarities'
-    | '/settings'
-    | '/setup'
-    | '/statistics'
-    | '/sessions/$sessionId'
-    | '/cards'
-    | '/sessions'
+    | "/"
+    | "/about"
+    | "/changelog"
+    | "/rarity-model"
+    | "/settings"
+    | "/setup"
+    | "/statistics"
+    | "/sessions/$sessionId"
+    | "/cards"
+    | "/sessions";
   id:
-    | '__root__'
-    | '/'
-    | '/about'
-    | '/cards'
-    | '/changelog'
-    | '/modify-rarities'
-    | '/sessions'
-    | '/settings'
-    | '/setup'
-    | '/statistics'
-    | '/sessions/$sessionId'
-    | '/cards/'
-    | '/sessions/'
-  fileRoutesById: FileRoutesById
+    | "__root__"
+    | "/"
+    | "/about"
+    | "/cards"
+    | "/changelog"
+    | "/rarity-model"
+    | "/sessions"
+    | "/settings"
+    | "/setup"
+    | "/statistics"
+    | "/sessions/$sessionId"
+    | "/cards/"
+    | "/sessions/";
+  fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  AboutRoute: typeof AboutRoute
-  CardsRoute: typeof CardsRouteWithChildren
-  ChangelogRoute: typeof ChangelogRoute
-  ModifyRaritiesRoute: typeof ModifyRaritiesRoute
-  SessionsRoute: typeof SessionsRouteWithChildren
-  SettingsRoute: typeof SettingsRoute
-  SetupRoute: typeof SetupRoute
-  StatisticsRoute: typeof StatisticsRoute
+  IndexRoute: typeof IndexRoute;
+  AboutRoute: typeof AboutRoute;
+  CardsRoute: typeof CardsRouteWithChildren;
+  ChangelogRoute: typeof ChangelogRoute;
+  RarityModelRoute: typeof RarityModelRoute;
+  SessionsRoute: typeof SessionsRouteWithChildren;
+  SettingsRoute: typeof SettingsRoute;
+  SetupRoute: typeof SetupRoute;
+  StatisticsRoute: typeof StatisticsRoute;
 }
 
-declare module '@tanstack/react-router' {
+declare module "@tanstack/react-router" {
   interface FileRoutesByPath {
-    '/statistics': {
-      id: '/statistics'
-      path: '/statistics'
-      fullPath: '/statistics'
-      preLoaderRoute: typeof StatisticsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/setup': {
-      id: '/setup'
-      path: '/setup'
-      fullPath: '/setup'
-      preLoaderRoute: typeof SetupRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sessions': {
-      id: '/sessions'
-      path: '/sessions'
-      fullPath: '/sessions'
-      preLoaderRoute: typeof SessionsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/modify-rarities': {
-      id: '/modify-rarities'
-      path: '/modify-rarities'
-      fullPath: '/modify-rarities'
-      preLoaderRoute: typeof ModifyRaritiesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/changelog': {
-      id: '/changelog'
-      path: '/changelog'
-      fullPath: '/changelog'
-      preLoaderRoute: typeof ChangelogRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/cards': {
-      id: '/cards'
-      path: '/cards'
-      fullPath: '/cards'
-      preLoaderRoute: typeof CardsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/about': {
-      id: '/about'
-      path: '/about'
-      fullPath: '/about'
-      preLoaderRoute: typeof AboutRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sessions/': {
-      id: '/sessions/'
-      path: '/'
-      fullPath: '/sessions/'
-      preLoaderRoute: typeof SessionsIndexRouteImport
-      parentRoute: typeof SessionsRoute
-    }
-    '/cards/': {
-      id: '/cards/'
-      path: '/'
-      fullPath: '/cards/'
-      preLoaderRoute: typeof CardsIndexRouteImport
-      parentRoute: typeof CardsRoute
-    }
-    '/sessions/$sessionId': {
-      id: '/sessions/$sessionId'
-      path: '/$sessionId'
-      fullPath: '/sessions/$sessionId'
-      preLoaderRoute: typeof SessionsSessionIdRouteImport
-      parentRoute: typeof SessionsRoute
-    }
+    "/statistics": {
+      id: "/statistics";
+      path: "/statistics";
+      fullPath: "/statistics";
+      preLoaderRoute: typeof StatisticsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/setup": {
+      id: "/setup";
+      path: "/setup";
+      fullPath: "/setup";
+      preLoaderRoute: typeof SetupRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/settings": {
+      id: "/settings";
+      path: "/settings";
+      fullPath: "/settings";
+      preLoaderRoute: typeof SettingsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/sessions": {
+      id: "/sessions";
+      path: "/sessions";
+      fullPath: "/sessions";
+      preLoaderRoute: typeof SessionsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/rarity-model": {
+      id: "/rarity-model";
+      path: "/rarity-model";
+      fullPath: "/rarity-model";
+      preLoaderRoute: typeof RarityModelRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/changelog": {
+      id: "/changelog";
+      path: "/changelog";
+      fullPath: "/changelog";
+      preLoaderRoute: typeof ChangelogRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/cards": {
+      id: "/cards";
+      path: "/cards";
+      fullPath: "/cards";
+      preLoaderRoute: typeof CardsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/about": {
+      id: "/about";
+      path: "/about";
+      fullPath: "/about";
+      preLoaderRoute: typeof AboutRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/": {
+      id: "/";
+      path: "/";
+      fullPath: "/";
+      preLoaderRoute: typeof IndexRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/sessions/": {
+      id: "/sessions/";
+      path: "/";
+      fullPath: "/sessions/";
+      preLoaderRoute: typeof SessionsIndexRouteImport;
+      parentRoute: typeof SessionsRoute;
+    };
+    "/cards/": {
+      id: "/cards/";
+      path: "/";
+      fullPath: "/cards/";
+      preLoaderRoute: typeof CardsIndexRouteImport;
+      parentRoute: typeof CardsRoute;
+    };
+    "/sessions/$sessionId": {
+      id: "/sessions/$sessionId";
+      path: "/$sessionId";
+      fullPath: "/sessions/$sessionId";
+      preLoaderRoute: typeof SessionsSessionIdRouteImport;
+      parentRoute: typeof SessionsRoute;
+    };
   }
 }
 
@@ -297,7 +297,7 @@ const rootRouteChildren: RootRouteChildren = {
   AboutRoute: AboutRoute,
   CardsRoute: CardsRouteWithChildren,
   ChangelogRoute: ChangelogRoute,
-  ModifyRaritiesRoute: ModifyRaritiesRoute,
+  RarityModelRoute: RarityModelRoute,
   SessionsRoute: SessionsRouteWithChildren,
   SettingsRoute: SettingsRoute,
   SetupRoute: SetupRoute,

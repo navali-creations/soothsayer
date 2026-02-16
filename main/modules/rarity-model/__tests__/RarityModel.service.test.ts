@@ -81,10 +81,10 @@ vi.mock("~/main/modules/settings-store", () => ({
   },
 }));
 
-// ─── Mock FilterRepository ───────────────────────────────────────────────────
-vi.mock("../Filter.repository", () => {
+// ─── Mock RarityModelRepository ───────────────────────────────────────────────────
+vi.mock("../RarityModel.repository", () => {
   return {
-    FilterRepository: class MockFilterRepository {
+    RarityModelRepository: class MockRarityModelRepository {
       getAll = mockRepoGetAll;
       getById = mockRepoGetById;
       getByFilePath = mockRepoGetByFilePath;
@@ -98,10 +98,10 @@ vi.mock("../Filter.repository", () => {
   };
 });
 
-// ─── Mock FilterScanner ──────────────────────────────────────────────────────
-vi.mock("../Filter.scanner", () => {
+// ─── Mock RarityModelScanner ──────────────────────────────────────────────────────
+vi.mock("../RarityModel.scanner", () => {
   return {
-    FilterScanner: class MockFilterScanner {
+    RarityModelScanner: class MockRarityModelScanner {
       scanAll = mockScanAll;
       directoryExists = mockDirectoryExists;
       getFiltersDirectory(game: string) {
@@ -142,14 +142,14 @@ vi.mock("~/main/modules/divination-cards", () => ({
 }));
 
 // ─── Import under test (after mocks) ────────────────────────────────────────
-import { FilterChannel } from "../Filter.channels";
+import { RarityModelChannel } from "../RarityModel.channels";
 import type {
-  DiscoveredFilterDTO,
-  FilterMetadataDTO,
-  FilterScanResultDTO,
+  DiscoveredRarityModelDTO,
+  RarityModelMetadataDTO,
+  RarityModelScanResultDTO,
   RaritySource,
-} from "../Filter.dto";
-import { FilterService } from "../Filter.service";
+} from "../RarityModel.dto";
+import { RarityModelService } from "../RarityModel.service";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -163,9 +163,9 @@ function getIpcHandler(channel: string): (...args: any[]) => Promise<any> {
   return call[1];
 }
 
-function makeFilterMetadataDTO(
-  overrides: Partial<FilterMetadataDTO> = {},
-): FilterMetadataDTO {
+function makeRarityModelMetadataDTO(
+  overrides: Partial<RarityModelMetadataDTO> = {},
+): RarityModelMetadataDTO {
   return {
     id: "filter_abc12345",
     filterType: "local",
@@ -199,15 +199,15 @@ function makeScannedFilter(
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
-describe("FilterService", () => {
-  let service: FilterService;
+describe("RarityModelService", () => {
+  let service: RarityModelService;
 
   beforeEach(() => {
     vi.clearAllMocks();
 
     // Reset singleton
     // @ts-expect-error — accessing private static for testing
-    FilterService._instance = undefined;
+    RarityModelService._instance = undefined;
 
     // Default mock implementations
     mockSettingsGet.mockImplementation(async (key: string) => {
@@ -228,7 +228,7 @@ describe("FilterService", () => {
     mockRepoUpsertMany.mockResolvedValue(undefined);
     mockRepoDeleteNotInFilePaths.mockResolvedValue(0);
 
-    service = FilterService.getInstance();
+    service = RarityModelService.getInstance();
   });
 
   afterEach(() => {
@@ -241,8 +241,8 @@ describe("FilterService", () => {
 
   describe("getInstance", () => {
     it("should return the same instance on repeated calls", () => {
-      const a = FilterService.getInstance();
-      const b = FilterService.getInstance();
+      const a = RarityModelService.getInstance();
+      const b = RarityModelService.getInstance();
       expect(a).toBe(b);
     });
   });
@@ -255,20 +255,22 @@ describe("FilterService", () => {
     it("should register all expected IPC channels", () => {
       const channels = mockIpcHandle.mock.calls.map(([ch]: [string]) => ch);
 
-      expect(channels).toContain(FilterChannel.ScanFilters);
-      expect(channels).toContain(FilterChannel.GetFilters);
-      expect(channels).toContain(FilterChannel.GetFilter);
-      expect(channels).toContain(FilterChannel.ParseFilter);
-      expect(channels).toContain(FilterChannel.SelectFilter);
-      expect(channels).toContain(FilterChannel.GetSelectedFilter);
-      expect(channels).toContain(FilterChannel.GetRaritySource);
-      expect(channels).toContain(FilterChannel.SetRaritySource);
-      expect(channels).toContain(FilterChannel.UpdateFilterCardRarity);
-      expect(channels).toContain(FilterChannel.ApplyFilterRarities);
+      expect(channels).toContain(RarityModelChannel.ScanRarityModels);
+      expect(channels).toContain(RarityModelChannel.GetRarityModels);
+      expect(channels).toContain(RarityModelChannel.GetRarityModel);
+      expect(channels).toContain(RarityModelChannel.ParseRarityModel);
+      expect(channels).toContain(RarityModelChannel.SelectRarityModel);
+      expect(channels).toContain(RarityModelChannel.GetSelectedRarityModel);
+      expect(channels).toContain(RarityModelChannel.GetRaritySource);
+      expect(channels).toContain(RarityModelChannel.SetRaritySource);
+      expect(channels).toContain(
+        RarityModelChannel.UpdateRarityModelCardRarity,
+      );
+      expect(channels).toContain(RarityModelChannel.ApplyRarityModelRarities);
     });
 
     it("should register exactly 10 IPC handlers", () => {
-      // One for each channel defined in FilterChannel (excluding event-only channels)
+      // One for each channel defined in RarityModelChannel (excluding event-only channels)
       expect(mockIpcHandle).toHaveBeenCalledTimes(10);
     });
   });
@@ -305,13 +307,13 @@ describe("FilterService", () => {
 
       mockScanAll.mockResolvedValue(scannedFilters);
       mockRepoGetAll.mockResolvedValue([
-        makeFilterMetadataDTO({
+        makeRarityModelMetadataDTO({
           id: "filter_00000001",
           filterType: "local",
           filePath: "C:\\path\\Local.filter",
           filterName: "Local",
         }),
-        makeFilterMetadataDTO({
+        makeRarityModelMetadataDTO({
           id: "filter_00000002",
           filterType: "online",
           filePath: "C:\\path\\OnlineFilters\\abc",
@@ -355,7 +357,7 @@ describe("FilterService", () => {
       mockScanAll.mockResolvedValue(scannedFilters);
       mockRepoDeleteNotInFilePaths.mockResolvedValue(2);
       mockRepoGetAll.mockResolvedValue([
-        makeFilterMetadataDTO({
+        makeRarityModelMetadataDTO({
           filePath: "C:\\path\\StillExists.filter",
         }),
       ]);
@@ -367,12 +369,12 @@ describe("FilterService", () => {
       ]);
     });
 
-    it("should return DiscoveredFilterDTOs with correct types", async () => {
+    it("should return DiscoveredRarityModelDTOs with correct types", async () => {
       mockScanAll.mockResolvedValue([
         makeScannedFilter({ filterType: "local", filterName: "LocalOne" }),
       ]);
       mockRepoGetAll.mockResolvedValue([
-        makeFilterMetadataDTO({
+        makeRarityModelMetadataDTO({
           filterType: "local",
           filterName: "LocalOne",
         }),
@@ -394,8 +396,8 @@ describe("FilterService", () => {
       mockScanAll.mockResolvedValue([]);
       mockRepoGetAll.mockResolvedValue([]);
 
-      const handler = getIpcHandler(FilterChannel.ScanFilters);
-      const result: FilterScanResultDTO = await handler({});
+      const handler = getIpcHandler(RarityModelChannel.ScanRarityModels);
+      const result: RarityModelScanResultDTO = await handler({});
 
       expect(result.filters).toEqual([]);
       expect(result.localCount).toBe(0);
@@ -408,13 +410,13 @@ describe("FilterService", () => {
   // ═══════════════════════════════════════════════════════════════════════════
 
   describe("getAllFilters", () => {
-    it("should return all filters from repository as DiscoveredFilterDTOs", async () => {
+    it("should return all filters from repository as DiscoveredRarityModelDTOs", async () => {
       mockRepoGetAll.mockResolvedValue([
-        makeFilterMetadataDTO({
+        makeRarityModelMetadataDTO({
           filterType: "local",
           filterName: "FilterA",
         }),
-        makeFilterMetadataDTO({
+        makeRarityModelMetadataDTO({
           filterType: "online",
           filterName: "FilterB",
         }),
@@ -438,8 +440,8 @@ describe("FilterService", () => {
     it("should work through the IPC handler", async () => {
       mockRepoGetAll.mockResolvedValue([]);
 
-      const handler = getIpcHandler(FilterChannel.GetFilters);
-      const result: DiscoveredFilterDTO[] = await handler({});
+      const handler = getIpcHandler(RarityModelChannel.GetRarityModels);
+      const result: DiscoveredRarityModelDTO[] = await handler({});
 
       expect(result).toEqual([]);
     });
@@ -451,7 +453,7 @@ describe("FilterService", () => {
 
   describe("getFilter", () => {
     it("should return filter metadata by ID", async () => {
-      const metadata = makeFilterMetadataDTO({ id: "filter_abc12345" });
+      const metadata = makeRarityModelMetadataDTO({ id: "filter_abc12345" });
       mockRepoGetById.mockResolvedValue(metadata);
 
       const result = await service.getFilter("filter_abc12345");
@@ -471,7 +473,7 @@ describe("FilterService", () => {
     it("should work through the IPC handler", async () => {
       mockRepoGetById.mockResolvedValue(null);
 
-      const handler = getIpcHandler(FilterChannel.GetFilter);
+      const handler = getIpcHandler(RarityModelChannel.GetRarityModel);
       const result = await handler({}, "filter_abc12345");
 
       expect(result).toBeNull();
@@ -485,7 +487,7 @@ describe("FilterService", () => {
 
   describe("parseFilter", () => {
     it("should return empty parse result for existing filter (stub)", async () => {
-      const metadata = makeFilterMetadataDTO({
+      const metadata = makeRarityModelMetadataDTO({
         id: "filter_abc12345",
         filterName: "MyFilter",
       });
@@ -511,10 +513,10 @@ describe("FilterService", () => {
     });
 
     it("should work through the IPC handler", async () => {
-      const metadata = makeFilterMetadataDTO({ id: "filter_abc12345" });
+      const metadata = makeRarityModelMetadataDTO({ id: "filter_abc12345" });
       mockRepoGetById.mockResolvedValue(metadata);
 
-      const handler = getIpcHandler(FilterChannel.ParseFilter);
+      const handler = getIpcHandler(RarityModelChannel.ParseRarityModel);
       const result = await handler({}, "filter_abc12345");
 
       expect(result.filterId).toBe("filter_abc12345");
@@ -528,7 +530,7 @@ describe("FilterService", () => {
 
   describe("selectFilter", () => {
     it("should set selected filter ID in settings when filter exists", async () => {
-      const metadata = makeFilterMetadataDTO({ id: "filter_abc12345" });
+      const metadata = makeRarityModelMetadataDTO({ id: "filter_abc12345" });
       mockRepoGetById.mockResolvedValue(metadata);
 
       await service.selectFilter("filter_abc12345");
@@ -557,10 +559,10 @@ describe("FilterService", () => {
     });
 
     it("should work through the IPC handler (select)", async () => {
-      const metadata = makeFilterMetadataDTO({ id: "filter_abc12345" });
+      const metadata = makeRarityModelMetadataDTO({ id: "filter_abc12345" });
       mockRepoGetById.mockResolvedValue(metadata);
 
-      const handler = getIpcHandler(FilterChannel.SelectFilter);
+      const handler = getIpcHandler(RarityModelChannel.SelectRarityModel);
       await handler({}, "filter_abc12345");
 
       expect(mockSettingsSet).toHaveBeenCalledWith(
@@ -570,7 +572,7 @@ describe("FilterService", () => {
     });
 
     it("should work through the IPC handler (clear)", async () => {
-      const handler = getIpcHandler(FilterChannel.SelectFilter);
+      const handler = getIpcHandler(RarityModelChannel.SelectRarityModel);
       await handler({}, null);
 
       expect(mockSettingsSet).toHaveBeenCalledWith("selectedFilterId", null);
@@ -594,7 +596,7 @@ describe("FilterService", () => {
     });
 
     it("should return filter metadata for selected filter", async () => {
-      const metadata = makeFilterMetadataDTO({ id: "filter_abc12345" });
+      const metadata = makeRarityModelMetadataDTO({ id: "filter_abc12345" });
 
       mockSettingsGet.mockImplementation(async (key: string) => {
         if (key === "selectedFilterId") return "filter_abc12345";
@@ -626,7 +628,7 @@ describe("FilterService", () => {
         return undefined;
       });
 
-      const handler = getIpcHandler(FilterChannel.GetSelectedFilter);
+      const handler = getIpcHandler(RarityModelChannel.GetSelectedRarityModel);
       const result = await handler({});
 
       expect(result).toBeNull();
@@ -666,7 +668,7 @@ describe("FilterService", () => {
         return undefined;
       });
 
-      const handler = getIpcHandler(FilterChannel.GetRaritySource);
+      const handler = getIpcHandler(RarityModelChannel.GetRaritySource);
       const result: RaritySource = await handler({});
 
       expect(result).toBe("poe.ninja");
@@ -708,7 +710,7 @@ describe("FilterService", () => {
     });
 
     it("should work through the IPC handler", async () => {
-      const handler = getIpcHandler(FilterChannel.SetRaritySource);
+      const handler = getIpcHandler(RarityModelChannel.SetRaritySource);
       await handler({}, "filter");
 
       expect(mockSettingsSet).toHaveBeenCalledWith("raritySource", "filter");
@@ -731,7 +733,7 @@ describe("FilterService", () => {
       ];
       mockScanAll.mockResolvedValue(scannedFilters);
 
-      const storedMetadata = makeFilterMetadataDTO({
+      const storedMetadata = makeRarityModelMetadataDTO({
         id: "filter_abcdef01",
         filterName: "MyFilter",
         filePath: "C:\\path\\MyFilter.filter",
@@ -815,7 +817,7 @@ describe("FilterService", () => {
     it("should handle scanner throwing an error gracefully via IPC", async () => {
       mockScanAll.mockRejectedValue(new Error("Disk read error"));
 
-      const handler = getIpcHandler(FilterChannel.ScanFilters);
+      const handler = getIpcHandler(RarityModelChannel.ScanRarityModels);
 
       // The IPC handler doesn't catch errors — they propagate to the renderer
       await expect(handler({})).rejects.toThrow("Disk read error");

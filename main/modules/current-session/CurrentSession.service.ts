@@ -4,8 +4,8 @@ import { BrowserWindow, ipcMain } from "electron";
 
 import { DataStoreService } from "~/main/modules/data-store";
 import { DatabaseService } from "~/main/modules/database";
-import { FilterService } from "~/main/modules/filters/Filter.service";
 import { PerformanceLoggerService } from "~/main/modules/performance-logger";
+import { RarityModelService } from "~/main/modules/rarity-model/RarityModel.service";
 import {
   SettingsKey,
   SettingsStoreService,
@@ -48,7 +48,7 @@ class CurrentSessionService {
   private dataStore: DataStoreService;
   private snapshotService: SnapshotService;
   private perfLogger: PerformanceLoggerService;
-  private filterService: FilterService;
+  private rarityModelService: RarityModelService;
   private settingsStore: SettingsStoreService;
 
   // Active session tracking
@@ -76,7 +76,7 @@ class CurrentSessionService {
     this.dataStore = DataStoreService.getInstance();
     this.snapshotService = SnapshotService.getInstance();
     this.perfLogger = PerformanceLoggerService.getInstance();
-    this.filterService = FilterService.getInstance();
+    this.rarityModelService = RarityModelService.getInstance();
     this.settingsStore = SettingsStoreService.getInstance();
 
     this.loadGlobalProcessedIds("poe1");
@@ -307,7 +307,7 @@ class CurrentSessionService {
           `[CurrentSession] Rarity source is 'filter' — ensuring filter ${selectedFilterId} is parsed...`,
         );
         const parseResult =
-          await this.filterService.ensureFilterParsed(selectedFilterId);
+          await this.rarityModelService.ensureFilterParsed(selectedFilterId);
 
         if (!parseResult) {
           console.warn(

@@ -2,21 +2,21 @@ import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
 import { FiAlertTriangle, FiCheck, FiChevronDown } from "react-icons/fi";
 
-import type { DiscoveredFilterDTO } from "~/main/modules/filters/Filter.dto";
+import type { DiscoveredRarityModelDTO } from "~/main/modules/rarity-model/RarityModel.dto";
 import { Button } from "~/renderer/components";
 import { useBoundStore } from "~/renderer/store";
 
-import { MAX_SELECTED_FILTERS } from "../FilterComparison.slice";
+import { MAX_SELECTED_FILTERS } from "../RarityModelComparison.slice";
 
-const FilterSelectorGroup = ({
+const RarityModelSelectorGroup = ({
   label,
   filters,
 }: {
   label: string;
-  filters: DiscoveredFilterDTO[];
+  filters: DiscoveredRarityModelDTO[];
 }) => {
   const {
-    filterComparison: {
+    rarityModelComparison: {
       selectedFilters,
       parsedResults,
       parsingFilterId,
@@ -87,18 +87,18 @@ const FilterSelectorGroup = ({
   );
 };
 
-const FilterDropdown = () => {
+const RarityModelDropdown = () => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const {
-    filters: {
+    rarityModel: {
       availableFilters,
       isScanning,
       getLocalFilters,
       getOnlineFilters,
     },
-    filterComparison: { selectedFilters },
+    rarityModelComparison: { selectedFilters },
   } = useBoundStore();
 
   const localFilters = getLocalFilters();
@@ -162,11 +162,14 @@ const FilterDropdown = () => {
           </div>
 
           <div className={clsx("flex", hasBothGroups ? "gap-4" : "")}>
-            <FilterSelectorGroup
+            <RarityModelSelectorGroup
               label="Online Filters"
               filters={onlineFilters}
             />
-            <FilterSelectorGroup label="Local Filters" filters={localFilters} />
+            <RarityModelSelectorGroup
+              label="Local Filters"
+              filters={localFilters}
+            />
           </div>
 
           {!hasFilters && !isScanning && (
@@ -181,4 +184,4 @@ const FilterDropdown = () => {
   );
 };
 
-export default FilterDropdown;
+export default RarityModelDropdown;

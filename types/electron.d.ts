@@ -4,12 +4,12 @@ import type { AppSetupAPI } from "../main/modules/app-setup/AppSetup.api";
 import type { CurrentSessionAPI } from "../main/modules/current-session/CurrentSession.api";
 import type { DataStoreAPI } from "../main/modules/data-store/DataStore.api";
 import type { DivinationCardsApi } from "../main/modules/divination-cards/DivinationCards.api";
-import type { FilterAPI } from "../main/modules/filters/Filter.api";
 import type { MainWindowAPI } from "../main/modules/main-window/MainWindow.api";
 import type { OverlayAPI } from "../main/modules/overlay/Overlay.api";
 import type { PoeLeaguesAPI } from "../main/modules/poe-leagues/PoeLeagues.api";
 import type { PoeNinjaAPI } from "../main/modules/poe-ninja/PoeNinja.api";
 import type { PoeProcessAPI } from "../main/modules/poe-process/PoeProcess.api";
+import type { RarityModelAPI } from "../main/modules/rarity-model/RarityModel.api";
 import type { SessionsAPI } from "../main/modules/sessions/Sessions.api";
 import type { SettingsStoreAPI } from "../main/modules/settings-store/SettingsStore.api";
 import type { SnapshotAPI } from "../main/modules/snapshots/Snapshot.api";
@@ -37,7 +37,7 @@ declare global {
       analytics: typeof AnalyticsAPI;
       divinationCards: typeof DivinationCardsApi;
       updater: typeof UpdaterAPI;
-      filters: typeof FilterAPI;
+      rarityModel: typeof RarityModelAPI;
     };
   }
 }

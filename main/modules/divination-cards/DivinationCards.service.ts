@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { app, ipcMain } from "electron";
 
 import { DatabaseService } from "~/main/modules/database";
-import { FilterRepository } from "~/main/modules/filters/Filter.repository";
+import { RarityModelRepository } from "~/main/modules/rarity-model/RarityModel.repository";
 import {
   SettingsKey,
   SettingsStoreService,
@@ -43,7 +43,7 @@ interface DivinationCardJson {
 class DivinationCardsService {
   private static _instance: DivinationCardsService;
   private repository: DivinationCardsRepository;
-  private filterRepository: FilterRepository;
+  private rarityModelRepository: RarityModelRepository;
   private settingsStore: SettingsStoreService;
   private readonly poe1CardsJsonPath: string;
   private readonly poe2CardsJsonPath: string;
@@ -58,7 +58,9 @@ class DivinationCardsService {
   private constructor() {
     const database = DatabaseService.getInstance();
     this.repository = new DivinationCardsRepository(database.getKysely());
-    this.filterRepository = new FilterRepository(database.getKysely());
+    this.rarityModelRepository = new RarityModelRepository(
+      database.getKysely(),
+    );
     this.settingsStore = SettingsStoreService.getInstance();
 
     // Determine paths based on whether app is packaged
@@ -480,7 +482,7 @@ class DivinationCardsService {
   ): Promise<void> {
     // Load filter card rarities
     const filterRarities =
-      await this.filterRepository.getCardRarities(filterId);
+      await this.rarityModelRepository.getCardRarities(filterId);
 
     // Build a lookup map: card name → rarity
     const filterRarityMap = new Map<string, number>();

@@ -118,9 +118,9 @@ vi.mock("../DivinationCards.repository", () => ({
   },
 }));
 
-// ─── Mock FilterRepository ───────────────────────────────────────────────────
-vi.mock("~/main/modules/filters/Filter.repository", () => ({
-  FilterRepository: class MockFilterRepository {
+// ─── Mock RarityModelRepository ───────────────────────────────────────────────────
+vi.mock("~/main/modules/rarity-model/RarityModel.repository", () => ({
+  RarityModelRepository: class MockRarityModelRepository {
     getAll = vi.fn().mockResolvedValue([]);
     getById = vi.fn().mockResolvedValue(null);
     getCardRarities = vi.fn().mockResolvedValue([]);

@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { app } from "electron";
 
-import type { FilterType } from "./Filter.dto";
+import type { RarityModelFilterType } from "./RarityModel.dto";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -14,7 +14,7 @@ export type GameType = "poe1" | "poe2";
  * This is the result of a quick metadata-only scan (first ~50 lines).
  */
 export interface ScannedFilterMetadata {
-  filterType: FilterType;
+  filterType: RarityModelFilterType;
   filePath: string;
   filterName: string;
   lastUpdate: string | null;
@@ -49,7 +49,7 @@ const GAME_DIR_MAP: Record<GameType, string> = {
 // ─── Scanner ─────────────────────────────────────────────────────────────────
 
 /**
- * FilterScanner handles file system operations for discovering and reading
+ * RarityModelScanner handles file system operations for discovering and reading
  * metadata from Path of Exile loot filter files.
  *
  * It supports two types of filters:
@@ -64,7 +64,7 @@ const GAME_DIR_MAP: Record<GameType, string> = {
  * The scanner uses a lazy strategy: it only reads enough of each file to
  * extract metadata. Full parsing of filter content is deferred to `Filter.parser.ts`.
  */
-export class FilterScanner {
+export class RarityModelScanner {
   // ─── Directory Resolution ────────────────────────────────────────────
 
   /**
@@ -115,7 +115,7 @@ export class FilterScanner {
 
     if (!(await this.directoryExists(dir))) {
       console.log(
-        `[FilterScanner] Local filters directory does not exist: ${dir}`,
+        `[RarityModelScanner] Local filters directory does not exist: ${dir}`,
       );
       return [];
     }
@@ -143,7 +143,7 @@ export class FilterScanner {
       );
     } catch (error) {
       console.error(
-        `[FilterScanner] Failed to scan local filters in ${dir}:`,
+        `[RarityModelScanner] Failed to scan local filters in ${dir}:`,
         error,
       );
       return [];
@@ -159,7 +159,7 @@ export class FilterScanner {
 
     if (!(await this.directoryExists(dir))) {
       console.log(
-        `[FilterScanner] Online filters directory does not exist: ${dir}`,
+        `[RarityModelScanner] Online filters directory does not exist: ${dir}`,
       );
       return [];
     }
@@ -185,7 +185,7 @@ export class FilterScanner {
       );
     } catch (error) {
       console.error(
-        `[FilterScanner] Failed to scan online filters in ${dir}:`,
+        `[RarityModelScanner] Failed to scan online filters in ${dir}:`,
         error,
       );
       return [];
@@ -222,7 +222,7 @@ export class FilterScanner {
       };
     } catch (error) {
       console.warn(
-        `[FilterScanner] Failed to read local filter metadata: ${filePath}`,
+        `[RarityModelScanner] Failed to read local filter metadata: ${filePath}`,
         error,
       );
       return null;
@@ -251,7 +251,7 @@ export class FilterScanner {
         METADATA_SCAN_LINE_LIMIT,
       );
 
-      const parsed = FilterScanner.parseOnlineHeader(headerLines);
+      const parsed = RarityModelScanner.parseOnlineHeader(headerLines);
 
       // If we couldn't find a name, use the filename as fallback.
       // Use path.win32.basename because it handles both / and \ separators.
@@ -266,7 +266,7 @@ export class FilterScanner {
       };
     } catch (error) {
       console.warn(
-        `[FilterScanner] Failed to read online filter metadata: ${filePath}`,
+        `[RarityModelScanner] Failed to read online filter metadata: ${filePath}`,
         error,
       );
       return null;

@@ -2,69 +2,69 @@ import { ipcRenderer } from "electron";
 
 import type { KnownRarity } from "~/types/data-stores";
 
-import { FilterChannel } from "./Filter.channels";
+import { RarityModelChannel } from "./RarityModel.channels";
 import type {
-  FilterMetadataDTO,
-  FilterParseResultDTO,
-  FilterScanResultDTO,
+  RarityModelMetadataDTO,
+  RarityModelParseResultDTO,
+  RarityModelScanResultDTO,
   RaritySource,
-} from "./Filter.dto";
+} from "./RarityModel.dto";
 
-export const FilterAPI = {
+export const RarityModelAPI = {
   /**
    * Scan filter directories for available filters (metadata only, lazy)
    */
-  scan: (): Promise<FilterScanResultDTO> => {
-    return ipcRenderer.invoke(FilterChannel.ScanFilters);
+  scan: (): Promise<RarityModelScanResultDTO> => {
+    return ipcRenderer.invoke(RarityModelChannel.ScanRarityModels);
   },
 
   /**
    * Get all discovered filters from the database
    */
-  getAll: (): Promise<FilterMetadataDTO[]> => {
-    return ipcRenderer.invoke(FilterChannel.GetFilters);
+  getAll: (): Promise<RarityModelMetadataDTO[]> => {
+    return ipcRenderer.invoke(RarityModelChannel.GetRarityModels);
   },
 
   /**
    * Get a specific filter by ID
    */
-  get: (filterId: string): Promise<FilterMetadataDTO | null> => {
-    return ipcRenderer.invoke(FilterChannel.GetFilter, filterId);
+  get: (filterId: string): Promise<RarityModelMetadataDTO | null> => {
+    return ipcRenderer.invoke(RarityModelChannel.GetRarityModel, filterId);
   },
 
   /**
    * Trigger a full parse of a specific filter's divination card section
    */
-  parse: (filterId: string): Promise<FilterParseResultDTO> => {
-    return ipcRenderer.invoke(FilterChannel.ParseFilter, filterId);
+  parse: (filterId: string): Promise<RarityModelParseResultDTO> => {
+    return ipcRenderer.invoke(RarityModelChannel.ParseRarityModel, filterId);
   },
 
   /**
    * Select a filter (or clear selection with null) and apply its rarities
    */
   select: (filterId: string | null): Promise<void> => {
-    return ipcRenderer.invoke(FilterChannel.SelectFilter, filterId);
+    return ipcRenderer.invoke(RarityModelChannel.SelectRarityModel, filterId);
   },
 
   /**
    * Get the currently selected filter metadata
    */
-  getSelected: (): Promise<FilterMetadataDTO | null> => {
-    return ipcRenderer.invoke(FilterChannel.GetSelectedFilter);
+  getSelected: (): Promise<RarityModelMetadataDTO | null> => {
+    return ipcRenderer.invoke(RarityModelChannel.GetSelectedRarityModel);
   },
 
   /**
    * Get the current rarity source setting
    */
   getRaritySource: (): Promise<RaritySource> => {
-    return ipcRenderer.invoke(FilterChannel.GetRaritySource);
+    return ipcRenderer.invoke(RarityModelChannel.GetRaritySource);
   },
 
   /**
    * Set the rarity source setting
    */
   setRaritySource: (source: RaritySource): Promise<void> => {
-    return ipcRenderer.invoke(FilterChannel.SetRaritySource, source);
+    return ipcRenderer.invoke(RarityModelChannel.SetRaritySource, source);
   },
 
   /**
@@ -80,7 +80,7 @@ export const FilterAPI = {
     rarity: KnownRarity,
   ): Promise<{ success: boolean }> => {
     return ipcRenderer.invoke(
-      FilterChannel.UpdateFilterCardRarity,
+      RarityModelChannel.UpdateRarityModelCardRarity,
       filterId,
       cardName,
       rarity,
@@ -104,7 +104,7 @@ export const FilterAPI = {
     league: string,
   ): Promise<{ success: boolean; totalCards: number; filterName: string }> => {
     return ipcRenderer.invoke(
-      FilterChannel.ApplyFilterRarities,
+      RarityModelChannel.ApplyRarityModelRarities,
       filterId,
       game,
       league,
@@ -137,11 +137,11 @@ export const FilterAPI = {
       callback(data);
     };
 
-    ipcRenderer.on(FilterChannel.OnFilterRaritiesApplied, handler);
+    ipcRenderer.on(RarityModelChannel.OnRarityModelRaritiesApplied, handler);
 
     return () => {
       ipcRenderer.removeListener(
-        FilterChannel.OnFilterRaritiesApplied,
+        RarityModelChannel.OnRarityModelRaritiesApplied,
         handler,
       );
     };

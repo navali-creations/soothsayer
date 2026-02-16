@@ -4,19 +4,21 @@ import type {
 } from "~/main/modules/database";
 
 import type {
-  DiscoveredFilterDTO,
-  FilterCardRarityDTO,
-  FilterMetadataDTO,
-} from "./Filter.dto";
+  DiscoveredRarityModelDTO,
+  RarityModelCardRarityDTO,
+  RarityModelMetadataDTO,
+} from "./RarityModel.dto";
 
 /**
  * Mappers convert between database rows and DTOs for the Filters module
  */
-export class FilterMapper {
+export class RarityModelMapper {
   /**
-   * Convert a database row to a FilterMetadataDTO
+   * Convert a database row to a RarityModelMetadataDTO
    */
-  static toFilterMetadataDTO(row: FilterMetadataRow): FilterMetadataDTO {
+  static toRarityModelMetadataDTO(
+    row: FilterMetadataRow,
+  ): RarityModelMetadataDTO {
     return {
       id: row.id,
       filterType: row.filter_type,
@@ -31,14 +33,14 @@ export class FilterMapper {
   }
 
   /**
-   * Convert a FilterMetadataDTO to a DiscoveredFilterDTO
+   * Convert a RarityModelMetadataDTO to a DiscoveredRarityModelDTO
    * Requires runtime context (league start date) for outdated detection
    */
-  static toDiscoveredFilterDTO(
-    metadata: FilterMetadataDTO,
+  static toDiscoveredRarityModelDTO(
+    metadata: RarityModelMetadataDTO,
     leagueStartDate: string | null,
-  ): DiscoveredFilterDTO {
-    const isOutdated = FilterMapper.isFilterOutdated(
+  ): DiscoveredRarityModelDTO {
+    const isOutdated = RarityModelMapper.isFilterOutdated(
       metadata.lastUpdate,
       leagueStartDate,
     );
@@ -60,11 +62,11 @@ export class FilterMapper {
   }
 
   /**
-   * Convert a database row to a FilterCardRarityDTO
+   * Convert a database row to a RarityModelCardRarityDTO
    */
-  static toFilterCardRarityDTO(
+  static toRarityModelCardRarityDTO(
     row: FilterCardRaritiesRow,
-  ): FilterCardRarityDTO {
+  ): RarityModelCardRarityDTO {
     return {
       filterId: row.filter_id,
       cardName: row.card_name,
@@ -112,7 +114,7 @@ export class FilterMapper {
 
       // Only outdated if the filter was updated more than 3 days before league start
       const graceThreshold =
-        leagueDate.getTime() - FilterMapper.OUTDATED_GRACE_PERIOD_MS;
+        leagueDate.getTime() - RarityModelMapper.OUTDATED_GRACE_PERIOD_MS;
       return filterDate.getTime() < graceThreshold;
     } catch {
       return false;

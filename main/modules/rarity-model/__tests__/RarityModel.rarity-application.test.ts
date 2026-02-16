@@ -19,7 +19,7 @@ import type { Database } from "~/main/modules/database";
 import { DivinationCardsRepository } from "~/main/modules/divination-cards/DivinationCards.repository";
 import type { KnownRarity } from "~/types/data-stores";
 
-import { FilterRepository } from "../../filters/Filter.repository";
+import { RarityModelRepository } from "../RarityModel.repository";
 
 // ─── Test Fixtures ───────────────────────────────────────────────────────────
 
@@ -456,12 +456,12 @@ describe("DivinationCardsRepository — filter rarity joins", () => {
 describe("updateRaritiesFromFilter — repository-level integration", () => {
   let testDb: TestDatabase;
   let divinationCardsRepo: DivinationCardsRepository;
-  let filterRepo: FilterRepository;
+  let filterRepo: RarityModelRepository;
 
   beforeEach(async () => {
     testDb = createTestDatabase();
     divinationCardsRepo = new DivinationCardsRepository(testDb.kysely);
-    filterRepo = new FilterRepository(testDb.kysely);
+    filterRepo = new RarityModelRepository(testDb.kysely);
     await seedTestCards(testDb.kysely);
     await seedPriceRarities(testDb.kysely, TEST_LEAGUE);
     await seedTestFilter(testDb.kysely);
@@ -720,15 +720,15 @@ describe("CurrentSessionRepository — getSessionCards with filterId", () => {
   });
 });
 
-// ─── Test Suite: FilterRepository card rarities ──────────────────────────────
+// ─── Test Suite: RarityModelRepository card rarities ──────────────────────────────
 
-describe("FilterRepository — card rarities for rarity application", () => {
+describe("RarityModelRepository — card rarities for rarity application", () => {
   let testDb: TestDatabase;
-  let filterRepo: FilterRepository;
+  let filterRepo: RarityModelRepository;
 
   beforeEach(async () => {
     testDb = createTestDatabase();
-    filterRepo = new FilterRepository(testDb.kysely);
+    filterRepo = new RarityModelRepository(testDb.kysely);
     await seedTestFilter(testDb.kysely);
   });
 

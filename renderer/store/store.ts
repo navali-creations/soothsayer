@@ -20,14 +20,6 @@ import {
   type SessionSlice,
 } from "../modules/current-session/CurrentSession.slice";
 import {
-  createFilterSlice,
-  type FilterSlice,
-} from "../modules/filters/Filter.slice";
-import {
-  createFilterComparisonSlice,
-  type FilterComparisonSlice,
-} from "../modules/filters/FilterComparison.slice";
-import {
   createGameInfoSlice,
   type GameInfoSlice,
 } from "../modules/game-info/GameInfo.slice";
@@ -43,6 +35,14 @@ import {
   createPoeNinjaSlice,
   type PoeNinjaSlice,
 } from "../modules/poe-ninja/PoeNinja.slice";
+import {
+  createRarityModelSlice,
+  type RarityModelSlice,
+} from "../modules/rarity-model/RarityModel.slice";
+import {
+  createRarityModelComparisonSlice,
+  type RarityModelComparisonSlice,
+} from "../modules/rarity-model/RarityModelComparison.slice";
 import {
   createSessionDetailsSlice,
   type SessionDetailsSlice,
@@ -90,8 +90,8 @@ type BoundStore = GameInfoSlice &
   StatisticsSlice &
   OnboardingSlice &
   UpdaterSlice &
-  FilterSlice &
-  FilterComparisonSlice &
+  RarityModelSlice &
+  RarityModelComparisonSlice &
   RootActions;
 
 export const useBoundStore = create<BoundStore>()(
@@ -111,8 +111,8 @@ export const useBoundStore = create<BoundStore>()(
       const statisticsSlice = createStatisticsSlice(...a);
       const onboardingSlice = createOnboardingSlice(...a);
       const updaterSlice = createUpdaterSlice(...a);
-      const filterSlice = createFilterSlice(...a);
-      const filterComparisonSlice = createFilterComparisonSlice(...a);
+      const rarityModelSlice = createRarityModelSlice(...a);
+      const rarityModelComparisonSlice = createRarityModelComparisonSlice(...a);
 
       return {
         ...settingsSlice,
@@ -129,8 +129,8 @@ export const useBoundStore = create<BoundStore>()(
         ...statisticsSlice,
         ...onboardingSlice,
         ...updaterSlice,
-        ...filterSlice,
-        ...filterComparisonSlice,
+        ...rarityModelSlice,
+        ...rarityModelComparisonSlice,
 
         hydrate: async () => {
           await Promise.all([
@@ -178,7 +178,7 @@ export const useBoundStore = create<BoundStore>()(
               statistics,
               onboarding,
               updater,
-              filters,
+              rarityModel,
               ...state
             }) => {
               // Reset settings
@@ -276,21 +276,21 @@ export const useBoundStore = create<BoundStore>()(
               };
               updater.error = null;
 
-              // Reset filters
-              filters.availableFilters = [];
-              filters.selectedFilterId = null;
-              filters.isScanning = false;
-              filters.isParsing = false;
-              filters.scanError = null;
-              filters.parseError = null;
-              filters.lastScannedAt = null;
+              // Reset rarity model
+              rarityModel.availableFilters = [];
+              rarityModel.selectedFilterId = null;
+              rarityModel.isScanning = false;
+              rarityModel.isParsing = false;
+              rarityModel.scanError = null;
+              rarityModel.parseError = null;
+              rarityModel.lastScannedAt = null;
 
-              // Reset filter comparison
-              state.filterComparison.selectedFilters = [];
-              state.filterComparison.parsedResults = new Map();
-              state.filterComparison.parsingFilterId = null;
-              state.filterComparison.parseErrors = new Map();
-              state.filterComparison.showDiffsOnly = false;
+              // Reset rarity model comparison
+              state.rarityModelComparison.selectedFilters = [];
+              state.rarityModelComparison.parsedResults = new Map();
+              state.rarityModelComparison.parsingFilterId = null;
+              state.rarityModelComparison.parseErrors = new Map();
+              state.rarityModelComparison.showDiffsOnly = false;
             },
           );
         },

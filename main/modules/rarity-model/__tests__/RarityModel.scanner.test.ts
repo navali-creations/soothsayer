@@ -28,7 +28,7 @@ vi.mock("node:fs/promises", () => ({
 }));
 
 // ─── Import under test (after mocks) ────────────────────────────────────────
-import { FilterScanner } from "../Filter.scanner";
+import { RarityModelScanner } from "../RarityModel.scanner";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -75,13 +75,13 @@ function makeStatResult(
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
-describe("FilterScanner", () => {
-  let scanner: FilterScanner;
+describe("RarityModelScanner", () => {
+  let scanner: RarityModelScanner;
 
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetPath.mockReturnValue("C:\\Users\\TestUser\\Documents");
-    scanner = new FilterScanner();
+    scanner = new RarityModelScanner();
   });
 
   afterEach(() => {
@@ -800,7 +800,7 @@ describe("FilterScanner", () => {
         "#lastUpdate:2025-12-25T12:30:51Z",
       ];
 
-      const result = FilterScanner.parseOnlineHeader(lines);
+      const result = RarityModelScanner.parseOnlineHeader(lines);
 
       expect(result.name).toBe("AAAARanged");
       expect(result.lastUpdate).toBe("2025-12-25T12:30:51Z");
@@ -813,14 +813,14 @@ describe("FilterScanner", () => {
         "    SetFontSize 45",
       ];
 
-      const result = FilterScanner.parseOnlineHeader(lines);
+      const result = RarityModelScanner.parseOnlineHeader(lines);
 
       expect(result.name).toBeNull();
       expect(result.lastUpdate).toBeNull();
     });
 
     it("should return nulls for empty lines array", () => {
-      const result = FilterScanner.parseOnlineHeader([]);
+      const result = RarityModelScanner.parseOnlineHeader([]);
 
       expect(result.name).toBeNull();
       expect(result.lastUpdate).toBeNull();
@@ -832,7 +832,7 @@ describe("FilterScanner", () => {
         "#lastUpdate:2025-01-01T00:00:00Z",
       ];
 
-      const result = FilterScanner.parseOnlineHeader(lines);
+      const result = RarityModelScanner.parseOnlineHeader(lines);
 
       expect(result.name).toBe("My Filter (v2.1) - Updated!");
     });
@@ -843,7 +843,7 @@ describe("FilterScanner", () => {
         "#lastUpdate:   2025-06-15T10:00:00Z   ",
       ];
 
-      const result = FilterScanner.parseOnlineHeader(lines);
+      const result = RarityModelScanner.parseOnlineHeader(lines);
 
       expect(result.name).toBe("SpacedName");
       expect(result.lastUpdate).toBe("2025-06-15T10:00:00Z");
@@ -852,7 +852,7 @@ describe("FilterScanner", () => {
     it("should handle name appearing before lastUpdate", () => {
       const lines = ["#name:First", "#lastUpdate:2025-01-01T00:00:00Z"];
 
-      const result = FilterScanner.parseOnlineHeader(lines);
+      const result = RarityModelScanner.parseOnlineHeader(lines);
 
       expect(result.name).toBe("First");
       expect(result.lastUpdate).toBe("2025-01-01T00:00:00Z");
@@ -861,7 +861,7 @@ describe("FilterScanner", () => {
     it("should handle lastUpdate appearing before name", () => {
       const lines = ["#lastUpdate:2025-01-01T00:00:00Z", "#name:Second"];
 
-      const result = FilterScanner.parseOnlineHeader(lines);
+      const result = RarityModelScanner.parseOnlineHeader(lines);
 
       expect(result.name).toBe("Second");
       expect(result.lastUpdate).toBe("2025-01-01T00:00:00Z");
@@ -875,7 +875,7 @@ describe("FilterScanner", () => {
         "#lastUpdate:2025-12-31T23:59:59Z",
       ];
 
-      const result = FilterScanner.parseOnlineHeader(lines);
+      const result = RarityModelScanner.parseOnlineHeader(lines);
 
       expect(result.name).toBe("FirstName");
       expect(result.lastUpdate).toBe("2025-01-01T00:00:00Z");
@@ -884,7 +884,7 @@ describe("FilterScanner", () => {
     it("should be case-insensitive for header field names", () => {
       const lines = ["#NAME:UpperCase", "#LASTUPDATE:2025-06-01T00:00:00Z"];
 
-      const result = FilterScanner.parseOnlineHeader(lines);
+      const result = RarityModelScanner.parseOnlineHeader(lines);
 
       expect(result.name).toBe("UpperCase");
       expect(result.lastUpdate).toBe("2025-06-01T00:00:00Z");
@@ -896,7 +896,7 @@ describe("FilterScanner", () => {
         "  #lastUpdate:2025-06-01T00:00:00Z  ",
       ];
 
-      const result = FilterScanner.parseOnlineHeader(lines);
+      const result = RarityModelScanner.parseOnlineHeader(lines);
 
       expect(result.name).toBe("Indented");
       expect(result.lastUpdate).toBe("2025-06-01T00:00:00Z");
@@ -912,7 +912,7 @@ describe("FilterScanner", () => {
         "Hide",
       ];
 
-      const result = FilterScanner.parseOnlineHeader(lines);
+      const result = RarityModelScanner.parseOnlineHeader(lines);
 
       expect(result.name).toBe("ValidFilter");
       expect(result.lastUpdate).toBe("2025-03-15T14:00:00Z");
@@ -924,7 +924,7 @@ describe("FilterScanner", () => {
         "#lastUpdate:2025-06-01T00:00:00Z\r",
       ];
 
-      const result = FilterScanner.parseOnlineHeader(lines);
+      const result = RarityModelScanner.parseOnlineHeader(lines);
 
       // The trim() should handle \r at end
       expect(result.name).toBe("WindowsFilter");
@@ -934,7 +934,7 @@ describe("FilterScanner", () => {
     it("should not match lines without the # prefix", () => {
       const lines = ["name:NotAHeader", "lastUpdate:NotAHeader"];
 
-      const result = FilterScanner.parseOnlineHeader(lines);
+      const result = RarityModelScanner.parseOnlineHeader(lines);
 
       expect(result.name).toBeNull();
       expect(result.lastUpdate).toBeNull();
@@ -943,7 +943,7 @@ describe("FilterScanner", () => {
     it("should handle empty name value", () => {
       const lines = ["#name:", "#lastUpdate:2025-01-01T00:00:00Z"];
 
-      const result = FilterScanner.parseOnlineHeader(lines);
+      const result = RarityModelScanner.parseOnlineHeader(lines);
 
       // Empty string after trimming - regex requires at least one char after colon
       // The regex `.+` requires at least one character
@@ -1052,42 +1052,54 @@ describe("FilterScanner", () => {
 
   describe("generateFilterId", () => {
     it("should generate a deterministic ID for a given path", () => {
-      const id1 = FilterScanner.generateFilterId("C:\\path\\to\\filter.filter");
-      const id2 = FilterScanner.generateFilterId("C:\\path\\to\\filter.filter");
+      const id1 = RarityModelScanner.generateFilterId(
+        "C:\\path\\to\\filter.filter",
+      );
+      const id2 = RarityModelScanner.generateFilterId(
+        "C:\\path\\to\\filter.filter",
+      );
 
       expect(id1).toBe(id2);
     });
 
     it("should generate different IDs for different paths", () => {
-      const id1 = FilterScanner.generateFilterId("C:\\path\\filter1.filter");
-      const id2 = FilterScanner.generateFilterId("C:\\path\\filter2.filter");
+      const id1 = RarityModelScanner.generateFilterId(
+        "C:\\path\\filter1.filter",
+      );
+      const id2 = RarityModelScanner.generateFilterId(
+        "C:\\path\\filter2.filter",
+      );
 
       expect(id1).not.toBe(id2);
     });
 
     it("should prefix IDs with 'filter_'", () => {
-      const id = FilterScanner.generateFilterId("C:\\path\\test.filter");
+      const id = RarityModelScanner.generateFilterId("C:\\path\\test.filter");
 
       expect(id).toMatch(/^filter_[0-9a-f]{8}$/);
     });
 
     it("should normalize path separators (backslash and forward slash)", () => {
-      const id1 = FilterScanner.generateFilterId("C:\\path\\to\\filter");
-      const id2 = FilterScanner.generateFilterId("C:/path/to/filter");
+      const id1 = RarityModelScanner.generateFilterId("C:\\path\\to\\filter");
+      const id2 = RarityModelScanner.generateFilterId("C:/path/to/filter");
 
       expect(id1).toBe(id2);
     });
 
     it("should be case-insensitive", () => {
-      const id1 = FilterScanner.generateFilterId("C:\\Path\\Filter.FILTER");
-      const id2 = FilterScanner.generateFilterId("c:\\path\\filter.filter");
+      const id1 = RarityModelScanner.generateFilterId(
+        "C:\\Path\\Filter.FILTER",
+      );
+      const id2 = RarityModelScanner.generateFilterId(
+        "c:\\path\\filter.filter",
+      );
 
       expect(id1).toBe(id2);
     });
 
     it("should handle long paths", () => {
       const longPath = `C:\\${"a".repeat(500)}\\filter.filter`;
-      const id = FilterScanner.generateFilterId(longPath);
+      const id = RarityModelScanner.generateFilterId(longPath);
 
       expect(id).toMatch(/^filter_[0-9a-f]{8}$/);
     });

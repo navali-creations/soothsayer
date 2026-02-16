@@ -4,7 +4,7 @@ import { BrowserWindow, ipcMain } from "electron";
 
 import { DatabaseService } from "~/main/modules/database";
 import { DivinationCardsService } from "~/main/modules/divination-cards";
-import { FilterService } from "~/main/modules/filters/Filter.service";
+import { RarityModelService } from "~/main/modules/rarity-model/RarityModel.service";
 import {
   SettingsKey,
   SettingsStoreService,
@@ -32,7 +32,7 @@ class SnapshotService {
   private repository: SnapshotRepository;
   private supabase: SupabaseClientService;
   private divinationCards: DivinationCardsService;
-  private filterService: FilterService;
+  private rarityModelService: RarityModelService;
   private settingsStore: SettingsStoreService;
   private refreshIntervals: Map<string, NodeJS.Timeout> = new Map();
 
@@ -56,7 +56,7 @@ class SnapshotService {
     this.repository = new SnapshotRepository(db.getKysely());
     this.supabase = SupabaseClientService.getInstance();
     this.divinationCards = DivinationCardsService.getInstance();
-    this.filterService = FilterService.getInstance();
+    this.rarityModelService = RarityModelService.getInstance();
     this.settingsStore = SettingsStoreService.getInstance();
     this.setupIpcHandlers();
   }
@@ -544,7 +544,7 @@ class SnapshotService {
       console.log(
         `[SnapshotService] Applying filter rarities for ${game}/${league} from filter ${selectedFilterId}...`,
       );
-      await this.filterService.applyFilterRarities(
+      await this.rarityModelService.applyFilterRarities(
         selectedFilterId,
         game,
         league,

@@ -9,7 +9,7 @@ import type { KnownRarity } from "~/types/data-stores";
 /**
  * The type of filter file based on its origin directory.
  */
-export type FilterType = "local" | "online";
+export type RarityModelFilterType = "local" | "online";
 
 /**
  * The source used to determine divination card rarities.
@@ -25,9 +25,9 @@ export type RaritySource = "poe.ninja" | "filter" | "prohibited-library";
  * Represents stored filter metadata from the database.
  * Used when returning filter info to the renderer.
  */
-export interface FilterMetadataDTO {
+export interface RarityModelMetadataDTO {
   id: string;
-  filterType: FilterType;
+  filterType: RarityModelFilterType;
   filePath: string;
   filterName: string;
   lastUpdate: string | null;
@@ -41,9 +41,9 @@ export interface FilterMetadataDTO {
  * Represents a filter discovered during directory scanning.
  * Extends metadata with runtime-only fields like outdated detection.
  */
-export interface DiscoveredFilterDTO {
+export interface DiscoveredRarityModelDTO {
   id: string;
-  type: FilterType;
+  type: RarityModelFilterType;
   filePath: string;
   fileName: string;
   name: string;
@@ -55,7 +55,7 @@ export interface DiscoveredFilterDTO {
 /**
  * A single card-to-rarity mapping from a parsed filter.
  */
-export interface FilterCardRarityDTO {
+export interface RarityModelCardRarityDTO {
   filterId: string;
   cardName: string;
   rarity: KnownRarity; // 1=extremely rare, 2=rare, 3=less common, 4=common (no unknown — filters always assign a tier)
@@ -64,19 +64,19 @@ export interface FilterCardRarityDTO {
 /**
  * Result of a full filter parse operation.
  */
-export interface FilterParseResultDTO {
+export interface RarityModelParseResultDTO {
   filterId: string;
   filterName: string;
   totalCards: number;
-  rarities: FilterCardRarityDTO[];
+  rarities: RarityModelCardRarityDTO[];
   hasDivinationSection: boolean;
 }
 
 /**
  * Summary info for a scanned filter directory.
  */
-export interface FilterScanResultDTO {
-  filters: DiscoveredFilterDTO[];
+export interface RarityModelScanResultDTO {
+  filters: DiscoveredRarityModelDTO[];
   localCount: number;
   onlineCount: number;
 }

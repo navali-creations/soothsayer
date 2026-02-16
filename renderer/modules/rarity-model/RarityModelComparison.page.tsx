@@ -5,17 +5,17 @@ import { FiAlertTriangle, FiRefreshCw } from "react-icons/fi";
 import { Button, PageContainer, Search } from "~/renderer/components";
 import { useBoundStore } from "~/renderer/store";
 
-import ComparisonTable from "./FilterComparison.components/ComparisonTable";
-import FilterDropdown from "./FilterComparison.components/FilterSidebar";
+import ComparisonTable from "./RarityModelComparison.components/ComparisonTable";
+import RarityModelDropdown from "./RarityModelComparison.components/RarityModelSidebar";
 
-const FilterComparisonPage = () => {
+const RarityModelComparisonPage = () => {
   const [globalFilter, setGlobalFilter] = useState("");
 
   const {
-    filters: { availableFilters, isScanning, scanFilters },
+    rarityModel: { availableFilters, isScanning, scanFilters },
     cards: { allCards, loadCards },
     settings: { selectedFilterId },
-    filterComparison: {
+    rarityModelComparison: {
       selectedFilters,
       toggleFilter,
       reset,
@@ -61,7 +61,7 @@ const FilterComparisonPage = () => {
   return (
     <PageContainer>
       <PageContainer.Header
-        title="Modify Rarities"
+        title="Rarity Model"
         subtitle={
           <span>
             Compare and edit divination card rarities across loot filters
@@ -93,7 +93,7 @@ const FilterComparisonPage = () => {
               {isScanning ? "Scanning..." : "Scan"}
             </Button>
 
-            <FilterDropdown />
+            <RarityModelDropdown />
           </div>
         }
       />
@@ -128,4 +128,4 @@ const FilterComparisonPage = () => {
   );
 };
 
-export default FilterComparisonPage;
+export default RarityModelComparisonPage;

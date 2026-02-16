@@ -2,7 +2,7 @@ import { useBoundStore } from "~/renderer/store";
 
 const ComparisonToolbar = () => {
   const {
-    filterComparison: {
+    rarityModelComparison: {
       showDiffsOnly,
       setShowDiffsOnly,
       getCanShowDiffs,

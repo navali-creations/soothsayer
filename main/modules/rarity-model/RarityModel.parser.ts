@@ -7,7 +7,7 @@ import type { KnownRarity } from "~/types/data-stores";
 /**
  * Result of parsing a filter file's divination card section.
  */
-export interface FilterParseResult {
+export interface RarityModelParseResult {
   /** Map of card name → rarity (1-4) */
   cardRarities: Map<string, KnownRarity>;
   /** Whether a divination card section was found in the filter */
@@ -127,7 +127,7 @@ const TOC_START_MARKER = "TABLE OF CONTENTS";
 // ─── Parser ──────────────────────────────────────────────────────────────────
 
 /**
- * FilterParser handles the full content parsing of Path of Exile loot filter files.
+ * RarityModelParser handles the full content parsing of Path of Exile loot filter files.
  *
  * It extracts divination card tier information using a multi-step process:
  * 1. **TOC Navigation:** Find the Table of Contents and locate the Divination Cards section ID
@@ -140,7 +140,7 @@ const TOC_START_MARKER = "TABLE OF CONTENTS";
  * File I/O is isolated to a single method (`parseFilterFile`) so the core logic
  * can be tested with raw string content.
  */
-export class FilterParser {
+export class RarityModelParser {
   // ─── Public API ────────────────────────────────────────────────────────
 
   /**
@@ -151,13 +151,15 @@ export class FilterParser {
    * @param filePath - Absolute path to the filter file
    * @returns Parse result with card rarities, or empty result if parsing fails
    */
-  static async parseFilterFile(filePath: string): Promise<FilterParseResult> {
+  static async parseFilterFile(
+    filePath: string,
+  ): Promise<RarityModelParseResult> {
     try {
       const content = await fs.readFile(filePath, "utf-8");
-      return FilterParser.parseFilterContent(content);
+      return RarityModelParser.parseFilterContent(content);
     } catch (error) {
       console.error(
-        `[FilterParser] Failed to read filter file: ${filePath}`,
+        `[RarityModelParser] Failed to read filter file: ${filePath}`,
         error,
       );
       return {
@@ -178,15 +180,15 @@ export class FilterParser {
    * @param content - Raw filter file content as a string
    * @returns Parse result with card rarities
    */
-  static parseFilterContent(content: string): FilterParseResult {
+  static parseFilterContent(content: string): RarityModelParseResult {
     const lines = content.split(/\r?\n/);
 
     // Step 1: Find divination cards section ID from TOC
-    const sectionId = FilterParser.findDivinationSectionId(lines);
+    const sectionId = RarityModelParser.findDivinationSectionId(lines);
 
     if (sectionId === null) {
       console.log(
-        "[FilterParser] No Divination Cards section found in TOC — falling back",
+        "[RarityModelParser] No Divination Cards section found in TOC — falling back",
       );
       return {
         cardRarities: new Map(),
@@ -196,11 +198,14 @@ export class FilterParser {
     }
 
     // Step 2: Navigate to divination cards section
-    const sectionStartIndex = FilterParser.findSectionStart(lines, sectionId);
+    const sectionStartIndex = RarityModelParser.findSectionStart(
+      lines,
+      sectionId,
+    );
 
     if (sectionStartIndex === -1) {
       console.log(
-        `[FilterParser] Divination Cards section header [[${sectionId}]] not found in body`,
+        `[RarityModelParser] Divination Cards section header [[${sectionId}]] not found in body`,
       );
       return {
         cardRarities: new Map(),
@@ -210,16 +215,16 @@ export class FilterParser {
     }
 
     // Step 3: Extract the divination cards section lines
-    const sectionLines = FilterParser.extractSectionLines(
+    const sectionLines = RarityModelParser.extractSectionLines(
       lines,
       sectionStartIndex,
     );
 
     // Step 4: Parse tier blocks from the section
-    const tierBlocks = FilterParser.parseTierBlocks(sectionLines);
+    const tierBlocks = RarityModelParser.parseTierBlocks(sectionLines);
 
     // Step 5: Build rarity map from tier blocks
-    const cardRarities = FilterParser.buildRarityMap(tierBlocks);
+    const cardRarities = RarityModelParser.buildRarityMap(tierBlocks);
 
     return {
       cardRarities,
@@ -367,7 +372,7 @@ export class FilterParser {
         const tierName = tierMatch[1].toLowerCase();
         currentBlock = {
           tierName,
-          rarity: FilterParser.mapTierToRarity(tierName),
+          rarity: RarityModelParser.mapTierToRarity(tierName),
           cardNames: [],
         };
         collectingBaseType = false;
@@ -391,7 +396,7 @@ export class FilterParser {
       // Check for BaseType line
       if (BASETYPE_LINE_REGEX.test(trimmed)) {
         collectingBaseType = true;
-        const names = FilterParser.extractCardNames(trimmed);
+        const names = RarityModelParser.extractCardNames(trimmed);
         currentBlock.cardNames.push(...names);
         continue;
       }
@@ -400,7 +405,7 @@ export class FilterParser {
       // A continuation line contains only quoted strings (possibly with whitespace).
       // It must NOT start with a known keyword.
       if (collectingBaseType && trimmed.startsWith('"')) {
-        const names = FilterParser.extractCardNames(trimmed);
+        const names = RarityModelParser.extractCardNames(trimmed);
         currentBlock.cardNames.push(...names);
         continue;
       }

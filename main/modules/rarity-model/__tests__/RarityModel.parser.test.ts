@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { FilterParser, type TierBlock } from "../Filter.parser";
+import { RarityModelParser, type TierBlock } from "../RarityModel.parser";
 
 // ─── Test Fixtures ───────────────────────────────────────────────────────────
 
@@ -102,7 +102,7 @@ function makeFilterWithMissingSectionBody(): string {
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
-describe("FilterParser", () => {
+describe("RarityModelParser", () => {
   // ============================================================================
   // parseFilterContent - Integration-level tests
   // ============================================================================
@@ -110,7 +110,7 @@ describe("FilterParser", () => {
   describe("parseFilterContent", () => {
     it("should parse a valid filter and extract card rarities", () => {
       const content = makeValidFilterContent();
-      const result = FilterParser.parseFilterContent(content);
+      const result = RarityModelParser.parseFilterContent(content);
 
       expect(result.hasDivinationSection).toBe(true);
       expect(result.totalCards).toBe(9);
@@ -138,7 +138,7 @@ describe("FilterParser", () => {
 
     it("should return hasDivinationSection=false when no divination TOC entry exists", () => {
       const content = makeFilterWithoutDivination();
-      const result = FilterParser.parseFilterContent(content);
+      const result = RarityModelParser.parseFilterContent(content);
 
       expect(result.hasDivinationSection).toBe(false);
       expect(result.totalCards).toBe(0);
@@ -147,7 +147,7 @@ describe("FilterParser", () => {
 
     it("should return hasDivinationSection=true with 0 cards when TOC entry exists but section body has no tier blocks", () => {
       const content = makeFilterWithMissingSectionBody();
-      const result = FilterParser.parseFilterContent(content);
+      const result = RarityModelParser.parseFilterContent(content);
 
       // The section header exists (even if only as the TOC entry), so
       // hasDivinationSection is true — but with 0 cards extracted.
@@ -158,7 +158,7 @@ describe("FilterParser", () => {
     });
 
     it("should handle empty content", () => {
-      const result = FilterParser.parseFilterContent("");
+      const result = RarityModelParser.parseFilterContent("");
 
       expect(result.hasDivinationSection).toBe(false);
       expect(result.totalCards).toBe(0);
@@ -170,7 +170,7 @@ describe("FilterParser", () => {
         tiers: [{ tier: "t1", cards: ["The Doctor"] }],
         extraSectionsAfter: true,
       });
-      const result = FilterParser.parseFilterContent(content);
+      const result = RarityModelParser.parseFilterContent(content);
 
       expect(result.hasDivinationSection).toBe(true);
       expect(result.totalCards).toBe(1);
@@ -193,7 +193,7 @@ describe("FilterParser", () => {
           { tier: "restex", cards: ["Card RestEx"] },
         ],
       });
-      const result = FilterParser.parseFilterContent(content);
+      const result = RarityModelParser.parseFilterContent(content);
 
       expect(result.cardRarities.get("Card T1")).toBe(1);
       expect(result.cardRarities.get("Card T2")).toBe(2);
@@ -214,7 +214,7 @@ describe("FilterParser", () => {
           { tier: "t1", cards: ["The Doctor"] },
         ],
       });
-      const result = FilterParser.parseFilterContent(content);
+      const result = RarityModelParser.parseFilterContent(content);
 
       expect(result.totalCards).toBe(1);
       expect(result.cardRarities.has("Stack Card 1")).toBe(false);
@@ -227,7 +227,7 @@ describe("FilterParser", () => {
         tiers: [{ tier: "t1", cards: ["The Doctor"] }],
       }).replace(/\n/g, "\r\n");
 
-      const result = FilterParser.parseFilterContent(content);
+      const result = RarityModelParser.parseFilterContent(content);
 
       expect(result.hasDivinationSection).toBe(true);
       expect(result.cardRarities.get("The Doctor")).toBe(1);
@@ -238,7 +238,7 @@ describe("FilterParser", () => {
         sectionId: "9999",
         tiers: [{ tier: "t1", cards: ["Custom ID Card"] }],
       });
-      const result = FilterParser.parseFilterContent(content);
+      const result = RarityModelParser.parseFilterContent(content);
 
       expect(result.hasDivinationSection).toBe(true);
       expect(result.cardRarities.get("Custom ID Card")).toBe(1);
@@ -257,7 +257,7 @@ describe("FilterParser", () => {
         "# [[4200]] Divination Cards",
         "# [[4300]] Unique Maps",
       ];
-      const result = FilterParser.findDivinationSectionId(lines);
+      const result = RarityModelParser.findDivinationSectionId(lines);
       expect(result).toBe("4200");
     });
 
@@ -266,7 +266,7 @@ describe("FilterParser", () => {
         "# WELCOME] TABLE OF CONTENTS",
         "# [[1234]] Divination Cards",
       ];
-      const result = FilterParser.findDivinationSectionId(lines);
+      const result = RarityModelParser.findDivinationSectionId(lines);
       expect(result).toBe("1234");
     });
 
@@ -275,7 +275,7 @@ describe("FilterParser", () => {
         "# welcome] table of contents",
         "# [[4200]] Divination Cards",
       ];
-      const result = FilterParser.findDivinationSectionId(lines);
+      const result = RarityModelParser.findDivinationSectionId(lines);
       expect(result).toBe("4200");
     });
 
@@ -284,13 +284,13 @@ describe("FilterParser", () => {
         "# WELCOME] TABLE OF CONTENTS",
         "# [[4200]] divination cards",
       ];
-      const result = FilterParser.findDivinationSectionId(lines);
+      const result = RarityModelParser.findDivinationSectionId(lines);
       expect(result).toBe("4200");
     });
 
     it("should return null when no TOC marker is found", () => {
       const lines = ["# Some filter header", "# [[4200]] Divination Cards"];
-      const result = FilterParser.findDivinationSectionId(lines);
+      const result = RarityModelParser.findDivinationSectionId(lines);
       expect(result).toBeNull();
     });
 
@@ -300,12 +300,12 @@ describe("FilterParser", () => {
         "# [[4300]] Unique Maps",
         "# [[4400]] Currency",
       ];
-      const result = FilterParser.findDivinationSectionId(lines);
+      const result = RarityModelParser.findDivinationSectionId(lines);
       expect(result).toBeNull();
     });
 
     it("should return null for empty lines", () => {
-      const result = FilterParser.findDivinationSectionId([]);
+      const result = RarityModelParser.findDivinationSectionId([]);
       expect(result).toBeNull();
     });
 
@@ -316,7 +316,7 @@ describe("FilterParser", () => {
         "Show # some block",
         "# [[4200]] Divination Cards", // After Show — should not match
       ];
-      const result = FilterParser.findDivinationSectionId(lines);
+      const result = RarityModelParser.findDivinationSectionId(lines);
       expect(result).toBeNull();
     });
 
@@ -330,7 +330,7 @@ describe("FilterParser", () => {
         "# WELCOME] TABLE OF CONTENTS",
         "# [[4200]] Divination Cards",
       ];
-      const result = FilterParser.findDivinationSectionId(lines);
+      const result = RarityModelParser.findDivinationSectionId(lines);
       expect(result).toBe("4200");
     });
 
@@ -339,7 +339,7 @@ describe("FilterParser", () => {
         "# WELCOME] TABLE OF CONTENTS",
         "#   [[4200]]   Divination   Cards  ",
       ];
-      const result = FilterParser.findDivinationSectionId(lines);
+      const result = RarityModelParser.findDivinationSectionId(lines);
       expect(result).toBe("4200");
     });
 
@@ -348,7 +348,7 @@ describe("FilterParser", () => {
         "# [WELCOME] TABLE OF CONTENTS - Filter Guide",
         "# [[4200]] Divination Cards",
       ];
-      const result = FilterParser.findDivinationSectionId(lines);
+      const result = RarityModelParser.findDivinationSectionId(lines);
       expect(result).toBe("4200");
     });
   });
@@ -367,18 +367,18 @@ describe("FilterParser", () => {
         "# [[4200]] Divination Cards", // Section body (index 4)
         "Show # $type->divination $tier->t1",
       ];
-      const result = FilterParser.findSectionStart(lines, "4200");
+      const result = RarityModelParser.findSectionStart(lines, "4200");
       expect(result).toBe(4); // Should return the LAST occurrence
     });
 
     it("should return -1 when section ID is not found", () => {
       const lines = ["# [[4300]] Unique Maps", "# [[4400]] Currency"];
-      const result = FilterParser.findSectionStart(lines, "4200");
+      const result = RarityModelParser.findSectionStart(lines, "4200");
       expect(result).toBe(-1);
     });
 
     it("should return -1 for empty lines", () => {
-      const result = FilterParser.findSectionStart([], "4200");
+      const result = RarityModelParser.findSectionStart([], "4200");
       expect(result).toBe(-1);
     });
 
@@ -390,7 +390,7 @@ describe("FilterParser", () => {
         "",
         "# [[4200]] Divination Cards", // index 4
       ];
-      const result = FilterParser.findSectionStart(lines, "4200");
+      const result = RarityModelParser.findSectionStart(lines, "4200");
       expect(result).toBe(4);
     });
 
@@ -399,13 +399,13 @@ describe("FilterParser", () => {
         "# [[4200]] Divination Cards",
         "Show # $type->divination $tier->t1",
       ];
-      const result = FilterParser.findSectionStart(lines, "4200");
+      const result = RarityModelParser.findSectionStart(lines, "4200");
       expect(result).toBe(0);
     });
 
     it("should be case-insensitive", () => {
       const lines = ["# [[4200]] divination cards"];
-      const result = FilterParser.findSectionStart(lines, "4200");
+      const result = RarityModelParser.findSectionStart(lines, "4200");
       expect(result).toBe(0);
     });
   });
@@ -424,7 +424,7 @@ describe("FilterParser", () => {
         "# [[4300]] Unique Maps", // index 4 (next section)
         "Show # some block",
       ];
-      const result = FilterParser.extractSectionLines(lines, 0);
+      const result = RarityModelParser.extractSectionLines(lines, 0);
       expect(result).toEqual([
         "Show # $type->divination $tier->t1",
         '    BaseType == "The Doctor"',
@@ -439,7 +439,7 @@ describe("FilterParser", () => {
         '    BaseType == "The Doctor"',
         "",
       ];
-      const result = FilterParser.extractSectionLines(lines, 0);
+      const result = RarityModelParser.extractSectionLines(lines, 0);
       expect(result).toEqual([
         "Show # $type->divination $tier->t1",
         '    BaseType == "The Doctor"',
@@ -449,13 +449,13 @@ describe("FilterParser", () => {
 
     it("should return empty array when section header is the last line", () => {
       const lines = ["# [[4200]] Divination Cards"];
-      const result = FilterParser.extractSectionLines(lines, 0);
+      const result = RarityModelParser.extractSectionLines(lines, 0);
       expect(result).toEqual([]);
     });
 
     it("should return empty array when next section immediately follows", () => {
       const lines = ["# [[4200]] Divination Cards", "# [[4300]] Unique Maps"];
-      const result = FilterParser.extractSectionLines(lines, 0);
+      const result = RarityModelParser.extractSectionLines(lines, 0);
       expect(result).toEqual([]);
     });
 
@@ -465,7 +465,7 @@ describe("FilterParser", () => {
         "# [[4200]] Divination Cards",
         "content line",
       ];
-      const result = FilterParser.extractSectionLines(lines, 1);
+      const result = RarityModelParser.extractSectionLines(lines, 1);
       expect(result).toEqual(["content line"]);
     });
   });
@@ -482,7 +482,7 @@ describe("FilterParser", () => {
         "    SetFontSize 45",
         "",
       ];
-      const result = FilterParser.parseTierBlocks(lines);
+      const result = RarityModelParser.parseTierBlocks(lines);
 
       expect(result).toHaveLength(1);
       expect(result[0].tierName).toBe("t1");
@@ -501,7 +501,7 @@ describe("FilterParser", () => {
         "    SetFontSize 40",
         "",
       ];
-      const result = FilterParser.parseTierBlocks(lines);
+      const result = RarityModelParser.parseTierBlocks(lines);
 
       expect(result).toHaveLength(2);
       expect(result[0].tierName).toBe("t1");
@@ -519,7 +519,7 @@ describe("FilterParser", () => {
         "    SetFontSize 45",
         "",
       ];
-      const result = FilterParser.parseTierBlocks(lines);
+      const result = RarityModelParser.parseTierBlocks(lines);
 
       expect(result).toHaveLength(1);
       expect(result[0].cardNames).toEqual([
@@ -535,20 +535,20 @@ describe("FilterParser", () => {
         '    BaseType "The Doctor" "The Nurse"',
         "",
       ];
-      const result = FilterParser.parseTierBlocks(lines);
+      const result = RarityModelParser.parseTierBlocks(lines);
 
       expect(result).toHaveLength(1);
       expect(result[0].cardNames).toEqual(["The Doctor", "The Nurse"]);
     });
 
     it("should return empty array for empty input", () => {
-      const result = FilterParser.parseTierBlocks([]);
+      const result = RarityModelParser.parseTierBlocks([]);
       expect(result).toEqual([]);
     });
 
     it("should return empty array when no tier blocks are found", () => {
       const lines = ["# Just some comments", "", "# More comments"];
-      const result = FilterParser.parseTierBlocks(lines);
+      const result = RarityModelParser.parseTierBlocks(lines);
       expect(result).toEqual([]);
     });
 
@@ -559,7 +559,7 @@ describe("FilterParser", () => {
         "    SetBorderColor 255 0 0",
         "",
       ];
-      const result = FilterParser.parseTierBlocks(lines);
+      const result = RarityModelParser.parseTierBlocks(lines);
 
       expect(result).toHaveLength(1);
       expect(result[0].tierName).toBe("t1");
@@ -575,7 +575,7 @@ describe("FilterParser", () => {
         '    BaseType == "Not A Div Card"',
         "",
       ];
-      const result = FilterParser.parseTierBlocks(lines);
+      const result = RarityModelParser.parseTierBlocks(lines);
 
       expect(result).toHaveLength(1);
       expect(result[0].cardNames).toEqual(["The Doctor"]);
@@ -588,7 +588,7 @@ describe("FilterParser", () => {
         "Show # $type->divination $tier->t2",
         '    BaseType == "The Nurse"',
       ];
-      const result = FilterParser.parseTierBlocks(lines);
+      const result = RarityModelParser.parseTierBlocks(lines);
 
       expect(result).toHaveLength(2);
       expect(result[0].tierName).toBe("t1");
@@ -606,7 +606,7 @@ describe("FilterParser", () => {
         '        "Should Not Be Captured"', // This should NOT be captured
         "",
       ];
-      const result = FilterParser.parseTierBlocks(lines);
+      const result = RarityModelParser.parseTierBlocks(lines);
 
       expect(result).toHaveLength(1);
       expect(result[0].cardNames).toEqual(["The Doctor", "House of Mirrors"]);
@@ -619,7 +619,7 @@ describe("FilterParser", () => {
         '    BaseType == "Case Card"',
         "",
       ];
-      const result = FilterParser.parseTierBlocks(lines);
+      const result = RarityModelParser.parseTierBlocks(lines);
 
       expect(result).toHaveLength(1);
       expect(result[0].tierName).toBe("t1");
@@ -648,7 +648,7 @@ describe("FilterParser", () => {
           `    BaseType == "Test Card ${tier}"`,
           "",
         ];
-        const result = FilterParser.parseTierBlocks(lines);
+        const result = RarityModelParser.parseTierBlocks(lines);
 
         expect(result).toHaveLength(1);
         expect(result[0].rarity).toBe(expectedRarity);
@@ -664,7 +664,7 @@ describe("FilterParser", () => {
         "    SetFontSize 45",
         "",
       ];
-      const result = FilterParser.parseTierBlocks(lines);
+      const result = RarityModelParser.parseTierBlocks(lines);
 
       expect(result).toHaveLength(1);
       expect(result[0].cardNames).toEqual(["The Doctor"]);
@@ -675,7 +675,7 @@ describe("FilterParser", () => {
         "Show # $type->divination $tier->t1",
         '    BaseType == "The Doctor"',
       ];
-      const result = FilterParser.parseTierBlocks(lines);
+      const result = RarityModelParser.parseTierBlocks(lines);
 
       expect(result).toHaveLength(1);
       expect(result[0].cardNames).toEqual(["The Doctor"]);
@@ -688,43 +688,45 @@ describe("FilterParser", () => {
 
   describe("extractCardNames", () => {
     it("should extract a single card name", () => {
-      const result = FilterParser.extractCardNames('BaseType == "The Doctor"');
+      const result = RarityModelParser.extractCardNames(
+        'BaseType == "The Doctor"',
+      );
       expect(result).toEqual(["The Doctor"]);
     });
 
     it("should extract multiple card names", () => {
-      const result = FilterParser.extractCardNames(
+      const result = RarityModelParser.extractCardNames(
         'BaseType == "The Doctor" "The Nurse" "House of Mirrors"',
       );
       expect(result).toEqual(["The Doctor", "The Nurse", "House of Mirrors"]);
     });
 
     it("should handle continuation lines (just quoted strings)", () => {
-      const result = FilterParser.extractCardNames(
+      const result = RarityModelParser.extractCardNames(
         '    "House of Mirrors" "The Fiend"',
       );
       expect(result).toEqual(["House of Mirrors", "The Fiend"]);
     });
 
     it("should return empty array for line with no quotes", () => {
-      const result = FilterParser.extractCardNames("SetFontSize 45");
+      const result = RarityModelParser.extractCardNames("SetFontSize 45");
       expect(result).toEqual([]);
     });
 
     it("should return empty array for empty string", () => {
-      const result = FilterParser.extractCardNames("");
+      const result = RarityModelParser.extractCardNames("");
       expect(result).toEqual([]);
     });
 
     it("should handle card names with special characters", () => {
-      const result = FilterParser.extractCardNames(
+      const result = RarityModelParser.extractCardNames(
         'BaseType == "The King\'s Blade" "A Mother\'s Parting Gift"',
       );
       expect(result).toEqual(["The King's Blade", "A Mother's Parting Gift"]);
     });
 
     it("should handle card names with numbers", () => {
-      const result = FilterParser.extractCardNames(
+      const result = RarityModelParser.extractCardNames(
         'BaseType == "1000 Ribbons"',
       );
       expect(result).toEqual(["1000 Ribbons"]);
@@ -735,23 +737,25 @@ describe("FilterParser", () => {
       // The regex /"([^"]+)"/g requires at least one character between quotes,
       // so "" is simply not matched. Adjacent empty quotes can consume
       // surrounding quote characters, so this is a degenerate input.
-      const result = FilterParser.extractCardNames('BaseType == "The Doctor"');
+      const result = RarityModelParser.extractCardNames(
+        'BaseType == "The Doctor"',
+      );
       expect(result).toEqual(["The Doctor"]);
 
       // Verify that isolated empty quotes don't produce matches
-      const emptyResult = FilterParser.extractCardNames('""');
+      const emptyResult = RarityModelParser.extractCardNames('""');
       expect(emptyResult).toEqual([]);
     });
 
     it("should handle card names with leading/trailing whitespace inside quotes", () => {
-      const result = FilterParser.extractCardNames(
+      const result = RarityModelParser.extractCardNames(
         'BaseType == " The Doctor "',
       );
       expect(result).toEqual(["The Doctor"]);
     });
 
     it("should handle BaseType without == operator", () => {
-      const result = FilterParser.extractCardNames(
+      const result = RarityModelParser.extractCardNames(
         'BaseType "The Doctor" "The Nurse"',
       );
       expect(result).toEqual(["The Doctor", "The Nurse"]);
@@ -762,7 +766,7 @@ describe("FilterParser", () => {
       const quotedCards = cards.map((c) => `"${c}"`).join(" ");
       const line = `BaseType == ${quotedCards}`;
 
-      const result = FilterParser.extractCardNames(line);
+      const result = RarityModelParser.extractCardNames(line);
       expect(result).toHaveLength(20);
       expect(result[0]).toBe("Card 1");
       expect(result[19]).toBe("Card 20");
@@ -770,9 +774,15 @@ describe("FilterParser", () => {
 
     it("should be called multiple times without regex state leaking", () => {
       // This tests that the global regex state is properly reset between calls
-      const result1 = FilterParser.extractCardNames('BaseType == "Card A"');
-      const result2 = FilterParser.extractCardNames('BaseType == "Card B"');
-      const result3 = FilterParser.extractCardNames('BaseType == "Card C"');
+      const result1 = RarityModelParser.extractCardNames(
+        'BaseType == "Card A"',
+      );
+      const result2 = RarityModelParser.extractCardNames(
+        'BaseType == "Card B"',
+      );
+      const result3 = RarityModelParser.extractCardNames(
+        'BaseType == "Card C"',
+      );
 
       expect(result1).toEqual(["Card A"]);
       expect(result2).toEqual(["Card B"]);
@@ -786,60 +796,60 @@ describe("FilterParser", () => {
 
   describe("mapTierToRarity", () => {
     it("should map t1 to rarity 1 (Extremely Rare)", () => {
-      expect(FilterParser.mapTierToRarity("t1")).toBe(1);
+      expect(RarityModelParser.mapTierToRarity("t1")).toBe(1);
     });
 
     it("should map t2 to rarity 2 (Rare)", () => {
-      expect(FilterParser.mapTierToRarity("t2")).toBe(2);
+      expect(RarityModelParser.mapTierToRarity("t2")).toBe(2);
     });
 
     it("should map t3 to rarity 2 (Rare)", () => {
-      expect(FilterParser.mapTierToRarity("t3")).toBe(2);
+      expect(RarityModelParser.mapTierToRarity("t3")).toBe(2);
     });
 
     it("should map tnew to rarity 2 (Rare)", () => {
-      expect(FilterParser.mapTierToRarity("tnew")).toBe(2);
+      expect(RarityModelParser.mapTierToRarity("tnew")).toBe(2);
     });
 
     it("should map t4c to rarity 3 (Less Common)", () => {
-      expect(FilterParser.mapTierToRarity("t4c")).toBe(3);
+      expect(RarityModelParser.mapTierToRarity("t4c")).toBe(3);
     });
 
     it("should map t5c to rarity 4 (Common)", () => {
-      expect(FilterParser.mapTierToRarity("t5c")).toBe(4);
+      expect(RarityModelParser.mapTierToRarity("t5c")).toBe(4);
     });
 
     it("should map t4 to rarity 4 (Common)", () => {
-      expect(FilterParser.mapTierToRarity("t4")).toBe(4);
+      expect(RarityModelParser.mapTierToRarity("t4")).toBe(4);
     });
 
     it("should map t5 to rarity 4 (Common)", () => {
-      expect(FilterParser.mapTierToRarity("t5")).toBe(4);
+      expect(RarityModelParser.mapTierToRarity("t5")).toBe(4);
     });
 
     it("should map restex to rarity 4 (Common)", () => {
-      expect(FilterParser.mapTierToRarity("restex")).toBe(4);
+      expect(RarityModelParser.mapTierToRarity("restex")).toBe(4);
     });
 
     it("should return null for exstack (ignored)", () => {
-      expect(FilterParser.mapTierToRarity("exstack")).toBeNull();
+      expect(RarityModelParser.mapTierToRarity("exstack")).toBeNull();
     });
 
     it("should return null for excustomstack (ignored)", () => {
-      expect(FilterParser.mapTierToRarity("excustomstack")).toBeNull();
+      expect(RarityModelParser.mapTierToRarity("excustomstack")).toBeNull();
     });
 
     it("should return null for unknown tier names", () => {
-      expect(FilterParser.mapTierToRarity("t99")).toBeNull();
-      expect(FilterParser.mapTierToRarity("unknown")).toBeNull();
-      expect(FilterParser.mapTierToRarity("")).toBeNull();
+      expect(RarityModelParser.mapTierToRarity("t99")).toBeNull();
+      expect(RarityModelParser.mapTierToRarity("unknown")).toBeNull();
+      expect(RarityModelParser.mapTierToRarity("")).toBeNull();
     });
 
     it("should be case-insensitive", () => {
-      expect(FilterParser.mapTierToRarity("T1")).toBe(1);
-      expect(FilterParser.mapTierToRarity("TNEW")).toBe(2);
-      expect(FilterParser.mapTierToRarity("Restex")).toBe(4);
-      expect(FilterParser.mapTierToRarity("EXSTACK")).toBeNull();
+      expect(RarityModelParser.mapTierToRarity("T1")).toBe(1);
+      expect(RarityModelParser.mapTierToRarity("TNEW")).toBe(2);
+      expect(RarityModelParser.mapTierToRarity("Restex")).toBe(4);
+      expect(RarityModelParser.mapTierToRarity("EXSTACK")).toBeNull();
     });
   });
 
@@ -855,7 +865,7 @@ describe("FilterParser", () => {
         { tierName: "t5", rarity: 4, cardNames: ["The Hermit"] },
       ];
 
-      const result = FilterParser.buildRarityMap(blocks);
+      const result = RarityModelParser.buildRarityMap(blocks);
 
       expect(result.size).toBe(3);
       expect(result.get("The Doctor")).toBe(1);
@@ -869,7 +879,7 @@ describe("FilterParser", () => {
         { tierName: "t1", rarity: 1, cardNames: ["The Doctor"] },
       ];
 
-      const result = FilterParser.buildRarityMap(blocks);
+      const result = RarityModelParser.buildRarityMap(blocks);
 
       expect(result.size).toBe(1);
       expect(result.has("Stack Card")).toBe(false);
@@ -883,7 +893,7 @@ describe("FilterParser", () => {
         { tierName: "t3", rarity: 2, cardNames: ["Duplicate Card"] },
       ];
 
-      const result = FilterParser.buildRarityMap(blocks);
+      const result = RarityModelParser.buildRarityMap(blocks);
 
       expect(result.size).toBe(1);
       expect(result.get("Duplicate Card")).toBe(1); // Most rare wins
@@ -895,13 +905,13 @@ describe("FilterParser", () => {
         { tierName: "t5", rarity: 4, cardNames: ["The Doctor"] },
       ];
 
-      const result = FilterParser.buildRarityMap(blocks);
+      const result = RarityModelParser.buildRarityMap(blocks);
 
       expect(result.get("The Doctor")).toBe(1); // Should stay at 1
     });
 
     it("should return empty map for empty input", () => {
-      const result = FilterParser.buildRarityMap([]);
+      const result = RarityModelParser.buildRarityMap([]);
       expect(result.size).toBe(0);
     });
 
@@ -911,7 +921,7 @@ describe("FilterParser", () => {
         { tierName: "excustomstack", rarity: null, cardNames: ["Card B"] },
       ];
 
-      const result = FilterParser.buildRarityMap(blocks);
+      const result = RarityModelParser.buildRarityMap(blocks);
       expect(result.size).toBe(0);
     });
 
@@ -921,7 +931,7 @@ describe("FilterParser", () => {
         { tierName: "t3", rarity: 2, cardNames: ["The Wretched"] },
       ];
 
-      const result = FilterParser.buildRarityMap(blocks);
+      const result = RarityModelParser.buildRarityMap(blocks);
 
       expect(result.size).toBe(1);
       expect(result.get("The Wretched")).toBe(2);
@@ -934,7 +944,7 @@ describe("FilterParser", () => {
         { tierName: "t5", rarity: 4, cardNames: ["Card E"] },
       ];
 
-      const result = FilterParser.buildRarityMap(blocks);
+      const result = RarityModelParser.buildRarityMap(blocks);
 
       expect(result.size).toBe(5);
       expect(result.get("Card A")).toBe(1);
@@ -951,7 +961,7 @@ describe("FilterParser", () => {
 
   describe("getTierMapping", () => {
     it("should return a copy of the tier mapping", () => {
-      const mapping = FilterParser.getTierMapping();
+      const mapping = RarityModelParser.getTierMapping();
 
       expect(mapping.t1).toBe(1);
       expect(mapping.t2).toBe(2);
@@ -967,19 +977,19 @@ describe("FilterParser", () => {
     });
 
     it("should return a new object each time (not the same reference)", () => {
-      const mapping1 = FilterParser.getTierMapping();
-      const mapping2 = FilterParser.getTierMapping();
+      const mapping1 = RarityModelParser.getTierMapping();
+      const mapping2 = RarityModelParser.getTierMapping();
 
       expect(mapping1).not.toBe(mapping2);
       expect(mapping1).toEqual(mapping2);
     });
 
     it("should not allow modification of internal mapping", () => {
-      const mapping = FilterParser.getTierMapping();
+      const mapping = RarityModelParser.getTierMapping();
       mapping.t1 = 999 as any;
 
       // Original should be unchanged
-      const fresh = FilterParser.getTierMapping();
+      const fresh = RarityModelParser.getTierMapping();
       expect(fresh.t1).toBe(1);
     });
   });
@@ -990,7 +1000,7 @@ describe("FilterParser", () => {
 
   describe("parseFilterFile", () => {
     it("should return empty result when file does not exist", async () => {
-      const result = await FilterParser.parseFilterFile(
+      const result = await RarityModelParser.parseFilterFile(
         "/nonexistent/path/filter.filter",
       );
 
@@ -1095,7 +1105,7 @@ describe("FilterParser", () => {
         "",
       ].join("\n");
 
-      const result = FilterParser.parseFilterContent(content);
+      const result = RarityModelParser.parseFilterContent(content);
 
       expect(result.hasDivinationSection).toBe(true);
 
@@ -1165,7 +1175,7 @@ describe("FilterParser", () => {
         "",
       ].join("\n");
 
-      const result = FilterParser.parseFilterContent(content);
+      const result = RarityModelParser.parseFilterContent(content);
 
       // Stack Only Card appears only in exstack (ignored), so it should NOT be in the map
       expect(result.cardRarities.has("Stack Only Card")).toBe(false);
@@ -1188,7 +1198,7 @@ describe("FilterParser", () => {
         "",
       ].join("\n");
 
-      const result = FilterParser.parseFilterContent(content);
+      const result = RarityModelParser.parseFilterContent(content);
 
       expect(result.hasDivinationSection).toBe(true);
       expect(result.totalCards).toBe(0);
@@ -1217,7 +1227,7 @@ describe("FilterParser", () => {
         "",
       ].join("\n");
 
-      const result = FilterParser.parseFilterContent(content);
+      const result = RarityModelParser.parseFilterContent(content);
 
       expect(result.totalCards).toBe(10);
       for (let i = 1; i <= 10; i++) {
@@ -1243,7 +1253,7 @@ describe("FilterParser", () => {
         "",
       ].join("\n");
 
-      const result = FilterParser.parseFilterContent(content);
+      const result = RarityModelParser.parseFilterContent(content);
 
       // The Hide block ends the t1 block but is not itself a tier block
       // The t3 block should still be parsed
@@ -1266,7 +1276,7 @@ describe("FilterParser", () => {
         "",
       ].join("\n");
 
-      const result = FilterParser.parseFilterContent(content);
+      const result = RarityModelParser.parseFilterContent(content);
 
       // Even though t5 (rarity 4) appears first, t1 (rarity 1) should win
       expect(result.cardRarities.get("Conflict Card")).toBe(1);
@@ -1287,7 +1297,7 @@ describe("FilterParser", () => {
         "",
       ].join("\n");
 
-      const result = FilterParser.parseFilterContent(content);
+      const result = RarityModelParser.parseFilterContent(content);
 
       // Both BaseType lines should be captured since they're in the same block
       // before any other keyword stops BaseType collection.

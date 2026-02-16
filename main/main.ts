@@ -9,9 +9,9 @@ import started from "electron-squirrel-startup";
 import {
   AppService,
   AppSetupService,
-  FilterService,
   MainWindowService,
   OverlayService,
+  RarityModelService,
   SupabaseClientService,
 } from "./modules";
 
@@ -26,7 +26,7 @@ const app = AppService.getInstance();
 const mainWindow = MainWindowService.getInstance();
 const overlay = OverlayService.getInstance();
 const _appSetup = AppSetupService.getInstance();
-const _filterService = FilterService.getInstance();
+const _filterService = RarityModelService.getInstance();
 const supabase = SupabaseClientService.getInstance();
 
 function initializeSupabase() {

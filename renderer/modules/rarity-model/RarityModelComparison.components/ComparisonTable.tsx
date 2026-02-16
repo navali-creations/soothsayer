@@ -12,12 +12,12 @@ import type { KnownRarity, Rarity } from "~/types/data-stores";
 
 import type {
   ComparisonRow,
-  ParsedFilterRarities,
-} from "../FilterComparison.slice";
-import FilterCardNameCell from "./FilterCardNameCell";
+  ParsedRarityModelRarities,
+} from "../RarityModelComparison.slice";
 import PoeNinjaColumnHeader from "./PoeNinjaColumnHeader";
 import PoeNinjaRarityCell from "./PoeNinjaRarityCell";
 import RarityBadgeDropdown from "./RarityBadgeDropdown";
+import RarityModelCardNameCell from "./RarityModelCardNameCell";
 
 const columnHelper = createColumnHelper<ComparisonRow>();
 
@@ -78,15 +78,17 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
   // Use individual selectors so the component only re-renders when these
   // specific slices of state change, rather than on every store mutation.
   const storeSelectedFilters = useBoundStore(
-    (s) => s.filterComparison.selectedFilters,
+    (s) => s.rarityModelComparison.selectedFilters,
   );
   const storeParsingFilterId = useBoundStore(
-    (s) => s.filterComparison.parsingFilterId,
+    (s) => s.rarityModelComparison.parsingFilterId,
   );
   const storeParsedResults = useBoundStore(
-    (s) => s.filterComparison.parsedResults,
+    (s) => s.rarityModelComparison.parsedResults,
   );
-  const showDiffsOnly = useBoundStore((s) => s.filterComparison.showDiffsOnly);
+  const showDiffsOnly = useBoundStore(
+    (s) => s.rarityModelComparison.showDiffsOnly,
+  );
 
   // Defer the values that drive the expensive displayRows rebuild so React
   // can commit the sidebar / toolbar re-render (cheap) immediately and
@@ -96,9 +98,9 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
   const selectedFilters = useDeferredValue(storeSelectedFilters);
   const parsedResults = useDeferredValue(storeParsedResults);
   const allCards = useBoundStore((s) => s.cards.allCards);
-  const availableFilters = useBoundStore((s) => s.filters.availableFilters);
+  const availableFilters = useBoundStore((s) => s.rarityModel.availableFilters);
   const updateFilterCardRarity = useBoundStore(
-    (s) => s.filterComparison.updateFilterCardRarity,
+    (s) => s.rarityModelComparison.updateFilterCardRarity,
   );
 
   // Memoize display rows so the Table component receives a stable data
@@ -109,7 +111,7 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
     // ── Compute differences (filter rarity vs poe.ninja rarity) ──
     const parsed = selectedFilters
       .map((id) => parsedResults.get(id))
-      .filter(Boolean) as ParsedFilterRarities[];
+      .filter(Boolean) as ParsedRarityModelRarities[];
 
     const differences = new Set<string>();
     if (parsed.length >= 1) {
@@ -174,7 +176,7 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
       columnHelper.accessor("name", {
         id: "name",
         header: "Card Name",
-        cell: (info) => <FilterCardNameCell card={info.row.original} />,
+        cell: (info) => <RarityModelCardNameCell card={info.row.original} />,
         size: 200,
         minSize: 150,
       }),

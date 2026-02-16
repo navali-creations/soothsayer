@@ -6,15 +6,15 @@ import {
 } from "~/main/modules/__test-utils__/create-test-db";
 import type { KnownRarity } from "~/types/data-stores";
 
-import { FilterRepository } from "../Filter.repository";
+import { RarityModelRepository } from "../RarityModel.repository";
 
-describe("FilterRepository", () => {
+describe("RarityModelRepository", () => {
   let testDb: TestDatabase;
-  let repository: FilterRepository;
+  let repository: RarityModelRepository;
 
   beforeEach(() => {
     testDb = createTestDatabase();
-    repository = new FilterRepository(testDb.kysely);
+    repository = new RarityModelRepository(testDb.kysely);
   });
 
   afterEach(async () => {

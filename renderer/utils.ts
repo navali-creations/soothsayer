@@ -2,9 +2,9 @@ import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
 import type {
-  DiscoveredFilterDTO,
+  DiscoveredRarityModelDTO,
   RaritySource,
-} from "~/main/modules/filters/Filter.dto";
+} from "~/main/modules/rarity-model/RarityModel.dto";
 import type { Rarity } from "~/types/data-stores";
 
 export function cn(...inputs: ClassValue[]) {
@@ -178,7 +178,7 @@ export type AnalyticsRaritySource =
 export function getAnalyticsRaritySource(
   raritySource: RaritySource,
   filterId: string | null,
-  availableFilters: DiscoveredFilterDTO[],
+  availableFilters: DiscoveredRarityModelDTO[],
 ): AnalyticsRaritySource {
   switch (raritySource) {
     case "poe.ninja":

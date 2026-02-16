@@ -45,11 +45,11 @@ const Navigation = () => {
         </li>
         <li>
           <Link
-            to="/modify-rarities"
+            to="/rarity-model"
             className="[&.active]:bg-primary/10 [&.active]:text-base-content"
           >
             <FiSliders size={20} />
-            <span className="font-medium">Modify Rarities</span>
+            <span className="font-medium">Rarity Model</span>
           </Link>
         </li>
       </ul>

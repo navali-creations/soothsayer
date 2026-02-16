@@ -4,17 +4,17 @@ import type { Database } from "~/main/modules/database";
 import type { KnownRarity } from "~/types/data-stores";
 
 import type {
-  FilterCardRarityDTO,
-  FilterMetadataDTO,
-  FilterType,
-} from "./Filter.dto";
-import { FilterMapper } from "./Filter.mapper";
+  RarityModelCardRarityDTO,
+  RarityModelFilterType,
+  RarityModelMetadataDTO,
+} from "./RarityModel.dto";
+import { RarityModelMapper } from "./RarityModel.mapper";
 
 /**
  * Repository for Filter module database operations.
  * Handles CRUD for filter_metadata and filter_card_rarities tables.
  */
-export class FilterRepository {
+export class RarityModelRepository {
   constructor(private kysely: Kysely<Database>) {}
 
   // ============================================================================
@@ -24,20 +24,22 @@ export class FilterRepository {
   /**
    * Get all filter metadata records
    */
-  async getAll(): Promise<FilterMetadataDTO[]> {
+  async getAll(): Promise<RarityModelMetadataDTO[]> {
     const rows = await this.kysely
       .selectFrom("filter_metadata")
       .selectAll()
       .orderBy("filter_name", "asc")
       .execute();
 
-    return rows.map(FilterMapper.toFilterMetadataDTO);
+    return rows.map(RarityModelMapper.toRarityModelMetadataDTO);
   }
 
   /**
    * Get all filter metadata records of a specific type
    */
-  async getAllByType(filterType: FilterType): Promise<FilterMetadataDTO[]> {
+  async getAllByType(
+    filterType: RarityModelFilterType,
+  ): Promise<RarityModelMetadataDTO[]> {
     const rows = await this.kysely
       .selectFrom("filter_metadata")
       .selectAll()
@@ -45,33 +47,35 @@ export class FilterRepository {
       .orderBy("filter_name", "asc")
       .execute();
 
-    return rows.map(FilterMapper.toFilterMetadataDTO);
+    return rows.map(RarityModelMapper.toRarityModelMetadataDTO);
   }
 
   /**
    * Get a filter metadata record by ID
    */
-  async getById(id: string): Promise<FilterMetadataDTO | null> {
+  async getById(id: string): Promise<RarityModelMetadataDTO | null> {
     const row = await this.kysely
       .selectFrom("filter_metadata")
       .selectAll()
       .where("id", "=", id)
       .executeTakeFirst();
 
-    return row ? FilterMapper.toFilterMetadataDTO(row) : null;
+    return row ? RarityModelMapper.toRarityModelMetadataDTO(row) : null;
   }
 
   /**
    * Get a filter metadata record by file path
    */
-  async getByFilePath(filePath: string): Promise<FilterMetadataDTO | null> {
+  async getByFilePath(
+    filePath: string,
+  ): Promise<RarityModelMetadataDTO | null> {
     const row = await this.kysely
       .selectFrom("filter_metadata")
       .selectAll()
       .where("file_path", "=", filePath)
       .executeTakeFirst();
 
-    return row ? FilterMapper.toFilterMetadataDTO(row) : null;
+    return row ? RarityModelMapper.toRarityModelMetadataDTO(row) : null;
   }
 
   /**
@@ -80,7 +84,7 @@ export class FilterRepository {
    */
   async upsert(data: {
     id: string;
-    filterType: FilterType;
+    filterType: RarityModelFilterType;
     filePath: string;
     filterName: string;
     lastUpdate: string | null;
@@ -116,7 +120,7 @@ export class FilterRepository {
   async upsertMany(
     filters: Array<{
       id: string;
-      filterType: FilterType;
+      filterType: RarityModelFilterType;
       filePath: string;
       filterName: string;
       lastUpdate: string | null;
@@ -211,7 +215,7 @@ export class FilterRepository {
   /**
    * Get all card rarities for a specific filter
    */
-  async getCardRarities(filterId: string): Promise<FilterCardRarityDTO[]> {
+  async getCardRarities(filterId: string): Promise<RarityModelCardRarityDTO[]> {
     const rows = await this.kysely
       .selectFrom("filter_card_rarities")
       .selectAll()
@@ -219,7 +223,7 @@ export class FilterRepository {
       .orderBy("card_name", "asc")
       .execute();
 
-    return rows.map(FilterMapper.toFilterCardRarityDTO);
+    return rows.map(RarityModelMapper.toRarityModelCardRarityDTO);
   }
 
   /**
@@ -228,7 +232,7 @@ export class FilterRepository {
   async getCardRarity(
     filterId: string,
     cardName: string,
-  ): Promise<FilterCardRarityDTO | null> {
+  ): Promise<RarityModelCardRarityDTO | null> {
     const row = await this.kysely
       .selectFrom("filter_card_rarities")
       .selectAll()
@@ -236,7 +240,7 @@ export class FilterRepository {
       .where("card_name", "=", cardName)
       .executeTakeFirst();
 
-    return row ? FilterMapper.toFilterCardRarityDTO(row) : null;
+    return row ? RarityModelMapper.toRarityModelCardRarityDTO(row) : null;
   }
 
   /**

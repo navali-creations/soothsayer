@@ -6,11 +6,11 @@ import { AppSetupAPI } from "~/main/modules/app-setup/AppSetup.api";
 import { CurrentSessionAPI } from "~/main/modules/current-session/CurrentSession.api";
 import { DataStoreAPI } from "~/main/modules/data-store/DataStore.api";
 import { DivinationCardsApi } from "~/main/modules/divination-cards/DivinationCards.api";
-import { FilterAPI } from "~/main/modules/filters/Filter.api";
 import { MainWindowAPI } from "~/main/modules/main-window/MainWindow.api";
 import { OverlayAPI } from "~/main/modules/overlay/Overlay.api";
 import { PoeLeaguesAPI } from "~/main/modules/poe-leagues/PoeLeagues.api";
 import { PoeProcessAPI } from "~/main/modules/poe-process/PoeProcess.api";
+import { RarityModelAPI } from "~/main/modules/rarity-model/RarityModel.api";
 import { SessionsAPI } from "~/main/modules/sessions/Sessions.api";
 import { SettingsStoreAPI } from "~/main/modules/settings-store/SettingsStore.api";
 import { SnapshotAPI } from "~/main/modules/snapshots/Snapshot.api";
@@ -37,5 +37,5 @@ contextBridge.exposeInMainWorld("electron", {
   analytics: AnalyticsAPI,
   divinationCards: DivinationCardsApi,
   updater: UpdaterAPI,
-  filters: FilterAPI,
+  rarityModel: RarityModelAPI,
 });

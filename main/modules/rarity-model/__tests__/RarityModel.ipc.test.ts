@@ -123,9 +123,9 @@ vi.mock("~/main/modules/divination-cards", () => ({
   },
 }));
 
-// ─── Mock FilterRepository ───────────────────────────────────────────────────
-vi.mock("../Filter.repository", () => ({
-  FilterRepository: class MockFilterRepository {
+// ─── Mock RarityModelRepository ───────────────────────────────────────────────────
+vi.mock("../RarityModel.repository", () => ({
+  RarityModelRepository: class MockRarityModelRepository {
     getAll = mockRepoGetAll;
     getById = mockRepoGetById;
     getByFilePath = mockRepoGetByFilePath;
@@ -140,9 +140,9 @@ vi.mock("../Filter.repository", () => ({
   },
 }));
 
-// ─── Mock FilterScanner ─────────────────────────────────────────────────────
-vi.mock("../Filter.scanner", () => ({
-  FilterScanner: class MockFilterScanner {
+// ─── Mock RarityModelScanner ─────────────────────────────────────────────────────
+vi.mock("../RarityModel.scanner", () => ({
+  RarityModelScanner: class MockRarityModelScanner {
     scanAll = mockScanAll;
     directoryExists = mockDirectoryExists;
     getFiltersDirectory(game: string) {
@@ -170,9 +170,9 @@ vi.mock("../Filter.scanner", () => ({
   },
 }));
 
-// ─── Mock FilterParser ──────────────────────────────────────────────────────
-vi.mock("../Filter.parser", () => ({
-  FilterParser: {
+// ─── Mock RarityModelParser ──────────────────────────────────────────────────────
+vi.mock("../RarityModel.parser", () => ({
+  RarityModelParser: {
     parseFilterFile: mockParseFilterFile,
   },
 }));
@@ -187,8 +187,8 @@ vi.mock("~/main/utils/ipc-validation", () => ({
 }));
 
 // ─── Import under test ──────────────────────────────────────────────────────
-import { FilterChannel } from "../Filter.channels";
-import { FilterService } from "../Filter.service";
+import { RarityModelChannel } from "../RarityModel.channels";
+import { RarityModelService } from "../RarityModel.service";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -228,16 +228,16 @@ const SAMPLE_CARD_RARITIES = [
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
-describe("FilterService — IPC handlers and input validation", () => {
+describe("RarityModelService — IPC handlers and input validation", () => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  let _service: FilterService;
+  let _service: RarityModelService;
 
   beforeEach(() => {
     vi.clearAllMocks();
 
     // Reset singleton
     // @ts-expect-error — accessing private static for testing
-    FilterService._instance = undefined;
+    RarityModelService._instance = undefined;
 
     // Reset validation mocks to no-op implementations
     mockAssertBoundedString.mockImplementation(() => {});
@@ -272,12 +272,12 @@ describe("FilterService — IPC handlers and input validation", () => {
     });
     mockDivinationUpdateRaritiesFromFilter.mockResolvedValue(undefined);
 
-    _service = FilterService.getInstance();
+    _service = RarityModelService.getInstance();
   });
 
   afterEach(() => {
     // @ts-expect-error — accessing private static for testing
-    FilterService._instance = undefined;
+    RarityModelService._instance = undefined;
     vi.restoreAllMocks();
   });
 
@@ -289,17 +289,23 @@ describe("FilterService — IPC handlers and input validation", () => {
         ([ch]: [string]) => ch,
       );
 
-      expect(registeredChannels).toContain(FilterChannel.ScanFilters);
-      expect(registeredChannels).toContain(FilterChannel.GetFilters);
-      expect(registeredChannels).toContain(FilterChannel.GetFilter);
-      expect(registeredChannels).toContain(FilterChannel.ParseFilter);
-      expect(registeredChannels).toContain(FilterChannel.SelectFilter);
-      expect(registeredChannels).toContain(FilterChannel.GetSelectedFilter);
-      expect(registeredChannels).toContain(FilterChannel.GetRaritySource);
-      expect(registeredChannels).toContain(FilterChannel.SetRaritySource);
-      expect(registeredChannels).toContain(FilterChannel.ApplyFilterRarities);
+      expect(registeredChannels).toContain(RarityModelChannel.ScanRarityModels);
+      expect(registeredChannels).toContain(RarityModelChannel.GetRarityModels);
+      expect(registeredChannels).toContain(RarityModelChannel.GetRarityModel);
+      expect(registeredChannels).toContain(RarityModelChannel.ParseRarityModel);
       expect(registeredChannels).toContain(
-        FilterChannel.UpdateFilterCardRarity,
+        RarityModelChannel.SelectRarityModel,
+      );
+      expect(registeredChannels).toContain(
+        RarityModelChannel.GetSelectedRarityModel,
+      );
+      expect(registeredChannels).toContain(RarityModelChannel.GetRaritySource);
+      expect(registeredChannels).toContain(RarityModelChannel.SetRaritySource);
+      expect(registeredChannels).toContain(
+        RarityModelChannel.ApplyRarityModelRarities,
+      );
+      expect(registeredChannels).toContain(
+        RarityModelChannel.UpdateRarityModelCardRarity,
       );
     });
 
@@ -320,7 +326,7 @@ describe("FilterService — IPC handlers and input validation", () => {
 
   describe("ScanFilters handler", () => {
     it("should not require any input validation", async () => {
-      const handler = getIpcHandler(FilterChannel.ScanFilters);
+      const handler = getIpcHandler(RarityModelChannel.ScanRarityModels);
       await handler({});
 
       // No validation assertions needed — handler takes no params
@@ -330,7 +336,7 @@ describe("FilterService — IPC handlers and input validation", () => {
     });
 
     it("should return scan results", async () => {
-      const handler = getIpcHandler(FilterChannel.ScanFilters);
+      const handler = getIpcHandler(RarityModelChannel.ScanRarityModels);
       const result = await handler({});
 
       expect(result).toEqual({
@@ -345,7 +351,7 @@ describe("FilterService — IPC handlers and input validation", () => {
 
   describe("GetFilters handler", () => {
     it("should not require any input validation", async () => {
-      const handler = getIpcHandler(FilterChannel.GetFilters);
+      const handler = getIpcHandler(RarityModelChannel.GetRarityModels);
       await handler({});
 
       expect(mockAssertBoundedString).not.toHaveBeenCalled();
@@ -354,7 +360,7 @@ describe("FilterService — IPC handlers and input validation", () => {
 
     it("should return all filters", async () => {
       mockRepoGetAll.mockResolvedValue([SAMPLE_FILTER_METADATA]);
-      const handler = getIpcHandler(FilterChannel.GetFilters);
+      const handler = getIpcHandler(RarityModelChannel.GetRarityModels);
       const result = await handler({});
 
       expect(result).toHaveLength(1);
@@ -365,19 +371,19 @@ describe("FilterService — IPC handlers and input validation", () => {
 
   describe("GetFilter handler", () => {
     it("should validate filterId as a bounded string", async () => {
-      const handler = getIpcHandler(FilterChannel.GetFilter);
+      const handler = getIpcHandler(RarityModelChannel.GetRarityModel);
       await handler({}, "filter_abc12345");
 
       expect(mockAssertBoundedString).toHaveBeenCalledWith(
         "filter_abc12345",
         "filterId",
-        FilterChannel.GetFilter,
+        RarityModelChannel.GetRarityModel,
         256,
       );
     });
 
     it("should return filter metadata on valid input", async () => {
-      const handler = getIpcHandler(FilterChannel.GetFilter);
+      const handler = getIpcHandler(RarityModelChannel.GetRarityModel);
       const result = await handler({}, "filter_abc12345");
 
       expect(mockRepoGetById).toHaveBeenCalledWith("filter_abc12345");
@@ -386,7 +392,7 @@ describe("FilterService — IPC handlers and input validation", () => {
 
     it("should return null for non-existent filter", async () => {
       mockRepoGetById.mockResolvedValue(null);
-      const handler = getIpcHandler(FilterChannel.GetFilter);
+      const handler = getIpcHandler(RarityModelChannel.GetRarityModel);
       const result = await handler({}, "filter_nonexistent");
 
       expect(result).toBeNull();
@@ -398,12 +404,12 @@ describe("FilterService — IPC handlers and input validation", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(FilterChannel.GetFilter);
+      const handler = getIpcHandler(RarityModelChannel.GetRarityModel);
       await handler({}, 12345);
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
         validationError,
-        FilterChannel.GetFilter,
+        RarityModelChannel.GetRarityModel,
       );
       expect(mockRepoGetById).not.toHaveBeenCalled();
     });
@@ -414,12 +420,12 @@ describe("FilterService — IPC handlers and input validation", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(FilterChannel.GetFilter);
+      const handler = getIpcHandler(RarityModelChannel.GetRarityModel);
       await handler({}, null);
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
         validationError,
-        FilterChannel.GetFilter,
+        RarityModelChannel.GetRarityModel,
       );
     });
 
@@ -429,12 +435,12 @@ describe("FilterService — IPC handlers and input validation", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(FilterChannel.GetFilter);
+      const handler = getIpcHandler(RarityModelChannel.GetRarityModel);
       await handler({}, undefined);
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
         validationError,
-        FilterChannel.GetFilter,
+        RarityModelChannel.GetRarityModel,
       );
     });
 
@@ -444,13 +450,13 @@ describe("FilterService — IPC handlers and input validation", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(FilterChannel.GetFilter);
+      const handler = getIpcHandler(RarityModelChannel.GetRarityModel);
       const longId = "a".repeat(300);
       await handler({}, longId);
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
         validationError,
-        FilterChannel.GetFilter,
+        RarityModelChannel.GetRarityModel,
       );
       expect(mockRepoGetById).not.toHaveBeenCalled();
     });
@@ -460,19 +466,19 @@ describe("FilterService — IPC handlers and input validation", () => {
 
   describe("ParseFilter handler", () => {
     it("should validate filterId as a bounded string", async () => {
-      const handler = getIpcHandler(FilterChannel.ParseFilter);
+      const handler = getIpcHandler(RarityModelChannel.ParseRarityModel);
       await handler({}, "filter_abc12345");
 
       expect(mockAssertBoundedString).toHaveBeenCalledWith(
         "filter_abc12345",
         "filterId",
-        FilterChannel.ParseFilter,
+        RarityModelChannel.ParseRarityModel,
         256,
       );
     });
 
     it("should return parse result on valid input", async () => {
-      const handler = getIpcHandler(FilterChannel.ParseFilter);
+      const handler = getIpcHandler(RarityModelChannel.ParseRarityModel);
       const result = await handler({}, "filter_abc12345");
 
       expect(result).toMatchObject({
@@ -488,12 +494,12 @@ describe("FilterService — IPC handlers and input validation", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(FilterChannel.ParseFilter);
+      const handler = getIpcHandler(RarityModelChannel.ParseRarityModel);
       await handler({}, 42);
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
         validationError,
-        FilterChannel.ParseFilter,
+        RarityModelChannel.ParseRarityModel,
       );
       expect(mockRepoGetById).not.toHaveBeenCalled();
     });
@@ -504,12 +510,12 @@ describe("FilterService — IPC handlers and input validation", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(FilterChannel.ParseFilter);
+      const handler = getIpcHandler(RarityModelChannel.ParseRarityModel);
       await handler({}, null);
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
         validationError,
-        FilterChannel.ParseFilter,
+        RarityModelChannel.ParseRarityModel,
       );
     });
 
@@ -519,12 +525,12 @@ describe("FilterService — IPC handlers and input validation", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(FilterChannel.ParseFilter);
+      const handler = getIpcHandler(RarityModelChannel.ParseRarityModel);
       await handler({}, { malicious: true });
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
         validationError,
-        FilterChannel.ParseFilter,
+        RarityModelChannel.ParseRarityModel,
       );
       expect(mockRepoGetById).not.toHaveBeenCalled();
     });
@@ -538,7 +544,7 @@ describe("FilterService — IPC handlers and input validation", () => {
         throw error;
       });
 
-      const handler = getIpcHandler(FilterChannel.ParseFilter);
+      const handler = getIpcHandler(RarityModelChannel.ParseRarityModel);
       await expect(handler({}, "filter_abc12345")).rejects.toThrow(
         "Database connection lost",
       );
@@ -549,32 +555,32 @@ describe("FilterService — IPC handlers and input validation", () => {
 
   describe("SelectFilter handler", () => {
     it("should validate filterId with assertOptionalString (accepts string)", async () => {
-      const handler = getIpcHandler(FilterChannel.SelectFilter);
+      const handler = getIpcHandler(RarityModelChannel.SelectRarityModel);
       await handler({}, "filter_abc12345");
 
       expect(mockAssertOptionalString).toHaveBeenCalledWith(
         "filter_abc12345",
         "filterId",
-        FilterChannel.SelectFilter,
+        RarityModelChannel.SelectRarityModel,
         256,
       );
     });
 
     it("should validate filterId with assertOptionalString (accepts null)", async () => {
       mockRepoGetById.mockResolvedValue(null); // null case — clearing selection
-      const handler = getIpcHandler(FilterChannel.SelectFilter);
+      const handler = getIpcHandler(RarityModelChannel.SelectRarityModel);
       await handler({}, null);
 
       expect(mockAssertOptionalString).toHaveBeenCalledWith(
         null,
         "filterId",
-        FilterChannel.SelectFilter,
+        RarityModelChannel.SelectRarityModel,
         256,
       );
     });
 
     it("should call settingsStore.set when selecting a valid filter", async () => {
-      const handler = getIpcHandler(FilterChannel.SelectFilter);
+      const handler = getIpcHandler(RarityModelChannel.SelectRarityModel);
       await handler({}, "filter_abc12345");
 
       expect(mockSettingsSet).toHaveBeenCalledWith(
@@ -584,7 +590,7 @@ describe("FilterService — IPC handlers and input validation", () => {
     });
 
     it("should call settingsStore.set with null when clearing selection", async () => {
-      const handler = getIpcHandler(FilterChannel.SelectFilter);
+      const handler = getIpcHandler(RarityModelChannel.SelectRarityModel);
       await handler({}, null);
 
       expect(mockSettingsSet).toHaveBeenCalledWith("selectedFilterId", null);
@@ -596,12 +602,12 @@ describe("FilterService — IPC handlers and input validation", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(FilterChannel.SelectFilter);
+      const handler = getIpcHandler(RarityModelChannel.SelectRarityModel);
       await handler({}, 999);
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
         validationError,
-        FilterChannel.SelectFilter,
+        RarityModelChannel.SelectRarityModel,
       );
       expect(mockSettingsSet).not.toHaveBeenCalled();
     });
@@ -612,12 +618,12 @@ describe("FilterService — IPC handlers and input validation", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(FilterChannel.SelectFilter);
+      const handler = getIpcHandler(RarityModelChannel.SelectRarityModel);
       await handler({}, true);
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
         validationError,
-        FilterChannel.SelectFilter,
+        RarityModelChannel.SelectRarityModel,
       );
     });
 
@@ -627,12 +633,12 @@ describe("FilterService — IPC handlers and input validation", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(FilterChannel.SelectFilter);
+      const handler = getIpcHandler(RarityModelChannel.SelectRarityModel);
       await handler({}, ["filter_abc12345"]);
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
         validationError,
-        FilterChannel.SelectFilter,
+        RarityModelChannel.SelectRarityModel,
       );
     });
   });
@@ -641,7 +647,7 @@ describe("FilterService — IPC handlers and input validation", () => {
 
   describe("GetSelectedFilter handler", () => {
     it("should not require any input validation", async () => {
-      const handler = getIpcHandler(FilterChannel.GetSelectedFilter);
+      const handler = getIpcHandler(RarityModelChannel.GetSelectedRarityModel);
       await handler({});
 
       expect(mockAssertBoundedString).not.toHaveBeenCalled();
@@ -650,7 +656,7 @@ describe("FilterService — IPC handlers and input validation", () => {
 
     it("should return null when no filter is selected", async () => {
       mockSettingsGet.mockResolvedValue(null);
-      const handler = getIpcHandler(FilterChannel.GetSelectedFilter);
+      const handler = getIpcHandler(RarityModelChannel.GetSelectedRarityModel);
       const result = await handler({});
 
       expect(result).toBeNull();
@@ -658,7 +664,7 @@ describe("FilterService — IPC handlers and input validation", () => {
 
     it("should return filter metadata when a filter is selected", async () => {
       mockSettingsGet.mockResolvedValue("filter_abc12345");
-      const handler = getIpcHandler(FilterChannel.GetSelectedFilter);
+      const handler = getIpcHandler(RarityModelChannel.GetSelectedRarityModel);
       const result = await handler({});
 
       expect(result).toEqual(SAMPLE_FILTER_METADATA);
@@ -669,7 +675,7 @@ describe("FilterService — IPC handlers and input validation", () => {
 
   describe("GetRaritySource handler", () => {
     it("should not require any input validation", async () => {
-      const handler = getIpcHandler(FilterChannel.GetRaritySource);
+      const handler = getIpcHandler(RarityModelChannel.GetRaritySource);
       await handler({});
 
       expect(mockAssertBoundedString).not.toHaveBeenCalled();
@@ -678,7 +684,7 @@ describe("FilterService — IPC handlers and input validation", () => {
 
     it("should return current rarity source from settings", async () => {
       mockSettingsGet.mockResolvedValue("poe.ninja");
-      const handler = getIpcHandler(FilterChannel.GetRaritySource);
+      const handler = getIpcHandler(RarityModelChannel.GetRaritySource);
       const result = await handler({});
 
       expect(result).toBe("poe.ninja");
@@ -689,37 +695,37 @@ describe("FilterService — IPC handlers and input validation", () => {
 
   describe("SetRaritySource handler", () => {
     it("should validate source as an enum value", async () => {
-      const handler = getIpcHandler(FilterChannel.SetRaritySource);
+      const handler = getIpcHandler(RarityModelChannel.SetRaritySource);
       await handler({}, "poe.ninja");
 
       expect(mockAssertEnum).toHaveBeenCalledWith(
         "poe.ninja",
         "source",
-        FilterChannel.SetRaritySource,
+        RarityModelChannel.SetRaritySource,
         ["poe.ninja", "filter", "prohibited-library"],
       );
     });
 
     it("should accept 'filter' as a valid rarity source", async () => {
-      const handler = getIpcHandler(FilterChannel.SetRaritySource);
+      const handler = getIpcHandler(RarityModelChannel.SetRaritySource);
       await handler({}, "filter");
 
       expect(mockAssertEnum).toHaveBeenCalledWith(
         "filter",
         "source",
-        FilterChannel.SetRaritySource,
+        RarityModelChannel.SetRaritySource,
         ["poe.ninja", "filter", "prohibited-library"],
       );
     });
 
     it("should accept 'prohibited-library' as a valid rarity source", async () => {
-      const handler = getIpcHandler(FilterChannel.SetRaritySource);
+      const handler = getIpcHandler(RarityModelChannel.SetRaritySource);
       await handler({}, "prohibited-library");
 
       expect(mockAssertEnum).toHaveBeenCalledWith(
         "prohibited-library",
         "source",
-        FilterChannel.SetRaritySource,
+        RarityModelChannel.SetRaritySource,
         ["poe.ninja", "filter", "prohibited-library"],
       );
     });
@@ -730,12 +736,12 @@ describe("FilterService — IPC handlers and input validation", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(FilterChannel.SetRaritySource);
+      const handler = getIpcHandler(RarityModelChannel.SetRaritySource);
       await handler({}, "invalid-source");
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
         validationError,
-        FilterChannel.SetRaritySource,
+        RarityModelChannel.SetRaritySource,
       );
       expect(mockSettingsSet).not.toHaveBeenCalled();
     });
@@ -746,12 +752,12 @@ describe("FilterService — IPC handlers and input validation", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(FilterChannel.SetRaritySource);
+      const handler = getIpcHandler(RarityModelChannel.SetRaritySource);
       await handler({}, 42);
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
         validationError,
-        FilterChannel.SetRaritySource,
+        RarityModelChannel.SetRaritySource,
       );
     });
 
@@ -761,12 +767,12 @@ describe("FilterService — IPC handlers and input validation", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(FilterChannel.SetRaritySource);
+      const handler = getIpcHandler(RarityModelChannel.SetRaritySource);
       await handler({}, null);
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
         validationError,
-        FilterChannel.SetRaritySource,
+        RarityModelChannel.SetRaritySource,
       );
     });
 
@@ -776,12 +782,12 @@ describe("FilterService — IPC handlers and input validation", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(FilterChannel.SetRaritySource);
+      const handler = getIpcHandler(RarityModelChannel.SetRaritySource);
       await handler({}, undefined);
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
         validationError,
-        FilterChannel.SetRaritySource,
+        RarityModelChannel.SetRaritySource,
       );
     });
 
@@ -791,12 +797,12 @@ describe("FilterService — IPC handlers and input validation", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(FilterChannel.SetRaritySource);
+      const handler = getIpcHandler(RarityModelChannel.SetRaritySource);
       await handler({}, { type: "poe.ninja" });
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
         validationError,
-        FilterChannel.SetRaritySource,
+        RarityModelChannel.SetRaritySource,
       );
     });
   });
@@ -805,39 +811,45 @@ describe("FilterService — IPC handlers and input validation", () => {
 
   describe("ApplyFilterRarities handler", () => {
     it("should validate all three parameters", async () => {
-      const handler = getIpcHandler(FilterChannel.ApplyFilterRarities);
+      const handler = getIpcHandler(
+        RarityModelChannel.ApplyRarityModelRarities,
+      );
       await handler({}, "filter_abc12345", "poe1", "Settlers");
 
       expect(mockAssertBoundedString).toHaveBeenCalledWith(
         "filter_abc12345",
         "filterId",
-        FilterChannel.ApplyFilterRarities,
+        RarityModelChannel.ApplyRarityModelRarities,
         256,
       );
       expect(mockAssertGameType).toHaveBeenCalledWith(
         "poe1",
-        FilterChannel.ApplyFilterRarities,
+        RarityModelChannel.ApplyRarityModelRarities,
       );
       expect(mockAssertBoundedString).toHaveBeenCalledWith(
         "Settlers",
         "league",
-        FilterChannel.ApplyFilterRarities,
+        RarityModelChannel.ApplyRarityModelRarities,
         256,
       );
     });
 
     it("should accept poe2 as game type", async () => {
-      const handler = getIpcHandler(FilterChannel.ApplyFilterRarities);
+      const handler = getIpcHandler(
+        RarityModelChannel.ApplyRarityModelRarities,
+      );
       await handler({}, "filter_abc12345", "poe2", "Early Access");
 
       expect(mockAssertGameType).toHaveBeenCalledWith(
         "poe2",
-        FilterChannel.ApplyFilterRarities,
+        RarityModelChannel.ApplyRarityModelRarities,
       );
     });
 
     it("should return success result with filter info", async () => {
-      const handler = getIpcHandler(FilterChannel.ApplyFilterRarities);
+      const handler = getIpcHandler(
+        RarityModelChannel.ApplyRarityModelRarities,
+      );
       const result = await handler({}, "filter_abc12345", "poe1", "Settlers");
 
       expect(result).toMatchObject({
@@ -852,12 +864,14 @@ describe("FilterService — IPC handlers and input validation", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(FilterChannel.ApplyFilterRarities);
+      const handler = getIpcHandler(
+        RarityModelChannel.ApplyRarityModelRarities,
+      );
       await handler({}, null, "poe1", "Settlers");
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
         validationError,
-        FilterChannel.ApplyFilterRarities,
+        RarityModelChannel.ApplyRarityModelRarities,
       );
       expect(mockDivinationUpdateRaritiesFromFilter).not.toHaveBeenCalled();
     });
@@ -872,12 +886,14 @@ describe("FilterService — IPC handlers and input validation", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(FilterChannel.ApplyFilterRarities);
+      const handler = getIpcHandler(
+        RarityModelChannel.ApplyRarityModelRarities,
+      );
       await handler({}, "filter_abc12345", "invalid-game", "Settlers");
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
         validationError,
-        FilterChannel.ApplyFilterRarities,
+        RarityModelChannel.ApplyRarityModelRarities,
       );
       expect(mockDivinationUpdateRaritiesFromFilter).not.toHaveBeenCalled();
     });
@@ -892,12 +908,14 @@ describe("FilterService — IPC handlers and input validation", () => {
         },
       );
 
-      const handler = getIpcHandler(FilterChannel.ApplyFilterRarities);
+      const handler = getIpcHandler(
+        RarityModelChannel.ApplyRarityModelRarities,
+      );
       await handler({}, "filter_abc12345", "poe1", 999);
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
         expect.any(Error),
-        FilterChannel.ApplyFilterRarities,
+        RarityModelChannel.ApplyRarityModelRarities,
       );
       expect(mockDivinationUpdateRaritiesFromFilter).not.toHaveBeenCalled();
     });
@@ -908,12 +926,14 @@ describe("FilterService — IPC handlers and input validation", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(FilterChannel.ApplyFilterRarities);
+      const handler = getIpcHandler(
+        RarityModelChannel.ApplyRarityModelRarities,
+      );
       await handler({}, "filter_abc12345", 123, "Settlers");
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
         validationError,
-        FilterChannel.ApplyFilterRarities,
+        RarityModelChannel.ApplyRarityModelRarities,
       );
     });
 
@@ -926,12 +946,14 @@ describe("FilterService — IPC handlers and input validation", () => {
         },
       );
 
-      const handler = getIpcHandler(FilterChannel.ApplyFilterRarities);
+      const handler = getIpcHandler(
+        RarityModelChannel.ApplyRarityModelRarities,
+      );
       await handler({}, "filter_abc12345", "poe1", true);
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
         expect.any(Error),
-        FilterChannel.ApplyFilterRarities,
+        RarityModelChannel.ApplyRarityModelRarities,
       );
     });
 
@@ -946,7 +968,9 @@ describe("FilterService — IPC handlers and input validation", () => {
         throw error;
       });
 
-      const handler = getIpcHandler(FilterChannel.ApplyFilterRarities);
+      const handler = getIpcHandler(
+        RarityModelChannel.ApplyRarityModelRarities,
+      );
       await expect(
         handler({}, "filter_abc12345", "poe1", "Settlers"),
       ).rejects.toThrow("DB write failed");
@@ -962,12 +986,12 @@ describe("FilterService — IPC handlers and input validation", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(FilterChannel.GetFilter);
+      const handler = getIpcHandler(RarityModelChannel.GetRarityModel);
       await handler({}, "filter_abc\0malicious");
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
         validationError,
-        FilterChannel.GetFilter,
+        RarityModelChannel.GetRarityModel,
       );
     });
 
@@ -981,12 +1005,12 @@ describe("FilterService — IPC handlers and input validation", () => {
         },
       );
 
-      const handler = getIpcHandler(FilterChannel.ParseFilter);
+      const handler = getIpcHandler(RarityModelChannel.ParseRarityModel);
       await handler({}, "");
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
         validationError,
-        FilterChannel.ParseFilter,
+        RarityModelChannel.ParseRarityModel,
       );
     });
 
@@ -996,12 +1020,14 @@ describe("FilterService — IPC handlers and input validation", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(FilterChannel.ApplyFilterRarities);
+      const handler = getIpcHandler(
+        RarityModelChannel.ApplyRarityModelRarities,
+      );
       await handler({}, { __proto__: { isAdmin: true } }, "poe1", "Settlers");
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
         validationError,
-        FilterChannel.ApplyFilterRarities,
+        RarityModelChannel.ApplyRarityModelRarities,
       );
     });
 
@@ -1011,12 +1037,12 @@ describe("FilterService — IPC handlers and input validation", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(FilterChannel.SetRaritySource);
+      const handler = getIpcHandler(RarityModelChannel.SetRaritySource);
       await handler({}, { toString: () => "poe.ninja" });
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
         validationError,
-        FilterChannel.SetRaritySource,
+        RarityModelChannel.SetRaritySource,
       );
     });
   });
@@ -1035,7 +1061,9 @@ describe("FilterService — IPC handlers and input validation", () => {
         callOrder.push("assertGameType");
       });
 
-      const handler = getIpcHandler(FilterChannel.ApplyFilterRarities);
+      const handler = getIpcHandler(
+        RarityModelChannel.ApplyRarityModelRarities,
+      );
       await handler({}, "filter_abc12345", "poe1", "Settlers");
 
       expect(callOrder[0]).toBe("assertBoundedString:filterId");
@@ -1049,7 +1077,9 @@ describe("FilterService — IPC handlers and input validation", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(FilterChannel.ApplyFilterRarities);
+      const handler = getIpcHandler(
+        RarityModelChannel.ApplyRarityModelRarities,
+      );
       await handler({}, "filter_abc12345", "invalid", "Settlers");
 
       // assertBoundedString should only have been called once for filterId, not for league
@@ -1057,7 +1087,7 @@ describe("FilterService — IPC handlers and input validation", () => {
       expect(mockAssertBoundedString).toHaveBeenCalledWith(
         "filter_abc12345",
         "filterId",
-        FilterChannel.ApplyFilterRarities,
+        RarityModelChannel.ApplyRarityModelRarities,
         256,
       );
     });
@@ -1067,14 +1097,14 @@ describe("FilterService — IPC handlers and input validation", () => {
 
   describe("parameterless handlers", () => {
     it("ScanFilters should call scanner.scanAll", async () => {
-      const handler = getIpcHandler(FilterChannel.ScanFilters);
+      const handler = getIpcHandler(RarityModelChannel.ScanRarityModels);
       await handler({});
 
       expect(mockScanAll).toHaveBeenCalledTimes(1);
     });
 
     it("GetFilters should call repository.getAll", async () => {
-      const handler = getIpcHandler(FilterChannel.GetFilters);
+      const handler = getIpcHandler(RarityModelChannel.GetRarityModels);
       await handler({});
 
       expect(mockRepoGetAll).toHaveBeenCalledTimes(1);
@@ -1082,7 +1112,7 @@ describe("FilterService — IPC handlers and input validation", () => {
 
     it("GetSelectedFilter should query settings and repository", async () => {
       mockSettingsGet.mockResolvedValue("filter_abc12345");
-      const handler = getIpcHandler(FilterChannel.GetSelectedFilter);
+      const handler = getIpcHandler(RarityModelChannel.GetSelectedRarityModel);
       const result = await handler({});
 
       expect(mockSettingsGet).toHaveBeenCalled();
@@ -1091,7 +1121,7 @@ describe("FilterService — IPC handlers and input validation", () => {
 
     it("GetRaritySource should query settings", async () => {
       mockSettingsGet.mockResolvedValue("filter");
-      const handler = getIpcHandler(FilterChannel.GetRaritySource);
+      const handler = getIpcHandler(RarityModelChannel.GetRaritySource);
       const result = await handler({});
 
       expect(result).toBe("filter");
@@ -1111,7 +1141,7 @@ describe("FilterService — IPC handlers and input validation", () => {
         error: 'Invalid input: Expected "filterId" to be a string, got number',
       });
 
-      const handler = getIpcHandler(FilterChannel.GetFilter);
+      const handler = getIpcHandler(RarityModelChannel.GetRarityModel);
       const result = await handler({}, 42);
 
       expect(result).toEqual({
@@ -1125,9 +1155,9 @@ describe("FilterService — IPC handlers and input validation", () => {
       const errorResponse = { success: false, error: "Validation error" };
 
       // Get all handlers before any mock clearing
-      const getHandler = getIpcHandler(FilterChannel.GetFilter);
-      const parseHandler = getIpcHandler(FilterChannel.ParseFilter);
-      const setHandler = getIpcHandler(FilterChannel.SetRaritySource);
+      const getHandler = getIpcHandler(RarityModelChannel.GetRarityModel);
+      const parseHandler = getIpcHandler(RarityModelChannel.ParseRarityModel);
+      const setHandler = getIpcHandler(RarityModelChannel.SetRaritySource);
 
       // Test GetFilter
       mockAssertBoundedString.mockImplementation(() => {
@@ -1165,44 +1195,52 @@ describe("FilterService — IPC handlers and input validation", () => {
 
   describe("channel string values", () => {
     it("should use correct channel string for ScanFilters", () => {
-      expect(FilterChannel.ScanFilters).toBe("filters:scan");
+      expect(RarityModelChannel.ScanRarityModels).toBe("rarity-model:scan");
     });
 
     it("should use correct channel string for GetFilters", () => {
-      expect(FilterChannel.GetFilters).toBe("filters:get-all");
+      expect(RarityModelChannel.GetRarityModels).toBe("rarity-model:get-all");
     });
 
     it("should use correct channel string for GetFilter", () => {
-      expect(FilterChannel.GetFilter).toBe("filters:get");
+      expect(RarityModelChannel.GetRarityModel).toBe("rarity-model:get");
     });
 
     it("should use correct channel string for ParseFilter", () => {
-      expect(FilterChannel.ParseFilter).toBe("filters:parse");
+      expect(RarityModelChannel.ParseRarityModel).toBe("rarity-model:parse");
     });
 
     it("should use correct channel string for SelectFilter", () => {
-      expect(FilterChannel.SelectFilter).toBe("filters:select");
+      expect(RarityModelChannel.SelectRarityModel).toBe("rarity-model:select");
     });
 
     it("should use correct channel string for GetSelectedFilter", () => {
-      expect(FilterChannel.GetSelectedFilter).toBe("filters:get-selected");
+      expect(RarityModelChannel.GetSelectedRarityModel).toBe(
+        "rarity-model:get-selected",
+      );
     });
 
     it("should use correct channel string for GetRaritySource", () => {
-      expect(FilterChannel.GetRaritySource).toBe("filters:get-rarity-source");
+      expect(RarityModelChannel.GetRaritySource).toBe(
+        "rarity-model:get-rarity-source",
+      );
     });
 
     it("should use correct channel string for SetRaritySource", () => {
-      expect(FilterChannel.SetRaritySource).toBe("filters:set-rarity-source");
+      expect(RarityModelChannel.SetRaritySource).toBe(
+        "rarity-model:set-rarity-source",
+      );
     });
 
     it("should use correct channel string for ApplyFilterRarities", () => {
-      expect(FilterChannel.ApplyFilterRarities).toBe("filters:apply-rarities");
+      expect(RarityModelChannel.ApplyRarityModelRarities).toBe(
+        "rarity-model:apply-rarities",
+      );
     });
 
     it("should use correct channel string for OnFilterRaritiesApplied", () => {
-      expect(FilterChannel.OnFilterRaritiesApplied).toBe(
-        "filters:on-rarities-applied",
+      expect(RarityModelChannel.OnRarityModelRaritiesApplied).toBe(
+        "rarity-model:on-rarities-applied",
       );
     });
   });

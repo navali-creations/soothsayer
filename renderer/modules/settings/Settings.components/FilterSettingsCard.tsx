@@ -13,7 +13,7 @@ import {
 const FilterSettingsCard = () => {
   const {
     settings: { raritySource, selectedFilterId, updateSetting },
-    filters: {
+    rarityModel: {
       availableFilters,
       isScanning,
       isParsing,

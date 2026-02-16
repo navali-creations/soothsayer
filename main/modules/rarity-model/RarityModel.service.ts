@@ -17,18 +17,18 @@ import {
 } from "~/main/utils/ipc-validation";
 import type { KnownRarity } from "~/types/data-stores";
 
-import { FilterChannel } from "./Filter.channels";
+import { RarityModelChannel } from "./RarityModel.channels";
 import type {
-  DiscoveredFilterDTO,
-  FilterMetadataDTO,
-  FilterParseResultDTO,
-  FilterScanResultDTO,
+  DiscoveredRarityModelDTO,
+  RarityModelMetadataDTO,
+  RarityModelParseResultDTO,
+  RarityModelScanResultDTO,
   RaritySource,
-} from "./Filter.dto";
-import { FilterMapper } from "./Filter.mapper";
-import { FilterParser } from "./Filter.parser";
-import { FilterRepository } from "./Filter.repository";
-import { FilterScanner } from "./Filter.scanner";
+} from "./RarityModel.dto";
+import { RarityModelMapper } from "./RarityModel.mapper";
+import { RarityModelParser } from "./RarityModel.parser";
+import { RarityModelRepository } from "./RarityModel.repository";
+import { RarityModelScanner } from "./RarityModel.scanner";
 
 /**
  * Service for managing Path of Exile loot filter operations.
@@ -47,24 +47,24 @@ const VALID_RARITY_SOURCES = [
   "prohibited-library",
 ] as const;
 
-class FilterService {
-  private static _instance: FilterService;
-  private repository: FilterRepository;
-  private scanner: FilterScanner;
+class RarityModelService {
+  private static _instance: RarityModelService;
+  private repository: RarityModelRepository;
+  private scanner: RarityModelScanner;
   private settingsStore: SettingsStoreService;
   private divinationCards: DivinationCardsService;
 
-  static getInstance(): FilterService {
-    if (!FilterService._instance) {
-      FilterService._instance = new FilterService();
+  static getInstance(): RarityModelService {
+    if (!RarityModelService._instance) {
+      RarityModelService._instance = new RarityModelService();
     }
-    return FilterService._instance;
+    return RarityModelService._instance;
   }
 
   constructor() {
     const db = DatabaseService.getInstance();
-    this.repository = new FilterRepository(db.getKysely());
-    this.scanner = new FilterScanner();
+    this.repository = new RarityModelRepository(db.getKysely());
+    this.scanner = new RarityModelScanner();
     this.settingsStore = SettingsStoreService.getInstance();
     this.divinationCards = DivinationCardsService.getInstance();
     this.setupIpcHandlers();
@@ -74,100 +74,112 @@ class FilterService {
 
   private setupIpcHandlers(): void {
     // Scan filter directories for available filters (metadata only)
-    ipcMain.handle(FilterChannel.ScanFilters, async () => {
+    ipcMain.handle(RarityModelChannel.ScanRarityModels, async () => {
       return await this.scanFilters();
     });
 
     // Get all discovered filters from the database
-    ipcMain.handle(FilterChannel.GetFilters, async () => {
+    ipcMain.handle(RarityModelChannel.GetRarityModels, async () => {
       return await this.getAllFilters();
     });
 
     // Get a specific filter by ID
     ipcMain.handle(
-      FilterChannel.GetFilter,
+      RarityModelChannel.GetRarityModel,
       async (_event, filterId: string) => {
         try {
           assertBoundedString(
             filterId,
             "filterId",
-            FilterChannel.GetFilter,
+            RarityModelChannel.GetRarityModel,
             256,
           );
           return await this.getFilter(filterId);
         } catch (error) {
-          return handleValidationError(error, FilterChannel.GetFilter);
+          return handleValidationError(
+            error,
+            RarityModelChannel.GetRarityModel,
+          );
         }
       },
     );
 
     // Trigger a full parse of a specific filter
     ipcMain.handle(
-      FilterChannel.ParseFilter,
+      RarityModelChannel.ParseRarityModel,
       async (_event, filterId: string) => {
         try {
           assertBoundedString(
             filterId,
             "filterId",
-            FilterChannel.ParseFilter,
+            RarityModelChannel.ParseRarityModel,
             256,
           );
           return await this.parseFilter(filterId);
         } catch (error) {
-          return handleValidationError(error, FilterChannel.ParseFilter);
+          return handleValidationError(
+            error,
+            RarityModelChannel.ParseRarityModel,
+          );
         }
       },
     );
 
     // Select a filter (or clear selection with null)
     ipcMain.handle(
-      FilterChannel.SelectFilter,
+      RarityModelChannel.SelectRarityModel,
       async (_event, filterId: string | null) => {
         try {
           assertOptionalString(
             filterId,
             "filterId",
-            FilterChannel.SelectFilter,
+            RarityModelChannel.SelectRarityModel,
             256,
           );
           return await this.selectFilter(filterId);
         } catch (error) {
-          return handleValidationError(error, FilterChannel.SelectFilter);
+          return handleValidationError(
+            error,
+            RarityModelChannel.SelectRarityModel,
+          );
         }
       },
     );
 
     // Get the currently selected filter metadata
-    ipcMain.handle(FilterChannel.GetSelectedFilter, async () => {
+    ipcMain.handle(RarityModelChannel.GetSelectedRarityModel, async () => {
       return await this.getSelectedFilter();
     });
 
     // Get the current rarity source setting
-    ipcMain.handle(FilterChannel.GetRaritySource, async () => {
+    ipcMain.handle(RarityModelChannel.GetRaritySource, async () => {
       return await this.getRaritySource();
     });
 
     // Set the rarity source setting
     ipcMain.handle(
-      FilterChannel.SetRaritySource,
+      RarityModelChannel.SetRaritySource,
       async (_event, source: RaritySource) => {
         try {
           assertEnum(
             source,
             "source",
-            FilterChannel.SetRaritySource,
+            RarityModelChannel.SetRaritySource,
             VALID_RARITY_SOURCES,
           );
           return await this.setRaritySource(source);
         } catch (error) {
-          return handleValidationError(error, FilterChannel.SetRaritySource);
+          return handleValidationError(
+            error,
+            RarityModelChannel.SetRaritySource,
+          );
         }
       },
     );
 
     // Apply filter rarities to divination cards
     ipcMain.handle(
-      FilterChannel.ApplyFilterRarities,
+      RarityModelChannel.ApplyRarityModelRarities,
       async (
         _event,
         filterId: string,
@@ -178,21 +190,21 @@ class FilterService {
           assertBoundedString(
             filterId,
             "filterId",
-            FilterChannel.ApplyFilterRarities,
+            RarityModelChannel.ApplyRarityModelRarities,
             256,
           );
-          assertGameType(game, FilterChannel.ApplyFilterRarities);
+          assertGameType(game, RarityModelChannel.ApplyRarityModelRarities);
           assertBoundedString(
             league,
             "league",
-            FilterChannel.ApplyFilterRarities,
+            RarityModelChannel.ApplyRarityModelRarities,
             256,
           );
           return await this.applyFilterRarities(filterId, game, league);
         } catch (error) {
           return handleValidationError(
             error,
-            FilterChannel.ApplyFilterRarities,
+            RarityModelChannel.ApplyRarityModelRarities,
           );
         }
       },
@@ -200,7 +212,7 @@ class FilterService {
 
     // Update a single card's rarity within a parsed filter
     ipcMain.handle(
-      FilterChannel.UpdateFilterCardRarity,
+      RarityModelChannel.UpdateRarityModelCardRarity,
       async (
         _event,
         filterId: string,
@@ -211,14 +223,17 @@ class FilterService {
           assertBoundedString(
             filterId,
             "filterId",
-            FilterChannel.UpdateFilterCardRarity,
+            RarityModelChannel.UpdateRarityModelCardRarity,
             256,
           );
-          assertCardName(cardName, FilterChannel.UpdateFilterCardRarity);
+          assertCardName(
+            cardName,
+            RarityModelChannel.UpdateRarityModelCardRarity,
+          );
           assertInteger(
             rarity,
             "rarity",
-            FilterChannel.UpdateFilterCardRarity,
+            RarityModelChannel.UpdateRarityModelCardRarity,
             {
               min: 1,
               max: 4,
@@ -237,7 +252,7 @@ class FilterService {
         } catch (error) {
           return handleValidationError(
             error,
-            FilterChannel.UpdateFilterCardRarity,
+            RarityModelChannel.UpdateRarityModelCardRarity,
           );
         }
       },
@@ -256,8 +271,8 @@ class FilterService {
    * 4. Cleans up stale entries (filters that no longer exist on disk)
    * 5. Returns the discovered filters with outdated detection
    */
-  public async scanFilters(): Promise<FilterScanResultDTO> {
-    console.log("[FilterService] Starting filter directory scan...");
+  public async scanFilters(): Promise<RarityModelScanResultDTO> {
+    console.log("[RarityModelService] Starting filter directory scan...");
 
     // Phase 1: Scan file system for filter files (only the active game's directory)
     const activeGame =
@@ -267,12 +282,12 @@ class FilterService {
     const scannedFilters = await this.scanner.scanAll(activeGame);
 
     console.log(
-      `[FilterService] Found ${scannedFilters.length} filter files on disk`,
+      `[RarityModelService] Found ${scannedFilters.length} filter files on disk`,
     );
 
     // Phase 2: Upsert metadata into the database
     const upsertData = scannedFilters.map((scanned) => ({
-      id: FilterScanner.generateFilterId(scanned.filePath),
+      id: RarityModelScanner.generateFilterId(scanned.filePath),
       filterType: scanned.filterType,
       filePath: scanned.filePath,
       filterName: scanned.filterName,
@@ -290,7 +305,7 @@ class FilterService {
 
     if (deletedCount > 0) {
       console.log(
-        `[FilterService] Cleaned up ${deletedCount} stale filter entries`,
+        `[RarityModelService] Cleaned up ${deletedCount} stale filter entries`,
       );
     }
 
@@ -299,14 +314,14 @@ class FilterService {
     const allMetadata = await this.repository.getAll();
 
     const filters = allMetadata.map((metadata) =>
-      FilterMapper.toDiscoveredFilterDTO(metadata, leagueStartDate),
+      RarityModelMapper.toDiscoveredRarityModelDTO(metadata, leagueStartDate),
     );
 
     const localCount = filters.filter((f) => f.type === "local").length;
     const onlineCount = filters.filter((f) => f.type === "online").length;
 
     console.log(
-      `[FilterService] Scan complete: ${localCount} local, ${onlineCount} online filters`,
+      `[RarityModelService] Scan complete: ${localCount} local, ${onlineCount} online filters`,
     );
 
     return {
@@ -321,19 +336,21 @@ class FilterService {
   /**
    * Get all filters from the database, with outdated detection.
    */
-  public async getAllFilters(): Promise<DiscoveredFilterDTO[]> {
+  public async getAllFilters(): Promise<DiscoveredRarityModelDTO[]> {
     const leagueStartDate = await this.getLeagueStartDate();
     const allMetadata = await this.repository.getAll();
 
     return allMetadata.map((metadata) =>
-      FilterMapper.toDiscoveredFilterDTO(metadata, leagueStartDate),
+      RarityModelMapper.toDiscoveredRarityModelDTO(metadata, leagueStartDate),
     );
   }
 
   /**
    * Get a specific filter by ID
    */
-  public async getFilter(filterId: string): Promise<FilterMetadataDTO | null> {
+  public async getFilter(
+    filterId: string,
+  ): Promise<RarityModelMetadataDTO | null> {
     return await this.repository.getById(filterId);
   }
 
@@ -353,7 +370,9 @@ class FilterService {
    * If the filter has no divination section, it returns an empty result
    * and the app should fall back to poe.ninja pricing.
    */
-  public async parseFilter(filterId: string): Promise<FilterParseResultDTO> {
+  public async parseFilter(
+    filterId: string,
+  ): Promise<RarityModelParseResultDTO> {
     const metadata = await this.repository.getById(filterId);
 
     if (!metadata) {
@@ -361,15 +380,17 @@ class FilterService {
     }
 
     console.log(
-      `[FilterService] Parsing filter "${metadata.filterName}" (${filterId})...`,
+      `[RarityModelService] Parsing filter "${metadata.filterName}" (${filterId})...`,
     );
 
-    // Delegate to FilterParser for the actual file parsing
-    const parseResult = await FilterParser.parseFilterFile(metadata.filePath);
+    // Delegate to RarityModelParser for the actual file parsing
+    const parseResult = await RarityModelParser.parseFilterFile(
+      metadata.filePath,
+    );
 
     if (!parseResult.hasDivinationSection) {
       console.log(
-        `[FilterService] Filter "${metadata.filterName}" has no divination card section — falling back to poe.ninja`,
+        `[RarityModelService] Filter "${metadata.filterName}" has no divination card section — falling back to poe.ninja`,
       );
       return {
         filterId,
@@ -399,7 +420,7 @@ class FilterService {
     await this.repository.markAsParsed(filterId);
 
     console.log(
-      `[FilterService] Successfully parsed "${metadata.filterName}": ${parseResult.totalCards} cards mapped`,
+      `[RarityModelService] Successfully parsed "${metadata.filterName}": ${parseResult.totalCards} cards mapped`,
     );
 
     return {
@@ -433,7 +454,7 @@ class FilterService {
     league: string,
   ): Promise<{ success: boolean; totalCards: number; filterName: string }> {
     console.log(
-      `[FilterService] Applying filter rarities for ${game}/${league} from filter ${filterId}...`,
+      `[RarityModelService] Applying filter rarities for ${game}/${league} from filter ${filterId}...`,
     );
 
     // Step 1: Ensure filter is fully parsed
@@ -445,7 +466,7 @@ class FilterService {
 
     if (!parseResult.hasDivinationSection) {
       console.warn(
-        `[FilterService] Filter "${parseResult.filterName}" has no divination section — cannot apply filter rarities`,
+        `[RarityModelService] Filter "${parseResult.filterName}" has no divination section — cannot apply filter rarities`,
       );
       return {
         success: false,
@@ -458,7 +479,7 @@ class FilterService {
     await this.divinationCards.updateRaritiesFromFilter(filterId, game, league);
 
     console.log(
-      `[FilterService] Successfully applied filter rarities from "${parseResult.filterName}" (${parseResult.totalCards} cards)`,
+      `[RarityModelService] Successfully applied filter rarities from "${parseResult.filterName}" (${parseResult.totalCards} cards)`,
     );
 
     // Step 3: Emit IPC event to notify frontend
@@ -488,7 +509,7 @@ class FilterService {
    */
   public async ensureFilterParsed(
     filterId: string,
-  ): Promise<FilterParseResultDTO | null> {
+  ): Promise<RarityModelParseResultDTO | null> {
     const metadata = await this.repository.getById(filterId);
 
     if (!metadata) {
@@ -534,10 +555,10 @@ class FilterService {
       }
 
       console.log(
-        `[FilterService] Selected filter: "${metadata.filterName}" (${filterId})`,
+        `[RarityModelService] Selected filter: "${metadata.filterName}" (${filterId})`,
       );
     } else {
-      console.log("[FilterService] Cleared filter selection");
+      console.log("[RarityModelService] Cleared filter selection");
     }
 
     await this.settingsStore.set(SettingsKey.SelectedFilterId, filterId);
@@ -547,7 +568,7 @@ class FilterService {
    * Get the currently selected filter's metadata.
    * Returns null if no filter is selected.
    */
-  public async getSelectedFilter(): Promise<FilterMetadataDTO | null> {
+  public async getSelectedFilter(): Promise<RarityModelMetadataDTO | null> {
     const selectedId = await this.settingsStore.get(
       SettingsKey.SelectedFilterId,
     );
@@ -581,7 +602,7 @@ class FilterService {
       throw new Error(`Invalid rarity source: ${source}`);
     }
 
-    console.log(`[FilterService] Rarity source changed to: ${source}`);
+    console.log(`[RarityModelService] Rarity source changed to: ${source}`);
     await this.settingsStore.set(SettingsKey.RaritySource, source);
   }
 
@@ -617,7 +638,7 @@ class FilterService {
       return null;
     } catch (error) {
       console.warn(
-        "[FilterService] Failed to get league start date for outdated detection:",
+        "[RarityModelService] Failed to get league start date for outdated detection:",
         error,
       );
       return null;
@@ -646,11 +667,14 @@ class FilterService {
           window.webContents &&
           !window.webContents.isDestroyed()
         ) {
-          window.webContents.send(FilterChannel.OnFilterRaritiesApplied, data);
+          window.webContents.send(
+            RarityModelChannel.OnRarityModelRaritiesApplied,
+            data,
+          );
         }
       } catch (error) {
         console.warn(
-          "[FilterService] Failed to emit filter rarities applied event:",
+          "[RarityModelService] Failed to emit filter rarities applied event:",
           error instanceof Error ? error.message : String(error),
         );
       }
@@ -662,16 +686,16 @@ class FilterService {
   /**
    * Get the repository instance (for testing or advanced usage)
    */
-  public getRepository(): FilterRepository {
+  public getRepository(): RarityModelRepository {
     return this.repository;
   }
 
   /**
    * Get the scanner instance (for testing or advanced usage)
    */
-  public getScanner(): FilterScanner {
+  public getScanner(): RarityModelScanner {
     return this.scanner;
   }
 }
 
-export { FilterService };
+export { RarityModelService };

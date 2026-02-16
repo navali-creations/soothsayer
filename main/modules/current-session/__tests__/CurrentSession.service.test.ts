@@ -128,9 +128,9 @@ vi.mock("~/main/utils/ipc-validation", () => ({
   },
 }));
 
-// ─── Mock FilterService ─────────────────────────────────────────────────────
-vi.mock("~/main/modules/filters/Filter.service", () => ({
-  FilterService: {
+// ─── Mock RarityModelService ─────────────────────────────────────────────────────
+vi.mock("~/main/modules/rarity-model/RarityModel.service", () => ({
+  RarityModelService: {
     getInstance: vi.fn(() => ({
       applyFilterRarities: vi.fn().mockResolvedValue(undefined),
       ensureFilterParsed: vi.fn().mockResolvedValue(null),

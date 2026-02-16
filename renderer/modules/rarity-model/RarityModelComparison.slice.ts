@@ -1,16 +1,16 @@
 import type { StateCreator } from "zustand";
 
-import type { DiscoveredFilterDTO } from "~/main/modules/filters/Filter.dto";
+import type { DiscoveredRarityModelDTO } from "~/main/modules/rarity-model/RarityModel.dto";
 import { trackEvent } from "~/renderer/modules/umami";
 import type { KnownRarity, Rarity } from "~/types/data-stores";
 
 import type { CardsSlice } from "../cards/Cards.slice";
 import type { SettingsSlice } from "../settings/Settings.slice";
-import type { FilterSlice } from "./Filter.slice";
+import type { RarityModelSlice } from "./RarityModel.slice";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export interface ParsedFilterRarities {
+export interface ParsedRarityModelRarities {
   filterId: string;
   filterName: string;
   rarities: Map<string, KnownRarity>;
@@ -40,11 +40,11 @@ export interface ComparisonRow {
 
 // ─── Slice ───────────────────────────────────────────────────────────────────
 
-export interface FilterComparisonSlice {
-  filterComparison: {
+export interface RarityModelComparisonSlice {
+  rarityModelComparison: {
     // State
     selectedFilters: string[];
-    parsedResults: Map<string, ParsedFilterRarities>;
+    parsedResults: Map<string, ParsedRarityModelRarities>;
     parsingFilterId: string | null;
     parseErrors: Map<string, string>;
     showDiffsOnly: boolean;
@@ -63,7 +63,7 @@ export interface FilterComparisonSlice {
     reset: () => void;
 
     // Getters
-    getSelectedFilterDetails: () => DiscoveredFilterDTO[];
+    getSelectedFilterDetails: () => DiscoveredRarityModelDTO[];
     getAllSelectedParsed: () => boolean;
     getDifferences: () => Set<string>;
     getDisplayRows: () => ComparisonRow[];
@@ -72,13 +72,13 @@ export interface FilterComparisonSlice {
   };
 }
 
-export const createFilterComparisonSlice: StateCreator<
-  FilterComparisonSlice & FilterSlice & CardsSlice & SettingsSlice,
+export const createRarityModelComparisonSlice: StateCreator<
+  RarityModelComparisonSlice & RarityModelSlice & CardsSlice & SettingsSlice,
   [["zustand/devtools", never], ["zustand/immer", never]],
   [],
-  FilterComparisonSlice
+  RarityModelComparisonSlice
 > = (set, get) => ({
-  filterComparison: {
+  rarityModelComparison: {
     // Initial state
     selectedFilters: [],
     parsedResults: new Map(),
@@ -92,83 +92,83 @@ export const createFilterComparisonSlice: StateCreator<
       let shouldParse = false;
 
       set(
-        ({ filterComparison }) => {
-          const idx = filterComparison.selectedFilters.indexOf(filterId);
+        ({ rarityModelComparison }) => {
+          const idx = rarityModelComparison.selectedFilters.indexOf(filterId);
           if (idx >= 0) {
-            filterComparison.selectedFilters.splice(idx, 1);
+            rarityModelComparison.selectedFilters.splice(idx, 1);
           } else if (
-            filterComparison.selectedFilters.length < MAX_SELECTED_FILTERS
+            rarityModelComparison.selectedFilters.length < MAX_SELECTED_FILTERS
           ) {
-            filterComparison.selectedFilters.push(filterId);
+            rarityModelComparison.selectedFilters.push(filterId);
 
             // Eagerly set parsingFilterId in the same state update so the UI
             // shows the "Parsing…" state on the very first render after the
             // click, avoiding the multi-render-cycle delay caused by the
             // useEffect → parseNextUnparsedFilter chain.
             if (
-              !filterComparison.parsingFilterId &&
-              !filterComparison.parsedResults.has(filterId) &&
-              !filterComparison.parseErrors.has(filterId)
+              !rarityModelComparison.parsingFilterId &&
+              !rarityModelComparison.parsedResults.has(filterId) &&
+              !rarityModelComparison.parseErrors.has(filterId)
             ) {
-              filterComparison.parsingFilterId = filterId;
+              rarityModelComparison.parsingFilterId = filterId;
               shouldParse = true;
             }
           }
         },
         false,
-        "filterComparison/toggleFilter",
+        "rarityModelComparison/toggleFilter",
       );
 
       if (shouldParse) {
         // Fire-and-forget: parseFilter will handle its own state transitions.
-        get().filterComparison.parseFilter(filterId);
+        get().rarityModelComparison.parseFilter(filterId);
       }
 
       trackEvent("filter-comparison-toggle", { filterId });
     },
 
     parseFilter: async (filterId: string) => {
-      const { filterComparison } = get();
-      if (filterComparison.parsedResults.has(filterId)) return;
+      const { rarityModelComparison } = get();
+      if (rarityModelComparison.parsedResults.has(filterId)) return;
       // Allow the call if parsingFilterId was eagerly set to this filter
       // by toggleFilter; block only if a *different* filter is parsing.
       if (
-        filterComparison.parsingFilterId &&
-        filterComparison.parsingFilterId !== filterId
+        rarityModelComparison.parsingFilterId &&
+        rarityModelComparison.parsingFilterId !== filterId
       )
         return;
 
       // Only update state if not already eagerly set by toggleFilter
-      if (filterComparison.parsingFilterId !== filterId) {
+      if (rarityModelComparison.parsingFilterId !== filterId) {
         set(
-          ({ filterComparison }) => {
-            filterComparison.parsingFilterId = filterId;
-            filterComparison.parseErrors.delete(filterId);
+          ({ rarityModelComparison }) => {
+            rarityModelComparison.parsingFilterId = filterId;
+            rarityModelComparison.parseErrors.delete(filterId);
           },
           false,
-          "filterComparison/parseFilter/start",
+          "rarityModelComparison/parseFilter/start",
         );
       }
 
       try {
-        const result = await window.electron.filters.parse(filterId);
+        const result = await window.electron.rarityModel.parse(filterId);
         const rarityMap = new Map<string, KnownRarity>();
         for (const r of result.rarities) {
           rarityMap.set(r.cardName, r.rarity);
         }
 
         set(
-          ({ filterComparison }) => {
-            filterComparison.parsedResults.set(filterId, {
+          ({ rarityModelComparison }) => {
+            rarityModelComparison.parsedResults.set(filterId, {
               filterId,
               filterName: result.filterName,
               rarities: rarityMap,
               totalCards: result.totalCards,
             });
-            filterComparison.parsingFilterId = null;
+            rarityModelComparison.parsingFilterId = null;
           },
           false,
-          "filterComparison/parseFilter/success",
+          "rarityModelComparison/parseFilter/success",
         );
 
         trackEvent("filter-comparison-parse", {
@@ -178,28 +178,28 @@ export const createFilterComparisonSlice: StateCreator<
       } catch (error) {
         console.error("Failed to parse filter:", error);
         set(
-          ({ filterComparison }) => {
-            filterComparison.parseErrors.set(
+          ({ rarityModelComparison }) => {
+            rarityModelComparison.parseErrors.set(
               filterId,
               error instanceof Error ? error.message : "Failed to parse filter",
             );
-            filterComparison.parsingFilterId = null;
+            rarityModelComparison.parsingFilterId = null;
           },
           false,
-          "filterComparison/parseFilter/error",
+          "rarityModelComparison/parseFilter/error",
         );
       }
     },
 
     parseNextUnparsedFilter: async () => {
-      const { filterComparison } = get();
-      for (const filterId of filterComparison.selectedFilters) {
+      const { rarityModelComparison } = get();
+      for (const filterId of rarityModelComparison.selectedFilters) {
         if (
-          !filterComparison.parsedResults.has(filterId) &&
-          !filterComparison.parsingFilterId &&
-          !filterComparison.parseErrors.has(filterId)
+          !rarityModelComparison.parsedResults.has(filterId) &&
+          !rarityModelComparison.parsingFilterId &&
+          !rarityModelComparison.parseErrors.has(filterId)
         ) {
-          await get().filterComparison.parseFilter(filterId);
+          await get().rarityModelComparison.parseFilter(filterId);
           return;
         }
       }
@@ -207,27 +207,27 @@ export const createFilterComparisonSlice: StateCreator<
 
     rescan: async () => {
       set(
-        ({ filterComparison }) => {
-          filterComparison.parseErrors = new Map();
-          filterComparison.selectedFilters = [];
-          filterComparison.parsedResults = new Map();
-          filterComparison.parsingFilterId = null;
-          filterComparison.parseErrors = new Map();
-          filterComparison.showDiffsOnly = false;
+        ({ rarityModelComparison }) => {
+          rarityModelComparison.parseErrors = new Map();
+          rarityModelComparison.selectedFilters = [];
+          rarityModelComparison.parsedResults = new Map();
+          rarityModelComparison.parsingFilterId = null;
+          rarityModelComparison.parseErrors = new Map();
+          rarityModelComparison.showDiffsOnly = false;
         },
         false,
-        "filterComparison/rescan/clear",
+        "rarityModelComparison/rescan/clear",
       );
-      await get().filters.scanFilters();
+      await get().rarityModel.scanFilters();
     },
 
     setShowDiffsOnly: (show: boolean) => {
       set(
-        ({ filterComparison }) => {
-          filterComparison.showDiffsOnly = show;
+        ({ rarityModelComparison }) => {
+          rarityModelComparison.showDiffsOnly = show;
         },
         false,
-        "filterComparison/setShowDiffsOnly",
+        "rarityModelComparison/setShowDiffsOnly",
       );
     },
 
@@ -237,7 +237,7 @@ export const createFilterComparisonSlice: StateCreator<
       newRarity: KnownRarity,
     ) => {
       try {
-        const result = await window.electron.filters.updateCardRarity(
+        const result = await window.electron.rarityModel.updateCardRarity(
           filterId,
           cardName,
           newRarity,
@@ -246,14 +246,14 @@ export const createFilterComparisonSlice: StateCreator<
         if (result.success) {
           // Optimistically update the local parsed results
           set(
-            ({ filterComparison }) => {
-              const parsed = filterComparison.parsedResults.get(filterId);
+            ({ rarityModelComparison }) => {
+              const parsed = rarityModelComparison.parsedResults.get(filterId);
               if (parsed) {
                 parsed.rarities.set(cardName, newRarity);
               }
             },
             false,
-            "filterComparison/updateFilterCardRarity/success",
+            "rarityModelComparison/updateFilterCardRarity/success",
           );
           trackEvent("modify-rarity-filter", {
             filterId,
@@ -270,39 +270,39 @@ export const createFilterComparisonSlice: StateCreator<
 
     reset: () => {
       set(
-        ({ filterComparison }) => {
-          filterComparison.selectedFilters = [];
-          filterComparison.parsedResults = new Map();
-          filterComparison.parsingFilterId = null;
-          filterComparison.parseErrors = new Map();
-          filterComparison.showDiffsOnly = false;
+        ({ rarityModelComparison }) => {
+          rarityModelComparison.selectedFilters = [];
+          rarityModelComparison.parsedResults = new Map();
+          rarityModelComparison.parsingFilterId = null;
+          rarityModelComparison.parseErrors = new Map();
+          rarityModelComparison.showDiffsOnly = false;
         },
         false,
-        "filterComparison/reset",
+        "rarityModelComparison/reset",
       );
     },
 
     // ─── Getters ───────────────────────────────────────────────────────
 
     getSelectedFilterDetails: () => {
-      const { filterComparison, filters } = get();
-      return filterComparison.selectedFilters
-        .map((id) => filters.availableFilters.find((f) => f.id === id))
-        .filter(Boolean) as DiscoveredFilterDTO[];
+      const { rarityModelComparison, rarityModel } = get();
+      return rarityModelComparison.selectedFilters
+        .map((id) => rarityModel.availableFilters.find((f) => f.id === id))
+        .filter(Boolean) as DiscoveredRarityModelDTO[];
     },
 
     getAllSelectedParsed: () => {
-      const { filterComparison } = get();
-      return filterComparison.selectedFilters.every((id) =>
-        filterComparison.parsedResults.has(id),
+      const { rarityModelComparison } = get();
+      return rarityModelComparison.selectedFilters.every((id) =>
+        rarityModelComparison.parsedResults.has(id),
       );
     },
 
     getDifferences: () => {
-      const { filterComparison, cards } = get();
-      const parsed = filterComparison.selectedFilters
-        .map((id) => filterComparison.parsedResults.get(id))
-        .filter(Boolean) as ParsedFilterRarities[];
+      const { rarityModelComparison, cards } = get();
+      const parsed = rarityModelComparison.selectedFilters
+        .map((id) => rarityModelComparison.parsedResults.get(id))
+        .filter(Boolean) as ParsedRarityModelRarities[];
 
       if (parsed.length === 0) return new Set<string>();
 
@@ -322,30 +322,30 @@ export const createFilterComparisonSlice: StateCreator<
     },
 
     getCanShowDiffs: () => {
-      const { filterComparison } = get();
-      return filterComparison.selectedFilters.length >= 1;
+      const { rarityModelComparison } = get();
+      return rarityModelComparison.selectedFilters.length >= 1;
     },
 
     getDisplayRowCount: () => {
-      const { filterComparison, cards } = get();
-      const { showDiffsOnly } = filterComparison;
+      const { rarityModelComparison, cards } = get();
+      const { showDiffsOnly } = rarityModelComparison;
       const { allCards } = cards;
 
       if (!showDiffsOnly) return allCards.length;
 
-      const differences = get().filterComparison.getDifferences();
+      const differences = get().rarityModelComparison.getDifferences();
       if (differences.size === 0) return allCards.length;
 
       return allCards.filter((c) => differences.has(c.name)).length;
     },
 
     getDisplayRows: () => {
-      const { filterComparison, cards } = get();
+      const { rarityModelComparison, cards } = get();
       const { showDiffsOnly, selectedFilters, parsedResults } =
-        filterComparison;
+        rarityModelComparison;
       const { allCards } = cards;
 
-      const differences = get().filterComparison.getDifferences();
+      const differences = get().rarityModelComparison.getDifferences();
 
       // Filter by diffs only
       let filtered = allCards;

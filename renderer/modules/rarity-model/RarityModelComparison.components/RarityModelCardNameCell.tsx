@@ -4,7 +4,7 @@ import DivinationCard from "~/renderer/components/DivinationCard/DivinationCard"
 import { usePopover } from "~/renderer/hooks/usePopover";
 import type { CardEntry } from "~/types/data-stores";
 
-import type { ComparisonRow } from "../FilterComparison.slice";
+import type { ComparisonRow } from "../RarityModelComparison.slice";
 
 /**
  * Card name cell for the FilterComparison table that shows a DivinationCard
@@ -17,7 +17,7 @@ import type { ComparisonRow } from "../FilterComparison.slice";
  * DivinationCard popovers + usePopover hooks to re-render when the
  * underlying card data hasn't changed.
  */
-const FilterCardNameCell = memo(
+const RarityModelCardNameCell = memo(
   ({ card }: { card: ComparisonRow }) => {
     const popoverId = useId();
 
@@ -81,6 +81,6 @@ const FilterCardNameCell = memo(
     prev.card.artSrc === next.card.artSrc,
 );
 
-FilterCardNameCell.displayName = "FilterCardNameCell";
+RarityModelCardNameCell.displayName = "RarityModelCardNameCell";
 
-export default FilterCardNameCell;
+export default RarityModelCardNameCell;

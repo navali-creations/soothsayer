@@ -117,9 +117,7 @@ export const createSettingsSlice: StateCreator<
             `poe1League="${data.poe1SelectedLeague}", ` +
             `poe2League="${data.poe2SelectedLeague}", ` +
             `poe1ClientPath=${
-              data.poe1ClientTxtPath
-                ? '"' + data.poe1ClientTxtPath + '"'
-                : "null"
+              data.poe1ClientTxtPath ? `"${data.poe1ClientTxtPath}"` : "null"
             }, ` +
             `setupCompleted=${data.setupCompleted}`,
         );
