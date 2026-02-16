@@ -1,11 +1,17 @@
 # soothsayer
 
+## 0.3.1
+
+### Patch Changes
+
+- [`54b3f6b`](https://github.com/navali-creations/soothsayer/commit/54b3f6b51d7ff75a1619fe58bd9977c6a44d7f2f) Thanks [@sbsrnt](https://github.com/sbsrnt)! - This version edits publish workflow to include app signing. (surely this will work)
+
 ## 0.3.0
 
 ### Minor Changes
 
 - [`f3c33ee`](https://github.com/navali-creations/soothsayer/commit/f3c33ee25ab2789bca502a91847acf27de51350f) Thanks [@sbsrnt](https://github.com/sbsrnt)!
- 
+
   - **Loot filter support:** Soothsayer can now read your Path of Exile loot filters and use their tier assignments to set card rarities. Both local filters (from your PoE folder) and online filters (e.g. NeverSink) are automatically detected and available to select.
 
   - **Rarity source picker:** A new dropdown on the Cards page and Current Session lets you choose how card rarities are determined — either price-based via poe.ninja (the default) or driven by one of your installed loot filters.
