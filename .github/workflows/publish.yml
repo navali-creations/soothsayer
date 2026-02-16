@@ -81,6 +81,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path "C:\toolcache" | Out-Null
 
       - name: Setup pnpm
+        if: "!startsWith(matrix.name, 'windows')"
         uses: pnpm/action-setup@v4
 
       - name: Setup node.js
@@ -132,16 +133,21 @@ jobs:
           "VITE_UMAMI_ID=${{ secrets.VITE_UMAMI_ID }}" | Add-Content -Path .env -Encoding utf8
           "SENTRY_DSN=${{ secrets.SENTRY_DSN }}" | Add-Content -Path .env -Encoding utf8
 
-      - name: Make distributables
+      # ── Linux: single step ─────────────────────────────────────────────
+      - name: Make distributables (Linux)
+        if: "!startsWith(matrix.name, 'windows')"
         run: pnpm make
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
-      - name: Sign Windows artifacts (SimplySign / Authenticode)
+      # ── Windows: package → sign app → make (skip-package) → sign installer ──
+
+      # Locate signtool once and store the path for later steps
+      - name: Locate signtool.exe
         if: startsWith(matrix.name, 'windows')
+        id: signtool
         shell: powershell
         run: |
-          # Find signtool.exe (prefer newest Windows Kits path)
           $kitsRoot = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\bin"
           if (!(Test-Path $kitsRoot)) { throw "Windows Kits not found at: $kitsRoot" }
 
@@ -152,8 +158,47 @@ jobs:
 
           if (-not $signtool) { throw "signtool.exe not found under: $kitsRoot" }
           Write-Host "Using signtool: $signtool"
+          echo "path=$signtool" >> $env:GITHUB_OUTPUT
 
-          # Sign what you upload to GitHub Releases (out/make/**)
+      # 1. Package the app (creates out/Soothsayer-win32-x64/)
+      - name: Package application (Windows)
+        if: startsWith(matrix.name, 'windows')
+        run: pnpm package
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+
+      # 2. Sign the packaged app so the installed soothsayer.exe is signed
+      - name: Sign packaged application (Windows)
+        if: startsWith(matrix.name, 'windows')
+        shell: powershell
+        run: |
+          $signtool = "${{ steps.signtool.outputs.path }}"
+          $appDir = "out\Soothsayer-win32-x64"
+          if (!(Test-Path $appDir)) { throw "Packaged app dir not found: $appDir" }
+
+          $targets = Get-ChildItem $appDir -Recurse -File |
+            Where-Object { $_.Extension -in ".exe",".dll" }
+
+          foreach ($t in $targets) {
+            Write-Host "Signing: $($t.FullName)"
+            & $signtool sign /fd sha256 /td sha256 /tr http://time.certum.pl /a $t.FullName
+            if ($LASTEXITCODE -ne 0) { throw "Signing failed: $($t.FullName)" }
+          }
+
+      # 3. Build the installer from the already-signed app
+      - name: Make distributables (Windows)
+        if: startsWith(matrix.name, 'windows')
+        run: pnpm make -- --skip-package
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+
+      # 4. Sign the installer outputs (Setup.exe, Update.exe, etc.)
+      - name: Sign installer artifacts (Windows)
+        if: startsWith(matrix.name, 'windows')
+        shell: powershell
+        run: |
+          $signtool = "${{ steps.signtool.outputs.path }}"
+
           $targets = Get-ChildItem ".\out\make" -Recurse -File |
             Where-Object { $_.Extension -in ".exe",".msi",".msix",".dll" }
 
