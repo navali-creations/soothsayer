@@ -42,7 +42,9 @@ const SessionCardNameCell = ({
     <>
       <span
         ref={hasCardData ? triggerRef : null}
-        className={`font-semibold ${isHidden ? "opacity-40 line-through" : ""} ${hasCardData ? "cursor-help underline decoration-dotted" : ""}`}
+        className={`font-semibold ${
+          isHidden ? "opacity-40 line-through" : ""
+        } ${hasCardData ? "cursor-help underline decoration-dotted" : ""}`}
       >
         {info.getValue()}
         {isHidden && (
@@ -160,7 +162,9 @@ const SessionDetailsTable = ({
           const value = info.getValue();
           return (
             <span
-              className={`tabular-nums ${isHidden ? "opacity-40" : ""} ${value === 0 ? "text-base-content/30" : ""}`}
+              className={`tabular-nums ${isHidden ? "opacity-40" : ""} ${
+                value === 0 ? "text-base-content/30" : ""
+              }`}
             >
               {value === 0 ? "—" : formatCurrency(value, chaosToDivineRatio)}
             </span>
@@ -175,7 +179,9 @@ const SessionDetailsTable = ({
           const value = info.getValue();
           return (
             <span
-              className={`font-semibold tabular-nums ${isHidden ? "opacity-40" : "text-success"} ${value === 0 ? "text-base-content/30" : ""}`}
+              className={`font-semibold tabular-nums ${
+                isHidden ? "opacity-40" : "text-success"
+              } ${value === 0 ? "text-base-content/30" : ""}`}
             >
               {value === 0 ? "—" : formatCurrency(value, chaosToDivineRatio)}
             </span>
@@ -202,12 +208,10 @@ const SessionDetailsTable = ({
     <div className="card bg-base-200 shadow-xl">
       <div className="card-body">
         <h2 className="card-title">Cards Obtained</h2>
-        <p className="text-sm text-base-content/60">
+        <p className="text-sm text-base-content/60 mb-3">
           Viewing {priceSource === "exchange" ? "Exchange" : "Stash"} prices
           (Snapshot)
         </p>
-
-        <div className="divider"></div>
 
         <Table
           data={cardData}

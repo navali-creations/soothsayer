@@ -13,6 +13,7 @@ import { Route as StatisticsRouteImport } from './routes/statistics'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SessionsRouteImport } from './routes/sessions'
+import { Route as ModifyRaritiesRouteImport } from './routes/modify-rarities'
 import { Route as ChangelogRouteImport } from './routes/changelog'
 import { Route as CardsRouteImport } from './routes/cards'
 import { Route as AboutRouteImport } from './routes/about'
@@ -20,7 +21,6 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as SessionsIndexRouteImport } from './routes/sessions.index'
 import { Route as CardsIndexRouteImport } from './routes/cards.index'
 import { Route as SessionsSessionIdRouteImport } from './routes/sessions.$sessionId'
-import { Route as CardsRaritiesRouteImport } from './routes/cards.rarities'
 
 const StatisticsRoute = StatisticsRouteImport.update({
   id: '/statistics',
@@ -40,6 +40,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const SessionsRoute = SessionsRouteImport.update({
   id: '/sessions',
   path: '/sessions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ModifyRaritiesRoute = ModifyRaritiesRouteImport.update({
+  id: '/modify-rarities',
+  path: '/modify-rarities',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChangelogRoute = ChangelogRouteImport.update({
@@ -77,22 +82,17 @@ const SessionsSessionIdRoute = SessionsSessionIdRouteImport.update({
   path: '/$sessionId',
   getParentRoute: () => SessionsRoute,
 } as any)
-const CardsRaritiesRoute = CardsRaritiesRouteImport.update({
-  id: '/rarities',
-  path: '/rarities',
-  getParentRoute: () => CardsRoute,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/cards': typeof CardsRouteWithChildren
   '/changelog': typeof ChangelogRoute
+  '/modify-rarities': typeof ModifyRaritiesRoute
   '/sessions': typeof SessionsRouteWithChildren
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/statistics': typeof StatisticsRoute
-  '/cards/rarities': typeof CardsRaritiesRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRoute
   '/cards/': typeof CardsIndexRoute
   '/sessions/': typeof SessionsIndexRoute
@@ -101,10 +101,10 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/changelog': typeof ChangelogRoute
+  '/modify-rarities': typeof ModifyRaritiesRoute
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/statistics': typeof StatisticsRoute
-  '/cards/rarities': typeof CardsRaritiesRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRoute
   '/cards': typeof CardsIndexRoute
   '/sessions': typeof SessionsIndexRoute
@@ -115,11 +115,11 @@ export interface FileRoutesById {
   '/about': typeof AboutRoute
   '/cards': typeof CardsRouteWithChildren
   '/changelog': typeof ChangelogRoute
+  '/modify-rarities': typeof ModifyRaritiesRoute
   '/sessions': typeof SessionsRouteWithChildren
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/statistics': typeof StatisticsRoute
-  '/cards/rarities': typeof CardsRaritiesRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRoute
   '/cards/': typeof CardsIndexRoute
   '/sessions/': typeof SessionsIndexRoute
@@ -131,11 +131,11 @@ export interface FileRouteTypes {
     | '/about'
     | '/cards'
     | '/changelog'
+    | '/modify-rarities'
     | '/sessions'
     | '/settings'
     | '/setup'
     | '/statistics'
-    | '/cards/rarities'
     | '/sessions/$sessionId'
     | '/cards/'
     | '/sessions/'
@@ -144,10 +144,10 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/changelog'
+    | '/modify-rarities'
     | '/settings'
     | '/setup'
     | '/statistics'
-    | '/cards/rarities'
     | '/sessions/$sessionId'
     | '/cards'
     | '/sessions'
@@ -157,11 +157,11 @@ export interface FileRouteTypes {
     | '/about'
     | '/cards'
     | '/changelog'
+    | '/modify-rarities'
     | '/sessions'
     | '/settings'
     | '/setup'
     | '/statistics'
-    | '/cards/rarities'
     | '/sessions/$sessionId'
     | '/cards/'
     | '/sessions/'
@@ -172,6 +172,7 @@ export interface RootRouteChildren {
   AboutRoute: typeof AboutRoute
   CardsRoute: typeof CardsRouteWithChildren
   ChangelogRoute: typeof ChangelogRoute
+  ModifyRaritiesRoute: typeof ModifyRaritiesRoute
   SessionsRoute: typeof SessionsRouteWithChildren
   SettingsRoute: typeof SettingsRoute
   SetupRoute: typeof SetupRoute
@@ -206,6 +207,13 @@ declare module '@tanstack/react-router' {
       path: '/sessions'
       fullPath: '/sessions'
       preLoaderRoute: typeof SessionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/modify-rarities': {
+      id: '/modify-rarities'
+      path: '/modify-rarities'
+      fullPath: '/modify-rarities'
+      preLoaderRoute: typeof ModifyRaritiesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/changelog': {
@@ -257,23 +265,14 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SessionsSessionIdRouteImport
       parentRoute: typeof SessionsRoute
     }
-    '/cards/rarities': {
-      id: '/cards/rarities'
-      path: '/rarities'
-      fullPath: '/cards/rarities'
-      preLoaderRoute: typeof CardsRaritiesRouteImport
-      parentRoute: typeof CardsRoute
-    }
   }
 }
 
 interface CardsRouteChildren {
-  CardsRaritiesRoute: typeof CardsRaritiesRoute
   CardsIndexRoute: typeof CardsIndexRoute
 }
 
 const CardsRouteChildren: CardsRouteChildren = {
-  CardsRaritiesRoute: CardsRaritiesRoute,
   CardsIndexRoute: CardsIndexRoute,
 }
 
@@ -298,6 +297,7 @@ const rootRouteChildren: RootRouteChildren = {
   AboutRoute: AboutRoute,
   CardsRoute: CardsRouteWithChildren,
   ChangelogRoute: ChangelogRoute,
+  ModifyRaritiesRoute: ModifyRaritiesRoute,
   SessionsRoute: SessionsRouteWithChildren,
   SettingsRoute: SettingsRoute,
   SetupRoute: SetupRoute,

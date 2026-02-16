@@ -1,4 +1,4 @@
-import { FiActivity, FiBarChart2 } from "react-icons/fi";
+import { FiActivity, FiBarChart2, FiSliders } from "react-icons/fi";
 import { GiCardRandom } from "react-icons/gi";
 
 import { Link } from "~/renderer/components";
@@ -41,6 +41,15 @@ const Navigation = () => {
           >
             <GiCardRandom size={20} />
             <span className="font-medium">Cards</span>
+          </Link>
+        </li>
+        <li>
+          <Link
+            to="/modify-rarities"
+            className="[&.active]:bg-primary/10 [&.active]:text-base-content"
+          >
+            <FiSliders size={20} />
+            <span className="font-medium">Modify Rarities</span>
           </Link>
         </li>
       </ul>

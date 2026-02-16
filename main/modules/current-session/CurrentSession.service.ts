@@ -280,6 +280,10 @@ class CurrentSessionService {
    * Start a new session
    */
   public async startSession(game: GameType, league: string): Promise<void> {
+    console.log(
+      `[CurrentSession] startSession called: game=${game}, league="${league}"`,
+    );
+
     const activeSession =
       game === "poe1" ? this.poe1ActiveSession : this.poe2ActiveSession;
 

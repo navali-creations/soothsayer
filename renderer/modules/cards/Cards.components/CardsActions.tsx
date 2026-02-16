@@ -1,8 +1,6 @@
-import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect } from "react";
-import { FiSliders } from "react-icons/fi";
 
-import { Button, Search } from "~/renderer/components";
+import { Search } from "~/renderer/components";
 import { trackEvent } from "~/renderer/modules/umami";
 import { useBoundStore } from "~/renderer/store";
 import {
@@ -12,7 +10,6 @@ import {
 } from "~/renderer/utils";
 
 export const CardsActions = () => {
-  const navigate = useNavigate();
   const {
     cards: {
       searchQuery,
@@ -154,18 +151,6 @@ export const CardsActions = () => {
         <option value="3">Less Common</option>
         <option value="4">Common</option>
       </select>
-
-      {/* Modify Rarities */}
-      <Button
-        variant="ghost"
-        size="sm"
-        outline
-        className="gap-1.5"
-        onClick={() => navigate({ to: "/cards/rarities" })}
-      >
-        <FiSliders className="w-3.5 h-3.5" />
-        Modify Rarities
-      </Button>
     </div>
   );
 };

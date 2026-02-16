@@ -110,6 +110,20 @@ export const createSettingsSlice: StateCreator<
 
       try {
         const data = await window.electron.settings.getAll();
+
+        console.log(
+          `[SettingsSlice] Hydrated settings from DB: ` +
+            `game=${data.selectedGame}, ` +
+            `poe1League="${data.poe1SelectedLeague}", ` +
+            `poe2League="${data.poe2SelectedLeague}", ` +
+            `poe1ClientPath=${
+              data.poe1ClientTxtPath
+                ? '"' + data.poe1ClientTxtPath + '"'
+                : "null"
+            }, ` +
+            `setupCompleted=${data.setupCompleted}`,
+        );
+
         set(
           ({ settings }) => {
             // Only assign DTO properties
@@ -140,7 +154,12 @@ export const createSettingsSlice: StateCreator<
           "settingsSlice/hydrate/success",
         );
       } catch (error) {
-        console.error("Failed to hydrate settings:", error);
+        console.error(
+          "[SettingsSlice] ⚠️ HYDRATION FAILED — settings are using hardcoded defaults " +
+            '(poe1League="Standard", poe1ClientPath=null). ' +
+            "This will cause incorrect league selection if the user starts a session.",
+          error,
+        );
         set(
           ({ settings }) => {
             settings.error =

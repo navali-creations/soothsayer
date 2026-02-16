@@ -181,7 +181,16 @@ export const createSessionSlice: StateCreator<
       const activeGameView = getSelectedGame();
       const activeGameViewSelectedLeague = getActiveGameViewSelectedLeague();
 
-      if (!activeGameView || !activeGameViewSelectedLeague) return;
+      if (!activeGameView || !activeGameViewSelectedLeague) {
+        console.warn(
+          `[SessionSlice] startSession aborted: game=${activeGameView}, league=${activeGameViewSelectedLeague}`,
+        );
+        return;
+      }
+
+      console.log(
+        `[SessionSlice] Starting session: game=${activeGameView}, league="${activeGameViewSelectedLeague}"`,
+      );
 
       set(({ currentSession }) => {
         currentSession.isLoading = true;

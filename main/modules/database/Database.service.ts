@@ -49,9 +49,15 @@ class DatabaseService {
 
     this.dbPath = path.join(userDataPath, dbFilename);
 
+    const isNewDb = !fs.existsSync(this.dbPath);
     console.log(
-      `[Database] Using database: ${dbFilename} (packaged: ${app.isPackaged}, localSupabase: ${isLocalSupabase})`,
+      `[Database] Using database: ${dbFilename} (packaged: ${app.isPackaged}, localSupabase: ${isLocalSupabase}, newDb: ${isNewDb})`,
     );
+    if (isNewDb) {
+      console.warn(
+        `[Database] ⚠️ Creating fresh database at ${this.dbPath} — all settings will use defaults (league=Standard, clientPath=null)`,
+      );
+    }
 
     // Initialize database connection
     this.db = new Database(this.dbPath, {

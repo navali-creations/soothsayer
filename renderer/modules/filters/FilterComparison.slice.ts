@@ -67,6 +67,7 @@ export interface FilterComparisonSlice {
     getAllSelectedParsed: () => boolean;
     getDifferences: () => Set<string>;
     getDisplayRows: () => ComparisonRow[];
+    getDisplayRowCount: () => number;
     getCanShowDiffs: () => boolean;
   };
 }
@@ -88,6 +89,8 @@ export const createFilterComparisonSlice: StateCreator<
     // ─── Actions ───────────────────────────────────────────────────────
 
     toggleFilter: (filterId: string) => {
+      let shouldParse = false;
+
       set(
         ({ filterComparison }) => {
           const idx = filterComparison.selectedFilters.indexOf(filterId);
@@ -97,27 +100,55 @@ export const createFilterComparisonSlice: StateCreator<
             filterComparison.selectedFilters.length < MAX_SELECTED_FILTERS
           ) {
             filterComparison.selectedFilters.push(filterId);
+
+            // Eagerly set parsingFilterId in the same state update so the UI
+            // shows the "Parsing…" state on the very first render after the
+            // click, avoiding the multi-render-cycle delay caused by the
+            // useEffect → parseNextUnparsedFilter chain.
+            if (
+              !filterComparison.parsingFilterId &&
+              !filterComparison.parsedResults.has(filterId) &&
+              !filterComparison.parseErrors.has(filterId)
+            ) {
+              filterComparison.parsingFilterId = filterId;
+              shouldParse = true;
+            }
           }
         },
         false,
         "filterComparison/toggleFilter",
       );
+
+      if (shouldParse) {
+        // Fire-and-forget: parseFilter will handle its own state transitions.
+        get().filterComparison.parseFilter(filterId);
+      }
+
       trackEvent("filter-comparison-toggle", { filterId });
     },
 
     parseFilter: async (filterId: string) => {
       const { filterComparison } = get();
       if (filterComparison.parsedResults.has(filterId)) return;
-      if (filterComparison.parsingFilterId) return;
+      // Allow the call if parsingFilterId was eagerly set to this filter
+      // by toggleFilter; block only if a *different* filter is parsing.
+      if (
+        filterComparison.parsingFilterId &&
+        filterComparison.parsingFilterId !== filterId
+      )
+        return;
 
-      set(
-        ({ filterComparison }) => {
-          filterComparison.parsingFilterId = filterId;
-          filterComparison.parseErrors.delete(filterId);
-        },
-        false,
-        "filterComparison/parseFilter/start",
-      );
+      // Only update state if not already eagerly set by toggleFilter
+      if (filterComparison.parsingFilterId !== filterId) {
+        set(
+          ({ filterComparison }) => {
+            filterComparison.parsingFilterId = filterId;
+            filterComparison.parseErrors.delete(filterId);
+          },
+          false,
+          "filterComparison/parseFilter/start",
+        );
+      }
 
       try {
         const result = await window.electron.filters.parse(filterId);
@@ -178,7 +209,11 @@ export const createFilterComparisonSlice: StateCreator<
       set(
         ({ filterComparison }) => {
           filterComparison.parseErrors = new Map();
+          filterComparison.selectedFilters = [];
           filterComparison.parsedResults = new Map();
+          filterComparison.parsingFilterId = null;
+          filterComparison.parseErrors = new Map();
+          filterComparison.showDiffsOnly = false;
         },
         false,
         "filterComparison/rescan/clear",
@@ -269,13 +304,18 @@ export const createFilterComparisonSlice: StateCreator<
         .map((id) => filterComparison.parsedResults.get(id))
         .filter(Boolean) as ParsedFilterRarities[];
 
-      if (parsed.length < 2) return new Set<string>();
+      if (parsed.length === 0) return new Set<string>();
 
       const diffs = new Set<string>();
       for (const card of cards.allCards) {
-        const rarities = parsed.map((p) => p.rarities.get(card.name) ?? 4);
-        if (new Set(rarities).size > 1) {
-          diffs.add(card.name);
+        const ninjaRarity = card.rarity;
+        // A card is "different" if ANY selected filter disagrees with poe.ninja
+        for (const p of parsed) {
+          const filterRarity = p.rarities.get(card.name) ?? 4;
+          if (filterRarity !== ninjaRarity) {
+            diffs.add(card.name);
+            break;
+          }
         }
       }
       return diffs;
@@ -283,7 +323,20 @@ export const createFilterComparisonSlice: StateCreator<
 
     getCanShowDiffs: () => {
       const { filterComparison } = get();
-      return filterComparison.selectedFilters.length >= 2;
+      return filterComparison.selectedFilters.length >= 1;
+    },
+
+    getDisplayRowCount: () => {
+      const { filterComparison, cards } = get();
+      const { showDiffsOnly } = filterComparison;
+      const { allCards } = cards;
+
+      if (!showDiffsOnly) return allCards.length;
+
+      const differences = get().filterComparison.getDifferences();
+      if (differences.size === 0) return allCards.length;
+
+      return allCards.filter((c) => differences.has(c.name)).length;
     },
 
     getDisplayRows: () => {

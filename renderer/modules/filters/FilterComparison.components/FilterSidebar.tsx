@@ -1,4 +1,6 @@
-import { FiAlertTriangle, FiCheck, FiRefreshCw } from "react-icons/fi";
+import clsx from "clsx";
+import { useEffect, useRef, useState } from "react";
+import { FiAlertTriangle, FiCheck, FiChevronDown } from "react-icons/fi";
 
 import type { DiscoveredFilterDTO } from "~/main/modules/filters/Filter.dto";
 import { Button } from "~/renderer/components";
@@ -26,18 +28,20 @@ const FilterSelectorGroup = ({
   if (filters.length === 0) return null;
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-1 min-w-44">
       <span className="text-xs font-semibold text-base-content/50 uppercase tracking-wide">
         {label}
       </span>
-      <div className="space-y-1">
+      <div className="space-y-1 max-h-56 overflow-y-auto">
         {filters.map((filter) => {
           const isSelected = selectedFilters.includes(filter.id);
           const isParsed = parsedResults.has(filter.id);
           const isCurrentlyParsing = parsingFilterId === filter.id;
           const error = parseErrors.get(filter.id);
-          const isDisabled =
+          const isAtMax =
             selectedFilters.length >= MAX_SELECTED_FILTERS && !isSelected;
+          const isSilentlyDisabled = !!parsingFilterId;
+          const isDisabled = isAtMax || isSilentlyDisabled;
 
           return (
             <button
@@ -47,13 +51,14 @@ const FilterSelectorGroup = ({
                 isSelected
                   ? "bg-primary/10 border border-primary/30"
                   : "bg-base-200/50 border border-transparent hover:bg-base-200"
-              } ${isDisabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-              onClick={() => toggleFilter(filter.id)}
-              disabled={isDisabled}
+              } ${
+                isAtMax ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
+              }`}
+              onClick={() => !isDisabled && toggleFilter(filter.id)}
             >
               <input
                 type="checkbox"
-                className="checkbox checkbox-xs checkbox-primary"
+                className="checkbox checkbox-xs checkbox-primary w-3 h-3 mt-0.5"
                 checked={isSelected}
                 readOnly
               />
@@ -82,7 +87,10 @@ const FilterSelectorGroup = ({
   );
 };
 
-const FilterSidebar = () => {
+const FilterDropdown = () => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
   const {
     filters: {
       availableFilters,
@@ -90,51 +98,87 @@ const FilterSidebar = () => {
       getLocalFilters,
       getOnlineFilters,
     },
-    filterComparison: { rescan },
+    filterComparison: { selectedFilters },
   } = useBoundStore();
 
   const localFilters = getLocalFilters();
   const onlineFilters = getOnlineFilters();
 
+  const selectedCount = selectedFilters.length;
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isOpen]);
+
+  const hasFilters = availableFilters.length > 0;
+  const hasBothGroups = onlineFilters.length > 0 && localFilters.length > 0;
+
   return (
-    <div className="w-64 shrink-0 flex flex-col gap-3 overflow-y-auto pr-2">
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-sm">Filters</h3>
-        <Button
-          variant="ghost"
-          size="xs"
-          onClick={rescan}
-          disabled={isScanning}
-          loading={isScanning}
-          className="gap-1"
+    <div className="relative" ref={dropdownRef}>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className={clsx("gap-1.5", isOpen && "btn-active")}
+        disabled={isScanning || !hasFilters}
+      >
+        Filters
+        {selectedCount > 0 && (
+          <span className="badge badge-primary badge-xs">{selectedCount}</span>
+        )}
+        <FiChevronDown
+          className={clsx(
+            "w-3.5 h-3.5 transition-transform duration-200",
+            isOpen && "rotate-180",
+          )}
+        />
+      </Button>
+
+      {isOpen && (
+        <div
+          className={clsx(
+            "absolute right-0 top-full mt-2 z-50",
+            "bg-base-100 border border-base-300 rounded-xl shadow-xl",
+            "p-4",
+          )}
         >
-          {!isScanning && <FiRefreshCw className="w-3 h-3" />}
-          Scan
-        </Button>
-      </div>
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs text-base-content/50">
+              Select up to {MAX_SELECTED_FILTERS} filters
+            </span>
+          </div>
 
-      <p className="text-xs text-base-content/50">
-        Select up to 3 filters to compare side-by-side.
-      </p>
+          <div className={clsx("flex", hasBothGroups ? "gap-4" : "")}>
+            <FilterSelectorGroup
+              label="Online Filters"
+              filters={onlineFilters}
+            />
+            <FilterSelectorGroup label="Local Filters" filters={localFilters} />
+          </div>
 
-      <FilterSelectorGroup label="Online Filters" filters={onlineFilters} />
-      <FilterSelectorGroup label="Local Filters" filters={localFilters} />
-
-      {availableFilters.length === 0 && !isScanning && (
-        <div className="flex items-center gap-2 text-warning text-xs p-3 rounded-lg bg-base-200/50">
-          <FiAlertTriangle className="w-4 h-4 shrink-0" />
-          <span>No filters found. Click Scan to search.</span>
-        </div>
-      )}
-
-      {isScanning && (
-        <div className="flex items-center gap-2 text-xs text-base-content/50 p-3">
-          <span className="loading loading-spinner loading-xs" />
-          <span>Scanning filters...</span>
+          {!hasFilters && !isScanning && (
+            <div className="flex items-center gap-2 text-warning text-xs p-3 rounded-lg bg-base-200/50">
+              <FiAlertTriangle className="w-4 h-4 shrink-0" />
+              <span>No filters found. Click Scan to search.</span>
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 };
 
-export default FilterSidebar;
+export default FilterDropdown;

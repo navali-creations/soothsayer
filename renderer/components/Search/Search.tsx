@@ -1,6 +1,13 @@
 import clsx from "clsx";
-import type { ChangeEvent, InputHTMLAttributes } from "react";
-import { FiSearch } from "react-icons/fi";
+import {
+  type ChangeEvent,
+  type InputHTMLAttributes,
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
+import { FiRefreshCw, FiSearch } from "react-icons/fi";
 
 interface SearchProps
   extends Omit<InputHTMLAttributes<HTMLInputElement>, "onChange" | "size"> {
@@ -9,18 +16,43 @@ interface SearchProps
   placeholder?: string;
   className?: string;
   size?: "xs" | "sm" | "md" | "lg";
+  /** When set, Search manages its own internal state for instant character
+   *  display and debounces the `onChange` callback by this many milliseconds. */
+  debounceMs?: number;
 }
 
 const Search = ({
-  value,
+  value: externalValue,
   onChange,
   placeholder = "Search...",
   className,
   size = "md",
+  debounceMs,
   ...props
 }: SearchProps) => {
+  const isDebounced = debounceMs !== undefined;
+  const [internalValue, setInternalValue] = useState(externalValue ?? "");
+  const [isPending, startTransition] = useTransition();
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  useEffect(() => {
+    return () => clearTimeout(timerRef.current);
+  }, []);
+
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
-    onChange?.(e.target.value);
+    const newValue = e.target.value;
+
+    if (isDebounced) {
+      setInternalValue(newValue);
+      clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => {
+        startTransition(() => {
+          onChange?.(newValue);
+        });
+      }, debounceMs);
+    } else {
+      onChange?.(newValue);
+    }
   };
 
   return (
@@ -36,13 +68,18 @@ const Search = ({
         className,
       )}
     >
-      <FiSearch className="opacity-70" />
+      {isPending ? (
+        <FiRefreshCw className="opacity-70 animate-spin" />
+      ) : (
+        <FiSearch className="opacity-70" />
+      )}
       <input
-        type="text"
+        type="search"
         className="grow"
         placeholder={placeholder}
-        value={value}
+        value={isDebounced ? internalValue : externalValue}
         onChange={handleChange}
+        disabled={isPending}
         {...props}
       />
     </label>

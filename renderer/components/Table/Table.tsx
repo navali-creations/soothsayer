@@ -35,12 +35,18 @@ interface TableProps<TData> {
   compact?: boolean;
   zebraStripes?: boolean;
   initialSorting?: SortingState;
+  /** Controlled sorting state. When provided, the table uses this instead of internal state. */
+  sorting?: SortingState;
+  /** Callback when sorting changes. Required when `sorting` is controlled. */
+  onSortingChange?: (sorting: SortingState) => void;
   /** TanStack global filter value (e.g. a debounced search string) */
   globalFilter?: string;
   /** Custom global filter function. Defaults to case-insensitive substring match on all string accessors. */
   globalFilterFn?: FilterFn<TData>;
   /** Additional class name(s) applied to each `<tr>` in the body */
   rowClassName?: string;
+  /** When true, the table header row sticks to the top of the scroll container */
+  stickyHeader?: boolean;
 }
 
 function Table<TData>({
@@ -55,11 +61,25 @@ function Table<TData>({
   compact = false,
   zebraStripes = false,
   initialSorting = [],
+  sorting: controlledSorting,
+  onSortingChange: controlledOnSortingChange,
   globalFilter,
   globalFilterFn,
   rowClassName,
+  stickyHeader = false,
 }: TableProps<TData>) {
-  const [sorting, setSorting] = useState<SortingState>(initialSorting);
+  const [internalSorting, setInternalSorting] =
+    useState<SortingState>(initialSorting);
+
+  const isControlled = controlledSorting !== undefined;
+  const sorting = isControlled ? controlledSorting : internalSorting;
+  const setSorting = isControlled
+    ? (updater: SortingState | ((prev: SortingState) => SortingState)) => {
+        const next =
+          typeof updater === "function" ? updater(controlledSorting) : updater;
+        controlledOnSortingChange?.(next);
+      }
+    : setInternalSorting;
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize,
@@ -88,10 +108,10 @@ function Table<TData>({
 
   return (
     <div className="w-full">
-      <div className="overflow-x-auto">
+      <div className={stickyHeader ? undefined : "overflow-x-auto"}>
         <table
           className={clsx(
-            "table",
+            "table rounded-0 bg-base-100",
             {
               "table-zebra": zebraStripes,
               "table-xs": compact,
@@ -107,11 +127,13 @@ function Table<TData>({
                     key={header.id}
                     className={clsx({
                       "cursor-pointer select-none": header.column.getCanSort(),
+                      "pl-0": index > 0,
+                      "sticky top-0 z-10 bg-base-100": stickyHeader,
                     })}
                     onClick={header.column.getToggleSortingHandler()}
                   >
                     <div
-                      className={clsx("flex items-center gap-2", {
+                      className={clsx("flex items-center gap-1", {
                         "justify-center": index > 0,
                       })}
                     >
@@ -121,20 +143,26 @@ function Table<TData>({
                             header.column.columnDef.header,
                             header.getContext(),
                           )}
-                      {header.column.getCanSort() && (
-                        <span className="inline-flex ">
-                          {header.column.getIsSorted() === "asc" ? (
-                            <FiChevronUp className="w-4 h-4" />
-                          ) : header.column.getIsSorted() === "desc" ? (
-                            <FiChevronDown className="w-4 h-4" />
-                          ) : (
-                            <div className="w-4 h-4 opacity-50 -mt-2">
-                              <FiChevronUp className="w-4 h-4 -mb-2" />
+                      {header.column.getCanSort() &&
+                        !(
+                          header.column.columnDef.meta as Record<
+                            string,
+                            unknown
+                          >
+                        )?.hideSortIcon && (
+                          <span className="inline-flex shrink-0">
+                            {header.column.getIsSorted() === "asc" ? (
+                              <FiChevronUp className="w-4 h-4" />
+                            ) : header.column.getIsSorted() === "desc" ? (
                               <FiChevronDown className="w-4 h-4" />
-                            </div>
-                          )}
-                        </span>
-                      )}
+                            ) : (
+                              <div className="w-4 h-4 opacity-50 -mt-2">
+                                <FiChevronUp className="w-4 h-4 -mb-2" />
+                                <FiChevronDown className="w-4 h-4" />
+                              </div>
+                            )}
+                          </span>
+                        )}
                     </div>
                   </th>
                 ))}
@@ -164,7 +192,14 @@ function Table<TData>({
       </div>
 
       {enablePagination && (
-        <div className="flex items-center justify-between gap-2 mt-4">
+        <div
+          className={clsx(
+            "flex items-center justify-between gap-2",
+            stickyHeader
+              ? "sticky bottom-0 z-10 bg-base-100 py-2 px-3 border-t border-base-300"
+              : "mt-4 px-3",
+          )}
+        >
           <div className="text-sm text-base-content/70">
             Showing{" "}
             {table.getState().pagination.pageIndex *
