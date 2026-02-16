@@ -50,6 +50,11 @@ jobs:
     name: Build (${{ matrix.name }})
     needs: check-version
     if: needs.check-version.outputs.should_publish == 'true'
+
+    env:
+      RUNNER_TOOL_CACHE: "C:\\toolcache"
+      AGENT_TOOLSDIRECTORY: "C:\\toolcache"
+
     strategy:
       fail-fast: true
       matrix:
@@ -64,6 +69,12 @@ jobs:
     steps:
       - name: Checkout code repository
         uses: actions/checkout@v6
+
+      - name: Prepare toolcache directory (Windows)
+        if: startsWith(matrix.name, 'windows')
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "C:\toolcache" | Out-Null
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
