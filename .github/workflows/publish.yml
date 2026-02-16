@@ -80,10 +80,18 @@ jobs:
         uses: pnpm/action-setup@v4
 
       - name: Setup node.js
+        if: "!startsWith(matrix.name, 'windows')"
         uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: pnpm
+
+      - name: Verify pre-installed Node (self-hosted Windows)
+        if: startsWith(matrix.name, 'windows')
+        shell: powershell
+        run: |
+          Write-Host "node: $(node --version)"
+          Write-Host "pnpm: $(pnpm --version)"
 
       # Skip all lifecycle scripts during install to avoid supabase CLI download failures on Windows
       - name: Install dependencies (skip lifecycle scripts)
