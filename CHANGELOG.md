@@ -1,5 +1,11 @@
 # soothsayer
 
+## 0.3.7
+
+### Patch Changes
+
+- [`af025c6`](https://github.com/navali-creations/soothsayer/commit/af025c6f5baa3c279fa117c0a518bab8784af04b) Thanks [@sbsrnt](https://github.com/sbsrnt)! - Attempt at code signing files other than installer
+
 ## 0.3.6
 
 ### Patch Changes
