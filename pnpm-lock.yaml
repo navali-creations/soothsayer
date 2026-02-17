@@ -71,8 +71,8 @@ importers:
         specifier: ^7.7.1
         version: 7.7.1
       '@sentry/vite-plugin':
-        specifier: ^4.9.0
-        version: 4.9.0(encoding@0.1.13)
+        specifier: ^4.9.1
+        version: 4.9.1(encoding@0.1.13)
       '@supabase/supabase-js':
         specifier: ^2.95.3
         version: 2.95.3
@@ -1284,16 +1284,16 @@ packages:
     resolution: {integrity: sha512-nLMkJgvHq+uCCrQKV2KgSdVHxTsmDk0r2hsAoTcKCbzUpXyW5UhCziMRS6ULjBlzt5sbxoIIplE25ZpmIEeNgg==}
     engines: {node: '>=18'}
 
-  '@sentry/babel-plugin-component-annotate@4.9.0':
-    resolution: {integrity: sha512-TJ7sVoa2Bf36lpJjBAzpNDC5Hg+evjsQnqUPeDx9Nz/YFw0u9rK1cwvi95gVWpx7PJSDCkljIv3aw0m4RatHpQ==}
+  '@sentry/babel-plugin-component-annotate@4.9.1':
+    resolution: {integrity: sha512-0gEoi2Lb54MFYPOmdTfxlNKxI7kCOvNV7gP8lxMXJ7nCazF5OqOOZIVshfWjDLrc0QrSV6XdVvwPV9GDn4wBMg==}
     engines: {node: '>= 14'}
 
   '@sentry/browser@10.36.0':
     resolution: {integrity: sha512-yHhXbgdGY1s+m8CdILC9U/II7gb6+s99S2Eh8VneEn/JG9wHc+UOzrQCeFN0phFP51QbLkjkiQbbanjT1HP8UQ==}
     engines: {node: '>=18'}
 
-  '@sentry/bundler-plugin-core@4.9.0':
-    resolution: {integrity: sha512-gOVgHG5BrxCFmZow1XovlDr1FH/gO/LfD8OKci1rryeqHVBLr3+S4yS4ACl+E5lfQPym8Ve1BKh793d1rZ0dyA==}
+  '@sentry/bundler-plugin-core@4.9.1':
+    resolution: {integrity: sha512-moii+w7N8k8WdvkX7qCDY9iRBlhgHlhTHTUQwF2FNMhBHuqlNpVcSJJqJMjFUQcjYMBDrZgxhfKV18bt5ixwlQ==}
     engines: {node: '>= 14'}
 
   '@sentry/cli-darwin@2.58.4':
@@ -1386,8 +1386,8 @@ packages:
       '@opentelemetry/sdk-trace-base': ^1.30.1 || ^2.1.0
       '@opentelemetry/semantic-conventions': ^1.37.0
 
-  '@sentry/vite-plugin@4.9.0':
-    resolution: {integrity: sha512-1olEMpZnwZS4UdboB25w5sZYJSlwbxJaieoL0c7FDNMyyns5GhXSl6mK8Lpx9w3rIc88gw9JOdsehdd6YrlLOA==}
+  '@sentry/vite-plugin@4.9.1':
+    resolution: {integrity: sha512-Tlyg2cyFYp/icX58GWvfpvZr9NLdLs2/xyFVyS8pQ0faZWmoXic3FMzoXYHV1gsdMbL1Yy5WQvGJy8j1rS8LGA==}
     engines: {node: '>= 14'}
 
   '@sindresorhus/is@4.6.0':
@@ -4290,8 +4290,8 @@ packages:
   webidl-conversions@3.0.1:
     resolution: {integrity: sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==}
 
-  webpack-sources@3.3.3:
-    resolution: {integrity: sha512-yd1RBzSGanHkitROoPFd6qsrxt+oFhg/129YzheDGqeustzX0vTZJZsSsQjVQC4yzBQ56K55XU8gaNCtIzOnTg==}
+  webpack-sources@3.3.4:
+    resolution: {integrity: sha512-7tP1PdV4vF+lYPnkMR0jMY5/la2ub5Fc/8VQrrU+lXkiM6C4TjVfGw7iKfyhnTQOsD+6Q/iKw0eFciziRgD58Q==}
     engines: {node: '>=10.13.0'}
 
   webpack-virtual-modules@0.5.0:
@@ -5941,7 +5941,7 @@ snapshots:
       '@sentry-internal/browser-utils': 10.36.0
       '@sentry/core': 10.36.0
 
-  '@sentry/babel-plugin-component-annotate@4.9.0': {}
+  '@sentry/babel-plugin-component-annotate@4.9.1': {}
 
   '@sentry/browser@10.36.0':
     dependencies:
@@ -5951,10 +5951,10 @@ snapshots:
       '@sentry-internal/replay-canvas': 10.36.0
       '@sentry/core': 10.36.0
 
-  '@sentry/bundler-plugin-core@4.9.0(encoding@0.1.13)':
+  '@sentry/bundler-plugin-core@4.9.1(encoding@0.1.13)':
     dependencies:
       '@babel/core': 7.29.0
-      '@sentry/babel-plugin-component-annotate': 4.9.0
+      '@sentry/babel-plugin-component-annotate': 4.9.1
       '@sentry/cli': 2.58.4(encoding@0.1.13)
       dotenv: 16.6.1
       find-up: 5.0.0
@@ -6084,9 +6084,9 @@ snapshots:
       '@opentelemetry/semantic-conventions': 1.39.0
       '@sentry/core': 10.36.0
 
-  '@sentry/vite-plugin@4.9.0(encoding@0.1.13)':
+  '@sentry/vite-plugin@4.9.1(encoding@0.1.13)':
     dependencies:
-      '@sentry/bundler-plugin-core': 4.9.0(encoding@0.1.13)
+      '@sentry/bundler-plugin-core': 4.9.1(encoding@0.1.13)
       unplugin: 1.0.1
     transitivePeerDependencies:
       - encoding
@@ -8962,7 +8962,7 @@ snapshots:
     dependencies:
       acorn: 8.15.0
       chokidar: 3.6.0
-      webpack-sources: 3.3.3
+      webpack-sources: 3.3.4
       webpack-virtual-modules: 0.5.0
 
   unplugin@2.3.11:
@@ -9072,7 +9072,7 @@ snapshots:
 
   webidl-conversions@3.0.1: {}
 
-  webpack-sources@3.3.3: {}
+  webpack-sources@3.3.4: {}
 
   webpack-virtual-modules@0.5.0: {}
 
@@ -9104,7 +9104,7 @@ snapshots:
       tapable: 2.3.0
       terser-webpack-plugin: 5.3.16(webpack@5.104.1)
       watchpack: 2.5.1
-      webpack-sources: 3.3.3
+      webpack-sources: 3.3.4
     transitivePeerDependencies:
       - '@swc/core'
       - esbuild
