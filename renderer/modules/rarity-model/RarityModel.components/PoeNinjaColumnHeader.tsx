@@ -41,7 +41,10 @@ const PoeNinjaColumnHeader = memo(
     );
 
     return (
-      <div className="flex flex-col items-center gap-1">
+      <div
+        className="flex flex-col items-center gap-1"
+        data-onboarding="rarity-model-poe-ninja"
+      >
         <span className="text-xs font-semibold">poe.ninja</span>
         <div className="flex items-center gap-0.5">
           {RARITY_LEVELS.map((rarity) => {

@@ -606,13 +606,14 @@ class UpdaterService {
     const trimmed = line.replace(/^-\s*/, "").trim();
 
     // Pattern: [`commitHash`](url) Thanks [@user](url)! - Description
+    // The inline description after "! -" is optional (changesets often put it on the next line)
     const richPattern =
-      /^\[`([a-f0-9]+)`\]\((https?:\/\/[^\s)]+)\)\s*Thanks\s*\[@([^\]]+)\]\((https?:\/\/[^\s)]+)\)!\s*-\s*(.+)$/;
+      /^\[`([a-f0-9]+)`\]\((https?:\/\/[^\s)]+)\)\s*Thanks\s*\[@([^\]]+)\]\((https?:\/\/[^\s)]+)\)!\s*(?:-\s*(.+))?$/;
     const richMatch = trimmed.match(richPattern);
 
     if (richMatch) {
       return {
-        description: richMatch[5].trim(),
+        description: richMatch[5]?.trim() ?? "",
         commitHash: richMatch[1],
         commitUrl: richMatch[2],
         contributor: richMatch[3],

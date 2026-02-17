@@ -254,6 +254,9 @@ export const useBoundStore = create<BoundStore>()(
               };
               poeNinja.isLoading = false;
               poeNinja.error = null;
+              poeNinja.refreshableAt = new Map();
+              poeNinja.isRefreshing = false;
+              poeNinja.refreshError = null;
 
               // Reset statistics
               statistics.statScope = "all-time";

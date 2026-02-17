@@ -101,6 +101,8 @@
     "zustand": "^5.0.11"
   },
   "dependencies": {
-    "better-sqlite3": "^12.6.2"
+    "better-sqlite3": "^12.6.2",
+    "react-markdown": "^10.1.0",
+    "rehype-raw": "^7.0.0"
   }
 }

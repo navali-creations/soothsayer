@@ -94,49 +94,51 @@ const CurrentSessionActions = () => {
   return (
     <Flex className="gap-2 items-center">
       {/* Unified Rarity Source Dropdown */}
-      <select
-        className="select select-bordered select-xs w-48"
-        value={dropdownValue}
-        onChange={(e) => handleDropdownChange(e.target.value)}
-        disabled={isActive || isScanning}
-        title={
-          isActive
-            ? "Cannot change rarity source while session is active"
-            : "Select rarity source"
-        }
-      >
-        {/* Dataset-driven sources */}
-        <optgroup label="Dataset Driven">
-          <option value="poe.ninja">poe.ninja (price-based)</option>
-          <option value="prohibited-library" disabled>
-            Prohibited Library (coming soon)
-          </option>
-        </optgroup>
-
-        {/* Online filters */}
-        {onlineFilters.length > 0 && (
-          <optgroup label="Online Filters">
-            {onlineFilters.map((filter) => (
-              <option key={filter.id} value={`filter:${filter.id}`}>
-                {filter.name}
-                {filter.isOutdated ? " (outdated)" : ""}
-              </option>
-            ))}
+      <div data-onboarding="current-session-rarity-source">
+        <select
+          className="select select-bordered select-sm w-48"
+          value={dropdownValue}
+          onChange={(e) => handleDropdownChange(e.target.value)}
+          disabled={isActive || isScanning}
+          title={
+            isActive
+              ? "Cannot change rarity source while session is active"
+              : "Select rarity source"
+          }
+        >
+          {/* Dataset-driven sources */}
+          <optgroup label="Dataset Driven">
+            <option value="poe.ninja">poe.ninja (price-based)</option>
+            <option value="prohibited-library" disabled>
+              Prohibited Library (coming soon)
+            </option>
           </optgroup>
-        )}
 
-        {/* Local filters */}
-        {localFilters.length > 0 && (
-          <optgroup label="Local Filters">
-            {localFilters.map((filter) => (
-              <option key={filter.id} value={`filter:${filter.id}`}>
-                {filter.name}
-                {filter.isOutdated ? " (outdated)" : ""}
-              </option>
-            ))}
-          </optgroup>
-        )}
-      </select>
+          {/* Online filters */}
+          {onlineFilters.length > 0 && (
+            <optgroup label="Online Filters">
+              {onlineFilters.map((filter) => (
+                <option key={filter.id} value={`filter:${filter.id}`}>
+                  {filter.name}
+                  {filter.isOutdated ? " (outdated)" : ""}
+                </option>
+              ))}
+            </optgroup>
+          )}
+
+          {/* Local filters */}
+          {localFilters.length > 0 && (
+            <optgroup label="Local Filters">
+              {localFilters.map((filter) => (
+                <option key={filter.id} value={`filter:${filter.id}`}>
+                  {filter.name}
+                  {filter.isOutdated ? " (outdated)" : ""}
+                </option>
+              ))}
+            </optgroup>
+          )}
+        </select>
+      </div>
 
       <div data-onboarding="start-session" className="relative">
         <AnimatePresence mode="wait" initial={false}>

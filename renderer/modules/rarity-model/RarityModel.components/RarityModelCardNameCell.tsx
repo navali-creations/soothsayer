@@ -9,13 +9,6 @@ import type { ComparisonRow } from "../RarityModelComparison.slice";
 /**
  * Card name cell for the FilterComparison table that shows a DivinationCard
  * popover on hover, matching the behavior of the current-session table.
- *
- * Accepts the row data directly — this is a cell renderer, not a page component.
- *
- * Wrapped in React.memo with a custom comparator so that toggling filter
- * columns (which creates new ComparisonRow objects) does NOT cause 50
- * DivinationCard popovers + usePopover hooks to re-render when the
- * underlying card data hasn't changed.
  */
 const RarityModelCardNameCell = memo(
   ({ card }: { card: ComparisonRow }) => {

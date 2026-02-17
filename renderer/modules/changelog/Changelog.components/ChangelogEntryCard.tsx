@@ -1,50 +1,23 @@
 import { FiGitCommit, FiUser } from "react-icons/fi";
 
 import type { ChangelogEntry } from "~/main/modules/updater/Updater.api";
-import { Badge } from "~/renderer/components";
+import { Badge, MarkdownRenderer } from "~/renderer/components";
 
 import ChangelogContent from "./ChangelogContent";
 
 const ChangelogEntryCard = ({ entry }: { entry: ChangelogEntry }) => {
-  // Strip bold markdown markers for cleaner display
-  const cleanDescription = entry.description.replace(/\*\*([^*]+)\*\*/g, "$1");
-
   return (
     <div className="space-y-3">
-      <p className="text-sm text-base-content/80 leading-relaxed">
-        {cleanDescription}
-      </p>
+      {entry.description && (
+        <MarkdownRenderer>{entry.description}</MarkdownRenderer>
+      )}
 
       {entry.content && <ChangelogContent content={entry.content} />}
 
       {entry.subItems && entry.subItems.length > 0 && (
-        <ul className="space-y-1.5 ml-1">
-          {entry.subItems.map((item, idx) => {
-            const cleanItem = item.replace(/\*\*([^*]+)\*\*/g, "$1");
-            // Split on the first colon to get the label vs description
-            const colonIdx = cleanItem.indexOf(":");
-            const hasLabel = colonIdx > 0 && colonIdx < 50;
-
-            return (
-              <li
-                key={idx}
-                className="flex items-start gap-2 text-sm text-base-content/70"
-              >
-                <span className="text-primary mt-1.5 shrink-0">•</span>
-                {hasLabel ? (
-                  <span>
-                    <span className="font-medium text-base-content/90">
-                      {cleanItem.slice(0, colonIdx)}:
-                    </span>
-                    {cleanItem.slice(colonIdx + 1)}
-                  </span>
-                ) : (
-                  <span>{cleanItem}</span>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+        <MarkdownRenderer>
+          {entry.subItems.map((item) => `- ${item}`).join("\n")}
+        </MarkdownRenderer>
       )}
 
       {(entry.commitHash || entry.contributor) && (

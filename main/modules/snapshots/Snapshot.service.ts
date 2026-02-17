@@ -90,6 +90,71 @@ class SnapshotService {
         }
       },
     );
+
+    ipcMain.handle(
+      SnapshotChannel.RefreshPrices,
+      async (_event, game: string, league: string) => {
+        try {
+          assertGameType(game, SnapshotChannel.RefreshPrices);
+          assertBoundedString(
+            league,
+            "league",
+            SnapshotChannel.RefreshPrices,
+            256,
+          );
+          const result = await this.getSnapshotForSession(game, league);
+          const fetchedAt = result.data.timestamp;
+          const refreshableAt = new Date(
+            new Date(fetchedAt).getTime() +
+              SnapshotService.AUTO_REFRESH_INTERVAL_HOURS * 60 * 60 * 1000,
+          ).toISOString();
+          return {
+            snapshotId: result.snapshotId,
+            fetchedAt,
+            refreshableAt,
+          };
+        } catch (error) {
+          return handleValidationError(error, SnapshotChannel.RefreshPrices);
+        }
+      },
+    );
+
+    ipcMain.handle(
+      SnapshotChannel.GetRefreshStatus,
+      async (_event, game: string, league: string) => {
+        try {
+          assertGameType(game, SnapshotChannel.GetRefreshStatus);
+          assertBoundedString(
+            league,
+            "league",
+            SnapshotChannel.GetRefreshStatus,
+            256,
+          );
+          const leagueId = await this.ensureLeague(game, league);
+          // Use the same threshold that getSnapshotForSession uses for reuse
+          const snapshot = await this.repository.getRecentSnapshot(
+            leagueId,
+            SnapshotService.SNAPSHOT_REUSE_THRESHOLD_HOURS,
+          );
+
+          if (!snapshot) {
+            return { fetchedAt: null, refreshableAt: null };
+          }
+
+          const refreshableAt = new Date(
+            new Date(snapshot.fetchedAt).getTime() +
+              SnapshotService.AUTO_REFRESH_INTERVAL_HOURS * 60 * 60 * 1000,
+          ).toISOString();
+
+          return {
+            fetchedAt: snapshot.fetchedAt,
+            refreshableAt,
+          };
+        } catch (error) {
+          return handleValidationError(error, SnapshotChannel.GetRefreshStatus);
+        }
+      },
+    );
   }
 
   /**

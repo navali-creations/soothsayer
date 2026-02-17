@@ -70,20 +70,26 @@ const RarityBadgeDropdown = memo(
         className="relative inline-flex items-center gap-1.5 group/cell"
         onBlur={handleBlur}
       >
-        <button
-          type="button"
-          onClick={handleToggle}
-          disabled={disabled}
-          className={`badge badge-sm whitespace-nowrap transition-colors ${
-            disabled
-              ? "opacity-50 cursor-not-allowed"
-              : "cursor-pointer hover:brightness-125 active:scale-95"
+        <div
+          className={`tooltip tooltip-bottom ${
+            disabled ? "tooltip-error" : "tooltip-primary"
           }`}
-          style={badgeStyle}
-          title={disabled ? "Cannot edit rarity" : "Click to change rarity"}
+          data-tip={disabled ? "Cannot edit rarity" : "Click to change rarity"}
         >
-          {label}
-        </button>
+          <button
+            type="button"
+            onClick={handleToggle}
+            disabled={disabled}
+            className={`badge badge-sm whitespace-nowrap transition-colors ${
+              disabled
+                ? "opacity-50 cursor-not-allowed"
+                : "cursor-pointer hover:brightness-125 active:scale-95"
+            }`}
+            style={badgeStyle}
+          >
+            {label}
+          </button>
+        </div>
 
         {!disabled && (
           <button

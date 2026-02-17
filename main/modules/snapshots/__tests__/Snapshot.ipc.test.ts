@@ -222,8 +222,24 @@ describe("SnapshotService — IPC handlers", () => {
       expect(registeredChannels).toContain(SnapshotChannel.GetLatestSnapshot);
     });
 
-    it("should register exactly 1 IPC handler", () => {
-      expect(mockIpcHandle).toHaveBeenCalledTimes(1);
+    it("should register the RefreshPrices IPC handler", () => {
+      const registeredChannels = mockIpcHandle.mock.calls.map(
+        ([ch]: [string]) => ch,
+      );
+
+      expect(registeredChannels).toContain(SnapshotChannel.RefreshPrices);
+    });
+
+    it("should register the GetRefreshStatus IPC handler", () => {
+      const registeredChannels = mockIpcHandle.mock.calls.map(
+        ([ch]: [string]) => ch,
+      );
+
+      expect(registeredChannels).toContain(SnapshotChannel.GetRefreshStatus);
+    });
+
+    it("should register exactly 3 IPC handlers", () => {
+      expect(mockIpcHandle).toHaveBeenCalledTimes(3);
     });
   });
 
@@ -502,6 +518,174 @@ describe("SnapshotService — IPC handlers", () => {
       expect(mockHandleValidationError).toHaveBeenCalledWith(
         expect.any(Error),
         SnapshotChannel.GetLatestSnapshot,
+      );
+    });
+  });
+
+  // ─── Singleton ───────────────────────────────────────────────────────────
+
+  // ─── RefreshPrices handler ─────────────────────────────────────────────
+
+  describe("RefreshPrices handler", () => {
+    it("should validate game type and league", async () => {
+      // getSnapshotForSession calls ensureLeague → getLeagueByName internally,
+      // then repository methods. We need the full chain to resolve so mock
+      // the Supabase fetch path as well.
+      mockIsConfigured.mockReturnValue(false);
+      mockRepoGetRecentSnapshot.mockResolvedValue(null);
+
+      const handler = getIpcHandler(SnapshotChannel.RefreshPrices);
+      // Will throw deep in getSnapshotForSession because Supabase is not
+      // configured and no recent snapshot exists — that's OK, we just want
+      // to verify that validation runs first.
+      await handler({}, "poe1", "Settlers");
+
+      expect(mockAssertGameType).toHaveBeenCalledWith(
+        "poe1",
+        SnapshotChannel.RefreshPrices,
+      );
+      expect(mockAssertBoundedString).toHaveBeenCalledWith(
+        "Settlers",
+        "league",
+        SnapshotChannel.RefreshPrices,
+        256,
+      );
+    });
+
+    it("should return validation error when game type is invalid", async () => {
+      const errorPayload = {
+        success: false as const,
+        error: "Invalid game type",
+      };
+      mockHandleValidationError.mockReturnValue(errorPayload);
+      mockAssertGameType.mockImplementation(() => {
+        throw new Error("bad");
+      });
+
+      const handler = getIpcHandler(SnapshotChannel.RefreshPrices);
+      const result = await handler({}, "invalid", "Settlers");
+
+      expect(result).toEqual(errorPayload);
+    });
+
+    it("should return validation error when league is invalid", async () => {
+      const errorPayload = {
+        success: false as const,
+        error: "Invalid league",
+      };
+      mockHandleValidationError.mockReturnValue(errorPayload);
+      mockAssertBoundedString.mockImplementation(() => {
+        throw new Error("bad");
+      });
+
+      const handler = getIpcHandler(SnapshotChannel.RefreshPrices);
+      const result = await handler({}, "poe1", null);
+
+      expect(result).toEqual(errorPayload);
+    });
+  });
+
+  // ─── GetRefreshStatus handler ──────────────────────────────────────────
+
+  describe("GetRefreshStatus handler", () => {
+    it("should validate game type and league then return refresh status", async () => {
+      const handler = getIpcHandler(SnapshotChannel.GetRefreshStatus);
+      const result = await handler({}, "poe1", "Settlers");
+
+      expect(mockAssertGameType).toHaveBeenCalledWith(
+        "poe1",
+        SnapshotChannel.GetRefreshStatus,
+      );
+      expect(mockAssertBoundedString).toHaveBeenCalledWith(
+        "Settlers",
+        "league",
+        SnapshotChannel.GetRefreshStatus,
+        256,
+      );
+      expect(result).toHaveProperty(
+        "fetchedAt",
+        SAMPLE_RECENT_SNAPSHOT.fetchedAt,
+      );
+      expect(result).toHaveProperty("refreshableAt");
+      expect(typeof result.refreshableAt).toBe("string");
+    });
+
+    it("should return null fields when no recent snapshot exists", async () => {
+      mockRepoGetRecentSnapshot.mockResolvedValue(null);
+
+      const handler = getIpcHandler(SnapshotChannel.GetRefreshStatus);
+      const result = await handler({}, "poe1", "Settlers");
+
+      expect(result).toEqual({ fetchedAt: null, refreshableAt: null });
+    });
+
+    it("should compute refreshableAt as fetchedAt + AUTO_REFRESH_INTERVAL_HOURS", async () => {
+      const handler = getIpcHandler(SnapshotChannel.GetRefreshStatus);
+      const result = await handler({}, "poe1", "Settlers");
+
+      const expectedRefreshableAt = new Date(
+        new Date(SAMPLE_RECENT_SNAPSHOT.fetchedAt).getTime() +
+          4 * 60 * 60 * 1000, // AUTO_REFRESH_INTERVAL_HOURS = 4
+      ).toISOString();
+
+      expect(result.refreshableAt).toBe(expectedRefreshableAt);
+    });
+
+    it("should return validation error when game type is invalid", async () => {
+      const errorPayload = {
+        success: false as const,
+        error: "Invalid game type",
+      };
+      mockHandleValidationError.mockReturnValue(errorPayload);
+      mockAssertGameType.mockImplementation(() => {
+        throw new Error("bad");
+      });
+
+      const handler = getIpcHandler(SnapshotChannel.GetRefreshStatus);
+      const result = await handler({}, "invalid", "Settlers");
+
+      expect(result).toEqual(errorPayload);
+    });
+
+    it("should return validation error when league is invalid", async () => {
+      const errorPayload = {
+        success: false as const,
+        error: "Invalid league",
+      };
+      mockHandleValidationError.mockReturnValue(errorPayload);
+      mockAssertBoundedString.mockImplementation(() => {
+        throw new Error("bad");
+      });
+
+      const handler = getIpcHandler(SnapshotChannel.GetRefreshStatus);
+      const result = await handler({}, "poe1", null);
+
+      expect(result).toEqual(errorPayload);
+    });
+
+    it("should not call repository when game validation fails", async () => {
+      mockAssertGameType.mockImplementation(() => {
+        throw new Error("bad");
+      });
+
+      const handler = getIpcHandler(SnapshotChannel.GetRefreshStatus);
+      await handler({}, "bad", "Settlers");
+
+      expect(mockRepoGetLeagueByName).not.toHaveBeenCalled();
+      expect(mockRepoGetRecentSnapshot).not.toHaveBeenCalled();
+    });
+
+    it("should handle unexpected errors from ensureLeague gracefully", async () => {
+      mockRepoGetLeagueByName.mockRejectedValue(
+        new Error("DB connection failed"),
+      );
+
+      const handler = getIpcHandler(SnapshotChannel.GetRefreshStatus);
+      await handler({}, "poe1", "Settlers");
+
+      expect(mockHandleValidationError).toHaveBeenCalledWith(
+        expect.any(Error),
+        SnapshotChannel.GetRefreshStatus,
       );
     });
   });

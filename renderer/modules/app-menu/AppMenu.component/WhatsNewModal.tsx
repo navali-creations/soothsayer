@@ -1,8 +1,12 @@
 import { useEffect, useRef } from "react";
 import { MdOutlineNewReleases } from "react-icons/md";
 
-import { Badge, Modal, type ModalHandle } from "~/renderer/components";
-import { ChangelogEntryCard } from "~/renderer/modules/changelog/Changelog.components";
+import {
+  Badge,
+  MarkdownRenderer,
+  Modal,
+  type ModalHandle,
+} from "~/renderer/components";
 import { changeTypeColor } from "~/renderer/modules/changelog/Changelog.utils";
 import { useBoundStore } from "~/renderer/store";
 
@@ -72,14 +76,8 @@ const WhatsNewModal = () => {
           </div>
 
           <div className="overflow-y-auto max-h-[60vh] pr-2">
-            {whatsNewRelease.entries.length > 0 ? (
-              <div className="space-y-4 divide-y divide-base-content/5">
-                {whatsNewRelease.entries.map((entry, idx) => (
-                  <div key={idx} className={idx > 0 ? "pt-4" : ""}>
-                    <ChangelogEntryCard entry={entry} />
-                  </div>
-                ))}
-              </div>
+            {whatsNewRelease.body ? (
+              <MarkdownRenderer>{whatsNewRelease.body}</MarkdownRenderer>
             ) : (
               <p className="text-sm text-base-content/60">
                 No detailed changes available for this release.

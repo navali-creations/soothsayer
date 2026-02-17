@@ -7,6 +7,7 @@ export { Dropdown } from "./Dropdown";
 export { default as Flex } from "./Flex/Flex";
 export { default as Grid } from "./Grid/Grid";
 export { default as Link } from "./Link/Link";
+export { default as MarkdownRenderer } from "./Markdown";
 export type { ModalHandle } from "./Modal";
 export { Modal } from "./Modal";
 export { default as PageContainer } from "./PageContainer/PageContainer";

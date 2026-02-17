@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
-
 import { Flex } from "~/renderer/components";
+import { useTickingTimer } from "~/renderer/hooks";
 import { useBoundStore } from "~/renderer/store";
 
 const SessionStatus = () => {
@@ -10,35 +9,12 @@ const SessionStatus = () => {
 
   const isActive = getIsCurrentSessionActive();
   const sessionInfo = getSessionInfo();
-  const [time, setTime] = useState({ hours: 0, minutes: 0, seconds: 0 });
 
-  // Update time every second when session is active
-  useEffect(() => {
-    if (!isActive || !sessionInfo) {
-      setTime({ hours: 0, minutes: 0, seconds: 0 });
-      return;
-    }
-
-    const updateTime = () => {
-      const start = new Date(sessionInfo.startedAt);
-      const now = new Date();
-      const diff = now.getTime() - start.getTime();
-
-      const hours = Math.floor(diff / 3600000);
-      const minutes = Math.floor((diff % 3600000) / 60000);
-      const seconds = Math.floor((diff % 60000) / 1000);
-
-      setTime({ hours, minutes, seconds });
-    };
-
-    // Update immediately
-    updateTime();
-
-    // Then update every second
-    const interval = setInterval(updateTime, 1000);
-
-    return () => clearInterval(interval);
-  }, [isActive, sessionInfo]);
+  const time = useTickingTimer({
+    referenceTime: sessionInfo?.startedAt ?? null,
+    direction: "up",
+    enabled: isActive && !!sessionInfo,
+  });
 
   return (
     <div className="p-3 pl-5 transition-colors preview">

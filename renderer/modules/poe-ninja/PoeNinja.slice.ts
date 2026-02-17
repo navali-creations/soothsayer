@@ -1,5 +1,7 @@
 import type { StateCreator } from "zustand";
 
+import type { CardsSlice } from "../cards/Cards.slice";
+
 export interface SnapshotInfo {
   id: string;
   leagueId: string;
@@ -41,6 +43,12 @@ export interface PoeNinjaSlice {
     isLoading: boolean;
     error: string | null;
 
+    // State - Per-league price refresh
+    /** ISO timestamp keyed by "game:league" — when the next refresh becomes available */
+    refreshableAt: Map<string, string | null>;
+    isRefreshing: boolean;
+    refreshError: string | null;
+
     // Actions - Initialization
     startListening: () => () => void;
 
@@ -63,6 +71,20 @@ export interface PoeNinjaSlice {
     markStashCached: () => void;
     clearCacheStatus: () => void;
 
+    // Actions - Price refresh
+    /**
+     * Fetch / reuse a snapshot for the given game & league, update card
+     * rarities on the backend, reload cards, and store the backend-provided
+     * `refreshableAt` timestamp so the UI can show a cooldown.
+     */
+    refreshPrices: (game: string, league: string) => Promise<void>;
+    /**
+     * Query the backend for the current cooldown status of a game/league
+     * without triggering a refresh. Useful on page mount / league switch
+     * to seed the cooldown timer.
+     */
+    checkRefreshStatus: (game: string, league: string) => Promise<void>;
+
     // Getters
     getAutoRefreshInfo: (
       game: string,
@@ -72,11 +94,19 @@ export interface PoeNinjaSlice {
     isAutoRefreshActive: (game: string, league: string) => boolean;
     getSnapshotAge: () => number | null; // Returns age in hours
     getTimeUntilNextRefresh: (game: string, league: string) => number | null; // Returns time in ms
+
+    // Getters - Price refresh
+    /**
+     * Returns the ISO timestamp at which the refresh button becomes available
+     * for this game/league, or `null` if no cooldown is active (i.e. the
+     * button should be enabled).
+     */
+    getRefreshableAt: (game: string, league: string) => string | null;
   };
 }
 
 export const createPoeNinjaSlice: StateCreator<
-  PoeNinjaSlice,
+  PoeNinjaSlice & CardsSlice,
   [["zustand/devtools", never], ["zustand/immer", never]],
   [],
   PoeNinjaSlice
@@ -95,6 +125,11 @@ export const createPoeNinjaSlice: StateCreator<
     },
     isLoading: false,
     error: null,
+
+    // Initial state - Price refresh
+    refreshableAt: new Map(),
+    isRefreshing: false,
+    refreshError: null,
 
     // Start listening to snapshot events
     startListening: () => {
@@ -283,6 +318,73 @@ export const createPoeNinjaSlice: StateCreator<
       );
     },
 
+    // ─── Price refresh actions ───────────────────────────────────────────
+
+    refreshPrices: async (game, league) => {
+      set(
+        ({ poeNinja }) => {
+          poeNinja.isRefreshing = true;
+          poeNinja.refreshError = null;
+        },
+        false,
+        "poeNinjaSlice/refreshPrices/start",
+      );
+
+      try {
+        const result = await window.electron.snapshots.refreshPrices(
+          game,
+          league,
+        );
+
+        set(
+          ({ poeNinja }) => {
+            const key = `${game}:${league}`;
+            poeNinja.refreshableAt.set(key, result.refreshableAt);
+            poeNinja.isRefreshing = false;
+          },
+          false,
+          "poeNinjaSlice/refreshPrices/success",
+        );
+
+        // Reload cards so the table reflects updated rarities
+        await get().cards.loadCards();
+      } catch (error) {
+        console.error("[PoeNinjaSlice] Failed to refresh prices:", error);
+        set(
+          ({ poeNinja }) => {
+            poeNinja.isRefreshing = false;
+            poeNinja.refreshError =
+              error instanceof Error
+                ? error.message
+                : "Failed to refresh poe.ninja prices";
+          },
+          false,
+          "poeNinjaSlice/refreshPrices/error",
+        );
+      }
+    },
+
+    checkRefreshStatus: async (game, league) => {
+      try {
+        const status = await window.electron.snapshots.getRefreshStatus(
+          game,
+          league,
+        );
+
+        set(
+          ({ poeNinja }) => {
+            const key = `${game}:${league}`;
+            poeNinja.refreshableAt.set(key, status.refreshableAt);
+          },
+          false,
+          "poeNinjaSlice/checkRefreshStatus",
+        );
+      } catch (error) {
+        console.error("[PoeNinjaSlice] Failed to check refresh status:", error);
+        // Non-critical — just leave the cooldown as-is
+      }
+    },
+
     // Getters
     getAutoRefreshInfo: (game, league) => {
       const { poeNinja } = get();
@@ -334,6 +436,12 @@ export const createPoeNinjaSlice: StateCreator<
       const diffMs = nextRefreshTime.getTime() - now.getTime();
 
       return Math.max(0, diffMs);
+    },
+
+    getRefreshableAt: (game, league) => {
+      const { poeNinja } = get();
+      const key = `${game}:${league}`;
+      return poeNinja.refreshableAt.get(key) ?? null;
     },
   },
 });

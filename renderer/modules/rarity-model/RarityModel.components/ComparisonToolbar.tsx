@@ -16,7 +16,7 @@ const ComparisonToolbar = () => {
   const differences = getDifferences();
 
   return (
-    <div className="flex items-center gap-3 flex-wrap">
+    <div className="flex self-end gap-3 flex-wrap">
       {canShowDiffs && allSelectedParsed && (
         <label className="label cursor-pointer gap-2">
           <input

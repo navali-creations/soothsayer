@@ -10,9 +10,13 @@ import { TiInfoLargeOutline } from "react-icons/ti";
 import { Button } from "~/renderer/components";
 
 import CurrentSessionPricingBeacon from "../current-session/CurrentSession.beacons/CurrentSessionPricingBeacon";
+import CurrentSessionRaritySourceBeacon from "../current-session/CurrentSession.beacons/CurrentSessionRaritySourceBeacon";
 import CurrentSessionStartSessionBeacon from "../current-session/CurrentSession.beacons/CurrentSessionStartSessionBeacon";
 import GameInfoBeacon from "../game-info/GameInfo.beacon";
 import OverlayBeacon from "../overlay/Overlay.beacon";
+import RarityModelPoeNinjaBeacon from "../rarity-model/RarityModel.beacons/RarityModelPoeNinjaBeacon";
+import RarityModelRefreshBeacon from "../rarity-model/RarityModel.beacons/RarityModelRefreshBeacon";
+import RarityModelScanBeacon from "../rarity-model/RarityModel.beacons/RarityModelScanBeacon";
 import { trackEvent } from "../umami";
 import { repereStoreAdapter } from "./repereStoreAdapter";
 
@@ -98,6 +102,24 @@ export const onboardingConfig: RepereReactConfig = {
       path: "/",
       beacons: [
         {
+          id: "current-session-rarity-source",
+          selector: "[data-onboarding='current-session-rarity-source']",
+          trigger: {
+            component: createTrackedTrigger("current-session-rarity-source"),
+            anchorPoint: AnchorPoint.LeftCenter,
+            offset: {
+              x: -10,
+            },
+          },
+          popover: {
+            component: CurrentSessionRaritySourceBeacon,
+            anchorPoint: AnchorPoint.BottomCenter,
+            offset: {
+              y: 10,
+            },
+          },
+        },
+        {
           id: "stash-prices",
           selector: "[data-onboarding='current-session-pricing']",
           trigger: {
@@ -120,7 +142,7 @@ export const onboardingConfig: RepereReactConfig = {
           selector: "[data-onboarding='start-session']",
           trigger: {
             component: createTrackedTrigger("start-session"),
-            anchorPoint: AnchorPoint.LeftCenter,
+            anchorPoint: AnchorPoint.BottomCenter,
             offset: {
               y: 0,
             },
@@ -128,6 +150,63 @@ export const onboardingConfig: RepereReactConfig = {
           popover: {
             component: CurrentSessionStartSessionBeacon,
             anchorPoint: AnchorPoint.BottomLeft,
+            offset: {
+              y: 10,
+            },
+          },
+        },
+      ],
+    },
+    {
+      id: "rarity-model-page",
+      path: "/rarity-model",
+      beacons: [
+        {
+          id: "rarity-model-poe-ninja",
+          selector: "[data-onboarding='rarity-model-poe-ninja']",
+          trigger: {
+            component: createTrackedTrigger("rarity-model-poe-ninja"),
+            anchorPoint: AnchorPoint.TopRight,
+          },
+          popover: {
+            component: RarityModelPoeNinjaBeacon,
+            anchorPoint: AnchorPoint.BottomLeft,
+            offset: {
+              y: 10,
+            },
+          },
+        },
+        {
+          id: "rarity-model-refresh",
+          selector: "[data-onboarding='rarity-model-refresh']",
+          trigger: {
+            component: createTrackedTrigger("rarity-model-refresh"),
+            anchorPoint: AnchorPoint.BottomCenter,
+            offset: {
+              y: 5,
+            },
+          },
+          popover: {
+            component: RarityModelRefreshBeacon,
+            anchorPoint: AnchorPoint.BottomLeft,
+            offset: {
+              y: 10,
+            },
+          },
+        },
+        {
+          id: "rarity-model-scan",
+          selector: "[data-onboarding='rarity-model-scan']",
+          trigger: {
+            component: createTrackedTrigger("rarity-model-scan"),
+            anchorPoint: AnchorPoint.BottomCenter,
+            offset: {
+              y: 5,
+            },
+          },
+          popover: {
+            component: RarityModelScanBeacon,
+            anchorPoint: AnchorPoint.BottomRight,
             offset: {
               y: 10,
             },
