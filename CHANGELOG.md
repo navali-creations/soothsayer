@@ -4,7 +4,7 @@
 
 ### Patch Changes
 
-- [`af025c6`](https://github.com/navali-creations/soothsayer/commit/af025c6f5baa3c279fa117c0a518bab8784af04b) Thanks [@sbsrnt](https://github.com/sbsrnt)! - Attempt at code signing files other than installer
+- [`af025c6`](https://github.com/navali-creations/soothsayer/commit/af025c6f5baa3c279fa117c0a518bab8784af04b) Thanks [@sbsrnt](https://github.com/sbsrnt)! - As of this release, the CI/CD pipeline properly includes code signing of the app
 
 ## 0.3.6
 
