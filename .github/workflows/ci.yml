@@ -141,7 +141,8 @@ jobs:
         needs.changes.outputs.app-code == 'true' ||
         needs.changes.outputs.dep-supabase == 'true' ||
         needs.changes.outputs.dep-kysely == 'true' ||
-        needs.changes.outputs.dep-better-sqlite3 == 'true'
+        needs.changes.outputs.dep-better-sqlite3 == 'true' ||
+        needs.changes.outputs.dep-electron == 'true'
       )
     runs-on: ubuntu-latest
     steps:
