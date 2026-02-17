@@ -62,7 +62,7 @@
     "@electron/fuses": "^2.0.0",
     "@electron/rebuild": "^4.0.3",
     "@redux-devtools/extension": "^3.3.0",
-    "@repere/react": "^0.3.2",
+    "@repere/react": "^0.3.3",
     "@sentry/electron": "^7.7.1",
     "@sentry/vite-plugin": "^4.9.1",
     "@supabase/supabase-js": "^2.95.3",
