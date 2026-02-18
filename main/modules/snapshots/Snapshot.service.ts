@@ -4,11 +4,6 @@ import { BrowserWindow, ipcMain } from "electron";
 
 import { DatabaseService } from "~/main/modules/database";
 import { DivinationCardsService } from "~/main/modules/divination-cards";
-import { RarityModelService } from "~/main/modules/rarity-model/RarityModel.service";
-import {
-  SettingsKey,
-  SettingsStoreService,
-} from "~/main/modules/settings-store";
 import { SupabaseClientService } from "~/main/modules/supabase";
 import {
   assertBoundedString,
@@ -32,8 +27,6 @@ class SnapshotService {
   private repository: SnapshotRepository;
   private supabase: SupabaseClientService;
   private divinationCards: DivinationCardsService;
-  private rarityModelService: RarityModelService;
-  private settingsStore: SettingsStoreService;
   private refreshIntervals: Map<string, NodeJS.Timeout> = new Map();
 
   // How old can a snapshot be before we fetch a new one (in hours)
@@ -56,8 +49,6 @@ class SnapshotService {
     this.repository = new SnapshotRepository(db.getKysely());
     this.supabase = SupabaseClientService.getInstance();
     this.divinationCards = DivinationCardsService.getInstance();
-    this.rarityModelService = RarityModelService.getInstance();
-    this.settingsStore = SettingsStoreService.getInstance();
     this.setupIpcHandlers();
   }
 
@@ -331,8 +322,11 @@ class SnapshotService {
 
       const data = await this.loadSnapshot(recentSnapshot.id);
       if (data) {
-        // Update card rarities — always update price-based rarities,
-        // and also apply filter-based rarities if that's the active source
+        // Update card rarities from poe.ninja prices.
+        // Filter-based rarities live in filter_card_rarities and are JOINed
+        // independently — we must NOT overwrite divination_card_rarities.rarity
+        // with filter values, otherwise the poe.ninja column on the Rarity
+        // Model page shows stale filter data after the session ends.
         const gameType = game === "poe1" ? "poe1" : "poe2";
         const mergedPrices = this.mergeCardPrices(data);
         await this.divinationCards.updateRaritiesFromPrices(
@@ -341,9 +335,6 @@ class SnapshotService {
           data.exchange.chaosToDivineRatio,
           mergedPrices,
         );
-
-        // If rarity source is "filter", also apply filter-based rarities
-        await this.applyFilterRaritiesIfNeeded(gameType, leagueName);
 
         // Emit reused snapshot event
         this.emitSnapshotEvent(SnapshotChannel.OnSnapshotReused, {
@@ -371,7 +362,8 @@ class SnapshotService {
       leagueId,
     );
 
-    // Update card rarities based on merged exchange + stash prices
+    // Update card rarities based on merged exchange + stash prices.
+    // Filter-based rarities are stored separately in filter_card_rarities.
     const mergedPrices = this.mergeCardPrices(snapshotData);
     await this.divinationCards.updateRaritiesFromPrices(
       gameType,
@@ -379,9 +371,6 @@ class SnapshotService {
       snapshotData.exchange.chaosToDivineRatio,
       mergedPrices,
     );
-
-    // If rarity source is "filter", also apply filter-based rarities
-    await this.applyFilterRaritiesIfNeeded(gameType, leagueName);
 
     // Store it locally
     const snapshotId = crypto.randomUUID();
@@ -440,7 +429,8 @@ class SnapshotService {
           leagueId,
         );
 
-        // Update card rarities based on merged exchange + stash prices
+        // Update card rarities based on merged exchange + stash prices.
+        // Filter-based rarities are stored separately in filter_card_rarities.
         const mergedPrices = this.mergeCardPrices(snapshotData);
         await this.divinationCards.updateRaritiesFromPrices(
           gameType,
@@ -448,9 +438,6 @@ class SnapshotService {
           snapshotData.exchange.chaosToDivineRatio,
           mergedPrices,
         );
-
-        // If rarity source is "filter", also apply filter-based rarities
-        await this.applyFilterRaritiesIfNeeded(gameType, leagueName);
 
         const snapshotId = crypto.randomUUID();
         await this.repository.createSnapshot({
@@ -571,56 +558,6 @@ class SnapshotService {
     );
 
     return merged;
-  }
-
-  /**
-   * Apply filter-based rarities if the rarity source is set to "filter".
-   *
-   * This checks the rarity_source setting and, if it's "filter", ensures
-   * the selected filter is parsed and applies its rarities to the
-   * divination_card_rarities table for the given game/league.
-   *
-   * This runs alongside (not instead of) the poe.ninja price-based rarity
-   * update, so both rarity sources are always available in the database.
-   * The consumer (frontend/session service) decides which to display.
-   */
-  private async applyFilterRaritiesIfNeeded(
-    game: "poe1" | "poe2",
-    league: string,
-  ): Promise<void> {
-    try {
-      const raritySource = await this.settingsStore.get(
-        SettingsKey.RaritySource,
-      );
-      if (raritySource !== "filter") {
-        return;
-      }
-
-      const selectedFilterId = await this.settingsStore.get(
-        SettingsKey.SelectedFilterId,
-      );
-      if (!selectedFilterId) {
-        console.warn(
-          "[SnapshotService] Rarity source is 'filter' but no filter is selected — skipping filter rarity application",
-        );
-        return;
-      }
-
-      console.log(
-        `[SnapshotService] Applying filter rarities for ${game}/${league} from filter ${selectedFilterId}...`,
-      );
-      await this.rarityModelService.applyFilterRarities(
-        selectedFilterId,
-        game,
-        league,
-      );
-    } catch (error) {
-      console.error(
-        "[SnapshotService] Failed to apply filter rarities:",
-        error instanceof Error ? error.message : String(error),
-      );
-      // Don't throw — filter rarity failure shouldn't block snapshot flow
-    }
   }
 
   /**

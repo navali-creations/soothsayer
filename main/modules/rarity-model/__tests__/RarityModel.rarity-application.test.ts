@@ -934,3 +934,226 @@ describe("Dual rarity scenarios", () => {
     expect(abandonedFilter2!.filterRarity).toBe(2);
   });
 });
+
+// ─── Test Suite: Regression — poe.ninja rarity column must not be corrupted ──
+
+describe("Regression: poe.ninja rarity column must not be corrupted by filter data", () => {
+  let testDb: TestDatabase;
+  let divinationCardsRepo: DivinationCardsRepository;
+  let filterRepo: RarityModelRepository;
+
+  beforeEach(async () => {
+    testDb = createTestDatabase();
+    divinationCardsRepo = new DivinationCardsRepository(testDb.kysely);
+    filterRepo = new RarityModelRepository(testDb.kysely);
+    await seedTestCards(testDb.kysely);
+    await seedPriceRarities(testDb.kysely, TEST_LEAGUE);
+    await seedTestFilter(testDb.kysely);
+  });
+
+  afterEach(async () => {
+    await testDb.close();
+  });
+
+  it("price-based rarity update should preserve poe.ninja values, not use filter values", async () => {
+    // Record poe.ninja rarities BEFORE any operations
+    const beforeCards = await divinationCardsRepo.getAllByGame(
+      TEST_GAME,
+      TEST_LEAGUE,
+      TEST_FILTER_ID,
+    );
+    const beforeMap = new Map(beforeCards.map((c) => [c.name, c]));
+
+    // Verify initial state: rarity and filterRarity are independent
+    // Rain of Chaos: poe.ninja=4, filter=3 — they differ
+    expect(beforeMap.get("Rain of Chaos")!.rarity).toBe(4);
+    expect(beforeMap.get("Rain of Chaos")!.filterRarity).toBe(3);
+    // The Doctor: poe.ninja=1, filter=1 — they agree
+    expect(beforeMap.get("The Doctor")!.rarity).toBe(1);
+    expect(beforeMap.get("The Doctor")!.filterRarity).toBe(1);
+    // Abandoned Wealth: poe.ninja=2, not in filter
+    expect(beforeMap.get("Abandoned Wealth")!.rarity).toBe(2);
+    expect(beforeMap.get("Abandoned Wealth")!.filterRarity).toBeNull();
+
+    // Simulate what getSnapshotForSession does: updateRaritiesFromPrices.
+    // This writes PRICE-derived rarities to divination_card_rarities.rarity.
+    // We re-apply the same price-based rarities (as a snapshot refresh would).
+    const priceUpdates = beforeCards.map((c) => ({
+      name: c.name,
+      rarity: c.rarity as KnownRarity,
+    }));
+    await divinationCardsRepo.updateRarities(
+      TEST_GAME,
+      TEST_LEAGUE,
+      priceUpdates,
+    );
+
+    // After the price-based update, verify poe.ninja column is still intact
+    const afterCards = await divinationCardsRepo.getAllByGame(
+      TEST_GAME,
+      TEST_LEAGUE,
+      TEST_FILTER_ID,
+    );
+    const afterMap = new Map(afterCards.map((c) => [c.name, c]));
+
+    // The rarity column must reflect poe.ninja values, NOT filter values
+    expect(afterMap.get("Rain of Chaos")!.rarity).toBe(4); // NOT 3 (filter)
+    expect(afterMap.get("The Doctor")!.rarity).toBe(1);
+    expect(afterMap.get("Abandoned Wealth")!.rarity).toBe(2);
+    expect(afterMap.get("The Nurse")!.rarity).toBe(2);
+    expect(afterMap.get("The Lover")!.rarity).toBe(3);
+
+    // Filter rarities must be completely unaffected by the price update
+    expect(afterMap.get("Rain of Chaos")!.filterRarity).toBe(3);
+    expect(afterMap.get("The Doctor")!.filterRarity).toBe(1);
+    expect(afterMap.get("Abandoned Wealth")!.filterRarity).toBeNull();
+    expect(afterMap.get("The Nurse")!.filterRarity).toBe(2);
+  });
+
+  it("applying filter rarities to divination_card_rarities WOULD corrupt poe.ninja values (demonstrates the bug)", async () => {
+    // This test documents the destructive behavior that the bug fix prevents.
+    // If someone were to write filter rarities into divination_card_rarities.rarity,
+    // the poe.ninja column on the Rarity Model page would show wrong values.
+
+    // Record original poe.ninja rarities
+    const beforeCards = await divinationCardsRepo.getAllByGame(
+      TEST_GAME,
+      TEST_LEAGUE,
+    );
+    const beforeMap = new Map(beforeCards.map((c) => [c.name, c]));
+    expect(beforeMap.get("Rain of Chaos")!.rarity).toBe(4); // poe.ninja: common
+    expect(beforeMap.get("Abandoned Wealth")!.rarity).toBe(2); // poe.ninja: mid-value
+
+    // Simulate the old buggy behavior: write FILTER rarities into divination_card_rarities
+    const filterRarities = await filterRepo.getCardRarities(TEST_FILTER_ID);
+    const filterRarityMap = new Map(
+      filterRarities.map((r) => [r.cardName, r.rarity]),
+    );
+    const allCardNames = await divinationCardsRepo.getAllCardNames(TEST_GAME);
+    const filterUpdates = allCardNames.map((name) => ({
+      name,
+      rarity: (filterRarityMap.get(name) ?? 4) as KnownRarity,
+    }));
+    await divinationCardsRepo.updateRarities(
+      TEST_GAME,
+      TEST_LEAGUE,
+      filterUpdates,
+    );
+
+    // Now the rarity column is CORRUPTED — it shows filter values, not poe.ninja
+    const afterCards = await divinationCardsRepo.getAllByGame(
+      TEST_GAME,
+      TEST_LEAGUE,
+    );
+    const afterMap = new Map(afterCards.map((c) => [c.name, c]));
+
+    // Rain of Chaos: was poe.ninja=4, now shows filter=3 — WRONG for poe.ninja column
+    expect(afterMap.get("Rain of Chaos")!.rarity).toBe(3); // corrupted!
+    // Abandoned Wealth: was poe.ninja=2, now shows default=4 (not in filter) — WRONG
+    expect(afterMap.get("Abandoned Wealth")!.rarity).toBe(4); // corrupted!
+
+    // This demonstrates why the snapshot flow must NEVER write filter rarities
+    // into divination_card_rarities.rarity. Filter rarities belong in
+    // filter_card_rarities and are JOINed independently via filterRarity.
+  });
+
+  it("poe.ninja rarities should survive multiple price updates with filter data coexisting", async () => {
+    // Simulate multiple snapshot refreshes (as auto-refresh would do).
+    // Each refresh writes price-based rarities. Filter data coexists
+    // in filter_card_rarities but must never leak into the rarity column.
+
+    for (let i = 0; i < 3; i++) {
+      // Re-apply price-based rarities (simulating a snapshot refresh)
+      const cards = await divinationCardsRepo.getAllByGame(
+        TEST_GAME,
+        TEST_LEAGUE,
+      );
+      const priceUpdates = cards.map((c) => ({
+        name: c.name,
+        rarity: c.rarity as KnownRarity,
+      }));
+      await divinationCardsRepo.updateRarities(
+        TEST_GAME,
+        TEST_LEAGUE,
+        priceUpdates,
+      );
+    }
+
+    // After 3 refreshes, query with filter and verify both columns
+    const finalCards = await divinationCardsRepo.getAllByGame(
+      TEST_GAME,
+      TEST_LEAGUE,
+      TEST_FILTER_ID,
+    );
+    const finalMap = new Map(finalCards.map((c) => [c.name, c]));
+
+    // poe.ninja column: still has original price-based values
+    expect(finalMap.get("The Doctor")!.rarity).toBe(1);
+    expect(finalMap.get("The Apothecary")!.rarity).toBe(1);
+    expect(finalMap.get("The Nurse")!.rarity).toBe(2);
+    expect(finalMap.get("Abandoned Wealth")!.rarity).toBe(2);
+    expect(finalMap.get("The Lover")!.rarity).toBe(3);
+    expect(finalMap.get("Rain of Chaos")!.rarity).toBe(4);
+    expect(finalMap.get("Emperor of Purity")!.rarity).toBe(4);
+
+    // filter column: still has original filter-based values, untouched
+    expect(finalMap.get("The Doctor")!.filterRarity).toBe(1);
+    expect(finalMap.get("The Apothecary")!.filterRarity).toBe(1);
+    expect(finalMap.get("The Nurse")!.filterRarity).toBe(2);
+    expect(finalMap.get("Rain of Chaos")!.filterRarity).toBe(3);
+    expect(finalMap.get("The Lover")!.filterRarity).toBe(3);
+    expect(finalMap.get("Emperor of Purity")!.filterRarity).toBe(4);
+    expect(finalMap.get("The Wretched")!.filterRarity).toBe(4);
+    expect(finalMap.get("Abandoned Wealth")!.filterRarity).toBeNull();
+    expect(finalMap.get("Heterochromia")!.filterRarity).toBeNull();
+    expect(finalMap.get("The Demoness")!.filterRarity).toBeNull();
+  });
+
+  it("changing price-based rarities should not affect filter_card_rarities", async () => {
+    // Simulate poe.ninja prices changing (e.g., Rain of Chaos becomes expensive)
+    const newPriceUpdates = [
+      { name: "The Doctor", rarity: 1 as KnownRarity },
+      { name: "The Apothecary", rarity: 1 as KnownRarity },
+      { name: "The Nurse", rarity: 1 as KnownRarity }, // promoted from 2 to 1
+      { name: "Rain of Chaos", rarity: 2 as KnownRarity }, // promoted from 4 to 2
+      { name: "Abandoned Wealth", rarity: 3 as KnownRarity }, // demoted from 2 to 3
+      { name: "The Lover", rarity: 3 as KnownRarity },
+      { name: "Emperor of Purity", rarity: 4 as KnownRarity },
+      { name: "The Wretched", rarity: 4 as KnownRarity },
+      { name: "Heterochromia", rarity: 4 as KnownRarity },
+      { name: "The Demoness", rarity: 4 as KnownRarity },
+    ];
+    await divinationCardsRepo.updateRarities(
+      TEST_GAME,
+      TEST_LEAGUE,
+      newPriceUpdates,
+    );
+
+    // Verify the rarity column reflects the new prices
+    const cards = await divinationCardsRepo.getAllByGame(
+      TEST_GAME,
+      TEST_LEAGUE,
+      TEST_FILTER_ID,
+    );
+    const cardMap = new Map(cards.map((c) => [c.name, c]));
+
+    // Price rarities changed
+    expect(cardMap.get("The Nurse")!.rarity).toBe(1); // was 2, now 1
+    expect(cardMap.get("Rain of Chaos")!.rarity).toBe(2); // was 4, now 2
+    expect(cardMap.get("Abandoned Wealth")!.rarity).toBe(3); // was 2, now 3
+
+    // Filter rarities must be completely unaffected by price changes
+    expect(cardMap.get("The Nurse")!.filterRarity).toBe(2); // still filter value
+    expect(cardMap.get("Rain of Chaos")!.filterRarity).toBe(3); // still filter value
+    expect(cardMap.get("Abandoned Wealth")!.filterRarity).toBeNull(); // still not in filter
+
+    // Verify filter_card_rarities table is untouched by reading directly
+    const filterRarities = await filterRepo.getCardRarities(TEST_FILTER_ID);
+    const filterMap = new Map(
+      filterRarities.map((r) => [r.cardName, r.rarity]),
+    );
+    expect(filterMap.get("Rain of Chaos")).toBe(3); // unchanged
+    expect(filterMap.get("The Nurse")).toBe(2); // unchanged
+    expect(filterMap.has("Abandoned Wealth")).toBe(false); // was never in filter
+  });
+});

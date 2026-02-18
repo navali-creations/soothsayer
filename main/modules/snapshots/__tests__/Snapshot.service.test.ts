@@ -40,10 +40,12 @@ vi.mock("~/main/modules/database", () => ({
 
 // ─── Mock DivinationCardsService ─────────────────────────────────────────────
 const mockUpdateRaritiesFromPrices = vi.fn().mockResolvedValue(undefined);
+const mockUpdateRaritiesFromFilter = vi.fn().mockResolvedValue(undefined);
 vi.mock("~/main/modules/divination-cards", () => ({
   DivinationCardsService: {
     getInstance: vi.fn(() => ({
       updateRaritiesFromPrices: mockUpdateRaritiesFromPrices,
+      updateRaritiesFromFilter: mockUpdateRaritiesFromFilter,
       initialize: vi.fn(),
     })),
   },
@@ -83,6 +85,7 @@ describe("SnapshotService", () => {
     mockIsConfigured.mockReturnValue(true);
     mockGetLatestSnapshot.mockReset();
     mockUpdateRaritiesFromPrices.mockReset().mockResolvedValue(undefined);
+    mockUpdateRaritiesFromFilter.mockReset().mockResolvedValue(undefined);
     mockGetAllWindows.mockReturnValue([]);
 
     // Reset the singleton so each test gets a fresh instance
@@ -372,6 +375,61 @@ describe("SnapshotService", () => {
 
       // Supabase should NOT have been called since we reused
       expect(mockGetLatestSnapshot).not.toHaveBeenCalled();
+    });
+
+    it("should not call updateRaritiesFromFilter when reusing a snapshot (regression: poe.ninja column overwritten by filter)", async () => {
+      const leagueId = await seedLeague(testDb.kysely, {
+        game: "poe1",
+        name: "Settlers",
+      });
+
+      await seedSnapshot(testDb.kysely, {
+        leagueId,
+        fetchedAt: new Date().toISOString(),
+        exchangeChaosToDivine: 200,
+        stashChaosToDivine: 195,
+        cardPrices: [
+          {
+            cardName: "The Doctor",
+            priceSource: "exchange",
+            chaosValue: 800,
+            divineValue: 4.0,
+          },
+        ],
+      });
+
+      await service.getSnapshotForSession("poe1", "Settlers");
+
+      // The core invariant: snapshot operations must ONLY write price-based
+      // rarities. Filter rarities live in filter_card_rarities and are JOINed
+      // independently. Writing filter rarities into divination_card_rarities
+      // would corrupt the poe.ninja column on the Rarity Model page.
+      expect(mockUpdateRaritiesFromFilter).not.toHaveBeenCalled();
+      expect(mockUpdateRaritiesFromPrices).toHaveBeenCalled();
+    });
+
+    it("should not call updateRaritiesFromFilter when fetching a new snapshot (regression: poe.ninja column overwritten by filter)", async () => {
+      const mockSnapshotData = {
+        timestamp: new Date().toISOString(),
+        stackedDeckChaosCost: 3,
+        exchange: {
+          chaosToDivineRatio: 200,
+          cardPrices: {
+            "The Doctor": { chaosValue: 800, divineValue: 4.0 },
+          },
+        },
+        stash: {
+          chaosToDivineRatio: 195,
+          cardPrices: {},
+        },
+      };
+
+      mockGetLatestSnapshot.mockResolvedValue(mockSnapshotData);
+
+      await service.getSnapshotForSession("poe1", "Settlers");
+
+      expect(mockUpdateRaritiesFromFilter).not.toHaveBeenCalled();
+      expect(mockUpdateRaritiesFromPrices).toHaveBeenCalled();
     });
 
     it("should call updateRaritiesFromPrices when reusing a snapshot", async () => {
@@ -954,6 +1012,46 @@ describe("SnapshotService", () => {
   // ─── Auto-refresh interval body execution ───────────────────────────────
 
   describe("startAutoRefresh interval callback", () => {
+    it("should not call updateRaritiesFromFilter when the interval fires (regression: poe.ninja column overwritten by filter)", async () => {
+      vi.useFakeTimers();
+
+      try {
+        await seedLeague(testDb.kysely, {
+          game: "poe1",
+          name: "Settlers",
+        });
+
+        const mockSnapshotData = {
+          timestamp: new Date().toISOString(),
+          stackedDeckChaosCost: 5,
+          exchange: {
+            chaosToDivineRatio: 210,
+            cardPrices: {
+              "The Doctor": { chaosValue: 5000, divineValue: 23.8 },
+            },
+          },
+          stash: {
+            chaosToDivineRatio: 205,
+            cardPrices: {},
+          },
+        };
+        mockGetLatestSnapshot.mockResolvedValue(mockSnapshotData);
+
+        service.startAutoRefresh("poe1", "Settlers");
+
+        // Advance past the 4-hour interval
+        await vi.advanceTimersByTimeAsync(4 * 60 * 60 * 1000);
+
+        // Auto-refresh must ONLY update price-based rarities, never filter rarities.
+        // Filter rarities are stored separately in filter_card_rarities.
+        expect(mockUpdateRaritiesFromFilter).not.toHaveBeenCalled();
+        expect(mockUpdateRaritiesFromPrices).toHaveBeenCalled();
+      } finally {
+        service.stopAllAutoRefresh();
+        vi.useRealTimers();
+      }
+    });
+
     it("should fetch and store a new snapshot when the interval fires", async () => {
       vi.useFakeTimers();
 
