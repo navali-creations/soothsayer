@@ -91,7 +91,7 @@ export const createSessionSlice: StateCreator<
           if (activeSession?.priceSnapshot && activeInfo) {
             const [game, league] = activeInfo.league.split(":");
             poeNinja.setCurrentSnapshot({
-              id: "session-snapshot", // We don't have the snapshot ID from session data
+              id: activeSession.snapshotId ?? "session-snapshot",
               leagueId: activeInfo.league,
               league: league || activeInfo.league,
               game: game || "poe1",
@@ -228,7 +228,7 @@ export const createSessionSlice: StateCreator<
             if (sessionData?.priceSnapshot && sessionInfo) {
               const [game, league] = sessionInfo.league.split(":");
               poeNinja.setCurrentSnapshot({
-                id: "session-snapshot",
+                id: sessionData.snapshotId ?? "session-snapshot",
                 leagueId: sessionInfo.league,
                 league: league || sessionInfo.league,
                 game: game || activeGameView,

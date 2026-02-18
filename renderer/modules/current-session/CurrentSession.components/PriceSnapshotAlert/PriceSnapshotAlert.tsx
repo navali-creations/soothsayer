@@ -1,5 +1,5 @@
 import type React from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { useBoundStore } from "~/renderer/store";
 
@@ -7,18 +7,12 @@ const PriceSnapshotAlert = () => {
   const {
     currentSession: { getSession, getSessionInfo },
     settings: { getActiveGameViewPriceSource },
-    poeNinja: {
-      currentSnapshot,
-      getSnapshotAge,
-      isAutoRefreshActive,
-      getTimeUntilNextRefresh,
-    },
+    poeNinja: { currentSnapshot, isAutoRefreshActive, getTimeUntilNextRefresh },
   } = useBoundStore();
 
   const sessionData = getSession();
   const sessionInfo = getSessionInfo();
   const priceSource = getActiveGameViewPriceSource();
-  const snapshotAge = getSnapshotAge();
 
   const [hours, setHours] = useState(0);
   const [minutes, setMinutes] = useState(0);
@@ -70,7 +64,30 @@ const PriceSnapshotAlert = () => {
     return () => clearInterval(interval);
   }, [autoRefreshActive, game, league, getTimeUntilNextRefresh]);
 
-  // Get chaos to divine ratio from session data or current snapshot
+  // Determine whether an auto-refresh has produced a newer snapshot than the
+  // one locked to this session.  We compare timestamps: the session's
+  // priceSnapshot.timestamp is set when the session starts, while
+  // currentSnapshot.fetchedAt is updated each time auto-refresh fires.
+  const raritiesRefreshedAt = useMemo(() => {
+    const sessionTimestamp = sessionData?.priceSnapshot?.timestamp;
+    const latestTimestamp = currentSnapshot?.fetchedAt;
+
+    if (!sessionTimestamp || !latestTimestamp) return null;
+
+    const sessionTime = new Date(sessionTimestamp).getTime();
+    const latestTime = new Date(latestTimestamp).getTime();
+
+    // Only show if the latest snapshot is meaningfully newer (>1 min)
+    if (latestTime - sessionTime > 60_000) {
+      return latestTimestamp;
+    }
+
+    return null;
+  }, [sessionData?.priceSnapshot?.timestamp, currentSnapshot?.fetchedAt]);
+
+  // Always derive pricing info from the session's own snapshot — that is what
+  // actually prices every card in the table.  Fall back to currentSnapshot
+  // only when the session has no snapshot at all (edge-case at startup).
   const chaosToDivineRatio =
     sessionData?.totals?.[priceSource]?.chaosToDivineRatio ||
     (currentSnapshot
@@ -80,13 +97,16 @@ const PriceSnapshotAlert = () => {
       : 0);
 
   if (hasSnapshot) {
-    // Prefer session snapshot timestamp, fallback to currentSnapshot
+    // Always prefer the session's own snapshot timestamp so the alert
+    // accurately reflects what is pricing the cards.
     const snapshotTimestamp =
       sessionData?.priceSnapshot?.timestamp ||
       currentSnapshot?.fetchedAt ||
       new Date().toISOString();
 
-    const isReused = currentSnapshot?.isReused ?? false;
+
+    const displaySnapshotId =
+      sessionData?.snapshotId || currentSnapshot?.id || null;
 
     return (
       <div className="alert alert-soft alert-success bg-base-200">
@@ -106,13 +126,7 @@ const PriceSnapshotAlert = () => {
         <div className="flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <span>
-              {isReused ? "Reusing" : "Using"} {priceSource} pricing snapshot
-              {isReused && snapshotAge !== null && (
-                <span className="opacity-70">
-                  {" "}
-                  (cached {snapshotAge.toFixed(1)}h ago)
-                </span>
-              )}
+              Using {priceSource} pricing snapshot
               {" from "}
               {new Date(snapshotTimestamp).toLocaleString()}
               {chaosToDivineRatio > 0 && (
@@ -166,11 +180,17 @@ const PriceSnapshotAlert = () => {
               <span className="text-warning">• Refreshing soon...</span>
             ) : null}
           </div>
-          <div className="text-xs opacity-70 mt-1 flex items-center gap-2">
+          <div className="text-xs opacity-70 mt-1 flex items-center gap-2 flex-wrap">
             <span>Use checkboxes to hide anomalous prices</span>
-            {currentSnapshot?.id && (
+            {displaySnapshotId && (
               <span className="font-mono text-[10px] opacity-50">
-                • Snapshot: {currentSnapshot.id.substring(0, 8)}...
+                • Snapshot: {displaySnapshotId.substring(0, 8)}...
+              </span>
+            )}
+            {raritiesRefreshedAt && (
+              <span className="text-[10px] opacity-50">
+                • Rarities updated{" "}
+                {new Date(raritiesRefreshedAt).toLocaleTimeString()}
               </span>
             )}
           </div>

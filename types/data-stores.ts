@@ -103,6 +103,7 @@ export interface DetailedDivinationCardStats {
   endedAt?: string | null;
   league?: string;
   lastUpdated?: string;
+  snapshotId?: string | null;
   priceSnapshot?: SessionPriceSnapshot;
   totals?: SessionTotals;
 }

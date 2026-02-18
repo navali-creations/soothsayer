@@ -856,6 +856,54 @@ describe("CurrentSessionService", () => {
       expect(result.priceSnapshot.exchange.chaosToDivineRatio).toBe(200);
     });
 
+    it("should include snapshotId in result", async () => {
+      await service.startSession("poe1", "Settlers");
+
+      const result = await service.getCurrentSession("poe1");
+
+      expect(result.snapshotId).toBeDefined();
+      expect(result.snapshotId).toBe(snapshotId);
+    });
+
+    it("should return snapshotId as null when session has no snapshot", async () => {
+      mockGetSnapshotForSession.mockResolvedValue({
+        snapshotId: null,
+        data: createMockPriceSnapshot(),
+      });
+      mockLoadSnapshot.mockResolvedValue(null);
+
+      // Reset singleton so it picks up the new mock
+      // @ts-expect-error accessing private static for testing
+      CurrentSessionService._instance = undefined;
+      service = CurrentSessionService.getInstance();
+
+      await service.startSession("poe1", "Settlers");
+
+      const result = await service.getCurrentSession("poe1");
+
+      expect(result.snapshotId).toBeNull();
+    });
+
+    it("should return all expected top-level keys", async () => {
+      await service.startSession("poe1", "Settlers");
+      await service.addCard("poe1", "Settlers", "The Doctor", "shape-1");
+
+      const result = await service.getCurrentSession("poe1");
+
+      const keys = Object.keys(result).sort();
+      expect(keys).toEqual([
+        "cards",
+        "endedAt",
+        "league",
+        "priceSnapshot",
+        "recentDrops",
+        "snapshotId",
+        "startedAt",
+        "totalCount",
+        "totals",
+      ]);
+    });
+
     it("should handle session with no snapshot gracefully", async () => {
       mockLoadSnapshot.mockResolvedValue(null);
 

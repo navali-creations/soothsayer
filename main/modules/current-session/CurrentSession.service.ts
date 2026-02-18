@@ -747,6 +747,7 @@ class CurrentSessionService {
       startedAt: session.startedAt,
       endedAt: session.endedAt,
       league: activeSession.league,
+      snapshotId: session.snapshotId ?? null,
       totals,
       priceSnapshot,
     };
