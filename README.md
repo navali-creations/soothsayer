@@ -1,6 +1,6 @@
 # Soothsayer
 
-`soothsayer` is a real-time stacked deck opening tracker for Path of Exile. 
+`soothsayer` is a real-time stacked deck opening desktop application tracker for Path of Exile. 
 
 Additionally `soothayer` calculates live profit based on current market prices, and gives you a clear picture of whether your session is paying off (spoiler: it most likely doesn't but you never know!). 
 
