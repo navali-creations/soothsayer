@@ -6,6 +6,9 @@ Additionally `soothayer` calculates live profit based on current market prices, 
 
 Path of Exile 2 support is ready and waiting for when stacked decks become available.
 
+[![Watch Demo](https://github.com/navali-creations/soothsayer/raw/master/renderer/assets/poe1/divination-card-images/A_Dab_of_Ink.png)](https://github.com/navali-creations/soothsayer/raw/master/.github/assets/demo.mp4)
+
+
 [![Download Latest Release](https://img.shields.io/github/v/release/navali-creations/soothsayer?style=for-the-badge&label=Download&color=blue)](https://github.com/navali-creations/soothsayer/releases/latest)
 
 ---
