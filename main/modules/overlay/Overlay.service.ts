@@ -194,11 +194,26 @@ class OverlayService {
   }
 
   /**
+   * Resolve the user's price source setting for the given game.
+   */
+  private async getPriceSourceForGame(
+    activeGame: string,
+  ): Promise<"exchange" | "stash"> {
+    const key =
+      activeGame === "poe1"
+        ? SettingsKey.Poe1PriceSource
+        : SettingsKey.Poe2PriceSource;
+    const value = await this.settingsStore.get(key);
+    return value === "exchange" || value === "stash" ? value : "exchange";
+  }
+
+  /**
    * Get current session data formatted for overlay
    */
   private async getSessionData() {
     const activeGame = await this.settingsStore.get(SettingsKey.ActiveGame);
     const isActive = this.currentSessionService.isSessionActive(activeGame);
+    const priceSource = await this.getPriceSourceForGame(activeGame);
 
     if (!isActive) {
       return {
@@ -206,8 +221,9 @@ class OverlayService {
         totalCount: 0,
         totalProfit: 0,
         chaosToDivineRatio: 0,
-        priceSource: "exchange",
+        priceSource,
         cards: [],
+        recentDrops: [],
       };
     }
 
@@ -220,12 +236,12 @@ class OverlayService {
         totalCount: 0,
         totalProfit: 0,
         chaosToDivineRatio: 0,
-        priceSource: "exchange",
+        priceSource,
         cards: [],
+        recentDrops: [],
       };
     }
 
-    const priceSource = "exchange";
     const totals = session.totals?.[priceSource];
 
     return {
@@ -240,6 +256,17 @@ class OverlayService {
             count: card.count,
           }))
         : [],
+      recentDrops: (session.recentDrops || []).map(
+        (drop: {
+          cardName: string;
+          rarity?: number;
+          exchangePrice: { chaosValue: number; divineValue: number };
+          stashPrice: { chaosValue: number; divineValue: number };
+        }) => ({
+          ...drop,
+          rarity: drop.rarity ?? 4,
+        }),
+      ),
     };
   }
 

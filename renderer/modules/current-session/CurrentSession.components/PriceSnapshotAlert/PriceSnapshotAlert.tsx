@@ -104,7 +104,6 @@ const PriceSnapshotAlert = () => {
       currentSnapshot?.fetchedAt ||
       new Date().toISOString();
 
-
     const displaySnapshotId =
       sessionData?.snapshotId || currentSnapshot?.id || null;
 

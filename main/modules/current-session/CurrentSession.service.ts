@@ -704,7 +704,7 @@ class CurrentSessionService {
       // If rarity source is "filter" and filter rarity is available, use it.
       // Otherwise fall back to poe.ninja price-based rarity.
       const filterRarity = cardData?.divinationCard?.filterRarity;
-      const priceRarity = cardData?.divinationCard?.rarity || 4;
+      const priceRarity = cardData?.divinationCard?.rarity ?? 4;
       const actualRarity =
         raritySource === "filter" && filterRarity != null
           ? filterRarity

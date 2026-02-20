@@ -506,12 +506,14 @@ class SnapshotService {
    *
    * Exchange prices are preferred where available (they're based on actual
    * trade volume and are generally more reliable for high-value cards).
-   * Stash prices are used as fallback for cards not listed on the exchange
-   * (typically less popular / lower-value cards).
+   * Stash prices are included for value tracking, but stash-only cards
+   * (those with NO exchange data) are downgraded to confidence 3 (low)
+   * so that `updateRaritiesFromPrices` assigns them rarity 0 (Unknown).
    *
-   * Without this merge, cards that only appear in the stash API (the majority
-   * of divination cards — ~370 out of ~520) would be treated as "unpriced"
-   * and default to rarity 0 (Unknown), regardless of their actual value.
+   * Stash-only prices are unreliable for rarity classification — they can
+   * be heavily inflated by price fixers (e.g. a worthless card listed at
+   * 300c on the stash API). By marking them low-confidence, we keep the
+   * price data available for display while preventing bogus rarities.
    */
   private mergeCardPrices(
     snapshot: SessionPriceSnapshot,
@@ -521,11 +523,16 @@ class SnapshotService {
       { chaosValue: number; confidence: Confidence }
     > = {};
 
-    // Start with stash prices (lower priority)
+    const exchangeNames = new Set(Object.keys(snapshot.exchange.cardPrices));
+
+    // Start with stash prices (lower priority).
+    // Cards that exist ONLY in stash (no exchange counterpart) are
+    // downgraded to confidence 3 (low) → rarity 0 (Unknown).
     for (const [name, data] of Object.entries(snapshot.stash.cardPrices)) {
+      const isStashOnly = !exchangeNames.has(name);
       merged[name] = {
         chaosValue: data.chaosValue,
-        confidence: data.confidence ?? 1,
+        confidence: isStashOnly ? 3 : (data.confidence ?? 1),
       };
     }
 
@@ -538,7 +545,7 @@ class SnapshotService {
       };
     }
 
-    const exchangeCount = Object.keys(snapshot.exchange.cardPrices).length;
+    const exchangeCount = exchangeNames.size;
     const stashCount = Object.keys(snapshot.stash.cardPrices).length;
     const mergedCount = Object.keys(merged).length;
     const stashOnlyCount = mergedCount - exchangeCount;
@@ -554,7 +561,7 @@ class SnapshotService {
     }
 
     console.log(
-      `[SnapshotService] Merged card prices: ${exchangeCount} exchange + ${stashCount} stash = ${mergedCount} unique cards (${stashOnlyCount} stash-only). Confidence: ${highCount} high, ${mediumCount} medium, ${lowCount} low`,
+      `[SnapshotService] Merged card prices: ${exchangeCount} exchange + ${stashCount} stash = ${mergedCount} unique cards (${stashOnlyCount} stash-only, downgraded to low confidence). Confidence: ${highCount} high, ${mediumCount} medium, ${lowCount} low`,
     );
 
     return merged;

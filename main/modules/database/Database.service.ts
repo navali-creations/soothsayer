@@ -515,7 +515,7 @@ class DatabaseService {
           -- PoE2 settings
           poe2_client_txt_path TEXT,
           poe2_selected_league TEXT NOT NULL DEFAULT 'Standard',
-          poe2_price_source TEXT NOT NULL DEFAULT 'stash' CHECK(poe2_price_source IN ('exchange', 'stash')),
+          poe2_price_source TEXT NOT NULL DEFAULT 'exchange' CHECK(poe2_price_source IN ('exchange', 'stash')),
 
           -- Game selection
           selected_game TEXT NOT NULL DEFAULT 'poe1' CHECK(selected_game IN ('poe1', 'poe2')),

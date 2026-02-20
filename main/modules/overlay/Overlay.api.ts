@@ -29,6 +29,15 @@ const OverlayAPI = {
       ipcRenderer.removeListener(OverlayChannel.VisibilityChanged, listener);
     };
   },
+  onSettingsChanged: (callback: () => void) => {
+    const listener = () => {
+      callback();
+    };
+    ipcRenderer.on(OverlayChannel.SettingsChanged, listener);
+    return () => {
+      ipcRenderer.removeListener(OverlayChannel.SettingsChanged, listener);
+    };
+  },
 };
 
 export { OverlayAPI };

@@ -16,6 +16,9 @@ enum OverlayChannel {
 
   // Data
   GetSessionData = "overlay:get-session-data",
+
+  // Settings sync
+  SettingsChanged = "overlay:settings-changed",
 }
 
 export { OverlayChannel };

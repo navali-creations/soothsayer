@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
+import { FiAlertTriangle } from "react-icons/fi";
 import { GiCardExchange } from "react-icons/gi";
 
 import { useBoundStore } from "~/renderer/store";
@@ -47,6 +48,7 @@ export const OverlayDropsList = () => {
         const chaosValue = price?.chaosValue || 0;
         const rarity = drop.rarity ?? 0;
         const rarityStyles = getRarityStyles(rarity);
+        const isUnknownRarity = rarity === 0;
 
         return (
           <motion.div
@@ -65,6 +67,14 @@ export const OverlayDropsList = () => {
             <div className="w-[40px] relative shrink-0">
               {rarityStyles.showBeam && (
                 <Beam className="absolute inset-0" color={rarityStyles.beam} />
+              )}
+              {isUnknownRarity && (
+                <div
+                  className="absolute inset-0 flex items-center justify-center tooltip tooltip-right tooltip-warning"
+                  data-tip="Low confidence price"
+                >
+                  <FiAlertTriangle className="w-4 h-4 text-warning/30" />
+                </div>
               )}
             </div>
 

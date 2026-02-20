@@ -150,6 +150,8 @@ vi.mock("~/main/modules/settings-store", () => ({
     AppExitAction: "appExitAction",
     AppOpenAtLogin: "appOpenAtLogin",
     AppOpenAtLoginMinimized: "appOpenAtLoginMinimized",
+    Poe1PriceSource: "poe1PriceSource",
+    Poe2PriceSource: "poe2PriceSource",
   },
 }));
 
@@ -217,6 +219,7 @@ globalThis.MAIN_WINDOW_VITE_DEV_SERVER_URL = "http://localhost:3000";
 globalThis.MAIN_WINDOW_VITE_NAME = "main_window";
 
 // ─── Import under test (after mocks) ────────────────────────────────────────
+import { OverlayChannel } from "../Overlay.channels";
 import { OverlayService } from "../Overlay.service";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -367,14 +370,14 @@ describe("OverlayService", () => {
   describe("constructor (setupHandlers)", () => {
     it("should register all expected IPC channels", () => {
       const channels = ipcHandlerCalls.map(([ch]: [string]) => ch);
-      expect(channels).toContain("overlay:show");
-      expect(channels).toContain("overlay:hide");
-      expect(channels).toContain("overlay:toggle");
-      expect(channels).toContain("overlay:is-visible");
-      expect(channels).toContain("overlay:set-position");
-      expect(channels).toContain("overlay:set-size");
-      expect(channels).toContain("overlay:get-bounds");
-      expect(channels).toContain("overlay:get-session-data");
+      expect(channels).toContain(OverlayChannel.Show);
+      expect(channels).toContain(OverlayChannel.Hide);
+      expect(channels).toContain(OverlayChannel.Toggle);
+      expect(channels).toContain(OverlayChannel.IsVisible);
+      expect(channels).toContain(OverlayChannel.SetPosition);
+      expect(channels).toContain(OverlayChannel.SetSize);
+      expect(channels).toContain(OverlayChannel.GetBounds);
+      expect(channels).toContain(OverlayChannel.GetSessionData);
     });
 
     it("should register exactly 8 IPC handlers", () => {
@@ -386,7 +389,7 @@ describe("OverlayService", () => {
 
   describe("IPC: overlay:is-visible", () => {
     it("should return false initially", async () => {
-      const handler = getIpcHandler("overlay:is-visible", ipcHandlerCalls);
+      const handler = getIpcHandler(OverlayChannel.IsVisible, ipcHandlerCalls);
       const result = await handler({});
       expect(result).toBe(false);
     });
@@ -428,7 +431,7 @@ describe("OverlayService", () => {
       setupMockMainWindow();
       await service.show();
       expect(mockMainWindowWebContentsSend).toHaveBeenCalledWith(
-        "overlay:visibility-changed",
+        OverlayChannel.VisibilityChanged,
         true,
       );
     });
@@ -449,7 +452,7 @@ describe("OverlayService", () => {
     });
 
     it("should work through the IPC handler", async () => {
-      const handler = getIpcHandler("overlay:show", ipcHandlerCalls);
+      const handler = getIpcHandler(OverlayChannel.Show, ipcHandlerCalls);
       await handler({});
       expect(overlayWindowInstances.length).toBe(1);
     });
@@ -474,7 +477,7 @@ describe("OverlayService", () => {
 
       await service.hide();
       expect(mockMainWindowWebContentsSend).toHaveBeenCalledWith(
-        "overlay:visibility-changed",
+        OverlayChannel.VisibilityChanged,
         false,
       );
     });
@@ -492,7 +495,7 @@ describe("OverlayService", () => {
       await service.show();
       clearOverlayMocks();
 
-      const handler = getIpcHandler("overlay:hide", ipcHandlerCalls);
+      const handler = getIpcHandler(OverlayChannel.Hide, ipcHandlerCalls);
       await handler({});
       expect(mockOverlayHide).toHaveBeenCalledTimes(1);
     });
@@ -502,7 +505,7 @@ describe("OverlayService", () => {
 
   describe("toggle", () => {
     it("should show the overlay when it is not visible", async () => {
-      const handler = getIpcHandler("overlay:toggle", ipcHandlerCalls);
+      const handler = getIpcHandler(OverlayChannel.Toggle, ipcHandlerCalls);
       await handler({});
       // Overlay was created and shown
       expect(overlayWindowInstances.length).toBe(1);
@@ -543,14 +546,20 @@ describe("OverlayService", () => {
       await service.show();
       clearOverlayMocks();
 
-      const handler = getIpcHandler("overlay:set-position", ipcHandlerCalls);
+      const handler = getIpcHandler(
+        OverlayChannel.SetPosition,
+        ipcHandlerCalls,
+      );
       await handler({}, 300, 400);
       expect(mockOverlaySetPosition).toHaveBeenCalledWith(300, 400);
     });
 
     it("should return validation error for non-integer x", async () => {
       await service.show();
-      const handler = getIpcHandler("overlay:set-position", ipcHandlerCalls);
+      const handler = getIpcHandler(
+        OverlayChannel.SetPosition,
+        ipcHandlerCalls,
+      );
       const result = await handler({}, 1.5, 200);
       expect(result).toEqual({
         success: false,
@@ -560,7 +569,10 @@ describe("OverlayService", () => {
 
     it("should return validation error for non-number x", async () => {
       await service.show();
-      const handler = getIpcHandler("overlay:set-position", ipcHandlerCalls);
+      const handler = getIpcHandler(
+        OverlayChannel.SetPosition,
+        ipcHandlerCalls,
+      );
       const result = await handler({}, "abc", 200);
       expect(result).toEqual({
         success: false,
@@ -570,7 +582,10 @@ describe("OverlayService", () => {
 
     it("should return validation error for non-integer y", async () => {
       await service.show();
-      const handler = getIpcHandler("overlay:set-position", ipcHandlerCalls);
+      const handler = getIpcHandler(
+        OverlayChannel.SetPosition,
+        ipcHandlerCalls,
+      );
       const result = await handler({}, 100, 2.5);
       expect(result).toEqual({
         success: false,
@@ -602,14 +617,14 @@ describe("OverlayService", () => {
       await service.show();
       clearOverlayMocks();
 
-      const handler = getIpcHandler("overlay:set-size", ipcHandlerCalls);
+      const handler = getIpcHandler(OverlayChannel.SetSize, ipcHandlerCalls);
       await handler({}, 500, 300);
       expect(mockOverlaySetSize).toHaveBeenCalledWith(500, 300);
     });
 
     it("should return validation error for non-integer width", async () => {
       await service.show();
-      const handler = getIpcHandler("overlay:set-size", ipcHandlerCalls);
+      const handler = getIpcHandler(OverlayChannel.SetSize, ipcHandlerCalls);
       const result = await handler({}, 1.5, 300);
       expect(result).toEqual({
         success: false,
@@ -619,7 +634,7 @@ describe("OverlayService", () => {
 
     it("should return validation error for non-integer height", async () => {
       await service.show();
-      const handler = getIpcHandler("overlay:set-size", ipcHandlerCalls);
+      const handler = getIpcHandler(OverlayChannel.SetSize, ipcHandlerCalls);
       const result = await handler({}, 500, "abc");
       expect(result).toEqual({
         success: false,
@@ -655,7 +670,7 @@ describe("OverlayService", () => {
     });
 
     it("should work through the IPC handler", async () => {
-      const handler = getIpcHandler("overlay:get-bounds", ipcHandlerCalls);
+      const handler = getIpcHandler(OverlayChannel.GetBounds, ipcHandlerCalls);
 
       // No window yet
       const nullResult = await handler({});
@@ -695,7 +710,7 @@ describe("OverlayService", () => {
       await service.show();
       service.destroy();
 
-      const handler = getIpcHandler("overlay:is-visible", ipcHandlerCalls);
+      const handler = getIpcHandler(OverlayChannel.IsVisible, ipcHandlerCalls);
       const result = await handler({});
       expect(result).toBe(false);
     });
@@ -869,7 +884,7 @@ describe("OverlayService", () => {
 
       // Should notify visibility changed to false
       expect(mockMainWindowWebContentsSend).toHaveBeenCalledWith(
-        "overlay:visibility-changed",
+        OverlayChannel.VisibilityChanged,
         false,
       );
     });
@@ -949,12 +964,33 @@ describe("OverlayService", () => {
   // ─── getSessionData ──────────────────────────────────────────────────────
 
   describe("getSessionData (via IPC handler)", () => {
+    /**
+     * Helper: mock settingsStore.get to return different values per key.
+     * Defaults: activeGame = "poe1", poe1PriceSource = "exchange", poe2PriceSource = "exchange"
+     */
+    function mockSettingsForGame(
+      activeGame: "poe1" | "poe2" = "poe1",
+      overrides: Record<string, string> = {},
+    ) {
+      const defaults: Record<string, string> = {
+        selectedGame: activeGame,
+        poe1PriceSource: "exchange",
+        poe2PriceSource: "exchange",
+        ...overrides,
+      };
+      // Reset first to clear any mockResolvedValue set in beforeEach
+      mockSettingsGet.mockReset();
+      mockSettingsGet.mockImplementation((key: string) =>
+        Promise.resolve(defaults[key] ?? activeGame),
+      );
+    }
+
     it("should return inactive session data when no session is active", async () => {
-      mockSettingsGet.mockResolvedValue("poe1");
+      mockSettingsForGame("poe1");
       mockCurrentSessionIsActive.mockReturnValue(false);
 
       const handler = getIpcHandler(
-        "overlay:get-session-data",
+        OverlayChannel.GetSessionData,
         ipcHandlerCalls,
       );
       const result = await handler({});
@@ -966,16 +1002,17 @@ describe("OverlayService", () => {
         chaosToDivineRatio: 0,
         priceSource: "exchange",
         cards: [],
+        recentDrops: [],
       });
     });
 
     it("should return inactive session data when session is active but getCurrentSession returns null", async () => {
-      mockSettingsGet.mockResolvedValue("poe1");
+      mockSettingsForGame("poe1");
       mockCurrentSessionIsActive.mockReturnValue(true);
       mockCurrentSessionGetCurrentSession.mockResolvedValue(null);
 
       const handler = getIpcHandler(
-        "overlay:get-session-data",
+        OverlayChannel.GetSessionData,
         ipcHandlerCalls,
       );
       const result = await handler({});
@@ -987,11 +1024,12 @@ describe("OverlayService", () => {
         chaosToDivineRatio: 0,
         priceSource: "exchange",
         cards: [],
+        recentDrops: [],
       });
     });
 
     it("should return active session data with cards", async () => {
-      mockSettingsGet.mockResolvedValue("poe1");
+      mockSettingsForGame("poe1");
       mockCurrentSessionIsActive.mockReturnValue(true);
       mockCurrentSessionGetCurrentSession.mockResolvedValue({
         totalCount: 42,
@@ -1008,7 +1046,7 @@ describe("OverlayService", () => {
       });
 
       const handler = getIpcHandler(
-        "overlay:get-session-data",
+        OverlayChannel.GetSessionData,
         ipcHandlerCalls,
       );
       const result = await handler({});
@@ -1023,11 +1061,12 @@ describe("OverlayService", () => {
           { cardName: "The Doctor", count: 3 },
           { cardName: "The Nurse", count: 7 },
         ],
+        recentDrops: [],
       });
     });
 
     it("should handle session with no cards array", async () => {
-      mockSettingsGet.mockResolvedValue("poe2");
+      mockSettingsForGame("poe2");
       mockCurrentSessionIsActive.mockReturnValue(true);
       mockCurrentSessionGetCurrentSession.mockResolvedValue({
         totalCount: 10,
@@ -1041,7 +1080,7 @@ describe("OverlayService", () => {
       });
 
       const handler = getIpcHandler(
-        "overlay:get-session-data",
+        OverlayChannel.GetSessionData,
         ipcHandlerCalls,
       );
       const result = await handler({});
@@ -1049,10 +1088,11 @@ describe("OverlayService", () => {
       expect(result.isActive).toBe(true);
       expect(result.totalCount).toBe(10);
       expect(result.cards).toEqual([]);
+      expect(result.recentDrops).toEqual([]);
     });
 
     it("should handle session with missing totals", async () => {
-      mockSettingsGet.mockResolvedValue("poe1");
+      mockSettingsForGame("poe1");
       mockCurrentSessionIsActive.mockReturnValue(true);
       mockCurrentSessionGetCurrentSession.mockResolvedValue({
         totalCount: 5,
@@ -1061,7 +1101,7 @@ describe("OverlayService", () => {
       });
 
       const handler = getIpcHandler(
-        "overlay:get-session-data",
+        OverlayChannel.GetSessionData,
         ipcHandlerCalls,
       );
       const result = await handler({});
@@ -1073,7 +1113,7 @@ describe("OverlayService", () => {
     });
 
     it("should handle session with zero totalCount", async () => {
-      mockSettingsGet.mockResolvedValue("poe1");
+      mockSettingsForGame("poe1");
       mockCurrentSessionIsActive.mockReturnValue(true);
       mockCurrentSessionGetCurrentSession.mockResolvedValue({
         totalCount: 0,
@@ -1087,7 +1127,7 @@ describe("OverlayService", () => {
       });
 
       const handler = getIpcHandler(
-        "overlay:get-session-data",
+        OverlayChannel.GetSessionData,
         ipcHandlerCalls,
       );
       const result = await handler({});
@@ -1098,7 +1138,7 @@ describe("OverlayService", () => {
     });
 
     it("should handle session with missing exchange price source", async () => {
-      mockSettingsGet.mockResolvedValue("poe1");
+      mockSettingsForGame("poe1");
       mockCurrentSessionIsActive.mockReturnValue(true);
       mockCurrentSessionGetCurrentSession.mockResolvedValue({
         totalCount: 15,
@@ -1112,7 +1152,7 @@ describe("OverlayService", () => {
       });
 
       const handler = getIpcHandler(
-        "overlay:get-session-data",
+        OverlayChannel.GetSessionData,
         ipcHandlerCalls,
       );
       const result = await handler({});
@@ -1122,6 +1162,105 @@ describe("OverlayService", () => {
       expect(result.totalProfit).toBe(0);
       expect(result.chaosToDivineRatio).toBe(0);
       expect(result.priceSource).toBe("exchange");
+    });
+
+    it("should use stash price source for poe2 when explicitly configured", async () => {
+      mockSettingsForGame("poe2", { poe2PriceSource: "stash" });
+      mockCurrentSessionIsActive.mockReturnValue(true);
+      mockCurrentSessionGetCurrentSession.mockResolvedValue({
+        totalCount: 5,
+        totals: {
+          stash: {
+            totalValue: 300,
+            chaosToDivineRatio: 150,
+          },
+        },
+        cards: [{ name: "The Survivalist", count: 1 }],
+        recentDrops: [
+          {
+            cardName: "The Survivalist",
+            rarity: 0,
+            exchangePrice: { chaosValue: 0, divineValue: 0 },
+            stashPrice: { chaosValue: 1, divineValue: 0.01 },
+          },
+        ],
+      });
+
+      const handler = getIpcHandler(
+        OverlayChannel.GetSessionData,
+        ipcHandlerCalls,
+      );
+      const result = await handler({});
+
+      expect(result.priceSource).toBe("stash");
+      expect(result.totalProfit).toBe(300);
+      expect(result.chaosToDivineRatio).toBe(150);
+      expect(result.recentDrops).toEqual([
+        {
+          cardName: "The Survivalist",
+          rarity: 0,
+          exchangePrice: { chaosValue: 0, divineValue: 0 },
+          stashPrice: { chaosValue: 1, divineValue: 0.01 },
+        },
+      ]);
+    });
+
+    it("should default to exchange price source for poe2", async () => {
+      mockSettingsForGame("poe2");
+      mockCurrentSessionIsActive.mockReturnValue(true);
+      mockCurrentSessionGetCurrentSession.mockResolvedValue({
+        totalCount: 3,
+        totals: {
+          exchange: {
+            totalValue: 200,
+            chaosToDivineRatio: 180,
+          },
+        },
+        cards: [{ name: "Rain of Chaos", count: 3 }],
+        recentDrops: [],
+      });
+
+      const handler = getIpcHandler(
+        OverlayChannel.GetSessionData,
+        ipcHandlerCalls,
+      );
+      const result = await handler({});
+
+      expect(result.priceSource).toBe("exchange");
+      expect(result.totalProfit).toBe(200);
+      expect(result.chaosToDivineRatio).toBe(180);
+    });
+
+    it("should include recentDrops from session and default missing rarity to 4", async () => {
+      mockSettingsForGame("poe1");
+      mockCurrentSessionIsActive.mockReturnValue(true);
+      mockCurrentSessionGetCurrentSession.mockResolvedValue({
+        totalCount: 2,
+        totals: {
+          exchange: {
+            totalValue: 100,
+            chaosToDivineRatio: 200,
+          },
+        },
+        cards: [{ name: "Rain of Chaos", count: 2 }],
+        recentDrops: [
+          {
+            cardName: "Rain of Chaos",
+            exchangePrice: { chaosValue: 0.5, divineValue: 0 },
+            stashPrice: { chaosValue: 0.5, divineValue: 0 },
+          },
+        ],
+      });
+
+      const handler = getIpcHandler(
+        OverlayChannel.GetSessionData,
+        ipcHandlerCalls,
+      );
+      const result = await handler({});
+
+      expect(result.recentDrops).toHaveLength(1);
+      expect(result.recentDrops[0].rarity).toBe(4); // defaulted from undefined
+      expect(result.recentDrops[0].cardName).toBe("Rain of Chaos");
     });
   });
 
@@ -1151,12 +1290,12 @@ describe("OverlayService", () => {
       await service.show();
 
       expect(mockMainWindowWebContentsSend).toHaveBeenCalledWith(
-        "overlay:visibility-changed",
+        OverlayChannel.VisibilityChanged,
         true,
       );
       // The overlay window's send should NOT have received the visibility notification
       expect(overlayWin.webContents.send).not.toHaveBeenCalledWith(
-        "overlay:visibility-changed",
+        OverlayChannel.VisibilityChanged,
         expect.anything(),
       );
     });
@@ -1190,7 +1329,7 @@ describe("OverlayService", () => {
     it("should track visibility through show -> hide -> show cycle", async () => {
       setupMockMainWindow();
       const isVisibleHandler = getIpcHandler(
-        "overlay:is-visible",
+        OverlayChannel.IsVisible,
         ipcHandlerCalls,
       );
 
@@ -1212,7 +1351,7 @@ describe("OverlayService", () => {
 
     it("should track visibility through show -> destroy cycle", async () => {
       const isVisibleHandler = getIpcHandler(
-        "overlay:is-visible",
+        OverlayChannel.IsVisible,
         ipcHandlerCalls,
       );
 
@@ -1226,7 +1365,7 @@ describe("OverlayService", () => {
 
     it("should track visibility through toggle cycles", async () => {
       const isVisibleHandler = getIpcHandler(
-        "overlay:is-visible",
+        OverlayChannel.IsVisible,
         ipcHandlerCalls,
       );
 

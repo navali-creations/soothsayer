@@ -568,8 +568,8 @@ describe("SnapshotService", () => {
           cardPrices: {
             // "The Doctor" also in stash with different price — should be overridden by exchange
             "The Doctor": { chaosValue: 750, divineValue: 3.8 },
-            // "Fire Of Unknown Origin" only in stash — was previously ignored entirely,
-            // causing it to default to rarity 4 (common) regardless of its actual value
+            // "Fire Of Unknown Origin" only in stash — downgraded to low confidence
+            // so it gets rarity 0 (Unknown) instead of a potentially inflated rarity
             "Fire Of Unknown Origin": {
               chaosValue: 50,
               divineValue: 0.25,
@@ -594,9 +594,9 @@ describe("SnapshotService", () => {
         {
           // Exchange price wins for The Doctor (800, not 750)
           "The Doctor": { chaosValue: 800, confidence: 1 },
-          // Stash-only cards are now included in rarity calculation
-          "Fire Of Unknown Origin": { chaosValue: 50, confidence: 1 },
-          "Brother's Gift": { chaosValue: 30, confidence: 1 },
+          // Stash-only cards are included but downgraded to low confidence → rarity 0 (Unknown)
+          "Fire Of Unknown Origin": { chaosValue: 50, confidence: 3 },
+          "Brother's Gift": { chaosValue: 30, confidence: 3 },
         },
       );
     });

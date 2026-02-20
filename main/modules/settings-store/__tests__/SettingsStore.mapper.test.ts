@@ -31,7 +31,7 @@ function createSettingsRow(
     poe1_price_source: "exchange",
     poe2_client_txt_path: null,
     poe2_selected_league: "Standard",
-    poe2_price_source: "stash",
+    poe2_price_source: "exchange",
     selected_game: "poe1",
     installed_games: '["poe1"]',
     setup_completed: 0,
@@ -68,7 +68,7 @@ describe("SettingsStore.mapper", () => {
       expect(dto.poe1PriceSource).toBe("exchange");
       expect(dto.poe2ClientTxtPath).toBeNull();
       expect(dto.poe2SelectedLeague).toBe("Standard");
-      expect(dto.poe2PriceSource).toBe("stash");
+      expect(dto.poe2PriceSource).toBe("exchange");
       expect(dto.selectedGame).toBe("poe1");
       expect(dto.installedGames).toEqual(["poe1"]);
       expect(dto.setupCompleted).toBe(false);
@@ -358,7 +358,7 @@ describe("SettingsStore.mapper", () => {
       expect(dto).toEqual({
         clientTxtPath: null,
         selectedLeague: "Standard",
-        priceSource: "stash",
+        priceSource: "exchange",
       });
     });
 

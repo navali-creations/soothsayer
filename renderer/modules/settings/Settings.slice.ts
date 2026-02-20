@@ -74,7 +74,7 @@ export const createSettingsSlice: StateCreator<
     poe1PriceSource: "exchange",
     poe2ClientTxtPath: null,
     poe2SelectedLeague: "Standard",
-    poe2PriceSource: "stash",
+    poe2PriceSource: "exchange",
     selectedGame: "poe1",
     installedGames: ["poe1"],
     setupCompleted: false,

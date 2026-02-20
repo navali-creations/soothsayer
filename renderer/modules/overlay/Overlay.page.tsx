@@ -40,17 +40,25 @@ const OverlayApp = () => {
   const [isElectronReady, setIsElectronReady] = useState(
     () => !!window.electron?.overlay && !!window.electron?.session,
   );
+  const priceSourceRef = useRef<"exchange" | "stash">("exchange");
   const audioSettingsRef = useRef<AudioSettings>({
     enabled: true,
     volume: 0.5,
     customSounds: {},
   });
 
-  // Load audio settings from main process
+  // Load audio settings and price source from main process
   const loadAudioSettings = useCallback(async () => {
     try {
       const settings = await window.electron.settings.getAll();
       const customSounds: Record<number, string> = {};
+
+      // Resolve the user's price source for the active game
+      const activeGame = settings.selectedGame || "poe1";
+      priceSourceRef.current =
+        activeGame === "poe1"
+          ? settings.poe1PriceSource || "exchange"
+          : settings.poe2PriceSource || "exchange";
 
       // Load custom sound data for each rarity if paths are set
       const paths = [
@@ -143,7 +151,7 @@ const OverlayApp = () => {
     const unsubscribeDataUpdate = window.electron.session.onDataUpdated(
       (update) => {
         if (update.data) {
-          const priceSource = "exchange";
+          const priceSource = priceSourceRef.current;
           const totals = update.data.totals?.[priceSource];
 
           const formattedData: SessionData = {
@@ -151,7 +159,7 @@ const OverlayApp = () => {
             totalCount: update.data.totalCount || 0,
             totalProfit: totals?.totalValue || 0,
             chaosToDivineRatio: totals?.chaosToDivineRatio || 0,
-            priceSource: priceSource as "exchange" | "stash",
+            priceSource,
             cards: update.data.cards
               ? update.data.cards.map((card) => ({
                   cardName: card.name,
@@ -169,9 +177,24 @@ const OverlayApp = () => {
       },
     );
 
+    // Listen for settings changes (e.g. price source changed mid-session)
+    const unsubscribeSettingsChanged =
+      window.electron.overlay.onSettingsChanged?.(() => {
+        // Re-read price source and audio settings
+        loadAudioSettings().then(() => {
+          // Re-fetch session data with the updated price source
+          window.electron?.overlay.getSessionData().then((data) => {
+            if (data) {
+              setSessionData(data);
+            }
+          });
+        });
+      });
+
     return () => {
       unsubscribeStateChange?.();
       unsubscribeDataUpdate?.();
+      unsubscribeSettingsChanged?.();
     };
   }, [isElectronReady, setSessionData, loadAudioSettings]);
 
@@ -190,7 +213,7 @@ const OverlayApp = () => {
       currentFirst &&
       (!previousFirst || currentFirst.cardName !== previousFirst.cardName)
     ) {
-      const rarity = currentFirst.rarity || 4;
+      const rarity = currentFirst.rarity ?? 4;
       const { enabled, volume, customSounds } = audioSettingsRef.current;
 
       // Only play sound for rarity 1, 2, 3 and if audio is enabled

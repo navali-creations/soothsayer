@@ -1465,6 +1465,42 @@ describe("CurrentSessionService", () => {
       expect(drop.rarity).toBe(4);
     });
 
+    it("should preserve rarity 0 (Unknown) and not coerce it to rarity 4 (regression)", async () => {
+      // Seed a divination card with rarity 0 — this happens when a card
+      // has only stash data (no exchange data) or low-confidence pricing.
+      // Previously, `|| 4` treated 0 as falsy and silently promoted it to 4.
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Sambodhi's Wisdom",
+        stackSize: 5,
+        description: "A low-confidence card",
+      });
+
+      await seedDivinationCardRarity(testDb.kysely, {
+        game: "poe1",
+        league: "Settlers",
+        cardName: "Sambodhi's Wisdom",
+        rarity: 0, // Unknown
+      });
+
+      await service.startSession("poe1", "Settlers");
+      await service.addCard(
+        "poe1",
+        "Settlers",
+        "Sambodhi's Wisdom",
+        "rarity-zero-1",
+      );
+
+      const result = await service.getCurrentSession("poe1");
+
+      const drop = result.recentDrops.find(
+        (d: any) => d.cardName === "Sambodhi's Wisdom",
+      );
+      expect(drop).toBeDefined();
+      // Rarity 0 must be preserved — not silently converted to 4
+      expect(drop.rarity).toBe(0);
+    });
+
     it("should display rarity 4 for hidden cards regardless of actual rarity", async () => {
       await seedDivinationCard(testDb.kysely, {
         game: "poe1",

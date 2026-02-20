@@ -7,6 +7,8 @@ const {
   mockDatabaseReset,
   mockShowMessageBox,
   mockGetFocusedWindow,
+  mockGetAllWindows,
+  mockWebContentsSend,
   mockClientLogReaderSetClientLogPath,
   mockClientLogReaderGetInstance,
   mockRepositoryGetPoe1ClientTxtPath,
@@ -39,12 +41,18 @@ const {
   const mockClientLogReaderGetInstance = vi.fn().mockResolvedValue({
     setClientLogPath: mockClientLogReaderSetClientLogPath,
   });
+  const mockWebContentsSend = vi.fn();
+  const mockGetAllWindows = vi.fn(() => [
+    { isDestroyed: () => false, webContents: { send: mockWebContentsSend } },
+  ]);
   return {
     mockIpcHandle: vi.fn(),
     mockGetKysely: vi.fn(),
     mockDatabaseReset: vi.fn(),
     mockShowMessageBox: vi.fn(),
     mockGetFocusedWindow: vi.fn(() => null),
+    mockGetAllWindows,
+    mockWebContentsSend,
     mockClientLogReaderSetClientLogPath,
     mockClientLogReaderGetInstance,
     mockRepositoryGetPoe1ClientTxtPath: vi.fn().mockResolvedValue(null),
@@ -107,7 +115,7 @@ vi.mock("electron", () => ({
     removeHandler: vi.fn(),
   },
   BrowserWindow: {
-    getAllWindows: vi.fn(() => []),
+    getAllWindows: mockGetAllWindows,
     getFocusedWindow: mockGetFocusedWindow,
   },
   app: {
@@ -170,6 +178,9 @@ vi.mock("../SettingsStore.repository", () => ({
 }));
 
 // ─── Import under test ──────────────────────────────────────────────────────
+import { OverlayChannel } from "~/main/modules/overlay/Overlay.channels";
+
+import { SettingsKey } from "../SettingsStore.keys";
 import { SettingsStoreService } from "../SettingsStore.service";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -1499,6 +1510,115 @@ describe("SettingsStoreService — IPC handlers", () => {
         "poe1SelectedLeague",
         "'; DROP TABLE user_settings;--",
       );
+    });
+  });
+
+  // ─── Overlay settings broadcast ───────────────────────────────────────
+
+  describe("overlay settings broadcast", () => {
+    it("should broadcast overlay:settings-changed when poe1PriceSource is set via generic handler", async () => {
+      const handler = getIpcHandler("settings-store:set");
+      await handler({}, SettingsKey.Poe1PriceSource, "stash");
+
+      expect(mockRepositorySet).toHaveBeenCalledWith(
+        SettingsKey.Poe1PriceSource,
+        "stash",
+      );
+      expect(mockWebContentsSend).toHaveBeenCalledWith(
+        OverlayChannel.SettingsChanged,
+      );
+    });
+
+    it("should broadcast overlay:settings-changed when poe2PriceSource is set via generic handler", async () => {
+      const handler = getIpcHandler("settings-store:set");
+      await handler({}, SettingsKey.Poe2PriceSource, "exchange");
+
+      expect(mockRepositorySet).toHaveBeenCalledWith(
+        SettingsKey.Poe2PriceSource,
+        "exchange",
+      );
+      expect(mockWebContentsSend).toHaveBeenCalledWith(
+        OverlayChannel.SettingsChanged,
+      );
+    });
+
+    it("should broadcast overlay:settings-changed when selectedGame is set via generic handler", async () => {
+      const handler = getIpcHandler("settings-store:set");
+      await handler({}, SettingsKey.ActiveGame, "poe2");
+
+      expect(mockRepositorySet).toHaveBeenCalledWith(
+        SettingsKey.ActiveGame,
+        "poe2",
+      );
+      expect(mockWebContentsSend).toHaveBeenCalledWith(
+        OverlayChannel.SettingsChanged,
+      );
+    });
+
+    it("should NOT broadcast overlay:settings-changed for unrelated settings", async () => {
+      const handler = getIpcHandler("settings-store:set");
+      await handler({}, SettingsKey.AudioVolume, 0.8);
+
+      expect(mockRepositorySet).toHaveBeenCalledWith(
+        SettingsKey.AudioVolume,
+        0.8,
+      );
+      expect(mockWebContentsSend).not.toHaveBeenCalledWith(
+        OverlayChannel.SettingsChanged,
+      );
+    });
+
+    it("should broadcast overlay:settings-changed when poe1 price source is set via typed handler", async () => {
+      const handler = getIpcHandler(
+        "settings-store:set-selected-poe1-price-source",
+      );
+      await handler({}, "stash");
+
+      expect(mockRepositorySetPoe1PriceSource).toHaveBeenCalledWith("stash");
+      expect(mockWebContentsSend).toHaveBeenCalledWith(
+        OverlayChannel.SettingsChanged,
+      );
+    });
+
+    it("should broadcast overlay:settings-changed when poe2 price source is set via typed handler", async () => {
+      const handler = getIpcHandler(
+        "settings-store:set-selected-poe2-price-source",
+      );
+      await handler({}, "stash");
+
+      expect(mockRepositorySetPoe2PriceSource).toHaveBeenCalledWith("stash");
+      expect(mockWebContentsSend).toHaveBeenCalledWith(
+        OverlayChannel.SettingsChanged,
+      );
+    });
+
+    it("should NOT broadcast when typed price source handler rejects invalid input", async () => {
+      const handler = getIpcHandler(
+        "settings-store:set-selected-poe1-price-source",
+      );
+      await handler({}, "invalid-source");
+
+      expect(mockRepositorySetPoe1PriceSource).not.toHaveBeenCalled();
+      expect(mockWebContentsSend).not.toHaveBeenCalledWith(
+        OverlayChannel.SettingsChanged,
+      );
+    });
+
+    it("should broadcast to all non-destroyed windows", async () => {
+      const send1 = vi.fn();
+      const send2 = vi.fn();
+      mockGetAllWindows.mockReturnValueOnce([
+        { isDestroyed: () => false, webContents: { send: send1 } },
+        { isDestroyed: () => true, webContents: { send: send2 } },
+        { isDestroyed: () => false, webContents: { send: send1 } },
+      ]);
+
+      const handler = getIpcHandler("settings-store:set");
+      await handler({}, SettingsKey.Poe1PriceSource, "exchange");
+
+      expect(send1).toHaveBeenCalledWith(OverlayChannel.SettingsChanged);
+      expect(send1).toHaveBeenCalledTimes(2);
+      expect(send2).not.toHaveBeenCalled();
     });
   });
 });

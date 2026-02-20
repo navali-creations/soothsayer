@@ -1,10 +1,17 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import { app, type IpcMainInvokeEvent, ipcMain, shell } from "electron";
+import {
+  app,
+  BrowserWindow,
+  type IpcMainInvokeEvent,
+  ipcMain,
+  shell,
+} from "electron";
 
 import { ClientLogReaderService } from "~/main/modules/client-log-reader";
 import { DatabaseService } from "~/main/modules/database";
+import { OverlayChannel } from "~/main/modules/overlay/Overlay.channels";
 import {
   assertBoolean,
   assertBoundedString,
@@ -25,6 +32,7 @@ import {
 
 import { SettingsStoreChannel } from "./SettingsStore.channels";
 import type { CustomSoundFile, UserSettingsDTO } from "./SettingsStore.dto";
+import { SettingsKey } from "./SettingsStore.keys";
 import { SettingsStoreRepository } from "./SettingsStore.repository";
 
 class SettingsStoreService {
@@ -193,6 +201,15 @@ class SettingsStoreService {
               throw new IpcValidationError(ch, `Unknown setting key "${key}"`);
           }
           await this.set(key, value);
+
+          // Notify overlay when price source or active game changes
+          if (
+            key === SettingsKey.Poe1PriceSource ||
+            key === SettingsKey.Poe2PriceSource ||
+            key === SettingsKey.ActiveGame
+          ) {
+            this.broadcastSettingsChanged();
+          }
 
           // Notify ClientLogReader when client.txt path changes
           if (
@@ -429,6 +446,7 @@ class SettingsStoreService {
             SettingsStoreChannel.SetSelectedPoe1PriceSource,
           );
           await this.repository.setPoe1PriceSource(source);
+          this.broadcastSettingsChanged();
         } catch (error) {
           return handleValidationError(
             error,
@@ -455,6 +473,7 @@ class SettingsStoreService {
             SettingsStoreChannel.SetSelectedPoe2PriceSource,
           );
           await this.repository.setPoe2PriceSource(source);
+          this.broadcastSettingsChanged();
         } catch (error) {
           return handleValidationError(
             error,
@@ -571,6 +590,19 @@ class SettingsStoreService {
     value: UserSettingsDTO[K],
   ): Promise<void> {
     await this.repository.set(key, value);
+  }
+
+  /**
+   * Broadcast a settings-changed event to all windows (e.g. overlay)
+   * so they can live-update price source, audio settings, etc.
+   */
+  private broadcastSettingsChanged(): void {
+    const windows = BrowserWindow.getAllWindows();
+    for (const win of windows) {
+      if (!win.isDestroyed()) {
+        win.webContents.send(OverlayChannel.SettingsChanged);
+      }
+    }
   }
 
   /**
