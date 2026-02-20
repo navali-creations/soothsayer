@@ -1,5 +1,25 @@
 # soothsayer
 
+## 0.4.1
+
+### Patch Changes
+
+- [`167448e`](https://github.com/navali-creations/soothsayer/commit/167448e015a341509bd9c62b2d31511fdce0bca1) Thanks [@sbsrnt](https://github.com/sbsrnt)! - This release fixes the `poe.ninja` column on the Rarity Model comparison page where it showed values from the most recently used filter instead of actual poe.ninja price-based rarities
+
+- [`d25563e`](https://github.com/navali-creations/soothsayer/commit/d25563e1e6e652b6838ede22181af9b9cbf72440) Thanks [@sbsrnt](https://github.com/sbsrnt)! - - **Overlay now respects your price source setting:** The in-game overlay previously always used exchange prices regardless of your selection. It now correctly shows stash or exchange prices based on your chosen price source.
+
+  - **Live price source switching:** Changing your price source mid-session now immediately updates the overlay — no need to restart your session.
+
+  - **More accurate card rarities:** Cards that only have stash pricing (no exchange data) are now marked as "Unknown" rarity instead of receiving a potentially misleading rarity based on unreliable stash prices.
+
+  - **Unknown rarity indicator:** Cards with low-confidence pricing now show a warning icon in the overlay so you can tell at a glance which prices may be unreliable.
+
+  - **Fixed rarity 0 being treated as common:** A bug caused cards intentionally classified as "Unknown" (rarity 0) to silently appear as "Common" (rarity 4). These cards now display correctly.
+
+  - **PoE2 default price source:** New installations now default to exchange pricing for PoE2 (previously defaulted to stash). Existing users are not affected.
+
+- [`8b6fc5d`](https://github.com/navali-creations/soothsayer/commit/8b6fc5d0100e5529f2ba837799426331c3d522ed) Thanks [@sbsrnt](https://github.com/sbsrnt)! - The pricing snapshot info shown during an active session now always matches the data actually used to price your cards
+
 ## 0.4.0
 
 ### Minor Changes
