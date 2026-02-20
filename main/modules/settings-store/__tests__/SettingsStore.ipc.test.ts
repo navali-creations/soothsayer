@@ -43,7 +43,10 @@ const {
   });
   const mockWebContentsSend = vi.fn();
   const mockGetAllWindows = vi.fn(() => [
-    { isDestroyed: () => false, webContents: { send: mockWebContentsSend } },
+    {
+      isDestroyed: (): boolean => false,
+      webContents: { send: mockWebContentsSend },
+    },
   ]);
   return {
     mockIpcHandle: vi.fn(),
