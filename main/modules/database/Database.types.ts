@@ -113,6 +113,7 @@ export interface DivinationCardsTable {
   flavour_html: string;
   game: "poe1" | "poe2";
   data_hash: string;
+  from_boss: ColumnType<number, number | undefined, number | undefined>; // SQLite boolean (0 or 1)
   created_at: ColumnType<string, string | undefined, never>;
   updated_at: ColumnType<string, string | undefined, string | undefined>;
 }
@@ -143,6 +144,28 @@ export interface PoeLeaguesCacheMetadataTable {
   game: "poe1" | "poe2";
   last_fetched_at: string;
   created_at: ColumnType<string, string | undefined, never>;
+}
+
+export interface ProhibitedLibraryCardWeightsTable {
+  card_name: string;
+  game: "poe1" | "poe2";
+  league: string;
+  weight: number;
+  rarity: KnownRarity;
+  from_boss: number; // SQLite boolean (0 or 1)
+  loaded_at: string;
+  created_at: ColumnType<string, string | undefined, never>;
+  updated_at: ColumnType<string, string | undefined, string | undefined>;
+}
+
+export interface ProhibitedLibraryCacheMetadataTable {
+  game: "poe1" | "poe2";
+  league: string;
+  loaded_at: string;
+  app_version: string;
+  card_count: number;
+  created_at: ColumnType<string, string | undefined, never>;
+  updated_at: ColumnType<string, string | undefined, string | undefined>;
 }
 
 export interface MigrationsTable {
@@ -247,6 +270,8 @@ export interface Database {
   user_settings: UserSettingsTable;
   filter_metadata: FilterMetadataTable;
   filter_card_rarities: FilterCardRaritiesTable;
+  prohibited_library_card_weights: ProhibitedLibraryCardWeightsTable;
+  prohibited_library_cache_metadata: ProhibitedLibraryCacheMetadataTable;
 }
 
 /**
@@ -265,3 +290,7 @@ export type PoeLeaguesCacheMetadataRow =
   Selectable<PoeLeaguesCacheMetadataTable>;
 export type FilterMetadataRow = Selectable<FilterMetadataTable>;
 export type FilterCardRaritiesRow = Selectable<FilterCardRaritiesTable>;
+export type ProhibitedLibraryCardWeightsRow =
+  Selectable<ProhibitedLibraryCardWeightsTable>;
+export type ProhibitedLibraryCacheMetadataRow =
+  Selectable<ProhibitedLibraryCacheMetadataTable>;

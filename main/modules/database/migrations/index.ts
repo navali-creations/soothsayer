@@ -1,6 +1,7 @@
 import { migration_20260212_202200_add_audio_settings } from "./20260212_202200_add_audio_settings";
 import { migration_20260213_204200_add_filter_tables_and_rarity_source } from "./20260213_204200_add_filter_tables_and_rarity_source";
 import { migration_20260215_120000_add_confidence_and_unknown_rarity } from "./20260215_120000_add_confidence_and_unknown_rarity";
+import { migration_20260221_201500_add_prohibited_library } from "./20260221_201500_add_prohibited_library";
 import type { Migration } from "./Migration.interface";
 
 /**
@@ -14,6 +15,7 @@ export const migrations: Migration[] = [
   migration_20260212_202200_add_audio_settings,
   migration_20260213_204200_add_filter_tables_and_rarity_source,
   migration_20260215_120000_add_confidence_and_unknown_rarity,
+  migration_20260221_201500_add_prohibited_library,
 ];
 
 export type { Migration } from "./Migration.interface";

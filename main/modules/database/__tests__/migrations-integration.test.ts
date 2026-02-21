@@ -363,6 +363,33 @@ const EXPECTED_FILTER_SETTINGS_COLUMNS = [
 
 const EXPECTED_FILTER_TABLES = ["filter_metadata", "filter_card_rarities"];
 
+const EXPECTED_PROHIBITED_LIBRARY_TABLES = [
+  "prohibited_library_card_weights",
+  "prohibited_library_cache_metadata",
+];
+
+const EXPECTED_PL_CARD_WEIGHTS_COLUMNS = [
+  "card_name",
+  "game",
+  "league",
+  "weight",
+  "rarity",
+  "from_boss",
+  "loaded_at",
+  "created_at",
+  "updated_at",
+];
+
+const EXPECTED_PL_CACHE_METADATA_COLUMNS = [
+  "game",
+  "league",
+  "loaded_at",
+  "app_version",
+  "card_count",
+  "created_at",
+  "updated_at",
+];
+
 const EXPECTED_FILTER_METADATA_COLUMNS = [
   "id",
   "filter_type",
@@ -458,6 +485,44 @@ describe("Migrations Integration", () => {
       expect(columns.sort()).toEqual(
         EXPECTED_FILTER_CARD_RARITIES_COLUMNS.sort(),
       );
+    });
+
+    it("should have prohibited_library tables after migrations", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      const tables = getTableNames(db);
+      for (const table of EXPECTED_PROHIBITED_LIBRARY_TABLES) {
+        expect(tables).toContain(table);
+      }
+    });
+
+    it("should have correct columns in prohibited_library_card_weights table", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      const columns = getColumnNames(db, "prohibited_library_card_weights");
+      expect(columns).toEqual(EXPECTED_PL_CARD_WEIGHTS_COLUMNS);
+    });
+
+    it("should have correct columns in prohibited_library_cache_metadata table", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      const columns = getColumnNames(db, "prohibited_library_cache_metadata");
+      expect(columns).toEqual(EXPECTED_PL_CACHE_METADATA_COLUMNS);
+    });
+
+    it("should have from_boss column on divination_cards after migrations", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      const columns = getColumnNames(db, "divination_cards");
+      expect(columns).toContain("from_boss");
     });
 
     it("should record all migrations as applied", () => {
@@ -916,16 +981,64 @@ describe("Migrations Integration", () => {
   // ─── Rollback ──────────────────────────────────────────────────────────
 
   describe("rollback", () => {
-    it("should successfully roll back all migrations", () => {
-      createPreAudioSchema(db);
+    it("should successfully roll back prohibited library migration", () => {
+      createBaselineSchema(db);
       const runner = new MigrationRunner(db);
       runner.runMigrations(migrations);
 
-      for (const migration of [...migrations].reverse()) {
-        expect(() => runner.rollbackMigration(migration)).not.toThrow();
+      // Verify tables exist before rollback
+      const beforeTables = getTableNames(db);
+      expect(beforeTables).toContain("prohibited_library_card_weights");
+      expect(beforeTables).toContain("prohibited_library_cache_metadata");
+      const beforeColumns = getColumnNames(db, "divination_cards");
+      expect(beforeColumns).toContain("from_boss");
+
+      // Find and rollback the prohibited library migration
+      const plMigration = migrations.find((m) =>
+        m.id.includes("add_prohibited_library"),
+      )!;
+      expect(() => runner.rollbackMigration(plMigration)).not.toThrow();
+
+      // Verify tables are removed
+      const afterTables = getTableNames(db);
+      expect(afterTables).not.toContain("prohibited_library_card_weights");
+      expect(afterTables).not.toContain("prohibited_library_cache_metadata");
+
+      // Verify from_boss column is removed from divination_cards
+      const afterColumns = getColumnNames(db, "divination_cards");
+      expect(afterColumns).not.toContain("from_boss");
+    });
+
+    it("should allow re-applying prohibited library migration after rollback", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      const plMigration = migrations.find((m) =>
+        m.id.includes("add_prohibited_library"),
+      )!;
+      runner.rollbackMigration(plMigration);
+
+      // Re-apply
+      expect(() => runner.runMigrations([plMigration])).not.toThrow();
+
+      const tables = getTableNames(db);
+      expect(tables).toContain("prohibited_library_card_weights");
+      expect(tables).toContain("prohibited_library_cache_metadata");
+
+      const columns = getColumnNames(db, "divination_cards");
+      expect(columns).toContain("from_boss");
+    });
+
+    it("should successfully roll back all migrations", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      for (const m of [...migrations].reverse()) {
+        expect(() => runner.rollbackMigration(m)).not.toThrow();
       }
 
-      // Audio columns should be gone
       const columns = getColumnNames(db, "user_settings");
       for (const col of EXPECTED_AUDIO_COLUMNS) {
         expect(columns).not.toContain(col);
@@ -1022,6 +1135,237 @@ describe("Migrations Integration", () => {
   });
 
   // ─── Schema Consistency ────────────────────────────────────────────────
+
+  // ─── Prohibited Library-specific tests ─────────────────────────────
+
+  describe("prohibited library migration", () => {
+    it("should enforce rarity CHECK constraint on prohibited_library_card_weights", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      // Valid rarity (1-4) should work
+      expect(() =>
+        db
+          .prepare(
+            `INSERT INTO prohibited_library_card_weights (card_name, game, league, weight, rarity, from_boss, loaded_at)
+             VALUES ('The Doctor', 'poe1', 'Keepers', 100, 1, 0, '2026-02-21T00:00:00Z')`,
+          )
+          .run(),
+      ).not.toThrow();
+
+      // Rarity 0 should fail
+      expect(() =>
+        db
+          .prepare(
+            `INSERT INTO prohibited_library_card_weights (card_name, game, league, weight, rarity, from_boss, loaded_at)
+             VALUES ('House of Mirrors', 'poe1', 'Keepers', 50, 0, 0, '2026-02-21T00:00:00Z')`,
+          )
+          .run(),
+      ).toThrow();
+
+      // Rarity 5 should fail
+      expect(() =>
+        db
+          .prepare(
+            `INSERT INTO prohibited_library_card_weights (card_name, game, league, weight, rarity, from_boss, loaded_at)
+             VALUES ('Rain of Chaos', 'poe1', 'Keepers', 5000, 5, 0, '2026-02-21T00:00:00Z')`,
+          )
+          .run(),
+      ).toThrow();
+    });
+
+    it("should enforce game CHECK constraint on prohibited_library_card_weights", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      expect(() =>
+        db
+          .prepare(
+            `INSERT INTO prohibited_library_card_weights (card_name, game, league, weight, rarity, from_boss, loaded_at)
+             VALUES ('The Doctor', 'poe3', 'Keepers', 100, 1, 0, '2026-02-21T00:00:00Z')`,
+          )
+          .run(),
+      ).toThrow();
+    });
+
+    it("should enforce from_boss CHECK constraint on prohibited_library_card_weights", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      // Valid: 0 and 1
+      expect(() =>
+        db
+          .prepare(
+            `INSERT INTO prohibited_library_card_weights (card_name, game, league, weight, rarity, from_boss, loaded_at)
+             VALUES ('The Doctor', 'poe1', 'Keepers', 100, 1, 1, '2026-02-21T00:00:00Z')`,
+          )
+          .run(),
+      ).not.toThrow();
+
+      // Invalid: 2
+      expect(() =>
+        db
+          .prepare(
+            `INSERT INTO prohibited_library_card_weights (card_name, game, league, weight, rarity, from_boss, loaded_at)
+             VALUES ('House of Mirrors', 'poe1', 'Keepers', 50, 1, 2, '2026-02-21T00:00:00Z')`,
+          )
+          .run(),
+      ).toThrow();
+    });
+
+    it("should enforce primary key (card_name, game, league) on prohibited_library_card_weights", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      db.prepare(
+        `INSERT INTO prohibited_library_card_weights (card_name, game, league, weight, rarity, from_boss, loaded_at)
+         VALUES ('The Doctor', 'poe1', 'Keepers', 100, 1, 0, '2026-02-21T00:00:00Z')`,
+      ).run();
+
+      // Same card, same game, same league → should fail
+      expect(() =>
+        db
+          .prepare(
+            `INSERT INTO prohibited_library_card_weights (card_name, game, league, weight, rarity, from_boss, loaded_at)
+             VALUES ('The Doctor', 'poe1', 'Keepers', 200, 2, 0, '2026-02-21T00:00:00Z')`,
+          )
+          .run(),
+      ).toThrow();
+
+      // Same card, same game, different league → should succeed
+      expect(() =>
+        db
+          .prepare(
+            `INSERT INTO prohibited_library_card_weights (card_name, game, league, weight, rarity, from_boss, loaded_at)
+             VALUES ('The Doctor', 'poe1', 'Dawn', 150, 1, 0, '2026-02-21T00:00:00Z')`,
+          )
+          .run(),
+      ).not.toThrow();
+    });
+
+    it("should enforce game CHECK constraint on prohibited_library_cache_metadata", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      // Valid
+      expect(() =>
+        db
+          .prepare(
+            `INSERT INTO prohibited_library_cache_metadata (game, league, loaded_at, app_version, card_count)
+             VALUES ('poe1', 'Keepers', '2026-02-21T00:00:00Z', '1.0.0', 100)`,
+          )
+          .run(),
+      ).not.toThrow();
+
+      // Invalid game
+      expect(() =>
+        db
+          .prepare(
+            `INSERT INTO prohibited_library_cache_metadata (game, league, loaded_at, app_version, card_count)
+             VALUES ('poe3', 'Keepers', '2026-02-21T00:00:00Z', '1.0.0', 100)`,
+          )
+          .run(),
+      ).toThrow();
+    });
+
+    it("should enforce from_boss CHECK constraint on divination_cards", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      // Valid: 0
+      expect(() =>
+        db
+          .prepare(
+            `INSERT INTO divination_cards (id, name, stack_size, description, reward_html, art_src, flavour_html, game, data_hash, from_boss)
+             VALUES ('poe1_the-doctor', 'The Doctor', 8, 'desc', '<p>reward</p>', 'art.png', '<p>flavour</p>', 'poe1', 'hash1', 0)`,
+          )
+          .run(),
+      ).not.toThrow();
+
+      // Valid: 1
+      expect(() =>
+        db
+          .prepare(
+            `INSERT INTO divination_cards (id, name, stack_size, description, reward_html, art_src, flavour_html, game, data_hash, from_boss)
+             VALUES ('poe1_house-of-mirrors', 'House of Mirrors', 2, 'desc', '<p>reward</p>', 'art.png', '<p>flavour</p>', 'poe1', 'hash2', 1)`,
+          )
+          .run(),
+      ).not.toThrow();
+
+      // Invalid: 2
+      expect(() =>
+        db
+          .prepare(
+            `INSERT INTO divination_cards (id, name, stack_size, description, reward_html, art_src, flavour_html, game, data_hash, from_boss)
+             VALUES ('poe1_rain-of-chaos', 'Rain of Chaos', 8, 'desc', '<p>reward</p>', 'art.png', '<p>flavour</p>', 'poe1', 'hash3', 2)`,
+          )
+          .run(),
+      ).toThrow();
+    });
+
+    it("should default from_boss to 0 on divination_cards", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      db.prepare(
+        `INSERT INTO divination_cards (id, name, stack_size, description, reward_html, art_src, flavour_html, game, data_hash)
+         VALUES ('poe1_the-doctor', 'The Doctor', 8, 'desc', '<p>reward</p>', 'art.png', '<p>flavour</p>', 'poe1', 'hash1')`,
+      ).run();
+
+      const row = db
+        .prepare(
+          "SELECT from_boss FROM divination_cards WHERE id = 'poe1_the-doctor'",
+        )
+        .get() as { from_boss: number };
+      expect(row.from_boss).toBe(0);
+    });
+
+    it("should preserve existing divination_cards data when adding from_boss", () => {
+      createBaselineSchema(db);
+
+      // Insert a card BEFORE the prohibited library migration runs
+      // First run all migrations except the last one
+      const prePLMigrations = migrations.filter(
+        (m) => !m.id.includes("add_prohibited_library"),
+      );
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(prePLMigrations);
+
+      db.prepare(
+        `INSERT INTO divination_cards (id, name, stack_size, description, reward_html, art_src, flavour_html, game, data_hash)
+         VALUES ('poe1_the-doctor', 'The Doctor', 8, 'desc', '<p>reward</p>', 'art.png', '<p>flavour</p>', 'poe1', 'hash1')`,
+      ).run();
+
+      // Now run the prohibited library migration
+      const plMigration = migrations.find((m) =>
+        m.id.includes("add_prohibited_library"),
+      )!;
+      runner.runMigrations([plMigration]);
+
+      // Card should still exist with from_boss defaulted to 0
+      const row = db
+        .prepare(
+          "SELECT id, name, stack_size, from_boss FROM divination_cards WHERE id = 'poe1_the-doctor'",
+        )
+        .get() as {
+        id: string;
+        name: string;
+        stack_size: number;
+        from_boss: number;
+      };
+      expect(row.id).toBe("poe1_the-doctor");
+      expect(row.name).toBe("The Doctor");
+      expect(row.stack_size).toBe(8);
+      expect(row.from_boss).toBe(0);
+    });
+  });
 
   describe("schema consistency", () => {
     it("should produce the same user_settings columns whether fresh install or upgrade", () => {
@@ -1141,6 +1485,104 @@ describe("Migrations Integration", () => {
       upgradeDb.close();
 
       expect(freshTables).toEqual(upgradeTables);
+    });
+
+    it("should have prohibited_library tables in both fresh and upgrade paths", () => {
+      // Fresh install
+      const freshDb = new Database(":memory:");
+      freshDb.pragma("foreign_keys = ON");
+      createBaselineSchema(freshDb);
+      const freshRunner = new MigrationRunner(freshDb);
+      freshRunner.runMigrations(migrations);
+      const freshTables = getTableNames(freshDb);
+      freshDb.close();
+
+      // Upgrade from pre-audio
+      const upgradeDb = new Database(":memory:");
+      upgradeDb.pragma("foreign_keys = ON");
+      createPreAudioSchema(upgradeDb);
+      const upgradeRunner = new MigrationRunner(upgradeDb);
+      upgradeRunner.runMigrations(migrations);
+      const upgradeTables = getTableNames(upgradeDb);
+      upgradeDb.close();
+
+      for (const table of EXPECTED_PROHIBITED_LIBRARY_TABLES) {
+        expect(freshTables).toContain(table);
+        expect(upgradeTables).toContain(table);
+      }
+    });
+
+    it("should produce the same prohibited_library_card_weights columns whether fresh or upgrade", () => {
+      const freshDb = new Database(":memory:");
+      freshDb.pragma("foreign_keys = ON");
+      createBaselineSchema(freshDb);
+      const freshRunner = new MigrationRunner(freshDb);
+      freshRunner.runMigrations(migrations);
+      const freshColumns = getColumnNames(
+        freshDb,
+        "prohibited_library_card_weights",
+      );
+      freshDb.close();
+
+      const upgradeDb = new Database(":memory:");
+      upgradeDb.pragma("foreign_keys = ON");
+      createPreAudioSchema(upgradeDb);
+      const upgradeRunner = new MigrationRunner(upgradeDb);
+      upgradeRunner.runMigrations(migrations);
+      const upgradeColumns = getColumnNames(
+        upgradeDb,
+        "prohibited_library_card_weights",
+      );
+      upgradeDb.close();
+
+      expect(freshColumns).toEqual(upgradeColumns);
+    });
+
+    it("should produce the same prohibited_library_cache_metadata columns whether fresh or upgrade", () => {
+      const freshDb = new Database(":memory:");
+      freshDb.pragma("foreign_keys = ON");
+      createBaselineSchema(freshDb);
+      const freshRunner = new MigrationRunner(freshDb);
+      freshRunner.runMigrations(migrations);
+      const freshColumns = getColumnNames(
+        freshDb,
+        "prohibited_library_cache_metadata",
+      );
+      freshDb.close();
+
+      const upgradeDb = new Database(":memory:");
+      upgradeDb.pragma("foreign_keys = ON");
+      createPreAudioSchema(upgradeDb);
+      const upgradeRunner = new MigrationRunner(upgradeDb);
+      upgradeRunner.runMigrations(migrations);
+      const upgradeColumns = getColumnNames(
+        upgradeDb,
+        "prohibited_library_cache_metadata",
+      );
+      upgradeDb.close();
+
+      expect(freshColumns).toEqual(upgradeColumns);
+    });
+
+    it("should have from_boss on divination_cards in both fresh and upgrade paths", () => {
+      const freshDb = new Database(":memory:");
+      freshDb.pragma("foreign_keys = ON");
+      createBaselineSchema(freshDb);
+      const freshRunner = new MigrationRunner(freshDb);
+      freshRunner.runMigrations(migrations);
+      const freshColumns = getColumnNames(freshDb, "divination_cards");
+      freshDb.close();
+
+      const upgradeDb = new Database(":memory:");
+      upgradeDb.pragma("foreign_keys = ON");
+      createPreAudioSchema(upgradeDb);
+      const upgradeRunner = new MigrationRunner(upgradeDb);
+      upgradeRunner.runMigrations(migrations);
+      const upgradeColumns = getColumnNames(upgradeDb, "divination_cards");
+      upgradeDb.close();
+
+      expect(freshColumns).toContain("from_boss");
+      expect(upgradeColumns).toContain("from_boss");
     });
   });
 });

@@ -355,6 +355,7 @@ class DatabaseService {
         flavour_html TEXT,
         game TEXT NOT NULL CHECK(game IN ('poe1', 'poe2')),
         data_hash TEXT NOT NULL,
+        from_boss INTEGER NOT NULL DEFAULT 0 CHECK(from_boss IN (0, 1)),
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now')),
         UNIQUE(game, name)
@@ -463,6 +464,49 @@ class DatabaseService {
       this.db.exec(`
         CREATE INDEX IF NOT EXISTS idx_filter_metadata_file_path
         ON filter_metadata(file_path)
+      `);
+
+      // ═══════════════════════════════════════════════════════════════
+      // PROHIBITED LIBRARY CARD WEIGHTS (empirical drop weights from CSV)
+      // ═══════════════════════════════════════════════════════════════
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS prohibited_library_card_weights (
+          card_name   TEXT    NOT NULL,
+          game        TEXT    NOT NULL CHECK(game IN ('poe1', 'poe2')),
+          league      TEXT    NOT NULL,
+          weight      INTEGER NOT NULL,
+          rarity      INTEGER NOT NULL CHECK(rarity BETWEEN 1 AND 4),
+          from_boss   INTEGER NOT NULL DEFAULT 0 CHECK(from_boss IN (0, 1)),
+          loaded_at   TEXT    NOT NULL,
+          created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+          updated_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+          PRIMARY KEY (card_name, game, league)
+        )
+      `);
+
+      this.db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_pl_card_weights_game_league
+        ON prohibited_library_card_weights(game, league)
+      `);
+
+      this.db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_pl_card_weights_card_name
+        ON prohibited_library_card_weights(card_name)
+      `);
+
+      // ═══════════════════════════════════════════════════════════════
+      // PROHIBITED LIBRARY CACHE METADATA (tracks CSV parse state)
+      // ═══════════════════════════════════════════════════════════════
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS prohibited_library_cache_metadata (
+          game        TEXT NOT NULL PRIMARY KEY CHECK(game IN ('poe1', 'poe2')),
+          league      TEXT NOT NULL,
+          loaded_at   TEXT NOT NULL,
+          app_version TEXT NOT NULL,
+          card_count  INTEGER NOT NULL,
+          created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        )
       `);
 
       // ═══════════════════════════════════════════════════════════════
