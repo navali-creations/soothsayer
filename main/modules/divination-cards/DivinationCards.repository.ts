@@ -50,6 +50,7 @@ export class DivinationCardsRepository {
         "dc.flavour_html",
         "dc.game",
         "dc.data_hash",
+        "dc.from_boss",
         "dc.created_at",
         "dc.updated_at",
       ])
@@ -117,6 +118,7 @@ export class DivinationCardsRepository {
         "dc.flavour_html",
         "dc.game",
         "dc.data_hash",
+        "dc.from_boss",
         "dc.created_at",
         "dc.updated_at",
       ])
@@ -183,6 +185,7 @@ export class DivinationCardsRepository {
         "dc.flavour_html",
         "dc.game",
         "dc.data_hash",
+        "dc.from_boss",
         "dc.created_at",
         "dc.updated_at",
       ])
@@ -250,6 +253,7 @@ export class DivinationCardsRepository {
         "dc.flavour_html",
         "dc.game",
         "dc.data_hash",
+        "dc.from_boss",
         "dc.created_at",
         "dc.updated_at",
       ])

@@ -275,6 +275,7 @@ function initializeSchema(db: Database.Database): void {
         flavour_html TEXT,
         game TEXT NOT NULL CHECK(game IN ('poe1', 'poe2')),
         data_hash TEXT NOT NULL,
+        from_boss INTEGER NOT NULL DEFAULT 0 CHECK(from_boss IN (0, 1)),
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now')),
         UNIQUE(game, name)
