@@ -470,6 +470,49 @@ function initializeSchema(db: Database.Database): void {
     `);
 
     // ═══════════════════════════════════════════════════════════════
+    // PROHIBITED LIBRARY CARD WEIGHTS
+    // ═══════════════════════════════════════════════════════════════
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS prohibited_library_card_weights (
+        card_name   TEXT    NOT NULL,
+        game        TEXT    NOT NULL CHECK(game IN ('poe1', 'poe2')),
+        league      TEXT    NOT NULL,
+        weight      INTEGER NOT NULL,
+        rarity      INTEGER NOT NULL CHECK(rarity BETWEEN 1 AND 4),
+        from_boss   INTEGER NOT NULL DEFAULT 0 CHECK(from_boss IN (0, 1)),
+        loaded_at   TEXT    NOT NULL,
+        created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+        updated_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (card_name, game, league)
+      )
+    `);
+
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_pl_card_weights_game_league
+      ON prohibited_library_card_weights(game, league)
+    `);
+
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_pl_card_weights_card_name
+      ON prohibited_library_card_weights(card_name)
+    `);
+
+    // ═══════════════════════════════════════════════════════════════
+    // PROHIBITED LIBRARY CACHE METADATA
+    // ═══════════════════════════════════════════════════════════════
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS prohibited_library_cache_metadata (
+        game        TEXT NOT NULL PRIMARY KEY CHECK(game IN ('poe1', 'poe2')),
+        league      TEXT NOT NULL,
+        loaded_at   TEXT NOT NULL,
+        app_version TEXT NOT NULL,
+        card_count  INTEGER NOT NULL,
+        created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+
+    // ═══════════════════════════════════════════════════════════════
     // MIGRATIONS TABLE (used by MigrationRunner)
     // ═══════════════════════════════════════════════════════════════
     db.exec(`

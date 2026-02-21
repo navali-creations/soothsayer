@@ -324,6 +324,105 @@ describe("PoeLeaguesRepository", () => {
     });
   });
 
+  // ─── getLeagueByName ────────────────────────────────────────────────────
+
+  describe("getLeagueByName", () => {
+    it("should return null when no league matches the name", async () => {
+      const league = await repository.getLeagueByName("poe1", "Nonexistent");
+      expect(league).toBeNull();
+    });
+
+    it("should return a league by exact name match", async () => {
+      await insertLeague({
+        id: "uuid-name-1",
+        game: "poe1",
+        leagueId: "Settlers",
+        name: "Settlers",
+      });
+
+      const league = await repository.getLeagueByName("poe1", "Settlers");
+      expect(league).not.toBeNull();
+      expect(league!.name).toBe("Settlers");
+      expect(league!.game).toBe("poe1");
+    });
+
+    it("should perform case-insensitive lookup", async () => {
+      await insertLeague({
+        id: "uuid-ci-1",
+        game: "poe1",
+        leagueId: "Keepers",
+        name: "Keepers",
+      });
+
+      const lower = await repository.getLeagueByName("poe1", "keepers");
+      expect(lower).not.toBeNull();
+      expect(lower!.name).toBe("Keepers");
+
+      const upper = await repository.getLeagueByName("poe1", "KEEPERS");
+      expect(upper).not.toBeNull();
+      expect(upper!.name).toBe("Keepers");
+
+      const mixed = await repository.getLeagueByName("poe1", "kEePeRs");
+      expect(mixed).not.toBeNull();
+      expect(mixed!.name).toBe("Keepers");
+    });
+
+    it("should not return a league for a different game", async () => {
+      await insertLeague({
+        id: "uuid-game-1",
+        game: "poe1",
+        leagueId: "Settlers",
+        name: "Settlers",
+      });
+
+      const league = await repository.getLeagueByName("poe2", "Settlers");
+      expect(league).toBeNull();
+    });
+
+    it("should return the correct league when multiple exist", async () => {
+      await insertLeague({
+        id: "uuid-multi-1",
+        leagueId: "Settlers",
+        name: "Settlers",
+      });
+      await insertLeague({
+        id: "uuid-multi-2",
+        leagueId: "Standard",
+        name: "Standard",
+      });
+
+      const league = await repository.getLeagueByName("poe1", "standard");
+      expect(league).not.toBeNull();
+      expect(league!.name).toBe("Standard");
+    });
+
+    it("should return correctly mapped DTO", async () => {
+      await insertLeague({
+        id: "uuid-dto-1",
+        game: "poe1",
+        leagueId: "Keepers",
+        name: "Keepers",
+        startAt: "2025-06-01T00:00:00Z",
+        endAt: null,
+        isActive: true,
+        updatedAt: "2025-06-05T00:00:00Z",
+        fetchedAt: "2025-06-10T08:00:00Z",
+      });
+
+      const league = await repository.getLeagueByName("poe1", "keepers");
+      expect(league).not.toBeNull();
+      expect(league!.id).toBe("uuid-dto-1");
+      expect(league!.game).toBe("poe1");
+      expect(league!.leagueId).toBe("Keepers");
+      expect(league!.name).toBe("Keepers");
+      expect(league!.startAt).toBe("2025-06-01T00:00:00Z");
+      expect(league!.endAt).toBeNull();
+      expect(league!.isActive).toBe(true);
+      expect(league!.updatedAt).toBe("2025-06-05T00:00:00Z");
+      expect(league!.fetchedAt).toBe("2025-06-10T08:00:00Z");
+    });
+  });
+
   // ─── upsertLeague ────────────────────────────────────────────────────────
 
   describe("upsertLeague", () => {

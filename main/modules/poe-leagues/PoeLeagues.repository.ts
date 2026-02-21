@@ -69,6 +69,26 @@ export class PoeLeaguesRepository {
   }
 
   /**
+   * Get a specific league by game and name (case-insensitive).
+   *
+   * Used by the Prohibited Library service to resolve the CSV header's
+   * league label (e.g. "Keepers") to the canonical `poe_leagues_cache` row.
+   */
+  async getLeagueByName(
+    game: "poe1" | "poe2",
+    name: string,
+  ): Promise<PoeLeagueCacheDTO | null> {
+    const row = await this.kysely
+      .selectFrom("poe_leagues_cache")
+      .selectAll()
+      .where("game", "=", game)
+      .where((eb) => eb(eb.fn("lower", ["name"]), "=", name.toLowerCase()))
+      .executeTakeFirst();
+
+    return row ? PoeLeaguesMapper.toPoeLeagueCacheDTO(row) : null;
+  }
+
+  /**
    * Upsert a league into the cache
    * Uses INSERT OR REPLACE to handle both insert and update
    */

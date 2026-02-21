@@ -21,6 +21,7 @@ import {
   OverlayService,
   PoeLeaguesService,
   PoeProcessService,
+  ProhibitedLibraryService,
   SessionsService,
   SettingsKey,
   SettingsStoreService,
@@ -119,6 +120,11 @@ class MainWindowService {
     const divinationCards = DivinationCardsService.getInstance();
     await divinationCards.initialize();
     console.log("[Init] ✓ Divination Cards");
+
+    // 5b. Prohibited Library (bundled CSV weight data, depends on database + leagues + divination cards)
+    const prohibitedLibrary = ProhibitedLibraryService.getInstance();
+    await prohibitedLibrary.initialize();
+    console.log("[Init] ✓ Prohibited Library");
 
     // 6. Snapshot service (depends on database + Supabase)
     SnapshotService.getInstance();

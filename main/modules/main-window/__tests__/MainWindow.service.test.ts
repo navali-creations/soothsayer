@@ -187,6 +187,11 @@ vi.mock("~/main/modules", () => ({
       initialize: vi.fn(),
     })),
   },
+  ProhibitedLibraryService: {
+    getInstance: vi.fn(() => ({
+      initialize: vi.fn().mockResolvedValue(undefined),
+    })),
+  },
   SessionsService: { getInstance: vi.fn(() => ({})) },
   SettingsStoreService: {
     getInstance: vi.fn(() => ({
