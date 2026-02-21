@@ -36,6 +36,10 @@ import {
   type PoeNinjaSlice,
 } from "../modules/poe-ninja/PoeNinja.slice";
 import {
+  createProhibitedLibrarySlice,
+  type ProhibitedLibrarySlice,
+} from "../modules/prohibited-library/ProhibitedLibrary.slice";
+import {
   createRarityModelSlice,
   type RarityModelSlice,
 } from "../modules/rarity-model/RarityModel.slice";
@@ -87,6 +91,7 @@ type BoundStore = GameInfoSlice &
   ChangelogSlice &
   OverlaySlice &
   PoeNinjaSlice &
+  ProhibitedLibrarySlice &
   StatisticsSlice &
   OnboardingSlice &
   UpdaterSlice &
@@ -111,6 +116,7 @@ export const useBoundStore = create<BoundStore>()(
       const statisticsSlice = createStatisticsSlice(...a);
       const onboardingSlice = createOnboardingSlice(...a);
       const updaterSlice = createUpdaterSlice(...a);
+      const prohibitedLibrarySlice = createProhibitedLibrarySlice(...a);
       const rarityModelSlice = createRarityModelSlice(...a);
       const rarityModelComparisonSlice = createRarityModelComparisonSlice(...a);
 
@@ -126,6 +132,7 @@ export const useBoundStore = create<BoundStore>()(
         ...overlaySlice,
         ...cardsSlice,
         ...poeNinjaSlice,
+        ...prohibitedLibrarySlice,
         ...statisticsSlice,
         ...onboardingSlice,
         ...updaterSlice,
@@ -152,6 +159,8 @@ export const useBoundStore = create<BoundStore>()(
           const unsubscribePoeNinja = poeNinjaSlice.poeNinja.startListening();
           const unsubscribeOverlay = overlaySlice.overlay.startListening();
           const unsubscribeUpdater = updaterSlice.updater.startListening();
+          const unsubscribeProhibitedLibrary =
+            prohibitedLibrarySlice.prohibitedLibrary.startListening();
 
           return () => {
             unsubscribeSession();
@@ -159,6 +168,7 @@ export const useBoundStore = create<BoundStore>()(
             unsubscribePoeNinja();
             unsubscribeOverlay();
             unsubscribeUpdater();
+            unsubscribeProhibitedLibrary();
           };
         },
 
@@ -175,6 +185,7 @@ export const useBoundStore = create<BoundStore>()(
               cards,
               changelog,
               poeNinja,
+              prohibitedLibrary,
               statistics,
               onboarding,
               updater,
@@ -278,6 +289,12 @@ export const useBoundStore = create<BoundStore>()(
                 totalBytes: 0,
               };
               updater.error = null;
+
+              // Reset prohibited library
+              prohibitedLibrary.poe1Status = null;
+              prohibitedLibrary.poe2Status = null;
+              prohibitedLibrary.isLoading = false;
+              prohibitedLibrary.loadError = null;
 
               // Reset rarity model
               rarityModel.availableFilters = [];

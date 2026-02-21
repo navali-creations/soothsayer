@@ -10,6 +10,8 @@ import {
   getAnalyticsRaritySource,
 } from "~/renderer/utils";
 
+import ProhibitedLibraryStatusBlock from "./ProhibitedLibraryStatusBlock";
+
 const FilterSettingsCard = () => {
   const {
     settings: { raritySource, selectedFilterId, updateSetting },
@@ -24,6 +26,7 @@ const FilterSettingsCard = () => {
       getLocalFilters,
       getOnlineFilters,
     },
+    prohibitedLibrary: { fetchStatus: fetchPlStatus },
   } = useBoundStore();
 
   const localFilters = getLocalFilters();
@@ -35,6 +38,11 @@ const FilterSettingsCard = () => {
       scanFilters();
     }
   }, [availableFilters.length, isScanning, scanFilters]);
+
+  // Fetch PL status on mount so the status block has data
+  useEffect(() => {
+    fetchPlStatus();
+  }, [fetchPlStatus]);
 
   const handleDropdownChange = useCallback(
     async (value: string) => {
@@ -104,8 +112,8 @@ const FilterSettingsCard = () => {
               {/* ── Dataset-driven sources ── */}
               <optgroup label="Dataset Driven">
                 <option value="poe.ninja">poe.ninja (price-based)</option>
-                <option value="prohibited-library" disabled>
-                  Prohibited Library (coming soon)
+                <option value="prohibited-library">
+                  Prohibited Library (weight-based)
                 </option>
               </optgroup>
 
@@ -150,6 +158,11 @@ const FilterSettingsCard = () => {
 
           {/* Scan error */}
           {scanError && <p className="text-xs text-error">{scanError}</p>}
+
+          {/* Prohibited Library status block */}
+          {raritySource === "prohibited-library" && (
+            <ProhibitedLibraryStatusBlock />
+          )}
 
           {/* No filters found hint */}
           {!isScanning && availableFilters.length === 0 && (
