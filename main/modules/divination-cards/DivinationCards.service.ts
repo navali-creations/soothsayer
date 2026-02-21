@@ -6,6 +6,7 @@ import { app, ipcMain } from "electron";
 
 import { DatabaseService } from "~/main/modules/database";
 import { LoggerService } from "~/main/modules/logger";
+import { ProhibitedLibraryRepository } from "~/main/modules/prohibited-library/ProhibitedLibrary.repository";
 import { RarityModelRepository } from "~/main/modules/rarity-model/RarityModel.repository";
 import {
   SettingsKey,
@@ -18,7 +19,7 @@ import {
   assertInteger,
   handleValidationError,
 } from "~/main/utils/ipc-validation";
-import type { Confidence, Rarity } from "~/types/data-stores";
+import type { Confidence, KnownRarity, Rarity } from "~/types/data-stores";
 
 import { DivinationCardsChannel } from "./DivinationCards.channels";
 import type {
@@ -46,6 +47,7 @@ class DivinationCardsService {
   private readonly logger = LoggerService.createLogger("DivinationCards");
   private repository: DivinationCardsRepository;
   private rarityModelRepository: RarityModelRepository;
+  private prohibitedLibraryRepository: ProhibitedLibraryRepository;
   private settingsStore: SettingsStoreService;
   private readonly poe1CardsJsonPath: string;
   private readonly poe2CardsJsonPath: string;
@@ -61,6 +63,9 @@ class DivinationCardsService {
     const database = DatabaseService.getInstance();
     this.repository = new DivinationCardsRepository(database.getKysely());
     this.rarityModelRepository = new RarityModelRepository(
+      database.getKysely(),
+    );
+    this.prohibitedLibraryRepository = new ProhibitedLibraryRepository(
       database.getKysely(),
     );
     this.settingsStore = SettingsStoreService.getInstance();
@@ -244,11 +249,13 @@ class DivinationCardsService {
               : SettingsKey.SelectedPoe2League;
           const league = await this.settingsStore.get(leagueKey);
           const filterId = await this.getSelectedFilterId();
+          const plLeague = await this.resolveProhibitedLibraryLeague(game);
 
           return this.repository.getAllByGame(
             game,
             league || undefined,
             filterId,
+            plLeague,
           );
         } catch (error) {
           return handleValidationError(error, DivinationCardsChannel.GetAll);
@@ -274,8 +281,14 @@ class DivinationCardsService {
               : SettingsKey.SelectedPoe2League;
           const league = await this.settingsStore.get(leagueKey);
           const filterId = await this.getSelectedFilterId();
+          const plLeague = await this.resolveProhibitedLibraryLeague(game);
 
-          return this.repository.getById(id, league || undefined, filterId);
+          return this.repository.getById(
+            id,
+            league || undefined,
+            filterId,
+            plLeague,
+          );
         } catch (error) {
           return handleValidationError(error, DivinationCardsChannel.GetById);
         }
@@ -305,12 +318,14 @@ class DivinationCardsService {
               : SettingsKey.SelectedPoe2League;
           const league = await this.settingsStore.get(leagueKey);
           const filterId = await this.getSelectedFilterId();
+          const plLeague = await this.resolveProhibitedLibraryLeague(game);
 
           return this.repository.getByName(
             game,
             name,
             league || undefined,
             filterId,
+            plLeague,
           );
         } catch (error) {
           return handleValidationError(error, DivinationCardsChannel.GetByName);
@@ -341,12 +356,14 @@ class DivinationCardsService {
               : SettingsKey.SelectedPoe2League;
           const league = await this.settingsStore.get(leagueKey);
           const filterId = await this.getSelectedFilterId();
+          const plLeague = await this.resolveProhibitedLibraryLeague(game);
 
           const cards = await this.repository.searchByName(
             game,
             query,
             league || undefined,
             filterId,
+            plLeague,
           );
           return {
             cards,
@@ -663,6 +680,134 @@ class DivinationCardsService {
       return filterId || null;
     } catch {
       return null;
+    }
+  }
+
+  /**
+   * Resolve the Prohibited Library league to use for LEFT JOINs.
+   *
+   * Uses the same fallback logic as the PL service's IPC handlers:
+   * 1. Try the user's active league
+   * 2. If no PL data exists for that league, fall back to whatever league
+   *    is recorded in the PL cache metadata (the CSV's n-1 column league)
+   *
+   * Returns null if no PL data is available at all for this game.
+   */
+  private async resolveProhibitedLibraryLeague(
+    game: "poe1" | "poe2",
+  ): Promise<string | null> {
+    try {
+      const leagueKey =
+        game === "poe1"
+          ? SettingsKey.SelectedPoe1League
+          : SettingsKey.SelectedPoe2League;
+      const activeLeague = await this.settingsStore.get(leagueKey);
+
+      if (activeLeague) {
+        // Check if PL data exists for the active league
+        const weights = await this.prohibitedLibraryRepository.getCardWeights(
+          game,
+          activeLeague,
+        );
+        if (weights.length > 0) {
+          return activeLeague;
+        }
+      }
+
+      // Fall back to the league in PL metadata (n-1 dataset)
+      const metadata = await this.prohibitedLibraryRepository.getMetadata(game);
+      return metadata?.league ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Update card rarities from Prohibited Library data.
+   *
+   * Reads PL card weights for the given game and writes their rarity values
+   * into `divination_card_rarities` for the specified league. Cards not
+   * present in the PL dataset are set to rarity 0 (Unknown).
+   *
+   * This is the PL counterpart to `updateRaritiesFromPrices()` and
+   * `updateRaritiesFromFilter()`. Called by SnapshotService when
+   * rarity source is `"prohibited-library"`.
+   *
+   * @param game - The game type ("poe1" or "poe2")
+   * @param league - The league name to write rarities for
+   */
+  public async updateRaritiesFromProhibitedLibrary(
+    game: "poe1" | "poe2",
+    league: string,
+  ): Promise<void> {
+    // Resolve which PL league to read from (active → metadata fallback)
+    const plLeague = await this.resolveProhibitedLibraryLeague(game);
+
+    if (!plLeague) {
+      this.logger.warn(
+        `updateRaritiesFromProhibitedLibrary: No PL data available for ${game} — skipping`,
+      );
+      return;
+    }
+
+    // Fetch PL card weights
+    const plWeights = await this.prohibitedLibraryRepository.getCardWeights(
+      game,
+      plLeague,
+    );
+
+    if (plWeights.length === 0) {
+      this.logger.warn(
+        `updateRaritiesFromProhibitedLibrary: PL league "${plLeague}" has no weights for ${game} — skipping`,
+      );
+      return;
+    }
+
+    // Build a lookup map: card name → PL rarity
+    const plRarityMap = new Map<string, KnownRarity>();
+    for (const entry of plWeights) {
+      plRarityMap.set(entry.cardName, entry.rarity as KnownRarity);
+    }
+
+    // Get all card names for this game
+    const allCardNames = await this.repository.getAllCardNames(game);
+
+    const updates: Array<{
+      name: string;
+      rarity: Rarity;
+      clearOverride: boolean;
+    }> = [];
+
+    for (const cardName of allCardNames) {
+      const plRarity = plRarityMap.get(cardName);
+      if (plRarity) {
+        // Card exists in PL data — use PL rarity, clear any user override
+        // (PL data is authoritative when this source is active)
+        updates.push({ name: cardName, rarity: plRarity, clearOverride: true });
+      } else {
+        // Card not in PL dataset — set to Unknown, preserve any user override
+        updates.push({ name: cardName, rarity: 0, clearOverride: false });
+      }
+    }
+
+    if (updates.length > 0) {
+      await this.repository.updateRarities(game, league, updates);
+
+      // Log distribution
+      const distribution = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 };
+      for (const u of updates) {
+        distribution[u.rarity]++;
+      }
+
+      this.logger.log(
+        `Updated rarities from Prohibited Library for ${
+          updates.length
+        } ${game.toUpperCase()}/${league} cards ` +
+          `(${plRarityMap.size} in PL, ${
+            updates.length - plRarityMap.size
+          } not in PL, PL league="${plLeague}"). ` +
+          `Distribution: r0=${distribution[0]} r1=${distribution[1]} r2=${distribution[2]} r3=${distribution[3]} r4=${distribution[4]}`,
+      );
     }
   }
 

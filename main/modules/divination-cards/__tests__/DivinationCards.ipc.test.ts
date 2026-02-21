@@ -17,6 +17,8 @@ const {
   mockRepositoryUpdateCard,
   mockRepositoryUpdateRarities,
   mockElectronApp,
+  mockPlRepoGetCardWeights,
+  mockPlRepoGetMetadata,
 } = vi.hoisted(() => ({
   mockIpcHandle: vi.fn(),
   mockReadFileSync: vi.fn(),
@@ -37,6 +39,8 @@ const {
     getAppPath: vi.fn(() => "/mock-app-path"),
     getPath: vi.fn(() => "/mock-path"),
   },
+  mockPlRepoGetCardWeights: vi.fn(),
+  mockPlRepoGetMetadata: vi.fn(),
 }));
 
 // ─── Mock Electron ───────────────────────────────────────────────────────────
@@ -130,6 +134,22 @@ vi.mock("~/main/modules/rarity-model/RarityModel.repository", () => ({
   },
 }));
 
+// ─── Mock ProhibitedLibraryRepository ────────────────────────────────────────
+vi.mock(
+  "~/main/modules/prohibited-library/ProhibitedLibrary.repository",
+  () => ({
+    ProhibitedLibraryRepository: class MockProhibitedLibraryRepository {
+      getCardWeights = mockPlRepoGetCardWeights;
+      getMetadata = mockPlRepoGetMetadata;
+      upsertCardWeights = vi.fn().mockResolvedValue(undefined);
+      upsertMetadata = vi.fn().mockResolvedValue(undefined);
+      syncFromBossFlags = vi.fn().mockResolvedValue(undefined);
+      getFromBossCards = vi.fn().mockResolvedValue([]);
+      deleteCardWeights = vi.fn().mockResolvedValue(undefined);
+    },
+  }),
+);
+
 // ─── Import under test ──────────────────────────────────────────────────────
 import { DivinationCardsService } from "../DivinationCards.service";
 
@@ -208,6 +228,8 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     mockRepositoryInsertCard.mockResolvedValue(undefined);
     mockRepositoryUpdateCard.mockResolvedValue(undefined);
     mockRepositoryUpdateRarities.mockResolvedValue(undefined);
+    mockPlRepoGetCardWeights.mockResolvedValue([]);
+    mockPlRepoGetMetadata.mockResolvedValue(null);
 
     service = DivinationCardsService.getInstance();
   });
@@ -266,6 +288,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
         "poe1",
         "Settlers",
         null,
+        null,
       );
       expect(result).toEqual([SAMPLE_CARD_DTO]);
     });
@@ -278,6 +301,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
       expect(mockRepositoryGetAllByGame).toHaveBeenCalledWith(
         "poe1",
         undefined,
+        null,
         null,
       );
     });
@@ -348,6 +372,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
         "poe1_the-doctor",
         "Settlers",
         null,
+        null,
       );
       expect(result).toEqual(SAMPLE_CARD_DTO);
     });
@@ -375,6 +400,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
       expect(mockRepositoryGetById).toHaveBeenCalledWith(
         "poe1_test",
         undefined,
+        null,
         null,
       );
     });
@@ -420,6 +446,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
         "poe1",
         "The Doctor",
         "Settlers",
+        null,
         null,
       );
       expect(result).toEqual(SAMPLE_CARD_DTO);
@@ -475,6 +502,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
         "poe1",
         "Doctor",
         "Settlers",
+        null,
         null,
       );
       expect(result).toEqual({
@@ -1085,6 +1113,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
         "poe1",
         "Necropolis",
         null,
+        null,
       );
     });
 
@@ -1098,6 +1127,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
         "poe2",
         "Standard",
         null,
+        null,
       );
     });
 
@@ -1110,6 +1140,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
         "poe1",
         "The Doctor",
         "Necropolis",
+        null,
         null,
       );
     });
@@ -1137,6 +1168,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
         "poe1",
         "Doc",
         "League123",
+        null,
         null,
       );
     });

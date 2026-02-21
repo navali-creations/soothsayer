@@ -1,3 +1,4 @@
+export { ProhibitedLibraryAPI } from "./ProhibitedLibrary.api";
 export { ProhibitedLibraryChannel } from "./ProhibitedLibrary.channels";
 export * from "./ProhibitedLibrary.dto";
 export type { ParseResult } from "./ProhibitedLibrary.parser";

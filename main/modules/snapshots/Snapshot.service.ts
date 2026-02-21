@@ -4,6 +4,10 @@ import { BrowserWindow, ipcMain } from "electron";
 
 import { DatabaseService } from "~/main/modules/database";
 import { DivinationCardsService } from "~/main/modules/divination-cards";
+import {
+  SettingsKey,
+  SettingsStoreService,
+} from "~/main/modules/settings-store";
 import { SupabaseClientService } from "~/main/modules/supabase";
 import {
   assertBoundedString,
@@ -27,6 +31,7 @@ class SnapshotService {
   private repository: SnapshotRepository;
   private supabase: SupabaseClientService;
   private divinationCards: DivinationCardsService;
+  private settingsStore: SettingsStoreService;
   private refreshIntervals: Map<string, NodeJS.Timeout> = new Map();
 
   // How old can a snapshot be before we fetch a new one (in hours)
@@ -49,6 +54,7 @@ class SnapshotService {
     this.repository = new SnapshotRepository(db.getKysely());
     this.supabase = SupabaseClientService.getInstance();
     this.divinationCards = DivinationCardsService.getInstance();
+    this.settingsStore = SettingsStoreService.getInstance();
     this.setupIpcHandlers();
   }
 
@@ -322,19 +328,13 @@ class SnapshotService {
 
       const data = await this.loadSnapshot(recentSnapshot.id);
       if (data) {
-        // Update card rarities from poe.ninja prices.
+        // Update card rarities based on the active rarity source.
         // Filter-based rarities live in filter_card_rarities and are JOINed
         // independently — we must NOT overwrite divination_card_rarities.rarity
         // with filter values, otherwise the poe.ninja column on the Rarity
         // Model page shows stale filter data after the session ends.
         const gameType = game === "poe1" ? "poe1" : "poe2";
-        const mergedPrices = this.mergeCardPrices(data);
-        await this.divinationCards.updateRaritiesFromPrices(
-          gameType,
-          leagueName,
-          data.exchange.chaosToDivineRatio,
-          mergedPrices,
-        );
+        await this.updateRaritiesForSource(gameType, leagueName, data);
 
         // Emit reused snapshot event
         this.emitSnapshotEvent(SnapshotChannel.OnSnapshotReused, {
@@ -362,15 +362,9 @@ class SnapshotService {
       leagueId,
     );
 
-    // Update card rarities based on merged exchange + stash prices.
+    // Update card rarities based on the active rarity source.
     // Filter-based rarities are stored separately in filter_card_rarities.
-    const mergedPrices = this.mergeCardPrices(snapshotData);
-    await this.divinationCards.updateRaritiesFromPrices(
-      gameType,
-      leagueName,
-      snapshotData.exchange.chaosToDivineRatio,
-      mergedPrices,
-    );
+    await this.updateRaritiesForSource(gameType, leagueName, snapshotData);
 
     // Store it locally
     const snapshotId = crypto.randomUUID();
@@ -429,15 +423,9 @@ class SnapshotService {
           leagueId,
         );
 
-        // Update card rarities based on merged exchange + stash prices.
+        // Update card rarities based on the active rarity source.
         // Filter-based rarities are stored separately in filter_card_rarities.
-        const mergedPrices = this.mergeCardPrices(snapshotData);
-        await this.divinationCards.updateRaritiesFromPrices(
-          gameType,
-          leagueName,
-          snapshotData.exchange.chaosToDivineRatio,
-          mergedPrices,
-        );
+        await this.updateRaritiesForSource(gameType, leagueName, snapshotData);
 
         const snapshotId = crypto.randomUUID();
         await this.repository.createSnapshot({
@@ -498,6 +486,51 @@ class SnapshotService {
         game,
         league: leagueName,
       });
+    }
+  }
+
+  /**
+   * Update card rarities based on the active rarity source setting.
+   *
+   * - "poe.ninja" (default): Derive rarities from merged exchange + stash prices
+   * - "prohibited-library": Use Prohibited Library CSV-derived rarities
+   * - "filter": No-op here — filter rarities are applied separately by RarityModelService
+   *
+   * Price snapshots are always fetched and stored regardless of the rarity source,
+   * since chaos values are needed for value tracking. Only the RARITY assignment
+   * is source-dependent.
+   */
+  private async updateRaritiesForSource(
+    gameType: "poe1" | "poe2",
+    leagueName: string,
+    snapshotData: SessionPriceSnapshot,
+  ): Promise<void> {
+    let raritySource: string | null = null;
+    try {
+      raritySource = await this.settingsStore.get(SettingsKey.RaritySource);
+    } catch {
+      // Settings store may not be available — default to poe.ninja
+    }
+
+    if (raritySource === "prohibited-library") {
+      // Use Prohibited Library rarities — PL data is already in the database
+      // from the ProhibitedLibraryService init/reload cycle
+      await this.divinationCards.updateRaritiesFromProhibitedLibrary(
+        gameType,
+        leagueName,
+      );
+    } else {
+      // Default: derive rarities from poe.ninja prices
+      // (When source is "filter", we still write price-based rarities here;
+      // the filter rarities are applied separately by RarityModelService
+      // and take precedence via the filter_card_rarities JOIN.)
+      const mergedPrices = this.mergeCardPrices(snapshotData);
+      await this.divinationCards.updateRaritiesFromPrices(
+        gameType,
+        leagueName,
+        snapshotData.exchange.chaosToDivineRatio,
+        mergedPrices,
+      );
     }
   }
 

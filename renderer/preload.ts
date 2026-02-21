@@ -10,6 +10,7 @@ import { MainWindowAPI } from "~/main/modules/main-window/MainWindow.api";
 import { OverlayAPI } from "~/main/modules/overlay/Overlay.api";
 import { PoeLeaguesAPI } from "~/main/modules/poe-leagues/PoeLeagues.api";
 import { PoeProcessAPI } from "~/main/modules/poe-process/PoeProcess.api";
+import { ProhibitedLibraryAPI } from "~/main/modules/prohibited-library/ProhibitedLibrary.api";
 import { RarityModelAPI } from "~/main/modules/rarity-model/RarityModel.api";
 import { SessionsAPI } from "~/main/modules/sessions/Sessions.api";
 import { SettingsStoreAPI } from "~/main/modules/settings-store/SettingsStore.api";
@@ -38,4 +39,5 @@ contextBridge.exposeInMainWorld("electron", {
   divinationCards: DivinationCardsApi,
   updater: UpdaterAPI,
   rarityModel: RarityModelAPI,
+  prohibitedLibrary: ProhibitedLibraryAPI,
 });

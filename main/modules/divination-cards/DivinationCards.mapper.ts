@@ -10,6 +10,7 @@ import type { DivinationCardDTO } from "./DivinationCards.dto";
 interface DivinationCardWithRarityRow extends DivinationCardsRow {
   rarity?: Rarity;
   filter_rarity?: KnownRarity | null;
+  prohibited_library_rarity?: KnownRarity | null;
 }
 
 /**
@@ -27,6 +28,8 @@ export class DivinationCardsMapper {
       flavourHtml: cleanWikiMarkup(row.flavour_html),
       rarity: row.rarity ?? (0 as Rarity), // Default to 0 (Unknown) if not set
       filterRarity: row.filter_rarity ?? null,
+      prohibitedLibraryRarity: row.prohibited_library_rarity ?? null,
+      fromBoss: row.from_boss === 1,
       game: row.game,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
