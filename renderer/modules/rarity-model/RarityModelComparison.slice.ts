@@ -1,3 +1,4 @@
+import type { SortingState } from "@tanstack/react-table";
 import type { StateCreator } from "zustand";
 
 import type { DiscoveredRarityModelDTO } from "~/main/modules/rarity-model/RarityModel.dto";
@@ -36,6 +37,10 @@ export interface ComparisonRow {
   isDifferent: boolean;
   /** filterId → rarity (null = still loading) */
   filterRarities: Record<string, KnownRarity | null>;
+  /** Prohibited Library derived rarity (1–4), or null if card absent from PL dataset */
+  prohibitedLibraryRarity: KnownRarity | null;
+  /** Whether the card is boss-exclusive in the stacked-deck context (from PL data) */
+  fromBoss: boolean;
 }
 
 // ─── Slice ───────────────────────────────────────────────────────────────────
@@ -49,12 +54,22 @@ export interface RarityModelComparisonSlice {
     parseErrors: Map<string, string>;
     showDiffsOnly: boolean;
 
+    // Priority rarity filters (drive the custom sort functions)
+    priorityPoeNinjaRarity: Rarity | null;
+    priorityPlRarity: KnownRarity | null;
+    // Table sort state (owned here so sort is preserved across re-renders / devtools)
+    tableSorting: SortingState;
+
     // Actions
     toggleFilter: (filterId: string) => void;
     parseFilter: (filterId: string) => Promise<void>;
     parseNextUnparsedFilter: () => Promise<void>;
     rescan: () => Promise<void>;
     setShowDiffsOnly: (show: boolean) => void;
+    // Priority rarity actions — toggle on click, clear when switching sort column
+    handlePoeNinjaRarityClick: (rarity: Rarity) => void;
+    handlePlRarityClick: (rarity: KnownRarity) => void;
+    handleTableSortingChange: (sorting: SortingState) => void;
     updateFilterCardRarity: (
       filterId: string,
       cardName: string,
@@ -85,6 +100,9 @@ export const createRarityModelComparisonSlice: StateCreator<
     parsingFilterId: null,
     parseErrors: new Map(),
     showDiffsOnly: false,
+    priorityPoeNinjaRarity: null,
+    priorityPlRarity: null,
+    tableSorting: [{ id: "name", desc: false }],
 
     // ─── Actions ───────────────────────────────────────────────────────
 
@@ -231,6 +249,55 @@ export const createRarityModelComparisonSlice: StateCreator<
       );
     },
 
+    handlePoeNinjaRarityClick: (rarity: Rarity) => {
+      set(
+        ({ rarityModelComparison: s }) => {
+          const next = s.priorityPoeNinjaRarity === rarity ? null : rarity;
+          s.priorityPoeNinjaRarity = next;
+          s.priorityPlRarity = null;
+          s.tableSorting =
+            next != null
+              ? [{ id: "poeNinjaRarity", desc: false }]
+              : [{ id: "name", desc: false }];
+        },
+        false,
+        "rarityModelComparison/handlePoeNinjaRarityClick",
+      );
+    },
+
+    handlePlRarityClick: (rarity: KnownRarity) => {
+      set(
+        ({ rarityModelComparison: s }) => {
+          const next = s.priorityPlRarity === rarity ? null : rarity;
+          s.priorityPlRarity = next;
+          s.priorityPoeNinjaRarity = null;
+          s.tableSorting =
+            next != null
+              ? [{ id: "prohibitedLibraryRarity", desc: false }]
+              : [{ id: "name", desc: false }];
+        },
+        false,
+        "rarityModelComparison/handlePlRarityClick",
+      );
+    },
+
+    handleTableSortingChange: (sorting: SortingState) => {
+      set(
+        ({ rarityModelComparison: s }) => {
+          s.tableSorting = sorting;
+          // Clear the priority rarity for any column no longer being sorted by
+          if (!sorting.some((col) => col.id === "poeNinjaRarity")) {
+            s.priorityPoeNinjaRarity = null;
+          }
+          if (!sorting.some((col) => col.id === "prohibitedLibraryRarity")) {
+            s.priorityPlRarity = null;
+          }
+        },
+        false,
+        "rarityModelComparison/handleTableSortingChange",
+      );
+    },
+
     updateFilterCardRarity: async (
       filterId: string,
       cardName: string,
@@ -276,6 +343,9 @@ export const createRarityModelComparisonSlice: StateCreator<
           rarityModelComparison.parsingFilterId = null;
           rarityModelComparison.parseErrors = new Map();
           rarityModelComparison.showDiffsOnly = false;
+          rarityModelComparison.priorityPoeNinjaRarity = null;
+          rarityModelComparison.priorityPlRarity = null;
+          rarityModelComparison.tableSorting = [{ id: "name", desc: false }];
         },
         false,
         "rarityModelComparison/reset",
@@ -374,6 +444,8 @@ export const createRarityModelComparisonSlice: StateCreator<
           rarity: card.rarity,
           isDifferent: differences.has(card.name),
           filterRarities,
+          prohibitedLibraryRarity: card.prohibitedLibraryRarity ?? null,
+          fromBoss: card.fromBoss ?? false,
         };
       });
     },

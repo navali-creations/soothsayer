@@ -294,6 +294,11 @@ export const useBoundStore = create<BoundStore>()(
               state.rarityModelComparison.parsingFilterId = null;
               state.rarityModelComparison.parseErrors = new Map();
               state.rarityModelComparison.showDiffsOnly = false;
+              state.rarityModelComparison.priorityPoeNinjaRarity = null;
+              state.rarityModelComparison.priorityPlRarity = null;
+              state.rarityModelComparison.tableSorting = [
+                { id: "name", desc: false },
+              ];
             },
           );
         },

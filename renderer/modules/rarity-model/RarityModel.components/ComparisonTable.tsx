@@ -1,14 +1,10 @@
-import {
-  createColumnHelper,
-  type SortingFn,
-  type SortingState,
-} from "@tanstack/react-table";
-import { useCallback, useDeferredValue, useMemo, useState } from "react";
+import { createColumnHelper, type SortingFn } from "@tanstack/react-table";
+import { useDeferredValue, useMemo, useState } from "react";
 import { FiRefreshCw } from "react-icons/fi";
 
 import { Table } from "~/renderer/components";
 import { useBoundStore } from "~/renderer/store";
-import type { KnownRarity, Rarity } from "~/types/data-stores";
+import type { KnownRarity } from "~/types/data-stores";
 
 import type {
   ComparisonRow,
@@ -16,6 +12,8 @@ import type {
 } from "../RarityModelComparison.slice";
 import PoeNinjaColumnHeader from "./PoeNinjaColumnHeader";
 import PoeNinjaRarityCell from "./PoeNinjaRarityCell";
+import ProhibitedLibraryColumnHeader from "./ProhibitedLibraryColumnHeader";
+import ProhibitedLibraryRarityCell from "./ProhibitedLibraryRarityCell";
 import RarityBadgeDropdown from "./RarityBadgeDropdown";
 import RarityModelCardNameCell from "./RarityModelCardNameCell";
 
@@ -28,35 +26,26 @@ interface ComparisonTableProps {
 }
 
 const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
-  // Priority rarity sort: when a user clicks a rarity badge in the poe.ninja
-  // header, cards matching that rarity float to the top.
-  const [priorityRarity, setPriorityRarity] = useState<Rarity | null>(null);
-  const [sorting, setSorting] = useState<SortingState>([
-    { id: "name", desc: false },
-  ]);
+  // ── Boss indicator toggle (local UI state) ──
+  const [showBossIndicator, setShowBossIndicator] = useState(true);
 
-  const handleRarityClick = useCallback((rarity: Rarity) => {
-    setPriorityRarity((prev) => {
-      const next = prev === rarity ? null : rarity;
-      if (next != null) {
-        // Activate sorting on the poe.ninja column
-        setSorting([{ id: "poeNinjaRarity", desc: false }]);
-      } else {
-        // Deselected — go back to sorting by name
-        setSorting([{ id: "name", desc: false }]);
-      }
-      return next;
-    });
-  }, []);
-
-  const handleSortingChange = useCallback((newSorting: SortingState) => {
-    setSorting(newSorting);
-    // Clear priority rarity if user sorts by a different column
-    const isSortingByRarity = newSorting.some((s) => s.id === "poeNinjaRarity");
-    if (!isSortingByRarity) {
-      setPriorityRarity(null);
-    }
-  }, []);
+  // ── Priority rarity & sorting — owned by the store ──
+  const priorityRarity = useBoundStore(
+    (s) => s.rarityModelComparison.priorityPoeNinjaRarity,
+  );
+  const priorityPLRarity = useBoundStore(
+    (s) => s.rarityModelComparison.priorityPlRarity,
+  );
+  const sorting = useBoundStore((s) => s.rarityModelComparison.tableSorting);
+  const handleRarityClick = useBoundStore(
+    (s) => s.rarityModelComparison.handlePoeNinjaRarityClick,
+  );
+  const handlePLRarityClick = useBoundStore(
+    (s) => s.rarityModelComparison.handlePlRarityClick,
+  );
+  const handleSortingChange = useBoundStore(
+    (s) => s.rarityModelComparison.handleTableSortingChange,
+  );
 
   // Custom sort: matching rarity first, then ascending by rarity value.
   const raritySortFn = useMemo<SortingFn<ComparisonRow>>(
@@ -73,6 +62,28 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
       return a - b;
     },
     [priorityRarity],
+  );
+
+  // Custom sort for PL column: null values always sort to bottom.
+  const plRaritySortFn = useMemo<SortingFn<ComparisonRow>>(
+    () => (rowA, rowB) => {
+      const a = rowA.original.prohibitedLibraryRarity;
+      const b = rowB.original.prohibitedLibraryRarity;
+
+      // null (no PL data) always sorts to the bottom
+      if (a == null && b == null) return 0;
+      if (a == null) return 1;
+      if (b == null) return -1;
+
+      if (priorityPLRarity != null) {
+        const aMatch = a === priorityPLRarity ? 0 : 1;
+        const bMatch = b === priorityPLRarity ? 0 : 1;
+        if (aMatch !== bMatch) return aMatch - bMatch;
+      }
+
+      return a - b;
+    },
+    [priorityPLRarity],
   );
 
   // Use individual selectors so the component only re-renders when these
@@ -154,6 +165,8 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
         rarity: card.rarity,
         isDifferent: differences.has(card.name),
         filterRarities,
+        prohibitedLibraryRarity: card.prohibitedLibraryRarity ?? null,
+        fromBoss: card.fromBoss ?? false,
       };
     });
   }, [allCards, selectedFilters, parsedResults, showDiffsOnly]);
@@ -182,7 +195,6 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
       }),
 
       // poe.ninja rarity — sortable by clicking rarity badges in header
-      // TODO: Make badge a clickable link to internal card detail page
       columnHelper.accessor("rarity", {
         id: "poeNinjaRarity",
         header: () => (
@@ -199,6 +211,28 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
         ),
         size: 120,
         sortingFn: raritySortFn,
+        meta: { hideSortIcon: true },
+        enableGlobalFilter: false,
+      }),
+
+      // Prohibited Library rarity — permanent second column, read-only
+      columnHelper.accessor("prohibitedLibraryRarity", {
+        id: "prohibitedLibraryRarity",
+        header: () => (
+          <ProhibitedLibraryColumnHeader
+            activeRarity={priorityPLRarity}
+            onRarityClick={handlePLRarityClick}
+          />
+        ),
+        cell: (info) => (
+          <ProhibitedLibraryRarityCell
+            rarity={info.getValue()}
+            fromBoss={info.row.original.fromBoss}
+            showBossIndicator={showBossIndicator}
+          />
+        ),
+        size: 140,
+        sortingFn: plRaritySortFn,
         meta: { hideSortIcon: true },
         enableGlobalFilter: false,
       }),
@@ -291,6 +325,10 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
     priorityRarity,
     handleRarityClick,
     raritySortFn,
+    priorityPLRarity,
+    handlePLRarityClick,
+    plRaritySortFn,
+    showBossIndicator,
   ]);
 
   if (displayRows.length === 0) {
@@ -302,20 +340,34 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
   }
 
   return (
-    <div className="flex-1 min-h-0 overflow-auto rounded-lg [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-base-100 [&::-webkit-scrollbar-thumb]:bg-base-300 [&::-webkit-scrollbar-thumb]:rounded-full">
-      <Table
-        data={displayRows}
-        columns={columns}
-        enableSorting={true}
-        enablePagination={true}
-        pageSize={20}
-        hoverable={true}
-        stickyHeader={true}
-        sorting={sorting}
-        onSortingChange={handleSortingChange}
-        globalFilter={globalFilter}
-        rowClassName="hover:bg-base-content/[0.03] transition-colors"
-      />
+    <div className="flex-1 min-h-0 flex flex-col gap-2">
+      {/* Boss indicator toggle */}
+      <div className="flex justify-end px-1">
+        <label className="label cursor-pointer gap-2">
+          <input
+            type="checkbox"
+            className="checkbox checkbox-xs checkbox-primary"
+            checked={showBossIndicator}
+            onChange={(e) => setShowBossIndicator(e.target.checked)}
+          />
+          <span className="label-text text-xs">Show boss indicators</span>
+        </label>
+      </div>
+      <div className="flex-1 min-h-0 overflow-auto rounded-lg [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-base-100 [&::-webkit-scrollbar-thumb]:bg-base-300 [&::-webkit-scrollbar-thumb]:rounded-full">
+        <Table
+          data={displayRows}
+          columns={columns}
+          enableSorting={true}
+          enablePagination={true}
+          pageSize={20}
+          hoverable={true}
+          stickyHeader={true}
+          sorting={sorting}
+          onSortingChange={handleSortingChange}
+          globalFilter={globalFilter}
+          rowClassName="hover:bg-base-content/[0.03] transition-colors"
+        />
+      </div>
     </div>
   );
 };

@@ -1,6 +1,6 @@
 import type { StateCreator } from "zustand";
 
-import type { Rarity } from "~/types/data-stores";
+import type { KnownRarity, Rarity } from "~/types/data-stores";
 
 import type { SettingsSlice } from "../settings/Settings.slice";
 
@@ -13,6 +13,8 @@ interface DivinationCardDTO {
   artSrc: string;
   flavourHtml: string;
   rarity: Rarity;
+  prohibitedLibraryRarity: KnownRarity | null;
+  fromBoss: boolean;
   game: "poe1" | "poe2";
   createdAt: string;
   updatedAt: string;
