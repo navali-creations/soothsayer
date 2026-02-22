@@ -114,17 +114,17 @@ EOF
     echo "INTERNAL_CRON_SECRET=$GENERATED_CRON_SECRET" >> supabase/functions/.env
 
     echo -e "${GREEN}[OK]${NC} supabase/functions/.env created with generated INTERNAL_CRON_SECRET"
-
-    # Restart Edge Runtime to pick up new .env file
-    echo "[*] Restarting Edge Runtime to load environment variables..."
-    docker restart supabase_edge_runtime_soothsayer > /dev/null 2>&1 || true
 fi
 
 # Always restart Edge Runtime if it's running (to ensure .env is loaded)
+# Then restart Kong to clear its DNS cache — the Edge Runtime may get a new
+# IP after restart and Kong would keep trying the stale one, causing timeouts.
 if docker ps | grep -q "supabase_edge_runtime_soothsayer"; then
     echo "[*] Restarting Edge Runtime to ensure environment variables are loaded..."
     docker restart supabase_edge_runtime_soothsayer > /dev/null 2>&1
-    echo "[*] Waiting for Edge Runtime to be ready..."
+    echo "[*] Restarting Kong to refresh DNS cache..."
+    docker restart supabase_kong_soothsayer > /dev/null 2>&1
+    echo "[*] Waiting for services to be ready..."
     sleep 5
 fi
 
