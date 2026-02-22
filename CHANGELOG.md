@@ -1,5 +1,65 @@
 # soothsayer
 
+## 0.5.0
+
+### Minor Changes
+
+- [`d0229f3`](https://github.com/navali-creations/soothsayer/commit/d0229f3553e34a26836ef8d302c644493342d28f) Thanks [@sbsrnt](https://github.com/sbsrnt)! - - **Prohibited Library rarity source:** You can now use the Prohibited Library (community-sourced stacked deck weight data) as a rarity source. Select it from the rarity source dropdown in Settings — it's no longer grayed out.
+
+  - **Weight-based card rarities:** Card rarities are derived from empirical drop-weight data collected by the Path of Exile Science & Data community, offering an alternative to price-based (poe.ninja) classification.
+
+  - **Rarity Model integration:** A new "Prohibited Library" column appears on the Rarity Model comparison page, letting you compare weight-based rarities against poe.ninja prices and your loot filters side-by-side. Clickable rarity badges in the column header let you sort by specific tiers.
+
+  - **Boss-exclusive card indicators:** Cards that are boss-exclusive drops (and therefore cannot drop from Stacked Decks) are now marked with a skull-crown icon in the Rarity Model table, so you can identify them at a glance.
+
+  - **Prohibited Library status block:** When the Prohibited Library is selected as your rarity source, a new status panel in Settings shows the loaded league, card count, app version, and last-loaded timestamp. A reload button lets you re-parse the bundled data on demand.
+
+  - **Snapshot rarity routing:** Creating or reusing a pricing snapshot now respects your chosen rarity source — if Prohibited Library is active, card rarities are derived from weight data instead of poe.ninja prices.
+
+### Patch Changes
+
+- [`e0f96f2`](https://github.com/navali-creations/soothsayer/commit/e0f96f29ea564f5cab8258847e77cda714b95487) Thanks [@sbsrnt](https://github.com/sbsrnt)! - Improved backend performance and reduced database size through automated cleanup of old request logs. This is a behind-the-scenes improvement that keeps the app running smoothly without any visible changes.
+
+- [`f0f2031`](https://github.com/navali-creations/soothsayer/commit/f0f203165d22d839afab23cfb2399cc8102ab304) Thanks [@sbsrnt](https://github.com/sbsrnt)! - - **Fixed inactive leagues showing in selector:** Ended leagues (e.g. Phrecia 2.0) no longer appear in the league selector.
+
+  - **Fixed rarity filter ignoring rarity source:** The rarity filter and sort on the Cards page now correctly reflect whichever rarity source you've selected, instead of always using poe.ninja values.
+
+  - **Fixed card animations when switching rarity source:** All cards now animate consistently when you change the rarity source, instead of some staying static.
+
+  - **Boss card toggle on Cards page:** A new "Include boss cards" checkbox lets you show or hide boss-exclusive cards. They are hidden by default, matching the Rarity Model page behavior.
+
+  - **Boss-exclusive card indicator:** Cards that only drop from bosses now display a skull-crown badge on the card itself with a tooltip.
+
+  - **Rarity-colored card glow:** Cards on the Cards page now glow in their rarity color (white, blue, or cyan) instead of a plain white glow.
+
+  - **Scroll to top on filter and page change:** Changing any filter or clicking a pagination button now scrolls the card grid back to the top.
+
+- [`167448e`](https://github.com/navali-creations/soothsayer/commit/167448e015a341509bd9c62b2d31511fdce0bca1) Thanks [@sbsrnt](https://github.com/sbsrnt)! - This release fixes the `poe.ninja` column on the Rarity Model comparison page where it showed values from the most recently used filter instead of actual poe.ninja price-based rarities
+
+- [`93ca5c6`](https://github.com/navali-creations/soothsayer/commit/93ca5c67d4ebe31d8fd5d7a4a9fa5b474b3888c2) Thanks [@sbsrnt](https://github.com/sbsrnt)! - Improved local development reliability by automatically restarting the Kong API gateway after the edge runtime restarts during setup. This prevents stale DNS routing issues that could cause edge function timeouts when developing locally.
+
+- [`d25563e`](https://github.com/navali-creations/soothsayer/commit/d25563e1e6e652b6838ede22181af9b9cbf72440) Thanks [@sbsrnt](https://github.com/sbsrnt)! - - **Overlay now respects your price source setting:** The in-game overlay previously always used exchange prices regardless of your selection. It now correctly shows stash or exchange prices based on your chosen price source.
+
+  - **Live price source switching:** Changing your price source mid-session now immediately updates the overlay — no need to restart your session.
+
+  - **More accurate card rarities:** Cards that only have stash pricing (no exchange data) are now marked as "Unknown" rarity instead of receiving a potentially misleading rarity based on unreliable stash prices.
+
+  - **Unknown rarity indicator:** Cards with low-confidence pricing now show a warning icon in the overlay so you can tell at a glance which prices may be unreliable.
+
+  - **Fixed rarity 0 being treated as common:** A bug caused cards intentionally classified as "Unknown" (rarity 0) to silently appear as "Common" (rarity 4). These cards now display correctly.
+
+  - **PoE2 default price source:** New installations now default to exchange pricing for PoE2 (previously defaulted to stash). Existing users are not affected.
+
+- [`8b6fc5d`](https://github.com/navali-creations/soothsayer/commit/8b6fc5d0100e5529f2ba837799426331c3d522ed) Thanks [@sbsrnt](https://github.com/sbsrnt)! - The pricing snapshot info shown during an active session now always matches the data actually used to price your cards
+
+- [`d0229f3`](https://github.com/navali-creations/soothsayer/commit/d0229f3553e34a26836ef8d302c644493342d28f) Thanks [@sbsrnt](https://github.com/sbsrnt)! - - **Custom rarity source dropdown:** The native select element for picking your rarity source (on the Cards and Current Session pages) has been replaced with a polished popover dropdown featuring grouped options, rich labels with hover hints, checkmarks, and outdated-filter warnings.
+
+  - **Filter column rarity sorting:** Filter columns on the Rarity Model comparison page now have clickable R1–R4 rarity chips in their headers, letting you sort by a specific tier — just like the poe.ninja and Prohibited Library columns.
+
+  - **Boss card toggle:** Boss-exclusive cards are now hidden from the Rarity Model table by default. A new "Include boss cards" checkbox in the toolbar lets you bring them back, at which point a skull-crown indicator column appears so you can identify them at a glance.
+
+  - **"Show differences only" always visible:** The diff toggle on the Rarity Model toolbar is now always rendered (disabled when no filters are parsed) instead of appearing and disappearing, making the UI more predictable.
+
 ## 0.4.0
 
 ### Minor Changes
