@@ -15,8 +15,10 @@ import CurrentSessionStartSessionBeacon from "../current-session/CurrentSession.
 import GameInfoBeacon from "../game-info/GameInfo.beacon";
 import OverlayBeacon from "../overlay/Overlay.beacon";
 import RarityModelPoeNinjaBeacon from "../rarity-model/RarityModel.beacons/RarityModelPoeNinjaBeacon";
+import RarityModelProhibitedLibraryBeacon from "../rarity-model/RarityModel.beacons/RarityModelProhibitedLibraryBeacon";
 import RarityModelRefreshBeacon from "../rarity-model/RarityModel.beacons/RarityModelRefreshBeacon";
 import RarityModelScanBeacon from "../rarity-model/RarityModel.beacons/RarityModelScanBeacon";
+import RarityModelToolbarBeacon from "../rarity-model/RarityModel.beacons/RarityModelToolbarBeacon";
 import { trackEvent } from "../umami";
 import { repereStoreAdapter } from "./repereStoreAdapter";
 
@@ -177,6 +179,21 @@ export const onboardingConfig: RepereReactConfig = {
           },
         },
         {
+          id: "rarity-model-prohibited-library",
+          selector: "[data-onboarding='rarity-model-prohibited-library']",
+          trigger: {
+            component: createTrackedTrigger("rarity-model-prohibited-library"),
+            anchorPoint: AnchorPoint.TopRight,
+          },
+          popover: {
+            component: RarityModelProhibitedLibraryBeacon,
+            anchorPoint: AnchorPoint.BottomLeft,
+            offset: {
+              y: 10,
+            },
+          },
+        },
+        {
           id: "rarity-model-refresh",
           selector: "[data-onboarding='rarity-model-refresh']",
           trigger: {
@@ -206,6 +223,24 @@ export const onboardingConfig: RepereReactConfig = {
           },
           popover: {
             component: RarityModelScanBeacon,
+            anchorPoint: AnchorPoint.BottomRight,
+            offset: {
+              y: 10,
+            },
+          },
+        },
+        {
+          id: "rarity-model-toolbar",
+          selector: "[data-onboarding='rarity-model-toolbar']",
+          trigger: {
+            component: createTrackedTrigger("rarity-model-toolbar"),
+            anchorPoint: AnchorPoint.BottomCenter,
+            offset: {
+              y: 5,
+            },
+          },
+          popover: {
+            component: RarityModelToolbarBeacon,
             anchorPoint: AnchorPoint.BottomRight,
             offset: {
               y: 10,

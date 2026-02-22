@@ -154,8 +154,8 @@ const RarityModelPage = () => {
                   {selectedCount > 0
                     ? `Comparing rarities across ${selectedCount} filter${
                         selectedCount !== 1 ? "s" : ""
-                      } against poe.ninja`
-                    : "Select filters to compare rarities against poe.ninja"}
+                      } against other rarity sources`
+                    : "Select filters to compare rarities against other rarity sources"}
                 </p>
               </div>
               <ComparisonToolbar />

@@ -22,7 +22,10 @@ const ComparisonToolbar = () => {
   const diffsEnabled = canShowDiffs && allSelectedParsed;
 
   return (
-    <div className="flex self-end gap-3 flex-wrap">
+    <div
+      className="flex self-end gap-3 flex-wrap"
+      data-onboarding="rarity-model-toolbar"
+    >
       <label className="label cursor-pointer gap-2">
         <input
           type="checkbox"

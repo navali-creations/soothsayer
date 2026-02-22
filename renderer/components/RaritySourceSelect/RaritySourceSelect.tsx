@@ -73,8 +73,8 @@ const RaritySourceSelect = ({
         className={clsx(
           "select select-bordered select-sm",
           "flex items-center justify-between gap-1 text-left",
-          // Remove the built-in DaisyUI select chevron arrow — we render our own
-          "bg-none!",
+          // Remove the built-in DaisyUI select chevron arrow & its padding — we render our own
+          "bg-none! pr-2!",
           width,
           disabled && "select-disabled opacity-50 pointer-events-none",
         )}

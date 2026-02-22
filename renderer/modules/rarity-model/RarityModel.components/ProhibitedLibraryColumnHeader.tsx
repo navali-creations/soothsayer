@@ -44,7 +44,10 @@ const ProhibitedLibraryColumnHeader = memo(
     );
 
     return (
-      <div className="flex flex-col items-center gap-1">
+      <div
+        className="flex flex-col items-center gap-1"
+        data-onboarding="rarity-model-prohibited-library"
+      >
         <span className="text-xs font-semibold">Prohibited Library</span>
         <div className="flex items-center gap-0.5">
           {KNOWN_RARITY_LEVELS.map((rarity) => {
