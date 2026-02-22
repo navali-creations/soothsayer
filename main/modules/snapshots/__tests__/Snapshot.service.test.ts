@@ -41,13 +41,35 @@ vi.mock("~/main/modules/database", () => ({
 // ─── Mock DivinationCardsService ─────────────────────────────────────────────
 const mockUpdateRaritiesFromPrices = vi.fn().mockResolvedValue(undefined);
 const mockUpdateRaritiesFromFilter = vi.fn().mockResolvedValue(undefined);
+const mockUpdateRaritiesFromProhibitedLibrary = vi
+  .fn()
+  .mockResolvedValue(undefined);
 vi.mock("~/main/modules/divination-cards", () => ({
   DivinationCardsService: {
     getInstance: vi.fn(() => ({
       updateRaritiesFromPrices: mockUpdateRaritiesFromPrices,
       updateRaritiesFromFilter: mockUpdateRaritiesFromFilter,
+      updateRaritiesFromProhibitedLibrary:
+        mockUpdateRaritiesFromProhibitedLibrary,
       initialize: vi.fn(),
     })),
+  },
+}));
+
+// ─── Mock SettingsStoreService ───────────────────────────────────────────────
+const mockSettingsGet = vi.fn().mockResolvedValue(null);
+vi.mock("~/main/modules/settings-store", () => ({
+  SettingsStoreService: {
+    getInstance: vi.fn(() => ({
+      get: mockSettingsGet,
+      set: vi.fn(),
+    })),
+  },
+  SettingsKey: {
+    RaritySource: "raritySource",
+    SelectedPoe1League: "poe1SelectedLeague",
+    SelectedPoe2League: "poe2SelectedLeague",
+    ActiveGame: "activeGame",
   },
 }));
 
@@ -86,6 +108,10 @@ describe("SnapshotService", () => {
     mockGetLatestSnapshot.mockReset();
     mockUpdateRaritiesFromPrices.mockReset().mockResolvedValue(undefined);
     mockUpdateRaritiesFromFilter.mockReset().mockResolvedValue(undefined);
+    mockUpdateRaritiesFromProhibitedLibrary
+      .mockReset()
+      .mockResolvedValue(undefined);
+    mockSettingsGet.mockReset().mockResolvedValue(null);
     mockGetAllWindows.mockReturnValue([]);
 
     // Reset the singleton so each test gets a fresh instance
@@ -1256,6 +1282,215 @@ describe("SnapshotService", () => {
           league: "Settlers",
         }),
       );
+    });
+  });
+
+  // ─── updateRaritiesForSource routing ─────────────────────────────────────
+
+  describe("updateRaritiesForSource (rarity source routing)", () => {
+    it("should call updateRaritiesFromPrices when rarity source is null (default)", async () => {
+      mockSettingsGet.mockResolvedValue(null);
+
+      const mockSnapshotData = {
+        timestamp: new Date().toISOString(),
+        stackedDeckChaosCost: 0,
+        exchange: {
+          chaosToDivineRatio: 200,
+          cardPrices: {
+            "The Doctor": { chaosValue: 800, divineValue: 4 },
+          },
+        },
+        stash: {
+          chaosToDivineRatio: 200,
+          cardPrices: {},
+        },
+      };
+
+      mockGetLatestSnapshot.mockResolvedValue(mockSnapshotData);
+
+      await service.getSnapshotForSession("poe1", "Settlers");
+
+      expect(mockUpdateRaritiesFromPrices).toHaveBeenCalledWith(
+        "poe1",
+        "Settlers",
+        200,
+        expect.objectContaining({
+          "The Doctor": expect.objectContaining({ chaosValue: 800 }),
+        }),
+      );
+      expect(mockUpdateRaritiesFromProhibitedLibrary).not.toHaveBeenCalled();
+    });
+
+    it("should call updateRaritiesFromPrices when rarity source is 'poe.ninja'", async () => {
+      mockSettingsGet.mockResolvedValue("poe.ninja");
+
+      const mockSnapshotData = {
+        timestamp: new Date().toISOString(),
+        stackedDeckChaosCost: 0,
+        exchange: {
+          chaosToDivineRatio: 200,
+          cardPrices: {
+            "The Doctor": { chaosValue: 800, divineValue: 4 },
+          },
+        },
+        stash: {
+          chaosToDivineRatio: 200,
+          cardPrices: {},
+        },
+      };
+
+      mockGetLatestSnapshot.mockResolvedValue(mockSnapshotData);
+
+      await service.getSnapshotForSession("poe1", "Settlers");
+
+      expect(mockUpdateRaritiesFromPrices).toHaveBeenCalledWith(
+        "poe1",
+        "Settlers",
+        200,
+        expect.objectContaining({
+          "The Doctor": expect.objectContaining({ chaosValue: 800 }),
+        }),
+      );
+      expect(mockUpdateRaritiesFromProhibitedLibrary).not.toHaveBeenCalled();
+    });
+
+    it("should call updateRaritiesFromProhibitedLibrary when rarity source is 'prohibited-library'", async () => {
+      mockSettingsGet.mockResolvedValue("prohibited-library");
+
+      const mockSnapshotData = {
+        timestamp: new Date().toISOString(),
+        stackedDeckChaosCost: 0,
+        exchange: {
+          chaosToDivineRatio: 200,
+          cardPrices: {
+            "The Doctor": { chaosValue: 800, divineValue: 4 },
+          },
+        },
+        stash: {
+          chaosToDivineRatio: 200,
+          cardPrices: {},
+        },
+      };
+
+      mockGetLatestSnapshot.mockResolvedValue(mockSnapshotData);
+
+      await service.getSnapshotForSession("poe1", "Settlers");
+
+      expect(mockUpdateRaritiesFromProhibitedLibrary).toHaveBeenCalledWith(
+        "poe1",
+        "Settlers",
+      );
+      expect(mockUpdateRaritiesFromPrices).not.toHaveBeenCalled();
+    });
+
+    it("should call updateRaritiesFromPrices (not filter) when rarity source is 'filter'", async () => {
+      // When source is "filter", we still write price-based rarities here;
+      // filter rarities are applied separately by RarityModelService via the
+      // filter_card_rarities JOIN.
+      mockSettingsGet.mockResolvedValue("filter");
+
+      const mockSnapshotData = {
+        timestamp: new Date().toISOString(),
+        stackedDeckChaosCost: 0,
+        exchange: {
+          chaosToDivineRatio: 150,
+          cardPrices: {
+            "Rain of Chaos": { chaosValue: 1, divineValue: 0.007 },
+          },
+        },
+        stash: {
+          chaosToDivineRatio: 150,
+          cardPrices: {},
+        },
+      };
+
+      mockGetLatestSnapshot.mockResolvedValue(mockSnapshotData);
+
+      await service.getSnapshotForSession("poe1", "Settlers");
+
+      expect(mockUpdateRaritiesFromPrices).toHaveBeenCalled();
+      expect(mockUpdateRaritiesFromProhibitedLibrary).not.toHaveBeenCalled();
+      expect(mockUpdateRaritiesFromFilter).not.toHaveBeenCalled();
+    });
+
+    it("should route to prohibited-library when reusing a recent snapshot", async () => {
+      mockSettingsGet.mockResolvedValue("prohibited-library");
+
+      const leagueId = await seedLeague(testDb.kysely, {
+        game: "poe1",
+        name: "Settlers",
+      });
+
+      const recentTime = new Date(
+        Date.now() - 1 * 60 * 60 * 1000,
+      ).toISOString();
+
+      await seedSnapshot(testDb.kysely, {
+        leagueId,
+        fetchedAt: recentTime,
+        exchangeChaosToDivine: 200,
+        stashChaosToDivine: 200,
+        cardPrices: [
+          {
+            cardName: "The Doctor",
+            priceSource: "exchange",
+            chaosValue: 800,
+            divineValue: 4,
+          },
+        ],
+      });
+
+      await service.getSnapshotForSession("poe1", "Settlers");
+
+      expect(mockUpdateRaritiesFromProhibitedLibrary).toHaveBeenCalledWith(
+        "poe1",
+        "Settlers",
+      );
+      expect(mockUpdateRaritiesFromPrices).not.toHaveBeenCalled();
+    });
+
+    it("should route to prohibited-library during auto-refresh interval", async () => {
+      vi.useFakeTimers();
+
+      try {
+        mockSettingsGet.mockResolvedValue("prohibited-library");
+
+        await seedLeague(testDb.kysely, {
+          game: "poe1",
+          name: "Settlers",
+        });
+
+        const mockSnapshotData = {
+          timestamp: new Date().toISOString(),
+          stackedDeckChaosCost: 0,
+          exchange: {
+            chaosToDivineRatio: 200,
+            cardPrices: {
+              "The Doctor": { chaosValue: 800, divineValue: 4 },
+            },
+          },
+          stash: {
+            chaosToDivineRatio: 200,
+            cardPrices: {},
+          },
+        };
+
+        mockGetLatestSnapshot.mockResolvedValue(mockSnapshotData);
+
+        service.startAutoRefresh("poe1", "Settlers");
+
+        // Advance timer to trigger the interval callback
+        await vi.advanceTimersByTimeAsync(4 * 60 * 60 * 1000);
+
+        expect(mockUpdateRaritiesFromProhibitedLibrary).toHaveBeenCalledWith(
+          "poe1",
+          "Settlers",
+        );
+        expect(mockUpdateRaritiesFromPrices).not.toHaveBeenCalled();
+      } finally {
+        service.stopAllAutoRefresh();
+        vi.useRealTimers();
+      }
     });
   });
 });

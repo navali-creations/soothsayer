@@ -11,6 +11,7 @@ import { DivinationCardsMapper } from "../DivinationCards.mapper";
 interface DivinationCardWithRarityRow extends DivinationCardsRow {
   rarity?: Rarity;
   filter_rarity?: KnownRarity | null;
+  prohibited_library_rarity?: Rarity | null;
 }
 
 /**
@@ -170,6 +171,62 @@ describe("DivinationCards.mapper", () => {
       const dto = DivinationCardsMapper.toDTO(row);
 
       expect(dto.rarity).toBe(0);
+    });
+
+    it("should default prohibitedLibraryRarity to null when not provided", () => {
+      const row = createDivinationCardRow();
+      const dto = DivinationCardsMapper.toDTO(row);
+
+      expect(dto.prohibitedLibraryRarity).toBeNull();
+    });
+
+    it("should use provided prohibited_library_rarity when present", () => {
+      const row = createDivinationCardRow({
+        prohibited_library_rarity: 3,
+      });
+      const dto = DivinationCardsMapper.toDTO(row);
+
+      expect(dto.prohibitedLibraryRarity).toBe(3);
+    });
+
+    it("should map prohibited_library_rarity null to prohibitedLibraryRarity null", () => {
+      const row = createDivinationCardRow({
+        prohibited_library_rarity: null,
+      });
+      const dto = DivinationCardsMapper.toDTO(row);
+
+      expect(dto.prohibitedLibraryRarity).toBeNull();
+    });
+
+    it("should map all valid prohibited_library_rarity values (0–4)", () => {
+      for (const r of [0, 1, 2, 3, 4] as Rarity[]) {
+        const row = createDivinationCardRow({
+          prohibited_library_rarity: r,
+        });
+        const dto = DivinationCardsMapper.toDTO(row);
+        expect(dto.prohibitedLibraryRarity).toBe(r);
+      }
+    });
+
+    it("should map from_boss = 0 to fromBoss = false", () => {
+      const row = createDivinationCardRow({ from_boss: 0 });
+      const dto = DivinationCardsMapper.toDTO(row);
+
+      expect(dto.fromBoss).toBe(false);
+    });
+
+    it("should map from_boss = 1 to fromBoss = true", () => {
+      const row = createDivinationCardRow({ from_boss: 1 });
+      const dto = DivinationCardsMapper.toDTO(row);
+
+      expect(dto.fromBoss).toBe(true);
+    });
+
+    it("should default fromBoss to false when from_boss is 0", () => {
+      const row = createDivinationCardRow();
+      const dto = DivinationCardsMapper.toDTO(row);
+
+      expect(dto.fromBoss).toBe(false);
     });
   });
 

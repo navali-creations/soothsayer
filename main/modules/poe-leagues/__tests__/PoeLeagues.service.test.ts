@@ -381,6 +381,58 @@ describe("PoeLeaguesService", () => {
       expect(names).toContain("Standard");
     });
 
+    it("should filter out inactive leagues from Supabase response", async () => {
+      mockCallEdgeFunction.mockResolvedValue({
+        leagues: [
+          {
+            id: "1",
+            leagueId: "settlers",
+            name: "Settlers",
+            startAt: "2025-01-01",
+            endAt: null,
+            isActive: true,
+            updatedAt: null,
+          },
+          {
+            id: "2",
+            leagueId: "necropolis",
+            name: "Necropolis",
+            startAt: "2024-04-01",
+            endAt: "2024-07-01",
+            isActive: false,
+            updatedAt: null,
+          },
+          {
+            id: "3",
+            leagueId: "standard",
+            name: "Standard",
+            startAt: null,
+            endAt: null,
+            isActive: true,
+            updatedAt: null,
+          },
+          {
+            id: "4",
+            leagueId: "crucible",
+            name: "Crucible",
+            startAt: "2023-04-01",
+            endAt: "2023-07-01",
+            isActive: false,
+            updatedAt: null,
+          },
+        ],
+      });
+
+      const leagues = await service.fetchLeagues("poe1");
+
+      expect(leagues).toHaveLength(2);
+      const names = leagues.map((l) => l.name);
+      expect(names).toContain("Settlers");
+      expect(names).toContain("Standard");
+      expect(names).not.toContain("Necropolis");
+      expect(names).not.toContain("Crucible");
+    });
+
     it("should store fetched leagues in the local cache", async () => {
       mockCallEdgeFunction.mockResolvedValue({
         leagues: [
