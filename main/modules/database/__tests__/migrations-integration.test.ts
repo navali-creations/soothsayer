@@ -1144,7 +1144,7 @@ describe("Migrations Integration", () => {
       const runner = new MigrationRunner(db);
       runner.runMigrations(migrations);
 
-      // Valid rarity (1-4) should work
+      // Valid rarity (0-4) should work
       expect(() =>
         db
           .prepare(
@@ -1154,12 +1154,22 @@ describe("Migrations Integration", () => {
           .run(),
       ).not.toThrow();
 
-      // Rarity 0 should fail
+      // Rarity 0 (unknown) should work
       expect(() =>
         db
           .prepare(
             `INSERT INTO prohibited_library_card_weights (card_name, game, league, weight, rarity, from_boss, loaded_at)
              VALUES ('House of Mirrors', 'poe1', 'Keepers', 50, 0, 0, '2026-02-21T00:00:00Z')`,
+          )
+          .run(),
+      ).not.toThrow();
+
+      // Rarity -1 should fail
+      expect(() =>
+        db
+          .prepare(
+            `INSERT INTO prohibited_library_card_weights (card_name, game, league, weight, rarity, from_boss, loaded_at)
+             VALUES ('The Apothecary', 'poe1', 'Keepers', 50, -1, 0, '2026-02-21T00:00:00Z')`,
           )
           .run(),
       ).toThrow();

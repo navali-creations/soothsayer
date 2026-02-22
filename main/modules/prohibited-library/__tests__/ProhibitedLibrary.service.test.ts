@@ -132,9 +132,10 @@ const MOCK_CSV_CONTENT = [
   "patch,Bucket,col2,Ritual,col4,Keepers,All samples",
   "Sample Size,,,,,1000,5000",
   "The Doctor,18,,4,,10,50",
-  "Rain of Chaos,1,,5,,5000,20000",
-  "The Nurse,15,,4,,25,100",
-  "A Chilling Wind,3,,5,,3000,15000",
+  "Rain of Chaos,1,,5,,121400,121400",
+  "The Nurse,15,,4,,1500,6000",
+  "A Chilling Wind,3,,5,,8000,15000",
+  "The Void,26,,Boss,,0,0",
 ].join("\n");
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -242,7 +243,7 @@ describe("ProhibitedLibraryService", () => {
       const result = await service.loadData("poe1", false);
 
       expect(result.success).toBe(true);
-      expect(result.cardCount).toBe(4); // The Doctor, Rain of Chaos, The Nurse, A Chilling Wind
+      expect(result.cardCount).toBe(5); // The Doctor, Rain of Chaos, The Nurse, A Chilling Wind, The Void
       expect(result.league).toBe("Keepers");
       expect(result.loadedAt).toBeTruthy();
     });
@@ -263,7 +264,7 @@ describe("ProhibitedLibraryService", () => {
 
       expect(mockRepositoryUpsertCardWeights).toHaveBeenCalledTimes(1);
       const upsertedRows = mockRepositoryUpsertCardWeights.mock.calls[0][0];
-      expect(upsertedRows).toHaveLength(4);
+      expect(upsertedRows).toHaveLength(5);
 
       // Verify structure of first row
       const doctor = upsertedRows.find((r: any) => r.cardName === "The Doctor");
@@ -271,7 +272,7 @@ describe("ProhibitedLibraryService", () => {
       expect(doctor.game).toBe("poe1");
       expect(doctor.league).toBe("Keepers");
       expect(doctor.weight).toBe(10);
-      expect(doctor.fromBoss).toBe(true); // ritualValue = 4
+      expect(doctor.fromBoss).toBe(false);
       expect(doctor.loadedAt).toBeTruthy();
     });
 
@@ -285,7 +286,7 @@ describe("ProhibitedLibraryService", () => {
       expect(league).toBe("Keepers");
       expect(loadedAt).toBeTruthy();
       expect(appVersion).toBe("1.0.0");
-      expect(cardCount).toBe(4);
+      expect(cardCount).toBe(5);
     });
 
     it("should sync from_boss flags after persisting weights", async () => {
@@ -472,39 +473,38 @@ describe("ProhibitedLibraryService", () => {
   // ─── convertWeights (tested indirectly through loadData) ────────────────
 
   describe("convertWeights (via loadData)", () => {
-    it("should compute rarity from weight/maxWeight ratio", async () => {
+    it("should compute rarity from absolute weight thresholds", async () => {
       await service.loadData("poe1", false);
 
       const upsertedRows = mockRepositoryUpsertCardWeights.mock.calls[0][0];
-      // maxWeight = 5000 (Rain of Chaos)
 
-      // Rain of Chaos: weight=5000, pct=100 → rarity 4 (common)
+      // Rain of Chaos: weight=121400 → rarity 4 (common, >5000)
       const rainOfChaos = upsertedRows.find(
         (r: any) => r.cardName === "Rain of Chaos",
       );
       expect(rainOfChaos.rarity).toBe(4);
 
-      // A Chilling Wind: weight=3000, pct=60 → rarity 3 (>= 35, < 70)
+      // A Chilling Wind: weight=8000 → rarity 4 (common, >5000)
       const achillingWind = upsertedRows.find(
         (r: any) => r.cardName === "A Chilling Wind",
       );
-      expect(achillingWind.rarity).toBe(3);
+      expect(achillingWind.rarity).toBe(4);
 
-      // The Nurse: weight=25, pct=0.5 → rarity 1 (< 5)
+      // The Nurse: weight=1500 → rarity 3 (less common, 1001–5000)
       const theNurse = upsertedRows.find(
         (r: any) => r.cardName === "The Nurse",
       );
-      expect(theNurse.rarity).toBe(1);
+      expect(theNurse.rarity).toBe(3);
 
-      // The Doctor: weight=10, pct=0.2 → rarity 1 (< 5)
+      // The Doctor: weight=10 → rarity 1 (extremely rare, ≤30)
       const theDoctor = upsertedRows.find(
         (r: any) => r.cardName === "The Doctor",
       );
       expect(theDoctor.rarity).toBe(1);
     });
 
-    it("should use bucket fallback when weight is 0", async () => {
-      // CSV where a card has weight 0
+    it("should assign rarity 0 (unknown) when weight is 0 and card is not boss", async () => {
+      // CSV where a non-boss card has weight 0 — no drop data available yet
       const csvWithZeroWeight = [
         "patch,Bucket,col2,Ritual,col4,Keepers,All samples",
         "No Weight Card,6,,5,,0,0",
@@ -517,33 +517,38 @@ describe("ProhibitedLibraryService", () => {
 
       const upsertedRows = mockRepositoryUpsertCardWeights.mock.calls[0][0];
 
-      // No Weight Card: weight=0, bucket=6 → fallback rarity 3 (bucket 6-12)
+      // No Weight Card: weight=0, not boss → rarity 0 (unknown)
       const noWeightCard = upsertedRows.find(
         (r: any) => r.cardName === "No Weight Card",
       );
-      expect(noWeightCard.rarity).toBe(3);
+      expect(noWeightCard.rarity).toBe(0);
 
-      // Has Weight Card: weight=500, maxWeight=500, pct=100 → rarity 4
+      // Has Weight Card: weight=500 → weightToDropRarity(500) = 2 (rare, 31–1000)
       const hasWeightCard = upsertedRows.find(
         (r: any) => r.cardName === "Has Weight Card",
       );
-      expect(hasWeightCard.rarity).toBe(4);
+      expect(hasWeightCard.rarity).toBe(2);
     });
 
-    it("should correctly map fromBoss from ritualValue", async () => {
+    it("should correctly map fromBoss — only 'Boss' text means boss", async () => {
       await service.loadData("poe1", false);
 
       const upsertedRows = mockRepositoryUpsertCardWeights.mock.calls[0][0];
 
-      // The Doctor: ritualValue=4 → fromBoss=true
+      // The Doctor: Ritual column is not "Boss" → fromBoss=false
       const doctor = upsertedRows.find((r: any) => r.cardName === "The Doctor");
-      expect(doctor.fromBoss).toBe(true);
+      expect(doctor.fromBoss).toBe(false);
 
-      // Rain of Chaos: ritualValue=5 → fromBoss=false
+      // Rain of Chaos: Ritual column is not "Boss" → fromBoss=false
       const rainOfChaos = upsertedRows.find(
         (r: any) => r.cardName === "Rain of Chaos",
       );
       expect(rainOfChaos.fromBoss).toBe(false);
+
+      // The Void: Ritual="Boss" → fromBoss=true, weight=0 → rarity 0 (unknown — no stacked deck data)
+      const theVoid = upsertedRows.find((r: any) => r.cardName === "The Void");
+      expect(theVoid.fromBoss).toBe(true);
+      expect(theVoid.rarity).toBe(0);
     });
 
     it("should set all rows to the same game, league, and loadedAt", async () => {
@@ -559,7 +564,7 @@ describe("ProhibitedLibraryService", () => {
       }
     });
 
-    it("should use bucket fallback when all weights are zero (maxWeight = 0)", async () => {
+    it("should assign rarity 0 (unknown) to all cards when all weights are zero", async () => {
       const csvAllZeroWeights = [
         "patch,Bucket,col2,Ritual,col4,Keepers,All samples",
         "Card A,1,,5,,0,0",
@@ -573,20 +578,47 @@ describe("ProhibitedLibraryService", () => {
 
       const upsertedRows = mockRepositoryUpsertCardWeights.mock.calls[0][0];
 
-      // Card A: bucket=1 → fallback rarity 4
+      // All cards have weight=0 → all get rarity 0 (unknown — no stacked deck data)
       expect(
         upsertedRows.find((r: any) => r.cardName === "Card A").rarity,
-      ).toBe(4);
+      ).toBe(0);
 
-      // Card B: bucket=18 → fallback rarity 1
       expect(
         upsertedRows.find((r: any) => r.cardName === "Card B").rarity,
-      ).toBe(1);
+      ).toBe(0);
 
-      // Card C: bucket=10 → fallback rarity 3
       expect(
         upsertedRows.find((r: any) => r.cardName === "Card C").rarity,
-      ).toBe(3);
+      ).toBe(0);
+    });
+
+    it("should assign rarity 0 (unknown) to boss cards with zero weight — weight is about stacked decks, not actual rarity", async () => {
+      const csvBossZeroWeight = [
+        "patch,Bucket,col2,Ritual,col4,Keepers,All samples",
+        "Boss Card A,1,,Boss,,0,0",
+        "Boss Card B,18,,Boss,,0,0",
+        "Regular Card,10,,5,,0,0",
+      ].join("\n");
+
+      mockReadFile.mockResolvedValue(csvBossZeroWeight);
+
+      await service.loadData("poe1", false);
+
+      const upsertedRows = mockRepositoryUpsertCardWeights.mock.calls[0][0];
+
+      // Boss cards with weight=0 → rarity 0 (unknown — no stacked deck data)
+      expect(
+        upsertedRows.find((r: any) => r.cardName === "Boss Card A").rarity,
+      ).toBe(0);
+
+      expect(
+        upsertedRows.find((r: any) => r.cardName === "Boss Card B").rarity,
+      ).toBe(0);
+
+      // Non-boss card with weight=0 → also rarity 0 (unknown)
+      expect(
+        upsertedRows.find((r: any) => r.cardName === "Regular Card").rarity,
+      ).toBe(0);
     });
   });
 
@@ -778,7 +810,7 @@ describe("ProhibitedLibraryService", () => {
             league: "Keepers",
             weight: 10,
             rarity: 1,
-            fromBoss: true,
+            fromBoss: false,
             loadedAt: "2025-06-01T00:00:00.000Z",
           },
         ];
@@ -806,7 +838,7 @@ describe("ProhibitedLibraryService", () => {
               league: "Keepers",
               weight: 10,
               rarity: 1,
-              fromBoss: true,
+              fromBoss: false,
               loadedAt: "2025-06-01T00:00:00.000Z",
             },
           ]); // Fallback to metadata league
@@ -849,10 +881,10 @@ describe("ProhibitedLibraryService", () => {
       it("should return boss-exclusive cards for active league", async () => {
         const mockBossCards = [
           {
-            cardName: "The Doctor",
+            cardName: "The Void",
             game: "poe1",
             league: "Keepers",
-            weight: 10,
+            weight: 0,
             rarity: 1,
             fromBoss: true,
             loadedAt: "2025-06-01T00:00:00.000Z",
@@ -879,10 +911,10 @@ describe("ProhibitedLibraryService", () => {
           .mockResolvedValueOnce([]) // No data for NewLeague
           .mockResolvedValueOnce([
             {
-              cardName: "Boss Card",
+              cardName: "The Void",
               game: "poe1",
               league: "Keepers",
-              weight: 10,
+              weight: 0,
               rarity: 1,
               fromBoss: true,
               loadedAt: "2025-06-01T00:00:00.000Z",
@@ -935,33 +967,49 @@ describe("ProhibitedLibraryService", () => {
       created_at: "2025-06-01T00:00:00.000Z",
     };
 
-    const keepersWeights = [
+    const keepersWeights: Array<{
+      cardName: string;
+      game: string;
+      league: string;
+      weight: number;
+      rarity: number;
+      fromBoss: boolean;
+      loadedAt: string;
+    }> = [
       {
         cardName: "The Doctor",
         game: "poe1",
         league: "Keepers",
         weight: 10,
         rarity: 1,
-        fromBoss: true,
+        fromBoss: false,
         loadedAt: "2025-06-01T00:00:00.000Z",
       },
       {
         cardName: "Rain of Chaos",
         game: "poe1",
         league: "Keepers",
-        weight: 5000,
+        weight: 121400,
         rarity: 4,
         fromBoss: false,
         loadedAt: "2025-06-01T00:00:00.000Z",
       },
     ];
 
-    const keepersBossCards = [
+    const keepersBossCards: Array<{
+      cardName: string;
+      game: string;
+      league: string;
+      weight: number;
+      rarity: number;
+      fromBoss: boolean;
+      loadedAt: string;
+    }> = [
       {
-        cardName: "The Doctor",
+        cardName: "The Void",
         game: "poe1",
         league: "Keepers",
-        weight: 10,
+        weight: 0,
         rarity: 1,
         fromBoss: true,
         loadedAt: "2025-06-01T00:00:00.000Z",
@@ -1007,7 +1055,7 @@ describe("ProhibitedLibraryService", () => {
         const result = await handler({}, "poe1");
 
         expect(result).toHaveLength(1);
-        expect(result[0].cardName).toBe("The Doctor");
+        expect(result[0].cardName).toBe("The Void");
         expect(mockRepositoryGetFromBossCards).toHaveBeenCalledTimes(2);
         expect(mockRepositoryGetFromBossCards).toHaveBeenNthCalledWith(
           1,
@@ -1061,7 +1109,7 @@ describe("ProhibitedLibraryService", () => {
         const result = await handler({}, "poe1");
 
         expect(result).toHaveLength(1);
-        expect(result[0].cardName).toBe("The Doctor");
+        expect(result[0].cardName).toBe("The Void");
         expect(mockRepositoryGetFromBossCards).toHaveBeenCalledTimes(2);
         expect(mockRepositoryGetFromBossCards).toHaveBeenNthCalledWith(
           1,
@@ -1115,7 +1163,7 @@ describe("ProhibitedLibraryService", () => {
         const result = await handler({}, "poe1");
 
         expect(result).toHaveLength(1);
-        expect(result[0].cardName).toBe("The Doctor");
+        expect(result[0].cardName).toBe("The Void");
         expect(mockRepositoryGetFromBossCards).toHaveBeenCalledTimes(2);
         expect(mockRepositoryGetFromBossCards).toHaveBeenNthCalledWith(
           1,

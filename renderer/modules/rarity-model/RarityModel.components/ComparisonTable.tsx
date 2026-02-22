@@ -1,5 +1,5 @@
 import { createColumnHelper, type SortingFn } from "@tanstack/react-table";
-import { useDeferredValue, useMemo, useState } from "react";
+import { useDeferredValue, useMemo } from "react";
 import { FiRefreshCw } from "react-icons/fi";
 
 import { Table } from "~/renderer/components";
@@ -26,9 +26,6 @@ interface ComparisonTableProps {
 }
 
 const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
-  // ── Boss indicator toggle (local UI state) ──
-  const [showBossIndicator, setShowBossIndicator] = useState(true);
-
   // ── Priority rarity & sorting — owned by the store ──
   const priorityRarity = useBoundStore(
     (s) => s.rarityModelComparison.priorityPoeNinjaRarity,
@@ -228,7 +225,6 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
           <ProhibitedLibraryRarityCell
             rarity={info.getValue()}
             fromBoss={info.row.original.fromBoss}
-            showBossIndicator={showBossIndicator}
           />
         ),
         size: 140,
@@ -328,7 +324,6 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
     priorityPLRarity,
     handlePLRarityClick,
     plRaritySortFn,
-    showBossIndicator,
   ]);
 
   if (displayRows.length === 0) {
@@ -341,18 +336,6 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
 
   return (
     <div className="flex-1 min-h-0 flex flex-col gap-2">
-      {/* Boss indicator toggle */}
-      <div className="flex justify-end px-1">
-        <label className="label cursor-pointer gap-2">
-          <input
-            type="checkbox"
-            className="checkbox checkbox-xs checkbox-primary"
-            checked={showBossIndicator}
-            onChange={(e) => setShowBossIndicator(e.target.checked)}
-          />
-          <span className="label-text text-xs">Show boss indicators</span>
-        </label>
-      </div>
       <div className="flex-1 min-h-0 overflow-auto rounded-lg [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-base-100 [&::-webkit-scrollbar-thumb]:bg-base-300 [&::-webkit-scrollbar-thumb]:rounded-full">
         <Table
           data={displayRows}

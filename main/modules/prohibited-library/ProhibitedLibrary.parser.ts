@@ -1,7 +1,5 @@
 import { join } from "node:path";
 
-import type { KnownRarity, Rarity } from "~/types/data-stores";
-
 import type { ProhibitedLibraryRawRow } from "./ProhibitedLibrary.dto";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -29,6 +27,59 @@ const PATCH_VERSION_REGEX = /^\d+\.\d+$/;
 /** CSV filename for the Prohibited Library weights asset. */
 const CSV_FILENAME = "prohibited-library-weights.csv";
 
+// ─── CSV Helpers ─────────────────────────────────────────────────────────────
+
+/**
+ * Split a single CSV line into fields, respecting RFC 4180-style quoted fields.
+ *
+ * A field wrapped in double quotes may contain commas and escaped quotes (`""`).
+ * Surrounding quotes are stripped and inner `""` pairs are collapsed to `"`.
+ *
+ * Falls back to a simple comma-split when no quotes are present (fast path).
+ */
+export function splitCsvLine(line: string): string[] {
+  // Fast path — no quotes at all
+  if (!line.includes('"')) {
+    return line.split(",").map((f) => f.trim());
+  }
+
+  const fields: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+
+    if (inQuotes) {
+      if (ch === '"') {
+        // Check for escaped quote ("")
+        if (i + 1 < line.length && line[i + 1] === '"') {
+          current += '"';
+          i++; // skip next quote
+        } else {
+          // End of quoted field
+          inQuotes = false;
+        }
+      } else {
+        current += ch;
+      }
+    } else {
+      if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === ",") {
+        fields.push(current.trim());
+        current = "";
+      } else {
+        current += ch;
+      }
+    }
+  }
+
+  // Push the last field
+  fields.push(current.trim());
+  return fields;
+}
+
 // ─── CSV Parser ──────────────────────────────────────────────────────────────
 
 /**
@@ -38,9 +89,10 @@ const CSV_FILENAME = "prohibited-library-weights.csv";
  *
  * Column mapping (0-based):
  *   0 = card name (header: "patch")
- *   1 = bucket
- *   3 = from_boss indicator (header: "Ritual"); 5 = regular, 4 = boss-specific
- *   `allSamplesIndex - 1` = current-league weight
+ *   1 = bucket (community-defined weight tier — unrelated to our rarity system)
+ *   3 = from_boss indicator (header: "Ritual"); only the literal text "Boss"
+ *       is meaningful — all other values in this column are irrelevant
+ *   `allSamplesIndex - 1` = current-league weight (0 = not in Stacked Decks)
  *
  * @param csvContent Raw CSV string from the bundled asset
  * @returns Parsed rows and the raw league label
@@ -58,7 +110,7 @@ export function parseProhibitedLibraryCsv(csvContent: string): ParseResult {
 
   // ── Parse header row ──────────────────────────────────────────────────
   const headerRow = lines[0];
-  const headers = headerRow.split(",").map((h) => h.trim());
+  const headers = splitCsvLine(headerRow);
 
   const allSamplesIndex = headers.indexOf(ALL_SAMPLES_HEADER);
   if (allSamplesIndex === -1) {
@@ -97,7 +149,7 @@ export function parseProhibitedLibraryCsv(csvContent: string): ParseResult {
       continue;
     }
 
-    const columns = line.split(",").map((c) => c.trim());
+    const columns = splitCsvLine(line);
     const cardName = columns[0];
 
     // Skip the "Sample Size" aggregate row
@@ -114,27 +166,10 @@ export function parseProhibitedLibraryCsv(csvContent: string): ParseResult {
     const bucketRaw = columns[1];
     const bucket = bucketRaw ? parseInt(bucketRaw, 10) : 0;
 
-    // Extract ritualValue (column 3 — "Ritual" header, encodes from_boss status)
+    // Extract from_boss from column 3 ("Ritual" header).
+    // Only the literal text "Boss" matters; all other values are irrelevant.
     const ritualRaw = columns[3];
-    const ritualValue = ritualRaw ? parseInt(ritualRaw, 10) : 0;
-
-    // Validate ritualValue and derive fromBoss
-    let fromBoss: boolean;
-    if (ritualValue === 4) {
-      fromBoss = true;
-    } else if (ritualValue === 5) {
-      fromBoss = false;
-    } else {
-      // Unexpected value — default to false and log a warning
-      // Use console.warn since this is a pure function without LoggerService dependency
-      console.warn(
-        `[ProhibitedLibrary.parser] Unexpected ritualValue ${ritualValue} for card "${cardName}" ` +
-          `(row ${
-            i + 1
-          }). Expected 4 (boss) or 5 (regular). Defaulting to fromBoss = false.`,
-      );
-      fromBoss = false;
-    }
+    const fromBoss = deriveFromBoss(ritualRaw);
 
     // Extract weight from current-league column
     const weightRaw = columns[currentLeagueIndex];
@@ -143,7 +178,6 @@ export function parseProhibitedLibraryCsv(csvContent: string): ParseResult {
     rows.push({
       cardName,
       bucket,
-      ritualValue,
       weight,
       rawLeagueLabel,
       fromBoss,
@@ -153,66 +187,57 @@ export function parseProhibitedLibraryCsv(csvContent: string): ParseResult {
   return { rows, rawLeagueLabel };
 }
 
-// ─── Weight-to-Rarity Conversion ─────────────────────────────────────────────
+// ─── From-Boss Derivation ────────────────────────────────────────────────────
 
 /**
- * Convert a raw drop weight to a 0–4 rarity value.
+ * Derive the `fromBoss` flag from the raw Ritual column value.
  *
- * Weight and rarity are inversely related to price: a high drop weight means
- * the card is common (cheap), a low weight means it is rare (expensive).
+ * Only the literal text "Boss" (case-insensitive) means boss-exclusive.
+ * All other values in this column (numeric tiers, empty, etc.) are
+ * completely irrelevant to our purposes and simply mean "not boss".
  *
- * The thresholds mirror the existing price-based logic in
- * `DivinationCards.service.ts` (`updateRaritiesFromPrices`), but inverted:
- *
- * | weightPct (weight/maxWeight * 100) | Rarity | Label            |
- * |------------------------------------|--------|------------------|
- * | (maxWeight <= 0)                   | 0      | Unknown          |
- * | >= 70                              | 4      | Common           |
- * | >= 35                              | 3      | Less common      |
- * | >= 5                               | 2      | Rare             |
- * | < 5                                | 1      | Extremely rare   |
- *
- * @param weight    Raw integer weight from the CSV current-league column
- * @param maxWeight The highest weight across all rows (normalisation ceiling)
- * @returns Rarity (0–4) — 0 when maxWeight is zero/negative (no valid data to normalise against)
+ * @param ritualRaw  The raw string value from column D
+ * @returns `true` if the card is boss-exclusive
  */
-export function weightToRarity(weight: number, maxWeight: number): Rarity {
-  if (maxWeight <= 0) {
-    return 0; // No valid weight data to normalise against — rarity is unknown
+export function deriveFromBoss(ritualRaw: string | undefined): boolean {
+  if (!ritualRaw) {
+    return false;
   }
 
-  const pct = (weight / maxWeight) * 100;
-  if (pct >= 70) return 4;
-  if (pct >= 35) return 3;
-  if (pct >= 5) return 2;
-  return 1;
+  return ritualRaw.toLowerCase() === "boss";
 }
 
-// ─── Bucket Fallback ─────────────────────────────────────────────────────────
+// ─── Weight-to-Rarity Conversion (Absolute Thresholds) ──────────────────────
 
 /**
- * Map a bucket value to a fallback rarity when the weight cell is empty or zero
- * for the current-league column.
+ * Map a raw drop weight to a KnownRarity (1–4) using **absolute weight
+ * thresholds** derived from the real Prohibited Library CSV data.
  *
- * | Bucket range | Fallback rarity           |
- * |-------------|---------------------------|
- * | 1–5         | 4 (common)                |
- * | 6–12        | 3 (uncommon / less common) |
- * | 13–17       | 2 (rare)                  |
- * | 18+         | 1 (very rare)             |
+ * The CSV weights are normalised drop-rate indicators on a stable scale
+ * (e.g. Rain of Chaos ≈ 121 400 across all leagues). Because they do NOT
+ * scale with sample size, fixed thresholds produce consistent results
+ * regardless of which league column is used.
  *
- * A bucket of 0 or negative (i.e. missing bucket data) defaults to rarity 1
- * (extremely rare) as a conservative fallback.
+ * Threshold rationale (validated against the Keepers-league column):
  *
- * @param bucket Community-defined weight tier group from column B
+ * | Weight range | Rarity | Label           | ≈ card count | Examples                        |
+ * |-------------|--------|-----------------|-------------|---------------------------------|
+ * | > 5 000      | 4      | Common          | ~87          | Rain of Chaos, Lucky Connections |
+ * | 1 001–5 000  | 3      | Less common     | ~92          | The Nurse, Man With Bear         |
+ * | 31–1 000     | 2      | Rare            | ~147         | A Mother's Parting Gift          |
+ * | ≤ 30         | 1      | Extremely rare  | ~43          | The Apothecary, The Doctor       |
+ *
+ * Cards with weight 0 get rarity 0 (unknown) in `convertWeights` — the
+ * weight relates to stacked deck drops, so no weight means no data,
+ * regardless of whether the card is boss-exclusive or not.
+ *
+ * @param weight  Non-zero weight from the CSV current-league column
  * @returns KnownRarity (1–4)
  */
-export function bucketToFallbackRarity(bucket: number): KnownRarity {
-  if (bucket >= 1 && bucket <= 5) return 4;
-  if (bucket >= 6 && bucket <= 12) return 3;
-  if (bucket >= 13 && bucket <= 17) return 2;
-  if (bucket >= 18) return 1;
-  // bucket <= 0 or NaN — conservative fallback
+export function weightToDropRarity(weight: number): 1 | 2 | 3 | 4 {
+  if (weight > 5000) return 4;
+  if (weight > 1000) return 3;
+  if (weight > 30) return 2;
   return 1;
 }
 

@@ -10,7 +10,7 @@ import type { DivinationCardDTO } from "./DivinationCards.dto";
 interface DivinationCardWithRarityRow extends DivinationCardsRow {
   rarity?: Rarity;
   filter_rarity?: KnownRarity | null;
-  prohibited_library_rarity?: KnownRarity | null;
+  prohibited_library_rarity?: Rarity | null;
 }
 
 /**

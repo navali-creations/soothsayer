@@ -3,11 +3,12 @@ export { ProhibitedLibraryChannel } from "./ProhibitedLibrary.channels";
 export * from "./ProhibitedLibrary.dto";
 export type { ParseResult } from "./ProhibitedLibrary.parser";
 export {
-  bucketToFallbackRarity,
+  deriveFromBoss,
   isPatchVersionHeader,
   parseProhibitedLibraryCsv,
   resolveCsvPath,
-  weightToRarity,
+  splitCsvLine,
+  weightToDropRarity,
 } from "./ProhibitedLibrary.parser";
 export {
   ProhibitedLibraryRepository,

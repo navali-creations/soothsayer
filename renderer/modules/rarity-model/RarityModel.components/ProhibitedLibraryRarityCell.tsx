@@ -2,36 +2,36 @@ import { memo } from "react";
 import { GiCrownedSkull } from "react-icons/gi";
 
 import { getRarityStyles, RARITY_LABELS } from "~/renderer/utils";
-import type { KnownRarity } from "~/types/data-stores";
+import type { Rarity } from "~/types/data-stores";
 
 interface ProhibitedLibraryRarityCellProps {
-  rarity: KnownRarity | null;
+  rarity: Rarity | null;
   fromBoss: boolean;
-  showBossIndicator: boolean;
 }
 
 /**
  * Memoized cell renderer for the Prohibited Library rarity column.
  *
  * Renders a read-only rarity badge (no dropdown — PL rarities are not
- * user-editable). When `rarity` is `null` the card is absent from the
- * PL dataset and we show a `—` dash with a tooltip.
+ * user-editable). Handles three cases:
  *
- * When `fromBoss` is true and `showBossIndicator` is enabled, a small
- * skull-crown icon is overlaid to indicate the card is boss-exclusive
+ *   - `rarity` is `null` — card is absent from the PL dataset entirely.
+ *   - `rarity` is `0` — card has no drop data yet (weight 0).
+ *     Rendered as an "Unknown" badge.
+ *   - `rarity` is `1–4` — card has a computed rarity from weight data.
+ *
+ * When `fromBoss` is true, a small skull-crown icon is always shown
+ * alongside the rarity badge to indicate the card is boss-exclusive
  * in the stacked-deck context.
  */
 const ProhibitedLibraryRarityCell = memo(
-  ({
-    rarity,
-    fromBoss,
-    showBossIndicator,
-  }: ProhibitedLibraryRarityCellProps) => {
+  ({ rarity, fromBoss }: ProhibitedLibraryRarityCellProps) => {
+    // Card is absent from the PL dataset entirely (LEFT JOIN miss)
     if (rarity == null) {
       return (
         <div
           className="tooltip tooltip-bottom"
-          data-tip="Card not in Prohibited Library dataset"
+          data-tip="Card not found in Prohibited Library dataset"
         >
           <span className="text-base-content/30">—</span>
         </div>
@@ -55,10 +55,10 @@ const ProhibitedLibraryRarityCell = memo(
         >
           {label}
         </span>
-        {fromBoss && showBossIndicator && (
+        {fromBoss && (
           <div
             className="tooltip tooltip-bottom"
-            data-tip="This card drops from specific boss encounters in stacked decks"
+            data-tip="Boss-exclusive drop — this card does not drop from Stacked Decks"
           >
             <GiCrownedSkull className="w-3.5 h-3.5 text-warning/70" />
           </div>
@@ -67,9 +67,7 @@ const ProhibitedLibraryRarityCell = memo(
     );
   },
   (prev, next) =>
-    prev.rarity === next.rarity &&
-    prev.fromBoss === next.fromBoss &&
-    prev.showBossIndicator === next.showBossIndicator,
+    prev.rarity === next.rarity && prev.fromBoss === next.fromBoss,
 );
 
 ProhibitedLibraryRarityCell.displayName = "ProhibitedLibraryRarityCell";

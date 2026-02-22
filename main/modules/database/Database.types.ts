@@ -151,7 +151,7 @@ export interface ProhibitedLibraryCardWeightsTable {
   game: "poe1" | "poe2";
   league: string;
   weight: number;
-  rarity: KnownRarity;
+  rarity: Rarity;
   from_boss: number; // SQLite boolean (0 or 1)
   loaded_at: string;
   created_at: ColumnType<string, string | undefined, never>;

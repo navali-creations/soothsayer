@@ -1,4 +1,4 @@
-import type { KnownRarity } from "~/types/data-stores";
+import type { Rarity } from "~/types/data-stores";
 
 /**
  * Data Transfer Objects for the Prohibited Library module.
@@ -18,7 +18,7 @@ export interface ProhibitedLibraryCardWeightDTO {
   game: "poe1" | "poe2";
   league: string; // Canonical league name, e.g. "Keepers"
   weight: number; // Raw integer weight from spreadsheet
-  rarity: KnownRarity; // Derived 1–4 rarity
+  rarity: Rarity; // Derived 0–4 rarity (0=unknown, 1=extremely rare, 2=rare, 3=less common, 4=common)
   fromBoss: boolean; // true if card is boss-exclusive in stacked deck context
   loadedAt: string; // ISO timestamp of when this data was last loaded from asset
 }
@@ -53,15 +53,19 @@ export interface ProhibitedLibraryLoadResultDTO {
  *
  * Column mapping (from the Google Spreadsheet "Weights" tab):
  *   A = card name (header label: "patch")
- *   B = bucket
- *   D = from_boss indicator (header label: "Ritual"); 5 = regular, 4 = boss-specific
+ *   B = bucket (community-defined weight tier group — unrelated to our rarity system)
+ *   D = from_boss indicator (header label: "Ritual"); only the literal text
+ *       "Boss" is meaningful — all other values in this column are irrelevant
  *   Last data column before "All samples" = current-league weight
+ *
+ * A weight of 0 means the card has no stacked deck drop data for the
+ * current league — rarity is set to 0 (unknown) regardless of whether
+ * the card is boss-exclusive or not.
  */
 export interface ProhibitedLibraryRawRow {
   cardName: string;
-  bucket: number; // Column B — used as fallback for rarity when weight is absent
-  ritualValue: number; // Column D ("Ritual") raw value: 5 = regular drop, 4 = boss-specific
-  weight: number; // Last data column before "All samples" — current-league weight
+  bucket: number; // Column B — community-defined weight tier group (unrelated to our rarity system)
+  weight: number; // Last data column before "All samples" — current-league weight (0 = not in Stacked Decks)
   rawLeagueLabel: string; // Header label as-is from the asset CSV — always a canonical league name (e.g. "Keepers")
-  fromBoss: boolean; // Derived from ritualValue: true if ritualValue === 4
+  fromBoss: boolean; // Derived from Ritual column: true only when the literal text "Boss" appears
 }

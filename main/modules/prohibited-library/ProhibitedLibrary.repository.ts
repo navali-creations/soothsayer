@@ -14,7 +14,7 @@ export interface UpsertCardWeightRow {
   game: "poe1" | "poe2";
   league: string;
   weight: number;
-  rarity: 1 | 2 | 3 | 4;
+  rarity: 0 | 1 | 2 | 3 | 4;
   fromBoss: boolean;
   loadedAt: string;
 }

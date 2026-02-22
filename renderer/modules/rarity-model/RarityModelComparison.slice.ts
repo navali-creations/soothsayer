@@ -37,8 +37,8 @@ export interface ComparisonRow {
   isDifferent: boolean;
   /** filterId → rarity (null = still loading) */
   filterRarities: Record<string, KnownRarity | null>;
-  /** Prohibited Library derived rarity (1–4), or null if card absent from PL dataset */
-  prohibitedLibraryRarity: KnownRarity | null;
+  /** Prohibited Library derived rarity (0–4), or null if card absent from PL dataset */
+  prohibitedLibraryRarity: Rarity | null;
   /** Whether the card is boss-exclusive in the stacked-deck context (from PL data) */
   fromBoss: boolean;
 }

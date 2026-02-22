@@ -475,7 +475,7 @@ class DatabaseService {
           game        TEXT    NOT NULL CHECK(game IN ('poe1', 'poe2')),
           league      TEXT    NOT NULL,
           weight      INTEGER NOT NULL,
-          rarity      INTEGER NOT NULL CHECK(rarity BETWEEN 1 AND 4),
+          rarity      INTEGER NOT NULL CHECK(rarity BETWEEN 0 AND 4),
           from_boss   INTEGER NOT NULL DEFAULT 0 CHECK(from_boss IN (0, 1)),
           loaded_at   TEXT    NOT NULL,
           created_at  TEXT    NOT NULL DEFAULT (datetime('now')),

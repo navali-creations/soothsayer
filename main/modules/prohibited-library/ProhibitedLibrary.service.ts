@@ -22,10 +22,9 @@ import type {
   ProhibitedLibraryStatusDTO,
 } from "./ProhibitedLibrary.dto";
 import {
-  bucketToFallbackRarity,
   parseProhibitedLibraryCsv,
   resolveCsvPath,
-  weightToRarity,
+  weightToDropRarity,
 } from "./ProhibitedLibrary.parser";
 import {
   ProhibitedLibraryRepository,
@@ -420,10 +419,12 @@ class ProhibitedLibraryService {
    * Convert parsed CSV rows into upsert-ready card weight records.
    *
    * For each row:
-   * - If the card has a weight > 0, compute rarity via `weightToRarity`
-   * - If the card has weight = 0 (or missing), use `bucketToFallbackRarity`
-   * - If maxWeight across all rows is ≤ 0, `weightToRarity` returns 0 (unknown),
-   *   so we fall back to bucket rarity in that case too
+   * - If the card has a weight > 0, compute rarity via `weightToDropRarity`
+   *   using absolute weight thresholds (>5000 common, >1000 less common,
+   *   >30 rare, ≤30 extremely rare)
+   * - If the card has weight = 0 (or missing), assign rarity 0 (unknown) —
+   *   the weight relates to stacked deck drops, so no weight means no data,
+   *   regardless of whether the card is boss-exclusive or not.
    */
   private convertWeights(
     rows: ProhibitedLibraryRawRow[],
@@ -431,23 +432,15 @@ class ProhibitedLibraryService {
     game: "poe1" | "poe2",
     loadedAt: string,
   ): UpsertCardWeightRow[] {
-    // Find the maximum weight across all rows for normalisation
-    const maxWeight = rows.reduce((max, row) => Math.max(max, row.weight), 0);
-
     return rows.map((row) => {
-      let rarity: 1 | 2 | 3 | 4;
+      let rarity: 0 | 1 | 2 | 3 | 4;
 
-      if (row.weight > 0 && maxWeight > 0) {
-        const computed = weightToRarity(row.weight, maxWeight);
-        // weightToRarity returns 0 when maxWeight <= 0 (shouldn't happen here
-        // since we checked above, but be defensive)
-        rarity =
-          computed === 0
-            ? bucketToFallbackRarity(row.bucket)
-            : (computed as 1 | 2 | 3 | 4);
+      if (row.weight > 0) {
+        rarity = weightToDropRarity(row.weight);
       } else {
-        // No weight data — use bucket fallback
-        rarity = bucketToFallbackRarity(row.bucket);
+        // Weight 0 means no stacked deck drop data — unknown regardless of
+        // boss status (the weight is about stacked decks, not actual rarity)
+        rarity = 0;
       }
 
       return {
