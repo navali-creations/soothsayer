@@ -40,7 +40,7 @@ const RootLayout = () => {
 
         if (!setupComplete) {
           // Redirect to setup if not complete
-          navigate({ to: "/setup" });
+          await navigate({ to: "/setup" });
         }
       } catch (error) {
         console.error("Failed to initialize app:", error);
