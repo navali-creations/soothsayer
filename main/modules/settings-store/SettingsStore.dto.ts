@@ -2,6 +2,8 @@
  * Data Transfer Objects for SettingsStore module
  */
 
+import type { RaritySource } from "~/types/data-stores";
+
 export interface UserSettingsDTO {
   appExitAction: "exit" | "minimize";
   appOpenAtLogin: boolean;
@@ -24,7 +26,7 @@ export interface UserSettingsDTO {
   audioRarity1Path: string | null;
   audioRarity2Path: string | null;
   audioRarity3Path: string | null;
-  raritySource: "poe.ninja" | "filter" | "prohibited-library";
+  raritySource: RaritySource;
   selectedFilterId: string | null;
 }
 

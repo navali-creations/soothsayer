@@ -2,7 +2,9 @@
  * Data Transfer Objects for Filters module
  */
 
-import type { KnownRarity } from "~/types/data-stores";
+import type { KnownRarity, RaritySource } from "~/types/data-stores";
+
+export type { RaritySource };
 
 // ─── Enums / Literal Types ───────────────────────────────────────────────────
 
@@ -10,14 +12,6 @@ import type { KnownRarity } from "~/types/data-stores";
  * The type of filter file based on its origin directory.
  */
 export type RarityModelFilterType = "local" | "online";
-
-/**
- * The source used to determine divination card rarities.
- * - `poe.ninja`: Price-based rarities from poe.ninja (default)
- * - `filter`: Rarities extracted from a loot filter file
- * - `prohibited-library`: Community-driven data from Prohibited Library (future)
- */
-export type RaritySource = "poe.ninja" | "filter" | "prohibited-library";
 
 // ─── DTOs ────────────────────────────────────────────────────────────────────
 

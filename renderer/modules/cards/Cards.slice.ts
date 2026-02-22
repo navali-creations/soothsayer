@@ -1,6 +1,6 @@
 import type { StateCreator } from "zustand";
 
-import type { Rarity } from "~/types/data-stores";
+import type { KnownRarity, Rarity, RaritySource } from "~/types/data-stores";
 
 import type { SettingsSlice } from "../settings/Settings.slice";
 
@@ -13,6 +13,7 @@ interface DivinationCardDTO {
   artSrc: string;
   flavourHtml: string;
   rarity: Rarity;
+  filterRarity: KnownRarity | null;
   prohibitedLibraryRarity: Rarity | null;
   fromBoss: boolean;
   game: "poe1" | "poe2";
@@ -22,6 +23,20 @@ interface DivinationCardDTO {
 
 type SortField = "name" | "rarity" | "stackSize";
 type SortDirection = "asc" | "desc";
+
+function getEffectiveRarity(
+  card: DivinationCardDTO,
+  raritySource: RaritySource,
+): Rarity {
+  switch (raritySource) {
+    case "filter":
+      return card.filterRarity ?? card.rarity;
+    case "prohibited-library":
+      return card.prohibitedLibraryRarity ?? card.rarity;
+    default:
+      return card.rarity;
+  }
+}
 
 export interface CardsSlice {
   cards: {
@@ -33,6 +48,8 @@ export interface CardsSlice {
     // Filters & sorting
     searchQuery: string;
     rarityFilter: number | "all";
+    /** When false (default), cards with fromBoss === true are hidden */
+    includeBossCards: boolean;
     sortField: SortField;
     sortDirection: SortDirection;
 
@@ -44,6 +61,7 @@ export interface CardsSlice {
     loadCards: () => Promise<void>;
     setSearchQuery: (query: string) => void;
     setRarityFilter: (rarity: number | "all") => void;
+    setIncludeBossCards: (include: boolean) => void;
     setSortField: (field: SortField) => void;
     setSortDirection: (direction: SortDirection) => void;
     toggleSortDirection: () => void;
@@ -73,6 +91,7 @@ export const createCardsSlice: StateCreator<
     error: null,
     searchQuery: "",
     rarityFilter: "all",
+    includeBossCards: false,
     sortField: "name",
     sortDirection: "asc",
     currentPage: 1,
@@ -120,7 +139,13 @@ export const createCardsSlice: StateCreator<
       });
     },
 
-    // Set sort field
+    setIncludeBossCards: (include: boolean) => {
+      set(({ cards }) => {
+        cards.includeBossCards = include;
+        cards.currentPage = 1; // Reset to first page
+      });
+    },
+
     setSortField: (field: SortField) => {
       set(({ cards }) => {
         // If same field, toggle direction
@@ -165,12 +190,23 @@ export const createCardsSlice: StateCreator<
     // Get all cards
     getAllCards: () => get().cards.allCards,
 
-    // Get filtered and sorted cards
     getFilteredAndSortedCards: () => {
-      const { allCards, searchQuery, rarityFilter, sortField, sortDirection } =
-        get().cards;
+      const {
+        allCards,
+        searchQuery,
+        rarityFilter,
+        includeBossCards,
+        sortField,
+        sortDirection,
+      } = get().cards;
+      const { raritySource } = get().settings;
 
       let result = [...allCards];
+
+      // Hide boss-exclusive cards unless explicitly included
+      if (!includeBossCards) {
+        result = result.filter((card) => !card.fromBoss);
+      }
 
       // Apply search filter
       if (searchQuery) {
@@ -180,15 +216,17 @@ export const createCardsSlice: StateCreator<
         );
       }
 
-      // Apply rarity filter
+      // Apply rarity filter using effective rarity for the active source
       if (rarityFilter !== "all") {
-        result = result.filter((card) => card.rarity === rarityFilter);
+        result = result.filter(
+          (card) => getEffectiveRarity(card, raritySource) === rarityFilter,
+        );
       }
 
       // Apply sorting
       result.sort((a, b) => {
-        let aValue: any;
-        let bValue: any;
+        let aValue: string | number;
+        let bValue: string | number;
 
         switch (sortField) {
           case "name":
@@ -196,8 +234,8 @@ export const createCardsSlice: StateCreator<
             bValue = b.name.toLowerCase();
             break;
           case "rarity":
-            aValue = a.rarity;
-            bValue = b.rarity;
+            aValue = getEffectiveRarity(a, raritySource);
+            bValue = getEffectiveRarity(b, raritySource);
             break;
           case "stackSize":
             aValue = a.stackSize;

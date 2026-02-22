@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo } from "react";
+import { GiCrownedSkull } from "react-icons/gi";
 
 import {
   type RaritySourceGroup,
@@ -23,13 +24,19 @@ const DatasetMenuLabel = ({ label, hint }: { label: string; hint: string }) => (
   </span>
 );
 
-export const CardsActions = () => {
+interface CardsActionsProps {
+  onFilterChange?: () => void;
+}
+
+export const CardsActions = ({ onFilterChange }: CardsActionsProps) => {
   const {
     cards: {
       searchQuery,
       rarityFilter,
+      includeBossCards,
       setSearchQuery,
       setRarityFilter,
+      setIncludeBossCards,
       loadCards,
     },
     settings: { raritySource, selectedFilterId, updateSetting },
@@ -82,6 +89,7 @@ export const CardsActions = () => {
 
       // Refresh cards list to reflect the new rarity source / filter
       await loadCards();
+      onFilterChange?.();
     },
     [
       updateSetting,
@@ -90,6 +98,7 @@ export const CardsActions = () => {
       selectedFilterId,
       availableFilters,
       loadCards,
+      onFilterChange,
     ],
   );
 
@@ -150,43 +159,65 @@ export const CardsActions = () => {
   }, [onlineFilters, localFilters]);
 
   return (
-    <div className="flex flex-wrap gap-2">
-      {/* Rarity Source */}
-      <div className="flex items-center gap-1">
-        <RaritySourceSelect
-          value={dropdownValue}
-          onChange={handleDropdownChange}
-          groups={groups}
-          disabled={isScanning}
-          width="w-45"
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap gap-2">
+        {/* Rarity Source */}
+        <div className="flex items-center gap-1">
+          <RaritySourceSelect
+            value={dropdownValue}
+            onChange={handleDropdownChange}
+            groups={groups}
+            disabled={isScanning}
+            width="w-50"
+          />
+        </div>
+
+        {/* Search */}
+        <Search
+          size="sm"
+          placeholder="Search cards..."
+          className="flex-1 w-37.5"
+          value={searchQuery}
+          onChange={setSearchQuery}
         />
+
+        {/* Rarity Filter */}
+        <select
+          className="select select-sm select-bordered w-37.5"
+          value={rarityFilter}
+          onChange={(e) => {
+            setRarityFilter(
+              e.target.value === "all" ? "all" : parseInt(e.target.value, 10),
+            );
+            onFilterChange?.();
+          }}
+        >
+          <option value="all">All Rarities</option>
+          <option value="1">Extremely Rare</option>
+          <option value="2">Rare</option>
+          <option value="3">Less Common</option>
+          <option value="4">Common</option>
+        </select>
       </div>
 
-      {/* Search */}
-      <Search
-        size="sm"
-        placeholder="Search cards..."
-        className="flex-1 w-37.5"
-        value={searchQuery}
-        onChange={setSearchQuery}
-      />
-
-      {/* Rarity Filter */}
-      <select
-        className="select select-sm select-bordered w-37.5"
-        value={rarityFilter}
-        onChange={(e) =>
-          setRarityFilter(
-            e.target.value === "all" ? "all" : parseInt(e.target.value, 10),
-          )
-        }
-      >
-        <option value="all">All Rarities</option>
-        <option value="1">Extremely Rare</option>
-        <option value="2">Rare</option>
-        <option value="3">Less Common</option>
-        <option value="4">Common</option>
-      </select>
+      {/* Boss cards toggle */}
+      <div className="flex justify-end">
+        <label className="label cursor-pointer gap-2">
+          <input
+            type="checkbox"
+            className="checkbox checkbox-xs checkbox-warning w-3.5 h-3.5"
+            checked={includeBossCards}
+            onChange={(e) => {
+              setIncludeBossCards(e.target.checked);
+              onFilterChange?.();
+            }}
+          />
+          <span className="label-text text-sm inline-flex items-center gap-1">
+            <GiCrownedSkull className="w-3.5 h-3.5 text-warning/70" />
+            Include boss cards
+          </span>
+        </label>
+      </div>
     </div>
   );
 };

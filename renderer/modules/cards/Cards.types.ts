@@ -1,4 +1,4 @@
-import type { Rarity } from "~/types/data-stores";
+import type { KnownRarity, Rarity } from "~/types/data-stores";
 
 export interface DivinationCardRow {
   id: string;
@@ -9,4 +9,7 @@ export interface DivinationCardRow {
   artSrc: string;
   flavourHtml: string;
   rarity: Rarity;
+  filterRarity: KnownRarity | null;
+  prohibitedLibraryRarity: Rarity | null;
+  fromBoss: boolean;
 }

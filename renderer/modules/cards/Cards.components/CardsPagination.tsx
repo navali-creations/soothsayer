@@ -4,9 +4,13 @@ import { useBoundStore } from "~/renderer/store";
 
 interface CardsPaginationProps {
   totalPages: number;
+  onPageChange?: () => void;
 }
 
-export const CardsPagination = ({ totalPages }: CardsPaginationProps) => {
+export const CardsPagination = ({
+  totalPages,
+  onPageChange,
+}: CardsPaginationProps) => {
   const {
     cards: { currentPage, setCurrentPage },
   } = useBoundStore();
@@ -15,11 +19,16 @@ export const CardsPagination = ({ totalPages }: CardsPaginationProps) => {
     return null;
   }
 
+  const goToPage = (page: number) => {
+    setCurrentPage(page);
+    onPageChange?.();
+  };
+
   return (
     <div className="flex items-center justify-center gap-2">
       <button
         className="btn btn-sm"
-        onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+        onClick={() => goToPage(Math.max(1, currentPage - 1))}
         disabled={currentPage === 1}
       >
         Previous
@@ -45,7 +54,7 @@ export const CardsPagination = ({ totalPages }: CardsPaginationProps) => {
                 "btn btn-sm",
                 currentPage === pageNum && "btn-primary",
               )}
-              onClick={() => setCurrentPage(pageNum)}
+              onClick={() => goToPage(pageNum)}
             >
               {pageNum}
             </button>
@@ -55,7 +64,7 @@ export const CardsPagination = ({ totalPages }: CardsPaginationProps) => {
 
       <button
         className="btn btn-sm"
-        onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+        onClick={() => goToPage(Math.min(totalPages, currentPage + 1))}
         disabled={currentPage === totalPages}
       >
         Next

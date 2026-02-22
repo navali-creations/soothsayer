@@ -43,6 +43,8 @@ export interface RarityStyles {
   beam: string;
   /** Whether the beam should be shown in overlay */
   showBeam: boolean;
+  /** Base RGB triplet for card drop-shadow glow (e.g. "255, 255, 255") */
+  glowRgb: string;
   /** Badge/chip background (semi-transparent, for dark UI) */
   badgeBg: string;
   /** Badge/chip text color */
@@ -67,6 +69,7 @@ export function getRarityStyles(rarity: Rarity): RarityStyles {
         border: "",
         beam: "",
         showBeam: false,
+        glowRgb: "20, 9, 26",
         badgeBg: "rgba(245, 158, 11, 0.15)",
         badgeText: "rgba(245, 158, 11, 0.85)",
         badgeBorder: "rgba(245, 158, 11, 0.40)",
@@ -79,6 +82,7 @@ export function getRarityStyles(rarity: Rarity): RarityStyles {
         border: "rgb(0, 0, 255)",
         beam: "orangered",
         showBeam: true,
+        glowRgb: "110, 150, 255",
         badgeBg: "rgb(255, 255, 255)",
         badgeText: "rgb(0, 0, 255)",
         badgeBorder: "rgb(255, 255, 255)",
@@ -91,6 +95,7 @@ export function getRarityStyles(rarity: Rarity): RarityStyles {
         border: "rgb(255, 255, 255)",
         beam: "yellow",
         showBeam: true,
+        glowRgb: "40, 70, 180",
         badgeBg: "rgb(0, 20, 180)",
         badgeText: "rgb(255, 255, 255)",
         badgeBorder: "rgb(255, 255, 255)",
@@ -103,6 +108,7 @@ export function getRarityStyles(rarity: Rarity): RarityStyles {
         border: "rgb(0, 0, 0)",
         beam: "",
         showBeam: false,
+        glowRgb: "0, 220, 240",
         badgeBg: "rgb(0, 220, 240)",
         badgeText: "rgb(0, 0, 0)",
         badgeBorder: "rgb(0, 220, 240)",
@@ -114,6 +120,7 @@ export function getRarityStyles(rarity: Rarity): RarityStyles {
         border: "",
         beam: "",
         showBeam: false,
+        glowRgb: "255, 255, 255",
         badgeBg: "rgba(160, 160, 170, 0.10)",
         badgeText: "rgba(200, 200, 210, 0.60)",
         badgeBorder: "rgba(160, 160, 170, 0.20)",

@@ -48,6 +48,7 @@ Deno.serve(async (req: Request) => {
     .from("poe_leagues")
     .select("*")
     .eq("game", game)
+    .eq("is_active", true)
     .order("name", { ascending: true });
 
   if (error) {

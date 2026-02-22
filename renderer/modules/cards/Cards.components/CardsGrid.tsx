@@ -3,7 +3,7 @@ import { GiCardRandom } from "react-icons/gi";
 
 import DivinationCard from "~/renderer/components/DivinationCard/DivinationCard";
 import { useBoundStore } from "~/renderer/store";
-import type { CardEntry } from "~/types/data-stores";
+import type { CardEntry, Rarity, RaritySource } from "~/types/data-stores";
 
 import type { DivinationCardRow } from "../Cards.types";
 
@@ -11,9 +11,34 @@ interface CardsGridProps {
   cards: DivinationCardRow[];
 }
 
+/**
+ * Resolve the effective rarity for a card based on the active rarity source.
+ */
+function getEffectiveRarity(
+  card: DivinationCardRow,
+  raritySource: RaritySource,
+): Rarity {
+  switch (raritySource) {
+    case "filter":
+      return card.filterRarity ?? card.rarity;
+    case "prohibited-library":
+      return card.prohibitedLibraryRarity ?? card.rarity;
+    default:
+      return card.rarity;
+  }
+}
+
 export const CardsGrid = ({ cards }: CardsGridProps) => {
   const {
-    cards: { currentPage, searchQuery, rarityFilter, sortField, sortDirection },
+    cards: {
+      currentPage,
+      searchQuery,
+      rarityFilter,
+      includeBossCards,
+      sortField,
+      sortDirection,
+    },
+    settings: { raritySource },
   } = useBoundStore();
 
   const convertToCardEntry = (card: DivinationCardRow): CardEntry => ({
@@ -27,12 +52,13 @@ export const CardsGrid = ({ cards }: CardsGridProps) => {
       rewardHtml: card.rewardHtml,
       artSrc: card.artSrc,
       flavourHtml: card.flavourHtml,
-      rarity: card.rarity,
+      rarity: getEffectiveRarity(card, raritySource),
+      fromBoss: card.fromBoss,
     },
   });
 
   // Create a unique key that changes when filters/page change to force re-animation
-  const gridKey = `${currentPage}-${searchQuery}-${rarityFilter}-${sortField}-${sortDirection}`;
+  const gridKey = `${currentPage}-${searchQuery}-${rarityFilter}-${includeBossCards}-${sortField}-${sortDirection}-${raritySource}`;
 
   if (cards.length === 0) {
     return (

@@ -4,6 +4,14 @@ export type GameType = "poe1" | "poe2";
 // Price source type
 export type PriceSource = "exchange" | "stash";
 
+/**
+ * Rarity source determines which dataset drives card rarity tiers.
+ * - `poe.ninja`: Price-based rarity from poe.ninja market data
+ * - `filter`: Rarity tiers from a parsed loot filter
+ * - `prohibited-library`: Weight-based rarity from community-collected drop data
+ */
+export type RaritySource = "poe.ninja" | "filter" | "prohibited-library";
+
 /** poe.ninja price confidence: 1 = high/reliable, 2 = medium/thin sample, 3 = low/unreliable */
 export type Confidence = 1 | 2 | 3;
 
@@ -31,6 +39,7 @@ export interface DivinationCardMetadata {
   flavourHtml?: string | null;
   rarity?: Rarity;
   filterRarity?: KnownRarity | null;
+  fromBoss?: boolean;
 }
 
 // Card entry for UI display (already flattened with both prices)

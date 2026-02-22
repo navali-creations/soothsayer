@@ -234,9 +234,9 @@ export const onboardingConfig: RepereReactConfig = {
           selector: "[data-onboarding='rarity-model-toolbar']",
           trigger: {
             component: createTrackedTrigger("rarity-model-toolbar"),
-            anchorPoint: AnchorPoint.BottomCenter,
+            anchorPoint: AnchorPoint.TopCenter,
             offset: {
-              y: 5,
+              y: -5,
             },
           },
           popover: {

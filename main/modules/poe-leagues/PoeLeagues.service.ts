@@ -198,12 +198,14 @@ class PoeLeaguesService {
         },
       );
 
-    return response.leagues.map((league) => ({
-      id: league.leagueId,
-      name: league.name,
-      startAt: league.startAt,
-      endAt: league.endAt,
-    }));
+    return response.leagues
+      .filter((league) => league.isActive)
+      .map((league) => ({
+        id: league.leagueId,
+        name: league.name,
+        startAt: league.startAt,
+        endAt: league.endAt,
+      }));
   }
 
   /**

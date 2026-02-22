@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import { PageContainer } from "~/renderer/components";
 import { useBoundStore } from "~/renderer/store";
@@ -6,6 +6,7 @@ import { useBoundStore } from "~/renderer/store";
 import { CardsActions, CardsGrid, CardsPagination } from "./Cards.components";
 
 const CardsPage = () => {
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const {
     cards: {
       allCards,
@@ -20,6 +21,10 @@ const CardsPage = () => {
   const filteredCards = getFilteredAndSortedCards();
   const totalPages = getTotalPages();
 
+  const scrollToTop = useCallback(() => {
+    scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+
   // Fetch cards on mount
   useEffect(() => {
     loadCards();
@@ -30,13 +35,13 @@ const CardsPage = () => {
       <PageContainer.Header
         title="Divination Cards"
         subtitle={`${filteredCards.length} of ${allCards.length} cards`}
-        actions={<CardsActions />}
+        actions={<CardsActions onFilterChange={scrollToTop} />}
       />
-      <PageContainer.Content>
-        <div className="flex-1 overflow-y-auto">
+      <PageContainer.Content className="!overflow-y-hidden flex flex-col">
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
           <CardsGrid cards={paginatedCards} />
         </div>
-        <CardsPagination totalPages={totalPages} />
+        <CardsPagination totalPages={totalPages} onPageChange={scrollToTop} />
       </PageContainer.Content>
     </PageContainer>
   );
