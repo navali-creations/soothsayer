@@ -53,10 +53,14 @@ export interface RarityModelComparisonSlice {
     parsingFilterId: string | null;
     parseErrors: Map<string, string>;
     showDiffsOnly: boolean;
+    /** When false (default), cards with fromBoss === true are hidden from the table */
+    includeBossCards: boolean;
 
     // Priority rarity filters (drive the custom sort functions)
     priorityPoeNinjaRarity: Rarity | null;
     priorityPlRarity: KnownRarity | null;
+    /** Per-filter priority rarity — keyed by filterId */
+    priorityFilterRarities: Record<string, KnownRarity | null>;
     // Table sort state (owned here so sort is preserved across re-renders / devtools)
     tableSorting: SortingState;
 
@@ -66,9 +70,11 @@ export interface RarityModelComparisonSlice {
     parseNextUnparsedFilter: () => Promise<void>;
     rescan: () => Promise<void>;
     setShowDiffsOnly: (show: boolean) => void;
+    setIncludeBossCards: (include: boolean) => void;
     // Priority rarity actions — toggle on click, clear when switching sort column
     handlePoeNinjaRarityClick: (rarity: Rarity) => void;
     handlePlRarityClick: (rarity: KnownRarity) => void;
+    handleFilterRarityClick: (filterId: string, rarity: KnownRarity) => void;
     handleTableSortingChange: (sorting: SortingState) => void;
     updateFilterCardRarity: (
       filterId: string,
@@ -100,8 +106,10 @@ export const createRarityModelComparisonSlice: StateCreator<
     parsingFilterId: null,
     parseErrors: new Map(),
     showDiffsOnly: false,
+    includeBossCards: false,
     priorityPoeNinjaRarity: null,
     priorityPlRarity: null,
+    priorityFilterRarities: {},
     tableSorting: [{ id: "name", desc: false }],
 
     // ─── Actions ───────────────────────────────────────────────────────
@@ -249,12 +257,23 @@ export const createRarityModelComparisonSlice: StateCreator<
       );
     },
 
+    setIncludeBossCards: (include: boolean) => {
+      set(
+        ({ rarityModelComparison }) => {
+          rarityModelComparison.includeBossCards = include;
+        },
+        false,
+        "rarityModelComparison/setIncludeBossCards",
+      );
+    },
+
     handlePoeNinjaRarityClick: (rarity: Rarity) => {
       set(
         ({ rarityModelComparison: s }) => {
           const next = s.priorityPoeNinjaRarity === rarity ? null : rarity;
           s.priorityPoeNinjaRarity = next;
           s.priorityPlRarity = null;
+          s.priorityFilterRarities = {};
           s.tableSorting =
             next != null
               ? [{ id: "poeNinjaRarity", desc: false }]
@@ -271,6 +290,7 @@ export const createRarityModelComparisonSlice: StateCreator<
           const next = s.priorityPlRarity === rarity ? null : rarity;
           s.priorityPlRarity = next;
           s.priorityPoeNinjaRarity = null;
+          s.priorityFilterRarities = {};
           s.tableSorting =
             next != null
               ? [{ id: "prohibitedLibraryRarity", desc: false }]
@@ -278,6 +298,26 @@ export const createRarityModelComparisonSlice: StateCreator<
         },
         false,
         "rarityModelComparison/handlePlRarityClick",
+      );
+    },
+
+    handleFilterRarityClick: (filterId: string, rarity: KnownRarity) => {
+      set(
+        ({ rarityModelComparison: s }) => {
+          const current = s.priorityFilterRarities[filterId] ?? null;
+          const next = current === rarity ? null : rarity;
+          // Clear all other priority sources
+          s.priorityPoeNinjaRarity = null;
+          s.priorityPlRarity = null;
+          // Clear all filter priorities, then set the one we care about
+          s.priorityFilterRarities = next != null ? { [filterId]: next } : {};
+          s.tableSorting =
+            next != null
+              ? [{ id: `filter_${filterId}`, desc: false }]
+              : [{ id: "name", desc: false }];
+        },
+        false,
+        "rarityModelComparison/handleFilterRarityClick",
       );
     },
 
@@ -291,6 +331,12 @@ export const createRarityModelComparisonSlice: StateCreator<
           }
           if (!sorting.some((col) => col.id === "prohibitedLibraryRarity")) {
             s.priorityPlRarity = null;
+          }
+          // Clear filter priorities for columns no longer being sorted by
+          for (const filterId of Object.keys(s.priorityFilterRarities)) {
+            if (!sorting.some((col) => col.id === `filter_${filterId}`)) {
+              delete s.priorityFilterRarities[filterId];
+            }
           }
         },
         false,
@@ -343,8 +389,10 @@ export const createRarityModelComparisonSlice: StateCreator<
           rarityModelComparison.parsingFilterId = null;
           rarityModelComparison.parseErrors = new Map();
           rarityModelComparison.showDiffsOnly = false;
+          rarityModelComparison.includeBossCards = false;
           rarityModelComparison.priorityPoeNinjaRarity = null;
           rarityModelComparison.priorityPlRarity = null;
+          rarityModelComparison.priorityFilterRarities = {};
           rarityModelComparison.tableSorting = [{ id: "name", desc: false }];
         },
         false,
@@ -398,27 +446,43 @@ export const createRarityModelComparisonSlice: StateCreator<
 
     getDisplayRowCount: () => {
       const { rarityModelComparison, cards } = get();
-      const { showDiffsOnly } = rarityModelComparison;
+      const { showDiffsOnly, includeBossCards } = rarityModelComparison;
       const { allCards } = cards;
 
-      if (!showDiffsOnly) return allCards.length;
+      let filtered = allCards;
+
+      // Filter out boss-exclusive cards unless explicitly included
+      if (!includeBossCards) {
+        filtered = filtered.filter((c) => !c.fromBoss);
+      }
+
+      if (!showDiffsOnly) return filtered.length;
 
       const differences = get().rarityModelComparison.getDifferences();
-      if (differences.size === 0) return allCards.length;
+      if (differences.size === 0) return filtered.length;
 
-      return allCards.filter((c) => differences.has(c.name)).length;
+      return filtered.filter((c) => differences.has(c.name)).length;
     },
 
     getDisplayRows: () => {
       const { rarityModelComparison, cards } = get();
-      const { showDiffsOnly, selectedFilters, parsedResults } =
-        rarityModelComparison;
+      const {
+        showDiffsOnly,
+        includeBossCards,
+        selectedFilters,
+        parsedResults,
+      } = rarityModelComparison;
       const { allCards } = cards;
 
       const differences = get().rarityModelComparison.getDifferences();
 
-      // Filter by diffs only
+      // Filter out boss-exclusive cards unless explicitly included
       let filtered = allCards;
+      if (!includeBossCards) {
+        filtered = filtered.filter((c) => !c.fromBoss);
+      }
+
+      // Filter by diffs only
       if (showDiffsOnly && differences.size > 0) {
         filtered = filtered.filter((c) => differences.has(c.name));
       }

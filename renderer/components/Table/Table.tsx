@@ -134,7 +134,14 @@ function Table<TData>({
                   >
                     <div
                       className={clsx("flex items-center gap-1", {
-                        "justify-center": index > 0,
+                        "justify-center":
+                          index > 0 &&
+                          !(
+                            header.column.columnDef.meta as Record<
+                              string,
+                              unknown
+                            >
+                          )?.alignStart,
                       })}
                     >
                       {header.isPlaceholder
@@ -179,7 +186,15 @@ function Table<TData>({
                   <td
                     key={cell.id}
                     className={clsx({
-                      "text-center pl-0": index > 0,
+                      "text-center pl-0":
+                        index > 0 &&
+                        !(cell.column.columnDef.meta as Record<string, unknown>)
+                          ?.alignStart,
+                      "pl-0":
+                        index > 0 &&
+                        !!(
+                          cell.column.columnDef.meta as Record<string, unknown>
+                        )?.alignStart,
                     })}
                   >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}

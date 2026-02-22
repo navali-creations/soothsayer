@@ -1,9 +1,14 @@
 import { AnimatePresence, motion } from "motion/react";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { FiPlay } from "react-icons/fi";
 import { GiCardExchange, GiLockedChest } from "react-icons/gi";
 
-import { Button, Flex } from "~/renderer/components";
+import {
+  Button,
+  Flex,
+  type RaritySourceGroup,
+  RaritySourceSelect,
+} from "~/renderer/components";
 import { trackEvent } from "~/renderer/modules/umami";
 import { useBoundStore } from "~/renderer/store";
 import {
@@ -11,6 +16,16 @@ import {
   encodeRaritySourceValue,
   getAnalyticsRaritySource,
 } from "~/renderer/utils";
+
+/**
+ * Small helper that renders a dataset-driven menu label with a dotted
+ * underline and a superscript "?" hint.
+ */
+const DatasetMenuLabel = ({ label, hint }: { label: string; hint: string }) => (
+  <span className="border-b border-dotted border-b-current" title={hint}>
+    {label} <sup>?</sup>
+  </span>
+);
 
 const CurrentSessionActions = () => {
   const {
@@ -91,53 +106,71 @@ const CurrentSessionActions = () => {
 
   const dropdownValue = encodeRaritySourceValue(raritySource, selectedFilterId);
 
+  const groups = useMemo<RaritySourceGroup[]>(() => {
+    const result: RaritySourceGroup[] = [
+      {
+        label: "Dataset Driven",
+        options: [
+          {
+            value: "poe.ninja",
+            label: "poe.ninja",
+            menuLabel: (
+              <DatasetMenuLabel
+                label="poe.ninja"
+                hint="Price based rarity from poe.ninja market data"
+              />
+            ),
+          },
+          {
+            value: "prohibited-library",
+            label: "Prohibited Library",
+            menuLabel: (
+              <DatasetMenuLabel
+                label="Prohibited Library"
+                hint="Weight based rarity from community-collected drop data"
+              />
+            ),
+          },
+        ],
+      },
+    ];
+
+    if (onlineFilters.length > 0) {
+      result.push({
+        label: "Online Filters",
+        options: onlineFilters.map((filter) => ({
+          value: `filter:${filter.id}`,
+          label: filter.name,
+          outdated: filter.isOutdated,
+        })),
+      });
+    }
+
+    if (localFilters.length > 0) {
+      result.push({
+        label: "Local Filters",
+        options: localFilters.map((filter) => ({
+          value: `filter:${filter.id}`,
+          label: filter.name,
+          outdated: filter.isOutdated,
+        })),
+      });
+    }
+
+    return result;
+  }, [onlineFilters, localFilters]);
+
   return (
     <Flex className="gap-2 items-center">
       {/* Unified Rarity Source Dropdown */}
       <div data-onboarding="current-session-rarity-source">
-        <select
-          className="select select-bordered select-sm w-48"
+        <RaritySourceSelect
           value={dropdownValue}
-          onChange={(e) => handleDropdownChange(e.target.value)}
+          onChange={handleDropdownChange}
+          groups={groups}
           disabled={isActive || isScanning}
-          title={
-            isActive
-              ? "Cannot change rarity source while session is active"
-              : "Select rarity source"
-          }
-        >
-          {/* Dataset-driven sources */}
-          <optgroup label="Dataset Driven">
-            <option value="poe.ninja">poe.ninja (price-based)</option>
-            <option value="prohibited-library" disabled>
-              Prohibited Library (coming soon)
-            </option>
-          </optgroup>
-
-          {/* Online filters */}
-          {onlineFilters.length > 0 && (
-            <optgroup label="Online Filters">
-              {onlineFilters.map((filter) => (
-                <option key={filter.id} value={`filter:${filter.id}`}>
-                  {filter.name}
-                  {filter.isOutdated ? " (outdated)" : ""}
-                </option>
-              ))}
-            </optgroup>
-          )}
-
-          {/* Local filters */}
-          {localFilters.length > 0 && (
-            <optgroup label="Local Filters">
-              {localFilters.map((filter) => (
-                <option key={filter.id} value={`filter:${filter.id}`}>
-                  {filter.name}
-                  {filter.isOutdated ? " (outdated)" : ""}
-                </option>
-              ))}
-            </optgroup>
-          )}
-        </select>
+          width="w-48"
+        />
       </div>
 
       <div data-onboarding="start-session" className="relative">

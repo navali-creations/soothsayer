@@ -1,9 +1,11 @@
 import { createColumnHelper, type SortingFn } from "@tanstack/react-table";
-import { useDeferredValue, useMemo } from "react";
+import { memo, useDeferredValue, useMemo } from "react";
 import { FiRefreshCw } from "react-icons/fi";
+import { GiCrownedSkull } from "react-icons/gi";
 
 import { Table } from "~/renderer/components";
 import { useBoundStore } from "~/renderer/store";
+import { getRarityStyles } from "~/renderer/utils";
 import type { KnownRarity } from "~/types/data-stores";
 
 import type {
@@ -20,6 +22,61 @@ import RarityModelCardNameCell from "./RarityModelCardNameCell";
 const columnHelper = createColumnHelper<ComparisonRow>();
 
 const PLACEHOLDER_FILTER_NAMES = ["Filter 1", "Filter 2", "Filter 3"];
+
+const KNOWN_RARITIES: KnownRarity[] = [1, 2, 3, 4];
+const SHORT_LABELS: Record<KnownRarity, string> = {
+  1: "R1",
+  2: "R2",
+  3: "R3",
+  4: "R4",
+};
+
+/**
+ * Compact R1–R4 badge row used in filter and placeholder column headers.
+ * Supports an optional `disabled` prop to render inert badges for placeholders.
+ */
+const RarityChips = memo(
+  ({
+    activeRarity,
+    onRarityClick,
+    disabled = false,
+  }: {
+    activeRarity: KnownRarity | null;
+    onRarityClick?: (e: React.MouseEvent, rarity: KnownRarity) => void;
+    disabled?: boolean;
+  }) => (
+    <div className="flex items-center gap-0.5">
+      {KNOWN_RARITIES.map((rarity) => {
+        const styles = getRarityStyles(rarity);
+        const isActive = activeRarity === rarity;
+
+        return (
+          <button
+            key={rarity}
+            type="button"
+            className="badge badge-xs transition-opacity"
+            style={{
+              backgroundColor: styles.badgeBg,
+              color: styles.badgeText,
+              borderColor: styles.badgeBorder,
+              borderWidth: "1px",
+              borderStyle: "solid",
+              opacity: isActive ? 1 : 0.5,
+              filter: disabled ? "sepia(1)" : undefined,
+              cursor: disabled ? "default" : "pointer",
+            }}
+            disabled={disabled}
+            onClick={disabled ? undefined : (e) => onRarityClick?.(e, rarity)}
+            title={disabled ? undefined : `Sort by ${SHORT_LABELS[rarity]}`}
+          >
+            {SHORT_LABELS[rarity]}
+          </button>
+        );
+      })}
+    </div>
+  ),
+);
+RarityChips.displayName = "RarityChips";
 
 interface ComparisonTableProps {
   globalFilter?: string;
@@ -39,6 +96,12 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
   );
   const handlePLRarityClick = useBoundStore(
     (s) => s.rarityModelComparison.handlePlRarityClick,
+  );
+  const handleFilterRarityClick = useBoundStore(
+    (s) => s.rarityModelComparison.handleFilterRarityClick,
+  );
+  const priorityFilterRarities = useBoundStore(
+    (s) => s.rarityModelComparison.priorityFilterRarities,
   );
   const handleSortingChange = useBoundStore(
     (s) => s.rarityModelComparison.handleTableSortingChange,
@@ -97,6 +160,9 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
   const showDiffsOnly = useBoundStore(
     (s) => s.rarityModelComparison.showDiffsOnly,
   );
+  const includeBossCards = useBoundStore(
+    (s) => s.rarityModelComparison.includeBossCards,
+  );
 
   // Defer the values that drive the expensive displayRows rebuild so React
   // can commit the sidebar / toolbar re-render (cheap) immediately and
@@ -137,6 +203,12 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
 
     // ── Filter cards ──
     let filtered = allCards;
+
+    // Hide boss-exclusive cards unless explicitly included
+    if (!includeBossCards) {
+      filtered = filtered.filter((c) => !c.fromBoss);
+    }
+
     if (showDiffsOnly && differences.size > 0) {
       filtered = filtered.filter((c) => differences.has(c.name));
     }
@@ -166,7 +238,13 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
         fromBoss: card.fromBoss ?? false,
       };
     });
-  }, [allCards, selectedFilters, parsedResults, showDiffsOnly]);
+  }, [
+    allCards,
+    selectedFilters,
+    parsedResults,
+    showDiffsOnly,
+    includeBossCards,
+  ]);
 
   // Columns use NON-deferred store values so that new filter columns
   // (with "Parsing…" headers) appear on the very first render after the
@@ -182,6 +260,26 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
       .filter(Boolean);
 
     return [
+      // Boss indicator column — only shown when "Include boss cards" is on
+      ...(includeBossCards
+        ? [
+            columnHelper.accessor("fromBoss", {
+              id: "fromBoss",
+              header: () => (
+                <GiCrownedSkull className="w-4 h-4 text-warning/70" />
+              ),
+              cell: (info) =>
+                info.getValue() ? (
+                  <GiCrownedSkull className="w-3.5 h-3.5 text-warning/70 mx-auto" />
+                ) : null,
+              size: 40,
+              maxSize: 50,
+              enableSorting: false,
+              enableGlobalFilter: false,
+            }),
+          ]
+        : []),
+
       // Card Name — with DivinationCard hover popover
       columnHelper.accessor("name", {
         id: "name",
@@ -189,6 +287,7 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
         cell: (info) => <RarityModelCardNameCell card={info.row.original} />,
         size: 200,
         minSize: 150,
+        meta: { alignStart: true },
       }),
 
       // poe.ninja rarity — sortable by clicking rarity badges in header
@@ -222,10 +321,7 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
           />
         ),
         cell: (info) => (
-          <ProhibitedLibraryRarityCell
-            rarity={info.getValue()}
-            fromBoss={info.row.original.fromBoss}
-          />
+          <ProhibitedLibraryRarityCell rarity={info.getValue()} />
         ),
         size: 140,
         sortingFn: plRaritySortFn,
@@ -233,7 +329,7 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
         enableGlobalFilter: false,
       }),
 
-      // Dynamic filter columns — editable
+      // Dynamic filter columns — editable, with priority-rarity sorting
       ...storeSelectedFilters.map((filterId) => {
         const filterDetail = selectedFilterDetails.find(
           (f) => f!.id === filterId,
@@ -245,47 +341,86 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
           storeParsingFilterId === filterId &&
           !storeParsedResults.has(filterId);
 
-        return columnHelper.display({
-          id: `filter_${filterId}`,
-          header: () =>
-            isParsing ? (
-              <div className="flex items-center justify-center gap-1.5 text-base-content/50">
-                <FiRefreshCw className="w-3.5 h-3.5 animate-spin" />
-                <span className="text-xs">Parsing...</span>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-0.5">
-                <span className="truncate max-w-30">{filterName}</span>
-                {isOutdated && (
-                  <span className="badge badge-warning badge-xs">outdated</span>
+        const filterPriority = priorityFilterRarities[filterId] ?? null;
+
+        const filterSortFn: SortingFn<ComparisonRow> = (rowA, rowB) => {
+          const a = rowA.original.filterRarities[filterId];
+          const b = rowB.original.filterRarities[filterId];
+
+          // null (still loading) always sorts to the bottom
+          if (a == null && b == null) return 0;
+          if (a == null) return 1;
+          if (b == null) return -1;
+
+          if (filterPriority != null) {
+            const aMatch = a === filterPriority ? 0 : 1;
+            const bMatch = b === filterPriority ? 0 : 1;
+            if (aMatch !== bMatch) return aMatch - bMatch;
+          }
+
+          return a - b;
+        };
+
+        return columnHelper.accessor(
+          (row) => row.filterRarities[filterId] ?? null,
+          {
+            id: `filter_${filterId}`,
+            header: () => (
+              <div className="flex flex-col items-center gap-1">
+                {isParsing ? (
+                  <div className="flex items-center gap-1.5 text-base-content/50">
+                    <FiRefreshCw className="w-3 h-3 animate-spin" />
+                    <span className="text-xs">Parsing…</span>
+                  </div>
+                ) : (
+                  <>
+                    <span className="truncate max-w-30 text-xs font-semibold">
+                      {filterName}
+                    </span>
+                    {isOutdated && (
+                      <span className="badge badge-warning badge-xs">
+                        outdated
+                      </span>
+                    )}
+                  </>
                 )}
+                <RarityChips
+                  activeRarity={filterPriority}
+                  onRarityClick={(e, rarity) => {
+                    e.stopPropagation();
+                    handleFilterRarityClick(filterId, rarity);
+                  }}
+                />
               </div>
             ),
-          cell: (info) => {
-            const row = info.row.original;
-            const filterRarity = row.filterRarities[filterId];
+            cell: (info) => {
+              const row = info.row.original;
+              const filterRarity = row.filterRarities[filterId];
 
-            if (filterRarity === null || filterRarity === undefined) {
-              return <span className="loading loading-dots loading-xs" />;
-            }
+              if (filterRarity === null || filterRarity === undefined) {
+                return <span className="loading loading-dots loading-xs" />;
+              }
 
-            return (
-              <RarityBadgeDropdown
-                rarity={filterRarity}
-                onRarityChange={(newRarity) =>
-                  updateFilterCardRarity(
-                    filterId,
-                    row.name,
-                    newRarity as KnownRarity,
-                  )
-                }
-                outline={filterRarity !== row.rarity}
-              />
-            );
+              return (
+                <RarityBadgeDropdown
+                  rarity={filterRarity}
+                  onRarityChange={(newRarity) =>
+                    updateFilterCardRarity(
+                      filterId,
+                      row.name,
+                      newRarity as KnownRarity,
+                    )
+                  }
+                  outline={filterRarity !== row.rarity}
+                />
+              );
+            },
+            size: 150,
+            sortingFn: filterSortFn,
+            meta: { hideSortIcon: true },
+            enableGlobalFilter: false,
           },
-          size: 150,
-          enableGlobalFilter: false,
-        });
+        );
       }),
 
       // Placeholder columns for unselected filter slots
@@ -298,10 +433,11 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
         return columnHelper.display({
           id: `placeholder_${placeholderIndex}`,
           header: () => (
-            <div className="flex flex-col items-center gap-0.5">
-              <span className="truncate max-w-30 text-base-content/30">
+            <div className="flex flex-col items-center gap-1">
+              <span className="truncate max-w-30 text-base-content/30 text-xs font-semibold">
                 {placeholderName}
               </span>
+              <RarityChips activeRarity={null} disabled />
             </div>
           ),
           cell: () => (
@@ -324,6 +460,9 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
     priorityPLRarity,
     handlePLRarityClick,
     plRaritySortFn,
+    includeBossCards,
+    priorityFilterRarities,
+    handleFilterRarityClick,
   ]);
 
   if (displayRows.length === 0) {

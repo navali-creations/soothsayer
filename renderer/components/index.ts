@@ -11,6 +11,11 @@ export { default as MarkdownRenderer } from "./Markdown";
 export type { ModalHandle } from "./Modal";
 export { Modal } from "./Modal";
 export { default as PageContainer } from "./PageContainer/PageContainer";
+export type {
+  RaritySourceGroup,
+  RaritySourceOption,
+} from "./RaritySourceSelect";
+export { RaritySourceSelect } from "./RaritySourceSelect";
 export { default as Search } from "./Search/Search";
 export { GroupedStats, Stat } from "./Stat/Stat";
 export * from "./Table";
