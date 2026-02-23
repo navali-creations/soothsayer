@@ -47,12 +47,12 @@ const Modal = forwardRef<ModalHandle, ModalProps>(
     return (
       <dialog
         ref={dialogRef}
-        className="modal modal-bottom sm:modal-middle"
+        className="modal modal-bottom sm:modal-middle backdrop-blur-xs"
         onClose={handleClose}
       >
         <div
           className={clsx(
-            "modal-box border border-base-300",
+            "modal-box border border-base-300 bg-base-300",
             sizeClasses[size],
             className,
           )}

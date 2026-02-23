@@ -50,6 +50,7 @@ export function toUserSettingsDTO(row: UserSettingsRow): UserSettingsDTO {
       | "filter"
       | "prohibited-library",
     selectedFilterId: row.selected_filter_id,
+    lastSeenAppVersion: row.last_seen_app_version ?? null,
   };
 }
 
@@ -125,6 +126,7 @@ export function toDBKey(key: keyof UserSettingsDTO): keyof UserSettingsTable {
     audioRarity3Path: "audio_rarity3_path",
     raritySource: "rarity_source",
     selectedFilterId: "selected_filter_id",
+    lastSeenAppVersion: "last_seen_app_version",
   };
   return mapping[key];
 }

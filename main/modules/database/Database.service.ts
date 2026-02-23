@@ -581,6 +581,9 @@ class DatabaseService {
           rarity_source TEXT NOT NULL DEFAULT 'poe.ninja' CHECK(rarity_source IN ('poe.ninja', 'filter', 'prohibited-library')),
           selected_filter_id TEXT REFERENCES filter_metadata(id) ON DELETE SET NULL,
 
+          -- Post-update detection
+          last_seen_app_version TEXT,
+
           -- Metadata
           created_at TEXT NOT NULL DEFAULT (datetime('now')),
           updated_at TEXT NOT NULL DEFAULT (datetime('now'))

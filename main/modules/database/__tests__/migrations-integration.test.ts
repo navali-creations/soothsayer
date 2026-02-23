@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { MigrationRunner, migrations } from "../migrations";
 import { migration_20260213_204200_add_filter_tables_and_rarity_source } from "../migrations/20260213_204200_add_filter_tables_and_rarity_source";
 import { migration_20260221_201500_add_prohibited_library } from "../migrations/20260221_201500_add_prohibited_library";
+import { migration_20260223_010100_add_last_seen_app_version } from "../migrations/20260223_010100_add_last_seen_app_version";
 
 /**
  * Returns the column names for a given table.
@@ -254,6 +255,7 @@ function createBaselineSchema(db: Database.Database): void {
       audio_rarity3_path TEXT,
       rarity_source TEXT NOT NULL DEFAULT 'poe.ninja' CHECK(rarity_source IN ('poe.ninja', 'filter', 'prohibited-library')),
       selected_filter_id TEXT REFERENCES filter_metadata(id) ON DELETE SET NULL,
+      last_seen_app_version TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
@@ -364,6 +366,8 @@ const EXPECTED_FILTER_SETTINGS_COLUMNS = [
 ];
 
 const EXPECTED_FILTER_TABLES = ["filter_metadata", "filter_card_rarities"];
+
+const EXPECTED_LAST_SEEN_APP_VERSION_COLUMNS = ["last_seen_app_version"];
 
 const EXPECTED_PROHIBITED_LIBRARY_TABLES = [
   "prohibited_library_card_weights",
@@ -527,6 +531,29 @@ describe("Migrations Integration", () => {
       expect(columns).toContain("from_boss");
     });
 
+    it("should have last_seen_app_version column on user_settings after migrations", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      const columns = getColumnNames(db, "user_settings");
+      for (const col of EXPECTED_LAST_SEEN_APP_VERSION_COLUMNS) {
+        expect(columns).toContain(col);
+      }
+    });
+
+    it("should default last_seen_app_version to NULL on fresh install", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      const row = db
+        .prepare("SELECT last_seen_app_version FROM user_settings WHERE id = 1")
+        .get() as { last_seen_app_version: string | null };
+
+      expect(row.last_seen_app_version).toBeNull();
+    });
+
     it("should record all migrations as applied", () => {
       createBaselineSchema(db);
       const runner = new MigrationRunner(db);
@@ -571,6 +598,22 @@ describe("Migrations Integration", () => {
       expect(row.app_exit_action).toBe("minimize");
       expect(row.selected_game).toBe("poe1");
     });
+
+    it("should store and retrieve last_seen_app_version after migration", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      db.prepare(
+        "UPDATE user_settings SET last_seen_app_version = ? WHERE id = 1",
+      ).run("0.5.0");
+
+      const row = db
+        .prepare("SELECT last_seen_app_version FROM user_settings WHERE id = 1")
+        .get() as { last_seen_app_version: string | null };
+
+      expect(row.last_seen_app_version).toBe("0.5.0");
+    });
   });
 
   // ─── Upgrade from Pre-Audio Version ────────────────────────────────────
@@ -581,6 +624,15 @@ describe("Migrations Integration", () => {
       const runner = new MigrationRunner(db);
 
       expect(() => runner.runMigrations(migrations)).not.toThrow();
+    });
+
+    it("should have last_seen_app_version column after upgrade from pre-audio", () => {
+      createPreAudioSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      const columns = getColumnNames(db, "user_settings");
+      expect(columns).toContain("last_seen_app_version");
     });
 
     it("should add all audio columns to user_settings", () => {
@@ -644,6 +696,18 @@ describe("Migrations Integration", () => {
       }
     });
 
+    it("should default last_seen_app_version to NULL after pre-audio upgrade", () => {
+      createPreAudioSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      const row = db
+        .prepare("SELECT last_seen_app_version FROM user_settings WHERE id = 1")
+        .get() as { last_seen_app_version: string | null };
+
+      expect(row.last_seen_app_version).toBeNull();
+    });
+
     it("should preserve existing user settings during upgrade", () => {
       createPreAudioSchema(db);
 
@@ -673,6 +737,15 @@ describe("Migrations Integration", () => {
   // ─── Upgrade from Pre-Filter Version (has audio, no filters) ───────────
 
   describe("upgrade (pre-filter schema + filter migration)", () => {
+    it("should have last_seen_app_version column after upgrade from pre-filter", () => {
+      createPreFilterSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      const columns = getColumnNames(db, "user_settings");
+      expect(columns).toContain("last_seen_app_version");
+    });
+
     it("should run all migrations without errors on a pre-filter database", () => {
       createPreFilterSchema(db);
       const runner = new MigrationRunner(db);
@@ -1576,6 +1649,27 @@ describe("Migrations Integration", () => {
       expect(freshColumns).toEqual(upgradeColumns);
     });
 
+    it("should have last_seen_app_version on user_settings in both fresh and upgrade paths", () => {
+      const freshDb = new Database(":memory:");
+      freshDb.pragma("foreign_keys = ON");
+      createBaselineSchema(freshDb);
+      const freshRunner = new MigrationRunner(freshDb);
+      freshRunner.runMigrations(migrations);
+      const freshColumns = getColumnNames(freshDb, "user_settings");
+      freshDb.close();
+
+      const upgradeDb = new Database(":memory:");
+      upgradeDb.pragma("foreign_keys = ON");
+      createPreAudioSchema(upgradeDb);
+      const upgradeRunner = new MigrationRunner(upgradeDb);
+      upgradeRunner.runMigrations(migrations);
+      const upgradeColumns = getColumnNames(upgradeDb, "user_settings");
+      upgradeDb.close();
+
+      expect(freshColumns).toContain("last_seen_app_version");
+      expect(upgradeColumns).toContain("last_seen_app_version");
+    });
+
     it("should have from_boss on divination_cards in both fresh and upgrade paths", () => {
       const freshDb = new Database(":memory:");
       freshDb.pragma("foreign_keys = ON");
@@ -1642,6 +1736,97 @@ describe("Migrations Integration", () => {
       expect(() =>
         migration_20260213_204200_add_filter_tables_and_rarity_source.down(db),
       ).not.toThrow();
+    });
+  });
+
+  describe("last_seen_app_version migration idempotency", () => {
+    it("should skip adding last_seen_app_version when column already exists", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+
+      // Run all migrations so last_seen_app_version is already present
+      runner.runMigrations(migrations);
+
+      const before = getColumnNames(db, "user_settings");
+      expect(before).toContain("last_seen_app_version");
+
+      // Calling up() again directly should not throw (idempotent)
+      expect(() =>
+        migration_20260223_010100_add_last_seen_app_version.up(db),
+      ).not.toThrow();
+
+      // last_seen_app_version should still be there exactly once
+      const after = getColumnNames(db, "user_settings");
+      const count = after.filter((c) => c === "last_seen_app_version").length;
+      expect(count).toBe(1);
+    });
+
+    it("should handle down() when last_seen_app_version column does not exist", () => {
+      createBaselineSchema(db);
+
+      // Remove the column to simulate a state where migration was never applied
+      // (baseline already has it, so drop it first)
+      db.exec(`ALTER TABLE user_settings DROP COLUMN last_seen_app_version`);
+
+      const before = getColumnNames(db, "user_settings");
+      expect(before).not.toContain("last_seen_app_version");
+
+      // down() should not throw even though column is absent
+      expect(() =>
+        migration_20260223_010100_add_last_seen_app_version.down(db),
+      ).not.toThrow();
+
+      const after = getColumnNames(db, "user_settings");
+      expect(after).not.toContain("last_seen_app_version");
+    });
+
+    it("should preserve existing user settings data after down() removes last_seen_app_version", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      // Set some data
+      db.prepare(
+        "UPDATE user_settings SET app_exit_action = 'minimize', last_seen_app_version = '0.5.0' WHERE id = 1",
+      ).run();
+
+      // Roll back the migration
+      migration_20260223_010100_add_last_seen_app_version.down(db);
+
+      // Column should be gone
+      const columns = getColumnNames(db, "user_settings");
+      expect(columns).not.toContain("last_seen_app_version");
+
+      // Other data should survive
+      const row = db
+        .prepare("SELECT app_exit_action FROM user_settings WHERE id = 1")
+        .get() as { app_exit_action: string };
+      expect(row.app_exit_action).toBe("minimize");
+    });
+
+    it("should allow re-applying last_seen_app_version migration after rollback", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      // Roll back
+      migration_20260223_010100_add_last_seen_app_version.down(db);
+      const afterDown = getColumnNames(db, "user_settings");
+      expect(afterDown).not.toContain("last_seen_app_version");
+
+      // Re-apply
+      migration_20260223_010100_add_last_seen_app_version.up(db);
+      const afterUp = getColumnNames(db, "user_settings");
+      expect(afterUp).toContain("last_seen_app_version");
+
+      // Should be writable
+      db.prepare(
+        "UPDATE user_settings SET last_seen_app_version = '0.6.0' WHERE id = 1",
+      ).run();
+      const row = db
+        .prepare("SELECT last_seen_app_version FROM user_settings WHERE id = 1")
+        .get() as { last_seen_app_version: string | null };
+      expect(row.last_seen_app_version).toBe("0.6.0");
     });
   });
 

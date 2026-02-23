@@ -87,6 +87,7 @@ export const createSettingsSlice: StateCreator<
     audioRarity3Path: null,
     raritySource: "poe.ninja",
     selectedFilterId: null,
+    lastSeenAppVersion: null,
 
     // Additional state
     isLoading: false,

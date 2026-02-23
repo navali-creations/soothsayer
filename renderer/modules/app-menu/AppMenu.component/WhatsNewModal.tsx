@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { FiGitCommit, FiUser } from "react-icons/fi";
 import { MdOutlineNewReleases } from "react-icons/md";
 
 import {
@@ -9,6 +10,62 @@ import {
 } from "~/renderer/components";
 import { changeTypeColor } from "~/renderer/modules/changelog/Changelog.utils";
 import { useBoundStore } from "~/renderer/store";
+
+const COMMIT_URL_PATTERN = /\/commit\//;
+const GITHUB_USER_PATTERN = /^@/;
+
+const whatsNewComponents = {
+  a: ({ node, children, href, ...props }: any) => {
+    const text = typeof children === "string" ? children : "";
+
+    // Commit hash link: [`abc1234`](https://github.com/.../commit/...)
+    if (href && COMMIT_URL_PATTERN.test(href)) {
+      return (
+        <Badge variant="info" size="sm" soft icon={<FiGitCommit size={11} />}>
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:underline"
+            {...props}
+          >
+            {children}
+          </a>
+        </Badge>
+      );
+    }
+
+    // Contributor handle link: [@username](https://github.com/username)
+    if (text && GITHUB_USER_PATTERN.test(text)) {
+      return (
+        <Badge variant="info" size="sm" soft icon={<FiUser size={11} />}>
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:underline"
+            {...props}
+          >
+            {children}
+          </a>
+        </Badge>
+      );
+    }
+
+    // Default link styling
+    return (
+      <a
+        className="text-primary hover:underline"
+        target="_blank"
+        rel="noopener noreferrer"
+        href={href}
+        {...props}
+      >
+        {children}
+      </a>
+    );
+  },
+};
 
 const WhatsNewModal = () => {
   const {
@@ -77,7 +134,9 @@ const WhatsNewModal = () => {
 
           <div className="overflow-y-auto overflow-x-hidden max-h-[60vh] pr-2">
             {whatsNewRelease.body ? (
-              <MarkdownRenderer>{whatsNewRelease.body}</MarkdownRenderer>
+              <MarkdownRenderer componentOverrides={whatsNewComponents}>
+                {whatsNewRelease.body}
+              </MarkdownRenderer>
             ) : (
               <p className="text-sm text-base-content/60">
                 No detailed changes available for this release.
@@ -88,7 +147,11 @@ const WhatsNewModal = () => {
       )}
 
       <div className="modal-action">
-        <button className="btn btn-ghost" type="button" onClick={closeWhatsNew}>
+        <button
+          className="btn btn-sm btn-primary"
+          type="button"
+          onClick={closeWhatsNew}
+        >
           Close
         </button>
       </div>

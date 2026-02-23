@@ -110,6 +110,9 @@ const {
       audioRarity1Path: null,
       audioRarity2Path: null,
       audioRarity3Path: null,
+      raritySource: "poe.ninja",
+      selectedFilterId: null,
+      lastSeenAppVersion: null,
     }),
     mockFsReaddir: vi.fn(),
     mockFsReadFile: vi.fn(),
@@ -1192,6 +1195,49 @@ describe("SettingsStoreService — IPC handlers", () => {
     it("should reject non-string for selectedFilterId", async () => {
       const h = handler();
       const result = await h({}, "selectedFilterId", 999);
+
+      expect(result).toEqual({
+        success: false,
+        error: expect.stringContaining("Invalid input"),
+      });
+    });
+
+    // ── undefined value ──
+
+    // ── lastSeenAppVersion ──
+
+    it("should accept a valid semver string for lastSeenAppVersion", async () => {
+      const h = handler();
+      await h({}, "lastSeenAppVersion", "0.5.0");
+      expect(mockRepositorySet).toHaveBeenCalledWith(
+        "lastSeenAppVersion",
+        "0.5.0",
+      );
+    });
+
+    it("should accept null for lastSeenAppVersion (clear it)", async () => {
+      const h = handler();
+      await h({}, "lastSeenAppVersion", null);
+      expect(mockRepositorySet).toHaveBeenCalledWith(
+        "lastSeenAppVersion",
+        null,
+      );
+    });
+
+    it("should reject lastSeenAppVersion exceeding max length (64)", async () => {
+      const h = handler();
+      const longVersion = "x".repeat(65);
+      const result = await h({}, "lastSeenAppVersion", longVersion);
+
+      expect(result).toEqual({
+        success: false,
+        error: expect.stringContaining("Invalid input"),
+      });
+    });
+
+    it("should reject non-string for lastSeenAppVersion", async () => {
+      const h = handler();
+      const result = await h({}, "lastSeenAppVersion", 123);
 
       expect(result).toEqual({
         success: false,

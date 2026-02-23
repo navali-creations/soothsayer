@@ -59,6 +59,12 @@ class AppService {
     }
   }
 
+  public emitGetVersion() {
+    ipcMain.handle(AppChannel.GetVersion, () => {
+      return this.app.getVersion();
+    });
+  }
+
   public emitRestart() {
     ipcMain.handle(AppChannel.Restart, () => {
       if (this.isQuitting) return;

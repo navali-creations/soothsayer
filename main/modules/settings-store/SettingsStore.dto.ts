@@ -28,6 +28,7 @@ export interface UserSettingsDTO {
   audioRarity3Path: string | null;
   raritySource: RaritySource;
   selectedFilterId: string | null;
+  lastSeenAppVersion: string | null;
 }
 
 /**

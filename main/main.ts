@@ -60,6 +60,7 @@ if (!electronApp.requestSingleInstanceLock()) {
     await mainWindow.createMainWindow();
     app.emitSecondInstance(mainWindow);
     app.emitRestart();
+    app.emitGetVersion();
   });
 }
 

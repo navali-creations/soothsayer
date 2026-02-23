@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   assertArray,
@@ -27,6 +27,7 @@ import {
   assertStringArray,
   handleValidationError,
   IpcValidationError,
+  validateFileDialogOptions,
 } from "../ipc-validation";
 
 describe("IPC Validation Utilities", () => {
@@ -1113,6 +1114,336 @@ describe("IPC Validation Utilities", () => {
   });
 
   // ─── Security Edge Cases ─────────────────────────────────────────────────
+
+  // ─── validateFileDialogOptions ─────────────────────────────────────────
+
+  describe("validateFileDialogOptions", () => {
+    // ── Defaults / non-object inputs ───────────────────────────────────
+
+    it("should return safe defaults when raw is null", () => {
+      const result = validateFileDialogOptions(null, TEST_CHANNEL);
+      expect(result).toEqual({
+        title: "Select File",
+        filters: [],
+        properties: ["openFile"],
+      });
+    });
+
+    it("should return safe defaults when raw is undefined", () => {
+      const result = validateFileDialogOptions(undefined, TEST_CHANNEL);
+      expect(result).toEqual({
+        title: "Select File",
+        filters: [],
+        properties: ["openFile"],
+      });
+    });
+
+    it("should return safe defaults when raw is a string", () => {
+      const result = validateFileDialogOptions("not an object", TEST_CHANNEL);
+      expect(result).toEqual({
+        title: "Select File",
+        filters: [],
+        properties: ["openFile"],
+      });
+    });
+
+    it("should return safe defaults when raw is a number", () => {
+      const result = validateFileDialogOptions(42, TEST_CHANNEL);
+      expect(result).toEqual({
+        title: "Select File",
+        filters: [],
+        properties: ["openFile"],
+      });
+    });
+
+    it("should return defaults for an empty object", () => {
+      const result = validateFileDialogOptions({}, TEST_CHANNEL);
+      expect(result).toEqual({
+        title: "Select File",
+        filters: [],
+        properties: ["openFile"],
+      });
+    });
+
+    // ── Title ──────────────────────────────────────────────────────────
+
+    it("should use a custom title when provided", () => {
+      const result = validateFileDialogOptions(
+        { title: "Pick a sound file" },
+        TEST_CHANNEL,
+      );
+      expect(result.title).toBe("Pick a sound file");
+    });
+
+    it("should use default title when title is omitted", () => {
+      const result = validateFileDialogOptions({ filters: [] }, TEST_CHANNEL);
+      expect(result.title).toBe("Select File");
+    });
+
+    it("should throw for a non-string title", () => {
+      expect(() =>
+        validateFileDialogOptions({ title: 123 }, TEST_CHANNEL),
+      ).toThrow(IpcValidationError);
+    });
+
+    it("should throw for a title exceeding 200 characters", () => {
+      expect(() =>
+        validateFileDialogOptions({ title: "x".repeat(201) }, TEST_CHANNEL),
+      ).toThrow(IpcValidationError);
+    });
+
+    it("should pass for a title at exactly 200 characters", () => {
+      const result = validateFileDialogOptions(
+        { title: "x".repeat(200) },
+        TEST_CHANNEL,
+      );
+      expect(result.title).toBe("x".repeat(200));
+    });
+
+    // ── Filters ────────────────────────────────────────────────────────
+
+    it("should accept valid filters", () => {
+      const result = validateFileDialogOptions(
+        {
+          filters: [
+            { name: "Audio", extensions: ["mp3", "wav", "ogg"] },
+            { name: "All Files", extensions: ["*"] },
+          ],
+        },
+        TEST_CHANNEL,
+      );
+      expect(result.filters).toEqual([
+        { name: "Audio", extensions: ["mp3", "wav", "ogg"] },
+        { name: "All Files", extensions: ["*"] },
+      ]);
+    });
+
+    it("should accept an empty filters array", () => {
+      const result = validateFileDialogOptions({ filters: [] }, TEST_CHANNEL);
+      expect(result.filters).toEqual([]);
+    });
+
+    it("should throw when a filter entry is null", () => {
+      expect(() =>
+        validateFileDialogOptions({ filters: [null] }, TEST_CHANNEL),
+      ).toThrow(IpcValidationError);
+    });
+
+    it("should throw when a filter entry is a string instead of an object", () => {
+      expect(() =>
+        validateFileDialogOptions({ filters: ["bad"] }, TEST_CHANNEL),
+      ).toThrow(IpcValidationError);
+    });
+
+    it("should throw when a filter entry is a number", () => {
+      expect(() =>
+        validateFileDialogOptions({ filters: [42] }, TEST_CHANNEL),
+      ).toThrow(IpcValidationError);
+    });
+
+    it("should throw when filter.name is missing / not a string", () => {
+      expect(() =>
+        validateFileDialogOptions(
+          { filters: [{ name: 123, extensions: ["txt"] }] },
+          TEST_CHANNEL,
+        ),
+      ).toThrow(IpcValidationError);
+    });
+
+    it("should throw when filter.extensions is not an array", () => {
+      expect(() =>
+        validateFileDialogOptions(
+          { filters: [{ name: "Text", extensions: "txt" }] },
+          TEST_CHANNEL,
+        ),
+      ).toThrow(IpcValidationError);
+    });
+
+    it("should throw when filter.extensions contains a non-string", () => {
+      expect(() =>
+        validateFileDialogOptions(
+          { filters: [{ name: "Text", extensions: [42] }] },
+          TEST_CHANNEL,
+        ),
+      ).toThrow(IpcValidationError);
+    });
+
+    it("should throw when filters array exceeds maxLength of 20", () => {
+      const tooMany = Array.from({ length: 21 }, (_, i) => ({
+        name: `Filter${i}`,
+        extensions: ["txt"],
+      }));
+      expect(() =>
+        validateFileDialogOptions({ filters: tooMany }, TEST_CHANNEL),
+      ).toThrow(IpcValidationError);
+    });
+
+    it("should throw when a filter extension exceeds maxItemLength of 20", () => {
+      expect(() =>
+        validateFileDialogOptions(
+          {
+            filters: [{ name: "Bad", extensions: ["a".repeat(21)] }],
+          },
+          TEST_CHANNEL,
+        ),
+      ).toThrow(IpcValidationError);
+    });
+
+    it("should throw when filter.name exceeds 100 characters", () => {
+      expect(() =>
+        validateFileDialogOptions(
+          {
+            filters: [{ name: "x".repeat(101), extensions: ["txt"] }],
+          },
+          TEST_CHANNEL,
+        ),
+      ).toThrow(IpcValidationError);
+    });
+
+    it("should only return name and extensions from filter objects (strip extra fields)", () => {
+      const result = validateFileDialogOptions(
+        {
+          filters: [
+            {
+              name: "Audio",
+              extensions: ["mp3"],
+              dangerousField: "should be dropped",
+            },
+          ],
+        },
+        TEST_CHANNEL,
+      );
+      expect(result.filters[0]).toEqual({
+        name: "Audio",
+        extensions: ["mp3"],
+      });
+      expect((result.filters[0] as any).dangerousField).toBeUndefined();
+    });
+
+    // ── Properties ─────────────────────────────────────────────────────
+
+    it("should accept valid allowed properties", () => {
+      const result = validateFileDialogOptions(
+        {
+          properties: [
+            "openFile",
+            "openDirectory",
+            "multiSelections",
+            "showHiddenFiles",
+          ],
+        },
+        TEST_CHANNEL,
+      );
+      expect(result.properties).toEqual([
+        "openFile",
+        "openDirectory",
+        "multiSelections",
+        "showHiddenFiles",
+      ]);
+    });
+
+    it("should filter out disallowed properties and keep allowed ones", () => {
+      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const result = validateFileDialogOptions(
+        {
+          properties: [
+            "openFile",
+            "createDirectory",
+            "treatPackageAsDirectory",
+          ],
+        },
+        TEST_CHANNEL,
+      );
+      expect(result.properties).toEqual(["openFile"]);
+      expect(consoleSpy).toHaveBeenCalledTimes(2);
+      consoleSpy.mockRestore();
+    });
+
+    it("should fall back to ['openFile'] when all properties are disallowed", () => {
+      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const result = validateFileDialogOptions(
+        { properties: ["createDirectory", "noResolveAliases"] },
+        TEST_CHANNEL,
+      );
+      expect(result.properties).toEqual(["openFile"]);
+      consoleSpy.mockRestore();
+    });
+
+    it("should throw when a properties entry is not a string", () => {
+      expect(() =>
+        validateFileDialogOptions({ properties: [42] }, TEST_CHANNEL),
+      ).toThrow(IpcValidationError);
+    });
+
+    it("should throw when properties is not an array", () => {
+      expect(() =>
+        validateFileDialogOptions({ properties: "openFile" }, TEST_CHANNEL),
+      ).toThrow(IpcValidationError);
+    });
+
+    it("should throw when properties array exceeds maxLength of 10", () => {
+      const tooMany = Array.from({ length: 11 }, () => "openFile");
+      expect(() =>
+        validateFileDialogOptions({ properties: tooMany }, TEST_CHANNEL),
+      ).toThrow(IpcValidationError);
+    });
+
+    it("should use default properties when properties key is omitted", () => {
+      const result = validateFileDialogOptions(
+        { title: "Choose" },
+        TEST_CHANNEL,
+      );
+      expect(result.properties).toEqual(["openFile"]);
+    });
+
+    // ── Full valid input ───────────────────────────────────────────────
+
+    it("should validate a complete, well-formed options object", () => {
+      const result = validateFileDialogOptions(
+        {
+          title: "Open Filter File",
+          filters: [
+            { name: "Item Filters", extensions: ["filter"] },
+            { name: "All Files", extensions: ["*"] },
+          ],
+          properties: ["openFile", "showHiddenFiles"],
+        },
+        TEST_CHANNEL,
+      );
+      expect(result).toEqual({
+        title: "Open Filter File",
+        filters: [
+          { name: "Item Filters", extensions: ["filter"] },
+          { name: "All Files", extensions: ["*"] },
+        ],
+        properties: ["openFile", "showHiddenFiles"],
+      });
+    });
+
+    // ── Extra / dangerous keys ignored ─────────────────────────────────
+
+    it("should ignore extra keys like defaultPath, buttonLabel, message", () => {
+      const result = validateFileDialogOptions(
+        {
+          title: "Pick",
+          defaultPath: "C:\\dangerous\\path",
+          buttonLabel: "Hack",
+          message: "Injected message",
+          securityScopedBookmarks: true,
+        },
+        TEST_CHANNEL,
+      );
+      expect(result).toEqual({
+        title: "Pick",
+        filters: [],
+        properties: ["openFile"],
+      });
+      expect((result as any).defaultPath).toBeUndefined();
+      expect((result as any).buttonLabel).toBeUndefined();
+      expect((result as any).message).toBeUndefined();
+      expect((result as any).securityScopedBookmarks).toBeUndefined();
+    });
+  });
 
   describe("security edge cases", () => {
     it("should reject prototype pollution attempts via game type", () => {

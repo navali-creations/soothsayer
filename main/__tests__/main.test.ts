@@ -9,6 +9,7 @@ const {
   mockAppQuit,
   mockAppEmitSecondInstance,
   mockAppEmitRestart,
+  mockAppEmitGetVersion,
   mockAppEmitActivate,
   mockAppQuitOnAllWindowsClosed,
   mockAppBeforeQuitCloseWindowsAndDestroyElements,
@@ -33,6 +34,7 @@ const {
   mockAppQuit: vi.fn(),
   mockAppEmitSecondInstance: vi.fn(),
   mockAppEmitRestart: vi.fn(),
+  mockAppEmitGetVersion: vi.fn(),
   mockAppEmitActivate: vi.fn(),
   mockAppQuitOnAllWindowsClosed: vi.fn(),
   mockAppBeforeQuitCloseWindowsAndDestroyElements: vi.fn(),
@@ -122,6 +124,7 @@ vi.mock("~/main/modules", () => {
     quit: mockAppQuit,
     emitSecondInstance: mockAppEmitSecondInstance,
     emitRestart: mockAppEmitRestart,
+    emitGetVersion: mockAppEmitGetVersion,
     emitActivate: mockAppEmitActivate,
     quitOnAllWindowsClosed: mockAppQuitOnAllWindowsClosed,
     beforeQuitCloseWindowsAndDestroyElements:
@@ -232,6 +235,7 @@ describe("main.ts", () => {
           quit: mockAppQuit,
           emitSecondInstance: mockAppEmitSecondInstance,
           emitRestart: mockAppEmitRestart,
+          emitGetVersion: mockAppEmitGetVersion,
           emitActivate: mockAppEmitActivate,
           quitOnAllWindowsClosed: mockAppQuitOnAllWindowsClosed,
           beforeQuitCloseWindowsAndDestroyElements:
@@ -453,7 +457,7 @@ describe("main.ts", () => {
       expect(callOrder).toEqual(["supabase", "createMainWindow"]);
     });
 
-    it("should call emitSecondInstance and emitRestart after createMainWindow resolves", async () => {
+    it("should call emitSecondInstance, emitRestart, and emitGetVersion after createMainWindow resolves", async () => {
       const callOrder: string[] = [];
       mockMainWindowCreateMainWindow.mockImplementation(async () => {
         callOrder.push("createMainWindow");
@@ -464,6 +468,9 @@ describe("main.ts", () => {
       mockAppEmitRestart.mockImplementation(() => {
         callOrder.push("emitRestart");
       });
+      mockAppEmitGetVersion.mockImplementation(() => {
+        callOrder.push("emitGetVersion");
+      });
 
       const capture = setupWhenReadyCapture();
       await importMain();
@@ -473,6 +480,7 @@ describe("main.ts", () => {
         "createMainWindow",
         "emitSecondInstance",
         "emitRestart",
+        "emitGetVersion",
       ]);
     });
   });
@@ -621,6 +629,9 @@ describe("main.ts", () => {
       mockAppEmitRestart.mockImplementation(() => {
         callOrder.push("app:emitRestart");
       });
+      mockAppEmitGetVersion.mockImplementation(() => {
+        callOrder.push("app:emitGetVersion");
+      });
       mockAppEmitActivate.mockImplementation(() => {
         callOrder.push("app:emitActivate");
       });
@@ -643,10 +654,12 @@ describe("main.ts", () => {
       const windowIdx = callOrder.indexOf("mainWindow:create");
       const secondInstanceIdx = callOrder.indexOf("app:emitSecondInstance");
       const restartIdx = callOrder.indexOf("app:emitRestart");
+      const getVersionIdx = callOrder.indexOf("app:emitGetVersion");
 
       expect(supabaseIdx).toBeLessThan(windowIdx);
       expect(windowIdx).toBeLessThan(secondInstanceIdx);
       expect(secondInstanceIdx).toBeLessThan(restartIdx);
+      expect(restartIdx).toBeLessThan(getVersionIdx);
     });
 
     it("should handle the duplicate-instance case: quit and still wire events", async () => {
@@ -686,6 +699,7 @@ describe("main.ts", () => {
       expect(mockMainWindowCreateMainWindow).toHaveBeenCalledTimes(1);
       expect(mockAppEmitSecondInstance).toHaveBeenCalledTimes(1);
       expect(mockAppEmitRestart).toHaveBeenCalledTimes(1);
+      expect(mockAppEmitGetVersion).toHaveBeenCalledTimes(1);
     });
   });
 });

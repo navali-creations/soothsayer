@@ -197,6 +197,12 @@ class SettingsStoreService {
                 assertBoundedString(value, "selectedFilterId", ch, 256);
               }
               break;
+            case "lastSeenAppVersion":
+              // Can be null (cleared) or a bounded semver string
+              if (value !== null) {
+                assertBoundedString(value, "lastSeenAppVersion", ch, 64);
+              }
+              break;
             default:
               throw new IpcValidationError(ch, `Unknown setting key "${key}"`);
           }

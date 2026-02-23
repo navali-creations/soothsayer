@@ -9,6 +9,7 @@ enum AppChannel {
   Quit = "quit",
   OpenAtLogin = "open-at-login",
   OpenAtLoginMinimized = "open-at-login-minimized",
+  GetVersion = "app:get-version",
 }
 
 export { AppChannel };

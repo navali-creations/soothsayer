@@ -6,6 +6,7 @@ const {
   mockAppQuit,
   mockAppSetAppUserModelId,
   mockAppGetName,
+  mockAppGetVersion,
   mockAppSetAsDefaultProtocolClient,
   mockAppSetLoginItemSettings,
   mockAppRelaunch,
@@ -26,6 +27,7 @@ const {
   mockAppQuit: vi.fn(),
   mockAppSetAppUserModelId: vi.fn(),
   mockAppGetName: vi.fn(() => "Soothsayer"),
+  mockAppGetVersion: vi.fn(() => "0.5.0"),
   mockAppSetAsDefaultProtocolClient: vi.fn(),
   mockAppSetLoginItemSettings: vi.fn(),
   mockAppRelaunch: vi.fn(),
@@ -50,6 +52,7 @@ vi.mock("electron", () => ({
     quit: mockAppQuit,
     setAppUserModelId: mockAppSetAppUserModelId,
     getName: mockAppGetName,
+    getVersion: mockAppGetVersion,
     setAsDefaultProtocolClient: mockAppSetAsDefaultProtocolClient,
     setLoginItemSettings: mockAppSetLoginItemSettings,
     relaunch: mockAppRelaunch,
@@ -317,6 +320,41 @@ describe("AppService", () => {
       expect(mockAppSetAsDefaultProtocolClient).toHaveBeenCalledWith(
         "soothsayer",
       );
+    });
+  });
+
+  // ─── emitRestart ─────────────────────────────────────────────────────────
+
+  // ─── emitGetVersion ──────────────────────────────────────────────────────
+
+  describe("emitGetVersion", () => {
+    it("should register an IPC handler for the GetVersion channel", () => {
+      service.emitGetVersion();
+
+      expect(mockIpcHandle).toHaveBeenCalledWith(
+        AppChannel.GetVersion,
+        expect.any(Function),
+      );
+    });
+
+    it("should return the app version when the handler is invoked", () => {
+      service.emitGetVersion();
+
+      const handler = getIpcHandler(AppChannel.GetVersion);
+      const result = handler();
+
+      expect(result).toBe("0.5.0");
+      expect(mockAppGetVersion).toHaveBeenCalled();
+    });
+
+    it("should return the updated version if getVersion changes", () => {
+      mockAppGetVersion.mockReturnValueOnce("1.2.3");
+      service.emitGetVersion();
+
+      const handler = getIpcHandler(AppChannel.GetVersion);
+      const result = handler();
+
+      expect(result).toBe("1.2.3");
     });
   });
 

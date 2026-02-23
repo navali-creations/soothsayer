@@ -99,12 +99,21 @@ const components = {
 interface MarkdownRendererProps {
   children: string;
   className?: string;
+  componentOverrides?: Partial<typeof components>;
 }
 
-const MarkdownRenderer = ({ children, className }: MarkdownRendererProps) => {
+const MarkdownRenderer = ({
+  children,
+  className,
+  componentOverrides,
+}: MarkdownRendererProps) => {
+  const merged = componentOverrides
+    ? { ...components, ...componentOverrides }
+    : components;
+
   return (
     <div className={className}>
-      <Markdown rehypePlugins={[rehypeRaw]} components={components}>
+      <Markdown rehypePlugins={[rehypeRaw]} components={merged}>
         {children}
       </Markdown>
     </div>

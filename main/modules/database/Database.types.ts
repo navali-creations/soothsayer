@@ -218,6 +218,9 @@ export interface UserSettingsTable {
   rarity_source: string; // "poe.ninja" | "filter" | "prohibited-library"
   selected_filter_id: string | null;
 
+  // Post-update detection
+  last_seen_app_version: string | null;
+
   // Metadata
   created_at: ColumnType<string, string | undefined, never>;
   updated_at: ColumnType<string, string | undefined, string | undefined>;

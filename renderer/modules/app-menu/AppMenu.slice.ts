@@ -60,6 +60,30 @@ export const createAppMenuSlice: StateCreator<
           "appMenuSlice/hydrate",
         );
       }
+
+      // Detect post-update launch: compare current version with last seen version
+      try {
+        const currentVersion = await window.electron?.app.getVersion();
+        console.log(currentVersion);
+        if (currentVersion) {
+          const lastSeenVersion =
+            await window.electron?.settings.get("lastSeenAppVersion");
+
+          if (lastSeenVersion && lastSeenVersion !== currentVersion) {
+            // User just updated — show What's New after a short delay
+            setTimeout(() => {
+              get().appMenu.openWhatsNew();
+            }, 3000);
+          }
+
+          await window.electron?.settings.set(
+            "lastSeenAppVersion",
+            currentVersion,
+          );
+        }
+      } catch (_error) {
+        // Silently handle — version check is non-critical
+      }
     },
 
     // Window control actions
