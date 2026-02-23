@@ -75,7 +75,7 @@ const WhatsNewModal = () => {
               })}`}
           </div>
 
-          <div className="overflow-y-auto max-h-[60vh] pr-2">
+          <div className="overflow-y-auto overflow-x-hidden max-h-[60vh] pr-2">
             {whatsNewRelease.body ? (
               <MarkdownRenderer>{whatsNewRelease.body}</MarkdownRenderer>
             ) : (

@@ -115,6 +115,15 @@ describe("SettingsStore.mapper", () => {
       ]);
     });
 
+    it("should return empty array when onboarding_dismissed_beacons is null", () => {
+      const row = createSettingsRow({
+        onboarding_dismissed_beacons: null as unknown as string,
+      });
+      const dto = toUserSettingsDTO(row);
+
+      expect(dto.onboardingDismissedBeacons).toEqual([]);
+    });
+
     it("should parse overlay_bounds JSON when present", () => {
       const bounds = { x: 100, y: 200, width: 800, height: 600 };
       const row = createSettingsRow({
@@ -148,6 +157,15 @@ describe("SettingsStore.mapper", () => {
       const dto = toUserSettingsDTO(row);
 
       expect(dto.installedGames).toEqual(["poe2"]);
+    });
+
+    it("should return default ['poe1'] when installed_games is null", () => {
+      const row = createSettingsRow({
+        installed_games: null as unknown as string,
+      });
+      const dto = toUserSettingsDTO(row);
+
+      expect(dto.installedGames).toEqual(["poe1"]);
     });
 
     it("should map minimize exit action", () => {

@@ -18,6 +18,10 @@ const {
   mockRepoDeleteById,
   mockRepoGetCardRarities,
   mockRepoReplaceCardRarities,
+  mockRepoUpdateCardRarity,
+  mockDivinationUpdateRaritiesFromFilter,
+  mockBrowserWindowGetAllWindows,
+  mockWebContentsSend,
 } = vi.hoisted(() => ({
   mockIpcHandle: vi.fn(),
   mockSettingsGet: vi.fn(),
@@ -35,6 +39,10 @@ const {
   mockRepoDeleteById: vi.fn(),
   mockRepoGetCardRarities: vi.fn(),
   mockRepoReplaceCardRarities: vi.fn(),
+  mockRepoUpdateCardRarity: vi.fn(),
+  mockDivinationUpdateRaritiesFromFilter: vi.fn(),
+  mockBrowserWindowGetAllWindows: vi.fn(() => []),
+  mockWebContentsSend: vi.fn(),
 }));
 
 // ─── Mock Electron ───────────────────────────────────────────────────────────
@@ -50,7 +58,7 @@ vi.mock("electron", () => ({
     getPath: vi.fn(() => "C:\\Users\\TestUser\\Documents"),
   },
   BrowserWindow: {
-    getAllWindows: vi.fn(() => []),
+    getAllWindows: mockBrowserWindowGetAllWindows,
   },
 }));
 
@@ -94,6 +102,7 @@ vi.mock("../RarityModel.repository", () => {
       deleteById = mockRepoDeleteById;
       getCardRarities = mockRepoGetCardRarities;
       replaceCardRarities = mockRepoReplaceCardRarities;
+      updateCardRarity = mockRepoUpdateCardRarity;
     },
   };
 });
@@ -133,7 +142,7 @@ vi.mock("../RarityModel.scanner", () => {
 vi.mock("~/main/modules/divination-cards", () => ({
   DivinationCardsService: {
     getInstance: vi.fn(() => ({
-      updateRaritiesFromFilter: vi.fn(),
+      updateRaritiesFromFilter: mockDivinationUpdateRaritiesFromFilter,
       updateRaritiesFromPrices: vi.fn(),
       getSelectedFilterId: vi.fn().mockResolvedValue(null),
       getRepository: vi.fn(),
@@ -227,6 +236,12 @@ describe("RarityModelService", () => {
     mockRepoGetById.mockResolvedValue(null);
     mockRepoUpsertMany.mockResolvedValue(undefined);
     mockRepoDeleteNotInFilePaths.mockResolvedValue(0);
+    mockRepoUpdateCardRarity.mockResolvedValue(undefined);
+    mockRepoGetCardRarities.mockResolvedValue([]);
+    mockRepoReplaceCardRarities.mockResolvedValue(undefined);
+    mockDivinationUpdateRaritiesFromFilter.mockResolvedValue(undefined);
+    mockBrowserWindowGetAllWindows.mockReturnValue([]);
+    mockWebContentsSend.mockReturnValue(undefined);
 
     service = RarityModelService.getInstance();
   });
@@ -858,6 +873,484 @@ describe("RarityModelService", () => {
       // getById should NOT be called when clearing
       expect(mockRepoGetById).not.toHaveBeenCalled();
       expect(mockSettingsSet).toHaveBeenCalledWith("selectedFilterId", null);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // getRepository / getScanner accessors
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ensureFilterParsed
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe("ensureFilterParsed", () => {
+    it("should return null when filter does not exist", async () => {
+      mockRepoGetById.mockResolvedValue(null);
+
+      const result = await service.ensureFilterParsed("filter_nonexist");
+
+      expect(result).toBeNull();
+    });
+
+    it("should return cached results when filter is already fully parsed", async () => {
+      const metadata = makeRarityModelMetadataDTO({
+        id: "filter_parsed",
+        filterName: "ParsedFilter",
+        isFullyParsed: true,
+      });
+      mockRepoGetById.mockResolvedValue(metadata);
+      mockRepoGetCardRarities.mockResolvedValue([
+        { filterId: "filter_parsed", cardName: "The Doctor", rarity: 1 },
+        { filterId: "filter_parsed", cardName: "Rain of Chaos", rarity: 4 },
+      ]);
+
+      const result = await service.ensureFilterParsed("filter_parsed");
+
+      expect(result).toBeDefined();
+      expect(result!.filterId).toBe("filter_parsed");
+      expect(result!.filterName).toBe("ParsedFilter");
+      expect(result!.totalCards).toBe(2);
+      expect(result!.rarities).toHaveLength(2);
+      expect(result!.hasDivinationSection).toBe(true);
+    });
+
+    it("should return hasDivinationSection=false when cached rarities are empty", async () => {
+      const metadata = makeRarityModelMetadataDTO({
+        id: "filter_empty",
+        filterName: "EmptyFilter",
+        isFullyParsed: true,
+      });
+      mockRepoGetById.mockResolvedValue(metadata);
+      mockRepoGetCardRarities.mockResolvedValue([]);
+
+      const result = await service.ensureFilterParsed("filter_empty");
+
+      expect(result).toBeDefined();
+      expect(result!.hasDivinationSection).toBe(false);
+      expect(result!.totalCards).toBe(0);
+    });
+
+    it("should trigger a full parse when filter is not yet parsed", async () => {
+      // First call to getById returns unparsed metadata (for ensureFilterParsed)
+      // Second call to getById returns the same (for parseFilter inside)
+      const metadata = makeRarityModelMetadataDTO({
+        id: "filter_unparsed",
+        filterName: "UnparsedFilter",
+        isFullyParsed: false,
+      });
+      mockRepoGetById.mockResolvedValue(metadata);
+      // parseFilter for an unparsed filter with no file content returns empty results
+      mockRepoGetCardRarities.mockResolvedValue([]);
+
+      const result = await service.ensureFilterParsed("filter_unparsed");
+
+      // parseFilter was called internally — it returns a parse result
+      expect(result).toBeDefined();
+      expect(result!.filterId).toBe("filter_unparsed");
+      expect(result!.filterName).toBe("UnparsedFilter");
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // applyFilterRarities
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe("applyFilterRarities", () => {
+    it("should throw when filter does not exist", async () => {
+      mockRepoGetById.mockResolvedValue(null);
+
+      await expect(
+        service.applyFilterRarities("filter_nonexist", "poe1", "Settlers"),
+      ).rejects.toThrow("Filter not found: filter_nonexist");
+    });
+
+    it("should return success=false when filter has no divination section", async () => {
+      const metadata = makeRarityModelMetadataDTO({
+        id: "filter_nodiv",
+        filterName: "NoDivFilter",
+        isFullyParsed: true,
+      });
+      mockRepoGetById.mockResolvedValue(metadata);
+      mockRepoGetCardRarities.mockResolvedValue([]);
+
+      const result = await service.applyFilterRarities(
+        "filter_nodiv",
+        "poe1",
+        "Settlers",
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.totalCards).toBe(0);
+      expect(result.filterName).toBe("NoDivFilter");
+      // Should NOT have called updateRaritiesFromFilter
+      expect(mockDivinationUpdateRaritiesFromFilter).not.toHaveBeenCalled();
+    });
+
+    it("should apply filter rarities and emit event on success", async () => {
+      const metadata = makeRarityModelMetadataDTO({
+        id: "filter_good",
+        filterName: "GoodFilter",
+        isFullyParsed: true,
+      });
+      mockRepoGetById.mockResolvedValue(metadata);
+      mockRepoGetCardRarities.mockResolvedValue([
+        { filterId: "filter_good", cardName: "The Doctor", rarity: 1 },
+        { filterId: "filter_good", cardName: "Rain of Chaos", rarity: 4 },
+        { filterId: "filter_good", cardName: "Her Mask", rarity: 3 },
+      ]);
+
+      const mockSend = vi.fn();
+      mockBrowserWindowGetAllWindows.mockReturnValue([
+        {
+          isDestroyed: () => false,
+          webContents: { isDestroyed: () => false, send: mockSend },
+        },
+      ] as any);
+
+      const result = await service.applyFilterRarities(
+        "filter_good",
+        "poe1",
+        "Settlers",
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.totalCards).toBe(3);
+      expect(result.filterName).toBe("GoodFilter");
+
+      // Should have called updateRaritiesFromFilter on DivinationCardsService
+      expect(mockDivinationUpdateRaritiesFromFilter).toHaveBeenCalledWith(
+        "filter_good",
+        "poe1",
+        "Settlers",
+      );
+
+      // Should have emitted IPC event
+      expect(mockSend).toHaveBeenCalledWith(
+        RarityModelChannel.OnRarityModelRaritiesApplied,
+        expect.objectContaining({
+          filterId: "filter_good",
+          filterName: "GoodFilter",
+          game: "poe1",
+          league: "Settlers",
+          totalCards: 3,
+        }),
+      );
+    });
+
+    it("should work through the IPC handler", async () => {
+      const metadata = makeRarityModelMetadataDTO({
+        id: "filter_ipc",
+        filterName: "IpcFilter",
+        isFullyParsed: true,
+      });
+      mockRepoGetById.mockResolvedValue(metadata);
+      mockRepoGetCardRarities.mockResolvedValue([
+        { filterId: "filter_ipc", cardName: "The Doctor", rarity: 1 },
+      ]);
+
+      const handler = getIpcHandler(
+        RarityModelChannel.ApplyRarityModelRarities,
+      );
+      const result = await handler({}, "filter_ipc", "poe1", "Settlers");
+
+      expect(result.success).toBe(true);
+      expect(result.filterName).toBe("IpcFilter");
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // UpdateRarityModelCardRarity IPC handler
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe("UpdateRarityModelCardRarity IPC handler", () => {
+    it("should update card rarity with valid inputs", async () => {
+      const handler = getIpcHandler(
+        RarityModelChannel.UpdateRarityModelCardRarity,
+      );
+      const result = await handler({}, "filter_abc12345", "The Doctor", 1);
+
+      expect(result).toEqual({ success: true });
+      expect(mockRepoUpdateCardRarity).toHaveBeenCalledWith(
+        "filter_abc12345",
+        "The Doctor",
+        1,
+      );
+    });
+
+    it("should update card rarity with rarity 4", async () => {
+      const handler = getIpcHandler(
+        RarityModelChannel.UpdateRarityModelCardRarity,
+      );
+      const result = await handler({}, "filter_abc12345", "Rain of Chaos", 4);
+
+      expect(result).toEqual({ success: true });
+      expect(mockRepoUpdateCardRarity).toHaveBeenCalledWith(
+        "filter_abc12345",
+        "Rain of Chaos",
+        4,
+      );
+    });
+
+    it("should reject rarity below 1", async () => {
+      const handler = getIpcHandler(
+        RarityModelChannel.UpdateRarityModelCardRarity,
+      );
+      const result = await handler({}, "filter_abc12345", "The Doctor", 0);
+
+      expect(result).toEqual({
+        success: false,
+        error: expect.stringContaining("Invalid input"),
+      });
+      expect(mockRepoUpdateCardRarity).not.toHaveBeenCalled();
+    });
+
+    it("should reject rarity above 4", async () => {
+      const handler = getIpcHandler(
+        RarityModelChannel.UpdateRarityModelCardRarity,
+      );
+      const result = await handler({}, "filter_abc12345", "The Doctor", 5);
+
+      expect(result).toEqual({
+        success: false,
+        error: expect.stringContaining("Invalid input"),
+      });
+      expect(mockRepoUpdateCardRarity).not.toHaveBeenCalled();
+    });
+
+    it("should reject non-string filterId", async () => {
+      const handler = getIpcHandler(
+        RarityModelChannel.UpdateRarityModelCardRarity,
+      );
+      const result = await handler({}, 123, "The Doctor", 1);
+
+      expect(result).toEqual({
+        success: false,
+        error: expect.stringContaining("Invalid input"),
+      });
+    });
+
+    it("should reject non-string cardName", async () => {
+      const handler = getIpcHandler(
+        RarityModelChannel.UpdateRarityModelCardRarity,
+      );
+      const result = await handler({}, "filter_abc12345", null, 1);
+
+      expect(result).toEqual({
+        success: false,
+        error: expect.stringContaining("Invalid input"),
+      });
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // emitFilterRaritiesApplied (tested via applyFilterRarities)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe("emitFilterRaritiesApplied", () => {
+    it("should emit to multiple non-destroyed windows", async () => {
+      const metadata = makeRarityModelMetadataDTO({
+        id: "filter_multi",
+        filterName: "MultiWindowFilter",
+        isFullyParsed: true,
+      });
+      mockRepoGetById.mockResolvedValue(metadata);
+      mockRepoGetCardRarities.mockResolvedValue([
+        { filterId: "filter_multi", cardName: "The Doctor", rarity: 1 },
+      ]);
+
+      const send1 = vi.fn();
+      const send2 = vi.fn();
+      const send3 = vi.fn();
+      mockBrowserWindowGetAllWindows.mockReturnValue([
+        {
+          isDestroyed: () => false,
+          webContents: { isDestroyed: () => false, send: send1 },
+        },
+        {
+          isDestroyed: () => true,
+          webContents: { isDestroyed: () => false, send: send2 },
+        },
+        {
+          isDestroyed: () => false,
+          webContents: { isDestroyed: () => false, send: send3 },
+        },
+      ] as any);
+
+      await service.applyFilterRarities("filter_multi", "poe1", "Settlers");
+
+      expect(send1).toHaveBeenCalledWith(
+        RarityModelChannel.OnRarityModelRaritiesApplied,
+        expect.any(Object),
+      );
+      expect(send2).not.toHaveBeenCalled(); // destroyed window
+      expect(send3).toHaveBeenCalledWith(
+        RarityModelChannel.OnRarityModelRaritiesApplied,
+        expect.any(Object),
+      );
+    });
+
+    it("should skip windows with destroyed webContents", async () => {
+      const metadata = makeRarityModelMetadataDTO({
+        id: "filter_wc",
+        filterName: "WCFilter",
+        isFullyParsed: true,
+      });
+      mockRepoGetById.mockResolvedValue(metadata);
+      mockRepoGetCardRarities.mockResolvedValue([
+        { filterId: "filter_wc", cardName: "The Doctor", rarity: 1 },
+      ]);
+
+      const send1 = vi.fn();
+      mockBrowserWindowGetAllWindows.mockReturnValue([
+        {
+          isDestroyed: () => false,
+          webContents: { isDestroyed: () => true, send: send1 },
+        },
+      ] as any);
+
+      await service.applyFilterRarities("filter_wc", "poe1", "Settlers");
+
+      expect(send1).not.toHaveBeenCalled();
+    });
+
+    it("should handle errors from window.webContents.send gracefully", async () => {
+      const metadata = makeRarityModelMetadataDTO({
+        id: "filter_err",
+        filterName: "ErrFilter",
+        isFullyParsed: true,
+      });
+      mockRepoGetById.mockResolvedValue(metadata);
+      mockRepoGetCardRarities.mockResolvedValue([
+        { filterId: "filter_err", cardName: "The Doctor", rarity: 1 },
+      ]);
+
+      const sendThatThrows = vi.fn().mockImplementation(() => {
+        throw new Error("IPC channel destroyed");
+      });
+      const sendOk = vi.fn();
+      mockBrowserWindowGetAllWindows.mockReturnValue([
+        {
+          isDestroyed: () => false,
+          webContents: { isDestroyed: () => false, send: sendThatThrows },
+        },
+        {
+          isDestroyed: () => false,
+          webContents: { isDestroyed: () => false, send: sendOk },
+        },
+      ] as any);
+
+      // Should not throw — errors are caught per-window
+      const result = await service.applyFilterRarities(
+        "filter_err",
+        "poe1",
+        "Settlers",
+      );
+
+      expect(result.success).toBe(true);
+      // Second window should still receive the event
+      expect(sendOk).toHaveBeenCalled();
+    });
+
+    it("should not emit when no windows exist", async () => {
+      const metadata = makeRarityModelMetadataDTO({
+        id: "filter_nowin",
+        filterName: "NoWinFilter",
+        isFullyParsed: true,
+      });
+      mockRepoGetById.mockResolvedValue(metadata);
+      mockRepoGetCardRarities.mockResolvedValue([
+        { filterId: "filter_nowin", cardName: "The Doctor", rarity: 1 },
+      ]);
+
+      mockBrowserWindowGetAllWindows.mockReturnValue([]);
+
+      const result = await service.applyFilterRarities(
+        "filter_nowin",
+        "poe1",
+        "Settlers",
+      );
+
+      expect(result.success).toBe(true);
+      // No send calls because no windows
+    });
+
+    it("should handle non-Error thrown objects in emitFilterRaritiesApplied gracefully", async () => {
+      const metadata = makeRarityModelMetadataDTO({
+        id: "filter_nonerr",
+        filterName: "NonErrFilter",
+        isFullyParsed: true,
+      });
+      mockRepoGetById.mockResolvedValue(metadata);
+      mockRepoGetCardRarities.mockResolvedValue([
+        { filterId: "filter_nonerr", cardName: "The Doctor", rarity: 1 },
+      ]);
+
+      const sendThatThrowsString = vi.fn().mockImplementation(() => {
+        throw "unexpected string error";
+      });
+      const sendOk = vi.fn();
+      mockBrowserWindowGetAllWindows.mockReturnValue([
+        {
+          isDestroyed: () => false,
+          webContents: { isDestroyed: () => false, send: sendThatThrowsString },
+        },
+        {
+          isDestroyed: () => false,
+          webContents: { isDestroyed: () => false, send: sendOk },
+        },
+      ] as any);
+
+      // Should not throw — non-Error values are stringified in the catch block
+      const result = await service.applyFilterRarities(
+        "filter_nonerr",
+        "poe1",
+        "Settlers",
+      );
+
+      expect(result.success).toBe(true);
+      // Second window should still receive the event despite first throwing
+      expect(sendOk).toHaveBeenCalled();
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // getLeagueStartDate (tested indirectly via scanFilters — it passes through)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe("getLeagueStartDate edge cases", () => {
+    it("should handle settings.get throwing an error gracefully", async () => {
+      // getLeagueStartDate is called internally by scanFilters and getAllFilters
+      // If settingsGet throws during the getLeagueStartDate portion, it should
+      // return null (caught) and still produce results
+
+      // Make scanAll return a filter so scanFilters does work
+      mockScanAll.mockResolvedValue([
+        makeScannedFilter({ filterName: "TestFilter" }),
+      ]);
+      mockRepoGetAll.mockResolvedValue([
+        makeRarityModelMetadataDTO({ filterName: "TestFilter" }),
+      ]);
+      mockRepoDeleteNotInFilePaths.mockResolvedValue(0);
+
+      // Make settingsGet throw only for ActiveGame (used by getLeagueStartDate)
+      // but succeed for other keys
+      let callCount = 0;
+      mockSettingsGet.mockImplementation(async (key: string) => {
+        callCount++;
+        // The first calls are for ActiveGame in scanFilters
+        if (key === "selectedGame") {
+          // First call is from scanFilters for activeGame
+          if (callCount <= 1) return "poe1";
+          // Subsequent calls (from getLeagueStartDate) throw
+          throw new Error("Settings unavailable");
+        }
+        return null;
+      });
+
+      // Should not throw — getLeagueStartDate catches the error
+      const result = await service.scanFilters();
+      expect(result.filters).toBeDefined();
     });
   });
 

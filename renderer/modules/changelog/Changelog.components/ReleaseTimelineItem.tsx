@@ -1,7 +1,11 @@
 import type { ChangelogRelease } from "~/main/modules/updater/Updater.api";
 import { Badge } from "~/renderer/components";
 
-import { changeTypeColor } from "../Changelog.utils";
+import {
+  changeTypeColor,
+  hoverBorderColorClass,
+  releaseUrl,
+} from "../Changelog.utils";
 import ChangelogEntryCard from "./ChangelogEntryCard";
 
 const ReleaseTimelineItem = ({
@@ -14,19 +18,28 @@ const ReleaseTimelineItem = ({
   isCurrent: boolean;
 }) => {
   const color = changeTypeColor(release.changeType);
+  const url = releaseUrl(release.version);
+
+  const handleCardClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Don't navigate if the user clicked an inner link (commit hash, contributor, etc.)
+    if ((e.target as HTMLElement).closest("a")) return;
+    window.open(url, "_blank");
+  };
 
   return (
     <li className="relative flex gap-6">
       {/* Timeline line + version badge */}
       <div className="flex flex-col items-center">
-        <Badge
-          variant={color}
-          size="md"
-          outline
-          className="shrink-0 font-mono font-semibold"
-        >
-          v{release.version}
-        </Badge>
+        <a href={url} target="_blank" rel="noopener noreferrer">
+          <Badge
+            variant={color}
+            size="md"
+            outline
+            className="shrink-0 font-mono font-semibold hover:brightness-125 transition-all"
+          >
+            v{release.version}
+          </Badge>
+        </a>
         {isCurrent && (
           <Badge
             variant="success"
@@ -41,16 +54,29 @@ const ReleaseTimelineItem = ({
       </div>
 
       {/* Card content */}
-      <div className="card bg-base-200 border border-base-300 shadow-sm mb-6 flex-1 min-w-0">
+      <div
+        role="link"
+        tabIndex={0}
+        onClick={handleCardClick}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            window.open(url, "_blank");
+          }
+        }}
+        className={`card bg-base-200 border-2 border-transparent ${hoverBorderColorClass(
+          color,
+        )} shadow-sm mb-6 flex-1 min-w-0 cursor-pointer transition-all hover:shadow-md hover:brightness-105`}
+      >
         <div className="card-body p-5 gap-4">
           {/* Entries */}
-          <div className="space-y-4 divide-y divide-base-content/5">
+          <ul className="space-y-4 divide-y divide-base-content/5">
             {release.entries.map((entry, entryIdx) => (
-              <div key={entryIdx} className={entryIdx > 0 ? "pt-4" : ""}>
+              <li key={entryIdx}>
                 <ChangelogEntryCard entry={entry} />
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
       </div>
     </li>

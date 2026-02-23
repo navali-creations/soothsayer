@@ -2,9 +2,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   createTestDatabase,
+  seedFilterCardRarity,
+  seedFilterMetadata,
   type TestDatabase,
 } from "~/main/modules/__test-utils__/create-test-db";
-import type { Rarity } from "~/types/data-stores";
+import type { KnownRarity, Rarity } from "~/types/data-stores";
 
 import { DivinationCardsRepository } from "../DivinationCards.repository";
 
@@ -934,6 +936,313 @@ describe("DivinationCardsRepository", () => {
       const poe2Cards = await repository.getAllByGame("poe2");
       expect(poe2Cards).toHaveLength(2);
       expect(poe2Cards.every((c) => c.game === "poe2")).toBe(true);
+    });
+  });
+
+  // ─── Prohibited Library join (plLeague parameter) ─────────────────────
+
+  describe("plLeague join branches", () => {
+    beforeEach(async () => {
+      // Seed some cards
+      await insertCard("poe1", "The Doctor");
+      await insertCard("poe1", "Rain of Chaos");
+
+      // Seed PL card weights directly
+      await testDb.kysely
+        .insertInto("prohibited_library_card_weights")
+        .values({
+          card_name: "The Doctor",
+          game: "poe1",
+          league: "Settlers",
+          weight: 10,
+          rarity: 1,
+          from_boss: 0,
+          loaded_at: new Date().toISOString(),
+        })
+        .execute();
+
+      await testDb.kysely
+        .insertInto("prohibited_library_card_weights")
+        .values({
+          card_name: "Rain of Chaos",
+          game: "poe1",
+          league: "Settlers",
+          weight: 5000,
+          rarity: 4,
+          from_boss: 0,
+          loaded_at: new Date().toISOString(),
+        })
+        .execute();
+    });
+
+    it("getAllByGame should include prohibitedLibraryRarity when plLeague is provided", async () => {
+      const cards = await repository.getAllByGame(
+        "poe1",
+        undefined,
+        undefined,
+        "Settlers",
+      );
+
+      const doctor = cards.find((c) => c.name === "The Doctor");
+      const rain = cards.find((c) => c.name === "Rain of Chaos");
+
+      expect(doctor).toBeDefined();
+      expect(doctor!.prohibitedLibraryRarity).toBe(1);
+      expect(rain).toBeDefined();
+      expect(rain!.prohibitedLibraryRarity).toBe(4);
+    });
+
+    it("getAllByGame should return null prohibitedLibraryRarity when plLeague is not provided", async () => {
+      const cards = await repository.getAllByGame("poe1");
+
+      const doctor = cards.find((c) => c.name === "The Doctor");
+      expect(doctor).toBeDefined();
+      expect(doctor!.prohibitedLibraryRarity).toBeNull();
+    });
+
+    it("getAllByGame should return null prohibitedLibraryRarity for non-matching plLeague", async () => {
+      const cards = await repository.getAllByGame(
+        "poe1",
+        undefined,
+        undefined,
+        "NonExistentLeague",
+      );
+
+      const doctor = cards.find((c) => c.name === "The Doctor");
+      expect(doctor).toBeDefined();
+      expect(doctor!.prohibitedLibraryRarity).toBeNull();
+    });
+
+    it("getById should include prohibitedLibraryRarity when plLeague is provided", async () => {
+      const card = await repository.getById(
+        "poe1_the-doctor",
+        undefined,
+        undefined,
+        "Settlers",
+      );
+
+      expect(card).toBeDefined();
+      expect(card!.prohibitedLibraryRarity).toBe(1);
+    });
+
+    it("getById should return null prohibitedLibraryRarity when plLeague is not provided", async () => {
+      const card = await repository.getById("poe1_the-doctor");
+
+      expect(card).toBeDefined();
+      expect(card!.prohibitedLibraryRarity).toBeNull();
+    });
+
+    it("getByName should include prohibitedLibraryRarity when plLeague is provided", async () => {
+      const card = await repository.getByName(
+        "poe1",
+        "The Doctor",
+        undefined,
+        undefined,
+        "Settlers",
+      );
+
+      expect(card).toBeDefined();
+      expect(card!.prohibitedLibraryRarity).toBe(1);
+    });
+
+    it("getByName should return null prohibitedLibraryRarity when plLeague is not provided", async () => {
+      const card = await repository.getByName("poe1", "The Doctor");
+
+      expect(card).toBeDefined();
+      expect(card!.prohibitedLibraryRarity).toBeNull();
+    });
+
+    it("searchByName should include prohibitedLibraryRarity when plLeague is provided", async () => {
+      const cards = await repository.searchByName(
+        "poe1",
+        "Doctor",
+        undefined,
+        undefined,
+        "Settlers",
+      );
+
+      expect(cards).toHaveLength(1);
+      expect(cards[0].prohibitedLibraryRarity).toBe(1);
+    });
+
+    it("searchByName should return null prohibitedLibraryRarity when plLeague is not provided", async () => {
+      const cards = await repository.searchByName("poe1", "Doctor");
+
+      expect(cards).toHaveLength(1);
+      expect(cards[0].prohibitedLibraryRarity).toBeNull();
+    });
+
+    it("should combine league, filterId, and plLeague joins together", async () => {
+      // Add a league-based rarity
+      await repository.updateRarity("poe1", "Settlers", "The Doctor", 2);
+
+      // Add a filter with filter card rarities
+      await seedFilterMetadata(testDb.kysely, {
+        id: "filter_test",
+        filePath: "/test/filter.filter",
+        filterName: "TestFilter",
+      });
+      await seedFilterCardRarity(testDb.kysely, {
+        filterId: "filter_test",
+        cardName: "The Doctor",
+        rarity: 3 as KnownRarity,
+      });
+
+      const cards = await repository.getAllByGame(
+        "poe1",
+        "Settlers",
+        "filter_test",
+        "Settlers",
+      );
+
+      const doctor = cards.find((c) => c.name === "The Doctor");
+      expect(doctor).toBeDefined();
+      expect(doctor!.rarity).toBe(2); // from divination_card_rarities
+      expect(doctor!.filterRarity).toBe(3); // from filter_card_rarities
+      expect(doctor!.prohibitedLibraryRarity).toBe(1); // from PL
+    });
+  });
+
+  // ─── setOverrideRarity ────────────────────────────────────────────────
+
+  describe("setOverrideRarity", () => {
+    beforeEach(async () => {
+      await insertCard("poe1", "The Doctor");
+      // Seed an existing rarity entry
+      await repository.updateRarity("poe1", "Settlers", "The Doctor", 4);
+    });
+
+    it("should set an override rarity for a card", async () => {
+      await repository.setOverrideRarity("poe1", "Settlers", "The Doctor", 1);
+
+      const card = await repository.getByName("poe1", "The Doctor", "Settlers");
+      expect(card).toBeDefined();
+      // COALESCE(override_rarity, rarity, 0) → override_rarity = 1
+      expect(card!.rarity).toBe(1);
+    });
+
+    it("should clear override rarity when set to null", async () => {
+      // First set an override
+      await repository.setOverrideRarity("poe1", "Settlers", "The Doctor", 1);
+      // Then clear it
+      await repository.setOverrideRarity(
+        "poe1",
+        "Settlers",
+        "The Doctor",
+        null,
+      );
+
+      const card = await repository.getByName("poe1", "The Doctor", "Settlers");
+      expect(card).toBeDefined();
+      // COALESCE(null, 4, 0) → rarity = 4 (the base rarity)
+      expect(card!.rarity).toBe(4);
+    });
+
+    it("override rarity should take precedence over base rarity", async () => {
+      // Base rarity is 4, override to 2
+      await repository.setOverrideRarity("poe1", "Settlers", "The Doctor", 2);
+
+      const cards = await repository.getAllByGame("poe1", "Settlers");
+      const doctor = cards.find((c) => c.name === "The Doctor");
+      expect(doctor).toBeDefined();
+      expect(doctor!.rarity).toBe(2);
+    });
+  });
+
+  // ─── getAllCardNames ──────────────────────────────────────────────────
+
+  describe("getAllCardNames", () => {
+    it("should return all card names for a game", async () => {
+      await insertCard("poe1", "The Doctor");
+      await insertCard("poe1", "Rain of Chaos");
+      await insertCard("poe1", "Her Mask");
+
+      const names = await repository.getAllCardNames("poe1");
+
+      expect(names).toHaveLength(3);
+      expect(names).toContain("The Doctor");
+      expect(names).toContain("Rain of Chaos");
+      expect(names).toContain("Her Mask");
+    });
+
+    it("should return empty array when no cards exist", async () => {
+      const names = await repository.getAllCardNames("poe1");
+      expect(names).toEqual([]);
+    });
+
+    it("should not return cards from a different game", async () => {
+      await insertCard("poe1", "The Doctor");
+      await insertCard("poe2", "Rain of Chaos");
+
+      const poe1Names = await repository.getAllCardNames("poe1");
+      const poe2Names = await repository.getAllCardNames("poe2");
+
+      expect(poe1Names).toEqual(["The Doctor"]);
+      expect(poe2Names).toEqual(["Rain of Chaos"]);
+    });
+
+    it("should return names sorted alphabetically", async () => {
+      await insertCard("poe1", "Zebra Card");
+      await insertCard("poe1", "Alpha Card");
+      await insertCard("poe1", "Middle Card");
+
+      const names = await repository.getAllCardNames("poe1");
+
+      expect(names).toEqual(["Alpha Card", "Middle Card", "Zebra Card"]);
+    });
+  });
+
+  // ─── updateRarities with clearOverride ────────────────────────────────
+
+  describe("updateRarities with clearOverride", () => {
+    it("should clear override when clearOverride is true", async () => {
+      await insertCard("poe1", "The Doctor");
+      // Set base rarity and override
+      await repository.updateRarity("poe1", "Settlers", "The Doctor", 4);
+      await repository.setOverrideRarity("poe1", "Settlers", "The Doctor", 1);
+
+      // Verify override is active
+      let card = await repository.getByName("poe1", "The Doctor", "Settlers");
+      expect(card!.rarity).toBe(1); // override wins
+
+      // Now update with clearOverride = true
+      await repository.updateRarities("poe1", "Settlers", [
+        { name: "The Doctor", rarity: 3, clearOverride: true },
+      ]);
+
+      card = await repository.getByName("poe1", "The Doctor", "Settlers");
+      // Override should be cleared, base rarity should be 3
+      expect(card!.rarity).toBe(3);
+    });
+
+    it("should preserve override when clearOverride is false", async () => {
+      await insertCard("poe1", "The Doctor");
+      await repository.updateRarity("poe1", "Settlers", "The Doctor", 4);
+      await repository.setOverrideRarity("poe1", "Settlers", "The Doctor", 1);
+
+      // Update with clearOverride = false
+      await repository.updateRarities("poe1", "Settlers", [
+        { name: "The Doctor", rarity: 3, clearOverride: false },
+      ]);
+
+      const card = await repository.getByName("poe1", "The Doctor", "Settlers");
+      // Override should be preserved → rarity 1
+      expect(card!.rarity).toBe(1);
+    });
+
+    it("should default clearOverride to false when not specified", async () => {
+      await insertCard("poe1", "The Doctor");
+      await repository.updateRarity("poe1", "Settlers", "The Doctor", 4);
+      await repository.setOverrideRarity("poe1", "Settlers", "The Doctor", 2);
+
+      // Update without specifying clearOverride
+      await repository.updateRarities("poe1", "Settlers", [
+        { name: "The Doctor", rarity: 3 },
+      ]);
+
+      const card = await repository.getByName("poe1", "The Doctor", "Settlers");
+      // Override should still be active
+      expect(card!.rarity).toBe(2);
     });
   });
 });

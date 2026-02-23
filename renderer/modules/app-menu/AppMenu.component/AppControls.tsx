@@ -21,7 +21,7 @@ import { useBoundStore } from "~/renderer/store";
 
 import WhatsNewModal from "./WhatsNewModal";
 
-const DISCORD_URL = "https://discord.gg/yxuBrPY";
+const FEEDBACK_URL = "https://github.com/orgs/navali-creations/discussions";
 const REPO_URL = "https://github.com/navali-creations/soothsayer";
 
 const AppControls = () => {
@@ -122,7 +122,7 @@ const AppControls = () => {
               </li>
               <li>
                 <a
-                  href={DISCORD_URL}
+                  href={FEEDBACK_URL}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg hover:bg-base-300 transition-colors no-drag"

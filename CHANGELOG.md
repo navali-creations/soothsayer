@@ -4,7 +4,9 @@
 
 ### Minor Changes
 
-- [`d0229f3`](https://github.com/navali-creations/soothsayer/commit/d0229f3553e34a26836ef8d302c644493342d28f) Thanks [@sbsrnt](https://github.com/sbsrnt)! - - **Prohibited Library rarity source:** You can now use the Prohibited Library (community-sourced stacked deck weight data) as a rarity source. Select it from the rarity source dropdown in Settings — it's no longer grayed out.
+- [`d0229f3`](https://github.com/navali-creations/soothsayer/commit/d0229f3553e34a26836ef8d302c644493342d28f) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  - **Prohibited Library rarity source:** You can now use the Prohibited Library (community-sourced stacked deck weight data) as a rarity source. Select it from the rarity source dropdown in Settings — it's no longer grayed out.
 
   - **Weight-based card rarities:** Card rarities are derived from empirical drop-weight data collected by the Path of Exile Science & Data community, offering an alternative to price-based (poe.ninja) classification.
 
@@ -18,9 +20,13 @@
 
 ### Patch Changes
 
-- [`e0f96f2`](https://github.com/navali-creations/soothsayer/commit/e0f96f29ea564f5cab8258847e77cda714b95487) Thanks [@sbsrnt](https://github.com/sbsrnt)! - Improved backend performance and reduced database size through automated cleanup of old request logs. This is a behind-the-scenes improvement that keeps the app running smoothly without any visible changes.
+- [`e0f96f2`](https://github.com/navali-creations/soothsayer/commit/e0f96f29ea564f5cab8258847e77cda714b95487) Thanks [@sbsrnt](https://github.com/sbsrnt)!
 
-- [`f0f2031`](https://github.com/navali-creations/soothsayer/commit/f0f203165d22d839afab23cfb2399cc8102ab304) Thanks [@sbsrnt](https://github.com/sbsrnt)! - - **Fixed inactive leagues showing in selector:** Ended leagues (e.g. Phrecia 2.0) no longer appear in the league selector.
+  Improved backend performance and reduced database size through automated cleanup of old request logs. This is a behind-the-scenes improvement that keeps the app running smoothly without any visible changes.
+
+- [`f0f2031`](https://github.com/navali-creations/soothsayer/commit/f0f203165d22d839afab23cfb2399cc8102ab304) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  - **Fixed inactive leagues showing in selector:** Ended leagues (e.g. Phrecia 2.0) no longer appear in the league selector.
 
   - **Fixed rarity filter ignoring rarity source:** The rarity filter and sort on the Cards page now correctly reflect whichever rarity source you've selected, instead of always using poe.ninja values.
 
@@ -34,11 +40,17 @@
 
   - **Scroll to top on filter and page change:** Changing any filter or clicking a pagination button now scrolls the card grid back to the top.
 
-- [`167448e`](https://github.com/navali-creations/soothsayer/commit/167448e015a341509bd9c62b2d31511fdce0bca1) Thanks [@sbsrnt](https://github.com/sbsrnt)! - This release fixes the `poe.ninja` column on the Rarity Model comparison page where it showed values from the most recently used filter instead of actual poe.ninja price-based rarities
+- [`167448e`](https://github.com/navali-creations/soothsayer/commit/167448e015a341509bd9c62b2d31511fdce0bca1) Thanks [@sbsrnt](https://github.com/sbsrnt)!
 
-- [`93ca5c6`](https://github.com/navali-creations/soothsayer/commit/93ca5c67d4ebe31d8fd5d7a4a9fa5b474b3888c2) Thanks [@sbsrnt](https://github.com/sbsrnt)! - Improved local development reliability by automatically restarting the Kong API gateway after the edge runtime restarts during setup. This prevents stale DNS routing issues that could cause edge function timeouts when developing locally.
+  This release fixes the `poe.ninja` column on the Rarity Model comparison page where it showed values from the most recently used filter instead of actual poe.ninja price-based rarities
 
-- [`d25563e`](https://github.com/navali-creations/soothsayer/commit/d25563e1e6e652b6838ede22181af9b9cbf72440) Thanks [@sbsrnt](https://github.com/sbsrnt)! - - **Overlay now respects your price source setting:** The in-game overlay previously always used exchange prices regardless of your selection. It now correctly shows stash or exchange prices based on your chosen price source.
+- [`93ca5c6`](https://github.com/navali-creations/soothsayer/commit/93ca5c67d4ebe31d8fd5d7a4a9fa5b474b3888c2) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  Improved local development reliability by automatically restarting the Kong API gateway after the edge runtime restarts during setup. This prevents stale DNS routing issues that could cause edge function timeouts when developing locally.
+
+- [`d25563e`](https://github.com/navali-creations/soothsayer/commit/d25563e1e6e652b6838ede22181af9b9cbf72440) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  - **Overlay now respects your price source setting:** The in-game overlay previously always used exchange prices regardless of your selection. It now correctly shows stash or exchange prices based on your chosen price source.
 
   - **Live price source switching:** Changing your price source mid-session now immediately updates the overlay — no need to restart your session.
 
@@ -50,9 +62,13 @@
 
   - **PoE2 default price source:** New installations now default to exchange pricing for PoE2 (previously defaulted to stash). Existing users are not affected.
 
-- [`8b6fc5d`](https://github.com/navali-creations/soothsayer/commit/8b6fc5d0100e5529f2ba837799426331c3d522ed) Thanks [@sbsrnt](https://github.com/sbsrnt)! - The pricing snapshot info shown during an active session now always matches the data actually used to price your cards
+- [`8b6fc5d`](https://github.com/navali-creations/soothsayer/commit/8b6fc5d0100e5529f2ba837799426331c3d522ed) Thanks [@sbsrnt](https://github.com/sbsrnt)!
 
-- [`d0229f3`](https://github.com/navali-creations/soothsayer/commit/d0229f3553e34a26836ef8d302c644493342d28f) Thanks [@sbsrnt](https://github.com/sbsrnt)! - - **Custom rarity source dropdown:** The native select element for picking your rarity source (on the Cards and Current Session pages) has been replaced with a polished popover dropdown featuring grouped options, rich labels with hover hints, checkmarks, and outdated-filter warnings.
+  The pricing snapshot info shown during an active session now always matches the data actually used to price your cards
+
+- [`d0229f3`](https://github.com/navali-creations/soothsayer/commit/d0229f3553e34a26836ef8d302c644493342d28f) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  - **Custom rarity source dropdown:** The native select element for picking your rarity source (on the Cards and Current Session pages) has been replaced with a polished popover dropdown featuring grouped options, rich labels with hover hints, checkmarks, and outdated-filter warnings.
 
   - **Filter column rarity sorting:** Filter columns on the Rarity Model comparison page now have clickable R1–R4 rarity chips in their headers, letting you sort by a specific tier — just like the poe.ninja and Prohibited Library columns.
 
@@ -64,7 +80,9 @@
 
 ### Minor Changes
 
-- [`c0fe2a1`](https://github.com/navali-creations/soothsayer/commit/c0fe2a1136ba330610ccee1ac182cd8a48b63654) Thanks [@sbsrnt](https://github.com/sbsrnt)! - - **Refresh poe.ninja prices:** A new "Refresh poe.ninja" button on the Rarity Model page lets you manually fetch the latest card pricing data. After refreshing, the button shows a cooldown timer so you know exactly when the next refresh becomes available. Each league tracks its cooldown independently — switching leagues lets you refresh right away.
+- [`c0fe2a1`](https://github.com/navali-creations/soothsayer/commit/c0fe2a1136ba330610ccee1ac182cd8a48b63654) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  - **Refresh poe.ninja prices:** A new "Refresh poe.ninja" button on the Rarity Model page lets you manually fetch the latest card pricing data. After refreshing, the button shows a cooldown timer so you know exactly when the next refresh becomes available. Each league tracks its cooldown independently — switching leagues lets you refresh right away.
 
   - **Onboarding guides:** New interactive help beacons have been added across the app to explain key features. Look for the pulsing icons next to the poe.ninja column, the refresh button, and the scan/filter controls on the Rarity Model page, as well as the rarity source dropdown on the Current Session page.
 
@@ -76,43 +94,17 @@
 
 ### Patch Changes
 
-- [`af025c6`](https://github.com/navali-creations/soothsayer/commit/af025c6f5baa3c279fa117c0a518bab8784af04b) Thanks [@sbsrnt](https://github.com/sbsrnt)! - As of this release, the CI/CD pipeline properly includes code signing of the app
+- [`af025c6`](https://github.com/navali-creations/soothsayer/commit/af025c6f5baa3c279fa117c0a518bab8784af04b) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  As of this release, the CI/CD pipeline properly includes code signing of the app
 
 ## 0.3.6
 
 ### Patch Changes
 
-- [`e1f7089`](https://github.com/navali-creations/soothsayer/commit/e1f70899b5f4a8eddcfea2c8fab51282d278e302) Thanks [@sbsrnt](https://github.com/sbsrnt)! - 6 time the charm?
+- [`e1f7089`](https://github.com/navali-creations/soothsayer/commit/e1f70899b5f4a8eddcfea2c8fab51282d278e302) Thanks [@sbsrnt](https://github.com/sbsrnt)!
 
-## 0.3.5
-
-### Patch Changes
-
-- [`055d2b0`](https://github.com/navali-creations/soothsayer/commit/055d2b08f6106bd2202470bbdd542fb70b9010ee) Thanks [@sbsrnt](https://github.com/sbsrnt)! - 5 times the charm as they say.
-
-## 0.3.4
-
-### Patch Changes
-
-- [`c5097c9`](https://github.com/navali-creations/soothsayer/commit/c5097c9ad354cd533530e109843db5ca68ceb285) Thanks [@sbsrnt](https://github.com/sbsrnt)! - Ok this is the one.
-
-## 0.3.3
-
-### Patch Changes
-
-- [`9e7cea5`](https://github.com/navali-creations/soothsayer/commit/9e7cea5d78b35237d554cfc5dc058c1d7cfedcc1) Thanks [@sbsrnt](https://github.com/sbsrnt)! - This is the one.
-
-## 0.3.2
-
-### Patch Changes
-
-- [`e67a0a2`](https://github.com/navali-creations/soothsayer/commit/e67a0a250b78261cc371e3fdff80cb82c519459d) Thanks [@sbsrnt](https://github.com/sbsrnt)! - Next signing attempt.
-
-## 0.3.1
-
-### Patch Changes
-
-- [`54b3f6b`](https://github.com/navali-creations/soothsayer/commit/54b3f6b51d7ff75a1619fe58bd9977c6a44d7f2f) Thanks [@sbsrnt](https://github.com/sbsrnt)! - This version edits publish workflow to include app signing. (surely this will work)
+  Iterative CI/CD fixes for Windows code signing (consolidates versions 0.3.1–0.3.5).
 
 ## 0.3.0
 

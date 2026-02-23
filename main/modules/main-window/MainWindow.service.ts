@@ -182,9 +182,8 @@ class MainWindowService {
     // Security: Only allow opening URLs from a strict allowlist in the OS browser
     const allowedExternalUrls = [
       "https://www.pathofexile.com/oauth/authorize",
-      "https://discord.gg/",
-      "https://discord.com/",
       "https://github.com/navali-creations",
+      "https://github.com/orgs/navali-creations",
     ];
 
     this.mainWindow.webContents.setWindowOpenHandler(({ url }) => {

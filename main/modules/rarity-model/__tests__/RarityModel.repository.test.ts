@@ -990,6 +990,78 @@ describe("RarityModelRepository", () => {
     });
   });
 
+  // ─── updateCardRarity ────────────────────────────────────────────────────
+
+  describe("updateCardRarity", () => {
+    it("should insert a new card rarity", async () => {
+      await insertFilter({ id: "update-single-filter" });
+
+      await repository.updateCardRarity(
+        "update-single-filter",
+        "The Doctor",
+        1,
+      );
+
+      const rarities = await repository.getCardRarities("update-single-filter");
+      expect(rarities).toHaveLength(1);
+      expect(rarities[0].cardName).toBe("The Doctor");
+      expect(rarities[0].rarity).toBe(1);
+    });
+
+    it("should upsert an existing card rarity on conflict", async () => {
+      await insertFilter({ id: "upsert-single-filter" });
+
+      await repository.updateCardRarity(
+        "upsert-single-filter",
+        "The Doctor",
+        1,
+      );
+      await repository.updateCardRarity(
+        "upsert-single-filter",
+        "The Doctor",
+        3,
+      );
+
+      const rarities = await repository.getCardRarities("upsert-single-filter");
+      expect(rarities).toHaveLength(1);
+      expect(rarities[0].cardName).toBe("The Doctor");
+      expect(rarities[0].rarity).toBe(3);
+    });
+
+    it("should not affect other cards in the same filter", async () => {
+      await insertFilter({ id: "upsert-other-filter" });
+      await insertCardRarities("upsert-other-filter", [
+        { cardName: "Rain of Chaos", rarity: 4 },
+      ]);
+
+      await repository.updateCardRarity("upsert-other-filter", "The Doctor", 1);
+
+      const rarities = await repository.getCardRarities("upsert-other-filter");
+      expect(rarities).toHaveLength(2);
+      const rain = rarities.find((r) => r.cardName === "Rain of Chaos");
+      const doctor = rarities.find((r) => r.cardName === "The Doctor");
+      expect(rain?.rarity).toBe(4);
+      expect(doctor?.rarity).toBe(1);
+    });
+
+    it("should accept all valid rarity values (1-4)", async () => {
+      await insertFilter({ id: "upsert-all-rarities" });
+
+      await repository.updateCardRarity("upsert-all-rarities", "Card1", 1);
+      await repository.updateCardRarity("upsert-all-rarities", "Card2", 2);
+      await repository.updateCardRarity("upsert-all-rarities", "Card3", 3);
+      await repository.updateCardRarity("upsert-all-rarities", "Card4", 4);
+
+      const rarities = await repository.getCardRarities("upsert-all-rarities");
+      expect(rarities).toHaveLength(4);
+      const rarityMap = new Map(rarities.map((r) => [r.cardName, r.rarity]));
+      expect(rarityMap.get("Card1")).toBe(1);
+      expect(rarityMap.get("Card2")).toBe(2);
+      expect(rarityMap.get("Card3")).toBe(3);
+      expect(rarityMap.get("Card4")).toBe(4);
+    });
+  });
+
   // ─── getCardRarityCount ──────────────────────────────────────────────────
 
   describe("getCardRarityCount", () => {

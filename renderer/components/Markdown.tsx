@@ -58,7 +58,7 @@ const components = {
       <img
         {...props}
         className="rounded-lg border border-base-content/10 max-w-full h-auto my-2"
-        style={width ? { maxWidth: `${width}px` } : undefined}
+        style={{ maxWidth: width ? `min(${width}px, 100%)` : "100%" }}
         loading="lazy"
       />
     );

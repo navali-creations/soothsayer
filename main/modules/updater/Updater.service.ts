@@ -533,7 +533,16 @@ class UpdaterService {
       const changeTypeMatch = line.match(/^### (.+)$/);
       if (changeTypeMatch && !line.startsWith("####") && currentRelease) {
         flushEntry();
-        currentRelease.changeType = changeTypeMatch[1].trim();
+        const incoming = changeTypeMatch[1].trim();
+        // Only upgrade changeType — never downgrade (Major > Minor > Patch).
+        // This ensures a release with both Minor and Patch sections is
+        // reported as "Minor Changes".
+        if (
+          this.changeTypePriority(incoming) >
+          this.changeTypePriority(currentRelease.changeType)
+        ) {
+          currentRelease.changeType = incoming;
+        }
         continue;
       }
 
@@ -640,6 +649,18 @@ class UpdaterService {
    * Compare two semver strings. Returns true if `latest` is newer than
    * `current`.
    */
+  /**
+   * Return a numeric priority for a change-type header so we can compare them.
+   * Higher number = more significant change type.
+   */
+  private changeTypePriority(changeType: string): number {
+    const lower = changeType.toLowerCase();
+    if (lower.includes("major")) return 3;
+    if (lower.includes("minor")) return 2;
+    if (lower.includes("patch")) return 1;
+    return 0;
+  }
+
   private isNewerVersion(current: string, latest: string): boolean {
     const parseSemver = (v: string) =>
       v.split(".").map((n) => Number.parseInt(n, 10));

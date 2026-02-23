@@ -2,6 +2,8 @@ import Database from "better-sqlite3";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { MigrationRunner, migrations } from "../migrations";
+import { migration_20260213_204200_add_filter_tables_and_rarity_source } from "../migrations/20260213_204200_add_filter_tables_and_rarity_source";
+import { migration_20260221_201500_add_prohibited_library } from "../migrations/20260221_201500_add_prohibited_library";
 
 /**
  * Returns the column names for a given table.
@@ -1593,6 +1595,151 @@ describe("Migrations Integration", () => {
 
       expect(freshColumns).toContain("from_boss");
       expect(upgradeColumns).toContain("from_boss");
+    });
+  });
+
+  // ─── Idempotency / edge-case branches ──────────────────────────────────
+
+  describe("filter migration idempotency", () => {
+    it("should handle down() when selected_filter_id column does not exist", () => {
+      createBaselineSchema(db);
+
+      // Remove selected_filter_id from user_settings to simulate partial state
+      db.exec(`
+        ALTER TABLE user_settings DROP COLUMN selected_filter_id
+      `);
+
+      const columns = getColumnNames(db, "user_settings");
+      expect(columns).not.toContain("selected_filter_id");
+      expect(columns).toContain("rarity_source");
+
+      // down() should not throw even though selected_filter_id is absent
+      expect(() =>
+        migration_20260213_204200_add_filter_tables_and_rarity_source.down(db),
+      ).not.toThrow();
+
+      const afterColumns = getColumnNames(db, "user_settings");
+      expect(afterColumns).not.toContain("selected_filter_id");
+      expect(afterColumns).not.toContain("rarity_source");
+    });
+
+    it("should handle down() when rarity_source column does not exist", () => {
+      createBaselineSchema(db);
+
+      // Remove both filter-related columns to simulate pre-filter state
+      db.exec(`
+        ALTER TABLE user_settings DROP COLUMN selected_filter_id
+      `);
+      db.exec(`
+        ALTER TABLE user_settings DROP COLUMN rarity_source
+      `);
+
+      const columns = getColumnNames(db, "user_settings");
+      expect(columns).not.toContain("rarity_source");
+      expect(columns).not.toContain("selected_filter_id");
+
+      // down() should not throw even though both columns are absent
+      expect(() =>
+        migration_20260213_204200_add_filter_tables_and_rarity_source.down(db),
+      ).not.toThrow();
+    });
+  });
+
+  describe("prohibited library migration idempotency", () => {
+    it("should skip adding from_boss when column already exists on divination_cards", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+
+      // Run all migrations so from_boss is already present
+      runner.runMigrations(migrations);
+
+      const before = getColumnNames(db, "divination_cards");
+      expect(before).toContain("from_boss");
+
+      // Calling up() again directly should not throw (idempotent)
+      expect(() =>
+        migration_20260221_201500_add_prohibited_library.up(db),
+      ).not.toThrow();
+
+      // from_boss should still be there exactly once
+      const after = getColumnNames(db, "divination_cards");
+      const count = after.filter((c) => c === "from_boss").length;
+      expect(count).toBe(1);
+    });
+
+    it("should handle down() when from_boss column does not exist on divination_cards", () => {
+      createBaselineSchema(db);
+
+      // Baseline schema does NOT have from_boss (it's added by the migration)
+      const before = getColumnNames(db, "divination_cards");
+      expect(before).not.toContain("from_boss");
+
+      // down() should not throw even though from_boss is absent
+      expect(() =>
+        migration_20260221_201500_add_prohibited_library.down(db),
+      ).not.toThrow();
+
+      // Table should still exist and be intact
+      const after = getColumnNames(db, "divination_cards");
+      expect(after).not.toContain("from_boss");
+      expect(after).toContain("name");
+      expect(after).toContain("game");
+    });
+
+    it("should handle down() and preserve divination_cards data when from_boss is removed", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      // Insert a card with from_boss = 1
+      db.prepare(
+        "INSERT INTO divination_cards (id, name, stack_size, description, reward_html, art_src, game, data_hash, from_boss) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      ).run(
+        "card-1",
+        "The Doctor",
+        8,
+        "desc",
+        "<span>reward</span>",
+        "art.png",
+        "poe1",
+        "hash1",
+        1,
+      );
+
+      db.prepare(
+        "INSERT INTO divination_cards (id, name, stack_size, description, reward_html, art_src, game, data_hash, from_boss) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      ).run(
+        "card-2",
+        "Rain of Chaos",
+        8,
+        "desc",
+        "<span>reward</span>",
+        "art2.png",
+        "poe1",
+        "hash2",
+        0,
+      );
+
+      migration_20260221_201500_add_prohibited_library.down(db);
+
+      // Data should survive the table rebuild
+      const rows = db
+        .prepare(
+          "SELECT name, stack_size, game FROM divination_cards ORDER BY name",
+        )
+        .all() as Array<{
+        name: string;
+        stack_size: number;
+        game: string;
+      }>;
+
+      expect(rows).toHaveLength(2);
+      expect(rows[0].name).toBe("Rain of Chaos");
+      expect(rows[1].name).toBe("The Doctor");
+
+      // from_boss column should be gone
+      const columns = getColumnNames(db, "divination_cards");
+      expect(columns).not.toContain("from_boss");
     });
   });
 });

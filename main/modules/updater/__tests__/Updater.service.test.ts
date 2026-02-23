@@ -1189,6 +1189,48 @@ describe("UpdaterService", () => {
       expect(releases[0].entries[2].description).toBe("Another simple entry");
       expect(releases[0].entries[2].content).toBeUndefined();
     });
+
+    it("should use highest-priority changeType when a release has multiple sections", () => {
+      const md = [
+        "## 1.0.0",
+        "",
+        "### Minor Changes",
+        "",
+        "- Added a feature",
+        "",
+        "### Patch Changes",
+        "",
+        "- Fixed a bug",
+      ].join("\n");
+      const releases = callParseChangelog(md);
+
+      expect(releases).toHaveLength(1);
+      expect(releases[0].changeType).toBe("Minor Changes");
+      expect(releases[0].entries).toHaveLength(2);
+    });
+
+    it("should prefer Major over Minor and Patch changeType", () => {
+      const md = [
+        "## 2.0.0",
+        "",
+        "### Patch Changes",
+        "",
+        "- Fixed a bug",
+        "",
+        "### Major Changes",
+        "",
+        "- Breaking change",
+        "",
+        "### Minor Changes",
+        "",
+        "- Added a feature",
+      ].join("\n");
+      const releases = callParseChangelog(md);
+
+      expect(releases).toHaveLength(1);
+      expect(releases[0].changeType).toBe("Major Changes");
+      expect(releases[0].entries).toHaveLength(3);
+    });
   });
 
   // ─── parseReleaseBody (private — tested via accessor) ──────────────────

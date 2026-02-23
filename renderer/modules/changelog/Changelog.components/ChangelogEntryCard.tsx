@@ -21,7 +21,7 @@ const ChangelogEntryCard = ({ entry }: { entry: ChangelogEntry }) => {
       )}
 
       {(entry.commitHash || entry.contributor) && (
-        <div className="flex flex-wrap items-center gap-2 pt-1">
+        <div className="flex flex-wrap items-center gap-2 pt-1 pb-4">
           {entry.commitHash && (
             <Badge
               variant="info"

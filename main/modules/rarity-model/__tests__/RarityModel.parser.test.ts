@@ -1,4 +1,8 @@
-import { describe, expect, it } from "vitest";
+import * as fs from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
+
+import { afterAll, describe, expect, it } from "vitest";
 
 import { RarityModelParser, type TierBlock } from "../RarityModel.parser";
 
@@ -999,6 +1003,14 @@ describe("RarityModelParser", () => {
   // ============================================================================
 
   describe("parseFilterFile", () => {
+    const tmpFiles: string[] = [];
+
+    afterAll(async () => {
+      for (const f of tmpFiles) {
+        await fs.unlink(f).catch(() => {});
+      }
+    });
+
     it("should return empty result when file does not exist", async () => {
       const result = await RarityModelParser.parseFilterFile(
         "/nonexistent/path/filter.filter",
@@ -1007,6 +1019,24 @@ describe("RarityModelParser", () => {
       expect(result.hasDivinationSection).toBe(false);
       expect(result.totalCards).toBe(0);
       expect(result.cardRarities.size).toBe(0);
+    });
+
+    it("should read and parse a valid filter file from disk", async () => {
+      const content = makeValidFilterContent();
+      const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "rarity-parser-"));
+      const tmpFile = path.join(tmpDir, "test.filter");
+      await fs.writeFile(tmpFile, content, "utf-8");
+      tmpFiles.push(tmpFile);
+
+      const result = await RarityModelParser.parseFilterFile(tmpFile);
+
+      expect(result.hasDivinationSection).toBe(true);
+      expect(result.totalCards).toBeGreaterThan(0);
+      expect(result.cardRarities.size).toBeGreaterThan(0);
+      expect(result.cardRarities.get("The Doctor")).toBe(1);
+
+      // Clean up the temp directory too
+      await fs.rm(tmpDir, { recursive: true }).catch(() => {});
     });
   });
 

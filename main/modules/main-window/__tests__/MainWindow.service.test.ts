@@ -751,28 +751,16 @@ describe("MainWindowService", () => {
       await service.createMainWindow();
     });
 
-    it("should allow opening Discord URLs externally", () => {
-      const openHandler =
-        mockBrowserWindowWebContentsSetWindowOpenHandler.mock.calls[0][0];
-
-      const result = openHandler({ url: "https://discord.gg/soothsayer" });
-
-      expect(mockShellOpenExternal).toHaveBeenCalledWith(
-        "https://discord.gg/soothsayer",
-      );
-      expect(result).toEqual({ action: "deny" });
-    });
-
-    it("should allow opening Discord.com URLs externally", () => {
+    it("should allow opening GitHub Discussions URLs externally", () => {
       const openHandler =
         mockBrowserWindowWebContentsSetWindowOpenHandler.mock.calls[0][0];
 
       const result = openHandler({
-        url: "https://discord.com/invite/something",
+        url: "https://github.com/orgs/navali-creations/discussions",
       });
 
       expect(mockShellOpenExternal).toHaveBeenCalledWith(
-        "https://discord.com/invite/something",
+        "https://github.com/orgs/navali-creations/discussions",
       );
       expect(result).toEqual({ action: "deny" });
     });
@@ -826,7 +814,9 @@ describe("MainWindowService", () => {
       const openHandler =
         mockBrowserWindowWebContentsSetWindowOpenHandler.mock.calls[0][0];
 
-      const result = openHandler({ url: "https://discord.gg/help" });
+      const result = openHandler({
+        url: "https://github.com/navali-creations/soothsayer",
+      });
 
       // Window is always denied — external links open in OS browser
       expect(result).toEqual({ action: "deny" });
@@ -1216,12 +1206,14 @@ describe("MainWindowService", () => {
       navHandler(mockNavEvent, "https://malicious.com");
       expect(mockNavEvent.preventDefault).toHaveBeenCalled();
 
-      // 7. Test security: allow discord
+      // 7. Test security: allow GitHub discussions
       const openHandler =
         mockBrowserWindowWebContentsSetWindowOpenHandler.mock.calls[0][0];
-      openHandler({ url: "https://discord.gg/test" });
+      openHandler({
+        url: "https://github.com/orgs/navali-creations/discussions",
+      });
       expect(mockShellOpenExternal).toHaveBeenCalledWith(
-        "https://discord.gg/test",
+        "https://github.com/orgs/navali-creations/discussions",
       );
 
       // 8. Close with exit action
