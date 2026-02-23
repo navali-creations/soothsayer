@@ -1,7 +1,7 @@
 {
   "$schema": "https://unpkg.com/@changesets/config@3.1.2/schema.json",
   "changelog": [
-    "./.changeset/changelog-config.mjs",
+    "./.changeset/changelog-config.cjs",
     { "repo": "navali-creations/soothsayer" }
   ],
   "commit": false,

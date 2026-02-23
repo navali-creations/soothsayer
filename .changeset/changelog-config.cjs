@@ -1,4 +1,4 @@
-import github from "@changesets/changelog-github";
+const github = require("@changesets/changelog-github").default;
 
 /** @type {import("@changesets/types").ChangelogFunctions} */
 const changelogFunctions = {
@@ -15,4 +15,4 @@ const changelogFunctions = {
   },
 };
 
-export default changelogFunctions;
+module.exports = changelogFunctions;
