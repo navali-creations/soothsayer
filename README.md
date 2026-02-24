@@ -20,6 +20,12 @@ https://github.com/user-attachments/assets/63e95f2b-f4e1-43e2-8e26-68d357928a51
 
 [![Download Latest Release](https://img.shields.io/github/v/release/navali-creations/soothsayer?style=for-the-badge&label=Download+Latest+Release&color=purple)](https://github.com/navali-creations/soothsayer/releases/latest)
 
+| system | extension | 
+| -- | -- |
+| Windows | `Soothsayer-x.x.x.Setup.exe` | 
+| Linux | `soothsayer_x.x.x_amd64.deb` |
+| Linux | `soothsayer-x.x.x-full.nupkg` |
+
 ---
 
 ## Requirements
