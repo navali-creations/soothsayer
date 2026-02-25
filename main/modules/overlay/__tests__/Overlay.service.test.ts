@@ -74,8 +74,9 @@ const {
   mockAppGetAppPath: vi.fn(() => "/mock-app-path"),
 }));
 
-// Track BrowserWindow instances created during tests
+// Track BrowserWindow instances and their constructor options during tests
 let overlayWindowInstances: any[] = [];
+let overlayWindowOpts: any[] = [];
 
 // ─── Mock Electron ───────────────────────────────────────────────────────────
 vi.mock("electron", () => {
@@ -105,8 +106,9 @@ vi.mock("electron", () => {
       getURL: mockOverlayWebContentsGetURL,
     };
 
-    constructor(_opts: any) {
+    constructor(opts: any) {
       overlayWindowInstances.push(this);
+      overlayWindowOpts.push(opts);
     }
 
     static getAllWindows = mockBrowserWindowGetAllWindows;
@@ -296,6 +298,7 @@ describe("OverlayService", () => {
     vi.clearAllMocks();
     vi.useFakeTimers();
     overlayWindowInstances = [];
+    overlayWindowOpts = [];
 
     // Reset singleton
     // @ts-expect-error — accessing private static for testing
@@ -752,11 +755,29 @@ describe("OverlayService", () => {
 
       await service.show();
 
-      // The BrowserWindow constructor should have been called with saved bounds
       expect(overlayWindowInstances.length).toBe(1);
+      expect(overlayWindowOpts[0]).toMatchObject({
+        x: 500,
+        y: 300,
+        width: 400,
+        height: 200,
+      });
     });
 
-    it("should calculate default position when no saved bounds exist", async () => {
+    it("should not call screen.getPrimaryDisplay when saved bounds exist", async () => {
+      const savedBounds = { x: 100, y: 100, width: 300, height: 180 };
+      mockSettingsGet.mockImplementation(async (key: string) => {
+        if (key === "overlayBounds") return savedBounds;
+        return null;
+      });
+      mockScreenGetPrimaryDisplay.mockClear();
+
+      await service.show();
+
+      expect(mockScreenGetPrimaryDisplay).not.toHaveBeenCalled();
+    });
+
+    it("should calculate default position as top-left with 20px margin when no saved bounds exist", async () => {
       mockSettingsGet.mockResolvedValue(null);
       mockScreenGetPrimaryDisplay.mockReturnValue({
         workAreaSize: { width: 1920, height: 1080 },
@@ -765,6 +786,58 @@ describe("OverlayService", () => {
 
       await service.show();
       expect(mockScreenGetPrimaryDisplay).toHaveBeenCalled();
+      expect(overlayWindowOpts[0]).toMatchObject({
+        x: 20,
+        y: 20,
+        width: 250,
+        height: 175,
+      });
+    });
+
+    it("should produce valid default position on a small 768p laptop screen", async () => {
+      mockSettingsGet.mockResolvedValue(null);
+      mockScreenGetPrimaryDisplay.mockReturnValue({
+        workAreaSize: { width: 1366, height: 728 },
+        workArea: { x: 0, y: 0 },
+      });
+
+      await service.show();
+      const opts = overlayWindowOpts[0];
+      expect(opts.x).toBe(20);
+      expect(opts.y).toBe(20);
+      // Verify overlay fits on-screen (x + width < screen width, y + height < screen height)
+      expect(opts.x + opts.width).toBeLessThan(1366);
+      expect(opts.y + opts.height).toBeLessThan(728);
+    });
+
+    it("should offset default position by workArea origin when taskbar shifts it", async () => {
+      mockSettingsGet.mockResolvedValue(null);
+      // Simulate a left-side taskbar that offsets workArea by 64px
+      mockScreenGetPrimaryDisplay.mockReturnValue({
+        workAreaSize: { width: 1856, height: 1080 },
+        workArea: { x: 64, y: 0 },
+      });
+
+      await service.show();
+      expect(overlayWindowOpts[0]).toMatchObject({
+        x: 84, // 64 + 20
+        y: 20, // 0 + 20
+      });
+    });
+
+    it("should offset default position by workArea origin when taskbar is on top", async () => {
+      mockSettingsGet.mockResolvedValue(null);
+      // Simulate a top taskbar that offsets workArea by 40px vertically
+      mockScreenGetPrimaryDisplay.mockReturnValue({
+        workAreaSize: { width: 1920, height: 1040 },
+        workArea: { x: 0, y: 40 },
+      });
+
+      await service.show();
+      expect(overlayWindowOpts[0]).toMatchObject({
+        x: 20, // 0 + 20
+        y: 60, // 40 + 20
+      });
     });
 
     it("should not create a second window if one already exists", async () => {

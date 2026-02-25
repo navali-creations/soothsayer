@@ -85,20 +85,15 @@ class OverlayService {
       overlayWidth = savedBounds.width || 250;
       overlayHeight = savedBounds.height || 145;
     } else {
-      // Detect the monitor where the cursor is (likely the game monitor)
+      // Default to top-left of primary display work area with a small margin
       const primaryDisplay = screen.getPrimaryDisplay();
-
-      const { width: screenWidth, height: screenHeight } =
-        primaryDisplay.workAreaSize;
       const { x: screenX, y: screenY } = primaryDisplay.workArea;
 
-      // Custom overlay dimensions
       overlayWidth = 250;
       overlayHeight = 175;
 
-      // Position: centered horizontally, 300px from bottom
-      x = screenX + screenWidth - overlayWidth;
-      y = screenY + screenHeight - overlayHeight - 632;
+      x = screenX + 20;
+      y = screenY + 20;
     }
 
     this.overlayWindow = new BrowserWindow({
