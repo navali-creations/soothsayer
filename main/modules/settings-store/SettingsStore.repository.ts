@@ -49,6 +49,8 @@ export class SettingsStoreRepository {
       dbValue = boolToInt(value);
     } else if (key === "overlayBounds" && value !== null) {
       dbValue = JSON.stringify(value);
+    } else if (key === "mainWindowBounds" && value !== null) {
+      dbValue = JSON.stringify(value);
     } else if (key === "onboardingDismissedBeacons") {
       dbValue = JSON.stringify(value);
     } else if (key === "installedGames") {

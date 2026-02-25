@@ -26,6 +26,8 @@ export const SettingsKey = {
   RaritySource: "raritySource",
   SelectedFilterId: "selectedFilterId",
   LastSeenAppVersion: "lastSeenAppVersion",
+  OverlayFontSize: "overlayFontSize",
+  MainWindowBounds: "mainWindowBounds",
 } as const;
 
 export type SettingsKeyType = (typeof SettingsKey)[keyof typeof SettingsKey];

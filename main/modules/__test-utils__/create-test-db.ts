@@ -462,6 +462,12 @@ function initializeSchema(db: Database.Database): void {
         -- Post-update detection
         last_seen_app_version TEXT,
 
+        -- Overlay customization
+        overlay_font_size REAL NOT NULL DEFAULT 1.0,
+
+        -- Main window position persistence
+        main_window_bounds TEXT,
+
         -- Metadata
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))

@@ -88,6 +88,8 @@ export const createSettingsSlice: StateCreator<
     raritySource: "poe.ninja",
     selectedFilterId: null,
     lastSeenAppVersion: null,
+    overlayFontSize: 1.0,
+    mainWindowBounds: null,
 
     // Additional state
     isLoading: false,
@@ -147,6 +149,8 @@ export const createSettingsSlice: StateCreator<
             settings.audioRarity3Path = data.audioRarity3Path;
             settings.raritySource = data.raritySource;
             settings.selectedFilterId = data.selectedFilterId;
+            settings.overlayFontSize = data.overlayFontSize;
+            settings.mainWindowBounds = data.mainWindowBounds;
             settings.isLoading = false;
           },
           false,
@@ -289,6 +293,8 @@ export const createSettingsSlice: StateCreator<
           settings.audioRarity3Path = newSettings.audioRarity3Path;
           settings.raritySource = newSettings.raritySource;
           settings.selectedFilterId = newSettings.selectedFilterId;
+          settings.overlayFontSize = newSettings.overlayFontSize;
+          settings.mainWindowBounds = newSettings.mainWindowBounds;
         },
         false,
         "settingsSlice/setSettings",

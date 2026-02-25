@@ -203,16 +203,54 @@ class SettingsStoreService {
                 assertBoundedString(value, "lastSeenAppVersion", ch, 64);
               }
               break;
+            case "overlayFontSize":
+              assertNumber(value, "overlayFontSize", ch);
+              if ((value as number) < 0.5 || (value as number) > 2.0) {
+                throw new IpcValidationError(
+                  ch,
+                  `Expected "overlayFontSize" to be between 0.5 and 2.0, got ${value}`,
+                );
+              }
+              break;
+            case "mainWindowBounds":
+              // Can be null (reset) or a bounds object
+              if (value !== null) {
+                if (typeof value !== "object") {
+                  throw new IpcValidationError(
+                    ch,
+                    `Expected "mainWindowBounds" to be an object or null, got ${typeof value}`,
+                  );
+                }
+                const bounds = value as Record<string, unknown>;
+                assertInteger(bounds.x, "mainWindowBounds.x", ch, {
+                  min: -100_000,
+                  max: 100_000,
+                });
+                assertInteger(bounds.y, "mainWindowBounds.y", ch, {
+                  min: -100_000,
+                  max: 100_000,
+                });
+                assertInteger(bounds.width, "mainWindowBounds.width", ch, {
+                  min: 1,
+                  max: 100_000,
+                });
+                assertInteger(bounds.height, "mainWindowBounds.height", ch, {
+                  min: 1,
+                  max: 100_000,
+                });
+              }
+              break;
             default:
               throw new IpcValidationError(ch, `Unknown setting key "${key}"`);
           }
           await this.set(key, value);
 
-          // Notify overlay when price source or active game changes
+          // Notify overlay when price source, active game, or overlay font size changes
           if (
             key === SettingsKey.Poe1PriceSource ||
             key === SettingsKey.Poe2PriceSource ||
-            key === SettingsKey.ActiveGame
+            key === SettingsKey.ActiveGame ||
+            key === SettingsKey.OverlayFontSize
           ) {
             this.broadcastSettingsChanged();
           }

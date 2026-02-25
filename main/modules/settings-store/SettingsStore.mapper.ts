@@ -51,6 +51,10 @@ export function toUserSettingsDTO(row: UserSettingsRow): UserSettingsDTO {
       | "prohibited-library",
     selectedFilterId: row.selected_filter_id,
     lastSeenAppVersion: row.last_seen_app_version ?? null,
+    overlayFontSize: row.overlay_font_size ?? 1.0,
+    mainWindowBounds: row.main_window_bounds
+      ? JSON.parse(row.main_window_bounds)
+      : null,
   };
 }
 
@@ -127,6 +131,8 @@ export function toDBKey(key: keyof UserSettingsDTO): keyof UserSettingsTable {
     raritySource: "rarity_source",
     selectedFilterId: "selected_filter_id",
     lastSeenAppVersion: "last_seen_app_version",
+    overlayFontSize: "overlay_font_size",
+    mainWindowBounds: "main_window_bounds",
   };
   return mapping[key];
 }

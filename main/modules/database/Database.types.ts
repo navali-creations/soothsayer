@@ -221,6 +221,12 @@ export interface UserSettingsTable {
   // Post-update detection
   last_seen_app_version: string | null;
 
+  // Overlay customization
+  overlay_font_size: number; // 0.5–2.0, default 1.0
+
+  // Main window position persistence
+  main_window_bounds: string | null; // JSON string of { x, y, width, height }
+
   // Metadata
   created_at: ColumnType<string, string | undefined, never>;
   updated_at: ColumnType<string, string | undefined, string | undefined>;

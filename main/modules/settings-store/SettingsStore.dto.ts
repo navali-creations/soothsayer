@@ -29,6 +29,13 @@ export interface UserSettingsDTO {
   raritySource: RaritySource;
   selectedFilterId: string | null;
   lastSeenAppVersion: string | null;
+  overlayFontSize: number;
+  mainWindowBounds: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null;
 }
 
 /**

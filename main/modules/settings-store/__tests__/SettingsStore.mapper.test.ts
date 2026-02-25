@@ -45,6 +45,8 @@ function createSettingsRow(
     rarity_source: "poe.ninja",
     selected_filter_id: null,
     last_seen_app_version: null,
+    overlay_font_size: 1.0,
+    main_window_bounds: null,
     created_at: "2025-01-01T00:00:00Z",
     updated_at: "2025-01-01T00:00:00Z",
     ...overrides,
@@ -250,6 +252,8 @@ describe("SettingsStore.mapper", () => {
         audio_rarity1_path: "C:\\sounds\\rarity1.mp3",
         audio_rarity2_path: "C:\\sounds\\rarity2.mp3",
         audio_rarity3_path: null,
+        overlay_font_size: 1.5,
+        main_window_bounds: '{"x":100,"y":200,"width":1400,"height":900}',
       });
       const dto = toUserSettingsDTO(row);
 
@@ -278,6 +282,8 @@ describe("SettingsStore.mapper", () => {
         raritySource: "poe.ninja",
         selectedFilterId: null,
         lastSeenAppVersion: null,
+        overlayFontSize: 1.5,
+        mainWindowBounds: { x: 100, y: 200, width: 1400, height: 900 },
       });
     });
   });
