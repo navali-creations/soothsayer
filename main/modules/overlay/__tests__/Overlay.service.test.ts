@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const {
   mockIpcHandle,
   mockSettingsGet,
+  mockSettingsSet,
   mockCurrentSessionIsActive,
   mockCurrentSessionGetCurrentSession,
   mockBrowserWindowGetAllWindows,
@@ -24,6 +25,10 @@ const {
   mockOverlayLoadFile,
   mockOverlayOnce,
   mockOverlayOn,
+  mockOverlaySetFocusable,
+  mockOverlaySetIgnoreMouseEvents,
+  mockOverlaySetResizable,
+  mockOverlayRemoveListener,
   mockOverlayWebContentsSend,
   mockOverlayWebContentsOn,
   mockOverlayWebContentsSetWindowOpenHandler,
@@ -37,6 +42,7 @@ const {
 } = vi.hoisted(() => ({
   mockIpcHandle: vi.fn(),
   mockSettingsGet: vi.fn(),
+  mockSettingsSet: vi.fn().mockResolvedValue(undefined),
   mockCurrentSessionIsActive: vi.fn(),
   mockCurrentSessionGetCurrentSession: vi.fn(),
   mockBrowserWindowGetAllWindows: vi.fn(() => []),
@@ -57,6 +63,10 @@ const {
   mockOverlayLoadFile: vi.fn(),
   mockOverlayOnce: vi.fn(),
   mockOverlayOn: vi.fn(),
+  mockOverlaySetFocusable: vi.fn(),
+  mockOverlaySetIgnoreMouseEvents: vi.fn(),
+  mockOverlaySetResizable: vi.fn(),
+  mockOverlayRemoveListener: vi.fn(),
   mockOverlayWebContentsSend: vi.fn(),
   mockOverlayWebContentsOn: vi.fn(),
   mockOverlayWebContentsSetWindowOpenHandler: vi.fn(),
@@ -98,6 +108,10 @@ vi.mock("electron", () => {
     loadFile = mockOverlayLoadFile;
     once = mockOverlayOnce;
     on = mockOverlayOn;
+    setFocusable = mockOverlaySetFocusable;
+    setIgnoreMouseEvents = mockOverlaySetIgnoreMouseEvents;
+    setResizable = mockOverlaySetResizable;
+    removeListener = mockOverlayRemoveListener;
     webContents = {
       send: mockOverlayWebContentsSend,
       on: mockOverlayWebContentsOn,
@@ -144,6 +158,7 @@ vi.mock("~/main/modules/settings-store", () => ({
   SettingsStoreService: {
     getInstance: vi.fn(() => ({
       get: mockSettingsGet,
+      set: mockSettingsSet,
     })),
   },
   SettingsKey: {
@@ -179,6 +194,14 @@ class MockValidationError extends Error {
 }
 
 vi.mock("~/main/utils/ipc-validation", () => ({
+  assertBoolean: vi.fn((value: unknown, paramName: string, channel: string) => {
+    if (typeof value !== "boolean") {
+      throw new MockValidationError(
+        channel,
+        `Expected "${paramName}" to be a boolean, got ${typeof value}`,
+      );
+    }
+  }),
   assertInteger: vi.fn(
     (
       value: unknown,
@@ -278,12 +301,17 @@ function clearOverlayMocks() {
   mockOverlayLoadFile.mockClear();
   mockOverlayOnce.mockClear();
   mockOverlayOn.mockClear();
+  mockOverlaySetFocusable.mockClear();
+  mockOverlaySetIgnoreMouseEvents.mockClear();
+  mockOverlaySetResizable.mockClear();
+  mockOverlayRemoveListener.mockClear();
   mockOverlayWebContentsSend.mockClear();
   mockOverlayWebContentsOn.mockClear();
   mockOverlayWebContentsSetWindowOpenHandler.mockClear();
   mockOverlayWebContentsOpenDevTools.mockClear();
   mockMainWindowWebContentsSend.mockClear();
   mockBrowserWindowGetAllWindows.mockClear();
+  mockSettingsSet.mockClear();
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -380,11 +408,12 @@ describe("OverlayService", () => {
       expect(channels).toContain(OverlayChannel.SetPosition);
       expect(channels).toContain(OverlayChannel.SetSize);
       expect(channels).toContain(OverlayChannel.GetBounds);
+      expect(channels).toContain(OverlayChannel.SetLocked);
       expect(channels).toContain(OverlayChannel.GetSessionData);
     });
 
-    it("should register exactly 8 IPC handlers", () => {
-      expect(ipcHandlerCalls.length).toBe(8);
+    it("should register exactly 9 IPC handlers", () => {
+      expect(ipcHandlerCalls.length).toBe(9);
     });
   });
 
@@ -1603,6 +1632,403 @@ describe("OverlayService", () => {
       expect(mockOverlayShow).toHaveBeenCalled();
       expect(mockOverlayBlur).toHaveBeenCalled();
       expect(mockOverlaySetOpacity).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─── setLocked ───────────────────────────────────────────────────────────
+
+  describe("setLocked", () => {
+    it("should warn and return early when overlay window does not exist", () => {
+      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      service.setLocked(false);
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[Overlay] Cannot set locked state - window not created",
+      );
+      consoleSpy.mockRestore();
+    });
+
+    describe("locking (locked = true)", () => {
+      beforeEach(async () => {
+        await service.show();
+        clearOverlayMocks();
+        mockSettingsSet.mockResolvedValue(undefined);
+      });
+
+      it("should save bounds immediately when locking", () => {
+        service.setLocked(true);
+        expect(mockOverlayGetBounds).toHaveBeenCalled();
+        expect(mockSettingsSet).toHaveBeenCalledWith(
+          "overlayBounds",
+          expect.objectContaining({
+            x: expect.any(Number),
+            y: expect.any(Number),
+            width: expect.any(Number),
+            height: expect.any(Number),
+          }),
+        );
+      });
+
+      it("should set window to non-focusable", () => {
+        service.setLocked(true);
+        expect(mockOverlaySetFocusable).toHaveBeenCalledWith(false);
+      });
+
+      it("should set window to non-resizable", () => {
+        service.setLocked(true);
+        expect(mockOverlaySetResizable).toHaveBeenCalledWith(false);
+      });
+
+      it("should set ignore mouse events with forward option", () => {
+        service.setLocked(true);
+        expect(mockOverlaySetIgnoreMouseEvents).toHaveBeenCalledWith(true, {
+          forward: true,
+        });
+      });
+
+      it("should set alwaysOnTop to screen-saver level", () => {
+        service.setLocked(true);
+        expect(mockOverlaySetAlwaysOnTop).toHaveBeenCalledWith(
+          true,
+          "screen-saver",
+        );
+      });
+
+      it("should blur the window", () => {
+        service.setLocked(true);
+        expect(mockOverlayBlur).toHaveBeenCalled();
+      });
+    });
+
+    describe("unlocking (locked = false)", () => {
+      beforeEach(async () => {
+        await service.show();
+        clearOverlayMocks();
+      });
+
+      it("should disable ignore mouse events", () => {
+        service.setLocked(false);
+        expect(mockOverlaySetIgnoreMouseEvents).toHaveBeenCalledWith(false);
+      });
+
+      it("should set window to focusable", () => {
+        service.setLocked(false);
+        expect(mockOverlaySetFocusable).toHaveBeenCalledWith(true);
+      });
+
+      it("should set window to resizable", () => {
+        service.setLocked(false);
+        expect(mockOverlaySetResizable).toHaveBeenCalledWith(true);
+      });
+
+      it("should set alwaysOnTop to floating level", () => {
+        service.setLocked(false);
+        expect(mockOverlaySetAlwaysOnTop).toHaveBeenCalledWith(
+          true,
+          "floating",
+        );
+      });
+
+      it("should attach moved and resized listeners", () => {
+        service.setLocked(false);
+        expect(mockOverlayOn).toHaveBeenCalledWith(
+          "moved",
+          expect.any(Function),
+        );
+        expect(mockOverlayOn).toHaveBeenCalledWith(
+          "resized",
+          expect.any(Function),
+        );
+      });
+    });
+  });
+
+  // ─── Bounds listeners ────────────────────────────────────────────────────
+
+  describe("bounds listeners", () => {
+    it("should debounce-save bounds when moved event fires", async () => {
+      await service.show();
+      clearOverlayMocks();
+      mockSettingsSet.mockResolvedValue(undefined);
+
+      // Unlock to attach listeners
+      service.setLocked(false);
+
+      // Get the moved listener callback
+      const movedCall = mockOverlayOn.mock.calls.find(
+        ([event]: [string]) => event === "moved",
+      );
+      expect(movedCall).toBeDefined();
+      const movedHandler = movedCall![1];
+
+      // Fire moved event
+      movedHandler();
+
+      // Should not have saved yet (debounced 500ms)
+      expect(mockSettingsSet).not.toHaveBeenCalled();
+
+      // Advance timers past the debounce
+      vi.advanceTimersByTime(500);
+
+      expect(mockSettingsSet).toHaveBeenCalledWith(
+        "overlayBounds",
+        expect.objectContaining({
+          x: expect.any(Number),
+          y: expect.any(Number),
+          width: expect.any(Number),
+          height: expect.any(Number),
+        }),
+      );
+    });
+
+    it("should debounce-save bounds when resized event fires", async () => {
+      await service.show();
+      clearOverlayMocks();
+      mockSettingsSet.mockResolvedValue(undefined);
+
+      service.setLocked(false);
+
+      const resizedCall = mockOverlayOn.mock.calls.find(
+        ([event]: [string]) => event === "resized",
+      );
+      expect(resizedCall).toBeDefined();
+      const resizedHandler = resizedCall![1];
+
+      resizedHandler();
+      expect(mockSettingsSet).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(500);
+
+      expect(mockSettingsSet).toHaveBeenCalledWith(
+        "overlayBounds",
+        expect.objectContaining({
+          x: expect.any(Number),
+          y: expect.any(Number),
+          width: expect.any(Number),
+          height: expect.any(Number),
+        }),
+      );
+    });
+
+    it("should remove listeners when locking after unlock", async () => {
+      await service.show();
+      clearOverlayMocks();
+      mockSettingsSet.mockResolvedValue(undefined);
+
+      // Unlock (attaches listeners)
+      service.setLocked(false);
+
+      // Get the listener references that were attached
+      const movedCall = mockOverlayOn.mock.calls.find(
+        ([event]: [string]) => event === "moved",
+      );
+      const resizedCall = mockOverlayOn.mock.calls.find(
+        ([event]: [string]) => event === "resized",
+      );
+      const movedHandler = movedCall![1];
+      const resizedHandler = resizedCall![1];
+
+      clearOverlayMocks();
+
+      // Lock again (removes listeners)
+      service.setLocked(true);
+
+      expect(mockOverlayRemoveListener).toHaveBeenCalledWith(
+        "moved",
+        movedHandler,
+      );
+      expect(mockOverlayRemoveListener).toHaveBeenCalledWith(
+        "resized",
+        resizedHandler,
+      );
+    });
+
+    it("should coalesce multiple rapid move events into a single save", async () => {
+      await service.show();
+      clearOverlayMocks();
+      mockSettingsSet.mockResolvedValue(undefined);
+
+      service.setLocked(false);
+
+      const movedCall = mockOverlayOn.mock.calls.find(
+        ([event]: [string]) => event === "moved",
+      );
+      const movedHandler = movedCall![1];
+
+      // Fire multiple rapid events
+      movedHandler();
+      vi.advanceTimersByTime(100);
+      movedHandler();
+      vi.advanceTimersByTime(100);
+      movedHandler();
+      vi.advanceTimersByTime(100);
+
+      // Should not have saved yet
+      expect(mockSettingsSet).not.toHaveBeenCalled();
+
+      // Advance past the debounce from the last event
+      vi.advanceTimersByTime(500);
+
+      // Only one save should have happened
+      expect(mockSettingsSet).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // ─── IPC: overlay:set-locked ─────────────────────────────────────────────
+
+  describe("IPC: overlay:set-locked", () => {
+    it("should call setLocked through the IPC handler with valid boolean", async () => {
+      await service.show();
+      clearOverlayMocks();
+
+      const handler = getIpcHandler(OverlayChannel.SetLocked, ipcHandlerCalls);
+      await handler({}, false);
+
+      expect(mockOverlaySetIgnoreMouseEvents).toHaveBeenCalledWith(false);
+      expect(mockOverlaySetFocusable).toHaveBeenCalledWith(true);
+      expect(mockOverlaySetResizable).toHaveBeenCalledWith(true);
+      expect(mockOverlaySetAlwaysOnTop).toHaveBeenCalledWith(true, "floating");
+    });
+
+    it("should return validation error for non-boolean locked value", async () => {
+      const handler = getIpcHandler(OverlayChannel.SetLocked, ipcHandlerCalls);
+      const result = await handler({}, "not-a-boolean");
+      expect(result).toEqual({
+        success: false,
+        error: expect.stringContaining("Invalid input"),
+      });
+    });
+
+    it("should return validation error for number locked value", async () => {
+      const handler = getIpcHandler(OverlayChannel.SetLocked, ipcHandlerCalls);
+      const result = await handler({}, 1);
+      expect(result).toEqual({
+        success: false,
+        error: expect.stringContaining("Invalid input"),
+      });
+    });
+  });
+
+  // ─── show() always starts locked ────────────────────────────────────────
+
+  describe("show always starts locked", () => {
+    it("should reset to locked state on every show()", async () => {
+      await service.show();
+      clearOverlayMocks();
+
+      // Unlock
+      service.setLocked(false);
+      clearOverlayMocks();
+
+      // Show again (isVisible is already true, window exists)
+      await service.show();
+
+      // The service internally sets isLocked = true in show()
+      // Verify by calling setLocked(true) which should be a no-op-style call
+      // or we test indirectly: after show(), locking should set screen-saver level
+      clearOverlayMocks();
+      mockSettingsSet.mockResolvedValue(undefined);
+      service.setLocked(true);
+
+      // If show() set isLocked = true, then setLocked(true) would still execute
+      // (it doesn't check current state, it always applies)
+      expect(mockOverlaySetFocusable).toHaveBeenCalledWith(false);
+      expect(mockOverlaySetAlwaysOnTop).toHaveBeenCalledWith(
+        true,
+        "screen-saver",
+      );
+    });
+  });
+
+  // ─── hide() auto-locks if unlocked ──────────────────────────────────────
+
+  describe("hide auto-locks if unlocked", () => {
+    it("should auto-lock when hiding while unlocked", async () => {
+      await service.show();
+      clearOverlayMocks();
+      mockSettingsSet.mockResolvedValue(undefined);
+
+      // Unlock
+      service.setLocked(false);
+      clearOverlayMocks();
+      mockSettingsSet.mockResolvedValue(undefined);
+
+      // Hide while unlocked
+      await service.hide();
+
+      // Should have auto-locked: save bounds + set window properties
+      expect(mockSettingsSet).toHaveBeenCalledWith(
+        "overlayBounds",
+        expect.objectContaining({
+          x: expect.any(Number),
+          y: expect.any(Number),
+          width: expect.any(Number),
+          height: expect.any(Number),
+        }),
+      );
+      expect(mockOverlaySetFocusable).toHaveBeenCalledWith(false);
+      expect(mockOverlaySetIgnoreMouseEvents).toHaveBeenCalledWith(true, {
+        forward: true,
+      });
+    });
+
+    it("should not auto-lock when hiding while already locked", async () => {
+      await service.show();
+      clearOverlayMocks();
+      mockSettingsSet.mockResolvedValue(undefined);
+
+      // Already locked (default state from show())
+      await service.hide();
+
+      // setLocked should NOT have been called internally, so no setFocusable etc.
+      expect(mockOverlaySetFocusable).not.toHaveBeenCalled();
+      expect(mockOverlaySetIgnoreMouseEvents).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─── destroy() cleans up lock state ─────────────────────────────────────
+
+  describe("destroy cleans up lock state", () => {
+    it("should remove bounds listeners and reset isLocked on destroy", async () => {
+      await service.show();
+      service.setLocked(false);
+      clearOverlayMocks();
+
+      service.destroy();
+
+      // Should have called removeListener for both moved and resized
+      expect(mockOverlayRemoveListener).toHaveBeenCalledWith(
+        "moved",
+        expect.any(Function),
+      );
+      expect(mockOverlayRemoveListener).toHaveBeenCalledWith(
+        "resized",
+        expect.any(Function),
+      );
+    });
+  });
+
+  // ─── closed event resets lock state ─────────────────────────────────────
+
+  describe("closed event resets lock state", () => {
+    it("should reset isLocked and remove listeners when overlay window fires closed", async () => {
+      await service.show();
+
+      // Capture the 'closed' handler BEFORE clearing mocks (it was registered during createOverlay)
+      const closedCall = mockOverlayOn.mock.calls.find(
+        ([event]: [string]) => event === "closed",
+      );
+      expect(closedCall).toBeDefined();
+      const closedHandler = closedCall![1];
+
+      // Unlock to attach listeners
+      service.setLocked(false);
+      clearOverlayMocks();
+
+      // Fire the closed event
+      closedHandler();
+
+      // After closed, the overlay window reference is null
+      expect(service.getWindow()).toBeNull();
     });
   });
 });

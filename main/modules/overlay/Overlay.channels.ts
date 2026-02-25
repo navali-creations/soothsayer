@@ -14,6 +14,9 @@ enum OverlayChannel {
   SetSize = "overlay:set-size",
   GetBounds = "overlay:get-bounds",
 
+  // Lock/unlock
+  SetLocked = "overlay:set-locked",
+
   // Data
   GetSessionData = "overlay:get-session-data",
 

@@ -8,6 +8,7 @@ import {
   SettingsStoreService,
 } from "~/main/modules/settings-store";
 import {
+  assertBoolean,
   assertInteger,
   handleValidationError,
 } from "~/main/utils/ipc-validation";
@@ -30,6 +31,10 @@ class OverlayService {
   private settingsStore: SettingsStoreService;
   private currentSessionService: CurrentSessionService;
   private isVisible: boolean = false;
+  private isLocked: boolean = true;
+  private debouncedSaveBoundsTimer: ReturnType<typeof setTimeout> | null = null;
+  private boundsMoveListener: (() => void) | null = null;
+  private boundsResizeListener: (() => void) | null = null;
 
   private static _instance: OverlayService;
 
@@ -152,6 +157,8 @@ class OverlayService {
     });
 
     this.overlayWindow.on("closed", () => {
+      this.removeBoundsListeners();
+      this.isLocked = true;
       this.overlayWindow = null;
       this.isVisible = false;
       // Notify main window that overlay is now hidden
@@ -327,13 +334,125 @@ class OverlayService {
       return this.getBounds();
     });
 
+    ipcMain.handle(
+      OverlayChannel.SetLocked,
+      async (_event, locked: unknown) => {
+        try {
+          assertBoolean(locked, "locked", OverlayChannel.SetLocked);
+          return this.setLocked(locked);
+        } catch (error) {
+          return handleValidationError(error, OverlayChannel.SetLocked);
+        }
+      },
+    );
+
     ipcMain.handle("overlay:get-session-data", async () => {
       return this.getSessionData();
     });
   }
 
+  /**
+   * Lock or unlock the overlay window.
+   *
+   * Lock: click-through, non-focusable, non-resizable, screen-saver level.
+   * Unlock: interactive, focusable, resizable, floating level, draggable.
+   */
+  public setLocked(locked: boolean): void {
+    if (!this.overlayWindow) {
+      console.warn("[Overlay] Cannot set locked state - window not created");
+      return;
+    }
+
+    this.isLocked = locked;
+
+    if (locked) {
+      // Save final position before locking
+      this.saveBoundsImmediate();
+      this.removeBoundsListeners();
+
+      this.overlayWindow.setFocusable(false);
+      this.overlayWindow.setResizable(false);
+      this.overlayWindow.setIgnoreMouseEvents(true, { forward: true });
+      this.overlayWindow.setAlwaysOnTop(true, "screen-saver");
+      this.overlayWindow.blur();
+    } else {
+      this.overlayWindow.setIgnoreMouseEvents(false);
+      this.overlayWindow.setFocusable(true);
+      this.overlayWindow.setResizable(true);
+      this.overlayWindow.setAlwaysOnTop(true, "floating");
+      this.attachBoundsListeners();
+    }
+  }
+
+  /**
+   * Attach debounced move/resize listeners to persist overlay bounds on change.
+   */
+  private attachBoundsListeners(): void {
+    if (!this.overlayWindow) return;
+
+    // Remove any existing listeners first to avoid duplicates
+    this.removeBoundsListeners();
+
+    const debouncedSave = () => {
+      if (this.debouncedSaveBoundsTimer) {
+        clearTimeout(this.debouncedSaveBoundsTimer);
+      }
+      this.debouncedSaveBoundsTimer = setTimeout(() => {
+        this.saveBoundsImmediate();
+      }, 500);
+    };
+
+    this.boundsMoveListener = debouncedSave;
+    this.boundsResizeListener = debouncedSave;
+
+    this.overlayWindow.on("moved", this.boundsMoveListener);
+    this.overlayWindow.on("resized", this.boundsResizeListener);
+  }
+
+  /**
+   * Remove move/resize listeners and clear any pending debounced save.
+   */
+  private removeBoundsListeners(): void {
+    if (this.debouncedSaveBoundsTimer) {
+      clearTimeout(this.debouncedSaveBoundsTimer);
+      this.debouncedSaveBoundsTimer = null;
+    }
+
+    if (this.overlayWindow) {
+      if (this.boundsMoveListener) {
+        this.overlayWindow.removeListener("moved", this.boundsMoveListener);
+      }
+      if (this.boundsResizeListener) {
+        this.overlayWindow.removeListener("resized", this.boundsResizeListener);
+      }
+    }
+
+    this.boundsMoveListener = null;
+    this.boundsResizeListener = null;
+  }
+
+  /**
+   * Immediately persist the current overlay bounds to settings.
+   */
+  private saveBoundsImmediate(): void {
+    if (!this.overlayWindow) return;
+
+    const bounds = this.overlayWindow.getBounds();
+    this.settingsStore
+      .set(SettingsKey.OverlayBounds, {
+        x: bounds.x,
+        y: bounds.y,
+        width: bounds.width,
+        height: bounds.height,
+      })
+      .catch((err: unknown) => {
+        console.error("[Overlay] Failed to save bounds:", err);
+      });
+  }
+
   public async show(): Promise<void> {
     this.isVisible = true;
+    this.isLocked = true;
 
     if (!this.overlayWindow) {
       await this.createOverlay();
@@ -360,6 +479,10 @@ class OverlayService {
 
   public async hide(): Promise<void> {
     if (this.overlayWindow) {
+      // If unlocked, auto-lock first to save bounds and clean up listeners
+      if (!this.isLocked) {
+        this.setLocked(true);
+      }
       this.overlayWindow.hide();
       this.isVisible = false;
       this.notifyVisibilityChanged(false);
@@ -405,9 +528,11 @@ class OverlayService {
 
   public destroy(): void {
     if (this.overlayWindow) {
+      this.removeBoundsListeners();
       this.overlayWindow.close();
       this.overlayWindow = null;
       this.isVisible = false;
+      this.isLocked = true;
     }
   }
 

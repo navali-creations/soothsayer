@@ -9,6 +9,8 @@ const OverlayAPI = {
   toggle: () => ipcRenderer.invoke(OverlayChannel.Toggle),
   isVisible: (): Promise<boolean> =>
     ipcRenderer.invoke(OverlayChannel.IsVisible),
+  setLocked: (locked: boolean) =>
+    ipcRenderer.invoke(OverlayChannel.SetLocked, locked),
   setPosition: (x: number, y: number) =>
     ipcRenderer.invoke(OverlayChannel.SetPosition, x, y),
   setSize: (width: number, height: number) =>
