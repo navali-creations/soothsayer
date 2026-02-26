@@ -346,9 +346,50 @@ class OverlayService {
       },
     );
 
+    ipcMain.handle(OverlayChannel.RestoreDefaults, async () => {
+      return this.restoreDefaults();
+    });
+
     ipcMain.handle("overlay:get-session-data", async () => {
       return this.getSessionData();
     });
+  }
+
+  /**
+   * Restore overlay to default position, size, and settings.
+   * Clears the persisted bounds so the default is used on next launch.
+   */
+  public async restoreDefaults(): Promise<void> {
+    // Clear persisted bounds
+    await this.settingsStore.set(SettingsKey.OverlayBounds, null);
+
+    if (!this.overlayWindow) return;
+
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { x: screenX, y: screenY } = primaryDisplay.workArea;
+
+    const defaultX = screenX + 20;
+    const defaultY = screenY + 20;
+    const defaultWidth = 250;
+    const defaultHeight = 175;
+
+    // On Windows, setBounds() cannot shrink a non-resizable window.
+    // Temporarily enable resizable, apply the bounds, then restore.
+    const wasResizable = this.overlayWindow.isResizable();
+    if (!wasResizable) {
+      this.overlayWindow.setResizable(true);
+    }
+
+    this.overlayWindow.setBounds({
+      x: defaultX,
+      y: defaultY,
+      width: defaultWidth,
+      height: defaultHeight,
+    });
+
+    if (!wasResizable) {
+      this.overlayWindow.setResizable(false);
+    }
   }
 
   /**
@@ -510,7 +551,37 @@ class OverlayService {
       console.warn("[Overlay] Cannot set size - window not created");
       return;
     }
-    this.overlayWindow.setSize(width, height);
+
+    // On Windows, setSize() on transparent frameless windows is unreliable
+    // for shrinking — the OS applies phantom frame-decoration offsets.
+    // setBounds() sets the geometry atomically and bypasses that issue.
+    // We also need resizable=true temporarily because Windows ignores
+    // geometry changes on non-resizable windows entirely.
+    const wasResizable = this.overlayWindow.isResizable();
+    if (!wasResizable) {
+      this.overlayWindow.setResizable(true);
+    }
+
+    const currentBounds = this.overlayWindow.getBounds();
+    this.overlayWindow.setBounds({
+      x: currentBounds.x,
+      y: currentBounds.y,
+      width,
+      height,
+    });
+
+    if (!wasResizable) {
+      this.overlayWindow.setResizable(false);
+    }
+
+    // Debounce the DB save so rapid slider drags don't thrash SQLite.
+    // The resize itself is applied instantly above.
+    if (this.debouncedSaveBoundsTimer) {
+      clearTimeout(this.debouncedSaveBoundsTimer);
+    }
+    this.debouncedSaveBoundsTimer = setTimeout(() => {
+      this.saveBoundsImmediate();
+    }, 300);
   }
 
   public getBounds(): OverlayBounds | null {

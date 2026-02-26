@@ -223,6 +223,7 @@ export interface UserSettingsTable {
 
   // Overlay customization
   overlay_font_size: number; // 0.5–2.0, default 1.0
+  overlay_toolbar_font_size: number; // 0.5–2.0, default 1.0
 
   // Main window position persistence
   main_window_bounds: string | null; // JSON string of { x, y, width, height }

@@ -212,6 +212,15 @@ class SettingsStoreService {
                 );
               }
               break;
+            case "overlayToolbarFontSize":
+              assertNumber(value, "overlayToolbarFontSize", ch);
+              if ((value as number) < 0.5 || (value as number) > 2.0) {
+                throw new IpcValidationError(
+                  ch,
+                  `Expected "overlayToolbarFontSize" to be between 0.5 and 2.0, got ${value}`,
+                );
+              }
+              break;
             case "mainWindowBounds":
               // Can be null (reset) or a bounds object
               if (value !== null) {
@@ -250,7 +259,8 @@ class SettingsStoreService {
             key === SettingsKey.Poe1PriceSource ||
             key === SettingsKey.Poe2PriceSource ||
             key === SettingsKey.ActiveGame ||
-            key === SettingsKey.OverlayFontSize
+            key === SettingsKey.OverlayFontSize ||
+            key === SettingsKey.OverlayToolbarFontSize
           ) {
             this.broadcastSettingsChanged();
           }

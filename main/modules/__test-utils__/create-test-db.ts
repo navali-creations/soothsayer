@@ -464,6 +464,7 @@ function initializeSchema(db: Database.Database): void {
 
         -- Overlay customization
         overlay_font_size REAL NOT NULL DEFAULT 1.0,
+        overlay_toolbar_font_size REAL NOT NULL DEFAULT 1.0,
 
         -- Main window position persistence
         main_window_bounds TEXT,

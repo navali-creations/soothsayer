@@ -30,6 +30,7 @@ export interface UserSettingsDTO {
   selectedFilterId: string | null;
   lastSeenAppVersion: string | null;
   overlayFontSize: number;
+  overlayToolbarFontSize: number;
   mainWindowBounds: {
     x: number;
     y: number;

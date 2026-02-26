@@ -113,6 +113,9 @@ const {
       raritySource: "poe.ninja",
       selectedFilterId: null,
       lastSeenAppVersion: null,
+      overlayFontSize: 1.0,
+      overlayToolbarFontSize: 1.0,
+      mainWindowBounds: null,
     }),
     mockFsReaddir: vi.fn(),
     mockFsReadFile: vi.fn(),
@@ -1245,6 +1248,100 @@ describe("SettingsStoreService — IPC handlers", () => {
       });
     });
 
+    // ── overlayFontSize ──
+
+    it("should accept overlayFontSize at lower boundary (0.5)", async () => {
+      const h = handler();
+      await h({}, "overlayFontSize", 0.5);
+      expect(mockRepositorySet).toHaveBeenCalledWith("overlayFontSize", 0.5);
+    });
+
+    it("should accept overlayFontSize at upper boundary (2.0)", async () => {
+      const h = handler();
+      await h({}, "overlayFontSize", 2.0);
+      expect(mockRepositorySet).toHaveBeenCalledWith("overlayFontSize", 2.0);
+    });
+
+    it("should reject overlayFontSize below 0.5", async () => {
+      const h = handler();
+      const result = await h({}, "overlayFontSize", 0.3);
+
+      expect(result).toEqual({
+        success: false,
+        error: expect.stringContaining("Invalid input"),
+      });
+    });
+
+    it("should reject overlayFontSize above 2.0", async () => {
+      const h = handler();
+      const result = await h({}, "overlayFontSize", 2.5);
+
+      expect(result).toEqual({
+        success: false,
+        error: expect.stringContaining("Invalid input"),
+      });
+    });
+
+    it("should reject non-number for overlayFontSize", async () => {
+      const h = handler();
+      const result = await h({}, "overlayFontSize", "big");
+
+      expect(result).toEqual({
+        success: false,
+        error: expect.stringContaining("Invalid input"),
+      });
+    });
+
+    // ── overlayToolbarFontSize ──
+
+    it("should accept overlayToolbarFontSize at lower boundary (0.5)", async () => {
+      const h = handler();
+      await h({}, "overlayToolbarFontSize", 0.5);
+      expect(mockRepositorySet).toHaveBeenCalledWith(
+        "overlayToolbarFontSize",
+        0.5,
+      );
+    });
+
+    it("should accept overlayToolbarFontSize at upper boundary (2.0)", async () => {
+      const h = handler();
+      await h({}, "overlayToolbarFontSize", 2.0);
+      expect(mockRepositorySet).toHaveBeenCalledWith(
+        "overlayToolbarFontSize",
+        2.0,
+      );
+    });
+
+    it("should reject overlayToolbarFontSize below 0.5", async () => {
+      const h = handler();
+      const result = await h({}, "overlayToolbarFontSize", 0.1);
+
+      expect(result).toEqual({
+        success: false,
+        error: expect.stringContaining("Invalid input"),
+      });
+    });
+
+    it("should reject overlayToolbarFontSize above 2.0", async () => {
+      const h = handler();
+      const result = await h({}, "overlayToolbarFontSize", 3.0);
+
+      expect(result).toEqual({
+        success: false,
+        error: expect.stringContaining("Invalid input"),
+      });
+    });
+
+    it("should reject non-number for overlayToolbarFontSize", async () => {
+      const h = handler();
+      const result = await h({}, "overlayToolbarFontSize", true);
+
+      expect(result).toEqual({
+        success: false,
+        error: expect.stringContaining("Invalid input"),
+      });
+    });
+
     // ── undefined value ──
 
     it("should reject undefined value for any key", async () => {
@@ -1864,6 +1961,32 @@ describe("SettingsStoreService — IPC handlers", () => {
         0.8,
       );
       expect(mockWebContentsSend).not.toHaveBeenCalledWith(
+        OverlayChannel.SettingsChanged,
+      );
+    });
+
+    it("should broadcast overlay:settings-changed when overlayFontSize is set via generic handler", async () => {
+      const handler = getIpcHandler("settings-store:set");
+      await handler({}, SettingsKey.OverlayFontSize, 1.5);
+
+      expect(mockRepositorySet).toHaveBeenCalledWith(
+        SettingsKey.OverlayFontSize,
+        1.5,
+      );
+      expect(mockWebContentsSend).toHaveBeenCalledWith(
+        OverlayChannel.SettingsChanged,
+      );
+    });
+
+    it("should broadcast overlay:settings-changed when overlayToolbarFontSize is set via generic handler", async () => {
+      const handler = getIpcHandler("settings-store:set");
+      await handler({}, SettingsKey.OverlayToolbarFontSize, 0.8);
+
+      expect(mockRepositorySet).toHaveBeenCalledWith(
+        SettingsKey.OverlayToolbarFontSize,
+        0.8,
+      );
+      expect(mockWebContentsSend).toHaveBeenCalledWith(
         OverlayChannel.SettingsChanged,
       );
     });

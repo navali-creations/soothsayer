@@ -195,6 +195,8 @@ export const useBoundStore = create<BoundStore>()(
               // Reset settings
               settings.isLoading = false;
               settings.error = null;
+              settings.overlayFontSize = 1.0;
+              settings.overlayToolbarFontSize = 1.0;
 
               // Reset setup
               setup.setupState = null;

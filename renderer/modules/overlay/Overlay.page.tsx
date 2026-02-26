@@ -48,6 +48,7 @@ const OverlayApp = () => {
     customSounds: {},
   });
   const [fontSize, setFontSize] = useState(1.0);
+  const [toolbarFontSize, setToolbarFontSize] = useState(1.0);
 
   // Load audio settings, price source, and overlay font size from main process
   const loadAudioSettings = useCallback(async () => {
@@ -62,8 +63,9 @@ const OverlayApp = () => {
           ? settings.poe1PriceSource || "exchange"
           : settings.poe2PriceSource || "exchange";
 
-      // Read overlay font size
+      // Read overlay font sizes
       setFontSize(settings.overlayFontSize ?? 1.0);
+      setToolbarFontSize(settings.overlayToolbarFontSize ?? 1.0);
 
       // Load custom sound data for each rarity if paths are set
       const paths = [
@@ -241,10 +243,16 @@ const OverlayApp = () => {
   return (
     <div
       className={clsx(
-        "relative grid grid-rows-[30px_1fr] h-screen w-full backdrop-blur-sm overflow-hidden transition-shadow duration-200",
+        "relative grid h-screen w-full backdrop-blur-sm overflow-hidden transition-shadow duration-200",
         !isLocked && "animate-pulse-glow",
       )}
-      style={{ zoom: fontSize } as React.CSSProperties}
+      style={
+        {
+          "--overlay-font-size": fontSize,
+          "--overlay-toolbar-font-size": toolbarFontSize,
+          gridTemplateRows: `calc(30px * ${toolbarFontSize}) 1fr`,
+        } as React.CSSProperties
+      }
     >
       {/* Full-overlay drag handle — covers everything when unlocked */}
       {!isLocked && (

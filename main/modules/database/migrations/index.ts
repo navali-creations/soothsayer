@@ -4,6 +4,7 @@ import { migration_20260215_120000_add_confidence_and_unknown_rarity } from "./2
 import { migration_20260221_201500_add_prohibited_library } from "./20260221_201500_add_prohibited_library";
 import { migration_20260223_010100_add_last_seen_app_version } from "./20260223_010100_add_last_seen_app_version";
 import { migration_20260225_230000_add_overlay_font_size_and_main_window_bounds } from "./20260225_230000_add_overlay_font_size_and_main_window_bounds";
+import { migration_20260226_134100_add_overlay_toolbar_font_size } from "./20260226_134100_add_overlay_toolbar_font_size";
 import type { Migration } from "./Migration.interface";
 
 /**
@@ -20,6 +21,7 @@ export const migrations: Migration[] = [
   migration_20260221_201500_add_prohibited_library,
   migration_20260223_010100_add_last_seen_app_version,
   migration_20260225_230000_add_overlay_font_size_and_main_window_bounds,
+  migration_20260226_134100_add_overlay_toolbar_font_size,
 ];
 
 export type { Migration } from "./Migration.interface";

@@ -89,6 +89,7 @@ export const createSettingsSlice: StateCreator<
     selectedFilterId: null,
     lastSeenAppVersion: null,
     overlayFontSize: 1.0,
+    overlayToolbarFontSize: 1.0,
     mainWindowBounds: null,
 
     // Additional state
@@ -150,6 +151,7 @@ export const createSettingsSlice: StateCreator<
             settings.raritySource = data.raritySource;
             settings.selectedFilterId = data.selectedFilterId;
             settings.overlayFontSize = data.overlayFontSize;
+            settings.overlayToolbarFontSize = data.overlayToolbarFontSize;
             settings.mainWindowBounds = data.mainWindowBounds;
             settings.isLoading = false;
           },
@@ -294,6 +296,7 @@ export const createSettingsSlice: StateCreator<
           settings.raritySource = newSettings.raritySource;
           settings.selectedFilterId = newSettings.selectedFilterId;
           settings.overlayFontSize = newSettings.overlayFontSize;
+          settings.overlayToolbarFontSize = newSettings.overlayToolbarFontSize;
           settings.mainWindowBounds = newSettings.mainWindowBounds;
         },
         false,

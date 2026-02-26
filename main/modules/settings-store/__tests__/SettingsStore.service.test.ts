@@ -238,6 +238,48 @@ describe("SettingsStoreService", () => {
       expect(value).toEqual([]);
     });
 
+    // ─── Overlay font size (number) ────────────────────────────────────
+
+    it("should return default value for overlayFontSize", async () => {
+      const value = await service.get("overlayFontSize");
+      expect(value).toBe(1.0);
+    });
+
+    it("should set and get overlayFontSize", async () => {
+      await service.set("overlayFontSize", 1.5);
+      const value = await service.get("overlayFontSize");
+      expect(value).toBe(1.5);
+    });
+
+    it("should set overlayFontSize to boundary values", async () => {
+      await service.set("overlayFontSize", 0.5);
+      expect(await service.get("overlayFontSize")).toBe(0.5);
+
+      await service.set("overlayFontSize", 2.0);
+      expect(await service.get("overlayFontSize")).toBe(2.0);
+    });
+
+    // ─── Overlay toolbar font size (number) ────────────────────────────
+
+    it("should return default value for overlayToolbarFontSize", async () => {
+      const value = await service.get("overlayToolbarFontSize");
+      expect(value).toBe(1.0);
+    });
+
+    it("should set and get overlayToolbarFontSize", async () => {
+      await service.set("overlayToolbarFontSize", 1.2);
+      const value = await service.get("overlayToolbarFontSize");
+      expect(value).toBe(1.2);
+    });
+
+    it("should set overlayToolbarFontSize to boundary values", async () => {
+      await service.set("overlayToolbarFontSize", 0.5);
+      expect(await service.get("overlayToolbarFontSize")).toBe(0.5);
+
+      await service.set("overlayToolbarFontSize", 2.0);
+      expect(await service.get("overlayToolbarFontSize")).toBe(2.0);
+    });
+
     // ─── Overlay bounds (object or null) ───────────────────────────────
 
     it("should set and get overlayBounds", async () => {
@@ -310,6 +352,9 @@ describe("SettingsStoreService", () => {
       expect(settings).toHaveProperty("audioRarity1Path");
       expect(settings).toHaveProperty("audioRarity2Path");
       expect(settings).toHaveProperty("audioRarity3Path");
+      expect(settings).toHaveProperty("overlayFontSize");
+      expect(settings).toHaveProperty("overlayToolbarFontSize");
+      expect(settings).toHaveProperty("mainWindowBounds");
     });
 
     it("should reflect individual set operations", async () => {
@@ -317,6 +362,8 @@ describe("SettingsStoreService", () => {
       await service.set("poe1SelectedLeague", "Settlers");
       await service.set("appOpenAtLogin", true);
       await service.set("setupStep", 3);
+      await service.set("overlayFontSize", 1.8);
+      await service.set("overlayToolbarFontSize", 0.6);
 
       const settings = await service.getAllSettings();
 
@@ -324,6 +371,8 @@ describe("SettingsStoreService", () => {
       expect(settings.poe1SelectedLeague).toBe("Settlers");
       expect(settings.appOpenAtLogin).toBe(true);
       expect(settings.setupStep).toBe(3);
+      expect(settings.overlayFontSize).toBe(1.8);
+      expect(settings.overlayToolbarFontSize).toBe(0.6);
     });
 
     it("should return correct types for all fields", async () => {
@@ -346,6 +395,8 @@ describe("SettingsStoreService", () => {
         width: 300,
         height: 400,
       });
+      await service.set("overlayFontSize", 1.5);
+      await service.set("overlayToolbarFontSize", 0.8);
 
       const settings = await service.getAllSettings();
 
@@ -363,6 +414,10 @@ describe("SettingsStoreService", () => {
       expect(typeof settings.setupVersion).toBe("number");
       expect(Array.isArray(settings.onboardingDismissedBeacons)).toBe(true);
       expect(typeof settings.overlayBounds).toBe("object");
+      expect(typeof settings.overlayFontSize).toBe("number");
+      expect(settings.overlayFontSize).toBe(1.5);
+      expect(typeof settings.overlayToolbarFontSize).toBe("number");
+      expect(settings.overlayToolbarFontSize).toBe(0.8);
     });
   });
 

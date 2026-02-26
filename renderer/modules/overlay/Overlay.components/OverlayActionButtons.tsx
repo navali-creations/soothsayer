@@ -8,13 +8,15 @@ export const OverlayActionButtons = () => {
     overlay: { isLocked, setLocked, hide, isLeftHalf },
   } = useBoundStore();
 
+  const tooltipDirection = isLeftHalf ? "tooltip-right" : "tooltip-left";
+
   return (
     <div
       className={`flex gap-1 ${isLeftHalf ? "flex-row" : "flex-row-reverse"}`}
       style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
     >
       <div
-        className="tooltip tooltip-bottom tooltip-primary"
+        className={`tooltip ${tooltipDirection} tooltip-primary`}
         data-tip="Close Overlay"
       >
         <Button variant="ghost" size="xs" square onClick={hide}>
@@ -22,7 +24,7 @@ export const OverlayActionButtons = () => {
         </Button>
       </div>
       <div
-        className="tooltip tooltip-bottom tooltip-primary"
+        className={`tooltip ${tooltipDirection} tooltip-primary`}
         data-tip={isLocked ? "Unlock Overlay" : "Lock Overlay"}
       >
         <Button

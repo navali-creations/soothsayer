@@ -27,6 +27,7 @@ export const SettingsKey = {
   SelectedFilterId: "selectedFilterId",
   LastSeenAppVersion: "lastSeenAppVersion",
   OverlayFontSize: "overlayFontSize",
+  OverlayToolbarFontSize: "overlayToolbarFontSize",
   MainWindowBounds: "mainWindowBounds",
 } as const;
 

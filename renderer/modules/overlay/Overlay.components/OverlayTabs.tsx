@@ -18,6 +18,11 @@ export const OverlayTabs = () => {
           ? "justify-start bg-linear-to-l from-transparent to-base-300"
           : "justify-end bg-linear-to-r from-transparent to-base-300",
       )}
+      style={
+        {
+          zoom: `var(--overlay-toolbar-font-size, 1)`,
+        } as React.CSSProperties
+      }
     >
       {isLeftHalf ? (
         <>

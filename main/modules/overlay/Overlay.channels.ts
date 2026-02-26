@@ -17,6 +17,9 @@ enum OverlayChannel {
   // Lock/unlock
   SetLocked = "overlay:set-locked",
 
+  // Reset
+  RestoreDefaults = "overlay:restore-defaults",
+
   // Data
   GetSessionData = "overlay:get-session-data",
 

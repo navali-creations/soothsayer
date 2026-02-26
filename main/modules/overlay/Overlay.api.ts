@@ -17,6 +17,7 @@ const OverlayAPI = {
     ipcRenderer.invoke(OverlayChannel.SetSize, width, height),
   getBounds: (): Promise<OverlayBounds | null> =>
     ipcRenderer.invoke(OverlayChannel.GetBounds),
+  restoreDefaults: () => ipcRenderer.invoke(OverlayChannel.RestoreDefaults),
   getSessionData: () => ipcRenderer.invoke("overlay:get-session-data"),
   onVisibilityChanged: (callback: (isVisible: boolean) => void) => {
     const listener = (

@@ -46,6 +46,7 @@ function createSettingsRow(
     selected_filter_id: null,
     last_seen_app_version: null,
     overlay_font_size: 1.0,
+    overlay_toolbar_font_size: 1.0,
     main_window_bounds: null,
     created_at: "2025-01-01T00:00:00Z",
     updated_at: "2025-01-01T00:00:00Z",
@@ -253,6 +254,7 @@ describe("SettingsStore.mapper", () => {
         audio_rarity2_path: "C:\\sounds\\rarity2.mp3",
         audio_rarity3_path: null,
         overlay_font_size: 1.5,
+        overlay_toolbar_font_size: 1.2,
         main_window_bounds: '{"x":100,"y":200,"width":1400,"height":900}',
       });
       const dto = toUserSettingsDTO(row);
@@ -283,6 +285,7 @@ describe("SettingsStore.mapper", () => {
         selectedFilterId: null,
         lastSeenAppVersion: null,
         overlayFontSize: 1.5,
+        overlayToolbarFontSize: 1.2,
         mainWindowBounds: { x: 100, y: 200, width: 1400, height: 900 },
       });
     });
@@ -561,6 +564,9 @@ describe("SettingsStore.mapper", () => {
         "raritySource",
         "selectedFilterId",
         "lastSeenAppVersion",
+        "overlayFontSize",
+        "overlayToolbarFontSize",
+        "mainWindowBounds",
       ] as const;
 
       for (const key of allKeys) {

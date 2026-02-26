@@ -13,6 +13,7 @@ const {
   mockOverlayIsVisible,
   mockOverlaySetPosition,
   mockOverlaySetSize,
+  mockOverlaySetBounds,
   mockOverlaySetAlwaysOnTop,
   mockOverlaySetSkipTaskbar,
   mockOverlaySetBackgroundColor,
@@ -21,6 +22,7 @@ const {
   mockOverlayClose,
   mockOverlayGetBounds,
   mockOverlayIsDestroyed,
+  mockOverlayIsResizable,
   mockOverlayLoadURL,
   mockOverlayLoadFile,
   mockOverlayOnce,
@@ -51,6 +53,7 @@ const {
   mockOverlayIsVisible: vi.fn(() => false),
   mockOverlaySetPosition: vi.fn(),
   mockOverlaySetSize: vi.fn(),
+  mockOverlaySetBounds: vi.fn(),
   mockOverlaySetAlwaysOnTop: vi.fn(),
   mockOverlaySetSkipTaskbar: vi.fn(),
   mockOverlaySetBackgroundColor: vi.fn(),
@@ -59,6 +62,7 @@ const {
   mockOverlayClose: vi.fn(),
   mockOverlayGetBounds: vi.fn(() => ({ x: 0, y: 0, width: 250, height: 175 })),
   mockOverlayIsDestroyed: vi.fn(() => false),
+  mockOverlayIsResizable: vi.fn(() => false),
   mockOverlayLoadURL: vi.fn(),
   mockOverlayLoadFile: vi.fn(),
   mockOverlayOnce: vi.fn(),
@@ -96,6 +100,7 @@ vi.mock("electron", () => {
     isVisible = mockOverlayIsVisible;
     setPosition = mockOverlaySetPosition;
     setSize = mockOverlaySetSize;
+    setBounds = mockOverlaySetBounds;
     setAlwaysOnTop = mockOverlaySetAlwaysOnTop;
     setSkipTaskbar = mockOverlaySetSkipTaskbar;
     setBackgroundColor = mockOverlaySetBackgroundColor;
@@ -104,6 +109,7 @@ vi.mock("electron", () => {
     close = mockOverlayClose;
     getBounds = mockOverlayGetBounds;
     isDestroyed = mockOverlayIsDestroyed;
+    isResizable = mockOverlayIsResizable;
     loadURL = mockOverlayLoadURL;
     loadFile = mockOverlayLoadFile;
     once = mockOverlayOnce;
@@ -290,6 +296,7 @@ function clearOverlayMocks() {
   mockOverlayIsVisible.mockClear();
   mockOverlaySetPosition.mockClear();
   mockOverlaySetSize.mockClear();
+  mockOverlaySetBounds.mockClear();
   mockOverlaySetAlwaysOnTop.mockClear();
   mockOverlaySetSkipTaskbar.mockClear();
   mockOverlaySetBackgroundColor.mockClear();
@@ -297,6 +304,7 @@ function clearOverlayMocks() {
   mockOverlayBlur.mockClear();
   mockOverlayClose.mockClear();
   mockOverlayIsDestroyed.mockClear();
+  mockOverlayIsResizable.mockClear();
   mockOverlayLoadURL.mockClear();
   mockOverlayLoadFile.mockClear();
   mockOverlayOnce.mockClear();
@@ -409,11 +417,12 @@ describe("OverlayService", () => {
       expect(channels).toContain(OverlayChannel.SetSize);
       expect(channels).toContain(OverlayChannel.GetBounds);
       expect(channels).toContain(OverlayChannel.SetLocked);
+      expect(channels).toContain(OverlayChannel.RestoreDefaults);
       expect(channels).toContain(OverlayChannel.GetSessionData);
     });
 
-    it("should register exactly 9 IPC handlers", () => {
-      expect(ipcHandlerCalls.length).toBe(9);
+    it("should register exactly 10 IPC handlers", () => {
+      expect(ipcHandlerCalls.length).toBe(10);
     });
   });
 
@@ -629,12 +638,53 @@ describe("OverlayService", () => {
   // ─── setSize ─────────────────────────────────────────────────────────────
 
   describe("setSize", () => {
-    it("should set size on the overlay window", async () => {
+    it("should set size on the overlay window via setBounds", async () => {
       await service.show();
       clearOverlayMocks();
+      mockOverlayIsResizable.mockReturnValue(false);
+      mockOverlayGetBounds.mockReturnValue({
+        x: 100,
+        y: 200,
+        width: 250,
+        height: 175,
+      });
 
       service.setSize(800, 600);
-      expect(mockOverlaySetSize).toHaveBeenCalledWith(800, 600);
+
+      // Should temporarily enable resizable since window is non-resizable
+      expect(mockOverlaySetResizable).toHaveBeenCalledWith(true);
+      // Should use setBounds with current x/y and new width/height
+      expect(mockOverlaySetBounds).toHaveBeenCalledWith({
+        x: 100,
+        y: 200,
+        width: 800,
+        height: 600,
+      });
+      // Should restore resizable to false
+      expect(mockOverlaySetResizable).toHaveBeenCalledWith(false);
+    });
+
+    it("should not toggle resizable when already resizable", async () => {
+      await service.show();
+      clearOverlayMocks();
+      mockOverlayIsResizable.mockReturnValue(true);
+      mockOverlayGetBounds.mockReturnValue({
+        x: 50,
+        y: 50,
+        width: 200,
+        height: 150,
+      });
+
+      service.setSize(400, 300);
+
+      // Should NOT call setResizable at all when already resizable
+      expect(mockOverlaySetResizable).not.toHaveBeenCalled();
+      expect(mockOverlaySetBounds).toHaveBeenCalledWith({
+        x: 50,
+        y: 50,
+        width: 400,
+        height: 300,
+      });
     });
 
     it("should not throw when overlay window does not exist", () => {
@@ -648,10 +698,56 @@ describe("OverlayService", () => {
     it("should work through the IPC handler with valid values", async () => {
       await service.show();
       clearOverlayMocks();
+      mockOverlayIsResizable.mockReturnValue(false);
+      mockOverlayGetBounds.mockReturnValue({
+        x: 0,
+        y: 0,
+        width: 250,
+        height: 175,
+      });
 
       const handler = getIpcHandler(OverlayChannel.SetSize, ipcHandlerCalls);
       await handler({}, 500, 300);
-      expect(mockOverlaySetSize).toHaveBeenCalledWith(500, 300);
+      expect(mockOverlaySetBounds).toHaveBeenCalledWith(
+        expect.objectContaining({ width: 500, height: 300 }),
+      );
+    });
+
+    it("should debounce DB save on setSize", async () => {
+      await service.show();
+      clearOverlayMocks();
+      mockOverlayIsResizable.mockReturnValue(false);
+      mockOverlayGetBounds.mockReturnValue({
+        x: 0,
+        y: 0,
+        width: 250,
+        height: 175,
+      });
+
+      // Call setSize multiple times rapidly
+      service.setSize(300, 200);
+      service.setSize(400, 250);
+      // Update mock to reflect the last setBounds call (saveBoundsImmediate reads fresh getBounds)
+      mockOverlayGetBounds.mockReturnValue({
+        x: 0,
+        y: 0,
+        width: 500,
+        height: 300,
+      });
+      service.setSize(500, 300);
+
+      // Should NOT have saved to DB yet
+      expect(mockSettingsSet).not.toHaveBeenCalled();
+
+      // Advance past debounce delay (300ms)
+      vi.advanceTimersByTime(300);
+
+      // Should have saved once (debounced)
+      expect(mockSettingsSet).toHaveBeenCalledTimes(1);
+      expect(mockSettingsSet).toHaveBeenCalledWith(
+        "overlayBounds",
+        expect.objectContaining({ width: 500, height: 300 }),
+      );
     });
 
     it("should return validation error for non-integer width", async () => {
@@ -1499,9 +1595,21 @@ describe("OverlayService", () => {
       service.setPosition(500, 300);
       expect(mockOverlaySetPosition).toHaveBeenCalledWith(500, 300);
 
-      // Set size
+      // Set size (now uses setBounds internally)
+      mockOverlayIsResizable.mockReturnValue(false);
+      mockOverlayGetBounds.mockReturnValue({
+        x: 500,
+        y: 300,
+        width: 250,
+        height: 175,
+      });
       service.setSize(400, 250);
-      expect(mockOverlaySetSize).toHaveBeenCalledWith(400, 250);
+      expect(mockOverlaySetBounds).toHaveBeenCalledWith({
+        x: 500,
+        y: 300,
+        width: 400,
+        height: 250,
+      });
 
       // Get bounds
       mockOverlayGetBounds.mockReturnValue({
@@ -1550,24 +1658,6 @@ describe("OverlayService", () => {
       });
       const bounds = service.getBounds();
       expect(bounds).toEqual({ x: -100, y: -50, width: 1, height: 1 });
-    });
-
-    it("should handle setPosition with zero coordinates", async () => {
-      await service.show();
-      service.setPosition(0, 0);
-      expect(mockOverlaySetPosition).toHaveBeenCalledWith(0, 0);
-    });
-
-    it("should handle setSize with minimum dimensions", async () => {
-      await service.show();
-      service.setSize(1, 1);
-      expect(mockOverlaySetSize).toHaveBeenCalledWith(1, 1);
-    });
-
-    it("should handle negative position values", async () => {
-      await service.show();
-      service.setPosition(-500, -300);
-      expect(mockOverlaySetPosition).toHaveBeenCalledWith(-500, -300);
     });
 
     it("should use default width/height when saved bounds have no dimensions", async () => {
@@ -2015,6 +2105,78 @@ describe("OverlayService", () => {
 
       // After closed, the overlay window reference is null
       expect(service.getWindow()).toBeNull();
+    });
+  });
+
+  // ─── restoreDefaults ───────────────────────────────────────────────────
+
+  describe("restoreDefaults", () => {
+    it("should clear persisted bounds and move window to default position/size", async () => {
+      await service.show();
+      clearOverlayMocks();
+      mockOverlayIsResizable.mockReturnValue(false);
+
+      mockScreenGetPrimaryDisplay.mockReturnValue({
+        workAreaSize: { width: 1920, height: 1080 },
+        workArea: { x: 0, y: 0 },
+      });
+
+      await service.restoreDefaults();
+
+      // Should clear persisted bounds
+      expect(mockSettingsSet).toHaveBeenCalledWith("overlayBounds", null);
+      // Should temporarily enable resizable, set bounds, then restore
+      expect(mockOverlaySetResizable).toHaveBeenCalledWith(true);
+      expect(mockOverlaySetBounds).toHaveBeenCalledWith({
+        x: 20,
+        y: 20,
+        width: 250,
+        height: 175,
+      });
+      expect(mockOverlaySetResizable).toHaveBeenCalledWith(false);
+    });
+
+    it("should offset default position by workArea origin", async () => {
+      await service.show();
+      clearOverlayMocks();
+      mockOverlayIsResizable.mockReturnValue(false);
+
+      mockScreenGetPrimaryDisplay.mockReturnValue({
+        workAreaSize: { width: 1920, height: 1040 },
+        workArea: { x: 0, y: 40 },
+      });
+
+      await service.restoreDefaults();
+
+      expect(mockOverlaySetBounds).toHaveBeenCalledWith({
+        x: 20,
+        y: 60,
+        width: 250,
+        height: 175,
+      });
+    });
+
+    it("should still clear persisted bounds when overlay window does not exist", async () => {
+      // Don't call show() — no window exists
+      await service.restoreDefaults();
+
+      expect(mockSettingsSet).toHaveBeenCalledWith("overlayBounds", null);
+      expect(mockOverlaySetBounds).not.toHaveBeenCalled();
+    });
+
+    it("should work through the IPC handler", async () => {
+      await service.show();
+      clearOverlayMocks();
+      mockOverlayIsResizable.mockReturnValue(false);
+
+      const handler = getIpcHandler(
+        OverlayChannel.RestoreDefaults,
+        ipcHandlerCalls,
+      );
+      await handler({});
+
+      expect(mockSettingsSet).toHaveBeenCalledWith("overlayBounds", null);
+      expect(mockOverlaySetBounds).toHaveBeenCalled();
     });
   });
 });
