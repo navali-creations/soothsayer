@@ -94,7 +94,6 @@ export const createOverlaySlice: StateCreator<
         ({ overlay }) => {
           overlay.isVisible = false;
           overlay.isLocked = true;
-          overlay.isLeftHalf = false;
         },
         false,
         "overlaySlice/hide",

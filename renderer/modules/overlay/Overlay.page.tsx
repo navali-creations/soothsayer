@@ -35,11 +35,11 @@ interface AudioSettings {
 
 const OverlayApp = () => {
   const {
-    overlay: { sessionData, setSessionData, isLocked, isLeftHalf },
+    overlay: { sessionData, setSessionData, isLocked, isLeftHalf, detectZone },
   } = useBoundStore();
   const previousDropsRef = useRef<any[]>([]);
   const [isElectronReady, setIsElectronReady] = useState(
-    () => !!window.electron?.overlay && !!window.electron?.session
+    () => !!window.electron?.overlay && !!window.electron?.session,
   );
   const priceSourceRef = useRef<"exchange" | "stash">("exchange");
   const audioSettingsRef = useRef<AudioSettings>({
@@ -75,9 +75,8 @@ const OverlayApp = () => {
       for (let i = 0; i < paths.length; i++) {
         const soundPath = paths[i];
         if (soundPath) {
-          const dataUrl = await window.electron.settings.getCustomSoundData(
-            soundPath
-          );
+          const dataUrl =
+            await window.electron.settings.getCustomSoundData(soundPath);
           if (dataUrl) {
             customSounds[i + 1] = dataUrl;
           }
@@ -104,7 +103,7 @@ const OverlayApp = () => {
         setIsElectronReady(true);
       } else {
         console.warn(
-          "[Overlay] window.electron not ready, retrying in 100ms..."
+          "[Overlay] window.electron not ready, retrying in 100ms...",
         );
         setTimeout(checkElectron, 100);
       }
@@ -116,6 +115,9 @@ const OverlayApp = () => {
   useEffect(() => {
     // Guard against window.electron not being ready yet
     if (!isElectronReady) return;
+
+    // Detect which half of the screen the overlay is on
+    detectZone();
 
     // Load audio settings
     loadAudioSettings();
@@ -150,7 +152,7 @@ const OverlayApp = () => {
             recentDrops: [],
           });
         }
-      }
+      },
     );
 
     // Listen for session DATA updates (new cards, etc)
@@ -180,7 +182,7 @@ const OverlayApp = () => {
 
           setSessionData(formattedData);
         }
-      }
+      },
     );
 
     // Listen for settings changes (e.g. price source or font size changed mid-session)
@@ -202,7 +204,7 @@ const OverlayApp = () => {
       unsubscribeDataUpdate?.();
       unsubscribeSettingsChanged?.();
     };
-  }, [isElectronReady, setSessionData, loadAudioSettings]);
+  }, [isElectronReady, setSessionData, loadAudioSettings, detectZone]);
 
   // Play sound for rare drops
   useEffect(() => {
@@ -240,7 +242,7 @@ const OverlayApp = () => {
     <div
       className={clsx(
         "relative grid grid-rows-[30px_1fr] h-screen w-full backdrop-blur-sm overflow-hidden transition-shadow duration-200",
-        !isLocked && "animate-pulse-glow"
+        !isLocked && "animate-pulse-glow",
       )}
       style={{ zoom: fontSize } as React.CSSProperties}
     >
@@ -256,7 +258,7 @@ const OverlayApp = () => {
       <div
         className={clsx(
           "relative grid overflow-hidden isolate",
-          isLeftHalf ? "grid-cols-[30px_1fr]" : "grid-cols-[1fr_30px]"
+          isLeftHalf ? "grid-cols-[30px_1fr]" : "grid-cols-[1fr_30px]",
         )}
       >
         {isLeftHalf ? (
@@ -283,6 +285,6 @@ if (rootElement && !rootElement.innerHTML) {
   root.render(
     <StrictMode>
       <OverlayApp />
-    </StrictMode>
+    </StrictMode>,
   );
 }
