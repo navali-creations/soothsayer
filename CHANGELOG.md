@@ -1,5 +1,37 @@
 # soothsayer
 
+## 0.6.0
+
+### Minor Changes
+
+- [`cecd239`](https://github.com/navali-creations/soothsayer/commit/cecd239d11353214258832bcbbfc1dd8fe9476ff) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  - **Overlay lock/unlock:** You can now toggle the overlay between a locked (click-through) mode for gameplay and an unlocked mode where you can drag and resize it freely. A pulsing glow border lets you know when the overlay is unlocked. The overlay always starts locked when you open it.
+
+  - **Smart overlay layout:** The overlay now detects which side of your screen it's on and automatically flips its layout to match — so it always looks and feels right whether you place it on the left or right side.
+
+  - **Overlay font size controls:** Two new sliders in Settings let you adjust the overlay's content and toolbar text sizes independently (from 50% to 200%). Changes show up immediately on the overlay — no restart needed.
+
+  - **Overlay size controls:** New width and height sliders in Settings let you resize the overlay to fit your preference. The overlay updates in real time as you adjust the sliders, even while it's open during a game.
+
+  - **Restore overlay defaults:** A single button in the new Overlay section of Settings resets everything — position, size, and font sizes — back to the defaults.
+
+  - **Overlay Settings section:** All overlay controls are now grouped in a dedicated card on the Settings page, keeping everything easy to find in one place.
+
+  - **Overlay no longer spawns off-screen:** On smaller displays (like 1366×768 laptops), the overlay could appear outside the visible area. It now defaults to the top-left corner of your screen with a small margin.
+
+  - **Window position remembered:** The app now remembers where you left the main window and restores it on the next launch. If you've since disconnected a monitor, it falls back to a centered default instead of opening off-screen.
+
+### Patch Changes
+
+- [`cecd239`](https://github.com/navali-creations/soothsayer/commit/cecd239d11353214258832bcbbfc1dd8fe9476ff) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  - **Alt+F4 now respects your exit preference:** Previously, pressing Alt+F4 always hid the app to the tray regardless of your chosen exit behavior in Settings. Now it correctly follows your preference — quitting the app if set to "exit", or minimizing to tray if set to "minimize".
+
+  - **Tray icon restores the window again:** Clicking the tray icon or choosing "Show Soothsayer" from the tray menu now properly brings the window back. Previously, the app could get stuck hidden in the tray with no way to reopen it.
+
+  - **Opening Soothsayer twice focuses the existing window:** If the app is already running and you try to launch it again, the existing window now correctly comes to the front — even if it was minimized.
+
 ## 0.5.1
 
 ### Patch Changes
