@@ -50,8 +50,7 @@ class PoeLeaguesService {
   private settingsStore: SettingsStoreService;
 
   // Cache duration in hours - matches Supabase rate limit of 2 per 24h
-  // We use 23 hours to have some buffer before the rate limit resets
-  private static readonly CACHE_MAX_AGE_HOURS = 23;
+  private static readonly CACHE_MAX_AGE_HOURS = 24;
 
   // Fallback league when both Supabase and local cache are unavailable.
   // "Standard" is a permanent league that always exists for both poe1 and poe2.
@@ -122,7 +121,7 @@ class PoeLeaguesService {
 
   /**
    * Fetch leagues for a game, using local cache when available
-   * Will only call Supabase if cache is stale (older than 23 hours)
+   * Will only call Supabase if cache is stale (older than 24 hours)
    */
   public async fetchLeagues(game: GameType): Promise<PoeLeague[]> {
     const gameKey = game as "poe1" | "poe2";

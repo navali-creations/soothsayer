@@ -147,7 +147,7 @@ describe("PoeLeaguesService", () => {
     });
 
     it("should return true when cache is older than threshold", async () => {
-      // Insert stale cache metadata (25 hours ago, threshold is 23)
+      // Insert stale cache metadata (25 hours ago, threshold is 24)
       const staleDate = new Date(
         Date.now() - 25 * 60 * 60 * 1000,
       ).toISOString();
@@ -601,7 +601,7 @@ describe("PoeLeaguesService", () => {
     });
 
     it("should not fetch from Supabase when cache is within threshold", async () => {
-      // Insert cache metadata from 10 hours ago (threshold is 23)
+      // Insert cache metadata from 10 hours ago (threshold is 24)
       const tenHoursAgo = new Date(
         Date.now() - 10 * 60 * 60 * 1000,
       ).toISOString();
