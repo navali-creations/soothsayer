@@ -475,29 +475,8 @@ describe("AppService", () => {
       );
     });
 
-    it("should restore and focus a minimized main window on second instance", () => {
+    it("should call show on the main window on second instance", () => {
       const mockMainWindow = {
-        isMinimized: vi.fn(() => true),
-        restore: vi.fn(),
-        focus: vi.fn(),
-        show: vi.fn(),
-      };
-
-      mockAppOn.mockClear();
-      service.emitSecondInstance(mockMainWindow as any);
-
-      const handler = getAppEventHandler(AppChannel.SecondInstance);
-      handler();
-
-      expect(mockMainWindow.restore).toHaveBeenCalled();
-      expect(mockMainWindow.focus).toHaveBeenCalled();
-    });
-
-    it("should show the main window if it is not minimized", () => {
-      const mockMainWindow = {
-        isMinimized: vi.fn(() => false),
-        restore: vi.fn(),
-        focus: vi.fn(),
         show: vi.fn(),
       };
 
@@ -508,7 +487,6 @@ describe("AppService", () => {
       handler();
 
       expect(mockMainWindow.show).toHaveBeenCalled();
-      expect(mockMainWindow.restore).not.toHaveBeenCalled();
     });
 
     it("should handle null mainWindow gracefully", () => {

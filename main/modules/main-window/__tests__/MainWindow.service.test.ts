@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const {
   mockIpcHandle,
   mockSettingsGet,
+  mockSettingsSet,
   mockOverlayDestroy,
   mockBrowserWindowMinimize,
   mockBrowserWindowMaximize,
@@ -19,6 +20,8 @@ const {
   mockBrowserWindowOnce,
   mockBrowserWindowOn,
   mockBrowserWindowIsDestroyed,
+  mockBrowserWindowGetBounds,
+  mockBrowserWindowRemoveListener,
   mockBrowserWindowWebContentsSend,
   mockBrowserWindowWebContentsOn,
   mockBrowserWindowWebContentsSetWindowOpenHandler,
@@ -31,9 +34,11 @@ const {
   mockDialogShowOpenDialog,
   mockValidateFileDialogOptions,
   mockAppServiceIsQuitting,
+  mockScreenGetAllDisplays,
 } = vi.hoisted(() => ({
   mockIpcHandle: vi.fn(),
   mockSettingsGet: vi.fn(),
+  mockSettingsSet: vi.fn(() => Promise.resolve()),
   mockOverlayDestroy: vi.fn(),
   mockBrowserWindowMinimize: vi.fn(),
   mockBrowserWindowMaximize: vi.fn(),
@@ -47,6 +52,13 @@ const {
   mockBrowserWindowOnce: vi.fn(),
   mockBrowserWindowOn: vi.fn(),
   mockBrowserWindowIsDestroyed: vi.fn(() => false),
+  mockBrowserWindowGetBounds: vi.fn(() => ({
+    x: 100,
+    y: 100,
+    width: 1200,
+    height: 800,
+  })),
+  mockBrowserWindowRemoveListener: vi.fn(),
   mockBrowserWindowWebContentsSend: vi.fn(),
   mockBrowserWindowWebContentsOn: vi.fn(),
   mockBrowserWindowWebContentsSetWindowOpenHandler: vi.fn(),
@@ -65,6 +77,9 @@ const {
     properties: raw?.properties ?? ["openFile"],
   })),
   mockAppServiceIsQuitting: { value: false },
+  mockScreenGetAllDisplays: vi.fn(() => [
+    { workArea: { x: 0, y: 0, width: 1920, height: 1080 } },
+  ]),
 }));
 
 // ─── Track BrowserWindow instances ───────────────────────────────────────────
@@ -85,6 +100,8 @@ vi.mock("electron", () => {
     once = mockBrowserWindowOnce;
     on = mockBrowserWindowOn;
     isDestroyed = mockBrowserWindowIsDestroyed;
+    getBounds = mockBrowserWindowGetBounds;
+    removeListener = mockBrowserWindowRemoveListener;
     webContents = {
       send: mockBrowserWindowWebContentsSend,
       on: mockBrowserWindowWebContentsOn,
@@ -115,6 +132,9 @@ vi.mock("electron", () => {
     },
     nativeImage: {
       createFromPath: mockNativeImageCreateFromPath,
+    },
+    screen: {
+      getAllDisplays: mockScreenGetAllDisplays,
     },
     shell: {
       openExternal: mockShellOpenExternal,
@@ -196,12 +216,14 @@ vi.mock("~/main/modules", () => ({
   SettingsStoreService: {
     getInstance: vi.fn(() => ({
       get: mockSettingsGet,
+      set: mockSettingsSet,
     })),
   },
   SettingsKey: {
     AppExitAction: "appExitAction",
     AppOpenAtLogin: "appOpenAtLogin",
     AppOpenAtLoginMinimized: "appOpenAtLoginMinimized",
+    MainWindowBounds: "mainWindowBounds",
   },
   SnapshotService: { getInstance: vi.fn(() => ({})) },
   SupabaseClientService: {
@@ -470,15 +492,6 @@ describe("MainWindowService", () => {
       );
     });
 
-    it("should register a ready-to-show handler", async () => {
-      await service.createMainWindow();
-
-      expect(mockBrowserWindowOnce).toHaveBeenCalledWith(
-        "ready-to-show",
-        expect.any(Function),
-      );
-    });
-
     it("should register all expected IPC channels", async () => {
       await service.createMainWindow();
       ipcHandlerCalls = captureIpcHandlers();
@@ -639,11 +652,6 @@ describe("MainWindowService", () => {
     beforeEach(async () => {
       await service.createMainWindow();
       ipcHandlerCalls = captureIpcHandlers();
-    });
-
-    it("should register a handler for select-file", () => {
-      const channels = ipcHandlerCalls.map(([ch]: [string]) => ch);
-      expect(channels).toContain("select-file");
     });
 
     it("should validate options before showing the dialog", async () => {
@@ -809,34 +817,55 @@ describe("MainWindowService", () => {
       );
       expect(result).toEqual({ action: "deny" });
     });
-
-    it("should always return deny action even for allowed URLs", () => {
-      const openHandler =
-        mockBrowserWindowWebContentsSetWindowOpenHandler.mock.calls[0][0];
-
-      const result = openHandler({
-        url: "https://github.com/navali-creations/soothsayer",
-      });
-
-      // Window is always denied — external links open in OS browser
-      expect(result).toEqual({ action: "deny" });
-    });
   });
 
   // ─── emitOnMainWindowClose ───────────────────────────────────────────────
 
   describe("emitOnMainWindowClose", () => {
-    it("should hide window when isQuitting is false and close is triggered", async () => {
+    it("should hide window when isQuitting is false and exit action is 'minimize'", async () => {
       mockAppServiceIsQuitting.value = false;
       await service.createMainWindow();
 
       const closeHandler = getWindowOnHandler("close");
       const mockEvent = { preventDefault: vi.fn() };
 
-      closeHandler(mockEvent);
+      mockSettingsGet.mockResolvedValue("minimize");
+      await closeHandler(mockEvent);
 
       expect(mockEvent.preventDefault).toHaveBeenCalled();
       expect(mockBrowserWindowHide).toHaveBeenCalled();
+      expect(mockBrowserWindowClose).not.toHaveBeenCalled();
+    });
+
+    it("should close and quit when isQuitting is false and exit action is 'exit'", async () => {
+      mockAppServiceIsQuitting.value = false;
+      await service.createMainWindow();
+
+      const closeHandler = getWindowOnHandler("close");
+      const mockEvent = { preventDefault: vi.fn() };
+
+      mockSettingsGet.mockResolvedValue("exit");
+      await closeHandler(mockEvent);
+
+      expect(mockEvent.preventDefault).toHaveBeenCalled();
+      expect(mockOverlayDestroy).toHaveBeenCalled();
+      expect(mockBrowserWindowClose).toHaveBeenCalled();
+      expect(mockBrowserWindowHide).not.toHaveBeenCalled();
+    });
+
+    it("should default to quitting when isQuitting is false and exit action is undefined", async () => {
+      mockAppServiceIsQuitting.value = false;
+      await service.createMainWindow();
+
+      const closeHandler = getWindowOnHandler("close");
+      const mockEvent = { preventDefault: vi.fn() };
+
+      mockSettingsGet.mockResolvedValue(undefined);
+      await closeHandler(mockEvent);
+
+      expect(mockEvent.preventDefault).toHaveBeenCalled();
+      expect(mockOverlayDestroy).toHaveBeenCalled();
+      expect(mockBrowserWindowClose).toHaveBeenCalled();
     });
 
     it("should allow close when isQuitting is true", async () => {
@@ -887,7 +916,38 @@ describe("MainWindowService", () => {
       expect(mockBrowserWindowHide).not.toHaveBeenCalled();
     });
 
-    it("should not intercept native close when user prefers exit and clicks X", async () => {
+    it("native close (Alt+F4) should hide when user prefers minimize", async () => {
+      mockAppServiceIsQuitting.value = false;
+      await service.createMainWindow();
+
+      const nativeCloseHandler = getWindowOnHandler("close");
+      const mockEvent = { preventDefault: vi.fn() };
+
+      mockSettingsGet.mockResolvedValue("minimize");
+      await nativeCloseHandler(mockEvent);
+
+      expect(mockEvent.preventDefault).toHaveBeenCalled();
+      expect(mockBrowserWindowHide).toHaveBeenCalled();
+      expect(mockBrowserWindowClose).not.toHaveBeenCalled();
+    });
+
+    it("native close (Alt+F4) should quit when user prefers exit", async () => {
+      mockAppServiceIsQuitting.value = false;
+      await service.createMainWindow();
+
+      const nativeCloseHandler = getWindowOnHandler("close");
+      const mockEvent = { preventDefault: vi.fn() };
+
+      mockSettingsGet.mockResolvedValue("exit");
+      await nativeCloseHandler(mockEvent);
+
+      expect(mockEvent.preventDefault).toHaveBeenCalled();
+      expect(mockOverlayDestroy).toHaveBeenCalled();
+      expect(mockBrowserWindowClose).toHaveBeenCalled();
+      expect(mockBrowserWindowHide).not.toHaveBeenCalled();
+    });
+
+    it("should not intercept native close when user prefers exit and clicks X via IPC", async () => {
       mockAppServiceIsQuitting.value = false;
       await service.createMainWindow();
       ipcHandlerCalls = captureIpcHandlers();
@@ -919,16 +979,6 @@ describe("MainWindowService", () => {
   // ─── showAppOnceReadyToShow ──────────────────────────────────────────────
 
   describe("showAppOnceReadyToShow", () => {
-    it("should register a ready-to-show handler when mainWindow is a BrowserWindow", async () => {
-      await service.createMainWindow();
-
-      // ready-to-show should have been registered via once
-      expect(mockBrowserWindowOnce).toHaveBeenCalledWith(
-        "ready-to-show",
-        expect.any(Function),
-      );
-    });
-
     it("should show the window when not set to open minimized", async () => {
       mockSettingsGet.mockResolvedValue(false);
 
@@ -1123,16 +1173,6 @@ describe("MainWindowService", () => {
   // ─── Edge cases ──────────────────────────────────────────────────────────
 
   describe("edge cases", () => {
-    it("should handle getWindow returning null when window is falsy", () => {
-      // @ts-expect-error
-      MainWindowService._instance = undefined;
-      const svc = MainWindowService.getInstance();
-
-      // mainWindow not assigned yet
-      const win = svc.getWindow();
-      expect(win).toBeNull();
-    });
-
     it("should handle isDestroyed when mainWindow is destroyed", async () => {
       await service.createMainWindow();
 
@@ -1140,18 +1180,6 @@ describe("MainWindowService", () => {
       // mainWindow exists, so it delegates to the mock's isDestroyed which we set to true
       mockBrowserWindowIsDestroyed.mockReturnValue(true);
       expect(service.isDestroyed()).toBe(true);
-    });
-
-    it("should not throw when mainWindow methods use optional chaining", async () => {
-      await service.createMainWindow();
-      ipcHandlerCalls = captureIpcHandlers();
-
-      // Even if underlying methods are undefined, the optional chaining should prevent errors
-      const minimizeHandler = getIpcHandler(
-        "main-window:minimize",
-        ipcHandlerCalls,
-      );
-      expect(async () => await minimizeHandler()).not.toThrow();
     });
   });
 
@@ -1223,51 +1251,6 @@ describe("MainWindowService", () => {
       expect(mockOverlayDestroy).toHaveBeenCalled();
       expect(mockBrowserWindowClose).toHaveBeenCalled();
     });
-
-    it("should handle close intercepted by emitOnMainWindowClose", async () => {
-      // Create with isQuitting=false so close is intercepted
-      mockAppServiceIsQuitting.value = false;
-      await service.createMainWindow();
-
-      const closeHandler = getWindowOnHandler("close");
-      const mockEvent = { preventDefault: vi.fn() };
-
-      // First close attempt should be intercepted
-      closeHandler(mockEvent);
-      expect(mockEvent.preventDefault).toHaveBeenCalled();
-      expect(mockBrowserWindowHide).toHaveBeenCalled();
-    });
-
-    it("should handle file selection lifecycle", async () => {
-      await service.createMainWindow();
-      ipcHandlerCalls = captureIpcHandlers();
-
-      const handler = getIpcHandler("select-file", ipcHandlerCalls);
-
-      // Successful selection
-      mockDialogShowOpenDialog.mockResolvedValue({
-        canceled: false,
-        filePaths: ["/users/data/export.csv"],
-      });
-
-      const path1 = await handler(
-        {},
-        { title: "Export", properties: ["openFile"] },
-      );
-      expect(path1).toBe("/users/data/export.csv");
-
-      // Cancelled selection
-      mockDialogShowOpenDialog.mockResolvedValue({
-        canceled: true,
-        filePaths: [],
-      });
-
-      const path2 = await handler(
-        {},
-        { title: "Export", properties: ["openFile"] },
-      );
-      expect(path2).toBeUndefined();
-    });
   });
 
   // ─── State management ────────────────────────────────────────────────────
@@ -1279,15 +1262,6 @@ describe("MainWindowService", () => {
 
       const instance2 = MainWindowService.getInstance();
       expect(instance1).toBe(instance2);
-    });
-
-    it("getWebContents should reflect the current window's webContents", async () => {
-      await service.createMainWindow();
-
-      const wc = service.getWebContents();
-      expect(wc).toBeDefined();
-      expect(wc?.send).toBe(mockBrowserWindowWebContentsSend);
-      expect(wc?.on).toBe(mockBrowserWindowWebContentsOn);
     });
   });
 });

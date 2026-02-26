@@ -94,12 +94,7 @@ class AppService {
       }
 
       // Focus on the main window if the user tried to open another
-      if (mainWindow.isMinimized?.()) {
-        mainWindow.restore?.();
-        mainWindow.focus?.();
-      } else {
-        mainWindow.show?.();
-      }
+      mainWindow.show?.();
     });
   }
 

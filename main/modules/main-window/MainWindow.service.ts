@@ -6,6 +6,7 @@ import {
   dialog,
   ipcMain,
   nativeImage,
+  screen,
   shell,
 } from "electron";
 
@@ -37,6 +38,9 @@ class MainWindowService {
   private url: string = MAIN_WINDOW_VITE_DEV_SERVER_URL;
   private settingsStore: SettingsStoreService | null = null;
   private database: DatabaseService | null = null;
+  private debouncedSaveBoundsTimer: ReturnType<typeof setTimeout> | null = null;
+  private boundsMovedHandler: (() => void) | null = null;
+  private boundsResizedHandler: (() => void) | null = null;
 
   private static _instance: MainWindowService;
 
@@ -64,6 +68,103 @@ class MainWindowService {
     return nativeImage.createFromPath(iconPath);
   }
 
+  /**
+   * TODO: Replace manual bounds persistence (validateBoundsOnScreen, saveBoundsImmediate,
+   * attachBoundsListeners, removeBoundsListeners, and the restore logic in createMainWindow)
+   * with Electron's built-in `windowStatePersistence` API once it ships in a stable release.
+   * Just pass `name: 'soothsayer-main'` and `windowStatePersistence: true` to the
+   * BrowserWindow constructor. See: https://github.com/electron/rfcs/pull/16
+   */
+
+  /**
+   * Validate that at least 100px of the window overlaps with some display's workArea.
+   * Returns the bounds if valid, null if off-screen (e.g. disconnected monitor).
+   */
+  private validateBoundsOnScreen(bounds: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }): { x: number; y: number; width: number; height: number } | null {
+    const MIN_OVERLAP = 100;
+    const displays = screen.getAllDisplays();
+
+    for (const display of displays) {
+      const { x: wx, y: wy, width: ww, height: wh } = bounds;
+      const { x: dx, y: dy, width: dw, height: dh } = display.workArea;
+
+      const overlapX = Math.max(
+        0,
+        Math.min(wx + ww, dx + dw) - Math.max(wx, dx),
+      );
+      const overlapY = Math.max(
+        0,
+        Math.min(wy + wh, dy + dh) - Math.max(wy, dy),
+      );
+
+      if (overlapX >= MIN_OVERLAP || overlapY >= MIN_OVERLAP) {
+        return bounds;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Immediately save the current window bounds to settings.
+   * Skips saving when the window is maximized to avoid storing maximized dimensions.
+   */
+  private saveBoundsImmediate(): void {
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
+    if (this.mainWindow.isMaximized()) return;
+
+    const bounds = this.mainWindow.getBounds();
+    this.settingsStore
+      ?.set(SettingsKey.MainWindowBounds, bounds)
+      .catch((err) => {
+        console.warn("[MainWindow] Failed to save bounds:", err);
+      });
+  }
+
+  /**
+   * Attach move/resize listeners that debounce-save the window bounds.
+   */
+  private attachBoundsListeners(): void {
+    const debouncedSave = () => {
+      if (this.debouncedSaveBoundsTimer) {
+        clearTimeout(this.debouncedSaveBoundsTimer);
+      }
+      this.debouncedSaveBoundsTimer = setTimeout(() => {
+        this.saveBoundsImmediate();
+        this.debouncedSaveBoundsTimer = null;
+      }, 500);
+    };
+
+    this.boundsMovedHandler = debouncedSave;
+    this.boundsResizedHandler = debouncedSave;
+
+    this.mainWindow.on("moved", this.boundsMovedHandler);
+    this.mainWindow.on("resized", this.boundsResizedHandler);
+  }
+
+  /**
+   * Remove bounds listeners and clear any pending debounce timer.
+   */
+  private removeBoundsListeners(): void {
+    if (this.debouncedSaveBoundsTimer) {
+      clearTimeout(this.debouncedSaveBoundsTimer);
+      this.debouncedSaveBoundsTimer = null;
+    }
+    if (this.boundsMovedHandler) {
+      this.mainWindow?.removeListener("moved", this.boundsMovedHandler);
+      this.boundsMovedHandler = null;
+    }
+    if (this.boundsResizedHandler) {
+      this.mainWindow?.removeListener("resized", this.boundsResizedHandler);
+      this.boundsResizedHandler = null;
+    }
+  }
+
   public async createMainWindow() {
     const indexHtml = join(
       __dirname,
@@ -71,11 +172,23 @@ class MainWindowService {
     );
     const preload = join(__dirname, "preload.js");
 
-    this.mainWindow = new BrowserWindow({
+    // 1. Settings (no dependencies) — initialize early so we can load saved bounds
+    this.settingsStore = SettingsStoreService.getInstance();
+    console.log("[Init] ✓ Settings");
+
+    // Load saved main window bounds
+    const savedBounds = await this.settingsStore.get(
+      SettingsKey.MainWindowBounds,
+    );
+    const validBounds = savedBounds
+      ? this.validateBoundsOnScreen(savedBounds)
+      : null;
+
+    const windowOptions: Electron.BrowserWindowConstructorOptions = {
       title: "Soothsayer",
       icon: this.getAppIcon(),
-      width: 1200,
-      height: 800,
+      width: validBounds?.width ?? 1200,
+      height: validBounds?.height ?? 800,
       minWidth: 1200,
       backgroundColor: "transparent",
       show: false, // This line prevents electron's default #1E1E1E bg load before html renders and html blank screen (white flash)
@@ -87,14 +200,17 @@ class MainWindowService {
         contextIsolation: true,
       },
       frame: false,
-    });
+    };
+
+    if (validBounds) {
+      windowOptions.x = validBounds.x;
+      windowOptions.y = validBounds.y;
+    }
+
+    this.mainWindow = new BrowserWindow(windowOptions);
 
     // Initialize services in correct order
     console.log("[Init] Initializing services...");
-
-    // 1. Settings (no dependencies)
-    this.settingsStore = SettingsStoreService.getInstance();
-    console.log("[Init] ✓ Settings");
 
     // 2. Database (core dependency)
     this.database = DatabaseService.getInstance();
@@ -200,6 +316,9 @@ class MainWindowService {
     // Initialize PoE Process monitoring
     PoeProcessService.getInstance().initialize(this);
 
+    // Attach bounds persistence listeners
+    this.attachBoundsListeners();
+
     // Caption events
     this.emitCaptionEvents();
     this.emitFileDialogEvents();
@@ -262,6 +381,9 @@ class MainWindowService {
      * b) quit instead of minimizing
      */
     ipcMain.handle(MainWindowChannel.Close, async () => {
+      // Save window bounds before closing/hiding
+      this.saveBoundsImmediate();
+
       const exitAction = await this.settingsStore?.get(
         SettingsKey.AppExitAction,
       );
@@ -273,6 +395,7 @@ class MainWindowService {
         !shouldAppQuitBasedOnUserPreference;
 
       if (shouldAppQuitBasedOnUserPreference || byDefaultQuitApp) {
+        this.removeBoundsListeners();
         OverlayService.getInstance().destroy();
         AppService.getInstance().isQuitting = true;
         this.mainWindow?.close?.();
@@ -285,10 +408,33 @@ class MainWindowService {
   }
 
   private emitOnMainWindowClose() {
-    this.mainWindow?.on?.("close", (e) => {
+    this.mainWindow?.on?.("close", async (e) => {
       if (AppService.getInstance().isQuitting) return;
       e.preventDefault();
-      this.mainWindow?.hide?.();
+
+      // Save window bounds before closing/hiding
+      this.saveBoundsImmediate();
+
+      const exitAction = await this.settingsStore?.get(
+        SettingsKey.AppExitAction,
+      );
+      const shouldAppQuitBasedOnUserPreference = exitAction === "exit";
+      const shouldAppHideBasedOnUserPreference = exitAction === "minimize";
+
+      const byDefaultQuitApp =
+        !shouldAppHideBasedOnUserPreference &&
+        !shouldAppQuitBasedOnUserPreference;
+
+      if (shouldAppQuitBasedOnUserPreference || byDefaultQuitApp) {
+        this.removeBoundsListeners();
+        OverlayService.getInstance().destroy();
+        AppService.getInstance().isQuitting = true;
+        this.mainWindow?.close?.();
+      }
+
+      if (shouldAppHideBasedOnUserPreference) {
+        this.mainWindow?.hide?.();
+      }
     });
   }
 
@@ -312,6 +458,20 @@ class MainWindowService {
 
       this.mainWindow?.show?.();
     });
+  }
+
+  /**
+   * Show the main window. If it was minimized, restore it first.
+   */
+  public show(): void {
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
+
+    if (this.mainWindow.isMinimized()) {
+      this.mainWindow.restore();
+    }
+
+    this.mainWindow.show();
+    this.mainWindow.focus();
   }
 
   /**
