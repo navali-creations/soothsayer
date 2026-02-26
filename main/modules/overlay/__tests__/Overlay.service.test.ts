@@ -1678,24 +1678,19 @@ describe("OverlayService", () => {
         expect(mockOverlaySetResizable).toHaveBeenCalledWith(false);
       });
 
-      it("should set ignore mouse events with forward option", () => {
+      it("should not call setIgnoreMouseEvents (click-through handled by focusable:false)", () => {
         service.setLocked(true);
-        expect(mockOverlaySetIgnoreMouseEvents).toHaveBeenCalledWith(true, {
-          forward: true,
-        });
+        expect(mockOverlaySetIgnoreMouseEvents).not.toHaveBeenCalled();
       });
 
-      it("should set alwaysOnTop to screen-saver level", () => {
+      it("should not change alwaysOnTop level (stays at screen-saver)", () => {
         service.setLocked(true);
-        expect(mockOverlaySetAlwaysOnTop).toHaveBeenCalledWith(
-          true,
-          "screen-saver",
-        );
+        expect(mockOverlaySetAlwaysOnTop).not.toHaveBeenCalled();
       });
 
-      it("should blur the window", () => {
+      it("should not blur the window (no z-order change needed)", () => {
         service.setLocked(true);
-        expect(mockOverlayBlur).toHaveBeenCalled();
+        expect(mockOverlayBlur).not.toHaveBeenCalled();
       });
     });
 
@@ -1705,9 +1700,9 @@ describe("OverlayService", () => {
         clearOverlayMocks();
       });
 
-      it("should disable ignore mouse events", () => {
+      it("should not call setIgnoreMouseEvents", () => {
         service.setLocked(false);
-        expect(mockOverlaySetIgnoreMouseEvents).toHaveBeenCalledWith(false);
+        expect(mockOverlaySetIgnoreMouseEvents).not.toHaveBeenCalled();
       });
 
       it("should set window to focusable", () => {
@@ -1720,12 +1715,9 @@ describe("OverlayService", () => {
         expect(mockOverlaySetResizable).toHaveBeenCalledWith(true);
       });
 
-      it("should set alwaysOnTop to floating level", () => {
+      it("should not change alwaysOnTop level (stays at screen-saver)", () => {
         service.setLocked(false);
-        expect(mockOverlaySetAlwaysOnTop).toHaveBeenCalledWith(
-          true,
-          "floating",
-        );
+        expect(mockOverlaySetAlwaysOnTop).not.toHaveBeenCalled();
       });
 
       it("should attach moved and resized listeners", () => {
@@ -1883,10 +1875,10 @@ describe("OverlayService", () => {
       const handler = getIpcHandler(OverlayChannel.SetLocked, ipcHandlerCalls);
       await handler({}, false);
 
-      expect(mockOverlaySetIgnoreMouseEvents).toHaveBeenCalledWith(false);
       expect(mockOverlaySetFocusable).toHaveBeenCalledWith(true);
       expect(mockOverlaySetResizable).toHaveBeenCalledWith(true);
-      expect(mockOverlaySetAlwaysOnTop).toHaveBeenCalledWith(true, "floating");
+      // alwaysOnTop is NOT changed — stays at screen-saver level
+      expect(mockOverlaySetAlwaysOnTop).not.toHaveBeenCalled();
     });
 
     it("should return validation error for non-boolean locked value", async () => {
@@ -1932,10 +1924,8 @@ describe("OverlayService", () => {
       // If show() set isLocked = true, then setLocked(true) would still execute
       // (it doesn't check current state, it always applies)
       expect(mockOverlaySetFocusable).toHaveBeenCalledWith(false);
-      expect(mockOverlaySetAlwaysOnTop).toHaveBeenCalledWith(
-        true,
-        "screen-saver",
-      );
+      // alwaysOnTop is NOT changed on lock — stays at screen-saver level
+      expect(mockOverlaySetAlwaysOnTop).not.toHaveBeenCalled();
     });
   });
 
@@ -1966,9 +1956,6 @@ describe("OverlayService", () => {
         }),
       );
       expect(mockOverlaySetFocusable).toHaveBeenCalledWith(false);
-      expect(mockOverlaySetIgnoreMouseEvents).toHaveBeenCalledWith(true, {
-        forward: true,
-      });
     });
 
     it("should not auto-lock when hiding while already locked", async () => {
@@ -1981,7 +1968,6 @@ describe("OverlayService", () => {
 
       // setLocked should NOT have been called internally, so no setFocusable etc.
       expect(mockOverlaySetFocusable).not.toHaveBeenCalled();
-      expect(mockOverlaySetIgnoreMouseEvents).not.toHaveBeenCalled();
     });
   });
 

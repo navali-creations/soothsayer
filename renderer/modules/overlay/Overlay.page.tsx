@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
 
@@ -9,8 +10,8 @@ import { useBoundStore } from "~/renderer/store";
 
 import { initUmami } from "../umami";
 import {
-  OverlayDropsList,
-  OverlayEmpty,
+  OverlayContent,
+  OverlaySidebar,
   OverlayTabs,
 } from "./Overlay.components";
 import type { SessionData } from "./Overlay.types";
@@ -34,11 +35,11 @@ interface AudioSettings {
 
 const OverlayApp = () => {
   const {
-    overlay: { sessionData, setSessionData },
+    overlay: { sessionData, setSessionData, isLocked, isLeftHalf },
   } = useBoundStore();
   const previousDropsRef = useRef<any[]>([]);
   const [isElectronReady, setIsElectronReady] = useState(
-    () => !!window.electron?.overlay && !!window.electron?.session,
+    () => !!window.electron?.overlay && !!window.electron?.session
   );
   const priceSourceRef = useRef<"exchange" | "stash">("exchange");
   const audioSettingsRef = useRef<AudioSettings>({
@@ -46,8 +47,9 @@ const OverlayApp = () => {
     volume: 0.5,
     customSounds: {},
   });
+  const [fontSize, setFontSize] = useState(1.0);
 
-  // Load audio settings and price source from main process
+  // Load audio settings, price source, and overlay font size from main process
   const loadAudioSettings = useCallback(async () => {
     try {
       const settings = await window.electron.settings.getAll();
@@ -60,6 +62,9 @@ const OverlayApp = () => {
           ? settings.poe1PriceSource || "exchange"
           : settings.poe2PriceSource || "exchange";
 
+      // Read overlay font size
+      setFontSize(settings.overlayFontSize ?? 1.0);
+
       // Load custom sound data for each rarity if paths are set
       const paths = [
         settings.audioRarity1Path,
@@ -70,8 +75,9 @@ const OverlayApp = () => {
       for (let i = 0; i < paths.length; i++) {
         const soundPath = paths[i];
         if (soundPath) {
-          const dataUrl =
-            await window.electron.settings.getCustomSoundData(soundPath);
+          const dataUrl = await window.electron.settings.getCustomSoundData(
+            soundPath
+          );
           if (dataUrl) {
             customSounds[i + 1] = dataUrl;
           }
@@ -98,7 +104,7 @@ const OverlayApp = () => {
         setIsElectronReady(true);
       } else {
         console.warn(
-          "[Overlay] window.electron not ready, retrying in 100ms...",
+          "[Overlay] window.electron not ready, retrying in 100ms..."
         );
         setTimeout(checkElectron, 100);
       }
@@ -144,7 +150,7 @@ const OverlayApp = () => {
             recentDrops: [],
           });
         }
-      },
+      }
     );
 
     // Listen for session DATA updates (new cards, etc)
@@ -174,13 +180,13 @@ const OverlayApp = () => {
 
           setSessionData(formattedData);
         }
-      },
+      }
     );
 
-    // Listen for settings changes (e.g. price source changed mid-session)
+    // Listen for settings changes (e.g. price source or font size changed mid-session)
     const unsubscribeSettingsChanged =
       window.electron.overlay.onSettingsChanged?.(() => {
-        // Re-read price source and audio settings
+        // Re-read price source, font size, and audio settings
         loadAudioSettings().then(() => {
           // Re-fetch session data with the updated price source
           window.electron?.overlay.getSessionData().then((data) => {
@@ -231,25 +237,39 @@ const OverlayApp = () => {
   }, [sessionData.recentDrops]);
 
   return (
-    <div className="grid grid-rows-[30px_1fr] h-screen w-full backdrop-blur-sm overflow-hidden">
-      <div className="relative z-50">
-        <OverlayTabs />
-      </div>
-      <div className="relative grid grid-cols-[1fr_30px] overflow-hidden isolate ">
-        <div className="flex flex-col-reverse overflow-hidden">
-          {sessionData.isActive ? <OverlayDropsList /> : <OverlayEmpty />}
-        </div>
-        <div className="flex items-start justify-center bg-gradient-to-b from-base-300 from-50% to-transparent cursor-default select-none">
-          <span
-            className="pt-1 text-sm font-semibold tracking-wider whitespace-nowrap text-base-content/50"
-            style={{
-              writingMode: "vertical-rl",
-              textOrientation: "sideways",
-            }}
-          >
-            soothsayer
-          </span>
-        </div>
+    <div
+      className={clsx(
+        "relative grid grid-rows-[30px_1fr] h-screen w-full backdrop-blur-sm overflow-hidden transition-shadow duration-200",
+        !isLocked && "animate-pulse-glow"
+      )}
+      style={{ zoom: fontSize } as React.CSSProperties}
+    >
+      {/* Full-overlay drag handle — covers everything when unlocked */}
+      {!isLocked && (
+        <div
+          className="absolute inset-0 z-100 cursor-grab bg-base-300/20"
+          style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+        />
+      )}
+
+      <OverlayTabs />
+      <div
+        className={clsx(
+          "relative grid overflow-hidden isolate",
+          isLeftHalf ? "grid-cols-[30px_1fr]" : "grid-cols-[1fr_30px]"
+        )}
+      >
+        {isLeftHalf ? (
+          <>
+            <OverlaySidebar />
+            <OverlayContent />
+          </>
+        ) : (
+          <>
+            <OverlayContent />
+            <OverlaySidebar />
+          </>
+        )}
       </div>
     </div>
   );
@@ -263,6 +283,6 @@ if (rootElement && !rootElement.innerHTML) {
   root.render(
     <StrictMode>
       <OverlayApp />
-    </StrictMode>,
+    </StrictMode>
   );
 }

@@ -354,8 +354,13 @@ class OverlayService {
   /**
    * Lock or unlock the overlay window.
    *
-   * Lock: click-through, non-focusable, non-resizable, screen-saver level.
-   * Unlock: interactive, focusable, resizable, floating level, draggable.
+   * Both states keep alwaysOnTop at "screen-saver" level so the overlay
+   * never drops behind fullscreen games or other apps. The original overlay
+   * always used screen-saver and never had z-order issues — changing to
+   * "floating" on unlock was what caused the overlay to disappear behind games.
+   *
+   * Lock: non-focusable, non-resizable.
+   * Unlock: focusable, resizable, bounds listeners attached.
    */
   public setLocked(locked: boolean): void {
     if (!this.overlayWindow) {
@@ -372,14 +377,9 @@ class OverlayService {
 
       this.overlayWindow.setFocusable(false);
       this.overlayWindow.setResizable(false);
-      this.overlayWindow.setIgnoreMouseEvents(true, { forward: true });
-      this.overlayWindow.setAlwaysOnTop(true, "screen-saver");
-      this.overlayWindow.blur();
     } else {
-      this.overlayWindow.setIgnoreMouseEvents(false);
       this.overlayWindow.setFocusable(true);
       this.overlayWindow.setResizable(true);
-      this.overlayWindow.setAlwaysOnTop(true, "floating");
       this.attachBoundsListeners();
     }
   }

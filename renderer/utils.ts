@@ -60,7 +60,10 @@ export interface RarityStyles {
  * drive the drops list.  Badge fields (`badgeBg`, `badgeText`, `badgeBorder`)
  * are designed for small chips / badges on a dark background.
  */
-export function getRarityStyles(rarity: Rarity): RarityStyles {
+export function getRarityStyles(
+  rarity: Rarity,
+  gradientDir?: "left" | "right",
+): RarityStyles {
   switch (rarity) {
     case 0: // Unknown — no data or low-confidence pricing
       return {
@@ -76,8 +79,7 @@ export function getRarityStyles(rarity: Rarity): RarityStyles {
       };
     case 1: // Extremely Rare
       return {
-        bgGradient:
-          "linear-gradient(to right, rgb(255, 255, 255) 50%, transparent)",
+        bgGradient: `linear-gradient(to ${gradientDir}, rgb(255, 255, 255) 50%, transparent)`,
         text: "rgb(0, 0, 255)",
         border: "rgb(0, 0, 255)",
         beam: "orangered",
@@ -89,8 +91,7 @@ export function getRarityStyles(rarity: Rarity): RarityStyles {
       };
     case 2: // Rare
       return {
-        bgGradient:
-          "linear-gradient(to right, rgb(0, 20, 180) 50%, transparent)",
+        bgGradient: `linear-gradient(to ${gradientDir}, rgb(0, 20, 180) 50%, transparent)`,
         text: "rgb(255, 255, 255)",
         border: "rgb(255, 255, 255)",
         beam: "yellow",
@@ -102,8 +103,7 @@ export function getRarityStyles(rarity: Rarity): RarityStyles {
       };
     case 3: // Less Common
       return {
-        bgGradient:
-          "linear-gradient(to right, rgb(0, 220, 240) 50%, transparent)",
+        bgGradient: `linear-gradient(to ${gradientDir}, rgb(0, 220, 240) 50%, transparent)`,
         text: "rgb(0, 0, 0)",
         border: "rgb(0, 0, 0)",
         beam: "",

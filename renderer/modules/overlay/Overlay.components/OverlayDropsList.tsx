@@ -1,15 +1,15 @@
 import { AnimatePresence, motion } from "motion/react";
-import { FiAlertTriangle } from "react-icons/fi";
 import { GiCardExchange } from "react-icons/gi";
 
 import { useBoundStore } from "~/renderer/store";
-import { formatCurrency, getRarityStyles } from "~/renderer/utils";
+import { getRarityStyles } from "~/renderer/utils";
 
-import { Beam } from "../Overlay.components";
+import { DropBeamColumn } from "./DropBeamColumn";
+import { DropContentColumn } from "./DropContentColumn";
 
 export const OverlayDropsList = () => {
   const {
-    overlay: { sessionData, getFilteredDrops, activeTab },
+    overlay: { sessionData, getFilteredDrops, activeTab, isLeftHalf },
   } = useBoundStore();
 
   const filteredDrops = getFilteredDrops() || [];
@@ -47,14 +47,17 @@ export const OverlayDropsList = () => {
         const price = drop[`${sessionData.priceSource}Price`];
         const chaosValue = price?.chaosValue || 0;
         const rarity = drop.rarity ?? 0;
-        const rarityStyles = getRarityStyles(rarity);
+        const rarityStyles = getRarityStyles(
+          rarity,
+          isLeftHalf ? "left" : "right",
+        );
         const isUnknownRarity = rarity === 0;
 
         return (
           <motion.div
             key={`${drop.cardName}-${index}`}
             layout="position"
-            initial={isNew ? { x: -80, opacity: 0 } : false}
+            initial={isNew ? { x: isLeftHalf ? 80 : -80, opacity: 0 } : false}
             animate={{ x: 0, opacity: 1 }}
             exit={{ opacity: 0, height: 0 }}
             transition={{
@@ -62,45 +65,20 @@ export const OverlayDropsList = () => {
               duration: 0.08,
               ease: "easeOut",
             }}
-            className="relative z-20 flex min-w-0"
+            className={`relative z-20 flex min-w-0 ${
+              isLeftHalf ? "flex-row" : "flex-row-reverse"
+            }`}
           >
-            <div className="w-[40px] relative shrink-0">
-              {rarityStyles.showBeam && (
-                <Beam className="absolute inset-0" color={rarityStyles.beam} />
-              )}
-              {isUnknownRarity && (
-                <div
-                  className="absolute inset-0 flex items-center justify-center tooltip tooltip-right tooltip-warning"
-                  data-tip="Low confidence price"
-                >
-                  <FiAlertTriangle className="w-4 h-4 text-warning/30" />
-                </div>
-              )}
-            </div>
-
-            <div
-              className="font-fontin flex-1 flex justify-between text-sm py-0.5 px-1 gap-2 min-w-0"
-              style={{
-                background: rarityStyles.bgGradient,
-                borderWidth: rarityStyles.border ? "1px" : "0",
-                borderStyle: rarityStyles.border ? "solid" : "none",
-                borderColor: rarityStyles.border || "transparent",
-              }}
-            >
-              <span
-                className="truncate flex-1 min-w-0"
-                style={{
-                  color: rarityStyles.text || "inherit",
-                }}
-              >
-                {drop.cardName}
-              </span>
-              <span className="text-amber-300 shrink-0">
-                {chaosValue > 0
-                  ? formatCurrency(chaosValue, sessionData.chaosToDivineRatio)
-                  : "—"}
-              </span>
-            </div>
+            <DropContentColumn
+              cardName={drop.cardName}
+              chaosValue={chaosValue}
+              rarityStyles={rarityStyles}
+            />
+            <DropBeamColumn
+              showBeam={!!rarityStyles.showBeam}
+              beamColor={rarityStyles.beam}
+              isUnknownRarity={isUnknownRarity}
+            />
           </motion.div>
         );
       })}

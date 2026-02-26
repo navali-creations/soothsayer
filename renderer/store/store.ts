@@ -240,6 +240,8 @@ export const useBoundStore = create<BoundStore>()(
               overlay.isVisible = false;
               overlay.isLoading = false;
               overlay.error = null;
+              overlay.isLocked = true;
+              overlay.isLeftHalf = false;
 
               // Reset changelog
               changelog.releases = [];

@@ -13,6 +13,8 @@ export interface OverlaySlice {
     error: string | null;
     sessionData: SessionData;
     activeTab: OverlayTab;
+    isLocked: boolean;
+    isLeftHalf: boolean;
 
     // Actions
     hydrate: () => Promise<void>;
@@ -26,6 +28,8 @@ export interface OverlaySlice {
     setActiveTab: (tab: OverlayTab) => void;
     getFilteredDrops: () => SessionData["recentDrops"];
     startListening: () => () => void;
+    setLocked: (locked: boolean) => Promise<void>;
+    detectZone: () => void;
   };
 }
 
@@ -50,6 +54,8 @@ export const createOverlaySlice: StateCreator<
       isActive: false,
     },
     activeTab: "all",
+    isLocked: true,
+    isLeftHalf: false,
 
     // Hydrate overlay visibility state
     hydrate: async () => {
@@ -62,6 +68,9 @@ export const createOverlaySlice: StateCreator<
           false,
           "overlaySlice/hydrate",
         );
+
+        // Detect initial zone placement
+        get().overlay.detectZone();
       } catch (error) {
         console.error("Failed to get overlay visibility:", error);
       }
@@ -84,6 +93,8 @@ export const createOverlaySlice: StateCreator<
       set(
         ({ overlay }) => {
           overlay.isVisible = false;
+          overlay.isLocked = true;
+          overlay.isLeftHalf = false;
         },
         false,
         "overlaySlice/hide",
@@ -180,6 +191,52 @@ export const createOverlaySlice: StateCreator<
       );
 
       return cleanup;
+    },
+
+    setLocked: async (locked: boolean) => {
+      await window.electron?.overlay.setLocked(locked);
+
+      set(
+        ({ overlay }) => {
+          overlay.isLocked = locked;
+        },
+        false,
+        "overlaySlice/setLocked",
+      );
+
+      // When locking, recalculate zone so layout flips immediately
+      if (locked) {
+        get().overlay.detectZone();
+      }
+    },
+
+    detectZone: () => {
+      try {
+        // Use window.screenX and window.screen.width to determine
+        // if the overlay center is in the left half of the screen
+        const overlayX = window.screenX ?? 0;
+        const overlayWidth = window.outerWidth ?? 250;
+        const screenWidth = window.screen?.width ?? 1920;
+        const overlayCenter = overlayX + overlayWidth / 2;
+        const isLeftHalf = overlayCenter < screenWidth / 2;
+
+        set(
+          ({ overlay }) => {
+            overlay.isLeftHalf = isLeftHalf;
+          },
+          false,
+          "overlaySlice/detectZone",
+        );
+      } catch {
+        // Fallback: assume right half (default layout)
+        set(
+          ({ overlay }) => {
+            overlay.isLeftHalf = false;
+          },
+          false,
+          "overlaySlice/detectZone/fallback",
+        );
+      }
     },
   },
 });
