@@ -200,6 +200,7 @@ const CurrentSessionActions = () => {
                 variant="ghost"
                 onClick={stopSession}
                 disabled={isLoading}
+                className="w-[137px]"
               >
                 <svg viewBox="0 0 24 24" className="w-4 h-4">
                   <rect
@@ -235,6 +236,7 @@ const CurrentSessionActions = () => {
                 variant="ghost"
                 onClick={startSession}
                 disabled={isLoading}
+                className="w-[137px]"
               >
                 <FiPlay /> Start Session
               </Button>
