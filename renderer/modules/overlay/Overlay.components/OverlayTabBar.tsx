@@ -10,13 +10,8 @@ export const OverlayTabBar = () => {
 
   const isSessionActive = sessionData.isActive;
 
-  const handleButtonClick = () => {
-    if (isSessionActive) {
-      return setActiveTab("all");
-    }
-
-    return setActiveTab("valuable");
-  };
+  const handleAllClick = () => setActiveTab("all");
+  const handleValuableClick = () => setActiveTab("valuable");
 
   return (
     <div
@@ -36,7 +31,7 @@ export const OverlayTabBar = () => {
           role="tab"
           variant="ghost"
           size="sm"
-          onClick={handleButtonClick}
+          onClick={handleAllClick}
           disabled={!isSessionActive}
           className={clsx("tab", { "tab-active": activeTab === "all" })}
         >
@@ -56,7 +51,7 @@ export const OverlayTabBar = () => {
           variant="ghost"
           size="sm"
           className={clsx("tab", { "tab-active": activeTab === "valuable" })}
-          onClick={handleButtonClick}
+          onClick={handleValuableClick}
           disabled={!isSessionActive}
         >
           Valuable
