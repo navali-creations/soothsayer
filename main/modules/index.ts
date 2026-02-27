@@ -13,6 +13,7 @@ export * from "./overlay";
 export * from "./performance-logger";
 export * from "./poe-leagues";
 export * from "./poe-process";
+export * from "./profit-forecast";
 export * from "./prohibited-library";
 export * from "./rarity-model";
 export * from "./sentry";

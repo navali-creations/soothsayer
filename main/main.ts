@@ -11,6 +11,7 @@ import {
   AppSetupService,
   MainWindowService,
   OverlayService,
+  ProfitForecastService,
   RarityModelService,
   SupabaseClientService,
 } from "./modules";
@@ -27,6 +28,7 @@ const mainWindow = MainWindowService.getInstance();
 const overlay = OverlayService.getInstance();
 const _appSetup = AppSetupService.getInstance();
 const _filterService = RarityModelService.getInstance();
+const _profitForecast = ProfitForecastService.getInstance();
 const supabase = SupabaseClientService.getInstance();
 
 function initializeSupabase() {

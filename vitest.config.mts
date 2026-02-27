@@ -15,8 +15,12 @@ export default defineConfig({
     globals: true,
     environment: "node",
     setupFiles: ["./main/__test-setup__/setup.ts"],
-    include: ["main/**/__tests__/**/*.test.ts", "main/**/*.test.ts"],
-    exclude: ["node_modules", "out", ".vite", "renderer"],
+    include: [
+      "main/**/__tests__/**/*.test.ts",
+      "main/**/*.test.ts",
+      "renderer/modules/**/__tests__/**/*.test.ts",
+    ],
+    exclude: ["node_modules", "out", ".vite"],
     testTimeout: 10_000,
     pool: "forks",
     coverage: {

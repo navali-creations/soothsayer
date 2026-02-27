@@ -36,6 +36,10 @@ import {
   type PoeNinjaSlice,
 } from "../modules/poe-ninja/PoeNinja.slice";
 import {
+  createProfitForecastSlice,
+  type ProfitForecastSlice,
+} from "../modules/profit-forecast/ProfitForecast.slice";
+import {
   createProhibitedLibrarySlice,
   type ProhibitedLibrarySlice,
 } from "../modules/prohibited-library/ProhibitedLibrary.slice";
@@ -96,6 +100,7 @@ type BoundStore = GameInfoSlice &
   OnboardingSlice &
   UpdaterSlice &
   RarityModelSlice &
+  ProfitForecastSlice &
   RarityModelComparisonSlice &
   RootActions;
 
@@ -116,6 +121,7 @@ export const useBoundStore = create<BoundStore>()(
       const statisticsSlice = createStatisticsSlice(...a);
       const onboardingSlice = createOnboardingSlice(...a);
       const updaterSlice = createUpdaterSlice(...a);
+      const profitForecastSlice = createProfitForecastSlice(...a);
       const prohibitedLibrarySlice = createProhibitedLibrarySlice(...a);
       const rarityModelSlice = createRarityModelSlice(...a);
       const rarityModelComparisonSlice = createRarityModelComparisonSlice(...a);
@@ -132,6 +138,7 @@ export const useBoundStore = create<BoundStore>()(
         ...overlaySlice,
         ...cardsSlice,
         ...poeNinjaSlice,
+        ...profitForecastSlice,
         ...prohibitedLibrarySlice,
         ...statisticsSlice,
         ...onboardingSlice,
@@ -308,6 +315,22 @@ export const useBoundStore = create<BoundStore>()(
               rarityModel.scanError = null;
               rarityModel.parseError = null;
               rarityModel.lastScannedAt = null;
+
+              // Reset profit forecast
+              state.profitForecast.rows = [];
+              state.profitForecast.totalWeight = 0;
+              state.profitForecast.evPerDeck = 0;
+              state.profitForecast.snapshotFetchedAt = null;
+              state.profitForecast.chaosToDivineRatio = 0;
+              state.profitForecast.stackedDeckChaosCost = 0;
+              state.profitForecast.baseRate = 0;
+              state.profitForecast.isLoading = false;
+              state.profitForecast.isComputing = false;
+              state.profitForecast.error = null;
+              state.profitForecast.selectedBatch = 10000;
+              state.profitForecast.minPriceThreshold = 5;
+              state.profitForecast.stepDrop = 2;
+              state.profitForecast.subBatchSize = 5000;
 
               // Reset rarity model comparison
               state.rarityModelComparison.selectedFilters = [];
