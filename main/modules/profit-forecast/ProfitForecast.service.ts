@@ -4,10 +4,6 @@ import { DatabaseService } from "~/main/modules/database";
 import { LoggerService } from "~/main/modules/logger";
 import { ProhibitedLibraryService } from "~/main/modules/prohibited-library";
 import {
-  SettingsKey,
-  SettingsStoreService,
-} from "~/main/modules/settings-store";
-import {
   assertBoundedString,
   assertGameType,
   handleValidationError,
@@ -26,7 +22,7 @@ import type {
  *
  * Serves a single IPC channel (`profit-forecast:get-data`) that returns:
  * 1. The most recent snapshot for the requested league (no time restriction)
- * 2. Prohibited Library card weights (weight > 0 only)
+ * 2. Prohibited Library card weights (weight > 0, excluding boss-only cards)
  *
  * All cost-model and batch calculations happen renderer-side — this service
  * is purely a data provider.
@@ -35,7 +31,6 @@ export class ProfitForecastService {
   private static _instance: ProfitForecastService;
   private readonly logger = LoggerService.createLogger("ProfitForecast");
   private readonly kysely;
-  private readonly settingsStore: SettingsStoreService;
 
   static getInstance(): ProfitForecastService {
     if (!ProfitForecastService._instance) {
@@ -47,7 +42,6 @@ export class ProfitForecastService {
   private constructor() {
     const db = DatabaseService.getInstance();
     this.kysely = db.getKysely();
-    this.settingsStore = SettingsStoreService.getInstance();
 
     this.setupIpcHandlers();
 
@@ -146,6 +140,7 @@ export class ProfitForecastService {
           chaosValue: row.chaos_value,
           divineValue: row.divine_value,
           source: "exchange",
+          confidence: (row.confidence ?? 1) as 1 | 2 | 3,
         };
       }
     }
@@ -157,6 +152,7 @@ export class ProfitForecastService {
           chaosValue: row.chaos_value,
           divineValue: row.divine_value,
           source: "stash",
+          confidence: (row.confidence ?? 1) as 1 | 2 | 3,
         };
       }
     }
@@ -166,6 +162,8 @@ export class ProfitForecastService {
       fetchedAt: snapshotRow.fetched_at,
       chaosToDivineRatio: snapshotRow.exchange_chaos_to_divine,
       stackedDeckChaosCost: snapshotRow.stacked_deck_chaos_cost,
+      stackedDeckMaxVolumeRate:
+        snapshotRow.stacked_deck_max_volume_rate ?? null,
       cardPrices,
     };
 
@@ -183,12 +181,14 @@ export class ProfitForecastService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   /**
-   * Get PL card weights (weight > 0) for the given game.
+   * Get PL card weights for the given game.
    *
-   * Delegates to ProhibitedLibraryService's repository which handles
-   * the actual database queries. We replicate the same league resolution
-   * logic used by the PL service's IPC handler: try active league first,
-   * then fall back to the metadata league (n-1 fallback).
+   * Delegates to `plService.ensureLoaded()` which lazily parses the
+   * bundled CSV on first access, then queries the metadata league
+   * (the league the CSV data was stored under — e.g. "Keepers").
+   *
+   * The user's active league setting is irrelevant here — the weights
+   * are model-estimated values that apply cross-league.
    */
   private async getWeights(
     game: "poe1" | "poe2",
@@ -197,32 +197,36 @@ export class ProfitForecastService {
       const plService = ProhibitedLibraryService.getInstance();
       const repository = plService.getRepository();
 
-      // Use the same league resolution logic as the PL service:
-      // try active league first, then fall back to metadata league
-      const leagueKey =
-        game === "poe1"
-          ? SettingsKey.SelectedPoe1League
-          : SettingsKey.SelectedPoe2League;
-      const activeLeague = await this.settingsStore.get(leagueKey);
+      // Lazy-load if needed (no-op when data already exists)
+      await plService.ensureLoaded(game);
 
-      let allWeights = await repository.getCardWeights(game, activeLeague);
-
-      // Fallback to metadata league if active league has no data
-      if (allWeights.length === 0) {
-        const metadata = await repository.getMetadata(game);
-        if (metadata && metadata.league !== activeLeague) {
-          allWeights = await repository.getCardWeights(game, metadata.league);
-        }
+      const metadata = await repository.getMetadata(game);
+      if (!metadata) {
+        this.logger.warn(`[${game}] No PL metadata after ensureLoaded`);
+        return [];
       }
 
-      // Filter to weight > 0 and map to our DTO shape
-      return allWeights
-        .filter((w) => w.weight > 0)
-        .map((w) => ({
-          cardName: w.cardName,
-          weight: w.weight,
-          fromBoss: w.fromBoss,
-        }));
+      const allWeights = await repository.getCardWeights(game, metadata.league);
+
+      // Exclude boss-only cards (they don't drop from stacked decks)
+      const nonBoss = allWeights.filter((w) => !w.fromBoss);
+
+      // Find the minimum observed non-zero weight in the dataset.
+      // Cards with weight 0 weren't seen in this league's sample but CAN
+      // still drop from stacked decks — they're ultra-rare, not impossible.
+      // We assign them the floor weight so they appear in the forecast with
+      // the rarest-possible probability.
+      const minWeight = nonBoss.reduce(
+        (min, w) => (w.weight > 0 && w.weight < min ? w.weight : min),
+        Number.MAX_SAFE_INTEGER,
+      );
+      const floorWeight = minWeight === Number.MAX_SAFE_INTEGER ? 1 : minWeight;
+
+      return nonBoss.map((w) => ({
+        cardName: w.cardName,
+        weight: w.weight > 0 ? w.weight : floorWeight,
+        fromBoss: false,
+      }));
     } catch (error) {
       this.logger.error(`Failed to load PL weights for game=${game}:`, error);
       return [];

@@ -14,6 +14,7 @@ import { Route as SetupRouteImport } from './routes/setup'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SessionsRouteImport } from './routes/sessions'
 import { Route as RarityModelRouteImport } from './routes/rarity-model'
+import { Route as ProfitForecastRouteImport } from './routes/profit-forecast'
 import { Route as ChangelogRouteImport } from './routes/changelog'
 import { Route as CardsRouteImport } from './routes/cards'
 import { Route as AboutRouteImport } from './routes/about'
@@ -45,6 +46,11 @@ const SessionsRoute = SessionsRouteImport.update({
 const RarityModelRoute = RarityModelRouteImport.update({
   id: '/rarity-model',
   path: '/rarity-model',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfitForecastRoute = ProfitForecastRouteImport.update({
+  id: '/profit-forecast',
+  path: '/profit-forecast',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChangelogRoute = ChangelogRouteImport.update({
@@ -88,6 +94,7 @@ export interface FileRoutesByFullPath {
   '/about': typeof AboutRoute
   '/cards': typeof CardsRouteWithChildren
   '/changelog': typeof ChangelogRoute
+  '/profit-forecast': typeof ProfitForecastRoute
   '/rarity-model': typeof RarityModelRoute
   '/sessions': typeof SessionsRouteWithChildren
   '/settings': typeof SettingsRoute
@@ -101,6 +108,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/changelog': typeof ChangelogRoute
+  '/profit-forecast': typeof ProfitForecastRoute
   '/rarity-model': typeof RarityModelRoute
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
@@ -115,6 +123,7 @@ export interface FileRoutesById {
   '/about': typeof AboutRoute
   '/cards': typeof CardsRouteWithChildren
   '/changelog': typeof ChangelogRoute
+  '/profit-forecast': typeof ProfitForecastRoute
   '/rarity-model': typeof RarityModelRoute
   '/sessions': typeof SessionsRouteWithChildren
   '/settings': typeof SettingsRoute
@@ -131,6 +140,7 @@ export interface FileRouteTypes {
     | '/about'
     | '/cards'
     | '/changelog'
+    | '/profit-forecast'
     | '/rarity-model'
     | '/sessions'
     | '/settings'
@@ -144,6 +154,7 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/changelog'
+    | '/profit-forecast'
     | '/rarity-model'
     | '/settings'
     | '/setup'
@@ -157,6 +168,7 @@ export interface FileRouteTypes {
     | '/about'
     | '/cards'
     | '/changelog'
+    | '/profit-forecast'
     | '/rarity-model'
     | '/sessions'
     | '/settings'
@@ -172,6 +184,7 @@ export interface RootRouteChildren {
   AboutRoute: typeof AboutRoute
   CardsRoute: typeof CardsRouteWithChildren
   ChangelogRoute: typeof ChangelogRoute
+  ProfitForecastRoute: typeof ProfitForecastRoute
   RarityModelRoute: typeof RarityModelRoute
   SessionsRoute: typeof SessionsRouteWithChildren
   SettingsRoute: typeof SettingsRoute
@@ -214,6 +227,13 @@ declare module '@tanstack/react-router' {
       path: '/rarity-model'
       fullPath: '/rarity-model'
       preLoaderRoute: typeof RarityModelRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profit-forecast': {
+      id: '/profit-forecast'
+      path: '/profit-forecast'
+      fullPath: '/profit-forecast'
+      preLoaderRoute: typeof ProfitForecastRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/changelog': {
@@ -297,6 +317,7 @@ const rootRouteChildren: RootRouteChildren = {
   AboutRoute: AboutRoute,
   CardsRoute: CardsRouteWithChildren,
   ChangelogRoute: ChangelogRoute,
+  ProfitForecastRoute: ProfitForecastRoute,
   RarityModelRoute: RarityModelRoute,
   SessionsRoute: SessionsRouteWithChildren,
   SettingsRoute: SettingsRoute,

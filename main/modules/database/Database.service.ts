@@ -154,6 +154,7 @@ class DatabaseService {
           exchange_chaos_to_divine REAL NOT NULL,
           stash_chaos_to_divine REAL NOT NULL,
           stacked_deck_chaos_cost REAL NOT NULL DEFAULT 0,
+          stacked_deck_max_volume_rate REAL DEFAULT NULL,
           created_at TEXT NOT NULL DEFAULT (datetime('now')),
           FOREIGN KEY (league_id) REFERENCES leagues(id) ON DELETE CASCADE
         )

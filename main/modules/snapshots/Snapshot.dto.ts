@@ -14,6 +14,8 @@ export interface SnapshotDTO {
   exchangeChaosToDivine: number;
   stashChaosToDivine: number;
   stackedDeckChaosCost: number;
+  /** Bulk exchange rate (decks/divine) from poe.ninja maxVolumeRate. NULL for older snapshots. */
+  stackedDeckMaxVolumeRate: number | null;
 }
 
 export interface SnapshotCardPriceDTO {

@@ -23,6 +23,7 @@ export class SnapshotMapper {
       exchangeChaosToDivine: row.exchange_chaos_to_divine,
       stashChaosToDivine: row.stash_chaos_to_divine,
       stackedDeckChaosCost: row.stacked_deck_chaos_cost,
+      stackedDeckMaxVolumeRate: row.stacked_deck_max_volume_rate,
     };
   }
 

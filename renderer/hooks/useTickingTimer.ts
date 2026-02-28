@@ -1,5 +1,24 @@
 import { useEffect, useRef, useState } from "react";
 
+/**
+ * Formats a TickingTimer result into a human-readable countdown string.
+ * Examples: "5h 59m 42s", "12m 05s", "0m 08s"
+ */
+export function formatTickingTimer(timer: {
+  hours: number;
+  minutes: number;
+  seconds: number;
+}): string {
+  const { hours, minutes, seconds } = timer;
+
+  if (hours > 0) {
+    return `${hours}h ${String(minutes).padStart(2, "0")}m ${String(
+      seconds,
+    ).padStart(2, "0")}s`;
+  }
+  return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+}
+
 export type TickDirection = "up" | "down";
 
 export interface TickingTimerOptions {

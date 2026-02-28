@@ -239,6 +239,7 @@ class SnapshotService {
     return {
       timestamp: snapshot.fetchedAt,
       stackedDeckChaosCost: snapshot.stackedDeckChaosCost ?? 0,
+      stackedDeckMaxVolumeRate: snapshot.stackedDeckMaxVolumeRate ?? undefined,
       exchange: {
         chaosToDivineRatio: snapshot.exchangeChaosToDivine,
         cardPrices: exchangePrices,

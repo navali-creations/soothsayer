@@ -19,6 +19,7 @@ const {
   mockOverlayGetInstance,
   mockAppSetupGetInstance,
   mockRarityModelServiceGetInstance,
+  mockProfitForecastGetInstance,
   mockSupabaseGetInstance,
   mockSupabaseConfigure,
   mockRequestSingleInstanceLock,
@@ -44,6 +45,7 @@ const {
   mockOverlayGetInstance: vi.fn(),
   mockAppSetupGetInstance: vi.fn(),
   mockRarityModelServiceGetInstance: vi.fn(),
+  mockProfitForecastGetInstance: vi.fn(),
   mockSupabaseGetInstance: vi.fn(),
   mockSupabaseConfigure: vi.fn(),
   mockRequestSingleInstanceLock: vi.fn(() => true),
@@ -141,6 +143,7 @@ vi.mock("~/main/modules", () => {
     OverlayService: { getInstance: mockOverlayGetInstance },
     AppSetupService: { getInstance: mockAppSetupGetInstance },
     RarityModelService: { getInstance: mockRarityModelServiceGetInstance },
+    ProfitForecastService: { getInstance: mockProfitForecastGetInstance },
     SupabaseClientService: { getInstance: mockSupabaseGetInstance },
   };
 });

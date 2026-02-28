@@ -8,9 +8,16 @@ type PopoverProps = {
   title: string;
   subtitle?: string;
   children: ReactNode;
+  className?: string;
 } & PopoverComponentProps;
 
-const Popover = ({ title, subtitle, children, ...props }: PopoverProps) => {
+const Popover = ({
+  title,
+  subtitle,
+  children,
+  className,
+  ...props
+}: PopoverProps) => {
   const handleAcknowledge = () => {
     trackEvent("onboarding-step-acknowledged", {
       beaconId: props.beaconId,
@@ -20,7 +27,9 @@ const Popover = ({ title, subtitle, children, ...props }: PopoverProps) => {
   return (
     <ReperePopover
       {...props}
-      className="w-[400px] p-3 rounded-2xl shadow-lg shadow-primary/50 border-2 border-primary [background:color-mix(in_oklab,var(--color-accent)_30%,black)]"
+      className={`w-[400px] p-3 rounded-2xl shadow-lg shadow-primary/50 border-2 border-primary [background:color-mix(in_oklab,var(--color-accent)_30%,black)] ${
+        className ?? ""
+      }`}
     >
       <ReperePopover.Title>
         <span className="text-lg font-bold text-primary">{title}</span>

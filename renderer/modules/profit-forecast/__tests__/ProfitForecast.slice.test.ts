@@ -9,11 +9,13 @@ import type {
 import {
   buildRows,
   type CardForecastRow,
+  computeBaseRate,
   computeEvPerDeck,
   computeRateForBatch,
   computeTotalChaosCost,
   RATE_FLOOR,
   recomputeDynamicFields,
+  resolveEffectiveWeight,
 } from "../ProfitForecast.slice";
 
 // ── Test Fixtures ──────────────────────────────────────────────────────────────
@@ -24,7 +26,11 @@ function makeWeights(
   const defaults: ProfitForecastWeightDTO[] = [
     { cardName: "The Doctor", weight: 1, fromBoss: false },
     { cardName: "The Nurse", weight: 5, fromBoss: false },
-    { cardName: "Rain of Chaos", weight: 500, fromBoss: false },
+    {
+      cardName: "Rain of Chaos",
+      weight: 500,
+      fromBoss: false,
+    },
     { cardName: "The Wretched", weight: 200, fromBoss: true },
   ];
   if (overrides.length > 0) {
@@ -46,10 +52,30 @@ function makePrices(
 ): Record<string, ProfitForecastCardPriceDTO> {
   const map: Record<string, ProfitForecastCardPriceDTO> = {};
   const values: Record<string, ProfitForecastCardPriceDTO> = {
-    "The Doctor": { chaosValue: 50000, divineValue: 250, source: "exchange" },
-    "The Nurse": { chaosValue: 8000, divineValue: 40, source: "exchange" },
-    "Rain of Chaos": { chaosValue: 0.5, divineValue: 0.0025, source: "stash" },
-    "The Wretched": { chaosValue: 1, divineValue: 0.005, source: "exchange" },
+    "The Doctor": {
+      chaosValue: 50000,
+      divineValue: 250,
+      source: "exchange",
+      confidence: 1,
+    },
+    "The Nurse": {
+      chaosValue: 8000,
+      divineValue: 40,
+      source: "exchange",
+      confidence: 1,
+    },
+    "Rain of Chaos": {
+      chaosValue: 0.5,
+      divineValue: 0.0025,
+      source: "stash",
+      confidence: 1,
+    },
+    "The Wretched": {
+      chaosValue: 1,
+      divineValue: 0.005,
+      source: "exchange",
+      confidence: 1,
+    },
   };
   for (const card of cards) {
     if (values[card]) {
@@ -69,6 +95,7 @@ function makeDTO(
       fetchedAt: "2025-01-15T12:00:00Z",
       chaosToDivineRatio: 200,
       stackedDeckChaosCost: 2.22,
+      stackedDeckMaxVolumeRate: null,
       cardPrices: makePrices(),
     },
     weights,
@@ -77,6 +104,145 @@ function makeDTO(
 }
 
 // ── Pure Helper Tests ──────────────────────────────────────────────────────────
+
+// ── resolveEffectiveWeight ─────────────────────────────────────────────────────
+
+describe("resolveEffectiveWeight", () => {
+  it("returns the weight from the DTO directly", () => {
+    expect(
+      resolveEffectiveWeight({
+        cardName: "The Doctor",
+        weight: 42,
+        fromBoss: false,
+      }),
+    ).toBe(42);
+  });
+
+  it("returns 0 when weight is 0", () => {
+    expect(
+      resolveEffectiveWeight({ cardName: "Test", weight: 0, fromBoss: false }),
+    ).toBe(0);
+  });
+
+  it("returns weight regardless of fromBoss flag", () => {
+    expect(
+      resolveEffectiveWeight({
+        cardName: "Boss Card",
+        weight: 10,
+        fromBoss: true,
+      }),
+    ).toBe(10);
+  });
+});
+
+// ── computeBaseRate ────────────────────────────────────────────────────────────
+
+describe("computeBaseRate", () => {
+  it("returns { baseRate: 0, source: 'none' } when snapshot is null", () => {
+    const result = computeBaseRate(null);
+    expect(result).toEqual({ baseRate: 0, source: "none" });
+  });
+
+  it("prefers maxVolumeRate when available and positive", () => {
+    const result = computeBaseRate({
+      id: "snap-1",
+      fetchedAt: "2025-01-15T12:00:00Z",
+      chaosToDivineRatio: 200,
+      stackedDeckChaosCost: 2.22,
+      stackedDeckMaxVolumeRate: 64.93,
+      cardPrices: {},
+    });
+    // floor(64.93) = 64, which is above RATE_FLOOR (60)
+    expect(result).toEqual({ baseRate: 64, source: "maxVolumeRate" });
+  });
+
+  it("clamps maxVolumeRate to RATE_FLOOR when floored value is below", () => {
+    const result = computeBaseRate({
+      id: "snap-1",
+      fetchedAt: "2025-01-15T12:00:00Z",
+      chaosToDivineRatio: 200,
+      stackedDeckChaosCost: 5,
+      stackedDeckMaxVolumeRate: 55.5, // floor = 55, below RATE_FLOOR
+      cardPrices: {},
+    });
+    expect(result).toEqual({ baseRate: RATE_FLOOR, source: "maxVolumeRate" });
+  });
+
+  it("falls back to derived rate when maxVolumeRate is null", () => {
+    const result = computeBaseRate({
+      id: "snap-1",
+      fetchedAt: "2025-01-15T12:00:00Z",
+      chaosToDivineRatio: 200,
+      stackedDeckChaosCost: 2.22,
+      stackedDeckMaxVolumeRate: null,
+      cardPrices: {},
+    });
+    // floor(200 / 2.22) = floor(90.09) = 90
+    expect(result).toEqual({ baseRate: 90, source: "derived" });
+  });
+
+  it("falls back to derived rate when maxVolumeRate is 0", () => {
+    const result = computeBaseRate({
+      id: "snap-1",
+      fetchedAt: "2025-01-15T12:00:00Z",
+      chaosToDivineRatio: 200,
+      stackedDeckChaosCost: 2.22,
+      stackedDeckMaxVolumeRate: 0,
+      cardPrices: {},
+    });
+    expect(result).toEqual({ baseRate: 90, source: "derived" });
+  });
+
+  it("falls back to derived rate when maxVolumeRate is negative", () => {
+    const result = computeBaseRate({
+      id: "snap-1",
+      fetchedAt: "2025-01-15T12:00:00Z",
+      chaosToDivineRatio: 200,
+      stackedDeckChaosCost: 2.22,
+      stackedDeckMaxVolumeRate: -10,
+      cardPrices: {},
+    });
+    expect(result).toEqual({ baseRate: 90, source: "derived" });
+  });
+
+  it("returns { baseRate: 0, source: 'none' } when both maxVolumeRate and stackedDeckChaosCost are unavailable", () => {
+    const result = computeBaseRate({
+      id: "snap-1",
+      fetchedAt: "2025-01-15T12:00:00Z",
+      chaosToDivineRatio: 200,
+      stackedDeckChaosCost: 0,
+      stackedDeckMaxVolumeRate: null,
+      cardPrices: {},
+    });
+    expect(result).toEqual({ baseRate: 0, source: "none" });
+  });
+
+  it("clamps derived rate to RATE_FLOOR when computed value is below", () => {
+    const result = computeBaseRate({
+      id: "snap-1",
+      fetchedAt: "2025-01-15T12:00:00Z",
+      chaosToDivineRatio: 200,
+      stackedDeckChaosCost: 10, // 200/10 = 20, below RATE_FLOOR
+      stackedDeckMaxVolumeRate: null,
+      cardPrices: {},
+    });
+    expect(result).toEqual({ baseRate: RATE_FLOOR, source: "derived" });
+  });
+
+  it("uses maxVolumeRate even when derived rate would be higher", () => {
+    // maxVolumeRate = 65 (floor), derived = floor(200/2.22) = 90
+    // maxVolumeRate should still win because it reflects actual market
+    const result = computeBaseRate({
+      id: "snap-1",
+      fetchedAt: "2025-01-15T12:00:00Z",
+      chaosToDivineRatio: 200,
+      stackedDeckChaosCost: 2.22,
+      stackedDeckMaxVolumeRate: 65,
+      cardPrices: {},
+    });
+    expect(result).toEqual({ baseRate: 65, source: "maxVolumeRate" });
+  });
+});
 
 describe("computeRateForBatch", () => {
   it("returns baseRate for batch index 0", () => {
@@ -424,7 +590,10 @@ describe("recomputeDynamicFields", () => {
   it("sets plA and plB to 0 for cards without prices", () => {
     const weights = makeWeights();
     const prices = makePrices(["The Doctor"]); // only Doctor has price
-    const totalWeight = weights.reduce((s, w) => s + w.weight, 0);
+    const totalWeight = weights.reduce(
+      (s, w) => s + resolveEffectiveWeight(w),
+      0,
+    );
     const rows = buildRows(weights, prices, totalWeight);
     const evPerDeck = computeEvPerDeck(rows);
 
@@ -450,6 +619,7 @@ describe("recomputeDynamicFields", () => {
         divineValue: 0.5,
         evContribution: 0,
         hasPrice: true,
+        confidence: 1,
         chanceInBatch: 0,
         expectedDecks: 0,
         costToPull: 0,
@@ -574,6 +744,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
       expect(state.chaosToDivineRatio).toBe(0);
       expect(state.stackedDeckChaosCost).toBe(0);
       expect(state.baseRate).toBe(0);
+      expect(state.baseRateSource).toBe("none");
       expect(state.isLoading).toBe(false);
       expect(state.isComputing).toBe(false);
       expect(state.error).toBeNull();
@@ -650,35 +821,16 @@ describe("ProfitForecastSlice (Zustand)", () => {
       expect(state.baseRate).toBeGreaterThanOrEqual(RATE_FLOOR);
     });
 
-    it("computes baseRate = floor(chaosToDivineRatio / stackedDeckChaosCost)", async () => {
-      const dto = makeDTO();
+    it("populates baseRate and baseRateSource from snapshot via computeBaseRate", async () => {
+      const dto = makeDTO(); // maxVolumeRate is null → derived: floor(200/2.22) = 90
       (
         window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
       ).mockResolvedValue(dto);
 
       await store.getState().profitForecast.fetchData("poe1", "Settlers");
 
-      // 200 / 2.22 = 90.09... → floor = 90
       expect(store.getState().profitForecast.baseRate).toBe(90);
-    });
-
-    it("clamps baseRate to RATE_FLOOR if computed value is lower", async () => {
-      const dto = makeDTO({
-        snapshot: {
-          id: "snap-1",
-          fetchedAt: "2025-01-15T12:00:00Z",
-          chaosToDivineRatio: 200,
-          stackedDeckChaosCost: 10, // 200/10 = 20 → below RATE_FLOOR
-          cardPrices: makePrices(),
-        },
-      });
-      (
-        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
-      ).mockResolvedValue(dto);
-
-      await store.getState().profitForecast.fetchData("poe1", "Settlers");
-
-      expect(store.getState().profitForecast.baseRate).toBe(RATE_FLOOR);
+      expect(store.getState().profitForecast.baseRateSource).toBe("derived");
     });
 
     it("handles null snapshot gracefully", async () => {
@@ -694,6 +846,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
       expect(state.chaosToDivineRatio).toBe(0);
       expect(state.stackedDeckChaosCost).toBe(0);
       expect(state.baseRate).toBe(0);
+      expect(state.baseRateSource).toBe("none");
       expect(state.evPerDeck).toBe(0);
       // Rows should still exist with weights but no prices
       expect(state.rows.length).toBe(4);
@@ -800,25 +953,6 @@ describe("ProfitForecastSlice (Zustand)", () => {
       expect(state.rows).toEqual([]);
       expect(state.totalWeight).toBe(0);
       expect(state.evPerDeck).toBe(0);
-    });
-
-    it("handles stackedDeckChaosCost of 0 (baseRate stays 0)", async () => {
-      const dto = makeDTO({
-        snapshot: {
-          id: "snap-1",
-          fetchedAt: "2025-01-15T12:00:00Z",
-          chaosToDivineRatio: 200,
-          stackedDeckChaosCost: 0,
-          cardPrices: makePrices(),
-        },
-      });
-      (
-        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
-      ).mockResolvedValue(dto);
-
-      await store.getState().profitForecast.fetchData("poe1", "Settlers");
-
-      expect(store.getState().profitForecast.baseRate).toBe(0);
     });
 
     it("uses current UI controls (selectedBatch, stepDrop, subBatchSize) for initial recompute", async () => {
@@ -1023,7 +1157,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
         expect(filteredNames).not.toContain("The Wretched");
       });
 
-      it("includes all rows when threshold is 0", async () => {
+      it("includes all priced rows when threshold is 0", async () => {
         await setupWithData();
 
         store.getState().profitForecast.setMinPriceThreshold(0);
@@ -1031,14 +1165,31 @@ describe("ProfitForecastSlice (Zustand)", () => {
         expect(filtered.length).toBe(4);
       });
 
-      it("always includes cards without prices regardless of threshold", async () => {
-        // Cards with hasPrice=false should always be shown
+      it("includes rows at exactly the threshold boundary", async () => {
+        await setupWithData();
+
+        // The Wretched has chaosValue = 1, set threshold to exactly 1
+        store.getState().profitForecast.setMinPriceThreshold(1);
+        const filtered = store.getState().profitForecast.getFilteredRows();
+        const filteredNames = filtered.map((r) => r.cardName);
+
+        // chaosValue >= 1 → The Doctor (50000), The Nurse (8000), The Wretched (1) included
+        expect(filteredNames).toContain("The Doctor");
+        expect(filteredNames).toContain("The Nurse");
+        expect(filteredNames).toContain("The Wretched");
+        // Rain of Chaos (0.5) is below threshold
+        expect(filteredNames).not.toContain("Rain of Chaos");
+      });
+
+      it("excludes cards without prices", async () => {
+        // Cards with hasPrice=false should be filtered out
         const dto = makeDTO({
           snapshot: {
             id: "snap-1",
             fetchedAt: "2025-01-15T12:00:00Z",
             chaosToDivineRatio: 200,
             stackedDeckChaosCost: 2.22,
+            stackedDeckMaxVolumeRate: null,
             cardPrices: makePrices(["The Doctor"]), // Only Doctor has price
           },
         });
@@ -1047,13 +1198,16 @@ describe("ProfitForecastSlice (Zustand)", () => {
         ).mockResolvedValue(dto);
         await store.getState().profitForecast.fetchData("poe1", "Settlers");
 
-        store.getState().profitForecast.setMinPriceThreshold(100000);
+        store.getState().profitForecast.setMinPriceThreshold(0);
         const filtered = store.getState().profitForecast.getFilteredRows();
 
-        // The Nurse, Rain of Chaos, The Wretched have no price → included
-        // The Doctor has price 50000 < 100000 → excluded
-        expect(filtered.map((r) => r.cardName)).not.toContain("The Doctor");
-        expect(filtered.length).toBe(3);
+        // The Nurse, Rain of Chaos, The Wretched have no price → excluded
+        // The Doctor has price 50000 ≥ 0 → included
+        expect(filtered.map((r) => r.cardName)).toContain("The Doctor");
+        expect(filtered.map((r) => r.cardName)).not.toContain("The Nurse");
+        expect(filtered.map((r) => r.cardName)).not.toContain("Rain of Chaos");
+        expect(filtered.map((r) => r.cardName)).not.toContain("The Wretched");
+        expect(filtered.length).toBe(1);
       });
 
       it("returns empty array when no rows", () => {
@@ -1144,6 +1298,16 @@ describe("ProfitForecastSlice (Zustand)", () => {
       });
     });
 
+    describe("getAvgCostPerDeck edge", () => {
+      it("returns 0 when selectedBatch would be 0", async () => {
+        // The BatchSize type restricts to specific literals, but the guard
+        // exists so we verify it by casting to exercise the defensive path
+        await setupWithData();
+        store.getState().profitForecast.setSelectedBatch(0 as any);
+        expect(store.getState().profitForecast.getAvgCostPerDeck()).toBe(0);
+      });
+    });
+
     describe("getRateForBatch", () => {
       it("delegates to computeRateForBatch with current baseRate/stepDrop", async () => {
         await setupWithData();
@@ -1161,12 +1325,6 @@ describe("ProfitForecastSlice (Zustand)", () => {
     });
   });
 
-  describe("RATE_FLOOR constant", () => {
-    it("equals 60", () => {
-      expect(RATE_FLOOR).toBe(60);
-    });
-  });
-
   describe("edge cases / regression", () => {
     it("multiple sequential fetches don't corrupt state", async () => {
       const dto1 = makeDTO();
@@ -1176,6 +1334,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
           fetchedAt: "2025-02-01T00:00:00Z",
           chaosToDivineRatio: 250,
           stackedDeckChaosCost: 3,
+          stackedDeckMaxVolumeRate: null,
           cardPrices: makePrices(["The Doctor"]),
         },
       });
@@ -1291,19 +1450,27 @@ describe("ProfitForecastSlice (Zustand)", () => {
     it("single-card weight list works correctly", async () => {
       const dto: ProfitForecastDataDTO = {
         snapshot: {
-          id: "snap-1",
+          id: "snap-single",
           fetchedAt: "2025-01-15T12:00:00Z",
           chaosToDivineRatio: 200,
           stackedDeckChaosCost: 2.22,
+          stackedDeckMaxVolumeRate: null,
           cardPrices: {
             "The Doctor": {
               chaosValue: 50000,
               divineValue: 250,
               source: "exchange",
+              confidence: 1,
             },
           },
         },
-        weights: [{ cardName: "The Doctor", weight: 1, fromBoss: false }],
+        weights: [
+          {
+            cardName: "The Doctor",
+            weight: 1,
+            fromBoss: false,
+          },
+        ],
       };
       (
         window.electron.profitForecast.getData as ReturnType<typeof vi.fn>

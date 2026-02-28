@@ -23,6 +23,7 @@ interface SupabaseSnapshotResponse {
     exchangeChaosToDivine: number;
     stashChaosToDivine: number;
     stackedDeckChaosCost: number;
+    stackedDeckMaxVolumeRate?: number | null;
   };
   cardPrices: {
     exchange: Record<
@@ -495,6 +496,8 @@ class SupabaseClientService {
       const snapshot: SessionPriceSnapshot = {
         timestamp: responseData.snapshot.fetchedAt,
         stackedDeckChaosCost: responseData.snapshot.stackedDeckChaosCost ?? 0,
+        stackedDeckMaxVolumeRate:
+          responseData.snapshot.stackedDeckMaxVolumeRate ?? undefined,
         exchange: {
           chaosToDivineRatio: responseData.snapshot.exchangeChaosToDivine,
           cardPrices: responseData.cardPrices.exchange,

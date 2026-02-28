@@ -20,6 +20,7 @@ function createSnapshotRow(
     exchange_chaos_to_divine: 200,
     stash_chaos_to_divine: 195,
     stacked_deck_chaos_cost: 3.5,
+    stacked_deck_max_volume_rate: null,
     created_at: "2025-01-15T10:00:00Z",
     ...overrides,
   };
@@ -105,6 +106,7 @@ describe("Snapshot.mapper", () => {
         "id",
         "leagueId",
         "stackedDeckChaosCost",
+        "stackedDeckMaxVolumeRate",
         "stashChaosToDivine",
       ]);
     });

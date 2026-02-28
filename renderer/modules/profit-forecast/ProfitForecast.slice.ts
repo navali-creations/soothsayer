@@ -2,6 +2,7 @@ import type { StateCreator } from "zustand";
 
 import type {
   ProfitForecastDataDTO,
+  ProfitForecastSnapshotDTO,
   ProfitForecastWeightDTO,
 } from "~/main/modules/profit-forecast/ProfitForecast.dto";
 
@@ -18,13 +19,14 @@ export const RATE_FLOOR = 60;
 export interface CardForecastRow {
   // Static (set on fetchData)
   cardName: string;
-  weight: number;
+  weight: number; // league weight used for probability
   fromBoss: boolean;
   probability: number; // weight / totalWeight
   chaosValue: number; // 0 when price unavailable
   divineValue: number; // 0 when price unavailable
   evContribution: number; // probability × chaosValue
   hasPrice: boolean; // false when card has PL weight but no snapshot price
+  confidence: 1 | 2 | 3 | null; // poe.ninja confidence: 1=high, 2=medium, 3=low, null=no price
 
   // Dynamic (recomputed via recomputeRows on batch/stepDrop/subBatchSize change)
   chanceInBatch: number; // 1 − (1 − probability)^selectedBatch  (0–1)
@@ -40,6 +42,9 @@ export type BatchSize = 1000 | 10000 | 100000 | 1000000;
 
 // ── Slice Interface ────────────────────────────────────────────────────────────
 
+/** Indicates how the baseRate was determined. */
+export type BaseRateSource = "maxVolumeRate" | "derived" | "none";
+
 export interface ProfitForecastSlice {
   profitForecast: {
     // ── Raw data (set by fetchData) ───────────────────────────────────────
@@ -49,7 +54,8 @@ export interface ProfitForecastSlice {
     snapshotFetchedAt: string | null;
     chaosToDivineRatio: number;
     stackedDeckChaosCost: number;
-    baseRate: number; // floor(chaosToDivineRatio / stackedDeckChaosCost)
+    baseRate: number; // floor(chaosToDivineRatio / stackedDeckChaosCost) or maxVolumeRate
+    baseRateSource: BaseRateSource; // "maxVolumeRate" | "derived" | "none"
 
     // ── Loading ───────────────────────────────────────────────────────────
     isLoading: boolean;
@@ -131,32 +137,91 @@ export function computeTotalChaosCost(
 }
 
 /**
+ * Compute the base exchange rate (decks per divine) from the snapshot data.
+ *
+ * Prefers `stackedDeckMaxVolumeRate` (poe.ninja's volume-weighted bulk rate)
+ * when available, since it represents the actual rate traders are getting.
+ * Falls back to the derived rate `floor(chaosToDivine / stackedDeckChaosCost)`.
+ *
+ * Returns `{ baseRate, source }`.
+ */
+export function computeBaseRate(snapshot: ProfitForecastSnapshotDTO | null): {
+  baseRate: number;
+  source: BaseRateSource;
+} {
+  if (!snapshot) return { baseRate: 0, source: "none" };
+
+  const { chaosToDivineRatio, stackedDeckChaosCost, stackedDeckMaxVolumeRate } =
+    snapshot;
+
+  // Prefer maxVolumeRate when available and positive
+  if (stackedDeckMaxVolumeRate != null && stackedDeckMaxVolumeRate > 0) {
+    return {
+      baseRate: Math.max(RATE_FLOOR, Math.floor(stackedDeckMaxVolumeRate)),
+      source: "maxVolumeRate",
+    };
+  }
+
+  // Fall back to derived rate
+  if (stackedDeckChaosCost > 0 && chaosToDivineRatio > 0) {
+    return {
+      baseRate: Math.max(
+        RATE_FLOOR,
+        Math.floor(chaosToDivineRatio / stackedDeckChaosCost),
+      ),
+      source: "derived",
+    };
+  }
+
+  return { baseRate: 0, source: "none" };
+}
+
+/**
  * Build static row fields from the DTO data. Dynamic (batch-dependent) fields
  * are initialised to 0 and filled in by `recomputeRows`.
  */
+/**
+ * Resolve the effective weight for probability calculations.
+ *
+ * Uses the league weight directly. The backend already excludes boss cards
+ * and assigns a floor weight to zero-weight non-boss cards, so every
+ * weight arriving here is > 0.
+ */
+export function resolveEffectiveWeight(w: ProfitForecastWeightDTO): number {
+  return w.weight;
+}
+
 export function buildRows(
   weights: ProfitForecastWeightDTO[],
   cardPrices: Record<
     string,
-    { chaosValue: number; divineValue: number; source: "exchange" | "stash" }
+    {
+      chaosValue: number;
+      divineValue: number;
+      source: "exchange" | "stash";
+      confidence: 1 | 2 | 3;
+    }
   > | null,
   totalWeight: number,
 ): CardForecastRow[] {
   return weights.map((w) => {
     const price = cardPrices?.[w.cardName] ?? null;
-    const probability = totalWeight > 0 ? w.weight / totalWeight : 0;
+    const effectiveWeight = resolveEffectiveWeight(w);
+    const probability = totalWeight > 0 ? effectiveWeight / totalWeight : 0;
     const chaosValue = price?.chaosValue ?? 0;
     const divineValue = price?.divineValue ?? 0;
     const hasPrice = price !== null;
+    const confidence = price?.confidence ?? null;
 
     return {
       cardName: w.cardName,
-      weight: w.weight,
+      weight: effectiveWeight,
       fromBoss: w.fromBoss,
       probability,
       chaosValue,
       divineValue,
       hasPrice,
+      confidence,
       evContribution: hasPrice ? probability * chaosValue : 0,
 
       // Dynamic — filled by recomputeRows
@@ -242,6 +307,7 @@ export const createProfitForecastSlice: StateCreator<
     chaosToDivineRatio: 0,
     stackedDeckChaosCost: 0,
     baseRate: 0,
+    baseRateSource: "none" as BaseRateSource,
 
     isLoading: false,
     isComputing: false,
@@ -272,7 +338,7 @@ export const createProfitForecastSlice: StateCreator<
           );
 
         const totalWeight = result.weights.reduce(
-          (sum, w) => sum + w.weight,
+          (sum, w) => sum + resolveEffectiveWeight(w),
           0,
         );
 
@@ -288,14 +354,10 @@ export const createProfitForecastSlice: StateCreator<
         const chaosToDivineRatio = result.snapshot?.chaosToDivineRatio ?? 0;
         const stackedDeckChaosCost = result.snapshot?.stackedDeckChaosCost ?? 0;
 
-        // Compute base rate, clamped to RATE_FLOOR
-        let baseRate = 0;
-        if (stackedDeckChaosCost > 0 && chaosToDivineRatio > 0) {
-          baseRate = Math.max(
-            RATE_FLOOR,
-            Math.floor(chaosToDivineRatio / stackedDeckChaosCost),
-          );
-        }
+        // Compute base rate — prefer maxVolumeRate, fall back to derived
+        const { baseRate, source: baseRateSource } = computeBaseRate(
+          result.snapshot,
+        );
 
         // Fill in dynamic fields before storing
         const { selectedBatch, stepDrop, subBatchSize } = get().profitForecast;
@@ -323,6 +385,7 @@ export const createProfitForecastSlice: StateCreator<
             profitForecast.chaosToDivineRatio = chaosToDivineRatio;
             profitForecast.stackedDeckChaosCost = stackedDeckChaosCost;
             profitForecast.baseRate = baseRate;
+            profitForecast.baseRateSource = baseRateSource;
             profitForecast.isLoading = false;
             profitForecast.isComputing = false;
           },
@@ -436,7 +499,7 @@ export const createProfitForecastSlice: StateCreator<
     getFilteredRows: () => {
       const { rows, minPriceThreshold } = get().profitForecast;
       return rows.filter(
-        (row) => !row.hasPrice || row.chaosValue >= minPriceThreshold,
+        (row) => row.hasPrice && row.chaosValue >= minPriceThreshold,
       );
     },
 

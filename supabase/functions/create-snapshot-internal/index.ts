@@ -125,6 +125,7 @@ Deno.serve(async (req) => {
 
     // 4. Fetch Stacked Deck price from poe.ninja Currency API
     let stackedDeckChaosCost = 0;
+    let stackedDeckMaxVolumeRate: number | null = null;
     try {
       console.log(`Fetching stacked deck price for ${league.name}...`);
       const currencyUrl = `https://poe.ninja/poe1/api/economy/exchange/current/overview?league=${encodeURIComponent(
@@ -142,7 +143,14 @@ Deno.serve(async (req) => {
           (line: any) => line.id === "stacked-deck",
         );
         stackedDeckChaosCost = stackedDeck?.primaryValue || 0;
-        console.log(`Stacked Deck cost: ${stackedDeckChaosCost} chaos`);
+        const rawMaxVolumeRate = stackedDeck?.maxVolumeRate ?? null;
+        stackedDeckMaxVolumeRate =
+          rawMaxVolumeRate != null ? Math.floor(rawMaxVolumeRate) : null;
+        console.log(
+          `Stacked Deck cost: ${stackedDeckChaosCost} chaos, maxVolumeRate: ${
+            stackedDeckMaxVolumeRate ?? "N/A"
+          } decks/divine`,
+        );
       }
     } catch (currencyError) {
       console.warn(
@@ -221,6 +229,7 @@ Deno.serve(async (req) => {
         exchange_chaos_to_divine: chaosToDivineRatio,
         stash_chaos_to_divine: stashChaosToDivineRatio,
         stacked_deck_chaos_cost: stackedDeckChaosCost,
+        stacked_deck_max_volume_rate: stackedDeckMaxVolumeRate,
       })
       .select()
       .single();
@@ -259,6 +268,8 @@ Deno.serve(async (req) => {
           exchangeChaosToDivine: snapshot.exchange_chaos_to_divine,
           stashChaosToDivine: snapshot.stash_chaos_to_divine,
           stackedDeckChaosCost: snapshot.stacked_deck_chaos_cost,
+          stackedDeckMaxVolumeRate:
+            snapshot.stacked_deck_max_volume_rate ?? null,
           cardCount: allCardPrices.length,
         },
       },

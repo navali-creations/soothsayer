@@ -15,6 +15,8 @@ export interface ProfitForecastCardPriceDTO {
   chaosValue: number;
   divineValue: number;
   source: "exchange" | "stash";
+  /** poe.ninja confidence tier: 1 = high, 2 = medium, 3 = low */
+  confidence: 1 | 2 | 3;
 }
 
 /**
@@ -26,13 +28,15 @@ export interface ProfitForecastSnapshotDTO {
   fetchedAt: string;
   chaosToDivineRatio: number;
   stackedDeckChaosCost: number;
+  /** Bulk exchange rate (decks/divine) from poe.ninja maxVolumeRate. null for older snapshots. */
+  stackedDeckMaxVolumeRate: number | null;
   cardPrices: Record<string, ProfitForecastCardPriceDTO>;
 }
 
 /**
  * A single card's weight entry from the Prohibited Library dataset.
- * Only cards with `weight > 0` are included (zero-weight cards are excluded
- * from the stacked deck drop pool entirely).
+ * Non-boss cards with zero league weight are assigned the minimum observed
+ * weight (floor) so they appear as ultra-rare rather than being excluded.
  */
 export interface ProfitForecastWeightDTO {
   cardName: string;

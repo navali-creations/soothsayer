@@ -56,7 +56,7 @@ Deno.serve(async (req: Request) => {
   const { data: snapshot, error: snapshotError } = await supabase
     .from("snapshots")
     .select(
-      "id, league_id, fetched_at, exchange_chaos_to_divine, stash_chaos_to_divine, stacked_deck_chaos_cost",
+      "id, league_id, fetched_at, exchange_chaos_to_divine, stash_chaos_to_divine, stacked_deck_chaos_cost, stacked_deck_max_volume_rate",
     )
     .eq("league_id", league.id)
     .order("fetched_at", { ascending: false })
@@ -101,6 +101,7 @@ Deno.serve(async (req: Request) => {
         exchangeChaosToDivine: snapshot.exchange_chaos_to_divine,
         stashChaosToDivine: snapshot.stash_chaos_to_divine,
         stackedDeckChaosCost: snapshot.stacked_deck_chaos_cost ?? 0,
+        stackedDeckMaxVolumeRate: snapshot.stacked_deck_max_volume_rate ?? null,
       },
       cardPrices: { exchange: exchangePrices, stash: stashPrices },
     },

@@ -1,4 +1,4 @@
-import { Flex } from "~/renderer/components";
+import { Countdown, Flex } from "~/renderer/components";
 import { useTickingTimer } from "~/renderer/hooks";
 import { useBoundStore } from "~/renderer/store";
 
@@ -31,55 +31,7 @@ const SessionStatus = () => {
               Duration
             </div>
             {/* Countdown timer */}
-            <div className="flex gap-1.5 items-end">
-              <div className="flex flex-col items-center">
-                <span className="countdown text-base tabular-nums font-mono text-base-content">
-                  <span
-                    style={
-                      {
-                        "--value": time.hours,
-                        "--digits": 2,
-                      } as React.CSSProperties
-                    }
-                  ></span>
-                </span>
-                <span className="text-[9px] text-base-content/50 uppercase tracking-tight">
-                  hrs
-                </span>
-              </div>
-              <span className="text-base-content/50 pb-[14px] text-sm">:</span>
-              <div className="flex flex-col items-center">
-                <span className="countdown text-base tabular-nums font-mono text-base-content">
-                  <span
-                    style={
-                      {
-                        "--value": time.minutes,
-                        "--digits": 2,
-                      } as React.CSSProperties
-                    }
-                  ></span>
-                </span>
-                <span className="text-[9px] text-base-content/50 uppercase tracking-tight">
-                  min
-                </span>
-              </div>
-              <span className="text-base-content/50 pb-[14px] text-sm">:</span>
-              <div className="flex flex-col items-center">
-                <span className="countdown text-base tabular-nums font-mono text-base-content">
-                  <span
-                    style={
-                      {
-                        "--value": time.seconds,
-                        "--digits": 2,
-                      } as React.CSSProperties
-                    }
-                  ></span>
-                </span>
-                <span className="text-[9px] text-base-content/50 uppercase tracking-tight">
-                  sec
-                </span>
-              </div>
-            </div>
+            <Countdown timer={time} size="base" showLabels alwaysShowHours />
           </div>
         </div>
       </Flex>

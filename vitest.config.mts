@@ -18,6 +18,7 @@ export default defineConfig({
     include: [
       "main/**/__tests__/**/*.test.ts",
       "main/**/*.test.ts",
+      "renderer/hooks/__tests__/**/*.test.ts",
       "renderer/modules/**/__tests__/**/*.test.ts",
     ],
     exclude: ["node_modules", "out", ".vite"],

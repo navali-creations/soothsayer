@@ -1275,6 +1275,123 @@ describe("SettingsStoreService — IPC handlers", () => {
       });
     });
 
+    // ── mainWindowBounds ──
+
+    it("should accept valid mainWindowBounds object", async () => {
+      const bounds = { x: 100, y: 200, width: 800, height: 600 };
+      await setSetting({}, "mainWindowBounds", bounds);
+      expect(mockRepositorySet).toHaveBeenCalledWith(
+        "mainWindowBounds",
+        bounds,
+      );
+    });
+
+    it("should accept null for mainWindowBounds (reset)", async () => {
+      await setSetting({}, "mainWindowBounds", null);
+      expect(mockRepositorySet).toHaveBeenCalledWith("mainWindowBounds", null);
+    });
+
+    it("should accept mainWindowBounds with negative x and y", async () => {
+      const bounds = { x: -500, y: -300, width: 1024, height: 768 };
+      await setSetting({}, "mainWindowBounds", bounds);
+      expect(mockRepositorySet).toHaveBeenCalledWith(
+        "mainWindowBounds",
+        bounds,
+      );
+    });
+
+    it("should reject non-object for mainWindowBounds", async () => {
+      const result = await setSetting({}, "mainWindowBounds", "not-an-object");
+
+      expect(result).toEqual({
+        success: false,
+        error: expect.stringContaining("Invalid input"),
+      });
+    });
+
+    it("should reject mainWindowBounds with non-integer x", async () => {
+      const result = await setSetting({}, "mainWindowBounds", {
+        x: 1.5,
+        y: 0,
+        width: 800,
+        height: 600,
+      });
+
+      expect(result).toEqual({
+        success: false,
+        error: expect.stringContaining("Invalid input"),
+      });
+    });
+
+    it("should reject mainWindowBounds with width below min (1)", async () => {
+      const result = await setSetting({}, "mainWindowBounds", {
+        x: 0,
+        y: 0,
+        width: 0,
+        height: 600,
+      });
+
+      expect(result).toEqual({
+        success: false,
+        error: expect.stringContaining("Invalid input"),
+      });
+    });
+
+    it("should reject mainWindowBounds with height below min (1)", async () => {
+      const result = await setSetting({}, "mainWindowBounds", {
+        x: 0,
+        y: 0,
+        width: 800,
+        height: 0,
+      });
+
+      expect(result).toEqual({
+        success: false,
+        error: expect.stringContaining("Invalid input"),
+      });
+    });
+
+    it("should reject mainWindowBounds with x exceeding max (100000)", async () => {
+      const result = await setSetting({}, "mainWindowBounds", {
+        x: 100001,
+        y: 0,
+        width: 800,
+        height: 600,
+      });
+
+      expect(result).toEqual({
+        success: false,
+        error: expect.stringContaining("Invalid input"),
+      });
+    });
+
+    it("should reject mainWindowBounds with x below min (-100000)", async () => {
+      const result = await setSetting({}, "mainWindowBounds", {
+        x: -100001,
+        y: 0,
+        width: 800,
+        height: 600,
+      });
+
+      expect(result).toEqual({
+        success: false,
+        error: expect.stringContaining("Invalid input"),
+      });
+    });
+
+    it("should reject mainWindowBounds with missing fields", async () => {
+      const result = await setSetting({}, "mainWindowBounds", {
+        x: 0,
+        y: 0,
+        // missing width and height
+      });
+
+      expect(result).toEqual({
+        success: false,
+        error: expect.stringContaining("Invalid input"),
+      });
+    });
+
     // ── undefined value ──
 
     it("should reject undefined value for any key", async () => {

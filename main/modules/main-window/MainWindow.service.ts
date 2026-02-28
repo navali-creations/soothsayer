@@ -237,10 +237,12 @@ class MainWindowService {
     await divinationCards.initialize();
     console.log("[Init] ✓ Divination Cards");
 
-    // 5b. Prohibited Library (bundled CSV weight data, depends on database + leagues + divination cards)
-    const prohibitedLibrary = ProhibitedLibraryService.getInstance();
-    await prohibitedLibrary.initialize();
-    console.log("[Init] ✓ Prohibited Library");
+    // 5b. Prohibited Library — no eager loading.
+    // PL data is loaded lazily on first access (e.g. Profit Forecast page,
+    // Rarity Model page, or Settings → Reload). This avoids parsing the
+    // bundled CSV and writing to SQLite on every app startup.
+    ProhibitedLibraryService.getInstance();
+    console.log("[Init] ✓ Prohibited Library (lazy)");
 
     // 6. Snapshot service (depends on database + Supabase)
     SnapshotService.getInstance();

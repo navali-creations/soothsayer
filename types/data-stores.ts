@@ -65,6 +65,8 @@ export interface CardPriceSnapshot {
 export interface SessionPriceSnapshot {
   timestamp: string;
   stackedDeckChaosCost: number;
+  /** Bulk exchange rate (decks/divine) from poe.ninja maxVolumeRate. Undefined for older snapshots. */
+  stackedDeckMaxVolumeRate?: number;
   exchange: {
     chaosToDivineRatio: number;
     cardPrices: Record<string, CardPriceSnapshot>;

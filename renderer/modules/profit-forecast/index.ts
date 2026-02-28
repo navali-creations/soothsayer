@@ -1,3 +1,4 @@
+export { default as ProfitForecastPage } from "./ProfitForecast.page";
 export {
   type BatchSize,
   buildRows,
@@ -10,3 +11,10 @@ export {
   RATE_FLOOR,
   recomputeDynamicFields,
 } from "./ProfitForecast.slice";
+export {
+  formatChaos,
+  formatDivine,
+  formatPercent,
+  formatPnL,
+  formatPnLDivine,
+} from "./ProfitForecast.utils";

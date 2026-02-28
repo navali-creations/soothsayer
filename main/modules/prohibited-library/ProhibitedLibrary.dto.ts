@@ -52,9 +52,10 @@ export interface ProhibitedLibraryLoadResultDTO {
  * conversion or database mapping.
  *
  * Column mapping (from the Google Spreadsheet "Weights" tab):
- *   A = card name (header label: "patch")
+ *   A = card name (header: "patch")
  *   B = bucket (community-defined weight tier group — unrelated to our rarity system)
- *   D = from_boss indicator (header label: "Ritual"); only the literal text
+ *   C = Faustus model tier (coarse rarity bucket — NOT used for probability math)
+ *   D = from_boss indicator (header: "Ritual"); only the literal text
  *       "Boss" is meaningful — all other values in this column are irrelevant
  *   Last data column before "All samples" = current-league weight
  *

@@ -1,6 +1,6 @@
-import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 
+import { Countdown } from "~/renderer/components";
 import { useBoundStore } from "~/renderer/store";
 
 const PriceSnapshotAlert = () => {
@@ -138,42 +138,7 @@ const PriceSnapshotAlert = () => {
             {autoRefreshActive && (hours > 0 || minutes > 0 || seconds > 0) ? (
               <span className="flex items-center gap-1">
                 • Next refresh in:
-                <span className="countdown font-mono text-sm">
-                  <span
-                    style={{ "--value": hours } as React.CSSProperties}
-                    aria-live="polite"
-                    aria-label={hours.toString()}
-                  >
-                    {hours}
-                  </span>
-                  h
-                  <span
-                    style={
-                      {
-                        "--value": minutes,
-                        "--digits": 2,
-                      } as React.CSSProperties
-                    }
-                    aria-live="polite"
-                    aria-label={minutes.toString()}
-                  >
-                    {minutes}
-                  </span>
-                  m
-                  <span
-                    style={
-                      {
-                        "--value": seconds,
-                        "--digits": 2,
-                      } as React.CSSProperties
-                    }
-                    aria-live="polite"
-                    aria-label={seconds.toString()}
-                  >
-                    {seconds}
-                  </span>
-                  s
-                </span>
+                <Countdown timer={{ hours, minutes, seconds }} size="sm" />
               </span>
             ) : autoRefreshActive ? (
               <span className="text-warning">• Refreshing soon...</span>

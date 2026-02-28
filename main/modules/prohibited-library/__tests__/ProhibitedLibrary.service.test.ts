@@ -802,7 +802,7 @@ describe("ProhibitedLibraryService", () => {
     });
 
     describe("GetCardWeights", () => {
-      it("should return card weights for active league", async () => {
+      it("should return card weights using metadata league", async () => {
         const mockWeights = [
           {
             cardName: "The Doctor",
@@ -814,59 +814,35 @@ describe("ProhibitedLibraryService", () => {
             loadedAt: "2025-06-01T00:00:00.000Z",
           },
         ];
-        mockSettingsGet.mockResolvedValue("Keepers");
-        mockRepositoryGetCardWeights.mockResolvedValue(mockWeights);
-
-        const handler = getIpcHandler(ProhibitedLibraryChannel.GetCardWeights);
-        const result = await handler({}, "poe1");
-
-        expect(result).toEqual(mockWeights);
-        expect(mockRepositoryGetCardWeights).toHaveBeenCalledWith(
-          "poe1",
-          "Keepers",
-        );
-      });
-
-      it("should fall back to metadata league when active league has no data", async () => {
-        mockSettingsGet.mockResolvedValue("NewLeague");
-        mockRepositoryGetCardWeights
-          .mockResolvedValueOnce([]) // No data for NewLeague
-          .mockResolvedValueOnce([
-            {
-              cardName: "The Doctor",
-              game: "poe1",
-              league: "Keepers",
-              weight: 10,
-              rarity: 1,
-              fromBoss: false,
-              loadedAt: "2025-06-01T00:00:00.000Z",
-            },
-          ]); // Fallback to metadata league
-
         mockRepositoryGetMetadata.mockResolvedValue({
           game: "poe1",
           league: "Keepers",
           loaded_at: "2025-06-01T00:00:00.000Z",
           app_version: "1.0.0",
           card_count: 42,
-          created_at: "2025-06-01T00:00:00.000Z",
         });
+        mockRepositoryGetCardWeights.mockResolvedValue(mockWeights);
 
         const handler = getIpcHandler(ProhibitedLibraryChannel.GetCardWeights);
         const result = await handler({}, "poe1");
 
-        expect(result).toHaveLength(1);
-        expect(mockRepositoryGetCardWeights).toHaveBeenCalledTimes(2);
-        expect(mockRepositoryGetCardWeights).toHaveBeenNthCalledWith(
-          1,
-          "poe1",
-          "NewLeague",
-        );
-        expect(mockRepositoryGetCardWeights).toHaveBeenNthCalledWith(
-          2,
+        expect(result).toEqual(mockWeights);
+        // Should query with metadata.league, not the user's active league
+        expect(mockRepositoryGetCardWeights).toHaveBeenCalledWith(
           "poe1",
           "Keepers",
         );
+      });
+
+      it("should return empty array when no metadata exists and loadData fails", async () => {
+        mockRepositoryGetMetadata.mockResolvedValue(undefined);
+        // loadData will fail because mockReadFile is not set up for this test
+        mockReadFile.mockRejectedValue(new Error("ENOENT"));
+
+        const handler = getIpcHandler(ProhibitedLibraryChannel.GetCardWeights);
+        const result = await handler({}, "poe1");
+
+        expect(result).toEqual([]);
       });
 
       it("should return validation error for invalid game type", async () => {
@@ -878,7 +854,7 @@ describe("ProhibitedLibraryService", () => {
     });
 
     describe("GetFromBossCards", () => {
-      it("should return boss-exclusive cards for active league", async () => {
+      it("should return boss-exclusive cards using metadata league", async () => {
         const mockBossCards = [
           {
             cardName: "The Void",
@@ -890,7 +866,13 @@ describe("ProhibitedLibraryService", () => {
             loadedAt: "2025-06-01T00:00:00.000Z",
           },
         ];
-        mockSettingsGet.mockResolvedValue("Keepers");
+        mockRepositoryGetMetadata.mockResolvedValue({
+          game: "poe1",
+          league: "Keepers",
+          loaded_at: "2025-06-01T00:00:00.000Z",
+          app_version: "1.0.0",
+          card_count: 42,
+        });
         mockRepositoryGetFromBossCards.mockResolvedValue(mockBossCards);
 
         const handler = getIpcHandler(
@@ -899,44 +881,23 @@ describe("ProhibitedLibraryService", () => {
         const result = await handler({}, "poe1");
 
         expect(result).toEqual(mockBossCards);
+        // Should query with metadata.league, not the user's active league
         expect(mockRepositoryGetFromBossCards).toHaveBeenCalledWith(
           "poe1",
           "Keepers",
         );
       });
 
-      it("should fall back to metadata league when active league has no boss cards", async () => {
-        mockSettingsGet.mockResolvedValue("NewLeague");
-        mockRepositoryGetFromBossCards
-          .mockResolvedValueOnce([]) // No data for NewLeague
-          .mockResolvedValueOnce([
-            {
-              cardName: "The Void",
-              game: "poe1",
-              league: "Keepers",
-              weight: 0,
-              rarity: 1,
-              fromBoss: true,
-              loadedAt: "2025-06-01T00:00:00.000Z",
-            },
-          ]);
-
-        mockRepositoryGetMetadata.mockResolvedValue({
-          game: "poe1",
-          league: "Keepers",
-          loaded_at: "2025-06-01T00:00:00.000Z",
-          app_version: "1.0.0",
-          card_count: 42,
-          created_at: "2025-06-01T00:00:00.000Z",
-        });
+      it("should return empty array when no metadata exists and loadData fails", async () => {
+        mockRepositoryGetMetadata.mockResolvedValue(undefined);
+        mockReadFile.mockRejectedValue(new Error("ENOENT"));
 
         const handler = getIpcHandler(
           ProhibitedLibraryChannel.GetFromBossCards,
         );
         const result = await handler({}, "poe1");
 
-        expect(result).toHaveLength(1);
-        expect(mockRepositoryGetFromBossCards).toHaveBeenCalledTimes(2);
+        expect(result).toEqual([]);
       });
 
       it("should return validation error for invalid game type", async () => {
@@ -952,11 +913,10 @@ describe("ProhibitedLibraryService", () => {
 
   // ─── n-1 column fallback scenarios ──────────────────────────────────────
 
-  describe("n-1 column fallback (league mismatch scenarios)", () => {
-    // The CSV always contains data for the n-1 league column (the column
-    // immediately before "All samples"). When the user's active league
-    // doesn't match, the IPC handlers fall back to metadata.league.
-    // This is by design — not an error condition.
+  describe("PL weights are league-independent (use metadata league)", () => {
+    // The CSV data is stored under the CSV header's league label (e.g. "Keepers").
+    // IPC handlers use ensureLoaded() + metadata.league to query data directly,
+    // regardless of the user's active league setting.
 
     const keepersMetadata = {
       game: "poe1",
@@ -964,7 +924,6 @@ describe("ProhibitedLibraryService", () => {
       loaded_at: "2025-06-01T00:00:00.000Z",
       app_version: "1.0.0",
       card_count: 42,
-      created_at: "2025-06-01T00:00:00.000Z",
     };
 
     const keepersWeights: Array<{
@@ -1017,11 +976,9 @@ describe("ProhibitedLibraryService", () => {
     ];
 
     describe("Standard league (permanent, never has its own CSV column)", () => {
-      it("should fall back to Keepers data for GetCardWeights when active league is Standard", async () => {
+      it("should return Keepers data for GetCardWeights when active league is Standard", async () => {
         mockSettingsGet.mockResolvedValue("Standard");
-        mockRepositoryGetCardWeights
-          .mockResolvedValueOnce([]) // No data for "Standard"
-          .mockResolvedValueOnce(keepersWeights); // Fallback to Keepers
+        mockRepositoryGetCardWeights.mockResolvedValue(keepersWeights);
         mockRepositoryGetMetadata.mockResolvedValue(keepersMetadata);
 
         const handler = getIpcHandler(ProhibitedLibraryChannel.GetCardWeights);
@@ -1029,24 +986,17 @@ describe("ProhibitedLibraryService", () => {
 
         expect(result).toHaveLength(2);
         expect(result).toEqual(keepersWeights);
-        expect(mockRepositoryGetCardWeights).toHaveBeenCalledTimes(2);
-        expect(mockRepositoryGetCardWeights).toHaveBeenNthCalledWith(
-          1,
-          "poe1",
-          "Standard",
-        );
-        expect(mockRepositoryGetCardWeights).toHaveBeenNthCalledWith(
-          2,
+        // Queries metadata.league directly — no fallback needed
+        expect(mockRepositoryGetCardWeights).toHaveBeenCalledTimes(1);
+        expect(mockRepositoryGetCardWeights).toHaveBeenCalledWith(
           "poe1",
           "Keepers",
         );
       });
 
-      it("should fall back to Keepers data for GetFromBossCards when active league is Standard", async () => {
+      it("should return Keepers data for GetFromBossCards when active league is Standard", async () => {
         mockSettingsGet.mockResolvedValue("Standard");
-        mockRepositoryGetFromBossCards
-          .mockResolvedValueOnce([]) // No data for "Standard"
-          .mockResolvedValueOnce(keepersBossCards); // Fallback to Keepers
+        mockRepositoryGetFromBossCards.mockResolvedValue(keepersBossCards);
         mockRepositoryGetMetadata.mockResolvedValue(keepersMetadata);
 
         const handler = getIpcHandler(
@@ -1056,14 +1006,8 @@ describe("ProhibitedLibraryService", () => {
 
         expect(result).toHaveLength(1);
         expect(result[0].cardName).toBe("The Void");
-        expect(mockRepositoryGetFromBossCards).toHaveBeenCalledTimes(2);
-        expect(mockRepositoryGetFromBossCards).toHaveBeenNthCalledWith(
-          1,
-          "poe1",
-          "Standard",
-        );
-        expect(mockRepositoryGetFromBossCards).toHaveBeenNthCalledWith(
-          2,
+        expect(mockRepositoryGetFromBossCards).toHaveBeenCalledTimes(1);
+        expect(mockRepositoryGetFromBossCards).toHaveBeenCalledWith(
           "poe1",
           "Keepers",
         );
@@ -1071,11 +1015,9 @@ describe("ProhibitedLibraryService", () => {
     });
 
     describe("variant league (e.g. Phrecia 2.0 based on Keepers dataset)", () => {
-      it("should fall back to Keepers data for GetCardWeights when active league is a variant", async () => {
+      it("should return Keepers data for GetCardWeights when active league is a variant", async () => {
         mockSettingsGet.mockResolvedValue("Phrecia 2.0");
-        mockRepositoryGetCardWeights
-          .mockResolvedValueOnce([]) // No data for "Phrecia 2.0"
-          .mockResolvedValueOnce(keepersWeights); // Fallback to Keepers
+        mockRepositoryGetCardWeights.mockResolvedValue(keepersWeights);
         mockRepositoryGetMetadata.mockResolvedValue(keepersMetadata);
 
         const handler = getIpcHandler(ProhibitedLibraryChannel.GetCardWeights);
@@ -1083,24 +1025,16 @@ describe("ProhibitedLibraryService", () => {
 
         expect(result).toHaveLength(2);
         expect(result).toEqual(keepersWeights);
-        expect(mockRepositoryGetCardWeights).toHaveBeenCalledTimes(2);
-        expect(mockRepositoryGetCardWeights).toHaveBeenNthCalledWith(
-          1,
-          "poe1",
-          "Phrecia 2.0",
-        );
-        expect(mockRepositoryGetCardWeights).toHaveBeenNthCalledWith(
-          2,
+        expect(mockRepositoryGetCardWeights).toHaveBeenCalledTimes(1);
+        expect(mockRepositoryGetCardWeights).toHaveBeenCalledWith(
           "poe1",
           "Keepers",
         );
       });
 
-      it("should fall back to Keepers data for GetFromBossCards when active league is a variant", async () => {
+      it("should return Keepers data for GetFromBossCards when active league is a variant", async () => {
         mockSettingsGet.mockResolvedValue("Phrecia 2.0");
-        mockRepositoryGetFromBossCards
-          .mockResolvedValueOnce([]) // No data for "Phrecia 2.0"
-          .mockResolvedValueOnce(keepersBossCards); // Fallback to Keepers
+        mockRepositoryGetFromBossCards.mockResolvedValue(keepersBossCards);
         mockRepositoryGetMetadata.mockResolvedValue(keepersMetadata);
 
         const handler = getIpcHandler(
@@ -1110,26 +1044,14 @@ describe("ProhibitedLibraryService", () => {
 
         expect(result).toHaveLength(1);
         expect(result[0].cardName).toBe("The Void");
-        expect(mockRepositoryGetFromBossCards).toHaveBeenCalledTimes(2);
-        expect(mockRepositoryGetFromBossCards).toHaveBeenNthCalledWith(
-          1,
-          "poe1",
-          "Phrecia 2.0",
-        );
-        expect(mockRepositoryGetFromBossCards).toHaveBeenNthCalledWith(
-          2,
-          "poe1",
-          "Keepers",
-        );
+        expect(mockRepositoryGetFromBossCards).toHaveBeenCalledTimes(1);
       });
     });
 
     describe("new league (e.g. Vaal drops but CSV not updated yet)", () => {
-      it("should fall back to Keepers (n-1) data for GetCardWeights when a new league has no CSV column", async () => {
+      it("should return Keepers (n-1) data for GetCardWeights when a new league has no CSV column", async () => {
         mockSettingsGet.mockResolvedValue("Vaal");
-        mockRepositoryGetCardWeights
-          .mockResolvedValueOnce([]) // No data for "Vaal"
-          .mockResolvedValueOnce(keepersWeights); // Fallback to Keepers (n-1)
+        mockRepositoryGetCardWeights.mockResolvedValue(keepersWeights);
         mockRepositoryGetMetadata.mockResolvedValue(keepersMetadata);
 
         const handler = getIpcHandler(ProhibitedLibraryChannel.GetCardWeights);
@@ -1137,24 +1059,16 @@ describe("ProhibitedLibraryService", () => {
 
         expect(result).toHaveLength(2);
         expect(result).toEqual(keepersWeights);
-        expect(mockRepositoryGetCardWeights).toHaveBeenCalledTimes(2);
-        expect(mockRepositoryGetCardWeights).toHaveBeenNthCalledWith(
-          1,
-          "poe1",
-          "Vaal",
-        );
-        expect(mockRepositoryGetCardWeights).toHaveBeenNthCalledWith(
-          2,
+        expect(mockRepositoryGetCardWeights).toHaveBeenCalledTimes(1);
+        expect(mockRepositoryGetCardWeights).toHaveBeenCalledWith(
           "poe1",
           "Keepers",
         );
       });
 
-      it("should fall back to Keepers (n-1) data for GetFromBossCards when a new league has no CSV column", async () => {
+      it("should return Keepers (n-1) data for GetFromBossCards when a new league has no CSV column", async () => {
         mockSettingsGet.mockResolvedValue("Vaal");
-        mockRepositoryGetFromBossCards
-          .mockResolvedValueOnce([]) // No data for "Vaal"
-          .mockResolvedValueOnce(keepersBossCards); // Fallback to Keepers (n-1)
+        mockRepositoryGetFromBossCards.mockResolvedValue(keepersBossCards);
         mockRepositoryGetMetadata.mockResolvedValue(keepersMetadata);
 
         const handler = getIpcHandler(
@@ -1164,60 +1078,38 @@ describe("ProhibitedLibraryService", () => {
 
         expect(result).toHaveLength(1);
         expect(result[0].cardName).toBe("The Void");
-        expect(mockRepositoryGetFromBossCards).toHaveBeenCalledTimes(2);
-        expect(mockRepositoryGetFromBossCards).toHaveBeenNthCalledWith(
-          1,
-          "poe1",
-          "Vaal",
-        );
-        expect(mockRepositoryGetFromBossCards).toHaveBeenNthCalledWith(
-          2,
-          "poe1",
-          "Keepers",
-        );
+        expect(mockRepositoryGetFromBossCards).toHaveBeenCalledTimes(1);
       });
     });
 
     describe("Hardcore Standard (another permanent league)", () => {
-      it("should fall back to Keepers data when active league is Hardcore", async () => {
+      it("should return Keepers data when active league is Hardcore", async () => {
         mockSettingsGet.mockResolvedValue("Hardcore");
-        mockRepositoryGetCardWeights
-          .mockResolvedValueOnce([]) // No data for "Hardcore"
-          .mockResolvedValueOnce(keepersWeights); // Fallback to Keepers
+        mockRepositoryGetCardWeights.mockResolvedValue(keepersWeights);
         mockRepositoryGetMetadata.mockResolvedValue(keepersMetadata);
 
         const handler = getIpcHandler(ProhibitedLibraryChannel.GetCardWeights);
         const result = await handler({}, "poe1");
 
         expect(result).toHaveLength(2);
-        expect(mockRepositoryGetCardWeights).toHaveBeenNthCalledWith(
-          1,
-          "poe1",
-          "Hardcore",
-        );
-        expect(mockRepositoryGetCardWeights).toHaveBeenNthCalledWith(
-          2,
+        expect(mockRepositoryGetCardWeights).toHaveBeenCalledTimes(1);
+        expect(mockRepositoryGetCardWeights).toHaveBeenCalledWith(
           "poe1",
           "Keepers",
         );
       });
     });
 
-    describe("edge case: no metadata available at all", () => {
-      it("should return empty array when active league has no data and no metadata exists", async () => {
+    describe("edge case: no metadata available and auto-load fails", () => {
+      it("should return empty array when no metadata exists and CSV cannot be loaded", async () => {
         mockSettingsGet.mockResolvedValue("Standard");
-        mockRepositoryGetCardWeights.mockResolvedValueOnce([]); // No data for "Standard"
-        mockRepositoryGetMetadata.mockResolvedValue(undefined); // No metadata at all
+        mockRepositoryGetMetadata.mockResolvedValue(undefined);
+        mockReadFile.mockRejectedValue(new Error("ENOENT"));
 
         const handler = getIpcHandler(ProhibitedLibraryChannel.GetCardWeights);
         const result = await handler({}, "poe1");
 
         expect(result).toEqual([]);
-        expect(mockRepositoryGetCardWeights).toHaveBeenCalledTimes(1);
-        expect(mockRepositoryGetCardWeights).toHaveBeenCalledWith(
-          "poe1",
-          "Standard",
-        );
       });
     });
 
@@ -1301,6 +1193,50 @@ describe("ProhibitedLibraryService", () => {
           configurable: true,
         });
       }
+    });
+  });
+
+  // ─── ensureLoaded ───────────────────────────────────────────────────────
+
+  describe("ensureLoaded", () => {
+    it("should skip re-parse when metadata exists with card_count > 0", async () => {
+      mockRepositoryGetMetadata.mockResolvedValue({
+        game: "poe1",
+        league: "Keepers",
+        loaded_at: "2025-06-01T00:00:00.000Z",
+        app_version: "1.0.0",
+        card_count: 42,
+      });
+
+      await service.ensureLoaded("poe1");
+
+      // Should NOT have read the CSV (no re-parse)
+      expect(mockReadFile).not.toHaveBeenCalled();
+      expect(mockRepositoryUpsertCardWeights).not.toHaveBeenCalled();
+    });
+
+    it("should load from scratch when no metadata exists", async () => {
+      mockRepositoryGetMetadata.mockResolvedValue(undefined);
+
+      await service.ensureLoaded("poe1");
+
+      expect(mockReadFile).toHaveBeenCalledTimes(1);
+      expect(mockRepositoryUpsertCardWeights).toHaveBeenCalledTimes(1);
+    });
+
+    it("should load from scratch when metadata has card_count 0", async () => {
+      mockRepositoryGetMetadata.mockResolvedValue({
+        game: "poe1",
+        league: "Keepers",
+        loaded_at: "2025-06-01T00:00:00.000Z",
+        app_version: "1.0.0",
+        card_count: 0,
+      });
+
+      await service.ensureLoaded("poe1");
+
+      expect(mockReadFile).toHaveBeenCalledTimes(1);
+      expect(mockRepositoryUpsertCardWeights).toHaveBeenCalledTimes(1);
     });
   });
 

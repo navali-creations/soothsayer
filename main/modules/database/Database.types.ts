@@ -32,6 +32,7 @@ export interface SnapshotsTable {
   exchange_chaos_to_divine: number;
   stash_chaos_to_divine: number;
   stacked_deck_chaos_cost: number;
+  stacked_deck_max_volume_rate: number | null;
   created_at: ColumnType<string, string | undefined, never>;
 }
 

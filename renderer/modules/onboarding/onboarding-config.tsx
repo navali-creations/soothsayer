@@ -14,6 +14,11 @@ import CurrentSessionRaritySourceBeacon from "../current-session/CurrentSession.
 import CurrentSessionStartSessionBeacon from "../current-session/CurrentSession.beacons/CurrentSessionStartSessionBeacon";
 import GameInfoBeacon from "../game-info/GameInfo.beacon";
 import OverlayBeacon from "../overlay/Overlay.beacon";
+import PFBaseRateBeacon from "../profit-forecast/ProfitForecast.beacons/PFBaseRateBeacon";
+import PFBreakEvenBeacon from "../profit-forecast/ProfitForecast.beacons/PFBreakEvenBeacon";
+import PFCostModelBeacon from "../profit-forecast/ProfitForecast.beacons/PFCostModelBeacon";
+import PFPlAllDropsBeacon from "../profit-forecast/ProfitForecast.beacons/PFPlAllDropsBeacon";
+import PFPlCardOnlyBeacon from "../profit-forecast/ProfitForecast.beacons/PFPlCardOnlyBeacon";
 import RarityModelPoeNinjaBeacon from "../rarity-model/RarityModel.beacons/RarityModelPoeNinjaBeacon";
 import RarityModelProhibitedLibraryBeacon from "../rarity-model/RarityModel.beacons/RarityModelProhibitedLibraryBeacon";
 import RarityModelRefreshBeacon from "../rarity-model/RarityModel.beacons/RarityModelRefreshBeacon";
@@ -241,6 +246,102 @@ export const onboardingConfig: RepereReactConfig = {
           },
           popover: {
             component: RarityModelToolbarBeacon,
+            anchorPoint: AnchorPoint.BottomRight,
+            offset: {
+              y: 10,
+            },
+          },
+        },
+      ],
+    },
+    {
+      id: "profit-forecast-page",
+      path: "/profit-forecast",
+      beacons: [
+        {
+          id: "pf-pl-card-only",
+          selector: "[data-onboarding='pf-pl-card-only']",
+          trigger: {
+            component: createTrackedTrigger("pf-pl-card-only"),
+            anchorPoint: AnchorPoint.TopCenter,
+            offset: {
+              y: -5,
+            },
+          },
+          popover: {
+            component: PFPlCardOnlyBeacon,
+            anchorPoint: AnchorPoint.BottomLeft,
+            offset: {
+              y: 5,
+            },
+          },
+        },
+        {
+          id: "pf-pl-all-drops",
+          selector: "[data-onboarding='pf-pl-all-drops']",
+          trigger: {
+            component: createTrackedTrigger("pf-pl-all-drops"),
+            anchorPoint: AnchorPoint.TopCenter,
+            offset: {
+              y: -5,
+            },
+          },
+          popover: {
+            component: PFPlAllDropsBeacon,
+            anchorPoint: AnchorPoint.BottomLeft,
+            offset: {
+              y: 5,
+            },
+          },
+        },
+        {
+          id: "pf-break-even-rate",
+          selector: "[data-onboarding='pf-break-even-rate']",
+          trigger: {
+            component: createTrackedTrigger("pf-break-even-rate"),
+            anchorPoint: AnchorPoint.TopCenter,
+            offset: {
+              y: 10,
+            },
+          },
+          popover: {
+            component: PFBreakEvenBeacon,
+            anchorPoint: AnchorPoint.BottomLeft,
+            offset: {
+              y: 10,
+            },
+          },
+        },
+        {
+          id: "pf-cost-model",
+          selector: "[data-onboarding='pf-cost-model']",
+          trigger: {
+            component: createTrackedTrigger("pf-cost-model"),
+            anchorPoint: AnchorPoint.BottomCenter,
+            offset: {
+              y: -10,
+            },
+          },
+          popover: {
+            component: PFCostModelBeacon,
+            anchorPoint: AnchorPoint.BottomRight,
+            offset: {
+              x: 20,
+            },
+          },
+        },
+        {
+          id: "pf-base-rate",
+          selector: "[data-onboarding='pf-base-rate']",
+          trigger: {
+            component: createTrackedTrigger("pf-base-rate"),
+            anchorPoint: AnchorPoint.TopCenter,
+            offset: {
+              y: 10,
+            },
+          },
+          popover: {
+            component: PFBaseRateBeacon,
             anchorPoint: AnchorPoint.BottomRight,
             offset: {
               y: 10,

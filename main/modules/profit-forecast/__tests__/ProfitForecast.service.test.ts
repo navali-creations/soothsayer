@@ -8,6 +8,7 @@ const {
   mockSettingsGet,
   mockRepositoryGetCardWeights,
   mockRepositoryGetMetadata,
+  mockEnsureLoaded,
   mockLoggerLog,
   mockLoggerError,
   mockKyselySelectFrom,
@@ -20,6 +21,7 @@ const {
     mockSettingsGet: vi.fn(),
     mockRepositoryGetCardWeights: vi.fn(),
     mockRepositoryGetMetadata: vi.fn(),
+    mockEnsureLoaded: vi.fn(),
     mockLoggerLog: vi.fn(),
     mockLoggerError: vi.fn(),
     mockKyselySelectFrom,
@@ -70,6 +72,7 @@ vi.mock("~/main/modules/prohibited-library", () => ({
         getCardWeights: mockRepositoryGetCardWeights,
         getMetadata: mockRepositoryGetMetadata,
       })),
+      ensureLoaded: mockEnsureLoaded,
     })),
   },
 }));
@@ -144,6 +147,13 @@ const MOCK_LEAGUE_ROW = {
   start_date: "2025-01-01T00:00:00Z",
 };
 
+const MOCK_POE2_LEAGUE_ROW = {
+  id: "league-uuid-poe2",
+  game: "poe2",
+  name: "Dawn",
+  start_date: "2025-03-01T00:00:00Z",
+};
+
 const MOCK_SNAPSHOT_ROW = {
   id: "snapshot-uuid-1",
   league_id: "league-uuid-1",
@@ -151,6 +161,17 @@ const MOCK_SNAPSHOT_ROW = {
   exchange_chaos_to_divine: 200,
   stash_chaos_to_divine: 195,
   stacked_deck_chaos_cost: 2.22,
+  stacked_deck_max_volume_rate: 64.93,
+};
+
+const MOCK_POE2_SNAPSHOT_ROW = {
+  id: "snapshot-uuid-poe2",
+  league_id: "league-uuid-poe2",
+  fetched_at: "2025-07-01T08:00:00Z",
+  exchange_chaos_to_divine: 150,
+  stash_chaos_to_divine: 145,
+  stacked_deck_chaos_cost: 3.5,
+  stacked_deck_max_volume_rate: 40.0,
 };
 
 const MOCK_CARD_PRICE_ROWS_EXCHANGE = [
@@ -169,6 +190,68 @@ const MOCK_CARD_PRICE_ROWS_EXCHANGE = [
     chaos_value: 0.5,
     divine_value: 0.0025,
     confidence: 1,
+  },
+];
+
+const MOCK_POE2_CARD_PRICE_ROWS = [
+  {
+    snapshot_id: "snapshot-uuid-poe2",
+    card_name: "The Doctor",
+    price_source: "exchange",
+    chaos_value: 800,
+    divine_value: 5.33,
+    confidence: 1,
+  },
+  {
+    snapshot_id: "snapshot-uuid-poe2",
+    card_name: "Rain of Chaos",
+    price_source: "stash",
+    chaos_value: 0.3,
+    divine_value: 0.002,
+    confidence: 2,
+  },
+  {
+    snapshot_id: "snapshot-uuid-poe2",
+    card_name: "The Nurse",
+    price_source: "exchange",
+    chaos_value: 200,
+    divine_value: 1.33,
+    confidence: 3,
+  },
+];
+
+const MOCK_CARD_PRICE_ROWS_MIXED_CONFIDENCE = [
+  {
+    snapshot_id: "snapshot-uuid-1",
+    card_name: "The Doctor",
+    price_source: "exchange",
+    chaos_value: 1200,
+    divine_value: 6.0,
+    confidence: 1,
+  },
+  {
+    snapshot_id: "snapshot-uuid-1",
+    card_name: "Rain of Chaos",
+    price_source: "exchange",
+    chaos_value: 0.5,
+    divine_value: 0.0025,
+    confidence: 2,
+  },
+  {
+    snapshot_id: "snapshot-uuid-1",
+    card_name: "The Nurse",
+    price_source: "exchange",
+    chaos_value: 400,
+    divine_value: 2.0,
+    confidence: 3,
+  },
+  {
+    snapshot_id: "snapshot-uuid-1",
+    card_name: "House of Mirrors",
+    price_source: "stash",
+    chaos_value: 5000,
+    divine_value: 25.0,
+    confidence: 3,
   },
 ];
 
@@ -238,6 +321,36 @@ const MOCK_PL_WEIGHTS = [
   },
 ];
 
+const MOCK_POE2_PL_WEIGHTS = [
+  {
+    cardName: "The Doctor",
+    game: "poe2" as const,
+    league: "Dawn",
+    weight: 15,
+    rarity: 1 as const,
+    fromBoss: false,
+    loadedAt: "2025-07-01T00:00:00Z",
+  },
+  {
+    cardName: "Rain of Chaos",
+    game: "poe2" as const,
+    league: "Dawn",
+    weight: 95000,
+    rarity: 4 as const,
+    fromBoss: false,
+    loadedAt: "2025-07-01T00:00:00Z",
+  },
+  {
+    cardName: "The Nurse",
+    game: "poe2" as const,
+    league: "Dawn",
+    weight: 2000,
+    rarity: 2 as const,
+    fromBoss: false,
+    loadedAt: "2025-07-01T00:00:00Z",
+  },
+];
+
 const MOCK_PL_WEIGHTS_WITH_BOSS = [
   ...MOCK_PL_WEIGHTS.slice(0, 3),
   {
@@ -301,10 +414,17 @@ describe("ProfitForecastService", () => {
     // Set up default chains
     chains = setupDefaultChains();
 
-    // Default mock returns
+    // Default mock returns — metadata exists (CSV was loaded during init)
     mockSettingsGet.mockResolvedValue("Keepers");
     mockRepositoryGetCardWeights.mockResolvedValue(MOCK_PL_WEIGHTS);
-    mockRepositoryGetMetadata.mockResolvedValue(undefined);
+    mockRepositoryGetMetadata.mockResolvedValue({
+      game: "poe1",
+      league: "Keepers",
+      loaded_at: "2025-06-01T00:00:00Z",
+      app_version: "1.0.0",
+      card_count: 4,
+    });
+    mockEnsureLoaded.mockResolvedValue(undefined);
 
     service = ProfitForecastService.getInstance();
   });
@@ -370,11 +490,13 @@ describe("ProfitForecastService", () => {
         chaosValue: 1200,
         divineValue: 6.0,
         source: "exchange",
+        confidence: 1,
       });
       expect(result.snapshot!.cardPrices["Rain of Chaos"]).toEqual({
         chaosValue: 0.5,
         divineValue: 0.0025,
         source: "exchange",
+        confidence: 1,
       });
 
       // Weights should be filtered to weight > 0
@@ -462,6 +584,7 @@ describe("ProfitForecastService", () => {
         chaosValue: 1200,
         divineValue: 6.0,
         source: "exchange",
+        confidence: 1,
       });
     });
 
@@ -475,6 +598,7 @@ describe("ProfitForecastService", () => {
         chaosValue: 0.5,
         divineValue: 0.0025,
         source: "stash",
+        confidence: 1,
       });
     });
 
@@ -515,7 +639,36 @@ describe("ProfitForecastService", () => {
         chaosValue: 300,
         divineValue: 1.5,
         source: "stash",
+        confidence: 1,
       });
+    });
+
+    it("should default confidence to 1 when confidence is null", async () => {
+      chains.priceChain.execute.mockResolvedValue([
+        {
+          snapshot_id: "snapshot-uuid-1",
+          card_name: "The Doctor",
+          price_source: "exchange",
+          chaos_value: 1200,
+          divine_value: 6.0,
+          confidence: null,
+        },
+        {
+          snapshot_id: "snapshot-uuid-1",
+          card_name: "Rain of Chaos",
+          price_source: "stash",
+          chaos_value: 0.5,
+          divine_value: 0.0025,
+          confidence: null,
+        },
+      ]);
+
+      const result = await service.getData("poe1", "Keepers");
+
+      // Exchange price with null confidence should default to 1
+      expect(result.snapshot!.cardPrices["The Doctor"].confidence).toBe(1);
+      // Stash price with null confidence should also default to 1
+      expect(result.snapshot!.cardPrices["Rain of Chaos"].confidence).toBe(1);
     });
 
     it("should handle multiple cards with only exchange prices", async () => {
@@ -578,6 +731,324 @@ describe("ProfitForecastService", () => {
         "Hardcore Keepers",
       );
     });
+
+    // ─── Confidence levels ────────────────────────────────────────────────
+
+    it("should preserve confidence level 2 (medium) on exchange prices", async () => {
+      chains.priceChain.execute.mockResolvedValue([
+        {
+          snapshot_id: "snapshot-uuid-1",
+          card_name: "Rain of Chaos",
+          price_source: "exchange",
+          chaos_value: 0.5,
+          divine_value: 0.0025,
+          confidence: 2,
+        },
+      ]);
+
+      const result = await service.getData("poe1", "Keepers");
+
+      expect(result.snapshot!.cardPrices["Rain of Chaos"].confidence).toBe(2);
+      expect(result.snapshot!.cardPrices["Rain of Chaos"].source).toBe(
+        "exchange",
+      );
+    });
+
+    it("should preserve confidence level 3 (low) on exchange prices", async () => {
+      chains.priceChain.execute.mockResolvedValue([
+        {
+          snapshot_id: "snapshot-uuid-1",
+          card_name: "House of Mirrors",
+          price_source: "exchange",
+          chaos_value: 5000,
+          divine_value: 25.0,
+          confidence: 3,
+        },
+      ]);
+
+      const result = await service.getData("poe1", "Keepers");
+
+      expect(result.snapshot!.cardPrices["House of Mirrors"].confidence).toBe(
+        3,
+      );
+    });
+
+    it("should preserve confidence level 2 on stash fallback prices", async () => {
+      chains.priceChain.execute.mockResolvedValue([
+        {
+          snapshot_id: "snapshot-uuid-1",
+          card_name: "The Nurse",
+          price_source: "stash",
+          chaos_value: 300,
+          divine_value: 1.5,
+          confidence: 2,
+        },
+      ]);
+
+      const result = await service.getData("poe1", "Keepers");
+
+      expect(result.snapshot!.cardPrices["The Nurse"].confidence).toBe(2);
+      expect(result.snapshot!.cardPrices["The Nurse"].source).toBe("stash");
+    });
+
+    it("should preserve confidence level 3 on stash fallback prices", async () => {
+      chains.priceChain.execute.mockResolvedValue([
+        {
+          snapshot_id: "snapshot-uuid-1",
+          card_name: "The Nurse",
+          price_source: "stash",
+          chaos_value: 300,
+          divine_value: 1.5,
+          confidence: 3,
+        },
+      ]);
+
+      const result = await service.getData("poe1", "Keepers");
+
+      expect(result.snapshot!.cardPrices["The Nurse"].confidence).toBe(3);
+    });
+
+    it("should handle mixed confidence levels across multiple cards", async () => {
+      chains.priceChain.execute.mockResolvedValue(
+        MOCK_CARD_PRICE_ROWS_MIXED_CONFIDENCE,
+      );
+
+      const result = await service.getData("poe1", "Keepers");
+
+      expect(result.snapshot!.cardPrices["The Doctor"].confidence).toBe(1);
+      expect(result.snapshot!.cardPrices["Rain of Chaos"].confidence).toBe(2);
+      expect(result.snapshot!.cardPrices["The Nurse"].confidence).toBe(3);
+      // House of Mirrors is stash-only with confidence 3
+      expect(result.snapshot!.cardPrices["House of Mirrors"].confidence).toBe(
+        3,
+      );
+      expect(result.snapshot!.cardPrices["House of Mirrors"].source).toBe(
+        "stash",
+      );
+    });
+
+    it("should use exchange confidence when both exchange and stash exist with different confidence", async () => {
+      chains.priceChain.execute.mockResolvedValue([
+        {
+          snapshot_id: "snapshot-uuid-1",
+          card_name: "The Doctor",
+          price_source: "exchange",
+          chaos_value: 1200,
+          divine_value: 6.0,
+          confidence: 2,
+        },
+        {
+          snapshot_id: "snapshot-uuid-1",
+          card_name: "The Doctor",
+          price_source: "stash",
+          chaos_value: 1100,
+          divine_value: 5.5,
+          confidence: 1,
+        },
+      ]);
+
+      const result = await service.getData("poe1", "Keepers");
+
+      // Exchange wins — its confidence (2) should be used, not stash's (1)
+      expect(result.snapshot!.cardPrices["The Doctor"].confidence).toBe(2);
+      expect(result.snapshot!.cardPrices["The Doctor"].source).toBe("exchange");
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // poe2 End-to-End
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe("poe2 end-to-end", () => {
+    beforeEach(() => {
+      // Wire up poe2 data for all mocks
+      chains.leagueChain.executeTakeFirst.mockResolvedValue(
+        MOCK_POE2_LEAGUE_ROW,
+      );
+      chains.snapshotChain.executeTakeFirst.mockResolvedValue(
+        MOCK_POE2_SNAPSHOT_ROW,
+      );
+      chains.priceChain.execute.mockResolvedValue(MOCK_POE2_CARD_PRICE_ROWS);
+      mockRepositoryGetCardWeights.mockResolvedValue(MOCK_POE2_PL_WEIGHTS);
+      mockRepositoryGetMetadata.mockResolvedValue({
+        game: "poe2",
+        league: "Dawn",
+        loaded_at: "2025-07-01T00:00:00Z",
+        app_version: "1.1.0",
+        card_count: 3,
+      });
+    });
+
+    it("should return full snapshot and weights for poe2", async () => {
+      const result = await service.getData("poe2", "Dawn");
+
+      expect(result.snapshot).not.toBeNull();
+      expect(result.snapshot!.id).toBe("snapshot-uuid-poe2");
+      expect(result.snapshot!.chaosToDivineRatio).toBe(150);
+      expect(result.snapshot!.stackedDeckChaosCost).toBe(3.5);
+      expect(result.snapshot!.stackedDeckMaxVolumeRate).toBe(40.0);
+      expect(result.weights).toHaveLength(3);
+    });
+
+    it("should query with game=poe2 for league and pass poe2 to ensureLoaded", async () => {
+      await service.getData("poe2", "Dawn");
+
+      expect(chains.leagueChain.where).toHaveBeenCalledWith(
+        "game",
+        "=",
+        "poe2",
+      );
+      expect(chains.leagueChain.where).toHaveBeenCalledWith(
+        "name",
+        "=",
+        "Dawn",
+      );
+      expect(mockEnsureLoaded).toHaveBeenCalledWith("poe2");
+    });
+
+    it("should query poe2 weights using metadata league", async () => {
+      await service.getData("poe2", "Dawn");
+
+      expect(mockRepositoryGetCardWeights).toHaveBeenCalledWith("poe2", "Dawn");
+    });
+
+    it("should merge poe2 exchange and stash prices correctly", async () => {
+      const result = await service.getData("poe2", "Dawn");
+
+      // The Doctor: exchange price
+      expect(result.snapshot!.cardPrices["The Doctor"]).toEqual({
+        chaosValue: 800,
+        divineValue: 5.33,
+        source: "exchange",
+        confidence: 1,
+      });
+      // Rain of Chaos: stash fallback (no exchange)
+      expect(result.snapshot!.cardPrices["Rain of Chaos"]).toEqual({
+        chaosValue: 0.3,
+        divineValue: 0.002,
+        source: "stash",
+        confidence: 2,
+      });
+      // The Nurse: exchange with low confidence
+      expect(result.snapshot!.cardPrices["The Nurse"]).toEqual({
+        chaosValue: 200,
+        divineValue: 1.33,
+        source: "exchange",
+        confidence: 3,
+      });
+    });
+
+    it("should return poe2 weights with correct shape", async () => {
+      const result = await service.getData("poe2", "Dawn");
+
+      const doctor = result.weights.find((w) => w.cardName === "The Doctor");
+      expect(doctor).toEqual({
+        cardName: "The Doctor",
+        weight: 15,
+        fromBoss: false,
+      });
+    });
+
+    it("should return null snapshot for poe2 when league not found", async () => {
+      chains.leagueChain.executeTakeFirst.mockResolvedValue(undefined);
+
+      const result = await service.getData("poe2", "NonExistentPoe2League");
+
+      expect(result.snapshot).toBeNull();
+      expect(result.weights).toHaveLength(3);
+    });
+
+    it("should return null snapshot for poe2 when no snapshot exists", async () => {
+      chains.snapshotChain.executeTakeFirst.mockResolvedValue(undefined);
+
+      const result = await service.getData("poe2", "Dawn");
+
+      expect(result.snapshot).toBeNull();
+      expect(result.weights).toHaveLength(3);
+    });
+
+    it("should return empty weights for poe2 when metadata is missing", async () => {
+      mockRepositoryGetMetadata.mockResolvedValue(undefined);
+
+      const result = await service.getData("poe2", "Dawn");
+
+      expect(result.snapshot).not.toBeNull();
+      expect(result.weights).toHaveLength(0);
+    });
+
+    it("should exclude poe2 boss cards from weights", async () => {
+      mockRepositoryGetCardWeights.mockResolvedValue([
+        ...MOCK_POE2_PL_WEIGHTS,
+        {
+          cardName: "Poe2 Boss Card",
+          game: "poe2" as const,
+          league: "Dawn",
+          weight: 500,
+          rarity: 2 as const,
+          fromBoss: true,
+          loadedAt: "2025-07-01T00:00:00Z",
+        },
+      ]);
+
+      const result = await service.getData("poe2", "Dawn");
+
+      expect(result.weights.map((w) => w.cardName)).not.toContain(
+        "Poe2 Boss Card",
+      );
+      expect(result.weights).toHaveLength(3);
+    });
+
+    it("should assign floor weight to poe2 zero-weight non-boss cards", async () => {
+      mockRepositoryGetCardWeights.mockResolvedValue([
+        {
+          cardName: "Common Card",
+          game: "poe2" as const,
+          league: "Dawn",
+          weight: 50000,
+          rarity: 4 as const,
+          fromBoss: false,
+          loadedAt: "2025-07-01T00:00:00Z",
+        },
+        {
+          cardName: "Rare Card",
+          game: "poe2" as const,
+          league: "Dawn",
+          weight: 5,
+          rarity: 1 as const,
+          fromBoss: false,
+          loadedAt: "2025-07-01T00:00:00Z",
+        },
+        {
+          cardName: "Unseen Card",
+          game: "poe2" as const,
+          league: "Dawn",
+          weight: 0,
+          rarity: 1 as const,
+          fromBoss: false,
+          loadedAt: "2025-07-01T00:00:00Z",
+        },
+      ]);
+
+      const result = await service.getData("poe2", "Dawn");
+
+      const unseen = result.weights.find((w) => w.cardName === "Unseen Card");
+      expect(unseen).toBeDefined();
+      expect(unseen!.weight).toBe(5); // floor = min non-zero weight
+    });
+
+    it("should work end-to-end through the IPC handler for poe2", async () => {
+      const handler = getIpcHandler(ProfitForecastChannel.GetData);
+      const result = await handler({}, "poe2", "Dawn");
+
+      expect(result.snapshot).not.toBeNull();
+      expect(result.snapshot.id).toBe("snapshot-uuid-poe2");
+      expect(result.snapshot.chaosToDivineRatio).toBe(150);
+      expect(result.snapshot.cardPrices["The Doctor"].source).toBe("exchange");
+      expect(result.snapshot.cardPrices["Rain of Chaos"].source).toBe("stash");
+      expect(result.snapshot.cardPrices["Rain of Chaos"].confidence).toBe(2);
+      expect(result.snapshot.cardPrices["The Nurse"].confidence).toBe(3);
+      expect(result.weights).toHaveLength(3);
+    });
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -585,21 +1056,17 @@ describe("ProfitForecastService", () => {
   // ═══════════════════════════════════════════════════════════════════════════
 
   describe("getWeights (via getData)", () => {
-    it("should filter out cards with weight = 0", async () => {
-      // No league → null snapshot, but weights are still returned
-      chains.leagueChain.executeTakeFirst.mockResolvedValue(undefined);
+    it("should exclude boss cards but keep zero-weight non-boss cards", async () => {
+      const result = await service.getData("poe1", "Keepers");
 
-      const result = await service.getData("poe1", "NonExistent");
-
-      // MOCK_PL_WEIGHTS has 4 entries, but The Void has weight 0
+      // MOCK_PL_WEIGHTS has 4 entries: The Void is fromBoss so excluded,
+      // the other 3 are non-boss and all kept (even if weight were 0)
       expect(result.weights).toHaveLength(3);
       expect(result.weights.map((w) => w.cardName)).not.toContain("The Void");
     });
 
     it("should return correct weight DTO shape", async () => {
-      chains.leagueChain.executeTakeFirst.mockResolvedValue(undefined);
-
-      const result = await service.getData("poe1", "NonExistent");
+      const result = await service.getData("poe1", "Keepers");
 
       const doctor = result.weights.find((w) => w.cardName === "The Doctor");
       expect(doctor).toEqual({
@@ -609,95 +1076,46 @@ describe("ProfitForecastService", () => {
       });
     });
 
-    it("should preserve fromBoss flag in weight DTO", async () => {
+    it("should exclude boss cards from weights", async () => {
       mockRepositoryGetCardWeights.mockResolvedValue(MOCK_PL_WEIGHTS_WITH_BOSS);
-      chains.leagueChain.executeTakeFirst.mockResolvedValue(undefined);
 
-      const result = await service.getData("poe1", "NonExistent");
+      const result = await service.getData("poe1", "Keepers");
 
+      // A Chilling Wind has fromBoss=true so it should be excluded
       const chillingWind = result.weights.find(
         (w) => w.cardName === "A Chilling Wind",
       );
-      expect(chillingWind).toBeDefined();
-      expect(chillingWind!.fromBoss).toBe(true);
+      expect(chillingWind).toBeUndefined();
+      // Only non-boss cards should remain
+      expect(result.weights).toHaveLength(3);
+      expect(result.weights.every((w) => w.fromBoss === false)).toBe(true);
     });
 
-    it("should use active league from settings to query PL weights", async () => {
-      mockSettingsGet.mockResolvedValue("Keepers");
-      chains.leagueChain.executeTakeFirst.mockResolvedValue(undefined);
+    it("should query weights using the metadata league, not the user's active league", async () => {
+      // User has "Standard" selected, but CSV data was stored under "Keepers"
+      mockSettingsGet.mockResolvedValue("Standard");
 
-      await service.getData("poe1", "NonExistent");
+      await service.getData("poe1", "Standard");
 
+      // Should query with metadata.league ("Keepers"), not the active league
       expect(mockRepositoryGetCardWeights).toHaveBeenCalledWith(
         "poe1",
         "Keepers",
       );
     });
 
-    it("should use poe2 settings key for poe2 game", async () => {
-      mockSettingsGet.mockResolvedValue("Poe2League");
-      mockRepositoryGetCardWeights.mockResolvedValue([]);
-      chains.leagueChain.executeTakeFirst.mockResolvedValue(undefined);
+    it("should call ensureLoaded before querying weights", async () => {
+      await service.getData("poe1", "Keepers");
 
-      await service.getData("poe2", "Poe2League");
-
-      expect(mockSettingsGet).toHaveBeenCalledWith("poe2SelectedLeague");
+      expect(mockEnsureLoaded).toHaveBeenCalledWith("poe1");
     });
 
-    it("should fall back to metadata league when active league has no PL data", async () => {
-      mockRepositoryGetCardWeights
-        .mockResolvedValueOnce([]) // active league — empty
-        .mockResolvedValueOnce(MOCK_PL_WEIGHTS); // metadata league
-
-      mockRepositoryGetMetadata.mockResolvedValue({
-        game: "poe1",
-        league: "Settlers",
-        loaded_at: "2025-06-01T00:00:00Z",
-        app_version: "1.0.0",
-        card_count: 450,
-        created_at: "2025-06-01T00:00:00Z",
-      });
-
-      chains.leagueChain.executeTakeFirst.mockResolvedValue(undefined);
-
-      const result = await service.getData("poe1", "NonExistent");
-
-      expect(mockRepositoryGetCardWeights).toHaveBeenCalledTimes(2);
-      expect(mockRepositoryGetCardWeights).toHaveBeenNthCalledWith(
-        2,
-        "poe1",
-        "Settlers",
-      );
-      expect(result.weights).toHaveLength(3);
-    });
-
-    it("should not fall back when metadata league matches active league", async () => {
-      mockRepositoryGetCardWeights.mockResolvedValue([]);
-      mockRepositoryGetMetadata.mockResolvedValue({
-        game: "poe1",
-        league: "Keepers",
-        loaded_at: "2025-06-01T00:00:00Z",
-        app_version: "1.0.0",
-        card_count: 450,
-        created_at: "2025-06-01T00:00:00Z",
-      });
-      chains.leagueChain.executeTakeFirst.mockResolvedValue(undefined);
-
-      const result = await service.getData("poe1", "NonExistent");
-
-      // Should only call getCardWeights once since metadata league = active league
-      expect(mockRepositoryGetCardWeights).toHaveBeenCalledTimes(1);
-      expect(result.weights).toHaveLength(0);
-    });
-
-    it("should not fall back when no metadata exists", async () => {
-      mockRepositoryGetCardWeights.mockResolvedValue([]);
+    it("should return empty weights when metadata is null after ensureLoaded", async () => {
       mockRepositoryGetMetadata.mockResolvedValue(undefined);
-      chains.leagueChain.executeTakeFirst.mockResolvedValue(undefined);
 
-      const result = await service.getData("poe1", "NonExistent");
+      const result = await service.getData("poe1", "Keepers");
 
-      expect(mockRepositoryGetCardWeights).toHaveBeenCalledTimes(1);
+      expect(mockEnsureLoaded).toHaveBeenCalledWith("poe1");
       expect(result.weights).toHaveLength(0);
     });
 
@@ -705,15 +1123,14 @@ describe("ProfitForecastService", () => {
       mockRepositoryGetCardWeights.mockRejectedValue(
         new Error("Database corrupted"),
       );
-      chains.leagueChain.executeTakeFirst.mockResolvedValue(undefined);
 
-      const result = await service.getData("poe1", "NonExistent");
+      const result = await service.getData("poe1", "Keepers");
 
       expect(result.weights).toHaveLength(0);
       expect(mockLoggerError).toHaveBeenCalled();
     });
 
-    it("should return empty array when all PL weights are zero", async () => {
+    it("should assign floor weight of 1 when all non-boss PL weights are zero", async () => {
       mockRepositoryGetCardWeights.mockResolvedValue([
         {
           cardName: "Card A",
@@ -734,17 +1151,77 @@ describe("ProfitForecastService", () => {
           loadedAt: "2025-06-01T00:00:00Z",
         },
       ]);
-      chains.leagueChain.executeTakeFirst.mockResolvedValue(undefined);
 
-      const result = await service.getData("poe1", "NonExistent");
+      const result = await service.getData("poe1", "Keepers");
 
-      expect(result.weights).toHaveLength(0);
+      // Boss card excluded, non-boss card kept with fallback floor weight of 1
+      expect(result.weights).toHaveLength(1);
+      expect(result.weights[0].cardName).toBe("Card A");
+      expect(result.weights[0].weight).toBe(1);
+    });
+
+    it("should assign the minimum observed non-zero weight to zero-weight non-boss cards", async () => {
+      mockRepositoryGetCardWeights.mockResolvedValue([
+        {
+          cardName: "Rain of Chaos",
+          game: "poe1",
+          league: "Keepers",
+          weight: 121400,
+          rarity: 4,
+          fromBoss: false,
+          loadedAt: "2025-06-01T00:00:00Z",
+        },
+        {
+          cardName: "The Doctor",
+          game: "poe1",
+          league: "Keepers",
+          weight: 10,
+          rarity: 1,
+          fromBoss: false,
+          loadedAt: "2025-06-01T00:00:00Z",
+        },
+        {
+          cardName: "House of Mirrors",
+          game: "poe1",
+          league: "Keepers",
+          weight: 0,
+          rarity: 1,
+          fromBoss: false,
+          loadedAt: "2025-06-01T00:00:00Z",
+        },
+        {
+          cardName: "History",
+          game: "poe1",
+          league: "Keepers",
+          weight: 3,
+          rarity: 1,
+          fromBoss: false,
+          loadedAt: "2025-06-01T00:00:00Z",
+        },
+      ]);
+
+      const result = await service.getData("poe1", "Keepers");
+
+      expect(result.weights).toHaveLength(4);
+
+      // House of Mirrors had weight 0 → gets the minimum observed weight (3, from History)
+      const hom = result.weights.find((w) => w.cardName === "House of Mirrors");
+      expect(hom).toBeDefined();
+      expect(hom!.weight).toBe(3);
+
+      // Cards with real weights are untouched
+      const rain = result.weights.find((w) => w.cardName === "Rain of Chaos");
+      expect(rain!.weight).toBe(121400);
+
+      const doctor = result.weights.find((w) => w.cardName === "The Doctor");
+      expect(doctor!.weight).toBe(10);
+
+      const history = result.weights.find((w) => w.cardName === "History");
+      expect(history!.weight).toBe(3);
     });
 
     it("should not strip league or weight fields from the DTO — only cardName, weight, fromBoss", async () => {
-      chains.leagueChain.executeTakeFirst.mockResolvedValue(undefined);
-
-      const result = await service.getData("poe1", "NonExistent");
+      const result = await service.getData("poe1", "Keepers");
 
       for (const w of result.weights) {
         expect(Object.keys(w).sort()).toEqual(
@@ -906,6 +1383,7 @@ describe("ProfitForecastService", () => {
         fetchedAt: "2025-06-15T12:00:00Z",
         chaosToDivineRatio: 200,
         stackedDeckChaosCost: 2.22,
+        stackedDeckMaxVolumeRate: 64.93,
         cardPrices: {},
       });
     });
@@ -1044,59 +1522,33 @@ describe("ProfitForecastService", () => {
   // Standard / Permanent League Fallback (n-1)
   // ═══════════════════════════════════════════════════════════════════════════
 
-  describe("PL weights league fallback for permanent leagues", () => {
-    it("should fall back to metadata league when active league is Standard", async () => {
+  describe("PL weights are league-independent (use metadata league)", () => {
+    it("should return weights regardless of user's active league", async () => {
+      // User has "Standard" selected but CSV data is stored under "Keepers"
       mockSettingsGet.mockResolvedValue("Standard");
-      mockRepositoryGetCardWeights
-        .mockResolvedValueOnce([]) // Standard — no data
-        .mockResolvedValueOnce(MOCK_PL_WEIGHTS); // Keepers — has data
-
-      mockRepositoryGetMetadata.mockResolvedValue({
-        game: "poe1",
-        league: "Keepers",
-        loaded_at: "2025-06-01T00:00:00Z",
-        app_version: "1.0.0",
-        card_count: 450,
-        created_at: "2025-06-01T00:00:00Z",
-      });
-
-      chains.leagueChain.executeTakeFirst.mockResolvedValue(undefined);
 
       const result = await service.getData("poe1", "Standard");
 
+      // Weights come from metadata.league ("Keepers"), not the active league
       expect(result.weights).toHaveLength(3);
-      expect(mockRepositoryGetCardWeights).toHaveBeenNthCalledWith(
-        1,
-        "poe1",
-        "Standard",
-      );
-      expect(mockRepositoryGetCardWeights).toHaveBeenNthCalledWith(
-        2,
+      expect(mockRepositoryGetCardWeights).toHaveBeenCalledWith(
         "poe1",
         "Keepers",
       );
     });
 
-    it("should fall back to metadata league when active league is Hardcore Standard", async () => {
+    it("should return weights when active league is Hardcore Standard", async () => {
       mockSettingsGet.mockResolvedValue("Hardcore");
-      mockRepositoryGetCardWeights
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce(MOCK_PL_WEIGHTS);
-
-      mockRepositoryGetMetadata.mockResolvedValue({
-        game: "poe1",
-        league: "Keepers",
-        loaded_at: "2025-06-01T00:00:00Z",
-        app_version: "1.0.0",
-        card_count: 450,
-        created_at: "2025-06-01T00:00:00Z",
-      });
-
-      chains.leagueChain.executeTakeFirst.mockResolvedValue(undefined);
 
       const result = await service.getData("poe1", "Hardcore");
 
       expect(result.weights).toHaveLength(3);
+      // Only one call to getCardWeights — no fallback needed
+      expect(mockRepositoryGetCardWeights).toHaveBeenCalledTimes(1);
+      expect(mockRepositoryGetCardWeights).toHaveBeenCalledWith(
+        "poe1",
+        "Keepers",
+      );
     });
   });
 

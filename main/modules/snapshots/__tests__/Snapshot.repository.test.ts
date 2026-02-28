@@ -243,6 +243,7 @@ describe("SnapshotRepository", () => {
         "id",
         "leagueId",
         "stackedDeckChaosCost",
+        "stackedDeckMaxVolumeRate",
         "stashChaosToDivine",
       ]);
     });

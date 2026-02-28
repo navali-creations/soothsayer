@@ -76,22 +76,41 @@ class ProhibitedLibraryService {
   // ══════════════════════════════════════════════════════════════════════════
 
   /**
+   * Ensure PL data is loaded for the given game.
+   *
+   * Checks the metadata table — if data already exists, this is a no-op.
+   * Otherwise, force-loads the bundled CSV. This is the primary lazy-load
+   * entry point called by IPC handlers and other services on first access.
+   */
+  public async ensureLoaded(game: "poe1" | "poe2"): Promise<void> {
+    const metadata = await this.repository.getMetadata(game);
+    if (metadata && metadata.card_count > 0) {
+      return; // Already loaded
+    }
+
+    this.logger.log(`[${game}] No PL data in DB — lazy-loading bundled CSV`);
+    const result = await this.loadData(game, true);
+    if (result.cardCount > 0) {
+      this.logger.log(
+        `[${game}] Lazy-loaded ${result.cardCount} cards for league "${result.league}"`,
+      );
+    } else {
+      this.logger.warn(
+        `[${game}] Lazy-load produced no data (success=${result.success})`,
+      );
+    }
+  }
+
+  /**
    * Initialise Prohibited Library data for both games.
    *
-   * Called once during app startup. For PoE2, this is currently a no-op
-   * since no bundled CSV exists yet.
+   * Delegates to `ensureLoaded` which is a no-op if data already exists.
+   * Can be called eagerly at startup or skipped entirely for lazy loading.
    */
   public async initialize(): Promise<void> {
     for (const game of ["poe1", "poe2"] as const) {
       try {
-        const result = await this.loadData(game, false);
-        if (result.cardCount > 0) {
-          this.logger.log(
-            `[${game}] Loaded ${result.cardCount} cards for league "${result.league}"`,
-          );
-        } else {
-          this.logger.log(`[${game}] No PL data available (no-op)`);
-        }
+        await this.ensureLoaded(game);
       } catch (error) {
         this.logger.error(
           `[${game}] Failed to load PL data during init:`,
@@ -303,28 +322,12 @@ class ProhibitedLibraryService {
         try {
           assertGameType(game, ProhibitedLibraryChannel.GetCardWeights);
 
-          const leagueKey =
-            game === "poe1"
-              ? SettingsKey.SelectedPoe1League
-              : SettingsKey.SelectedPoe2League;
-          const activeLeague = await this.settingsStore.get(leagueKey);
+          // Lazy-load if needed, then query using the metadata league
+          await this.ensureLoaded(game);
+          const metadata = await this.repository.getMetadata(game);
+          if (!metadata) return [];
 
-          // Try the active league first; fall back to whatever league is in metadata
-          let weights = await this.repository.getCardWeights(
-            game,
-            activeLeague,
-          );
-          if (weights.length === 0) {
-            const metadata = await this.repository.getMetadata(game);
-            if (metadata && metadata.league !== activeLeague) {
-              weights = await this.repository.getCardWeights(
-                game,
-                metadata.league,
-              );
-            }
-          }
-
-          return weights;
+          return await this.repository.getCardWeights(game, metadata.league);
         } catch (error) {
           return handleValidationError(
             error,
@@ -346,28 +349,12 @@ class ProhibitedLibraryService {
         try {
           assertGameType(game, ProhibitedLibraryChannel.GetFromBossCards);
 
-          const leagueKey =
-            game === "poe1"
-              ? SettingsKey.SelectedPoe1League
-              : SettingsKey.SelectedPoe2League;
-          const activeLeague = await this.settingsStore.get(leagueKey);
+          // Lazy-load if needed, then query using the metadata league
+          await this.ensureLoaded(game);
+          const metadata = await this.repository.getMetadata(game);
+          if (!metadata) return [];
 
-          // Try the active league first; fall back to whatever league is in metadata
-          let cards = await this.repository.getFromBossCards(
-            game,
-            activeLeague,
-          );
-          if (cards.length === 0) {
-            const metadata = await this.repository.getMetadata(game);
-            if (metadata && metadata.league !== activeLeague) {
-              cards = await this.repository.getFromBossCards(
-                game,
-                metadata.league,
-              );
-            }
-          }
-
-          return cards;
+          return await this.repository.getFromBossCards(game, metadata.league);
         } catch (error) {
           return handleValidationError(
             error,

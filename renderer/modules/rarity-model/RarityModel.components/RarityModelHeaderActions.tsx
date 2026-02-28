@@ -1,30 +1,11 @@
 import clsx from "clsx";
 import { FiLock, FiRefreshCw } from "react-icons/fi";
 
-import { Button, Search } from "~/renderer/components";
-import { useTickingTimer } from "~/renderer/hooks";
+import { Button, Countdown, Search } from "~/renderer/components";
+import { formatTickingTimer, useTickingTimer } from "~/renderer/hooks";
 import { useBoundStore } from "~/renderer/store";
 
 import RarityModelDropdown from "./RarityModelSidebar";
-
-/**
- * Formats a TickingTimer result into a human-readable countdown string.
- * Examples: "5h 59m 42s", "12m 05s", "0m 08s"
- */
-const formatCountdown = (timer: {
-  hours: number;
-  minutes: number;
-  seconds: number;
-}): string => {
-  const { hours, minutes, seconds } = timer;
-
-  if (hours > 0) {
-    return `${hours}h ${String(minutes).padStart(2, "0")}m ${String(
-      seconds,
-    ).padStart(2, "0")}s`;
-  }
-  return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
-};
 
 interface RarityModelHeaderActionsProps {
   onGlobalFilterChange: (value: string) => void;
@@ -84,7 +65,7 @@ const RarityModelHeaderActions = ({
         )}
         data-tip={
           isOnCooldown
-            ? `Available in ${formatCountdown(cooldownTimer)}`
+            ? `Available in ${formatTickingTimer(cooldownTimer)}`
             : isRefreshing
               ? "Refreshing..."
               : "Fetch latest prices from poe.ninja"
@@ -109,9 +90,7 @@ const RarityModelHeaderActions = ({
           {isRefreshing ? (
             "Refreshing..."
           ) : isOnCooldown ? (
-            <span className="tabular-nums text-xs">
-              {formatCountdown(cooldownTimer)}
-            </span>
+            <Countdown timer={cooldownTimer} size="xs" />
           ) : (
             "Refresh poe.ninja"
           )}

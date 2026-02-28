@@ -90,6 +90,8 @@ export function splitCsvLine(line: string): string[] {
  * Column mapping (0-based):
  *   0 = card name (header: "patch")
  *   1 = bucket (community-defined weight tier — unrelated to our rarity system)
+ *   2 = Faustus model tier (header: "Faustus") — coarse rarity bucket, NOT
+ *       used for probability math (skipped during parsing)
  *   3 = from_boss indicator (header: "Ritual"); only the literal text "Boss"
  *       is meaningful — all other values in this column are irrelevant
  *   `allSamplesIndex - 1` = current-league weight (0 = not in Stacked Decks)
@@ -165,6 +167,8 @@ export function parseProhibitedLibraryCsv(csvContent: string): ParseResult {
     // Extract bucket (column 1)
     const bucketRaw = columns[1];
     const bucket = bucketRaw ? parseInt(bucketRaw, 10) : 0;
+
+    // Column 2 ("Faustus") is a coarse rarity tier — intentionally skipped.
 
     // Extract from_boss from column 3 ("Ritual" header).
     // Only the literal text "Boss" matters; all other values are irrelevant.
