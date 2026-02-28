@@ -61,7 +61,7 @@ const {
 const mockEnv = vi.hoisted(() => ({
   VITE_SUPABASE_URL: "https://test.supabase.co",
   VITE_SUPABASE_ANON_KEY: "test-anon-key",
-  SENTRY_DSN: "https://sentry.example.com/123",
+  VITE_SENTRY_DSN: "https://sentry.example.com/123",
 }));
 
 // ─── Mock electron-squirrel-startup ──────────────────────────────────────────

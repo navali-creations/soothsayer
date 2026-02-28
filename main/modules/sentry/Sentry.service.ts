@@ -1,4 +1,5 @@
-import * as Sentry from "@sentry/electron";
+import * as Sentry from "@sentry/electron/main";
+import { app } from "electron";
 
 class SentryService {
   private static _instance: SentryService;
@@ -18,7 +19,9 @@ class SentryService {
     }
 
     Sentry.init({
-      dsn: import.meta.env.SENTRY_DSN,
+      dsn: import.meta.env.VITE_SENTRY_DSN,
+      release: `soothsayer@${app.getVersion()}`,
+      environment: app.isPackaged ? "production" : "development",
     });
 
     this.initialized = true;

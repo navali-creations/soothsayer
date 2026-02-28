@@ -5,7 +5,7 @@ import { useBoundStore } from "~/renderer/store";
 import Navigation from "./Sidebar.components/Nav";
 import SessionStatus from "./Sidebar.components/SessionStatus";
 
-const SESSION_STATUS_HEIGHT = 132;
+const SESSION_STATUS_HEIGHT = 133;
 
 const Sidebar = () => {
   const {
@@ -14,7 +14,7 @@ const Sidebar = () => {
 
   const isActive = getIsCurrentSessionActive();
   return (
-    <aside className="w-[160px] flex flex-col h-screen border-r border-base-100 shadow-[0_0_10px_black] relative z-10 ">
+    <aside className="w-[160px] flex flex-col h-screen border-r border-base-100 shadow-[0_0_10px_black] relative z-10">
       <AnimatePresence initial={false}>
         <motion.div
           className="relative"

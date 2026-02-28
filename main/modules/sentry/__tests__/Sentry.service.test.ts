@@ -1,13 +1,27 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // ─── Hoisted mock functions (available inside vi.mock factories) ─────────────
-const { mockSentryInit } = vi.hoisted(() => ({
-  mockSentryInit: vi.fn(),
+const { mockSentryInit, mockAppGetVersion, mockAppIsPackaged } = vi.hoisted(
+  () => ({
+    mockSentryInit: vi.fn(),
+    mockAppGetVersion: vi.fn().mockReturnValue("0.6.0"),
+    mockAppIsPackaged: { value: false },
+  }),
+);
+
+// ─── Mock @sentry/electron/main ─────────────────────────────────────────────
+vi.mock("@sentry/electron/main", () => ({
+  init: mockSentryInit,
 }));
 
-// ─── Mock @sentry/electron ──────────────────────────────────────────────────
-vi.mock("@sentry/electron", () => ({
-  init: mockSentryInit,
+// ─── Mock electron ──────────────────────────────────────────────────────────
+vi.mock("electron", () => ({
+  app: {
+    getVersion: mockAppGetVersion,
+    get isPackaged() {
+      return mockAppIsPackaged.value;
+    },
+  },
 }));
 
 // ─── Import under test (after mocks) ────────────────────────────────────────
@@ -20,6 +34,8 @@ describe("SentryService", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAppGetVersion.mockReturnValue("0.6.0");
+    mockAppIsPackaged.value = false;
 
     // Reset singleton so each test gets a fresh instance
     // @ts-expect-error — accessing private static for testing
@@ -67,13 +83,51 @@ describe("SentryService", () => {
       service = SentryService.getInstance();
     });
 
-    it("should call Sentry.init with the DSN from environment", () => {
+    it("should call Sentry.init with DSN, release, and environment", () => {
       service.initialize();
 
       expect(mockSentryInit).toHaveBeenCalledTimes(1);
       expect(mockSentryInit).toHaveBeenCalledWith({
-        dsn: import.meta.env.SENTRY_DSN,
+        dsn: import.meta.env.VITE_SENTRY_DSN,
+        release: "soothsayer@0.6.0",
+        environment: "development",
       });
+    });
+
+    it("should set environment to 'production' when app is packaged", () => {
+      mockAppIsPackaged.value = true;
+
+      service.initialize();
+
+      expect(mockSentryInit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          environment: "production",
+        }),
+      );
+    });
+
+    it("should set environment to 'development' when app is not packaged", () => {
+      mockAppIsPackaged.value = false;
+
+      service.initialize();
+
+      expect(mockSentryInit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          environment: "development",
+        }),
+      );
+    });
+
+    it("should use the version from app.getVersion() in the release", () => {
+      mockAppGetVersion.mockReturnValue("1.2.3");
+
+      service.initialize();
+
+      expect(mockSentryInit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          release: "soothsayer@1.2.3",
+        }),
+      );
     });
 
     it("should only call Sentry.init once even if initialize is called multiple times", () => {

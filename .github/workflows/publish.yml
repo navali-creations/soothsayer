@@ -122,7 +122,7 @@ jobs:
           echo "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" > .env
           echo "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}" >> .env
           echo "VITE_UMAMI_ID=${{ secrets.VITE_UMAMI_ID }}" >> .env
-          echo "SENTRY_DSN=${{ secrets.SENTRY_DSN }}" >> .env
+          echo "VITE_SENTRY_DSN=${{ secrets.SENTRY_DSN }}" >> .env
 
       - name: Create .env file (Windows)
         if: startsWith(matrix.name, 'windows')
@@ -131,7 +131,7 @@ jobs:
           "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" | Set-Content -Path .env -Encoding utf8
           "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}" | Add-Content -Path .env -Encoding utf8
           "VITE_UMAMI_ID=${{ secrets.VITE_UMAMI_ID }}" | Add-Content -Path .env -Encoding utf8
-          "SENTRY_DSN=${{ secrets.SENTRY_DSN }}" | Add-Content -Path .env -Encoding utf8
+          "VITE_SENTRY_DSN=${{ secrets.SENTRY_DSN }}" | Add-Content -Path .env -Encoding utf8
 
       # ── Linux: single step ─────────────────────────────────────────────
       - name: Make distributables (Linux)

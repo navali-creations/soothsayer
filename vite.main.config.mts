@@ -1,8 +1,13 @@
 import { sentryVitePlugin } from "@sentry/vite-plugin";
 import { resolve } from "node:path";
+import { readFileSync } from "node:fs";
 
 import { defineConfig } from "vite";
 import { externalizeDeps } from "vite-plugin-externalize-deps";
+
+const { version } = JSON.parse(
+  readFileSync(resolve(__dirname, "package.json"), "utf-8")
+);
 
 export default defineConfig({
   resolve: {
@@ -32,8 +37,13 @@ export default defineConfig({
     sourcemap: true,
   },
 
-  plugins: [sentryVitePlugin({
-    org: "navali-creations",
-    project: "electron"
-  })]
+  plugins: [
+    sentryVitePlugin({
+      org: "navali-creations",
+      project: "electron",
+      release: {
+        name: `soothsayer@${version}`,
+      },
+    }),
+  ],
 });

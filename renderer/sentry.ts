@@ -8,7 +8,7 @@ export function initSentry() {
   }
 
   Sentry.init({
-    dsn: import.meta.env.SENTRY_DSN,
+    dsn: import.meta.env.VITE_SENTRY_DSN,
   });
 
   initialized = true;
