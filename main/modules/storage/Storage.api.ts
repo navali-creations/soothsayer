@@ -20,6 +20,9 @@ const StorageAPI = {
 
   checkDiskSpace: (): Promise<DiskSpaceCheck> =>
     ipcRenderer.invoke(StorageChannel.CheckDiskSpace),
+
+  revealPaths: (): Promise<{ appDataPath: string }> =>
+    ipcRenderer.invoke(StorageChannel.RevealPaths),
 };
 
 export { StorageAPI };

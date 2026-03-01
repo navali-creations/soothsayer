@@ -41,6 +41,7 @@ vi.mock("electron", () => ({
     isPackaged: false,
     getAppPath: vi.fn(() => "/mock-app-path"),
     getPath: mockAppGetPath,
+    getName: vi.fn(() => "soothsayer"),
   },
   dialog: {
     showMessageBox: vi.fn(),
@@ -171,14 +172,15 @@ describe("StorageService", () => {
       expect(registeredChannels).toContain(StorageChannel.GetLeagueUsage);
       expect(registeredChannels).toContain(StorageChannel.DeleteLeagueData);
       expect(registeredChannels).toContain(StorageChannel.CheckDiskSpace);
+      expect(registeredChannels).toContain(StorageChannel.RevealPaths);
     });
 
-    it("should register exactly 4 handlers", () => {
+    it("should register exactly 5 handlers", () => {
       // The singleton is created once in beforeEach, so we count its registrations
       const storageHandlers = mockIpcHandle.mock.calls.filter(
         ([ch]: [string]) => ch.startsWith("storage:"),
       );
-      expect(storageHandlers).toHaveLength(4);
+      expect(storageHandlers).toHaveLength(5);
     });
   });
 
@@ -909,15 +911,29 @@ describe("StorageService", () => {
   // ═══════════════════════════════════════════════════════════════════════════
 
   describe("getStorageInfo", () => {
-    it("should return storage info with correct paths", async () => {
-      mockAppGetPath.mockReturnValue("/app-data");
-      mockGetPath.mockReturnValue("/app-data/soothsayer.db");
+    it("should return storage info with masked appDataPath", async () => {
+      mockAppGetPath.mockReturnValue("/home/seb/.config/soothsayer");
+      mockGetPath.mockReturnValue("/home/seb/.config/soothsayer/soothsayer.db");
 
       const handler = getIpcHandler(StorageChannel.GetInfo);
       const result = await handler({});
 
-      expect(result.appDataPath).toBe("/app-data");
-      expect(result.dbPath).toBe("/app-data/soothsayer.db");
+      // Path should be masked — user-specific segments replaced with **
+      expect(result.appDataPath).not.toContain("seb");
+      expect(result.appDataPath).toContain("**");
+      expect(result.appDataPath).toContain("soothsayer");
+      // dbPath should not be present
+      expect(result.dbPath).toBeUndefined();
+    });
+
+    it("should return full unmasked appDataPath via RevealPaths handler", async () => {
+      mockAppGetPath.mockReturnValue("/home/seb/.config/soothsayer");
+
+      const handler = getIpcHandler(StorageChannel.RevealPaths);
+      const result = await handler({});
+
+      expect(result.appDataPath).toBe("/home/seb/.config/soothsayer");
+      expect(result.dbPath).toBeUndefined();
     });
 
     it("should include disk space metrics", async () => {
@@ -969,8 +985,8 @@ describe("StorageService", () => {
     });
 
     it("should handle disk stats on different drives for app data and db", async () => {
-      mockGetPath.mockReturnValue("D:/databases/soothsayer.db");
-      mockAppGetPath.mockReturnValue("C:/Users/test/AppData/Soothsayer");
+      mockGetPath.mockReturnValue("D:\\databases\\soothsayer\\soothsayer.db");
+      mockAppGetPath.mockReturnValue("C:\\Users\\test\\AppData\\Soothsayer");
 
       let callCount = 0;
       mockStatfsSync.mockImplementation(() => {

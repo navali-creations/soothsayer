@@ -4,6 +4,7 @@ import path from "node:path";
 import { app, ipcMain } from "electron";
 
 import { DatabaseService } from "~/main/modules/database";
+import { maskPath } from "~/main/utils/mask-path";
 
 import { StorageChannel } from "./Storage.channels";
 import type {
@@ -27,6 +28,9 @@ const AVG_POE_LEAGUE_CACHE_ROW_BYTES = 150;
 
 // Low disk space threshold: 1 GB
 const LOW_DISK_SPACE_THRESHOLD_BYTES = 1024 * 1024 * 1024;
+
+/** Anchors used when masking app-data paths for display in the renderer. */
+const APP_PATH_ANCHORS = ["soothsayer"];
 
 class StorageService {
   private static _instance: StorageService;
@@ -73,6 +77,15 @@ class StorageService {
         return this.checkDiskSpace();
       },
     );
+
+    ipcMain.handle(
+      StorageChannel.RevealPaths,
+      async (): Promise<{ appDataPath: string }> => {
+        return {
+          appDataPath: app.getPath("userData"),
+        };
+      },
+    );
   }
 
   // ============================================================================
@@ -99,9 +112,8 @@ class StorageService {
     );
 
     return {
-      appDataPath,
+      appDataPath: maskPath(appDataPath, APP_PATH_ANCHORS),
       appDataSizeBytes,
-      dbPath,
       dbSizeBytes,
       diskTotalBytes: appDiskStats.total,
       diskFreeBytes: appDiskStats.free,

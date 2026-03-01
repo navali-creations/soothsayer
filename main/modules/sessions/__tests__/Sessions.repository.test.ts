@@ -1885,4 +1885,530 @@ describe("SessionsRepository", () => {
       expect(allSessions).toHaveLength(5);
     });
   });
+
+  // ─── League Rotation / Card Dataset Changes ──────────────────────────
+
+  describe("league rotation — viewing past sessions after card dataset changes", () => {
+    it("should preserve card metadata for past sessions when syncCards only adds/updates (never deletes)", async () => {
+      // ── Phase 1: "Settlers" league is active, card pool has The Doctor & Rain of Chaos ──
+      const settlersLeagueId = await seedLeague(testDb.kysely, {
+        game: "poe1",
+        name: "Settlers",
+      });
+
+      // Seed the divination cards that exist during Settlers
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "The Doctor",
+        stackSize: 8,
+        description: "A powerful card",
+        rewardHtml: "<span>Headhunter</span>",
+        artSrc: "https://example.com/doctor.png",
+        flavourHtml: "<i>Do no harm</i>",
+      });
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Rain of Chaos",
+        stackSize: 8,
+        description: "A common card",
+        rewardHtml: "<span>1x Chaos Orb</span>",
+        artSrc: "https://example.com/rain.png",
+        flavourHtml: "<i>Chaos reigns</i>",
+      });
+      // A card that will be "removed from drops" in the next league
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "A Chilling Wind",
+        stackSize: 4,
+        description: "A seasonal card",
+        rewardHtml: "<span>Winterheart</span>",
+        artSrc: "https://example.com/chilling.png",
+        flavourHtml: "<i>Winter is coming</i>",
+      });
+
+      // Set rarities for Settlers league
+      await seedDivinationCardRarity(testDb.kysely, {
+        game: "poe1",
+        league: "Settlers",
+        cardName: "The Doctor",
+        rarity: 1,
+      });
+      await seedDivinationCardRarity(testDb.kysely, {
+        game: "poe1",
+        league: "Settlers",
+        cardName: "Rain of Chaos",
+        rarity: 4,
+      });
+      await seedDivinationCardRarity(testDb.kysely, {
+        game: "poe1",
+        league: "Settlers",
+        cardName: "A Chilling Wind",
+        rarity: 2,
+      });
+
+      // Create a snapshot with prices from Settlers
+      const settlersSnapshotId = await seedSnapshot(testDb.kysely, {
+        leagueId: settlersLeagueId,
+        exchangeChaosToDivine: 200,
+        stashChaosToDivine: 195,
+        stackedDeckChaosCost: 3,
+        cardPrices: [
+          {
+            cardName: "The Doctor",
+            priceSource: "exchange",
+            chaosValue: 5000,
+            divineValue: 25,
+          },
+          {
+            cardName: "The Doctor",
+            priceSource: "stash",
+            chaosValue: 4800,
+            divineValue: 24,
+          },
+          {
+            cardName: "Rain of Chaos",
+            priceSource: "exchange",
+            chaosValue: 2,
+            divineValue: 0.01,
+          },
+          {
+            cardName: "Rain of Chaos",
+            priceSource: "stash",
+            chaosValue: 1.5,
+            divineValue: 0.0075,
+          },
+          {
+            cardName: "A Chilling Wind",
+            priceSource: "exchange",
+            chaosValue: 100,
+            divineValue: 0.5,
+          },
+          {
+            cardName: "A Chilling Wind",
+            priceSource: "stash",
+            chaosValue: 90,
+            divineValue: 0.45,
+          },
+        ],
+      });
+
+      // Play a session during Settlers — all 3 cards dropped
+      const settlersSessionId = await seedSession(testDb.kysely, {
+        id: "settlers-session-1",
+        game: "poe1",
+        leagueId: settlersLeagueId,
+        snapshotId: settlersSnapshotId,
+        startedAt: "2025-01-15T10:00:00Z",
+        endedAt: "2025-01-15T11:30:00Z",
+        totalCount: 150,
+        isActive: false,
+      });
+
+      await seedSessionCards(testDb.kysely, settlersSessionId, [
+        { cardName: "The Doctor", count: 1 },
+        { cardName: "Rain of Chaos", count: 40 },
+        { cardName: "A Chilling Wind", count: 3 },
+      ]);
+
+      // ── Phase 2: League rotates to "Keepers" ──
+      // In production, syncCards() only inserts new cards and updates changed ones.
+      // It NEVER deletes old cards. So "A Chilling Wind" stays in divination_cards
+      // even though GGG removed it from the drop pool.
+      //
+      // Simulate: add a new card that only exists in Keepers
+      const _keepersLeagueId = await seedLeague(testDb.kysely, {
+        game: "poe1",
+        name: "Keepers",
+      });
+
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "The Shimmering Void",
+        stackSize: 6,
+        description: "A new Keepers card",
+        rewardHtml: "<span>Mageblood</span>",
+        artSrc: "https://example.com/void.png",
+        flavourHtml: "<i>Into the void</i>",
+      });
+
+      // New league gets new rarities (old Settlers rarities remain untouched)
+      await seedDivinationCardRarity(testDb.kysely, {
+        game: "poe1",
+        league: "Keepers",
+        cardName: "The Doctor",
+        rarity: 1,
+      });
+      await seedDivinationCardRarity(testDb.kysely, {
+        game: "poe1",
+        league: "Keepers",
+        cardName: "Rain of Chaos",
+        rarity: 4,
+      });
+      await seedDivinationCardRarity(testDb.kysely, {
+        game: "poe1",
+        league: "Keepers",
+        cardName: "The Shimmering Void",
+        rarity: 1,
+      });
+      // Note: "A Chilling Wind" has NO rarity entry for "Keepers" — it no longer drops
+
+      // ── Phase 3: View the old Settlers session — everything must still work ──
+      const details = await repository.getSessionById(settlersSessionId);
+      expect(details).not.toBeNull();
+      expect(details!.league).toBe("Settlers");
+      expect(details!.totalCount).toBe(150);
+
+      const cards = await repository.getSessionCards(settlersSessionId);
+      expect(cards).toHaveLength(3);
+
+      // The Doctor: metadata intact, rarity from Settlers league
+      const doctor = cards.find((c) => c.cardName === "The Doctor");
+      expect(doctor).toBeDefined();
+      expect(doctor!.count).toBe(1);
+      expect(doctor!.divinationCard).toBeDefined();
+      expect(doctor!.divinationCard!.id).toBe("poe1_the-doctor");
+      expect(doctor!.divinationCard!.stackSize).toBe(8);
+      expect(doctor!.divinationCard!.description).toBe("A powerful card");
+      expect(doctor!.divinationCard!.artSrc).toBe(
+        "https://example.com/doctor.png",
+      );
+      expect(doctor!.divinationCard!.rarity).toBe(1);
+
+      // Rain of Chaos: metadata intact, rarity from Settlers league
+      const rain = cards.find((c) => c.cardName === "Rain of Chaos");
+      expect(rain).toBeDefined();
+      expect(rain!.count).toBe(40);
+      expect(rain!.divinationCard).toBeDefined();
+      expect(rain!.divinationCard!.stackSize).toBe(8);
+      expect(rain!.divinationCard!.rarity).toBe(4);
+
+      // A Chilling Wind: card row still exists (syncCards never deletes),
+      // so metadata should be intact even though it no longer drops
+      const chilling = cards.find((c) => c.cardName === "A Chilling Wind");
+      expect(chilling).toBeDefined();
+      expect(chilling!.count).toBe(3);
+      expect(chilling!.divinationCard).toBeDefined();
+      expect(chilling!.divinationCard!.stackSize).toBe(4);
+      expect(chilling!.divinationCard!.description).toBe("A seasonal card");
+      expect(chilling!.divinationCard!.artSrc).toBe(
+        "https://example.com/chilling.png",
+      );
+      // Rarity comes from Settlers league entry, which still exists
+      expect(chilling!.divinationCard!.rarity).toBe(2);
+    });
+
+    it("should preserve snapshot prices for past sessions regardless of card dataset changes", async () => {
+      // Session recorded during Settlers with a snapshot
+      const leagueId = await seedLeague(testDb.kysely, {
+        game: "poe1",
+        name: "Settlers",
+      });
+
+      const snapshotId = await seedSnapshot(testDb.kysely, {
+        leagueId,
+        exchangeChaosToDivine: 200,
+        stashChaosToDivine: 195,
+        stackedDeckChaosCost: 3,
+        cardPrices: [
+          {
+            cardName: "The Doctor",
+            priceSource: "exchange",
+            chaosValue: 5000,
+            divineValue: 25,
+          },
+          {
+            cardName: "The Doctor",
+            priceSource: "stash",
+            chaosValue: 4800,
+            divineValue: 24,
+          },
+          {
+            cardName: "Retired Card",
+            priceSource: "exchange",
+            chaosValue: 300,
+            divineValue: 1.5,
+          },
+          {
+            cardName: "Retired Card",
+            priceSource: "stash",
+            chaosValue: 280,
+            divineValue: 1.4,
+          },
+        ],
+      });
+
+      const sessionId = await seedSession(testDb.kysely, {
+        id: "session-with-retired-card",
+        game: "poe1",
+        leagueId,
+        snapshotId,
+        startedAt: "2025-01-15T10:00:00Z",
+        endedAt: "2025-01-15T11:00:00Z",
+        totalCount: 100,
+        isActive: false,
+      });
+
+      await seedSessionCards(testDb.kysely, sessionId, [
+        { cardName: "The Doctor", count: 1 },
+        { cardName: "Retired Card", count: 5 },
+      ]);
+
+      // "Retired Card" was never added to divination_cards (imagine it was deleted or never synced)
+      // But prices were snapshotted at session time, so values should still compute correctly
+
+      const sessions = await repository.getSessionsPage("poe1", 10, 0);
+      expect(sessions).toHaveLength(1);
+
+      const s = sessions[0];
+      // Exchange value: (1 * 5000) + (5 * 300) = 6500
+      expect(s.totalExchangeValue).toBe(6500);
+      // Stash value: (1 * 4800) + (5 * 280) = 6200
+      expect(s.totalStashValue).toBe(6200);
+      // Net profit: 6500 - (3 * 100) = 6200
+      expect(s.totalExchangeNetProfit).toBe(6200);
+      // Stash net profit: 6200 - (3 * 100) = 5900
+      expect(s.totalStashNetProfit).toBe(5900);
+    });
+
+    it("should gracefully handle session cards whose divination card row was deleted", async () => {
+      // This tests the worst case: someone manually deletes a card from divination_cards.
+      // The session card should still appear (with count), but divinationCard = undefined.
+      const leagueId = await seedLeague(testDb.kysely, { name: "Settlers" });
+
+      // Insert card, create session, then delete the card
+      const cardId = await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Ephemeral Card",
+        stackSize: 3,
+        description: "This card will be deleted",
+      });
+
+      await seedDivinationCardRarity(testDb.kysely, {
+        game: "poe1",
+        league: "Settlers",
+        cardName: "Ephemeral Card",
+        rarity: 3,
+      });
+
+      const sessionId = await seedSession(testDb.kysely, {
+        game: "poe1",
+        leagueId,
+        startedAt: "2025-01-15T10:00:00Z",
+        endedAt: "2025-01-15T11:00:00Z",
+        totalCount: 50,
+        isActive: false,
+      });
+
+      await seedSessionCards(testDb.kysely, sessionId, [
+        { cardName: "Ephemeral Card", count: 7 },
+        { cardName: "The Doctor", count: 1 },
+      ]);
+
+      // Simulate hard deletion of the card from the reference table
+      await testDb.kysely
+        .deleteFrom("divination_cards")
+        .where("id", "=", cardId)
+        .execute();
+
+      const cards = await repository.getSessionCards(sessionId);
+      expect(cards).toHaveLength(2);
+
+      // Ephemeral Card: count preserved, but no metadata
+      const ephemeral = cards.find((c) => c.cardName === "Ephemeral Card");
+      expect(ephemeral).toBeDefined();
+      expect(ephemeral!.count).toBe(7);
+      expect(ephemeral!.divinationCard).toBeUndefined();
+
+      // The Doctor: also no metadata (was never inserted in this test)
+      const doctor = cards.find((c) => c.cardName === "The Doctor");
+      expect(doctor).toBeDefined();
+      expect(doctor!.count).toBe(1);
+      expect(doctor!.divinationCard).toBeUndefined();
+    });
+
+    it("should show correct rarity per league when same card has different rarities across leagues", async () => {
+      // The Doctor was rarity 1 in Settlers but got repriced to rarity 2 in Keepers
+      const settlersId = await seedLeague(testDb.kysely, {
+        game: "poe1",
+        name: "Settlers",
+      });
+      const keepersId = await seedLeague(testDb.kysely, {
+        game: "poe1",
+        name: "Keepers",
+      });
+
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "The Doctor",
+        stackSize: 8,
+      });
+
+      // Different rarity per league
+      await seedDivinationCardRarity(testDb.kysely, {
+        game: "poe1",
+        league: "Settlers",
+        cardName: "The Doctor",
+        rarity: 1,
+      });
+      await seedDivinationCardRarity(testDb.kysely, {
+        game: "poe1",
+        league: "Keepers",
+        cardName: "The Doctor",
+        rarity: 2,
+      });
+
+      // Session in Settlers
+      const settlersSession = await seedSession(testDb.kysely, {
+        id: "settlers-rarity-session",
+        game: "poe1",
+        leagueId: settlersId,
+        startedAt: "2025-01-15T10:00:00Z",
+        endedAt: "2025-01-15T11:00:00Z",
+        totalCount: 50,
+        isActive: false,
+      });
+      await seedSessionCards(testDb.kysely, settlersSession, [
+        { cardName: "The Doctor", count: 2 },
+      ]);
+
+      // Session in Keepers
+      const keepersSession = await seedSession(testDb.kysely, {
+        id: "keepers-rarity-session",
+        game: "poe1",
+        leagueId: keepersId,
+        startedAt: "2025-03-15T10:00:00Z",
+        endedAt: "2025-03-15T11:00:00Z",
+        totalCount: 80,
+        isActive: false,
+      });
+      await seedSessionCards(testDb.kysely, keepersSession, [
+        { cardName: "The Doctor", count: 3 },
+      ]);
+
+      // Viewing Settlers session should show rarity 1
+      const settlersCards = await repository.getSessionCards(settlersSession);
+      expect(settlersCards).toHaveLength(1);
+      expect(settlersCards[0].divinationCard!.rarity).toBe(1);
+
+      // Viewing Keepers session should show rarity 2
+      const keepersCards = await repository.getSessionCards(keepersSession);
+      expect(keepersCards).toHaveLength(1);
+      expect(keepersCards[0].divinationCard!.rarity).toBe(2);
+    });
+
+    it("should default rarity when viewing a session from a league with no rarity data", async () => {
+      // Card exists in divination_cards but has no rarity entry for the session's league
+      const leagueId = await seedLeague(testDb.kysely, {
+        game: "poe1",
+        name: "Forgotten League",
+      });
+
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "The Doctor",
+        stackSize: 8,
+      });
+
+      // Rarity exists for a *different* league, not "Forgotten League"
+      await seedDivinationCardRarity(testDb.kysely, {
+        game: "poe1",
+        league: "Settlers",
+        cardName: "The Doctor",
+        rarity: 1,
+      });
+
+      const sessionId = await seedSession(testDb.kysely, {
+        game: "poe1",
+        leagueId,
+        startedAt: "2025-01-15T10:00:00Z",
+        endedAt: "2025-01-15T11:00:00Z",
+        totalCount: 30,
+        isActive: false,
+      });
+
+      await seedSessionCards(testDb.kysely, sessionId, [
+        { cardName: "The Doctor", count: 1 },
+      ]);
+
+      const cards = await repository.getSessionCards(sessionId);
+      expect(cards).toHaveLength(1);
+      expect(cards[0].divinationCard).toBeDefined();
+      expect(cards[0].divinationCard!.stackSize).toBe(8);
+      // No rarity for "Forgotten League" → defaults to 4
+      expect(cards[0].divinationCard!.rarity).toBe(4);
+    });
+
+    it("should compute correct session page values when card metadata is updated between leagues", async () => {
+      // Card metadata (e.g. stack_size) can change via syncCards. Historical
+      // session values come from snapshot_card_prices, not from divination_cards,
+      // so the page summary should remain stable.
+      const leagueId = await seedLeague(testDb.kysely, {
+        game: "poe1",
+        name: "Settlers",
+      });
+
+      const snapshotId = await seedSnapshot(testDb.kysely, {
+        leagueId,
+        exchangeChaosToDivine: 200,
+        stashChaosToDivine: 195,
+        stackedDeckChaosCost: 3,
+        cardPrices: [
+          {
+            cardName: "The Doctor",
+            priceSource: "exchange",
+            chaosValue: 5000,
+            divineValue: 25,
+          },
+          {
+            cardName: "The Doctor",
+            priceSource: "stash",
+            chaosValue: 4800,
+            divineValue: 24,
+          },
+        ],
+      });
+
+      const sessionId = await seedSession(testDb.kysely, {
+        id: "pre-update-session",
+        game: "poe1",
+        leagueId,
+        snapshotId,
+        startedAt: "2025-01-15T10:00:00Z",
+        endedAt: "2025-01-15T11:00:00Z",
+        totalCount: 50,
+        isActive: false,
+      });
+
+      await seedSessionCards(testDb.kysely, sessionId, [
+        { cardName: "The Doctor", count: 2 },
+      ]);
+
+      // Verify values before any dataset change
+      let sessions = await repository.getSessionsPage("poe1", 10, 0);
+      expect(sessions).toHaveLength(1);
+      // Exchange value: 2 * 5000 = 10000
+      expect(sessions[0].totalExchangeValue).toBe(10000);
+      // Exchange net: 10000 - (3 * 50) = 9850
+      expect(sessions[0].totalExchangeNetProfit).toBe(9850);
+
+      // Simulate syncCards updating the card's metadata (description change, etc.)
+      // This does NOT affect snapshot_card_prices
+      await testDb.kysely
+        .updateTable("divination_cards")
+        .set({
+          description: "Updated description for new league",
+          stack_size: 10, // hypothetical stack size change
+          data_hash: "new-hash-after-sync",
+        })
+        .where("name", "=", "The Doctor")
+        .where("game", "=", "poe1")
+        .execute();
+
+      // Values should be identical — they come from snapshot, not divination_cards
+      sessions = await repository.getSessionsPage("poe1", 10, 0);
+      expect(sessions).toHaveLength(1);
+      expect(sessions[0].totalExchangeValue).toBe(10000);
+      expect(sessions[0].totalExchangeNetProfit).toBe(9850);
+    });
+  });
 });

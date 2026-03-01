@@ -17,12 +17,10 @@ export interface AppDataBreakdownItem {
 
 /** Disk and app storage metrics */
 export interface StorageInfo {
-  /** Absolute path to the app's userData directory */
+  /** Masked path to the app's userData directory (use RevealPaths for full path) */
   appDataPath: string;
   /** Total size of the userData directory in bytes (includes DB) */
   appDataSizeBytes: number;
-  /** Absolute path to the SQLite database file */
-  dbPath: string;
   /** Size of the database file in bytes */
   dbSizeBytes: number;
   /** Total disk space on the drive containing appData (bytes) */

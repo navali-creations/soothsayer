@@ -1,4 +1,5 @@
-import { FiArchive, FiDatabase, FiFile } from "react-icons/fi";
+import { useCallback, useState } from "react";
+import { FiArchive, FiDatabase, FiEye, FiEyeOff, FiFile } from "react-icons/fi";
 
 import type { StorageInfo } from "~/main/modules/storage/Storage.types";
 import { Accordion } from "~/renderer/components";
@@ -29,10 +30,14 @@ const DiskUsageBar = ({
   segments,
   totalBytes,
   path,
+  onRevealToggle,
+  isRevealed,
 }: {
   segments: BarSegment[];
   totalBytes: number;
   path?: string;
+  onRevealToggle?: () => void;
+  isRevealed?: boolean;
 }) => {
   const usedBytes = segments.reduce((sum, s) => sum + s.bytes, 0);
   const fraction = totalBytes > 0 ? usedBytes / totalBytes : 0;
@@ -41,9 +46,25 @@ const DiskUsageBar = ({
   return (
     <div className="space-y-1.5">
       {path && (
-        <p className="text-xs font-mono text-base-content/60 truncate">
-          {path}
-        </p>
+        <div className="flex items-center gap-1.5 group">
+          <p className="text-xs font-mono text-base-content/60 truncate">
+            {path}
+          </p>
+          {onRevealToggle && (
+            <button
+              type="button"
+              onClick={onRevealToggle}
+              className="text-base-content/40 hover:text-base-content/70 transition-colors shrink-0"
+              title={isRevealed ? "Hide full path" : "Reveal full path"}
+            >
+              {isRevealed ? (
+                <FiEyeOff className="w-3 h-3" />
+              ) : (
+                <FiEye className="w-3 h-3" />
+              )}
+            </button>
+          )}
+        </div>
       )}
       <div className="w-full bg-base-300 rounded-full h-2.5 overflow-hidden flex">
         {segments.map((seg) => {
@@ -102,6 +123,34 @@ interface DiskUsageSectionProps {
 }
 
 const DiskUsageSection = ({ info }: DiskUsageSectionProps) => {
+  const [revealedPaths, setRevealedPaths] = useState<{
+    appDataPath: string;
+  } | null>(null);
+  const [isRevealed, setIsRevealed] = useState(false);
+
+  const handleRevealToggle = useCallback(async () => {
+    if (isRevealed) {
+      // Hide — just toggle the flag, keep cached paths for next reveal
+      setIsRevealed(false);
+      return;
+    }
+
+    // Reveal — fetch full paths if not cached yet
+    if (!revealedPaths) {
+      try {
+        const paths = await window.electron.storage.revealPaths();
+        setRevealedPaths(paths);
+      } catch {
+        // If reveal fails, stay masked
+        return;
+      }
+    }
+    setIsRevealed(true);
+  }, [isRevealed, revealedPaths]);
+
+  const displayPath =
+    isRevealed && revealedPaths ? revealedPaths.appDataPath : info.appDataPath;
+
   const dbSizeBytes = info.dbSizeBytes;
   const otherAppDataBytes = info.appDataSizeBytes - info.dbSizeBytes;
   const otherDiskUsed = Math.max(
@@ -119,7 +168,9 @@ const DiskUsageSection = ({ info }: DiskUsageSectionProps) => {
       <div className="space-y-1.5">
         <span className="text-sm font-semibold">Disk Usage</span>
         <DiskUsageBar
-          path={info.appDataPath}
+          path={displayPath}
+          onRevealToggle={handleRevealToggle}
+          isRevealed={isRevealed}
           segments={[
             {
               label: "Other disk usage",

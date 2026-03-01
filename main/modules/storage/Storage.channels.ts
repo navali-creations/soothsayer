@@ -3,6 +3,7 @@ enum StorageChannel {
   GetLeagueUsage = "storage:get-league-usage",
   DeleteLeagueData = "storage:delete-league-data",
   CheckDiskSpace = "storage:check-disk-space",
+  RevealPaths = "storage:reveal-paths",
 }
 
 export { StorageChannel };
