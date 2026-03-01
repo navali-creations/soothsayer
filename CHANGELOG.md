@@ -1,5 +1,29 @@
 # soothsayer
 
+## 0.8.0
+
+### Minor Changes
+
+- [`bfe91e5`](https://github.com/navali-creations/soothsayer/commit/bfe91e5f54fdfb8438678b4386826249fa56a728) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  - **Storage settings card:** A new Storage card on the Settings page shows how much disk space Soothsayer's app data and SQLite database consume. Two progress bars visualise usage — app data relative to total disk space, and the database relative to app data — with human-readable sizes and percentages.
+
+  - **League data cleanup:** The Storage card lists every league with stored data, showing session and snapshot counts alongside estimated sizes. You can delete all data for a league to reclaim space, with a confirmation modal to prevent accidents. The active session's league is protected from deletion.
+
+  - **Low disk space warning:** When free disk space drops below 1 GB a warning icon appears in the app bar. Hovering shows remaining space; clicking navigates straight to Settings so you can clean up.
+
+### Patch Changes
+
+- [`062851b`](https://github.com/navali-creations/soothsayer/commit/062851b9a52a9b17ab1db68eb81ddb54299bf1c4) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  - **Cooldown timer now shows labels:** The countdown timer on the Refresh button now displays "hrs", "min", and "sec" labels beneath the digits, making it easier to read at a glance without affecting the button's size.
+
+- [`601f7f2`](https://github.com/navali-creations/soothsayer/commit/601f7f24f23436ae412d395e1c04f0a9d0f28186) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  - **Masked file paths for privacy:** File paths shown in the Storage card and Game Configuration settings are now masked by default, hiding your OS username. Click the eye icon next to any path to reveal the full location when needed.
+
+  - **Rarity Model now loads Prohibited Library data automatically:** Previously, the Prohibited Library rarity column on the Rarity Model page would appear empty for new users until they visited the Profit Forecast page or manually reloaded from Settings. The bundled card weight data now loads on demand when you open the Rarity Model page.
+
 ## 0.7.0
 
 ### Minor Changes
