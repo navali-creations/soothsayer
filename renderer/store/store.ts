@@ -64,6 +64,10 @@ import {
   type SettingsSlice,
 } from "../modules/settings/Settings.slice";
 import {
+  createStorageSlice,
+  type StorageSlice,
+} from "../modules/settings/Storage.slice";
+import {
   createSetupSlice,
   type SetupSlice,
 } from "../modules/setup/Setup.slice";
@@ -86,6 +90,7 @@ interface RootActions {
 
 type BoundStore = GameInfoSlice &
   SettingsSlice &
+  StorageSlice &
   SetupSlice &
   SessionSlice &
   SessionsSlice &
@@ -108,6 +113,7 @@ export const useBoundStore = create<BoundStore>()(
   devtools(
     immer((...a) => {
       const settingsSlice = createSettingsSlice(...a);
+      const storageSlice = createStorageSlice(...a);
       const setupSlice = createSetupSlice(...a);
       const sessionSlice = createSessionSlice(...a);
       const sessionsSlice = createSessionsSlice(...a);
@@ -128,6 +134,7 @@ export const useBoundStore = create<BoundStore>()(
 
       return {
         ...settingsSlice,
+        ...storageSlice,
         ...setupSlice,
         ...sessionSlice,
         ...sessionsSlice,
@@ -156,6 +163,9 @@ export const useBoundStore = create<BoundStore>()(
             overlaySlice.overlay.hydrate(),
             onboardingSlice.onboarding.hydrate(),
           ]);
+
+          // Check disk space after hydration (non-blocking)
+          storageSlice.storage.checkDiskSpace();
         },
 
         // Start all listeners
@@ -343,6 +353,14 @@ export const useBoundStore = create<BoundStore>()(
               state.rarityModelComparison.tableSorting = [
                 { id: "name", desc: false },
               ];
+
+              // Reset storage
+              state.storage.info = null;
+              state.storage.leagueUsage = [];
+              state.storage.isLoading = false;
+              state.storage.error = null;
+              state.storage.isDiskLow = false;
+              state.storage.deletingLeagueId = null;
             },
           );
         },

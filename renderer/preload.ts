@@ -16,6 +16,7 @@ import { RarityModelAPI } from "~/main/modules/rarity-model/RarityModel.api";
 import { SessionsAPI } from "~/main/modules/sessions/Sessions.api";
 import { SettingsStoreAPI } from "~/main/modules/settings-store/SettingsStore.api";
 import { SnapshotAPI } from "~/main/modules/snapshots/Snapshot.api";
+import { StorageAPI } from "~/main/modules/storage/Storage.api";
 import { UpdaterAPI } from "~/main/modules/updater/Updater.api";
 
 contextBridge.exposeInMainWorld("electron", {
@@ -42,4 +43,5 @@ contextBridge.exposeInMainWorld("electron", {
   rarityModel: RarityModelAPI,
   prohibitedLibrary: ProhibitedLibraryAPI,
   profitForecast: ProfitForecastAPI,
+  storage: StorageAPI,
 });

@@ -1,4 +1,5 @@
 export { default as AppMenu } from "../modules/app-menu/AppMenu.component/AppMenu";
+export { Accordion } from "./Accordion";
 export { default as AnimatedNumber } from "./AnimatedNumber/AnimatedNumber";
 export { Badge } from "./Badge";
 export { default as Button } from "./Button/Button";

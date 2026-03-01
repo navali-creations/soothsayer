@@ -7,3 +7,4 @@ export { default as OverlaySettingsCard } from "./OverlaySettingsCard";
 export { default as ProhibitedLibraryStatusBlock } from "./ProhibitedLibraryStatusBlock";
 export { default as SettingField } from "./SettingField";
 export { default as SettingsCategoryCard } from "./SettingsCategoryCard";
+export { default as StorageSettingsCard } from "./StorageSettingsCard";

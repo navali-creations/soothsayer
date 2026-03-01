@@ -11,6 +11,7 @@ import {
   FilterSettingsCard,
   OverlaySettingsCard,
   SettingsCategoryCard,
+  StorageSettingsCard,
 } from "./Settings.components";
 import {
   createAppBehaviorCategory,
@@ -77,6 +78,9 @@ const SettingsPage = () => {
           </Grid.Col>
           <Grid.Col>
             <AppHelpCard />
+          </Grid.Col>
+          <Grid.Col>
+            <StorageSettingsCard />
           </Grid.Col>
           <Grid.Col>
             <DangerZoneCard />

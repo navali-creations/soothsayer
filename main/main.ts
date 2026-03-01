@@ -13,6 +13,7 @@ import {
   OverlayService,
   ProfitForecastService,
   RarityModelService,
+  StorageService,
   SupabaseClientService,
 } from "./modules";
 
@@ -30,6 +31,7 @@ const _appSetup = AppSetupService.getInstance();
 const _filterService = RarityModelService.getInstance();
 const _profitForecast = ProfitForecastService.getInstance();
 const supabase = SupabaseClientService.getInstance();
+const _storageService = StorageService.getInstance();
 
 function initializeSupabase() {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;

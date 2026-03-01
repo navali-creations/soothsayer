@@ -20,6 +20,7 @@ export * from "./sentry";
 export * from "./sessions";
 export * from "./settings-store";
 export * from "./snapshots";
+export * from "./storage";
 export * from "./supabase";
 export * from "./tray";
 export * from "./updater";

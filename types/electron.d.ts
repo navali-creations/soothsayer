@@ -15,6 +15,7 @@ import type { RarityModelAPI } from "../main/modules/rarity-model/RarityModel.ap
 import type { SessionsAPI } from "../main/modules/sessions/Sessions.api";
 import type { SettingsStoreAPI } from "../main/modules/settings-store/SettingsStore.api";
 import type { SnapshotAPI } from "../main/modules/snapshots/Snapshot.api";
+import type { StorageAPI } from "../main/modules/storage/Storage.api";
 import type { UpdaterAPI } from "../main/modules/updater/Updater.api";
 
 declare global {
@@ -42,6 +43,7 @@ declare global {
       rarityModel: typeof RarityModelAPI;
       prohibitedLibrary: typeof ProhibitedLibraryAPI;
       profitForecast: typeof ProfitForecastAPI;
+      storage: typeof StorageAPI;
     };
   }
 }

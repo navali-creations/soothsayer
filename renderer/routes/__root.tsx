@@ -5,7 +5,7 @@ import {
   useLocation,
   useNavigate,
 } from "@tanstack/react-router";
-import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
+// import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { useEffect, useRef, useState } from "react";
 
 import { useBoundStore } from "~/renderer/store";
@@ -92,7 +92,7 @@ const RootLayout = () => {
           enabled={!isHydrating}
         />
       )}
-      <TanStackRouterDevtools />
+      {/*<TanStackRouterDevtools />*/}
     </div>
   );
 };

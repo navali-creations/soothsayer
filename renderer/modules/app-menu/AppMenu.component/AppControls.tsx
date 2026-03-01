@@ -19,6 +19,7 @@ import { Button, Dropdown, Flex, Link } from "~/renderer/components";
 import UpdateIndicator from "~/renderer/modules/updater/UpdateIndicator";
 import { useBoundStore } from "~/renderer/store";
 
+import DiskSpaceWarning from "./DiskSpaceWarning";
 import WhatsNewModal from "./WhatsNewModal";
 
 const FEEDBACK_URL = "https://github.com/orgs/navali-creations/discussions";
@@ -45,6 +46,7 @@ const AppControls = () => {
       {!isSetupMode && (
         <>
           <UpdateIndicator />
+          <DiskSpaceWarning />
           <div
             className="tooltip tooltip-bottom"
             data-tip={isOverlayVisible ? "Hide Overlay" : "Show Overlay"}
