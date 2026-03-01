@@ -7,6 +7,7 @@ import { app, ipcMain } from "electron";
 import { DatabaseService } from "~/main/modules/database";
 import { LoggerService } from "~/main/modules/logger";
 import { ProhibitedLibraryRepository } from "~/main/modules/prohibited-library/ProhibitedLibrary.repository";
+import { ProhibitedLibraryService } from "~/main/modules/prohibited-library/ProhibitedLibrary.service";
 import { RarityModelRepository } from "~/main/modules/rarity-model/RarityModel.repository";
 import {
   SettingsKey,
@@ -697,6 +698,12 @@ class DivinationCardsService {
     game: "poe1" | "poe2",
   ): Promise<string | null> {
     try {
+      // Lazy-load PL data from bundled CSV if not yet in the database.
+      // Without this, new users who navigate directly to the Rarity Model
+      // page (before visiting Profit Forecast or Settings) would see no
+      // Prohibited Library rarity column values.
+      await ProhibitedLibraryService.getInstance().ensureLoaded(game);
+
       const leagueKey =
         game === "poe1"
           ? SettingsKey.SelectedPoe1League

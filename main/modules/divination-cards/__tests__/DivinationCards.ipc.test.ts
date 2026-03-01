@@ -162,6 +162,15 @@ vi.mock(
   }),
 );
 
+// ─── Mock ProhibitedLibraryService ───────────────────────────────────────────
+vi.mock("~/main/modules/prohibited-library/ProhibitedLibrary.service", () => ({
+  ProhibitedLibraryService: {
+    getInstance: vi.fn(() => ({
+      ensureLoaded: vi.fn().mockResolvedValue(undefined),
+    })),
+  },
+}));
+
 // ─── Import under test ──────────────────────────────────────────────────────
 import { DivinationCardsService } from "../DivinationCards.service";
 
