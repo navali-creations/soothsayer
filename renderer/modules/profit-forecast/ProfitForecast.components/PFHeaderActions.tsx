@@ -103,7 +103,13 @@ const PFHeaderActions = ({ onGlobalFilterChange }: PFHeaderActionsProps) => {
           {isRefreshing ? (
             "Refreshing..."
           ) : isOnCooldown ? (
-            <Countdown timer={cooldownTimer} size="xs" />
+            <Countdown
+              timer={cooldownTimer}
+              size="xs"
+              showLabels
+              alwaysShowHours
+              labelPosition="absolute"
+            />
           ) : (
             "Refresh poe.ninja"
           )}

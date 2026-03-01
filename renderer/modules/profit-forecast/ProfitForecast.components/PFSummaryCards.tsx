@@ -141,7 +141,13 @@ const PFSummaryCards = () => {
                 {isOnCooldown ? (
                   <>
                     <FiLock className="w-2.5 h-2.5" />
-                    <Countdown timer={cooldownTimer} size="xs" />
+                    <Countdown
+                      timer={cooldownTimer}
+                      size="xs"
+                      alwaysShowHours
+                      showLabels
+                      labelPosition="absolute"
+                    />
                   </>
                 ) : (
                   <>

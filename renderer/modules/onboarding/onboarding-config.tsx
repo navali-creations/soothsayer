@@ -14,11 +14,11 @@ import CurrentSessionRaritySourceBeacon from "../current-session/CurrentSession.
 import CurrentSessionStartSessionBeacon from "../current-session/CurrentSession.beacons/CurrentSessionStartSessionBeacon";
 import GameInfoBeacon from "../game-info/GameInfo.beacon";
 import OverlayBeacon from "../overlay/Overlay.beacon";
-import PFBaseRateBeacon from "../profit-forecast/ProfitForecast.beacons/PFBaseRateBeacon";
-import PFBreakEvenBeacon from "../profit-forecast/ProfitForecast.beacons/PFBreakEvenBeacon";
-import PFCostModelBeacon from "../profit-forecast/ProfitForecast.beacons/PFCostModelBeacon";
-import PFPlAllDropsBeacon from "../profit-forecast/ProfitForecast.beacons/PFPlAllDropsBeacon";
-import PFPlCardOnlyBeacon from "../profit-forecast/ProfitForecast.beacons/PFPlCardOnlyBeacon";
+import PFBaseRateBeacon from "../profit-forecast/ProfitForecast.beacons/PFBaseRate.beacon";
+import PFBreakEvenBeacon from "../profit-forecast/ProfitForecast.beacons/PFBreakEven.beacon";
+import PFCostModelBeacon from "../profit-forecast/ProfitForecast.beacons/PFCostModel.beacon";
+import PFPlAllDropsBeacon from "../profit-forecast/ProfitForecast.beacons/PFPlAllDrops.beacon";
+import PFPlCardOnlyBeacon from "../profit-forecast/ProfitForecast.beacons/PFPlCardOnly.beacon";
 import RarityModelPoeNinjaBeacon from "../rarity-model/RarityModel.beacons/RarityModelPoeNinjaBeacon";
 import RarityModelProhibitedLibraryBeacon from "../rarity-model/RarityModel.beacons/RarityModelProhibitedLibraryBeacon";
 import RarityModelRefreshBeacon from "../rarity-model/RarityModel.beacons/RarityModelRefreshBeacon";
