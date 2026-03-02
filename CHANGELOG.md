@@ -1,5 +1,42 @@
 # soothsayer
 
+## 0.9.0
+
+### Minor Changes
+
+- [`271bf33`](https://github.com/navali-creations/soothsayer/commit/271bf3365b7bda23250f8302899627c406bb4b62) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  ### Privacy & Telemetry
+
+  You now have full control over what anonymous data Soothsayer sends — and we've added extra protections to keep your information private.
+
+  #### ⚠️ Important for existing users
+
+  **Crash reporting and usage analytics are now off by default.** If you'd like to help us improve Soothsayer, you can turn them on in **Settings → Privacy & Telemetry**.
+
+  #### What's new
+
+  - **Stronger privacy protections** — Any file paths or usernames are automatically removed from crash reports before they ever leave your computer. No personal information is sent, even with crash reporting turned on.
+  - **Two separate toggles** — Choose independently whether to share crash reports and usage statistics. Find both in **Settings → Privacy & Telemetry**.
+  - **Setup wizard step** — New users will see a Privacy & Telemetry step during first-time setup with clear descriptions of each option.
+  - **Privacy Settings card** — A new card on the Settings page lets you change your choices and view the privacy policy at any time.
+  - **Privacy Policy** — We've published a full privacy policy explaining what data is collected, how it's used, and your rights.
+
+  #### For new users
+
+  Both options default to **on** during setup. You can turn either off before finishing setup, or change your mind later in Settings.
+
+### Patch Changes
+
+- [`271bf33`](https://github.com/navali-creations/soothsayer/commit/271bf3365b7bda23250f8302899627c406bb4b62) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  - **Changelog page hint:** Added a subtitle explaining that clicking on any card opens the release page on GitHub.
+  - **Core maintainer badge:** Contributor badges for core maintainers now show a shield icon and a "core maintainer" label, so you know who's behind each update.
+
+- [`f9fd4b4`](https://github.com/navali-creations/soothsayer/commit/f9fd4b4e2351eafc3f9ccec881b2af5ad976b52b) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  - **Fixed a crash when closing the app during startup:** If you closed Soothsayer before it finished loading (for example, right after installing for the first time), the app could crash with an error. The app now handles this gracefully and shuts down cleanly.
+
 ## 0.8.0
 
 ### Minor Changes
