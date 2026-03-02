@@ -1,5 +1,6 @@
 import Markdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
+import remarkGfm from "remark-gfm";
 
 const components = {
   h1: ({ node, ...props }: any) => (
@@ -94,6 +95,30 @@ const components = {
     <strong className="font-semibold text-base-content/90" {...props} />
   ),
   em: ({ node, ...props }: any) => <em className="italic" {...props} />,
+  table: ({ node, ...props }: any) => (
+    <div className="overflow-x-auto my-3">
+      <table
+        className="table table-sm table w-full text-sm border border-base-content/10 rounded-lg"
+        {...props}
+      />
+    </div>
+  ),
+  thead: ({ node, ...props }: any) => (
+    <thead className="bg-base-200 text-base-content/90" {...props} />
+  ),
+  tbody: ({ node, ...props }: any) => <tbody {...props} />,
+  tr: ({ node, ...props }: any) => (
+    <tr className="border-b border-base-content/10" {...props} />
+  ),
+  th: ({ node, ...props }: any) => (
+    <th
+      className="px-3 py-2 text-left text-xs font-semibold text-base-content/80 uppercase tracking-wider"
+      {...props}
+    />
+  ),
+  td: ({ node, ...props }: any) => (
+    <td className="px-3 py-2 text-sm text-base-content/80" {...props} />
+  ),
 };
 
 interface MarkdownRendererProps {
@@ -113,7 +138,11 @@ const MarkdownRenderer = ({
 
   return (
     <div className={className}>
-      <Markdown rehypePlugins={[rehypeRaw]} components={merged}>
+      <Markdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeRaw]}
+        components={merged}
+      >
         {children}
       </Markdown>
     </div>

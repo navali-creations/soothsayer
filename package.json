@@ -93,6 +93,7 @@
     "react-icons": "^5.5.0",
     "react-markdown": "^10.1.0",
     "rehype-raw": "^7.0.0",
+    "remark-gfm": "^4.0.1",
     "supabase": "^2.76.14",
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4.2.1",

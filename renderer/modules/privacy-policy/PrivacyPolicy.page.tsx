@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { MarkdownRenderer, PageContainer } from "~/renderer/components";
 
 const PRIVACY_MD_URL =
-  "https://raw.githubusercontent.com/navali-creations/soothsayer/main/PRIVACY.md";
+  "https://raw.githubusercontent.com/navali-creations/soothsayer/refs/heads/master/PRIVACY.md";
 
 const PrivacyPolicyPage = () => {
   const [content, setContent] = useState<string | null>(null);
