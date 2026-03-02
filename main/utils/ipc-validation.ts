@@ -6,6 +6,8 @@
  * the renderer (which could be compromised) sends well-formed data.
  */
 
+import type { SetupStep } from "~/main/modules/settings-store";
+
 export class IpcValidationError extends Error {
   constructor(
     public readonly channel: string,
@@ -222,7 +224,7 @@ export function assertOptionalInteger(
 const VALID_GAMES = ["poe1", "poe2"] as const;
 const VALID_PRICE_SOURCES = ["exchange", "stash"] as const;
 const VALID_EXIT_BEHAVIORS = ["exit", "minimize"] as const;
-const VALID_SETUP_STEPS = [0, 1, 2, 3] as const;
+const VALID_SETUP_STEPS = [0, 1, 2, 3, 4] as const;
 
 export function assertGameType(
   value: unknown,
@@ -248,7 +250,7 @@ export function assertExitBehavior(
 export function assertSetupStep(
   value: unknown,
   channel: string,
-): asserts value is 0 | 1 | 2 | 3 {
+): asserts value is SetupStep {
   assertNumber(value, "step", channel);
   if (!(VALID_SETUP_STEPS as readonly number[]).includes(value)) {
     throw new IpcValidationError(

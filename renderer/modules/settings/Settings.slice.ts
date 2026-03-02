@@ -91,6 +91,8 @@ export const createSettingsSlice: StateCreator<
     overlayFontSize: 1.0,
     overlayToolbarFontSize: 1.0,
     mainWindowBounds: null,
+    telemetryCrashReporting: false,
+    telemetryUsageAnalytics: false,
 
     // Additional state
     isLoading: false,
@@ -153,6 +155,8 @@ export const createSettingsSlice: StateCreator<
             settings.overlayFontSize = data.overlayFontSize;
             settings.overlayToolbarFontSize = data.overlayToolbarFontSize;
             settings.mainWindowBounds = data.mainWindowBounds;
+            settings.telemetryCrashReporting = data.telemetryCrashReporting;
+            settings.telemetryUsageAnalytics = data.telemetryUsageAnalytics;
             settings.isLoading = false;
           },
           false,

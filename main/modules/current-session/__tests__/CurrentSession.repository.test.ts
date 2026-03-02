@@ -1104,6 +1104,89 @@ describe("CurrentSessionRepository", () => {
       expect(poe2Drops).toHaveLength(1);
       expect(poe2Drops[0]).toBe("Card B");
     });
+
+    it("should prune old entries when more than 20 exist, keeping only the most recent 20", async () => {
+      // Insert 25 processed IDs with staggered created_at timestamps
+      for (let i = 0; i < 25; i++) {
+        await testDb.kysely
+          .insertInto("processed_ids")
+          .values({
+            game: "poe1",
+            scope: "global",
+            processed_id: `prune-id-${String(i).padStart(3, "0")}`,
+            card_name: `Card ${i}`,
+            created_at: new Date(Date.now() - (25 - i) * 1000).toISOString(),
+          })
+          .execute();
+      }
+
+      // Verify we have 25 entries before clearing
+      const beforeRows = await testDb.kysely
+        .selectFrom("processed_ids")
+        .selectAll()
+        .where("game", "=", "poe1")
+        .where("scope", "=", "global")
+        .execute();
+      expect(beforeRows).toHaveLength(25);
+
+      // Clear recent drops — this should null out card_name AND prune old entries
+      await repository.clearRecentDrops("poe1");
+
+      // After pruning, only the 20 most recent entries should remain
+      const afterRows = await testDb.kysely
+        .selectFrom("processed_ids")
+        .selectAll()
+        .where("game", "=", "poe1")
+        .where("scope", "=", "global")
+        .execute();
+      expect(afterRows).toHaveLength(20);
+
+      // All remaining entries should have card_name set to NULL
+      for (const row of afterRows) {
+        expect(row.card_name).toBeNull();
+      }
+
+      // The oldest 5 entries (prune-id-000 through prune-id-004) should have been deleted
+      const remainingIds = afterRows.map((r) => r.processed_id).sort();
+      for (let i = 0; i < 5; i++) {
+        expect(remainingIds).not.toContain(
+          `prune-id-${String(i).padStart(3, "0")}`,
+        );
+      }
+
+      // The newest 20 entries (prune-id-005 through prune-id-024) should remain
+      for (let i = 5; i < 25; i++) {
+        expect(remainingIds).toContain(
+          `prune-id-${String(i).padStart(3, "0")}`,
+        );
+      }
+    });
+
+    it("should not prune when exactly 20 entries exist", async () => {
+      for (let i = 0; i < 20; i++) {
+        await testDb.kysely
+          .insertInto("processed_ids")
+          .values({
+            game: "poe1",
+            scope: "global",
+            processed_id: `exact-id-${String(i).padStart(3, "0")}`,
+            card_name: `Card ${i}`,
+            created_at: new Date(Date.now() - (20 - i) * 1000).toISOString(),
+          })
+          .execute();
+      }
+
+      await repository.clearRecentDrops("poe1");
+
+      const afterRows = await testDb.kysely
+        .selectFrom("processed_ids")
+        .selectAll()
+        .where("game", "=", "poe1")
+        .where("scope", "=", "global")
+        .execute();
+      // All 20 should remain — no pruning needed
+      expect(afterRows).toHaveLength(20);
+    });
   });
 
   // ─── League Operations ───────────────────────────────────────────────────

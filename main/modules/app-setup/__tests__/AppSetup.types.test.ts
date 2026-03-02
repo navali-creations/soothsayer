@@ -22,14 +22,18 @@ describe("AppSetup.types", () => {
       expect(SETUP_STEPS.SELECT_CLIENT_PATH).toBe(3);
     });
 
-    it("should have exactly 4 steps", () => {
-      expect(Object.keys(SETUP_STEPS)).toHaveLength(4);
+    it("should have TELEMETRY_CONSENT as 4", () => {
+      expect(SETUP_STEPS.TELEMETRY_CONSENT).toBe(4);
+    });
+
+    it("should have exactly 5 steps", () => {
+      expect(Object.keys(SETUP_STEPS)).toHaveLength(5);
     });
 
     it("should be a frozen/readonly object (as const)", () => {
       // Verify the values are the expected literal types
       const steps: Record<string, number> = SETUP_STEPS;
-      expect(Object.values(steps)).toEqual([0, 1, 2, 3]);
+      expect(Object.values(steps)).toEqual([0, 1, 2, 3, 4]);
     });
   });
 

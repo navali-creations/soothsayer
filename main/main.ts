@@ -16,6 +16,7 @@ import {
   StorageService,
   SupabaseClientService,
 } from "./modules";
+import { SettingsKey, SettingsStoreService } from "./modules/settings-store";
 
 // Handle Squirrel.Windows installer events (creates/removes shortcuts, etc.)
 // This must be called early — if it returns true, the app is being run by the
@@ -60,6 +61,25 @@ if (!electronApp.requestSingleInstanceLock()) {
     }
 
     initializeSupabase();
+
+    // Disable Sentry if the user has opted out of crash reporting.
+    // Sentry was eagerly initialized above to catch startup crashes;
+    // PII scrubbing in beforeSend/beforeBreadcrumb protects the brief
+    // window before this check runs.
+    try {
+      const settingsStore = SettingsStoreService.getInstance();
+      const crashReportingEnabled = await settingsStore.get(
+        SettingsKey.TelemetryCrashReporting,
+      );
+      if (!crashReportingEnabled) {
+        await SentryService.getInstance().disable();
+      }
+    } catch (error) {
+      console.warn(
+        "[Main] Could not check telemetry settings, Sentry remains active:",
+        error,
+      );
+    }
 
     await mainWindow.createMainWindow();
     app.emitSecondInstance(mainWindow);

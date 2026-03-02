@@ -10,8 +10,27 @@ import { initUmami, trackPageView } from "~/renderer/modules/umami";
 import { initSentry } from "./sentry";
 import "./index.css";
 
-initSentry();
-initUmami();
+// Read telemetry settings before initializing Sentry and Umami.
+// Settings are fetched via IPC from the main process (which reads from SQLite).
+// We gate both behind user preference — existing users default to disabled,
+// new users choose during setup wizard step 4.
+async function initTelemetry() {
+  try {
+    const settings = await window.electron.settings.getAll();
+    initSentry(settings.telemetryCrashReporting);
+    initUmami(settings.telemetryUsageAnalytics);
+  } catch (error) {
+    // If settings can't be loaded (e.g. DB not ready), skip telemetry.
+    // PII scrubbing in beforeSend/beforeBreadcrumb protects against leaks
+    // even if Sentry were to initialize.
+    console.warn(
+      "[Renderer] Could not load telemetry settings, skipping telemetry init:",
+      error,
+    );
+  }
+}
+
+initTelemetry();
 
 // Import the generated route tree
 import { routeTree } from "./routeTree.gen";

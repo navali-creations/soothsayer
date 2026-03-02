@@ -112,6 +112,8 @@ class SettingsStoreService {
             case "appOpenAtLoginMinimized":
             case "setupCompleted":
             case "audioEnabled":
+            case "telemetryCrashReporting":
+            case "telemetryUsageAnalytics":
               assertBoolean(value, key, ch);
               break;
             case "selectedGame":

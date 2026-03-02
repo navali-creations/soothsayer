@@ -205,7 +205,7 @@ export interface UserSettingsTable {
 
   // Setup and onboarding
   setup_completed: number; // SQLite boolean (0 or 1)
-  setup_step: number; // 0-3
+  setup_step: number; // 0-4
   setup_version: number;
 
   // Audio settings
@@ -218,6 +218,10 @@ export interface UserSettingsTable {
   // Filter / rarity source settings
   rarity_source: string; // "poe.ninja" | "filter" | "prohibited-library"
   selected_filter_id: string | null;
+
+  // Telemetry settings
+  telemetry_crash_reporting: number; // SQLite boolean (0 or 1)
+  telemetry_usage_analytics: number; // SQLite boolean (0 or 1)
 
   // Post-update detection
   last_seen_app_version: string | null;

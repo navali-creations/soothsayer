@@ -8,6 +8,7 @@ import type {
   Poe1SettingsDTO,
   Poe2SettingsDTO,
   SetupSettingsDTO,
+  SetupStep,
   UserSettingsDTO,
 } from "./SettingsStore.dto";
 
@@ -38,7 +39,7 @@ export function toUserSettingsDTO(row: UserSettingsRow): UserSettingsDTO {
       ? JSON.parse(row.installed_games)
       : ["poe1"],
     setupCompleted: Boolean(row.setup_completed),
-    setupStep: row.setup_step as 0 | 1 | 2 | 3,
+    setupStep: row.setup_step as SetupStep,
     setupVersion: row.setup_version,
     audioEnabled: Boolean(row.audio_enabled),
     audioVolume: row.audio_volume,
@@ -50,6 +51,8 @@ export function toUserSettingsDTO(row: UserSettingsRow): UserSettingsDTO {
       | "filter"
       | "prohibited-library",
     selectedFilterId: row.selected_filter_id,
+    telemetryCrashReporting: Boolean(row.telemetry_crash_reporting),
+    telemetryUsageAnalytics: Boolean(row.telemetry_usage_analytics),
     lastSeenAppVersion: row.last_seen_app_version ?? null,
     overlayFontSize: row.overlay_font_size ?? 1.0,
     overlayToolbarFontSize: row.overlay_toolbar_font_size ?? 1.0,
@@ -98,7 +101,7 @@ export function toPoe2SettingsDTO(row: UserSettingsRow): Poe2SettingsDTO {
 export function toSetupSettingsDTO(row: UserSettingsRow): SetupSettingsDTO {
   return {
     completed: Boolean(row.setup_completed),
-    step: row.setup_step as 0 | 1 | 2 | 3,
+    step: row.setup_step as SetupStep,
     version: row.setup_version,
   };
 }
@@ -131,6 +134,8 @@ export function toDBKey(key: keyof UserSettingsDTO): keyof UserSettingsTable {
     audioRarity3Path: "audio_rarity3_path",
     raritySource: "rarity_source",
     selectedFilterId: "selected_filter_id",
+    telemetryCrashReporting: "telemetry_crash_reporting",
+    telemetryUsageAnalytics: "telemetry_usage_analytics",
     lastSeenAppVersion: "last_seen_app_version",
     overlayFontSize: "overlay_font_size",
     overlayToolbarFontSize: "overlay_toolbar_font_size",

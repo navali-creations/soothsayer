@@ -210,24 +210,48 @@ export const createSetupSlice: StateCreator<
         const selectionType = getGameSelectionType(selectedGames);
 
         // Track step completion before advancing
-        if (currentStep === SETUP_STEPS.SELECT_GAME) {
-          trackEvent("setup-step-completed-game", {
-            step_number: 1,
-            step_name: "game",
-            selectedGames,
-            selection_type: selectionType,
-          });
-        } else if (currentStep === SETUP_STEPS.SELECT_LEAGUE) {
-          const poe1League = setup.setupState?.poe1League;
-          const poe2League = setup.setupState?.poe2League;
-          trackEvent("setup-step-completed-league", {
-            step_number: 2,
-            step_name: "league",
-            selectedGames,
-            selection_type: selectionType,
-            poe1League: selectedGames.includes("poe1") ? poe1League : undefined,
-            poe2League: selectedGames.includes("poe2") ? poe2League : undefined,
-          });
+        switch (currentStep) {
+          case SETUP_STEPS.SELECT_GAME:
+            trackEvent("setup-step-completed-game", {
+              step_number: 1,
+              step_name: "game",
+              selectedGames,
+              selection_type: selectionType,
+            });
+            break;
+          case SETUP_STEPS.SELECT_LEAGUE: {
+            const poe1League = setup.setupState?.poe1League;
+            const poe2League = setup.setupState?.poe2League;
+            trackEvent("setup-step-completed-league", {
+              step_number: 2,
+              step_name: "league",
+              selectedGames,
+              selection_type: selectionType,
+              poe1League: selectedGames.includes("poe1")
+                ? poe1League
+                : undefined,
+              poe2League: selectedGames.includes("poe2")
+                ? poe2League
+                : undefined,
+            });
+            break;
+          }
+          case SETUP_STEPS.SELECT_CLIENT_PATH:
+            trackEvent("setup-step-completed-client-path", {
+              step_number: 3,
+              step_name: "client-path",
+              selectedGames,
+              selection_type: selectionType,
+            });
+            break;
+          case SETUP_STEPS.TELEMETRY_CONSENT:
+            trackEvent("setup-step-completed-telemetry", {
+              step_number: 4,
+              step_name: "telemetry",
+              crashReportingEnabled: setup.setupState?.telemetryCrashReporting,
+              usageAnalyticsEnabled: setup.setupState?.telemetryUsageAnalytics,
+            });
+            break;
         }
 
         const result = await window.electron.appSetup.advanceStep();
@@ -259,6 +283,11 @@ export const createSetupSlice: StateCreator<
               step_name: "client-path",
               selectedGames: nextSelectedGames,
               selection_type: nextSelectionType,
+            });
+          } else if (nextStep === SETUP_STEPS.TELEMETRY_CONSENT) {
+            trackEvent("setup-step-viewed-telemetry", {
+              step_number: 4,
+              step_name: "telemetry",
             });
           }
 
@@ -342,13 +371,14 @@ export const createSetupSlice: StateCreator<
         const poe1League = setup.setupState?.poe1League;
         const poe2League = setup.setupState?.poe2League;
 
-        // Track final step completion
-        trackEvent("setup-step-completed-client-path", {
-          step_number: 3,
-          step_name: "client-path",
+        // Track final step completion (telemetry consent)
+        trackEvent("setup-step-completed-telemetry-final", {
+          step_number: 4,
+          step_name: "telemetry",
           selectedGames,
           selection_type: selectionType,
-          hasClientPath: true,
+          crashReportingEnabled: setup.setupState?.telemetryCrashReporting,
+          usageAnalyticsEnabled: setup.setupState?.telemetryUsageAnalytics,
         });
 
         const result = await window.electron.appSetup.completeSetup();
@@ -370,9 +400,11 @@ export const createSetupSlice: StateCreator<
             selection_type: selectionType,
             poe1League: selectedGames.includes("poe1") ? poe1League : undefined,
             poe2League: selectedGames.includes("poe2") ? poe2League : undefined,
-            totalSteps: 3,
+            totalSteps: 4,
             timeTaken,
             completion_status: "completed",
+            crashReportingEnabled: setup.setupState?.telemetryCrashReporting,
+            usageAnalyticsEnabled: setup.setupState?.telemetryUsageAnalytics,
           });
 
           return true;

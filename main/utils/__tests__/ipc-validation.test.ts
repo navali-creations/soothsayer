@@ -721,15 +721,16 @@ describe("IPC Validation Utilities", () => {
   });
 
   describe("assertSetupStep", () => {
-    it("should pass for valid setup steps (0-3)", () => {
+    it("should pass for valid setup steps (0-4)", () => {
       expect(() => assertSetupStep(0, TEST_CHANNEL)).not.toThrow();
       expect(() => assertSetupStep(1, TEST_CHANNEL)).not.toThrow();
       expect(() => assertSetupStep(2, TEST_CHANNEL)).not.toThrow();
       expect(() => assertSetupStep(3, TEST_CHANNEL)).not.toThrow();
+      expect(() => assertSetupStep(4, TEST_CHANNEL)).not.toThrow();
     });
 
-    it("should throw for step 4 (out of range)", () => {
-      expect(() => assertSetupStep(4, TEST_CHANNEL)).toThrow(
+    it("should throw for step 5 (out of range)", () => {
+      expect(() => assertSetupStep(5, TEST_CHANNEL)).toThrow(
         IpcValidationError,
       );
     });

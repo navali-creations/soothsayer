@@ -18,8 +18,21 @@ import type { SessionData } from "./Overlay.types";
 
 import "../../index.css";
 
-initSentry();
-initUmami();
+// Read telemetry settings before initializing Sentry and Umami.
+async function initTelemetry() {
+  try {
+    const settings = await window.electron.settings.getAll();
+    initSentry(settings.telemetryCrashReporting);
+    initUmami(settings.telemetryUsageAnalytics);
+  } catch (error) {
+    console.warn(
+      "[Overlay] Could not load telemetry settings, skipping telemetry init:",
+      error,
+    );
+  }
+}
+
+initTelemetry();
 
 const defaultRaritySounds: Record<number, string> = {
   1: rarity1Sound,

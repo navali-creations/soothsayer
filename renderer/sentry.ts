@@ -2,7 +2,18 @@ import * as Sentry from "@sentry/electron/renderer";
 
 let initialized = false;
 
-export function initSentry() {
+/**
+ * Initialize Sentry in the renderer process.
+ *
+ * @param enabled  When `false`, initialization is skipped entirely.
+ *                 Defaults to `true` for backward compatibility.
+ */
+export function initSentry(enabled = true) {
+  if (!enabled) {
+    console.info("[Sentry] Crash reporting disabled by user preference");
+    return;
+  }
+
   if (initialized) {
     return;
   }

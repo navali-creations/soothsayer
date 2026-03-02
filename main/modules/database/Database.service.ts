@@ -568,7 +568,7 @@ class DatabaseService {
 
           -- Setup and onboarding
           setup_completed INTEGER NOT NULL DEFAULT 0,
-          setup_step INTEGER NOT NULL DEFAULT 0 CHECK(setup_step >= 0 AND setup_step <= 3),
+          setup_step INTEGER NOT NULL DEFAULT 0 CHECK(setup_step >= 0 AND setup_step <= 4),
           setup_version INTEGER NOT NULL DEFAULT 1,
 
           -- Audio settings
@@ -581,6 +581,10 @@ class DatabaseService {
           -- Filter / rarity source settings
           rarity_source TEXT NOT NULL DEFAULT 'poe.ninja' CHECK(rarity_source IN ('poe.ninja', 'filter', 'prohibited-library')),
           selected_filter_id TEXT REFERENCES filter_metadata(id) ON DELETE SET NULL,
+
+          -- Telemetry settings (default 0 = disabled for existing users; new users choose in setup wizard)
+          telemetry_crash_reporting INTEGER NOT NULL DEFAULT 0,
+          telemetry_usage_analytics INTEGER NOT NULL DEFAULT 0,
 
           -- Post-update detection
           last_seen_app_version TEXT,

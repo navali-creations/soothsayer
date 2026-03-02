@@ -2,7 +2,7 @@ import { type Kysely, sql } from "kysely";
 
 import type { Database } from "~/main/modules/database";
 
-import type { UserSettingsDTO } from "./SettingsStore.dto";
+import type { SetupStep, UserSettingsDTO } from "./SettingsStore.dto";
 import { boolToInt, toDBKey, toUserSettingsDTO } from "./SettingsStore.mapper";
 
 /**
@@ -190,11 +190,11 @@ export class SettingsStoreRepository {
     return this.set("setupCompleted", value);
   }
 
-  async getSetupStep(): Promise<0 | 1 | 2 | 3> {
+  async getSetupStep(): Promise<SetupStep> {
     return this.get("setupStep");
   }
 
-  async setSetupStep(value: 0 | 1 | 2 | 3): Promise<void> {
+  async setSetupStep(value: SetupStep): Promise<void> {
     return this.set("setupStep", value);
   }
 

@@ -452,7 +452,7 @@ describe("Prohibited Library — end-to-end integration (real CSV)", () => {
     // 5. Verify rarity distribution is reasonable
     const rarityCounts = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 };
     for (const w of weights) {
-      rarityCounts[w.rarity as 0 | 1 | 2 | 3 | 4]++;
+      rarityCounts[w.rarity as Rarity]++;
     }
 
     // All five tiers should have cards

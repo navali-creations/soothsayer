@@ -1,9 +1,12 @@
-import { FiGitCommit, FiUser } from "react-icons/fi";
+import type { ReactNode } from "react";
+import { FiGitCommit, FiShield, FiUser } from "react-icons/fi";
 
 import type { ChangelogEntry } from "~/main/modules/updater/Updater.api";
 import { Badge, MarkdownRenderer } from "~/renderer/components";
 
 import ChangelogContent from "./ChangelogContent";
+
+const CORE_MAINTAINERS = new Set(["sbsrnt"]);
 
 const ChangelogEntryCard = ({ entry }: { entry: ChangelogEntry }) => {
   return (
@@ -43,9 +46,15 @@ const ChangelogEntryCard = ({ entry }: { entry: ChangelogEntry }) => {
               )}
             </Badge>
           )}
-          {entry.contributor && (
-            <Badge variant="info" size="sm" soft icon={<FiUser size={11} />}>
-              {entry.contributorUrl ? (
+          {entry.contributor &&
+            (() => {
+              const isMaintainer = CORE_MAINTAINERS.has(entry.contributor);
+              const icon: ReactNode = isMaintainer ? (
+                <FiShield size={11} />
+              ) : (
+                <FiUser size={11} />
+              );
+              const label = entry.contributorUrl ? (
                 <a
                   href={entry.contributorUrl}
                   target="_blank"
@@ -56,9 +65,22 @@ const ChangelogEntryCard = ({ entry }: { entry: ChangelogEntry }) => {
                 </a>
               ) : (
                 `@${entry.contributor}`
-              )}
-            </Badge>
-          )}
+              );
+
+              return (
+                <Badge
+                  variant={isMaintainer ? "success" : "info"}
+                  size="sm"
+                  soft
+                  icon={icon}
+                >
+                  {label}
+                  {isMaintainer && (
+                    <span className="opacity-60"> · core maintainer</span>
+                  )}
+                </Badge>
+              );
+            })()}
         </div>
       )}
     </div>

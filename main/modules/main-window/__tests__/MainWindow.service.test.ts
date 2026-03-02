@@ -12,9 +12,12 @@ const {
   mockBrowserWindowMaximize,
   mockBrowserWindowUnmaximize,
   mockBrowserWindowIsMaximized,
+  mockBrowserWindowIsMinimized,
   mockBrowserWindowClose,
   mockBrowserWindowHide,
   mockBrowserWindowShow,
+  mockBrowserWindowRestore,
+  mockBrowserWindowFocus,
   mockBrowserWindowLoadURL,
   mockBrowserWindowLoadFile,
   mockBrowserWindowOnce,
@@ -35,6 +38,7 @@ const {
   mockValidateFileDialogOptions,
   mockAppServiceIsQuitting,
   mockScreenGetAllDisplays,
+  mockSupabaseIsConfigured,
 } = vi.hoisted(() => ({
   mockIpcHandle: vi.fn(),
   mockSettingsGet: vi.fn(),
@@ -44,9 +48,12 @@ const {
   mockBrowserWindowMaximize: vi.fn(),
   mockBrowserWindowUnmaximize: vi.fn(),
   mockBrowserWindowIsMaximized: vi.fn(() => false),
+  mockBrowserWindowIsMinimized: vi.fn(() => false),
   mockBrowserWindowClose: vi.fn(),
   mockBrowserWindowHide: vi.fn(),
   mockBrowserWindowShow: vi.fn(),
+  mockBrowserWindowRestore: vi.fn(),
+  mockBrowserWindowFocus: vi.fn(),
   mockBrowserWindowLoadURL: vi.fn(),
   mockBrowserWindowLoadFile: vi.fn(),
   mockBrowserWindowOnce: vi.fn(),
@@ -80,6 +87,7 @@ const {
   mockScreenGetAllDisplays: vi.fn(() => [
     { workArea: { x: 0, y: 0, width: 1920, height: 1080 } },
   ]),
+  mockSupabaseIsConfigured: vi.fn(() => true),
 }));
 
 // ─── Track BrowserWindow instances ───────────────────────────────────────────
@@ -92,9 +100,12 @@ vi.mock("electron", () => {
     maximize = mockBrowserWindowMaximize;
     unmaximize = mockBrowserWindowUnmaximize;
     isMaximized = mockBrowserWindowIsMaximized;
+    isMinimized = mockBrowserWindowIsMinimized;
     close = mockBrowserWindowClose;
     hide = mockBrowserWindowHide;
     show = mockBrowserWindowShow;
+    restore = mockBrowserWindowRestore;
+    focus = mockBrowserWindowFocus;
     loadURL = mockBrowserWindowLoadURL;
     loadFile = mockBrowserWindowLoadFile;
     once = mockBrowserWindowOnce;
@@ -228,7 +239,7 @@ vi.mock("~/main/modules", () => ({
   SnapshotService: { getInstance: vi.fn(() => ({})) },
   SupabaseClientService: {
     getInstance: vi.fn(() => ({
-      isConfigured: vi.fn(() => true),
+      isConfigured: mockSupabaseIsConfigured,
     })),
   },
   TrayService: {
@@ -1244,6 +1255,19 @@ describe("MainWindowService", () => {
       mockBrowserWindowIsDestroyed.mockReturnValue(true);
       expect(service.isDestroyed()).toBe(true);
     });
+
+    it("should log warning when Supabase is not configured", async () => {
+      mockSupabaseIsConfigured.mockReturnValue(false);
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      await service.createMainWindow();
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Supabase (not configured"),
+      );
+      warnSpy.mockRestore();
+      mockSupabaseIsConfigured.mockReturnValue(true);
+    });
   });
 
   // ─── Full lifecycle ──────────────────────────────────────────────────────
@@ -1325,6 +1349,212 @@ describe("MainWindowService", () => {
 
       const instance2 = MainWindowService.getInstance();
       expect(instance1).toBe(instance2);
+    });
+  });
+
+  // ─── show() ──────────────────────────────────────────────────────────────
+
+  describe("show", () => {
+    it("should do nothing when mainWindow is null (before create)", () => {
+      service.show();
+
+      expect(mockBrowserWindowShow).not.toHaveBeenCalled();
+      expect(mockBrowserWindowFocus).not.toHaveBeenCalled();
+    });
+
+    it("should do nothing when mainWindow is destroyed", async () => {
+      await service.createMainWindow();
+      mockBrowserWindowIsDestroyed.mockReturnValue(true);
+
+      service.show();
+
+      expect(mockBrowserWindowShow).toHaveBeenCalledTimes(0);
+      expect(mockBrowserWindowFocus).not.toHaveBeenCalled();
+
+      mockBrowserWindowIsDestroyed.mockReturnValue(false);
+    });
+
+    it("should show and focus the window when not minimized", async () => {
+      await service.createMainWindow();
+      mockBrowserWindowShow.mockClear();
+      mockBrowserWindowIsMinimized.mockReturnValue(false);
+
+      service.show();
+
+      expect(mockBrowserWindowRestore).not.toHaveBeenCalled();
+      expect(mockBrowserWindowShow).toHaveBeenCalled();
+      expect(mockBrowserWindowFocus).toHaveBeenCalled();
+    });
+
+    it("should restore, show, and focus the window when minimized", async () => {
+      await service.createMainWindow();
+      mockBrowserWindowShow.mockClear();
+      mockBrowserWindowIsMinimized.mockReturnValue(true);
+
+      service.show();
+
+      expect(mockBrowserWindowRestore).toHaveBeenCalled();
+      expect(mockBrowserWindowShow).toHaveBeenCalled();
+      expect(mockBrowserWindowFocus).toHaveBeenCalled();
+
+      mockBrowserWindowIsMinimized.mockReturnValue(false);
+    });
+  });
+
+  // ─── Window bounds persistence ───────────────────────────────────────────
+
+  describe("window bounds persistence", () => {
+    it("should restore saved bounds when they overlap a display", async () => {
+      const savedBounds = { x: 200, y: 150, width: 1400, height: 900 };
+      // First call returns saved bounds (for MainWindowBounds), rest return defaults
+      mockSettingsGet
+        .mockResolvedValueOnce(savedBounds) // MainWindowBounds
+        .mockResolvedValue(false);
+
+      // @ts-expect-error — reset singleton for fresh settings mock
+      MainWindowService._instance = undefined;
+      const svc = MainWindowService.getInstance();
+      await svc.createMainWindow();
+
+      // BrowserWindow constructor should have received the saved dimensions
+      const instance = browserWindowInstances[0];
+      expect(instance).toBeDefined();
+    });
+
+    it("should fall back to defaults when saved bounds are off-screen", async () => {
+      const offScreenBounds = { x: 9999, y: 9999, width: 1200, height: 800 };
+      mockSettingsGet
+        .mockResolvedValueOnce(offScreenBounds) // MainWindowBounds
+        .mockResolvedValue(false);
+
+      // Single display at 0,0 1920x1080 — bounds at 9999,9999 have no overlap
+      mockScreenGetAllDisplays.mockReturnValue([
+        { workArea: { x: 0, y: 0, width: 1920, height: 1080 } },
+      ]);
+
+      // @ts-expect-error — reset singleton for fresh settings mock
+      MainWindowService._instance = undefined;
+      const svc = MainWindowService.getInstance();
+      await svc.createMainWindow();
+
+      // Window should still be created (with default size)
+      expect(browserWindowInstances).toHaveLength(1);
+    });
+
+    it("should use defaults when no saved bounds exist", async () => {
+      mockSettingsGet.mockResolvedValue(null);
+
+      // @ts-expect-error — reset singleton for fresh settings mock
+      MainWindowService._instance = undefined;
+      const svc = MainWindowService.getInstance();
+      await svc.createMainWindow();
+
+      expect(browserWindowInstances).toHaveLength(1);
+    });
+
+    it("should save bounds on window move (debounced)", async () => {
+      await service.createMainWindow();
+
+      // Find the "moved" handler registered via window.on
+      const movedCall = mockBrowserWindowOn.mock.calls.find(
+        ([ev]: [string]) => ev === "moved",
+      );
+      expect(movedCall).toBeDefined();
+
+      // Trigger the moved handler
+      const movedHandler = movedCall![1];
+      movedHandler();
+
+      // The save is debounced (500ms), so settings.set should not be called yet
+      expect(mockSettingsSet).not.toHaveBeenCalledWith(
+        "mainWindowBounds",
+        expect.anything(),
+      );
+
+      // Fast-forward past the debounce timer
+      await vi.waitFor(
+        () => {
+          expect(mockSettingsSet).toHaveBeenCalledWith(
+            "mainWindowBounds",
+            expect.objectContaining({
+              x: expect.any(Number),
+              y: expect.any(Number),
+              width: expect.any(Number),
+              height: expect.any(Number),
+            }),
+          );
+        },
+        { timeout: 1000 },
+      );
+    });
+
+    it("should save bounds on window resize (debounced)", async () => {
+      await service.createMainWindow();
+
+      const resizedCall = mockBrowserWindowOn.mock.calls.find(
+        ([ev]: [string]) => ev === "resized",
+      );
+      expect(resizedCall).toBeDefined();
+
+      const resizedHandler = resizedCall![1];
+      resizedHandler();
+
+      await vi.waitFor(
+        () => {
+          expect(mockSettingsSet).toHaveBeenCalledWith(
+            "mainWindowBounds",
+            expect.objectContaining({
+              x: expect.any(Number),
+              y: expect.any(Number),
+              width: expect.any(Number),
+              height: expect.any(Number),
+            }),
+          );
+        },
+        { timeout: 1000 },
+      );
+    });
+
+    it("should not save bounds when window is maximized", async () => {
+      await service.createMainWindow();
+      mockBrowserWindowIsMaximized.mockReturnValue(true);
+
+      const movedCall = mockBrowserWindowOn.mock.calls.find(
+        ([ev]: [string]) => ev === "moved",
+      );
+      expect(movedCall).toBeDefined();
+
+      movedCall![1]();
+
+      // Wait longer than debounce to confirm it was NOT called with bounds
+      await new Promise((r) => setTimeout(r, 600));
+      expect(mockSettingsSet).not.toHaveBeenCalledWith(
+        "mainWindowBounds",
+        expect.anything(),
+      );
+
+      mockBrowserWindowIsMaximized.mockReturnValue(false);
+    });
+
+    it("should not save bounds when window is destroyed", async () => {
+      await service.createMainWindow();
+
+      const movedCall = mockBrowserWindowOn.mock.calls.find(
+        ([ev]: [string]) => ev === "moved",
+      );
+      expect(movedCall).toBeDefined();
+
+      // Destroy window before debounce fires
+      mockBrowserWindowIsDestroyed.mockReturnValue(true);
+      movedCall![1]();
+
+      await new Promise((r) => setTimeout(r, 600));
+      expect(mockSettingsSet).not.toHaveBeenCalledWith(
+        "mainWindowBounds",
+        expect.anything(),
+      );
+
+      mockBrowserWindowIsDestroyed.mockReturnValue(false);
     });
   });
 });

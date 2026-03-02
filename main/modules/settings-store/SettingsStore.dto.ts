@@ -37,12 +37,14 @@ export interface UserSettingsDTO {
     width: number;
     height: number;
   } | null;
+  telemetryCrashReporting: boolean;
+  telemetryUsageAnalytics: boolean;
 }
 
 /**
  * Setup step type (0 = not started, 1-3 = steps)
  */
-export type SetupStep = 0 | 1 | 2 | 3;
+export type SetupStep = 0 | 1 | 2 | 3 | 4;
 
 /**
  * App-specific settings group

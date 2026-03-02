@@ -29,6 +29,8 @@ export const SettingsKey = {
   OverlayFontSize: "overlayFontSize",
   OverlayToolbarFontSize: "overlayToolbarFontSize",
   MainWindowBounds: "mainWindowBounds",
+  TelemetryCrashReporting: "telemetryCrashReporting",
+  TelemetryUsageAnalytics: "telemetryUsageAnalytics",
 } as const;
 
 export type SettingsKeyType = (typeof SettingsKey)[keyof typeof SettingsKey];

@@ -5,6 +5,10 @@ import { MigrationRunner, migrations } from "../migrations";
 import { migration_20260213_204200_add_filter_tables_and_rarity_source } from "../migrations/20260213_204200_add_filter_tables_and_rarity_source";
 import { migration_20260221_201500_add_prohibited_library } from "../migrations/20260221_201500_add_prohibited_library";
 import { migration_20260223_010100_add_last_seen_app_version } from "../migrations/20260223_010100_add_last_seen_app_version";
+import { migration_20260225_230000_add_overlay_font_size_and_main_window_bounds } from "../migrations/20260225_230000_add_overlay_font_size_and_main_window_bounds";
+import { migration_20260226_134100_add_overlay_toolbar_font_size } from "../migrations/20260226_134100_add_overlay_toolbar_font_size";
+import { migration_20260227_182400_add_stacked_deck_max_volume_rate } from "../migrations/20260227_182400_add_stacked_deck_max_volume_rate";
+import { migration_20260302_192700_add_telemetry_settings } from "../migrations/20260302_192700_add_telemetry_settings";
 
 /**
  * Returns the column names for a given table.
@@ -1925,6 +1929,373 @@ describe("Migrations Integration", () => {
       // from_boss column should be gone
       const columns = getColumnNames(db, "divination_cards");
       expect(columns).not.toContain("from_boss");
+    });
+  });
+
+  // ─── Overlay Font Size & Main Window Bounds Migration Idempotency ──────
+
+  describe("overlay_font_size and main_window_bounds migration idempotency", () => {
+    it("should skip adding columns when they already exist", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      const before = getColumnNames(db, "user_settings");
+      expect(before).toContain("overlay_font_size");
+      expect(before).toContain("main_window_bounds");
+
+      // Calling up() again directly should not throw (idempotent)
+      expect(() =>
+        migration_20260225_230000_add_overlay_font_size_and_main_window_bounds.up(
+          db,
+        ),
+      ).not.toThrow();
+
+      const after = getColumnNames(db, "user_settings");
+      expect(after.filter((c) => c === "overlay_font_size").length).toBe(1);
+      expect(after.filter((c) => c === "main_window_bounds").length).toBe(1);
+    });
+
+    it("should handle down() when columns do not exist", () => {
+      // Baseline schema does not include these columns — no need to drop
+      createBaselineSchema(db);
+
+      const before = getColumnNames(db, "user_settings");
+      expect(before).not.toContain("overlay_font_size");
+      expect(before).not.toContain("main_window_bounds");
+
+      expect(() =>
+        migration_20260225_230000_add_overlay_font_size_and_main_window_bounds.down(
+          db,
+        ),
+      ).not.toThrow();
+
+      const after = getColumnNames(db, "user_settings");
+      expect(after).not.toContain("overlay_font_size");
+      expect(after).not.toContain("main_window_bounds");
+    });
+
+    it("should preserve existing user settings data after down() removes columns", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      db.prepare(
+        "UPDATE user_settings SET app_exit_action = 'minimize', overlay_font_size = 1.5 WHERE id = 1",
+      ).run();
+
+      migration_20260225_230000_add_overlay_font_size_and_main_window_bounds.down(
+        db,
+      );
+
+      const columns = getColumnNames(db, "user_settings");
+      expect(columns).not.toContain("overlay_font_size");
+      expect(columns).not.toContain("main_window_bounds");
+
+      const row = db
+        .prepare("SELECT app_exit_action FROM user_settings WHERE id = 1")
+        .get() as { app_exit_action: string };
+      expect(row.app_exit_action).toBe("minimize");
+    });
+
+    it("should allow re-applying migration after rollback", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      migration_20260225_230000_add_overlay_font_size_and_main_window_bounds.down(
+        db,
+      );
+      const afterDown = getColumnNames(db, "user_settings");
+      expect(afterDown).not.toContain("overlay_font_size");
+      expect(afterDown).not.toContain("main_window_bounds");
+
+      migration_20260225_230000_add_overlay_font_size_and_main_window_bounds.up(
+        db,
+      );
+      const afterUp = getColumnNames(db, "user_settings");
+      expect(afterUp).toContain("overlay_font_size");
+      expect(afterUp).toContain("main_window_bounds");
+
+      db.prepare(
+        "UPDATE user_settings SET overlay_font_size = 2.0 WHERE id = 1",
+      ).run();
+      const row = db
+        .prepare("SELECT overlay_font_size FROM user_settings WHERE id = 1")
+        .get() as { overlay_font_size: number };
+      expect(row.overlay_font_size).toBe(2.0);
+    });
+  });
+
+  // ─── Overlay Toolbar Font Size Migration Idempotency ───────────────────
+
+  describe("overlay_toolbar_font_size migration idempotency", () => {
+    it("should skip adding column when it already exists", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      const before = getColumnNames(db, "user_settings");
+      expect(before).toContain("overlay_toolbar_font_size");
+
+      expect(() =>
+        migration_20260226_134100_add_overlay_toolbar_font_size.up(db),
+      ).not.toThrow();
+
+      const after = getColumnNames(db, "user_settings");
+      expect(
+        after.filter((c) => c === "overlay_toolbar_font_size").length,
+      ).toBe(1);
+    });
+
+    it("should handle down() when column does not exist", () => {
+      // Baseline schema does not include this column — no need to drop
+      createBaselineSchema(db);
+
+      const before = getColumnNames(db, "user_settings");
+      expect(before).not.toContain("overlay_toolbar_font_size");
+
+      expect(() =>
+        migration_20260226_134100_add_overlay_toolbar_font_size.down(db),
+      ).not.toThrow();
+
+      const after = getColumnNames(db, "user_settings");
+      expect(after).not.toContain("overlay_toolbar_font_size");
+    });
+
+    it("should preserve existing user settings data after down() removes column", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      db.prepare(
+        "UPDATE user_settings SET app_exit_action = 'minimize', overlay_toolbar_font_size = 1.8 WHERE id = 1",
+      ).run();
+
+      migration_20260226_134100_add_overlay_toolbar_font_size.down(db);
+
+      const columns = getColumnNames(db, "user_settings");
+      expect(columns).not.toContain("overlay_toolbar_font_size");
+
+      const row = db
+        .prepare("SELECT app_exit_action FROM user_settings WHERE id = 1")
+        .get() as { app_exit_action: string };
+      expect(row.app_exit_action).toBe("minimize");
+    });
+
+    it("should allow re-applying migration after rollback", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      migration_20260226_134100_add_overlay_toolbar_font_size.down(db);
+      const afterDown = getColumnNames(db, "user_settings");
+      expect(afterDown).not.toContain("overlay_toolbar_font_size");
+
+      migration_20260226_134100_add_overlay_toolbar_font_size.up(db);
+      const afterUp = getColumnNames(db, "user_settings");
+      expect(afterUp).toContain("overlay_toolbar_font_size");
+
+      db.prepare(
+        "UPDATE user_settings SET overlay_toolbar_font_size = 0.75 WHERE id = 1",
+      ).run();
+      const row = db
+        .prepare(
+          "SELECT overlay_toolbar_font_size FROM user_settings WHERE id = 1",
+        )
+        .get() as { overlay_toolbar_font_size: number };
+      expect(row.overlay_toolbar_font_size).toBe(0.75);
+    });
+  });
+
+  // ─── Stacked Deck Max Volume Rate Migration Idempotency ────────────────
+
+  describe("stacked_deck_max_volume_rate migration idempotency", () => {
+    it("should skip adding column when it already exists", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      const before = getColumnNames(db, "snapshots");
+      expect(before).toContain("stacked_deck_max_volume_rate");
+
+      expect(() =>
+        migration_20260227_182400_add_stacked_deck_max_volume_rate.up(db),
+      ).not.toThrow();
+
+      const after = getColumnNames(db, "snapshots");
+      expect(
+        after.filter((c) => c === "stacked_deck_max_volume_rate").length,
+      ).toBe(1);
+    });
+
+    it("should handle down() when column does not exist", () => {
+      createBaselineSchema(db);
+
+      const before = getColumnNames(db, "snapshots");
+      expect(before).not.toContain("stacked_deck_max_volume_rate");
+
+      expect(() =>
+        migration_20260227_182400_add_stacked_deck_max_volume_rate.down(db),
+      ).not.toThrow();
+
+      const after = getColumnNames(db, "snapshots");
+      expect(after).not.toContain("stacked_deck_max_volume_rate");
+    });
+
+    it("should preserve existing snapshot data after down() removes column", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      db.prepare("INSERT INTO leagues (id, name, game) VALUES (?, ?, ?)").run(
+        "league-1",
+        "Settlers",
+        "poe1",
+      );
+
+      db.prepare(
+        "INSERT INTO snapshots (id, league_id, fetched_at, exchange_chaos_to_divine, stash_chaos_to_divine, stacked_deck_chaos_cost, stacked_deck_max_volume_rate) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      ).run("snap-1", "league-1", "2026-01-01T00:00:00Z", 150, 145, 3.5, 42);
+
+      migration_20260227_182400_add_stacked_deck_max_volume_rate.down(db);
+
+      const columns = getColumnNames(db, "snapshots");
+      expect(columns).not.toContain("stacked_deck_max_volume_rate");
+
+      const row = db
+        .prepare(
+          "SELECT id, stacked_deck_chaos_cost FROM snapshots WHERE id = ?",
+        )
+        .get("snap-1") as { id: string; stacked_deck_chaos_cost: number };
+      expect(row.id).toBe("snap-1");
+      expect(row.stacked_deck_chaos_cost).toBe(3.5);
+    });
+
+    it("should allow re-applying migration after rollback", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      migration_20260227_182400_add_stacked_deck_max_volume_rate.down(db);
+      const afterDown = getColumnNames(db, "snapshots");
+      expect(afterDown).not.toContain("stacked_deck_max_volume_rate");
+
+      migration_20260227_182400_add_stacked_deck_max_volume_rate.up(db);
+      const afterUp = getColumnNames(db, "snapshots");
+      expect(afterUp).toContain("stacked_deck_max_volume_rate");
+    });
+  });
+
+  // ─── Telemetry Settings Migration Idempotency ─────────────────────────
+
+  describe("telemetry settings migration idempotency", () => {
+    it("should skip adding columns when they already exist", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      const before = getColumnNames(db, "user_settings");
+      expect(before).toContain("telemetry_crash_reporting");
+      expect(before).toContain("telemetry_usage_analytics");
+
+      expect(() =>
+        migration_20260302_192700_add_telemetry_settings.up(db),
+      ).not.toThrow();
+
+      const after = getColumnNames(db, "user_settings");
+      expect(
+        after.filter((c) => c === "telemetry_crash_reporting").length,
+      ).toBe(1);
+      expect(
+        after.filter((c) => c === "telemetry_usage_analytics").length,
+      ).toBe(1);
+    });
+
+    it("should handle down() when columns do not exist", () => {
+      // Baseline schema does not include these columns — no need to drop
+      createBaselineSchema(db);
+
+      const before = getColumnNames(db, "user_settings");
+      expect(before).not.toContain("telemetry_crash_reporting");
+      expect(before).not.toContain("telemetry_usage_analytics");
+
+      expect(() =>
+        migration_20260302_192700_add_telemetry_settings.down(db),
+      ).not.toThrow();
+
+      const after = getColumnNames(db, "user_settings");
+      expect(after).not.toContain("telemetry_crash_reporting");
+      expect(after).not.toContain("telemetry_usage_analytics");
+    });
+
+    it("should preserve existing user settings data after down() removes columns", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      db.prepare(
+        "UPDATE user_settings SET app_exit_action = 'minimize', telemetry_crash_reporting = 1 WHERE id = 1",
+      ).run();
+
+      migration_20260302_192700_add_telemetry_settings.down(db);
+
+      const columns = getColumnNames(db, "user_settings");
+      expect(columns).not.toContain("telemetry_crash_reporting");
+      expect(columns).not.toContain("telemetry_usage_analytics");
+
+      const row = db
+        .prepare("SELECT app_exit_action FROM user_settings WHERE id = 1")
+        .get() as { app_exit_action: string };
+      expect(row.app_exit_action).toBe("minimize");
+    });
+
+    it("should allow re-applying migration after rollback", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      migration_20260302_192700_add_telemetry_settings.down(db);
+      const afterDown = getColumnNames(db, "user_settings");
+      expect(afterDown).not.toContain("telemetry_crash_reporting");
+      expect(afterDown).not.toContain("telemetry_usage_analytics");
+
+      migration_20260302_192700_add_telemetry_settings.up(db);
+      const afterUp = getColumnNames(db, "user_settings");
+      expect(afterUp).toContain("telemetry_crash_reporting");
+      expect(afterUp).toContain("telemetry_usage_analytics");
+
+      db.prepare(
+        "UPDATE user_settings SET telemetry_crash_reporting = 1, telemetry_usage_analytics = 1 WHERE id = 1",
+      ).run();
+      const row = db
+        .prepare(
+          "SELECT telemetry_crash_reporting, telemetry_usage_analytics FROM user_settings WHERE id = 1",
+        )
+        .get() as {
+        telemetry_crash_reporting: number;
+        telemetry_usage_analytics: number;
+      };
+      expect(row.telemetry_crash_reporting).toBe(1);
+      expect(row.telemetry_usage_analytics).toBe(1);
+    });
+
+    it("should default telemetry columns to 0 for existing users", () => {
+      // Baseline schema does not include these columns — simulates an existing user pre-migration
+      createBaselineSchema(db);
+
+      migration_20260302_192700_add_telemetry_settings.up(db);
+
+      const row = db
+        .prepare(
+          "SELECT telemetry_crash_reporting, telemetry_usage_analytics FROM user_settings WHERE id = 1",
+        )
+        .get() as {
+        telemetry_crash_reporting: number;
+        telemetry_usage_analytics: number;
+      };
+      expect(row.telemetry_crash_reporting).toBe(0);
+      expect(row.telemetry_usage_analytics).toBe(0);
     });
   });
 });

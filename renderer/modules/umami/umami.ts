@@ -26,7 +26,18 @@ function normalizeUrl(url: string): string {
   return url.replace(UUID_PATTERN, ":id");
 }
 
-export function initUmami(): void {
+/**
+ * Initialize Umami usage analytics in the renderer process.
+ *
+ * @param enabled  When `false`, initialization is skipped entirely.
+ *                 Defaults to `true` for backward compatibility.
+ */
+export function initUmami(enabled = true): void {
+  if (!enabled) {
+    console.info("[Umami] Usage analytics disabled by user preference");
+    return;
+  }
+
   if (initialized) return;
 
   // Only initialize if VITE_UMAMI_ID is provided

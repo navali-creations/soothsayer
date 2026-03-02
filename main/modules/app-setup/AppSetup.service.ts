@@ -3,6 +3,7 @@ import fs from "node:fs";
 import { ipcMain } from "electron";
 
 import {
+  SettingsKey,
   SettingsStoreService,
   type SetupStep,
 } from "~/main/modules/settings-store";
@@ -98,6 +99,8 @@ class AppSetupService {
       poe2League: settings.poe2SelectedLeague,
       poe1ClientPath: settings.poe1ClientTxtPath,
       poe2ClientPath: settings.poe2ClientTxtPath,
+      telemetryCrashReporting: settings.telemetryCrashReporting,
+      telemetryUsageAnalytics: settings.telemetryUsageAnalytics,
     };
   }
 
@@ -105,14 +108,14 @@ class AppSetupService {
    * Check if setup is complete
    */
   public async isSetupComplete(): Promise<boolean> {
-    return await this.settingsStore.get("setupCompleted");
+    return await this.settingsStore.get(SettingsKey.SetupCompleted);
   }
 
   /**
    * Validate the current setup step
    */
   public async validateCurrentStep(): Promise<StepValidationResult> {
-    const currentStep = await this.settingsStore.get("setupStep");
+    const currentStep = await this.settingsStore.get(SettingsKey.SetupStep);
 
     switch (currentStep) {
       case SETUP_STEPS.SELECT_GAME:
@@ -121,6 +124,9 @@ class AppSetupService {
         return await this.validateLeagueSelection();
       case SETUP_STEPS.SELECT_CLIENT_PATH:
         return await this.validateClientPaths();
+      case SETUP_STEPS.TELEMETRY_CONSENT:
+        // No validation required — both toggles off is a valid choice
+        return { isValid: true, errors: [] };
       default:
         return { isValid: true, errors: [] };
     }
@@ -131,7 +137,9 @@ class AppSetupService {
    * Now validates that at least one game is selected
    */
   private async validateGameSelection(): Promise<StepValidationResult> {
-    const installedGames = await this.settingsStore.get("installedGames");
+    const installedGames = await this.settingsStore.get(
+      SettingsKey.InstalledGames,
+    );
     const errors: string[] = [];
 
     if (!installedGames || installedGames.length === 0) {
@@ -149,9 +157,15 @@ class AppSetupService {
    * Validates that each selected game has a league chosen
    */
   private async validateLeagueSelection(): Promise<StepValidationResult> {
-    const installedGames = await this.settingsStore.get("installedGames");
-    const poe1League = await this.settingsStore.get("poe1SelectedLeague");
-    const poe2League = await this.settingsStore.get("poe2SelectedLeague");
+    const installedGames = await this.settingsStore.get(
+      SettingsKey.InstalledGames,
+    );
+    const poe1League = await this.settingsStore.get(
+      SettingsKey.SelectedPoe1League,
+    );
+    const poe2League = await this.settingsStore.get(
+      SettingsKey.SelectedPoe2League,
+    );
     const errors: string[] = [];
 
     if (installedGames.includes("poe1")) {
@@ -177,9 +191,15 @@ class AppSetupService {
    * Validates that each selected game has a valid client.txt path
    */
   private async validateClientPaths(): Promise<StepValidationResult> {
-    const installedGames = await this.settingsStore.get("installedGames");
-    const poe1Path = await this.settingsStore.get("poe1ClientTxtPath");
-    const poe2Path = await this.settingsStore.get("poe2ClientTxtPath");
+    const installedGames = await this.settingsStore.get(
+      SettingsKey.InstalledGames,
+    );
+    const poe1Path = await this.settingsStore.get(
+      SettingsKey.Poe1ClientTxtPath,
+    );
+    const poe2Path = await this.settingsStore.get(
+      SettingsKey.Poe2ClientTxtPath,
+    );
     const errors: string[] = [];
 
     if (installedGames.includes("poe1")) {
@@ -251,15 +271,23 @@ class AppSetupService {
       };
     }
 
-    const currentStep = await this.settingsStore.get("setupStep");
+    const currentStep = await this.settingsStore.get(SettingsKey.SetupStep);
     const nextStep = (currentStep + 1) as SetupStep;
 
     // If we've completed all steps, mark setup as complete
-    if (nextStep > SETUP_STEPS.SELECT_CLIENT_PATH) {
+    if (nextStep > SETUP_STEPS.TELEMETRY_CONSENT) {
       return await this.completeSetup();
     }
 
-    await this.settingsStore.set("setupStep", nextStep);
+    // When entering the telemetry consent step for the first time,
+    // default both toggles to ON (opt-out model for new users).
+    // Existing users upgrading already have these defaulted to 0 via migration.
+    if (nextStep === SETUP_STEPS.TELEMETRY_CONSENT) {
+      await this.settingsStore.set(SettingsKey.TelemetryCrashReporting, true);
+      await this.settingsStore.set(SettingsKey.TelemetryUsageAnalytics, true);
+    }
+
+    await this.settingsStore.set(SettingsKey.SetupStep, nextStep);
     return { success: true };
   }
 
@@ -269,7 +297,7 @@ class AppSetupService {
   public async goToStep(
     step: SetupStep,
   ): Promise<{ success: boolean; error?: string }> {
-    const currentStep = await this.settingsStore.get("setupStep");
+    const currentStep = await this.settingsStore.get(SettingsKey.SetupStep);
 
     // Don't allow skipping ahead
     if (step > currentStep + 1) {
@@ -279,7 +307,7 @@ class AppSetupService {
       };
     }
 
-    await this.settingsStore.set("setupStep", step);
+    await this.settingsStore.set(SettingsKey.SetupStep, step);
     return { success: true };
   }
 
@@ -306,14 +334,16 @@ class AppSetupService {
     }
 
     // Set the active game to the first installed game
-    const installedGames = await this.settingsStore.get("installedGames");
+    const installedGames = await this.settingsStore.get(
+      SettingsKey.InstalledGames,
+    );
     if (installedGames.length > 0) {
-      await this.settingsStore.set("selectedGame", installedGames[0]);
+      await this.settingsStore.set(SettingsKey.ActiveGame, installedGames[0]);
     }
 
     // Mark setup as complete
-    await this.settingsStore.set("setupCompleted", true);
-    await this.settingsStore.set("setupStep", 3);
+    await this.settingsStore.set(SettingsKey.SetupCompleted, true);
+    await this.settingsStore.set(SettingsKey.SetupStep, 4);
 
     return { success: true };
   }
@@ -322,16 +352,19 @@ class AppSetupService {
    * Reset setup (for re-running the wizard)
    */
   public async resetSetup(): Promise<void> {
-    await this.settingsStore.set("setupCompleted", false);
-    await this.settingsStore.set("setupStep", 0);
+    await this.settingsStore.set(SettingsKey.SetupCompleted, false);
+    await this.settingsStore.set(SettingsKey.SetupStep, 0);
   }
 
   /**
    * Skip setup (for power users who want to configure manually)
    */
   public async skipSetup(): Promise<void> {
-    await this.settingsStore.set("setupCompleted", true);
-    await this.settingsStore.set("setupStep", 3);
+    // When skipping, enable telemetry by default (opt-out model for new users)
+    await this.settingsStore.set(SettingsKey.TelemetryCrashReporting, true);
+    await this.settingsStore.set(SettingsKey.TelemetryUsageAnalytics, true);
+    await this.settingsStore.set(SettingsKey.SetupCompleted, true);
+    await this.settingsStore.set(SettingsKey.SetupStep, 4);
   }
 }
 

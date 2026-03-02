@@ -10,6 +10,7 @@ import {
   FilePathSettingCard,
   FilterSettingsCard,
   OverlaySettingsCard,
+  PrivacySettingsCard,
   SettingsCategoryCard,
   StorageSettingsCard,
 } from "./Settings.components";
@@ -81,6 +82,9 @@ const SettingsPage = () => {
           </Grid.Col>
           <Grid.Col>
             <StorageSettingsCard />
+          </Grid.Col>
+          <Grid.Col>
+            <PrivacySettingsCard />
           </Grid.Col>
           <Grid.Col>
             <DangerZoneCard />

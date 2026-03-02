@@ -13,6 +13,7 @@ import {
   assertGameType,
   handleValidationError,
 } from "~/main/utils/ipc-validation";
+import type { Rarity } from "~/types/data-stores";
 
 import { ProhibitedLibraryChannel } from "./ProhibitedLibrary.channels";
 import type {
@@ -420,7 +421,7 @@ class ProhibitedLibraryService {
     loadedAt: string,
   ): UpsertCardWeightRow[] {
     return rows.map((row) => {
-      let rarity: 0 | 1 | 2 | 3 | 4;
+      let rarity: Rarity;
 
       if (row.weight > 0) {
         rarity = weightToDropRarity(row.weight);

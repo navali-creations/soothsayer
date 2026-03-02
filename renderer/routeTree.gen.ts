@@ -15,6 +15,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SessionsRouteImport } from './routes/sessions'
 import { Route as RarityModelRouteImport } from './routes/rarity-model'
 import { Route as ProfitForecastRouteImport } from './routes/profit-forecast'
+import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
 import { Route as ChangelogRouteImport } from './routes/changelog'
 import { Route as CardsRouteImport } from './routes/cards'
 import { Route as AboutRouteImport } from './routes/about'
@@ -51,6 +52,11 @@ const RarityModelRoute = RarityModelRouteImport.update({
 const ProfitForecastRoute = ProfitForecastRouteImport.update({
   id: '/profit-forecast',
   path: '/profit-forecast',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
+  id: '/privacy-policy',
+  path: '/privacy-policy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChangelogRoute = ChangelogRouteImport.update({
@@ -94,6 +100,7 @@ export interface FileRoutesByFullPath {
   '/about': typeof AboutRoute
   '/cards': typeof CardsRouteWithChildren
   '/changelog': typeof ChangelogRoute
+  '/privacy-policy': typeof PrivacyPolicyRoute
   '/profit-forecast': typeof ProfitForecastRoute
   '/rarity-model': typeof RarityModelRoute
   '/sessions': typeof SessionsRouteWithChildren
@@ -108,6 +115,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/changelog': typeof ChangelogRoute
+  '/privacy-policy': typeof PrivacyPolicyRoute
   '/profit-forecast': typeof ProfitForecastRoute
   '/rarity-model': typeof RarityModelRoute
   '/settings': typeof SettingsRoute
@@ -123,6 +131,7 @@ export interface FileRoutesById {
   '/about': typeof AboutRoute
   '/cards': typeof CardsRouteWithChildren
   '/changelog': typeof ChangelogRoute
+  '/privacy-policy': typeof PrivacyPolicyRoute
   '/profit-forecast': typeof ProfitForecastRoute
   '/rarity-model': typeof RarityModelRoute
   '/sessions': typeof SessionsRouteWithChildren
@@ -140,6 +149,7 @@ export interface FileRouteTypes {
     | '/about'
     | '/cards'
     | '/changelog'
+    | '/privacy-policy'
     | '/profit-forecast'
     | '/rarity-model'
     | '/sessions'
@@ -154,6 +164,7 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/changelog'
+    | '/privacy-policy'
     | '/profit-forecast'
     | '/rarity-model'
     | '/settings'
@@ -168,6 +179,7 @@ export interface FileRouteTypes {
     | '/about'
     | '/cards'
     | '/changelog'
+    | '/privacy-policy'
     | '/profit-forecast'
     | '/rarity-model'
     | '/sessions'
@@ -184,6 +196,7 @@ export interface RootRouteChildren {
   AboutRoute: typeof AboutRoute
   CardsRoute: typeof CardsRouteWithChildren
   ChangelogRoute: typeof ChangelogRoute
+  PrivacyPolicyRoute: typeof PrivacyPolicyRoute
   ProfitForecastRoute: typeof ProfitForecastRoute
   RarityModelRoute: typeof RarityModelRoute
   SessionsRoute: typeof SessionsRouteWithChildren
@@ -234,6 +247,13 @@ declare module '@tanstack/react-router' {
       path: '/profit-forecast'
       fullPath: '/profit-forecast'
       preLoaderRoute: typeof ProfitForecastRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy-policy': {
+      id: '/privacy-policy'
+      path: '/privacy-policy'
+      fullPath: '/privacy-policy'
+      preLoaderRoute: typeof PrivacyPolicyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/changelog': {
@@ -317,6 +337,7 @@ const rootRouteChildren: RootRouteChildren = {
   AboutRoute: AboutRoute,
   CardsRoute: CardsRouteWithChildren,
   ChangelogRoute: ChangelogRoute,
+  PrivacyPolicyRoute: PrivacyPolicyRoute,
   ProfitForecastRoute: ProfitForecastRoute,
   RarityModelRoute: RarityModelRoute,
   SessionsRoute: SessionsRouteWithChildren,

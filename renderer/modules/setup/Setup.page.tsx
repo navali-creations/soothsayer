@@ -10,6 +10,7 @@ import {
   SetupErrorDisplay,
   SetupGameStep,
   SetupLeagueStep,
+  SetupTelemetryStep,
 } from "./Setup.components";
 
 const SetupPage = () => {
@@ -64,6 +65,9 @@ const SetupPage = () => {
         {currentStep === SETUP_STEPS.SELECT_LEAGUE && <SetupLeagueStep />}
         {currentStep === SETUP_STEPS.SELECT_CLIENT_PATH && (
           <SetupClientPathStep />
+        )}
+        {currentStep === SETUP_STEPS.TELEMETRY_CONSENT && (
+          <SetupTelemetryStep />
         )}
       </div>
 

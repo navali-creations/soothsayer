@@ -8,6 +8,7 @@ export const SETUP_STEPS = {
   SELECT_GAME: 1,
   SELECT_LEAGUE: 2,
   SELECT_CLIENT_PATH: 3,
+  TELEMETRY_CONSENT: 4,
 } as const;
 
 /**
@@ -41,6 +42,10 @@ export type SetupState = {
   poe2League: string;
   poe1ClientPath: string | null;
   poe2ClientPath: string | null;
+  /** Whether the user has opted in to crash reporting (Sentry) */
+  telemetryCrashReporting: boolean;
+  /** Whether the user has opted in to usage analytics (Umami) */
+  telemetryUsageAnalytics: boolean;
 };
 
 /**

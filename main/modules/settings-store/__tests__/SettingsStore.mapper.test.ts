@@ -48,6 +48,8 @@ function createSettingsRow(
     overlay_font_size: 1.0,
     overlay_toolbar_font_size: 1.0,
     main_window_bounds: null,
+    telemetry_crash_reporting: 0,
+    telemetry_usage_analytics: 0,
     created_at: "2025-01-01T00:00:00Z",
     updated_at: "2025-01-01T00:00:00Z",
     ...overrides,
@@ -287,6 +289,8 @@ describe("SettingsStore.mapper", () => {
         overlayFontSize: 1.5,
         overlayToolbarFontSize: 1.2,
         mainWindowBounds: { x: 100, y: 200, width: 1400, height: 900 },
+        telemetryCrashReporting: false,
+        telemetryUsageAnalytics: false,
       });
     });
   });

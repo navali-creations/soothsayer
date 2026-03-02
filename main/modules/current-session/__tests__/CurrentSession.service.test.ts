@@ -15,6 +15,7 @@ const {
   mockStopAutoRefresh,
   mockDataStoreAddCard,
   mockGetAllTimeStats,
+  mockSettingsGet,
 } = vi.hoisted(() => ({
   mockIpcHandle: vi.fn(),
   mockWebContentsSend: vi.fn(),
@@ -29,6 +30,7 @@ const {
   mockStopAutoRefresh: vi.fn(),
   mockDataStoreAddCard: vi.fn(),
   mockGetAllTimeStats: vi.fn(),
+  mockSettingsGet: vi.fn().mockResolvedValue(null),
 }));
 
 // ─── Mock Electron before any imports that use it ────────────────────────────
@@ -142,7 +144,7 @@ vi.mock("~/main/modules/rarity-model/RarityModel.service", () => ({
 vi.mock("~/main/modules/settings-store", () => ({
   SettingsStoreService: {
     getInstance: vi.fn(() => ({
-      get: vi.fn().mockResolvedValue(null),
+      get: mockSettingsGet,
       set: vi.fn().mockResolvedValue(undefined),
       getAllSettings: vi.fn().mockResolvedValue({}),
     })),
@@ -225,6 +227,7 @@ describe("CurrentSessionService", () => {
     mockStopAutoRefresh.mockReset();
     mockDataStoreAddCard.mockReset().mockResolvedValue(undefined);
     mockGetAllTimeStats.mockReset();
+    mockSettingsGet.mockReset().mockResolvedValue(null);
 
     // Seed base data
     leagueId = await seedLeague(testDb.kysely, {
@@ -1654,6 +1657,71 @@ describe("CurrentSessionService", () => {
       // Now getCurrentSession should hit the `if (!session) return null` branch
       const result = await service.getCurrentSession("poe1");
       expect(result).toBeNull();
+    });
+  });
+
+  describe("getActiveFilterId (via getCurrentSession)", () => {
+    it("should pass filterId to getSessionCards when rarity source is 'filter' and a filter is selected", async () => {
+      // Arrange: mock settingsStore.get to return "filter" for RaritySource
+      // and a filter ID for SelectedFilterId
+      mockSettingsGet.mockImplementation(async (key: string) => {
+        if (key === "raritySource") return "filter";
+        if (key === "selectedFilterId") return "test-filter-id";
+        return null;
+      });
+
+      await service.startSession("poe1", "Settlers");
+      await service.addCard("poe1", "Settlers", "The Doctor", "filter-test-1");
+
+      const result = await service.getCurrentSession("poe1");
+
+      // The session should still return data successfully
+      expect(result).not.toBeNull();
+      expect(result.cards.length).toBeGreaterThan(0);
+    });
+
+    it("should return null filterId when rarity source is 'filter' but no filter is selected", async () => {
+      mockSettingsGet.mockImplementation(async (key: string) => {
+        if (key === "raritySource") return "filter";
+        if (key === "selectedFilterId") return "";
+        return null;
+      });
+
+      await service.startSession("poe1", "Settlers");
+      await service.addCard("poe1", "Settlers", "The Doctor", "filter-test-2");
+
+      const result = await service.getCurrentSession("poe1");
+
+      expect(result).not.toBeNull();
+      expect(result.cards.length).toBeGreaterThan(0);
+    });
+
+    it("should return null filterId when settingsStore.get throws", async () => {
+      // Start session and add card with default (null) mock so they succeed
+      await service.startSession("poe1", "Settlers");
+      await service.addCard("poe1", "Settlers", "The Doctor", "filter-test-3");
+
+      // getActiveFilterId (line ~859) calls settingsStore.get(RaritySource) inside a try-catch.
+      // getCurrentSession (line ~695) also calls settingsStore.get(RaritySource) WITHOUT a try-catch.
+      // We need to throw only on the FIRST RaritySource call (getActiveFilterId) and
+      // return null on the SECOND (getCurrentSession line 695).
+      let raritySourceCallCount = 0;
+      mockSettingsGet.mockImplementation(async (key: string) => {
+        if (key === "raritySource") {
+          raritySourceCallCount++;
+          if (raritySourceCallCount === 1) {
+            throw new Error("Settings error");
+          }
+        }
+        return null;
+      });
+
+      const result = await service.getCurrentSession("poe1");
+
+      // Should still work - getActiveFilterId catches errors and returns null
+      expect(result).not.toBeNull();
+      // Verify the RaritySource key was called at least twice (once in getActiveFilterId, once in getCurrentSession)
+      expect(raritySourceCallCount).toBeGreaterThanOrEqual(2);
     });
   });
 

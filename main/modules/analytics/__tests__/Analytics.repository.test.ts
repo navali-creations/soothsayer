@@ -969,6 +969,24 @@ describe("AnalyticsRepository", () => {
       expect(result!.totalCards).toBe(42);
       expect(result!.uniqueCards).toBe(1);
     });
+
+    it("should return null when executeTakeFirst resolves to undefined", async () => {
+      // The aggregate query (SUM + COUNT without GROUP BY) always returns a row in SQLite,
+      // so `result || null` never naturally evaluates to null.
+      // Use a minimal Kysely mock to force undefined and cover the fallback path (line 145).
+      const chainStub = {
+        select: () => chainStub,
+        selectFrom: () => chainStub,
+        where: () => chainStub,
+        executeTakeFirst: async () => undefined,
+      };
+      const fakeKysely = { selectFrom: () => chainStub } as any;
+      const stubbedRepo = new AnalyticsRepository(fakeKysely);
+
+      const result = await stubbedRepo.getLeagueStats("poe1", "Settlers");
+
+      expect(result).toBeNull();
+    });
   });
 
   // ═══════════════════════════════════════════════════════════════════════════

@@ -384,6 +384,23 @@ describe("DatabaseService", () => {
         expect.any(Object),
       );
     });
+
+    it("should use soothsayer.db when VITE_SUPABASE_URL is undefined (fallback to empty string)", () => {
+      vi.stubEnv("VITE_SUPABASE_URL", "");
+
+      // @ts-expect-error
+      DatabaseService._instance = undefined;
+      DatabaseService.getInstance();
+
+      // Empty string is not local, and app is not packaged, so default dev DB
+      expect(mockDatabaseConstructor).toHaveBeenCalledWith(
+        expect.stringContaining("soothsayer.db"),
+        expect.any(Object),
+      );
+      const dbPath = mockDatabaseConstructor.mock.calls[0][0];
+      expect(dbPath).not.toContain("local");
+      expect(dbPath).not.toContain("prod");
+    });
   });
 
   // ─── getDb ───────────────────────────────────────────────────────────────

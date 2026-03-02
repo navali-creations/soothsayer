@@ -4,6 +4,7 @@ import type {
   Database,
   ProhibitedLibraryCacheMetadataRow,
 } from "~/main/modules/database";
+import type { Rarity } from "~/types/data-stores";
 
 import type { ProhibitedLibraryCardWeightDTO } from "./ProhibitedLibrary.dto";
 
@@ -14,7 +15,7 @@ export interface UpsertCardWeightRow {
   game: "poe1" | "poe2";
   league: string;
   weight: number;
-  rarity: 0 | 1 | 2 | 3 | 4;
+  rarity: Rarity;
   fromBoss: boolean;
   loadedAt: string;
 }

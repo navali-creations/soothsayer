@@ -15,7 +15,7 @@ const SetupActions = () => {
 
   const currentStep = setupState?.currentStep ?? 0;
   const isFirstStep = currentStep === SETUP_STEPS.SELECT_GAME;
-  const isLastStep = currentStep === SETUP_STEPS.SELECT_CLIENT_PATH;
+  const isLastStep = currentStep === SETUP_STEPS.TELEMETRY_CONSENT;
   const isNextDisabled =
     isLoading || (validation != null && !validation.isValid);
 

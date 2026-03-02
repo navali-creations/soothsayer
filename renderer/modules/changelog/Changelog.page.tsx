@@ -46,7 +46,14 @@ const ChangelogPage = () => {
     <PageContainer>
       <PageContainer.Header
         title="Changelog"
-        subtitle="Release history and updates"
+        subtitle={
+          <>
+            Release history and updates.
+            <span className="block text-sm text-base-content/50">
+              Click on any card to open the release page on GitHub.
+            </span>
+          </>
+        }
       />
       <PageContainer.Content>
         <div className="flex-1 overflow-y-auto px-2 pb-8">
