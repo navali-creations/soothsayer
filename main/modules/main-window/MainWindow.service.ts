@@ -62,8 +62,8 @@ class MainWindowService {
       process.platform === "win32"
         ? path.join(basePath, "windows/icon.ico")
         : process.platform === "darwin"
-          ? path.join(basePath, "macos/512x512.png")
-          : path.join(basePath, "linux/icons/512x512.png");
+        ? path.join(basePath, "macos/512x512.png")
+        : path.join(basePath, "linux/icons/512x512.png");
 
     return nativeImage.createFromPath(iconPath);
   }
@@ -178,7 +178,7 @@ class MainWindowService {
 
     // Load saved main window bounds
     const savedBounds = await this.settingsStore.get(
-      SettingsKey.MainWindowBounds,
+      SettingsKey.MainWindowBounds
     );
     const validBounds = savedBounds
       ? this.validateBoundsOnScreen(savedBounds)
@@ -224,7 +224,7 @@ class MainWindowService {
       console.log("[Init] ✓ Supabase (configured)");
     } else {
       console.warn(
-        "[Init] ⚠ Supabase (not configured - will use local fallback only)",
+        "[Init] ⚠ Supabase (not configured - will use local fallback only)"
       );
     }
 
@@ -274,13 +274,41 @@ class MainWindowService {
 
     this.showAppOnceReadyToShow();
 
-    if (this.url) {
-      await this.mainWindow.loadURL?.(this.url);
-      if (!app.isPackaged) {
-        this.mainWindow.webContents?.openDevTools();
+    // Guard: skip loading if the app is already quitting (e.g. user closed
+    // during init, or a second-instance quit raced with whenReady).
+    if (AppService.getInstance().isQuitting || this.mainWindow.isDestroyed()) {
+      console.warn(
+        "[MainWindow] Skipping loadFile/loadURL — app is quitting or window destroyed"
+      );
+      return;
+    }
+
+    try {
+      if (this.url) {
+        await this.mainWindow.loadURL?.(this.url);
+        if (!app.isPackaged) {
+          this.mainWindow.webContents?.openDevTools();
+        }
+      } else {
+        await this.mainWindow.loadFile?.(indexHtml);
       }
-    } else {
-      await this.mainWindow.loadFile?.(indexHtml);
+    } catch (error: unknown) {
+      // ERR_FAILED (-2) is expected when the renderer is destroyed mid-load
+      // (e.g. app quit while the page was still loading). Swallow it so it
+      // doesn't surface as an unhandled promise rejection in Sentry.
+      const message = error instanceof Error ? error.message : String(error);
+      if (
+        message.includes("ERR_FAILED") ||
+        message.includes("ERR_ABORTED") ||
+        this.mainWindow.isDestroyed()
+      ) {
+        console.warn(
+          "[MainWindow] Window load interrupted (app shutting down):",
+          message
+        );
+        return;
+      }
+      throw error;
     }
 
     // Security: Restrict navigation to prevent the renderer from loading external URLs
@@ -309,7 +337,7 @@ class MainWindowService {
         shell.openExternal(url);
       } else {
         console.warn(
-          `[Security] Blocked window.open for non-allowlisted URL: ${url}`,
+          `[Security] Blocked window.open for non-allowlisted URL: ${url}`
         );
       }
       return { action: "deny" };
@@ -355,26 +383,26 @@ class MainWindowService {
 
         // Return the first selected file path, or undefined if cancelled
         return result.canceled ? undefined : result.filePaths[0];
-      },
+      }
     );
   }
 
   private emitCaptionEvents() {
     ipcMain.handle(MainWindowChannel.Minimize, async () =>
-      this.mainWindow?.minimize?.(),
+      this.mainWindow?.minimize?.()
     );
 
     ipcMain.handle(MainWindowChannel.Maximize, async () =>
-      this.mainWindow?.maximize?.(),
+      this.mainWindow?.maximize?.()
     );
 
     ipcMain.handle(MainWindowChannel.Unmaximize, async () =>
-      this.mainWindow?.unmaximize?.(),
+      this.mainWindow?.unmaximize?.()
     );
 
     ipcMain.handle(
       MainWindowChannel.IsMaximized,
-      async () => this.mainWindow?.isMaximized?.() ?? false,
+      async () => this.mainWindow?.isMaximized?.() ?? false
     );
 
     /**
@@ -387,7 +415,7 @@ class MainWindowService {
       this.saveBoundsImmediate();
 
       const exitAction = await this.settingsStore?.get(
-        SettingsKey.AppExitAction,
+        SettingsKey.AppExitAction
       );
       const shouldAppQuitBasedOnUserPreference = exitAction === "exit";
       const shouldAppHideBasedOnUserPreference = exitAction === "minimize";
@@ -418,7 +446,7 @@ class MainWindowService {
       this.saveBoundsImmediate();
 
       const exitAction = await this.settingsStore?.get(
-        SettingsKey.AppExitAction,
+        SettingsKey.AppExitAction
       );
       const shouldAppQuitBasedOnUserPreference = exitAction === "exit";
       const shouldAppHideBasedOnUserPreference = exitAction === "minimize";
@@ -448,10 +476,10 @@ class MainWindowService {
 
     this.mainWindow?.once?.(MainWindowChannel.ReadyToShow, async () => {
       const openAtLogin = await this.settingsStore?.get(
-        SettingsKey.AppOpenAtLogin,
+        SettingsKey.AppOpenAtLogin
       );
       const openAtLoginMinimized = await this.settingsStore?.get(
-        SettingsKey.AppOpenAtLoginMinimized,
+        SettingsKey.AppOpenAtLoginMinimized
       );
 
       if (openAtLogin && openAtLoginMinimized) {

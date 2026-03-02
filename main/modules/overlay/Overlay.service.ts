@@ -179,19 +179,37 @@ class OverlayService {
       return { action: "deny" };
     });
 
-    if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-      const overlayUrl = `${MAIN_WINDOW_VITE_DEV_SERVER_URL}/overlay.html`;
-      await this.overlayWindow.loadURL(overlayUrl);
-      if (!app.isPackaged) {
-        this.overlayWindow.webContents.openDevTools({ mode: "detach" });
+    try {
+      if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+        const overlayUrl = `${MAIN_WINDOW_VITE_DEV_SERVER_URL}/overlay.html`;
+        await this.overlayWindow.loadURL(overlayUrl);
+        if (!app.isPackaged) {
+          this.overlayWindow.webContents.openDevTools({ mode: "detach" });
+        }
+      } else {
+        // In production, overlay.html is built alongside index.html
+        const overlayHtml = join(
+          __dirname,
+          `../renderer/${MAIN_WINDOW_VITE_NAME}/overlay.html`,
+        );
+        await this.overlayWindow.loadFile(overlayHtml);
       }
-    } else {
-      // In production, overlay.html is built alongside index.html
-      const overlayHtml = join(
-        __dirname,
-        `../renderer/${MAIN_WINDOW_VITE_NAME}/overlay.html`,
-      );
-      await this.overlayWindow.loadFile(overlayHtml);
+    } catch (error: unknown) {
+      // ERR_FAILED (-2) / ERR_ABORTED (-3) are expected when the overlay
+      // window is destroyed mid-load (e.g. app quit while loading).
+      const message = error instanceof Error ? error.message : String(error);
+      if (
+        message.includes("ERR_FAILED") ||
+        message.includes("ERR_ABORTED") ||
+        this.overlayWindow?.isDestroyed()
+      ) {
+        console.warn(
+          "[Overlay] Window load interrupted (app shutting down):",
+          message,
+        );
+        return;
+      }
+      throw error;
     }
   }
 

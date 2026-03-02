@@ -353,6 +353,7 @@ describe("MainWindowService", () => {
     });
     mockBrowserWindowIsMaximized.mockReturnValue(false);
     mockBrowserWindowIsDestroyed.mockReturnValue(false);
+    mockAppServiceIsQuitting.value = false;
     mockDialogShowOpenDialog.mockResolvedValue({
       canceled: false,
       filePaths: ["/mock/path/file.txt"],
@@ -464,6 +465,65 @@ describe("MainWindowService", () => {
       // Restore
       // @ts-expect-error
       globalThis.MAIN_WINDOW_VITE_DEV_SERVER_URL = "http://localhost:5173";
+    });
+
+    it("should skip loadFile/loadURL when app is already quitting", async () => {
+      mockAppServiceIsQuitting.value = true;
+
+      // @ts-expect-error
+      MainWindowService._instance = undefined;
+      const svc = MainWindowService.getInstance();
+
+      await svc.createMainWindow();
+
+      expect(mockBrowserWindowLoadURL).not.toHaveBeenCalled();
+      expect(mockBrowserWindowLoadFile).not.toHaveBeenCalled();
+
+      // Restore
+      mockAppServiceIsQuitting.value = false;
+    });
+
+    it("should skip loadFile/loadURL when window is already destroyed", async () => {
+      mockBrowserWindowIsDestroyed.mockReturnValue(true);
+
+      // @ts-expect-error
+      MainWindowService._instance = undefined;
+      const svc = MainWindowService.getInstance();
+
+      await svc.createMainWindow();
+
+      expect(mockBrowserWindowLoadURL).not.toHaveBeenCalled();
+      expect(mockBrowserWindowLoadFile).not.toHaveBeenCalled();
+
+      // Restore
+      mockBrowserWindowIsDestroyed.mockReturnValue(false);
+    });
+
+    it("should swallow ERR_FAILED when renderer is destroyed during loadURL", async () => {
+      mockBrowserWindowLoadURL.mockRejectedValueOnce(
+        new Error("ERR_FAILED (-2) loading 'file:///index.html'"),
+      );
+
+      // Should not throw
+      await expect(service.createMainWindow()).resolves.not.toThrow();
+    });
+
+    it("should swallow ERR_ABORTED when renderer is destroyed during loadURL", async () => {
+      mockBrowserWindowLoadURL.mockRejectedValueOnce(
+        new Error("ERR_ABORTED (-3)"),
+      );
+
+      await expect(service.createMainWindow()).resolves.not.toThrow();
+    });
+
+    it("should rethrow non-ERR_FAILED errors from loadURL", async () => {
+      mockBrowserWindowLoadURL.mockRejectedValueOnce(
+        new Error("Something unexpected went wrong"),
+      );
+
+      await expect(service.createMainWindow()).rejects.toThrow(
+        "Something unexpected went wrong",
+      );
     });
 
     it("should register will-navigate security handler on webContents", async () => {
@@ -869,8 +929,11 @@ describe("MainWindowService", () => {
     });
 
     it("should allow close when isQuitting is true", async () => {
-      mockAppServiceIsQuitting.value = true;
+      mockAppServiceIsQuitting.value = false;
       await service.createMainWindow();
+
+      // Set isQuitting *after* window creation so all handlers are registered
+      mockAppServiceIsQuitting.value = true;
 
       const closeHandler = getWindowOnHandler("close");
       const mockEvent = { preventDefault: vi.fn() };
