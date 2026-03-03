@@ -44,13 +44,13 @@ import {
   type ProhibitedLibrarySlice,
 } from "../modules/prohibited-library/ProhibitedLibrary.slice";
 import {
-  createRarityModelSlice,
-  type RarityModelSlice,
-} from "../modules/rarity-model/RarityModel.slice";
+  createRarityInsightsSlice,
+  type RarityInsightsSlice,
+} from "../modules/rarity-insights/RarityInsights.slice";
 import {
-  createRarityModelComparisonSlice,
-  type RarityModelComparisonSlice,
-} from "../modules/rarity-model/RarityModelComparison.slice";
+  createRarityInsightsComparisonSlice,
+  type RarityInsightsComparisonSlice,
+} from "../modules/rarity-insights/RarityInsightsComparison.slice";
 import {
   createSessionDetailsSlice,
   type SessionDetailsSlice,
@@ -104,9 +104,9 @@ type BoundStore = GameInfoSlice &
   StatisticsSlice &
   OnboardingSlice &
   UpdaterSlice &
-  RarityModelSlice &
+  RarityInsightsSlice &
   ProfitForecastSlice &
-  RarityModelComparisonSlice &
+  RarityInsightsComparisonSlice &
   RootActions;
 
 export const useBoundStore = create<BoundStore>()(
@@ -129,8 +129,10 @@ export const useBoundStore = create<BoundStore>()(
       const updaterSlice = createUpdaterSlice(...a);
       const profitForecastSlice = createProfitForecastSlice(...a);
       const prohibitedLibrarySlice = createProhibitedLibrarySlice(...a);
-      const rarityModelSlice = createRarityModelSlice(...a);
-      const rarityModelComparisonSlice = createRarityModelComparisonSlice(...a);
+      const rarityInsightsSlice = createRarityInsightsSlice(...a);
+      const rarityInsightsComparisonSlice = createRarityInsightsComparisonSlice(
+        ...a,
+      );
 
       return {
         ...settingsSlice,
@@ -150,8 +152,8 @@ export const useBoundStore = create<BoundStore>()(
         ...statisticsSlice,
         ...onboardingSlice,
         ...updaterSlice,
-        ...rarityModelSlice,
-        ...rarityModelComparisonSlice,
+        ...rarityInsightsSlice,
+        ...rarityInsightsComparisonSlice,
 
         hydrate: async () => {
           await Promise.all([
@@ -206,7 +208,7 @@ export const useBoundStore = create<BoundStore>()(
               statistics,
               onboarding,
               updater,
-              rarityModel,
+              rarityInsights,
               ...state
             }) => {
               // Reset settings
@@ -317,14 +319,14 @@ export const useBoundStore = create<BoundStore>()(
               prohibitedLibrary.isLoading = false;
               prohibitedLibrary.loadError = null;
 
-              // Reset rarity model
-              rarityModel.availableFilters = [];
-              rarityModel.selectedFilterId = null;
-              rarityModel.isScanning = false;
-              rarityModel.isParsing = false;
-              rarityModel.scanError = null;
-              rarityModel.parseError = null;
-              rarityModel.lastScannedAt = null;
+              // Reset rarity insights
+              rarityInsights.availableFilters = [];
+              rarityInsights.selectedFilterId = null;
+              rarityInsights.isScanning = false;
+              rarityInsights.isParsing = false;
+              rarityInsights.scanError = null;
+              rarityInsights.parseError = null;
+              rarityInsights.lastScannedAt = null;
 
               // Reset profit forecast
               state.profitForecast.rows = [];
@@ -342,15 +344,15 @@ export const useBoundStore = create<BoundStore>()(
               state.profitForecast.stepDrop = 2;
               state.profitForecast.subBatchSize = 5000;
 
-              // Reset rarity model comparison
-              state.rarityModelComparison.selectedFilters = [];
-              state.rarityModelComparison.parsedResults = new Map();
-              state.rarityModelComparison.parsingFilterId = null;
-              state.rarityModelComparison.parseErrors = new Map();
-              state.rarityModelComparison.showDiffsOnly = false;
-              state.rarityModelComparison.priorityPoeNinjaRarity = null;
-              state.rarityModelComparison.priorityPlRarity = null;
-              state.rarityModelComparison.tableSorting = [
+              // Reset rarity insights comparison
+              state.rarityInsightsComparison.selectedFilters = [];
+              state.rarityInsightsComparison.parsedResults = new Map();
+              state.rarityInsightsComparison.parsingFilterId = null;
+              state.rarityInsightsComparison.parseErrors = new Map();
+              state.rarityInsightsComparison.showDiffsOnly = false;
+              state.rarityInsightsComparison.priorityPoeNinjaRarity = null;
+              state.rarityInsightsComparison.priorityPlRarity = null;
+              state.rarityInsightsComparison.tableSorting = [
                 { id: "name", desc: false },
               ];
 

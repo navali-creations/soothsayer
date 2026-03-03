@@ -192,9 +192,9 @@ vi.mock("../CurrentSession.repository", () => ({
   },
 }));
 
-// ─── Mock RarityModelService ─────────────────────────────────────────────────────
-vi.mock("~/main/modules/rarity-model/RarityModel.service", () => ({
-  RarityModelService: {
+// ─── Mock RarityInsightsService ─────────────────────────────────────────────────────
+vi.mock("~/main/modules/rarity-insights/RarityInsights.service", () => ({
+  RarityInsightsService: {
     getInstance: vi.fn(() => ({
       applyFilterRarities: vi.fn().mockResolvedValue(undefined),
       ensureFilterParsed: vi.fn().mockResolvedValue(null),

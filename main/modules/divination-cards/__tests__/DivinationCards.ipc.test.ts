@@ -23,7 +23,7 @@ const {
   mockElectronApp,
   mockPlRepoGetCardWeights,
   mockPlRepoGetMetadata,
-  mockRarityModelRepoGetCardRarities,
+  mockRarityInsightsRepoGetCardRarities,
 } = vi.hoisted(() => ({
   mockIpcHandle: vi.fn(),
   mockReadFileSync: vi.fn(),
@@ -50,7 +50,7 @@ const {
   },
   mockPlRepoGetCardWeights: vi.fn(),
   mockPlRepoGetMetadata: vi.fn(),
-  mockRarityModelRepoGetCardRarities: vi.fn(),
+  mockRarityInsightsRepoGetCardRarities: vi.fn(),
 }));
 
 // ─── Mock Electron ───────────────────────────────────────────────────────────
@@ -134,12 +134,12 @@ vi.mock("../DivinationCards.repository", () => ({
   },
 }));
 
-// ─── Mock RarityModelRepository ───────────────────────────────────────────────────
-vi.mock("~/main/modules/rarity-model/RarityModel.repository", () => ({
-  RarityModelRepository: class MockRarityModelRepository {
+// ─── Mock RarityInsightsRepository ───────────────────────────────────────────────────
+vi.mock("~/main/modules/rarity-insights/RarityInsights.repository", () => ({
+  RarityInsightsRepository: class MockRarityInsightsRepository {
     getAll = vi.fn().mockResolvedValue([]);
     getById = vi.fn().mockResolvedValue(null);
-    getCardRarities = mockRarityModelRepoGetCardRarities;
+    getCardRarities = mockRarityInsightsRepoGetCardRarities;
     replaceCardRarities = vi.fn().mockResolvedValue(undefined);
     getCardRarityCount = vi.fn().mockResolvedValue(0);
     getCardRarity = vi.fn().mockResolvedValue(null);
@@ -255,7 +255,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     mockSettingsSet.mockResolvedValue(undefined);
     mockPlRepoGetCardWeights.mockResolvedValue([]);
     mockPlRepoGetMetadata.mockResolvedValue(null);
-    mockRarityModelRepoGetCardRarities.mockResolvedValue([]);
+    mockRarityInsightsRepoGetCardRarities.mockResolvedValue([]);
 
     service = DivinationCardsService.getInstance();
   });
@@ -1233,8 +1233,8 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
   describe("updateRaritiesFromFilter", () => {
     it("should update rarities from filter card rarities", async () => {
-      // Setup filter card rarities (from RarityModelRepository)
-      mockRarityModelRepoGetCardRarities.mockResolvedValue([
+      // Setup filter card rarities (from RarityInsightsRepository)
+      mockRarityInsightsRepoGetCardRarities.mockResolvedValue([
         { filterId: "filter_1", cardName: "The Doctor", rarity: 1 },
         { filterId: "filter_1", cardName: "Rain of Chaos", rarity: 4 },
       ]);
@@ -1260,7 +1260,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should default unmatched cards to rarity 4 (common)", async () => {
-      mockRarityModelRepoGetCardRarities.mockResolvedValue([
+      mockRarityInsightsRepoGetCardRarities.mockResolvedValue([
         { filterId: "filter_1", cardName: "The Doctor", rarity: 1 },
       ]);
       mockRepositoryGetAllCardNames.mockResolvedValue([
@@ -1283,7 +1283,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should not call updateRarities when no cards exist", async () => {
-      mockRarityModelRepoGetCardRarities.mockResolvedValue([]);
+      mockRarityInsightsRepoGetCardRarities.mockResolvedValue([]);
       mockRepositoryGetAllCardNames.mockResolvedValue([]);
 
       await service.updateRaritiesFromFilter("filter_1", "poe1", "Settlers");
@@ -1292,7 +1292,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should work with poe2 game type", async () => {
-      mockRarityModelRepoGetCardRarities.mockResolvedValue([
+      mockRarityInsightsRepoGetCardRarities.mockResolvedValue([
         { filterId: "filter_2", cardName: "The Doctor", rarity: 2 },
       ]);
       mockRepositoryGetAllCardNames.mockResolvedValue(["The Doctor"]);

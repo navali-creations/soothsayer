@@ -19,11 +19,11 @@ import PFBreakEvenBeacon from "../profit-forecast/ProfitForecast.beacons/PFBreak
 import PFCostModelBeacon from "../profit-forecast/ProfitForecast.beacons/PFCostModel.beacon";
 import PFPlAllDropsBeacon from "../profit-forecast/ProfitForecast.beacons/PFPlAllDrops.beacon";
 import PFPlCardOnlyBeacon from "../profit-forecast/ProfitForecast.beacons/PFPlCardOnly.beacon";
-import RarityModelPoeNinjaBeacon from "../rarity-model/RarityModel.beacons/RarityModelPoeNinjaBeacon";
-import RarityModelProhibitedLibraryBeacon from "../rarity-model/RarityModel.beacons/RarityModelProhibitedLibraryBeacon";
-import RarityModelRefreshBeacon from "../rarity-model/RarityModel.beacons/RarityModelRefreshBeacon";
-import RarityModelScanBeacon from "../rarity-model/RarityModel.beacons/RarityModelScanBeacon";
-import RarityModelToolbarBeacon from "../rarity-model/RarityModel.beacons/RarityModelToolbarBeacon";
+import RarityInsightsPoeNinjaBeacon from "../rarity-insights/RarityInsights.beacons/RarityInsightsPoeNinjaBeacon";
+import RarityInsightsProhibitedLibraryBeacon from "../rarity-insights/RarityInsights.beacons/RarityInsightsProhibitedLibraryBeacon";
+import RarityInsightsRefreshBeacon from "../rarity-insights/RarityInsights.beacons/RarityInsightsRefreshBeacon";
+import RarityInsightsScanBeacon from "../rarity-insights/RarityInsights.beacons/RarityInsightsScanBeacon";
+import RarityInsightsToolbarBeacon from "../rarity-insights/RarityInsights.beacons/RarityInsightsToolbarBeacon";
 import { trackEvent } from "../umami";
 import { repereStoreAdapter } from "./repereStoreAdapter";
 
@@ -165,18 +165,18 @@ export const onboardingConfig: RepereReactConfig = {
       ],
     },
     {
-      id: "rarity-model-page",
-      path: "/rarity-model",
+      id: "rarity-insights-page",
+      path: "/rarity-insights",
       beacons: [
         {
-          id: "rarity-model-poe-ninja",
-          selector: "[data-onboarding='rarity-model-poe-ninja']",
+          id: "rarity-insights-poe-ninja",
+          selector: "[data-onboarding='rarity-insights-poe-ninja']",
           trigger: {
-            component: createTrackedTrigger("rarity-model-poe-ninja"),
+            component: createTrackedTrigger("rarity-insights-poe-ninja"),
             anchorPoint: AnchorPoint.TopRight,
           },
           popover: {
-            component: RarityModelPoeNinjaBeacon,
+            component: RarityInsightsPoeNinjaBeacon,
             anchorPoint: AnchorPoint.BottomLeft,
             offset: {
               y: 10,
@@ -184,14 +184,16 @@ export const onboardingConfig: RepereReactConfig = {
           },
         },
         {
-          id: "rarity-model-prohibited-library",
-          selector: "[data-onboarding='rarity-model-prohibited-library']",
+          id: "rarity-insights-prohibited-library",
+          selector: "[data-onboarding='rarity-insights-prohibited-library']",
           trigger: {
-            component: createTrackedTrigger("rarity-model-prohibited-library"),
+            component: createTrackedTrigger(
+              "rarity-insights-prohibited-library",
+            ),
             anchorPoint: AnchorPoint.TopRight,
           },
           popover: {
-            component: RarityModelProhibitedLibraryBeacon,
+            component: RarityInsightsProhibitedLibraryBeacon,
             anchorPoint: AnchorPoint.BottomLeft,
             offset: {
               y: 10,
@@ -199,17 +201,17 @@ export const onboardingConfig: RepereReactConfig = {
           },
         },
         {
-          id: "rarity-model-refresh",
-          selector: "[data-onboarding='rarity-model-refresh']",
+          id: "rarity-insights-refresh",
+          selector: "[data-onboarding='rarity-insights-refresh']",
           trigger: {
-            component: createTrackedTrigger("rarity-model-refresh"),
+            component: createTrackedTrigger("rarity-insights-refresh"),
             anchorPoint: AnchorPoint.BottomCenter,
             offset: {
               y: 5,
             },
           },
           popover: {
-            component: RarityModelRefreshBeacon,
+            component: RarityInsightsRefreshBeacon,
             anchorPoint: AnchorPoint.BottomLeft,
             offset: {
               y: 10,
@@ -217,17 +219,17 @@ export const onboardingConfig: RepereReactConfig = {
           },
         },
         {
-          id: "rarity-model-scan",
-          selector: "[data-onboarding='rarity-model-scan']",
+          id: "rarity-insights-scan",
+          selector: "[data-onboarding='rarity-insights-scan']",
           trigger: {
-            component: createTrackedTrigger("rarity-model-scan"),
+            component: createTrackedTrigger("rarity-insights-scan"),
             anchorPoint: AnchorPoint.BottomCenter,
             offset: {
               y: 5,
             },
           },
           popover: {
-            component: RarityModelScanBeacon,
+            component: RarityInsightsScanBeacon,
             anchorPoint: AnchorPoint.BottomRight,
             offset: {
               y: 10,
@@ -235,17 +237,17 @@ export const onboardingConfig: RepereReactConfig = {
           },
         },
         {
-          id: "rarity-model-toolbar",
-          selector: "[data-onboarding='rarity-model-toolbar']",
+          id: "rarity-insights-toolbar",
+          selector: "[data-onboarding='rarity-insights-toolbar']",
           trigger: {
-            component: createTrackedTrigger("rarity-model-toolbar"),
+            component: createTrackedTrigger("rarity-insights-toolbar"),
             anchorPoint: AnchorPoint.TopCenter,
             offset: {
               y: -5,
             },
           },
           popover: {
-            component: RarityModelToolbarBeacon,
+            component: RarityInsightsToolbarBeacon,
             anchorPoint: AnchorPoint.BottomRight,
             offset: {
               y: 10,

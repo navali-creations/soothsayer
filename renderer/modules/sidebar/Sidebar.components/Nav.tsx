@@ -1,10 +1,6 @@
-import {
-  FiActivity,
-  FiBarChart2,
-  FiSliders,
-  FiTrendingUp,
-} from "react-icons/fi";
+import { FiActivity, FiBarChart2, FiTrendingUp } from "react-icons/fi";
 import { GiCardRandom } from "react-icons/gi";
+import { MdCompareArrows } from "react-icons/md";
 
 import { Link } from "~/renderer/components";
 
@@ -59,11 +55,11 @@ const Navigation = () => {
         </li>
         <li>
           <Link
-            to="/rarity-model"
+            to="/rarity-insights"
             className="[&.active]:bg-primary/10 [&.active]:text-base-content"
           >
-            <FiSliders size={20} />
-            <span className="font-medium">Rarity Model</span>
+            <MdCompareArrows size={20} />
+            <span className="font-medium">Rarity Insights</span>
           </Link>
         </li>
       </ul>

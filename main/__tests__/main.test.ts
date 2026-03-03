@@ -18,7 +18,7 @@ const {
   mockMainWindowCreateMainWindow,
   mockOverlayGetInstance,
   mockAppSetupGetInstance,
-  mockRarityModelServiceGetInstance,
+  mockRarityInsightsServiceGetInstance,
   mockProfitForecastGetInstance,
   mockStorageServiceGetInstance,
   mockSupabaseGetInstance,
@@ -45,7 +45,7 @@ const {
   mockMainWindowCreateMainWindow: vi.fn(),
   mockOverlayGetInstance: vi.fn(),
   mockAppSetupGetInstance: vi.fn(),
-  mockRarityModelServiceGetInstance: vi.fn(),
+  mockRarityInsightsServiceGetInstance: vi.fn(),
   mockProfitForecastGetInstance: vi.fn(),
   mockStorageServiceGetInstance: vi.fn(),
   mockSupabaseGetInstance: vi.fn(),
@@ -114,9 +114,9 @@ vi.mock("~/main/modules", () => {
   const mockAppSetupInstance = {};
   mockAppSetupGetInstance.mockReturnValue(mockAppSetupInstance);
 
-  const mockRarityModelServiceInstance = {};
-  mockRarityModelServiceGetInstance.mockReturnValue(
-    mockRarityModelServiceInstance,
+  const mockRarityInsightsServiceInstance = {};
+  mockRarityInsightsServiceGetInstance.mockReturnValue(
+    mockRarityInsightsServiceInstance,
   );
 
   const mockSupabaseInstance = {
@@ -144,7 +144,9 @@ vi.mock("~/main/modules", () => {
     MainWindowService: { getInstance: mockMainWindowGetInstance },
     OverlayService: { getInstance: mockOverlayGetInstance },
     AppSetupService: { getInstance: mockAppSetupGetInstance },
-    RarityModelService: { getInstance: mockRarityModelServiceGetInstance },
+    RarityInsightsService: {
+      getInstance: mockRarityInsightsServiceGetInstance,
+    },
     ProfitForecastService: { getInstance: mockProfitForecastGetInstance },
     StorageService: { getInstance: mockStorageServiceGetInstance },
     SupabaseClientService: { getInstance: mockSupabaseGetInstance },

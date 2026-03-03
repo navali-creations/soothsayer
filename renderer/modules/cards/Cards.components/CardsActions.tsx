@@ -40,7 +40,7 @@ export const CardsActions = ({ onFilterChange }: CardsActionsProps) => {
       loadCards,
     },
     settings: { raritySource, selectedFilterId, updateSetting },
-    rarityModel: {
+    rarityInsights: {
       availableFilters,
       isScanning,
       scanFilters,

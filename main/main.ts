@@ -12,7 +12,7 @@ import {
   MainWindowService,
   OverlayService,
   ProfitForecastService,
-  RarityModelService,
+  RarityInsightsService,
   StorageService,
   SupabaseClientService,
 } from "./modules";
@@ -29,7 +29,7 @@ const app = AppService.getInstance();
 const mainWindow = MainWindowService.getInstance();
 const overlay = OverlayService.getInstance();
 const _appSetup = AppSetupService.getInstance();
-const _filterService = RarityModelService.getInstance();
+const _filterService = RarityInsightsService.getInstance();
 const _profitForecast = ProfitForecastService.getInstance();
 const supabase = SupabaseClientService.getInstance();
 const _storageService = StorageService.getInstance();

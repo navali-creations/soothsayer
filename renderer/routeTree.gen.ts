@@ -13,7 +13,7 @@ import { Route as StatisticsRouteImport } from './routes/statistics'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SessionsRouteImport } from './routes/sessions'
-import { Route as RarityModelRouteImport } from './routes/rarity-model'
+import { Route as RarityInsightsRouteImport } from './routes/rarity-insights'
 import { Route as ProfitForecastRouteImport } from './routes/profit-forecast'
 import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
 import { Route as ChangelogRouteImport } from './routes/changelog'
@@ -44,9 +44,9 @@ const SessionsRoute = SessionsRouteImport.update({
   path: '/sessions',
   getParentRoute: () => rootRouteImport,
 } as any)
-const RarityModelRoute = RarityModelRouteImport.update({
-  id: '/rarity-model',
-  path: '/rarity-model',
+const RarityInsightsRoute = RarityInsightsRouteImport.update({
+  id: '/rarity-insights',
+  path: '/rarity-insights',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProfitForecastRoute = ProfitForecastRouteImport.update({
@@ -102,7 +102,7 @@ export interface FileRoutesByFullPath {
   '/changelog': typeof ChangelogRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/profit-forecast': typeof ProfitForecastRoute
-  '/rarity-model': typeof RarityModelRoute
+  '/rarity-insights': typeof RarityInsightsRoute
   '/sessions': typeof SessionsRouteWithChildren
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
@@ -117,7 +117,7 @@ export interface FileRoutesByTo {
   '/changelog': typeof ChangelogRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/profit-forecast': typeof ProfitForecastRoute
-  '/rarity-model': typeof RarityModelRoute
+  '/rarity-insights': typeof RarityInsightsRoute
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/statistics': typeof StatisticsRoute
@@ -133,7 +133,7 @@ export interface FileRoutesById {
   '/changelog': typeof ChangelogRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/profit-forecast': typeof ProfitForecastRoute
-  '/rarity-model': typeof RarityModelRoute
+  '/rarity-insights': typeof RarityInsightsRoute
   '/sessions': typeof SessionsRouteWithChildren
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
@@ -151,7 +151,7 @@ export interface FileRouteTypes {
     | '/changelog'
     | '/privacy-policy'
     | '/profit-forecast'
-    | '/rarity-model'
+    | '/rarity-insights'
     | '/sessions'
     | '/settings'
     | '/setup'
@@ -166,7 +166,7 @@ export interface FileRouteTypes {
     | '/changelog'
     | '/privacy-policy'
     | '/profit-forecast'
-    | '/rarity-model'
+    | '/rarity-insights'
     | '/settings'
     | '/setup'
     | '/statistics'
@@ -181,7 +181,7 @@ export interface FileRouteTypes {
     | '/changelog'
     | '/privacy-policy'
     | '/profit-forecast'
-    | '/rarity-model'
+    | '/rarity-insights'
     | '/sessions'
     | '/settings'
     | '/setup'
@@ -198,7 +198,7 @@ export interface RootRouteChildren {
   ChangelogRoute: typeof ChangelogRoute
   PrivacyPolicyRoute: typeof PrivacyPolicyRoute
   ProfitForecastRoute: typeof ProfitForecastRoute
-  RarityModelRoute: typeof RarityModelRoute
+  RarityInsightsRoute: typeof RarityInsightsRoute
   SessionsRoute: typeof SessionsRouteWithChildren
   SettingsRoute: typeof SettingsRoute
   SetupRoute: typeof SetupRoute
@@ -235,11 +235,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SessionsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/rarity-model': {
-      id: '/rarity-model'
-      path: '/rarity-model'
-      fullPath: '/rarity-model'
-      preLoaderRoute: typeof RarityModelRouteImport
+    '/rarity-insights': {
+      id: '/rarity-insights'
+      path: '/rarity-insights'
+      fullPath: '/rarity-insights'
+      preLoaderRoute: typeof RarityInsightsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/profit-forecast': {
@@ -339,7 +339,7 @@ const rootRouteChildren: RootRouteChildren = {
   ChangelogRoute: ChangelogRoute,
   PrivacyPolicyRoute: PrivacyPolicyRoute,
   ProfitForecastRoute: ProfitForecastRoute,
-  RarityModelRoute: RarityModelRoute,
+  RarityInsightsRoute: RarityInsightsRoute,
   SessionsRoute: SessionsRouteWithChildren,
   SettingsRoute: SettingsRoute,
   SetupRoute: SetupRoute,

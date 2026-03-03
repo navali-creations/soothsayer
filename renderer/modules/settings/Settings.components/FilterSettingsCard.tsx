@@ -15,7 +15,7 @@ import ProhibitedLibraryStatusBlock from "./ProhibitedLibraryStatusBlock";
 const FilterSettingsCard = () => {
   const {
     settings: { raritySource, selectedFilterId, updateSetting },
-    rarityModel: {
+    rarityInsights: {
       availableFilters,
       isScanning,
       isParsing,

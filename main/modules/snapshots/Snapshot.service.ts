@@ -495,7 +495,7 @@ class SnapshotService {
    *
    * - "poe.ninja" (default): Derive rarities from merged exchange + stash prices
    * - "prohibited-library": Use Prohibited Library CSV-derived rarities
-   * - "filter": No-op here — filter rarities are applied separately by RarityModelService
+   * - "filter": No-op here — filter rarities are applied separately by RarityInsightsService
    *
    * Price snapshots are always fetched and stored regardless of the rarity source,
    * since chaos values are needed for value tracking. Only the RARITY assignment
@@ -523,7 +523,7 @@ class SnapshotService {
     } else {
       // Default: derive rarities from poe.ninja prices
       // (When source is "filter", we still write price-based rarities here;
-      // the filter rarities are applied separately by RarityModelService
+      // the filter rarities are applied separately by RarityInsightsService
       // and take precedence via the filter_card_rarities JOIN.)
       const mergedPrices = this.mergeCardPrices(snapshotData);
       await this.divinationCards.updateRaritiesFromPrices(

@@ -42,7 +42,7 @@ const CurrentSessionActions = () => {
       getActiveGameViewPriceSource,
       setActiveGameViewPriceSource,
     },
-    rarityModel: {
+    rarityInsights: {
       availableFilters,
       isScanning,
       scanFilters,

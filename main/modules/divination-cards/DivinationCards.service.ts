@@ -8,7 +8,7 @@ import { DatabaseService } from "~/main/modules/database";
 import { LoggerService } from "~/main/modules/logger";
 import { ProhibitedLibraryRepository } from "~/main/modules/prohibited-library/ProhibitedLibrary.repository";
 import { ProhibitedLibraryService } from "~/main/modules/prohibited-library/ProhibitedLibrary.service";
-import { RarityModelRepository } from "~/main/modules/rarity-model/RarityModel.repository";
+import { RarityInsightsRepository } from "~/main/modules/rarity-insights/RarityInsights.repository";
 import {
   SettingsKey,
   SettingsStoreService,
@@ -47,7 +47,7 @@ class DivinationCardsService {
   private static _instance: DivinationCardsService;
   private readonly logger = LoggerService.createLogger("DivinationCards");
   private repository: DivinationCardsRepository;
-  private rarityModelRepository: RarityModelRepository;
+  private rarityInsightsRepository: RarityInsightsRepository;
   private prohibitedLibraryRepository: ProhibitedLibraryRepository;
   private settingsStore: SettingsStoreService;
   private readonly poe1CardsJsonPath: string;
@@ -63,7 +63,7 @@ class DivinationCardsService {
   private constructor() {
     const database = DatabaseService.getInstance();
     this.repository = new DivinationCardsRepository(database.getKysely());
-    this.rarityModelRepository = new RarityModelRepository(
+    this.rarityInsightsRepository = new RarityInsightsRepository(
       database.getKysely(),
     );
     this.prohibitedLibraryRepository = new ProhibitedLibraryRepository(
@@ -496,7 +496,7 @@ class DivinationCardsService {
   ): Promise<void> {
     // Load filter card rarities
     const filterRarities =
-      await this.rarityModelRepository.getCardRarities(filterId);
+      await this.rarityInsightsRepository.getCardRarities(filterId);
 
     // Build a lookup map: card name → rarity
     const filterRarityMap = new Map<string, number>();

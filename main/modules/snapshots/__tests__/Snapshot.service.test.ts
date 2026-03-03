@@ -1385,7 +1385,7 @@ describe("SnapshotService", () => {
 
     it("should call updateRaritiesFromPrices (not filter) when rarity source is 'filter'", async () => {
       // When source is "filter", we still write price-based rarities here;
-      // filter rarities are applied separately by RarityModelService via the
+      // filter rarities are applied separately by RarityInsightsService via the
       // filter_card_rarities JOIN.
       mockSettingsGet.mockResolvedValue("filter");
 
