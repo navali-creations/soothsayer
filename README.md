@@ -30,7 +30,7 @@ https://github.com/user-attachments/assets/63e95f2b-f4e1-43e2-8e26-68d357928a51
 
 ## Requirements
 
-- Node.js >= 22
+- Node.js >= 24
 - pnpm >= 10
 - docker
 
