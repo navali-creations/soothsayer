@@ -1,6 +1,7 @@
 import {
   FiCopy,
   FiGithub,
+  FiHeart,
   FiMinus,
   FiSettings,
   FiSquare,
@@ -132,6 +133,18 @@ const AppControls = () => {
                   <span className="text-sm">Feedback</span>
                   <VscFeedback size={14} className="text-base-content/60" />
                 </a>
+              </li>
+
+              <div className="divider my-0 px-2" />
+
+              <li>
+                <Link
+                  to="/attributions"
+                  className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg hover:bg-base-300 transition-colors no-drag"
+                >
+                  <span className="text-sm">Attributions</span>
+                  <FiHeart size={14} className="text-base-content/60" />
+                </Link>
               </li>
             </Dropdown>
           </div>

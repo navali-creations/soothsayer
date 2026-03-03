@@ -18,7 +18,7 @@ import { Route as ProfitForecastRouteImport } from './routes/profit-forecast'
 import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
 import { Route as ChangelogRouteImport } from './routes/changelog'
 import { Route as CardsRouteImport } from './routes/cards'
-import { Route as AboutRouteImport } from './routes/about'
+import { Route as AttributionsRouteImport } from './routes/attributions'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SessionsIndexRouteImport } from './routes/sessions.index'
 import { Route as CardsIndexRouteImport } from './routes/cards.index'
@@ -69,9 +69,9 @@ const CardsRoute = CardsRouteImport.update({
   path: '/cards',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AboutRoute = AboutRouteImport.update({
-  id: '/about',
-  path: '/about',
+const AttributionsRoute = AttributionsRouteImport.update({
+  id: '/attributions',
+  path: '/attributions',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -97,7 +97,7 @@ const SessionsSessionIdRoute = SessionsSessionIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/about': typeof AboutRoute
+  '/attributions': typeof AttributionsRoute
   '/cards': typeof CardsRouteWithChildren
   '/changelog': typeof ChangelogRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
@@ -113,7 +113,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/about': typeof AboutRoute
+  '/attributions': typeof AttributionsRoute
   '/changelog': typeof ChangelogRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/profit-forecast': typeof ProfitForecastRoute
@@ -128,7 +128,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/about': typeof AboutRoute
+  '/attributions': typeof AttributionsRoute
   '/cards': typeof CardsRouteWithChildren
   '/changelog': typeof ChangelogRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
@@ -146,7 +146,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/about'
+    | '/attributions'
     | '/cards'
     | '/changelog'
     | '/privacy-policy'
@@ -162,7 +162,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/about'
+    | '/attributions'
     | '/changelog'
     | '/privacy-policy'
     | '/profit-forecast'
@@ -176,7 +176,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
-    | '/about'
+    | '/attributions'
     | '/cards'
     | '/changelog'
     | '/privacy-policy'
@@ -193,7 +193,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AboutRoute: typeof AboutRoute
+  AttributionsRoute: typeof AttributionsRoute
   CardsRoute: typeof CardsRouteWithChildren
   ChangelogRoute: typeof ChangelogRoute
   PrivacyPolicyRoute: typeof PrivacyPolicyRoute
@@ -270,11 +270,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CardsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/about': {
-      id: '/about'
-      path: '/about'
-      fullPath: '/about'
-      preLoaderRoute: typeof AboutRouteImport
+    '/attributions': {
+      id: '/attributions'
+      path: '/attributions'
+      fullPath: '/attributions'
+      preLoaderRoute: typeof AttributionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -334,7 +334,7 @@ const SessionsRouteWithChildren = SessionsRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AboutRoute: AboutRoute,
+  AttributionsRoute: AttributionsRoute,
   CardsRoute: CardsRouteWithChildren,
   ChangelogRoute: ChangelogRoute,
   PrivacyPolicyRoute: PrivacyPolicyRoute,
