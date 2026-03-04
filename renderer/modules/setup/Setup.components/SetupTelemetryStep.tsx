@@ -7,19 +7,29 @@ const PRIVACY_POLICY_URL =
 
 const SetupTelemetryStep = () => {
   const {
-    setup: { setupState },
-    settings: { updateSetting },
+    setup: { setSetupState },
+    settings: {
+      telemetryCrashReporting,
+      telemetryUsageAnalytics,
+      updateSetting,
+    },
   } = useBoundStore();
 
-  const crashReporting = setupState?.telemetryCrashReporting ?? true;
-  const usageAnalytics = setupState?.telemetryUsageAnalytics ?? true;
+  const crashReporting = telemetryCrashReporting ?? true;
+  const usageAnalytics = telemetryUsageAnalytics ?? true;
 
   const handleCrashReportingToggle = async (enabled: boolean) => {
     await updateSetting("telemetryCrashReporting", enabled);
+    // Refresh setup state from backend so advanceStep/tracking sees the change
+    const setupState = await window.electron.appSetup.getSetupState();
+    setSetupState(setupState);
   };
 
   const handleUsageAnalyticsToggle = async (enabled: boolean) => {
     await updateSetting("telemetryUsageAnalytics", enabled);
+    // Refresh setup state from backend so advanceStep/tracking sees the change
+    const setupState = await window.electron.appSetup.getSetupState();
+    setSetupState(setupState);
   };
 
   return (
