@@ -52,6 +52,7 @@ const {
 vi.mock("electron", () => ({
   app: {
     getPath: mockAppGetPath,
+    getVersion: () => "0.5.0",
   },
   safeStorage: {
     isEncryptionAvailable: mockSafeStorageIsEncryptionAvailable,
@@ -603,6 +604,7 @@ describe("SupabaseClientService", () => {
             "Content-Type": "application/json",
             apikey: SUPABASE_ANON_KEY,
             Authorization: "Bearer mock-access-token",
+            "x-app-version": "0.5.0",
           },
           body: JSON.stringify({ game: "poe1", league: "Settlers" }),
         }),
@@ -949,6 +951,7 @@ describe("SupabaseClientService", () => {
             "Content-Type": "application/json",
             apikey: SUPABASE_ANON_KEY,
             Authorization: "Bearer mock-access-token",
+            "x-app-version": "0.5.0",
           },
           body: JSON.stringify({ game: "poe1" }),
         }),

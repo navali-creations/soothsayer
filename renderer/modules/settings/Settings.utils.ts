@@ -101,8 +101,10 @@ export const createGameSelectionCategory = (
         { value: "poe1", label: "Path of Exile 1" },
         { value: "poe2", label: "Path of Exile 2" },
       ],
-      onChange: (value) =>
-        updateSetting("selectedGame", value as "poe1" | "poe2"),
+      onChange: (value) => {
+        updateSetting("selectedGame", value as "poe1" | "poe2");
+        trackEvent("settings-change", { setting: "selectedGame", value });
+      },
     },
     {
       type: "text",
@@ -110,7 +112,10 @@ export const createGameSelectionCategory = (
       label: "PoE1 League",
       value: settings.poe1SelectedLeague,
       placeholder: "Standard",
-      onChange: (value) => updateSetting("poe1SelectedLeague", value),
+      onChange: (value) => {
+        updateSetting("poe1SelectedLeague", value);
+        trackEvent("settings-change", { setting: "poe1SelectedLeague", value });
+      },
       hidden: settings.selectedGame === "poe2",
     },
     {
@@ -119,7 +124,10 @@ export const createGameSelectionCategory = (
       label: "PoE2 League",
       value: settings.poe2SelectedLeague,
       placeholder: "Standard",
-      onChange: (value) => updateSetting("poe2SelectedLeague", value),
+      onChange: (value) => {
+        updateSetting("poe2SelectedLeague", value);
+        trackEvent("settings-change", { setting: "poe2SelectedLeague", value });
+      },
       hidden: settings.selectedGame === "poe1",
     },
   ],
@@ -142,6 +150,7 @@ export const handleSelectFile = async (
 
     if (filePath) {
       await updateSetting(key, filePath);
+      trackEvent("settings-change", { setting: key, hasPath: true });
     }
   } catch (error) {
     console.error("Error selecting file:", error);

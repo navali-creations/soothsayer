@@ -1,5 +1,6 @@
 import { FiExternalLink } from "react-icons/fi";
 
+import { trackEvent } from "~/renderer/modules/umami";
 import { useBoundStore } from "~/renderer/store";
 
 const PRIVACY_POLICY_URL =
@@ -20,12 +21,21 @@ const SetupTelemetryStep = () => {
 
   const handleCrashReportingToggle = async (enabled: boolean) => {
     await updateSetting("telemetryCrashReporting", enabled);
+    trackEvent("setup-telemetry-toggled", {
+      setting: "crashReporting",
+      enabled,
+    });
     // Refresh setup state from backend so advanceStep/tracking sees the change
     const setupState = await window.electron.appSetup.getSetupState();
     setSetupState(setupState);
   };
 
   const handleUsageAnalyticsToggle = async (enabled: boolean) => {
+    // Track before applying, in case the user is opting out of analytics
+    trackEvent("setup-telemetry-toggled", {
+      setting: "usageAnalytics",
+      enabled,
+    });
     await updateSetting("telemetryUsageAnalytics", enabled);
     // Refresh setup state from backend so advanceStep/tracking sees the change
     const setupState = await window.electron.appSetup.getSetupState();

@@ -2,6 +2,7 @@ import { FiAlertTriangle, FiShield } from "react-icons/fi";
 
 import { SettingsKey } from "~/main/modules/settings-store/SettingsStore.keys";
 import { Link } from "~/renderer/components";
+import { trackEvent } from "~/renderer/modules/umami";
 import { useBoundStore } from "~/renderer/store";
 
 const PrivacySettingsCard = () => {
@@ -15,9 +16,18 @@ const PrivacySettingsCard = () => {
 
   const handleCrashReportingToggle = async (enabled: boolean) => {
     await updateSetting(SettingsKey.TelemetryCrashReporting, enabled);
+    trackEvent("settings-change", {
+      setting: "telemetryCrashReporting",
+      value: enabled,
+    });
   };
 
   const handleUsageAnalyticsToggle = async (enabled: boolean) => {
+    // Track before applying, in case the user is opting out of analytics
+    trackEvent("settings-change", {
+      setting: "telemetryUsageAnalytics",
+      value: enabled,
+    });
     await updateSetting(SettingsKey.TelemetryUsageAnalytics, enabled);
   };
 
@@ -87,7 +97,11 @@ const PrivacySettingsCard = () => {
                 📄 Privacy Policy
               </span>
             </div>
-            <Link to="/privacy-policy" className="btn btn-primary btn-xs gap-1">
+            <Link
+              to="/privacy-policy"
+              className="btn btn-primary btn-xs gap-1"
+              onClick={() => trackEvent("settings-privacy-policy-viewed")}
+            >
               View
             </Link>
           </div>
