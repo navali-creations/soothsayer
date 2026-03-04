@@ -787,9 +787,9 @@ class DivinationCardsService {
 
     for (const cardName of allCardNames) {
       const plRarity = plRarityMap.get(cardName);
-      if (plRarity) {
-        // Card exists in PL data — use PL rarity, clear any user override
-        // (PL data is authoritative when this source is active)
+      if (plRarity !== undefined) {
+        // Card exists in PL data — use PL rarity (including 0 = unknown),
+        // clear any user override (PL data is authoritative when this source is active)
         updates.push({ name: cardName, rarity: plRarity, clearOverride: true });
       } else {
         // Card not in PL dataset — set to Unknown, preserve any user override

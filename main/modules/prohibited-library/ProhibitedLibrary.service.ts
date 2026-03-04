@@ -77,16 +77,43 @@ class ProhibitedLibraryService {
   // ══════════════════════════════════════════════════════════════════════════
 
   /**
-   * Ensure PL data is loaded for the given game.
+   * Ensure PL data is loaded **and up-to-date** for the given game.
    *
-   * Checks the metadata table — if data already exists, this is a no-op.
-   * Otherwise, force-loads the bundled CSV. This is the primary lazy-load
-   * entry point called by IPC handlers and other services on first access.
+   * Checks the metadata table:
+   *   - No data at all → force-load the bundled CSV.
+   *   - Data exists but `app_version` differs from the running version →
+   *     the CSV may have changed in this release, so re-parse (non-forced,
+   *     which lets `loadData`'s own version-check handle idempotency).
+   *   - Data exists and version matches → no-op.
+   *
+   * This is the primary lazy-load entry point called by IPC handlers and
+   * other services on first access.
    */
   public async ensureLoaded(game: "poe1" | "poe2"): Promise<void> {
     const metadata = await this.repository.getMetadata(game);
+    const currentVersion = app.getVersion();
+
     if (metadata && metadata.card_count > 0) {
-      return; // Already loaded
+      if (metadata.app_version === currentVersion) {
+        return; // Already loaded and up-to-date
+      }
+
+      // App was updated — CSV may have changed, re-parse
+      this.logger.log(
+        `[${game}] PL data exists but app version changed ` +
+          `("${metadata.app_version}" → "${currentVersion}") — re-parsing CSV`,
+      );
+      const result = await this.loadData(game, false);
+      if (result.cardCount > 0) {
+        this.logger.log(
+          `[${game}] Re-parsed ${result.cardCount} cards for league "${result.league}"`,
+        );
+      } else {
+        this.logger.warn(
+          `[${game}] Re-parse after version change produced no data (success=${result.success})`,
+        );
+      }
+      return;
     }
 
     this.logger.log(`[${game}] No PL data in DB — lazy-loading bundled CSV`);
@@ -172,6 +199,13 @@ class ProhibitedLibraryService {
       const parsed = parseProhibitedLibraryCsv(csvContent);
       rows = parsed.rows;
       rawLeagueLabel = parsed.rawLeagueLabel;
+
+      if (parsed.fellBackFromLeague) {
+        this.logger.warn(
+          `[${game}] New league "${parsed.fellBackFromLeague}" has all-zero weights — ` +
+            `falling back to previous league "${parsed.rawLeagueLabel}" data`,
+        );
+      }
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : "Unknown parse error";

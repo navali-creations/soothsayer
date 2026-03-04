@@ -11,6 +11,15 @@ import type { ProhibitedLibraryRawRow } from "./ProhibitedLibrary.dto";
 export interface ParseResult {
   rows: ProhibitedLibraryRawRow[];
   rawLeagueLabel: string; // Header value at the current-league column, unresolved
+  /**
+   * When the current-league column has all-zero weights (e.g. a new league
+   * that hasn't started yet), the parser falls back to the previous
+   * non-patch-version league column. This field records the original
+   * all-zero league name so callers know a fallback occurred.
+   *
+   * `null` when no fallback was needed (current league had real data).
+   */
+  fellBackFromLeague: string | null;
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -128,19 +137,78 @@ export function parseProhibitedLibraryCsv(csvContent: string): ParseResult {
     );
   }
 
-  const currentLeagueIndex = allSamplesIndex - 1;
-  const rawLeagueLabel = headers[currentLeagueIndex];
+  // ── Resolve the current-league column ─────────────────────────────────
+  //
+  // The column immediately before "All samples" is the primary candidate.
+  // However, it may be unusable for two reasons:
+  //
+  //   1. Its header is a patch version (e.g. "3.28") — the new league
+  //      column was added but not yet renamed to the canonical league name.
+  //   2. Its header is a league name but every weight is 0 — the league
+  //      hasn't started yet so there's no data.
+  //
+  // In both cases we walk backwards through the headers to find the
+  // nearest non-patch-version column that has real data.
 
-  // Validate that the current-league header is NOT a patch version number
-  if (isPatchVersionHeader(rawLeagueLabel)) {
-    throw new Error(
-      `Current-league column header "${rawLeagueLabel}" looks like a patch version number ` +
-        `(matches ${PATCH_VERSION_REGEX}). Expected a canonical league name (e.g. "Keepers"). ` +
-        `The CSV structure may have changed unexpectedly.`,
-    );
+  const candidateIndex = allSamplesIndex - 1;
+  const candidateLabel = headers[candidateIndex];
+
+  // Case 1: candidate column header is a patch version — skip it entirely
+  // and resolve the best league column by walking backwards.
+  if (isPatchVersionHeader(candidateLabel)) {
+    const fallback = findFallbackLeagueColumn(headers, candidateIndex);
+
+    if (!fallback) {
+      throw new Error(
+        `Current-league column header "${candidateLabel}" looks like a patch version number ` +
+          `(matches ${PATCH_VERSION_REGEX}), and no previous league-name column was found. ` +
+          `The CSV structure may have changed unexpectedly.`,
+      );
+    }
+
+    const fallbackRows = parseDataRows(lines, fallback.index, fallback.label);
+
+    return {
+      rows: fallbackRows,
+      rawLeagueLabel: fallback.label,
+      fellBackFromLeague: candidateLabel,
+    };
   }
 
-  // ── Parse data rows ───────────────────────────────────────────────────
+  // Case 2: candidate column header is a league name — parse it, then
+  // check whether every weight is 0 (new league, no data yet).
+  const rows = parseDataRows(lines, candidateIndex, candidateLabel);
+
+  const allZero = rows.length > 0 && rows.every((r) => r.weight === 0);
+
+  if (allZero) {
+    const fallback = findFallbackLeagueColumn(headers, candidateIndex);
+
+    if (fallback) {
+      const fallbackRows = parseDataRows(lines, fallback.index, fallback.label);
+
+      return {
+        rows: fallbackRows,
+        rawLeagueLabel: fallback.label,
+        fellBackFromLeague: candidateLabel,
+      };
+    }
+  }
+
+  return { rows, rawLeagueLabel: candidateLabel, fellBackFromLeague: null };
+}
+
+// ─── Internal Row Parser ─────────────────────────────────────────────────────
+
+/**
+ * Parse data rows from the CSV lines using the given weight column index.
+ * Extracted so it can be reused for both the current league and fallback.
+ */
+function parseDataRows(
+  lines: string[],
+  weightColumnIndex: number,
+  leagueLabel: string,
+): ProhibitedLibraryRawRow[] {
   const rows: ProhibitedLibraryRawRow[] = [];
 
   for (let i = 1; i < lines.length; i++) {
@@ -175,20 +243,48 @@ export function parseProhibitedLibraryCsv(csvContent: string): ParseResult {
     const ritualRaw = columns[3];
     const fromBoss = deriveFromBoss(ritualRaw);
 
-    // Extract weight from current-league column
-    const weightRaw = columns[currentLeagueIndex];
+    // Extract weight from the specified column
+    const weightRaw = columns[weightColumnIndex];
     const weight = weightRaw ? parseInt(weightRaw, 10) : 0;
 
     rows.push({
       cardName,
       bucket,
       weight,
-      rawLeagueLabel,
+      rawLeagueLabel: leagueLabel,
       fromBoss,
     });
   }
 
-  return { rows, rawLeagueLabel };
+  return rows;
+}
+
+// ─── Fallback League Column Resolution ───────────────────────────────────────
+
+/**
+ * Walk backwards from `currentLeagueIndex - 1` to find the nearest column
+ * whose header is a league name (not a patch version, not a fixed column).
+ *
+ * Fixed columns (indices 0–4) are never candidates — they hold card name,
+ * bucket, Faustus tier, Ritual/boss, and Ultimatum tier respectively.
+ *
+ * @returns The fallback column index and label, or `null` if none found.
+ */
+function findFallbackLeagueColumn(
+  headers: string[],
+  currentLeagueIndex: number,
+): { index: number; label: string } | null {
+  // Fixed columns occupy indices 0–4; league/patch data starts at 5+
+  const MIN_DATA_COLUMN = 5;
+
+  for (let i = currentLeagueIndex - 1; i >= MIN_DATA_COLUMN; i--) {
+    const label = headers[i];
+    if (label && !isPatchVersionHeader(label)) {
+      return { index: i, label };
+    }
+  }
+
+  return null;
 }
 
 // ─── From-Boss Derivation ────────────────────────────────────────────────────

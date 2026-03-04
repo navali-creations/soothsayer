@@ -58,6 +58,7 @@ describe("parseProhibitedLibraryCsv", () => {
     it("should identify the current-league column as the one immediately before 'All samples'", () => {
       const result = parseProhibitedLibraryCsv(buildCsv());
       expect(result.rawLeagueLabel).toBe(DEFAULT_LEAGUE);
+      expect(result.fellBackFromLeague).toBeNull();
     });
 
     it("should find current-league column dynamically when new columns are added before 'All samples'", () => {
@@ -72,6 +73,7 @@ describe("parseProhibitedLibraryCsv", () => {
 
       const result = parseProhibitedLibraryCsv(csv);
       expect(result.rawLeagueLabel).toBe("Settlers");
+      expect(result.fellBackFromLeague).toBeNull();
     });
 
     it("should handle headers with extra whitespace via trim", () => {
@@ -83,6 +85,7 @@ describe("parseProhibitedLibraryCsv", () => {
 
       const result = parseProhibitedLibraryCsv(csv);
       expect(result.rawLeagueLabel).toBe("Keepers");
+      expect(result.fellBackFromLeague).toBeNull();
       expect(result.rows.length).toBe(1);
     });
   });
@@ -127,8 +130,9 @@ describe("parseProhibitedLibraryCsv", () => {
       );
     });
 
-    it("should throw if the current-league column header is a patch version number", () => {
+    it("should throw if the current-league column header is a patch version number and no fallback league exists", () => {
       // Headers where the column before "All samples" is "3.26" (a patch version)
+      // and there are no league-name columns to fall back to
       const csv = buildCsv({
         headers: "patch,Bucket,Faustus,Ritual,Ultimatum,3.25,3.26,All samples",
         rows: [
@@ -140,6 +144,28 @@ describe("parseProhibitedLibraryCsv", () => {
       expect(() => parseProhibitedLibraryCsv(csv)).toThrow(
         /looks like a patch version number/,
       );
+    });
+
+    it("should fall back to the previous league column when the candidate is a patch version", () => {
+      // "3.28" is before "All samples", but "Keepers" is a valid league to fall back to
+      const csv = buildCsv({
+        headers:
+          "patch,Bucket,Faustus,Ritual,Ultimatum,3.25,3.26,Keepers,3.28,All samples",
+        rows: [
+          "Sample Size,,,,,,,,0,1768829",
+          "Rain of Chaos,1,5,5,,121400,121400,121400,0,",
+          "Emperor's Luck,2,10,5,,51720,49357,55799,0,",
+        ],
+      });
+
+      const result = parseProhibitedLibraryCsv(csv);
+
+      expect(result.fellBackFromLeague).toBe("3.28");
+      expect(result.rawLeagueLabel).toBe("Keepers");
+      const rain = result.rows.find((r) => r.cardName === "Rain of Chaos");
+      expect(rain).toBeDefined();
+      expect(rain!.weight).toBe(121400);
+      expect(rain!.rawLeagueLabel).toBe("Keepers");
     });
   });
 
@@ -632,6 +658,17 @@ describe("isPatchVersionHeader", () => {
       );
     });
 
+    it("should fall back when current-league column is a patch version and a league column exists", () => {
+      const csv = buildCsv({
+        headers:
+          "patch,Bucket,Faustus,Ritual,Ultimatum,3.25,Keepers,3.26,All samples",
+      });
+
+      const result = parseProhibitedLibraryCsv(csv);
+      expect(result.fellBackFromLeague).toBe("3.26");
+      expect(result.rawLeagueLabel).toBe("Keepers");
+    });
+
     it("should accept CSV where current-league column is a league name like 'Keepers'", () => {
       const csv = buildCsv();
       // Should not throw
@@ -1007,5 +1044,243 @@ describe("parseProhibitedLibraryCsv — quoted card names", () => {
     expect(card.cardName).toBe("Brush, Paint and Palette");
     expect(card.bucket).toBe(35);
     expect(card.fromBoss).toBe(false);
+  });
+
+  // ─── All-zero league fallback ────────────────────────────────────────────────
+
+  describe("parseProhibitedLibraryCsv — all-zero league fallback", () => {
+    it("should fall back to the previous league column when current league has all-zero weights", () => {
+      const csv = buildCsv({
+        headers:
+          "patch,Bucket,Faustus,Ritual,Ultimatum,3.25,3.26,Keepers,Settlers,All samples",
+        rows: [
+          "Sample Size,,,,,,,,0,1768829",
+          "Rain of Chaos,1,5,5,,121400,121400,121400,0,",
+          "Emperor's Luck,2,10,5,,51720,49357,55799,0,",
+          "The Doctor,26,,5,,0,0,0,0,",
+        ],
+      });
+
+      const result = parseProhibitedLibraryCsv(csv);
+
+      expect(result.fellBackFromLeague).toBe("Settlers");
+      expect(result.rawLeagueLabel).toBe("Keepers");
+      // Weights should come from the Keepers column, not the all-zero Settlers column
+      const rainOfChaos = result.rows.find(
+        (r) => r.cardName === "Rain of Chaos",
+      );
+      expect(rainOfChaos).toBeDefined();
+      expect(rainOfChaos!.weight).toBe(121400);
+      expect(rainOfChaos!.rawLeagueLabel).toBe("Keepers");
+    });
+
+    it("should not fall back when the current league has at least one non-zero weight", () => {
+      const csv = buildCsv({
+        headers:
+          "patch,Bucket,Faustus,Ritual,Ultimatum,3.25,3.26,Keepers,Settlers,All samples",
+        rows: [
+          "Sample Size,,,,,,,,1000,1768829",
+          "Rain of Chaos,1,5,5,,121400,121400,121400,99999,",
+          "The Doctor,26,,5,,0,0,0,0,",
+        ],
+      });
+
+      const result = parseProhibitedLibraryCsv(csv);
+
+      expect(result.fellBackFromLeague).toBeNull();
+      expect(result.rawLeagueLabel).toBe("Settlers");
+      const rainOfChaos = result.rows.find(
+        (r) => r.cardName === "Rain of Chaos",
+      );
+      expect(rainOfChaos!.weight).toBe(99999);
+    });
+
+    it("should skip patch version columns when searching for fallback", () => {
+      // Settlers is all zeros, and 3.26 is a patch version — should skip 3.26 and land on Keepers
+      const csv = buildCsv({
+        headers:
+          "patch,Bucket,Faustus,Ritual,Ultimatum,3.25,Keepers,3.26,Settlers,All samples",
+        rows: [
+          "Sample Size,,,,,,,,,1768829",
+          "Rain of Chaos,1,5,5,,121400,121400,121400,0,",
+          "Emperor's Luck,2,10,5,,51720,55799,49357,0,",
+        ],
+      });
+
+      const result = parseProhibitedLibraryCsv(csv);
+
+      expect(result.fellBackFromLeague).toBe("Settlers");
+      expect(result.rawLeagueLabel).toBe("Keepers");
+      const rainOfChaos = result.rows.find(
+        (r) => r.cardName === "Rain of Chaos",
+      );
+      expect(rainOfChaos!.weight).toBe(121400);
+    });
+
+    it("should preserve fromBoss flags during fallback", () => {
+      const csv = buildCsv({
+        headers:
+          "patch,Bucket,Faustus,Ritual,Ultimatum,3.25,3.26,Keepers,Settlers,All samples",
+        rows: [
+          "Sample Size,,,,,,,,0,1768829",
+          "Rain of Chaos,1,5,5,,121400,121400,121400,0,",
+          "The Void,26,125,Boss,,0,0,0,0,",
+        ],
+      });
+
+      const result = parseProhibitedLibraryCsv(csv);
+
+      expect(result.fellBackFromLeague).toBe("Settlers");
+      const theVoid = result.rows.find((r) => r.cardName === "The Void");
+      expect(theVoid).toBeDefined();
+      expect(theVoid!.fromBoss).toBe(true);
+      expect(theVoid!.weight).toBe(0); // Keepers also had 0 for this boss card
+
+      const rain = result.rows.find((r) => r.cardName === "Rain of Chaos");
+      expect(rain!.fromBoss).toBe(false);
+    });
+
+    it("should preserve bucket values during fallback", () => {
+      const csv = buildCsv({
+        headers:
+          "patch,Bucket,Faustus,Ritual,Ultimatum,3.25,3.26,Keepers,Settlers,All samples",
+        rows: [
+          "Sample Size,,,,,,,,0,1768829",
+          "Rain of Chaos,1,5,5,,121400,121400,121400,0,",
+          "Boon of Justice,17,85,4,,7967,7068,9128,0,",
+        ],
+      });
+
+      const result = parseProhibitedLibraryCsv(csv);
+
+      expect(result.fellBackFromLeague).toBe("Settlers");
+      const boon = result.rows.find((r) => r.cardName === "Boon of Justice");
+      expect(boon!.bucket).toBe(17);
+    });
+
+    it("should return all-zero data with no fallback when no eligible fallback column exists", () => {
+      // Only patch versions between fixed columns and the current league — no league to fall back to
+      const csv = buildCsv({
+        headers:
+          "patch,Bucket,Faustus,Ritual,Ultimatum,3.25,3.26,Settlers,All samples",
+        rows: [
+          "Sample Size,,,,,,,,1768829",
+          "Rain of Chaos,1,5,5,,121400,121400,0,",
+          "Emperor's Luck,2,10,5,,51720,49357,0,",
+        ],
+      });
+
+      const result = parseProhibitedLibraryCsv(csv);
+
+      // No fallback possible — all preceding columns are patch versions
+      expect(result.fellBackFromLeague).toBeNull();
+      expect(result.rawLeagueLabel).toBe("Settlers");
+      expect(result.rows.every((r) => r.weight === 0)).toBe(true);
+    });
+
+    it("should not fall back when there are no data rows (empty CSV body)", () => {
+      const csv = buildCsv({
+        headers:
+          "patch,Bucket,Faustus,Ritual,Ultimatum,3.25,3.26,Keepers,Settlers,All samples",
+        rows: ["Sample Size,,,,,,,,0,1768829"],
+      });
+
+      const result = parseProhibitedLibraryCsv(csv);
+
+      // Zero rows means allZero check (rows.every) is vacuously true but
+      // rows.length > 0 guard should prevent fallback
+      expect(result.fellBackFromLeague).toBeNull();
+      expect(result.rawLeagueLabel).toBe("Settlers");
+      expect(result.rows).toHaveLength(0);
+    });
+
+    it("should fall back through multiple patch version columns to find a league", () => {
+      const csv = buildCsv({
+        headers:
+          "patch,Bucket,Faustus,Ritual,Ultimatum,Keepers,3.25,3.26,3.27,Settlers,All samples",
+        rows: [
+          "Sample Size,,,,,,,,,0,1768829",
+          "Rain of Chaos,1,5,5,,121400,121400,121400,121400,0,",
+        ],
+      });
+
+      const result = parseProhibitedLibraryCsv(csv);
+
+      expect(result.fellBackFromLeague).toBe("Settlers");
+      expect(result.rawLeagueLabel).toBe("Keepers");
+      const rain = result.rows.find((r) => r.cardName === "Rain of Chaos");
+      expect(rain!.weight).toBe(121400);
+    });
+
+    it("should use the fallback league label on every row's rawLeagueLabel", () => {
+      const csv = buildCsv({
+        headers:
+          "patch,Bucket,Faustus,Ritual,Ultimatum,3.25,3.26,Keepers,Settlers,All samples",
+        rows: [
+          "Sample Size,,,,,,,,0,1768829",
+          "Rain of Chaos,1,5,5,,121400,121400,121400,0,",
+          "Emperor's Luck,2,10,5,,51720,49357,55799,0,",
+          "The Lover,2,10,5,,63571,65856,64413,0,",
+        ],
+      });
+
+      const result = parseProhibitedLibraryCsv(csv);
+
+      expect(result.fellBackFromLeague).toBe("Settlers");
+      for (const row of result.rows) {
+        expect(row.rawLeagueLabel).toBe("Keepers");
+      }
+    });
+
+    it("should handle fallback when both current and fallback leagues have some zero-weight cards", () => {
+      // Current league (Settlers) is all zeros. Fallback league (Keepers) has
+      // some zeros (boss cards / unknown) but also non-zero weights.
+      const csv = buildCsv({
+        headers:
+          "patch,Bucket,Faustus,Ritual,Ultimatum,3.25,3.26,Keepers,Settlers,All samples",
+        rows: [
+          "Sample Size,,,,,,,,0,1768829",
+          "Rain of Chaos,1,5,5,,121400,121400,121400,0,",
+          "The Void,26,125,Boss,,0,0,0,0,",
+          "The Doctor,26,,5,,0,0,10,0,",
+        ],
+      });
+
+      const result = parseProhibitedLibraryCsv(csv);
+
+      expect(result.fellBackFromLeague).toBe("Settlers");
+      expect(result.rawLeagueLabel).toBe("Keepers");
+
+      const rainOfChaos = result.rows.find(
+        (r) => r.cardName === "Rain of Chaos",
+      );
+      expect(rainOfChaos!.weight).toBe(121400);
+
+      // The Void has 0 in Keepers too — that's fine, it's a boss card with no deck data
+      const theVoid = result.rows.find((r) => r.cardName === "The Void");
+      expect(theVoid!.weight).toBe(0);
+
+      // The Doctor has weight 10 in Keepers
+      const theDoctor = result.rows.find((r) => r.cardName === "The Doctor");
+      expect(theDoctor!.weight).toBe(10);
+    });
+
+    it("should not treat a single non-boss zero-weight card as all-zero if other cards have weights", () => {
+      const csv = buildCsv({
+        headers:
+          "patch,Bucket,Faustus,Ritual,Ultimatum,3.25,3.26,Keepers,Settlers,All samples",
+        rows: [
+          "Sample Size,,,,,,,,5000,1768829",
+          "Rain of Chaos,1,5,5,,121400,121400,121400,99999,",
+          "The Doctor,26,,5,,0,0,10,0,",
+        ],
+      });
+
+      const result = parseProhibitedLibraryCsv(csv);
+
+      // Not all zero — Rain of Chaos has 99999 in Settlers
+      expect(result.fellBackFromLeague).toBeNull();
+      expect(result.rawLeagueLabel).toBe("Settlers");
+    });
   });
 });

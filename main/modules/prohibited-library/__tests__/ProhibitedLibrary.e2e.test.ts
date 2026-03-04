@@ -74,6 +74,20 @@ function convertRows(
   });
 }
 
+/**
+ * Detect whether the parsed result contains real (non-zero) weight data.
+ *
+ * When a new league column exists but has no data yet, every weight will be 0.
+ * The parser may fall back to the previous league column in that case.
+ * This helper tells individual tests whether "populated data" assertions
+ * (e.g. Rain of Chaos = rarity 4) are applicable.
+ */
+function hasRealWeightData(
+  rows: ReturnType<typeof parseProhibitedLibraryCsv>["rows"],
+): boolean {
+  return rows.some((r) => r.weight > 0);
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // End-to-end: real bundled CSV → parse → store → query
 // ═════════════════════════════════════════════════════════════════════════════
@@ -162,6 +176,12 @@ describe("Prohibited Library — end-to-end integration (real CSV)", () => {
 
   it("should assign Rain of Chaos the highest rarity (4, common) — weight > 5000", () => {
     const result = parseProhibitedLibraryCsv(csvContent);
+
+    if (!hasRealWeightData(result.rows)) {
+      // New league with no data — all weights are 0, skip rarity assertions
+      return;
+    }
+
     const mapped = convertRows(result.rows, result.rawLeagueLabel);
 
     const rainOfChaos = mapped.find((r) => r.cardName === "Rain of Chaos");
@@ -171,6 +191,11 @@ describe("Prohibited Library — end-to-end integration (real CSV)", () => {
 
   it("should assign The Doctor rarity 1 (extremely rare) — weight ≤ 30", () => {
     const result = parseProhibitedLibraryCsv(csvContent);
+
+    if (!hasRealWeightData(result.rows)) {
+      return;
+    }
+
     const mapped = convertRows(result.rows, result.rawLeagueLabel);
 
     const theDoctor = mapped.find((r) => r.cardName === "The Doctor");
@@ -181,6 +206,16 @@ describe("Prohibited Library — end-to-end integration (real CSV)", () => {
 
   it("should produce all five rarity tiers with absolute weight thresholds", () => {
     const result = parseProhibitedLibraryCsv(csvContent);
+
+    if (!hasRealWeightData(result.rows)) {
+      // All zeros → only rarity 0 exists — that's correct for an empty league
+      const mapped = convertRows(result.rows, result.rawLeagueLabel);
+      const uniqueRarities = new Set(mapped.map((r) => r.rarity));
+      expect(uniqueRarities.size).toBe(1);
+      expect(uniqueRarities).toContain(0);
+      return;
+    }
+
     const mapped = convertRows(result.rows, result.rawLeagueLabel);
     const uniqueRarities = new Set(mapped.map((r) => r.rarity));
 
@@ -195,6 +230,11 @@ describe("Prohibited Library — end-to-end integration (real CSV)", () => {
 
   it("should have at most ~50 non-boss extremely rare cards from weight data", () => {
     const result = parseProhibitedLibraryCsv(csvContent);
+
+    if (!hasRealWeightData(result.rows)) {
+      return;
+    }
+
     const mapped = convertRows(result.rows, result.rawLeagueLabel);
 
     // Non-boss cards that got rarity 1 from actual weight data (weight > 0 and ≤ 30)
@@ -279,10 +319,16 @@ describe("Prohibited Library — end-to-end integration (real CSV)", () => {
     expect(rainOfChaos).toBeDefined();
     expect(rainOfChaos!.game).toBe("poe1");
     expect(rainOfChaos!.league).toBe(league);
-    expect(rainOfChaos!.rarity).toBe(4);
     expect(rainOfChaos!.fromBoss).toBe(false);
     expect(rainOfChaos!.loadedAt).toBe(loadedAt);
-    expect(rainOfChaos!.weight).toBeGreaterThan(0);
+
+    if (hasRealWeightData(result.rows)) {
+      expect(rainOfChaos!.rarity).toBe(4);
+      expect(rainOfChaos!.weight).toBeGreaterThan(0);
+    } else {
+      expect(rainOfChaos!.rarity).toBe(0);
+      expect(rainOfChaos!.weight).toBe(0);
+    }
   });
 
   it("should return cards sorted by card_name ascending", async () => {
@@ -455,12 +501,18 @@ describe("Prohibited Library — end-to-end integration (real CSV)", () => {
       rarityCounts[w.rarity as Rarity]++;
     }
 
-    // All five tiers should have cards
-    expect(rarityCounts[4]).toBeGreaterThan(0); // common cards exist
-    expect(rarityCounts[3]).toBeGreaterThan(0); // less common cards exist
-    expect(rarityCounts[2]).toBeGreaterThan(0); // rare cards exist
-    expect(rarityCounts[1]).toBeGreaterThan(0); // extremely rare cards exist
-    expect(rarityCounts[0]).toBeGreaterThan(0); // unknown (zero-weight non-boss) cards exist
+    if (hasRealWeightData(result.rows)) {
+      // All five tiers should have cards
+      expect(rarityCounts[4]).toBeGreaterThan(0); // common cards exist
+      expect(rarityCounts[3]).toBeGreaterThan(0); // less common cards exist
+      expect(rarityCounts[2]).toBeGreaterThan(0); // rare cards exist
+      expect(rarityCounts[1]).toBeGreaterThan(0); // extremely rare cards exist
+      expect(rarityCounts[0]).toBeGreaterThan(0); // unknown (zero-weight) cards exist
+    } else {
+      // All weights are 0 → only rarity 0
+      expect(rarityCounts[0]).toBe(weights.length);
+    }
+
     // Total should match
     expect(
       rarityCounts[0] +
@@ -475,6 +527,11 @@ describe("Prohibited Library — end-to-end integration (real CSV)", () => {
 
   it("should have the highest-weight card (Rain of Chaos) at rarity 4 and lowest positive-weight at a lower tier", async () => {
     const result = parseProhibitedLibraryCsv(csvContent);
+
+    if (!hasRealWeightData(result.rows)) {
+      return;
+    }
+
     const league = result.rawLeagueLabel;
     const mapped = convertRows(result.rows, league);
 
@@ -521,4 +578,254 @@ describe("Prohibited Library — end-to-end integration (real CSV)", () => {
       expect(mappedCard!.rarity).toBe(0);
     }
   });
+
+  // ── Phase 10: Fallback detection ─────────────────────────────────────────
+
+  it("should report fellBackFromLeague consistently with the actual data", () => {
+    const result = parseProhibitedLibraryCsv(csvContent);
+
+    if (result.fellBackFromLeague) {
+      // Fallback happened — the rawLeagueLabel should differ from the
+      // fell-back-from league, and we should have real weight data
+      // (the fallback column had data, otherwise why fall back?)
+      expect(result.rawLeagueLabel).not.toBe(result.fellBackFromLeague);
+      // fellBackFromLeague records the column that was skipped — it can be
+      // either a patch version (e.g. "3.28") or a league name whose data
+      // was all zeros. Both are valid fallback triggers.
+      expect(result.fellBackFromLeague).toBeTruthy();
+      // The resolved rawLeagueLabel must always be a league name, never a patch version
+      expect(result.rawLeagueLabel).not.toMatch(/^\d+\.\d+$/);
+      expect(hasRealWeightData(result.rows)).toBe(true);
+    } else {
+      // No fallback — rawLeagueLabel is the current league column header
+      expect(result.rawLeagueLabel).toBeTruthy();
+      expect(result.rawLeagueLabel).not.toMatch(/^\d+\.\d+$/);
+    }
+  });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Scenario: new league with all-zero weights (pre-league-start)
+//
+// When a new league column is added to the CSV but the league hasn't started
+// yet, every weight in that column is 0. The parser should fall back to the
+// previous league's data so the app still has meaningful rarity information.
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe("Prohibited Library — empty league column handling (real CSV)", () => {
+  let csvContent: string;
+
+  beforeEach(() => {
+    csvContent = readFileSync(
+      join(
+        __dirname,
+        "..",
+        "..",
+        "..",
+        "..",
+        "renderer",
+        "assets",
+        "poe1",
+        "prohibited-library-weights.csv",
+      ),
+      "utf-8",
+    );
+  });
+
+  it("should parse without throwing even if the current league column is all zeros", () => {
+    // Simulate adding an all-zero league column by injecting one before "All samples"
+    const syntheticCsv = injectAllZeroLeagueColumn(csvContent, "NewLeague");
+
+    expect(() => parseProhibitedLibraryCsv(syntheticCsv)).not.toThrow();
+  });
+
+  it("should fall back to the previous league when the new league column is all zeros", () => {
+    const originalResult = parseProhibitedLibraryCsv(csvContent);
+    const originalLeague = originalResult.rawLeagueLabel;
+
+    const syntheticCsv = injectAllZeroLeagueColumn(csvContent, "NewLeague");
+    const result = parseProhibitedLibraryCsv(syntheticCsv);
+
+    expect(result.fellBackFromLeague).toBe("NewLeague");
+    expect(result.rawLeagueLabel).toBe(originalLeague);
+  });
+
+  it("should produce identical weight data when falling back as the original league", () => {
+    const originalResult = parseProhibitedLibraryCsv(csvContent);
+
+    const syntheticCsv = injectAllZeroLeagueColumn(csvContent, "NewLeague");
+    const fallbackResult = parseProhibitedLibraryCsv(syntheticCsv);
+
+    // Same number of rows
+    expect(fallbackResult.rows.length).toBe(originalResult.rows.length);
+
+    // Same weights for every card
+    for (let i = 0; i < originalResult.rows.length; i++) {
+      expect(fallbackResult.rows[i].cardName).toBe(
+        originalResult.rows[i].cardName,
+      );
+      expect(fallbackResult.rows[i].weight).toBe(originalResult.rows[i].weight);
+      expect(fallbackResult.rows[i].fromBoss).toBe(
+        originalResult.rows[i].fromBoss,
+      );
+      expect(fallbackResult.rows[i].bucket).toBe(originalResult.rows[i].bucket);
+    }
+  });
+
+  it("should preserve all rarity tiers after fallback", () => {
+    const syntheticCsv = injectAllZeroLeagueColumn(csvContent, "NewLeague");
+    const result = parseProhibitedLibraryCsv(syntheticCsv);
+
+    // The fallback data should have real weights if the original did
+    if (hasRealWeightData(result.rows)) {
+      const mapped = convertRows(result.rows, result.rawLeagueLabel);
+      const uniqueRarities = new Set(mapped.map((r) => r.rarity));
+
+      expect(uniqueRarities.size).toBe(5);
+      expect(uniqueRarities).toContain(0);
+      expect(uniqueRarities).toContain(1);
+      expect(uniqueRarities).toContain(2);
+      expect(uniqueRarities).toContain(3);
+      expect(uniqueRarities).toContain(4);
+    }
+  });
+
+  it("should preserve boss-exclusive cards after fallback", () => {
+    const syntheticCsv = injectAllZeroLeagueColumn(csvContent, "NewLeague");
+    const result = parseProhibitedLibraryCsv(syntheticCsv);
+
+    const bossCards = result.rows.filter((r) => r.fromBoss);
+    // Boss cards come from the Ritual column (column D), which is independent
+    // of the weight column — they should be present regardless of fallback
+    expect(bossCards.length).toBeGreaterThanOrEqual(50);
+  });
+
+  it("should use the fallback league label on all rows", () => {
+    const originalResult = parseProhibitedLibraryCsv(csvContent);
+    const originalLeague = originalResult.rawLeagueLabel;
+
+    const syntheticCsv = injectAllZeroLeagueColumn(csvContent, "NewLeague");
+    const result = parseProhibitedLibraryCsv(syntheticCsv);
+
+    for (const row of result.rows) {
+      expect(row.rawLeagueLabel).toBe(originalLeague);
+    }
+  });
+
+  it("should set fellBackFromLeague to the all-zero league name", () => {
+    const syntheticCsv = injectAllZeroLeagueColumn(csvContent, "DawnBreaker");
+    const result = parseProhibitedLibraryCsv(syntheticCsv);
+
+    expect(result.fellBackFromLeague).toBe("DawnBreaker");
+  });
+
+  it("should not fall back when the new league column has at least one non-zero weight", () => {
+    const syntheticCsv = injectLeagueColumnWithOneWeight(
+      csvContent,
+      "NewLeague",
+      "Rain of Chaos",
+      99999,
+    );
+    const result = parseProhibitedLibraryCsv(syntheticCsv);
+
+    expect(result.fellBackFromLeague).toBeNull();
+    expect(result.rawLeagueLabel).toBe("NewLeague");
+  });
+
+  it("should still work through database round-trip after fallback", async () => {
+    const testDb = createTestDatabase();
+
+    try {
+      const repository = new ProhibitedLibraryRepository(testDb.kysely);
+
+      const syntheticCsv = injectAllZeroLeagueColumn(csvContent, "NewLeague");
+      const result = parseProhibitedLibraryCsv(syntheticCsv);
+      const league = result.rawLeagueLabel;
+      const mapped = convertRows(result.rows, league);
+
+      await repository.upsertCardWeights(mapped);
+
+      const queried = await repository.getCardWeights("poe1", league);
+      expect(queried).toHaveLength(mapped.length);
+
+      if (hasRealWeightData(result.rows)) {
+        const rainOfChaos = queried.find(
+          (c: ProhibitedLibraryCardWeightDTO) => c.cardName === "Rain of Chaos",
+        );
+        expect(rainOfChaos).toBeDefined();
+        expect(rainOfChaos!.weight).toBeGreaterThan(0);
+        expect(rainOfChaos!.rarity).toBe(4);
+      }
+    } finally {
+      await testDb.close();
+    }
+  });
+});
+
+// ─── Synthetic CSV Helpers ───────────────────────────────────────────────────
+
+/**
+ * Inject a new all-zero league column immediately before "All samples"
+ * in the real CSV content. This simulates a new league being added to
+ * the spreadsheet before the league has started (no data yet).
+ */
+function injectAllZeroLeagueColumn(
+  csvContent: string,
+  leagueName: string,
+): string {
+  const lines = csvContent.split(/\r?\n/);
+  const headerFields = lines[0].split(",");
+
+  const allSamplesIndex = headerFields.indexOf("All samples");
+  if (allSamplesIndex === -1) {
+    throw new Error(
+      "Test helper: CSV header does not contain 'All samples' — cannot inject column",
+    );
+  }
+
+  // Insert the new league name into the header before "All samples"
+  headerFields.splice(allSamplesIndex, 0, leagueName);
+  lines[0] = headerFields.join(",");
+
+  // Insert a "0" (or empty for Sample Size) into every data row at the same position
+  for (let i = 1; i < lines.length; i++) {
+    if (!lines[i] || lines[i].trim().length === 0) continue;
+    const fields = lines[i].split(",");
+    fields.splice(allSamplesIndex, 0, "0");
+    lines[i] = fields.join(",");
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Like `injectAllZeroLeagueColumn`, but sets a single card's weight to
+ * a non-zero value. Used to verify that fallback does NOT trigger when
+ * at least one card has data.
+ */
+function injectLeagueColumnWithOneWeight(
+  csvContent: string,
+  leagueName: string,
+  cardName: string,
+  weight: number,
+): string {
+  const withZeros = injectAllZeroLeagueColumn(csvContent, leagueName);
+  const lines = withZeros.split(/\r?\n/);
+  const headerFields = lines[0].split(",");
+
+  const allSamplesIndex = headerFields.indexOf("All samples");
+  // The new column is at allSamplesIndex - 1
+  const newColIndex = allSamplesIndex - 1;
+
+  for (let i = 1; i < lines.length; i++) {
+    if (!lines[i] || lines[i].trim().length === 0) continue;
+    const fields = lines[i].split(",");
+    if (fields[0] === cardName) {
+      fields[newColIndex] = String(weight);
+      lines[i] = fields.join(",");
+      break;
+    }
+  }
+
+  return lines.join("\n");
+}

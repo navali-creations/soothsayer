@@ -1199,12 +1199,12 @@ describe("ProhibitedLibraryService", () => {
   // ─── ensureLoaded ───────────────────────────────────────────────────────
 
   describe("ensureLoaded", () => {
-    it("should skip re-parse when metadata exists with card_count > 0", async () => {
+    it("should skip re-parse when metadata exists with card_count > 0 and same app version", async () => {
       mockRepositoryGetMetadata.mockResolvedValue({
         game: "poe1",
         league: "Keepers",
         loaded_at: "2025-06-01T00:00:00.000Z",
-        app_version: "1.0.0",
+        app_version: "1.0.0", // matches mock app.getVersion()
         card_count: 42,
       });
 
@@ -1213,6 +1213,21 @@ describe("ProhibitedLibraryService", () => {
       // Should NOT have read the CSV (no re-parse)
       expect(mockReadFile).not.toHaveBeenCalled();
       expect(mockRepositoryUpsertCardWeights).not.toHaveBeenCalled();
+    });
+
+    it("should re-parse when metadata exists but app version differs", async () => {
+      mockRepositoryGetMetadata.mockResolvedValue({
+        game: "poe1",
+        league: "Keepers",
+        loaded_at: "2025-06-01T00:00:00.000Z",
+        app_version: "0.6.0", // differs from mock app.getVersion() "1.0.0"
+        card_count: 459,
+      });
+
+      await service.ensureLoaded("poe1");
+
+      // Should have re-parsed the CSV because app version changed
+      expect(mockReadFile).toHaveBeenCalledTimes(1);
     });
 
     it("should load from scratch when no metadata exists", async () => {
