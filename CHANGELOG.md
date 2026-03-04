@@ -1,5 +1,49 @@
 # soothsayer
 
+## 0.10.0
+
+### Minor Changes
+
+- [`93436da`](https://github.com/navali-creations/soothsayer/commit/93436dade7567def329d7ca092f21116d4b901f8) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Added:** New **Attributions** page.
+
+  - Added a new Attributions page that gives credit to the third-party data sources used in the app: **Prohibited Library**, **poe.ninja**, and **PoE Wiki**.
+  - Added an "Attributions" link to the app's more options menu.
+
+- [`4b5ccf3`](https://github.com/navali-creations/soothsayer/commit/4b5ccf3a865b030c2c51bf1c60b0f798cbf44010) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Improved:** Profit Forecast now better handles unreliable prices at league start and end.
+
+  - Cards with suspiciously inflated prices (e.g. single-listing artifacts on poe.ninja) are now automatically detected and excluded from EV and break-even calculations, so the forecast no longer looks misleadingly profitable.
+  - A new **status column** shows warning icons next to excluded cards, with tooltips explaining why each card was flagged.
+  - New **filter checkboxes** above the table let you hide flagged cards from view if you prefer a cleaner list.
+  - The minimum exchange rate floor has been lowered from 60 to 20 decks-per-divine, so the cost model no longer clips at an unrealistically high floor during early or late league when rates naturally dip much lower.
+
+- [`8be6490`](https://github.com/navali-creations/soothsayer/commit/8be6490e1b721f60e6a25cffebc9c9fbd961300c) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Renamed:** "Rarity Model" is now called **Rarity Insights**.
+
+  - The sidebar link and page title have been updated to reflect the new name.
+  - The navigation icon has been refreshed to better represent the comparison-focused nature of the feature.
+  - All functionality remains exactly the same — only the name and appearance have changed.
+
+### Patch Changes
+
+- [`23ccae9`](https://github.com/navali-creations/soothsayer/commit/23ccae9c8ccb4b533470b0a11d6e8ae6b617d0be) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Fixed:** The Privacy Policy page now loads correctly and displays tables properly.
+
+  - Fixed an issue where the Privacy Policy page would fail to load with a connection error.
+
+- [`0e8bb5a`](https://github.com/navali-creations/soothsayer/commit/0e8bb5a708bbea2a6ea6cfa94415ec4042a286d1) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Fixed:** Crash Reporting and Usage Analytics toggles on the setup page's Privacy & Telemetry step can now be turned off and on as expected.
+
+- [`5b2c8fa`](https://github.com/navali-creations/soothsayer/commit/5b2c8fa95e77b8eb142de604b2f75eb50eaf435a) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Improved:** The "core maintainer" label now appears correctly in the What's New popup, matching the Changelog page.
+
 ## 0.9.0
 
 ### Minor Changes
