@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { FiGitCommit, FiUser } from "react-icons/fi";
+import { FiGitCommit, FiShield, FiUser } from "react-icons/fi";
 import { MdOutlineNewReleases } from "react-icons/md";
 
 import {
@@ -8,7 +8,10 @@ import {
   Modal,
   type ModalHandle,
 } from "~/renderer/components";
-import { changeTypeColor } from "~/renderer/modules/changelog/Changelog.utils";
+import {
+  CORE_MAINTAINERS,
+  changeTypeColor,
+} from "~/renderer/modules/changelog/Changelog.utils";
 import { useBoundStore } from "~/renderer/store";
 
 const COMMIT_URL_PATTERN = /\/commit\//;
@@ -37,8 +40,15 @@ const whatsNewComponents = {
 
     // Contributor handle link: [@username](https://github.com/username)
     if (text && GITHUB_USER_PATTERN.test(text)) {
+      const username = text.slice(1);
+      const isMaintainer = CORE_MAINTAINERS.has(username);
       return (
-        <Badge variant="info" size="sm" soft icon={<FiUser size={11} />}>
+        <Badge
+          variant={isMaintainer ? "success" : "info"}
+          size="sm"
+          soft
+          icon={isMaintainer ? <FiShield size={11} /> : <FiUser size={11} />}
+        >
           <a
             href={href}
             target="_blank"
@@ -48,6 +58,9 @@ const whatsNewComponents = {
           >
             {children}
           </a>
+          {isMaintainer && (
+            <span className="opacity-60"> · core maintainer</span>
+          )}
         </Badge>
       );
     }

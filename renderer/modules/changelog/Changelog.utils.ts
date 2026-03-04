@@ -1,3 +1,5 @@
+export const CORE_MAINTAINERS = new Set(["sbsrnt"]);
+
 export type ChangeTypeColor = "info" | "success" | "warning" | "accent";
 
 export const changeTypeColor = (changeType: string): ChangeTypeColor => {

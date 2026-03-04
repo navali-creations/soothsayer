@@ -3,10 +3,9 @@ import { FiGitCommit, FiShield, FiUser } from "react-icons/fi";
 
 import type { ChangelogEntry } from "~/main/modules/updater/Updater.api";
 import { Badge, MarkdownRenderer } from "~/renderer/components";
+import { CORE_MAINTAINERS } from "~/renderer/modules/changelog/Changelog.utils";
 
 import ChangelogContent from "./ChangelogContent";
-
-const CORE_MAINTAINERS = new Set(["sbsrnt"]);
 
 const ChangelogEntryCard = ({ entry }: { entry: ChangelogEntry }) => {
   return (
