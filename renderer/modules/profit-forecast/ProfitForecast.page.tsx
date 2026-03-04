@@ -9,7 +9,7 @@ import type { DivinationCardMetadata } from "~/types/data-stores";
 import PFCostModelPanel from "./ProfitForecast.components/PFCostModelPanel";
 import PFHeaderActions from "./ProfitForecast.components/PFHeaderActions";
 import PFSummaryCards from "./ProfitForecast.components/PFSummaryCards";
-import PFTable from "./ProfitForecast.components/PFTable";
+import { PFTable } from "./ProfitForecast.components/PFTable";
 import type { BatchSize } from "./ProfitForecast.slice";
 
 const ProfitForecastPage = () => {

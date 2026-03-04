@@ -17,6 +17,8 @@ export interface ProfitForecastCardPriceDTO {
   source: "exchange" | "stash";
   /** poe.ninja confidence tier: 1 = high, 2 = medium, 3 = low */
   confidence: 1 | 2 | 3;
+  /** true when the price appears statistically inflated relative to similar-weight cards */
+  isAnomalous: boolean;
 }
 
 /**

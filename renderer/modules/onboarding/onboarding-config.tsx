@@ -265,9 +265,9 @@ export const onboardingConfig: RepereReactConfig = {
           selector: "[data-onboarding='pf-pl-card-only']",
           trigger: {
             component: createTrackedTrigger("pf-pl-card-only"),
-            anchorPoint: AnchorPoint.TopCenter,
+            anchorPoint: AnchorPoint.BottomCenter,
             offset: {
-              y: -5,
+              y: 5,
             },
           },
           popover: {
@@ -283,9 +283,9 @@ export const onboardingConfig: RepereReactConfig = {
           selector: "[data-onboarding='pf-pl-all-drops']",
           trigger: {
             component: createTrackedTrigger("pf-pl-all-drops"),
-            anchorPoint: AnchorPoint.TopCenter,
+            anchorPoint: AnchorPoint.BottomCenter,
             offset: {
-              y: -5,
+              y: 5,
             },
           },
           popover: {

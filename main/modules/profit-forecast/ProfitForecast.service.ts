@@ -141,6 +141,7 @@ export class ProfitForecastService {
           divineValue: row.divine_value,
           source: "exchange",
           confidence: (row.confidence ?? 1) as 1 | 2 | 3,
+          isAnomalous: false,
         };
       }
     }
@@ -153,9 +154,13 @@ export class ProfitForecastService {
           divineValue: row.divine_value,
           source: "stash",
           confidence: (row.confidence ?? 1) as 1 | 2 | 3,
+          isAnomalous: false,
         };
       }
     }
+
+    // Detect anomalous prices among common cards
+    this.detectAnomalousCardPrices(cardPrices, weights);
 
     const snapshot: ProfitForecastSnapshotDTO = {
       id: snapshotRow.id,
@@ -167,10 +172,16 @@ export class ProfitForecastService {
       cardPrices,
     };
 
+    const anomalousCount = Object.values(cardPrices).filter(
+      (p) => p.isAnomalous,
+    ).length;
+
     this.logger.log(
       `Returning snapshot id=${snapshotRow.id} with ${
         Object.keys(cardPrices).length
-      } card prices and ${weights.length} PL weights`,
+      } card prices (${anomalousCount} anomalous) and ${
+        weights.length
+      } PL weights`,
     );
 
     return { snapshot, weights };
@@ -179,6 +190,93 @@ export class ProfitForecastService {
   // ═══════════════════════════════════════════════════════════════════════════
   // Helpers
   // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Detect anomalous prices among common cards and set `isAnomalous` on the
+   * affected entries in-place.
+   *
+   * Late in a league, low-value common cards can have wildly inflated prices
+   * on poe.ninja because nobody lists them and a single absurd listing
+   * becomes the "price". Since these cards are very common (high weight),
+   * even a small inflated price gets multiplied by high probability and
+   * significantly skews the total EV upward.
+   *
+   * Strategy:
+   * 1. Join prices with weights — only consider priced, non-low-confidence cards.
+   * 2. Split into "common" (weight ≥ median) and "rare" (weight < median).
+   * 3. Compute a robust baseline from the **lower half** of common card prices
+   *    so that outliers cannot pollute the reference statistics.
+   * 4. Flag common cards whose price exceeds the baseline-derived threshold.
+   */
+  private detectAnomalousCardPrices(
+    cardPrices: Record<string, ProfitForecastCardPriceDTO>,
+    weights: ProfitForecastWeightDTO[],
+  ): void {
+    // Build a weight lookup for cards that have both a price and a weight
+    const weightByName = new Map<string, number>();
+    for (const w of weights) {
+      weightByName.set(w.cardName, w.weight);
+    }
+
+    // Collect cards that have a price, a weight, and are not low-confidence
+    const candidates: {
+      cardName: string;
+      weight: number;
+      chaosValue: number;
+    }[] = [];
+    for (const [cardName, price] of Object.entries(cardPrices)) {
+      const weight = weightByName.get(cardName);
+      if (weight != null && weight > 0 && price.confidence !== 3) {
+        candidates.push({ cardName, weight, chaosValue: price.chaosValue });
+      }
+    }
+
+    if (candidates.length < 5) return; // too few cards to detect outliers
+
+    // Find median weight to split "common" vs "rare"
+    const sortedByWeight = [...candidates].sort((a, b) => b.weight - a.weight);
+    const medianWeight =
+      sortedByWeight[Math.floor(sortedByWeight.length / 2)].weight;
+
+    // Common cards: weight >= median weight (top half by frequency)
+    const commonCards = candidates.filter((c) => c.weight >= medianWeight);
+    if (commonCards.length < 3) return; // too few to compare
+
+    // Get sorted chaos values of common cards
+    const commonPrices = commonCards
+      .map((c) => c.chaosValue)
+      .filter((v) => v > 0)
+      .sort((a, b) => a - b);
+
+    if (commonPrices.length < 3) return;
+
+    // Use the LOWER HALF of common card prices as a robust baseline.
+    // This prevents outliers from polluting the IQR when multiple cards
+    // are inflated simultaneously.
+    const midpoint = Math.ceil(commonPrices.length / 2);
+    const lowerHalf = commonPrices.slice(0, midpoint);
+
+    const lowerQ1 = lowerHalf[Math.floor(lowerHalf.length * 0.25)];
+    const lowerQ3 = lowerHalf[Math.floor(lowerHalf.length * 0.75)];
+    const lowerIqr = lowerQ3 - lowerQ1;
+
+    const lowerMedian = lowerHalf[Math.floor(lowerHalf.length / 2)];
+
+    // Threshold: based on the lower-half Q3 + 3×IQR.
+    // If the lower half is very tight (IQR ≈ 0), fall back to 5× the
+    // lower-half median — common cards should be cheap, so even 5× the
+    // typical price is generous.
+    const threshold =
+      lowerIqr > 0
+        ? lowerQ3 + 3 * lowerIqr
+        : Math.max(lowerMedian * 5, lowerMedian + 1);
+
+    for (const card of commonCards) {
+      if (card.chaosValue > threshold) {
+        cardPrices[card.cardName].isAnomalous = true;
+      }
+    }
+  }
 
   /**
    * Get PL card weights for the given game.

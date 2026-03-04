@@ -10,9 +10,10 @@ import type {
 
 /**
  * Hard minimum for the sliding exchange rate model.
- * Never observed below ~70 in practice — 60 provides a safe floor.
+ * At league start/end, rates can dip well below typical mid-league values,
+ * so 20 provides a safe floor without clipping legitimate low-rate scenarios.
  */
-export const RATE_FLOOR = 60;
+export const RATE_FLOOR = 20;
 
 // ── Row Shape ──────────────────────────────────────────────────────────────────
 
@@ -27,6 +28,8 @@ export interface CardForecastRow {
   evContribution: number; // probability × chaosValue
   hasPrice: boolean; // false when card has PL weight but no snapshot price
   confidence: 1 | 2 | 3 | null; // poe.ninja confidence: 1=high, 2=medium, 3=low, null=no price
+  isAnomalous: boolean; // true when card price appears inflated relative to similar-weight peers
+  excludeFromEv: boolean; // true when card should be excluded from EV (anomalous OR low confidence)
 
   // Dynamic (recomputed via recomputeRows on batch/stepDrop/subBatchSize change)
   chanceInBatch: number; // 1 − (1 − probability)^selectedBatch  (0–1)
@@ -50,7 +53,7 @@ export interface ProfitForecastSlice {
     // ── Raw data (set by fetchData) ───────────────────────────────────────
     rows: CardForecastRow[];
     totalWeight: number;
-    evPerDeck: number; // Σ P(card) × price — all matched cards
+    evPerDeck: number; // Σ P(card) × price — excluding anomalous & low-confidence cards
     snapshotFetchedAt: string | null;
     chaosToDivineRatio: number;
     stackedDeckChaosCost: number;
@@ -85,6 +88,11 @@ export interface ProfitForecastSlice {
     getBreakEvenRate: () => number; // chaosToDivineRatio / evPerDeck
     getAvgCostPerDeck: () => number; // for selectedBatch with sliding model
     getRateForBatch: (batchIndex: number) => number;
+    getExcludedCount: () => {
+      anomalous: number;
+      lowConfidence: number;
+      total: number;
+    };
     hasData: () => boolean;
   };
 }
@@ -200,6 +208,7 @@ export function buildRows(
       divineValue: number;
       source: "exchange" | "stash";
       confidence: 1 | 2 | 3;
+      isAnomalous: boolean;
     }
   > | null,
   totalWeight: number,
@@ -212,6 +221,7 @@ export function buildRows(
     const divineValue = price?.divineValue ?? 0;
     const hasPrice = price !== null;
     const confidence = price?.confidence ?? null;
+    const isAnomalous = price?.isAnomalous ?? false;
 
     return {
       cardName: w.cardName,
@@ -222,6 +232,8 @@ export function buildRows(
       divineValue,
       hasPrice,
       confidence,
+      isAnomalous,
+      excludeFromEv: !hasPrice || confidence === 3 || isAnomalous,
       evContribution: hasPrice ? probability * chaosValue : 0,
 
       // Dynamic — filled by recomputeRows
@@ -235,11 +247,13 @@ export function buildRows(
 }
 
 /**
- * Compute EV per deck = Σ P(card) × chaosValue for all cards that have a price.
+ * Compute EV per deck = Σ P(card) × chaosValue for all cards that
+ * have a price and are NOT excluded (anomalous or low confidence).
  */
 export function computeEvPerDeck(rows: CardForecastRow[]): number {
   return rows.reduce(
-    (sum, row) => (row.hasPrice ? sum + row.evContribution : sum),
+    (sum, row) =>
+      row.hasPrice && !row.excludeFromEv ? sum + row.evContribution : sum,
     0,
   );
 }
@@ -501,6 +515,21 @@ export const createProfitForecastSlice: StateCreator<
       return rows.filter(
         (row) => row.hasPrice && row.chaosValue >= minPriceThreshold,
       );
+    },
+
+    getExcludedCount: () => {
+      const { rows } = get().profitForecast;
+      let anomalous = 0;
+      let lowConfidence = 0;
+      for (const row of rows) {
+        if (!row.hasPrice) continue;
+        if (row.isAnomalous) {
+          anomalous++;
+        } else if (row.confidence === 3) {
+          lowConfidence++;
+        }
+      }
+      return { anomalous, lowConfidence, total: anomalous + lowConfidence };
     },
 
     getTotalCost: () => {

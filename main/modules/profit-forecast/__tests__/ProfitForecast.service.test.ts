@@ -491,12 +491,14 @@ describe("ProfitForecastService", () => {
         divineValue: 6.0,
         source: "exchange",
         confidence: 1,
+        isAnomalous: false,
       });
       expect(result.snapshot!.cardPrices["Rain of Chaos"]).toEqual({
         chaosValue: 0.5,
         divineValue: 0.0025,
         source: "exchange",
         confidence: 1,
+        isAnomalous: false,
       });
 
       // Weights should be filtered to weight > 0
@@ -585,6 +587,7 @@ describe("ProfitForecastService", () => {
         divineValue: 6.0,
         source: "exchange",
         confidence: 1,
+        isAnomalous: false,
       });
     });
 
@@ -599,6 +602,7 @@ describe("ProfitForecastService", () => {
         divineValue: 0.0025,
         source: "stash",
         confidence: 1,
+        isAnomalous: false,
       });
     });
 
@@ -640,6 +644,7 @@ describe("ProfitForecastService", () => {
         divineValue: 1.5,
         source: "stash",
         confidence: 1,
+        isAnomalous: false,
       });
     });
 
@@ -921,6 +926,7 @@ describe("ProfitForecastService", () => {
         divineValue: 5.33,
         source: "exchange",
         confidence: 1,
+        isAnomalous: false,
       });
       // Rain of Chaos: stash fallback (no exchange)
       expect(result.snapshot!.cardPrices["Rain of Chaos"]).toEqual({
@@ -928,6 +934,7 @@ describe("ProfitForecastService", () => {
         divineValue: 0.002,
         source: "stash",
         confidence: 2,
+        isAnomalous: false,
       });
       // The Nurse: exchange with low confidence
       expect(result.snapshot!.cardPrices["The Nurse"]).toEqual({
@@ -935,6 +942,7 @@ describe("ProfitForecastService", () => {
         divineValue: 1.33,
         source: "exchange",
         confidence: 3,
+        isAnomalous: false,
       });
     });
 
@@ -1629,6 +1637,517 @@ describe("ProfitForecastService", () => {
       await expect(handler({}, "poe1", "Keepers")).rejects.toThrow(
         "DB read error",
       );
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Anomaly Detection (detectAnomalousCardPrices)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe("detectAnomalousCardPrices (via getData)", () => {
+    /**
+     * Helper: builds N price rows (exchange) and N matching PL weight entries.
+     *
+     * Each entry is { name, chaos, weight }.  Confidence defaults to 1.
+     * Returns { priceRows, plWeights } ready to plug into mocks.
+     */
+    function buildTestData(
+      entries: {
+        name: string;
+        chaos: number;
+        weight: number;
+        confidence?: 1 | 2 | 3;
+      }[],
+    ) {
+      const priceRows = entries.map((e) => ({
+        snapshot_id: "snapshot-uuid-1",
+        card_name: e.name,
+        price_source: "exchange" as const,
+        chaos_value: e.chaos,
+        divine_value: e.chaos / 200,
+        confidence: e.confidence ?? 1,
+      }));
+
+      const plWeights = entries.map((e) => ({
+        cardName: e.name,
+        game: "poe1" as const,
+        league: "Keepers",
+        weight: e.weight,
+        rarity: 4 as const,
+        fromBoss: false,
+        loadedAt: "2025-06-01T00:00:00Z",
+      }));
+
+      return { priceRows, plWeights };
+    }
+
+    it("should flag a common card with an anomalously high price", async () => {
+      // 8 common cards priced 0.5–4 chaos, one common card priced 500 chaos
+      const { priceRows, plWeights } = buildTestData([
+        { name: "Card A", chaos: 0.5, weight: 100000 },
+        { name: "Card B", chaos: 1.0, weight: 90000 },
+        { name: "Card C", chaos: 1.5, weight: 80000 },
+        { name: "Card D", chaos: 2.0, weight: 70000 },
+        { name: "Card E", chaos: 2.5, weight: 60000 },
+        { name: "Card F", chaos: 3.0, weight: 50000 },
+        { name: "Card G", chaos: 3.5, weight: 45000 },
+        { name: "Card H", chaos: 4.0, weight: 40000 },
+        { name: "Outlier", chaos: 500, weight: 95000 }, // common + absurdly high
+      ]);
+
+      chains.priceChain.execute.mockResolvedValue(priceRows);
+      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+
+      const result = await service.getData("poe1", "Keepers");
+
+      expect(result.snapshot!.cardPrices.Outlier.isAnomalous).toBe(true);
+      // Normal common cards should NOT be flagged
+      expect(result.snapshot!.cardPrices["Card A"].isAnomalous).toBe(false);
+      expect(result.snapshot!.cardPrices["Card D"].isAnomalous).toBe(false);
+      expect(result.snapshot!.cardPrices["Card H"].isAnomalous).toBe(false);
+    });
+
+    it("should not flag rare cards even if they are expensive", async () => {
+      // Rare cards (low weight) with high prices — should never be flagged
+      const { priceRows, plWeights } = buildTestData([
+        { name: "Common A", chaos: 0.5, weight: 100000 },
+        { name: "Common B", chaos: 1.0, weight: 90000 },
+        { name: "Common C", chaos: 1.5, weight: 80000 },
+        { name: "Common D", chaos: 2.0, weight: 70000 },
+        { name: "Common E", chaos: 2.5, weight: 60000 },
+        { name: "Rare Expensive", chaos: 5000, weight: 10 }, // rare (low weight)
+        { name: "Rare Costly", chaos: 3000, weight: 5 }, // rare (low weight)
+      ]);
+
+      chains.priceChain.execute.mockResolvedValue(priceRows);
+      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+
+      const result = await service.getData("poe1", "Keepers");
+
+      expect(result.snapshot!.cardPrices["Rare Expensive"].isAnomalous).toBe(
+        false,
+      );
+      expect(result.snapshot!.cardPrices["Rare Costly"].isAnomalous).toBe(
+        false,
+      );
+    });
+
+    it("should exclude low-confidence (confidence=3) cards from detection candidates", async () => {
+      // A common card with a high price but confidence=3 should NOT be flagged
+      // because confidence=3 cards are excluded from the candidate pool entirely
+      const { priceRows, plWeights } = buildTestData([
+        { name: "Common A", chaos: 0.5, weight: 100000 },
+        { name: "Common B", chaos: 1.0, weight: 90000 },
+        { name: "Common C", chaos: 1.5, weight: 80000 },
+        { name: "Common D", chaos: 2.0, weight: 70000 },
+        { name: "Common E", chaos: 2.5, weight: 60000 },
+        {
+          name: "Low Conf High Price",
+          chaos: 999,
+          weight: 95000,
+          confidence: 3,
+        },
+      ]);
+
+      chains.priceChain.execute.mockResolvedValue(priceRows);
+      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+
+      const result = await service.getData("poe1", "Keepers");
+
+      // Should still have isAnomalous: false because confidence=3 cards are
+      // excluded from the detection algorithm entirely
+      expect(
+        result.snapshot!.cardPrices["Low Conf High Price"].isAnomalous,
+      ).toBe(false);
+    });
+
+    it("should skip detection when fewer than 5 candidates exist", async () => {
+      // Only 4 priced+weighted cards → too few for detection
+      const { priceRows, plWeights } = buildTestData([
+        { name: "Card A", chaos: 0.5, weight: 100000 },
+        { name: "Card B", chaos: 1.0, weight: 90000 },
+        { name: "Card C", chaos: 1.5, weight: 80000 },
+        { name: "Outlier", chaos: 999, weight: 95000 },
+      ]);
+
+      chains.priceChain.execute.mockResolvedValue(priceRows);
+      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+
+      const result = await service.getData("poe1", "Keepers");
+
+      // Outlier should NOT be flagged because sample is too small
+      expect(result.snapshot!.cardPrices.Outlier.isAnomalous).toBe(false);
+    });
+
+    it("should skip detection when fewer than 3 common cards have positive prices", async () => {
+      // The `< 3 common prices` guard triggers when common cards exist but
+      // fewer than 3 have chaosValue > 0 (zero-priced cards are filtered out
+      // of the commonPrices array). Here 5 candidates exist and 3 are common,
+      // but 2 of the common cards have chaosValue = 0 so commonPrices.length < 3.
+      const { priceRows, plWeights } = buildTestData([
+        { name: "Common A", chaos: 0, weight: 100000 }, // common but zero price
+        { name: "Common B", chaos: 0, weight: 90000 }, // common but zero price
+        { name: "Common C", chaos: 999, weight: 80000 }, // common, only positive price
+        { name: "Rare A", chaos: 10.0, weight: 100 },
+        { name: "Rare B", chaos: 20.0, weight: 50 },
+      ]);
+
+      chains.priceChain.execute.mockResolvedValue(priceRows);
+      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+
+      const result = await service.getData("poe1", "Keepers");
+
+      // Only 1 common card has a positive price → commonPrices.length < 3 → skip detection
+      expect(result.snapshot!.cardPrices["Common C"].isAnomalous).toBe(false);
+    });
+
+    it("should not flag anything when all common cards have similar low prices", async () => {
+      // All common cards have prices in a tight range → no outliers
+      const { priceRows, plWeights } = buildTestData([
+        { name: "Card A", chaos: 0.5, weight: 100000 },
+        { name: "Card B", chaos: 0.6, weight: 90000 },
+        { name: "Card C", chaos: 0.7, weight: 80000 },
+        { name: "Card D", chaos: 0.8, weight: 70000 },
+        { name: "Card E", chaos: 0.9, weight: 60000 },
+        { name: "Card F", chaos: 1.0, weight: 50000 },
+      ]);
+
+      chains.priceChain.execute.mockResolvedValue(priceRows);
+      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+
+      const result = await service.getData("poe1", "Keepers");
+
+      for (const name of [
+        "Card A",
+        "Card B",
+        "Card C",
+        "Card D",
+        "Card E",
+        "Card F",
+      ]) {
+        expect(result.snapshot!.cardPrices[name].isAnomalous).toBe(false);
+      }
+    });
+
+    it("should use fallback threshold when IQR is 0 (all lower-half prices are equal)", async () => {
+      // All common cards priced at 1 chaos, except one outlier at 10.
+      // Lower half all = 1, so IQR = 0. Fallback = max(1*5, 1+1) = 5.
+      // The 10-chaos card exceeds 5 → flagged.
+      const { priceRows, plWeights } = buildTestData([
+        { name: "Card A", chaos: 1, weight: 100000 },
+        { name: "Card B", chaos: 1, weight: 90000 },
+        { name: "Card C", chaos: 1, weight: 80000 },
+        { name: "Card D", chaos: 1, weight: 70000 },
+        { name: "Card E", chaos: 1, weight: 60000 },
+        { name: "Card F", chaos: 1, weight: 55000 },
+        { name: "Outlier", chaos: 10, weight: 95000 },
+      ]);
+
+      chains.priceChain.execute.mockResolvedValue(priceRows);
+      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+
+      const result = await service.getData("poe1", "Keepers");
+
+      expect(result.snapshot!.cardPrices.Outlier.isAnomalous).toBe(true);
+      expect(result.snapshot!.cardPrices["Card A"].isAnomalous).toBe(false);
+    });
+
+    it("should not flag a common card just barely above baseline when IQR is 0", async () => {
+      // All common cards priced at 1 chaos, one card at 4 chaos.
+      // Fallback threshold = max(1*5, 1+1) = 5. Card at 4 < 5 → not flagged.
+      const { priceRows, plWeights } = buildTestData([
+        { name: "Card A", chaos: 1, weight: 100000 },
+        { name: "Card B", chaos: 1, weight: 90000 },
+        { name: "Card C", chaos: 1, weight: 80000 },
+        { name: "Card D", chaos: 1, weight: 70000 },
+        { name: "Card E", chaos: 1, weight: 60000 },
+        { name: "Card F", chaos: 1, weight: 55000 },
+        { name: "Slightly Up", chaos: 4, weight: 95000 },
+      ]);
+
+      chains.priceChain.execute.mockResolvedValue(priceRows);
+      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+
+      const result = await service.getData("poe1", "Keepers");
+
+      expect(result.snapshot!.cardPrices["Slightly Up"].isAnomalous).toBe(
+        false,
+      );
+    });
+
+    it("should flag multiple anomalous common cards simultaneously", async () => {
+      const { priceRows, plWeights } = buildTestData([
+        { name: "Card A", chaos: 0.5, weight: 100000 },
+        { name: "Card B", chaos: 1.0, weight: 90000 },
+        { name: "Card C", chaos: 1.5, weight: 80000 },
+        { name: "Card D", chaos: 2.0, weight: 70000 },
+        { name: "Card E", chaos: 2.5, weight: 60000 },
+        { name: "Card F", chaos: 3.0, weight: 50000 },
+        { name: "Outlier 1", chaos: 500, weight: 95000 },
+        { name: "Outlier 2", chaos: 800, weight: 85000 },
+      ]);
+
+      chains.priceChain.execute.mockResolvedValue(priceRows);
+      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+
+      const result = await service.getData("poe1", "Keepers");
+
+      expect(result.snapshot!.cardPrices["Outlier 1"].isAnomalous).toBe(true);
+      expect(result.snapshot!.cardPrices["Outlier 2"].isAnomalous).toBe(true);
+      expect(result.snapshot!.cardPrices["Card A"].isAnomalous).toBe(false);
+      expect(result.snapshot!.cardPrices["Card F"].isAnomalous).toBe(false);
+    });
+
+    it("should not flag cards that have no matching PL weight", async () => {
+      // Price exists but no weight entry → card is excluded from detection
+      const { priceRows: baseRows, plWeights } = buildTestData([
+        { name: "Card A", chaos: 0.5, weight: 100000 },
+        { name: "Card B", chaos: 1.0, weight: 90000 },
+        { name: "Card C", chaos: 1.5, weight: 80000 },
+        { name: "Card D", chaos: 2.0, weight: 70000 },
+        { name: "Card E", chaos: 2.5, weight: 60000 },
+      ]);
+
+      // Add a price row for a card that has NO weight entry
+      const priceRows = [
+        ...baseRows,
+        {
+          snapshot_id: "snapshot-uuid-1",
+          card_name: "No Weight Card",
+          price_source: "exchange" as const,
+          chaos_value: 9999,
+          divine_value: 49.995,
+          confidence: 1,
+        },
+      ];
+
+      chains.priceChain.execute.mockResolvedValue(priceRows);
+      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+
+      const result = await service.getData("poe1", "Keepers");
+
+      expect(result.snapshot!.cardPrices["No Weight Card"].isAnomalous).toBe(
+        false,
+      );
+    });
+
+    it("should not flag cards with zero weight even if priced", async () => {
+      // A card with weight=0 should be excluded from candidates
+      const { priceRows, plWeights } = buildTestData([
+        { name: "Card A", chaos: 0.5, weight: 100000 },
+        { name: "Card B", chaos: 1.0, weight: 90000 },
+        { name: "Card C", chaos: 1.5, weight: 80000 },
+        { name: "Card D", chaos: 2.0, weight: 70000 },
+        { name: "Card E", chaos: 2.5, weight: 60000 },
+        { name: "Zero Weight", chaos: 999, weight: 0 },
+      ]);
+
+      chains.priceChain.execute.mockResolvedValue(priceRows);
+      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+
+      const result = await service.getData("poe1", "Keepers");
+
+      expect(result.snapshot!.cardPrices["Zero Weight"].isAnomalous).toBe(
+        false,
+      );
+    });
+
+    it("should include anomalous count in the success log message", async () => {
+      const { priceRows, plWeights } = buildTestData([
+        { name: "Card A", chaos: 0.5, weight: 100000 },
+        { name: "Card B", chaos: 1.0, weight: 90000 },
+        { name: "Card C", chaos: 1.5, weight: 80000 },
+        { name: "Card D", chaos: 2.0, weight: 70000 },
+        { name: "Card E", chaos: 2.5, weight: 60000 },
+        { name: "Card F", chaos: 3.0, weight: 50000 },
+        { name: "Outlier", chaos: 500, weight: 95000 },
+      ]);
+
+      chains.priceChain.execute.mockResolvedValue(priceRows);
+      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+
+      await service.getData("poe1", "Keepers");
+
+      const logCalls = mockLoggerLog.mock.calls.map(
+        (args: unknown[]) => args[0],
+      );
+      const successLog = logCalls.find(
+        (msg: string) =>
+          typeof msg === "string" && msg.includes("Returning snapshot"),
+      );
+      expect(successLog).toBeDefined();
+      expect(successLog).toContain("1 anomalous");
+    });
+
+    it("should log 0 anomalous when no cards are flagged", async () => {
+      const { priceRows, plWeights } = buildTestData([
+        { name: "Card A", chaos: 0.5, weight: 100000 },
+        { name: "Card B", chaos: 1.0, weight: 90000 },
+        { name: "Card C", chaos: 1.5, weight: 80000 },
+        { name: "Card D", chaos: 2.0, weight: 70000 },
+        { name: "Card E", chaos: 2.5, weight: 60000 },
+      ]);
+
+      chains.priceChain.execute.mockResolvedValue(priceRows);
+      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+
+      await service.getData("poe1", "Keepers");
+
+      const logCalls = mockLoggerLog.mock.calls.map(
+        (args: unknown[]) => args[0],
+      );
+      const successLog = logCalls.find(
+        (msg: string) =>
+          typeof msg === "string" && msg.includes("Returning snapshot"),
+      );
+      expect(successLog).toBeDefined();
+      expect(successLog).toContain("0 anomalous");
+    });
+
+    it("should handle a realistic late-league scenario with inflated common cards", async () => {
+      // Simulates end-of-league thin market: most common cards are ~0.5c,
+      // but a few have single-listing artifacts pushing them to 10-50c
+      const { priceRows, plWeights } = buildTestData([
+        { name: "Rain of Chaos", chaos: 0.3, weight: 121400 },
+        { name: "The Lover", chaos: 0.4, weight: 113000 },
+        { name: "The Hermit", chaos: 0.5, weight: 105000 },
+        { name: "Loyalty", chaos: 0.4, weight: 98000 },
+        { name: "Thunderous Skies", chaos: 0.6, weight: 92000 },
+        { name: "Her Mask", chaos: 0.5, weight: 88000 },
+        { name: "The Rabid Rhoa", chaos: 0.3, weight: 85000 },
+        { name: "The Carrion Crow", chaos: 0.4, weight: 82000 },
+        { name: "Turn the Other Cheek", chaos: 0.5, weight: 79000 },
+        { name: "Lantador's Lost Love", chaos: 0.3, weight: 75000 },
+        // Inflated common cards (single-listing artifacts)
+        { name: "The Incantation", chaos: 35, weight: 91000 },
+        { name: "The Metalsmith's Gift", chaos: 50, weight: 87000 },
+        // Legitimately expensive rare cards
+        { name: "The Doctor", chaos: 1200, weight: 10 },
+        { name: "The Nurse", chaos: 400, weight: 1500 },
+        { name: "House of Mirrors", chaos: 5000, weight: 3 },
+      ]);
+
+      chains.priceChain.execute.mockResolvedValue(priceRows);
+      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+
+      const result = await service.getData("poe1", "Keepers");
+
+      // Inflated common cards should be flagged
+      expect(result.snapshot!.cardPrices["The Incantation"].isAnomalous).toBe(
+        true,
+      );
+      expect(
+        result.snapshot!.cardPrices["The Metalsmith's Gift"].isAnomalous,
+      ).toBe(true);
+
+      // Normal common cards should not be flagged
+      expect(result.snapshot!.cardPrices["Rain of Chaos"].isAnomalous).toBe(
+        false,
+      );
+      expect(result.snapshot!.cardPrices["The Lover"].isAnomalous).toBe(false);
+
+      // Expensive rare cards should not be flagged (below median weight)
+      expect(result.snapshot!.cardPrices["The Doctor"].isAnomalous).toBe(false);
+      expect(result.snapshot!.cardPrices["The Nurse"].isAnomalous).toBe(false);
+      expect(result.snapshot!.cardPrices["House of Mirrors"].isAnomalous).toBe(
+        false,
+      );
+    });
+
+    it("should not flag when only 4 candidates after excluding confidence=3 cards", async () => {
+      // 6 total price entries, but 2 have confidence=3, leaving only 4 candidates
+      const { priceRows, plWeights } = buildTestData([
+        { name: "Card A", chaos: 0.5, weight: 100000 },
+        { name: "Card B", chaos: 1.0, weight: 90000 },
+        { name: "Card C", chaos: 1.5, weight: 80000 },
+        { name: "Card D", chaos: 2.0, weight: 70000 },
+        { name: "Low Conf 1", chaos: 999, weight: 95000, confidence: 3 },
+        { name: "Low Conf 2", chaos: 888, weight: 85000, confidence: 3 },
+      ]);
+
+      chains.priceChain.execute.mockResolvedValue(priceRows);
+      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+
+      const result = await service.getData("poe1", "Keepers");
+
+      // Only 4 non-low-confidence candidates → below minimum of 5 → no detection
+      expect(result.snapshot!.cardPrices["Card A"].isAnomalous).toBe(false);
+      expect(result.snapshot!.cardPrices["Card D"].isAnomalous).toBe(false);
+    });
+
+    it("should handle exactly 5 candidates (minimum for detection)", async () => {
+      // Exactly 5 candidates — detection should proceed
+      const { priceRows, plWeights } = buildTestData([
+        { name: "Card A", chaos: 0.5, weight: 100000 },
+        { name: "Card B", chaos: 1.0, weight: 90000 },
+        { name: "Card C", chaos: 1.5, weight: 80000 },
+        { name: "Card D", chaos: 2.0, weight: 70000 },
+        { name: "Outlier", chaos: 500, weight: 95000 },
+      ]);
+
+      chains.priceChain.execute.mockResolvedValue(priceRows);
+      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+
+      const result = await service.getData("poe1", "Keepers");
+
+      // With 5 candidates, detection should run. All 5 are "common" since
+      // sorted desc by weight: [100k, 95k, 90k, 80k, 70k], median at index 2 = 90k.
+      // Common = weight >= 90k → Card A (100k), Outlier (95k), Card B (90k) = 3 common.
+      // Common prices sorted: [0.5, 1.0, 500]. Lower half = [0.5, 1.0].
+      // lowerQ1 = idx 0 = 0.5, lowerQ3 = idx 1 = 1.0, IQR = 0.5
+      // Threshold = 1.0 + 3*0.5 = 2.5. 500 > 2.5 → flagged.
+      expect(result.snapshot!.cardPrices.Outlier.isAnomalous).toBe(true);
+    });
+
+    it("should not mutate isAnomalous for cards below the threshold", async () => {
+      // Prices that vary but all within normal range
+      const { priceRows, plWeights } = buildTestData([
+        { name: "Card A", chaos: 1.0, weight: 100000 },
+        { name: "Card B", chaos: 2.0, weight: 90000 },
+        { name: "Card C", chaos: 3.0, weight: 80000 },
+        { name: "Card D", chaos: 4.0, weight: 70000 },
+        { name: "Card E", chaos: 5.0, weight: 60000 },
+        { name: "Card F", chaos: 6.0, weight: 50000 },
+        { name: "Card G", chaos: 7.0, weight: 45000 },
+      ]);
+
+      chains.priceChain.execute.mockResolvedValue(priceRows);
+      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+
+      const result = await service.getData("poe1", "Keepers");
+
+      // All cards should remain isAnomalous: false
+      for (const name of [
+        "Card A",
+        "Card B",
+        "Card C",
+        "Card D",
+        "Card E",
+        "Card F",
+        "Card G",
+      ]) {
+        expect(result.snapshot!.cardPrices[name].isAnomalous).toBe(false);
+      }
+    });
+
+    it("should correctly initialize all card prices with isAnomalous: false before detection", async () => {
+      // Verify that isAnomalous defaults to false for all cards, even when
+      // detection is skipped (e.g., no weights)
+      chains.priceChain.execute.mockResolvedValue([
+        {
+          snapshot_id: "snapshot-uuid-1",
+          card_name: "Some Card",
+          price_source: "exchange",
+          chaos_value: 100,
+          divine_value: 0.5,
+          confidence: 1,
+        },
+      ]);
+      mockRepositoryGetCardWeights.mockResolvedValue([]);
+
+      const result = await service.getData("poe1", "Keepers");
+
+      expect(result.snapshot!.cardPrices["Some Card"].isAnomalous).toBe(false);
     });
   });
 });

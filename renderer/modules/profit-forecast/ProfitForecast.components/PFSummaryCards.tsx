@@ -73,7 +73,6 @@ const PFSummaryCards = () => {
   const netPnL = dataAvailable ? getNetPnL() : 0;
   const breakEvenRate = dataAvailable ? getBreakEvenRate() : 0;
   const avgCostPerDeck = dataAvailable ? getAvgCostPerDeck() : 0;
-
   const pnlIsPositive = netPnL >= 0;
   const breakEvenIsGood = baseRate > breakEvenRate && breakEvenRate > 0;
 

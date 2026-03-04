@@ -57,24 +57,28 @@ function makePrices(
       divineValue: 250,
       source: "exchange",
       confidence: 1,
+      isAnomalous: false,
     },
     "The Nurse": {
       chaosValue: 8000,
       divineValue: 40,
       source: "exchange",
       confidence: 1,
+      isAnomalous: false,
     },
     "Rain of Chaos": {
       chaosValue: 0.5,
       divineValue: 0.0025,
       source: "stash",
       confidence: 1,
+      isAnomalous: false,
     },
     "The Wretched": {
       chaosValue: 1,
       divineValue: 0.005,
       source: "exchange",
       confidence: 1,
+      isAnomalous: false,
     },
   };
   for (const card of cards) {
@@ -152,7 +156,7 @@ describe("computeBaseRate", () => {
       stackedDeckMaxVolumeRate: 64.93,
       cardPrices: {},
     });
-    // floor(64.93) = 64, which is above RATE_FLOOR (60)
+    // floor(64.93) = 64, which is above RATE_FLOOR (20)
     expect(result).toEqual({ baseRate: 64, source: "maxVolumeRate" });
   });
 
@@ -162,7 +166,7 @@ describe("computeBaseRate", () => {
       fetchedAt: "2025-01-15T12:00:00Z",
       chaosToDivineRatio: 200,
       stackedDeckChaosCost: 5,
-      stackedDeckMaxVolumeRate: 55.5, // floor = 55, below RATE_FLOOR
+      stackedDeckMaxVolumeRate: 15.5, // floor = 15, below RATE_FLOOR
       cardPrices: {},
     });
     expect(result).toEqual({ baseRate: RATE_FLOOR, source: "maxVolumeRate" });
@@ -255,8 +259,8 @@ describe("computeRateForBatch", () => {
   });
 
   it("clamps to RATE_FLOOR when rate would go below", () => {
-    // 90 - 20 * 2 = 50, below RATE_FLOOR of 60
-    expect(computeRateForBatch(90, 20, 2)).toBe(RATE_FLOOR);
+    // 90 - 40 * 2 = 10, below RATE_FLOOR of 20
+    expect(computeRateForBatch(90, 40, 2)).toBe(RATE_FLOOR);
   });
 
   it("returns RATE_FLOOR when baseRate equals RATE_FLOOR", () => {
@@ -265,7 +269,7 @@ describe("computeRateForBatch", () => {
   });
 
   it("returns RATE_FLOOR when baseRate is below RATE_FLOOR", () => {
-    expect(computeRateForBatch(50, 0, 2)).toBe(RATE_FLOOR);
+    expect(computeRateForBatch(10, 0, 2)).toBe(RATE_FLOOR);
   });
 
   it("handles stepDrop of 0 (no degradation)", () => {
@@ -330,14 +334,14 @@ describe("computeTotalChaosCost", () => {
   });
 
   it("applies rate floor correctly for many sub-batches", () => {
-    // With baseRate=90, stepDrop=2, the rate hits RATE_FLOOR (60) at batch index 15
-    // (90 - 15*2 = 60). After that, all batches should be at 60.
-    const deckCount = 5000 * 20; // 20 sub-batches
+    // With baseRate=90, stepDrop=2, the rate hits RATE_FLOOR (20) at batch index 35
+    // (90 - 35*2 = 20). After that, all batches should be at 20.
+    const deckCount = 5000 * 40; // 40 sub-batches
     const cost = computeTotalChaosCost(deckCount, 90, 2, 5000, 200);
 
-    // Calculate expected: batches 0-14 degrade, batches 15-19 at RATE_FLOOR
+    // Calculate expected: batches 0-34 degrade, batches 35-39 at RATE_FLOOR
     let expected = 0;
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 40; i++) {
       const rate = Math.max(RATE_FLOOR, 90 - i * 2);
       expected += 5000 * (200 / rate);
     }
@@ -469,6 +473,91 @@ describe("buildRows", () => {
     const probSum = rows.reduce((s, r) => s + r.probability, 0);
     expect(probSum).toBeCloseTo(1, 8);
   });
+
+  it("sets excludeFromEv true for low-confidence cards", () => {
+    const weights: ProfitForecastWeightDTO[] = [
+      { cardName: "Card A", weight: 100, fromBoss: false },
+      { cardName: "Card B", weight: 100, fromBoss: false },
+    ];
+    const prices: Record<string, ProfitForecastCardPriceDTO> = {
+      "Card A": {
+        chaosValue: 10,
+        divineValue: 0.05,
+        source: "exchange",
+        confidence: 1,
+        isAnomalous: false,
+      },
+      "Card B": {
+        chaosValue: 10,
+        divineValue: 0.05,
+        source: "stash",
+        confidence: 3,
+        isAnomalous: false,
+      },
+    };
+    const totalWeight = 200;
+    const rows = buildRows(weights, prices, totalWeight);
+
+    const cardA = rows.find((r) => r.cardName === "Card A")!;
+    const cardB = rows.find((r) => r.cardName === "Card B")!;
+
+    expect(cardA.excludeFromEv).toBe(false);
+    expect(cardA.isAnomalous).toBe(false);
+    expect(cardB.excludeFromEv).toBe(true);
+    expect(cardB.isAnomalous).toBe(false);
+    expect(cardB.confidence).toBe(3);
+  });
+
+  it("sets excludeFromEv true for cards without prices", () => {
+    const weights: ProfitForecastWeightDTO[] = [
+      { cardName: "Card A", weight: 100, fromBoss: false },
+    ];
+    const rows = buildRows(weights, null, 100);
+    expect(rows[0].excludeFromEv).toBe(true);
+    expect(rows[0].hasPrice).toBe(false);
+  });
+
+  it("reads isAnomalous from DTO and sets excludeFromEv accordingly", () => {
+    const weights: ProfitForecastWeightDTO[] = [
+      { cardName: "Normal", weight: 100, fromBoss: false },
+      { cardName: "Anomalous", weight: 100, fromBoss: false },
+    ];
+    const prices: Record<string, ProfitForecastCardPriceDTO> = {
+      Normal: {
+        chaosValue: 1,
+        divineValue: 0.005,
+        source: "exchange",
+        confidence: 1,
+        isAnomalous: false,
+      },
+      Anomalous: {
+        chaosValue: 20,
+        divineValue: 0.1,
+        source: "stash",
+        confidence: 1,
+        isAnomalous: true,
+      },
+    };
+    const totalWeight = 200;
+    const rows = buildRows(weights, prices, totalWeight);
+
+    const normal = rows.find((r) => r.cardName === "Normal")!;
+    expect(normal.isAnomalous).toBe(false);
+    expect(normal.excludeFromEv).toBe(false);
+
+    const anomalous = rows.find((r) => r.cardName === "Anomalous")!;
+    expect(anomalous.isAnomalous).toBe(true);
+    expect(anomalous.excludeFromEv).toBe(true);
+  });
+
+  it("defaults isAnomalous to false when price is null", () => {
+    const weights: ProfitForecastWeightDTO[] = [
+      { cardName: "No Price", weight: 100, fromBoss: false },
+    ];
+    const rows = buildRows(weights, null, 100);
+    expect(rows[0].isAnomalous).toBe(false);
+    expect(rows[0].excludeFromEv).toBe(true); // no price
+  });
 });
 
 describe("computeEvPerDeck", () => {
@@ -483,7 +572,10 @@ describe("computeEvPerDeck", () => {
     for (const w of weights) {
       const price = prices[w.cardName];
       if (price) {
-        expected += (w.weight / totalWeight) * price.chaosValue;
+        const row = rows.find((r) => r.cardName === w.cardName)!;
+        if (!row.excludeFromEv) {
+          expected += (w.weight / totalWeight) * price.chaosValue;
+        }
       }
     }
     expect(ev).toBeCloseTo(expected, 4);
@@ -499,6 +591,74 @@ describe("computeEvPerDeck", () => {
 
     const expected = (1 / totalWeight) * 50000;
     expect(ev).toBeCloseTo(expected, 4);
+  });
+
+  it("excludes low-confidence cards from EV", () => {
+    const weights: ProfitForecastWeightDTO[] = [
+      { cardName: "Good Card", weight: 100, fromBoss: false },
+      { cardName: "Bad Conf", weight: 100, fromBoss: false },
+    ];
+    const prices: Record<string, ProfitForecastCardPriceDTO> = {
+      "Good Card": {
+        chaosValue: 50,
+        divineValue: 0.25,
+        source: "exchange",
+        confidence: 1,
+        isAnomalous: false,
+      },
+      "Bad Conf": {
+        chaosValue: 50,
+        divineValue: 0.25,
+        source: "stash",
+        confidence: 3,
+        isAnomalous: false,
+      },
+    };
+    const totalWeight = 200;
+    const rows = buildRows(weights, prices, totalWeight);
+    const ev = computeEvPerDeck(rows);
+
+    // Only "Good Card" should contribute
+    const expected = (100 / 200) * 50;
+    expect(ev).toBeCloseTo(expected, 4);
+  });
+
+  it("excludes anomalous cards from EV", () => {
+    const weights: ProfitForecastWeightDTO[] = [
+      { cardName: "Normal", weight: 100, fromBoss: false },
+      { cardName: "Anomalous", weight: 100, fromBoss: false },
+    ];
+    const prices: Record<string, ProfitForecastCardPriceDTO> = {
+      Normal: {
+        chaosValue: 50,
+        divineValue: 0.25,
+        source: "exchange",
+        confidence: 1,
+        isAnomalous: false,
+      },
+      Anomalous: {
+        chaosValue: 50,
+        divineValue: 0.25,
+        source: "stash",
+        confidence: 1,
+        isAnomalous: true,
+      },
+    };
+    const totalWeight = 200;
+    const rows = buildRows(weights, prices, totalWeight);
+
+    const anomalousRow = rows.find((r) => r.cardName === "Anomalous")!;
+    expect(anomalousRow.isAnomalous).toBe(true);
+    expect(anomalousRow.excludeFromEv).toBe(true);
+
+    const ev = computeEvPerDeck(rows);
+
+    // Only Normal should contribute to EV
+    const expected = (100 / 200) * 50;
+    expect(ev).toBeCloseTo(expected, 4);
+
+    // Anomalous card has evContribution set but is excluded from sum
+    expect(anomalousRow.evContribution).toBeGreaterThan(0);
   });
 
   it("returns 0 when no rows have prices", () => {
@@ -620,6 +780,8 @@ describe("recomputeDynamicFields", () => {
         evContribution: 0,
         hasPrice: true,
         confidence: 1,
+        isAnomalous: false,
+        excludeFromEv: false,
         chanceInBatch: 0,
         expectedDecks: 0,
         costToPull: 0,
@@ -1461,6 +1623,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
               divineValue: 250,
               source: "exchange",
               confidence: 1,
+              isAnomalous: false,
             },
           },
         },
