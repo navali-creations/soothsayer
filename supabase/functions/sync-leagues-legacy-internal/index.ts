@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
-import { createClient } from "jsr:@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
 
 // Helper function to check if a league should be filtered out
 function shouldFilterLeague(league: any): boolean {
@@ -22,6 +22,82 @@ function shouldFilterLeague(league: any): boolean {
     leagueId.includes("ruthless") ||
     leagueName.includes("ruthless")
   );
+}
+
+/**
+ * Deactivate leagues that are still marked `is_active = true` in the DB
+ * but are no longer present in the latest API response.
+ *
+ * - If a stale league has no `end_at`, we set it to `now` (the API never
+ *   provided one, so we record when we noticed it disappeared).
+ * - If a stale league already has an `end_at`, we only flip `is_active`
+ *   to false without overwriting the existing end date.
+ */
+async function deactivateStaleLeagues(
+  supabase: SupabaseClient,
+  game: string,
+  activeLeagueIds: string[]
+): Promise<number> {
+  if (activeLeagueIds.length === 0) return 0;
+
+  const now = new Date().toISOString();
+  let deactivatedCount = 0;
+
+  // Fetch stale leagues for logging
+  const { data: staleLeagues } = await supabase
+    .from("poe_leagues")
+    .select("league_id, end_at")
+    .eq("game", game)
+    .eq("is_active", true)
+    .not("league_id", "in", `(${activeLeagueIds.join(",")})`);
+
+  if (staleLeagues && staleLeagues.length > 0) {
+    for (const stale of staleLeagues) {
+      console.log(
+        `Deactivating stale ${game} league "${stale.league_id}"${
+          stale.end_at ? "" : ` and setting end_at to ${now}`
+        }`
+      );
+    }
+  }
+
+  // Deactivate stale leagues that have NO end_at — set end_at to now
+  const { error: noEndError, count: noEndCount } = await supabase
+    .from("poe_leagues")
+    .update({ is_active: false, end_at: now }, { count: "exact" })
+    .eq("game", game)
+    .eq("is_active", true)
+    .is("end_at", null)
+    .not("league_id", "in", `(${activeLeagueIds.join(",")})`);
+
+  if (noEndError) {
+    console.error(
+      `Failed to deactivate stale ${game} leagues (end_at IS NULL):`,
+      noEndError
+    );
+  } else {
+    deactivatedCount += noEndCount || 0;
+  }
+
+  // Deactivate stale leagues that already HAVE an end_at — don't overwrite it
+  const { error: hasEndError, count: hasEndCount } = await supabase
+    .from("poe_leagues")
+    .update({ is_active: false }, { count: "exact" })
+    .eq("game", game)
+    .eq("is_active", true)
+    .not("end_at", "is", null)
+    .not("league_id", "in", `(${activeLeagueIds.join(",")})`);
+
+  if (hasEndError) {
+    console.error(
+      `Failed to deactivate stale ${game} leagues (end_at set):`,
+      hasEndError
+    );
+  } else {
+    deactivatedCount += hasEndCount || 0;
+  }
+
+  return deactivatedCount;
 }
 
 Deno.serve(async (req) => {
@@ -46,7 +122,7 @@ Deno.serve(async (req) => {
           persistSession: false,
           autoRefreshToken: false,
         },
-      },
+      }
     );
 
     // Fetch PoE1 leagues
@@ -58,7 +134,7 @@ Deno.serve(async (req) => {
           "User-Agent":
             "Soothsayer/1.0.0 (Supabase Edge Function) (contact: eskrzy@gmail.com)",
         },
-      },
+      }
     );
 
     if (!poe1Response.ok) {
@@ -76,7 +152,7 @@ Deno.serve(async (req) => {
           "User-Agent":
             "Soothsayer/1.0.0 (Supabase Edge Function) (contact: eskrzy@gmail.com)",
         },
-      },
+      }
     );
 
     if (!poe2Response.ok) {
@@ -109,7 +185,7 @@ Deno.serve(async (req) => {
 
     // Filter out unwanted leagues and collect valid league IDs
     const validLeagues = allLeagues.filter(
-      (league) => !shouldFilterLeague(league.raw),
+      (league) => !shouldFilterLeague(league.raw)
     );
 
     const poe1LeagueIds = validLeagues
@@ -136,13 +212,13 @@ Deno.serve(async (req) => {
         },
         {
           onConflict: "game,league_id",
-        },
+        }
       );
 
       if (error) {
         console.error(
           `Failed to upsert ${league.game} league ${league.league_id}:`,
-          error,
+          error
         );
       } else {
         totalSynced++;
@@ -151,51 +227,23 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Instead of deleting, mark stale leagues as inactive to preserve historical data
-    let deactivatedCount = 0;
-
-    // Deactivate stale PoE1 leagues
-    if (poe1LeagueIds.length > 0) {
-      const { error: deactivatePoe1Error, count: poe1DeactivatedCount } =
-        await supabase
-          .from("poe_leagues")
-          .update({ is_active: false }, { count: "exact" })
-          .eq("game", "poe1")
-          .eq("is_active", true)
-          .not("league_id", "in", `(${poe1LeagueIds.join(",")})`);
-
-      if (deactivatePoe1Error) {
-        console.error(
-          "Failed to deactivate stale PoE1 leagues:",
-          deactivatePoe1Error,
-        );
-      } else {
-        deactivatedCount += poe1DeactivatedCount || 0;
-      }
-    }
-
-    // Deactivate stale PoE2 leagues
-    if (poe2LeagueIds.length > 0) {
-      const { error: deactivatePoe2Error, count: poe2DeactivatedCount } =
-        await supabase
-          .from("poe_leagues")
-          .update({ is_active: false }, { count: "exact" })
-          .eq("game", "poe2")
-          .eq("is_active", true)
-          .not("league_id", "in", `(${poe2LeagueIds.join(",")})`);
-
-      if (deactivatePoe2Error) {
-        console.error(
-          "Failed to deactivate stale PoE2 leagues:",
-          deactivatePoe2Error,
-        );
-      } else {
-        deactivatedCount += poe2DeactivatedCount || 0;
-      }
-    }
+    // Instead of deleting, mark stale leagues as inactive to preserve historical data.
+    // If the API never provided an end_at (common for PoE1 challenge leagues), we
+    // stamp the current time so we have a record of when the league disappeared.
+    const poe1Deactivated = await deactivateStaleLeagues(
+      supabase,
+      "poe1",
+      poe1LeagueIds
+    );
+    const poe2Deactivated = await deactivateStaleLeagues(
+      supabase,
+      "poe2",
+      poe2LeagueIds
+    );
+    const deactivatedCount = poe1Deactivated + poe2Deactivated;
 
     console.log(
-      `Synced ${poe1Count} PoE1 leagues and ${poe2Count} PoE2 leagues. Deactivated ${deactivatedCount} stale leagues (historical data preserved).`,
+      `Synced ${poe1Count} PoE1 leagues and ${poe2Count} PoE2 leagues. Deactivated ${deactivatedCount} stale leagues (historical data preserved).`
     );
 
     return new Response(
@@ -206,7 +254,7 @@ Deno.serve(async (req) => {
         poe2Count,
         deactivatedCount,
       }),
-      { headers: { "Content-Type": "application/json" } },
+      { headers: { "Content-Type": "application/json" } }
     );
   } catch (error) {
     console.error("Error in sync-leagues-legacy-internal:", error);

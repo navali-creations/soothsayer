@@ -1,21 +1,44 @@
 {
   "version": "5",
   "specifiers": {
+    "jsr:@std/assert@1": "1.0.18",
+    "jsr:@std/internal@^1.0.12": "1.0.12",
     "jsr:@supabase/functions-js@*": "2.95.3",
-    "jsr:@supabase/functions-js@2.4.4": "2.4.4"
+    "jsr:@supabase/functions-js@2.4.4": "2.4.4",
+    "jsr:@supabase/functions-js@^0.0.0-automated": "0.0.0-jsr-test.1",
+    "jsr:@supabase/supabase-js@2": "2.95.3"
   },
   "jsr": {
+    "@std/assert@1.0.18": {
+      "integrity": "270245e9c2c13b446286de475131dc688ca9abcd94fc5db41d43a219b34d1c78",
+      "dependencies": [
+        "jsr:@std/internal"
+      ]
+    },
+    "@std/internal@1.0.12": {
+      "integrity": "972a634fd5bc34b242024402972cd5143eac68d8dffaca5eaa4dba30ce17b027"
+    },
+    "@supabase/functions-js@0.0.0-jsr-test.1": {
+      "integrity": "b1b37924af1f0011b4753201e1585a37b030e996c6682492e02575eb27d902b2"
+    },
     "@supabase/functions-js@2.4.4": {
       "integrity": "38456509a6e22fb116b118464cbb36357256f9048d3580632b63af91f63769f7"
     },
     "@supabase/functions-js@2.95.3": {
       "integrity": "cedb60df283f2d9dabf39655a8829f2c99d173e5e11a867c46e6987c59a1d582"
+    },
+    "@supabase/supabase-js@2.95.3": {
+      "integrity": "25c43f7be5a6f62c093bab1e4a3f30f217424385e1641dabfe1d8725dda38634",
+      "dependencies": [
+        "jsr:@supabase/functions-js@^0.0.0-automated"
+      ]
     }
   },
   "workspace": {
     "packageJson": {
       "dependencies": [
-        "npm:@biomejs/biome@2.3.12",
+        "npm:@biomejs/biome@2.4.5",
+        "npm:@changesets/changelog-github@~0.5.2",
         "npm:@changesets/cli@^2.29.8",
         "npm:@electron-forge/cli@^7.10.2",
         "npm:@electron-forge/maker-deb@^7.10.2",
@@ -26,48 +49,50 @@
         "npm:@electron-forge/plugin-fuses@^7.10.2",
         "npm:@electron-forge/plugin-vite@^7.10.2",
         "npm:@electron-forge/publisher-github@^7.10.2",
-        "npm:@electron/fuses@^1.8.0",
+        "npm:@electron/fuses@^2.1.0",
         "npm:@electron/rebuild@^4.0.3",
         "npm:@redux-devtools/extension@^3.3.0",
-        "npm:@repere/react@~0.3.2",
-        "npm:@sentry/electron@^7.6.0",
-        "npm:@sentry/vite-plugin@^4.7.0",
-        "npm:@supabase/supabase-js@^2.90.1",
-        "npm:@tailwindcss/vite@^4.1.17",
-        "npm:@tanstack/react-router-devtools@^1.139.11",
-        "npm:@tanstack/react-router@^1.139.11",
+        "npm:@repere/react@~0.3.3",
+        "npm:@sentry/electron@^7.9.0",
+        "npm:@sentry/vite-plugin@^5.1.1",
+        "npm:@supabase/supabase-js@^2.98.0",
+        "npm:@tailwindcss/vite@^4.2.1",
+        "npm:@tanstack/react-router-devtools@^1.163.3",
+        "npm:@tanstack/react-router@^1.163.3",
         "npm:@tanstack/react-table@^8.21.3",
-        "npm:@tanstack/router-plugin@^1.139.11",
+        "npm:@tanstack/router-plugin@^1.164.0",
         "npm:@types/better-sqlite3@^7.6.13",
         "npm:@types/electron-squirrel-startup@^1.0.2",
         "npm:@types/react-dom@^19.2.3",
-        "npm:@types/react@^19.2.7",
-        "npm:@vitejs/plugin-react@^5.1.1",
+        "npm:@types/react@^19.2.14",
+        "npm:@vitejs/plugin-react@^5.1.4",
         "npm:@vitest/coverage-v8@^4.0.18",
         "npm:@vitest/ui@^4.0.18",
         "npm:better-sqlite3@^12.6.2",
         "npm:clsx@^2.1.1",
-        "npm:daisyui@^5.5.5",
+        "npm:daisyui@^5.5.19",
         "npm:dompurify@^3.3.1",
         "npm:electron-devtools-installer@4",
         "npm:electron-squirrel-startup@^1.0.1",
         "npm:electron-store@^11.0.2",
-        "npm:electron@40.0.0",
-        "npm:immer@^11.0.1",
-        "npm:kysely@~0.28.8",
-        "npm:motion@^12.23.26",
-        "npm:react-dom@^19.2.3",
+        "npm:electron@40.6.1",
+        "npm:immer@^11.1.4",
+        "npm:kysely@~0.28.11",
+        "npm:motion@^12.34.4",
+        "npm:react-dom@^19.2.4",
         "npm:react-icons@^5.5.0",
-        "npm:react@^19.2.3",
-        "npm:supabase@^2.74.5",
-        "npm:tailwind-merge@^3.4.0",
-        "npm:tailwindcss@^4.1.17",
+        "npm:react-markdown@^10.1.0",
+        "npm:react@^19.2.4",
+        "npm:rehype-raw@7",
+        "npm:remark-gfm@^4.0.1",
+        "npm:supabase@^2.76.15",
+        "npm:tailwind-merge@^3.5.0",
+        "npm:tailwindcss@^4.2.1",
         "npm:typescript@^5.9.3",
-        "npm:update-electron-app@^3.1.2",
         "npm:vite-plugin-externalize-deps@0.10",
-        "npm:vite@^5.4.21",
+        "npm:vite@^7.3.1",
         "npm:vitest@^4.0.18",
-        "npm:zustand@^5.0.9"
+        "npm:zustand@^5.0.11"
       ]
     }
   }
