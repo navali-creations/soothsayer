@@ -1,5 +1,58 @@
 # soothsayer
 
+## 0.11.0
+
+### Minor Changes
+
+- [`d151bee`](https://github.com/navali-creations/soothsayer/commit/d151beec44835a4d876a9ce0fc9f16156cf30821) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Added:** New **Card Details** page — click any card name in the app to see everything about it in one place.
+
+  - **Card visual** with full rarity glow effects, stack size, reward, and flavour text.
+  - **Market Data tab** with live price from poe.ninja (cached locally for 30 minutes), full set value in divine and chaos, 24h/7d/30d price change indicators, and an interactive price history chart with brush/zoom.
+  - **Your Data tab** with personal drop statistics — total lifetime drops, first discovered date, last seen, average drops per session, and a cumulative drop timeline chart showing your history across leagues.
+  - **Drop statistics** including drop probability, EV contribution per stacked deck, and a "Your Luck" comparison against statistical expectation (based on Prohibited Library weight data).
+  - **Related cards** sidebar showing other cards that share the same reward item or are part of the same divination card chain (e.g. The Patient → The Nurse → The Doctor).
+  - **Sessions list** for the card with server-side sorting by date, drops, or decks opened.
+  - **League selector** in the header to filter all personal data by league.
+  - **External links** to PoE Wiki and poe.ninja for quick reference.
+  - Card names across the entire app (Cards table, Profit Forecast, Rarity Insights, Session Details, Current Session, Overlay) are now clickable links that navigate to the card's detail page.
+
+### Patch Changes
+
+- [`629b06d`](https://github.com/navali-creations/soothsayer/commit/629b06d1b8c59fa04ec293864232da3a4d7041c4) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Improved:** Card weight data now automatically refreshes after app updates.
+
+  - Previously, updating the app to a new version with fresh card data required a manual reload from Settings. The app now detects version changes and re-reads the bundled data automatically on next launch.
+
+- [`629b06d`](https://github.com/navali-creations/soothsayer/commit/629b06d1b8c59fa04ec293864232da3a4d7041c4) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Fixed:** Cards with a weight of zero no longer show incorrect rarity.
+
+  - Cards tracked in the Prohibited Library data with a weight of exactly zero (meaning "unknown/not yet seen") were incorrectly treated as if they weren't in the dataset at all, which could cause them to display the wrong rarity. They are now correctly recognized and shown as "Unknown".
+
+- [`bea26aa`](https://github.com/navali-creations/soothsayer/commit/bea26aa6af4f0936d5d9638e5a66128a7e3ed314) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Improved:** Simplified the privacy & telemetry step during first-time setup.
+
+  - Removed the toggle switches for crash reporting and usage analytics from the setup wizard — both are now enabled by default for new users.
+  - The step now clearly explains what data is collected and names the services used (Sentry for crash reporting, Umami for usage analytics).
+  - You can opt out of either at any time in **Settings → Privacy & Telemetry**.
+
+- [`629b06d`](https://github.com/navali-creations/soothsayer/commit/629b06d1b8c59fa04ec293864232da3a4d7041c4) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Improved:** Smarter handling of new league transitions in card weight data.
+
+  - When a new league column is added to the card weight spreadsheet but has no data yet (all zeros), the app now automatically falls back to the most recent league with real data instead of showing all cards as "unknown" rarity.
+  - If a new column is added with a temporary patch-version header (e.g. "3.28") instead of a league name, the app gracefully skips it and uses the previous league's data until the column is properly labelled.
+
+- [`629b06d`](https://github.com/navali-creations/soothsayer/commit/629b06d1b8c59fa04ec293864232da3a4d7041c4) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Updated:** Prohibited Library card weight data refreshed with latest Keepers league samples.
+
+  - The bundled card weight spreadsheet now includes significantly more data from the Keepers league (sample size increased from ~22k to ~48k decks), improving rarity accuracy across all cards.
+
 ## 0.10.0
 
 ### Minor Changes
