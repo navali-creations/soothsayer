@@ -40,7 +40,7 @@ describe("cardNameToDetailsId", () => {
 
   it("should handle names with colons", () => {
     expect(cardNameToDetailsId("Rebirth: The Forgotten")).toBe(
-      "rebirth-the-forgotten"
+      "rebirth-the-forgotten",
     );
   });
 
@@ -332,28 +332,28 @@ describe("CardDetailsService", () => {
     it("should register the GetPriceHistory channel handler", () => {
       expect(mockIpcMainHandle).toHaveBeenCalledWith(
         "card-details:get-price-history",
-        expect.any(Function)
+        expect.any(Function),
       );
     });
 
     it("should register the GetPersonalAnalytics channel handler", () => {
       expect(mockIpcMainHandle).toHaveBeenCalledWith(
         "card-details:get-personal-analytics",
-        expect.any(Function)
+        expect.any(Function),
       );
     });
 
     it("should register the OpenInMainWindow channel handler", () => {
       expect(mockIpcMainHandle).toHaveBeenCalledWith(
         "card-details:open-in-main-window",
-        expect.any(Function)
+        expect.any(Function),
       );
     });
 
     it("should register the GetRelatedCards channel handler", () => {
       expect(mockIpcMainHandle).toHaveBeenCalledWith(
         "card-details:get-related-cards",
-        expect.any(Function)
+        expect.any(Function),
       );
     });
   });
@@ -366,7 +366,7 @@ describe("CardDetailsService", () => {
     describe("input validation (via IPC handler)", () => {
       function getIpcHandler(): (...args: unknown[]) => Promise<unknown> {
         const call = mockIpcMainHandle.mock.calls.find(
-          ([ch]: [string]) => ch === "card-details:get-price-history"
+          ([ch]: [string]) => ch === "card-details:get-price-history",
         );
         if (!call)
           throw new Error("GetPriceHistory handler was not registered");
@@ -379,7 +379,7 @@ describe("CardDetailsService", () => {
           {} as Electron.IpcMainInvokeEvent,
           "",
           "Settlers",
-          "The Doctor"
+          "The Doctor",
         );
         expect(result).toBeNull();
       });
@@ -390,7 +390,7 @@ describe("CardDetailsService", () => {
           {} as Electron.IpcMainInvokeEvent,
           "poe1",
           "",
-          "The Doctor"
+          "The Doctor",
         );
         expect(result).toBeNull();
       });
@@ -401,7 +401,7 @@ describe("CardDetailsService", () => {
           {} as Electron.IpcMainInvokeEvent,
           "poe1",
           "Settlers",
-          ""
+          "",
         );
         expect(result).toBeNull();
       });
@@ -412,7 +412,7 @@ describe("CardDetailsService", () => {
           {} as Electron.IpcMainInvokeEvent,
           "poe3",
           "Settlers",
-          "The Doctor"
+          "The Doctor",
         );
         expect(result).toBeNull();
       });
@@ -430,7 +430,7 @@ describe("CardDetailsService", () => {
         const result = await service.getPriceHistory(
           "poe1",
           "Settlers",
-          "The Doctor"
+          "The Doctor",
         );
 
         expect(result).not.toBeNull();
@@ -468,7 +468,7 @@ describe("CardDetailsService", () => {
         const result = await service.getPriceHistory(
           "poe1",
           "Settlers",
-          "The Doctor"
+          "The Doctor",
         );
 
         expect(result).not.toBeNull();
@@ -496,7 +496,7 @@ describe("CardDetailsService", () => {
           "the-doctor",
           "The Doctor",
           expect.any(String), // JSON stringified DTO
-          expect.any(String) // fetchedAt ISO timestamp
+          expect.any(String), // fetchedAt ISO timestamp
         );
       });
     });
@@ -516,7 +516,7 @@ describe("CardDetailsService", () => {
         const result = await service.getPriceHistory(
           "poe1",
           "Settlers",
-          "The Doctor"
+          "The Doctor",
         );
 
         expect(result).not.toBeNull();
@@ -538,13 +538,13 @@ describe("CardDetailsService", () => {
 
         expect(mockFetch).toHaveBeenCalledWith(
           expect.stringContaining(
-            "https://poe.ninja/poe1/api/economy/exchange/current/details"
+            "https://poe.ninja/poe1/api/economy/exchange/current/details",
           ),
           expect.objectContaining({
             headers: expect.objectContaining({
               Accept: "application/json",
             }),
-          })
+          }),
         );
 
         const url = mockFetch.mock.calls[0][0] as string;
@@ -584,7 +584,7 @@ describe("CardDetailsService", () => {
         const result = await service.getPriceHistory(
           "poe1",
           "Settlers",
-          "The Doctor"
+          "The Doctor",
         );
 
         expect(result).not.toBeNull();
@@ -607,7 +607,7 @@ describe("CardDetailsService", () => {
         const result = await service.getPriceHistory(
           "poe1",
           "Settlers",
-          "The Doctor"
+          "The Doctor",
         );
 
         expect(result).not.toBeNull();
@@ -626,7 +626,7 @@ describe("CardDetailsService", () => {
 
         expect(mockLoggerError).toHaveBeenCalledWith(
           expect.stringContaining("Failed to fetch price history"),
-          expect.any(Error)
+          expect.any(Error),
         );
       });
     });
@@ -643,7 +643,7 @@ describe("CardDetailsService", () => {
         const result = await service.getPriceHistory(
           "poe1",
           "Settlers",
-          "The Doctor"
+          "The Doctor",
         );
 
         expect(result).toBeNull();
@@ -658,7 +658,7 @@ describe("CardDetailsService", () => {
         await service.getPriceHistory("poe1", "Settlers", "The Doctor");
 
         expect(mockLoggerWarn).toHaveBeenCalledWith(
-          expect.stringContaining("No data available")
+          expect.stringContaining("No data available"),
         );
       });
     });
@@ -678,7 +678,7 @@ describe("CardDetailsService", () => {
         await service.getPriceHistory(
           "poe1",
           "Settlers & Explorers",
-          "The Doctor"
+          "The Doctor",
         );
 
         const url = mockFetch.mock.calls[0][0] as string;
@@ -718,7 +718,7 @@ describe("CardDetailsService", () => {
         expect(repo.getCachedPriceHistory).toHaveBeenCalledWith(
           "poe1",
           "Settlers",
-          "house-of-mirrors"
+          "house-of-mirrors",
         );
       });
     });
@@ -742,7 +742,7 @@ describe("CardDetailsService", () => {
         const result = await service.getPriceHistory(
           "poe1",
           "Settlers",
-          "The Doctor"
+          "The Doctor",
         );
 
         // Should have fallen through to fetch since JSON.parse failed
@@ -768,13 +768,13 @@ describe("CardDetailsService", () => {
         const result = await service.getPriceHistory(
           "poe1",
           "Settlers",
-          "The Doctor"
+          "The Doctor",
         );
 
         // Stale cache parse fails, no fresh data available → null
         expect(result).toBeNull();
         expect(mockLoggerWarn).toHaveBeenCalledWith(
-          expect.stringContaining("Failed to parse stale cached data")
+          expect.stringContaining("Failed to parse stale cached data"),
         );
       });
     });
@@ -801,7 +801,7 @@ describe("CardDetailsService", () => {
       function getIpcHandler() {
         const call = mockIpcMainHandle.mock.calls.find(
           ([channel]: [string]) =>
-            channel === "card-details:get-personal-analytics"
+            channel === "card-details:get-personal-analytics",
         );
         return call?.[1];
       }
@@ -812,7 +812,7 @@ describe("CardDetailsService", () => {
           {} as Electron.IpcMainInvokeEvent,
           "",
           "Settlers",
-          "The Doctor"
+          "The Doctor",
         );
         expect(result).toBeNull();
       });
@@ -823,7 +823,7 @@ describe("CardDetailsService", () => {
           {} as Electron.IpcMainInvokeEvent,
           "poe1",
           "",
-          "The Doctor"
+          "The Doctor",
         );
         expect(result).toBeNull();
       });
@@ -834,7 +834,7 @@ describe("CardDetailsService", () => {
           {} as Electron.IpcMainInvokeEvent,
           "poe1",
           "Settlers",
-          ""
+          "",
         );
         expect(result).toBeNull();
       });
@@ -845,7 +845,7 @@ describe("CardDetailsService", () => {
           {} as Electron.IpcMainInvokeEvent,
           "poe3",
           "Settlers",
-          "The Doctor"
+          "The Doctor",
         );
         expect(result).toBeNull();
       });
@@ -889,7 +889,7 @@ describe("CardDetailsService", () => {
         const result = await service.getPersonalAnalytics(
           "poe1",
           "Settlers",
-          "The Doctor"
+          "The Doctor",
         );
 
         expect(result).not.toBeNull();
@@ -944,7 +944,7 @@ describe("CardDetailsService", () => {
         const result = await service.getPersonalAnalytics(
           "poe1",
           "Settlers",
-          "The Doctor"
+          "The Doctor",
         );
 
         expect(result!.dropTimeline).toHaveLength(3);
@@ -973,7 +973,7 @@ describe("CardDetailsService", () => {
         const result = await service.getPersonalAnalytics(
           "poe1",
           "Settlers",
-          "Rain of Chaos"
+          "Rain of Chaos",
         );
 
         expect(result).not.toBeNull();
@@ -1003,7 +1003,7 @@ describe("CardDetailsService", () => {
         const result = await service.getPersonalAnalytics(
           "poe1",
           "Settlers",
-          "The Wretched"
+          "The Wretched",
         );
 
         expect(result).not.toBeNull();
@@ -1023,7 +1023,7 @@ describe("CardDetailsService", () => {
         const result = await service.getPersonalAnalytics(
           "poe1",
           "Settlers",
-          "Unknown Card"
+          "Unknown Card",
         );
 
         expect(result).not.toBeNull();
@@ -1055,7 +1055,7 @@ describe("CardDetailsService", () => {
         const result = await service.getPersonalAnalytics(
           "poe1",
           "Settlers",
-          "Rain of Chaos"
+          "Rain of Chaos",
         );
 
         expect(result!.sessionCount).toBe(1);
@@ -1071,13 +1071,13 @@ describe("CardDetailsService", () => {
       it("should return null when a repository query throws", async () => {
         const repo = getRepoMock();
         repo.getCardPersonalStats.mockRejectedValue(
-          new Error("DB connection failed")
+          new Error("DB connection failed"),
         );
 
         const result = await service.getPersonalAnalytics(
           "poe1",
           "Settlers",
-          "The Doctor"
+          "The Doctor",
         );
 
         expect(result).toBeNull();
@@ -1091,13 +1091,13 @@ describe("CardDetailsService", () => {
         const result = await service.getPersonalAnalytics(
           "poe1",
           "Settlers",
-          "The Doctor"
+          "The Doctor",
         );
 
         expect(result).toBeNull();
         expect(mockLoggerError).toHaveBeenCalledWith(
           expect.stringContaining("Failed to get personal analytics"),
-          expect.any(Error)
+          expect.any(Error),
         );
       });
     });
@@ -1113,26 +1113,26 @@ describe("CardDetailsService", () => {
         expect(repo.getCardPersonalStats).toHaveBeenCalledWith(
           "poe1",
           "The Doctor",
-          undefined
+          undefined,
         );
         expect(repo.getFromBoss).toHaveBeenCalledWith("poe1", "The Doctor");
         expect(repo.getProhibitedLibraryData).toHaveBeenCalledWith(
           "poe1",
           "Settlers",
-          "The Doctor"
+          "The Doctor",
         );
         expect(repo.getDropTimeline).toHaveBeenCalledWith(
           "poe1",
           "The Doctor",
-          undefined
+          undefined,
         );
         expect(repo.getTotalDecksOpenedAllSessions).toHaveBeenCalledWith(
           "poe1",
-          undefined
+          undefined,
         );
         expect(repo.getFirstSessionStartDate).toHaveBeenCalledWith(
           "poe1",
-          undefined
+          undefined,
         );
       });
     });
@@ -1152,7 +1152,7 @@ describe("CardDetailsService", () => {
         const result = await service.getPersonalAnalytics(
           "poe1",
           "Settlers",
-          "The Doctor"
+          "The Doctor",
         );
 
         // 7 / 3 = 2.333... → should be rounded to 2.33
@@ -1167,7 +1167,7 @@ describe("CardDetailsService", () => {
     describe("input validation (via IPC handler)", () => {
       function getIpcHandler(): (...args: unknown[]) => Promise<unknown> {
         const call = mockIpcMainHandle.mock.calls.find(
-          ([ch]: [string]) => ch === "card-details:get-related-cards"
+          ([ch]: [string]) => ch === "card-details:get-related-cards",
         );
         if (!call)
           throw new Error("GetRelatedCards handler was not registered");
@@ -1182,7 +1182,7 @@ describe("CardDetailsService", () => {
           {} as Electron.IpcMainInvokeEvent,
           "",
           "The Doctor",
-          "<span>Headhunter</span>"
+          "<span>Headhunter</span>",
         );
         expect(result).toEqual(emptyResult);
       });
@@ -1193,7 +1193,7 @@ describe("CardDetailsService", () => {
           {} as Electron.IpcMainInvokeEvent,
           "poe1",
           "",
-          "<span>Headhunter</span>"
+          "<span>Headhunter</span>",
         );
         expect(result).toEqual(emptyResult);
       });
@@ -1204,7 +1204,7 @@ describe("CardDetailsService", () => {
           {} as Electron.IpcMainInvokeEvent,
           "poe3",
           "The Doctor",
-          "<span>Headhunter</span>"
+          "<span>Headhunter</span>",
         );
         expect(result).toEqual(emptyResult);
       });
@@ -1215,7 +1215,7 @@ describe("CardDetailsService", () => {
       // The service now fetches raw reward_html from DB instead of using
       // the cleaned version passed from the renderer
       repo.getCardRewardHtml.mockResolvedValueOnce(
-        '<span class="tc -unique">[[Headhunter|Headhunter]]</span>'
+        '<span class="tc -unique">[[Headhunter|Headhunter]]</span>',
       );
       const mockSimilar = [
         {
@@ -1247,7 +1247,7 @@ describe("CardDetailsService", () => {
         "Headhunter",
         "The Doctor",
         20,
-        undefined
+        undefined,
       );
       // Results should be in the similarCards array with relationship type "similar"
       expect(result).toEqual({
@@ -1280,7 +1280,7 @@ describe("CardDetailsService", () => {
     it("should return empty result when repository throws", async () => {
       const repo = getRepoMock();
       repo.getCardRewardHtml.mockResolvedValueOnce(
-        '<span class="tc -unique">[[Headhunter|Headhunter]]</span>'
+        '<span class="tc -unique">[[Headhunter|Headhunter]]</span>',
       );
       repo.findCardsByRewardMatch.mockRejectedValue(new Error("DB error"));
 
@@ -1289,7 +1289,7 @@ describe("CardDetailsService", () => {
       expect(result).toEqual({ similarCards: [], chainCards: [] });
       expect(mockLoggerError).toHaveBeenCalledWith(
         expect.stringContaining("Failed to get related cards"),
-        expect.any(Error)
+        expect.any(Error),
       );
     });
 
@@ -1300,11 +1300,11 @@ describe("CardDetailsService", () => {
       // The Nurse rewards The Doctor (a divination card)
       repo.getCardRewardHtml
         .mockResolvedValueOnce(
-          '<span class="tc -divination">[[The Doctor|The Doctor]]</span>'
+          '<span class="tc -divination">[[The Doctor|The Doctor]]</span>',
         )
         // Chain resolution: The Doctor rewards Headhunter (terminal)
         .mockResolvedValueOnce(
-          '<span class="tc -unique">[[Headhunter|Headhunter]]</span>'
+          '<span class="tc -unique">[[Headhunter|Headhunter]]</span>',
         );
 
       // findCardByName returns The Doctor's card data (chain card)
@@ -1333,23 +1333,23 @@ describe("CardDetailsService", () => {
         "Headhunter",
         "The Nurse",
         20,
-        undefined
+        undefined,
       );
       // Should include The Doctor as a chain card
       expect(repo.findCardByName).toHaveBeenCalledWith(
         "poe1",
         "The Doctor",
-        undefined
+        undefined,
       );
       expect(result.chainCards).toContainEqual(
-        expect.objectContaining({ name: "The Doctor", relationship: "chain" })
+        expect.objectContaining({ name: "The Doctor", relationship: "chain" }),
       );
     });
 
     it("should skip Corrupted and Two-Implicit modifier tags in reward HTML", async () => {
       const repo = getRepoMock();
       repo.getCardRewardHtml.mockResolvedValueOnce(
-        '<span class="tc -unique">[[Headhunter|Headhunter]]</span><br><span class="tc -corrupted">[[Corrupted]]</span>'
+        '<span class="tc -unique">[[Headhunter|Headhunter]]</span><br><span class="tc -corrupted">[[Corrupted]]</span>',
       );
       repo.findCardsByRewardMatch.mockResolvedValue([]);
 
@@ -1361,14 +1361,14 @@ describe("CardDetailsService", () => {
         "Headhunter",
         "The Fiend",
         20,
-        undefined
+        undefined,
       );
     });
 
     it("should also search for cards that reward the current card (upstream)", async () => {
       const repo = getRepoMock();
       repo.getCardRewardHtml.mockResolvedValueOnce(
-        '<span class="tc -unique">[[Headhunter|Headhunter]]</span>'
+        '<span class="tc -unique">[[Headhunter|Headhunter]]</span>',
       );
       repo.findCardsByRewardMatch.mockResolvedValue([]);
 
@@ -1380,7 +1380,7 @@ describe("CardDetailsService", () => {
         "The Doctor",
         "The Doctor",
         10,
-        undefined
+        undefined,
       );
     });
 
@@ -1388,7 +1388,7 @@ describe("CardDetailsService", () => {
       const repo = getRepoMock();
       // The Doctor rewards Headhunter (terminal, not a div card)
       repo.getCardRewardHtml.mockResolvedValueOnce(
-        '<span class="tc -unique">[[Headhunter|Headhunter]]</span>'
+        '<span class="tc -unique">[[Headhunter|Headhunter]]</span>',
       );
 
       const nurseCard = {
@@ -1421,15 +1421,15 @@ describe("CardDetailsService", () => {
       // The Patient rewards The Nurse (a div card)
       repo.getCardRewardHtml
         .mockResolvedValueOnce(
-          '<span class="tc -divination">[[The Nurse|The Nurse]]</span>'
+          '<span class="tc -divination">[[The Nurse|The Nurse]]</span>',
         )
         // The Nurse rewards The Doctor (a div card)
         .mockResolvedValueOnce(
-          '<span class="tc -divination">[[The Doctor|The Doctor]]</span>'
+          '<span class="tc -divination">[[The Doctor|The Doctor]]</span>',
         )
         // The Doctor rewards Headhunter (terminal)
         .mockResolvedValueOnce(
-          '<span class="tc -unique">[[Headhunter|Headhunter]]</span>'
+          '<span class="tc -unique">[[Headhunter|Headhunter]]</span>',
         );
 
       // findCardByName resolves chain cards discovered during traversal
@@ -1486,21 +1486,21 @@ describe("CardDetailsService", () => {
 
       // The Intern should appear as a chain card (found via 4b upstream path)
       expect(result.chainCards).toContainEqual(
-        expect.objectContaining({ name: "The Intern", relationship: "chain" })
+        expect.objectContaining({ name: "The Intern", relationship: "chain" }),
       );
       // The Nurse and The Doctor should also be chain cards (from traversal)
       expect(result.chainCards).toContainEqual(
-        expect.objectContaining({ name: "The Nurse", relationship: "chain" })
+        expect.objectContaining({ name: "The Nurse", relationship: "chain" }),
       );
       expect(result.chainCards).toContainEqual(
-        expect.objectContaining({ name: "The Doctor", relationship: "chain" })
+        expect.objectContaining({ name: "The Doctor", relationship: "chain" }),
       );
     });
 
     it("should sort related cards by rarity (rarest first) using PL rarity when available", async () => {
       const repo = getRepoMock();
       repo.getCardRewardHtml.mockResolvedValueOnce(
-        '<span class="tc -unique">[[Headhunter|Headhunter]]</span>'
+        '<span class="tc -unique">[[Headhunter|Headhunter]]</span>',
       );
 
       const cardA = {
@@ -1574,7 +1574,7 @@ describe("CardDetailsService", () => {
   describe("openCardInMainWindow (via IPC handler)", () => {
     function getIpcHandler(): (...args: unknown[]) => Promise<unknown> {
       const call = mockIpcMainHandle.mock.calls.find(
-        ([channel]: [string]) => channel === "card-details:open-in-main-window"
+        ([channel]: [string]) => channel === "card-details:open-in-main-window",
       );
       if (!call) throw new Error("OpenInMainWindow handler not registered");
       return call[1];
@@ -1588,7 +1588,7 @@ describe("CardDetailsService", () => {
       expect(mockMainWindowGetWebContents).toHaveBeenCalled();
       expect(mockMainWindowWebContentsSend).toHaveBeenCalledWith(
         "card-details:navigate-to-card",
-        "The Doctor"
+        "The Doctor",
       );
     });
 
@@ -1599,7 +1599,7 @@ describe("CardDetailsService", () => {
       expect(mockMainWindowShow).not.toHaveBeenCalled();
       expect(mockLoggerWarn).toHaveBeenCalledWith(
         "OpenInMainWindow called with invalid cardName:",
-        ""
+        "",
       );
     });
 
@@ -1610,7 +1610,7 @@ describe("CardDetailsService", () => {
       expect(mockMainWindowShow).not.toHaveBeenCalled();
       expect(mockLoggerWarn).toHaveBeenCalledWith(
         "OpenInMainWindow called with invalid cardName:",
-        null
+        null,
       );
     });
 
@@ -1621,7 +1621,7 @@ describe("CardDetailsService", () => {
       expect(mockMainWindowShow).not.toHaveBeenCalled();
       expect(mockLoggerWarn).toHaveBeenCalledWith(
         "OpenInMainWindow called with invalid cardName:",
-        42
+        42,
       );
     });
 
@@ -1634,7 +1634,7 @@ describe("CardDetailsService", () => {
       expect(mockMainWindowShow).toHaveBeenCalled();
       expect(mockMainWindowWebContentsSend).not.toHaveBeenCalled();
       expect(mockLoggerWarn).toHaveBeenCalledWith(
-        expect.stringContaining("Cannot navigate to")
+        expect.stringContaining("Cannot navigate to"),
       );
     });
 
@@ -1650,7 +1650,7 @@ describe("CardDetailsService", () => {
       expect(mockMainWindowShow).toHaveBeenCalled();
       expect(mockMainWindowWebContentsSend).not.toHaveBeenCalled();
       expect(mockLoggerWarn).toHaveBeenCalledWith(
-        expect.stringContaining("Cannot navigate to")
+        expect.stringContaining("Cannot navigate to"),
       );
     });
 
@@ -1659,7 +1659,7 @@ describe("CardDetailsService", () => {
       await handler(null, "House of Mirrors");
 
       expect(mockLoggerLog).toHaveBeenCalledWith(
-        expect.stringContaining("House of Mirrors")
+        expect.stringContaining("House of Mirrors"),
       );
     });
   });
@@ -1683,7 +1683,7 @@ describe("CardDetailsService", () => {
       it("should register the ResolveCardBySlug channel handler", () => {
         expect(mockIpcMainHandle).toHaveBeenCalledWith(
           "card-details:resolve-card-by-slug",
-          expect.any(Function)
+          expect.any(Function),
         );
       });
     });
@@ -1691,7 +1691,7 @@ describe("CardDetailsService", () => {
     describe("input validation (via IPC handler)", () => {
       function getIpcHandler(): (...args: unknown[]) => Promise<unknown> {
         const call = mockIpcMainHandle.mock.calls.find(
-          ([ch]: [string]) => ch === "card-details:resolve-card-by-slug"
+          ([ch]: [string]) => ch === "card-details:resolve-card-by-slug",
         );
         if (!call)
           throw new Error("ResolveCardBySlug handler was not registered");
@@ -1703,7 +1703,7 @@ describe("CardDetailsService", () => {
         const result = await handler(
           {} as Electron.IpcMainInvokeEvent,
           "",
-          "the-doctor"
+          "the-doctor",
         );
         expect(result).toBeNull();
       });
@@ -1713,7 +1713,7 @@ describe("CardDetailsService", () => {
         const result = await handler(
           {} as Electron.IpcMainInvokeEvent,
           "poe1",
-          ""
+          "",
         );
         expect(result).toBeNull();
       });
@@ -1723,7 +1723,7 @@ describe("CardDetailsService", () => {
         const result = await handler(
           {} as Electron.IpcMainInvokeEvent,
           "poe3",
-          "the-doctor"
+          "the-doctor",
         );
         expect(result).toBeNull();
       });
@@ -1741,7 +1741,7 @@ describe("CardDetailsService", () => {
           "poe1",
           "the-doctor",
           "Settlers",
-          "Keepers"
+          "Keepers",
         );
 
         expect(result).not.toBeNull();
@@ -1763,12 +1763,12 @@ describe("CardDetailsService", () => {
         const result = await service.resolveCardBySlug(
           "poe1",
           "the-doctor",
-          "Settlers"
+          "Settlers",
         );
 
         expect(result).not.toBeNull();
         expect((result as { card: { name: string } }).card.name).toBe(
-          "The Doctor"
+          "The Doctor",
         );
       });
 
@@ -1780,7 +1780,7 @@ describe("CardDetailsService", () => {
         const result = await service.resolveCardBySlug(
           "poe1",
           "nonexistent-card",
-          "Settlers"
+          "Settlers",
         );
 
         expect(result).toBeNull();
@@ -1798,14 +1798,14 @@ describe("CardDetailsService", () => {
           "poe1",
           "the-doctor",
           "Settlers",
-          "Keepers"
+          "Keepers",
         );
 
         expect(mockDivCardsGetAllByGame).toHaveBeenCalledWith(
           "poe1",
           undefined,
           null,
-          "Settlers"
+          "Settlers",
         );
 
         // selectedLeague "Keepers" should be passed through to getPersonalAnalytics
@@ -1813,7 +1813,7 @@ describe("CardDetailsService", () => {
         expect(repo.getCardPersonalStats).toHaveBeenCalledWith(
           "poe1",
           "The Doctor",
-          "Keepers"
+          "Keepers",
         );
       });
 
@@ -1843,7 +1843,7 @@ describe("CardDetailsService", () => {
         const result = await service.resolveCardBySlug(
           "poe1",
           "the-doctor",
-          "Settlers"
+          "Settlers",
         );
 
         expect(result).not.toBeNull();
@@ -1856,19 +1856,19 @@ describe("CardDetailsService", () => {
 
       it("should return null when DivinationCardsService throws", async () => {
         mockDivCardsGetAllByGame.mockRejectedValue(
-          new Error("Service unavailable")
+          new Error("Service unavailable"),
         );
 
         const result = await service.resolveCardBySlug(
           "poe1",
           "the-doctor",
-          "Settlers"
+          "Settlers",
         );
 
         expect(result).toBeNull();
         expect(mockLoggerError).toHaveBeenCalledWith(
           expect.stringContaining("Failed to resolve card by slug"),
-          expect.any(Error)
+          expect.any(Error),
         );
       });
 
@@ -1883,7 +1883,7 @@ describe("CardDetailsService", () => {
         const result = await service.resolveCardBySlug(
           "poe1",
           "the-king-s-blade",
-          "Settlers"
+          "Settlers",
         );
 
         expect(result).not.toBeNull();
@@ -1902,26 +1902,26 @@ describe("CardDetailsService", () => {
         "poe1",
         "Settlers",
         "The Doctor",
-        "Keepers"
+        "Keepers",
       );
 
       expect(repo.getCardPersonalStats).toHaveBeenCalledWith(
         "poe1",
         "The Doctor",
-        "Keepers"
+        "Keepers",
       );
       expect(repo.getDropTimeline).toHaveBeenCalledWith(
         "poe1",
         "The Doctor",
-        "Keepers"
+        "Keepers",
       );
       expect(repo.getTotalDecksOpenedAllSessions).toHaveBeenCalledWith(
         "poe1",
-        "Keepers"
+        "Keepers",
       );
       expect(repo.getFirstSessionStartDate).toHaveBeenCalledWith(
         "poe1",
-        "Keepers"
+        "Keepers",
       );
     });
 
@@ -1932,22 +1932,22 @@ describe("CardDetailsService", () => {
         "poe1",
         "Settlers",
         "The Doctor",
-        "all"
+        "all",
       );
 
       expect(repo.getCardPersonalStats).toHaveBeenCalledWith(
         "poe1",
         "The Doctor",
-        undefined
+        undefined,
       );
       expect(repo.getDropTimeline).toHaveBeenCalledWith(
         "poe1",
         "The Doctor",
-        undefined
+        undefined,
       );
       expect(repo.getTotalDecksOpenedAllSessions).toHaveBeenCalledWith(
         "poe1",
-        undefined
+        undefined,
       );
     });
 
@@ -1959,7 +1959,7 @@ describe("CardDetailsService", () => {
       expect(repo.getCardPersonalStats).toHaveBeenCalledWith(
         "poe1",
         "The Doctor",
-        undefined
+        undefined,
       );
     });
   });
@@ -1980,7 +1980,7 @@ describe("CardDetailsService", () => {
       const result = await service.getPersonalAnalytics(
         "poe1",
         "Settlers",
-        "The Doctor"
+        "The Doctor",
       );
 
       expect(result).not.toBeNull();
@@ -2002,7 +2002,7 @@ describe("CardDetailsService", () => {
       const result = await service.getPersonalAnalytics(
         "poe1",
         "Settlers",
-        "The Doctor"
+        "The Doctor",
       );
 
       expect(result).not.toBeNull();
@@ -2018,7 +2018,7 @@ describe("CardDetailsService", () => {
       const repo = getRepoMock();
       // Use a very recent start date so approxEnd > now
       const futureLeagueStart = new Date(
-        Date.now() - 7 * 24 * 60 * 60 * 1000
+        Date.now() - 7 * 24 * 60 * 60 * 1000,
       ).toISOString(); // 1 week ago
       repo.getLeagueDateRanges.mockResolvedValue([
         {
@@ -2031,7 +2031,7 @@ describe("CardDetailsService", () => {
       const result = await service.getPersonalAnalytics(
         "poe1",
         "Settlers",
-        "The Doctor"
+        "The Doctor",
       );
 
       expect(result).not.toBeNull();
@@ -2056,7 +2056,7 @@ describe("CardDetailsService", () => {
       const result = await service.getPersonalAnalytics(
         "poe1",
         "Settlers",
-        "The Doctor"
+        "The Doctor",
       );
 
       expect(result).not.toBeNull();
@@ -2072,7 +2072,7 @@ describe("CardDetailsService", () => {
       const result = await service.getPersonalAnalytics(
         "poe1",
         "Settlers",
-        "The Doctor"
+        "The Doctor",
       );
 
       expect(result).not.toBeNull();
@@ -2099,7 +2099,7 @@ describe("CardDetailsService", () => {
       const result = await service.getPersonalAnalytics(
         "poe1",
         "Settlers",
-        "The Doctor"
+        "The Doctor",
       );
 
       expect(result).not.toBeNull();
@@ -2129,7 +2129,7 @@ describe("CardDetailsService", () => {
       const result = await service.getPersonalAnalytics(
         "poe1",
         "Settlers",
-        "The Doctor"
+        "The Doctor",
       );
 
       expect(result).not.toBeNull();
@@ -2153,7 +2153,7 @@ describe("CardDetailsService", () => {
       const result = await service.getPersonalAnalytics(
         "poe1",
         "Settlers",
-        "The Doctor"
+        "The Doctor",
       );
 
       expect(result).not.toBeNull();
@@ -2167,7 +2167,7 @@ describe("CardDetailsService", () => {
       const result = await service.getPersonalAnalytics(
         "poe1",
         "Settlers",
-        "The Doctor"
+        "The Doctor",
       );
 
       expect(result).not.toBeNull();
@@ -2181,7 +2181,7 @@ describe("CardDetailsService", () => {
       const result = await service.getPersonalAnalytics(
         "poe1",
         "Settlers",
-        "The Doctor"
+        "The Doctor",
       );
 
       expect(result).not.toBeNull();
@@ -2220,7 +2220,7 @@ describe("CardDetailsService", () => {
       const result = await service.getPersonalAnalytics(
         "poe1",
         "Settlers",
-        "The Doctor"
+        "The Doctor",
       );
 
       expect(result).not.toBeNull();
