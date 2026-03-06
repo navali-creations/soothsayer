@@ -708,12 +708,16 @@ describe("SessionsService — IPC handlers", () => {
       expect(mockRepoGetSessionCountByCard).toHaveBeenCalledWith(
         "poe1",
         "Doctor",
+        undefined,
       );
       expect(mockRepoSearchSessionsByCard).toHaveBeenCalledWith(
         "poe1",
         "Doctor",
         20,
         0,
+        undefined,
+        undefined,
+        undefined,
       );
       expect(result).toEqual({
         sessions: SAMPLE_SESSION_SUMMARIES,
@@ -734,6 +738,9 @@ describe("SessionsService — IPC handlers", () => {
         "Chaos",
         15,
         30,
+        undefined,
+        undefined,
+        undefined,
       );
     });
 
@@ -867,12 +874,16 @@ describe("SessionsService — IPC handlers", () => {
       expect(mockRepoGetSessionCountByCard).toHaveBeenCalledWith(
         "poe2",
         "Some Card",
+        undefined,
       );
       expect(mockRepoSearchSessionsByCard).toHaveBeenCalledWith(
         "poe2",
         "Some Card",
         10,
         0,
+        undefined,
+        undefined,
+        undefined,
       );
     });
 
@@ -895,6 +906,9 @@ describe("SessionsService — IPC handlers", () => {
         "Doctor",
         20,
         0,
+        undefined,
+        undefined,
+        undefined,
       );
     });
   });

@@ -5,6 +5,7 @@ import { Flex } from "../..";
 
 type PageHeaderProps = {
   title: string;
+  titleClassName?: string;
   subtitle?: ReactNode;
   actions?: ReactNode;
 };
@@ -39,13 +40,20 @@ const headerActionsVariants: Variants = {
   },
 };
 
-const PageHeader = ({ title, subtitle, actions }: PageHeaderProps) => {
+const PageHeader = ({
+  title,
+  titleClassName,
+  subtitle,
+  actions,
+}: PageHeaderProps) => {
   return (
     <Flex className="justify-between items-baseline">
       <motion.div variants={headerTitleVariants}>
         <Flex className="flex-col">
-          <h1 className="text-3xl font-bold">{title}</h1>
-          {subtitle && <p className="text-base-content/70">{subtitle}</p>}
+          <h1 className={`text-3xl font-bold ${titleClassName ?? ""}`}>
+            {title}
+          </h1>
+          {subtitle && <div className="text-base-content/70">{subtitle}</div>}
         </Flex>
       </motion.div>
       {actions && (

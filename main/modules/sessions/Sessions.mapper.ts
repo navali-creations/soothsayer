@@ -5,7 +5,7 @@ import type { SessionSummaryDTO } from "./Sessions.dto";
  */
 export class SessionsMapper {
   static toSessionSummaryDTO(row: any): SessionSummaryDTO {
-    return {
+    const dto: SessionSummaryDTO = {
       sessionId: row.sessionId,
       game: row.game,
       league: row.league,
@@ -22,5 +22,11 @@ export class SessionsMapper {
       stackedDeckChaosCost: row.stackedDeckChaosCost,
       isActive: Boolean(row.isActive),
     };
+
+    if (row.cardCount != null) {
+      dto.cardCount = row.cardCount;
+    }
+
+    return dto;
   }
 }

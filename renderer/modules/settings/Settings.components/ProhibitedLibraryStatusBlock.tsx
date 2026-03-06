@@ -3,26 +3,7 @@ import { FiDatabase, FiRefreshCw } from "react-icons/fi";
 
 import { Button } from "~/renderer/components";
 import { useBoundStore } from "~/renderer/store";
-
-/**
- * Formats an ISO timestamp into a human-readable relative time string.
- * e.g. "2 minutes ago", "3 hours ago", "1 day ago"
- */
-function formatRelativeTime(isoTimestamp: string): string {
-  const date = new Date(isoTimestamp);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-
-  const seconds = Math.floor(diffMs / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-
-  if (days > 0) return `${days} day${days !== 1 ? "s" : ""} ago`;
-  if (hours > 0) return `${hours} hour${hours !== 1 ? "s" : ""} ago`;
-  if (minutes > 0) return `${minutes} minute${minutes !== 1 ? "s" : ""} ago`;
-  return "just now";
-}
+import { formatRelativeTime } from "~/renderer/utils";
 
 const ProhibitedLibraryStatusBlock = () => {
   const {

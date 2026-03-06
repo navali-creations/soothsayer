@@ -267,6 +267,18 @@ export interface UserPreferencesTable {
  * Main database interface
  * Maps table names to their types
  */
+export interface CardPriceHistoryCacheTable {
+  id: ColumnType<number, never, never>; // Auto-increment
+  game: string; // "poe1" | "poe2"
+  league: string;
+  details_id: string;
+  card_name: string;
+  response_data: string; // JSON blob of CardPriceHistoryDTO
+  fetched_at: string; // ISO timestamp of original poe.ninja fetch
+  created_at: ColumnType<string, string | undefined, never>;
+  updated_at: ColumnType<string, string | undefined, string | undefined>;
+}
+
 export interface Database {
   global_stats: GlobalStatsTable;
   leagues: LeaguesTable;
@@ -281,6 +293,7 @@ export interface Database {
   divination_card_rarities: DivinationCardRaritiesTable;
   poe_leagues_cache: PoeLeaguesCacheTable;
   poe_leagues_cache_metadata: PoeLeaguesCacheMetadataTable;
+  card_price_history_cache: CardPriceHistoryCacheTable;
   migrations: MigrationsTable;
   user_settings: UserSettingsTable;
   filter_metadata: FilterMetadataTable;
@@ -309,3 +322,4 @@ export type ProhibitedLibraryCardWeightsRow =
   Selectable<ProhibitedLibraryCardWeightsTable>;
 export type ProhibitedLibraryCacheMetadataRow =
   Selectable<ProhibitedLibraryCacheMetadataTable>;
+export type CardPriceHistoryCacheRow = Selectable<CardPriceHistoryCacheTable>;

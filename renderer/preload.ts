@@ -3,6 +3,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import { AnalyticsAPI } from "~/main/modules/analytics/Analytics.api";
 import { AppAPI } from "~/main/modules/app/App.api";
 import { AppSetupAPI } from "~/main/modules/app-setup/AppSetup.api";
+import { CardDetailsAPI } from "~/main/modules/card-details/CardDetails.api";
 import { CurrentSessionAPI } from "~/main/modules/current-session/CurrentSession.api";
 import { DataStoreAPI } from "~/main/modules/data-store/DataStore.api";
 import { DivinationCardsApi } from "~/main/modules/divination-cards/DivinationCards.api";
@@ -26,6 +27,7 @@ contextBridge.exposeInMainWorld("electron", {
     export: () => ipcRenderer.invoke("export-divination-cards-csv"),
   },
 
+  cardDetails: CardDetailsAPI,
   session: CurrentSessionAPI,
   sessions: SessionsAPI,
   snapshots: SnapshotAPI,

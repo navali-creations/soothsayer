@@ -1,6 +1,11 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
+// ─── Card Slug ─────────────────────────────────────────────────────────────
+
+// Re-export from the single source of truth shared between main & renderer.
+export { cardNameToSlug } from "~/types/card-slug";
+
 import type {
   DiscoveredRarityInsightsDTO,
   RaritySource,
@@ -10,6 +15,40 @@ import type { Rarity } from "~/types/data-stores";
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
+
+// ─── Relative Time Formatting ──────────────────────────────────────────────
+
+/**
+ * Format an ISO timestamp as a compact relative time string.
+ *
+ * Returns shorthand like "just now", "3m ago", "2h ago", "5d ago",
+ * "2 months ago", "1 year ago".
+ *
+ * Suitable for badges, cache indicators, and other compact UI elements.
+ */
+export function formatRelativeTime(isoString: string): string {
+  const diffMs = Date.now() - new Date(isoString).getTime();
+  const diffMins = Math.floor(diffMs / 60_000);
+
+  if (diffMins < 1) return "just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 30) return `${diffDays}d ago`;
+
+  if (diffDays < 365) {
+    const months = Math.floor(diffDays / 30);
+    return `${months} month${months !== 1 ? "s" : ""} ago`;
+  }
+
+  const years = Math.floor(diffDays / 365);
+  return `${years} year${years !== 1 ? "s" : ""} ago`;
+}
+
+// ─── Currency Formatting ───────────────────────────────────────────────────
 
 export function formatCurrency(
   chaosValue: number,

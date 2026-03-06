@@ -13,6 +13,7 @@ import {
 import {
   AnalyticsService,
   AppService,
+  CardDetailsService,
   ClientLogReaderService,
   CsvService,
   CurrentSessionService,
@@ -243,6 +244,10 @@ class MainWindowService {
     // bundled CSV and writing to SQLite on every app startup.
     ProhibitedLibraryService.getInstance();
     console.log("[Init] ✓ Prohibited Library (lazy)");
+
+    // 5c. Card Details (price history from poe.ninja, cached in SQLite)
+    CardDetailsService.getInstance();
+    console.log("[Init] ✓ Card Details");
 
     // 6. Snapshot service (depends on database + Supabase)
     SnapshotService.getInstance();

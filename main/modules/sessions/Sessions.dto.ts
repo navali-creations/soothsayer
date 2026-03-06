@@ -18,6 +18,8 @@ export interface SessionSummaryDTO {
   stashChaosToDivine: number;
   stackedDeckChaosCost: number;
   isActive: boolean;
+  /** Number of this specific card found in the session (only set by searchByCard) */
+  cardCount?: number;
 }
 
 export interface SessionsPageDTO {

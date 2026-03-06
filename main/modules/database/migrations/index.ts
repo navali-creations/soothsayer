@@ -7,6 +7,7 @@ import { migration_20260225_230000_add_overlay_font_size_and_main_window_bounds 
 import { migration_20260226_134100_add_overlay_toolbar_font_size } from "./20260226_134100_add_overlay_toolbar_font_size";
 import { migration_20260227_182400_add_stacked_deck_max_volume_rate } from "./20260227_182400_add_stacked_deck_max_volume_rate";
 import { migration_20260302_192700_add_telemetry_settings } from "./20260302_192700_add_telemetry_settings";
+import { migration_20260305_014700_add_card_price_history_cache } from "./20260305_014700_add_card_price_history_cache";
 import type { Migration } from "./Migration.interface";
 
 /**
@@ -26,6 +27,7 @@ export const migrations: Migration[] = [
   migration_20260226_134100_add_overlay_toolbar_font_size,
   migration_20260227_182400_add_stacked_deck_max_volume_rate,
   migration_20260302_192700_add_telemetry_settings,
+  migration_20260305_014700_add_card_price_history_cache,
 ];
 
 export type { Migration } from "./Migration.interface";

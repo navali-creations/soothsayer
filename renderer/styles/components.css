@@ -25,8 +25,7 @@
     & > .tab {
       background-color: var(--color-base-200);
 
-      --tab-radius-grad:
-        transparent calc(69% - var(--border)),
+      --tab-radius-grad: transparent calc(69% - var(--border)),
         color-mix(in oklab, var(--color-base-content) 10%, transparent)
           calc(calc(69% - var(--border)) + 0.25px),
         color-mix(in oklab, var(--color-base-content) 10%, transparent)
@@ -46,6 +45,60 @@
       box-shadow: 0 0 10px black inset;
     }
   }
+}
+
+/* ─── Recharts Brush theme overrides ──────────────────────────────────────
+   Recharts v2 hardcodes black for Brush traveller handles, slide area,
+   and tick text. These CSS overrides force theme-compatible colors so
+   the brush is visible on dark backgrounds.
+   ──────────────────────────────────────────────────────────────────────── */
+
+/* Traveller handle rectangles */
+.recharts-brush-traveller rect {
+  fill: color-mix(
+    in oklch,
+    var(--color-base-content) 25%,
+    transparent
+  ) !important;
+  stroke: color-mix(
+    in oklch,
+    var(--color-base-content) 40%,
+    transparent
+  ) !important;
+}
+
+/* Traveller handle grip lines */
+.recharts-brush-traveller line {
+  stroke: color-mix(
+    in oklch,
+    var(--color-base-content) 50%,
+    transparent
+  ) !important;
+}
+
+/* Draggable slide area between travellers */
+.recharts-brush-slide {
+  fill: color-mix(in oklch, var(--color-primary) 8%, transparent) !important;
+  stroke: none !important;
+}
+
+/* Brush tick text labels */
+.recharts-brush-texts text {
+  fill: color-mix(
+    in oklch,
+    var(--color-base-content) 35%,
+    transparent
+  ) !important;
+  font-size: 10px;
+}
+
+/* Brush background outline */
+.recharts-brush > rect:first-child {
+  stroke: color-mix(
+    in oklch,
+    var(--color-base-content) 12%,
+    transparent
+  ) !important;
 }
 
 .preview {

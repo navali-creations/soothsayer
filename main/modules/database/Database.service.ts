@@ -511,6 +511,29 @@ class DatabaseService {
       `);
 
       // ═══════════════════════════════════════════════════════════════
+      // CARD PRICE HISTORY CACHE (poe.ninja exchange details cache)
+      // ═══════════════════════════════════════════════════════════════
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS card_price_history_cache (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          game TEXT NOT NULL CHECK(game IN ('poe1', 'poe2')),
+          league TEXT NOT NULL,
+          details_id TEXT NOT NULL,
+          card_name TEXT NOT NULL,
+          response_data TEXT NOT NULL,
+          fetched_at TEXT NOT NULL,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          UNIQUE(game, league, details_id)
+        )
+      `);
+
+      this.db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_card_price_cache_lookup
+        ON card_price_history_cache(game, league, details_id)
+      `);
+
+      // ═══════════════════════════════════════════════════════════════
       // FILTER CARD RARITIES (per-filter card-to-rarity mappings)
       // ═══════════════════════════════════════════════════════════════
       this.db.exec(`

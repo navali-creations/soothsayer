@@ -36,7 +36,7 @@ function shouldFilterLeague(league: any): boolean {
 async function deactivateStaleLeagues(
   supabase: SupabaseClient,
   game: string,
-  activeLeagueIds: string[]
+  activeLeagueIds: string[],
 ): Promise<number> {
   if (activeLeagueIds.length === 0) return 0;
 
@@ -56,7 +56,7 @@ async function deactivateStaleLeagues(
       console.log(
         `Deactivating stale ${game} league "${stale.league_id}"${
           stale.end_at ? "" : ` and setting end_at to ${now}`
-        }`
+        }`,
       );
     }
   }
@@ -73,7 +73,7 @@ async function deactivateStaleLeagues(
   if (noEndError) {
     console.error(
       `Failed to deactivate stale ${game} leagues (end_at IS NULL):`,
-      noEndError
+      noEndError,
     );
   } else {
     deactivatedCount += noEndCount || 0;
@@ -91,7 +91,7 @@ async function deactivateStaleLeagues(
   if (hasEndError) {
     console.error(
       `Failed to deactivate stale ${game} leagues (end_at set):`,
-      hasEndError
+      hasEndError,
     );
   } else {
     deactivatedCount += hasEndCount || 0;
@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
           persistSession: false,
           autoRefreshToken: false,
         },
-      }
+      },
     );
 
     // Fetch PoE1 leagues
@@ -134,7 +134,7 @@ Deno.serve(async (req) => {
           "User-Agent":
             "Soothsayer/1.0.0 (Supabase Edge Function) (contact: eskrzy@gmail.com)",
         },
-      }
+      },
     );
 
     if (!poe1Response.ok) {
@@ -152,7 +152,7 @@ Deno.serve(async (req) => {
           "User-Agent":
             "Soothsayer/1.0.0 (Supabase Edge Function) (contact: eskrzy@gmail.com)",
         },
-      }
+      },
     );
 
     if (!poe2Response.ok) {
@@ -185,7 +185,7 @@ Deno.serve(async (req) => {
 
     // Filter out unwanted leagues and collect valid league IDs
     const validLeagues = allLeagues.filter(
-      (league) => !shouldFilterLeague(league.raw)
+      (league) => !shouldFilterLeague(league.raw),
     );
 
     const poe1LeagueIds = validLeagues
@@ -212,13 +212,13 @@ Deno.serve(async (req) => {
         },
         {
           onConflict: "game,league_id",
-        }
+        },
       );
 
       if (error) {
         console.error(
           `Failed to upsert ${league.game} league ${league.league_id}:`,
-          error
+          error,
         );
       } else {
         totalSynced++;
@@ -233,17 +233,17 @@ Deno.serve(async (req) => {
     const poe1Deactivated = await deactivateStaleLeagues(
       supabase,
       "poe1",
-      poe1LeagueIds
+      poe1LeagueIds,
     );
     const poe2Deactivated = await deactivateStaleLeagues(
       supabase,
       "poe2",
-      poe2LeagueIds
+      poe2LeagueIds,
     );
     const deactivatedCount = poe1Deactivated + poe2Deactivated;
 
     console.log(
-      `Synced ${poe1Count} PoE1 leagues and ${poe2Count} PoE2 leagues. Deactivated ${deactivatedCount} stale leagues (historical data preserved).`
+      `Synced ${poe1Count} PoE1 leagues and ${poe2Count} PoE2 leagues. Deactivated ${deactivatedCount} stale leagues (historical data preserved).`,
     );
 
     return new Response(
@@ -254,7 +254,7 @@ Deno.serve(async (req) => {
         poe2Count,
         deactivatedCount,
       }),
-      { headers: { "Content-Type": "application/json" } }
+      { headers: { "Content-Type": "application/json" } },
     );
   } catch (error) {
     console.error("Error in sync-leagues-legacy-internal:", error);

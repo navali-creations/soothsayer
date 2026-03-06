@@ -17,9 +17,6 @@ interface PoeNinjaRarityCellProps {
  * (with a custom comparator) prevents style computations, SVG icons,
  * and DOM elements from being re-created every time the columns memo
  * rebuilds (e.g. when toggling a filter in the sidebar).
- *
- * TODO: Make the badge a clickable link to an internal card detail page
- * once that route exists.
  */
 const PoeNinjaRarityCell = memo(
   ({ rarity }: PoeNinjaRarityCellProps) => {

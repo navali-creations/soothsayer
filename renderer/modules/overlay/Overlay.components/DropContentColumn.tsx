@@ -1,3 +1,5 @@
+import { useCallback } from "react";
+
 import { useBoundStore } from "~/renderer/store";
 import { formatCurrency, type getRarityStyles } from "~/renderer/utils";
 
@@ -18,6 +20,15 @@ export const DropContentColumn = ({
       sessionData: { chaosToDivineRatio },
     },
   } = useBoundStore();
+
+  const handleCardClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      window.electron?.cardDetails?.openCardInMainWindow?.(cardName);
+    },
+    [cardName],
+  );
+
   return (
     <div
       className={`font-fontin flex-1 flex justify-between-end text-sm py-0.5 px-1 gap-2 min-w-0 ${
@@ -31,10 +42,14 @@ export const DropContentColumn = ({
       }}
     >
       <span
-        className={`${isLeftHalf ? "text-right" : ""} truncate flex-1 min-w-0`}
+        className={`${
+          isLeftHalf ? "text-right" : ""
+        } truncate flex-1 min-w-0 cursor-pointer hover:underline hover:brightness-125 transition-all`}
         style={{
           color: rarityStyles.text || "inherit",
         }}
+        onClick={handleCardClick}
+        title={`View ${cardName} details`}
       >
         {cardName}
       </span>

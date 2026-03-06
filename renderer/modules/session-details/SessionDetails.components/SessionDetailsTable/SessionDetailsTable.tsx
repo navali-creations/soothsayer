@@ -4,6 +4,7 @@ import { useId, useMemo } from "react";
 import { FiEye, FiEyeOff } from "react-icons/fi";
 
 import { DivinationCard, Table } from "~/renderer/components";
+import CardNameLink from "~/renderer/components/CardNameLink/CardNameLink";
 import { usePopover } from "~/renderer/hooks/usePopover";
 import { useBoundStore } from "~/renderer/store";
 import { formatCurrency } from "~/renderer/utils";
@@ -42,11 +43,12 @@ const SessionCardNameCell = ({
     <>
       <span
         ref={hasCardData ? triggerRef : null}
-        className={`font-semibold ${
-          isHidden ? "opacity-40 line-through" : ""
-        } ${hasCardData ? "cursor-help underline decoration-dotted" : ""}`}
+        className={isHidden ? "opacity-40 line-through" : ""}
       >
-        {info.getValue()}
+        <CardNameLink
+          cardName={info.getValue()}
+          className={isHidden ? "opacity-40 line-through" : ""}
+        />
         {isHidden && (
           <span className="badge badge-error badge-xs ml-2">Hidden</span>
         )}

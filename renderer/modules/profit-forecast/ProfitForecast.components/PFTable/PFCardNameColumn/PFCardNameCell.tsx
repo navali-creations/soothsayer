@@ -1,5 +1,6 @@
 import { memo, useId, useMemo } from "react";
 
+import CardNameLink from "~/renderer/components/CardNameLink/CardNameLink";
 import DivinationCard from "~/renderer/components/DivinationCard/DivinationCard";
 import { usePopover } from "~/renderer/hooks/usePopover";
 import type { DivinationCardMetadata } from "~/types/data-stores";
@@ -29,16 +30,13 @@ const PFCardNameCell = memo(
     }, [cardName, cardMetadata]);
 
     if (!cardEntry) {
-      return <span className="truncate">{cardName}</span>;
+      return <CardNameLink cardName={cardName} className="no-underline" />;
     }
 
     return (
       <>
-        <span
-          ref={triggerRef}
-          className="truncate font-fontin cursor-help underline decoration-dotted"
-        >
-          {cardName}
+        <span ref={triggerRef} className="truncate font-fontin cursor-help">
+          <CardNameLink cardName={cardName} />
         </span>
 
         <div

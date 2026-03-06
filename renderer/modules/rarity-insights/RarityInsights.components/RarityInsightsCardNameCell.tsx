@@ -1,5 +1,6 @@
 import { memo, useId, useMemo } from "react";
 
+import CardNameLink from "~/renderer/components/CardNameLink/CardNameLink";
 import DivinationCard from "~/renderer/components/DivinationCard/DivinationCard";
 import { usePopover } from "~/renderer/hooks/usePopover";
 import type { CardEntry } from "~/types/data-stores";
@@ -48,11 +49,8 @@ const RarityInsightsCardNameCell = memo(
 
     return (
       <>
-        <span
-          ref={triggerRef}
-          className="font-medium font-fontin cursor-help underline decoration-dotted"
-        >
-          {card.name}
+        <span ref={triggerRef} className="font-medium font-fontin cursor-help">
+          <CardNameLink cardName={card.name} />
         </span>
 
         <div

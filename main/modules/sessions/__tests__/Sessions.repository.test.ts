@@ -1411,6 +1411,7 @@ describe("SessionsRepository", () => {
         "stashChaosToDivine",
         "stackedDeckChaosCost",
         "isActive",
+        "cardCount",
       ];
 
       expect(Object.keys(s).sort()).toEqual(expectedKeys.sort());

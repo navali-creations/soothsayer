@@ -23,6 +23,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as SessionsIndexRouteImport } from './routes/sessions.index'
 import { Route as CardsIndexRouteImport } from './routes/cards.index'
 import { Route as SessionsSessionIdRouteImport } from './routes/sessions.$sessionId'
+import { Route as CardsCardSlugRouteImport } from './routes/cards.$cardSlug'
 
 const StatisticsRoute = StatisticsRouteImport.update({
   id: '/statistics',
@@ -94,6 +95,11 @@ const SessionsSessionIdRoute = SessionsSessionIdRouteImport.update({
   path: '/$sessionId',
   getParentRoute: () => SessionsRoute,
 } as any)
+const CardsCardSlugRoute = CardsCardSlugRouteImport.update({
+  id: '/$cardSlug',
+  path: '/$cardSlug',
+  getParentRoute: () => CardsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -107,6 +113,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/statistics': typeof StatisticsRoute
+  '/cards/$cardSlug': typeof CardsCardSlugRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRoute
   '/cards/': typeof CardsIndexRoute
   '/sessions/': typeof SessionsIndexRoute
@@ -121,6 +128,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/statistics': typeof StatisticsRoute
+  '/cards/$cardSlug': typeof CardsCardSlugRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRoute
   '/cards': typeof CardsIndexRoute
   '/sessions': typeof SessionsIndexRoute
@@ -138,6 +146,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/statistics': typeof StatisticsRoute
+  '/cards/$cardSlug': typeof CardsCardSlugRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRoute
   '/cards/': typeof CardsIndexRoute
   '/sessions/': typeof SessionsIndexRoute
@@ -156,6 +165,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/setup'
     | '/statistics'
+    | '/cards/$cardSlug'
     | '/sessions/$sessionId'
     | '/cards/'
     | '/sessions/'
@@ -170,6 +180,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/setup'
     | '/statistics'
+    | '/cards/$cardSlug'
     | '/sessions/$sessionId'
     | '/cards'
     | '/sessions'
@@ -186,6 +197,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/setup'
     | '/statistics'
+    | '/cards/$cardSlug'
     | '/sessions/$sessionId'
     | '/cards/'
     | '/sessions/'
@@ -305,14 +317,23 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SessionsSessionIdRouteImport
       parentRoute: typeof SessionsRoute
     }
+    '/cards/$cardSlug': {
+      id: '/cards/$cardSlug'
+      path: '/$cardSlug'
+      fullPath: '/cards/$cardSlug'
+      preLoaderRoute: typeof CardsCardSlugRouteImport
+      parentRoute: typeof CardsRoute
+    }
   }
 }
 
 interface CardsRouteChildren {
+  CardsCardSlugRoute: typeof CardsCardSlugRoute
   CardsIndexRoute: typeof CardsIndexRoute
 }
 
 const CardsRouteChildren: CardsRouteChildren = {
+  CardsCardSlugRoute: CardsCardSlugRoute,
   CardsIndexRoute: CardsIndexRoute,
 }
 

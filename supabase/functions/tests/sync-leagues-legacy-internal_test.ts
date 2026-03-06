@@ -93,7 +93,7 @@ function setupFullMocks(
     deactivateError?: boolean;
     /** Mock data returned by the stale-league SELECT (GET) query */
     staleLeaguesSelectData?: unknown[];
-  } = {}
+  } = {},
 ) {
   // Ensure env is set for every test that uses this helper
   const cleanupEnv = setupEnv();
@@ -109,7 +109,7 @@ function setupFullMocks(
       new Response(JSON.stringify(options.poe1Leagues ?? validPoe1Leagues()), {
         status: 200,
         headers: { "Content-Type": "application/json" },
-      })
+      }),
   );
 
   // Mock PoE2 API
@@ -119,7 +119,7 @@ function setupFullMocks(
       new Response(JSON.stringify(options.poe2Data ?? validPoe2Leagues()), {
         status: 200,
         headers: { "Content-Type": "application/json" },
-      })
+      }),
   );
 
   // Mock Supabase SELECT for stale leagues (GET on poe_leagues)
@@ -161,7 +161,7 @@ function setupFullMocks(
       if (options.upsertError) {
         return new Response(
           JSON.stringify({ message: "upsert failed", code: "23505" }),
-          { status: 409, headers: { "Content-Type": "application/json" } }
+          { status: 409, headers: { "Content-Type": "application/json" } },
         );
       }
       return postgrestResponse([{ id: "uuid-upserted" }], 201);
@@ -193,7 +193,7 @@ function setupFullMocks(
       if (options.deactivateError) {
         return new Response(
           JSON.stringify({ message: "deactivate failed", code: "42501" }),
-          { status: 403, headers: { "Content-Type": "application/json" } }
+          { status: 403, headers: { "Content-Type": "application/json" } },
         );
       }
       return postgrestResponse([], 200, { "Content-Range": "0-0/0" });
@@ -222,7 +222,7 @@ quietTest(
 
     const req = createMockRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
-      { method: "POST" }
+      { method: "POST" },
     );
     const resp = await handler(req);
 
@@ -232,7 +232,7 @@ quietTest(
 
     fetchMock.restore();
     cleanupEnv();
-  }
+  },
 );
 
 quietTest(
@@ -244,7 +244,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "wrong-secret"
+      "wrong-secret",
     );
     const resp = await handler(req);
 
@@ -254,7 +254,7 @@ quietTest(
 
     fetchMock.restore();
     cleanupEnv();
-  }
+  },
 );
 
 quietTest(
@@ -265,7 +265,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret" // Matches the default from setupEnv()
+      "test-cron-secret", // Matches the default from setupEnv()
     );
     const resp = await handler(req);
 
@@ -273,7 +273,7 @@ quietTest(
     assertEquals(resp.status, 200);
 
     fetchMock.restore();
-  }
+  },
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -291,7 +291,7 @@ quietTest(
       {
         method: "GET",
         cronSecret: "test-cron-secret",
-      }
+      },
     );
     const resp = await handler(req);
 
@@ -301,7 +301,7 @@ quietTest(
 
     fetchMock.restore();
     cleanupEnv();
-  }
+  },
 );
 
 quietTest(
@@ -315,7 +315,7 @@ quietTest(
       {
         method: "POST",
         cronSecret: "",
-      }
+      },
     );
     const resp = await handler(req);
 
@@ -323,7 +323,7 @@ quietTest(
 
     fetchMock.restore();
     cleanupEnv();
-  }
+  },
 );
 
 quietTest(
@@ -337,7 +337,7 @@ quietTest(
       {
         method: "DELETE",
         cronSecret: "test-cron-secret",
-      }
+      },
     );
     const resp = await handler(req);
 
@@ -345,7 +345,7 @@ quietTest(
 
     fetchMock.restore();
     cleanupEnv();
-  }
+  },
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -370,7 +370,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     const resp = await handler(req);
 
@@ -394,12 +394,12 @@ quietTest(
     const leagueIds = upsertedNames.map((u: any) => u.league_id);
     assert(
       !leagueIds.includes("Hardcore Dawn"),
-      "Should not include Hardcore Dawn"
+      "Should not include Hardcore Dawn",
     );
     assert(!leagueIds.includes("Hardcore"), "Should not include Hardcore");
 
     fetchMock.restore();
-  }
+  },
 );
 
 quietTest(
@@ -418,7 +418,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     const resp = await handler(req);
 
@@ -429,7 +429,7 @@ quietTest(
     assertEquals(body.poe1Count, 1);
 
     fetchMock.restore();
-  }
+  },
 );
 
 quietTest(
@@ -452,7 +452,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     const resp = await handler(req);
 
@@ -462,7 +462,7 @@ quietTest(
     assertEquals(body.poe1Count, 1);
 
     fetchMock.restore();
-  }
+  },
 );
 
 quietTest(
@@ -482,7 +482,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     const resp = await handler(req);
 
@@ -492,7 +492,7 @@ quietTest(
     assertEquals(body.poe1Count, 1);
 
     fetchMock.restore();
-  }
+  },
 );
 
 quietTest(
@@ -511,7 +511,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     const resp = await handler(req);
 
@@ -521,7 +521,7 @@ quietTest(
     assertEquals(body.poe2Count, 2); // Dawn + Standard, no Hardcore Dawn
 
     fetchMock.restore();
-  }
+  },
 );
 
 quietTest(
@@ -546,7 +546,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     const resp = await handler(req);
 
@@ -556,7 +556,7 @@ quietTest(
     assertEquals(body.poe1Count, 3);
 
     fetchMock.restore();
-  }
+  },
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -571,18 +571,18 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     await handler(req);
 
     const poe1Call = fetchMock.calls.find((c) =>
-      c.url.includes("pathofexile.com/api/leagues")
+      c.url.includes("pathofexile.com/api/leagues"),
     );
     assert(poe1Call !== undefined, "Should have called PoE1 API");
     assertEquals(poe1Call!.url, "https://www.pathofexile.com/api/leagues");
 
     fetchMock.restore();
-  }
+  },
 );
 
 quietTest(
@@ -593,21 +593,21 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     await handler(req);
 
     const poe2Call = fetchMock.calls.find((c) =>
-      c.url.includes("pathofexile.com/api/trade2/data/leagues")
+      c.url.includes("pathofexile.com/api/trade2/data/leagues"),
     );
     assert(poe2Call !== undefined, "Should have called PoE2 API");
     assertEquals(
       poe2Call!.url,
-      "https://www.pathofexile.com/api/trade2/data/leagues"
+      "https://www.pathofexile.com/api/trade2/data/leagues",
     );
 
     fetchMock.restore();
-  }
+  },
 );
 
 quietTest(
@@ -643,18 +643,18 @@ quietTest(
         new Response(JSON.stringify({ result: [] }), {
           status: 200,
           headers: { "Content-Type": "application/json" },
-        })
+        }),
     );
 
     // Mock Supabase (no leagues to upsert)
     fetchMock.onUrlContaining(supabaseUrls.table("poe_leagues"), () =>
-      postgrestResponse([], 200)
+      postgrestResponse([], 200),
     );
 
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     await handler(req);
 
@@ -663,7 +663,7 @@ quietTest(
     assertStringIncludes(userAgent, "Soothsayer");
 
     fetchMock.restore();
-  }
+  },
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -678,7 +678,7 @@ quietTest(
     // PoE1 API fails
     fetchMock.onUrlContaining(
       "pathofexile.com/api/leagues",
-      () => new Response("Service Unavailable", { status: 503 })
+      () => new Response("Service Unavailable", { status: 503 }),
     );
 
     // PoE2 API succeeds
@@ -688,13 +688,13 @@ quietTest(
         new Response(JSON.stringify({ result: [] }), {
           status: 200,
           headers: { "Content-Type": "application/json" },
-        })
+        }),
     );
 
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     const resp = await handler(req);
 
@@ -704,7 +704,7 @@ quietTest(
     assertStringIncludes(body.error, "PoE1 API failed");
 
     fetchMock.restore();
-  }
+  },
 );
 
 quietTest(
@@ -719,19 +719,19 @@ quietTest(
         new Response(JSON.stringify([]), {
           status: 200,
           headers: { "Content-Type": "application/json" },
-        })
+        }),
     );
 
     // PoE2 API fails
     fetchMock.onUrlContaining(
       "trade2/data/leagues",
-      () => new Response("Bad Gateway", { status: 502 })
+      () => new Response("Bad Gateway", { status: 502 }),
     );
 
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     const resp = await handler(req);
 
@@ -741,7 +741,7 @@ quietTest(
     assertStringIncludes(body.error, "PoE2 API failed");
 
     fetchMock.restore();
-  }
+  },
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -768,7 +768,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     const resp = await handler(req);
 
@@ -784,7 +784,7 @@ quietTest(
     assertEquals(upserted.is_active, true);
 
     fetchMock.restore();
-  }
+  },
 );
 
 quietTest(
@@ -802,7 +802,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     const resp = await handler(req);
 
@@ -818,7 +818,7 @@ quietTest(
     assertEquals(upserted.is_active, true); // PoE2 leagues are always active
 
     fetchMock.restore();
-  }
+  },
 );
 
 quietTest(
@@ -841,7 +841,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     const resp = await handler(req);
 
@@ -852,7 +852,7 @@ quietTest(
     assertEquals(upserted.is_active, false); // endAt in the past → inactive
 
     fetchMock.restore();
-  }
+  },
 );
 
 quietTest(
@@ -871,7 +871,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     const resp = await handler(req);
 
@@ -884,7 +884,7 @@ quietTest(
     assertEquals(body.poe2Count, 1);
 
     fetchMock.restore();
-  }
+  },
 );
 
 quietTest(
@@ -902,8 +902,8 @@ quietTest(
             createPoe1League({ id: "Dawn", name: "Dawn" }),
             createPoe1League({ id: "Standard", name: "Standard" }),
           ]),
-          { status: 200, headers: { "Content-Type": "application/json" } }
-        )
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
     );
 
     // PoE2 API
@@ -913,7 +913,7 @@ quietTest(
         new Response(JSON.stringify({ result: [] }), {
           status: 200,
           headers: { "Content-Type": "application/json" },
-        })
+        }),
     );
 
     // First upsert succeeds, second fails
@@ -928,7 +928,7 @@ quietTest(
         if (callIndex === 2) {
           return new Response(
             JSON.stringify({ message: "upsert failed", code: "23505" }),
-            { status: 409, headers: { "Content-Type": "application/json" } }
+            { status: 409, headers: { "Content-Type": "application/json" } },
           );
         }
         return postgrestResponse([{ id: "uuid-ok" }], 201);
@@ -948,7 +948,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     const resp = await handler(req);
 
@@ -959,7 +959,7 @@ quietTest(
     assertEquals(body.poe1Count, 1);
 
     fetchMock.restore();
-  }
+  },
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -974,7 +974,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     const resp = await handler(req);
 
@@ -984,11 +984,11 @@ quietTest(
     // deactivatedCount should be a number (0 or more depending on mock)
     assert(
       typeof body.deactivatedCount === "number",
-      "deactivatedCount should be a number"
+      "deactivatedCount should be a number",
     );
 
     fetchMock.restore();
-  }
+  },
 );
 
 quietTest(
@@ -999,7 +999,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     const resp = await handler(req);
 
@@ -1009,7 +1009,7 @@ quietTest(
     assertEquals(body.success, true);
 
     fetchMock.restore();
-  }
+  },
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1036,7 +1036,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     const resp = await handler(req);
 
@@ -1047,7 +1047,7 @@ quietTest(
     assertEquals(upserted.name, "Dawn League Display Name");
 
     fetchMock.restore();
-  }
+  },
 );
 
 quietTest(
@@ -1067,7 +1067,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     const resp = await handler(req);
 
@@ -1078,7 +1078,7 @@ quietTest(
     assertEquals(upserted.name, "dawn-fallback");
 
     fetchMock.restore();
-  }
+  },
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1096,7 +1096,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     const resp = await handler(req);
 
@@ -1109,7 +1109,7 @@ quietTest(
     assertEquals(body.poe2Count, 0);
 
     fetchMock.restore();
-  }
+  },
 );
 
 quietTest(
@@ -1135,7 +1135,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     const resp = await handler(req);
 
@@ -1147,7 +1147,7 @@ quietTest(
     assertEquals(body.poe2Count, 0);
 
     fetchMock.restore();
-  }
+  },
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1162,7 +1162,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     const resp = await handler(req);
 
@@ -1170,7 +1170,7 @@ quietTest(
     assertEquals(resp.headers.get("Content-Type"), "application/json");
 
     fetchMock.restore();
-  }
+  },
 );
 
 quietTest(
@@ -1181,7 +1181,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     const resp = await handler(req);
 
@@ -1194,11 +1194,11 @@ quietTest(
     assert("poe2Count" in body, "Response should have 'poe2Count' field");
     assert(
       "deactivatedCount" in body,
-      "Response should have 'deactivatedCount' field"
+      "Response should have 'deactivatedCount' field",
     );
 
     fetchMock.restore();
-  }
+  },
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1222,7 +1222,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     const resp = await handler(req);
 
@@ -1233,7 +1233,7 @@ quietTest(
     assertEquals(body.poe1Count, 1);
 
     fetchMock.restore();
-  }
+  },
 );
 
 quietTest(
@@ -1255,7 +1255,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     const resp = await handler(req);
 
@@ -1267,7 +1267,7 @@ quietTest(
     assertEquals(body.poe1Count, 1);
 
     fetchMock.restore();
-  }
+  },
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1291,7 +1291,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     await handler(req);
 
@@ -1304,23 +1304,23 @@ quietTest(
 
     assert(
       patchWithEndAt !== undefined,
-      "Should have a PATCH that sets end_at"
+      "Should have a PATCH that sets end_at",
     );
 
     const parsedBody = JSON.parse(patchWithEndAt!.body);
     assertEquals(parsedBody.is_active, false);
     assert(
       typeof parsedBody.end_at === "string" && parsedBody.end_at.length > 0,
-      "end_at should be a non-empty ISO string"
+      "end_at should be a non-empty ISO string",
     );
 
     // The URL should filter for end_at=is.null (only leagues missing an end date)
     const params = parsePostgrestParams(patchWithEndAt!.url);
-    assertEquals(params["end_at"], "is.null");
-    assertEquals(params["is_active"], "eq.true");
+    assertEquals(params.end_at, "is.null");
+    assertEquals(params.is_active, "eq.true");
 
     fetchMock.restore();
-  }
+  },
 );
 
 quietTest(
@@ -1342,7 +1342,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     await handler(req);
 
@@ -1355,16 +1355,16 @@ quietTest(
 
     assert(
       patchWithoutEndAt !== undefined,
-      "Should have a PATCH that does NOT set end_at (preserves existing date)"
+      "Should have a PATCH that does NOT set end_at (preserves existing date)",
     );
 
     // The URL should filter for end_at NOT being null
     const params = parsePostgrestParams(patchWithoutEndAt!.url);
-    assertEquals(params["end_at"], "not.is.null");
-    assertEquals(params["is_active"], "eq.true");
+    assertEquals(params.end_at, "not.is.null");
+    assertEquals(params.is_active, "eq.true");
 
     fetchMock.restore();
-  }
+  },
 );
 
 quietTest(
@@ -1384,41 +1384,41 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     await handler(req);
 
     // For PoE1: two PATCHes (one for end_at IS NULL, one for end_at NOT NULL)
     // PoE2 has no leagues in this test, so no deactivation queries for it
     const poe1Patches = deactivateCalls.filter((c) =>
-      c.url.includes("game=eq.poe1")
+      c.url.includes("game=eq.poe1"),
     );
 
     assertEquals(
       poe1Patches.length,
       2,
-      "Should issue exactly 2 PATCH queries for PoE1 deactivation (null end_at + non-null end_at)"
+      "Should issue exactly 2 PATCH queries for PoE1 deactivation (null end_at + non-null end_at)",
     );
 
     // Verify one targets end_at=is.null and other targets end_at=not.is.null
     const nullEndAtPatch = poe1Patches.find((c) =>
-      c.url.includes("end_at=is.null")
+      c.url.includes("end_at=is.null"),
     );
     const notNullEndAtPatch = poe1Patches.find((c) =>
-      c.url.includes("end_at=not.is.null")
+      c.url.includes("end_at=not.is.null"),
     );
 
     assert(
       nullEndAtPatch !== undefined,
-      "Should have PATCH with end_at=is.null"
+      "Should have PATCH with end_at=is.null",
     );
     assert(
       notNullEndAtPatch !== undefined,
-      "Should have PATCH with end_at=not.is.null"
+      "Should have PATCH with end_at=not.is.null",
     );
 
     fetchMock.restore();
-  }
+  },
 );
 
 quietTest(
@@ -1436,7 +1436,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     await handler(req);
 
@@ -1444,16 +1444,16 @@ quietTest(
     const staleSelects = selectCalls.filter(
       (c) =>
         c.url.includes(supabaseUrls.table("poe_leagues")) &&
-        c.url.includes("is_active=eq.true")
+        c.url.includes("is_active=eq.true"),
     );
 
     assert(
       staleSelects.length > 0,
-      "Should issue at least one SELECT to find stale leagues for logging"
+      "Should issue at least one SELECT to find stale leagues for logging",
     );
 
     fetchMock.restore();
-  }
+  },
 );
 
 quietTest(
@@ -1471,7 +1471,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     await handler(req);
 
@@ -1485,20 +1485,20 @@ quietTest(
       const parsedBody = JSON.parse(patchWithEndAt.body);
       const timestamp = new Date(parsedBody.end_at);
       assert(
-        !isNaN(timestamp.getTime()),
-        `end_at should be a valid ISO timestamp, got: ${parsedBody.end_at}`
+        !Number.isNaN(timestamp.getTime()),
+        `end_at should be a valid ISO timestamp, got: ${parsedBody.end_at}`,
       );
       // The timestamp should be reasonably recent (within last minute)
       const now = Date.now();
       const diff = now - timestamp.getTime();
       assert(
         diff >= 0 && diff < 60_000,
-        "end_at should be within the last minute"
+        "end_at should be within the last minute",
       );
     }
 
     fetchMock.restore();
-  }
+  },
 );
 
 quietTest(
@@ -1517,14 +1517,14 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     await handler(req);
 
     // All PATCH calls should exclude the active league IDs
     for (const call of deactivateCalls) {
       const params = parsePostgrestParams(call.url);
-      const leagueFilter = params["league_id"];
+      const leagueFilter = params.league_id;
       if (leagueFilter) {
         // PostgREST "not in" filter looks like: not.in.(Standard,Dawn)
         assertStringIncludes(leagueFilter, "Standard");
@@ -1533,7 +1533,7 @@ quietTest(
     }
 
     fetchMock.restore();
-  }
+  },
 );
 
 quietTest(
@@ -1554,23 +1554,23 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     await handler(req);
 
     // Should have PATCH calls for both poe1 and poe2
     const poe1Patches = deactivateCalls.filter((c) =>
-      c.url.includes("game=eq.poe1")
+      c.url.includes("game=eq.poe1"),
     );
     const poe2Patches = deactivateCalls.filter((c) =>
-      c.url.includes("game=eq.poe2")
+      c.url.includes("game=eq.poe2"),
     );
 
     assert(poe1Patches.length > 0, "Should have deactivation PATCHes for poe1");
     assert(poe2Patches.length > 0, "Should have deactivation PATCHes for poe2");
 
     fetchMock.restore();
-  }
+  },
 );
 
 quietTest(
@@ -1592,7 +1592,7 @@ quietTest(
         new Response(JSON.stringify(poe1Leagues), {
           status: 200,
           headers: { "Content-Type": "application/json" },
-        })
+        }),
     );
     fetchMock.onUrlContaining(
       "pathofexile.com/api/trade2/data/leagues",
@@ -1600,7 +1600,7 @@ quietTest(
         new Response(JSON.stringify({ result: [] }), {
           status: 200,
           headers: { "Content-Type": "application/json" },
-        })
+        }),
     );
 
     // Mock upsert
@@ -1631,7 +1631,7 @@ quietTest(
         const method = init?.method?.toUpperCase() ?? "GET";
         return isLeaguesTable && method === "PATCH";
       },
-      handler: (_input, init) => {
+      handler: (_input, _init) => {
         // Parse the body to decide what to return
         // For the null end_at PATCH, simulate 1 row affected
         // For the non-null end_at PATCH, simulate 0 rows affected
@@ -1647,7 +1647,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     const resp = await handler(req);
 
@@ -1656,12 +1656,12 @@ quietTest(
     assertEquals(body.success, true);
     assert(
       body.deactivatedCount >= 1,
-      `deactivatedCount should be >= 1, got ${body.deactivatedCount}`
+      `deactivatedCount should be >= 1, got ${body.deactivatedCount}`,
     );
 
     fetchMock.restore();
     cleanupEnv();
-  }
+  },
 );
 
 quietTest(
@@ -1687,7 +1687,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/sync-leagues-legacy-internal",
       {},
-      "test-cron-secret"
+      "test-cron-secret",
     );
     const resp = await handler(req);
 
@@ -1696,5 +1696,5 @@ quietTest(
     assertEquals(body.deactivatedCount, 0);
 
     fetchMock.restore();
-  }
+  },
 );

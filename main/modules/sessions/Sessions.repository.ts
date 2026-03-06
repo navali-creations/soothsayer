@@ -240,15 +240,21 @@ export class SessionsRepository {
   }
 
   /**
-   * Search sessions by card name
+   * Search sessions by card name, with optional sorting.
+   *
+   * @param sortColumn - Column to sort by. Defaults to "date".
+   * @param sortDirection - Sort direction. Defaults to "desc".
    */
   async searchSessionsByCard(
     game: "poe1" | "poe2",
     cardName: string,
     limit: number,
     offset: number,
+    league?: string,
+    sortColumn: "date" | "league" | "found" | "duration" | "decks" = "date",
+    sortDirection: "asc" | "desc" = "desc",
   ): Promise<SessionSummaryDTO[]> {
-    const rows = await this.kysely
+    let query = this.kysely
       .selectFrom("sessions as s")
       .leftJoin("session_summaries as ss", "s.id", "ss.session_id")
       .innerJoin("leagues as l", "s.league_id", "l.id")
@@ -261,6 +267,7 @@ export class SessionsRepository {
         "s.started_at as startedAt",
         "s.ended_at as endedAt",
         "s.is_active as isActive",
+        "sc.count as cardCount",
         // Duration: use summary if exists, otherwise calculate
         sql<number>`
           COALESCE(
@@ -353,9 +360,27 @@ export class SessionsRepository {
       ])
       .where("s.game", "=", game)
       .where("sc.card_name", "like", `%${cardName}%`)
-      .where("s.total_count", ">", 0)
+      .where("s.total_count", ">", 0);
+
+    if (league) {
+      query = query.where("l.name", "=", league);
+    }
+
+    // Map UI sort column names to SQL expressions
+    const sortColumnMap: Record<string, string> = {
+      date: "s.started_at",
+      league: "l.name",
+      found: "sc.count",
+      duration: "durationMinutes",
+      decks: "totalDecksOpened",
+    };
+
+    const sqlColumn = sortColumnMap[sortColumn] ?? "s.started_at";
+    const sqlDirection = sortDirection === "asc" ? "asc" : "desc";
+
+    const rows = await query
       .groupBy("s.id")
-      .orderBy("s.started_at", "desc")
+      .orderBy(sql.raw(sqlColumn), sqlDirection)
       .limit(limit)
       .offset(offset)
       .execute();
@@ -369,16 +394,22 @@ export class SessionsRepository {
   async getSessionCountByCard(
     game: "poe1" | "poe2",
     cardName: string,
+    league?: string,
   ): Promise<number> {
-    const result = await this.kysely
+    let query = this.kysely
       .selectFrom("sessions as s")
       .innerJoin("session_cards as sc", "s.id", "sc.session_id")
+      .innerJoin("leagues as l", "s.league_id", "l.id")
       .select((eb) => eb.fn.countAll<number>().as("count"))
       .where("s.game", "=", game)
       .where("sc.card_name", "like", `%${cardName}%`)
-      .where("s.total_count", ">", 0)
-      .groupBy("s.id")
-      .execute();
+      .where("s.total_count", ">", 0);
+
+    if (league) {
+      query = query.where("l.name", "=", league);
+    }
+
+    const result = await query.groupBy("s.id").execute();
 
     return result.length;
   }

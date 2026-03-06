@@ -1,6 +1,7 @@
 import type { CellContext } from "@tanstack/react-table";
 import { useId } from "react";
 
+import CardNameLink from "~/renderer/components/CardNameLink/CardNameLink";
 import DivinationCard from "~/renderer/components/DivinationCard/DivinationCard";
 import { usePopover } from "~/renderer/hooks/usePopover";
 import { useBoundStore } from "~/renderer/store";
@@ -32,9 +33,12 @@ const CardNameCell = (cellProps: CellContext<CardEntry, string>) => {
     <>
       <span
         ref={hasCardData ? triggerRef : null}
-        className={`font-fontin ${hidePrice ? "opacity-50 line-through" : ""} ${hasCardData ? "cursor-help underline decoration-dotted" : ""}`}
+        className={hasCardData ? "cursor-help" : undefined}
       >
-        {cellProps.getValue()}
+        <CardNameLink
+          cardName={cellProps.getValue()}
+          className={hidePrice ? "opacity-50 line-through" : undefined}
+        />
       </span>
 
       {hasCardData && (

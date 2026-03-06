@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 
 import { AnimatedNumber, Stat } from "~/renderer/components";
+import CardNameLink from "~/renderer/components/CardNameLink/CardNameLink";
 import { useBoundStore } from "~/renderer/store";
 
 const CurrentSessionMostValuableStat = () => {
@@ -75,7 +76,13 @@ const CurrentSessionMostValuableStat = () => {
         )}
       </Stat.Value>
       <Stat.Desc className="tabular-nums">
-        {hasSnapshot ? cardName : "No pricing data"}
+        {hasSnapshot && mostValuableCard ? (
+          <CardNameLink cardName={cardName} />
+        ) : hasSnapshot ? (
+          cardName
+        ) : (
+          "No pricing data"
+        )}
       </Stat.Desc>
     </Stat>
   );

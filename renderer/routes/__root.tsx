@@ -9,6 +9,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 import { useBoundStore } from "~/renderer/store";
+import { cardNameToSlug } from "~/renderer/utils";
 
 import { AppMenu } from "../modules/app-menu";
 import { onboardingConfig } from "../modules/onboarding";
@@ -56,6 +57,20 @@ const RootLayout = () => {
     const cleanup = startListeners();
     return cleanup;
   }, [hydrate, startListeners, navigate, isSetupComplete]);
+
+  // Listen for deep-link navigation events from the overlay (via main process)
+  useEffect(() => {
+    if (!window.electron?.cardDetails?.onNavigateToCard) return;
+
+    const cleanup = window.electron.cardDetails.onNavigateToCard(
+      (cardName: string) => {
+        const cardSlug = cardNameToSlug(cardName);
+        navigate({ to: "/cards/$cardSlug", params: { cardSlug } });
+      },
+    );
+
+    return cleanup;
+  }, [navigate]);
 
   const isSetupMode = !setupState?.isComplete;
 

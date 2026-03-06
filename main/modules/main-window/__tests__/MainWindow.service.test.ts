@@ -192,6 +192,9 @@ vi.mock("~/main/modules", () => ({
       getPath: vi.fn(() => "/mock/db/path"),
     })),
   },
+  CardDetailsService: {
+    getInstance: vi.fn(() => ({})),
+  },
   DivinationCardsService: {
     getInstance: vi.fn(() => ({
       initialize: vi.fn().mockResolvedValue(undefined),

@@ -3,6 +3,7 @@ export { Accordion } from "./Accordion";
 export { default as AnimatedNumber } from "./AnimatedNumber/AnimatedNumber";
 export { Badge } from "./Badge";
 export { default as Button } from "./Button/Button";
+export { CardNameLink } from "./CardNameLink";
 export { Countdown } from "./Countdown";
 export { default as DivinationCard } from "./DivinationCard";
 export { Dropdown } from "./Dropdown";

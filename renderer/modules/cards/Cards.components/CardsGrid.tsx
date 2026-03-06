@@ -1,8 +1,10 @@
+import { useNavigate } from "@tanstack/react-router";
 import { motion } from "motion/react";
 import { GiCardRandom } from "react-icons/gi";
 
 import DivinationCard from "~/renderer/components/DivinationCard/DivinationCard";
 import { useBoundStore } from "~/renderer/store";
+import { cardNameToSlug } from "~/renderer/utils";
 import type { CardEntry, Rarity, RaritySource } from "~/types/data-stores";
 
 import type { DivinationCardRow } from "../Cards.types";
@@ -29,6 +31,7 @@ function getEffectiveRarity(
 }
 
 export const CardsGrid = ({ cards }: CardsGridProps) => {
+  const navigate = useNavigate();
   const {
     cards: {
       currentPage,
@@ -89,7 +92,15 @@ export const CardsGrid = ({ cards }: CardsGridProps) => {
           key={`${gridKey}-${card.id}`}
           className="flex flex-col items-center gap-2 animation-stagger"
         >
-          <div className="w-full flex justify-center">
+          <div
+            className="w-full flex justify-center cursor-pointer"
+            onClick={() =>
+              navigate({
+                to: "/cards/$cardSlug",
+                params: { cardSlug: cardNameToSlug(card.name) },
+              })
+            }
+          >
             <div className="scale-70 origin-top -mb-36">
               <DivinationCard card={convertToCardEntry(card)} />
             </div>

@@ -79,6 +79,9 @@ class SessionsService {
         cardName: string,
         page: number = 1,
         pageSize: number = 20,
+        league?: string,
+        sortColumn?: string,
+        sortDirection?: string,
       ): Promise<SessionsPageDTO | { success: false; error: string }> => {
         try {
           assertGameType(game, SessionsChannel.SearchByCard);
@@ -88,11 +91,22 @@ class SessionsService {
             pageSize,
             SessionsChannel.SearchByCard,
           );
+          // Normalize league: "all" or empty → undefined (no filter)
+          const leagueFilter = league && league !== "all" ? league : undefined;
           return this.searchSessionsByCard(
             game,
             cardName,
             validatedPage,
             validatedPageSize,
+            leagueFilter,
+            sortColumn as
+              | "date"
+              | "league"
+              | "found"
+              | "duration"
+              | "decks"
+              | undefined,
+            sortDirection as "asc" | "desc" | undefined,
           );
         } catch (error) {
           return handleValidationError(error, SessionsChannel.SearchByCard);
@@ -267,9 +281,16 @@ class SessionsService {
     cardName: string,
     page: number = 1,
     pageSize: number = 20,
+    league?: string,
+    sortColumn?: "date" | "league" | "found" | "duration" | "decks",
+    sortDirection?: "asc" | "desc",
   ): Promise<SessionsPageDTO> {
     // Get total count
-    const total = await this.repository.getSessionCountByCard(game, cardName);
+    const total = await this.repository.getSessionCountByCard(
+      game,
+      cardName,
+      league,
+    );
     const totalPages = Math.ceil(total / pageSize);
     const offset = (page - 1) * pageSize;
 
@@ -279,6 +300,9 @@ class SessionsService {
       cardName,
       pageSize,
       offset,
+      league,
+      sortColumn,
+      sortDirection,
     );
 
     return {

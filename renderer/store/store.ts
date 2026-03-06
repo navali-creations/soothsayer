@@ -8,6 +8,10 @@ import {
   createAppMenuSlice,
 } from "../modules/app-menu/AppMenu.slice";
 import {
+  type CardDetailsSlice,
+  createCardDetailsSlice,
+} from "../modules/card-details/CardDetails.slice";
+import {
   type CardsSlice,
   createCardsSlice,
 } from "../modules/cards/Cards.slice";
@@ -95,6 +99,7 @@ type BoundStore = GameInfoSlice &
   SessionSlice &
   SessionsSlice &
   SessionDetailsSlice &
+  CardDetailsSlice &
   CardsSlice &
   AppMenuSlice &
   ChangelogSlice &
@@ -118,6 +123,7 @@ export const useBoundStore = create<BoundStore>()(
       const sessionSlice = createSessionSlice(...a);
       const sessionsSlice = createSessionsSlice(...a);
       const sessionDetailsSlice = createSessionDetailsSlice(...a);
+      const cardDetailsSlice = createCardDetailsSlice(...a);
       const appMenuSlice = createAppMenuSlice(...a);
       const gameInfoSlice = createGameInfoSlice(...a);
       const overlaySlice = createOverlaySlice(...a);
@@ -141,6 +147,7 @@ export const useBoundStore = create<BoundStore>()(
         ...sessionSlice,
         ...sessionsSlice,
         ...sessionDetailsSlice,
+        ...cardDetailsSlice,
         ...appMenuSlice,
         ...changelogSlice,
         ...gameInfoSlice,
@@ -240,6 +247,18 @@ export const useBoundStore = create<BoundStore>()(
               sessionDetails.isLoading = false;
               sessionDetails.error = null;
               sessionDetails.priceSource = "exchange";
+
+              // Reset card details
+              state.cardDetails.priceHistory = null;
+              state.cardDetails.isLoadingPriceHistory = false;
+              state.cardDetails.priceHistoryError = null;
+              state.cardDetails.personalAnalytics = null;
+              state.cardDetails.isLoadingPersonalAnalytics = false;
+              state.cardDetails.personalAnalyticsError = null;
+              state.cardDetails.sessions = null;
+              state.cardDetails.isLoadingSessions = false;
+              state.cardDetails.sessionsError = null;
+              state.cardDetails.sessionsPage = 1;
 
               // Reset app menu
               appMenu.isMaximized = false;

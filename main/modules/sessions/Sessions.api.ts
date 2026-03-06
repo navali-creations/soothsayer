@@ -22,6 +22,8 @@ interface SessionSummary {
   stashChaosToDivine: number;
   stackedDeckChaosCost: number;
   isActive: boolean;
+  /** Number of this specific card found in the session (only set by searchByCard) */
+  cardCount?: number;
 }
 
 interface SessionsPage {
@@ -46,6 +48,9 @@ const SessionsAPI = {
     cardName: string,
     page?: number,
     pageSize?: number,
+    league?: string,
+    sortColumn?: "date" | "league" | "found" | "duration" | "decks",
+    sortDirection?: "asc" | "desc",
   ): Promise<SessionsPage> =>
     ipcRenderer.invoke(
       SessionsChannel.SearchByCard,
@@ -53,6 +58,9 @@ const SessionsAPI = {
       cardName,
       page,
       pageSize,
+      league,
+      sortColumn,
+      sortDirection,
     ),
 };
 

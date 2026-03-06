@@ -7,6 +7,8 @@ export default defineConfig({
     alias: {
       "~/renderer": resolve(__dirname, "./renderer"),
       "~/main": resolve(__dirname, "./main"),
+      "~/types": resolve(__dirname, "./types"),
+      "~/enums": resolve(__dirname, "./enums"),
       "@types": resolve(__dirname, "./types"),
       "@enums": resolve(__dirname, "./enums"),
     },
