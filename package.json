@@ -63,7 +63,7 @@
     "@electron/rebuild": "^4.0.3",
     "@redux-devtools/extension": "^3.3.0",
     "@repere/react": "^0.3.3",
-    "@sentry/electron": "^7.9.0",
+    "@sentry/electron": "^7.10.0",
     "@sentry/vite-plugin": "^5.1.1",
     "@supabase/supabase-js": "^2.99.0",
     "@tailwindcss/vite": "^4.2.1",
