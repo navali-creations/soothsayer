@@ -80,7 +80,7 @@
     "@vitest/ui": "^4.0.18",
     "clsx": "^2.1.1",
     "daisyui": "^5.5.19",
-    "dompurify": "^3.3.1",
+    "dompurify": "^3.3.2",
     "electron": "40.8.0",
     "electron-devtools-installer": "^4.0.0",
     "electron-squirrel-startup": "^1.0.1",
