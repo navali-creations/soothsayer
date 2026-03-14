@@ -386,10 +386,13 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 [functions.get-latest-snapshot]
 verify_jwt = false
 
+[functions.get-leagues]
+verify_jwt = false
+
 [functions.get-leagues-legacy]
 verify_jwt = false
 
-[functions.sync-leagues-legacy-internal]
+[functions.sync-leagues-internal]
 verify_jwt = false
 
 [functions.create-snapshot-internal]

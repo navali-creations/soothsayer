@@ -371,10 +371,9 @@ describe("PoeLeaguesService", () => {
       const leagues = await service.fetchLeagues("poe1");
 
       expect(leagues).toHaveLength(2);
-      expect(mockCallEdgeFunction).toHaveBeenCalledWith(
-        "get-leagues-legacy",
-        expect.objectContaining({ game: "poe1" }),
-      );
+      expect(mockCallEdgeFunction).toHaveBeenCalledWith("get-leagues", {
+        game: "poe1",
+      });
 
       const names = leagues.map((l) => l.name);
       expect(names).toContain("Settlers");

@@ -43,7 +43,7 @@ export interface UpsertPoeLeagueCacheDTO {
 }
 
 /**
- * Response from the Supabase get-leagues-legacy edge function
+ * Response from the Supabase get-leagues edge function
  */
 export interface SupabaseLeagueResponse {
   leagues: Array<{

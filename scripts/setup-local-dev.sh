@@ -116,6 +116,41 @@ EOF
     echo -e "${GREEN}[OK]${NC} supabase/functions/.env created with generated INTERNAL_CRON_SECRET"
 fi
 
+# Append GGG OAuth secrets from root .env (if available)
+# These are required by sync-leagues-internal to fetch leagues from GGG's API.
+# Without them, only the seed Standard leagues will be available locally.
+HAS_GGG_SECRETS=false
+if [ -f ".env" ]; then
+    GGG_CLIENT_ID=$(grep "^GGG_OAUTH_CLIENT_ID=" .env | cut -d'=' -f2-)
+    GGG_CLIENT_SECRET=$(grep "^GGG_OAUTH_CLIENT_SECRET=" .env | cut -d'=' -f2-)
+
+    if [ -n "$GGG_CLIENT_ID" ] && [ -n "$GGG_CLIENT_SECRET" ]; then
+        # Update or append GGG secrets in supabase/functions/.env
+        if grep -q "^GGG_OAUTH_CLIENT_ID=" supabase/functions/.env 2>/dev/null; then
+            sed -i "s|^GGG_OAUTH_CLIENT_ID=.*|GGG_OAUTH_CLIENT_ID=$GGG_CLIENT_ID|" supabase/functions/.env
+        else
+            echo "GGG_OAUTH_CLIENT_ID=$GGG_CLIENT_ID" >> supabase/functions/.env
+        fi
+
+        if grep -q "^GGG_OAUTH_CLIENT_SECRET=" supabase/functions/.env 2>/dev/null; then
+            sed -i "s|^GGG_OAUTH_CLIENT_SECRET=.*|GGG_OAUTH_CLIENT_SECRET=$GGG_CLIENT_SECRET|" supabase/functions/.env
+        else
+            echo "GGG_OAUTH_CLIENT_SECRET=$GGG_CLIENT_SECRET" >> supabase/functions/.env
+        fi
+
+        echo -e "${GREEN}[OK]${NC} GGG OAuth secrets loaded from .env"
+        HAS_GGG_SECRETS=true
+    fi
+fi
+
+if [ "$HAS_GGG_SECRETS" = false ]; then
+    echo -e "${YELLOW}[!]${NC} GGG OAuth secrets not found in .env"
+    echo "    League sync will use seed data only (Standard leagues)."
+    echo "    To enable full league sync, add to your root .env:"
+    echo "      GGG_OAUTH_CLIENT_ID=your_client_id"
+    echo "      GGG_OAUTH_CLIENT_SECRET=your_client_secret"
+fi
+
 # Always restart Edge Runtime if it's running (to ensure .env is loaded)
 # Then restart Kong to clear its DNS cache — the Edge Runtime may get a new
 # IP after restart and Kong would keep trying the stale one, causing timeouts.
@@ -181,10 +216,15 @@ else
     sleep 5
 
     echo "[*] Syncing leagues from API..."
-    docker exec supabase_db_soothsayer psql -U postgres -c "SELECT sync_leagues_from_api();" > /dev/null 2>&1
+    if [ "$HAS_GGG_SECRETS" = true ]; then
+        docker exec supabase_db_soothsayer psql -U postgres -c "SELECT sync_leagues_from_api();" > /dev/null 2>&1
 
-    # Wait for pg_net to process the request
-    sleep 3
+        # Wait for pg_net to process the request
+        sleep 3
+    else
+        echo -e "${YELLOW}[!]${NC} Skipping league sync (no GGG OAuth secrets)"
+        echo "    Using seed data: Standard leagues only"
+    fi
 
     echo "[*] Creating snapshots for active leagues (this may take a minute)..."
     docker exec supabase_db_soothsayer psql -U postgres -c "SELECT create_snapshots_for_active_leagues();" > /dev/null 2>&1

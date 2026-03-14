@@ -36,13 +36,31 @@ echo "    - Leagues: $LEAGUE_COUNT"
 echo "    - Snapshots: $SNAPSHOT_COUNT"
 echo "    - Card prices: $CARD_PRICE_COUNT"
 
+# Check if GGG OAuth secrets are available for league sync
+HAS_GGG_SECRETS=false
+if [ -f "supabase/functions/.env" ]; then
+    GGG_CLIENT_ID=$(grep "^GGG_OAUTH_CLIENT_ID=" supabase/functions/.env | cut -d'=' -f2-)
+    GGG_CLIENT_SECRET=$(grep "^GGG_OAUTH_CLIENT_SECRET=" supabase/functions/.env | cut -d'=' -f2-)
+    if [ -n "$GGG_CLIENT_ID" ] && [ -n "$GGG_CLIENT_SECRET" ]; then
+        HAS_GGG_SECRETS=true
+    fi
+fi
+
 echo ""
 echo "[*] Syncing leagues from PoE API..."
-if docker exec supabase_db_soothsayer psql -U postgres -c "SELECT sync_leagues_from_api();" > /dev/null 2>&1; then
-    echo -e "${GREEN}[OK]${NC} Leagues synced"
+if [ "$HAS_GGG_SECRETS" = true ]; then
+    if docker exec supabase_db_soothsayer psql -U postgres -c "SELECT sync_leagues_from_api();" > /dev/null 2>&1; then
+        echo -e "${GREEN}[OK]${NC} Leagues synced"
+    else
+        echo -e "${YELLOW}[!]${NC} League sync failed — using existing league data"
+    fi
 else
-    echo -e "${RED}[ERROR]${NC} Failed to sync leagues"
-    exit 1
+    echo -e "${YELLOW}[!]${NC} Skipping league sync (no GGG OAuth secrets)"
+    echo "    Using existing league data (Standard leagues from seed)."
+    echo "    To enable full league sync, add to your root .env:"
+    echo "      GGG_OAUTH_CLIENT_ID=your_client_id"
+    echo "      GGG_OAUTH_CLIENT_SECRET=your_client_secret"
+    echo "    Then run: pnpm supabase:start"
 fi
 
 echo ""

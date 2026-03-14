@@ -21,9 +21,10 @@ import { PoeLeaguesRepository } from "./PoeLeagues.repository";
 /**
  * Service for managing PoE Leagues
  *
- * Fetches leagues from Supabase get-leagues-legacy edge function and caches
- * them locally in SQLite. Due to Supabase's 2 requests per 24h rate limit,
- * we use aggressive local caching and only refresh when the cache is stale.
+ * Fetches leagues from Supabase get-leagues edge function and caches
+ * them locally in SQLite. Due to Supabase's rate limit (4 requests per
+ * 24h per user), we use aggressive local caching and only refresh when
+ * the cache is stale.
  *
  * Cache Synchronization Strategy:
  * --------------------------------
@@ -180,7 +181,7 @@ class PoeLeaguesService {
   }
 
   /**
-   * Fetch leagues from Supabase get-leagues-legacy edge function
+   * Fetch leagues from Supabase get-leagues edge function
    */
   private async fetchFromSupabase(game: "poe1" | "poe2"): Promise<PoeLeague[]> {
     if (!this.supabase.isConfigured()) {
@@ -190,11 +191,8 @@ class PoeLeaguesService {
     // Call the edge function using the SupabaseClientService
     const response =
       await this.supabase.callEdgeFunction<SupabaseLeagueResponse>(
-        "get-leagues-legacy",
-        {
-          game,
-          league: "Standard", // Required by the function, but we're just fetching the list
-        },
+        "get-leagues",
+        { game },
       );
 
     return response.leagues
