@@ -38,6 +38,7 @@ const {
   mockOverlayWebContentsGetURL,
   mockMainWindowWebContentsSend,
   mockScreenGetPrimaryDisplay,
+  mockScreenGetAllDisplays,
   mockNativeImageCreateFromPath,
   mockAppIsPackaged,
   mockAppGetAppPath,
@@ -79,8 +80,13 @@ const {
   mockMainWindowWebContentsSend: vi.fn(),
   mockScreenGetPrimaryDisplay: vi.fn(() => ({
     workAreaSize: { width: 1920, height: 1080 },
-    workArea: { x: 0, y: 0 },
+    workArea: { x: 0, y: 0, width: 1920, height: 1080 },
   })),
+  mockScreenGetAllDisplays: vi.fn(() => [
+    {
+      workArea: { x: 0, y: 0, width: 1920, height: 1080 },
+    },
+  ]),
   mockNativeImageCreateFromPath: vi.fn(() => ({
     isEmpty: vi.fn(() => false),
   })),
@@ -149,6 +155,7 @@ vi.mock("electron", () => {
     },
     screen: {
       getPrimaryDisplay: mockScreenGetPrimaryDisplay,
+      getAllDisplays: mockScreenGetAllDisplays,
     },
     nativeImage: {
       createFromPath: mockNativeImageCreateFromPath,

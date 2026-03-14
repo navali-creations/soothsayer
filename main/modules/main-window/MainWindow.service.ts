@@ -103,7 +103,7 @@ class MainWindowService {
         Math.min(wy + wh, dy + dh) - Math.max(wy, dy),
       );
 
-      if (overlapX >= MIN_OVERLAP || overlapY >= MIN_OVERLAP) {
+      if (overlapX >= MIN_OVERLAP && overlapY >= MIN_OVERLAP) {
         return bounds;
       }
     }

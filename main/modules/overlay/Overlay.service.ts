@@ -23,6 +23,29 @@ interface OverlayBounds {
 }
 
 /**
+ * Validate that at least part of the bounds overlaps with some display's workArea.
+ * Returns the bounds if valid, null if off-screen (e.g. disconnected monitor).
+ */
+function validateBoundsOnScreen(bounds: OverlayBounds): OverlayBounds | null {
+  const MIN_OVERLAP = 50;
+  const displays = screen.getAllDisplays();
+
+  for (const display of displays) {
+    const { x: wx, y: wy, width: ww, height: wh } = bounds;
+    const { x: dx, y: dy, width: dw, height: dh } = display.workArea;
+
+    const overlapX = Math.max(0, Math.min(wx + ww, dx + dw) - Math.max(wx, dx));
+    const overlapY = Math.max(0, Math.min(wy + wh, dy + dh) - Math.max(wy, dy));
+
+    if (overlapX >= MIN_OVERLAP && overlapY >= MIN_OVERLAP) {
+      return bounds;
+    }
+  }
+
+  return null;
+}
+
+/**
  * Overlay Service
  * Manages a transparent, always-on-top overlay window for in-game display
  */
@@ -83,12 +106,16 @@ class OverlayService {
     let overlayWidth: number;
     let overlayHeight: number;
 
-    if (savedBounds) {
-      // Use saved position
-      x = savedBounds.x;
-      y = savedBounds.y;
-      overlayWidth = savedBounds.width || 250;
-      overlayHeight = savedBounds.height || 145;
+    const validBounds = savedBounds
+      ? validateBoundsOnScreen(savedBounds)
+      : null;
+
+    if (validBounds) {
+      // Use saved position (validated to be on a visible display)
+      x = validBounds.x;
+      y = validBounds.y;
+      overlayWidth = validBounds.width || 250;
+      overlayHeight = validBounds.height || 145;
     } else {
       // Default to top-left of primary display work area with a small margin
       const primaryDisplay = screen.getPrimaryDisplay();
