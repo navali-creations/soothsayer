@@ -23,7 +23,7 @@ describe("CsvIntegrityChecker", () => {
   beforeEach(() => {
     testDb = createTestDatabase();
     repository = new CsvRepository(
-      testDb.kysely as unknown as Kysely<Database>
+      testDb.kysely as unknown as Kysely<Database>,
     );
     checker = new CsvIntegrityChecker(repository);
   });
@@ -57,7 +57,7 @@ describe("CsvIntegrityChecker", () => {
       expect(result.status).toBe(CsvIntegrityStatus.Pass);
       expect(result.details).toHaveLength(4);
       expect(
-        result.details.every((d) => d.status === CsvIntegrityStatus.Pass)
+        result.details.every((d) => d.status === CsvIntegrityStatus.Pass),
       ).toBe(true);
     });
 
@@ -73,7 +73,7 @@ describe("CsvIntegrityChecker", () => {
 
       expect(result.status).toBe(CsvIntegrityStatus.Warn);
       expect(
-        result.details.some((d) => d.status === CsvIntegrityStatus.Warn)
+        result.details.some((d) => d.status === CsvIntegrityStatus.Warn),
       ).toBe(true);
     });
 
@@ -103,7 +103,7 @@ describe("CsvIntegrityChecker", () => {
 
       expect(result.status).toBe(CsvIntegrityStatus.Fail);
       const snapshotCheck = result.details.find(
-        (d) => d.check === CsvIntegrityCheck.SnapshotNonDecreasing
+        (d) => d.check === CsvIntegrityCheck.SnapshotNonDecreasing,
       );
       expect(snapshotCheck?.status).toBe(CsvIntegrityStatus.Fail);
     });
@@ -137,7 +137,7 @@ describe("CsvIntegrityChecker", () => {
       expect(result.status).toBe(CsvIntegrityStatus.Fail);
       // Some checks should still pass
       const passingChecks = result.details.filter(
-        (d) => d.status === CsvIntegrityStatus.Pass
+        (d) => d.status === CsvIntegrityStatus.Pass,
       );
       expect(passingChecks.length).toBeGreaterThan(0);
     });
@@ -222,7 +222,7 @@ describe("CsvIntegrityChecker", () => {
       const result = await checker.runChecks("poe1", "all-time", currentCounts);
 
       const check = result.details.find(
-        (d) => d.check === CsvIntegrityCheck.AllTimeVsSessionCards
+        (d) => d.check === CsvIntegrityCheck.AllTimeVsSessionCards,
       );
       expect(check?.status).toBe(CsvIntegrityStatus.Pass);
       expect(check?.actual).toBe(8);
@@ -262,7 +262,7 @@ describe("CsvIntegrityChecker", () => {
       const result = await checker.runChecks("poe1", "all-time", currentCounts);
 
       const check = result.details.find(
-        (d) => d.check === CsvIntegrityCheck.AllTimeVsSessionCards
+        (d) => d.check === CsvIntegrityCheck.AllTimeVsSessionCards,
       );
       expect(check?.status).toBe(CsvIntegrityStatus.Pass);
     });
@@ -301,7 +301,7 @@ describe("CsvIntegrityChecker", () => {
       const result = await checker.runChecks("poe1", "all-time", currentCounts);
 
       const check = result.details.find(
-        (d) => d.check === CsvIntegrityCheck.AllTimeVsSessionCards
+        (d) => d.check === CsvIntegrityCheck.AllTimeVsSessionCards,
       );
       expect(check?.status).toBe(CsvIntegrityStatus.Warn);
       expect(check?.actual).toBe(20);
@@ -325,7 +325,7 @@ describe("CsvIntegrityChecker", () => {
       const result = await checker.runChecks("poe1", "all-time", currentCounts);
 
       const check = result.details.find(
-        (d) => d.check === CsvIntegrityCheck.AllTimeVsSessionCards
+        (d) => d.check === CsvIntegrityCheck.AllTimeVsSessionCards,
       );
       expect(check?.status).toBe(CsvIntegrityStatus.Pass);
       expect(check?.actual).toBe(0);
@@ -371,7 +371,7 @@ describe("CsvIntegrityChecker", () => {
       const result = await checker.runChecks("poe1", "all-time", currentCounts);
 
       const check = result.details.find(
-        (d) => d.check === CsvIntegrityCheck.AllTimeVsSessionCards
+        (d) => d.check === CsvIntegrityCheck.AllTimeVsSessionCards,
       );
       expect(check?.status).toBe(CsvIntegrityStatus.Pass);
       expect(check?.actual).toBe(8);
@@ -408,7 +408,7 @@ describe("CsvIntegrityChecker", () => {
       const result = await checker.runChecks("poe1", "all-time", currentCounts);
 
       const check = result.details.find(
-        (d) => d.check === CsvIntegrityCheck.AllTimeVsSessionCards
+        (d) => d.check === CsvIntegrityCheck.AllTimeVsSessionCards,
       );
       expect(check?.status).toBe(CsvIntegrityStatus.Pass);
       expect(check?.actual).toBe(0);
@@ -436,7 +436,7 @@ describe("CsvIntegrityChecker", () => {
       const result = await checker.runChecks("poe1", "all-time", currentCounts);
 
       const check = result.details.find(
-        (d) => d.check === CsvIntegrityCheck.AllTimeVsGlobalCounter
+        (d) => d.check === CsvIntegrityCheck.AllTimeVsGlobalCounter,
       );
       expect(check?.status).toBe(CsvIntegrityStatus.Pass);
       expect(check?.expected).toBe(20);
@@ -458,7 +458,7 @@ describe("CsvIntegrityChecker", () => {
       const result = await checker.runChecks("poe1", "all-time", currentCounts);
 
       const check = result.details.find(
-        (d) => d.check === CsvIntegrityCheck.AllTimeVsGlobalCounter
+        (d) => d.check === CsvIntegrityCheck.AllTimeVsGlobalCounter,
       );
       expect(check?.status).toBe(CsvIntegrityStatus.Pass);
     });
@@ -478,7 +478,7 @@ describe("CsvIntegrityChecker", () => {
       const result = await checker.runChecks("poe1", "all-time", currentCounts);
 
       const check = result.details.find(
-        (d) => d.check === CsvIntegrityCheck.AllTimeVsGlobalCounter
+        (d) => d.check === CsvIntegrityCheck.AllTimeVsGlobalCounter,
       );
       expect(check?.status).toBe(CsvIntegrityStatus.Warn);
       expect(check?.expected).toBe(30);
@@ -491,7 +491,7 @@ describe("CsvIntegrityChecker", () => {
       const result = await checker.runChecks("poe1", "all-time", currentCounts);
 
       const check = result.details.find(
-        (d) => d.check === CsvIntegrityCheck.AllTimeVsGlobalCounter
+        (d) => d.check === CsvIntegrityCheck.AllTimeVsGlobalCounter,
       );
       expect(check?.status).toBe(CsvIntegrityStatus.Pass);
       expect(check?.expected).toBe(0);
@@ -525,7 +525,7 @@ describe("CsvIntegrityChecker", () => {
       const result = await checker.runChecks("poe1", "all-time", currentCounts);
 
       const check = result.details.find(
-        (d) => d.check === CsvIntegrityCheck.AllTimeVsGlobalCounter
+        (d) => d.check === CsvIntegrityCheck.AllTimeVsGlobalCounter,
       );
       expect(check?.status).toBe(CsvIntegrityStatus.Pass);
       expect(check?.actual).toBe(10);
@@ -556,7 +556,7 @@ describe("CsvIntegrityChecker", () => {
       const result = await checker.runChecks("poe1", "all-time", currentCounts);
 
       const check = result.details.find(
-        (d) => d.check === CsvIntegrityCheck.AllTimeVsLeagueSum
+        (d) => d.check === CsvIntegrityCheck.AllTimeVsLeagueSum,
       );
       expect(check?.status).toBe(CsvIntegrityStatus.Pass);
       expect(check?.message).toContain("All card");
@@ -579,7 +579,7 @@ describe("CsvIntegrityChecker", () => {
       const result = await checker.runChecks("poe1", "all-time", currentCounts);
 
       const check = result.details.find(
-        (d) => d.check === CsvIntegrityCheck.AllTimeVsLeagueSum
+        (d) => d.check === CsvIntegrityCheck.AllTimeVsLeagueSum,
       );
       expect(check?.status).toBe(CsvIntegrityStatus.Pass);
     });
@@ -600,7 +600,7 @@ describe("CsvIntegrityChecker", () => {
       const result = await checker.runChecks("poe1", "all-time", currentCounts);
 
       const check = result.details.find(
-        (d) => d.check === CsvIntegrityCheck.AllTimeVsLeagueSum
+        (d) => d.check === CsvIntegrityCheck.AllTimeVsLeagueSum,
       );
       expect(check?.status).toBe(CsvIntegrityStatus.Warn);
       expect(check?.actual).toBe(1);
@@ -626,7 +626,7 @@ describe("CsvIntegrityChecker", () => {
       const result = await checker.runChecks("poe1", "all-time", currentCounts);
 
       const check = result.details.find(
-        (d) => d.check === CsvIntegrityCheck.AllTimeVsLeagueSum
+        (d) => d.check === CsvIntegrityCheck.AllTimeVsLeagueSum,
       );
       expect(check?.status).toBe(CsvIntegrityStatus.Warn);
       expect(check?.actual).toBe(2);
@@ -649,7 +649,7 @@ describe("CsvIntegrityChecker", () => {
       const result = await checker.runChecks("poe1", "all-time", currentCounts);
 
       const check = result.details.find(
-        (d) => d.check === CsvIntegrityCheck.AllTimeVsLeagueSum
+        (d) => d.check === CsvIntegrityCheck.AllTimeVsLeagueSum,
       );
       // league sum (5) > all-time (0) → warn
       expect(check?.status).toBe(CsvIntegrityStatus.Warn);
@@ -670,7 +670,7 @@ describe("CsvIntegrityChecker", () => {
       const result = await checker.runChecks("poe1", "all-time", currentCounts);
 
       const check = result.details.find(
-        (d) => d.check === CsvIntegrityCheck.AllTimeVsLeagueSum
+        (d) => d.check === CsvIntegrityCheck.AllTimeVsLeagueSum,
       );
       expect(check?.status).toBe(CsvIntegrityStatus.Pass);
     });
@@ -708,7 +708,7 @@ describe("CsvIntegrityChecker", () => {
       const result = await checker.runChecks("poe1", "all-time", currentCounts);
 
       const check = result.details.find(
-        (d) => d.check === CsvIntegrityCheck.AllTimeVsLeagueSum
+        (d) => d.check === CsvIntegrityCheck.AllTimeVsLeagueSum,
       );
       expect(check?.status).toBe(CsvIntegrityStatus.Pass);
     });
@@ -732,7 +732,7 @@ describe("CsvIntegrityChecker", () => {
       const result = await checker.runChecks("poe1", "all-time", currentCounts);
 
       const check = result.details.find(
-        (d) => d.check === CsvIntegrityCheck.AllTimeVsLeagueSum
+        (d) => d.check === CsvIntegrityCheck.AllTimeVsLeagueSum,
       );
       expect(check?.status).toBe(CsvIntegrityStatus.Warn);
       expect(check?.message).toContain("league sum 12 > all-time 10");
@@ -755,7 +755,7 @@ describe("CsvIntegrityChecker", () => {
       const result = await checker.runChecks("poe1", "all-time", currentCounts);
 
       const check = result.details.find(
-        (d) => d.check === CsvIntegrityCheck.SnapshotNonDecreasing
+        (d) => d.check === CsvIntegrityCheck.SnapshotNonDecreasing,
       );
       expect(check?.status).toBe(CsvIntegrityStatus.Pass);
       expect(check?.message).toContain("first export");
@@ -782,7 +782,7 @@ describe("CsvIntegrityChecker", () => {
       const result = await checker.runChecks("poe1", "all-time", currentCounts);
 
       const check = result.details.find(
-        (d) => d.check === CsvIntegrityCheck.SnapshotNonDecreasing
+        (d) => d.check === CsvIntegrityCheck.SnapshotNonDecreasing,
       );
       expect(check?.status).toBe(CsvIntegrityStatus.Pass);
       expect(check?.message).toContain("non-decreasing");
@@ -809,7 +809,7 @@ describe("CsvIntegrityChecker", () => {
       const result = await checker.runChecks("poe1", "all-time", currentCounts);
 
       const check = result.details.find(
-        (d) => d.check === CsvIntegrityCheck.SnapshotNonDecreasing
+        (d) => d.check === CsvIntegrityCheck.SnapshotNonDecreasing,
       );
       expect(check?.status).toBe(CsvIntegrityStatus.Pass);
     });
@@ -835,7 +835,7 @@ describe("CsvIntegrityChecker", () => {
       const result = await checker.runChecks("poe1", "all-time", currentCounts);
 
       const check = result.details.find(
-        (d) => d.check === CsvIntegrityCheck.SnapshotNonDecreasing
+        (d) => d.check === CsvIntegrityCheck.SnapshotNonDecreasing,
       );
       expect(check?.status).toBe(CsvIntegrityStatus.Fail);
       expect(check?.actual).toBe(1);
@@ -865,7 +865,7 @@ describe("CsvIntegrityChecker", () => {
       const result = await checker.runChecks("poe1", "all-time", currentCounts);
 
       const check = result.details.find(
-        (d) => d.check === CsvIntegrityCheck.SnapshotNonDecreasing
+        (d) => d.check === CsvIntegrityCheck.SnapshotNonDecreasing,
       );
       expect(check?.status).toBe(CsvIntegrityStatus.Fail);
       expect(check?.message).toContain("was 5, now 0");
@@ -899,7 +899,7 @@ describe("CsvIntegrityChecker", () => {
       const result = await checker.runChecks("poe1", "all-time", currentCounts);
 
       const check = result.details.find(
-        (d) => d.check === CsvIntegrityCheck.SnapshotNonDecreasing
+        (d) => d.check === CsvIntegrityCheck.SnapshotNonDecreasing,
       );
       expect(check?.status).toBe(CsvIntegrityStatus.Fail);
       expect(check?.actual).toBe(2);
@@ -940,7 +940,7 @@ describe("CsvIntegrityChecker", () => {
       const result = await checker.runChecks("poe1", "all-time", currentCounts);
 
       const check = result.details.find(
-        (d) => d.check === CsvIntegrityCheck.SnapshotNonDecreasing
+        (d) => d.check === CsvIntegrityCheck.SnapshotNonDecreasing,
       );
       expect(check?.status).toBe(CsvIntegrityStatus.Pass);
     });
@@ -968,7 +968,7 @@ describe("CsvIntegrityChecker", () => {
       const result = await checker.runChecks("poe1", "all-time", currentCounts);
 
       const check = result.details.find(
-        (d) => d.check === CsvIntegrityCheck.SnapshotNonDecreasing
+        (d) => d.check === CsvIntegrityCheck.SnapshotNonDecreasing,
       );
       expect(check?.status).toBe(CsvIntegrityStatus.Pass);
       expect(check?.message).toContain("first export");
@@ -996,7 +996,7 @@ describe("CsvIntegrityChecker", () => {
       const result = await checker.runChecks("poe1", "all-time", currentCounts);
 
       const check = result.details.find(
-        (d) => d.check === CsvIntegrityCheck.SnapshotNonDecreasing
+        (d) => d.check === CsvIntegrityCheck.SnapshotNonDecreasing,
       );
       expect(check?.status).toBe(CsvIntegrityStatus.Pass);
     });
@@ -1023,7 +1023,7 @@ describe("CsvIntegrityChecker", () => {
       const result = await checker.runChecks("poe1", "Settlers", currentCounts);
 
       const check = result.details.find(
-        (d) => d.check === CsvIntegrityCheck.SnapshotNonDecreasing
+        (d) => d.check === CsvIntegrityCheck.SnapshotNonDecreasing,
       );
       expect(check?.status).toBe(CsvIntegrityStatus.Fail);
     });
@@ -1064,7 +1064,7 @@ describe("CsvIntegrityChecker", () => {
       expect(result.status).toBe(CsvIntegrityStatus.Warn);
       // No fail checks
       expect(
-        result.details.some((d) => d.status === CsvIntegrityStatus.Fail)
+        result.details.some((d) => d.status === CsvIntegrityStatus.Fail),
       ).toBe(false);
     });
 
@@ -1087,7 +1087,7 @@ describe("CsvIntegrityChecker", () => {
 
       expect(result.status).toBe(CsvIntegrityStatus.Fail);
       expect(
-        result.details.some((d) => d.status === CsvIntegrityStatus.Fail)
+        result.details.some((d) => d.status === CsvIntegrityStatus.Fail),
       ).toBe(true);
     });
   });
@@ -1131,13 +1131,13 @@ describe("CsvIntegrityChecker", () => {
       const result = await checker.runChecks("poe1", "all-time", currentCounts);
 
       const sessionCheck = result.details.find(
-        (d) => d.check === CsvIntegrityCheck.AllTimeVsSessionCards
+        (d) => d.check === CsvIntegrityCheck.AllTimeVsSessionCards,
       );
       expect(sessionCheck?.expected).toBeDefined();
       expect(sessionCheck?.actual).toBeDefined();
 
       const globalCheck = result.details.find(
-        (d) => d.check === CsvIntegrityCheck.AllTimeVsGlobalCounter
+        (d) => d.check === CsvIntegrityCheck.AllTimeVsGlobalCounter,
       );
       expect(globalCheck?.expected).toBeDefined();
       expect(globalCheck?.actual).toBeDefined();

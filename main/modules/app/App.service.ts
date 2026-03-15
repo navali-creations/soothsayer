@@ -105,6 +105,7 @@ class AppService {
    */
   public beforeQuitCloseWindowsAndDestroyElements() {
     this.app.on(AppChannel.BeforeQuit, async () => {
+      this.isQuitting = true;
       console.log("[Shutdown] Starting cleanup...");
 
       // Close overlay window
@@ -148,7 +149,6 @@ class AppService {
       console.log("[Shutdown] Destroying tray...");
       TrayService.getInstance().destroyTray();
 
-      this.isQuitting = true;
       console.log("[Shutdown] Cleanup complete, quitting now...");
     });
   }
@@ -165,7 +165,6 @@ class AppService {
 
   public quit() {
     this.app.quit();
-    process.exit(0);
   }
 
   public async openAtLogin() {

@@ -62,7 +62,7 @@ describe("CsvRepository", () => {
           count: 5,
           totalCount: 12,
           exportedAt: "2025-06-01T10:00:00.000Z",
-        })
+        }),
       );
       expect(result).toContainEqual(
         expect.objectContaining({
@@ -72,7 +72,7 @@ describe("CsvRepository", () => {
           count: 7,
           totalCount: 12,
           exportedAt: "2025-06-01T10:00:00.000Z",
-        })
+        }),
       );
     });
 
@@ -260,14 +260,14 @@ describe("CsvRepository", () => {
           cardName: "The Doctor",
           count: 5,
           totalCount: 15,
-        })
+        }),
       );
       expect(rows).toContainEqual(
         expect.objectContaining({
           cardName: "Rain of Chaos",
           count: 10,
           totalCount: 15,
-        })
+        }),
       );
     });
 
@@ -308,21 +308,21 @@ describe("CsvRepository", () => {
           cardName: "The Doctor",
           count: 8,
           totalCount: 22, // 8 + 12 + 2
-        })
+        }),
       );
       expect(rows).toContainEqual(
         expect.objectContaining({
           cardName: "Rain of Chaos",
           count: 12,
           totalCount: 22,
-        })
+        }),
       );
       expect(rows).toContainEqual(
         expect.objectContaining({
           cardName: "The Nurse",
           count: 2,
           totalCount: 22,
-        })
+        }),
       );
     });
 
@@ -332,7 +332,7 @@ describe("CsvRepository", () => {
         "all-time",
         [{ cardName: "The Doctor", count: 5 }],
         CsvIntegrityStatus.Pass,
-        '{"allTimeVsGlobal":"ok","allTimeVsLeagues":"ok"}'
+        '{"allTimeVsGlobal":"ok","allTimeVsLeagues":"ok"}',
       );
 
       const rows = await repository.getSnapshot("poe1", "all-time");
@@ -340,7 +340,7 @@ describe("CsvRepository", () => {
       expect(rows).toHaveLength(1);
       expect(rows[0].integrityStatus).toBe(CsvIntegrityStatus.Pass);
       expect(rows[0].integrityDetails).toBe(
-        '{"allTimeVsGlobal":"ok","allTimeVsLeagues":"ok"}'
+        '{"allTimeVsGlobal":"ok","allTimeVsLeagues":"ok"}',
       );
     });
 
@@ -351,7 +351,7 @@ describe("CsvRepository", () => {
         "all-time",
         [{ cardName: "The Doctor", count: 5 }],
         null,
-        null
+        null,
       );
 
       // Update with integrity data
@@ -360,7 +360,7 @@ describe("CsvRepository", () => {
         "all-time",
         [{ cardName: "The Doctor", count: 8 }],
         CsvIntegrityStatus.Warn,
-        '{"processedIdsMismatch":true}'
+        '{"processedIdsMismatch":true}',
       );
 
       const rows = await repository.getSnapshot("poe1", "all-time");
@@ -629,7 +629,7 @@ describe("CsvRepository", () => {
       const settlersMeta = await repository.getSnapshotMeta("poe1", "Settlers");
       const nonExistent = await repository.getSnapshotMeta(
         "poe1",
-        "Necropolis"
+        "Necropolis",
       );
 
       expect(allTimeMeta).not.toBeNull();

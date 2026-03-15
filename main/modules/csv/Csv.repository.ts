@@ -25,7 +25,7 @@ export class CsvRepository {
    */
   async getSnapshot(
     game: string,
-    scope: string
+    scope: string,
   ): Promise<CsvExportSnapshotDTO[]> {
     const rows = await this.kysely
       .selectFrom("csv_export_snapshots")
@@ -44,7 +44,7 @@ export class CsvRepository {
    */
   async getSnapshotMeta(
     game: string,
-    scope: string
+    scope: string,
   ): Promise<{ totalCount: number; exportedAt: string } | null> {
     const row = await this.kysely
       .selectFrom("csv_export_snapshots")
@@ -85,7 +85,7 @@ export class CsvRepository {
     scope: string,
     entries: SaveSnapshotEntryDTO[],
     integrityStatus: CsvIntegrityStatus | null = null,
-    integrityDetails: string | null = null
+    integrityDetails: string | null = null,
   ): Promise<void> {
     if (entries.length === 0) return;
 
@@ -114,7 +114,7 @@ export class CsvRepository {
               exported_at: now,
               integrity_status: integrityStatus,
               integrity_details: integrityDetails,
-            })
+            }),
           )
           .execute();
       }
@@ -140,7 +140,7 @@ export class CsvRepository {
    */
   async deleteSnapshotsByGameAndScope(
     game: string,
-    scope: string
+    scope: string,
   ): Promise<void> {
     await this.kysely
       .deleteFrom("csv_export_snapshots")
@@ -158,7 +158,7 @@ export class CsvRepository {
    * Returns a Record mapping card_name → total count across all sessions.
    */
   async getSessionCardsSumByGame(
-    game: string
+    game: string,
   ): Promise<Record<string, number>> {
     const rows = await this.kysely
       .selectFrom("session_cards as sc")

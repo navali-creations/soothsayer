@@ -156,14 +156,22 @@ class MainWindowService {
       clearTimeout(this.debouncedSaveBoundsTimer);
       this.debouncedSaveBoundsTimer = null;
     }
-    if (this.boundsMovedHandler) {
-      this.mainWindow?.removeListener("moved", this.boundsMovedHandler);
-      this.boundsMovedHandler = null;
+    if (
+      this.boundsMovedHandler &&
+      this.mainWindow &&
+      !this.mainWindow.isDestroyed()
+    ) {
+      this.mainWindow.removeListener("moved", this.boundsMovedHandler);
     }
-    if (this.boundsResizedHandler) {
-      this.mainWindow?.removeListener("resized", this.boundsResizedHandler);
-      this.boundsResizedHandler = null;
+    this.boundsMovedHandler = null;
+    if (
+      this.boundsResizedHandler &&
+      this.mainWindow &&
+      !this.mainWindow.isDestroyed()
+    ) {
+      this.mainWindow.removeListener("resized", this.boundsResizedHandler);
     }
+    this.boundsResizedHandler = null;
   }
 
   public async createMainWindow() {
@@ -530,7 +538,8 @@ class MainWindowService {
    * Get webContents safely
    */
   public getWebContents() {
-    return this.mainWindow?.webContents;
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) return undefined;
+    return this.mainWindow.webContents;
   }
 }
 

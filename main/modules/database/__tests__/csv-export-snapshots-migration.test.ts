@@ -358,7 +358,15 @@ describe("csv_export_snapshots migration (20260314_131100)", () => {
       expect(() => {
         db.prepare(
           "INSERT INTO csv_export_snapshots (game, scope, card_name, count, total_count, exported_at, integrity_status) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        ).run("poe1", "all-time", "The Doctor", 5, 100, "2025-01-01T00:00:00Z", "invalid");
+        ).run(
+          "poe1",
+          "all-time",
+          "The Doctor",
+          5,
+          100,
+          "2025-01-01T00:00:00Z",
+          "invalid",
+        );
       }).toThrow();
     });
 
@@ -369,7 +377,15 @@ describe("csv_export_snapshots migration (20260314_131100)", () => {
       expect(() => {
         db.prepare(
           "INSERT INTO csv_export_snapshots (game, scope, card_name, count, total_count, exported_at, integrity_status) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        ).run("poe1", "all-time", "The Doctor", 5, 100, "2025-01-01T00:00:00Z", null);
+        ).run(
+          "poe1",
+          "all-time",
+          "The Doctor",
+          5,
+          100,
+          "2025-01-01T00:00:00Z",
+          null,
+        );
       }).not.toThrow();
     });
 
@@ -384,7 +400,14 @@ describe("csv_export_snapshots migration (20260314_131100)", () => {
       expect(() => {
         db.prepare(
           "INSERT INTO csv_export_snapshots (game, scope, card_name, count, total_count, exported_at) VALUES (?, ?, ?, ?, ?, ?)",
-        ).run("poe1", "all-time", "The Doctor", 10, 200, "2025-01-02T00:00:00Z");
+        ).run(
+          "poe1",
+          "all-time",
+          "The Doctor",
+          10,
+          200,
+          "2025-01-02T00:00:00Z",
+        );
       }).toThrow();
     });
 
@@ -394,7 +417,16 @@ describe("csv_export_snapshots migration (20260314_131100)", () => {
 
       db.prepare(
         "INSERT INTO csv_export_snapshots (game, scope, card_name, count, total_count, exported_at, integrity_status, integrity_details) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-      ).run("poe1", "all-time", "The Doctor", 5, 100, "2025-01-01T00:00:00Z", "pass", '{"check":"ok"}');
+      ).run(
+        "poe1",
+        "all-time",
+        "The Doctor",
+        5,
+        100,
+        "2025-01-01T00:00:00Z",
+        "pass",
+        '{"check":"ok"}',
+      );
 
       const row = db
         .prepare("SELECT * FROM csv_export_snapshots WHERE card_name = ?")
@@ -546,7 +578,9 @@ describe("csv_export_snapshots migration (20260314_131100)", () => {
       // Roll back
       migration_20260314_131100_add_csv_export_snapshots.down(db);
       expect(getTableNames(db)).not.toContain("csv_export_snapshots");
-      expect(getColumnNames(db, "user_settings")).not.toContain("csv_export_path");
+      expect(getColumnNames(db, "user_settings")).not.toContain(
+        "csv_export_path",
+      );
 
       // Re-apply
       migration_20260314_131100_add_csv_export_snapshots.up(db);
@@ -558,7 +592,14 @@ describe("csv_export_snapshots migration (20260314_131100)", () => {
       expect(() => {
         db.prepare(
           "INSERT INTO csv_export_snapshots (game, scope, card_name, count, total_count, exported_at) VALUES (?, ?, ?, ?, ?, ?)",
-        ).run("poe2", "league", "House of Mirrors", 2, 50, "2025-03-14T12:00:00Z");
+        ).run(
+          "poe2",
+          "league",
+          "House of Mirrors",
+          2,
+          50,
+          "2025-03-14T12:00:00Z",
+        );
       }).not.toThrow();
 
       const row = db

@@ -30,7 +30,7 @@ export class CsvIntegrityChecker {
   async runChecks(
     game: string,
     scope: string,
-    currentCounts: Record<string, number>
+    currentCounts: Record<string, number>,
   ): Promise<IntegrityCheckResult> {
     const details: IntegrityCheckDetail[] = [];
 
@@ -74,7 +74,7 @@ export class CsvIntegrityChecker {
    * all leagues while a scoped export may only cover a single league.
    */
   private async checkAllTimeVsSessionCards(
-    game: string
+    game: string,
   ): Promise<IntegrityCheckDetail> {
     try {
       const [sessionCardSums, allTimeTotal] = await Promise.all([
@@ -84,7 +84,7 @@ export class CsvIntegrityChecker {
 
       const sessionTotal = Object.values(sessionCardSums).reduce(
         (sum, c) => sum + c,
-        0
+        0,
       );
 
       if (sessionTotal > allTimeTotal) {
@@ -125,7 +125,7 @@ export class CsvIntegrityChecker {
    * (which should be impossible).
    */
   private async checkAllTimeVsGlobalCounter(
-    game: string
+    game: string,
   ): Promise<IntegrityCheckDetail> {
     try {
       const globalTotal = await this.repository.getGlobalTotalDecksOpened();
@@ -165,7 +165,7 @@ export class CsvIntegrityChecker {
    * the all-time count was tampered with or data was not properly aggregated.
    */
   private async checkAllTimeVsLeagueSum(
-    game: string
+    game: string,
   ): Promise<IntegrityCheckDetail> {
     try {
       const allTimeCounts = await this.repository.getAllTimeCardCounts(game);
@@ -177,7 +177,7 @@ export class CsvIntegrityChecker {
         const allTimeCount = allTimeCounts[cardName] ?? 0;
         if (leagueTotal > allTimeCount) {
           violations.push(
-            `${cardName}: league sum ${leagueTotal} > all-time ${allTimeCount}`
+            `${cardName}: league sum ${leagueTotal} > all-time ${allTimeCount}`,
           );
         }
       }
@@ -224,7 +224,7 @@ export class CsvIntegrityChecker {
   private async checkSnapshotNonDecreasing(
     game: string,
     scope: string,
-    currentCounts: Record<string, number>
+    currentCounts: Record<string, number>,
   ): Promise<IntegrityCheckDetail> {
     try {
       const snapshotRows = await this.repository.getSnapshot(game, scope);
@@ -244,7 +244,7 @@ export class CsvIntegrityChecker {
         const currentCount = currentCounts[row.cardName] ?? 0;
         if (currentCount < row.count) {
           violations.push(
-            `${row.cardName}: was ${row.count}, now ${currentCount}`
+            `${row.cardName}: was ${row.count}, now ${currentCount}`,
           );
         }
       }

@@ -757,10 +757,10 @@ describe("AppService", () => {
       expect(mockAppQuit).toHaveBeenCalled();
     });
 
-    it("should call process.exit with code 0", () => {
+    it("should not call process.exit (let before-quit handler run)", () => {
       service.quit();
 
-      expect(mockProcessExit).toHaveBeenCalledWith(0);
+      expect(mockProcessExit).not.toHaveBeenCalled();
     });
   });
 

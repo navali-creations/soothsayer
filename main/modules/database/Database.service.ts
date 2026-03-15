@@ -18,6 +18,7 @@ class DatabaseService {
   private kysely: Kysely<DatabaseSchema>;
   private dbPath: string;
   private migrationRunner: MigrationRunner;
+  private _isClosed = false;
 
   static getInstance(): DatabaseService {
     if (!DatabaseService._instance) {
@@ -642,7 +643,17 @@ class DatabaseService {
    * Get the Kysely query builder
    * This is the preferred way to interact with the database
    */
+  public get isClosed(): boolean {
+    return this._isClosed;
+  }
+
   public getKysely(): Kysely<DatabaseSchema> {
+    if (this._isClosed) {
+      console.warn("[Database] Cannot access database - connection is closed");
+      throw new Error(
+        "[Database] Cannot access database - connection is closed",
+      );
+    }
     return this.kysely;
   }
 
@@ -652,6 +663,14 @@ class DatabaseService {
   public async transaction<T>(
     callback: (trx: Kysely<DatabaseSchema>) => Promise<T>,
   ): Promise<T> {
+    if (this._isClosed) {
+      console.warn(
+        "[Database] Cannot start transaction - connection is closed",
+      );
+      throw new Error(
+        "[Database] Cannot access database - connection is closed",
+      );
+    }
     const transaction = await this.kysely.transaction().execute(callback);
     return transaction;
   }
@@ -660,6 +679,8 @@ class DatabaseService {
    * Close the database connection
    */
   public close(): void {
+    if (this._isClosed) return;
+    this._isClosed = true;
     this.kysely.destroy();
     this.db.close();
   }
@@ -675,6 +696,7 @@ class DatabaseService {
    * Optimize the database
    */
   public optimize(): void {
+    if (this._isClosed) return;
     this.db.pragma("optimize");
   }
 
@@ -723,6 +745,7 @@ class DatabaseService {
     // Reinitialize migration runner and run migrations
     this.migrationRunner = new MigrationRunner(this.db);
     this.runMigrations();
+    this._isClosed = false;
   }
 }
 

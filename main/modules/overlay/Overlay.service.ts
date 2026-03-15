@@ -408,7 +408,7 @@ class OverlayService {
     // Clear persisted bounds
     await this.settingsStore.set(SettingsKey.OverlayBounds, null);
 
-    if (!this.overlayWindow) return;
+    if (!this.overlayWindow || this.overlayWindow.isDestroyed()) return;
 
     const primaryDisplay = screen.getPrimaryDisplay();
     const { x: screenX, y: screenY } = primaryDisplay.workArea;
@@ -449,8 +449,10 @@ class OverlayService {
    * Unlock: focusable, resizable, bounds listeners attached.
    */
   public setLocked(locked: boolean): void {
-    if (!this.overlayWindow) {
-      console.warn("[Overlay] Cannot set locked state - window not created");
+    if (!this.overlayWindow || this.overlayWindow.isDestroyed()) {
+      console.warn(
+        "[Overlay] Cannot set locked state - window not created or destroyed",
+      );
       return;
     }
 
@@ -474,7 +476,7 @@ class OverlayService {
    * Attach debounced move/resize listeners to persist overlay bounds on change.
    */
   private attachBoundsListeners(): void {
-    if (!this.overlayWindow) return;
+    if (!this.overlayWindow || this.overlayWindow.isDestroyed()) return;
 
     // Remove any existing listeners first to avoid duplicates
     this.removeBoundsListeners();
@@ -504,7 +506,7 @@ class OverlayService {
       this.debouncedSaveBoundsTimer = null;
     }
 
-    if (this.overlayWindow) {
+    if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
       if (this.boundsMoveListener) {
         this.overlayWindow.removeListener("moved", this.boundsMoveListener);
       }
@@ -521,7 +523,7 @@ class OverlayService {
    * Immediately persist the current overlay bounds to settings.
    */
   private saveBoundsImmediate(): void {
-    if (!this.overlayWindow) return;
+    if (!this.overlayWindow || this.overlayWindow.isDestroyed()) return;
 
     const bounds = this.overlayWindow.getBounds();
     this.settingsStore
@@ -546,15 +548,21 @@ class OverlayService {
 
     // After createOverlay completes, if ready-to-show already fired and missed isVisible=true,
     // we need to explicitly show it
-    if (this.overlayWindow && !this.overlayWindow.isVisible()) {
+    if (
+      this.overlayWindow &&
+      !this.overlayWindow.isDestroyed() &&
+      !this.overlayWindow.isVisible()
+    ) {
       this.overlayWindow.setAlwaysOnTop(true, "screen-saver");
       this.overlayWindow.show();
       this.overlayWindow.blur();
       this.overlayWindow.setOpacity(0.99);
       setTimeout(() => {
-        this.overlayWindow?.setOpacity(1);
+        if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
+          this.overlayWindow.setOpacity(1);
+        }
       }, 100);
-    } else if (this.overlayWindow) {
+    } else if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
       this.overlayWindow.setAlwaysOnTop(true, "screen-saver");
       this.overlayWindow.show();
       this.overlayWindow.blur();
@@ -564,7 +572,7 @@ class OverlayService {
   }
 
   public async hide(): Promise<void> {
-    if (this.overlayWindow) {
+    if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
       // If unlocked, auto-lock first to save bounds and clean up listeners
       if (!this.isLocked) {
         this.setLocked(true);
@@ -584,16 +592,20 @@ class OverlayService {
   }
 
   public setPosition(x: number, y: number): void {
-    if (!this.overlayWindow) {
-      console.warn("[Overlay] Cannot set position - window not created");
+    if (!this.overlayWindow || this.overlayWindow.isDestroyed()) {
+      console.warn(
+        "[Overlay] Cannot set position - window not created or destroyed",
+      );
       return;
     }
     this.overlayWindow.setPosition(x, y);
   }
 
   public setSize(width: number, height: number): void {
-    if (!this.overlayWindow) {
-      console.warn("[Overlay] Cannot set size - window not created");
+    if (!this.overlayWindow || this.overlayWindow.isDestroyed()) {
+      console.warn(
+        "[Overlay] Cannot set size - window not created or destroyed",
+      );
       return;
     }
 
@@ -630,7 +642,7 @@ class OverlayService {
   }
 
   public getBounds(): OverlayBounds | null {
-    if (!this.overlayWindow) {
+    if (!this.overlayWindow || this.overlayWindow.isDestroyed()) {
       return null;
     }
     const bounds = this.overlayWindow.getBounds();
@@ -645,7 +657,9 @@ class OverlayService {
   public destroy(): void {
     if (this.overlayWindow) {
       this.removeBoundsListeners();
-      this.overlayWindow.close();
+      if (!this.overlayWindow.isDestroyed()) {
+        this.overlayWindow.close();
+      }
       this.overlayWindow = null;
       this.isVisible = false;
       this.isLocked = true;

@@ -1739,7 +1739,7 @@ describe("OverlayService", () => {
       const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
       service.setLocked(false);
       expect(consoleSpy).toHaveBeenCalledWith(
-        "[Overlay] Cannot set locked state - window not created",
+        "[Overlay] Cannot set locked state - window not created or destroyed",
       );
       consoleSpy.mockRestore();
     });

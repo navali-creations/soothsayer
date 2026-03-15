@@ -38,6 +38,7 @@ import { SettingsStoreRepository } from "./SettingsStore.repository";
 class SettingsStoreService {
   private static _instance: SettingsStoreService;
   private repository: SettingsStoreRepository;
+  private database: DatabaseService;
 
   static getInstance() {
     if (!SettingsStoreService._instance) {
@@ -48,8 +49,8 @@ class SettingsStoreService {
   }
 
   constructor() {
-    const db = DatabaseService.getInstance();
-    this.repository = new SettingsStoreRepository(db.getKysely());
+    this.database = DatabaseService.getInstance();
+    this.repository = new SettingsStoreRepository(this.database.getKysely());
     this.setupIpcHandlers();
   }
 
@@ -641,6 +642,12 @@ class SettingsStoreService {
   public async get<K extends keyof UserSettingsDTO>(
     key: K,
   ): Promise<UserSettingsDTO[K]> {
+    if (this.database.isClosed) {
+      console.warn(
+        `[SettingsStore] Ignoring get("${key}") — database is closed`,
+      );
+      return undefined as UserSettingsDTO[K];
+    }
     return this.repository.get(key);
   }
 
@@ -651,6 +658,12 @@ class SettingsStoreService {
     key: K,
     value: UserSettingsDTO[K],
   ): Promise<void> {
+    if (this.database.isClosed) {
+      console.warn(
+        `[SettingsStore] Ignoring set("${key}") — database is closed`,
+      );
+      return;
+    }
     await this.repository.set(key, value);
   }
 
@@ -671,6 +684,12 @@ class SettingsStoreService {
    * Get all settings as a single object
    */
   public async getAllSettings(): Promise<UserSettingsDTO> {
+    if (this.database.isClosed) {
+      console.warn(
+        "[SettingsStore] Ignoring getAllSettings() — database is closed",
+      );
+      return {} as UserSettingsDTO;
+    }
     return this.repository.getAll();
   }
 }

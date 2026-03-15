@@ -72,7 +72,7 @@ class CsvService {
           if (error instanceof Error && error.name === "IpcValidationError") {
             return handleValidationError(
               error,
-              CsvChannel.ExportAll
+              CsvChannel.ExportAll,
             ) as CsvExportResultDTO;
           }
           console.error(`[CsvService] ${CsvChannel.ExportAll} error:`, error);
@@ -81,7 +81,7 @@ class CsvService {
             error: "Export failed. See logs for details.",
           };
         }
-      }
+      },
     );
 
     // Export only cards added since the last successful share
@@ -93,26 +93,26 @@ class CsvService {
             scope,
             "scope",
             CsvChannel.ExportIncremental,
-            256
+            256,
           );
           return await this.exportIncremental(scope);
         } catch (error) {
           if (error instanceof Error && error.name === "IpcValidationError") {
             return handleValidationError(
               error,
-              CsvChannel.ExportIncremental
+              CsvChannel.ExportIncremental,
             ) as CsvExportResultDTO;
           }
           console.error(
             `[CsvService] ${CsvChannel.ExportIncremental} error:`,
-            error
+            error,
           );
           return {
             success: false,
             error: "Export failed. See logs for details.",
           };
         }
-      }
+      },
     );
 
     // Export cards for a specific session
@@ -126,19 +126,19 @@ class CsvService {
           if (error instanceof Error && error.name === "IpcValidationError") {
             return handleValidationError(
               error,
-              CsvChannel.ExportSession
+              CsvChannel.ExportSession,
             ) as CsvExportResultDTO;
           }
           console.error(
             `[CsvService] ${CsvChannel.ExportSession} error:`,
-            error
+            error,
           );
           return {
             success: false,
             error: "Export failed. See logs for details.",
           };
         }
-      }
+      },
     );
 
     // Get metadata about the last snapshot for a given scope
@@ -154,14 +154,14 @@ class CsvService {
           }
           console.error(
             `[CsvService] ${CsvChannel.GetSnapshotMeta} error:`,
-            error
+            error,
           );
           return {
             success: false,
             error: "Export failed. See logs for details.",
           };
         }
-      }
+      },
     );
   }
 
@@ -188,7 +188,7 @@ class CsvService {
       csvContent,
       activeGame,
       scope,
-      CsvExportType.All
+      CsvExportType.All,
     );
 
     if (!result.success || result.canceled) {
@@ -245,7 +245,7 @@ class CsvService {
       csvContent,
       activeGame,
       scope,
-      CsvExportType.Incremental
+      CsvExportType.Incremental,
     );
 
     if (!result.success || result.canceled) {
@@ -287,7 +287,7 @@ class CsvService {
       csvContent,
       activeGame ?? "poe1",
       `session-${sessionId.slice(0, 8)}`,
-      CsvExportType.Session
+      CsvExportType.Session,
     );
 
     if (!result.success || result.canceled) {
@@ -343,7 +343,7 @@ class CsvService {
     } catch (error) {
       console.error(
         "[CsvService] Failed to compute snapshot delta for meta:",
-        error
+        error,
       );
       // Return meta without delta info — non-critical failure
     }
@@ -366,7 +366,7 @@ class CsvService {
    */
   private async getStatsForScope(
     game: string,
-    scope: string
+    scope: string,
   ): Promise<SimpleDivinationCardStats> {
     if (scope === "all-time") {
       return this.dataStore.getAllTimeStats(game);
@@ -378,7 +378,7 @@ class CsvService {
    * Convert SimpleDivinationCardStats to a flat Record<string, number> for CSV.
    */
   private statsToCsvData(
-    stats: SimpleDivinationCardStats
+    stats: SimpleDivinationCardStats,
   ): Record<string, number> {
     const csvData: Record<string, number> = {};
     for (const [cardName, entry] of Object.entries(stats.cards)) {
@@ -395,7 +395,7 @@ class CsvService {
     csvContent: string,
     game: string,
     scope: string,
-    exportType: CsvExportType
+    exportType: CsvExportType,
   ): Promise<CsvExportResultDTO> {
     const allWindows = BrowserWindow.getAllWindows();
     const mainWindow = allWindows[0];
@@ -438,7 +438,7 @@ class CsvService {
   private async saveCurrentSnapshot(
     game: string,
     scope: string,
-    csvData: Record<string, number>
+    csvData: Record<string, number>,
   ): Promise<void> {
     const entries = Object.entries(csvData).map(([cardName, count]) => ({
       cardName,
@@ -453,7 +453,7 @@ class CsvService {
       const result = await this.integrityChecker.runChecks(
         game,
         scope,
-        csvData
+        csvData,
       );
       integrityStatus = result.status;
       integrityDetails = JSON.stringify(result.details);
@@ -477,7 +477,7 @@ class CsvService {
       scope,
       entries,
       integrityStatus,
-      integrityDetails
+      integrityDetails,
     );
   }
 }
