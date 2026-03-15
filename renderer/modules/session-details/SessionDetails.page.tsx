@@ -1,8 +1,9 @@
 import { useNavigate, useParams } from "@tanstack/react-router";
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { FiArrowLeft } from "react-icons/fi";
 
 import { Button, PageContainer } from "~/renderer/components";
+import { trackEvent } from "~/renderer/modules/umami";
 import { useBoundStore } from "~/renderer/store";
 
 import {
@@ -37,6 +38,24 @@ const SessionDetailsPage = () => {
       clearSession();
     };
   }, [sessionId, loadSession, clearSession]);
+
+  const handleExportCsv = useCallback(async () => {
+    try {
+      const result = await window.electron.csv.exportSession(sessionId);
+      if (result.success) {
+        trackEvent("csv-export", {
+          type: "session",
+          league: session?.league ?? "unknown",
+          source: "session-details",
+        });
+      } else if (!result.canceled) {
+        alert("Failed to export CSV. Please try again.");
+      }
+    } catch (error) {
+      console.error("Error exporting session CSV:", error);
+      alert("Failed to export CSV. Please try again.");
+    }
+  }, [sessionId, session]);
 
   const calculateDuration = () => {
     if (!session || !session.startedAt) return "—";
@@ -165,7 +184,7 @@ const SessionDetailsPage = () => {
             {session.league} • {new Date(session.startedAt!).toLocaleString()}
           </>
         }
-        actions={<SessionDetailsActions />}
+        actions={<SessionDetailsActions onExportCsv={handleExportCsv} />}
       />
       <PageContainer.Content>
         <SessionDetailsStats

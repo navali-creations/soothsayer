@@ -31,6 +31,7 @@ export const SettingsKey = {
   MainWindowBounds: "mainWindowBounds",
   TelemetryCrashReporting: "telemetryCrashReporting",
   TelemetryUsageAnalytics: "telemetryUsageAnalytics",
+  CsvExportPath: "csvExportPath",
 } as const;
 
 export type SettingsKeyType = (typeof SettingsKey)[keyof typeof SettingsKey];

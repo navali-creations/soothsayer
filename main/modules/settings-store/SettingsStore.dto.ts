@@ -39,6 +39,7 @@ export interface UserSettingsDTO {
   } | null;
   telemetryCrashReporting: boolean;
   telemetryUsageAnalytics: boolean;
+  csvExportPath: string | null;
 }
 
 /**

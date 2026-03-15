@@ -50,6 +50,7 @@ function createSettingsRow(
     main_window_bounds: null,
     telemetry_crash_reporting: 0,
     telemetry_usage_analytics: 0,
+    csv_export_path: null,
     created_at: "2025-01-01T00:00:00Z",
     updated_at: "2025-01-01T00:00:00Z",
     ...overrides,
@@ -291,6 +292,7 @@ describe("SettingsStore.mapper", () => {
         mainWindowBounds: { x: 100, y: 200, width: 1400, height: 900 },
         telemetryCrashReporting: false,
         telemetryUsageAnalytics: false,
+        csvExportPath: null,
       });
     });
   });
@@ -571,6 +573,7 @@ describe("SettingsStore.mapper", () => {
         "overlayFontSize",
         "overlayToolbarFontSize",
         "mainWindowBounds",
+        "csvExportPath",
       ] as const;
 
       for (const key of allKeys) {

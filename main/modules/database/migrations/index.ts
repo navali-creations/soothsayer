@@ -8,6 +8,7 @@ import { migration_20260226_134100_add_overlay_toolbar_font_size } from "./20260
 import { migration_20260227_182400_add_stacked_deck_max_volume_rate } from "./20260227_182400_add_stacked_deck_max_volume_rate";
 import { migration_20260302_192700_add_telemetry_settings } from "./20260302_192700_add_telemetry_settings";
 import { migration_20260305_014700_add_card_price_history_cache } from "./20260305_014700_add_card_price_history_cache";
+import { migration_20260314_131100_add_csv_export_snapshots } from "./20260314_131100_add_csv_export_snapshots";
 import type { Migration } from "./Migration.interface";
 
 /**
@@ -28,6 +29,7 @@ export const migrations: Migration[] = [
   migration_20260227_182400_add_stacked_deck_max_volume_rate,
   migration_20260302_192700_add_telemetry_settings,
   migration_20260305_014700_add_card_price_history_cache,
+  migration_20260314_131100_add_csv_export_snapshots,
 ];
 
 export type { Migration } from "./Migration.interface";

@@ -59,6 +59,7 @@ export function toUserSettingsDTO(row: UserSettingsRow): UserSettingsDTO {
     mainWindowBounds: row.main_window_bounds
       ? JSON.parse(row.main_window_bounds)
       : null,
+    csvExportPath: row.csv_export_path ?? null,
   };
 }
 
@@ -140,6 +141,7 @@ export function toDBKey(key: keyof UserSettingsDTO): keyof UserSettingsTable {
     overlayFontSize: "overlay_font_size",
     overlayToolbarFontSize: "overlay_toolbar_font_size",
     mainWindowBounds: "main_window_bounds",
+    csvExportPath: "csv_export_path",
   };
   return mapping[key];
 }

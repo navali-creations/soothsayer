@@ -81,6 +81,7 @@ vi.mock("node:fs", async () => {
 // ─── Import test utilities and module under test ─────────────────────────────
 import {
   createTestDatabase,
+  seedCsvExportSnapshot,
   seedDivinationCardRarity,
   seedLeague,
   seedSession,
@@ -420,8 +421,8 @@ describe("StorageService", () => {
       expect(result).toMatchObject({
         success: false,
         freedBytes: 0,
-        error: "Invalid league ID",
       });
+      expect(result.error).toContain("Invalid input");
     });
 
     it("should return error for non-string league ID", async () => {
@@ -431,8 +432,8 @@ describe("StorageService", () => {
       expect(result).toMatchObject({
         success: false,
         freedBytes: 0,
-        error: "Invalid league ID",
       });
+      expect(result.error).toContain("Invalid input");
     });
 
     it("should return error when league has an active session", async () => {
@@ -556,6 +557,24 @@ describe("StorageService", () => {
         )
         .run("cache-1", "poe1", leagueId, "Full League", 1, "2025-01-01");
 
+      // Insert csv_export_snapshots for this league
+      await seedCsvExportSnapshot(testDb.kysely, [
+        {
+          game: "poe1",
+          scope: "Full League",
+          cardName: "The Doctor",
+          count: 1,
+          totalCount: 10,
+        },
+        {
+          game: "poe1",
+          scope: "Full League",
+          cardName: "Rain of Chaos",
+          count: 9,
+          totalCount: 10,
+        },
+      ]);
+
       const handler = getIpcHandler(StorageChannel.DeleteLeagueData);
       const result = await handler({}, leagueId);
 
@@ -619,6 +638,13 @@ describe("StorageService", () => {
         )
         .all("poe1", leagueId);
       expect(remainingLeagueCache).toHaveLength(0);
+
+      const remainingCsvSnapshots = testDb.db
+        .prepare(
+          "SELECT * FROM csv_export_snapshots WHERE game = ? AND scope = ?",
+        )
+        .all("poe1", "Full League");
+      expect(remainingCsvSnapshots).toHaveLength(0);
     });
 
     it("should not delete data from other leagues during cascade delete", async () => {
@@ -652,6 +678,26 @@ describe("StorageService", () => {
       await seedSnapshot(testDb.kysely, { leagueId: leagueToDelete });
       await seedSnapshot(testDb.kysely, { leagueId: leagueToKeep });
 
+      // Seed csv_export_snapshots for both leagues
+      await seedCsvExportSnapshot(testDb.kysely, [
+        {
+          game: "poe1",
+          scope: "Delete Me",
+          cardName: "The Doctor",
+          count: 1,
+          totalCount: 1,
+        },
+      ]);
+      await seedCsvExportSnapshot(testDb.kysely, [
+        {
+          game: "poe1",
+          scope: "Keep Me",
+          cardName: "Rain of Chaos",
+          count: 5,
+          totalCount: 5,
+        },
+      ]);
+
       const handler = getIpcHandler(StorageChannel.DeleteLeagueData);
       await handler({}, leagueToDelete);
 
@@ -660,6 +706,13 @@ describe("StorageService", () => {
         .prepare("SELECT * FROM sessions WHERE league_id = ?")
         .all(leagueToDelete);
       expect(deletedSessions).toHaveLength(0);
+
+      const deletedCsvSnapshots = testDb.db
+        .prepare(
+          "SELECT * FROM csv_export_snapshots WHERE game = ? AND scope = ?",
+        )
+        .all("poe1", "Delete Me");
+      expect(deletedCsvSnapshots).toHaveLength(0);
 
       // Kept league's data should still exist
       const keptSessions = testDb.db
@@ -676,6 +729,120 @@ describe("StorageService", () => {
         .prepare("SELECT * FROM snapshots WHERE league_id = ?")
         .all(leagueToKeep);
       expect(keptSnapshots).toHaveLength(1);
+
+      const keptCsvSnapshots = testDb.db
+        .prepare(
+          "SELECT * FROM csv_export_snapshots WHERE game = ? AND scope = ?",
+        )
+        .all("poe1", "Keep Me");
+      expect(keptCsvSnapshots).toHaveLength(1);
+    });
+
+    it("should delete csv_export_snapshots for the league scope only", async () => {
+      const leagueId = await seedLeague(testDb.kysely, {
+        name: "Settlers",
+        game: "poe1",
+      });
+
+      // Seed snapshots for the league scope and the all-time scope
+      await seedCsvExportSnapshot(testDb.kysely, [
+        {
+          game: "poe1",
+          scope: "Settlers",
+          cardName: "The Doctor",
+          count: 3,
+          totalCount: 10,
+        },
+        {
+          game: "poe1",
+          scope: "Settlers",
+          cardName: "Rain of Chaos",
+          count: 7,
+          totalCount: 10,
+        },
+      ]);
+      await seedCsvExportSnapshot(testDb.kysely, [
+        {
+          game: "poe1",
+          scope: "all-time",
+          cardName: "The Doctor",
+          count: 15,
+          totalCount: 50,
+        },
+      ]);
+
+      const handler = getIpcHandler(StorageChannel.DeleteLeagueData);
+      const result = await handler({}, leagueId);
+
+      expect(result.success).toBe(true);
+
+      // League-scoped csv snapshots should be gone
+      const leagueSnapshots = testDb.db
+        .prepare(
+          "SELECT * FROM csv_export_snapshots WHERE game = ? AND scope = ?",
+        )
+        .all("poe1", "Settlers");
+      expect(leagueSnapshots).toHaveLength(0);
+
+      // All-time csv snapshots should still exist
+      const allTimeSnapshots = testDb.db
+        .prepare(
+          "SELECT * FROM csv_export_snapshots WHERE game = ? AND scope = ?",
+        )
+        .all("poe1", "all-time");
+      expect(allTimeSnapshots).toHaveLength(1);
+    });
+
+    it("should delete csv_export_snapshots scoped by game when leagues share the same name across games", async () => {
+      const poe1League = await seedLeague(testDb.kysely, {
+        name: "Shared Name",
+        game: "poe1",
+      });
+      await seedLeague(testDb.kysely, {
+        name: "Shared Name",
+        game: "poe2",
+      });
+
+      // Seed csv snapshots for both games with the same scope name
+      await seedCsvExportSnapshot(testDb.kysely, [
+        {
+          game: "poe1",
+          scope: "Shared Name",
+          cardName: "The Doctor",
+          count: 2,
+          totalCount: 2,
+        },
+      ]);
+      await seedCsvExportSnapshot(testDb.kysely, [
+        {
+          game: "poe2",
+          scope: "Shared Name",
+          cardName: "The Doctor",
+          count: 5,
+          totalCount: 5,
+        },
+      ]);
+
+      const handler = getIpcHandler(StorageChannel.DeleteLeagueData);
+      const result = await handler({}, poe1League);
+
+      expect(result.success).toBe(true);
+
+      // poe1 snapshots for the league should be gone
+      const poe1Snapshots = testDb.db
+        .prepare(
+          "SELECT * FROM csv_export_snapshots WHERE game = ? AND scope = ?",
+        )
+        .all("poe1", "Shared Name");
+      expect(poe1Snapshots).toHaveLength(0);
+
+      // poe2 snapshots with the same scope name should still exist
+      const poe2Snapshots = testDb.db
+        .prepare(
+          "SELECT * FROM csv_export_snapshots WHERE game = ? AND scope = ?",
+        )
+        .all("poe2", "Shared Name");
+      expect(poe2Snapshots).toHaveLength(1);
     });
 
     it("should handle deletion of league with multiple sessions", async () => {

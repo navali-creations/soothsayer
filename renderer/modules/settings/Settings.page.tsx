@@ -7,6 +7,7 @@ import {
   AppHelpCard,
   AudioSettingsCard,
   DangerZoneCard,
+  ExportSettingsCard,
   FilePathSettingCard,
   FilterSettingsCard,
   OverlaySettingsCard,
@@ -73,6 +74,9 @@ const SettingsPage = () => {
           </Grid.Col>
           <Grid.Col>
             <AudioSettingsCard />
+          </Grid.Col>
+          <Grid.Col>
+            <ExportSettingsCard />
           </Grid.Col>
           <Grid.Col>
             <OverlaySettingsCard />

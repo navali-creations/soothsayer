@@ -612,6 +612,9 @@ class DatabaseService {
           -- Post-update detection
           last_seen_app_version TEXT,
 
+          -- CSV export settings
+          csv_export_path TEXT,
+
           -- Metadata
           created_at TEXT NOT NULL DEFAULT (datetime('now')),
           updated_at TEXT NOT NULL DEFAULT (datetime('now'))

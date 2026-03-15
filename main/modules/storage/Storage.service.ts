@@ -4,6 +4,10 @@ import path from "node:path";
 import { app, ipcMain } from "electron";
 
 import { DatabaseService } from "~/main/modules/database";
+import {
+  assertLeagueId,
+  IpcValidationError,
+} from "~/main/utils/ipc-validation";
 import { maskPath } from "~/main/utils/mask-path";
 
 import { StorageChannel } from "./Storage.channels";
@@ -67,7 +71,20 @@ class StorageService {
     ipcMain.handle(
       StorageChannel.DeleteLeagueData,
       async (_event, leagueId: string): Promise<DeleteLeagueDataResult> => {
-        return this.deleteLeagueData(leagueId);
+        try {
+          assertLeagueId(leagueId, StorageChannel.DeleteLeagueData);
+          return await this.deleteLeagueData(leagueId);
+        } catch (error) {
+          if (error instanceof IpcValidationError) {
+            console.warn(`[Security] ${error.message}`);
+            return {
+              success: false,
+              freedBytes: 0,
+              error: `Invalid input: ${error.detail}`,
+            };
+          }
+          throw error;
+        }
       },
     );
 
@@ -507,7 +524,12 @@ class StorageService {
           "DELETE FROM poe_leagues_cache WHERE game = ? AND league_id = ?",
         ).run(league.game, leagueId);
 
-        // 10. Delete the league itself
+        // 10. csv_export_snapshots WHERE game AND scope = league_name
+        db.prepare(
+          "DELETE FROM csv_export_snapshots WHERE game = ? AND scope = ?",
+        ).run(league.game, league.name);
+
+        // 11. Delete the league itself
         db.prepare("DELETE FROM leagues WHERE id = ?").run(leagueId);
       });
 

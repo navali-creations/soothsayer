@@ -8,8 +8,10 @@ const {
   mockWriteFile,
   mockGetKysely,
   mockGetAllTimeStats,
+  mockGetLeagueStats,
   mockSettingsGet,
   mockSettingsSet,
+  mockGetSessionById,
 } = vi.hoisted(() => ({
   mockIpcHandle: vi.fn(),
   mockShowSaveDialog: vi.fn(),
@@ -17,9 +19,72 @@ const {
   mockWriteFile: vi.fn(),
   mockGetKysely: vi.fn(),
   mockGetAllTimeStats: vi.fn(),
+  mockGetLeagueStats: vi.fn(),
   mockSettingsGet: vi.fn(),
   mockSettingsSet: vi.fn(),
+  mockGetSessionById: vi.fn(),
 }));
+
+/**
+ * Creates a chainable mock Kysely instance that supports the query patterns
+ * used by CsvRepository (selectFrom, insertInto, deleteFrom on csv_export_snapshots).
+ *
+ * - selectFrom().select().where().where().executeTakeFirst() → returns mockSelectResult
+ * - selectFrom().selectAll().where().where().execute() → returns mockSelectAllResult
+ * - insertInto().values().onConflict().execute() → resolves
+ * - deleteFrom().where().where().execute() → resolves
+ */
+function createMockKysely(options?: {
+  selectResult?: any;
+  selectAllResult?: any[];
+}) {
+  const mockExecuteTakeFirst = vi
+    .fn()
+    .mockResolvedValue(options?.selectResult ?? null);
+
+  const chainable: any = {};
+  // Every method returns `chainable` so calls can be chained arbitrarily
+  for (const method of [
+    "selectFrom",
+    "selectAll",
+    "select",
+    "where",
+    "insertInto",
+    "values",
+    "onConflict",
+    "columns",
+    "doUpdateSet",
+    "deleteFrom",
+    "set",
+    "transaction",
+  ]) {
+    chainable[method] = vi.fn().mockReturnValue(chainable);
+  }
+
+  // Terminal methods
+  chainable.execute = vi.fn().mockResolvedValue(options?.selectAllResult ?? []);
+  chainable.executeTakeFirst = mockExecuteTakeFirst;
+
+  // onConflict receives a callback — invoke it with chainable so .columns().doUpdateSet() works
+  chainable.onConflict = vi.fn().mockImplementation((cb: any) => {
+    if (typeof cb === "function") cb(chainable);
+    return chainable;
+  });
+
+  // select receives a callback for expression builder — invoke it with a mock eb
+  chainable.select = vi.fn().mockImplementation((arg: any) => {
+    if (typeof arg === "function") {
+      const mockFn = vi
+        .fn()
+        .mockReturnValue({ as: vi.fn().mockReturnValue("mock_col") });
+      const eb = { fn: { sum: mockFn, max: mockFn, count: mockFn } };
+      arg(eb);
+    }
+    return chainable;
+  });
+
+  return chainable;
+}
 
 // ─── Mock Electron before any imports that use it ────────────────────────────
 vi.mock("electron", () => ({
@@ -47,6 +112,7 @@ vi.mock("electron", () => ({
 vi.mock("node:fs", () => ({
   promises: {
     writeFile: mockWriteFile,
+    mkdir: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -76,7 +142,7 @@ vi.mock("~/main/modules/data-store", () => ({
   DataStoreService: {
     getInstance: vi.fn(() => ({
       getAllTimeStats: mockGetAllTimeStats,
-      getLeagueStats: vi.fn(),
+      getLeagueStats: mockGetLeagueStats,
       addCard: vi.fn(),
       getGlobalStats: vi.fn(),
     })),
@@ -97,11 +163,21 @@ vi.mock("~/main/modules/settings-store", () => ({
   },
 }));
 
-// Also mock the barrel import path
+// ─── Mock SessionsService ────────────────────────────────────────────────────
+vi.mock("~/main/modules/sessions", () => ({
+  SessionsService: {
+    getInstance: vi.fn(() => ({
+      getSessionById: mockGetSessionById,
+    })),
+  },
+}));
+
+// ─── Mock the barrel import path ─────────────────────────────────────────────
 vi.mock("~/main/modules", () => ({
   DataStoreService: {
     getInstance: vi.fn(() => ({
       getAllTimeStats: mockGetAllTimeStats,
+      getLeagueStats: mockGetLeagueStats,
     })),
   },
   SettingsStoreService: {
@@ -114,34 +190,98 @@ vi.mock("~/main/modules", () => ({
   SettingsKey: {
     ActiveGame: "selectedGame",
   },
+  SessionsService: {
+    getInstance: vi.fn(() => ({
+      getSessionById: mockGetSessionById,
+    })),
+  },
 }));
 
+import { CsvChannel } from "../Csv.channels";
 import { CsvService } from "../Csv.service";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /**
  * After CsvService is instantiated, the constructor calls setupHandlers()
- * which registers an ipcMain.handle for "export-divination-cards-csv".
- * This helper extracts and returns the handler callback for direct invocation.
+ * which registers ipcMain.handle calls for each CsvChannel.
+ * This helper extracts and returns the handler callback for the given channel.
  */
-function getExportHandler(): (...args: any[]) => Promise<any> {
+function getHandler(channel: string): (...args: any[]) => Promise<any> {
   const call = mockIpcHandle.mock.calls.find(
-    ([channel]: [string]) => channel === "export-divination-cards-csv",
+    ([ch]: [string]) => ch === channel,
   );
   if (!call) {
-    throw new Error(
-      'ipcMain.handle was not called with "export-divination-cards-csv"',
-    );
+    throw new Error(`ipcMain.handle was not called with "${channel}"`);
   }
   return call[1];
+}
+
+function getExportAllHandler(): (...args: any[]) => Promise<any> {
+  return getHandler(CsvChannel.ExportAll);
+}
+
+function getExportIncrementalHandler(): (...args: any[]) => Promise<any> {
+  return getHandler(CsvChannel.ExportIncremental);
+}
+
+function getExportSessionHandler(): (...args: any[]) => Promise<any> {
+  return getHandler(CsvChannel.ExportSession);
+}
+
+function getSnapshotMetaHandler(): (...args: any[]) => Promise<any> {
+  return getHandler(CsvChannel.GetSnapshotMeta);
+}
+
+/**
+ * Helper to re-create the CsvService singleton with a different Kysely mock.
+ * Resets mockIpcHandle so getHandler() finds the NEW handler, not the old one.
+ * Re-applies the default mock values for settings, stats, dialog, etc.
+ */
+function recreateServiceWithKysely(
+  kyselyMock: any,
+  defaults: {
+    mockMainWindow: any;
+    settingsGame?: string;
+    allTimeStats?: any;
+  },
+) {
+  // Update the Kysely mock BEFORE re-creating the service
+  mockGetKysely.mockReturnValue(kyselyMock);
+
+  // Reset ipcMain.handle so .find() picks up the new handlers
+  mockIpcHandle.mockReset();
+
+  // Destroy singleton
+  // @ts-expect-error accessing private static for testing
+  CsvService._instance = undefined;
+
+  // Re-apply default mocks (they were cleared by the reset above or need fresh values)
+  mockGetAllWindows.mockReturnValue([defaults.mockMainWindow]);
+  mockSettingsGet.mockImplementation((key: string) => {
+    if (key === "csvExportPath") return Promise.resolve(null);
+    return Promise.resolve(defaults.settingsGame ?? "poe1");
+  });
+  if (defaults.allTimeStats) {
+    mockGetAllTimeStats.mockResolvedValue(defaults.allTimeStats);
+  }
+  mockShowSaveDialog.mockResolvedValue({
+    canceled: false,
+    filePath: "/tmp/poe1-cards-2025-01-15.csv",
+  });
+  mockWriteFile.mockResolvedValue(undefined);
+
+  // Create fresh service (registers new handlers with mockIpcHandle)
+  const service = CsvService.getInstance();
+
+  return { service };
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe("CsvService", () => {
   let _service: CsvService;
-  let exportHandler: (...args: any[]) => Promise<any>;
+  let exportAllHandler: (...args: any[]) => Promise<any>;
 
   const mockMainWindow = {
     webContents: { send: vi.fn() },
@@ -155,14 +295,22 @@ describe("CsvService", () => {
     mockGetAllWindows.mockReset();
     mockWriteFile.mockReset();
     mockGetAllTimeStats.mockReset();
+    mockGetLeagueStats.mockReset();
     mockSettingsGet.mockReset();
     mockSettingsSet.mockReset();
+    mockGetSessionById.mockReset();
+
+    // Default: Kysely mock that handles CsvRepository queries
+    mockGetKysely.mockReturnValue(createMockKysely());
 
     // Default: main window available
     mockGetAllWindows.mockReturnValue([mockMainWindow]);
 
-    // Default: active game is poe1
-    mockSettingsGet.mockResolvedValue("poe1");
+    // Default: key-aware settings mock
+    mockSettingsGet.mockImplementation((key: string) => {
+      if (key === "csvExportPath") return Promise.resolve(null);
+      return Promise.resolve("poe1");
+    });
 
     // Default: some card data
     mockGetAllTimeStats.mockResolvedValue({
@@ -188,7 +336,7 @@ describe("CsvService", () => {
     CsvService._instance = undefined;
 
     _service = CsvService.getInstance();
-    exportHandler = getExportHandler();
+    exportAllHandler = getExportAllHandler();
   });
 
   afterEach(() => {
@@ -210,44 +358,108 @@ describe("CsvService", () => {
   // ─── IPC Handler Registration ───────────────────────────────────────────
 
   describe("setupHandlers", () => {
-    it("should register the export-divination-cards-csv handler", () => {
+    it("should register the ExportAll handler", () => {
       expect(mockIpcHandle).toHaveBeenCalledWith(
-        "export-divination-cards-csv",
+        CsvChannel.ExportAll,
         expect.any(Function),
       );
     });
+
+    it("should register the ExportIncremental handler", () => {
+      expect(mockIpcHandle).toHaveBeenCalledWith(
+        CsvChannel.ExportIncremental,
+        expect.any(Function),
+      );
+    });
+
+    it("should register the ExportSession handler", () => {
+      expect(mockIpcHandle).toHaveBeenCalledWith(
+        CsvChannel.ExportSession,
+        expect.any(Function),
+      );
+    });
+
+    it("should register the GetSnapshotMeta handler", () => {
+      expect(mockIpcHandle).toHaveBeenCalledWith(
+        CsvChannel.GetSnapshotMeta,
+        expect.any(Function),
+      );
+    });
+
+    it("should register exactly four handlers", () => {
+      // Four channels: ExportAll, ExportIncremental, ExportSession, GetSnapshotMeta
+      expect(mockIpcHandle).toHaveBeenCalledTimes(4);
+    });
   });
 
-  // ─── Successful Export ──────────────────────────────────────────────────
+  // ─── ExportAll — success path ───────────────────────────────────────────
 
-  describe("export-divination-cards-csv handler — success path", () => {
+  describe("ExportAll handler — success path", () => {
     it("should fetch the active game from settings", async () => {
-      await exportHandler();
+      await exportAllHandler({}, "all-time");
 
       expect(mockSettingsGet).toHaveBeenCalledWith("selectedGame");
     });
 
-    it("should fetch all-time stats for the active game", async () => {
-      mockSettingsGet.mockResolvedValue("poe2");
+    it("should fetch all-time stats for the active game when scope is all-time", async () => {
+      mockSettingsGet.mockImplementation((key: string) => {
+        if (key === "csvExportPath") return Promise.resolve(null);
+        return Promise.resolve("poe2");
+      });
 
-      await exportHandler();
+      await exportAllHandler({}, "all-time");
 
       expect(mockGetAllTimeStats).toHaveBeenCalledWith("poe2");
     });
 
-    it("should show a save dialog with correct default path", async () => {
-      mockSettingsGet.mockResolvedValue("poe1");
+    it("should fetch league stats when scope is a league name", async () => {
+      mockGetLeagueStats.mockResolvedValue({
+        totalCount: 5,
+        cards: {
+          "The Doctor": { count: 2 },
+          "Rain of Chaos": { count: 3 },
+        },
+      });
 
-      await exportHandler();
+      await exportAllHandler({}, "Settlers");
+
+      expect(mockGetLeagueStats).toHaveBeenCalledWith("poe1", "Settlers");
+    });
+
+    it("should show a save dialog with correct default path for all-time", async () => {
+      mockSettingsGet.mockImplementation((key: string) => {
+        if (key === "csvExportPath") return Promise.resolve(null);
+        return Promise.resolve("poe1");
+      });
+
+      await exportAllHandler({}, "all-time");
 
       expect(mockShowSaveDialog).toHaveBeenCalledWith(
         mockMainWindow,
         expect.objectContaining({
           title: expect.stringContaining("POE1"),
           defaultPath: expect.stringMatching(
-            /^poe1-cards-\d{4}-\d{2}-\d{2}\.csv$/,
+            /poe1-cards-\d{4}-\d{2}-\d{2}\.csv$/,
           ),
           filters: [{ name: "CSV Files", extensions: ["csv"] }],
+        }),
+      );
+    });
+
+    it("should show a save dialog with scope in filename for league exports", async () => {
+      mockGetLeagueStats.mockResolvedValue({
+        totalCount: 5,
+        cards: { "The Doctor": { count: 5 } },
+      });
+
+      await exportAllHandler({}, "Settlers");
+
+      expect(mockShowSaveDialog).toHaveBeenCalledWith(
+        mockMainWindow,
+        expect.objectContaining({
+          defaultPath: expect.stringMatching(
+            /poe1-cards-Settlers-\d{4}-\d{2}-\d{2}\.csv$/,
+          ),
         }),
       );
     });
@@ -261,7 +473,7 @@ describe("CsvService", () => {
         },
       });
 
-      await exportHandler();
+      await exportAllHandler({}, "all-time");
 
       expect(mockWriteFile).toHaveBeenCalledTimes(1);
 
@@ -276,12 +488,12 @@ describe("CsvService", () => {
       expect(lines).toContain("Rain of Chaos,3");
     });
 
-    it("should return success with the file path", async () => {
-      const result = await exportHandler();
+    it("should return success with file path and exported count", async () => {
+      const result = await exportAllHandler({}, "all-time");
 
       expect(result).toEqual({
         success: true,
-        filePath: "/tmp/poe1-cards-2025-01-15.csv",
+        exportedCount: 3,
       });
     });
 
@@ -293,7 +505,7 @@ describe("CsvService", () => {
         },
       });
 
-      await exportHandler();
+      await exportAllHandler({}, "all-time");
 
       const [, content] = mockWriteFile.mock.calls[0];
       const lines = content.split("\n");
@@ -307,7 +519,7 @@ describe("CsvService", () => {
         cards: {},
       });
 
-      await exportHandler();
+      await exportAllHandler({}, "all-time");
 
       const [, content] = mockWriteFile.mock.calls[0];
       // Should only have the header row with no data rows
@@ -325,7 +537,7 @@ describe("CsvService", () => {
         cards: manyCards,
       });
 
-      await exportHandler();
+      await exportAllHandler({}, "all-time");
 
       const [, content] = mockWriteFile.mock.calls[0];
       const lines = content.split("\n");
@@ -334,16 +546,16 @@ describe("CsvService", () => {
     });
   });
 
-  // ─── Dialog Cancellation ────────────────────────────────────────────────
+  // ─── ExportAll — cancellation ───────────────────────────────────────────
 
-  describe("export-divination-cards-csv handler — cancellation", () => {
+  describe("ExportAll handler — cancellation", () => {
     it("should return canceled result when user cancels the save dialog", async () => {
       mockShowSaveDialog.mockResolvedValue({
         canceled: true,
         filePath: undefined,
       });
 
-      const result = await exportHandler();
+      const result = await exportAllHandler({}, "all-time");
 
       expect(result).toEqual({ success: false, canceled: true });
       expect(mockWriteFile).not.toHaveBeenCalled();
@@ -355,75 +567,81 @@ describe("CsvService", () => {
         filePath: "",
       });
 
-      const result = await exportHandler();
+      const result = await exportAllHandler({}, "all-time");
 
       expect(result).toEqual({ success: false, canceled: true });
       expect(mockWriteFile).not.toHaveBeenCalled();
     });
   });
 
-  // ─── Error Handling ─────────────────────────────────────────────────────
+  // ─── ExportAll — error handling ─────────────────────────────────────────
 
-  describe("export-divination-cards-csv handler — error cases", () => {
+  describe("ExportAll handler — error cases", () => {
     it("should return error when no main window is available", async () => {
       mockGetAllWindows.mockReturnValue([]);
 
-      const result = await exportHandler();
+      const result = await exportAllHandler({}, "all-time");
 
-      expect(result).toEqual({
-        success: false,
-        error: "Main window not available",
-      });
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: false,
+          error: "Export failed. See logs for details.",
+        }),
+      );
     });
 
     it("should return error when writeFile fails", async () => {
       mockWriteFile.mockRejectedValue(new Error("Permission denied"));
 
-      const result = await exportHandler();
+      const result = await exportAllHandler({}, "all-time");
 
-      expect(result).toEqual({
-        success: false,
-        error: "Permission denied",
-      });
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: false,
+        }),
+      );
     });
 
     it("should return error when getAllTimeStats throws", async () => {
       mockGetAllTimeStats.mockRejectedValue(new Error("Database error"));
 
-      const result = await exportHandler();
+      const result = await exportAllHandler({}, "all-time");
 
-      expect(result).toEqual({
-        success: false,
-        error: "Database error",
-      });
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: false,
+        }),
+      );
     });
 
     it("should return error when settings get fails", async () => {
       mockSettingsGet.mockRejectedValue(new Error("Settings unavailable"));
 
-      const result = await exportHandler();
+      const result = await exportAllHandler({}, "all-time");
 
-      expect(result).toEqual({
-        success: false,
-        error: "Settings unavailable",
-      });
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: false,
+        }),
+      );
     });
 
     it("should return error when showSaveDialog rejects", async () => {
       mockShowSaveDialog.mockRejectedValue(new Error("Dialog error"));
 
-      const result = await exportHandler();
+      const result = await exportAllHandler({}, "all-time");
 
-      expect(result).toEqual({
-        success: false,
-        error: "Dialog error",
-      });
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: false,
+        }),
+      );
     });
 
     it("should not write file when an error occurs before dialog", async () => {
       mockGetAllTimeStats.mockRejectedValue(new Error("DB failure"));
 
-      await exportHandler();
+      await exportAllHandler({}, "all-time");
 
       expect(mockWriteFile).not.toHaveBeenCalled();
       expect(mockShowSaveDialog).not.toHaveBeenCalled();
@@ -442,7 +660,7 @@ describe("CsvService", () => {
         },
       });
 
-      await exportHandler();
+      await exportAllHandler({}, "all-time");
 
       const [, content] = mockWriteFile.mock.calls[0];
       const lines = content.split("\n");
@@ -463,9 +681,12 @@ describe("CsvService", () => {
     });
 
     it("should use activeGame for the dialog title", async () => {
-      mockSettingsGet.mockResolvedValue("poe2");
+      mockSettingsGet.mockImplementation((key: string) => {
+        if (key === "csvExportPath") return Promise.resolve(null);
+        return Promise.resolve("poe2");
+      });
 
-      await exportHandler();
+      await exportAllHandler({}, "all-time");
 
       expect(mockShowSaveDialog).toHaveBeenCalledWith(
         mockMainWindow,
@@ -474,22 +695,797 @@ describe("CsvService", () => {
         }),
       );
     });
+  });
 
-    it("should handle null activeGame gracefully in title", async () => {
-      mockSettingsGet.mockResolvedValue(null);
+  // ─── ExportIncremental ──────────────────────────────────────────────────
 
-      // getAllTimeStats should still be called with null
+  describe("ExportIncremental handler", () => {
+    let incrementalHandler: (...args: any[]) => Promise<any>;
+
+    beforeEach(() => {
+      incrementalHandler = getExportIncrementalHandler();
+    });
+
+    it("should fetch the active game from settings", async () => {
+      await incrementalHandler({}, "all-time");
+
+      expect(mockSettingsGet).toHaveBeenCalledWith("selectedGame");
+    });
+
+    it("should export all cards as delta when no prior snapshot exists", async () => {
+      // No prior snapshot: selectAll().execute() returns [] (default mock)
       mockGetAllTimeStats.mockResolvedValue({
-        totalCount: 0,
-        cards: {},
+        totalCount: 15,
+        cards: {
+          "The Doctor": { count: 3 },
+          "The Nurse": { count: 7 },
+          "Rain of Chaos": { count: 5 },
+        },
       });
 
-      await exportHandler();
+      const result = await incrementalHandler({}, "all-time");
+
+      // All 3 cards are "new" (delta = current - 0), so all are exported
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: true,
+          exportedCount: 3,
+        }),
+      );
+
+      // Verify CSV content includes all cards with their full counts
+      const [, content] = mockWriteFile.mock.calls[0];
+      const lines = content.split("\n");
+      expect(lines[0]).toBe("name,amount");
+      expect(lines).toContain("The Doctor,3");
+      expect(lines).toContain("The Nurse,7");
+      expect(lines).toContain("Rain of Chaos,5");
+    });
+
+    it("should return error when snapshot matches current stats (no delta)", async () => {
+      // Current stats
+      const currentStats = {
+        totalCount: 15,
+        cards: {
+          "The Doctor": { count: 3 },
+          "The Nurse": { count: 7 },
+          "Rain of Chaos": { count: 5 },
+        },
+      };
+      mockGetAllTimeStats.mockResolvedValue(currentStats);
+
+      // Snapshot rows match current — configure Kysely mock to return them
+      const snapshotRows = [
+        {
+          id: 1,
+          game: "poe1",
+          scope: "all-time",
+          card_name: "The Doctor",
+          count: 3,
+          total_count: 15,
+          exported_at: "2025-06-01T10:00:00.000Z",
+          integrity_status: null,
+          integrity_details: null,
+          created_at: "2025-06-01T10:00:00.000Z",
+          updated_at: "2025-06-01T10:00:00.000Z",
+        },
+        {
+          id: 2,
+          game: "poe1",
+          scope: "all-time",
+          card_name: "The Nurse",
+          count: 7,
+          total_count: 15,
+          exported_at: "2025-06-01T10:00:00.000Z",
+          integrity_status: null,
+          integrity_details: null,
+          created_at: "2025-06-01T10:00:00.000Z",
+          updated_at: "2025-06-01T10:00:00.000Z",
+        },
+        {
+          id: 3,
+          game: "poe1",
+          scope: "all-time",
+          card_name: "Rain of Chaos",
+          count: 5,
+          total_count: 15,
+          exported_at: "2025-06-01T10:00:00.000Z",
+          integrity_status: null,
+          integrity_details: null,
+          created_at: "2025-06-01T10:00:00.000Z",
+          updated_at: "2025-06-01T10:00:00.000Z",
+        },
+      ];
+
+      recreateServiceWithKysely(
+        createMockKysely({ selectAllResult: snapshotRows }),
+        { mockMainWindow, allTimeStats: currentStats },
+      );
+      incrementalHandler = getExportIncrementalHandler();
+
+      const result = await incrementalHandler({}, "all-time");
+
+      expect(result).toEqual({
+        success: false,
+        error: "No new cards since last export.",
+      });
+      expect(mockWriteFile).not.toHaveBeenCalled();
+      expect(mockShowSaveDialog).not.toHaveBeenCalled();
+    });
+
+    it("should export only positive deltas when some cards changed", async () => {
+      // Current stats: Doctor went from 3→8, Nurse unchanged at 7, Rain unchanged
+      const currentStats = {
+        totalCount: 20,
+        cards: {
+          "The Doctor": { count: 8 },
+          "The Nurse": { count: 7 },
+          "Rain of Chaos": { count: 5 },
+        },
+      };
+      mockGetAllTimeStats.mockResolvedValue(currentStats);
+
+      // Snapshot has old counts
+      const snapshotRows = [
+        {
+          id: 1,
+          game: "poe1",
+          scope: "all-time",
+          card_name: "The Doctor",
+          count: 3,
+          total_count: 15,
+          exported_at: "2025-06-01T10:00:00.000Z",
+          integrity_status: null,
+          integrity_details: null,
+          created_at: "2025-06-01T10:00:00.000Z",
+          updated_at: "2025-06-01T10:00:00.000Z",
+        },
+        {
+          id: 2,
+          game: "poe1",
+          scope: "all-time",
+          card_name: "The Nurse",
+          count: 7,
+          total_count: 15,
+          exported_at: "2025-06-01T10:00:00.000Z",
+          integrity_status: null,
+          integrity_details: null,
+          created_at: "2025-06-01T10:00:00.000Z",
+          updated_at: "2025-06-01T10:00:00.000Z",
+        },
+        {
+          id: 3,
+          game: "poe1",
+          scope: "all-time",
+          card_name: "Rain of Chaos",
+          count: 5,
+          total_count: 15,
+          exported_at: "2025-06-01T10:00:00.000Z",
+          integrity_status: null,
+          integrity_details: null,
+          created_at: "2025-06-01T10:00:00.000Z",
+          updated_at: "2025-06-01T10:00:00.000Z",
+        },
+      ];
+
+      recreateServiceWithKysely(
+        createMockKysely({ selectAllResult: snapshotRows }),
+        { mockMainWindow, allTimeStats: currentStats },
+      );
+      incrementalHandler = getExportIncrementalHandler();
+
+      const result = await incrementalHandler({}, "all-time");
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: true,
+          exportedCount: 1, // Only The Doctor has a positive delta
+        }),
+      );
+
+      // Verify CSV content — only The Doctor with delta of 5 (8-3)
+      const [, content] = mockWriteFile.mock.calls[0];
+      const lines = content.split("\n");
+      expect(lines[0]).toBe("name,amount");
+      expect(lines).toContain("The Doctor,5");
+      // The Nurse and Rain of Chaos should NOT appear (delta is 0)
+      expect(content).not.toContain("The Nurse");
+      expect(content).not.toContain("Rain of Chaos");
+    });
+
+    it("should include brand-new cards in the delta", async () => {
+      // Current stats: same old cards plus a brand-new one
+      const currentStats = {
+        totalCount: 17,
+        cards: {
+          "The Doctor": { count: 3 },
+          "The Nurse": { count: 7 },
+          "Rain of Chaos": { count: 5 },
+          "House of Mirrors": { count: 2 },
+        },
+      };
+      mockGetAllTimeStats.mockResolvedValue(currentStats);
+
+      // Snapshot only has the original 3 cards
+      const snapshotRows = [
+        {
+          id: 1,
+          game: "poe1",
+          scope: "all-time",
+          card_name: "The Doctor",
+          count: 3,
+          total_count: 15,
+          exported_at: "2025-06-01T10:00:00.000Z",
+          integrity_status: null,
+          integrity_details: null,
+          created_at: "2025-06-01T10:00:00.000Z",
+          updated_at: "2025-06-01T10:00:00.000Z",
+        },
+        {
+          id: 2,
+          game: "poe1",
+          scope: "all-time",
+          card_name: "The Nurse",
+          count: 7,
+          total_count: 15,
+          exported_at: "2025-06-01T10:00:00.000Z",
+          integrity_status: null,
+          integrity_details: null,
+          created_at: "2025-06-01T10:00:00.000Z",
+          updated_at: "2025-06-01T10:00:00.000Z",
+        },
+        {
+          id: 3,
+          game: "poe1",
+          scope: "all-time",
+          card_name: "Rain of Chaos",
+          count: 5,
+          total_count: 15,
+          exported_at: "2025-06-01T10:00:00.000Z",
+          integrity_status: null,
+          integrity_details: null,
+          created_at: "2025-06-01T10:00:00.000Z",
+          updated_at: "2025-06-01T10:00:00.000Z",
+        },
+      ];
+
+      recreateServiceWithKysely(
+        createMockKysely({ selectAllResult: snapshotRows }),
+        { mockMainWindow, allTimeStats: currentStats },
+      );
+      incrementalHandler = getExportIncrementalHandler();
+
+      const result = await incrementalHandler({}, "all-time");
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: true,
+          exportedCount: 1, // Only House of Mirrors is new
+        }),
+      );
+
+      const [, content] = mockWriteFile.mock.calls[0];
+      expect(content).toContain("House of Mirrors,2");
+      expect(content).not.toContain("The Doctor");
+      expect(content).not.toContain("The Nurse");
+      expect(content).not.toContain("Rain of Chaos");
+    });
+
+    it("should show incremental suffix in the default filename", async () => {
+      await incrementalHandler({}, "all-time");
 
       expect(mockShowSaveDialog).toHaveBeenCalledWith(
         mockMainWindow,
         expect.objectContaining({
-          title: expect.stringContaining("POE"),
+          defaultPath: expect.stringMatching(
+            /poe1-cards-incremental-\d{4}-\d{2}-\d{2}\.csv$/,
+          ),
+        }),
+      );
+    });
+
+    it("should not save snapshot when user cancels the dialog", async () => {
+      mockShowSaveDialog.mockResolvedValue({
+        canceled: true,
+        filePath: undefined,
+      });
+
+      const result = await incrementalHandler({}, "all-time");
+
+      expect(result).toEqual({ success: false, canceled: true });
+      expect(mockWriteFile).not.toHaveBeenCalled();
+    });
+
+    it("should work with league scope", async () => {
+      mockGetLeagueStats.mockResolvedValue({
+        totalCount: 5,
+        cards: {
+          "The Doctor": { count: 2 },
+          "Rain of Chaos": { count: 3 },
+        },
+      });
+
+      const result = await incrementalHandler({}, "Settlers");
+
+      // No prior snapshot for league → all cards are deltas
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: true,
+          exportedCount: 2,
+        }),
+      );
+      expect(mockGetLeagueStats).toHaveBeenCalledWith("poe1", "Settlers");
+    });
+
+    it("should return error when no main window is available", async () => {
+      mockGetAllWindows.mockReturnValue([]);
+
+      const result = await incrementalHandler({}, "all-time");
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: false,
+          error: "Export failed. See logs for details.",
+        }),
+      );
+      expect(mockWriteFile).not.toHaveBeenCalled();
+    });
+
+    it("should return error when writeFile fails", async () => {
+      mockShowSaveDialog.mockResolvedValue({
+        canceled: false,
+        filePath: "/tmp/fail.csv",
+      });
+      mockWriteFile.mockRejectedValue(new Error("Permission denied"));
+
+      const result = await incrementalHandler({}, "all-time");
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: false,
+        }),
+      );
+    });
+
+    it("should return validation error for invalid scope", async () => {
+      const result = await incrementalHandler({}, null);
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: false,
+          error: expect.stringContaining("scope"),
+        }),
+      );
+      expect(mockGetAllTimeStats).not.toHaveBeenCalled();
+      expect(mockWriteFile).not.toHaveBeenCalled();
+    });
+
+    it("should return error when settings get fails", async () => {
+      mockSettingsGet.mockRejectedValue(new Error("Settings unavailable"));
+
+      const result = await incrementalHandler({}, "all-time");
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: false,
+        }),
+      );
+    });
+  });
+
+  // ─── ExportSession ──────────────────────────────────────────────────────
+
+  describe("ExportSession handler", () => {
+    let sessionHandler: (...args: any[]) => Promise<any>;
+
+    beforeEach(() => {
+      sessionHandler = getExportSessionHandler();
+    });
+
+    it("should return error when session is not found", async () => {
+      mockGetSessionById.mockResolvedValue(null);
+
+      const result = await sessionHandler(
+        {},
+        "550e8400-e29b-41d4-a716-446655440000",
+      );
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: false,
+          error: "Session not found.",
+        }),
+      );
+    });
+
+    it("should export session cards as CSV", async () => {
+      mockGetSessionById.mockResolvedValue({
+        totalCount: 5,
+        cards: [
+          { name: "The Doctor", count: 2 },
+          { name: "Rain of Chaos", count: 3 },
+        ],
+        startedAt: "2025-01-15T10:00:00Z",
+        endedAt: "2025-01-15T11:00:00Z",
+        league: "Settlers",
+      });
+      mockShowSaveDialog.mockResolvedValue({
+        canceled: false,
+        filePath: "/tmp/session-export.csv",
+      });
+
+      const result = await sessionHandler(
+        {},
+        "550e8400-e29b-41d4-a716-446655440000",
+      );
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: true,
+          exportedCount: 2,
+        }),
+      );
+
+      // Verify CSV content
+      const [, content] = mockWriteFile.mock.calls[0];
+      const lines = content.split("\n");
+      expect(lines[0]).toBe("name,amount");
+      expect(lines).toContain("The Doctor,2");
+      expect(lines).toContain("Rain of Chaos,3");
+    });
+
+    it("should return canceled when user cancels the save dialog", async () => {
+      mockGetSessionById.mockResolvedValue({
+        totalCount: 1,
+        cards: [{ name: "The Doctor", count: 1 }],
+        startedAt: "2025-01-15T10:00:00Z",
+        endedAt: "2025-01-15T11:00:00Z",
+        league: "Settlers",
+      });
+      mockShowSaveDialog.mockResolvedValue({
+        canceled: true,
+        filePath: undefined,
+      });
+
+      const result = await sessionHandler(
+        {},
+        "550e8400-e29b-41d4-a716-446655440000",
+      );
+
+      expect(result).toEqual({ success: false, canceled: true });
+      expect(mockWriteFile).not.toHaveBeenCalled();
+    });
+
+    it("should handle session with empty cards array", async () => {
+      mockGetSessionById.mockResolvedValue({
+        totalCount: 0,
+        cards: [],
+        startedAt: "2025-01-15T10:00:00Z",
+        endedAt: "2025-01-15T11:00:00Z",
+        league: "Settlers",
+      });
+      mockShowSaveDialog.mockResolvedValue({
+        canceled: false,
+        filePath: "/tmp/empty-session.csv",
+      });
+
+      const result = await sessionHandler(
+        {},
+        "550e8400-e29b-41d4-a716-446655440000",
+      );
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: true,
+          exportedCount: 0,
+        }),
+      );
+
+      // CSV should contain only the header (jsonToCsv always appends \n after header)
+      const [, content] = mockWriteFile.mock.calls[0];
+      expect(content).toBe("name,amount\n");
+    });
+
+    it("should handle cards with special characters (commas, quotes) in name", async () => {
+      mockGetSessionById.mockResolvedValue({
+        totalCount: 3,
+        cards: [
+          { name: 'Card, The "Rare" One', count: 2 },
+          { name: "Normal Card", count: 1 },
+        ],
+        startedAt: "2025-01-15T10:00:00Z",
+        endedAt: "2025-01-15T11:00:00Z",
+        league: "Settlers",
+      });
+      mockShowSaveDialog.mockResolvedValue({
+        canceled: false,
+        filePath: "/tmp/special-chars.csv",
+      });
+
+      const result = await sessionHandler(
+        {},
+        "550e8400-e29b-41d4-a716-446655440000",
+      );
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: true,
+          exportedCount: 2,
+        }),
+      );
+
+      const [, content] = mockWriteFile.mock.calls[0];
+      const lines = content.split("\n");
+      expect(lines[0]).toBe("name,amount");
+      // Card name with comma/quotes should be properly escaped
+      expect(lines).toContain('"Card, The ""Rare"" One",2');
+      expect(lines).toContain("Normal Card,1");
+    });
+
+    it("should return error when no main window is available", async () => {
+      mockGetSessionById.mockResolvedValue({
+        totalCount: 1,
+        cards: [{ name: "The Doctor", count: 1 }],
+        startedAt: "2025-01-15T10:00:00Z",
+        endedAt: "2025-01-15T11:00:00Z",
+        league: "Settlers",
+      });
+      mockGetAllWindows.mockReturnValue([]);
+
+      const result = await sessionHandler(
+        {},
+        "550e8400-e29b-41d4-a716-446655440000",
+      );
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: false,
+          error: "Export failed. See logs for details.",
+        }),
+      );
+      expect(mockWriteFile).not.toHaveBeenCalled();
+    });
+
+    it("should return error when writeFile fails", async () => {
+      mockGetSessionById.mockResolvedValue({
+        totalCount: 1,
+        cards: [{ name: "The Doctor", count: 1 }],
+        startedAt: "2025-01-15T10:00:00Z",
+        endedAt: "2025-01-15T11:00:00Z",
+        league: "Settlers",
+      });
+      mockShowSaveDialog.mockResolvedValue({
+        canceled: false,
+        filePath: "/tmp/fail.csv",
+      });
+      mockWriteFile.mockRejectedValue(new Error("Disk full"));
+
+      const result = await sessionHandler(
+        {},
+        "550e8400-e29b-41d4-a716-446655440000",
+      );
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: false,
+        }),
+      );
+    });
+
+    it("should include session suffix in the default filename", async () => {
+      mockGetSessionById.mockResolvedValue({
+        totalCount: 1,
+        cards: [{ name: "The Doctor", count: 1 }],
+        startedAt: "2025-01-15T10:00:00Z",
+        endedAt: "2025-01-15T11:00:00Z",
+        league: "Settlers",
+      });
+
+      await sessionHandler({}, "550e8400-e29b-41d4-a716-446655440000");
+
+      expect(mockShowSaveDialog).toHaveBeenCalledWith(
+        mockMainWindow,
+        expect.objectContaining({
+          defaultPath: expect.stringMatching(
+            /poe1-cards-session-550e8400-session-\d{4}-\d{2}-\d{2}\.csv$/,
+          ),
+        }),
+      );
+    });
+
+    it("should not save a snapshot after session export", async () => {
+      const kyselyMock = createMockKysely();
+      const { service: _svc } = recreateServiceWithKysely(kyselyMock, {
+        mockMainWindow,
+        settingsGame: "poe1",
+      });
+      const handler = getExportSessionHandler();
+
+      mockGetSessionById.mockResolvedValue({
+        totalCount: 3,
+        cards: [
+          { name: "The Doctor", count: 1 },
+          { name: "Rain of Chaos", count: 2 },
+        ],
+        startedAt: "2025-01-15T10:00:00Z",
+        endedAt: "2025-01-15T11:00:00Z",
+        league: "Settlers",
+      });
+      mockShowSaveDialog.mockResolvedValue({
+        canceled: false,
+        filePath: "/tmp/session.csv",
+      });
+
+      const result = await handler({}, "550e8400-e29b-41d4-a716-446655440000");
+
+      expect(result.success).toBe(true);
+      // insertInto should NOT be called — session exports don't persist snapshots
+      expect(kyselyMock.insertInto).not.toHaveBeenCalled();
+    });
+
+    it("should fall back to poe1 when activeGame is null", async () => {
+      mockSettingsGet.mockImplementation((key: string) => {
+        if (key === "csvExportPath") return Promise.resolve(null);
+        return Promise.resolve(null);
+      });
+      mockGetSessionById.mockResolvedValue({
+        totalCount: 2,
+        cards: [{ name: "Rain of Chaos", count: 2 }],
+        startedAt: "2025-01-15T10:00:00Z",
+        endedAt: "2025-01-15T11:00:00Z",
+        league: "Settlers",
+      });
+      mockShowSaveDialog.mockResolvedValue({
+        canceled: false,
+        filePath: "/tmp/fallback.csv",
+      });
+
+      const result = await sessionHandler(
+        {},
+        "550e8400-e29b-41d4-a716-446655440000",
+      );
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: true,
+          exportedCount: 1,
+        }),
+      );
+
+      // Dialog title should use poe1 as fallback
+      expect(mockShowSaveDialog).toHaveBeenCalledWith(
+        mockMainWindow,
+        expect.objectContaining({
+          defaultPath: expect.stringContaining("poe1"),
+        }),
+      );
+    });
+
+    it("should export a single card correctly", async () => {
+      mockGetSessionById.mockResolvedValue({
+        totalCount: 7,
+        cards: [{ name: "The Doctor", count: 7 }],
+        startedAt: "2025-01-15T10:00:00Z",
+        endedAt: "2025-01-15T11:00:00Z",
+        league: "Settlers",
+      });
+      mockShowSaveDialog.mockResolvedValue({
+        canceled: false,
+        filePath: "/tmp/single-card.csv",
+      });
+
+      const result = await sessionHandler(
+        {},
+        "550e8400-e29b-41d4-a716-446655440000",
+      );
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: true,
+          exportedCount: 1,
+        }),
+      );
+
+      const [, content] = mockWriteFile.mock.calls[0];
+      const lines = content.split("\n");
+      expect(lines).toHaveLength(2); // header + 1 card
+      expect(lines[0]).toBe("name,amount");
+      expect(lines[1]).toBe("The Doctor,7");
+    });
+
+    it("should return validation error for invalid session ID", async () => {
+      const result = await sessionHandler({}, null);
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: false,
+          error: expect.stringContaining("sessionId"),
+        }),
+      );
+      expect(mockGetSessionById).not.toHaveBeenCalled();
+      expect(mockWriteFile).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─── GetSnapshotMeta ────────────────────────────────────────────────────
+
+  describe("GetSnapshotMeta handler", () => {
+    let metaHandler: (...args: any[]) => Promise<any>;
+
+    beforeEach(() => {
+      metaHandler = getSnapshotMetaHandler();
+    });
+
+    it("should fetch the active game from settings", async () => {
+      await metaHandler({}, "all-time");
+
+      expect(mockSettingsGet).toHaveBeenCalledWith("selectedGame");
+    });
+
+    it("should return exists: false when no snapshot exists", async () => {
+      // With mocked Kysely returning nothing, the repository should return null
+      const result = await metaHandler({}, "all-time");
+
+      // The handler wraps the result; if repo returns null it returns exists: false
+      expect(result).toEqual(
+        expect.objectContaining({
+          exists: false,
+        }),
+      );
+    });
+
+    it("should return exists: true with totalCount and exportedAt when snapshot exists", async () => {
+      const kyselyMock = createMockKysely({
+        selectResult: {
+          total_count: 42,
+          exported_at: "2025-06-15T12:00:00.000Z",
+        },
+      });
+
+      recreateServiceWithKysely(kyselyMock, { mockMainWindow });
+      metaHandler = getSnapshotMetaHandler();
+
+      const result = await metaHandler({}, "all-time");
+
+      expect(result).toEqual({
+        exists: true,
+        exportedAt: "2025-06-15T12:00:00.000Z",
+        totalCount: 42,
+        newCardCount: 3,
+        newTotalDrops: 15,
+      });
+    });
+
+    it("should pass the correct scope to the repository for league scope", async () => {
+      const kyselyMock = createMockKysely();
+      recreateServiceWithKysely(kyselyMock, { mockMainWindow });
+      metaHandler = getSnapshotMetaHandler();
+
+      await metaHandler({}, "Settlers");
+
+      // Verify where() was called (the scope is passed through the query chain)
+      expect(kyselyMock.where).toHaveBeenCalled();
+    });
+
+    it("should return validation error for invalid scope", async () => {
+      const result = await metaHandler({}, null);
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: false,
+          error: expect.stringContaining("scope"),
+        }),
+      );
+    });
+
+    it("should return error when settings get fails", async () => {
+      mockSettingsGet.mockRejectedValue(new Error("Settings unavailable"));
+
+      const result = await metaHandler({}, "all-time");
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: false,
         }),
       );
     });
@@ -498,9 +1494,12 @@ describe("CsvService", () => {
   // ─── Integration-style ─────────────────────────────────────────────────
 
   describe("end-to-end export flow", () => {
-    it("should complete the full export pipeline correctly", async () => {
+    it("should complete the full ExportAll pipeline correctly", async () => {
       // Setup: poe1 game with specific cards
-      mockSettingsGet.mockResolvedValue("poe1");
+      mockSettingsGet.mockImplementation((key: string) => {
+        if (key === "csvExportPath") return Promise.resolve(null);
+        return Promise.resolve("poe1");
+      });
       mockGetAllTimeStats.mockResolvedValue({
         totalCount: 20,
         cards: {
@@ -515,10 +1514,10 @@ describe("CsvService", () => {
       });
       mockWriteFile.mockResolvedValue(undefined);
 
-      const result = await exportHandler();
+      const result = await exportAllHandler({}, "all-time");
 
       // 1. Settings were queried
-      expect(mockSettingsGet).toHaveBeenCalledTimes(1);
+      expect(mockSettingsGet).toHaveBeenCalledTimes(2);
 
       // 2. Stats were fetched for the correct game
       expect(mockGetAllTimeStats).toHaveBeenCalledWith("poe1");
@@ -537,10 +1536,57 @@ describe("CsvService", () => {
       expect(lines[0]).toBe("name,amount");
       expect(lines.length).toBe(4); // header + 3 cards
 
-      // 5. Success result returned
+      // 5. Success result returned with exported count
       expect(result).toEqual({
         success: true,
-        filePath: "/home/user/exports/poe1-export.csv",
+        exportedCount: 3,
+      });
+    });
+
+    it("should complete the full ExportSession pipeline correctly", async () => {
+      const sessionHandler = getExportSessionHandler();
+
+      mockSettingsGet.mockImplementation((key: string) => {
+        if (key === "csvExportPath") return Promise.resolve(null);
+        return Promise.resolve("poe1");
+      });
+      mockGetSessionById.mockResolvedValue({
+        totalCount: 8,
+        cards: [
+          { name: "The Doctor", count: 3 },
+          { name: "House of Mirrors", count: 5 },
+        ],
+        startedAt: "2025-01-15T10:00:00Z",
+        endedAt: "2025-01-15T11:30:00Z",
+        league: "Settlers",
+      });
+      mockShowSaveDialog.mockResolvedValue({
+        canceled: false,
+        filePath: "/home/user/exports/session-export.csv",
+      });
+      mockWriteFile.mockResolvedValue(undefined);
+
+      const result = await sessionHandler(
+        {},
+        "550e8400-e29b-41d4-a716-446655440000",
+      );
+
+      // Session data was fetched
+      expect(mockGetSessionById).toHaveBeenCalledWith(
+        "550e8400-e29b-41d4-a716-446655440000",
+      );
+
+      // File was written
+      expect(mockWriteFile).toHaveBeenCalledTimes(1);
+      const [, content] = mockWriteFile.mock.calls[0];
+      const lines = content.split("\n");
+      expect(lines[0]).toBe("name,amount");
+      expect(lines.length).toBe(3); // header + 2 cards
+
+      // Success with exported count
+      expect(result).toEqual({
+        success: true,
+        exportedCount: 2,
       });
     });
   });

@@ -281,6 +281,92 @@ describe("jsonToCsv", () => {
     });
   });
 
+  // ─── CSV Formula Injection Protection ────────────────────────────────────
+
+  describe("CSV formula injection protection", () => {
+    it("should prefix names starting with = with a single quote and wrap in quotes", () => {
+      const data = { "=SUM(A1:A10)": 5 };
+
+      const result = jsonToCsv(data);
+      const lines = result.split("\n");
+
+      expect(lines[1]).toBe(`"'=SUM(A1:A10)",5`);
+    });
+
+    it("should prefix names starting with + with a single quote and wrap in quotes", () => {
+      const data = { "+cmd|' /C calc'!A0": 2 };
+
+      const result = jsonToCsv(data);
+      const lines = result.split("\n");
+
+      expect(lines[1]).toBe(`"'+cmd|' /C calc'!A0",2`);
+    });
+
+    it("should prefix names starting with - with a single quote and wrap in quotes", () => {
+      const data = { "-The Card": 3 };
+
+      const result = jsonToCsv(data);
+      const lines = result.split("\n");
+
+      expect(lines[1]).toBe(`"'-The Card",3`);
+    });
+
+    it("should prefix names starting with @ with a single quote and wrap in quotes", () => {
+      const data = { "@SUM(A1)": 1 };
+
+      const result = jsonToCsv(data);
+      const lines = result.split("\n");
+
+      expect(lines[1]).toBe(`"'@SUM(A1)",1`);
+    });
+
+    it("should prefix names starting with tab character with a single quote and wrap in quotes", () => {
+      const data = { "\tmalicious": 4 };
+
+      const result = jsonToCsv(data);
+      const lines = result.split("\n");
+
+      expect(lines[1]).toBe(`"'\tmalicious",4`);
+    });
+
+    it("should prefix names starting with carriage return with a single quote and wrap in quotes", () => {
+      const data = { "\rmalicious": 7 };
+
+      const result = jsonToCsv(data);
+      const lines = result.split("\n");
+
+      expect(lines[1]).toBe(`"'\rmalicious",7`);
+    });
+
+    it("should not affect normal card names", () => {
+      const data = { "The Doctor": 3 };
+
+      const result = jsonToCsv(data);
+      const lines = result.split("\n");
+
+      expect(lines[1]).toBe("The Doctor,3");
+      expect(lines[1]).not.toMatch(/^"/);
+    });
+
+    it("should handle formula trigger combined with commas in the name", () => {
+      const data = { "=evil, formula": 2 };
+
+      const result = jsonToCsv(data);
+      const lines = result.split("\n");
+
+      expect(lines[1]).toBe(`"'=evil, formula",2`);
+    });
+
+    it("should handle formula trigger combined with quotes in the name", () => {
+      const data = { '=evil "formula"': 6 };
+
+      const result = jsonToCsv(data);
+      const lines = result.split("\n");
+
+      expect(lines[1]).toBe(`"'=evil ""formula""",6`);
+    });
+  });
+
   // ─── Parsing Roundtrip Validation ────────────────────────────────────────
 
   describe("roundtrip validation", () => {

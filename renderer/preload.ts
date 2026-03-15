@@ -4,6 +4,7 @@ import { AnalyticsAPI } from "~/main/modules/analytics/Analytics.api";
 import { AppAPI } from "~/main/modules/app/App.api";
 import { AppSetupAPI } from "~/main/modules/app-setup/AppSetup.api";
 import { CardDetailsAPI } from "~/main/modules/card-details/CardDetails.api";
+import { CsvAPI } from "~/main/modules/csv/Csv.api";
 import { CurrentSessionAPI } from "~/main/modules/current-session/CurrentSession.api";
 import { DataStoreAPI } from "~/main/modules/data-store/DataStore.api";
 import { DivinationCardsApi } from "~/main/modules/divination-cards/DivinationCards.api";
@@ -23,9 +24,7 @@ import { UpdaterAPI } from "~/main/modules/updater/Updater.api";
 contextBridge.exposeInMainWorld("electron", {
   selectFile: (options: any) => ipcRenderer.invoke("select-file", options),
 
-  csv: {
-    export: () => ipcRenderer.invoke("export-divination-cards-csv"),
-  },
+  csv: CsvAPI,
 
   cardDetails: CardDetailsAPI,
   session: CurrentSessionAPI,

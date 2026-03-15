@@ -93,6 +93,7 @@ export const createSettingsSlice: StateCreator<
     mainWindowBounds: null,
     telemetryCrashReporting: false,
     telemetryUsageAnalytics: false,
+    csvExportPath: null,
 
     // Additional state
     isLoading: false,
@@ -157,6 +158,7 @@ export const createSettingsSlice: StateCreator<
             settings.mainWindowBounds = data.mainWindowBounds;
             settings.telemetryCrashReporting = data.telemetryCrashReporting;
             settings.telemetryUsageAnalytics = data.telemetryUsageAnalytics;
+            settings.csvExportPath = data.csvExportPath;
             settings.isLoading = false;
           },
           false,
@@ -302,6 +304,7 @@ export const createSettingsSlice: StateCreator<
           settings.overlayFontSize = newSettings.overlayFontSize;
           settings.overlayToolbarFontSize = newSettings.overlayToolbarFontSize;
           settings.mainWindowBounds = newSettings.mainWindowBounds;
+          settings.csvExportPath = newSettings.csvExportPath;
         },
         false,
         "settingsSlice/setSettings",

@@ -18,6 +18,8 @@ interface DropdownProps {
   contentClassName?: string;
   /** Width class for the dropdown content (e.g. "w-52", "w-64") */
   width?: string;
+  /** Padding class for the dropdown content (e.g. "p-2", "p-1", "p-0") */
+  padding?: string;
 }
 
 const Dropdown = ({
@@ -27,6 +29,7 @@ const Dropdown = ({
   className,
   contentClassName,
   width = "w-52",
+  padding = "p-2",
 }: DropdownProps) => {
   const id = useId();
   const popoverId = `dropdown-${id}`;
@@ -57,7 +60,7 @@ const Dropdown = ({
           "bg-base-200",
           "shadow-lg",
           "border border-base-300",
-          "p-2",
+          padding,
           contentClassName,
         )}
         popover="auto"

@@ -233,6 +233,9 @@ export interface UserSettingsTable {
   // Main window position persistence
   main_window_bounds: string | null; // JSON string of { x, y, width, height }
 
+  // CSV export settings
+  csv_export_path: string | null; // User-configurable directory for CSV exports
+
   // Metadata
   created_at: ColumnType<string, string | undefined, never>;
   updated_at: ColumnType<string, string | undefined, string | undefined>;
@@ -279,6 +282,20 @@ export interface CardPriceHistoryCacheTable {
   updated_at: ColumnType<string, string | undefined, string | undefined>;
 }
 
+export interface CsvExportSnapshotsTable {
+  id: ColumnType<number, never, never>; // Auto-increment
+  game: string; // "poe1" | "poe2"
+  scope: string; // "all-time" or league name
+  card_name: string;
+  count: number; // Snapshot count at time of export
+  total_count: number; // Total cards exported so far (running total for this game+scope)
+  exported_at: string; // ISO timestamp of the export
+  integrity_status: string | null; // "pass" | "warn" | "fail" | null
+  integrity_details: string | null; // JSON string with check details, or null
+  created_at: ColumnType<string, string | undefined, never>;
+  updated_at: ColumnType<string, string | undefined, string | undefined>;
+}
+
 export interface Database {
   global_stats: GlobalStatsTable;
   leagues: LeaguesTable;
@@ -294,6 +311,7 @@ export interface Database {
   poe_leagues_cache: PoeLeaguesCacheTable;
   poe_leagues_cache_metadata: PoeLeaguesCacheMetadataTable;
   card_price_history_cache: CardPriceHistoryCacheTable;
+  csv_export_snapshots: CsvExportSnapshotsTable;
   migrations: MigrationsTable;
   user_settings: UserSettingsTable;
   filter_metadata: FilterMetadataTable;
@@ -323,3 +341,4 @@ export type ProhibitedLibraryCardWeightsRow =
 export type ProhibitedLibraryCacheMetadataRow =
   Selectable<ProhibitedLibraryCacheMetadataTable>;
 export type CardPriceHistoryCacheRow = Selectable<CardPriceHistoryCacheTable>;
+export type CsvExportSnapshotsRow = Selectable<CsvExportSnapshotsTable>;

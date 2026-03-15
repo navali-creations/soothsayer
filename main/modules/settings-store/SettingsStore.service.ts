@@ -251,6 +251,12 @@ class SettingsStoreService {
                 });
               }
               break;
+            case "csvExportPath":
+              // Can be null (reset to default) or a valid directory path
+              if (value !== null) {
+                assertFilePath(value, key, ch);
+              }
+              break;
             default:
               throw new IpcValidationError(ch, `Unknown setting key "${key}"`);
           }

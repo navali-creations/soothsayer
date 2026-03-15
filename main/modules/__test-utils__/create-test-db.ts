@@ -470,6 +470,9 @@ function initializeSchema(db: Database.Database): void {
         -- Main window position persistence
         main_window_bounds TEXT,
 
+        -- CSV export settings
+        csv_export_path TEXT,
+
         -- Metadata
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -555,6 +558,31 @@ function initializeSchema(db: Database.Database): void {
         description TEXT NOT NULL,
         applied_at TEXT NOT NULL DEFAULT (datetime('now'))
       )
+    `);
+
+    // ═══════════════════════════════════════════════════════════════
+    // CSV EXPORT SNAPSHOTS (incremental export tracking)
+    // ═══════════════════════════════════════════════════════════════
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS csv_export_snapshots (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        game TEXT NOT NULL CHECK(game IN ('poe1', 'poe2')),
+        scope TEXT NOT NULL,
+        card_name TEXT NOT NULL,
+        count INTEGER NOT NULL DEFAULT 0,
+        total_count INTEGER NOT NULL DEFAULT 0,
+        exported_at TEXT NOT NULL,
+        integrity_status TEXT CHECK(integrity_status IN ('pass', 'warn', 'fail') OR integrity_status IS NULL),
+        integrity_details TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(game, scope, card_name)
+      )
+    `);
+
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_csv_export_snapshots_lookup
+      ON csv_export_snapshots(game, scope)
     `);
   });
 
@@ -953,6 +981,43 @@ export async function seedFilterCardRarity(
       card_name: options.cardName,
       rarity: options.rarity,
     })
+    .execute();
+}
+
+/**
+ * Insert a CSV export snapshot row into the test database.
+ */
+export async function seedCsvExportSnapshot(
+  kysely: Kysely<DatabaseSchema>,
+  entries: Array<{
+    game?: "poe1" | "poe2";
+    scope: string;
+    cardName: string;
+    count: number;
+    totalCount: number;
+    exportedAt?: string;
+    integrityStatus?: "pass" | "warn" | "fail" | null;
+    integrityDetails?: string | null;
+  }>,
+): Promise<void> {
+  if (entries.length === 0) return;
+
+  const now = new Date().toISOString();
+
+  await kysely
+    .insertInto("csv_export_snapshots")
+    .values(
+      entries.map((e) => ({
+        game: e.game ?? "poe1",
+        scope: e.scope,
+        card_name: e.cardName,
+        count: e.count,
+        total_count: e.totalCount,
+        exported_at: e.exportedAt ?? now,
+        integrity_status: e.integrityStatus ?? null,
+        integrity_details: e.integrityDetails ?? null,
+      })),
+    )
     .execute();
 }
 

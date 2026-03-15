@@ -314,6 +314,8 @@ export const useBoundStore = create<BoundStore>()(
               // Reset statistics
               statistics.statScope = "all-time";
               statistics.selectedLeague = "Keepers";
+              statistics.snapshotMeta = null;
+              statistics.isExporting = false;
 
               // Reset onboarding
               onboarding.dismissedBeacons = [];

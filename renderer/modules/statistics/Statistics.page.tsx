@@ -34,19 +34,8 @@ const StatisticsPage = () => {
     }
   }, [availableLeagues, selectedLeague, setSelectedLeague, statScope]);
 
-  const handleExportCsv = async () => {
-    try {
-      const result = await window.electron.csv.export();
-      if (result.success) {
-        // Success handled
-      } else if (!result.canceled) {
-        alert("Failed to export CSV. Please try again.");
-      }
-    } catch (error) {
-      console.error("Error exporting CSV:", error);
-      alert("Failed to export CSV. Please try again.");
-    }
-  };
+  const currentScope =
+    statScope === "league" && selectedLeague ? selectedLeague : "all-time";
 
   const cardData: CardEntry[] = useMemo(() => {
     if (!stats) return [];
@@ -89,7 +78,7 @@ const StatisticsPage = () => {
         actions={
           <StatisticsActions
             availableLeagues={availableLeagues}
-            onExport={handleExportCsv}
+            currentScope={currentScope}
           />
         }
       />
