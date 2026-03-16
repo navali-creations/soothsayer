@@ -1,5 +1,55 @@
 # soothsayer
 
+## 0.12.0
+
+### Minor Changes
+
+- [`c793409`](https://github.com/navali-creations/soothsayer/commit/c793409014a39d3700f0fbfccb6743163403038e) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Improved:** Smarter export options on the Statistics page.
+
+  - The old "Export CSV" button has been replaced with a dropdown menu offering two choices:
+    - **Export All Cards** — saves everything you've found (same as before).
+    - **Export Latest Cards** — saves only the new drops since your last export, with a badge showing how many new cards you have.
+  - The dropdown also shows when you last exported, so you always know how up-to-date your files are.
+
+  **Added:** You can now choose where CSV exports are saved.
+
+  - A new **Export** section in **Settings** lets you pick a default folder for CSV files. If you don't set one, exports will save to `Desktop/soothsayer-exports` like before.
+  - You can change the folder at any time or reset it back to the default with one click.
+
+  **Added:** Export CSV from individual session pages.
+
+  - Each **Session Details** page now has an **Export CSV** button so you can quickly save the drops from a single session.
+
+### Patch Changes
+
+- [`423f691`](https://github.com/navali-creations/soothsayer/commit/423f69174182e84e33d90ee8237d7d9c3a96104c) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Added:** Discord community link in the app menu and system tray.
+
+  - The "More options" dropdown now includes a **Discord** link so you can join the community server for quick help, feedback, and discussion.
+  - The system tray menu has been updated with the same Discord link.
+  - GitHub Discussions remains available for longer-form feedback and feature requests — Discord is simply a faster, less intimidating way to get in touch.
+
+- [`eee2294`](https://github.com/navali-creations/soothsayer/commit/eee2294867463e3e096593fc6a08845356f71445) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Fixed:** App window and overlay no longer appear off-screen after switching monitors.
+
+  - Previously, if you changed your monitor setup (e.g. disconnected a display, rearranged screens, or switched to a different monitor), the app or overlay could open in an invisible position based on the old layout. Now the app checks that its saved position is still within a visible display area on launch — if not, it resets to a default position on your current screen.
+
+- [`423f691`](https://github.com/navali-creations/soothsayer/commit/423f69174182e84e33d90ee8237d7d9c3a96104c) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Fixed:** Toggling card price visibility no longer resets the table to page 1.
+
+  - Previously, hiding or unhiding a card's price in the Current Session or Session Details table would jump you back to the first page. The table now stays on the page you were viewing, so you don't lose your place when toggling multiple cards in a row.
+
+- [`423f691`](https://github.com/navali-creations/soothsayer/commit/423f69174182e84e33d90ee8237d7d9c3a96104c) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Fixed:** Changing the league filter on the Sessions page no longer shows empty results.
+
+  - Previously, switching to a different league while on page 2 or later would show an empty page because the page number wasn't reset. The page now resets to 1 whenever you change the league filter.
+
 ## 0.11.0
 
 ### Minor Changes
