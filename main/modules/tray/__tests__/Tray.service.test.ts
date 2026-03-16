@@ -436,18 +436,18 @@ describe("TrayService", () => {
       expect(template[1].type).toBe("separator");
     });
 
-    it("should have 'Help / Feedback' as the third item", () => {
+    it("should have 'Discord' as the third item", () => {
       const template = getMenuTemplate();
-      expect(template[2].label).toBe("Help / Feedback");
+      expect(template[2].label).toBe("Discord");
       expect(template[2].type).toBe("normal");
     });
 
-    it("should open the Discussions URL when 'Help / Feedback' is clicked", async () => {
+    it("should open the Discord URL when 'Discord' is clicked", async () => {
       const template = getMenuTemplate();
-      const discussionsItem = template[2];
-      await discussionsItem.click!({} as any, {} as any, {} as any);
+      const discordItem = template[2];
+      await discordItem.click!({} as any, {} as any, {} as any);
       expect(mockShellOpenExternal).toHaveBeenCalledWith(
-        "https://github.com/orgs/navali-creations/discussions",
+        "https://discord.gg/mrqmPYXHHT",
       );
     });
 
