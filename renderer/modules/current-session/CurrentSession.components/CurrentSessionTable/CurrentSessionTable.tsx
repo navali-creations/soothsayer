@@ -22,7 +22,10 @@ const CurrentSessionTable = () => {
   const isCurrentSessionActive = getIsCurrentSessionActive();
   const sessionData = getSession();
   const priceSource = getActiveGameViewPriceSource();
-  const cardData = sessionData?.cards || [];
+  const cardData = useMemo(
+    () => sessionData?.cards || [],
+    [sessionData?.cards],
+  );
 
   const columns = useMemo(
     () => [
@@ -52,7 +55,6 @@ const CurrentSessionTable = () => {
           </div>
         ) : (
           <Table
-            key={priceSource}
             data={cardData}
             columns={columns}
             enableSorting={true}

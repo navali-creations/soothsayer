@@ -10,11 +10,11 @@ import {
 import { IoNewspaperOutline } from "react-icons/io5";
 import { MdOutlineNewReleases } from "react-icons/md";
 import {
+  RiDiscordLine,
   RiPictureInPictureExitLine,
   RiPictureInPictureLine,
 } from "react-icons/ri";
 import { RxCaretDown } from "react-icons/rx";
-import { VscFeedback } from "react-icons/vsc";
 
 import { Button, Dropdown, Flex, Link } from "~/renderer/components";
 import UpdateIndicator from "~/renderer/modules/updater/UpdateIndicator";
@@ -23,7 +23,7 @@ import { useBoundStore } from "~/renderer/store";
 import DiskSpaceWarning from "./DiskSpaceWarning";
 import WhatsNewModal from "./WhatsNewModal";
 
-const FEEDBACK_URL = "https://github.com/orgs/navali-creations/discussions";
+const DISCORD_URL = "https://discord.gg/mrqmPYXHHT";
 const REPO_URL = "https://github.com/navali-creations/soothsayer";
 
 const AppControls = () => {
@@ -125,13 +125,13 @@ const AppControls = () => {
               </li>
               <li>
                 <a
-                  href={FEEDBACK_URL}
+                  href={DISCORD_URL}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg hover:bg-base-300 transition-colors no-drag"
                 >
-                  <span className="text-sm">Feedback</span>
-                  <VscFeedback size={14} className="text-base-content/60" />
+                  <span className="text-sm">Discord</span>
+                  <RiDiscordLine size={14} className="text-base-content/60" />
                 </a>
               </li>
 

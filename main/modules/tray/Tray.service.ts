@@ -70,12 +70,10 @@ class TrayService {
       },
       { type: "separator" },
       {
-        label: "Help / Feedback",
+        label: "Discord",
         type: "normal",
         click: async () => {
-          await shell.openExternal(
-            "https://github.com/orgs/navali-creations/discussions",
-          );
+          await shell.openExternal("https://discord.gg/mrqmPYXHHT");
         },
       },
       { type: "separator" },

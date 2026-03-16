@@ -11,7 +11,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import clsx from "clsx";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   FiChevronDown,
   FiChevronLeft,
@@ -96,6 +96,7 @@ function Table<TData>({
     getPaginationRowModel: enablePagination
       ? getPaginationRowModel()
       : undefined,
+    autoResetPageIndex: false,
     onSortingChange: setSorting,
     onPaginationChange: setPagination,
     state: {
@@ -105,6 +106,16 @@ function Table<TData>({
     },
     ...(globalFilterFn ? { globalFilterFn } : {}),
   });
+
+  // Clamp pageIndex when data shrinks so the user doesn't land on an empty page
+  const rowCount = data.length;
+  useEffect(() => {
+    if (!enablePagination) return;
+    const maxPage = Math.max(0, Math.ceil(rowCount / pageSize) - 1);
+    if (pagination.pageIndex > maxPage) {
+      setPagination((prev) => ({ ...prev, pageIndex: maxPage }));
+    }
+  }, [rowCount, pageSize, enablePagination, pagination.pageIndex]);
 
   return (
     <div className="w-full">

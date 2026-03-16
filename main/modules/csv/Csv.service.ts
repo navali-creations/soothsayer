@@ -19,6 +19,7 @@ import {
   assertSessionId,
   handleValidationError,
 } from "~/main/utils/ipc-validation";
+import type { GameType } from "~/types/data-stores";
 
 import { CsvChannel } from "./Csv.channels";
 import type { CsvExportResultDTO } from "./Csv.dto";
@@ -365,7 +366,7 @@ class CsvService {
    * Get stats for a given scope (all-time or league).
    */
   private async getStatsForScope(
-    game: string,
+    game: GameType,
     scope: string,
   ): Promise<SimpleDivinationCardStats> {
     if (scope === "all-time") {

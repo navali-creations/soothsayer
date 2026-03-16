@@ -646,7 +646,7 @@ class SettingsStoreService {
       console.warn(
         `[SettingsStore] Ignoring get("${key}") — database is closed`,
       );
-      return undefined as UserSettingsDTO[K];
+      return undefined as unknown as UserSettingsDTO[K];
     }
     return this.repository.get(key);
   }

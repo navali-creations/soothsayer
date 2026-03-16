@@ -368,7 +368,7 @@ describe("OverlayService", () => {
     });
     mockScreenGetPrimaryDisplay.mockReturnValue({
       workAreaSize: { width: 1920, height: 1080 },
-      workArea: { x: 0, y: 0 },
+      workArea: { x: 0, y: 0, width: 1920, height: 1080 },
     });
 
     // Ensure process.resourcesPath is always defined for any production-mode paths
@@ -913,7 +913,7 @@ describe("OverlayService", () => {
       mockSettingsGet.mockResolvedValue(null);
       mockScreenGetPrimaryDisplay.mockReturnValue({
         workAreaSize: { width: 1920, height: 1080 },
-        workArea: { x: 0, y: 0 },
+        workArea: { x: 0, y: 0, width: 1920, height: 1080 },
       });
 
       await service.show();
@@ -930,7 +930,7 @@ describe("OverlayService", () => {
       mockSettingsGet.mockResolvedValue(null);
       mockScreenGetPrimaryDisplay.mockReturnValue({
         workAreaSize: { width: 1366, height: 728 },
-        workArea: { x: 0, y: 0 },
+        workArea: { x: 0, y: 0, width: 1366, height: 728 },
       });
 
       await service.show();
@@ -947,7 +947,7 @@ describe("OverlayService", () => {
       // Simulate a left-side taskbar that offsets workArea by 64px
       mockScreenGetPrimaryDisplay.mockReturnValue({
         workAreaSize: { width: 1856, height: 1080 },
-        workArea: { x: 64, y: 0 },
+        workArea: { x: 64, y: 0, width: 1856, height: 1080 },
       });
 
       await service.show();
@@ -962,7 +962,7 @@ describe("OverlayService", () => {
       // Simulate a top taskbar that offsets workArea by 40px vertically
       mockScreenGetPrimaryDisplay.mockReturnValue({
         workAreaSize: { width: 1920, height: 1040 },
-        workArea: { x: 0, y: 40 },
+        workArea: { x: 0, y: 40, width: 1920, height: 1040 },
       });
 
       await service.show();
@@ -2125,7 +2125,7 @@ describe("OverlayService", () => {
 
       mockScreenGetPrimaryDisplay.mockReturnValue({
         workAreaSize: { width: 1920, height: 1080 },
-        workArea: { x: 0, y: 0 },
+        workArea: { x: 0, y: 0, width: 1920, height: 1080 },
       });
 
       await service.restoreDefaults();
@@ -2150,7 +2150,7 @@ describe("OverlayService", () => {
 
       mockScreenGetPrimaryDisplay.mockReturnValue({
         workAreaSize: { width: 1920, height: 1040 },
-        workArea: { x: 0, y: 40 },
+        workArea: { x: 0, y: 40, width: 1920, height: 1040 },
       });
 
       await service.restoreDefaults();

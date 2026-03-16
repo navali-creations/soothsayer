@@ -343,6 +343,7 @@ class MainWindowService {
       "https://www.pathofexile.com/oauth/authorize",
       "https://github.com/navali-creations",
       "https://github.com/orgs/navali-creations",
+      "https://discord.gg/mrqmPYXHHT",
       "https://docs.google.com/spreadsheets/d/1PmGES_e1on6K7O5ghHuoorEjruAVb7dQ5m7PGrW7t80",
       "https://poe.ninja/",
       "https://www.poewiki.net/",

@@ -156,9 +156,14 @@ export const createSessionsSlice: StateCreator<
 
     // Set selected league filter
     setSelectedLeague: (league: string) => {
+      const { loadAllSessions } = get().sessions;
+
       set(({ sessions }) => {
         sessions.selectedLeague = league;
+        sessions.currentPage = 1;
       });
+
+      loadAllSessions(1);
     },
 
     // Set search query
