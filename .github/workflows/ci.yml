@@ -82,6 +82,8 @@ jobs:
       dep-supabase: ${{ steps.deps.outputs.supabase }}
       dep-kysely: ${{ steps.deps.outputs.kysely }}
       dep-better-sqlite3: ${{ steps.deps.outputs.better-sqlite3 }}
+      dep-electron: ${{ steps.deps.outputs.electron }}
+      has-better-sqlite3-change: ${{ steps.pkg-diff.outputs.better-sqlite3 }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -128,6 +130,44 @@ jobs:
           else
             echo "better-sqlite3=false" >> $GITHUB_OUTPUT
           fi
+
+          if echo "$BRANCH" | grep -qi 'electron'; then
+            echo "electron=true" >> $GITHUB_OUTPUT
+          else
+            echo "electron=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check package.json diff for actual dependency changes
+        id: pkg-diff
+        run: |
+          if git diff HEAD~1 -- package.json | grep -q '"better-sqlite3"'; then
+            echo "better-sqlite3=true" >> $GITHUB_OUTPUT
+          else
+            echo "better-sqlite3=false" >> $GITHUB_OUTPUT
+          fi
+
+  compat-guard:
+    name: Electron ↔ better-sqlite3 Compatibility Guard
+    needs: [changes]
+    if: >-
+      needs.changes.outputs.dep-electron == 'true' &&
+      needs.changes.outputs.dep-better-sqlite3 != 'true' &&
+      needs.changes.outputs.has-better-sqlite3-change != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Block Electron bump without better-sqlite3
+        run: |
+          echo "::error::This PR bumps Electron without a corresponding better-sqlite3 update."
+          echo ""
+          echo "Electron major bumps change the Node/ABI version, which requires a"
+          echo "compatible better-sqlite3 build. Please ensure better-sqlite3 also"
+          echo "supports the new Electron version before merging."
+          echo ""
+          echo "Options:"
+          echo "  1. Wait for a better-sqlite3 release that supports the new Electron ABI."
+          echo "  2. Manually create a PR that bumps both electron AND better-sqlite3 together."
+          echo "  3. Comment '@dependabot ignore electron major version' to skip this major."
+          exit 1
 
   test-unit:
     name: Unit Tests (Vitest)
