@@ -62,8 +62,8 @@ importers:
         specifier: ^4.0.3
         version: 4.0.3
       '@redux-devtools/extension':
-        specifier: ^3.3.0
-        version: 3.3.0(redux@5.0.1)
+        specifier: ^4.0.0
+        version: 4.0.0(redux@5.0.1)
       '@repere/react':
         specifier: ^0.3.3
         version: 0.3.3(motion@12.35.2(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -1146,8 +1146,8 @@ packages:
     peerDependencies:
       '@opentelemetry/api': ^1.8
 
-  '@redux-devtools/extension@3.3.0':
-    resolution: {integrity: sha512-X34S/rC8S/M1BIrkYD1mJ5f8vlH0BDqxXrs96cvxSBo4FhMdbhU+GUGsmNYov1xjSyLMHgo8NYrUG8bNX7525g==}
+  '@redux-devtools/extension@4.0.0':
+    resolution: {integrity: sha512-pLIzgo5MvqdDLe5D1pzHLgmr8THra/DOyRf5MvOEPZnKKDn6RhFbNSS5oXZ3Cal0cpx08kx7sR6zD8QgoXEnZA==}
     peerDependencies:
       redux: ^3.1.0 || ^4.0.0 || ^5.0.0
 
@@ -2985,9 +2985,6 @@ packages:
 
   immer@11.1.4:
     resolution: {integrity: sha512-XREFCPo6ksxVzP4E0ekD5aMdf8WMwmdNaz6vuvxgI40UaEiu6q3p8X52aU6GdyvLY3XXX/8R7JOTXStz/nBbRw==}
-
-  immutable@4.3.7:
-    resolution: {integrity: sha512-1hqclzwYwjRDFLjcFxOM5AYkkG0rpFPpr1RLPMEuGczoS7YA8gLhy8SWXYRAA/XwfEHpfo3cw5JGioS32fnMRw==}
 
   import-in-the-middle@2.0.6:
     resolution: {integrity: sha512-3vZV3jX0XRFW3EJDTwzWoZa+RH1b8eTTx6YOCjglrLyPuepwoBti1k3L2dKwdCUrnVEfc5CuRuGstaC/uQJJaw==}
@@ -6351,10 +6348,8 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@redux-devtools/extension@3.3.0(redux@5.0.1)':
+  '@redux-devtools/extension@4.0.0(redux@5.0.1)':
     dependencies:
-      '@babel/runtime': 7.28.6
-      immutable: 4.3.7
       redux: 5.0.1
 
   '@repere/core@0.2.3': {}
@@ -8379,8 +8374,6 @@ snapshots:
   immediate@3.0.6: {}
 
   immer@11.1.4: {}
-
-  immutable@4.3.7: {}
 
   import-in-the-middle@2.0.6:
     dependencies:
