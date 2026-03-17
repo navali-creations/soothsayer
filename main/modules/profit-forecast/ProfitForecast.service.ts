@@ -11,21 +11,23 @@ import {
 
 import { ProfitForecastChannel } from "./ProfitForecast.channels";
 import type {
+  BaseRateSource,
   ProfitForecastCardPriceDTO,
   ProfitForecastDataDTO,
+  ProfitForecastRowDTO,
   ProfitForecastSnapshotDTO,
   ProfitForecastWeightDTO,
 } from "./ProfitForecast.dto";
 
+/** Minimum base rate (decks per divine) — floors the computed value. */
+const RATE_FLOOR = 20;
+
 /**
  * Main-process service for the Profit Forecast feature.
  *
- * Serves a single IPC channel (`profit-forecast:get-data`) that returns:
- * 1. The most recent snapshot for the requested league (no time restriction)
- * 2. Prohibited Library card weights (weight > 0, excluding boss-only cards)
- *
- * All cost-model and batch calculations happen renderer-side — this service
- * is purely a data provider.
+ * Serves a single IPC channel (`profit-forecast:get-data`) that returns
+ * pre-computed forecast rows, EV per deck, and base rate so the renderer
+ * only needs to handle presentation and user-driven overrides.
  */
 export class ProfitForecastService {
   private static _instance: ProfitForecastService;
@@ -77,13 +79,14 @@ export class ProfitForecastService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   /**
-   * Fetch the combined profit forecast payload for a given game and league.
+   * Fetch and pre-compute the profit forecast payload for a given game and league.
    *
    * 1. Look up the league ID (read-only — returns null if league doesn't exist)
    * 2. Query the most recent snapshot for that league (no time restriction)
    * 3. If snapshot found, merge exchange + stash card prices (exchange preferred)
    * 4. Query PL card weights (weight > 0) via ProhibitedLibraryService
-   * 5. Return combined DTO
+   * 5. Build pre-computed rows, EV per deck, and base rate
+   * 6. Return combined DTO
    */
   async getData(
     game: "poe1" | "poe2",
@@ -102,9 +105,9 @@ export class ProfitForecastService {
 
     if (!leagueRow) {
       this.logger.log(
-        `No league found for game=${game}, league=${league} — returning null snapshot`,
+        `No league found for game=${game}, league=${league} — returning empty forecast`,
       );
-      return { snapshot: null, weights };
+      return this.buildResponse(weights, null, null);
     }
 
     // Query the most recent snapshot — no time restriction
@@ -118,9 +121,9 @@ export class ProfitForecastService {
 
     if (!snapshotRow) {
       this.logger.log(
-        `No snapshot found for league=${league} (id=${leagueRow.id}) — returning null snapshot`,
+        `No snapshot found for league=${league} (id=${leagueRow.id}) — returning empty forecast`,
       );
-      return { snapshot: null, weights };
+      return this.buildResponse(weights, null, null);
     }
 
     // Query card prices for this snapshot
@@ -172,24 +175,130 @@ export class ProfitForecastService {
       cardPrices,
     };
 
-    const anomalousCount = Object.values(cardPrices).filter(
-      (p) => p.isAnomalous,
-    ).length;
+    return this.buildResponse(weights, snapshot, cardPrices);
+  }
 
-    this.logger.log(
-      `Returning snapshot id=${snapshotRow.id} with ${
-        Object.keys(cardPrices).length
-      } card prices (${anomalousCount} anomalous) and ${
-        weights.length
-      } PL weights`,
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Response Builder
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Build the pre-computed response DTO from weights and an optional snapshot.
+   */
+  private buildResponse(
+    weights: ProfitForecastWeightDTO[],
+    snapshot: ProfitForecastSnapshotDTO | null,
+    cardPrices: Record<string, ProfitForecastCardPriceDTO> | null,
+  ): ProfitForecastDataDTO {
+    // ── 1. Compute totalWeight ─────────────────────────────────────────
+    const totalWeight = weights.reduce((sum, w) => sum + w.weight, 0);
+
+    // ── 2. Build rows ──────────────────────────────────────────────────
+    const rows: ProfitForecastRowDTO[] = weights.map((w) => {
+      const price = cardPrices?.[w.cardName] ?? null;
+      const hasPrice = price !== null;
+      const probability = totalWeight > 0 ? w.weight / totalWeight : 0;
+      const chaosValue = hasPrice ? price.chaosValue : 0;
+      const divineValue = hasPrice ? price.divineValue : 0;
+      const confidence = hasPrice ? price.confidence : null;
+      const isAnomalous = hasPrice ? price.isAnomalous : false;
+      const evContribution = hasPrice ? probability * chaosValue : 0;
+      const excludeFromEv = !hasPrice || confidence === 3 || isAnomalous;
+
+      return {
+        cardName: w.cardName,
+        weight: w.weight,
+        fromBoss: w.fromBoss,
+        probability,
+        chaosValue,
+        divineValue,
+        evContribution,
+        hasPrice,
+        confidence,
+        isAnomalous,
+        excludeFromEv,
+      };
+    });
+
+    // ── 3. Compute evPerDeck ───────────────────────────────────────────
+    const evPerDeck = rows.reduce(
+      (sum, row) =>
+        row.hasPrice && !row.excludeFromEv ? sum + row.evContribution : sum,
+      0,
     );
 
-    return { snapshot, weights };
+    // ── 4. Compute base rate ───────────────────────────────────────────
+    const { baseRate, baseRateSource } = this.computeBaseRate(snapshot);
+
+    // ── 5. Sort rows by evContribution descending ──────────────────────
+    rows.sort((a, b) => b.evContribution - a.evContribution);
+
+    // ── 6. Log summary ─────────────────────────────────────────────────
+    const anomalousCount = rows.filter((r) => r.isAnomalous).length;
+    this.logger.log(
+      `Returning ${rows.length} rows, evPerDeck=${evPerDeck.toFixed(2)}, ` +
+        `baseRate=${baseRate} (${baseRateSource}), ${anomalousCount} anomalous`,
+    );
+
+    return {
+      rows,
+      totalWeight,
+      evPerDeck,
+      snapshotFetchedAt: snapshot?.fetchedAt ?? null,
+      chaosToDivineRatio: snapshot?.chaosToDivineRatio ?? 0,
+      stackedDeckChaosCost: snapshot?.stackedDeckChaosCost ?? 0,
+      baseRate,
+      baseRateSource,
+    };
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Helpers
   // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Compute the base rate (decks per divine) from snapshot data.
+   *
+   * Priority:
+   * 1. `stackedDeckMaxVolumeRate` when available and > 0 → `max(RATE_FLOOR, floor(rate))`, source = "maxVolumeRate"
+   * 2. Derived from `chaosToDivineRatio / stackedDeckChaosCost` → `max(RATE_FLOOR, floor(ratio))`, source = "derived"
+   * 3. Otherwise `baseRate: 0`, source = "none"
+   */
+  private computeBaseRate(snapshot: ProfitForecastSnapshotDTO | null): {
+    baseRate: number;
+    baseRateSource: BaseRateSource;
+  } {
+    if (!snapshot) {
+      return { baseRate: 0, baseRateSource: "none" };
+    }
+
+    const {
+      stackedDeckMaxVolumeRate,
+      chaosToDivineRatio,
+      stackedDeckChaosCost,
+    } = snapshot;
+
+    // Prefer the bulk exchange rate when available
+    if (stackedDeckMaxVolumeRate != null && stackedDeckMaxVolumeRate > 0) {
+      return {
+        baseRate: Math.max(RATE_FLOOR, Math.floor(stackedDeckMaxVolumeRate)),
+        baseRateSource: "maxVolumeRate",
+      };
+    }
+
+    // Fall back to derived rate
+    if (stackedDeckChaosCost > 0) {
+      return {
+        baseRate: Math.max(
+          RATE_FLOOR,
+          Math.floor(chaosToDivineRatio / stackedDeckChaosCost),
+        ),
+        baseRateSource: "derived",
+      };
+    }
+
+    return { baseRate: 0, baseRateSource: "none" };
+  }
 
   /**
    * Detect anomalous prices among common cards and set `isAnomalous` on the

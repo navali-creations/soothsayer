@@ -1,13 +1,15 @@
-import type { SortingState } from "@tanstack/react-table";
-import { useMemo, useState } from "react";
+import type { Row, SortingState } from "@tanstack/react-table";
+import { useCallback, useMemo, useState } from "react";
 
 import { Table } from "~/renderer/components";
 import { useBoundStore } from "~/renderer/store";
 import type { DivinationCardMetadata } from "~/types/data-stores";
 
+import type { CardForecastRow } from "../../ProfitForecast.slice";
 import {
   createPFCardNameColumn,
   createPFChanceColumn,
+  createPFExcludeColumn,
   createPFPlAllDropsColumn,
   createPFPlCardOnlyColumn,
   createPFPriceColumn,
@@ -24,6 +26,8 @@ interface PFTableProps {
 const PFTable = ({ globalFilter, cardMetadataMap }: PFTableProps) => {
   const {
     profitForecast: {
+      rows: allStoreRows,
+      minPriceThreshold,
       isComputing,
       isLoading,
       getFilteredRows,
@@ -32,7 +36,7 @@ const PFTable = ({ globalFilter, cardMetadataMap }: PFTableProps) => {
     poeNinja: { isRefreshing },
   } = useBoundStore();
 
-  const allRows = getFilteredRows();
+  const filteredRows = getFilteredRows();
   const excludedCount = getExcludedCount();
 
   const [sorting, setSorting] = useState<SortingState>([
@@ -41,13 +45,52 @@ const PFTable = ({ globalFilter, cardMetadataMap }: PFTableProps) => {
   const [hideAnomalous, setHideAnomalous] = useState(false);
   const [hideLowConfidence, setHideLowConfidence] = useState(false);
 
+  // When globalFilter is active, merge in rows that are below the min price
+  // threshold but match the search query. These rows get `belowMinPrice: true`
+  // so the UI can visually distinguish them from normally-visible rows.
+  const mergedRows = useMemo(() => {
+    const trimmedFilter = globalFilter.trim().toLowerCase();
+
+    if (!trimmedFilter) {
+      // No search active — just use the standard filtered rows (all have belowMinPrice = false already)
+      return filteredRows;
+    }
+
+    // Collect card names already present in the filtered set for fast lookup
+    const filteredNames = new Set(filteredRows.map((r) => r.cardName));
+
+    // Find rows that are below the price threshold but match the search query
+    const belowThresholdMatches: CardForecastRow[] = [];
+    for (const row of allStoreRows) {
+      // Skip rows already in the filtered set
+      if (filteredNames.has(row.cardName)) continue;
+
+      // Only consider rows that were excluded by the min price filter
+      // (i.e. they have a price but it's below the threshold, or they have no price)
+      const excludedByMinPrice =
+        !row.hasPrice || row.chaosValue < minPriceThreshold;
+      if (!excludedByMinPrice) continue;
+
+      // Check if this row matches the search query
+      if (row.cardName.toLowerCase().includes(trimmedFilter)) {
+        belowThresholdMatches.push({ ...row, belowMinPrice: true });
+      }
+    }
+
+    if (belowThresholdMatches.length === 0) {
+      return filteredRows;
+    }
+
+    return [...filteredRows, ...belowThresholdMatches];
+  }, [filteredRows, allStoreRows, globalFilter, minPriceThreshold]);
+
   const rows = useMemo(() => {
-    return allRows.filter((row) => {
+    return mergedRows.filter((row) => {
       if (hideAnomalous && row.isAnomalous) return false;
       if (hideLowConfidence && row.confidence === 3) return false;
       return true;
     });
-  }, [allRows, hideAnomalous, hideLowConfidence]);
+  }, [mergedRows, hideAnomalous, hideLowConfidence]);
 
   const handleSortingChange = (
     updater: SortingState | ((prev: SortingState) => SortingState),
@@ -58,6 +101,7 @@ const PFTable = ({ globalFilter, cardMetadataMap }: PFTableProps) => {
 
   const columns = useMemo(
     () => [
+      createPFExcludeColumn(),
       createPFStatusColumn(),
       createPFCardNameColumn(cardMetadataMap),
       createPFPriceColumn(),
@@ -70,7 +114,16 @@ const PFTable = ({ globalFilter, cardMetadataMap }: PFTableProps) => {
 
   const hasAnomalous = excludedCount.anomalous > 0;
   const hasLowConfidence = excludedCount.lowConfidence > 0;
-  const showFilterBar = hasAnomalous || hasLowConfidence;
+  const hasUserOverridden = excludedCount.userOverridden > 0;
+  const showFilterBar = hasAnomalous || hasLowConfidence || hasUserOverridden;
+
+  const rowClassName = useCallback((row: Row<CardForecastRow>) => {
+    const original = row.original;
+    if (original.belowMinPrice) {
+      return "opacity-45 hover:opacity-70 hover:bg-base-content/[0.03] transition-all";
+    }
+    return "hover:bg-base-content/[0.03] transition-colors";
+  }, []);
 
   if (rows.length === 0 && !isLoading && !showFilterBar) {
     return (
@@ -125,6 +178,12 @@ const PFTable = ({ globalFilter, cardMetadataMap }: PFTableProps) => {
               </span>
             </label>
           )}
+
+          {hasUserOverridden && (
+            <span className="text-xs text-base-content/50">
+              {excludedCount.userOverridden} manually overridden
+            </span>
+          )}
         </div>
       )}
 
@@ -145,7 +204,7 @@ const PFTable = ({ globalFilter, cardMetadataMap }: PFTableProps) => {
             sorting={sorting}
             onSortingChange={handleSortingChange}
             globalFilter={globalFilter}
-            rowClassName="hover:bg-base-content/[0.03] transition-colors"
+            rowClassName={rowClassName}
           />
         </div>
       )}

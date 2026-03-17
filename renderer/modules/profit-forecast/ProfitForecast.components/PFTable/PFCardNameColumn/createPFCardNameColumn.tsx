@@ -17,6 +17,7 @@ export const createPFCardNameColumn = (
       <PFCardNameCell
         cardName={info.getValue()}
         cardMetadata={cardMetadataMap.get(info.getValue()) ?? null}
+        belowMinPrice={info.row.original.belowMinPrice}
       />
     ),
     size: 200,

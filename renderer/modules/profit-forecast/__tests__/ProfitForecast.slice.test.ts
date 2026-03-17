@@ -1,250 +1,309 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
-  ProfitForecastCardPriceDTO,
+  BaseRateSource,
   ProfitForecastDataDTO,
-  ProfitForecastWeightDTO,
+  ProfitForecastRowDTO,
 } from "~/main/modules/profit-forecast/ProfitForecast.dto";
 
 import {
-  buildRows,
   type CardForecastRow,
-  computeBaseRate,
   computeEvPerDeck,
+  computeExcludeFromEv,
   computeRateForBatch,
   computeTotalChaosCost,
+  isAutoExcluded,
   RATE_FLOOR,
   recomputeDynamicFields,
-  resolveEffectiveWeight,
 } from "../ProfitForecast.slice";
 
 // ── Test Fixtures ──────────────────────────────────────────────────────────────
 
-function makeWeights(
-  overrides: Partial<ProfitForecastWeightDTO>[] = [],
-): ProfitForecastWeightDTO[] {
-  const defaults: ProfitForecastWeightDTO[] = [
-    { cardName: "The Doctor", weight: 1, fromBoss: false },
-    { cardName: "The Nurse", weight: 5, fromBoss: false },
-    {
-      cardName: "Rain of Chaos",
-      weight: 500,
-      fromBoss: false,
-    },
-    { cardName: "The Wretched", weight: 200, fromBoss: true },
-  ];
-  if (overrides.length > 0) {
-    return overrides.map((o, i) => ({
-      ...defaults[i % defaults.length],
-      ...o,
-    }));
-  }
-  return defaults;
+/** Convenience: build a single ProfitForecastRowDTO with sensible defaults. */
+function makeRowDTO(
+  overrides: Partial<ProfitForecastRowDTO> & { cardName: string },
+): ProfitForecastRowDTO {
+  return {
+    cardName: overrides.cardName,
+    weight: overrides.weight ?? 100,
+    fromBoss: overrides.fromBoss ?? false,
+    probability: overrides.probability ?? 0,
+    chaosValue: overrides.chaosValue ?? 0,
+    divineValue: overrides.divineValue ?? 0,
+    evContribution: overrides.evContribution ?? 0,
+    hasPrice: overrides.hasPrice ?? true,
+    confidence: overrides.confidence ?? 1,
+    isAnomalous: overrides.isAnomalous ?? false,
+    excludeFromEv: overrides.excludeFromEv ?? false,
+  };
 }
 
-function makePrices(
-  cards: string[] = [
-    "The Doctor",
-    "The Nurse",
-    "Rain of Chaos",
-    "The Wretched",
-  ],
-): Record<string, ProfitForecastCardPriceDTO> {
-  const map: Record<string, ProfitForecastCardPriceDTO> = {};
-  const values: Record<string, ProfitForecastCardPriceDTO> = {
-    "The Doctor": {
+/** Build a CardForecastRow (renderer-side) from a partial DTO + renderer defaults. */
+function makeCardForecastRow(
+  dto: Partial<ProfitForecastRowDTO> & { cardName: string },
+): CardForecastRow {
+  return {
+    cardName: dto.cardName,
+    weight: dto.weight ?? 100,
+    fromBoss: dto.fromBoss ?? false,
+    probability: dto.probability ?? 0,
+    chaosValue: dto.chaosValue ?? 0,
+    divineValue: dto.divineValue ?? 0,
+    evContribution: dto.evContribution ?? 0,
+    hasPrice: dto.hasPrice ?? true,
+    confidence: dto.confidence ?? 1,
+    isAnomalous: dto.isAnomalous ?? false,
+    excludeFromEv: dto.excludeFromEv ?? false,
+    userOverride: false,
+    belowMinPrice: false,
+    chanceInBatch: 0,
+    expectedDecks: 0,
+    costToPull: 0,
+    plA: 0,
+    plB: 0,
+  };
+}
+
+// The 4 test cards and their weights/prices:
+// The Doctor:    weight=1,    chaosValue=50000, divineValue=250,    confidence=1, isAnomalous=false, fromBoss=false
+// The Nurse:     weight=5,    chaosValue=25000, divineValue=125,    confidence=1, isAnomalous=false, fromBoss=false
+// Rain of Chaos: weight=1000, chaosValue=0.5,   divineValue=0.0025, confidence=1, isAnomalous=false, fromBoss=false
+// The Wretched:  weight=500,  chaosValue=1,     divineValue=0.005,  confidence=2, isAnomalous=false, fromBoss=true
+const TOTAL_WEIGHT = 1 + 5 + 1000 + 500; // 1506
+
+function makeRows(): ProfitForecastRowDTO[] {
+  const cards: Array<{
+    cardName: string;
+    weight: number;
+    chaosValue: number;
+    divineValue: number;
+    confidence: 1 | 2 | 3;
+    isAnomalous: boolean;
+    fromBoss: boolean;
+  }> = [
+    {
+      cardName: "The Doctor",
+      weight: 1,
       chaosValue: 50000,
       divineValue: 250,
-      source: "exchange",
       confidence: 1,
       isAnomalous: false,
+      fromBoss: false,
     },
-    "The Nurse": {
-      chaosValue: 8000,
-      divineValue: 40,
-      source: "exchange",
+    {
+      cardName: "The Nurse",
+      weight: 5,
+      chaosValue: 25000,
+      divineValue: 125,
       confidence: 1,
       isAnomalous: false,
+      fromBoss: false,
     },
-    "Rain of Chaos": {
+    {
+      cardName: "Rain of Chaos",
+      weight: 1000,
       chaosValue: 0.5,
       divineValue: 0.0025,
-      source: "stash",
       confidence: 1,
       isAnomalous: false,
+      fromBoss: false,
     },
-    "The Wretched": {
+    {
+      cardName: "The Wretched",
+      weight: 500,
       chaosValue: 1,
       divineValue: 0.005,
-      source: "exchange",
-      confidence: 1,
+      confidence: 2,
       isAnomalous: false,
+      fromBoss: true,
     },
-  };
-  for (const card of cards) {
-    if (values[card]) {
-      map[card] = values[card];
-    }
-  }
-  return map;
+  ];
+
+  return cards
+    .map((c) => {
+      const probability = c.weight / TOTAL_WEIGHT;
+      const evContribution = probability * c.chaosValue;
+      return makeRowDTO({
+        cardName: c.cardName,
+        weight: c.weight,
+        fromBoss: c.fromBoss,
+        probability,
+        chaosValue: c.chaosValue,
+        divineValue: c.divineValue,
+        evContribution,
+        hasPrice: true,
+        confidence: c.confidence,
+        isAnomalous: c.isAnomalous,
+        excludeFromEv: false, // all have prices, none anomalous, none low confidence
+      });
+    })
+    .sort((a, b) => b.evContribution - a.evContribution);
+}
+
+function computeDefaultEvPerDeck(): number {
+  const rows = makeRows();
+  return rows.reduce(
+    (sum, r) => (r.hasPrice && !r.excludeFromEv ? sum + r.evContribution : sum),
+    0,
+  );
 }
 
 function makeDTO(
   partial?: Partial<ProfitForecastDataDTO>,
 ): ProfitForecastDataDTO {
-  const weights = makeWeights();
+  const rows = makeRows();
+  const evPerDeck = computeDefaultEvPerDeck();
   return {
-    snapshot: {
-      id: "snap-1",
-      fetchedAt: "2025-01-15T12:00:00Z",
-      chaosToDivineRatio: 200,
-      stackedDeckChaosCost: 2.22,
-      stackedDeckMaxVolumeRate: null,
-      cardPrices: makePrices(),
-    },
-    weights,
+    rows,
+    totalWeight: TOTAL_WEIGHT,
+    evPerDeck,
+    snapshotFetchedAt: "2025-01-15T12:00:00Z",
+    chaosToDivineRatio: 200,
+    stackedDeckChaosCost: 2.22,
+    baseRate: 90,
+    baseRateSource: "maxVolumeRate" as BaseRateSource,
     ...partial,
   };
 }
 
 // ── Pure Helper Tests ──────────────────────────────────────────────────────────
 
-// ── resolveEffectiveWeight ─────────────────────────────────────────────────────
+// ── isAutoExcluded ─────────────────────────────────────────────────────────────
 
-describe("resolveEffectiveWeight", () => {
-  it("returns the weight from the DTO directly", () => {
+describe("isAutoExcluded", () => {
+  it("returns true when hasPrice is false", () => {
     expect(
-      resolveEffectiveWeight({
-        cardName: "The Doctor",
-        weight: 42,
-        fromBoss: false,
-      }),
-    ).toBe(42);
+      isAutoExcluded({ hasPrice: false, isAnomalous: false, confidence: 1 }),
+    ).toBe(true);
   });
 
-  it("returns 0 when weight is 0", () => {
+  it("returns true when isAnomalous is true", () => {
     expect(
-      resolveEffectiveWeight({ cardName: "Test", weight: 0, fromBoss: false }),
-    ).toBe(0);
+      isAutoExcluded({ hasPrice: true, isAnomalous: true, confidence: 1 }),
+    ).toBe(true);
   });
 
-  it("returns weight regardless of fromBoss flag", () => {
+  it("returns true when confidence is 3", () => {
     expect(
-      resolveEffectiveWeight({
-        cardName: "Boss Card",
-        weight: 10,
-        fromBoss: true,
-      }),
-    ).toBe(10);
+      isAutoExcluded({ hasPrice: true, isAnomalous: false, confidence: 3 }),
+    ).toBe(true);
+  });
+
+  it("returns false for a normal priced card", () => {
+    expect(
+      isAutoExcluded({ hasPrice: true, isAnomalous: false, confidence: 1 }),
+    ).toBe(false);
+  });
+
+  it("returns false for confidence 2", () => {
+    expect(
+      isAutoExcluded({ hasPrice: true, isAnomalous: false, confidence: 2 }),
+    ).toBe(false);
+  });
+
+  it("returns true when both anomalous and low confidence", () => {
+    expect(
+      isAutoExcluded({ hasPrice: true, isAnomalous: true, confidence: 3 }),
+    ).toBe(true);
   });
 });
 
-// ── computeBaseRate ────────────────────────────────────────────────────────────
-
-describe("computeBaseRate", () => {
-  it("returns { baseRate: 0, source: 'none' } when snapshot is null", () => {
-    const result = computeBaseRate(null);
-    expect(result).toEqual({ baseRate: 0, source: "none" });
+describe("computeExcludeFromEv", () => {
+  it("always returns true when hasPrice is false, even with userOverride", () => {
+    expect(
+      computeExcludeFromEv({
+        hasPrice: false,
+        isAnomalous: false,
+        confidence: 1,
+        userOverride: false,
+      }),
+    ).toBe(true);
+    expect(
+      computeExcludeFromEv({
+        hasPrice: false,
+        isAnomalous: false,
+        confidence: 1,
+        userOverride: true,
+      }),
+    ).toBe(true);
   });
 
-  it("prefers maxVolumeRate when available and positive", () => {
-    const result = computeBaseRate({
-      id: "snap-1",
-      fetchedAt: "2025-01-15T12:00:00Z",
-      chaosToDivineRatio: 200,
-      stackedDeckChaosCost: 2.22,
-      stackedDeckMaxVolumeRate: 64.93,
-      cardPrices: {},
-    });
-    // floor(64.93) = 64, which is above RATE_FLOOR (20)
-    expect(result).toEqual({ baseRate: 64, source: "maxVolumeRate" });
+  it("returns true for anomalous card without override", () => {
+    expect(
+      computeExcludeFromEv({
+        hasPrice: true,
+        isAnomalous: true,
+        confidence: 1,
+        userOverride: false,
+      }),
+    ).toBe(true);
   });
 
-  it("clamps maxVolumeRate to RATE_FLOOR when floored value is below", () => {
-    const result = computeBaseRate({
-      id: "snap-1",
-      fetchedAt: "2025-01-15T12:00:00Z",
-      chaosToDivineRatio: 200,
-      stackedDeckChaosCost: 5,
-      stackedDeckMaxVolumeRate: 15.5, // floor = 15, below RATE_FLOOR
-      cardPrices: {},
-    });
-    expect(result).toEqual({ baseRate: RATE_FLOOR, source: "maxVolumeRate" });
+  it("returns false for anomalous card with override (force-include)", () => {
+    expect(
+      computeExcludeFromEv({
+        hasPrice: true,
+        isAnomalous: true,
+        confidence: 1,
+        userOverride: true,
+      }),
+    ).toBe(false);
   });
 
-  it("falls back to derived rate when maxVolumeRate is null", () => {
-    const result = computeBaseRate({
-      id: "snap-1",
-      fetchedAt: "2025-01-15T12:00:00Z",
-      chaosToDivineRatio: 200,
-      stackedDeckChaosCost: 2.22,
-      stackedDeckMaxVolumeRate: null,
-      cardPrices: {},
-    });
-    // floor(200 / 2.22) = floor(90.09) = 90
-    expect(result).toEqual({ baseRate: 90, source: "derived" });
+  it("returns true for low-confidence card without override", () => {
+    expect(
+      computeExcludeFromEv({
+        hasPrice: true,
+        isAnomalous: false,
+        confidence: 3,
+        userOverride: false,
+      }),
+    ).toBe(true);
   });
 
-  it("falls back to derived rate when maxVolumeRate is 0", () => {
-    const result = computeBaseRate({
-      id: "snap-1",
-      fetchedAt: "2025-01-15T12:00:00Z",
-      chaosToDivineRatio: 200,
-      stackedDeckChaosCost: 2.22,
-      stackedDeckMaxVolumeRate: 0,
-      cardPrices: {},
-    });
-    expect(result).toEqual({ baseRate: 90, source: "derived" });
+  it("returns false for low-confidence card with override (force-include)", () => {
+    expect(
+      computeExcludeFromEv({
+        hasPrice: true,
+        isAnomalous: false,
+        confidence: 3,
+        userOverride: true,
+      }),
+    ).toBe(false);
   });
 
-  it("falls back to derived rate when maxVolumeRate is negative", () => {
-    const result = computeBaseRate({
-      id: "snap-1",
-      fetchedAt: "2025-01-15T12:00:00Z",
-      chaosToDivineRatio: 200,
-      stackedDeckChaosCost: 2.22,
-      stackedDeckMaxVolumeRate: -10,
-      cardPrices: {},
-    });
-    expect(result).toEqual({ baseRate: 90, source: "derived" });
+  it("returns false for normal card without override", () => {
+    expect(
+      computeExcludeFromEv({
+        hasPrice: true,
+        isAnomalous: false,
+        confidence: 1,
+        userOverride: false,
+      }),
+    ).toBe(false);
   });
 
-  it("returns { baseRate: 0, source: 'none' } when both maxVolumeRate and stackedDeckChaosCost are unavailable", () => {
-    const result = computeBaseRate({
-      id: "snap-1",
-      fetchedAt: "2025-01-15T12:00:00Z",
-      chaosToDivineRatio: 200,
-      stackedDeckChaosCost: 0,
-      stackedDeckMaxVolumeRate: null,
-      cardPrices: {},
-    });
-    expect(result).toEqual({ baseRate: 0, source: "none" });
+  it("returns true for normal card with override (force-exclude)", () => {
+    expect(
+      computeExcludeFromEv({
+        hasPrice: true,
+        isAnomalous: false,
+        confidence: 1,
+        userOverride: true,
+      }),
+    ).toBe(true);
   });
 
-  it("clamps derived rate to RATE_FLOOR when computed value is below", () => {
-    const result = computeBaseRate({
-      id: "snap-1",
-      fetchedAt: "2025-01-15T12:00:00Z",
-      chaosToDivineRatio: 200,
-      stackedDeckChaosCost: 10, // 200/10 = 20, below RATE_FLOOR
-      stackedDeckMaxVolumeRate: null,
-      cardPrices: {},
-    });
-    expect(result).toEqual({ baseRate: RATE_FLOOR, source: "derived" });
-  });
-
-  it("uses maxVolumeRate even when derived rate would be higher", () => {
-    // maxVolumeRate = 65 (floor), derived = floor(200/2.22) = 90
-    // maxVolumeRate should still win because it reflects actual market
-    const result = computeBaseRate({
-      id: "snap-1",
-      fetchedAt: "2025-01-15T12:00:00Z",
-      chaosToDivineRatio: 200,
-      stackedDeckChaosCost: 2.22,
-      stackedDeckMaxVolumeRate: 65,
-      cardPrices: {},
-    });
-    expect(result).toEqual({ baseRate: 65, source: "maxVolumeRate" });
+  it("returns false for anomalous + low-confidence card with override", () => {
+    // Both auto flags set, override flips → included
+    expect(
+      computeExcludeFromEv({
+        hasPrice: true,
+        isAnomalous: true,
+        confidence: 3,
+        userOverride: true,
+      }),
+    ).toBe(false);
   });
 });
 
@@ -380,242 +439,70 @@ describe("computeTotalChaosCost", () => {
   });
 });
 
-describe("buildRows", () => {
-  it("builds rows from weights and prices", () => {
-    const weights = makeWeights();
-    const prices = makePrices();
-    const totalWeight = weights.reduce((s, w) => s + w.weight, 0);
-    const rows = buildRows(weights, prices, totalWeight);
-
-    expect(rows).toHaveLength(4);
-    expect(rows[0].cardName).toBe("The Doctor");
-    expect(rows[0].weight).toBe(1);
-    expect(rows[0].fromBoss).toBe(false);
-    expect(rows[0].chaosValue).toBe(50000);
-    expect(rows[0].divineValue).toBe(250);
-    expect(rows[0].hasPrice).toBe(true);
-    expect(rows[0].probability).toBeCloseTo(1 / totalWeight, 8);
-    expect(rows[0].evContribution).toBeCloseTo((1 / totalWeight) * 50000, 4);
-  });
-
-  it("sets hasPrice false and chaosValue 0 for cards without prices", () => {
-    const weights = makeWeights();
-    // Only provide prices for first two cards
-    const prices = makePrices(["The Doctor", "The Nurse"]);
-    const totalWeight = weights.reduce((s, w) => s + w.weight, 0);
-    const rows = buildRows(weights, prices, totalWeight);
-
-    const rainOfChaos = rows.find((r) => r.cardName === "Rain of Chaos")!;
-    expect(rainOfChaos.hasPrice).toBe(false);
-    expect(rainOfChaos.chaosValue).toBe(0);
-    expect(rainOfChaos.divineValue).toBe(0);
-    expect(rainOfChaos.evContribution).toBe(0);
-    // But weight and probability are still set
-    expect(rainOfChaos.weight).toBe(500);
-    expect(rainOfChaos.probability).toBeCloseTo(500 / totalWeight, 8);
-  });
-
-  it("handles null cardPrices (no snapshot)", () => {
-    const weights = makeWeights();
-    const totalWeight = weights.reduce((s, w) => s + w.weight, 0);
-    const rows = buildRows(weights, null, totalWeight);
-
-    for (const row of rows) {
-      expect(row.hasPrice).toBe(false);
-      expect(row.chaosValue).toBe(0);
-      expect(row.divineValue).toBe(0);
-      expect(row.evContribution).toBe(0);
-    }
-    // Probabilities should still be computed
-    expect(rows[0].probability).toBeCloseTo(1 / totalWeight, 8);
-  });
-
-  it("handles empty weights array", () => {
-    const rows = buildRows([], makePrices(), 0);
-    expect(rows).toHaveLength(0);
-  });
-
-  it("handles totalWeight of 0 gracefully", () => {
-    const weights: ProfitForecastWeightDTO[] = [
-      { cardName: "Test", weight: 0, fromBoss: false },
-    ];
-    const rows = buildRows(weights, null, 0);
-    expect(rows[0].probability).toBe(0);
-    expect(rows[0].evContribution).toBe(0);
-  });
-
-  it("initializes dynamic fields to 0", () => {
-    const weights = makeWeights();
-    const totalWeight = weights.reduce((s, w) => s + w.weight, 0);
-    const rows = buildRows(weights, makePrices(), totalWeight);
-
-    for (const row of rows) {
-      expect(row.chanceInBatch).toBe(0);
-      expect(row.expectedDecks).toBe(0);
-      expect(row.costToPull).toBe(0);
-      expect(row.plA).toBe(0);
-      expect(row.plB).toBe(0);
-    }
-  });
-
-  it("carries through fromBoss flag", () => {
-    const weights = makeWeights();
-    const totalWeight = weights.reduce((s, w) => s + w.weight, 0);
-    const rows = buildRows(weights, makePrices(), totalWeight);
-    const wretched = rows.find((r) => r.cardName === "The Wretched")!;
-    expect(wretched.fromBoss).toBe(true);
-  });
-
-  it("probabilities sum to 1", () => {
-    const weights = makeWeights();
-    const totalWeight = weights.reduce((s, w) => s + w.weight, 0);
-    const rows = buildRows(weights, makePrices(), totalWeight);
-    const probSum = rows.reduce((s, r) => s + r.probability, 0);
-    expect(probSum).toBeCloseTo(1, 8);
-  });
-
-  it("sets excludeFromEv true for low-confidence cards", () => {
-    const weights: ProfitForecastWeightDTO[] = [
-      { cardName: "Card A", weight: 100, fromBoss: false },
-      { cardName: "Card B", weight: 100, fromBoss: false },
-    ];
-    const prices: Record<string, ProfitForecastCardPriceDTO> = {
-      "Card A": {
-        chaosValue: 10,
-        divineValue: 0.05,
-        source: "exchange",
-        confidence: 1,
-        isAnomalous: false,
-      },
-      "Card B": {
-        chaosValue: 10,
-        divineValue: 0.05,
-        source: "stash",
-        confidence: 3,
-        isAnomalous: false,
-      },
-    };
-    const totalWeight = 200;
-    const rows = buildRows(weights, prices, totalWeight);
-
-    const cardA = rows.find((r) => r.cardName === "Card A")!;
-    const cardB = rows.find((r) => r.cardName === "Card B")!;
-
-    expect(cardA.excludeFromEv).toBe(false);
-    expect(cardA.isAnomalous).toBe(false);
-    expect(cardB.excludeFromEv).toBe(true);
-    expect(cardB.isAnomalous).toBe(false);
-    expect(cardB.confidence).toBe(3);
-  });
-
-  it("sets excludeFromEv true for cards without prices", () => {
-    const weights: ProfitForecastWeightDTO[] = [
-      { cardName: "Card A", weight: 100, fromBoss: false },
-    ];
-    const rows = buildRows(weights, null, 100);
-    expect(rows[0].excludeFromEv).toBe(true);
-    expect(rows[0].hasPrice).toBe(false);
-  });
-
-  it("reads isAnomalous from DTO and sets excludeFromEv accordingly", () => {
-    const weights: ProfitForecastWeightDTO[] = [
-      { cardName: "Normal", weight: 100, fromBoss: false },
-      { cardName: "Anomalous", weight: 100, fromBoss: false },
-    ];
-    const prices: Record<string, ProfitForecastCardPriceDTO> = {
-      Normal: {
-        chaosValue: 1,
-        divineValue: 0.005,
-        source: "exchange",
-        confidence: 1,
-        isAnomalous: false,
-      },
-      Anomalous: {
-        chaosValue: 20,
-        divineValue: 0.1,
-        source: "stash",
-        confidence: 1,
-        isAnomalous: true,
-      },
-    };
-    const totalWeight = 200;
-    const rows = buildRows(weights, prices, totalWeight);
-
-    const normal = rows.find((r) => r.cardName === "Normal")!;
-    expect(normal.isAnomalous).toBe(false);
-    expect(normal.excludeFromEv).toBe(false);
-
-    const anomalous = rows.find((r) => r.cardName === "Anomalous")!;
-    expect(anomalous.isAnomalous).toBe(true);
-    expect(anomalous.excludeFromEv).toBe(true);
-  });
-
-  it("defaults isAnomalous to false when price is null", () => {
-    const weights: ProfitForecastWeightDTO[] = [
-      { cardName: "No Price", weight: 100, fromBoss: false },
-    ];
-    const rows = buildRows(weights, null, 100);
-    expect(rows[0].isAnomalous).toBe(false);
-    expect(rows[0].excludeFromEv).toBe(true); // no price
-  });
-});
-
 describe("computeEvPerDeck", () => {
   it("sums evContribution for rows with prices", () => {
-    const weights = makeWeights();
-    const prices = makePrices();
-    const totalWeight = weights.reduce((s, w) => s + w.weight, 0);
-    const rows = buildRows(weights, prices, totalWeight);
+    const rows: CardForecastRow[] = makeRows().map((r) =>
+      makeCardForecastRow(r),
+    );
     const ev = computeEvPerDeck(rows);
 
     let expected = 0;
-    for (const w of weights) {
-      const price = prices[w.cardName];
-      if (price) {
-        const row = rows.find((r) => r.cardName === w.cardName)!;
-        if (!row.excludeFromEv) {
-          expected += (w.weight / totalWeight) * price.chaosValue;
-        }
+    for (const row of rows) {
+      if (row.hasPrice && !row.excludeFromEv) {
+        expected += row.evContribution;
       }
     }
     expect(ev).toBeCloseTo(expected, 4);
   });
 
   it("excludes cards without prices from EV", () => {
-    const weights = makeWeights();
-    // Only provide Doctor's price
-    const prices = makePrices(["The Doctor"]);
-    const totalWeight = weights.reduce((s, w) => s + w.weight, 0);
-    const rows = buildRows(weights, prices, totalWeight);
+    const rows: CardForecastRow[] = makeRows().map((r) => {
+      if (r.cardName !== "The Doctor") {
+        return makeCardForecastRow({
+          ...r,
+          hasPrice: false,
+          chaosValue: 0,
+          divineValue: 0,
+          evContribution: 0,
+          excludeFromEv: true,
+        });
+      }
+      return makeCardForecastRow(r);
+    });
     const ev = computeEvPerDeck(rows);
 
-    const expected = (1 / totalWeight) * 50000;
+    const expected = (1 / TOTAL_WEIGHT) * 50000;
     expect(ev).toBeCloseTo(expected, 4);
   });
 
   it("excludes low-confidence cards from EV", () => {
-    const weights: ProfitForecastWeightDTO[] = [
-      { cardName: "Good Card", weight: 100, fromBoss: false },
-      { cardName: "Bad Conf", weight: 100, fromBoss: false },
-    ];
-    const prices: Record<string, ProfitForecastCardPriceDTO> = {
-      "Good Card": {
+    const totalWeight = 200;
+    const rows: CardForecastRow[] = [
+      makeCardForecastRow({
+        cardName: "Good Card",
+        weight: 100,
+        probability: 100 / totalWeight,
         chaosValue: 50,
         divineValue: 0.25,
-        source: "exchange",
+        evContribution: (100 / totalWeight) * 50,
+        hasPrice: true,
         confidence: 1,
         isAnomalous: false,
-      },
-      "Bad Conf": {
+        excludeFromEv: false,
+      }),
+      makeCardForecastRow({
+        cardName: "Bad Conf",
+        weight: 100,
+        probability: 100 / totalWeight,
         chaosValue: 50,
         divineValue: 0.25,
-        source: "stash",
+        evContribution: (100 / totalWeight) * 50,
+        hasPrice: true,
         confidence: 3,
         isAnomalous: false,
-      },
-    };
-    const totalWeight = 200;
-    const rows = buildRows(weights, prices, totalWeight);
+        excludeFromEv: true, // low confidence → excluded
+      }),
+    ];
     const ev = computeEvPerDeck(rows);
 
     // Only "Good Card" should contribute
@@ -624,28 +511,33 @@ describe("computeEvPerDeck", () => {
   });
 
   it("excludes anomalous cards from EV", () => {
-    const weights: ProfitForecastWeightDTO[] = [
-      { cardName: "Normal", weight: 100, fromBoss: false },
-      { cardName: "Anomalous", weight: 100, fromBoss: false },
-    ];
-    const prices: Record<string, ProfitForecastCardPriceDTO> = {
-      Normal: {
+    const totalWeight = 200;
+    const rows: CardForecastRow[] = [
+      makeCardForecastRow({
+        cardName: "Normal",
+        weight: 100,
+        probability: 100 / totalWeight,
         chaosValue: 50,
         divineValue: 0.25,
-        source: "exchange",
+        evContribution: (100 / totalWeight) * 50,
+        hasPrice: true,
         confidence: 1,
         isAnomalous: false,
-      },
-      Anomalous: {
+        excludeFromEv: false,
+      }),
+      makeCardForecastRow({
+        cardName: "Anomalous",
+        weight: 100,
+        probability: 100 / totalWeight,
         chaosValue: 50,
         divineValue: 0.25,
-        source: "stash",
+        evContribution: (100 / totalWeight) * 50,
+        hasPrice: true,
         confidence: 1,
         isAnomalous: true,
-      },
-    };
-    const totalWeight = 200;
-    const rows = buildRows(weights, prices, totalWeight);
+        excludeFromEv: true, // anomalous → excluded
+      }),
+    ];
 
     const anomalousRow = rows.find((r) => r.cardName === "Anomalous")!;
     expect(anomalousRow.isAnomalous).toBe(true);
@@ -662,9 +554,16 @@ describe("computeEvPerDeck", () => {
   });
 
   it("returns 0 when no rows have prices", () => {
-    const weights = makeWeights();
-    const totalWeight = weights.reduce((s, w) => s + w.weight, 0);
-    const rows = buildRows(weights, null, totalWeight);
+    const rows: CardForecastRow[] = makeRows().map((r) =>
+      makeCardForecastRow({
+        ...r,
+        hasPrice: false,
+        chaosValue: 0,
+        divineValue: 0,
+        evContribution: 0,
+        excludeFromEv: true,
+      }),
+    );
     expect(computeEvPerDeck(rows)).toBe(0);
   });
 
@@ -676,15 +575,12 @@ describe("computeEvPerDeck", () => {
 describe("recomputeDynamicFields", () => {
   function makeStaticRows(): {
     rows: CardForecastRow[];
-    totalWeight: number;
     evPerDeck: number;
   } {
-    const weights = makeWeights();
-    const prices = makePrices();
-    const totalWeight = weights.reduce((s, w) => s + w.weight, 0);
-    const rows = buildRows(weights, prices, totalWeight);
+    const dtoRows = makeRows();
+    const rows: CardForecastRow[] = dtoRows.map((r) => makeCardForecastRow(r));
     const evPerDeck = computeEvPerDeck(rows);
-    return { rows, totalWeight, evPerDeck };
+    return { rows, evPerDeck };
   }
 
   it("fills chanceInBatch for each row", () => {
@@ -748,13 +644,20 @@ describe("recomputeDynamicFields", () => {
   });
 
   it("sets plA and plB to 0 for cards without prices", () => {
-    const weights = makeWeights();
-    const prices = makePrices(["The Doctor"]); // only Doctor has price
-    const totalWeight = weights.reduce(
-      (s, w) => s + resolveEffectiveWeight(w),
-      0,
-    );
-    const rows = buildRows(weights, prices, totalWeight);
+    const dtoRows = makeRows().map((r) => {
+      if (r.cardName === "The Doctor") {
+        return r; // keep price
+      }
+      return {
+        ...r,
+        hasPrice: false,
+        chaosValue: 0,
+        divineValue: 0,
+        evContribution: 0,
+        excludeFromEv: true,
+      };
+    });
+    const rows: CardForecastRow[] = dtoRows.map((r) => makeCardForecastRow(r));
     const evPerDeck = computeEvPerDeck(rows);
 
     recomputeDynamicFields(rows, 10000, 90, 2, 5000, 200, evPerDeck);
@@ -781,6 +684,8 @@ describe("recomputeDynamicFields", () => {
         hasPrice: true,
         confidence: 1,
         isAnomalous: false,
+        userOverride: false,
+        belowMinPrice: false,
         excludeFromEv: false,
         chanceInBatch: 0,
         expectedDecks: 0,
@@ -808,7 +713,7 @@ describe("recomputeDynamicFields", () => {
     const { rows, evPerDeck } = makeStaticRows();
     recomputeDynamicFields(rows, 1000000, 90, 2, 5000, 200, evPerDeck);
 
-    // Rain of Chaos has weight 500 out of ~706 total → P ≈ 0.708
+    // Rain of Chaos has weight 1000 out of 1506 total → P ≈ 0.664
     // Chance in 1M decks should be essentially 1
     const rain = rows.find((r) => r.cardName === "Rain of Chaos")!;
     expect(rain.chanceInBatch).toBeCloseTo(1, 6);
@@ -818,8 +723,8 @@ describe("recomputeDynamicFields", () => {
     const { rows, evPerDeck } = makeStaticRows();
     recomputeDynamicFields(rows, 100, 90, 2, 5000, 200, evPerDeck);
 
-    // The Doctor has weight 1 out of ~706 → P ≈ 0.00142
-    // Chance in 100 decks ≈ 1 - (1-0.00142)^100 ≈ 0.132
+    // The Doctor has weight 1 out of 1506 → P ≈ 0.000664
+    // Chance in 100 decks ≈ 1 - (1-0.000664)^100 ≈ 0.064
     const doctor = rows.find((r) => r.cardName === "The Doctor")!;
     expect(doctor.chanceInBatch).toBeGreaterThan(0);
     expect(doctor.chanceInBatch).toBeLessThan(0.5);
@@ -975,7 +880,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
 
       const state = store.getState().profitForecast;
       expect(state.rows.length).toBe(4);
-      expect(state.totalWeight).toBe(1 + 5 + 500 + 200);
+      expect(state.totalWeight).toBe(TOTAL_WEIGHT);
       expect(state.evPerDeck).toBeGreaterThan(0);
       expect(state.snapshotFetchedAt).toBe("2025-01-15T12:00:00Z");
       expect(state.chaosToDivineRatio).toBe(200);
@@ -983,8 +888,8 @@ describe("ProfitForecastSlice (Zustand)", () => {
       expect(state.baseRate).toBeGreaterThanOrEqual(RATE_FLOOR);
     });
 
-    it("populates baseRate and baseRateSource from snapshot via computeBaseRate", async () => {
-      const dto = makeDTO(); // maxVolumeRate is null → derived: floor(200/2.22) = 90
+    it("populates baseRate and baseRateSource from DTO", async () => {
+      const dto = makeDTO(); // baseRate: 90, baseRateSource: "maxVolumeRate"
       (
         window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
       ).mockResolvedValue(dto);
@@ -992,11 +897,28 @@ describe("ProfitForecastSlice (Zustand)", () => {
       await store.getState().profitForecast.fetchData("poe1", "Settlers");
 
       expect(store.getState().profitForecast.baseRate).toBe(90);
-      expect(store.getState().profitForecast.baseRateSource).toBe("derived");
+      expect(store.getState().profitForecast.baseRateSource).toBe(
+        "maxVolumeRate",
+      );
     });
 
-    it("handles null snapshot gracefully", async () => {
-      const dto = makeDTO({ snapshot: null });
+    it("handles null snapshotFetchedAt gracefully", async () => {
+      const dto = makeDTO({
+        rows: makeRows().map((r) => ({
+          ...r,
+          hasPrice: false,
+          chaosValue: 0,
+          divineValue: 0,
+          evContribution: 0,
+          excludeFromEv: true,
+        })),
+        snapshotFetchedAt: null,
+        chaosToDivineRatio: 0,
+        stackedDeckChaosCost: 0,
+        baseRate: 0,
+        baseRateSource: "none" as BaseRateSource,
+        evPerDeck: 0,
+      });
       (
         window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
       ).mockResolvedValue(dto);
@@ -1103,8 +1025,8 @@ describe("ProfitForecastSlice (Zustand)", () => {
       expect(mockGetData).toHaveBeenCalledWith("poe2", "Keepers");
     });
 
-    it("handles empty weights array", async () => {
-      const dto = makeDTO({ weights: [] });
+    it("handles empty rows array", async () => {
+      const dto = makeDTO({ rows: [], totalWeight: 0, evPerDeck: 0 });
       (
         window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
       ).mockResolvedValue(dto);
@@ -1178,11 +1100,11 @@ describe("ProfitForecastSlice (Zustand)", () => {
     it("produces different costToPull with different stepDrop", async () => {
       await setupWithData();
 
-      // Use subBatchSize=100 so The Doctor's ~706 expectedDecks spans
+      // Use subBatchSize=100 so The Doctor's ~1506 expectedDecks spans
       // multiple sub-batches, making stepDrop changes observable.
       store.getState().profitForecast.setSubBatchSize(100);
 
-      const getDocCost = () =>
+      const getDocCost = (): number =>
         store
           .getState()
           .profitForecast.rows.find((r) => r.cardName === "The Doctor")!
@@ -1203,18 +1125,18 @@ describe("ProfitForecastSlice (Zustand)", () => {
     it("produces different costToPull with different subBatchSize", async () => {
       await setupWithData();
 
-      const getDocCost = () =>
+      const getDocCost = (): number =>
         store
           .getState()
           .profitForecast.rows.find((r) => r.cardName === "The Doctor")!
           .costToPull;
 
-      // Use subBatchSize=100 so ~706 expectedDecks spans 8 sub-batches
+      // Use subBatchSize=100 so ~1506 expectedDecks spans many sub-batches
       store.getState().profitForecast.setSubBatchSize(100);
       store.getState().profitForecast.recomputeRows();
       const costSmallBatch = getDocCost();
 
-      // Use subBatchSize=10000 so all ~706 decks fit in one sub-batch (no degradation)
+      // Use subBatchSize=10000 so all ~1506 decks fit in one sub-batch (no degradation)
       store.getState().profitForecast.setSubBatchSize(10000);
       store.getState().profitForecast.recomputeRows();
       const costLargeBatch = getDocCost();
@@ -1294,7 +1216,8 @@ describe("ProfitForecastSlice (Zustand)", () => {
       it("returns false when rows exist but totalWeight is 0", async () => {
         // Edge case: shouldn't happen normally, but test the guard
         const dto = makeDTO({
-          weights: [{ cardName: "Test", weight: 0, fromBoss: false }],
+          rows: [makeRowDTO({ cardName: "X", weight: 0 })],
+          totalWeight: 0,
         });
         (
           window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
@@ -1335,7 +1258,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
         const filtered = store.getState().profitForecast.getFilteredRows();
         const filteredNames = filtered.map((r) => r.cardName);
 
-        // chaosValue >= 1 → The Doctor (50000), The Nurse (8000), The Wretched (1) included
+        // chaosValue >= 1 → The Doctor (50000), The Nurse (25000), The Wretched (1) included
         expect(filteredNames).toContain("The Doctor");
         expect(filteredNames).toContain("The Nurse");
         expect(filteredNames).toContain("The Wretched");
@@ -1345,15 +1268,20 @@ describe("ProfitForecastSlice (Zustand)", () => {
 
       it("excludes cards without prices", async () => {
         // Cards with hasPrice=false should be filtered out
+        const doctorRow = makeRows().find((r) => r.cardName === "The Doctor")!;
+        const noPriceRows = makeRows()
+          .filter((r) => r.cardName !== "The Doctor")
+          .map((r) => ({
+            ...r,
+            hasPrice: false,
+            chaosValue: 0,
+            divineValue: 0,
+            evContribution: 0,
+            excludeFromEv: true,
+          }));
         const dto = makeDTO({
-          snapshot: {
-            id: "snap-1",
-            fetchedAt: "2025-01-15T12:00:00Z",
-            chaosToDivineRatio: 200,
-            stackedDeckChaosCost: 2.22,
-            stackedDeckMaxVolumeRate: null,
-            cardPrices: makePrices(["The Doctor"]), // Only Doctor has price
-          },
+          rows: [doctorRow, ...noPriceRows],
+          evPerDeck: doctorRow.evContribution,
         });
         (
           window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
@@ -1491,14 +1419,28 @@ describe("ProfitForecastSlice (Zustand)", () => {
     it("multiple sequential fetches don't corrupt state", async () => {
       const dto1 = makeDTO();
       const dto2 = makeDTO({
-        snapshot: {
-          id: "snap-2",
-          fetchedAt: "2025-02-01T00:00:00Z",
-          chaosToDivineRatio: 250,
-          stackedDeckChaosCost: 3,
-          stackedDeckMaxVolumeRate: null,
-          cardPrices: makePrices(["The Doctor"]),
-        },
+        rows: [
+          makeRowDTO({
+            cardName: "The Doctor",
+            weight: 1,
+            probability: 1,
+            chaosValue: 50000,
+            divineValue: 250,
+            evContribution: 50000,
+            hasPrice: true,
+            confidence: 1,
+            isAnomalous: false,
+            excludeFromEv: false,
+            fromBoss: false,
+          }),
+        ],
+        totalWeight: 1,
+        evPerDeck: 50000,
+        snapshotFetchedAt: "2025-02-01T00:00:00Z",
+        chaosToDivineRatio: 250,
+        stackedDeckChaosCost: 3,
+        baseRate: 83,
+        baseRateSource: "derived" as BaseRateSource,
       });
       const mockGetData = window.electron.profitForecast.getData as ReturnType<
         typeof vi.fn
@@ -1611,29 +1553,28 @@ describe("ProfitForecastSlice (Zustand)", () => {
 
     it("single-card weight list works correctly", async () => {
       const dto: ProfitForecastDataDTO = {
-        snapshot: {
-          id: "snap-single",
-          fetchedAt: "2025-01-15T12:00:00Z",
-          chaosToDivineRatio: 200,
-          stackedDeckChaosCost: 2.22,
-          stackedDeckMaxVolumeRate: null,
-          cardPrices: {
-            "The Doctor": {
-              chaosValue: 50000,
-              divineValue: 250,
-              source: "exchange",
-              confidence: 1,
-              isAnomalous: false,
-            },
-          },
-        },
-        weights: [
-          {
+        rows: [
+          makeRowDTO({
             cardName: "The Doctor",
             weight: 1,
             fromBoss: false,
-          },
+            probability: 1,
+            chaosValue: 50000,
+            divineValue: 250,
+            evContribution: 50000,
+            hasPrice: true,
+            confidence: 1,
+            isAnomalous: false,
+            excludeFromEv: false,
+          }),
         ],
+        totalWeight: 1,
+        evPerDeck: 50000,
+        snapshotFetchedAt: "2025-01-15T12:00:00Z",
+        chaosToDivineRatio: 200,
+        stackedDeckChaosCost: 2.22,
+        baseRate: 90,
+        baseRateSource: "maxVolumeRate" as BaseRateSource,
       };
       (
         window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
@@ -1646,6 +1587,433 @@ describe("ProfitForecastSlice (Zustand)", () => {
       expect(state.rows[0].evContribution).toBe(50000);
       expect(state.totalWeight).toBe(1);
       expect(state.evPerDeck).toBe(50000);
+    });
+  });
+
+  describe("toggleCardExclusion", () => {
+    async function setupWithData() {
+      const dto = makeDTO();
+      (
+        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(dto);
+      await store.getState().profitForecast.fetchData("poe1", "Settlers");
+    }
+
+    it("sets userOverride to true and excludeFromEv to true for a normal card", async () => {
+      await setupWithData();
+
+      const doctorBefore = store
+        .getState()
+        .profitForecast.rows.find((r) => r.cardName === "The Doctor")!;
+      expect(doctorBefore.userOverride).toBe(false);
+      expect(doctorBefore.excludeFromEv).toBe(false);
+
+      store.getState().profitForecast.toggleCardExclusion("The Doctor");
+
+      const doctorAfter = store
+        .getState()
+        .profitForecast.rows.find((r) => r.cardName === "The Doctor")!;
+      expect(doctorAfter.userOverride).toBe(true);
+      expect(doctorAfter.excludeFromEv).toBe(true);
+    });
+
+    it("does not affect other cards", async () => {
+      await setupWithData();
+
+      const nurseBefore = store
+        .getState()
+        .profitForecast.rows.find((r) => r.cardName === "The Nurse")!;
+      const nurseOverrideBefore = nurseBefore.userOverride;
+
+      store.getState().profitForecast.toggleCardExclusion("The Doctor");
+
+      const nurseAfter = store
+        .getState()
+        .profitForecast.rows.find((r) => r.cardName === "The Nurse")!;
+      expect(nurseAfter.userOverride).toBe(nurseOverrideBefore);
+    });
+
+    it("double toggle restores the card to its original state", async () => {
+      await setupWithData();
+
+      const evBefore = store.getState().profitForecast.evPerDeck;
+
+      store.getState().profitForecast.toggleCardExclusion("The Doctor");
+      expect(store.getState().profitForecast.evPerDeck).not.toBe(evBefore);
+
+      store.getState().profitForecast.toggleCardExclusion("The Doctor");
+
+      const doctorAfter = store
+        .getState()
+        .profitForecast.rows.find((r) => r.cardName === "The Doctor")!;
+      expect(doctorAfter.userOverride).toBe(false);
+      expect(doctorAfter.excludeFromEv).toBe(false);
+      expect(store.getState().profitForecast.evPerDeck).toBeCloseTo(
+        evBefore,
+        8,
+      );
+    });
+
+    it("recomputes evPerDeck excluding the toggled card", async () => {
+      await setupWithData();
+
+      const evBefore = store.getState().profitForecast.evPerDeck;
+      const doctor = store
+        .getState()
+        .profitForecast.rows.find((r) => r.cardName === "The Doctor")!;
+      const doctorContribution = doctor.evContribution;
+
+      store.getState().profitForecast.toggleCardExclusion("The Doctor");
+
+      const evAfter = store.getState().profitForecast.evPerDeck;
+      expect(evAfter).toBeCloseTo(evBefore - doctorContribution, 8);
+    });
+
+    it("recomputes dynamic fields (plB) after toggling", async () => {
+      await setupWithData();
+
+      const nursePlBBefore = store
+        .getState()
+        .profitForecast.rows.find((r) => r.cardName === "The Nurse")!.plB;
+
+      // Excluding Doctor changes evPerDeck, which changes plB for all cards
+      store.getState().profitForecast.toggleCardExclusion("The Doctor");
+
+      const nursePlBAfter = store
+        .getState()
+        .profitForecast.rows.find((r) => r.cardName === "The Nurse")!.plB;
+
+      expect(nursePlBAfter).not.toBe(nursePlBBefore);
+    });
+
+    it("does nothing when rows are empty", () => {
+      // No data loaded — should not throw
+      expect(() => {
+        store.getState().profitForecast.toggleCardExclusion("The Doctor");
+      }).not.toThrow();
+    });
+
+    it("does nothing for a card name that does not exist", async () => {
+      await setupWithData();
+
+      const evBefore = store.getState().profitForecast.evPerDeck;
+
+      store.getState().profitForecast.toggleCardExclusion("Nonexistent Card");
+
+      expect(store.getState().profitForecast.evPerDeck).toBe(evBefore);
+    });
+
+    it("initializes userOverride to false on fetchData", async () => {
+      await setupWithData();
+
+      for (const row of store.getState().profitForecast.rows) {
+        expect(row.userOverride).toBe(false);
+      }
+    });
+
+    it("force-includes an anomalous card when toggled", async () => {
+      // Build a DTO where one card is flagged anomalous
+      const totalWeight = 150;
+      const dto: ProfitForecastDataDTO = {
+        rows: [
+          makeRowDTO({
+            cardName: "Normal",
+            weight: 100,
+            fromBoss: false,
+            probability: 100 / totalWeight,
+            chaosValue: 100,
+            divineValue: 0.5,
+            evContribution: (100 / totalWeight) * 100,
+            hasPrice: true,
+            confidence: 1,
+            isAnomalous: false,
+            excludeFromEv: false,
+          }),
+          makeRowDTO({
+            cardName: "Anomalous",
+            weight: 50,
+            fromBoss: false,
+            probability: 50 / totalWeight,
+            chaosValue: 5000,
+            divineValue: 25,
+            evContribution: (50 / totalWeight) * 5000,
+            hasPrice: true,
+            confidence: 1,
+            isAnomalous: true,
+            excludeFromEv: true, // auto-excluded because anomalous
+          }),
+        ],
+        totalWeight,
+        evPerDeck: (100 / totalWeight) * 100, // only Normal contributes
+        snapshotFetchedAt: "2025-01-15T12:00:00Z",
+        chaosToDivineRatio: 200,
+        stackedDeckChaosCost: 2.22,
+        baseRate: 90,
+        baseRateSource: "maxVolumeRate" as BaseRateSource,
+      };
+      (
+        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(dto);
+      await store.getState().profitForecast.fetchData("poe1", "Settlers");
+
+      // Anomalous card should be auto-excluded
+      const anomBefore = store
+        .getState()
+        .profitForecast.rows.find((r) => r.cardName === "Anomalous")!;
+      expect(anomBefore.isAnomalous).toBe(true);
+      expect(anomBefore.excludeFromEv).toBe(true);
+      expect(anomBefore.userOverride).toBe(false);
+
+      const evBefore = store.getState().profitForecast.evPerDeck;
+
+      // Toggle → force-include the anomalous card
+      store.getState().profitForecast.toggleCardExclusion("Anomalous");
+
+      const anomAfter = store
+        .getState()
+        .profitForecast.rows.find((r) => r.cardName === "Anomalous")!;
+      expect(anomAfter.userOverride).toBe(true);
+      expect(anomAfter.excludeFromEv).toBe(false); // now included
+      expect(anomAfter.isAnomalous).toBe(true); // flag unchanged
+
+      // EV should increase since a high-value card was included
+      const evAfter = store.getState().profitForecast.evPerDeck;
+      expect(evAfter).toBeGreaterThan(evBefore);
+    });
+
+    it("force-includes a low-confidence card when toggled", async () => {
+      const totalWeight = 150;
+      const dto: ProfitForecastDataDTO = {
+        rows: [
+          makeRowDTO({
+            cardName: "Normal",
+            weight: 100,
+            fromBoss: false,
+            probability: 100 / totalWeight,
+            chaosValue: 100,
+            divineValue: 0.5,
+            evContribution: (100 / totalWeight) * 100,
+            hasPrice: true,
+            confidence: 1,
+            isAnomalous: false,
+            excludeFromEv: false,
+          }),
+          makeRowDTO({
+            cardName: "LowConf",
+            weight: 50,
+            fromBoss: false,
+            probability: 50 / totalWeight,
+            chaosValue: 3000,
+            divineValue: 15,
+            evContribution: (50 / totalWeight) * 3000,
+            hasPrice: true,
+            confidence: 3,
+            isAnomalous: false,
+            excludeFromEv: true, // auto-excluded because low confidence
+          }),
+        ],
+        totalWeight,
+        evPerDeck: (100 / totalWeight) * 100, // only Normal contributes
+        snapshotFetchedAt: "2025-01-15T12:00:00Z",
+        chaosToDivineRatio: 200,
+        stackedDeckChaosCost: 2.22,
+        baseRate: 90,
+        baseRateSource: "maxVolumeRate" as BaseRateSource,
+      };
+      (
+        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(dto);
+      await store.getState().profitForecast.fetchData("poe1", "Settlers");
+
+      const lowConfBefore = store
+        .getState()
+        .profitForecast.rows.find((r) => r.cardName === "LowConf")!;
+      expect(lowConfBefore.confidence).toBe(3);
+      expect(lowConfBefore.excludeFromEv).toBe(true);
+
+      store.getState().profitForecast.toggleCardExclusion("LowConf");
+
+      const lowConfAfter = store
+        .getState()
+        .profitForecast.rows.find((r) => r.cardName === "LowConf")!;
+      expect(lowConfAfter.userOverride).toBe(true);
+      expect(lowConfAfter.excludeFromEv).toBe(false);
+    });
+
+    it("double toggle on anomalous card restores auto-excluded state", async () => {
+      const totalWeight = 150;
+      const dto: ProfitForecastDataDTO = {
+        rows: [
+          makeRowDTO({
+            cardName: "Normal",
+            weight: 100,
+            fromBoss: false,
+            probability: 100 / totalWeight,
+            chaosValue: 100,
+            divineValue: 0.5,
+            evContribution: (100 / totalWeight) * 100,
+            hasPrice: true,
+            confidence: 1,
+            isAnomalous: false,
+            excludeFromEv: false,
+          }),
+          makeRowDTO({
+            cardName: "Anomalous",
+            weight: 50,
+            fromBoss: false,
+            probability: 50 / totalWeight,
+            chaosValue: 5000,
+            divineValue: 25,
+            evContribution: (50 / totalWeight) * 5000,
+            hasPrice: true,
+            confidence: 1,
+            isAnomalous: true,
+            excludeFromEv: true,
+          }),
+        ],
+        totalWeight,
+        evPerDeck: (100 / totalWeight) * 100,
+        snapshotFetchedAt: "2025-01-15T12:00:00Z",
+        chaosToDivineRatio: 200,
+        stackedDeckChaosCost: 2.22,
+        baseRate: 90,
+        baseRateSource: "maxVolumeRate" as BaseRateSource,
+      };
+      (
+        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(dto);
+      await store.getState().profitForecast.fetchData("poe1", "Settlers");
+
+      const evBefore = store.getState().profitForecast.evPerDeck;
+
+      // Toggle on then off
+      store.getState().profitForecast.toggleCardExclusion("Anomalous");
+      store.getState().profitForecast.toggleCardExclusion("Anomalous");
+
+      const anom = store
+        .getState()
+        .profitForecast.rows.find((r) => r.cardName === "Anomalous")!;
+      expect(anom.userOverride).toBe(false);
+      expect(anom.excludeFromEv).toBe(true); // back to auto-excluded
+      expect(store.getState().profitForecast.evPerDeck).toBeCloseTo(
+        evBefore,
+        8,
+      );
+    });
+  });
+
+  describe("getExcludedCount with userOverride", () => {
+    it("counts user-overridden cards separately from anomalous and low-confidence", async () => {
+      const dto = makeDTO();
+      (
+        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(dto);
+      await store.getState().profitForecast.fetchData("poe1", "Settlers");
+
+      // Before any user override
+      const countBefore = store.getState().profitForecast.getExcludedCount();
+      expect(countBefore.userOverridden).toBe(0);
+
+      // Exclude a normal card manually
+      store.getState().profitForecast.toggleCardExclusion("The Doctor");
+
+      const countAfter = store.getState().profitForecast.getExcludedCount();
+      expect(countAfter.userOverridden).toBe(1);
+      expect(countAfter.total).toBe(
+        countAfter.anomalous +
+          countAfter.lowConfidence +
+          countAfter.userOverridden,
+      );
+    });
+
+    it("un-overriding a card decrements the userOverridden count", async () => {
+      const dto = makeDTO();
+      (
+        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(dto);
+      await store.getState().profitForecast.fetchData("poe1", "Settlers");
+
+      store.getState().profitForecast.toggleCardExclusion("The Doctor");
+      expect(
+        store.getState().profitForecast.getExcludedCount().userOverridden,
+      ).toBe(1);
+
+      store.getState().profitForecast.toggleCardExclusion("The Doctor");
+      expect(
+        store.getState().profitForecast.getExcludedCount().userOverridden,
+      ).toBe(0);
+    });
+
+    it("multiple cards can be user-overridden simultaneously", async () => {
+      const dto = makeDTO();
+      (
+        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(dto);
+      await store.getState().profitForecast.fetchData("poe1", "Settlers");
+
+      store.getState().profitForecast.toggleCardExclusion("The Doctor");
+      store.getState().profitForecast.toggleCardExclusion("The Nurse");
+
+      const count = store.getState().profitForecast.getExcludedCount();
+      expect(count.userOverridden).toBe(2);
+    });
+
+    it("force-including an anomalous card counts as userOverridden, not anomalous", async () => {
+      const totalWeight = 150;
+      const dto: ProfitForecastDataDTO = {
+        rows: [
+          makeRowDTO({
+            cardName: "Normal",
+            weight: 100,
+            fromBoss: false,
+            probability: 100 / totalWeight,
+            chaosValue: 100,
+            divineValue: 0.5,
+            evContribution: (100 / totalWeight) * 100,
+            hasPrice: true,
+            confidence: 1,
+            isAnomalous: false,
+            excludeFromEv: false,
+          }),
+          makeRowDTO({
+            cardName: "Anomalous",
+            weight: 50,
+            fromBoss: false,
+            probability: 50 / totalWeight,
+            chaosValue: 5000,
+            divineValue: 25,
+            evContribution: (50 / totalWeight) * 5000,
+            hasPrice: true,
+            confidence: 1,
+            isAnomalous: true,
+            excludeFromEv: true,
+          }),
+        ],
+        totalWeight,
+        evPerDeck: (100 / totalWeight) * 100,
+        snapshotFetchedAt: "2025-01-15T12:00:00Z",
+        chaosToDivineRatio: 200,
+        stackedDeckChaosCost: 2.22,
+        baseRate: 90,
+        baseRateSource: "maxVolumeRate" as BaseRateSource,
+      };
+      (
+        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(dto);
+      await store.getState().profitForecast.fetchData("poe1", "Settlers");
+
+      // Before toggle: anomalous card counted under anomalous
+      const countBefore = store.getState().profitForecast.getExcludedCount();
+      expect(countBefore.anomalous).toBe(1);
+      expect(countBefore.userOverridden).toBe(0);
+
+      // Force-include the anomalous card
+      store.getState().profitForecast.toggleCardExclusion("Anomalous");
+
+      // After toggle: moved from anomalous to userOverridden
+      const countAfter = store.getState().profitForecast.getExcludedCount();
+      expect(countAfter.anomalous).toBe(0);
+      expect(countAfter.userOverridden).toBe(1);
     });
   });
 });

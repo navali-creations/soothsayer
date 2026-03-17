@@ -7,6 +7,7 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   type PaginationState,
+  type Row,
   type SortingState,
   useReactTable,
 } from "@tanstack/react-table";
@@ -44,7 +45,7 @@ interface TableProps<TData> {
   /** Custom global filter function. Defaults to case-insensitive substring match on all string accessors. */
   globalFilterFn?: FilterFn<TData>;
   /** Additional class name(s) applied to each `<tr>` in the body */
-  rowClassName?: string;
+  rowClassName?: string | ((row: Row<TData>) => string);
   /** When true, the table header row sticks to the top of the scroll container */
   stickyHeader?: boolean;
 }
@@ -191,7 +192,13 @@ function Table<TData>({
             {table.getRowModel().rows.map((row) => (
               <tr
                 key={row.id}
-                className={clsx("group", hoverable && "hover", rowClassName)}
+                className={clsx(
+                  "group",
+                  hoverable && "hover",
+                  typeof rowClassName === "function"
+                    ? rowClassName(row)
+                    : rowClassName,
+                )}
               >
                 {row.getVisibleCells().map((cell, index) => (
                   <td

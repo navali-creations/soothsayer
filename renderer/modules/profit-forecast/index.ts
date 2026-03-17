@@ -1,7 +1,6 @@
 export { default as ProfitForecastPage } from "./ProfitForecast.page";
 export {
   type BatchSize,
-  buildRows,
   type CardForecastRow,
   computeEvPerDeck,
   computeRateForBatch,

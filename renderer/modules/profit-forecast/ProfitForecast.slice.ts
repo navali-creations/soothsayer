@@ -1,9 +1,9 @@
 import type { StateCreator } from "zustand";
 
 import type {
+  BaseRateSource,
   ProfitForecastDataDTO,
-  ProfitForecastSnapshotDTO,
-  ProfitForecastWeightDTO,
+  ProfitForecastRowDTO,
 } from "~/main/modules/profit-forecast/ProfitForecast.dto";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -17,19 +17,15 @@ export const RATE_FLOOR = 20;
 
 // ── Row Shape ──────────────────────────────────────────────────────────────────
 
-export interface CardForecastRow {
-  // Static (set on fetchData)
-  cardName: string;
-  weight: number; // league weight used for probability
-  fromBoss: boolean;
-  probability: number; // weight / totalWeight
-  chaosValue: number; // 0 when price unavailable
-  divineValue: number; // 0 when price unavailable
-  evContribution: number; // probability × chaosValue
-  hasPrice: boolean; // false when card has PL weight but no snapshot price
-  confidence: 1 | 2 | 3 | null; // poe.ninja confidence: 1=high, 2=medium, 3=low, null=no price
-  isAnomalous: boolean; // true when card price appears inflated relative to similar-weight peers
-  excludeFromEv: boolean; // true when card should be excluded from EV (anomalous OR low confidence)
+/**
+ * Renderer-side row that extends the pre-computed DTO row with:
+ * - `userOverride`: user-controlled toggle to flip the auto-detection decision
+ * - Dynamic fields recomputed on batch/slider changes
+ */
+export interface CardForecastRow extends ProfitForecastRowDTO {
+  // Renderer-only static
+  userOverride: boolean; // true when user has flipped the auto-detection decision for this card
+  belowMinPrice: boolean; // true when card is surfaced only because it matched a search query
 
   // Dynamic (recomputed via recomputeRows on batch/stepDrop/subBatchSize change)
   chanceInBatch: number; // 1 − (1 − probability)^selectedBatch  (0–1)
@@ -43,10 +39,10 @@ export interface CardForecastRow {
 
 export type BatchSize = 1000 | 10000 | 100000 | 1000000;
 
-// ── Slice Interface ────────────────────────────────────────────────────────────
+// Re-export so existing imports still work
+export type { BaseRateSource } from "~/main/modules/profit-forecast/ProfitForecast.dto";
 
-/** Indicates how the baseRate was determined. */
-export type BaseRateSource = "maxVolumeRate" | "derived" | "none";
+// ── Slice Interface ────────────────────────────────────────────────────────────
 
 export interface ProfitForecastSlice {
   profitForecast: {
@@ -74,6 +70,7 @@ export interface ProfitForecastSlice {
     // ── Actions ───────────────────────────────────────────────────────────
     fetchData: (game: string, league: string) => Promise<void>;
     recomputeRows: () => void; // pure math, no IPC
+    toggleCardExclusion: (cardName: string) => void; // toggle user override and recompute EV
     setSelectedBatch: (batch: BatchSize) => void;
     setMinPriceThreshold: (value: number) => void;
     setStepDrop: (value: number) => void;
@@ -91,6 +88,7 @@ export interface ProfitForecastSlice {
     getExcludedCount: () => {
       anomalous: number;
       lowConfidence: number;
+      userOverridden: number;
       total: number;
     };
     hasData: () => boolean;
@@ -144,111 +142,47 @@ export function computeTotalChaosCost(
   return totalCost;
 }
 
+// ── Exclusion Logic ────────────────────────────────────────────────────────────
+
 /**
- * Compute the base exchange rate (decks per divine) from the snapshot data.
- *
- * Prefers `stackedDeckMaxVolumeRate` (poe.ninja's volume-weighted bulk rate)
- * when available, since it represents the actual rate traders are getting.
- * Falls back to the derived rate `floor(chaosToDivine / stackedDeckChaosCost)`.
- *
- * Returns `{ baseRate, source }`.
+ * Whether auto-detection (anomalous price or low-confidence) would exclude
+ * this card from EV.  Pure function — does NOT consider userOverride.
  */
-export function computeBaseRate(snapshot: ProfitForecastSnapshotDTO | null): {
-  baseRate: number;
-  source: BaseRateSource;
-} {
-  if (!snapshot) return { baseRate: 0, source: "none" };
-
-  const { chaosToDivineRatio, stackedDeckChaosCost, stackedDeckMaxVolumeRate } =
-    snapshot;
-
-  // Prefer maxVolumeRate when available and positive
-  if (stackedDeckMaxVolumeRate != null && stackedDeckMaxVolumeRate > 0) {
-    return {
-      baseRate: Math.max(RATE_FLOOR, Math.floor(stackedDeckMaxVolumeRate)),
-      source: "maxVolumeRate",
-    };
-  }
-
-  // Fall back to derived rate
-  if (stackedDeckChaosCost > 0 && chaosToDivineRatio > 0) {
-    return {
-      baseRate: Math.max(
-        RATE_FLOOR,
-        Math.floor(chaosToDivineRatio / stackedDeckChaosCost),
-      ),
-      source: "derived",
-    };
-  }
-
-  return { baseRate: 0, source: "none" };
+export function isAutoExcluded(row: {
+  hasPrice: boolean;
+  isAnomalous: boolean;
+  confidence: 1 | 2 | 3 | null;
+}): boolean {
+  return !row.hasPrice || row.isAnomalous || row.confidence === 3;
 }
 
 /**
- * Build static row fields from the DTO data. Dynamic (batch-dependent) fields
- * are initialised to 0 and filled in by `recomputeRows`.
- */
-/**
- * Resolve the effective weight for probability calculations.
+ * Derive the final `excludeFromEv` flag taking the user override into account.
  *
- * Uses the league weight directly. The backend already excludes boss cards
- * and assigns a floor weight to zero-weight non-boss cards, so every
- * weight arriving here is > 0.
+ * - When `userOverride` is false the auto-detection result is used as-is.
+ * - When `userOverride` is true the auto-detection result is *inverted*:
+ *   • An auto-excluded card (anomalous / low-confidence) becomes **included**.
+ *   • A normal card becomes **excluded**.
+ *
+ * Cards without a price (`hasPrice === false`) are always excluded regardless
+ * of the override — there is no value to include in EV.
  */
-export function resolveEffectiveWeight(w: ProfitForecastWeightDTO): number {
-  return w.weight;
-}
+export function computeExcludeFromEv(row: {
+  hasPrice: boolean;
+  isAnomalous: boolean;
+  confidence: 1 | 2 | 3 | null;
+  userOverride: boolean;
+}): boolean {
+  if (!row.hasPrice) return true;
 
-export function buildRows(
-  weights: ProfitForecastWeightDTO[],
-  cardPrices: Record<
-    string,
-    {
-      chaosValue: number;
-      divineValue: number;
-      source: "exchange" | "stash";
-      confidence: 1 | 2 | 3;
-      isAnomalous: boolean;
-    }
-  > | null,
-  totalWeight: number,
-): CardForecastRow[] {
-  return weights.map((w) => {
-    const price = cardPrices?.[w.cardName] ?? null;
-    const effectiveWeight = resolveEffectiveWeight(w);
-    const probability = totalWeight > 0 ? effectiveWeight / totalWeight : 0;
-    const chaosValue = price?.chaosValue ?? 0;
-    const divineValue = price?.divineValue ?? 0;
-    const hasPrice = price !== null;
-    const confidence = price?.confidence ?? null;
-    const isAnomalous = price?.isAnomalous ?? false;
-
-    return {
-      cardName: w.cardName,
-      weight: effectiveWeight,
-      fromBoss: w.fromBoss,
-      probability,
-      chaosValue,
-      divineValue,
-      hasPrice,
-      confidence,
-      isAnomalous,
-      excludeFromEv: !hasPrice || confidence === 3 || isAnomalous,
-      evContribution: hasPrice ? probability * chaosValue : 0,
-
-      // Dynamic — filled by recomputeRows
-      chanceInBatch: 0,
-      expectedDecks: 0,
-      costToPull: 0,
-      plA: 0,
-      plB: 0,
-    };
-  });
+  const auto = row.isAnomalous || row.confidence === 3;
+  if (row.userOverride) return !auto; // flip the auto decision
+  return auto;
 }
 
 /**
  * Compute EV per deck = Σ P(card) × chaosValue for all cards that
- * have a price and are NOT excluded (anomalous or low confidence).
+ * have a price and are NOT excluded.
  */
 export function computeEvPerDeck(rows: CardForecastRow[]): number {
   return rows.reduce(
@@ -256,6 +190,23 @@ export function computeEvPerDeck(rows: CardForecastRow[]): number {
       row.hasPrice && !row.excludeFromEv ? sum + row.evContribution : sum,
     0,
   );
+}
+
+/**
+ * Augment a pre-computed DTO row with renderer-only fields.
+ * Sets `userOverride` to false and dynamic fields to 0.
+ */
+function augmentRow(dto: ProfitForecastRowDTO): CardForecastRow {
+  return {
+    ...dto,
+    userOverride: false,
+    belowMinPrice: false,
+    chanceInBatch: 0,
+    expectedDecks: 0,
+    costToPull: 0,
+    plA: 0,
+    plB: 0,
+  };
 }
 
 /**
@@ -351,27 +302,8 @@ export const createProfitForecastSlice: StateCreator<
             league,
           );
 
-        const totalWeight = result.weights.reduce(
-          (sum, w) => sum + resolveEffectiveWeight(w),
-          0,
-        );
-
-        // Build static row data
-        const rows = buildRows(
-          result.weights,
-          result.snapshot?.cardPrices ?? null,
-          totalWeight,
-        );
-
-        const evPerDeck = computeEvPerDeck(rows);
-
-        const chaosToDivineRatio = result.snapshot?.chaosToDivineRatio ?? 0;
-        const stackedDeckChaosCost = result.snapshot?.stackedDeckChaosCost ?? 0;
-
-        // Compute base rate — prefer maxVolumeRate, fall back to derived
-        const { baseRate, source: baseRateSource } = computeBaseRate(
-          result.snapshot,
-        );
+        // Augment pre-computed rows with renderer-only fields
+        const rows = result.rows.map(augmentRow);
 
         // Fill in dynamic fields before storing
         const { selectedBatch, stepDrop, subBatchSize } = get().profitForecast;
@@ -379,27 +311,23 @@ export const createProfitForecastSlice: StateCreator<
         recomputeDynamicFields(
           rows,
           selectedBatch,
-          baseRate,
+          result.baseRate,
           stepDrop,
           subBatchSize,
-          chaosToDivineRatio,
-          evPerDeck,
+          result.chaosToDivineRatio,
+          result.evPerDeck,
         );
-
-        // Sort by evContribution descending
-        rows.sort((a, b) => b.evContribution - a.evContribution);
 
         set(
           ({ profitForecast }) => {
             profitForecast.rows = rows;
-            profitForecast.totalWeight = totalWeight;
-            profitForecast.evPerDeck = evPerDeck;
-            profitForecast.snapshotFetchedAt =
-              result.snapshot?.fetchedAt ?? null;
-            profitForecast.chaosToDivineRatio = chaosToDivineRatio;
-            profitForecast.stackedDeckChaosCost = stackedDeckChaosCost;
-            profitForecast.baseRate = baseRate;
-            profitForecast.baseRateSource = baseRateSource;
+            profitForecast.totalWeight = result.totalWeight;
+            profitForecast.evPerDeck = result.evPerDeck;
+            profitForecast.snapshotFetchedAt = result.snapshotFetchedAt;
+            profitForecast.chaosToDivineRatio = result.chaosToDivineRatio;
+            profitForecast.stackedDeckChaosCost = result.stackedDeckChaosCost;
+            profitForecast.baseRate = result.baseRate;
+            profitForecast.baseRateSource = result.baseRateSource;
             profitForecast.isLoading = false;
             profitForecast.isComputing = false;
           },
@@ -455,6 +383,51 @@ export const createProfitForecastSlice: StateCreator<
         },
         false,
         "profitForecastSlice/recomputeRows",
+      );
+    },
+
+    toggleCardExclusion: (cardName: string) => {
+      const {
+        rows,
+        baseRate,
+        stepDrop,
+        subBatchSize,
+        chaosToDivineRatio,
+        selectedBatch,
+      } = get().profitForecast;
+
+      if (rows.length === 0) return;
+
+      // Deep-copy rows and toggle the userOverride flag for the target card
+      const updatedRows: CardForecastRow[] = rows.map((r) => {
+        const copy = { ...r };
+        if (copy.cardName === cardName) {
+          copy.userOverride = !copy.userOverride;
+          copy.excludeFromEv = computeExcludeFromEv(copy);
+        }
+        return copy;
+      });
+
+      // Recompute EV since exclusion set changed
+      const newEvPerDeck = computeEvPerDeck(updatedRows);
+
+      recomputeDynamicFields(
+        updatedRows,
+        selectedBatch,
+        baseRate,
+        stepDrop,
+        subBatchSize,
+        chaosToDivineRatio,
+        newEvPerDeck,
+      );
+
+      set(
+        ({ profitForecast }) => {
+          profitForecast.rows = updatedRows;
+          profitForecast.evPerDeck = newEvPerDeck;
+        },
+        false,
+        "profitForecastSlice/toggleCardExclusion",
       );
     },
 
@@ -521,15 +494,24 @@ export const createProfitForecastSlice: StateCreator<
       const { rows } = get().profitForecast;
       let anomalous = 0;
       let lowConfidence = 0;
+      let userOverridden = 0;
       for (const row of rows) {
         if (!row.hasPrice) continue;
-        if (row.isAnomalous) {
+        if (row.userOverride) {
+          // User flipped the auto decision — count separately
+          userOverridden++;
+        } else if (row.isAnomalous) {
           anomalous++;
         } else if (row.confidence === 3) {
           lowConfidence++;
         }
       }
-      return { anomalous, lowConfidence, total: anomalous + lowConfidence };
+      return {
+        anomalous,
+        lowConfidence,
+        userOverridden,
+        total: anomalous + lowConfidence + userOverridden,
+      };
     },
 
     getTotalCost: () => {
