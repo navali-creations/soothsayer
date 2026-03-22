@@ -136,13 +136,14 @@ async function selectLeagueInDropdown(
 
 test.describe("Setup Wizard", () => {
   test.beforeEach(async ({ page }) => {
+    // Wait for the app to hydrate so the preload bridge (electron.appSetup)
+    // is available before we call resetSetup.
     await page.waitForLoadState("domcontentloaded");
-    try {
-      await resetSetup(page);
-    } catch {
-      // resetSetup may fail on the very first test if the preload bridge
-      // hasn't loaded yet — fresh userData starts incomplete anyway.
-    }
+    await page.waitForFunction(
+      () => !!(window as any).electron?.appSetup?.resetSetup,
+      { timeout: 30_000 },
+    );
+    await resetSetup(page);
     await page.reload();
     await page.waitForLoadState("domcontentloaded");
   });

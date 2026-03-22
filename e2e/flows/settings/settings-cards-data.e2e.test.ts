@@ -71,16 +71,11 @@ test.describe("Settings – Cards (Data)", () => {
         .first();
       await expect(rescanButton).toBeVisible();
 
-      // The page may auto-trigger a scan on mount (when no filters are
-      // cached).  Wait for that initial scan to finish so the button
-      // becomes clickable before we interact with it.
       await expect(rescanButton).toBeEnabled({ timeout: 30_000 });
 
       // Click rescan — should not crash and button should remain functional
       await rescanButton.click();
 
-      // The scan is async — the button disables while scanning, then
-      // re-enables.  Wait for it to settle instead of a fixed sleep.
       await expect(rescanButton).toBeEnabled({ timeout: 30_000 });
 
       // Button should still be visible after scan completes
@@ -166,10 +161,8 @@ test.describe("Settings – Cards (Data)", () => {
         .locator("button", { hasText: /rescan/i })
         .first();
 
-      // Wait for any in-progress auto-scan to finish before clicking
       await expect(rescanButton).toBeEnabled({ timeout: 30_000 });
       await rescanButton.click();
-      // Wait for the triggered rescan to complete
       await expect(rescanButton).toBeEnabled({ timeout: 30_000 });
 
       // After scan, either "N filter(s) available" or "No filters found" should appear
@@ -185,12 +178,6 @@ test.describe("Settings – Cards (Data)", () => {
     test("full flow: render → switch source → verify PL block → rescan → restore", async ({
       page,
     }) => {
-      // Wait for any initial auto-scan to finish so buttons are interactive
-      const rarityCard = page.locator(".card", { hasText: "Rarity Source" });
-      const rescanBtn = rarityCard
-        .locator("button", { hasText: /rescan/i })
-        .first();
-      await expect(rescanBtn).toBeEnabled({ timeout: 30_000 });
       const card = page.locator(".card", { hasText: "Rarity Source" });
       const select = card.locator("select").first();
       const rescanButton = card

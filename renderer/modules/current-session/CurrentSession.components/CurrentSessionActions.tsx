@@ -45,6 +45,7 @@ const CurrentSessionActions = () => {
     rarityInsights: {
       availableFilters,
       isScanning,
+      lastScannedAt,
       scanFilters,
       selectFilter,
       clearSelectedFilter,
@@ -58,12 +59,16 @@ const CurrentSessionActions = () => {
   const localFilters = getLocalFilters();
   const onlineFilters = getOnlineFilters();
 
-  // Lazy scan: if no filters loaded yet, scan on mount
+  // Lazy scan: if no filters have ever been loaded, scan on mount.
+  // The `lastScannedAt` guard prevents an infinite loop: when the filesystem
+  // has zero filters (e.g. CI / Linux), the scan returns an empty array so
+  // `availableFilters.length` stays 0 and `isScanning` flips back to false,
+  // which would re-trigger this effect endlessly without the guard.
   useEffect(() => {
-    if (availableFilters.length === 0 && !isScanning) {
+    if (availableFilters.length === 0 && !isScanning && !lastScannedAt) {
       scanFilters();
     }
-  }, [availableFilters.length, isScanning, scanFilters]);
+  }, [availableFilters.length, isScanning, lastScannedAt, scanFilters]);
 
   const handlePriceSourceChange = async (source: "exchange" | "stash") => {
     await setActiveGameViewPriceSource(source);

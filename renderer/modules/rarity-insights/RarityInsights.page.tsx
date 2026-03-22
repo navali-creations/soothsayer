@@ -12,7 +12,12 @@ const RarityInsightsPage = () => {
   const [globalFilter, setGlobalFilter] = useState("");
 
   const {
-    rarityInsights: { availableFilters, isScanning, scanFilters },
+    rarityInsights: {
+      availableFilters,
+      isScanning,
+      lastScannedAt,
+      scanFilters,
+    },
     cards: { allCards, loadCards },
     settings: {
       selectedFilterId,
@@ -64,13 +69,17 @@ const RarityInsightsPage = () => {
     }
   }, [allCards.length, loadCards]);
 
-  // ─── Scan filters if none available ────────────────────────────────────
+  // ─── Scan filters if none have ever been loaded ────────────────────────
+  // The `lastScannedAt` guard prevents an infinite loop: when the filesystem
+  // has zero filters (e.g. CI / Linux), the scan returns an empty array so
+  // `availableFilters.length` stays 0 and `isScanning` flips back to false,
+  // which would re-trigger this effect endlessly without the guard.
 
   useEffect(() => {
-    if (availableFilters.length === 0 && !isScanning) {
+    if (availableFilters.length === 0 && !isScanning && !lastScannedAt) {
       scanFilters();
     }
-  }, [availableFilters.length, isScanning, scanFilters]);
+  }, [availableFilters.length, isScanning, lastScannedAt, scanFilters]);
 
   // ─── Pre-select the currently active filter ────────────────────────────
 

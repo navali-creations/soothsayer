@@ -924,31 +924,29 @@ export interface SeedRarityInsightsOptions {
  * 2. `divination_card_rarities` — poe.ninja-derived rarities
  * 3. `prohibited_library_card_weights` — Prohibited Library weights + rarities
  * 4. `prohibited_library_cache_metadata` — marks PL data as loaded
- * 5. `filter_metadata` — two mock filter entries (fully parsed)
- * 6. `filter_card_rarities` — per-filter card→rarity mappings
+ *
+ * **Steps 5 & 6 are intentionally deferred:**
+ * 5. `filter_metadata` — seeded later by `injectSeededFilters()`
+ * 6. `filter_card_rarities` — seeded later by `injectSeededFilters()`
+ *
+ * Filter data is NOT seeded here because the Rarity Insights page auto-scans
+ * filter directories on mount.  The scan's cleanup phase
+ * (`deleteNotInFilePaths([])`) cascade-deletes all `filter_metadata` rows.
+ * If we seed here, the scan races with the inserts, causing FK violations.
+ * Instead, `injectSeededFilters()` waits for the scan to finish, then seeds.
  *
  * All writes use `INSERT OR REPLACE` / `INSERT OR IGNORE` for idempotency.
  *
  * @param page - Playwright Page (renderer) with access to e2e:db-exec IPC
  * @param cards - Array of `RarityInsightsCardFixture` entries
- * @param options - Optional overrides for game, league, filter IDs, etc.
+ * @param options - Optional overrides for game, league, etc.
  */
 export async function seedRarityInsightsData(
   page: Page,
   cards: RarityInsightsCardFixture[],
   options: SeedRarityInsightsOptions = {},
 ): Promise<void> {
-  const {
-    game = "poe1",
-    league = "Standard",
-    plLeague = league,
-    filter1Id = "e2e-filter-001",
-    filter1Name = "NeverSink's Semi-Strict",
-    filter1Path = "C:\\Users\\e2e\\Documents\\My Games\\Path of Exile\\NeverSink-SemiStrict.filter",
-    filter2Id = "e2e-filter-002",
-    filter2Name = "FilterBlade Uber-Strict",
-    filter2Path = "C:\\Users\\e2e\\Documents\\My Games\\Path of Exile\\FilterBlade-UberStrict.filter",
-  } = options;
+  const { game = "poe1", league = "Standard", plLeague = league } = options;
 
   const now = new Date().toISOString();
 
@@ -1028,15 +1026,17 @@ export async function seedRarityInsightsData(
     ],
   );
 
-  // ── 5 & 6. Seed filter_metadata + filter_card_rarities ────────────────
-  await seedFilterData(page, cards, {
-    filter1Id,
-    filter1Name,
-    filter1Path,
-    filter2Id,
-    filter2Name,
-    filter2Path,
-  });
+  // ── 5 & 6. filter_metadata + filter_card_rarities ─────────────────────
+  // DEFERRED: We intentionally do NOT seed filter data here.
+  // The Rarity Insights page auto-scans filter directories on mount, and
+  // its cleanup phase (`deleteNotInFilePaths([])`) cascade-deletes all
+  // `filter_metadata` rows — taking `filter_card_rarities` with them.
+  // If we seed here, the scan may race and delete our rows mid-insert,
+  // causing FOREIGN KEY constraint failures.
+  //
+  // Instead, `injectSeededFilters()` in rarity-insights.helpers.ts waits
+  // for the scan to finish, THEN re-seeds filter data.  This eliminates
+  // the race entirely.
 }
 
 // ─── Filter Data Seeder (steps 5 + 6, extracted) ─────────────────────────────

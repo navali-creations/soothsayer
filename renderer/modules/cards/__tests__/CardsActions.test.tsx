@@ -68,6 +68,7 @@ function setupStore(
     selectedFilterId?: string | null;
     availableFilters?: any[];
     isScanning?: boolean;
+    lastScannedAt?: string | null;
   } = {},
 ) {
   mockUseBoundStore.mockReturnValue({
@@ -88,6 +89,7 @@ function setupStore(
     rarityInsights: {
       availableFilters: overrides.availableFilters ?? [{ id: "f1" }],
       isScanning: overrides.isScanning ?? false,
+      lastScannedAt: overrides.lastScannedAt ?? null,
       scanFilters: mockScanFilters,
       selectFilter: mockSelectFilter,
       clearSelectedFilter: mockClearSelectedFilter,
@@ -294,6 +296,17 @@ describe("CardsActions", () => {
 
     it("does not scan filters when already scanning", () => {
       setupStore({ availableFilters: [], isScanning: true });
+      renderWithProviders(<CardsActions />);
+
+      expect(mockScanFilters).not.toHaveBeenCalled();
+    });
+
+    it("does not re-scan when scan already completed with zero results", () => {
+      setupStore({
+        availableFilters: [],
+        isScanning: false,
+        lastScannedAt: "2025-01-01T00:00:00.000Z",
+      });
       renderWithProviders(<CardsActions />);
 
       expect(mockScanFilters).not.toHaveBeenCalled();
