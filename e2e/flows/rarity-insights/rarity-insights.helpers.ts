@@ -137,27 +137,55 @@ export async function waitForTableRows(page: Page) {
  * The Rarity Insights page renders a `[data-testid="cards-loading"]` overlay
  * while `cards.isLoading` is true.  This helper:
  *
- * 1. Waits for the loading overlay to be hidden (either it was never shown
- *    because `loadCards()` already completed, or it appeared and then
- *    disappeared).  Playwright's `toBeHidden()` auto-retries, so it
- *    handles the case where the overlay hasn't appeared yet at the moment
- *    of the call — it will keep polling until the locator is either
- *    detached or not visible.
- * 2. Confirms that the table contains at least one row (data arrived).
+ * 1. Waits for the loading overlay to appear (proving `loadCards()` has
+ *    started) OR times out quickly if it never appears (because the load
+ *    already completed before we started watching).
+ * 2. Waits for the loading overlay to be hidden (load complete).
+ * 3. Confirms that the table contains at least one row (data arrived).
  *
- * This guards against a race condition where `loadCards()` is triggered by
- * the page's `useEffect` on mount but hasn't completed yet when the test
- * starts interacting with rarity chips.
+ * The two-phase approach prevents a race condition where `loadCards()` is
+ * triggered by the page's `useEffect` on mount (after an async
+ * `checkRefreshStatus`) but hasn't started yet when the test begins
+ * interacting with the table.  Without the "wait for appear" phase,
+ * `toBeHidden()` would succeed immediately because the overlay doesn't
+ * exist yet, and the test would proceed with stale data that lacks the
+ * seeded rarity values.
  */
 export async function waitForCardsLoaded(page: Page) {
-  // Wait for the loading overlay to be hidden.  `toBeHidden()` succeeds
-  // when the element is either not in the DOM or not visible — so it
-  // handles both "already loaded" and "still loading → finishes" cases.
-  await expect(page.locator('[data-testid="cards-loading"]')).toBeHidden({
-    timeout: 15_000,
-  });
+  const loadingOverlay = page.locator('[data-testid="cards-loading"]');
 
-  // Confirm at least one table row is present (data has rendered).
+  // Phase 1: Quick-check whether the loading overlay is currently visible.
+  // If loadCards() is already in-flight, the overlay will be in the DOM.
+  const alreadyVisible = await loadingOverlay.isVisible().catch(() => false);
+
+  if (alreadyVisible) {
+    // loadCards() is running right now — wait for it to finish.
+    await expect(loadingOverlay).toBeHidden({ timeout: 15_000 });
+  } else {
+    // The overlay isn't visible.  Either:
+    //   (a) loadCards() already completed, or
+    //   (b) loadCards() hasn't started yet (the first useEffect is still
+    //       awaiting checkRefreshStatus before calling loadCards).
+    //
+    // To handle (b) — which causes the flake on slow CI runners — give the
+    // overlay a short window to appear.  If it does, wait for the full
+    // load cycle to complete.  If it doesn't, loadCards() finished before
+    // we got here and the data is already rendered (case a).
+    //
+    // 1.5 s is enough for checkRefreshStatus (a single IPC read) to
+    // complete on even heavily-loaded CI runners, without penalising the
+    // common fast path where loadCards() already finished.
+    const appeared = await loadingOverlay
+      .waitFor({ state: "visible", timeout: 1_500 })
+      .then(() => true)
+      .catch(() => false);
+
+    if (appeared) {
+      await expect(loadingOverlay).toBeHidden({ timeout: 15_000 });
+    }
+  }
+
+  // Phase 2: Confirm at least one table row is present (data has rendered).
   await page
     .locator("table tbody tr")
     .first()

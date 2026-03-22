@@ -1012,23 +1012,21 @@ export async function seedRarityInsightsData(
   //
   // Fix: set poe.ninja rarity to 4 (Common) for every non-fixture card so
   // both sides agree (4 === 4 → no diff).
-  const fixtureCardNames = new Set(cards.map((c) => c.name));
-  const bundledCards = await dbQuery<{ name: string }>(
+  //
+  // Uses a single INSERT … SELECT to avoid ~370 individual IPC round-trips
+  // which slow down seeding on resource-constrained CI runners.
+  const fixtureNames = cards.map((c) => c.name);
+  const placeholders = fixtureNames.map(() => "?").join(", ");
+  await dbExec(
     page,
-    `SELECT name FROM divination_cards WHERE game = ?`,
-    [game],
+    `INSERT OR IGNORE INTO divination_card_rarities
+       (game, league, card_name, rarity, last_updated)
+     SELECT ?, ?, dc.name, 4, ?
+       FROM divination_cards dc
+      WHERE dc.game = ?
+        AND dc.name NOT IN (${placeholders})`,
+    [game, league, now, game, ...fixtureNames],
   );
-
-  for (const row of bundledCards) {
-    if (fixtureCardNames.has(row.name)) continue;
-    await dbExec(
-      page,
-      `INSERT OR IGNORE INTO divination_card_rarities
-         (game, league, card_name, rarity, last_updated)
-       VALUES (?, ?, ?, 4, ?)`,
-      [game, league, row.name, now],
-    );
-  }
 
   // ── 3. Seed prohibited_library_card_weights ───────────────────────────
   for (const card of cards) {
@@ -1165,49 +1163,61 @@ export async function seedFilterData(
   // only" shows nearly ALL cards instead of just the intentional diffs.
   //
   // Fix: for every non-fixture card in `divination_cards`, seed a
-  // `filter_card_rarities` row that matches its poe.ninja rarity (from
-  // `divination_card_rarities`).  Cards with no poe.ninja row or rarity 0
-  // default to 4 (Common).  This ensures only the 12 fixture cards with
-  // intentionally mismatched rarities appear as differences.
-  const nonFixtureCards = await dbQuery<{
-    card_name: string;
-    rarity: number | null;
-  }>(
+  // `filter_card_rarities` row whose rarity matches its poe.ninja rarity
+  // (from `divination_card_rarities`).  Cards with no poe.ninja row or
+  // rarity 0 default to 4 (Common).  Step 2b already backfilled
+  // `divination_card_rarities` with rarity 4 for non-fixture cards, so
+  // the COALESCE here will yield 4 for all of them — ensuring both sides
+  // of the `getDifferences()` comparison agree (4 === 4 → no diff).
+  //
+  // Uses INSERT … SELECT to avoid ~370 individual IPC round-trips which
+  // slow down seeding on resource-constrained CI runners.
+  const fixtureNamesForFilter = fixtureCardNames;
+  const filterPlaceholders = [...fixtureNamesForFilter]
+    .map(() => "?")
+    .join(", ");
+
+  // Backfill filter 1
+  await dbExec(
     page,
-    `SELECT dc.name AS card_name,
-            COALESCE(dcr.rarity, 0) AS rarity
+    `INSERT OR IGNORE INTO filter_card_rarities
+       (filter_id, card_name, rarity, created_at)
+     SELECT ?, dc.name,
+            CASE
+              WHEN dcr.rarity >= 1 AND dcr.rarity <= 4 THEN dcr.rarity
+              ELSE 4
+            END,
+            ?
        FROM divination_cards dc
        LEFT JOIN divination_card_rarities dcr
          ON dcr.card_name = dc.name
         AND dcr.game = 'poe1'
         AND dcr.league = 'Standard'
-      WHERE dc.game = 'poe1'`,
+      WHERE dc.game = 'poe1'
+        AND dc.name NOT IN (${filterPlaceholders})`,
+    [filter1Id, now, ...fixtureNamesForFilter],
   );
 
-  for (const row of nonFixtureCards) {
-    if (fixtureCardNames.has(row.card_name)) continue;
-
-    // Map poe.ninja rarity to a valid KnownRarity (1-4).
-    // Unknown (0) or null defaults to 4 (Common) — matching what the
-    // comparison slice does: `p.rarities.get(card.name) ?? 4`.
-    const filterRarity =
-      row.rarity && row.rarity >= 1 && row.rarity <= 4 ? row.rarity : 4;
-
-    await dbExec(
-      page,
-      `INSERT OR IGNORE INTO filter_card_rarities
-         (filter_id, card_name, rarity, created_at)
-       VALUES (?, ?, ?, ?)`,
-      [filter1Id, row.card_name, filterRarity, now],
-    );
-    await dbExec(
-      page,
-      `INSERT OR IGNORE INTO filter_card_rarities
-         (filter_id, card_name, rarity, created_at)
-       VALUES (?, ?, ?, ?)`,
-      [filter2Id, row.card_name, filterRarity, now],
-    );
-  }
+  // Backfill filter 2
+  await dbExec(
+    page,
+    `INSERT OR IGNORE INTO filter_card_rarities
+       (filter_id, card_name, rarity, created_at)
+     SELECT ?, dc.name,
+            CASE
+              WHEN dcr.rarity >= 1 AND dcr.rarity <= 4 THEN dcr.rarity
+              ELSE 4
+            END,
+            ?
+       FROM divination_cards dc
+       LEFT JOIN divination_card_rarities dcr
+         ON dcr.card_name = dc.name
+        AND dcr.game = 'poe1'
+        AND dcr.league = 'Standard'
+      WHERE dc.game = 'poe1'
+        AND dc.name NOT IN (${filterPlaceholders})`,
+    [filter2Id, now, ...fixtureNamesForFilter],
+  );
 }
 
 /**
