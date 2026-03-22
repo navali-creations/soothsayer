@@ -103,7 +103,7 @@ export interface InjectCardDropOptions {
 async function dbExec(
   page: Page,
   sql: string,
-  params: unknown[] = []
+  params: unknown[] = [],
 ): Promise<{ changes: number; lastInsertRowid: number | bigint }> {
   return page.evaluate(
     async ({ sql, params }) => {
@@ -118,10 +118,10 @@ async function dbExec(
       // Fallback: try a generic invoke helper if the preload exposes one
       throw new Error(
         "window.electron.ipcRenderer.invoke is not available — " +
-          "ensure the preload script exposes ipcRenderer for e2e testing"
+          "ensure the preload script exposes ipcRenderer for e2e testing",
       );
     },
-    { sql, params }
+    { sql, params },
   );
 }
 
@@ -135,7 +135,7 @@ async function dbExec(
 async function dbQuery<T = Record<string, unknown>>(
   page: Page,
   sql: string,
-  params: unknown[] = []
+  params: unknown[] = [],
 ): Promise<T[]> {
   return page.evaluate(
     async ({ sql, params }) => {
@@ -147,10 +147,10 @@ async function dbQuery<T = Record<string, unknown>>(
 
       throw new Error(
         "window.electron.ipcRenderer.invoke is not available — " +
-          "ensure the preload script exposes ipcRenderer for e2e testing"
+          "ensure the preload script exposes ipcRenderer for e2e testing",
       );
     },
-    { sql, params }
+    { sql, params },
   );
 }
 
@@ -163,7 +163,7 @@ async function dbQuery<T = Record<string, unknown>>(
  */
 export async function seedLeague(
   page: Page,
-  options: SeedLeagueOptions = {}
+  options: SeedLeagueOptions = {},
 ): Promise<string> {
   const {
     id = "poe1_standard",
@@ -179,7 +179,7 @@ export async function seedLeague(
     page,
     `INSERT OR REPLACE INTO leagues (id, game, name, start_date)
      VALUES (?, ?, ?, ?)`,
-    [id, game, name, startDate]
+    [id, game, name, startDate],
   );
 
   return id;
@@ -204,7 +204,7 @@ export async function seedLeagueCache(
     name?: string;
     startAt?: string | null;
     endAt?: string | null;
-  } = {}
+  } = {},
 ): Promise<string> {
   const {
     game = "poe1",
@@ -222,7 +222,7 @@ export async function seedLeagueCache(
     `INSERT OR REPLACE INTO poe_leagues_cache
        (id, game, league_id, name, start_at, end_at, is_active, updated_at, fetched_at)
      VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`,
-    [id, game, leagueId, name, startAt, endAt, now, now]
+    [id, game, leagueId, name, startAt, endAt, now, now],
   );
 
   // Also upsert the cache metadata so fetchLeagues() sees a fresh cache
@@ -231,7 +231,7 @@ export async function seedLeagueCache(
     page,
     `INSERT OR REPLACE INTO poe_leagues_cache_metadata (game, last_fetched_at)
      VALUES (?, ?)`,
-    [game, now]
+    [game, now],
   );
 
   return id;
@@ -245,7 +245,7 @@ export async function seedLeagueCache(
  */
 export async function seedSnapshot(
   page: Page,
-  options: SeedSnapshotOptions = {}
+  options: SeedSnapshotOptions = {},
 ): Promise<string> {
   const {
     id = "e2e-snapshot-001",
@@ -262,7 +262,7 @@ export async function seedSnapshot(
   const leagueRows = await dbQuery<{ id: string }>(
     page,
     `SELECT id FROM leagues WHERE id = ?`,
-    [leagueId]
+    [leagueId],
   );
 
   if (leagueRows.length === 0) {
@@ -294,7 +294,7 @@ export async function seedSnapshot(
       exchangeChaosToDivine,
       stashChaosToDivine,
       stackedDeckChaosCost,
-    ]
+    ],
   );
 
   return id;
@@ -307,7 +307,7 @@ export async function seedSnapshot(
  */
 export async function seedSnapshotCardPrices(
   page: Page,
-  prices: SeedSnapshotCardPriceOptions[]
+  prices: SeedSnapshotCardPriceOptions[],
 ): Promise<void> {
   for (const p of prices) {
     await dbExec(
@@ -322,7 +322,7 @@ export async function seedSnapshotCardPrices(
         p.chaosValue ?? 10,
         p.divineValue ?? 0.07,
         p.confidence ?? 1,
-      ]
+      ],
     );
   }
 }
@@ -335,7 +335,7 @@ export async function seedSnapshotCardPrices(
  */
 export async function seedCardRarities(
   page: Page,
-  rarities: SeedCardRarityOptions[]
+  rarities: SeedCardRarityOptions[],
 ): Promise<void> {
   for (const r of rarities) {
     await dbExec(
@@ -343,7 +343,7 @@ export async function seedCardRarities(
       `INSERT OR REPLACE INTO divination_card_rarities
          (game, league, card_name, rarity, last_updated)
        VALUES (?, ?, ?, ?, datetime('now'))`,
-      [r.game ?? "poe1", r.league ?? "Standard", r.cardName, r.rarity]
+      [r.game ?? "poe1", r.league ?? "Standard", r.cardName, r.rarity],
     );
   }
 }
@@ -371,7 +371,7 @@ export async function seedSessionPrerequisites(
     leagueName?: string;
     leagueId?: string;
     snapshotId?: string;
-  } = {}
+  } = {},
 ): Promise<{ leagueId: string; snapshotId: string }> {
   const game = options.game ?? "poe1";
   const leagueName = options.leagueName ?? "Standard";
@@ -486,7 +486,7 @@ export interface SeedCompletedSessionOptions {
  */
 export async function seedCompletedSession(
   page: Page,
-  options: SeedCompletedSessionOptions = {}
+  options: SeedCompletedSessionOptions = {},
 ): Promise<string> {
   const now = new Date();
   const fourHoursAgo = new Date(now.getTime() - 4 * 60 * 60 * 1000);
@@ -515,7 +515,7 @@ export async function seedCompletedSession(
     `INSERT OR IGNORE INTO sessions
        (id, game, league_id, snapshot_id, started_at, ended_at, total_count, is_active)
      VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
-    [id, game, leagueId, snapshotId, startedAt, endedAt, totalCount]
+    [id, game, leagueId, snapshotId, startedAt, endedAt, totalCount],
   );
 
   // Insert session card rows
@@ -525,7 +525,7 @@ export async function seedCompletedSession(
       `INSERT OR IGNORE INTO session_cards
          (session_id, card_name, count, first_seen_at, last_seen_at)
        VALUES (?, ?, ?, ?, ?)`,
-      [id, card.cardName, card.count, startedAt, endedAt]
+      [id, card.cardName, card.count, startedAt, endedAt],
     );
   }
 
@@ -541,7 +541,7 @@ export async function seedCompletedSession(
  */
 export async function seedMultipleCompletedSessions(
   page: Page,
-  sessions: SeedCompletedSessionOptions[]
+  sessions: SeedCompletedSessionOptions[],
 ): Promise<string[]> {
   const ids: string[] = [];
   for (const session of sessions) {
@@ -572,7 +572,7 @@ export async function seedMultipleCompletedSessions(
  */
 export async function injectCardDrop(
   page: Page,
-  options: InjectCardDropOptions
+  options: InjectCardDropOptions,
 ): Promise<string> {
   const {
     sessionId,
@@ -592,7 +592,7 @@ export async function injectCardDrop(
      ON CONFLICT(session_id, card_name) DO UPDATE SET
        count = count + 1,
        last_seen_at = ?`,
-    [sessionId, cardName, timestamp, timestamp, timestamp]
+    [sessionId, cardName, timestamp, timestamp, timestamp],
   );
 
   // 2. Insert into processed_ids so getRecentDrops() returns this card
@@ -600,7 +600,7 @@ export async function injectCardDrop(
     page,
     `INSERT OR IGNORE INTO processed_ids (game, scope, processed_id, card_name, created_at)
      VALUES (?, 'global', ?, ?, ?)`,
-    [game, processedId, cardName, timestamp]
+    [game, processedId, cardName, timestamp],
   );
 
   // 3. Recompute sessions.total_count from the actual session_cards rows
@@ -611,7 +611,7 @@ export async function injectCardDrop(
        SELECT COALESCE(SUM(count), 0) FROM session_cards WHERE session_id = ?
      )
      WHERE id = ?`,
-    [sessionId, sessionId]
+    [sessionId, sessionId],
   );
 
   return processedId;
@@ -664,7 +664,7 @@ export async function injectCardDrops(
   page: Page,
   sessionId: string,
   drops: Array<string | Omit<InjectCardDropOptions, "sessionId">>,
-  options: { delayMs?: number; game?: string; app?: ElectronApplication } = {}
+  options: { delayMs?: number; game?: string; app?: ElectronApplication } = {},
 ): Promise<string[]> {
   const { delayMs = 0, game = "poe1", app } = options;
   const processedIds: string[] = [];
@@ -717,7 +717,7 @@ export async function injectCardDrops(
 export async function emitSessionDataUpdate(
   page: Page,
   app: ElectronApplication,
-  game: string = "poe1"
+  game: string = "poe1",
 ): Promise<void> {
   // 1. Read current session data from the DB via the existing IPC channel
   const sessionData = await page.evaluate(
@@ -728,7 +728,7 @@ export async function emitSessionDataUpdate(
       }
       return null;
     },
-    { game }
+    { game },
   );
 
   // 2. Broadcast to all renderer windows (mirrors emitSessionDataUpdate)
@@ -741,7 +741,7 @@ export async function emitSessionDataUpdate(
         }
       }
     },
-    { game, data: sessionData }
+    { game, data: sessionData },
   );
 
   // 3. Give the renderer a tick to process the IPC event and re-render
@@ -756,12 +756,12 @@ export async function emitSessionDataUpdate(
 export async function hasLeague(
   page: Page,
   game: string,
-  leagueName: string
+  leagueName: string,
 ): Promise<boolean> {
   const rows = await dbQuery<{ id: string }>(
     page,
     `SELECT id FROM leagues WHERE game = ? AND name = ?`,
-    [game, leagueName]
+    [game, leagueName],
   );
   return rows.length > 0;
 }
@@ -771,12 +771,12 @@ export async function hasLeague(
  */
 export async function hasSnapshot(
   page: Page,
-  leagueId: string
+  leagueId: string,
 ): Promise<boolean> {
   const rows = await dbQuery<{ id: string }>(
     page,
     `SELECT id FROM snapshots WHERE league_id = ?`,
-    [leagueId]
+    [leagueId],
   );
   return rows.length > 0;
 }
@@ -805,7 +805,7 @@ export async function seedMultipleLeagues(
     leagueName: string;
     leagueId?: string;
     snapshotId?: string;
-  }>
+  }>,
 ): Promise<
   Array<{ leagueId: string; snapshotId: string; leagueName: string }>
 > {
@@ -849,7 +849,7 @@ export async function seedMultipleLeagues(
  */
 export async function seedPriceHistoryCache(
   page: Page,
-  fixture: CardPriceHistoryFixture
+  fixture: CardPriceHistoryFixture,
 ): Promise<void> {
   const now = new Date().toISOString();
 
@@ -874,7 +874,7 @@ export async function seedPriceHistoryCache(
       now,
       now,
       now,
-    ]
+    ],
   );
 }
 
@@ -886,7 +886,7 @@ export async function seedPriceHistoryCache(
  */
 export async function seedPriceHistoryCacheBatch(
   page: Page,
-  fixtures: CardPriceHistoryFixture[]
+  fixtures: CardPriceHistoryFixture[],
 ): Promise<void> {
   for (const fixture of fixtures) {
     await seedPriceHistoryCache(page, fixture);
@@ -944,7 +944,7 @@ export interface SeedRarityInsightsOptions {
 export async function seedRarityInsightsData(
   page: Page,
   cards: RarityInsightsCardFixture[],
-  options: SeedRarityInsightsOptions = {}
+  options: SeedRarityInsightsOptions = {},
 ): Promise<void> {
   const { game = "poe1", league = "Standard", plLeague = league } = options;
 
@@ -956,7 +956,7 @@ export async function seedRarityInsightsData(
   // as up-to-date and skips re-parsing the bundled CSV — which would
   // overwrite the fixture PL weights with production CSV data.
   const appVersion: string = await page.evaluate(() =>
-    (window as any).electron.app.getVersion()
+    (window as any).electron.app.getVersion(),
   );
 
   // ── 1. Seed divination_cards ───────────────────────────────────────────
@@ -980,7 +980,7 @@ export async function seedRarityInsightsData(
         card.fromBoss ? 1 : 0,
         now,
         now,
-      ]
+      ],
     );
   }
 
@@ -991,7 +991,7 @@ export async function seedRarityInsightsData(
       `INSERT OR REPLACE INTO divination_card_rarities
          (game, league, card_name, rarity, last_updated)
        VALUES (?, ?, ?, ?, ?)`,
-      [game, league, card.name, card.poeNinjaRarity, now]
+      [game, league, card.name, card.poeNinjaRarity, now],
     );
   }
 
@@ -1016,7 +1016,7 @@ export async function seedRarityInsightsData(
   const bundledCards = await dbQuery<{ name: string }>(
     page,
     `SELECT name FROM divination_cards WHERE game = ?`,
-    [game]
+    [game],
   );
 
   for (const row of bundledCards) {
@@ -1026,7 +1026,7 @@ export async function seedRarityInsightsData(
       `INSERT OR IGNORE INTO divination_card_rarities
          (game, league, card_name, rarity, last_updated)
        VALUES (?, ?, ?, 4, ?)`,
-      [game, league, row.name, now]
+      [game, league, row.name, now],
     );
   }
 
@@ -1048,7 +1048,7 @@ export async function seedRarityInsightsData(
         now,
         now,
         now,
-      ]
+      ],
     );
   }
 
@@ -1067,7 +1067,7 @@ export async function seedRarityInsightsData(
       cards.filter((c) => c.plWeight != null).length,
       now,
       now,
-    ]
+    ],
   );
 
   // ── 5 & 6. filter_metadata + filter_card_rarities ─────────────────────
@@ -1101,7 +1101,7 @@ export interface SeedFilterDataOptions {
 export async function seedFilterData(
   page: Page,
   cards: RarityInsightsCardFixture[],
-  options: SeedFilterDataOptions = {}
+  options: SeedFilterDataOptions = {},
 ): Promise<void> {
   const {
     filter1Id = "e2e-filter-001",
@@ -1120,7 +1120,7 @@ export async function seedFilterData(
     `INSERT OR REPLACE INTO filter_metadata
        (id, filter_type, file_path, filter_name, last_update, is_fully_parsed, parsed_at, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)`,
-    [filter1Id, "local", filter1Path, filter1Name, now, now, now, now]
+    [filter1Id, "local", filter1Path, filter1Name, now, now, now, now],
   );
 
   await dbExec(
@@ -1128,7 +1128,7 @@ export async function seedFilterData(
     `INSERT OR REPLACE INTO filter_metadata
        (id, filter_type, file_path, filter_name, last_update, is_fully_parsed, parsed_at, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)`,
-    [filter2Id, "online", filter2Path, filter2Name, now, now, now, now]
+    [filter2Id, "online", filter2Path, filter2Name, now, now, now, now],
   );
 
   // ── filter_card_rarities (fixture cards with intentional diffs) ───────
@@ -1141,7 +1141,7 @@ export async function seedFilterData(
         `INSERT OR REPLACE INTO filter_card_rarities
            (filter_id, card_name, rarity, created_at)
          VALUES (?, ?, ?, ?)`,
-        [filter1Id, card.name, card.filter1Rarity, now]
+        [filter1Id, card.name, card.filter1Rarity, now],
       );
     }
     if (card.filter2Rarity != null) {
@@ -1150,7 +1150,7 @@ export async function seedFilterData(
         `INSERT OR REPLACE INTO filter_card_rarities
            (filter_id, card_name, rarity, created_at)
          VALUES (?, ?, ?, ?)`,
-        [filter2Id, card.name, card.filter2Rarity, now]
+        [filter2Id, card.name, card.filter2Rarity, now],
       );
     }
   }
@@ -1181,7 +1181,7 @@ export async function seedFilterData(
          ON dcr.card_name = dc.name
         AND dcr.game = 'poe1'
         AND dcr.league = 'Standard'
-      WHERE dc.game = 'poe1'`
+      WHERE dc.game = 'poe1'`,
   );
 
   for (const row of nonFixtureCards) {
@@ -1198,14 +1198,14 @@ export async function seedFilterData(
       `INSERT OR IGNORE INTO filter_card_rarities
          (filter_id, card_name, rarity, created_at)
        VALUES (?, ?, ?, ?)`,
-      [filter1Id, row.card_name, filterRarity, now]
+      [filter1Id, row.card_name, filterRarity, now],
     );
     await dbExec(
       page,
       `INSERT OR IGNORE INTO filter_card_rarities
          (filter_id, card_name, rarity, created_at)
        VALUES (?, ?, ?, ?)`,
-      [filter2Id, row.card_name, filterRarity, now]
+      [filter2Id, row.card_name, filterRarity, now],
     );
   }
 }
@@ -1219,7 +1219,7 @@ export async function seedFilterData(
  */
 export async function seedDivinationCards(
   page: Page,
-  cards: RarityInsightsCardFixture[]
+  cards: RarityInsightsCardFixture[],
 ): Promise<void> {
   const now = new Date().toISOString();
   for (const card of cards) {
@@ -1242,7 +1242,7 @@ export async function seedDivinationCards(
         card.fromBoss ? 1 : 0,
         now,
         now,
-      ]
+      ],
     );
   }
 }
@@ -1280,13 +1280,13 @@ export async function syncAvailableFiltersToStore(page: Page): Promise<void> {
 
     if (!electron?.rarityInsights?.getAll) {
       throw new Error(
-        "syncAvailableFiltersToStore: window.electron.rarityInsights.getAll is not available"
+        "syncAvailableFiltersToStore: window.electron.rarityInsights.getAll is not available",
       );
     }
     if (!store) {
       throw new Error(
         "syncAvailableFiltersToStore: window.__zustandStore is not available — " +
-          "ensure the renderer store exposes itself in E2E mode"
+          "ensure the renderer store exposes itself in E2E mode",
       );
     }
 
@@ -1300,7 +1300,7 @@ export async function syncAvailableFiltersToStore(page: Page): Promise<void> {
         s.rarityInsights.lastScannedAt = new Date().toISOString();
       },
       false,
-      "e2e/syncAvailableFiltersToStore/stampLastScannedAt"
+      "e2e/syncAvailableFiltersToStore/stampLastScannedAt",
     );
   });
 }
@@ -1337,7 +1337,7 @@ export interface SeedCsvExportSnapshotOptions {
  */
 export async function seedCsvExportSnapshot(
   page: Page,
-  options: SeedCsvExportSnapshotOptions
+  options: SeedCsvExportSnapshotOptions,
 ): Promise<void> {
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
@@ -1351,7 +1351,7 @@ export async function seedCsvExportSnapshot(
       `INSERT OR REPLACE INTO csv_export_snapshots
          (game, scope, card_name, count, total_count, exported_at, integrity_status, integrity_details)
        VALUES (?, ?, ?, ?, ?, ?, 'pass', NULL)`,
-      [game, scope, card.cardName, card.count, totalCount, exportedAt]
+      [game, scope, card.cardName, card.count, totalCount, exportedAt],
     );
   }
 }
@@ -1412,7 +1412,7 @@ export interface SeedDataStoreCardsOptions {
  */
 export async function seedDataStoreCards(
   page: Page,
-  options: SeedDataStoreCardsOptions
+  options: SeedDataStoreCardsOptions,
 ): Promise<void> {
   const { game = "poe1", scope, cards } = options;
   const now = new Date().toISOString();
@@ -1425,7 +1425,7 @@ export async function seedDataStoreCards(
        ON CONFLICT(game, scope, card_name) DO UPDATE SET
          count = excluded.count,
          last_updated = excluded.last_updated`,
-      [game, scope, card.cardName, card.count, now]
+      [game, scope, card.cardName, card.count, now],
     );
   }
 }
@@ -1464,7 +1464,7 @@ export async function seedDataStoreForStatistics(
     leagueName: string;
     cards: Array<{ cardName: string; count: number }>;
     game?: string;
-  }>
+  }>,
 ): Promise<void> {
   // Accumulator for all-time totals across all leagues
   const allTimeTotals = new Map<string, { count: number; game: string }>();
