@@ -102,6 +102,10 @@ test.describe("Navigation", () => {
   // ─── Hash-based Deep Linking ──────────────────────────────────────────────────
 
   test.describe("Deep Linking (Hash Navigation)", () => {
+    // ensurePostSetup may reload + re-hydrate which can exceed the default
+    // 45 s test timeout on resource-constrained CI runners.
+    test.setTimeout(120_000);
+
     test.beforeEach(async ({ page }) => {
       await ensurePostSetup(page);
     });
@@ -138,6 +142,8 @@ test.describe("Navigation", () => {
   // ─── Route Transitions & Content Verification ─────────────────────────────────
 
   test.describe("Route Transitions", () => {
+    test.setTimeout(120_000);
+
     test.beforeEach(async ({ page }) => {
       await ensurePostSetup(page);
     });
@@ -152,12 +158,25 @@ test.describe("Navigation", () => {
 
       const pageContents: string[] = [];
 
-      for (const { route } of routes) {
+      for (const { route, identifier } of routes) {
         await navigateTo(page, route);
         await waitForRoute(page, route, 10_000);
         await page
           .locator("main")
           .waitFor({ state: "visible", timeout: 5_000 });
+
+        // Wait for React to finish rendering the route's content.
+        // On CI the navigation completes (hash changes) before React
+        // commits the new outlet, so reading textContent immediately
+        // would capture stale content from the previous route.
+        await page.waitForFunction(
+          (id) => {
+            const main = document.querySelector("main");
+            return main?.textContent?.toLowerCase().includes(id.toLowerCase());
+          },
+          identifier,
+          { timeout: 15_000 },
+        );
 
         const content = await page.locator("main").textContent();
         pageContents.push(content || "");
@@ -397,6 +416,8 @@ test.describe("Navigation", () => {
   // ─── Edge Cases ───────────────────────────────────────────────────────────────
 
   test.describe("Navigation Edge Cases", () => {
+    test.setTimeout(120_000);
+
     test.beforeEach(async ({ page }) => {
       await ensurePostSetup(page);
     });

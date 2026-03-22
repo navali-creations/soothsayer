@@ -508,6 +508,11 @@ test.describe("Card Browsing Flow", () => {
         "Rarity source selector trigger should be visible",
       ).toBeVisible({ timeout: 5_000 });
 
+      // The page may auto-trigger a scan on mount (when no filters are
+      // cached), which keeps the dropdown disabled until it finishes.
+      // Wait for the button to become enabled before interacting.
+      await expect(raritySourceTrigger).toBeEnabled({ timeout: 30_000 });
+
       // Capture the initial trigger text to know the starting source
       const initialLabel = await raritySourceTrigger.textContent();
 

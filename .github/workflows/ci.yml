@@ -335,7 +335,7 @@ jobs:
       - name: Install system dependencies for Electron
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb libnss3 libatk-bridge2.0-0 libgtk-3-0 libgbm1 libasound2t64
+          sudo apt-get install -y xvfb fluxbox libnss3 libatk-bridge2.0-0 libgtk-3-0 libgbm1 libasound2t64
 
       - name: Build Electron main + preload for E2E
         run: node scripts/build-e2e.mjs
@@ -343,4 +343,13 @@ jobs:
       - name: Run E2E tests
         env:
           E2E_TESTING: "true"
-        run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" pnpm exec playwright test --config playwright.config.ts
+        run: |
+          # Start Xvfb on a free display
+          export DISPLAY=:99
+          Xvfb $DISPLAY -screen 0 1920x1080x24 &
+          sleep 1
+          # A lightweight window manager is required so that Electron's
+          # minimize()/maximize() X11 hints are actually processed.
+          fluxbox &
+          sleep 1
+          pnpm exec playwright test --config playwright.config.ts

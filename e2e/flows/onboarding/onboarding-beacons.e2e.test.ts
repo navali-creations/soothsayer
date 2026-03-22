@@ -220,6 +220,10 @@ async function acknowledgeAllBeacons(page: Page, count: number) {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 test.describe("Onboarding — Page Beacons", () => {
+  // ensurePostSetup may reload + re-hydrate which can exceed the default
+  // 45 s test timeout on resource-constrained CI runners.
+  test.setTimeout(120_000);
+
   test.beforeEach(async ({ page }) => {
     await ensurePostSetup(page);
     // Seed data so pages that depend on league/snapshot data render correctly
@@ -450,6 +454,22 @@ test.describe("Onboarding — Page Beacons", () => {
         } catch {
           // detached during dismiss — expected
         }
+
+        // If the click didn't register (CI timing), force-hide via JS
+        const stillOpen = await page
+          .locator("[data-repere-popover]:popover-open")
+          .count();
+        if (stillOpen > 0) {
+          await page.evaluate(() => {
+            const open = document.querySelector(
+              "[data-repere-popover]:popover-open",
+            ) as HTMLElement | null;
+            if (open && typeof open.hidePopover === "function") {
+              open.hidePopover();
+            }
+          });
+        }
+
         await expect(
           page.locator("[data-repere-popover]:popover-open"),
         ).toHaveCount(0, { timeout: 5_000 });

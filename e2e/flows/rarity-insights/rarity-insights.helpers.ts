@@ -26,6 +26,7 @@ import {
 import { expect } from "../../helpers/electron-test";
 import { navigateTo } from "../../helpers/navigation";
 import {
+  seedFilterData,
   seedLeagueCache,
   seedRarityInsightsData,
   seedSessionPrerequisites,
@@ -79,7 +80,13 @@ export function createSeedGuard() {
  * Injects seeded filter metadata from the database into the renderer's Zustand
  * store. The Rarity Insights page auto-scans the filesystem on mount, but in
  * E2E tests the fixture filter files don't exist on disk — so the scan returns
- * 0 filters. This helper bridges the gap.
+ * 0 filters and its cleanup phase (`deleteNotInFilePaths([])`) cascade-deletes
+ * all `filter_metadata` rows (and their `filter_card_rarities` children).
+ *
+ * To avoid that race we:
+ * 1. Wait for the auto-scan to finish (`isScanning` → false)
+ * 2. **Re-seed** `filter_metadata` + `filter_card_rarities` (the scan just nuked them)
+ * 3. Sync the freshly-seeded rows into the Zustand store
  *
  * Must be called after the page has navigated to Rarity Insights and settled.
  * Called automatically by `waitForPageSettled`.
@@ -92,8 +99,13 @@ export async function injectSeededFilters(page: Page) {
       const store = (window as any).__zustandStore;
       return store && !store.getState().rarityInsights.isScanning;
     },
-    { timeout: 10_000 },
+    { timeout: 15_000 },
   );
+
+  // The scan's cleanup phase deleted the filter_metadata rows we seeded
+  // earlier (the fixture file paths don't exist on disk).  Re-seed them
+  // now that the scan is done so syncAvailableFiltersToStore finds data.
+  await seedFilterData(page, RARITY_INSIGHTS_CARDS);
 
   await syncAvailableFiltersToStore(page);
 }

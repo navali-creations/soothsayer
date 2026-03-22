@@ -1028,7 +1028,55 @@ export async function seedRarityInsightsData(
     ],
   );
 
-  // ── 5. Seed filter_metadata (two mock filters, fully parsed) ──────────
+  // ── 5 & 6. Seed filter_metadata + filter_card_rarities ────────────────
+  await seedFilterData(page, cards, {
+    filter1Id,
+    filter1Name,
+    filter1Path,
+    filter2Id,
+    filter2Name,
+    filter2Path,
+  });
+}
+
+// ─── Filter Data Seeder (steps 5 + 6, extracted) ─────────────────────────────
+
+export interface SeedFilterDataOptions {
+  filter1Id?: string;
+  filter1Name?: string;
+  filter1Path?: string;
+  filter2Id?: string;
+  filter2Name?: string;
+  filter2Path?: string;
+}
+
+/**
+ * Seed `filter_metadata` and `filter_card_rarities` into the database.
+ *
+ * Extracted from `seedRarityInsightsData` so it can be **re-called** after the
+ * Rarity Insights page's auto-scan completes.  The auto-scan discovers 0
+ * filters on CI (the fixture file paths don't exist on disk) and its cleanup
+ * phase (`deleteNotInFilePaths([])`) cascades-deletes all `filter_metadata`
+ * rows — taking `filter_card_rarities` with them.  By re-seeding after the
+ * scan, `syncAvailableFiltersToStore` always finds the expected rows.
+ */
+export async function seedFilterData(
+  page: Page,
+  cards: RarityInsightsCardFixture[],
+  options: SeedFilterDataOptions = {},
+): Promise<void> {
+  const {
+    filter1Id = "e2e-filter-001",
+    filter1Name = "NeverSink's Semi-Strict",
+    filter1Path = "C:\\Users\\e2e\\Documents\\My Games\\Path of Exile\\NeverSink-SemiStrict.filter",
+    filter2Id = "e2e-filter-002",
+    filter2Name = "FilterBlade Uber-Strict",
+    filter2Path = "C:\\Users\\e2e\\Documents\\My Games\\Path of Exile\\FilterBlade-UberStrict.filter",
+  } = options;
+
+  const now = new Date().toISOString();
+
+  // ── filter_metadata (two mock filters, fully parsed) ──────────────────
   await dbExec(
     page,
     `INSERT OR REPLACE INTO filter_metadata
@@ -1045,7 +1093,7 @@ export async function seedRarityInsightsData(
     [filter2Id, "online", filter2Path, filter2Name, now, now, now, now],
   );
 
-  // ── 6. Seed filter_card_rarities ──────────────────────────────────────
+  // ── filter_card_rarities ──────────────────────────────────────────────
   for (const card of cards) {
     if (card.filter1Rarity != null) {
       await dbExec(
