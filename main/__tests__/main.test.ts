@@ -331,6 +331,27 @@ describe("main.ts", () => {
 
       expect(mockWhenReady).toHaveBeenCalledTimes(1);
     });
+
+    it("should skip requestSingleInstanceLock when E2E_TESTING is set", async () => {
+      const originalE2E = process.env.E2E_TESTING;
+      process.env.E2E_TESTING = "true";
+
+      const _capture = setupWhenReadyCapture();
+      await importMain();
+
+      // In E2E mode the lock is bypassed entirely so parallel workers
+      // don't cause "Process failed to launch!" errors.
+      expect(mockRequestSingleInstanceLock).not.toHaveBeenCalled();
+      expect(mockAppQuit).not.toHaveBeenCalled();
+      expect(mockWhenReady).toHaveBeenCalledTimes(1);
+
+      // Restore
+      if (originalE2E === undefined) {
+        delete process.env.E2E_TESTING;
+      } else {
+        process.env.E2E_TESTING = originalE2E;
+      }
+    });
   });
 
   // ─── initializeSupabase ─────────────────────────────────────────────────

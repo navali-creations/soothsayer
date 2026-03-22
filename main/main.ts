@@ -58,7 +58,14 @@ function initializeSupabase() {
   }
 }
 
-if (!electronApp.requestSingleInstanceLock()) {
+// Skip single-instance lock in E2E mode — parallel Playwright workers each
+// launch their own Electron process with an isolated --user-data-dir, but
+// requestSingleInstanceLock() uses the app name (not user-data dir) for the
+// lock socket on Linux, so the 2nd/3rd workers would immediately quit.
+const singleInstanceLocked =
+  process.env.E2E_TESTING === "true" || electronApp.requestSingleInstanceLock();
+
+if (!singleInstanceLocked) {
   // Quit any new instance created to prevent multiple instances of the same app
   app.quit();
 } else {
