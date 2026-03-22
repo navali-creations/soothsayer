@@ -4,7 +4,6 @@ import { BrowserWindow, ipcMain } from "electron";
 
 import { DatabaseService } from "~/main/modules/database";
 import { DivinationCardsService } from "~/main/modules/divination-cards";
-import { SettingsStoreService } from "~/main/modules/settings-store";
 import { SupabaseClientService } from "~/main/modules/supabase";
 import {
   assertBoundedString,
@@ -28,6 +27,7 @@ class SnapshotService {
   private repository: SnapshotRepository;
   private supabase: SupabaseClientService;
   private divinationCards: DivinationCardsService;
+
   private refreshIntervals: Map<string, NodeJS.Timeout> = new Map();
 
   // How old can a snapshot be before we fetch a new one (in hours)
@@ -50,7 +50,7 @@ class SnapshotService {
     this.repository = new SnapshotRepository(db.getKysely());
     this.supabase = SupabaseClientService.getInstance();
     this.divinationCards = DivinationCardsService.getInstance();
-    this.settingsStore = SettingsStoreService.getInstance();
+
     this.setupIpcHandlers();
   }
 
