@@ -9,9 +9,16 @@ export default defineConfig({
   // Each test file gets its own worker-scoped Electron instance, so more
   // workers = more files running in parallel.  The slowest suites (settings,
   // onboarding, profit-forecast) are each split into multiple files so they
-  // can run on separate workers and stay under ~1 minute each.  3 workers
-  // balances parallelism with resource usage on both local and CI machines.
-  workers: 3,
+  // can run on separate workers and stay under ~1 minute each.
+  //
+  // On CI (GitHub Actions ubuntu-latest) we use 2 workers instead of 3.
+  // The shared 4-vCPU runners are burstable and throttled — 3 Electron
+  // processes + a Vite dev server + xvfb software rendering oversubscribes
+  // the CPU, causing React's useDeferredValue to defer render commits for
+  // longer than expected, which leads to flaky waitForFunction timeouts.
+  // 2 workers keeps total CPU pressure manageable while still parallelising
+  // the slowest test files.
+  workers: process.env.CI ? 2 : 3,
   // Do NOT enable fullyParallel — tests within a file share a single
   // worker-scoped Electron instance and page, so running them concurrently
   // would cause race conditions.  Parallelism is between files (workers) only.
