@@ -12,7 +12,7 @@ const RarityInsightsPage = () => {
   const [globalFilter, setGlobalFilter] = useState("");
 
   const {
-    cards: { allCards, loadCards },
+    cards: { allCards, loadCards, isLoading: isCardsLoading },
     settings: {
       selectedFilterId,
       getSelectedGame,
@@ -121,6 +121,24 @@ const RarityInsightsPage = () => {
                 </p>
                 <p className="text-sm text-base-content/60">
                   Updating card rarities with the latest pricing data.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Loading overlay when fetching card data */}
+          {isCardsLoading && (
+            <div
+              data-testid="cards-loading"
+              className="absolute inset-0 z-20 bg-base-200/80 backdrop-blur-sm rounded-xl flex flex-col items-center justify-center gap-4"
+            >
+              <span className="loading loading-spinner loading-lg text-primary" />
+              <div className="text-center space-y-1">
+                <p className="text-lg font-semibold text-base-content">
+                  Loading card data...
+                </p>
+                <p className="text-sm text-base-content/60">
+                  Fetching divination card data from the database.
                 </p>
               </div>
             </div>

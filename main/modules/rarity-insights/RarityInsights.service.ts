@@ -115,7 +115,11 @@ class RarityInsightsService {
             RarityInsightsChannel.ParseRarityInsights,
             256,
           );
-          return await this.parseFilter(filterId);
+          const result = await this.ensureFilterParsed(filterId);
+          if (!result) {
+            throw new Error(`Filter not found: ${filterId}`);
+          }
+          return result;
         } catch (error) {
           return handleValidationError(
             error,

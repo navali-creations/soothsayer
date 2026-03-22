@@ -239,10 +239,10 @@ test.describe("Rarity Insights — Interactions", () => {
       await waitForPageSettled(page);
       await waitForTableRows(page);
 
-      // Filter data is already pre-populated in parsedResults by
-      // syncAvailableFiltersToStore (called in waitForPageSettled), so we
-      // do NOT need to call rarityInsights.parse — the fixture filter files
-      // don't exist on disk anyway.
+      // When the filter is toggled, the comparison slice calls parseFilter
+      // which IPCs to ensureFilterParsed on the main process.  Because the
+      // seeded filters are marked is_fully_parsed = 1, the main process
+      // reads cached filter_card_rarities from the DB — no disk access needed.
 
       const selected = await selectFilterInDropdown(page, FILTER_1_NAME);
       if (!selected) return;

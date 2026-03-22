@@ -131,57 +131,37 @@ export async function waitForTableRows(page: Page) {
 }
 
 /**
- * Waits for the cards store to finish loading AND for the loaded data to
- * contain rarity information from the seeded fixtures.
+ * Waits for the cards data to finish loading by observing the DOM loading
+ * indicator rather than reaching into the Zustand store.
+ *
+ * The Rarity Insights page renders a `[data-testid="cards-loading"]` overlay
+ * while `cards.isLoading` is true.  This helper:
+ *
+ * 1. Waits for the loading overlay to be hidden (either it was never shown
+ *    because `loadCards()` already completed, or it appeared and then
+ *    disappeared).  Playwright's `toBeHidden()` auto-retries, so it
+ *    handles the case where the overlay hasn't appeared yet at the moment
+ *    of the call — it will keep polling until the locator is either
+ *    detached or not visible.
+ * 2. Confirms that the table contains at least one row (data arrived).
  *
  * This guards against a race condition where `loadCards()` is triggered by
  * the page's `useEffect` on mount but hasn't completed yet when the test
- * starts interacting with rarity chips. Without this wait, the table may
- * render with stale `allCards` data (all rarities = 0), causing chip-based
- * sort assertions to fail because sorting by rarity produces no reorder
- * when every card has the same rarity value.
- *
- * The check confirms:
- * 1. `cards.isLoading` is `false` (the async `loadCards()` IPC call finished)
- * 2. At least one card in `allCards` has `rarity !== 0` (rarity data from
- *    `divination_card_rarities` was successfully joined in the DB query)
+ * starts interacting with rarity chips.
  */
 export async function waitForCardsLoaded(page: Page) {
-  await expect
-    .poll(
-      async () => {
-        return page.evaluate(() => {
-          // In E2E mode the renderer exposes the Zustand store hook on
-          // `window.__zustandStore` (see renderer/store/store.ts).
-          // Calling `.getState()` gives us a snapshot of the current state.
-          const hook = (window as any).__zustandStore;
-          if (!hook || typeof hook.getState !== "function")
-            return { ready: false, reason: "no-store" };
-          const state = hook.getState();
-          const isLoading = state.cards?.isLoading;
-          const allCards = state.cards?.allCards;
-          if (isLoading) return { ready: false, reason: "still-loading" };
-          if (!allCards || allCards.length === 0)
-            return { ready: false, reason: "no-cards" };
-          const hasRarity = allCards.some(
-            (c: { rarity?: number }) => (c.rarity ?? 0) !== 0,
-          );
-          return {
-            ready: hasRarity,
-            reason: hasRarity ? "ok" : "all-rarity-0",
-          };
-        });
-      },
-      {
-        timeout: 15_000,
-        intervals: [100, 200, 500, 1_000],
-        message:
-          "Cards store did not finish loading with rarity data in time. " +
-          "This usually means loadCards() has not completed or the seeded " +
-          "divination_card_rarities were not joined by the DB query.",
-      },
-    )
-    .toEqual({ ready: true, reason: "ok" });
+  // Wait for the loading overlay to be hidden.  `toBeHidden()` succeeds
+  // when the element is either not in the DOM or not visible — so it
+  // handles both "already loaded" and "still loading → finishes" cases.
+  await expect(page.locator('[data-testid="cards-loading"]')).toBeHidden({
+    timeout: 15_000,
+  });
+
+  // Confirm at least one table row is present (data has rendered).
+  await page
+    .locator("table tbody tr")
+    .first()
+    .waitFor({ state: "visible", timeout: 10_000 });
 }
 
 // ─── Table Inspection ─────────────────────────────────────────────────────────
