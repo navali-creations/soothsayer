@@ -121,4 +121,4 @@ class PerformanceLoggerService {
   }
 }
 
-export { PerformanceLoggerService, type PerformanceLogContext };
+export { type PerformanceLogContext, PerformanceLoggerService };

@@ -64,5 +64,5 @@ const SessionsAPI = {
     ),
 };
 
-export { SessionsAPI };
 export type { SessionSummary, SessionsPage };
+export { SessionsAPI };

@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { FiDownload } from "react-icons/fi";
 
-import { Dropdown, Flex } from "~/renderer/components";
+import { Dropdown, Flex, Search } from "~/renderer/components";
 import { trackEvent } from "~/renderer/modules/umami";
 import { useBoundStore } from "~/renderer/store";
 import { formatRelativeTime } from "~/renderer/utils";
@@ -20,6 +20,7 @@ export const StatisticsActions = ({
       selectedLeague,
       setStatScope,
       setSelectedLeague,
+      setSearchQuery,
       snapshotMeta,
       isExporting,
       fetchSnapshotMeta,
@@ -85,6 +86,15 @@ export const StatisticsActions = ({
 
   return (
     <Flex className="gap-2 items-center">
+      <Search
+        onChange={setSearchQuery}
+        debounceMs={300}
+        placeholder="Search cards..."
+        size="sm"
+        className="w-45"
+        data-testid="statistics-search"
+      />
+
       <select
         className="select select-sm"
         value={selectValue}

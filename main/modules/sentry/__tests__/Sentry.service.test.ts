@@ -29,6 +29,11 @@ vi.mock("electron", () => ({
   },
 }));
 
+// ─── Mock package.json ──────────────────────────────────────────────────────
+vi.mock("../../../package.json", () => ({
+  default: { version: "0.12.0" },
+}));
+
 // ─── Import under test (after mocks) ────────────────────────────────────────
 import {
   SentryService,
@@ -99,7 +104,7 @@ describe("SentryService", () => {
       expect(mockSentryInit).toHaveBeenCalledWith(
         expect.objectContaining({
           dsn: import.meta.env.VITE_SENTRY_DSN,
-          release: "soothsayer@0.6.0",
+          release: "soothsayer@0.12.0",
           environment: "development",
           sendDefaultPii: false,
           beforeSend: expect.any(Function),
@@ -132,14 +137,12 @@ describe("SentryService", () => {
       );
     });
 
-    it("should use the version from app.getVersion() in the release", () => {
-      mockAppGetVersion.mockReturnValue("1.2.3");
-
+    it("should use the version from package.json in the release", () => {
       service.initialize();
 
       expect(mockSentryInit).toHaveBeenCalledWith(
         expect.objectContaining({
-          release: "soothsayer@1.2.3",
+          release: "soothsayer@0.12.0",
         }),
       );
     });

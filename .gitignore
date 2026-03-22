@@ -102,3 +102,12 @@ out/
 
 # Deno lockfile (causes version conflicts with Supabase Edge Runtime)
 supabase/functions/deno.lock
+
+# Playwright E2E test artifacts
+e2e/test-results/
+e2e/screenshots/
+playwright-report/
+test-results/
+blob-report/
+dist
+coverage*

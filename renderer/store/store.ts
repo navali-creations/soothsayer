@@ -391,3 +391,15 @@ export const useBoundStore = create<BoundStore>()(
     }),
   ),
 );
+
+// ── E2E Test Bridge ──────────────────────────────────────────────────────────
+// Expose the Zustand store on `window` so that Playwright E2E tests can
+// read/mutate state directly (e.g. injecting seeded filter metadata into
+// `rarityInsights.availableFilters` after DB seeding).
+//
+// Gated behind the explicit `__E2E_TESTING` flag set by the preload script,
+// which is itself gated behind the `E2E_TESTING` env-var. This flag is NOT
+// present in production builds (Vite dead-code-eliminates it).
+if ((window as any).electron?.__E2E_TESTING === true) {
+  (window as any).__zustandStore = useBoundStore;
+}

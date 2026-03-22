@@ -1,5 +1,7 @@
 import { join } from "node:path";
 
+import { resolveDevFile } from "~/main/utils/resolve-dev-path";
+
 import type { ProhibitedLibraryRawRow } from "./ProhibitedLibrary.dto";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -392,5 +394,8 @@ export function resolveCsvPath(
     return join(resourcesPath, "poe1", CSV_FILENAME);
   }
 
-  return join(appPath, "renderer", "assets", "poe1", CSV_FILENAME);
+  return resolveDevFile(
+    appPath,
+    join("renderer", "assets", "poe1", CSV_FILENAME),
+  );
 }

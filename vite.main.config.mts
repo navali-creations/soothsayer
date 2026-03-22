@@ -30,6 +30,9 @@ export default defineConfig({
       external: [
         // Native modules
         "better-sqlite3",
+        // tslib uses a global exporter pattern that Rolldown's __commonJSMin
+        // wrapper can't handle — keep it external so it's require()'d at runtime
+        "tslib",
       ],
       output: {
         format: "cjs",

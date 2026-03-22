@@ -16,7 +16,7 @@ interface StatisticsTableProps {
 
 export const StatisticsTable = ({ cardData }: StatisticsTableProps) => {
   const {
-    statistics: { statScope },
+    statistics: { statScope, searchQuery },
   } = useBoundStore();
 
   const totalCount = useMemo(
@@ -58,6 +58,8 @@ export const StatisticsTable = ({ cardData }: StatisticsTableProps) => {
             enablePagination={true}
             pageSize={20}
             hoverable={true}
+            globalFilter={searchQuery}
+            emptyMessage="No cards match your search"
           />
         )}
       </div>

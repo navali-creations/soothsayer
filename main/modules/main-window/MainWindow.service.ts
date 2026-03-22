@@ -299,9 +299,6 @@ class MainWindowService {
     try {
       if (this.url) {
         await this.mainWindow.loadURL?.(this.url);
-        if (!app.isPackaged) {
-          this.mainWindow.webContents?.openDevTools();
-        }
       } else {
         await this.mainWindow.loadFile?.(indexHtml);
       }
@@ -546,5 +543,5 @@ class MainWindowService {
 
 type MainWindowServiceType = MainWindowService & Partial<BrowserWindow>;
 
-export { MainWindowService };
 export type { MainWindowServiceType };
+export { MainWindowService };

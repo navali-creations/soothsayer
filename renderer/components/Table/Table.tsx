@@ -46,6 +46,8 @@ interface TableProps<TData> {
   globalFilterFn?: FilterFn<TData>;
   /** Additional class name(s) applied to each `<tr>` in the body */
   rowClassName?: string | ((row: Row<TData>) => string);
+  /** Message shown when the table has no visible rows (e.g. after filtering) */
+  emptyMessage?: string;
   /** When true, the table header row sticks to the top of the scroll container */
   stickyHeader?: boolean;
 }
@@ -68,6 +70,7 @@ function Table<TData>({
   globalFilterFn,
   rowClassName,
   stickyHeader = false,
+  emptyMessage,
 }: TableProps<TData>) {
   const [internalSorting, setInternalSorting] =
     useState<SortingState>(initialSorting);
@@ -189,6 +192,16 @@ function Table<TData>({
             ))}
           </thead>
           <tbody>
+            {table.getRowModel().rows.length === 0 && emptyMessage ? (
+              <tr>
+                <td
+                  colSpan={columns.length}
+                  className="text-center text-base-content/50 py-8"
+                >
+                  {emptyMessage}
+                </td>
+              </tr>
+            ) : null}
             {table.getRowModel().rows.map((row) => (
               <tr
                 key={row.id}
@@ -224,7 +237,7 @@ function Table<TData>({
         </table>
       </div>
 
-      {enablePagination && (
+      {enablePagination && table.getFilteredRowModel().rows.length > 0 && (
         <div
           className={clsx(
             "flex items-center justify-between gap-2",

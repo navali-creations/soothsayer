@@ -259,6 +259,24 @@ describe("main.ts", () => {
 
       expect(callOrder[0]).toBe("sentry");
     });
+
+    it("should NOT initialize Sentry when E2E_TESTING is set to 'true'", async () => {
+      const originalE2E = process.env.E2E_TESTING;
+      process.env.E2E_TESTING = "true";
+
+      const _capture = setupWhenReadyCapture();
+      await importMain();
+
+      expect(mockSentryGetInstance).not.toHaveBeenCalled();
+      expect(mockSentryInitialize).not.toHaveBeenCalled();
+
+      // Restore
+      if (originalE2E === undefined) {
+        delete process.env.E2E_TESTING;
+      } else {
+        process.env.E2E_TESTING = originalE2E;
+      }
+    });
   });
 
   // ─── Service Instantiation ──────────────────────────────────────────────
@@ -403,6 +421,29 @@ describe("main.ts", () => {
           "Configuring Supabase from environment variables",
         ),
       );
+    });
+
+    it("should NOT configure Supabase when E2E_TESTING is set", async () => {
+      const originalE2E = process.env.E2E_TESTING;
+      process.env.E2E_TESTING = "true";
+
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+      const capture = setupWhenReadyCapture();
+      await importMain();
+      await capture.invoke();
+
+      expect(mockSupabaseConfigure).not.toHaveBeenCalled();
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining("E2E_TESTING detected"),
+      );
+
+      // Restore
+      if (originalE2E === undefined) {
+        delete process.env.E2E_TESTING;
+      } else {
+        process.env.E2E_TESTING = originalE2E;
+      }
     });
   });
 

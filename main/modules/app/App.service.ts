@@ -15,6 +15,7 @@ import {
 } from "~/main/modules";
 
 import { System } from "../../../enums";
+import pkgJson from "../../../package.json" with { type: "json" };
 import { AppChannel } from "./App.channels";
 
 class AppService {
@@ -61,7 +62,7 @@ class AppService {
 
   public emitGetVersion() {
     ipcMain.handle(AppChannel.GetVersion, () => {
-      return this.app.getVersion();
+      return pkgJson.version;
     });
   }
 

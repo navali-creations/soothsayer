@@ -1,6 +1,8 @@
 import { SentryService } from "./modules/sentry";
 
-SentryService.getInstance().initialize();
+if (process.env.E2E_TESTING !== "true") {
+  SentryService.getInstance().initialize();
+}
 
 import { app as electronApp } from "electron";
 import { installExtension, REDUX_DEVTOOLS } from "electron-devtools-installer";
@@ -35,6 +37,13 @@ const supabase = SupabaseClientService.getInstance();
 const _storageService = StorageService.getInstance();
 
 function initializeSupabase() {
+  if (process.env.E2E_TESTING === "true") {
+    console.log(
+      "[Main] E2E_TESTING detected — skipping Supabase initialization",
+    );
+    return;
+  }
+
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 

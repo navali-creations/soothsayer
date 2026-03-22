@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import Database from "better-sqlite3";
-import { app } from "electron";
+import { app, ipcMain } from "electron";
 import { Kysely, SqliteDialect } from "kysely";
 
 import type { Database as DatabaseSchema } from "./Database.types";
@@ -84,6 +84,64 @@ class DatabaseService {
     // Initialize migration runner and run pending migrations
     this.migrationRunner = new MigrationRunner(this.db);
     this.runMigrations();
+
+    // Reject destructive/administrative SQL in E2E test handlers
+    const FORBIDDEN_SQL_PATTERNS =
+      /^\s*(DROP|ALTER|ATTACH|DETACH|PRAGMA|REINDEX|VACUUM|CREATE\s+TRIGGER|CREATE\s+INDEX)/i;
+
+    // ── Test-only IPC handlers (defence-in-depth) ──────────────────────
+    // Expose raw SQL execution channels so Playwright E2E tests can seed
+    // the database without a live Supabase instance.
+    //
+    // Guards:
+    //   1. process.env.E2E_TESTING === "true" (set by test runner at launch)
+    //   2. !app.isPackaged (never available in production builds)
+    //   3. SQL statement validation (rejects DROP, ALTER, ATTACH, etc.)
+    if (process.env.E2E_TESTING === "true" && !app.isPackaged) {
+      ipcMain.handle(
+        "e2e:db-exec",
+        (
+          _event,
+          sql: string,
+          params?: unknown[],
+        ): { changes: number; lastInsertRowid: number | bigint } => {
+          if (FORBIDDEN_SQL_PATTERNS.test(sql)) {
+            throw new Error(
+              `[Database] E2E IPC: forbidden SQL statement rejected: ${sql.slice(
+                0,
+                80,
+              )}`,
+            );
+          }
+          const stmt = this.db.prepare(sql);
+          const info = stmt.run(...(params ?? []));
+          return {
+            changes: info.changes,
+            lastInsertRowid: info.lastInsertRowid,
+          };
+        },
+      );
+
+      ipcMain.handle(
+        "e2e:db-query",
+        (_event, sql: string, params?: unknown[]): unknown[] => {
+          if (FORBIDDEN_SQL_PATTERNS.test(sql)) {
+            throw new Error(
+              `[Database] E2E IPC: forbidden SQL statement rejected: ${sql.slice(
+                0,
+                80,
+              )}`,
+            );
+          }
+          const stmt = this.db.prepare(sql);
+          return stmt.all(...(params ?? []));
+        },
+      );
+
+      console.log(
+        "[Database] E2E testing IPC handlers registered (e2e:db-exec, e2e:db-query)",
+      );
+    }
   }
 
   /**

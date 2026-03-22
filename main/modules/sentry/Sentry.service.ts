@@ -3,6 +3,8 @@ import { app } from "electron";
 
 import { maskPath } from "~/main/utils/mask-path";
 
+import pkgJson from "../../../package.json" with { type: "json" };
+
 const PATH_ANCHORS = [
   "soothsayer",
   "Soothsayer",
@@ -76,7 +78,7 @@ class SentryService {
 
     Sentry.init({
       dsn: import.meta.env.VITE_SENTRY_DSN,
-      release: `soothsayer@${app.getVersion()}`,
+      release: `soothsayer@${pkgJson.version}`,
       environment: app.isPackaged ? "production" : "development",
       sendDefaultPii: false,
 
@@ -148,7 +150,5 @@ class SentryService {
   }
 }
 
-export { SentryService };
-
 // Exported for unit testing only
-export { scrubPaths, scrubBreadcrumbData };
+export { SentryService, scrubBreadcrumbData, scrubPaths };

@@ -315,5 +315,5 @@ class SessionsService {
   }
 }
 
-export { SessionsService };
 export type { SessionSummaryDTO, SessionsPageDTO };
+export { SessionsService };

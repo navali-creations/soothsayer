@@ -74,6 +74,11 @@ vi.mock("electron", () => ({
   },
 }));
 
+// ─── Mock package.json ───────────────────────────────────────────────────────
+vi.mock("../../../package.json", () => ({
+  default: { version: "0.12.0" },
+}));
+
 // ─── Mock ~/main/modules barrel ──────────────────────────────────────────────
 vi.mock("~/main/modules", () => ({
   CurrentSessionService: {
@@ -337,24 +342,13 @@ describe("AppService", () => {
       );
     });
 
-    it("should return the app version when the handler is invoked", () => {
+    it("should return the app version from package.json when the handler is invoked", () => {
       service.emitGetVersion();
 
       const handler = getIpcHandler(AppChannel.GetVersion);
       const result = handler();
 
-      expect(result).toBe("0.5.0");
-      expect(mockAppGetVersion).toHaveBeenCalled();
-    });
-
-    it("should return the updated version if getVersion changes", () => {
-      mockAppGetVersion.mockReturnValueOnce("1.2.3");
-      service.emitGetVersion();
-
-      const handler = getIpcHandler(AppChannel.GetVersion);
-      const result = handler();
-
-      expect(result).toBe("1.2.3");
+      expect(result).toBe("0.12.0");
     });
   });
 

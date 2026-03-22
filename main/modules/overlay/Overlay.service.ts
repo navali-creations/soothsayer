@@ -210,9 +210,6 @@ class OverlayService {
       if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
         const overlayUrl = `${MAIN_WINDOW_VITE_DEV_SERVER_URL}/overlay.html`;
         await this.overlayWindow.loadURL(overlayUrl);
-        if (!app.isPackaged) {
-          this.overlayWindow.webContents.openDevTools({ mode: "detach" });
-        }
       } else {
         // In production, overlay.html is built alongside index.html
         const overlayHtml = join(
@@ -688,5 +685,5 @@ class OverlayService {
   }
 }
 
-export { OverlayService };
 export type { OverlayBounds };
+export { OverlayService };

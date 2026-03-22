@@ -20,6 +20,7 @@ import {
   assertInteger,
   handleValidationError,
 } from "~/main/utils/ipc-validation";
+import { resolveProjectRoot } from "~/main/utils/resolve-dev-path";
 import type { Confidence, KnownRarity, Rarity } from "~/types/data-stores";
 
 import { DivinationCardsChannel } from "./DivinationCards.channels";
@@ -86,7 +87,13 @@ class DivinationCardsService {
         "cards.json",
       );
     } else {
-      const basePath = app.getAppPath();
+      // In development, app.getAppPath() returns the directory containing
+      // the main entry file. With Electron Forge + Vite this is typically
+      // `.vite/build/` which does NOT contain the renderer assets.
+      // Walk up from appPath until we find the `renderer/assets` directory,
+      // falling back to appPath itself for non-Vite setups where the assets
+      // are relative to the main entry.
+      const basePath = resolveProjectRoot(app.getAppPath());
       this.poe1CardsJsonPath = join(
         basePath,
         "renderer",

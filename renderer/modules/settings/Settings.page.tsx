@@ -18,7 +18,6 @@ import {
 import {
   createAppBehaviorCategory,
   createGamePathsCategory,
-  createGameSelectionCategory,
   handleSelectFile,
 } from "./Settings.utils";
 
@@ -34,12 +33,9 @@ const SettingsPage = () => {
 
     const appBehavior = createAppBehaviorCategory(settings, updateSetting);
 
-    const gameSelection = createGameSelectionCategory(settings, updateSetting);
-
     return {
       gamePaths,
       appBehavior,
-      gameSelection,
     };
   }, [settings, updateSetting]);
 

@@ -990,15 +990,13 @@ describe("OverlayService", () => {
       );
     });
 
-    it("should open dev tools in development mode", async () => {
+    it("should NOT open dev tools in development mode", async () => {
       // @ts-expect-error — injected by Vite
       globalThis.MAIN_WINDOW_VITE_DEV_SERVER_URL = "http://localhost:3000";
       mockAppIsPackaged.value = false;
 
       await service.show();
-      expect(mockOverlayWebContentsOpenDevTools).toHaveBeenCalledWith({
-        mode: "detach",
-      });
+      expect(mockOverlayWebContentsOpenDevTools).not.toHaveBeenCalled();
     });
 
     it("should load from file in production mode", async () => {

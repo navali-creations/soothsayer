@@ -24,6 +24,35 @@ import { UpdaterAPI } from "~/main/modules/updater/Updater.api";
 contextBridge.exposeInMainWorld("electron", {
   selectFile: (options: any) => ipcRenderer.invoke("select-file", options),
 
+  // ── E2E-only test bridge ─────────────────────────────────────────────
+  // Expose a scoped ipcRenderer.invoke for e2e test-only IPC channels,
+  // plus a flag the renderer store uses to decide whether to expose
+  // the Zustand store on `window.__zustandStore`.
+  //
+  // Defence-in-depth:
+  //   1. The allowlist below restricts callable channels to e2e:db-*
+  //   2. The main-process handlers only register when BOTH
+  //      `E2E_TESTING=true` AND `!app.isPackaged` (see Database.service)
+  //   3. The handlers reject destructive SQL (DROP, ALTER, etc.)
+  //
+  // This block is intentionally unconditional because Vite's bundler
+  // replaces `process.env` with `{}` in preload builds, making runtime
+  // env-var checks unreliable. The main-process guards are the true
+  // security boundary — if the handlers aren't registered, these calls
+  // are harmless no-ops that reject with "No handler registered".
+  __E2E_TESTING: true as const,
+  ipcRenderer: {
+    invoke: (channel: string, ...args: unknown[]) => {
+      const allowedChannels = ["e2e:db-exec", "e2e:db-query"];
+      if (allowedChannels.includes(channel)) {
+        return ipcRenderer.invoke(channel, ...args);
+      }
+      throw new Error(
+        `ipcRenderer.invoke: channel "${channel}" is not allowed`,
+      );
+    },
+  },
+
   csv: CsvAPI,
 
   cardDetails: CardDetailsAPI,

@@ -1,10 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import type {
   BaseRateSource,
   ProfitForecastDataDTO,
   ProfitForecastRowDTO,
 } from "~/main/modules/profit-forecast/ProfitForecast.dto";
+import type { ElectronMock } from "~/renderer/__test-setup__/electron-mock";
+import {
+  createTestStore,
+  type TestStore,
+} from "~/renderer/__test-setup__/test-store";
 
 import {
   type CardForecastRow,
@@ -760,45 +765,13 @@ describe("recomputeDynamicFields", () => {
 
 // ── Zustand Slice Integration Tests ────────────────────────────────────────────
 
-// Since the renderer slice depends on `window.electron` and Zustand middleware
-// that are difficult to set up in the main-process test runner, we test the
-// slice creator in an isolated Zustand store with mocked `window.electron`.
-
-import { create } from "zustand";
-import { devtools } from "zustand/middleware";
-import { immer } from "zustand/middleware/immer";
-
-import {
-  createProfitForecastSlice,
-  type ProfitForecastSlice,
-} from "../ProfitForecast.slice";
-
-type TestStore = ProfitForecastSlice;
-
-function createTestStore() {
-  return create<TestStore>()(
-    devtools(
-      immer((...a) => ({
-        ...createProfitForecastSlice(...a),
-      })),
-    ),
-  );
-}
-
 describe("ProfitForecastSlice (Zustand)", () => {
-  let store: ReturnType<typeof createTestStore>;
+  let store: TestStore;
+  let electron: ElectronMock;
 
   beforeEach(() => {
+    electron = window.electron as unknown as ElectronMock;
     store = createTestStore();
-
-    // Mock window.electron.profitForecast.getData
-    (globalThis as any).window = {
-      electron: {
-        profitForecast: {
-          getData: vi.fn(),
-        },
-      },
-    };
   });
 
   describe("initial state", () => {
@@ -854,9 +827,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
   describe("fetchData", () => {
     it("sets isLoading true then false on success", async () => {
       const dto = makeDTO();
-      (
-        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
-      ).mockResolvedValue(dto);
+      electron.profitForecast.getData.mockResolvedValue(dto);
 
       const fetchPromise = store
         .getState()
@@ -872,9 +843,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
 
     it("populates rows, totalWeight, evPerDeck, and snapshot fields", async () => {
       const dto = makeDTO();
-      (
-        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
-      ).mockResolvedValue(dto);
+      electron.profitForecast.getData.mockResolvedValue(dto);
 
       await store.getState().profitForecast.fetchData("poe1", "Settlers");
 
@@ -890,9 +859,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
 
     it("populates baseRate and baseRateSource from DTO", async () => {
       const dto = makeDTO(); // baseRate: 90, baseRateSource: "maxVolumeRate"
-      (
-        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
-      ).mockResolvedValue(dto);
+      electron.profitForecast.getData.mockResolvedValue(dto);
 
       await store.getState().profitForecast.fetchData("poe1", "Settlers");
 
@@ -919,9 +886,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
         baseRateSource: "none" as BaseRateSource,
         evPerDeck: 0,
       });
-      (
-        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
-      ).mockResolvedValue(dto);
+      electron.profitForecast.getData.mockResolvedValue(dto);
 
       await store.getState().profitForecast.fetchData("poe1", "Settlers");
 
@@ -941,9 +906,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
 
     it("sorts rows by evContribution descending", async () => {
       const dto = makeDTO();
-      (
-        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
-      ).mockResolvedValue(dto);
+      electron.profitForecast.getData.mockResolvedValue(dto);
 
       await store.getState().profitForecast.fetchData("poe1", "Settlers");
 
@@ -957,9 +920,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
 
     it("fills dynamic fields after fetchData", async () => {
       const dto = makeDTO();
-      (
-        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
-      ).mockResolvedValue(dto);
+      electron.profitForecast.getData.mockResolvedValue(dto);
 
       await store.getState().profitForecast.fetchData("poe1", "Settlers");
 
@@ -974,9 +935,9 @@ describe("ProfitForecastSlice (Zustand)", () => {
     });
 
     it("handles fetch error", async () => {
-      (
-        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
-      ).mockRejectedValue(new Error("Network failure"));
+      electron.profitForecast.getData.mockRejectedValue(
+        new Error("Network failure"),
+      );
 
       await store.getState().profitForecast.fetchData("poe1", "Settlers");
 
@@ -987,9 +948,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
     });
 
     it("handles non-Error thrown value", async () => {
-      (
-        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
-      ).mockRejectedValue("Some string error");
+      electron.profitForecast.getData.mockRejectedValue("Some string error");
 
       await store.getState().profitForecast.fetchData("poe1", "Settlers");
 
@@ -999,37 +958,31 @@ describe("ProfitForecastSlice (Zustand)", () => {
 
     it("clears previous error on new fetch", async () => {
       // First fetch fails
-      (
-        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
-      ).mockRejectedValue(new Error("fail"));
+      electron.profitForecast.getData.mockRejectedValueOnce(new Error("fail"));
       await store.getState().profitForecast.fetchData("poe1", "Settlers");
       expect(store.getState().profitForecast.error).toBe("fail");
 
       // Second fetch succeeds
-      (
-        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
-      ).mockResolvedValue(makeDTO());
+      electron.profitForecast.getData.mockResolvedValueOnce(makeDTO());
       await store.getState().profitForecast.fetchData("poe1", "Settlers");
       expect(store.getState().profitForecast.error).toBeNull();
     });
 
     it("passes game and league to the IPC call", async () => {
       const dto = makeDTO();
-      const mockGetData = window.electron.profitForecast.getData as ReturnType<
-        typeof vi.fn
-      >;
-      mockGetData.mockResolvedValue(dto);
+      electron.profitForecast.getData.mockResolvedValue(dto);
 
       await store.getState().profitForecast.fetchData("poe2", "Keepers");
 
-      expect(mockGetData).toHaveBeenCalledWith("poe2", "Keepers");
+      expect(electron.profitForecast.getData).toHaveBeenCalledWith(
+        "poe2",
+        "Keepers",
+      );
     });
 
     it("handles empty rows array", async () => {
       const dto = makeDTO({ rows: [], totalWeight: 0, evPerDeck: 0 });
-      (
-        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
-      ).mockResolvedValue(dto);
+      electron.profitForecast.getData.mockResolvedValue(dto);
 
       await store.getState().profitForecast.fetchData("poe1", "Settlers");
 
@@ -1046,9 +999,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
       store.getState().profitForecast.setSubBatchSize(1000);
 
       const dto = makeDTO();
-      (
-        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
-      ).mockResolvedValue(dto);
+      electron.profitForecast.getData.mockResolvedValue(dto);
 
       await store.getState().profitForecast.fetchData("poe1", "Settlers");
 
@@ -1063,9 +1014,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
   describe("recomputeRows", () => {
     async function setupWithData() {
       const dto = makeDTO();
-      (
-        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
-      ).mockResolvedValue(dto);
+      electron.profitForecast.getData.mockResolvedValue(dto);
       await store.getState().profitForecast.fetchData("poe1", "Settlers");
     }
 
@@ -1197,9 +1146,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
   describe("getters", () => {
     async function setupWithData() {
       const dto = makeDTO();
-      (
-        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
-      ).mockResolvedValue(dto);
+      electron.profitForecast.getData.mockResolvedValue(dto);
       await store.getState().profitForecast.fetchData("poe1", "Settlers");
     }
 
@@ -1219,9 +1166,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
           rows: [makeRowDTO({ cardName: "X", weight: 0 })],
           totalWeight: 0,
         });
-        (
-          window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
-        ).mockResolvedValue(dto);
+        electron.profitForecast.getData.mockResolvedValue(dto);
         await store.getState().profitForecast.fetchData("poe1", "Settlers");
         // weight is 0 → totalWeight is 0 → hasData returns false
         expect(store.getState().profitForecast.hasData()).toBe(false);
@@ -1283,9 +1228,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
           rows: [doctorRow, ...noPriceRows],
           evPerDeck: doctorRow.evContribution,
         });
-        (
-          window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
-        ).mockResolvedValue(dto);
+        electron.profitForecast.getData.mockResolvedValue(dto);
         await store.getState().profitForecast.fetchData("poe1", "Settlers");
 
         store.getState().profitForecast.setMinPriceThreshold(0);
@@ -1442,16 +1385,13 @@ describe("ProfitForecastSlice (Zustand)", () => {
         baseRate: 83,
         baseRateSource: "derived" as BaseRateSource,
       });
-      const mockGetData = window.electron.profitForecast.getData as ReturnType<
-        typeof vi.fn
-      >;
 
-      mockGetData.mockResolvedValue(dto1);
+      electron.profitForecast.getData.mockResolvedValueOnce(dto1);
       await store.getState().profitForecast.fetchData("poe1", "Settlers");
       const state1 = store.getState().profitForecast;
       expect(state1.chaosToDivineRatio).toBe(200);
 
-      mockGetData.mockResolvedValue(dto2);
+      electron.profitForecast.getData.mockResolvedValueOnce(dto2);
       await store.getState().profitForecast.fetchData("poe1", "Keepers");
       const state2 = store.getState().profitForecast;
       expect(state2.chaosToDivineRatio).toBe(250);
@@ -1460,9 +1400,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
 
     it("recomputeRows after setter change yields consistent results", async () => {
       const dto = makeDTO();
-      (
-        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
-      ).mockResolvedValue(dto);
+      electron.profitForecast.getData.mockResolvedValue(dto);
       await store.getState().profitForecast.fetchData("poe1", "Settlers");
 
       // Simulate what the page component does:
@@ -1492,9 +1430,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
 
     it("very large batch (1M) computes without error", async () => {
       const dto = makeDTO();
-      (
-        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
-      ).mockResolvedValue(dto);
+      electron.profitForecast.getData.mockResolvedValue(dto);
       await store.getState().profitForecast.fetchData("poe1", "Settlers");
 
       store.getState().profitForecast.setSelectedBatch(1000000);
@@ -1512,9 +1448,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
 
     it("all batch sizes produce valid total cost", async () => {
       const dto = makeDTO();
-      (
-        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
-      ).mockResolvedValue(dto);
+      electron.profitForecast.getData.mockResolvedValue(dto);
       await store.getState().profitForecast.fetchData("poe1", "Settlers");
 
       const batches = [1000, 10000, 100000, 1000000] as const;
@@ -1534,9 +1468,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
 
     it("getAvgCostPerDeck increases with larger batches due to sliding rate", async () => {
       const dto = makeDTO();
-      (
-        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
-      ).mockResolvedValue(dto);
+      electron.profitForecast.getData.mockResolvedValue(dto);
       await store.getState().profitForecast.fetchData("poe1", "Settlers");
 
       store.getState().profitForecast.setSelectedBatch(1000);
@@ -1576,9 +1508,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
         baseRate: 90,
         baseRateSource: "maxVolumeRate" as BaseRateSource,
       };
-      (
-        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
-      ).mockResolvedValue(dto);
+      electron.profitForecast.getData.mockResolvedValue(dto);
       await store.getState().profitForecast.fetchData("poe1", "Settlers");
 
       const state = store.getState().profitForecast;
@@ -1593,9 +1523,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
   describe("toggleCardExclusion", () => {
     async function setupWithData() {
       const dto = makeDTO();
-      (
-        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
-      ).mockResolvedValue(dto);
+      electron.profitForecast.getData.mockResolvedValue(dto);
       await store.getState().profitForecast.fetchData("poe1", "Settlers");
     }
 
@@ -1751,9 +1679,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
         baseRate: 90,
         baseRateSource: "maxVolumeRate" as BaseRateSource,
       };
-      (
-        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
-      ).mockResolvedValue(dto);
+      electron.profitForecast.getData.mockResolvedValue(dto);
       await store.getState().profitForecast.fetchData("poe1", "Settlers");
 
       // Anomalous card should be auto-excluded
@@ -1820,9 +1746,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
         baseRate: 90,
         baseRateSource: "maxVolumeRate" as BaseRateSource,
       };
-      (
-        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
-      ).mockResolvedValue(dto);
+      electron.profitForecast.getData.mockResolvedValue(dto);
       await store.getState().profitForecast.fetchData("poe1", "Settlers");
 
       const lowConfBefore = store
@@ -1879,9 +1803,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
         baseRate: 90,
         baseRateSource: "maxVolumeRate" as BaseRateSource,
       };
-      (
-        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
-      ).mockResolvedValue(dto);
+      electron.profitForecast.getData.mockResolvedValue(dto);
       await store.getState().profitForecast.fetchData("poe1", "Settlers");
 
       const evBefore = store.getState().profitForecast.evPerDeck;
@@ -1905,9 +1827,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
   describe("getExcludedCount with userOverride", () => {
     it("counts user-overridden cards separately from anomalous and low-confidence", async () => {
       const dto = makeDTO();
-      (
-        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
-      ).mockResolvedValue(dto);
+      electron.profitForecast.getData.mockResolvedValue(dto);
       await store.getState().profitForecast.fetchData("poe1", "Settlers");
 
       // Before any user override
@@ -1928,9 +1848,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
 
     it("un-overriding a card decrements the userOverridden count", async () => {
       const dto = makeDTO();
-      (
-        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
-      ).mockResolvedValue(dto);
+      electron.profitForecast.getData.mockResolvedValue(dto);
       await store.getState().profitForecast.fetchData("poe1", "Settlers");
 
       store.getState().profitForecast.toggleCardExclusion("The Doctor");
@@ -1946,9 +1864,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
 
     it("multiple cards can be user-overridden simultaneously", async () => {
       const dto = makeDTO();
-      (
-        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
-      ).mockResolvedValue(dto);
+      electron.profitForecast.getData.mockResolvedValue(dto);
       await store.getState().profitForecast.fetchData("poe1", "Settlers");
 
       store.getState().profitForecast.toggleCardExclusion("The Doctor");
@@ -1997,9 +1913,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
         baseRate: 90,
         baseRateSource: "maxVolumeRate" as BaseRateSource,
       };
-      (
-        window.electron.profitForecast.getData as ReturnType<typeof vi.fn>
-      ).mockResolvedValue(dto);
+      electron.profitForecast.getData.mockResolvedValue(dto);
       await store.getState().profitForecast.fetchData("poe1", "Settlers");
 
       // Before toggle: anomalous card counted under anomalous

@@ -8,10 +8,12 @@ export interface StatisticsSlice {
   statistics: {
     statScope: StatScope;
     selectedLeague: string;
+    searchQuery: string;
     snapshotMeta: SnapshotMetaResult | null;
     isExporting: boolean;
     setStatScope: (scope: StatScope) => void;
     setSelectedLeague: (league: string) => void;
+    setSearchQuery: (query: string) => void;
     fetchSnapshotMeta: (scope: string) => Promise<void>;
     exportAll: (
       scope: string,
@@ -32,6 +34,7 @@ export const createStatisticsSlice: StateCreator<
     priceSource: "exchange",
     statScope: "all-time",
     selectedLeague: "Keepers",
+    searchQuery: "",
     snapshotMeta: null,
     isExporting: false,
     setStatScope: (scope) =>
@@ -41,6 +44,10 @@ export const createStatisticsSlice: StateCreator<
     setSelectedLeague: (league) =>
       set(({ statistics }) => {
         statistics.selectedLeague = league;
+      }),
+    setSearchQuery: (query) =>
+      set(({ statistics }) => {
+        statistics.searchQuery = query;
       }),
     fetchSnapshotMeta: async (scope) => {
       try {

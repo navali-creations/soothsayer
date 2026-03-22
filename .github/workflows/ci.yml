@@ -98,7 +98,7 @@ jobs:
             app-code:
               - 'main/**'
               - 'renderer/**'
-              - 'vitest.config.*'
+              - 'vitest.*.config.*'
             supabase-db:
               - 'supabase/migrations/**'
               - 'supabase/tests/**'
@@ -170,7 +170,7 @@ jobs:
           exit 1
 
   test-unit:
-    name: Unit Tests (Vitest)
+    name: Unit Tests (${{ matrix.suite }})
     needs: [lint, typecheck, changes]
     if: >-
       always() &&
@@ -185,6 +185,17 @@ jobs:
         needs.changes.outputs.dep-electron == 'true'
       )
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        suite:
+          - main
+          - renderer
+        include:
+          - suite: main
+            config: vitest.main.config.mts
+          - suite: renderer
+            config: vitest.renderer.config.mts
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -201,11 +212,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Rebuild better-sqlite3 for Node.js
-        run: pnpm rebuild better-sqlite3
-
-      - name: Run unit tests
-        run: pnpm test
+      - name: Run ${{ matrix.suite }} tests
+        run: pnpm vitest run --config ${{ matrix.config }}
 
   test-edge:
     name: Edge Function Tests (Deno)
@@ -294,3 +302,49 @@ jobs:
 
       - name: Package app (dry run)
         run: pnpm package
+
+  e2e:
+    name: Electron E2E Tests
+    needs: [build]
+    if: "!contains(github.event.head_commit.message, '[ci] release')"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Install system dependencies for Electron
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libnss3 libatk-bridge2.0-0 libgtk-3-0 libgbm1 libasound2t64
+
+      - name: Rebuild better-sqlite3 for Electron
+        run: pnpm exec electron-rebuild -f -w better-sqlite3
+
+      - name: Build Electron main process
+        run: pnpm exec vite build --config vite.main.config.mts
+
+      - name: Run E2E tests
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" pnpm exec playwright test --config playwright.config.ts
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            e2e/test-results/
+          retention-days: 14

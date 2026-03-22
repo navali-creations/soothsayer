@@ -490,6 +490,7 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
           onSortingChange={handleSortingChange}
           globalFilter={globalFilter}
           rowClassName="hover:bg-base-content/[0.03] transition-colors"
+          emptyMessage="No cards match your criteria"
         />
       </div>
     </div>

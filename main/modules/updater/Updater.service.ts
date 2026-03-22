@@ -3,6 +3,8 @@ import { join } from "node:path";
 
 import { app, autoUpdater, type BrowserWindow, ipcMain, shell } from "electron";
 
+import { resolveDevFile } from "~/main/utils/resolve-dev-path";
+
 import type { ChangelogEntry, ChangelogRelease } from "./Updater.api";
 import { UpdaterChannel } from "./Updater.channels";
 
@@ -264,7 +266,7 @@ class UpdaterService {
       try {
         const changelogPath = app.isPackaged
           ? join(process.resourcesPath, "CHANGELOG.md")
-          : join(app.getAppPath(), "CHANGELOG.md");
+          : resolveDevFile(app.getAppPath(), "CHANGELOG.md");
 
         const content = readFileSync(changelogPath, "utf-8");
         const releases = this.parseChangelog(content);
@@ -674,5 +676,5 @@ class UpdaterService {
   }
 }
 
+export type { DownloadProgress, UpdateInfo, UpdateStatus };
 export { UpdaterService };
-export type { UpdateInfo, DownloadProgress, UpdateStatus };

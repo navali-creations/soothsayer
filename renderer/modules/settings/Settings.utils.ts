@@ -82,57 +82,6 @@ export const createAppBehaviorCategory = (
   ],
 });
 
-export const createGameSelectionCategory = (
-  settings: UserSettingsDTO,
-  updateSetting: <K extends keyof UserSettingsDTO>(
-    key: K,
-    value: UserSettingsDTO[K],
-  ) => Promise<void>,
-): SettingsCategory => ({
-  title: "Game & League Selection",
-  description: "Choose which version of Path of Exile you're playing",
-  settings: [
-    {
-      type: "select",
-      key: "selectedGame",
-      label: "Active Game",
-      value: settings.selectedGame,
-      options: [
-        { value: "poe1", label: "Path of Exile 1" },
-        { value: "poe2", label: "Path of Exile 2" },
-      ],
-      onChange: (value) => {
-        updateSetting("selectedGame", value as "poe1" | "poe2");
-        trackEvent("settings-change", { setting: "selectedGame", value });
-      },
-    },
-    {
-      type: "text",
-      key: "poe1SelectedLeague",
-      label: "PoE1 League",
-      value: settings.poe1SelectedLeague,
-      placeholder: "Standard",
-      onChange: (value) => {
-        updateSetting("poe1SelectedLeague", value);
-        trackEvent("settings-change", { setting: "poe1SelectedLeague", value });
-      },
-      hidden: settings.selectedGame === "poe2",
-    },
-    {
-      type: "text",
-      key: "poe2SelectedLeague",
-      label: "PoE2 League",
-      value: settings.poe2SelectedLeague,
-      placeholder: "Standard",
-      onChange: (value) => {
-        updateSetting("poe2SelectedLeague", value);
-        trackEvent("settings-change", { setting: "poe2SelectedLeague", value });
-      },
-      hidden: settings.selectedGame === "poe1",
-    },
-  ],
-});
-
 export const handleSelectFile = async (
   key: "poe1ClientTxtPath" | "poe2ClientTxtPath",
   title: string,

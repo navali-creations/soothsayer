@@ -637,5 +637,5 @@ class SupabaseClientService {
   }
 }
 
+export type { SupabaseLeague, SupabaseSnapshotResponse };
 export { SupabaseClientService };
-export type { SupabaseSnapshotResponse, SupabaseLeague };

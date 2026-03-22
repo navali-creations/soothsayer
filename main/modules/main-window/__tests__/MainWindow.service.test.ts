@@ -454,11 +454,11 @@ describe("MainWindowService", () => {
       );
     });
 
-    it("should open DevTools in development mode", async () => {
+    it("should NOT open DevTools in development mode", async () => {
       mockAppIsPackaged.value = false;
       await service.createMainWindow();
 
-      expect(mockBrowserWindowWebContentsOpenDevTools).toHaveBeenCalled();
+      expect(mockBrowserWindowWebContentsOpenDevTools).not.toHaveBeenCalled();
     });
 
     it("should load file in production mode", async () => {
