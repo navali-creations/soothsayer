@@ -12,8 +12,13 @@ const RarityInsightsPage = () => {
   const [globalFilter, setGlobalFilter] = useState("");
 
   const {
-    rarityInsights: { availableFilters, isScanning, scanFilters },
-    cards: { allCards, loadCards },
+    rarityInsights: {
+      availableFilters,
+      isScanning,
+      lastScannedAt,
+      scanFilters,
+    },
+    cards: { isLoading: isLoadingCards, loadCards },
     settings: {
       selectedFilterId,
       getSelectedGame,
@@ -38,39 +43,27 @@ const RarityInsightsPage = () => {
     if (!league) return;
     let cancelled = false;
 
-    const init = async () => {
-      // Ask the backend for the current cooldown status for this league
-      await checkRefreshStatus(game, league);
-
-      // Reload cards so the table reflects the correct rarities for the
-      // newly-selected league
-      if (!cancelled) {
-        await loadCards();
-      }
-    };
-
-    init();
+    (async () => {
+      // Fetch refresh status and load cards in parallel — they are independent
+      await Promise.all([checkRefreshStatus(game, league), loadCards()]);
+      if (cancelled) return;
+    })();
 
     return () => {
       cancelled = true;
     };
   }, [game, league, checkRefreshStatus, loadCards]);
 
-  // ─── Load cards on mount if not loaded ─────────────────────────────────
+  // ─── Scan filters if none available (once) ─────────────────────────────
+  // The `lastScannedAt` guard prevents an infinite loop: without it, on CI
+  // (where no real filter files exist) each scan returns empty → the effect
+  // re-fires because availableFilters is still empty → infinite loop.
 
   useEffect(() => {
-    if (allCards.length === 0) {
-      loadCards();
-    }
-  }, [allCards.length, loadCards]);
-
-  // ─── Scan filters if none available ────────────────────────────────────
-
-  useEffect(() => {
-    if (availableFilters.length === 0 && !isScanning) {
+    if (availableFilters.length === 0 && !isScanning && !lastScannedAt) {
       scanFilters();
     }
-  }, [availableFilters.length, isScanning, scanFilters]);
+  }, [availableFilters.length, isScanning, lastScannedAt, scanFilters]);
 
   // ─── Pre-select the currently active filter ────────────────────────────
 
@@ -120,6 +113,21 @@ const RarityInsightsPage = () => {
         </div>
 
         <div className="card bg-base-200 shadow-xl flex-1 min-h-0 flex flex-col relative">
+          {/* Loading overlay while cards are being fetched */}
+          {isLoadingCards && (
+            <div
+              data-testid="cards-loading"
+              className="absolute inset-0 z-20 bg-base-200/80 backdrop-blur-sm rounded-xl flex flex-col items-center justify-center gap-4"
+            >
+              <span className="loading loading-spinner loading-lg text-primary" />
+              <div className="text-center space-y-1">
+                <p className="text-lg font-semibold text-base-content">
+                  Loading cards...
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Loading overlay when refreshing prices */}
           {isRefreshing && (
             <div className="absolute inset-0 z-20 bg-base-200/80 backdrop-blur-sm rounded-xl flex flex-col items-center justify-center gap-4">

@@ -5,9 +5,8 @@ import {
   useEffect,
   useRef,
   useState,
-  useTransition,
 } from "react";
-import { FiRefreshCw, FiSearch } from "react-icons/fi";
+import { FiSearch } from "react-icons/fi";
 
 interface SearchProps
   extends Omit<InputHTMLAttributes<HTMLInputElement>, "onChange" | "size"> {
@@ -32,7 +31,6 @@ const Search = ({
 }: SearchProps) => {
   const isDebounced = debounceMs !== undefined;
   const [internalValue, setInternalValue] = useState(externalValue ?? "");
-  const [isPending, startTransition] = useTransition();
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
@@ -46,9 +44,15 @@ const Search = ({
       setInternalValue(newValue);
       clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => {
-        startTransition(() => {
-          onChange?.(newValue);
-        });
+        // Fire onChange at normal priority so the global filter update
+        // commits immediately rather than being deferred by React's
+        // concurrent scheduler.  Previously this was wrapped in
+        // startTransition which made the update low-priority — under CPU
+        // contention (CI, heavy useEffect chains on the Rarity Insights
+        // page) React would defer the commit indefinitely, causing the
+        // table's globalFilter prop to stay stale while the search input
+        // already showed the new value.
+        onChange?.(newValue);
       }, debounceMs);
     } else {
       onChange?.(newValue);
@@ -68,18 +72,13 @@ const Search = ({
         className,
       )}
     >
-      {isPending ? (
-        <FiRefreshCw className="opacity-70 animate-spin" />
-      ) : (
-        <FiSearch className="opacity-70" />
-      )}
+      <FiSearch className="opacity-70" />
       <input
         type="search"
         className="grow"
         placeholder={placeholder}
         value={isDebounced ? internalValue : externalValue}
         onChange={handleChange}
-        disabled={isPending}
         {...props}
       />
     </label>

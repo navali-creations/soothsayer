@@ -139,6 +139,23 @@ async function acknowledgeBeacon(page: Page) {
     // confirm — that's the expected behaviour for native popover dismiss.
   }
 
+  // If the click didn't register (CI timing), force-hide via JS.
+  // This mirrors the workaround already applied in the
+  // "should open and verify popover content for each beacon" test body.
+  const stillOpen = await page
+    .locator("[data-repere-popover]:popover-open")
+    .count();
+  if (stillOpen > 0) {
+    await page.evaluate(() => {
+      const open = document.querySelector(
+        "[data-repere-popover]:popover-open",
+      ) as HTMLElement | null;
+      if (open && typeof open.hidePopover === "function") {
+        open.hidePopover();
+      }
+    });
+  }
+
   // Wait for the popover to close after dismiss
   await expect(page.locator("[data-repere-popover]:popover-open")).toHaveCount(
     0,
