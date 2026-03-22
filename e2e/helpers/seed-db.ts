@@ -950,6 +950,15 @@ export async function seedRarityInsightsData(
 
   const now = new Date().toISOString();
 
+  // Retrieve the real app version so the PL cache metadata matches what
+  // `ProhibitedLibraryService.ensureLoaded()` expects.  When the seeded
+  // `app_version` matches the running version the service treats the data
+  // as up-to-date and skips re-parsing the bundled CSV — which would
+  // overwrite the fixture PL weights with production CSV data.
+  const appVersion: string = await page.evaluate(() =>
+    (window as any).electron.app.getVersion(),
+  );
+
   // ── 1. Seed divination_cards ───────────────────────────────────────────
   for (const card of cards) {
     await dbExec(
@@ -1019,7 +1028,7 @@ export async function seedRarityInsightsData(
       game,
       plLeague,
       now,
-      "0.0.0-e2e",
+      appVersion,
       cards.filter((c) => c.plWeight != null).length,
       now,
       now,

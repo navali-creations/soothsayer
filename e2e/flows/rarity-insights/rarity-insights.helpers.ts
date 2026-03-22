@@ -130,6 +130,60 @@ export async function waitForTableRows(page: Page) {
     .waitFor({ state: "visible", timeout: 15_000 });
 }
 
+/**
+ * Waits for the cards store to finish loading AND for the loaded data to
+ * contain rarity information from the seeded fixtures.
+ *
+ * This guards against a race condition where `loadCards()` is triggered by
+ * the page's `useEffect` on mount but hasn't completed yet when the test
+ * starts interacting with rarity chips. Without this wait, the table may
+ * render with stale `allCards` data (all rarities = 0), causing chip-based
+ * sort assertions to fail because sorting by rarity produces no reorder
+ * when every card has the same rarity value.
+ *
+ * The check confirms:
+ * 1. `cards.isLoading` is `false` (the async `loadCards()` IPC call finished)
+ * 2. At least one card in `allCards` has `rarity !== 0` (rarity data from
+ *    `divination_card_rarities` was successfully joined in the DB query)
+ */
+export async function waitForCardsLoaded(page: Page) {
+  await expect
+    .poll(
+      async () => {
+        return page.evaluate(() => {
+          // In E2E mode the renderer exposes the Zustand store hook on
+          // `window.__zustandStore` (see renderer/store/store.ts).
+          // Calling `.getState()` gives us a snapshot of the current state.
+          const hook = (window as any).__zustandStore;
+          if (!hook || typeof hook.getState !== "function")
+            return { ready: false, reason: "no-store" };
+          const state = hook.getState();
+          const isLoading = state.cards?.isLoading;
+          const allCards = state.cards?.allCards;
+          if (isLoading) return { ready: false, reason: "still-loading" };
+          if (!allCards || allCards.length === 0)
+            return { ready: false, reason: "no-cards" };
+          const hasRarity = allCards.some(
+            (c: { rarity?: number }) => (c.rarity ?? 0) !== 0,
+          );
+          return {
+            ready: hasRarity,
+            reason: hasRarity ? "ok" : "all-rarity-0",
+          };
+        });
+      },
+      {
+        timeout: 15_000,
+        intervals: [100, 200, 500, 1_000],
+        message:
+          "Cards store did not finish loading with rarity data in time. " +
+          "This usually means loadCards() has not completed or the seeded " +
+          "divination_card_rarities were not joined by the DB query.",
+      },
+    )
+    .toEqual({ ready: true, reason: "ok" });
+}
+
 // ─── Table Inspection ─────────────────────────────────────────────────────────
 
 /**
@@ -286,11 +340,12 @@ export async function clickChipAndWaitForReorder(
   headerLocator: string,
   chipIndex: number,
 ) {
-  // Ensure the table is fully rendered before capturing the snapshot.
-  // waitForTableRows only checks for the first row — here we wait for the
-  // row count to stabilise so we don't capture a mid-render state.
+  // Ensure the table is fully rendered AND that loadCards() has completed
+  // with rarity data from the DB. Without this, clicking a rarity chip may
+  // sort cards that all have rarity 0, producing no visible reorder.
   const cardLinks = page.locator("table tbody tr td a");
   await expect(cardLinks.first()).toBeVisible({ timeout: 10_000 });
+  await waitForCardsLoaded(page);
 
   const namesBefore = await getVisibleCardNames(page);
 
