@@ -696,7 +696,7 @@ describe("RarityInsightsComparison.slice", () => {
       expect(diffs.size).toBe(0);
     });
 
-    it("treats missing card in filter as rarity 4 (common)", async () => {
+    it("skips cards missing from the filter (no false diffs)", async () => {
       store = makeStoreWithCards();
       electron = window.electron as unknown as ElectronMock;
       const s = () => store.getState().rarityInsightsComparison;
@@ -716,9 +716,11 @@ describe("RarityInsightsComparison.slice", () => {
       });
 
       const diffs = s().getDifferences();
-      // House of Mirrors has poe.ninja rarity 2, filter defaults to 4 → different
-      expect(diffs.has("House of Mirrors")).toBe(true);
-      // Rain of Chaos has poe.ninja rarity 4, filter defaults to 4 → same
+      // The Doctor has poe.ninja rarity 1, filter rarity 1 → same, not a diff
+      expect(diffs.has("The Doctor")).toBe(false);
+      // House of Mirrors is absent from the filter → not compared, not a diff
+      expect(diffs.has("House of Mirrors")).toBe(false);
+      // Rain of Chaos is absent from the filter → not compared, not a diff
       expect(diffs.has("Rain of Chaos")).toBe(false);
     });
   });

@@ -12,7 +12,7 @@ const RarityInsightsPage = () => {
   const [globalFilter, setGlobalFilter] = useState("");
 
   const {
-    cards: { allCards, loadCards, isLoading: isCardsLoading },
+    cards: { loadCards, isLoading: isCardsLoading },
     settings: {
       selectedFilterId,
       getSelectedGame,
@@ -31,37 +31,34 @@ const RarityInsightsPage = () => {
   const league = getActiveGameViewSelectedLeague();
   const isParsing = !!parsingFilterId;
 
-  // ─── Seed cooldown & reload cards on mount and when game/league changes ─
+  // ─── Load cards & seed cooldown on mount and when game/league changes ──
+  //
+  // A single effect handles both concerns.  Previously two separate effects
+  // competed: one called loadCards() immediately when allCards was empty,
+  // while the other awaited checkRefreshStatus first.  On slow CI runners
+  // the two loadCards() calls could race, causing the table to re-render
+  // mid-interaction and producing flaky E2E results.
 
   useEffect(() => {
     if (!league) return;
     let cancelled = false;
 
-    const init = async () => {
-      // Ask the backend for the current cooldown status for this league
-      await checkRefreshStatus(game, league);
+    (async () => {
+      // Fire both tasks concurrently — checkRefreshStatus is a fast IPC
+      // read that only updates the cooldown timer; it doesn't affect card
+      // data, so there's no ordering dependency with loadCards().
+      await Promise.all([checkRefreshStatus(game, league), loadCards()]);
 
-      // Reload cards so the table reflects the correct rarities for the
-      // newly-selected league
-      if (!cancelled) {
-        await loadCards();
-      }
-    };
-
-    init();
+      // If the effect was cleaned up while the promises were in-flight,
+      // avoid any further state updates (none needed today, but this
+      // keeps the pattern safe for future additions).
+      if (cancelled) return;
+    })();
 
     return () => {
       cancelled = true;
     };
   }, [game, league, checkRefreshStatus, loadCards]);
-
-  // ─── Load cards on mount if not loaded ─────────────────────────────────
-
-  useEffect(() => {
-    if (allCards.length === 0) {
-      loadCards();
-    }
-  }, [allCards.length, loadCards]);
 
   // ─── Pre-select the currently active filter ────────────────────────────
 
