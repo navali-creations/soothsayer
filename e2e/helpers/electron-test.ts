@@ -198,9 +198,27 @@ export const test = base.extend<
       );
       fs.mkdirSync(userData, { recursive: true });
 
+      // On CI (GitHub Actions), Electron needs --no-sandbox because the
+      // runner's kernel doesn't grant the unprivileged user-namespace
+      // capabilities that Chromium's sandbox requires.  Without it the
+      // process exits before printing the DevTools WebSocket URL and
+      // Playwright throws "Process failed to launch!".
+      //
+      // --disable-gpu avoids GPU-process crashes under xvfb software
+      // rendering.  The ELECTRON_DISABLE_GPU env var is not always
+      // sufficient, so we pass the flag explicitly as well.
+      const ciArgs: string[] = process.env.CI
+        ? ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"]
+        : [];
+
       const electronApp = await electron.launch({
         executablePath,
-        args: [mainEntry, `--user-data-dir=${userData}`, ...electronArgs],
+        args: [
+          mainEntry,
+          `--user-data-dir=${userData}`,
+          ...ciArgs,
+          ...electronArgs,
+        ],
         env: {
           ...process.env,
           NODE_ENV: "test",
