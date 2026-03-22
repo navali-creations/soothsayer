@@ -1,12 +1,6 @@
 import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
-import {
-  FiAlertTriangle,
-  FiCheck,
-  FiChevronDown,
-  FiRefreshCw,
-  FiSearch,
-} from "react-icons/fi";
+import { FiAlertTriangle, FiCheck, FiChevronDown } from "react-icons/fi";
 
 import type { DiscoveredRarityInsightsDTO } from "~/main/modules/rarity-insights/RarityInsights.dto";
 import { Button } from "~/renderer/components";
@@ -101,8 +95,6 @@ const RarityInsightsDropdown = () => {
     rarityInsights: {
       availableFilters,
       isScanning,
-      lastScannedAt,
-      scanFilters,
       getLocalFilters,
       getOnlineFilters,
     },
@@ -140,6 +132,7 @@ const RarityInsightsDropdown = () => {
         variant="ghost"
         size="sm"
         onClick={() => setIsOpen((prev) => !prev)}
+        disabled={isScanning || !hasFilters}
         className={clsx("gap-1.5", isOpen && "btn-active")}
       >
         Filters
@@ -162,74 +155,28 @@ const RarityInsightsDropdown = () => {
             "p-4",
           )}
         >
-          {/* State 1: Never scanned — show scan prompt */}
-          {!lastScannedAt && !isScanning && (
-            <div className="flex flex-col items-center gap-3 py-2 min-w-52">
-              <FiSearch className="w-6 h-6 text-base-content/30" />
-              <p className="text-sm text-base-content/60 text-center">
-                Search your PoE filter directories to discover available loot
-                filters.
-              </p>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => scanFilters()}
-                className="gap-1.5"
-              >
-                <FiRefreshCw className="w-3.5 h-3.5" />
-                Search for filters
-              </Button>
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs text-base-content/50">
+              Select up to {MAX_SELECTED_FILTERS} filters
+            </span>
+          </div>
+
+          <div className={clsx("flex", hasBothGroups ? "gap-4" : "")}>
+            <RarityInsightsSelectorGroup
+              label="Online Filters"
+              filters={onlineFilters}
+            />
+            <RarityInsightsSelectorGroup
+              label="Local Filters"
+              filters={localFilters}
+            />
+          </div>
+
+          {!hasFilters && !isScanning && (
+            <div className="flex items-center gap-2 text-warning text-xs p-3 rounded-lg bg-base-200/50">
+              <FiAlertTriangle className="w-4 h-4 shrink-0" />
+              <span>No filters found. Click Scan to search.</span>
             </div>
-          )}
-
-          {/* State 2: Currently scanning */}
-          {isScanning && (
-            <div className="flex flex-col items-center gap-3 py-2 min-w-52">
-              <span className="loading loading-spinner loading-md text-primary" />
-              <p className="text-sm text-base-content/60">
-                Scanning for filters...
-              </p>
-            </div>
-          )}
-
-          {/* State 3: Scanned — show filters (or empty state) */}
-          {lastScannedAt && !isScanning && (
-            <>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs text-base-content/50">
-                  Select up to {MAX_SELECTED_FILTERS} filters
-                </span>
-              </div>
-
-              {hasFilters ? (
-                <div className={clsx("flex", hasBothGroups ? "gap-4" : "")}>
-                  <RarityInsightsSelectorGroup
-                    label="Online Filters"
-                    filters={onlineFilters}
-                  />
-                  <RarityInsightsSelectorGroup
-                    label="Local Filters"
-                    filters={localFilters}
-                  />
-                </div>
-              ) : (
-                <div className="flex flex-col items-center gap-2 py-2 min-w-52">
-                  <div className="flex items-center gap-2 text-warning text-xs">
-                    <FiAlertTriangle className="w-4 h-4 shrink-0" />
-                    <span>No filters found.</span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    onClick={() => scanFilters()}
-                    className="gap-1"
-                  >
-                    <FiRefreshCw className="w-3 h-3" />
-                    Rescan
-                  </Button>
-                </div>
-              )}
-            </>
           )}
         </div>
       )}

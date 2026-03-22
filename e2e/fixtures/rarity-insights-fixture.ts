@@ -337,15 +337,13 @@ export const ALL_CARD_NAMES = RARITY_INSIGHTS_CARDS.map((c) => c.name).sort();
  * Cards where filter 1's rarity differs from poe.ninja's rarity.
  * Used to verify "Show differences only" with filter 1 selected.
  *
- * Only cards that are actually present in the filter (filter1Rarity != null)
- * are compared.  Cards absent from the filter are not considered differences.
- * poe.ninja rarity 0 (unknown) can cause diffs if filter rarity ≠ 0,
- * since filter rarities are 1-4 and 0 ≠ any 1-4.
+ * Default rarity for a card not in a filter is 4 (common).
+ * poe.ninja rarity 0 (unknown) can also cause diffs if filter rarity ≠ 0,
+ * but since filter rarities are 1-4 and 0 ≠ any 1-4, those always diff.
  */
 export const FILTER_1_DIFF_CARDS = RARITY_INSIGHTS_CARDS.filter((c) => {
-  if (c.fromBoss) return false;
-  if (c.filter1Rarity == null) return false;
-  return c.filter1Rarity !== c.poeNinjaRarity;
+  const filterRarity = c.filter1Rarity ?? 4;
+  return filterRarity !== c.poeNinjaRarity && !c.fromBoss;
 });
 
 /** Card names with diffs between filter 1 and poe.ninja (non-boss only). */
@@ -355,12 +353,10 @@ export const FILTER_1_DIFF_CARD_NAMES = FILTER_1_DIFF_CARDS.map(
 
 /**
  * Cards where filter 2's rarity differs from poe.ninja's rarity (non-boss).
- * Only cards present in filter 2 (filter2Rarity != null) are compared.
  */
 export const FILTER_2_DIFF_CARDS = RARITY_INSIGHTS_CARDS.filter((c) => {
-  if (c.fromBoss) return false;
-  if (c.filter2Rarity == null) return false;
-  return c.filter2Rarity !== c.poeNinjaRarity;
+  const filterRarity = c.filter2Rarity ?? 4;
+  return filterRarity !== c.poeNinjaRarity && !c.fromBoss;
 });
 
 export const FILTER_2_DIFF_CARD_NAMES = FILTER_2_DIFF_CARDS.map(
@@ -370,15 +366,12 @@ export const FILTER_2_DIFF_CARD_NAMES = FILTER_2_DIFF_CARDS.map(
 /**
  * Cards where ANY filter (1 or 2) differs from poe.ninja (non-boss).
  * This is the union used when both filters are selected and "Show differences only" is on.
- * Only cards present in each respective filter are compared.
  */
 export const ANY_FILTER_DIFF_CARDS = RARITY_INSIGHTS_CARDS.filter((c) => {
   if (c.fromBoss) return false;
-  const f1Diff =
-    c.filter1Rarity != null && c.filter1Rarity !== c.poeNinjaRarity;
-  const f2Diff =
-    c.filter2Rarity != null && c.filter2Rarity !== c.poeNinjaRarity;
-  return f1Diff || f2Diff;
+  const f1 = c.filter1Rarity ?? 4;
+  const f2 = c.filter2Rarity ?? 4;
+  return f1 !== c.poeNinjaRarity || f2 !== c.poeNinjaRarity;
 });
 
 export const ANY_FILTER_DIFF_CARD_NAMES = ANY_FILTER_DIFF_CARDS.map(

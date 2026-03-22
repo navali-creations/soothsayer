@@ -1354,7 +1354,11 @@ describe("SnapshotService", () => {
       expect(mockUpdateRaritiesFromProhibitedLibrary).not.toHaveBeenCalled();
     });
 
-    it("should call updateRaritiesFromProhibitedLibrary when rarity source is 'prohibited-library'", async () => {
+    it("should call updateRaritiesFromPrices (not PL) when rarity source is 'prohibited-library'", async () => {
+      // Even when the user has selected prohibited-library as their rarity
+      // source, we still write poe.ninja-derived rarities to
+      // divination_card_rarities. PL rarities live separately in
+      // prohibited_library_card_weights and the UI reads them directly.
       mockSettingsGet.mockResolvedValue("prohibited-library");
 
       const mockSnapshotData = {
@@ -1376,11 +1380,15 @@ describe("SnapshotService", () => {
 
       await service.getSnapshotForSession("poe1", "Settlers");
 
-      expect(mockUpdateRaritiesFromProhibitedLibrary).toHaveBeenCalledWith(
+      expect(mockUpdateRaritiesFromPrices).toHaveBeenCalledWith(
         "poe1",
         "Settlers",
+        200,
+        expect.objectContaining({
+          "The Doctor": expect.objectContaining({ chaosValue: 800 }),
+        }),
       );
-      expect(mockUpdateRaritiesFromPrices).not.toHaveBeenCalled();
+      expect(mockUpdateRaritiesFromProhibitedLibrary).not.toHaveBeenCalled();
     });
 
     it("should call updateRaritiesFromPrices (not filter) when rarity source is 'filter'", async () => {
@@ -1413,7 +1421,7 @@ describe("SnapshotService", () => {
       expect(mockUpdateRaritiesFromFilter).not.toHaveBeenCalled();
     });
 
-    it("should route to prohibited-library when reusing a recent snapshot", async () => {
+    it("should call updateRaritiesFromPrices when reusing a recent snapshot with prohibited-library source", async () => {
       mockSettingsGet.mockResolvedValue("prohibited-library");
 
       const leagueId = await seedLeague(testDb.kysely, {
@@ -1442,14 +1450,18 @@ describe("SnapshotService", () => {
 
       await service.getSnapshotForSession("poe1", "Settlers");
 
-      expect(mockUpdateRaritiesFromProhibitedLibrary).toHaveBeenCalledWith(
+      expect(mockUpdateRaritiesFromPrices).toHaveBeenCalledWith(
         "poe1",
         "Settlers",
+        200,
+        expect.objectContaining({
+          "The Doctor": expect.objectContaining({ chaosValue: 800 }),
+        }),
       );
-      expect(mockUpdateRaritiesFromPrices).not.toHaveBeenCalled();
+      expect(mockUpdateRaritiesFromProhibitedLibrary).not.toHaveBeenCalled();
     });
 
-    it("should route to prohibited-library during auto-refresh interval", async () => {
+    it("should call updateRaritiesFromPrices during auto-refresh with prohibited-library source", async () => {
       vi.useFakeTimers();
 
       try {
@@ -1482,11 +1494,15 @@ describe("SnapshotService", () => {
         // Advance timer to trigger the interval callback
         await vi.advanceTimersByTimeAsync(4 * 60 * 60 * 1000);
 
-        expect(mockUpdateRaritiesFromProhibitedLibrary).toHaveBeenCalledWith(
+        expect(mockUpdateRaritiesFromPrices).toHaveBeenCalledWith(
           "poe1",
           "Settlers",
+          200,
+          expect.objectContaining({
+            "The Doctor": expect.objectContaining({ chaosValue: 800 }),
+          }),
         );
-        expect(mockUpdateRaritiesFromPrices).not.toHaveBeenCalled();
+        expect(mockUpdateRaritiesFromProhibitedLibrary).not.toHaveBeenCalled();
       } finally {
         service.stopAllAutoRefresh();
         vi.useRealTimers();

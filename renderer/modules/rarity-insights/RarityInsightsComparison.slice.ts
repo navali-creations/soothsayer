@@ -433,12 +433,9 @@ export const createRarityInsightsComparisonSlice: StateCreator<
       const diffs = new Set<string>();
       for (const card of cards.allCards) {
         const ninjaRarity = card.rarity;
-        // A card is "different" if ANY selected filter disagrees with poe.ninja.
-        // Only compare cards that actually exist in the filter's parsed results;
-        // cards absent from every selected filter are not considered differences.
+        // A card is "different" if ANY selected filter disagrees with poe.ninja
         for (const p of parsed) {
-          const filterRarity = p.rarities.get(card.name);
-          if (filterRarity === undefined) continue;
+          const filterRarity = p.rarities.get(card.name) ?? 4;
           if (filterRarity !== ninjaRarity) {
             diffs.add(card.name);
             break;
