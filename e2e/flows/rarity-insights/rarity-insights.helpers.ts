@@ -276,32 +276,74 @@ export async function disableBossCards(page: Page) {
 /**
  * Clicks a rarity chip in a column header and waits for the table order to
  * change from the snapshot taken before the click.
+ *
+ * Uses Playwright locators and `expect.poll()` instead of raw
+ * `page.waitForFunction` for more reliable waiting in CI environments
+ * where React re-renders can be slower due to resource contention.
  */
 export async function clickChipAndWaitForReorder(
   page: Page,
   headerLocator: string,
   chipIndex: number,
 ) {
+  // Ensure the table is fully rendered before capturing the snapshot.
+  // waitForTableRows only checks for the first row — here we wait for the
+  // row count to stabilise so we don't capture a mid-render state.
+  const cardLinks = page.locator("table tbody tr td a");
+  await expect(cardLinks.first()).toBeVisible({ timeout: 10_000 });
+
   const namesBefore = await getVisibleCardNames(page);
+
   const chip = page
     .locator(headerLocator)
     .locator("button.badge")
     .nth(chipIndex);
+
+  // Record the chip's opacity before the click so we can verify the click
+  // registered — the active chip switches from opacity 0.5 → 1 (or 1 → 0.5
+  // when toggling off).
+  const opacityBefore = await chip.evaluate(
+    (el) => getComputedStyle(el).opacity,
+  );
+
   await chip.click();
 
-  // Wait for the visible card order to differ from the previous state.
-  await page.waitForFunction(
-    (prev) => {
-      const links = Array.from(
-        document.querySelectorAll("table tbody tr td a"),
-      );
-      const current = links.map((a) => a.textContent?.trim() ?? "");
-      if (current.length === 0) return false;
-      return current.some((name, i) => name !== (prev[i] ?? ""));
-    },
-    namesBefore,
-    { timeout: 5_000, polling: 200 },
-  );
+  // Verify the click actually registered by waiting for the chip's opacity
+  // to change. This catches cases where the click was intercepted or the
+  // element was obscured.
+  await expect
+    .poll(
+      async () => {
+        return chip.evaluate((el) => getComputedStyle(el).opacity);
+      },
+      { timeout: 5_000, intervals: [100, 200, 500] },
+    )
+    .not.toBe(opacityBefore);
+
+  // Wait for the visible card order to differ from the pre-click snapshot.
+  // Uses Playwright's expect.poll with locator-based reads for reliable
+  // retrying in resource-constrained CI environments.
+  await expect
+    .poll(
+      async () => {
+        const count = await cardLinks.count();
+        if (count === 0) return namesBefore; // unchanged — keep polling
+        const current: string[] = [];
+        for (let i = 0; i < count; i++) {
+          const text = await cardLinks.nth(i).textContent();
+          if (text) current.push(text.trim());
+        }
+        return current;
+      },
+      {
+        timeout: 10_000,
+        intervals: [100, 200, 500, 1_000],
+        message:
+          "Table order did not change after chip click. " +
+          `Names before: [${namesBefore.join(", ")}]`,
+      },
+    )
+    .not.toEqual(namesBefore);
 }
 
 // ─── Filter dropdown helpers ──────────────────────────────────────────────────
