@@ -17,6 +17,13 @@ on:
       - "LICENSE"
       - ".gitignore"
 
+# Cancel in-progress runs for the same branch/PR.  When a dependabot PR is
+# rebased after merging a sibling, the previous (now stale) run is cancelled
+# instead of burning through minutes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   pull-requests: read
@@ -330,23 +337,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y xvfb libnss3 libatk-bridge2.0-0 libgtk-3-0 libgbm1 libasound2t64
 
-      - name: Rebuild better-sqlite3 for Electron
-        run: pnpm exec electron-rebuild -f -w better-sqlite3
-
-      - name: Build Electron main + preload
-        run: pnpm package
+      - name: Build Electron main + preload for E2E
+        run: node scripts/build-e2e.mjs
 
       - name: Run E2E tests
         env:
           E2E_TESTING: "true"
         run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" pnpm exec playwright test --config playwright.config.ts
-
-      - name: Upload Playwright report
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-report
-          path: |
-            playwright-report/
-            e2e/test-results/
-          retention-days: 14
