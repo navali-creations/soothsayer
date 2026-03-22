@@ -214,12 +214,12 @@ test.describe("Card Browsing Flow", () => {
       await searchInput.fill("Doctor");
 
       // Wait for debounced search to take effect by detecting content change
-      await page.waitForFunction(
-        (prevContent) =>
-          document.querySelector("main")?.textContent !== prevContent,
-        contentBefore,
-        { timeout: 5_000 },
-      );
+      await expect
+        .poll(async () => page.locator("main").textContent(), {
+          timeout: 10_000,
+          intervals: [100, 200, 500, 1_000],
+        })
+        .not.toBe(contentBefore);
 
       // The page content should have changed (filtered results)
       const contentAfter = await page.locator("main").textContent();
@@ -256,24 +256,24 @@ test.describe("Card Browsing Flow", () => {
       await searchInput.fill("Doctor");
 
       // Wait for debounced search to filter results
-      await page.waitForFunction(
-        (prevContent) =>
-          document.querySelector("main")?.textContent !== prevContent,
-        contentBeforeSearch,
-        { timeout: 5_000 },
-      );
+      await expect
+        .poll(async () => page.locator("main").textContent(), {
+          timeout: 10_000,
+          intervals: [100, 200, 500, 1_000],
+        })
+        .not.toBe(contentBeforeSearch);
 
       // Clear the search
       const contentBeforeClear = await page.locator("main").textContent();
       await searchInput.fill("");
 
       // Wait for debounced clear to restore full list
-      await page.waitForFunction(
-        (prevContent) =>
-          document.querySelector("main")?.textContent !== prevContent,
-        contentBeforeClear,
-        { timeout: 5_000 },
-      );
+      await expect
+        .poll(async () => page.locator("main").textContent(), {
+          timeout: 10_000,
+          intervals: [100, 200, 500, 1_000],
+        })
+        .not.toBe(contentBeforeClear);
 
       // The page should show full list again
       const countAfterClear = await page.locator("main ul > li").count();
@@ -300,12 +300,12 @@ test.describe("Card Browsing Flow", () => {
       await searchInput.fill("xyznonexistentcardname999");
 
       // Wait for debounced search to take effect
-      await page.waitForFunction(
-        (prevContent) =>
-          document.querySelector("main")?.textContent !== prevContent,
-        contentBeforeNoMatch,
-        { timeout: 5_000 },
-      );
+      await expect
+        .poll(async () => page.locator("main").textContent(), {
+          timeout: 10_000,
+          intervals: [100, 200, 500, 1_000],
+        })
+        .not.toBe(contentBeforeNoMatch);
 
       // The page should handle empty results gracefully (no crash, shows empty state)
       const mainContent = page.locator("main");
@@ -366,12 +366,12 @@ test.describe("Card Browsing Flow", () => {
       await raritySelect.selectOption({ label: "Rare" });
 
       // Wait for the filter to take effect by detecting content change
-      await page.waitForFunction(
-        (prevContent) =>
-          document.querySelector("main")?.textContent !== prevContent,
-        contentBeforeFilter,
-        { timeout: 5_000 },
-      );
+      await expect
+        .poll(async () => page.locator("main").textContent(), {
+          timeout: 10_000,
+          intervals: [100, 200, 500, 1_000],
+        })
+        .not.toBe(contentBeforeFilter);
 
       // Verify the page is still functional after interacting with the filter
       const mainContent = page.locator("main");
@@ -392,12 +392,12 @@ test.describe("Card Browsing Flow", () => {
       await raritySelect.selectOption({ label: "All Rarities" });
 
       // Wait for the filter reset to take effect
-      await page.waitForFunction(
-        (prevContent) =>
-          document.querySelector("main")?.textContent !== prevContent,
-        contentBeforeReset,
-        { timeout: 5_000 },
-      );
+      await expect
+        .poll(async () => page.locator("main").textContent(), {
+          timeout: 10_000,
+          intervals: [100, 200, 500, 1_000],
+        })
+        .not.toBe(contentBeforeReset);
 
       const countAfterReset = await page.locator("main ul > li").count();
       expect(
@@ -437,12 +437,12 @@ test.describe("Card Browsing Flow", () => {
         await raritySelect.selectOption({ label: option.label });
 
         // Wait for the filter to take effect
-        await page.waitForFunction(
-          (prevContent) =>
-            document.querySelector("main")?.textContent !== prevContent,
-          contentBefore,
-          { timeout: 5_000 },
-        );
+        await expect
+          .poll(async () => page.locator("main").textContent(), {
+            timeout: 10_000,
+            intervals: [100, 200, 500, 1_000],
+          })
+          .not.toBe(contentBefore);
 
         // Verify the page is still functional
         const mainContent = page.locator("main");
@@ -461,12 +461,12 @@ test.describe("Card Browsing Flow", () => {
         const contentBeforeReset = await page.locator("main").textContent();
         await raritySelect.selectOption({ label: "All Rarities" });
 
-        await page.waitForFunction(
-          (prevContent) =>
-            document.querySelector("main")?.textContent !== prevContent,
-          contentBeforeReset,
-          { timeout: 5_000 },
-        );
+        await expect
+          .poll(async () => page.locator("main").textContent(), {
+            timeout: 10_000,
+            intervals: [100, 200, 500, 1_000],
+          })
+          .not.toBe(contentBeforeReset);
 
         const countAfterReset = await page.locator("main ul > li").count();
         expect(
@@ -534,12 +534,12 @@ test.describe("Card Browsing Flow", () => {
       await optionButton.click();
 
       // Wait for the cards to re-render after the source change
-      await page.waitForFunction(
-        (prevContent) =>
-          document.querySelector("main")?.textContent !== prevContent,
-        contentBeforeSwitch,
-        { timeout: 10_000 },
-      );
+      await expect
+        .poll(async () => page.locator("main").textContent(), {
+          timeout: 10_000,
+          intervals: [100, 200, 500, 1_000],
+        })
+        .not.toBe(contentBeforeSwitch);
 
       // Verify the trigger now shows the new source label
       await expect(raritySourceTrigger).toContainText(targetLabel, {
@@ -571,12 +571,12 @@ test.describe("Card Browsing Flow", () => {
       await originalOptionButton.click();
 
       // Wait for the cards to re-render after switching back
-      await page.waitForFunction(
-        (prevContent) =>
-          document.querySelector("main")?.textContent !== prevContent,
-        contentBeforeSwitchBack,
-        { timeout: 10_000 },
-      );
+      await expect
+        .poll(async () => page.locator("main").textContent(), {
+          timeout: 10_000,
+          intervals: [100, 200, 500, 1_000],
+        })
+        .not.toBe(contentBeforeSwitchBack);
 
       // Verify the trigger shows the original label again
       await expect(raritySourceTrigger).toContainText(originalLabel, {
@@ -653,12 +653,12 @@ test.describe("Card Browsing Flow", () => {
       await nextButton.click();
 
       // Wait for page content to change after pagination click
-      await page.waitForFunction(
-        (prevText) =>
-          document.querySelector("main ul > li")?.textContent !== prevText,
-        firstCardTextBefore,
-        { timeout: 5_000 },
-      );
+      await expect
+        .poll(async () => page.locator("main ul > li").first().textContent(), {
+          timeout: 10_000,
+          intervals: [100, 200, 500, 1_000],
+        })
+        .not.toBe(firstCardTextBefore);
 
       // Content should have changed — different set of cards on page 2
       const firstCardTextAfter = await page
@@ -706,12 +706,12 @@ test.describe("Card Browsing Flow", () => {
       await searchInput.fill("Doctor");
 
       // Wait for debounced search to take effect
-      await page.waitForFunction(
-        (prevContent) =>
-          document.querySelector("main")?.textContent !== prevContent,
-        contentBeforeSearch,
-        { timeout: 5_000 },
-      );
+      await expect
+        .poll(async () => page.locator("main").textContent(), {
+          timeout: 10_000,
+          intervals: [100, 200, 500, 1_000],
+        })
+        .not.toBe(contentBeforeSearch);
 
       // Click on a card in the filtered results to navigate to details
       const firstCardClickable = page
@@ -727,10 +727,11 @@ test.describe("Card Browsing Flow", () => {
       if (hasFilteredCards) {
         await firstCardClickable.click();
         // Wait for navigation to card details route
-        await page.waitForFunction(
-          () => /^#\/cards\/.+/.test(window.location.hash),
-          { timeout: 5_000 },
-        );
+        await expect
+          .poll(async () => page.evaluate(() => window.location.hash), {
+            timeout: 5_000,
+          })
+          .toMatch(/^#\/cards\/.+/);
       } else {
         // No cards matched, just navigate away
         await navigateTo(page, "/settings");

@@ -43,14 +43,16 @@ async function goToProfitForecast(page: Page) {
  * Wait for loading spinners to resolve and main content to render.
  */
 async function waitForPageData(page: Page) {
-  await page.waitForFunction(
-    () => !document.querySelector(".loading.loading-spinner.loading-lg"),
+  await expect(page.locator(".loading.loading-spinner.loading-lg")).toHaveCount(
+    0,
     { timeout: 15_000 },
   );
-  await page.waitForFunction(
-    () => (document.querySelector("main")?.textContent?.length ?? 0) > 50,
-    { timeout: 10_000 },
-  );
+  await expect
+    .poll(async () => (await page.locator("main").textContent())?.length ?? 0, {
+      timeout: 10_000,
+      intervals: [100, 200, 500, 1_000],
+    })
+    .toBeGreaterThan(50);
 }
 
 /**
@@ -130,17 +132,13 @@ async function waitForRecompute(page: Page) {
   }
 
   // 2. Wait until no skeleton remains inside any stat-value (values settled).
-  await page.waitForFunction(
-    () => {
-      const skeletons = document.querySelectorAll(".stat-value .skeleton");
-      return skeletons.length === 0;
-    },
-    { timeout: 15_000 },
-  );
+  await expect(page.locator(".stat-value .skeleton")).toHaveCount(0, {
+    timeout: 15_000,
+  });
 
   // 3. Also wait for the table computing overlay to clear.
-  await page.waitForFunction(
-    () => !document.querySelector(".backdrop-blur-sm .loading-spinner"),
+  await expect(page.locator(".backdrop-blur-sm .loading-spinner")).toHaveCount(
+    0,
     { timeout: 10_000 },
   );
 }
@@ -240,17 +238,19 @@ test.describe("Profit Forecast – Interactions", () => {
       }
 
       // After refresh completes, the button should return to idle or cooldown
-      await page.waitForFunction(
-        () => {
-          const body = document.body.textContent ?? "";
-          return (
-            body.includes("Refresh poe.ninja") ||
-            // Cooldown state (shows time remaining)
-            /\d+:\d+/.test(body)
-          );
-        },
-        { timeout: 30_000 },
-      );
+      await expect
+        .poll(
+          async () => {
+            const text = (await page.locator("body").textContent()) ?? "";
+            return (
+              text.includes("Refresh poe.ninja") ||
+              // Cooldown state (shows time remaining)
+              /\d+:\d+/.test(text)
+            );
+          },
+          { timeout: 30_000, intervals: [200, 500, 1_000] },
+        )
+        .toBe(true);
     });
   });
 
@@ -314,19 +314,9 @@ test.describe("Profit Forecast – Interactions", () => {
       // sawLoadingIndicator may be false if the refresh completed instantly — still valid
 
       // Wait for refresh to complete — skeletons disappear and stat values return
-      await page.waitForFunction(
-        () => {
-          // Either no skeletons, or no stat-value contains a skeleton
-          const statValues = document.querySelectorAll(
-            "[class*='stat-value'], .stat-value",
-          );
-          for (const sv of statValues) {
-            if (sv.querySelector(".skeleton")) return false;
-          }
-          return true;
-        },
-        { timeout: 30_000 },
-      );
+      await expect(page.locator(".stat-value .skeleton")).toHaveCount(0, {
+        timeout: 30_000,
+      });
 
       // The page should still be functional after refresh
       const main = page.locator("main");

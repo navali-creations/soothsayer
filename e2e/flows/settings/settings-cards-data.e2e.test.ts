@@ -243,7 +243,7 @@ test.describe("Settings – Cards (Data)", () => {
 
       // Folder picker button (has a folder icon)
       const buttons = card.locator("button");
-      expect(await buttons.count()).toBeGreaterThan(0);
+      await expect(buttons.first()).toBeVisible({ timeout: 5_000 });
 
       // Should show descriptive help text
       await expect(
@@ -279,13 +279,13 @@ test.describe("Settings – Cards (Data)", () => {
       const revealButton = refreshedCard.locator("button", {
         hasText: /hide|reveal/i,
       });
-      expect(await revealButton.count()).toBe(0);
+      await expect(revealButton).toHaveCount(0, { timeout: 5_000 });
 
       // The "Reset to default" button should NOT be visible when there's no custom path
       const resetButton = refreshedCard.locator("button", {
         hasText: /reset to default/i,
       });
-      expect(await resetButton.count()).toBe(0);
+      await expect(resetButton).toHaveCount(0, { timeout: 5_000 });
     });
 
     test("should show reveal/hide toggle and reset button when a custom path is set via IPC", async ({
@@ -317,7 +317,7 @@ test.describe("Settings – Cards (Data)", () => {
       const revealToggle = refreshedCard.locator(
         'button[title="Reveal full path"], button[title="Hide full path"]',
       );
-      expect(await revealToggle.count()).toBeGreaterThan(0);
+      await expect(revealToggle.first()).toBeVisible({ timeout: 5_000 });
 
       // Click the reveal toggle to show the full path
       await revealToggle.first().click();

@@ -139,10 +139,13 @@ test.describe("Setup Wizard", () => {
     // Wait for the app to hydrate so the preload bridge (electron.appSetup)
     // is available before we call resetSetup.
     await page.waitForLoadState("domcontentloaded");
-    await page.waitForFunction(
-      () => !!(window as any).electron?.appSetup?.resetSetup,
-      { timeout: 30_000 },
-    );
+    await expect
+      .poll(
+        async () =>
+          page.evaluate(() => !!(window as any).electron?.appSetup?.resetSetup),
+        { timeout: 30_000, intervals: [200, 500, 1_000] },
+      )
+      .toBe(true);
     await resetSetup(page);
     await page.reload();
     await page.waitForLoadState("domcontentloaded");
@@ -242,19 +245,21 @@ test.describe("Setup Wizard", () => {
       await expect(leagueSelect).toBeVisible({ timeout: 10_000 });
 
       // Wait for at least one real option (not just the placeholder)
-      await page.waitForFunction(
-        () => {
-          const select = document.querySelector(
-            "select.select-bordered",
-          ) as HTMLSelectElement;
-          if (!select) return false;
-          const realOptions = Array.from(select.options).filter(
-            (o) => o.value && !o.disabled,
-          );
-          return realOptions.length >= 1;
-        },
-        { timeout: 10_000 },
-      );
+      await expect
+        .poll(
+          async () =>
+            page.evaluate(() => {
+              const select = document.querySelector(
+                "select.select-bordered",
+              ) as HTMLSelectElement;
+              if (!select) return 0;
+              return Array.from(select.options).filter(
+                (o) => o.value && !o.disabled,
+              ).length;
+            }),
+          { timeout: 10_000, intervals: [200, 500, 1_000] },
+        )
+        .toBeGreaterThanOrEqual(1);
 
       const optionCount = await leagueSelect.locator("option").count();
       expect(optionCount).toBeGreaterThanOrEqual(2);

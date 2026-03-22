@@ -169,14 +169,17 @@ test.describe("Navigation", () => {
         // On CI the navigation completes (hash changes) before React
         // commits the new outlet, so reading textContent immediately
         // would capture stale content from the previous route.
-        await page.waitForFunction(
-          (id) => {
-            const main = document.querySelector("main");
-            return main?.textContent?.toLowerCase().includes(id.toLowerCase());
-          },
-          identifier,
-          { timeout: 15_000 },
-        );
+        await expect
+          .poll(
+            async () => {
+              const text = await page.locator("main").textContent();
+              return (
+                text?.toLowerCase().includes(identifier.toLowerCase()) ?? false
+              );
+            },
+            { timeout: 15_000, intervals: [100, 200, 500, 1_000] },
+          )
+          .toBe(true);
 
         const content = await page.locator("main").textContent();
         pageContents.push(content || "");

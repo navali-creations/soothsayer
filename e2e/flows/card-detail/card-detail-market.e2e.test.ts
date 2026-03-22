@@ -72,19 +72,31 @@ async function switchToMarketTab(page: Page) {
  * heading is visible (meaning loading finished but no chart data).
  */
 async function waitForMarketDataSettled(page: Page, timeout = 20_000) {
-  await page.waitForFunction(
-    () => {
-      const hasChart = document.querySelector(".recharts-wrapper") !== null;
-      const main = document.querySelector("main");
-      const text = main?.textContent ?? "";
-      const hasEmpty = text.includes("No price history available");
-      const hasError = text.includes("Failed to load price history");
-      const hasLoading = text.includes("Loading chart data");
-      const hasHeading = text.includes("Price History");
-      return hasChart || hasEmpty || hasError || (hasHeading && !hasLoading);
-    },
-    { timeout },
-  );
+  await expect
+    .poll(
+      async () => {
+        const hasChart = (await page.locator(".recharts-wrapper").count()) > 0;
+        const hasEmpty = await page
+          .getByText("No price history available")
+          .isVisible()
+          .catch(() => false);
+        const hasError = await page
+          .getByText("Failed to load price history")
+          .isVisible()
+          .catch(() => false);
+        const hasHeading = await page
+          .getByText("Price History")
+          .isVisible()
+          .catch(() => false);
+        const hasLoading = await page
+          .getByText("Loading chart data")
+          .isVisible()
+          .catch(() => false);
+        return hasChart || hasEmpty || hasError || (hasHeading && !hasLoading);
+      },
+      { timeout, intervals: [200, 500, 1_000] },
+    )
+    .toBe(true);
 }
 
 // ─── Data Seeding ─────────────────────────────────────────────────────────────
@@ -321,7 +333,7 @@ test.describe("Card Detail Page — Market Data", () => {
 
       // Fixture data guarantees chart renders — assert structural elements
       const rechartsWrappers = page.locator(".recharts-wrapper");
-      expect(await rechartsWrappers.count()).toBeGreaterThan(0);
+      await expect(rechartsWrappers.first()).toBeVisible({ timeout: 5_000 });
 
       // Recharts renders CartesianGrid as <g class="recharts-cartesian-grid">
       const gridLines = page.locator(".recharts-cartesian-grid");

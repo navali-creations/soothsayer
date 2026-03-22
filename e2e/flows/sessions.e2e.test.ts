@@ -103,10 +103,12 @@ test.describe("Sessions", () => {
 
       // Wait for loading to finish
       await page.locator("main").waitFor({ state: "visible", timeout: 5_000 });
-      await page.waitForFunction(
-        () => (document.querySelector("main")?.textContent?.length ?? 0) > 0,
-        { timeout: 5_000 },
-      );
+      await expect
+        .poll(
+          async () => (await page.locator("main").textContent())?.length ?? 0,
+          { timeout: 10_000, intervals: [100, 200, 500, 1_000] },
+        )
+        .toBeGreaterThan(0);
 
       const main = page.locator("main");
       const content = await main.textContent();
@@ -122,10 +124,12 @@ test.describe("Sessions", () => {
     }) => {
       await goToSessions(page);
       await page.locator("main").waitFor({ state: "visible", timeout: 5_000 });
-      await page.waitForFunction(
-        () => (document.querySelector("main")?.textContent?.length ?? 0) > 0,
-        { timeout: 5_000 },
-      );
+      await expect
+        .poll(
+          async () => (await page.locator("main").textContent())?.length ?? 0,
+          { timeout: 10_000, intervals: [100, 200, 500, 1_000] },
+        )
+        .toBeGreaterThan(0);
 
       const main = page.locator("main");
       const content = await main.textContent();
@@ -189,10 +193,12 @@ test.describe("Sessions", () => {
       // Navigate to sessions and wait for load
       await goToSessions(page);
       await page.locator("main").waitFor({ state: "visible", timeout: 5_000 });
-      await page.waitForFunction(
-        () => (document.querySelector("main")?.textContent?.length ?? 0) > 0,
-        { timeout: 5_000 },
-      );
+      await expect
+        .poll(
+          async () => (await page.locator("main").textContent())?.length ?? 0,
+          { timeout: 10_000, intervals: [100, 200, 500, 1_000] },
+        )
+        .toBeGreaterThan(0);
 
       // Verify sessions are visible — the grid renders <li> items
       const main = page.locator("main");
@@ -301,10 +307,12 @@ test.describe("Sessions", () => {
       // Navigate directly via hash
       await navigateTo(page, `/sessions/${sessionId}`);
       await page.locator("main").waitFor({ state: "visible", timeout: 10_000 });
-      await page.waitForFunction(
-        () => (document.querySelector("main")?.textContent?.length ?? 0) > 20,
-        { timeout: 5_000 },
-      );
+      await expect
+        .poll(
+          async () => (await page.locator("main").textContent())?.length ?? 0,
+          { timeout: 10_000, intervals: [100, 200, 500, 1_000] },
+        )
+        .toBeGreaterThan(20);
 
       const route = await getCurrentRoute(page);
       expect(route).toBe(`/sessions/${sessionId}`);
@@ -322,10 +330,12 @@ test.describe("Sessions", () => {
 
       await navigateTo(page, `/sessions/${sessionId}`);
       await page.locator("main").waitFor({ state: "visible", timeout: 10_000 });
-      await page.waitForFunction(
-        () => (document.querySelector("main")?.textContent?.length ?? 0) > 20,
-        { timeout: 5_000 },
-      );
+      await expect
+        .poll(
+          async () => (await page.locator("main").textContent())?.length ?? 0,
+          { timeout: 10_000, intervals: [100, 200, 500, 1_000] },
+        )
+        .toBeGreaterThan(20);
 
       const main = page.locator("main");
       const content = await main.textContent();
@@ -344,10 +354,12 @@ test.describe("Sessions", () => {
     }) => {
       await navigateTo(page, "/sessions/nonexistent-session-id-999");
       await page.locator("main").waitFor({ state: "visible", timeout: 10_000 });
-      await page.waitForFunction(
-        () => (document.querySelector("main")?.textContent?.length ?? 0) > 20,
-        { timeout: 5_000 },
-      );
+      await expect
+        .poll(
+          async () => (await page.locator("main").textContent())?.length ?? 0,
+          { timeout: 10_000, intervals: [100, 200, 500, 1_000] },
+        )
+        .toBeGreaterThan(20);
 
       const main = page.locator("main");
       const content = await main.textContent();
@@ -367,10 +379,12 @@ test.describe("Sessions", () => {
       // Navigate to a non-existent session to guarantee the "back" button
       await navigateTo(page, "/sessions/nonexistent-id");
       await page.locator("main").waitFor({ state: "visible", timeout: 10_000 });
-      await page.waitForFunction(
-        () => (document.querySelector("main")?.textContent?.length ?? 0) > 20,
-        { timeout: 5_000 },
-      );
+      await expect
+        .poll(
+          async () => (await page.locator("main").textContent())?.length ?? 0,
+          { timeout: 10_000, intervals: [100, 200, 500, 1_000] },
+        )
+        .toBeGreaterThan(20);
 
       // Look for a back button
       const backButton = page.locator(
@@ -415,10 +429,12 @@ test.describe("Sessions", () => {
 
       await navigateTo(page, `/sessions/${sessionId}`);
       await page.locator("main").waitFor({ state: "visible", timeout: 10_000 });
-      await page.waitForFunction(
-        () => (document.querySelector("main")?.textContent?.length ?? 0) > 20,
-        { timeout: 5_000 },
-      );
+      await expect
+        .poll(
+          async () => (await page.locator("main").textContent())?.length ?? 0,
+          { timeout: 10_000, intervals: [100, 200, 500, 1_000] },
+        )
+        .toBeGreaterThan(20);
 
       const main = page.locator("main");
       const content = await main.textContent();
@@ -444,10 +460,12 @@ test.describe("Sessions", () => {
 
       await navigateTo(page, `/sessions/${sessionId}`);
       await page.locator("main").waitFor({ state: "visible", timeout: 10_000 });
-      await page.waitForFunction(
-        () => (document.querySelector("main")?.textContent?.length ?? 0) > 20,
-        { timeout: 5_000 },
-      );
+      await expect
+        .poll(
+          async () => (await page.locator("main").textContent())?.length ?? 0,
+          { timeout: 10_000, intervals: [100, 200, 500, 1_000] },
+        )
+        .toBeGreaterThan(20);
 
       const main = page.locator("main");
       const content = await main.textContent();

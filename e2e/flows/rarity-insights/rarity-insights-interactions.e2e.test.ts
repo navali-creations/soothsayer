@@ -208,7 +208,9 @@ test.describe("Rarity Insights — Interactions", () => {
       expect(names).toContain(A_BOSS_CARD.name);
       await clearSearchAndWaitForTable(page);
       const headerCells = page.locator("table thead th");
-      expect(await headerCells.count()).toBeGreaterThan(2);
+      await expect
+        .poll(async () => headerCells.count(), { timeout: 5_000 })
+        .toBeGreaterThan(2);
       await disableBossCards(page);
     });
   });
@@ -270,14 +272,23 @@ test.describe("Rarity Insights — Interactions", () => {
 
       // Wait for the pagination total to change (table re-renders
       // synchronously now that useDeferredValue has been removed).
-      await page.waitForFunction(
-        (prev) => {
-          const el = document.body.innerText.match(/of (\d+) results/);
-          return el ? parseInt(el[1], 10) !== prev : false;
-        },
-        beforeCount,
-        { timeout: 5_000 },
-      );
+      await expect
+        .poll(
+          async () => {
+            const text = await page
+              .locator("text=/of \\d+ results/")
+              .textContent({ timeout: 2_000 })
+              .catch(() => "");
+            const match = text?.match(/of (\d+) results/);
+            return match ? parseInt(match[1], 10) : beforeCount;
+          },
+          {
+            timeout: 10_000,
+            intervals: [100, 200, 500, 1_000],
+            message: `Pagination total did not change from ${beforeCount} after toggling "Show differences only"`,
+          },
+        )
+        .not.toBe(beforeCount);
 
       const afterCount = await getTotalResultCount(page);
       expect(afterCount).not.toBe(beforeCount);

@@ -54,19 +54,10 @@ import {
 async function goToStatistics(page: Page) {
   await navigateTo(page, "/statistics");
   // Wait for the page to fully settle — either stat cards render or empty state
-  await page.waitForFunction(
-    () => {
-      const main = document.querySelector("main");
-      if (!main) return false;
-      const text = main.textContent ?? "";
-      return (
-        text.includes("Stacked Decks Opened") ||
-        text.includes("No cards collected") ||
-        text.includes("Statistics")
-      );
-    },
-    { timeout: 15_000 },
-  );
+  await page
+    .locator("main")
+    .filter({ hasText: /Stacked Decks Opened|No cards collected|Statistics/ })
+    .waitFor({ state: "visible", timeout: 15_000 });
 }
 
 /**
@@ -297,13 +288,9 @@ test.describe("Statistics", () => {
       await select.selectOption({ label: "Standard" });
 
       // Wait for the page to update — subtitle should change
-      await page.waitForFunction(
-        () => {
-          const main = document.querySelector("main");
-          return main?.textContent?.includes("League-specific") ?? false;
-        },
-        { timeout: 10_000 },
-      );
+      await expect(page.locator("main")).toContainText("League-specific", {
+        timeout: 10_000,
+      });
 
       const main = page.locator("main");
       const content = await main.textContent();
@@ -347,13 +334,9 @@ test.describe("Statistics", () => {
       // Switch to Settlers of Kalguur
       await select.selectOption({ label: "Settlers of Kalguur" });
 
-      await page.waitForFunction(
-        () => {
-          const main = document.querySelector("main");
-          return main?.textContent?.includes("League-specific") ?? false;
-        },
-        { timeout: 10_000 },
-      );
+      await expect(page.locator("main")).toContainText("League-specific", {
+        timeout: 10_000,
+      });
 
       // Verify via IPC
       const stats = await callElectronAPI<{
@@ -386,22 +369,15 @@ test.describe("Statistics", () => {
 
       // Switch to a specific league first
       await select.selectOption({ label: "Standard" });
-      await page.waitForFunction(
-        () =>
-          document
-            .querySelector("main")
-            ?.textContent?.includes("League-specific") ?? false,
-        { timeout: 10_000 },
-      );
+      await expect(page.locator("main")).toContainText("League-specific", {
+        timeout: 10_000,
+      });
 
       // Switch back to All-Time
       await select.selectOption({ value: "all-time" });
-      await page.waitForFunction(
-        () =>
-          document.querySelector("main")?.textContent?.includes("All-time") ??
-          false,
-        { timeout: 10_000 },
-      );
+      await expect(page.locator("main")).toContainText("All-time", {
+        timeout: 10_000,
+      });
 
       const main = page.locator("main");
       const content = await main.textContent();
@@ -485,13 +461,9 @@ test.describe("Statistics", () => {
 
       // Switch to Settlers (which has fewer cards)
       await select.selectOption({ label: "Settlers of Kalguur" });
-      await page.waitForFunction(
-        () =>
-          document
-            .querySelector("main")
-            ?.textContent?.includes("League-specific") ?? false,
-        { timeout: 10_000 },
-      );
+      await expect(page.locator("main")).toContainText("League-specific", {
+        timeout: 10_000,
+      });
 
       // Give the data a moment to load
       await page.waitForTimeout(1_000);
@@ -599,13 +571,18 @@ test.describe("Statistics", () => {
       await search.fill("Doctor");
 
       // Wait for the filter to take effect
-      await page.waitForFunction(
-        () => {
-          const rows = document.querySelectorAll("table tbody tr");
-          return rows.length >= 1 && rows.length < 8;
-        },
-        { timeout: 5_000 },
-      );
+      await expect
+        .poll(async () => page.locator("table tbody tr").count(), {
+          timeout: 5_000,
+          intervals: [100, 200, 500, 1_000],
+        })
+        .toBeGreaterThanOrEqual(1);
+      await expect
+        .poll(async () => page.locator("table tbody tr").count(), {
+          timeout: 5_000,
+          intervals: [100, 200, 500, 1_000],
+        })
+        .toBeLessThan(8);
 
       const rowCountAfter = await page.locator("table tbody tr").count();
       expect(rowCountAfter).toBeLessThan(rowCountBefore);
@@ -631,13 +608,8 @@ test.describe("Statistics", () => {
       await search.fill("xyznonexistent123");
 
       // Wait for the empty message to appear
-      await page.waitForFunction(
-        () => {
-          const main = document.querySelector("main");
-          return (
-            main?.textContent?.includes("No cards match your search") ?? false
-          );
-        },
+      await expect(page.locator("main")).toContainText(
+        "No cards match your search",
         { timeout: 5_000 },
       );
 
@@ -660,22 +632,24 @@ test.describe("Statistics", () => {
 
       // Filter
       await search.fill("Doctor");
-      await page.waitForFunction(
-        () => document.querySelectorAll("table tbody tr").length < 8,
-        { timeout: 5_000 },
-      );
+      await expect
+        .poll(async () => page.locator("table tbody tr").count(), {
+          timeout: 5_000,
+          intervals: [100, 200, 500, 1_000],
+        })
+        .toBeLessThan(8);
 
       // The Search component uses type="search" which has a native clear
       // mechanism, but the simplest way to clear is to fill with empty string.
       await search.fill("");
 
       // Wait for rows to be restored
-      await page.waitForFunction(
-        (expected) =>
-          document.querySelectorAll("table tbody tr").length >= expected,
-        rowCountBefore,
-        { timeout: 5_000 },
-      );
+      await expect
+        .poll(async () => page.locator("table tbody tr").count(), {
+          timeout: 5_000,
+          intervals: [100, 200, 500, 1_000],
+        })
+        .toBeGreaterThanOrEqual(rowCountBefore);
 
       const rowCountAfter = await page.locator("table tbody tr").count();
       expect(rowCountAfter).toBe(rowCountBefore);
@@ -704,15 +678,18 @@ test.describe("Statistics", () => {
 
       await search.fill("The");
 
-      await page.waitForFunction(
-        (before) => {
-          const rows = document.querySelectorAll("table tbody tr");
-          // Should have fewer rows than before (filter applied) but still some matches
-          return rows.length >= 2 && rows.length < before;
-        },
-        rowCountBefore,
-        { timeout: 8_000 },
-      );
+      await expect
+        .poll(async () => page.locator("table tbody tr").count(), {
+          timeout: 8_000,
+          intervals: [100, 200, 500, 1_000],
+        })
+        .toBeGreaterThanOrEqual(2);
+      await expect
+        .poll(async () => page.locator("table tbody tr").count(), {
+          timeout: 8_000,
+          intervals: [100, 200, 500, 1_000],
+        })
+        .toBeLessThan(rowCountBefore);
 
       const tableContent = await page.locator("table").textContent();
       // At least some of these "The" cards should be visible

@@ -384,7 +384,7 @@ test.describe("Settings — Audio Card", () => {
     await ensureAudioEnabled(page);
 
     const previewButtons = card.locator('button[title="Preview"]');
-    expect(await previewButtons.count()).toBe(3);
+    await expect(previewButtons).toHaveCount(3, { timeout: 5_000 });
 
     for (let i = 0; i < 3; i++) {
       const btn = previewButtons.nth(i);

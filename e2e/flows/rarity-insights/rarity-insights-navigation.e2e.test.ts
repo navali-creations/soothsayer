@@ -43,10 +43,11 @@ test.describe("Rarity Insights — Navigation", () => {
         .locator("table tbody tr td a", { hasText: SEARCHABLE_CARD_NAME })
         .first();
       await cardLink.click();
-      await page.waitForFunction(
-        () => window.location.hash.includes("/cards/"),
-        { timeout: 5_000 },
-      );
+      await expect
+        .poll(async () => page.evaluate(() => window.location.hash), {
+          timeout: 5_000,
+        })
+        .toMatch(/\/cards\//);
       const route = await getCurrentRoute(page);
       expect(route).toMatch(/^\/cards\//);
       expect(route).toContain("the-doctor");
@@ -63,10 +64,11 @@ test.describe("Rarity Insights — Navigation", () => {
         .locator("table tbody tr td a", { hasText: SEARCHABLE_CARD_NAME })
         .first()
         .click();
-      await page.waitForFunction(
-        () => window.location.hash.includes("/cards/"),
-        { timeout: 5_000 },
-      );
+      await expect
+        .poll(async () => page.evaluate(() => window.location.hash), {
+          timeout: 5_000,
+        })
+        .toMatch(/\/cards\//);
       await navigateTo(page, "/rarity-insights");
       await page
         .getByRole("heading", { name: /Rarity Insights/i })
@@ -88,10 +90,11 @@ test.describe("Rarity Insights — Navigation", () => {
         .locator("table tbody tr td a", { hasText: "Rain of Chaos" })
         .first()
         .click();
-      await page.waitForFunction(
-        () => window.location.hash.includes("/cards/"),
-        { timeout: 5_000 },
-      );
+      await expect
+        .poll(async () => page.evaluate(() => window.location.hash), {
+          timeout: 5_000,
+        })
+        .toMatch(/\/cards\//);
       expect(await getCurrentRoute(page)).toContain("rain-of-chaos");
       await navigateTo(page, "/rarity-insights");
     });
@@ -102,9 +105,11 @@ test.describe("Rarity Insights — Navigation", () => {
   test.describe("Cross-Navigation", () => {
     test("should navigate to Rarity Insights via sidebar", async ({ page }) => {
       await navigateTo(page, "/");
-      await page.waitForFunction(() => window.location.hash === "#/", {
-        timeout: 5_000,
-      });
+      await expect
+        .poll(async () => page.evaluate(() => window.location.hash), {
+          timeout: 5_000,
+        })
+        .toBe("#/");
       const sidebar = page.locator("aside");
       const link = sidebar.getByText("Rarity Insights", { exact: true });
       const linkVisible = await link
@@ -112,10 +117,11 @@ test.describe("Rarity Insights — Navigation", () => {
         .catch(() => false);
       if (linkVisible) {
         await link.click();
-        await page.waitForFunction(
-          () => window.location.hash === "#/rarity-insights",
-          { timeout: 5_000 },
-        );
+        await expect
+          .poll(async () => page.evaluate(() => window.location.hash), {
+            timeout: 5_000,
+          })
+          .toBe("#/rarity-insights");
         expect(await getCurrentRoute(page)).toBe("/rarity-insights");
       } else {
         await navigateTo(page, "/rarity-insights");
@@ -130,9 +136,11 @@ test.describe("Rarity Insights — Navigation", () => {
       await waitForPageSettled(page);
       await waitForTableRows(page);
       await navigateTo(page, "/");
-      await page.waitForFunction(() => window.location.hash === "#/", {
-        timeout: 5_000,
-      });
+      await expect
+        .poll(async () => page.evaluate(() => window.location.hash), {
+          timeout: 5_000,
+        })
+        .toBe("#/");
       await navigateTo(page, "/rarity-insights");
       await page
         .getByRole("heading", { name: /Rarity Insights/i })

@@ -79,23 +79,23 @@ export async function waitForHydration(
   }
 
   // Now wait for meaningful content: either the sidebar (post-setup) or setup container
-  await page.waitForFunction(
-    () => {
-      const body = document.body;
-      if (!body) return false;
-      const text = body.innerText || "";
-      // After hydration, we should see either setup content or app navigation
-      return (
-        text.includes("Current Session") ||
-        text.includes("Soothsayer") ||
-        text.includes("Select") || // Setup wizard steps
-        document.querySelector("nav") !== null ||
-        document.querySelector("aside") !== null ||
-        document.querySelector("main") !== null
-      );
-    },
-    { timeout },
-  );
+  await expect
+    .poll(
+      async () => {
+        const body = await page.locator("body").textContent();
+        if (!body) return false;
+        return (
+          body.includes("Current Session") ||
+          body.includes("Soothsayer") ||
+          body.includes("Select") ||
+          (await page.locator("nav").count()) > 0 ||
+          (await page.locator("aside").count()) > 0 ||
+          (await page.locator("main").count()) > 0
+        );
+      },
+      { timeout },
+    )
+    .toBe(true);
 }
 
 /**
@@ -123,11 +123,9 @@ export async function navigateTo(
 
   if (waitForNavigation) {
     // Wait for React to process the route change and render content
-    await page.waitForFunction(
-      (expectedHash) => window.location.hash === expectedHash,
-      `#${normalizedRoute}`,
-      { timeout },
-    );
+    await expect
+      .poll(async () => page.evaluate(() => window.location.hash), { timeout })
+      .toBe(`#${normalizedRoute}`);
 
     // Allow React to settle after the route change
     await page.waitForTimeout(200);
@@ -149,11 +147,9 @@ export async function waitForRoute(
   const normalizedRoute = route.startsWith("/") ? route : `/${route}`;
   const expectedHash = `#${normalizedRoute}`;
 
-  await page.waitForFunction(
-    (hash) => window.location.hash === hash,
-    expectedHash,
-    { timeout },
-  );
+  await expect
+    .poll(async () => page.evaluate(() => window.location.hash), { timeout })
+    .toBe(expectedHash);
 }
 
 /**

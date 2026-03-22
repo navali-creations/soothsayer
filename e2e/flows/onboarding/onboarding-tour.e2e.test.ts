@@ -540,8 +540,9 @@ test.describe("Onboarding — Tour & Forecast", () => {
       await waitForRoute(page, "/", 10_000);
       await page.locator("main").waitFor({ state: "visible", timeout: 5_000 });
       await waitForTriggers(page, CURRENT_SESSION_BEACONS.length);
-      expect(await page.locator("[data-repere-trigger]").count()).toBe(
+      await expect(page.locator("[data-repere-trigger]")).toHaveCount(
         CURRENT_SESSION_BEACONS.length,
+        { timeout: 5_000 },
       );
 
       // Check rarity insights page: 2 global + 5 page-specific = 7
@@ -551,8 +552,10 @@ test.describe("Onboarding — Tour & Forecast", () => {
 
       const expectedRiCount = 2 + RARITY_INSIGHTS_BEACONS.length;
       await waitForTriggers(page, expectedRiCount);
-      const riCount = await page.locator("[data-repere-trigger]").count();
-      expect(riCount).toBe(expectedRiCount);
+      await expect(page.locator("[data-repere-trigger]")).toHaveCount(
+        expectedRiCount,
+        { timeout: 5_000 },
+      );
 
       // Check profit forecast page: 2 global + 5 page-specific = 7
       await navigateTo(page, "/profit-forecast");
@@ -561,8 +564,10 @@ test.describe("Onboarding — Tour & Forecast", () => {
 
       const expectedPfCount = 2 + PROFIT_FORECAST_BEACONS.length;
       await waitForTriggers(page, expectedPfCount);
-      const pfCount = await page.locator("[data-repere-trigger]").count();
-      expect(pfCount).toBe(expectedPfCount);
+      await expect(page.locator("[data-repere-trigger]")).toHaveCount(
+        expectedPfCount,
+        { timeout: 5_000 },
+      );
     });
   });
 });

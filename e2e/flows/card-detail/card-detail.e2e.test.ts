@@ -242,13 +242,11 @@ test.describe("Card Detail Page", () => {
       await firstCardClickable.click();
 
       // Wait for navigation to a card detail route: #/cards/<slug>
-      await page.waitForFunction(
-        () => {
-          const hash = window.location.hash;
-          return /^#\/cards\/.+/.test(hash);
-        },
-        { timeout: 5_000 },
-      );
+      await expect
+        .poll(async () => page.evaluate(() => window.location.hash), {
+          timeout: 5_000,
+        })
+        .toMatch(/^#\/cards\/.+/);
 
       const route = await getCurrentRoute(page);
       expect(route).toMatch(/^\/cards\/.+/);
@@ -829,13 +827,15 @@ test.describe("Card Detail Page", () => {
       await firstLink.click();
 
       // Wait for navigation to a different card detail page
-      await page.waitForFunction(
-        () => {
-          const hash = window.location.hash;
-          return /^#\/cards\/.+/.test(hash) && !hash.includes("the-nurse");
-        },
-        { timeout: 10_000 },
-      );
+      await expect
+        .poll(
+          async () => {
+            const hash = await page.evaluate(() => window.location.hash);
+            return /^#\/cards\/.+/.test(hash) && !hash.includes("the-nurse");
+          },
+          { timeout: 10_000 },
+        )
+        .toBe(true);
 
       const route = await getCurrentRoute(page);
       expect(route).toMatch(/^\/cards\/.+/);
@@ -877,13 +877,15 @@ test.describe("Card Detail Page", () => {
       const firstLink = relatedLinks.first();
       await firstLink.click();
 
-      await page.waitForFunction(
-        () => {
-          const hash = window.location.hash;
-          return /^#\/cards\/.+/.test(hash) && !hash.includes("the-nurse");
-        },
-        { timeout: 10_000 },
-      );
+      await expect
+        .poll(
+          async () => {
+            const hash = await page.evaluate(() => window.location.hash);
+            return /^#\/cards\/.+/.test(hash) && !hash.includes("the-nurse");
+          },
+          { timeout: 10_000 },
+        )
+        .toBe(true);
 
       // Navigate back to The Nurse
       await goToCardDetail(page, "the-nurse");

@@ -56,7 +56,7 @@ test.describe("Settings – Cards (Config)", () => {
 
       // There should be 2 read-only text inputs (one per game)
       const inputs = card.locator('input[type="text"]');
-      expect(await inputs.count()).toBe(2);
+      await expect(inputs).toHaveCount(2, { timeout: 5_000 });
 
       // Each input should be read-only
       for (let i = 0; i < 2; i++) {
@@ -71,7 +71,7 @@ test.describe("Settings – Cards (Config)", () => {
 
       // There should be folder picker buttons (one per game path)
       const buttons = card.locator("button");
-      expect(await buttons.count()).toBeGreaterThanOrEqual(2);
+      await expect(buttons).toHaveCount(2, { timeout: 5_000 });
     });
 
     test("should show reveal/hide toggle when a path is set via IPC", async ({
@@ -100,7 +100,7 @@ test.describe("Settings – Cards (Config)", () => {
       const revealToggle = refreshedCard.locator(
         'button[title="Reveal full path"], button[title="Hide full path"]',
       );
-      expect(await revealToggle.count()).toBeGreaterThan(0);
+      await expect(revealToggle.first()).toBeVisible({ timeout: 5_000 });
 
       // Click to reveal — should show the full path
       await revealToggle.first().click();
@@ -171,7 +171,7 @@ test.describe("Settings – Cards (Config)", () => {
 
       // There should be at least 2 file picker buttons (one per game path)
       const buttons = card.locator("button");
-      expect(await buttons.count()).toBeGreaterThanOrEqual(2);
+      await expect(buttons.nth(1)).toBeVisible({ timeout: 5_000 });
 
       // Each file picker button should be visible and enabled
       for (let i = 0; i < 2; i++) {
@@ -279,21 +279,21 @@ test.describe("Settings – Cards (Config)", () => {
       const revealToggle = card.locator(
         'button[title="Reveal full path"], button[title="Hide full path"]',
       );
-      expect(await revealToggle.count()).toBeGreaterThan(0);
+      await expect(revealToggle.first()).toBeVisible({ timeout: 5_000 });
 
       // Click to reveal full path
       await revealToggle.first().click();
 
       // The toggle should now say "Hide full path"
       const hideToggle = card.locator('button[title="Hide full path"]');
-      expect(await hideToggle.count()).toBeGreaterThan(0);
+      await expect(hideToggle.first()).toBeVisible({ timeout: 5_000 });
 
       // Click again to hide
       await hideToggle.first().click();
 
       // Should be back to "Reveal full path"
       const revealAgain = card.locator('button[title="Reveal full path"]');
-      expect(await revealAgain.count()).toBeGreaterThan(0);
+      await expect(revealAgain.first()).toBeVisible({ timeout: 5_000 });
     });
 
     test("should show loading state before storage info is available", async ({
@@ -468,8 +468,7 @@ test.describe("Settings – Cards (Config)", () => {
 
       // Verify each specific bullet point in the consequences list
       const listItems = confirmDialog.locator("li");
-      const itemCount = await listItems.count();
-      expect(itemCount).toBeGreaterThanOrEqual(3);
+      await expect(listItems.nth(2)).toBeVisible({ timeout: 5_000 });
 
       // Verify key consequences are listed
       const fullText = await confirmDialog.first().textContent();

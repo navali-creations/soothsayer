@@ -182,7 +182,7 @@ test.describe("Rarity Insights — Structure", () => {
       const placeholders = page.locator("table thead th span", {
         hasText: /^Filter \d$/,
       });
-      expect(await placeholders.count()).toBeGreaterThanOrEqual(1);
+      await expect(placeholders.first()).toBeVisible({ timeout: 5_000 });
       await expect(
         page.locator("text=/Showing \\d+ to \\d+ of/"),
       ).toBeVisible();

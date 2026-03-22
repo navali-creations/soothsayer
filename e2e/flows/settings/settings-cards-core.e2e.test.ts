@@ -94,9 +94,8 @@ test.describe("Settings – Cards (Core)", () => {
       const controls = page.locator(
         'main input, main select, main [role="switch"], main [role="checkbox"]',
       );
-      const controlCount = await controls.count();
       // There are toggles, sliders, selects, text inputs — expect many
-      expect(controlCount).toBeGreaterThanOrEqual(8);
+      await expect(controls.nth(7)).toBeVisible({ timeout: 5_000 });
     });
   });
 
@@ -255,7 +254,7 @@ test.describe("Settings – Cards (Core)", () => {
 
       // 4 range inputs total
       const sliders = card.locator('input[type="range"]');
-      expect(await sliders.count()).toBe(4);
+      await expect(sliders).toHaveCount(4, { timeout: 5_000 });
     });
 
     test("should adjust the overlay width slider", async ({ page }) => {

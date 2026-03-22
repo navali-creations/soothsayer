@@ -14,6 +14,7 @@
  */
 
 import type { ElectronApplication, Page } from "@playwright/test";
+import { expect } from "@playwright/test";
 
 /**
  * Evaluates a function in the Electron main process.
@@ -219,32 +220,34 @@ export async function mockSetupComplete(page: Page): Promise<void> {
   // Under heavy parallel load (3+ Electron workers sharing CPU/GPU) the Vite
   // dev-server response and React hydration can take well over 30 s, so we
   // use a generous 45 s timeout here.
-  await page.waitForFunction(
-    () => {
-      const body = document.body;
-      if (!body) return false;
-      const text = body.innerText || "";
-      return (
-        text.includes("Current Session") ||
-        text.includes("Soothsayer") ||
-        document.querySelector("nav") !== null ||
-        document.querySelector("aside") !== null ||
-        document.querySelector("main") !== null
-      );
-    },
-    { timeout: 45_000 },
-  );
+  await expect
+    .poll(
+      async () => {
+        const text = await page.locator("body").textContent();
+        if (!text) return false;
+        return (
+          text.includes("Current Session") ||
+          text.includes("Soothsayer") ||
+          (await page.locator("nav").count()) > 0 ||
+          (await page.locator("aside").count()) > 0
+        );
+      },
+      { timeout: 45_000, intervals: [200, 500, 1_000] },
+    )
+    .toBe(true);
   // 2. Wait for the /setup → / redirect to complete.
   // Under heavy parallel load (multiple Electron workers) the redirect can be
   // slow. If the hash is still on /setup after waiting, force-navigate to "/".
   try {
-    await page.waitForFunction(
-      () => {
-        const hash = window.location.hash;
-        return hash === "#/" || hash === "#" || hash === "";
-      },
-      { timeout: 30_000 },
-    );
+    await expect
+      .poll(
+        async () => {
+          const hash = await page.evaluate(() => window.location.hash);
+          return hash === "#/" || hash === "#" || hash === "";
+        },
+        { timeout: 30_000 },
+      )
+      .toBe(true);
   } catch {
     // The redirect didn't happen in time — force it.  This can occur when
     // TanStack Router's useEffect hasn't fired yet due to resource contention.
@@ -253,9 +256,11 @@ export async function mockSetupComplete(page: Page): Promise<void> {
       await page.evaluate(() => {
         window.location.hash = "#/";
       });
-      await page.waitForFunction(() => window.location.hash === "#/", {
-        timeout: 5_000,
-      });
+      await expect
+        .poll(async () => page.evaluate(() => window.location.hash), {
+          timeout: 5_000,
+        })
+        .toBe("#/");
     }
   }
 }
@@ -272,9 +277,11 @@ export async function mockSetupIncomplete(page: Page): Promise<void> {
   await page.waitForLoadState("domcontentloaded");
 
   // Wait for the root layout to hydrate and redirect to /setup
-  await page.waitForFunction(() => window.location.hash === "#/setup", {
-    timeout: 15_000,
-  });
+  await expect
+    .poll(async () => page.evaluate(() => window.location.hash), {
+      timeout: 15_000,
+    })
+    .toBe("#/setup");
 }
 
 /**

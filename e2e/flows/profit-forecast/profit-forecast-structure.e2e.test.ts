@@ -81,8 +81,8 @@ async function waitForDataSettled(page: Page) {
   }
 
   // 2. Wait for the loading indicator to disappear (fetch settled).
-  await page.waitForFunction(
-    () => !document.querySelector(".loading.loading-spinner.loading-lg"),
+  await expect(page.locator(".loading.loading-spinner.loading-lg")).toHaveCount(
+    0,
     { timeout: 20_000 },
   );
 
@@ -91,21 +91,23 @@ async function waitForDataSettled(page: Page) {
   //    that text can flash during the pre-fetch frame (phase 0).  Instead
   //    we wait for either table rows or the "No Prohibited Library data"
   //    banner which only appears after a real fetch completes with 0 weights.
-  await page.waitForFunction(
-    () => {
-      const rows = document.querySelectorAll("table tbody tr");
-      if (rows.length > 0) return true;
+  await expect
+    .poll(
+      async () => {
+        const rowCount = await page.locator("table tbody tr").count();
+        if (rowCount > 0) return true;
 
-      // Genuine empty-states that prove the fetch ran and returned no data
-      const text = document.querySelector("main")?.textContent ?? "";
-      if (text.includes("No Prohibited Library data")) return true;
-      if (text.includes("No snapshot")) return true;
-      if (text.includes("No price data")) return true;
+        // Genuine empty-states that prove the fetch ran and returned no data
+        const text = (await page.locator("main").textContent()) ?? "";
+        if (text.includes("No Prohibited Library data")) return true;
+        if (text.includes("No snapshot")) return true;
+        if (text.includes("No price data")) return true;
 
-      return false;
-    },
-    { timeout: 20_000 },
-  );
+        return false;
+      },
+      { timeout: 20_000, intervals: [100, 200, 500, 1_000] },
+    )
+    .toBe(true);
 }
 
 // Module-level flag so we only seed data once per worker.
@@ -352,14 +354,12 @@ test.describe("Profit Forecast – UI & Modal", () => {
       // Wait for the debounce (300ms) + React deferred re-render to settle.
       // A fixed timeout is unreliable under load — poll until the row count
       // actually changes from the initial value.
-      await page.waitForFunction(
-        (initial) => {
-          const rows = document.querySelectorAll("table tbody tr");
-          return rows.length > 0 && rows.length < initial;
-        },
-        initialRowCount,
-        { timeout: 10_000, polling: 250 },
-      );
+      await expect
+        .poll(async () => page.locator("table tbody tr").count(), {
+          timeout: 10_000,
+          intervals: [100, 200, 500, 1_000],
+        })
+        .toBeLessThan(initialRowCount);
 
       // The table should now show fewer rows (only rows matching "Doctor")
       const filteredRowCount = await tableRows.count();
@@ -376,12 +376,12 @@ test.describe("Profit Forecast – UI & Modal", () => {
       await searchInput.clear();
 
       // Poll until the row count is restored — same rationale as above.
-      await page.waitForFunction(
-        (initial) =>
-          document.querySelectorAll("table tbody tr").length === initial,
-        initialRowCount,
-        { timeout: 10_000, polling: 250 },
-      );
+      await expect
+        .poll(async () => page.locator("table tbody tr").count(), {
+          timeout: 10_000,
+          intervals: [100, 200, 500, 1_000],
+        })
+        .toBe(initialRowCount);
 
       const restoredRowCount = await tableRows.count();
       expect(restoredRowCount).toBe(initialRowCount);
