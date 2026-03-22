@@ -349,8 +349,17 @@ test.describe("Profit Forecast – UI & Modal", () => {
       await expect(searchInput).toBeVisible({ timeout: 5_000 });
       await searchInput.fill("Doctor");
 
-      // Wait for debounce (300ms) + React re-render
-      await page.waitForTimeout(500);
+      // Wait for the debounce (300ms) + React deferred re-render to settle.
+      // A fixed timeout is unreliable under load — poll until the row count
+      // actually changes from the initial value.
+      await page.waitForFunction(
+        (initial) => {
+          const rows = document.querySelectorAll("table tbody tr");
+          return rows.length > 0 && rows.length < initial;
+        },
+        initialRowCount,
+        { timeout: 10_000, polling: 250 },
+      );
 
       // The table should now show fewer rows (only rows matching "Doctor")
       const filteredRowCount = await tableRows.count();
@@ -365,7 +374,14 @@ test.describe("Profit Forecast – UI & Modal", () => {
 
       // Clear the search and verify all rows return
       await searchInput.clear();
-      await page.waitForTimeout(500);
+
+      // Poll until the row count is restored — same rationale as above.
+      await page.waitForFunction(
+        (initial) =>
+          document.querySelectorAll("table tbody tr").length === initial,
+        initialRowCount,
+        { timeout: 10_000, polling: 250 },
+      );
 
       const restoredRowCount = await tableRows.count();
       expect(restoredRowCount).toBe(initialRowCount);
