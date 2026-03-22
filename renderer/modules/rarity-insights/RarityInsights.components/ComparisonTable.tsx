@@ -187,7 +187,8 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
       for (const card of allCards) {
         const ninjaRarity = card.rarity;
         for (const p of parsed) {
-          const filterRarity = p.rarities.get(card.name) ?? 4;
+          const filterRarity = p.rarities.get(card.name);
+          if (filterRarity === undefined) continue;
           if (filterRarity !== ninjaRarity) {
             differences.add(card.name);
             break;
