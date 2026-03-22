@@ -24,7 +24,7 @@ import {
   RARITY_INSIGHTS_CARDS,
 } from "../../fixtures/rarity-insights-fixture";
 import { expect } from "../../helpers/electron-test";
-import { navigateTo } from "../../helpers/navigation";
+import { getCurrentRoute, navigateTo } from "../../helpers/navigation";
 import {
   seedLeagueCache,
   seedRarityInsightsData,
@@ -99,6 +99,23 @@ export async function injectSeededFilters(page: Page) {
  * Navigate to the Rarity Insights page and wait for its core content to render.
  */
 export async function goToRarityInsights(page: Page) {
+  // If the page is already on /rarity-insights the hash-based navigateTo is
+  // a no-op — the React component stays mounted, useEffect doesn't re-fire,
+  // and loadCards() never re-fetches from the (now-seeded) DB.  On CI, this
+  // means the first test loads cards before the DB seed completes and every
+  // subsequent test in the serial suite reuses that stale data (rarity = 0
+  // for all non-fixture bundled cards), causing sort / diff assertions to
+  // fail.
+  //
+  // Fix: bounce to "/" first to force an unmount → remount cycle so the
+  // page's useEffect fires loadCards() with fresh DB data.
+  const currentRoute = await getCurrentRoute(page);
+  if (currentRoute === "/rarity-insights") {
+    await navigateTo(page, "/");
+    // Brief pause so React tears down the RI page component.
+    await page.waitForTimeout(150);
+  }
+
   await navigateTo(page, "/rarity-insights");
   await page
     .getByRole("heading", { name: /Rarity Insights/i })
