@@ -17,6 +17,14 @@ export interface RaritySourceOption {
 export interface RaritySourceGroup {
   label: string;
   options: RaritySourceOption[];
+  /** Optional action rendered at the bottom of the group (e.g. scan trigger) */
+  action?: {
+    label: string;
+    onClick: () => void;
+    loading?: boolean;
+    loadingLabel?: string;
+    icon?: React.ReactNode;
+  };
 }
 
 interface RaritySourceSelectProps {
@@ -104,7 +112,7 @@ const RaritySourceSelect = ({
         style={{ positionAnchor: anchorName } as React.CSSProperties}
       >
         {groups.map((group, gi) => {
-          if (group.options.length === 0) return null;
+          if (group.options.length === 0 && !group.action) return null;
 
           return (
             <div key={group.label} className={clsx(gi > 0 && "mt-3")}>
@@ -156,6 +164,42 @@ const RaritySourceSelect = ({
                   </button>
                 );
               })}
+
+              {/* Group action (e.g. scan trigger) */}
+              {group.action && (
+                <button
+                  type="button"
+                  className={clsx(
+                    "w-full text-left px-2.5 py-1.5 rounded-md text-xs",
+                    "transition-colors cursor-pointer",
+                    "flex items-center gap-1.5",
+                    "hover:bg-base-300 text-base-content/60",
+                    group.action.loading && "pointer-events-none opacity-60",
+                  )}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    group.action!.onClick();
+                  }}
+                >
+                  {group.action.loading ? (
+                    <>
+                      <span className="loading loading-spinner loading-xs" />
+                      <span>
+                        {group.action.loadingLabel ?? group.action.label}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      {group.action.icon && (
+                        <span className="w-3.5 shrink-0 flex items-center justify-center">
+                          {group.action.icon}
+                        </span>
+                      )}
+                      <span>{group.action.label}</span>
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           );
         })}

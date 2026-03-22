@@ -1,5 +1,5 @@
 import { createColumnHelper, type SortingFn } from "@tanstack/react-table";
-import { memo, useDeferredValue, useMemo } from "react";
+import { memo, useMemo } from "react";
 import { FiRefreshCw } from "react-icons/fi";
 import { GiCrownedSkull } from "react-icons/gi";
 
@@ -164,13 +164,6 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
     (s) => s.rarityInsightsComparison.includeBossCards,
   );
 
-  // Defer the values that drive the expensive displayRows rebuild so React
-  // can commit the sidebar / toolbar re-render (cheap) immediately and
-  // update the table data in a subsequent background render.
-  // Columns use the non-deferred store values directly so that new filter
-  // columns (with "Parsing…" headers) appear instantly.
-  const selectedFilters = useDeferredValue(storeSelectedFilters);
-  const parsedResults = useDeferredValue(storeParsedResults);
   const allCards = useBoundStore((s) => s.cards.allCards);
   const availableFilters = useBoundStore(
     (s) => s.rarityInsights.availableFilters,
@@ -185,8 +178,8 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
   // react-hooks/exhaustive-deps can verify the dependency list.
   const displayRows = useMemo(() => {
     // ── Compute differences (filter rarity vs poe.ninja rarity) ──
-    const parsed = selectedFilters
-      .map((id) => parsedResults.get(id))
+    const parsed = storeSelectedFilters
+      .map((id) => storeParsedResults.get(id))
       .filter(Boolean) as ParsedRarityInsightsRarities[];
 
     const differences = new Set<string>();
@@ -218,8 +211,8 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
     // ── Map to ComparisonRow ──
     return filtered.map((card): ComparisonRow => {
       const filterRarities: Record<string, KnownRarity | null> = {};
-      for (const filterId of selectedFilters) {
-        const p = parsedResults.get(filterId);
+      for (const filterId of storeSelectedFilters) {
+        const p = storeParsedResults.get(filterId);
         filterRarities[filterId] = p
           ? (p.rarities.get(card.name) ?? (4 as KnownRarity))
           : null;
@@ -242,8 +235,8 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
     });
   }, [
     allCards,
-    selectedFilters,
-    parsedResults,
+    storeSelectedFilters,
+    storeParsedResults,
     showDiffsOnly,
     includeBossCards,
   ]);

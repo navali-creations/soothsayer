@@ -175,6 +175,13 @@ export const useBoundStore = create<BoundStore>()(
 
           // Check disk space after hydration (non-blocking)
           storageSlice.storage.checkDiskSpace();
+
+          // Scan for available loot filters once at startup (non-blocking).
+          // Skipped in E2E mode — tests seed filter data directly into the DB
+          // and store, bypassing the filesystem scanner entirely.
+          if (!(window as any).electron?.__E2E_TESTING) {
+            rarityInsightsSlice.rarityInsights.scanFilters();
+          }
         },
 
         // Start all listeners

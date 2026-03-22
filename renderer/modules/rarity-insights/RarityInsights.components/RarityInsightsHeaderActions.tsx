@@ -17,9 +17,7 @@ const RarityInsightsHeaderActions = ({
   isParsing,
 }: RarityInsightsHeaderActionsProps) => {
   const {
-    rarityInsights: { isScanning },
     settings: { getSelectedGame, getActiveGameViewSelectedLeague },
-    rarityInsightsComparison: { rescan },
     poeNinja: { isRefreshing, refreshPrices, getRefreshableAt },
   } = useBoundStore();
 
@@ -97,22 +95,7 @@ const RarityInsightsHeaderActions = ({
         </Button>
       </div>
 
-      <div data-onboarding="rarity-insights-scan" className="flex">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => !isScanning && !isParsing && rescan()}
-          disabled={isScanning || isRefreshing}
-          className="gap-1.5"
-        >
-          <FiRefreshCw
-            className={clsx("w-3.5 h-3.5", {
-              "animate-spin": isScanning,
-            })}
-          />
-          {isScanning ? "Scanning..." : "Scan"}
-        </Button>
-
+      <div data-onboarding="rarity-insights-scan">
         <RarityInsightsDropdown />
       </div>
     </div>

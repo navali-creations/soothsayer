@@ -1027,16 +1027,10 @@ export async function seedRarityInsightsData(
   );
 
   // ── 5 & 6. filter_metadata + filter_card_rarities ─────────────────────
-  // DEFERRED: We intentionally do NOT seed filter data here.
-  // The Rarity Insights page auto-scans filter directories on mount, and
-  // its cleanup phase (`deleteNotInFilePaths([])`) cascade-deletes all
-  // `filter_metadata` rows — taking `filter_card_rarities` with them.
-  // If we seed here, the scan may race and delete our rows mid-insert,
-  // causing FOREIGN KEY constraint failures.
-  //
-  // Instead, `injectSeededFilters()` in rarity-insights.helpers.ts waits
-  // for the scan to finish, THEN re-seeds filter data.  This eliminates
-  // the race entirely.
+  // In E2E mode the filesystem auto-scan is disabled (see store hydrate()),
+  // so these rows won't be cascade-deleted.  Seed them upfront alongside
+  // everything else.
+  await seedFilterData(page, cards);
 }
 
 // ─── Filter Data Seeder (steps 5 + 6, extracted) ─────────────────────────────
@@ -1196,6 +1190,16 @@ export async function syncAvailableFiltersToStore(page: Page): Promise<void> {
 
     const filters = await electron.rarityInsights.getAll();
     store.getState().rarityInsights.setAvailableFilters(filters);
+
+    // Stamp lastScannedAt so that UI components (e.g. the Filters dropdown)
+    // show the "scanned" state instead of the "scan prompt" state.
+    store.setState(
+      (s: any) => {
+        s.rarityInsights.lastScannedAt = new Date().toISOString();
+      },
+      false,
+      "e2e/syncAvailableFiltersToStore/stampLastScannedAt",
+    );
   });
 
   // Step 2: For each fully-parsed filter, read its card rarities from the DB

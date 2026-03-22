@@ -1,12 +1,13 @@
 import { AnimatePresence, motion } from "motion/react";
-import { useCallback, useEffect, useMemo } from "react";
-import { FiPlay } from "react-icons/fi";
+import { useCallback, useMemo } from "react";
+import { FiPlay, FiRefreshCw } from "react-icons/fi";
 import { GiCardExchange, GiLockedChest } from "react-icons/gi";
 
 import {
   Button,
   Flex,
   type RaritySourceGroup,
+  type RaritySourceOption,
   RaritySourceSelect,
 } from "~/renderer/components";
 import { trackEvent } from "~/renderer/modules/umami";
@@ -58,17 +59,6 @@ const CurrentSessionActions = () => {
   const priceSource = getActiveGameViewPriceSource();
   const localFilters = getLocalFilters();
   const onlineFilters = getOnlineFilters();
-
-  // Lazy scan: if no filters have ever been loaded, scan on mount.
-  // The `lastScannedAt` guard prevents an infinite loop: when the filesystem
-  // has zero filters (e.g. CI / Linux), the scan returns an empty array so
-  // `availableFilters.length` stays 0 and `isScanning` flips back to false,
-  // which would re-trigger this effect endlessly without the guard.
-  useEffect(() => {
-    if (availableFilters.length === 0 && !isScanning && !lastScannedAt) {
-      scanFilters();
-    }
-  }, [availableFilters.length, isScanning, lastScannedAt, scanFilters]);
 
   const handlePriceSourceChange = async (source: "exchange" | "stash") => {
     await setActiveGameViewPriceSource(source);
@@ -140,30 +130,50 @@ const CurrentSessionActions = () => {
       },
     ];
 
-    if (onlineFilters.length > 0) {
-      result.push({
-        label: "Online Filters",
-        options: onlineFilters.map((filter) => ({
-          value: `filter:${filter.id}`,
-          label: filter.name,
-          outdated: filter.isOutdated,
-        })),
-      });
-    }
+    // Build filter options from discovered filters
+    const filterOptions: RaritySourceOption[] = [
+      ...onlineFilters.map((filter) => ({
+        value: `filter:${filter.id}`,
+        label: filter.name,
+        outdated: filter.isOutdated,
+      })),
+      ...localFilters.map((filter) => ({
+        value: `filter:${filter.id}`,
+        label: filter.name,
+        outdated: filter.isOutdated,
+      })),
+    ];
 
-    if (localFilters.length > 0) {
-      result.push({
-        label: "Local Filters",
-        options: localFilters.map((filter) => ({
-          value: `filter:${filter.id}`,
-          label: filter.name,
-          outdated: filter.isOutdated,
-        })),
-      });
-    }
+    // Always show the Loot Filters group — with a scan action when
+    // filters haven't been scanned yet or need to be rescanned.
+    const needsScan = !lastScannedAt && !isScanning;
+    result.push({
+      label: "Loot Filters",
+      options: filterOptions,
+      action: needsScan
+        ? {
+            label: "Scan for filters",
+            onClick: scanFilters,
+            icon: <FiRefreshCw className="w-3 h-3" />,
+          }
+        : isScanning
+          ? {
+              label: "Scanning...",
+              onClick: () => {},
+              loading: true,
+              loadingLabel: "Scanning...",
+            }
+          : filterOptions.length === 0
+            ? {
+                label: "Rescan filters",
+                onClick: scanFilters,
+                icon: <FiRefreshCw className="w-3 h-3" />,
+              }
+            : undefined,
+    });
 
     return result;
-  }, [onlineFilters, localFilters]);
+  }, [onlineFilters, localFilters, lastScannedAt, isScanning, scanFilters]);
 
   return (
     <Flex className="gap-2 items-center">
@@ -173,7 +183,7 @@ const CurrentSessionActions = () => {
           value={dropdownValue}
           onChange={handleDropdownChange}
           groups={groups}
-          disabled={isActive || isScanning}
+          disabled={isActive}
           width="w-48"
         />
       </div>

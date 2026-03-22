@@ -54,7 +54,7 @@ const mockSetSearchQuery = vi.fn();
 const mockSetRarityFilter = vi.fn();
 const mockSetIncludeBossCards = vi.fn();
 const mockLoadCards = vi.fn().mockResolvedValue(undefined);
-const mockScanFilters = vi.fn();
+const mockScanFilters = vi.fn().mockResolvedValue(undefined);
 const mockSelectFilter = vi.fn().mockResolvedValue(undefined);
 const mockClearSelectedFilter = vi.fn().mockResolvedValue(undefined);
 const mockUpdateSetting = vi.fn().mockResolvedValue(undefined);
@@ -89,7 +89,7 @@ function setupStore(
     rarityInsights: {
       availableFilters: overrides.availableFilters ?? [{ id: "f1" }],
       isScanning: overrides.isScanning ?? false,
-      lastScannedAt: overrides.lastScannedAt ?? null,
+      lastScannedAt: overrides.lastScannedAt ?? new Date().toISOString(),
       scanFilters: mockScanFilters,
       selectFilter: mockSelectFilter,
       clearSelectedFilter: mockClearSelectedFilter,
@@ -280,46 +280,14 @@ describe("CardsActions", () => {
   });
 
   describe("filter scanning", () => {
-    it("scans filters on mount when no filters are available", () => {
-      setupStore({ availableFilters: [] });
-      renderWithProviders(<CardsActions />);
-
-      expect(mockScanFilters).toHaveBeenCalledTimes(1);
-    });
-
-    it("does not scan filters on mount when filters already exist", () => {
-      setupStore({ availableFilters: [{ id: "f1" }] });
-      renderWithProviders(<CardsActions />);
-
-      expect(mockScanFilters).not.toHaveBeenCalled();
-    });
-
-    it("does not scan filters when already scanning", () => {
-      setupStore({ availableFilters: [], isScanning: true });
-      renderWithProviders(<CardsActions />);
-
-      expect(mockScanFilters).not.toHaveBeenCalled();
-    });
-
-    it("does not re-scan when scan already completed with zero results", () => {
-      setupStore({
-        availableFilters: [],
-        isScanning: false,
-        lastScannedAt: "2025-01-01T00:00:00.000Z",
-      });
-      renderWithProviders(<CardsActions />);
-
-      expect(mockScanFilters).not.toHaveBeenCalled();
-    });
-
-    it("disables rarity source select while scanning", () => {
+    it("keeps rarity source select enabled while scanning", () => {
       setupStore({ isScanning: true });
       renderWithProviders(<CardsActions />);
 
-      expect(screen.getByTestId("rarity-source-select")).toBeDisabled();
+      expect(screen.getByTestId("rarity-source-select")).not.toBeDisabled();
     });
 
-    it("enables rarity source select when not scanning", () => {
+    it("keeps rarity source select enabled when not scanning", () => {
       setupStore({ isScanning: false });
       renderWithProviders(<CardsActions />);
 

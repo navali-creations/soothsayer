@@ -20,7 +20,6 @@ const FilterSettingsCard = () => {
       isScanning,
       isParsing,
       scanError,
-      lastScannedAt,
       scanFilters,
       selectFilter,
       clearSelectedFilter,
@@ -32,17 +31,6 @@ const FilterSettingsCard = () => {
 
   const localFilters = getLocalFilters();
   const onlineFilters = getOnlineFilters();
-
-  // Scan filters on mount if none have ever been loaded.
-  // The `lastScannedAt` guard prevents an infinite loop: when the filesystem
-  // has zero filters (e.g. CI / Linux), the scan returns an empty array so
-  // `availableFilters.length` stays 0 and `isScanning` flips back to false,
-  // which would re-trigger this effect endlessly without the guard.
-  useEffect(() => {
-    if (availableFilters.length === 0 && !isScanning && !lastScannedAt) {
-      scanFilters();
-    }
-  }, [availableFilters.length, isScanning, lastScannedAt, scanFilters]);
 
   // Fetch PL status on mount so the status block has data
   useEffect(() => {

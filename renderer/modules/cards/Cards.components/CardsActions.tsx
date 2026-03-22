@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useMemo } from "react";
+import { FiRefreshCw } from "react-icons/fi";
 import { GiCrownedSkull } from "react-icons/gi";
 
 import {
   type RaritySourceGroup,
+  type RaritySourceOption,
   RaritySourceSelect,
   Search,
 } from "~/renderer/components";
@@ -54,17 +56,6 @@ export const CardsActions = ({ onFilterChange }: CardsActionsProps) => {
 
   const localFilters = getLocalFilters();
   const onlineFilters = getOnlineFilters();
-
-  // Lazy scan: if no filters have ever been loaded, scan on mount.
-  // The `lastScannedAt` guard prevents an infinite loop: when the filesystem
-  // has zero filters (e.g. CI / Linux), the scan returns an empty array so
-  // `availableFilters.length` stays 0 and `isScanning` flips back to false,
-  // which would re-trigger this effect endlessly without the guard.
-  useEffect(() => {
-    if (availableFilters.length === 0 && !isScanning && !lastScannedAt) {
-      scanFilters();
-    }
-  }, [availableFilters.length, isScanning, lastScannedAt, scanFilters]);
 
   const handleDropdownChange = useCallback(
     async (value: string) => {
@@ -138,30 +129,50 @@ export const CardsActions = ({ onFilterChange }: CardsActionsProps) => {
       },
     ];
 
-    if (onlineFilters.length > 0) {
-      result.push({
-        label: "Online Filters",
-        options: onlineFilters.map((filter) => ({
-          value: `filter:${filter.id}`,
-          label: filter.name,
-          outdated: filter.isOutdated,
-        })),
-      });
-    }
+    // Build filter options from discovered filters
+    const filterOptions: RaritySourceOption[] = [
+      ...onlineFilters.map((filter) => ({
+        value: `filter:${filter.id}`,
+        label: filter.name,
+        outdated: filter.isOutdated,
+      })),
+      ...localFilters.map((filter) => ({
+        value: `filter:${filter.id}`,
+        label: filter.name,
+        outdated: filter.isOutdated,
+      })),
+    ];
 
-    if (localFilters.length > 0) {
-      result.push({
-        label: "Local Filters",
-        options: localFilters.map((filter) => ({
-          value: `filter:${filter.id}`,
-          label: filter.name,
-          outdated: filter.isOutdated,
-        })),
-      });
-    }
+    // Always show the Loot Filters group — with a scan action when
+    // filters haven't been scanned yet or need to be rescanned.
+    const needsScan = !lastScannedAt && !isScanning;
+    result.push({
+      label: "Loot Filters",
+      options: filterOptions,
+      action: needsScan
+        ? {
+            label: "Scan for filters",
+            onClick: scanFilters,
+            icon: <FiRefreshCw className="w-3 h-3" />,
+          }
+        : isScanning
+          ? {
+              label: "Scanning...",
+              onClick: () => {},
+              loading: true,
+              loadingLabel: "Scanning...",
+            }
+          : filterOptions.length === 0
+            ? {
+                label: "Rescan filters",
+                onClick: scanFilters,
+                icon: <FiRefreshCw className="w-3 h-3" />,
+              }
+            : undefined,
+    });
 
     return result;
-  }, [onlineFilters, localFilters]);
+  }, [onlineFilters, localFilters, lastScannedAt, isScanning, scanFilters]);
 
   return (
     <div className="flex flex-col gap-2">
@@ -172,7 +183,6 @@ export const CardsActions = ({ onFilterChange }: CardsActionsProps) => {
             value={dropdownValue}
             onChange={handleDropdownChange}
             groups={groups}
-            disabled={isScanning}
             width="w-50"
           />
         </div>

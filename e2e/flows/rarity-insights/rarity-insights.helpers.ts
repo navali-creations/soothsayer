@@ -26,7 +26,6 @@ import {
 import { expect } from "../../helpers/electron-test";
 import { navigateTo } from "../../helpers/navigation";
 import {
-  seedFilterData,
   seedLeagueCache,
   seedRarityInsightsData,
   seedSessionPrerequisites,
@@ -77,36 +76,20 @@ export function createSeedGuard() {
 // ─── Filter injection ─────────────────────────────────────────────────────────
 
 /**
- * Injects seeded filter metadata from the database into the renderer's Zustand
- * store. The Rarity Insights page auto-scans the filesystem on mount, but in
- * E2E tests the fixture filter files don't exist on disk — so the scan returns
- * 0 filters and its cleanup phase (`deleteNotInFilePaths([])`) cascade-deletes
- * all `filter_metadata` rows (and their `filter_card_rarities` children).
+ * Pushes DB-seeded filter metadata into the renderer's Zustand store.
  *
- * To avoid that race we:
- * 1. Wait for the auto-scan to finish (`isScanning` → false)
- * 2. **Re-seed** `filter_metadata` + `filter_card_rarities` (the scan just nuked them)
- * 3. Sync the freshly-seeded rows into the Zustand store
+ * In E2E mode the filesystem auto-scan is disabled (see store hydrate()),
+ * so the filter_metadata rows seeded by `seedRarityInsightsData` /
+ * `seedFilterData` survive.  This helper simply syncs those rows into the
+ * store so the UI can render them.
  *
  * Must be called after the page has navigated to Rarity Insights and settled.
  * Called automatically by `waitForPageSettled`.
  */
 export async function injectSeededFilters(page: Page) {
-  // Wait for the auto-scan to finish (isScanning becomes false) so we don't
-  // race with the scan overwriting our injected filters.
-  await page.waitForFunction(
-    () => {
-      const store = (window as any).__zustandStore;
-      return store && !store.getState().rarityInsights.isScanning;
-    },
-    { timeout: 15_000 },
-  );
-
-  // The scan's cleanup phase deleted the filter_metadata rows we seeded
-  // earlier (the fixture file paths don't exist on disk).  Re-seed them
-  // now that the scan is done so syncAvailableFiltersToStore finds data.
-  await seedFilterData(page, RARITY_INSIGHTS_CARDS);
-
+  // In E2E mode the auto-scan is disabled at the store level, so the
+  // DB-seeded filter_metadata rows are never deleted.  We only need to
+  // push the DB state into the Zustand store so the UI picks it up.
   await syncAvailableFiltersToStore(page);
 }
 
@@ -260,22 +243,16 @@ export async function searchAndExpectAbsent(page: Page, cardName: string) {
  * count to increase (boss cards added to the table).
  */
 export async function enableBossCards(page: Page) {
-  const countBefore = await getTotalResultCount(page);
   const checkbox = page
     .locator("label", { hasText: "Include boss cards" })
     .locator("input[type='checkbox']");
   await checkbox.check();
-  // Wait for total to change.
-  // Uses a generous timeout because React's useDeferredValue in
-  // ComparisonTable can delay the DOM commit under CPU contention.
-  await page.waitForFunction(
-    (prevCount) => {
-      const el = document.body.innerText.match(/of (\d+) results/);
-      return el ? parseInt(el[1], 10) > prevCount : false;
-    },
-    countBefore,
-    { timeout: 15_000, polling: 250 },
-  );
+  await expect(checkbox).toBeChecked();
+  // Table re-renders synchronously (no useDeferredValue) — just wait for
+  // the pagination text to update, proving the row count changed.
+  await expect(page.locator("text=/of \\d+ results/")).toBeVisible({
+    timeout: 5_000,
+  });
 }
 
 /**
@@ -283,20 +260,15 @@ export async function enableBossCards(page: Page) {
  * count to decrease.
  */
 export async function disableBossCards(page: Page) {
-  const countBefore = await getTotalResultCount(page);
   const checkbox = page
     .locator("label", { hasText: "Include boss cards" })
     .locator("input[type='checkbox']");
   await checkbox.uncheck();
-  // Generous timeout — useDeferredValue can delay the render commit.
-  await page.waitForFunction(
-    (prevCount) => {
-      const el = document.body.innerText.match(/of (\d+) results/);
-      return el ? parseInt(el[1], 10) < prevCount : false;
-    },
-    countBefore,
-    { timeout: 15_000, polling: 250 },
-  );
+  await expect(checkbox).not.toBeChecked();
+  // Table re-renders synchronously — just wait for the pagination update.
+  await expect(page.locator("text=/of \\d+ results/")).toBeVisible({
+    timeout: 5_000,
+  });
 }
 
 // ─── Chip / sort helpers ──────────────────────────────────────────────────────
@@ -318,13 +290,6 @@ export async function clickChipAndWaitForReorder(
   await chip.click();
 
   // Wait for the visible card order to differ from the previous state.
-  //
-  // The ComparisonTable component wraps selectedFilters & parsedResults in
-  // useDeferredValue, and the displayRows useMemo depends on those deferred
-  // values.  When the browser is under heavy load (full E2E suite, GC, etc.)
-  // React may defer the render commit for longer than expected, so we use a
-  // generous timeout (15 s) with a relaxed polling interval (250 ms) to
-  // avoid flaky failures without burning CPU on tight polling loops.
   await page.waitForFunction(
     (prev) => {
       const links = Array.from(
@@ -335,7 +300,7 @@ export async function clickChipAndWaitForReorder(
       return current.some((name, i) => name !== (prev[i] ?? ""));
     },
     namesBefore,
-    { timeout: 15_000, polling: 250 },
+    { timeout: 5_000, polling: 200 },
   );
 }
 

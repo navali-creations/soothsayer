@@ -149,15 +149,10 @@ test.describe("Rarity Insights — Interactions", () => {
 
   // ─── Scan & Filters ──────────────────────────────────────────────────────
 
-  test.describe("Scan & Filters", () => {
-    test("should show Scan and Filters buttons", async ({ page }) => {
+  test.describe("Filters", () => {
+    test("should show Filters button", async ({ page }) => {
       await goToRarityInsights(page);
       await waitForPageSettled(page);
-      const scanButton = page
-        .locator('[data-onboarding="rarity-insights-scan"] button')
-        .first();
-      await expect(scanButton).toBeVisible();
-      await expect(scanButton).toHaveText(/Scan/);
       await expect(
         page.locator("button", { hasText: "Filters" }),
       ).toBeVisible();
@@ -266,36 +261,26 @@ test.describe("Rarity Insights — Interactions", () => {
         return;
       }
 
-      // Read the total from pagination ("Showing X to Y of Z results")
-      // rather than counting visible <tr> rows, because the table is
-      // paginated at 20 and the first page may show 20 both before and after.
-      const beforeTotal = await getTotalResultCount(page);
+      // Read the total from the pagination footer before toggling diffs
+      const beforeCount = await getTotalResultCount(page);
 
       // Enable "Show differences only"
       await diffCheckbox.check();
       await expect(diffCheckbox).toBeChecked();
 
-      // Wait for the pagination total to change. The diff filter removes
-      // non-diff cards (like Humility, Carrion Crow) so the total decreases,
-      // but most built-in catalog cards (rarity 0) also differ from the
-      // filter default (4), so the change may be small.
-      //
-      // Generous timeout (15 s) because ComparisonTable wraps
-      // selectedFilters & parsedResults in useDeferredValue — under CPU
-      // contention React may defer the render commit well beyond 5 s.
+      // Wait for the pagination total to change (table re-renders
+      // synchronously now that useDeferredValue has been removed).
       await page.waitForFunction(
-        (prevTotal) => {
-          const text = document.body.innerText;
-          const match = text.match(/of (\d+) results/);
-          if (!match) return false;
-          return parseInt(match[1], 10) !== prevTotal;
+        (prev) => {
+          const el = document.body.innerText.match(/of (\d+) results/);
+          return el ? parseInt(el[1], 10) !== prev : false;
         },
-        beforeTotal,
-        { timeout: 15_000, polling: 250 },
+        beforeCount,
+        { timeout: 5_000 },
       );
 
-      const afterTotal = await getTotalResultCount(page);
-      expect(afterTotal).not.toBe(beforeTotal);
+      const afterCount = await getTotalResultCount(page);
+      expect(afterCount).not.toBe(beforeCount);
 
       // A known diff card (filter rarity ≠ poe.ninja rarity) should be visible
       await searchAndWaitForCard(page, A_DIFF_CARD_FILTER_1.name);
