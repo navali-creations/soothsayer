@@ -1,0 +1,58 @@
+import type { CellContext } from "@tanstack/react-table";
+import { useId } from "react";
+
+import CardNameLink from "~/renderer/components/CardNameLink/CardNameLink";
+import DivinationCard from "~/renderer/components/DivinationCard/DivinationCard";
+import { usePopover } from "~/renderer/hooks/usePopover/usePopover";
+import { useBoundStore } from "~/renderer/store";
+import type { CardEntry } from "~/types/data-stores";
+
+const CardNameCell = (cellProps: CellContext<CardEntry, string>) => {
+  const {
+    settings: { getActiveGameViewPriceSource },
+  } = useBoundStore();
+  const priceSource = getActiveGameViewPriceSource();
+  const popoverId = useId();
+
+  const priceInfo =
+    priceSource === "stash"
+      ? cellProps.row.original.stashPrice
+      : cellProps.row.original.exchangePrice;
+  const hidePrice = priceInfo?.hidePrice || false;
+
+  const { triggerRef, popoverRef } = usePopover({
+    placement: "right",
+    offset: 12,
+    scale: 0.75,
+  });
+
+  // Only show popover if divination card data exists
+  const hasCardData = !!cellProps.row.original.divinationCard;
+
+  return (
+    <>
+      <span
+        ref={hasCardData ? triggerRef : null}
+        className={hasCardData ? "cursor-help" : undefined}
+      >
+        <CardNameLink
+          cardName={cellProps.getValue()}
+          className={hidePrice ? "opacity-50 line-through" : undefined}
+        />
+      </span>
+
+      {hasCardData && (
+        <div
+          id={popoverId}
+          ref={popoverRef}
+          popover="manual"
+          className="p-0 border-0 bg-transparent"
+        >
+          <DivinationCard card={cellProps.row.original} />
+        </div>
+      )}
+    </>
+  );
+};
+
+export default CardNameCell;

@@ -1,6 +1,6 @@
 import { useBoundStore } from "~/renderer/store";
 
-import { OverlayDropsList } from "./OverlayDropsList";
+import { OverlayDropsList } from "./OverlayDropsList/OverlayDropsList";
 import { OverlayEmpty } from "./OverlayEmpty";
 
 export const OverlayContent = () => {

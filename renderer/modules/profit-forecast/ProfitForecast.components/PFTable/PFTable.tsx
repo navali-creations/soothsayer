@@ -5,7 +5,7 @@ import { Table } from "~/renderer/components";
 import { useBoundStore } from "~/renderer/store";
 import type { DivinationCardMetadata } from "~/types/data-stores";
 
-import type { CardForecastRow } from "../../ProfitForecast.slice";
+import type { CardForecastRow } from "../../ProfitForecast.slice/ProfitForecast.slice";
 import {
   createPFCardNameColumn,
   createPFChanceColumn,

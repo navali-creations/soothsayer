@@ -5,7 +5,7 @@ import { useBoundStore } from "~/renderer/store";
 import {
   type CardForecastRow,
   isAutoExcluded,
-} from "../../../ProfitForecast.slice";
+} from "../../../ProfitForecast.slice/ProfitForecast.slice";
 
 const PFExcludeCell = (cellProps: CellContext<CardForecastRow, unknown>) => {
   const {

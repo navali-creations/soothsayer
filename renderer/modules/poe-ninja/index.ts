@@ -3,4 +3,4 @@ export {
   createPoeNinjaSlice,
   type PoeNinjaSlice,
   type SnapshotInfo,
-} from "./PoeNinja.slice";
+} from "./PoeNinja.slice/PoeNinja.slice";

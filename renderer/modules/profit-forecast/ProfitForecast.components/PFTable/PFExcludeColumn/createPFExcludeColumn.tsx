@@ -3,7 +3,7 @@ import { FiEye } from "react-icons/fi";
 
 import { TableHeader } from "~/renderer/components";
 
-import type { CardForecastRow } from "../../../ProfitForecast.slice";
+import type { CardForecastRow } from "../../../ProfitForecast.slice/ProfitForecast.slice";
 import PFExcludeCell from "./PFExcludeCell";
 
 const columnHelper = createColumnHelper<CardForecastRow>();

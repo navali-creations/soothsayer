@@ -1,2 +1,5 @@
 export { default as OverlayPage } from "./Overlay.page";
-export { createOverlaySlice, type OverlaySlice } from "./Overlay.slice";
+export {
+  createOverlaySlice,
+  type OverlaySlice,
+} from "./Overlay.slice/Overlay.slice";

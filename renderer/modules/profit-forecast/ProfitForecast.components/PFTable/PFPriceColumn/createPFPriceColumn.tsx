@@ -1,6 +1,6 @@
 import { createColumnHelper } from "@tanstack/react-table";
 
-import type { CardForecastRow } from "../../../ProfitForecast.slice";
+import type { CardForecastRow } from "../../../ProfitForecast.slice/ProfitForecast.slice";
 import PFPriceCell from "./PFPriceCell";
 
 const columnHelper = createColumnHelper<CardForecastRow>();

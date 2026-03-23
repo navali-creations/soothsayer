@@ -3,7 +3,7 @@ import { FiEyeOff } from "react-icons/fi";
 
 import CardNameLink from "~/renderer/components/CardNameLink/CardNameLink";
 import DivinationCard from "~/renderer/components/DivinationCard/DivinationCard";
-import { usePopover } from "~/renderer/hooks/usePopover";
+import { usePopover } from "~/renderer/hooks/usePopover/usePopover";
 import type { DivinationCardMetadata } from "~/types/data-stores";
 
 interface PFCardNameCellProps {

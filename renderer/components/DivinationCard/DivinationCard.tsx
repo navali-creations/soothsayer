@@ -10,9 +10,9 @@ import { CardRewardFlavour } from "./components/card-content/CardRewardFlavour";
 import { CardStackSize } from "./components/card-content/CardStackSize";
 import { CARD_EFFECTS } from "./constants";
 import { RarityEffects } from "./effects/RarityEffects";
-import { useCardMouseEffects } from "./hooks/useCardMouseEffects";
+import { useCardMouseEffects } from "./hooks/useCardMouseEffects/useCardMouseEffects";
 import type { DivinationCardProps } from "./types";
-import { processRewardHtml } from "./utils/htmlProcessor";
+import { processRewardHtml } from "./utils/htmlProcessor/htmlProcessor";
 
 function DivinationCard({ card }: DivinationCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);

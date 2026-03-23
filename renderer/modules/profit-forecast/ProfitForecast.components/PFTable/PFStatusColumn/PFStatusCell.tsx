@@ -9,7 +9,7 @@ import {
 import {
   type CardForecastRow,
   isAutoExcluded,
-} from "../../../ProfitForecast.slice";
+} from "../../../ProfitForecast.slice/ProfitForecast.slice";
 
 const PFStatusCell = (_cellProps: CellContext<CardForecastRow, unknown>) => {
   const row = _cellProps.row.original;

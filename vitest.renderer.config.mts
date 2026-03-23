@@ -17,10 +17,7 @@ export default defineConfig({
     globals: true,
     environment: "jsdom",
     setupFiles: ["./renderer/__test-setup__/setup.ts"],
-    include: [
-      "renderer/**/__tests__/**/*.test.{ts,tsx}",
-      "renderer/**/*.test.{ts,tsx}",
-    ],
+    include: ["renderer/**/*.test.{ts,tsx}"],
     exclude: ["node_modules", "out", ".vite"],
     testTimeout: 10_000,
     pool: "forks",
@@ -44,7 +41,8 @@ export default defineConfig({
         "renderer/sanitize.ts",
       ],
       exclude: [
-        "renderer/**/__tests__/**",
+        "renderer/**/*.test.ts",
+        "renderer/**/*.test.tsx",
         "renderer/**/__test-setup__/**",
         "renderer/**/index.ts",
         "renderer/routeTree.gen.ts",

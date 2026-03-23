@@ -5,7 +5,7 @@ import { FiEye, FiEyeOff } from "react-icons/fi";
 
 import { DivinationCard, Table } from "~/renderer/components";
 import CardNameLink from "~/renderer/components/CardNameLink/CardNameLink";
-import { usePopover } from "~/renderer/hooks/usePopover";
+import { usePopover } from "~/renderer/hooks/usePopover/usePopover";
 import { useBoundStore } from "~/renderer/store";
 import { formatCurrency } from "~/renderer/utils";
 import type { CardEntry as GlobalCardEntry } from "~/types/data-stores";

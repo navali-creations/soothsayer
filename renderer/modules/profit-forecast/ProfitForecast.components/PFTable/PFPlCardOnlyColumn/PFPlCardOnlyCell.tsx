@@ -3,8 +3,8 @@ import clsx from "clsx";
 
 import { useBoundStore } from "~/renderer/store";
 
-import type { CardForecastRow } from "../../../ProfitForecast.slice";
-import { formatPnLDivine } from "../../../ProfitForecast.utils";
+import type { CardForecastRow } from "../../../ProfitForecast.slice/ProfitForecast.slice";
+import { formatPnLDivine } from "../../../ProfitForecast.utils/ProfitForecast.utils";
 
 const PFPlCardOnlyCell = (cellProps: CellContext<CardForecastRow, number>) => {
   const {

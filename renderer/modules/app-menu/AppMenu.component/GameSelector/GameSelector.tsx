@@ -1,4 +1,4 @@
-import GameSelectorTab from "./GameSelectorTab";
+import GameSelectorTab from "./GameSelectorTab/GameSelectorTab";
 
 const GameSelector = () => {
   return (

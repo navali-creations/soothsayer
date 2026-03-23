@@ -1,3 +1,3 @@
 export { default as GameInfoBeacon } from "./GameInfo.beacon";
 export * from "./GameInfo.components";
-export * from "./GameInfo.slice";
+export * from "./GameInfo.slice/GameInfo.slice";

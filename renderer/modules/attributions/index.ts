@@ -1,1 +1,1 @@
-export { default as AttributionsPage } from "./Attributions.page";
+export { default as AttributionsPage } from "./Attributions.page/Attributions.page";

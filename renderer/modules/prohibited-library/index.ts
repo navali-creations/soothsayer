@@ -1,4 +1,4 @@
 export {
   createProhibitedLibrarySlice,
   type ProhibitedLibrarySlice,
-} from "./ProhibitedLibrary.slice";
+} from "./ProhibitedLibrary.slice/ProhibitedLibrary.slice";

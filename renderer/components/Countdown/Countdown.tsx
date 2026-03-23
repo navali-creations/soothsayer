@@ -1,6 +1,6 @@
 import clsx from "clsx";
 
-import type { TickingTimerResult } from "~/renderer/hooks/useTickingTimer";
+import type { TickingTimerResult } from "~/renderer/hooks/useTickingTimer/useTickingTimer";
 
 type CountdownSize = "xs" | "sm" | "base" | "lg";
 type LabelPosition = "static" | "absolute";

@@ -3,7 +3,7 @@ import { useId, useMemo } from "react";
 import type { RelatedCardDTO } from "~/main/modules/card-details/CardDetails.dto";
 import DivinationCard from "~/renderer/components/DivinationCard/DivinationCard";
 import Link from "~/renderer/components/Link/Link";
-import { usePopover } from "~/renderer/hooks/usePopover";
+import { usePopover } from "~/renderer/hooks/usePopover/usePopover";
 import {
   cardNameToSlug,
   getRarityStyles,

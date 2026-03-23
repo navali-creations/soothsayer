@@ -38,83 +38,83 @@ import { immer } from "zustand/middleware/immer";
 import {
   type AppMenuSlice,
   createAppMenuSlice,
-} from "~/renderer/modules/app-menu/AppMenu.slice";
+} from "~/renderer/modules/app-menu/AppMenu.slice/AppMenu.slice";
 import {
   type CardDetailsSlice,
   createCardDetailsSlice,
-} from "~/renderer/modules/card-details/CardDetails.slice";
+} from "~/renderer/modules/card-details/CardDetails.slice/CardDetails.slice";
 import {
   type CardsSlice,
   createCardsSlice,
-} from "~/renderer/modules/cards/Cards.slice";
+} from "~/renderer/modules/cards/Cards.slice/Cards.slice";
 import {
   type ChangelogSlice,
   createChangelogSlice,
-} from "~/renderer/modules/changelog/Changelog.slice";
+} from "~/renderer/modules/changelog/Changelog.slice/Changelog.slice";
 import {
   createSessionSlice,
   type SessionSlice,
-} from "~/renderer/modules/current-session/CurrentSession.slice";
+} from "~/renderer/modules/current-session/CurrentSession.slice/CurrentSession.slice";
 import {
   createGameInfoSlice,
   type GameInfoSlice,
-} from "~/renderer/modules/game-info/GameInfo.slice";
+} from "~/renderer/modules/game-info/GameInfo.slice/GameInfo.slice";
 import {
   createOnboardingSlice,
   type OnboardingSlice,
-} from "~/renderer/modules/onboarding/Onboarding.slice";
+} from "~/renderer/modules/onboarding/Onboarding.slice/Onboarding.slice";
 import {
   createOverlaySlice,
   type OverlaySlice,
-} from "~/renderer/modules/overlay/Overlay.slice";
+} from "~/renderer/modules/overlay/Overlay.slice/Overlay.slice";
 import {
   createPoeNinjaSlice,
   type PoeNinjaSlice,
-} from "~/renderer/modules/poe-ninja/PoeNinja.slice";
+} from "~/renderer/modules/poe-ninja/PoeNinja.slice/PoeNinja.slice";
 import {
   createProfitForecastSlice,
   type ProfitForecastSlice,
-} from "~/renderer/modules/profit-forecast/ProfitForecast.slice";
+} from "~/renderer/modules/profit-forecast/ProfitForecast.slice/ProfitForecast.slice";
 import {
   createProhibitedLibrarySlice,
   type ProhibitedLibrarySlice,
-} from "~/renderer/modules/prohibited-library/ProhibitedLibrary.slice";
+} from "~/renderer/modules/prohibited-library/ProhibitedLibrary.slice/ProhibitedLibrary.slice";
 import {
   createRarityInsightsSlice,
   type RarityInsightsSlice,
-} from "~/renderer/modules/rarity-insights/RarityInsights.slice";
+} from "~/renderer/modules/rarity-insights/RarityInsights.slice/RarityInsights.slice";
 import {
   createRarityInsightsComparisonSlice,
   type RarityInsightsComparisonSlice,
-} from "~/renderer/modules/rarity-insights/RarityInsightsComparison.slice";
+} from "~/renderer/modules/rarity-insights/RarityInsightsComparison.slice/RarityInsightsComparison.slice";
 import {
   createSessionDetailsSlice,
   type SessionDetailsSlice,
-} from "~/renderer/modules/session-details/SessionDetails.slice";
+} from "~/renderer/modules/session-details/SessionDetails.slice/SessionDetails.slice";
 import {
   createSessionsSlice,
   type SessionsSlice,
-} from "~/renderer/modules/sessions/Sessions.slice";
+} from "~/renderer/modules/sessions/Sessions.slice/Sessions.slice";
 import {
   createSettingsSlice,
   type SettingsSlice,
-} from "~/renderer/modules/settings/Settings.slice";
+} from "~/renderer/modules/settings/Settings.slice/Settings.slice";
 import {
   createStorageSlice,
   type StorageSlice,
-} from "~/renderer/modules/settings/Storage.slice";
+} from "~/renderer/modules/settings/Storage.slice/Storage.slice";
 import {
   createSetupSlice,
   type SetupSlice,
-} from "~/renderer/modules/setup/Setup.slice";
+} from "~/renderer/modules/setup/Setup.slice/Setup.slice";
 import {
   createStatisticsSlice,
   type StatisticsSlice,
-} from "~/renderer/modules/statistics/Statistics.slice";
+} from "~/renderer/modules/statistics/Statistics.slice/Statistics.slice";
 import {
   createUpdaterSlice,
   type UpdaterSlice,
-} from "~/renderer/modules/updater/Updater.slice";
+} from "~/renderer/modules/updater/Updater.slice/Updater.slice";
 
 enableMapSet();
 

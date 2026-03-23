@@ -2,7 +2,7 @@ import { createColumnHelper } from "@tanstack/react-table";
 
 import type { DivinationCardMetadata } from "~/types/data-stores";
 
-import type { CardForecastRow } from "../../../ProfitForecast.slice";
+import type { CardForecastRow } from "../../../ProfitForecast.slice/ProfitForecast.slice";
 import PFCardNameCell from "./PFCardNameCell";
 
 const columnHelper = createColumnHelper<CardForecastRow>();

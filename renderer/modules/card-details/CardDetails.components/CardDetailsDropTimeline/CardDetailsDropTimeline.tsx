@@ -4,7 +4,7 @@ import { useBoundStore } from "~/renderer/store";
 import MainChart from "./MainChart";
 import OverviewChart from "./OverviewChart";
 import type { LeagueMarker } from "./types";
-import { useDropTimelineData } from "./useDropTimelineData";
+import { useDropTimelineData } from "./useDropTimelineData/useDropTimelineData";
 
 // ─── Main Component ────────────────────────────────────────────────────────
 

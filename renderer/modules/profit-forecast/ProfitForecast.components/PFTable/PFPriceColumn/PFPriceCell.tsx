@@ -1,7 +1,7 @@
 import type { CellContext } from "@tanstack/react-table";
 import clsx from "clsx";
 
-import type { CardForecastRow } from "../../../ProfitForecast.slice";
+import type { CardForecastRow } from "../../../ProfitForecast.slice/ProfitForecast.slice";
 
 const PFPriceCell = (cellProps: CellContext<CardForecastRow, number>) => {
   const row = cellProps.row.original;

@@ -42,7 +42,8 @@
     "vite.*.config.mts",
     "*.config.ts",
     "*.config.mts",
-    "renderer/**/__tests__/**",
+    "renderer/**/*.test.ts",
+    "renderer/**/*.test.tsx",
     "renderer/**/__test-setup__/**",
     "main/**/__tests__/**",
     "main/**/__test-setup__/**"

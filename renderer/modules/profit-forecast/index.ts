@@ -9,11 +9,11 @@ export {
   type ProfitForecastSlice,
   RATE_FLOOR,
   recomputeDynamicFields,
-} from "./ProfitForecast.slice";
+} from "./ProfitForecast.slice/ProfitForecast.slice";
 export {
   formatChaos,
   formatDivine,
   formatPercent,
   formatPnL,
   formatPnLDivine,
-} from "./ProfitForecast.utils";
+} from "./ProfitForecast.utils/ProfitForecast.utils";

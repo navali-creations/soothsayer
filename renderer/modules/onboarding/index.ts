@@ -1,6 +1,6 @@
 export {
   createOnboardingSlice,
   type OnboardingSlice,
-} from "./Onboarding.slice";
-export { OnboardingButton } from "./OnboardingButton";
-export { onboardingConfig } from "./onboarding-config";
+} from "./Onboarding.slice/Onboarding.slice";
+export { OnboardingButton } from "./OnboardingButton/OnboardingButton";
+export { onboardingConfig } from "./onboarding-config/onboarding-config";

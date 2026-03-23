@@ -6,55 +6,55 @@ import { immer } from "zustand/middleware/immer";
 import {
   type AppMenuSlice,
   createAppMenuSlice,
-} from "../modules/app-menu/AppMenu.slice";
+} from "../modules/app-menu/AppMenu.slice/AppMenu.slice";
 import {
   type CardDetailsSlice,
   createCardDetailsSlice,
-} from "../modules/card-details/CardDetails.slice";
+} from "../modules/card-details/CardDetails.slice/CardDetails.slice";
 import {
   type CardsSlice,
   createCardsSlice,
-} from "../modules/cards/Cards.slice";
+} from "../modules/cards/Cards.slice/Cards.slice";
 import {
   type ChangelogSlice,
   createChangelogSlice,
-} from "../modules/changelog/Changelog.slice";
+} from "../modules/changelog/Changelog.slice/Changelog.slice";
 import {
   createSessionSlice,
   type SessionSlice,
-} from "../modules/current-session/CurrentSession.slice";
+} from "../modules/current-session/CurrentSession.slice/CurrentSession.slice";
 import {
   createGameInfoSlice,
   type GameInfoSlice,
-} from "../modules/game-info/GameInfo.slice";
+} from "../modules/game-info/GameInfo.slice/GameInfo.slice";
 import {
   createOnboardingSlice,
   type OnboardingSlice,
-} from "../modules/onboarding/Onboarding.slice";
+} from "../modules/onboarding/Onboarding.slice/Onboarding.slice";
 import {
   createOverlaySlice,
   type OverlaySlice,
-} from "../modules/overlay/Overlay.slice";
+} from "../modules/overlay/Overlay.slice/Overlay.slice";
 import {
   createPoeNinjaSlice,
   type PoeNinjaSlice,
-} from "../modules/poe-ninja/PoeNinja.slice";
+} from "../modules/poe-ninja/PoeNinja.slice/PoeNinja.slice";
 import {
   createProfitForecastSlice,
   type ProfitForecastSlice,
-} from "../modules/profit-forecast/ProfitForecast.slice";
+} from "../modules/profit-forecast/ProfitForecast.slice/ProfitForecast.slice";
 import {
   createProhibitedLibrarySlice,
   type ProhibitedLibrarySlice,
-} from "../modules/prohibited-library/ProhibitedLibrary.slice";
+} from "../modules/prohibited-library/ProhibitedLibrary.slice/ProhibitedLibrary.slice";
 import {
   createRarityInsightsSlice,
   type RarityInsightsSlice,
-} from "../modules/rarity-insights/RarityInsights.slice";
+} from "../modules/rarity-insights/RarityInsights.slice/RarityInsights.slice";
 import {
   createRarityInsightsComparisonSlice,
   type RarityInsightsComparisonSlice,
-} from "../modules/rarity-insights/RarityInsightsComparison.slice";
+} from "../modules/rarity-insights/RarityInsightsComparison.slice/RarityInsightsComparison.slice";
 import {
   createSessionDetailsSlice,
   type SessionDetailsSlice,
@@ -62,27 +62,27 @@ import {
 import {
   createSessionsSlice,
   type SessionsSlice,
-} from "../modules/sessions/Sessions.slice";
+} from "../modules/sessions/Sessions.slice/Sessions.slice";
 import {
   createSettingsSlice,
   type SettingsSlice,
-} from "../modules/settings/Settings.slice";
+} from "../modules/settings/Settings.slice/Settings.slice";
 import {
   createStorageSlice,
   type StorageSlice,
-} from "../modules/settings/Storage.slice";
+} from "../modules/settings/Storage.slice/Storage.slice";
 import {
   createSetupSlice,
   type SetupSlice,
-} from "../modules/setup/Setup.slice";
+} from "../modules/setup/Setup.slice/Setup.slice";
 import {
   createStatisticsSlice,
   type StatisticsSlice,
-} from "../modules/statistics/Statistics.slice";
+} from "../modules/statistics/Statistics.slice/Statistics.slice";
 import {
   createUpdaterSlice,
   type UpdaterSlice,
-} from "../modules/updater/Updater.slice";
+} from "../modules/updater/Updater.slice/Updater.slice";
 
 enableMapSet();
 
