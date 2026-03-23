@@ -82,7 +82,7 @@ jobs:
 
       - name: Setup pnpm
         if: "!startsWith(matrix.name, 'windows')"
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
 
       - name: Setup node.js
         if: "!startsWith(matrix.name, 'windows')"
