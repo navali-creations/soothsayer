@@ -112,7 +112,7 @@
     "vite": "^8.0.0",
     "vite-plugin-externalize-deps": "^0.10.0",
     "vitest": "^4.0.18",
-    "zustand": "^5.0.11"
+    "zustand": "^5.0.12"
   },
   "dependencies": {
     "better-sqlite3": "^12.6.2"
