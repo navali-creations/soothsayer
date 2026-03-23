@@ -518,5 +518,69 @@ describe("GameInfoSlice", () => {
         processName: "",
       });
     });
+
+    it("calls cleanup functions returned by onStart and onStop", () => {
+      const unsubStart = vi.fn();
+      const unsubStop = vi.fn();
+
+      electron.poeProcess.onStart.mockReturnValue(unsubStart);
+      electron.poeProcess.onStop.mockReturnValue(unsubStop);
+
+      const cleanup = store.getState().gameInfo.startListening();
+      cleanup();
+
+      expect(unsubStart).toHaveBeenCalledOnce();
+      expect(unsubStop).toHaveBeenCalledOnce();
+    });
+  });
+
+  // ── hydrate: Promise.all catch branch ────────────────────────────────
+
+  describe("hydrate background fetchLeagues failure", () => {
+    it("logs console.error when background fetchLeagues rejects", async () => {
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+
+      electron.poeProcess.getState.mockResolvedValue(null);
+      // Make fetchLeagues reject for both games
+      electron.poeLeagues.fetchLeagues.mockRejectedValue(
+        new Error("Edge function down"),
+      );
+
+      await store.getState().gameInfo.hydrate();
+
+      // Allow the background Promise.all to settle — each fetchLeagues call
+      // has its own try/catch that logs "Failed to fetch leagues for <game>:"
+      // before the outer Promise.all .catch can fire.
+      await vi.waitFor(() => {
+        expect(consoleSpy).toHaveBeenCalledWith(
+          "Failed to fetch leagues for poe1:",
+          expect.any(Error),
+        );
+        expect(consoleSpy).toHaveBeenCalledWith(
+          "Failed to fetch leagues for poe2:",
+          expect.any(Error),
+        );
+      });
+
+      consoleSpy.mockRestore();
+    });
+
+    it("does not throw when background fetchLeagues rejects", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+
+      electron.poeProcess.getState.mockResolvedValue(null);
+      electron.poeLeagues.fetchLeagues.mockRejectedValue(
+        new Error("Network error"),
+      );
+
+      // hydrate itself should not throw even if background fetch fails
+      await expect(
+        store.getState().gameInfo.hydrate(),
+      ).resolves.toBeUndefined();
+
+      vi.restoreAllMocks();
+    });
   });
 });

@@ -135,6 +135,25 @@ describe("AppMenuSlice", () => {
         "3.0.0",
       );
     });
+
+    it("skips version detection when getVersion() returns undefined", async () => {
+      electron.mainWindow.isMaximized.mockResolvedValue(false);
+      electron.app.getVersion.mockResolvedValue(undefined);
+
+      await store.getState().appMenu.hydrate();
+
+      // settings.set should never be called for lastSeenAppVersion
+      expect(electron.settings.set).not.toHaveBeenCalledWith(
+        "lastSeenAppVersion",
+        expect.anything(),
+      );
+      // settings.get should never be called for lastSeenAppVersion either
+      expect(electron.settings.get).not.toHaveBeenCalledWith(
+        "lastSeenAppVersion",
+      );
+      // isWhatsNewOpen should remain false (no version mismatch logic ran)
+      expect(store.getState().appMenu.isWhatsNewOpen).toBe(false);
+    });
   });
 
   // ── Window controls ──────────────────────────────────────────────────────
@@ -179,6 +198,19 @@ describe("AppMenuSlice", () => {
 
       expect(electron.mainWindow.unmaximize).toHaveBeenCalledTimes(1);
       expect(electron.mainWindow.isMaximized).toHaveBeenCalled();
+      expect(store.getState().appMenu.isMaximized).toBe(false);
+    });
+
+    it("defaults isMaximized to false when isMaximized() returns undefined", async () => {
+      // Start maximized so we can verify the fallback resets it
+      store.getState().appMenu.setIsMaximized(true);
+      expect(store.getState().appMenu.isMaximized).toBe(true);
+
+      electron.mainWindow.isMaximized.mockResolvedValue(undefined);
+
+      await store.getState().appMenu.unmaximize();
+
+      expect(electron.mainWindow.unmaximize).toHaveBeenCalledTimes(1);
       expect(store.getState().appMenu.isMaximized).toBe(false);
     });
   });

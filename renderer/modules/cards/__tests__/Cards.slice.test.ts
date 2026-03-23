@@ -595,6 +595,20 @@ describe("Cards.slice", () => {
       const stacks = filtered.map((c) => c.stackSize);
       expect(stacks).toEqual([4, 5, 6, 8, 8]);
     });
+
+    it("preserves original order when sortField is unrecognized", () => {
+      store.setState((s) => {
+        s.cards.sortField = "unknown" as any;
+      });
+      const filtered = store.getState().cards.getFilteredAndSortedCards();
+      const names = filtered.map((c) => c.name);
+      expect(names).toEqual([
+        "The Doctor",
+        "The Nurse",
+        "Rain of Chaos",
+        "Abandoned Wealth",
+      ]);
+    });
   });
 
   // ─── Pagination ─────────────────────────────────────────────────────

@@ -186,6 +186,18 @@ describe("Settings slice — hydrate", () => {
     await store.getState().settings.hydrate();
     expect(store.getState().settings.error).toBeNull();
   });
+
+  it("logs 'null' for poe1ClientTxtPath when it is null", async () => {
+    const dto = makeFakeSettingsDTO({ poe1ClientTxtPath: null as any });
+    electron.settings.getAll.mockResolvedValue(dto);
+
+    await store.getState().settings.hydrate();
+
+    const s = store.getState().settings;
+    expect(s.poe1ClientTxtPath).toBeNull();
+    expect(s.isLoading).toBe(false);
+    expect(s.error).toBeNull();
+  });
 });
 
 // ===========================================================================

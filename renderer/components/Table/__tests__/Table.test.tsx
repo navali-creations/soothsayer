@@ -988,3 +988,196 @@ describe("Table – edge cases", () => {
     expect(table).toHaveClass("bg-base-100");
   });
 });
+
+// ─── 14. CardCountCell ────────────────────────────────────────────────────
+
+import CardCountCell from "../cells/CardCountCell";
+
+describe("CardCountCell", () => {
+  const createMockCellProps = (value: number) =>
+    ({
+      getValue: () => value,
+      row: { original: { name: "Test Card", count: value } },
+    }) as any;
+
+  it("renders the count value inside a badge", () => {
+    renderWithProviders(<CardCountCell {...createMockCellProps(5)} />);
+
+    expect(screen.getByText("5")).toBeInTheDocument();
+  });
+
+  it("applies badge badge-soft classes", () => {
+    renderWithProviders(<CardCountCell {...createMockCellProps(12)} />);
+
+    const badge = screen.getByText("12");
+    expect(badge).toHaveClass("badge");
+    expect(badge).toHaveClass("badge-soft");
+  });
+
+  it("renders zero count", () => {
+    renderWithProviders(<CardCountCell {...createMockCellProps(0)} />);
+
+    expect(screen.getByText("0")).toBeInTheDocument();
+  });
+
+  it("renders large count values", () => {
+    renderWithProviders(<CardCountCell {...createMockCellProps(9999)} />);
+
+    expect(screen.getByText("9999")).toBeInTheDocument();
+  });
+});
+
+// ─── 15. CardRatioCell ────────────────────────────────────────────────────
+
+import CardRatioCell from "../cells/CardRatioCell";
+
+describe("CardRatioCell", () => {
+  const createMockCellProps = (value: number) =>
+    ({
+      getValue: () => value,
+      row: { original: { name: "Test Card", count: 5 } },
+    }) as any;
+
+  it("renders the ratio formatted to two decimal places with a percent sign", () => {
+    renderWithProviders(<CardRatioCell {...createMockCellProps(12.345)} />);
+
+    expect(screen.getByText("12.35%")).toBeInTheDocument();
+  });
+
+  it("applies badge badge-soft classes", () => {
+    renderWithProviders(<CardRatioCell {...createMockCellProps(50)} />);
+
+    const badge = screen.getByText("50.00%");
+    expect(badge).toHaveClass("badge");
+    expect(badge).toHaveClass("badge-soft");
+  });
+
+  it("renders zero ratio as 0.00%", () => {
+    renderWithProviders(<CardRatioCell {...createMockCellProps(0)} />);
+
+    expect(screen.getByText("0.00%")).toBeInTheDocument();
+  });
+
+  it("renders small fractional ratios correctly", () => {
+    renderWithProviders(<CardRatioCell {...createMockCellProps(0.1)} />);
+
+    expect(screen.getByText("0.10%")).toBeInTheDocument();
+  });
+
+  it("renders 100% ratio", () => {
+    renderWithProviders(<CardRatioCell {...createMockCellProps(100)} />);
+
+    expect(screen.getByText("100.00%")).toBeInTheDocument();
+  });
+});
+
+// ─── 16. createCardCountColumn ────────────────────────────────────────────
+
+import { createCardCountColumn } from "../columns/createCardCountColumn";
+
+describe("createCardCountColumn", () => {
+  it("creates a column with id 'count'", () => {
+    const column = createCardCountColumn();
+
+    expect(column.id).toBe("count");
+  });
+
+  it("renders header text 'Count'", () => {
+    const column = createCardCountColumn();
+    const Header = column.header as any;
+
+    renderWithProviders(<Header />);
+
+    expect(screen.getByText("Count")).toBeInTheDocument();
+  });
+});
+
+// ─── 17. createCardNameColumn ─────────────────────────────────────────────
+
+import { createCardNameColumn } from "../columns/createCardNameColumn";
+
+describe("createCardNameColumn", () => {
+  it("creates a column with id 'name'", () => {
+    const column = createCardNameColumn();
+
+    expect(column.id).toBe("name");
+  });
+
+  it("renders header text 'Card Name'", () => {
+    const column = createCardNameColumn();
+    const Header = column.header as any;
+
+    renderWithProviders(<Header />);
+
+    expect(screen.getByText("Card Name")).toBeInTheDocument();
+  });
+});
+
+// ─── 18. createCardRatioColumn ────────────────────────────────────────────
+
+import { createCardRatioColumn } from "../columns/createCardRatioColumn";
+
+describe("createCardRatioColumn", () => {
+  it("creates a column with id 'ratio'", () => {
+    const column = createCardRatioColumn(100);
+
+    expect(column.id).toBe("ratio");
+  });
+
+  it("renders header text 'Ratio'", () => {
+    const column = createCardRatioColumn(100);
+    const Header = column.header as any;
+
+    renderWithProviders(<Header />);
+
+    expect(screen.getByText("Ratio")).toBeInTheDocument();
+  });
+
+  it("renders header with a tooltip indicator", () => {
+    const column = createCardRatioColumn(100);
+    const Header = column.header as any;
+
+    renderWithProviders(<Header />);
+
+    const sup = document.querySelector("sup");
+    expect(sup).toBeInTheDocument();
+    expect(sup).toHaveTextContent("?");
+  });
+
+  it("renders header with tooltip data-tip attribute", () => {
+    const column = createCardRatioColumn(100);
+    const Header = column.header as any;
+
+    renderWithProviders(<Header />);
+
+    const tooltipEl = document.querySelector("[data-tip]");
+    expect(tooltipEl).toBeInTheDocument();
+    expect(tooltipEl?.getAttribute("data-tip")).toBe(
+      "How often you've found this card compared to all other cards",
+    );
+  });
+
+  it("has an accessorFn that computes (count / totalCount) * 100", () => {
+    const column = createCardRatioColumn(200);
+    const accessorFn = (column as any).accessorFn;
+
+    expect(accessorFn).toBeDefined();
+    expect(accessorFn({ name: "Test", count: 50 })).toBe(25);
+  });
+
+  it("returns 0 when totalCount is 0", () => {
+    const column = createCardRatioColumn(0);
+    const accessorFn = (column as any).accessorFn;
+
+    expect(accessorFn({ name: "Test", count: 10 })).toBe(0);
+  });
+
+  it("computes correct ratio for various counts", () => {
+    const column = createCardRatioColumn(400);
+    const accessorFn = (column as any).accessorFn;
+
+    expect(accessorFn({ name: "A", count: 4 })).toBe(1);
+    expect(accessorFn({ name: "B", count: 100 })).toBe(25);
+    expect(accessorFn({ name: "C", count: 400 })).toBe(100);
+  });
+});

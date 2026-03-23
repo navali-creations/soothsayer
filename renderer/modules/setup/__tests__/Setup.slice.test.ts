@@ -810,6 +810,52 @@ describe("advanceStep", () => {
       step_name: "telemetry",
     });
   });
+
+  it("does not track step-viewed event when nextStep does not match any tracked step", async () => {
+    const currentState = makeSetupState({
+      currentStep: 4,
+      selectedGames: ["poe1"],
+    });
+    // After advancing from step 4, the next state has isComplete=true and currentStep resets to 0
+    const nextState = makeSetupState({
+      currentStep: 0,
+      isComplete: true,
+      selectedGames: ["poe1"],
+    });
+
+    store.getState().setup.setSetupState(currentState);
+    electron.appSetup.advanceStep.mockResolvedValue({ success: true });
+    electron.appSetup.getSetupState.mockResolvedValue(nextState);
+
+    const result = await store.getState().setup.advanceStep();
+
+    expect(result).toBe(true);
+    expect(trackEvent).not.toHaveBeenCalledWith(
+      "setup-step-viewed-league",
+      expect.anything(),
+    );
+    expect(trackEvent).not.toHaveBeenCalledWith(
+      "setup-step-viewed-client-path",
+      expect.anything(),
+    );
+    expect(trackEvent).not.toHaveBeenCalledWith(
+      "setup-step-viewed-telemetry",
+      expect.anything(),
+    );
+  });
+
+  it("returns false and sets 'Unknown error' when a non-Error value is thrown", async () => {
+    const currentState = makeSetupState({ currentStep: 1 });
+
+    store.getState().setup.setSetupState(currentState);
+    electron.appSetup.advanceStep.mockRejectedValue("string error");
+
+    const result = await store.getState().setup.advanceStep();
+
+    expect(result).toBe(false);
+    expect(store.getState().setup.error).toBe("Unknown error");
+    expect(store.getState().setup.isLoading).toBe(false);
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -905,6 +951,18 @@ describe("goBack", () => {
     expect(store.getState().setup.isLoading).toBe(false);
   });
 
+  it("sets default error when goToStep returns failure with no error message", async () => {
+    const currentState = makeSetupState({ currentStep: 2 });
+
+    store.getState().setup.setSetupState(currentState);
+    electron.appSetup.goToStep.mockResolvedValue({ success: false });
+
+    await store.getState().setup.goBack();
+
+    expect(store.getState().setup.error).toBe("Failed to go back");
+    expect(store.getState().setup.isLoading).toBe(false);
+  });
+
   it("handles thrown errors", async () => {
     const currentState = makeSetupState({ currentStep: 2 });
 
@@ -914,6 +972,18 @@ describe("goBack", () => {
     await store.getState().setup.goBack();
 
     expect(store.getState().setup.error).toBe("IPC crashed");
+    expect(store.getState().setup.isLoading).toBe(false);
+  });
+
+  it("sets 'Unknown error' when a non-Error value is thrown", async () => {
+    const currentState = makeSetupState({ currentStep: 2 });
+
+    store.getState().setup.setSetupState(currentState);
+    electron.appSetup.goToStep.mockRejectedValue("string error");
+
+    await store.getState().setup.goBack();
+
+    expect(store.getState().setup.error).toBe("Unknown error");
     expect(store.getState().setup.isLoading).toBe(false);
   });
 });
@@ -1054,6 +1124,22 @@ describe("completeSetup", () => {
     expect(store.getState().setup.isLoading).toBe(false);
   });
 
+  it("returns false and sets default error when IPC failure has no error message", async () => {
+    const currentState = makeSetupState({
+      currentStep: 4,
+      selectedGames: ["poe1"],
+    });
+
+    store.getState().setup.setSetupState(currentState);
+    electron.appSetup.completeSetup.mockResolvedValue({ success: false });
+
+    const result = await store.getState().setup.completeSetup();
+
+    expect(result).toBe(false);
+    expect(store.getState().setup.error).toBe("Failed to complete setup");
+    expect(store.getState().setup.isLoading).toBe(false);
+  });
+
   it("returns false on thrown error", async () => {
     const currentState = makeSetupState({
       currentStep: 4,
@@ -1067,6 +1153,78 @@ describe("completeSetup", () => {
 
     expect(result).toBe(false);
     expect(store.getState().setup.error).toBe("Crash");
+  });
+
+  it("returns false and sets 'Unknown error' when a non-Error value is thrown", async () => {
+    const currentState = makeSetupState({
+      currentStep: 4,
+      selectedGames: ["poe1"],
+    });
+
+    store.getState().setup.setSetupState(currentState);
+    electron.appSetup.completeSetup.mockRejectedValue("string error");
+
+    const result = await store.getState().setup.completeSetup();
+
+    expect(result).toBe(false);
+    expect(store.getState().setup.error).toBe("Unknown error");
+    expect(store.getState().setup.isLoading).toBe(false);
+  });
+
+  it("uses empty selectedGames fallback when setupState is null", async () => {
+    // Do NOT set setupState — it stays null so `?.selectedGames || []` hits the fallback
+    electron.appSetup.completeSetup.mockResolvedValue({ success: true });
+    electron.appSetup.getSetupState.mockResolvedValue(
+      makeSetupState({ isComplete: true }),
+    );
+
+    const result = await store.getState().setup.completeSetup();
+
+    expect(result).toBe(true);
+    expect(trackEvent).toHaveBeenCalledWith(
+      "setup-step-completed-telemetry-final",
+      expect.objectContaining({
+        selectedGames: [],
+      }),
+    );
+    expect(trackEvent).toHaveBeenCalledWith(
+      "setup-completed",
+      expect.objectContaining({
+        selectedGames: [],
+        poe1League: undefined,
+        poe2League: undefined,
+      }),
+    );
+  });
+
+  it("sets poe1League to undefined when only poe2 is selected", async () => {
+    const currentState = makeSetupState({
+      currentStep: 4,
+      selectedGames: ["poe2"],
+      poe1League: "Standard",
+      poe2League: "Dawn",
+      telemetryCrashReporting: true,
+      telemetryUsageAnalytics: false,
+    });
+
+    store.getState().setup.setSetupState(currentState);
+    electron.appSetup.completeSetup.mockResolvedValue({ success: true });
+    electron.appSetup.getSetupState.mockResolvedValue(
+      makeSetupState({ isComplete: true }),
+    );
+
+    const result = await store.getState().setup.completeSetup();
+
+    expect(result).toBe(true);
+    expect(trackEvent).toHaveBeenCalledWith(
+      "setup-completed",
+      expect.objectContaining({
+        selectedGames: ["poe2"],
+        selection_type: "poe2_only",
+        poe1League: undefined,
+        poe2League: "Dawn",
+      }),
+    );
   });
 });
 
@@ -1172,6 +1330,35 @@ describe("skipSetup", () => {
     await store.getState().setup.skipSetup();
 
     expect(store.getState().setup.error).toBe("Skip failed");
+    expect(store.getState().setup.isLoading).toBe(false);
+  });
+
+  it("sets 'Unknown error' when a non-Error value is thrown", async () => {
+    store.getState().setup.setSetupState(makeSetupState({ currentStep: 1 }));
+    electron.appSetup.skipSetup.mockRejectedValue("string error");
+
+    await store.getState().setup.skipSetup();
+
+    expect(store.getState().setup.error).toBe("Unknown error");
+    expect(store.getState().setup.isLoading).toBe(false);
+  });
+
+  it("uses currentStep 0 fallback when setupState is null", async () => {
+    // Do NOT set setupState — it stays null so `?.currentStep ?? 0` hits the fallback
+    electron.appSetup.skipSetup.mockResolvedValue(undefined);
+    electron.appSetup.getSetupState.mockResolvedValue(
+      makeSetupState({ isComplete: true }),
+    );
+
+    await store.getState().setup.skipSetup();
+
+    expect(trackEvent).toHaveBeenCalledWith("setup-skipped", {
+      currentStep: 0,
+      stepName: "unknown",
+      reason: "user_skip",
+      completion_status: "skipped",
+    });
+    expect(electron.appSetup.skipSetup).toHaveBeenCalledTimes(1);
     expect(store.getState().setup.isLoading).toBe(false);
   });
 });

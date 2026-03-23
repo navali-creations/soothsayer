@@ -425,5 +425,39 @@ describe("UpdaterSlice", () => {
       expect(cleanupUpdate).toHaveBeenCalledOnce();
       expect(cleanupProgress).toHaveBeenCalledOnce();
     });
+
+    it("skips onUpdateAvailable when it is undefined", () => {
+      const originalOnUpdateAvailable = electron.updater.onUpdateAvailable;
+      (electron.updater as any).onUpdateAvailable = undefined;
+
+      const cleanup = store.getState().updater.startListening();
+
+      expect(originalOnUpdateAvailable).not.toHaveBeenCalled();
+      expect(electron.updater.onDownloadProgress).toHaveBeenCalledOnce();
+
+      expect(() => cleanup()).not.toThrow();
+    });
+
+    it("skips onDownloadProgress when it is undefined", () => {
+      const originalOnDownloadProgress = electron.updater.onDownloadProgress;
+      (electron.updater as any).onDownloadProgress = undefined;
+
+      const cleanup = store.getState().updater.startListening();
+
+      expect(electron.updater.onUpdateAvailable).toHaveBeenCalledOnce();
+      expect(originalOnDownloadProgress).not.toHaveBeenCalled();
+
+      expect(() => cleanup()).not.toThrow();
+    });
+
+    it("handles both onUpdateAvailable and onDownloadProgress being undefined", () => {
+      (electron.updater as any).onUpdateAvailable = undefined;
+      (electron.updater as any).onDownloadProgress = undefined;
+
+      const cleanup = store.getState().updater.startListening();
+
+      expect(typeof cleanup).toBe("function");
+      expect(() => cleanup()).not.toThrow();
+    });
   });
 });

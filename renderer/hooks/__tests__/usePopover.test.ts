@@ -287,6 +287,684 @@ describe("usePopover", () => {
     });
   });
 
+  // ─── 11. Placement and positioning ────────────────────────────────────────
+
+  describe("placement and positioning", () => {
+    let rafSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      rafSpy = vi
+        .spyOn(window, "requestAnimationFrame")
+        .mockImplementation((cb) => {
+          cb(0);
+          return 0;
+        });
+    });
+
+    afterEach(() => {
+      rafSpy.mockRestore();
+    });
+
+    function mockRects(
+      trigger: HTMLElement,
+      popover: HTMLElement,
+      triggerRect: Partial<DOMRect> = {},
+      popoverRect: Partial<DOMRect> = {},
+    ) {
+      trigger.getBoundingClientRect = vi.fn(
+        () =>
+          ({
+            top: 100,
+            bottom: 130,
+            left: 50,
+            right: 120,
+            width: 70,
+            height: 30,
+            x: 50,
+            y: 100,
+            toJSON: vi.fn(),
+            ...triggerRect,
+          }) as DOMRect,
+      );
+      popover.getBoundingClientRect = vi.fn(
+        () =>
+          ({
+            top: 0,
+            bottom: 40,
+            left: 0,
+            right: 80,
+            width: 80,
+            height: 40,
+            x: 0,
+            y: 0,
+            toJSON: vi.fn(),
+            ...popoverRect,
+          }) as DOMRect,
+      );
+    }
+
+    it("positions popover to the right of the trigger (default placement)", () => {
+      const { trigger, popover, showSpy } = renderWithMocks({
+        placement: "right",
+        offset: 8,
+      });
+      mockRects(trigger, popover);
+
+      fireEvent.mouseEnter(trigger);
+      act(() => {
+        vi.advanceTimersByTime(0);
+      });
+
+      expect(showSpy).toHaveBeenCalledTimes(1);
+      expect(popover.style.position).toBe("fixed");
+      // right placement: left = triggerRect.right + offset = 120 + 8 = 128
+      expect(popover.style.left).toBe("128px");
+      // right placement: top = triggerRect.top + (triggerHeight - popoverHeight) / 2 = 100 + (30 - 40) / 2 = 95
+      expect(popover.style.top).toBe("95px");
+    });
+
+    it("positions popover to the left of the trigger", () => {
+      const { trigger, popover, showSpy } = renderWithMocks({
+        placement: "left",
+        offset: 8,
+      });
+      mockRects(trigger, popover);
+
+      fireEvent.mouseEnter(trigger);
+      act(() => {
+        vi.advanceTimersByTime(0);
+      });
+
+      expect(showSpy).toHaveBeenCalledTimes(1);
+      expect(popover.style.position).toBe("fixed");
+      // left placement: left = triggerRect.left - popoverWidth - offset = 50 - 80 - 8 = -38 → clamped to 8
+      expect(popover.style.left).toBe("8px");
+      // left placement: top = triggerRect.top + (triggerHeight - popoverHeight) / 2 = 100 + (30 - 40) / 2 = 95
+      expect(popover.style.top).toBe("95px");
+    });
+
+    it("positions popover above the trigger", () => {
+      const { trigger, popover, showSpy } = renderWithMocks({
+        placement: "top",
+        offset: 8,
+      });
+      mockRects(trigger, popover);
+
+      fireEvent.mouseEnter(trigger);
+      act(() => {
+        vi.advanceTimersByTime(0);
+      });
+
+      expect(showSpy).toHaveBeenCalledTimes(1);
+      expect(popover.style.position).toBe("fixed");
+      // top placement: top = triggerRect.top - popoverHeight - offset = 100 - 40 - 8 = 52
+      expect(popover.style.top).toBe("52px");
+      // top placement: left = triggerRect.left + (triggerWidth - popoverWidth) / 2 = 50 + (70 - 80) / 2 = 45
+      expect(popover.style.left).toBe("45px");
+    });
+
+    it("positions popover below the trigger", () => {
+      const { trigger, popover, showSpy } = renderWithMocks({
+        placement: "bottom",
+        offset: 8,
+      });
+      mockRects(trigger, popover);
+
+      fireEvent.mouseEnter(trigger);
+      act(() => {
+        vi.advanceTimersByTime(0);
+      });
+
+      expect(showSpy).toHaveBeenCalledTimes(1);
+      expect(popover.style.position).toBe("fixed");
+      // bottom placement: top = triggerRect.bottom + offset = 130 + 8 = 138
+      expect(popover.style.top).toBe("138px");
+      // bottom placement: left = triggerRect.left + (triggerWidth - popoverWidth) / 2 = 50 + (70 - 80) / 2 = 45
+      expect(popover.style.left).toBe("45px");
+    });
+
+    it("sets margin to 0 on positioned popover", () => {
+      const { trigger, popover } = renderWithMocks();
+      mockRects(trigger, popover);
+
+      fireEvent.mouseEnter(trigger);
+      act(() => {
+        vi.advanceTimersByTime(0);
+      });
+
+      expect(popover.style.margin).toBe("0px");
+    });
+  });
+
+  // ─── 12. Scale transform ──────────────────────────────────────────────────
+
+  describe("scale transform", () => {
+    let rafSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      rafSpy = vi
+        .spyOn(window, "requestAnimationFrame")
+        .mockImplementation((cb) => {
+          cb(0);
+          return 0;
+        });
+    });
+
+    afterEach(() => {
+      rafSpy.mockRestore();
+    });
+
+    it("applies CSS scale transform when scale is not 1", () => {
+      const { trigger, popover } = renderWithMocks({
+        placement: "right",
+        scale: 0.5,
+      });
+
+      trigger.getBoundingClientRect = vi.fn(
+        () =>
+          ({
+            top: 100,
+            bottom: 130,
+            left: 50,
+            right: 120,
+            width: 70,
+            height: 30,
+            x: 50,
+            y: 100,
+            toJSON: vi.fn(),
+          }) as DOMRect,
+      );
+      popover.getBoundingClientRect = vi.fn(
+        () =>
+          ({
+            top: 0,
+            bottom: 20,
+            left: 0,
+            right: 40,
+            width: 40,
+            height: 20,
+            x: 0,
+            y: 0,
+            toJSON: vi.fn(),
+          }) as DOMRect,
+      );
+
+      fireEvent.mouseEnter(trigger);
+      act(() => {
+        vi.advanceTimersByTime(0);
+      });
+
+      expect(popover.style.transform).toBe("scale(0.5)");
+    });
+
+    it('sets transformOrigin to "center left" for right placement', () => {
+      const { trigger, popover } = renderWithMocks({
+        placement: "right",
+        scale: 0.5,
+      });
+
+      trigger.getBoundingClientRect = vi.fn(
+        () =>
+          ({
+            top: 100,
+            bottom: 130,
+            left: 50,
+            right: 120,
+            width: 70,
+            height: 30,
+            x: 50,
+            y: 100,
+            toJSON: vi.fn(),
+          }) as DOMRect,
+      );
+      popover.getBoundingClientRect = vi.fn(
+        () =>
+          ({
+            top: 0,
+            bottom: 20,
+            left: 0,
+            right: 40,
+            width: 40,
+            height: 20,
+            x: 0,
+            y: 0,
+            toJSON: vi.fn(),
+          }) as DOMRect,
+      );
+
+      fireEvent.mouseEnter(trigger);
+      act(() => {
+        vi.advanceTimersByTime(0);
+      });
+
+      expect(popover.style.transformOrigin).toBe("center left");
+    });
+
+    it('sets transformOrigin to "center right" for left placement', () => {
+      const { trigger, popover } = renderWithMocks({
+        placement: "left",
+        scale: 0.75,
+      });
+
+      trigger.getBoundingClientRect = vi.fn(
+        () =>
+          ({
+            top: 200,
+            bottom: 230,
+            left: 300,
+            right: 370,
+            width: 70,
+            height: 30,
+            x: 300,
+            y: 200,
+            toJSON: vi.fn(),
+          }) as DOMRect,
+      );
+      popover.getBoundingClientRect = vi.fn(
+        () =>
+          ({
+            top: 0,
+            bottom: 30,
+            left: 0,
+            right: 60,
+            width: 60,
+            height: 30,
+            x: 0,
+            y: 0,
+            toJSON: vi.fn(),
+          }) as DOMRect,
+      );
+
+      fireEvent.mouseEnter(trigger);
+      act(() => {
+        vi.advanceTimersByTime(0);
+      });
+
+      expect(popover.style.transform).toBe("scale(0.75)");
+      expect(popover.style.transformOrigin).toBe("center right");
+    });
+
+    it('sets transformOrigin to "bottom center" for top placement', () => {
+      const { trigger, popover } = renderWithMocks({
+        placement: "top",
+        scale: 0.5,
+      });
+
+      trigger.getBoundingClientRect = vi.fn(
+        () =>
+          ({
+            top: 200,
+            bottom: 230,
+            left: 300,
+            right: 370,
+            width: 70,
+            height: 30,
+            x: 300,
+            y: 200,
+            toJSON: vi.fn(),
+          }) as DOMRect,
+      );
+      popover.getBoundingClientRect = vi.fn(
+        () =>
+          ({
+            top: 0,
+            bottom: 20,
+            left: 0,
+            right: 40,
+            width: 40,
+            height: 20,
+            x: 0,
+            y: 0,
+            toJSON: vi.fn(),
+          }) as DOMRect,
+      );
+
+      fireEvent.mouseEnter(trigger);
+      act(() => {
+        vi.advanceTimersByTime(0);
+      });
+
+      expect(popover.style.transformOrigin).toBe("bottom center");
+    });
+
+    it('sets transformOrigin to "top center" for bottom placement', () => {
+      const { trigger, popover } = renderWithMocks({
+        placement: "bottom",
+        scale: 0.5,
+      });
+
+      trigger.getBoundingClientRect = vi.fn(
+        () =>
+          ({
+            top: 200,
+            bottom: 230,
+            left: 300,
+            right: 370,
+            width: 70,
+            height: 30,
+            x: 300,
+            y: 200,
+            toJSON: vi.fn(),
+          }) as DOMRect,
+      );
+      popover.getBoundingClientRect = vi.fn(
+        () =>
+          ({
+            top: 0,
+            bottom: 20,
+            left: 0,
+            right: 40,
+            width: 40,
+            height: 20,
+            x: 0,
+            y: 0,
+            toJSON: vi.fn(),
+          }) as DOMRect,
+      );
+
+      fireEvent.mouseEnter(trigger);
+      act(() => {
+        vi.advanceTimersByTime(0);
+      });
+
+      expect(popover.style.transformOrigin).toBe("top center");
+    });
+
+    it("does not set transform when scale is 1 (default)", () => {
+      const { trigger, popover } = renderWithMocks({
+        placement: "right",
+      });
+
+      trigger.getBoundingClientRect = vi.fn(
+        () =>
+          ({
+            top: 100,
+            bottom: 130,
+            left: 50,
+            right: 120,
+            width: 70,
+            height: 30,
+            x: 50,
+            y: 100,
+            toJSON: vi.fn(),
+          }) as DOMRect,
+      );
+      popover.getBoundingClientRect = vi.fn(
+        () =>
+          ({
+            top: 0,
+            bottom: 40,
+            left: 0,
+            right: 80,
+            width: 80,
+            height: 40,
+            x: 0,
+            y: 0,
+            toJSON: vi.fn(),
+          }) as DOMRect,
+      );
+
+      fireEvent.mouseEnter(trigger);
+      act(() => {
+        vi.advanceTimersByTime(0);
+      });
+
+      expect(popover.style.transform).toBe("");
+    });
+
+    it("accounts for scale when calculating unscaled dimensions", () => {
+      const { trigger, popover } = renderWithMocks({
+        placement: "right",
+        offset: 8,
+        scale: 0.5,
+      });
+
+      trigger.getBoundingClientRect = vi.fn(
+        () =>
+          ({
+            top: 100,
+            bottom: 130,
+            left: 50,
+            right: 120,
+            width: 70,
+            height: 30,
+            x: 50,
+            y: 100,
+            toJSON: vi.fn(),
+          }) as DOMRect,
+      );
+      // At scale 0.5, the reported rect is half the unscaled size
+      // unscaledWidth = 40 / 0.5 = 80, unscaledHeight = 20 / 0.5 = 40
+      popover.getBoundingClientRect = vi.fn(
+        () =>
+          ({
+            top: 0,
+            bottom: 20,
+            left: 0,
+            right: 40,
+            width: 40,
+            height: 20,
+            x: 0,
+            y: 0,
+            toJSON: vi.fn(),
+          }) as DOMRect,
+      );
+
+      fireEvent.mouseEnter(trigger);
+      act(() => {
+        vi.advanceTimersByTime(0);
+      });
+
+      // right: left = triggerRect.right + offset = 120 + 8 = 128
+      expect(popover.style.left).toBe("128px");
+      // right: top = triggerRect.top + (triggerHeight - unscaledHeight) / 2 = 100 + (30 - 40) / 2 = 95
+      expect(popover.style.top).toBe("95px");
+    });
+  });
+
+  // ─── 13. Viewport clamping ────────────────────────────────────────────────
+
+  describe("viewport clamping", () => {
+    let rafSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      rafSpy = vi
+        .spyOn(window, "requestAnimationFrame")
+        .mockImplementation((cb) => {
+          cb(0);
+          return 0;
+        });
+    });
+
+    afterEach(() => {
+      rafSpy.mockRestore();
+    });
+
+    it("clamps top to padding (8px) when positioning would go above viewport", () => {
+      const { trigger, popover } = renderWithMocks({
+        placement: "top",
+        offset: 8,
+      });
+
+      // Trigger near the top of the viewport — popover would be positioned at negative top
+      trigger.getBoundingClientRect = vi.fn(
+        () =>
+          ({
+            top: 10,
+            bottom: 40,
+            left: 200,
+            right: 270,
+            width: 70,
+            height: 30,
+            x: 200,
+            y: 10,
+            toJSON: vi.fn(),
+          }) as DOMRect,
+      );
+      popover.getBoundingClientRect = vi.fn(
+        () =>
+          ({
+            top: 0,
+            bottom: 40,
+            left: 0,
+            right: 80,
+            width: 80,
+            height: 40,
+            x: 0,
+            y: 0,
+            toJSON: vi.fn(),
+          }) as DOMRect,
+      );
+
+      fireEvent.mouseEnter(trigger);
+      act(() => {
+        vi.advanceTimersByTime(0);
+      });
+
+      // top placement: top = 10 - 40 - 8 = -38 → clamped to 8
+      expect(popover.style.top).toBe("8px");
+    });
+
+    it("clamps left to padding (8px) when positioning would go left of viewport", () => {
+      const { trigger, popover } = renderWithMocks({
+        placement: "left",
+        offset: 8,
+      });
+
+      // Trigger near the left edge — popover would be positioned at negative left
+      trigger.getBoundingClientRect = vi.fn(
+        () =>
+          ({
+            top: 200,
+            bottom: 230,
+            left: 20,
+            right: 90,
+            width: 70,
+            height: 30,
+            x: 20,
+            y: 200,
+            toJSON: vi.fn(),
+          }) as DOMRect,
+      );
+      popover.getBoundingClientRect = vi.fn(
+        () =>
+          ({
+            top: 0,
+            bottom: 40,
+            left: 0,
+            right: 80,
+            width: 80,
+            height: 40,
+            x: 0,
+            y: 0,
+            toJSON: vi.fn(),
+          }) as DOMRect,
+      );
+
+      fireEvent.mouseEnter(trigger);
+      act(() => {
+        vi.advanceTimersByTime(0);
+      });
+
+      // left placement: left = 20 - 80 - 8 = -68 → clamped to 8
+      expect(popover.style.left).toBe("8px");
+    });
+
+    it("clamps bottom to viewport height minus padding", () => {
+      const { trigger, popover } = renderWithMocks({
+        placement: "bottom",
+        offset: 8,
+      });
+
+      // Trigger near the bottom of the viewport
+      // window.innerHeight defaults to 768 in jsdom
+      trigger.getBoundingClientRect = vi.fn(
+        () =>
+          ({
+            top: 740,
+            bottom: 770,
+            left: 200,
+            right: 270,
+            width: 70,
+            height: 30,
+            x: 200,
+            y: 740,
+            toJSON: vi.fn(),
+          }) as DOMRect,
+      );
+      popover.getBoundingClientRect = vi.fn(
+        () =>
+          ({
+            top: 0,
+            bottom: 40,
+            left: 0,
+            right: 80,
+            width: 80,
+            height: 40,
+            x: 0,
+            y: 0,
+            toJSON: vi.fn(),
+          }) as DOMRect,
+      );
+
+      fireEvent.mouseEnter(trigger);
+      act(() => {
+        vi.advanceTimersByTime(0);
+      });
+
+      // bottom placement: top = 770 + 8 = 778 → clamped to innerHeight - popoverHeight - 8 = 768 - 40 - 8 = 720
+      const maxTop = window.innerHeight - 40 - 8;
+      expect(popover.style.top).toBe(`${maxTop}px`);
+    });
+
+    it("clamps right to viewport width minus padding", () => {
+      const { trigger, popover } = renderWithMocks({
+        placement: "right",
+        offset: 8,
+      });
+
+      // Trigger near the right edge of the viewport
+      // window.innerWidth defaults to 1024 in jsdom
+      trigger.getBoundingClientRect = vi.fn(
+        () =>
+          ({
+            top: 200,
+            bottom: 230,
+            left: 960,
+            right: 1030,
+            width: 70,
+            height: 30,
+            x: 960,
+            y: 200,
+            toJSON: vi.fn(),
+          }) as DOMRect,
+      );
+      popover.getBoundingClientRect = vi.fn(
+        () =>
+          ({
+            top: 0,
+            bottom: 40,
+            left: 0,
+            right: 80,
+            width: 80,
+            height: 40,
+            x: 0,
+            y: 0,
+            toJSON: vi.fn(),
+          }) as DOMRect,
+      );
+
+      fireEvent.mouseEnter(trigger);
+      act(() => {
+        vi.advanceTimersByTime(0);
+      });
+
+      // right placement: left = 1030 + 8 = 1038 → clamped to innerWidth - popoverWidth - 8 = 1024 - 80 - 8 = 936
+      const maxLeft = window.innerWidth - 80 - 8;
+      expect(popover.style.left).toBe(`${maxLeft}px`);
+    });
+  });
+
   // ─── 8. Show delay ────────────────────────────────────────────────────────
 
   describe("show delay", () => {

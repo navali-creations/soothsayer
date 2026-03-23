@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ElectronMock } from "~/renderer/__test-setup__/electron-mock";
 import {
@@ -504,6 +504,82 @@ describe("startListening", () => {
     expect(typeof cleanup).toBe("function");
     // Should not throw when called
     cleanup();
+  });
+
+  it("calls setAutoRefreshActive when onAutoRefreshStarted fires", () => {
+    let startedCallback: ((info: any) => void) | undefined;
+
+    electron.snapshots.onAutoRefreshStarted.mockImplementation((cb: any) => {
+      startedCallback = cb;
+      return vi.fn();
+    });
+
+    const cleanup = store.getState().poeNinja.startListening();
+
+    // Fire the callback with auto-refresh info
+    startedCallback!({
+      game: "poe1",
+      league: "Settlers",
+      intervalHours: 4,
+    });
+
+    const info = store
+      .getState()
+      .poeNinja.getAutoRefreshInfo("poe1", "Settlers");
+    expect(info).toBeDefined();
+    expect(info!.isActive).toBe(true);
+    expect(info!.intervalHours).toBe(4);
+
+    cleanup();
+  });
+
+  it("calls setAutoRefreshInactive when onAutoRefreshStopped fires", () => {
+    let stoppedCallback: ((info: any) => void) | undefined;
+
+    electron.snapshots.onAutoRefreshStopped.mockImplementation((cb: any) => {
+      stoppedCallback = cb;
+      return vi.fn();
+    });
+
+    // Pre-set an active auto-refresh entry
+    store.getState().poeNinja.setAutoRefreshActive("poe1", "Settlers", 4);
+    expect(
+      store.getState().poeNinja.isAutoRefreshActive("poe1", "Settlers"),
+    ).toBe(true);
+
+    const cleanup = store.getState().poeNinja.startListening();
+
+    // Fire the stopped callback
+    stoppedCallback!({
+      game: "poe1",
+      league: "Settlers",
+    });
+
+    expect(
+      store.getState().poeNinja.isAutoRefreshActive("poe1", "Settlers"),
+    ).toBe(false);
+
+    cleanup();
+  });
+
+  it("calls all cleanup functions when the returned cleanup is invoked", () => {
+    const cleanupCreated = vi.fn();
+    const cleanupReused = vi.fn();
+    const cleanupStarted = vi.fn();
+    const cleanupStopped = vi.fn();
+
+    electron.snapshots.onSnapshotCreated.mockReturnValue(cleanupCreated);
+    electron.snapshots.onSnapshotReused.mockReturnValue(cleanupReused);
+    electron.snapshots.onAutoRefreshStarted.mockReturnValue(cleanupStarted);
+    electron.snapshots.onAutoRefreshStopped.mockReturnValue(cleanupStopped);
+
+    const cleanup = store.getState().poeNinja.startListening();
+    cleanup();
+
+    expect(cleanupCreated).toHaveBeenCalledOnce();
+    expect(cleanupReused).toHaveBeenCalledOnce();
+    expect(cleanupStarted).toHaveBeenCalledOnce();
+    expect(cleanupStopped).toHaveBeenCalledOnce();
   });
 });
 

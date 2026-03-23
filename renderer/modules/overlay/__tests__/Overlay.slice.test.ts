@@ -227,6 +227,14 @@ describe("OverlaySlice", () => {
         expect.objectContaining({ isVisible: true }),
       );
     });
+
+    it("defaults isVisible to false when IPC isVisible returns undefined", async () => {
+      electron.overlay.isVisible.mockResolvedValue(undefined);
+
+      await store.getState().overlay.toggle();
+
+      expect(store.getState().overlay.isVisible).toBe(false);
+    });
   });
 
   // ── setIsVisible ─────────────────────────────────────────────────────────
@@ -465,6 +473,78 @@ describe("OverlaySlice", () => {
 
       expect(store.getState().overlay.isLeftHalf).toBe(false);
     });
+
+    it("falls back screenX to 0 when window.screenX is undefined", () => {
+      // screenX=undefined → 0, outerWidth=250, screen.width=1920
+      // Center = 0 + 125 = 125 < 960 → left half
+      Object.defineProperty(window, "screenX", {
+        value: undefined,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(window, "outerWidth", {
+        value: 250,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(window, "screen", {
+        value: { width: 1920 },
+        writable: true,
+        configurable: true,
+      });
+
+      store.getState().overlay.detectZone();
+
+      expect(store.getState().overlay.isLeftHalf).toBe(true);
+    });
+
+    it("falls back outerWidth to 250 when window.outerWidth is undefined", () => {
+      // screenX=0, outerWidth=undefined → 250, screen.width=1920
+      // Center = 0 + 125 = 125 < 960 → left half
+      Object.defineProperty(window, "screenX", {
+        value: 0,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(window, "outerWidth", {
+        value: undefined,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(window, "screen", {
+        value: { width: 1920 },
+        writable: true,
+        configurable: true,
+      });
+
+      store.getState().overlay.detectZone();
+
+      expect(store.getState().overlay.isLeftHalf).toBe(true);
+    });
+
+    it("falls back screen.width to 1920 when window.screen.width is undefined", () => {
+      // screenX=0, outerWidth=250, screen.width=undefined → 1920
+      // Center = 0 + 125 = 125 < 960 → left half
+      Object.defineProperty(window, "screenX", {
+        value: 0,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(window, "outerWidth", {
+        value: 250,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(window, "screen", {
+        value: { width: undefined },
+        writable: true,
+        configurable: true,
+      });
+
+      store.getState().overlay.detectZone();
+
+      expect(store.getState().overlay.isLeftHalf).toBe(true);
+    });
   });
 
   // ── startListening ───────────────────────────────────────────────────────
@@ -500,7 +580,6 @@ describe("OverlaySlice", () => {
     });
 
     it("returns a no-op cleanup when onVisibilityChanged is not available", () => {
-      // Simulate missing API
       const original = electron.overlay.onVisibilityChanged;
       (electron.overlay as any).onVisibilityChanged = undefined;
 
@@ -512,6 +591,96 @@ describe("OverlaySlice", () => {
 
       // Restore
       electron.overlay.onVisibilityChanged = original;
+    });
+  });
+
+  // ── setPosition ────────────────────────────────────────────────────────
+
+  describe("setPosition", () => {
+    it("calls window.electron.overlay.setPosition with x and y", async () => {
+      await store.getState().overlay.setPosition(100, 200);
+
+      expect(electron.overlay.setPosition).toHaveBeenCalledOnce();
+      expect(electron.overlay.setPosition).toHaveBeenCalledWith(100, 200);
+    });
+
+    it("calls setPosition with zero coordinates", async () => {
+      await store.getState().overlay.setPosition(0, 0);
+
+      expect(electron.overlay.setPosition).toHaveBeenCalledWith(0, 0);
+    });
+
+    it("calls setPosition with negative coordinates", async () => {
+      await store.getState().overlay.setPosition(-50, -100);
+
+      expect(electron.overlay.setPosition).toHaveBeenCalledWith(-50, -100);
+    });
+  });
+
+  // ── setSize ──────────────────────────────────────────────────────────
+
+  describe("setSize", () => {
+    it("calls window.electron.overlay.setSize with width and height", async () => {
+      await store.getState().overlay.setSize(300, 400);
+
+      expect(electron.overlay.setSize).toHaveBeenCalledOnce();
+      expect(electron.overlay.setSize).toHaveBeenCalledWith(300, 400);
+    });
+
+    it("calls setSize with different dimensions", async () => {
+      await store.getState().overlay.setSize(1920, 1080);
+
+      expect(electron.overlay.setSize).toHaveBeenCalledWith(1920, 1080);
+    });
+  });
+
+  // ── detectZone catch/fallback branch ─────────────────────────────────
+
+  describe("detectZone fallback", () => {
+    it("sets isLeftHalf to false when window.screenX throws", () => {
+      // First set isLeftHalf to true so we can verify the fallback resets it
+      Object.defineProperty(window, "screenX", {
+        value: 0,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(window, "outerWidth", {
+        value: 100,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(window, "screen", {
+        value: { width: 1920 },
+        writable: true,
+        configurable: true,
+      });
+      store.getState().overlay.detectZone();
+      expect(store.getState().overlay.isLeftHalf).toBe(true);
+
+      // Now make screenX throw to trigger the catch branch
+      Object.defineProperty(window, "screenX", {
+        get() {
+          throw new Error("Cannot access screenX");
+        },
+        configurable: true,
+      });
+
+      store.getState().overlay.detectZone();
+
+      expect(store.getState().overlay.isLeftHalf).toBe(false);
+    });
+
+    it("sets isLeftHalf to false when window.screen throws", () => {
+      Object.defineProperty(window, "screen", {
+        get() {
+          throw new Error("Cannot access screen");
+        },
+        configurable: true,
+      });
+
+      store.getState().overlay.detectZone();
+
+      expect(store.getState().overlay.isLeftHalf).toBe(false);
     });
   });
 });

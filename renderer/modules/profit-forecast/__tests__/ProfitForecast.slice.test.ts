@@ -1929,5 +1929,56 @@ describe("ProfitForecastSlice (Zustand)", () => {
       expect(countAfter.anomalous).toBe(0);
       expect(countAfter.userOverridden).toBe(1);
     });
+
+    it("counts a low-confidence row under lowConfidence", async () => {
+      const totalWeight = 200;
+      const dto: ProfitForecastDataDTO = {
+        rows: [
+          makeRowDTO({
+            cardName: "Normal",
+            weight: 100,
+            fromBoss: false,
+            probability: 100 / totalWeight,
+            chaosValue: 100,
+            divineValue: 0.5,
+            evContribution: (100 / totalWeight) * 100,
+            hasPrice: true,
+            confidence: 1,
+            isAnomalous: false,
+            excludeFromEv: false,
+          }),
+          makeRowDTO({
+            cardName: "LowConf",
+            weight: 100,
+            fromBoss: false,
+            probability: 100 / totalWeight,
+            chaosValue: 200,
+            divineValue: 1,
+            evContribution: (100 / totalWeight) * 200,
+            hasPrice: true,
+            confidence: 3,
+            isAnomalous: false,
+            excludeFromEv: true,
+          }),
+        ],
+        totalWeight,
+        evPerDeck: (100 / totalWeight) * 100,
+        snapshotFetchedAt: "2025-01-15T12:00:00Z",
+        chaosToDivineRatio: 200,
+        stackedDeckChaosCost: 2.22,
+        baseRate: 90,
+        baseRateSource: "maxVolumeRate" as BaseRateSource,
+      };
+      electron.profitForecast.getData.mockResolvedValue(dto);
+      await store.getState().profitForecast.fetchData("poe1", "Settlers");
+
+      const count = store.getState().profitForecast.getExcludedCount();
+      expect(count).toEqual({
+        lowConfidence: 1,
+        anomalous: 0,
+        userOverridden: 0,
+        total: 1,
+      });
+    });
   });
 });

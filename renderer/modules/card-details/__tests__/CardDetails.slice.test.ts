@@ -1285,6 +1285,28 @@ describe("CardDetails.slice", () => {
         });
         expect(store.getState().cardDetails.getFullSetValue()).toBe(2.5);
       });
+
+      it("falls back to stackSize 1 when stackSize is undefined", () => {
+        store.setState((s) => {
+          s.cardDetails.card = makeCard({ stackSize: undefined }) as any;
+          s.cardDetails.priceHistory = makePriceHistory({
+            currentDivineRate: 0.5,
+          }) as any;
+        });
+        // stackSize ?? 1 → 1, so 1 × 0.5 = 0.5
+        expect(store.getState().cardDetails.getFullSetValue()).toBe(0.5);
+      });
+
+      it("falls back to stackSize 1 when stackSize is null", () => {
+        store.setState((s) => {
+          s.cardDetails.card = makeCard({ stackSize: null }) as any;
+          s.cardDetails.priceHistory = makePriceHistory({
+            currentDivineRate: 0.5,
+          }) as any;
+        });
+        // stackSize ?? 1 → 1, so 1 × 0.5 = 0.5
+        expect(store.getState().cardDetails.getFullSetValue()).toBe(0.5);
+      });
     });
 
     // ─── getFullSetChaosValue ────────────────────────────────────────
@@ -1348,6 +1370,30 @@ describe("CardDetails.slice", () => {
         });
         // 0.1 * 3 * (1/0.007) = 0.3 * 142.857 ≈ 42.857 → round = 43
         expect(store.getState().cardDetails.getFullSetChaosValue()).toBe(43);
+      });
+
+      it("falls back to stackSize 1 when stackSize is undefined", () => {
+        store.setState((s) => {
+          s.cardDetails.card = makeCard({ stackSize: undefined }) as any;
+          s.cardDetails.priceHistory = makePriceHistory({
+            currentDivineRate: 0.5,
+            chaosToDivineRatio: 0.005, // 1 divine = 200 chaos
+          }) as any;
+        });
+        // stackSize ?? 1 → 1, so 0.5 * 1 * (1/0.005) = 0.5 * 200 = 100
+        expect(store.getState().cardDetails.getFullSetChaosValue()).toBe(100);
+      });
+
+      it("falls back to stackSize 1 when stackSize is null", () => {
+        store.setState((s) => {
+          s.cardDetails.card = makeCard({ stackSize: null }) as any;
+          s.cardDetails.priceHistory = makePriceHistory({
+            currentDivineRate: 0.5,
+            chaosToDivineRatio: 0.005, // 1 divine = 200 chaos
+          }) as any;
+        });
+        // stackSize ?? 1 → 1, so 0.5 * 1 * (1/0.005) = 0.5 * 200 = 100
+        expect(store.getState().cardDetails.getFullSetChaosValue()).toBe(100);
       });
     });
 

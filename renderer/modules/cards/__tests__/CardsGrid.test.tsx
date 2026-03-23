@@ -20,7 +20,12 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("~/renderer/components/DivinationCard/DivinationCard", () => ({
   default: ({ card }: any) => (
-    <div data-testid={`card-${card.name}`}>{card.name}</div>
+    <div
+      data-testid={`card-${card.name}`}
+      data-rarity={card.divinationCard.rarity}
+    >
+      {card.name}
+    </div>
   ),
 }));
 
@@ -197,6 +202,74 @@ describe("CardsGrid", () => {
           to: "/cards/$cardSlug",
           params: expect.objectContaining({ cardSlug: expect.any(String) }),
         }),
+      );
+    });
+  });
+
+  describe("getEffectiveRarity / raritySource", () => {
+    it("uses filterRarity when raritySource is filter", () => {
+      setupStore({ raritySource: "filter" });
+      const cards = [
+        makeCard({ id: "1", name: "Test", rarity: 1, filterRarity: 5 }),
+      ];
+
+      renderWithProviders(<CardsGrid cards={cards} />);
+
+      expect(screen.getByTestId("card-Test")).toHaveAttribute(
+        "data-rarity",
+        "5",
+      );
+    });
+
+    it("falls back to rarity when filterRarity is null and raritySource is filter", () => {
+      setupStore({ raritySource: "filter" });
+      const cards = [
+        makeCard({ id: "1", name: "Test", rarity: 1, filterRarity: null }),
+      ];
+
+      renderWithProviders(<CardsGrid cards={cards} />);
+
+      expect(screen.getByTestId("card-Test")).toHaveAttribute(
+        "data-rarity",
+        "1",
+      );
+    });
+
+    it("uses prohibitedLibraryRarity when raritySource is prohibited-library", () => {
+      setupStore({ raritySource: "prohibited-library" });
+      const cards = [
+        makeCard({
+          id: "1",
+          name: "Test",
+          rarity: 1,
+          prohibitedLibraryRarity: 7,
+        }),
+      ];
+
+      renderWithProviders(<CardsGrid cards={cards} />);
+
+      expect(screen.getByTestId("card-Test")).toHaveAttribute(
+        "data-rarity",
+        "7",
+      );
+    });
+
+    it("falls back to rarity when prohibitedLibraryRarity is null", () => {
+      setupStore({ raritySource: "prohibited-library" });
+      const cards = [
+        makeCard({
+          id: "1",
+          name: "Test",
+          rarity: 1,
+          prohibitedLibraryRarity: null,
+        }),
+      ];
+
+      renderWithProviders(<CardsGrid cards={cards} />);
+
+      expect(screen.getByTestId("card-Test")).toHaveAttribute(
+        "data-rarity",
+        "1",
       );
     });
   });

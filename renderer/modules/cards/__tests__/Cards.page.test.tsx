@@ -216,4 +216,16 @@ describe("CardsPage", () => {
 
     expect(screen.getByTestId("page-content")).toBeInTheDocument();
   });
+
+  it("calls scrollTo when scrollToTop is triggered via onFilterChange", () => {
+    const scrollToSpy = vi.fn();
+    Element.prototype.scrollTo = scrollToSpy;
+
+    setupStore();
+    renderWithProviders(<CardsPage />);
+
+    screen.getByTestId("cards-actions").click();
+
+    expect(scrollToSpy).toHaveBeenCalled();
+  });
 });
