@@ -164,6 +164,24 @@ class AppService {
     });
   }
 
+  /**
+   * Handles GPU process crashes by relaunching the app.
+   * Chromium kills the entire browser process when the GPU process
+   * can't be recovered (`gpu_data_manager_impl_private.cc` LOG_FATAL).
+   * By catching `child-process-gone` we can gracefully relaunch instead.
+   */
+  public handleGpuProcessCrash() {
+    this.app.on(AppChannel.ChildProcessGone, (_event, details) => {
+      if (details.type === "GPU" && details.reason === "crashed") {
+        console.error(
+          `[GPU] GPU process crashed (exitCode: ${details.exitCode}). Relaunching...`,
+        );
+        this.app.relaunch();
+        this.app.exit(0);
+      }
+    });
+  }
+
   public quit() {
     this.app.quit();
   }

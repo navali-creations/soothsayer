@@ -742,6 +742,80 @@ describe("AppService", () => {
     });
   });
 
+  // ─── handleGpuProcessCrash ───────────────────────────────────────────────
+
+  describe("handleGpuProcessCrash", () => {
+    it("should register a child-process-gone event handler", () => {
+      mockAppOn.mockClear();
+      service.handleGpuProcessCrash();
+
+      expect(mockAppOn).toHaveBeenCalledWith(
+        AppChannel.ChildProcessGone,
+        expect.any(Function),
+      );
+    });
+
+    it("should relaunch and exit when GPU process crashes", () => {
+      mockAppOn.mockClear();
+      mockAppRelaunch.mockClear();
+      mockAppExit.mockClear();
+
+      service.handleGpuProcessCrash();
+
+      const handler = getAppEventHandler(AppChannel.ChildProcessGone);
+      handler({}, { type: "GPU", reason: "crashed", exitCode: 1 });
+
+      expect(mockAppRelaunch).toHaveBeenCalled();
+      expect(mockAppExit).toHaveBeenCalledWith(0);
+    });
+
+    it("should log an error message when GPU process crashes", () => {
+      mockAppOn.mockClear();
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+
+      service.handleGpuProcessCrash();
+
+      const handler = getAppEventHandler(AppChannel.ChildProcessGone);
+      handler({}, { type: "GPU", reason: "crashed", exitCode: 42 });
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[GPU] GPU process crashed (exitCode: 42). Relaunching...",
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it("should not relaunch when child process type is not GPU", () => {
+      mockAppOn.mockClear();
+      mockAppRelaunch.mockClear();
+      mockAppExit.mockClear();
+
+      service.handleGpuProcessCrash();
+
+      const handler = getAppEventHandler(AppChannel.ChildProcessGone);
+      handler({}, { type: "Utility", reason: "crashed", exitCode: 1 });
+
+      expect(mockAppRelaunch).not.toHaveBeenCalled();
+      expect(mockAppExit).not.toHaveBeenCalled();
+    });
+
+    it("should not relaunch when GPU process exits for a reason other than crashed", () => {
+      mockAppOn.mockClear();
+      mockAppRelaunch.mockClear();
+      mockAppExit.mockClear();
+
+      service.handleGpuProcessCrash();
+
+      const handler = getAppEventHandler(AppChannel.ChildProcessGone);
+      handler({}, { type: "GPU", reason: "killed", exitCode: 0 });
+
+      expect(mockAppRelaunch).not.toHaveBeenCalled();
+      expect(mockAppExit).not.toHaveBeenCalled();
+    });
+  });
+
   // ─── quit ────────────────────────────────────────────────────────────────
 
   describe("quit", () => {

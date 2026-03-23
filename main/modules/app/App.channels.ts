@@ -10,6 +10,7 @@ enum AppChannel {
   OpenAtLogin = "open-at-login",
   OpenAtLoginMinimized = "open-at-login-minimized",
   GetVersion = "app:get-version",
+  ChildProcessGone = "child-process-gone",
 }
 
 export { AppChannel };

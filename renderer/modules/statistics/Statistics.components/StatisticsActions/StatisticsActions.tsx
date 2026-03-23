@@ -91,12 +91,12 @@ export const StatisticsActions = ({
         debounceMs={300}
         placeholder="Search cards..."
         size="sm"
-        className="w-45"
+        className="w-40"
         data-testid="statistics-search"
       />
 
       <select
-        className="select select-sm"
+        className="select select-sm w-40"
         value={selectValue}
         onChange={handleScopeChange}
       >
