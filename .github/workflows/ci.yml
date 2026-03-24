@@ -324,26 +324,34 @@ jobs:
             exit 1
           fi
 
-          # Launch the app under Xvfb (headless display) and give it a few
-          # seconds to either crash or stabilise.  If the process dies within
-          # that window (e.g. "cannot find module tslib") the PID will be gone
-          # and we fail the build.
-          xvfb-run --auto-servernum "$BINARY" --no-sandbox &
+          # Launch the app under Xvfb and capture all output.  Electron spawns
+          # GPU/renderer subprocesses that can linger even after the main
+          # process crashes, so we can't rely on PID liveness alone.  Instead
+          # we capture stdout+stderr and look for Electron's "Uncaught
+          # Exception" banner which signals a fatal main-process crash.
+          LOG=$(mktemp)
+          xvfb-run --auto-servernum "$BINARY" --no-sandbox >"$LOG" 2>&1 &
           PID=$!
           echo "Launched packaged app (PID $PID), waiting 5 s…"
           sleep 5
 
-          if kill -0 "$PID" 2>/dev/null; then
-            echo "✓ App still running after 5 s — smoke test passed"
+          # Dump output for CI visibility
+          echo "── App output ──"
+          cat "$LOG"
+          echo "────────────────"
+
+          if grep -q "Uncaught Exception" "$LOG"; then
+            echo "::error::Packaged app crashed during startup — see output above"
             kill "$PID" 2>/dev/null || true
             wait "$PID" 2>/dev/null || true
-          else
-            echo "::error::Packaged app crashed during startup"
-            wait "$PID" 2>/dev/null
-            EXIT_CODE=$?
-            echo "Exit code: $EXIT_CODE"
+            rm -f "$LOG"
             exit 1
           fi
+
+          echo "✓ No crash detected — smoke test passed"
+          kill "$PID" 2>/dev/null || true
+          wait "$PID" 2>/dev/null || true
+          rm -f "$LOG"
 
   e2e:
     name: Electron E2E Tests
