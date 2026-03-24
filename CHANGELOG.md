@@ -1,5 +1,30 @@
 # soothsayer
 
+## 0.12.1
+
+### Patch Changes
+
+- [`735e052`](https://github.com/navali-creations/soothsayer/commit/735e052097fc67048d91adde12fb8b7dcc4e15df) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Added:** Search bar on the Statistics page.
+
+  - You can now search and filter your cards directly on the Statistics page.
+
+  **Improved:** The app now recovers automatically from GPU process crashes instead of freezing or closing unexpectedly.
+
+  - Chromium's GPU process can occasionally crash due to driver issues or resource pressure. Previously this could leave the app in a broken state or cause it to close without warning.
+  - The app now detects GPU process crashes and automatically relaunches itself. Your session stats are already saved, so no data is lost — you simply pick up where you left off.
+
+- [`a2c8333`](https://github.com/navali-creations/soothsayer/commit/a2c83333c0055606d6ba7ec50cdec4dd8ba2dfc5) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Improved:** You can now manually include or exclude any card from Profit Forecast calculations.
+
+  - A new **checkbox column** in the Profit Forecast table lets you toggle whether each card is counted toward EV, break-even rate, and net profit.
+  - Cards that are automatically excluded (anomalous or low-confidence prices) can now be **force-included** if you know the price is legitimate — useful at league start when valid prices sometimes get flagged by mistake.
+  - Normal cards with suspicious prices (e.g. manipulated listings) can be **manually excluded** so they don't inflate your forecast.
+  - Toggling a card immediately recalculates all stat cards (Expected Return, Net Profit, Break-Even Rate) and the P&L columns in the table.
+  - Overridden cards are visually distinguished with a blue checkbox and a status icon so you can easily see what you've changed.
+
 ## 0.12.0
 
 ### Minor Changes
