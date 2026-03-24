@@ -348,34 +348,55 @@ jobs:
             exit 1
           fi
 
-          # Launch the app under Xvfb and capture all output.  Electron spawns
-          # GPU/renderer subprocesses that can linger even after the main
-          # process crashes, so we can't rely on PID liveness alone.  Instead
-          # we capture stdout+stderr and look for Electron's "Uncaught
-          # Exception" banner which signals a fatal main-process crash.
+          # Launch the app under Xvfb and capture all output.  Instead of a
+          # fixed sleep we poll the log for one of two signals:
+          #   ✓ "[Init] All services initialized successfully" — app booted
+          #   ✗ "Uncaught Exception" — main process crashed
+          # A 30 s timeout acts as a safety net for unexpectedly slow runners.
           LOG=$(mktemp)
           xvfb-run --auto-servernum "$BINARY" --no-sandbox >"$LOG" 2>&1 &
           PID=$!
-          echo "Launched packaged app (PID $PID), waiting 5 s…"
-          sleep 5
+          echo "Launched packaged app (PID $PID), polling for startup result…"
+
+          TIMEOUT=30
+          ELAPSED=0
+          RESULT=""
+          while [ "$ELAPSED" -lt "$TIMEOUT" ]; do
+            if grep -q "Uncaught Exception" "$LOG" 2>/dev/null; then
+              RESULT="crash"
+              break
+            fi
+            if grep -q "All services initialized successfully" "$LOG" 2>/dev/null; then
+              RESULT="ok"
+              break
+            fi
+            sleep 1
+            ELAPSED=$((ELAPSED + 1))
+          done
 
           # Dump output for CI visibility
           echo "── App output ──"
           cat "$LOG"
           echo "────────────────"
 
-          if grep -q "Uncaught Exception" "$LOG"; then
-            echo "::error::Packaged app crashed during startup — see output above"
-            kill "$PID" 2>/dev/null || true
-            wait "$PID" 2>/dev/null || true
-            rm -f "$LOG"
-            exit 1
-          fi
-
-          echo "✓ No crash detected — smoke test passed"
+          # Clean up the app process regardless of outcome
           kill "$PID" 2>/dev/null || true
           wait "$PID" 2>/dev/null || true
           rm -f "$LOG"
+
+          case "$RESULT" in
+            ok)
+              echo "✓ App initialized successfully after ${ELAPSED} s — smoke test passed"
+              ;;
+            crash)
+              echo "::error::Packaged app crashed during startup — see output above"
+              exit 1
+              ;;
+            *)
+              echo "::error::App did not produce a startup signal within ${TIMEOUT} s — see output above"
+              exit 1
+              ;;
+          esac
 
   e2e:
     name: Electron E2E Tests
