@@ -385,18 +385,29 @@ jobs:
 
           # ── Build results table ──────────────────────────────────────
           # Check each expected signal in the log and build an ASCII table
-          # summarising what passed and what failed.
+          # for the console log, a markdown table for the GitHub Job Summary,
+          # and per-check annotations for the GitHub Annotations section.
           FAILED=0
+          SUMMARY_FILE=$(mktemp)
 
           W=46
+
+          # Start the markdown summary table
+          echo "### 🔥 Startup Smoke Test Results (${ELAPSED}s)" >> "$SUMMARY_FILE"
+          echo "" >> "$SUMMARY_FILE"
+          echo "| Status | Check |" >> "$SUMMARY_FILE"
+          echo "|--------|-------|" >> "$SUMMARY_FILE"
 
           check() {
             local label="$1"
             local pattern="$2"
             if grep -q "$pattern" "$LOG" 2>/dev/null; then
               printf "│ ✅  │ %-${W}s │\n" "$label"
+              echo "| ✅ | $label |" >> "$SUMMARY_FILE"
             else
               printf "│ ❌  │ %-${W}s │\n" "$label"
+              echo "| ❌ | $label |" >> "$SUMMARY_FILE"
+              echo "::error::Smoke Test: $label — FAILED"
               FAILED=$((FAILED + 1))
             fi
           }
@@ -431,15 +442,20 @@ jobs:
             grep "\[Migrations\] ✗" "$LOG" | while read -r line; do
               printf "│      │   %-$((W - 2))s │\n" "$line"
             done
+            echo "| ❌ | Some migrations failed |" >> "$SUMMARY_FILE"
+            echo "::error::Smoke Test: Some migrations failed — see log for details"
             FAILED=$((FAILED + 1))
           else
             printf "│ ✅  │ %-${W}s │\n" "No individual migration failures"
+            echo "| ✅ | No individual migration failures |" >> "$SUMMARY_FILE"
           fi
 
           echo "└──────┴────────────────────────────────────────────────┘"
           echo ""
 
-          rm -f "$LOG"
+          # Write the markdown summary to the GitHub Job Summary
+          cat "$SUMMARY_FILE" >> "$GITHUB_STEP_SUMMARY"
+          rm -f "$LOG" "$SUMMARY_FILE"
 
           # ── Final verdict ────────────────────────────────────────────
           case "$RESULT" in
