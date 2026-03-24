@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     "jsx": "react-jsx",
-    "target": "ES2025",
-    "lib": ["ES2025", "DOM"],
+    "target": "ES2024",
+    "lib": ["ES2024", "DOM"],
     "module": "ESNext",
     "allowJs": true,
     "skipLibCheck": true,
