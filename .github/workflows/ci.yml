@@ -352,13 +352,13 @@ jobs:
           # fixed sleep we poll the log for one of two signals:
           #   ✓ "[Init] All services initialized successfully" — app booted
           #   ✗ "Uncaught Exception" — main process crashed
-          # A 30 s timeout acts as a safety net for unexpectedly slow runners.
+          # A 60 s timeout acts as a safety net for unexpectedly slow runners.
           LOG=$(mktemp)
           xvfb-run --auto-servernum "$BINARY" --no-sandbox >"$LOG" 2>&1 &
           PID=$!
           echo "Launched packaged app (PID $PID), polling for startup result…"
 
-          TIMEOUT=30
+          TIMEOUT=60
           ELAPSED=0
           RESULT=""
           while [ "$ELAPSED" -lt "$TIMEOUT" ]; do
@@ -374,7 +374,7 @@ jobs:
             ELAPSED=$((ELAPSED + 1))
           done
 
-          # Dump output for CI visibility
+          # Dump raw output for CI visibility
           echo "── App output ──"
           cat "$LOG"
           echo "────────────────"
@@ -382,21 +382,83 @@ jobs:
           # Clean up the app process regardless of outcome
           kill "$PID" 2>/dev/null || true
           wait "$PID" 2>/dev/null || true
+
+          # ── Build results table ──────────────────────────────────────
+          # Check each expected signal in the log and build an ASCII table
+          # summarising what passed and what failed.
+          FAILED=0
+
+          W=46
+
+          check() {
+            local label="$1"
+            local pattern="$2"
+            if grep -q "$pattern" "$LOG" 2>/dev/null; then
+              printf "│ ✅  │ %-${W}s │\n" "$label"
+            else
+              printf "│ ❌  │ %-${W}s │\n" "$label"
+              FAILED=$((FAILED + 1))
+            fi
+          }
+
+          echo ""
+          echo "┌──────┬────────────────────────────────────────────────┐"
+          printf "│      │ %-${W}s │\n" "Smoke Test Results (${ELAPSED}s)"
+          echo "├──────┼────────────────────────────────────────────────┤"
+
+          check "No uncaught exceptions"          "All services initialized successfully"
+          check "Migrations completed"            "All migrations completed successfully"
+          check "Settings"                        "\[Init\] ✓ Settings"
+          check "Database"                        "\[Init\] ✓ Database"
+          check "Supabase"                        "\[Init\] .* Supabase"
+          check "POE Leagues"                     "\[Init\] ✓ POE Leagues"
+          check "Divination Cards"                "\[Init\] ✓ Divination Cards"
+          check "Prohibited Library"              "\[Init\] ✓ Prohibited Library"
+          check "Card Details"                    "\[Init\] ✓ Card Details"
+          check "Snapshots"                       "\[Init\] ✓ Snapshots"
+          check "Sessions"                        "\[Init\] ✓ Sessions"
+          check "Analytics"                       "\[Init\] ✓ Analytics"
+          check "CSV"                             "\[Init\] ✓ CSV"
+          check "Overlay"                         "\[Init\] ✓ Overlay"
+          check "Client Log Reader"               "\[Init\] ✓ Client Log Reader"
+          check "All services initialized"        "All services initialized successfully"
+
+          echo "├──────┼────────────────────────────────────────────────┤"
+
+          # Check for individual migration failures
+          if grep -q "\[Migrations\] ✗ Failed" "$LOG" 2>/dev/null; then
+            printf "│ ❌  │ %-${W}s │\n" "Some migrations failed:"
+            grep "\[Migrations\] ✗" "$LOG" | while read -r line; do
+              printf "│      │   %-$((W - 2))s │\n" "$line"
+            done
+            FAILED=$((FAILED + 1))
+          else
+            printf "│ ✅  │ %-${W}s │\n" "No individual migration failures"
+          fi
+
+          echo "└──────┴────────────────────────────────────────────────┘"
+          echo ""
+
           rm -f "$LOG"
 
+          # ── Final verdict ────────────────────────────────────────────
           case "$RESULT" in
-            ok)
-              echo "✓ App initialized successfully after ${ELAPSED} s — smoke test passed"
-              ;;
             crash)
               echo "::error::Packaged app crashed during startup — see output above"
               exit 1
               ;;
-            *)
+            "")
               echo "::error::App did not produce a startup signal within ${TIMEOUT} s — see output above"
               exit 1
               ;;
           esac
+
+          if [ "$FAILED" -gt 0 ]; then
+            echo "::error::${FAILED} smoke test check(s) failed — see table above"
+            exit 1
+          fi
+
+          echo "✓ All smoke test checks passed (${ELAPSED} s)"
 
   e2e:
     name: Electron E2E Tests
