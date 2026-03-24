@@ -1,5 +1,15 @@
 # soothsayer
 
+## 0.12.2
+
+### Patch Changes
+
+- [`0e84eca`](https://github.com/navali-creations/soothsayer/commit/0e84ecae86445c22c8c519076cec63f0a8c2292e) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Fixed:** App crashing on startup with "cannot find module tslib" after updating to 0.12.1.
+
+  - A required library was accidentally excluded from the packaged app, causing a crash on launch. It is now correctly included in the production build.
+
 ## 0.12.1
 
 ### Patch Changes
