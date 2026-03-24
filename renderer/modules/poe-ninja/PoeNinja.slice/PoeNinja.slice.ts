@@ -1,6 +1,6 @@
 import type { StateCreator } from "zustand";
 
-import type { CardsSlice } from "../../cards/Cards.slice/Cards.slice";
+import type { BoundStore } from "~/renderer/store/store.types";
 
 export interface SnapshotInfo {
   id: string;
@@ -106,7 +106,7 @@ export interface PoeNinjaSlice {
 }
 
 export const createPoeNinjaSlice: StateCreator<
-  PoeNinjaSlice & CardsSlice,
+  BoundStore,
   [["zustand/devtools", never], ["zustand/immer", never]],
   [],
   PoeNinjaSlice

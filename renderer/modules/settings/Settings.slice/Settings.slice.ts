@@ -4,6 +4,7 @@ import type {
   CustomSoundFile,
   UserSettingsDTO,
 } from "~/main/modules/settings-store/SettingsStore.dto";
+import type { BoundStore } from "~/renderer/store/store.types";
 
 export interface SettingsSlice {
   settings: UserSettingsDTO & {
@@ -57,7 +58,7 @@ export interface SettingsSlice {
 }
 
 export const createSettingsSlice: StateCreator<
-  SettingsSlice,
+  BoundStore,
   [["zustand/devtools", never], ["zustand/immer", never]],
   [],
   SettingsSlice

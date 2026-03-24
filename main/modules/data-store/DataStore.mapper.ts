@@ -6,7 +6,9 @@ import type { CardDTO, GlobalStatDTO } from "./DataStore.dto";
  * Mappers convert between database rows and DTOs
  */
 export class DataStoreMapper {
-  static toCardDTO(row: CardsTable): CardDTO {
+  static toCardDTO(
+    row: Pick<CardsTable, "card_name" | "count" | "last_updated">,
+  ): CardDTO {
     return {
       cardName: row.card_name,
       count: row.count,

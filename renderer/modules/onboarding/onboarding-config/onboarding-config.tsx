@@ -5,6 +5,7 @@ import {
   type RepereReactConfig,
   RepereTrigger,
 } from "@repere/react";
+import type { ComponentType } from "react";
 import { TiInfoLargeOutline } from "react-icons/ti";
 
 import { Button } from "~/renderer/components";
@@ -81,7 +82,7 @@ export const onboardingConfig: RepereReactConfig = {
             },
           },
           popover: {
-            component: GameInfoBeacon,
+            component: GameInfoBeacon as ComponentType<any>,
             offset: {
               y: 10,
             },
@@ -95,7 +96,7 @@ export const onboardingConfig: RepereReactConfig = {
             anchorPoint: AnchorPoint.BottomCenter,
           },
           popover: {
-            component: OverlayBeacon,
+            component: OverlayBeacon as ComponentType<any>,
             anchorPoint: AnchorPoint.BottomRight,
             offset: {
               y: 10,
@@ -119,7 +120,7 @@ export const onboardingConfig: RepereReactConfig = {
             },
           },
           popover: {
-            component: CurrentSessionRaritySourceBeacon,
+            component: CurrentSessionRaritySourceBeacon as ComponentType<any>,
             anchorPoint: AnchorPoint.BottomCenter,
             offset: {
               y: 10,
@@ -137,7 +138,7 @@ export const onboardingConfig: RepereReactConfig = {
             },
           },
           popover: {
-            component: CurrentSessionPricingBeacon,
+            component: CurrentSessionPricingBeacon as ComponentType<any>,
             anchorPoint: AnchorPoint.BottomRight,
             offset: {
               y: 10,
@@ -155,7 +156,7 @@ export const onboardingConfig: RepereReactConfig = {
             },
           },
           popover: {
-            component: CurrentSessionStartSessionBeacon,
+            component: CurrentSessionStartSessionBeacon as ComponentType<any>,
             anchorPoint: AnchorPoint.BottomLeft,
             offset: {
               y: 10,
@@ -176,7 +177,7 @@ export const onboardingConfig: RepereReactConfig = {
             anchorPoint: AnchorPoint.TopRight,
           },
           popover: {
-            component: RarityInsightsPoeNinjaBeacon,
+            component: RarityInsightsPoeNinjaBeacon as ComponentType<any>,
             anchorPoint: AnchorPoint.BottomLeft,
             offset: {
               y: 10,
@@ -193,7 +194,8 @@ export const onboardingConfig: RepereReactConfig = {
             anchorPoint: AnchorPoint.TopRight,
           },
           popover: {
-            component: RarityInsightsProhibitedLibraryBeacon,
+            component:
+              RarityInsightsProhibitedLibraryBeacon as ComponentType<any>,
             anchorPoint: AnchorPoint.BottomLeft,
             offset: {
               y: 10,
@@ -211,7 +213,7 @@ export const onboardingConfig: RepereReactConfig = {
             },
           },
           popover: {
-            component: RarityInsightsRefreshBeacon,
+            component: RarityInsightsRefreshBeacon as ComponentType<any>,
             anchorPoint: AnchorPoint.BottomLeft,
             offset: {
               y: 10,
@@ -229,7 +231,7 @@ export const onboardingConfig: RepereReactConfig = {
             },
           },
           popover: {
-            component: RarityInsightsScanBeacon,
+            component: RarityInsightsScanBeacon as ComponentType<any>,
             anchorPoint: AnchorPoint.BottomRight,
             offset: {
               y: 10,
@@ -247,7 +249,7 @@ export const onboardingConfig: RepereReactConfig = {
             },
           },
           popover: {
-            component: RarityInsightsToolbarBeacon,
+            component: RarityInsightsToolbarBeacon as ComponentType<any>,
             anchorPoint: AnchorPoint.BottomRight,
             offset: {
               y: 10,
@@ -271,7 +273,7 @@ export const onboardingConfig: RepereReactConfig = {
             },
           },
           popover: {
-            component: PFPlCardOnlyBeacon,
+            component: PFPlCardOnlyBeacon as ComponentType<any>,
             anchorPoint: AnchorPoint.BottomLeft,
             offset: {
               y: 5,
@@ -289,7 +291,7 @@ export const onboardingConfig: RepereReactConfig = {
             },
           },
           popover: {
-            component: PFPlAllDropsBeacon,
+            component: PFPlAllDropsBeacon as ComponentType<any>,
             anchorPoint: AnchorPoint.BottomLeft,
             offset: {
               y: 5,
@@ -307,7 +309,7 @@ export const onboardingConfig: RepereReactConfig = {
             },
           },
           popover: {
-            component: PFBreakEvenBeacon,
+            component: PFBreakEvenBeacon as ComponentType<any>,
             anchorPoint: AnchorPoint.BottomLeft,
             offset: {
               y: 10,
@@ -325,7 +327,7 @@ export const onboardingConfig: RepereReactConfig = {
             },
           },
           popover: {
-            component: PFCostModelBeacon,
+            component: PFCostModelBeacon as ComponentType<any>,
             anchorPoint: AnchorPoint.BottomRight,
             offset: {
               x: 20,
@@ -343,7 +345,7 @@ export const onboardingConfig: RepereReactConfig = {
             },
           },
           popover: {
-            component: PFBaseRateBeacon,
+            component: PFBaseRateBeacon as ComponentType<any>,
             anchorPoint: AnchorPoint.BottomRight,
             offset: {
               y: 10,

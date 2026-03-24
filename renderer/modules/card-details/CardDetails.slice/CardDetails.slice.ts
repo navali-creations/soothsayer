@@ -9,6 +9,7 @@ import type {
 } from "~/main/modules/card-details/CardDetails.dto";
 import type { DivinationCardDTO } from "~/main/modules/divination-cards/DivinationCards.dto";
 import type { SessionsPage } from "~/main/modules/sessions/Sessions.api";
+import type { BoundStore } from "~/renderer/store/store.types";
 import type { GameType, Rarity } from "~/types/data-stores";
 
 import type {
@@ -189,7 +190,7 @@ export interface CardDetailsSlice {
 const MIN_DECKS_FOR_LUCK = 100;
 
 export const createCardDetailsSlice: StateCreator<
-  CardDetailsSlice,
+  BoundStore,
   [["zustand/devtools", never], ["zustand/immer", never]],
   [],
   CardDetailsSlice

@@ -2,6 +2,7 @@ import type { StateCreator } from "zustand";
 
 import { OverlayChannel } from "~/main/modules/overlay/Overlay.channels";
 import { trackEvent } from "~/renderer/modules/umami";
+import type { BoundStore } from "~/renderer/store/store.types";
 
 import type { OverlayTab, SessionData } from "../Overlay.types";
 
@@ -34,7 +35,7 @@ export interface OverlaySlice {
 }
 
 export const createOverlaySlice: StateCreator<
-  OverlaySlice,
+  BoundStore,
   [["zustand/devtools", never], ["zustand/immer", never]],
   [],
   OverlaySlice

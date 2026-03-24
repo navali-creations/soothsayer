@@ -1,9 +1,8 @@
 import type { StateCreator } from "zustand";
 
 import type { SessionSummary } from "~/main/modules/sessions";
+import type { BoundStore } from "~/renderer/store/store.types";
 import type { DetailedDivinationCardStats } from "~/types/data-stores";
-
-import type { SettingsSlice } from "../../settings/Settings.slice/Settings.slice";
 
 export interface SessionsSlice {
   sessions: {
@@ -48,7 +47,7 @@ export interface SessionsSlice {
 }
 
 export const createSessionsSlice: StateCreator<
-  SessionsSlice & SettingsSlice,
+  BoundStore,
   [["zustand/devtools", never], ["zustand/immer", never]],
   [],
   SessionsSlice

@@ -1,6 +1,7 @@
 import type { StateCreator } from "zustand";
 
 import type { LatestReleaseInfo } from "~/main/modules/updater/Updater.api";
+import type { BoundStore } from "~/renderer/store/store.types";
 
 export interface AppMenuSlice {
   appMenu: {
@@ -25,7 +26,7 @@ export interface AppMenuSlice {
 }
 
 export const createAppMenuSlice: StateCreator<
-  AppMenuSlice,
+  BoundStore,
   [["zustand/devtools", never], ["zustand/immer", never]],
   [],
   AppMenuSlice

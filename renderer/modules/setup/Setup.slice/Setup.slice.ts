@@ -10,9 +10,8 @@ import {
 } from "~/main/modules/app-setup/AppSetup.types";
 import type { SetupStep } from "~/main/modules/settings-store/SettingsStore.dto";
 import { trackEvent } from "~/renderer/modules/umami";
+import type { BoundStore } from "~/renderer/store/store.types";
 import type { GameType } from "~/types/data-stores";
-
-import type { SettingsSlice } from "../../settings";
 
 export interface SetupSlice {
   // State
@@ -50,7 +49,7 @@ export interface SetupSlice {
 }
 
 export const createSetupSlice: StateCreator<
-  SetupSlice & SettingsSlice,
+  BoundStore,
   [["zustand/devtools", never], ["zustand/immer", never]],
   [],
   SetupSlice

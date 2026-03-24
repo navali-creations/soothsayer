@@ -1,6 +1,7 @@
 import type { StateCreator } from "zustand";
 
 import type { SnapshotMetaResult } from "~/main/modules/csv/Csv.api";
+import type { BoundStore } from "~/renderer/store/store.types";
 
 export type StatScope = "all-time" | "league";
 
@@ -25,7 +26,7 @@ export interface StatisticsSlice {
 }
 
 export const createStatisticsSlice: StateCreator<
-  StatisticsSlice,
+  BoundStore,
   [["zustand/devtools", never], ["zustand/immer", never]],
   [],
   StatisticsSlice

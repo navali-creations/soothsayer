@@ -5,6 +5,7 @@ import type {
   ProfitForecastDataDTO,
   ProfitForecastRowDTO,
 } from "~/main/modules/profit-forecast/ProfitForecast.dto";
+import type { BoundStore } from "~/renderer/store/store.types";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -258,7 +259,7 @@ export function recomputeDynamicFields(
 // ── Slice Creator ──────────────────────────────────────────────────────────────
 
 export const createProfitForecastSlice: StateCreator<
-  ProfitForecastSlice,
+  BoundStore,
   [["zustand/devtools", never], ["zustand/immer", never]],
   [],
   ProfitForecastSlice

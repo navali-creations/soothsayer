@@ -4,6 +4,7 @@ import type {
   DiscoveredRarityInsightsDTO,
   RarityInsightsScanResultDTO,
 } from "~/main/modules/rarity-insights/RarityInsights.dto";
+import type { BoundStore } from "~/renderer/store/store.types";
 
 export interface RarityInsightsSlice {
   rarityInsights: {
@@ -34,7 +35,7 @@ export interface RarityInsightsSlice {
 }
 
 export const createRarityInsightsSlice: StateCreator<
-  RarityInsightsSlice,
+  BoundStore,
   [["zustand/devtools", never], ["zustand/immer", never]],
   [],
   RarityInsightsSlice

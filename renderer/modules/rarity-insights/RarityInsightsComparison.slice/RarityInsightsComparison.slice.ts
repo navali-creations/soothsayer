@@ -3,11 +3,8 @@ import type { StateCreator } from "zustand";
 
 import type { DiscoveredRarityInsightsDTO } from "~/main/modules/rarity-insights/RarityInsights.dto";
 import { trackEvent } from "~/renderer/modules/umami";
+import type { BoundStore } from "~/renderer/store/store.types";
 import type { KnownRarity, Rarity } from "~/types/data-stores";
-
-import type { CardsSlice } from "../../cards/Cards.slice/Cards.slice";
-import type { SettingsSlice } from "../../settings/Settings.slice/Settings.slice";
-import type { RarityInsightsSlice } from "../RarityInsights.slice/RarityInsights.slice";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -94,10 +91,7 @@ export interface RarityInsightsComparisonSlice {
 }
 
 export const createRarityInsightsComparisonSlice: StateCreator<
-  RarityInsightsComparisonSlice &
-    RarityInsightsSlice &
-    CardsSlice &
-    SettingsSlice,
+  BoundStore,
   [["zustand/devtools", never], ["zustand/immer", never]],
   [],
   RarityInsightsComparisonSlice

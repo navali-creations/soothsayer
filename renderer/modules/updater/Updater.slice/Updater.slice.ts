@@ -5,6 +5,7 @@ import type {
   UpdateInfo,
   UpdateStatus,
 } from "~/main/modules/updater/Updater.service";
+import type { BoundStore } from "~/renderer/store/store.types";
 
 export interface UpdaterSlice {
   updater: {
@@ -25,7 +26,7 @@ export interface UpdaterSlice {
 }
 
 export const createUpdaterSlice: StateCreator<
-  UpdaterSlice,
+  BoundStore,
   [["zustand/devtools", never], ["zustand/immer", never]],
   [],
   UpdaterSlice

@@ -1,12 +1,9 @@
 import type { StateCreator } from "zustand";
 
 import { CurrentSessionChannel } from "~/main/modules/current-session/CurrentSession.channels";
-import type { SettingsSlice } from "~/renderer/modules/settings";
 import { trackEvent } from "~/renderer/modules/umami";
+import type { BoundStore } from "~/renderer/store/store.types";
 import type { DetailedDivinationCardStats } from "~/types/data-stores";
-
-import type { OverlaySlice } from "../../overlay";
-import type { PoeNinjaSlice } from "../../poe-ninja/PoeNinja.slice/PoeNinja.slice";
 
 export interface SessionSlice {
   currentSession: {
@@ -48,7 +45,7 @@ export interface SessionSlice {
 }
 
 export const createSessionSlice: StateCreator<
-  SessionSlice & SettingsSlice & PoeNinjaSlice & OverlaySlice,
+  BoundStore,
   [["zustand/devtools", never], ["zustand/immer", never]],
   [],
   SessionSlice

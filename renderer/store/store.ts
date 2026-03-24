@@ -3,116 +3,29 @@ import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 
-import {
-  type AppMenuSlice,
-  createAppMenuSlice,
-} from "../modules/app-menu/AppMenu.slice/AppMenu.slice";
-import {
-  type CardDetailsSlice,
-  createCardDetailsSlice,
-} from "../modules/card-details/CardDetails.slice/CardDetails.slice";
-import {
-  type CardsSlice,
-  createCardsSlice,
-} from "../modules/cards/Cards.slice/Cards.slice";
-import {
-  type ChangelogSlice,
-  createChangelogSlice,
-} from "../modules/changelog/Changelog.slice/Changelog.slice";
-import {
-  createSessionSlice,
-  type SessionSlice,
-} from "../modules/current-session/CurrentSession.slice/CurrentSession.slice";
-import {
-  createGameInfoSlice,
-  type GameInfoSlice,
-} from "../modules/game-info/GameInfo.slice/GameInfo.slice";
-import {
-  createOnboardingSlice,
-  type OnboardingSlice,
-} from "../modules/onboarding/Onboarding.slice/Onboarding.slice";
-import {
-  createOverlaySlice,
-  type OverlaySlice,
-} from "../modules/overlay/Overlay.slice/Overlay.slice";
-import {
-  createPoeNinjaSlice,
-  type PoeNinjaSlice,
-} from "../modules/poe-ninja/PoeNinja.slice/PoeNinja.slice";
-import {
-  createProfitForecastSlice,
-  type ProfitForecastSlice,
-} from "../modules/profit-forecast/ProfitForecast.slice/ProfitForecast.slice";
-import {
-  createProhibitedLibrarySlice,
-  type ProhibitedLibrarySlice,
-} from "../modules/prohibited-library/ProhibitedLibrary.slice/ProhibitedLibrary.slice";
-import {
-  createRarityInsightsSlice,
-  type RarityInsightsSlice,
-} from "../modules/rarity-insights/RarityInsights.slice/RarityInsights.slice";
-import {
-  createRarityInsightsComparisonSlice,
-  type RarityInsightsComparisonSlice,
-} from "../modules/rarity-insights/RarityInsightsComparison.slice/RarityInsightsComparison.slice";
-import {
-  createSessionDetailsSlice,
-  type SessionDetailsSlice,
-} from "../modules/session-details";
-import {
-  createSessionsSlice,
-  type SessionsSlice,
-} from "../modules/sessions/Sessions.slice/Sessions.slice";
-import {
-  createSettingsSlice,
-  type SettingsSlice,
-} from "../modules/settings/Settings.slice/Settings.slice";
-import {
-  createStorageSlice,
-  type StorageSlice,
-} from "../modules/settings/Storage.slice/Storage.slice";
-import {
-  createSetupSlice,
-  type SetupSlice,
-} from "../modules/setup/Setup.slice/Setup.slice";
-import {
-  createStatisticsSlice,
-  type StatisticsSlice,
-} from "../modules/statistics/Statistics.slice/Statistics.slice";
-import {
-  createUpdaterSlice,
-  type UpdaterSlice,
-} from "../modules/updater/Updater.slice/Updater.slice";
+import { createAppMenuSlice } from "../modules/app-menu/AppMenu.slice/AppMenu.slice";
+import { createCardDetailsSlice } from "../modules/card-details/CardDetails.slice/CardDetails.slice";
+import { createCardsSlice } from "../modules/cards/Cards.slice/Cards.slice";
+import { createChangelogSlice } from "../modules/changelog/Changelog.slice/Changelog.slice";
+import { createSessionSlice } from "../modules/current-session/CurrentSession.slice/CurrentSession.slice";
+import { createGameInfoSlice } from "../modules/game-info/GameInfo.slice/GameInfo.slice";
+import { createOnboardingSlice } from "../modules/onboarding/Onboarding.slice/Onboarding.slice";
+import { createOverlaySlice } from "../modules/overlay/Overlay.slice/Overlay.slice";
+import { createPoeNinjaSlice } from "../modules/poe-ninja/PoeNinja.slice/PoeNinja.slice";
+import { createProfitForecastSlice } from "../modules/profit-forecast/ProfitForecast.slice/ProfitForecast.slice";
+import { createProhibitedLibrarySlice } from "../modules/prohibited-library/ProhibitedLibrary.slice/ProhibitedLibrary.slice";
+import { createRarityInsightsSlice } from "../modules/rarity-insights/RarityInsights.slice/RarityInsights.slice";
+import { createRarityInsightsComparisonSlice } from "../modules/rarity-insights/RarityInsightsComparison.slice/RarityInsightsComparison.slice";
+import { createSessionDetailsSlice } from "../modules/session-details";
+import { createSessionsSlice } from "../modules/sessions/Sessions.slice/Sessions.slice";
+import { createSettingsSlice } from "../modules/settings/Settings.slice/Settings.slice";
+import { createStorageSlice } from "../modules/settings/Storage.slice/Storage.slice";
+import { createSetupSlice } from "../modules/setup/Setup.slice/Setup.slice";
+import { createStatisticsSlice } from "../modules/statistics/Statistics.slice/Statistics.slice";
+import { createUpdaterSlice } from "../modules/updater/Updater.slice/Updater.slice";
+import type { BoundStore } from "./store.types";
 
 enableMapSet();
-
-interface RootActions {
-  hydrate: () => Promise<void>;
-  startListeners: () => () => void;
-  reset: () => void;
-}
-
-type BoundStore = GameInfoSlice &
-  SettingsSlice &
-  StorageSlice &
-  SetupSlice &
-  SessionSlice &
-  SessionsSlice &
-  SessionDetailsSlice &
-  CardDetailsSlice &
-  CardsSlice &
-  AppMenuSlice &
-  ChangelogSlice &
-  OverlaySlice &
-  PoeNinjaSlice &
-  ProhibitedLibrarySlice &
-  StatisticsSlice &
-  OnboardingSlice &
-  UpdaterSlice &
-  RarityInsightsSlice &
-  ProfitForecastSlice &
-  RarityInsightsComparisonSlice &
-  RootActions;
 
 export const useBoundStore = create<BoundStore>()(
   devtools(

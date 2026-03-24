@@ -1,6 +1,7 @@
 import type { StateCreator } from "zustand";
 
 import { SettingsKey } from "~/main/modules/settings-store/SettingsStore.keys";
+import type { BoundStore } from "~/renderer/store/store.types";
 
 export interface OnboardingSlice {
   onboarding: {
@@ -19,7 +20,7 @@ export interface OnboardingSlice {
 }
 
 export const createOnboardingSlice: StateCreator<
-  OnboardingSlice,
+  BoundStore,
   [["zustand/devtools", never], ["zustand/immer", never]],
   [],
   OnboardingSlice

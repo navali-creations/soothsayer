@@ -1,9 +1,7 @@
 import type { StateCreator } from "zustand";
 
 import type { ProhibitedLibraryStatusDTO } from "~/main/modules/prohibited-library/ProhibitedLibrary.dto";
-
-import type { CardsSlice } from "../../cards/Cards.slice/Cards.slice";
-import type { SettingsSlice } from "../../settings/Settings.slice/Settings.slice";
+import type { BoundStore } from "~/renderer/store/store.types";
 
 export interface ProhibitedLibrarySlice {
   prohibitedLibrary: {
@@ -21,7 +19,7 @@ export interface ProhibitedLibrarySlice {
 }
 
 export const createProhibitedLibrarySlice: StateCreator<
-  ProhibitedLibrarySlice & SettingsSlice & CardsSlice,
+  BoundStore,
   [["zustand/devtools", never], ["zustand/immer", never]],
   [],
   ProhibitedLibrarySlice

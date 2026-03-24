@@ -1,7 +1,8 @@
 import type { StateCreator } from "zustand";
 
+import type { BoundStore } from "~/renderer/store/store.types";
+
 import type { PoeLeague } from "../../../../types/poe-league";
-import type { SettingsSlice } from "../../settings/Settings.slice/Settings.slice";
 
 interface GameProcessState {
   isRunning: boolean;
@@ -42,7 +43,7 @@ export interface GameInfoSlice {
 }
 
 export const createGameInfoSlice: StateCreator<
-  GameInfoSlice & SettingsSlice,
+  BoundStore,
   [["zustand/devtools", never], ["zustand/immer", never]],
   [],
   GameInfoSlice

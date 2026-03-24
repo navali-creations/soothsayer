@@ -1,8 +1,7 @@
 import type { StateCreator } from "zustand";
 
+import type { BoundStore } from "~/renderer/store/store.types";
 import type { KnownRarity, Rarity, RaritySource } from "~/types/data-stores";
-
-import type { SettingsSlice } from "../../settings/Settings.slice/Settings.slice";
 
 interface DivinationCardDTO {
   id: string;
@@ -79,7 +78,7 @@ export interface CardsSlice {
 }
 
 export const createCardsSlice: StateCreator<
-  CardsSlice & SettingsSlice,
+  BoundStore,
   [["zustand/devtools", never], ["zustand/immer", never]],
   [],
   CardsSlice

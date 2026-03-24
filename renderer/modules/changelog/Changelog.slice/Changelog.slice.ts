@@ -1,6 +1,7 @@
 import type { StateCreator } from "zustand";
 
 import type { ChangelogRelease } from "~/main/modules/updater/Updater.api";
+import type { BoundStore } from "~/renderer/store/store.types";
 
 export interface ChangelogSlice {
   changelog: {
@@ -17,7 +18,7 @@ export interface ChangelogSlice {
 }
 
 export const createChangelogSlice: StateCreator<
-  ChangelogSlice,
+  BoundStore,
   [["zustand/devtools", never], ["zustand/immer", never]],
   [],
   ChangelogSlice

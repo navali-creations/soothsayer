@@ -5,6 +5,7 @@ import type {
   LeagueStorageUsage,
   StorageInfo,
 } from "~/main/modules/storage/Storage.types";
+import type { BoundStore } from "~/renderer/store/store.types";
 
 export interface StorageSlice {
   storage: {
@@ -25,7 +26,7 @@ export interface StorageSlice {
 }
 
 export const createStorageSlice: StateCreator<
-  StorageSlice,
+  BoundStore,
   [["zustand/devtools", never], ["zustand/immer", never]],
   [],
   StorageSlice

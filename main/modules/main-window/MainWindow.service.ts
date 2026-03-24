@@ -35,7 +35,7 @@ import {
 import { validateFileDialogOptions } from "~/main/utils/ipc-validation";
 
 class MainWindowService {
-  private mainWindow: BrowserWindow;
+  private mainWindow!: BrowserWindow;
   private url: string = MAIN_WINDOW_VITE_DEV_SERVER_URL;
   private settingsStore: SettingsStoreService | null = null;
   private database: DatabaseService | null = null;
