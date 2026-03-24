@@ -1,13 +1,10 @@
-import type { TooltipProps } from "recharts";
+import type { TooltipContentProps } from "recharts";
 
 import type { ChartDataPoint } from "./types";
 
 // ─── Custom Tooltip ────────────────────────────────────────────────────────
 
-function DropTimelineTooltip({
-  active,
-  payload,
-}: TooltipProps<number | string | Array<number | string>, number | string>) {
+function DropTimelineTooltip({ active, payload }: TooltipContentProps) {
   if (!active || !payload?.length) return null;
 
   const data = payload[0]?.payload as ChartDataPoint | undefined;

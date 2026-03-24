@@ -1,3 +1,4 @@
+import type { ActiveDotProps, DotItemDotProps } from "recharts";
 import {
   Area,
   Bar,
@@ -123,7 +124,7 @@ const MainChart = ({
           />
 
           <Tooltip
-            content={<DropTimelineTooltip />}
+            content={DropTimelineTooltip}
             cursor={{
               stroke: c.bc15,
               strokeDasharray: "3 3",
@@ -166,13 +167,13 @@ const MainChart = ({
             stroke={c.primary}
             fill={`url(#${GRADIENT_ID_AREA})`}
             strokeWidth={2}
-            dot={(props: Record<string, unknown>) => {
+            dot={(props: DotItemDotProps) => {
               const pt = props.payload as ChartDataPoint | undefined;
               if (pt?.isBoundary || pt?.isGap) return <circle r={0} />;
               return (
                 <circle
-                  cx={props.cx as number}
-                  cy={props.cy as number}
+                  cx={props.cx}
+                  cy={props.cy}
                   r={2.5}
                   fill={c.primary}
                   stroke={c.b2}
@@ -180,13 +181,15 @@ const MainChart = ({
                 />
               );
             }}
-            activeDot={(props: Record<string, unknown>) => {
-              const pt = props.payload as ChartDataPoint | undefined;
+            activeDot={(props: ActiveDotProps) => {
+              const pt = (
+                props as ActiveDotProps & { payload?: ChartDataPoint }
+              ).payload;
               if (pt?.isBoundary || pt?.isGap) return <circle r={0} />;
               return (
                 <circle
-                  cx={props.cx as number}
-                  cy={props.cy as number}
+                  cx={props.cx}
+                  cy={props.cy}
                   r={4}
                   fill={c.primary}
                   stroke={c.b2}
