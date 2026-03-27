@@ -176,6 +176,34 @@ const PFHelpModal = ({ isOpen, onClose }: PFHelpModalProps) => {
             </p>
           </section>
 
+          {/* Custom Base Rate */}
+          <section>
+            <h4 className="font-semibold text-base text-base-content mb-2">
+              Custom Base Rate
+            </h4>
+            <p>
+              By default the base rate comes from poe.ninja exchange data. If
+              you plan to buy stacked decks at a specific price — for example by
+              placing exchange orders and waiting for them to fill — you can
+              override the market rate with your own.
+            </p>
+            <p className="mt-2">
+              Click the <strong>pencil icon</strong> next to the Base Rate value
+              to enter a custom rate. All cost calculations (You Spend, Net
+              Profit, P&amp;L chart) will use your custom rate as the starting
+              point instead of the market rate.
+            </p>
+            <p className="mt-2">
+              The allowed range is from the <strong>break-even rate</strong>{" "}
+              (minimum) to <strong>110 decks/div</strong> (maximum). A{" "}
+              <span className="badge badge-xs badge-soft badge-info">
+                custom
+              </span>{" "}
+              badge appears when a custom rate is active, and you can reset to
+              the market rate at any time.
+            </p>
+          </section>
+
           {/* Icons & indicators */}
           <section>
             <h4 className="font-semibold text-base text-base-content mb-2">
@@ -215,6 +243,19 @@ const PFHelpModal = ({ isOpen, onClose }: PFHelpModalProps) => {
                       snapshot, so the base rate was calculated from the divine
                       price divided by the stacked deck price. This is a rougher
                       estimate.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <span className="badge badge-xs badge-soft badge-info">
+                        custom
+                      </span>
+                    </td>
+                    <td className="font-medium">Custom rate</td>
+                    <td>
+                      You've set a custom base rate. All cost calculations use
+                      this rate instead of the market rate. Click Reset in the
+                      Base Rate card to return to the market rate.
                     </td>
                   </tr>
                 </tbody>

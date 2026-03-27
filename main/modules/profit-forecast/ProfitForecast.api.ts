@@ -1,7 +1,11 @@
 import { ipcRenderer } from "electron";
 
 import { ProfitForecastChannel } from "./ProfitForecast.channels";
-import type { ProfitForecastDataDTO } from "./ProfitForecast.dto";
+import type {
+  ProfitForecastComputeRequest,
+  ProfitForecastComputeResponse,
+  ProfitForecastDataDTO,
+} from "./ProfitForecast.dto";
 
 export const ProfitForecastAPI = {
   /**
@@ -24,5 +28,21 @@ export const ProfitForecastAPI = {
     league: string,
   ): Promise<ProfitForecastDataDTO> => {
     return ipcRenderer.invoke(ProfitForecastChannel.GetData, game, league);
+  },
+
+  /**
+   * Offload heavy cost-model and P&L computations to the main process.
+   *
+   * The renderer sends the current rows and cost-model parameters, and the
+   * main process returns fully computed dynamic fields, PnL curve, confidence
+   * intervals, and batch P&L — all in a single round-trip.
+   *
+   * This keeps the renderer thread free for smooth UI updates while the main
+   * process handles the O(rows × sub-batches) math.
+   */
+  compute: (
+    request: ProfitForecastComputeRequest,
+  ): Promise<ProfitForecastComputeResponse> => {
+    return ipcRenderer.invoke(ProfitForecastChannel.Compute, request);
   },
 };

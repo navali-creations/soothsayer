@@ -200,6 +200,7 @@ describe("PFCostModelBeacon", () => {
   it("lists all slider explanations", () => {
     renderWithProviders(<PFCostModelBeacon {...defaultProps} />);
     expect(screen.getByText(/Decks to open:/)).toBeInTheDocument();
+    expect(screen.getByText(/View:/)).toBeInTheDocument();
     expect(screen.getByText(/Price increase:/)).toBeInTheDocument();
     expect(screen.getByText(/Batch size:/)).toBeInTheDocument();
     expect(screen.getByText(/Min price filter:/)).toBeInTheDocument();

@@ -43,7 +43,7 @@ const CURRENT_SESSION_BEACONS = [
   "game-selector",
   "overlay-icon",
   "current-session-rarity-source",
-  "current-session-pricing",
+  "stash-prices",
   "start-session",
 ] as const;
 

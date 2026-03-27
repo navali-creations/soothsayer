@@ -1,7 +1,9 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { computeAll } from "~/main/modules/profit-forecast/ProfitForecast.compute";
 import type {
   BaseRateSource,
+  ProfitForecastComputeRequest,
   ProfitForecastDataDTO,
   ProfitForecastRowDTO,
 } from "~/main/modules/profit-forecast/ProfitForecast.dto";
@@ -139,7 +141,7 @@ function makeRows(): ProfitForecastRowDTO[] {
         hasPrice: true,
         confidence: c.confidence,
         isAnomalous: c.isAnomalous,
-        excludeFromEv: false, // all have prices, none anomalous, none low confidence
+        excludeFromEv: false, // all have prices, none anomalous
       });
     })
     .sort((a, b) => b.evContribution - a.evContribution);
@@ -188,10 +190,10 @@ describe("isAutoExcluded", () => {
     ).toBe(true);
   });
 
-  it("returns true when confidence is 3", () => {
+  it("returns false when confidence is 3 (low confidence is not excluded)", () => {
     expect(
       isAutoExcluded({ hasPrice: true, isAnomalous: false, confidence: 3 }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("returns false for a normal priced card", () => {
@@ -206,7 +208,7 @@ describe("isAutoExcluded", () => {
     ).toBe(false);
   });
 
-  it("returns true when both anomalous and low confidence", () => {
+  it("returns true when anomalous (regardless of confidence)", () => {
     expect(
       isAutoExcluded({ hasPrice: true, isAnomalous: true, confidence: 3 }),
     ).toBe(true);
@@ -255,7 +257,7 @@ describe("computeExcludeFromEv", () => {
     ).toBe(false);
   });
 
-  it("returns true for low-confidence card without override", () => {
+  it("returns false for low-confidence card without override (confidence no longer excludes)", () => {
     expect(
       computeExcludeFromEv({
         hasPrice: true,
@@ -263,10 +265,10 @@ describe("computeExcludeFromEv", () => {
         confidence: 3,
         userOverride: false,
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
-  it("returns false for low-confidence card with override (force-include)", () => {
+  it("returns true for low-confidence card with override (force-exclude, since confidence no longer auto-excludes)", () => {
     expect(
       computeExcludeFromEv({
         hasPrice: true,
@@ -274,7 +276,7 @@ describe("computeExcludeFromEv", () => {
         confidence: 3,
         userOverride: true,
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("returns false for normal card without override", () => {
@@ -322,9 +324,16 @@ describe("computeRateForBatch", () => {
     expect(computeRateForBatch(90, 5, 2)).toBe(80);
   });
 
-  it("clamps to RATE_FLOOR when rate would go below", () => {
-    // 90 - 40 * 2 = 10, below RATE_FLOOR of 20
-    expect(computeRateForBatch(90, 40, 2)).toBe(RATE_FLOOR);
+  it("clamps to dynamic floor (80% of baseRate) when rate would drop below it", () => {
+    // 90 * 0.8 = 72, so dynamic floor = 72
+    // 90 - 10 * 2 = 70, below dynamic floor of 72
+    expect(computeRateForBatch(90, 10, 2)).toBe(72);
+  });
+
+  it("clamps to RATE_FLOOR when baseRate is very low and dynamic floor < RATE_FLOOR", () => {
+    // baseRate=22, dynamic floor = ceil(22*0.8) = 18, below RATE_FLOOR of 20
+    // 22 - 5 * 2 = 12, below both floors
+    expect(computeRateForBatch(22, 5, 2)).toBe(RATE_FLOOR);
   });
 
   it("returns RATE_FLOOR when baseRate equals RATE_FLOOR", () => {
@@ -348,8 +357,9 @@ describe("computeRateForBatch", () => {
     expect(computeRateForBatch(90, 3, 5)).toBe(75);
   });
 
-  it("handles large batch indices that push well below floor", () => {
-    expect(computeRateForBatch(90, 1000, 5)).toBe(RATE_FLOOR);
+  it("handles large batch indices that push well below dynamic floor", () => {
+    // 90 * 0.8 = 72, dynamic floor = 72
+    expect(computeRateForBatch(90, 1000, 5)).toBe(72);
   });
 });
 
@@ -397,16 +407,17 @@ describe("computeTotalChaosCost", () => {
     expect(cost).toBeCloseTo(expected, 4);
   });
 
-  it("applies rate floor correctly for many sub-batches", () => {
-    // With baseRate=90, stepDrop=2, the rate hits RATE_FLOOR (20) at batch index 35
-    // (90 - 35*2 = 20). After that, all batches should be at 20.
+  it("applies dynamic rate floor correctly for many sub-batches", () => {
+    // With baseRate=90, stepDrop=2, dynamic floor = ceil(90*0.8) = 72.
+    // The rate hits 72 at batch index 9 (90 - 9*2 = 72).
+    // After that, all batches should be at 72.
     const deckCount = 5000 * 40; // 40 sub-batches
     const cost = computeTotalChaosCost(deckCount, 90, 2, 5000, 200);
 
-    // Calculate expected: batches 0-34 degrade, batches 35-39 at RATE_FLOOR
+    const dynamicFloor = Math.ceil(90 * 0.8); // 72
     let expected = 0;
     for (let i = 0; i < 40; i++) {
-      const rate = Math.max(RATE_FLOOR, 90 - i * 2);
+      const rate = Math.max(RATE_FLOOR, dynamicFloor, 90 - i * 2);
       expected += 5000 * (200 / rate);
     }
     expect(cost).toBeCloseTo(expected, 4);
@@ -769,9 +780,23 @@ describe("ProfitForecastSlice (Zustand)", () => {
   let store: TestStore;
   let electron: ElectronMock;
 
+  /**
+   * Install a compute mock that delegates to the real `computeAll` function.
+   * This ensures cached aggregate values (PnL curve, confidence interval, etc.)
+   * are populated correctly in tests, mirroring what the main process would return.
+   */
+  function installRealisticComputeMock() {
+    electron.profitForecast.compute.mockImplementation(
+      (request: ProfitForecastComputeRequest) => {
+        return Promise.resolve(computeAll(request));
+      },
+    );
+  }
+
   beforeEach(() => {
     electron = window.electron as unknown as ElectronMock;
     store = createTestStore();
+    installRealisticComputeMock();
   });
 
   describe("initial state", () => {
@@ -1148,6 +1173,12 @@ describe("ProfitForecastSlice (Zustand)", () => {
       const dto = makeDTO();
       electron.profitForecast.getData.mockResolvedValue(dto);
       await store.getState().profitForecast.fetchData("poe1", "Settlers");
+      // Wait for the async IPC compute call to resolve and update cached values
+      await vi.waitFor(() => {
+        expect(
+          store.getState().profitForecast.cachedBatchPnL.revenue,
+        ).toBeGreaterThan(0);
+      });
     }
 
     describe("hasData", () => {
@@ -1354,6 +1385,148 @@ describe("ProfitForecastSlice (Zustand)", () => {
         expect(store.getState().profitForecast.getRateForBatch(0)).toBe(
           RATE_FLOOR,
         );
+      });
+    });
+
+    describe("getConfidenceInterval", () => {
+      it("returns estimated ≤ optimistic", async () => {
+        await setupWithData();
+
+        const ci = store.getState().profitForecast.getConfidenceInterval();
+        expect(ci.estimated).toBeLessThanOrEqual(ci.optimistic);
+      });
+
+      it("returns all zeros when no data loaded", () => {
+        const ci = store.getState().profitForecast.getConfidenceInterval();
+        expect(ci.estimated).toBe(0);
+        expect(ci.optimistic).toBe(0);
+      });
+
+      it("estimated equals evPerDeck × selectedBatch (revenue)", async () => {
+        await setupWithData();
+
+        const { evPerDeck, selectedBatch } = store.getState().profitForecast;
+        const ci = store.getState().profitForecast.getConfidenceInterval();
+        expect(ci.estimated).toBeCloseTo(evPerDeck * selectedBatch, 4);
+      });
+
+      it("changes when selectedBatch changes", async () => {
+        await setupWithData();
+
+        const ci1 = store.getState().profitForecast.getConfidenceInterval();
+
+        store.getState().profitForecast.setSelectedBatch(100000);
+        store.getState().profitForecast.recomputeRows();
+        // Wait for the async IPC compute to update cached values
+        await vi.waitFor(() => {
+          expect(
+            store.getState().profitForecast.cachedConfidenceInterval.estimated,
+          ).toBeGreaterThan(ci1.estimated);
+        });
+
+        const ci2 = store.getState().profitForecast.getConfidenceInterval();
+        expect(ci2.estimated).not.toBeCloseTo(ci1.estimated, 0);
+        expect(ci2.estimated).toBeGreaterThan(ci1.estimated);
+      });
+    });
+
+    describe("getPnLCurve", () => {
+      it("returns an array of data points", async () => {
+        await setupWithData();
+
+        const curve = store.getState().profitForecast.getPnLCurve();
+        expect(curve.length).toBeGreaterThan(0);
+      });
+
+      it("each data point has deckCount, estimated, optimistic", async () => {
+        await setupWithData();
+
+        const curve = store.getState().profitForecast.getPnLCurve();
+        for (const point of curve) {
+          expect(point).toHaveProperty("deckCount");
+          expect(point).toHaveProperty("estimated");
+          expect(point).toHaveProperty("optimistic");
+        }
+      });
+
+      it("estimated ≤ optimistic for each point", async () => {
+        await setupWithData();
+
+        const curve = store.getState().profitForecast.getPnLCurve();
+        for (const point of curve) {
+          expect(point.estimated).toBeLessThanOrEqual(point.optimistic);
+        }
+      });
+
+      it("returns empty-ish curve when no data loaded", () => {
+        const curve = store.getState().profitForecast.getPnLCurve();
+        // With no rows, all revenue values are 0, so estimated P&L ≤ 0 for all points
+        for (const point of curve) {
+          expect(point.estimated).toBeLessThanOrEqual(0);
+        }
+      });
+    });
+
+    describe("getBatchPnL", () => {
+      it("returns revenue, cost, netPnL, and confidence", async () => {
+        await setupWithData();
+
+        const result = store.getState().profitForecast.getBatchPnL();
+        expect(result).toHaveProperty("revenue");
+        expect(result).toHaveProperty("cost");
+        expect(result).toHaveProperty("netPnL");
+        expect(result).toHaveProperty("confidence");
+        expect(result.confidence).toHaveProperty("estimated");
+        expect(result.confidence).toHaveProperty("optimistic");
+      });
+
+      it("netPnL equals revenue minus cost", async () => {
+        await setupWithData();
+
+        const result = store.getState().profitForecast.getBatchPnL();
+        expect(result.netPnL).toBeCloseTo(result.revenue - result.cost, 4);
+      });
+
+      it("confidence values are net (revenue - cost)", async () => {
+        await setupWithData();
+
+        const result = store.getState().profitForecast.getBatchPnL();
+        // confidence.estimated should equal netPnL (same cost subtracted from estimated revenue)
+        // The CI estimated is evPerDeck * selectedBatch - cost = revenue - cost = netPnL
+        expect(result.confidence.estimated).toBeCloseTo(result.netPnL, 4);
+      });
+
+      it("confidence.estimated ≤ confidence.optimistic", async () => {
+        await setupWithData();
+
+        const { confidence } = store.getState().profitForecast.getBatchPnL();
+        expect(confidence.estimated).toBeLessThanOrEqual(confidence.optimistic);
+      });
+
+      it("returns zeros when no data loaded", () => {
+        const result = store.getState().profitForecast.getBatchPnL();
+        expect(result.revenue).toBe(0);
+        expect(result.cost).toBe(0);
+        expect(result.netPnL).toBe(0);
+      });
+
+      it("changes when selectedBatch changes", async () => {
+        await setupWithData();
+
+        const pnl1 = store.getState().profitForecast.getBatchPnL();
+
+        store.getState().profitForecast.setSelectedBatch(100000);
+        store.getState().profitForecast.recomputeRows();
+        // Wait for the async IPC compute to update cached values
+        await vi.waitFor(() => {
+          expect(
+            store.getState().profitForecast.cachedBatchPnL.revenue,
+          ).toBeGreaterThan(pnl1.revenue);
+        });
+
+        const pnl2 = store.getState().profitForecast.getBatchPnL();
+        expect(pnl2.revenue).toBeGreaterThan(pnl1.revenue);
+        expect(pnl2.cost).toBeGreaterThan(pnl1.cost);
       });
     });
   });
@@ -1707,7 +1880,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
       expect(evAfter).toBeGreaterThan(evBefore);
     });
 
-    it("force-includes a low-confidence card when toggled", async () => {
+    it("force-excludes a low-confidence card when toggled (confidence no longer auto-excludes)", async () => {
       const totalWeight = 150;
       const dto: ProfitForecastDataDTO = {
         rows: [
@@ -1735,11 +1908,11 @@ describe("ProfitForecastSlice (Zustand)", () => {
             hasPrice: true,
             confidence: 3,
             isAnomalous: false,
-            excludeFromEv: true, // auto-excluded because low confidence
+            excludeFromEv: false, // confidence alone no longer excludes
           }),
         ],
         totalWeight,
-        evPerDeck: (100 / totalWeight) * 100, // only Normal contributes
+        evPerDeck: (100 / totalWeight) * 100 + (50 / totalWeight) * 3000, // both contribute (confidence no longer excludes)
         snapshotFetchedAt: "2025-01-15T12:00:00Z",
         chaosToDivineRatio: 200,
         stackedDeckChaosCost: 2.22,
@@ -1753,7 +1926,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
         .getState()
         .profitForecast.rows.find((r) => r.cardName === "LowConf")!;
       expect(lowConfBefore.confidence).toBe(3);
-      expect(lowConfBefore.excludeFromEv).toBe(true);
+      expect(lowConfBefore.excludeFromEv).toBe(false);
 
       store.getState().profitForecast.toggleCardExclusion("LowConf");
 
@@ -1761,7 +1934,7 @@ describe("ProfitForecastSlice (Zustand)", () => {
         .getState()
         .profitForecast.rows.find((r) => r.cardName === "LowConf")!;
       expect(lowConfAfter.userOverride).toBe(true);
-      expect(lowConfAfter.excludeFromEv).toBe(false);
+      expect(lowConfAfter.excludeFromEv).toBe(true);
     });
 
     it("double toggle on anomalous card restores auto-excluded state", async () => {

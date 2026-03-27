@@ -26,6 +26,7 @@ import {
 import { expect } from "../../helpers/electron-test";
 import { getCurrentRoute, navigateTo } from "../../helpers/navigation";
 import {
+  seedFilterData,
   seedLeagueCache,
   seedRarityInsightsData,
   seedSessionPrerequisites,
@@ -76,21 +77,56 @@ export function createSeedGuard() {
 // ─── Filter injection ─────────────────────────────────────────────────────────
 
 /**
- * Pushes DB-seeded filter metadata into the renderer's Zustand store.
+ * Ensures seeded filter metadata is present in both the DB and the Zustand store.
  *
- * In E2E mode the filesystem auto-scan is disabled (see store hydrate()),
- * so the filter_metadata rows seeded by `seedRarityInsightsData` /
- * `seedFilterData` survive.  This helper simply syncs those rows into the
- * store so the UI can render them.
+ * The store-level auto-scan at hydration time is skipped in E2E mode
+ * (see `store.ts`), but the **page-level** `useEffect` in
+ * `RarityInsights.page.tsx` still fires `scanFilters()` whenever
+ * `availableFilters` is empty and `lastScannedAt` is null.  On CI the
+ * scan finds 0 filter files on disk, and its cleanup phase
+ * (`deleteNotInFilePaths([])`) cascade-deletes all `filter_metadata` and
+ * `filter_card_rarities` rows that were seeded earlier.  If the scan is
+ * still in-flight when we inject, its async completion overwrites the
+ * store with empty results.
+ *
+ * Fix (three-phase):
+ *   1. **Wait** for any in-flight scan to finish (`waitForScanIdle`).
+ *   2. **Re-seed** the DB rows the scan may have wiped (`seedFilterData`).
+ *   3. **Sync** the DB state into the Zustand store (`syncAvailableFiltersToStore`).
  *
  * Must be called after the page has navigated to Rarity Insights and settled.
  * Called automatically by `waitForPageSettled`.
  */
 export async function injectSeededFilters(page: Page) {
-  // In E2E mode the auto-scan is disabled at the store level, so the
-  // DB-seeded filter_metadata rows are never deleted.  We only need to
-  // push the DB state into the Zustand store so the UI picks it up.
+  // The page's useEffect fires scanFilters() when availableFilters is empty
+  // and lastScannedAt is null.  On CI (no real filter files) the scan finds
+  // nothing and its cleanup phase cascade-deletes all seeded filter_metadata
+  // rows from the DB.  If the scan is still in-flight when we inject, its
+  // completion will overwrite our store state with empty results.
+  //
+  // Fix: wait for any in-flight scan to finish, re-seed the DB rows that the
+  // scan may have wiped, then push the DB state into the Zustand store.
+  await waitForScanIdle(page);
+  await seedFilterData(page, RARITY_INSIGHTS_CARDS);
   await syncAvailableFiltersToStore(page);
+}
+
+/**
+ * Polls the Zustand store until `rarityInsights.isScanning` is false.
+ * This ensures any in-flight auto-scan triggered by the page's useEffect
+ * has completed before we re-seed and inject filter data.
+ */
+async function waitForScanIdle(page: Page, timeout = 15_000) {
+  const start = Date.now();
+  while (Date.now() - start < timeout) {
+    const isScanning = await page.evaluate(() => {
+      const store = (window as any).__zustandStore;
+      return store?.getState()?.rarityInsights?.isScanning ?? false;
+    });
+    if (!isScanning) return;
+    await page.waitForTimeout(200);
+  }
+  // If we timed out, proceed anyway — the caller's filter-wait will handle it
 }
 
 // ─── Navigation & Waiting ─────────────────────────────────────────────────────
@@ -429,8 +465,9 @@ export async function clickChipAndWaitForReorder(
 // ─── Filter dropdown helpers ──────────────────────────────────────────────────
 
 export async function openFiltersDropdown(page: Page) {
-  const filtersButton = page.locator("button", { hasText: "Filters" });
-  if (await filtersButton.isDisabled()) return false;
+  const filtersButton = page.locator(
+    '[data-testid="filters-dropdown-trigger"]',
+  );
   await filtersButton.click();
   await page
     .locator(".absolute.z-50")
@@ -449,13 +486,25 @@ export async function selectFilterInDropdown(page: Page, filterName: string) {
   const opened = await openFiltersDropdown(page);
   if (!opened) return false;
   const dropdown = page.locator(".absolute.z-50");
-  await dropdown.locator("button", { hasText: filterName }).click();
+  const filterButton = dropdown.locator("button", { hasText: filterName });
+
+  // The dropdown now always opens (button is never disabled), but the filter
+  // list only renders once `availableFilters` is populated in the store.
+  // Wait for the specific filter button to appear; if the auto-scan race
+  // wiped injected filters, this will time out and we return false so the
+  // caller can skip gracefully.
+  try {
+    await filterButton.waitFor({ state: "visible", timeout: 10_000 });
+  } catch {
+    await closeFiltersDropdown(page);
+    return false;
+  }
+
+  await filterButton.click();
   // Wait for the filter to register as selected (checkbox becomes checked)
-  await expect(
-    dropdown
-      .locator("button", { hasText: filterName })
-      .locator("input[type='checkbox']"),
-  ).toBeChecked({ timeout: 5_000 });
+  await expect(filterButton.locator("input[type='checkbox']")).toBeChecked({
+    timeout: 5_000,
+  });
   return true;
 }
 

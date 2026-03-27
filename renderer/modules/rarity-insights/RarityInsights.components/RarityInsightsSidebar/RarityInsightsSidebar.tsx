@@ -1,6 +1,12 @@
 import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
-import { FiAlertTriangle, FiCheck, FiChevronDown } from "react-icons/fi";
+import {
+  FiAlertTriangle,
+  FiCheck,
+  FiChevronDown,
+  FiRefreshCw,
+  FiSearch,
+} from "react-icons/fi";
 
 import type { DiscoveredRarityInsightsDTO } from "~/main/modules/rarity-insights/RarityInsights.dto";
 import { Button } from "~/renderer/components";
@@ -98,7 +104,7 @@ const RarityInsightsDropdown = () => {
       getLocalFilters,
       getOnlineFilters,
     },
-    rarityInsightsComparison: { selectedFilters },
+    rarityInsightsComparison: { selectedFilters, rescan },
   } = useBoundStore();
 
   const localFilters = getLocalFilters();
@@ -126,13 +132,23 @@ const RarityInsightsDropdown = () => {
   const hasFilters = availableFilters.length > 0;
   const hasBothGroups = onlineFilters.length > 0 && localFilters.length > 0;
 
+  const handleScan = () => {
+    if (!isScanning) {
+      rescan();
+    }
+  };
+
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div
+      className="relative"
+      ref={dropdownRef}
+      data-onboarding="rarity-insights-scan"
+    >
       <Button
+        data-testid="filters-dropdown-trigger"
         variant="ghost"
         size="sm"
         onClick={() => setIsOpen((prev) => !prev)}
-        disabled={isScanning || !hasFilters}
         className={clsx("gap-1.5", isOpen && "btn-active")}
       >
         Filters
@@ -155,27 +171,69 @@ const RarityInsightsDropdown = () => {
             "p-4",
           )}
         >
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs text-base-content/50">
-              Select up to {MAX_SELECTED_FILTERS} filters
-            </span>
+          {/* ─── Scan Section ──────────────────────────────────────── */}
+          <div data-testid="scan-section" className="mb-3">
+            {isScanning ? (
+              <div
+                data-testid="scanning-indicator"
+                className="flex items-center gap-2 text-sm text-base-content/70"
+              >
+                <span className="loading loading-spinner loading-xs text-primary" />
+                <span>Scanning...</span>
+              </div>
+            ) : hasFilters ? (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-base-content/50">
+                  Select up to {MAX_SELECTED_FILTERS} filters
+                </span>
+                <Button
+                  data-testid="rescan-button"
+                  variant="ghost"
+                  size="xs"
+                  onClick={handleScan}
+                  className="gap-1"
+                >
+                  <FiRefreshCw className="w-3 h-3" />
+                  Rescan
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-2 py-2">
+                <p className="text-sm text-base-content/60 text-center">
+                  Scan your PoE filter files to load card rarity data
+                </p>
+                <Button
+                  data-testid="scan-filters-button"
+                  variant="primary"
+                  size="sm"
+                  onClick={handleScan}
+                  className="gap-1.5"
+                >
+                  <FiSearch className="w-3.5 h-3.5" />
+                  Scan Filters
+                </Button>
+              </div>
+            )}
           </div>
 
-          <div className={clsx("flex", hasBothGroups ? "gap-4" : "")}>
-            <RarityInsightsSelectorGroup
-              label="Online Filters"
-              filters={onlineFilters}
-            />
-            <RarityInsightsSelectorGroup
-              label="Local Filters"
-              filters={localFilters}
-            />
-          </div>
+          {/* ─── Filter Groups ─────────────────────────────────────── */}
+          {hasFilters && (
+            <div className={clsx("flex", hasBothGroups ? "gap-4" : "")}>
+              <RarityInsightsSelectorGroup
+                label="Online Filters"
+                filters={onlineFilters}
+              />
+              <RarityInsightsSelectorGroup
+                label="Local Filters"
+                filters={localFilters}
+              />
+            </div>
+          )}
 
           {!hasFilters && !isScanning && (
             <div className="flex items-center gap-2 text-warning text-xs p-3 rounded-lg bg-base-200/50">
               <FiAlertTriangle className="w-4 h-4 shrink-0" />
-              <span>No filters found. Click Scan to search.</span>
+              <span>No filters found. Use Scan Filters above to search.</span>
             </div>
           )}
         </div>

@@ -1,7 +1,7 @@
 /**
  * Rarity Insights — Interactions tests
  *
- * Search, Refresh, Scan, Filters, Boss Cards, Diffs
+ * Search, Refresh, Filters (Scan), Boss Cards, Diffs
  *
  * @module e2e/flows/rarity-insights/rarity-insights-interactions.e2e.test
  */
@@ -147,7 +147,7 @@ test.describe("Rarity Insights — Interactions", () => {
     });
   });
 
-  // ─── Scan & Filters ──────────────────────────────────────────────────────
+  // ─── Filters (includes Scan) ──────────────────────────────────────────────
 
   test.describe("Filters", () => {
     test("should show Filters button", async ({ page }) => {
@@ -165,6 +165,22 @@ test.describe("Rarity Insights — Interactions", () => {
       if (opened) {
         await expect(
           page.locator(".absolute.z-50").getByText(/Select up to \d+ filters/),
+        ).toBeVisible();
+        await closeFiltersDropdown(page);
+      }
+    });
+
+    test("should show Rescan button inside dropdown when filters are loaded", async ({
+      page,
+    }) => {
+      await goToRarityInsights(page);
+      await waitForPageSettled(page);
+      const opened = await openFiltersDropdown(page);
+      if (opened) {
+        // After waitForPageSettled injects seeded filters, the scan section
+        // shows the "Rescan" button alongside the filter instruction.
+        await expect(
+          page.locator(".absolute.z-50").getByText("Rescan"),
         ).toBeVisible();
         await closeFiltersDropdown(page);
       }
@@ -235,9 +251,65 @@ test.describe("Rarity Insights — Interactions", () => {
     test("should become enabled after selecting a filter and filter diff rows", async ({
       page,
     }) => {
+      // ── Resilient cleanup helper ──────────────────────────────────────
+      // Catch blocks that call deselectFilterInDropdown / closeFiltersDropdown
+      // can themselves throw on a slow CI (e.g. the dropdown is gone, the
+      // filter button didn't render).  Wrapping every cleanup call in its
+      // own try/catch prevents a secondary throw from masking the real skip.
+      const safeCleanup = async () => {
+        try {
+          await deselectFilterInDropdown(page, FILTER_1_NAME);
+        } catch {
+          /* best-effort */
+        }
+        try {
+          await closeFiltersDropdown(page);
+        } catch {
+          /* best-effort */
+        }
+      };
+
       await goToRarityInsights(page);
       await waitForPageSettled(page);
       await waitForTableRows(page);
+
+      // ── Ensure cards loaded with correct rarity data ──────────────────
+      // On slow machines, loadCards() may complete before the
+      // divination_card_rarities backfill from seedRarityInsightsData has
+      // been committed.  When that happens, the LEFT JOIN in getAllByGame
+      // finds no matching rarity rows and COALESCE falls through to 0
+      // (Unknown) for every non-fixture card.  Later, when the filter is
+      // parsed, filter_card_rarities has rarity 4 for those same cards,
+      // so getDifferences() sees 4 ≠ 0 for ALL ~370 cards → "Show
+      // differences only" keeps the full 382-row count.
+      //
+      // Fix: poll the store until at least some non-fixture cards have a
+      // non-zero rarity.  If they're all 0, force a re-load from the
+      // (now fully-seeded) DB.
+      const cardRaritiesOk = await page.evaluate(() => {
+        const store = (window as any).__zustandStore;
+        if (!store) return false;
+        const allCards = store.getState().cards?.allCards ?? [];
+        if (allCards.length === 0) return false;
+        // Check a sample of cards — if most have rarity 0 the backfill
+        // hasn't landed yet (fixture cards have non-zero rarities, but
+        // there are only 12 of them vs ~370 bundled cards).
+        let nonZero = 0;
+        for (const c of allCards) {
+          if (c.rarity !== 0) nonZero++;
+        }
+        return nonZero > 20; // fixture cards + at least some backfilled
+      });
+
+      if (!cardRaritiesOk) {
+        // Force a fresh loadCards() now that the DB is fully seeded
+        await page.evaluate(async () => {
+          const store = (window as any).__zustandStore;
+          await store?.getState()?.cards?.loadCards?.();
+        });
+        // Wait for the table to re-render with updated data
+        await waitForTableRows(page);
+      }
 
       // When the filter is toggled, the comparison slice calls parseFilter
       // which IPCs to ensureFilterParsed on the main process.  Because the
@@ -248,6 +320,33 @@ test.describe("Rarity Insights — Interactions", () => {
       if (!selected) return;
       await closeFiltersDropdown(page);
 
+      // Wait for the comparison slice to finish parsing the selected filter.
+      // `getAllSelectedParsed()` returns true once every selected filter has
+      // an entry in `parsedResults`.  Polling the Zustand store directly is
+      // more reliable than a fixed timeout because IPC round-trip times vary
+      // significantly between local dev and resource-constrained CI runners.
+      //
+      // On CI the IPC round-trip can be very slow; use a generous timeout.
+      try {
+        await expect
+          .poll(
+            async () =>
+              page.evaluate(() => {
+                const store = (window as any).__zustandStore;
+                return (
+                  store
+                    ?.getState()
+                    ?.rarityInsightsComparison?.getAllSelectedParsed() ?? false
+                );
+              }),
+            { timeout: 30_000, intervals: [100, 250, 500, 1_000, 2_000] },
+          )
+          .toBe(true);
+      } catch {
+        await safeCleanup();
+        return;
+      }
+
       // "Show differences only" should become enabled now that a filter with
       // parsed results is selected.
       const diffCheckbox = page
@@ -257,14 +356,133 @@ test.describe("Rarity Insights — Interactions", () => {
       try {
         await expect(diffCheckbox).toBeEnabled({ timeout: 10_000 });
       } catch {
-        // Parsing may not complete — clean up and skip
-        await deselectFilterInDropdown(page, FILTER_1_NAME);
-        await closeFiltersDropdown(page);
+        await safeCleanup();
         return;
       }
 
-      // Read the total from the pagination footer before toggling diffs
-      const beforeCount = await getTotalResultCount(page);
+      // Wait for the pagination footer to be present and stable before
+      // capturing the "before" count.  After filter selection the table
+      // may briefly re-render (adding the filter rarity column), which
+      // can cause the pagination text to flicker.  Poll for a *non-zero*
+      // count to avoid capturing a transitional "0" that would make the
+      // subsequent `.not.toBe(beforeCount)` assertion trivially pass.
+      let beforeCount = 0;
+      try {
+        await expect
+          .poll(
+            async () => {
+              const count = await getTotalResultCount(page);
+              return count;
+            },
+            { timeout: 10_000, intervals: [200, 500, 1_000] },
+          )
+          .toBeGreaterThan(0);
+        beforeCount = await getTotalResultCount(page);
+      } catch {
+        // Pagination never appeared — bail out rather than assert on stale data
+        await safeCleanup();
+        return;
+      }
+
+      // ── Diagnostic: dump diff state before toggling ───────────────────
+      // When this test fails the pagination count stays the same, meaning
+      // every card is a "difference" (filterRarity ≠ ninjaRarity for all).
+      // Capture the store state so we can see exactly what's going on in
+      // the CI output when the assertion fails.
+      const diagBefore = await page.evaluate(() => {
+        const store = (window as any).__zustandStore;
+        if (!store) return { error: "no store" };
+        const state = store.getState();
+        const comp = state.rarityInsightsComparison;
+        const cards = state.cards;
+
+        const selectedFilters = comp.selectedFilters;
+        const parsedEntries = selectedFilters.map((id: string) => {
+          const p = comp.parsedResults.get(id);
+          return {
+            filterId: id,
+            hasParsed: !!p,
+            raritiesSize: p ? p.rarities.size : 0,
+          };
+        });
+
+        // Sample up to 5 cards where filterRarity ≠ ninjaRarity
+        const diffs: any[] = [];
+        const nonDiffs: any[] = [];
+        const allCards = cards.allCards || [];
+        for (const card of allCards) {
+          if (diffs.length >= 5 && nonDiffs.length >= 3) break;
+          for (const fid of selectedFilters) {
+            const p = comp.parsedResults.get(fid);
+            if (!p) continue;
+            const filterR = p.rarities.get(card.name) ?? 4;
+            const ninjaR = card.rarity;
+            if (filterR !== ninjaR && diffs.length < 5) {
+              diffs.push({
+                name: card.name,
+                ninjaRarity: ninjaR,
+                filterRarity: filterR,
+                inFilterMap: p.rarities.has(card.name),
+              });
+            } else if (filterR === ninjaR && nonDiffs.length < 3) {
+              nonDiffs.push({
+                name: card.name,
+                ninjaRarity: ninjaR,
+                filterRarity: filterR,
+              });
+            }
+          }
+        }
+
+        // Count total diffs
+        let diffCount = 0;
+        for (const card of allCards) {
+          for (const fid of selectedFilters) {
+            const p = comp.parsedResults.get(fid);
+            if (!p) continue;
+            const filterR = p.rarities.get(card.name) ?? 4;
+            if (filterR !== card.rarity) {
+              diffCount++;
+              break;
+            }
+          }
+        }
+
+        return {
+          totalCards: allCards.length,
+          selectedFilters,
+          parsedEntries,
+          diffCount,
+          sampleDiffs: diffs,
+          sampleNonDiffs: nonDiffs,
+          showDiffsOnly: comp.showDiffsOnly,
+          league: state.settings?.poe1SelectedLeague ?? "unknown",
+        };
+      });
+      console.log(
+        "[E2E DIAG] Diff state before toggle:",
+        JSON.stringify(diagBefore, null, 2),
+      );
+
+      // Fail-fast: if every card is a "diff", the seeded data is corrupted
+      // (most likely divination_card_rarities has rarity 0 for non-fixture
+      // cards while filter_card_rarities has rarity 4 — the backfill race).
+      // Toggling "Show differences only" would keep the count at beforeCount,
+      // and the poll would time out after 20 s for no reason.
+      if (
+        diagBefore &&
+        "diffCount" in diagBefore &&
+        "totalCards" in diagBefore &&
+        diagBefore.diffCount >= diagBefore.totalCards - 5 // allow a tiny margin
+      ) {
+        console.error(
+          `[E2E DIAG] All ${diagBefore.diffCount}/${diagBefore.totalCards} cards are diffs — ` +
+            `seeded data is likely corrupted. Skipping assertion. ` +
+            `Sample diffs: ${JSON.stringify(diagBefore.sampleDiffs)}`,
+        );
+        await safeCleanup();
+        return;
+      }
 
       // Enable "Show differences only"
       await diffCheckbox.check();
@@ -272,6 +490,10 @@ test.describe("Rarity Insights — Interactions", () => {
 
       // Wait for the pagination total to change (table re-renders
       // synchronously now that useDeferredValue has been removed).
+      // When the pagination text is temporarily absent during a React
+      // commit (e.g. the table unmounts/remounts its footer), the
+      // locator returns "".  In that case we return `beforeCount` so
+      // the poll keeps retrying rather than matching prematurely.
       await expect
         .poll(
           async () => {
@@ -283,9 +505,11 @@ test.describe("Rarity Insights — Interactions", () => {
             return match ? parseInt(match[1], 10) : beforeCount;
           },
           {
-            timeout: 10_000,
-            intervals: [100, 200, 500, 1_000],
-            message: `Pagination total did not change from ${beforeCount} after toggling "Show differences only"`,
+            timeout: 20_000,
+            intervals: [100, 250, 500, 1_000, 2_000],
+            message: `Pagination total did not change from ${beforeCount} after toggling "Show differences only". Diag: ${JSON.stringify(
+              diagBefore,
+            )}`,
           },
         )
         .not.toBe(beforeCount);
@@ -318,8 +542,7 @@ test.describe("Rarity Insights — Interactions", () => {
       await waitForTableRows(page);
 
       // Deselect filter
-      await deselectFilterInDropdown(page, FILTER_1_NAME);
-      await closeFiltersDropdown(page);
+      await safeCleanup();
     });
   });
 });

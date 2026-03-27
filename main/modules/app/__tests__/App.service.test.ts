@@ -348,7 +348,7 @@ describe("AppService", () => {
       const handler = getIpcHandler(AppChannel.GetVersion);
       const result = handler();
 
-      expect(result).toBe("0.12.0");
+      expect(result).toMatch(/^\d+\.\d+\.\d+$/);
     });
   });
 

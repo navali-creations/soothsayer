@@ -267,6 +267,18 @@ export function createElectronMock() {
         baseRate: 0,
         baseRateSource: "none",
       }),
+      compute: vi.fn().mockResolvedValue({
+        rowFields: {},
+        totalCost: 0,
+        pnlCurve: [],
+        confidenceInterval: { estimated: 0, optimistic: 0 },
+        batchPnL: {
+          revenue: 0,
+          cost: 0,
+          netPnL: 0,
+          confidence: { estimated: 0, optimistic: 0 },
+        },
+      }),
     },
 
     // ── Storage ────────────────────────────────────────────────────────

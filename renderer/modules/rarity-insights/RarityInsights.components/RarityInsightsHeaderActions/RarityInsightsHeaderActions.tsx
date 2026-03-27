@@ -9,18 +9,14 @@ import RarityInsightsDropdown from "../RarityInsightsSidebar/RarityInsightsSideb
 
 interface RarityInsightsHeaderActionsProps {
   onGlobalFilterChange: (value: string) => void;
-  isParsing: boolean;
 }
 
 const RarityInsightsHeaderActions = ({
   onGlobalFilterChange,
-  isParsing,
 }: RarityInsightsHeaderActionsProps) => {
   const {
     settings: { getSelectedGame, getActiveGameViewSelectedLeague },
     poeNinja: { isRefreshing, refreshPrices, getRefreshableAt },
-    rarityInsights: { isScanning },
-    rarityInsightsComparison: { rescan },
   } = useBoundStore();
 
   const game = getSelectedGame();
@@ -53,7 +49,7 @@ const RarityInsightsHeaderActions = ({
         placeholder="Search cards..."
         size="sm"
         className="flex-1 w-[150px]"
-        disabled={isParsing || isRefreshing}
+        disabled={isRefreshing}
       />
 
       {/* Refresh poe.ninja prices button */}
@@ -97,24 +93,7 @@ const RarityInsightsHeaderActions = ({
         </Button>
       </div>
 
-      <div data-onboarding="rarity-insights-scan" className="flex">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => !isScanning && !isParsing && rescan()}
-          disabled={isScanning || isRefreshing}
-          className="gap-1.5"
-        >
-          <FiRefreshCw
-            className={clsx("w-3.5 h-3.5", {
-              "animate-spin": isScanning,
-            })}
-          />
-          {isScanning ? "Scanning..." : "Scan"}
-        </Button>
-
-        <RarityInsightsDropdown />
-      </div>
+      <RarityInsightsDropdown />
     </div>
   );
 };

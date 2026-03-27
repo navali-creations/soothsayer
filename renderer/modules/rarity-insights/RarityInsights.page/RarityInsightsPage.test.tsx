@@ -27,12 +27,7 @@ vi.mock(
 vi.mock(
   "../RarityInsights.components/RarityInsightsHeaderActions/RarityInsightsHeaderActions",
   () => ({
-    default: (props: any) => (
-      <div
-        data-testid="header-actions"
-        data-isparsing={String(props.isParsing)}
-      />
-    ),
+    default: () => <div data-testid="header-actions" />,
   }),
 );
 
@@ -80,7 +75,6 @@ function createMockState(overrides: Record<string, any> = {}) {
       selectedFilters: ["f1"],
       toggleFilter: vi.fn(),
       reset: vi.fn(),
-      parsingFilterId: null,
       ...overrides.rarityInsightsComparison,
     },
     poeNinja: {
@@ -147,26 +141,6 @@ describe("RarityInsightsPage", () => {
       renderWithProviders(<RarityInsightsPage />);
 
       expect(screen.getByTestId("header-actions")).toBeInTheDocument();
-    });
-
-    it("passes isParsing=false to header actions when parsingFilterId is null", () => {
-      setupStore({
-        rarityInsightsComparison: { parsingFilterId: null },
-      });
-      renderWithProviders(<RarityInsightsPage />);
-
-      const headerActions = screen.getByTestId("header-actions");
-      expect(headerActions).toHaveAttribute("data-isparsing", "false");
-    });
-
-    it("passes isParsing=true to header actions when parsingFilterId is set", () => {
-      setupStore({
-        rarityInsightsComparison: { parsingFilterId: "f1" },
-      });
-      renderWithProviders(<RarityInsightsPage />);
-
-      const headerActions = screen.getByTestId("header-actions");
-      expect(headerActions).toHaveAttribute("data-isparsing", "true");
     });
   });
 

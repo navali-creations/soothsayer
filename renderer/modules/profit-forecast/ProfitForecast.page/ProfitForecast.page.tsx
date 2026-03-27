@@ -1,19 +1,20 @@
 import { useEffect, useState } from "react";
-import { FiAlertTriangle, FiRefreshCw } from "react-icons/fi";
+import { FiAlertTriangle, FiInfo, FiRefreshCw } from "react-icons/fi";
 
 import { Button, PageContainer } from "~/renderer/components";
 import { useDebounce } from "~/renderer/hooks";
 import { useBoundStore } from "~/renderer/store";
 import type { DivinationCardMetadata } from "~/types/data-stores";
 
+import PFBreakevenChart from "../ProfitForecast.components/PFBreakevenChart/PFBreakevenChart";
 import PFCostModelPanel from "../ProfitForecast.components/PFCostModelPanel/PFCostModelPanel";
 import PFHeaderActions from "../ProfitForecast.components/PFHeaderActions/PFHeaderActions";
 import PFSummaryCards from "../ProfitForecast.components/PFSummaryCards/PFSummaryCards";
 import { PFTable } from "../ProfitForecast.components/PFTable";
-import type { BatchSize } from "../ProfitForecast.slice/ProfitForecast.slice";
 
 const ProfitForecastPage = () => {
   const [globalFilter, setGlobalFilter] = useState("");
+  const [isSettled, setIsSettled] = useState(false);
   const [cardMetadataMap, setCardMetadataMap] = useState<
     Map<string, DivinationCardMetadata>
   >(new Map());
@@ -25,14 +26,13 @@ const ProfitForecastPage = () => {
       rows,
       snapshotFetchedAt,
       isLoading,
+      isComputing,
       error,
       selectedBatch,
+      forecastView,
       stepDrop,
       subBatchSize,
-      setSelectedBatch,
-      setStepDrop,
-      setSubBatchSize,
-      setIsComputing,
+      customBaseRate,
       fetchData,
       recomputeRows,
       hasData,
@@ -99,7 +99,7 @@ const ProfitForecastPage = () => {
   // ─── Debounce recomputeRows when cost model or batch changes ───────────
 
   const debouncedRecompute = useDebounce(
-    `${stepDrop}:${subBatchSize}:${selectedBatch}`,
+    `${stepDrop}:${subBatchSize}:${selectedBatch}:${customBaseRate}`,
     300,
   );
 
@@ -109,22 +109,17 @@ const ProfitForecastPage = () => {
     recomputeRows();
   }, [debouncedRecompute]);
 
-  // ─── Slider & batch tab handlers (set isComputing immediately) ─────────
-
-  const handleStepDropChange = (value: number) => {
-    setIsComputing(true);
-    setStepDrop(value);
-  };
-
-  const handleSubBatchSizeChange = (value: number) => {
-    setIsComputing(true);
-    setSubBatchSize(value);
-  };
-
-  const handleBatchChange = (batch: BatchSize) => {
-    setIsComputing(true);
-    setSelectedBatch(batch);
-  };
+  // ─── Defer heavy content until page transition settles ───────────
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const raf = requestAnimationFrame(() => {
+      timer = setTimeout(() => setIsSettled(true), 50);
+    });
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+    };
+  }, []);
 
   // ─── Derived state ─────────────────────────────────────────────────────
 
@@ -232,26 +227,62 @@ const ProfitForecastPage = () => {
               <PFSummaryCards />
             </div>
 
-            {/* Two-column layout: controls left, table right */}
+            {/* Two-column layout: controls left, content right */}
             <div className="flex gap-3 flex-1 min-h-0">
               {/* Left column — compact exchange model controls */}
               <div className="w-52 shrink-0">
-                <PFCostModelPanel
-                  selectedBatch={selectedBatch}
-                  onBatchChange={handleBatchChange}
-                  onStepDropChange={handleStepDropChange}
-                  onSubBatchSizeChange={handleSubBatchSizeChange}
-                />
+                <PFCostModelPanel />
               </div>
 
-              {/* Right column — table */}
-              <div className="card bg-base-200 shadow-xl flex-1 min-h-0 min-w-0 flex flex-col relative">
-                <div className="card-body flex-1 min-h-0 p-3">
-                  <PFTable
-                    globalFilter={globalFilter}
-                    cardMetadataMap={cardMetadataMap}
-                  />
-                </div>
+              {/* Right column — alert + chart OR table, each gets full height */}
+              <div className="flex-1 min-h-0 min-w-0 flex flex-col gap-2">
+                {/* Large batch cost-cliff hint — only for 100k / 1M */}
+                {(selectedBatch === 100000 || selectedBatch === 1000000) &&
+                  !customBaseRate && (
+                    <div className="alert alert-soft alert-info py-2 px-3 text-xs shrink-0">
+                      <FiInfo className="shrink-0 w-4 h-4" />
+                      <span>
+                        At {selectedBatch.toLocaleString("en-US")} decks the
+                        cost model shows a steep curve because the exchange rate
+                        degrades as you buy more. <br />
+                        In practice, patient buyers can place orders at a fixed
+                        rate and wait for them to fill. <br />
+                        Click the <strong>pencil icon</strong> on the Base Rate
+                        card to set a custom rate (e.g. 90 decks/div) that
+                        reflects the price you expect to pay.
+                      </span>
+                    </div>
+                  )}
+
+                {/* Tab content — full remaining height */}
+                {forecastView === "chart" && isSettled && (
+                  <div className="card bg-base-200 shadow-xl flex-1 min-h-0 relative">
+                    {isComputing && (
+                      <div className="absolute inset-0 bg-base-200/60 backdrop-blur-sm flex items-center justify-center z-20 rounded-lg">
+                        <span className="loading loading-spinner loading-md text-primary" />
+                      </div>
+                    )}
+                    <div className="card-body p-3 h-full">
+                      <PFBreakevenChart />
+                    </div>
+                  </div>
+                )}
+
+                {forecastView === "table" && isSettled && (
+                  <div className="card bg-base-200 shadow-xl flex-1 min-h-0 min-w-0 flex flex-col relative">
+                    <div className="card-body flex-1 min-h-0 p-3">
+                      <PFTable
+                        globalFilter={globalFilter}
+                        cardMetadataMap={cardMetadataMap}
+                      />
+                    </div>
+                  </div>
+                )}
+                {!isSettled && (
+                  <div className="card bg-base-200 shadow-xl flex-1 min-h-0 flex items-center justify-center">
+                    <span className="loading loading-spinner loading-lg text-primary" />
+                  </div>
+                )}
               </div>
             </div>
           </>

@@ -45,18 +45,18 @@ class DatabaseService {
     } else if (app.isPackaged) {
       dbFilename = "soothsayer.prod.db";
     } else {
-      dbFilename = "soothsayer.db";
+      dbFilename = "soothsayer.prod.db";
     }
 
     this.dbPath = path.join(userDataPath, dbFilename);
 
     const isNewDb = !fs.existsSync(this.dbPath);
     console.log(
-      `[Database] Using database: ${dbFilename} (packaged: ${app.isPackaged}, localSupabase: ${isLocalSupabase}, newDb: ${isNewDb})`,
+      `[Database] Using database: ${dbFilename} (packaged: ${app.isPackaged}, localSupabase: ${isLocalSupabase}, newDb: ${isNewDb})`
     );
     if (isNewDb) {
       console.warn(
-        `[Database] ⚠️ Creating fresh database at ${this.dbPath} — all settings will use defaults (league=Standard, clientPath=null)`,
+        `[Database] ⚠️ Creating fresh database at ${this.dbPath} — all settings will use defaults (league=Standard, clientPath=null)`
       );
     }
 
@@ -103,14 +103,14 @@ class DatabaseService {
         (
           _event,
           sql: string,
-          params?: unknown[],
+          params?: unknown[]
         ): { changes: number; lastInsertRowid: number | bigint } => {
           if (FORBIDDEN_SQL_PATTERNS.test(sql)) {
             throw new Error(
               `[Database] E2E IPC: forbidden SQL statement rejected: ${sql.slice(
                 0,
-                80,
-              )}`,
+                80
+              )}`
             );
           }
           const stmt = this.db.prepare(sql);
@@ -119,7 +119,7 @@ class DatabaseService {
             changes: info.changes,
             lastInsertRowid: info.lastInsertRowid,
           };
-        },
+        }
       );
 
       ipcMain.handle(
@@ -129,17 +129,17 @@ class DatabaseService {
             throw new Error(
               `[Database] E2E IPC: forbidden SQL statement rejected: ${sql.slice(
                 0,
-                80,
-              )}`,
+                80
+              )}`
             );
           }
           const stmt = this.db.prepare(sql);
           return stmt.all(...(params ?? []));
-        },
+        }
       );
 
       console.log(
-        "[Database] E2E testing IPC handlers registered (e2e:db-exec, e2e:db-query)",
+        "[Database] E2E testing IPC handlers registered (e2e:db-exec, e2e:db-query)"
       );
     }
   }
@@ -177,7 +177,7 @@ class DatabaseService {
       if (count.count === 0) {
         this.db
           .prepare(
-            "INSERT INTO global_stats (key, value) VALUES ('totalStackedDecksOpened', 0)",
+            "INSERT INTO global_stats (key, value) VALUES ('totalStackedDecksOpened', 0)"
           )
           .run();
       }
@@ -709,7 +709,7 @@ class DatabaseService {
     if (this._isClosed) {
       console.warn("[Database] Cannot access database - connection is closed");
       throw new Error(
-        "[Database] Cannot access database - connection is closed",
+        "[Database] Cannot access database - connection is closed"
       );
     }
     return this.kysely;
@@ -719,14 +719,14 @@ class DatabaseService {
    * Create a transaction using Kysely
    */
   public async transaction<T>(
-    callback: (trx: Kysely<DatabaseSchema>) => Promise<T>,
+    callback: (trx: Kysely<DatabaseSchema>) => Promise<T>
   ): Promise<T> {
     if (this._isClosed) {
       console.warn(
-        "[Database] Cannot start transaction - connection is closed",
+        "[Database] Cannot start transaction - connection is closed"
       );
       throw new Error(
-        "[Database] Cannot access database - connection is closed",
+        "[Database] Cannot access database - connection is closed"
       );
     }
     const transaction = await this.kysely.transaction().execute(callback);

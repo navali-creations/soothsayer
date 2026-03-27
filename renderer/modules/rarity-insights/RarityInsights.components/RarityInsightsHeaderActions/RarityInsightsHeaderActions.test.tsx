@@ -55,12 +55,10 @@ import { useTickingTimer } from "~/renderer/hooks";
 
 const mockUseTickingTimer = vi.mocked(useTickingTimer);
 const mockRefreshPrices = vi.fn().mockResolvedValue(undefined);
-const mockRescan = vi.fn().mockResolvedValue(undefined);
 
 function setupStore(
   overrides: {
     isRefreshing?: boolean;
-    isScanning?: boolean;
     refreshableAt?: string | null;
     game?: string;
     league?: string | null;
@@ -77,12 +75,6 @@ function setupStore(
       refreshPrices: mockRefreshPrices,
       getRefreshableAt: () => overrides.refreshableAt ?? null,
     },
-    rarityInsights: {
-      isScanning: overrides.isScanning ?? false,
-    },
-    rarityInsightsComparison: {
-      rescan: mockRescan,
-    },
   } as any);
 }
 
@@ -92,7 +84,6 @@ describe("RarityInsightsHeaderActions", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     mockRefreshPrices.mockClear();
-    mockRescan.mockClear();
   });
 
   // ── Rendering ──────────────────────────────────────────────────────────
@@ -101,10 +92,7 @@ describe("RarityInsightsHeaderActions", () => {
     it("renders the search input", () => {
       setupStore();
       renderWithProviders(
-        <RarityInsightsHeaderActions
-          onGlobalFilterChange={vi.fn()}
-          isParsing={false}
-        />,
+        <RarityInsightsHeaderActions onGlobalFilterChange={vi.fn()} />,
       );
 
       expect(screen.getByTestId("search-input")).toBeInTheDocument();
@@ -113,10 +101,7 @@ describe("RarityInsightsHeaderActions", () => {
     it("renders the search input with correct placeholder", () => {
       setupStore();
       renderWithProviders(
-        <RarityInsightsHeaderActions
-          onGlobalFilterChange={vi.fn()}
-          isParsing={false}
-        />,
+        <RarityInsightsHeaderActions onGlobalFilterChange={vi.fn()} />,
       );
 
       expect(screen.getByTestId("search-input")).toHaveAttribute(
@@ -128,34 +113,25 @@ describe("RarityInsightsHeaderActions", () => {
     it("renders the Refresh poe.ninja button", () => {
       setupStore();
       renderWithProviders(
-        <RarityInsightsHeaderActions
-          onGlobalFilterChange={vi.fn()}
-          isParsing={false}
-        />,
+        <RarityInsightsHeaderActions onGlobalFilterChange={vi.fn()} />,
       );
 
       expect(screen.getByText("Refresh poe.ninja")).toBeInTheDocument();
     });
 
-    it("renders the Scan button", () => {
+    it("does not render a standalone Scan button", () => {
       setupStore();
       renderWithProviders(
-        <RarityInsightsHeaderActions
-          onGlobalFilterChange={vi.fn()}
-          isParsing={false}
-        />,
+        <RarityInsightsHeaderActions onGlobalFilterChange={vi.fn()} />,
       );
 
-      expect(screen.getByText("Scan")).toBeInTheDocument();
+      expect(screen.queryByText("Scan")).not.toBeInTheDocument();
     });
 
     it("renders the sidebar dropdown", () => {
       setupStore();
       renderWithProviders(
-        <RarityInsightsHeaderActions
-          onGlobalFilterChange={vi.fn()}
-          isParsing={false}
-        />,
+        <RarityInsightsHeaderActions onGlobalFilterChange={vi.fn()} />,
       );
 
       expect(screen.getByTestId("sidebar-dropdown")).toBeInTheDocument();
@@ -171,7 +147,6 @@ describe("RarityInsightsHeaderActions", () => {
       const { user } = renderWithProviders(
         <RarityInsightsHeaderActions
           onGlobalFilterChange={onGlobalFilterChange}
-          isParsing={false}
         />,
       );
 
@@ -180,37 +155,19 @@ describe("RarityInsightsHeaderActions", () => {
       expect(onGlobalFilterChange).toHaveBeenCalled();
     });
 
-    it("disables search when isParsing is true", () => {
-      setupStore();
-      renderWithProviders(
-        <RarityInsightsHeaderActions
-          onGlobalFilterChange={vi.fn()}
-          isParsing={true}
-        />,
-      );
-
-      expect(screen.getByTestId("search-input")).toBeDisabled();
-    });
-
     it("disables search when isRefreshing is true", () => {
       setupStore({ isRefreshing: true });
       renderWithProviders(
-        <RarityInsightsHeaderActions
-          onGlobalFilterChange={vi.fn()}
-          isParsing={false}
-        />,
+        <RarityInsightsHeaderActions onGlobalFilterChange={vi.fn()} />,
       );
 
       expect(screen.getByTestId("search-input")).toBeDisabled();
     });
 
-    it("enables search when neither parsing nor refreshing", () => {
+    it("enables search when not refreshing", () => {
       setupStore({ isRefreshing: false });
       renderWithProviders(
-        <RarityInsightsHeaderActions
-          onGlobalFilterChange={vi.fn()}
-          isParsing={false}
-        />,
+        <RarityInsightsHeaderActions onGlobalFilterChange={vi.fn()} />,
       );
 
       expect(screen.getByTestId("search-input")).not.toBeDisabled();
@@ -223,10 +180,7 @@ describe("RarityInsightsHeaderActions", () => {
     it("is enabled when not on cooldown and not refreshing", () => {
       setupStore({ isRefreshing: false });
       renderWithProviders(
-        <RarityInsightsHeaderActions
-          onGlobalFilterChange={vi.fn()}
-          isParsing={false}
-        />,
+        <RarityInsightsHeaderActions onGlobalFilterChange={vi.fn()} />,
       );
 
       const refreshButton = screen
@@ -238,10 +192,7 @@ describe("RarityInsightsHeaderActions", () => {
     it("is disabled when isRefreshing is true", () => {
       setupStore({ isRefreshing: true });
       renderWithProviders(
-        <RarityInsightsHeaderActions
-          onGlobalFilterChange={vi.fn()}
-          isParsing={false}
-        />,
+        <RarityInsightsHeaderActions onGlobalFilterChange={vi.fn()} />,
       );
 
       const refreshingButton = screen
@@ -253,10 +204,7 @@ describe("RarityInsightsHeaderActions", () => {
     it("shows Refreshing... text when isRefreshing is true", () => {
       setupStore({ isRefreshing: true });
       renderWithProviders(
-        <RarityInsightsHeaderActions
-          onGlobalFilterChange={vi.fn()}
-          isParsing={false}
-        />,
+        <RarityInsightsHeaderActions onGlobalFilterChange={vi.fn()} />,
       );
 
       expect(screen.getByText("Refreshing...")).toBeInTheDocument();
@@ -265,10 +213,7 @@ describe("RarityInsightsHeaderActions", () => {
     it("calls refreshPrices when clicked", async () => {
       setupStore({ isRefreshing: false });
       const { user } = renderWithProviders(
-        <RarityInsightsHeaderActions
-          onGlobalFilterChange={vi.fn()}
-          isParsing={false}
-        />,
+        <RarityInsightsHeaderActions onGlobalFilterChange={vi.fn()} />,
       );
 
       await user.click(
@@ -281,10 +226,7 @@ describe("RarityInsightsHeaderActions", () => {
     it("does not allow refresh when isRefreshing is true (button disabled)", () => {
       setupStore({ isRefreshing: true });
       renderWithProviders(
-        <RarityInsightsHeaderActions
-          onGlobalFilterChange={vi.fn()}
-          isParsing={false}
-        />,
+        <RarityInsightsHeaderActions onGlobalFilterChange={vi.fn()} />,
       );
 
       const refreshingButton = screen
@@ -296,14 +238,9 @@ describe("RarityInsightsHeaderActions", () => {
     it("guards refreshPrices when league is null", async () => {
       setupStore({ league: null });
       const { user } = renderWithProviders(
-        <RarityInsightsHeaderActions
-          onGlobalFilterChange={vi.fn()}
-          isParsing={false}
-        />,
+        <RarityInsightsHeaderActions onGlobalFilterChange={vi.fn()} />,
       );
 
-      // The button is enabled (no cooldown, not refreshing), but the
-      // handler's `if (!league) return` guard prevents the call.
       await user.click(
         screen.getByText("Refresh poe.ninja").closest("button")!,
       );
@@ -316,7 +253,6 @@ describe("RarityInsightsHeaderActions", () => {
 
   describe("refresh button cooldown", () => {
     it("is disabled when on cooldown", () => {
-      // Override useTickingTimer to simulate an active cooldown
       mockUseTickingTimer.mockReturnValue({
         hours: 0,
         minutes: 2,
@@ -327,16 +263,11 @@ describe("RarityInsightsHeaderActions", () => {
 
       setupStore();
       renderWithProviders(
-        <RarityInsightsHeaderActions
-          onGlobalFilterChange={vi.fn()}
-          isParsing={false}
-        />,
+        <RarityInsightsHeaderActions onGlobalFilterChange={vi.fn()} />,
       );
 
-      // When on cooldown, the countdown component is rendered instead of "Refresh poe.ninja"
       expect(screen.getByTestId("countdown")).toBeInTheDocument();
 
-      // The button containing the countdown should be disabled
       const cooldownButton = screen.getByTestId("countdown").closest("button");
       expect(cooldownButton).toBeDisabled();
     });
@@ -352,10 +283,7 @@ describe("RarityInsightsHeaderActions", () => {
 
       setupStore();
       renderWithProviders(
-        <RarityInsightsHeaderActions
-          onGlobalFilterChange={vi.fn()}
-          isParsing={false}
-        />,
+        <RarityInsightsHeaderActions onGlobalFilterChange={vi.fn()} />,
       );
 
       const cooldownButton = screen.getByTestId("countdown").closest("button");
@@ -363,161 +291,16 @@ describe("RarityInsightsHeaderActions", () => {
     });
   });
 
-  // ── Scan button ────────────────────────────────────────────────────────
-
-  describe("scan button", () => {
-    it("shows Scan text when not scanning", () => {
-      setupStore({ isScanning: false });
-      renderWithProviders(
-        <RarityInsightsHeaderActions
-          onGlobalFilterChange={vi.fn()}
-          isParsing={false}
-        />,
-      );
-
-      expect(screen.getByText("Scan")).toBeInTheDocument();
-    });
-
-    it("shows Scanning... text when isScanning is true", () => {
-      setupStore({ isScanning: true });
-      renderWithProviders(
-        <RarityInsightsHeaderActions
-          onGlobalFilterChange={vi.fn()}
-          isParsing={false}
-        />,
-      );
-
-      expect(screen.getByText("Scanning...")).toBeInTheDocument();
-    });
-
-    it("is disabled when isScanning is true", () => {
-      setupStore({ isScanning: true });
-      renderWithProviders(
-        <RarityInsightsHeaderActions
-          onGlobalFilterChange={vi.fn()}
-          isParsing={false}
-        />,
-      );
-
-      const scanButton = screen.getByText("Scanning...").closest("button");
-      expect(scanButton).toBeDisabled();
-    });
-
-    it("is disabled when isRefreshing is true", () => {
-      setupStore({ isRefreshing: true });
-      renderWithProviders(
-        <RarityInsightsHeaderActions
-          onGlobalFilterChange={vi.fn()}
-          isParsing={false}
-        />,
-      );
-
-      const scanButton = screen.getByText("Scan").closest("button");
-      expect(scanButton).toBeDisabled();
-    });
-
-    it("is enabled when neither scanning nor refreshing", () => {
-      setupStore({ isScanning: false, isRefreshing: false });
-      renderWithProviders(
-        <RarityInsightsHeaderActions
-          onGlobalFilterChange={vi.fn()}
-          isParsing={false}
-        />,
-      );
-
-      const scanButton = screen.getByText("Scan").closest("button");
-      expect(scanButton).not.toBeDisabled();
-    });
-
-    it("calls rescan when clicked", async () => {
-      setupStore({ isScanning: false, isRefreshing: false });
-      const { user } = renderWithProviders(
-        <RarityInsightsHeaderActions
-          onGlobalFilterChange={vi.fn()}
-          isParsing={false}
-        />,
-      );
-
-      await user.click(screen.getByText("Scan").closest("button")!);
-
-      expect(mockRescan).toHaveBeenCalled();
-    });
-
-    it("does not allow rescan when isScanning is true (button disabled)", () => {
-      setupStore({ isScanning: true });
-      renderWithProviders(
-        <RarityInsightsHeaderActions
-          onGlobalFilterChange={vi.fn()}
-          isParsing={false}
-        />,
-      );
-
-      const scanButton = screen.getByText("Scanning...").closest("button");
-      expect(scanButton).toBeDisabled();
-    });
-
-    it("does not allow rescan when isRefreshing is true (button disabled)", () => {
-      setupStore({ isRefreshing: true });
-      renderWithProviders(
-        <RarityInsightsHeaderActions
-          onGlobalFilterChange={vi.fn()}
-          isParsing={false}
-        />,
-      );
-
-      const scanButton = screen.getByText("Scan").closest("button");
-      expect(scanButton).toBeDisabled();
-    });
-
-    it("guards rescan when isParsing is true (onClick guard)", async () => {
-      setupStore({ isScanning: false, isRefreshing: false });
-      const { user } = renderWithProviders(
-        <RarityInsightsHeaderActions
-          onGlobalFilterChange={vi.fn()}
-          isParsing={true}
-        />,
-      );
-
-      // The button is NOT disabled by isParsing (only isScanning/isRefreshing disable it),
-      // but the onClick guard checks !isScanning && !isParsing before calling rescan.
-      const scanButton = screen.getByText("Scan").closest("button");
-      expect(scanButton).not.toBeDisabled();
-
-      await user.click(scanButton!);
-
-      expect(mockRescan).not.toHaveBeenCalled();
-    });
-  });
-
   // ── Integration: combined states ──────────────────────────────────────
 
   describe("combined states", () => {
-    it("disables both search and scan when refreshing", () => {
+    it("disables search when refreshing", () => {
       setupStore({ isRefreshing: true });
       renderWithProviders(
-        <RarityInsightsHeaderActions
-          onGlobalFilterChange={vi.fn()}
-          isParsing={false}
-        />,
+        <RarityInsightsHeaderActions onGlobalFilterChange={vi.fn()} />,
       );
 
       expect(screen.getByTestId("search-input")).toBeDisabled();
-      const scanButton = screen.getByText("Scan").closest("button");
-      expect(scanButton).toBeDisabled();
-    });
-
-    it("disables search but not scan when parsing", () => {
-      setupStore({ isRefreshing: false, isScanning: false });
-      renderWithProviders(
-        <RarityInsightsHeaderActions
-          onGlobalFilterChange={vi.fn()}
-          isParsing={true}
-        />,
-      );
-
-      expect(screen.getByTestId("search-input")).toBeDisabled();
-      const scanButton = screen.getByText("Scan").closest("button");
-      expect(scanButton).not.toBeDisabled();
     });
   });
 });

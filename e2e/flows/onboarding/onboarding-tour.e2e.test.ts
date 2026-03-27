@@ -40,7 +40,7 @@ const CURRENT_SESSION_BEACONS = [
   "game-selector",
   "overlay-icon",
   "current-session-rarity-source",
-  "current-session-pricing",
+  "stash-prices",
   "start-session",
 ] as const;
 
@@ -161,6 +161,20 @@ async function acknowledgeAllBeacons(page: Page, count: number) {
   }
 }
 
+/**
+ * Switches the Profit Forecast page from the default "chart" view to "table"
+ * view by clicking the Table badge in the cost model panel. This ensures the
+ * P&L column headers (which carry the `pf-pl-card-only` and `pf-pl-all-drops`
+ * onboarding selectors) are rendered in the DOM.
+ */
+async function switchToTableView(page: Page) {
+  const tableBadge = page.locator("button", { hasText: "Table" }).first();
+  await expect(tableBadge).toBeVisible({ timeout: 5_000 });
+  await tableBadge.click();
+  // Wait for the table to render
+  await page.waitForTimeout(500);
+}
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 test.describe("Onboarding — Tour & Forecast", () => {
@@ -199,6 +213,9 @@ test.describe("Onboarding — Tour & Forecast", () => {
       await waitForRoute(page, "/profit-forecast", 10_000);
       await page.locator("main").waitFor({ state: "visible", timeout: 5_000 });
 
+      // Switch to table view so P&L column header beacons are in the DOM
+      await switchToTableView(page);
+
       // Only the 5 profit-forecast-specific beacons should be visible
       await waitForTriggers(page, PROFIT_FORECAST_BEACONS.length);
 
@@ -229,6 +246,9 @@ test.describe("Onboarding — Tour & Forecast", () => {
       await navigateTo(page, "/profit-forecast");
       await waitForRoute(page, "/profit-forecast", 10_000);
       await page.locator("main").waitFor({ state: "visible", timeout: 5_000 });
+
+      // Switch to table view so P&L column header beacons are in the DOM
+      await switchToTableView(page);
 
       await waitForTriggers(page, PROFIT_FORECAST_BEACONS.length);
 
@@ -271,6 +291,9 @@ test.describe("Onboarding — Tour & Forecast", () => {
       await navigateTo(page, "/profit-forecast");
       await waitForRoute(page, "/profit-forecast", 10_000);
       await page.locator("main").waitFor({ state: "visible", timeout: 5_000 });
+
+      // Switch to table view so P&L column header beacons are in the DOM
+      await switchToTableView(page);
 
       await waitForTriggers(page, PROFIT_FORECAST_BEACONS.length);
 
@@ -330,6 +353,9 @@ test.describe("Onboarding — Tour & Forecast", () => {
       await navigateTo(page, "/profit-forecast");
       await waitForRoute(page, "/profit-forecast", 10_000);
       await page.locator("main").waitFor({ state: "visible", timeout: 5_000 });
+
+      // Switch to table view so P&L column header beacons are in the DOM
+      await switchToTableView(page);
 
       await waitForTriggers(page, PROFIT_FORECAST_BEACONS.length);
       await acknowledgeAllBeacons(page, PROFIT_FORECAST_BEACONS.length);
@@ -561,6 +587,9 @@ test.describe("Onboarding — Tour & Forecast", () => {
       await navigateTo(page, "/profit-forecast");
       await waitForRoute(page, "/profit-forecast", 10_000);
       await page.locator("main").waitFor({ state: "visible", timeout: 5_000 });
+
+      // Switch to table view so P&L column header beacons are in the DOM
+      await switchToTableView(page);
 
       const expectedPfCount = 2 + PROFIT_FORECAST_BEACONS.length;
       await waitForTriggers(page, expectedPfCount);

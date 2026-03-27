@@ -1,4 +1,8 @@
-import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
+import {
+  renderWithProviders,
+  screen,
+  waitFor,
+} from "~/renderer/__test-setup__/render";
 import { useBoundStore } from "~/renderer/store";
 
 import ProfitForecastPage from "./ProfitForecast.page";
@@ -16,9 +20,7 @@ vi.mock("~/renderer/hooks", () => ({
 vi.mock(
   "../ProfitForecast.components/PFCostModelPanel/PFCostModelPanel",
   () => ({
-    default: (props: any) => (
-      <div data-testid="cost-model-panel" data-batch={props.selectedBatch} />
-    ),
+    default: () => <div data-testid="cost-model-panel" />,
   }),
 );
 
@@ -33,6 +35,13 @@ vi.mock("../ProfitForecast.components/PFSummaryCards/PFSummaryCards", () => ({
 vi.mock("../ProfitForecast.components/PFTable", () => ({
   PFTable: (_props: any) => <div data-testid="pf-table" />,
 }));
+
+vi.mock(
+  "../ProfitForecast.components/PFBreakevenChart/PFBreakevenChart",
+  () => ({
+    default: () => <div data-testid="pf-breakeven-chart" />,
+  }),
+);
 
 vi.mock("~/renderer/components", () => ({
   Button: ({ children, onClick, ...props }: any) => (
@@ -78,9 +87,11 @@ function createMockState(overrides: any = {}) {
       isLoading: false,
       error: null,
       selectedBatch: 1000,
+      forecastView: "chart",
       stepDrop: 2,
       subBatchSize: 5000,
       setSelectedBatch: vi.fn(),
+      setForecastView: vi.fn(),
       setStepDrop: vi.fn(),
       setSubBatchSize: vi.fn(),
       setIsComputing: vi.fn(),
@@ -124,11 +135,14 @@ describe("ProfitForecastPage", () => {
       ).toBeInTheDocument();
     });
 
-    it("hides main content (summary cards, table) when isLoading is true", () => {
+    it("hides main content (summary cards, chart, table) when isLoading is true", () => {
       setupStore({ profitForecast: { isLoading: true } });
       renderWithProviders(<ProfitForecastPage />);
 
       expect(screen.queryByTestId("summary-cards")).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("pf-breakeven-chart"),
+      ).not.toBeInTheDocument();
       expect(screen.queryByTestId("pf-table")).not.toBeInTheDocument();
     });
 
@@ -236,33 +250,53 @@ describe("ProfitForecastPage", () => {
       expect(screen.getByTestId("summary-cards")).toBeInTheDocument();
     });
 
-    it("renders PFCostModelPanel stub with correct selectedBatch prop", () => {
+    it("renders PFCostModelPanel stub", () => {
       setupStore({
         profitForecast: {
           rows: [{ name: "The Doctor" }],
           isLoading: false,
-          selectedBatch: 10000,
           hasData: vi.fn(() => true),
         },
       });
       renderWithProviders(<ProfitForecastPage />);
 
-      const panel = screen.getByTestId("cost-model-panel");
-      expect(panel).toBeInTheDocument();
-      expect(panel).toHaveAttribute("data-batch", "10000");
+      expect(screen.getByTestId("cost-model-panel")).toBeInTheDocument();
     });
 
-    it("renders PFTable stub", () => {
+    it("renders PFBreakevenChart stub by default (chart view)", async () => {
       setupStore({
         profitForecast: {
           rows: [{ name: "The Doctor" }],
           isLoading: false,
           hasData: vi.fn(() => true),
+          forecastView: "chart",
         },
       });
       renderWithProviders(<ProfitForecastPage />);
 
-      expect(screen.getByTestId("pf-table")).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByTestId("pf-breakeven-chart")).toBeInTheDocument();
+      });
+      expect(screen.queryByTestId("pf-table")).not.toBeInTheDocument();
+    });
+
+    it("renders PFTable stub when forecastView is 'table'", async () => {
+      setupStore({
+        profitForecast: {
+          rows: [{ name: "The Doctor" }],
+          isLoading: false,
+          hasData: vi.fn(() => true),
+          forecastView: "table",
+        },
+      });
+      renderWithProviders(<ProfitForecastPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("pf-table")).toBeInTheDocument();
+      });
+      expect(
+        screen.queryByTestId("pf-breakeven-chart"),
+      ).not.toBeInTheDocument();
     });
 
     it("renders disclaimer warning alert", () => {

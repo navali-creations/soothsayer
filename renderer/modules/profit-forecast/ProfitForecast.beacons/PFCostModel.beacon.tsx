@@ -22,16 +22,25 @@ const PFCostModelBeacon = (props: PopoverComponentProps) => {
           <li className="flex items-start gap-2">
             <span className="text-accent mt-0.5">•</span>
             <span>
+              <strong className="text-base-content">View:</strong> Toggle
+              between a table with per-card breakdown and a cost-curve chart.
+            </span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-accent mt-0.5">•</span>
+            <span>
               <strong className="text-base-content">Price increase:</strong> How
               many fewer decks/div you get after each batch — models rising
-              prices as you buy more.
+              prices as you buy more. Automatically locked at 0 when you set a
+              custom base rate, since you already pay a fixed price per deck.
             </span>
           </li>
           <li className="flex items-start gap-2">
             <span className="text-accent mt-0.5">•</span>
             <span>
               <strong className="text-base-content">Batch size:</strong> How
-              many decks you buy before the price steps up.
+              many decks you buy before the price steps up. Also locked when a
+              custom base rate is set.
             </span>
           </li>
           <li className="flex items-start gap-2">

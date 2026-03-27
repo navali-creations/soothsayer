@@ -66,6 +66,26 @@ export interface ChartColors {
   b2: string;
   /** Base-300 — elevated surfaces */
   b3: string;
+
+  // ─── Semantic colors ───────────────────────────────────────────────
+  /** Success at full opacity */
+  success: string;
+  /** Success at 50% — stroke for confidence bands */
+  success50: string;
+  /** Success at 30% — gradient start for optimistic band */
+  success30: string;
+  /** Success at 5% — gradient end */
+  success05: string;
+  /** Info at full opacity */
+  info: string;
+  /** Info at 80% — expected line gradient start */
+  info80: string;
+  /** Info at 30% — expected line gradient end */
+  info30: string;
+  /** Warning at full opacity */
+  warning: string;
+  /** Warning at 50% — pessimistic line stroke */
+  warning50: string;
 }
 
 /**
@@ -111,6 +131,9 @@ function readColors(): ChartColors {
   const b1Raw = style.getPropertyValue("--color-base-100");
   const b2Raw = style.getPropertyValue("--color-base-200");
   const b3Raw = style.getPropertyValue("--color-base-300");
+  const suRaw = style.getPropertyValue("--color-success");
+  const inRaw = style.getPropertyValue("--color-info");
+  const waRaw = style.getPropertyValue("--color-warning");
 
   // Parse into RGB tuples
   const bc = parseColor(bcRaw);
@@ -118,6 +141,9 @@ function readColors(): ChartColors {
   const b1 = parseColor(b1Raw);
   const b2 = parseColor(b2Raw);
   const b3 = parseColor(b3Raw);
+  const su = parseColor(suRaw);
+  const inf = parseColor(inRaw);
+  const wa = parseColor(waRaw);
 
   return {
     // Base content at various opacities
@@ -147,6 +173,17 @@ function readColors(): ChartColors {
     b1: rgba(b1),
     b2: rgba(b2),
     b3: rgba(b3),
+
+    // Semantic
+    success: rgba(su),
+    success50: rgba(su, 0.5),
+    success30: rgba(su, 0.3),
+    success05: rgba(su, 0.05),
+    info: rgba(inf),
+    info80: rgba(inf, 0.8),
+    info30: rgba(inf, 0.3),
+    warning: rgba(wa),
+    warning50: rgba(wa, 0.5),
   };
 }
 

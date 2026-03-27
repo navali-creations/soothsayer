@@ -24,18 +24,12 @@ const RarityInsightsPage = () => {
       getSelectedGame,
       getActiveGameViewSelectedLeague,
     },
-    rarityInsightsComparison: {
-      selectedFilters,
-      toggleFilter,
-      reset,
-      parsingFilterId,
-    },
+    rarityInsightsComparison: { selectedFilters, toggleFilter, reset },
     poeNinja: { isRefreshing, refreshError, checkRefreshStatus },
   } = useBoundStore();
 
   const game = getSelectedGame();
   const league = getActiveGameViewSelectedLeague();
-  const isParsing = !!parsingFilterId;
 
   // ─── Seed cooldown & reload cards on mount and when game/league changes ─
 
@@ -95,10 +89,7 @@ const RarityInsightsPage = () => {
           </span>
         }
         actions={
-          <RarityInsightsHeaderActions
-            onGlobalFilterChange={setGlobalFilter}
-            isParsing={isParsing}
-          />
+          <RarityInsightsHeaderActions onGlobalFilterChange={setGlobalFilter} />
         }
       />
       <PageContainer.Content className="overflow-y-hidden! flex flex-col space-y-3!">

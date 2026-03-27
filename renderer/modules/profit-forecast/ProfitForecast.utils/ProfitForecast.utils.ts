@@ -1,3 +1,5 @@
+import { computeTotalChaosCost } from "~/main/modules/profit-forecast/ProfitForecast.compute";
+
 // ── Number Formatting Helpers ──────────────────────────────────────────────────
 
 /**
@@ -127,4 +129,163 @@ export function formatPnLDivine(chaosValue: number, ratio: number): string {
   }
 
   return `+${formatted} d`;
+}
+
+// ── Computation Helpers ───────────────────────────────────────────────────────
+
+/**
+ * Compute batch-level P&L (revenue, cost, net).
+ *
+ * - revenue = evPerDeck × batchSize
+ * - cost    = total chaos cost for the batch (delegated to slice helper)
+ * - netPnL  = revenue − cost
+ *
+ * @param evPerDeck          Expected chaos value earned per single deck
+ * @param batchSize           Number of decks in the batch
+ * @param baseRate            Starting divine-per-deck rate
+ * @param stepDrop            Rate decrease after each sub-batch
+ * @param subBatchSize        Number of decks per sub-batch before the rate drops
+ * @param chaosToDivineRatio  Chaos orbs per divine orb
+ */
+export function computeBatchEv(
+  evPerDeck: number,
+  batchSize: number,
+  baseRate: number,
+  stepDrop: number,
+  subBatchSize: number,
+  chaosToDivineRatio: number,
+): { revenue: number; cost: number; netPnL: number } {
+  const revenue = evPerDeck * batchSize;
+  const cost = computeTotalChaosCost(
+    batchSize,
+    baseRate,
+    stepDrop,
+    subBatchSize,
+    chaosToDivineRatio,
+  );
+  const netPnL = revenue - cost;
+  return { revenue, cost, netPnL };
+}
+
+/**
+ * Compute estimated / optimistic revenue for a batch using
+ * sigma-based (Poisson-style) scaling around the estimated value.
+ *
+ * Uses the pre-calibrated `evContribution` from each row (which already
+ * includes the EV_CALIBRATION_FACTOR applied server-side) so the confidence
+ * interval is consistent with the "Estimated Return" stat.
+ *
+ * For each non-excluded, priced card:
+ *
+ * - **estimated**: `evContribution × batchSize` — calibrated EV.
+ * - **optimistic**: adds +0.25σ upside per card (Poisson-style),
+ *   where σ ≈ √(probability × batchSize).
+ *
+ * @param rows      Card forecast rows (must include evContribution)
+ * @param batchSize Number of decks in the batch
+ */
+export function computeConfidenceInterval(
+  rows: Array<{
+    probability: number;
+    chaosValue: number;
+    evContribution: number;
+    hasPrice: boolean;
+    excludeFromEv: boolean;
+  }>,
+  batchSize: number,
+): { estimated: number; optimistic: number } {
+  let estimated = 0;
+  let optimistic = 0;
+
+  for (const row of rows) {
+    if (!row.hasPrice || row.excludeFromEv) continue;
+
+    // Use pre-calibrated evContribution (= probability × chaosValue × calibrationFactor)
+    // evContribution is per-deck, so multiply by batchSize
+    const calibratedRevenue = row.evContribution * batchSize;
+    estimated += calibratedRevenue;
+
+    // Sigma based on the raw expected count (probability × batchSize)
+    const expectedCount = row.probability * batchSize;
+    const sigma = Math.sqrt(expectedCount);
+
+    // Optimistic: add 0.25σ × chaosValue upside, also scaled by calibration
+    // We derive the calibration ratio from evContribution to stay consistent
+    const calibrationRatio =
+      row.chaosValue > 0
+        ? row.evContribution / (row.probability * row.chaosValue)
+        : 1;
+    optimistic +=
+      calibratedRevenue + 0.25 * sigma * row.chaosValue * calibrationRatio;
+  }
+
+  return { estimated, optimistic };
+}
+
+/**
+ * Build the data series for a breakeven / P&L chart.
+ *
+ * For each batch size the function returns the net P&L (revenue − cost) at the
+ * estimated and optimistic revenue levels.
+ *
+ * @param rows                Card forecast rows
+ * @param batchSizes          Array of deck-counts to evaluate
+ * @param baseRate            Starting divine-per-deck rate
+ * @param stepDrop            Rate decrease after each sub-batch
+ * @param subBatchSize        Number of decks per sub-batch before the rate drops
+ * @param chaosToDivineRatio  Chaos orbs per divine orb
+ */
+export function computePnLCurve(
+  rows: Array<{
+    probability: number;
+    chaosValue: number;
+    evContribution: number;
+    hasPrice: boolean;
+    excludeFromEv: boolean;
+  }>,
+  batchSizes: number[],
+  baseRate: number,
+  stepDrop: number,
+  subBatchSize: number,
+  chaosToDivineRatio: number,
+): Array<{
+  deckCount: number;
+  estimated: number;
+  optimistic: number;
+}> {
+  return batchSizes.map((batchSize) => {
+    const { estimated, optimistic } = computeConfidenceInterval(
+      rows,
+      batchSize,
+    );
+    const cost = computeTotalChaosCost(
+      batchSize,
+      baseRate,
+      stepDrop,
+      subBatchSize,
+      chaosToDivineRatio,
+    );
+    return {
+      deckCount: batchSize,
+      estimated: estimated - cost,
+      optimistic: optimistic - cost,
+    };
+  });
+}
+
+/**
+ * Probability of seeing at least one copy of a card in `batchSize` decks.
+ *
+ * Uses the complement rule: P(≥1) = 1 − (1 − p)^N.
+ *
+ * @param probability Per-deck drop probability
+ * @param batchSize   Number of decks
+ */
+export function computeCardCertainty(
+  probability: number,
+  batchSize: number,
+): number {
+  if (probability <= 0) return 0;
+  if (probability >= 1) return 1;
+  return 1 - (1 - probability) ** batchSize;
 }

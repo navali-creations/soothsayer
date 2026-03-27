@@ -34,6 +34,14 @@ vi.mock("./effects/RarityEffects", () => ({
   ),
 }));
 
+vi.mock("./components/card-content/CardPlaceholder", () => ({
+  CardPlaceholder: ({ cardName }: { cardName: string }) => (
+    <div data-testid="card-placeholder" data-card-name={cardName}>
+      Card data not available yet
+    </div>
+  ),
+}));
+
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 function makeCard(overrides: Partial<CardEntry> = {}): CardEntry {
@@ -47,64 +55,144 @@ function makeCard(overrides: Partial<CardEntry> = {}): CardEntry {
 // ─── Tests ─────────────────────────────────────────────────────────────────
 
 describe("DivinationCard", () => {
-  it("returns null when divinationCard is undefined", () => {
-    const card = makeCard({ divinationCard: undefined });
-    const { container } = renderWithProviders(<DivinationCard card={card} />);
-    expect(container.innerHTML).toBe("");
-  });
-
-  it("renders with minimal metadata (empty divinationCard object)", () => {
-    const card = makeCard({ divinationCard: {} });
-    renderWithProviders(<DivinationCard card={card} />);
-
-    expect(screen.getByTestId("card-frame")).toBeInTheDocument();
-    expect(screen.getByTestId("card-art")).toBeInTheDocument();
-    expect(screen.getByTestId("rarity-effects")).toBeInTheDocument();
-  });
-
-  it("renders card name", () => {
-    const card = makeCard({
-      name: "House of Mirrors",
-      divinationCard: {},
+  describe("placeholder fallback when divinationCard is missing", () => {
+    it("renders placeholder card frame when divinationCard is undefined", () => {
+      const card = makeCard({ divinationCard: undefined });
+      const { container } = renderWithProviders(<DivinationCard card={card} />);
+      expect(container.innerHTML).not.toBe("");
+      expect(screen.getByTestId("card-frame")).toBeInTheDocument();
+      expect(screen.getByTestId("card-placeholder")).toBeInTheDocument();
     });
-    renderWithProviders(<DivinationCard card={card} />);
 
-    expect(screen.getByText("House of Mirrors")).toBeInTheDocument();
-  });
+    it("shows card name in the placeholder", () => {
+      const card = makeCard({
+        name: "House of Mirrors",
+        divinationCard: undefined,
+      });
+      renderWithProviders(<DivinationCard card={card} />);
 
-  it("renders stack size in count/stackSize format", () => {
-    const card = makeCard({
-      count: 2,
-      divinationCard: { stackSize: 8 },
+      const placeholder = screen.getByTestId("card-placeholder");
+      expect(placeholder).toHaveAttribute("data-card-name", "House of Mirrors");
     });
-    renderWithProviders(<DivinationCard card={card} />);
 
-    expect(screen.getByText("2/8")).toBeInTheDocument();
-  });
+    it("shows placeholder message text", () => {
+      const card = makeCard({ divinationCard: undefined });
+      renderWithProviders(<DivinationCard card={card} />);
 
-  it("shows BossIndicator when fromBoss is true", () => {
-    const card = makeCard({
-      divinationCard: { fromBoss: true },
+      expect(
+        screen.getByText("Card data not available yet"),
+      ).toBeInTheDocument();
     });
-    renderWithProviders(<DivinationCard card={card} />);
 
-    expect(screen.getByTitle("Boss-exclusive card")).toBeInTheDocument();
-  });
+    it("does not render CardArt in placeholder mode", () => {
+      const card = makeCard({ divinationCard: undefined });
+      renderWithProviders(<DivinationCard card={card} />);
 
-  it("hides BossIndicator when fromBoss is false", () => {
-    const card = makeCard({
-      divinationCard: { fromBoss: false },
+      expect(screen.queryByTestId("card-art")).not.toBeInTheDocument();
     });
-    renderWithProviders(<DivinationCard card={card} />);
 
-    expect(screen.queryByTitle("Boss-exclusive card")).not.toBeInTheDocument();
+    it("does not render RarityEffects in placeholder mode", () => {
+      const card = makeCard({ divinationCard: undefined });
+      renderWithProviders(<DivinationCard card={card} />);
+
+      expect(screen.queryByTestId("rarity-effects")).not.toBeInTheDocument();
+    });
+
+    it("does not render BossIndicator in placeholder mode", () => {
+      const card = makeCard({ divinationCard: undefined });
+      renderWithProviders(<DivinationCard card={card} />);
+
+      expect(
+        screen.queryByTitle("Boss-exclusive card"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("renders with data-mode='placeholder'", () => {
+      const card = makeCard({ divinationCard: undefined });
+      renderWithProviders(<DivinationCard card={card} />);
+
+      expect(screen.getByTestId("divination-card")).toHaveAttribute(
+        "data-mode",
+        "placeholder",
+      );
+    });
   });
 
-  it("hides BossIndicator when fromBoss is not provided (defaults to false)", () => {
-    const card = makeCard({ divinationCard: {} });
-    renderWithProviders(<DivinationCard card={card} />);
+  describe("full card rendering with divinationCard metadata", () => {
+    it("renders with data-mode='full' when divinationCard is present", () => {
+      const card = makeCard({ divinationCard: {} });
+      renderWithProviders(<DivinationCard card={card} />);
 
-    expect(screen.queryByTitle("Boss-exclusive card")).not.toBeInTheDocument();
+      expect(screen.getByTestId("divination-card")).toHaveAttribute(
+        "data-mode",
+        "full",
+      );
+    });
+
+    it("renders frame, art, and rarity effects", () => {
+      const card = makeCard({ divinationCard: {} });
+      renderWithProviders(<DivinationCard card={card} />);
+
+      expect(screen.getByTestId("card-frame")).toBeInTheDocument();
+      expect(screen.getByTestId("card-art")).toBeInTheDocument();
+      expect(screen.getByTestId("rarity-effects")).toBeInTheDocument();
+    });
+
+    it("does not render placeholder when divinationCard is present", () => {
+      const card = makeCard({ divinationCard: {} });
+      renderWithProviders(<DivinationCard card={card} />);
+
+      expect(screen.queryByTestId("card-placeholder")).not.toBeInTheDocument();
+    });
+
+    it("renders card name", () => {
+      const card = makeCard({
+        name: "House of Mirrors",
+        divinationCard: {},
+      });
+      renderWithProviders(<DivinationCard card={card} />);
+
+      expect(screen.getByText("House of Mirrors")).toBeInTheDocument();
+    });
+
+    it("renders stack size in count/stackSize format", () => {
+      const card = makeCard({
+        count: 2,
+        divinationCard: { stackSize: 8 },
+      });
+      renderWithProviders(<DivinationCard card={card} />);
+
+      expect(screen.getByText("2/8")).toBeInTheDocument();
+    });
+
+    it("shows BossIndicator when fromBoss is true", () => {
+      const card = makeCard({
+        divinationCard: { fromBoss: true },
+      });
+      renderWithProviders(<DivinationCard card={card} />);
+
+      expect(screen.getByTitle("Boss-exclusive card")).toBeInTheDocument();
+    });
+
+    it("hides BossIndicator when fromBoss is false", () => {
+      const card = makeCard({
+        divinationCard: { fromBoss: false },
+      });
+      renderWithProviders(<DivinationCard card={card} />);
+
+      expect(
+        screen.queryByTitle("Boss-exclusive card"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("hides BossIndicator when fromBoss is not provided (defaults to false)", () => {
+      const card = makeCard({ divinationCard: {} });
+      renderWithProviders(<DivinationCard card={card} />);
+
+      expect(
+        screen.queryByTitle("Boss-exclusive card"),
+      ).not.toBeInTheDocument();
+    });
   });
 
   describe("rarity forwarding to RarityEffects", () => {
@@ -127,19 +215,21 @@ describe("DivinationCard", () => {
     });
   });
 
-  it("passes correct artSrc to CardArt", () => {
-    const card = makeCard({
-      name: "The Fiend",
-      divinationCard: { artSrc: "https://example.com/fiend.png" },
-    });
-    renderWithProviders(<DivinationCard card={card} />);
+  describe("CardArt props", () => {
+    it("passes correct artSrc to CardArt", () => {
+      const card = makeCard({
+        name: "The Fiend",
+        divinationCard: { artSrc: "https://example.com/fiend.png" },
+      });
+      renderWithProviders(<DivinationCard card={card} />);
 
-    const art = screen.getByTestId("card-art");
-    expect(art).toHaveAttribute(
-      "data-art-src",
-      "https://example.com/fiend.png",
-    );
-    expect(art).toHaveAttribute("data-card-name", "The Fiend");
+      const art = screen.getByTestId("card-art");
+      expect(art).toHaveAttribute(
+        "data-art-src",
+        "https://example.com/fiend.png",
+      );
+      expect(art).toHaveAttribute("data-card-name", "The Fiend");
+    });
   });
 
   describe("default values when metadata fields are null or missing", () => {

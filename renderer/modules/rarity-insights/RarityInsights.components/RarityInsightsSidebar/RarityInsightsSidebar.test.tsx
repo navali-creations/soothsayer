@@ -27,6 +27,7 @@ vi.mock("~/renderer/components", () => ({
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 const mockToggleFilter = vi.fn();
+const mockRescan = vi.fn().mockResolvedValue(undefined);
 
 interface SetupStoreOptions {
   availableFilters?: Array<{
@@ -96,6 +97,7 @@ function setupStore(overrides: SetupStoreOptions = {}) {
       parsingFilterId: overrides.parsingFilterId ?? null,
       parseErrors: overrides.parseErrors ?? new Map(),
       toggleFilter: mockToggleFilter,
+      rescan: mockRescan,
     },
   } as any);
 }
@@ -106,6 +108,7 @@ describe("RarityInsightsDropdown", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     mockToggleFilter.mockClear();
+    mockRescan.mockClear();
   });
 
   // ── Rendering ──────────────────────────────────────────────────────────
@@ -122,23 +125,23 @@ describe("RarityInsightsDropdown", () => {
       setupStore();
       renderWithProviders(<RarityInsightsDropdown />);
 
-      expect(screen.queryByText(/Select up to/)).not.toBeInTheDocument();
+      expect(screen.queryByTestId("scan-section")).not.toBeInTheDocument();
     });
 
-    it("disables the Filters button when isScanning is true", () => {
+    it("Filters button is always enabled regardless of scanning state", () => {
       setupStore({ isScanning: true });
       renderWithProviders(<RarityInsightsDropdown />);
 
       const button = screen.getByText("Filters").closest("button");
-      expect(button).toBeDisabled();
+      expect(button).not.toBeDisabled();
     });
 
-    it("disables the Filters button when no filters are available", () => {
+    it("Filters button is enabled even when no filters are available", () => {
       setupStore({ availableFilters: [] });
       renderWithProviders(<RarityInsightsDropdown />);
 
       const button = screen.getByText("Filters").closest("button");
-      expect(button).toBeDisabled();
+      expect(button).not.toBeDisabled();
     });
 
     it("enables the Filters button when filters exist and not scanning", () => {
@@ -216,7 +219,7 @@ describe("RarityInsightsDropdown", () => {
       expect(screen.queryByText("NeverSink")).not.toBeInTheDocument();
     });
 
-    it("shows Select up to 3 filters instruction", async () => {
+    it("shows Select up to 3 filters instruction when filters exist", async () => {
       setupStore({ availableFilters: [makeFilter()] });
       const { user } = renderWithProviders(<RarityInsightsDropdown />);
 
@@ -249,6 +252,175 @@ describe("RarityInsightsDropdown", () => {
       await user.click(screen.getByTestId("outside-element"));
 
       expect(screen.queryByText("NeverSink")).not.toBeInTheDocument();
+    });
+  });
+
+  // ── Scan section ───────────────────────────────────────────────────────
+
+  describe("scan section", () => {
+    it("renders the scan section when dropdown is open", async () => {
+      setupStore({ availableFilters: [] });
+      const { user } = renderWithProviders(<RarityInsightsDropdown />);
+
+      await user.click(screen.getByText("Filters").closest("button")!);
+
+      expect(screen.getByTestId("scan-section")).toBeInTheDocument();
+    });
+
+    it("has the data-onboarding attribute on the wrapper for beacon targeting", () => {
+      setupStore({ availableFilters: [] });
+      const { container } = renderWithProviders(<RarityInsightsDropdown />);
+
+      // The data-onboarding attribute is on the always-visible wrapper div
+      // (not inside the dropdown) so the beacon trigger can anchor to it
+      // even when the dropdown is closed.
+      const wrapper = container.querySelector(
+        "[data-onboarding='rarity-insights-scan']",
+      );
+      expect(wrapper).toBeInTheDocument();
+    });
+
+    describe("before scan (no filters)", () => {
+      it("renders the Scan Filters button", async () => {
+        setupStore({ availableFilters: [], isScanning: false });
+        const { user } = renderWithProviders(<RarityInsightsDropdown />);
+
+        await user.click(screen.getByText("Filters").closest("button")!);
+
+        expect(screen.getByTestId("scan-filters-button")).toBeInTheDocument();
+        expect(screen.getByText("Scan Filters")).toBeInTheDocument();
+      });
+
+      it("renders a description prompting the user to scan", async () => {
+        setupStore({ availableFilters: [], isScanning: false });
+        const { user } = renderWithProviders(<RarityInsightsDropdown />);
+
+        await user.click(screen.getByText("Filters").closest("button")!);
+
+        expect(
+          screen.getByText(/Scan your PoE filter files/),
+        ).toBeInTheDocument();
+      });
+
+      it("calls rescan when Scan Filters is clicked", async () => {
+        setupStore({ availableFilters: [], isScanning: false });
+        const { user } = renderWithProviders(<RarityInsightsDropdown />);
+
+        await user.click(screen.getByText("Filters").closest("button")!);
+        await user.click(screen.getByTestId("scan-filters-button"));
+
+        expect(mockRescan).toHaveBeenCalledTimes(1);
+      });
+
+      it("does not render filter groups when no filters exist", async () => {
+        setupStore({ availableFilters: [], isScanning: false });
+        const { user } = renderWithProviders(<RarityInsightsDropdown />);
+
+        await user.click(screen.getByText("Filters").closest("button")!);
+
+        expect(screen.queryByText("Online Filters")).not.toBeInTheDocument();
+        expect(screen.queryByText("Local Filters")).not.toBeInTheDocument();
+      });
+    });
+
+    describe("during scan", () => {
+      it("renders the scanning indicator", async () => {
+        setupStore({ availableFilters: [], isScanning: true });
+        const { user } = renderWithProviders(<RarityInsightsDropdown />);
+
+        await user.click(screen.getByText("Filters").closest("button")!);
+
+        expect(screen.getByTestId("scanning-indicator")).toBeInTheDocument();
+        expect(screen.getByText("Scanning...")).toBeInTheDocument();
+      });
+
+      it("does not render Scan Filters or Rescan buttons while scanning", async () => {
+        setupStore({ availableFilters: [], isScanning: true });
+        const { user } = renderWithProviders(<RarityInsightsDropdown />);
+
+        await user.click(screen.getByText("Filters").closest("button")!);
+
+        expect(
+          screen.queryByTestId("scan-filters-button"),
+        ).not.toBeInTheDocument();
+        expect(screen.queryByTestId("rescan-button")).not.toBeInTheDocument();
+      });
+    });
+
+    describe("after scan (filters exist)", () => {
+      it("renders the Rescan button", async () => {
+        setupStore({
+          availableFilters: [makeFilter({ id: "f1", name: "NeverSink" })],
+          localFilters: [makeFilter({ id: "f1", name: "NeverSink" })],
+          isScanning: false,
+        });
+        const { user } = renderWithProviders(<RarityInsightsDropdown />);
+
+        await user.click(screen.getByText("Filters").closest("button")!);
+
+        expect(screen.getByTestId("rescan-button")).toBeInTheDocument();
+        expect(screen.getByText("Rescan")).toBeInTheDocument();
+      });
+
+      it("renders the Select up to N filters instruction alongside Rescan", async () => {
+        setupStore({
+          availableFilters: [makeFilter()],
+          isScanning: false,
+        });
+        const { user } = renderWithProviders(<RarityInsightsDropdown />);
+
+        await user.click(screen.getByText("Filters").closest("button")!);
+
+        expect(screen.getByText(/Select up to 3 filters/)).toBeInTheDocument();
+        expect(screen.getByTestId("rescan-button")).toBeInTheDocument();
+      });
+
+      it("calls rescan when Rescan is clicked", async () => {
+        setupStore({
+          availableFilters: [makeFilter()],
+          isScanning: false,
+        });
+        const { user } = renderWithProviders(<RarityInsightsDropdown />);
+
+        await user.click(screen.getByText("Filters").closest("button")!);
+        await user.click(screen.getByTestId("rescan-button"));
+
+        expect(mockRescan).toHaveBeenCalledTimes(1);
+      });
+
+      it("does not render Scan Filters button when filters exist", async () => {
+        setupStore({
+          availableFilters: [makeFilter()],
+          isScanning: false,
+        });
+        const { user } = renderWithProviders(<RarityInsightsDropdown />);
+
+        await user.click(screen.getByText("Filters").closest("button")!);
+
+        expect(
+          screen.queryByTestId("scan-filters-button"),
+        ).not.toBeInTheDocument();
+      });
+    });
+
+    describe("scan guard", () => {
+      it("does not call rescan when already scanning", async () => {
+        // Edge case: isScanning is true but we somehow click — handleScan guards
+        setupStore({
+          availableFilters: [makeFilter()],
+          isScanning: true,
+        });
+        const { user } = renderWithProviders(<RarityInsightsDropdown />);
+
+        await user.click(screen.getByText("Filters").closest("button")!);
+
+        // Scanning indicator is shown, Rescan button is hidden
+        expect(screen.getByTestId("scanning-indicator")).toBeInTheDocument();
+        expect(screen.queryByTestId("rescan-button")).not.toBeInTheDocument();
+
+        // rescan should not have been called
+        expect(mockRescan).not.toHaveBeenCalled();
+      });
     });
   });
 
@@ -692,17 +864,40 @@ describe("RarityInsightsDropdown", () => {
   // ── Empty state ────────────────────────────────────────────────────────
 
   describe("empty state", () => {
-    it("shows warning message when no filters and not scanning", async () => {
-      // The button is disabled when no filters, so we need to test the
-      // empty state by having it open somehow. Since the button is disabled
-      // when availableFilters is empty, the empty-state message inside the
-      // dropdown is effectively unreachable through normal user interaction.
-      // However, we can verify the button is correctly disabled.
+    it("shows warning message and Scan Filters button when no filters and not scanning", async () => {
       setupStore({ availableFilters: [], isScanning: false });
-      renderWithProviders(<RarityInsightsDropdown />);
+      const { user } = renderWithProviders(<RarityInsightsDropdown />);
 
-      const button = screen.getByText("Filters").closest("button");
-      expect(button).toBeDisabled();
+      // The Filters button is now always enabled so we can open the dropdown
+      await user.click(screen.getByText("Filters").closest("button")!);
+
+      expect(screen.getByText(/No filters found/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Use Scan Filters above to search/),
+      ).toBeInTheDocument();
+      expect(screen.getByTestId("scan-filters-button")).toBeInTheDocument();
+    });
+
+    it("does not show warning message when scanning", async () => {
+      setupStore({ availableFilters: [], isScanning: true });
+      const { user } = renderWithProviders(<RarityInsightsDropdown />);
+
+      await user.click(screen.getByText("Filters").closest("button")!);
+
+      expect(screen.queryByText(/No filters found/)).not.toBeInTheDocument();
+      expect(screen.getByText("Scanning...")).toBeInTheDocument();
+    });
+
+    it("does not show warning message when filters exist", async () => {
+      setupStore({
+        availableFilters: [makeFilter()],
+        isScanning: false,
+      });
+      const { user } = renderWithProviders(<RarityInsightsDropdown />);
+
+      await user.click(screen.getByText("Filters").closest("button")!);
+
+      expect(screen.queryByText(/No filters found/)).not.toBeInTheDocument();
     });
   });
 });

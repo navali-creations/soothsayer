@@ -267,12 +267,19 @@ describe("createPFPlCardOnlyColumn", () => {
     expect(column.accessorKey).toBe("plA");
   });
 
-  it("renders header with data-onboarding attribute and correct text", () => {
+  it("renders header with correct text", () => {
     const column = createPFPlCardOnlyColumn();
     const HeaderComponent = column.header as any;
     render(<HeaderComponent />);
     const span = screen.getByText("P&L (card only)");
     expect(span).toBeInTheDocument();
+  });
+
+  it("has onboarding data attribute on header", () => {
+    const column = createPFPlCardOnlyColumn();
+    const HeaderComponent = column.header as any;
+    render(<HeaderComponent />);
+    const span = screen.getByText("P&L (card only)");
     expect(span).toHaveAttribute("data-onboarding", "pf-pl-card-only");
   });
 });
@@ -302,12 +309,19 @@ describe("createPFPlAllDropsColumn", () => {
     expect(column.accessorKey).toBe("plB");
   });
 
-  it("renders header with data-onboarding attribute and correct text", () => {
+  it("renders header with correct text", () => {
     const column = createPFPlAllDropsColumn();
     const HeaderComponent = column.header as any;
     render(<HeaderComponent />);
     const span = screen.getByText("P&L (all drops)");
     expect(span).toBeInTheDocument();
+  });
+
+  it("has onboarding data attribute on header", () => {
+    const column = createPFPlAllDropsColumn();
+    const HeaderComponent = column.header as any;
+    render(<HeaderComponent />);
+    const span = screen.getByText("P&L (all drops)");
     expect(span).toHaveAttribute("data-onboarding", "pf-pl-all-drops");
   });
 });

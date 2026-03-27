@@ -254,14 +254,15 @@ test.describe("Profit Forecast – Interactions", () => {
     });
   });
 
-  // ── Base Rate Refresh ───────────────────────────────────────────────────
+  // ── Custom Base Rate ────────────────────────────────────────────────────
 
-  test.describe("Base Rate Refresh", () => {
-    test("base rate refresh badge triggers a refresh", async ({ page }) => {
+  test.describe("Custom Base Rate", () => {
+    test("editing the base rate via pencil icon updates stats and can be reset", async ({
+      page,
+    }) => {
       await seedAndNavigate(page);
 
-      // The "Refresh" badge sits inside the Base Rate stat's description area.
-      // It's a <button> or <badge> element with text "Refresh".
+      // Locate the Base Rate stat card
       const baseRateStat = page
         .locator("[data-onboarding='pf-base-rate']")
         .first();
@@ -270,57 +271,123 @@ test.describe("Profit Forecast – Interactions", () => {
         .catch(() => false);
 
       if (!isBaseRateVisible) {
-        // No base rate stat rendered — page may not have snapshot data
         const main = page.locator("main");
         await expect(main).toBeVisible();
         return;
       }
 
-      // Find the "Refresh" badge inside the Base Rate stat area
-      const refreshBadge = baseRateStat.getByText("Refresh", { exact: true });
-      const isBadgeVisible = await refreshBadge
-        .isVisible({ timeout: 3_000 })
-        .catch(() => false);
-
-      if (!isBadgeVisible) {
-        // The badge may be hidden if already on cooldown (shows countdown instead)
-        // or if no snapshot date is available yet — valid state
+      // Read the original base rate value
+      const originalValue = await getStatValue(page, "Base Rate");
+      if (!isRenderedValue(originalValue)) {
+        // No base rate available — gracefully exit
         return;
       }
 
-      // Click the refresh badge
-      await refreshBadge.click();
+      // Click the pencil icon button to start editing
+      const pencilButton = baseRateStat.locator(
+        "button[data-tip='Set custom base rate']",
+      );
+      const isPencilVisible = await pencilButton
+        .isVisible({ timeout: 3_000 })
+        .catch(() => false);
 
-      // Assert loading/refreshing state becomes visible:
-      // The summary cards show skeleton loading indicators when isRefreshing is true.
-      // The refresh may complete very quickly in E2E (local DB, no real network),
-      // so we check multiple indicators and accept if any appeared transiently.
-      const _sawLoadingIndicator = await Promise.race([
-        page
-          .locator(".skeleton")
-          .first()
-          .isVisible({ timeout: 3_000 })
-          .catch(() => false),
-        page
-          .locator(".loading-spinner")
-          .first()
-          .isVisible({ timeout: 3_000 })
-          .catch(() => false),
-        page
-          .getByText("Refreshing...", { exact: false })
-          .isVisible({ timeout: 3_000 })
-          .catch(() => false),
-      ]);
-      // sawLoadingIndicator may be false if the refresh completed instantly — still valid
+      if (!isPencilVisible) {
+        // Pencil button not rendered — gracefully exit
+        return;
+      }
 
-      // Wait for refresh to complete — skeletons disappear and stat values return
-      await expect(page.locator(".stat-value .skeleton")).toHaveCount(0, {
-        timeout: 30_000,
-      });
+      await pencilButton.click();
 
-      // The page should still be functional after refresh
+      // The input field should appear
+      const rateInput = baseRateStat.locator("input[type='number']");
+      await expect(rateInput).toBeVisible({ timeout: 3_000 });
+
+      // Type a custom value and confirm with Enter
+      await rateInput.fill("90");
+      await rateInput.press("Enter");
+
+      // Wait for recompute to finish
+      await waitForRecompute(page);
+
+      // Verify the "custom" badge appeared
+      const customBadge = baseRateStat.getByText("custom", { exact: true });
+      await expect(customBadge).toBeVisible({ timeout: 3_000 });
+
+      // Verify the displayed rate changed
+      const customValue = await getStatValue(page, "Base Rate");
+      expect(customValue).toContain("90");
+
+      // Verify the "Reset" button is visible
+      const resetButton = baseRateStat.getByText("Reset", { exact: true });
+      await expect(resetButton).toBeVisible({ timeout: 3_000 });
+
+      // Click Reset to restore market rate
+      await resetButton.click();
+      await waitForRecompute(page);
+
+      // Verify the "custom" badge is gone
+      await expect(customBadge).not.toBeVisible({ timeout: 3_000 });
+
+      // Verify the value returned to the original
+      const restoredValue = await getStatValue(page, "Base Rate");
+      expect(restoredValue).toBe(originalValue);
+
+      // Page should still be functional
       const main = page.locator("main");
       await expect(main).toBeVisible();
+    });
+
+    test("pressing Escape cancels editing without changing the rate", async ({
+      page,
+    }) => {
+      await seedAndNavigate(page);
+
+      const baseRateStat = page
+        .locator("[data-onboarding='pf-base-rate']")
+        .first();
+      const isBaseRateVisible = await baseRateStat
+        .isVisible({ timeout: 5_000 })
+        .catch(() => false);
+
+      if (!isBaseRateVisible) {
+        const main = page.locator("main");
+        await expect(main).toBeVisible();
+        return;
+      }
+
+      const originalValue = await getStatValue(page, "Base Rate");
+      if (!isRenderedValue(originalValue)) return;
+
+      const pencilButton = baseRateStat.locator(
+        "button[data-tip='Set custom base rate']",
+      );
+      const isPencilVisible = await pencilButton
+        .isVisible({ timeout: 3_000 })
+        .catch(() => false);
+      if (!isPencilVisible) return;
+
+      await pencilButton.click();
+
+      const rateInput = baseRateStat.locator("input[type='number']");
+      await expect(rateInput).toBeVisible({ timeout: 3_000 });
+
+      // Type a value but press Escape to cancel
+      await rateInput.fill("50");
+      await rateInput.press("Escape");
+
+      // Input should disappear
+      await expect(rateInput).not.toBeVisible({ timeout: 3_000 });
+
+      // Value should not have changed
+      const afterValue = await getStatValue(page, "Base Rate");
+      expect(afterValue).toBe(originalValue);
+
+      // No "custom" badge should appear
+      const customBadge = baseRateStat.getByText("custom", { exact: true });
+      const hasBadge = await customBadge
+        .isVisible({ timeout: 1_000 })
+        .catch(() => false);
+      expect(hasBadge).toBe(false);
     });
   });
 

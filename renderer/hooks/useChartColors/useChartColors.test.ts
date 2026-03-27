@@ -59,6 +59,16 @@ const ALL_CHART_COLOR_KEYS: (keyof ChartColors)[] = [
   "b1",
   "b2",
   "b3",
+  // Semantic
+  "success",
+  "success50",
+  "success30",
+  "success05",
+  "info",
+  "info80",
+  "info30",
+  "warning",
+  "warning50",
 ];
 
 // ─── Test suite ────────────────────────────────────────────────────────────

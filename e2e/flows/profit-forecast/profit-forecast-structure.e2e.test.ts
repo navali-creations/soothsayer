@@ -97,6 +97,12 @@ async function waitForDataSettled(page: Page) {
         const rowCount = await page.locator("table tbody tr").count();
         if (rowCount > 0) return true;
 
+        // The default view is "chart" — if the chart has rendered, data is settled.
+        const chartVisible = await page
+          .locator('[data-testid="pf-breakeven-chart"]')
+          .count();
+        if (chartVisible > 0) return true;
+
         // Genuine empty-states that prove the fetch ran and returned no data
         const text = (await page.locator("main").textContent()) ?? "";
         if (text.includes("No Prohibited Library data")) return true;
@@ -181,6 +187,19 @@ async function navigateToForecast(page: Page) {
 
   await goToProfitForecast(page);
   await waitForDataSettled(page);
+
+  // Switch to Table view for tests that interact with table rows
+  const tableTab = page.getByRole("button", { name: "Table" });
+  await tableTab.click();
+  await page.waitForTimeout(300);
+
+  // Wait for the table to actually have rows after switching view
+  await expect
+    .poll(async () => page.locator("table tbody tr").count(), {
+      timeout: 10_000,
+      intervals: [100, 200, 500],
+    })
+    .toBeGreaterThan(0);
 }
 
 /**

@@ -187,14 +187,14 @@ describe("PFExcludeCell", () => {
     );
   });
 
-  it("title: manually included when userOverride + autoExcluded (low confidence)", () => {
+  it("title: manually excluded when userOverride + low confidence (confidence no longer auto-excludes)", () => {
     setupStore();
     const row = makeRow({ userOverride: true, confidence: 3 });
     renderWithProviders(<PFExcludeCell {...makeCellContext(row)} />);
 
     expect(screen.getByRole("checkbox")).toHaveAttribute(
       "title",
-      "Manually included — auto-detection would exclude this card. Click to revert",
+      "Manually excluded from EV calculations. Click to revert",
     );
   });
 
@@ -265,17 +265,17 @@ describe("PFStatusCell", () => {
     );
   });
 
-  it("renders info icon when userOverride + auto-excluded (low confidence)", () => {
+  it("renders eye-off icon when userOverride + low confidence (confidence no longer auto-excludes)", () => {
     const row = makeRow({ userOverride: true, confidence: 3 });
     const { container } = renderWithProviders(
       <PFStatusCell {...makeCellContext(row)} />,
     );
 
-    const tooltip = container.querySelector(".tooltip-info");
+    const tooltip = container.querySelector(".tooltip");
     expect(tooltip).toBeInTheDocument();
     expect(tooltip).toHaveAttribute(
       "data-tip",
-      "Manually included — auto-detection flagged low confidence price",
+      "Manually excluded from EV calculations",
     );
   });
 

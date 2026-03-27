@@ -6,6 +6,7 @@ import { CardFrame } from "./components/CardFrame";
 import { BossIndicator } from "./components/card-content/BossIndicator";
 import { CardArt } from "./components/card-content/CardArt";
 import { CardName } from "./components/card-content/CardName";
+import { CardPlaceholder } from "./components/card-content/CardPlaceholder";
 import { CardRewardFlavour } from "./components/card-content/CardRewardFlavour";
 import { CardStackSize } from "./components/card-content/CardStackSize";
 import { CARD_EFFECTS } from "./constants";
@@ -28,7 +29,36 @@ function DivinationCard({ card }: DivinationCardProps) {
   );
 
   if (!card.divinationCard) {
-    return null;
+    // Render a placeholder card frame when metadata is not yet available
+    // (e.g. league-start before images are scraped). This keeps the layout
+    // intact so charts and stats below the visual still render normally.
+    const { glowRgb } = getRarityStyles(4);
+
+    return (
+      <div
+        ref={cardRef}
+        data-testid="divination-card"
+        data-mode="placeholder"
+        className="relative w-[320px] h-[476px] transition-transform duration-200 ease-out"
+        style={{
+          transform: `perspective(${CARD_EFFECTS.PERSPECTIVE}px) rotateX(${
+            isHovered ? rotateX : 0
+          }deg) rotateY(${isHovered ? rotateY : 0}deg)`,
+          transformStyle: "preserve-3d",
+          willChange: "transform",
+        }}
+      >
+        <div
+          className="absolute inset-0 opacity-60"
+          style={{
+            filter: `drop-shadow(0 0 2px rgba(${glowRgb}, 0.5)) drop-shadow(0 0 4px rgba(${glowRgb}, 0.5))`,
+          }}
+        >
+          <CardFrame />
+          <CardPlaceholder cardName={card.name} />
+        </div>
+      </div>
+    );
   }
 
   const { count } = card;
@@ -45,6 +75,8 @@ function DivinationCard({ card }: DivinationCardProps) {
   return (
     <div
       ref={cardRef}
+      data-testid="divination-card"
+      data-mode="full"
       className="relative w-[320px] h-[476px] transition-transform duration-200 ease-out"
       style={{
         transform: `perspective(${CARD_EFFECTS.PERSPECTIVE}px) rotateX(${

@@ -34,6 +34,9 @@ vi.mock("../../../package.json", () => ({
   default: { version: "0.12.0" },
 }));
 
+/** Matches `soothsayer@<semver>` — asserts the format, not a specific version. */
+const RELEASE_PATTERN = expect.stringMatching(/^soothsayer@\d+\.\d+\.\d+$/);
+
 // ─── Import under test (after mocks) ────────────────────────────────────────
 import {
   SentryService,
@@ -104,7 +107,7 @@ describe("SentryService", () => {
       expect(mockSentryInit).toHaveBeenCalledWith(
         expect.objectContaining({
           dsn: import.meta.env.VITE_SENTRY_DSN,
-          release: "soothsayer@0.12.0",
+          release: RELEASE_PATTERN,
           environment: "development",
           sendDefaultPii: false,
           beforeSend: expect.any(Function),
@@ -142,7 +145,7 @@ describe("SentryService", () => {
 
       expect(mockSentryInit).toHaveBeenCalledWith(
         expect.objectContaining({
-          release: "soothsayer@0.12.0",
+          release: RELEASE_PATTERN,
         }),
       );
     });

@@ -95,3 +95,84 @@ export interface ProfitForecastDataDTO {
   baseRate: number;
   baseRateSource: BaseRateSource;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Compute IPC types (used by the profit-forecast:compute channel)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Request payload for the `profit-forecast:compute` IPC channel.
+ *
+ * The renderer sends pre-built rows (with static fields) plus all cost-model
+ * parameters, and the main process returns fully recomputed dynamic fields
+ * along with aggregate stats (PnL curve, confidence interval, etc.).
+ */
+export interface ProfitForecastComputeRequest {
+  /** Card rows with at least the static fields populated. */
+  rows: ProfitForecastRowDTO[];
+  /** Per-row user overrides: cardName → userOverride boolean. */
+  userOverrides: Record<string, boolean>;
+  /** Number of decks in the batch. */
+  selectedBatch: number;
+  /** Base exchange rate (decks per divine). */
+  baseRate: number;
+  /** Rate decrease per sub-batch. */
+  stepDrop: number;
+  /** Number of decks per sub-batch. */
+  subBatchSize: number;
+  /** User-specified base rate override (null = use server rate). */
+  customBaseRate: number | null;
+  /** Chaos orbs per divine orb. */
+  chaosToDivineRatio: number;
+  /** Expected value per deck. */
+  evPerDeck: number;
+}
+
+/**
+ * Dynamic fields computed for each card row.
+ * Keyed by cardName for efficient lookup on the renderer side.
+ */
+export interface ComputedRowFields {
+  chanceInBatch: number;
+  expectedDecks: number;
+  costToPull: number;
+  plA: number;
+  plB: number;
+}
+
+/** A single data point on the P&L curve. */
+export interface PnLCurvePointDTO {
+  deckCount: number;
+  estimated: number;
+  optimistic: number;
+}
+
+/** Confidence interval (estimated / optimistic raw revenue). */
+export interface ConfidenceIntervalDTO {
+  estimated: number;
+  optimistic: number;
+}
+
+/**
+ * Response payload from the `profit-forecast:compute` IPC channel.
+ *
+ * Contains all computed dynamic fields plus aggregate stats so the renderer
+ * can simply apply the results without any heavy math.
+ */
+export interface ProfitForecastComputeResponse {
+  /** Dynamic fields keyed by card name. */
+  rowFields: Record<string, ComputedRowFields>;
+  /** Total chaos cost for the selected batch. */
+  totalCost: number;
+  /** PnL curve data points for the breakeven chart. */
+  pnlCurve: PnLCurvePointDTO[];
+  /** Confidence interval for the selected batch. */
+  confidenceInterval: ConfidenceIntervalDTO;
+  /** Batch-level P&L breakdown. */
+  batchPnL: {
+    revenue: number;
+    cost: number;
+    netPnL: number;
+    confidence: ConfidenceIntervalDTO;
+  };
+}

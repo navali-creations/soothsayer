@@ -1,5 +1,5 @@
 import type { PopoverComponentProps } from "@repere/react";
-import { FiInfo } from "react-icons/fi";
+import { FiEdit2, FiInfo } from "react-icons/fi";
 
 import Popover from "../../onboarding/Onboarding.components/Popover";
 
@@ -19,6 +19,15 @@ const PFBaseRateBeacon = (props: PopoverComponentProps) => {
           A <strong className="text-base-content">derived</strong> badge means
           bulk exchange data was unavailable, so the rate was estimated from
           divine ÷ stacked deck price — a rougher approximation.
+        </p>
+        <p>
+          Click the{" "}
+          <FiEdit2 className="inline w-3.5 h-3.5 text-base-content/50" /> pencil
+          icon to set a{" "}
+          <strong className="text-base-content">custom rate</strong>. This
+          overrides the market rate for all cost calculations — useful when you
+          plan to place exchange orders at a fixed price and wait for them to
+          fill.
         </p>
 
         <div className="alert alert-soft alert-info bg-info/10">

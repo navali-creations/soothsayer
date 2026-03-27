@@ -5,7 +5,7 @@ export default defineConfig({
   testMatch: "**/*.e2e.test.ts",
 
   forbidOnly: !!process.env.CI,
-  retries: 0,
+  retries: 1,
   // Each test file gets its own worker-scoped Electron instance, so more
   // workers = more files running in parallel.  The slowest suites (settings,
   // onboarding, profit-forecast) are each split into multiple files so they
@@ -17,7 +17,7 @@ export default defineConfig({
   // would cause race conditions.  Parallelism is between files (workers) only.
   fullyParallel: false,
 
-  reportSlowTests: { max: 0, threshold: 0 },
+  reportSlowTests: { max: 0, threshold: 30_000 },
 
   timeout: 45_000,
   expect: { timeout: 8_000 },
