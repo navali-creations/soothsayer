@@ -587,4 +587,57 @@ export class DivinationCardsRepository {
 
     return rows.map((row) => row.name);
   }
+
+  /**
+   * Bulk-insert minimal stub rows for cards discovered in poe.ninja
+   * snapshots that don't yet exist in `divination_cards`.
+   *
+   * Uses `INSERT OR IGNORE` so existing cards are never overwritten.
+   * Stub rows have empty metadata (description, reward_html, art_src,
+   * flavour_html) and stack_size = 1. They will be upgraded with full
+   * data the next time `syncCards()` processes an updated `cards.json`.
+   *
+   * @param game  - The game type ("poe1" or "poe2")
+   * @param names - Card names to ensure exist
+   * @param hashFn - Function to compute the data_hash for each stub
+   * @returns The number of rows actually inserted (ignores duplicates)
+   */
+  async insertStubCards(
+    game: "poe1" | "poe2",
+    names: string[],
+    hashFn: (name: string) => string,
+  ): Promise<number> {
+    if (names.length === 0) return 0;
+
+    let inserted = 0;
+
+    for (const name of names) {
+      const id = this.generateId(game, name);
+      const result = await this.kysely
+        .insertInto("divination_cards")
+        .values({
+          id,
+          game,
+          name,
+          stack_size: 1,
+          description: "",
+          reward_html: "",
+          art_src: "",
+          flavour_html: "",
+          data_hash: hashFn(name),
+        })
+        .onConflict((oc) => oc.column("id").doNothing())
+        .executeTakeFirst();
+
+      // SQLite returns numInsertedOrUpdatedRows = 0 for ignored conflicts
+      if (
+        result.numInsertedOrUpdatedRows !== undefined &&
+        Number(result.numInsertedOrUpdatedRows) > 0
+      ) {
+        inserted++;
+      }
+    }
+
+    return inserted;
+  }
 }

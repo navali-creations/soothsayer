@@ -107,7 +107,7 @@ export class ProfitForecastService {
       async (
         _event,
         game: unknown,
-        league: unknown
+        league: unknown,
       ): Promise<ProfitForecastDataDTO | { success: false; error: string }> => {
         try {
           assertGameType(game, ProfitForecastChannel.GetData);
@@ -117,14 +117,14 @@ export class ProfitForecastService {
         } catch (error) {
           return handleValidationError(error, ProfitForecastChannel.GetData);
         }
-      }
+      },
     );
 
     ipcMain.handle(
       ProfitForecastChannel.Compute,
       (
         _event,
-        request: unknown
+        request: unknown,
       ): ProfitForecastComputeResponse | { success: false; error: string } => {
         try {
           const ch = ProfitForecastChannel.Compute;
@@ -160,7 +160,7 @@ export class ProfitForecastService {
         } catch (error) {
           return handleValidationError(error, ProfitForecastChannel.Compute);
         }
-      }
+      },
     );
   }
 
@@ -180,7 +180,7 @@ export class ProfitForecastService {
    */
   async getData(
     game: "poe1" | "poe2",
-    league: string
+    league: string,
   ): Promise<ProfitForecastDataDTO> {
     // Fetch weights first — we always return these even without a snapshot
     const weights = await this.getWeights(game);
@@ -195,7 +195,7 @@ export class ProfitForecastService {
 
     if (!leagueRow) {
       this.logger.log(
-        `No league found for game=${game}, league=${league} — returning empty forecast`
+        `No league found for game=${game}, league=${league} — returning empty forecast`,
       );
       return this.buildResponse(weights, null, null);
     }
@@ -211,7 +211,7 @@ export class ProfitForecastService {
 
     if (!snapshotRow) {
       this.logger.log(
-        `No snapshot found for league=${league} (id=${leagueRow.id}) — returning empty forecast`
+        `No snapshot found for league=${league} (id=${leagueRow.id}) — returning empty forecast`,
       );
       return this.buildResponse(weights, null, null);
     }
@@ -266,10 +266,10 @@ export class ProfitForecastService {
     };
 
     const anomalousCount = Object.values(cardPrices).filter(
-      (p) => p.isAnomalous
+      (p) => p.isAnomalous,
     ).length;
     this.logger.log(
-      `Returning ${weights.length} rows, ${anomalousCount} anomalous`
+      `Returning ${weights.length} rows, ${anomalousCount} anomalous`,
     );
 
     return this.buildResponse(weights, snapshot, cardPrices);
@@ -285,7 +285,7 @@ export class ProfitForecastService {
   private buildResponse(
     weights: ProfitForecastWeightDTO[],
     snapshot: ProfitForecastSnapshotDTO | null,
-    cardPrices: Record<string, ProfitForecastCardPriceDTO> | null
+    cardPrices: Record<string, ProfitForecastCardPriceDTO> | null,
   ): ProfitForecastDataDTO {
     // ── 1. Compute totalWeight ─────────────────────────────────────────
     const totalWeight = weights.reduce((sum, w) => sum + w.weight, 0);
@@ -298,12 +298,12 @@ export class ProfitForecastService {
     // every card has at least a realistic minimum probability, then
     // renormalize so the distribution still sums to 1.
     const rawProbabilities = weights.map((w) =>
-      totalWeight > 0 ? w.weight / totalWeight : 0
+      totalWeight > 0 ? w.weight / totalWeight : 0,
     );
 
     // Apply floor
     const flooredProbabilities = rawProbabilities.map((p) =>
-      Math.max(p, PROBABILITY_FLOOR)
+      Math.max(p, PROBABILITY_FLOOR),
     );
 
     // Renormalize so they sum to 1
@@ -346,7 +346,7 @@ export class ProfitForecastService {
     const evPerDeck = rows.reduce(
       (sum, row) =>
         row.hasPrice && !row.excludeFromEv ? sum + row.evContribution : sum,
-      0
+      0,
     );
 
     // ── 5. Compute base rate ───────────────────────────────────────────
@@ -406,7 +406,7 @@ export class ProfitForecastService {
       return {
         baseRate: Math.max(
           RATE_FLOOR,
-          Math.floor(chaosToDivineRatio / stackedDeckChaosCost)
+          Math.floor(chaosToDivineRatio / stackedDeckChaosCost),
         ),
         baseRateSource: "derived",
       };
@@ -434,7 +434,7 @@ export class ProfitForecastService {
    */
   private detectAnomalousCardPrices(
     cardPrices: Record<string, ProfitForecastCardPriceDTO>,
-    weights: ProfitForecastWeightDTO[]
+    weights: ProfitForecastWeightDTO[],
   ): void {
     // Build a weight lookup for cards that have both a price and a weight
     const weightByName = new Map<string, number>();
@@ -513,7 +513,7 @@ export class ProfitForecastService {
    * are model-estimated values that apply cross-league.
    */
   private async getWeights(
-    game: "poe1" | "poe2"
+    game: "poe1" | "poe2",
   ): Promise<ProfitForecastWeightDTO[]> {
     try {
       const plService = ProhibitedLibraryService.getInstance();
@@ -540,7 +540,7 @@ export class ProfitForecastService {
       // the rarest-possible probability.
       const minWeight = nonBoss.reduce(
         (min, w) => (w.weight > 0 && w.weight < min ? w.weight : min),
-        Number.MAX_SAFE_INTEGER
+        Number.MAX_SAFE_INTEGER,
       );
       const floorWeight = minWeight === Number.MAX_SAFE_INTEGER ? 1 : minWeight;
 

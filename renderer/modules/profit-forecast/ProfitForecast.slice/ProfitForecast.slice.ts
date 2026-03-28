@@ -764,7 +764,9 @@ export const createProfitForecastSlice: StateCreator<
       set(
         ({ profitForecast }) => {
           profitForecast.customBaseRate =
-            value === null ? null : Math.max(1, Math.min(1000, Math.floor(value)));
+            value === null
+              ? null
+              : Math.max(1, Math.min(1000, Math.floor(value)));
         },
         false,
         "profitForecastSlice/setCustomBaseRate",

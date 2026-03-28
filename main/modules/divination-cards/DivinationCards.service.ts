@@ -583,13 +583,18 @@ class DivinationCardsService {
       return;
     }
 
+    // ── Auto-create stub rows for new cards from the snapshot ───────────
+    // poe.ninja may contain cards not yet in the bundled cards.json.
+    // Insert minimal stub rows so they become discoverable immediately.
+    await this.ensureCardsFromSnapshot(game, Object.keys(cardPrices));
+
     const updates: Array<{
       name: string;
       rarity: Rarity;
       clearOverride: boolean;
     }> = [];
 
-    // Get all cards for this game
+    // Get all cards for this game (now includes any newly-inserted stubs)
     const allCards = await this.repository.getAllByGame(game);
     const pricedCardNames = new Set(Object.keys(cardPrices));
 
@@ -830,6 +835,68 @@ class DivinationCardsService {
    */
   public getRepository(): DivinationCardsRepository {
     return this.repository;
+  }
+
+  /**
+   * Ensure every card name from a poe.ninja snapshot exists in `divination_cards`.
+   *
+   * New cards that appear mid-league (e.g. "The Slumbering Beast" in Keepers)
+   * won't be in the bundled `cards.json` until an app update ships. This method
+   * detects card names present in the snapshot but missing from the database
+   * and inserts minimal stub rows so they become discoverable via
+   * `getAllByGame()` and `resolveCardBySlug()` immediately.
+   *
+   * Stub rows have:
+   *  - `stack_size = 1` (unknown until cards.json is updated)
+   *  - Empty `description`, `reward_html`, `art_src`, `flavour_html`
+   *  - A `data_hash` derived from the stub fields (so `syncCards()` will
+   *    detect a change and overwrite the stub once `cards.json` contains
+   *    the full card metadata)
+   *
+   * Uses `INSERT OR IGNORE` under the hood so existing cards are never
+   * overwritten — this is purely additive.
+   *
+   * @param game  - The game type ("poe1" or "poe2")
+   * @param snapshotCardNames - All card names present in the snapshot
+   */
+  public async ensureCardsFromSnapshot(
+    game: "poe1" | "poe2",
+    snapshotCardNames: string[],
+  ): Promise<void> {
+    if (snapshotCardNames.length === 0) return;
+
+    // Get the set of card names already in the database
+    const existingNames = new Set(await this.repository.getAllCardNames(game));
+
+    // Find card names in the snapshot that are NOT in the database
+    const missingNames = snapshotCardNames.filter(
+      (name) => !existingNames.has(name),
+    );
+
+    if (missingNames.length === 0) return;
+
+    // Insert stub rows for the missing cards
+    const inserted = await this.repository.insertStubCards(
+      game,
+      missingNames,
+      (name) =>
+        this.hashCard({
+          name,
+          stack_size: 1,
+          description: "",
+          reward_html: "",
+          art_src: "",
+          flavour_html: "",
+        }),
+    );
+
+    if (inserted > 0) {
+      this.logger.log(
+        `Auto-created ${inserted} stub card(s) from poe.ninja snapshot for ${game.toUpperCase()}: ${missingNames.join(
+          ", ",
+        )}`,
+      );
+    }
   }
 }
 

@@ -20,6 +20,7 @@ const {
   mockRepositoryUpdateRarity,
   mockRepositorySetOverrideRarity,
   mockRepositoryGetAllCardNames,
+  mockRepositoryInsertStubCards,
   mockElectronApp,
   mockPlRepoGetCardWeights,
   mockPlRepoGetMetadata,
@@ -43,6 +44,7 @@ const {
   mockRepositoryUpdateRarity: vi.fn(),
   mockRepositorySetOverrideRarity: vi.fn(),
   mockRepositoryGetAllCardNames: vi.fn(),
+  mockRepositoryInsertStubCards: vi.fn(),
   mockElectronApp: {
     isPackaged: false,
     getAppPath: vi.fn(() => "/mock-app-path"),
@@ -131,6 +133,7 @@ vi.mock("../DivinationCards.repository", () => ({
     updateRarity = mockRepositoryUpdateRarity;
     setOverrideRarity = mockRepositorySetOverrideRarity;
     getAllCardNames = mockRepositoryGetAllCardNames;
+    insertStubCards = mockRepositoryInsertStubCards;
   },
 }));
 
@@ -252,6 +255,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     mockRepositoryUpdateRarity.mockResolvedValue(undefined);
     mockRepositorySetOverrideRarity.mockResolvedValue(undefined);
     mockRepositoryGetAllCardNames.mockResolvedValue([]);
+    mockRepositoryInsertStubCards.mockResolvedValue(0);
     mockSettingsSet.mockResolvedValue(undefined);
     mockPlRepoGetCardWeights.mockResolvedValue([]);
     mockPlRepoGetMetadata.mockResolvedValue(null);
@@ -857,9 +861,117 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
   });
 
+  // ─── ensureCardsFromSnapshot ──────────────────────────────────────────
+
+  describe("ensureCardsFromSnapshot", () => {
+    it("should insert stub cards for names not in the database", async () => {
+      mockRepositoryGetAllCardNames.mockResolvedValue([
+        "The Doctor",
+        "Rain of Chaos",
+      ]);
+      mockRepositoryInsertStubCards.mockResolvedValue(2);
+
+      await service.ensureCardsFromSnapshot("poe1", [
+        "The Doctor",
+        "Rain of Chaos",
+        "The Slumbering Beast",
+        "New Card",
+      ]);
+
+      expect(mockRepositoryInsertStubCards).toHaveBeenCalledWith(
+        "poe1",
+        ["The Slumbering Beast", "New Card"],
+        expect.any(Function),
+      );
+    });
+
+    it("should not call insertStubCards when all names already exist", async () => {
+      mockRepositoryGetAllCardNames.mockResolvedValue([
+        "The Doctor",
+        "Rain of Chaos",
+      ]);
+
+      await service.ensureCardsFromSnapshot("poe1", [
+        "The Doctor",
+        "Rain of Chaos",
+      ]);
+
+      expect(mockRepositoryInsertStubCards).not.toHaveBeenCalled();
+    });
+
+    it("should not call insertStubCards when snapshotCardNames is empty", async () => {
+      await service.ensureCardsFromSnapshot("poe1", []);
+
+      expect(mockRepositoryGetAllCardNames).not.toHaveBeenCalled();
+      expect(mockRepositoryInsertStubCards).not.toHaveBeenCalled();
+    });
+
+    it("should insert all names when database is empty", async () => {
+      mockRepositoryGetAllCardNames.mockResolvedValue([]);
+      mockRepositoryInsertStubCards.mockResolvedValue(3);
+
+      await service.ensureCardsFromSnapshot("poe1", [
+        "Card A",
+        "Card B",
+        "Card C",
+      ]);
+
+      expect(mockRepositoryInsertStubCards).toHaveBeenCalledWith(
+        "poe1",
+        ["Card A", "Card B", "Card C"],
+        expect.any(Function),
+      );
+    });
+
+    it("should pass a hash function that produces a string", async () => {
+      mockRepositoryGetAllCardNames.mockResolvedValue([]);
+      mockRepositoryInsertStubCards.mockResolvedValue(1);
+
+      await service.ensureCardsFromSnapshot("poe1", ["New Card"]);
+
+      // Extract the hash function that was passed to insertStubCards
+      const hashFn = mockRepositoryInsertStubCards.mock.calls[0][2];
+      expect(typeof hashFn).toBe("function");
+      const hash = hashFn("New Card");
+      expect(typeof hash).toBe("string");
+      expect(hash.length).toBeGreaterThan(0);
+    });
+
+    it("should use the correct game type", async () => {
+      mockRepositoryGetAllCardNames.mockResolvedValue([]);
+      mockRepositoryInsertStubCards.mockResolvedValue(1);
+
+      await service.ensureCardsFromSnapshot("poe2", ["Card A"]);
+
+      expect(mockRepositoryGetAllCardNames).toHaveBeenCalledWith("poe2");
+      expect(mockRepositoryInsertStubCards).toHaveBeenCalledWith(
+        "poe2",
+        ["Card A"],
+        expect.any(Function),
+      );
+    });
+  });
+
   // ─── updateRaritiesFromPrices (public method) ─────────────────────────
 
   describe("updateRaritiesFromPrices", () => {
+    it("should call ensureCardsFromSnapshot before processing rarities", async () => {
+      const divine = 200;
+      mockRepositoryGetAllCardNames.mockResolvedValue(["The Doctor"]);
+      mockRepositoryGetAllByGame.mockResolvedValue([
+        { name: "The Doctor", rarity: 4 },
+      ]);
+
+      await service.updateRaritiesFromPrices("poe1", "Settlers", divine, {
+        "The Doctor": { chaosValue: 1500 },
+        "The Slumbering Beast": { chaosValue: 50 },
+      });
+
+      // ensureCardsFromSnapshot should have been called with all card names
+      // from the price data
+      expect(mockRepositoryGetAllCardNames).toHaveBeenCalledWith("poe1");
+    });
+
     it("should classify cards into correct rarities", async () => {
       const divine = 200;
       mockRepositoryGetAllByGame.mockResolvedValue([

@@ -84,7 +84,12 @@ export function computeTotalChaosCost(
   subBatchSize: number,
   chaosToDivineRatio: number,
 ): number {
-  if (deckCount <= 0 || chaosToDivineRatio <= 0 || baseRate <= 0 || subBatchSize <= 0) {
+  if (
+    deckCount <= 0 ||
+    chaosToDivineRatio <= 0 ||
+    baseRate <= 0 ||
+    subBatchSize <= 0
+  ) {
     return 0;
   }
 

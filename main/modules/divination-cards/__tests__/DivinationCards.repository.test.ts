@@ -1245,4 +1245,180 @@ describe("DivinationCardsRepository", () => {
       expect(card!.rarity).toBe(2);
     });
   });
+
+  // ─── insertStubCards ─────────────────────────────────────────────────────
+
+  describe("insertStubCards", () => {
+    const stubHash = (name: string) => `stub-hash-${name}`;
+
+    it("should insert stub cards for new names", async () => {
+      const inserted = await repository.insertStubCards(
+        "poe1",
+        ["Card A", "Card B"],
+        stubHash,
+      );
+
+      expect(inserted).toBe(2);
+
+      const cardA = await repository.getByName("poe1", "Card A");
+      expect(cardA).not.toBeNull();
+      expect(cardA!.name).toBe("Card A");
+      expect(cardA!.stackSize).toBe(1);
+      expect(cardA!.description).toBe("");
+      expect(cardA!.rewardHtml).toBe("");
+      expect(cardA!.artSrc).toBe("");
+      expect(cardA!.flavourHtml).toBe("");
+
+      const cardB = await repository.getByName("poe1", "Card B");
+      expect(cardB).not.toBeNull();
+      expect(cardB!.name).toBe("Card B");
+    });
+
+    it("should not overwrite existing cards (INSERT OR IGNORE)", async () => {
+      await insertCard("poe1", "The Doctor", {
+        stackSize: 8,
+        description: "Original description",
+        artSrc: "https://example.com/doctor.png",
+      });
+
+      const inserted = await repository.insertStubCards(
+        "poe1",
+        ["The Doctor"],
+        stubHash,
+      );
+
+      expect(inserted).toBe(0);
+
+      // Verify the original card is unchanged
+      const card = await repository.getByName("poe1", "The Doctor");
+      expect(card!.stackSize).toBe(8);
+      expect(card!.description).toBe("Original description");
+      expect(card!.artSrc).toBe("https://example.com/doctor.png");
+    });
+
+    it("should return 0 when given an empty array", async () => {
+      const inserted = await repository.insertStubCards("poe1", [], stubHash);
+      expect(inserted).toBe(0);
+    });
+
+    it("should insert only new cards in a mixed list", async () => {
+      await insertCard("poe1", "The Doctor");
+      await insertCard("poe1", "Rain of Chaos");
+
+      const inserted = await repository.insertStubCards(
+        "poe1",
+        ["The Doctor", "New Card", "Rain of Chaos", "Another New Card"],
+        stubHash,
+      );
+
+      expect(inserted).toBe(2);
+
+      // New cards exist
+      expect(await repository.cardExists("poe1", "New Card")).toBe(true);
+      expect(await repository.cardExists("poe1", "Another New Card")).toBe(
+        true,
+      );
+
+      // Existing cards unchanged
+      const doctor = await repository.getByName("poe1", "The Doctor");
+      expect(doctor!.stackSize).toBe(8); // original, not stub default of 1
+    });
+
+    it("should use the provided hash function for data_hash", async () => {
+      const customHash = (name: string) => `custom-${name.toLowerCase()}`;
+
+      await repository.insertStubCards("poe1", ["Test Card"], customHash);
+
+      const hash = await repository.getCardHash("poe1", "Test Card");
+      expect(hash).toBe("custom-test card");
+    });
+
+    it("should handle cards with special characters", async () => {
+      const inserted = await repository.insertStubCards(
+        "poe1",
+        ["The King's Blade", "A Mother's Parting Gift"],
+        stubHash,
+      );
+
+      expect(inserted).toBe(2);
+      expect(await repository.cardExists("poe1", "The King's Blade")).toBe(
+        true,
+      );
+      expect(
+        await repository.cardExists("poe1", "A Mother's Parting Gift"),
+      ).toBe(true);
+    });
+
+    it("should respect game isolation", async () => {
+      await repository.insertStubCards("poe1", ["Card A"], stubHash);
+
+      expect(await repository.cardExists("poe1", "Card A")).toBe(true);
+      expect(await repository.cardExists("poe2", "Card A")).toBe(false);
+    });
+
+    it("should work correctly for poe2", async () => {
+      const inserted = await repository.insertStubCards(
+        "poe2",
+        ["PoE2 Card"],
+        stubHash,
+      );
+
+      expect(inserted).toBe(1);
+      const card = await repository.getByName("poe2", "PoE2 Card");
+      expect(card).not.toBeNull();
+      expect(card!.game).toBe("poe2");
+      expect(card!.stackSize).toBe(1);
+    });
+
+    it("stub cards should be discoverable via getAllByGame", async () => {
+      await insertCard("poe1", "Existing Card");
+      await repository.insertStubCards(
+        "poe1",
+        ["Stub Card A", "Stub Card B"],
+        stubHash,
+      );
+
+      const allCards = await repository.getAllByGame("poe1");
+      const names = allCards.map((c) => c.name);
+
+      expect(names).toContain("Existing Card");
+      expect(names).toContain("Stub Card A");
+      expect(names).toContain("Stub Card B");
+    });
+
+    it("stub cards should be discoverable via getAllCardNames", async () => {
+      await insertCard("poe1", "Existing Card");
+      await repository.insertStubCards("poe1", ["Stub Card"], stubHash);
+
+      const names = await repository.getAllCardNames("poe1");
+      expect(names).toContain("Existing Card");
+      expect(names).toContain("Stub Card");
+    });
+
+    it("stub cards should be overwritable by updateCard (simulating syncCards)", async () => {
+      await repository.insertStubCards("poe1", ["The Doctor"], stubHash);
+
+      // Verify it's a stub
+      let card = await repository.getByName("poe1", "The Doctor");
+      expect(card!.stackSize).toBe(1);
+      expect(card!.description).toBe("");
+
+      // Simulate syncCards updating the stub with full data
+      await repository.updateCard(
+        "poe1",
+        "The Doctor",
+        8,
+        "Full description",
+        "<span>Headhunter</span>",
+        "https://example.com/doctor.png",
+        "<em>Flavour</em>",
+        "full-hash",
+      );
+
+      card = await repository.getByName("poe1", "The Doctor");
+      expect(card!.stackSize).toBe(8);
+      expect(card!.description).toBe("Full description");
+      expect(card!.rewardHtml).toBe("<span>Headhunter</span>");
+    });
+  });
 });

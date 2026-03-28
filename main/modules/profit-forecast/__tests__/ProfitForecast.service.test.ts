@@ -116,7 +116,7 @@ function createKyselyChain(resolvedValue: any = undefined) {
   chain.executeTakeFirst = vi
     .fn()
     .mockResolvedValue(
-      Array.isArray(resolvedValue) ? resolvedValue[0] : resolvedValue
+      Array.isArray(resolvedValue) ? resolvedValue[0] : resolvedValue,
     );
   return chain;
 }
@@ -125,14 +125,14 @@ function createKyselyChain(resolvedValue: any = undefined) {
 
 function getIpcHandler(channel: string): (...args: any[]) => Promise<any> {
   const call = mockIpcHandle.mock.calls.find(
-    ([registeredChannel]: [string]) => registeredChannel === channel
+    ([registeredChannel]: [string]) => registeredChannel === channel,
   );
   if (!call) {
     throw new Error(
       `No IPC handler registered for channel "${channel}". ` +
         `Registered channels: ${mockIpcHandle.mock.calls
           .map(([c]: [string]) => c)
-          .join(", ")}`
+          .join(", ")}`,
     );
   }
   return call[1];
@@ -460,14 +460,14 @@ describe("ProfitForecastService", () => {
   describe("IPC handler registration", () => {
     it("should register the GetData IPC handler", () => {
       const registeredChannels = mockIpcHandle.mock.calls.map(
-        ([channel]: [string]) => channel
+        ([channel]: [string]) => channel,
       );
       expect(registeredChannels).toContain(ProfitForecastChannel.GetData);
     });
 
     it("should register exactly one IPC handler", () => {
       const profitForecastCalls = mockIpcHandle.mock.calls.filter(
-        ([channel]: [string]) => channel === ProfitForecastChannel.GetData
+        ([channel]: [string]) => channel === ProfitForecastChannel.GetData,
       );
       // One registration per getInstance() call in beforeEach
       expect(profitForecastCalls.length).toBeGreaterThanOrEqual(1);
@@ -506,7 +506,7 @@ describe("ProfitForecastService", () => {
       // Rows should be filtered to exclude boss cards (The Void is fromBoss)
       expect(result.rows).toHaveLength(3);
       expect(result.rows.map((r) => r.cardName)).toEqual(
-        expect.arrayContaining(["The Doctor", "Rain of Chaos", "The Nurse"])
+        expect.arrayContaining(["The Doctor", "Rain of Chaos", "The Nurse"]),
       );
       // The Void has weight 0 and fromBoss=true so should be excluded
       expect(result.rows.map((r) => r.cardName)).not.toContain("The Void");
@@ -519,12 +519,12 @@ describe("ProfitForecastService", () => {
       expect(chains.leagueChain.where).toHaveBeenCalledWith(
         "game",
         "=",
-        "poe1"
+        "poe1",
       );
       expect(chains.leagueChain.where).toHaveBeenCalledWith(
         "name",
         "=",
-        "Keepers"
+        "Keepers",
       );
     });
 
@@ -535,11 +535,11 @@ describe("ProfitForecastService", () => {
       expect(chains.snapshotChain.where).toHaveBeenCalledWith(
         "league_id",
         "=",
-        MOCK_LEAGUE_ROW.id
+        MOCK_LEAGUE_ROW.id,
       );
       expect(chains.snapshotChain.orderBy).toHaveBeenCalledWith(
         "fetched_at",
-        "desc"
+        "desc",
       );
       expect(chains.snapshotChain.limit).toHaveBeenCalledWith(1);
     });
@@ -551,7 +551,7 @@ describe("ProfitForecastService", () => {
       expect(chains.priceChain.where).toHaveBeenCalledWith(
         "snapshot_id",
         "=",
-        MOCK_SNAPSHOT_ROW.id
+        MOCK_SNAPSHOT_ROW.id,
       );
     });
 
@@ -722,7 +722,7 @@ describe("ProfitForecastService", () => {
       expect(chains.leagueChain.where).toHaveBeenCalledWith(
         "game",
         "=",
-        "poe2"
+        "poe2",
       );
     });
 
@@ -740,7 +740,7 @@ describe("ProfitForecastService", () => {
       expect(chains.leagueChain.where).toHaveBeenCalledWith(
         "name",
         "=",
-        "Hardcore Keepers"
+        "Hardcore Keepers",
       );
     });
 
@@ -828,7 +828,7 @@ describe("ProfitForecastService", () => {
 
     it("should handle mixed confidence levels across multiple cards", async () => {
       chains.priceChain.execute.mockResolvedValue(
-        MOCK_CARD_PRICE_ROWS_MIXED_CONFIDENCE
+        MOCK_CARD_PRICE_ROWS_MIXED_CONFIDENCE,
       );
 
       const result = await service.getData("poe1", "Keepers");
@@ -880,10 +880,10 @@ describe("ProfitForecastService", () => {
     beforeEach(() => {
       // Wire up poe2 data for all mocks
       chains.leagueChain.executeTakeFirst.mockResolvedValue(
-        MOCK_POE2_LEAGUE_ROW
+        MOCK_POE2_LEAGUE_ROW,
       );
       chains.snapshotChain.executeTakeFirst.mockResolvedValue(
-        MOCK_POE2_SNAPSHOT_ROW
+        MOCK_POE2_SNAPSHOT_ROW,
       );
       chains.priceChain.execute.mockResolvedValue(MOCK_POE2_CARD_PRICE_ROWS);
       mockRepositoryGetCardWeights.mockResolvedValue(MOCK_POE2_PL_WEIGHTS);
@@ -914,12 +914,12 @@ describe("ProfitForecastService", () => {
       expect(chains.leagueChain.where).toHaveBeenCalledWith(
         "game",
         "=",
-        "poe2"
+        "poe2",
       );
       expect(chains.leagueChain.where).toHaveBeenCalledWith(
         "name",
         "=",
-        "Dawn"
+        "Dawn",
       );
       expect(mockEnsureLoaded).toHaveBeenCalledWith("poe2");
     });
@@ -1012,7 +1012,7 @@ describe("ProfitForecastService", () => {
       const result = await service.getData("poe2", "Dawn");
 
       expect(result.rows.map((r) => r.cardName)).not.toContain(
-        "Poe2 Boss Card"
+        "Poe2 Boss Card",
       );
       expect(result.rows).toHaveLength(3);
     });
@@ -1065,7 +1065,7 @@ describe("ProfitForecastService", () => {
       const doctor = result.rows.find((r: any) => r.cardName === "The Doctor")!;
       expect(doctor.hasPrice).toBe(true);
       const rain = result.rows.find(
-        (r: any) => r.cardName === "Rain of Chaos"
+        (r: any) => r.cardName === "Rain of Chaos",
       )!;
       expect(rain.confidence).toBe(2);
       expect(rain.hasPrice).toBe(true);
@@ -1105,7 +1105,7 @@ describe("ProfitForecastService", () => {
 
       // A Chilling Wind has fromBoss=true so it should be excluded
       const chillingWind = result.rows.find(
-        (r) => r.cardName === "A Chilling Wind"
+        (r) => r.cardName === "A Chilling Wind",
       );
       expect(chillingWind).toBeUndefined();
       // Only non-boss cards should remain
@@ -1122,7 +1122,7 @@ describe("ProfitForecastService", () => {
       // Should query with metadata.league ("Keepers"), not the active league
       expect(mockRepositoryGetCardWeights).toHaveBeenCalledWith(
         "poe1",
-        "Keepers"
+        "Keepers",
       );
     });
 
@@ -1143,7 +1143,7 @@ describe("ProfitForecastService", () => {
 
     it("should return empty weights and log error when PL service throws", async () => {
       mockRepositoryGetCardWeights.mockRejectedValue(
-        new Error("Database corrupted")
+        new Error("Database corrupted"),
       );
 
       const result = await service.getData("poe1", "Keepers");
@@ -1278,7 +1278,7 @@ describe("ProfitForecastService", () => {
         expect.objectContaining({
           success: false,
           error: expect.stringContaining("Invalid input"),
-        })
+        }),
       );
     });
 
@@ -1290,7 +1290,7 @@ describe("ProfitForecastService", () => {
         expect.objectContaining({
           success: false,
           error: expect.stringContaining("Invalid input"),
-        })
+        }),
       );
     });
 
@@ -1302,7 +1302,7 @@ describe("ProfitForecastService", () => {
         expect.objectContaining({
           success: false,
           error: expect.stringContaining("Invalid input"),
-        })
+        }),
       );
     });
 
@@ -1314,7 +1314,7 @@ describe("ProfitForecastService", () => {
         expect.objectContaining({
           success: false,
           error: expect.stringContaining("Invalid input"),
-        })
+        }),
       );
     });
 
@@ -1326,7 +1326,7 @@ describe("ProfitForecastService", () => {
         expect.objectContaining({
           success: false,
           error: expect.stringContaining("Invalid input"),
-        })
+        }),
       );
     });
 
@@ -1338,7 +1338,7 @@ describe("ProfitForecastService", () => {
         expect.objectContaining({
           success: false,
           error: expect.stringContaining("Invalid input"),
-        })
+        }),
       );
     });
 
@@ -1537,7 +1537,7 @@ describe("ProfitForecastService", () => {
       // since we bail early when league is null
       const snapshotWhereCalledWithLeagueId =
         chains.snapshotChain.where.mock.calls.some(
-          (args: any[]) => args[0] === "league_id"
+          (args: any[]) => args[0] === "league_id",
         );
       expect(snapshotWhereCalledWithLeagueId).toBe(false);
     });
@@ -1550,7 +1550,7 @@ describe("ProfitForecastService", () => {
       // Price chain where should not have been called with snapshot_id
       const priceWhereCalledWithSnapshotId =
         chains.priceChain.where.mock.calls.some(
-          (args: any[]) => args[0] === "snapshot_id"
+          (args: any[]) => args[0] === "snapshot_id",
         );
       expect(priceWhereCalledWithSnapshotId).toBe(false);
     });
@@ -1567,7 +1567,7 @@ describe("ProfitForecastService", () => {
       await service.getData("poe1", "NonExistent");
 
       expect(mockLoggerLog).toHaveBeenCalledWith(
-        expect.stringContaining("No league found")
+        expect.stringContaining("No league found"),
       );
     });
 
@@ -1577,7 +1577,7 @@ describe("ProfitForecastService", () => {
       await service.getData("poe1", "Keepers");
 
       expect(mockLoggerLog).toHaveBeenCalledWith(
-        expect.stringContaining("No snapshot found")
+        expect.stringContaining("No snapshot found"),
       );
     });
 
@@ -1585,7 +1585,7 @@ describe("ProfitForecastService", () => {
       await service.getData("poe1", "Keepers");
 
       expect(mockLoggerLog).toHaveBeenCalledWith(
-        expect.stringContaining("Returning")
+        expect.stringContaining("Returning"),
       );
     });
 
@@ -1593,7 +1593,7 @@ describe("ProfitForecastService", () => {
       await service.getData("poe1", "Keepers");
 
       expect(mockLoggerLog).toHaveBeenCalledWith(
-        expect.stringContaining("3 rows")
+        expect.stringContaining("3 rows"),
       );
     });
 
@@ -1601,7 +1601,7 @@ describe("ProfitForecastService", () => {
       await service.getData("poe1", "Keepers");
 
       expect(mockLoggerLog).toHaveBeenCalledWith(
-        expect.stringContaining("0 anomalous")
+        expect.stringContaining("0 anomalous"),
       );
     });
 
@@ -1625,7 +1625,7 @@ describe("ProfitForecastService", () => {
       expect(result.rows).toHaveLength(3);
       expect(mockRepositoryGetCardWeights).toHaveBeenCalledWith(
         "poe1",
-        "Keepers"
+        "Keepers",
       );
     });
 
@@ -1639,7 +1639,7 @@ describe("ProfitForecastService", () => {
       expect(mockRepositoryGetCardWeights).toHaveBeenCalledTimes(1);
       expect(mockRepositoryGetCardWeights).toHaveBeenCalledWith(
         "poe1",
-        "Keepers"
+        "Keepers",
       );
     });
   });
@@ -1720,7 +1720,7 @@ describe("ProfitForecastService", () => {
 
     it("should return weights even when snapshot query throws", async () => {
       chains.leagueChain.executeTakeFirst.mockRejectedValue(
-        new Error("DB read error")
+        new Error("DB read error"),
       );
 
       // getData will throw, but let's verify the behavior through the IPC handler
@@ -1728,7 +1728,7 @@ describe("ProfitForecastService", () => {
       const handler = getIpcHandler(ProfitForecastChannel.GetData);
       // The error will propagate since it's not an IpcValidationError
       await expect(handler({}, "poe1", "Keepers")).rejects.toThrow(
-        "DB read error"
+        "DB read error",
       );
     });
   });
@@ -1750,7 +1750,7 @@ describe("ProfitForecastService", () => {
         chaos: number;
         weight: number;
         confidence?: 1 | 2 | 3;
-      }[]
+      }[],
     ) {
       const priceRows = entries.map((e) => ({
         snapshot_id: "snapshot-uuid-1",
@@ -1797,13 +1797,13 @@ describe("ProfitForecastService", () => {
       expect(outlier.isAnomalous).toBe(true);
       // Normal common cards should NOT be flagged
       expect(
-        result.rows.find((r) => r.cardName === "Card A")!.isAnomalous
+        result.rows.find((r) => r.cardName === "Card A")!.isAnomalous,
       ).toBe(false);
       expect(
-        result.rows.find((r) => r.cardName === "Card D")!.isAnomalous
+        result.rows.find((r) => r.cardName === "Card D")!.isAnomalous,
       ).toBe(false);
       expect(
-        result.rows.find((r) => r.cardName === "Card H")!.isAnomalous
+        result.rows.find((r) => r.cardName === "Card H")!.isAnomalous,
       ).toBe(false);
     });
 
@@ -1825,10 +1825,10 @@ describe("ProfitForecastService", () => {
       const result = await service.getData("poe1", "Keepers");
 
       expect(
-        result.rows.find((r) => r.cardName === "Rare Expensive")!.isAnomalous
+        result.rows.find((r) => r.cardName === "Rare Expensive")!.isAnomalous,
       ).toBe(false);
       expect(
-        result.rows.find((r) => r.cardName === "Rare Costly")!.isAnomalous
+        result.rows.find((r) => r.cardName === "Rare Costly")!.isAnomalous,
       ).toBe(false);
     });
 
@@ -1858,7 +1858,7 @@ describe("ProfitForecastService", () => {
       // excluded from the detection algorithm entirely
       expect(
         result.rows.find((r) => r.cardName === "Low Conf High Price")!
-          .isAnomalous
+          .isAnomalous,
       ).toBe(false);
     });
 
@@ -1878,7 +1878,7 @@ describe("ProfitForecastService", () => {
 
       // Outlier should NOT be flagged because sample is too small
       expect(
-        result.rows.find((r) => r.cardName === "Outlier")!.isAnomalous
+        result.rows.find((r) => r.cardName === "Outlier")!.isAnomalous,
       ).toBe(false);
     });
 
@@ -1902,7 +1902,7 @@ describe("ProfitForecastService", () => {
 
       // Only 1 common card has a positive price → commonPrices.length < 3 → skip detection
       expect(
-        result.rows.find((r) => r.cardName === "Common C")!.isAnomalous
+        result.rows.find((r) => r.cardName === "Common C")!.isAnomalous,
       ).toBe(false);
     });
 
@@ -1931,7 +1931,7 @@ describe("ProfitForecastService", () => {
         "Card F",
       ]) {
         expect(result.rows.find((r) => r.cardName === name)!.isAnomalous).toBe(
-          false
+          false,
         );
       }
     });
@@ -1956,10 +1956,10 @@ describe("ProfitForecastService", () => {
       const result = await service.getData("poe1", "Keepers");
 
       expect(
-        result.rows.find((r) => r.cardName === "Outlier")!.isAnomalous
+        result.rows.find((r) => r.cardName === "Outlier")!.isAnomalous,
       ).toBe(true);
       expect(
-        result.rows.find((r) => r.cardName === "Card A")!.isAnomalous
+        result.rows.find((r) => r.cardName === "Card A")!.isAnomalous,
       ).toBe(false);
     });
 
@@ -1982,7 +1982,7 @@ describe("ProfitForecastService", () => {
       const result = await service.getData("poe1", "Keepers");
 
       expect(
-        result.rows.find((r) => r.cardName === "Slightly Up")!.isAnomalous
+        result.rows.find((r) => r.cardName === "Slightly Up")!.isAnomalous,
       ).toBe(false);
     });
 
@@ -2004,16 +2004,16 @@ describe("ProfitForecastService", () => {
       const result = await service.getData("poe1", "Keepers");
 
       expect(
-        result.rows.find((r) => r.cardName === "Outlier 1")!.isAnomalous
+        result.rows.find((r) => r.cardName === "Outlier 1")!.isAnomalous,
       ).toBe(true);
       expect(
-        result.rows.find((r) => r.cardName === "Outlier 2")!.isAnomalous
+        result.rows.find((r) => r.cardName === "Outlier 2")!.isAnomalous,
       ).toBe(true);
       expect(
-        result.rows.find((r) => r.cardName === "Card A")!.isAnomalous
+        result.rows.find((r) => r.cardName === "Card A")!.isAnomalous,
       ).toBe(false);
       expect(
-        result.rows.find((r) => r.cardName === "Card F")!.isAnomalous
+        result.rows.find((r) => r.cardName === "Card F")!.isAnomalous,
       ).toBe(false);
     });
 
@@ -2048,7 +2048,7 @@ describe("ProfitForecastService", () => {
       // "No Weight Card" has no PL weight entry, so it won't appear in rows.
       // We verify the detection doesn't crash and other cards are fine.
       const noWeightRow = result.rows.find(
-        (r) => r.cardName === "No Weight Card"
+        (r) => r.cardName === "No Weight Card",
       );
       expect(noWeightRow).toBeUndefined();
       // All other rows should not be anomalous
@@ -2074,7 +2074,7 @@ describe("ProfitForecastService", () => {
       const result = await service.getData("poe1", "Keepers");
 
       const zeroWeightRow = result.rows.find(
-        (r) => r.cardName === "Zero Weight"
+        (r) => r.cardName === "Zero Weight",
       )!;
       expect(zeroWeightRow.isAnomalous).toBe(false);
     });
@@ -2096,10 +2096,10 @@ describe("ProfitForecastService", () => {
       await service.getData("poe1", "Keepers");
 
       const logCalls = mockLoggerLog.mock.calls.map(
-        (args: unknown[]) => args[0]
+        (args: unknown[]) => args[0],
       );
       const successLog = logCalls.find(
-        (msg: string) => typeof msg === "string" && msg.includes("Returning")
+        (msg: string) => typeof msg === "string" && msg.includes("Returning"),
       );
       expect(successLog).toBeDefined();
       expect(successLog).toContain("1 anomalous");
@@ -2120,10 +2120,10 @@ describe("ProfitForecastService", () => {
       await service.getData("poe1", "Keepers");
 
       const logCalls = mockLoggerLog.mock.calls.map(
-        (args: unknown[]) => args[0]
+        (args: unknown[]) => args[0],
       );
       const successLog = logCalls.find(
-        (msg: string) => typeof msg === "string" && msg.includes("Returning")
+        (msg: string) => typeof msg === "string" && msg.includes("Returning"),
       );
       expect(successLog).toBeDefined();
       expect(successLog).toContain("0 anomalous");
@@ -2159,30 +2159,30 @@ describe("ProfitForecastService", () => {
 
       // Inflated common cards should be flagged
       expect(
-        result.rows.find((r) => r.cardName === "The Incantation")!.isAnomalous
+        result.rows.find((r) => r.cardName === "The Incantation")!.isAnomalous,
       ).toBe(true);
       expect(
         result.rows.find((r) => r.cardName === "The Metalsmith's Gift")!
-          .isAnomalous
+          .isAnomalous,
       ).toBe(true);
 
       // Normal common cards should not be flagged
       expect(
-        result.rows.find((r) => r.cardName === "Rain of Chaos")!.isAnomalous
+        result.rows.find((r) => r.cardName === "Rain of Chaos")!.isAnomalous,
       ).toBe(false);
       expect(
-        result.rows.find((r) => r.cardName === "The Lover")!.isAnomalous
+        result.rows.find((r) => r.cardName === "The Lover")!.isAnomalous,
       ).toBe(false);
 
       // Expensive rare cards should not be flagged (below median weight)
       expect(
-        result.rows.find((r) => r.cardName === "The Doctor")!.isAnomalous
+        result.rows.find((r) => r.cardName === "The Doctor")!.isAnomalous,
       ).toBe(false);
       expect(
-        result.rows.find((r) => r.cardName === "The Nurse")!.isAnomalous
+        result.rows.find((r) => r.cardName === "The Nurse")!.isAnomalous,
       ).toBe(false);
       expect(
-        result.rows.find((r) => r.cardName === "House of Mirrors")!.isAnomalous
+        result.rows.find((r) => r.cardName === "House of Mirrors")!.isAnomalous,
       ).toBe(false);
     });
 
@@ -2204,10 +2204,10 @@ describe("ProfitForecastService", () => {
 
       // Only 4 non-low-confidence candidates → below minimum of 5 → no detection
       expect(
-        result.rows.find((r) => r.cardName === "Card A")!.isAnomalous
+        result.rows.find((r) => r.cardName === "Card A")!.isAnomalous,
       ).toBe(false);
       expect(
-        result.rows.find((r) => r.cardName === "Card D")!.isAnomalous
+        result.rows.find((r) => r.cardName === "Card D")!.isAnomalous,
       ).toBe(false);
     });
 
@@ -2233,7 +2233,7 @@ describe("ProfitForecastService", () => {
       // lowerQ1 = idx 0 = 0.5, lowerQ3 = idx 1 = 1.0, IQR = 0.5
       // Threshold = 1.0 + 3*0.5 = 2.5. 500 > 2.5 → flagged.
       expect(
-        result.rows.find((r) => r.cardName === "Outlier")!.isAnomalous
+        result.rows.find((r) => r.cardName === "Outlier")!.isAnomalous,
       ).toBe(true);
     });
 
@@ -2265,7 +2265,7 @@ describe("ProfitForecastService", () => {
         "Card G",
       ]) {
         expect(result.rows.find((r) => r.cardName === name)!.isAnomalous).toBe(
-          false
+          false,
         );
       }
     });
@@ -2329,7 +2329,7 @@ describe("ProfitForecastService", () => {
 
     it("should register the Compute IPC handler", () => {
       const registeredChannels = mockIpcHandle.mock.calls.map(
-        ([channel]: [string]) => channel
+        ([channel]: [string]) => channel,
       );
       expect(registeredChannels).toContain(ProfitForecastChannel.Compute);
     });
@@ -2440,7 +2440,7 @@ describe("ProfitForecastService", () => {
 
       const result = handler(
         {},
-        { ...VALID_COMPUTE_REQUEST, rows: "not-an-array" }
+        { ...VALID_COMPUTE_REQUEST, rows: "not-an-array" },
       );
       expect(result).toEqual({
         success: false,
