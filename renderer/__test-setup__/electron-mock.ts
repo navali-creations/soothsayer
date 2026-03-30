@@ -107,6 +107,17 @@ export function createElectronMock() {
         pageSize: 10,
         totalPages: 0,
       }),
+      getMostProfitable: vi.fn().mockResolvedValue(null),
+      getLongestSession: vi.fn().mockResolvedValue(null),
+      getMostDecksOpened: vi.fn().mockResolvedValue(null),
+      getBiggestLetdown: vi.fn().mockResolvedValue(null),
+      getTotalDecksOpened: vi.fn().mockResolvedValue(0),
+      getLuckyBreak: vi.fn().mockResolvedValue(null),
+      getSessionAverages: vi.fn().mockResolvedValue(null),
+      getStackedDeckCardCount: vi.fn().mockResolvedValue(0),
+      getStackedDeckCardNames: vi.fn().mockResolvedValue([]),
+      getUncollectedCardNames: vi.fn().mockResolvedValue([]),
+      getChartData: vi.fn().mockResolvedValue([]),
     },
 
     // ── Snapshots (poe.ninja prices) ───────────────────────────────────

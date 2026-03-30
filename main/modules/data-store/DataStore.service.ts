@@ -11,7 +11,10 @@ import {
 import type { GameType, GlobalStats } from "../../../types/data-stores";
 import { DataStoreChannel } from "./DataStore.channels";
 import { DataStoreRepository } from "./DataStore.repository";
-import type { SimpleDivinationCardStats } from "./DataStore.schemas";
+import type {
+  SimpleCardEntry,
+  SimpleDivinationCardStats,
+} from "./DataStore.schemas";
 
 /**
  * SQLite-based DataStore service - Refactored with Kysely
@@ -195,9 +198,12 @@ class DataStoreService {
     );
 
     // Build the cards object
-    const cardsObj: Record<string, { count: number }> = {};
+    const cardsObj: Record<string, SimpleCardEntry> = {};
     for (const card of cards) {
-      cardsObj[card.cardName] = { count: card.count };
+      cardsObj[card.cardName] = {
+        count: card.count,
+        divinationCard: card.divinationCard,
+      };
     }
 
     return {

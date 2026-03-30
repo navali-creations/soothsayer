@@ -69,6 +69,10 @@ const ALL_CHART_COLOR_KEYS: (keyof ChartColors)[] = [
   "info30",
   "warning",
   "warning50",
+  // Secondary
+  "secondary",
+  "secondary60",
+  "secondary30",
 ];
 
 // ─── Test suite ────────────────────────────────────────────────────────────

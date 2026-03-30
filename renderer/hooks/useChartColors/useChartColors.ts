@@ -86,6 +86,13 @@ export interface ChartColors {
   warning: string;
   /** Warning at 50% — pessimistic line stroke */
   warning50: string;
+
+  /** Secondary at full opacity */
+  secondary: string;
+  /** Secondary at 60% */
+  secondary60: string;
+  /** Secondary at 30% */
+  secondary30: string;
 }
 
 /**
@@ -134,6 +141,7 @@ function readColors(): ChartColors {
   const suRaw = style.getPropertyValue("--color-success");
   const inRaw = style.getPropertyValue("--color-info");
   const waRaw = style.getPropertyValue("--color-warning");
+  const seRaw = style.getPropertyValue("--color-secondary");
 
   // Parse into RGB tuples
   const bc = parseColor(bcRaw);
@@ -144,6 +152,7 @@ function readColors(): ChartColors {
   const su = parseColor(suRaw);
   const inf = parseColor(inRaw);
   const wa = parseColor(waRaw);
+  const se = parseColor(seRaw);
 
   return {
     // Base content at various opacities
@@ -184,6 +193,10 @@ function readColors(): ChartColors {
     info30: rgba(inf, 0.3),
     warning: rgba(wa),
     warning50: rgba(wa, 0.5),
+
+    secondary: rgba(se),
+    secondary60: rgba(se, 0.6),
+    secondary30: rgba(se, 0.3),
   };
 }
 

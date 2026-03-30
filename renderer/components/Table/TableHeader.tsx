@@ -13,7 +13,7 @@ const TableHeader = ({ children, tooltip, className }: TableHeaderProps) => {
   if (tooltip) {
     return (
       <div
-        className={clsx("tooltip tooltip-right tooltip-primary", className)}
+        className={clsx("tooltip tooltip-left tooltip-primary", className)}
         data-tip={tooltip}
       >
         <Flex className="gap-1 items-center border-b border-dotted">

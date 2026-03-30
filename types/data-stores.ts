@@ -31,15 +31,15 @@ export interface CardPriceInfo {
 
 // Divination card metadata from static data
 export interface DivinationCardMetadata {
-  id?: string | null;
+  id: string;
+  rarity: Rarity;
+  fromBoss: boolean;
   stackSize?: number | null;
   description?: string | null;
   rewardHtml?: string | null;
   artSrc?: string | null;
   flavourHtml?: string | null;
-  rarity?: Rarity;
   filterRarity?: KnownRarity | null;
-  fromBoss?: boolean;
 }
 
 // Card entry for UI display (already flattened with both prices)
@@ -106,7 +106,21 @@ export interface RecentDrop {
   };
 }
 
+// Simple card entry (for league and all-time aggregate stats)
+export interface SimpleCardEntry {
+  count: number;
+  divinationCard?: DivinationCardMetadata;
+}
+
+// Simple divination card stats (keyed by card name, no per-card prices)
+export interface SimpleDivinationCardStats {
+  totalCount: number;
+  cards: Record<string, SimpleCardEntry>;
+  lastUpdated?: string;
+}
+
 export interface DetailedDivinationCardStats {
+  id?: string;
   totalCount: number;
   cards: CardEntry[];
   recentDrops?: RecentDrop[];

@@ -1,6 +1,5 @@
-import { useNavigate } from "@tanstack/react-router";
-
 import { PageContainer } from "~/renderer/components";
+import { BackButton } from "~/renderer/components/BackButton";
 
 interface CardDetailsErrorProps {
   /** Error message to display, or null to show a generic "Card not found" message. */
@@ -12,8 +11,6 @@ interface CardDetailsErrorProps {
  * Shown when the card slug doesn't match any card or when resolution fails.
  */
 const CardDetailsError = ({ error }: CardDetailsErrorProps) => {
-  const navigate = useNavigate();
-
   return (
     <PageContainer>
       <PageContainer.Header title="Card Details" />
@@ -22,12 +19,12 @@ const CardDetailsError = ({ error }: CardDetailsErrorProps) => {
           <p className="text-xl text-base-content/60">
             {error ?? "Card not found"}
           </p>
-          <button
-            className="btn btn-primary"
-            onClick={() => navigate({ to: "/cards" })}
-          >
-            Back to Cards
-          </button>
+          <BackButton
+            fallback="/cards"
+            label="Back to Cards"
+            variant="primary"
+            size="md"
+          />
         </div>
       </PageContainer.Content>
     </PageContainer>

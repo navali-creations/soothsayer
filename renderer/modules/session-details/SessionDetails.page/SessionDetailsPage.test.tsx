@@ -13,11 +13,12 @@ vi.mock("~/renderer/store", () => ({
   useBoundStore: vi.fn(),
 }));
 
-const mockNavigate = vi.fn();
+const mockHistoryBack = vi.fn();
 
 vi.mock("@tanstack/react-router", () => ({
-  useNavigate: () => mockNavigate,
+  useNavigate: () => vi.fn(),
   useParams: () => ({ sessionId: "test-session-123" }),
+  useRouter: () => ({ history: { back: mockHistoryBack } }),
 }));
 
 vi.mock("../SessionDetails.components", () => ({
@@ -63,9 +64,14 @@ vi.mock("~/renderer/components", () => ({
       ),
     },
   ),
-  Button: ({ children, onClick, ...props }: any) => (
-    <button onClick={onClick} {...props}>
-      {children}
+  BackButton: ({ fallback, label, ...props }: any) => (
+    <button
+      data-testid="back-button"
+      data-fallback={fallback}
+      onClick={() => mockHistoryBack()}
+      {...props}
+    >
+      {label}
     </button>
   ),
 }));
@@ -227,7 +233,7 @@ describe("SessionDetailsPage", () => {
       expect(screen.getByText("Session not found")).toBeInTheDocument();
     });
 
-    it("shows a back button that navigates to /sessions", async () => {
+    it("shows a back button with /sessions fallback", async () => {
       setupStore({
         sessionDetails: {
           loadSession: vi.fn(),
@@ -239,12 +245,11 @@ describe("SessionDetailsPage", () => {
       });
       const { user } = renderWithProviders(<SessionDetailsPage />);
 
-      const backButton = screen
-        .getByText("Back to Sessions")
-        .closest("button")!;
-      await user.click(backButton);
+      const backButton = screen.getByTestId("back-button");
+      expect(backButton).toHaveAttribute("data-fallback", "/sessions");
 
-      expect(mockNavigate).toHaveBeenCalledWith({ to: "/sessions" });
+      await user.click(backButton);
+      expect(mockHistoryBack).toHaveBeenCalled();
     });
 
     it("does not render session details components", () => {

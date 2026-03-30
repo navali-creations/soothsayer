@@ -376,7 +376,11 @@ test.describe("Sessions", () => {
     test("should have a back button on session details that navigates to /sessions", async ({
       page,
     }) => {
-      // Navigate to a non-existent session to guarantee the "back" button
+      // First navigate to /sessions so it becomes the previous history entry,
+      // then navigate to a non-existent session. The BackButton component uses
+      // history.back() when history.length > 1, so we need /sessions to be
+      // the prior entry for the back button to land there.
+      await navigateTo(page, "/sessions");
       await navigateTo(page, "/sessions/nonexistent-id");
       await page.locator("main").waitFor({ state: "visible", timeout: 10_000 });
       await expect

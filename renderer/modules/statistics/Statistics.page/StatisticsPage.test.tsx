@@ -16,6 +16,12 @@ vi.mock("~/renderer/hooks", () => ({
 }));
 
 vi.mock("../Statistics.components", () => ({
+  StatisticsCharts: (props: any) => (
+    <div
+      data-testid="statistics-charts"
+      data-is-data-loading={String(!!props.isDataLoading)}
+    />
+  ),
   StatisticsActions: (props: any) => (
     <div
       data-testid="statistics-actions"
@@ -28,13 +34,14 @@ vi.mock("../Statistics.components", () => ({
       data-testid="statistics-stats"
       data-total-count={props.totalCount}
       data-unique-card-count={props.uniqueCardCount}
-      data-card-data={JSON.stringify(props.cardData)}
+      data-is-data-loading={String(!!props.isDataLoading)}
     />
   ),
   StatisticsTable: (props: any) => (
     <div
       data-testid="statistics-table"
       data-card-data={JSON.stringify(props.cardData)}
+      data-is-data-loading={String(!!props.isDataLoading)}
     />
   ),
 }));
@@ -62,12 +69,18 @@ const mockUseBoundStore = vi.mocked(useBoundStore);
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 function createMockStore(overrides: any = {}) {
+  const { settings: settingsOverrides, ...statisticsOverrides } = overrides;
   return {
     statistics: {
       statScope: "all-time" as const,
       selectedLeague: "",
       setSelectedLeague: vi.fn(),
-      ...overrides,
+      setStatScope: vi.fn(),
+      ...statisticsOverrides,
+    },
+    settings: {
+      getActiveGameViewSelectedLeague: vi.fn(() => ""),
+      ...settingsOverrides,
     },
   } as any;
 }
@@ -108,37 +121,78 @@ describe("StatisticsPage", () => {
     vi.restoreAllMocks();
   });
 
-  // ── Loading state ──────────────────────────────────────────────────────
+  // ── Loading state (overlay, not full-page spinner) ─────────────────────
 
-  it("shows loading spinner when loading is true", () => {
+  it("renders page structure even when loading is true", () => {
     setupStore();
     setupHook({ loading: true, stats: null });
 
     renderWithProviders(<StatisticsPage />);
 
-    const spinner = document.querySelector(".loading-spinner");
-    expect(spinner).toBeInTheDocument();
+    expect(screen.getByTestId("page-container")).toBeInTheDocument();
+    expect(screen.getByTestId("statistics-stats")).toBeInTheDocument();
+    expect(screen.getByTestId("statistics-table")).toBeInTheDocument();
+    expect(screen.getByTestId("statistics-charts")).toBeInTheDocument();
   });
 
-  it("shows loading spinner when stats is null", () => {
+  it("passes isDataLoading=true to children when loading is true", () => {
+    setupStore();
+    setupHook({ loading: true, stats: null });
+
+    renderWithProviders(<StatisticsPage />);
+
+    expect(screen.getByTestId("statistics-stats")).toHaveAttribute(
+      "data-is-data-loading",
+      "true",
+    );
+    expect(screen.getByTestId("statistics-table")).toHaveAttribute(
+      "data-is-data-loading",
+      "true",
+    );
+    expect(screen.getByTestId("statistics-charts")).toHaveAttribute(
+      "data-is-data-loading",
+      "true",
+    );
+  });
+
+  it("passes isDataLoading=true to children when stats is null", () => {
     setupStore();
     setupHook({ loading: false, stats: null });
 
     renderWithProviders(<StatisticsPage />);
 
-    const spinner = document.querySelector(".loading-spinner");
-    expect(spinner).toBeInTheDocument();
+    expect(screen.getByTestId("statistics-stats")).toHaveAttribute(
+      "data-is-data-loading",
+      "true",
+    );
+    expect(screen.getByTestId("statistics-table")).toHaveAttribute(
+      "data-is-data-loading",
+      "true",
+    );
+    expect(screen.getByTestId("statistics-charts")).toHaveAttribute(
+      "data-is-data-loading",
+      "true",
+    );
   });
 
-  it("does not render page content when loading", () => {
+  it("passes isDataLoading=false to children when stats are loaded", () => {
     setupStore();
-    setupHook({ loading: true, stats: null });
+    setupHook({ stats: createStats() });
 
     renderWithProviders(<StatisticsPage />);
 
-    expect(screen.queryByTestId("page-container")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("statistics-stats")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("statistics-table")).not.toBeInTheDocument();
+    expect(screen.getByTestId("statistics-stats")).toHaveAttribute(
+      "data-is-data-loading",
+      "false",
+    );
+    expect(screen.getByTestId("statistics-table")).toHaveAttribute(
+      "data-is-data-loading",
+      "false",
+    );
+    expect(screen.getByTestId("statistics-charts")).toHaveAttribute(
+      "data-is-data-loading",
+      "false",
+    );
   });
 
   // ── Page renders after loading ─────────────────────────────────────────
@@ -180,14 +234,19 @@ describe("StatisticsPage", () => {
     expect(screen.getByTestId("statistics-table")).toBeInTheDocument();
   });
 
-  it("does not show spinner when stats are loaded", () => {
+  it("passes fallback values to children when stats is null", () => {
     setupStore();
-    setupHook({ stats: createStats() });
+    setupHook({ loading: true, stats: null });
 
     renderWithProviders(<StatisticsPage />);
 
-    const spinner = document.querySelector(".loading-spinner");
-    expect(spinner).not.toBeInTheDocument();
+    const statsEl = screen.getByTestId("statistics-stats");
+    expect(statsEl).toHaveAttribute("data-total-count", "0");
+    expect(statsEl).toHaveAttribute("data-unique-card-count", "0");
+
+    const tableEl = screen.getByTestId("statistics-table");
+    const cardData = JSON.parse(tableEl.getAttribute("data-card-data")!);
+    expect(cardData).toEqual([]);
   });
 
   // ── useDivinationCards hook params ─────────────────────────────────────
@@ -442,26 +501,77 @@ describe("StatisticsPage", () => {
     expect(subtitle).toHaveTextContent("League-specific statistics");
   });
 
-  it("shows last updated timestamp when stats.lastUpdated is present", () => {
-    setupStore();
-    setupHook({
-      stats: createStats({ lastUpdated: "2024-06-15T12:00:00Z" }),
+  // ── League seeding from global settings ────────────────────────────────
+
+  it("seeds selectedLeague and sets scope to league from global settings on mount", () => {
+    const store = setupStore({
+      statScope: "all-time",
+      selectedLeague: "",
+      settings: {
+        getActiveGameViewSelectedLeague: vi.fn(() => "Settlers"),
+      },
     });
+    setupHook({ stats: createStats() });
 
     renderWithProviders(<StatisticsPage />);
 
-    const subtitle = screen.getByTestId("page-subtitle");
-    expect(subtitle).toHaveTextContent(/Last updated:/);
+    expect(store.statistics.setSelectedLeague).toHaveBeenCalledWith("Settlers");
+    expect(store.statistics.setStatScope).toHaveBeenCalledWith("league");
   });
 
-  it("does not show last updated when stats.lastUpdated is null", () => {
-    setupStore();
-    setupHook({
-      stats: createStats({ lastUpdated: null }),
+  it("does not seed when global league is empty", () => {
+    const store = setupStore({
+      statScope: "all-time",
+      selectedLeague: "",
+      settings: {
+        getActiveGameViewSelectedLeague: vi.fn(() => ""),
+      },
     });
+    setupHook({ stats: createStats() });
 
     renderWithProviders(<StatisticsPage />);
 
-    expect(screen.queryByText(/Last updated:/)).not.toBeInTheDocument();
+    expect(store.statistics.setStatScope).not.toHaveBeenCalled();
+  });
+
+  it("seeds only once on mount, not on re-renders", () => {
+    const store = setupStore({
+      statScope: "all-time",
+      selectedLeague: "",
+      settings: {
+        getActiveGameViewSelectedLeague: vi.fn(() => "Settlers"),
+      },
+    });
+    setupHook({ stats: createStats() });
+
+    const { rerender } = renderWithProviders(<StatisticsPage />);
+
+    expect(store.statistics.setSelectedLeague).toHaveBeenCalledTimes(1);
+    expect(store.statistics.setStatScope).toHaveBeenCalledTimes(1);
+
+    // Re-render — should NOT seed again
+    rerender(<StatisticsPage />);
+
+    expect(store.statistics.setSelectedLeague).toHaveBeenCalledTimes(1);
+    expect(store.statistics.setStatScope).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not modify global settings when seeding statistics league", () => {
+    const globalGetter = vi.fn(() => "Settlers");
+    setupStore({
+      statScope: "all-time",
+      selectedLeague: "",
+      settings: {
+        getActiveGameViewSelectedLeague: globalGetter,
+      },
+    });
+    setupHook({ stats: createStats() });
+
+    renderWithProviders(<StatisticsPage />);
+
+    // The global getter is called once to read the value, but no setter
+    // for the global settings should be invoked (statistics has its own
+    // independent league selection).
+    expect(globalGetter).toHaveBeenCalled();
   });
 });

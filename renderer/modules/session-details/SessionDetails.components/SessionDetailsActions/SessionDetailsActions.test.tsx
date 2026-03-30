@@ -9,13 +9,25 @@ vi.mock("~/renderer/store", () => ({
   useBoundStore: vi.fn(),
 }));
 
-const mockNavigate = vi.fn();
+const mockHistoryBack = vi.fn();
 
 vi.mock("@tanstack/react-router", () => ({
-  useNavigate: () => mockNavigate,
+  useNavigate: () => vi.fn(),
+  useRouter: () => ({ history: { back: mockHistoryBack } }),
 }));
 
 vi.mock("~/renderer/components", () => ({
+  BackButton: ({ fallback, label, ...props }: any) => (
+    <button
+      data-testid="back-button"
+      data-fallback={fallback}
+      onClick={() => mockHistoryBack()}
+      {...props}
+    >
+      <span data-testid="icon-arrow-left" />
+      {label && <span>{label}</span>}
+    </button>
+  ),
   Button: ({ children, onClick, disabled, ...props }: any) => (
     <button onClick={onClick} disabled={disabled} {...props}>
       {children}
@@ -68,19 +80,27 @@ describe("SessionDetailsActions", () => {
       setupStore();
       renderWithProviders(<SessionDetailsActions />);
 
-      expect(screen.getByTestId("icon-arrow-left")).toBeInTheDocument();
+      expect(screen.getByTestId("back-button")).toBeInTheDocument();
     });
 
-    it("navigates to /sessions when back button is clicked", async () => {
+    it("has /sessions as fallback route", () => {
+      setupStore();
+      renderWithProviders(<SessionDetailsActions />);
+
+      expect(screen.getByTestId("back-button")).toHaveAttribute(
+        "data-fallback",
+        "/sessions",
+      );
+    });
+
+    it("navigates back when back button is clicked", async () => {
       setupStore();
       const { user } = renderWithProviders(<SessionDetailsActions />);
 
-      const backButton = screen
-        .getByTestId("icon-arrow-left")
-        .closest("button")!;
+      const backButton = screen.getByTestId("back-button");
       await user.click(backButton);
 
-      expect(mockNavigate).toHaveBeenCalledWith({ to: "/sessions" });
+      expect(mockHistoryBack).toHaveBeenCalled();
     });
   });
 

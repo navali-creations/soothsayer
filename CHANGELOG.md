@@ -26,6 +26,10 @@
   - The "Refresh" button has been removed from the Base Rate stat card to reduce clutter — use the "Refresh poe.ninja" button in the page header instead.
   - The "How It Works" modal and onboarding beacon have been updated to explain the custom rate feature.
 
+  **Improved:** Profit Forecast algorithm now produces more accurate results.
+
+  - The forecast previously used raw Prohibited Library weights to estimate drop probabilities, which systematically underestimated returns for mid-to-high value cards. Two calibration adjustments now correct for this: a probability floor (1 in 50,000) prevents ultra-rare cards from being modelled as virtually impossible, and a 1.25× EV multiplier accounts for the ~25% gap between raw-weight predictions and actual observed returns across thousands of empirical stacked-deck openings. The net effect is that forecasted profit and break-even rates now track real-world outcomes much more closely.
+
   **Improved:** Rarity Insights scan moved into Filters dropdown.
 
   - The standalone "Scan" button has been removed from the header and integrated into the Filters dropdown for a cleaner layout.

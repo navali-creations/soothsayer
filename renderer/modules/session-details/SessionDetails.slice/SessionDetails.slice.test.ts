@@ -13,6 +13,7 @@ function makeSessionDetail(
   overrides: Partial<DetailedDivinationCardStats> = {},
 ): DetailedDivinationCardStats {
   return {
+    id: "test-session-id",
     totalCount: 50,
     cards: [
       {
@@ -328,7 +329,7 @@ describe("SessionDetailsSlice", () => {
 
       expect(electron.session.updateCardPriceVisibility).toHaveBeenCalledWith(
         "poe1", // activeGame from settings
-        "2024-01-01T00:00:00Z", // session startedAt
+        "test-session-id", // session id
         "exchange",
         "The Doctor",
         true, // toggled from false -> true

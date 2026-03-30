@@ -1,0 +1,1 @@
+export { LegendIcon } from "./LegendIcon";

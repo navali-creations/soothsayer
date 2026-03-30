@@ -101,6 +101,12 @@
   ) !important;
 }
 
+/* Remove default yellow focus outline from all Recharts interactive elements */
+.recharts-wrapper *:focus,
+.recharts-wrapper *:focus-visible {
+  outline: none !important;
+}
+
 .preview {
   box-shadow: 0 0 10px oklch(from var(--color-primary) l c h / 0.75) inset;
   border-radius: 4px;

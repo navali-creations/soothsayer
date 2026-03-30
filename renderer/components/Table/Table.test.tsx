@@ -810,7 +810,7 @@ describe("TableHeader – with tooltip", () => {
     const wrapper = screen.getByText("Column Name").closest(".tooltip");
     expect(wrapper).toBeInTheDocument();
     expect(wrapper).toHaveClass("tooltip");
-    expect(wrapper).toHaveClass("tooltip-right");
+    expect(wrapper).toHaveClass("tooltip-left");
     expect(wrapper).toHaveClass("tooltip-primary");
   });
 
@@ -881,7 +881,7 @@ describe("TableHeader – without tooltip", () => {
     const element = screen.getByText("Plain Header");
     expect(element.tagName).toBe("DIV");
     expect(element).not.toHaveClass("tooltip");
-    expect(element).not.toHaveClass("tooltip-right");
+    expect(element).not.toHaveClass("tooltip-left");
     expect(element).not.toHaveClass("tooltip-primary");
   });
 
@@ -1038,36 +1038,36 @@ describe("CardRatioCell", () => {
       row: { original: { name: "Test Card", count: 5 } },
     }) as any;
 
-  it("renders the ratio formatted to two decimal places with a percent sign", () => {
+  it("renders the ratio formatted to seven decimal places with a percent sign", () => {
     renderWithProviders(<CardRatioCell {...createMockCellProps(12.345)} />);
 
-    expect(screen.getByText("12.35%")).toBeInTheDocument();
+    expect(screen.getByText("12.3450000%")).toBeInTheDocument();
   });
 
   it("applies badge badge-soft classes", () => {
     renderWithProviders(<CardRatioCell {...createMockCellProps(50)} />);
 
-    const badge = screen.getByText("50.00%");
+    const badge = screen.getByText("50.0000000%");
     expect(badge).toHaveClass("badge");
     expect(badge).toHaveClass("badge-soft");
   });
 
-  it("renders zero ratio as 0.00%", () => {
+  it("renders zero ratio as 0%", () => {
     renderWithProviders(<CardRatioCell {...createMockCellProps(0)} />);
 
-    expect(screen.getByText("0.00%")).toBeInTheDocument();
+    expect(screen.getByText("0%")).toBeInTheDocument();
   });
 
   it("renders small fractional ratios correctly", () => {
     renderWithProviders(<CardRatioCell {...createMockCellProps(0.1)} />);
 
-    expect(screen.getByText("0.10%")).toBeInTheDocument();
+    expect(screen.getByText("0.1000000%")).toBeInTheDocument();
   });
 
   it("renders 100% ratio", () => {
     renderWithProviders(<CardRatioCell {...createMockCellProps(100)} />);
 
-    expect(screen.getByText("100.00%")).toBeInTheDocument();
+    expect(screen.getByText("100.0000000%")).toBeInTheDocument();
   });
 });
 

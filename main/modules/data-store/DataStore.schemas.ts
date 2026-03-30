@@ -1,13 +1,6 @@
-// Simple card entry (for league and all-time stats)
-type SimpleCardEntry = {
-  count: number;
-};
+import type {
+  SimpleCardEntry,
+  SimpleDivinationCardStats,
+} from "../../../types/data-stores";
 
-// Simple divination card stats (no processedIds)
-type SimpleDivinationCardStats = {
-  totalCount: number;
-  cards: Record<string, SimpleCardEntry>;
-  lastUpdated?: string;
-};
-
-export type { SimpleDivinationCardStats };
+export type { SimpleCardEntry, SimpleDivinationCardStats };

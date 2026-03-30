@@ -4,6 +4,7 @@ import type { Database } from "~/main/modules/database";
 
 import type {
   SessionCardDetailsDTO,
+  SessionChartDataPointDTO,
   SessionDetailsDTO,
   SessionSummaryDTO,
 } from "./Sessions.dto";
@@ -412,5 +413,603 @@ export class SessionsRepository {
     const result = await query.groupBy("s.id").execute();
 
     return result.length;
+  }
+
+  /**
+   * Get the most profitable session (by exchange net profit)
+   * @param game - Game type filter
+   * @param league - Optional league name filter
+   */
+  async getMostProfitableSession(
+    game: "poe1" | "poe2",
+    league?: string,
+  ): Promise<{
+    sessionId: string;
+    date: string;
+    profit: number;
+    league: string;
+    chaosPerDivine: number;
+  } | null> {
+    let query = this.kysely
+      .selectFrom("sessions as s")
+      .leftJoin("session_summaries as ss", "s.id", "ss.session_id")
+      .innerJoin("leagues as l", "s.league_id", "l.id")
+      .leftJoin("snapshots as snap", "s.snapshot_id", "snap.id")
+      .select([
+        "s.id as sessionId",
+        "s.started_at as date",
+        "l.name as league",
+        sql<number>`
+          COALESCE(
+            ss.total_exchange_net_profit,
+            (
+              SELECT COALESCE(SUM(sc.count * scp.chaos_value), 0)
+              FROM session_cards sc
+              LEFT JOIN snapshot_card_prices scp
+                ON scp.snapshot_id = s.snapshot_id
+                AND scp.card_name = sc.card_name
+                AND scp.price_source = 'exchange'
+              WHERE sc.session_id = s.id
+                AND sc.hide_price_exchange = 0
+            ) - COALESCE(snap.stacked_deck_chaos_cost, 0) * s.total_count
+          )
+        `.as("profit"),
+        sql<number>`COALESCE(ss.exchange_chaos_to_divine, snap.exchange_chaos_to_divine, 0)`.as(
+          "chaosPerDivine",
+        ),
+        sql<number>`
+          CASE
+            WHEN COALESCE(ss.exchange_chaos_to_divine, snap.exchange_chaos_to_divine, 0) > 0
+            THEN (
+              COALESCE(
+                ss.total_exchange_net_profit,
+                (
+                  SELECT COALESCE(SUM(sc.count * scp.chaos_value), 0)
+                  FROM session_cards sc
+                  LEFT JOIN snapshot_card_prices scp
+                    ON scp.snapshot_id = s.snapshot_id
+                    AND scp.card_name = sc.card_name
+                    AND scp.price_source = 'exchange'
+                  WHERE sc.session_id = s.id
+                    AND sc.hide_price_exchange = 0
+                ) - COALESCE(snap.stacked_deck_chaos_cost, 0) * s.total_count
+              ) / COALESCE(ss.exchange_chaos_to_divine, snap.exchange_chaos_to_divine, 1)
+            )
+            ELSE COALESCE(
+              ss.total_exchange_net_profit,
+              (
+                SELECT COALESCE(SUM(sc.count * scp.chaos_value), 0)
+                FROM session_cards sc
+                LEFT JOIN snapshot_card_prices scp
+                  ON scp.snapshot_id = s.snapshot_id
+                  AND scp.card_name = sc.card_name
+                  AND scp.price_source = 'exchange'
+                WHERE sc.session_id = s.id
+                  AND sc.hide_price_exchange = 0
+              ) - COALESCE(snap.stacked_deck_chaos_cost, 0) * s.total_count
+            )
+          END
+        `.as("profitInDivines"),
+      ])
+      .where("s.game", "=", game)
+      .where("s.is_active", "=", 0)
+      .where("s.total_count", ">", 0);
+
+    if (league) {
+      query = query.where("l.name", "=", league);
+    }
+
+    const row = await query
+      .orderBy("profitInDivines", "desc")
+      .limit(1)
+      .executeTakeFirst();
+
+    if (!row) return null;
+
+    return {
+      sessionId: row.sessionId,
+      date: row.date,
+      profit: row.profit,
+      league: row.league,
+      chaosPerDivine: row.chaosPerDivine,
+    };
+  }
+
+  /**
+   * Get the longest session
+   * @param game - Game type filter
+   * @param league - Optional league name filter
+   */
+  async getLongestSession(
+    game: "poe1" | "poe2",
+    league?: string,
+  ): Promise<{
+    sessionId: string;
+    date: string;
+    durationMinutes: number;
+  } | null> {
+    let query = this.kysely
+      .selectFrom("sessions as s")
+      .leftJoin("session_summaries as ss", "s.id", "ss.session_id")
+      .innerJoin("leagues as l", "s.league_id", "l.id")
+      .select([
+        "s.id as sessionId",
+        "s.started_at as date",
+        sql<number>`
+          COALESCE(
+            ss.duration_minutes,
+            CASE
+              WHEN s.ended_at IS NOT NULL
+              THEN CAST((JULIANDAY(s.ended_at) - JULIANDAY(s.started_at)) * 24 * 60 AS INTEGER)
+              ELSE NULL
+            END
+          )
+        `.as("durationMinutes"),
+      ])
+      .where("s.game", "=", game)
+      .where("s.is_active", "=", 0)
+      .where("s.total_count", ">", 0)
+      .where("s.ended_at", "is not", null);
+
+    if (league) {
+      query = query.where("l.name", "=", league);
+    }
+
+    const row = await query
+      .orderBy("durationMinutes", "desc")
+      .limit(1)
+      .executeTakeFirst();
+
+    if (!row) return null;
+
+    return {
+      sessionId: row.sessionId,
+      date: row.date,
+      durationMinutes: row.durationMinutes,
+    };
+  }
+
+  /**
+   * Get the session with the most decks opened
+   * @param game - Game type filter
+   * @param league - Optional league name filter
+   */
+  async getMostDecksOpenedSession(
+    game: "poe1" | "poe2",
+    league?: string,
+  ): Promise<{
+    sessionId: string;
+    date: string;
+    totalDecksOpened: number;
+  } | null> {
+    let query = this.kysely
+      .selectFrom("sessions as s")
+      .leftJoin("session_summaries as ss", "s.id", "ss.session_id")
+      .innerJoin("leagues as l", "s.league_id", "l.id")
+      .select([
+        "s.id as sessionId",
+        "s.started_at as date",
+        sql<number>`COALESCE(ss.total_decks_opened, s.total_count)`.as(
+          "totalDecksOpened",
+        ),
+      ])
+      .where("s.game", "=", game)
+      .where("s.is_active", "=", 0)
+      .where("s.total_count", ">", 0);
+
+    if (league) {
+      query = query.where("l.name", "=", league);
+    }
+
+    const row = await query
+      .orderBy("totalDecksOpened", "desc")
+      .limit(1)
+      .executeTakeFirst();
+
+    if (!row) return null;
+
+    return {
+      sessionId: row.sessionId,
+      date: row.date,
+      totalDecksOpened: row.totalDecksOpened,
+    };
+  }
+
+  /**
+   * Get the worst grind session — the session with the worst profit-per-deck ratio
+   * among sessions that opened more decks than the average.
+   * @param game - Game type filter
+   * @param league - Optional league name filter
+   */
+  async getBiggestLetdownSession(
+    game: "poe1" | "poe2",
+    league?: string,
+  ): Promise<{
+    sessionId: string;
+    date: string;
+    totalDecksOpened: number;
+    profit: number;
+    league: string;
+    chaosPerDivine: number;
+  } | null> {
+    let query = this.kysely
+      .selectFrom("sessions as s")
+      .leftJoin("session_summaries as ss", "s.id", "ss.session_id")
+      .innerJoin("leagues as l", "s.league_id", "l.id")
+      .leftJoin("snapshots as snap", "s.snapshot_id", "snap.id")
+      .select([
+        "s.id as sessionId",
+        "s.started_at as date",
+        "l.name as league",
+        sql<number>`COALESCE(ss.total_decks_opened, s.total_count)`.as(
+          "totalDecksOpened",
+        ),
+        sql<number>`
+          COALESCE(
+            ss.total_exchange_net_profit,
+            (
+              SELECT COALESCE(SUM(sc.count * scp.chaos_value), 0)
+              FROM session_cards sc
+              LEFT JOIN snapshot_card_prices scp
+                ON scp.snapshot_id = s.snapshot_id
+                AND scp.card_name = sc.card_name
+                AND scp.price_source = 'exchange'
+              WHERE sc.session_id = s.id
+                AND sc.hide_price_exchange = 0
+            ) - COALESCE(snap.stacked_deck_chaos_cost, 0) * s.total_count
+          )
+        `.as("profit"),
+        sql<number>`COALESCE(ss.exchange_chaos_to_divine, snap.exchange_chaos_to_divine, 0)`.as(
+          "chaosPerDivine",
+        ),
+      ])
+      .where("s.game", "=", game)
+      .where("s.is_active", "=", 0)
+      .where("s.total_count", ">", 0)
+      .where(
+        sql`COALESCE(ss.total_decks_opened, s.total_count)`,
+        ">=",
+        sql`(
+          SELECT AVG(COALESCE(ss2.total_decks_opened, s2.total_count))
+          FROM sessions s2
+          LEFT JOIN session_summaries ss2 ON s2.id = ss2.session_id
+          INNER JOIN leagues l2 ON s2.league_id = l2.id
+          WHERE s2.game = ${game}
+            AND s2.is_active = 0
+            AND s2.total_count > 0
+            ${league ? sql`AND l2.name = ${league}` : sql``}
+        )`,
+      );
+
+    if (league) {
+      query = query.where("l.name", "=", league);
+    }
+
+    const row = await query
+      .orderBy("profit", "asc")
+      .limit(1)
+      .executeTakeFirst();
+
+    if (!row) return null;
+
+    return {
+      sessionId: row.sessionId,
+      date: row.date,
+      totalDecksOpened: row.totalDecksOpened,
+      profit: row.profit,
+      league: row.league,
+      chaosPerDivine: row.chaosPerDivine,
+    };
+  }
+
+  async getLuckyBreakSession(
+    game: "poe1" | "poe2",
+    league?: string,
+  ): Promise<{
+    sessionId: string;
+    date: string;
+    totalDecksOpened: number;
+    profit: number;
+    league: string;
+    chaosPerDivine: number;
+  } | null> {
+    let query = this.kysely
+      .selectFrom("sessions as s")
+      .leftJoin("session_summaries as ss", "s.id", "ss.session_id")
+      .innerJoin("leagues as l", "s.league_id", "l.id")
+      .leftJoin("snapshots as snap", "s.snapshot_id", "snap.id")
+      .select([
+        "s.id as sessionId",
+        "s.started_at as date",
+        "l.name as league",
+        sql<number>`COALESCE(ss.total_decks_opened, s.total_count)`.as(
+          "totalDecksOpened",
+        ),
+        sql<number>`
+          COALESCE(
+            ss.total_exchange_net_profit,
+            (
+              SELECT COALESCE(SUM(sc.count * scp.chaos_value), 0)
+              FROM session_cards sc
+              LEFT JOIN snapshot_card_prices scp
+                ON scp.snapshot_id = s.snapshot_id
+                AND scp.card_name = sc.card_name
+                AND scp.price_source = 'exchange'
+              WHERE sc.session_id = s.id
+                AND sc.hide_price_exchange = 0
+            ) - COALESCE(snap.stacked_deck_chaos_cost, 0) * s.total_count
+          )
+        `.as("profit"),
+        sql<number>`COALESCE(ss.exchange_chaos_to_divine, snap.exchange_chaos_to_divine, 0)`.as(
+          "chaosPerDivine",
+        ),
+      ])
+      .where("s.game", "=", game)
+      .where("s.is_active", "=", 0)
+      .where("s.total_count", ">", 0)
+      .where(
+        sql`COALESCE(ss.total_decks_opened, s.total_count)`,
+        "<=",
+        sql`(
+          SELECT AVG(COALESCE(ss2.total_decks_opened, s2.total_count))
+          FROM sessions s2
+          LEFT JOIN session_summaries ss2 ON s2.id = ss2.session_id
+          INNER JOIN leagues l2 ON s2.league_id = l2.id
+          WHERE s2.game = ${game}
+            AND s2.is_active = 0
+            AND s2.total_count > 0
+            ${league ? sql`AND l2.name = ${league}` : sql``}
+        )`,
+      );
+
+    if (league) {
+      query = query.where("l.name", "=", league);
+    }
+
+    const row = await query
+      .orderBy("profit", "desc")
+      .limit(1)
+      .executeTakeFirst();
+
+    if (!row) return null;
+
+    return {
+      sessionId: row.sessionId,
+      date: row.date,
+      totalDecksOpened: row.totalDecksOpened,
+      profit: row.profit,
+      league: row.league,
+      chaosPerDivine: row.chaosPerDivine,
+    };
+  }
+
+  async getSessionAverages(
+    game: "poe1" | "poe2",
+    league?: string,
+  ): Promise<{
+    avgProfit: number;
+    avgDecksOpened: number;
+    avgDurationMinutes: number;
+    avgChaosPerDivine: number;
+    sessionCount: number;
+  } | null> {
+    let query = this.kysely
+      .selectFrom("sessions as s")
+      .leftJoin("session_summaries as ss", "s.id", "ss.session_id")
+      .innerJoin("leagues as l", "s.league_id", "l.id")
+      .leftJoin("snapshots as snap", "s.snapshot_id", "snap.id")
+      .select([
+        sql<number>`AVG(
+          COALESCE(
+            ss.total_exchange_net_profit,
+            (
+              SELECT COALESCE(SUM(sc.count * scp.chaos_value), 0)
+              FROM session_cards sc
+              LEFT JOIN snapshot_card_prices scp
+                ON scp.snapshot_id = s.snapshot_id
+                AND scp.card_name = sc.card_name
+                AND scp.price_source = 'exchange'
+              WHERE sc.session_id = s.id
+                AND sc.hide_price_exchange = 0
+            ) - COALESCE(snap.stacked_deck_chaos_cost, 0) * s.total_count
+          )
+        )`.as("avgProfit"),
+        sql<number>`AVG(COALESCE(ss.total_decks_opened, s.total_count))`.as(
+          "avgDecksOpened",
+        ),
+        sql<number>`AVG(
+          COALESCE(
+            ss.duration_minutes,
+            CASE
+              WHEN s.ended_at IS NOT NULL
+              THEN CAST((JULIANDAY(s.ended_at) - JULIANDAY(s.started_at)) * 24 * 60 AS INTEGER)
+              ELSE NULL
+            END
+          )
+        )`.as("avgDurationMinutes"),
+        sql<number>`AVG(
+          CASE
+            WHEN COALESCE(ss.exchange_chaos_to_divine, snap.exchange_chaos_to_divine, 0) > 0
+            THEN COALESCE(ss.exchange_chaos_to_divine, snap.exchange_chaos_to_divine, 0)
+            ELSE NULL
+          END
+        )`.as("avgChaosPerDivine"),
+        sql<number>`COUNT(*)`.as("sessionCount"),
+      ])
+      .where("s.game", "=", game)
+      .where("s.is_active", "=", 0)
+      .where("s.total_count", ">", 0);
+
+    if (league) {
+      query = query.where("l.name", "=", league);
+    }
+
+    const row = await query.executeTakeFirst();
+
+    if (!row) return null;
+
+    return {
+      avgProfit: row.avgProfit ?? 0,
+      avgDecksOpened: row.avgDecksOpened ?? 0,
+      avgDurationMinutes: row.avgDurationMinutes ?? 0,
+      avgChaosPerDivine: row.avgChaosPerDivine ?? 0,
+      sessionCount: row.sessionCount ?? 0,
+    };
+  }
+
+  /**
+   * Get total stacked decks opened across all sessions
+   * @param game - Game type filter
+   * @param league - Optional league name filter
+   */
+  async getStackedDeckCardCount(game: "poe1" | "poe2"): Promise<number> {
+    const result = await this.kysely
+      .selectFrom("divination_cards")
+      .select(sql<number>`COUNT(*)`.as("count"))
+      .where("game", "=", game)
+      .where("from_boss", "=", 0)
+      .executeTakeFirstOrThrow();
+
+    return result.count;
+  }
+
+  async getTotalDecksOpened(
+    game: "poe1" | "poe2",
+    league?: string,
+  ): Promise<number> {
+    let query = this.kysely
+      .selectFrom("sessions as s")
+      .leftJoin("session_summaries as ss", "s.id", "ss.session_id")
+      .innerJoin("leagues as l", "s.league_id", "l.id")
+      .select(
+        sql<number>`COALESCE(SUM(COALESCE(ss.total_decks_opened, s.total_count)), 0)`.as(
+          "totalDecks",
+        ),
+      )
+      .where("s.game", "=", game)
+      .where("s.is_active", "=", 0)
+      .where("s.total_count", ">", 0);
+
+    if (league) {
+      query = query.where("l.name", "=", league);
+    }
+
+    const result = await query.executeTakeFirst();
+
+    return result?.totalDecks ?? 0;
+  }
+
+  /**
+   * Get all card names that can drop from stacked decks (excluding boss-only drops)
+   * @param game - Game type filter
+   */
+  async getStackedDeckCardNames(game: "poe1" | "poe2"): Promise<string[]> {
+    const rows = await this.kysely
+      .selectFrom("divination_cards")
+      .select("name")
+      .where("game", "=", game)
+      .where("from_boss", "=", 0)
+      .orderBy("name", "asc")
+      .execute();
+
+    return rows.map((r) => r.name);
+  }
+
+  /**
+   * Get stacked-deck-eligible card names that the user has NOT collected.
+   * When a league is specified, only cards collected in that league are excluded.
+   * @param game - Game type filter
+   * @param league - Optional league name; when provided, only cards found in this league are considered "collected"
+   */
+  async getUncollectedCardNames(
+    game: "poe1" | "poe2",
+    league?: string,
+  ): Promise<string[]> {
+    let collectedSubquery = this.kysely
+      .selectFrom("cards")
+      .select("card_name")
+      .where("game", "=", game)
+      .where("count", ">", 0);
+
+    if (league) {
+      collectedSubquery = collectedSubquery.where("scope", "=", league);
+    }
+
+    const rows = await this.kysely
+      .selectFrom("divination_cards")
+      .select("name")
+      .where("game", "=", game)
+      .where("from_boss", "=", 0)
+      .where("name", "not in", collectedSubquery)
+      .orderBy("name", "asc")
+      .execute();
+
+    return rows.map((r) => r.name);
+  }
+
+  async getSessionChartData(
+    game: "poe1" | "poe2",
+    league?: string,
+  ): Promise<SessionChartDataPointDTO[]> {
+    let query = this.kysely
+      .selectFrom("sessions as s")
+      .innerJoin("leagues as l", "s.league_id", "l.id")
+      .leftJoin("session_summaries as ss", "s.id", "ss.session_id")
+      .leftJoin("snapshots as snap", "s.snapshot_id", "snap.id")
+      .select([
+        "s.started_at as sessionDate",
+        "l.name as league",
+        sql<number>`
+          COALESCE(
+            ss.duration_minutes,
+            CASE
+              WHEN s.ended_at IS NOT NULL
+              THEN CAST((JULIANDAY(s.ended_at) - JULIANDAY(s.started_at)) * 24 * 60 AS INTEGER)
+              ELSE 0
+            END
+          )
+        `.as("durationMinutes"),
+        sql<number>`COALESCE(ss.total_decks_opened, s.total_count)`.as(
+          "totalDecksOpened",
+        ),
+        sql<number>`
+          COALESCE(
+            ss.total_exchange_net_profit,
+            (
+              SELECT COALESCE(SUM(sc.count * scp.chaos_value), 0)
+              FROM session_cards sc
+              LEFT JOIN snapshot_card_prices scp
+                ON scp.snapshot_id = s.snapshot_id
+                AND scp.card_name = sc.card_name
+                AND scp.price_source = 'exchange'
+              WHERE sc.session_id = s.id
+                AND sc.hide_price_exchange = 0
+            ) - COALESCE(snap.stacked_deck_chaos_cost, 0) * s.total_count
+          )
+        `.as("exchangeNetProfit"),
+        sql<number>`COALESCE(ss.exchange_chaos_to_divine, snap.exchange_chaos_to_divine, 0)`.as(
+          "chaosPerDivine",
+        ),
+      ])
+      .where("s.game", "=", game)
+      .where("s.is_active", "=", 0 as any)
+      .where("s.total_count", ">", 0)
+      .orderBy("s.started_at", "asc");
+
+    if (league) {
+      query = query.where("l.name", "=", league);
+    }
+
+    const rows = await query.execute();
+
+    return rows.map((row, index) => ({
+      sessionIndex: index + 1,
+      sessionDate: row.sessionDate as string,
+      league: row.league as string,
+      durationMinutes: Number(row.durationMinutes) || 0,
+      totalDecksOpened: Number(row.totalDecksOpened) || 0,
+      exchangeNetProfit: Number(row.exchangeNetProfit) || 0,
+      chaosPerDivine: Number(row.chaosPerDivine) || 0,
+    }));
   }
 }

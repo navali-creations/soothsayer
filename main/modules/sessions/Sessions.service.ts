@@ -6,13 +6,17 @@ import { cleanWikiMarkup } from "~/main/utils/cleanWikiMarkup";
 import {
   assertCardName,
   assertGameType,
+  assertOptionalString,
   assertPage,
   assertPageSize,
   assertSessionId,
   handleValidationError,
 } from "~/main/utils/ipc-validation";
 
-import type { DetailedDivinationCardStats } from "../../../types/data-stores";
+import type {
+  DetailedDivinationCardStats,
+  GameType,
+} from "../../../types/data-stores";
 import { SessionsChannel } from "./Sessions.channels";
 import type { SessionSummaryDTO, SessionsPageDTO } from "./Sessions.dto";
 import { SessionsRepository } from "./Sessions.repository";
@@ -85,6 +89,12 @@ class SessionsService {
       ): Promise<SessionsPageDTO | { success: false; error: string }> => {
         try {
           assertGameType(game, SessionsChannel.SearchByCard);
+          assertOptionalString(
+            league,
+            "league",
+            SessionsChannel.SearchByCard,
+            256,
+          );
           assertCardName(cardName, SessionsChannel.SearchByCard);
           const validatedPage = assertPage(page, SessionsChannel.SearchByCard);
           const validatedPageSize = assertPageSize(
@@ -110,6 +120,227 @@ class SessionsService {
           );
         } catch (error) {
           return handleValidationError(error, SessionsChannel.SearchByCard);
+        }
+      },
+    );
+
+    ipcMain.handle(
+      SessionsChannel.GetMostProfitable,
+      async (_event, game: "poe1" | "poe2", league?: string) => {
+        try {
+          assertGameType(game, SessionsChannel.GetMostProfitable);
+          assertOptionalString(
+            league,
+            "league",
+            SessionsChannel.GetMostProfitable,
+            256,
+          );
+          const leagueFilter = league && league !== "all" ? league : undefined;
+          return this.repository.getMostProfitableSession(game, leagueFilter);
+        } catch (error) {
+          return handleValidationError(
+            error,
+            SessionsChannel.GetMostProfitable,
+          );
+        }
+      },
+    );
+
+    ipcMain.handle(
+      SessionsChannel.GetLongestSession,
+      async (_event, game: "poe1" | "poe2", league?: string) => {
+        try {
+          assertGameType(game, SessionsChannel.GetLongestSession);
+          assertOptionalString(
+            league,
+            "league",
+            SessionsChannel.GetLongestSession,
+            256,
+          );
+          const leagueFilter = league && league !== "all" ? league : undefined;
+          return this.repository.getLongestSession(game, leagueFilter);
+        } catch (error) {
+          return handleValidationError(
+            error,
+            SessionsChannel.GetLongestSession,
+          );
+        }
+      },
+    );
+
+    ipcMain.handle(
+      SessionsChannel.GetSessionAverages,
+      async (_event, game: "poe1" | "poe2", league?: string) => {
+        try {
+          assertGameType(game, SessionsChannel.GetSessionAverages);
+          assertOptionalString(
+            league,
+            "league",
+            SessionsChannel.GetSessionAverages,
+            256,
+          );
+          const leagueFilter = league && league !== "all" ? league : undefined;
+          return this.repository.getSessionAverages(game, leagueFilter);
+        } catch (error) {
+          return handleValidationError(
+            error,
+            SessionsChannel.GetSessionAverages,
+          );
+        }
+      },
+    );
+
+    ipcMain.handle(
+      SessionsChannel.GetMostDecksOpened,
+      async (_event, game: "poe1" | "poe2", league?: string) => {
+        try {
+          assertGameType(game, SessionsChannel.GetMostDecksOpened);
+          assertOptionalString(
+            league,
+            "league",
+            SessionsChannel.GetMostDecksOpened,
+            256,
+          );
+          const leagueFilter = league && league !== "all" ? league : undefined;
+          return this.repository.getMostDecksOpenedSession(game, leagueFilter);
+        } catch (error) {
+          return handleValidationError(
+            error,
+            SessionsChannel.GetMostDecksOpened,
+          );
+        }
+      },
+    );
+
+    ipcMain.handle(
+      SessionsChannel.GetBiggestLetdown,
+      async (_event, game: "poe1" | "poe2", league?: string) => {
+        try {
+          assertGameType(game, SessionsChannel.GetBiggestLetdown);
+          assertOptionalString(
+            league,
+            "league",
+            SessionsChannel.GetBiggestLetdown,
+            256,
+          );
+          const leagueFilter = league && league !== "all" ? league : undefined;
+          return this.repository.getBiggestLetdownSession(game, leagueFilter);
+        } catch (error) {
+          return handleValidationError(
+            error,
+            SessionsChannel.GetBiggestLetdown,
+          );
+        }
+      },
+    );
+
+    ipcMain.handle(
+      SessionsChannel.GetLuckyBreak,
+      async (_event, game: "poe1" | "poe2", league?: string) => {
+        try {
+          assertGameType(game, SessionsChannel.GetLuckyBreak);
+          assertOptionalString(
+            league,
+            "league",
+            SessionsChannel.GetLuckyBreak,
+            256,
+          );
+          const leagueFilter = league && league !== "all" ? league : undefined;
+          return this.repository.getLuckyBreakSession(game, leagueFilter);
+        } catch (error) {
+          return handleValidationError(error, SessionsChannel.GetLuckyBreak);
+        }
+      },
+    );
+
+    ipcMain.handle(
+      SessionsChannel.GetTotalDecksOpened,
+      async (_event, game: "poe1" | "poe2", league?: string) => {
+        try {
+          assertGameType(game, SessionsChannel.GetTotalDecksOpened);
+          assertOptionalString(
+            league,
+            "league",
+            SessionsChannel.GetTotalDecksOpened,
+            256,
+          );
+          const leagueFilter = league && league !== "all" ? league : undefined;
+          return this.repository.getTotalDecksOpened(game, leagueFilter);
+        } catch (error) {
+          return handleValidationError(
+            error,
+            SessionsChannel.GetTotalDecksOpened,
+          );
+        }
+      },
+    );
+
+    ipcMain.handle(
+      SessionsChannel.GetStackedDeckCardCount,
+      async (_event, game: GameType) => {
+        try {
+          assertGameType(game, SessionsChannel.GetStackedDeckCardCount);
+          return this.repository.getStackedDeckCardCount(game);
+        } catch (error) {
+          return handleValidationError(
+            error,
+            SessionsChannel.GetStackedDeckCardCount,
+          );
+        }
+      },
+    );
+
+    ipcMain.handle(
+      SessionsChannel.GetStackedDeckCardNames,
+      async (_event, game: GameType) => {
+        try {
+          assertGameType(game, SessionsChannel.GetStackedDeckCardNames);
+          return this.repository.getStackedDeckCardNames(game);
+        } catch (error) {
+          return handleValidationError(
+            error,
+            SessionsChannel.GetStackedDeckCardNames,
+          );
+        }
+      },
+    );
+
+    ipcMain.handle(
+      SessionsChannel.GetUncollectedCardNames,
+      async (_event, game: GameType, league?: string) => {
+        try {
+          assertGameType(game, SessionsChannel.GetUncollectedCardNames);
+          assertOptionalString(
+            league,
+            "league",
+            SessionsChannel.GetUncollectedCardNames,
+            256,
+          );
+          return this.repository.getUncollectedCardNames(game, league);
+        } catch (error) {
+          return handleValidationError(
+            error,
+            SessionsChannel.GetUncollectedCardNames,
+          );
+        }
+      },
+    );
+
+    ipcMain.handle(
+      SessionsChannel.GetChartData,
+      async (_event, game: "poe1" | "poe2", league?: string) => {
+        try {
+          assertGameType(game, SessionsChannel.GetChartData);
+          assertOptionalString(
+            league,
+            "league",
+            SessionsChannel.GetChartData,
+            256,
+          );
+          const leagueFilter = league && league !== "all" ? league : undefined;
+          return this.repository.getSessionChartData(game, leagueFilter);
+        } catch (error) {
+          return handleValidationError(error, SessionsChannel.GetChartData);
         }
       },
     );
@@ -263,6 +494,7 @@ class SessionsService {
     }));
 
     return {
+      id: session.id,
       totalCount: session.totalCount,
       cards: cardsArray,
       startedAt: session.startedAt,

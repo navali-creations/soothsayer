@@ -1,5 +1,5 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import type { CardEntry } from "~/types/data-stores";
+import type { CardEntry, DivinationCardMetadata } from "~/types/data-stores";
 
 import DivinationCard from "./DivinationCard";
 
@@ -43,6 +43,17 @@ vi.mock("./components/card-content/CardPlaceholder", () => ({
 }));
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
+
+function makeMetadata(
+  overrides: Partial<DivinationCardMetadata> = {},
+): DivinationCardMetadata {
+  return {
+    id: "poe1_the-doctor",
+    rarity: 4,
+    fromBoss: false,
+    ...overrides,
+  };
+}
 
 function makeCard(overrides: Partial<CardEntry> = {}): CardEntry {
   return {
@@ -120,7 +131,7 @@ describe("DivinationCard", () => {
 
   describe("full card rendering with divinationCard metadata", () => {
     it("renders with data-mode='full' when divinationCard is present", () => {
-      const card = makeCard({ divinationCard: {} });
+      const card = makeCard({ divinationCard: makeMetadata() });
       renderWithProviders(<DivinationCard card={card} />);
 
       expect(screen.getByTestId("divination-card")).toHaveAttribute(
@@ -130,7 +141,7 @@ describe("DivinationCard", () => {
     });
 
     it("renders frame, art, and rarity effects", () => {
-      const card = makeCard({ divinationCard: {} });
+      const card = makeCard({ divinationCard: makeMetadata() });
       renderWithProviders(<DivinationCard card={card} />);
 
       expect(screen.getByTestId("card-frame")).toBeInTheDocument();
@@ -139,7 +150,7 @@ describe("DivinationCard", () => {
     });
 
     it("does not render placeholder when divinationCard is present", () => {
-      const card = makeCard({ divinationCard: {} });
+      const card = makeCard({ divinationCard: makeMetadata() });
       renderWithProviders(<DivinationCard card={card} />);
 
       expect(screen.queryByTestId("card-placeholder")).not.toBeInTheDocument();
@@ -148,7 +159,7 @@ describe("DivinationCard", () => {
     it("renders card name", () => {
       const card = makeCard({
         name: "House of Mirrors",
-        divinationCard: {},
+        divinationCard: makeMetadata(),
       });
       renderWithProviders(<DivinationCard card={card} />);
 
@@ -158,7 +169,7 @@ describe("DivinationCard", () => {
     it("renders stack size in count/stackSize format", () => {
       const card = makeCard({
         count: 2,
-        divinationCard: { stackSize: 8 },
+        divinationCard: makeMetadata({ stackSize: 8 }),
       });
       renderWithProviders(<DivinationCard card={card} />);
 
@@ -167,7 +178,7 @@ describe("DivinationCard", () => {
 
     it("shows BossIndicator when fromBoss is true", () => {
       const card = makeCard({
-        divinationCard: { fromBoss: true },
+        divinationCard: makeMetadata({ fromBoss: true }),
       });
       renderWithProviders(<DivinationCard card={card} />);
 
@@ -176,7 +187,7 @@ describe("DivinationCard", () => {
 
     it("hides BossIndicator when fromBoss is false", () => {
       const card = makeCard({
-        divinationCard: { fromBoss: false },
+        divinationCard: makeMetadata({ fromBoss: false }),
       });
       renderWithProviders(<DivinationCard card={card} />);
 
@@ -186,7 +197,7 @@ describe("DivinationCard", () => {
     });
 
     it("hides BossIndicator when fromBoss is not provided (defaults to false)", () => {
-      const card = makeCard({ divinationCard: {} });
+      const card = makeCard({ divinationCard: makeMetadata() });
       renderWithProviders(<DivinationCard card={card} />);
 
       expect(
@@ -199,7 +210,7 @@ describe("DivinationCard", () => {
     it.each([
       0, 1, 2, 3, 4,
     ] as const)("passes rarity %i to RarityEffects", (rarity) => {
-      const card = makeCard({ divinationCard: { rarity } });
+      const card = makeCard({ divinationCard: makeMetadata({ rarity }) });
       renderWithProviders(<DivinationCard card={card} />);
 
       const effects = screen.getByTestId("rarity-effects");
@@ -207,7 +218,7 @@ describe("DivinationCard", () => {
     });
 
     it("defaults rarity to 4 when not provided", () => {
-      const card = makeCard({ divinationCard: {} });
+      const card = makeCard({ divinationCard: makeMetadata() });
       renderWithProviders(<DivinationCard card={card} />);
 
       const effects = screen.getByTestId("rarity-effects");
@@ -219,7 +230,9 @@ describe("DivinationCard", () => {
     it("passes correct artSrc to CardArt", () => {
       const card = makeCard({
         name: "The Fiend",
-        divinationCard: { artSrc: "https://example.com/fiend.png" },
+        divinationCard: makeMetadata({
+          artSrc: "https://example.com/fiend.png",
+        }),
       });
       renderWithProviders(<DivinationCard card={card} />);
 
@@ -235,7 +248,7 @@ describe("DivinationCard", () => {
   describe("default values when metadata fields are null or missing", () => {
     it("defaults artSrc to empty string when null", () => {
       const card = makeCard({
-        divinationCard: { artSrc: null },
+        divinationCard: makeMetadata({ artSrc: null }),
       });
       renderWithProviders(<DivinationCard card={card} />);
 
@@ -248,7 +261,7 @@ describe("DivinationCard", () => {
     it("defaults stackSize to 1 when null", () => {
       const card = makeCard({
         count: 5,
-        divinationCard: { stackSize: null },
+        divinationCard: makeMetadata({ stackSize: null }),
       });
       renderWithProviders(<DivinationCard card={card} />);
 
@@ -256,7 +269,7 @@ describe("DivinationCard", () => {
     });
 
     it("defaults rarity to 4 when not provided", () => {
-      const card = makeCard({ divinationCard: {} });
+      const card = makeCard({ divinationCard: makeMetadata() });
       renderWithProviders(<DivinationCard card={card} />);
 
       expect(screen.getByTestId("rarity-effects")).toHaveAttribute(
@@ -266,7 +279,7 @@ describe("DivinationCard", () => {
     });
 
     it("defaults artSrc to empty string when not provided", () => {
-      const card = makeCard({ divinationCard: {} });
+      const card = makeCard({ divinationCard: makeMetadata() });
       renderWithProviders(<DivinationCard card={card} />);
 
       expect(screen.getByTestId("card-art")).toHaveAttribute(
@@ -279,9 +292,9 @@ describe("DivinationCard", () => {
   describe("rewardHtml processing", () => {
     it("processes rewardHtml and passes it to CardRewardFlavour", () => {
       const card = makeCard({
-        divinationCard: {
+        divinationCard: makeMetadata({
           rewardHtml: '<span class="-mod">some reward</span>',
-        },
+        }),
       });
       const { container } = renderWithProviders(<DivinationCard card={card} />);
 
@@ -293,7 +306,7 @@ describe("DivinationCard", () => {
     });
 
     it("renders empty reward when rewardHtml is not provided", () => {
-      const card = makeCard({ divinationCard: {} });
+      const card = makeCard({ divinationCard: makeMetadata() });
       renderWithProviders(<DivinationCard card={card} />);
 
       // Component should still render without errors
@@ -302,7 +315,7 @@ describe("DivinationCard", () => {
 
     it("renders empty reward when rewardHtml is null", () => {
       const card = makeCard({
-        divinationCard: { rewardHtml: null },
+        divinationCard: makeMetadata({ rewardHtml: null }),
       });
       renderWithProviders(<DivinationCard card={card} />);
 
@@ -313,9 +326,9 @@ describe("DivinationCard", () => {
   describe("flavour text", () => {
     it("renders flavour text when flavourHtml is provided", () => {
       const card = makeCard({
-        divinationCard: {
+        divinationCard: makeMetadata({
           flavourHtml: "<em>A taste of power.</em>",
-        },
+        }),
       });
       const { container } = renderWithProviders(<DivinationCard card={card} />);
 
@@ -326,7 +339,7 @@ describe("DivinationCard", () => {
 
     it("does not render flavour separator when flavourHtml is empty", () => {
       const card = makeCard({
-        divinationCard: { flavourHtml: "" },
+        divinationCard: makeMetadata({ flavourHtml: "" }),
       });
       const { container } = renderWithProviders(<DivinationCard card={card} />);
 

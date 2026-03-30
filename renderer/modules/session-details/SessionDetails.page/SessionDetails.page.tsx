@@ -1,8 +1,7 @@
-import { useNavigate, useParams } from "@tanstack/react-router";
+import { useParams } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo } from "react";
-import { FiArrowLeft } from "react-icons/fi";
 
-import { Button, PageContainer } from "~/renderer/components";
+import { BackButton, PageContainer } from "~/renderer/components";
 import { trackEvent } from "~/renderer/modules/umami";
 import { useBoundStore } from "~/renderer/store";
 
@@ -15,8 +14,6 @@ import type { CardEntry } from "../SessionDetails.types";
 
 const SessionDetailsPage = () => {
   const { sessionId } = useParams({ from: "/sessions/$sessionId" });
-  const navigate = useNavigate();
-
   const {
     sessionDetails: {
       loadSession,
@@ -163,13 +160,13 @@ const SessionDetailsPage = () => {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <p className="text-xl text-base-content/60">Session not found</p>
-          <Button
+          <BackButton
+            fallback="/sessions"
+            label="Back to Sessions"
             variant="primary"
+            size="md"
             className="mt-4"
-            onClick={() => navigate({ to: "/sessions" })}
-          >
-            <FiArrowLeft /> Back to Sessions
-          </Button>
+          />
         </div>
       </div>
     );

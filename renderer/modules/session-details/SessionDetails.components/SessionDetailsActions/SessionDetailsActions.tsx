@@ -1,8 +1,7 @@
-import { useNavigate } from "@tanstack/react-router";
-import { FiArrowLeft, FiDownload } from "react-icons/fi";
+import { FiDownload } from "react-icons/fi";
 import { GiCardExchange, GiLockedChest } from "react-icons/gi";
 
-import { Button, Flex } from "~/renderer/components";
+import { BackButton, Button, Flex } from "~/renderer/components";
 import { useBoundStore } from "~/renderer/store";
 
 interface SessionDetailsActionsProps {
@@ -10,7 +9,6 @@ interface SessionDetailsActionsProps {
 }
 
 const SessionDetailsActions = ({ onExportCsv }: SessionDetailsActionsProps) => {
-  const navigate = useNavigate();
   const {
     sessionDetails: { getPriceSource, setPriceSource },
   } = useBoundStore();
@@ -19,9 +17,7 @@ const SessionDetailsActions = ({ onExportCsv }: SessionDetailsActionsProps) => {
 
   return (
     <Flex className="gap-2 items-center">
-      <Button variant="ghost" onClick={() => navigate({ to: "/sessions" })}>
-        <FiArrowLeft />
-      </Button>
+      <BackButton fallback="/sessions" />
 
       {/* Price Source Toggle */}
       <div role="tablist" className="tabs tabs-border">

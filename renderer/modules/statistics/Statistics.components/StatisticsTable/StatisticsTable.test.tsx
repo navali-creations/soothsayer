@@ -12,6 +12,14 @@ vi.mock("~/renderer/store", () => ({
 }));
 
 vi.mock("~/renderer/components", () => ({
+  Dropdown: ({ trigger, children, ...props }: any) => (
+    <div data-testid="dropdown" {...props}>
+      <button data-testid="dropdown-trigger" type="button">
+        {trigger}
+      </button>
+      <div data-testid="dropdown-content">{children}</div>
+    </div>
+  ),
   Table: ({ data, columns, globalFilter, emptyMessage, pageSize }: any) => (
     <div
       data-testid="table"
@@ -38,12 +46,25 @@ const mockUseBoundStore = vi.mocked(useBoundStore);
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 function setupStore(
-  overrides: { statScope?: "all-time" | "league"; searchQuery?: string } = {},
+  overrides: {
+    statScope?: "all-time" | "league";
+    searchQuery?: string;
+    showUncollectedCards?: boolean;
+    uncollectedCardNames?: string[];
+  } = {},
 ) {
   const store = {
     statistics: {
       statScope: overrides.statScope ?? "all-time",
       searchQuery: overrides.searchQuery ?? "",
+      showUncollectedCards: overrides.showUncollectedCards ?? false,
+      uncollectedCardNames: overrides.uncollectedCardNames ?? [],
+      toggleShowUncollectedCards: vi.fn(),
+      snapshotMeta: null,
+      isExporting: false,
+      fetchSnapshotMeta: vi.fn(),
+      exportAll: vi.fn().mockResolvedValue({ success: false }),
+      exportIncremental: vi.fn().mockResolvedValue({ success: false }),
     },
   } as any;
   mockUseBoundStore.mockReturnValue(store);
@@ -67,41 +88,29 @@ describe("StatisticsTable", () => {
 
   it('renders "Card Collection" heading', () => {
     setupStore();
-    renderWithProviders(<StatisticsTable cardData={[]} />);
+    renderWithProviders(
+      <StatisticsTable cardData={[]} currentScope="all-time" />,
+    );
 
     expect(screen.getByText("Card Collection")).toBeInTheDocument();
-  });
-
-  // ── Badge text ─────────────────────────────────────────────────────────
-
-  it('shows "All-Time" badge when statScope is "all-time"', () => {
-    setupStore({ statScope: "all-time" });
-    renderWithProviders(<StatisticsTable cardData={[]} />);
-
-    expect(screen.getByText("All-Time")).toBeInTheDocument();
-    expect(screen.queryByText("League")).not.toBeInTheDocument();
-  });
-
-  it('shows "League" badge when statScope is "league"', () => {
-    setupStore({ statScope: "league" });
-    renderWithProviders(<StatisticsTable cardData={[]} />);
-
-    expect(screen.getByText("League")).toBeInTheDocument();
-    expect(screen.queryByText("All-Time")).not.toBeInTheDocument();
   });
 
   // ── Empty state ────────────────────────────────────────────────────────
 
   it('shows "No cards collected yet" when cardData is empty', () => {
     setupStore();
-    renderWithProviders(<StatisticsTable cardData={[]} />);
+    renderWithProviders(
+      <StatisticsTable cardData={[]} currentScope="all-time" />,
+    );
 
     expect(screen.getByText("No cards collected yet")).toBeInTheDocument();
   });
 
   it('shows "Start a session and open divination cards in Path of Exile!" hint when empty', () => {
     setupStore();
-    renderWithProviders(<StatisticsTable cardData={[]} />);
+    renderWithProviders(
+      <StatisticsTable cardData={[]} currentScope="all-time" />,
+    );
 
     expect(
       screen.getByText(
@@ -112,7 +121,9 @@ describe("StatisticsTable", () => {
 
   it("does not render Table component when cardData is empty", () => {
     setupStore();
-    renderWithProviders(<StatisticsTable cardData={[]} />);
+    renderWithProviders(
+      <StatisticsTable cardData={[]} currentScope="all-time" />,
+    );
 
     expect(screen.queryByTestId("table")).not.toBeInTheDocument();
   });
@@ -126,7 +137,9 @@ describe("StatisticsTable", () => {
       { name: "The Doctor", count: 5, ratio: 25 },
     ]);
 
-    renderWithProviders(<StatisticsTable cardData={cardData} />);
+    renderWithProviders(
+      <StatisticsTable cardData={cardData} currentScope="all-time" />,
+    );
 
     const table = screen.getByTestId("table");
     expect(table).toBeInTheDocument();
@@ -139,7 +152,9 @@ describe("StatisticsTable", () => {
       { name: "Rain of Chaos", count: 10, ratio: 50 },
     ]);
 
-    renderWithProviders(<StatisticsTable cardData={cardData} />);
+    renderWithProviders(
+      <StatisticsTable cardData={cardData} currentScope="all-time" />,
+    );
 
     expect(
       screen.queryByText("No cards collected yet"),
@@ -152,7 +167,9 @@ describe("StatisticsTable", () => {
       { name: "Rain of Chaos", count: 10, ratio: 50 },
     ]);
 
-    renderWithProviders(<StatisticsTable cardData={cardData} />);
+    renderWithProviders(
+      <StatisticsTable cardData={cardData} currentScope="all-time" />,
+    );
 
     const table = screen.getByTestId("table");
     expect(table).toHaveAttribute("data-columns", "3");
@@ -164,7 +181,9 @@ describe("StatisticsTable", () => {
       { name: "Rain of Chaos", count: 10, ratio: 50 },
     ]);
 
-    renderWithProviders(<StatisticsTable cardData={cardData} />);
+    renderWithProviders(
+      <StatisticsTable cardData={cardData} currentScope="all-time" />,
+    );
 
     const table = screen.getByTestId("table");
     expect(table).toHaveAttribute("data-page-size", "20");
@@ -178,7 +197,9 @@ describe("StatisticsTable", () => {
       { name: "The Doctor", count: 5, ratio: 100 },
     ]);
 
-    renderWithProviders(<StatisticsTable cardData={cardData} />);
+    renderWithProviders(
+      <StatisticsTable cardData={cardData} currentScope="all-time" />,
+    );
 
     const table = screen.getByTestId("table");
     expect(table).toHaveAttribute("data-global-filter", "doctor");
@@ -190,7 +211,9 @@ describe("StatisticsTable", () => {
       { name: "Rain of Chaos", count: 10, ratio: 100 },
     ]);
 
-    renderWithProviders(<StatisticsTable cardData={cardData} />);
+    renderWithProviders(
+      <StatisticsTable cardData={cardData} currentScope="all-time" />,
+    );
 
     const table = screen.getByTestId("table");
     expect(table).toHaveAttribute("data-global-filter", "");
@@ -209,7 +232,9 @@ describe("StatisticsTable", () => {
       { name: "Rain of Chaos", count: 10, ratio: 100 },
     ]);
 
-    renderWithProviders(<StatisticsTable cardData={cardDataWithEntry} />);
+    renderWithProviders(
+      <StatisticsTable cardData={cardDataWithEntry} currentScope="all-time" />,
+    );
 
     // The table is rendered — verify the table exists (the emptyMessage prop is set
     // even when data is present; it's displayed by the Table component internally
@@ -227,7 +252,9 @@ describe("StatisticsTable", () => {
       { name: "Card B", count: 30, ratio: 50 },
     ]);
 
-    renderWithProviders(<StatisticsTable cardData={cardData} />);
+    renderWithProviders(
+      <StatisticsTable cardData={cardData} currentScope="all-time" />,
+    );
 
     // createCardRatioColumn should have been called with the computed totalCount = 40
     expect(vi.mocked(createCardRatioColumn)).toHaveBeenCalledWith(40);
@@ -244,32 +271,148 @@ describe("StatisticsTable", () => {
       { name: "Card D", count: 2, ratio: 8 },
     ]);
 
-    renderWithProviders(<StatisticsTable cardData={cardData} />);
+    renderWithProviders(
+      <StatisticsTable cardData={cardData} currentScope="all-time" />,
+    );
 
     const table = screen.getByTestId("table");
     expect(table).toHaveAttribute("data-rows", "4");
   });
 
-  // ── Badge with different scopes + data ─────────────────────────────────
+  // ── Show Uncollected Toggle ────────────────────────────────────────────
 
-  it('shows "League" badge with table when data is present and scope is league', () => {
+  it("does not show uncollected toggle when statScope is all-time", () => {
+    setupStore({ statScope: "all-time" });
+    renderWithProviders(
+      <StatisticsTable cardData={[]} currentScope="all-time" />,
+    );
+
+    expect(
+      screen.queryByTestId("show-uncollected-toggle"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows uncollected toggle when statScope is league", () => {
     setupStore({ statScope: "league" });
+    renderWithProviders(
+      <StatisticsTable cardData={[]} currentScope="all-time" />,
+    );
+
+    expect(screen.getByTestId("show-uncollected-toggle")).toBeInTheDocument();
+  });
+
+  it('renders "Show Uncollected" label text', () => {
+    setupStore({ statScope: "league" });
+    renderWithProviders(
+      <StatisticsTable cardData={[]} currentScope="all-time" />,
+    );
+
+    expect(screen.getByText("Show Uncollected")).toBeInTheDocument();
+  });
+
+  it("checkbox is unchecked when showUncollectedCards is false", () => {
+    setupStore({ statScope: "league", showUncollectedCards: false });
+    renderWithProviders(
+      <StatisticsTable cardData={[]} currentScope="all-time" />,
+    );
+
+    const checkbox = screen.getByTestId(
+      "show-uncollected-checkbox",
+    ) as HTMLInputElement;
+    expect(checkbox.checked).toBe(false);
+  });
+
+  it("checkbox is checked when showUncollectedCards is true", () => {
+    setupStore({ statScope: "league", showUncollectedCards: true });
+    renderWithProviders(
+      <StatisticsTable cardData={[]} currentScope="all-time" />,
+    );
+
+    const checkbox = screen.getByTestId(
+      "show-uncollected-checkbox",
+    ) as HTMLInputElement;
+    expect(checkbox.checked).toBe(true);
+  });
+
+  it("calls toggleShowUncollectedCards when checkbox is clicked", async () => {
+    const store = setupStore({ statScope: "league" });
+    const { user } = renderWithProviders(
+      <StatisticsTable cardData={[]} currentScope="all-time" />,
+    );
+
+    const checkbox = screen.getByTestId("show-uncollected-checkbox");
+    await user.click(checkbox);
+
+    expect(store.statistics.toggleShowUncollectedCards).toHaveBeenCalled();
+  });
+
+  // ── Loading overlay ────────────────────────────────────────────────────
+
+  it("shows loading overlay when isDataLoading is true", () => {
+    setupStore();
     const cardData = createCardData([
       { name: "Rain of Chaos", count: 10, ratio: 100 },
     ]);
 
-    renderWithProviders(<StatisticsTable cardData={cardData} />);
+    const { container } = renderWithProviders(
+      <StatisticsTable
+        cardData={cardData}
+        isDataLoading={true}
+        currentScope="all-time"
+      />,
+    );
 
-    expect(screen.getByText("League")).toBeInTheDocument();
-    expect(screen.getByTestId("table")).toBeInTheDocument();
+    const spinner = container.querySelector(".loading.loading-spinner");
+    expect(spinner).toBeTruthy();
   });
 
-  it('shows "All-Time" badge with empty state when data is empty and scope is all-time', () => {
-    setupStore({ statScope: "all-time" });
+  it("does not show loading overlay when isDataLoading is false", () => {
+    setupStore();
+    const cardData = createCardData([
+      { name: "Rain of Chaos", count: 10, ratio: 100 },
+    ]);
 
-    renderWithProviders(<StatisticsTable cardData={[]} />);
+    const { container } = renderWithProviders(
+      <StatisticsTable
+        cardData={cardData}
+        isDataLoading={false}
+        currentScope="all-time"
+      />,
+    );
 
-    expect(screen.getByText("All-Time")).toBeInTheDocument();
-    expect(screen.getByText("No cards collected yet")).toBeInTheDocument();
+    const spinner = container.querySelector(".loading.loading-spinner");
+    expect(spinner).toBeFalsy();
+  });
+
+  it("does not show loading overlay by default (isDataLoading omitted)", () => {
+    setupStore();
+    const cardData = createCardData([
+      { name: "Rain of Chaos", count: 10, ratio: 100 },
+    ]);
+
+    const { container } = renderWithProviders(
+      <StatisticsTable cardData={cardData} currentScope="all-time" />,
+    );
+
+    const spinner = container.querySelector(".loading.loading-spinner");
+    expect(spinner).toBeFalsy();
+  });
+
+  it("still renders table content behind the overlay when loading", () => {
+    setupStore();
+    const cardData = createCardData([
+      { name: "Rain of Chaos", count: 10, ratio: 100 },
+    ]);
+
+    renderWithProviders(
+      <StatisticsTable
+        cardData={cardData}
+        isDataLoading={true}
+        currentScope="all-time"
+      />,
+    );
+
+    expect(screen.getByTestId("table")).toBeInTheDocument();
+    expect(screen.getByText("Card Collection")).toBeInTheDocument();
   });
 });

@@ -16,15 +16,32 @@ beforeEach(() => {
   store = createTestStore();
 });
 
-// ── Initial State ──────────────────────────────────────────────────────────────
-
 describe("initial state", () => {
+  it("has chartRawData as empty array", () => {
+    expect(store.getState().statistics.chartRawData).toEqual([]);
+  });
+
+  it("has isChartLoading set to true", () => {
+    expect(store.getState().statistics.isChartLoading).toBe(true);
+  });
+
+  it("has hiddenMetrics as empty set", () => {
+    expect(store.getState().statistics.hiddenMetrics).toEqual(new Set());
+  });
+
+  it("has brushRange zeroed out", () => {
+    expect(store.getState().statistics.brushRange).toEqual({
+      startIndex: 0,
+      endIndex: 0,
+    });
+  });
+
   it("has statScope set to 'all-time'", () => {
     expect(store.getState().statistics.statScope).toBe("all-time");
   });
 
-  it("has selectedLeague set to 'Keepers'", () => {
-    expect(store.getState().statistics.selectedLeague).toBe("Keepers");
+  it("has selectedLeague set to empty string", () => {
+    expect(store.getState().statistics.selectedLeague).toBe("");
   });
 
   it("has empty searchQuery", () => {
@@ -299,5 +316,329 @@ describe("exportIncremental", () => {
     await store.getState().statistics.exportIncremental("league");
 
     expect(electron.csv.exportIncremental).toHaveBeenCalledWith("league");
+  });
+});
+
+// ── showUncollectedCards ───────────────────────────────────────────────────────
+
+describe("showUncollectedCards", () => {
+  it("defaults to false", () => {
+    expect(store.getState().statistics.showUncollectedCards).toBe(false);
+  });
+
+  it("toggles to true", () => {
+    store.getState().statistics.toggleShowUncollectedCards();
+    expect(store.getState().statistics.showUncollectedCards).toBe(true);
+  });
+
+  it("toggles back to false", () => {
+    store.getState().statistics.toggleShowUncollectedCards();
+    store.getState().statistics.toggleShowUncollectedCards();
+    expect(store.getState().statistics.showUncollectedCards).toBe(false);
+  });
+});
+
+// ── fetchSessionHighlights ─────────────────────────────────────────────────────
+
+describe("fetchSessionHighlights", () => {
+  it("has null sessionHighlights initially", () => {
+    expect(store.getState().statistics.sessionHighlights).toBeNull();
+  });
+
+  it("has isLoadingHighlights false initially", () => {
+    expect(store.getState().statistics.isLoadingHighlights).toBe(false);
+  });
+
+  it("sets isLoadingHighlights to true during fetch", async () => {
+    let resolveAll!: (value: unknown) => void;
+    electron.sessions.getMostProfitable.mockReturnValue(
+      new Promise((resolve) => {
+        resolveAll = resolve;
+      }),
+    );
+
+    const promise = store.getState().statistics.fetchSessionHighlights("poe1");
+    expect(store.getState().statistics.isLoadingHighlights).toBe(true);
+
+    resolveAll(null);
+    await promise;
+
+    expect(store.getState().statistics.isLoadingHighlights).toBe(false);
+  });
+
+  it("populates sessionHighlights on success", async () => {
+    const mostProfitable = {
+      sessionId: "s1",
+      date: "2025-01-01T00:00:00Z",
+      profit: 500,
+      league: "Settlers",
+    };
+    const longestSession = {
+      sessionId: "s2",
+      date: "2025-01-02T00:00:00Z",
+      durationMinutes: 120,
+      league: "Settlers",
+    };
+    const mostDecksOpened = {
+      sessionId: "s3",
+      date: "2025-01-03T00:00:00Z",
+      totalDecksOpened: 200,
+      league: "Settlers",
+    };
+    const biggestLetdown = {
+      sessionId: "s4",
+      date: "2025-01-04T00:00:00Z",
+      totalDecksOpened: 180,
+      profit: -320,
+      league: "Settlers",
+      chaosPerDivine: 200,
+    };
+    const luckyBreak = {
+      sessionId: "s5",
+      date: "2025-01-05T00:00:00Z",
+      league: "Settlers",
+    };
+
+    electron.sessions.getMostProfitable.mockResolvedValue(mostProfitable);
+    electron.sessions.getLongestSession.mockResolvedValue(longestSession);
+    electron.sessions.getMostDecksOpened.mockResolvedValue(mostDecksOpened);
+    electron.sessions.getBiggestLetdown.mockResolvedValue(biggestLetdown);
+    electron.sessions.getLuckyBreak.mockResolvedValue(luckyBreak);
+    electron.sessions.getTotalDecksOpened.mockResolvedValue(500);
+
+    await store.getState().statistics.fetchSessionHighlights("poe1");
+
+    const highlights = store.getState().statistics.sessionHighlights;
+    expect(highlights).not.toBeNull();
+    expect(highlights!.mostProfitable).toEqual(mostProfitable);
+    expect(highlights!.longestSession).toEqual(longestSession);
+    expect(highlights!.mostDecksOpened).toEqual(mostDecksOpened);
+    expect(highlights!.biggestLetdown).toEqual(biggestLetdown);
+    expect(highlights!.luckyBreak).toEqual(luckyBreak);
+    expect(highlights!.totalDecksOpened).toBe(500);
+  });
+
+  it("passes league filter when provided", async () => {
+    await store
+      .getState()
+      .statistics.fetchSessionHighlights("poe1", "Settlers");
+
+    expect(electron.sessions.getMostProfitable).toHaveBeenCalledWith(
+      "poe1",
+      "Settlers",
+    );
+    expect(electron.sessions.getLongestSession).toHaveBeenCalledWith(
+      "poe1",
+      "Settlers",
+    );
+    expect(electron.sessions.getMostDecksOpened).toHaveBeenCalledWith(
+      "poe1",
+      "Settlers",
+    );
+    expect(electron.sessions.getBiggestLetdown).toHaveBeenCalledWith(
+      "poe1",
+      "Settlers",
+    );
+    expect(electron.sessions.getTotalDecksOpened).toHaveBeenCalledWith(
+      "poe1",
+      "Settlers",
+    );
+    expect(electron.sessions.getLuckyBreak).toHaveBeenCalledWith(
+      "poe1",
+      "Settlers",
+    );
+  });
+
+  it("calls without league filter for all-time scope", async () => {
+    await store.getState().statistics.fetchSessionHighlights("poe1");
+
+    expect(electron.sessions.getMostProfitable).toHaveBeenCalledWith(
+      "poe1",
+      undefined,
+    );
+  });
+
+  it("sets sessionHighlights to null on error", async () => {
+    // First populate with data
+    electron.sessions.getMostProfitable.mockResolvedValueOnce({
+      sessionId: "s1",
+      date: "2025-01-01T00:00:00Z",
+      profit: 100,
+      league: "Standard",
+    });
+    electron.sessions.getLongestSession.mockResolvedValueOnce(null);
+    electron.sessions.getMostDecksOpened.mockResolvedValueOnce(null);
+    electron.sessions.getTotalDecksOpened.mockResolvedValueOnce(50);
+
+    await store.getState().statistics.fetchSessionHighlights("poe1");
+    expect(store.getState().statistics.sessionHighlights).not.toBeNull();
+
+    // Now fail
+    electron.sessions.getMostProfitable.mockRejectedValueOnce(
+      new Error("IPC error"),
+    );
+
+    await store.getState().statistics.fetchSessionHighlights("poe1");
+    expect(store.getState().statistics.sessionHighlights).toBeNull();
+    expect(store.getState().statistics.isLoadingHighlights).toBe(false);
+  });
+
+  it("handles all-null responses gracefully", async () => {
+    // Default mocks return null/0
+    await store.getState().statistics.fetchSessionHighlights("poe1");
+
+    const highlights = store.getState().statistics.sessionHighlights;
+    expect(highlights).not.toBeNull();
+    expect(highlights!.mostProfitable).toBeNull();
+    expect(highlights!.longestSession).toBeNull();
+    expect(highlights!.mostDecksOpened).toBeNull();
+    expect(highlights!.biggestLetdown).toBeNull();
+    expect(highlights!.luckyBreak).toBeNull();
+    expect(highlights!.totalDecksOpened).toBe(0);
+  });
+});
+
+describe("fetchChartData", () => {
+  it("populates chartRawData on success", async () => {
+    const mockData = [
+      {
+        sessionIndex: 1,
+        sessionDate: "2024-01-01",
+        league: "Standard",
+        durationMinutes: 30,
+        totalDecksOpened: 10,
+        exchangeNetProfit: 100,
+        chaosPerDivine: 200,
+      },
+      {
+        sessionIndex: 2,
+        sessionDate: "2024-01-02",
+        league: "Standard",
+        durationMinutes: 45,
+        totalDecksOpened: 15,
+        exchangeNetProfit: 200,
+        chaosPerDivine: 200,
+      },
+    ];
+    electron.sessions.getChartData.mockResolvedValue(mockData);
+
+    await store.getState().statistics.fetchChartData("poe1", "Standard");
+
+    expect(store.getState().statistics.chartRawData).toEqual(mockData);
+    expect(store.getState().statistics.isChartLoading).toBe(false);
+  });
+
+  it("sets isChartLoading to true during fetch", async () => {
+    let resolveChart!: (v: unknown[]) => void;
+    electron.sessions.getChartData.mockReturnValue(
+      new Promise((r) => {
+        resolveChart = r;
+      }),
+    );
+
+    const promise = store.getState().statistics.fetchChartData("poe1");
+    expect(store.getState().statistics.isChartLoading).toBe(true);
+
+    resolveChart([]);
+    await promise;
+
+    expect(store.getState().statistics.isChartLoading).toBe(false);
+  });
+
+  it("passes league filter to IPC call", async () => {
+    electron.sessions.getChartData.mockResolvedValue([]);
+
+    await store.getState().statistics.fetchChartData("poe1", "Settlers");
+
+    expect(electron.sessions.getChartData).toHaveBeenCalledWith(
+      "poe1",
+      "Settlers",
+    );
+  });
+
+  it("calls without league for all-time scope", async () => {
+    electron.sessions.getChartData.mockResolvedValue([]);
+
+    await store.getState().statistics.fetchChartData("poe1");
+
+    expect(electron.sessions.getChartData).toHaveBeenCalledWith(
+      "poe1",
+      undefined,
+    );
+  });
+
+  it("sets chartRawData to empty array on error", async () => {
+    const mockData = [
+      {
+        sessionIndex: 1,
+        sessionDate: "2024-01-01",
+        league: "Standard",
+        durationMinutes: 30,
+        totalDecksOpened: 10,
+        exchangeNetProfit: 100,
+        chaosPerDivine: 200,
+      },
+    ];
+    electron.sessions.getChartData.mockResolvedValueOnce(mockData);
+    await store.getState().statistics.fetchChartData("poe1");
+    expect(store.getState().statistics.chartRawData).toEqual(mockData);
+
+    electron.sessions.getChartData.mockRejectedValueOnce(
+      new Error("IPC error"),
+    );
+    await store.getState().statistics.fetchChartData("poe1");
+
+    expect(store.getState().statistics.chartRawData).toEqual([]);
+    expect(store.getState().statistics.isChartLoading).toBe(false);
+  });
+});
+
+describe("toggleChartMetric", () => {
+  it("adds a metric to hiddenMetrics", () => {
+    store.getState().statistics.toggleChartMetric("decks");
+
+    expect(store.getState().statistics.hiddenMetrics).toEqual(
+      new Set(["decks"]),
+    );
+  });
+
+  it("removes a metric if already hidden", () => {
+    store.getState().statistics.toggleChartMetric("decks");
+    expect(store.getState().statistics.hiddenMetrics.has("decks")).toBe(true);
+
+    store.getState().statistics.toggleChartMetric("decks");
+    expect(store.getState().statistics.hiddenMetrics.has("decks")).toBe(false);
+  });
+
+  it("does not allow hiding all metrics", () => {
+    // There are 2 metrics (decks, profit). Hiding both should be prevented.
+    store.getState().statistics.toggleChartMetric("decks");
+    store.getState().statistics.toggleChartMetric("profit");
+
+    // Only the first one should be hidden; the second toggle is rejected
+    expect(store.getState().statistics.hiddenMetrics).toEqual(
+      new Set(["decks"]),
+    );
+  });
+});
+
+describe("setBrushRange", () => {
+  it("updates brushRange", () => {
+    store.getState().statistics.setBrushRange({ startIndex: 5, endIndex: 20 });
+
+    expect(store.getState().statistics.brushRange).toEqual({
+      startIndex: 5,
+      endIndex: 20,
+    });
+  });
+
+  it("can reset brushRange to zero", () => {
+    store.getState().statistics.setBrushRange({ startIndex: 5, endIndex: 20 });
+    store.getState().statistics.setBrushRange({ startIndex: 0, endIndex: 0 });
+
+    expect(store.getState().statistics.brushRange).toEqual({
+      startIndex: 0,
+      endIndex: 0,
+    });
   });
 });

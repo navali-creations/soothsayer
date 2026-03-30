@@ -5,10 +5,12 @@ import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
 // ─── Router mock ───────────────────────────────────────────────────────────
 
 const mockNavigate = vi.fn();
+const mockHistoryBack = vi.fn();
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mockNavigate,
   useParams: () => ({ cardSlug: "the-doctor" }),
+  useRouter: () => ({ history: { back: mockHistoryBack } }),
   Link: ({ children, ...props }: any) => <a {...props}>{children}</a>,
   createLink: () => ({}),
 }));
@@ -53,10 +55,11 @@ describe("CardDetailsError", () => {
     ).toBeInTheDocument();
   });
 
-  it("navigates to /cards when the button is clicked", async () => {
+  it("navigates to /cards fallback when the button is clicked (jsdom has no history)", async () => {
     const { user } = renderWithProviders(<CardDetailsError error={null} />);
     const button = screen.getByRole("button", { name: /back to cards/i });
     await user.click(button);
+    // In jsdom window.history.length === 1, so BackButton uses the fallback route
     expect(mockNavigate).toHaveBeenCalledWith({ to: "/cards" });
   });
 });

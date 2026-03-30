@@ -635,7 +635,14 @@ class CurrentSessionService {
         name: card.cardName,
         count: card.count,
         processedIds: [], // Not tracking individual IDs per card anymore
-        divinationCard: card.divinationCard, // Include divination card metadata
+        divinationCard: card.divinationCard
+          ? {
+              ...card.divinationCard,
+              id: card.divinationCard.id ?? "",
+              rarity: card.divinationCard.rarity ?? 4,
+              fromBoss: false,
+            }
+          : undefined,
       };
 
       // Add price data if snapshot exists
@@ -741,6 +748,7 @@ class CurrentSessionService {
     }));
 
     const result = {
+      id: activeSession.sessionId,
       totalCount: session.totalCount,
       cards: cardsArray,
       recentDrops,

@@ -9,10 +9,11 @@ vi.mock("~/renderer/store", () => ({ useBoundStore: vi.fn() }));
 
 // ─── Router mock ───────────────────────────────────────────────────────────
 
-const mockNavigate = vi.fn();
+const mockHistoryBack = vi.fn();
 
 vi.mock("@tanstack/react-router", () => ({
-  useNavigate: vi.fn(() => mockNavigate),
+  useNavigate: vi.fn(() => vi.fn()),
+  useRouter: () => ({ history: { back: mockHistoryBack } }),
 }));
 
 // ─── Umami mock ────────────────────────────────────────────────────────────
@@ -35,9 +36,15 @@ vi.mock("~/renderer/components", () => ({
       </div>
     ),
   }),
-  Button: ({ children, onClick, ...props }: any) => (
-    <button onClick={onClick} {...props}>
-      {children}
+  BackButton: ({ fallback, label, ...props }: any) => (
+    <button
+      data-testid="back-button"
+      data-fallback={fallback}
+      onClick={() => mockHistoryBack()}
+      {...props}
+    >
+      <span data-testid="icon-arrow-left" />
+      {label && <span>{label}</span>}
     </button>
   ),
   Flex: ({ children, ...props }: any) => <div {...props}>{children}</div>,
@@ -87,7 +94,7 @@ function renderHeaderActions(overrides: Record<string, any> = {}) {
 
 afterEach(() => {
   mockTrackEvent.mockClear();
-  mockNavigate.mockClear();
+  mockHistoryBack.mockClear();
   vi.restoreAllMocks();
 });
 
@@ -183,18 +190,22 @@ describe("HeaderActions", () => {
 
   it("renders a back button", () => {
     renderHeaderActions();
-    const buttons = screen.getAllByRole("button");
-    // The first button in the flex layout is the back button
-    expect(buttons[0]).toBeInTheDocument();
+    expect(screen.getByTestId("back-button")).toBeInTheDocument();
   });
 
-  it("back button navigates to /cards", async () => {
+  it("back button has /cards as fallback route", () => {
+    renderHeaderActions();
+    expect(screen.getByTestId("back-button")).toHaveAttribute(
+      "data-fallback",
+      "/cards",
+    );
+  });
+
+  it("back button navigates back when clicked", async () => {
     const { user } = renderHeaderActions();
-    const buttons = screen.getAllByRole("button");
-    // The back button is the first button (with variant="ghost")
-    const backButton = buttons[0];
+    const backButton = screen.getByTestId("back-button");
     await user.click(backButton);
-    expect(mockNavigate).toHaveBeenCalledWith({ to: "/cards" });
+    expect(mockHistoryBack).toHaveBeenCalled();
   });
 
   // ─── League selector ────────────────────────────────────────────────────

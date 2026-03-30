@@ -33,6 +33,7 @@ const RarityInsightsCardNameCell = memo(
           artSrc: card.artSrc,
           flavourHtml: card.flavourHtml,
           rarity: card.rarity,
+          fromBoss: card.fromBoss,
         },
       }),
       [
@@ -44,6 +45,7 @@ const RarityInsightsCardNameCell = memo(
         card.artSrc,
         card.flavourHtml,
         card.rarity,
+        card.fromBoss,
       ],
     );
 

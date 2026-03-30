@@ -31,6 +31,7 @@ export function toCardEntry(dto: RelatedCardDTO): CardEntry {
     name: dto.name,
     count: 0,
     divinationCard: {
+      id: dto.name,
       stackSize: dto.stackSize,
       description: dto.description,
       rewardHtml: dto.rewardHtml,

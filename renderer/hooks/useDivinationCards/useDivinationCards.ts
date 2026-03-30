@@ -1,8 +1,23 @@
 import { useCallback, useEffect, useState } from "react";
 
-import type { DetailedDivinationCardStats } from "~/types/data-stores";
+import type {
+  DetailedDivinationCardStats,
+  SimpleDivinationCardStats,
+} from "~/types/data-stores";
 
-type DivinationCardStats = DetailedDivinationCardStats;
+/**
+ * The IPC endpoints return different shapes depending on scope:
+ *
+ * - `"session"` → `DetailedDivinationCardStats` (cards is `CardEntry[]`)
+ * - `"all-time"` / `"league"` → `SimpleDivinationCardStats` (cards is `Record<string, SimpleCardEntry>`)
+ *
+ * Consumers must handle both shapes. The Statistics page, for example,
+ * uses `Object.entries(stats.cards)` which works correctly with the
+ * Record shape returned by the DataStore endpoints.
+ */
+type DivinationCardStats =
+  | DetailedDivinationCardStats
+  | SimpleDivinationCardStats;
 
 type GameType = "poe1" | "poe2";
 type StatScope = "session" | "all-time" | "league";

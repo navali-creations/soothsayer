@@ -897,6 +897,7 @@ describe("CurrentSessionService", () => {
       expect(keys).toEqual([
         "cards",
         "endedAt",
+        "id",
         "league",
         "priceSnapshot",
         "recentDrops",

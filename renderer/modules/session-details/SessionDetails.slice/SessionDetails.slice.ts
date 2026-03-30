@@ -110,11 +110,12 @@ export const createSessionDetailsSlice: StateCreator<
 
       // Persist to backend
       const activeGame = settings.getSelectedGame();
-      if (activeGame && session.startedAt) {
+      const sessionId = session.id;
+      if (activeGame && sessionId) {
         try {
           await window.electron.session.updateCardPriceVisibility(
             activeGame as any,
-            sessionDetails.session?.startedAt || "", // Use session ID if available
+            sessionId,
             priceSource,
             cardName,
             !currentHidePrice,

@@ -16,6 +16,7 @@ const {
   mockAssertCardName,
   mockAssertPage,
   mockAssertPageSize,
+  mockAssertOptionalString,
   mockHandleValidationError,
 } = vi.hoisted(() => ({
   mockIpcHandle: vi.fn(),
@@ -32,6 +33,7 @@ const {
   mockAssertCardName: vi.fn(),
   mockAssertPage: vi.fn(),
   mockAssertPageSize: vi.fn(),
+  mockAssertOptionalString: vi.fn(),
   mockHandleValidationError: vi.fn(),
 }));
 
@@ -113,6 +115,7 @@ vi.mock("~/main/utils/ipc-validation", () => ({
   assertCardName: mockAssertCardName,
   assertPage: mockAssertPage,
   assertPageSize: mockAssertPageSize,
+  assertOptionalString: mockAssertOptionalString,
   handleValidationError: mockHandleValidationError,
 }));
 
@@ -244,10 +247,27 @@ describe("SessionsService — IPC handlers", () => {
       expect(registeredChannels).toContain(SessionsChannel.GetAll);
       expect(registeredChannels).toContain(SessionsChannel.GetById);
       expect(registeredChannels).toContain(SessionsChannel.SearchByCard);
+      expect(registeredChannels).toContain(SessionsChannel.GetMostProfitable);
+      expect(registeredChannels).toContain(SessionsChannel.GetLongestSession);
+      expect(registeredChannels).toContain(SessionsChannel.GetMostDecksOpened);
+      expect(registeredChannels).toContain(SessionsChannel.GetBiggestLetdown);
+      expect(registeredChannels).toContain(SessionsChannel.GetLuckyBreak);
+      expect(registeredChannels).toContain(SessionsChannel.GetTotalDecksOpened);
+      expect(registeredChannels).toContain(SessionsChannel.GetSessionAverages);
+      expect(registeredChannels).toContain(
+        SessionsChannel.GetStackedDeckCardCount,
+      );
+      expect(registeredChannels).toContain(
+        SessionsChannel.GetStackedDeckCardNames,
+      );
+      expect(registeredChannels).toContain(
+        SessionsChannel.GetUncollectedCardNames,
+      );
+      expect(registeredChannels).toContain(SessionsChannel.GetChartData);
     });
 
-    it("should register exactly 3 IPC handlers", () => {
-      expect(mockIpcHandle).toHaveBeenCalledTimes(3);
+    it("should register exactly 14 IPC handlers", () => {
+      expect(mockIpcHandle).toHaveBeenCalledTimes(14);
     });
   });
 
