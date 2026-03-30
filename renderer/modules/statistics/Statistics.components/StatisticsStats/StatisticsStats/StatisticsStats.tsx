@@ -74,11 +74,13 @@ export const StatisticsStats = ({
 
   return (
     <div className="w-full shadow rounded-box overflow-hidden relative">
-      {isStale && (
-        <div className="absolute inset-0 bg-base-200/60 backdrop-blur-[1px] flex items-center justify-center z-20 rounded-lg pointer-events-none">
-          <span className="loading loading-spinner loading-sm text-primary" />
-        </div>
-      )}
+      <div
+        className={`absolute inset-0 bg-base-200/60 backdrop-blur-[1px] flex items-center justify-center z-20 rounded-lg pointer-events-none transition-opacity duration-200 ${
+          isStale ? "opacity-100" : "opacity-0"
+        }`}
+      >
+        <span className="loading loading-spinner loading-sm text-primary" />
+      </div>
 
       <div
         className="grid w-full"

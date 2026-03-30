@@ -380,8 +380,8 @@ describe("StatisticsTable", () => {
       />,
     );
 
-    const spinner = container.querySelector(".loading.loading-spinner");
-    expect(spinner).toBeFalsy();
+    const overlay = container.querySelector(".backdrop-blur-\\[1px\\]");
+    expect(overlay).toHaveClass("opacity-0");
   });
 
   it("does not show loading overlay by default (isDataLoading omitted)", () => {
@@ -394,8 +394,8 @@ describe("StatisticsTable", () => {
       <StatisticsTable cardData={cardData} currentScope="all-time" />,
     );
 
-    const spinner = container.querySelector(".loading.loading-spinner");
-    expect(spinner).toBeFalsy();
+    const overlay = container.querySelector(".backdrop-blur-\\[1px\\]");
+    expect(overlay).toHaveClass("opacity-0");
   });
 
   it("still renders table content behind the overlay when loading", () => {

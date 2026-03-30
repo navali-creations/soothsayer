@@ -120,11 +120,11 @@ if (typeof HTMLElement.prototype.hidePopover === "undefined") {
 
 // window.ResizeObserver (used by some component libraries)
 if (typeof window.ResizeObserver === "undefined") {
-  (window as any).ResizeObserver = vi.fn().mockImplementation(() => ({
-    observe: vi.fn(),
-    unobserve: vi.fn(),
-    disconnect: vi.fn(),
-  }));
+  (window as any).ResizeObserver = class ResizeObserver {
+    observe = vi.fn();
+    unobserve = vi.fn();
+    disconnect = vi.fn();
+  };
 }
 
 // window.IntersectionObserver (used by lazy-loading components)

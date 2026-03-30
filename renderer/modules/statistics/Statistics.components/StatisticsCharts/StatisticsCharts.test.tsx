@@ -98,6 +98,8 @@ describe("StatisticsCharts", () => {
       );
 
       expect(screen.getByTestId("canvas-chart")).toBeInTheDocument();
+      const overlay = container.querySelector(".backdrop-blur-\\[1px\\]");
+      expect(overlay).toHaveClass("opacity-100");
       const spinner = container.querySelector(".loading.loading-spinner");
       expect(spinner).toBeTruthy();
     });
@@ -112,6 +114,7 @@ describe("StatisticsCharts", () => {
       expect(screen.getByTestId("canvas-chart")).toBeInTheDocument();
       const overlay = container.querySelector(".backdrop-blur-\\[1px\\]");
       expect(overlay).toBeTruthy();
+      expect(overlay).toHaveClass("opacity-100");
     });
 
     it("does not show loading overlay when data is loaded and isDataLoading is false", () => {
@@ -122,8 +125,8 @@ describe("StatisticsCharts", () => {
       );
 
       expect(screen.getByTestId("canvas-chart")).toBeInTheDocument();
-      const spinner = container.querySelector(".loading.loading-spinner");
-      expect(spinner).toBeFalsy();
+      const overlay = container.querySelector(".backdrop-blur-\\[1px\\]");
+      expect(overlay).toHaveClass("opacity-0");
     });
   });
 

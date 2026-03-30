@@ -236,6 +236,17 @@ export const useBoundStore = create<BoundStore>()(
               statistics.selectedLeague = "Keepers";
               statistics.snapshotMeta = null;
               statistics.isExporting = false;
+              statistics.divinationCardStats = null;
+              statistics.isDivinationCardsLoading = true;
+              statistics.availableLeagues = [];
+              statistics._lastHighlightsKey = "";
+              statistics._lastChartKey = "";
+              statistics._lastCardsKey = "";
+              statistics._lastLeaguesKey = "";
+              statistics._pendingHighlightsKey = "";
+              statistics._pendingChartKey = "";
+              statistics._pendingCardsKey = "";
+              statistics._pendingLeaguesKey = "";
 
               // Reset onboarding
               onboarding.dismissedBeacons = [];

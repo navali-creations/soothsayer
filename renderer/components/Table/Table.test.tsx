@@ -696,30 +696,23 @@ describe("Table – page-index clamping", () => {
 // ─── 8. Sticky header ─────────────────────────────────────────────────────
 
 describe("Table – stickyHeader", () => {
-  it("applies sticky classes to header cells when stickyHeader is true", () => {
+  it("applies table-block-layout class to the table when stickyHeader is true", () => {
     renderWithProviders(
       <Table data={testData} columns={columns} stickyHeader />,
     );
 
-    const headerCells = document.querySelectorAll("thead th");
-    headerCells.forEach((th) => {
-      expect(th).toHaveClass("sticky");
-      expect(th).toHaveClass("top-0");
-      expect(th).toHaveClass("z-10");
-      expect(th).toHaveClass("bg-base-100");
-    });
+    const table = document.querySelector("table");
+    expect(table).toHaveClass("table-block-layout");
   });
 
-  it("does not apply sticky classes when stickyHeader is false (default)", () => {
+  it("does not apply table-block-layout class when stickyHeader is false (default)", () => {
     renderWithProviders(<Table data={testData} columns={columns} />);
 
-    const headerCells = document.querySelectorAll("thead th");
-    headerCells.forEach((th) => {
-      expect(th).not.toHaveClass("sticky");
-    });
+    const table = document.querySelector("table");
+    expect(table).not.toHaveClass("table-block-layout");
   });
 
-  it("removes overflow-x-auto wrapper when stickyHeader is true", () => {
+  it("does not have overflow-x-auto when stickyHeader is true", () => {
     renderWithProviders(
       <Table data={testData} columns={columns} stickyHeader />,
     );
@@ -735,7 +728,29 @@ describe("Table – stickyHeader", () => {
     expect(wrapper).toBeInTheDocument();
   });
 
-  it("applies sticky bottom bar styles to pagination when stickyHeader is true", () => {
+  it("uses absolute+flex-col layout when stickyHeader is true", () => {
+    renderWithProviders(
+      <Table data={testData} columns={columns} stickyHeader />,
+    );
+
+    const flexWrapper = document.querySelector(
+      ".absolute.inset-0.flex.flex-col",
+    );
+    expect(flexWrapper).toBeInTheDocument();
+  });
+
+  it("renders a single table with both thead and tbody inside the layout", () => {
+    renderWithProviders(
+      <Table data={testData} columns={columns} stickyHeader />,
+    );
+
+    const tables = document.querySelectorAll("table");
+    expect(tables).toHaveLength(1);
+    expect(tables[0].querySelector("thead")).toBeInTheDocument();
+    expect(tables[0].querySelector("tbody")).toBeInTheDocument();
+  });
+
+  it("renders pagination as a shrink-0 footer when stickyHeader + enablePagination", () => {
     renderWithProviders(
       <Table
         data={generateData(25)}
@@ -746,8 +761,20 @@ describe("Table – stickyHeader", () => {
       />,
     );
 
-    const paginationBar = document.querySelector(".sticky.bottom-0");
+    const paginationBar = document.querySelector(".shrink-0.border-t");
     expect(paginationBar).toBeInTheDocument();
+  });
+
+  it("renders header and body rows correctly", () => {
+    renderWithProviders(
+      <Table data={testData} columns={columns} stickyHeader />,
+    );
+
+    const headerCells = document.querySelectorAll("thead th");
+    expect(headerCells.length).toBeGreaterThan(0);
+
+    const bodyRows = document.querySelectorAll("tbody tr");
+    expect(bodyRows).toHaveLength(testData.length);
   });
 });
 

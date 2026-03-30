@@ -121,187 +121,234 @@ function Table<TData>({
     }
   }, [rowCount, pageSize, enablePagination, pagination.pageIndex]);
 
-  return (
-    <div className="w-full">
-      <div className={stickyHeader ? undefined : "overflow-x-auto"}>
-        <table
+  const hasVisibleRows = table.getFilteredRowModel().rows.length > 0;
+
+  // ── Render helpers ─────────────────────────────────────────────────
+
+  const renderSortIcon = (
+    header: ReturnType<typeof table.getHeaderGroups>[number]["headers"][number],
+  ) => {
+    if (
+      !header.column.getCanSort() ||
+      (header.column.columnDef.meta as Record<string, unknown>)?.hideSortIcon
+    ) {
+      return null;
+    }
+
+    return (
+      <span className="inline-flex shrink-0">
+        {header.column.getIsSorted() === "asc" ? (
+          <FiChevronUp className="w-4 h-4" />
+        ) : header.column.getIsSorted() === "desc" ? (
+          <FiChevronDown className="w-4 h-4" />
+        ) : (
+          <div className="w-4 h-4 opacity-50 -mt-2">
+            <FiChevronUp className="w-4 h-4 -mb-2" />
+            <FiChevronDown className="w-4 h-4" />
+          </div>
+        )}
+      </span>
+    );
+  };
+
+  const renderHeaderRows = () =>
+    table.getHeaderGroups().map((headerGroup) => (
+      <tr key={headerGroup.id}>
+        {headerGroup.headers.map((header, index) => (
+          <th
+            key={header.id}
+            className={clsx({
+              "cursor-pointer select-none": header.column.getCanSort(),
+              "pl-0": index > 0,
+            })}
+            onClick={header.column.getToggleSortingHandler()}
+          >
+            <div
+              className={clsx("flex items-center gap-1", {
+                "justify-center":
+                  index > 0 &&
+                  !(header.column.columnDef.meta as Record<string, unknown>)
+                    ?.alignStart,
+              })}
+            >
+              {header.isPlaceholder
+                ? null
+                : flexRender(
+                    header.column.columnDef.header,
+                    header.getContext(),
+                  )}
+              {renderSortIcon(header)}
+            </div>
+          </th>
+        ))}
+      </tr>
+    ));
+
+  const renderBodyRows = () => (
+    <>
+      {table.getRowModel().rows.length === 0 && emptyMessage ? (
+        <tr>
+          <td
+            colSpan={columns.length}
+            className="text-center text-base-content/50 py-8"
+          >
+            {emptyMessage}
+          </td>
+        </tr>
+      ) : null}
+      {table.getRowModel().rows.map((row) => (
+        <tr
+          key={row.id}
           className={clsx(
-            "table rounded-0 bg-base-100",
-            {
-              "table-zebra": zebraStripes,
-              "table-xs": compact,
-            },
-            className,
+            "group",
+            hoverable && "hover",
+            typeof rowClassName === "function"
+              ? rowClassName(row)
+              : rowClassName,
           )}
         >
-          <thead>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <tr key={headerGroup.id}>
-                {headerGroup.headers.map((header, index) => (
-                  <th
-                    key={header.id}
-                    className={clsx({
-                      "cursor-pointer select-none": header.column.getCanSort(),
-                      "pl-0": index > 0,
-                      "sticky top-0 z-10 bg-base-100": stickyHeader,
-                    })}
-                    onClick={header.column.getToggleSortingHandler()}
-                  >
-                    <div
-                      className={clsx("flex items-center gap-1", {
-                        "justify-center":
-                          index > 0 &&
-                          !(
-                            header.column.columnDef.meta as Record<
-                              string,
-                              unknown
-                            >
-                          )?.alignStart,
-                      })}
-                    >
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext(),
-                          )}
-                      {header.column.getCanSort() &&
-                        !(
-                          header.column.columnDef.meta as Record<
-                            string,
-                            unknown
-                          >
-                        )?.hideSortIcon && (
-                          <span className="inline-flex shrink-0">
-                            {header.column.getIsSorted() === "asc" ? (
-                              <FiChevronUp className="w-4 h-4" />
-                            ) : header.column.getIsSorted() === "desc" ? (
-                              <FiChevronDown className="w-4 h-4" />
-                            ) : (
-                              <div className="w-4 h-4 opacity-50 -mt-2">
-                                <FiChevronUp className="w-4 h-4 -mb-2" />
-                                <FiChevronDown className="w-4 h-4" />
-                              </div>
-                            )}
-                          </span>
-                        )}
-                    </div>
-                  </th>
-                ))}
-              </tr>
-            ))}
-          </thead>
-          <tbody>
-            {table.getRowModel().rows.length === 0 && emptyMessage ? (
-              <tr>
-                <td
-                  colSpan={columns.length}
-                  className="text-center text-base-content/50 py-8"
-                >
-                  {emptyMessage}
-                </td>
-              </tr>
-            ) : null}
-            {table.getRowModel().rows.map((row) => (
-              <tr
-                key={row.id}
-                className={clsx(
-                  "group",
-                  hoverable && "hover",
-                  typeof rowClassName === "function"
-                    ? rowClassName(row)
-                    : rowClassName,
-                )}
-              >
-                {row.getVisibleCells().map((cell, index) => (
-                  <td
-                    key={cell.id}
-                    className={clsx({
-                      "text-center pl-0":
-                        index > 0 &&
-                        !(cell.column.columnDef.meta as Record<string, unknown>)
-                          ?.alignStart,
-                      "pl-0":
-                        index > 0 &&
-                        !!(
-                          cell.column.columnDef.meta as Record<string, unknown>
-                        )?.alignStart,
-                    })}
-                  >
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+          {row.getVisibleCells().map((cell, index) => (
+            <td
+              key={cell.id}
+              className={clsx({
+                "text-center pl-0":
+                  index > 0 &&
+                  !(cell.column.columnDef.meta as Record<string, unknown>)
+                    ?.alignStart,
+                "pl-0":
+                  index > 0 &&
+                  !!(cell.column.columnDef.meta as Record<string, unknown>)
+                    ?.alignStart,
+              })}
+            >
+              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+            </td>
+          ))}
+        </tr>
+      ))}
+    </>
+  );
+
+  // ── Table classes ──────────────────────────────────────────────────
+
+  const tableClasses = clsx(
+    "table rounded-0 bg-base-100",
+    { "table-zebra": zebraStripes, "table-xs": compact },
+    className,
+  );
+
+  // ── Pagination element ─────────────────────────────────────────────
+
+  const paginationElement = enablePagination ? (
+    <div
+      className={clsx(
+        "flex items-center justify-between gap-2",
+        stickyHeader
+          ? "shrink-0 bg-base-100 py-2 px-3 border-t border-base-300"
+          : "mt-4 px-3",
+        !hasVisibleRows && "invisible",
+      )}
+    >
+      <div className="text-sm text-base-content/70">
+        Showing{" "}
+        {table.getState().pagination.pageIndex *
+          table.getState().pagination.pageSize +
+          1}{" "}
+        to{" "}
+        {Math.min(
+          (table.getState().pagination.pageIndex + 1) *
+            table.getState().pagination.pageSize,
+          table.getFilteredRowModel().rows.length,
+        )}{" "}
+        of {table.getFilteredRowModel().rows.length} results
       </div>
 
-      {enablePagination && table.getFilteredRowModel().rows.length > 0 && (
-        <div
-          className={clsx(
-            "flex items-center justify-between gap-2",
-            stickyHeader
-              ? "sticky bottom-0 z-10 bg-base-100 py-2 px-3 border-t border-base-300"
-              : "mt-4 px-3",
-          )}
+      <div className="flex gap-1">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => table.setPageIndex(0)}
+          disabled={!table.getCanPreviousPage()}
         >
-          <div className="text-sm text-base-content/70">
-            Showing{" "}
-            {table.getState().pagination.pageIndex *
-              table.getState().pagination.pageSize +
-              1}{" "}
-            to{" "}
-            {Math.min(
-              (table.getState().pagination.pageIndex + 1) *
-                table.getState().pagination.pageSize,
-              table.getFilteredRowModel().rows.length,
-            )}{" "}
-            of {table.getFilteredRowModel().rows.length} results
-          </div>
-
-          <div className="flex gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => table.setPageIndex(0)}
-              disabled={!table.getCanPreviousPage()}
-            >
-              <FiChevronsLeft />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => table.previousPage()}
-              disabled={!table.getCanPreviousPage()}
-            >
-              <FiChevronLeft />
-            </Button>
-            <div className="flex items-center gap-2 px-3">
-              <span className="text-sm">
-                Page {table.getState().pagination.pageIndex + 1} of{" "}
-                {table.getPageCount()}
-              </span>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => table.nextPage()}
-              disabled={!table.getCanNextPage()}
-            >
-              <FiChevronRight />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => table.setPageIndex(table.getPageCount() - 1)}
-              disabled={!table.getCanNextPage()}
-            >
-              <FiChevronsRight />
-            </Button>
-          </div>
+          <FiChevronsLeft />
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => table.previousPage()}
+          disabled={!table.getCanPreviousPage()}
+        >
+          <FiChevronLeft />
+        </Button>
+        <div className="flex items-center gap-2 px-3">
+          <span className="text-sm">
+            Page {table.getState().pagination.pageIndex + 1} of{" "}
+            {table.getPageCount()}
+          </span>
         </div>
-      )}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => table.nextPage()}
+          disabled={!table.getCanNextPage()}
+        >
+          <FiChevronRight />
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => table.setPageIndex(table.getPageCount() - 1)}
+          disabled={!table.getCanNextPage()}
+        >
+          <FiChevronsRight />
+        </Button>
+      </div>
+    </div>
+  ) : null;
+
+  // ══════════════════════════════════════════════════════════════════
+  // LAYOUT: stickyHeader
+  // ══════════════════════════════════════════════════════════════════
+  // Uses CSS display overrides on a single <table> so that <thead>
+  // and <tbody> become block-level elements.  <tbody> gets
+  // overflow-y:auto so the scrollbar only appears next to body rows.
+  // Each <tr> uses display:table + width:100% + table-layout:fixed
+  // so columns stay aligned between thead and tbody.
+  //
+  //   ┌──────────────┐
+  //   │  thead        │  ← block, no scroll
+  //   ├──────────────┤
+  //   │  tbody      ▲│  ← block, overflow-y: auto
+  //   │             ▼│
+  //   ├──────────────┤
+  //   │  pagination   │  ← shrink-0 footer
+  //   └──────────────┘
+  if (stickyHeader) {
+    return (
+      <div className="w-full h-full relative">
+        <div className="absolute inset-0 flex flex-col min-h-0">
+          <table className={clsx(tableClasses, "table-block-layout")}>
+            <thead>{renderHeaderRows()}</thead>
+            <tbody>{renderBodyRows()}</tbody>
+          </table>
+          {paginationElement}
+        </div>
+      </div>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // LAYOUT: default (no stickyHeader)
+  // ══════════════════════════════════════════════════════════════════
+  return (
+    <div className="w-full">
+      <div className="overflow-x-auto">
+        <table className={tableClasses}>
+          <thead>{renderHeaderRows()}</thead>
+          <tbody>{renderBodyRows()}</tbody>
+        </table>
+      </div>
+      {paginationElement}
     </div>
   );
 }

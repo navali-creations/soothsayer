@@ -55,6 +55,18 @@ describe("initial state", () => {
   it("has isExporting set to false", () => {
     expect(store.getState().statistics.isExporting).toBe(false);
   });
+
+  it("has divinationCardStats as null", () => {
+    expect(store.getState().statistics.divinationCardStats).toBeNull();
+  });
+
+  it("has isDivinationCardsLoading set to true", () => {
+    expect(store.getState().statistics.isDivinationCardsLoading).toBe(true);
+  });
+
+  it("has availableLeagues as empty array", () => {
+    expect(store.getState().statistics.availableLeagues).toEqual([]);
+  });
 });
 
 // ── Setters ────────────────────────────────────────────────────────────────────
@@ -473,12 +485,14 @@ describe("fetchSessionHighlights", () => {
     await store.getState().statistics.fetchSessionHighlights("poe1");
     expect(store.getState().statistics.sessionHighlights).not.toBeNull();
 
-    // Now fail
+    // Now fail — use different params so the dedup guard doesn't skip the call
     electron.sessions.getMostProfitable.mockRejectedValueOnce(
       new Error("IPC error"),
     );
 
-    await store.getState().statistics.fetchSessionHighlights("poe1");
+    await store
+      .getState()
+      .statistics.fetchSessionHighlights("poe1", "Settlers");
     expect(store.getState().statistics.sessionHighlights).toBeNull();
     expect(store.getState().statistics.isLoadingHighlights).toBe(false);
   });
@@ -583,10 +597,11 @@ describe("fetchChartData", () => {
     await store.getState().statistics.fetchChartData("poe1");
     expect(store.getState().statistics.chartRawData).toEqual(mockData);
 
+    // Use different params so the dedup guard doesn't skip the call
     electron.sessions.getChartData.mockRejectedValueOnce(
       new Error("IPC error"),
     );
-    await store.getState().statistics.fetchChartData("poe1");
+    await store.getState().statistics.fetchChartData("poe1", "Settlers");
 
     expect(store.getState().statistics.chartRawData).toEqual([]);
     expect(store.getState().statistics.isChartLoading).toBe(false);
@@ -640,5 +655,274 @@ describe("setBrushRange", () => {
       startIndex: 0,
       endIndex: 0,
     });
+  });
+});
+
+describe("fetchDivinationCards", () => {
+  it("populates divinationCardStats on success for all-time scope", async () => {
+    const mockStats = {
+      totalCount: 20,
+      cards: {
+        "Rain of Chaos": { count: 15 },
+        "The Doctor": { count: 5 },
+      },
+    };
+    electron.dataStore.getAllTime.mockResolvedValue(mockStats);
+
+    await store.getState().statistics.fetchDivinationCards("poe1", "all-time");
+
+    expect(store.getState().statistics.divinationCardStats).toEqual(mockStats);
+    expect(store.getState().statistics.isDivinationCardsLoading).toBe(false);
+  });
+
+  it("calls dataStore.getLeague for league scope", async () => {
+    const mockStats = {
+      totalCount: 10,
+      cards: {
+        "Rain of Chaos": { count: 10 },
+      },
+    };
+    electron.dataStore.getLeague.mockResolvedValue(mockStats);
+
+    await store
+      .getState()
+      .statistics.fetchDivinationCards("poe1", "league", "Settlers");
+
+    expect(electron.dataStore.getLeague).toHaveBeenCalledWith(
+      "poe1",
+      "Settlers",
+    );
+    expect(store.getState().statistics.divinationCardStats).toEqual(mockStats);
+    expect(store.getState().statistics.isDivinationCardsLoading).toBe(false);
+  });
+
+  it("sets isDivinationCardsLoading to true during fetch", async () => {
+    let resolveData!: (v: unknown) => void;
+    electron.dataStore.getAllTime.mockReturnValue(
+      new Promise((r) => {
+        resolveData = r;
+      }),
+    );
+
+    const promise = store
+      .getState()
+      .statistics.fetchDivinationCards("poe1", "all-time");
+    expect(store.getState().statistics.isDivinationCardsLoading).toBe(true);
+
+    resolveData({ totalCount: 0, cards: {} });
+    await promise;
+
+    expect(store.getState().statistics.isDivinationCardsLoading).toBe(false);
+  });
+
+  it("does not call any IPC when scope is league but no league is provided", async () => {
+    await store.getState().statistics.fetchDivinationCards("poe1", "league");
+
+    expect(electron.dataStore.getAllTime).not.toHaveBeenCalled();
+    expect(electron.dataStore.getLeague).not.toHaveBeenCalled();
+    expect(store.getState().statistics.divinationCardStats).toBeNull();
+    expect(store.getState().statistics.isDivinationCardsLoading).toBe(false);
+  });
+
+  it("sets divinationCardStats to null on error", async () => {
+    const mockStats = {
+      totalCount: 5,
+      cards: { "The Doctor": { count: 5 } },
+    };
+    electron.dataStore.getAllTime.mockResolvedValueOnce(mockStats);
+    await store.getState().statistics.fetchDivinationCards("poe1", "all-time");
+    expect(store.getState().statistics.divinationCardStats).toEqual(mockStats);
+
+    // Use different params so the dedup guard doesn't skip the call
+    electron.dataStore.getLeague.mockRejectedValueOnce(new Error("IPC error"));
+    await store
+      .getState()
+      .statistics.fetchDivinationCards("poe1", "league", "Settlers");
+
+    expect(store.getState().statistics.divinationCardStats).toBeNull();
+    expect(store.getState().statistics.isDivinationCardsLoading).toBe(false);
+  });
+
+  it("passes game parameter to IPC call", async () => {
+    electron.dataStore.getAllTime.mockResolvedValue({
+      totalCount: 0,
+      cards: {},
+    });
+
+    await store.getState().statistics.fetchDivinationCards("poe2", "all-time");
+
+    expect(electron.dataStore.getAllTime).toHaveBeenCalledWith("poe2");
+  });
+});
+
+describe("fetchAvailableLeagues", () => {
+  it("populates availableLeagues on success", async () => {
+    electron.dataStore.getLeagues.mockResolvedValue(["Settlers", "Necropolis"]);
+
+    await store.getState().statistics.fetchAvailableLeagues("poe1");
+
+    expect(store.getState().statistics.availableLeagues).toEqual([
+      "Settlers",
+      "Necropolis",
+    ]);
+  });
+
+  it("passes game parameter to IPC call", async () => {
+    electron.dataStore.getLeagues.mockResolvedValue([]);
+
+    await store.getState().statistics.fetchAvailableLeagues("poe2");
+
+    expect(electron.dataStore.getLeagues).toHaveBeenCalledWith("poe2");
+  });
+
+  it("sets availableLeagues to empty array on error", async () => {
+    electron.dataStore.getLeagues.mockResolvedValueOnce(["Settlers"]);
+    await store.getState().statistics.fetchAvailableLeagues("poe1");
+    expect(store.getState().statistics.availableLeagues).toEqual(["Settlers"]);
+
+    // Use different game param so the dedup guard doesn't skip the call
+    electron.dataStore.getLeagues.mockRejectedValueOnce(new Error("IPC error"));
+    await store.getState().statistics.fetchAvailableLeagues("poe2");
+
+    expect(store.getState().statistics.availableLeagues).toEqual([]);
+  });
+
+  it("handles null response from IPC gracefully", async () => {
+    electron.dataStore.getLeagues.mockResolvedValue(null);
+
+    await store.getState().statistics.fetchAvailableLeagues("poe1");
+
+    expect(store.getState().statistics.availableLeagues).toEqual([]);
+  });
+});
+
+// ── Dedup behaviour ────────────────────────────────────────────────────────────
+// The route loader prefetches data on hover.  When the page mounts the same
+// useEffect-driven fetch fires again with the same params.  The dedup guard
+// inside each action should skip the redundant IPC round-trip.
+
+describe("dedup — fetchSessionHighlights", () => {
+  it("skips IPC when called twice with the same params", async () => {
+    electron.sessions.getMostProfitable.mockResolvedValue({
+      sessionId: "s1",
+      date: "2025-01-01T00:00:00Z",
+      profit: 100,
+      league: "Standard",
+    });
+
+    await store.getState().statistics.fetchSessionHighlights("poe1");
+    expect(electron.sessions.getMostProfitable).toHaveBeenCalledTimes(1);
+
+    // Second call — same params → should be deduped
+    await store.getState().statistics.fetchSessionHighlights("poe1");
+    expect(electron.sessions.getMostProfitable).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-fetches when params change", async () => {
+    await store.getState().statistics.fetchSessionHighlights("poe1");
+    expect(electron.sessions.getMostProfitable).toHaveBeenCalledTimes(1);
+
+    await store
+      .getState()
+      .statistics.fetchSessionHighlights("poe1", "Settlers");
+    expect(electron.sessions.getMostProfitable).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("dedup — fetchChartData", () => {
+  it("skips IPC when called twice with the same params", async () => {
+    electron.sessions.getChartData.mockResolvedValue([
+      {
+        sessionIndex: 1,
+        sessionDate: "2024-01-01",
+        league: "Standard",
+        durationMinutes: 30,
+        totalDecksOpened: 10,
+        exchangeNetProfit: 100,
+        chaosPerDivine: 200,
+      },
+    ]);
+
+    await store.getState().statistics.fetchChartData("poe1");
+    expect(electron.sessions.getChartData).toHaveBeenCalledTimes(1);
+
+    await store.getState().statistics.fetchChartData("poe1");
+    expect(electron.sessions.getChartData).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-fetches when params change", async () => {
+    electron.sessions.getChartData.mockResolvedValue([
+      {
+        sessionIndex: 1,
+        sessionDate: "2024-01-01",
+        league: "Standard",
+        durationMinutes: 30,
+        totalDecksOpened: 10,
+        exchangeNetProfit: 100,
+        chaosPerDivine: 200,
+      },
+    ]);
+
+    await store.getState().statistics.fetchChartData("poe1");
+    expect(electron.sessions.getChartData).toHaveBeenCalledTimes(1);
+
+    await store.getState().statistics.fetchChartData("poe1", "Settlers");
+    expect(electron.sessions.getChartData).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("dedup — fetchDivinationCards", () => {
+  it("skips IPC when called twice with the same params", async () => {
+    electron.dataStore.getAllTime.mockResolvedValue({
+      totalCount: 5,
+      cards: { "The Doctor": { count: 5 } },
+    });
+
+    await store.getState().statistics.fetchDivinationCards("poe1", "all-time");
+    expect(electron.dataStore.getAllTime).toHaveBeenCalledTimes(1);
+
+    await store.getState().statistics.fetchDivinationCards("poe1", "all-time");
+    expect(electron.dataStore.getAllTime).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-fetches when params change", async () => {
+    electron.dataStore.getAllTime.mockResolvedValue({
+      totalCount: 5,
+      cards: { "The Doctor": { count: 5 } },
+    });
+    electron.dataStore.getLeague.mockResolvedValue({
+      totalCount: 3,
+      cards: { "Rain of Chaos": { count: 3 } },
+    });
+
+    await store.getState().statistics.fetchDivinationCards("poe1", "all-time");
+    expect(electron.dataStore.getAllTime).toHaveBeenCalledTimes(1);
+
+    await store
+      .getState()
+      .statistics.fetchDivinationCards("poe1", "league", "Settlers");
+    expect(electron.dataStore.getLeague).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("dedup — fetchAvailableLeagues", () => {
+  it("skips IPC when called twice with the same params", async () => {
+    electron.dataStore.getLeagues.mockResolvedValue(["Settlers", "Necropolis"]);
+
+    await store.getState().statistics.fetchAvailableLeagues("poe1");
+    expect(electron.dataStore.getLeagues).toHaveBeenCalledTimes(1);
+
+    await store.getState().statistics.fetchAvailableLeagues("poe1");
+    expect(electron.dataStore.getLeagues).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-fetches when params change", async () => {
+    electron.dataStore.getLeagues.mockResolvedValue(["Settlers"]);
+
+    await store.getState().statistics.fetchAvailableLeagues("poe1");
+    expect(electron.dataStore.getLeagues).toHaveBeenCalledTimes(1);
+
+    await store.getState().statistics.fetchAvailableLeagues("poe2");
+    expect(electron.dataStore.getLeagues).toHaveBeenCalledTimes(2);
   });
 });

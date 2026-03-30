@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 
 import { PageContainer } from "~/renderer/components";
-import { useDivinationCards } from "~/renderer/hooks";
 import { useBoundStore } from "~/renderer/store";
 import type { SimpleCardEntry } from "~/types/data-stores";
 
@@ -15,7 +14,17 @@ import type { CardEntry } from "../Statistics.types";
 
 const StatisticsPage = () => {
   const {
-    statistics: { statScope, selectedLeague, setSelectedLeague, setStatScope },
+    statistics: {
+      statScope,
+      selectedLeague,
+      setSelectedLeague,
+      setStatScope,
+      divinationCardStats: stats,
+      isDivinationCardsLoading: loading,
+      availableLeagues,
+      fetchDivinationCards,
+      fetchAvailableLeagues,
+    },
     settings: { getActiveGameViewSelectedLeague },
   } = useBoundStore();
 
@@ -28,19 +37,35 @@ const StatisticsPage = () => {
     if (hasSeeded.current) return;
     hasSeeded.current = true;
 
+    // If the route loader already seeded the scope to "league" (by reading
+    // the global league and calling setStatScope/setSelectedLeague before
+    // the component mounted), skip re-seeding to avoid overwriting the
+    // loader's league-fallback correction with the raw global value.
+    if (statScope === "league") return;
+
     const globalLeague = getActiveGameViewSelectedLeague();
     if (globalLeague) {
       setSelectedLeague(globalLeague);
       setStatScope("league");
     }
-  }, [getActiveGameViewSelectedLeague, setSelectedLeague, setStatScope]);
+  }, [
+    getActiveGameViewSelectedLeague,
+    setSelectedLeague,
+    setStatScope,
+    statScope,
+  ]);
 
-  // Use the hook with scope parameter
-  const { stats, loading, availableLeagues } = useDivinationCards({
-    game: "poe1",
-    scope: statScope,
-    league: statScope === "league" ? selectedLeague : undefined,
-  });
+  // Fetch divination card stats whenever scope or league changes
+  useEffect(() => {
+    const league =
+      statScope === "league" && selectedLeague ? selectedLeague : undefined;
+    fetchDivinationCards("poe1", statScope, league);
+  }, [statScope, selectedLeague, fetchDivinationCards]);
+
+  // Fetch available leagues on mount
+  useEffect(() => {
+    fetchAvailableLeagues("poe1");
+  }, [fetchAvailableLeagues]);
 
   // When the available leagues arrive and the current selectedLeague isn't
   // among them (e.g. a stale league name from a previous challenge), fall

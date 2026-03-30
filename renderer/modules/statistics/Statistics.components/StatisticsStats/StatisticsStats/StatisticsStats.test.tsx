@@ -169,8 +169,8 @@ describe("StatisticsStats", () => {
       />,
     );
 
-    const spinner = container.querySelector(".loading.loading-spinner");
-    expect(spinner).toBeFalsy();
+    const overlay = container.querySelector(".backdrop-blur-\\[1px\\]");
+    expect(overlay).toHaveClass("opacity-0");
   });
 
   it("still renders stat cards behind the overlay when loading", () => {

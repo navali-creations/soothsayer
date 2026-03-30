@@ -9,12 +9,6 @@ vi.mock("~/renderer/store", () => ({
   useBoundStore: vi.fn(),
 }));
 
-const mockUseDivinationCards = vi.fn();
-
-vi.mock("~/renderer/hooks", () => ({
-  useDivinationCards: (...args: any[]) => mockUseDivinationCards(...args),
-}));
-
 vi.mock("../Statistics.components", () => ({
   StatisticsCharts: (props: any) => (
     <div
@@ -76,6 +70,11 @@ function createMockStore(overrides: any = {}) {
       selectedLeague: "",
       setSelectedLeague: vi.fn(),
       setStatScope: vi.fn(),
+      divinationCardStats: null as any,
+      isDivinationCardsLoading: false,
+      availableLeagues: [] as string[],
+      fetchDivinationCards: vi.fn(),
+      fetchAvailableLeagues: vi.fn(),
       ...statisticsOverrides,
     },
     settings: {
@@ -89,17 +88,6 @@ function setupStore(overrides: any = {}) {
   const store = createMockStore(overrides);
   mockUseBoundStore.mockReturnValue(store);
   return store;
-}
-
-function setupHook(overrides: any = {}) {
-  const hookResult = {
-    stats: null as any,
-    loading: false,
-    availableLeagues: [] as string[],
-    ...overrides,
-  };
-  mockUseDivinationCards.mockReturnValue(hookResult);
-  return hookResult;
 }
 
 function createStats(overrides: any = {}) {
@@ -124,8 +112,7 @@ describe("StatisticsPage", () => {
   // ── Loading state (overlay, not full-page spinner) ─────────────────────
 
   it("renders page structure even when loading is true", () => {
-    setupStore();
-    setupHook({ loading: true, stats: null });
+    setupStore({ isDivinationCardsLoading: true, divinationCardStats: null });
 
     renderWithProviders(<StatisticsPage />);
 
@@ -136,8 +123,7 @@ describe("StatisticsPage", () => {
   });
 
   it("passes isDataLoading=true to children when loading is true", () => {
-    setupStore();
-    setupHook({ loading: true, stats: null });
+    setupStore({ isDivinationCardsLoading: true, divinationCardStats: null });
 
     renderWithProviders(<StatisticsPage />);
 
@@ -156,8 +142,10 @@ describe("StatisticsPage", () => {
   });
 
   it("passes isDataLoading=true to children when stats is null", () => {
-    setupStore();
-    setupHook({ loading: false, stats: null });
+    setupStore({
+      isDivinationCardsLoading: false,
+      divinationCardStats: null,
+    });
 
     renderWithProviders(<StatisticsPage />);
 
@@ -176,8 +164,7 @@ describe("StatisticsPage", () => {
   });
 
   it("passes isDataLoading=false to children when stats are loaded", () => {
-    setupStore();
-    setupHook({ stats: createStats() });
+    setupStore({ divinationCardStats: createStats() });
 
     renderWithProviders(<StatisticsPage />);
 
@@ -198,8 +185,7 @@ describe("StatisticsPage", () => {
   // ── Page renders after loading ─────────────────────────────────────────
 
   it('renders page title "Statistics"', () => {
-    setupStore();
-    setupHook({ stats: createStats() });
+    setupStore({ divinationCardStats: createStats() });
 
     renderWithProviders(<StatisticsPage />);
 
@@ -207,8 +193,7 @@ describe("StatisticsPage", () => {
   });
 
   it("renders StatisticsActions in the header", () => {
-    setupStore();
-    setupHook({ stats: createStats() });
+    setupStore({ divinationCardStats: createStats() });
 
     renderWithProviders(<StatisticsPage />);
 
@@ -217,8 +202,7 @@ describe("StatisticsPage", () => {
   });
 
   it("renders StatisticsStats in the content area", () => {
-    setupStore();
-    setupHook({ stats: createStats() });
+    setupStore({ divinationCardStats: createStats() });
 
     renderWithProviders(<StatisticsPage />);
 
@@ -226,8 +210,7 @@ describe("StatisticsPage", () => {
   });
 
   it("renders StatisticsTable in the content area", () => {
-    setupStore();
-    setupHook({ stats: createStats() });
+    setupStore({ divinationCardStats: createStats() });
 
     renderWithProviders(<StatisticsPage />);
 
@@ -235,8 +218,7 @@ describe("StatisticsPage", () => {
   });
 
   it("passes fallback values to children when stats is null", () => {
-    setupStore();
-    setupHook({ loading: true, stats: null });
+    setupStore({ isDivinationCardsLoading: true, divinationCardStats: null });
 
     renderWithProviders(<StatisticsPage />);
 
@@ -249,53 +231,68 @@ describe("StatisticsPage", () => {
     expect(cardData).toEqual([]);
   });
 
-  // ── useDivinationCards hook params ─────────────────────────────────────
+  // ── fetchDivinationCards calls ─────────────────────────────────────────
 
-  it('calls useDivinationCards with game "poe1" and scope from store', () => {
-    setupStore({ statScope: "all-time" });
-    setupHook({ stats: createStats() });
+  it("calls fetchDivinationCards on mount with scope from store", () => {
+    const store = setupStore({
+      statScope: "all-time",
+      divinationCardStats: createStats(),
+    });
 
     renderWithProviders(<StatisticsPage />);
 
-    expect(mockUseDivinationCards).toHaveBeenCalledWith({
-      game: "poe1",
-      scope: "all-time",
-      league: undefined,
-    });
+    expect(store.statistics.fetchDivinationCards).toHaveBeenCalledWith(
+      "poe1",
+      "all-time",
+      undefined,
+    );
   });
 
-  it("passes selectedLeague to hook when scope is league", () => {
-    setupStore({ statScope: "league", selectedLeague: "Settlers" });
-    setupHook({ stats: createStats() });
+  it("calls fetchDivinationCards with league when scope is league", () => {
+    const store = setupStore({
+      statScope: "league",
+      selectedLeague: "Settlers",
+      divinationCardStats: createStats(),
+    });
 
     renderWithProviders(<StatisticsPage />);
 
-    expect(mockUseDivinationCards).toHaveBeenCalledWith({
-      game: "poe1",
-      scope: "league",
-      league: "Settlers",
-    });
+    expect(store.statistics.fetchDivinationCards).toHaveBeenCalledWith(
+      "poe1",
+      "league",
+      "Settlers",
+    );
   });
 
-  it("passes undefined league to hook when scope is all-time", () => {
-    setupStore({ statScope: "all-time", selectedLeague: "Settlers" });
-    setupHook({ stats: createStats() });
+  it("calls fetchDivinationCards with undefined league when scope is all-time even if selectedLeague is set", () => {
+    const store = setupStore({
+      statScope: "all-time",
+      selectedLeague: "Settlers",
+      divinationCardStats: createStats(),
+    });
 
     renderWithProviders(<StatisticsPage />);
 
-    expect(mockUseDivinationCards).toHaveBeenCalledWith({
-      game: "poe1",
-      scope: "all-time",
-      league: undefined,
-    });
+    expect(store.statistics.fetchDivinationCards).toHaveBeenCalledWith(
+      "poe1",
+      "all-time",
+      undefined,
+    );
+  });
+
+  it("calls fetchAvailableLeagues on mount", () => {
+    const store = setupStore({ divinationCardStats: createStats() });
+
+    renderWithProviders(<StatisticsPage />);
+
+    expect(store.statistics.fetchAvailableLeagues).toHaveBeenCalledWith("poe1");
   });
 
   // ── cardData computation ───────────────────────────────────────────────
 
   it("computes cardData sorted by count descending", () => {
-    setupStore();
-    setupHook({
-      stats: createStats({
+    setupStore({
+      divinationCardStats: createStats({
         totalCount: 30,
         cards: {
           "Card A": { count: 5 },
@@ -316,9 +313,8 @@ describe("StatisticsPage", () => {
   });
 
   it("computes ratio as (count / totalCount) * 100", () => {
-    setupStore();
-    setupHook({
-      stats: createStats({
+    setupStore({
+      divinationCardStats: createStats({
         totalCount: 100,
         cards: {
           "Card A": { count: 25 },
@@ -339,9 +335,8 @@ describe("StatisticsPage", () => {
   });
 
   it("passes empty cardData when stats.cards is empty", () => {
-    setupStore();
-    setupHook({
-      stats: createStats({ totalCount: 0, cards: {} }),
+    setupStore({
+      divinationCardStats: createStats({ totalCount: 0, cards: {} }),
     });
 
     renderWithProviders(<StatisticsPage />);
@@ -354,8 +349,9 @@ describe("StatisticsPage", () => {
   // ── Props passed to child components ───────────────────────────────────
 
   it("passes totalCount from stats to StatisticsStats", () => {
-    setupStore();
-    setupHook({ stats: createStats({ totalCount: 42 }) });
+    setupStore({
+      divinationCardStats: createStats({ totalCount: 42 }),
+    });
 
     renderWithProviders(<StatisticsPage />);
 
@@ -364,9 +360,8 @@ describe("StatisticsPage", () => {
   });
 
   it("passes uniqueCardCount (number of card keys) to StatisticsStats", () => {
-    setupStore();
-    setupHook({
-      stats: createStats({
+    setupStore({
+      divinationCardStats: createStats({
         cards: {
           "Card A": { count: 1 },
           "Card B": { count: 2 },
@@ -381,10 +376,9 @@ describe("StatisticsPage", () => {
     expect(statsEl).toHaveAttribute("data-unique-card-count", "3");
   });
 
-  it("passes availableLeagues from hook to StatisticsActions", () => {
-    setupStore();
-    setupHook({
-      stats: createStats(),
+  it("passes availableLeagues from store to StatisticsActions", () => {
+    setupStore({
+      divinationCardStats: createStats(),
       availableLeagues: ["Settlers", "Necropolis"],
     });
 
@@ -398,8 +392,11 @@ describe("StatisticsPage", () => {
   });
 
   it('passes currentScope "all-time" to StatisticsActions when scope is all-time', () => {
-    setupStore({ statScope: "all-time", selectedLeague: "" });
-    setupHook({ stats: createStats() });
+    setupStore({
+      statScope: "all-time",
+      selectedLeague: "",
+      divinationCardStats: createStats(),
+    });
 
     renderWithProviders(<StatisticsPage />);
 
@@ -408,8 +405,11 @@ describe("StatisticsPage", () => {
   });
 
   it("passes selectedLeague as currentScope to StatisticsActions when scope is league", () => {
-    setupStore({ statScope: "league", selectedLeague: "Settlers" });
-    setupHook({ stats: createStats() });
+    setupStore({
+      statScope: "league",
+      selectedLeague: "Settlers",
+      divinationCardStats: createStats(),
+    });
 
     renderWithProviders(<StatisticsPage />);
 
@@ -423,9 +423,7 @@ describe("StatisticsPage", () => {
     const store = setupStore({
       statScope: "league",
       selectedLeague: "OldLeague",
-    });
-    setupHook({
-      stats: createStats(),
+      divinationCardStats: createStats(),
       availableLeagues: ["Settlers", "Necropolis"],
     });
 
@@ -438,9 +436,7 @@ describe("StatisticsPage", () => {
     const store = setupStore({
       statScope: "league",
       selectedLeague: "Necropolis",
-    });
-    setupHook({
-      stats: createStats(),
+      divinationCardStats: createStats(),
       availableLeagues: ["Settlers", "Necropolis"],
     });
 
@@ -453,9 +449,7 @@ describe("StatisticsPage", () => {
     const store = setupStore({
       statScope: "all-time",
       selectedLeague: "",
-    });
-    setupHook({
-      stats: createStats(),
+      divinationCardStats: createStats(),
       availableLeagues: ["Settlers", "Necropolis"],
     });
 
@@ -468,9 +462,7 @@ describe("StatisticsPage", () => {
     const store = setupStore({
       statScope: "league",
       selectedLeague: "",
-    });
-    setupHook({
-      stats: createStats(),
+      divinationCardStats: createStats(),
       availableLeagues: [],
     });
 
@@ -482,8 +474,10 @@ describe("StatisticsPage", () => {
   // ── Subtitle ───────────────────────────────────────────────────────────
 
   it('shows "All-time divination card statistics" subtitle when scope is all-time', () => {
-    setupStore({ statScope: "all-time" });
-    setupHook({ stats: createStats() });
+    setupStore({
+      statScope: "all-time",
+      divinationCardStats: createStats(),
+    });
 
     renderWithProviders(<StatisticsPage />);
 
@@ -492,8 +486,11 @@ describe("StatisticsPage", () => {
   });
 
   it('shows "League-specific statistics" subtitle when scope is league', () => {
-    setupStore({ statScope: "league", selectedLeague: "Settlers" });
-    setupHook({ stats: createStats() });
+    setupStore({
+      statScope: "league",
+      selectedLeague: "Settlers",
+      divinationCardStats: createStats(),
+    });
 
     renderWithProviders(<StatisticsPage />);
 
@@ -507,11 +504,11 @@ describe("StatisticsPage", () => {
     const store = setupStore({
       statScope: "all-time",
       selectedLeague: "",
+      divinationCardStats: createStats(),
       settings: {
         getActiveGameViewSelectedLeague: vi.fn(() => "Settlers"),
       },
     });
-    setupHook({ stats: createStats() });
 
     renderWithProviders(<StatisticsPage />);
 
@@ -523,11 +520,11 @@ describe("StatisticsPage", () => {
     const store = setupStore({
       statScope: "all-time",
       selectedLeague: "",
+      divinationCardStats: createStats(),
       settings: {
         getActiveGameViewSelectedLeague: vi.fn(() => ""),
       },
     });
-    setupHook({ stats: createStats() });
 
     renderWithProviders(<StatisticsPage />);
 
@@ -538,11 +535,11 @@ describe("StatisticsPage", () => {
     const store = setupStore({
       statScope: "all-time",
       selectedLeague: "",
+      divinationCardStats: createStats(),
       settings: {
         getActiveGameViewSelectedLeague: vi.fn(() => "Settlers"),
       },
     });
-    setupHook({ stats: createStats() });
 
     const { rerender } = renderWithProviders(<StatisticsPage />);
 
@@ -561,11 +558,11 @@ describe("StatisticsPage", () => {
     setupStore({
       statScope: "all-time",
       selectedLeague: "",
+      divinationCardStats: createStats(),
       settings: {
         getActiveGameViewSelectedLeague: globalGetter,
       },
     });
-    setupHook({ stats: createStats() });
 
     renderWithProviders(<StatisticsPage />);
 

@@ -113,11 +113,13 @@ export const StatisticsTable = ({
 
   return (
     <div className="card bg-base-200 shadow-xl flex-1 min-h-0 relative">
-      {isDataLoading && (
-        <div className="absolute inset-0 bg-base-200/60 backdrop-blur-[1px] flex items-center justify-center z-20 rounded-lg pointer-events-none">
-          <span className="loading loading-spinner loading-sm text-primary" />
-        </div>
-      )}
+      <div
+        className={`absolute inset-0 bg-base-200/60 backdrop-blur-[1px] flex items-center justify-center z-20 rounded-lg pointer-events-none transition-opacity duration-200 ${
+          isDataLoading ? "opacity-100" : "opacity-0"
+        }`}
+      >
+        <span className="loading loading-spinner loading-sm text-primary" />
+      </div>
       <div className="card-body p-4 flex flex-col min-h-0">
         <div className="flex items-center justify-between shrink-0">
           <h2 className="card-title text-sm">Card Collection</h2>
@@ -210,7 +212,7 @@ export const StatisticsTable = ({
           </div>
         </div>
 
-        {displayData.length === 0 ? (
+        {displayData.length === 0 && !isDataLoading ? (
           <div className="text-center py-12 text-base-content/50">
             <p className="text-lg">
               {showUncollectedCards
@@ -224,7 +226,7 @@ export const StatisticsTable = ({
             </p>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto min-h-0">
+          <div className="flex-1 min-h-0">
             <Table
               data={displayData}
               columns={columns}

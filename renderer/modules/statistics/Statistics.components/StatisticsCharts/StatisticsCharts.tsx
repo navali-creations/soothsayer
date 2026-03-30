@@ -92,11 +92,13 @@ export const StatisticsCharts = ({
       data-testid="statistics-charts"
     >
       <div className="card bg-base-200 shadow-xl flex-1 min-h-0 relative">
-        {isStale && (
-          <div className="absolute inset-0 bg-base-200/60 backdrop-blur-[1px] flex items-center justify-center z-20 rounded-lg pointer-events-none">
-            <span className="loading loading-spinner loading-sm text-primary" />
-          </div>
-        )}
+        <div
+          className={`absolute inset-0 bg-base-200/60 backdrop-blur-[1px] flex items-center justify-center z-20 rounded-lg pointer-events-none transition-opacity duration-200 ${
+            isStale ? "opacity-100" : "opacity-0"
+          }`}
+        >
+          <span className="loading loading-spinner loading-sm text-primary" />
+        </div>
         <div className="card-body p-4 gap-0">
           <div className="flex items-center gap-2 mb-1">
             <h2 className="card-title text-sm shrink-0">Session Overview</h2>

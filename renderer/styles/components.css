@@ -3,6 +3,46 @@
     font-family: "Fontin", sans-serif;
   }
 
+  /* ── Block-table layout for sticky header with body-only scrollbar ──
+     Overrides <table>, <thead>, <tbody> to block display so that
+     <tbody> can independently scroll.  Each <tr> becomes
+     display:table; width:100%; table-layout:fixed so columns stay
+     aligned between the header and body sections.
+
+     Apply this class to the <table> element itself.
+     ─────────────────────────────────────────────────────────────────── */
+  .table-block-layout {
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+    flex: 1 !important;
+
+    & > thead {
+      display: block !important;
+      flex-shrink: 0;
+      background-color: var(--color-base-100);
+
+      & > tr {
+        display: table;
+        width: 100%;
+        table-layout: fixed;
+      }
+    }
+
+    & > tbody {
+      display: block !important;
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+
+      & > tr {
+        display: table;
+        width: 100%;
+        table-layout: fixed;
+      }
+    }
+  }
+
   .tab-border-half::after {
     content: "";
     position: absolute;

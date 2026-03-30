@@ -43,7 +43,7 @@ const router = createRouter({
   routeTree,
   history: hashHistory,
   defaultPreload: "intent",
-  defaultPreloadStaleTime: 0,
+  defaultPreloadStaleTime: 5_000,
 });
 
 // Track page views with Umami (only when path actually changes)
