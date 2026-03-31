@@ -89,7 +89,7 @@ export const createSessionDetailsSlice: StateCreator<
       const { sessionDetails, settings } = get();
       const session = sessionDetails.session;
 
-      if (!session || !session.cards) return;
+      if (!session?.cards) return;
 
       const card = session.cards.find((c) => c.name === cardName);
       if (!card) return;

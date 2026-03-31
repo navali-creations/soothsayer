@@ -11,14 +11,6 @@ vi.mock("~/renderer/store", () => ({
 
 vi.mock("~/renderer/components", () => ({
   Flex: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-  Search: ({ onChange, debounceMs, ...props }: any) => (
-    <input
-      data-testid="statistics-search"
-      data-debounce-ms={debounceMs}
-      onChange={(e: any) => onChange(e.target.value)}
-      {...props}
-    />
-  ),
 }));
 
 vi.mock("~/renderer/modules/umami", () => ({
@@ -35,7 +27,6 @@ function createMockStore(overrides: any = {}) {
       selectedLeague: "",
       setStatScope: vi.fn(),
       setSelectedLeague: vi.fn(),
-      setSearchQuery: vi.fn(),
       ...overrides,
     },
   } as any;
@@ -60,13 +51,6 @@ describe("StatisticsActions", () => {
   });
 
   // ── Renders ────────────────────────────────────────────────────────────
-
-  it("renders the search input", () => {
-    setupStore();
-    renderWithProviders(<StatisticsActions {...defaultProps} />);
-
-    expect(screen.getByTestId("statistics-search")).toBeInTheDocument();
-  });
 
   it("renders the scope select dropdown", () => {
     setupStore();
@@ -139,29 +123,6 @@ describe("StatisticsActions", () => {
 
     const select = screen.getByRole("combobox") as HTMLSelectElement;
     expect(select.value).toBe("all-time");
-  });
-
-  // ── Search ─────────────────────────────────────────────────────────────
-
-  it("passes setSearchQuery as onChange to Search", async () => {
-    const store = setupStore();
-    const { user } = renderWithProviders(
-      <StatisticsActions {...defaultProps} />,
-    );
-
-    const search = screen.getByTestId("statistics-search");
-    await user.type(search, "doctor");
-
-    // Each character triggers onChange because our mock Search calls onChange directly
-    expect(store.statistics.setSearchQuery).toHaveBeenCalled();
-  });
-
-  it("configures Search with 300ms debounce", () => {
-    setupStore();
-    renderWithProviders(<StatisticsActions {...defaultProps} />);
-
-    const search = screen.getByTestId("statistics-search");
-    expect(search).toHaveAttribute("data-debounce-ms", "300");
   });
 
   // ── No available leagues ───────────────────────────────────────────────

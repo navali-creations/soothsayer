@@ -1,15 +1,17 @@
 /**
- * E2E Test: Onboarding — Tour & Forecast
+ * E2E Test: Onboarding — Profit Forecast Beacons
  *
- * Tests the onboarding beacon system for the Profit Forecast page and the
- * Tour Reset functionality. The onboarding uses `@repere/react` to render
- * "beacon" triggers (pulsing info icons) next to UI elements. Each beacon
- * has a popover with content and a "Got it" acknowledge button.
+ * Tests the onboarding beacon system for the Profit Forecast page.
+ * The onboarding uses `@repere/react` to render "beacon" triggers
+ * (pulsing info icons) next to UI elements. Each beacon has a popover
+ * with content and a "Got it" acknowledge button.
  *
  * Flow:
  *   1. Profit Forecast page — verify 5 page-specific beacons, acknowledge each.
- *   2. Tour Reset — navigate to Settings, click "Reset Tour", verify beacons
- *      reappear on the home page.
+ *   2. Verify popover content for each beacon.
+ *   3. Verify persistence of dismissed beacons to Electron settings.
+ *
+ * Tour Reset tests live in `onboarding-tour-reset.e2e.test.ts`.
  *
  * Prerequisites:
  * - App must be built (`.vite/build/main.js` exists)
@@ -35,24 +37,6 @@ import { seedSessionPrerequisites } from "../../helpers/seed-db";
 /** How long to wait for triggers to render (library uses delay: 500ms). */
 const TRIGGER_RENDER_TIMEOUT = 5_000;
 
-/** Beacons visible on the Current Session page (global + page-specific). */
-const CURRENT_SESSION_BEACONS = [
-  "game-selector",
-  "overlay-icon",
-  "current-session-rarity-source",
-  "stash-prices",
-  "start-session",
-] as const;
-
-/** Beacons specific to the Rarity Insights page. */
-const RARITY_INSIGHTS_BEACONS = [
-  "rarity-insights-poe-ninja",
-  "rarity-insights-prohibited-library",
-  "rarity-insights-refresh",
-  "rarity-insights-scan",
-  "rarity-insights-toolbar",
-] as const;
-
 /** Beacons specific to the Profit Forecast page. */
 const PROFIT_FORECAST_BEACONS = [
   "pf-pl-card-only",
@@ -62,22 +46,27 @@ const PROFIT_FORECAST_BEACONS = [
   "pf-base-rate",
 ] as const;
 
+/** All previously-dismissed beacons (global + rarity insights). */
+const PRE_DISMISSED_BEACONS = [
+  "game-selector",
+  "overlay-icon",
+  "current-session-rarity-source",
+  "stash-prices",
+  "start-session",
+  "rarity-insights-poe-ninja",
+  "rarity-insights-prohibited-library",
+  "rarity-insights-refresh",
+  "rarity-insights-scan",
+  "rarity-insights-toolbar",
+] as const;
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
  * Waits for all beacon triggers to finish rendering on the current page.
- *
- * The `@repere/react` library renders `<button>` elements with a
- * `data-repere-trigger` attribute after a configured `delay: 500` ms.
- * We wait for the expected number of triggers to appear in the DOM.
- *
- * @param page - Playwright Page
- * @param expectedCount - Minimum number of triggers expected on the page
  */
 async function waitForTriggers(page: Page, expectedCount: number) {
   const triggers = page.locator("[data-repere-trigger]");
-
-  // Wait until the expected number of triggers appear
   await expect(triggers).toHaveCount(expectedCount, {
     timeout: TRIGGER_RENDER_TIMEOUT,
   });
@@ -85,10 +74,6 @@ async function waitForTriggers(page: Page, expectedCount: number) {
 
 /**
  * Asserts that a popover opened and is visible.
- *
- * The library pre-renders ALL popover `<div>`s in the DOM (hidden via the
- * native `popover` attribute). Only the active one gets the `:popover-open`
- * pseudo-class, so we use that to target the single visible popover.
  */
 async function expectPopoverVisible(page: Page) {
   const openPopover = page.locator("[data-repere-popover]:popover-open");
@@ -98,19 +83,19 @@ async function expectPopoverVisible(page: Page) {
 /**
  * Clicks the "Got it" acknowledge button inside the currently open popover.
  * After clicking, the trigger for this beacon should disappear.
+ *
+ * @param page - Playwright Page
+ * @param expectedRemainingTriggers - If provided, waits for the trigger count
+ *   to reach this value after dismissal (replaces the old hard 300ms sleep).
  */
-async function acknowledgeBeacon(page: Page) {
+async function acknowledgeBeacon(
+  page: Page,
+  expectedRemainingTriggers?: number,
+) {
   const openPopover = page.locator("[data-repere-popover]:popover-open");
   const gotIt = openPopover.getByText("Got it");
   await expect(gotIt).toBeVisible({ timeout: 5_000 });
 
-  // The "Got it" button's click handler dismisses the beacon and calls
-  // `hidePopover()` on the native popover element.  This can detach the
-  // element mid-interaction, causing Playwright's auto-retry to fail with
-  // "element was detached from the DOM".
-  //
-  // Workaround: attempt the trusted click.  If it throws due to the DOM
-  // detach race we know the click *did* fire, so we swallow the error.
   try {
     await gotIt.click({ timeout: 3_000 });
   } catch {
@@ -124,479 +109,176 @@ async function acknowledgeBeacon(page: Page) {
     { timeout: 5_000 },
   );
 
-  // Brief settle for the repere library to update its internal state
-  // (remove the trigger from the DOM, persist dismissal to the store).
-  await page.waitForTimeout(300);
+  // Wait for the trigger to actually be removed from the DOM (replaces hard 300ms sleep)
+  if (expectedRemainingTriggers !== undefined) {
+    await expect(page.locator("[data-repere-trigger]")).toHaveCount(
+      expectedRemainingTriggers,
+      { timeout: 5_000 },
+    );
+  }
 }
 
 /**
  * Full lifecycle for a single beacon: open popover → verify → acknowledge.
- *
- * After each acknowledge the remaining trigger count decreases, so this
- * always clicks the **first** trigger in the list (index 0) since the
- * previously-acknowledged trigger will have been removed from the DOM.
- *
- * @param page - Playwright Page
  */
-async function acknowledgeFirstBeacon(page: Page) {
-  // The first visible trigger (previously acknowledged ones are removed)
+async function acknowledgeFirstBeacon(
+  page: Page,
+  expectedRemainingTriggers?: number,
+) {
   const trigger = page.locator("[data-repere-trigger]").first();
   await expect(trigger).toBeAttached({ timeout: TRIGGER_RENDER_TIMEOUT });
   await trigger.evaluate((el: HTMLElement) => el.click());
 
   await expectPopoverVisible(page);
-  await acknowledgeBeacon(page);
+  await acknowledgeBeacon(page, expectedRemainingTriggers);
 }
 
 /**
  * Acknowledges all currently visible beacon triggers on the page, one by one.
- * Always clicks the first available trigger since dismissed ones disappear.
- *
- * @param page - Playwright Page
- * @param count - Number of beacons to acknowledge
  */
 async function acknowledgeAllBeacons(page: Page, count: number) {
   for (let i = 0; i < count; i++) {
-    await acknowledgeFirstBeacon(page);
+    await acknowledgeFirstBeacon(page, count - i - 1);
   }
 }
 
 /**
  * Switches the Profit Forecast page from the default "chart" view to "table"
- * view by clicking the Table badge in the cost model panel. This ensures the
- * P&L column headers (which carry the `pf-pl-card-only` and `pf-pl-all-drops`
- * onboarding selectors) are rendered in the DOM.
+ * view by clicking the Table badge in the cost model panel.
  */
 async function switchToTableView(page: Page) {
   const tableBadge = page.locator("button", { hasText: "Table" }).first();
   await expect(tableBadge).toBeVisible({ timeout: 5_000 });
   await tableBadge.click();
-  // Wait for the table to render
-  await page.waitForTimeout(500);
+  // Wait for the table to render instead of a hard 500ms sleep
+  await page
+    .locator("table, [role='table']")
+    .first()
+    .waitFor({
+      state: "visible",
+      timeout: 5_000,
+    })
+    .catch(() => {
+      // Table may use a different structure; fall back to a short settle
+    });
+}
+
+/**
+ * Common setup for all Profit Forecast beacon tests:
+ * pre-dismiss previous beacons, reload, navigate to profit forecast, switch to table.
+ */
+async function setupProfitForecastBeacons(page: Page) {
+  await setSetting(page, "onboardingDismissedBeacons", [
+    ...PRE_DISMISSED_BEACONS,
+  ]);
+  await page.reload();
+  await waitForHydration(page, 30_000);
+  await page.locator("aside").waitFor({ state: "visible", timeout: 15_000 });
+
+  await navigateTo(page, "/profit-forecast");
+  await waitForRoute(page, "/profit-forecast", 10_000);
+  await page.locator("main").waitFor({ state: "visible", timeout: 5_000 });
+
+  await switchToTableView(page);
+  await waitForTriggers(page, PROFIT_FORECAST_BEACONS.length);
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
-test.describe("Onboarding — Tour & Forecast", () => {
+test.describe("Onboarding — Profit Forecast Beacons", () => {
   test.beforeEach(async ({ page }) => {
     await ensurePostSetup(page);
     // Seed data so pages that depend on league/snapshot data render correctly
     await seedSessionPrerequisites(page);
   });
 
-  // ── Profit Forecast Page ────────────────────────────────────────────────
+  test("should show only page-specific beacons when globals are already dismissed", async ({
+    page,
+  }) => {
+    await setupProfitForecastBeacons(page);
 
-  test.describe("Profit Forecast Page Beacons", () => {
-    test("should show only page-specific beacons when globals are already dismissed", async ({
-      page,
-    }) => {
-      // Pre-dismiss global + previous page beacons
-      await setSetting(page, "onboardingDismissedBeacons", [
-        "game-selector",
-        "overlay-icon",
-        "current-session-rarity-source",
-        "stash-prices",
-        "start-session",
-        "rarity-insights-poe-ninja",
-        "rarity-insights-prohibited-library",
-        "rarity-insights-refresh",
-        "rarity-insights-scan",
-        "rarity-insights-toolbar",
-      ]);
-      await page.reload();
-      await waitForHydration(page, 30_000);
-      await page
-        .locator("aside")
-        .waitFor({ state: "visible", timeout: 15_000 });
-
-      await navigateTo(page, "/profit-forecast");
-      await waitForRoute(page, "/profit-forecast", 10_000);
-      await page.locator("main").waitFor({ state: "visible", timeout: 5_000 });
-
-      // Switch to table view so P&L column header beacons are in the DOM
-      await switchToTableView(page);
-
-      // Only the 5 profit-forecast-specific beacons should be visible
-      await waitForTriggers(page, PROFIT_FORECAST_BEACONS.length);
-
-      const count = await page.locator("[data-repere-trigger]").count();
-      expect(count).toBe(PROFIT_FORECAST_BEACONS.length);
-    });
-
-    test("should acknowledge all profit forecast beacons", async ({ page }) => {
-      // Pre-dismiss global + previous page beacons
-      await setSetting(page, "onboardingDismissedBeacons", [
-        "game-selector",
-        "overlay-icon",
-        "current-session-rarity-source",
-        "stash-prices",
-        "start-session",
-        "rarity-insights-poe-ninja",
-        "rarity-insights-prohibited-library",
-        "rarity-insights-refresh",
-        "rarity-insights-scan",
-        "rarity-insights-toolbar",
-      ]);
-      await page.reload();
-      await waitForHydration(page, 30_000);
-      await page
-        .locator("aside")
-        .waitFor({ state: "visible", timeout: 15_000 });
-
-      await navigateTo(page, "/profit-forecast");
-      await waitForRoute(page, "/profit-forecast", 10_000);
-      await page.locator("main").waitFor({ state: "visible", timeout: 5_000 });
-
-      // Switch to table view so P&L column header beacons are in the DOM
-      await switchToTableView(page);
-
-      await waitForTriggers(page, PROFIT_FORECAST_BEACONS.length);
-
-      // Acknowledge each beacon
-      for (let i = 0; i < PROFIT_FORECAST_BEACONS.length; i++) {
-        const trigger = page.locator("[data-repere-trigger]").first();
-        await expect(trigger).toBeAttached({ timeout: TRIGGER_RENDER_TIMEOUT });
-        await trigger.evaluate((el: HTMLElement) => el.click());
-
-        await expectPopoverVisible(page);
-        await acknowledgeBeacon(page);
-      }
-
-      // All triggers should be gone
-      const remaining = await page.locator("[data-repere-trigger]").count();
-      expect(remaining).toBe(0);
-    });
-
-    test("should open and verify popover content for each beacon", async ({
-      page,
-    }) => {
-      await setSetting(page, "onboardingDismissedBeacons", [
-        "game-selector",
-        "overlay-icon",
-        "current-session-rarity-source",
-        "stash-prices",
-        "start-session",
-        "rarity-insights-poe-ninja",
-        "rarity-insights-prohibited-library",
-        "rarity-insights-refresh",
-        "rarity-insights-scan",
-        "rarity-insights-toolbar",
-      ]);
-      await page.reload();
-      await waitForHydration(page, 30_000);
-      await page
-        .locator("aside")
-        .waitFor({ state: "visible", timeout: 15_000 });
-
-      await navigateTo(page, "/profit-forecast");
-      await waitForRoute(page, "/profit-forecast", 10_000);
-      await page.locator("main").waitFor({ state: "visible", timeout: 5_000 });
-
-      // Switch to table view so P&L column header beacons are in the DOM
-      await switchToTableView(page);
-
-      await waitForTriggers(page, PROFIT_FORECAST_BEACONS.length);
-
-      for (let i = 0; i < PROFIT_FORECAST_BEACONS.length; i++) {
-        const trigger = page.locator("[data-repere-trigger]").first();
-        await expect(trigger).toBeAttached({ timeout: TRIGGER_RENDER_TIMEOUT });
-        await trigger.evaluate((el: HTMLElement) => el.click());
-
-        const popover = page.locator("[data-repere-popover]:popover-open");
-        await expect(popover).toBeVisible({ timeout: 5_000 });
-
-        // Verify popover has meaningful content
-        const popoverText = await popover.textContent();
-        expect(popoverText).toBeTruthy();
-        expect(popoverText!.length).toBeGreaterThan(0);
-
-        // Verify the "Got it" button is present and click it.
-        // The native popover API can detach the element mid-click.
-        // Swallow the detach error — the click still fires.
-        const gotIt = popover.getByText("Got it");
-        await expect(gotIt).toBeVisible();
-        try {
-          await gotIt.click({ timeout: 3_000 });
-        } catch {
-          // detached during dismiss — expected
-        }
-        await expect(
-          page.locator("[data-repere-popover]:popover-open"),
-        ).toHaveCount(0, { timeout: 5_000 });
-
-        // Brief settle for the repere library to update its internal state
-        await page.waitForTimeout(300);
-      }
-    });
-
-    test("should persist all dismissed beacons to Electron settings after acknowledging", async ({
-      page,
-    }) => {
-      await setSetting(page, "onboardingDismissedBeacons", [
-        "game-selector",
-        "overlay-icon",
-        "current-session-rarity-source",
-        "stash-prices",
-        "start-session",
-        "rarity-insights-poe-ninja",
-        "rarity-insights-prohibited-library",
-        "rarity-insights-refresh",
-        "rarity-insights-scan",
-        "rarity-insights-toolbar",
-      ]);
-      await page.reload();
-      await waitForHydration(page, 30_000);
-      await page
-        .locator("aside")
-        .waitFor({ state: "visible", timeout: 15_000 });
-
-      await navigateTo(page, "/profit-forecast");
-      await waitForRoute(page, "/profit-forecast", 10_000);
-      await page.locator("main").waitFor({ state: "visible", timeout: 5_000 });
-
-      // Switch to table view so P&L column header beacons are in the DOM
-      await switchToTableView(page);
-
-      await waitForTriggers(page, PROFIT_FORECAST_BEACONS.length);
-      await acknowledgeAllBeacons(page, PROFIT_FORECAST_BEACONS.length);
-
-      // All beacons from every page should now be dismissed
-      const dismissed = await page.evaluate(() => {
-        return (window as any).electron.settings.get(
-          "onboardingDismissedBeacons",
-        );
-      });
-
-      expect(Array.isArray(dismissed)).toBe(true);
-
-      // Should contain all beacon IDs we've dismissed so far
-      const allExpectedIds = [
-        "game-selector",
-        "overlay-icon",
-        "current-session-rarity-source",
-        "stash-prices",
-        "start-session",
-        "rarity-insights-poe-ninja",
-        "rarity-insights-prohibited-library",
-        "rarity-insights-refresh",
-        "rarity-insights-scan",
-        "rarity-insights-toolbar",
-        "pf-pl-card-only",
-        "pf-pl-all-drops",
-        "pf-break-even-rate",
-        "pf-cost-model",
-        "pf-base-rate",
-      ];
-
-      const dismissedArray = dismissed as string[];
-      for (const id of allExpectedIds) {
-        expect(dismissedArray).toContain(id);
-      }
-    });
+    const count = await page.locator("[data-repere-trigger]").count();
+    expect(count).toBe(PROFIT_FORECAST_BEACONS.length);
   });
 
-  // ── Tour Reset ──────────────────────────────────────────────────────────
+  test("should acknowledge all profit forecast beacons", async ({ page }) => {
+    await setupProfitForecastBeacons(page);
 
-  test.describe("Tour Reset", () => {
-    test("should reset all beacons via the Settings page Reset Tour button", async ({
-      page,
-    }) => {
-      // Start with all beacons dismissed
-      const allBeaconIds = [
-        "game-selector",
-        "overlay-icon",
-        "current-session-rarity-source",
-        "stash-prices",
-        "start-session",
-        "rarity-insights-poe-ninja",
-        "rarity-insights-prohibited-library",
-        "rarity-insights-refresh",
-        "rarity-insights-scan",
-        "rarity-insights-toolbar",
-        "pf-pl-card-only",
-        "pf-pl-all-drops",
-        "pf-break-even-rate",
-        "pf-cost-model",
-        "pf-base-rate",
-      ];
+    // Acknowledge each beacon, waiting for the trigger count to decrease
+    await acknowledgeAllBeacons(page, PROFIT_FORECAST_BEACONS.length);
 
-      await setSetting(page, "onboardingDismissedBeacons", allBeaconIds);
-      await page.reload();
-      await waitForHydration(page, 30_000);
-      await page
-        .locator("aside")
-        .waitFor({ state: "visible", timeout: 15_000 });
+    // All triggers should be gone
+    const remaining = await page.locator("[data-repere-trigger]").count();
+    expect(remaining).toBe(0);
+  });
 
-      // Verify no beacons on home page (all dismissed)
-      await navigateTo(page, "/");
-      await waitForRoute(page, "/", 10_000);
-      await page.locator("main").waitFor({ state: "visible", timeout: 5_000 });
+  test("should open and verify popover content for each beacon", async ({
+    page,
+  }) => {
+    await setupProfitForecastBeacons(page);
 
-      const beforeCount = await page.locator("[data-repere-trigger]").count();
-      expect(beforeCount).toBe(0);
+    for (let i = 0; i < PROFIT_FORECAST_BEACONS.length; i++) {
+      const expectedRemaining = PROFIT_FORECAST_BEACONS.length - i - 1;
+      const trigger = page.locator("[data-repere-trigger]").first();
+      await expect(trigger).toBeAttached({ timeout: TRIGGER_RENDER_TIMEOUT });
+      await trigger.evaluate((el: HTMLElement) => el.click());
 
-      // Navigate to Settings
-      await navigateTo(page, "/settings");
-      await waitForRoute(page, "/settings", 10_000);
-      await page.locator("main").waitFor({ state: "visible", timeout: 5_000 });
+      const popover = page.locator("[data-repere-popover]:popover-open");
+      await expect(popover).toBeVisible({ timeout: 5_000 });
 
-      // Find and click the Reset Tour button
-      const resetTourButton = page
-        .locator("button[data-onboarding='onboarding-button']")
-        .first();
-      await expect(resetTourButton).toBeVisible({ timeout: 10_000 });
-      await expect(resetTourButton).toBeEnabled();
+      // Verify popover has meaningful content
+      const popoverText = await popover.textContent();
+      expect(popoverText).toBeTruthy();
+      expect(popoverText!.length).toBeGreaterThan(0);
 
-      // Clicking "Reset Tour" calls resetAll() then window.location.reload().
-      // We need to handle the page reload.
-      await resetTourButton.click();
+      // Verify the "Got it" button is present and click it.
+      const gotIt = popover.getByText("Got it");
+      await expect(gotIt).toBeVisible();
+      try {
+        await gotIt.click({ timeout: 3_000 });
+      } catch {
+        // detached during dismiss — expected
+      }
+      await expect(
+        page.locator("[data-repere-popover]:popover-open"),
+      ).toHaveCount(0, { timeout: 5_000 });
 
-      // Wait for the reload to complete
-      await page.waitForLoadState("domcontentloaded", { timeout: 30_000 });
-      await waitForHydration(page, 30_000);
-      await page
-        .locator("aside")
-        .waitFor({ state: "visible", timeout: 15_000 });
-
-      // Navigate back to the home page
-      await navigateTo(page, "/");
-      await waitForRoute(page, "/", 10_000);
-      await page.locator("main").waitFor({ state: "visible", timeout: 5_000 });
-
-      // Beacons should be visible again!
-      await waitForTriggers(page, CURRENT_SESSION_BEACONS.length);
-
-      const afterCount = await page.locator("[data-repere-trigger]").count();
-      expect(afterCount).toBe(CURRENT_SESSION_BEACONS.length);
-    });
-
-    test("should clear the persisted dismissed list after reset", async ({
-      page,
-    }) => {
-      // Start with all beacons dismissed
-      const allBeaconIds = [
-        "game-selector",
-        "overlay-icon",
-        "current-session-rarity-source",
-        "stash-prices",
-        "start-session",
-      ];
-
-      await setSetting(page, "onboardingDismissedBeacons", allBeaconIds);
-      await page.reload();
-      await waitForHydration(page, 30_000);
-      await page
-        .locator("aside")
-        .waitFor({ state: "visible", timeout: 15_000 });
-
-      // Navigate to Settings and click Reset Tour
-      await navigateTo(page, "/settings");
-      await waitForRoute(page, "/settings", 10_000);
-      await page.locator("main").waitFor({ state: "visible", timeout: 5_000 });
-
-      const resetTourButton = page
-        .locator("button[data-onboarding='onboarding-button']")
-        .first();
-      await expect(resetTourButton).toBeVisible({ timeout: 10_000 });
-      await resetTourButton.click();
-
-      // Wait for reload
-      await page.waitForLoadState("domcontentloaded", { timeout: 30_000 });
-      await waitForHydration(page, 30_000);
-      await page
-        .locator("aside")
-        .waitFor({ state: "visible", timeout: 15_000 });
-
-      // Verify the persisted setting is now empty
-      const dismissed = await page.evaluate(() => {
-        return (window as any).electron.settings.get(
-          "onboardingDismissedBeacons",
-        );
-      });
-
-      expect(Array.isArray(dismissed)).toBe(true);
-      expect((dismissed as string[]).length).toBe(0);
-    });
-
-    test("should show beacons on all pages after reset", async ({ page }) => {
-      // Start with all beacons dismissed
-      await setSetting(page, "onboardingDismissedBeacons", [
-        "game-selector",
-        "overlay-icon",
-        "current-session-rarity-source",
-        "stash-prices",
-        "start-session",
-        "rarity-insights-poe-ninja",
-        "rarity-insights-prohibited-library",
-        "rarity-insights-refresh",
-        "rarity-insights-scan",
-        "rarity-insights-toolbar",
-        "pf-pl-card-only",
-        "pf-pl-all-drops",
-        "pf-break-even-rate",
-        "pf-cost-model",
-        "pf-base-rate",
-      ]);
-      await page.reload();
-      await waitForHydration(page, 30_000);
-      await page
-        .locator("aside")
-        .waitFor({ state: "visible", timeout: 15_000 });
-
-      // Navigate to Settings and click Reset Tour
-      await navigateTo(page, "/settings");
-      await waitForRoute(page, "/settings", 10_000);
-      await page.locator("main").waitFor({ state: "visible", timeout: 5_000 });
-
-      const resetTourButton = page
-        .locator("button[data-onboarding='onboarding-button']")
-        .first();
-      await expect(resetTourButton).toBeVisible({ timeout: 10_000 });
-      await resetTourButton.click();
-
-      // Wait for reload
-      await page.waitForLoadState("domcontentloaded", { timeout: 30_000 });
-      await waitForHydration(page, 30_000);
-      await page
-        .locator("aside")
-        .waitFor({ state: "visible", timeout: 15_000 });
-
-      // Check home page: 2 global + 3 page-specific = 5
-      await navigateTo(page, "/");
-      await waitForRoute(page, "/", 10_000);
-      await page.locator("main").waitFor({ state: "visible", timeout: 5_000 });
-      await waitForTriggers(page, CURRENT_SESSION_BEACONS.length);
+      // Wait for the trigger to be removed before clicking the next one
       await expect(page.locator("[data-repere-trigger]")).toHaveCount(
-        CURRENT_SESSION_BEACONS.length,
+        expectedRemaining,
         { timeout: 5_000 },
       );
+    }
+  });
 
-      // Check rarity insights page: 2 global + 5 page-specific = 7
-      await navigateTo(page, "/rarity-insights");
-      await waitForRoute(page, "/rarity-insights", 10_000);
-      await page.locator("main").waitFor({ state: "visible", timeout: 5_000 });
+  test("should persist all dismissed beacons to Electron settings after acknowledging", async ({
+    page,
+  }) => {
+    await setupProfitForecastBeacons(page);
+    await acknowledgeAllBeacons(page, PROFIT_FORECAST_BEACONS.length);
 
-      const expectedRiCount = 2 + RARITY_INSIGHTS_BEACONS.length;
-      await waitForTriggers(page, expectedRiCount);
-      await expect(page.locator("[data-repere-trigger]")).toHaveCount(
-        expectedRiCount,
-        { timeout: 5_000 },
-      );
-
-      // Check profit forecast page: 2 global + 5 page-specific = 7
-      await navigateTo(page, "/profit-forecast");
-      await waitForRoute(page, "/profit-forecast", 10_000);
-      await page.locator("main").waitFor({ state: "visible", timeout: 5_000 });
-
-      // Switch to table view so P&L column header beacons are in the DOM
-      await switchToTableView(page);
-
-      const expectedPfCount = 2 + PROFIT_FORECAST_BEACONS.length;
-      await waitForTriggers(page, expectedPfCount);
-      await expect(page.locator("[data-repere-trigger]")).toHaveCount(
-        expectedPfCount,
-        { timeout: 5_000 },
+    // All beacons from every page should now be dismissed
+    const dismissed = await page.evaluate(() => {
+      return (window as any).electron.settings.get(
+        "onboardingDismissedBeacons",
       );
     });
+
+    expect(Array.isArray(dismissed)).toBe(true);
+
+    // Should contain all beacon IDs we've dismissed so far
+    const allExpectedIds = [
+      ...PRE_DISMISSED_BEACONS,
+      "pf-pl-card-only",
+      "pf-pl-all-drops",
+      "pf-break-even-rate",
+      "pf-cost-model",
+      "pf-base-rate",
+    ];
+
+    const dismissedArray = dismissed as string[];
+    for (const id of allExpectedIds) {
+      expect(dismissedArray).toContain(id);
+    }
   });
 });

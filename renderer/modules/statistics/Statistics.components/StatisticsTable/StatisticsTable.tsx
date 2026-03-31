@@ -6,6 +6,7 @@ import {
   createCardNameColumn,
   createCardRatioColumn,
   Dropdown,
+  Search,
   Table,
 } from "~/renderer/components";
 import { trackEvent } from "~/renderer/modules/umami";
@@ -29,6 +30,7 @@ export const StatisticsTable = ({
     statistics: {
       statScope,
       searchQuery,
+      setSearchQuery,
       showUncollectedCards,
       toggleShowUncollectedCards,
       uncollectedCardNames,
@@ -142,6 +144,16 @@ export const StatisticsTable = ({
                 </span>
               </label>
             )}
+
+            <Search
+              onChange={setSearchQuery}
+              debounceMs={300}
+              placeholder="Search cards..."
+              size="xs"
+              className="w-28"
+              data-testid="statistics-search"
+              hasIcon={false}
+            />
 
             <Dropdown
               trigger={

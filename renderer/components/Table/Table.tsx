@@ -151,6 +151,21 @@ function Table<TData>({
     );
   };
 
+  /** Build an inline width style when a column defines a non-default size. */
+  const getColumnWidthStyle = (
+    columnDef: (typeof columns)[number],
+  ): React.CSSProperties | undefined => {
+    const DEFAULT_COLUMN_SIZE = 150;
+    const hasExplicitSize =
+      columnDef.size !== undefined && columnDef.size !== DEFAULT_COLUMN_SIZE;
+    if (!hasExplicitSize) return undefined;
+    return {
+      width: columnDef.size,
+      minWidth: columnDef.minSize,
+      maxWidth: columnDef.maxSize,
+    };
+  };
+
   const renderHeaderRows = () =>
     table.getHeaderGroups().map((headerGroup) => (
       <tr key={headerGroup.id}>
@@ -161,6 +176,7 @@ function Table<TData>({
               "cursor-pointer select-none": header.column.getCanSort(),
               "pl-0": index > 0,
             })}
+            style={getColumnWidthStyle(header.column.columnDef)}
             onClick={header.column.getToggleSortingHandler()}
           >
             <div
@@ -210,6 +226,7 @@ function Table<TData>({
           {row.getVisibleCells().map((cell, index) => (
             <td
               key={cell.id}
+              style={getColumnWidthStyle(cell.column.columnDef)}
               className={clsx({
                 "text-center pl-0":
                   index > 0 &&

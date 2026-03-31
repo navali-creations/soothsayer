@@ -129,5 +129,4 @@ export async function navigateTo(page: Page, route: string): Promise<void> {
     window.location.hash = `#${r}`;
   }, normalizedRoute);
   await page.waitForLoadState("domcontentloaded");
-  await page.waitForTimeout(200);
 }

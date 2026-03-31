@@ -6,7 +6,7 @@
 
 - Redesigned the Statistics page with a new side-by-side layout — interactive chart on the left, card table on the right.
 - Clicking a certain stat cards now takes you directly to that session's detail page.
-- Export CSV button has been moved to card's table, narrowing it's purpose
+- Export CSV button and cards' search input  has been moved to card's table, narrowing their purpose.
 
 **Improved:** Back button navigation.
 

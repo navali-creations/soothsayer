@@ -18,6 +18,7 @@ interface SearchProps
   /** When set, Search manages its own internal state for instant character
    *  display and debounces the `onChange` callback by this many milliseconds. */
   debounceMs?: number;
+  hasIcon?: boolean;
 }
 
 const Search = ({
@@ -27,6 +28,7 @@ const Search = ({
   className,
   size = "md",
   debounceMs,
+  hasIcon = true,
   ...props
 }: SearchProps) => {
   const isDebounced = debounceMs !== undefined;
@@ -72,7 +74,7 @@ const Search = ({
         className,
       )}
     >
-      <FiSearch className="opacity-70" />
+      {hasIcon && <FiSearch className="opacity-70" />}
       <input
         type="search"
         className="grow"

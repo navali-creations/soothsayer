@@ -20,6 +20,14 @@ vi.mock("~/renderer/components", () => ({
       <div data-testid="dropdown-content">{children}</div>
     </div>
   ),
+  Search: ({ onChange, debounceMs, ...props }: any) => (
+    <input
+      data-testid="statistics-search"
+      data-debounce-ms={debounceMs}
+      onChange={(e: any) => onChange(e.target.value)}
+      {...props}
+    />
+  ),
   Table: ({ data, columns, globalFilter, emptyMessage, pageSize }: any) => (
     <div
       data-testid="table"
@@ -57,6 +65,7 @@ function setupStore(
     statistics: {
       statScope: overrides.statScope ?? "all-time",
       searchQuery: overrides.searchQuery ?? "",
+      setSearchQuery: vi.fn(),
       showUncollectedCards: overrides.showUncollectedCards ?? false,
       uncollectedCardNames: overrides.uncollectedCardNames ?? [],
       toggleShowUncollectedCards: vi.fn(),
@@ -414,5 +423,42 @@ describe("StatisticsTable", () => {
 
     expect(screen.getByTestId("table")).toBeInTheDocument();
     expect(screen.getByText("Card Collection")).toBeInTheDocument();
+  });
+
+  // ── Search input ───────────────────────────────────────────────────────
+
+  it("renders the search input", () => {
+    setupStore();
+    renderWithProviders(
+      <StatisticsTable cardData={[]} currentScope="all-time" />,
+    );
+
+    expect(screen.getByTestId("statistics-search")).toBeInTheDocument();
+  });
+
+  it("passes setSearchQuery as onChange to Search", async () => {
+    const store = setupStore();
+    const cardData = createCardData([
+      { name: "The Doctor", count: 5, ratio: 100 },
+    ]);
+    const { user } = renderWithProviders(
+      <StatisticsTable cardData={cardData} currentScope="all-time" />,
+    );
+
+    const search = screen.getByTestId("statistics-search");
+    await user.type(search, "doctor");
+
+    // Each character triggers onChange because our mock Search calls onChange directly
+    expect(store.statistics.setSearchQuery).toHaveBeenCalled();
+  });
+
+  it("configures Search with 300ms debounce", () => {
+    setupStore();
+    renderWithProviders(
+      <StatisticsTable cardData={[]} currentScope="all-time" />,
+    );
+
+    const search = screen.getByTestId("statistics-search");
+    expect(search).toHaveAttribute("data-debounce-ms", "300");
   });
 });

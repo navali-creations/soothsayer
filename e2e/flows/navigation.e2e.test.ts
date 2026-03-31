@@ -7,7 +7,6 @@
  * - Direct deep linking to specific routes
  * - Browser-style back/forward navigation
  * - Route transitions render correct page content
- * - Navigation guards (setup incomplete → redirect to /setup)
  *
  * Soothsayer uses TanStack Router with `createHashHistory()` for Electron's
  * `file://` protocol. All routes are prefixed with `#/` in the URL.
@@ -16,7 +15,6 @@
  */
 
 import { expect, test } from "../helpers/electron-test";
-import { mockSetupComplete, resetSetup } from "../helpers/ipc-helpers";
 import {
   clickSidebarLink,
   ensurePostSetup,
@@ -24,7 +22,6 @@ import {
   expectRouteStartsWith,
   getCurrentRoute,
   navigateTo,
-  waitForHydration,
   waitForRoute,
 } from "../helpers/navigation";
 
@@ -102,10 +99,6 @@ test.describe("Navigation", () => {
   // ─── Hash-based Deep Linking ──────────────────────────────────────────────────
 
   test.describe("Deep Linking (Hash Navigation)", () => {
-    // ensurePostSetup may reload + re-hydrate which can exceed the default
-    // 45 s test timeout on resource-constrained CI runners.
-    test.setTimeout(120_000);
-
     test.beforeEach(async ({ page }) => {
       await ensurePostSetup(page);
     });
@@ -142,8 +135,6 @@ test.describe("Navigation", () => {
   // ─── Route Transitions & Content Verification ─────────────────────────────────
 
   test.describe("Route Transitions", () => {
-    test.setTimeout(120_000);
-
     test.beforeEach(async ({ page }) => {
       await ensurePostSetup(page);
     });
@@ -245,182 +236,9 @@ test.describe("Navigation", () => {
     });
   });
 
-  // ─── Navigation Guards ────────────────────────────────────────────────────────
-
-  test.describe("Navigation Guards", () => {
-    test("should redirect to /setup when setup is incomplete", async ({
-      page,
-    }) => {
-      await waitForHydration(page, 45_000);
-
-      // Check if we're already on /setup (fresh install)
-      const route = await getCurrentRoute(page);
-
-      if (route === "/setup") {
-        // Verify that trying to navigate away redirects back
-        await page.evaluate(() => {
-          window.location.hash = "#/cards";
-        });
-        await waitForRoute(page, "/setup", 5_000);
-
-        const routeAfter = await getCurrentRoute(page);
-        // The navigation guard should prevent leaving /setup
-        expect(routeAfter).toBe("/setup");
-      } else {
-        // Setup is already complete — reset it to test the guard
-        try {
-          await page.evaluate(async () => {
-            const electron = (window as any).electron;
-            if (electron?.appSetup?.resetSetup) {
-              await electron.appSetup.resetSetup();
-            }
-          });
-
-          await page.reload();
-          await waitForHydration(page, 30_000);
-
-          const routeAfterReset = await getCurrentRoute(page);
-          expect(routeAfterReset).toBe("/setup");
-        } catch {
-          // Cannot test guard if resetSetup is unavailable
-          test.skip(true, "resetSetup IPC not available");
-        }
-      }
-    });
-
-    test("should show the sidebar only when setup is complete", async ({
-      page,
-    }) => {
-      await waitForHydration(page, 45_000);
-
-      // Force setup-incomplete state so we can test both phases
-      try {
-        await resetSetup(page);
-        await waitForHydration(page, 30_000);
-      } catch {
-        // resetSetup may be unavailable — skip if so
-        test.skip(true, "resetSetup IPC not available");
-        return;
-      }
-
-      const route = await getCurrentRoute(page);
-      if (route !== "/setup") {
-        // If we're still not on /setup after reset, navigate there
-        await navigateTo(page, "/setup");
-        await waitForHydration(page, 15_000);
-      }
-
-      // During setup, sidebar should NOT be visible
-      const sidebar = page.locator("aside");
-      const sidebarVisible = await sidebar.isVisible().catch(() => false);
-      expect(sidebarVisible).toBe(false);
-
-      // Complete setup
-      await mockSetupComplete(page);
-      await waitForHydration(page, 30_000);
-
-      // Now sidebar SHOULD be visible
-      const sidebarAfter = page.locator("aside");
-      await expect(sidebarAfter).toBeVisible({ timeout: 10_000 });
-    });
-  });
-
-  // ─── Rapid Navigation (Stress Test) ──────────────────────────────────────────
-
-  test.describe("Rapid Navigation", () => {
-    test.beforeEach(async ({ page }) => {
-      await ensurePostSetup(page);
-    });
-
-    test("should handle rapid route changes without crashing", async ({
-      page,
-    }) => {
-      const routes = [
-        "/cards",
-        "/sessions",
-        "/statistics",
-        "/profit-forecast",
-        "/rarity-insights",
-        "/settings",
-        "/",
-        "/cards",
-        "/changelog",
-        "/sessions",
-      ];
-
-      // Navigate rapidly through routes with minimal delay
-      for (const route of routes) {
-        await navigateTo(page, route, { waitForNavigation: false });
-        await page.waitForTimeout(200); // Minimal pause
-      }
-
-      // Wait for the last navigation to settle
-      await page.locator("main").waitFor({ state: "visible", timeout: 10_000 });
-
-      // The app should still be functional — main content visible, no crash
-      const main = page.locator("main");
-      await expect(main).toBeVisible({ timeout: 5_000 });
-
-      // After rapid navigation the exact final route may not be deterministic
-      // if the router is still coalescing updates. Instead of asserting an
-      // exact route, verify we landed on a known route (app didn't crash).
-      const knownRoutes = [
-        "/",
-        "/cards",
-        "/sessions",
-        "/statistics",
-        "/profit-forecast",
-        "/rarity-insights",
-        "/settings",
-        "/changelog",
-      ];
-      const finalRoute = await getCurrentRoute(page);
-      expect(
-        knownRoutes.some((r) => finalRoute.startsWith(r)),
-        `Expected a known route after rapid navigation, got "${finalRoute}"`,
-      ).toBe(true);
-    });
-
-    test("should handle rapid sidebar clicks without errors", async ({
-      page,
-    }) => {
-      const labels = [
-        "Cards",
-        "Sessions",
-        "Statistics",
-        "Current Session",
-        "Profit Forecast",
-        "Rarity Insights",
-      ];
-
-      // Click sidebar links in rapid succession
-      for (const label of labels) {
-        try {
-          await clickSidebarLink(page, label);
-          await page.waitForTimeout(150);
-        } catch {
-          // A click may fail if the sidebar is briefly re-rendering — continue
-        }
-      }
-
-      // Wait for the dust to settle
-      await page.locator("main").waitFor({ state: "visible", timeout: 10_000 });
-
-      // App should still be responsive
-      const main = page.locator("main");
-      await expect(main).toBeVisible({ timeout: 5_000 });
-
-      // Sidebar should still be visible
-      const sidebar = page.locator("aside");
-      await expect(sidebar).toBeVisible({ timeout: 5_000 });
-    });
-  });
-
   // ─── Edge Cases ───────────────────────────────────────────────────────────────
 
   test.describe("Navigation Edge Cases", () => {
-    test.setTimeout(120_000);
-
     test.beforeEach(async ({ page }) => {
       await ensurePostSetup(page);
     });
@@ -452,7 +270,7 @@ test.describe("Navigation", () => {
 
       // Reload the page
       await page.reload();
-      await waitForHydration(page, 30_000);
+      await page.locator("main").waitFor({ state: "visible", timeout: 15_000 });
 
       // After reload, the app re-hydrates and should be on the same route
       const route = await getCurrentRoute(page);

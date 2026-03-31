@@ -1,4 +1,4 @@
-import { Flex, Search } from "~/renderer/components";
+import { Flex } from "~/renderer/components";
 import { useBoundStore } from "~/renderer/store";
 
 interface StatisticsActionsProps {
@@ -11,12 +11,7 @@ export const StatisticsActions = ({
   currentScope: _currentScope,
 }: StatisticsActionsProps) => {
   const {
-    statistics: {
-      selectedLeague,
-      setStatScope,
-      setSelectedLeague,
-      setSearchQuery,
-    },
+    statistics: { selectedLeague, setStatScope, setSelectedLeague },
   } = useBoundStore();
 
   const handleScopeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -35,15 +30,6 @@ export const StatisticsActions = ({
 
   return (
     <Flex className="gap-2 items-center">
-      <Search
-        onChange={setSearchQuery}
-        debounceMs={300}
-        placeholder="Search cards..."
-        size="sm"
-        className="w-40"
-        data-testid="statistics-search"
-      />
-
       <select
         className="select select-sm w-40"
         value={selectValue}

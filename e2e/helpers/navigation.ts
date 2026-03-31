@@ -127,8 +127,8 @@ export async function navigateTo(
       .poll(async () => page.evaluate(() => window.location.hash), { timeout })
       .toBe(`#${normalizedRoute}`);
 
-    // Allow React to settle after the route change
-    await page.waitForTimeout(200);
+    // Wait for the DOM to settle after the route change instead of a hard delay
+    await page.waitForLoadState("domcontentloaded");
   }
 }
 
@@ -229,11 +229,11 @@ export async function clickSidebarLink(
     await closeBtn.click({ timeout: 1_000 }).catch(() => {});
   }
 
-  // Brief settle after dismissing overlays
-  await page.waitForTimeout(200);
-
   // The sidebar uses <Nav /> with link labels
   const link = page.locator("aside").getByText(label, { exact: true });
+
+  // Wait for the link to be visible before clicking (replaces hard 200ms settle)
+  await expect(link).toBeVisible({ timeout: 5_000 });
 
   try {
     await link.click({ timeout: 10_000 });
@@ -242,8 +242,8 @@ export async function clickSidebarLink(
     await link.click({ force: true });
   }
 
-  // Wait for navigation to settle
-  await page.waitForTimeout(300);
+  // Wait for the DOM to settle after navigation instead of a hard 300ms delay
+  await page.waitForLoadState("domcontentloaded");
 }
 
 /**
@@ -300,6 +300,22 @@ export async function waitForMainShell(
  * @param page - The Playwright Page (main Electron window)
  */
 export async function ensurePostSetup(page: Page): Promise<void> {
+  // Fast path: if the sidebar is already visible and we're past setup,
+  // skip the expensive full hydration check.  This saves ~200-500ms per
+  // call on subsequent tests that share the same worker-scoped Electron
+  // instance (the common case).
+  const sidebarAlreadyVisible = await page
+    .locator("aside")
+    .isVisible({ timeout: 500 })
+    .catch(() => false);
+
+  if (sidebarAlreadyVisible) {
+    const currentRoute = await getCurrentRoute(page);
+    if (currentRoute !== "/setup" && currentRoute !== "") {
+      return; // Already set up and hydrated — nothing to do
+    }
+  }
+
   await waitForHydration(page, 45_000);
   const currentRoute = await getCurrentRoute(page);
   if (currentRoute === "/setup" || currentRoute === "") {
