@@ -29,8 +29,11 @@ import {
 async function goToSettings(page: Page) {
   await navigateTo(page, "/settings");
   await waitForRoute(page, "/settings", 10_000);
-  // Give time for settings data to hydrate from IPC
-  await page.waitForTimeout(1_500);
+  // Wait for settings cards to render (hydrated from IPC)
+  await page
+    .locator(".card")
+    .first()
+    .waitFor({ state: "visible", timeout: 10_000 });
 }
 
 test.describe("Settings – Cards (Data)", () => {
@@ -92,10 +95,9 @@ test.describe("Settings – Cards (Data)", () => {
 
       // Switch to "prohibited-library"
       await select.selectOption("prohibited-library");
-      await page.waitForTimeout(500);
-
-      const newValue = await select.inputValue();
-      expect(newValue).toBe("prohibited-library");
+      await expect(select).toHaveValue("prohibited-library", {
+        timeout: 5_000,
+      });
 
       // Verify IPC persistence
       const persisted = await getSetting<string>(page, "raritySource");
@@ -108,7 +110,7 @@ test.describe("Settings – Cards (Data)", () => {
 
       // Switch back to poe.ninja
       await select.selectOption("poe.ninja");
-      await page.waitForTimeout(500);
+      await expect(select).toHaveValue("poe.ninja", { timeout: 5_000 });
 
       const restoredPersisted = await getSetting<string>(page, "raritySource");
       expect(restoredPersisted).toBe("poe.ninja");
@@ -121,7 +123,7 @@ test.describe("Settings – Cards (Data)", () => {
       // Restore original if it was different
       if (originalValue !== "poe.ninja") {
         await select.selectOption(originalValue);
-        await page.waitForTimeout(300);
+        await expect(select).toHaveValue(originalValue, { timeout: 5_000 });
       }
     });
 
@@ -133,23 +135,23 @@ test.describe("Settings – Cards (Data)", () => {
 
       // Switch to poe.ninja
       await select.selectOption("poe.ninja");
-      await page.waitForTimeout(500);
-      expect(await select.inputValue()).toBe("poe.ninja");
+      await expect(select).toHaveValue("poe.ninja", { timeout: 5_000 });
 
       const persisted = await getSetting<string>(page, "raritySource");
       expect(persisted).toBe("poe.ninja");
 
       // Switch to prohibited-library
       await select.selectOption("prohibited-library");
-      await page.waitForTimeout(500);
-      expect(await select.inputValue()).toBe("prohibited-library");
+      await expect(select).toHaveValue("prohibited-library", {
+        timeout: 5_000,
+      });
 
       const persisted2 = await getSetting<string>(page, "raritySource");
       expect(persisted2).toBe("prohibited-library");
 
       // Restore to poe.ninja
       await select.selectOption("poe.ninja");
-      await page.waitForTimeout(300);
+      await expect(select).toHaveValue("poe.ninja", { timeout: 5_000 });
     });
 
     test("should show filter count after rescan when filters are available", async ({
@@ -193,7 +195,9 @@ test.describe("Settings – Cards (Data)", () => {
 
       // 2. Switch to prohibited-library → PL block should appear
       await select.selectOption("prohibited-library");
-      await page.waitForTimeout(500);
+      await expect(select).toHaveValue("prohibited-library", {
+        timeout: 5_000,
+      });
       await expect(
         card.getByText(/prohibited library data/i).first(),
       ).toBeVisible({ timeout: 5_000 });
@@ -206,17 +210,17 @@ test.describe("Settings – Cards (Data)", () => {
 
       // 4. Click Reload — should not crash
       await reloadButton.click();
-      await page.waitForTimeout(1_000);
-      await expect(reloadButton).toBeVisible();
+      await expect(reloadButton).toBeVisible({ timeout: 5_000 });
 
       // 5. Rescan filters
       await rescanButton.click();
-      await page.waitForTimeout(1_500);
-      await expect(rescanButton).toBeEnabled();
+      await expect(rescanButton).toBeEnabled({ timeout: 30_000 });
 
       // 6. Restore original source
       await select.selectOption(originalValue || "poe.ninja");
-      await page.waitForTimeout(300);
+      await expect(select).toHaveValue(originalValue || "poe.ninja", {
+        timeout: 5_000,
+      });
     });
   });
 
@@ -256,7 +260,6 @@ test.describe("Settings – Cards (Data)", () => {
     }) => {
       // Clear csvExportPath via IPC to ensure default state
       await setSetting(page, "csvExportPath", null);
-      await page.waitForTimeout(500);
 
       // Reload so the store rehydrates from IPC with the cleared value
       await page.reload();
@@ -294,7 +297,6 @@ test.describe("Settings – Cards (Data)", () => {
       // Set a custom export path via IPC
       const testPath = "C:\\Users\\test\\Desktop\\soothsayer-exports\\custom";
       await setSetting(page, "csvExportPath", testPath);
-      await page.waitForTimeout(500);
 
       // Reload so the store rehydrates from IPC with the new value
       await page.reload();
@@ -321,13 +323,13 @@ test.describe("Settings – Cards (Data)", () => {
 
       // Click the reveal toggle to show the full path
       await revealToggle.first().click();
-      await page.waitForTimeout(300);
+      await expect(pathInput).toHaveValue(testPath, { timeout: 5_000 });
       const revealedValue = await pathInput.inputValue();
       expect(revealedValue).toBe(testPath);
 
       // Click again to hide the path
       await revealToggle.first().click();
-      await page.waitForTimeout(300);
+      await expect(pathInput).not.toHaveValue(testPath, { timeout: 5_000 });
       const maskedValue = await pathInput.inputValue();
       // The masked value should differ from the full path (shorter due to masking)
       expect(maskedValue).not.toBe(testPath);
@@ -340,7 +342,7 @@ test.describe("Settings – Cards (Data)", () => {
 
       // Click Reset to default — should clear the custom path
       await resetButton.click();
-      await page.waitForTimeout(500);
+      await expect(pathInput).toHaveValue("", { timeout: 5_000 });
 
       const afterReset = await getSetting<string | null>(page, "csvExportPath");
       expect(afterReset).toBeNull();
@@ -356,7 +358,6 @@ test.describe("Settings – Cards (Data)", () => {
       // Set path via IPC
       const testPath = "C:\\Users\\test\\Documents\\soothsayer-exports";
       await setSetting(page, "csvExportPath", testPath);
-      await page.waitForTimeout(300);
 
       // Read back via IPC to confirm persistence
       const persisted = await getSetting<string>(page, "csvExportPath");
@@ -364,7 +365,6 @@ test.describe("Settings – Cards (Data)", () => {
 
       // Clean up
       await setSetting(page, "csvExportPath", null);
-      await page.waitForTimeout(300);
     });
 
     test("should have folder picker button wired to selectFile IPC", async ({

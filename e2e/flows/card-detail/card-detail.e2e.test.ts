@@ -391,7 +391,10 @@ test.describe("Card Detail Page", () => {
       // With seeded data, CardDetailsPersonal should show stats like
       // "Total Drops", "Drop Rate", "First Found", "Last Seen".
       // If no data was seeded, it shows "You haven't found this card yet".
-      await page.waitForTimeout(2_000);
+      await expect(page.locator("main")).toContainText(
+        /Total Drops|You haven't found this card yet/,
+        { timeout: 10_000 },
+      );
 
       const mainContent = page.locator("main");
       const content = await mainContent.textContent();
@@ -415,8 +418,11 @@ test.describe("Card Detail Page", () => {
       await goToCardDetail(page, "house-of-mirrors");
 
       // "Your Data" is the default active tab.
-      // Wait for analytics to load
-      await page.waitForTimeout(2_000);
+      // Wait for personal analytics to render (stats or empty state)
+      await expect(page.locator("main")).toContainText(
+        /Total Drops|You haven't found this card yet/,
+        { timeout: 10_000 },
+      );
 
       const mainContent = await page.locator("main").textContent();
 
@@ -443,8 +449,11 @@ test.describe("Card Detail Page", () => {
       await goToCardDetail(page, "house-of-mirrors");
 
       // "Your Data" is the default active tab.
-      // Wait for the chart to render
-      await page.waitForTimeout(3_000);
+      // Wait for personal analytics data to load before checking timeline
+      await expect(page.locator("main")).toContainText(
+        /Total Drops|You haven't found this card yet/,
+        { timeout: 10_000 },
+      );
 
       const mainContent = await page.locator("main").textContent();
 
@@ -487,7 +496,11 @@ test.describe("Card Detail Page", () => {
       await goToCardDetail(page, "house-of-mirrors");
 
       // "Your Data" is the default active tab.
-      await page.waitForTimeout(3_000);
+      // Wait for personal analytics data to load before checking timeline
+      await expect(page.locator("main")).toContainText(
+        /Total Drops|You haven't found this card yet/,
+        { timeout: 10_000 },
+      );
 
       const mainContent = await page.locator("main").textContent();
 
@@ -522,9 +535,11 @@ test.describe("Card Detail Page", () => {
       await goToCardDetail(page, "house-of-mirrors");
 
       // "Your Data" is the default tab — seeded data should produce charts
-      // Wait for Recharts to render — it uses ResponsiveContainer which
-      // may need a layout pass before rendering the SVG.
-      await page.waitForTimeout(3_000);
+      // Wait for personal analytics data to load before checking charts
+      await expect(page.locator("main")).toContainText(
+        /Total Drops|You haven't found this card yet/,
+        { timeout: 10_000 },
+      );
 
       // Check for Recharts wrapper divs
       const rechartsWrappers = page.locator(".recharts-wrapper");
@@ -563,7 +578,11 @@ test.describe("Card Detail Page", () => {
       await goToCardDetail(page, "house-of-mirrors");
 
       // "Your Data" is the default tab.
-      await page.waitForTimeout(3_000);
+      // Wait for personal analytics data to load before checking charts
+      await expect(page.locator("main")).toContainText(
+        /Total Drops|You haven't found this card yet/,
+        { timeout: 10_000 },
+      );
 
       const rechartsWrappers = page.locator(".recharts-wrapper");
       const wrapperCount = await rechartsWrappers.count();
@@ -596,7 +615,11 @@ test.describe("Card Detail Page", () => {
       await goToCardDetail(page, "house-of-mirrors");
 
       // "Your Data" is the default tab.
-      await page.waitForTimeout(3_000);
+      // Wait for personal analytics data to load before checking charts
+      await expect(page.locator("main")).toContainText(
+        /Total Drops|You haven't found this card yet/,
+        { timeout: 10_000 },
+      );
 
       const rechartsSurface = page.locator(".recharts-surface");
       const surfaceCount = await rechartsSurface.count();
@@ -745,8 +768,11 @@ test.describe("Card Detail Page", () => {
     }) => {
       await goToCardDetail(page, "the-nurse");
 
-      // Wait for related cards to load (fetched during initializeCardDetails)
-      await page.waitForTimeout(5_000);
+      // Wait for related cards — The Nurse has known chain cards
+      await expect(page.locator("main")).toContainText(
+        /Card Chain|Similar Cards/,
+        { timeout: 10_000 },
+      );
 
       const mainContent = await page.locator("main").textContent();
 
@@ -775,7 +801,12 @@ test.describe("Card Detail Page", () => {
       page,
     }) => {
       await goToCardDetail(page, "the-nurse");
-      await page.waitForTimeout(5_000);
+
+      // Wait for related cards — The Nurse has known chain cards
+      await expect(page.locator("main")).toContainText(
+        /Card Chain|Similar Cards/,
+        { timeout: 10_000 },
+      );
 
       const mainContent = await page.locator("main").textContent();
 
@@ -801,7 +832,12 @@ test.describe("Card Detail Page", () => {
       page,
     }) => {
       await goToCardDetail(page, "the-nurse");
-      await page.waitForTimeout(5_000);
+
+      // Wait for related cards — The Nurse has known chain cards
+      await expect(page.locator("main")).toContainText(
+        /Card Chain|Similar Cards/,
+        { timeout: 10_000 },
+      );
 
       const mainContent = await page.locator("main").textContent();
       const hasRelated =
@@ -853,7 +889,12 @@ test.describe("Card Detail Page", () => {
       page,
     }) => {
       await goToCardDetail(page, "the-nurse");
-      await page.waitForTimeout(5_000);
+
+      // Wait for related cards — The Nurse has known chain cards
+      await expect(page.locator("main")).toContainText(
+        /Card Chain|Similar Cards/,
+        { timeout: 10_000 },
+      );
 
       const mainContent = await page.locator("main").textContent();
       const hasRelated =
@@ -903,7 +944,13 @@ test.describe("Card Detail Page", () => {
       page,
     }) => {
       await goToCardDetail(page, "house-of-mirrors");
-      await page.waitForTimeout(5_000);
+
+      // Wait for related cards to finish loading — House of Mirrors may have
+      // chain cards (The Immortal upstream). Fall back to external links if none.
+      await expect(page.locator("main")).toContainText(
+        /Card Chain|poewiki\.net/,
+        { timeout: 10_000 },
+      );
 
       const mainContent = await page.locator("main").textContent();
 
@@ -947,8 +994,8 @@ test.describe("Card Detail Page", () => {
       });
       await marketTab.click();
 
-      // Wait for content to switch
-      await page.waitForTimeout(1_000);
+      // Wait for Market Data tab to become active
+      await expect(marketTab).toHaveClass(/tab-active/, { timeout: 5_000 });
 
       // Market Data tab should now be active
       const isMarketActive = await marketTab.evaluate((el) =>
@@ -978,14 +1025,14 @@ test.describe("Card Detail Page", () => {
         hasText: "Market Data",
       });
       await marketTab.click();
-      await page.waitForTimeout(1_000);
+      await expect(marketTab).toHaveClass(/tab-active/, { timeout: 5_000 });
 
       // Switch back to Your Data
       const yourDataTab = page.locator('button[role="tab"]', {
         hasText: "Your Data",
       });
       await yourDataTab.click();
-      await page.waitForTimeout(1_000);
+      await expect(yourDataTab).toHaveClass(/tab-active/, { timeout: 5_000 });
 
       // Your Data tab should be active again
       const isYourDataActive = await yourDataTab.evaluate((el) =>
@@ -1005,7 +1052,7 @@ test.describe("Card Detail Page", () => {
         hasText: "Market Data",
       });
       await marketTab.click();
-      await page.waitForTimeout(500);
+      await expect(marketTab).toHaveClass(/tab-active/, { timeout: 5_000 });
 
       // Route should still be the same card detail page
       let route = await getCurrentRoute(page);
@@ -1015,7 +1062,7 @@ test.describe("Card Detail Page", () => {
         hasText: "Your Data",
       });
       await yourDataTab.click();
-      await page.waitForTimeout(500);
+      await expect(yourDataTab).toHaveClass(/tab-active/, { timeout: 5_000 });
 
       route = await getCurrentRoute(page);
       expect(route).toBe("/cards/house-of-mirrors");
