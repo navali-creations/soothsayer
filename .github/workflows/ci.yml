@@ -30,10 +30,11 @@ permissions:
 
 env:
   CI: true
+  NODE_VERSION: 24
 
 jobs:
-  lint:
-    name: Lint
+  install:
+    name: Install Dependencies
     if: "!contains(github.event.head_commit.message, '[ci] release')"
     runs-on: ubuntu-latest
     steps:
@@ -46,17 +47,50 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
 
+      - name: Cache node_modules
+        id: cache-modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ hashFiles('pnpm-lock.yaml') }}
+
       - name: Install dependencies
+        if: steps.cache-modules.outputs.cache-hit != 'true'
         run: pnpm install
+
+  lint:
+    name: Lint
+    needs: [install]
+    if: "!contains(github.event.head_commit.message, '[ci] release')"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Restore node_modules cache
+        uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ hashFiles('pnpm-lock.yaml') }}
+          fail-on-cache-miss: true
 
       - name: Run Biome checks
         run: pnpm check
 
   typecheck:
     name: Typecheck
+    needs: [install]
     if: "!contains(github.event.head_commit.message, '[ci] release')"
     runs-on: ubuntu-latest
     steps:
@@ -69,11 +103,14 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 24
-          cache: pnpm
+          node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install dependencies
-        run: pnpm install
+      - name: Restore node_modules cache
+        uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ hashFiles('pnpm-lock.yaml') }}
+          fail-on-cache-miss: true
 
       - name: Run type checks
         run: pnpm typecheck
@@ -254,10 +291,11 @@ jobs:
 
   test-unit:
     name: Unit Tests (${{ matrix.suite }})
-    needs: [lint, typecheck, changes]
+    needs: [install, lint, typecheck, changes]
     if: >-
       always() &&
       !contains(github.event.head_commit.message, '[ci] release') &&
+      needs.install.result == 'success' &&
       needs.lint.result == 'success' &&
       needs.typecheck.result == 'success' &&
       (
@@ -289,11 +327,14 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 24
-          cache: pnpm
+          node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install dependencies
-        run: pnpm install
+      - name: Restore node_modules cache
+        uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ hashFiles('pnpm-lock.yaml') }}
+          fail-on-cache-miss: true
 
       - name: Run ${{ matrix.suite }} tests
         run: pnpm vitest run --config ${{ matrix.config }}
@@ -325,10 +366,11 @@ jobs:
 
   test-db:
     name: Database Tests (pgTAP)
-    needs: [lint, typecheck, changes]
+    needs: [install, lint, typecheck, changes]
     if: >-
       always() &&
       !contains(github.event.head_commit.message, '[ci] release') &&
+      needs.install.result == 'success' &&
       needs.lint.result == 'success' &&
       needs.typecheck.result == 'success' &&
       (
@@ -346,11 +388,14 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 24
-          cache: pnpm
+          node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install dependencies
-        run: pnpm install
+      - name: Restore node_modules cache
+        uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ hashFiles('pnpm-lock.yaml') }}
+          fail-on-cache-miss: true
 
       - name: Start Supabase (DB only)
         run: pnpx supabase start -x gotrue,realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor,inbucket,pg_meta
@@ -364,7 +409,7 @@ jobs:
 
   build:
     name: Build Check
-    needs: [lint, typecheck]
+    needs: [install, lint, typecheck]
     if: "!contains(github.event.head_commit.message, '[ci] release')"
     runs-on: ubuntu-latest
     steps:
@@ -377,18 +422,21 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 24
-          cache: pnpm
+          node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install dependencies
-        run: pnpm install
+      - name: Restore node_modules cache
+        uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ hashFiles('pnpm-lock.yaml') }}
+          fail-on-cache-miss: true
 
       - name: Package app (dry run)
         run: pnpm package
 
   smoke-test:
     name: Startup Smoke Test
-    needs: [lint, typecheck]
+    needs: [install, lint, typecheck]
     if: "!contains(github.event.head_commit.message, '[ci] release')"
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -402,11 +450,14 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 24
-          cache: pnpm
+          node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install dependencies
-        run: pnpm install
+      - name: Restore node_modules cache
+        uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ hashFiles('pnpm-lock.yaml') }}
+          fail-on-cache-miss: true
 
       - name: Package app
         run: pnpm package
@@ -554,7 +605,7 @@ jobs:
 
   e2e:
     name: Electron E2E Tests
-    needs: [smoke-test]
+    needs: [install, smoke-test]
     if: "!contains(github.event.head_commit.message, '[ci] release')"
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -568,11 +619,14 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 24
-          cache: pnpm
+          node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install dependencies
-        run: pnpm install
+      - name: Restore node_modules cache
+        uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ hashFiles('pnpm-lock.yaml') }}
+          fail-on-cache-miss: true
 
       - name: Install system dependencies for Electron
         run: |
