@@ -90,12 +90,13 @@ jobs:
       dep-kysely: ${{ steps.deps.outputs.kysely }}
       dep-better-sqlite3: ${{ steps.deps.outputs.better-sqlite3 }}
       dep-electron: ${{ steps.deps.outputs.electron }}
-      has-better-sqlite3-change: ${{ steps.pkg-diff.outputs.better-sqlite3 }}
+      electron-major-bump: ${{ steps.compat.outputs.electron-major-bump }}
+      sqlite3-compatible: ${{ steps.compat.outputs.sqlite3-compatible }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
       - name: Detect file changes
         id: filter
@@ -144,36 +145,111 @@ jobs:
             echo "electron=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Check package.json diff for actual dependency changes
-        id: pkg-diff
+      - name: Detect Electron major bump & better-sqlite3 compatibility
+        id: compat
         run: |
-          if git diff HEAD~1 -- package.json | grep -q '"better-sqlite3"'; then
-            echo "better-sqlite3=true" >> $GITHUB_OUTPUT
+          # Determine the base ref to diff against
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
           else
-            echo "better-sqlite3=false" >> $GITHUB_OUTPUT
+            BASE="HEAD~1"
+          fi
+
+          echo "Base ref: $BASE"
+
+          # --- Electron major bump detection ---
+          # Extract the major version number from the pinned electron dependency.
+          # Only major bumps change the Node/ABI version.
+          OLD_ELECTRON=$(git show "$BASE:package.json" | grep -oP '"electron":\s*"[\^~]?\K[0-9]+' || echo "")
+          NEW_ELECTRON=$(grep -oP '"electron":\s*"[\^~]?\K[0-9]+' package.json || echo "")
+
+          echo "Electron major: $OLD_ELECTRON → $NEW_ELECTRON"
+
+          if [ -n "$OLD_ELECTRON" ] && [ -n "$NEW_ELECTRON" ] && [ "$OLD_ELECTRON" != "$NEW_ELECTRON" ]; then
+            echo "electron-major-bump=true" >> $GITHUB_OUTPUT
+          else
+            echo "electron-major-bump=false" >> $GITHUB_OUTPUT
+          fi
+
+          # --- better-sqlite3 compatibility check ---
+          # We need to know if better-sqlite3 was bumped to a version that supports
+          # the new Electron ABI.  This can happen two ways:
+          #
+          #   A. better-sqlite3 is changed IN this PR (visible in base..HEAD diff)
+          #   B. better-sqlite3 was changed in a PRIOR merged PR and this PR was
+          #      rebased on top — so the bump is already in the base and does NOT
+          #      appear in the diff.
+          #
+          # To handle both cases we check whether the better-sqlite3 version at
+          # HEAD differs from what it was before the Electron major changed.
+          OLD_SQLITE=$(git show "$BASE:package.json" | grep -oP '"better-sqlite3":\s*"[\^~]?\K[0-9]+\.[0-9]+\.[0-9]+' || echo "")
+          NEW_SQLITE=$(grep -oP '"better-sqlite3":\s*"[\^~]?\K[0-9]+\.[0-9]+\.[0-9]+' package.json || echo "")
+
+          echo "better-sqlite3 at base: $OLD_SQLITE"
+          echo "better-sqlite3 at HEAD: $NEW_SQLITE"
+
+          COMPATIBLE="false"
+
+          # (A) Direct: better-sqlite3 changed in the PR diff
+          if [ "$OLD_SQLITE" != "$NEW_SQLITE" ]; then
+            COMPATIBLE="true"
+            echo "✅ better-sqlite3 changed in PR diff ($OLD_SQLITE → $NEW_SQLITE)"
+          fi
+
+          # (B) Indirect: after a rebase the sqlite bump may already be in the base,
+          #     so the base..HEAD diff won't show it.  Walk up to 100 ancestors of
+          #     the base looking for a commit where Electron was still at the OLD
+          #     major AND better-sqlite3 was at a DIFFERENT version than HEAD.
+          #     If such a commit exists, it proves that better-sqlite3 was bumped
+          #     between that point and HEAD — even if via a separate, already-merged PR.
+          if [ "$COMPATIBLE" = "false" ] && [ -n "$OLD_ELECTRON" ]; then
+            for SHA in $(git rev-list "$BASE" --max-count=100); do
+              E_MAJOR=$(git show "$SHA:package.json" 2>/dev/null | grep -oP '"electron":\s*"[\^~]?\K[0-9]+' || echo "")
+              if [ "$E_MAJOR" = "$OLD_ELECTRON" ]; then
+                PRIOR_SQLITE=$(git show "$SHA:package.json" 2>/dev/null | grep -oP '"better-sqlite3":\s*"[\^~]?\K[0-9]+\.[0-9]+\.[0-9]+' || echo "")
+                if [ -n "$PRIOR_SQLITE" ] && [ "$PRIOR_SQLITE" != "$NEW_SQLITE" ]; then
+                  COMPATIBLE="true"
+                  echo "Found Electron $OLD_ELECTRON at $SHA with better-sqlite3 $PRIOR_SQLITE"
+                  echo "✅ better-sqlite3 was bumped on base branch ($PRIOR_SQLITE → $NEW_SQLITE)"
+                  break
+                fi
+              fi
+            done
+          fi
+
+          if [ "$COMPATIBLE" = "true" ]; then
+            echo "sqlite3-compatible=true" >> $GITHUB_OUTPUT
+          else
+            echo "sqlite3-compatible=false" >> $GITHUB_OUTPUT
+            echo "⚠️  better-sqlite3 has NOT been updated alongside Electron"
           fi
 
   compat-guard:
     name: Electron ↔ better-sqlite3 Compatibility Guard
     needs: [changes]
+    # Only block when ALL of these are true:
+    #   1. Electron major version is changing (minor/patch don't affect ABI)
+    #   2. better-sqlite3 has NOT been updated — neither in this PR's diff
+    #      nor via a prior merge that was picked up by rebase
     if: >-
-      needs.changes.outputs.dep-electron == 'true' &&
-      needs.changes.outputs.dep-better-sqlite3 != 'true' &&
-      needs.changes.outputs.has-better-sqlite3-change != 'true'
+      needs.changes.outputs.electron-major-bump == 'true' &&
+      needs.changes.outputs.sqlite3-compatible != 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Block Electron bump without better-sqlite3
+      - name: Block Electron major bump without better-sqlite3
         run: |
-          echo "::error::This PR bumps Electron without a corresponding better-sqlite3 update."
+          echo "::error::This PR bumps Electron to a new MAJOR version without a corresponding better-sqlite3 update."
           echo ""
           echo "Electron major bumps change the Node/ABI version, which requires a"
           echo "compatible better-sqlite3 build. Please ensure better-sqlite3 also"
           echo "supports the new Electron version before merging."
           echo ""
           echo "Options:"
-          echo "  1. Wait for a better-sqlite3 release that supports the new Electron ABI."
-          echo "  2. Manually create a PR that bumps both electron AND better-sqlite3 together."
-          echo "  3. Comment '@dependabot ignore electron major version' to skip this major."
+          echo "  1. If better-sqlite3 was already bumped on the base branch, rebase"
+          echo "     this PR to pick it up — the guard will then detect the combined state."
+          echo "  2. Wait for a better-sqlite3 release that supports the new Electron ABI."
+          echo "  3. Manually create a PR that bumps both electron AND better-sqlite3 together."
+          echo "  4. Comment '@dependabot ignore electron major version' to skip this major."
           exit 1
 
   test-unit:
