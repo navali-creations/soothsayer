@@ -59,6 +59,7 @@ function setupStore(
     searchQuery?: string;
     showUncollectedCards?: boolean;
     uncollectedCardNames?: string[];
+    uncollectedCardMetadata?: Record<string, unknown>;
   } = {},
 ) {
   const store = {
@@ -68,6 +69,7 @@ function setupStore(
       setSearchQuery: vi.fn(),
       showUncollectedCards: overrides.showUncollectedCards ?? false,
       uncollectedCardNames: overrides.uncollectedCardNames ?? [],
+      uncollectedCardMetadata: overrides.uncollectedCardMetadata ?? {},
       toggleShowUncollectedCards: vi.fn(),
       snapshotMeta: null,
       isExporting: false,

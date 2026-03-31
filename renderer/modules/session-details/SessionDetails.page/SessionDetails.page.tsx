@@ -55,7 +55,7 @@ const SessionDetailsPage = () => {
   }, [sessionId, session]);
 
   const calculateDuration = () => {
-    if (!session || !session.startedAt) return "—";
+    if (!session?.startedAt) return "—";
 
     const start = new Date(session.startedAt);
 

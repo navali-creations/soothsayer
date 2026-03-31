@@ -8,7 +8,10 @@ import type {
 } from "~/renderer/components/CombinedChartCanvas/chart-types";
 import { METRICS } from "~/renderer/components/CombinedChartCanvas/chart-types";
 import type { BoundStore } from "~/renderer/store/store.types";
-import type { SimpleDivinationCardStats } from "~/types/data-stores";
+import type {
+  DivinationCardMetadata,
+  SimpleDivinationCardStats,
+} from "~/types/data-stores";
 
 import type { SessionHighlights } from "../Statistics.types";
 
@@ -52,6 +55,7 @@ export interface StatisticsSlice {
     sessionHighlights: SessionHighlights | null;
     stackedDeckCardCount: number | null;
     uncollectedCardNames: string[];
+    uncollectedCardMetadata: Record<string, DivinationCardMetadata>;
     isLoadingHighlights: boolean;
 
     divinationCardStats: SimpleDivinationCardStats | null;
@@ -123,6 +127,7 @@ export const createStatisticsSlice: StateCreator<
     sessionHighlights: null,
     stackedDeckCardCount: null,
     uncollectedCardNames: [],
+    uncollectedCardMetadata: {},
     isLoadingHighlights: false,
 
     divinationCardStats: null,
@@ -286,12 +291,33 @@ export const createStatisticsSlice: StateCreator<
     },
     fetchUncollectedCardNames: async (game, league) => {
       try {
-        const names = await window.electron.sessions.getUncollectedCardNames(
-          game,
-          league,
-        );
+        const [names, allCards] = await Promise.all([
+          window.electron.sessions.getUncollectedCardNames(game, league),
+          window.electron.divinationCards.getAll(game),
+        ]);
+
+        const metadataMap: Record<string, DivinationCardMetadata> = {};
+        if (Array.isArray(allCards)) {
+          const uncollectedSet = new Set(names);
+          for (const card of allCards) {
+            if (uncollectedSet.has(card.name)) {
+              metadataMap[card.name] = {
+                id: card.id,
+                stackSize: card.stackSize,
+                description: card.description,
+                rewardHtml: card.rewardHtml,
+                artSrc: card.artSrc,
+                flavourHtml: card.flavourHtml,
+                rarity: card.rarity,
+                fromBoss: card.fromBoss,
+              };
+            }
+          }
+        }
+
         set(({ statistics }) => {
           statistics.uncollectedCardNames = names;
+          statistics.uncollectedCardMetadata = metadataMap;
         });
       } catch (error) {
         console.error("Failed to fetch uncollected card names:", error);

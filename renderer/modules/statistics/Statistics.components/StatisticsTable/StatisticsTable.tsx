@@ -34,6 +34,7 @@ export const StatisticsTable = ({
       showUncollectedCards,
       toggleShowUncollectedCards,
       uncollectedCardNames,
+      uncollectedCardMetadata,
       snapshotMeta,
       isExporting,
       fetchSnapshotMeta,
@@ -57,10 +58,16 @@ export const StatisticsTable = ({
       name,
       count: 0,
       ratio: 0,
+      divinationCard: uncollectedCardMetadata[name],
     }));
 
     return uncollected;
-  }, [cardData, showUncollectedCards, uncollectedCardNames]);
+  }, [
+    cardData,
+    showUncollectedCards,
+    uncollectedCardNames,
+    uncollectedCardMetadata,
+  ]);
 
   const totalCount = useMemo(
     () => cardData.reduce((sum, card) => sum + card.count, 0),
