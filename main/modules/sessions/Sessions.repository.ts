@@ -429,6 +429,7 @@ export class SessionsRepository {
     profit: number;
     league: string;
     chaosPerDivine: number;
+    totalDecksOpened: number;
   } | null> {
     let query = this.kysely
       .selectFrom("sessions as s")
@@ -439,6 +440,9 @@ export class SessionsRepository {
         "s.id as sessionId",
         "s.started_at as date",
         "l.name as league",
+        sql<number>`COALESCE(ss.total_decks_opened, s.total_count)`.as(
+          "totalDecksOpened",
+        ),
         sql<number>`
           COALESCE(
             ss.total_exchange_net_profit,
@@ -512,6 +516,7 @@ export class SessionsRepository {
       profit: row.profit,
       league: row.league,
       chaosPerDivine: row.chaosPerDivine,
+      totalDecksOpened: row.totalDecksOpened,
     };
   }
 
@@ -527,6 +532,7 @@ export class SessionsRepository {
     sessionId: string;
     date: string;
     durationMinutes: number;
+    totalDecksOpened: number;
   } | null> {
     let query = this.kysely
       .selectFrom("sessions as s")
@@ -545,6 +551,9 @@ export class SessionsRepository {
             END
           )
         `.as("durationMinutes"),
+        sql<number>`COALESCE(ss.total_decks_opened, s.total_count)`.as(
+          "totalDecksOpened",
+        ),
       ])
       .where("s.game", "=", game)
       .where("s.is_active", "=", 0)
@@ -566,6 +575,7 @@ export class SessionsRepository {
       sessionId: row.sessionId,
       date: row.date,
       durationMinutes: row.durationMinutes,
+      totalDecksOpened: row.totalDecksOpened,
     };
   }
 
@@ -581,6 +591,7 @@ export class SessionsRepository {
     sessionId: string;
     date: string;
     totalDecksOpened: number;
+    durationMinutes: number | null;
   } | null> {
     let query = this.kysely
       .selectFrom("sessions as s")
@@ -592,6 +603,16 @@ export class SessionsRepository {
         sql<number>`COALESCE(ss.total_decks_opened, s.total_count)`.as(
           "totalDecksOpened",
         ),
+        sql<number>`
+          COALESCE(
+            ss.duration_minutes,
+            CASE
+              WHEN s.ended_at IS NOT NULL
+              THEN CAST((JULIANDAY(s.ended_at) - JULIANDAY(s.started_at)) * 24 * 60 AS INTEGER)
+              ELSE NULL
+            END
+          )
+        `.as("durationMinutes"),
       ])
       .where("s.game", "=", game)
       .where("s.is_active", "=", 0)
@@ -612,6 +633,7 @@ export class SessionsRepository {
       sessionId: row.sessionId,
       date: row.date,
       totalDecksOpened: row.totalDecksOpened,
+      durationMinutes: row.durationMinutes ?? null,
     };
   }
 
@@ -857,6 +879,61 @@ export class SessionsRepository {
     };
   }
 
+  async getTotalNetProfit(
+    game: "poe1" | "poe2",
+    league?: string,
+  ): Promise<{
+    totalProfit: number;
+    avgChaosPerDivine: number;
+    avgDeckCost: number;
+  } | null> {
+    let query = this.kysely
+      .selectFrom("sessions as s")
+      .leftJoin("session_summaries as ss", "s.id", "ss.session_id")
+      .innerJoin("leagues as l", "s.league_id", "l.id")
+      .leftJoin("snapshots as snap", "s.snapshot_id", "snap.id")
+      .select([
+        sql<number>`SUM(
+          COALESCE(
+            ss.total_exchange_net_profit,
+            (
+              SELECT COALESCE(SUM(sc.count * scp.chaos_value), 0)
+              FROM session_cards sc
+              LEFT JOIN snapshot_card_prices scp
+                ON scp.snapshot_id = s.snapshot_id
+                AND scp.card_name = sc.card_name
+                AND scp.price_source = 'exchange'
+              WHERE sc.session_id = s.id
+                AND sc.hide_price_exchange = 0
+            ) - COALESCE(snap.stacked_deck_chaos_cost, 0) * s.total_count
+          )
+        )`.as("totalProfit"),
+        sql<number>`AVG(COALESCE(ss.exchange_chaos_to_divine, snap.exchange_chaos_to_divine, 0))`.as(
+          "avgChaosPerDivine",
+        ),
+        sql<number>`AVG(COALESCE(snap.stacked_deck_chaos_cost, 0))`.as(
+          "avgDeckCost",
+        ),
+      ])
+      .where("s.game", "=", game)
+      .where("s.is_active", "=", 0)
+      .where("s.total_count", ">", 0);
+
+    if (league) {
+      query = query.where("l.name", "=", league);
+    }
+
+    const row = await query.executeTakeFirst();
+
+    if (!row || row.totalProfit === null) return null;
+
+    return {
+      totalProfit: row.totalProfit,
+      avgChaosPerDivine: row.avgChaosPerDivine,
+      avgDeckCost: row.avgDeckCost ?? 0,
+    };
+  }
+
   /**
    * Get total stacked decks opened across all sessions
    * @param game - Game type filter
@@ -1011,5 +1088,94 @@ export class SessionsRepository {
       exchangeNetProfit: Number(row.exchangeNetProfit) || 0,
       chaosPerDivine: Number(row.chaosPerDivine) || 0,
     }));
+  }
+
+  async getTotalTimeSpent(
+    game: "poe1" | "poe2",
+    league?: string,
+  ): Promise<{
+    totalMinutes: number;
+  } | null> {
+    let query = this.kysely
+      .selectFrom("sessions as s")
+      .leftJoin("session_summaries as ss", "s.id", "ss.session_id")
+      .innerJoin("leagues as l", "s.league_id", "l.id")
+      .select([
+        sql<number>`SUM(
+          COALESCE(
+            ss.duration_minutes,
+            CASE
+              WHEN s.ended_at IS NOT NULL
+              THEN CAST((JULIANDAY(s.ended_at) - JULIANDAY(s.started_at)) * 24 * 60 AS INTEGER)
+              ELSE NULL
+            END
+          )
+        )`.as("totalMinutes"),
+      ])
+      .where("s.game", "=", game)
+      .where("s.is_active", "=", 0)
+      .where("s.total_count", ">", 0);
+
+    if (league) {
+      query = query.where("l.name", "=", league);
+    }
+
+    const row = await query.executeTakeFirst();
+
+    if (!row || row.totalMinutes === null) return null;
+
+    return {
+      totalMinutes: row.totalMinutes,
+    };
+  }
+
+  async getWinRate(
+    game: "poe1" | "poe2",
+    league?: string,
+  ): Promise<{
+    profitableSessions: number;
+    totalSessions: number;
+    winRate: number;
+  } | null> {
+    let query = this.kysely
+      .selectFrom("sessions as s")
+      .leftJoin("session_summaries as ss", "s.id", "ss.session_id")
+      .innerJoin("leagues as l", "s.league_id", "l.id")
+      .leftJoin("snapshots as snap", "s.snapshot_id", "snap.id")
+      .select([
+        sql<number>`COUNT(*)`.as("totalSessions"),
+        sql<number>`SUM(
+          CASE WHEN COALESCE(
+            ss.total_exchange_net_profit,
+            (
+              SELECT COALESCE(SUM(sc.count * scp.chaos_value), 0)
+              FROM session_cards sc
+              LEFT JOIN snapshot_card_prices scp
+                ON scp.snapshot_id = s.snapshot_id
+                AND scp.card_name = sc.card_name
+                AND scp.price_source = 'exchange'
+              WHERE sc.session_id = s.id
+                AND sc.hide_price_exchange = 0
+            ) - COALESCE(snap.stacked_deck_chaos_cost, 0) * s.total_count
+          ) > 0 THEN 1 ELSE 0 END
+        )`.as("profitableSessions"),
+      ])
+      .where("s.game", "=", game)
+      .where("s.is_active", "=", 0)
+      .where("s.total_count", ">", 0);
+
+    if (league) {
+      query = query.where("l.name", "=", league);
+    }
+
+    const row = await query.executeTakeFirst();
+
+    if (!row || row.totalSessions === 0) return null;
+
+    return {
+      profitableSessions: row.profitableSessions,
+      totalSessions: row.totalSessions,
+      winRate: row.profitableSessions / row.totalSessions,
+    };
   }
 }

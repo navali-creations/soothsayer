@@ -63,16 +63,19 @@ const defaultHighlights: SessionHighlights = {
     profit: 1234,
     league: "Settlers",
     chaosPerDivine: 0,
+    totalDecksOpened: 100,
   },
   longestSession: {
     sessionId: "s2",
     date: "2025-01-16T12:00:00Z",
     durationMinutes: 90,
+    totalDecksOpened: 75,
   },
   mostDecksOpened: {
     sessionId: "s3",
     date: "2025-01-17T12:00:00Z",
     totalDecksOpened: 500,
+    durationMinutes: 45,
   },
   biggestLetdown: {
     sessionId: "s4",
@@ -97,6 +100,28 @@ const defaultHighlights: SessionHighlights = {
     avgDurationMinutes: 45,
     avgChaosPerDivine: 200,
     sessionCount: 10,
+  },
+  totalNetProfit: {
+    totalProfit: 5000,
+    avgChaosPerDivine: 200,
+    avgDeckCost: 3,
+  },
+  totalTimeSpent: {
+    totalMinutes: 450,
+  },
+  winRate: {
+    profitableSessions: 7,
+    totalSessions: 10,
+    winRate: 0.7,
+  },
+  avgProfitPerDeck: {
+    avgProfitPerDeck: 5,
+    avgChaosPerDivine: 200,
+    avgDeckCost: 3,
+  },
+  profitPerHour: {
+    profitPerHour: 666.67,
+    avgChaosPerDivine: 200,
   },
 };
 
@@ -179,40 +204,54 @@ describe("StatisticsStats", () => {
       <StatisticsStats totalCount={100} uniqueCardCount={5} />,
     );
 
-    // Row 1 — highlights
+    // Row 1 — Decks
     expect(screen.getByText("Stacked Decks Opened")).toBeInTheDocument();
-    expect(screen.getByText("Most Profitable Session")).toBeInTheDocument();
-    expect(screen.getByText("Biggest Letdown")).toBeInTheDocument();
-    expect(screen.getByText("Longest Session")).toBeInTheDocument();
-    expect(screen.getByText("Most Decks Opened")).toBeInTheDocument();
-
-    // Row 2 — averages/detail
     expect(screen.getByText("Avg. Decks Per Session")).toBeInTheDocument();
+    expect(screen.getByText("Most Decks Opened")).toBeInTheDocument();
+    expect(screen.getByText("Longest Session")).toBeInTheDocument();
     expect(screen.getByText("Avg. Session Duration")).toBeInTheDocument();
+
+    // Row 2 — Profits
+    expect(screen.getByText("Total Net Profit")).toBeInTheDocument();
+    expect(screen.getByText("Most Profitable Session")).toBeInTheDocument();
     expect(screen.getByText("Avg. Profit Per Session")).toBeInTheDocument();
+    expect(screen.getByText("Avg. Profit Per Deck")).toBeInTheDocument();
+    expect(screen.getByText("Profit Per Hour")).toBeInTheDocument();
+
+    // Row 3 — Misc
+    expect(screen.getByText("Win Rate")).toBeInTheDocument();
+    expect(screen.getByText("Biggest Letdown")).toBeInTheDocument();
     expect(screen.getByText("Lucky Break")).toBeInTheDocument();
+    expect(screen.getByText("Total Time Spent")).toBeInTheDocument();
   });
 
   // ── All-time scope ─────────────────────────────────────────────────────
 
-  it("renders 5 highlight cards and 4 average/detail cards for all-time scope", () => {
+  it("renders all stat cards for all-time scope", () => {
     setupStore({ statScope: "all-time" });
     renderWithProviders(
       <StatisticsStats totalCount={100} uniqueCardCount={5} />,
     );
 
-    // Row 1
+    // Row 1 — Decks
     expect(screen.getByText("Stacked Decks Opened")).toBeInTheDocument();
-    expect(screen.getByText("Longest Session")).toBeInTheDocument();
-    expect(screen.getByText("Most Profitable Session")).toBeInTheDocument();
-    expect(screen.getByText("Biggest Letdown")).toBeInTheDocument();
-    expect(screen.getByText("Most Decks Opened")).toBeInTheDocument();
-
-    // Row 2
     expect(screen.getByText("Avg. Decks Per Session")).toBeInTheDocument();
+    expect(screen.getByText("Most Decks Opened")).toBeInTheDocument();
+    expect(screen.getByText("Longest Session")).toBeInTheDocument();
     expect(screen.getByText("Avg. Session Duration")).toBeInTheDocument();
+
+    // Row 2 — Profits
+    expect(screen.getByText("Total Net Profit")).toBeInTheDocument();
+    expect(screen.getByText("Most Profitable Session")).toBeInTheDocument();
     expect(screen.getByText("Avg. Profit Per Session")).toBeInTheDocument();
+    expect(screen.getByText("Avg. Profit Per Deck")).toBeInTheDocument();
+    expect(screen.getByText("Profit Per Hour")).toBeInTheDocument();
+
+    // Row 3 — Misc
+    expect(screen.getByText("Win Rate")).toBeInTheDocument();
+    expect(screen.getByText("Biggest Letdown")).toBeInTheDocument();
     expect(screen.getByText("Lucky Break")).toBeInTheDocument();
+    expect(screen.getByText("Total Time Spent")).toBeInTheDocument();
   });
 
   it("does NOT render Unique Cards Collected in all-time scope", () => {
@@ -228,24 +267,31 @@ describe("StatisticsStats", () => {
 
   // ── League scope ───────────────────────────────────────────────────────
 
-  it("renders 5 highlight cards and 5 average/detail cards for league scope", () => {
+  it("renders all stat cards including Unique Cards Collected for league scope", () => {
     setupStore({ statScope: "league", selectedLeague: "Settlers" });
     renderWithProviders(
       <StatisticsStats totalCount={100} uniqueCardCount={5} />,
     );
 
-    // Row 1
+    // Row 1 — Decks
     expect(screen.getByText("Stacked Decks Opened")).toBeInTheDocument();
-    expect(screen.getByText("Longest Session")).toBeInTheDocument();
-    expect(screen.getByText("Most Decks Opened")).toBeInTheDocument();
-    expect(screen.getByText("Most Profitable Session")).toBeInTheDocument();
-    expect(screen.getByText("Biggest Letdown")).toBeInTheDocument();
-
-    // Row 2
     expect(screen.getByText("Avg. Decks Per Session")).toBeInTheDocument();
+    expect(screen.getByText("Most Decks Opened")).toBeInTheDocument();
+    expect(screen.getByText("Longest Session")).toBeInTheDocument();
     expect(screen.getByText("Avg. Session Duration")).toBeInTheDocument();
+
+    // Row 2 — Profits
+    expect(screen.getByText("Total Net Profit")).toBeInTheDocument();
+    expect(screen.getByText("Most Profitable Session")).toBeInTheDocument();
     expect(screen.getByText("Avg. Profit Per Session")).toBeInTheDocument();
+    expect(screen.getByText("Avg. Profit Per Deck")).toBeInTheDocument();
+    expect(screen.getByText("Profit Per Hour")).toBeInTheDocument();
+
+    // Row 3 — Misc (league includes Unique Cards Collected as last card)
+    expect(screen.getByText("Win Rate")).toBeInTheDocument();
+    expect(screen.getByText("Biggest Letdown")).toBeInTheDocument();
     expect(screen.getByText("Lucky Break")).toBeInTheDocument();
+    expect(screen.getByText("Total Time Spent")).toBeInTheDocument();
     expect(screen.getByText("Unique Cards Collected")).toBeInTheDocument();
   });
 

@@ -11,6 +11,7 @@ export interface MostProfitableSessionHighlight {
   profit: number;
   league: string;
   chaosPerDivine: number;
+  totalDecksOpened: number;
 }
 
 /** Highlight data for the longest session */
@@ -18,6 +19,7 @@ export interface LongestSessionHighlight {
   sessionId: string;
   date: string;
   durationMinutes: number;
+  totalDecksOpened: number;
 }
 
 /** Highlight data for the session with the most decks opened */
@@ -25,6 +27,7 @@ export interface MostDecksOpenedHighlight {
   sessionId: string;
   date: string;
   totalDecksOpened: number;
+  durationMinutes: number | null;
 }
 
 /** Highlight data for the session with the most decks opened but worst profit */
@@ -56,6 +59,38 @@ export interface SessionAverages {
   sessionCount: number;
 }
 
+/** Aggregated net profit across all sessions */
+export interface TotalNetProfitHighlight {
+  totalProfit: number;
+  avgChaosPerDivine: number;
+  avgDeckCost: number;
+}
+
+/** Aggregated total time spent across all sessions */
+export interface TotalTimeSpentHighlight {
+  totalMinutes: number;
+}
+
+/** Win rate — percentage of profitable sessions */
+export interface WinRateHighlight {
+  profitableSessions: number;
+  totalSessions: number;
+  winRate: number;
+}
+
+/** Avg profit per deck — derived from total profit and total decks */
+export interface AvgProfitPerDeckHighlight {
+  avgProfitPerDeck: number;
+  avgChaosPerDivine: number;
+  avgDeckCost: number;
+}
+
+/** Profit per hour — derived from total profit and total time */
+export interface ProfitPerHourHighlight {
+  profitPerHour: number;
+  avgChaosPerDivine: number;
+}
+
 /** Aggregated session highlights for stat cards */
 export interface SessionHighlights {
   mostProfitable: MostProfitableSessionHighlight | null;
@@ -65,4 +100,9 @@ export interface SessionHighlights {
   luckyBreak: LuckyBreakHighlight | null;
   totalDecksOpened: number;
   averages: SessionAverages | null;
+  totalNetProfit: TotalNetProfitHighlight | null;
+  totalTimeSpent: TotalTimeSpentHighlight | null;
+  winRate: WinRateHighlight | null;
+  avgProfitPerDeck: AvgProfitPerDeckHighlight | null;
+  profitPerHour: ProfitPerHourHighlight | null;
 }

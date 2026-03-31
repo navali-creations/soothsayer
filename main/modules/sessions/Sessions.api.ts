@@ -13,6 +13,9 @@ import type {
   MostProfitableSessionDTO,
   SessionAveragesDTO,
   SessionChartDataPointDTO,
+  TotalNetProfitDTO,
+  TotalTimeSpentDTO,
+  WinRateDTO,
 } from "./Sessions.dto";
 
 interface SessionSummary {
@@ -103,6 +106,11 @@ const SessionsAPI = {
     league?: string,
   ): Promise<SessionAveragesDTO | null> =>
     ipcRenderer.invoke(SessionsChannel.GetSessionAverages, game, league),
+  getTotalNetProfit: (
+    game: GameType,
+    league?: string,
+  ): Promise<TotalNetProfitDTO | null> =>
+    ipcRenderer.invoke(SessionsChannel.GetTotalNetProfit, game, league),
   getStackedDeckCardCount: (game: GameType): Promise<number> =>
     ipcRenderer.invoke(SessionsChannel.GetStackedDeckCardCount, game),
   getStackedDeckCardNames: (game: GameType): Promise<string[]> =>
@@ -117,6 +125,13 @@ const SessionsAPI = {
     league?: string,
   ): Promise<SessionChartDataPointDTO[]> =>
     ipcRenderer.invoke(SessionsChannel.GetChartData, game, league),
+  getTotalTimeSpent: (
+    game: GameType,
+    league?: string,
+  ): Promise<TotalTimeSpentDTO | null> =>
+    ipcRenderer.invoke(SessionsChannel.GetTotalTimeSpent, game, league),
+  getWinRate: (game: GameType, league?: string): Promise<WinRateDTO | null> =>
+    ipcRenderer.invoke(SessionsChannel.GetWinRate, game, league),
 };
 
 export type {
@@ -129,5 +144,8 @@ export type {
   SessionChartDataPointDTO,
   SessionSummary,
   SessionsPage,
+  TotalNetProfitDTO,
+  TotalTimeSpentDTO,
+  WinRateDTO,
 };
 export { SessionsAPI };

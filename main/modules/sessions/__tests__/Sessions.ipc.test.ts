@@ -264,10 +264,13 @@ describe("SessionsService — IPC handlers", () => {
         SessionsChannel.GetUncollectedCardNames,
       );
       expect(registeredChannels).toContain(SessionsChannel.GetChartData);
+      expect(registeredChannels).toContain(SessionsChannel.GetTotalNetProfit);
+      expect(registeredChannels).toContain(SessionsChannel.GetTotalTimeSpent);
+      expect(registeredChannels).toContain(SessionsChannel.GetWinRate);
     });
 
-    it("should register exactly 14 IPC handlers", () => {
-      expect(mockIpcHandle).toHaveBeenCalledTimes(14);
+    it("should register exactly 17 IPC handlers", () => {
+      expect(mockIpcHandle).toHaveBeenCalledTimes(17);
     });
   });
 

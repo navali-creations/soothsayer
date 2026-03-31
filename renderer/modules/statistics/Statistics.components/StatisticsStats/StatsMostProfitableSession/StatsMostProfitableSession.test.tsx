@@ -58,6 +58,7 @@ function createData(
     profit: 1234,
     league: "Settlers",
     chaosPerDivine: 0,
+    totalDecksOpened: 100,
     ...overrides,
   };
 }

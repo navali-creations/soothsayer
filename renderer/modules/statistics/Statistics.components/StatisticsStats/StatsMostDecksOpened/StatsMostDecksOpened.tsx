@@ -8,6 +8,13 @@ interface StatsMostDecksOpenedProps {
   data: MostDecksOpenedHighlight | null;
 }
 
+function formatDuration(minutes: number): string {
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
+}
+
 export const StatsMostDecksOpened = ({ data }: StatsMostDecksOpenedProps) => {
   const navigate = useNavigate();
 
@@ -37,7 +44,12 @@ export const StatsMostDecksOpened = ({ data }: StatsMostDecksOpenedProps) => {
       )}
       <Stat.Title>Most Decks Opened</Stat.Title>
       <Stat.Value className="text-lg tabular-nums">{formattedCount}</Stat.Value>
-      <Stat.Desc>{!data && <span>No sessions yet</span>}</Stat.Desc>
+      <Stat.Desc>
+        {data?.durationMinutes != null && (
+          <span>{formatDuration(data.durationMinutes)} session</span>
+        )}
+        {!data && <span>No sessions yet</span>}
+      </Stat.Desc>
     </Stat>
   );
 };

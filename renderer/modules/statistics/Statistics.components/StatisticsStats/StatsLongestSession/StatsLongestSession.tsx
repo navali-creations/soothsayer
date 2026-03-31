@@ -46,7 +46,12 @@ export const StatsLongestSession = ({ data }: StatsLongestSessionProps) => {
       <Stat.Value className="text-lg tabular-nums">
         {formattedDuration}
       </Stat.Value>
-      <Stat.Desc>{!data && <span>No sessions yet</span>}</Stat.Desc>
+      <Stat.Desc>
+        {data?.totalDecksOpened != null && (
+          <span>{data.totalDecksOpened.toLocaleString()} decks opened</span>
+        )}
+        {!data && <span>No sessions yet</span>}
+      </Stat.Desc>
     </Stat>
   );
 };

@@ -191,6 +191,28 @@ class SessionsService {
     );
 
     ipcMain.handle(
+      SessionsChannel.GetTotalNetProfit,
+      async (_event, game: "poe1" | "poe2", league?: string) => {
+        try {
+          assertGameType(game, SessionsChannel.GetTotalNetProfit);
+          assertOptionalString(
+            league,
+            "league",
+            SessionsChannel.GetTotalNetProfit,
+            256,
+          );
+          const leagueFilter = league && league !== "all" ? league : undefined;
+          return this.repository.getTotalNetProfit(game, leagueFilter);
+        } catch (error) {
+          return handleValidationError(
+            error,
+            SessionsChannel.GetTotalNetProfit,
+          );
+        }
+      },
+    );
+
+    ipcMain.handle(
       SessionsChannel.GetMostDecksOpened,
       async (_event, game: "poe1" | "poe2", league?: string) => {
         try {
@@ -341,6 +363,47 @@ class SessionsService {
           return this.repository.getSessionChartData(game, leagueFilter);
         } catch (error) {
           return handleValidationError(error, SessionsChannel.GetChartData);
+        }
+      },
+    );
+
+    ipcMain.handle(
+      SessionsChannel.GetTotalTimeSpent,
+      async (_event, game: "poe1" | "poe2", league?: string) => {
+        try {
+          assertGameType(game, SessionsChannel.GetTotalTimeSpent);
+          assertOptionalString(
+            league,
+            "league",
+            SessionsChannel.GetTotalTimeSpent,
+            256,
+          );
+          const leagueFilter = league && league !== "all" ? league : undefined;
+          return this.repository.getTotalTimeSpent(game, leagueFilter);
+        } catch (error) {
+          return handleValidationError(
+            error,
+            SessionsChannel.GetTotalTimeSpent,
+          );
+        }
+      },
+    );
+
+    ipcMain.handle(
+      SessionsChannel.GetWinRate,
+      async (_event, game: "poe1" | "poe2", league?: string) => {
+        try {
+          assertGameType(game, SessionsChannel.GetWinRate);
+          assertOptionalString(
+            league,
+            "league",
+            SessionsChannel.GetWinRate,
+            256,
+          );
+          const leagueFilter = league && league !== "all" ? league : undefined;
+          return this.repository.getWinRate(game, leagueFilter);
+        } catch (error) {
+          return handleValidationError(error, SessionsChannel.GetWinRate);
         }
       },
     );

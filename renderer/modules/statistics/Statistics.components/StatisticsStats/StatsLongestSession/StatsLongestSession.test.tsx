@@ -56,6 +56,7 @@ function createData(
     sessionId: "session-1",
     date: "2024-06-15T10:30:00.000Z",
     durationMinutes: 90,
+    totalDecksOpened: 75,
     ...overrides,
   };
 }

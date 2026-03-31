@@ -4,6 +4,7 @@ import { useBoundStore } from "~/renderer/store";
 
 import { StatisticsOpenedDecksStat } from "../StatisticsOpenedDecksStat/StatisticsOpenedDecksStat";
 import { StatsAvgDecksPerSession } from "../StatsAvgDecksPerSession/StatsAvgDecksPerSession";
+import { StatsAvgProfitPerDeck } from "../StatsAvgProfitPerDeck/StatsAvgProfitPerDeck";
 import { StatsAvgProfitPerSession } from "../StatsAvgProfitPerSession/StatsAvgProfitPerSession";
 import { StatsAvgSessionDuration } from "../StatsAvgSessionDuration/StatsAvgSessionDuration";
 import { StatsBiggestLetdown } from "../StatsBiggestLetdown/StatsBiggestLetdown";
@@ -11,7 +12,11 @@ import { StatsLongestSession } from "../StatsLongestSession/StatsLongestSession"
 import { StatsLuckyBreak } from "../StatsLuckyBreak/StatsLuckyBreak";
 import { StatsMostDecksOpened } from "../StatsMostDecksOpened/StatsMostDecksOpened";
 import { StatsMostProfitableSession } from "../StatsMostProfitableSession/StatsMostProfitableSession";
+import { StatsProfitPerHour } from "../StatsProfitPerHour/StatsProfitPerHour";
+import { StatsTotalNetProfit } from "../StatsTotalNetProfit/StatsTotalNetProfit";
+import { StatsTotalTimeSpent } from "../StatsTotalTimeSpent/StatsTotalTimeSpent";
 import { StatsUniqueCardsCollected } from "../StatsUniqueCardsCollected/StatsUniqueCardsCollected";
+import { StatsWinRate } from "../StatsWinRate/StatsWinRate";
 
 interface StatisticsStatsProps {
   totalCount: number;
@@ -21,22 +26,23 @@ interface StatisticsStatsProps {
 
 /**
  * Wrapper that places a `.stat` child into a grid cell with the correct
- * border dividers (right border between columns, bottom border on row 1).
+ * border dividers (right border between columns, bottom border when not
+ * the last row).
  */
 const Cell = ({
   children,
   isLastCol = false,
-  isTopRow = false,
+  isBottomRow = false,
 }: {
   children: React.ReactNode;
   isLastCol?: boolean;
-  isTopRow?: boolean;
+  isBottomRow?: boolean;
 }) => (
   <div
     className={[
       "h-full [&>.stat]:h-full [&>.stat]:content-start border-dashed border-base-content/10",
       !isLastCol ? "border-r" : "",
-      isTopRow ? "border-b" : "",
+      !isBottomRow ? "border-b" : "",
     ]
       .filter(Boolean)
       .join(" ")}
@@ -86,66 +92,85 @@ export const StatisticsStats = ({
         className="grid w-full"
         style={{ gridTemplateColumns: "repeat(5, 1fr)" }}
       >
-        {/* ── Row 1 — Highlights ─────────────────────────────────────── */}
-        <Cell isTopRow>
+        {/* ── Row 1 — Decks ──────────────────────────────────────────── */}
+        <Cell>
           <StatisticsOpenedDecksStat
             totalCount={totalCount}
             sessionCount={averages?.sessionCount ?? null}
           />
         </Cell>
-        <Cell isTopRow>
-          <StatsMostProfitableSession
-            data={sessionHighlights?.mostProfitable ?? null}
-          />
+        <Cell>
+          <StatsAvgDecksPerSession averages={averages} />
         </Cell>
-        <Cell isTopRow>
-          <StatsBiggestLetdown
-            data={sessionHighlights?.biggestLetdown ?? null}
-          />
-        </Cell>
-        <Cell isTopRow>
-          <StatsLongestSession
-            data={sessionHighlights?.longestSession ?? null}
-          />
-        </Cell>
-        <Cell isTopRow isLastCol>
+        <Cell>
           <StatsMostDecksOpened
             data={sessionHighlights?.mostDecksOpened ?? null}
           />
         </Cell>
-
-        {/* ── Row 2 — Averages ───────────────────────────────────────── */}
         <Cell>
-          <StatsAvgDecksPerSession averages={averages} />
+          <StatsLongestSession
+            data={sessionHighlights?.longestSession ?? null}
+          />
+        </Cell>
+        <Cell isLastCol>
+          <StatsAvgSessionDuration averages={averages} />
+        </Cell>
+
+        {/* ── Row 2 — Profits ────────────────────────────────────────── */}
+        <Cell>
+          <StatsTotalNetProfit
+            data={sessionHighlights?.totalNetProfit ?? null}
+          />
+        </Cell>
+        <Cell>
+          <StatsMostProfitableSession
+            data={sessionHighlights?.mostProfitable ?? null}
+          />
         </Cell>
         <Cell>
           <StatsAvgProfitPerSession averages={averages} />
         </Cell>
         <Cell>
+          <StatsAvgProfitPerDeck
+            data={sessionHighlights?.avgProfitPerDeck ?? null}
+          />
+        </Cell>
+        <Cell isLastCol>
+          <StatsProfitPerHour data={sessionHighlights?.profitPerHour ?? null} />
+        </Cell>
+
+        {/* ── Row 3 — Misc ───────────────────────────────────────────── */}
+        {/*
+         * When league is selected: WinRate, BiggestLetdown, LuckyBreak, TotalTimeSpent, UniqueCardsCollected = 5 cells.
+         * When all-time: WinRate, BiggestLetdown, LuckyBreak, TotalTimeSpent + 1 invisible placeholder = 5 cells.
+         */}
+        <Cell isBottomRow>
+          <StatsWinRate data={sessionHighlights?.winRate ?? null} />
+        </Cell>
+        <Cell isBottomRow>
+          <StatsBiggestLetdown
+            data={sessionHighlights?.biggestLetdown ?? null}
+          />
+        </Cell>
+        <Cell isBottomRow>
           <StatsLuckyBreak data={sessionHighlights?.luckyBreak ?? null} />
         </Cell>
+        <Cell isBottomRow isLastCol={!isLeague}>
+          <StatsTotalTimeSpent
+            data={sessionHighlights?.totalTimeSpent ?? null}
+          />
+        </Cell>
         {isLeague ? (
-          <>
-            <Cell>
-              <StatsAvgSessionDuration averages={averages} />
-            </Cell>
-            <Cell isLastCol>
-              <StatsUniqueCardsCollected
-                collectedCount={uniqueCardCount}
-                totalAvailable={stackedDeckCardCount ?? null}
-              />
-            </Cell>
-          </>
+          <Cell isBottomRow isLastCol>
+            <StatsUniqueCardsCollected
+              collectedCount={uniqueCardCount}
+              totalAvailable={stackedDeckCardCount ?? null}
+            />
+          </Cell>
         ) : (
-          <>
-            <Cell>
-              <StatsAvgSessionDuration averages={averages} />
-            </Cell>
-            {/* Empty cell to fill the 5th column */}
-            <Cell isLastCol>
-              <div className="stat opacity-0 pointer-events-none select-none" />
-            </Cell>
-          </>
+          <Cell isLastCol isBottomRow>
+            <div className="stat opacity-0 pointer-events-none select-none" />
+          </Cell>
         )}
       </div>
     </div>

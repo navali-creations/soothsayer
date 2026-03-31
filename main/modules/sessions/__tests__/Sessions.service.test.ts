@@ -746,6 +746,8 @@ describe("SessionsService", () => {
       expect(registeredChannels).toContain("sessions:get-all");
       expect(registeredChannels).toContain("sessions:get-by-id");
       expect(registeredChannels).toContain("sessions:search-by-card");
+      expect(registeredChannels).toContain("sessions:get-total-time-spent");
+      expect(registeredChannels).toContain("sessions:get-win-rate");
     });
   });
 

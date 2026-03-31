@@ -411,12 +411,27 @@ describe("fetchSessionHighlights", () => {
       league: "Settlers",
     };
 
+    const totalNetProfit = {
+      totalProfit: 1000,
+      avgChaosPerDivine: 200,
+      avgDeckCost: 3,
+    };
+    const totalTimeSpent = { totalMinutes: 300 };
+    const winRate = {
+      profitableSessions: 3,
+      totalSessions: 5,
+      winRate: 0.6,
+    };
+
     electron.sessions.getMostProfitable.mockResolvedValue(mostProfitable);
     electron.sessions.getLongestSession.mockResolvedValue(longestSession);
     electron.sessions.getMostDecksOpened.mockResolvedValue(mostDecksOpened);
     electron.sessions.getBiggestLetdown.mockResolvedValue(biggestLetdown);
     electron.sessions.getLuckyBreak.mockResolvedValue(luckyBreak);
     electron.sessions.getTotalDecksOpened.mockResolvedValue(500);
+    electron.sessions.getTotalNetProfit.mockResolvedValue(totalNetProfit);
+    electron.sessions.getTotalTimeSpent.mockResolvedValue(totalTimeSpent);
+    electron.sessions.getWinRate.mockResolvedValue(winRate);
 
     await store.getState().statistics.fetchSessionHighlights("poe1");
 
@@ -428,6 +443,20 @@ describe("fetchSessionHighlights", () => {
     expect(highlights!.biggestLetdown).toEqual(biggestLetdown);
     expect(highlights!.luckyBreak).toEqual(luckyBreak);
     expect(highlights!.totalDecksOpened).toBe(500);
+    expect(highlights!.totalNetProfit).toEqual(totalNetProfit);
+    expect(highlights!.totalTimeSpent).toEqual(totalTimeSpent);
+    expect(highlights!.winRate).toEqual(winRate);
+    // Derived: avgProfitPerDeck = 1000 / 500 = 2
+    expect(highlights!.avgProfitPerDeck).toEqual({
+      avgProfitPerDeck: 2,
+      avgChaosPerDivine: 200,
+      avgDeckCost: 3,
+    });
+    // Derived: profitPerHour = 1000 / (300 / 60) = 200
+    expect(highlights!.profitPerHour).toEqual({
+      profitPerHour: 200,
+      avgChaosPerDivine: 200,
+    });
   });
 
   it("passes league filter when provided", async () => {
@@ -456,6 +485,14 @@ describe("fetchSessionHighlights", () => {
       "Settlers",
     );
     expect(electron.sessions.getLuckyBreak).toHaveBeenCalledWith(
+      "poe1",
+      "Settlers",
+    );
+    expect(electron.sessions.getTotalTimeSpent).toHaveBeenCalledWith(
+      "poe1",
+      "Settlers",
+    );
+    expect(electron.sessions.getWinRate).toHaveBeenCalledWith(
       "poe1",
       "Settlers",
     );
@@ -509,6 +546,56 @@ describe("fetchSessionHighlights", () => {
     expect(highlights!.biggestLetdown).toBeNull();
     expect(highlights!.luckyBreak).toBeNull();
     expect(highlights!.totalDecksOpened).toBe(0);
+    expect(highlights!.totalTimeSpent).toBeNull();
+    expect(highlights!.winRate).toBeNull();
+    expect(highlights!.avgProfitPerDeck).toBeNull();
+    expect(highlights!.profitPerHour).toBeNull();
+  });
+
+  it("derives avgProfitPerDeck as null when totalDecksOpened is 0", async () => {
+    electron.sessions.getTotalNetProfit.mockResolvedValue({
+      totalProfit: 500,
+      avgChaosPerDivine: 200,
+      avgDeckCost: 3,
+    });
+    electron.sessions.getTotalDecksOpened.mockResolvedValue(0);
+
+    await store.getState().statistics.fetchSessionHighlights("poe1");
+
+    const highlights = store.getState().statistics.sessionHighlights;
+    expect(highlights!.avgProfitPerDeck).toBeNull();
+  });
+
+  it("derives profitPerHour as null when totalTimeSpent is null", async () => {
+    electron.sessions.getTotalNetProfit.mockResolvedValue({
+      totalProfit: 500,
+      avgChaosPerDivine: 200,
+      avgDeckCost: 3,
+    });
+    electron.sessions.getTotalTimeSpent.mockResolvedValue(null);
+
+    await store
+      .getState()
+      .statistics.fetchSessionHighlights("poe1", "TestLeague");
+
+    const highlights = store.getState().statistics.sessionHighlights;
+    expect(highlights!.profitPerHour).toBeNull();
+  });
+
+  it("derives profitPerHour as null when totalTimeSpent.totalMinutes is 0", async () => {
+    electron.sessions.getTotalNetProfit.mockResolvedValue({
+      totalProfit: 500,
+      avgChaosPerDivine: 200,
+      avgDeckCost: 3,
+    });
+    electron.sessions.getTotalTimeSpent.mockResolvedValue({ totalMinutes: 0 });
+
+    await store
+      .getState()
+      .statistics.fetchSessionHighlights("poe1", "ZeroTime");
+
+    const highlights = store.getState().statistics.sessionHighlights;
+    expect(highlights!.profitPerHour).toBeNull();
   });
 });
 

@@ -9,10 +9,13 @@ enum SessionsChannel {
   GetLuckyBreak = "sessions:get-lucky-break",
   GetTotalDecksOpened = "sessions:get-total-decks-opened",
   GetSessionAverages = "sessions:get-session-averages",
+  GetTotalNetProfit = "sessions:get-total-net-profit",
   GetStackedDeckCardCount = "sessions:get-stacked-deck-card-count",
   GetStackedDeckCardNames = "sessions:get-stacked-deck-card-names",
   GetUncollectedCardNames = "sessions:get-uncollected-card-names",
   GetChartData = "sessions:get-chart-data",
+  GetTotalTimeSpent = "sessions:get-total-time-spent",
+  GetWinRate = "sessions:get-win-rate",
 }
 
 export { SessionsChannel };

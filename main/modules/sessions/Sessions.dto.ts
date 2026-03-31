@@ -67,14 +67,17 @@ export interface SessionHighlightDTO {
 export interface MostProfitableSessionDTO extends SessionHighlightDTO {
   profit: number;
   chaosPerDivine: number;
+  totalDecksOpened: number;
 }
 
 export interface LongestSessionDTO extends SessionHighlightDTO {
   durationMinutes: number;
+  totalDecksOpened: number;
 }
 
 export interface MostDecksOpenedDTO extends SessionHighlightDTO {
   totalDecksOpened: number;
+  durationMinutes: number | null;
 }
 
 export interface BiggestLetdownSessionDTO extends SessionHighlightDTO {
@@ -89,12 +92,28 @@ export interface LuckyBreakSessionDTO extends SessionHighlightDTO {
   chaosPerDivine: number;
 }
 
+export interface TotalNetProfitDTO {
+  totalProfit: number;
+  avgChaosPerDivine: number;
+  avgDeckCost: number;
+}
+
 export interface SessionAveragesDTO {
   avgProfit: number;
   avgDecksOpened: number;
   avgDurationMinutes: number;
   avgChaosPerDivine: number;
   sessionCount: number;
+}
+
+export interface TotalTimeSpentDTO {
+  totalMinutes: number;
+}
+
+export interface WinRateDTO {
+  profitableSessions: number;
+  totalSessions: number;
+  winRate: number;
 }
 
 /** Lightweight per-session data point for the Statistics page charts. */

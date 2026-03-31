@@ -349,6 +349,9 @@ export const createStatisticsSlice: StateCreator<
           averages,
           biggestLetdown,
           luckyBreak,
+          totalNetProfit,
+          totalTimeSpent,
+          winRate,
         ] = await Promise.all([
           window.electron.sessions.getMostProfitable(game, league),
           window.electron.sessions.getLongestSession(game, league),
@@ -358,7 +361,32 @@ export const createStatisticsSlice: StateCreator<
           window.electron.sessions.getSessionAverages(game, league),
           window.electron.sessions.getBiggestLetdown(game, league),
           window.electron.sessions.getLuckyBreak(game, league),
+          window.electron.sessions.getTotalNetProfit(game, league),
+          window.electron.sessions.getTotalTimeSpent(game, league),
+          window.electron.sessions.getWinRate(game, league),
         ]);
+
+        // Derive avg profit per deck from total profit and total decks
+        const avgProfitPerDeck =
+          totalNetProfit && totalDecksOpened > 0
+            ? {
+                avgProfitPerDeck: totalNetProfit.totalProfit / totalDecksOpened,
+                avgChaosPerDivine: totalNetProfit.avgChaosPerDivine,
+                avgDeckCost: totalNetProfit.avgDeckCost,
+              }
+            : null;
+
+        // Derive profit per hour from total profit and total time
+        const profitPerHour =
+          totalNetProfit && totalTimeSpent && totalTimeSpent.totalMinutes > 0
+            ? {
+                profitPerHour:
+                  totalNetProfit.totalProfit /
+                  (totalTimeSpent.totalMinutes / 60),
+                avgChaosPerDivine: totalNetProfit.avgChaosPerDivine,
+              }
+            : null;
+
         set(({ statistics }) => {
           statistics.sessionHighlights = {
             mostProfitable,
@@ -368,6 +396,11 @@ export const createStatisticsSlice: StateCreator<
             luckyBreak,
             totalDecksOpened,
             averages,
+            totalNetProfit,
+            totalTimeSpent,
+            winRate,
+            avgProfitPerDeck,
+            profitPerHour,
           };
           statistics.stackedDeckCardCount =
             stackedDeckCardCount > 0 ? stackedDeckCardCount : null;

@@ -52,7 +52,12 @@ export const StatsMostProfitableSession = ({
       <Stat.Value className="text-lg tabular-nums">
         {formattedProfit}
       </Stat.Value>
-      <Stat.Desc>{!data && <span>No sessions yet</span>}</Stat.Desc>
+      <Stat.Desc>
+        {data?.totalDecksOpened != null && (
+          <span>{data.totalDecksOpened.toLocaleString()} decks opened</span>
+        )}
+        {!data && <span>No sessions yet</span>}
+      </Stat.Desc>
     </Stat>
   );
 };
