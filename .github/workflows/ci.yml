@@ -640,12 +640,15 @@ jobs:
         env:
           E2E_TESTING: "true"
         run: |
-          # Start Xvfb on a free display
+          # Start Xvfb on a free display, suppress xkbcomp keysym warnings
           export DISPLAY=:99
-          Xvfb $DISPLAY -screen 0 1920x1080x24 &
-          sleep 1
+          Xvfb $DISPLAY -screen 0 1920x1080x24 2>/dev/null &
+          # Wait for the X server socket to appear instead of a fixed sleep
+          timeout 5 bash -c 'until [ -e /tmp/.X11-unix/X99 ]; do sleep 0.1; done'
           # A lightweight window manager is required so that Electron's
           # minimize()/maximize() X11 hints are actually processed.
-          fluxbox &
-          sleep 1
+          # Pre-seed a minimal config to suppress "Failed to read" warnings.
+          mkdir -p ~/.fluxbox
+          echo "session.screen0.workspaces: 1" > ~/.fluxbox/init
+          fluxbox 2>/dev/null &
           pnpm exec playwright test --config playwright.config.ts
