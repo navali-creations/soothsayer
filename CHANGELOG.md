@@ -1,5 +1,21 @@
 # soothsayer
 
+## 0.14.0
+
+### Minor Changes
+
+- [`2082436`](https://github.com/navali-creations/soothsayer/commit/2082436dcbb5f2faf4332c2cde857b0d414f8a6a) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Added:** Revamped Statistics page.
+
+  - Redesigned the Statistics page with a new side-by-side layout — interactive chart on the left, card table on the right.
+  - Clicking a certain stat cards now takes you directly to that session's detail page.
+  - Export CSV button and cards' search input has been moved to card's table, narrowing their purpose.
+
+  **Improved:** Back button navigation.
+
+  - The back button now preserves your navigation history, so pressing it returns you to the page you came from rather than always going to a fixed destination. This applies across session details, card details, and other detail pages.
+
 ## 0.13.0
 
 ### Minor Changes
