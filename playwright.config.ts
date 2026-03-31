@@ -11,7 +11,7 @@ export default defineConfig({
   // onboarding, profit-forecast) are each split into multiple files so they
   // can run on separate workers and stay under ~1 minute each.  3 workers
   // balances parallelism with resource usage on both local and CI machines.
-  workers: process.env.CI ? 5 : 3,
+  workers: 3,
   // Do NOT enable fullyParallel — tests within a file share a single
   // worker-scoped Electron instance and page, so running them concurrently
   // would cause race conditions.  Parallelism is between files (workers) only.
