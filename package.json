@@ -51,7 +51,7 @@
     "email": "eskrzy@gmail.com"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.8",
+    "@biomejs/biome": "2.4.10",
     "@changesets/changelog-github": "^0.6.0",
     "@changesets/cli": "^2.30.0",
     "@electron-forge/cli": "^7.10.2",
@@ -63,7 +63,7 @@
     "@electron-forge/plugin-fuses": "^7.10.2",
     "@electron-forge/plugin-vite": "^7.10.2",
     "@electron-forge/publisher-github": "^7.10.2",
-    "@electron/fuses": "^2.1.0",
+    "@electron/fuses": "^2.1.1",
     "@electron/rebuild": "^4.0.3",
     "@playwright/test": "^1.58.2",
     "@redux-devtools/extension": "^4.0.0",
@@ -90,7 +90,7 @@
     "cross-env": "^10.1.0",
     "daisyui": "^5.5.19",
     "dompurify": "^3.3.3",
-    "electron": "40.8.0",
+    "electron": "41.1.0",
     "electron-devtools-installer": "^4.0.0",
     "electron-squirrel-startup": "^1.0.1",
     "electron-store": "^11.0.2",
