@@ -72,6 +72,7 @@ const PFHeaderActions = ({ onGlobalFilterChange }: PFHeaderActionsProps) => {
 
       {/* Refresh poe.ninja prices button */}
       <div
+        data-onboarding="profit-forecast-refresh"
         className={clsx(
           "tooltip tooltip-left",
           isOnCooldown ? "tooltip-warning" : "tooltip-primary",

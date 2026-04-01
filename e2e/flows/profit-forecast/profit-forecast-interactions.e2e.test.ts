@@ -260,18 +260,22 @@ test.describe("Profit Forecast – Interactions", () => {
       // new one, guaranteeing the handler runs the full refresh path.
       await seedAndNavigate(page);
 
-      const refreshButton = page.getByText("Refresh poe.ninja", {
-        exact: false,
-      });
-      const isVisible = await refreshButton
+      // The refresh button lives inside a wrapper with a data-onboarding
+      // attribute, matching the pattern used by Rarity Insights.
+      const refreshWrapper = page.locator(
+        '[data-onboarding="profit-forecast-refresh"]',
+      );
+      const refreshButton = refreshWrapper.locator("button");
+
+      // Determine whether we're already on cooldown from a prior test.
+      const idleText = page.getByText("Refresh poe.ninja", { exact: false });
+      const isIdle = await idleText
         .isVisible({ timeout: 5_000 })
         .catch(() => false);
 
-      if (!isVisible) {
-        // Already on cooldown from a previous test — that's fine, verify
-        // the lock state instead.
-        const lastButton = page.locator("button").last();
-        await expect(lastButton).toBeDisabled({ timeout: 5_000 });
+      if (!isIdle) {
+        // Already on cooldown — verify the refresh button is disabled.
+        await expect(refreshButton).toBeDisabled({ timeout: 5_000 });
         return;
       }
 
@@ -283,32 +287,25 @@ test.describe("Profit Forecast – Interactions", () => {
       await expect
         .poll(
           async () => {
-            // Check that idle text is gone — we're either refreshing or
-            // on cooldown now.
-            const hasIdleText = await page
-              .getByText("Refresh poe.ninja", { exact: true })
-              .isVisible()
-              .catch(() => false);
-            return !hasIdleText;
+            const text = (await refreshButton.textContent()) ?? "";
+            // Still refreshing — keep waiting
+            if (text.includes("Refreshing")) return "refreshing";
+            // Back to idle — this is the bug scenario
+            if (text.includes("Refresh poe.ninja")) return "idle";
+            // Anything else (countdown ":", digits, lock icon) means cooldown
+            return "cooldown";
           },
           { timeout: 30_000, intervals: [200, 500, 1_000] },
         )
-        .toBe(true);
+        .toBe("cooldown");
 
-      // The button must now be in cooldown: disabled and showing a countdown.
-      // DaisyUI's countdown renders digits via CSS --value variables, so
-      // textContent only contains ":" separators. We look for ":" inside
-      // a disabled button as evidence of an active countdown timer.
-      const cooldownButton = page.locator("button:disabled").filter({
-        has: page.locator("svg"),
-      });
+      // The button must now be in cooldown: disabled and showing a countdown
+      // or lock icon (SVG).
+      await expect(refreshButton).toBeDisabled({ timeout: 10_000 });
 
-      await expect(cooldownButton.first()).toBeVisible({ timeout: 10_000 });
-
-      // Verify the button is truly disabled — clicking should NOT trigger
-      // another refresh.
-      const lastDisabledButton = page.locator("button:disabled").last();
-      await expect(lastDisabledButton).toBeDisabled();
+      // Verify it contains a lock/countdown SVG icon
+      const svgCount = await refreshButton.locator("svg").count();
+      expect(svgCount).toBeGreaterThan(0);
     });
   });
 
