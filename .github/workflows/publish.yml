@@ -152,8 +152,8 @@ jobs:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
       # ── Windows: package → sign app → make (skip-package) → sign installer ──
-
       # Locate signtool once and store the path for later steps
+
       - name: Locate signtool.exe
         if: startsWith(matrix.name, 'windows')
         id: signtool
@@ -177,6 +177,92 @@ jobs:
         run: pnpm package
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+
+      # ── Post-build assertion: verify env vars were embedded ─────────
+      # Guards against BOM corruption, missing secrets, or dotenv parse
+      # failures that would silently ship a broken build.
+      # See: docs/postmortems/2026-04-powershell-bom-supabase-env.md
+      - name: Assert env vars embedded in bundle (Linux)
+        if: "!startsWith(matrix.name, 'windows')"
+        shell: bash
+        run: |
+          BUNDLE=".vite/build/main.js"
+          if [ ! -f "$BUNDLE" ]; then
+            echo "::error::Bundle not found at $BUNDLE"
+            exit 1
+          fi
+
+          FAILED=0
+          check_bundle() {
+            local label="$1" pattern="$2" file="$3"
+            if grep -q "$pattern" "$file"; then
+              echo "✅ $label is embedded in the bundle"
+            else
+              echo "::error::$label was NOT embedded in the bundle. The .env file may be corrupted (e.g. BOM prefix) or the secret is empty."
+              FAILED=1
+            fi
+          }
+
+          check_bundle "VITE_SUPABASE_URL"      "supabase\.co"  "$BUNDLE"
+          check_bundle "VITE_SUPABASE_ANON_KEY"  "eyJ"           "$BUNDLE"
+          check_bundle "VITE_SENTRY_DSN"         "sentry\.io"    "$BUNDLE"
+
+          RENDERER_DIR=".vite/renderer/main_window"
+          RENDERER_TMP=$(mktemp)
+          find "$RENDERER_DIR" -name '*.js' -exec cat {} + > "$RENDERER_TMP" 2>/dev/null
+          if [ ! -s "$RENDERER_TMP" ]; then
+            echo "::error::No renderer JS bundles found under $RENDERER_DIR"
+            rm -f "$RENDERER_TMP"
+            exit 1
+          fi
+
+          check_bundle "VITE_UMAMI_ID" "umami" "$RENDERER_TMP"
+          rm -f "$RENDERER_TMP"
+
+          if [ "$FAILED" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Assert env vars embedded in bundle (Windows)
+        if: startsWith(matrix.name, 'windows')
+        shell: powershell
+        run: |
+          $bundle = ".vite\build\main.js"
+          if (-not (Test-Path $bundle)) {
+            Write-Host "::error::Bundle not found at $bundle"
+            exit 1
+          }
+
+          $content = [System.IO.File]::ReadAllText((Resolve-Path $bundle).Path)
+
+          $failed = 0
+          function Assert-Bundle($Label, $Pattern, $Content) {
+            if ($Content -match $Pattern) {
+              Write-Host "✅ $Label is embedded in the bundle"
+            } else {
+              Write-Host "::error::$Label was NOT embedded in the bundle. The .env file may be corrupted (e.g. BOM prefix) or the secret is empty."
+              $script:failed = 1
+            }
+          }
+
+          Assert-Bundle "VITE_SUPABASE_URL"     "supabase\.co" $content
+          Assert-Bundle "VITE_SUPABASE_ANON_KEY" "eyJ"          $content
+          Assert-Bundle "VITE_SENTRY_DSN"        "sentry\.io"   $content
+
+          $rendererDir = ".vite\renderer\main_window"
+          if (-not (Test-Path $rendererDir)) {
+            Write-Host "::error::Renderer bundle directory not found at $rendererDir"
+            exit 1
+          }
+          $rendererContent = Get-ChildItem $rendererDir -Recurse -Filter "*.js" |
+            ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }
+          $rendererAll = $rendererContent -join "`n"
+
+          Assert-Bundle "VITE_UMAMI_ID" "umami" $rendererAll
+
+          if ($failed -ne 0) {
+            exit 1
+          }
 
       # 2. Sign the packaged app so the installed soothsayer.exe is signed
       - name: Sign packaged application (Windows)
