@@ -1,5 +1,5 @@
 ---
-"soothsayer": minor
+"soothsayer": patch
 ---
 
 **Added:** New statistics cards on the Statistics page.
@@ -10,3 +10,5 @@
 - **Win Rate** — The percentage of your sessions that ended in profit, with a breakdown like "7 of 10 sessions profitable."
 
 **Improved:** Statistics cards are now grouped into themed rows for easier scanning — deck stats on top, profit stats in the middle, and miscellaneous stats on the bottom.
+
+**Fixed:** Address failing league requests on app startup on fresh installs (surely)
