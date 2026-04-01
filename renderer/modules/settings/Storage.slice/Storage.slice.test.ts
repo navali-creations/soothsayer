@@ -368,6 +368,50 @@ describe("StorageSlice", () => {
     });
   });
 
+  // ── Concurrent fetch behavior ─────────────────────────────────────────
+
+  describe("concurrent fetches", () => {
+    it("keeps isLoading true when one fetch finishes but the other is still in-flight", async () => {
+      // Control resolution timing for both fetches independently
+      let resolveInfo!: (v: any) => void;
+      const deferredInfo = new Promise((r) => {
+        resolveInfo = r;
+      });
+      let resolveLeague!: (v: any) => void;
+      const deferredLeague = new Promise((r) => {
+        resolveLeague = r;
+      });
+
+      electron.storage.getInfo.mockReturnValue(deferredInfo);
+      electron.storage.checkDiskSpace.mockResolvedValue({
+        diskFreeBytes: 1_000_000,
+        isLow: false,
+      });
+      electron.storage.getLeagueUsage.mockReturnValue(deferredLeague);
+
+      // Start both fetches concurrently (like the component does on mount)
+      const infoPromise = store.getState().storage.fetchStorageInfo();
+      const leaguePromise = store.getState().storage.fetchLeagueUsage();
+
+      // Both in-flight → isLoading should be true
+      expect(store.getState().storage.isLoading).toBe(true);
+
+      // League usage finishes first
+      resolveLeague([]);
+      await leaguePromise;
+
+      // isLoading must STILL be true because fetchStorageInfo is still running
+      expect(store.getState().storage.isLoading).toBe(true);
+
+      // Now storage info finishes
+      resolveInfo(makeStorageInfo());
+      await infoPromise;
+
+      // Both done → isLoading should be false
+      expect(store.getState().storage.isLoading).toBe(false);
+    });
+  });
+
   // ── checkDiskSpace ────────────────────────────────────────────────────
 
   describe("checkDiskSpace", () => {

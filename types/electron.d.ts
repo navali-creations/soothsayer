@@ -5,6 +5,7 @@ import type { CardDetailsAPI } from "../main/modules/card-details/CardDetails.ap
 import type { CsvAPI } from "../main/modules/csv/Csv.api";
 import type { CurrentSessionAPI } from "../main/modules/current-session/CurrentSession.api";
 import type { DataStoreAPI } from "../main/modules/data-store/DataStore.api";
+import type { DiagLogAPI } from "../main/modules/diag-log/DiagLog.api";
 import type { DivinationCardsApi } from "../main/modules/divination-cards/DivinationCards.api";
 import type { MainWindowAPI } from "../main/modules/main-window/MainWindow.api";
 import type { OverlayAPI } from "../main/modules/overlay/Overlay.api";
@@ -33,6 +34,7 @@ declare global {
       app: typeof AppAPI;
       overlay: typeof OverlayAPI;
       appSetup: typeof AppSetupAPI;
+      diagLog: typeof DiagLogAPI;
       poeProcess: typeof PoeProcessAPI;
       dataStore: typeof DataStoreAPI;
       poeNinja: typeof PoeNinjaAPI;

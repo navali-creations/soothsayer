@@ -9,6 +9,9 @@ const {
   mockStatfsSync,
   mockStatSync,
   mockReaddirSync,
+  mockStatfs,
+  mockFspStat,
+  mockReaddir,
 } = vi.hoisted(() => ({
   mockIpcHandle: vi.fn(),
   mockGetDb: vi.fn(),
@@ -24,6 +27,17 @@ const {
     isFile: () => true as const,
   })),
   mockReaddirSync: vi.fn((_path?: any, _opts?: any) => [] as any[]),
+  // Async fs.promises mocks (used by the converted async service methods)
+  mockStatfs: vi.fn(async (_path?: any) => ({
+    bsize: 4096,
+    blocks: 250000000,
+    bavail: 125000000,
+  })),
+  mockFspStat: vi.fn(async (_path?: any) => ({
+    size: 1024 * 1024,
+    isFile: () => true as const,
+  })),
+  mockReaddir: vi.fn(async (_path?: any, _opts?: any) => [] as any[]),
 }));
 
 // ─── Mock Electron ───────────────────────────────────────────────────────────
@@ -64,6 +78,12 @@ vi.mock("~/main/modules/database", () => ({
 // ─── Mock node:fs ────────────────────────────────────────────────────────────
 vi.mock("node:fs", async () => {
   const actual = await vi.importActual<typeof import("node:fs")>("node:fs");
+  const asyncPromises = {
+    ...actual.promises,
+    statfs: mockStatfs,
+    stat: mockFspStat,
+    readdir: mockReaddir,
+  };
   return {
     ...actual,
     default: {
@@ -71,7 +91,9 @@ vi.mock("node:fs", async () => {
       statfsSync: mockStatfsSync,
       statSync: mockStatSync,
       readdirSync: mockReaddirSync,
+      promises: asyncPromises,
     },
+    promises: asyncPromises,
     statfsSync: mockStatfsSync,
     statSync: mockStatSync,
     readdirSync: mockReaddirSync,
@@ -130,6 +152,15 @@ describe("StorageService", () => {
     });
     mockStatSync.mockReturnValue({ size: 1024 * 1024, isFile: () => true });
     mockReaddirSync.mockReturnValue([]);
+
+    // Async fs.promises defaults
+    mockStatfs.mockResolvedValue({
+      bsize: 4096,
+      blocks: 250000000,
+      bavail: 125000000,
+    });
+    mockFspStat.mockResolvedValue({ size: 1024 * 1024, isFile: () => true });
+    mockReaddir.mockResolvedValue([]);
 
     // Reset the singleton
     // @ts-expect-error accessing private static for testing
@@ -987,7 +1018,7 @@ describe("StorageService", () => {
   describe("checkDiskSpace", () => {
     it("should return isLow = false when disk has plenty of space", async () => {
       // 500 GB free
-      mockStatfsSync.mockReturnValue({
+      mockStatfs.mockResolvedValue({
         bsize: 4096,
         blocks: 250000000,
         bavail: 125000000,
@@ -1002,7 +1033,7 @@ describe("StorageService", () => {
 
     it("should return isLow = true when disk space is below 1 GB", async () => {
       // ~500 MB free (below 1 GB threshold)
-      mockStatfsSync.mockReturnValue({
+      mockStatfs.mockResolvedValue({
         bsize: 4096,
         blocks: 250000000,
         bavail: 122070, // ~500 MB
@@ -1016,7 +1047,7 @@ describe("StorageService", () => {
     });
 
     it("should return isLow = true when disk space is exactly 0", async () => {
-      mockStatfsSync.mockReturnValue({
+      mockStatfs.mockResolvedValue({
         bsize: 4096,
         blocks: 250000000,
         bavail: 0,
@@ -1033,7 +1064,7 @@ describe("StorageService", () => {
       // Exactly 1 GB = 1024*1024*1024 = 1073741824 bytes
       // bsize * bavail = 1073741824
       // bsize = 4096, bavail = 262144
-      mockStatfsSync.mockReturnValue({
+      mockStatfs.mockResolvedValue({
         bsize: 4096,
         blocks: 250000000,
         bavail: 262144, // 4096 * 262144 = 1073741824 = exactly 1 GB
@@ -1047,7 +1078,7 @@ describe("StorageService", () => {
     });
 
     it("should return isLow = true when disk space is just under 1 GB", async () => {
-      mockStatfsSync.mockReturnValue({
+      mockStatfs.mockResolvedValue({
         bsize: 4096,
         blocks: 250000000,
         bavail: 262143, // just under 1 GB
@@ -1060,9 +1091,7 @@ describe("StorageService", () => {
     });
 
     it("should handle statfsSync throwing an error gracefully", async () => {
-      mockStatfsSync.mockImplementation(() => {
-        throw new Error("Permission denied");
-      });
+      mockStatfs.mockRejectedValue(new Error("Permission denied"));
 
       const handler = getIpcHandler(StorageChannel.CheckDiskSpace);
       const result = await handler({});
@@ -1104,7 +1133,7 @@ describe("StorageService", () => {
     });
 
     it("should include disk space metrics", async () => {
-      mockStatfsSync.mockReturnValue({
+      mockStatfs.mockResolvedValue({
         bsize: 4096,
         blocks: 1000000,
         bavail: 500000,
@@ -1118,7 +1147,7 @@ describe("StorageService", () => {
     });
 
     it("should include database size", async () => {
-      mockStatSync.mockReturnValue({
+      mockFspStat.mockResolvedValue({
         size: 82 * 1024 * 1024, // 82 MB
         isFile: () => true,
       });
@@ -1138,7 +1167,7 @@ describe("StorageService", () => {
     });
 
     it("should handle file stat failure gracefully for db size", async () => {
-      mockStatSync.mockImplementation((filePath: string) => {
+      mockFspStat.mockImplementation(async (filePath: string) => {
         if (typeof filePath === "string" && filePath.endsWith(".db")) {
           throw new Error("File not found");
         }
@@ -1156,7 +1185,7 @@ describe("StorageService", () => {
       mockAppGetPath.mockReturnValue("C:\\Users\\test\\AppData\\Soothsayer");
 
       let callCount = 0;
-      mockStatfsSync.mockImplementation(() => {
+      mockStatfs.mockImplementation(async () => {
         callCount++;
         if (callCount <= 1) {
           // App data drive
@@ -1181,10 +1210,10 @@ describe("StorageService", () => {
 
   describe("directory breakdown and file categorization", () => {
     it("should categorize .db files as database", async () => {
-      mockReaddirSync.mockReturnValue([
+      mockReaddir.mockResolvedValue([
         { name: "soothsayer.db", isDirectory: () => false, isFile: () => true },
       ]);
-      mockStatSync.mockReturnValue({
+      mockFspStat.mockResolvedValue({
         size: 50 * 1024 * 1024,
         isFile: () => true,
       });
@@ -1200,10 +1229,10 @@ describe("StorageService", () => {
     });
 
     it("should categorize .sqlite files as database", async () => {
-      mockReaddirSync.mockReturnValue([
+      mockReaddir.mockResolvedValue([
         { name: "data.sqlite", isDirectory: () => false, isFile: () => true },
       ]);
-      mockStatSync.mockReturnValue({ size: 1024, isFile: () => true });
+      mockFspStat.mockResolvedValue({ size: 1024, isFile: () => true });
 
       const handler = getIpcHandler(StorageChannel.GetInfo);
       const result = await handler({});
@@ -1215,7 +1244,7 @@ describe("StorageService", () => {
     });
 
     it("should categorize WAL and SHM files as database", async () => {
-      mockReaddirSync.mockReturnValue([
+      mockReaddir.mockResolvedValue([
         {
           name: "soothsayer.db-wal",
           isDirectory: () => false,
@@ -1227,7 +1256,7 @@ describe("StorageService", () => {
           isFile: () => true,
         },
       ]);
-      mockStatSync.mockReturnValue({ size: 512, isFile: () => true });
+      mockFspStat.mockResolvedValue({ size: 512, isFile: () => true });
 
       const handler = getIpcHandler(StorageChannel.GetInfo);
       const result = await handler({});
@@ -1254,7 +1283,7 @@ describe("StorageService", () => {
         { name: "000003.log", isDirectory: () => false, isFile: () => true },
       ];
 
-      mockReaddirSync.mockImplementation((dirPath: string, _opts?: any) => {
+      mockReaddir.mockImplementation(async (dirPath: string, _opts?: any) => {
         if (
           typeof dirPath === "string" &&
           dirPath.includes("Session Storage")
@@ -1263,7 +1292,7 @@ describe("StorageService", () => {
         }
         return topLevelEntries;
       });
-      mockStatSync.mockReturnValue({ size: 256, isFile: () => true });
+      mockFspStat.mockResolvedValue({ size: 256, isFile: () => true });
 
       const handler = getIpcHandler(StorageChannel.GetInfo);
       const result = await handler({});
@@ -1286,13 +1315,13 @@ describe("StorageService", () => {
         },
       ];
 
-      mockReaddirSync.mockImplementation((dirPath: string, _opts?: any) => {
+      mockReaddir.mockImplementation(async (dirPath: string, _opts?: any) => {
         if (typeof dirPath === "string" && dirPath.includes("Cache")) {
           return cacheEntries;
         }
         return topLevelEntries;
       });
-      mockStatSync.mockReturnValue({ size: 4096, isFile: () => true });
+      mockFspStat.mockResolvedValue({ size: 4096, isFile: () => true });
 
       const handler = getIpcHandler(StorageChannel.GetInfo);
       const result = await handler({});
@@ -1312,13 +1341,13 @@ describe("StorageService", () => {
         { name: "data_0", isDirectory: () => false, isFile: () => true },
       ];
 
-      mockReaddirSync.mockImplementation((dirPath: string, _opts?: any) => {
+      mockReaddir.mockImplementation(async (dirPath: string, _opts?: any) => {
         if (typeof dirPath === "string" && dirPath.includes("GPUCache")) {
           return gpuEntries;
         }
         return topLevelEntries;
       });
-      mockStatSync.mockReturnValue({ size: 2048, isFile: () => true });
+      mockFspStat.mockResolvedValue({ size: 2048, isFile: () => true });
 
       const handler = getIpcHandler(StorageChannel.GetInfo);
       const result = await handler({});
@@ -1337,13 +1366,13 @@ describe("StorageService", () => {
         { name: "blob1.bin", isDirectory: () => false, isFile: () => true },
       ];
 
-      mockReaddirSync.mockImplementation((dirPath: string, _opts?: any) => {
+      mockReaddir.mockImplementation(async (dirPath: string, _opts?: any) => {
         if (typeof dirPath === "string" && dirPath.includes("blob_storage")) {
           return blobEntries;
         }
         return topLevelEntries;
       });
-      mockStatSync.mockReturnValue({ size: 1024, isFile: () => true });
+      mockFspStat.mockResolvedValue({ size: 1024, isFile: () => true });
 
       const handler = getIpcHandler(StorageChannel.GetInfo);
       const result = await handler({});
@@ -1366,13 +1395,13 @@ describe("StorageService", () => {
         { name: "sw.js", isDirectory: () => false, isFile: () => true },
       ];
 
-      mockReaddirSync.mockImplementation((dirPath: string, _opts?: any) => {
+      mockReaddir.mockImplementation(async (dirPath: string, _opts?: any) => {
         if (typeof dirPath === "string" && dirPath.includes("Service Worker")) {
           return swEntries;
         }
         return topLevelEntries;
       });
-      mockStatSync.mockReturnValue({ size: 512, isFile: () => true });
+      mockFspStat.mockResolvedValue({ size: 512, isFile: () => true });
 
       const handler = getIpcHandler(StorageChannel.GetInfo);
       const result = await handler({});
@@ -1384,14 +1413,14 @@ describe("StorageService", () => {
     });
 
     it("should categorize unknown files as other", async () => {
-      mockReaddirSync.mockReturnValue([
+      mockReaddir.mockResolvedValue([
         {
           name: "settings.json",
           isDirectory: () => false,
           isFile: () => true,
         },
       ]);
-      mockStatSync.mockReturnValue({ size: 128, isFile: () => true });
+      mockFspStat.mockResolvedValue({ size: 128, isFile: () => true });
 
       const handler = getIpcHandler(StorageChannel.GetInfo);
       const result = await handler({});
@@ -1404,9 +1433,7 @@ describe("StorageService", () => {
     });
 
     it("should handle directory read errors gracefully", async () => {
-      mockReaddirSync.mockImplementation(() => {
-        throw new Error("Access denied");
-      });
+      mockReaddir.mockRejectedValue(new Error("Access denied"));
 
       const handler = getIpcHandler(StorageChannel.GetInfo);
       const result = await handler({});
@@ -1416,7 +1443,7 @@ describe("StorageService", () => {
     });
 
     it("should handle inaccessible files within a directory gracefully", async () => {
-      mockReaddirSync.mockReturnValue([
+      mockReaddir.mockResolvedValue([
         { name: "readable.txt", isDirectory: () => false, isFile: () => true },
         {
           name: "unreadable.txt",
@@ -1425,8 +1452,7 @@ describe("StorageService", () => {
         },
       ]);
 
-      mockStatSync.mockImplementation((filePath: string) => {
-        // First call for getFileSize(dbPath), second for readable, third should fail
+      mockFspStat.mockImplementation(async (filePath: string) => {
         if (typeof filePath === "string" && filePath.includes("unreadable")) {
           throw new Error("Permission denied");
         }
@@ -1451,14 +1477,14 @@ describe("StorageService", () => {
         { name: "big_cache", isDirectory: () => false, isFile: () => true },
       ];
 
-      mockReaddirSync.mockImplementation((dirPath: string, _opts?: any) => {
+      mockReaddir.mockImplementation(async (dirPath: string, _opts?: any) => {
         if (typeof dirPath === "string" && dirPath.includes("Cache")) {
           return cacheFiles;
         }
         return topLevel;
       });
 
-      mockStatSync.mockImplementation((filePath: string) => {
+      mockFspStat.mockImplementation(async (filePath: string) => {
         if (typeof filePath === "string") {
           if (filePath.includes("soothsayer.db")) {
             return { size: 50 * 1024, isFile: () => true };
@@ -1488,10 +1514,10 @@ describe("StorageService", () => {
 
     it("should filter out categories with zero size and zero file count", async () => {
       // Only database files exist
-      mockReaddirSync.mockReturnValue([
+      mockReaddir.mockResolvedValue([
         { name: "soothsayer.db", isDirectory: () => false, isFile: () => true },
       ]);
-      mockStatSync.mockReturnValue({ size: 1024, isFile: () => true });
+      mockFspStat.mockResolvedValue({ size: 1024, isFile: () => true });
 
       const handler = getIpcHandler(StorageChannel.GetInfo);
       const result = await handler({});
@@ -1504,10 +1530,10 @@ describe("StorageService", () => {
     });
 
     it("should categorize cookie files as database", async () => {
-      mockReaddirSync.mockReturnValue([
+      mockReaddir.mockResolvedValue([
         { name: "Cookies", isDirectory: () => false, isFile: () => true },
       ]);
-      mockStatSync.mockReturnValue({ size: 512, isFile: () => true });
+      mockFspStat.mockResolvedValue({ size: 512, isFile: () => true });
 
       const handler = getIpcHandler(StorageChannel.GetInfo);
       const result = await handler({});
@@ -1519,10 +1545,10 @@ describe("StorageService", () => {
     });
 
     it("should categorize .enc files as database", async () => {
-      mockReaddirSync.mockReturnValue([
+      mockReaddir.mockResolvedValue([
         { name: "auth-data.enc", isDirectory: () => false, isFile: () => true },
       ]);
-      mockStatSync.mockReturnValue({ size: 128, isFile: () => true });
+      mockFspStat.mockResolvedValue({ size: 128, isFile: () => true });
 
       const handler = getIpcHandler(StorageChannel.GetInfo);
       const result = await handler({});
@@ -1541,13 +1567,13 @@ describe("StorageService", () => {
         { name: "leveldb", isDirectory: () => false, isFile: () => true },
       ];
 
-      mockReaddirSync.mockImplementation((dirPath: string, _opts?: any) => {
+      mockReaddir.mockImplementation(async (dirPath: string, _opts?: any) => {
         if (typeof dirPath === "string" && dirPath.includes("IndexedDB")) {
           return indexedDbEntries;
         }
         return topLevelEntries;
       });
-      mockStatSync.mockReturnValue({ size: 2048, isFile: () => true });
+      mockFspStat.mockResolvedValue({ size: 2048, isFile: () => true });
 
       const handler = getIpcHandler(StorageChannel.GetInfo);
       const result = await handler({});
@@ -1566,13 +1592,13 @@ describe("StorageService", () => {
         { name: "js", isDirectory: () => false, isFile: () => true },
       ];
 
-      mockReaddirSync.mockImplementation((dirPath: string, _opts?: any) => {
+      mockReaddir.mockImplementation(async (dirPath: string, _opts?: any) => {
         if (typeof dirPath === "string" && dirPath.includes("Code Cache")) {
           return codeCacheEntries;
         }
         return topLevelEntries;
       });
-      mockStatSync.mockReturnValue({ size: 3072, isFile: () => true });
+      mockFspStat.mockResolvedValue({ size: 3072, isFile: () => true });
 
       const handler = getIpcHandler(StorageChannel.GetInfo);
       const result = await handler({});
@@ -1593,13 +1619,13 @@ describe("StorageService", () => {
         { name: "data_0", isDirectory: () => false, isFile: () => true },
       ];
 
-      mockReaddirSync.mockImplementation((dirPath: string, _opts?: any) => {
+      mockReaddir.mockImplementation(async (dirPath: string, _opts?: any) => {
         if (typeof dirPath === "string" && dirPath.includes("Cache")) {
           return cacheFiles;
         }
         return topLevel;
       });
-      mockStatSync.mockReturnValue({ size: 1024, isFile: () => true });
+      mockFspStat.mockResolvedValue({ size: 1024, isFile: () => true });
 
       const handler = getIpcHandler(StorageChannel.GetInfo);
       const result = await handler({});
@@ -1636,7 +1662,7 @@ describe("StorageService", () => {
         { name: "deep.log", isDirectory: () => false, isFile: () => true },
       ];
 
-      mockReaddirSync.mockImplementation((dirPath: string, _opts?: any) => {
+      mockReaddir.mockImplementation(async (dirPath: string, _opts?: any) => {
         if (typeof dirPath === "string" && dirPath.includes("nested")) {
           return nestedFiles;
         }
@@ -1645,7 +1671,7 @@ describe("StorageService", () => {
         }
         return topLevel;
       });
-      mockStatSync.mockReturnValue({ size: 64, isFile: () => true });
+      mockFspStat.mockResolvedValue({ size: 64, isFile: () => true });
 
       const handler = getIpcHandler(StorageChannel.GetInfo);
       const result = await handler({});
@@ -1664,11 +1690,9 @@ describe("StorageService", () => {
   // ═══════════════════════════════════════════════════════════════════════════
 
   describe("file system helpers", () => {
-    it("getFileSize should return 0 when statSync throws", async () => {
-      mockStatSync.mockImplementation(() => {
-        throw new Error("ENOENT");
-      });
-      mockReaddirSync.mockReturnValue([]);
+    it("getFileSize should return 0 when stat throws", async () => {
+      mockFspStat.mockRejectedValue(new Error("ENOENT"));
+      mockReaddir.mockResolvedValue([]);
 
       const handler = getIpcHandler(StorageChannel.GetInfo);
       const result = await handler({});
@@ -1677,9 +1701,7 @@ describe("StorageService", () => {
     });
 
     it("getDiskStats should return zero total and free on error", async () => {
-      mockStatfsSync.mockImplementation(() => {
-        throw new Error("ENOENT");
-      });
+      mockStatfs.mockRejectedValue(new Error("ENOENT"));
 
       const handler = getIpcHandler(StorageChannel.GetInfo);
       const result = await handler({});

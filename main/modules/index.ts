@@ -7,6 +7,7 @@ export * from "./csv";
 export * from "./current-session";
 export * from "./data-store";
 export * from "./database";
+export * from "./diag-log";
 export * from "./divination-cards";
 export * from "./logger";
 export * from "./main-window";

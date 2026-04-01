@@ -106,14 +106,14 @@ class SecureSessionStorage {
     // Fallback for Linux without secret service
     if (process.env.NODE_ENV === "development") {
       console.warn(
-        "[SecureSessionStorage] Encryption not available - storing in plaintext (DEV ONLY)",
+        "[SecureSessionStorage] Encryption not available - storing in plaintext (DEV ONLY)"
       );
       fs.writeFileSync(this.sessionPath, sessionJson, "utf8");
       return;
     }
 
     console.warn(
-      "[SecureSessionStorage] Encryption not available and not in dev mode - session will not be persisted",
+      "[SecureSessionStorage] Encryption not available and not in dev mode - session will not be persisted"
     );
   }
 
@@ -141,7 +141,7 @@ class SecureSessionStorage {
           if (process.env.NODE_ENV === "development") {
             sessionJson = data.toString("utf8");
             console.warn(
-              "[SecureSessionStorage] Loaded plaintext session (DEV ONLY)",
+              "[SecureSessionStorage] Loaded plaintext session (DEV ONLY)"
             );
           } else {
             throw decryptError;
@@ -152,11 +152,11 @@ class SecureSessionStorage {
         if (process.env.NODE_ENV === "development") {
           sessionJson = data.toString("utf8");
           console.warn(
-            "[SecureSessionStorage] Loaded plaintext session (DEV ONLY)",
+            "[SecureSessionStorage] Loaded plaintext session (DEV ONLY)"
           );
         } else {
           console.warn(
-            "[SecureSessionStorage] Cannot decrypt - encryption not available",
+            "[SecureSessionStorage] Cannot decrypt - encryption not available"
           );
           return null;
         }
@@ -182,7 +182,7 @@ class SecureSessionStorage {
       } catch (error) {
         console.error(
           "[SecureSessionStorage] Failed to delete session:",
-          error,
+          error
         );
       }
     }
@@ -227,6 +227,10 @@ class SupabaseClientService {
    * Should be called at app startup
    */
   public async configure(url: string, anonKey: string): Promise<void> {
+    console.log(
+      `[SupabaseClient] configure() called — URL present: ${!!url}, ANON_KEY present: ${!!anonKey}`
+    );
+
     if (!url || !anonKey) {
       console.error("[SupabaseClient] Missing Supabase credentials");
       return;
@@ -245,7 +249,7 @@ class SupabaseClientService {
     });
 
     console.log(
-      "[SupabaseClient] Client created, attempting authentication...",
+      "[SupabaseClient] Client created, attempting authentication..."
     );
 
     // Try to restore session or create new anonymous session
@@ -263,12 +267,13 @@ class SupabaseClientService {
 
     this.authPromise = (async () => {
       const storedSession = this.sessionStorage.load();
+      console.log(`[SupabaseClient] Stored session found: ${!!storedSession}`);
 
       // If we have a stored session, try to restore it
       if (storedSession) {
         console.log(
           "[SupabaseClient] Attempting to restore session for user:",
-          storedSession.user_id,
+          storedSession.user_id.slice(0, 5) + "…"
         );
         const { data, error } = await this.client!.auth.setSession({
           access_token: storedSession.access_token,
@@ -276,7 +281,12 @@ class SupabaseClientService {
         });
 
         if (!error && data.session) {
-          console.log("[SupabaseClient] Session restored successfully");
+          console.log(
+            `[SupabaseClient] Session restored successfully for user: ${data.session.user.id.slice(
+              0,
+              5
+            )}…`
+          );
           this.storeSession(data.session);
           this.setupSessionListener();
           return;
@@ -287,10 +297,9 @@ class SupabaseClientService {
         // revoked. Delete the corrupted session file so subsequent launches
         // don't repeat this failed attempt and instead go straight to a
         // fresh anonymous sign-in.
+        const restoreErr = error?.message ?? "unknown";
         console.warn(
-          "[SupabaseClient] Failed to restore session, deleting stored session and creating new one.",
-          "Error:",
-          error?.message ?? "unknown",
+          `[SupabaseClient] Failed to restore session (${restoreErr}), deleting stored session and creating new one.`
         );
         this.sessionStorage.delete();
 
@@ -303,7 +312,7 @@ class SupabaseClientService {
               errorMessage: error?.message,
               userId: storedSession.user_id,
             },
-          },
+          }
         );
       }
 
@@ -314,10 +323,9 @@ class SupabaseClientService {
     try {
       await this.authPromise;
       const { data } = await this.client!.auth.getSession();
+      const userId = data.session?.user?.id ?? "unknown";
       console.log(
-        `[SupabaseClient] Authenticated as user: ${
-          data.session?.user?.id ?? "unknown"
-        }`,
+        `[SupabaseClient] Authenticated as user: ${userId.slice(0, 5)}…`
       );
     } finally {
       this.authPromise = null;
@@ -337,15 +345,23 @@ class SupabaseClientService {
     const { data, error } = await this.client.auth.signInAnonymously();
 
     if (error) {
-      console.error("[SupabaseClient] Anonymous sign-in failed:", error);
+      console.error(
+        `[SupabaseClient] Anonymous sign-in failed: ${error.message} (status: ${error.status})`
+      );
       throw new Error(`Failed to authenticate: ${error.message}`);
     }
 
     if (!data.session) {
+      console.error("[SupabaseClient] Anonymous sign-in returned no session");
       throw new Error("No session returned from anonymous sign-in");
     }
 
-    console.log("[SupabaseClient] Anonymous sign-in successful");
+    console.log(
+      `[SupabaseClient] Anonymous sign-in successful — user: ${data.session.user.id.slice(
+        0,
+        5
+      )}…`
+    );
 
     // Store session for persistence
     this.storeSession(data.session);
@@ -383,7 +399,7 @@ class SupabaseClientService {
         } else if (session) {
           this.storeSession(session);
         }
-      },
+      }
     );
   }
 
@@ -406,7 +422,7 @@ class SupabaseClientService {
           console.warn(
             `[SupabaseClient] Sign-in attempt ${attempt}/${maxRetries} failed, ` +
               `retrying in ${delayMs}ms...`,
-            lastError.message,
+            lastError.message
           );
           await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
         }
@@ -414,7 +430,7 @@ class SupabaseClientService {
     }
 
     console.error(
-      `[SupabaseClient] Anonymous sign-in failed after ${maxRetries} attempts`,
+      `[SupabaseClient] Anonymous sign-in failed after ${maxRetries} attempts — last error: ${lastError?.message}`
     );
     Sentry.captureException(lastError, {
       tags: { module: "supabase", operation: "anonymous-sign-in" },
@@ -455,11 +471,11 @@ class SupabaseClientService {
    */
   public async getLatestSnapshot(
     game: "poe1" | "poe2",
-    leagueId: string,
+    leagueId: string
   ): Promise<SessionPriceSnapshot> {
     if (!this.client) {
       throw new Error(
-        "Supabase client not configured. Call configure() first.",
+        "Supabase client not configured. Call configure() first."
       );
     }
 
@@ -494,7 +510,7 @@ class SupabaseClientService {
           {
             tags: { module: "supabase", operation: "auth-retry" },
             extra: { retryError: retryUserError?.message },
-          },
+          }
         );
         throw new Error("Authentication failed after retry");
       }
@@ -511,7 +527,7 @@ class SupabaseClientService {
     }
 
     console.log(
-      `[SupabaseClient] Fetching snapshot from Supabase for ${game}/${leagueId}...`,
+      `[SupabaseClient] Fetching snapshot from Supabase for ${game}/${leagueId}...`
     );
     try {
       // Get the current session token
@@ -538,14 +554,14 @@ class SupabaseClientService {
             "x-app-version": app.getVersion(),
           },
           body: JSON.stringify({ game, league: leagueId }),
-        },
+        }
       );
 
       const responseText = await response.text();
 
       if (!response.ok) {
         throw new Error(
-          `Edge Function failed (${response.status}): ${responseText}`,
+          `Edge Function failed (${response.status}): ${responseText}`
         );
       }
 
@@ -623,7 +639,7 @@ class SupabaseClientService {
 
   public async callEdgeFunction<T = unknown>(
     functionName: string,
-    body: Record<string, unknown>,
+    body: Record<string, unknown>
   ): Promise<T> {
     if (!this.client) {
       throw new Error("Supabase client not configured");
@@ -647,7 +663,7 @@ class SupabaseClientService {
     const controller = new AbortController();
     const timeoutId = setTimeout(
       () => controller.abort(),
-      SupabaseClientService.EDGE_FUNCTION_TIMEOUT_MS,
+      SupabaseClientService.EDGE_FUNCTION_TIMEOUT_MS
     );
 
     let response: Response;
@@ -664,7 +680,7 @@ class SupabaseClientService {
           },
           body: JSON.stringify(body),
           signal: controller.signal,
-        },
+        }
       );
     } catch (error: unknown) {
       if (error instanceof Error && error.name === "AbortError") {
@@ -679,12 +695,12 @@ class SupabaseClientService {
               operation: "edge-function-timeout",
               functionName,
             },
-          },
+          }
         );
         throw new Error(
           `Edge Function ${functionName} timed out after ${
             SupabaseClientService.EDGE_FUNCTION_TIMEOUT_MS / 1000
-          }s`,
+          }s`
         );
       }
       throw error;
@@ -697,7 +713,7 @@ class SupabaseClientService {
     if (!response.ok) {
       Sentry.captureException(
         new Error(
-          `Edge Function ${functionName} failed (${response.status}): ${responseText}`,
+          `Edge Function ${functionName} failed (${response.status}): ${responseText}`
         ),
         {
           tags: {
@@ -709,10 +725,10 @@ class SupabaseClientService {
             status: response.status,
             responseText: responseText.slice(0, 500),
           },
-        },
+        }
       );
       throw new Error(
-        `Edge Function ${functionName} failed (${response.status}): ${responseText}`,
+        `Edge Function ${functionName} failed (${response.status}): ${responseText}`
       );
     }
 

@@ -128,10 +128,21 @@ jobs:
         if: startsWith(matrix.name, 'windows')
         shell: powershell
         run: |
-          "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" | Set-Content -Path .env -Encoding utf8
-          "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}" | Add-Content -Path .env -Encoding utf8
-          "VITE_UMAMI_ID=${{ secrets.VITE_UMAMI_ID }}" | Add-Content -Path .env -Encoding utf8
-          "VITE_SENTRY_DSN=${{ secrets.SENTRY_DSN }}" | Add-Content -Path .env -Encoding utf8
+          # PowerShell 5.x -Encoding utf8 writes a BOM (EF BB BF) which
+          # corrupts the first env-var name for Vite/dotenv.
+          # Use .NET API to write BOM-free UTF-8.
+          $lines = @(
+            "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}"
+            "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}"
+            "VITE_UMAMI_ID=${{ secrets.VITE_UMAMI_ID }}"
+            "VITE_SENTRY_DSN=${{ secrets.SENTRY_DSN }}"
+          )
+          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          [System.IO.File]::WriteAllLines(
+            (Join-Path $PWD '.env'),
+            $lines,
+            $utf8NoBom
+          )
 
       # ── Linux: single step ─────────────────────────────────────────────
       - name: Make distributables (Linux)

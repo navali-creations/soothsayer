@@ -7,6 +7,7 @@ import { CardDetailsAPI } from "~/main/modules/card-details/CardDetails.api";
 import { CsvAPI } from "~/main/modules/csv/Csv.api";
 import { CurrentSessionAPI } from "~/main/modules/current-session/CurrentSession.api";
 import { DataStoreAPI } from "~/main/modules/data-store/DataStore.api";
+import { DiagLogAPI } from "~/main/modules/diag-log/DiagLog.api";
 import { DivinationCardsApi } from "~/main/modules/divination-cards/DivinationCards.api";
 import { MainWindowAPI } from "~/main/modules/main-window/MainWindow.api";
 import { OverlayAPI } from "~/main/modules/overlay/Overlay.api";
@@ -56,6 +57,7 @@ contextBridge.exposeInMainWorld("electron", {
   csv: CsvAPI,
 
   cardDetails: CardDetailsAPI,
+  diagLog: DiagLogAPI,
   session: CurrentSessionAPI,
   sessions: SessionsAPI,
   snapshots: SnapshotAPI,

@@ -212,6 +212,11 @@ export function createElectronMock() {
       getOccurrenceRatios: vi.fn().mockResolvedValue(null),
     },
 
+    // ── Diag Log ───────────────────────────────────────────────────────
+    diagLog: {
+      revealLogFile: vi.fn().mockResolvedValue({ success: true, path: "" }),
+    },
+
     // ── CSV Export ─────────────────────────────────────────────────────
     csv: {
       exportAll: vi.fn().mockResolvedValue({ success: true }),

@@ -129,11 +129,18 @@ if (typeof window.ResizeObserver === "undefined") {
 
 // window.IntersectionObserver (used by lazy-loading components)
 if (typeof window.IntersectionObserver === "undefined") {
-  (window as any).IntersectionObserver = vi.fn().mockImplementation(() => ({
-    observe: vi.fn(),
-    unobserve: vi.fn(),
-    disconnect: vi.fn(),
-  }));
+  class MockIntersectionObserver {
+    readonly root = null;
+    readonly rootMargin = "0px";
+    readonly thresholds: ReadonlyArray<number> = [0];
+
+    observe = vi.fn();
+    unobserve = vi.fn();
+    disconnect = vi.fn();
+    takeRecords = vi.fn().mockReturnValue([]);
+  }
+
+  (window as any).IntersectionObserver = MockIntersectionObserver;
 }
 
 // HTMLCanvasElement.getContext (used by useChartColors for color parsing)

@@ -141,6 +141,7 @@ vi.mock("~/main/modules", () => {
 
   return {
     AppService: { getInstance: mockAppGetInstance },
+    DiagLogService: { getInstance: vi.fn(() => ({})) },
     MainWindowService: { getInstance: mockMainWindowGetInstance },
     OverlayService: { getInstance: mockOverlayGetInstance },
     AppSetupService: { getInstance: mockAppSetupGetInstance },

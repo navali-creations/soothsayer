@@ -13,6 +13,7 @@ import started from "electron-squirrel-startup";
 import {
   AppService,
   AppSetupService,
+  DiagLogService,
   MainWindowService,
   OverlayService,
   ProfitForecastService,
@@ -28,6 +29,11 @@ import { SettingsKey, SettingsStoreService } from "./modules/settings-store";
 if (started) {
   electronApp.quit();
 }
+
+// Initialize diagnostic logging as early as possible so all subsequent
+// console.log/warn/error calls are captured to diag.log. The constructor
+// truncates the file, so it only contains entries from this session.
+const _diagLog = DiagLogService.getInstance();
 
 const app = AppService.getInstance();
 const mainWindow = MainWindowService.getInstance();
@@ -49,10 +55,17 @@ async function initializeSupabase() {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+  console.log(
+    `[Main] initializeSupabase — URL present: ${!!supabaseUrl}, ANON_KEY present: ${!!supabaseAnonKey}, isPackaged: ${
+      electronApp.isPackaged
+    }`,
+  );
+
   if (supabaseUrl && supabaseAnonKey) {
     console.log("[Main] Configuring Supabase from environment variables");
     try {
       await supabase.configure(supabaseUrl, supabaseAnonKey);
+      console.log("[Main] Supabase configured successfully");
     } catch (error) {
       console.error(
         "[Main] Supabase authentication failed after retries:",
@@ -69,7 +82,8 @@ async function initializeSupabase() {
   } else {
     console.warn(
       "[Main] Supabase credentials not found in environment. " +
-        "Set SUPABASE_URL and SUPABASE_ANON_KEY, or configure via settings.",
+        "Set SUPABASE_URL and SUPABASE_ANON_KEY, or configure via settings. " +
+        "The build likely did not embed VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY.",
     );
   }
 }

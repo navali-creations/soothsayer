@@ -137,12 +137,13 @@ describe("StorageSettingsCard", () => {
 
   // ── Loading state ──────────────────────────────────────────────────────
 
-  it("shows loading spinner when isLoading and no info", () => {
+  it("shows loading spinner with label when isLoading and no info", () => {
     setupStore({ isLoading: true, info: null });
     renderWithProviders(<StorageSettingsCard />);
 
     const spinner = document.querySelector(".loading-spinner");
     expect(spinner).toBeInTheDocument();
+    expect(screen.getByText("Analyzing storage…")).toBeInTheDocument();
   });
 
   it("does not show loading spinner when info exists even if isLoading", () => {

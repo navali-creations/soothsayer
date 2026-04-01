@@ -11,6 +11,9 @@ export interface StorageSlice {
   storage: {
     info: StorageInfo | null;
     leagueUsage: LeagueStorageUsage[];
+    /** Number of in-flight fetch operations. Treat `> 0` as "loading". */
+    _loadingCount: number;
+    /** Derived — true when any fetch is still in-flight. */
     isLoading: boolean;
     error: string | null;
     isDiskLow: boolean;
@@ -19,7 +22,7 @@ export interface StorageSlice {
     fetchStorageInfo: () => Promise<void>;
     fetchLeagueUsage: () => Promise<void>;
     deleteLeagueData: (
-      leagueId: string,
+      leagueId: string
     ) => Promise<{ success: boolean; freedBytes: number }>;
     checkDiskSpace: () => Promise<void>;
   };
@@ -34,6 +37,7 @@ export const createStorageSlice: StateCreator<
   storage: {
     info: null,
     leagueUsage: [],
+    _loadingCount: 0,
     isLoading: false,
     error: null,
     isDiskLow: false,
@@ -42,11 +46,12 @@ export const createStorageSlice: StateCreator<
     fetchStorageInfo: async () => {
       set(
         ({ storage }) => {
+          storage._loadingCount += 1;
           storage.isLoading = true;
           storage.error = null;
         },
         false,
-        "storageSlice/fetchStorageInfo/start",
+        "storageSlice/fetchStorageInfo/start"
       );
 
       try {
@@ -59,10 +64,11 @@ export const createStorageSlice: StateCreator<
           ({ storage }) => {
             storage.info = info;
             storage.isDiskLow = diskCheck.isLow;
-            storage.isLoading = false;
+            storage._loadingCount = Math.max(0, storage._loadingCount - 1);
+            storage.isLoading = storage._loadingCount > 0;
           },
           false,
-          "storageSlice/fetchStorageInfo/success",
+          "storageSlice/fetchStorageInfo/success"
         );
       } catch (error) {
         console.error("[StorageSlice] Failed to fetch storage info:", error);
@@ -72,10 +78,11 @@ export const createStorageSlice: StateCreator<
               error instanceof Error
                 ? error.message
                 : "Failed to fetch storage info";
-            storage.isLoading = false;
+            storage._loadingCount = Math.max(0, storage._loadingCount - 1);
+            storage.isLoading = storage._loadingCount > 0;
           },
           false,
-          "storageSlice/fetchStorageInfo/error",
+          "storageSlice/fetchStorageInfo/error"
         );
       }
     },
@@ -83,11 +90,12 @@ export const createStorageSlice: StateCreator<
     fetchLeagueUsage: async () => {
       set(
         ({ storage }) => {
+          storage._loadingCount += 1;
           storage.isLoading = true;
           storage.error = null;
         },
         false,
-        "storageSlice/fetchLeagueUsage/start",
+        "storageSlice/fetchLeagueUsage/start"
       );
 
       try {
@@ -96,10 +104,11 @@ export const createStorageSlice: StateCreator<
         set(
           ({ storage }) => {
             storage.leagueUsage = leagueUsage;
-            storage.isLoading = false;
+            storage._loadingCount = Math.max(0, storage._loadingCount - 1);
+            storage.isLoading = storage._loadingCount > 0;
           },
           false,
-          "storageSlice/fetchLeagueUsage/success",
+          "storageSlice/fetchLeagueUsage/success"
         );
       } catch (error) {
         console.error("[StorageSlice] Failed to fetch league usage:", error);
@@ -109,10 +118,11 @@ export const createStorageSlice: StateCreator<
               error instanceof Error
                 ? error.message
                 : "Failed to fetch league usage";
-            storage.isLoading = false;
+            storage._loadingCount = Math.max(0, storage._loadingCount - 1);
+            storage.isLoading = storage._loadingCount > 0;
           },
           false,
-          "storageSlice/fetchLeagueUsage/error",
+          "storageSlice/fetchLeagueUsage/error"
         );
       }
     },
@@ -124,7 +134,7 @@ export const createStorageSlice: StateCreator<
           storage.error = null;
         },
         false,
-        "storageSlice/deleteLeagueData/start",
+        "storageSlice/deleteLeagueData/start"
       );
 
       try {
@@ -137,7 +147,7 @@ export const createStorageSlice: StateCreator<
               storage.deletingLeagueId = null;
             },
             false,
-            "storageSlice/deleteLeagueData/error",
+            "storageSlice/deleteLeagueData/error"
           );
           return { success: false, freedBytes: 0 };
         }
@@ -154,7 +164,7 @@ export const createStorageSlice: StateCreator<
             storage.deletingLeagueId = null;
           },
           false,
-          "storageSlice/deleteLeagueData/success",
+          "storageSlice/deleteLeagueData/success"
         );
 
         return { success: true, freedBytes: result.freedBytes };
@@ -169,7 +179,7 @@ export const createStorageSlice: StateCreator<
             storage.deletingLeagueId = null;
           },
           false,
-          "storageSlice/deleteLeagueData/error",
+          "storageSlice/deleteLeagueData/error"
         );
         return { success: false, freedBytes: 0 };
       }
@@ -185,7 +195,7 @@ export const createStorageSlice: StateCreator<
             storage.isDiskLow = diskCheck.isLow;
           },
           false,
-          "storageSlice/checkDiskSpace/success",
+          "storageSlice/checkDiskSpace/success"
         );
       } catch (error) {
         console.error("[StorageSlice] Failed to check disk space:", error);

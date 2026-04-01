@@ -26,16 +26,19 @@ const FilterSettingsCard = () => {
       getLocalFilters,
       getOnlineFilters,
     },
-    prohibitedLibrary: { fetchStatus: fetchPlStatus },
+    prohibitedLibrary: { poe1Status, poe2Status, fetchStatus: fetchPlStatus },
   } = useBoundStore();
 
   const localFilters = getLocalFilters();
   const onlineFilters = getOnlineFilters();
 
-  // Fetch PL status on mount so the status block has data
+  // Fetch PL status on mount so the status block has data.
+  // Skip if already loaded — avoids 2 redundant IPC round-trips on re-mount.
   useEffect(() => {
-    fetchPlStatus();
-  }, [fetchPlStatus]);
+    if (!poe1Status && !poe2Status) {
+      fetchPlStatus();
+    }
+  }, [poe1Status, poe2Status, fetchPlStatus]);
 
   const handleDropdownChange = useCallback(
     async (value: string) => {

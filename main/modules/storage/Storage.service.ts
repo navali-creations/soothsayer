@@ -1,4 +1,4 @@
-import fs from "node:fs";
+import fs, { promises as fsp } from "node:fs";
 import path from "node:path";
 
 import { app, ipcMain } from "electron";
@@ -160,7 +160,7 @@ class StorageService {
       other: { sizeBytes: 0, fileCount: 0 },
     };
 
-    this.walkAndCategorize(dirPath, buckets, dbBaseName);
+    await this.walkAndCategorize(dirPath, buckets, dbBaseName);
 
     const labelMap: Record<AppDataBreakdownItem["category"], string> = {
       database: "Database & session data",
@@ -189,25 +189,25 @@ class StorageService {
   /**
    * Recursively walk a directory and tally file sizes into categorized buckets.
    */
-  private walkAndCategorize(
+  private async walkAndCategorize(
     dirPath: string,
     buckets: Record<
       AppDataBreakdownItem["category"],
       { sizeBytes: number; fileCount: number }
     >,
     dbBaseName: string,
-  ): void {
+  ): Promise<void> {
     try {
-      const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+      const entries = await fsp.readdir(dirPath, { withFileTypes: true });
 
       for (const entry of entries) {
         const fullPath = path.join(dirPath, entry.name);
 
         try {
           if (entry.isDirectory()) {
-            this.walkAndCategorize(fullPath, buckets, dbBaseName);
+            await this.walkAndCategorize(fullPath, buckets, dbBaseName);
           } else if (entry.isFile()) {
-            const stat = fs.statSync(fullPath);
+            const stat = await fsp.stat(fullPath);
             const category = this.categorizeFile(
               entry.name,
               dirPath,
@@ -582,7 +582,7 @@ class StorageService {
    */
   private async getFileSize(filePath: string): Promise<number> {
     try {
-      const stat = fs.statSync(filePath);
+      const stat = await fsp.stat(filePath);
       return stat.size;
     } catch {
       return 0;
@@ -609,7 +609,7 @@ class StorageService {
     targetPath: string,
   ): Promise<{ total: number; free: number }> {
     try {
-      const stats = fs.statfsSync(targetPath);
+      const stats = await fsp.statfs(targetPath);
       return {
         total: stats.bsize * stats.blocks,
         free: stats.bsize * stats.bavail,

@@ -67,10 +67,11 @@ const StorageSettingsCard = () => {
             Disk usage for application data and database
           </p>
 
-          {/* Loading skeleton */}
+          {/* Loading state */}
           {isLoading && !info && (
-            <div className="flex items-center justify-center py-8">
-              <span className="loading loading-spinner loading-md" />
+            <div className="flex items-center gap-3 mt-4 text-base-content/60">
+              <span className="loading loading-spinner loading-sm" />
+              <span className="text-sm">Analyzing storage…</span>
             </div>
           )}
 
