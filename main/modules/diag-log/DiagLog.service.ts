@@ -127,7 +127,7 @@ class DiagLogService {
           console.error("[DiagLog] Failed to reveal log file:", error);
           return { success: false, path: getLogPath() };
         }
-      }
+      },
     );
   }
 }
