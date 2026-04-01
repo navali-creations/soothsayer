@@ -53,11 +53,20 @@ class PoeLeaguesService {
   // Cache duration in hours - matches Supabase rate limit of 2 per 24h
   private static readonly CACHE_MAX_AGE_HOURS = 24;
 
+  // Cooldown in minutes before retrying Supabase after a fallback.
+  // Prevents hammering Supabase when auth or network is persistently down.
+  private static readonly FALLBACK_COOLDOWN_MINUTES = 2;
+
   // Fallback league when both Supabase and local cache are unavailable.
   // "Standard" is a permanent league that always exists for both poe1 and poe2.
   private static readonly FALLBACK_LEAGUES: PoeLeague[] = [
     { id: "Standard", name: "Standard", startAt: null, endAt: null },
   ];
+
+  // In-flight fetch promises keyed by game, used for request deduplication.
+  // If a fetch for the same game is already in progress, callers share the
+  // same promise instead of firing a second Supabase request.
+  private inFlightFetches = new Map<string, Promise<PoeLeague[]>>();
 
   static getInstance(): PoeLeaguesService {
     if (!PoeLeaguesService._instance) {
@@ -121,12 +130,33 @@ class PoeLeaguesService {
   }
 
   /**
-   * Fetch leagues for a game, using local cache when available
-   * Will only call Supabase if cache is stale (older than 24 hours)
+   * Fetch leagues for a game, using local cache when available.
+   * Deduplicates concurrent requests for the same game — if a fetch is
+   * already in flight, callers share the same promise.
    */
   public async fetchLeagues(game: GameType): Promise<PoeLeague[]> {
     const gameKey = game as "poe1" | "poe2";
 
+    // Return existing in-flight request for this game
+    const existing = this.inFlightFetches.get(gameKey);
+    if (existing) {
+      console.log(`[PoeLeaguesService] Returning in-flight fetch for ${game}`);
+      return existing;
+    }
+
+    const promise = this._fetchLeaguesImpl(gameKey);
+    this.inFlightFetches.set(gameKey, promise);
+
+    try {
+      return await promise;
+    } finally {
+      this.inFlightFetches.delete(gameKey);
+    }
+  }
+
+  private async _fetchLeaguesImpl(
+    gameKey: "poe1" | "poe2",
+  ): Promise<PoeLeague[]> {
     // Check if cache is stale
     const isStale = await this.repository.isCacheStale(
       gameKey,
@@ -135,13 +165,15 @@ class PoeLeaguesService {
 
     if (!isStale) {
       // Return cached data
-      console.log(`[PoeLeaguesService] Returning cached leagues for ${game}`);
+      console.log(
+        `[PoeLeaguesService] Returning cached leagues for ${gameKey}`,
+      );
       return this.getCachedLeagues(gameKey);
     }
 
     // Try to fetch from Supabase
     console.log(
-      `[PoeLeaguesService] Cache stale, fetching leagues from Supabase for ${game}`,
+      `[PoeLeaguesService] Cache stale, fetching leagues from Supabase for ${gameKey}`,
     );
 
     try {
@@ -151,7 +183,7 @@ class PoeLeaguesService {
       await this.updateCache(gameKey, leagues);
 
       console.log(
-        `[PoeLeaguesService] Fetched and cached ${leagues.length} leagues for ${game}`,
+        `[PoeLeaguesService] Fetched and cached ${leagues.length} leagues for ${gameKey}`,
       );
 
       return leagues;
@@ -171,11 +203,14 @@ class PoeLeaguesService {
         return cachedLeagues;
       }
 
-      // No cache available — return "Standard" as a safe fallback so the user
-      // isn't stuck on an empty league selector. They can retry or refresh later.
+      // No cache available — cache "Standard" as a short-lived fallback so
+      // isCacheStale() returns false for the cooldown period, preventing a
+      // storm of failing requests. After FALLBACK_COOLDOWN_MINUTES the
+      // cache expires and the app retries Supabase.
       console.warn(
-        `[PoeLeaguesService] No cached leagues available for ${game} and Supabase fetch failed. Falling back to Standard league.`,
+        `[PoeLeaguesService] No cached leagues available for ${gameKey} and Supabase fetch failed. Caching Standard fallback with ${PoeLeaguesService.FALLBACK_COOLDOWN_MINUTES}min cooldown.`,
       );
+      await this.cacheFallback(gameKey);
       return PoeLeaguesService.FALLBACK_LEAGUES;
     }
   }
@@ -263,6 +298,25 @@ class PoeLeaguesService {
 
     // Update the cache metadata
     await this.repository.upsertCacheMetadata(game, now);
+  }
+
+  /**
+   * Cache the fallback leagues with a short-lived timestamp.
+   *
+   * Sets `last_fetched_at` to a time in the past such that
+   * `isCacheStale()` returns `false` for FALLBACK_COOLDOWN_MINUTES,
+   * then `true` — allowing a retry after the cooldown expires.
+   */
+  private async cacheFallback(game: "poe1" | "poe2"): Promise<void> {
+    const cooldownMs = PoeLeaguesService.FALLBACK_COOLDOWN_MINUTES * 60 * 1000;
+    const maxAgeMs = PoeLeaguesService.CACHE_MAX_AGE_HOURS * 60 * 60 * 1000;
+    const fakeFetchedAt = new Date(
+      Date.now() - maxAgeMs + cooldownMs,
+    ).toISOString();
+
+    await this.updateCache(game, PoeLeaguesService.FALLBACK_LEAGUES);
+    // Overwrite the metadata timestamp with our fake one
+    await this.repository.upsertCacheMetadata(game, fakeFetchedAt);
   }
 
   /**

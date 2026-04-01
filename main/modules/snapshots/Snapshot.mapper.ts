@@ -20,6 +20,7 @@ export class SnapshotMapper {
       id: row.id,
       leagueId: row.league_id,
       fetchedAt: row.fetched_at,
+      createdAt: row.created_at,
       exchangeChaosToDivine: row.exchange_chaos_to_divine,
       stashChaosToDivine: row.stash_chaos_to_divine,
       stackedDeckChaosCost: row.stacked_deck_chaos_cost,

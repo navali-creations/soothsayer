@@ -66,6 +66,7 @@ describe("Snapshot.mapper", () => {
       expect(dto.id).toBe("snap-001");
       expect(dto.leagueId).toBe("league-001");
       expect(dto.fetchedAt).toBe("2025-01-15T10:00:00Z");
+      expect(dto.createdAt).toBe("2025-01-15T10:00:00Z");
       expect(dto.exchangeChaosToDivine).toBe(200);
       expect(dto.stashChaosToDivine).toBe(195);
       expect(dto.stackedDeckChaosCost).toBe(3.5);
@@ -75,6 +76,7 @@ describe("Snapshot.mapper", () => {
       const row = createSnapshotRow({
         league_id: "league-abc",
         fetched_at: "2025-06-01T12:00:00Z",
+        created_at: "2025-06-01T11:59:00Z",
         exchange_chaos_to_divine: 180,
         stash_chaos_to_divine: 175,
         stacked_deck_chaos_cost: 4.0,
@@ -83,16 +85,18 @@ describe("Snapshot.mapper", () => {
 
       expect(dto.leagueId).toBe("league-abc");
       expect(dto.fetchedAt).toBe("2025-06-01T12:00:00Z");
+      expect(dto.createdAt).toBe("2025-06-01T11:59:00Z");
       expect(dto.exchangeChaosToDivine).toBe(180);
       expect(dto.stashChaosToDivine).toBe(175);
       expect(dto.stackedDeckChaosCost).toBe(4.0);
     });
 
-    it("should not include created_at in the DTO", () => {
+    it("should map created_at to createdAt in the DTO", () => {
       const row = createSnapshotRow();
       const dto = SnapshotMapper.toSnapshotDTO(row);
 
-      expect("createdAt" in dto).toBe(false);
+      expect("createdAt" in dto).toBe(true);
+      expect(dto.createdAt).toBe("2025-01-15T10:00:00Z");
       expect("created_at" in dto).toBe(false);
     });
 
@@ -101,6 +105,7 @@ describe("Snapshot.mapper", () => {
       const dto = SnapshotMapper.toSnapshotDTO(row);
 
       expect(Object.keys(dto).sort()).toEqual([
+        "createdAt",
         "exchangeChaosToDivine",
         "fetchedAt",
         "id",

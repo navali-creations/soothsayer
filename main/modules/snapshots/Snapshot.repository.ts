@@ -59,11 +59,11 @@ export class SnapshotRepository {
       .selectAll()
       .where("league_id", "=", leagueId)
       .where(
-        sql`datetime(fetched_at)`,
+        sql`datetime(created_at)`,
         ">",
         sql`datetime('now', '-${sql.lit(hoursAgo)} hours')`,
       )
-      .orderBy("fetched_at", "desc")
+      .orderBy("created_at", "desc")
       .executeTakeFirst();
 
     return row ? SnapshotMapper.toSnapshotDTO(row) : null;

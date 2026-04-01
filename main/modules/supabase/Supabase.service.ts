@@ -283,8 +283,8 @@ class SupabaseClientService {
         );
       }
 
-      // Otherwise sign in anonymously
-      await this.signInAnonymously();
+      // Otherwise sign in anonymously (with retry for transient failures)
+      await this.signInWithRetry();
     })();
 
     try {
@@ -357,6 +357,38 @@ class SupabaseClientService {
         }
       },
     );
+  }
+
+  /**
+   * Retry wrapper around signInAnonymously with exponential backoff.
+   * Covers transient network issues, DNS hiccups, and cold-start latency
+   * that are common during first launch.
+   */
+  private async signInWithRetry(maxRetries = 3): Promise<void> {
+    let lastError: Error | undefined;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        await this.signInAnonymously();
+        return;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        if (attempt < maxRetries) {
+          const delayMs = 1000 * 2 ** (attempt - 1); // 1s, 2s, 4s
+          console.warn(
+            `[SupabaseClient] Sign-in attempt ${attempt}/${maxRetries} failed, ` +
+              `retrying in ${delayMs}ms...`,
+            lastError.message,
+          );
+          await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
+        }
+      }
+    }
+
+    console.error(
+      `[SupabaseClient] Anonymous sign-in failed after ${maxRetries} attempts`,
+    );
+    throw lastError!;
   }
 
   /**

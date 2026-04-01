@@ -36,7 +36,7 @@ const _profitForecast = ProfitForecastService.getInstance();
 const supabase = SupabaseClientService.getInstance();
 const _storageService = StorageService.getInstance();
 
-function initializeSupabase() {
+async function initializeSupabase() {
   if (process.env.E2E_TESTING === "true") {
     console.log(
       "[Main] E2E_TESTING detected — skipping Supabase initialization",
@@ -49,7 +49,15 @@ function initializeSupabase() {
 
   if (supabaseUrl && supabaseAnonKey) {
     console.log("[Main] Configuring Supabase from environment variables");
-    supabase.configure(supabaseUrl, supabaseAnonKey);
+    try {
+      await supabase.configure(supabaseUrl, supabaseAnonKey);
+    } catch (error) {
+      console.error(
+        "[Main] Supabase authentication failed after retries:",
+        error,
+      );
+      // App continues — leagues will use fallback
+    }
   } else {
     console.warn(
       "[Main] Supabase credentials not found in environment. " +
@@ -76,7 +84,7 @@ if (!singleInstanceLocked) {
         .catch((err) => console.log("An error occurred: ", err));
     }
 
-    initializeSupabase();
+    await initializeSupabase();
 
     // Disable Sentry if the user has opted out of crash reporting.
     // Sentry was eagerly initialized above to catch startup crashes;

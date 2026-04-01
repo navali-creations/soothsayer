@@ -252,6 +252,64 @@ test.describe("Profit Forecast – Interactions", () => {
         )
         .toBe(true);
     });
+
+    test("refresh button enters cooldown lock state after successful refresh", async ({
+      page,
+    }) => {
+      // Delete any existing snapshots so getSnapshotForSession must fetch a
+      // new one, guaranteeing the handler runs the full refresh path.
+      await seedAndNavigate(page);
+
+      const refreshButton = page.getByText("Refresh poe.ninja", {
+        exact: false,
+      });
+      const isVisible = await refreshButton
+        .isVisible({ timeout: 5_000 })
+        .catch(() => false);
+
+      if (!isVisible) {
+        // Already on cooldown from a previous test — that's fine, verify
+        // the lock state instead.
+        const lastButton = page.locator("button").last();
+        await expect(lastButton).toBeDisabled({ timeout: 5_000 });
+        return;
+      }
+
+      // Click the refresh button
+      await refreshButton.click();
+
+      // Wait for the refresh to complete — the "Refresh poe.ninja" idle
+      // text should disappear (replaced by "Refreshing..." then cooldown).
+      await expect
+        .poll(
+          async () => {
+            // Check that idle text is gone — we're either refreshing or
+            // on cooldown now.
+            const hasIdleText = await page
+              .getByText("Refresh poe.ninja", { exact: true })
+              .isVisible()
+              .catch(() => false);
+            return !hasIdleText;
+          },
+          { timeout: 30_000, intervals: [200, 500, 1_000] },
+        )
+        .toBe(true);
+
+      // The button must now be in cooldown: disabled and showing a countdown.
+      // DaisyUI's countdown renders digits via CSS --value variables, so
+      // textContent only contains ":" separators. We look for ":" inside
+      // a disabled button as evidence of an active countdown timer.
+      const cooldownButton = page.locator("button:disabled").filter({
+        has: page.locator("svg"),
+      });
+
+      await expect(cooldownButton.first()).toBeVisible({ timeout: 10_000 });
+
+      // Verify the button is truly disabled — clicking should NOT trigger
+      // another refresh.
+      const lastDisabledButton = page.locator("button:disabled").last();
+      await expect(lastDisabledButton).toBeDisabled();
+    });
   });
 
   // ── Custom Base Rate ────────────────────────────────────────────────────

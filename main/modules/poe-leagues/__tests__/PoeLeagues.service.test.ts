@@ -921,4 +921,232 @@ describe("PoeLeaguesService", () => {
       expect(leagues[0].endAt).toBeNull();
     });
   });
+
+  // ─── Request deduplication (Fix 4) ─────────────────────────────────────
+
+  describe("fetchLeagues — request deduplication", () => {
+    it("should return the same promise for concurrent calls with the same game", async () => {
+      // Make callEdgeFunction slow so we can observe concurrency
+      let resolveEdgeFn!: (value: unknown) => void;
+      mockCallEdgeFunction.mockReturnValue(
+        new Promise((resolve) => {
+          resolveEdgeFn = resolve;
+        }),
+      );
+
+      const promise1 = service.fetchLeagues("poe1");
+      const promise2 = service.fetchLeagues("poe1");
+
+      // Resolve the single edge function call
+      resolveEdgeFn({
+        leagues: [
+          {
+            id: "1",
+            leagueId: "settlers",
+            name: "Settlers",
+            startAt: "2025-01-01",
+            endAt: null,
+            isActive: true,
+            updatedAt: null,
+          },
+        ],
+      });
+
+      const [result1, result2] = await Promise.all([promise1, promise2]);
+
+      // Only ONE call to Supabase
+      expect(mockCallEdgeFunction).toHaveBeenCalledTimes(1);
+      // Both callers get the same result
+      expect(result1).toEqual(result2);
+    });
+
+    it("should make separate calls for different games", async () => {
+      mockCallEdgeFunction
+        .mockResolvedValueOnce({
+          leagues: [
+            {
+              id: "1",
+              leagueId: "settlers",
+              name: "Settlers",
+              startAt: null,
+              endAt: null,
+              isActive: true,
+              updatedAt: null,
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          leagues: [
+            {
+              id: "2",
+              leagueId: "dawn",
+              name: "Dawn",
+              startAt: null,
+              endAt: null,
+              isActive: true,
+              updatedAt: null,
+            },
+          ],
+        });
+
+      const [poe1, poe2] = await Promise.all([
+        service.fetchLeagues("poe1"),
+        service.fetchLeagues("poe2"),
+      ]);
+
+      expect(mockCallEdgeFunction).toHaveBeenCalledTimes(2);
+      expect(poe1[0].name).toBe("Settlers");
+      expect(poe2[0].name).toBe("Dawn");
+    });
+
+    it("should make a fresh request after the previous one resolved", async () => {
+      mockCallEdgeFunction.mockResolvedValue({
+        leagues: [
+          {
+            id: "1",
+            leagueId: "standard",
+            name: "Standard",
+            startAt: null,
+            endAt: null,
+            isActive: true,
+            updatedAt: null,
+          },
+        ],
+      });
+
+      // First call
+      await service.fetchLeagues("poe1");
+
+      // Expire the cache so a second fetch hits Supabase again
+      await testDb.kysely
+        .updateTable("poe_leagues_cache_metadata")
+        .set({
+          last_fetched_at: new Date(
+            Date.now() - 25 * 60 * 60 * 1000,
+          ).toISOString(),
+        })
+        .where("game", "=", "poe1")
+        .execute();
+
+      // Second call — should be independent (not deduped)
+      await service.fetchLeagues("poe1");
+
+      expect(mockCallEdgeFunction).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  // ─── Fallback caching with cooldown (Fix 5) ───────────────────────────
+
+  describe("fetchLeagues — fallback caching with cooldown", () => {
+    it("should cache the fallback so subsequent calls within cooldown don't hit Supabase", async () => {
+      // Supabase fails
+      mockCallEdgeFunction.mockRejectedValue(new Error("Network error"));
+
+      // First call — caches fallback
+      const leagues1 = await service.fetchLeagues("poe1");
+      expect(leagues1).toEqual([
+        { id: "Standard", name: "Standard", startAt: null, endAt: null },
+      ]);
+
+      // Second call — should use cached fallback, NOT call Supabase again
+      mockCallEdgeFunction.mockClear();
+      const leagues2 = await service.fetchLeagues("poe1");
+      expect(leagues2).toHaveLength(1);
+      expect(leagues2[0].name).toBe("Standard");
+      expect(mockCallEdgeFunction).not.toHaveBeenCalled();
+    });
+
+    it("should retry Supabase after the cooldown period expires", async () => {
+      vi.useFakeTimers();
+      try {
+        // First call fails → caches fallback
+        mockCallEdgeFunction.mockRejectedValue(new Error("Network error"));
+        await service.fetchLeagues("poe1");
+        expect(mockCallEdgeFunction).toHaveBeenCalledTimes(1);
+
+        // Advance past the 2-minute cooldown
+        vi.advanceTimersByTime(3 * 60 * 1000);
+
+        // Now the cache is stale — should retry Supabase
+        mockCallEdgeFunction.mockResolvedValue({
+          leagues: [
+            {
+              id: "1",
+              leagueId: "settlers",
+              name: "Settlers",
+              startAt: null,
+              endAt: null,
+              isActive: true,
+              updatedAt: null,
+            },
+            {
+              id: "2",
+              leagueId: "standard",
+              name: "Standard",
+              startAt: null,
+              endAt: null,
+              isActive: true,
+              updatedAt: null,
+            },
+          ],
+        });
+
+        const leagues = await service.fetchLeagues("poe1");
+        expect(leagues).toHaveLength(2);
+        expect(leagues.map((l) => l.name)).toContain("Settlers");
+        expect(mockCallEdgeFunction).toHaveBeenCalledTimes(2);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("should replace cached fallback with real leagues when Supabase recovers", async () => {
+      // First: Supabase fails → fallback cached
+      mockCallEdgeFunction.mockRejectedValue(new Error("Network error"));
+      await service.fetchLeagues("poe1");
+
+      // Manually expire the cache to simulate cooldown passing
+      await testDb.kysely
+        .updateTable("poe_leagues_cache_metadata")
+        .set({
+          last_fetched_at: new Date(
+            Date.now() - 25 * 60 * 60 * 1000,
+          ).toISOString(),
+        })
+        .where("game", "=", "poe1")
+        .execute();
+
+      // Second: Supabase succeeds
+      mockCallEdgeFunction.mockResolvedValue({
+        leagues: [
+          {
+            id: "1",
+            leagueId: "settlers",
+            name: "Settlers",
+            startAt: null,
+            endAt: null,
+            isActive: true,
+            updatedAt: null,
+          },
+          {
+            id: "2",
+            leagueId: "standard",
+            name: "Standard",
+            startAt: null,
+            endAt: null,
+            isActive: true,
+            updatedAt: null,
+          },
+        ],
+      });
+
+      const leagues = await service.fetchLeagues("poe1");
+      expect(leagues).toHaveLength(2);
+      expect(leagues.map((l) => l.name)).toContain("Settlers");
+
+      // Verify real leagues are in the cache
+      const cached = await service.getCachedLeaguesOnly("poe1");
+      expect(cached).toHaveLength(2);
+    });
+  });
 });

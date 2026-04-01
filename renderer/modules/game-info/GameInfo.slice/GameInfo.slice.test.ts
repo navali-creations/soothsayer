@@ -25,6 +25,22 @@ function makePoeLeague(overrides: { id: string; name: string }) {
   };
 }
 
+/** Mark setup as complete and optionally set which games are installed. */
+function setupComplete(installedGames: ("poe1" | "poe2")[] = ["poe1", "poe2"]) {
+  store.getState().setup.setSetupState({
+    currentStep: 1,
+    isComplete: true,
+    selectedGames: installedGames,
+    poe1League: "Standard",
+    poe2League: "Standard",
+    poe1ClientPath: null,
+    poe2ClientPath: null,
+    telemetryCrashReporting: false,
+    telemetryUsageAnalytics: false,
+  });
+  store.getState().settings.setSetting("installedGames", installedGames);
+}
+
 describe("GameInfoSlice", () => {
   // ── Initial State ────────────────────────────────────────────────────────
 
@@ -124,6 +140,9 @@ describe("GameInfoSlice", () => {
       electron.poeProcess.getState.mockResolvedValue(null);
       electron.poeLeagues.fetchLeagues.mockResolvedValue([]);
 
+      // League fetches only fire when setup is already complete
+      setupComplete(["poe1", "poe2"]);
+
       await store.getState().gameInfo.hydrate();
 
       // Allow background Promise.all to settle
@@ -131,6 +150,34 @@ describe("GameInfoSlice", () => {
         expect(electron.poeLeagues.fetchLeagues).toHaveBeenCalledWith("poe1");
         expect(electron.poeLeagues.fetchLeagues).toHaveBeenCalledWith("poe2");
       });
+    });
+
+    it("does NOT fetch leagues when setup is not complete", async () => {
+      electron.poeProcess.getState.mockResolvedValue(null);
+      electron.poeLeagues.fetchLeagues.mockResolvedValue([]);
+
+      // Default test store has setup not complete
+      await store.getState().gameInfo.hydrate();
+
+      // Wait a tick to ensure no background promises fire
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(electron.poeLeagues.fetchLeagues).not.toHaveBeenCalled();
+    });
+
+    it("only fetches leagues for installed games when setup is complete", async () => {
+      electron.poeProcess.getState.mockResolvedValue(null);
+      electron.poeLeagues.fetchLeagues.mockResolvedValue([]);
+
+      // Set up the store with setup complete and only poe1 installed
+      setupComplete(["poe1"]);
+
+      await store.getState().gameInfo.hydrate();
+
+      await vi.waitFor(() => {
+        expect(electron.poeLeagues.fetchLeagues).toHaveBeenCalledWith("poe1");
+      });
+      expect(electron.poeLeagues.fetchLeagues).not.toHaveBeenCalledWith("poe2");
     });
   });
 
@@ -548,6 +595,9 @@ describe("GameInfoSlice", () => {
         new Error("Edge function down"),
       );
 
+      // League fetches only fire when setup is complete
+      setupComplete(["poe1", "poe2"]);
+
       await store.getState().gameInfo.hydrate();
 
       // Allow the background Promise.all to settle — each fetchLeagues call
@@ -574,6 +624,9 @@ describe("GameInfoSlice", () => {
       electron.poeLeagues.fetchLeagues.mockRejectedValue(
         new Error("Network error"),
       );
+
+      // League fetches only fire when setup is complete
+      setupComplete(["poe1", "poe2"]);
 
       // hydrate itself should not throw even if background fetch fails
       await expect(

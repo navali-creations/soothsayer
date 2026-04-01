@@ -145,6 +145,59 @@ test.describe("Rarity Insights — Interactions", () => {
         expect(await refreshButton.isDisabled()).toBe(true);
       }
     });
+
+    test("should enter cooldown lock state after a successful refresh", async ({
+      page,
+    }) => {
+      await goToRarityInsights(page);
+      await waitForPageSettled(page);
+
+      const refreshWrapper = page.locator(
+        '[data-onboarding="rarity-insights-refresh"]',
+      );
+      const refreshButton = refreshWrapper.locator("button");
+
+      // If already on cooldown from a previous test in this worker,
+      // verify the lock state and return early.
+      if (await refreshButton.isDisabled()) {
+        // Button is disabled — verify it shows a countdown (DaisyUI's
+        // countdown uses CSS --value vars so textContent has ":" separators)
+        // or a lock icon SVG.
+        const buttonText = await refreshButton.textContent();
+        const hasCountdown =
+          buttonText!.includes(":") || /\d/.test(buttonText!);
+        const hasLockIcon = (await refreshButton.locator("svg").count()) > 0;
+        expect(hasCountdown || hasLockIcon).toBe(true);
+        return;
+      }
+
+      // Click the refresh button
+      await refreshButton.click();
+
+      // Wait for the refresh to complete — the button should transition
+      // from "Refreshing..." to the cooldown state (not back to idle).
+      await expect
+        .poll(
+          async () => {
+            const text = (await refreshButton.textContent()) ?? "";
+            // Still refreshing — keep waiting
+            if (text.includes("Refreshing")) return "refreshing";
+            // Back to idle — this is the bug scenario
+            if (text.includes("Refresh poe.ninja")) return "idle";
+            // Anything else (countdown ":", digits) means cooldown
+            return "cooldown";
+          },
+          { timeout: 30_000, intervals: [200, 500, 1_000] },
+        )
+        .toBe("cooldown");
+
+      // The button must be disabled during cooldown
+      await expect(refreshButton).toBeDisabled();
+
+      // Should contain a lock icon (SVG) or countdown digits
+      const svgCount = await refreshButton.locator("svg").count();
+      expect(svgCount).toBeGreaterThan(0);
+    });
   });
 
   // ─── Filters (includes Scan) ──────────────────────────────────────────────

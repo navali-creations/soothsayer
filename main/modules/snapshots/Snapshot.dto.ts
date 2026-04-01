@@ -11,6 +11,8 @@ export interface SnapshotDTO {
   id: string;
   leagueId: string;
   fetchedAt: string;
+  /** When this snapshot was stored locally (ISO timestamp). */
+  createdAt: string;
   exchangeChaosToDivine: number;
   stashChaosToDivine: number;
   stackedDeckChaosCost: number;

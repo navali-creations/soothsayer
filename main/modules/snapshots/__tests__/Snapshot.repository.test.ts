@@ -215,6 +215,7 @@ describe("SnapshotRepository", () => {
       expect(snapshot!.id).toBe("snap-001");
       expect(snapshot!.leagueId).toBe(leagueId);
       expect(snapshot!.fetchedAt).toBe("2025-01-15T10:00:00Z");
+      expect(snapshot!.createdAt).toEqual(expect.any(String));
       expect(snapshot!.exchangeChaosToDivine).toBe(200);
       expect(snapshot!.stashChaosToDivine).toBe(195);
       expect(snapshot!.stackedDeckChaosCost).toBe(3.5);
@@ -238,6 +239,7 @@ describe("SnapshotRepository", () => {
       const snapshot = await repository.getSnapshotById("snap-check");
       expect(snapshot).not.toBeNull();
       expect(Object.keys(snapshot!).sort()).toEqual([
+        "createdAt",
         "exchangeChaosToDivine",
         "fetchedAt",
         "id",
@@ -289,6 +291,7 @@ describe("SnapshotRepository", () => {
       expect(snapshot!.id).toBe("snap-create");
       expect(snapshot!.leagueId).toBe(leagueId);
       expect(snapshot!.fetchedAt).toBe("2025-01-15T10:00:00Z");
+      expect(snapshot!.createdAt).toEqual(expect.any(String));
       expect(snapshot!.exchangeChaosToDivine).toBe(200);
       expect(snapshot!.stashChaosToDivine).toBe(195);
       expect(snapshot!.stackedDeckChaosCost).toBe(3.5);
@@ -491,6 +494,7 @@ describe("SnapshotRepository", () => {
 
       const snapshot = await repository.getSnapshotById("snap-zero-cost");
       expect(snapshot).not.toBeNull();
+      expect(snapshot!.createdAt).toEqual(expect.any(String));
       expect(snapshot!.stackedDeckChaosCost).toBe(0);
     });
   });
@@ -642,7 +646,7 @@ describe("SnapshotRepository", () => {
     it("should return null when no snapshots are within the time window", async () => {
       const leagueId = await seedLeague(testDb.kysely);
 
-      // Insert a snapshot from far in the past
+      // Insert a snapshot with created_at far in the past so it falls outside the recency window
       await testDb.kysely
         .insertInto("snapshots")
         .values({
@@ -652,6 +656,7 @@ describe("SnapshotRepository", () => {
           exchange_chaos_to_divine: 200,
           stash_chaos_to_divine: 195,
           stacked_deck_chaos_cost: 3,
+          created_at: "2020-01-01T00:00:00Z",
         })
         .execute();
 
@@ -659,10 +664,10 @@ describe("SnapshotRepository", () => {
       expect(snapshot).toBeNull();
     });
 
-    it("should return a snapshot fetched within the time window", async () => {
+    it("should return a snapshot created within the time window", async () => {
       const leagueId = await seedLeague(testDb.kysely);
 
-      // Insert a snapshot with current timestamp
+      // Insert a snapshot — created_at defaults to datetime('now'), which is within the window
       const now = new Date().toISOString();
       await testDb.kysely
         .insertInto("snapshots")
@@ -679,13 +684,14 @@ describe("SnapshotRepository", () => {
       const snapshot = await repository.getRecentSnapshot(leagueId, 1);
       expect(snapshot).not.toBeNull();
       expect(snapshot!.id).toBe("snap-recent");
+      expect(snapshot!.createdAt).toEqual(expect.any(String));
     });
 
     it("should return the most recent snapshot when multiple exist", async () => {
       const leagueId = await seedLeague(testDb.kysely);
       const now = new Date();
 
-      // Insert two recent snapshots
+      // Insert two recent snapshots with explicit created_at to control ordering
       const tenMinutesAgo = new Date(
         now.getTime() - 10 * 60 * 1000,
       ).toISOString();
@@ -703,6 +709,7 @@ describe("SnapshotRepository", () => {
             exchange_chaos_to_divine: 200,
             stash_chaos_to_divine: 195,
             stacked_deck_chaos_cost: 3,
+            created_at: tenMinutesAgo,
           },
           {
             id: "snap-newer",
@@ -711,6 +718,7 @@ describe("SnapshotRepository", () => {
             exchange_chaos_to_divine: 201,
             stash_chaos_to_divine: 196,
             stacked_deck_chaos_cost: 3.5,
+            created_at: fiveMinutesAgo,
           },
         ])
         .execute();
@@ -790,6 +798,7 @@ describe("SnapshotRepository", () => {
       expect(result).not.toBeNull();
       expect(result!.snapshot.id).toBe("snap-load");
       expect(result!.snapshot.leagueId).toBe(leagueId);
+      expect(result!.snapshot.createdAt).toEqual(expect.any(String));
       expect(result!.snapshot.exchangeChaosToDivine).toBe(200);
       expect(result!.snapshot.stashChaosToDivine).toBe(195);
       expect(result!.snapshot.stackedDeckChaosCost).toBe(3);

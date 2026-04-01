@@ -447,6 +447,144 @@ describe("SupabaseClientService", () => {
   });
 
   // ═══════════════════════════════════════════════════════════════
+  // signInWithRetry — retry behavior
+  // ═══════════════════════════════════════════════════════════════
+
+  describe("signInWithRetry — retry behavior", () => {
+    it("should succeed on the second attempt after a transient failure", async () => {
+      vi.useFakeTimers();
+      try {
+        createMockSupabaseClient();
+
+        // First attempt fails, second succeeds
+        mockSignInAnonymously
+          .mockRejectedValueOnce(new Error("Network error"))
+          .mockResolvedValueOnce({
+            data: { session: makeSession() },
+            error: null,
+          });
+
+        const service = SupabaseClientService.getInstance();
+        const configurePromise = service.configure(
+          SUPABASE_URL,
+          SUPABASE_ANON_KEY,
+        );
+
+        // Advance past the 1s backoff delay
+        await vi.advanceTimersByTimeAsync(1000);
+        await configurePromise;
+
+        expect(mockSignInAnonymously).toHaveBeenCalledTimes(2);
+        expect(service.isConfigured()).toBe(true);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("should succeed on the third attempt after two transient failures", async () => {
+      vi.useFakeTimers();
+      try {
+        createMockSupabaseClient();
+
+        mockSignInAnonymously
+          .mockRejectedValueOnce(new Error("DNS resolution failed"))
+          .mockRejectedValueOnce(new Error("Connection refused"))
+          .mockResolvedValueOnce({
+            data: { session: makeSession() },
+            error: null,
+          });
+
+        const service = SupabaseClientService.getInstance();
+        const configurePromise = service.configure(
+          SUPABASE_URL,
+          SUPABASE_ANON_KEY,
+        );
+
+        // Advance past 1s backoff
+        await vi.advanceTimersByTimeAsync(1000);
+        // Advance past 2s backoff
+        await vi.advanceTimersByTimeAsync(2000);
+        await configurePromise;
+
+        expect(mockSignInAnonymously).toHaveBeenCalledTimes(3);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("should throw the last error after exhausting all retries", async () => {
+      vi.useFakeTimers();
+      try {
+        createMockSupabaseClient();
+
+        mockSignInAnonymously
+          .mockRejectedValueOnce(new Error("Attempt 1 failed"))
+          .mockRejectedValueOnce(new Error("Attempt 2 failed"))
+          .mockRejectedValueOnce(new Error("Attempt 3 failed"));
+
+        const service = SupabaseClientService.getInstance();
+        // Attach a .catch immediately so the rejection is never "unhandled"
+        // while we advance fake timers. We still assert via expect below.
+        const configurePromise = service
+          .configure(SUPABASE_URL, SUPABASE_ANON_KEY)
+          .catch((e: unknown) => e);
+
+        // Advance through all backoff delays (1s + 2s)
+        await vi.advanceTimersByTimeAsync(1000);
+        await vi.advanceTimersByTimeAsync(2000);
+
+        const result = await configurePromise;
+        expect(result).toBeInstanceOf(Error);
+        expect((result as Error).message).toBe("Attempt 3 failed");
+        expect(mockSignInAnonymously).toHaveBeenCalledTimes(3);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("should use exponential backoff delays between retries", async () => {
+      vi.useFakeTimers();
+      try {
+        createMockSupabaseClient();
+        const delays: number[] = [];
+        let lastTime = Date.now();
+
+        mockSignInAnonymously
+          .mockRejectedValueOnce(new Error("Fail 1"))
+          .mockImplementationOnce(async () => {
+            delays.push(Date.now() - lastTime);
+            lastTime = Date.now();
+            throw new Error("Fail 2");
+          })
+          .mockImplementationOnce(async () => {
+            delays.push(Date.now() - lastTime);
+            return {
+              data: { session: makeSession() },
+              error: null,
+            };
+          });
+
+        const service = SupabaseClientService.getInstance();
+        const configurePromise = service.configure(
+          SUPABASE_URL,
+          SUPABASE_ANON_KEY,
+        );
+
+        // 1s delay after first failure
+        await vi.advanceTimersByTimeAsync(1000);
+        // 2s delay after second failure
+        await vi.advanceTimersByTimeAsync(2000);
+        await configurePromise;
+
+        expect(delays[0]).toBeGreaterThanOrEqual(1000);
+        expect(delays[1]).toBeGreaterThanOrEqual(2000);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════
   // Auth state listener
   // ═══════════════════════════════════════════════════════════════
 

@@ -466,6 +466,28 @@ describe("main.ts", () => {
         process.env.E2E_TESTING = originalE2E;
       }
     });
+
+    it("should catch and log error when configure rejects", async () => {
+      mockSupabaseConfigure.mockRejectedValue(
+        new Error("Auth failed after retries"),
+      );
+
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+
+      const capture = setupWhenReadyCapture();
+      await importMain();
+      await capture.invoke();
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Supabase authentication failed"),
+        expect.any(Error),
+      );
+
+      // App should continue — window creation should still happen
+      expect(mockMainWindowCreateMainWindow).toHaveBeenCalledTimes(1);
+    });
   });
 
   // ─── whenReady Lifecycle ────────────────────────────────────────────────
@@ -513,7 +535,7 @@ describe("main.ts", () => {
 
     it("should initialize Supabase before creating the main window", async () => {
       const callOrder: string[] = [];
-      mockSupabaseConfigure.mockImplementation(() => {
+      mockSupabaseConfigure.mockImplementation(async () => {
         callOrder.push("supabase");
       });
       mockMainWindowCreateMainWindow.mockImplementation(async () => {
@@ -687,7 +709,7 @@ describe("main.ts", () => {
       mockSentryInitialize.mockImplementation(() => {
         callOrder.push("sentry:initialize");
       });
-      mockSupabaseConfigure.mockImplementation(() => {
+      mockSupabaseConfigure.mockImplementation(async () => {
         callOrder.push("supabase:configure");
       });
       mockMainWindowCreateMainWindow.mockImplementation(async () => {

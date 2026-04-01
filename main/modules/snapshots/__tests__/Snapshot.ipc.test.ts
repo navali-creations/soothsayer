@@ -143,6 +143,7 @@ const SAMPLE_RECENT_SNAPSHOT = {
   id: "snap-1",
   leagueId: "league-1",
   fetchedAt: "2025-01-15T10:00:00Z",
+  createdAt: "2025-01-15T12:00:00Z",
   exchangeChaosToDivine: 200,
   stashChaosToDivine: 195,
   stackedDeckChaosCost: 10,
@@ -594,12 +595,12 @@ describe("SnapshotService — IPC handlers", () => {
       expect(result).toEqual({ fetchedAt: null, refreshableAt: null });
     });
 
-    it("should compute refreshableAt as fetchedAt + AUTO_REFRESH_INTERVAL_HOURS", async () => {
+    it("should compute refreshableAt as createdAt + AUTO_REFRESH_INTERVAL_HOURS", async () => {
       const handler = getIpcHandler(SnapshotChannel.GetRefreshStatus);
       const result = await handler({}, "poe1", "Settlers");
 
       const expectedRefreshableAt = new Date(
-        new Date(SAMPLE_RECENT_SNAPSHOT.fetchedAt).getTime() +
+        new Date(SAMPLE_RECENT_SNAPSHOT.createdAt).getTime() +
           4 * 60 * 60 * 1000, // AUTO_REFRESH_INTERVAL_HOURS = 4
       ).toISOString();
 

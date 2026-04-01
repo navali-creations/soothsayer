@@ -85,15 +85,20 @@ export const createGameInfoSlice: StateCreator<
         // Silently handle - IPC handlers may not be ready during initial load
       }
 
-      // Fetch leagues in the background — don't block app startup.
-      // If the edge function is slow or down, the app still loads immediately.
-      // Leagues will populate once the fetch completes; UI shows loading state.
-      Promise.all([
-        gameInfo.fetchLeagues("poe1"),
-        gameInfo.fetchLeagues("poe2"),
-      ]).catch((error) => {
-        console.error("[GameInfo] Background league fetch failed:", error);
-      });
+      // Only fetch leagues when setup is complete — during first-run setup
+      // the user hasn't selected a game yet, and Supabase auth may not be
+      // ready. The SetupLeagueStep component fetches leagues itself once
+      // the user reaches that step.
+      const setupComplete = get().setup.isSetupComplete();
+      if (setupComplete) {
+        const installedGames = get().settings.installedGames;
+        const fetches = installedGames.map((g: "poe1" | "poe2") =>
+          gameInfo.fetchLeagues(g),
+        );
+        Promise.all(fetches).catch((error) => {
+          console.error("[GameInfo] Background league fetch failed:", error);
+        });
+      }
     },
 
     // Fetch leagues for a specific game

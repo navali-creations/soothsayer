@@ -97,8 +97,10 @@ class SnapshotService {
           );
           const result = await this.getSnapshotForSession(game, league);
           const fetchedAt = result.data.timestamp;
+          // Compute cooldown from NOW (when the user actually clicked refresh),
+          // not from the server-side fetchedAt which can be hours in the past.
           const refreshableAt = new Date(
-            new Date(fetchedAt).getTime() +
+            Date.now() +
               SnapshotService.AUTO_REFRESH_INTERVAL_HOURS * 60 * 60 * 1000,
           ).toISOString();
           return {
@@ -134,8 +136,11 @@ class SnapshotService {
             return { fetchedAt: null, refreshableAt: null };
           }
 
+          // Use createdAt (local storage time) instead of fetchedAt
+          // (server-side scrape time) so the cooldown is relative to when
+          // the client actually stored the snapshot.
           const refreshableAt = new Date(
-            new Date(snapshot.fetchedAt).getTime() +
+            new Date(snapshot.createdAt).getTime() +
               SnapshotService.AUTO_REFRESH_INTERVAL_HOURS * 60 * 60 * 1000,
           ).toISOString();
 
