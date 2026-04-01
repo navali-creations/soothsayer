@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import * as Sentry from "@sentry/electron/main";
 import {
   createClient,
   type SupabaseClient as SupabaseClientType,
@@ -265,7 +266,10 @@ class SupabaseClientService {
 
       // If we have a stored session, try to restore it
       if (storedSession) {
-        console.log("[SupabaseClient] Attempting to restore session...");
+        console.log(
+          "[SupabaseClient] Attempting to restore session for user:",
+          storedSession.user_id,
+        );
         const { data, error } = await this.client!.auth.setSession({
           access_token: storedSession.access_token,
           refresh_token: storedSession.refresh_token,
@@ -278,8 +282,28 @@ class SupabaseClientService {
           return;
         }
 
-        console.log(
-          "[SupabaseClient] Failed to restore session, creating new one...",
+        // Session restoration failed — the stored JWT is likely signed with
+        // a rotated key (unrecognized kid) or the refresh token has been
+        // revoked. Delete the corrupted session file so subsequent launches
+        // don't repeat this failed attempt and instead go straight to a
+        // fresh anonymous sign-in.
+        console.warn(
+          "[SupabaseClient] Failed to restore session, deleting stored session and creating new one.",
+          "Error:",
+          error?.message ?? "unknown",
+        );
+        this.sessionStorage.delete();
+
+        Sentry.captureMessage(
+          "Session restoration failed, creating new anonymous session",
+          {
+            level: "warning",
+            tags: { module: "supabase", operation: "session-restore" },
+            extra: {
+              errorMessage: error?.message,
+              userId: storedSession.user_id,
+            },
+          },
         );
       }
 
@@ -289,8 +313,12 @@ class SupabaseClientService {
 
     try {
       await this.authPromise;
-      const { data } = await this.client!.auth.getUser();
-      console.log(`[SupabaseClient] Authenticated as user: ${data.user?.id}`);
+      const { data } = await this.client!.auth.getSession();
+      console.log(
+        `[SupabaseClient] Authenticated as user: ${
+          data.session?.user?.id ?? "unknown"
+        }`,
+      );
     } finally {
       this.authPromise = null;
     }
@@ -388,6 +416,10 @@ class SupabaseClientService {
     console.error(
       `[SupabaseClient] Anonymous sign-in failed after ${maxRetries} attempts`,
     );
+    Sentry.captureException(lastError, {
+      tags: { module: "supabase", operation: "anonymous-sign-in" },
+      extra: { maxRetries },
+    });
     throw lastError!;
   }
 
@@ -457,6 +489,13 @@ class SupabaseClientService {
       const { data: retryUserData, error: retryUserError } =
         await this.client.auth.getUser();
       if (retryUserError || !retryUserData.user) {
+        Sentry.captureException(
+          new Error("Authentication failed after retry"),
+          {
+            tags: { module: "supabase", operation: "auth-retry" },
+            extra: { retryError: retryUserError?.message },
+          },
+        );
         throw new Error("Authentication failed after retry");
       }
     }
@@ -629,6 +668,19 @@ class SupabaseClientService {
       );
     } catch (error: unknown) {
       if (error instanceof Error && error.name === "AbortError") {
+        Sentry.captureMessage(
+          `Edge Function ${functionName} timed out after ${
+            SupabaseClientService.EDGE_FUNCTION_TIMEOUT_MS / 1000
+          }s`,
+          {
+            level: "error",
+            tags: {
+              module: "supabase",
+              operation: "edge-function-timeout",
+              functionName,
+            },
+          },
+        );
         throw new Error(
           `Edge Function ${functionName} timed out after ${
             SupabaseClientService.EDGE_FUNCTION_TIMEOUT_MS / 1000
@@ -643,6 +695,22 @@ class SupabaseClientService {
     const responseText = await response.text();
 
     if (!response.ok) {
+      Sentry.captureException(
+        new Error(
+          `Edge Function ${functionName} failed (${response.status}): ${responseText}`,
+        ),
+        {
+          tags: {
+            module: "supabase",
+            operation: "edge-function",
+            functionName,
+          },
+          extra: {
+            status: response.status,
+            responseText: responseText.slice(0, 500),
+          },
+        },
+      );
       throw new Error(
         `Edge Function ${functionName} failed (${response.status}): ${responseText}`,
       );

@@ -862,29 +862,21 @@ describe("SupabaseClientService", () => {
       const snapshotResponse = makeSnapshotResponse();
 
       // Reset after configure so we can control the exact sequence.
-      // getLatestSnapshot triggers this getUser call sequence:
-      //   1. ensureAuthenticated → getUser (log only, result ignored)
-      //   2. token validation → getUser (FAIL → triggers re-auth)
-      //   3. re-auth ensureAuthenticated → getUser (log only)
-      //   4. retry token validation → getUser (SUCCESS)
+      // ensureAuthenticated now uses getSession (not getUser) for its
+      // confirmation log, so getUser is only called by getLatestSnapshot's
+      // own token-validation logic:
+      //   1. token validation → getUser (FAIL → triggers re-auth)
+      //   2. retry token validation → getUser (SUCCESS)
       mockGetUser.mockReset();
       mockGetUser
         .mockResolvedValueOnce({
-          data: { user: { id: "mock-user-id" } },
-          error: null,
-        }) // 1. ensureAuthenticated log
-        .mockResolvedValueOnce({
           data: { user: null },
           error: { message: "Invalid token" },
-        }) // 2. token validation fails
+        }) // 1. token validation fails
         .mockResolvedValueOnce({
           data: { user: { id: "re-authed-user" } },
           error: null,
-        }) // 3. re-auth ensureAuthenticated log
-        .mockResolvedValueOnce({
-          data: { user: { id: "re-authed-user" } },
-          error: null,
-        }); // 4. retry succeeds
+        }); // 2. retry succeeds
 
       // Re-auth: signInAnonymously is called again
       mockSignInAnonymously.mockResolvedValue({
@@ -906,29 +898,21 @@ describe("SupabaseClientService", () => {
       const service = await configureService();
 
       // Reset after configure so we can control the exact sequence.
-      // getLatestSnapshot triggers this getUser call sequence:
-      //   1. ensureAuthenticated → getUser (log only)
-      //   2. token validation → getUser (FAIL → triggers re-auth)
-      //   3. re-auth ensureAuthenticated → getUser (log only)
-      //   4. retry token validation → getUser (FAIL → throws)
+      // ensureAuthenticated now uses getSession (not getUser) for its
+      // confirmation log, so getUser is only called by getLatestSnapshot's
+      // own token-validation logic:
+      //   1. token validation → getUser (FAIL → triggers re-auth)
+      //   2. retry token validation → getUser (FAIL → throws)
       mockGetUser.mockReset();
       mockGetUser
         .mockResolvedValueOnce({
-          data: { user: { id: "mock-user-id" } },
-          error: null,
-        }) // 1. ensureAuthenticated log
-        .mockResolvedValueOnce({
           data: { user: null },
           error: { message: "Invalid token" },
-        }) // 2. token validation fails
-        .mockResolvedValueOnce({
-          data: { user: { id: "re-authed-user" } },
-          error: null,
-        }) // 3. re-auth ensureAuthenticated log
+        }) // 1. token validation fails
         .mockResolvedValueOnce({
           data: { user: null },
           error: { message: "Still invalid" },
-        }); // 4. retry also fails
+        }); // 2. retry also fails
 
       mockSignInAnonymously.mockResolvedValue({
         data: { session: makeSession() },

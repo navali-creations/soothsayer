@@ -1,3 +1,5 @@
+import * as Sentry from "@sentry/electron/main";
+
 import { SentryService } from "./modules/sentry";
 
 if (process.env.E2E_TESTING !== "true") {
@@ -55,6 +57,12 @@ async function initializeSupabase() {
       console.error(
         "[Main] Supabase authentication failed after retries:",
         error,
+      );
+      Sentry.captureException(
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          tags: { module: "main", operation: "supabase-init" },
+        },
       );
       // App continues — leagues will use fallback
     }
