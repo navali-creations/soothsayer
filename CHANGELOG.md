@@ -1,5 +1,15 @@
 # soothsayer
 
+## 0.14.2
+
+### Patch Changes
+
+- [`df96881`](https://github.com/navali-creations/soothsayer/commit/df968819a85b6d2018bd7b3c71a6b5025e02b935) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Fixed:** Resolved an issue where some users were unable to connect to our servers on app startup, causing the league selection to only show "Standard" instead of the full list of available leagues. This was caused by a server-side security key rotation that invalidated previously stored sessions. The app now properly recovers from expired sessions automatically. (REAL, TRUE)
+
+  **Improved:** Added comprehensive crash and error reporting to key parts of the app — including server connections, league fetching, and session management. Previously, many errors were silently handled without being reported, making it difficult to diagnose issues. This will help us identify and fix problems much faster going forward.
+
 ## 0.14.1
 
 ### Patch Changes
