@@ -33,7 +33,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    console.log(`Creating snapshot for ${game}/${leagueId}...`);
+    // Build a tag for every log line so concurrent invocations are traceable
+    const tag = `[${game}/${leagueId}]`;
+
+    console.log(`${tag} Creating snapshot...`);
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -55,11 +58,15 @@ Deno.serve(async (req) => {
       .single();
 
     if (leagueError || !league) {
-      console.error("League not found:", leagueId);
+      console.error(`${tag} League not found: ${leagueId}`);
       return responseJson({ status: 404, body: { error: "League not found" } });
     }
 
-    // 2. Check for recent snapshot (< 10 minutes) to prevent duplicates
+    console.log(
+      `${tag} Resolved league: id=${league.id}, name="${league.name}"`,
+    );
+
+    // // 2. Check for recent snapshot (< 10 minutes) to prevent duplicates
     const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
     const { data: recentSnapshot } = await supabase
       .from("snapshots")
@@ -72,7 +79,7 @@ Deno.serve(async (req) => {
 
     if (recentSnapshot) {
       console.log(
-        `Recent snapshot exists (${recentSnapshot.fetched_at}), skipping...`,
+        `${tag} Recent snapshot exists (${recentSnapshot.fetched_at}), skipping...`,
       );
       return responseJson({
         status: 200,
@@ -84,10 +91,11 @@ Deno.serve(async (req) => {
     }
 
     // 3. Fetch from poe.ninja exchange API
-    console.log(`Fetching poe.ninja exchange data for ${league.name}...`);
-    const exchangeUrl = `https://poe.ninja/poe1/api/economy/exchange/current/overview?league=${encodeURIComponent(
+    const gamePrefix = game === "poe2" ? "poe2" : "poe1";
+    const exchangeUrl = `https://poe.ninja/${gamePrefix}/api/economy/exchange/current/overview?league=${encodeURIComponent(
       league.name,
     )}&type=DivinationCard`;
+    console.log(`${tag} Fetching exchange API: ${exchangeUrl}`);
     const exchangeResponse = await fetch(exchangeUrl);
 
     if (!exchangeResponse.ok) {
@@ -102,6 +110,8 @@ Deno.serve(async (req) => {
     const chaosToDivineRatio = exchangeData.core?.rates?.divine
       ? 1 / exchangeData.core.rates.divine
       : 100;
+
+    console.log(`${tag} Exchange chaos-to-divine ratio: ${chaosToDivineRatio}`);
 
     // Build exchange card prices (exchange data is always high confidence)
     const exchangeCardPrices: Array<any> = [];
@@ -121,21 +131,21 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`Fetched ${exchangeCardPrices.length} exchange prices`);
+    console.log(`${tag} Fetched ${exchangeCardPrices.length} exchange prices`);
 
     // 4. Fetch Stacked Deck price from poe.ninja Currency API
     let stackedDeckChaosCost = 0;
     let stackedDeckMaxVolumeRate: number | null = null;
     try {
-      console.log(`Fetching stacked deck price for ${league.name}...`);
-      const currencyUrl = `https://poe.ninja/poe1/api/economy/exchange/current/overview?league=${encodeURIComponent(
+      const currencyUrl = `https://poe.ninja/${gamePrefix}/api/economy/exchange/current/overview?league=${encodeURIComponent(
         league.name,
       )}&type=Currency`;
+      console.log(`${tag} Fetching currency API: ${currencyUrl}`);
       const currencyResponse = await fetch(currencyUrl);
 
       if (!currencyResponse.ok) {
         console.warn(
-          `poe.ninja currency API failed: ${currencyResponse.statusText}, defaulting stacked deck cost to 0`,
+          `${tag} Currency API failed: ${currencyResponse.statusText}, defaulting stacked deck cost to 0`,
         );
       } else {
         const currencyData = await currencyResponse.json();
@@ -147,78 +157,87 @@ Deno.serve(async (req) => {
         stackedDeckMaxVolumeRate =
           rawMaxVolumeRate != null ? Math.floor(rawMaxVolumeRate) : null;
         console.log(
-          `Stacked Deck cost: ${stackedDeckChaosCost} chaos, maxVolumeRate: ${
+          `${tag} Stacked Deck cost: ${stackedDeckChaosCost} chaos, maxVolumeRate: ${
             stackedDeckMaxVolumeRate ?? "N/A"
           } decks/divine`,
         );
       }
     } catch (currencyError) {
       console.warn(
-        "Failed to fetch stacked deck price, defaulting to 0:",
+        `${tag} Failed to fetch stacked deck price, defaulting to 0:`,
         currencyError,
       );
     }
 
-    // 5. Fetch from poe.ninja stash API
-    console.log(`Fetching poe.ninja stash data for ${league.name}...`);
-    const stashUrl = `https://poe.ninja/api/data/itemoverview?league=${encodeURIComponent(
-      league.name,
-    )}&type=DivinationCard`;
-    const stashResponse = await fetch(stashUrl);
+    // 5. Fetch from poe.ninja stash API (poe1 only — no stash API for poe2)
+    let stashChaosToDivineRatio = 100;
+    const stashCardPrices: Array<any> = [];
 
-    if (!stashResponse.ok) {
-      throw new Error(
-        `poe.ninja stash API failed: ${stashResponse.statusText}`,
+    if (game === "poe2") {
+      console.log(`${tag} Skipping stash API (not available for poe2)`);
+    } else {
+      const stashUrl = `https://poe.ninja/poe1/api/economy/stash/current/item/overview?league=${encodeURIComponent(
+        league.name,
+      )}&type=DivinationCard`;
+      console.log(`${tag} Fetching stash API: ${stashUrl}`);
+      const stashResponse = await fetch(stashUrl);
+
+      if (!stashResponse.ok) {
+        throw new Error(
+          `poe.ninja stash API failed: ${stashResponse.statusText}`,
+        );
+      }
+
+      const stashData = await stashResponse.json();
+
+      // Calculate stash ratio
+      for (const card of stashData.lines || []) {
+        if (card.divineValue > 0 && card.chaosValue > 0) {
+          stashChaosToDivineRatio = card.chaosValue / card.divineValue;
+          break;
+        }
+      }
+
+      console.log(
+        `${tag} Stash chaos-to-divine ratio: ${stashChaosToDivineRatio}`,
+      );
+
+      // Compute confidence level from poe.ninja stash data.
+      //
+      // poe.ninja signals its own confidence via sparkLine vs lowConfidenceSparkLine:
+      //   - sparkLine.data is empty → poe.ninja considers data low confidence
+      //   - sparkLine.data is populated → poe.ninja considers data reliable
+      // We combine this with the sample count for a three-tier classification:
+      //   - 3 (low):    sparkLine empty (regardless of count)
+      //   - 2 (medium): sparkLine populated but count < 10
+      //   - 1 (high):   sparkLine populated and count >= 10
+      function computeConfidence(card: any): Confidence {
+        const hasSparkLine =
+          Array.isArray(card.sparkLine?.data) && card.sparkLine.data.length > 0;
+
+        if (!hasSparkLine) return 3;
+        if ((card.count ?? 0) >= 10) return 1;
+        return 2;
+      }
+
+      // Build stash card prices with confidence
+      const confidenceCounts = { 1: 0, 2: 0, 3: 0 };
+      for (const card of stashData.lines ?? []) {
+        const confidence = computeConfidence(card);
+        confidenceCounts[confidence]++;
+        stashCardPrices.push({
+          card_name: card.name,
+          price_source: "stash",
+          chaos_value: card.chaosValue,
+          divine_value: Math.round(card.divineValue * 100) / 100,
+          confidence,
+        });
+      }
+
+      console.log(
+        `${tag} Fetched ${stashCardPrices.length} stash prices — confidence: ${confidenceCounts[1]} high, ${confidenceCounts[2]} medium, ${confidenceCounts[3]} low`,
       );
     }
-
-    const stashData = await stashResponse.json();
-
-    // Calculate stash ratio
-    let stashChaosToDivineRatio = 100;
-    for (const card of stashData.lines || []) {
-      if (card.divineValue > 0 && card.chaosValue > 0) {
-        stashChaosToDivineRatio = card.chaosValue / card.divineValue;
-        break;
-      }
-    }
-
-    // Compute confidence level from poe.ninja stash data.
-    //
-    // poe.ninja signals its own confidence via sparkLine vs lowConfidenceSparkLine:
-    //   - sparkLine.data is empty → poe.ninja considers data low confidence
-    //   - sparkLine.data is populated → poe.ninja considers data reliable
-    // We combine this with the sample count for a three-tier classification:
-    //   - 3 (low):    sparkLine empty (regardless of count)
-    //   - 2 (medium): sparkLine populated but count < 10
-    //   - 1 (high):   sparkLine populated and count >= 10
-    function computeConfidence(card: any): Confidence {
-      const hasSparkLine =
-        Array.isArray(card.sparkLine?.data) && card.sparkLine.data.length > 0;
-
-      if (!hasSparkLine) return 3;
-      if ((card.count ?? 0) >= 10) return 1;
-      return 2;
-    }
-
-    // Build stash card prices with confidence
-    const stashCardPrices: Array<any> = [];
-    const confidenceCounts = { 1: 0, 2: 0, 3: 0 };
-    for (const card of stashData.lines ?? []) {
-      const confidence = computeConfidence(card);
-      confidenceCounts[confidence]++;
-      stashCardPrices.push({
-        card_name: card.name,
-        price_source: "stash",
-        chaos_value: card.chaosValue,
-        divine_value: Math.round(card.divineValue * 100) / 100,
-        confidence,
-      });
-    }
-
-    console.log(
-      `Fetched ${stashCardPrices.length} stash prices. Confidence: ${confidenceCounts[1]} high, ${confidenceCounts[2]} medium, ${confidenceCounts[3]} low`,
-    );
 
     // 6. Insert snapshot and card prices in transaction
     const { data: snapshot, error: snapshotError } = await supabase
@@ -238,7 +257,7 @@ Deno.serve(async (req) => {
       throw new Error(`Failed to create snapshot: ${snapshotError?.message}`);
     }
 
-    console.log(`Created snapshot ${snapshot.id}`);
+    console.log(`${tag} Created snapshot ${snapshot.id}`);
 
     // 7. Insert all card prices
     const allCardPrices = [
@@ -255,7 +274,13 @@ Deno.serve(async (req) => {
       throw new Error(`Failed to insert card prices: ${pricesError.message}`);
     }
 
-    console.log(`Inserted ${allCardPrices.length} card prices`);
+    console.log(
+      `${tag} Inserted ${allCardPrices.length} card prices (${exchangeCardPrices.length} exchange + ${stashCardPrices.length} stash)`,
+    );
+
+    console.log(
+      `${tag} ✅ Snapshot complete: id=${snapshot.id}, cards=${allCardPrices.length}`,
+    );
 
     return responseJson({
       status: 200,

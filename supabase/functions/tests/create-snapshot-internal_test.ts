@@ -358,9 +358,10 @@ function setupFullMocks(
     },
   });
 
-  // Stash API (itemoverview)
+  // Stash API (poe1 only — uses /poe1/api/economy/stash/current/item/overview)
   fetchMock.addRoute({
-    match: (url) => url.includes("poe.ninja") && url.includes("itemoverview"),
+    match: (url) =>
+      url.includes("poe.ninja") && url.includes("stash/current/item/overview"),
     handler: () => {
       if (options.stashError) {
         return new Response("Service Unavailable", { status: 503 });
@@ -703,10 +704,11 @@ quietTest(
 );
 
 quietTest(
-  "create-snapshot-internal — calls poe.ninja stash API with correct league name",
+  "create-snapshot-internal — calls poe.ninja stash API with correct league name (poe1)",
   async () => {
     const league = mockLeague({
       id: "league-uuid-001",
+      game: "poe1",
       name: "Dawn",
     });
 
@@ -720,14 +722,38 @@ quietTest(
     await handler(req);
 
     const stashCall = fetchMock.calls.find(
-      (c) => c.url.includes("poe.ninja") && c.url.includes("itemoverview"),
+      (c) =>
+        c.url.includes("poe.ninja") &&
+        c.url.includes("stash/current/item/overview"),
     );
     assert(stashCall !== undefined, "Should have called poe.ninja stash API");
     assertStringIncludes(stashCall!.url, "Dawn");
+    assertStringIncludes(stashCall!.url, "/poe1/");
 
     fetchMock.restore();
   },
 );
+
+quietTest("create-snapshot-internal — skips stash API for poe2", async () => {
+  const league = mockLeague({ game: "poe2", name: "Standard" });
+  const { fetchMock } = setupFullMocks({ league, recentSnapshot: null });
+
+  const req = createInternalRequest(
+    "http://localhost:54321/functions/v1/create-snapshot-internal",
+    { game: "poe2", leagueId: "Standard" },
+    "test-cron-secret",
+  );
+  await handler(req);
+
+  const stashCall = fetchMock.calls.find(
+    (c) =>
+      c.url.includes("poe.ninja") &&
+      c.url.includes("stash/current/item/overview"),
+  );
+  assertEquals(stashCall, undefined, "Should NOT call stash API for poe2");
+
+  fetchMock.restore();
+});
 
 quietTest(
   "create-snapshot-internal — calls poe.ninja currency API for stacked deck price",
@@ -1773,6 +1799,286 @@ quietTest(
 
     assertEquals(resp.status, 404);
     assertEquals(resp.headers.get("Content-Type"), "application/json");
+
+    fetchMock.restore();
+  },
+);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// gamePrefix URL Tests — poe1 vs poe2
+// ═══════════════════════════════════════════════════════════════════════════════
+
+quietTest(
+  "create-snapshot-internal — poe1 game uses /poe1/ prefix in exchange API URL",
+  async () => {
+    const league = mockLeague({ game: "poe1", name: "Standard" });
+    const { fetchMock } = setupFullMocks({ league, recentSnapshot: null });
+
+    const req = createInternalRequest(
+      "http://localhost:54321/functions/v1/create-snapshot-internal",
+      { game: "poe1", leagueId: "Standard" },
+      "test-cron-secret",
+    );
+    await handler(req);
+
+    const exchangeCall = fetchMock.calls.find(
+      (c) =>
+        c.url.includes("poe.ninja") &&
+        c.url.includes("exchange") &&
+        c.url.includes("DivinationCard"),
+    );
+    assert(exchangeCall !== undefined, "Should have called exchange API");
+    assertStringIncludes(
+      exchangeCall!.url,
+      "poe.ninja/poe1/api/economy/exchange",
+    );
+
+    fetchMock.restore();
+  },
+);
+
+quietTest(
+  "create-snapshot-internal — poe2 game uses /poe2/ prefix in exchange API URL",
+  async () => {
+    const league = mockLeague({ game: "poe2", name: "Standard" });
+    const { fetchMock } = setupFullMocks({ league, recentSnapshot: null });
+
+    const req = createInternalRequest(
+      "http://localhost:54321/functions/v1/create-snapshot-internal",
+      { game: "poe2", leagueId: "Standard" },
+      "test-cron-secret",
+    );
+    await handler(req);
+
+    const exchangeCall = fetchMock.calls.find(
+      (c) =>
+        c.url.includes("poe.ninja") &&
+        c.url.includes("exchange") &&
+        c.url.includes("DivinationCard"),
+    );
+    assert(exchangeCall !== undefined, "Should have called exchange API");
+    assertStringIncludes(
+      exchangeCall!.url,
+      "poe.ninja/poe2/api/economy/exchange",
+    );
+
+    fetchMock.restore();
+  },
+);
+
+quietTest(
+  "create-snapshot-internal — poe1 game uses /poe1/ prefix in currency API URL",
+  async () => {
+    const league = mockLeague({ game: "poe1", name: "Dawn" });
+    const { fetchMock } = setupFullMocks({ league, recentSnapshot: null });
+
+    const req = createInternalRequest(
+      "http://localhost:54321/functions/v1/create-snapshot-internal",
+      { game: "poe1", leagueId: "Dawn" },
+      "test-cron-secret",
+    );
+    await handler(req);
+
+    const currencyCall = fetchMock.calls.find(
+      (c) =>
+        c.url.includes("poe.ninja") &&
+        c.url.includes("exchange") &&
+        c.url.includes("Currency"),
+    );
+    assert(currencyCall !== undefined, "Should have called currency API");
+    assertStringIncludes(
+      currencyCall!.url,
+      "poe.ninja/poe1/api/economy/exchange",
+    );
+
+    fetchMock.restore();
+  },
+);
+
+quietTest(
+  "create-snapshot-internal — poe2 game uses /poe2/ prefix in currency API URL",
+  async () => {
+    const league = mockLeague({ game: "poe2", name: "Standard" });
+    const { fetchMock } = setupFullMocks({ league, recentSnapshot: null });
+
+    const req = createInternalRequest(
+      "http://localhost:54321/functions/v1/create-snapshot-internal",
+      { game: "poe2", leagueId: "Standard" },
+      "test-cron-secret",
+    );
+    await handler(req);
+
+    const currencyCall = fetchMock.calls.find(
+      (c) =>
+        c.url.includes("poe.ninja") &&
+        c.url.includes("exchange") &&
+        c.url.includes("Currency"),
+    );
+    assert(currencyCall !== undefined, "Should have called currency API");
+    assertStringIncludes(
+      currencyCall!.url,
+      "poe.ninja/poe2/api/economy/exchange",
+    );
+
+    fetchMock.restore();
+  },
+);
+
+quietTest(
+  "create-snapshot-internal — poe1 game uses /poe1/ prefix in stash API URL",
+  async () => {
+    const league = mockLeague({ game: "poe1", name: "Dawn" });
+    const { fetchMock } = setupFullMocks({ league, recentSnapshot: null });
+
+    const req = createInternalRequest(
+      "http://localhost:54321/functions/v1/create-snapshot-internal",
+      { game: "poe1", leagueId: "Dawn" },
+      "test-cron-secret",
+    );
+    await handler(req);
+
+    const stashCall = fetchMock.calls.find(
+      (c) =>
+        c.url.includes("poe.ninja") &&
+        c.url.includes("stash/current/item/overview"),
+    );
+    assert(stashCall !== undefined, "Should have called stash API for poe1");
+    assertStringIncludes(stashCall!.url, "/poe1/");
+    assertStringIncludes(stashCall!.url, "DivinationCard");
+
+    fetchMock.restore();
+  },
+);
+
+quietTest(
+  "create-snapshot-internal — poe2 game does NOT call stash API at all",
+  async () => {
+    const league = mockLeague({ game: "poe2", name: "Standard" });
+    const { fetchMock } = setupFullMocks({ league, recentSnapshot: null });
+
+    const req = createInternalRequest(
+      "http://localhost:54321/functions/v1/create-snapshot-internal",
+      { game: "poe2", leagueId: "Standard" },
+      "test-cron-secret",
+    );
+    await handler(req);
+
+    const stashCall = fetchMock.calls.find(
+      (c) =>
+        c.url.includes("poe.ninja") &&
+        c.url.includes("stash/current/item/overview"),
+    );
+    assertEquals(
+      stashCall,
+      undefined,
+      "Should NOT have called stash API for poe2",
+    );
+
+    fetchMock.restore();
+  },
+);
+
+quietTest(
+  "create-snapshot-internal — poe2 game uses correct prefix in exchange+currency and skips stash",
+  async () => {
+    const league = mockLeague({ game: "poe2", name: "Standard" });
+    const { fetchMock } = setupFullMocks({ league, recentSnapshot: null });
+
+    const req = createInternalRequest(
+      "http://localhost:54321/functions/v1/create-snapshot-internal",
+      { game: "poe2", leagueId: "Standard" },
+      "test-cron-secret",
+    );
+    await handler(req);
+
+    // Exchange API: should use /poe2/ path prefix
+    const exchangeCall = fetchMock.calls.find(
+      (c) =>
+        c.url.includes("poe.ninja") &&
+        c.url.includes("exchange") &&
+        c.url.includes("DivinationCard"),
+    );
+    assert(exchangeCall !== undefined, "Should have called exchange API");
+    assertStringIncludes(exchangeCall!.url, "/poe2/");
+    assert(
+      !exchangeCall!.url.includes("/poe1/"),
+      "Exchange URL should NOT contain /poe1/ when game is poe2",
+    );
+
+    // Currency API: should use /poe2/ path prefix
+    const currencyCall = fetchMock.calls.find(
+      (c) =>
+        c.url.includes("poe.ninja") &&
+        c.url.includes("exchange") &&
+        c.url.includes("Currency"),
+    );
+    assert(currencyCall !== undefined, "Should have called currency API");
+    assertStringIncludes(currencyCall!.url, "/poe2/");
+    assert(
+      !currencyCall!.url.includes("/poe1/"),
+      "Currency URL should NOT contain /poe1/ when game is poe2",
+    );
+
+    // Stash API: should NOT be called for poe2
+    const stashCall = fetchMock.calls.find(
+      (c) =>
+        c.url.includes("poe.ninja") &&
+        c.url.includes("stash/current/item/overview"),
+    );
+    assertEquals(stashCall, undefined, "Should NOT call stash API for poe2");
+
+    fetchMock.restore();
+  },
+);
+
+quietTest(
+  "create-snapshot-internal — poe1 game does NOT leak poe2 prefix into any URL",
+  async () => {
+    const league = mockLeague({ game: "poe1", name: "Settlers of Kalguur" });
+    const { fetchMock } = setupFullMocks({ league, recentSnapshot: null });
+
+    const req = createInternalRequest(
+      "http://localhost:54321/functions/v1/create-snapshot-internal",
+      { game: "poe1", leagueId: "Settlers" },
+      "test-cron-secret",
+    );
+    await handler(req);
+
+    const ninjaUrls = fetchMock.calls
+      .filter((c) => c.url.includes("poe.ninja"))
+      .map((c) => c.url);
+
+    assert(
+      ninjaUrls.length >= 3,
+      "Should have made at least 3 poe.ninja calls (exchange, currency, stash)",
+    );
+
+    for (const url of ninjaUrls) {
+      assert(
+        !url.includes("/poe2/"),
+        `poe1 game should not produce poe2 in URL: ${url}`,
+      );
+    }
+
+    // Verify exchange and currency use /poe1/ prefix
+    const exchangeCall = ninjaUrls.find(
+      (u) => u.includes("exchange") && u.includes("DivinationCard"),
+    );
+    assert(exchangeCall !== undefined, "Should have exchange call");
+    assertStringIncludes(exchangeCall!, "/poe1/");
+
+    const currencyCall = ninjaUrls.find(
+      (u) => u.includes("exchange") && u.includes("Currency"),
+    );
+    assert(currencyCall !== undefined, "Should have currency call");
+    assertStringIncludes(currencyCall!, "/poe1/");
+
+    // Verify stash uses /poe1/ prefix and correct path
+    const stashCall = ninjaUrls.find((u) =>
+      u.includes("stash/current/item/overview"),
+    );
+    assert(stashCall !== undefined, "Should have stash call");
+    assertStringIncludes(stashCall!, "/poe1/");
 
     fetchMock.restore();
   },
