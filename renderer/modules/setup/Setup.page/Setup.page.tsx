@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 
 import { SETUP_STEPS } from "~/main/modules/app-setup/AppSetup.types";
-import { useBoundStore } from "~/renderer/store";
+import { useSetup } from "~/renderer/store";
 
 import {
   SetupActions,
@@ -14,9 +14,8 @@ import {
 } from "../Setup.components";
 
 const SetupPage = () => {
-  const {
-    setup: { setupState, trackSetupStarted, validateCurrentStep, advanceStep },
-  } = useBoundStore();
+  const { setupState, trackSetupStarted, validateCurrentStep, advanceStep } =
+    useSetup();
 
   // Track whether we've already auto-advanced to prevent loops
   const hasAutoAdvanced = useRef(false);

@@ -78,6 +78,31 @@ export function assertEnum<T extends string>(
   }
 }
 
+/**
+ * Assert that a value, if present, is one of the allowed enum values.
+ * Accepts `undefined` and `null` as valid (the parameter is optional).
+ */
+export function assertOptionalEnum<T extends string>(
+  value: unknown,
+  paramName: string,
+  channel: string,
+  allowed: readonly T[],
+): asserts value is T | undefined | null {
+  if (value === undefined || value === null) return;
+  if (typeof value !== "string") {
+    throw new IpcValidationError(
+      channel,
+      `"${paramName}" must be a string, got ${typeof value}`,
+    );
+  }
+  if (!(allowed as readonly string[]).includes(value)) {
+    throw new IpcValidationError(
+      channel,
+      `"${paramName}" must be one of [${allowed.join(", ")}], got "${value}"`,
+    );
+  }
+}
+
 export function assertInteger(
   value: unknown,
   paramName: string,

@@ -6,19 +6,17 @@ import {
 } from "react-icons/fi";
 
 import { Button } from "~/renderer/components";
-import { useBoundStore } from "~/renderer/store";
+import { useSessions } from "~/renderer/store";
 
 export const SessionsPagination = () => {
   const {
-    sessions: {
-      getCurrentPage,
-      getPageSize,
-      getTotalPages,
-      getTotalSessions,
-      getFilteredSessions,
-      setPage,
-    },
-  } = useBoundStore();
+    getCurrentPage,
+    getPageSize,
+    getTotalPages,
+    getTotalSessions,
+    getFilteredSessions,
+    setPage,
+  } = useSessions();
 
   const currentPage = getCurrentPage();
   const pageSize = getPageSize();

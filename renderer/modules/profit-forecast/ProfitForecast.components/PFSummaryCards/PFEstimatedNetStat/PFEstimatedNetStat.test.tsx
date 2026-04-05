@@ -1,11 +1,11 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useProfitForecast } from "~/renderer/store";
 
 import { formatDivine } from "../../../ProfitForecast.utils/ProfitForecast.utils";
 import PFEstimatedNetStat from "./PFEstimatedNetStat";
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useProfitForecast: vi.fn(),
 }));
 
 vi.mock("~/renderer/components", () => ({
@@ -35,31 +35,29 @@ vi.mock("~/renderer/components", () => ({
   ),
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseProfitForecast = vi.mocked(useProfitForecast);
 
 function createMockState(overrides: any = {}) {
   return {
-    profitForecast: {
-      isLoading: false,
-      chaosToDivineRatio: 200,
-      getBatchPnL: vi.fn(() => ({
-        revenue: 20000,
-        cost: 16500,
-        netPnL: 3500,
-        confidence: {
-          estimated: 3500,
-          optimistic: 12000,
-        },
-      })),
-      hasData: vi.fn(() => true),
-      ...overrides.profitForecast,
-    },
+    isLoading: false,
+    chaosToDivineRatio: 200,
+    getBatchPnL: vi.fn(() => ({
+      revenue: 20000,
+      cost: 16500,
+      netPnL: 3500,
+      confidence: {
+        estimated: 3500,
+        optimistic: 12000,
+      },
+    })),
+    hasData: vi.fn(() => true),
+    ...overrides.profitForecast,
   } as any;
 }
 
 function setupStore(overrides: any = {}) {
   const state = createMockState(overrides);
-  mockUseBoundStore.mockReturnValue(state);
+  mockUseProfitForecast.mockReturnValue(state);
   return state;
 }
 

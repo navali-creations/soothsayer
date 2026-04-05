@@ -18,7 +18,7 @@ export interface DivinationCardResult {
  */
 export function parseCards(
   logText: string,
-  previouslyProcessedIds: Set<string> = new Set(),
+  previouslyProcessedIds: { has(id: string): boolean } = new Set(),
 ): DivinationCardResult {
   const lines = logText.split("\n");
   const cardMap = new Map<string, Set<string>>(); // cardName -> Set of uniqueIds

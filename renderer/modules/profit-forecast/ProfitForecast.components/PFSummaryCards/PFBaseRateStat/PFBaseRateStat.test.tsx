@@ -1,10 +1,10 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useProfitForecast } from "~/renderer/store";
 
 import PFBaseRateStat from "./PFBaseRateStat";
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useProfitForecast: vi.fn(),
 }));
 
 vi.mock("~/renderer/components", () => ({
@@ -30,40 +30,38 @@ vi.mock("~/renderer/components", () => ({
           {children}
         </div>
       ),
-    },
+    }
   ),
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseProfitForecast = vi.mocked(useProfitForecast);
 
 function createMockState(overrides: any = {}) {
   return {
-    profitForecast: {
-      isLoading: false,
-      baseRate: 80,
-      baseRateSource: "exchange" as const,
-      customBaseRate: null as number | null,
-      snapshotFetchedAt: "2024-06-15T12:00:00Z",
-      getEffectiveBaseRate: vi.fn(() => 80),
-      getBreakEvenRate: vi.fn(() => 20),
-      hasData: vi.fn(() => true),
-      setCustomBaseRate: vi.fn(),
-      setIsComputing: vi.fn(),
-      ...overrides.profitForecast,
-    },
+    isLoading: false,
+    baseRate: 80,
+    baseRateSource: "exchange" as const,
+    customBaseRate: null as number | null,
+    snapshotFetchedAt: "2024-06-15T12:00:00Z",
+    getEffectiveBaseRate: vi.fn(() => 80),
+    getBreakEvenRate: vi.fn(() => 20),
+    hasData: vi.fn(() => true),
+    setCustomBaseRate: vi.fn(),
+    setIsComputing: vi.fn(),
+    ...overrides.profitForecast,
   } as any;
 }
 
 function setupStore(overrides: any = {}) {
   const state = createMockState(overrides);
-  mockUseBoundStore.mockReturnValue(state);
+  mockUseProfitForecast.mockReturnValue(state);
   return state;
 }
 
 function renderStat(storeOverrides: any = {}) {
   const state = setupStore(storeOverrides);
   const result = renderWithProviders(<PFBaseRateStat />);
-  return { state, ...result };
+  return { state: { profitForecast: state }, ...result };
 }
 
 describe("PFBaseRateStat", () => {
@@ -154,7 +152,7 @@ describe("PFBaseRateStat", () => {
     const buttons = screen.getAllByRole("button");
     const editButton = buttons.find(
       (btn: HTMLElement) =>
-        btn.getAttribute("data-tip") === "Set custom base rate",
+        btn.getAttribute("data-tip") === "Set custom base rate"
     );
     expect(editButton).toBeDefined();
   });
@@ -200,7 +198,7 @@ describe("PFBaseRateStat", () => {
   it("has onboarding data attribute", () => {
     const { container } = renderStat();
     expect(
-      container.querySelector('[data-onboarding="pf-base-rate"]'),
+      container.querySelector('[data-onboarding="pf-base-rate"]')
     ).toBeInTheDocument();
   });
 
@@ -217,5 +215,170 @@ describe("PFBaseRateStat", () => {
       profitForecast: { snapshotFetchedAt: null },
     });
     expect(screen.getByText("Base Rate")).toBeInTheDocument();
+  });
+
+  // ─── Edit mode tests ────────────────────────────────────────────────────
+
+  it("enters edit mode when edit button is clicked", async () => {
+    const { user } = renderStat({
+      profitForecast: { getEffectiveBaseRate: vi.fn(() => 80) },
+    });
+
+    const editButton = screen
+      .getAllByRole("button")
+      .find(
+        (btn: HTMLElement) =>
+          btn.getAttribute("data-tip") === "Set custom base rate"
+      )!;
+
+    await user.click(editButton);
+
+    const input = screen.getByRole("spinbutton");
+    expect(input).toBeInTheDocument();
+    expect(input).toHaveValue(80);
+  });
+
+  it("commits a valid custom rate on Enter", async () => {
+    const { state, user } = renderStat({
+      profitForecast: { getEffectiveBaseRate: vi.fn(() => 80) },
+    });
+
+    const editButton = screen
+      .getAllByRole("button")
+      .find(
+        (btn: HTMLElement) =>
+          btn.getAttribute("data-tip") === "Set custom base rate"
+      )!;
+
+    await user.click(editButton);
+
+    const input = screen.getByRole("spinbutton");
+    await user.clear(input);
+    await user.type(input, "95");
+    await user.keyboard("{Enter}");
+
+    expect(state.profitForecast.setCustomBaseRate).toHaveBeenCalledWith(95);
+    expect(state.profitForecast.setIsComputing).toHaveBeenCalledWith(true);
+  });
+
+  it("cancels editing on Escape without committing", async () => {
+    const { state, user } = renderStat({
+      profitForecast: { getEffectiveBaseRate: vi.fn(() => 80) },
+    });
+
+    const editButton = screen
+      .getAllByRole("button")
+      .find(
+        (btn: HTMLElement) =>
+          btn.getAttribute("data-tip") === "Set custom base rate"
+      )!;
+
+    await user.click(editButton);
+
+    const input = screen.getByRole("spinbutton");
+    expect(input).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+
+    expect(state.profitForecast.setCustomBaseRate).not.toHaveBeenCalled();
+    expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument();
+  });
+
+  it("resets to market rate when entered value equals baseRate and custom rate exists", async () => {
+    const { state, user } = renderStat({
+      profitForecast: {
+        baseRate: 80,
+        customBaseRate: 100,
+        getEffectiveBaseRate: vi.fn(() => 100),
+      },
+    });
+
+    const editButton = screen
+      .getAllByRole("button")
+      .find(
+        (btn: HTMLElement) =>
+          btn.getAttribute("data-tip") === "Set custom base rate"
+      )!;
+
+    await user.click(editButton);
+
+    const input = screen.getByRole("spinbutton");
+    await user.clear(input);
+    await user.type(input, "80");
+    await user.keyboard("{Enter}");
+
+    expect(state.profitForecast.setCustomBaseRate).toHaveBeenCalledWith(null);
+    expect(state.profitForecast.setIsComputing).toHaveBeenCalledWith(true);
+  });
+
+  it("does not commit invalid values (NaN)", async () => {
+    const { state, user } = renderStat({
+      profitForecast: { getEffectiveBaseRate: vi.fn(() => 80) },
+    });
+
+    const editButton = screen
+      .getAllByRole("button")
+      .find(
+        (btn: HTMLElement) =>
+          btn.getAttribute("data-tip") === "Set custom base rate"
+      )!;
+
+    await user.click(editButton);
+
+    const input = screen.getByRole("spinbutton");
+    await user.clear(input);
+    await user.type(input, "abc");
+    await user.keyboard("{Enter}");
+
+    expect(state.profitForecast.setCustomBaseRate).not.toHaveBeenCalled();
+  });
+
+  it("does not commit zero or negative values", async () => {
+    const { state, user } = renderStat({
+      profitForecast: { getEffectiveBaseRate: vi.fn(() => 80) },
+    });
+
+    const editButton = screen
+      .getAllByRole("button")
+      .find(
+        (btn: HTMLElement) =>
+          btn.getAttribute("data-tip") === "Set custom base rate"
+      )!;
+
+    await user.click(editButton);
+
+    const input = screen.getByRole("spinbutton");
+    await user.clear(input);
+    await user.type(input, "0");
+    await user.keyboard("{Enter}");
+
+    expect(state.profitForecast.setCustomBaseRate).not.toHaveBeenCalled();
+  });
+
+  it("does not re-commit if value equals current customBaseRate", async () => {
+    const { state, user } = renderStat({
+      profitForecast: {
+        baseRate: 80,
+        customBaseRate: 95,
+        getEffectiveBaseRate: vi.fn(() => 95),
+      },
+    });
+
+    const editButton = screen
+      .getAllByRole("button")
+      .find(
+        (btn: HTMLElement) =>
+          btn.getAttribute("data-tip") === "Set custom base rate"
+      )!;
+
+    await user.click(editButton);
+
+    const input = screen.getByRole("spinbutton");
+    await user.clear(input);
+    await user.type(input, "95");
+    await user.keyboard("{Enter}");
+
+    expect(state.profitForecast.setCustomBaseRate).not.toHaveBeenCalled();
+    expect(state.profitForecast.setIsComputing).not.toHaveBeenCalled();
   });
 });

@@ -6,20 +6,16 @@ const {
   mockGetAllWindows,
   mockWebContentsSend,
   mockGetKysely,
+  mockGetDb,
   mockRepoCreateSession,
   mockRepoUpdateSession,
   mockRepoGetActiveSession,
   mockRepoGetSessionById,
   mockRepoDeactivateAllSessions,
   mockRepoGetSessionTotalCount,
-  mockRepoUpsertSessionCard,
-  mockRepoIncrementCardCount,
   mockRepoGetSessionCards,
   mockRepoUpdateCardPriceVisibility,
   mockRepoGetProcessedIds,
-  mockRepoReplaceProcessedIds,
-  mockRepoClearProcessedIds,
-  mockRepoSaveProcessedId,
   mockRepoGetRecentDrops,
   mockRepoClearRecentDrops,
   mockRepoGetLeagueId,
@@ -35,6 +31,7 @@ const {
   mockGetAllTimeStats,
   mockAssertGameType,
   mockAssertString,
+  mockAssertBoundedString,
   mockAssertBoolean,
   mockAssertCardName,
   mockAssertPriceSource,
@@ -56,20 +53,31 @@ const {
     mockGetAllWindows: vi.fn(),
     mockWebContentsSend: vi.fn(),
     mockGetKysely: vi.fn(),
+    mockGetDb: vi.fn(() => ({
+      transaction: vi.fn((fn: any) => {
+        const wrapped = (...args: any[]) => fn(...args);
+        wrapped.deferred = wrapped;
+        wrapped.immediate = wrapped;
+        wrapped.exclusive = wrapped;
+        return wrapped;
+      }),
+      prepare: vi.fn(() => ({
+        run: vi.fn(),
+        get: vi.fn(),
+        all: vi.fn(),
+      })),
+      pragma: vi.fn(),
+      exec: vi.fn(),
+    })),
     mockRepoCreateSession: vi.fn(),
     mockRepoUpdateSession: vi.fn(),
     mockRepoGetActiveSession: vi.fn(),
     mockRepoGetSessionById: vi.fn(),
     mockRepoDeactivateAllSessions: vi.fn(),
     mockRepoGetSessionTotalCount: vi.fn(),
-    mockRepoUpsertSessionCard: vi.fn(),
-    mockRepoIncrementCardCount: vi.fn(),
     mockRepoGetSessionCards: vi.fn(),
     mockRepoUpdateCardPriceVisibility: vi.fn(),
     mockRepoGetProcessedIds: vi.fn(),
-    mockRepoReplaceProcessedIds: vi.fn(),
-    mockRepoClearProcessedIds: vi.fn(),
-    mockRepoSaveProcessedId: vi.fn(),
     mockRepoGetRecentDrops: vi.fn(),
     mockRepoClearRecentDrops: vi.fn(),
     mockRepoGetLeagueId: vi.fn(),
@@ -85,6 +93,7 @@ const {
     mockGetAllTimeStats: vi.fn(),
     mockAssertGameType: vi.fn(),
     mockAssertString: vi.fn(),
+    mockAssertBoundedString: vi.fn(),
     mockAssertBoolean: vi.fn(),
     mockAssertCardName: vi.fn(),
     mockAssertPriceSource: vi.fn(),
@@ -128,6 +137,7 @@ vi.mock("~/main/modules/database", () => ({
   DatabaseService: {
     getInstance: vi.fn(() => ({
       getKysely: mockGetKysely,
+      getDb: mockGetDb,
       reset: vi.fn(),
     })),
   },
@@ -177,18 +187,14 @@ vi.mock("../CurrentSession.repository", () => ({
     getSessionById = mockRepoGetSessionById;
     deactivateAllSessions = mockRepoDeactivateAllSessions;
     getSessionTotalCount = mockRepoGetSessionTotalCount;
-    upsertSessionCard = mockRepoUpsertSessionCard;
-    incrementCardCount = mockRepoIncrementCardCount;
     getSessionCards = mockRepoGetSessionCards;
     updateCardPriceVisibility = mockRepoUpdateCardPriceVisibility;
     getProcessedIds = mockRepoGetProcessedIds;
-    replaceProcessedIds = mockRepoReplaceProcessedIds;
-    clearProcessedIds = mockRepoClearProcessedIds;
-    saveProcessedId = mockRepoSaveProcessedId;
     getRecentDrops = mockRepoGetRecentDrops;
     clearRecentDrops = mockRepoClearRecentDrops;
     getLeagueId = mockRepoGetLeagueId;
     createSessionSummary = mockRepoCreateSessionSummary;
+    getAllCardEvents = vi.fn().mockResolvedValue([]);
   },
 }));
 
@@ -220,10 +226,16 @@ vi.mock("~/main/modules/settings-store", () => ({
   },
 }));
 
+// ─── Mock cleanWikiMarkup ────────────────────────────────────────────────────
+vi.mock("~/main/utils/cleanWikiMarkup", () => ({
+  cleanWikiMarkup: (html: string | null | undefined) => html ?? "",
+}));
+
 // ─── Mock IPC validation utils ───────────────────────────────────────────────
 vi.mock("~/main/utils/ipc-validation", () => ({
   assertGameType: mockAssertGameType,
   assertString: mockAssertString,
+  assertBoundedString: mockAssertBoundedString,
   assertBoolean: mockAssertBoolean,
   assertCardName: mockAssertCardName,
   assertPriceSource: mockAssertPriceSource,
@@ -295,6 +307,7 @@ describe("CurrentSessionService — IPC handlers", () => {
     // (clearAllMocks does not reset implementations set via mockImplementation)
     mockAssertGameType.mockImplementation(() => {});
     mockAssertString.mockImplementation(() => {});
+    mockAssertBoundedString.mockImplementation(() => {});
     mockAssertBoolean.mockImplementation(() => {});
     mockAssertCardName.mockImplementation(() => {});
     mockAssertPriceSource.mockImplementation(() => {});
@@ -323,8 +336,6 @@ describe("CurrentSessionService — IPC handlers", () => {
     });
     mockRepoGetSessionTotalCount.mockResolvedValue(0);
     mockRepoGetSessionCards.mockResolvedValue([]);
-    mockRepoSaveProcessedId.mockResolvedValue(undefined);
-    mockRepoIncrementCardCount.mockResolvedValue(undefined);
     mockRepoUpdateCardPriceVisibility.mockResolvedValue(undefined);
     mockRepoCreateSessionSummary.mockResolvedValue(undefined);
     mockRepoGetRecentDrops.mockResolvedValue([]);
@@ -376,10 +387,11 @@ describe("CurrentSessionService — IPC handlers", () => {
         "poe1",
         CurrentSessionChannel.Start,
       );
-      expect(mockAssertString).toHaveBeenCalledWith(
+      expect(mockAssertBoundedString).toHaveBeenCalledWith(
         "Settlers",
         "league",
         CurrentSessionChannel.Start,
+        256,
       );
       expect(result).toEqual({ success: true });
     });
@@ -448,8 +460,8 @@ describe("CurrentSessionService — IPC handlers", () => {
       expect(mockHandleValidationError).not.toHaveBeenCalled();
     });
 
-    it("should handle assertString validation errors", async () => {
-      mockAssertString.mockImplementation(() => {
+    it("should handle assertBoundedString validation errors", async () => {
+      mockAssertBoundedString.mockImplementation(() => {
         throw new MockIpcValidationError(
           CurrentSessionChannel.Start,
           'Expected "league" to be a string, got number',

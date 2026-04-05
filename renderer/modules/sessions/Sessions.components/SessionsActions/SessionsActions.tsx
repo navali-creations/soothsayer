@@ -2,19 +2,17 @@ import { type ChangeEvent, useEffect, useState } from "react";
 
 import { Flex, Search } from "~/renderer/components";
 import { useDebounce } from "~/renderer/hooks";
-import { useBoundStore } from "~/renderer/store";
+import { useSessions } from "~/renderer/store";
 
 export const SessionsActions = () => {
   const {
-    sessions: {
-      getUniqueLeagues,
-      getSelectedLeague,
-      setSelectedLeague,
-      getSearchQuery,
-      loadAllSessions,
-      searchSessions,
-    },
-  } = useBoundStore();
+    getUniqueLeagues,
+    getSelectedLeague,
+    setSelectedLeague,
+    getSearchQuery,
+    loadAllSessions,
+    searchSessions,
+  } = useSessions();
 
   const uniqueLeagues = getUniqueLeagues();
   const selectedLeague = getSelectedLeague();

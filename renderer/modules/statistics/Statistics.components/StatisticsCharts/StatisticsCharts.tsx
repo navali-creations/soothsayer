@@ -4,15 +4,15 @@ import { CombinedChartCanvas } from "~/renderer/components/CombinedChartCanvas";
 import type {
   BrushRange,
   MetricKey,
-} from "~/renderer/components/CombinedChartCanvas/chart-types";
+} from "~/renderer/components/CombinedChartCanvas/chart-types/chart-types";
 import {
   METRICS,
   resolveColor,
   transformChartData,
-} from "~/renderer/components/CombinedChartCanvas/chart-types";
+} from "~/renderer/components/CombinedChartCanvas/chart-types/chart-types";
 import { LegendIcon } from "~/renderer/components/CombinedChartCanvas/LegendIcon";
 import { useChartColors } from "~/renderer/hooks";
-import { useBoundStore } from "~/renderer/store";
+import { useStatistics } from "~/renderer/store";
 
 interface StatisticsChartsProps {
   isDataLoading?: boolean;
@@ -24,18 +24,16 @@ export const StatisticsCharts = ({
   const c = useChartColors();
 
   const {
-    statistics: {
-      statScope,
-      selectedLeague,
-      chartRawData,
-      isChartLoading,
-      hiddenMetrics,
-      brushRange,
-      fetchChartData,
-      toggleChartMetric,
-      setBrushRange,
-    },
-  } = useBoundStore();
+    statScope,
+    selectedLeague,
+    chartRawData,
+    isChartLoading,
+    hiddenMetrics,
+    brushRange,
+    fetchChartData,
+    toggleChartMetric,
+    setBrushRange,
+  } = useStatistics();
 
   useEffect(() => {
     const league =

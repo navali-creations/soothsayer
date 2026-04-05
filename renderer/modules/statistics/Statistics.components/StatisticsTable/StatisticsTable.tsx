@@ -10,7 +10,7 @@ import {
   Table,
 } from "~/renderer/components";
 import { trackEvent } from "~/renderer/modules/umami";
-import { useBoundStore } from "~/renderer/store";
+import { useStatistics } from "~/renderer/store";
 import { formatRelativeTime } from "~/renderer/utils";
 
 import type { CardEntry } from "../../Statistics.types";
@@ -27,21 +27,19 @@ export const StatisticsTable = ({
   currentScope,
 }: StatisticsTableProps) => {
   const {
-    statistics: {
-      statScope,
-      searchQuery,
-      setSearchQuery,
-      showUncollectedCards,
-      toggleShowUncollectedCards,
-      uncollectedCardNames,
-      uncollectedCardMetadata,
-      snapshotMeta,
-      isExporting,
-      fetchSnapshotMeta,
-      exportAll,
-      exportIncremental,
-    },
-  } = useBoundStore();
+    statScope,
+    searchQuery,
+    setSearchQuery,
+    showUncollectedCards,
+    toggleShowUncollectedCards,
+    uncollectedCardNames,
+    uncollectedCardMetadata,
+    snapshotMeta,
+    isExporting,
+    fetchSnapshotMeta,
+    exportAll,
+    exportIncremental,
+  } = useStatistics();
 
   useEffect(() => {
     fetchSnapshotMeta(currentScope);

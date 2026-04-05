@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useCardDetails } from "~/renderer/store";
 
 // ─── Store mock ────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({ useBoundStore: vi.fn() }));
+vi.mock("~/renderer/store", () => ({ useCardDetails: vi.fn() }));
 
 // ─── Router mock ───────────────────────────────────────────────────────────
 
@@ -67,29 +67,27 @@ import CardDetailsSessionList from "./";
 
 function createMockState(overrides: Record<string, any> = {}) {
   const base = {
-    cardDetails: {
-      sessions: {
-        total: 3,
-        page: 1,
-        totalPages: 1,
-        sessions: [
-          { id: "sess-1", date: "2024-01-01" },
-          { id: "sess-2", date: "2024-01-02" },
-          { id: "sess-3", date: "2024-01-03" },
-        ],
-      },
-      isLoadingSessions: false,
-      sessionsError: null,
-      sessionsPage: 1,
-      sessionsSortState: { column: "date", direction: "desc" },
-      fetchSessionsForCard: vi.fn(),
-      setSessionsSort: vi.fn(),
-      selectedLeague: "all",
+    sessions: {
+      total: 3,
+      page: 1,
+      totalPages: 1,
+      sessions: [
+        { id: "sess-1", date: "2024-01-01" },
+        { id: "sess-2", date: "2024-01-02" },
+        { id: "sess-3", date: "2024-01-03" },
+      ],
     },
+    isLoadingSessions: false,
+    sessionsError: null,
+    sessionsPage: 1,
+    sessionsSortState: { column: "date", direction: "desc" },
+    fetchSessionsForCard: vi.fn(),
+    setSessionsSort: vi.fn(),
+    selectedLeague: "all",
   };
 
   if (overrides.cardDetails) {
-    base.cardDetails = { ...base.cardDetails, ...overrides.cardDetails };
+    Object.assign(base, overrides.cardDetails);
   }
 
   return base;
@@ -97,7 +95,7 @@ function createMockState(overrides: Record<string, any> = {}) {
 
 function renderComponent(overrides: Record<string, any> = {}) {
   const mockState = createMockState(overrides);
-  vi.mocked(useBoundStore).mockReturnValue(mockState as any);
+  vi.mocked(useCardDetails).mockReturnValue(mockState as any);
   const result = renderWithProviders(
     <CardDetailsSessionList cardName="The Doctor" game="poe1" />,
   );
@@ -213,7 +211,7 @@ describe("CardDetailsSessionList — empty state", () => {
 describe("CardDetailsSessionList — effects", () => {
   it("calls fetchSessionsForCard on mount with correct args", () => {
     const { mockState } = renderComponent();
-    expect(mockState.cardDetails.fetchSessionsForCard).toHaveBeenCalledWith(
+    expect(mockState.fetchSessionsForCard).toHaveBeenCalledWith(
       "poe1",
       "The Doctor",
       1,
@@ -226,7 +224,7 @@ describe("CardDetailsSessionList — effects", () => {
     const { mockState } = renderComponent({
       cardDetails: { selectedLeague: "all" },
     });
-    expect(mockState.cardDetails.fetchSessionsForCard).toHaveBeenCalledWith(
+    expect(mockState.fetchSessionsForCard).toHaveBeenCalledWith(
       "poe1",
       "The Doctor",
       1,
@@ -239,7 +237,7 @@ describe("CardDetailsSessionList — effects", () => {
     const { mockState } = renderComponent({
       cardDetails: { selectedLeague: "Affliction" },
     });
-    expect(mockState.cardDetails.fetchSessionsForCard).toHaveBeenCalledWith(
+    expect(mockState.fetchSessionsForCard).toHaveBeenCalledWith(
       "poe1",
       "The Doctor",
       1,
@@ -257,7 +255,7 @@ describe("CardDetailsSessionList — user interactions", () => {
   it("handlePageChange calls fetchSessionsForCard with new page number", async () => {
     const { user, mockState } = renderComponent();
     await user.click(screen.getByTestId("page-change"));
-    expect(mockState.cardDetails.fetchSessionsForCard).toHaveBeenCalledWith(
+    expect(mockState.fetchSessionsForCard).toHaveBeenCalledWith(
       "poe1",
       "The Doctor",
       2,
@@ -278,7 +276,7 @@ describe("CardDetailsSessionList — user interactions", () => {
   it("handleSort calls setSessionsSort with column, game, cardName, league", async () => {
     const { user, mockState } = renderComponent();
     await user.click(screen.getByTestId("sort-click"));
-    expect(mockState.cardDetails.setSessionsSort).toHaveBeenCalledWith(
+    expect(mockState.setSessionsSort).toHaveBeenCalledWith(
       "date",
       "poe1",
       "The Doctor",
@@ -291,7 +289,7 @@ describe("CardDetailsSessionList — user interactions", () => {
       cardDetails: { selectedLeague: "Settlers" },
     });
     await user.click(screen.getByTestId("sort-click"));
-    expect(mockState.cardDetails.setSessionsSort).toHaveBeenCalledWith(
+    expect(mockState.setSessionsSort).toHaveBeenCalledWith(
       "date",
       "poe1",
       "The Doctor",

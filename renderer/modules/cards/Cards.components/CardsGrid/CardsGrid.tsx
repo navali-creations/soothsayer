@@ -3,7 +3,7 @@ import { motion } from "motion/react";
 import { GiCardRandom } from "react-icons/gi";
 
 import DivinationCard from "~/renderer/components/DivinationCard/DivinationCard";
-import { useBoundStore } from "~/renderer/store";
+import { useCards, useSettings } from "~/renderer/store";
 import { cardNameToSlug } from "~/renderer/utils";
 import type { CardEntry, Rarity, RaritySource } from "~/types/data-stores";
 
@@ -33,16 +33,14 @@ function getEffectiveRarity(
 export const CardsGrid = ({ cards }: CardsGridProps) => {
   const navigate = useNavigate();
   const {
-    cards: {
-      currentPage,
-      searchQuery,
-      rarityFilter,
-      includeBossCards,
-      sortField,
-      sortDirection,
-    },
-    settings: { raritySource },
-  } = useBoundStore();
+    currentPage,
+    searchQuery,
+    rarityFilter,
+    includeBossCards,
+    sortField,
+    sortDirection,
+  } = useCards();
+  const { raritySource } = useSettings();
 
   const convertToCardEntry = (card: DivinationCardRow): CardEntry => ({
     name: card.name,

@@ -10,7 +10,10 @@ import {
 
 import type { DiscoveredRarityInsightsDTO } from "~/main/modules/rarity-insights/RarityInsights.dto";
 import { Button } from "~/renderer/components";
-import { useBoundStore } from "~/renderer/store";
+import {
+  useRarityInsights,
+  useRarityInsightsComparison,
+} from "~/renderer/store";
 
 import { MAX_SELECTED_FILTERS } from "../../RarityInsightsComparison.slice/RarityInsightsComparison.slice";
 
@@ -22,14 +25,12 @@ const RarityInsightsSelectorGroup = ({
   filters: DiscoveredRarityInsightsDTO[];
 }) => {
   const {
-    rarityInsightsComparison: {
-      selectedFilters,
-      parsedResults,
-      parsingFilterId,
-      parseErrors,
-      toggleFilter,
-    },
-  } = useBoundStore();
+    selectedFilters,
+    parsedResults,
+    parsingFilterId,
+    parseErrors,
+    toggleFilter,
+  } = useRarityInsightsComparison();
 
   if (filters.length === 0) return null;
 
@@ -97,15 +98,9 @@ const RarityInsightsDropdown = () => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const {
-    rarityInsights: {
-      availableFilters,
-      isScanning,
-      getLocalFilters,
-      getOnlineFilters,
-    },
-    rarityInsightsComparison: { selectedFilters, rescan },
-  } = useBoundStore();
+  const { availableFilters, isScanning, getLocalFilters, getOnlineFilters } =
+    useRarityInsights();
+  const { selectedFilters, rescan } = useRarityInsightsComparison();
 
   const localFilters = getLocalFilters();
   const onlineFilters = getOnlineFilters();

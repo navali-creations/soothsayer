@@ -5,17 +5,17 @@ import {
   screen,
   waitFor,
 } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useSettings } from "~/renderer/store";
 
 import PrivacySettingsCard from "./PrivacySettingsCard";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useSettings: vi.fn(),
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseSettings = vi.mocked(useSettings);
 
 vi.mock("~/renderer/components", () => ({
   Link: ({ children, to, ...props }: any) => (
@@ -47,10 +47,7 @@ function setupStore(
     ...overrides,
   };
 
-  mockUseBoundStore.mockImplementation((selector?: any) => {
-    const state = { settings } as any;
-    return selector ? selector(state) : state;
-  });
+  mockUseSettings.mockReturnValue(settings as any);
 
   return settings;
 }

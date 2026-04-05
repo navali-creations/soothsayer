@@ -1,17 +1,15 @@
 import { SETUP_STEPS } from "~/main/modules/app-setup/AppSetup.types";
-import { useBoundStore } from "~/renderer/store";
+import { useSetup } from "~/renderer/store";
 
 const SetupActions = () => {
   const {
-    setup: {
-      setupState,
-      validation,
-      isLoading,
-      advanceStep,
-      goBack,
-      completeSetup,
-    },
-  } = useBoundStore();
+    setupState,
+    validation,
+    isLoading,
+    advanceStep,
+    goBack,
+    completeSetup,
+  } = useSetup();
 
   const currentStep = setupState?.currentStep ?? 0;
   const isFirstStep = currentStep === SETUP_STEPS.SELECT_GAME;

@@ -3,12 +3,10 @@ import { TbDatabaseExclamation } from "react-icons/tb";
 
 import { Button } from "~/renderer/components";
 import { formatBytes } from "~/renderer/modules/settings/Settings.components/storage/storage.utils/storage.utils";
-import { useBoundStore } from "~/renderer/store";
+import { useStorage } from "~/renderer/store";
 
 const DiskSpaceWarning = () => {
-  const {
-    storage: { isDiskLow, info },
-  } = useBoundStore();
+  const { isDiskLow, info } = useStorage();
   const navigate = useNavigate();
 
   if (!isDiskLow) {

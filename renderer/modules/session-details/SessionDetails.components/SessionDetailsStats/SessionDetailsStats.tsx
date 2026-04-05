@@ -2,44 +2,28 @@ import { GroupedStats } from "~/renderer/components";
 
 import {
   SessionDetailsDurationStat,
-  SessionDetailsMostCommonCardStat,
   SessionDetailsNetProfitStat,
   SessionDetailsOpenedDecksStat,
   SessionDetailsTotalValueStat,
 } from "./";
 
 interface SessionDetailsStatsProps {
-  duration: string;
-  totalCount: number;
-  mostCommonCard: { name: string; count: number; ratio: number } | null;
-  totalProfit: number;
-  netProfit: number;
-  totalDeckCost: number;
-  chaosToDivineRatio: number;
+  expanded?: boolean;
+  onToggleExpanded?: () => void;
 }
 
 const SessionDetailsStats = ({
-  duration,
-  totalCount,
-  mostCommonCard,
-  totalProfit,
-  netProfit,
-  totalDeckCost,
-  chaosToDivineRatio,
+  expanded,
+  onToggleExpanded,
 }: SessionDetailsStatsProps) => {
   return (
     <GroupedStats className="w-full">
-      <SessionDetailsDurationStat duration={duration} />
-      <SessionDetailsOpenedDecksStat totalCount={totalCount} />
-      <SessionDetailsMostCommonCardStat mostCommonCard={mostCommonCard} />
-      <SessionDetailsTotalValueStat
-        totalProfit={totalProfit}
-        chaosToDivineRatio={chaosToDivineRatio}
-      />
+      <SessionDetailsDurationStat />
+      <SessionDetailsOpenedDecksStat />
+      <SessionDetailsTotalValueStat />
       <SessionDetailsNetProfitStat
-        netProfit={netProfit}
-        totalDeckCost={totalDeckCost}
-        chaosToDivineRatio={chaosToDivineRatio}
+        expanded={expanded}
+        onToggleExpanded={onToggleExpanded}
       />
     </GroupedStats>
   );

@@ -1,5 +1,5 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useSessions } from "~/renderer/store";
 
 import type { SessionsSummary } from "../../Sessions.types";
 import { SessionsGrid } from "./SessionsGrid";
@@ -7,10 +7,10 @@ import { SessionsGrid } from "./SessionsGrid";
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useSessions: vi.fn(),
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseSessions = vi.mocked(useSessions);
 
 vi.mock("../SessionsCard/SessionsCard", () => ({
   SessionCard: ({ session }: { session: SessionsSummary }) => (
@@ -46,11 +46,10 @@ function setupStore(overrides: {
   filteredSessions?: SessionsSummary[];
   selectedLeague?: string;
 }) {
-  mockUseBoundStore.mockReturnValue({
-    sessions: {
-      getFilteredSessions: () => overrides.filteredSessions ?? [],
-      getSelectedLeague: () => overrides.selectedLeague ?? "all",
-    },
+  mockUseSessions.mockReturnValue({
+    getFilteredSessions: () => overrides.filteredSessions ?? [],
+    getSelectedLeague: () => overrides.selectedLeague ?? "all",
+    getSparklines: () => ({}),
   } as any);
 }
 

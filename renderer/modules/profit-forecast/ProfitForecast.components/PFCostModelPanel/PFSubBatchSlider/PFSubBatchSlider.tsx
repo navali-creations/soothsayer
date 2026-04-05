@@ -1,19 +1,17 @@
 import { FiInfo } from "react-icons/fi";
 
-import { useBoundStore } from "~/renderer/store";
+import { usePoeNinja, useProfitForecast } from "~/renderer/store";
 
 const PFSubBatchSlider = () => {
   const {
-    profitForecast: {
-      subBatchSize,
-      customBaseRate,
-      stackedDeckChaosCost,
-      setSubBatchSize,
-      setIsComputing,
-      isLoading,
-    },
-    poeNinja: { isRefreshing },
-  } = useBoundStore();
+    subBatchSize,
+    customBaseRate,
+    stackedDeckChaosCost,
+    setSubBatchSize,
+    setIsComputing,
+    isLoading,
+  } = useProfitForecast();
+  const { isRefreshing } = usePoeNinja();
 
   const controlsDisabled = isRefreshing || isLoading;
   const hasCustomRate = customBaseRate !== null;

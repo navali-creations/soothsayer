@@ -5,17 +5,19 @@ import {
   screen,
   waitFor,
 } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useProhibitedLibrary, useSettings } from "~/renderer/store";
 
 import ProhibitedLibraryStatusBlock from "./ProhibitedLibraryStatusBlock";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useProhibitedLibrary: vi.fn(),
+  useSettings: vi.fn(),
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseProhibitedLibrary = vi.mocked(useProhibitedLibrary);
+const mockUseSettings = vi.mocked(useSettings);
 
 vi.mock("~/renderer/components", () => ({
   Button: ({ children, onClick, disabled, loading, ...props }: any) => (
@@ -61,9 +63,8 @@ function createMockStore(overrides: any = {}) {
 function setupStore(overrides: any = {}) {
   const store = createMockStore(overrides);
 
-  mockUseBoundStore.mockImplementation((selector?: any) => {
-    return selector ? selector(store) : store;
-  });
+  mockUseProhibitedLibrary.mockReturnValue(store.prohibitedLibrary);
+  mockUseSettings.mockReturnValue(store.settings);
 
   return store;
 }

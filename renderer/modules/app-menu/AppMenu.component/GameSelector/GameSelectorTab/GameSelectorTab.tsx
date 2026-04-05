@@ -2,16 +2,14 @@ import clsx from "clsx";
 
 import { Button } from "~/renderer/components";
 import { LeagueSelect, StatusBadge } from "~/renderer/modules/game-info";
-import { useBoundStore } from "~/renderer/store";
+import { useSettings } from "~/renderer/store";
 
 type GameSelectorTabProps = {
   game: "poe1" | "poe2";
 };
 
 const GameSelectorTab = ({ game }: GameSelectorTabProps) => {
-  const {
-    settings: { getSelectedGame, updateSetting },
-  } = useBoundStore();
+  const { getSelectedGame, updateSetting } = useSettings();
   const isActive = game === getSelectedGame();
   const label = game === "poe1" ? "Path of Exile 1" : "Path of Exile 2";
 

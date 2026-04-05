@@ -1,20 +1,18 @@
 import { FiDownload, FiExternalLink, FiRefreshCw } from "react-icons/fi";
 
 import { Button } from "~/renderer/components";
-import { useBoundStore } from "~/renderer/store";
+import { useUpdater } from "~/renderer/store";
 
 const UpdateIndicator = () => {
   const {
-    updater: {
-      updateAvailable,
-      updateInfo,
-      isDismissed,
-      status,
-      downloadProgress,
-      error,
-      downloadAndInstall,
-    },
-  } = useBoundStore();
+    updateAvailable,
+    updateInfo,
+    isDismissed,
+    status,
+    downloadProgress,
+    error,
+    downloadAndInstall,
+  } = useUpdater();
 
   if (!updateAvailable || isDismissed || !updateInfo) {
     return null;

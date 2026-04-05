@@ -1,3 +1,4 @@
+import type BetterSqlite3 from "better-sqlite3";
 import { type Kysely, sql } from "kysely";
 
 import type { Database } from "~/main/modules/database";
@@ -7,12 +8,27 @@ import type {
   CreateSessionDTO,
   ProcessedIdDTO,
   SessionCardDTO,
+  SessionCardEventDTO,
   SessionDTO,
   SessionSummaryDTO,
   UpdateSessionDTO,
-  UpsertSessionCardDTO,
 } from "./CurrentSession.dto";
 import { CurrentSessionMapper } from "./CurrentSession.mapper";
+
+/**
+ * Parameters for the synchronous addCardSync transaction.
+ * Bundles all data needed for the hot-path DB writes into a single call.
+ */
+export interface AddCardSyncParams {
+  sessionId: string;
+  cardName: string;
+  timestamp: string;
+  chaosValue: number | null;
+  divineValue: number | null;
+  game: GameType;
+  league: string;
+  processedId: string;
+}
 
 /**
  * Repository for CurrentSession
@@ -20,6 +36,144 @@ import { CurrentSessionMapper } from "./CurrentSession.mapper";
  */
 export class CurrentSessionRepository {
   constructor(private kysely: Kysely<Database>) {}
+
+  // ============================================================================
+  // Synchronous Hot-Path (better-sqlite3 prepared statements)
+  // ============================================================================
+
+  /**
+   * Lazily-initialized prepared statements for the synchronous card-drop path.
+   * These are bound to a specific raw `better-sqlite3` Database instance.
+   */
+  private _syncStmts: {
+    upsertSessionCard: BetterSqlite3.Statement;
+    updateSessionTotal: BetterSqlite3.Statement;
+    insertCardEvent: BetterSqlite3.Statement;
+    insertProcessedId: BetterSqlite3.Statement;
+    incrementGlobalStat: BetterSqlite3.Statement;
+    upsertAllTimeCard: BetterSqlite3.Statement;
+    upsertLeagueCard: BetterSqlite3.Statement;
+    syncTransaction: BetterSqlite3.Transaction<
+      (params: AddCardSyncParams) => void
+    >;
+  } | null = null;
+
+  /**
+   * Lazily build and cache the prepared statements + transaction wrapper.
+   */
+  private getSyncStmts(db: BetterSqlite3.Database) {
+    if (this._syncStmts) return this._syncStmts;
+
+    // 1. INSERT OR UPDATE session_cards (increment count)
+    const upsertSessionCard = db.prepare(`
+      INSERT INTO session_cards (session_id, card_name, count, first_seen_at, last_seen_at, hide_price_exchange, hide_price_stash)
+      VALUES (@sessionId, @cardName, 1, @timestamp, @timestamp, 0, 0)
+      ON CONFLICT (session_id, card_name) DO UPDATE SET
+        count = count + 1,
+        last_seen_at = @timestamp
+    `);
+
+    // 2. UPDATE sessions total_count
+    const updateSessionTotal = db.prepare(`
+      UPDATE sessions SET total_count = total_count + 1 WHERE id = @sessionId
+    `);
+
+    // 3. INSERT session_card_events (timeline event)
+    const insertCardEvent = db.prepare(`
+      INSERT INTO session_card_events (session_id, card_name, chaos_value, divine_value, dropped_at)
+      VALUES (@sessionId, @cardName, @chaosValue, @divineValue, @timestamp)
+    `);
+
+    // 4. INSERT processed_ids (save processed ID, skip duplicates)
+    const insertProcessedId = db.prepare(`
+      INSERT OR IGNORE INTO processed_ids (game, scope, processed_id, card_name)
+      VALUES (@game, 'global', @processedId, @cardName)
+    `);
+
+    // 5. UPDATE global_stats (increment totalStackedDecksOpened)
+    const incrementGlobalStat = db.prepare(`
+      UPDATE global_stats SET value = value + 1 WHERE key = 'totalStackedDecksOpened'
+    `);
+
+    // 6. INSERT OR UPDATE cards for all-time scope
+    const upsertAllTimeCard = db.prepare(`
+      INSERT INTO cards (game, scope, card_name, count, last_updated)
+      VALUES (@game, 'all-time', @cardName, 1, @timestamp)
+      ON CONFLICT (game, scope, card_name) DO UPDATE SET
+        count = count + 1,
+        last_updated = @timestamp
+    `);
+
+    // 7. INSERT OR UPDATE cards for league scope
+    const upsertLeagueCard = db.prepare(`
+      INSERT INTO cards (game, scope, card_name, count, last_updated)
+      VALUES (@game, @league, @cardName, 1, @timestamp)
+      ON CONFLICT (game, scope, card_name) DO UPDATE SET
+        count = count + 1,
+        last_updated = @timestamp
+    `);
+
+    // Bundle everything into a single synchronous transaction
+    const syncTransaction = db.transaction((params: AddCardSyncParams) => {
+      upsertSessionCard.run({
+        sessionId: params.sessionId,
+        cardName: params.cardName,
+        timestamp: params.timestamp,
+      });
+      updateSessionTotal.run({ sessionId: params.sessionId });
+      insertCardEvent.run({
+        sessionId: params.sessionId,
+        cardName: params.cardName,
+        chaosValue: params.chaosValue,
+        divineValue: params.divineValue,
+        timestamp: params.timestamp,
+      });
+      insertProcessedId.run({
+        game: params.game,
+        processedId: params.processedId,
+        cardName: params.cardName,
+      });
+      incrementGlobalStat.run();
+      upsertAllTimeCard.run({
+        game: params.game,
+        cardName: params.cardName,
+        timestamp: params.timestamp,
+      });
+      upsertLeagueCard.run({
+        game: params.game,
+        league: params.league,
+        cardName: params.cardName,
+        timestamp: params.timestamp,
+      });
+    });
+
+    this._syncStmts = {
+      upsertSessionCard,
+      updateSessionTotal,
+      insertCardEvent,
+      insertProcessedId,
+      incrementGlobalStat,
+      upsertAllTimeCard,
+      upsertLeagueCard,
+      syncTransaction,
+    };
+
+    return this._syncStmts;
+  }
+
+  /**
+   * Perform all hot-path card-drop DB writes in a single synchronous
+   * better-sqlite3 transaction.  This replaces the sequential awaits of
+   * `incrementCardCount()` + `saveProcessedId()` + `DataStore.addCard()`
+   * and eliminates ~6 event-loop yields per card drop.
+   *
+   * @param db  The raw better-sqlite3 Database instance (from DatabaseService.getDb())
+   * @param params  All data needed for the card-drop writes
+   */
+  addCardSync(db: BetterSqlite3.Database, params: AddCardSyncParams): void {
+    const stmts = this.getSyncStmts(db);
+    stmts.syncTransaction(params);
+  }
 
   // ============================================================================
   // Session Operations
@@ -110,69 +264,6 @@ export class CurrentSessionRepository {
   // Session Card Operations
   // ============================================================================
 
-  async upsertSessionCard(data: UpsertSessionCardDTO): Promise<void> {
-    await this.kysely
-      .insertInto("session_cards")
-      .values({
-        session_id: data.sessionId,
-        card_name: data.cardName,
-        count: data.count,
-        first_seen_at: data.firstSeenAt,
-        last_seen_at: data.lastSeenAt,
-        hide_price_exchange:
-          CurrentSessionMapper.boolToDb(data.hidePriceExchange) ?? 0,
-        hide_price_stash:
-          CurrentSessionMapper.boolToDb(data.hidePriceStash) ?? 0,
-      })
-      .onConflict((oc) =>
-        oc.columns(["session_id", "card_name"]).doUpdateSet({
-          count: data.count,
-          last_seen_at: data.lastSeenAt,
-        }),
-      )
-      .execute();
-  }
-
-  async incrementCardCount(
-    sessionId: string,
-    cardName: string,
-    timestamp: string,
-  ): Promise<void> {
-    await this.kysely.transaction().execute(async (trx) => {
-      // Increment the card count in session_cards
-      await trx
-        .insertInto("session_cards")
-        .values({
-          session_id: sessionId,
-          card_name: cardName,
-          count: 1,
-          first_seen_at: timestamp,
-          last_seen_at: timestamp,
-          hide_price_exchange: 0,
-          hide_price_stash: 0,
-        })
-        .onConflict((oc) =>
-          oc.columns(["session_id", "card_name"]).doUpdateSet({
-            count: sql`count + 1`,
-            last_seen_at: timestamp,
-          }),
-        )
-        .execute();
-
-      // Update the session's total count
-      const result = await trx
-        .selectFrom("session_cards")
-        .select((eb) => eb.fn.sum<number>("count").as("total"))
-        .where("session_id", "=", sessionId)
-        .executeTakeFirst();
-
-      await trx
-        .updateTable("sessions")
-        .set({ total_count: result?.total ?? 0 })
-        .where("id", "=", sessionId)
-        .execute();
-    });
-  }
   async getSessionCards(
     sessionId: string,
     filterId?: string | null,
@@ -262,60 +353,6 @@ export class CurrentSessionRepository {
     return rows.map((row) => ({ processedId: row.processed_id }));
   }
 
-  async replaceProcessedIds(
-    game: GameType,
-    processedIds: string[],
-  ): Promise<void> {
-    await this.kysely.transaction().execute(async (trx) => {
-      // Delete old IDs
-      await trx
-        .deleteFrom("processed_ids")
-        .where("game", "=", game)
-        .where("scope", "=", "global")
-        .execute();
-
-      // Insert new IDs (batch insert)
-      if (processedIds.length > 0) {
-        await trx
-          .insertInto("processed_ids")
-          .values(
-            processedIds.map((id) => ({
-              game,
-              scope: "global" as const,
-              processed_id: id,
-              card_name: null,
-            })),
-          )
-          .execute();
-      }
-    });
-  }
-
-  async clearProcessedIds(game: GameType): Promise<void> {
-    await this.kysely
-      .deleteFrom("processed_ids")
-      .where("game", "=", game)
-      .where("scope", "=", "global")
-      .execute();
-  }
-
-  async saveProcessedId(
-    game: GameType,
-    processedId: string,
-    cardName: string,
-  ): Promise<void> {
-    await this.kysely
-      .insertInto("processed_ids")
-      .values({
-        game,
-        scope: "global" as const,
-        processed_id: processedId,
-        card_name: cardName,
-      })
-      .onConflict((oc) => oc.doNothing()) // Skip if duplicate
-      .execute();
-  }
-
   async getRecentDrops(game: GameType, limit: number = 20): Promise<string[]> {
     const results = await this.kysely
       .selectFrom("processed_ids")
@@ -386,8 +423,136 @@ export class CurrentSessionRepository {
   }
 
   // ============================================================================
+  // Session Card Event Operations
+  // ============================================================================
+
+  async getRecentCardEvents(
+    sessionId: string,
+    limit = 200,
+  ): Promise<SessionCardEventDTO[]> {
+    // Subquery: get the most recent N events (DESC), then reverse to ASC
+    const rows = await this.kysely
+      .selectFrom(
+        this.kysely
+          .selectFrom("session_card_events")
+          .selectAll()
+          .where("session_id", "=", sessionId)
+          .orderBy("dropped_at", "desc")
+          .orderBy("id", "desc")
+          .limit(limit)
+          .as("recent"),
+      )
+      .selectAll()
+      .orderBy("dropped_at", "asc")
+      .orderBy("id", "asc")
+      .execute();
+
+    return rows.map(CurrentSessionMapper.toSessionCardEventDTO);
+  }
+
+  async getAllCardEvents(sessionId: string): Promise<SessionCardEventDTO[]> {
+    const rows = await this.kysely
+      .selectFrom("session_card_events")
+      .selectAll()
+      .where("session_id", "=", sessionId)
+      .orderBy("dropped_at", "asc")
+      .orderBy("id", "asc")
+      .execute();
+
+    return rows.map(CurrentSessionMapper.toSessionCardEventDTO);
+  }
+
+  // ============================================================================
+  // Card Rarity Lookups
+  // ============================================================================
+
+  /**
+   * Look up a single card's price-based rarity from divination_card_rarities.
+   * Returns COALESCE(override_rarity, rarity, 0) or null if not found.
+   */
+  async getCardPriceRarity(
+    game: GameType,
+    leagueName: string,
+    cardName: string,
+  ): Promise<number | null> {
+    const row = await this.kysely
+      .selectFrom("divination_card_rarities as dcr")
+      .select(
+        sql<number>`COALESCE(dcr.override_rarity, dcr.rarity, 0)`.as("rarity"),
+      )
+      .where("dcr.card_name", "=", cardName)
+      .where("dcr.game", "=", game)
+      .where("dcr.league", "=", leagueName)
+      .executeTakeFirst();
+
+    return row?.rarity ?? null;
+  }
+
+  /**
+   * Look up a single card's filter-based rarity from filter_card_rarities.
+   * Returns the rarity number or null if not found.
+   */
+  async getCardFilterRarity(
+    filterId: string,
+    cardName: string,
+  ): Promise<number | null> {
+    const row = await this.kysely
+      .selectFrom("filter_card_rarities as fcr")
+      .select("fcr.rarity")
+      .where("fcr.filter_id", "=", filterId)
+      .where("fcr.card_name", "=", cardName)
+      .executeTakeFirst();
+
+    return row?.rarity ?? null;
+  }
+
+  // ============================================================================
   // Session Summary Operations
   // ============================================================================
+
+  /**
+   * Look up a single card's full metadata from the divination_cards table.
+   * Returns the metadata object or null if the card isn't in reference data.
+   */
+  async getDivinationCardMetadata(
+    game: GameType,
+    cardName: string,
+  ): Promise<{
+    id: string;
+    stackSize: number | null;
+    description: string | null;
+    rewardHtml: string | null;
+    artSrc: string | null;
+    flavourHtml: string | null;
+    fromBoss: boolean;
+  } | null> {
+    const row = await this.kysely
+      .selectFrom("divination_cards")
+      .select([
+        "id",
+        "stack_size as stackSize",
+        "description",
+        "reward_html as rewardHtml",
+        "art_src as artSrc",
+        "flavour_html as flavourHtml",
+        "from_boss",
+      ])
+      .where("name", "=", cardName)
+      .where("game", "=", game)
+      .executeTakeFirst();
+
+    if (!row) return null;
+
+    return {
+      id: row.id,
+      stackSize: row.stackSize ?? null,
+      description: row.description ?? null,
+      rewardHtml: row.rewardHtml ?? null,
+      artSrc: row.artSrc ?? null,
+      flavourHtml: row.flavourHtml ?? null,
+      fromBoss: !!row.from_boss,
+    };
+  }
 
   async createSessionSummary(data: SessionSummaryDTO): Promise<void> {
     await this.kysely

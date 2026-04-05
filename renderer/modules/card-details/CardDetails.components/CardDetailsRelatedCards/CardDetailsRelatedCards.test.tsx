@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useCardDetails } from "~/renderer/store";
 
 // ─── Store mock ────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({ useBoundStore: vi.fn() }));
+vi.mock("~/renderer/store", () => ({ useCardDetails: vi.fn() }));
 
 // ─── Sub-component stubs ───────────────────────────────────────────────────
 
@@ -41,17 +41,15 @@ const makeRelatedCard = (name: string) => ({
 
 function createMockState(overrides: Record<string, any> = {}) {
   return {
-    cardDetails: {
-      relatedCards: null,
-      isLoadingRelatedCards: false,
-      ...overrides,
-    },
+    relatedCards: null,
+    isLoadingRelatedCards: false,
+    ...overrides,
   };
 }
 
 function renderComponent(overrides: Record<string, any> = {}) {
   const mockState = createMockState(overrides);
-  vi.mocked(useBoundStore).mockReturnValue(mockState as any);
+  vi.mocked(useCardDetails).mockReturnValue(mockState as any);
   return renderWithProviders(<CardDetailsRelatedCards />);
 }
 

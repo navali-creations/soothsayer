@@ -313,4 +313,47 @@ describe("cleanWikiMarkup", () => {
       expect(result).toBe("Mirror of Kalandra");
     });
   });
+
+  // ─── Hoverbox Wrapper Removal ─────────────────────────────────────────────
+
+  describe("hoverbox wrapper removal", () => {
+    it("should strip empty hoverbox__display spans", () => {
+      const input =
+        'before<span class="hoverbox__display c-item-hoverbox__display"></span>after';
+      expect(cleanWikiMarkup(input)).toBe("beforeafter");
+    });
+
+    it("should unwrap hoverbox__activator spans keeping content", () => {
+      const input =
+        '<span class="hoverbox__activator c-item-hoverbox__activator">The Poet\'s Pen</span>';
+      expect(cleanWikiMarkup(input)).toBe("The Poet's Pen");
+    });
+
+    it("should unwrap hoverbox container spans keeping content", () => {
+      const input =
+        '<span class="hoverbox c-item-hoverbox">Inner Content</span>';
+      expect(cleanWikiMarkup(input)).toBe("Inner Content");
+    });
+
+    it("should clean a full hoverbox structure from real card data", () => {
+      const input =
+        '<span class="tc -unique"><span class="hoverbox c-item-hoverbox"><span class="hoverbox__activator c-item-hoverbox__activator">[[File: The Poet\'s Pen inventory icon.png|16x16px|link=|alt=]][[The Poet\'s Pen|The Poet\'s Pen]]</span><span class="hoverbox__display c-item-hoverbox__display">[[File: The Poet\'s Pen inventory icon.png|78x78px|link=|alt=|class=item-icon]]</span></span></span>';
+      const result = cleanWikiMarkup(input);
+      expect(result).toBe('<span class="tc -unique">The Poet\'s Pen</span>');
+    });
+
+    it("should clean hoverbox with corrupted modifier", () => {
+      const input =
+        '<span class="tc -unique"><span class="hoverbox c-item-hoverbox"><span class="hoverbox__activator c-item-hoverbox__activator">[[File: Cortex inventory icon.png|16x16px|link=|alt=]][[Cortex|Cortex]]</span><span class="hoverbox__display c-item-hoverbox__display">[[File: Cortex inventory icon.png|78x78px|link=|alt=|class=item-icon]]</span></span></span><br><span class="tc -corrupted">[[Corrupted]]</span>';
+      const result = cleanWikiMarkup(input);
+      expect(result).toBe(
+        '<span class="tc -unique">Cortex</span><br><span class="tc -corrupted">Corrupted</span>',
+      );
+    });
+
+    it("should not affect HTML without hoverbox classes", () => {
+      const input = '<span class="tc -gem">Level 21 Vaal Cold Snap</span>';
+      expect(cleanWikiMarkup(input)).toBe(input);
+    });
+  });
 });

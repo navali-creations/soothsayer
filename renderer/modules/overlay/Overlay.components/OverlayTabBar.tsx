@@ -1,12 +1,10 @@
 import clsx from "clsx";
 
 import { Button } from "~/renderer/components";
-import { useBoundStore } from "~/renderer/store";
+import { useOverlay } from "~/renderer/store";
 
 export const OverlayTabBar = () => {
-  const {
-    overlay: { activeTab, setActiveTab, sessionData, isLeftHalf },
-  } = useBoundStore();
+  const { activeTab, setActiveTab, sessionData, isLeftHalf } = useOverlay();
 
   const isSessionActive = sessionData.isActive;
 

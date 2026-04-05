@@ -1,12 +1,10 @@
 import { FiLock, FiUnlock, FiX } from "react-icons/fi";
 
 import { Button } from "~/renderer/components";
-import { useBoundStore } from "~/renderer/store";
+import { useOverlay } from "~/renderer/store";
 
 export const OverlayActionButtons = () => {
-  const {
-    overlay: { isLocked, setLocked, hide, isLeftHalf },
-  } = useBoundStore();
+  const { isLocked, setLocked, hide, isLeftHalf } = useOverlay();
 
   const tooltipDirection = isLeftHalf ? "tooltip-right" : "tooltip-left";
 

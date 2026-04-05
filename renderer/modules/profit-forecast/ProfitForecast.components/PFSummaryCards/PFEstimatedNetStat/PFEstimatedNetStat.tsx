@@ -1,12 +1,11 @@
 import { Stat } from "~/renderer/components";
-import { useBoundStore } from "~/renderer/store";
+import { useProfitForecast } from "~/renderer/store";
 
 import { formatDivine } from "../../../ProfitForecast.utils/ProfitForecast.utils";
 
 const PFEstimatedNetStat = () => {
-  const {
-    profitForecast: { isLoading, chaosToDivineRatio, getBatchPnL, hasData },
-  } = useBoundStore();
+  const { isLoading, chaosToDivineRatio, getBatchPnL, hasData } =
+    useProfitForecast();
 
   const dataAvailable = hasData() && !isLoading;
   const batchPnL = dataAvailable ? getBatchPnL() : null;

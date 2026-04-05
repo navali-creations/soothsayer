@@ -1,5 +1,5 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useCards } from "~/renderer/store";
 
 import type { DivinationCardRow } from "../Cards.types";
 import CardsPage from "./Cards.page";
@@ -7,10 +7,10 @@ import CardsPage from "./Cards.page";
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useCards: vi.fn(),
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseCards = vi.mocked(useCards);
 
 vi.mock("../Cards.components", () => ({
   CardsActions: ({ onFilterChange }: any) => (
@@ -96,15 +96,13 @@ function setupStore(
     totalPages?: number;
   } = {},
 ) {
-  mockUseBoundStore.mockReturnValue({
-    cards: {
-      allCards: overrides.allCards ?? mockAllCards,
-      loadCards: mockLoadCards,
-      getPaginatedCards: () => overrides.paginatedCards ?? mockPaginatedCards,
-      getFilteredAndSortedCards: () =>
-        overrides.filteredCards ?? mockFilteredCards,
-      getTotalPages: () => overrides.totalPages ?? 3,
-    },
+  mockUseCards.mockReturnValue({
+    allCards: overrides.allCards ?? mockAllCards,
+    loadCards: mockLoadCards,
+    getPaginatedCards: () => overrides.paginatedCards ?? mockPaginatedCards,
+    getFilteredAndSortedCards: () =>
+      overrides.filteredCards ?? mockFilteredCards,
+    getTotalPages: () => overrides.totalPages ?? 3,
   } as any);
 }
 

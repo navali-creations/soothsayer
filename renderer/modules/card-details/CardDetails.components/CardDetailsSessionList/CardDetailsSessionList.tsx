@@ -1,7 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect } from "react";
 
-import { useBoundStore } from "~/renderer/store";
+import { useCardDetails } from "~/renderer/store";
 import type { GameType } from "~/types/data-stores";
 
 import SessionListEmpty from "./SessionListEmpty";
@@ -35,17 +35,15 @@ const CardDetailsSessionList = ({
   const navigate = useNavigate();
 
   const {
-    cardDetails: {
-      sessions,
-      isLoadingSessions,
-      sessionsError,
-      sessionsPage,
-      sessionsSortState,
-      fetchSessionsForCard,
-      setSessionsSort,
-      selectedLeague,
-    },
-  } = useBoundStore();
+    sessions,
+    isLoadingSessions,
+    sessionsError,
+    sessionsPage,
+    sessionsSortState,
+    fetchSessionsForCard,
+    setSessionsSort,
+    selectedLeague,
+  } = useCardDetails();
 
   const showLeagueColumn = selectedLeague === "all";
 

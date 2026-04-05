@@ -3,7 +3,11 @@ import { useEffect, useMemo, useRef } from "react";
 
 import { PageContainer } from "~/renderer/components";
 import { trackEvent } from "~/renderer/modules/umami";
-import { useBoundStore } from "~/renderer/store";
+import {
+  useCardDetails,
+  useProhibitedLibrary,
+  useSettings,
+} from "~/renderer/store";
 import type { CardEntry } from "~/types/data-stores";
 
 import CardDetailsError from "../CardDetails.components/CardDetailsError";
@@ -18,25 +22,27 @@ import YourDataTabContent from "../CardDetails.components/YourDataTabContent";
 const CardDetailsPage = () => {
   const { cardSlug } = useParams({ from: "/cards/$cardSlug" });
 
+  const { getSelectedGame, getActiveGameViewSelectedLeague } = useSettings();
   const {
-    settings: { getSelectedGame, getActiveGameViewSelectedLeague },
-    cardDetails: {
-      card,
-      isLoadingCard,
-      cardError,
-      initializeCardDetails,
-      refreshPersonalAnalytics,
-      fetchPriceHistory,
-      clearCardDetails,
-      isLoadingPersonalAnalytics,
-      isLeagueSwitching,
-      selectedLeague,
-      setSelectedLeague,
-      activeTab,
-      getDisplayRarity,
-    },
-    prohibitedLibrary: { poe1Status, poe2Status, fetchStatus: fetchPlStatus },
-  } = useBoundStore();
+    card,
+    isLoadingCard,
+    cardError,
+    initializeCardDetails,
+    refreshPersonalAnalytics,
+    fetchPriceHistory,
+    clearCardDetails,
+    isLoadingPersonalAnalytics,
+    isLeagueSwitching,
+    selectedLeague,
+    setSelectedLeague,
+    activeTab,
+    getDisplayRarity,
+  } = useCardDetails();
+  const {
+    poe1Status,
+    poe2Status,
+    fetchStatus: fetchPlStatus,
+  } = useProhibitedLibrary();
 
   const game = getSelectedGame();
   const globalLeague = getActiveGameViewSelectedLeague();

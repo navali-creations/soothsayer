@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useCardDetails } from "~/renderer/store";
 
 // ─── Store mock ────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({ useBoundStore: vi.fn() }));
+vi.mock("~/renderer/store", () => ({ useCardDetails: vi.fn() }));
 
 // ─── Sub-component stubs (for PriceChangesRow & PriceSummaryHeader) ────────
 
@@ -70,9 +70,7 @@ describe("PriceChangesRow", () => {
     } = {},
   ) {
     return {
-      cardDetails: {
-        getPriceChanges: () => priceChanges,
-      },
+      getPriceChanges: () => priceChanges,
     };
   }
 
@@ -83,7 +81,7 @@ describe("PriceChangesRow", () => {
       change30d?: number;
     } = {},
   ) {
-    vi.mocked(useBoundStore).mockReturnValue(
+    vi.mocked(useCardDetails).mockReturnValue(
       createMockState(priceChanges) as any,
     );
     return renderWithProviders(<PriceChangesRow />);
@@ -146,22 +144,20 @@ describe("PriceGrid", () => {
     } = {},
   ) {
     return {
-      cardDetails: {
-        card:
-          overrides.stackSize !== undefined
-            ? { stackSize: overrides.stackSize }
-            : null,
-        priceHistory:
-          overrides.currentDivineRate !== undefined ||
-          overrides.currentVolume !== undefined
-            ? {
-                currentDivineRate: overrides.currentDivineRate ?? null,
-                currentVolume: overrides.currentVolume ?? null,
-              }
-            : null,
-        getFullSetValue: () => overrides.fullSetValue ?? null,
-        getFullSetChaosValue: () => overrides.fullSetChaosValue ?? null,
-      },
+      card:
+        overrides.stackSize !== undefined
+          ? { stackSize: overrides.stackSize }
+          : null,
+      priceHistory:
+        overrides.currentDivineRate !== undefined ||
+        overrides.currentVolume !== undefined
+          ? {
+              currentDivineRate: overrides.currentDivineRate ?? null,
+              currentVolume: overrides.currentVolume ?? null,
+            }
+          : null,
+      getFullSetValue: () => overrides.fullSetValue ?? null,
+      getFullSetChaosValue: () => overrides.fullSetChaosValue ?? null,
     };
   }
 
@@ -174,7 +170,9 @@ describe("PriceGrid", () => {
       fullSetChaosValue?: number | null;
     } = {},
   ) {
-    vi.mocked(useBoundStore).mockReturnValue(createMockState(overrides) as any);
+    vi.mocked(useCardDetails).mockReturnValue(
+      createMockState(overrides) as any,
+    );
     return renderWithProviders(<PriceGrid />);
   }
 
@@ -280,23 +278,22 @@ describe("PriceSummaryHeader", () => {
     overrides: { isFromCache?: boolean; fetchedAt?: string | null } = {},
   ) {
     return {
-      cardDetails: {
-        priceHistory:
-          overrides.isFromCache !== undefined ||
-          overrides.fetchedAt !== undefined
-            ? {
-                isFromCache: overrides.isFromCache ?? false,
-                fetchedAt: overrides.fetchedAt ?? null,
-              }
-            : null,
-      },
+      priceHistory:
+        overrides.isFromCache !== undefined || overrides.fetchedAt !== undefined
+          ? {
+              isFromCache: overrides.isFromCache ?? false,
+              fetchedAt: overrides.fetchedAt ?? null,
+            }
+          : null,
     };
   }
 
   function renderComponent(
     overrides: { isFromCache?: boolean; fetchedAt?: string | null } = {},
   ) {
-    vi.mocked(useBoundStore).mockReturnValue(createMockState(overrides) as any);
+    vi.mocked(useCardDetails).mockReturnValue(
+      createMockState(overrides) as any,
+    );
     return renderWithProviders(<PriceSummaryHeader />);
   }
 

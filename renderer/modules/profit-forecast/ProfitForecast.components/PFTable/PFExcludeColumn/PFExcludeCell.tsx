@@ -1,6 +1,6 @@
 import type { CellContext } from "@tanstack/react-table";
 
-import { useBoundStore } from "~/renderer/store";
+import { useProfitForecast } from "~/renderer/store";
 
 import {
   type CardForecastRow,
@@ -8,9 +8,7 @@ import {
 } from "../../../ProfitForecast.slice/ProfitForecast.slice";
 
 const PFExcludeCell = (cellProps: CellContext<CardForecastRow, unknown>) => {
-  const {
-    profitForecast: { toggleCardExclusion },
-  } = useBoundStore();
+  const { toggleCardExclusion } = useProfitForecast();
 
   const row = cellProps.row.original;
 

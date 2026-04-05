@@ -1,12 +1,11 @@
 import { useCallback, useState } from "react";
 
-import { useBoundStore } from "~/renderer/store";
+import { usePoeNinja, useProfitForecast } from "~/renderer/store";
 
 const PFMinPriceSlider = () => {
-  const {
-    profitForecast: { minPriceThreshold, setMinPriceThreshold, isLoading },
-    poeNinja: { isRefreshing },
-  } = useBoundStore();
+  const { minPriceThreshold, setMinPriceThreshold, isLoading } =
+    useProfitForecast();
+  const { isRefreshing } = usePoeNinja();
 
   const disabled = isRefreshing || isLoading;
 

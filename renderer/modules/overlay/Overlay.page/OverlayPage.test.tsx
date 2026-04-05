@@ -40,9 +40,40 @@ function defaultOverlayState(overrides: Record<string, unknown> = {}) {
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 // Store
-vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(() => defaultOverlayState()),
-}));
+vi.mock("~/renderer/store", () => {
+  const useBoundStore = vi.fn(() => defaultOverlayState());
+  return {
+    useBoundStore,
+    useCurrentSession: () => useBoundStore().currentSession,
+    useSettings: () => useBoundStore().settings,
+    usePoeNinja: () => useBoundStore().poeNinja,
+    useSessionDetails: () => useBoundStore().sessionDetails,
+    useOverlay: () => useBoundStore().overlay,
+    useAppMenu: () => useBoundStore().appMenu,
+    useSetup: () => useBoundStore().setup,
+    useStorage: () => useBoundStore().storage,
+    useGameInfo: () => useBoundStore().gameInfo,
+    useCards: () => useBoundStore().cards,
+    useSessions: () => useBoundStore().sessions,
+    useChangelog: () => useBoundStore().changelog,
+    useStatistics: () => useBoundStore().statistics,
+    useOnboarding: () => useBoundStore().onboarding,
+    useUpdater: () => useBoundStore().updater,
+    useProfitForecast: () => useBoundStore().profitForecast,
+    useProhibitedLibrary: () => useBoundStore().prohibitedLibrary,
+    useRarityInsights: () => useBoundStore().rarityInsights,
+    useRarityInsightsComparison: () => useBoundStore().rarityInsightsComparison,
+    useRootActions: () => {
+      const s = useBoundStore();
+      return {
+        hydrate: s.hydrate,
+        startListeners: s.startListeners,
+        reset: s.reset,
+      };
+    },
+    useSlice: (key: string) => useBoundStore()?.[key],
+  };
+});
 
 // Stub child components so we don't pull in the full component tree
 vi.mock("../Overlay.components", () => ({
@@ -466,9 +497,9 @@ describe("OverlayApp", () => {
       );
     });
 
-    it("subscribes to session.onDataUpdated on mount", async () => {
+    it("subscribes to session.onCardDelta on mount", async () => {
       await renderAndSettle();
-      expect(getElectron().session.onDataUpdated).toHaveBeenCalledWith(
+      expect(getElectron().session.onCardDelta).toHaveBeenCalledWith(
         expect.any(Function),
       );
     });
@@ -482,11 +513,11 @@ describe("OverlayApp", () => {
 
     it("calls unsubscribe functions on unmount", async () => {
       const unsubState = vi.fn();
-      const unsubData = vi.fn();
+      const unsubCardDelta = vi.fn();
       const unsubSettings = vi.fn();
 
       getElectron().session.onStateChanged.mockReturnValue(unsubState);
-      getElectron().session.onDataUpdated.mockReturnValue(unsubData);
+      getElectron().session.onCardDelta.mockReturnValue(unsubCardDelta);
       getElectron().overlay.onSettingsChanged.mockReturnValue(unsubSettings);
 
       await renderAndSettle();
@@ -495,7 +526,7 @@ describe("OverlayApp", () => {
       cleanup();
 
       expect(unsubState).toHaveBeenCalled();
-      expect(unsubData).toHaveBeenCalled();
+      expect(unsubCardDelta).toHaveBeenCalled();
       expect(unsubSettings).toHaveBeenCalled();
     });
   });
@@ -568,223 +599,6 @@ describe("OverlayApp", () => {
         cards: [],
         recentDrops: [],
       });
-    });
-  });
-
-  // ── onDataUpdated handler ──────────────────────────────────────────────
-
-  describe("onDataUpdated handler", () => {
-    it("formats and sets session data from IPC update", async () => {
-      let dataUpdatedCb: (update: any) => void = () => {};
-      getElectron().session.onDataUpdated.mockImplementation((cb: any) => {
-        dataUpdatedCb = cb;
-        return vi.fn();
-      });
-
-      // Default settings use poe1 + exchange price source
-      mockSettings({
-        selectedGame: "poe1",
-        poe1PriceSource: "exchange",
-      });
-
-      await renderAndSettle();
-      mockSetSessionData.mockClear();
-
-      const update = {
-        data: {
-          totalCount: 42,
-          totals: {
-            exchange: {
-              totalValue: 1234,
-              chaosToDivineRatio: 200,
-            },
-          },
-          cards: [
-            { name: "The Doctor", count: 3 },
-            { name: "Rain of Chaos", count: 10 },
-          ],
-          recentDrops: [
-            {
-              cardName: "The Doctor",
-              rarity: 1,
-              exchangePrice: { chaosValue: 800, divineValue: 5 },
-              stashPrice: { chaosValue: 750, divineValue: 4.7 },
-            },
-          ],
-        },
-      };
-
-      await act(async () => {
-        dataUpdatedCb(update);
-      });
-
-      expect(mockSetSessionData).toHaveBeenCalledWith({
-        isActive: true,
-        totalCount: 42,
-        totalProfit: 1234,
-        chaosToDivineRatio: 200,
-        priceSource: "exchange",
-        cards: [
-          { cardName: "The Doctor", count: 3 },
-          { cardName: "Rain of Chaos", count: 10 },
-        ],
-        recentDrops: [
-          {
-            cardName: "The Doctor",
-            rarity: 1,
-            exchangePrice: { chaosValue: 800, divineValue: 5 },
-            stashPrice: { chaosValue: 750, divineValue: 4.7 },
-          },
-        ],
-      });
-    });
-
-    it("defaults rarity to 4 when rarity is missing from a drop", async () => {
-      let dataUpdatedCb: (update: any) => void = () => {};
-      getElectron().session.onDataUpdated.mockImplementation((cb: any) => {
-        dataUpdatedCb = cb;
-        return vi.fn();
-      });
-
-      await renderAndSettle();
-      mockSetSessionData.mockClear();
-
-      const update = {
-        data: {
-          totalCount: 1,
-          totals: {
-            exchange: { totalValue: 10, chaosToDivineRatio: 200 },
-          },
-          cards: [],
-          recentDrops: [
-            {
-              cardName: "Unknown Card",
-              // rarity intentionally omitted
-              exchangePrice: { chaosValue: 1, divineValue: 0 },
-              stashPrice: { chaosValue: 1, divineValue: 0 },
-            },
-          ],
-        },
-      };
-
-      await act(async () => {
-        dataUpdatedCb(update);
-      });
-
-      const callArg = mockSetSessionData.mock.calls[0][0];
-      expect(callArg.recentDrops[0].rarity).toBe(4);
-    });
-
-    it("handles empty cards and recentDrops gracefully", async () => {
-      let dataUpdatedCb: (update: any) => void = () => {};
-      getElectron().session.onDataUpdated.mockImplementation((cb: any) => {
-        dataUpdatedCb = cb;
-        return vi.fn();
-      });
-
-      await renderAndSettle();
-      mockSetSessionData.mockClear();
-
-      const update = {
-        data: {
-          totalCount: 0,
-          totals: {
-            exchange: { totalValue: 0, chaosToDivineRatio: 0 },
-          },
-          cards: null, // explicitly null
-          recentDrops: null, // explicitly null
-        },
-      };
-
-      await act(async () => {
-        dataUpdatedCb(update);
-      });
-
-      const callArg = mockSetSessionData.mock.calls[0][0];
-      expect(callArg.cards).toEqual([]);
-      expect(callArg.recentDrops).toEqual([]);
-    });
-
-    it("does not call setSessionData when update.data is falsy", async () => {
-      let dataUpdatedCb: (update: any) => void = () => {};
-      getElectron().session.onDataUpdated.mockImplementation((cb: any) => {
-        dataUpdatedCb = cb;
-        return vi.fn();
-      });
-
-      await renderAndSettle();
-      mockSetSessionData.mockClear();
-
-      await act(async () => {
-        dataUpdatedCb({ data: null });
-      });
-
-      expect(mockSetSessionData).not.toHaveBeenCalled();
-    });
-
-    it("uses stash price source when configured for poe2", async () => {
-      let dataUpdatedCb: (update: any) => void = () => {};
-      getElectron().session.onDataUpdated.mockImplementation((cb: any) => {
-        dataUpdatedCb = cb;
-        return vi.fn();
-      });
-
-      mockSettings({
-        selectedGame: "poe2",
-        poe2PriceSource: "stash",
-      });
-
-      await renderAndSettle();
-      mockSetSessionData.mockClear();
-
-      const update = {
-        data: {
-          totalCount: 5,
-          totals: {
-            stash: { totalValue: 999, chaosToDivineRatio: 180 },
-            exchange: { totalValue: 1100, chaosToDivineRatio: 200 },
-          },
-          cards: [],
-          recentDrops: [],
-        },
-      };
-
-      await act(async () => {
-        dataUpdatedCb(update);
-      });
-
-      const callArg = mockSetSessionData.mock.calls[0][0];
-      expect(callArg.totalProfit).toBe(999);
-      expect(callArg.chaosToDivineRatio).toBe(180);
-      expect(callArg.priceSource).toBe("stash");
-    });
-
-    it("handles missing totals for the price source with fallback to 0", async () => {
-      let dataUpdatedCb: (update: any) => void = () => {};
-      getElectron().session.onDataUpdated.mockImplementation((cb: any) => {
-        dataUpdatedCb = cb;
-        return vi.fn();
-      });
-
-      await renderAndSettle();
-      mockSetSessionData.mockClear();
-
-      const update = {
-        data: {
-          totalCount: 1,
-          totals: {}, // no exchange or stash key
-          cards: [],
-          recentDrops: [],
-        },
-      };
-
-      await act(async () => {
-        dataUpdatedCb(update);
-      });
-
-      const callArg = mockSetSessionData.mock.calls[0][0];
-      expect(callArg.totalProfit).toBe(0);
-      expect(callArg.chaosToDivineRatio).toBe(0);
     });
   });
 

@@ -4,13 +4,11 @@ import { useId } from "react";
 import CardNameLink from "~/renderer/components/CardNameLink/CardNameLink";
 import DivinationCard from "~/renderer/components/DivinationCard/DivinationCard";
 import { usePopover } from "~/renderer/hooks/usePopover/usePopover";
-import { useBoundStore } from "~/renderer/store";
+import { useSettings } from "~/renderer/store";
 import type { CardEntry } from "~/types/data-stores";
 
 const CardNameCell = (cellProps: CellContext<CardEntry, string>) => {
-  const {
-    settings: { getActiveGameViewPriceSource },
-  } = useBoundStore();
+  const { getActiveGameViewPriceSource } = useSettings();
   const priceSource = getActiveGameViewPriceSource();
   const popoverId = useId();
 

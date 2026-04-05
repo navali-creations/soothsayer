@@ -1,14 +1,12 @@
 import clsx from "clsx";
 
-import { useBoundStore } from "~/renderer/store";
+import { useOverlay } from "~/renderer/store";
 
 import { OverlayActionButtons } from "./OverlayActionButtons";
 import { OverlayTabBar } from "./OverlayTabBar";
 
 export const OverlayTabs = () => {
-  const {
-    overlay: { isLeftHalf },
-  } = useBoundStore();
+  const { isLeftHalf } = useOverlay();
 
   return (
     <div

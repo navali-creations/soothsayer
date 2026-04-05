@@ -6,7 +6,7 @@ import rarity1Sound from "~/renderer/assets/audio/rarity1.mp3";
 import rarity2Sound from "~/renderer/assets/audio/rarity2.mp3";
 import rarity3Sound from "~/renderer/assets/audio/rarity3.mp3";
 import { initSentry } from "~/renderer/sentry";
-import { useBoundStore } from "~/renderer/store";
+import { useBoundStore, useOverlay } from "~/renderer/store";
 
 import { initUmami } from "../../umami";
 import {
@@ -14,7 +14,6 @@ import {
   OverlaySidebar,
   OverlayTabs,
 } from "../Overlay.components";
-import type { SessionData } from "../Overlay.types";
 
 import "../../../index.css";
 
@@ -47,9 +46,8 @@ interface AudioSettings {
 }
 
 const OverlayApp = () => {
-  const {
-    overlay: { sessionData, setSessionData, isLocked, isLeftHalf, detectZone },
-  } = useBoundStore();
+  const { sessionData, setSessionData, isLocked, isLeftHalf, detectZone } =
+    useOverlay();
   const previousDropsRef = useRef<any[]>([]);
   const [isElectronReady, setIsElectronReady] = useState(
     () => !!window.electron?.overlay && !!window.electron?.session,
@@ -170,39 +168,58 @@ const OverlayApp = () => {
       },
     );
 
-    // Listen for session DATA updates (new cards, etc)
-    const unsubscribeDataUpdate = window.electron.session.onDataUpdated(
+    // Listen for incremental card deltas (one per card drop)
+    const unsubscribeCardDelta = window.electron.session.onCardDelta(
       (update) => {
-        if (update.data) {
-          const priceSource = priceSourceRef.current;
-          const totals = update.data.totals?.[priceSource];
+        if (!update.delta) return;
+        const priceSource = priceSourceRef.current;
+        const prev = useBoundStore.getState().overlay.sessionData;
+        const totals = update.delta.updatedTotals?.[priceSource];
 
-          const formattedData: SessionData = {
-            isActive: true,
-            totalCount: update.data.totalCount || 0,
-            totalProfit: totals?.totalValue || 0,
-            chaosToDivineRatio: totals?.chaosToDivineRatio || 0,
-            priceSource,
-            cards: update.data.cards
-              ? update.data.cards.map((card) => ({
-                  cardName: card.name,
-                  count: card.count,
-                }))
-              : [],
-            recentDrops: (update.data.recentDrops || []).map((drop) => ({
-              ...drop,
-              rarity: drop.rarity ?? 4, // Default to common if rarity not present
-            })),
+        // Update or add card entry
+        const existingIdx = prev.cards.findIndex(
+          (c) => c.cardName === update.delta.cardName,
+        );
+        const updatedCards = [...prev.cards];
+        if (existingIdx >= 0) {
+          updatedCards[existingIdx] = {
+            ...updatedCards[existingIdx],
+            count: update.delta.newCount,
           };
-
-          setSessionData(formattedData);
+        } else {
+          updatedCards.push({
+            cardName: update.delta.cardName,
+            count: update.delta.newCount,
+          });
         }
+
+        // Prepend new recent drop and cap at 20
+        const updatedRecentDrops = update.delta.recentDrop
+          ? [
+              {
+                ...update.delta.recentDrop,
+                rarity: update.delta.recentDrop.rarity ?? (4 as any),
+              },
+              ...prev.recentDrops,
+            ].slice(0, 20)
+          : prev.recentDrops;
+
+        setSessionData({
+          ...prev,
+          isActive: true,
+          totalCount: update.delta.totalCount,
+          totalProfit: totals?.totalValue || prev.totalProfit,
+          chaosToDivineRatio:
+            totals?.chaosToDivineRatio || prev.chaosToDivineRatio,
+          cards: updatedCards,
+          recentDrops: updatedRecentDrops,
+        });
       },
     );
 
     // Listen for settings changes (e.g. price source or font size changed mid-session)
     const unsubscribeSettingsChanged =
-      window.electron.overlay.onSettingsChanged?.(() => {
+      window.electron.overlay.onSettingsChanged(() => {
         // Re-read price source, font size, and audio settings
         loadAudioSettings().then(() => {
           // Re-fetch session data with the updated price source
@@ -216,8 +233,8 @@ const OverlayApp = () => {
 
     return () => {
       unsubscribeStateChange?.();
-      unsubscribeDataUpdate?.();
-      unsubscribeSettingsChanged?.();
+      unsubscribeCardDelta();
+      unsubscribeSettingsChanged();
     };
   }, [isElectronReady, setSessionData, loadAudioSettings, detectZone]);
 

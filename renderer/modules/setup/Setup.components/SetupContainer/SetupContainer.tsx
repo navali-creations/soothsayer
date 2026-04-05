@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { useBoundStore } from "~/renderer/store";
+import { useSetup } from "~/renderer/store";
 
 import SetupProgressBar from "../SetupProgressBar/SetupProgressBar";
 
@@ -9,9 +9,7 @@ interface SetupContainerProps {
 }
 
 const SetupContainer = ({ children }: SetupContainerProps) => {
-  const {
-    setup: { setupState },
-  } = useBoundStore();
+  const { setupState } = useSetup();
   const currentStep = setupState?.currentStep ?? 1;
 
   return (

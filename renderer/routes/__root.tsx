@@ -8,7 +8,7 @@ import {
 // import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { useEffect, useRef, useState } from "react";
 
-import { useBoundStore } from "~/renderer/store";
+import { useRootActions, useSetup } from "~/renderer/store";
 import { cardNameToSlug } from "~/renderer/utils";
 
 import { AppMenu } from "../modules/app-menu";
@@ -22,11 +22,8 @@ const RootLayout = () => {
   const [isHydrating, setIsHydrating] = useState(true);
   const [isSlow, setIsSlow] = useState(false);
   const slowTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const {
-    hydrate,
-    startListeners,
-    setup: { isSetupComplete, setupState },
-  } = useBoundStore();
+  const { hydrate, startListeners } = useRootActions();
+  const { isSetupComplete, setupState } = useSetup();
 
   useEffect(() => {
     // Hydrate all data on app mount

@@ -5,9 +5,41 @@ import CurrentSessionPage from "./CurrentSession.page";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
-}));
+vi.mock("~/renderer/store", () => {
+  const useBoundStore = vi.fn();
+  return {
+    useBoundStore,
+    useCurrentSession: () => useBoundStore().currentSession,
+    useSettings: () => useBoundStore().settings,
+    usePoeNinja: () => useBoundStore().poeNinja,
+    useSessionDetails: () => useBoundStore().sessionDetails,
+    useOverlay: () => useBoundStore().overlay,
+    useAppMenu: () => useBoundStore().appMenu,
+    useSetup: () => useBoundStore().setup,
+    useStorage: () => useBoundStore().storage,
+    useGameInfo: () => useBoundStore().gameInfo,
+    useCards: () => useBoundStore().cards,
+    useSessions: () => useBoundStore().sessions,
+    useChangelog: () => useBoundStore().changelog,
+    useStatistics: () => useBoundStore().statistics,
+    useOnboarding: () => useBoundStore().onboarding,
+    useUpdater: () => useBoundStore().updater,
+    useProfitForecast: () => useBoundStore().profitForecast,
+    useProhibitedLibrary: () => useBoundStore().prohibitedLibrary,
+    useRarityInsights: () => useBoundStore().rarityInsights,
+    useRarityInsightsComparison: () => useBoundStore().rarityInsightsComparison,
+    useCardDetails: () => useBoundStore().cardDetails,
+    useRootActions: () => {
+      const s = useBoundStore();
+      return {
+        hydrate: s.hydrate,
+        startListeners: s.startListeners,
+        reset: s.reset,
+      };
+    },
+    useSlice: (key: string) => useBoundStore()?.[key],
+  };
+});
 
 const mockUseBoundStore = vi.mocked(useBoundStore);
 
@@ -17,6 +49,7 @@ vi.mock("../CurrentSession.components", () => ({
   CurrentSessionTable: () => <div data-testid="current-session-table" />,
   InactiveSessionAlert: () => <div data-testid="inactive-session-alert" />,
   LoadingAlert: () => <div data-testid="loading-alert" />,
+  SessionProfitTimeline: () => <div data-testid="session-profit-timeline" />,
   TrackingInfoAlert: () => <div data-testid="tracking-info-alert" />,
 }));
 

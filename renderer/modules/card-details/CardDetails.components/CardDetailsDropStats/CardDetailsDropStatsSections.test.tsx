@@ -1,11 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useCardDetails, useProfitForecast } from "~/renderer/store";
 
 // ─── Store mock ────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({ useBoundStore: vi.fn() }));
+vi.mock("~/renderer/store", () => ({
+  useCardDetails: vi.fn(),
+  useProfitForecast: vi.fn(),
+}));
 
 // ─── Component imports (after all mocks) ───────────────────────────────────
 
@@ -40,7 +43,8 @@ function renderDropProbability(
   } | null = null,
 ) {
   const mockState = createDropProbabilityState(prob);
-  vi.mocked(useBoundStore).mockReturnValue(mockState as any);
+  vi.mocked(useCardDetails).mockReturnValue(mockState.cardDetails as any);
+  vi.mocked(useProfitForecast).mockReturnValue(mockState.profitForecast as any);
   const result = renderWithProviders(<DropProbabilitySection />);
   return { ...result, mockState };
 }
@@ -84,7 +88,8 @@ function renderEvContribution(
   } = {},
 ) {
   const mockState = createEvContributionState(overrides);
-  vi.mocked(useBoundStore).mockReturnValue(mockState as any);
+  vi.mocked(useCardDetails).mockReturnValue(mockState.cardDetails as any);
+  vi.mocked(useProfitForecast).mockReturnValue(mockState.profitForecast as any);
   const result = renderWithProviders(<EvContributionSection />);
   return { ...result, mockState };
 }
@@ -120,7 +125,8 @@ function renderYourLuck(
   } | null = null,
 ) {
   const mockState = createYourLuckState(luck);
-  vi.mocked(useBoundStore).mockReturnValue(mockState as any);
+  vi.mocked(useCardDetails).mockReturnValue(mockState.cardDetails as any);
+  vi.mocked(useProfitForecast).mockReturnValue(mockState.profitForecast as any);
   const result = renderWithProviders(<YourLuckSection />);
   return { ...result, mockState };
 }

@@ -4,7 +4,7 @@ import { FiHelpCircle, FiLock, FiRefreshCw } from "react-icons/fi";
 
 import { Button, Countdown, Search } from "~/renderer/components";
 import { formatTickingTimer, useTickingTimer } from "~/renderer/hooks";
-import { useBoundStore } from "~/renderer/store";
+import { usePoeNinja, useProfitForecast, useSettings } from "~/renderer/store";
 
 import PFHelpModal from "../PFHelpModal/PFHelpModal";
 
@@ -15,11 +15,9 @@ interface PFHeaderActionsProps {
 const PFHeaderActions = ({ onGlobalFilterChange }: PFHeaderActionsProps) => {
   const [helpOpen, setHelpOpen] = useState(false);
 
-  const {
-    settings: { getSelectedGame, getActiveGameViewSelectedLeague },
-    poeNinja: { isRefreshing, refreshPrices, getRefreshableAt },
-    profitForecast: { isLoading, isComputing, fetchData },
-  } = useBoundStore();
+  const { getSelectedGame, getActiveGameViewSelectedLeague } = useSettings();
+  const { isRefreshing, refreshPrices, getRefreshableAt } = usePoeNinja();
+  const { isLoading, isComputing, fetchData } = useProfitForecast();
 
   const game = getSelectedGame();
   const league = getActiveGameViewSelectedLeague();

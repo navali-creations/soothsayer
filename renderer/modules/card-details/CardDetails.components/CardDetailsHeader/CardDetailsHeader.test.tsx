@@ -1,11 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useCardDetails, useSettings } from "~/renderer/store";
 
 // ─── Store mock ────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({ useBoundStore: vi.fn() }));
+vi.mock("~/renderer/store", () => ({
+  useCardDetails: vi.fn(),
+  useSettings: vi.fn(),
+}));
 
 // ─── Router mock ───────────────────────────────────────────────────────────
 
@@ -85,7 +88,8 @@ function createHeaderActionsMockState(overrides: Record<string, any> = {}) {
 
 function renderHeaderActions(overrides: Record<string, any> = {}) {
   const mockState = createHeaderActionsMockState(overrides);
-  vi.mocked(useBoundStore).mockReturnValue(mockState as any);
+  vi.mocked(useCardDetails).mockReturnValue(mockState.cardDetails as any);
+  vi.mocked(useSettings).mockReturnValue(mockState.settings as any);
   const result = renderWithProviders(<HeaderActions />);
   return { ...result, mockState };
 }
@@ -107,7 +111,8 @@ describe("CardDetailsHeader", () => {
     props: { cardName?: string; rarity?: any; fromBoss?: boolean } = {},
   ) {
     const mockState = createHeaderActionsMockState();
-    vi.mocked(useBoundStore).mockReturnValue(mockState as any);
+    vi.mocked(useCardDetails).mockReturnValue(mockState.cardDetails as any);
+    vi.mocked(useSettings).mockReturnValue(mockState.settings as any);
 
     return renderWithProviders(
       <CardDetailsHeader

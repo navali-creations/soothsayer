@@ -5,17 +5,17 @@ import {
   screen,
   waitFor,
 } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useSettings } from "~/renderer/store";
 
 import ExportSettingsCard from "./ExportSettingsCard";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useSettings: vi.fn(),
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseSettings = vi.mocked(useSettings);
 
 vi.mock("~/main/utils/mask-path", () => ({
   maskPath: vi.fn((_path: string) => "***masked***"),
@@ -48,10 +48,7 @@ function setupStore(overrides: { csvExportPath?: string | null } = {}) {
     updateSetting: mockUpdateSetting,
   };
 
-  mockUseBoundStore.mockImplementation((selector?: any) => {
-    const state = { settings } as any;
-    return selector ? selector(state) : state;
-  });
+  mockUseSettings.mockReturnValue(settings as any);
 
   return settings;
 }

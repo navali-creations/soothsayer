@@ -1,4 +1,4 @@
-import { useBoundStore } from "~/renderer/store";
+import { useCardDetails } from "~/renderer/store";
 
 import PriceChangePill from "./PriceChangePill";
 
@@ -9,9 +9,7 @@ import PriceChangePill from "./PriceChangePill";
  * Reads price changes directly from the Zustand store — no props needed.
  */
 const PriceChangesRow = () => {
-  const {
-    cardDetails: { getPriceChanges },
-  } = useBoundStore();
+  const { getPriceChanges } = useCardDetails();
 
   const priceChanges = getPriceChanges();
 

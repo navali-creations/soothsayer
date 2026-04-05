@@ -1,7 +1,7 @@
-import { FiClock } from "react-icons/fi";
+import { FiClock, FiInfo } from "react-icons/fi";
 import { GiCardExchange, GiLockedChest, GiReceiveMoney } from "react-icons/gi";
 
-import { Link } from "~/renderer/components";
+import { Link, StaticProfitSparkline } from "~/renderer/components";
 import { formatCurrency } from "~/renderer/utils";
 
 import type { SessionsSummary } from "../../Sessions.types";
@@ -12,16 +12,31 @@ import {
 
 interface SessionCardProps {
   session: SessionsSummary;
+  /** Pre-computed sparkline line points for the background. */
+  linePoints?: { x: number; profit: number }[];
 }
 
-export const SessionCard = ({ session }: SessionCardProps) => {
+export const SessionCard = ({ session, linePoints }: SessionCardProps) => {
+  const hasSparkline = linePoints != null && linePoints.length >= 2;
+
   return (
     <Link
       to="/sessions/$sessionId"
       params={{ sessionId: session.sessionId }}
-      className="card bg-base-200 shadow-xl hover:shadow-2xl transition-all cursor-pointer border-2 border-transparent hover:border-primary no-underline h-full flex flex-col"
+      className="card bg-base-200 shadow-xl hover:shadow-2xl transition-all cursor-pointer border-2 border-transparent hover:border-primary no-underline h-full flex flex-col relative overflow-hidden"
     >
-      <div className="card-body p-3 flex-1 justify-between">
+      {/* Sparkline background */}
+      {hasSparkline && (
+        <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none">
+          <StaticProfitSparkline
+            linePoints={linePoints}
+            lineColor="rgba(236, 72, 153, 0.25)"
+            className="absolute inset-0"
+          />
+        </div>
+      )}
+
+      <div className="card-body p-3 flex-1 justify-between relative z-10">
         {/* Header */}
         <div className="flex justify-between items-baseline">
           <div className="flex-1">
@@ -115,11 +130,22 @@ export const SessionCard = ({ session }: SessionCardProps) => {
             session.exchangeChaosToDivine != null && (
               <div className="flex items-center gap-2 text-sm">
                 <GiReceiveMoney className="text-base-content/50" />
-                <span
-                  className="text-base-content/70 underline decoration-dotted cursor-help"
-                  title="Total Value minus the cost of Stacked Decks opened"
-                >
-                  Net Profit:
+                <span className="flex items-center gap-1 text-base-content/70">
+                  <span
+                    className="underline decoration-dotted cursor-help"
+                    title="Total Value minus the cost of Stacked Decks opened"
+                  >
+                    Net Profit:
+                  </span>
+                  <div
+                    className="tooltip tooltip-right tooltip-primary"
+                    data-tip="Total value of cards minus the cost of Stacked Decks opened. Expand this session for the full profit timeline."
+                  >
+                    <FiInfo
+                      size={11}
+                      className="opacity-40 hover:opacity-100 transition-opacity"
+                    />
+                  </div>
                 </span>
                 <span
                   className={`font-semibold tabular-nums ${

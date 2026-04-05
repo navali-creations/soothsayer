@@ -19,6 +19,8 @@ export interface SessionsSlice {
     // Filter state
     selectedLeague: string;
     searchQuery: string;
+    // Sparkline state
+    sparklines: Record<string, { x: number; profit: number }[]>;
 
     // Actions
     loadAllSessions: (page?: number) => Promise<void>;
@@ -43,6 +45,7 @@ export interface SessionsSlice {
     getSearchQuery: () => string;
     getUniqueLeagues: () => string[];
     getFilteredSessions: () => SessionSummary[];
+    getSparklines: () => Record<string, { x: number; profit: number }[]>;
   };
 }
 
@@ -64,6 +67,7 @@ export const createSessionsSlice: StateCreator<
     totalSessions: 0,
     selectedLeague: "all",
     searchQuery: "",
+    sparklines: {},
 
     // Load all sessions for a game with pagination
     loadAllSessions: async (page?: number) => {
@@ -90,7 +94,24 @@ export const createSessionsSlice: StateCreator<
           sessionsState.totalPages = response.totalPages;
           sessionsState.totalSessions = response.total;
           sessionsState.isLoading = false;
+          sessionsState.sparklines = {};
         });
+
+        // Fetch sparkline data for loaded sessions (deck-cost adjusted server-side)
+        const sessionIds = response.sessions.map((s) => s.sessionId);
+        if (sessionIds.length > 0) {
+          try {
+            const sparklines =
+              await window.electron.sessions.getSparklines(sessionIds);
+
+            set(({ sessions: sessionsState }) => {
+              sessionsState.sparklines = sparklines;
+            });
+          } catch (err) {
+            // Sparkline fetch is non-critical — don't block the UI
+            console.warn("[SessionsSlice] Failed to load sparklines:", err);
+          }
+        }
       } catch (error) {
         console.error("[SessionsSlice] Failed to load sessions:", error);
         set(({ sessions }) => {
@@ -183,6 +204,7 @@ export const createSessionsSlice: StateCreator<
     getTotalSessions: () => get().sessions.totalSessions,
     getSelectedLeague: () => get().sessions.selectedLeague,
     getSearchQuery: () => get().sessions.searchQuery,
+    getSparklines: () => get().sessions.sparklines,
 
     // Get unique leagues from all sessions
     getUniqueLeagues: () => {
@@ -228,7 +250,24 @@ export const createSessionsSlice: StateCreator<
           sessionsState.totalPages = response.totalPages;
           sessionsState.totalSessions = response.total;
           sessionsState.isLoading = false;
+          sessionsState.sparklines = {};
         });
+
+        // Fetch sparkline data for loaded sessions (deck-cost adjusted server-side)
+        const sessionIds = response.sessions.map((s) => s.sessionId);
+        if (sessionIds.length > 0) {
+          try {
+            const sparklines =
+              await window.electron.sessions.getSparklines(sessionIds);
+
+            set(({ sessions: sessionsState }) => {
+              sessionsState.sparklines = sparklines;
+            });
+          } catch (err) {
+            // Sparkline fetch is non-critical — don't block the UI
+            console.warn("[SessionsSlice] Failed to load sparklines:", err);
+          }
+        }
       } catch (error) {
         console.error("[SessionsSlice] Failed to search sessions:", error);
         set(({ sessions }) => {

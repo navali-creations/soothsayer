@@ -1,6 +1,6 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
 import { createCardRatioColumn } from "~/renderer/components";
-import { useBoundStore } from "~/renderer/store";
+import { useStatistics } from "~/renderer/store";
 
 import type { CardEntry } from "../../Statistics.types";
 import { StatisticsTable } from "./StatisticsTable";
@@ -8,7 +8,7 @@ import { StatisticsTable } from "./StatisticsTable";
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useStatistics: vi.fn(),
 }));
 
 vi.mock("~/renderer/components", () => ({
@@ -49,7 +49,7 @@ vi.mock("~/renderer/components", () => ({
   })),
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseStatistics = vi.mocked(useStatistics);
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -63,22 +63,20 @@ function setupStore(
   } = {},
 ) {
   const store = {
-    statistics: {
-      statScope: overrides.statScope ?? "all-time",
-      searchQuery: overrides.searchQuery ?? "",
-      setSearchQuery: vi.fn(),
-      showUncollectedCards: overrides.showUncollectedCards ?? false,
-      uncollectedCardNames: overrides.uncollectedCardNames ?? [],
-      uncollectedCardMetadata: overrides.uncollectedCardMetadata ?? {},
-      toggleShowUncollectedCards: vi.fn(),
-      snapshotMeta: null,
-      isExporting: false,
-      fetchSnapshotMeta: vi.fn(),
-      exportAll: vi.fn().mockResolvedValue({ success: false }),
-      exportIncremental: vi.fn().mockResolvedValue({ success: false }),
-    },
+    statScope: overrides.statScope ?? "all-time",
+    searchQuery: overrides.searchQuery ?? "",
+    setSearchQuery: vi.fn(),
+    showUncollectedCards: overrides.showUncollectedCards ?? false,
+    uncollectedCardNames: overrides.uncollectedCardNames ?? [],
+    uncollectedCardMetadata: overrides.uncollectedCardMetadata ?? {},
+    toggleShowUncollectedCards: vi.fn(),
+    snapshotMeta: null,
+    isExporting: false,
+    fetchSnapshotMeta: vi.fn(),
+    exportAll: vi.fn().mockResolvedValue({ success: false }),
+    exportIncremental: vi.fn().mockResolvedValue({ success: false }),
   } as any;
-  mockUseBoundStore.mockReturnValue(store);
+  mockUseStatistics.mockReturnValue(store);
   return store;
 }
 
@@ -354,7 +352,7 @@ describe("StatisticsTable", () => {
     const checkbox = screen.getByTestId("show-uncollected-checkbox");
     await user.click(checkbox);
 
-    expect(store.statistics.toggleShowUncollectedCards).toHaveBeenCalled();
+    expect(store.toggleShowUncollectedCards).toHaveBeenCalled();
   });
 
   // ── Loading overlay ────────────────────────────────────────────────────
@@ -451,7 +449,7 @@ describe("StatisticsTable", () => {
     await user.type(search, "doctor");
 
     // Each character triggers onChange because our mock Search calls onChange directly
-    expect(store.statistics.setSearchQuery).toHaveBeenCalled();
+    expect(store.setSearchQuery).toHaveBeenCalled();
   });
 
   it("configures Search with 300ms debounce", () => {

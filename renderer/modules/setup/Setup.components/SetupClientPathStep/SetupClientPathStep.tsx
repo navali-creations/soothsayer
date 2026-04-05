@@ -1,4 +1,4 @@
-import { useBoundStore } from "~/renderer/store";
+import { useSetup } from "~/renderer/store";
 
 interface ClientPathSelectorProps {
   label: string;
@@ -42,9 +42,7 @@ const ClientPathSelector = ({
 };
 
 const SetupClientPathStep = () => {
-  const {
-    setup: { setupState, selectClientPath },
-  } = useBoundStore();
+  const { setupState, selectClientPath } = useSetup();
 
   const selectedGames = setupState?.selectedGames || [];
   const poe1ClientPath = setupState?.poe1ClientPath || "";

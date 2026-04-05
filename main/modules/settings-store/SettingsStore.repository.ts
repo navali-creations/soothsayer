@@ -10,19 +10,27 @@ import { boolToInt, toDBKey, toUserSettingsDTO } from "./SettingsStore.mapper";
  * Handles all database operations for the user_settings table
  */
 export class SettingsStoreRepository {
+  private _cache: UserSettingsDTO | null = null;
+
   constructor(private kysely: Kysely<Database>) {}
 
   /**
    * Get all user settings
    */
   async getAll(): Promise<UserSettingsDTO> {
+    if (this._cache !== null) {
+      return this._cache;
+    }
+
     const row = await this.kysely
       .selectFrom("user_settings")
       .selectAll()
       .where("id", "=", 1)
       .executeTakeFirstOrThrow();
 
-    return toUserSettingsDTO(row);
+    const dto = toUserSettingsDTO(row);
+    this._cache = dto;
+    return dto;
   }
 
   /**
@@ -31,8 +39,19 @@ export class SettingsStoreRepository {
   async get<K extends keyof UserSettingsDTO>(
     key: K,
   ): Promise<UserSettingsDTO[K]> {
+    if (this._cache !== null) {
+      return this._cache[key];
+    }
     const settings = await this.getAll();
     return settings[key];
+  }
+
+  /**
+   * Invalidate the in-memory settings cache.
+   * Called after any write operation to ensure subsequent reads reflect the latest data.
+   */
+  invalidateCache(): void {
+    this._cache = null;
   }
 
   /**
@@ -67,6 +86,8 @@ export class SettingsStoreRepository {
       } as any)
       .where("id", "=", 1)
       .execute();
+
+    this.invalidateCache();
   }
 
   /**
@@ -88,6 +109,8 @@ export class SettingsStoreRepository {
       .set(dbSettings as any)
       .where("id", "=", 1)
       .execute();
+
+    this.invalidateCache();
   }
 
   // ============================================================================

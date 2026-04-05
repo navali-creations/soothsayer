@@ -7,17 +7,25 @@ import {
   waitFor,
 } from "~/renderer/__test-setup__/render";
 import { trackEvent } from "~/renderer/modules/umami";
-import { useBoundStore } from "~/renderer/store";
+import {
+  useProhibitedLibrary,
+  useRarityInsights,
+  useSettings,
+} from "~/renderer/store";
 
 import FilterSettingsCard from "./FilterSettingsCard";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useSettings: vi.fn(),
+  useRarityInsights: vi.fn(),
+  useProhibitedLibrary: vi.fn(),
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseSettings = vi.mocked(useSettings);
+const mockUseRarityInsights = vi.mocked(useRarityInsights);
+const mockUseProhibitedLibrary = vi.mocked(useProhibitedLibrary);
 
 vi.mock("~/renderer/components", () => ({
   Button: ({ children, onClick, disabled, loading, ...props }: any) => (
@@ -93,9 +101,9 @@ function createMockStore(overrides: any = {}) {
 function setupStore(overrides: any = {}) {
   const store = createMockStore(overrides);
 
-  mockUseBoundStore.mockImplementation((selector?: any) => {
-    return selector ? selector(store) : store;
-  });
+  mockUseSettings.mockReturnValue(store.settings);
+  mockUseRarityInsights.mockReturnValue(store.rarityInsights);
+  mockUseProhibitedLibrary.mockReturnValue(store.prohibitedLibrary);
 
   return store;
 }

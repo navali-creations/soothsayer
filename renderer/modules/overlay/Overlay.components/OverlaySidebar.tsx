@@ -1,9 +1,7 @@
-import { useBoundStore } from "~/renderer/store";
+import { useOverlay } from "~/renderer/store";
 
 export const OverlaySidebar = () => {
-  const {
-    overlay: { isLeftHalf },
-  } = useBoundStore();
+  const { isLeftHalf } = useOverlay();
 
   return (
     <div className="flex items-start justify-center bg-gradient-to-b from-base-300 from-50% to-transparent cursor-default select-none">

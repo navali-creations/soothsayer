@@ -1,38 +1,43 @@
 import { fireEvent } from "@testing-library/react";
 
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { usePoeNinja, useProfitForecast } from "~/renderer/store";
 
 import PFSubBatchSlider from "./PFSubBatchSlider";
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useProfitForecast: vi.fn(),
+  usePoeNinja: vi.fn(),
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseProfitForecast = vi.mocked(useProfitForecast);
+const mockUsePoeNinja = vi.mocked(usePoeNinja);
 
-function createMockState(overrides: any = {}) {
+function createMockProfitForecast(overrides: any = {}) {
   return {
-    profitForecast: {
-      subBatchSize: 5000,
-      customBaseRate: null as number | null,
-      stackedDeckChaosCost: 5,
-      setSubBatchSize: vi.fn(),
-      setIsComputing: vi.fn(),
-      isLoading: false,
-      ...overrides.profitForecast,
-    },
-    poeNinja: {
-      isRefreshing: false,
-      ...overrides.poeNinja,
-    },
+    subBatchSize: 5000,
+    customBaseRate: null as number | null,
+    stackedDeckChaosCost: 5,
+    setSubBatchSize: vi.fn(),
+    setIsComputing: vi.fn(),
+    isLoading: false,
+    ...overrides,
+  } as any;
+}
+
+function createMockPoeNinja(overrides: any = {}) {
+  return {
+    isRefreshing: false,
+    ...overrides,
   } as any;
 }
 
 function setupStore(overrides: any = {}) {
-  const state = createMockState(overrides);
-  mockUseBoundStore.mockReturnValue(state);
-  return state;
+  const profitForecast = createMockProfitForecast(overrides.profitForecast);
+  const poeNinja = createMockPoeNinja(overrides.poeNinja);
+  mockUseProfitForecast.mockReturnValue(profitForecast);
+  mockUsePoeNinja.mockReturnValue(poeNinja);
+  return { profitForecast, poeNinja };
 }
 
 function renderSlider(storeOverrides: any = {}) {

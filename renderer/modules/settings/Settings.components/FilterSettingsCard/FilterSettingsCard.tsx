@@ -3,7 +3,11 @@ import { FiAlertTriangle, FiRefreshCw } from "react-icons/fi";
 
 import { Button } from "~/renderer/components";
 import { trackEvent } from "~/renderer/modules/umami";
-import { useBoundStore } from "~/renderer/store";
+import {
+  useProhibitedLibrary,
+  useRarityInsights,
+  useSettings,
+} from "~/renderer/store";
 import {
   decodeRaritySourceValue,
   encodeRaritySourceValue,
@@ -13,21 +17,23 @@ import {
 import ProhibitedLibraryStatusBlock from "../ProhibitedLibraryStatusBlock/ProhibitedLibraryStatusBlock";
 
 const FilterSettingsCard = () => {
+  const { raritySource, selectedFilterId, updateSetting } = useSettings();
   const {
-    settings: { raritySource, selectedFilterId, updateSetting },
-    rarityInsights: {
-      availableFilters,
-      isScanning,
-      isParsing,
-      scanError,
-      scanFilters,
-      selectFilter,
-      clearSelectedFilter,
-      getLocalFilters,
-      getOnlineFilters,
-    },
-    prohibitedLibrary: { poe1Status, poe2Status, fetchStatus: fetchPlStatus },
-  } = useBoundStore();
+    availableFilters,
+    isScanning,
+    isParsing,
+    scanError,
+    scanFilters,
+    selectFilter,
+    clearSelectedFilter,
+    getLocalFilters,
+    getOnlineFilters,
+  } = useRarityInsights();
+  const {
+    poe1Status,
+    poe2Status,
+    fetchStatus: fetchPlStatus,
+  } = useProhibitedLibrary();
 
   const localFilters = getLocalFilters();
   const onlineFilters = getOnlineFilters();

@@ -6,6 +6,7 @@ const {
   mockWebContentsSend,
   mockGetAllWindows,
   mockGetKysely,
+  mockGetDb,
   mockPerfLog,
   mockPerfStartTimer,
   mockPerfStartTimers,
@@ -21,6 +22,22 @@ const {
   mockWebContentsSend: vi.fn(),
   mockGetAllWindows: vi.fn(),
   mockGetKysely: vi.fn(),
+  mockGetDb: vi.fn(() => ({
+    transaction: vi.fn((fn: any) => {
+      const wrapped = (...args: any[]) => fn(...args);
+      wrapped.deferred = wrapped;
+      wrapped.immediate = wrapped;
+      wrapped.exclusive = wrapped;
+      return wrapped;
+    }),
+    prepare: vi.fn(() => ({
+      run: vi.fn(),
+      get: vi.fn(),
+      all: vi.fn(),
+    })),
+    pragma: vi.fn(),
+    exec: vi.fn(),
+  })),
   mockPerfLog: vi.fn(),
   mockPerfStartTimer: vi.fn(() => null),
   mockPerfStartTimers: vi.fn(() => null),
@@ -69,6 +86,7 @@ vi.mock("~/main/modules/database", () => ({
   DatabaseService: {
     getInstance: vi.fn(() => ({
       getKysely: mockGetKysely,
+      getDb: mockGetDb,
       reset: vi.fn(),
     })),
   },
@@ -213,6 +231,7 @@ describe("CurrentSessionService", () => {
 
     testDb = createTestDatabase();
     mockGetKysely.mockReturnValue(testDb.kysely);
+    mockGetDb.mockReturnValue(testDb.db);
 
     // Reset all mocks
     mockIpcHandle.mockReset();
@@ -695,14 +714,19 @@ describe("CurrentSessionService", () => {
       expect(cards?.count).toBe(1); // Should only be counted once
     });
 
-    it("should cascade to DataStoreService.addCard", async () => {
+    it("should cascade card writes to the cards table (all-time and league scope)", async () => {
       await service.addCard("poe1", "Settlers", "The Doctor", "cascade-1");
 
-      expect(mockDataStoreAddCard).toHaveBeenCalledWith(
-        "poe1",
-        "Settlers",
-        "The Doctor",
-      );
+      const cards = await testDb.kysely
+        .selectFrom("cards")
+        .selectAll()
+        .where("card_name", "=", "The Doctor")
+        .execute();
+
+      // addCardSync writes both all-time and league-scoped rows
+      expect(cards).toHaveLength(2);
+      expect(cards.find((c) => c.scope === "all-time")?.count).toBe(1);
+      expect(cards.find((c) => c.scope === "Settlers")?.count).toBe(1);
     });
 
     it("should emit session data update event", async () => {
@@ -712,7 +736,7 @@ describe("CurrentSessionService", () => {
       await service.addCard("poe1", "Settlers", "The Doctor", "emit-1");
 
       expect(mockWebContentsSend).toHaveBeenCalledWith(
-        "session:data-updated",
+        "current-session:card-delta",
         expect.objectContaining({
           game: "poe1",
         }),
@@ -739,7 +763,7 @@ describe("CurrentSessionService", () => {
   describe("getAllProcessedIds", () => {
     it("should return empty set when no cards have been processed", () => {
       const ids = service.getAllProcessedIds("poe1");
-      expect(ids.size).toBe(0);
+      expect(ids.has("anything")).toBe(false);
     });
 
     it("should include session-scoped processed IDs", async () => {
@@ -903,6 +927,7 @@ describe("CurrentSessionService", () => {
         "recentDrops",
         "snapshotId",
         "startedAt",
+        "timeline",
         "totalCount",
         "totals",
       ]);
@@ -1368,8 +1393,17 @@ describe("CurrentSessionService", () => {
       expect(globalIds.has("life-1")).toBe(true);
       expect(globalIds.has("life-5")).toBe(true);
 
-      // 10. Cascade to DataStore was called for each card
-      expect(mockDataStoreAddCard).toHaveBeenCalledTimes(5);
+      // 10. Cards table was updated for each card drop (all-time + league scope)
+      const allTimeCards = await testDb.kysely
+        .selectFrom("cards")
+        .selectAll()
+        .where("scope", "=", "all-time")
+        .execute();
+      const totalAllTimeCount = allTimeCards.reduce(
+        (sum, c) => sum + c.count,
+        0,
+      );
+      expect(totalAllTimeCount).toBe(5);
     });
 
     it("should support multiple sequential sessions", async () => {

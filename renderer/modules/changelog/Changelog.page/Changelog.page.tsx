@@ -1,14 +1,12 @@
 import { useEffect } from "react";
 
 import { PageContainer } from "~/renderer/components";
-import { useBoundStore } from "~/renderer/store";
+import { useChangelog } from "~/renderer/store";
 
 import { ReleaseTimelineItem } from "../Changelog.components";
 
 const ChangelogPage = () => {
-  const {
-    changelog: { releases, isLoading, error, fetchChangelog },
-  } = useBoundStore();
+  const { releases, isLoading, error, fetchChangelog } = useChangelog();
 
   useEffect(() => {
     fetchChangelog();

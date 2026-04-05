@@ -7,7 +7,7 @@ import rarity2Sound from "~/renderer/assets/audio/rarity2.mp3";
 import rarity3Sound from "~/renderer/assets/audio/rarity3.mp3";
 import { Button } from "~/renderer/components";
 import { trackEvent } from "~/renderer/modules/umami";
-import { useBoundStore } from "~/renderer/store";
+import { useSettings } from "~/renderer/store";
 import { RARITY_LABELS } from "~/renderer/utils";
 
 const RARITY_SETTING_KEYS = [
@@ -24,20 +24,18 @@ const BUNDLED_SOUNDS: Record<number, string> = {
 
 const AudioSettingsCard = () => {
   const {
-    settings: {
-      audioDetectedFiles,
-      audioIsScanning,
-      audioPreviewingFile,
-      scanCustomSounds,
-      setAudioPreviewingFile,
-      updateSetting,
-      audioEnabled,
-      audioVolume,
-      audioRarity1Path,
-      audioRarity2Path,
-      audioRarity3Path,
-    },
-  } = useBoundStore();
+    audioDetectedFiles,
+    audioIsScanning,
+    audioPreviewingFile,
+    scanCustomSounds,
+    setAudioPreviewingFile,
+    updateSetting,
+    audioEnabled,
+    audioVolume,
+    audioRarity1Path,
+    audioRarity2Path,
+    audioRarity3Path,
+  } = useSettings();
 
   const rarityPaths = useMemo<Record<number, string | null>>(
     () => ({

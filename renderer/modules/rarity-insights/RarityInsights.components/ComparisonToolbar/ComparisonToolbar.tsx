@@ -1,19 +1,17 @@
 import { GiCrownedSkull } from "react-icons/gi";
 
-import { useBoundStore } from "~/renderer/store";
+import { useRarityInsightsComparison } from "~/renderer/store";
 
 const ComparisonToolbar = () => {
   const {
-    rarityInsightsComparison: {
-      showDiffsOnly,
-      setShowDiffsOnly,
-      includeBossCards,
-      setIncludeBossCards,
-      getCanShowDiffs,
-      getAllSelectedParsed,
-      getDifferences,
-    },
-  } = useBoundStore();
+    showDiffsOnly,
+    setShowDiffsOnly,
+    includeBossCards,
+    setIncludeBossCards,
+    getCanShowDiffs,
+    getAllSelectedParsed,
+    getDifferences,
+  } = useRarityInsightsComparison();
 
   const canShowDiffs = getCanShowDiffs();
   const allSelectedParsed = getAllSelectedParsed();

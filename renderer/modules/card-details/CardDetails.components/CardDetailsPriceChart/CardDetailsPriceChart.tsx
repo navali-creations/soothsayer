@@ -13,7 +13,7 @@ import {
 } from "recharts";
 
 import { useChartColors } from "~/renderer/hooks";
-import { useBoundStore } from "~/renderer/store";
+import { useCardDetails } from "~/renderer/store";
 
 import ChartTooltip from "./ChartTooltip";
 import { BRUSH_HEIGHT, CHART_HEIGHT } from "./constants";
@@ -45,9 +45,8 @@ import type { ChartDataPoint } from "./types";
 const CardDetailsPriceChart = () => {
   const c = useChartColors();
 
-  const {
-    cardDetails: { priceHistory, isLoadingPriceHistory, priceHistoryError },
-  } = useBoundStore();
+  const { priceHistory, isLoadingPriceHistory, priceHistoryError } =
+    useCardDetails();
 
   // Map history data for Recharts
   const chartData = useMemo<ChartDataPoint[]>(() => {

@@ -1,12 +1,12 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useSessionDetails } from "~/renderer/store";
 
 import SessionDetailsActions from "./SessionDetailsActions";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useSessionDetails: vi.fn(),
 }));
 
 const mockHistoryBack = vi.fn();
@@ -46,24 +46,22 @@ vi.mock("react-icons/gi", () => ({
   GiLockedChest: () => <span data-testid="icon-chest" />,
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseSessionDetails = vi.mocked(useSessionDetails);
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-function createMockStore(overrides: any = {}) {
+function createMockSessionDetails(overrides: any = {}) {
   return {
-    sessionDetails: {
-      getPriceSource: vi.fn(() => "exchange"),
-      setPriceSource: vi.fn(),
-      ...overrides.sessionDetails,
-    },
+    getPriceSource: vi.fn(() => "exchange"),
+    setPriceSource: vi.fn(),
+    ...overrides,
   } as any;
 }
 
 function setupStore(overrides: any = {}) {
-  const store = createMockStore(overrides);
-  mockUseBoundStore.mockReturnValue(store);
-  return store;
+  const sessionDetails = createMockSessionDetails(overrides.sessionDetails);
+  mockUseSessionDetails.mockReturnValue(sessionDetails);
+  return sessionDetails;
 }
 
 // ─── Tests ─────────────────────────────────────────────────────────────────
@@ -181,9 +179,7 @@ describe("SessionDetailsActions", () => {
       const exchangeTab = screen.getByText("Exchange").closest("button")!;
       await user.click(exchangeTab);
 
-      expect(store.sessionDetails.setPriceSource).toHaveBeenCalledWith(
-        "exchange",
-      );
+      expect(store.setPriceSource).toHaveBeenCalledWith("exchange");
     });
 
     it('clicking Stash tab calls setPriceSource("stash")', async () => {
@@ -193,7 +189,7 @@ describe("SessionDetailsActions", () => {
       const stashTab = screen.getByText("Stash").closest("button")!;
       await user.click(stashTab);
 
-      expect(store.sessionDetails.setPriceSource).toHaveBeenCalledWith("stash");
+      expect(store.setPriceSource).toHaveBeenCalledWith("stash");
     });
 
     it("both tabs have role=tab", () => {

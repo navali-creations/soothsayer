@@ -6,21 +6,21 @@ import {
   waitFor,
 } from "~/renderer/__test-setup__/render";
 import { trackEvent } from "~/renderer/modules/umami";
-import { useBoundStore } from "~/renderer/store";
+import { useStorage } from "~/renderer/store";
 
 import StorageSettingsCard from "./StorageSettingsCard";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useStorage: vi.fn(),
 }));
 
 vi.mock("~/renderer/modules/umami", () => ({
   trackEvent: vi.fn(),
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseStorage = vi.mocked(useStorage);
 const mockTrackEvent = vi.mocked(trackEvent);
 
 vi.mock("../storage/DeleteLeagueModal/DeleteLeagueModal", () => ({
@@ -101,10 +101,7 @@ function setupStore(overrides: StorageOverrides = {}) {
     deleteLeagueData: mockDeleteLeagueData,
   };
 
-  mockUseBoundStore.mockImplementation((selector?: any) => {
-    const state = { storage } as any;
-    return selector ? selector(state) : state;
-  });
+  mockUseStorage.mockReturnValue(storage as any);
 
   return storage;
 }

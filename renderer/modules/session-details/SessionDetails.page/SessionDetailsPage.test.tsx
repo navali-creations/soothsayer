@@ -3,14 +3,14 @@ import {
   screen,
   waitFor,
 } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useSessionDetails } from "~/renderer/store";
 
 import SessionDetailsPage from "./SessionDetails.page";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useSessionDetails: vi.fn(),
 }));
 
 const mockHistoryBack = vi.fn();
@@ -31,21 +31,14 @@ vi.mock("../SessionDetails.components", () => ({
       )}
     </div>
   ),
-  SessionDetailsStats: (props: any) => (
+  SessionDetailsStats: ({ expanded, onToggleExpanded }: any) => (
     <div
       data-testid="session-details-stats"
-      data-duration={props.duration}
-      data-total-count={props.totalCount}
-      data-net-profit={props.netProfit}
+      data-expanded={expanded}
+      data-has-toggle={!!onToggleExpanded}
     />
   ),
-  SessionDetailsTable: (props: any) => (
-    <div
-      data-testid="session-details-table"
-      data-card-count={props.cardData?.length ?? 0}
-      data-price-source={props.priceSource}
-    />
-  ),
+  SessionDetailsTable: () => <div data-testid="session-details-table" />,
 }));
 
 vi.mock("~/renderer/components", () => ({
@@ -84,32 +77,34 @@ vi.mock("~/renderer/modules/umami", () => ({
   trackEvent: vi.fn(),
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseSessionDetails = vi.mocked(useSessionDetails);
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-function createMockStore(overrides: any = {}) {
+function createMockSessionDetails(overrides: any = {}) {
   const loadSession = vi.fn();
   const clearSession = vi.fn();
 
   return {
-    sessionDetails: {
-      loadSession,
-      clearSession,
-      getSession: vi.fn(() => null),
-      getIsLoading: vi.fn(() => false),
-      getPriceSource: vi.fn(() => "exchange" as const),
-      setPriceSource: vi.fn(),
-      toggleCardPriceVisibility: vi.fn(),
-      ...overrides.sessionDetails,
-    },
+    loadSession,
+    clearSession,
+    getSession: vi.fn(() => null),
+    getIsLoading: vi.fn(() => false),
+    getTimeline: vi.fn(() => null),
+    getHasTimeline: vi.fn(() => false),
+    getPriceData: vi
+      .fn()
+      .mockReturnValue({ chaosToDivineRatio: 150, cardPrices: {} }),
+    setPriceSource: vi.fn(),
+    toggleCardPriceVisibility: vi.fn(),
+    ...overrides.sessionDetails,
   } as any;
 }
 
 function setupStore(overrides: any = {}) {
-  const store = createMockStore(overrides);
-  mockUseBoundStore.mockReturnValue(store);
-  return store;
+  const sessionDetails = createMockSessionDetails(overrides);
+  mockUseSessionDetails.mockReturnValue(sessionDetails);
+  return sessionDetails;
 }
 
 function makeSession(overrides: any = {}) {
@@ -184,7 +179,11 @@ describe("SessionDetailsPage", () => {
           clearSession: vi.fn(),
           getSession: vi.fn(() => null),
           getIsLoading: vi.fn(() => true),
-          getPriceSource: vi.fn(() => "exchange"),
+          getTimeline: vi.fn(() => null),
+          getHasTimeline: vi.fn(() => false),
+          getPriceData: vi
+            .fn()
+            .mockReturnValue({ chaosToDivineRatio: 150, cardPrices: {} }),
         },
       });
       renderWithProviders(<SessionDetailsPage />);
@@ -200,7 +199,11 @@ describe("SessionDetailsPage", () => {
           clearSession: vi.fn(),
           getSession: vi.fn(() => null),
           getIsLoading: vi.fn(() => true),
-          getPriceSource: vi.fn(() => "exchange"),
+          getTimeline: vi.fn(() => null),
+          getHasTimeline: vi.fn(() => false),
+          getPriceData: vi
+            .fn()
+            .mockReturnValue({ chaosToDivineRatio: 150, cardPrices: {} }),
         },
       });
       renderWithProviders(<SessionDetailsPage />);
@@ -225,7 +228,11 @@ describe("SessionDetailsPage", () => {
           clearSession: vi.fn(),
           getSession: vi.fn(() => null),
           getIsLoading: vi.fn(() => false),
-          getPriceSource: vi.fn(() => "exchange"),
+          getTimeline: vi.fn(() => null),
+          getHasTimeline: vi.fn(() => false),
+          getPriceData: vi
+            .fn()
+            .mockReturnValue({ chaosToDivineRatio: 150, cardPrices: {} }),
         },
       });
       renderWithProviders(<SessionDetailsPage />);
@@ -240,7 +247,11 @@ describe("SessionDetailsPage", () => {
           clearSession: vi.fn(),
           getSession: vi.fn(() => null),
           getIsLoading: vi.fn(() => false),
-          getPriceSource: vi.fn(() => "exchange"),
+          getTimeline: vi.fn(() => null),
+          getHasTimeline: vi.fn(() => false),
+          getPriceData: vi
+            .fn()
+            .mockReturnValue({ chaosToDivineRatio: 150, cardPrices: {} }),
         },
       });
       const { user } = renderWithProviders(<SessionDetailsPage />);
@@ -259,7 +270,11 @@ describe("SessionDetailsPage", () => {
           clearSession: vi.fn(),
           getSession: vi.fn(() => null),
           getIsLoading: vi.fn(() => false),
-          getPriceSource: vi.fn(() => "exchange"),
+          getTimeline: vi.fn(() => null),
+          getHasTimeline: vi.fn(() => false),
+          getPriceData: vi
+            .fn()
+            .mockReturnValue({ chaosToDivineRatio: 150, cardPrices: {} }),
         },
       });
       renderWithProviders(<SessionDetailsPage />);
@@ -286,14 +301,16 @@ describe("SessionDetailsPage", () => {
           clearSession: vi.fn(),
           getSession: vi.fn(() => null),
           getIsLoading: vi.fn(() => false),
-          getPriceSource: vi.fn(() => "exchange"),
+          getTimeline: vi.fn(() => null),
+          getHasTimeline: vi.fn(() => false),
+          getPriceData: vi
+            .fn()
+            .mockReturnValue({ chaosToDivineRatio: 150, cardPrices: {} }),
         },
       });
       renderWithProviders(<SessionDetailsPage />);
 
-      expect(store.sessionDetails.loadSession).toHaveBeenCalledWith(
-        "test-session-123",
-      );
+      expect(store.loadSession).toHaveBeenCalledWith("test-session-123");
     });
 
     it("calls clearSession on unmount", () => {
@@ -303,14 +320,18 @@ describe("SessionDetailsPage", () => {
           clearSession: vi.fn(),
           getSession: vi.fn(() => null),
           getIsLoading: vi.fn(() => false),
-          getPriceSource: vi.fn(() => "exchange"),
+          getTimeline: vi.fn(() => null),
+          getHasTimeline: vi.fn(() => false),
+          getPriceData: vi
+            .fn()
+            .mockReturnValue({ chaosToDivineRatio: 150, cardPrices: {} }),
         },
       });
       const { unmount } = renderWithProviders(<SessionDetailsPage />);
 
       unmount();
 
-      expect(store.sessionDetails.clearSession).toHaveBeenCalled();
+      expect(store.clearSession).toHaveBeenCalled();
     });
   });
 
@@ -325,7 +346,11 @@ describe("SessionDetailsPage", () => {
           clearSession: vi.fn(),
           getSession: vi.fn(() => session),
           getIsLoading: vi.fn(() => false),
-          getPriceSource: vi.fn(() => "exchange"),
+          getTimeline: vi.fn(() => null),
+          getHasTimeline: vi.fn(() => false),
+          getPriceData: vi
+            .fn()
+            .mockReturnValue({ chaosToDivineRatio: 150, cardPrices: {} }),
         },
       });
       renderWithProviders(<SessionDetailsPage />);
@@ -343,7 +368,11 @@ describe("SessionDetailsPage", () => {
           clearSession: vi.fn(),
           getSession: vi.fn(() => session),
           getIsLoading: vi.fn(() => false),
-          getPriceSource: vi.fn(() => "exchange"),
+          getTimeline: vi.fn(() => null),
+          getHasTimeline: vi.fn(() => false),
+          getPriceData: vi
+            .fn()
+            .mockReturnValue({ chaosToDivineRatio: 150, cardPrices: {} }),
         },
       });
       renderWithProviders(<SessionDetailsPage />);
@@ -362,7 +391,11 @@ describe("SessionDetailsPage", () => {
           clearSession: vi.fn(),
           getSession: vi.fn(() => session),
           getIsLoading: vi.fn(() => false),
-          getPriceSource: vi.fn(() => "exchange"),
+          getTimeline: vi.fn(() => null),
+          getHasTimeline: vi.fn(() => false),
+          getPriceData: vi
+            .fn()
+            .mockReturnValue({ chaosToDivineRatio: 150, cardPrices: {} }),
         },
       });
       renderWithProviders(<SessionDetailsPage />);
@@ -378,46 +411,16 @@ describe("SessionDetailsPage", () => {
           clearSession: vi.fn(),
           getSession: vi.fn(() => session),
           getIsLoading: vi.fn(() => false),
-          getPriceSource: vi.fn(() => "exchange"),
+          getTimeline: vi.fn(() => null),
+          getHasTimeline: vi.fn(() => false),
+          getPriceData: vi
+            .fn()
+            .mockReturnValue({ chaosToDivineRatio: 150, cardPrices: {} }),
         },
       });
       renderWithProviders(<SessionDetailsPage />);
 
       expect(screen.getByTestId("session-details-table")).toBeInTheDocument();
-    });
-
-    it("passes the current priceSource to the table", () => {
-      const session = makeSession();
-      setupStore({
-        sessionDetails: {
-          loadSession: vi.fn(),
-          clearSession: vi.fn(),
-          getSession: vi.fn(() => session),
-          getIsLoading: vi.fn(() => false),
-          getPriceSource: vi.fn(() => "stash"),
-        },
-      });
-      renderWithProviders(<SessionDetailsPage />);
-
-      const table = screen.getByTestId("session-details-table");
-      expect(table).toHaveAttribute("data-price-source", "stash");
-    });
-
-    it("passes correct card count to the table", () => {
-      const session = makeSession();
-      setupStore({
-        sessionDetails: {
-          loadSession: vi.fn(),
-          clearSession: vi.fn(),
-          getSession: vi.fn(() => session),
-          getIsLoading: vi.fn(() => false),
-          getPriceSource: vi.fn(() => "exchange"),
-        },
-      });
-      renderWithProviders(<SessionDetailsPage />);
-
-      const table = screen.getByTestId("session-details-table");
-      expect(table).toHaveAttribute("data-card-count", "2");
     });
 
     it("renders subtitle with league and start date", () => {
@@ -428,7 +431,11 @@ describe("SessionDetailsPage", () => {
           clearSession: vi.fn(),
           getSession: vi.fn(() => session),
           getIsLoading: vi.fn(() => false),
-          getPriceSource: vi.fn(() => "exchange"),
+          getTimeline: vi.fn(() => null),
+          getHasTimeline: vi.fn(() => false),
+          getPriceData: vi
+            .fn()
+            .mockReturnValue({ chaosToDivineRatio: 150, cardPrices: {} }),
         },
       });
       renderWithProviders(<SessionDetailsPage />);
@@ -449,7 +456,11 @@ describe("SessionDetailsPage", () => {
           clearSession: vi.fn(),
           getSession: vi.fn(() => session),
           getIsLoading: vi.fn(() => false),
-          getPriceSource: vi.fn(() => "exchange"),
+          getTimeline: vi.fn(() => null),
+          getHasTimeline: vi.fn(() => false),
+          getPriceData: vi
+            .fn()
+            .mockReturnValue({ chaosToDivineRatio: 150, cardPrices: {} }),
         },
       });
 
@@ -477,7 +488,11 @@ describe("SessionDetailsPage", () => {
           clearSession: vi.fn(),
           getSession: vi.fn(() => session),
           getIsLoading: vi.fn(() => false),
-          getPriceSource: vi.fn(() => "exchange"),
+          getTimeline: vi.fn(() => null),
+          getHasTimeline: vi.fn(() => false),
+          getPriceData: vi
+            .fn()
+            .mockReturnValue({ chaosToDivineRatio: 150, cardPrices: {} }),
         },
       });
 
@@ -509,7 +524,11 @@ describe("SessionDetailsPage", () => {
           clearSession: vi.fn(),
           getSession: vi.fn(() => session),
           getIsLoading: vi.fn(() => false),
-          getPriceSource: vi.fn(() => "exchange"),
+          getTimeline: vi.fn(() => null),
+          getHasTimeline: vi.fn(() => false),
+          getPriceData: vi
+            .fn()
+            .mockReturnValue({ chaosToDivineRatio: 150, cardPrices: {} }),
         },
       });
 
@@ -541,7 +560,11 @@ describe("SessionDetailsPage", () => {
           clearSession: vi.fn(),
           getSession: vi.fn(() => session),
           getIsLoading: vi.fn(() => false),
-          getPriceSource: vi.fn(() => "exchange"),
+          getTimeline: vi.fn(() => null),
+          getHasTimeline: vi.fn(() => false),
+          getPriceData: vi
+            .fn()
+            .mockReturnValue({ chaosToDivineRatio: 150, cardPrices: {} }),
         },
       });
 
@@ -576,7 +599,11 @@ describe("SessionDetailsPage", () => {
           clearSession: vi.fn(),
           getSession: vi.fn(() => session),
           getIsLoading: vi.fn(() => false),
-          getPriceSource: vi.fn(() => "exchange"),
+          getTimeline: vi.fn(() => null),
+          getHasTimeline: vi.fn(() => false),
+          getPriceData: vi
+            .fn()
+            .mockReturnValue({ chaosToDivineRatio: 150, cardPrices: {} }),
         },
       });
       renderWithProviders(<SessionDetailsPage />);
@@ -586,111 +613,10 @@ describe("SessionDetailsPage", () => {
     });
   });
 
-  // ── Duration calculation ───────────────────────────────────────────────
+  // ── Components render in success state ─────────────────────────────────
 
-  describe("duration calculation", () => {
-    it("passes calculated duration to stats (hours and minutes)", () => {
-      const session = makeSession({
-        startedAt: "2024-01-15T10:00:00Z",
-        endedAt: "2024-01-15T11:30:00Z",
-      });
-      setupStore({
-        sessionDetails: {
-          loadSession: vi.fn(),
-          clearSession: vi.fn(),
-          getSession: vi.fn(() => session),
-          getIsLoading: vi.fn(() => false),
-          getPriceSource: vi.fn(() => "exchange"),
-        },
-      });
-      renderWithProviders(<SessionDetailsPage />);
-
-      const stats = screen.getByTestId("session-details-stats");
-      expect(stats).toHaveAttribute("data-duration", "1h 30m");
-    });
-
-    it('passes "—" when startedAt is missing', () => {
-      const session = makeSession({ startedAt: null, endedAt: null });
-      setupStore({
-        sessionDetails: {
-          loadSession: vi.fn(),
-          clearSession: vi.fn(),
-          getSession: vi.fn(() => session),
-          getIsLoading: vi.fn(() => false),
-          getPriceSource: vi.fn(() => "exchange"),
-        },
-      });
-      renderWithProviders(<SessionDetailsPage />);
-
-      const stats = screen.getByTestId("session-details-stats");
-      expect(stats).toHaveAttribute("data-duration", "—");
-    });
-
-    it('passes "Unknown (Corrupted)" when endedAt is missing', () => {
-      const session = makeSession({
-        startedAt: "2024-01-15T10:00:00Z",
-        endedAt: null,
-      });
-      setupStore({
-        sessionDetails: {
-          loadSession: vi.fn(),
-          clearSession: vi.fn(),
-          getSession: vi.fn(() => session),
-          getIsLoading: vi.fn(() => false),
-          getPriceSource: vi.fn(() => "exchange"),
-        },
-      });
-      renderWithProviders(<SessionDetailsPage />);
-
-      const stats = screen.getByTestId("session-details-stats");
-      expect(stats).toHaveAttribute("data-duration", "Unknown (Corrupted)");
-    });
-
-    it("passes minutes-only duration when less than an hour", () => {
-      const session = makeSession({
-        startedAt: "2024-01-15T10:00:00Z",
-        endedAt: "2024-01-15T10:45:00Z",
-      });
-      setupStore({
-        sessionDetails: {
-          loadSession: vi.fn(),
-          clearSession: vi.fn(),
-          getSession: vi.fn(() => session),
-          getIsLoading: vi.fn(() => false),
-          getPriceSource: vi.fn(() => "exchange"),
-        },
-      });
-      renderWithProviders(<SessionDetailsPage />);
-
-      const stats = screen.getByTestId("session-details-stats");
-      expect(stats).toHaveAttribute("data-duration", "45m");
-    });
-  });
-
-  // ── Card data and price calculations ───────────────────────────────────
-
-  describe("card data calculations", () => {
-    it("passes totalCount to stats", () => {
-      const session = makeSession({ totalCount: 100 });
-      setupStore({
-        sessionDetails: {
-          loadSession: vi.fn(),
-          clearSession: vi.fn(),
-          getSession: vi.fn(() => session),
-          getIsLoading: vi.fn(() => false),
-          getPriceSource: vi.fn(() => "exchange"),
-        },
-      });
-      renderWithProviders(<SessionDetailsPage />);
-
-      const stats = screen.getByTestId("session-details-stats");
-      expect(stats).toHaveAttribute("data-total-count", "100");
-    });
-
-    it("calculates net profit correctly (totalProfit - deckCost)", () => {
-      // totalProfit = 2400 + 30 = 2430 (no hidden prices in exchange)
-      // deckCost = stackedDeckChaosCost(2) * totalCount(50) = 100
-      // netProfit = 2430 - 100 = 2330
+  describe("components render correctly", () => {
+    it("renders all three child components when session exists", () => {
       const session = makeSession();
       setupStore({
         sessionDetails: {
@@ -698,13 +624,18 @@ describe("SessionDetailsPage", () => {
           clearSession: vi.fn(),
           getSession: vi.fn(() => session),
           getIsLoading: vi.fn(() => false),
-          getPriceSource: vi.fn(() => "exchange"),
+          getTimeline: vi.fn(() => null),
+          getHasTimeline: vi.fn(() => false),
+          getPriceData: vi
+            .fn()
+            .mockReturnValue({ chaosToDivineRatio: 150, cardPrices: {} }),
         },
       });
       renderWithProviders(<SessionDetailsPage />);
 
-      const stats = screen.getByTestId("session-details-stats");
-      expect(stats).toHaveAttribute("data-net-profit", "2330");
+      expect(screen.getByTestId("session-details-actions")).toBeInTheDocument();
+      expect(screen.getByTestId("session-details-stats")).toBeInTheDocument();
+      expect(screen.getByTestId("session-details-table")).toBeInTheDocument();
     });
 
     it("handles session with no cards", () => {
@@ -715,13 +646,16 @@ describe("SessionDetailsPage", () => {
           clearSession: vi.fn(),
           getSession: vi.fn(() => session),
           getIsLoading: vi.fn(() => false),
-          getPriceSource: vi.fn(() => "exchange"),
+          getTimeline: vi.fn(() => null),
+          getHasTimeline: vi.fn(() => false),
+          getPriceData: vi
+            .fn()
+            .mockReturnValue({ chaosToDivineRatio: 150, cardPrices: {} }),
         },
       });
       renderWithProviders(<SessionDetailsPage />);
 
-      const table = screen.getByTestId("session-details-table");
-      expect(table).toHaveAttribute("data-card-count", "0");
+      expect(screen.getByTestId("session-details-table")).toBeInTheDocument();
     });
 
     it("handles session with no priceSnapshot", () => {
@@ -732,7 +666,11 @@ describe("SessionDetailsPage", () => {
           clearSession: vi.fn(),
           getSession: vi.fn(() => session),
           getIsLoading: vi.fn(() => false),
-          getPriceSource: vi.fn(() => "exchange"),
+          getTimeline: vi.fn(() => null),
+          getHasTimeline: vi.fn(() => false),
+          getPriceData: vi
+            .fn()
+            .mockReturnValue({ chaosToDivineRatio: 0, cardPrices: {} }),
         },
       });
 

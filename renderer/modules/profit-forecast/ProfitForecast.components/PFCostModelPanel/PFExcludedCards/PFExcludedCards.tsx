@@ -1,11 +1,9 @@
 import { FiAlertOctagon, FiAlertTriangle } from "react-icons/fi";
 
-import { useBoundStore } from "~/renderer/store";
+import { useProfitForecast } from "~/renderer/store";
 
 const PFExcludedCards = () => {
-  const {
-    profitForecast: { getExcludedCount, isLoading, hasData },
-  } = useBoundStore();
+  const { getExcludedCount, isLoading, hasData } = useProfitForecast();
 
   const dataAvailable = hasData() && !isLoading;
   const excludedCount = dataAvailable

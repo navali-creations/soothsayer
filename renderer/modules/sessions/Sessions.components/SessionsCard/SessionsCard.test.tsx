@@ -34,6 +34,7 @@ vi.mock("../../Sessions.utils/Sessions.utils", () => ({
 // Mock react-icons to render simple spans with identifiable text
 vi.mock("react-icons/fi", () => ({
   FiClock: () => <span data-testid="icon-clock" />,
+  FiInfo: () => <span data-testid="icon-info" />,
 }));
 
 vi.mock("react-icons/gi", () => ({

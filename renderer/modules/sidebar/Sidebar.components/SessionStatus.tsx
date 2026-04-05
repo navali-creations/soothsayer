@@ -1,11 +1,9 @@
 import { Countdown, Flex } from "~/renderer/components";
 import { useTickingTimer } from "~/renderer/hooks";
-import { useBoundStore } from "~/renderer/store";
+import { useCurrentSession } from "~/renderer/store";
 
 const SessionStatus = () => {
-  const {
-    currentSession: { getIsCurrentSessionActive, getSessionInfo },
-  } = useBoundStore();
+  const { getIsCurrentSessionActive, getSessionInfo } = useCurrentSession();
 
   const isActive = getIsCurrentSessionActive();
   const sessionInfo = getSessionInfo();

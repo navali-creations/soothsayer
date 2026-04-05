@@ -12,7 +12,7 @@ import {
   CORE_MAINTAINERS,
   changeTypeColor,
 } from "~/renderer/modules/changelog/Changelog.utils/Changelog.utils";
-import { useBoundStore } from "~/renderer/store";
+import { useAppMenu } from "~/renderer/store";
 
 const COMMIT_URL_PATTERN = /\/commit\//;
 const GITHUB_USER_PATTERN = /^@/;
@@ -82,14 +82,12 @@ const whatsNewComponents = {
 
 const WhatsNewModal = () => {
   const {
-    appMenu: {
-      isWhatsNewOpen,
-      whatsNewRelease,
-      whatsNewIsLoading,
-      whatsNewError,
-      closeWhatsNew,
-    },
-  } = useBoundStore();
+    isWhatsNewOpen,
+    whatsNewRelease,
+    whatsNewIsLoading,
+    whatsNewError,
+    closeWhatsNew,
+  } = useAppMenu();
 
   const modalRef = useRef<ModalHandle>(null);
 

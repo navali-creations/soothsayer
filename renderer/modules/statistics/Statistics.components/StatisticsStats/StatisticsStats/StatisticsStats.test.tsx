@@ -1,5 +1,5 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useStatistics } from "~/renderer/store";
 
 import type { SessionHighlights } from "../../../Statistics.types";
 import { StatisticsStats } from "./StatisticsStats";
@@ -7,7 +7,7 @@ import { StatisticsStats } from "./StatisticsStats";
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useStatistics: vi.fn(),
 }));
 
 vi.mock("~/renderer/components", () => ({
@@ -52,7 +52,7 @@ vi.mock("~/renderer/components/CardNameLink/CardNameLink", () => ({
   ),
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseStatistics = vi.mocked(useStatistics);
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -135,18 +135,16 @@ function setupStore(
   } = {},
 ) {
   const fetchSessionHighlights = vi.fn();
-  mockUseBoundStore.mockReturnValue({
-    statistics: {
-      statScope: overrides.statScope ?? "all-time",
-      selectedLeague: overrides.selectedLeague ?? "",
-      sessionHighlights:
-        "sessionHighlights" in overrides
-          ? overrides.sessionHighlights
-          : defaultHighlights,
-      stackedDeckCardCount: overrides.stackedDeckCardCount ?? null,
-      isLoadingHighlights: overrides.isLoadingHighlights ?? false,
-      fetchSessionHighlights,
-    },
+  mockUseStatistics.mockReturnValue({
+    statScope: overrides.statScope ?? "all-time",
+    selectedLeague: overrides.selectedLeague ?? "",
+    sessionHighlights:
+      "sessionHighlights" in overrides
+        ? overrides.sessionHighlights
+        : defaultHighlights,
+    stackedDeckCardCount: overrides.stackedDeckCardCount ?? null,
+    isLoadingHighlights: overrides.isLoadingHighlights ?? false,
+    fetchSessionHighlights,
   } as any);
   return { fetchSessionHighlights };
 }

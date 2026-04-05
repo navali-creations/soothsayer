@@ -1,15 +1,20 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import {
+  useRarityInsights,
+  useRarityInsightsComparison,
+} from "~/renderer/store";
 
 import RarityInsightsDropdown from "./RarityInsightsSidebar";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useRarityInsights: vi.fn(),
+  useRarityInsightsComparison: vi.fn(),
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseRarityInsights = vi.mocked(useRarityInsights);
+const mockUseRarityInsightsComparison = vi.mocked(useRarityInsightsComparison);
 
 vi.mock("~/renderer/components", () => ({
   Button: ({ children, disabled, onClick, className, ...rest }: any) => (
@@ -84,21 +89,20 @@ function setupStore(overrides: SetupStoreOptions = {}) {
     overrides.onlineFilters ??
     availableFilters.filter((f) => f.type === "online");
 
-  mockUseBoundStore.mockReturnValue({
-    rarityInsights: {
-      availableFilters,
-      isScanning: overrides.isScanning ?? false,
-      getLocalFilters: () => localFilters,
-      getOnlineFilters: () => onlineFilters,
-    },
-    rarityInsightsComparison: {
-      selectedFilters: overrides.selectedFilters ?? [],
-      parsedResults: overrides.parsedResults ?? new Map(),
-      parsingFilterId: overrides.parsingFilterId ?? null,
-      parseErrors: overrides.parseErrors ?? new Map(),
-      toggleFilter: mockToggleFilter,
-      rescan: mockRescan,
-    },
+  mockUseRarityInsights.mockReturnValue({
+    availableFilters,
+    isScanning: overrides.isScanning ?? false,
+    getLocalFilters: () => localFilters,
+    getOnlineFilters: () => onlineFilters,
+  } as any);
+
+  mockUseRarityInsightsComparison.mockReturnValue({
+    selectedFilters: overrides.selectedFilters ?? [],
+    parsedResults: overrides.parsedResults ?? new Map(),
+    parsingFilterId: overrides.parsingFilterId ?? null,
+    parseErrors: overrides.parseErrors ?? new Map(),
+    toggleFilter: mockToggleFilter,
+    rescan: mockRescan,
   } as any);
 }
 

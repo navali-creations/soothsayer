@@ -1,6 +1,6 @@
 import { FiActivity, FiTarget } from "react-icons/fi";
 
-import { useBoundStore } from "~/renderer/store";
+import { useCardDetails, useProfitForecast } from "~/renderer/store";
 
 /**
  * Drop probability & expected decks section.
@@ -9,10 +9,8 @@ import { useBoundStore } from "~/renderer/store";
  * probability via the `cardDetails.getDropProbability` getter.
  */
 const DropProbabilitySection = () => {
-  const {
-    cardDetails: { getDropProbability },
-    profitForecast: { totalWeight },
-  } = useBoundStore();
+  const { getDropProbability } = useCardDetails();
+  const { totalWeight } = useProfitForecast();
 
   const prob = getDropProbability(totalWeight);
 

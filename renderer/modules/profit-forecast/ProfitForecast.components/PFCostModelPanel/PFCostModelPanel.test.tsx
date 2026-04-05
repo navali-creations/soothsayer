@@ -1,5 +1,5 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { usePoeNinja, useProfitForecast } from "~/renderer/store";
 
 import { RATE_FLOOR } from "../../ProfitForecast.slice/ProfitForecast.slice";
 import PFCostModelPanel from "./PFCostModelPanel";
@@ -7,50 +7,55 @@ import PFCostModelPanel from "./PFCostModelPanel";
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useProfitForecast: vi.fn(),
+  usePoeNinja: vi.fn(),
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseProfitForecast = vi.mocked(useProfitForecast);
+const mockUsePoeNinja = vi.mocked(usePoeNinja);
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-function createMockState(overrides: any = {}) {
+function createMockProfitForecast(overrides: any = {}) {
   return {
-    profitForecast: {
-      selectedBatch: 1000,
-      forecastView: "chart" as "chart" | "table",
-      stepDrop: 2,
-      subBatchSize: 5000,
-      minPriceThreshold: 10,
-      customBaseRate: null as number | null,
-      stackedDeckChaosCost: 5,
-      isLoading: false,
-      setSelectedBatch: vi.fn(),
-      setForecastView: vi.fn(),
-      setStepDrop: vi.fn(),
-      setSubBatchSize: vi.fn(),
-      setMinPriceThreshold: vi.fn(),
-      setIsComputing: vi.fn(),
-      getEffectiveBaseRate: vi.fn(() => 100),
-      getExcludedCount: vi.fn(() => ({
-        anomalous: 0,
-        lowConfidence: 0,
-        total: 0,
-      })),
-      hasData: vi.fn(() => true),
-      ...overrides.profitForecast,
-    },
-    poeNinja: {
-      isRefreshing: false,
-      ...overrides.poeNinja,
-    },
+    selectedBatch: 1000,
+    forecastView: "chart" as "chart" | "table",
+    stepDrop: 2,
+    subBatchSize: 5000,
+    minPriceThreshold: 10,
+    customBaseRate: null as number | null,
+    stackedDeckChaosCost: 5,
+    isLoading: false,
+    setSelectedBatch: vi.fn(),
+    setForecastView: vi.fn(),
+    setStepDrop: vi.fn(),
+    setSubBatchSize: vi.fn(),
+    setMinPriceThreshold: vi.fn(),
+    setIsComputing: vi.fn(),
+    getEffectiveBaseRate: vi.fn(() => 100),
+    getExcludedCount: vi.fn(() => ({
+      anomalous: 0,
+      lowConfidence: 0,
+      total: 0,
+    })),
+    hasData: vi.fn(() => true),
+    ...overrides,
+  } as any;
+}
+
+function createMockPoeNinja(overrides: any = {}) {
+  return {
+    isRefreshing: false,
+    ...overrides,
   } as any;
 }
 
 function setupStore(overrides: any = {}) {
-  const state = createMockState(overrides);
-  mockUseBoundStore.mockReturnValue(state);
-  return state;
+  const profitForecast = createMockProfitForecast(overrides.profitForecast);
+  const poeNinja = createMockPoeNinja(overrides.poeNinja);
+  mockUseProfitForecast.mockReturnValue(profitForecast);
+  mockUsePoeNinja.mockReturnValue(poeNinja);
+  return { profitForecast, poeNinja };
 }
 
 function renderPanel(storeOverrides: any = {}) {

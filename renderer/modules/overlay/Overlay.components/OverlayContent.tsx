@@ -1,12 +1,10 @@
-import { useBoundStore } from "~/renderer/store";
+import { useOverlay } from "~/renderer/store";
 
 import { OverlayDropsList } from "./OverlayDropsList/OverlayDropsList";
 import { OverlayEmpty } from "./OverlayEmpty";
 
 export const OverlayContent = () => {
-  const {
-    overlay: { sessionData },
-  } = useBoundStore();
+  const { sessionData } = useOverlay();
 
   return (
     <div

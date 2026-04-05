@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useCardDetails } from "~/renderer/store";
 
 // ─── Store mock ────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({ useBoundStore: vi.fn() }));
+vi.mock("~/renderer/store", () => ({ useCardDetails: vi.fn() }));
 
 // ─── Hook mocks ────────────────────────────────────────────────────────────
 
@@ -246,11 +246,9 @@ describe("CardDetailsPriceChart", () => {
     } = {},
   ) {
     return {
-      cardDetails: {
-        priceHistory: overrides.priceHistory ?? null,
-        isLoadingPriceHistory: overrides.isLoadingPriceHistory ?? false,
-        priceHistoryError: overrides.priceHistoryError ?? null,
-      },
+      priceHistory: overrides.priceHistory ?? null,
+      isLoadingPriceHistory: overrides.isLoadingPriceHistory ?? false,
+      priceHistoryError: overrides.priceHistoryError ?? null,
     };
   }
 
@@ -261,7 +259,9 @@ describe("CardDetailsPriceChart", () => {
       priceHistoryError?: string | null;
     } = {},
   ) {
-    vi.mocked(useBoundStore).mockReturnValue(createMockState(overrides) as any);
+    vi.mocked(useCardDetails).mockReturnValue(
+      createMockState(overrides) as any,
+    );
     return renderWithProviders(<CardDetailsPriceChart />);
   }
 

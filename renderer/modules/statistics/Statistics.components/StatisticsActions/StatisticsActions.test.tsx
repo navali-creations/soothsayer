@@ -1,12 +1,12 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useStatistics } from "~/renderer/store";
 
 import { StatisticsActions } from "./StatisticsActions";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useStatistics: vi.fn(),
 }));
 
 vi.mock("~/renderer/components", () => ({
@@ -17,25 +17,23 @@ vi.mock("~/renderer/modules/umami", () => ({
   trackEvent: vi.fn(),
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseStatistics = vi.mocked(useStatistics);
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-function createMockStore(overrides: any = {}) {
+function createMockStatistics(overrides: any = {}) {
   return {
-    statistics: {
-      selectedLeague: "",
-      setStatScope: vi.fn(),
-      setSelectedLeague: vi.fn(),
-      ...overrides,
-    },
+    selectedLeague: "",
+    setStatScope: vi.fn(),
+    setSelectedLeague: vi.fn(),
+    ...overrides,
   } as any;
 }
 
 function setupStore(overrides: any = {}) {
-  const store = createMockStore(overrides);
-  mockUseBoundStore.mockReturnValue(store);
-  return store;
+  const statistics = createMockStatistics(overrides);
+  mockUseStatistics.mockReturnValue(statistics);
+  return statistics;
 }
 
 const defaultProps = {
@@ -92,8 +90,8 @@ describe("StatisticsActions", () => {
     const select = screen.getByRole("combobox");
     await user.selectOptions(select, "all-time");
 
-    expect(store.statistics.setStatScope).toHaveBeenCalledWith("all-time");
-    expect(store.statistics.setSelectedLeague).toHaveBeenCalledWith("");
+    expect(store.setStatScope).toHaveBeenCalledWith("all-time");
+    expect(store.setSelectedLeague).toHaveBeenCalledWith("");
   });
 
   it('calls setStatScope("league") and setSelectedLeague when a league is selected', async () => {
@@ -105,8 +103,8 @@ describe("StatisticsActions", () => {
     const select = screen.getByRole("combobox");
     await user.selectOptions(select, "Settlers");
 
-    expect(store.statistics.setStatScope).toHaveBeenCalledWith("league");
-    expect(store.statistics.setSelectedLeague).toHaveBeenCalledWith("Settlers");
+    expect(store.setStatScope).toHaveBeenCalledWith("league");
+    expect(store.setSelectedLeague).toHaveBeenCalledWith("Settlers");
   });
 
   it("select value reflects selectedLeague from store", () => {

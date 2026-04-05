@@ -1,17 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useUpdater } from "~/renderer/store";
 
 import UpdateIndicator from "./UpdateIndicator";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useUpdater: vi.fn(),
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseUpdater = vi.mocked(useUpdater);
 
 vi.mock("~/renderer/components", () => ({
   Button: ({ children, onClick, ...props }: any) => (
@@ -31,24 +31,20 @@ vi.mock("react-icons/fi", () => ({
 
 function createMockStore(overrides: any = {}) {
   return {
-    updater: {
-      updateAvailable: false,
-      updateInfo: null,
-      isDismissed: false,
-      status: "idle",
-      downloadProgress: { percent: 0 },
-      error: null,
-      downloadAndInstall: vi.fn(),
-      ...overrides.updater,
-    },
+    updateAvailable: false,
+    updateInfo: null,
+    isDismissed: false,
+    status: "idle",
+    downloadProgress: { percent: 0 },
+    error: null,
+    downloadAndInstall: vi.fn(),
+    ...overrides,
   } as any;
 }
 
 function setupStore(overrides: any = {}) {
   const store = createMockStore(overrides);
-  mockUseBoundStore.mockImplementation((selector?: any) => {
-    return selector ? selector(store) : store;
-  });
+  mockUseUpdater.mockReturnValue(store);
   return store;
 }
 
@@ -63,7 +59,7 @@ describe("UpdateIndicator", () => {
   // ── Null states (component returns nothing) ────────────────────────────
 
   it("returns null when no update is available", () => {
-    setupStore({ updater: { updateAvailable: false } });
+    setupStore({ updateAvailable: false });
     const { container } = renderWithProviders(<UpdateIndicator />);
 
     expect(container.innerHTML).toBe("");
@@ -71,11 +67,9 @@ describe("UpdateIndicator", () => {
 
   it("returns null when update is dismissed", () => {
     setupStore({
-      updater: {
-        updateAvailable: true,
-        isDismissed: true,
-        updateInfo: { latestVersion: "2.0.0", manualDownload: false },
-      },
+      updateAvailable: true,
+      isDismissed: true,
+      updateInfo: { latestVersion: "2.0.0", manualDownload: false },
     });
     const { container } = renderWithProviders(<UpdateIndicator />);
 
@@ -84,11 +78,9 @@ describe("UpdateIndicator", () => {
 
   it("returns null when updateInfo is null", () => {
     setupStore({
-      updater: {
-        updateAvailable: true,
-        isDismissed: false,
-        updateInfo: null,
-      },
+      updateAvailable: true,
+      isDismissed: false,
+      updateInfo: null,
     });
     const { container } = renderWithProviders(<UpdateIndicator />);
 
@@ -99,12 +91,10 @@ describe("UpdateIndicator", () => {
 
   it("shows download progress when status is downloading", () => {
     setupStore({
-      updater: {
-        updateAvailable: true,
-        updateInfo: { latestVersion: "2.0.0", manualDownload: false },
-        status: "downloading",
-        downloadProgress: { percent: 45 },
-      },
+      updateAvailable: true,
+      updateInfo: { latestVersion: "2.0.0", manualDownload: false },
+      status: "downloading",
+      downloadProgress: { percent: 45 },
     });
     renderWithProviders(<UpdateIndicator />);
 
@@ -113,12 +103,10 @@ describe("UpdateIndicator", () => {
 
   it("shows indeterminate progress when percent < 0", () => {
     setupStore({
-      updater: {
-        updateAvailable: true,
-        updateInfo: { latestVersion: "2.0.0", manualDownload: false },
-        status: "downloading",
-        downloadProgress: { percent: -1 },
-      },
+      updateAvailable: true,
+      updateInfo: { latestVersion: "2.0.0", manualDownload: false },
+      status: "downloading",
+      downloadProgress: { percent: -1 },
     });
     renderWithProviders(<UpdateIndicator />);
 
@@ -127,12 +115,10 @@ describe("UpdateIndicator", () => {
 
   it("shows percentage label when downloading with valid percent", () => {
     setupStore({
-      updater: {
-        updateAvailable: true,
-        updateInfo: { latestVersion: "2.0.0", manualDownload: false },
-        status: "downloading",
-        downloadProgress: { percent: 72 },
-      },
+      updateAvailable: true,
+      updateInfo: { latestVersion: "2.0.0", manualDownload: false },
+      status: "downloading",
+      downloadProgress: { percent: 72 },
     });
     renderWithProviders(<UpdateIndicator />);
 
@@ -143,12 +129,10 @@ describe("UpdateIndicator", () => {
 
   it("shows retry button when status is error", () => {
     setupStore({
-      updater: {
-        updateAvailable: true,
-        updateInfo: { latestVersion: "2.0.0", manualDownload: false },
-        status: "error",
-        error: "Network timeout",
-      },
+      updateAvailable: true,
+      updateInfo: { latestVersion: "2.0.0", manualDownload: false },
+      status: "error",
+      error: "Network timeout",
     });
     renderWithProviders(<UpdateIndicator />);
 
@@ -157,12 +141,10 @@ describe("UpdateIndicator", () => {
 
   it("shows error tooltip text", () => {
     setupStore({
-      updater: {
-        updateAvailable: true,
-        updateInfo: { latestVersion: "2.0.0", manualDownload: false },
-        status: "error",
-        error: "Network timeout",
-      },
+      updateAvailable: true,
+      updateInfo: { latestVersion: "2.0.0", manualDownload: false },
+      status: "error",
+      error: "Network timeout",
     });
     renderWithProviders(<UpdateIndicator />);
 
@@ -172,12 +154,10 @@ describe("UpdateIndicator", () => {
 
   it("shows fallback error text when error is null", () => {
     setupStore({
-      updater: {
-        updateAvailable: true,
-        updateInfo: { latestVersion: "2.0.0", manualDownload: false },
-        status: "error",
-        error: null,
-      },
+      updateAvailable: true,
+      updateInfo: { latestVersion: "2.0.0", manualDownload: false },
+      status: "error",
+      error: null,
     });
     renderWithProviders(<UpdateIndicator />);
 
@@ -187,29 +167,25 @@ describe("UpdateIndicator", () => {
 
   it("retry button calls downloadAndInstall()", async () => {
     const store = setupStore({
-      updater: {
-        updateAvailable: true,
-        updateInfo: { latestVersion: "2.0.0", manualDownload: false },
-        status: "error",
-        error: "Failed",
-      },
+      updateAvailable: true,
+      updateInfo: { latestVersion: "2.0.0", manualDownload: false },
+      status: "error",
+      error: "Failed",
     });
     const { user } = renderWithProviders(<UpdateIndicator />);
 
     await user.click(screen.getByTitle("Retry update"));
 
-    expect(store.updater.downloadAndInstall).toHaveBeenCalledTimes(1);
+    expect(store.downloadAndInstall).toHaveBeenCalledTimes(1);
   });
 
   // ── Ready state ────────────────────────────────────────────────────────
 
   it('shows "Restart to update" tooltip when status is ready and not manual', () => {
     setupStore({
-      updater: {
-        updateAvailable: true,
-        updateInfo: { latestVersion: "2.0.0", manualDownload: false },
-        status: "ready",
-      },
+      updateAvailable: true,
+      updateInfo: { latestVersion: "2.0.0", manualDownload: false },
+      status: "ready",
     });
     renderWithProviders(<UpdateIndicator />);
 
@@ -219,11 +195,9 @@ describe("UpdateIndicator", () => {
 
   it('shows "View release" tooltip when status is ready and manual', () => {
     setupStore({
-      updater: {
-        updateAvailable: true,
-        updateInfo: { latestVersion: "2.0.0", manualDownload: true },
-        status: "ready",
-      },
+      updateAvailable: true,
+      updateInfo: { latestVersion: "2.0.0", manualDownload: true },
+      status: "ready",
     });
     renderWithProviders(<UpdateIndicator />);
 
@@ -235,11 +209,9 @@ describe("UpdateIndicator", () => {
 
   it("shows update available tooltip for default state", () => {
     setupStore({
-      updater: {
-        updateAvailable: true,
-        updateInfo: { latestVersion: "3.1.0", manualDownload: false },
-        status: "idle",
-      },
+      updateAvailable: true,
+      updateInfo: { latestVersion: "3.1.0", manualDownload: false },
+      status: "idle",
     });
     renderWithProviders(<UpdateIndicator />);
 
@@ -249,29 +221,25 @@ describe("UpdateIndicator", () => {
 
   it("download button calls downloadAndInstall()", async () => {
     const store = setupStore({
-      updater: {
-        updateAvailable: true,
-        updateInfo: { latestVersion: "3.1.0", manualDownload: false },
-        status: "idle",
-      },
+      updateAvailable: true,
+      updateInfo: { latestVersion: "3.1.0", manualDownload: false },
+      status: "idle",
     });
     const { user } = renderWithProviders(<UpdateIndicator />);
 
     const button = screen.getByRole("button");
     await user.click(button);
 
-    expect(store.updater.downloadAndInstall).toHaveBeenCalledTimes(1);
+    expect(store.downloadAndInstall).toHaveBeenCalledTimes(1);
   });
 
   // ── Icon selection based on manualDownload ─────────────────────────────
 
   it("shows FiExternalLink icon for manual updates in default state", () => {
     setupStore({
-      updater: {
-        updateAvailable: true,
-        updateInfo: { latestVersion: "2.0.0", manualDownload: true },
-        status: "idle",
-      },
+      updateAvailable: true,
+      updateInfo: { latestVersion: "2.0.0", manualDownload: true },
+      status: "idle",
     });
     renderWithProviders(<UpdateIndicator />);
 
@@ -281,11 +249,9 @@ describe("UpdateIndicator", () => {
 
   it("shows FiDownload icon for auto updates in default state", () => {
     setupStore({
-      updater: {
-        updateAvailable: true,
-        updateInfo: { latestVersion: "2.0.0", manualDownload: false },
-        status: "idle",
-      },
+      updateAvailable: true,
+      updateInfo: { latestVersion: "2.0.0", manualDownload: false },
+      status: "idle",
     });
     renderWithProviders(<UpdateIndicator />);
 
@@ -295,11 +261,9 @@ describe("UpdateIndicator", () => {
 
   it("shows FiExternalLink icon for manual updates in ready state", () => {
     setupStore({
-      updater: {
-        updateAvailable: true,
-        updateInfo: { latestVersion: "2.0.0", manualDownload: true },
-        status: "ready",
-      },
+      updateAvailable: true,
+      updateInfo: { latestVersion: "2.0.0", manualDownload: true },
+      status: "ready",
     });
     renderWithProviders(<UpdateIndicator />);
 
@@ -308,11 +272,9 @@ describe("UpdateIndicator", () => {
 
   it("shows FiDownload icon for auto updates in ready state", () => {
     setupStore({
-      updater: {
-        updateAvailable: true,
-        updateInfo: { latestVersion: "2.0.0", manualDownload: false },
-        status: "ready",
-      },
+      updateAvailable: true,
+      updateInfo: { latestVersion: "2.0.0", manualDownload: false },
+      status: "ready",
     });
     renderWithProviders(<UpdateIndicator />);
 

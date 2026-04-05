@@ -10,7 +10,7 @@ import {
 } from "recharts";
 
 import { useChartColors } from "~/renderer/hooks";
-import { useBoundStore } from "~/renderer/store";
+import { useProfitForecast } from "~/renderer/store";
 
 import { formatDivine } from "../../ProfitForecast.utils/ProfitForecast.utils";
 
@@ -63,9 +63,8 @@ const PFBreakevenTooltip = ({
 const PFBreakevenChart = () => {
   const c = useChartColors();
 
-  const {
-    profitForecast: { chaosToDivineRatio, isLoading, hasData, getPnLCurve },
-  } = useBoundStore();
+  const { chaosToDivineRatio, isLoading, hasData, getPnLCurve } =
+    useProfitForecast();
 
   const dataAvailable = hasData() && !isLoading;
   const curveData = dataAvailable ? getPnLCurve() : [];

@@ -22,6 +22,8 @@ import type {
 // Average row sizes in bytes (estimated from schema field sizes)
 const AVG_SESSION_ROW_BYTES = 200;
 const AVG_SESSION_CARD_ROW_BYTES = 120;
+/** Estimated bytes per session_card_events row (id + session_id + card_name + chaos_value + divine_value + dropped_at) */
+const AVG_SESSION_CARD_EVENT_ROW_BYTES = 80;
 const AVG_SESSION_SUMMARY_ROW_BYTES = 300;
 const AVG_SNAPSHOT_ROW_BYTES = 150;
 const AVG_SNAPSHOT_CARD_PRICE_ROW_BYTES = 100;
@@ -204,10 +206,14 @@ class StorageService {
         const fullPath = path.join(dirPath, entry.name);
 
         try {
+          // Skip symbolic links to avoid following junctions outside the app
+          // data directory (prevents information disclosure of external file sizes).
+          if (entry.isSymbolicLink()) continue;
+
           if (entry.isDirectory()) {
             await this.walkAndCategorize(fullPath, buckets, dbBaseName);
           } else if (entry.isFile()) {
-            const stat = await fsp.stat(fullPath);
+            const stat = await fsp.lstat(fullPath);
             const category = this.categorizeFile(
               entry.name,
               dirPath,
@@ -297,6 +303,7 @@ class StorageService {
           l.game         AS game,
           COALESCE(s.session_count, 0)         AS session_count,
           COALESCE(s.session_card_count, 0)    AS session_card_count,
+          COALESCE(s.session_card_event_count, 0) AS session_card_event_count,
           COALESCE(s.summary_count, 0)         AS summary_count,
           COALESCE(snap.snapshot_count, 0)     AS snapshot_count,
           COALESCE(snap.card_price_count, 0)   AS card_price_count,
@@ -312,6 +319,7 @@ class StorageService {
             league_id,
             COUNT(*)                                            AS session_count,
             COALESCE(SUM(sc_sub.card_count), 0)                 AS session_card_count,
+            COALESCE(SUM(sce_sub.event_count), 0)               AS session_card_event_count,
             COALESCE(SUM(sm_sub.has_summary), 0)                AS summary_count
           FROM sessions
           LEFT JOIN (
@@ -319,6 +327,11 @@ class StorageService {
             FROM session_cards
             GROUP BY session_id
           ) sc_sub ON sc_sub.session_id = sessions.id
+          LEFT JOIN (
+            SELECT session_id, COUNT(*) AS event_count
+            FROM session_card_events
+            GROUP BY session_id
+          ) sce_sub ON sce_sub.session_id = sessions.id
           LEFT JOIN (
             SELECT session_id, 1 AS has_summary
             FROM session_summaries
@@ -379,6 +392,7 @@ class StorageService {
       game: "poe1" | "poe2";
       session_count: number;
       session_card_count: number;
+      session_card_event_count: number;
       summary_count: number;
       snapshot_count: number;
       card_price_count: number;
@@ -393,6 +407,7 @@ class StorageService {
       const estimatedSizeBytes =
         row.session_count * AVG_SESSION_ROW_BYTES +
         row.session_card_count * AVG_SESSION_CARD_ROW_BYTES +
+        row.session_card_event_count * AVG_SESSION_CARD_EVENT_ROW_BYTES +
         row.summary_count * AVG_SESSION_SUMMARY_ROW_BYTES +
         row.snapshot_count * AVG_SNAPSHOT_ROW_BYTES +
         row.card_price_count * AVG_SNAPSHOT_CARD_PRICE_ROW_BYTES +
@@ -431,43 +446,36 @@ class StorageService {
 
       const db = this.dbService.getDb();
 
-      // Safety net: check for active sessions in this league
-      const activeSession = db
-        .prepare(
-          "SELECT id FROM sessions WHERE league_id = ? AND is_active = 1 LIMIT 1",
-        )
-        .get(leagueId) as { id: string } | undefined;
-
-      if (activeSession) {
-        return {
-          success: false,
-          freedBytes: 0,
-          error:
-            "Cannot delete data for a league with an active session. Stop the session first.",
-        };
-      }
-
-      // Get the league info for name-based table cleanup
-      const league = db
-        .prepare("SELECT id, name, game FROM leagues WHERE id = ?")
-        .get(leagueId) as
-        | { id: string; name: string; game: "poe1" | "poe2" }
-        | undefined;
-
-      if (!league) {
-        return {
-          success: false,
-          freedBytes: 0,
-          error: "League not found",
-        };
-      }
-
       // Measure DB size before deletion
       const dbPath = this.dbService.getPath();
       const sizeBefore = this.getFileSizeSync(dbPath);
 
-      // Cascade delete in a transaction
+      // All checks and deletes run inside a single transaction to prevent TOCTOU races
       const deleteTransaction = db.transaction(() => {
+        // Safety net: check for active sessions in this league (inside transaction)
+        const activeSession = db
+          .prepare(
+            "SELECT id FROM sessions WHERE league_id = ? AND is_active = 1 LIMIT 1",
+          )
+          .get(leagueId) as { id: string } | undefined;
+
+        if (activeSession) {
+          throw new Error(
+            "Cannot delete data for a league with an active session. Stop the session first.",
+          );
+        }
+
+        // Get the league info for name-based table cleanup
+        const league = db
+          .prepare("SELECT id, name, game FROM leagues WHERE id = ?")
+          .get(leagueId) as
+          | { id: string; name: string; game: "poe1" | "poe2" }
+          | undefined;
+
+        if (!league) {
+          throw new Error("League not found");
+        }
+
         // 1. snapshot_card_prices (via snapshot_id JOIN snapshots WHERE league_id)
         db.prepare(
           `
@@ -531,9 +539,11 @@ class StorageService {
 
         // 11. Delete the league itself
         db.prepare("DELETE FROM leagues WHERE id = ?").run(leagueId);
+
+        return league;
       });
 
-      deleteTransaction();
+      const league = deleteTransaction();
 
       // VACUUM to reclaim space in the SQLite file
       db.exec("VACUUM");

@@ -6,6 +6,7 @@ import {
   seedDivinationCardRarity,
   seedLeague,
   seedSession,
+  seedSessionCardEvents,
   seedSessionCards,
   seedSessionSummary,
   seedSnapshot,
@@ -1416,6 +1417,127 @@ describe("SessionsRepository", () => {
 
       expect(Object.keys(s).sort()).toEqual(expectedKeys.sort());
     });
+
+    it("should find sessions by partial card name match", async () => {
+      const leagueId = await seedLeague(testDb.kysely);
+      const s1 = await seedSession(testDb.kysely, {
+        leagueId,
+        isActive: false,
+        totalCount: 5,
+      });
+      const s2 = await seedSession(testDb.kysely, {
+        leagueId,
+        isActive: false,
+        totalCount: 3,
+      });
+
+      await seedSessionCards(testDb.kysely, s1, [
+        { cardName: "The Doctor", count: 5 },
+      ]);
+      await seedSessionCards(testDb.kysely, s2, [
+        { cardName: "Rain of Chaos", count: 3 },
+      ]);
+
+      await seedSessionSummary(testDb.kysely, { sessionId: s1 });
+      await seedSessionSummary(testDb.kysely, { sessionId: s2 });
+
+      const results = await repository.searchSessionsByCard(
+        "poe1",
+        "Doctor",
+        10,
+        0,
+      );
+      expect(results).toHaveLength(1);
+      expect(results[0].sessionId).toBe(s1);
+    });
+
+    it("should escape % metacharacter so it is treated as a literal", async () => {
+      const leagueId = await seedLeague(testDb.kysely);
+      const s1 = await seedSession(testDb.kysely, {
+        leagueId,
+        isActive: false,
+        totalCount: 5,
+      });
+      const s2 = await seedSession(testDb.kysely, {
+        leagueId,
+        isActive: false,
+        totalCount: 3,
+      });
+
+      await seedSessionCards(testDb.kysely, s1, [
+        { cardName: "The Doctor", count: 5 },
+      ]);
+      await seedSessionCards(testDb.kysely, s2, [
+        { cardName: "Rain of Chaos", count: 3 },
+      ]);
+
+      await seedSessionSummary(testDb.kysely, { sessionId: s1 });
+      await seedSessionSummary(testDb.kysely, { sessionId: s2 });
+
+      // "%" in LIKE would normally match everything; escaped it should match nothing
+      const results = await repository.searchSessionsByCard("poe1", "%", 10, 0);
+      expect(results).toHaveLength(0);
+    });
+
+    it("should escape _ metacharacter so it is treated as a literal", async () => {
+      const leagueId = await seedLeague(testDb.kysely);
+      const s1 = await seedSession(testDb.kysely, {
+        leagueId,
+        isActive: false,
+        totalCount: 5,
+      });
+      const s2 = await seedSession(testDb.kysely, {
+        leagueId,
+        isActive: false,
+        totalCount: 3,
+      });
+
+      await seedSessionCards(testDb.kysely, s1, [
+        { cardName: "The Doctor", count: 5 },
+      ]);
+      await seedSessionCards(testDb.kysely, s2, [
+        { cardName: "Rain of Chaos", count: 3 },
+      ]);
+
+      await seedSessionSummary(testDb.kysely, { sessionId: s1 });
+      await seedSessionSummary(testDb.kysely, { sessionId: s2 });
+
+      // "_" in LIKE would normally match any single character; escaped it should match nothing
+      const results = await repository.searchSessionsByCard("poe1", "_", 10, 0);
+      expect(results).toHaveLength(0);
+    });
+
+    it("should escape %% so it does not match everything", async () => {
+      const leagueId = await seedLeague(testDb.kysely);
+      const s1 = await seedSession(testDb.kysely, {
+        leagueId,
+        isActive: false,
+        totalCount: 5,
+      });
+      const s2 = await seedSession(testDb.kysely, {
+        leagueId,
+        isActive: false,
+        totalCount: 3,
+      });
+
+      await seedSessionCards(testDb.kysely, s1, [
+        { cardName: "The Doctor", count: 5 },
+      ]);
+      await seedSessionCards(testDb.kysely, s2, [
+        { cardName: "Rain of Chaos", count: 3 },
+      ]);
+
+      await seedSessionSummary(testDb.kysely, { sessionId: s1 });
+      await seedSessionSummary(testDb.kysely, { sessionId: s2 });
+
+      const results = await repository.searchSessionsByCard(
+        "poe1",
+        "%%",
+        10,
+        0,
+      );
+      expect(results).toHaveLength(0);
+    });
   });
 
   // ─── getSessionCountByCard ───────────────────────────────────────────
@@ -1593,6 +1715,80 @@ describe("SessionsRepository", () => {
       const count = await repository.getSessionCountByCard("poe1", "Rain");
       // grouped by session id, so result.length should be 1
       expect(count).toBe(1);
+    });
+
+    it("should escape % metacharacter so it is treated as a literal", async () => {
+      const leagueId = await seedLeague(testDb.kysely);
+      const s1 = await seedSession(testDb.kysely, {
+        leagueId,
+        isActive: false,
+        totalCount: 5,
+      });
+      const s2 = await seedSession(testDb.kysely, {
+        leagueId,
+        isActive: false,
+        totalCount: 3,
+      });
+
+      await seedSessionCards(testDb.kysely, s1, [
+        { cardName: "The Doctor", count: 5 },
+      ]);
+      await seedSessionCards(testDb.kysely, s2, [
+        { cardName: "Rain of Chaos", count: 3 },
+      ]);
+
+      // "%" in LIKE would normally match everything; escaped it should match nothing
+      const count = await repository.getSessionCountByCard("poe1", "%");
+      expect(count).toBe(0);
+    });
+
+    it("should escape _ metacharacter so it is treated as a literal", async () => {
+      const leagueId = await seedLeague(testDb.kysely);
+      const s1 = await seedSession(testDb.kysely, {
+        leagueId,
+        isActive: false,
+        totalCount: 5,
+      });
+      const s2 = await seedSession(testDb.kysely, {
+        leagueId,
+        isActive: false,
+        totalCount: 3,
+      });
+
+      await seedSessionCards(testDb.kysely, s1, [
+        { cardName: "The Doctor", count: 5 },
+      ]);
+      await seedSessionCards(testDb.kysely, s2, [
+        { cardName: "Rain of Chaos", count: 3 },
+      ]);
+
+      // "_" in LIKE would normally match any single character; escaped it should match nothing
+      const count = await repository.getSessionCountByCard("poe1", "_");
+      expect(count).toBe(0);
+    });
+
+    it("should escape %% so it does not match everything", async () => {
+      const leagueId = await seedLeague(testDb.kysely);
+      const s1 = await seedSession(testDb.kysely, {
+        leagueId,
+        isActive: false,
+        totalCount: 5,
+      });
+      const s2 = await seedSession(testDb.kysely, {
+        leagueId,
+        isActive: false,
+        totalCount: 3,
+      });
+
+      await seedSessionCards(testDb.kysely, s1, [
+        { cardName: "The Doctor", count: 5 },
+      ]);
+      await seedSessionCards(testDb.kysely, s2, [
+        { cardName: "Rain of Chaos", count: 3 },
+      ]);
+
+      const count = await repository.getSessionCountByCard("poe1", "%%");
+      expect(count).toBe(0);
     });
   });
 
@@ -2410,6 +2606,184 @@ describe("SessionsRepository", () => {
       expect(sessions).toHaveLength(1);
       expect(sessions[0].totalExchangeValue).toBe(10000);
       expect(sessions[0].totalExchangeNetProfit).toBe(9850);
+    });
+  });
+
+  // ─── getSparklineData ──────────────────────────────────────────────────
+
+  describe("getSparklineData", () => {
+    it("should return empty object for empty sessionIds", async () => {
+      const result = await repository.getSparklineData([]);
+      expect(result).toEqual({});
+    });
+
+    it("should return empty object when no events exist for given sessions", async () => {
+      const leagueId = await seedLeague(testDb.kysely);
+      const sessionId = await seedSession(testDb.kysely, { leagueId });
+
+      const result = await repository.getSparklineData([sessionId]);
+      expect(result).toEqual({});
+    });
+
+    it("should return sparkline data for a single session with events", async () => {
+      const leagueId = await seedLeague(testDb.kysely);
+      const sessionId = await seedSession(testDb.kysely, { leagueId });
+
+      await seedSessionCardEvents(testDb.kysely, sessionId, [
+        {
+          cardName: "Rain of Chaos",
+          chaosValue: 10,
+          droppedAt: "2025-01-01T10:00:00Z",
+        },
+        {
+          cardName: "The Doctor",
+          chaosValue: 5000,
+          droppedAt: "2025-01-01T10:00:05Z",
+        },
+      ]);
+
+      const result = await repository.getSparklineData([sessionId]);
+
+      expect(result[sessionId]).toBeDefined();
+      // Origin point + one bucket (both events in same 10s bucket)
+      expect(result[sessionId][0]).toEqual({ x: 0, profit: 0 });
+      expect(result[sessionId].length).toBe(2);
+      expect(result[sessionId][1].x).toBe(2); // 2 cumulative drops
+      expect(result[sessionId][1].profit).toBe(5010); // 10 + 5000
+    });
+
+    it("should separate events into 10-second buckets", async () => {
+      const leagueId = await seedLeague(testDb.kysely);
+      const sessionId = await seedSession(testDb.kysely, { leagueId });
+
+      await seedSessionCardEvents(testDb.kysely, sessionId, [
+        {
+          cardName: "Card1",
+          chaosValue: 100,
+          droppedAt: "2025-01-01T10:00:00Z",
+        },
+        {
+          cardName: "Card2",
+          chaosValue: 200,
+          droppedAt: "2025-01-01T10:00:15Z",
+        },
+        {
+          cardName: "Card3",
+          chaosValue: 300,
+          droppedAt: "2025-01-01T10:00:25Z",
+        },
+      ]);
+
+      const result = await repository.getSparklineData([sessionId]);
+
+      expect(result[sessionId]).toBeDefined();
+      // Origin + 3 separate buckets (0s, 10s, 20s)
+      expect(result[sessionId][0]).toEqual({ x: 0, profit: 0 });
+      expect(result[sessionId].length).toBe(4);
+    });
+
+    it("should handle multiple sessions independently", async () => {
+      const leagueId = await seedLeague(testDb.kysely);
+      const s1 = await seedSession(testDb.kysely, { leagueId });
+      const s2 = await seedSession(testDb.kysely, { leagueId });
+
+      await seedSessionCardEvents(testDb.kysely, s1, [
+        {
+          cardName: "Card1",
+          chaosValue: 100,
+          droppedAt: "2025-01-01T10:00:00Z",
+        },
+      ]);
+      await seedSessionCardEvents(testDb.kysely, s2, [
+        {
+          cardName: "Card2",
+          chaosValue: 200,
+          droppedAt: "2025-01-01T10:00:00Z",
+        },
+        {
+          cardName: "Card3",
+          chaosValue: 300,
+          droppedAt: "2025-01-01T10:00:15Z",
+        },
+      ]);
+
+      const result = await repository.getSparklineData([s1, s2]);
+
+      expect(result[s1]).toBeDefined();
+      expect(result[s2]).toBeDefined();
+      expect(result[s1].length).toBe(2); // origin + 1 bucket
+      expect(result[s2].length).toBe(3); // origin + 2 buckets
+    });
+
+    it("should treat null chaos_value as 0", async () => {
+      const leagueId = await seedLeague(testDb.kysely);
+      const sessionId = await seedSession(testDb.kysely, { leagueId });
+
+      await seedSessionCardEvents(testDb.kysely, sessionId, [
+        {
+          cardName: "Card1",
+          chaosValue: null,
+          droppedAt: "2025-01-01T10:00:00Z",
+        },
+      ]);
+
+      const result = await repository.getSparklineData([sessionId]);
+
+      expect(result[sessionId]).toBeDefined();
+      expect(result[sessionId][1].profit).toBe(0);
+      expect(result[sessionId][1].x).toBe(1);
+    });
+
+    it("should compute cumulative chaos values", async () => {
+      const leagueId = await seedLeague(testDb.kysely);
+      const sessionId = await seedSession(testDb.kysely, { leagueId });
+
+      await seedSessionCardEvents(testDb.kysely, sessionId, [
+        {
+          cardName: "Card1",
+          chaosValue: 100,
+          droppedAt: "2025-01-01T10:00:00Z",
+        },
+        {
+          cardName: "Card2",
+          chaosValue: 200,
+          droppedAt: "2025-01-01T10:00:15Z",
+        },
+        {
+          cardName: "Card3",
+          chaosValue: 300,
+          droppedAt: "2025-01-01T10:00:25Z",
+        },
+      ]);
+
+      const result = await repository.getSparklineData([sessionId]);
+      const points = result[sessionId];
+
+      // Each bucket should have cumulative values
+      expect(points[0]).toEqual({ x: 0, profit: 0 }); // origin
+      expect(points[1].profit).toBe(100); // first event
+      expect(points[2].profit).toBe(300); // 100 + 200
+      expect(points[3].profit).toBe(600); // 100 + 200 + 300
+    });
+
+    it("should return sessions that have no events as missing keys", async () => {
+      const leagueId = await seedLeague(testDb.kysely);
+      const s1 = await seedSession(testDb.kysely, { leagueId });
+      const s2 = await seedSession(testDb.kysely, { leagueId });
+
+      // Only s1 has events
+      await seedSessionCardEvents(testDb.kysely, s1, [
+        {
+          cardName: "Card1",
+          chaosValue: 100,
+          droppedAt: "2025-01-01T10:00:00Z",
+        },
+      ]);
+
+      const result = await repository.getSparklineData([s1, s2]);
+
+      expect(result[s1]).toBeDefined();
+      expect(result[s2]).toBeUndefined();
     });
   });
 });

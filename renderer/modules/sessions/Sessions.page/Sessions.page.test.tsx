@@ -1,15 +1,15 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useSessions } from "~/renderer/store";
 
 import SessionsPage from "./Sessions.page";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useSessions: vi.fn(),
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseSessions = vi.mocked(useSessions);
 
 vi.mock("../Sessions.components", () => ({
   SessionsActions: () => <div data-testid="sessions-actions" />,
@@ -40,11 +40,9 @@ vi.mock("~/renderer/components", () => ({
 const mockLoadAllSessions = vi.fn();
 
 function setupStore(overrides: { isLoading: boolean }) {
-  mockUseBoundStore.mockReturnValue({
-    sessions: {
-      loadAllSessions: mockLoadAllSessions,
-      getIsLoading: () => overrides.isLoading,
-    },
+  mockUseSessions.mockReturnValue({
+    loadAllSessions: mockLoadAllSessions,
+    getIsLoading: () => overrides.isLoading,
   } as any);
 }
 

@@ -2,13 +2,11 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 
 import { SetupPage } from "~/renderer/modules/setup";
-import { useBoundStore } from "~/renderer/store";
+import { useSetup } from "~/renderer/store";
 
 const SetupRoute = () => {
   const navigate = useNavigate();
-  const {
-    setup: { setupState },
-  } = useBoundStore();
+  const { setupState } = useSetup();
 
   const isComplete = setupState?.isComplete ?? false;
 

@@ -13,6 +13,7 @@ import type {
   MostProfitableSessionDTO,
   SessionAveragesDTO,
   SessionChartDataPointDTO,
+  SparklinePointDTO,
   TotalNetProfitDTO,
   TotalTimeSpentDTO,
   WinRateDTO,
@@ -132,6 +133,10 @@ const SessionsAPI = {
     ipcRenderer.invoke(SessionsChannel.GetTotalTimeSpent, game, league),
   getWinRate: (game: GameType, league?: string): Promise<WinRateDTO | null> =>
     ipcRenderer.invoke(SessionsChannel.GetWinRate, game, league),
+  getSparklines: (
+    sessionIds: string[],
+  ): Promise<Record<string, SparklinePointDTO[]>> =>
+    ipcRenderer.invoke(SessionsChannel.GetSparklines, sessionIds),
 };
 
 export type {
@@ -144,6 +149,7 @@ export type {
   SessionChartDataPointDTO,
   SessionSummary,
   SessionsPage,
+  SparklinePointDTO,
   TotalNetProfitDTO,
   TotalTimeSpentDTO,
   WinRateDTO,

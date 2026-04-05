@@ -4,6 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const {
   mockWatchFile,
   mockUnwatchFile,
+  mockOpenSync,
+  mockCloseSync,
+  mockReadSync,
+  mockFstatSync,
   mockGetKysely,
   mockPerfLog,
   mockPerfStartTimer,
@@ -15,10 +19,13 @@ const {
   mockSettingsGet,
   mockSettingsSet,
   mockParseCards,
-  mockReadLastLines,
 } = vi.hoisted(() => ({
   mockWatchFile: vi.fn(),
   mockUnwatchFile: vi.fn(),
+  mockOpenSync: vi.fn(() => 42), // fake fd
+  mockCloseSync: vi.fn(),
+  mockReadSync: vi.fn(() => 0),
+  mockFstatSync: vi.fn(() => ({ size: 0 })),
   mockGetKysely: vi.fn(),
   mockPerfLog: vi.fn(),
   mockPerfStartTimer: vi.fn(() => null),
@@ -30,7 +37,6 @@ const {
   mockSettingsGet: vi.fn(),
   mockSettingsSet: vi.fn(),
   mockParseCards: vi.fn(),
-  mockReadLastLines: vi.fn(),
 }));
 
 // ─── Mock Electron before any imports that use it ────────────────────────────
@@ -60,6 +66,10 @@ vi.mock("node:fs", () => ({
   default: {
     watchFile: mockWatchFile,
     unwatchFile: mockUnwatchFile,
+    openSync: mockOpenSync,
+    closeSync: mockCloseSync,
+    readSync: mockReadSync,
+    fstatSync: mockFstatSync,
     promises: {
       open: vi.fn(),
       writeFile: vi.fn(),
@@ -67,6 +77,10 @@ vi.mock("node:fs", () => ({
   },
   watchFile: mockWatchFile,
   unwatchFile: mockUnwatchFile,
+  openSync: mockOpenSync,
+  closeSync: mockCloseSync,
+  readSync: mockReadSync,
+  fstatSync: mockFstatSync,
   promises: {
     open: vi.fn(),
     writeFile: vi.fn(),
@@ -153,10 +167,9 @@ vi.mock("~/main/modules", () => ({
   },
 }));
 
-// ─── Mock the parseCards and readLastLines utils ─────────────────────────────
+// ─── Mock the parseCards util ────────────────────────────────────────────────
 vi.mock("../utils", () => ({
   parseCards: mockParseCards,
-  readLastLines: mockReadLastLines,
 }));
 
 import { ClientLogReaderService } from "../ClientLogReader.service";
@@ -166,8 +179,15 @@ import { ClientLogReaderService } from "../ClientLogReader.service";
 /**
  * Get the file-change callback registered via fs.watchFile.
  * If watchFile was called multiple times, returns the callback from the given index.
+ *
+ * The callback signature is `(curr: fs.Stats, prev: fs.Stats) => Promise<void>`.
  */
-function getWatchCallback(callIndex = 0): () => Promise<void> {
+function getWatchCallback(
+  callIndex = 0,
+): (
+  curr: { size: number; birthtimeMs: number },
+  prev: { size: number; birthtimeMs: number },
+) => Promise<void> {
   if (mockWatchFile.mock.calls.length <= callIndex) {
     throw new Error(
       `fs.watchFile was not called ${callIndex + 1} time(s). Actual calls: ${
@@ -177,6 +197,35 @@ function getWatchCallback(callIndex = 0): () => Promise<void> {
   }
   // fs.watchFile(path, { interval }, callback)
   return mockWatchFile.mock.calls[callIndex][2];
+}
+
+/** Helper: create a fake stats object for the watchFile callback. */
+function makeStats(
+  size: number,
+  birthtimeMs = 1000,
+): { size: number; birthtimeMs: number } {
+  return { size, birthtimeMs };
+}
+
+/**
+ * Helper: configure mockReadSync to write the given string into the buffer
+ * that fs.readSync receives, returning the byte length written.
+ */
+function mockReadSyncWith(text: string): void {
+  mockReadSync.mockImplementation(
+    (
+      _fd: number,
+      buf: Buffer,
+      _offset: number,
+      length: number,
+      _position: number,
+    ) => {
+      const bytes = Buffer.from(text, "utf-8");
+      const toCopy = Math.min(bytes.length, length);
+      bytes.copy(buf, 0, 0, toCopy);
+      return toCopy;
+    },
+  );
 }
 
 const mockMainWindow = {
@@ -191,6 +240,10 @@ describe("ClientLogReaderService", () => {
     // Reset all mocks
     mockWatchFile.mockReset();
     mockUnwatchFile.mockReset();
+    mockOpenSync.mockReset().mockReturnValue(42);
+    mockCloseSync.mockReset();
+    mockReadSync.mockReset().mockReturnValue(0);
+    mockFstatSync.mockReset().mockReturnValue({ size: 0 });
     mockGetKysely.mockReset();
     mockPerfLog.mockReset();
     mockPerfStartTimer.mockReset().mockReturnValue(null);
@@ -202,7 +255,6 @@ describe("ClientLogReaderService", () => {
     mockSettingsGet.mockReset();
     mockSettingsSet.mockReset();
     mockParseCards.mockReset();
-    mockReadLastLines.mockReset();
 
     // Default settings responses
     mockSettingsGet.mockImplementation(async (key: string) => {
@@ -373,13 +425,23 @@ describe("ClientLogReaderService", () => {
       );
     });
 
+    it("should skip processing when file size has not changed", async () => {
+      const callback = getWatchCallback();
+      // curr.size === 0 (same as lastKnownSize after init with empty file)
+      await callback(makeStats(0), makeStats(0));
+
+      expect(mockParseCards).not.toHaveBeenCalled();
+    });
+
     it("should skip processing when there is no active session", async () => {
       mockIsSessionActive.mockReturnValue(false);
 
-      const callback = getWatchCallback();
-      await callback();
+      const newData = "some log line\n";
+      mockReadSyncWith(newData);
 
-      expect(mockReadLastLines).not.toHaveBeenCalled();
+      const callback = getWatchCallback();
+      await callback(makeStats(newData.length), makeStats(0));
+
       expect(mockParseCards).not.toHaveBeenCalled();
     });
 
@@ -387,26 +449,38 @@ describe("ClientLogReaderService", () => {
       mockIsSessionActive.mockReturnValue(true);
       mockGetActiveSessionInfo.mockReturnValue(null);
 
-      const callback = getWatchCallback();
-      await callback();
+      const newData = "some log line\n";
+      mockReadSyncWith(newData);
 
-      expect(mockReadLastLines).not.toHaveBeenCalled();
+      const callback = getWatchCallback();
+      await callback(makeStats(newData.length), makeStats(0));
+
+      expect(mockParseCards).not.toHaveBeenCalled();
     });
 
-    it("should read the last 10 lines from the client log", async () => {
+    it("should read only new bytes via fs.readSync", async () => {
       mockIsSessionActive.mockReturnValue(true);
       mockGetActiveSessionInfo.mockReturnValue({
         sessionId: "session-1",
         league: "Settlers",
         startedAt: "2025-01-01T10:00:00Z",
       });
-      mockReadLastLines.mockResolvedValue("");
+
+      const newData = "a new log line\n";
+      mockReadSyncWith(newData);
       mockParseCards.mockReturnValue({ totalCount: 0, cards: {} });
 
       const callback = getWatchCallback();
-      await callback();
+      await callback(makeStats(newData.length), makeStats(0));
 
-      expect(mockReadLastLines).toHaveBeenCalledWith("/game/client.txt", 10);
+      // Should have called readSync with the fd, reading newData.length bytes from offset 0
+      expect(mockReadSync).toHaveBeenCalledWith(
+        42, // fd
+        expect.any(Buffer),
+        0,
+        newData.length,
+        0, // lastKnownSize was 0 (seeded from fstatSync returning { size: 0 })
+      );
     });
 
     it("should pass processed IDs to parseCards for deduplication", async () => {
@@ -418,17 +492,16 @@ describe("ClientLogReaderService", () => {
         startedAt: "2025-01-01T10:00:00Z",
       });
       mockGetAllProcessedIds.mockReturnValue(processedIds);
-      mockReadLastLines.mockResolvedValue("some log text");
+
+      const newData = "some log text\n";
+      mockReadSyncWith(newData);
       mockParseCards.mockReturnValue({ totalCount: 0, cards: {} });
 
       const callback = getWatchCallback();
-      await callback();
+      await callback(makeStats(newData.length), makeStats(0));
 
       expect(mockGetAllProcessedIds).toHaveBeenCalledWith("poe1");
-      expect(mockParseCards).toHaveBeenCalledWith(
-        "some log text",
-        processedIds,
-      );
+      expect(mockParseCards).toHaveBeenCalledWith(newData, processedIds);
     });
 
     it("should not call addCard when no new cards are found", async () => {
@@ -438,11 +511,13 @@ describe("ClientLogReaderService", () => {
         league: "Settlers",
         startedAt: "2025-01-01T10:00:00Z",
       });
-      mockReadLastLines.mockResolvedValue("no cards here");
+
+      const newData = "no cards here\n";
+      mockReadSyncWith(newData);
       mockParseCards.mockReturnValue({ totalCount: 0, cards: {} });
 
       const callback = getWatchCallback();
-      await callback();
+      await callback(makeStats(newData.length), makeStats(0));
 
       expect(mockAddCard).not.toHaveBeenCalled();
     });
@@ -454,7 +529,9 @@ describe("ClientLogReaderService", () => {
         league: "Settlers",
         startedAt: "2025-01-01T10:00:00Z",
       });
-      mockReadLastLines.mockResolvedValue("log with cards");
+
+      const newData = "log with cards\n";
+      mockReadSyncWith(newData);
       mockParseCards.mockReturnValue({
         totalCount: 3,
         cards: {
@@ -470,7 +547,7 @@ describe("ClientLogReaderService", () => {
       });
 
       const callback = getWatchCallback();
-      await callback();
+      await callback(makeStats(newData.length), makeStats(0));
 
       // Should call addCard for each processedId
       expect(mockAddCard).toHaveBeenCalledTimes(3);
@@ -501,7 +578,9 @@ describe("ClientLogReaderService", () => {
         league: "Settlers",
         startedAt: "2025-01-01T10:00:00Z",
       });
-      mockReadLastLines.mockRejectedValue(new Error("File read error"));
+      mockReadSync.mockImplementation(() => {
+        throw new Error("File read error");
+      });
 
       const consoleSpy = vi
         .spyOn(console, "error")
@@ -509,7 +588,7 @@ describe("ClientLogReaderService", () => {
 
       const callback = getWatchCallback();
       // Should not throw
-      await callback();
+      await callback(makeStats(100), makeStats(0));
 
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining("Processing failed"),
@@ -526,7 +605,9 @@ describe("ClientLogReaderService", () => {
         league: "Settlers",
         startedAt: "2025-01-01T10:00:00Z",
       });
-      mockReadLastLines.mockResolvedValue("log with cards");
+
+      const newData = "log with cards\n";
+      mockReadSyncWith(newData);
       mockParseCards.mockReturnValue({
         totalCount: 1,
         cards: {
@@ -543,7 +624,7 @@ describe("ClientLogReaderService", () => {
         .mockImplementation(() => {});
 
       const callback = getWatchCallback();
-      await callback();
+      await callback(makeStats(newData.length), makeStats(0));
 
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining("Processing failed"),
@@ -560,11 +641,13 @@ describe("ClientLogReaderService", () => {
         league: "Dawn",
         startedAt: "2025-01-01T10:00:00Z",
       });
-      mockReadLastLines.mockResolvedValue("log text");
+
+      const newData = "log text\n";
+      mockReadSyncWith(newData);
       mockParseCards.mockReturnValue({ totalCount: 0, cards: {} });
 
       const callback = getWatchCallback();
-      await callback();
+      await callback(makeStats(newData.length), makeStats(0));
 
       expect(mockIsSessionActive).toHaveBeenCalledWith("poe1");
       expect(mockGetActiveSessionInfo).toHaveBeenCalledWith("poe1");
@@ -589,6 +672,26 @@ describe("ClientLogReaderService", () => {
       service.stopWatchFile();
 
       expect(mockUnwatchFile).toHaveBeenCalledWith("/game/client.txt");
+    });
+
+    it("should close the file descriptor when stopping", async () => {
+      mockSettingsGet.mockImplementation(async (key: string) => {
+        if (key === "selectedGame") return "poe1";
+        if (key === "poe1ClientTxtPath") return "/game/client.txt";
+        return null;
+      });
+
+      const service = await ClientLogReaderService.getInstance(
+        mockMainWindow as any,
+      );
+
+      // openSync was called during watchFile
+      expect(mockOpenSync).toHaveBeenCalled();
+      mockCloseSync.mockReset();
+
+      service.stopWatchFile();
+
+      expect(mockCloseSync).toHaveBeenCalledWith(42);
     });
 
     it("should not call unwatchFile if clientLogPath was never set", async () => {
@@ -655,12 +758,14 @@ describe("ClientLogReaderService", () => {
         league: "Dawn",
         startedAt: "2025-01-01T10:00:00Z",
       });
-      mockReadLastLines.mockResolvedValue("log text");
+
+      const newData = "log text\n";
+      mockReadSyncWith(newData);
       mockParseCards.mockReturnValue({ totalCount: 0, cards: {} });
 
       // Invoke the new watcher callback (second watchFile call)
       const callback = getWatchCallback(1);
-      await callback();
+      await callback(makeStats(newData.length), makeStats(0));
 
       // Session methods should be called with poe2
       expect(mockIsSessionActive).toHaveBeenCalledWith("poe2");
@@ -712,10 +817,11 @@ describe("ClientLogReaderService", () => {
         league: "Settlers",
         startedAt: "2025-01-01T10:00:00Z",
       });
-      mockReadLastLines.mockResolvedValue("multi card log");
     });
 
     it("should process cards from multiple different card types", async () => {
+      const newData = "multi card log\n";
+      mockReadSyncWith(newData);
       mockParseCards.mockReturnValue({
         totalCount: 5,
         cards: {
@@ -726,7 +832,7 @@ describe("ClientLogReaderService", () => {
       });
 
       const callback = getWatchCallback();
-      await callback();
+      await callback(makeStats(newData.length), makeStats(0));
 
       expect(mockAddCard).toHaveBeenCalledTimes(5);
 
@@ -764,6 +870,8 @@ describe("ClientLogReaderService", () => {
     });
 
     it("should handle a single card with a single processedId", async () => {
+      const newData = "single card log\n";
+      mockReadSyncWith(newData);
       mockParseCards.mockReturnValue({
         totalCount: 1,
         cards: {
@@ -772,7 +880,7 @@ describe("ClientLogReaderService", () => {
       });
 
       const callback = getWatchCallback();
-      await callback();
+      await callback(makeStats(newData.length), makeStats(0));
 
       expect(mockAddCard).toHaveBeenCalledTimes(1);
       expect(mockAddCard).toHaveBeenCalledWith(
@@ -802,11 +910,13 @@ describe("ClientLogReaderService", () => {
         league: "Settlers",
         startedAt: "2025-01-01T10:00:00Z",
       });
-      mockReadLastLines.mockResolvedValue("log");
+
+      const newData = "log\n";
+      mockReadSyncWith(newData);
       mockParseCards.mockReturnValue({ totalCount: 0, cards: {} });
 
       const callback = getWatchCallback();
-      await callback();
+      await callback(makeStats(newData.length), makeStats(0));
 
       expect(mockPerfStartTimers).toHaveBeenCalled();
     });
@@ -835,7 +945,9 @@ describe("ClientLogReaderService", () => {
         league: "Settlers",
         startedAt: "2025-01-01T10:00:00Z",
       });
-      mockReadLastLines.mockResolvedValue("card log");
+
+      const newData = "card log\n";
+      mockReadSyncWith(newData);
       mockParseCards.mockReturnValue({
         totalCount: 1,
         cards: {
@@ -844,7 +956,7 @@ describe("ClientLogReaderService", () => {
       });
 
       const callback = getWatchCallback();
-      await callback();
+      await callback(makeStats(newData.length), makeStats(0));
 
       // Performance timer methods should have been called
       expect(mockTimers.start).toHaveBeenCalled();
@@ -870,7 +982,9 @@ describe("ClientLogReaderService", () => {
         league: "Settlers",
         startedAt: "2025-01-01T10:00:00Z",
       });
-      mockReadLastLines.mockResolvedValue("log");
+
+      const newData = "log\n";
+      mockReadSyncWith(newData);
       // totalCount > 0 but cards entry has empty processedIds
       mockParseCards.mockReturnValue({
         totalCount: 1,
@@ -880,13 +994,13 @@ describe("ClientLogReaderService", () => {
       });
 
       const callback = getWatchCallback();
-      await callback();
+      await callback(makeStats(newData.length), makeStats(0));
 
       // addCard should not be called since processedIds is empty
       expect(mockAddCard).not.toHaveBeenCalled();
     });
 
-    it("should handle readLastLines returning empty string", async () => {
+    it("should skip processing when a previous callback is still running (re-entrancy guard)", async () => {
       mockSettingsGet.mockImplementation(async (key: string) => {
         if (key === "selectedGame") return "poe1";
         if (key === "poe1ClientTxtPath") return "/game/client.txt";
@@ -901,14 +1015,259 @@ describe("ClientLogReaderService", () => {
         league: "Settlers",
         startedAt: "2025-01-01T10:00:00Z",
       });
-      mockReadLastLines.mockResolvedValue("");
-      mockParseCards.mockReturnValue({ totalCount: 0, cards: {} });
+
+      const newData = "log line\n";
+      mockReadSyncWith(newData);
+      mockParseCards.mockReturnValue({
+        totalCount: 1,
+        cards: {
+          "The Doctor": { count: 1, processedIds: ["id-1"] },
+        },
+      });
+
+      // Make addCard hang so the first callback never finishes
+      let resolveAddCard!: () => void;
+      mockAddCard.mockReturnValue(
+        new Promise<void>((resolve) => {
+          resolveAddCard = resolve;
+        }),
+      );
 
       const callback = getWatchCallback();
-      await callback();
 
-      expect(mockParseCards).toHaveBeenCalledWith("", expect.any(Set));
-      expect(mockAddCard).not.toHaveBeenCalled();
+      // Start the first callback — it will block on addCard
+      const firstCall = callback(makeStats(newData.length), makeStats(0));
+
+      // Allow microtasks to run so the first callback enters the processing path
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // Fire a second callback while the first is still running
+      mockParseCards.mockReturnValue({
+        totalCount: 1,
+        cards: {
+          "Rain of Chaos": { count: 1, processedIds: ["id-2"] },
+        },
+      });
+      const secondData = "another log line\n";
+      mockReadSyncWith(secondData);
+      await callback(
+        makeStats(newData.length + secondData.length),
+        makeStats(newData.length),
+      );
+
+      // The second callback should have been skipped entirely
+      expect(mockAddCard).toHaveBeenCalledTimes(1);
+      expect(mockAddCard).toHaveBeenCalledWith(
+        "poe1",
+        "Settlers",
+        "The Doctor",
+        "id-1",
+      );
+
+      // Let the first callback finish
+      resolveAddCard();
+      await firstCall;
+    });
+
+    it("should resume processing on the next tick after a blocked callback completes", async () => {
+      mockSettingsGet.mockImplementation(async (key: string) => {
+        if (key === "selectedGame") return "poe1";
+        if (key === "poe1ClientTxtPath") return "/game/client.txt";
+        return null;
+      });
+
+      await ClientLogReaderService.getInstance(mockMainWindow as any);
+
+      mockIsSessionActive.mockReturnValue(true);
+      mockGetActiveSessionInfo.mockReturnValue({
+        sessionId: "session-1",
+        league: "Settlers",
+        startedAt: "2025-01-01T10:00:00Z",
+      });
+
+      const firstData = "first line\n";
+      mockReadSyncWith(firstData);
+      mockParseCards.mockReturnValue({
+        totalCount: 1,
+        cards: {
+          "The Doctor": { count: 1, processedIds: ["id-1"] },
+        },
+      });
+
+      // Make first addCard hang then resolve
+      let resolveAddCard!: () => void;
+      mockAddCard.mockReturnValueOnce(
+        new Promise<void>((resolve) => {
+          resolveAddCard = resolve;
+        }),
+      );
+
+      const callback = getWatchCallback();
+
+      // Start and complete the first (blocked) callback
+      const firstCall = callback(makeStats(firstData.length), makeStats(0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      resolveAddCard();
+      await firstCall;
+
+      // Now fire a second callback — it should process normally
+      mockAddCard.mockResolvedValue(undefined);
+      const secondData = "second line\n";
+      mockReadSyncWith(secondData);
+      mockParseCards.mockReturnValue({
+        totalCount: 1,
+        cards: {
+          "Rain of Chaos": { count: 1, processedIds: ["id-2"] },
+        },
+      });
+
+      await callback(
+        makeStats(firstData.length + secondData.length),
+        makeStats(firstData.length),
+      );
+
+      expect(mockAddCard).toHaveBeenCalledTimes(2);
+      expect(mockAddCard).toHaveBeenLastCalledWith(
+        "poe1",
+        "Settlers",
+        "Rain of Chaos",
+        "id-2",
+      );
+    });
+
+    it("should release the re-entrancy guard even when processing throws", async () => {
+      mockSettingsGet.mockImplementation(async (key: string) => {
+        if (key === "selectedGame") return "poe1";
+        if (key === "poe1ClientTxtPath") return "/game/client.txt";
+        return null;
+      });
+
+      await ClientLogReaderService.getInstance(mockMainWindow as any);
+
+      mockIsSessionActive.mockReturnValue(true);
+      mockGetActiveSessionInfo.mockReturnValue({
+        sessionId: "session-1",
+        league: "Settlers",
+        startedAt: "2025-01-01T10:00:00Z",
+      });
+
+      const errorData = "error line\n";
+      mockReadSyncWith(errorData);
+      mockParseCards.mockImplementation(() => {
+        throw new Error("parse explosion");
+      });
+
+      const callback = getWatchCallback();
+
+      // First callback throws — should be caught and guard released
+      await callback(makeStats(errorData.length), makeStats(0));
+
+      // Second callback should process normally (guard was released)
+      mockParseCards.mockReturnValue({
+        totalCount: 1,
+        cards: {
+          "The Doctor": { count: 1, processedIds: ["id-1"] },
+        },
+      });
+      const secondData = "second line\n";
+      mockReadSyncWith(secondData);
+      mockAddCard.mockResolvedValue(undefined);
+
+      await callback(
+        makeStats(errorData.length + secondData.length),
+        makeStats(errorData.length),
+      );
+
+      expect(mockAddCard).toHaveBeenCalledTimes(1);
+      expect(mockAddCard).toHaveBeenCalledWith(
+        "poe1",
+        "Settlers",
+        "The Doctor",
+        "id-1",
+      );
+    });
+
+    it("should reset the re-entrancy guard when stopWatchFile is called", async () => {
+      mockSettingsGet.mockImplementation(async (key: string) => {
+        if (key === "selectedGame") return "poe1";
+        if (key === "poe1ClientTxtPath") return "/game/client.txt";
+        return null;
+      });
+
+      const service = await ClientLogReaderService.getInstance(
+        mockMainWindow as any,
+      );
+
+      mockIsSessionActive.mockReturnValue(true);
+      mockGetActiveSessionInfo.mockReturnValue({
+        sessionId: "session-1",
+        league: "Settlers",
+        startedAt: "2025-01-01T10:00:00Z",
+      });
+
+      const newData = "log line\n";
+      mockReadSyncWith(newData);
+      mockParseCards.mockReturnValue({
+        totalCount: 1,
+        cards: {
+          "The Doctor": { count: 1, processedIds: ["id-1"] },
+        },
+      });
+
+      // Make addCard hang indefinitely
+      mockAddCard.mockReturnValue(new Promise<void>(() => {}));
+
+      const callback = getWatchCallback();
+      // Start a callback that will never finish
+      callback(makeStats(newData.length), makeStats(0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // Stop watching — this should reset the guard
+      service.stopWatchFile();
+
+      // Start watching again with a new path
+      mockOpenSync.mockReturnValue(99);
+      mockFstatSync.mockReturnValue({ size: 0 });
+      service.setClientLogPath("/game/new-client.txt", "poe1");
+
+      // The new callback should process normally (guard was reset by stop)
+      mockAddCard.mockResolvedValue(undefined);
+      const freshData = "fresh line\n";
+      mockReadSyncWith(freshData);
+      mockParseCards.mockReturnValue({
+        totalCount: 1,
+        cards: {
+          "Rain of Chaos": { count: 1, processedIds: ["id-2"] },
+        },
+      });
+
+      const newCallback = getWatchCallback(1);
+      await newCallback(makeStats(freshData.length), makeStats(0));
+
+      expect(mockAddCard).toHaveBeenCalledWith(
+        "poe1",
+        "Settlers",
+        "Rain of Chaos",
+        "id-2",
+      );
+    });
+
+    it("should handle file deletion (stats with zero birthtimeMs)", async () => {
+      mockSettingsGet.mockImplementation(async (key: string) => {
+        if (key === "selectedGame") return "poe1";
+        if (key === "poe1ClientTxtPath") return "/game/client.txt";
+        return null;
+      });
+
+      await ClientLogReaderService.getInstance(mockMainWindow as any);
+
+      const callback = getWatchCallback();
+      // Simulate file deleted: size=0 and birthtimeMs=0
+      await callback({ size: 0, birthtimeMs: 0 }, makeStats(100));
+
+      expect(mockParseCards).not.toHaveBeenCalled();
+      // Should have closed the fd
+      expect(mockCloseSync).toHaveBeenCalled();
     });
 
     it("should handle consecutive file change callbacks correctly", async () => {
@@ -929,23 +1288,73 @@ describe("ClientLogReaderService", () => {
 
       const callback = getWatchCallback();
 
-      // First call: one card
-      mockReadLastLines.mockResolvedValue("first call");
+      // First call: one card — file grew from 0 to 20
+      const firstData = "first call\n";
+      mockReadSyncWith(firstData);
       mockParseCards.mockReturnValue({
         totalCount: 1,
         cards: { "Card A": { count: 1, processedIds: ["id-1"] } },
       });
-      await callback();
+      await callback(makeStats(firstData.length), makeStats(0));
       expect(mockAddCard).toHaveBeenCalledTimes(1);
 
-      // Second call: two cards
-      mockReadLastLines.mockResolvedValue("second call");
+      // Second call: two more cards — file grew further
+      const secondData = "second call\n";
+      mockReadSyncWith(secondData);
       mockParseCards.mockReturnValue({
         totalCount: 2,
         cards: { "Card B": { count: 2, processedIds: ["id-2", "id-3"] } },
       });
-      await callback();
+      await callback(
+        makeStats(firstData.length + secondData.length),
+        makeStats(firstData.length),
+      );
       expect(mockAddCard).toHaveBeenCalledTimes(3); // 1 + 2
+    });
+
+    it("should buffer partial lines across ticks", async () => {
+      mockSettingsGet.mockImplementation(async (key: string) => {
+        if (key === "selectedGame") return "poe1";
+        if (key === "poe1ClientTxtPath") return "/game/client.txt";
+        return null;
+      });
+
+      await ClientLogReaderService.getInstance(mockMainWindow as any);
+
+      mockIsSessionActive.mockReturnValue(true);
+      mockGetActiveSessionInfo.mockReturnValue({
+        sessionId: "session-1",
+        league: "Settlers",
+        startedAt: "2025-01-01T10:00:00Z",
+      });
+
+      const callback = getWatchCallback();
+
+      // First tick: data does NOT end with newline (partial line)
+      const partialData = "incomplete line without newline";
+      mockReadSyncWith(partialData);
+      mockParseCards.mockReturnValue({ totalCount: 0, cards: {} });
+
+      await callback(makeStats(partialData.length), makeStats(0));
+
+      // parseCards should NOT have been called since there's no complete line
+      expect(mockParseCards).not.toHaveBeenCalled();
+
+      // Second tick: rest of the line arrives with a newline
+      const restData = " finished\n";
+      mockReadSyncWith(restData);
+      mockParseCards.mockReturnValue({ totalCount: 0, cards: {} });
+
+      await callback(
+        makeStats(partialData.length + restData.length),
+        makeStats(partialData.length),
+      );
+
+      // Now parseCards should have been called with the full combined line
+      expect(mockParseCards).toHaveBeenCalledWith(
+        "incomplete line without newline finished\n",
+        expect.anything(),
+      );
     });
   });
 });

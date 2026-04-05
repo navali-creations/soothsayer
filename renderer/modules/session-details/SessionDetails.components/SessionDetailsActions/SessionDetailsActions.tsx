@@ -2,16 +2,14 @@ import { FiDownload } from "react-icons/fi";
 import { GiCardExchange, GiLockedChest } from "react-icons/gi";
 
 import { BackButton, Button, Flex } from "~/renderer/components";
-import { useBoundStore } from "~/renderer/store";
+import { useSessionDetails } from "~/renderer/store";
 
 interface SessionDetailsActionsProps {
   onExportCsv?: () => void;
 }
 
 const SessionDetailsActions = ({ onExportCsv }: SessionDetailsActionsProps) => {
-  const {
-    sessionDetails: { getPriceSource, setPriceSource },
-  } = useBoundStore();
+  const { getPriceSource, setPriceSource } = useSessionDetails();
 
   const priceSource = getPriceSource();
 

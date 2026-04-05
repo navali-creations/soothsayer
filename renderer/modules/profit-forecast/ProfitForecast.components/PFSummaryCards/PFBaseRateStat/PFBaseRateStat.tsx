@@ -3,23 +3,21 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { FiEdit2, FiX } from "react-icons/fi";
 
 import { Stat } from "~/renderer/components";
-import { useBoundStore } from "~/renderer/store";
+import { useProfitForecast } from "~/renderer/store";
 
 const PFBaseRateStat = () => {
   const {
-    profitForecast: {
-      isLoading,
-      baseRate,
-      baseRateSource,
-      customBaseRate,
-      snapshotFetchedAt,
-      getEffectiveBaseRate,
-      getBreakEvenRate,
-      hasData,
-      setCustomBaseRate,
-      setIsComputing,
-    },
-  } = useBoundStore();
+    isLoading,
+    baseRate,
+    baseRateSource,
+    customBaseRate,
+    snapshotFetchedAt,
+    getEffectiveBaseRate,
+    getBreakEvenRate,
+    hasData,
+    setCustomBaseRate,
+    setIsComputing,
+  } = useProfitForecast();
 
   // ─── Editing state ─────────────────────────────────────────────────────
 

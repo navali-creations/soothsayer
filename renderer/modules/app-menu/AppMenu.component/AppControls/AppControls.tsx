@@ -18,7 +18,7 @@ import { RxCaretDown } from "react-icons/rx";
 
 import { Button, Dropdown, Flex, Link } from "~/renderer/components";
 import UpdateIndicator from "~/renderer/modules/updater/UpdateIndicator/UpdateIndicator";
-import { useBoundStore } from "~/renderer/store";
+import { useAppMenu, useOverlay, useSetup } from "~/renderer/store";
 
 import DiskSpaceWarning from "../DiskSpaceWarning/DiskSpaceWarning";
 import WhatsNewModal from "../WhatsNewModal/WhatsNewModal";
@@ -27,18 +27,10 @@ const DISCORD_URL = "https://discord.gg/mrqmPYXHHT";
 const REPO_URL = "https://github.com/navali-creations/soothsayer";
 
 const AppControls = () => {
-  const {
-    appMenu: {
-      minimize,
-      maximize,
-      unmaximize,
-      close,
-      isMaximized,
-      openWhatsNew,
-    },
-    overlay: { toggle: toggleOverlay, isVisible: isOverlayVisible },
-    setup: { setupState },
-  } = useBoundStore();
+  const { minimize, maximize, unmaximize, close, isMaximized, openWhatsNew } =
+    useAppMenu();
+  const { toggle: toggleOverlay, isVisible: isOverlayVisible } = useOverlay();
+  const { setupState } = useSetup();
 
   const isSetupMode = !setupState?.isComplete;
 

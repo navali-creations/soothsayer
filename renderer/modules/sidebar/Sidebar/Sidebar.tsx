@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
 
-import { useBoundStore } from "~/renderer/store";
+import { useCurrentSession } from "~/renderer/store";
 
 import Navigation from "../Sidebar.components/Nav";
 import SessionStatus from "../Sidebar.components/SessionStatus";
@@ -8,9 +8,7 @@ import SessionStatus from "../Sidebar.components/SessionStatus";
 const SESSION_STATUS_HEIGHT = 133;
 
 const Sidebar = () => {
-  const {
-    currentSession: { getIsCurrentSessionActive },
-  } = useBoundStore();
+  const { getIsCurrentSessionActive } = useCurrentSession();
 
   const isActive = getIsCurrentSessionActive();
   return (

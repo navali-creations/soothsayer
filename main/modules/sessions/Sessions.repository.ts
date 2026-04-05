@@ -1,4 +1,4 @@
-import { type Kysely, sql } from "kysely";
+import { type Kysely, type SqlBool, sql } from "kysely";
 
 import type { Database } from "~/main/modules/database";
 
@@ -9,6 +9,14 @@ import type {
   SessionSummaryDTO,
 } from "./Sessions.dto";
 import { SessionsMapper } from "./Sessions.mapper";
+
+/**
+ * Escape SQL LIKE metacharacters so user input is treated as literal text.
+ * Uses backslash as the escape character (requires ESCAPE '\\' clause in SQLite).
+ */
+function escapeLike(value: string): string {
+  return value.replace(/[%_\\]/g, "\\$&");
+}
 
 /**
  * Repository for Sessions
@@ -360,31 +368,42 @@ export class SessionsRepository {
         ),
       ])
       .where("s.game", "=", game)
-      .where("sc.card_name", "like", `%${cardName}%`)
+      .where(
+        sql<SqlBool>`sc.card_name LIKE ${`%${escapeLike(
+          cardName,
+        )}%`} ESCAPE '\\'`,
+      )
       .where("s.total_count", ">", 0);
 
     if (league) {
       query = query.where("l.name", "=", league);
     }
 
-    // Map UI sort column names to SQL expressions
-    const sortColumnMap: Record<string, string> = {
-      date: "s.started_at",
-      league: "l.name",
-      found: "sc.count",
-      duration: "durationMinutes",
-      decks: "totalDecksOpened",
-    };
-
-    const sqlColumn = sortColumnMap[sortColumn] ?? "s.started_at";
     const sqlDirection = sortDirection === "asc" ? "asc" : "desc";
 
-    const rows = await query
-      .groupBy("s.id")
-      .orderBy(sql.raw(sqlColumn), sqlDirection)
-      .limit(limit)
-      .offset(offset)
-      .execute();
+    // Apply sort using type-safe Kysely orderBy — no sql.raw() needed.
+    // Each branch uses a known-safe column expression. The service layer
+    // validates sortColumn against an enum allowlist before reaching here.
+    let sorted = query.groupBy("s.id");
+    switch (sortColumn) {
+      case "league":
+        sorted = sorted.orderBy("l.name", sqlDirection);
+        break;
+      case "found":
+        sorted = sorted.orderBy("sc.count", sqlDirection);
+        break;
+      case "duration":
+        sorted = sorted.orderBy(sql`durationMinutes`, sqlDirection);
+        break;
+      case "decks":
+        sorted = sorted.orderBy(sql`totalDecksOpened`, sqlDirection);
+        break;
+      default:
+        sorted = sorted.orderBy("s.started_at", sqlDirection);
+        break;
+    }
+
+    const rows = await sorted.limit(limit).offset(offset).execute();
 
     return rows.map(SessionsMapper.toSessionSummaryDTO);
   }
@@ -403,7 +422,11 @@ export class SessionsRepository {
       .innerJoin("leagues as l", "s.league_id", "l.id")
       .select((eb) => eb.fn.countAll<number>().as("count"))
       .where("s.game", "=", game)
-      .where("sc.card_name", "like", `%${cardName}%`)
+      .where(
+        sql<SqlBool>`sc.card_name LIKE ${`%${escapeLike(
+          cardName,
+        )}%`} ESCAPE '\\'`,
+      )
       .where("s.total_count", ">", 0);
 
     if (league) {
@@ -1177,5 +1200,100 @@ export class SessionsRepository {
       totalSessions: row.totalSessions,
       winRate: row.profitableSessions / row.totalSessions,
     };
+  }
+
+  /**
+   * Get stacked deck chaos cost for multiple sessions.
+   * Returns a Map of sessionId → deckCost.
+   */
+  async getDeckCosts(sessionIds: string[]): Promise<Map<string, number>> {
+    if (sessionIds.length === 0) return new Map();
+
+    const rows = await this.kysely
+      .selectFrom("sessions as s")
+      .leftJoin("snapshots as snap", "s.snapshot_id", "snap.id")
+      .select([
+        "s.id as sessionId",
+        sql<number>`COALESCE(snap.stacked_deck_chaos_cost, 0)`.as("deckCost"),
+      ])
+      .where("s.id", "in", sessionIds)
+      .execute();
+
+    const result = new Map<string, number>();
+    for (const row of rows) {
+      result.set(row.sessionId, row.deckCost);
+    }
+    return result;
+  }
+
+  /**
+   * Get lightweight sparkline line points for multiple sessions.
+   * Groups card events into 10-second buckets and computes cumulative profit.
+   * Returns a map of sessionId → LinePoint[].
+   */
+  async getSparklineData(
+    sessionIds: string[],
+  ): Promise<Record<string, { x: number; profit: number }[]>> {
+    if (sessionIds.length === 0) return {};
+
+    // Query all card events for the given sessions, ordered by time
+    const rows = await this.kysely
+      .selectFrom("session_card_events")
+      .select(["session_id", "chaos_value", "dropped_at"])
+      .where("session_id", "in", sessionIds)
+      .orderBy("session_id")
+      .orderBy("dropped_at", "asc")
+      .orderBy("id", "asc")
+      .execute();
+
+    // Group events by session → 10-second buckets → cumulative values
+    const result: Record<string, { x: number; profit: number }[]> = {};
+
+    // Group rows by session_id
+    const bySession = new Map<string, typeof rows>();
+    for (const row of rows) {
+      const sid = row.session_id;
+      let arr = bySession.get(sid);
+      if (!arr) {
+        arr = [];
+        bySession.set(sid, arr);
+      }
+      arr.push(row);
+    }
+
+    for (const [sessionId, events] of bySession) {
+      let cumDrops = 0;
+      let cumChaos = 0;
+
+      // Bucket events by 10-second intervals
+      const bucketMap = new Map<
+        string,
+        { dropCount: number; cumChaos: number }
+      >();
+
+      for (const event of events) {
+        cumDrops++;
+        cumChaos += event.chaos_value ?? 0;
+
+        // 10-second bucket key
+        const dt = new Date(event.dropped_at);
+        const s = dt.getSeconds();
+        dt.setSeconds(s - (s % 10), 0);
+        const bucketKey = dt.toISOString();
+
+        bucketMap.set(bucketKey, { dropCount: cumDrops, cumChaos });
+      }
+
+      // Build line points: origin + one point per bucket boundary
+      const points: { x: number; profit: number }[] = [{ x: 0, profit: 0 }];
+      const sortedBuckets = Array.from(bucketMap.values());
+      for (const bucket of sortedBuckets) {
+        points.push({ x: bucket.dropCount, profit: bucket.cumChaos });
+      }
+
+      result[sessionId] = points;
+    }
+
+    return result;
   }
 }

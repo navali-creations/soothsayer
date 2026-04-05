@@ -1,12 +1,12 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useSessions } from "~/renderer/store";
 
 import { SessionsActions } from "./SessionsActions";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useSessions: vi.fn(),
 }));
 
 vi.mock("~/renderer/components", () => ({
@@ -25,28 +25,26 @@ vi.mock("~/renderer/hooks", () => ({
   useDebounce: vi.fn((value: string) => value),
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseSessions = vi.mocked(useSessions);
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-function createMockStore(overrides: any = {}) {
+function createMockSessions(overrides: any = {}) {
   return {
-    sessions: {
-      getUniqueLeagues: vi.fn(() => ["all", "Settlers", "Standard"]),
-      getSelectedLeague: vi.fn(() => "all"),
-      setSelectedLeague: vi.fn(),
-      getSearchQuery: vi.fn(() => ""),
-      loadAllSessions: vi.fn(),
-      searchSessions: vi.fn(),
-      ...overrides.sessions,
-    },
+    getUniqueLeagues: vi.fn(() => ["all", "Settlers", "Standard"]),
+    getSelectedLeague: vi.fn(() => "all"),
+    setSelectedLeague: vi.fn(),
+    getSearchQuery: vi.fn(() => ""),
+    loadAllSessions: vi.fn(),
+    searchSessions: vi.fn(),
+    ...overrides,
   } as any;
 }
 
 function setupStore(overrides: any = {}) {
-  const store = createMockStore(overrides);
-  mockUseBoundStore.mockReturnValue(store);
-  return store;
+  const sessions = createMockSessions(overrides.sessions);
+  mockUseSessions.mockReturnValue(sessions);
+  return sessions;
 }
 
 // ─── Tests ─────────────────────────────────────────────────────────────────
@@ -84,7 +82,7 @@ describe("SessionsActions", () => {
     const select = screen.getByRole("combobox");
     await user.selectOptions(select, "Settlers");
 
-    expect(store.sessions.setSelectedLeague).toHaveBeenCalledWith("Settlers");
+    expect(store.setSelectedLeague).toHaveBeenCalledWith("Settlers");
   });
 
   it("typing in search input updates the value", async () => {
@@ -105,7 +103,7 @@ describe("SessionsActions", () => {
     });
     renderWithProviders(<SessionsActions />);
 
-    expect(store.sessions.loadAllSessions).toHaveBeenCalledWith(1);
+    expect(store.loadAllSessions).toHaveBeenCalledWith(1);
   });
 
   it("non-empty search calls searchSessions", () => {
@@ -116,9 +114,6 @@ describe("SessionsActions", () => {
     });
     renderWithProviders(<SessionsActions />);
 
-    expect(store.sessions.searchSessions).toHaveBeenCalledWith(
-      "Rain of Chaos",
-      1,
-    );
+    expect(store.searchSessions).toHaveBeenCalledWith("Rain of Chaos", 1);
   });
 });

@@ -3,4 +3,5 @@ export { default as CurrentSessionStats } from "./CurrentSessionStats/CurrentSes
 export { default as CurrentSessionTable } from "./CurrentSessionTable/CurrentSessionTable";
 export { default as InactiveSessionAlert } from "./InactiveSessionAlert/InactiveSessionAlert";
 export { default as LoadingAlert } from "./LoadingAlert/LoadingAlert";
+export { default as SessionProfitTimeline } from "./SessionProfitTimeline";
 export { default as TrackingInfoAlert } from "./TrackingInfoAlert/TrackingInfoAlert";

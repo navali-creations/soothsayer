@@ -69,6 +69,15 @@ export interface SessionCardsTable {
   last_seen_at: ColumnType<string, string | undefined, string>;
 }
 
+export interface SessionCardEventsTable {
+  id: ColumnType<number, never, never>;
+  session_id: string;
+  card_name: string;
+  chaos_value: number | null;
+  divine_value: number | null;
+  dropped_at: ColumnType<string, string | undefined, never>;
+}
+
 export interface SessionSummariesTable {
   session_id: string;
   game: string;
@@ -303,6 +312,7 @@ export interface Database {
   snapshot_card_prices: SnapshotCardPricesTable;
   sessions: SessionsTable;
   session_cards: SessionCardsTable;
+  session_card_events: SessionCardEventsTable;
   session_summaries: SessionSummariesTable;
   processed_ids: ProcessedIdsTable;
   cards: CardsTable;
@@ -326,6 +336,7 @@ export interface Database {
  */
 export type SessionsRow = Selectable<SessionsTable>;
 export type SessionCardsRow = Selectable<SessionCardsTable>;
+export type SessionCardEventsRow = Selectable<SessionCardEventsTable>;
 export type LeaguesRow = Selectable<LeaguesTable>;
 export type SnapshotsRow = Selectable<SnapshotsTable>;
 export type SnapshotCardPricesRow = Selectable<SnapshotCardPricesTable>;

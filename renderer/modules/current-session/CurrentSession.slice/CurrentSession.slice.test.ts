@@ -780,118 +780,6 @@ describe("CurrentSessionSlice", () => {
     });
   });
 
-  // ─── updateSession ───────────────────────────────────────────────────
-
-  describe("updateSession", () => {
-    it("updates poe1Session", () => {
-      const session = makeSession({ totalCount: 10 });
-
-      store.getState().currentSession.updateSession("poe1", session);
-
-      expect(store.getState().currentSession.poe1Session).not.toBeNull();
-      expect(store.getState().currentSession.poe1Session!.totalCount).toBe(10);
-    });
-
-    it("updates poe2Session", () => {
-      const session = makeSession({ totalCount: 20 });
-
-      store.getState().currentSession.updateSession("poe2", session);
-
-      expect(store.getState().currentSession.poe2Session).not.toBeNull();
-      expect(store.getState().currentSession.poe2Session!.totalCount).toBe(20);
-    });
-
-    it("does not affect the other game's session", () => {
-      const poe1Session = makeSession({ totalCount: 10 });
-      const poe2Session = makeSession({ totalCount: 20 });
-
-      store.getState().currentSession.updateSession("poe1", poe1Session);
-      store.getState().currentSession.updateSession("poe2", poe2Session);
-
-      expect(store.getState().currentSession.poe1Session!.totalCount).toBe(10);
-      expect(store.getState().currentSession.poe2Session!.totalCount).toBe(20);
-    });
-  });
-
-  // ─── updateSessionInfo ───────────────────────────────────────────────
-
-  describe("updateSessionInfo", () => {
-    it("updates poe1SessionInfo", () => {
-      const info = makeSessionInfo({ league: "poe1:Settlers" });
-
-      store.getState().currentSession.updateSessionInfo("poe1", info);
-
-      expect(store.getState().currentSession.poe1SessionInfo).toEqual(info);
-    });
-
-    it("updates poe2SessionInfo", () => {
-      const info = makeSessionInfo({ league: "poe2:Standard" });
-
-      store.getState().currentSession.updateSessionInfo("poe2", info);
-
-      expect(store.getState().currentSession.poe2SessionInfo).toEqual(info);
-    });
-
-    it("can set info to null", () => {
-      const info = makeSessionInfo();
-      store.getState().currentSession.updateSessionInfo("poe1", info);
-      expect(store.getState().currentSession.poe1SessionInfo).not.toBeNull();
-
-      store.getState().currentSession.updateSessionInfo("poe1", null);
-
-      expect(store.getState().currentSession.poe1SessionInfo).toBeNull();
-    });
-  });
-
-  // ─── clearSession ────────────────────────────────────────────────────
-
-  describe("clearSession", () => {
-    it("clears poe1 session and sessionInfo", () => {
-      store.getState().currentSession.updateSession("poe1", makeSession());
-      store
-        .getState()
-        .currentSession.updateSessionInfo("poe1", makeSessionInfo());
-
-      store.getState().currentSession.clearSession("poe1");
-
-      expect(store.getState().currentSession.poe1Session).toBeNull();
-      expect(store.getState().currentSession.poe1SessionInfo).toBeNull();
-    });
-
-    it("clears poe2 session and sessionInfo", () => {
-      store.getState().currentSession.updateSession("poe2", makeSession());
-      store
-        .getState()
-        .currentSession.updateSessionInfo("poe2", makeSessionInfo());
-
-      store.getState().currentSession.clearSession("poe2");
-
-      expect(store.getState().currentSession.poe2Session).toBeNull();
-      expect(store.getState().currentSession.poe2SessionInfo).toBeNull();
-    });
-
-    it("does not affect the other game", () => {
-      store
-        .getState()
-        .currentSession.updateSession("poe1", makeSession({ totalCount: 1 }));
-      store
-        .getState()
-        .currentSession.updateSession("poe2", makeSession({ totalCount: 2 }));
-      store
-        .getState()
-        .currentSession.updateSessionInfo("poe1", makeSessionInfo());
-      store
-        .getState()
-        .currentSession.updateSessionInfo("poe2", makeSessionInfo());
-
-      store.getState().currentSession.clearSession("poe1");
-
-      expect(store.getState().currentSession.poe1Session).toBeNull();
-      expect(store.getState().currentSession.poe2Session).not.toBeNull();
-      expect(store.getState().currentSession.poe2Session!.totalCount).toBe(2);
-    });
-  });
-
   // ─── toggleCardPriceVisibility ────────────────────────────────────────
 
   describe("toggleCardPriceVisibility", () => {
@@ -902,7 +790,9 @@ describe("CurrentSessionSlice", () => {
       electron = window.electron as unknown as ElectronMock;
 
       const session = makeSession();
-      store.getState().currentSession.updateSession("poe1", session);
+      store.setState((s) => {
+        s.currentSession.poe1Session = session;
+      });
 
       electron.session.updateCardPriceVisibility.mockResolvedValue({
         success: true,
@@ -936,7 +826,9 @@ describe("CurrentSessionSlice", () => {
       electron = window.electron as unknown as ElectronMock;
 
       const session = makeSession();
-      store.getState().currentSession.updateSession("poe1", session);
+      store.setState((s) => {
+        s.currentSession.poe1Session = session;
+      });
 
       await store
         .getState()
@@ -955,7 +847,9 @@ describe("CurrentSessionSlice", () => {
       electron = window.electron as unknown as ElectronMock;
 
       const session = makeSession();
-      store.getState().currentSession.updateSession("poe1", session);
+      store.setState((s) => {
+        s.currentSession.poe1Session = session;
+      });
 
       electron.session.updateCardPriceVisibility.mockResolvedValue({
         success: true,
@@ -983,7 +877,9 @@ describe("CurrentSessionSlice", () => {
       const session = makeSession();
       // Set stashPrice.hidePrice to true on The Doctor
       session.cards[0].stashPrice!.hidePrice = true;
-      store.getState().currentSession.updateSession("poe1", session);
+      store.setState((s) => {
+        s.currentSession.poe1Session = session;
+      });
 
       electron.session.updateCardPriceVisibility.mockResolvedValue({
         success: true,
@@ -1010,7 +906,9 @@ describe("CurrentSessionSlice", () => {
 
       const session = makeSession();
       session.cards[0].exchangePrice!.hidePrice = true;
-      store.getState().currentSession.updateSession("poe1", session);
+      store.setState((s) => {
+        s.currentSession.poe1Session = session;
+      });
 
       electron.session.updateCardPriceVisibility.mockResolvedValue({
         success: true,
@@ -1033,11 +931,13 @@ describe("CurrentSessionSlice", () => {
   // ─── startListening ──────────────────────────────────────────────────
 
   describe("startListening", () => {
-    it("subscribes to onStateChanged and onDataUpdated", () => {
+    it("subscribes to onStateChanged, onDataUpdated, onTimelineDelta, and onCardDelta", () => {
       store.getState().currentSession.startListening();
 
       expect(electron.session.onStateChanged).toHaveBeenCalled();
       expect(electron.session.onDataUpdated).toHaveBeenCalled();
+      expect(electron.session.onTimelineDelta).toHaveBeenCalled();
+      expect(electron.session.onCardDelta).toHaveBeenCalled();
     });
 
     it("returns a cleanup function", () => {
@@ -1049,15 +949,21 @@ describe("CurrentSessionSlice", () => {
     it("cleanup calls unsubscribe functions", () => {
       const unsubStateChanged = vi.fn();
       const unsubDataUpdated = vi.fn();
+      const unsubTimelineDelta = vi.fn();
+      const unsubCardDelta = vi.fn();
 
       electron.session.onStateChanged.mockReturnValue(unsubStateChanged);
       electron.session.onDataUpdated.mockReturnValue(unsubDataUpdated);
+      electron.session.onTimelineDelta.mockReturnValue(unsubTimelineDelta);
+      electron.session.onCardDelta.mockReturnValue(unsubCardDelta);
 
       const cleanup = store.getState().currentSession.startListening();
       cleanup();
 
       expect(unsubStateChanged).toHaveBeenCalled();
       expect(unsubDataUpdated).toHaveBeenCalled();
+      expect(unsubTimelineDelta).toHaveBeenCalled();
+      expect(unsubCardDelta).toHaveBeenCalled();
     });
 
     describe("onStateChanged callback", () => {
@@ -1092,10 +998,12 @@ describe("CurrentSessionSlice", () => {
 
       it("clears poe1SessionInfo and poe1Session when poe1 becomes inactive", () => {
         // First make it active
-        store.getState().currentSession.updateSession("poe1", makeSession());
-        store
-          .getState()
-          .currentSession.updateSessionInfo("poe1", makeSessionInfo());
+        store.setState((s) => {
+          s.currentSession.poe1Session = makeSession();
+        });
+        store.setState((s) => {
+          s.currentSession.poe1SessionInfo = makeSessionInfo();
+        });
 
         stateChangedCallback({
           game: "poe1",
@@ -1123,10 +1031,12 @@ describe("CurrentSessionSlice", () => {
       });
 
       it("clears poe2SessionInfo and poe2Session when poe2 becomes inactive", () => {
-        store.getState().currentSession.updateSession("poe2", makeSession());
-        store
-          .getState()
-          .currentSession.updateSessionInfo("poe2", makeSessionInfo());
+        store.setState((s) => {
+          s.currentSession.poe2Session = makeSession();
+        });
+        store.setState((s) => {
+          s.currentSession.poe2SessionInfo = makeSessionInfo();
+        });
 
         stateChangedCallback({
           game: "poe2",
@@ -1198,7 +1108,9 @@ describe("CurrentSessionSlice", () => {
       });
 
       it("sets poe1Session to null when poe1 data is null", () => {
-        store.getState().currentSession.updateSession("poe1", makeSession());
+        store.setState((s) => {
+          s.currentSession.poe1Session = makeSession();
+        });
 
         dataUpdatedCallback({ game: "poe1", data: null });
 
@@ -1217,11 +1129,411 @@ describe("CurrentSessionSlice", () => {
       });
 
       it("sets poe2Session to null when poe2 data is null", () => {
-        store.getState().currentSession.updateSession("poe2", makeSession());
+        store.setState((s) => {
+          s.currentSession.poe2Session = makeSession();
+        });
 
         dataUpdatedCallback({ game: "poe2", data: null });
 
         expect(store.getState().currentSession.poe2Session).toBeNull();
+      });
+    });
+
+    describe("onTimelineDelta callback", () => {
+      let timelineDeltaCallback: (payload: any) => void;
+
+      beforeEach(() => {
+        electron.session.onStateChanged.mockReturnValue(vi.fn());
+        electron.session.onDataUpdated.mockReturnValue(vi.fn());
+        electron.session.onCardDelta.mockReturnValue(vi.fn());
+        electron.session.onTimelineDelta.mockImplementation(
+          (cb: (payload: any) => void) => {
+            timelineDeltaCallback = cb;
+            return vi.fn();
+          },
+        );
+        store = createTestStore({ settings: { selectedGame: "poe1" } });
+        store.getState().currentSession.startListening();
+      });
+
+      it("subscribes to onTimelineDelta", () => {
+        expect(electron.session.onTimelineDelta).toHaveBeenCalled();
+      });
+
+      it("ignores delta for non-selected game", () => {
+        // selectedGame is poe1, send delta for poe2 — should not throw
+        timelineDeltaCallback({
+          game: "poe2",
+          delta: { bucket: "2024-01-01T00:00:00Z", chaosValue: 100 },
+        });
+
+        // No observable state change — just verifying it doesn't crash
+        expect(electron.session.onTimelineDelta).toHaveBeenCalled();
+      });
+
+      it("cleanup unsubscribes onTimelineDelta", () => {
+        const unsubTimelineDelta = vi.fn();
+        electron.session.onTimelineDelta.mockReturnValue(unsubTimelineDelta);
+
+        const cleanup = store.getState().currentSession.startListening();
+        cleanup();
+
+        expect(unsubTimelineDelta).toHaveBeenCalled();
+      });
+    });
+
+    describe("onCardDelta callback", () => {
+      let cardDeltaCallback: (payload: any) => void;
+
+      beforeEach(() => {
+        electron.session.onStateChanged.mockReturnValue(vi.fn());
+        electron.session.onDataUpdated.mockReturnValue(vi.fn());
+        electron.session.onTimelineDelta.mockReturnValue(vi.fn());
+        electron.session.onCardDelta.mockImplementation(
+          (cb: (payload: any) => void) => {
+            cardDeltaCallback = cb;
+            return vi.fn();
+          },
+        );
+        store = createTestStore({ settings: { selectedGame: "poe1" } });
+        store.getState().currentSession.startListening();
+      });
+
+      it("updates existing card count", () => {
+        store.setState((s) => {
+          s.currentSession.poe1Session = makeSession();
+        });
+
+        cardDeltaCallback({
+          game: "poe1",
+          delta: {
+            cardName: "The Doctor",
+            newCount: 5,
+            totalCount: 53,
+            exchangePrice: { chaosValue: 1200, divineValue: 8 },
+            stashPrice: { chaosValue: 1100, divineValue: 7.3 },
+            updatedTotals: null,
+            recentDrop: null,
+          },
+        });
+
+        const session = store.getState().currentSession.poe1Session!;
+        const doctor = session.cards.find((c) => c.name === "The Doctor")!;
+        expect(doctor.count).toBe(5);
+      });
+
+      it("adds new card to session", () => {
+        store.setState((s) => {
+          s.currentSession.poe1Session = makeSession();
+        });
+
+        cardDeltaCallback({
+          game: "poe1",
+          delta: {
+            cardName: "House of Mirrors",
+            newCount: 1,
+            totalCount: 51,
+            exchangePrice: { chaosValue: 5000, divineValue: 33 },
+            stashPrice: { chaosValue: 4800, divineValue: 32 },
+            updatedTotals: null,
+            recentDrop: null,
+          },
+        });
+
+        const session = store.getState().currentSession.poe1Session!;
+        const mirror = session.cards.find((c) => c.name === "House of Mirrors");
+        expect(mirror).toBeDefined();
+        expect(mirror!.count).toBe(1);
+        expect(mirror!.exchangePrice).toBeDefined();
+        expect(mirror!.stashPrice).toBeDefined();
+      });
+
+      it("ignores delta for non-selected game", () => {
+        store.setState((s) => {
+          s.currentSession.poe1Session = makeSession();
+        });
+
+        cardDeltaCallback({
+          game: "poe2",
+          delta: {
+            cardName: "The Doctor",
+            newCount: 99,
+            totalCount: 999,
+            exchangePrice: { chaosValue: 1200, divineValue: 8 },
+            stashPrice: null,
+            updatedTotals: null,
+            recentDrop: null,
+          },
+        });
+
+        const session = store.getState().currentSession.poe1Session!;
+        const doctor = session.cards.find((c) => c.name === "The Doctor")!;
+        expect(doctor.count).toBe(2); // unchanged from makeSession default
+      });
+
+      it("does nothing when session is null", () => {
+        // No session seeded — poe1Session is null
+        cardDeltaCallback({
+          game: "poe1",
+          delta: {
+            cardName: "The Doctor",
+            newCount: 5,
+            totalCount: 53,
+            exchangePrice: null,
+            stashPrice: null,
+            updatedTotals: null,
+            recentDrop: null,
+          },
+        });
+
+        expect(store.getState().currentSession.poe1Session).toBeNull();
+      });
+
+      it("updates session totals", () => {
+        store.setState((s) => {
+          s.currentSession.poe1Session = makeSession();
+        });
+
+        const newTotals = {
+          exchange: {
+            totalValue: 9999,
+            netProfit: 8888,
+            chaosToDivineRatio: 160,
+          },
+          stash: {
+            totalValue: 7777,
+            netProfit: 6666,
+            chaosToDivineRatio: 155,
+          },
+          stackedDeckChaosCost: 4,
+          totalDeckCost: 200,
+        };
+
+        cardDeltaCallback({
+          game: "poe1",
+          delta: {
+            cardName: "The Doctor",
+            newCount: 3,
+            totalCount: 51,
+            exchangePrice: { chaosValue: 1200, divineValue: 8 },
+            stashPrice: { chaosValue: 1100, divineValue: 7.3 },
+            updatedTotals: newTotals,
+            recentDrop: null,
+          },
+        });
+
+        const session = store.getState().currentSession.poe1Session!;
+        expect(session.totals).toEqual(newTotals);
+      });
+
+      it("updates totalCount", () => {
+        store.setState((s) => {
+          s.currentSession.poe1Session = makeSession();
+        });
+
+        cardDeltaCallback({
+          game: "poe1",
+          delta: {
+            cardName: "The Doctor",
+            newCount: 3,
+            totalCount: 123,
+            exchangePrice: { chaosValue: 1200, divineValue: 8 },
+            stashPrice: null,
+            updatedTotals: null,
+            recentDrop: null,
+          },
+        });
+
+        const session = store.getState().currentSession.poe1Session!;
+        expect(session.totalCount).toBe(123);
+      });
+
+      it("prepends recentDrop and caps at 20", () => {
+        // Seed session with 20 existing recent drops
+        const existingDrops = Array.from({ length: 20 }, (_, i) => ({
+          cardName: `Card ${i}`,
+          exchangePrice: { chaosValue: 1, divineValue: 0.01 },
+          stashPrice: { chaosValue: 1, divineValue: 0.01 },
+        }));
+        store.setState((s) => {
+          s.currentSession.poe1Session = makeSession({
+            recentDrops: existingDrops,
+          } as any);
+        });
+
+        const newDrop = {
+          cardName: "The Doctor",
+          exchangePrice: { chaosValue: 1200, divineValue: 8 },
+          stashPrice: { chaosValue: 1100, divineValue: 7.3 },
+        };
+
+        cardDeltaCallback({
+          game: "poe1",
+          delta: {
+            cardName: "The Doctor",
+            newCount: 3,
+            totalCount: 51,
+            exchangePrice: { chaosValue: 1200, divineValue: 8 },
+            stashPrice: { chaosValue: 1100, divineValue: 7.3 },
+            updatedTotals: null,
+            recentDrop: newDrop,
+          },
+        });
+
+        const session = store.getState().currentSession.poe1Session!;
+        expect(session.recentDrops).toHaveLength(20);
+        expect(session.recentDrops![0].cardName).toBe("The Doctor");
+        // Last item from original array should have been dropped
+        expect(
+          session.recentDrops!.find((d) => d.cardName === "Card 19"),
+        ).toBeUndefined();
+      });
+
+      it("updates exchange price totalValue for existing card", () => {
+        store.setState((s) => {
+          s.currentSession.poe1Session = makeSession();
+        });
+
+        cardDeltaCallback({
+          game: "poe1",
+          delta: {
+            cardName: "The Doctor",
+            newCount: 5,
+            totalCount: 53,
+            exchangePrice: { chaosValue: 1200, divineValue: 8 },
+            stashPrice: null,
+            updatedTotals: null,
+            recentDrop: null,
+          },
+        });
+
+        const session = store.getState().currentSession.poe1Session!;
+        const doctor = session.cards.find((c) => c.name === "The Doctor")!;
+        // totalValue = chaosValue * newCount = 1200 * 5
+        expect(doctor.exchangePrice!.totalValue).toBe(6000);
+      });
+
+      it("updates stash price totalValue for existing card", () => {
+        store.setState((s) => {
+          s.currentSession.poe1Session = makeSession();
+        });
+
+        cardDeltaCallback({
+          game: "poe1",
+          delta: {
+            cardName: "The Doctor",
+            newCount: 5,
+            totalCount: 53,
+            exchangePrice: null,
+            stashPrice: { chaosValue: 1100, divineValue: 7.3 },
+            updatedTotals: null,
+            recentDrop: null,
+          },
+        });
+
+        const session = store.getState().currentSession.poe1Session!;
+        const doctor = session.cards.find((c) => c.name === "The Doctor")!;
+        // totalValue = chaosValue * newCount = 1100 * 5
+        expect(doctor.stashPrice!.totalValue).toBe(5500);
+      });
+
+      it("adds card with exchangePrice and stashPrice", () => {
+        store.setState((s) => {
+          s.currentSession.poe1Session = makeSession();
+        });
+
+        cardDeltaCallback({
+          game: "poe1",
+          delta: {
+            cardName: "House of Mirrors",
+            newCount: 1,
+            totalCount: 51,
+            exchangePrice: { chaosValue: 5000, divineValue: 33 },
+            stashPrice: { chaosValue: 4800, divineValue: 32 },
+            updatedTotals: null,
+            recentDrop: null,
+          },
+        });
+
+        const session = store.getState().currentSession.poe1Session!;
+        const mirror = session.cards.find(
+          (c) => c.name === "House of Mirrors",
+        )!;
+        expect(mirror.exchangePrice).toEqual({
+          chaosValue: 5000,
+          divineValue: 33,
+          totalValue: 5000,
+          hidePrice: false,
+        });
+        expect(mirror.stashPrice).toEqual({
+          chaosValue: 4800,
+          divineValue: 32,
+          totalValue: 4800,
+          hidePrice: false,
+        });
+      });
+
+      it("adds card with divinationCard metadata", () => {
+        store.setState((s) => {
+          s.currentSession.poe1Session = makeSession();
+        });
+
+        const divCard = {
+          id: "house-of-mirrors",
+          rarity: 1 as const,
+          fromBoss: false,
+          stackSize: 2,
+          description: "Mirror of Kalandra",
+          rewardHtml: "<span>Mirror of Kalandra</span>",
+        };
+
+        cardDeltaCallback({
+          game: "poe1",
+          delta: {
+            cardName: "House of Mirrors",
+            newCount: 1,
+            totalCount: 51,
+            exchangePrice: { chaosValue: 5000, divineValue: 33 },
+            stashPrice: null,
+            updatedTotals: null,
+            recentDrop: null,
+            divinationCard: divCard,
+          },
+        });
+
+        const session = store.getState().currentSession.poe1Session!;
+        const mirror = session.cards.find(
+          (c) => c.name === "House of Mirrors",
+        )!;
+        expect((mirror as any).divinationCard).toEqual(divCard);
+      });
+
+      it("adds card with hidePrice flags from delta", () => {
+        store.setState((s) => {
+          s.currentSession.poe1Session = makeSession();
+        });
+
+        cardDeltaCallback({
+          game: "poe1",
+          delta: {
+            cardName: "House of Mirrors",
+            newCount: 1,
+            totalCount: 51,
+            exchangePrice: { chaosValue: 5000, divineValue: 33 },
+            stashPrice: { chaosValue: 4800, divineValue: 32 },
+            updatedTotals: null,
+            recentDrop: null,
+            hidePriceExchange: true,
+            hidePriceStash: true,
+          },
+        });
+
+        const session = store.getState().currentSession.poe1Session!;
+        const mirror = session.cards.find(
+          (c) => c.name === "House of Mirrors",
+        )!;
+        expect(mirror.exchangePrice!.hidePrice).toBe(true);
+        expect(mirror.stashPrice!.hidePrice).toBe(true);
       });
     });
   });
@@ -1236,7 +1548,9 @@ describe("CurrentSessionSlice", () => {
         });
 
         const session = makeSession({ totalCount: 11 });
-        store.getState().currentSession.updateSession("poe1", session);
+        store.setState((s) => {
+          s.currentSession.poe1Session = session;
+        });
 
         expect(store.getState().currentSession.getSession()).not.toBeNull();
         expect(store.getState().currentSession.getSession()!.totalCount).toBe(
@@ -1250,7 +1564,9 @@ describe("CurrentSessionSlice", () => {
         });
 
         const session = makeSession({ totalCount: 22 });
-        store.getState().currentSession.updateSession("poe2", session);
+        store.setState((s) => {
+          s.currentSession.poe2Session = session;
+        });
 
         expect(store.getState().currentSession.getSession()).not.toBeNull();
         expect(store.getState().currentSession.getSession()!.totalCount).toBe(
@@ -1273,8 +1589,10 @@ describe("CurrentSessionSlice", () => {
           settings: { selectedGame: "poe1" },
         });
 
-        const info = makeSessionInfo({ league: "poe1:Settlers" });
-        store.getState().currentSession.updateSessionInfo("poe1", info);
+        const info = makeSessionInfo({ league: "Settlers" });
+        store.setState((s) => {
+          s.currentSession.poe1SessionInfo = info;
+        });
 
         expect(store.getState().currentSession.getSessionInfo()).toEqual(info);
       });
@@ -1284,8 +1602,10 @@ describe("CurrentSessionSlice", () => {
           settings: { selectedGame: "poe2" },
         });
 
-        const info = makeSessionInfo({ league: "poe2:Standard" });
-        store.getState().currentSession.updateSessionInfo("poe2", info);
+        const info = makeSessionInfo({ league: "Dawn" });
+        store.setState((s) => {
+          s.currentSession.poe2SessionInfo = info;
+        });
 
         expect(store.getState().currentSession.getSessionInfo()).toEqual(info);
       });
@@ -1301,9 +1621,9 @@ describe("CurrentSessionSlice", () => {
           settings: { selectedGame: "poe1" },
         });
 
-        store
-          .getState()
-          .currentSession.updateSessionInfo("poe1", makeSessionInfo());
+        store.setState((s) => {
+          s.currentSession.poe1SessionInfo = makeSessionInfo();
+        });
 
         expect(
           store.getState().currentSession.getIsCurrentSessionActive(),
@@ -1317,34 +1637,15 @@ describe("CurrentSessionSlice", () => {
       });
     });
 
-    describe("getTotalCards", () => {
-      it("returns session totalCount for the active game", () => {
-        store = createTestStore({
-          settings: { selectedGame: "poe1" },
-        });
-
-        store
-          .getState()
-          .currentSession.updateSession(
-            "poe1",
-            makeSession({ totalCount: 77 }),
-          );
-
-        expect(store.getState().currentSession.getTotalCards("poe1")).toBe(77);
-      });
-
-      it("returns 0 when no session exists", () => {
-        expect(store.getState().currentSession.getTotalCards("poe1")).toBe(0);
-      });
-    });
-
     describe("getChaosToDivineRatio", () => {
       it("returns the ratio from session totals for exchange price source", () => {
         store = createTestStore({
           settings: { selectedGame: "poe1", poe1PriceSource: "exchange" },
         });
 
-        store.getState().currentSession.updateSession("poe1", makeSession());
+        store.setState((s) => {
+          s.currentSession.poe1Session = makeSession();
+        });
 
         const ratio = store.getState().currentSession.getChaosToDivineRatio();
         expect(ratio).toBe(150);
@@ -1355,7 +1656,9 @@ describe("CurrentSessionSlice", () => {
           settings: { selectedGame: "poe1", poe1PriceSource: "stash" },
         });
 
-        store.getState().currentSession.updateSession("poe1", makeSession());
+        store.setState((s) => {
+          s.currentSession.poe1Session = makeSession();
+        });
 
         const ratio = store.getState().currentSession.getChaosToDivineRatio();
         expect(ratio).toBe(145);

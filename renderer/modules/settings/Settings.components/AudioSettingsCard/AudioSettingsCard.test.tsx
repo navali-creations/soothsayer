@@ -9,17 +9,17 @@ import {
   waitFor,
 } from "~/renderer/__test-setup__/render";
 import { trackEvent } from "~/renderer/modules/umami";
-import { useBoundStore } from "~/renderer/store";
+import { useSettings } from "~/renderer/store";
 
 import AudioSettingsCard from "./AudioSettingsCard";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useSettings: vi.fn(),
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseSettings = vi.mocked(useSettings);
 
 vi.mock("~/renderer/components", () => ({
   Button: ({ children, onClick, disabled, loading, ...props }: any) => (
@@ -57,31 +57,27 @@ vi.mock("react-icons/fi", () => ({
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-function createMockStore(overrides: any = {}) {
+function createMockSettings(overrides: any = {}) {
   return {
-    settings: {
-      audioDetectedFiles: [],
-      audioIsScanning: false,
-      audioPreviewingFile: null,
-      scanCustomSounds: vi.fn().mockResolvedValue(undefined),
-      setAudioPreviewingFile: vi.fn(),
-      updateSetting: vi.fn().mockResolvedValue(undefined),
-      audioEnabled: true,
-      audioVolume: 0.5,
-      audioRarity1Path: null,
-      audioRarity2Path: null,
-      audioRarity3Path: null,
-      ...overrides.settings,
-    },
+    audioDetectedFiles: [],
+    audioIsScanning: false,
+    audioPreviewingFile: null,
+    scanCustomSounds: vi.fn().mockResolvedValue(undefined),
+    setAudioPreviewingFile: vi.fn(),
+    updateSetting: vi.fn().mockResolvedValue(undefined),
+    audioEnabled: true,
+    audioVolume: 0.5,
+    audioRarity1Path: null,
+    audioRarity2Path: null,
+    audioRarity3Path: null,
+    ...overrides.settings,
   } as any;
 }
 
 function setupStore(overrides: any = {}) {
-  const store = createMockStore(overrides);
-  mockUseBoundStore.mockImplementation((selector?: any) => {
-    return selector ? selector(store) : store;
-  });
-  return store;
+  const settings = createMockSettings(overrides);
+  mockUseSettings.mockReturnValue(settings);
+  return { settings };
 }
 
 // ─── Tests ─────────────────────────────────────────────────────────────────

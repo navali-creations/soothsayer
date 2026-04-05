@@ -1,10 +1,10 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useProfitForecast } from "~/renderer/store";
 
 import PFBreakEvenStat from "./PFBreakEvenStat";
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useProfitForecast: vi.fn(),
 }));
 
 vi.mock("~/renderer/components", () => ({
@@ -34,23 +34,21 @@ vi.mock("~/renderer/components", () => ({
   ),
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseProfitForecast = vi.mocked(useProfitForecast);
 
 function createMockState(overrides: any = {}) {
   return {
-    profitForecast: {
-      isLoading: false,
-      getBreakEvenRate: vi.fn(() => 20),
-      getEffectiveBaseRate: vi.fn(() => 80),
-      hasData: vi.fn(() => true),
-      ...overrides.profitForecast,
-    },
+    isLoading: false,
+    getBreakEvenRate: vi.fn(() => 20),
+    getEffectiveBaseRate: vi.fn(() => 80),
+    hasData: vi.fn(() => true),
+    ...overrides.profitForecast,
   } as any;
 }
 
 function setupStore(overrides: any = {}) {
   const state = createMockState(overrides);
-  mockUseBoundStore.mockReturnValue(state);
+  mockUseProfitForecast.mockReturnValue(state);
   return state;
 }
 

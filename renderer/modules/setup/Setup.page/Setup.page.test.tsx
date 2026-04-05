@@ -5,14 +5,14 @@ import {
   screen,
   waitFor,
 } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useSetup } from "~/renderer/store";
 
 import SetupPage from "./Setup.page";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useSetup: vi.fn(),
 }));
 
 vi.mock("~/main/modules/app-setup/AppSetup.types", () => ({
@@ -39,27 +39,25 @@ vi.mock("../Setup.components", () => ({
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseSetup = vi.mocked(useSetup);
 
 function createMockStore(overrides: Record<string, unknown> = {}) {
   return {
-    setup: {
-      setupState: {
-        currentStep: 1,
-        isComplete: false,
-        selectedGames: ["poe1"],
-        poe1League: "Standard",
-        poe2League: "Standard",
-        poe1ClientPath: null,
-        poe2ClientPath: null,
-        telemetryCrashReporting: false,
-        telemetryUsageAnalytics: false,
-      },
-      trackSetupStarted: vi.fn(),
-      validateCurrentStep: vi.fn(),
-      advanceStep: vi.fn(),
-      ...overrides,
+    setupState: {
+      currentStep: 1,
+      isComplete: false,
+      selectedGames: ["poe1"],
+      poe1League: "Standard",
+      poe2League: "Standard",
+      poe1ClientPath: null,
+      poe2ClientPath: null,
+      telemetryCrashReporting: false,
+      telemetryUsageAnalytics: false,
     },
+    trackSetupStarted: vi.fn(),
+    validateCurrentStep: vi.fn(),
+    advanceStep: vi.fn(),
+    ...overrides,
   } as any;
 }
 
@@ -67,14 +65,14 @@ function createMockStore(overrides: Record<string, unknown> = {}) {
 
 describe("SetupPage", () => {
   beforeEach(() => {
-    mockUseBoundStore.mockReturnValue(createMockStore());
+    mockUseSetup.mockReturnValue(createMockStore());
   });
 
   // ── Loading states ─────────────────────────────────────────────────────
 
   describe("loading states", () => {
     it("shows loading spinner when setupState is null", () => {
-      mockUseBoundStore.mockReturnValue(createMockStore({ setupState: null }));
+      mockUseSetup.mockReturnValue(createMockStore({ setupState: null }));
 
       renderWithProviders(<SetupPage />);
 
@@ -84,7 +82,7 @@ describe("SetupPage", () => {
     });
 
     it("shows loading spinner when currentStep is NOT_STARTED (0)", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             currentStep: 0,
@@ -107,7 +105,7 @@ describe("SetupPage", () => {
   describe("lifecycle effects", () => {
     it("calls trackSetupStarted on mount", () => {
       const trackSetupStarted = vi.fn();
-      mockUseBoundStore.mockReturnValue(createMockStore({ trackSetupStarted }));
+      mockUseSetup.mockReturnValue(createMockStore({ trackSetupStarted }));
 
       renderWithProviders(<SetupPage />);
 
@@ -116,7 +114,7 @@ describe("SetupPage", () => {
 
     it("calls advanceStep when at step 0 (auto-advance)", async () => {
       const advanceStep = vi.fn();
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             currentStep: 0,
@@ -136,7 +134,7 @@ describe("SetupPage", () => {
 
     it("calls validateCurrentStep when step > 0", () => {
       const validateCurrentStep = vi.fn();
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             currentStep: 2,
@@ -157,7 +155,7 @@ describe("SetupPage", () => {
 
   describe("step rendering", () => {
     it("renders SetupGameStep when currentStep is SELECT_GAME (1)", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             currentStep: 1,
@@ -180,7 +178,7 @@ describe("SetupPage", () => {
     });
 
     it("renders SetupLeagueStep when currentStep is SELECT_LEAGUE (2)", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             currentStep: 2,
@@ -203,7 +201,7 @@ describe("SetupPage", () => {
     });
 
     it("renders SetupClientPathStep when currentStep is SELECT_CLIENT_PATH (3)", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             currentStep: 3,
@@ -224,7 +222,7 @@ describe("SetupPage", () => {
     });
 
     it("renders SetupTelemetryStep when currentStep is TELEMETRY_CONSENT (4)", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             currentStep: 4,
@@ -263,7 +261,7 @@ describe("SetupPage", () => {
 
     it("renders SetupActions on every visible step", () => {
       // Step 2
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             currentStep: 2,
@@ -278,7 +276,7 @@ describe("SetupPage", () => {
       unmount();
 
       // Step 3
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             currentStep: 3,
@@ -294,7 +292,7 @@ describe("SetupPage", () => {
 
     it("renders SetupErrorDisplay on every visible step", () => {
       // Step 4
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             currentStep: 4,

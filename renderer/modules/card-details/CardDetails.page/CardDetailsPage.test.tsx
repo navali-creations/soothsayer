@@ -1,11 +1,19 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import {
+  useCardDetails,
+  useProhibitedLibrary,
+  useSettings,
+} from "~/renderer/store";
 
 // ─── Store mock ────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({ useBoundStore: vi.fn() }));
+vi.mock("~/renderer/store", () => ({
+  useCardDetails: vi.fn(),
+  useProhibitedLibrary: vi.fn(),
+  useSettings: vi.fn(),
+}));
 
 // ─── Router mock ───────────────────────────────────────────────────────────
 
@@ -86,67 +94,60 @@ import CardDetailsPage from "./CardDetails.page";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-function createMockState(overrides: Record<string, any> = {}) {
-  const base = {
-    settings: {
-      getSelectedGame: vi.fn(() => "poe1"),
-      getActiveGameViewSelectedLeague: vi.fn(() => "Settlers"),
-    },
-    cardDetails: {
-      card: {
-        name: "Test Card",
-        id: 1,
-        stackSize: 5,
-        description: "test",
-        rewardHtml: "<p>R</p>",
-        artSrc: "art.png",
-        flavourHtml: "",
-        rarity: 3,
-        filterRarity: 3,
-        fromBoss: false,
-      },
-      isLoadingCard: false,
-      cardError: null,
-      initializeCardDetails: vi.fn(),
-      refreshPersonalAnalytics: vi.fn(),
-      fetchPriceHistory: vi.fn(),
-      clearCardDetails: vi.fn(),
-      isLoadingPersonalAnalytics: false,
-      isLeagueSwitching: false,
-      selectedLeague: "all",
-      setSelectedLeague: vi.fn(),
-      activeTab: "market",
-      getDisplayRarity: vi.fn(() => 3),
-    },
-    prohibitedLibrary: {
-      poe1Status: { league: "Settlers" },
-      poe2Status: null,
-      fetchStatus: vi.fn(),
-    },
+function createMockSlices(overrides: Record<string, any> = {}) {
+  const settings = {
+    getSelectedGame: vi.fn(() => "poe1"),
+    getActiveGameViewSelectedLeague: vi.fn(() => "Settlers"),
+    ...overrides.settings,
   };
 
-  // Apply overrides (shallow merge per slice)
-  if (overrides.settings) {
-    base.settings = { ...base.settings, ...overrides.settings };
-  }
-  if (overrides.cardDetails) {
-    base.cardDetails = { ...base.cardDetails, ...overrides.cardDetails };
-  }
-  if (overrides.prohibitedLibrary) {
-    base.prohibitedLibrary = {
-      ...base.prohibitedLibrary,
-      ...overrides.prohibitedLibrary,
-    };
-  }
+  const cardDetails = {
+    card: {
+      name: "Test Card",
+      id: 1,
+      stackSize: 5,
+      description: "test",
+      rewardHtml: "<p>R</p>",
+      artSrc: "art.png",
+      flavourHtml: "",
+      rarity: 3,
+      filterRarity: 3,
+      fromBoss: false,
+    },
+    isLoadingCard: false,
+    cardError: null,
+    initializeCardDetails: vi.fn(),
+    refreshPersonalAnalytics: vi.fn(),
+    fetchPriceHistory: vi.fn(),
+    clearCardDetails: vi.fn(),
+    isLoadingPersonalAnalytics: false,
+    isLeagueSwitching: false,
+    selectedLeague: "all",
+    setSelectedLeague: vi.fn(),
+    activeTab: "market",
+    getDisplayRarity: vi.fn(() => 3),
+    ...overrides.cardDetails,
+  };
 
-  return base;
+  const prohibitedLibrary = {
+    poe1Status: { league: "Settlers" },
+    poe2Status: null,
+    fetchStatus: vi.fn(),
+    ...overrides.prohibitedLibrary,
+  };
+
+  return { settings, cardDetails, prohibitedLibrary };
 }
 
 function renderPage(overrides: Record<string, any> = {}) {
-  const mockState = createMockState(overrides);
-  vi.mocked(useBoundStore).mockReturnValue(mockState as any);
+  const mockSlices = createMockSlices(overrides);
+  vi.mocked(useSettings).mockReturnValue(mockSlices.settings as any);
+  vi.mocked(useCardDetails).mockReturnValue(mockSlices.cardDetails as any);
+  vi.mocked(useProhibitedLibrary).mockReturnValue(
+    mockSlices.prohibitedLibrary as any,
+  );
   const result = renderWithProviders(<CardDetailsPage />);
-  return { ...result, mockState };
+  return { ...result, mockSlices };
 }
 
 // ─── Cleanup ───────────────────────────────────────────────────────────────
@@ -280,11 +281,11 @@ describe("CardDetailsPage — normal render", () => {
 
 describe("CardDetailsPage — effects", () => {
   it("calls initializeCardDetails on mount", () => {
-    const { mockState } = renderPage();
-    expect(mockState.cardDetails.initializeCardDetails).toHaveBeenCalledTimes(
+    const { mockSlices } = renderPage();
+    expect(mockSlices.cardDetails.initializeCardDetails).toHaveBeenCalledTimes(
       1,
     );
-    expect(mockState.cardDetails.initializeCardDetails).toHaveBeenCalledWith(
+    expect(mockSlices.cardDetails.initializeCardDetails).toHaveBeenCalledWith(
       "poe1",
       "test-card",
       expect.anything(),
@@ -293,34 +294,36 @@ describe("CardDetailsPage — effects", () => {
   });
 
   it("calls clearCardDetails on unmount", () => {
-    const { unmount, mockState } = renderPage();
-    expect(mockState.cardDetails.clearCardDetails).not.toHaveBeenCalled();
+    const { unmount, mockSlices } = renderPage();
+    expect(mockSlices.cardDetails.clearCardDetails).not.toHaveBeenCalled();
     unmount();
-    expect(mockState.cardDetails.clearCardDetails).toHaveBeenCalledTimes(1);
+    expect(mockSlices.cardDetails.clearCardDetails).toHaveBeenCalledTimes(1);
   });
 
   it('calls setSelectedLeague("all") on mount (reset for card navigation)', () => {
-    const { mockState } = renderPage();
-    expect(mockState.cardDetails.setSelectedLeague).toHaveBeenCalledWith("all");
+    const { mockSlices } = renderPage();
+    expect(mockSlices.cardDetails.setSelectedLeague).toHaveBeenCalledWith(
+      "all",
+    );
   });
 
   it("calls fetchStatus when plStatusForGame is null", () => {
-    const { mockState } = renderPage({
+    const { mockSlices } = renderPage({
       prohibitedLibrary: { poe1Status: null },
     });
-    expect(mockState.prohibitedLibrary.fetchStatus).toHaveBeenCalled();
+    expect(mockSlices.prohibitedLibrary.fetchStatus).toHaveBeenCalled();
   });
 
   it("does NOT call fetchStatus when plStatusForGame exists", () => {
-    const { mockState } = renderPage({
+    const { mockSlices } = renderPage({
       prohibitedLibrary: { poe1Status: { league: "Settlers" } },
     });
-    expect(mockState.prohibitedLibrary.fetchStatus).not.toHaveBeenCalled();
+    expect(mockSlices.prohibitedLibrary.fetchStatus).not.toHaveBeenCalled();
   });
 
   it("calls fetchPriceHistory when activeTab is market", () => {
-    const { mockState } = renderPage({ cardDetails: { activeTab: "market" } });
-    expect(mockState.cardDetails.fetchPriceHistory).toHaveBeenCalledWith(
+    const { mockSlices } = renderPage({ cardDetails: { activeTab: "market" } });
+    expect(mockSlices.cardDetails.fetchPriceHistory).toHaveBeenCalledWith(
       "poe1",
       "Settlers",
       "Test Card",
@@ -328,10 +331,10 @@ describe("CardDetailsPage — effects", () => {
   });
 
   it("does not call fetchPriceHistory when activeTab is your-data", () => {
-    const { mockState } = renderPage({
+    const { mockSlices } = renderPage({
       cardDetails: { activeTab: "your-data" },
     });
-    expect(mockState.cardDetails.fetchPriceHistory).not.toHaveBeenCalled();
+    expect(mockSlices.cardDetails.fetchPriceHistory).not.toHaveBeenCalled();
   });
 });
 
@@ -341,14 +344,14 @@ describe("CardDetailsPage — effects", () => {
 
 describe("CardDetailsPage — PL league resolution", () => {
   it('uses selectedLeague when it is a challenge league (not "all" or "Standard")', () => {
-    const { mockState } = renderPage({
+    const { mockSlices } = renderPage({
       cardDetails: { selectedLeague: "Settlers" },
       prohibitedLibrary: { poe1Status: { league: "OtherLeague" } },
     });
 
     // initializeCardDetails is called with plLeague derived from selectedLeague
     // When selectedLeague is "Settlers" (a challenge league), plLeague = "Settlers"
-    expect(mockState.cardDetails.initializeCardDetails).toHaveBeenCalledWith(
+    expect(mockSlices.cardDetails.initializeCardDetails).toHaveBeenCalledWith(
       "poe1",
       "test-card",
       "Settlers",
@@ -357,13 +360,13 @@ describe("CardDetailsPage — PL league resolution", () => {
   });
 
   it('uses plStatus.league when selectedLeague is "all"', () => {
-    const { mockState } = renderPage({
+    const { mockSlices } = renderPage({
       cardDetails: { selectedLeague: "all" },
       prohibitedLibrary: { poe1Status: { league: "Settlers" } },
     });
 
     // plLeague should resolve to plStatus.league = "Settlers"
-    expect(mockState.cardDetails.initializeCardDetails).toHaveBeenCalledWith(
+    expect(mockSlices.cardDetails.initializeCardDetails).toHaveBeenCalledWith(
       "poe1",
       "test-card",
       "Settlers",
@@ -372,13 +375,13 @@ describe("CardDetailsPage — PL league resolution", () => {
   });
 
   it('uses plStatus.league when selectedLeague is "Standard"', () => {
-    const { mockState } = renderPage({
+    const { mockSlices } = renderPage({
       cardDetails: { selectedLeague: "Standard" },
       prohibitedLibrary: { poe1Status: { league: "Settlers" } },
     });
 
     // "Standard" falls through to plStatus.league
-    expect(mockState.cardDetails.initializeCardDetails).toHaveBeenCalledWith(
+    expect(mockSlices.cardDetails.initializeCardDetails).toHaveBeenCalledWith(
       "poe1",
       "test-card",
       "Settlers",
@@ -387,12 +390,12 @@ describe("CardDetailsPage — PL league resolution", () => {
   });
 
   it("uses null as plLeague when selectedLeague is all and plStatus is null", () => {
-    const { mockState } = renderPage({
+    const { mockSlices } = renderPage({
       cardDetails: { selectedLeague: "all" },
       prohibitedLibrary: { poe1Status: null },
     });
 
-    expect(mockState.cardDetails.initializeCardDetails).toHaveBeenCalledWith(
+    expect(mockSlices.cardDetails.initializeCardDetails).toHaveBeenCalledWith(
       "poe1",
       "test-card",
       null,
@@ -401,7 +404,7 @@ describe("CardDetailsPage — PL league resolution", () => {
   });
 
   it("resolves plLeague from poe2Status when game is poe2", () => {
-    const { mockState } = renderPage({
+    const { mockSlices } = renderPage({
       settings: { getSelectedGame: vi.fn(() => "poe2") },
       cardDetails: { selectedLeague: "all" },
       prohibitedLibrary: {
@@ -410,7 +413,7 @@ describe("CardDetailsPage — PL league resolution", () => {
       },
     });
 
-    expect(mockState.cardDetails.initializeCardDetails).toHaveBeenCalledWith(
+    expect(mockSlices.cardDetails.initializeCardDetails).toHaveBeenCalledWith(
       "poe2",
       "test-card",
       "Dawn",

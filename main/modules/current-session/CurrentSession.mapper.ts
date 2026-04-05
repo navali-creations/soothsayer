@@ -1,6 +1,7 @@
 import type { Selectable } from "kysely";
 
 import type {
+  SessionCardEventsRow,
   SessionSummariesTable,
   SessionsRow,
 } from "~/main/modules/database";
@@ -9,6 +10,7 @@ import { cleanWikiMarkup } from "~/main/utils/cleanWikiMarkup";
 import type { GameType, KnownRarity, Rarity } from "../../../types/data-stores";
 import type {
   SessionCardDTO,
+  SessionCardEventDTO,
   SessionDTO,
   SessionSummaryDTO,
 } from "./CurrentSession.dto";
@@ -108,6 +110,20 @@ export class CurrentSessionMapper {
       exchangeChaosToDivine: row.exchange_chaos_to_divine,
       stashChaosToDivine: row.stash_chaos_to_divine,
       stackedDeckChaosCost: row.stacked_deck_chaos_cost,
+    };
+  }
+
+  /**
+   * Convert database session card event row to DTO
+   */
+  static toSessionCardEventDTO(row: SessionCardEventsRow): SessionCardEventDTO {
+    return {
+      id: row.id,
+      sessionId: row.session_id,
+      cardName: row.card_name,
+      chaosValue: row.chaos_value,
+      divineValue: row.divine_value,
+      droppedAt: row.dropped_at,
     };
   }
 

@@ -1,5 +1,5 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useCards, useSettings } from "~/renderer/store";
 
 import type { DivinationCardRow } from "../../Cards.types";
 import { CardsGrid } from "./CardsGrid";
@@ -7,10 +7,12 @@ import { CardsGrid } from "./CardsGrid";
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useCards: vi.fn(),
+  useSettings: vi.fn(),
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseCards = vi.mocked(useCards);
+const mockUseSettings = vi.mocked(useSettings);
 
 const mockNavigate = vi.fn();
 
@@ -68,18 +70,16 @@ function setupStore(
     raritySource?: string;
   } = {},
 ) {
-  mockUseBoundStore.mockReturnValue({
-    cards: {
-      currentPage: overrides.currentPage ?? 1,
-      searchQuery: overrides.searchQuery ?? "",
-      rarityFilter: overrides.rarityFilter ?? "all",
-      includeBossCards: overrides.includeBossCards ?? false,
-      sortField: overrides.sortField ?? "name",
-      sortDirection: overrides.sortDirection ?? "asc",
-    },
-    settings: {
-      raritySource: overrides.raritySource ?? "poe.ninja",
-    },
+  mockUseCards.mockReturnValue({
+    currentPage: overrides.currentPage ?? 1,
+    searchQuery: overrides.searchQuery ?? "",
+    rarityFilter: overrides.rarityFilter ?? "all",
+    includeBossCards: overrides.includeBossCards ?? false,
+    sortField: overrides.sortField ?? "name",
+    sortDirection: overrides.sortDirection ?? "asc",
+  } as any);
+  mockUseSettings.mockReturnValue({
+    raritySource: overrides.raritySource ?? "poe.ninja",
   } as any);
 }
 

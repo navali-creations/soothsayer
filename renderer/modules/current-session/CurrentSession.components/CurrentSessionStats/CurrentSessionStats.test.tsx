@@ -14,7 +14,13 @@ vi.mock("./", () => ({
   CurrentSessionMostValueableCardStat: () => (
     <div data-testid="most-valuable-stat" />
   ),
-  CurrentSessionNetProfitStat: () => <div data-testid="net-profit-stat" />,
+  CurrentSessionNetProfitStat: (props: any) => (
+    <div
+      data-testid="net-profit-stat"
+      data-expanded={String(props.expanded ?? "")}
+      data-has-timeline={String(props.hasTimeline ?? "")}
+    />
+  ),
   CurrentSessionOpenedDecksStat: () => <div data-testid="opened-decks-stat" />,
   CurrentSessionTotalValueStat: () => <div data-testid="total-value-stat" />,
   CurrentSessionUniqueCardsStat: () => <div data-testid="unique-cards-stat" />,
@@ -55,6 +61,43 @@ describe("CurrentSessionStats", () => {
     renderWithProviders(<CurrentSessionStats />);
 
     expect(screen.getByTestId("net-profit-stat")).toBeInTheDocument();
+  });
+
+  it("passes expanded prop to NetProfitStat", () => {
+    renderWithProviders(
+      <CurrentSessionStats
+        expanded={true}
+        onToggleExpanded={vi.fn()}
+        hasTimeline={true}
+      />,
+    );
+
+    expect(screen.getByTestId("net-profit-stat")).toHaveAttribute(
+      "data-expanded",
+      "true",
+    );
+  });
+
+  it("passes hasTimeline prop to NetProfitStat", () => {
+    renderWithProviders(<CurrentSessionStats hasTimeline={true} />);
+
+    expect(screen.getByTestId("net-profit-stat")).toHaveAttribute(
+      "data-has-timeline",
+      "true",
+    );
+  });
+
+  it("defaults expanded and hasTimeline to undefined when not provided", () => {
+    renderWithProviders(<CurrentSessionStats />);
+
+    expect(screen.getByTestId("net-profit-stat")).toHaveAttribute(
+      "data-expanded",
+      "",
+    );
+    expect(screen.getByTestId("net-profit-stat")).toHaveAttribute(
+      "data-has-timeline",
+      "",
+    );
   });
 
   it("renders all 5 stat components inside GroupedStats", () => {

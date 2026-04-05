@@ -200,6 +200,71 @@ describe("SessionsSlice", () => {
       await store.getState().sessions.loadAllSessions();
       expect(store.getState().sessions.error).toBeNull();
     });
+
+    it("loads sparklines after loading sessions", async () => {
+      const sessionsList = [
+        makeSessionSummary({ sessionId: "s1" }),
+        makeSessionSummary({ sessionId: "s2" }),
+      ];
+      const response = makePageResponse(sessionsList);
+      electron.sessions.getAll.mockResolvedValue(response);
+      // Sparkline data is already deck-cost adjusted by the main process
+      electron.sessions.getSparklines.mockResolvedValue({
+        s1: [
+          { x: 10, profit: 20 },
+          { x: 20, profit: 40 },
+        ],
+        s2: [
+          { x: 5, profit: 30 },
+          { x: 10, profit: 60 },
+        ],
+      });
+
+      await store.getState().sessions.loadAllSessions();
+
+      expect(electron.sessions.getSparklines).toHaveBeenCalledWith([
+        "s1",
+        "s2",
+      ]);
+
+      const sparklines = store.getState().sessions.getSparklines();
+      // Renderer stores sparkline data as-is (deck-cost adjusted server-side)
+      expect(sparklines.s1[0]).toEqual({ x: 10, profit: 20 });
+      expect(sparklines.s1[1]).toEqual({ x: 20, profit: 40 });
+      expect(sparklines.s2[0]).toEqual({ x: 5, profit: 30 });
+      expect(sparklines.s2[1]).toEqual({ x: 10, profit: 60 });
+    });
+
+    it("handles sparkline fetch failure gracefully", async () => {
+      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const sessionsList = [makeSessionSummary({ sessionId: "s1" })];
+      electron.sessions.getAll.mockResolvedValue(
+        makePageResponse(sessionsList),
+      );
+      electron.sessions.getSparklines.mockRejectedValue(
+        new Error("Sparkline error"),
+      );
+
+      await store.getState().sessions.loadAllSessions();
+
+      // Should not affect session loading
+      expect(store.getState().sessions.allSessions).toHaveLength(1);
+      expect(store.getState().sessions.getSparklines()).toEqual({});
+
+      consoleSpy.mockRestore();
+    });
+
+    it("does not fetch sparklines when there are no sessions", async () => {
+      electron.sessions.getAll.mockResolvedValue(makePageResponse([]));
+
+      await store.getState().sessions.loadAllSessions();
+
+      expect(electron.sessions.getSparklines).not.toHaveBeenCalled();
+    });
+
+    it("getSparklines returns the sparkline data", async () => {
+      expect(store.getState().sessions.getSparklines()).toEqual({});
+    });
   });
 
   // ─── loadSessionDetail ────────────────────────────────────────────────

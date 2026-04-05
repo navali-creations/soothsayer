@@ -1,26 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useSetup } from "~/renderer/store";
 
 import SetupErrorDisplay from "./SetupErrorDisplay";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useSetup: vi.fn(),
 }));
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseSetup = vi.mocked(useSetup);
 
 function createMockStore(overrides: Record<string, unknown> = {}) {
   return {
-    setup: {
-      error: null,
-      ...overrides,
-    },
+    error: null,
+    ...overrides,
   } as any;
 }
 
@@ -28,14 +26,14 @@ function createMockStore(overrides: Record<string, unknown> = {}) {
 
 describe("SetupErrorDisplay", () => {
   beforeEach(() => {
-    mockUseBoundStore.mockReturnValue(createMockStore());
+    mockUseSetup.mockReturnValue(createMockStore());
   });
 
   // ── No error state ─────────────────────────────────────────────────────
 
   describe("when there is no error", () => {
     it("renders nothing when error is null", () => {
-      mockUseBoundStore.mockReturnValue(createMockStore({ error: null }));
+      mockUseSetup.mockReturnValue(createMockStore({ error: null }));
 
       const { container } = renderWithProviders(<SetupErrorDisplay />);
 
@@ -43,7 +41,7 @@ describe("SetupErrorDisplay", () => {
     });
 
     it("does not render an alert role element", () => {
-      mockUseBoundStore.mockReturnValue(createMockStore({ error: null }));
+      mockUseSetup.mockReturnValue(createMockStore({ error: null }));
 
       renderWithProviders(<SetupErrorDisplay />);
 
@@ -55,7 +53,7 @@ describe("SetupErrorDisplay", () => {
 
   describe("when there is an error", () => {
     it("renders an alert when error exists", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({ error: "Something went wrong" }),
       );
 
@@ -66,7 +64,7 @@ describe("SetupErrorDisplay", () => {
     });
 
     it("has error styling on the alert", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({ error: "Something went wrong" }),
       );
 
@@ -77,7 +75,7 @@ describe("SetupErrorDisplay", () => {
     });
 
     it("displays the error message text", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({ error: "Something went wrong" }),
       );
 
@@ -87,7 +85,7 @@ describe("SetupErrorDisplay", () => {
     });
 
     it("displays a different error message", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({ error: "Failed to save settings" }),
       );
 
@@ -97,9 +95,7 @@ describe("SetupErrorDisplay", () => {
     });
 
     it("renders an error icon SVG", () => {
-      mockUseBoundStore.mockReturnValue(
-        createMockStore({ error: "Network error" }),
-      );
+      mockUseSetup.mockReturnValue(createMockStore({ error: "Network error" }));
 
       renderWithProviders(<SetupErrorDisplay />);
 
@@ -114,12 +110,12 @@ describe("SetupErrorDisplay", () => {
   describe("state transitions", () => {
     it("shows alert when error changes from null to a message", () => {
       // First render: no error
-      mockUseBoundStore.mockReturnValue(createMockStore({ error: null }));
+      mockUseSetup.mockReturnValue(createMockStore({ error: null }));
       const { rerender } = renderWithProviders(<SetupErrorDisplay />);
       expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 
       // Update mock to return an error
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({ error: "New error occurred" }),
       );
       rerender(<SetupErrorDisplay />);
@@ -130,14 +126,12 @@ describe("SetupErrorDisplay", () => {
 
     it("hides alert when error changes from a message to null", () => {
       // First render: with error
-      mockUseBoundStore.mockReturnValue(
-        createMockStore({ error: "Some error" }),
-      );
+      mockUseSetup.mockReturnValue(createMockStore({ error: "Some error" }));
       const { rerender } = renderWithProviders(<SetupErrorDisplay />);
       expect(screen.getByRole("alert")).toBeInTheDocument();
 
       // Update mock to clear error
-      mockUseBoundStore.mockReturnValue(createMockStore({ error: null }));
+      mockUseSetup.mockReturnValue(createMockStore({ error: null }));
       rerender(<SetupErrorDisplay />);
 
       expect(screen.queryByRole("alert")).not.toBeInTheDocument();

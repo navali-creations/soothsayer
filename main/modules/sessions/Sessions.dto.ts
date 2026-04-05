@@ -126,3 +126,9 @@ export interface SessionChartDataPointDTO {
   exchangeNetProfit: number;
   chaosPerDivine: number;
 }
+
+/** Lightweight sparkline point for session cards. */
+export interface SparklinePointDTO {
+  x: number;
+  profit: number;
+}

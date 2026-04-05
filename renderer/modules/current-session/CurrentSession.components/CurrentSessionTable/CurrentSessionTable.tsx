@@ -5,20 +5,18 @@ import {
   createCardNameColumn,
   Table,
 } from "~/renderer/components";
-import { useBoundStore } from "~/renderer/store";
+import { useCurrentSession, useSettings } from "~/renderer/store";
 
 import {
   createCurrentSessionChaosValueColumn,
   createCurrentSessionHidePriceColumn,
   createCurrentSessionRatioColumn,
   createCurrentSessionTotalValueColumn,
-} from "./columns";
+} from "./columns/columns";
 
 const CurrentSessionTable = () => {
-  const {
-    currentSession: { getIsCurrentSessionActive, getSession },
-    settings: { getActiveGameViewPriceSource },
-  } = useBoundStore();
+  const { getIsCurrentSessionActive, getSession } = useCurrentSession();
+  const { getActiveGameViewPriceSource } = useSettings();
   const isCurrentSessionActive = getIsCurrentSessionActive();
   const sessionData = getSession();
   const priceSource = getActiveGameViewPriceSource();
@@ -54,15 +52,17 @@ const CurrentSessionTable = () => {
             </p>
           </div>
         ) : (
-          <Table
-            data={cardData}
-            columns={columns}
-            enableSorting={true}
-            enablePagination={true}
-            pageSize={20}
-            hoverable={true}
-            initialSorting={[{ id: "totalValue", desc: true }]}
-          />
+          <div className="mt-3">
+            <Table
+              data={cardData}
+              columns={columns}
+              enableSorting={true}
+              enablePagination={true}
+              pageSize={20}
+              hoverable={true}
+              initialSorting={[{ id: "totalValue", desc: true }]}
+            />
+          </div>
         )}
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useProfitForecast } from "~/renderer/store";
 
 import type { CardForecastRow } from "../../ProfitForecast.slice/ProfitForecast.slice";
 import {
@@ -17,7 +17,7 @@ import PFStatusCell from "./PFStatusColumn/PFStatusCell";
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useProfitForecast: vi.fn(),
 }));
 
 vi.mock("~/renderer/components/CardNameLink/CardNameLink", () => ({
@@ -47,7 +47,7 @@ vi.mock("@tanstack/react-router", () => ({
   createLink: () => (props: any) => <a {...props} />,
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseProfitForecast = vi.mocked(useProfitForecast);
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -95,14 +95,12 @@ function makeCellContext<TValue = unknown>(
 
 function setupStore(overrides: any = {}) {
   const store = {
-    profitForecast: {
-      toggleCardExclusion: vi.fn(),
-      chaosToDivineRatio: 200,
-      ...overrides.profitForecast,
-    },
+    toggleCardExclusion: vi.fn(),
+    chaosToDivineRatio: 200,
+    ...overrides.profitForecast,
   } as any;
-  mockUseBoundStore.mockReturnValue(store);
-  return store;
+  mockUseProfitForecast.mockReturnValue(store);
+  return { profitForecast: store };
 }
 
 // ─── PFExcludeCell ─────────────────────────────────────────────────────────

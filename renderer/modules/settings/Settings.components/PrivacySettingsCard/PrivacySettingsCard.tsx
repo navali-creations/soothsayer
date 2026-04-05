@@ -3,16 +3,11 @@ import { FiAlertTriangle, FiShield } from "react-icons/fi";
 import { SettingsKey } from "~/main/modules/settings-store/SettingsStore.keys";
 import { Link } from "~/renderer/components";
 import { trackEvent } from "~/renderer/modules/umami";
-import { useBoundStore } from "~/renderer/store";
+import { useSettings } from "~/renderer/store";
 
 const PrivacySettingsCard = () => {
-  const {
-    settings: {
-      telemetryCrashReporting,
-      telemetryUsageAnalytics,
-      updateSetting,
-    },
-  } = useBoundStore();
+  const { telemetryCrashReporting, telemetryUsageAnalytics, updateSetting } =
+    useSettings();
 
   const handleCrashReportingToggle = async (enabled: boolean) => {
     await updateSetting(SettingsKey.TelemetryCrashReporting, enabled);

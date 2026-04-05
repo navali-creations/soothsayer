@@ -3,20 +3,18 @@ import { GiCardExchange } from "react-icons/gi";
 
 import { BackButton, Flex } from "~/renderer/components";
 import { trackEvent } from "~/renderer/modules/umami";
-import { useBoundStore } from "~/renderer/store";
+import { useCardDetails, useSettings } from "~/renderer/store";
 
 const HeaderActions = () => {
   const {
-    cardDetails: {
-      selectedLeague,
-      setSelectedLeague,
-      activeTab,
-      setActiveTab,
-      getAvailableLeagues,
-      personalAnalytics,
-    },
-    settings: { getActiveGameViewSelectedLeague },
-  } = useBoundStore();
+    selectedLeague,
+    setSelectedLeague,
+    activeTab,
+    setActiveTab,
+    getAvailableLeagues,
+    personalAnalytics,
+  } = useCardDetails();
+  const { getActiveGameViewSelectedLeague } = useSettings();
 
   const availableLeagues = getAvailableLeagues();
   const globalLeague = getActiveGameViewSelectedLeague();

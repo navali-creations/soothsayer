@@ -425,241 +425,6 @@ describe("CurrentSessionRepository", () => {
 
   // ─── Session Card Operations ─────────────────────────────────────────────
 
-  describe("upsertSessionCard", () => {
-    it("should insert a new session card", async () => {
-      const leagueId = await seedLeague(testDb.kysely);
-      await seedSession(testDb.kysely, {
-        id: "session-upsert",
-        leagueId,
-      });
-
-      await repository.upsertSessionCard({
-        sessionId: "session-upsert",
-        cardName: "The Doctor",
-        count: 1,
-        firstSeenAt: "2025-01-15T10:05:00Z",
-        lastSeenAt: "2025-01-15T10:05:00Z",
-      });
-
-      const cards = await repository.getSessionCards("session-upsert");
-      expect(cards).toHaveLength(1);
-      expect(cards[0].cardName).toBe("The Doctor");
-      expect(cards[0].count).toBe(1);
-    });
-
-    it("should update count and lastSeenAt on conflict", async () => {
-      const leagueId = await seedLeague(testDb.kysely);
-      await seedSession(testDb.kysely, {
-        id: "session-upsert-dup",
-        leagueId,
-      });
-
-      await repository.upsertSessionCard({
-        sessionId: "session-upsert-dup",
-        cardName: "Rain of Chaos",
-        count: 1,
-        firstSeenAt: "2025-01-15T10:00:00Z",
-        lastSeenAt: "2025-01-15T10:00:00Z",
-      });
-
-      await repository.upsertSessionCard({
-        sessionId: "session-upsert-dup",
-        cardName: "Rain of Chaos",
-        count: 5,
-        firstSeenAt: "2025-01-15T10:00:00Z",
-        lastSeenAt: "2025-01-15T10:30:00Z",
-      });
-
-      const cards = await repository.getSessionCards("session-upsert-dup");
-      expect(cards).toHaveLength(1);
-      expect(cards[0].count).toBe(5);
-      expect(cards[0].lastSeenAt).toBe("2025-01-15T10:30:00Z");
-    });
-
-    it("should set default hide price values to false", async () => {
-      const leagueId = await seedLeague(testDb.kysely);
-      await seedSession(testDb.kysely, {
-        id: "session-hide-default",
-        leagueId,
-      });
-
-      await repository.upsertSessionCard({
-        sessionId: "session-hide-default",
-        cardName: "The Doctor",
-        count: 1,
-        firstSeenAt: "2025-01-15T10:00:00Z",
-        lastSeenAt: "2025-01-15T10:00:00Z",
-      });
-
-      const cards = await repository.getSessionCards("session-hide-default");
-      expect(cards[0].hidePriceExchange).toBe(false);
-      expect(cards[0].hidePriceStash).toBe(false);
-    });
-
-    it("should respect hidePriceExchange and hidePriceStash when set", async () => {
-      const leagueId = await seedLeague(testDb.kysely);
-      await seedSession(testDb.kysely, {
-        id: "session-hide-set",
-        leagueId,
-      });
-
-      await repository.upsertSessionCard({
-        sessionId: "session-hide-set",
-        cardName: "The Doctor",
-        count: 1,
-        firstSeenAt: "2025-01-15T10:00:00Z",
-        lastSeenAt: "2025-01-15T10:00:00Z",
-        hidePriceExchange: true,
-        hidePriceStash: true,
-      });
-
-      const cards = await repository.getSessionCards("session-hide-set");
-      expect(cards[0].hidePriceExchange).toBe(true);
-      expect(cards[0].hidePriceStash).toBe(true);
-    });
-  });
-
-  describe("incrementCardCount", () => {
-    it("should insert a new card with count 1 if it does not exist", async () => {
-      const leagueId = await seedLeague(testDb.kysely);
-      await seedSession(testDb.kysely, {
-        id: "session-inc-new",
-        leagueId,
-      });
-
-      await repository.incrementCardCount(
-        "session-inc-new",
-        "The Doctor",
-        "2025-01-15T10:05:00Z",
-      );
-
-      const cards = await repository.getSessionCards("session-inc-new");
-      expect(cards).toHaveLength(1);
-      expect(cards[0].cardName).toBe("The Doctor");
-      expect(cards[0].count).toBe(1);
-    });
-
-    it("should increment count for existing card", async () => {
-      const leagueId = await seedLeague(testDb.kysely);
-      await seedSession(testDb.kysely, {
-        id: "session-inc-exist",
-        leagueId,
-      });
-
-      await repository.incrementCardCount(
-        "session-inc-exist",
-        "Rain of Chaos",
-        "2025-01-15T10:00:00Z",
-      );
-      await repository.incrementCardCount(
-        "session-inc-exist",
-        "Rain of Chaos",
-        "2025-01-15T10:01:00Z",
-      );
-      await repository.incrementCardCount(
-        "session-inc-exist",
-        "Rain of Chaos",
-        "2025-01-15T10:02:00Z",
-      );
-
-      const cards = await repository.getSessionCards("session-inc-exist");
-      expect(cards).toHaveLength(1);
-      expect(cards[0].count).toBe(3);
-    });
-
-    it("should update last_seen_at on each increment", async () => {
-      const leagueId = await seedLeague(testDb.kysely);
-      await seedSession(testDb.kysely, {
-        id: "session-inc-time",
-        leagueId,
-      });
-
-      await repository.incrementCardCount(
-        "session-inc-time",
-        "The Doctor",
-        "2025-01-15T10:00:00Z",
-      );
-      await repository.incrementCardCount(
-        "session-inc-time",
-        "The Doctor",
-        "2025-01-15T10:30:00Z",
-      );
-
-      const cards = await repository.getSessionCards("session-inc-time");
-      expect(cards[0].lastSeenAt).toBe("2025-01-15T10:30:00Z");
-    });
-
-    it("should update the session total_count correctly", async () => {
-      const leagueId = await seedLeague(testDb.kysely);
-      await seedSession(testDb.kysely, {
-        id: "session-inc-total",
-        leagueId,
-      });
-
-      await repository.incrementCardCount(
-        "session-inc-total",
-        "The Doctor",
-        "2025-01-15T10:00:00Z",
-      );
-      await repository.incrementCardCount(
-        "session-inc-total",
-        "Rain of Chaos",
-        "2025-01-15T10:01:00Z",
-      );
-      await repository.incrementCardCount(
-        "session-inc-total",
-        "Rain of Chaos",
-        "2025-01-15T10:02:00Z",
-      );
-
-      const session = await repository.getSessionById("session-inc-total");
-      expect(session!.totalCount).toBe(3);
-    });
-
-    it("should handle multiple different cards within same session", async () => {
-      const leagueId = await seedLeague(testDb.kysely);
-      await seedSession(testDb.kysely, {
-        id: "session-inc-multi",
-        leagueId,
-      });
-
-      await repository.incrementCardCount(
-        "session-inc-multi",
-        "The Doctor",
-        "2025-01-15T10:00:00Z",
-      );
-      await repository.incrementCardCount(
-        "session-inc-multi",
-        "Rain of Chaos",
-        "2025-01-15T10:01:00Z",
-      );
-      await repository.incrementCardCount(
-        "session-inc-multi",
-        "The Fiend",
-        "2025-01-15T10:02:00Z",
-      );
-      await repository.incrementCardCount(
-        "session-inc-multi",
-        "The Doctor",
-        "2025-01-15T10:03:00Z",
-      );
-
-      const cards = await repository.getSessionCards("session-inc-multi");
-      expect(cards).toHaveLength(3);
-
-      const doctor = cards.find((c) => c.cardName === "The Doctor");
-      const rain = cards.find((c) => c.cardName === "Rain of Chaos");
-      const fiend = cards.find((c) => c.cardName === "The Fiend");
-
-      expect(doctor!.count).toBe(2);
-      expect(rain!.count).toBe(1);
-      expect(fiend!.count).toBe(1);
-
-      const session = await repository.getSessionById("session-inc-multi");
-      expect(session!.totalCount).toBe(4);
-    });
-  });
-
   describe("getSessionCards", () => {
     it("should return empty array when session has no cards", async () => {
       const leagueId = await seedLeague(testDb.kysely);
@@ -892,8 +657,24 @@ describe("CurrentSessionRepository", () => {
     });
 
     it("should return processed IDs for a specific game", async () => {
-      await repository.saveProcessedId("poe1", "id-1", "The Doctor");
-      await repository.saveProcessedId("poe1", "id-2", "Rain of Chaos");
+      await testDb.kysely
+        .insertInto("processed_ids")
+        .values({
+          game: "poe1",
+          scope: "global",
+          processed_id: "id-1",
+          card_name: "The Doctor",
+        })
+        .execute();
+      await testDb.kysely
+        .insertInto("processed_ids")
+        .values({
+          game: "poe1",
+          scope: "global",
+          processed_id: "id-2",
+          card_name: "Rain of Chaos",
+        })
+        .execute();
 
       const result = await repository.getProcessedIds("poe1");
       expect(result).toHaveLength(2);
@@ -902,8 +683,24 @@ describe("CurrentSessionRepository", () => {
     });
 
     it("should not return processed IDs from other games", async () => {
-      await repository.saveProcessedId("poe1", "id-poe1", "The Doctor");
-      await repository.saveProcessedId("poe2", "id-poe2", "The Fiend");
+      await testDb.kysely
+        .insertInto("processed_ids")
+        .values({
+          game: "poe1",
+          scope: "global",
+          processed_id: "id-poe1",
+          card_name: "The Doctor",
+        })
+        .execute();
+      await testDb.kysely
+        .insertInto("processed_ids")
+        .values({
+          game: "poe2",
+          scope: "global",
+          processed_id: "id-poe2",
+          card_name: "The Fiend",
+        })
+        .execute();
 
       const poe1Ids = await repository.getProcessedIds("poe1");
       const poe2Ids = await repository.getProcessedIds("poe2");
@@ -915,105 +712,6 @@ describe("CurrentSessionRepository", () => {
     });
   });
 
-  describe("saveProcessedId", () => {
-    it("should save a processed ID with card name", async () => {
-      await repository.saveProcessedId("poe1", "unique-id-1", "The Doctor");
-
-      const result = await repository.getProcessedIds("poe1");
-      expect(result).toHaveLength(1);
-      expect(result[0].processedId).toBe("unique-id-1");
-    });
-
-    it("should not throw on duplicate processed ID (skip via ON CONFLICT)", async () => {
-      await repository.saveProcessedId("poe1", "dup-id", "The Doctor");
-      await expect(
-        repository.saveProcessedId("poe1", "dup-id", "The Doctor"),
-      ).resolves.not.toThrow();
-
-      const result = await repository.getProcessedIds("poe1");
-      expect(result).toHaveLength(1);
-    });
-
-    it("should save multiple processed IDs", async () => {
-      await repository.saveProcessedId("poe1", "id-a", "Card A");
-      await repository.saveProcessedId("poe1", "id-b", "Card B");
-      await repository.saveProcessedId("poe1", "id-c", "Card C");
-
-      const result = await repository.getProcessedIds("poe1");
-      expect(result).toHaveLength(3);
-    });
-  });
-
-  describe("replaceProcessedIds", () => {
-    it("should replace all processed IDs for a game", async () => {
-      await repository.saveProcessedId("poe1", "old-1", "Card A");
-      await repository.saveProcessedId("poe1", "old-2", "Card B");
-
-      await repository.replaceProcessedIds("poe1", ["new-1", "new-2", "new-3"]);
-
-      const result = await repository.getProcessedIds("poe1");
-      expect(result).toHaveLength(3);
-
-      const ids = result.map((r) => r.processedId);
-      expect(ids).toContain("new-1");
-      expect(ids).toContain("new-2");
-      expect(ids).toContain("new-3");
-      expect(ids).not.toContain("old-1");
-      expect(ids).not.toContain("old-2");
-    });
-
-    it("should handle empty array (clear all)", async () => {
-      await repository.saveProcessedId("poe1", "id-1", "Card A");
-      await repository.saveProcessedId("poe1", "id-2", "Card B");
-
-      await repository.replaceProcessedIds("poe1", []);
-
-      const result = await repository.getProcessedIds("poe1");
-      expect(result).toHaveLength(0);
-    });
-
-    it("should not affect other games", async () => {
-      await repository.saveProcessedId("poe1", "p1-id", "Card A");
-      await repository.saveProcessedId("poe2", "p2-id", "Card B");
-
-      await repository.replaceProcessedIds("poe1", ["new-id"]);
-
-      const poe1Ids = await repository.getProcessedIds("poe1");
-      const poe2Ids = await repository.getProcessedIds("poe2");
-
-      expect(poe1Ids).toHaveLength(1);
-      expect(poe1Ids[0].processedId).toBe("new-id");
-      expect(poe2Ids).toHaveLength(1);
-      expect(poe2Ids[0].processedId).toBe("p2-id");
-    });
-  });
-
-  describe("clearProcessedIds", () => {
-    it("should clear all processed IDs for a game", async () => {
-      await repository.saveProcessedId("poe1", "id-1", "Card A");
-      await repository.saveProcessedId("poe1", "id-2", "Card B");
-
-      await repository.clearProcessedIds("poe1");
-
-      const result = await repository.getProcessedIds("poe1");
-      expect(result).toHaveLength(0);
-    });
-
-    it("should not affect other games", async () => {
-      await repository.saveProcessedId("poe1", "p1-id", "Card A");
-      await repository.saveProcessedId("poe2", "p2-id", "Card B");
-
-      await repository.clearProcessedIds("poe1");
-
-      const poe2Ids = await repository.getProcessedIds("poe2");
-      expect(poe2Ids).toHaveLength(1);
-    });
-
-    it("should not throw when no processed IDs exist", async () => {
-      await expect(repository.clearProcessedIds("poe1")).resolves.not.toThrow();
-    });
-  });
-
   describe("getRecentDrops", () => {
     it("should return empty array when no processed IDs with card names exist", async () => {
       const drops = await repository.getRecentDrops("poe1");
@@ -1022,9 +720,33 @@ describe("CurrentSessionRepository", () => {
 
     it("should return recent card names ordered by processed_id descending", async () => {
       // Insert with increasing processed_ids to establish ordering
-      await repository.saveProcessedId("poe1", "100", "Card A");
-      await repository.saveProcessedId("poe1", "200", "Card B");
-      await repository.saveProcessedId("poe1", "300", "Card C");
+      await testDb.kysely
+        .insertInto("processed_ids")
+        .values({
+          game: "poe1",
+          scope: "global",
+          processed_id: "100",
+          card_name: "Card A",
+        })
+        .execute();
+      await testDb.kysely
+        .insertInto("processed_ids")
+        .values({
+          game: "poe1",
+          scope: "global",
+          processed_id: "200",
+          card_name: "Card B",
+        })
+        .execute();
+      await testDb.kysely
+        .insertInto("processed_ids")
+        .values({
+          game: "poe1",
+          scope: "global",
+          processed_id: "300",
+          card_name: "Card C",
+        })
+        .execute();
 
       const drops = await repository.getRecentDrops("poe1");
 
@@ -1036,11 +758,15 @@ describe("CurrentSessionRepository", () => {
 
     it("should respect the limit parameter", async () => {
       for (let i = 0; i < 10; i++) {
-        await repository.saveProcessedId(
-          "poe1",
-          `id-${String(i).padStart(3, "0")}`,
-          `Card ${i}`,
-        );
+        await testDb.kysely
+          .insertInto("processed_ids")
+          .values({
+            game: "poe1",
+            scope: "global",
+            processed_id: `id-${String(i).padStart(3, "0")}`,
+            card_name: `Card ${i}`,
+          })
+          .execute();
       }
 
       const drops = await repository.getRecentDrops("poe1", 5);
@@ -1049,11 +775,15 @@ describe("CurrentSessionRepository", () => {
 
     it("should default to 20 results", async () => {
       for (let i = 0; i < 25; i++) {
-        await repository.saveProcessedId(
-          "poe1",
-          `id-${String(i).padStart(3, "0")}`,
-          `Card ${i}`,
-        );
+        await testDb.kysely
+          .insertInto("processed_ids")
+          .values({
+            game: "poe1",
+            scope: "global",
+            processed_id: `id-${String(i).padStart(3, "0")}`,
+            card_name: `Card ${i}`,
+          })
+          .execute();
       }
 
       const drops = await repository.getRecentDrops("poe1");
@@ -1071,7 +801,15 @@ describe("CurrentSessionRepository", () => {
         })
         .execute();
 
-      await repository.saveProcessedId("poe1", "valid-id", "The Doctor");
+      await testDb.kysely
+        .insertInto("processed_ids")
+        .values({
+          game: "poe1",
+          scope: "global",
+          processed_id: "valid-id",
+          card_name: "The Doctor",
+        })
+        .execute();
 
       const drops = await repository.getRecentDrops("poe1");
       expect(drops).toHaveLength(1);
@@ -1081,8 +819,24 @@ describe("CurrentSessionRepository", () => {
 
   describe("clearRecentDrops", () => {
     it("should set card_name to NULL for all processed IDs of a game", async () => {
-      await repository.saveProcessedId("poe1", "id-1", "Card A");
-      await repository.saveProcessedId("poe1", "id-2", "Card B");
+      await testDb.kysely
+        .insertInto("processed_ids")
+        .values({
+          game: "poe1",
+          scope: "global",
+          processed_id: "id-1",
+          card_name: "Card A",
+        })
+        .execute();
+      await testDb.kysely
+        .insertInto("processed_ids")
+        .values({
+          game: "poe1",
+          scope: "global",
+          processed_id: "id-2",
+          card_name: "Card B",
+        })
+        .execute();
 
       await repository.clearRecentDrops("poe1");
 
@@ -1095,8 +849,24 @@ describe("CurrentSessionRepository", () => {
     });
 
     it("should not affect other games", async () => {
-      await repository.saveProcessedId("poe1", "p1-id", "Card A");
-      await repository.saveProcessedId("poe2", "p2-id", "Card B");
+      await testDb.kysely
+        .insertInto("processed_ids")
+        .values({
+          game: "poe1",
+          scope: "global",
+          processed_id: "p1-id",
+          card_name: "Card A",
+        })
+        .execute();
+      await testDb.kysely
+        .insertInto("processed_ids")
+        .values({
+          game: "poe2",
+          scope: "global",
+          processed_id: "p2-id",
+          card_name: "Card B",
+        })
+        .execute();
 
       await repository.clearRecentDrops("poe1");
 
@@ -1374,26 +1144,16 @@ describe("CurrentSessionRepository", () => {
       expect(session!.totalCount).toBe(0);
 
       // 2. Add cards
-      await repository.incrementCardCount(
-        "lifecycle-session",
-        "The Doctor",
-        "2025-01-15T10:05:00Z",
-      );
-      await repository.incrementCardCount(
-        "lifecycle-session",
-        "Rain of Chaos",
-        "2025-01-15T10:06:00Z",
-      );
-      await repository.incrementCardCount(
-        "lifecycle-session",
-        "Rain of Chaos",
-        "2025-01-15T10:07:00Z",
-      );
-      await repository.incrementCardCount(
-        "lifecycle-session",
-        "The Fiend",
-        "2025-01-15T10:10:00Z",
-      );
+      await seedSessionCards(testDb.kysely, "lifecycle-session", [
+        { cardName: "The Doctor", count: 1 },
+        { cardName: "Rain of Chaos", count: 2 },
+        { cardName: "The Fiend", count: 1 },
+      ]);
+      await testDb.kysely
+        .updateTable("sessions")
+        .set({ total_count: 4 })
+        .where("id", "=", "lifecycle-session")
+        .execute();
 
       session = await repository.getSessionById("lifecycle-session");
       expect(session!.totalCount).toBe(4);
@@ -1452,19 +1212,38 @@ describe("CurrentSessionRepository", () => {
       });
 
       // Save processed IDs as cards are added
-      await repository.saveProcessedId("poe1", "pid-001", "The Doctor");
-      await repository.incrementCardCount(
-        "session-processed",
-        "The Doctor",
-        "2025-01-15T10:00:00Z",
-      );
+      await testDb.kysely
+        .insertInto("processed_ids")
+        .values({
+          game: "poe1",
+          scope: "global",
+          processed_id: "pid-001",
+          card_name: "The Doctor",
+        })
+        .execute();
+      await seedSessionCards(testDb.kysely, "session-processed", [
+        { cardName: "The Doctor", count: 1 },
+      ]);
 
-      await repository.saveProcessedId("poe1", "pid-002", "Rain of Chaos");
-      await repository.incrementCardCount(
-        "session-processed",
-        "Rain of Chaos",
-        "2025-01-15T10:01:00Z",
-      );
+      await testDb.kysely
+        .insertInto("processed_ids")
+        .values({
+          game: "poe1",
+          scope: "global",
+          processed_id: "pid-002",
+          card_name: "Rain of Chaos",
+        })
+        .execute();
+      await testDb.kysely
+        .insertInto("session_cards")
+        .values({
+          session_id: "session-processed",
+          card_name: "Rain of Chaos",
+          count: 1,
+          first_seen_at: "2025-01-15T10:01:00Z",
+          last_seen_at: "2025-01-15T10:01:00Z",
+        })
+        .execute();
 
       // Verify both processed IDs and session cards
       const processedIds = await repository.getProcessedIds("poe1");
@@ -1498,11 +1277,14 @@ describe("CurrentSessionRepository", () => {
         startedAt: "2025-01-15T10:00:00Z",
       });
 
-      await repository.incrementCardCount(
-        "session-first",
-        "The Doctor",
-        "2025-01-15T10:05:00Z",
-      );
+      await seedSessionCards(testDb.kysely, "session-first", [
+        { cardName: "The Doctor", count: 1 },
+      ]);
+      await testDb.kysely
+        .updateTable("sessions")
+        .set({ total_count: 1 })
+        .where("id", "=", "session-first")
+        .execute();
 
       await repository.updateSession("session-first", {
         endedAt: "2025-01-15T11:00:00Z",
@@ -1519,16 +1301,14 @@ describe("CurrentSessionRepository", () => {
         startedAt: "2025-01-15T12:00:00Z",
       });
 
-      await repository.incrementCardCount(
-        "session-second",
-        "Rain of Chaos",
-        "2025-01-15T12:05:00Z",
-      );
-      await repository.incrementCardCount(
-        "session-second",
-        "Rain of Chaos",
-        "2025-01-15T12:06:00Z",
-      );
+      await seedSessionCards(testDb.kysely, "session-second", [
+        { cardName: "Rain of Chaos", count: 2 },
+      ]);
+      await testDb.kysely
+        .updateTable("sessions")
+        .set({ total_count: 2 })
+        .where("id", "=", "session-second")
+        .execute();
 
       // Verify sessions are independent
       const firstSession = await repository.getSessionById("session-first");

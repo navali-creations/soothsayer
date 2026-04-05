@@ -108,9 +108,91 @@ export const useDivinationCards = (options: UseDivinationCardsOptions = {}) => {
       handleSessionDataUpdate,
     );
 
+    // Listen for incremental card delta updates
+    const handleCardDelta = (data: { game: string; delta: any }) => {
+      if (scope === "session" && data.game === game) {
+        setStats((prev) => {
+          if (!prev) return prev;
+          // Only DetailedDivinationCardStats has a cards array
+          if (!Array.isArray((prev as any).cards)) return prev;
+
+          const detailed = prev as DetailedDivinationCardStats;
+          const delta = data.delta;
+          const updatedCards = [...(detailed.cards || [])];
+
+          const existingIdx = updatedCards.findIndex(
+            (c) => c.name === delta.cardName,
+          );
+          if (existingIdx >= 0) {
+            updatedCards[existingIdx] = {
+              ...updatedCards[existingIdx],
+              count: delta.newCount,
+              exchangePrice: updatedCards[existingIdx].exchangePrice
+                ? {
+                    ...updatedCards[existingIdx].exchangePrice!,
+                    totalValue:
+                      (updatedCards[existingIdx].exchangePrice!.chaosValue ??
+                        0) * delta.newCount,
+                  }
+                : undefined,
+              stashPrice: updatedCards[existingIdx].stashPrice
+                ? {
+                    ...updatedCards[existingIdx].stashPrice!,
+                    totalValue:
+                      (updatedCards[existingIdx].stashPrice!.chaosValue ?? 0) *
+                      delta.newCount,
+                  }
+                : undefined,
+            };
+          } else {
+            const newCard: any = {
+              name: delta.cardName,
+              count: delta.newCount,
+            };
+            if (delta.exchangePrice) {
+              newCard.exchangePrice = {
+                chaosValue: delta.exchangePrice.chaosValue,
+                divineValue: delta.exchangePrice.divineValue,
+                totalValue: delta.exchangePrice.chaosValue * delta.newCount,
+                hidePrice: delta.hidePriceExchange ?? false,
+              };
+            }
+            if (delta.stashPrice) {
+              newCard.stashPrice = {
+                chaosValue: delta.stashPrice.chaosValue,
+                divineValue: delta.stashPrice.divineValue,
+                totalValue: delta.stashPrice.chaosValue * delta.newCount,
+                hidePrice: delta.hidePriceStash ?? false,
+              };
+            }
+            if (delta.divinationCard) {
+              newCard.divinationCard = delta.divinationCard;
+            }
+            updatedCards.push(newCard);
+          }
+
+          const updatedRecentDrops = delta.recentDrop
+            ? [delta.recentDrop, ...(detailed.recentDrops || [])].slice(0, 20)
+            : detailed.recentDrops;
+
+          return {
+            ...detailed,
+            totalCount: delta.totalCount,
+            cards: updatedCards,
+            totals: delta.updatedTotals ?? detailed.totals,
+            recentDrops: updatedRecentDrops,
+          };
+        });
+      }
+    };
+
+    const cleanupCardDelta =
+      window.electron?.session?.onCardDelta?.(handleCardDelta);
+
     return () => {
       cleanupSession?.();
       cleanupData?.();
+      cleanupCardDelta?.();
     };
   }, [loadStats, loadAvailableLeagues, game, scope]);
 

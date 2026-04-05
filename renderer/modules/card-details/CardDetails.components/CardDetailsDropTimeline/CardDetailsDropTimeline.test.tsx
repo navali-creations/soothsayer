@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useCardDetails } from "~/renderer/store";
 
 // ─── Store mock ────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({ useBoundStore: vi.fn() }));
+vi.mock("~/renderer/store", () => ({ useCardDetails: vi.fn() }));
 
 // ─── Hook & component mocks ───────────────────────────────────────────────
 
@@ -178,7 +178,7 @@ function renderComponent(
   hookOverrides: Record<string, any> = {},
 ) {
   const mockState = createMockState(stateOverrides);
-  vi.mocked(useBoundStore).mockReturnValue(mockState as any);
+  vi.mocked(useCardDetails).mockReturnValue(mockState.cardDetails as any);
   mockUseDropTimelineData.mockReturnValue(defaultHookReturn(hookOverrides));
   const result = renderWithProviders(<CardDetailsDropTimeline />);
   return { ...result, mockState };

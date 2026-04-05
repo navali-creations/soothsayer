@@ -36,11 +36,14 @@ contextBridge.exposeInMainWorld("electron", {
   //      `E2E_TESTING=true` AND `!app.isPackaged` (see Database.service)
   //   3. The handlers reject destructive SQL (DROP, ALTER, etc.)
   //
-  // This block is intentionally unconditional because Vite's bundler
-  // replaces `process.env` with `{}` in preload builds, making runtime
-  // env-var checks unreliable. The main-process guards are the true
-  // security boundary — if the handlers aren't registered, these calls
-  // are harmless no-ops that reject with "No handler registered".
+  // This block is intentionally unconditional because the preload script
+  // is compiled by Vite in a separate build step (electron-forge / `pnpm
+  // start`) that runs *before* the E2E test runner sets E2E_TESTING=true.
+  // Vite's `import.meta.env` replacement happens at build time, so a
+  // runtime guard here is unreliable. The main-process guards (env var +
+  // `!app.isPackaged`) are the true security boundary — in production
+  // builds the IPC handlers are never registered, so these channels
+  // simply reject with "No handler registered".
   __E2E_TESTING: true as const,
   ipcRenderer: {
     invoke: (channel: string, ...args: unknown[]) => {

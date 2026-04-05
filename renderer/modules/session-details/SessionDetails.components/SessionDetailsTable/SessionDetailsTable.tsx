@@ -6,7 +6,7 @@ import { FiEye, FiEyeOff } from "react-icons/fi";
 import { DivinationCard, Table } from "~/renderer/components";
 import CardNameLink from "~/renderer/components/CardNameLink/CardNameLink";
 import { usePopover } from "~/renderer/hooks/usePopover/usePopover";
-import { useBoundStore } from "~/renderer/store";
+import { useSessionDetails } from "~/renderer/store";
 import { formatCurrency } from "~/renderer/utils";
 import type { CardEntry as GlobalCardEntry } from "~/types/data-stores";
 
@@ -68,22 +68,19 @@ const SessionCardNameCell = ({
   );
 };
 
-interface SessionDetailsTableProps {
-  cardData: CardEntry[];
-  chaosToDivineRatio: number;
-  priceSource: "exchange" | "stash";
-}
-
 const columnHelper = createColumnHelper<CardEntry>();
 
-const SessionDetailsTable = ({
-  cardData,
-  chaosToDivineRatio,
-  priceSource,
-}: SessionDetailsTableProps) => {
+const SessionDetailsTable = () => {
   const {
-    sessionDetails: { toggleCardPriceVisibility },
-  } = useBoundStore();
+    getCardData,
+    getPriceData,
+    getPriceSource,
+    toggleCardPriceVisibility,
+  } = useSessionDetails();
+
+  const cardData = getCardData();
+  const { chaosToDivineRatio } = getPriceData();
+  const priceSource = getPriceSource();
 
   const columns = useMemo(
     () => [
@@ -209,21 +206,25 @@ const SessionDetailsTable = ({
   return (
     <div className="card bg-base-200 shadow-xl">
       <div className="card-body">
-        <h2 className="card-title">Cards Obtained</h2>
-        <p className="text-sm text-base-content/60 mb-3">
-          Viewing {priceSource === "exchange" ? "Exchange" : "Stash"} prices
-          (Snapshot)
-        </p>
+        <div>
+          <h2 className="card-title">Cards Obtained</h2>
+          <p className="text-sm text-base-content/60">
+            Viewing {priceSource === "exchange" ? "Exchange" : "Stash"} prices
+            (Snapshot)
+          </p>
+        </div>
 
-        <Table
-          data={cardData}
-          columns={columns}
-          enableSorting={true}
-          enablePagination={true}
-          pageSize={20}
-          hoverable={true}
-          initialSorting={[{ id: "totalValue", desc: true }]}
-        />
+        <div className="mt-3">
+          <Table
+            data={cardData}
+            columns={columns}
+            enableSorting={true}
+            enablePagination={true}
+            pageSize={20}
+            hoverable={true}
+            initialSorting={[{ id: "totalValue", desc: true }]}
+          />
+        </div>
       </div>
     </div>
   );

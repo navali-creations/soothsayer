@@ -9,6 +9,7 @@ import { migration_20260225_230000_add_overlay_font_size_and_main_window_bounds 
 import { migration_20260226_134100_add_overlay_toolbar_font_size } from "../migrations/20260226_134100_add_overlay_toolbar_font_size";
 import { migration_20260227_182400_add_stacked_deck_max_volume_rate } from "../migrations/20260227_182400_add_stacked_deck_max_volume_rate";
 import { migration_20260302_192700_add_telemetry_settings } from "../migrations/20260302_192700_add_telemetry_settings";
+import { migration_20260331_225900_create_session_card_events } from "../migrations/20260331_225900_create_session_card_events";
 
 /**
  * Returns the column names for a given table.
@@ -30,6 +31,21 @@ function getTableNames(db: Database.Database): string[] {
     )
     .all() as { name: string }[];
   return tables.map((t) => t.name);
+}
+
+/**
+ * Returns the names of all indexes in the database (excluding internal SQLite indexes).
+ * Optionally filtered by table name.
+ */
+function getIndexNames(db: Database.Database, tableName?: string): string[] {
+  let query =
+    "SELECT name FROM sqlite_master WHERE type='index' AND name NOT LIKE 'sqlite_%'";
+  if (tableName) {
+    query += ` AND tbl_name='${tableName}'`;
+  }
+  query += " ORDER BY name";
+  const indexes = db.prepare(query).all() as { name: string }[];
+  return indexes.map((i) => i.name);
 }
 
 /**
@@ -419,6 +435,19 @@ const EXPECTED_FILTER_CARD_RARITIES_COLUMNS = [
   "created_at",
 ];
 
+const EXPECTED_SESSION_CARD_EVENTS_COLUMNS = [
+  "id",
+  "session_id",
+  "card_name",
+  "chaos_value",
+  "divine_value",
+  "dropped_at",
+];
+
+const EXPECTED_SESSION_CARD_EVENTS_INDEXES = [
+  "idx_session_card_events_session",
+];
+
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe("Migrations Integration", () => {
@@ -617,6 +646,37 @@ describe("Migrations Integration", () => {
         .get() as { last_seen_app_version: string | null };
 
       expect(row.last_seen_app_version).toBe("0.5.0");
+    });
+
+    it("should have session_card_events table after migrations", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      const tables = getTableNames(db);
+      expect(tables).toContain("session_card_events");
+    });
+
+    it("should have correct columns in session_card_events table", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      const columns = getColumnNames(db, "session_card_events");
+      expect(columns.sort()).toEqual(
+        EXPECTED_SESSION_CARD_EVENTS_COLUMNS.sort(),
+      );
+    });
+
+    it("should have correct indexes on session_card_events table", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      const indexes = getIndexNames(db, "session_card_events");
+      for (const idx of EXPECTED_SESSION_CARD_EVENTS_INDEXES) {
+        expect(indexes).toContain(idx);
+      }
     });
   });
 
@@ -2296,6 +2356,253 @@ describe("Migrations Integration", () => {
       };
       expect(row.telemetry_crash_reporting).toBe(0);
       expect(row.telemetry_usage_analytics).toBe(0);
+    });
+  });
+
+  // ─── Session Card Events Migration ───────────────────────────────────────
+
+  describe("session_card_events migration idempotency", () => {
+    it("should skip creating table when it already exists", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      const before = getTableNames(db);
+      expect(before).toContain("session_card_events");
+
+      // Running up() again should be safe (IF NOT EXISTS)
+      expect(() =>
+        migration_20260331_225900_create_session_card_events.up(db),
+      ).not.toThrow();
+
+      const after = getTableNames(db);
+      expect(after).toContain("session_card_events");
+    });
+
+    it("should handle down() when table does not exist", () => {
+      createBaselineSchema(db);
+
+      // Table doesn't exist before migration runs
+      const before = getTableNames(db);
+      expect(before).not.toContain("session_card_events");
+
+      // down() should be safe (DROP IF EXISTS)
+      expect(() =>
+        migration_20260331_225900_create_session_card_events.down(db),
+      ).not.toThrow();
+
+      const after = getTableNames(db);
+      expect(after).not.toContain("session_card_events");
+    });
+
+    it("should create table with correct columns", () => {
+      createBaselineSchema(db);
+
+      migration_20260331_225900_create_session_card_events.up(db);
+
+      const columns = getColumnNames(db, "session_card_events");
+      expect(columns.sort()).toEqual(
+        EXPECTED_SESSION_CARD_EVENTS_COLUMNS.sort(),
+      );
+    });
+
+    it("should create index", () => {
+      createBaselineSchema(db);
+
+      migration_20260331_225900_create_session_card_events.up(db);
+
+      const indexes = getIndexNames(db, "session_card_events");
+      expect(indexes).toContain("idx_session_card_events_session");
+    });
+
+    it("should remove table and indexes on down()", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      expect(getTableNames(db)).toContain("session_card_events");
+      expect(getIndexNames(db, "session_card_events")).toHaveLength(1);
+
+      migration_20260331_225900_create_session_card_events.down(db);
+
+      expect(getTableNames(db)).not.toContain("session_card_events");
+      expect(getIndexNames(db, "session_card_events")).toHaveLength(0);
+    });
+
+    it("should allow re-applying migration after rollback", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      // Rollback
+      migration_20260331_225900_create_session_card_events.down(db);
+      expect(getTableNames(db)).not.toContain("session_card_events");
+
+      // Re-apply
+      migration_20260331_225900_create_session_card_events.up(db);
+      expect(getTableNames(db)).toContain("session_card_events");
+
+      const columns = getColumnNames(db, "session_card_events");
+      expect(columns.sort()).toEqual(
+        EXPECTED_SESSION_CARD_EVENTS_COLUMNS.sort(),
+      );
+    });
+
+    it("should preserve data in other tables after down()", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      // Insert data into sessions table
+      db.prepare(
+        "INSERT INTO leagues (id, name, game) VALUES ('l1', 'Test', 'poe1')",
+      ).run();
+      db.prepare(
+        "INSERT INTO sessions (id, game, league_id, started_at) VALUES ('s1', 'poe1', 'l1', datetime('now'))",
+      ).run();
+
+      // Rollback session_card_events
+      migration_20260331_225900_create_session_card_events.down(db);
+
+      // Other tables should still have data
+      const session = db
+        .prepare("SELECT id FROM sessions WHERE id = 's1'")
+        .get() as { id: string } | undefined;
+      expect(session).toBeDefined();
+      expect(session!.id).toBe("s1");
+    });
+
+    it("should enforce foreign key constraint on session_id", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      // Insert without a valid session should fail (FK constraint)
+      expect(() =>
+        db
+          .prepare(
+            "INSERT INTO session_card_events (session_id, card_name, dropped_at) VALUES ('nonexistent', 'Card', datetime('now'))",
+          )
+          .run(),
+      ).toThrow();
+    });
+
+    it("should cascade delete when parent session is deleted", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      // Setup: league → session → card events
+      db.prepare(
+        "INSERT INTO leagues (id, name, game) VALUES ('l1', 'Test', 'poe1')",
+      ).run();
+      db.prepare(
+        "INSERT INTO sessions (id, game, league_id, started_at) VALUES ('s1', 'poe1', 'l1', datetime('now'))",
+      ).run();
+      db.prepare(
+        "INSERT INTO session_card_events (session_id, card_name, chaos_value, dropped_at) VALUES ('s1', 'The Doctor', 5000, datetime('now'))",
+      ).run();
+
+      const before = db
+        .prepare(
+          "SELECT COUNT(*) as count FROM session_card_events WHERE session_id = 's1'",
+        )
+        .get() as { count: number };
+      expect(before.count).toBe(1);
+
+      // Delete the session — should cascade
+      db.prepare("DELETE FROM sessions WHERE id = 's1'").run();
+
+      const after = db
+        .prepare(
+          "SELECT COUNT(*) as count FROM session_card_events WHERE session_id = 's1'",
+        )
+        .get() as { count: number };
+      expect(after.count).toBe(0);
+    });
+
+    it("should allow inserting valid card events with all fields", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      db.prepare(
+        "INSERT INTO leagues (id, name, game) VALUES ('l1', 'Test', 'poe1')",
+      ).run();
+      db.prepare(
+        "INSERT INTO sessions (id, game, league_id, started_at) VALUES ('s1', 'poe1', 'l1', datetime('now'))",
+      ).run();
+
+      db.prepare(
+        "INSERT INTO session_card_events (session_id, card_name, chaos_value, divine_value, dropped_at) VALUES ('s1', 'The Doctor', 5000.5, 25.025, '2025-03-31T12:00:00Z')",
+      ).run();
+
+      const row = db
+        .prepare("SELECT * FROM session_card_events WHERE session_id = 's1'")
+        .get() as any;
+
+      expect(row.session_id).toBe("s1");
+      expect(row.card_name).toBe("The Doctor");
+      expect(row.chaos_value).toBeCloseTo(5000.5);
+      expect(row.divine_value).toBeCloseTo(25.025);
+      expect(row.dropped_at).toBe("2025-03-31T12:00:00Z");
+    });
+
+    it("should allow null chaos_value and divine_value", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      db.prepare(
+        "INSERT INTO leagues (id, name, game) VALUES ('l1', 'Test', 'poe1')",
+      ).run();
+      db.prepare(
+        "INSERT INTO sessions (id, game, league_id, started_at) VALUES ('s1', 'poe1', 'l1', datetime('now'))",
+      ).run();
+
+      expect(() =>
+        db
+          .prepare(
+            "INSERT INTO session_card_events (session_id, card_name, dropped_at) VALUES ('s1', 'Rain of Chaos', datetime('now'))",
+          )
+          .run(),
+      ).not.toThrow();
+
+      const row = db
+        .prepare(
+          "SELECT chaos_value, divine_value FROM session_card_events WHERE session_id = 's1'",
+        )
+        .get() as any;
+
+      expect(row.chaos_value).toBeNull();
+      expect(row.divine_value).toBeNull();
+    });
+
+    it("should auto-increment the id column", () => {
+      createBaselineSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      db.prepare(
+        "INSERT INTO leagues (id, name, game) VALUES ('l1', 'Test', 'poe1')",
+      ).run();
+      db.prepare(
+        "INSERT INTO sessions (id, game, league_id, started_at) VALUES ('s1', 'poe1', 'l1', datetime('now'))",
+      ).run();
+
+      db.prepare(
+        "INSERT INTO session_card_events (session_id, card_name, dropped_at) VALUES ('s1', 'Card1', datetime('now'))",
+      ).run();
+      db.prepare(
+        "INSERT INTO session_card_events (session_id, card_name, dropped_at) VALUES ('s1', 'Card2', datetime('now'))",
+      ).run();
+
+      const rows = db
+        .prepare("SELECT id FROM session_card_events ORDER BY id")
+        .all() as { id: number }[];
+      expect(rows).toHaveLength(2);
+      expect(rows[0].id).toBe(1);
+      expect(rows[1].id).toBe(2);
     });
   });
 });

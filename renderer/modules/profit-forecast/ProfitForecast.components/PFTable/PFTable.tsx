@@ -2,7 +2,7 @@ import type { Row, SortingState } from "@tanstack/react-table";
 import { useCallback, useMemo, useState } from "react";
 
 import { Table } from "~/renderer/components";
-import { useBoundStore } from "~/renderer/store";
+import { usePoeNinja, useProfitForecast } from "~/renderer/store";
 import type { DivinationCardMetadata } from "~/types/data-stores";
 
 import type { CardForecastRow } from "../../ProfitForecast.slice/ProfitForecast.slice";
@@ -25,16 +25,14 @@ interface PFTableProps {
 
 const PFTable = ({ globalFilter, cardMetadataMap }: PFTableProps) => {
   const {
-    profitForecast: {
-      rows: allStoreRows,
-      minPriceThreshold,
-      isComputing,
-      isLoading,
-      getFilteredRows,
-      getExcludedCount,
-    },
-    poeNinja: { isRefreshing },
-  } = useBoundStore();
+    rows: allStoreRows,
+    minPriceThreshold,
+    isComputing,
+    isLoading,
+    getFilteredRows,
+    getExcludedCount,
+  } = useProfitForecast();
+  const { isRefreshing } = usePoeNinja();
 
   const filteredRows = getFilteredRows();
   const excludedCount = getExcludedCount();

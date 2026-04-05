@@ -3,14 +3,24 @@ import {
   screen,
   waitFor,
 } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import {
+  useCards,
+  usePoeNinja,
+  useRarityInsights,
+  useRarityInsightsComparison,
+  useSettings,
+} from "~/renderer/store";
 
 import RarityInsightsPage from "./RarityInsights.page";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useRarityInsights: vi.fn(),
+  useCards: vi.fn(),
+  useSettings: vi.fn(),
+  useRarityInsightsComparison: vi.fn(),
+  usePoeNinja: vi.fn(),
 }));
 
 vi.mock("../RarityInsights.components/ComparisonTable/ComparisonTable", () => ({
@@ -90,7 +100,13 @@ function createMockState(overrides: Record<string, any> = {}) {
 
 function setupStore(overrides: Record<string, any> = {}) {
   const mockState = createMockState(overrides);
-  vi.mocked(useBoundStore).mockReturnValue(mockState as any);
+  vi.mocked(useRarityInsights).mockReturnValue(mockState.rarityInsights as any);
+  vi.mocked(useCards).mockReturnValue(mockState.cards as any);
+  vi.mocked(useSettings).mockReturnValue(mockState.settings as any);
+  vi.mocked(useRarityInsightsComparison).mockReturnValue(
+    mockState.rarityInsightsComparison as any,
+  );
+  vi.mocked(usePoeNinja).mockReturnValue(mockState.poeNinja as any);
   return mockState;
 }
 

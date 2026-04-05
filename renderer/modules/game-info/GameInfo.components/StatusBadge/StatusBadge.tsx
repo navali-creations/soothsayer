@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import { FiCheckCircle, FiSlash } from "react-icons/fi";
 
-import { useBoundStore } from "~/renderer/store";
+import { useGameInfo } from "~/renderer/store";
 import type { GameType } from "~/types/data-stores";
 
 type StatusBadgeProps = {
@@ -9,9 +9,7 @@ type StatusBadgeProps = {
 };
 
 const StatusBadge = ({ game }: StatusBadgeProps) => {
-  const {
-    gameInfo: { isGameOnline },
-  } = useBoundStore();
+  const { isGameOnline } = useGameInfo();
   const isOnline = isGameOnline(game);
 
   return (

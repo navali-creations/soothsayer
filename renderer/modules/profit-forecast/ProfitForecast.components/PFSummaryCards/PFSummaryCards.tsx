@@ -1,5 +1,5 @@
 import { GroupedStats } from "~/renderer/components";
-import { useBoundStore } from "~/renderer/store";
+import { usePoeNinja, useProfitForecast } from "~/renderer/store";
 
 import PFBaseRateStat from "./PFBaseRateStat/PFBaseRateStat";
 import PFBreakEvenStat from "./PFBreakEvenStat/PFBreakEvenStat";
@@ -8,10 +8,8 @@ import PFEstimatedReturnStat from "./PFEstimatedReturnStat/PFEstimatedReturnStat
 import PFYouSpendStat from "./PFYouSpendStat/PFYouSpendStat";
 
 const PFSummaryCards = () => {
-  const {
-    profitForecast: { isComputing },
-    poeNinja: { isRefreshing },
-  } = useBoundStore();
+  const { isComputing } = useProfitForecast();
+  const { isRefreshing } = usePoeNinja();
 
   const isStale = isComputing || isRefreshing;
 

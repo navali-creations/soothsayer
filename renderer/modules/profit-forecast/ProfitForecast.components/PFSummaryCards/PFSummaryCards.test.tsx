@@ -1,12 +1,13 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { usePoeNinja, useProfitForecast } from "~/renderer/store";
 
 import PFSummaryCards from "./PFSummaryCards";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useProfitForecast: vi.fn(),
+  usePoeNinja: vi.fn(),
 }));
 
 vi.mock("~/renderer/components", () => ({
@@ -41,51 +42,55 @@ vi.mock("~/renderer/components", () => ({
   ),
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseProfitForecast = vi.mocked(useProfitForecast);
+const mockUsePoeNinja = vi.mocked(usePoeNinja);
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-function createMockState(overrides: any = {}) {
+function createMockProfitForecast(overrides: any = {}) {
   return {
-    profitForecast: {
-      isLoading: false,
-      isComputing: false,
-      evPerDeck: 10,
-      chaosToDivineRatio: 200,
-      baseRate: 80,
-      baseRateSource: "exchange" as const,
-      customBaseRate: null as number | null,
-      snapshotFetchedAt: "2024-06-15T12:00:00Z",
-      getTotalCost: vi.fn(() => 16000),
-      getTotalRevenue: vi.fn(() => 20000),
-      getBreakEvenRate: vi.fn(() => 20),
-      getAvgCostPerDeck: vi.fn(() => 2.5),
-      getEffectiveBaseRate: vi.fn(() => 80),
-      hasData: vi.fn(() => true),
-      setCustomBaseRate: vi.fn(),
-      setIsComputing: vi.fn(),
-      getBatchPnL: vi.fn(() => ({
-        revenue: 20000,
-        cost: 16500,
-        netPnL: 3500,
-        confidence: {
-          estimated: 3500,
-          optimistic: 12000,
-        },
-      })),
-      ...overrides.profitForecast,
-    },
-    poeNinja: {
-      isRefreshing: false,
-      ...overrides.poeNinja,
-    },
+    isLoading: false,
+    isComputing: false,
+    evPerDeck: 10,
+    chaosToDivineRatio: 200,
+    baseRate: 80,
+    baseRateSource: "exchange" as const,
+    customBaseRate: null as number | null,
+    snapshotFetchedAt: "2024-06-15T12:00:00Z",
+    getTotalCost: vi.fn(() => 16000),
+    getTotalRevenue: vi.fn(() => 20000),
+    getBreakEvenRate: vi.fn(() => 20),
+    getAvgCostPerDeck: vi.fn(() => 2.5),
+    getEffectiveBaseRate: vi.fn(() => 80),
+    hasData: vi.fn(() => true),
+    setCustomBaseRate: vi.fn(),
+    setIsComputing: vi.fn(),
+    getBatchPnL: vi.fn(() => ({
+      revenue: 20000,
+      cost: 16500,
+      netPnL: 3500,
+      confidence: {
+        estimated: 3500,
+        optimistic: 12000,
+      },
+    })),
+    ...overrides,
+  } as any;
+}
+
+function createMockPoeNinja(overrides: any = {}) {
+  return {
+    isRefreshing: false,
+    ...overrides,
   } as any;
 }
 
 function setupStore(overrides: any = {}) {
-  const state = createMockState(overrides);
-  mockUseBoundStore.mockReturnValue(state);
-  return state;
+  const profitForecast = createMockProfitForecast(overrides.profitForecast);
+  const poeNinja = createMockPoeNinja(overrides.poeNinja);
+  mockUseProfitForecast.mockReturnValue(profitForecast);
+  mockUsePoeNinja.mockReturnValue(poeNinja);
+  return { profitForecast, poeNinja };
 }
 
 function renderCards(storeOverrides: any = {}) {

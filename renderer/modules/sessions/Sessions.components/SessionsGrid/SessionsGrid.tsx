@@ -1,14 +1,14 @@
-import { useBoundStore } from "~/renderer/store";
+import { useSessions } from "~/renderer/store";
 
 import { SessionCard } from "../SessionsCard/SessionsCard";
 
 export const SessionsGrid = () => {
-  const {
-    sessions: { getFilteredSessions, getSelectedLeague },
-  } = useBoundStore();
+  const { getFilteredSessions, getSelectedLeague, getSparklines } =
+    useSessions();
 
   const filteredSessions = getFilteredSessions();
   const selectedLeague = getSelectedLeague();
+  const sparklines = getSparklines();
 
   if (filteredSessions.length === 0) {
     return (
@@ -30,7 +30,10 @@ export const SessionsGrid = () => {
           className="animation-stagger"
           key={`${selectedLeague}-${session.sessionId}`}
         >
-          <SessionCard session={session} />
+          <SessionCard
+            session={session}
+            linePoints={sparklines[session.sessionId]}
+          />
         </li>
       ))}
     </ul>

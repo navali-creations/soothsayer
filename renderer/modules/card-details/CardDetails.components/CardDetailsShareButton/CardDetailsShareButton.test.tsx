@@ -5,11 +5,11 @@ import {
   screen,
   waitFor,
 } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useCardDetails } from "~/renderer/store";
 
 // ─── Store mock ────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({ useBoundStore: vi.fn() }));
+vi.mock("~/renderer/store", () => ({ useCardDetails: vi.fn() }));
 
 // ─── Utility mocks ────────────────────────────────────────────────────────
 
@@ -48,10 +48,8 @@ function createMockState(
   overrides: Pick<RenderOptions, "priceHistory" | "personalAnalytics"> = {},
 ) {
   return {
-    cardDetails: {
-      priceHistory: overrides.priceHistory ?? null,
-      personalAnalytics: overrides.personalAnalytics ?? null,
-    },
+    priceHistory: overrides.priceHistory ?? null,
+    personalAnalytics: overrides.personalAnalytics ?? null,
   };
 }
 
@@ -66,7 +64,7 @@ function renderComponent(options: RenderOptions = {}) {
   } = options;
 
   const mockState = createMockState({ priceHistory, personalAnalytics });
-  vi.mocked(useBoundStore).mockReturnValue(mockState as any);
+  vi.mocked(useCardDetails).mockReturnValue(mockState as any);
 
   return renderWithProviders(
     <CardDetailsShareButton

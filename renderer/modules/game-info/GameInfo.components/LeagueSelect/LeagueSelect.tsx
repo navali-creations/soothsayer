@@ -1,16 +1,15 @@
 import { useEffect, useRef } from "react";
 
-import { useBoundStore } from "~/renderer/store";
+import { useGameInfo, useSettings } from "~/renderer/store";
 
 type LeagueSelectProps = {
   game: "poe1" | "poe2";
 };
 
 const LeagueSelect = ({ game }: LeagueSelectProps) => {
-  const {
-    gameInfo: { getLeaguesForGame },
-    settings: { getSelectedPoe1League, getSelectedPoe2League, updateSetting },
-  } = useBoundStore();
+  const { getLeaguesForGame } = useGameInfo();
+  const { getSelectedPoe1League, getSelectedPoe2League, updateSetting } =
+    useSettings();
   const poeLeague = getLeaguesForGame(game);
   const selectedLeague =
     game === "poe1" ? getSelectedPoe1League() : getSelectedPoe2League();

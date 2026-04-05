@@ -2,7 +2,7 @@ import clsx from "clsx";
 import type React from "react";
 import "./beam.css";
 
-import { useBoundStore } from "~/renderer/store";
+import { useOverlay } from "~/renderer/store";
 
 type BeamProps = {
   className?: string;
@@ -10,9 +10,7 @@ type BeamProps = {
 };
 
 function Beam({ className, color }: BeamProps) {
-  const {
-    overlay: { isLeftHalf },
-  } = useBoundStore();
+  const { isLeftHalf } = useOverlay();
   return (
     <div
       className={clsx("lootBeam", className)}

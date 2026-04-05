@@ -1,26 +1,24 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useCards } from "~/renderer/store";
 
 import { CardsPagination } from "./CardsPagination";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useCards: vi.fn(),
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseCards = vi.mocked(useCards);
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 const mockSetCurrentPage = vi.fn();
 
 function setupStore(overrides: { currentPage?: number } = {}) {
-  mockUseBoundStore.mockReturnValue({
-    cards: {
-      currentPage: overrides.currentPage ?? 1,
-      setCurrentPage: mockSetCurrentPage,
-    },
+  mockUseCards.mockReturnValue({
+    currentPage: overrides.currentPage ?? 1,
+    setCurrentPage: mockSetCurrentPage,
   } as any);
 }
 

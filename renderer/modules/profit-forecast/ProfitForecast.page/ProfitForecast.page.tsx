@@ -3,7 +3,7 @@ import { FiAlertTriangle, FiInfo, FiRefreshCw } from "react-icons/fi";
 
 import { Button, PageContainer } from "~/renderer/components";
 import { useDebounce } from "~/renderer/hooks";
-import { useBoundStore } from "~/renderer/store";
+import { usePoeNinja, useProfitForecast, useSettings } from "~/renderer/store";
 import type { DivinationCardMetadata } from "~/types/data-stores";
 
 import PFBreakevenChart from "../ProfitForecast.components/PFBreakevenChart/PFBreakevenChart";
@@ -19,25 +19,23 @@ const ProfitForecastPage = () => {
     Map<string, DivinationCardMetadata>
   >(new Map());
 
+  const { getSelectedGame, getActiveGameViewSelectedLeague } = useSettings();
+  const { isRefreshing, checkRefreshStatus } = usePoeNinja();
   const {
-    settings: { getSelectedGame, getActiveGameViewSelectedLeague },
-    poeNinja: { isRefreshing, checkRefreshStatus },
-    profitForecast: {
-      rows,
-      snapshotFetchedAt,
-      isLoading,
-      isComputing,
-      error,
-      selectedBatch,
-      forecastView,
-      stepDrop,
-      subBatchSize,
-      customBaseRate,
-      fetchData,
-      recomputeRows,
-      hasData,
-    },
-  } = useBoundStore();
+    rows,
+    snapshotFetchedAt,
+    isLoading,
+    isComputing,
+    error,
+    selectedBatch,
+    forecastView,
+    stepDrop,
+    subBatchSize,
+    customBaseRate,
+    fetchData,
+    recomputeRows,
+    hasData,
+  } = useProfitForecast();
 
   const game = getSelectedGame();
   const league = getActiveGameViewSelectedLeague();

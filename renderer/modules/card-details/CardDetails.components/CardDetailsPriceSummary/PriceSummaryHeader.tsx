@@ -1,4 +1,4 @@
-import { useBoundStore } from "~/renderer/store";
+import { useCardDetails } from "~/renderer/store";
 import { formatRelativeTime } from "~/renderer/utils";
 
 import ConfidenceBadge from "./ConfidenceBadge";
@@ -12,9 +12,7 @@ import ConfidenceBadge from "./ConfidenceBadge";
  * Reads all data directly from the Zustand store — no props needed.
  */
 const PriceSummaryHeader = () => {
-  const {
-    cardDetails: { priceHistory },
-  } = useBoundStore();
+  const { priceHistory } = useCardDetails();
 
   const isFromCache = priceHistory?.isFromCache ?? false;
   const fetchedAt = priceHistory?.fetchedAt ?? null;

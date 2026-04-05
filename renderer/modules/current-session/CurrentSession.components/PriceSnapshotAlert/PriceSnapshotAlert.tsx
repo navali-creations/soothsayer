@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { Countdown } from "~/renderer/components";
-import { useBoundStore } from "~/renderer/store";
+import { useCurrentSession, usePoeNinja, useSettings } from "~/renderer/store";
 
 const PriceSnapshotAlert = () => {
-  const {
-    currentSession: { getSession, getSessionInfo },
-    settings: { getActiveGameViewPriceSource },
-    poeNinja: { currentSnapshot, isAutoRefreshActive, getTimeUntilNextRefresh },
-  } = useBoundStore();
+  const { getSession, getSessionInfo } = useCurrentSession();
+  const { getActiveGameViewPriceSource } = useSettings();
+  const { currentSnapshot, isAutoRefreshActive, getTimeUntilNextRefresh } =
+    usePoeNinja();
 
   const sessionData = getSession();
   const sessionInfo = getSessionInfo();

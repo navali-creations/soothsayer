@@ -2,7 +2,13 @@ import { useEffect, useState } from "react";
 import { FiAlertTriangle } from "react-icons/fi";
 
 import { PageContainer } from "~/renderer/components";
-import { useBoundStore } from "~/renderer/store";
+import {
+  useCards,
+  usePoeNinja,
+  useRarityInsights,
+  useRarityInsightsComparison,
+  useSettings,
+} from "~/renderer/store";
 
 import ComparisonTable from "../RarityInsights.components/ComparisonTable/ComparisonTable";
 import ComparisonToolbar from "../RarityInsights.components/ComparisonToolbar/ComparisonToolbar";
@@ -11,22 +17,14 @@ import RarityInsightsHeaderActions from "../RarityInsights.components/RarityInsi
 const RarityInsightsPage = () => {
   const [globalFilter, setGlobalFilter] = useState("");
 
-  const {
-    rarityInsights: {
-      availableFilters,
-      isScanning,
-      lastScannedAt,
-      scanFilters,
-    },
-    cards: { isLoading: isLoadingCards, loadCards },
-    settings: {
-      selectedFilterId,
-      getSelectedGame,
-      getActiveGameViewSelectedLeague,
-    },
-    rarityInsightsComparison: { selectedFilters, toggleFilter, reset },
-    poeNinja: { isRefreshing, refreshError, checkRefreshStatus },
-  } = useBoundStore();
+  const { availableFilters, isScanning, lastScannedAt, scanFilters } =
+    useRarityInsights();
+  const { isLoading: isLoadingCards, loadCards } = useCards();
+  const { selectedFilterId, getSelectedGame, getActiveGameViewSelectedLeague } =
+    useSettings();
+  const { selectedFilters, toggleFilter, reset } =
+    useRarityInsightsComparison();
+  const { isRefreshing, refreshError, checkRefreshStatus } = usePoeNinja();
 
   const game = getSelectedGame();
   const league = getActiveGameViewSelectedLeague();

@@ -4,7 +4,7 @@ import { LuMoveHorizontal, LuMoveVertical } from "react-icons/lu";
 
 import { Button } from "~/renderer/components";
 import { trackEvent } from "~/renderer/modules/umami";
-import { useBoundStore } from "~/renderer/store";
+import { useSettings } from "~/renderer/store";
 
 const FONT_SIZE_MIN = 0.5;
 const FONT_SIZE_MAX = 2.0;
@@ -25,13 +25,11 @@ const TOOLBAR_FONT_SIZE_DEFAULT = 1.0;
 
 const OverlaySettingsCard = () => {
   const {
-    settings: {
-      overlayFontSize,
-      overlayToolbarFontSize,
-      overlayBounds,
-      updateSetting,
-    },
-  } = useBoundStore();
+    overlayFontSize,
+    overlayToolbarFontSize,
+    overlayBounds,
+    updateSetting,
+  } = useSettings();
 
   const [overlayWidth, setOverlayWidth] = useState(
     overlayBounds?.width ?? OVERLAY_WIDTH_DEFAULT,

@@ -1,12 +1,10 @@
 import type { CellContext } from "@tanstack/react-table";
 
-import { useBoundStore } from "~/renderer/store";
+import { useCurrentSession } from "~/renderer/store";
 import type { CardEntry } from "~/types/data-stores";
 
 const CurrentSessionRatioCell = (cellProps: CellContext<CardEntry, number>) => {
-  const {
-    currentSession: { getSession },
-  } = useBoundStore();
+  const { getSession } = useCurrentSession();
   const sessionData = getSession();
   const totalCount = sessionData?.totalCount || 1;
   const cardCount = cellProps.row.original.count;

@@ -1,18 +1,16 @@
 import { Stat } from "~/renderer/components";
-import { useBoundStore } from "~/renderer/store";
+import { useProfitForecast } from "~/renderer/store";
 
 import { formatDivine } from "../../../ProfitForecast.utils/ProfitForecast.utils";
 
 const PFYouSpendStat = () => {
   const {
-    profitForecast: {
-      isLoading,
-      chaosToDivineRatio,
-      getTotalCost,
-      getAvgCostPerDeck,
-      hasData,
-    },
-  } = useBoundStore();
+    isLoading,
+    chaosToDivineRatio,
+    getTotalCost,
+    getAvgCostPerDeck,
+    hasData,
+  } = useProfitForecast();
 
   const dataAvailable = hasData() && !isLoading;
   const totalCost = dataAvailable ? getTotalCost() : 0;

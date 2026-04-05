@@ -5,8 +5,8 @@ import type {
   BrushRange,
   MetricKey,
   RawDataPoint,
-} from "~/renderer/components/CombinedChartCanvas/chart-types";
-import { METRICS } from "~/renderer/components/CombinedChartCanvas/chart-types";
+} from "~/renderer/components/CombinedChartCanvas/chart-types/chart-types";
+import { METRICS } from "~/renderer/components/CombinedChartCanvas/chart-types/chart-types";
 import type { BoundStore } from "~/renderer/store/store.types";
 import type {
   DivinationCardMetadata,

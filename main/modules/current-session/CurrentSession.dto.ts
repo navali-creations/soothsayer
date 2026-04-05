@@ -53,16 +53,6 @@ export interface UpdateSessionDTO {
   isActive?: boolean;
 }
 
-export interface UpsertSessionCardDTO {
-  sessionId: string;
-  cardName: string;
-  count: number;
-  firstSeenAt: string;
-  lastSeenAt: string;
-  hidePriceExchange?: boolean;
-  hidePriceStash?: boolean;
-}
-
 export interface SessionSummaryDTO {
   sessionId: string;
   game: GameType;
@@ -78,4 +68,22 @@ export interface SessionSummaryDTO {
   exchangeChaosToDivine: number;
   stashChaosToDivine: number;
   stackedDeckChaosCost: number;
+}
+
+export interface SessionCardEventDTO {
+  id: number;
+  sessionId: string;
+  cardName: string;
+  chaosValue: number | null;
+  divineValue: number | null;
+  droppedAt: string;
+}
+
+export interface SessionCardEventSummaryDTO {
+  cardName: string;
+  chaosValue: number | null;
+  divineValue: number | null;
+  droppedAt: string;
+  cumulativeChaosValue: number;
+  cumulativeDivineValue: number;
 }

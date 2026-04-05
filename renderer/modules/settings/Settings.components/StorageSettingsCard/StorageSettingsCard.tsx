@@ -4,7 +4,7 @@ import { FiAlertTriangle, FiHardDrive } from "react-icons/fi";
 import type { LeagueStorageUsage } from "~/main/modules/storage/Storage.types";
 import { Button } from "~/renderer/components";
 import { trackEvent } from "~/renderer/modules/umami";
-import { useBoundStore } from "~/renderer/store";
+import { useStorage } from "~/renderer/store";
 
 import DeleteLeagueModal from "../storage/DeleteLeagueModal/DeleteLeagueModal";
 import DiskUsageSection from "../storage/DiskUsageSection/DiskUsageSection";
@@ -12,17 +12,15 @@ import LeagueDataSection from "../storage/LeagueDataSection/LeagueDataSection";
 
 const StorageSettingsCard = () => {
   const {
-    storage: {
-      info,
-      leagueUsage,
-      isLoading,
-      error,
-      deletingLeagueId,
-      fetchStorageInfo,
-      fetchLeagueUsage,
-      deleteLeagueData,
-    },
-  } = useBoundStore();
+    info,
+    leagueUsage,
+    isLoading,
+    error,
+    deletingLeagueId,
+    fetchStorageInfo,
+    fetchLeagueUsage,
+    deleteLeagueData,
+  } = useStorage();
 
   const [leagueToDelete, setLeagueToDelete] =
     useState<LeagueStorageUsage | null>(null);

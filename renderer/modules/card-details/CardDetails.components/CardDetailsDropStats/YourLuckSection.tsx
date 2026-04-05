@@ -1,6 +1,6 @@
 import { FiAlertTriangle, FiInfo, FiZap } from "react-icons/fi";
 
-import { useBoundStore } from "~/renderer/store";
+import { useCardDetails, useProfitForecast } from "~/renderer/store";
 
 /**
  * "Your Luck" comparison section.
@@ -12,10 +12,8 @@ import { useBoundStore } from "~/renderer/store";
  * the luck comparison via the `cardDetails.getLuckComparison` getter.
  */
 const YourLuckSection = () => {
-  const {
-    cardDetails: { getLuckComparison },
-    profitForecast: { totalWeight },
-  } = useBoundStore();
+  const { getLuckComparison } = useCardDetails();
+  const { totalWeight } = useProfitForecast();
 
   const luck = getLuckComparison(totalWeight);
 

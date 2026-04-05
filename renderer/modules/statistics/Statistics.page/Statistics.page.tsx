@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 
 import { PageContainer } from "~/renderer/components";
-import { useBoundStore } from "~/renderer/store";
+import { useSettings, useStatistics } from "~/renderer/store";
 import type { SimpleCardEntry } from "~/types/data-stores";
 
 import {
@@ -14,19 +14,17 @@ import type { CardEntry } from "../Statistics.types";
 
 const StatisticsPage = () => {
   const {
-    statistics: {
-      statScope,
-      selectedLeague,
-      setSelectedLeague,
-      setStatScope,
-      divinationCardStats: stats,
-      isDivinationCardsLoading: loading,
-      availableLeagues,
-      fetchDivinationCards,
-      fetchAvailableLeagues,
-    },
-    settings: { getActiveGameViewSelectedLeague },
-  } = useBoundStore();
+    statScope,
+    selectedLeague,
+    setSelectedLeague,
+    setStatScope,
+    divinationCardStats: stats,
+    isDivinationCardsLoading: loading,
+    availableLeagues,
+    fetchDivinationCards,
+    fetchAvailableLeagues,
+  } = useStatistics();
+  const { getActiveGameViewSelectedLeague } = useSettings();
 
   // On first mount, seed the statistics-local league selection from the
   // global AppMenu league.  This runs exactly once so that subsequent

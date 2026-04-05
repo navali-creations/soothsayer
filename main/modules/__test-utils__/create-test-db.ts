@@ -90,7 +90,7 @@ function initializeSchema(db: Database.Database): void {
     // ═══════════════════════════════════════════════════════════════
     db.exec(`
       CREATE TABLE IF NOT EXISTS snapshot_card_prices (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id INTEGER PRIMARY KEY,
         snapshot_id TEXT NOT NULL,
         card_name TEXT NOT NULL,
         price_source TEXT NOT NULL CHECK(price_source IN ('exchange', 'stash')),
@@ -156,7 +156,7 @@ function initializeSchema(db: Database.Database): void {
     // ═══════════════════════════════════════════════════════════════
     db.exec(`
       CREATE TABLE IF NOT EXISTS session_cards (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id INTEGER PRIMARY KEY,
         session_id TEXT NOT NULL,
         card_name TEXT NOT NULL,
         count INTEGER NOT NULL DEFAULT 0,
@@ -177,6 +177,26 @@ function initializeSchema(db: Database.Database): void {
     db.exec(`
       CREATE INDEX IF NOT EXISTS idx_session_cards_name
       ON session_cards(card_name)
+    `);
+
+    // ═══════════════════════════════════════════════════════════════
+    // SESSION CARD EVENTS (per-drop event log for timeline charts)
+    // ═══════════════════════════════════════════════════════════════
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS session_card_events (
+        id INTEGER PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        card_name TEXT NOT NULL,
+        chaos_value REAL,
+        divine_value REAL,
+        dropped_at TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+      )
+    `);
+
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_session_card_events_session
+        ON session_card_events(session_id, dropped_at ASC)
     `);
 
     // ═══════════════════════════════════════════════════════════════
@@ -247,7 +267,7 @@ function initializeSchema(db: Database.Database): void {
     // ═══════════════════════════════════════════════════════════════
     db.exec(`
       CREATE TABLE IF NOT EXISTS cards (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id INTEGER PRIMARY KEY,
         game TEXT NOT NULL,
         scope TEXT NOT NULL,
         card_name TEXT NOT NULL,
@@ -531,7 +551,7 @@ function initializeSchema(db: Database.Database): void {
     // ═══════════════════════════════════════════════════════════════
     db.exec(`
       CREATE TABLE IF NOT EXISTS card_price_history_cache (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id INTEGER PRIMARY KEY,
         game TEXT NOT NULL CHECK(game IN ('poe1', 'poe2')),
         league TEXT NOT NULL,
         details_id TEXT NOT NULL,
@@ -565,7 +585,7 @@ function initializeSchema(db: Database.Database): void {
     // ═══════════════════════════════════════════════════════════════
     db.exec(`
       CREATE TABLE IF NOT EXISTS csv_export_snapshots (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id INTEGER PRIMARY KEY,
         game TEXT NOT NULL CHECK(game IN ('poe1', 'poe2')),
         scope TEXT NOT NULL,
         card_name TEXT NOT NULL,
@@ -789,6 +809,35 @@ export async function seedSessionCards(
         hide_price_stash: card.hidePriceStash ? 1 : 0,
         first_seen_at: now,
         last_seen_at: now,
+      })),
+    )
+    .execute();
+}
+
+/**
+ * Insert session card events (per-drop timeline events) into the test database.
+ */
+export async function seedSessionCardEvents(
+  kysely: Kysely<DatabaseSchema>,
+  sessionId: string,
+  events: Array<{
+    cardName: string;
+    chaosValue?: number | null;
+    divineValue?: number | null;
+    droppedAt: string;
+  }>,
+): Promise<void> {
+  if (events.length === 0) return;
+
+  await kysely
+    .insertInto("session_card_events")
+    .values(
+      events.map((e) => ({
+        session_id: sessionId,
+        card_name: e.cardName,
+        chaos_value: e.chaosValue ?? null,
+        divine_value: e.divineValue ?? null,
+        dropped_at: e.droppedAt,
       })),
     )
     .execute();

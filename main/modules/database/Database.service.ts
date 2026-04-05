@@ -71,6 +71,12 @@ class DatabaseService {
     // Enable foreign keys
     this.db.pragma("foreign_keys = ON");
 
+    // Performance pragmas
+    this.db.pragma("synchronous = NORMAL"); // WAL mode is safe with NORMAL (skip unnecessary fsync)
+    this.db.pragma("cache_size = -16000"); // 16 MB page cache (negative = KiB)
+    this.db.pragma("busy_timeout = 5000"); // Wait up to 5s instead of immediate SQLITE_BUSY
+    this.db.pragma("temp_store = MEMORY"); // Keep temp tables in memory
+
     // Initialize Kysely with the same database instance
     this.kysely = new Kysely<DatabaseSchema>({
       dialect: new SqliteDialect({
@@ -85,9 +91,10 @@ class DatabaseService {
     this.migrationRunner = new MigrationRunner(this.db);
     this.runMigrations();
 
-    // Reject destructive/administrative SQL in E2E test handlers
-    const FORBIDDEN_SQL_PATTERNS =
-      /^\s*(DROP|ALTER|ATTACH|DETACH|PRAGMA|REINDEX|VACUUM|CREATE\s+TRIGGER|CREATE\s+INDEX)/i;
+    // Allowlist: only permit DML statements (SELECT, INSERT, UPDATE, DELETE).
+    // This guards against destructive/administrative SQL (DROP, ALTER, ATTACH,
+    // PRAGMA, etc.) even if prefixed by comments or semicolons.
+    const ALLOWED_SQL_PATTERNS = /^\s*(SELECT|INSERT|UPDATE|DELETE)\b/i;
 
     // ── Test-only IPC handlers (defence-in-depth) ──────────────────────
     // Expose raw SQL execution channels so Playwright E2E tests can seed
@@ -105,12 +112,9 @@ class DatabaseService {
           sql: string,
           params?: unknown[],
         ): { changes: number; lastInsertRowid: number | bigint } => {
-          if (FORBIDDEN_SQL_PATTERNS.test(sql)) {
+          if (!ALLOWED_SQL_PATTERNS.test(sql)) {
             throw new Error(
-              `[Database] E2E IPC: forbidden SQL statement rejected: ${sql.slice(
-                0,
-                80,
-              )}`,
+              "[Database] E2E IPC: only SELECT, INSERT, UPDATE, and DELETE statements are allowed",
             );
           }
           const stmt = this.db.prepare(sql);
@@ -125,12 +129,9 @@ class DatabaseService {
       ipcMain.handle(
         "e2e:db-query",
         (_event, sql: string, params?: unknown[]): unknown[] => {
-          if (FORBIDDEN_SQL_PATTERNS.test(sql)) {
+          if (!ALLOWED_SQL_PATTERNS.test(sql)) {
             throw new Error(
-              `[Database] E2E IPC: forbidden SQL statement rejected: ${sql.slice(
-                0,
-                80,
-              )}`,
+              "[Database] E2E IPC: only SELECT, INSERT, UPDATE, and DELETE statements are allowed",
             );
           }
           const stmt = this.db.prepare(sql);
@@ -229,7 +230,7 @@ class DatabaseService {
       // ═══════════════════════════════════════════════════════════════
       this.db.exec(`
         CREATE TABLE IF NOT EXISTS snapshot_card_prices (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          id INTEGER PRIMARY KEY,
           snapshot_id TEXT NOT NULL,
           card_name TEXT NOT NULL,
           price_source TEXT NOT NULL CHECK(price_source IN ('exchange', 'stash')),
@@ -295,7 +296,7 @@ class DatabaseService {
       // ═══════════════════════════════════════════════════════════════
       this.db.exec(`
         CREATE TABLE IF NOT EXISTS session_cards (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          id INTEGER PRIMARY KEY,
           session_id TEXT NOT NULL,
           card_name TEXT NOT NULL,
           count INTEGER NOT NULL DEFAULT 0,
@@ -316,6 +317,26 @@ class DatabaseService {
       this.db.exec(`
         CREATE INDEX IF NOT EXISTS idx_session_cards_name
         ON session_cards(card_name)
+      `);
+
+      // ═══════════════════════════════════════════════════════════════
+      // SESSION CARD EVENTS (per-drop event log for timeline charts)
+      // ═══════════════════════════════════════════════════════════════
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS session_card_events (
+          id INTEGER PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          card_name TEXT NOT NULL,
+          chaos_value REAL,
+          divine_value REAL,
+          dropped_at TEXT NOT NULL DEFAULT (datetime('now')),
+          FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+        )
+      `);
+
+      this.db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_session_card_events_session
+          ON session_card_events(session_id, dropped_at ASC)
       `);
 
       // ═══════════════════════════════════════════════════════════════
@@ -386,7 +407,7 @@ class DatabaseService {
       // ═══════════════════════════════════════════════════════════════
       this.db.exec(`
         CREATE TABLE IF NOT EXISTS cards (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          id INTEGER PRIMARY KEY,
           game TEXT NOT NULL,
           scope TEXT NOT NULL,
           card_name TEXT NOT NULL,
@@ -574,7 +595,7 @@ class DatabaseService {
       // ═══════════════════════════════════════════════════════════════
       this.db.exec(`
         CREATE TABLE IF NOT EXISTS card_price_history_cache (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          id INTEGER PRIMARY KEY,
           game TEXT NOT NULL CHECK(game IN ('poe1', 'poe2')),
           league TEXT NOT NULL,
           details_id TEXT NOT NULL,
@@ -694,6 +715,11 @@ class DatabaseService {
    * Use sparingly - prefer using Kysely for type safety
    */
   public getDb(): Database.Database {
+    if (this._isClosed) {
+      throw new Error(
+        "[Database] Cannot access database - connection is closed",
+      );
+    }
     return this.db;
   }
 
@@ -771,20 +797,25 @@ class DatabaseService {
    * ⚠️ WARNING: This will delete ALL data!
    */
   public reset(): void {
-    // Close the database connection
-    this.kysely.destroy();
-    this.db.close();
-
-    // Delete the database file
-    if (fs.existsSync(this.dbPath)) {
-      fs.unlinkSync(this.dbPath);
+    // Close the database connection (idempotent — safe to call if already closed)
+    if (!this._isClosed) {
+      this._isClosed = true;
+      this.kysely.destroy();
+      this.db.close();
     }
 
-    // Delete WAL and SHM files if they exist
+    // Delete the database file and associated WAL/SHM files
     const walPath = `${this.dbPath}-wal`;
     const shmPath = `${this.dbPath}-shm`;
-    if (fs.existsSync(walPath)) fs.unlinkSync(walPath);
-    if (fs.existsSync(shmPath)) fs.unlinkSync(shmPath);
+    for (const filePath of [this.dbPath, walPath, shmPath]) {
+      try {
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      } catch (err) {
+        console.warn(`[Database] Failed to delete ${filePath}:`, err);
+      }
+    }
 
     // Reinitialize the database
     this.db = new Database(this.dbPath);

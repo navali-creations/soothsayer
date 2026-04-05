@@ -82,6 +82,7 @@ vi.mock("node:fs", async () => {
     ...actual.promises,
     statfs: mockStatfs,
     stat: mockFspStat,
+    lstat: mockFspStat,
     readdir: mockReaddir,
   };
   return {
@@ -107,6 +108,7 @@ import {
   seedDivinationCardRarity,
   seedLeague,
   seedSession,
+  seedSessionCardEvents,
   seedSessionCards,
   seedSessionSummary,
   seedSnapshot,
@@ -426,6 +428,45 @@ describe("StorageService", () => {
       expect(result).toHaveLength(1);
       // Should include AVG_PL_WEIGHT_ROW_BYTES (120) + AVG_PL_CACHE_META_ROW_BYTES (100)
       expect(result[0].estimatedSizeBytes).toBe(220);
+    });
+
+    it("should include session_card_events in size estimate", async () => {
+      const leagueId = await seedLeague(testDb.kysely, {
+        name: "Events League",
+        game: "poe1",
+      });
+      const sessionId = await seedSession(testDb.kysely, {
+        leagueId,
+        totalCount: 5,
+        isActive: false,
+      });
+      await seedSessionCardEvents(testDb.kysely, sessionId, [
+        {
+          cardName: "The Doctor",
+          chaosValue: 1200,
+          divineValue: 6,
+          droppedAt: "2025-01-01T00:00:00Z",
+        },
+        {
+          cardName: "Rain of Chaos",
+          chaosValue: 1,
+          divineValue: 0.005,
+          droppedAt: "2025-01-01T00:00:01Z",
+        },
+        {
+          cardName: "The Nurse",
+          chaosValue: 300,
+          divineValue: 1.5,
+          droppedAt: "2025-01-01T00:00:02Z",
+        },
+      ]);
+
+      const handler = getIpcHandler(StorageChannel.GetLeagueUsage);
+      const result = await handler({});
+
+      expect(result).toHaveLength(1);
+      // 1 session * AVG_SESSION_ROW_BYTES (200) + 3 events * AVG_SESSION_CARD_EVENT_ROW_BYTES (80) = 440
+      expect(result[0].estimatedSizeBytes).toBe(440);
     });
   });
 
@@ -1211,7 +1252,12 @@ describe("StorageService", () => {
   describe("directory breakdown and file categorization", () => {
     it("should categorize .db files as database", async () => {
       mockReaddir.mockResolvedValue([
-        { name: "soothsayer.db", isDirectory: () => false, isFile: () => true },
+        {
+          name: "soothsayer.db",
+          isDirectory: () => false,
+          isFile: () => true,
+          isSymbolicLink: () => false,
+        },
       ]);
       mockFspStat.mockResolvedValue({
         size: 50 * 1024 * 1024,
@@ -1230,7 +1276,12 @@ describe("StorageService", () => {
 
     it("should categorize .sqlite files as database", async () => {
       mockReaddir.mockResolvedValue([
-        { name: "data.sqlite", isDirectory: () => false, isFile: () => true },
+        {
+          name: "data.sqlite",
+          isDirectory: () => false,
+          isFile: () => true,
+          isSymbolicLink: () => false,
+        },
       ]);
       mockFspStat.mockResolvedValue({ size: 1024, isFile: () => true });
 
@@ -1249,11 +1300,13 @@ describe("StorageService", () => {
           name: "soothsayer.db-wal",
           isDirectory: () => false,
           isFile: () => true,
+          isSymbolicLink: () => false,
         },
         {
           name: "soothsayer.db-shm",
           isDirectory: () => false,
           isFile: () => true,
+          isSymbolicLink: () => false,
         },
       ]);
       mockFspStat.mockResolvedValue({ size: 512, isFile: () => true });
@@ -1277,10 +1330,16 @@ describe("StorageService", () => {
           name: "Session Storage",
           isDirectory: () => true,
           isFile: () => false,
+          isSymbolicLink: () => false,
         },
       ];
       const sessionEntries = [
-        { name: "000003.log", isDirectory: () => false, isFile: () => true },
+        {
+          name: "000003.log",
+          isDirectory: () => false,
+          isFile: () => true,
+          isSymbolicLink: () => false,
+        },
       ];
 
       mockReaddir.mockImplementation(async (dirPath: string, _opts?: any) => {
@@ -1305,13 +1364,19 @@ describe("StorageService", () => {
 
     it("should categorize files in cache directories as cache", async () => {
       const topLevelEntries = [
-        { name: "Cache", isDirectory: () => true, isFile: () => false },
+        {
+          name: "Cache",
+          isDirectory: () => true,
+          isFile: () => false,
+          isSymbolicLink: () => false,
+        },
       ];
       const cacheEntries = [
         {
           name: "data_0",
           isDirectory: () => false,
           isFile: () => true,
+          isSymbolicLink: () => false,
         },
       ];
 
@@ -1335,10 +1400,20 @@ describe("StorageService", () => {
 
     it("should categorize files in GPUCache as cache", async () => {
       const topLevelEntries = [
-        { name: "GPUCache", isDirectory: () => true, isFile: () => false },
+        {
+          name: "GPUCache",
+          isDirectory: () => true,
+          isFile: () => false,
+          isSymbolicLink: () => false,
+        },
       ];
       const gpuEntries = [
-        { name: "data_0", isDirectory: () => false, isFile: () => true },
+        {
+          name: "data_0",
+          isDirectory: () => false,
+          isFile: () => true,
+          isSymbolicLink: () => false,
+        },
       ];
 
       mockReaddir.mockImplementation(async (dirPath: string, _opts?: any) => {
@@ -1360,10 +1435,20 @@ describe("StorageService", () => {
 
     it("should categorize files in blob_storage as cache", async () => {
       const topLevelEntries = [
-        { name: "blob_storage", isDirectory: () => true, isFile: () => false },
+        {
+          name: "blob_storage",
+          isDirectory: () => true,
+          isFile: () => false,
+          isSymbolicLink: () => false,
+        },
       ];
       const blobEntries = [
-        { name: "blob1.bin", isDirectory: () => false, isFile: () => true },
+        {
+          name: "blob1.bin",
+          isDirectory: () => false,
+          isFile: () => true,
+          isSymbolicLink: () => false,
+        },
       ];
 
       mockReaddir.mockImplementation(async (dirPath: string, _opts?: any) => {
@@ -1389,10 +1474,16 @@ describe("StorageService", () => {
           name: "Service Worker",
           isDirectory: () => true,
           isFile: () => false,
+          isSymbolicLink: () => false,
         },
       ];
       const swEntries = [
-        { name: "sw.js", isDirectory: () => false, isFile: () => true },
+        {
+          name: "sw.js",
+          isDirectory: () => false,
+          isFile: () => true,
+          isSymbolicLink: () => false,
+        },
       ];
 
       mockReaddir.mockImplementation(async (dirPath: string, _opts?: any) => {
@@ -1418,6 +1509,7 @@ describe("StorageService", () => {
           name: "settings.json",
           isDirectory: () => false,
           isFile: () => true,
+          isSymbolicLink: () => false,
         },
       ]);
       mockFspStat.mockResolvedValue({ size: 128, isFile: () => true });
@@ -1444,11 +1536,17 @@ describe("StorageService", () => {
 
     it("should handle inaccessible files within a directory gracefully", async () => {
       mockReaddir.mockResolvedValue([
-        { name: "readable.txt", isDirectory: () => false, isFile: () => true },
+        {
+          name: "readable.txt",
+          isDirectory: () => false,
+          isFile: () => true,
+          isSymbolicLink: () => false,
+        },
         {
           name: "unreadable.txt",
           isDirectory: () => false,
           isFile: () => true,
+          isSymbolicLink: () => false,
         },
       ]);
 
@@ -1469,12 +1567,32 @@ describe("StorageService", () => {
     it("should sort breakdown by size descending", async () => {
       // Simulate multiple file types with different sizes
       const topLevel = [
-        { name: "soothsayer.db", isDirectory: () => false, isFile: () => true },
-        { name: "Cache", isDirectory: () => true, isFile: () => false },
-        { name: "config.json", isDirectory: () => false, isFile: () => true },
+        {
+          name: "soothsayer.db",
+          isDirectory: () => false,
+          isFile: () => true,
+          isSymbolicLink: () => false,
+        },
+        {
+          name: "Cache",
+          isDirectory: () => true,
+          isFile: () => false,
+          isSymbolicLink: () => false,
+        },
+        {
+          name: "config.json",
+          isDirectory: () => false,
+          isFile: () => true,
+          isSymbolicLink: () => false,
+        },
       ];
       const cacheFiles = [
-        { name: "big_cache", isDirectory: () => false, isFile: () => true },
+        {
+          name: "big_cache",
+          isDirectory: () => false,
+          isFile: () => true,
+          isSymbolicLink: () => false,
+        },
       ];
 
       mockReaddir.mockImplementation(async (dirPath: string, _opts?: any) => {
@@ -1515,7 +1633,12 @@ describe("StorageService", () => {
     it("should filter out categories with zero size and zero file count", async () => {
       // Only database files exist
       mockReaddir.mockResolvedValue([
-        { name: "soothsayer.db", isDirectory: () => false, isFile: () => true },
+        {
+          name: "soothsayer.db",
+          isDirectory: () => false,
+          isFile: () => true,
+          isSymbolicLink: () => false,
+        },
       ]);
       mockFspStat.mockResolvedValue({ size: 1024, isFile: () => true });
 
@@ -1531,7 +1654,12 @@ describe("StorageService", () => {
 
     it("should categorize cookie files as database", async () => {
       mockReaddir.mockResolvedValue([
-        { name: "Cookies", isDirectory: () => false, isFile: () => true },
+        {
+          name: "Cookies",
+          isDirectory: () => false,
+          isFile: () => true,
+          isSymbolicLink: () => false,
+        },
       ]);
       mockFspStat.mockResolvedValue({ size: 512, isFile: () => true });
 
@@ -1546,7 +1674,12 @@ describe("StorageService", () => {
 
     it("should categorize .enc files as database", async () => {
       mockReaddir.mockResolvedValue([
-        { name: "auth-data.enc", isDirectory: () => false, isFile: () => true },
+        {
+          name: "auth-data.enc",
+          isDirectory: () => false,
+          isFile: () => true,
+          isSymbolicLink: () => false,
+        },
       ]);
       mockFspStat.mockResolvedValue({ size: 128, isFile: () => true });
 
@@ -1561,10 +1694,20 @@ describe("StorageService", () => {
 
     it("should categorize files in IndexedDB directory as cache", async () => {
       const topLevelEntries = [
-        { name: "IndexedDB", isDirectory: () => true, isFile: () => false },
+        {
+          name: "IndexedDB",
+          isDirectory: () => true,
+          isFile: () => false,
+          isSymbolicLink: () => false,
+        },
       ];
       const indexedDbEntries = [
-        { name: "leveldb", isDirectory: () => false, isFile: () => true },
+        {
+          name: "leveldb",
+          isDirectory: () => false,
+          isFile: () => true,
+          isSymbolicLink: () => false,
+        },
       ];
 
       mockReaddir.mockImplementation(async (dirPath: string, _opts?: any) => {
@@ -1586,10 +1729,20 @@ describe("StorageService", () => {
 
     it("should categorize files in Code Cache directory as cache", async () => {
       const topLevelEntries = [
-        { name: "Code Cache", isDirectory: () => true, isFile: () => false },
+        {
+          name: "Code Cache",
+          isDirectory: () => true,
+          isFile: () => false,
+          isSymbolicLink: () => false,
+        },
       ];
       const codeCacheEntries = [
-        { name: "js", isDirectory: () => false, isFile: () => true },
+        {
+          name: "js",
+          isDirectory: () => false,
+          isFile: () => true,
+          isSymbolicLink: () => false,
+        },
       ];
 
       mockReaddir.mockImplementation(async (dirPath: string, _opts?: any) => {
@@ -1611,12 +1764,32 @@ describe("StorageService", () => {
 
     it("should have correct labels for each category", async () => {
       const topLevel = [
-        { name: "soothsayer.db", isDirectory: () => false, isFile: () => true },
-        { name: "Cache", isDirectory: () => true, isFile: () => false },
-        { name: "config.json", isDirectory: () => false, isFile: () => true },
+        {
+          name: "soothsayer.db",
+          isDirectory: () => false,
+          isFile: () => true,
+          isSymbolicLink: () => false,
+        },
+        {
+          name: "Cache",
+          isDirectory: () => true,
+          isFile: () => false,
+          isSymbolicLink: () => false,
+        },
+        {
+          name: "config.json",
+          isDirectory: () => false,
+          isFile: () => true,
+          isSymbolicLink: () => false,
+        },
       ];
       const cacheFiles = [
-        { name: "data_0", isDirectory: () => false, isFile: () => true },
+        {
+          name: "data_0",
+          isDirectory: () => false,
+          isFile: () => true,
+          isSymbolicLink: () => false,
+        },
       ];
 
       mockReaddir.mockImplementation(async (dirPath: string, _opts?: any) => {
@@ -1653,13 +1826,28 @@ describe("StorageService", () => {
 
     it("should recursively walk subdirectories", async () => {
       const topLevel = [
-        { name: "subdir", isDirectory: () => true, isFile: () => false },
+        {
+          name: "subdir",
+          isDirectory: () => true,
+          isFile: () => false,
+          isSymbolicLink: () => false,
+        },
       ];
       const subDirFiles = [
-        { name: "nested", isDirectory: () => true, isFile: () => false },
+        {
+          name: "nested",
+          isDirectory: () => true,
+          isFile: () => false,
+          isSymbolicLink: () => false,
+        },
       ];
       const nestedFiles = [
-        { name: "deep.log", isDirectory: () => false, isFile: () => true },
+        {
+          name: "deep.log",
+          isDirectory: () => false,
+          isFile: () => true,
+          isSymbolicLink: () => false,
+        },
       ];
 
       mockReaddir.mockImplementation(async (dirPath: string, _opts?: any) => {

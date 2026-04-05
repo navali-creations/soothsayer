@@ -1,5 +1,5 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useSessions } from "~/renderer/store";
 
 import type { SessionsSummary } from "../../Sessions.types";
 import { SessionsPagination } from "./SessionsPagination";
@@ -7,10 +7,10 @@ import { SessionsPagination } from "./SessionsPagination";
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useSessions: vi.fn(),
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseSessions = vi.mocked(useSessions);
 
 vi.mock("~/renderer/components", () => ({
   Button: ({ children, onClick, disabled, ...rest }: any) => (
@@ -62,15 +62,13 @@ function setupStore(overrides: {
   filteredSessions?: SessionsSummary[];
 }) {
   mockSetPage.mockClear();
-  mockUseBoundStore.mockReturnValue({
-    sessions: {
-      getCurrentPage: () => overrides.currentPage ?? 1,
-      getPageSize: () => overrides.pageSize ?? 12,
-      getTotalPages: () => overrides.totalPages ?? 1,
-      getTotalSessions: () => overrides.totalSessions ?? 0,
-      getFilteredSessions: () => overrides.filteredSessions ?? [],
-      setPage: mockSetPage,
-    },
+  mockUseSessions.mockReturnValue({
+    getCurrentPage: () => overrides.currentPage ?? 1,
+    getPageSize: () => overrides.pageSize ?? 12,
+    getTotalPages: () => overrides.totalPages ?? 1,
+    getTotalSessions: () => overrides.totalSessions ?? 0,
+    getFilteredSessions: () => overrides.filteredSessions ?? [],
+    setPage: mockSetPage,
   } as any);
 }
 

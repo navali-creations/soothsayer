@@ -10,6 +10,8 @@ const {
   mockRepoGetSessionCards,
   mockRepoGetSessionCountByCard,
   mockRepoSearchSessionsByCard,
+  mockRepoGetSparklineData,
+  mockRepoGetDeckCosts,
   mockSnapshotLoadSnapshot,
   mockAssertGameType,
   mockAssertSessionId,
@@ -17,6 +19,8 @@ const {
   mockAssertPage,
   mockAssertPageSize,
   mockAssertOptionalString,
+  mockAssertOptionalEnum,
+  mockAssertStringArray,
   mockHandleValidationError,
 } = vi.hoisted(() => ({
   mockIpcHandle: vi.fn(),
@@ -27,6 +31,8 @@ const {
   mockRepoGetSessionCards: vi.fn(),
   mockRepoGetSessionCountByCard: vi.fn(),
   mockRepoSearchSessionsByCard: vi.fn(),
+  mockRepoGetSparklineData: vi.fn(),
+  mockRepoGetDeckCosts: vi.fn(),
   mockSnapshotLoadSnapshot: vi.fn(),
   mockAssertGameType: vi.fn(),
   mockAssertSessionId: vi.fn(),
@@ -34,6 +40,8 @@ const {
   mockAssertPage: vi.fn(),
   mockAssertPageSize: vi.fn(),
   mockAssertOptionalString: vi.fn(),
+  mockAssertOptionalEnum: vi.fn(),
+  mockAssertStringArray: vi.fn(),
   mockHandleValidationError: vi.fn(),
 }));
 
@@ -105,6 +113,8 @@ vi.mock("../Sessions.repository", () => ({
     getSessionCards = mockRepoGetSessionCards;
     getSessionCountByCard = mockRepoGetSessionCountByCard;
     searchSessionsByCard = mockRepoSearchSessionsByCard;
+    getSparklineData = mockRepoGetSparklineData;
+    getDeckCosts = mockRepoGetDeckCosts;
   },
 }));
 
@@ -116,6 +126,8 @@ vi.mock("~/main/utils/ipc-validation", () => ({
   assertPage: mockAssertPage,
   assertPageSize: mockAssertPageSize,
   assertOptionalString: mockAssertOptionalString,
+  assertOptionalEnum: mockAssertOptionalEnum,
+  assertStringArray: mockAssertStringArray,
   handleValidationError: mockHandleValidationError,
 }));
 
@@ -225,7 +237,11 @@ describe("SessionsService — IPC handlers", () => {
     mockRepoGetSessionCards.mockResolvedValue(SAMPLE_SESSION_CARDS);
     mockRepoGetSessionCountByCard.mockResolvedValue(1);
     mockRepoSearchSessionsByCard.mockResolvedValue(SAMPLE_SESSION_SUMMARIES);
+    mockRepoGetSparklineData.mockResolvedValue({});
+    mockRepoGetDeckCosts.mockResolvedValue(new Map());
     mockSnapshotLoadSnapshot.mockResolvedValue(null);
+    mockAssertStringArray.mockImplementation(() => {});
+    mockAssertOptionalEnum.mockImplementation(() => {});
 
     _service = SessionsService.getInstance();
   });
@@ -267,10 +283,11 @@ describe("SessionsService — IPC handlers", () => {
       expect(registeredChannels).toContain(SessionsChannel.GetTotalNetProfit);
       expect(registeredChannels).toContain(SessionsChannel.GetTotalTimeSpent);
       expect(registeredChannels).toContain(SessionsChannel.GetWinRate);
+      expect(registeredChannels).toContain(SessionsChannel.GetSparklines);
     });
 
-    it("should register exactly 17 IPC handlers", () => {
-      expect(mockIpcHandle).toHaveBeenCalledTimes(17);
+    it("should register exactly 18 IPC handlers", () => {
+      expect(mockIpcHandle).toHaveBeenCalledTimes(18);
     });
   });
 
@@ -554,12 +571,13 @@ describe("SessionsService — IPC handlers", () => {
       expect(rain.count).toBe(15);
     });
 
-    it("should include startedAt and endedAt from the session", async () => {
+    it("should include startedAt, endedAt, and duration from the session", async () => {
       const handler = getIpcHandler(SessionsChannel.GetById);
       const result = await handler({}, "session-1");
 
       expect(result.startedAt).toBe("2025-01-15T10:00:00Z");
       expect(result.endedAt).toBe("2025-01-15T12:00:00Z");
+      expect(result.duration).toBe("2h 0m");
     });
 
     it("should include league from the session", async () => {
@@ -933,6 +951,154 @@ describe("SessionsService — IPC handlers", () => {
         undefined,
         undefined,
       );
+    });
+  });
+
+  // ─── GetSparklines handler ───────────────────────────────────────────────
+
+  describe("GetSparklines handler", () => {
+    it("should validate sessionIds and return sparkline data on success", async () => {
+      const rawSparklineData = {
+        "session-1": [
+          { x: 0, profit: 0 },
+          { x: 5, profit: 100 },
+        ],
+      };
+      mockRepoGetSparklineData.mockResolvedValue(rawSparklineData);
+      mockRepoGetDeckCosts.mockResolvedValue(new Map([["session-1", 0]]));
+
+      const handler = getIpcHandler(SessionsChannel.GetSparklines);
+      const result = await handler({}, ["session-1"]);
+
+      expect(mockAssertStringArray).toHaveBeenCalledWith(
+        ["session-1"],
+        "sessionIds",
+        SessionsChannel.GetSparklines,
+        { maxLength: 100, maxItemLength: 256 },
+      );
+      expect(mockRepoGetSparklineData).toHaveBeenCalledWith(["session-1"]);
+      expect(mockRepoGetDeckCosts).toHaveBeenCalledWith(["session-1"]);
+      expect(result).toEqual(rawSparklineData);
+    });
+
+    it("should apply deck-cost adjustment to sparkline data", async () => {
+      mockRepoGetSparklineData.mockResolvedValue({
+        s1: [
+          { x: 0, profit: 0 },
+          { x: 10, profit: 50 },
+          { x: 20, profit: 100 },
+        ],
+      });
+      mockRepoGetDeckCosts.mockResolvedValue(new Map([["s1", 3]]));
+
+      const handler = getIpcHandler(SessionsChannel.GetSparklines);
+      const result = await handler({}, ["s1"]);
+
+      // profit = cumChaos - cumDrops * deckCost
+      expect(result.s1[0]).toEqual({ x: 0, profit: 0 });
+      expect(result.s1[1]).toEqual({ x: 10, profit: 50 - 10 * 3 }); // 20
+      expect(result.s1[2]).toEqual({ x: 20, profit: 100 - 20 * 3 }); // 40
+    });
+
+    it("should not adjust sparklines when deck cost is zero", async () => {
+      const rawData = {
+        s1: [
+          { x: 0, profit: 0 },
+          { x: 5, profit: 100 },
+        ],
+      };
+      mockRepoGetSparklineData.mockResolvedValue(rawData);
+      mockRepoGetDeckCosts.mockResolvedValue(new Map([["s1", 0]]));
+
+      const handler = getIpcHandler(SessionsChannel.GetSparklines);
+      const result = await handler({}, ["s1"]);
+
+      expect(result).toEqual(rawData);
+    });
+
+    it("should handle empty sessionIds array", async () => {
+      const handler = getIpcHandler(SessionsChannel.GetSparklines);
+      const result = await handler({}, []);
+
+      expect(mockAssertStringArray).toHaveBeenCalledWith(
+        [],
+        "sessionIds",
+        SessionsChannel.GetSparklines,
+        { maxLength: 100, maxItemLength: 256 },
+      );
+      // Empty array short-circuits — no repo calls
+      expect(result).toEqual({});
+    });
+
+    it("should handle multiple sessionIds with different deck costs", async () => {
+      mockRepoGetSparklineData.mockResolvedValue({
+        s1: [
+          { x: 0, profit: 0 },
+          { x: 5, profit: 50 },
+        ],
+        s2: [
+          { x: 0, profit: 0 },
+          { x: 3, profit: 30 },
+        ],
+      });
+      mockRepoGetDeckCosts.mockResolvedValue(
+        new Map([
+          ["s1", 2],
+          ["s2", 0],
+        ]),
+      );
+
+      const handler = getIpcHandler(SessionsChannel.GetSparklines);
+      const result = await handler({}, ["s1", "s2"]);
+
+      expect(mockRepoGetSparklineData).toHaveBeenCalledWith(["s1", "s2"]);
+      expect(mockRepoGetDeckCosts).toHaveBeenCalledWith(["s1", "s2"]);
+      // s1 adjusted: profit - x * 2
+      expect(result.s1[1]).toEqual({ x: 5, profit: 50 - 5 * 2 }); // 40
+      // s2 not adjusted (deckCost=0)
+      expect(result.s2[1]).toEqual({ x: 3, profit: 30 });
+    });
+
+    it("should handle validation errors for invalid sessionIds", async () => {
+      const validationError = new Error("Invalid sessionIds");
+      mockAssertStringArray.mockImplementation(() => {
+        throw validationError;
+      });
+
+      const handler = getIpcHandler(SessionsChannel.GetSparklines);
+      await handler({}, "not-an-array");
+
+      expect(mockHandleValidationError).toHaveBeenCalledWith(
+        validationError,
+        SessionsChannel.GetSparklines,
+      );
+    });
+
+    it("should not call repository when validation fails", async () => {
+      mockAssertStringArray.mockImplementation(() => {
+        throw new Error("Invalid");
+      });
+
+      const handler = getIpcHandler(SessionsChannel.GetSparklines);
+      await handler({}, null);
+
+      expect(mockRepoGetSparklineData).not.toHaveBeenCalled();
+    });
+
+    it("should return validation error result when validation fails", async () => {
+      const errorPayload = {
+        success: false as const,
+        error: "sessionIds must be an array of strings",
+      };
+      mockHandleValidationError.mockReturnValue(errorPayload);
+      mockAssertStringArray.mockImplementation(() => {
+        throw new Error("bad");
+      });
+
+      const handler = getIpcHandler(SessionsChannel.GetSparklines);
+      const result = await handler({}, 12345);
+
+      expect(result).toEqual(errorPayload);
     });
   });
 

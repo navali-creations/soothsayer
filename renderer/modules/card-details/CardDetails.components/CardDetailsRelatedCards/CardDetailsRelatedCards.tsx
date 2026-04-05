@@ -1,13 +1,11 @@
 import { FiGitBranch, FiLink } from "react-icons/fi";
 
-import { useBoundStore } from "~/renderer/store";
+import { useCardDetails } from "~/renderer/store";
 
 import RelatedCardsSection from "./RelatedCardsSection";
 
 const CardDetailsRelatedCards = () => {
-  const {
-    cardDetails: { relatedCards, isLoadingRelatedCards },
-  } = useBoundStore();
+  const { relatedCards, isLoadingRelatedCards } = useCardDetails();
 
   if (isLoadingRelatedCards || !relatedCards) return null;
 

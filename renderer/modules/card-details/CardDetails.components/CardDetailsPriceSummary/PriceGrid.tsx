@@ -1,4 +1,4 @@
-import { useBoundStore } from "~/renderer/store";
+import { useCardDetails } from "~/renderer/store";
 
 /**
  * Grid displaying the current unit price, trade volume, and full set value.
@@ -6,9 +6,8 @@ import { useBoundStore } from "~/renderer/store";
  * Reads all data directly from the Zustand store — no props needed.
  */
 const PriceGrid = () => {
-  const {
-    cardDetails: { card, priceHistory, getFullSetValue, getFullSetChaosValue },
-  } = useBoundStore();
+  const { card, priceHistory, getFullSetValue, getFullSetChaosValue } =
+    useCardDetails();
 
   const currentDivineRate = priceHistory?.currentDivineRate ?? null;
   const currentVolume = priceHistory?.currentVolume ?? null;

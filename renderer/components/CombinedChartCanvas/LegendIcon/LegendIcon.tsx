@@ -1,4 +1,4 @@
-import type { MetricConfig } from "../chart-types";
+import type { MetricConfig } from "../chart-types/chart-types";
 
 export function LegendIcon({
   visual,

@@ -1,15 +1,9 @@
 import { Stat } from "~/renderer/components";
-import { useBoundStore } from "~/renderer/store";
+import { useProfitForecast } from "~/renderer/store";
 
 const PFBreakEvenStat = () => {
-  const {
-    profitForecast: {
-      isLoading,
-      getBreakEvenRate,
-      getEffectiveBaseRate,
-      hasData,
-    },
-  } = useBoundStore();
+  const { isLoading, getBreakEvenRate, getEffectiveBaseRate, hasData } =
+    useProfitForecast();
 
   const dataAvailable = hasData() && !isLoading;
   const breakEvenRate = dataAvailable ? getBreakEvenRate() : 0;

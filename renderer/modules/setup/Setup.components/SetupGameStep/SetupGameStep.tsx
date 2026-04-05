@@ -1,10 +1,8 @@
-import { useBoundStore } from "~/renderer/store";
+import { useSetup } from "~/renderer/store";
 import type { GameType } from "~/types/data-stores";
 
 const SetupGameStep = () => {
-  const {
-    setup: { setupState, toggleGame },
-  } = useBoundStore();
+  const { setupState, toggleGame } = useSetup();
 
   const selectedGames = setupState?.selectedGames || [];
 

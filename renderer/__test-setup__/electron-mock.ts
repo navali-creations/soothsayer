@@ -85,6 +85,9 @@ export function createElectronMock() {
       getInfo: vi.fn().mockResolvedValue(null),
       onStateChanged: mockListener(),
       onDataUpdated: mockListener(),
+      onTimelineDelta: mockListener(),
+      onCardDelta: mockListener(),
+      getTimeline: vi.fn().mockResolvedValue(null),
       updateCardPriceVisibility: vi.fn().mockResolvedValue({ success: true }),
       getAll: vi.fn().mockResolvedValue([]),
       getById: vi.fn().mockResolvedValue(null),
@@ -121,6 +124,7 @@ export function createElectronMock() {
       getStackedDeckCardNames: vi.fn().mockResolvedValue([]),
       getUncollectedCardNames: vi.fn().mockResolvedValue([]),
       getChartData: vi.fn().mockResolvedValue([]),
+      getSparklines: vi.fn().mockResolvedValue({}),
     },
 
     // ── Snapshots (poe.ninja prices) ───────────────────────────────────

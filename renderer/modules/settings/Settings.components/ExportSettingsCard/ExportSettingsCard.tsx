@@ -10,7 +10,7 @@ import {
 import { maskPath } from "~/main/utils/mask-path";
 import { Button, Flex } from "~/renderer/components";
 import { trackEvent } from "~/renderer/modules/umami";
-import { useBoundStore } from "~/renderer/store";
+import { useSettings } from "~/renderer/store";
 
 /** Anchors for masking the export directory path. */
 const EXPORT_PATH_ANCHORS = [
@@ -21,9 +21,7 @@ const EXPORT_PATH_ANCHORS = [
 ];
 
 const ExportSettingsCard = () => {
-  const {
-    settings: { csvExportPath, updateSetting },
-  } = useBoundStore();
+  const { csvExportPath, updateSetting } = useSettings();
 
   const [isRevealed, setIsRevealed] = useState(false);
 

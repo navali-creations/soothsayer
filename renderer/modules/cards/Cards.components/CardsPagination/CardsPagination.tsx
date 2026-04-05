@@ -1,6 +1,6 @@
 import clsx from "clsx";
 
-import { useBoundStore } from "~/renderer/store";
+import { useCards } from "~/renderer/store";
 
 interface CardsPaginationProps {
   totalPages: number;
@@ -11,9 +11,7 @@ export const CardsPagination = ({
   totalPages,
   onPageChange,
 }: CardsPaginationProps) => {
-  const {
-    cards: { currentPage, setCurrentPage },
-  } = useBoundStore();
+  const { currentPage, setCurrentPage } = useCards();
 
   if (totalPages <= 1) {
     return null;

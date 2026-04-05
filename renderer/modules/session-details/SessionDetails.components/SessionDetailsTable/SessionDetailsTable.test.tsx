@@ -1,5 +1,5 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useSessionDetails } from "~/renderer/store";
 
 import type { CardEntry } from "../../SessionDetails.types";
 import SessionDetailsTable from "./SessionDetailsTable";
@@ -7,7 +7,7 @@ import SessionDetailsTable from "./SessionDetailsTable";
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useSessionDetails: vi.fn(),
 }));
 
 vi.mock("~/renderer/components/CardNameLink/CardNameLink", () => ({
@@ -99,26 +99,11 @@ vi.mock("react-icons/fi", () => ({
   FiEyeOff: (props: any) => <span data-testid="icon-eye-off" {...props} />,
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseSessionDetails = vi.mocked(useSessionDetails);
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 const mockToggleCardPriceVisibility = vi.fn();
-
-function createMockStore(overrides: any = {}) {
-  return {
-    sessionDetails: {
-      toggleCardPriceVisibility: mockToggleCardPriceVisibility,
-      ...overrides.sessionDetails,
-    },
-  } as any;
-}
-
-function setupStore(overrides: any = {}) {
-  const store = createMockStore(overrides);
-  mockUseBoundStore.mockReturnValue(store);
-  return store;
-}
 
 function makeCardEntry(overrides: Partial<CardEntry> = {}): CardEntry {
   return {
@@ -132,26 +117,40 @@ function makeCardEntry(overrides: Partial<CardEntry> = {}): CardEntry {
   };
 }
 
-const defaultProps = {
-  cardData: [
-    makeCardEntry({
-      name: "The Doctor",
-      count: 5,
-      ratio: 10.0,
-      chaosValue: 1200,
-      totalValue: 6000,
-    }),
-    makeCardEntry({
-      name: "Rain of Chaos",
-      count: 30,
-      ratio: 60.0,
-      chaosValue: 1,
-      totalValue: 30,
-    }),
-  ],
-  chaosToDivineRatio: 150,
-  priceSource: "exchange" as const,
-};
+const defaultCardData: CardEntry[] = [
+  makeCardEntry({
+    name: "The Doctor",
+    count: 5,
+    ratio: 10.0,
+    chaosValue: 1200,
+    totalValue: 6000,
+  }),
+  makeCardEntry({
+    name: "Rain of Chaos",
+    count: 30,
+    ratio: 60.0,
+    chaosValue: 1,
+    totalValue: 30,
+  }),
+];
+
+function createMockSessionDetails(overrides: any = {}) {
+  return {
+    toggleCardPriceVisibility: mockToggleCardPriceVisibility,
+    getCardData: vi.fn().mockReturnValue(defaultCardData),
+    getPriceData: vi
+      .fn()
+      .mockReturnValue({ chaosToDivineRatio: 150, cardPrices: {} }),
+    getPriceSource: vi.fn().mockReturnValue("exchange" as const),
+    ...overrides,
+  } as any;
+}
+
+function setupStore(overrides: any = {}) {
+  const store = createMockSessionDetails(overrides);
+  mockUseSessionDetails.mockReturnValue(store);
+  return store;
+}
 
 // ─── Tests ─────────────────────────────────────────────────────────────────
 
@@ -164,27 +163,19 @@ describe("SessionDetailsTable", () => {
 
   describe("empty state", () => {
     it('shows "No cards in this session" when cardData is empty', () => {
-      setupStore();
-      renderWithProviders(
-        <SessionDetailsTable
-          cardData={[]}
-          chaosToDivineRatio={150}
-          priceSource="exchange"
-        />,
-      );
+      setupStore({
+        getCardData: vi.fn().mockReturnValue([]),
+      });
+      renderWithProviders(<SessionDetailsTable />);
 
       expect(screen.getByText("No cards in this session")).toBeInTheDocument();
     });
 
     it("does not render the table when cardData is empty", () => {
-      setupStore();
-      renderWithProviders(
-        <SessionDetailsTable
-          cardData={[]}
-          chaosToDivineRatio={150}
-          priceSource="exchange"
-        />,
-      );
+      setupStore({
+        getCardData: vi.fn().mockReturnValue([]),
+      });
+      renderWithProviders(<SessionDetailsTable />);
 
       expect(screen.queryByTestId("table")).not.toBeInTheDocument();
     });
@@ -195,16 +186,16 @@ describe("SessionDetailsTable", () => {
   describe("header text", () => {
     it('renders "Cards Obtained" heading when cards exist', () => {
       setupStore();
-      renderWithProviders(<SessionDetailsTable {...defaultProps} />);
+      renderWithProviders(<SessionDetailsTable />);
 
       expect(screen.getByText("Cards Obtained")).toBeInTheDocument();
     });
 
     it('shows "Viewing Exchange prices (Snapshot)" when priceSource is exchange', () => {
-      setupStore();
-      renderWithProviders(
-        <SessionDetailsTable {...defaultProps} priceSource="exchange" />,
-      );
+      setupStore({
+        getPriceSource: vi.fn().mockReturnValue("exchange" as const),
+      });
+      renderWithProviders(<SessionDetailsTable />);
 
       expect(
         screen.getByText("Viewing Exchange prices (Snapshot)"),
@@ -212,10 +203,10 @@ describe("SessionDetailsTable", () => {
     });
 
     it('shows "Viewing Stash prices (Snapshot)" when priceSource is stash', () => {
-      setupStore();
-      renderWithProviders(
-        <SessionDetailsTable {...defaultProps} priceSource="stash" />,
-      );
+      setupStore({
+        getPriceSource: vi.fn().mockReturnValue("stash" as const),
+      });
+      renderWithProviders(<SessionDetailsTable />);
 
       expect(
         screen.getByText("Viewing Stash prices (Snapshot)"),
@@ -228,7 +219,7 @@ describe("SessionDetailsTable", () => {
   describe("table rendering", () => {
     it("renders table with correct number of rows", () => {
       setupStore();
-      renderWithProviders(<SessionDetailsTable {...defaultProps} />);
+      renderWithProviders(<SessionDetailsTable />);
 
       const table = screen.getByTestId("table");
       expect(table).toBeInTheDocument();
@@ -237,7 +228,7 @@ describe("SessionDetailsTable", () => {
 
     it("renders card names via CardNameLink", () => {
       setupStore();
-      renderWithProviders(<SessionDetailsTable {...defaultProps} />);
+      renderWithProviders(<SessionDetailsTable />);
 
       expect(
         screen.getByTestId("card-name-link-The Doctor"),
@@ -249,7 +240,7 @@ describe("SessionDetailsTable", () => {
 
     it("displays card count values", () => {
       setupStore();
-      renderWithProviders(<SessionDetailsTable {...defaultProps} />);
+      renderWithProviders(<SessionDetailsTable />);
 
       expect(screen.getByText("5")).toBeInTheDocument();
       expect(screen.getByText("30")).toBeInTheDocument();
@@ -257,7 +248,7 @@ describe("SessionDetailsTable", () => {
 
     it("displays ratio as percentage", () => {
       setupStore();
-      renderWithProviders(<SessionDetailsTable {...defaultProps} />);
+      renderWithProviders(<SessionDetailsTable />);
 
       expect(screen.getByText("10.00%")).toBeInTheDocument();
       expect(screen.getByText("60.00%")).toBeInTheDocument();
@@ -268,14 +259,14 @@ describe("SessionDetailsTable", () => {
 
   describe("visibility toggle", () => {
     it("renders eye icon for visible cards", () => {
-      setupStore();
-      renderWithProviders(
-        <SessionDetailsTable
-          cardData={[makeCardEntry({ name: "The Doctor", hidePrice: false })]}
-          chaosToDivineRatio={150}
-          priceSource="exchange"
-        />,
-      );
+      setupStore({
+        getCardData: vi
+          .fn()
+          .mockReturnValue([
+            makeCardEntry({ name: "The Doctor", hidePrice: false }),
+          ]),
+      });
+      renderWithProviders(<SessionDetailsTable />);
 
       const eyeIcons = screen.getAllByTestId("icon-eye");
       // At least one from the row (header also has one)
@@ -283,27 +274,28 @@ describe("SessionDetailsTable", () => {
     });
 
     it("renders eye-off icon for hidden cards", () => {
-      setupStore();
-      renderWithProviders(
-        <SessionDetailsTable
-          cardData={[makeCardEntry({ name: "The Nurse", hidePrice: true })]}
-          chaosToDivineRatio={150}
-          priceSource="exchange"
-        />,
-      );
+      setupStore({
+        getCardData: vi
+          .fn()
+          .mockReturnValue([
+            makeCardEntry({ name: "The Nurse", hidePrice: true }),
+          ]),
+      });
+      renderWithProviders(<SessionDetailsTable />);
 
       expect(screen.getByTestId("icon-eye-off")).toBeInTheDocument();
     });
 
     it("calls toggleCardPriceVisibility with card name and priceSource on click", async () => {
-      setupStore();
-      const { user } = renderWithProviders(
-        <SessionDetailsTable
-          cardData={[makeCardEntry({ name: "The Doctor", hidePrice: false })]}
-          chaosToDivineRatio={150}
-          priceSource="exchange"
-        />,
-      );
+      setupStore({
+        getCardData: vi
+          .fn()
+          .mockReturnValue([
+            makeCardEntry({ name: "The Doctor", hidePrice: false }),
+          ]),
+        getPriceSource: vi.fn().mockReturnValue("exchange" as const),
+      });
+      const { user } = renderWithProviders(<SessionDetailsTable />);
 
       // Find the toggle button in the row (not the header)
       const toggleButtons = screen.getAllByRole("button");
@@ -322,16 +314,15 @@ describe("SessionDetailsTable", () => {
     });
 
     it("calls toggleCardPriceVisibility with stash priceSource", async () => {
-      setupStore();
-      const { user } = renderWithProviders(
-        <SessionDetailsTable
-          cardData={[
+      setupStore({
+        getCardData: vi
+          .fn()
+          .mockReturnValue([
             makeCardEntry({ name: "Rain of Chaos", hidePrice: false }),
-          ]}
-          chaosToDivineRatio={150}
-          priceSource="stash"
-        />,
-      );
+          ]),
+        getPriceSource: vi.fn().mockReturnValue("stash" as const),
+      });
+      const { user } = renderWithProviders(<SessionDetailsTable />);
 
       const toggleButtons = screen.getAllByRole("button");
       const toggleButton = toggleButtons.find(
@@ -349,14 +340,14 @@ describe("SessionDetailsTable", () => {
     });
 
     it('toggle button has "Click to exclude from totals" title when visible', () => {
-      setupStore();
-      renderWithProviders(
-        <SessionDetailsTable
-          cardData={[makeCardEntry({ name: "The Doctor", hidePrice: false })]}
-          chaosToDivineRatio={150}
-          priceSource="exchange"
-        />,
-      );
+      setupStore({
+        getCardData: vi
+          .fn()
+          .mockReturnValue([
+            makeCardEntry({ name: "The Doctor", hidePrice: false }),
+          ]),
+      });
+      renderWithProviders(<SessionDetailsTable />);
 
       expect(
         screen.getByTitle("Click to exclude from totals"),
@@ -364,14 +355,14 @@ describe("SessionDetailsTable", () => {
     });
 
     it('toggle button has "Click to include in totals" title when hidden', () => {
-      setupStore();
-      renderWithProviders(
-        <SessionDetailsTable
-          cardData={[makeCardEntry({ name: "The Doctor", hidePrice: true })]}
-          chaosToDivineRatio={150}
-          priceSource="exchange"
-        />,
-      );
+      setupStore({
+        getCardData: vi
+          .fn()
+          .mockReturnValue([
+            makeCardEntry({ name: "The Doctor", hidePrice: true }),
+          ]),
+      });
+      renderWithProviders(<SessionDetailsTable />);
 
       expect(
         screen.getByTitle("Click to include in totals"),
@@ -383,41 +374,41 @@ describe("SessionDetailsTable", () => {
 
   describe("hidden card styling", () => {
     it("applies opacity-40 class to hidden card name link", () => {
-      setupStore();
-      renderWithProviders(
-        <SessionDetailsTable
-          cardData={[makeCardEntry({ name: "The Nurse", hidePrice: true })]}
-          chaosToDivineRatio={150}
-          priceSource="exchange"
-        />,
-      );
+      setupStore({
+        getCardData: vi
+          .fn()
+          .mockReturnValue([
+            makeCardEntry({ name: "The Nurse", hidePrice: true }),
+          ]),
+      });
+      renderWithProviders(<SessionDetailsTable />);
 
       const cardLink = screen.getByTestId("card-name-link-The Nurse");
       expect(cardLink).toHaveClass("opacity-40");
     });
 
     it("shows Hidden badge on hidden cards", () => {
-      setupStore();
-      renderWithProviders(
-        <SessionDetailsTable
-          cardData={[makeCardEntry({ name: "The Nurse", hidePrice: true })]}
-          chaosToDivineRatio={150}
-          priceSource="exchange"
-        />,
-      );
+      setupStore({
+        getCardData: vi
+          .fn()
+          .mockReturnValue([
+            makeCardEntry({ name: "The Nurse", hidePrice: true }),
+          ]),
+      });
+      renderWithProviders(<SessionDetailsTable />);
 
       expect(screen.getByText("Hidden")).toBeInTheDocument();
     });
 
     it("does not show Hidden badge on visible cards", () => {
-      setupStore();
-      renderWithProviders(
-        <SessionDetailsTable
-          cardData={[makeCardEntry({ name: "The Doctor", hidePrice: false })]}
-          chaosToDivineRatio={150}
-          priceSource="exchange"
-        />,
-      );
+      setupStore({
+        getCardData: vi
+          .fn()
+          .mockReturnValue([
+            makeCardEntry({ name: "The Doctor", hidePrice: false }),
+          ]),
+      });
+      renderWithProviders(<SessionDetailsTable />);
 
       expect(screen.queryByText("Hidden")).not.toBeInTheDocument();
     });
@@ -427,28 +418,26 @@ describe("SessionDetailsTable", () => {
 
   describe("value formatting", () => {
     it('displays "—" for zero chaos value', () => {
-      setupStore();
-      renderWithProviders(
-        <SessionDetailsTable
-          cardData={[makeCardEntry({ chaosValue: 0, totalValue: 0 })]}
-          chaosToDivineRatio={150}
-          priceSource="exchange"
-        />,
-      );
+      setupStore({
+        getCardData: vi
+          .fn()
+          .mockReturnValue([makeCardEntry({ chaosValue: 0, totalValue: 0 })]),
+      });
+      renderWithProviders(<SessionDetailsTable />);
 
       const dashes = screen.getAllByText("—");
       expect(dashes.length).toBeGreaterThanOrEqual(2); // chaos and total value
     });
 
     it("formats non-zero values using formatCurrency", () => {
-      setupStore();
-      renderWithProviders(
-        <SessionDetailsTable
-          cardData={[makeCardEntry({ chaosValue: 1200, totalValue: 6000 })]}
-          chaosToDivineRatio={150}
-          priceSource="exchange"
-        />,
-      );
+      setupStore({
+        getCardData: vi
+          .fn()
+          .mockReturnValue([
+            makeCardEntry({ chaosValue: 1200, totalValue: 6000 }),
+          ]),
+      });
+      renderWithProviders(<SessionDetailsTable />);
 
       // 1200 / 150 = 8.00d
       expect(screen.getByText("8.00d")).toBeInTheDocument();
@@ -457,14 +446,14 @@ describe("SessionDetailsTable", () => {
     });
 
     it("formats small values in chaos", () => {
-      setupStore();
-      renderWithProviders(
-        <SessionDetailsTable
-          cardData={[makeCardEntry({ chaosValue: 50, totalValue: 100 })]}
-          chaosToDivineRatio={150}
-          priceSource="exchange"
-        />,
-      );
+      setupStore({
+        getCardData: vi
+          .fn()
+          .mockReturnValue([
+            makeCardEntry({ chaosValue: 50, totalValue: 100 }),
+          ]),
+      });
+      renderWithProviders(<SessionDetailsTable />);
 
       expect(screen.getByText("50.00c")).toBeInTheDocument();
       expect(screen.getByText("100.00c")).toBeInTheDocument();
@@ -475,7 +464,6 @@ describe("SessionDetailsTable", () => {
 
   describe("card popover", () => {
     it("renders DivinationCard popover when divinationCard data exists", () => {
-      setupStore();
       const cardWithDivCard = makeCardEntry({
         name: "The Doctor",
         divinationCard: {
@@ -487,13 +475,10 @@ describe("SessionDetailsTable", () => {
         } as any,
       });
 
-      renderWithProviders(
-        <SessionDetailsTable
-          cardData={[cardWithDivCard]}
-          chaosToDivineRatio={150}
-          priceSource="exchange"
-        />,
-      );
+      setupStore({
+        getCardData: vi.fn().mockReturnValue([cardWithDivCard]),
+      });
+      renderWithProviders(<SessionDetailsTable />);
 
       expect(
         screen.getByTestId("divination-card-The Doctor"),
@@ -501,16 +486,14 @@ describe("SessionDetailsTable", () => {
     });
 
     it("does not render DivinationCard popover when divinationCard data is absent", () => {
-      setupStore();
-      renderWithProviders(
-        <SessionDetailsTable
-          cardData={[
+      setupStore({
+        getCardData: vi
+          .fn()
+          .mockReturnValue([
             makeCardEntry({ name: "Unknown Card", divinationCard: undefined }),
-          ]}
-          chaosToDivineRatio={150}
-          priceSource="exchange"
-        />,
-      );
+          ]),
+      });
+      renderWithProviders(<SessionDetailsTable />);
 
       expect(
         screen.queryByTestId("divination-card-Unknown Card"),

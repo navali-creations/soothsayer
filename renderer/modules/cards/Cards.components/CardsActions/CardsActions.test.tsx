@@ -1,15 +1,19 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useCards, useRarityInsights, useSettings } from "~/renderer/store";
 
 import { CardsActions } from "./CardsActions";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useCards: vi.fn(),
+  useSettings: vi.fn(),
+  useRarityInsights: vi.fn(),
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseCards = vi.mocked(useCards);
+const mockUseSettings = vi.mocked(useSettings);
+const mockUseRarityInsights = vi.mocked(useRarityInsights);
 
 vi.mock("~/renderer/components", () => ({
   RaritySourceSelect: ({ value, onChange, disabled }: any) => (
@@ -71,31 +75,29 @@ function setupStore(
     lastScannedAt?: string | null;
   } = {},
 ) {
-  mockUseBoundStore.mockReturnValue({
-    cards: {
-      searchQuery: overrides.searchQuery ?? "",
-      rarityFilter: overrides.rarityFilter ?? "all",
-      includeBossCards: overrides.includeBossCards ?? false,
-      setSearchQuery: mockSetSearchQuery,
-      setRarityFilter: mockSetRarityFilter,
-      setIncludeBossCards: mockSetIncludeBossCards,
-      loadCards: mockLoadCards,
-    },
-    settings: {
-      raritySource: overrides.raritySource ?? "poe.ninja",
-      selectedFilterId: overrides.selectedFilterId ?? null,
-      updateSetting: mockUpdateSetting,
-    },
-    rarityInsights: {
-      availableFilters: overrides.availableFilters ?? [{ id: "f1" }],
-      isScanning: overrides.isScanning ?? false,
-      lastScannedAt: overrides.lastScannedAt ?? new Date().toISOString(),
-      scanFilters: mockScanFilters,
-      selectFilter: mockSelectFilter,
-      clearSelectedFilter: mockClearSelectedFilter,
-      getLocalFilters: () => [],
-      getOnlineFilters: () => [],
-    },
+  mockUseCards.mockReturnValue({
+    searchQuery: overrides.searchQuery ?? "",
+    rarityFilter: overrides.rarityFilter ?? "all",
+    includeBossCards: overrides.includeBossCards ?? false,
+    setSearchQuery: mockSetSearchQuery,
+    setRarityFilter: mockSetRarityFilter,
+    setIncludeBossCards: mockSetIncludeBossCards,
+    loadCards: mockLoadCards,
+  } as any);
+  mockUseSettings.mockReturnValue({
+    raritySource: overrides.raritySource ?? "poe.ninja",
+    selectedFilterId: overrides.selectedFilterId ?? null,
+    updateSetting: mockUpdateSetting,
+  } as any);
+  mockUseRarityInsights.mockReturnValue({
+    availableFilters: overrides.availableFilters ?? [{ id: "f1" }],
+    isScanning: overrides.isScanning ?? false,
+    lastScannedAt: overrides.lastScannedAt ?? new Date().toISOString(),
+    scanFilters: mockScanFilters,
+    selectFilter: mockSelectFilter,
+    clearSelectedFilter: mockClearSelectedFilter,
+    getLocalFilters: () => [],
+    getOnlineFilters: () => [],
   } as any);
 }
 

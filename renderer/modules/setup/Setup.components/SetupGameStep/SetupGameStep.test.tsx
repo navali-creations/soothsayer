@@ -1,37 +1,35 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useSetup } from "~/renderer/store";
 
 import SetupGameStep from "./SetupGameStep";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useSetup: vi.fn(),
 }));
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseSetup = vi.mocked(useSetup);
 
 function createMockStore(overrides: Record<string, unknown> = {}) {
   return {
-    setup: {
-      setupState: {
-        currentStep: 1,
-        isComplete: false,
-        selectedGames: ["poe1"] as string[],
-        poe1League: "Standard",
-        poe2League: "Standard",
-        poe1ClientPath: null,
-        poe2ClientPath: null,
-        telemetryCrashReporting: false,
-        telemetryUsageAnalytics: false,
-      },
-      toggleGame: vi.fn(),
-      ...overrides,
+    setupState: {
+      currentStep: 1,
+      isComplete: false,
+      selectedGames: ["poe1"] as string[],
+      poe1League: "Standard",
+      poe2League: "Standard",
+      poe1ClientPath: null,
+      poe2ClientPath: null,
+      telemetryCrashReporting: false,
+      telemetryUsageAnalytics: false,
     },
+    toggleGame: vi.fn(),
+    ...overrides,
   } as any;
 }
 
@@ -39,7 +37,7 @@ function createMockStore(overrides: Record<string, unknown> = {}) {
 
 describe("SetupGameStep", () => {
   beforeEach(() => {
-    mockUseBoundStore.mockReturnValue(createMockStore());
+    mockUseSetup.mockReturnValue(createMockStore());
   });
 
   // ── Heading and description ────────────────────────────────────────────
@@ -93,7 +91,7 @@ describe("SetupGameStep", () => {
 
   describe("selection state", () => {
     it("shows selected state for poe1 when it is in selectedGames", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             currentStep: 1,
@@ -110,7 +108,7 @@ describe("SetupGameStep", () => {
     });
 
     it("shows selected state for both games when both are in selectedGames", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             currentStep: 1,
@@ -130,7 +128,7 @@ describe("SetupGameStep", () => {
     });
 
     it("shows unselected state for poe2 when only poe1 is selected", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             currentStep: 1,
@@ -147,7 +145,7 @@ describe("SetupGameStep", () => {
     });
 
     it("renders a checkbox SVG indicator for selected games", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             currentStep: 1,
@@ -171,7 +169,7 @@ describe("SetupGameStep", () => {
   describe("toggle interaction", () => {
     it("calls toggleGame with 'poe2' when clicking PoE2 button", async () => {
       const toggleGame = vi.fn();
-      mockUseBoundStore.mockReturnValue(createMockStore({ toggleGame }));
+      mockUseSetup.mockReturnValue(createMockStore({ toggleGame }));
 
       const { user } = renderWithProviders(<SetupGameStep />);
 
@@ -183,7 +181,7 @@ describe("SetupGameStep", () => {
 
     it("calls toggleGame with 'poe1' when clicking PoE1 button", async () => {
       const toggleGame = vi.fn();
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           toggleGame,
           setupState: {
@@ -207,7 +205,7 @@ describe("SetupGameStep", () => {
 
   describe("disabled state", () => {
     it("disables the only selected game so it cannot be deselected", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             currentStep: 1,
@@ -224,7 +222,7 @@ describe("SetupGameStep", () => {
     });
 
     it("does not disable the only selected game's counterpart", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             currentStep: 1,
@@ -241,7 +239,7 @@ describe("SetupGameStep", () => {
     });
 
     it("shows tooltip title on the disabled button", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             currentStep: 1,
@@ -261,7 +259,7 @@ describe("SetupGameStep", () => {
     });
 
     it("does not disable either game when both are selected", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             currentStep: 1,
@@ -282,7 +280,7 @@ describe("SetupGameStep", () => {
 
     it("does not call toggleGame when clicking a disabled button", async () => {
       const toggleGame = vi.fn();
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           toggleGame,
           setupState: {
@@ -306,7 +304,7 @@ describe("SetupGameStep", () => {
 
   describe("both games hint", () => {
     it("shows 'Playing both?' hint when both games are selected", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             currentStep: 1,
@@ -327,7 +325,7 @@ describe("SetupGameStep", () => {
     });
 
     it("does not show 'Playing both?' hint when only one game is selected", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             currentStep: 1,
@@ -347,7 +345,7 @@ describe("SetupGameStep", () => {
 
   describe("edge cases", () => {
     it("handles null setupState gracefully (defaults to empty selectedGames)", () => {
-      mockUseBoundStore.mockReturnValue(createMockStore({ setupState: null }));
+      mockUseSetup.mockReturnValue(createMockStore({ setupState: null }));
 
       renderWithProviders(<SetupGameStep />);
 

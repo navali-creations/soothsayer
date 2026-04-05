@@ -27,8 +27,13 @@ import type { BoundStore } from "./store.types";
 
 enableMapSet();
 
+const IS_DEV = import.meta.env.DEV;
+
+const withDevtools = IS_DEV
+  ? (((fn: any) => devtools(fn, { maxAge: 25 })) as typeof devtools)
+  : (((fn: any) => fn) as typeof devtools);
 export const useBoundStore = create<BoundStore>()(
-  devtools(
+  withDevtools(
     immer((...a) => {
       const settingsSlice = createSettingsSlice(...a);
       const storageSlice = createStorageSlice(...a);
@@ -329,8 +334,9 @@ export const useBoundStore = create<BoundStore>()(
 // `rarityInsights.availableFilters` after DB seeding).
 //
 // Gated behind the explicit `__E2E_TESTING` flag set by the preload script,
-// which is itself gated behind the `E2E_TESTING` env-var. This flag is NOT
-// present in production builds (Vite dead-code-eliminates it).
+// which is itself gated behind `import.meta.env.E2E_TESTING` at build time.
+// In production builds the preload does not expose this flag, so this
+// block is effectively dead code.
 if ((window as any).electron?.__E2E_TESTING === true) {
   (window as any).__zustandStore = useBoundStore;
 }

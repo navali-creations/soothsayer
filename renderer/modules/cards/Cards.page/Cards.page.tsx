@@ -1,21 +1,19 @@
 import { useCallback, useEffect, useRef } from "react";
 
 import { PageContainer } from "~/renderer/components";
-import { useBoundStore } from "~/renderer/store";
+import { useCards } from "~/renderer/store";
 
 import { CardsActions, CardsGrid, CardsPagination } from "../Cards.components";
 
 const CardsPage = () => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const {
-    cards: {
-      allCards,
-      loadCards,
-      getPaginatedCards,
-      getFilteredAndSortedCards,
-      getTotalPages,
-    },
-  } = useBoundStore();
+    allCards,
+    loadCards,
+    getPaginatedCards,
+    getFilteredAndSortedCards,
+    getTotalPages,
+  } = useCards();
 
   const paginatedCards = getPaginatedCards();
   const filteredCards = getFilteredAndSortedCards();

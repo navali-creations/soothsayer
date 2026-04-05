@@ -1,4 +1,4 @@
-import { useBoundStore } from "~/renderer/store";
+import { useCardDetails } from "~/renderer/store";
 
 import PriceChangesRow from "./PriceChangesRow";
 import PriceGrid from "./PriceGrid";
@@ -15,9 +15,8 @@ import PriceSummaryLoading from "./PriceSummaryLoading";
  * No props needed — all data flows through the store.
  */
 const CardDetailsPriceSummary = () => {
-  const {
-    cardDetails: { priceHistory, isLoadingPriceHistory, priceHistoryError },
-  } = useBoundStore();
+  const { priceHistory, isLoadingPriceHistory, priceHistoryError } =
+    useCardDetails();
 
   if (isLoadingPriceHistory) return <PriceSummaryLoading />;
   if (priceHistoryError) return <PriceSummaryError error={priceHistoryError} />;

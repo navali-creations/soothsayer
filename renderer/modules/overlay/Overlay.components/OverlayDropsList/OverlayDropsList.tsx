@@ -1,16 +1,14 @@
 import { AnimatePresence, motion } from "motion/react";
 import { GiCardExchange } from "react-icons/gi";
 
-import { useBoundStore } from "~/renderer/store";
+import { useOverlay } from "~/renderer/store";
 import { getRarityStyles } from "~/renderer/utils";
 
 import { DropBeamColumn } from "../DropBeamColumn";
 import { DropContentColumn } from "../DropContentColumn";
 
 export const OverlayDropsList = () => {
-  const {
-    overlay: { sessionData, getFilteredDrops, activeTab, isLeftHalf },
-  } = useBoundStore();
+  const { sessionData, getFilteredDrops, activeTab, isLeftHalf } = useOverlay();
 
   const filteredDrops = getFilteredDrops() || [];
 

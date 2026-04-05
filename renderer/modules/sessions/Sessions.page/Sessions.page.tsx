@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 
 import { PageContainer } from "~/renderer/components";
-import { useBoundStore } from "~/renderer/store";
+import { useSessions } from "~/renderer/store";
 
 import {
   SessionsActions,
@@ -10,9 +10,7 @@ import {
 } from "../Sessions.components";
 
 const SessionsPage = () => {
-  const {
-    sessions: { loadAllSessions, getIsLoading },
-  } = useBoundStore();
+  const { loadAllSessions, getIsLoading } = useSessions();
   const loading = getIsLoading();
 
   useEffect(() => {

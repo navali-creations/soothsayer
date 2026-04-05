@@ -1,6 +1,6 @@
 import { FiTrendingUp } from "react-icons/fi";
 
-import { useBoundStore } from "~/renderer/store";
+import { useCardDetails, useProfitForecast } from "~/renderer/store";
 
 /**
  * EV (Expected Value) contribution section.
@@ -13,10 +13,8 @@ import { useBoundStore } from "~/renderer/store";
  * `cardDetails.getEvContribution` getter.
  */
 const EvContributionSection = () => {
-  const {
-    cardDetails: { priceHistory, getEvContribution },
-    profitForecast: { totalWeight },
-  } = useBoundStore();
+  const { priceHistory, getEvContribution } = useCardDetails();
+  const { totalWeight } = useProfitForecast();
 
   // Derive chaos value from price history
   const chaosValue =

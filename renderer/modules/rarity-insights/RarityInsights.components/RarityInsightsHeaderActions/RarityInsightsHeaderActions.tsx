@@ -3,7 +3,7 @@ import { FiLock, FiRefreshCw } from "react-icons/fi";
 
 import { Button, Countdown, Search } from "~/renderer/components";
 import { formatTickingTimer, useTickingTimer } from "~/renderer/hooks";
-import { useBoundStore } from "~/renderer/store";
+import { usePoeNinja, useSettings } from "~/renderer/store";
 
 import RarityInsightsDropdown from "../RarityInsightsSidebar/RarityInsightsSidebar";
 
@@ -14,10 +14,8 @@ interface RarityInsightsHeaderActionsProps {
 const RarityInsightsHeaderActions = ({
   onGlobalFilterChange,
 }: RarityInsightsHeaderActionsProps) => {
-  const {
-    settings: { getSelectedGame, getActiveGameViewSelectedLeague },
-    poeNinja: { isRefreshing, refreshPrices, getRefreshableAt },
-  } = useBoundStore();
+  const { getSelectedGame, getActiveGameViewSelectedLeague } = useSettings();
+  const { isRefreshing, refreshPrices, getRefreshableAt } = usePoeNinja();
 
   const game = getSelectedGame();
   const league = getActiveGameViewSelectedLeague();

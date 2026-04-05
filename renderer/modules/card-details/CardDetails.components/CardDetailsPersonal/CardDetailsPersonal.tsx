@@ -1,5 +1,5 @@
 import { GroupedStats, Stat } from "~/renderer/components";
-import { useBoundStore } from "~/renderer/store";
+import { useCardDetails } from "~/renderer/store";
 
 import { formatRelativeDate } from "../../helpers";
 import PersonalStatsError from "./PersonalStatsError";
@@ -7,9 +7,7 @@ import PersonalStatsNeverFound from "./PersonalStatsNeverFound";
 import PersonalStatsPlaceholder from "./PersonalStatsPlaceholder";
 
 const CardDetailsPersonal = () => {
-  const {
-    cardDetails: { personalAnalytics, personalAnalyticsError },
-  } = useBoundStore();
+  const { personalAnalytics, personalAnalyticsError } = useCardDetails();
 
   if (personalAnalyticsError) {
     return <PersonalStatsError message={personalAnalyticsError} />;

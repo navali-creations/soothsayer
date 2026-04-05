@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useSetup } from "~/renderer/store";
 
 import SetupActions from "./SetupActions";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useSetup: vi.fn(),
 }));
 
 vi.mock("~/main/modules/app-setup/AppSetup.types", () => ({
@@ -23,29 +23,27 @@ vi.mock("~/main/modules/app-setup/AppSetup.types", () => ({
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseSetup = vi.mocked(useSetup);
 
 function createMockStore(overrides: Record<string, unknown> = {}) {
   return {
-    setup: {
-      setupState: {
-        currentStep: 1,
-        isComplete: false,
-        selectedGames: ["poe1"],
-        poe1League: "Standard",
-        poe2League: "Standard",
-        poe1ClientPath: null,
-        poe2ClientPath: null,
-        telemetryCrashReporting: false,
-        telemetryUsageAnalytics: false,
-      },
-      validation: { isValid: true, errors: [] },
-      isLoading: false,
-      advanceStep: vi.fn(),
-      goBack: vi.fn(),
-      completeSetup: vi.fn(),
-      ...overrides,
+    setupState: {
+      currentStep: 1,
+      isComplete: false,
+      selectedGames: ["poe1"],
+      poe1League: "Standard",
+      poe2League: "Standard",
+      poe1ClientPath: null,
+      poe2ClientPath: null,
+      telemetryCrashReporting: false,
+      telemetryUsageAnalytics: false,
     },
+    validation: { isValid: true, errors: [] },
+    isLoading: false,
+    advanceStep: vi.fn(),
+    goBack: vi.fn(),
+    completeSetup: vi.fn(),
+    ...overrides,
   } as any;
 }
 
@@ -53,7 +51,7 @@ function createMockStore(overrides: Record<string, unknown> = {}) {
 
 describe("SetupActions", () => {
   beforeEach(() => {
-    mockUseBoundStore.mockReturnValue(createMockStore());
+    mockUseSetup.mockReturnValue(createMockStore());
   });
 
   // ── Button rendering ───────────────────────────────────────────────────
@@ -71,7 +69,7 @@ describe("SetupActions", () => {
 
   describe("Back button", () => {
     it("is invisible on the first step (SELECT_GAME, step 1)", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             currentStep: 1,
@@ -88,7 +86,7 @@ describe("SetupActions", () => {
     });
 
     it("is visible on later steps", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             currentStep: 2,
@@ -105,7 +103,7 @@ describe("SetupActions", () => {
     });
 
     it("is visible on step 3", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             currentStep: 3,
@@ -122,7 +120,7 @@ describe("SetupActions", () => {
     });
 
     it("is disabled on first step", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             currentStep: 1,
@@ -140,7 +138,7 @@ describe("SetupActions", () => {
 
     it("calls goBack when clicked", async () => {
       const goBack = vi.fn();
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             currentStep: 2,
@@ -160,7 +158,7 @@ describe("SetupActions", () => {
     });
 
     it("is disabled when isLoading is true", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             currentStep: 2,
@@ -182,7 +180,7 @@ describe("SetupActions", () => {
 
   describe("Next button", () => {
     it("shows 'Next' text on non-last steps", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             currentStep: 1,
@@ -200,7 +198,7 @@ describe("SetupActions", () => {
 
     it("calls advanceStep when clicked on non-last step", async () => {
       const advanceStep = vi.fn();
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             currentStep: 2,
@@ -220,7 +218,7 @@ describe("SetupActions", () => {
     });
 
     it("shows 'Finish' on the last step (TELEMETRY_CONSENT, step 4)", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             currentStep: 4,
@@ -238,7 +236,7 @@ describe("SetupActions", () => {
 
     it("calls completeSetup when Finish is clicked on the last step", async () => {
       const completeSetup = vi.fn();
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             currentStep: 4,
@@ -260,7 +258,7 @@ describe("SetupActions", () => {
     it("does not call advanceStep when Finish is clicked", async () => {
       const advanceStep = vi.fn();
       const completeSetup = vi.fn();
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             currentStep: 4,
@@ -282,7 +280,7 @@ describe("SetupActions", () => {
     });
 
     it("is disabled when validation is invalid", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           validation: { isValid: false, errors: ["Some field is missing"] },
         }),
@@ -295,7 +293,7 @@ describe("SetupActions", () => {
     });
 
     it("is enabled when validation is valid", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           validation: { isValid: true, errors: [] },
         }),
@@ -308,7 +306,7 @@ describe("SetupActions", () => {
     });
 
     it("is enabled when validation is null (no validation result yet)", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           validation: null,
         }),
@@ -321,7 +319,7 @@ describe("SetupActions", () => {
     });
 
     it("is disabled when isLoading is true", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           isLoading: true,
         }),
@@ -339,7 +337,7 @@ describe("SetupActions", () => {
 
   describe("loading state", () => {
     it("shows loading spinner and 'Loading...' text when isLoading is true", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           isLoading: true,
         }),
@@ -354,7 +352,7 @@ describe("SetupActions", () => {
     });
 
     it("does not show loading text when isLoading is false", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           isLoading: false,
         }),
@@ -366,7 +364,7 @@ describe("SetupActions", () => {
     });
 
     it("shows loading instead of 'Finish' on last step when loading", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             currentStep: 4,
@@ -388,7 +386,7 @@ describe("SetupActions", () => {
 
   describe("edge cases", () => {
     it("handles null setupState by defaulting to step 0", () => {
-      mockUseBoundStore.mockReturnValue(createMockStore({ setupState: null }));
+      mockUseSetup.mockReturnValue(createMockStore({ setupState: null }));
 
       renderWithProviders(<SetupActions />);
 

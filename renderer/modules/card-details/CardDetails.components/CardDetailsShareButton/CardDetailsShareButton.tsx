@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { FiCheck, FiCopy } from "react-icons/fi";
 
-import { useBoundStore } from "~/renderer/store";
+import { useCardDetails } from "~/renderer/store";
 import { RARITY_LABELS } from "~/renderer/utils";
 import type { Rarity } from "~/types/data-stores";
 
@@ -33,9 +33,7 @@ const CardDetailsShareButton = ({
 }: CardDetailsShareButtonProps) => {
   const [copied, setCopied] = useState(false);
 
-  const {
-    cardDetails: { priceHistory, personalAnalytics },
-  } = useBoundStore();
+  const { priceHistory, personalAnalytics } = useCardDetails();
 
   const handleCopy = useCallback(async () => {
     const lines: string[] = [];
@@ -96,7 +94,9 @@ const CardDetailsShareButton = ({
       }
 
       personalParts.push(
-        `Total drops: ${personalAnalytics.totalLifetimeDrops} across ${personalAnalytics.sessionCount} session${personalAnalytics.sessionCount !== 1 ? "s" : ""}`,
+        `Total drops: ${personalAnalytics.totalLifetimeDrops} across ${
+          personalAnalytics.sessionCount
+        } session${personalAnalytics.sessionCount !== 1 ? "s" : ""}`,
       );
 
       if (personalParts.length > 0) {

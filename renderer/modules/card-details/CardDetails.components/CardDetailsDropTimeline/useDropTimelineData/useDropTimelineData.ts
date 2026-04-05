@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { useBoundStore } from "~/renderer/store";
+import { useCardDetails } from "~/renderer/store";
 
 import { DEFAULT_LEAGUE_DURATION_MS, MIN_GAP_FOR_BREAK_MS } from "../constants";
 import { leagueEndTime, leagueStartTime } from "../helpers";
@@ -60,9 +60,8 @@ export interface DropTimelineData {
  * Reads all data directly from the Zustand store — no props required.
  */
 export function useDropTimelineData(): DropTimelineData {
-  const {
-    cardDetails: { personalAnalytics, getDropTimeline, selectedLeague },
-  } = useBoundStore();
+  const { personalAnalytics, getDropTimeline, selectedLeague } =
+    useCardDetails();
 
   const dropTimeline = getDropTimeline();
   const leagueDateRanges = personalAnalytics?.leagueDateRanges ?? [];

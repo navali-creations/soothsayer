@@ -1,12 +1,13 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useSettings, useStatistics } from "~/renderer/store";
 
 import StatisticsPage from "./Statistics.page";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useStatistics: vi.fn(),
+  useSettings: vi.fn(),
 }));
 
 vi.mock("../Statistics.components", () => ({
@@ -58,7 +59,8 @@ vi.mock("~/renderer/components", () => ({
   ),
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseStatistics = vi.mocked(useStatistics);
+const mockUseSettings = vi.mocked(useSettings);
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -86,7 +88,8 @@ function createMockStore(overrides: any = {}) {
 
 function setupStore(overrides: any = {}) {
   const store = createMockStore(overrides);
-  mockUseBoundStore.mockReturnValue(store);
+  mockUseStatistics.mockReturnValue(store.statistics);
+  mockUseSettings.mockReturnValue(store.settings);
   return store;
 }
 

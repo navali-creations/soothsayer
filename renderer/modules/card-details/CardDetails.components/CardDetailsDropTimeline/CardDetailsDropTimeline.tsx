@@ -1,5 +1,5 @@
 import { useChartColors } from "~/renderer/hooks";
-import { useBoundStore } from "~/renderer/store";
+import { useCardDetails } from "~/renderer/store";
 
 import MainChart from "./MainChart";
 import OverviewChart from "./OverviewChart";
@@ -27,9 +27,7 @@ import { useDropTimelineData } from "./useDropTimelineData/useDropTimelineData";
 const CardDetailsDropTimeline = () => {
   const c = useChartColors();
 
-  const {
-    cardDetails: { personalAnalytics, getDropTimeline },
-  } = useBoundStore();
+  const { personalAnalytics, getDropTimeline } = useCardDetails();
 
   const dropTimeline = getDropTimeline();
 

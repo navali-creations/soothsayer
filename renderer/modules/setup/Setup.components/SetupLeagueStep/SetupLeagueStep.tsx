@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 
-import { useBoundStore } from "~/renderer/store";
+import { useGameInfo, useSetup } from "~/renderer/store";
 
 interface LeagueDropdownProps {
   label: string;
@@ -68,16 +68,14 @@ const LeagueDropdown = ({
 };
 
 const SetupLeagueStep = () => {
+  const { setupState, selectLeague } = useSetup();
   const {
-    setup: { setupState, selectLeague },
-    gameInfo: {
-      poe1Leagues,
-      poe2Leagues,
-      isLoadingLeagues,
-      leaguesError,
-      fetchLeagues,
-    },
-  } = useBoundStore();
+    poe1Leagues,
+    poe2Leagues,
+    isLoadingLeagues,
+    leaguesError,
+    fetchLeagues,
+  } = useGameInfo();
 
   const selectedGames = setupState?.selectedGames || [];
   const poe1League = setupState?.poe1League || "";

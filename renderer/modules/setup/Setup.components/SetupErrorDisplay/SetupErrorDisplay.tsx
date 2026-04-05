@@ -1,9 +1,7 @@
-import { useBoundStore } from "~/renderer/store";
+import { useSetup } from "~/renderer/store";
 
 const SetupErrorDisplay = () => {
-  const {
-    setup: { error },
-  } = useBoundStore();
+  const { error } = useSetup();
 
   // Only show actual errors, not validation warnings
   // Validation is now handled inline in each step component

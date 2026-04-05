@@ -1,6 +1,6 @@
 import { FiAlertTriangle } from "react-icons/fi";
 
-import { useBoundStore } from "~/renderer/store";
+import { useOverlay } from "~/renderer/store";
 
 import Beam from "./Beam/Beam";
 
@@ -15,9 +15,7 @@ export const DropBeamColumn = ({
   beamColor,
   isUnknownRarity,
 }: DropBeamColumnProps) => {
-  const {
-    overlay: { isLeftHalf },
-  } = useBoundStore();
+  const { isLeftHalf } = useOverlay();
 
   return (
     <div className="w-10 relative shrink-0">

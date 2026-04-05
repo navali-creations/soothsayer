@@ -1,15 +1,15 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useRarityInsightsComparison } from "~/renderer/store";
 
 import ComparisonToolbar from "./ComparisonToolbar";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useRarityInsightsComparison: vi.fn(),
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseRarityInsightsComparison = vi.mocked(useRarityInsightsComparison);
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -25,16 +25,14 @@ function setupStore(
     differences?: Set<string>;
   } = {},
 ) {
-  mockUseBoundStore.mockReturnValue({
-    rarityInsightsComparison: {
-      showDiffsOnly: overrides.showDiffsOnly ?? false,
-      setShowDiffsOnly: mockSetShowDiffsOnly,
-      includeBossCards: overrides.includeBossCards ?? false,
-      setIncludeBossCards: mockSetIncludeBossCards,
-      getCanShowDiffs: () => overrides.canShowDiffs ?? false,
-      getAllSelectedParsed: () => overrides.allSelectedParsed ?? false,
-      getDifferences: () => overrides.differences ?? new Set<string>(),
-    },
+  mockUseRarityInsightsComparison.mockReturnValue({
+    showDiffsOnly: overrides.showDiffsOnly ?? false,
+    setShowDiffsOnly: mockSetShowDiffsOnly,
+    includeBossCards: overrides.includeBossCards ?? false,
+    setIncludeBossCards: mockSetIncludeBossCards,
+    getCanShowDiffs: () => overrides.canShowDiffs ?? false,
+    getAllSelectedParsed: () => overrides.allSelectedParsed ?? false,
+    getDifferences: () => overrides.differences ?? new Set<string>(),
   } as any);
 }
 

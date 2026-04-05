@@ -1,11 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useCardDetails, useProfitForecast } from "~/renderer/store";
 
 // ─── Store mock ────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({ useBoundStore: vi.fn() }));
+vi.mock("~/renderer/store", () => ({
+  useCardDetails: vi.fn(),
+  useProfitForecast: vi.fn(),
+}));
 
 // ─── CardDetailsDropStats sub-component stubs ──────────────────────────────
 
@@ -127,15 +130,12 @@ describe("CardDetailsDropStats", () => {
   function renderDropStats(
     overrides: { personalAnalytics?: any; totalWeight?: number } = {},
   ) {
-    const mockState = {
-      cardDetails: {
-        personalAnalytics: overrides.personalAnalytics ?? null,
-      },
-      profitForecast: {
-        totalWeight: overrides.totalWeight ?? 1000,
-      },
-    };
-    vi.mocked(useBoundStore).mockReturnValue(mockState as any);
+    vi.mocked(useCardDetails).mockReturnValue({
+      personalAnalytics: overrides.personalAnalytics ?? null,
+    } as any);
+    vi.mocked(useProfitForecast).mockReturnValue({
+      totalWeight: overrides.totalWeight ?? 1000,
+    } as any);
     return renderWithProviders(<CardDetailsDropStats />);
   }
 
@@ -248,14 +248,11 @@ describe("CardDetailsPersonal", () => {
   };
 
   function renderPersonal(overrides: Record<string, any> = {}) {
-    const mockState = {
-      cardDetails: {
-        personalAnalytics: null,
-        personalAnalyticsError: null,
-        ...overrides,
-      },
-    };
-    vi.mocked(useBoundStore).mockReturnValue(mockState as any);
+    vi.mocked(useCardDetails).mockReturnValue({
+      personalAnalytics: null,
+      personalAnalyticsError: null,
+      ...overrides,
+    } as any);
     return renderWithProviders(<CardDetailsPersonal />);
   }
 
@@ -365,14 +362,11 @@ describe("CardDetailsRelatedCards", () => {
   });
 
   function renderRelated(overrides: Record<string, any> = {}) {
-    const mockState = {
-      cardDetails: {
-        relatedCards: null,
-        isLoadingRelatedCards: false,
-        ...overrides,
-      },
-    };
-    vi.mocked(useBoundStore).mockReturnValue(mockState as any);
+    vi.mocked(useCardDetails).mockReturnValue({
+      relatedCards: null,
+      isLoadingRelatedCards: false,
+      ...overrides,
+    } as any);
     return renderWithProviders(<CardDetailsRelatedCards />);
   }
 

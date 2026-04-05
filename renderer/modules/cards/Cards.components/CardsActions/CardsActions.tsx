@@ -9,7 +9,7 @@ import {
   Search,
 } from "~/renderer/components";
 import { trackEvent } from "~/renderer/modules/umami";
-import { useBoundStore } from "~/renderer/store";
+import { useCards, useRarityInsights, useSettings } from "~/renderer/store";
 import {
   decodeRaritySourceValue,
   encodeRaritySourceValue,
@@ -32,27 +32,25 @@ interface CardsActionsProps {
 
 export const CardsActions = ({ onFilterChange }: CardsActionsProps) => {
   const {
-    cards: {
-      searchQuery,
-      rarityFilter,
-      includeBossCards,
-      setSearchQuery,
-      setRarityFilter,
-      setIncludeBossCards,
-      loadCards,
-    },
-    settings: { raritySource, selectedFilterId, updateSetting },
-    rarityInsights: {
-      availableFilters,
-      isScanning,
-      lastScannedAt,
-      scanFilters,
-      selectFilter,
-      clearSelectedFilter,
-      getLocalFilters,
-      getOnlineFilters,
-    },
-  } = useBoundStore();
+    searchQuery,
+    rarityFilter,
+    includeBossCards,
+    setSearchQuery,
+    setRarityFilter,
+    setIncludeBossCards,
+    loadCards,
+  } = useCards();
+  const { raritySource, selectedFilterId, updateSetting } = useSettings();
+  const {
+    availableFilters,
+    isScanning,
+    lastScannedAt,
+    scanFilters,
+    selectFilter,
+    clearSelectedFilter,
+    getLocalFilters,
+    getOnlineFilters,
+  } = useRarityInsights();
 
   const localFilters = getLocalFilters();
   const onlineFilters = getOnlineFilters();

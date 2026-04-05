@@ -6,17 +6,17 @@ import {
   screen,
   waitFor,
 } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useSettings } from "~/renderer/store";
 
 import OverlaySettingsCard from "./OverlaySettingsCard";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useSettings: vi.fn(),
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseSettings = vi.mocked(useSettings);
 
 vi.mock("~/renderer/components", () => ({
   Button: ({ children, onClick, ...props }: any) => (
@@ -50,26 +50,22 @@ const mockGetBounds = vi.fn().mockResolvedValue(null);
 const mockSettingsGet = vi.fn().mockResolvedValue(null);
 const mockSettingsSet = vi.fn().mockResolvedValue(undefined);
 
-function createMockStore(overrides: any = {}) {
+function createMockSettings(overrides: any = {}) {
   return {
-    settings: {
-      overlayFontSize: 1.0,
-      overlayToolbarFontSize: 1.0,
-      overlayBounds: { width: 250, height: 175 },
-      updateSetting: mockUpdateSetting,
-      ...overrides.settings,
-    },
+    overlayFontSize: 1.0,
+    overlayToolbarFontSize: 1.0,
+    overlayBounds: { width: 250, height: 175 },
+    updateSetting: mockUpdateSetting,
+    ...overrides.settings,
   } as any;
 }
 
 function setupStore(overrides: any = {}) {
-  const store = createMockStore(overrides);
+  const settings = createMockSettings(overrides);
 
-  mockUseBoundStore.mockImplementation((selector?: any) => {
-    return selector ? selector(store) : store;
-  });
+  mockUseSettings.mockReturnValue(settings);
 
-  return store;
+  return settings;
 }
 
 // ─── Tests ─────────────────────────────────────────────────────────────────
@@ -612,7 +608,7 @@ describe("OverlaySettingsCard", () => {
   // ── overlayBounds sync effect ─────────────────────────────────────
 
   it("syncs local state when overlayBounds changes externally", async () => {
-    const store = setupStore({
+    setupStore({
       settings: { overlayBounds: { width: 250, height: 175 } },
     });
 
@@ -622,10 +618,8 @@ describe("OverlaySettingsCard", () => {
     expect(screen.getByText("175px")).toBeInTheDocument();
 
     // Simulate overlayBounds changing externally (e.g. after restore defaults)
-    store.settings.overlayBounds = { width: 400, height: 300 };
-    // Re-setup the mock to return updated store
-    mockUseBoundStore.mockImplementation((selector?: any) => {
-      return selector ? selector(store) : store;
+    setupStore({
+      settings: { overlayBounds: { width: 400, height: 300 } },
     });
 
     rerender(<OverlaySettingsCard />);

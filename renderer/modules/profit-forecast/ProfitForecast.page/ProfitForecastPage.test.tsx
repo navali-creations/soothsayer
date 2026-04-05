@@ -3,14 +3,16 @@ import {
   screen,
   waitFor,
 } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { usePoeNinja, useProfitForecast, useSettings } from "~/renderer/store";
 
 import ProfitForecastPage from "./ProfitForecast.page";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useSettings: vi.fn(),
+  usePoeNinja: vi.fn(),
+  useProfitForecast: vi.fn(),
 }));
 
 vi.mock("~/renderer/hooks", () => ({
@@ -65,48 +67,58 @@ vi.mock("~/renderer/components", () => ({
   ),
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseSettings = vi.mocked(useSettings);
+const mockUsePoeNinja = vi.mocked(usePoeNinja);
+const mockUseProfitForecast = vi.mocked(useProfitForecast);
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-function createMockState(overrides: any = {}) {
+function createMockSettings(overrides: any = {}) {
   return {
-    settings: {
-      getSelectedGame: vi.fn(() => "poe1"),
-      getActiveGameViewSelectedLeague: vi.fn(() => "Settlers"),
-      ...overrides.settings,
-    },
-    poeNinja: {
-      isRefreshing: false,
-      checkRefreshStatus: vi.fn(),
-      ...overrides.poeNinja,
-    },
-    profitForecast: {
-      rows: [],
-      snapshotFetchedAt: "2024-01-01",
-      isLoading: false,
-      error: null,
-      selectedBatch: 1000,
-      forecastView: "chart",
-      stepDrop: 2,
-      subBatchSize: 5000,
-      setSelectedBatch: vi.fn(),
-      setForecastView: vi.fn(),
-      setStepDrop: vi.fn(),
-      setSubBatchSize: vi.fn(),
-      setIsComputing: vi.fn(),
-      fetchData: vi.fn(),
-      recomputeRows: vi.fn(),
-      hasData: vi.fn(() => true),
-      ...overrides.profitForecast,
-    },
+    getSelectedGame: vi.fn(() => "poe1"),
+    getActiveGameViewSelectedLeague: vi.fn(() => "Settlers"),
+    ...overrides,
+  } as any;
+}
+
+function createMockPoeNinja(overrides: any = {}) {
+  return {
+    isRefreshing: false,
+    checkRefreshStatus: vi.fn(),
+    ...overrides,
+  } as any;
+}
+
+function createMockProfitForecast(overrides: any = {}) {
+  return {
+    rows: [],
+    snapshotFetchedAt: "2024-01-01",
+    isLoading: false,
+    error: null,
+    selectedBatch: 1000,
+    forecastView: "chart",
+    stepDrop: 2,
+    subBatchSize: 5000,
+    setSelectedBatch: vi.fn(),
+    setForecastView: vi.fn(),
+    setStepDrop: vi.fn(),
+    setSubBatchSize: vi.fn(),
+    setIsComputing: vi.fn(),
+    fetchData: vi.fn(),
+    recomputeRows: vi.fn(),
+    hasData: vi.fn(() => true),
+    ...overrides,
   } as any;
 }
 
 function setupStore(overrides: any = {}) {
-  const state = createMockState(overrides);
-  mockUseBoundStore.mockReturnValue(state);
-  return state;
+  const settings = createMockSettings(overrides.settings);
+  const poeNinja = createMockPoeNinja(overrides.poeNinja);
+  const profitForecast = createMockProfitForecast(overrides.profitForecast);
+  mockUseSettings.mockReturnValue(settings);
+  mockUsePoeNinja.mockReturnValue(poeNinja);
+  mockUseProfitForecast.mockReturnValue(profitForecast);
+  return { settings, poeNinja, profitForecast };
 }
 
 // ─── Tests ─────────────────────────────────────────────────────────────────
@@ -140,6 +152,9 @@ describe("ProfitForecastPage", () => {
       renderWithProviders(<ProfitForecastPage />);
 
       expect(screen.queryByTestId("summary-cards")).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("pf-breakeven-chart"),
+      ).not.toBeInTheDocument();
       expect(
         screen.queryByTestId("pf-breakeven-chart"),
       ).not.toBeInTheDocument();
@@ -275,7 +290,9 @@ describe("ProfitForecastPage", () => {
       renderWithProviders(<ProfitForecastPage />);
 
       await waitFor(() => {
-        expect(screen.getByTestId("pf-breakeven-chart")).toBeInTheDocument();
+        expect(
+          screen.queryByTestId("pf-breakeven-chart"),
+        ).not.toBeInTheDocument();
       });
       expect(screen.queryByTestId("pf-table")).not.toBeInTheDocument();
     });

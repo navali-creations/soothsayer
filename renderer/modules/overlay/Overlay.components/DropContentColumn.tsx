@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 
-import { useBoundStore } from "~/renderer/store";
+import { useOverlay } from "~/renderer/store";
 import { formatCurrency, type getRarityStyles } from "~/renderer/utils";
 
 interface DropContentColumnProps {
@@ -14,12 +14,8 @@ export const DropContentColumn = ({
   chaosValue,
   rarityStyles,
 }: DropContentColumnProps) => {
-  const {
-    overlay: {
-      isLeftHalf,
-      sessionData: { chaosToDivineRatio },
-    },
-  } = useBoundStore();
+  const { isLeftHalf, sessionData } = useOverlay();
+  const { chaosToDivineRatio } = sessionData;
 
   const handleCardClick = useCallback(
     (e: React.MouseEvent) => {

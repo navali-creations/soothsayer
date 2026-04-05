@@ -1,6 +1,6 @@
 import { FiInfo } from "react-icons/fi";
 
-import { useBoundStore } from "~/renderer/store";
+import { useProfitForecast } from "~/renderer/store";
 
 import { RATE_FLOOR } from "../../ProfitForecast.slice/ProfitForecast.slice";
 import PFBatchSizeChips from "./PFBatchSizeChips/PFBatchSizeChips";
@@ -11,9 +11,7 @@ import PFSubBatchSlider from "./PFSubBatchSlider/PFSubBatchSlider";
 import PFViewToggle from "./PFViewToggle/PFViewToggle";
 
 const PFCostModelPanel = () => {
-  const {
-    profitForecast: { customBaseRate, getEffectiveBaseRate },
-  } = useBoundStore();
+  const { customBaseRate, getEffectiveBaseRate } = useProfitForecast();
 
   const effectiveRate = getEffectiveBaseRate();
   const hasCustomRate = customBaseRate !== null;

@@ -1,20 +1,18 @@
 import { FiInfo } from "react-icons/fi";
 
-import { useBoundStore } from "~/renderer/store";
+import { usePoeNinja, useProfitForecast } from "~/renderer/store";
 
 const PFStepDropSlider = () => {
   const {
-    profitForecast: {
-      stepDrop,
-      selectedBatch,
-      customBaseRate,
-      stackedDeckChaosCost,
-      setStepDrop,
-      setIsComputing,
-      isLoading,
-    },
-    poeNinja: { isRefreshing },
-  } = useBoundStore();
+    stepDrop,
+    selectedBatch,
+    customBaseRate,
+    stackedDeckChaosCost,
+    setStepDrop,
+    setIsComputing,
+    isLoading,
+  } = useProfitForecast();
+  const { isRefreshing } = usePoeNinja();
 
   const controlsDisabled = isRefreshing || isLoading;
   const hasCustomRate = customBaseRate !== null;

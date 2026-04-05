@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 
-import { useBoundStore } from "~/renderer/store";
+import { useStatistics } from "~/renderer/store";
 
 import { StatisticsOpenedDecksStat } from "../StatisticsOpenedDecksStat/StatisticsOpenedDecksStat";
 import { StatsAvgDecksPerSession } from "../StatsAvgDecksPerSession/StatsAvgDecksPerSession";
@@ -57,15 +57,13 @@ export const StatisticsStats = ({
   isDataLoading = false,
 }: StatisticsStatsProps) => {
   const {
-    statistics: {
-      statScope,
-      selectedLeague,
-      sessionHighlights,
-      stackedDeckCardCount,
-      isLoadingHighlights,
-      fetchSessionHighlights,
-    },
-  } = useBoundStore();
+    statScope,
+    selectedLeague,
+    sessionHighlights,
+    stackedDeckCardCount,
+    isLoadingHighlights,
+    fetchSessionHighlights,
+  } = useStatistics();
 
   useEffect(() => {
     const league =

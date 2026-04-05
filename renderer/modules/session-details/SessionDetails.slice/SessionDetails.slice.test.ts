@@ -5,7 +5,10 @@ import {
   createTestStore,
   type TestStore,
 } from "~/renderer/__test-setup__/test-store";
-import type { DetailedDivinationCardStats } from "~/types/data-stores";
+import type {
+  AggregatedTimeline,
+  DetailedDivinationCardStats,
+} from "~/types/data-stores";
 
 // ── Fixtures ───────────────────────────────────────────────────────────────
 
@@ -68,6 +71,37 @@ function makeSessionDetail(
     startedAt: "2024-01-01T00:00:00Z",
     endedAt: "2024-01-01T01:00:00Z",
     league: "Settlers",
+    ...overrides,
+  };
+}
+
+function makeTimeline(
+  overrides: Partial<AggregatedTimeline> = {},
+): AggregatedTimeline {
+  return {
+    buckets: [
+      {
+        timestamp: "2024-01-01T00:00:00Z",
+        dropCount: 10,
+        cumulativeChaosValue: 500,
+        cumulativeDivineValue: 3.5,
+        topCard: "The Doctor",
+        topCardChaosValue: 1200,
+      },
+      {
+        timestamp: "2024-01-01T00:01:00Z",
+        dropCount: 20,
+        cumulativeChaosValue: 1200,
+        cumulativeDivineValue: 8,
+        topCard: "Rain of Chaos",
+        topCardChaosValue: 1,
+      },
+    ],
+    liveEdge: [],
+    totalChaosValue: 1200,
+    totalDivineValue: 8,
+    totalDrops: 30,
+    notableDrops: [],
     ...overrides,
   };
 }
@@ -337,7 +371,7 @@ describe("SessionDetailsSlice", () => {
     });
   });
 
-  // ─── Getters ─────────────────────────────────────────────────────────
+  // ─── Getters (basic) ─────────────────────────────────────────────────
 
   describe("getters", () => {
     it("getSession returns null when no session loaded", () => {
@@ -375,6 +409,360 @@ describe("SessionDetailsSlice", () => {
       store.getState().sessionDetails.setPriceSource("stash");
 
       expect(store.getState().sessionDetails.getPriceSource()).toBe("stash");
+    });
+  });
+
+  // ─── Derived Getters ─────────────────────────────────────────────────
+
+  describe("derived getters", () => {
+    // Helper to load a session with optional timeline
+    async function loadSession(
+      sessionOverrides: Partial<DetailedDivinationCardStats> = {},
+      timeline: AggregatedTimeline | null = null,
+    ) {
+      electron.sessions.getById.mockResolvedValue(
+        makeSessionDetail(sessionOverrides),
+      );
+      electron.session.getTimeline.mockResolvedValue(timeline);
+      await store.getState().sessionDetails.loadSession("sess-1");
+    }
+
+    // ─── getCardData ─────────────────────────────────────────────────
+
+    describe("getCardData", () => {
+      it("returns empty array when session is null", () => {
+        const result = store.getState().sessionDetails.getCardData();
+        expect(result).toEqual([]);
+      });
+
+      it("returns cards with exchange prices when priceSource is exchange", async () => {
+        await loadSession();
+
+        const cards = store.getState().sessionDetails.getCardData();
+        const doctor = cards.find((c) => c.name === "The Doctor");
+
+        expect(doctor).toBeDefined();
+        expect(doctor!.chaosValue).toBe(1200);
+        expect(doctor!.totalValue).toBe(2400);
+        expect(doctor!.hidePrice).toBe(false);
+      });
+
+      it("returns cards with stash prices when priceSource is stash", async () => {
+        await loadSession();
+        store.getState().sessionDetails.setPriceSource("stash");
+
+        const cards = store.getState().sessionDetails.getCardData();
+        const doctor = cards.find((c) => c.name === "The Doctor");
+
+        expect(doctor).toBeDefined();
+        expect(doctor!.chaosValue).toBe(1100);
+        expect(doctor!.totalValue).toBe(2200);
+        expect(doctor!.hidePrice).toBe(false);
+      });
+
+      it("sorts cards by count descending", async () => {
+        await loadSession();
+
+        const cards = store.getState().sessionDetails.getCardData();
+
+        expect(cards[0].name).toBe("Rain of Chaos");
+        expect(cards[0].count).toBe(30);
+        expect(cards[1].name).toBe("The Doctor");
+        expect(cards[1].count).toBe(2);
+        expect(cards[2].name).toBe("The Nurse");
+        expect(cards[2].count).toBe(1);
+      });
+
+      it("calculates ratio correctly", async () => {
+        await loadSession();
+
+        const cards = store.getState().sessionDetails.getCardData();
+
+        // Rain of Chaos: 30/50 * 100 = 60
+        const rain = cards.find((c) => c.name === "Rain of Chaos");
+        expect(rain!.ratio).toBe(60);
+
+        // The Doctor: 2/50 * 100 = 4
+        const doctor = cards.find((c) => c.name === "The Doctor");
+        expect(doctor!.ratio).toBe(4);
+
+        // The Nurse: 1/50 * 100 = 2
+        const nurse = cards.find((c) => c.name === "The Nurse");
+        expect(nurse!.ratio).toBe(2);
+      });
+    });
+
+    // ─── getPriceData ────────────────────────────────────────────────
+
+    describe("getPriceData", () => {
+      it("returns zeros when session has no priceSnapshot", async () => {
+        await loadSession(); // default fixture has no priceSnapshot
+
+        const result = store.getState().sessionDetails.getPriceData();
+
+        expect(result.chaosToDivineRatio).toBe(0);
+        expect(result.cardPrices).toEqual({});
+      });
+
+      it("returns exchange data when priceSource is exchange", async () => {
+        await loadSession({
+          priceSnapshot: {
+            timestamp: "2024-01-01T00:00:00Z",
+            stackedDeckChaosCost: 5,
+            exchange: {
+              chaosToDivineRatio: 150,
+              cardPrices: {
+                "The Doctor": {
+                  chaosValue: 1200,
+                  divineValue: 8,
+                },
+              },
+            },
+            stash: {
+              chaosToDivineRatio: 145,
+              cardPrices: {
+                "The Doctor": {
+                  chaosValue: 1100,
+                  divineValue: 7.3,
+                },
+              },
+            },
+          },
+        });
+
+        const result = store.getState().sessionDetails.getPriceData();
+
+        expect(result.chaosToDivineRatio).toBe(150);
+        expect(result.cardPrices["The Doctor"].chaosValue).toBe(1200);
+      });
+
+      it("returns stash data when priceSource is stash", async () => {
+        await loadSession({
+          priceSnapshot: {
+            timestamp: "2024-01-01T00:00:00Z",
+            stackedDeckChaosCost: 5,
+            exchange: {
+              chaosToDivineRatio: 150,
+              cardPrices: {
+                "The Doctor": {
+                  chaosValue: 1200,
+                  divineValue: 8,
+                },
+              },
+            },
+            stash: {
+              chaosToDivineRatio: 145,
+              cardPrices: {
+                "The Doctor": {
+                  chaosValue: 1100,
+                  divineValue: 7.3,
+                },
+              },
+            },
+          },
+        });
+        store.getState().sessionDetails.setPriceSource("stash");
+
+        const result = store.getState().sessionDetails.getPriceData();
+
+        expect(result.chaosToDivineRatio).toBe(145);
+        expect(result.cardPrices["The Doctor"].chaosValue).toBe(1100);
+      });
+    });
+
+    // ─── getTotalProfit ──────────────────────────────────────────────
+
+    describe("getTotalProfit", () => {
+      it("returns 0 when no session", () => {
+        const result = store.getState().sessionDetails.getTotalProfit();
+        expect(result).toBe(0);
+      });
+
+      it("sums totalValue of all visible cards", async () => {
+        // Load session where all cards are visible (no hidePrice)
+        await loadSession({
+          totalCount: 3,
+          cards: [
+            {
+              name: "Card A",
+              count: 1,
+              exchangePrice: {
+                chaosValue: 100,
+                divineValue: 0.5,
+                totalValue: 100,
+                hidePrice: false,
+              },
+              stashPrice: {
+                chaosValue: 90,
+                divineValue: 0.45,
+                totalValue: 90,
+                hidePrice: false,
+              },
+            },
+            {
+              name: "Card B",
+              count: 2,
+              exchangePrice: {
+                chaosValue: 50,
+                divineValue: 0.25,
+                totalValue: 100,
+                hidePrice: false,
+              },
+              stashPrice: {
+                chaosValue: 45,
+                divineValue: 0.2,
+                totalValue: 90,
+                hidePrice: false,
+              },
+            },
+          ],
+        });
+
+        const result = store.getState().sessionDetails.getTotalProfit();
+
+        // 100 + 100 = 200 (exchange prices)
+        expect(result).toBe(200);
+      });
+
+      it("excludes hidden cards from total", async () => {
+        await loadSession();
+
+        // Default fixture: The Nurse has exchangePrice.hidePrice = true (totalValue 600)
+        // Visible: The Doctor (2400) + Rain of Chaos (30) = 2430
+        const result = store.getState().sessionDetails.getTotalProfit();
+
+        expect(result).toBe(2430);
+      });
+    });
+
+    // ─── getNetProfit ────────────────────────────────────────────────
+
+    describe("getNetProfit", () => {
+      it("returns zero deck cost when no priceSnapshot", async () => {
+        await loadSession();
+
+        const result = store.getState().sessionDetails.getNetProfit();
+
+        expect(result.totalDeckCost).toBe(0);
+        // Net profit equals total profit when deck cost is 0
+        expect(result.netProfit).toBe(
+          store.getState().sessionDetails.getTotalProfit(),
+        );
+      });
+
+      it("calculates net profit as totalProfit minus deck cost", async () => {
+        await loadSession({
+          totalCount: 3,
+          cards: [
+            {
+              name: "Card A",
+              count: 1,
+              exchangePrice: {
+                chaosValue: 100,
+                divineValue: 0.5,
+                totalValue: 100,
+                hidePrice: false,
+              },
+              stashPrice: {
+                chaosValue: 90,
+                divineValue: 0.45,
+                totalValue: 90,
+                hidePrice: false,
+              },
+            },
+            {
+              name: "Card B",
+              count: 2,
+              exchangePrice: {
+                chaosValue: 50,
+                divineValue: 0.25,
+                totalValue: 100,
+                hidePrice: false,
+              },
+              stashPrice: {
+                chaosValue: 45,
+                divineValue: 0.2,
+                totalValue: 90,
+                hidePrice: false,
+              },
+            },
+          ],
+          priceSnapshot: {
+            timestamp: "2024-01-01T00:00:00Z",
+            stackedDeckChaosCost: 10,
+            exchange: {
+              chaosToDivineRatio: 150,
+              cardPrices: {},
+            },
+            stash: {
+              chaosToDivineRatio: 145,
+              cardPrices: {},
+            },
+          },
+        });
+
+        const result = store.getState().sessionDetails.getNetProfit();
+
+        // totalProfit = 100 + 100 = 200
+        // totalDeckCost = 10 * 3 = 30
+        // netProfit = 200 - 30 = 170
+        expect(result.totalDeckCost).toBe(30);
+        expect(result.netProfit).toBe(170);
+      });
+    });
+
+    // ─── getDuration ─────────────────────────────────────────────────
+
+    describe("getDuration", () => {
+      it("returns pre-computed duration from session", async () => {
+        await loadSession({ duration: "2h 30m" });
+
+        const result = store.getState().sessionDetails.getDuration();
+
+        expect(result).toBe("2h 30m");
+      });
+
+      it("returns dash when session is null", () => {
+        const result = store.getState().sessionDetails.getDuration();
+
+        expect(result).toBe("—");
+      });
+
+      it("returns dash when session has no duration", async () => {
+        await loadSession({ duration: undefined });
+
+        const result = store.getState().sessionDetails.getDuration();
+
+        expect(result).toBe("—");
+      });
+    });
+
+    // ─── getHasTimeline ──────────────────────────────────────────────
+
+    describe("getHasTimeline", () => {
+      it("returns false when timeline is null", async () => {
+        await loadSession({}, null);
+
+        const result = store.getState().sessionDetails.getHasTimeline();
+
+        expect(result).toBe(false);
+      });
+
+      it("returns false when timeline has empty buckets", async () => {
+        await loadSession({}, makeTimeline({ buckets: [] }));
+
+        const result = store.getState().sessionDetails.getHasTimeline();
+
+        expect(result).toBe(false);
+      });
+
+      it("returns true when timeline has buckets", async () => {
+        await loadSession({}, makeTimeline());
+
+        const result = store.getState().sessionDetails.getHasTimeline();
+
+        expect(result).toBe(true);
+      });
     });
   });
 });

@@ -5,34 +5,32 @@ import {
   screen,
   waitFor,
 } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useSetup } from "~/renderer/store";
 
 import SetupClientPathStep from "./SetupClientPathStep";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useSetup: vi.fn(),
 }));
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseSetup = vi.mocked(useSetup);
 
 function createMockStore(overrides: any = {}) {
   return {
-    setup: {
-      setupState: {
-        currentStep: 2,
-        isComplete: false,
-        selectedGames: ["poe1"],
-        poe1ClientPath: "",
-        poe2ClientPath: "",
-        ...overrides.setupState,
-      },
-      selectClientPath: vi.fn(),
-      ...overrides,
+    setupState: {
+      currentStep: 2,
+      isComplete: false,
+      selectedGames: ["poe1"],
+      poe1ClientPath: "",
+      poe2ClientPath: "",
+      ...overrides.setupState,
     },
+    selectClientPath: vi.fn(),
+    ...overrides,
   } as any;
 }
 
@@ -40,7 +38,7 @@ function createMockStore(overrides: any = {}) {
 
 describe("SetupClientPathStep", () => {
   beforeEach(() => {
-    mockUseBoundStore.mockReturnValue(createMockStore());
+    mockUseSetup.mockReturnValue(createMockStore());
   });
 
   // ── Heading and description ────────────────────────────────────────────
@@ -69,7 +67,7 @@ describe("SetupClientPathStep", () => {
 
   describe("path selectors", () => {
     it("shows PoE1 path selector when poe1 is selected", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             selectedGames: ["poe1"],
@@ -90,7 +88,7 @@ describe("SetupClientPathStep", () => {
     });
 
     it("shows PoE2 path selector when poe2 is selected", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             selectedGames: ["poe2"],
@@ -111,7 +109,7 @@ describe("SetupClientPathStep", () => {
     });
 
     it("shows both selectors when both games are selected", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             selectedGames: ["poe1", "poe2"],
@@ -136,7 +134,7 @@ describe("SetupClientPathStep", () => {
 
   describe("path status indicators", () => {
     it("shows 'Required' warning when path is empty", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             selectedGames: ["poe1"],
@@ -152,7 +150,7 @@ describe("SetupClientPathStep", () => {
     });
 
     it("shows success indicator when path is filled", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             selectedGames: ["poe1"],
@@ -173,7 +171,7 @@ describe("SetupClientPathStep", () => {
 
   describe("browse button interaction", () => {
     it("calls window.electron.selectFile when Browse is clicked", async () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             selectedGames: ["poe1"],
@@ -205,7 +203,7 @@ describe("SetupClientPathStep", () => {
           poe2ClientPath: "",
         },
       });
-      mockUseBoundStore.mockReturnValue(store);
+      mockUseSetup.mockReturnValue(store);
 
       vi.mocked(window.electron.selectFile).mockResolvedValue(
         "C:\\Games\\PoE\\logs\\Client.txt",
@@ -234,7 +232,7 @@ describe("SetupClientPathStep", () => {
           poe2ClientPath: "",
         },
       });
-      mockUseBoundStore.mockReturnValue(store);
+      mockUseSetup.mockReturnValue(store);
 
       // selectFile resolves to undefined when the user cancels
       vi.mocked(window.electron.selectFile).mockResolvedValue(undefined);
@@ -252,7 +250,7 @@ describe("SetupClientPathStep", () => {
     });
 
     it("calls window.electron.selectFile for PoE2 when PoE2 Browse is clicked", async () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             selectedGames: ["poe2"],
@@ -287,7 +285,7 @@ describe("SetupClientPathStep", () => {
     });
 
     it("shows (2) hints when both games are selected", () => {
-      mockUseBoundStore.mockReturnValue(
+      mockUseSetup.mockReturnValue(
         createMockStore({
           setupState: {
             selectedGames: ["poe1", "poe2"],

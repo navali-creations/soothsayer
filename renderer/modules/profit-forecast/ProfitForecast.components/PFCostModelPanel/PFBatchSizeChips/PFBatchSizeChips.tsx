@@ -1,6 +1,6 @@
 import clsx from "clsx";
 
-import { useBoundStore } from "~/renderer/store";
+import { usePoeNinja, useProfitForecast } from "~/renderer/store";
 
 import type { BatchSize } from "../../../ProfitForecast.slice/ProfitForecast.slice";
 
@@ -12,15 +12,9 @@ const BATCH_OPTIONS: { value: BatchSize; label: string }[] = [
 ];
 
 const PFBatchSizeChips = () => {
-  const {
-    profitForecast: {
-      selectedBatch,
-      setSelectedBatch,
-      setIsComputing,
-      isLoading,
-    },
-    poeNinja: { isRefreshing },
-  } = useBoundStore();
+  const { selectedBatch, setSelectedBatch, setIsComputing, isLoading } =
+    useProfitForecast();
+  const { isRefreshing } = usePoeNinja();
 
   const disabled = isRefreshing || isLoading;
 

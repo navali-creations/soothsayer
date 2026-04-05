@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { useChangelog } from "~/renderer/store";
 
 import ChangelogPage from "./Changelog.page";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useChangelog: vi.fn(),
 }));
 
 vi.mock("~/renderer/components", () => ({
@@ -40,26 +40,24 @@ vi.mock("../Changelog.components", () => ({
   ),
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseChangelog = vi.mocked(useChangelog);
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-function createMockStore(overrides: any = {}) {
+function createMockChangelog(overrides: any = {}) {
   return {
-    changelog: {
-      releases: [],
-      isLoading: false,
-      error: null,
-      fetchChangelog: vi.fn(),
-      ...overrides,
-    },
+    releases: [],
+    isLoading: false,
+    error: null,
+    fetchChangelog: vi.fn(),
+    ...overrides,
   } as any;
 }
 
 function setupStore(overrides: any = {}) {
-  const store = createMockStore(overrides);
-  mockUseBoundStore.mockReturnValue(store);
-  return store;
+  const changelog = createMockChangelog(overrides);
+  mockUseChangelog.mockReturnValue(changelog);
+  return { changelog };
 }
 
 // ─── Tests ─────────────────────────────────────────────────────────────────

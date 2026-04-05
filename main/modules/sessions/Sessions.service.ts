@@ -10,10 +10,12 @@ import {
   assertPage,
   assertPageSize,
   assertSessionId,
+  assertStringArray,
   handleValidationError,
 } from "~/main/utils/ipc-validation";
 
 import type {
+  CardEntry,
   DetailedDivinationCardStats,
   GameType,
 } from "../../../types/data-stores";
@@ -407,6 +409,26 @@ class SessionsService {
         }
       },
     );
+
+    ipcMain.handle(
+      SessionsChannel.GetSparklines,
+      async (_event, sessionIds: string[]) => {
+        try {
+          assertStringArray(
+            sessionIds,
+            "sessionIds",
+            SessionsChannel.GetSparklines,
+            {
+              maxLength: 100,
+              maxItemLength: 256,
+            },
+          );
+          return this.getSparklines(sessionIds);
+        } catch (error) {
+          return handleValidationError(error, SessionsChannel.GetSparklines);
+        }
+      },
+    );
   }
 
   /**
@@ -551,10 +573,30 @@ class SessionsService {
       : undefined;
 
     // Convert cards object to array
+    // Type assertion: SessionCardData omits `fromBoss` on divinationCard (not
+    // available in the session query), but the renderer defaults it to `false`.
     const cardsArray = Object.entries(cardsObject).map(([cardName, entry]) => ({
       ...entry,
       name: cardName,
-    }));
+    })) as CardEntry[];
+
+    // Compute human-readable duration
+    const computeDuration = (): string => {
+      if (!session.startedAt) return "—";
+      if (!session.endedAt) return "Unknown (Corrupted)";
+
+      const start = new Date(session.startedAt);
+      const end = new Date(session.endedAt);
+      const diff = end.getTime() - start.getTime();
+
+      const hours = Math.floor(diff / 3600000);
+      const minutes = Math.floor((diff % 3600000) / 60000);
+
+      if (hours > 0) {
+        return `${hours}h ${minutes}m`;
+      }
+      return `${minutes}m`;
+    };
 
     return {
       id: session.id,
@@ -562,10 +604,43 @@ class SessionsService {
       cards: cardsArray,
       startedAt: session.startedAt,
       endedAt: session.endedAt,
+      duration: computeDuration(),
       league: session.league,
       priceSnapshot,
       totals,
     };
+  }
+
+  /**
+   * Get sparkline data with deck-cost adjustment applied.
+   * Returns ready-to-render sparkline points for each session.
+   */
+  private async getSparklines(
+    sessionIds: string[],
+  ): Promise<Record<string, { x: number; profit: number }[]>> {
+    if (sessionIds.length === 0) return {};
+
+    // Get raw sparkline data (cumulative chaos value per bucket)
+    const rawSparklines = await this.repository.getSparklineData(sessionIds);
+
+    // Look up deck costs for these sessions
+    const deckCosts = await this.repository.getDeckCosts(sessionIds);
+
+    // Apply deck-cost adjustment: profit = cumChaos - cumDrops * deckCost
+    const result: Record<string, { x: number; profit: number }[]> = {};
+    for (const [sid, points] of Object.entries(rawSparklines)) {
+      const deckCost = deckCosts.get(sid) ?? 0;
+      if (deckCost > 0) {
+        result[sid] = points.map((p) => ({
+          x: p.x,
+          profit: p.profit - p.x * deckCost,
+        }));
+      } else {
+        result[sid] = points;
+      }
+    }
+
+    return result;
   }
 
   /**

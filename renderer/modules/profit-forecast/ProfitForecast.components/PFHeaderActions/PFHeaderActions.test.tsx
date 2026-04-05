@@ -3,14 +3,16 @@ import {
   screen,
   waitFor,
 } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { usePoeNinja, useProfitForecast, useSettings } from "~/renderer/store";
 
 import PFHeaderActions from "./PFHeaderActions";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useSettings: vi.fn(),
+  usePoeNinja: vi.fn(),
+  useProfitForecast: vi.fn(),
 }));
 
 vi.mock("../PFHelpModal/PFHelpModal", () => ({
@@ -75,36 +77,46 @@ vi.mock("~/renderer/components", () => ({
   ),
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseSettings = vi.mocked(useSettings);
+const mockUsePoeNinja = vi.mocked(usePoeNinja);
+const mockUseProfitForecast = vi.mocked(useProfitForecast);
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-function createMockStore(overrides: any = {}) {
+function createMockSettings(overrides: any = {}) {
   return {
-    settings: {
-      getSelectedGame: vi.fn(() => "poe2"),
-      getActiveGameViewSelectedLeague: vi.fn(() => "Standard"),
-      ...overrides.settings,
-    },
-    poeNinja: {
-      isRefreshing: false,
-      refreshPrices: vi.fn(async () => {}),
-      getRefreshableAt: vi.fn(() => null),
-      ...overrides.poeNinja,
-    },
-    profitForecast: {
-      isLoading: false,
-      isComputing: false,
-      fetchData: vi.fn(async () => {}),
-      ...overrides.profitForecast,
-    },
+    getSelectedGame: vi.fn(() => "poe2"),
+    getActiveGameViewSelectedLeague: vi.fn(() => "Standard"),
+    ...overrides,
+  } as any;
+}
+
+function createMockPoeNinja(overrides: any = {}) {
+  return {
+    isRefreshing: false,
+    refreshPrices: vi.fn(async () => {}),
+    getRefreshableAt: vi.fn(() => null),
+    ...overrides,
+  } as any;
+}
+
+function createMockProfitForecast(overrides: any = {}) {
+  return {
+    isLoading: false,
+    isComputing: false,
+    fetchData: vi.fn(async () => {}),
+    ...overrides,
   } as any;
 }
 
 function setupStore(overrides: any = {}) {
-  const store = createMockStore(overrides);
-  mockUseBoundStore.mockReturnValue(store);
-  return store;
+  const settings = createMockSettings(overrides.settings);
+  const poeNinja = createMockPoeNinja(overrides.poeNinja);
+  const profitForecast = createMockProfitForecast(overrides.profitForecast);
+  mockUseSettings.mockReturnValue(settings);
+  mockUsePoeNinja.mockReturnValue(poeNinja);
+  mockUseProfitForecast.mockReturnValue(profitForecast);
+  return { settings, poeNinja, profitForecast };
 }
 
 // ─── Tests ─────────────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import type { ReactNode } from "react";
 
-import { useBoundStore } from "~/renderer/store";
+import { useSettings } from "~/renderer/store";
 
 import PageContent from "./PageContent/PageContent";
 import PageHeader from "./PageHeader/PageHeader";
@@ -30,9 +30,7 @@ const containerVariants = {
 
 const PageContainer = ({ children, className = "" }: PageContainerProps) => {
   // Get the active game from the store to trigger re-animation on game change
-  const {
-    settings: { getSelectedGame },
-  } = useBoundStore();
+  const { getSelectedGame } = useSettings();
 
   const activeGame = getSelectedGame();
 

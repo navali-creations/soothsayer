@@ -1,11 +1,11 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { useBoundStore } from "~/renderer/store";
+import { useCardDetails } from "~/renderer/store";
 
 // ─── Store mock ────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({ useBoundStore: vi.fn() }));
+vi.mock("~/renderer/store", () => ({ useCardDetails: vi.fn() }));
 
 // ─── Import after mock ─────────────────────────────────────────────────────
 
@@ -61,17 +61,15 @@ function createMockState(overrides: Record<string, any> = {}) {
   const selectedLeague = overrides.selectedLeague ?? "all";
 
   return {
-    cardDetails: {
-      personalAnalytics,
-      getDropTimeline: vi.fn(() => dropTimeline),
-      selectedLeague,
-    },
+    personalAnalytics,
+    getDropTimeline: vi.fn(() => dropTimeline),
+    selectedLeague,
   };
 }
 
 function renderTimelineHook(overrides: Record<string, any> = {}) {
   const mockState = createMockState(overrides);
-  vi.mocked(useBoundStore).mockReturnValue(mockState as any);
+  vi.mocked(useCardDetails).mockReturnValue(mockState as any);
   return renderHook(() => useDropTimelineData());
 }
 
@@ -646,7 +644,7 @@ describe("useDropTimelineData — data length change resets brush", () => {
       personalAnalytics: initialAnalytics,
       selectedLeague: "all",
     });
-    vi.mocked(useBoundStore).mockReturnValue(mockState1 as any);
+    vi.mocked(useCardDetails).mockReturnValue(mockState1 as any);
 
     const { result, rerender } = renderHook(() => useDropTimelineData());
 
@@ -675,7 +673,7 @@ describe("useDropTimelineData — data length change resets brush", () => {
       personalAnalytics: initialAnalytics,
       selectedLeague: "all",
     });
-    vi.mocked(useBoundStore).mockReturnValue(mockState2 as any);
+    vi.mocked(useCardDetails).mockReturnValue(mockState2 as any);
 
     rerender();
 

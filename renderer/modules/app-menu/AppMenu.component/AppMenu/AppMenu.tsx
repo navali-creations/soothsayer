@@ -1,14 +1,12 @@
 import { Flex } from "~/renderer/components";
-import { useBoundStore } from "~/renderer/store";
+import { useSetup } from "~/renderer/store";
 
 import AppControls from "../AppControls/AppControls";
 import AppTitle from "../AppTitle/AppTitle";
 import GameSelector from "../GameSelector/GameSelector";
 
 const AppMenu = () => {
-  const {
-    setup: { setupState },
-  } = useBoundStore();
+  const { setupState } = useSetup();
 
   const isSetupMode = !setupState?.isComplete;
 

@@ -1,4 +1,4 @@
-import { useBoundStore } from "~/renderer/store";
+import { useCardDetails, useProfitForecast } from "~/renderer/store";
 
 import DropProbabilitySection from "./DropProbabilitySection";
 import EvContributionSection from "./EvContributionSection";
@@ -22,10 +22,8 @@ import YourLuckSection from "./YourLuckSection";
  * all card-specific data from the `cardDetails` slice.
  */
 const CardDetailsDropStats = () => {
-  const {
-    cardDetails: { personalAnalytics },
-    profitForecast: { totalWeight },
-  } = useBoundStore();
+  const { personalAnalytics } = useCardDetails();
+  const { totalWeight } = useProfitForecast();
 
   // Don't render if no personal analytics or no PL data
   if (!personalAnalytics?.prohibitedLibrary) {

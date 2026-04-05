@@ -2,14 +2,13 @@ import { useCallback } from "react";
 import { FiDatabase, FiRefreshCw } from "react-icons/fi";
 
 import { Button } from "~/renderer/components";
-import { useBoundStore } from "~/renderer/store";
+import { useProhibitedLibrary, useSettings } from "~/renderer/store";
 import { formatRelativeTime } from "~/renderer/utils";
 
 const ProhibitedLibraryStatusBlock = () => {
-  const {
-    prohibitedLibrary: { poe1Status, poe2Status, isLoading, loadError, reload },
-    settings: { getSelectedGame, getActiveGameViewSelectedLeague },
-  } = useBoundStore();
+  const { poe1Status, poe2Status, isLoading, loadError, reload } =
+    useProhibitedLibrary();
+  const { getSelectedGame, getActiveGameViewSelectedLeague } = useSettings();
 
   const activeGame = getSelectedGame();
   const activeLeague = getActiveGameViewSelectedLeague();

@@ -11,7 +11,11 @@ import {
   RaritySourceSelect,
 } from "~/renderer/components";
 import { trackEvent } from "~/renderer/modules/umami";
-import { useBoundStore } from "~/renderer/store";
+import {
+  useCurrentSession,
+  useRarityInsights,
+  useSettings,
+} from "~/renderer/store";
 import {
   decodeRaritySourceValue,
   encodeRaritySourceValue,
@@ -29,31 +33,25 @@ const DatasetMenuLabel = ({ label, hint }: { label: string; hint: string }) => (
 );
 
 const CurrentSessionActions = () => {
+  const { getIsCurrentSessionActive, isLoading, startSession, stopSession } =
+    useCurrentSession();
   const {
-    currentSession: {
-      getIsCurrentSessionActive,
-      isLoading,
-      startSession,
-      stopSession,
-    },
-    settings: {
-      raritySource,
-      selectedFilterId,
-      updateSetting,
-      getActiveGameViewPriceSource,
-      setActiveGameViewPriceSource,
-    },
-    rarityInsights: {
-      availableFilters,
-      isScanning,
-      lastScannedAt,
-      scanFilters,
-      selectFilter,
-      clearSelectedFilter,
-      getLocalFilters,
-      getOnlineFilters,
-    },
-  } = useBoundStore();
+    raritySource,
+    selectedFilterId,
+    updateSetting,
+    getActiveGameViewPriceSource,
+    setActiveGameViewPriceSource,
+  } = useSettings();
+  const {
+    availableFilters,
+    isScanning,
+    lastScannedAt,
+    scanFilters,
+    selectFilter,
+    clearSelectedFilter,
+    getLocalFilters,
+    getOnlineFilters,
+  } = useRarityInsights();
 
   const isActive = getIsCurrentSessionActive();
   const priceSource = getActiveGameViewPriceSource();

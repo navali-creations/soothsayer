@@ -1,15 +1,13 @@
 import type { CellContext } from "@tanstack/react-table";
 
-import { useBoundStore } from "~/renderer/store";
+import { useCurrentSession, useSettings } from "~/renderer/store";
 import type { CardEntry } from "~/types/data-stores";
 
 const CurrentSessionHidePriceCell = (
   cellProps: CellContext<CardEntry, string>,
 ) => {
-  const {
-    currentSession: { toggleCardPriceVisibility, getSession },
-    settings: { getActiveGameViewPriceSource },
-  } = useBoundStore();
+  const { toggleCardPriceVisibility, getSession } = useCurrentSession();
+  const { getActiveGameViewPriceSource } = useSettings();
 
   const sessionData = getSession();
   const priceSource = getActiveGameViewPriceSource();

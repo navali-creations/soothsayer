@@ -3,7 +3,7 @@ import {
   renderWithProviders,
   screen,
 } from "~/renderer/__test-setup__/render";
-import { useBoundStore } from "~/renderer/store";
+import { usePoeNinja, useProfitForecast } from "~/renderer/store";
 
 import type { CardForecastRow } from "../../ProfitForecast.slice/ProfitForecast.slice";
 import PFTable from "./PFTable";
@@ -11,7 +11,8 @@ import PFTable from "./PFTable";
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
+  useProfitForecast: vi.fn(),
+  usePoeNinja: vi.fn(),
 }));
 
 let lastTableProps: any = {};
@@ -41,7 +42,8 @@ vi.mock("./columns", () => ({
   createPFStatusColumn: vi.fn(() => ({ id: "status" })),
 }));
 
-const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockUseProfitForecast = vi.mocked(useProfitForecast);
+const mockUsePoeNinja = vi.mocked(usePoeNinja);
 
 // Re-import column factories so we can assert on calls
 import { createPFCardNameColumn } from "./columns";
@@ -73,27 +75,26 @@ function makeRow(overrides: Partial<CardForecastRow> = {}): CardForecastRow {
 }
 
 function setupStore(overrides: any = {}) {
-  const store = {
-    profitForecast: {
-      rows: [],
-      minPriceThreshold: 10,
-      isComputing: false,
-      isLoading: false,
-      getFilteredRows: vi.fn(() => []),
-      getExcludedCount: vi.fn(() => ({
-        anomalous: 0,
-        lowConfidence: 0,
-        userOverridden: 0,
-      })),
-      ...overrides.profitForecast,
-    },
-    poeNinja: {
-      isRefreshing: false,
-      ...overrides.poeNinja,
-    },
+  const profitForecast = {
+    rows: [],
+    minPriceThreshold: 10,
+    isComputing: false,
+    isLoading: false,
+    getFilteredRows: vi.fn(() => []),
+    getExcludedCount: vi.fn(() => ({
+      anomalous: 0,
+      lowConfidence: 0,
+      userOverridden: 0,
+    })),
+    ...overrides.profitForecast,
   } as any;
-  mockUseBoundStore.mockReturnValue(store);
-  return store;
+  const poeNinja = {
+    isRefreshing: false,
+    ...overrides.poeNinja,
+  } as any;
+  mockUseProfitForecast.mockReturnValue(profitForecast);
+  mockUsePoeNinja.mockReturnValue(poeNinja);
+  return { profitForecast, poeNinja };
 }
 
 const defaultProps = {

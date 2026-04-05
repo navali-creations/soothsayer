@@ -15,6 +15,7 @@ export { default as MarkdownRenderer } from "./Markdown/Markdown";
 export type { ModalHandle } from "./Modal";
 export { Modal } from "./Modal";
 export { default as PageContainer } from "./PageContainer/PageContainer";
+export { ProfitSparkline, type SparklineDataSource } from "./ProfitSparkline";
 export type {
   RaritySourceGroup,
   RaritySourceOption,
@@ -22,4 +23,5 @@ export type {
 export { RaritySourceSelect } from "./RaritySourceSelect";
 export { default as Search } from "./Search/Search";
 export { GroupedStats, Stat } from "./Stat/Stat";
+export { StaticProfitSparkline } from "./StaticProfitSparkline/StaticProfitSparkline";
 export * from "./Table";

@@ -1,6 +1,11 @@
 import { ipcRenderer } from "electron";
 
-import type { DetailedDivinationCardStats } from "../../../types/data-stores";
+import type {
+  AggregatedTimeline,
+  DetailedDivinationCardStats,
+  SessionCardDelta,
+  TimelineDelta,
+} from "../../../types/data-stores";
 import { CurrentSessionChannel } from "./CurrentSession.channels";
 import type { SessionDTO } from "./CurrentSession.dto";
 
@@ -82,8 +87,44 @@ export const CurrentSessionAPI = {
         data: DetailedDivinationCardStats | null;
       },
     ) => callback(data);
-    ipcRenderer.on("session:data-updated", listener);
-    return () => ipcRenderer.removeListener("session:data-updated", listener);
+    ipcRenderer.on(CurrentSessionChannel.DataUpdated, listener);
+    return () =>
+      ipcRenderer.removeListener(CurrentSessionChannel.DataUpdated, listener);
+  },
+
+  // Listen for incremental timeline updates (one per card drop)
+  onTimelineDelta: (
+    callback: (data: { game: "poe1" | "poe2"; delta: TimelineDelta }) => void,
+  ) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      data: {
+        game: "poe1" | "poe2";
+        delta: TimelineDelta;
+      },
+    ) => callback(data);
+    ipcRenderer.on(CurrentSessionChannel.TimelineDelta, listener);
+    return () =>
+      ipcRenderer.removeListener(CurrentSessionChannel.TimelineDelta, listener);
+  },
+
+  // Listen for incremental card updates (one per card drop, replaces full session broadcast)
+  onCardDelta: (
+    callback: (data: {
+      game: "poe1" | "poe2";
+      delta: SessionCardDelta;
+    }) => void,
+  ) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      data: {
+        game: "poe1" | "poe2";
+        delta: SessionCardDelta;
+      },
+    ) => callback(data);
+    ipcRenderer.on(CurrentSessionChannel.CardDelta, listener);
+    return () =>
+      ipcRenderer.removeListener(CurrentSessionChannel.CardDelta, listener);
   },
 
   // Update card price visibility
@@ -112,4 +153,8 @@ export const CurrentSessionAPI = {
     sessionId: string,
   ): Promise<SessionWithMetadata | null> =>
     ipcRenderer.invoke(CurrentSessionChannel.GetById, game, sessionId),
+
+  // Get timeline data for a session
+  getTimeline: (sessionId: string): Promise<AggregatedTimeline | null> =>
+    ipcRenderer.invoke(CurrentSessionChannel.GetTimeline, sessionId),
 };

@@ -1,19 +1,28 @@
 import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 
+import type { LinearMapper } from "~/renderer/lib/canvas-core";
+import { createLinearMapper, setupCanvas } from "~/renderer/lib/canvas-core";
+
 import {
   CLIP_BLEED,
   computeDomains,
   computeLayout,
-  DPR,
-} from "./canvas-chart-utils";
+} from "./canvas-chart-utils/canvas-chart-utils";
 import type {
   BrushRange,
   ChartColors,
   ChartDataPoint,
   MetricKey,
-} from "./chart-types";
-import { formatDecks, formatDivine, resolveColor } from "./chart-types";
-import type { BrushDrawContext, DrawContext } from "./draw-functions";
+} from "./chart-types/chart-types";
+import {
+  formatDecks,
+  formatDivine,
+  resolveColor,
+} from "./chart-types/chart-types";
+import type {
+  BrushDrawContext,
+  DrawContext,
+} from "./draw-functions/draw-functions";
 import {
   drawBrush,
   drawDecksScatter,
@@ -23,11 +32,11 @@ import {
   drawXAxis,
   drawYAxisDecks,
   drawYAxisProfit,
-} from "./draw-functions";
-import { useCanvasResize } from "./hooks/useCanvasResize";
-import { useChartInteractions } from "./hooks/useChartInteractions";
-import { useScrollZoom } from "./hooks/useScrollZoom";
-import { useTooltipPosition } from "./hooks/useTooltipPosition";
+} from "./draw-functions/draw-functions";
+import { useCanvasResize } from "./hooks/useCanvasResize/useCanvasResize";
+import { useChartInteractions } from "./hooks/useChartInteractions/useChartInteractions";
+import { useScrollZoom } from "./hooks/useScrollZoom/useScrollZoom";
+import { useTooltipPosition } from "./hooks/useTooltipPosition/useTooltipPosition";
 import { LegendIcon } from "./LegendIcon";
 
 // ─── Props ─────────────────────────────────────────────────────────────────────
@@ -72,7 +81,8 @@ export const CombinedChartCanvas = memo(
 
     // ── Canvas sizing ───────────────────────────────────────────
 
-    const { containerRef, canvasRef, canvasSize } = useCanvasResize();
+    const { containerRef, containerElRef, canvasRef, canvasSize } =
+      useCanvasResize();
 
     // ── Tooltip ─────────────────────────────────────────────────
 
@@ -103,61 +113,79 @@ export const CombinedChartCanvas = memo(
 
     // ── Coordinate mappers ──────────────────────────────────────
 
-    const mapX = useCallback(
-      (index: number): number => {
-        const count = visibleData.length;
-        if (count <= 1) return layout.chartLeft + layout.chartWidth / 2;
-        const frac = index / (count - 1);
-        return layout.chartLeft + frac * layout.chartWidth;
-      },
-      [visibleData.length, layout.chartLeft, layout.chartWidth],
+    const mapX = useMemo(() => {
+      const count = visibleData.length;
+      if (count <= 1) {
+        const mid = layout.chartLeft + layout.chartWidth / 2;
+        const fn = ((_: number) => mid) as LinearMapper;
+        fn.inverse = () => 0;
+        return fn;
+      }
+      return createLinearMapper(
+        0,
+        count - 1,
+        layout.chartLeft,
+        layout.chartLeft + layout.chartWidth,
+      );
+    }, [visibleData.length, layout.chartLeft, layout.chartWidth]);
+
+    const mapProfitY = useMemo(
+      () =>
+        createLinearMapper(
+          domains.profit.min,
+          domains.profit.max,
+          layout.chartBottom,
+          layout.chartTop,
+        ),
+      [
+        domains.profit.min,
+        domains.profit.max,
+        layout.chartBottom,
+        layout.chartTop,
+      ],
     );
 
-    const mapProfitY = useCallback(
-      (value: number): number => {
-        const { min, max } = domains.profit;
-        const range = max - min || 1;
-        const frac = (value - min) / range;
-        return layout.chartBottom - frac * layout.chartHeight;
-      },
-      [domains.profit, layout.chartBottom, layout.chartHeight],
+    const mapDecksY = useMemo(
+      () =>
+        createLinearMapper(
+          domains.decks.min,
+          domains.decks.max,
+          layout.chartBottom,
+          layout.chartTop,
+        ),
+      [
+        domains.decks.min,
+        domains.decks.max,
+        layout.chartBottom,
+        layout.chartTop,
+      ],
     );
 
-    const mapDecksY = useCallback(
-      (value: number): number => {
-        const { min, max } = domains.decks;
-        const range = max - min || 1;
-        const frac = (value - min) / range;
-        return layout.chartBottom - frac * layout.chartHeight;
-      },
-      [domains.decks, layout.chartBottom, layout.chartHeight],
-    );
-
-    const mapBrushX = useCallback(
-      (dataIndex: number): number => {
-        const total = chartData.length;
-        if (total <= 1)
-          return layout.brushLeft + (layout.brushRight - layout.brushLeft) / 2;
-        const frac = dataIndex / (total - 1);
-        return layout.brushLeft + frac * (layout.brushRight - layout.brushLeft);
-      },
-      [chartData.length, layout.brushLeft, layout.brushRight],
-    );
+    const mapBrushX = useMemo(() => {
+      const total = chartData.length;
+      if (total <= 1) {
+        const mid =
+          layout.brushLeft + (layout.brushRight - layout.brushLeft) / 2;
+        const fn = ((_: number) => mid) as LinearMapper;
+        fn.inverse = () => 0;
+        return fn;
+      }
+      return createLinearMapper(
+        0,
+        total - 1,
+        layout.brushLeft,
+        layout.brushRight,
+      );
+    }, [chartData.length, layout.brushLeft, layout.brushRight]);
 
     // ── Drawing ─────────────────────────────────────────────────
 
     const draw = useCallback(() => {
       const canvas = canvasRef.current;
       if (!canvas) return;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-
-      const dpr = DPR();
-      const w = canvas.width / dpr;
-      const h = canvas.height / dpr;
-
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, w, h);
+      const result = setupCanvas(canvas);
+      if (!result) return;
+      const { ctx } = result;
 
       if (layout.chartWidth <= 0 || layout.chartHeight <= 0) return;
 
@@ -246,7 +274,12 @@ export const CombinedChartCanvas = memo(
 
     // ── Scroll-to-zoom ──────────────────────────────────────────
 
-    useScrollZoom(containerRef, chartDataRef, brushRangeRef, onBrushChangeRef);
+    useScrollZoom(
+      containerElRef,
+      chartDataRef,
+      brushRangeRef,
+      onBrushChangeRef,
+    );
 
     // ── Render ──────────────────────────────────────────────────
 

@@ -15,6 +15,7 @@ import {
   assertLeagueId,
   assertLimit,
   assertNumber,
+  assertOptionalEnum,
   assertOptionalInteger,
   assertOptionalNumber,
   assertOptionalString,
@@ -618,6 +619,62 @@ describe("IPC Validation Utilities", () => {
       expect(() =>
         assertOptionalInteger(5, "param", TEST_CHANNEL, { min: 1, max: 10 }),
       ).not.toThrow();
+    });
+  });
+
+  // ─── assertOptionalEnum ──────────────────────────────────────────────────
+
+  describe("assertOptionalEnum", () => {
+    const ALLOWED = ["asc", "desc"] as const;
+
+    it("should pass for a valid enum value", () => {
+      expect(() =>
+        assertOptionalEnum("asc", "param", TEST_CHANNEL, ALLOWED),
+      ).not.toThrow();
+    });
+
+    it("should pass for undefined", () => {
+      expect(() =>
+        assertOptionalEnum(undefined, "param", TEST_CHANNEL, ALLOWED),
+      ).not.toThrow();
+    });
+
+    it("should pass for null", () => {
+      expect(() =>
+        assertOptionalEnum(null, "param", TEST_CHANNEL, ALLOWED),
+      ).not.toThrow();
+    });
+
+    it("should throw for a non-string value", () => {
+      expect(() =>
+        assertOptionalEnum(42, "param", TEST_CHANNEL, ALLOWED),
+      ).toThrow(IpcValidationError);
+    });
+
+    it("should throw for a string not in the allowed list", () => {
+      expect(() =>
+        assertOptionalEnum("invalid", "param", TEST_CHANNEL, ALLOWED),
+      ).toThrow(IpcValidationError);
+    });
+
+    it("should include param name in error message", () => {
+      expect(() =>
+        assertOptionalEnum("bad", "myParam", TEST_CHANNEL, ALLOWED),
+      ).toThrow(/myParam/);
+    });
+
+    it("should include the invalid value in error message", () => {
+      expect(() =>
+        assertOptionalEnum("bad", "param", TEST_CHANNEL, ALLOWED),
+      ).toThrow(/bad/);
+    });
+
+    it("should pass for all values in the allowed list", () => {
+      for (const val of ALLOWED) {
+        expect(() =>
+          assertOptionalEnum(val, "param", TEST_CHANNEL, ALLOWED),
+        ).not.toThrow();
+      }
     });
   });
 

@@ -1,5 +1,5 @@
 import { Flex } from "~/renderer/components";
-import { useBoundStore } from "~/renderer/store";
+import { useStatistics } from "~/renderer/store";
 
 interface StatisticsActionsProps {
   availableLeagues: string[];
@@ -10,9 +10,7 @@ export const StatisticsActions = ({
   availableLeagues,
   currentScope: _currentScope,
 }: StatisticsActionsProps) => {
-  const {
-    statistics: { selectedLeague, setStatScope, setSelectedLeague },
-  } = useBoundStore();
+  const { selectedLeague, setStatScope, setSelectedLeague } = useStatistics();
 
   const handleScopeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value;

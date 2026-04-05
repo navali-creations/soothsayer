@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import { FiBarChart2, FiTable } from "react-icons/fi";
 
-import { useBoundStore } from "~/renderer/store";
+import { useProfitForecast } from "~/renderer/store";
 
 import type { ForecastView } from "../../../ProfitForecast.slice/ProfitForecast.slice";
 
@@ -15,9 +15,7 @@ const VIEW_OPTIONS: {
 ];
 
 const PFViewToggle = () => {
-  const {
-    profitForecast: { forecastView, setForecastView },
-  } = useBoundStore();
+  const { forecastView, setForecastView } = useProfitForecast();
 
   return (
     <div className="flex flex-col gap-1.5">

@@ -16,6 +16,7 @@ enum SessionsChannel {
   GetChartData = "sessions:get-chart-data",
   GetTotalTimeSpent = "sessions:get-total-time-spent",
   GetWinRate = "sessions:get-win-rate",
+  GetSparklines = "sessions:get-sparklines",
 }
 
 export { SessionsChannel };
