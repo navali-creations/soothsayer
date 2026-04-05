@@ -30,7 +30,7 @@ vi.mock("~/renderer/components", () => ({
           {children}
         </div>
       ),
-    }
+    },
   ),
 }));
 
@@ -152,7 +152,7 @@ describe("PFBaseRateStat", () => {
     const buttons = screen.getAllByRole("button");
     const editButton = buttons.find(
       (btn: HTMLElement) =>
-        btn.getAttribute("data-tip") === "Set custom base rate"
+        btn.getAttribute("data-tip") === "Set custom base rate",
     );
     expect(editButton).toBeDefined();
   });
@@ -198,7 +198,7 @@ describe("PFBaseRateStat", () => {
   it("has onboarding data attribute", () => {
     const { container } = renderStat();
     expect(
-      container.querySelector('[data-onboarding="pf-base-rate"]')
+      container.querySelector('[data-onboarding="pf-base-rate"]'),
     ).toBeInTheDocument();
   });
 
@@ -228,7 +228,7 @@ describe("PFBaseRateStat", () => {
       .getAllByRole("button")
       .find(
         (btn: HTMLElement) =>
-          btn.getAttribute("data-tip") === "Set custom base rate"
+          btn.getAttribute("data-tip") === "Set custom base rate",
       )!;
 
     await user.click(editButton);
@@ -247,7 +247,7 @@ describe("PFBaseRateStat", () => {
       .getAllByRole("button")
       .find(
         (btn: HTMLElement) =>
-          btn.getAttribute("data-tip") === "Set custom base rate"
+          btn.getAttribute("data-tip") === "Set custom base rate",
       )!;
 
     await user.click(editButton);
@@ -270,7 +270,7 @@ describe("PFBaseRateStat", () => {
       .getAllByRole("button")
       .find(
         (btn: HTMLElement) =>
-          btn.getAttribute("data-tip") === "Set custom base rate"
+          btn.getAttribute("data-tip") === "Set custom base rate",
       )!;
 
     await user.click(editButton);
@@ -297,7 +297,7 @@ describe("PFBaseRateStat", () => {
       .getAllByRole("button")
       .find(
         (btn: HTMLElement) =>
-          btn.getAttribute("data-tip") === "Set custom base rate"
+          btn.getAttribute("data-tip") === "Set custom base rate",
       )!;
 
     await user.click(editButton);
@@ -320,7 +320,7 @@ describe("PFBaseRateStat", () => {
       .getAllByRole("button")
       .find(
         (btn: HTMLElement) =>
-          btn.getAttribute("data-tip") === "Set custom base rate"
+          btn.getAttribute("data-tip") === "Set custom base rate",
       )!;
 
     await user.click(editButton);
@@ -342,7 +342,7 @@ describe("PFBaseRateStat", () => {
       .getAllByRole("button")
       .find(
         (btn: HTMLElement) =>
-          btn.getAttribute("data-tip") === "Set custom base rate"
+          btn.getAttribute("data-tip") === "Set custom base rate",
       )!;
 
     await user.click(editButton);
@@ -368,7 +368,7 @@ describe("PFBaseRateStat", () => {
       .getAllByRole("button")
       .find(
         (btn: HTMLElement) =>
-          btn.getAttribute("data-tip") === "Set custom base rate"
+          btn.getAttribute("data-tip") === "Set custom base rate",
       )!;
 
     await user.click(editButton);

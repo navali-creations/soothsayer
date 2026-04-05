@@ -65,7 +65,7 @@ vi.mock("recharts", () => ({
   Area: (props: any) => <div data-testid={`area-${props.dataKey}`} />,
   CartesianGrid: () => <div data-testid="cartesian-grid" />,
   XAxis: () => <div data-testid="x-axis" />,
-  YAxis: ({ tickFormatter, ...props }: any) => {
+  YAxis: ({ tickFormatter }: any) => {
     // Capture the tickFormatter so tests can call it directly
     capturedYAxisTickFormatter = tickFormatter ?? null;
     return <div data-testid="y-axis" />;
@@ -203,7 +203,7 @@ describe("PFBreakevenTooltip (via Tooltip mock)", () => {
             },
           ],
         })}
-      </div>
+      </div>,
     );
 
     // The tooltip should render nothing (null) — the wrapper div should be empty
@@ -220,7 +220,7 @@ describe("PFBreakevenTooltip (via Tooltip mock)", () => {
           active: true,
           payload: [],
         })}
-      </div>
+      </div>,
     );
 
     expect(container.querySelector(".bg-base-300")).toBeNull();
@@ -236,7 +236,7 @@ describe("PFBreakevenTooltip (via Tooltip mock)", () => {
           active: true,
           payload: undefined,
         })}
-      </div>
+      </div>,
     );
 
     expect(container.querySelector(".bg-base-300")).toBeNull();
@@ -252,7 +252,7 @@ describe("PFBreakevenTooltip (via Tooltip mock)", () => {
           active: true,
           payload: [{ payload: undefined }],
         })}
-      </div>
+      </div>,
     );
 
     expect(container.querySelector(".bg-base-300")).toBeNull();
@@ -272,7 +272,7 @@ describe("PFBreakevenTooltip (via Tooltip mock)", () => {
             },
           ],
         })}
-      </div>
+      </div>,
     );
 
     const tooltipDiv = container.querySelector(".bg-base-300");
@@ -300,7 +300,7 @@ describe("PFBreakevenTooltip (via Tooltip mock)", () => {
             },
           ],
         })}
-      </div>
+      </div>,
     );
 
     const tooltipDiv = container.querySelector(".bg-base-300");
@@ -323,7 +323,7 @@ describe("PFBreakevenTooltip (via Tooltip mock)", () => {
             },
           ],
         })}
-      </div>
+      </div>,
     );
 
     const tooltipDiv = container.querySelector(".bg-base-300");
@@ -353,7 +353,7 @@ describe("PFBreakevenTooltip (via Tooltip mock)", () => {
             },
           ],
         })}
-      </div>
+      </div>,
     );
 
     const tooltipDiv = container.querySelector(".bg-base-300");
@@ -375,7 +375,7 @@ describe("PFBreakevenTooltip (via Tooltip mock)", () => {
             },
           ],
         })}
-      </div>
+      </div>,
     );
 
     const tooltipDiv = container.querySelector(".bg-base-300");

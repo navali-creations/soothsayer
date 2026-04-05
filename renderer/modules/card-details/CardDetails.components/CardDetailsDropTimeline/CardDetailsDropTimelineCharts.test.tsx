@@ -79,7 +79,7 @@ afterEach(() => {
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 function makeDataPoint(
-  overrides: Partial<ChartDataPoint> = {}
+  overrides: Partial<ChartDataPoint> = {},
 ): ChartDataPoint {
   return {
     time: 1704067200000, // 2024-01-01
@@ -129,7 +129,7 @@ describe("MainChart", () => {
   ];
 
   function renderMainChart(
-    overrides: Partial<Parameters<typeof MainChart>[0]> = {}
+    overrides: Partial<Parameters<typeof MainChart>[0]> = {},
   ) {
     return renderWithProviders(
       <MainChart
@@ -139,7 +139,7 @@ describe("MainChart", () => {
         visibleMarkers={[]}
         c={makeChartColors() as any}
         {...overrides}
-      />
+      />,
     );
   }
 
@@ -221,7 +221,7 @@ describe("OverviewChart", () => {
   const handleBrushChange = vi.fn();
 
   function renderOverviewChart(
-    overrides: Partial<Parameters<typeof OverviewChart>[0]> = {}
+    overrides: Partial<Parameters<typeof OverviewChart>[0]> = {},
   ) {
     return renderWithProviders(
       <OverviewChart
@@ -232,7 +232,7 @@ describe("OverviewChart", () => {
         handleBrushChange={handleBrushChange}
         c={makeChartColors() as any}
         {...overrides}
-      />
+      />,
     );
   }
 

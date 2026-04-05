@@ -110,7 +110,7 @@ function setViewport(width: number, height: number): void {
 
 function makeCardEntry(
   name: string,
-  hasDivinationCard: boolean
+  hasDivinationCard: boolean,
 ): Record<string, unknown> {
   return {
     name,
@@ -328,7 +328,7 @@ describe("TooltipInlineCard", () => {
     // DivinationCard should have been called with the current session's card
     expect(DivinationCardMock).toHaveBeenCalledWith(
       expect.objectContaining({ card: currentCard }),
-      undefined
+      undefined,
     );
   });
 
@@ -344,7 +344,7 @@ describe("TooltipInlineCard", () => {
 
     expect(DivinationCardMock).toHaveBeenCalledWith(
       expect.objectContaining({ card: detailsCard }),
-      undefined
+      undefined,
     );
   });
 
@@ -358,7 +358,7 @@ describe("TooltipInlineCard", () => {
 
     expect(DivinationCardMock).toHaveBeenCalledWith(
       expect.objectContaining({ card: detailsCard }),
-      undefined
+      undefined,
     );
   });
 });
@@ -390,7 +390,7 @@ describe("TimelineTooltipContent", () => {
         tooltipStyle={defaultTooltipStyle}
         point={point}
         chaosToDivineRatio={200}
-      />
+      />,
     );
 
     // formatCurrency mock returns String(v), so barValue 42 => "42"
@@ -405,12 +405,12 @@ describe("TimelineTooltipContent", () => {
         tooltipStyle={defaultTooltipStyle}
         point={point}
         chaosToDivineRatio={200}
-      />
+      />,
     );
 
     // The profit div is inside .text-right > div:first-child
     const profitDiv = container.querySelector(
-      ".text-right > div:first-child"
+      ".text-right > div:first-child",
     ) as HTMLElement;
     expect(profitDiv).not.toBeNull();
     expect(profitDiv.textContent).toContain("+");
@@ -425,12 +425,12 @@ describe("TimelineTooltipContent", () => {
         tooltipStyle={defaultTooltipStyle}
         point={point}
         chaosToDivineRatio={200}
-      />
+      />,
     );
 
     // formatCurrency(-75) => "-75"; the component should NOT prepend "+"
     const profitDiv = container.querySelector(
-      ".text-right > div:first-child"
+      ".text-right > div:first-child",
     ) as HTMLElement;
     expect(profitDiv).not.toBeNull();
     expect(profitDiv.textContent).toContain("-75");
@@ -445,11 +445,11 @@ describe("TimelineTooltipContent", () => {
         tooltipStyle={defaultTooltipStyle}
         point={point}
         chaosToDivineRatio={200}
-      />
+      />,
     );
 
     const profitDiv = container.querySelector(
-      ".text-right > div:first-child"
+      ".text-right > div:first-child",
     ) as HTMLElement;
     expect(profitDiv).not.toBeNull();
     expect(profitDiv.className).toContain("text-success");
@@ -464,11 +464,11 @@ describe("TimelineTooltipContent", () => {
         tooltipStyle={defaultTooltipStyle}
         point={point}
         chaosToDivineRatio={200}
-      />
+      />,
     );
 
     const profitDiv = container.querySelector(
-      ".text-right > div:first-child"
+      ".text-right > div:first-child",
     ) as HTMLElement;
     expect(profitDiv).not.toBeNull();
     expect(profitDiv.className).toContain("text-error");
@@ -483,12 +483,12 @@ describe("TimelineTooltipContent", () => {
         tooltipStyle={defaultTooltipStyle}
         point={point}
         chaosToDivineRatio={200}
-      />
+      />,
     );
 
     // profit >= 0 is true for 0, so text-success should be applied
     const profitDiv = container.querySelector(
-      ".text-right > div:first-child"
+      ".text-right > div:first-child",
     ) as HTMLElement;
     expect(profitDiv).not.toBeNull();
     expect(profitDiv.className).toContain("text-success");
@@ -502,7 +502,7 @@ describe("TimelineTooltipContent", () => {
         tooltipStyle={defaultTooltipStyle}
         point={point}
         chaosToDivineRatio={200}
-      />
+      />,
     );
 
     // toLocaleString on 1234 typically produces "1,234"
@@ -518,7 +518,7 @@ describe("TimelineTooltipContent", () => {
         tooltipStyle={defaultTooltipStyle}
         point={point}
         chaosToDivineRatio={200}
-      />
+      />,
     );
 
     expect(screen.getByText("Card Value")).toBeInTheDocument();
@@ -533,7 +533,7 @@ describe("TimelineTooltipContent", () => {
         tooltipStyle={defaultTooltipStyle}
         point={point}
         chaosToDivineRatio={200}
-      />
+      />,
     );
 
     expect(screen.getByText("Card")).toBeInTheDocument();
@@ -556,7 +556,7 @@ describe("TimelineTooltipContent", () => {
         tooltipStyle={customStyle}
         point={point}
         chaosToDivineRatio={200}
-      />
+      />,
     );
 
     const outerDiv = container.firstChild as HTMLElement;
@@ -575,7 +575,7 @@ describe("TimelineTooltipContent", () => {
         tooltipStyle={defaultTooltipStyle}
         point={point}
         chaosToDivineRatio={200}
-      />
+      />,
     );
 
     // formatCurrency(0) => "0"
@@ -594,12 +594,12 @@ describe("TimelineTooltipContent", () => {
         tooltipStyle={defaultTooltipStyle}
         point={point}
         chaosToDivineRatio={200}
-      />
+      />,
     );
 
     // Find the element styled with BAR_COLOR
     const barColorEl = container.querySelector(
-      '[style*="rgba(255, 255, 255, 0.85)"]'
+      '[style*="rgba(255, 255, 255, 0.85)"]',
     );
     expect(barColorEl).not.toBeNull();
     expect(barColorEl!.textContent).toBe("55");
