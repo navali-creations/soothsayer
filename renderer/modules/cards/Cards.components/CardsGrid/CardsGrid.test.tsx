@@ -20,14 +20,15 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mockNavigate,
 }));
 
-vi.mock("~/renderer/components/DivinationCard/DivinationCard", () => ({
-  default: ({ card }: any) => (
-    <div
-      data-testid={`card-${card.name}`}
-      data-rarity={card.divinationCard.rarity}
+vi.mock("../CardGridItem/CardGridItem", () => ({
+  default: ({ card, onNavigate, showAllCards }: any) => (
+    <li
+      data-testid={`card-item-${card.name}`}
+      onClick={() => onNavigate(card.name)}
     >
       {card.name}
-    </div>
+      {showAllCards && !card.inPool && <span>Not in league pool</span>}
+    </li>
   ),
 }));
 
@@ -41,7 +42,7 @@ vi.mock("motion/react", () => ({
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 function makeCard(
-  overrides: Partial<DivinationCardRow> = {},
+  overrides: Partial<DivinationCardRow> = {}
 ): DivinationCardRow {
   return {
     id: "card-1",
@@ -68,7 +69,7 @@ function setupStore(
     sortField?: string;
     sortDirection?: string;
     raritySource?: string;
-  } = {},
+  } = {}
 ) {
   mockUseCards.mockReturnValue({
     currentPage: overrides.currentPage ?? 1,
@@ -104,7 +105,7 @@ describe("CardsGrid", () => {
       renderWithProviders(<CardsGrid cards={[]} />);
 
       expect(
-        screen.getByText("Try adjusting your filters"),
+        screen.getByText("Try adjusting your filters")
       ).toBeInTheDocument();
     });
 
@@ -112,7 +113,7 @@ describe("CardsGrid", () => {
       setupStore();
       renderWithProviders(<CardsGrid cards={[]} />);
 
-      expect(screen.queryByTestId(/^card-/)).not.toBeInTheDocument();
+      expect(screen.queryByTestId(/^card-item-/)).not.toBeInTheDocument();
     });
   });
 
@@ -127,9 +128,11 @@ describe("CardsGrid", () => {
 
       renderWithProviders(<CardsGrid cards={cards} />);
 
-      expect(screen.getByTestId("card-The Doctor")).toBeInTheDocument();
-      expect(screen.getByTestId("card-House of Mirrors")).toBeInTheDocument();
-      expect(screen.getByTestId("card-The Fiend")).toBeInTheDocument();
+      expect(screen.getByTestId("card-item-The Doctor")).toBeInTheDocument();
+      expect(
+        screen.getByTestId("card-item-House of Mirrors")
+      ).toBeInTheDocument();
+      expect(screen.getByTestId("card-item-The Fiend")).toBeInTheDocument();
     });
 
     it("renders exactly the number of cards provided", () => {
@@ -144,7 +147,7 @@ describe("CardsGrid", () => {
 
       renderWithProviders(<CardsGrid cards={cards} />);
 
-      const renderedCards = screen.getAllByTestId(/^card-/);
+      const renderedCards = screen.getAllByTestId(/^card-item-/);
       expect(renderedCards).toHaveLength(5);
     });
 
@@ -154,7 +157,7 @@ describe("CardsGrid", () => {
 
       renderWithProviders(<CardsGrid cards={cards} />);
 
-      expect(screen.getByTestId("card-The Patient")).toBeInTheDocument();
+      expect(screen.getByTestId("card-item-The Patient")).toBeInTheDocument();
     });
   });
 
@@ -195,81 +198,13 @@ describe("CardsGrid", () => {
       const { user } = renderWithProviders(<CardsGrid cards={cards} />);
 
       // Click the wrapper div containing the card
-      await user.click(screen.getByTestId("card-The Doctor"));
+      await user.click(screen.getByTestId("card-item-The Doctor"));
 
       expect(mockNavigate).toHaveBeenCalledWith(
         expect.objectContaining({
           to: "/cards/$cardSlug",
           params: expect.objectContaining({ cardSlug: expect.any(String) }),
-        }),
-      );
-    });
-  });
-
-  describe("getEffectiveRarity / raritySource", () => {
-    it("uses filterRarity when raritySource is filter", () => {
-      setupStore({ raritySource: "filter" });
-      const cards = [
-        makeCard({ id: "1", name: "Test", rarity: 1, filterRarity: 5 }),
-      ];
-
-      renderWithProviders(<CardsGrid cards={cards} />);
-
-      expect(screen.getByTestId("card-Test")).toHaveAttribute(
-        "data-rarity",
-        "5",
-      );
-    });
-
-    it("falls back to rarity when filterRarity is null and raritySource is filter", () => {
-      setupStore({ raritySource: "filter" });
-      const cards = [
-        makeCard({ id: "1", name: "Test", rarity: 1, filterRarity: null }),
-      ];
-
-      renderWithProviders(<CardsGrid cards={cards} />);
-
-      expect(screen.getByTestId("card-Test")).toHaveAttribute(
-        "data-rarity",
-        "1",
-      );
-    });
-
-    it("uses prohibitedLibraryRarity when raritySource is prohibited-library", () => {
-      setupStore({ raritySource: "prohibited-library" });
-      const cards = [
-        makeCard({
-          id: "1",
-          name: "Test",
-          rarity: 1,
-          prohibitedLibraryRarity: 7,
-        }),
-      ];
-
-      renderWithProviders(<CardsGrid cards={cards} />);
-
-      expect(screen.getByTestId("card-Test")).toHaveAttribute(
-        "data-rarity",
-        "7",
-      );
-    });
-
-    it("falls back to rarity when prohibitedLibraryRarity is null", () => {
-      setupStore({ raritySource: "prohibited-library" });
-      const cards = [
-        makeCard({
-          id: "1",
-          name: "Test",
-          rarity: 1,
-          prohibitedLibraryRarity: null,
-        }),
-      ];
-
-      renderWithProviders(<CardsGrid cards={cards} />);
-
-      expect(screen.getByTestId("card-Test")).toHaveAttribute(
-        "data-rarity",
-        "1",
+        })
       );
     });
   });

@@ -86,8 +86,8 @@ const {
       deleteCacheForLeague: ReturnType<typeof vi.fn>;
       deleteAll: ReturnType<typeof vi.fn>;
       getCardPersonalStats: ReturnType<typeof vi.fn>;
-      getFromBoss: ReturnType<typeof vi.fn>;
-      getProhibitedLibraryData: ReturnType<typeof vi.fn>;
+      getCardAvailability: ReturnType<typeof vi.fn>;
+
       getDropTimeline: ReturnType<typeof vi.fn>;
       getTotalDecksOpenedAllSessions: ReturnType<typeof vi.fn>;
       getLeagueDateRanges: ReturnType<typeof vi.fn>;
@@ -190,8 +190,10 @@ vi.mock("../CardDetails.repository", () => {
             lastSeenAt: null,
             sessionCount: 0,
           }),
-          getFromBoss: vi.fn().mockResolvedValue(false),
-          getProhibitedLibraryData: vi.fn().mockResolvedValue(null),
+          getCardAvailability: vi
+            .fn()
+            .mockResolvedValue({ fromBoss: false, weight: null }),
+
           getDropTimeline: vi.fn().mockResolvedValue([]),
           getTotalDecksOpenedAllSessions: vi.fn().mockResolvedValue(0),
           getLeagueDateRanges: vi.fn().mockResolvedValue([]),
@@ -862,11 +864,9 @@ describe("CardDetailsService", () => {
           lastSeenAt: "2025-06-15T11:00:00Z",
           sessionCount: 2,
         });
-        repo.getFromBoss.mockResolvedValue(false);
-        repo.getProhibitedLibraryData.mockResolvedValue({
-          weight: 1,
-          rarity: 1,
+        repo.getCardAvailability.mockResolvedValue({
           fromBoss: false,
+          weight: null,
         });
         repo.getDropTimeline.mockResolvedValue([
           {
@@ -900,11 +900,7 @@ describe("CardDetailsService", () => {
         expect(result!.sessionCount).toBe(2);
         expect(result!.averageDropsPerSession).toBe(2.5);
         expect(result!.fromBoss).toBe(false);
-        expect(result!.prohibitedLibrary).toEqual({
-          weight: 1,
-          rarity: 1,
-          fromBoss: false,
-        });
+
         expect(result!.totalDecksOpenedAllSessions).toBe(300);
       });
 
@@ -965,8 +961,11 @@ describe("CardDetailsService", () => {
           lastSeenAt: null,
           sessionCount: 0,
         });
-        repo.getFromBoss.mockResolvedValue(false);
-        repo.getProhibitedLibraryData.mockResolvedValue(null);
+        repo.getCardAvailability.mockResolvedValue({
+          fromBoss: false,
+          weight: null,
+        });
+
         repo.getDropTimeline.mockResolvedValue([]);
         repo.getTotalDecksOpenedAllSessions.mockResolvedValue(500);
 
@@ -982,7 +981,7 @@ describe("CardDetailsService", () => {
         expect(result!.lastSeenAt).toBeNull();
         expect(result!.sessionCount).toBe(0);
         expect(result!.averageDropsPerSession).toBe(0);
-        expect(result!.prohibitedLibrary).toBeNull();
+
         expect(result!.dropTimeline).toEqual([]);
         expect(result!.totalDecksOpenedAllSessions).toBe(500);
       });
@@ -993,13 +992,10 @@ describe("CardDetailsService", () => {
     describe("boss-exclusive card", () => {
       it("should return fromBoss true", async () => {
         const repo = getRepoMock();
-        repo.getFromBoss.mockResolvedValue(true);
-        repo.getProhibitedLibraryData.mockResolvedValue({
-          weight: 0,
-          rarity: 2,
+        repo.getCardAvailability.mockResolvedValue({
           fromBoss: true,
+          weight: null,
         });
-
         const result = await service.getPersonalAnalytics(
           "poe1",
           "Settlers",
@@ -1008,26 +1004,6 @@ describe("CardDetailsService", () => {
 
         expect(result).not.toBeNull();
         expect(result!.fromBoss).toBe(true);
-        expect(result!.prohibitedLibrary!.fromBoss).toBe(true);
-        expect(result!.prohibitedLibrary!.weight).toBe(0);
-      });
-    });
-
-    // ─── Card with no PL data ─────────────────────────────────────────────
-
-    describe("card with no Prohibited Library data", () => {
-      it("should return null prohibitedLibrary", async () => {
-        const repo = getRepoMock();
-        repo.getProhibitedLibraryData.mockResolvedValue(null);
-
-        const result = await service.getPersonalAnalytics(
-          "poe1",
-          "Settlers",
-          "Unknown Card",
-        );
-
-        expect(result).not.toBeNull();
-        expect(result!.prohibitedLibrary).toBeNull();
       });
     });
 
@@ -1086,7 +1062,7 @@ describe("CardDetailsService", () => {
 
       it("should log error details when analytics query fails", async () => {
         const repo = getRepoMock();
-        repo.getFromBoss.mockRejectedValue(new Error("SQLite busy"));
+        repo.getCardAvailability.mockRejectedValue(new Error("SQLite busy"));
 
         const result = await service.getPersonalAnalytics(
           "poe1",
@@ -1115,8 +1091,7 @@ describe("CardDetailsService", () => {
           "The Doctor",
           undefined,
         );
-        expect(repo.getFromBoss).toHaveBeenCalledWith("poe1", "The Doctor");
-        expect(repo.getProhibitedLibraryData).toHaveBeenCalledWith(
+        expect(repo.getCardAvailability).toHaveBeenCalledWith(
           "poe1",
           "Settlers",
           "The Doctor",
@@ -1247,7 +1222,6 @@ describe("CardDetailsService", () => {
         "Headhunter",
         "The Doctor",
         20,
-        undefined,
       );
       // Results should be in the similarCards array with relationship type "similar"
       expect(result).toEqual({
@@ -1268,8 +1242,9 @@ describe("CardDetailsService", () => {
       expect(result).toEqual({ similarCards: [], chainCards: [] });
     });
 
-    it("should return empty result when reward HTML has no wiki links", async () => {
+    it("should return empty result when reward HTML has no parseable content", async () => {
       const repo = getRepoMock();
+      // Plain <span> without a "tc" class — Strategy 2 won't match it
       repo.getCardRewardHtml.mockResolvedValueOnce("<span>HH</span>");
 
       const result = await service.getRelatedCards("poe1", "The Doctor");
@@ -1333,14 +1308,9 @@ describe("CardDetailsService", () => {
         "Headhunter",
         "The Nurse",
         20,
-        undefined,
       );
       // Should include The Doctor as a chain card
-      expect(repo.findCardByName).toHaveBeenCalledWith(
-        "poe1",
-        "The Doctor",
-        undefined,
-      );
+      expect(repo.findCardByName).toHaveBeenCalledWith("poe1", "The Doctor");
       expect(result.chainCards).toContainEqual(
         expect.objectContaining({ name: "The Doctor", relationship: "chain" }),
       );
@@ -1361,7 +1331,6 @@ describe("CardDetailsService", () => {
         "Headhunter",
         "The Fiend",
         20,
-        undefined,
       );
     });
 
@@ -1380,7 +1349,6 @@ describe("CardDetailsService", () => {
         "The Doctor",
         "The Doctor",
         10,
-        undefined,
       );
     });
 
@@ -1567,6 +1535,262 @@ describe("CardDetailsService", () => {
       expect(result.similarCards[2].name).toBe("Delta Card");
       expect(result.similarCards[3].name).toBe("Zeta Card");
     });
+
+    // ── Cleaned-DB-format tests (Strategy 2: <span class="tc -xxx">Name</span>) ──
+    //
+    // On a fresh database, syncCards() runs cleanWikiMarkup() at write time,
+    // stripping [[wiki|links]] and leaving plain text inside <span> tags.
+    // These tests verify getRelatedCards works with the cleaned format.
+
+    it("should extract terminal reward from cleaned HTML (no wiki links)", async () => {
+      const repo = getRepoMock();
+      // Cleaned HTML format — no [[wiki|links]], just plain text in spans
+      repo.getCardRewardHtml.mockResolvedValueOnce(
+        '<span class="tc -unique">Headhunter</span>',
+      );
+      repo.findCardsByRewardMatch.mockResolvedValue([]);
+
+      await service.getRelatedCards("poe1", "The Doctor");
+
+      // Should extract "Headhunter" via Strategy 2 (span parsing)
+      expect(repo.findCardsByRewardMatch).toHaveBeenCalledWith(
+        "poe1",
+        "Headhunter",
+        "The Doctor",
+        20,
+      );
+    });
+
+    it("should strip quantity prefix from cleaned HTML (e.g. '3x Exalted Orb' → 'Exalted Orb')", async () => {
+      const repo = getRepoMock();
+      // Cleaned HTML: "3x Exalted Orb" inside a span (Abandoned Wealth)
+      repo.getCardRewardHtml.mockResolvedValueOnce(
+        '<span class="tc -currency">3x Exalted Orb</span>',
+      );
+      repo.findCardsByRewardMatch.mockResolvedValue([]);
+
+      await service.getRelatedCards("poe1", "Abandoned Wealth");
+
+      // Should strip "3x " prefix and search for "Exalted Orb"
+      expect(repo.findCardsByRewardMatch).toHaveBeenCalledWith(
+        "poe1",
+        "Exalted Orb",
+        "Abandoned Wealth",
+        20,
+      );
+    });
+
+    it("should strip large quantity prefix (e.g. '1,500x Chromatic Orb')", async () => {
+      const repo = getRepoMock();
+      repo.getCardRewardHtml.mockResolvedValueOnce(
+        '<span class="tc -currency">1,500x Chromatic Orb</span>',
+      );
+      repo.findCardsByRewardMatch.mockResolvedValue([]);
+
+      await service.getRelatedCards("poe1", "Avian Pursuit");
+
+      expect(repo.findCardsByRewardMatch).toHaveBeenCalledWith(
+        "poe1",
+        "Chromatic Orb",
+        "Avian Pursuit",
+        20,
+      );
+    });
+
+    it("should skip generic 'Item' placeholder in cleaned HTML (e.g. Jack in the Box)", async () => {
+      const repo = getRepoMock();
+      // Jack in the Box: <span class="tc -unique">Item</span>
+      repo.getCardRewardHtml.mockResolvedValueOnce(
+        '<span class="tc -unique">Item</span>',
+      );
+
+      const result = await service.getRelatedCards("poe1", "Jack in the Box");
+
+      // "Item" is too generic — should return empty, not match every card
+      expect(result).toEqual({ similarCards: [], chainCards: [] });
+    });
+
+    it("should skip generic 'Item' and modifier tags to return empty for complex generic rewards", async () => {
+      const repo = getRepoMock();
+      // A Dusty Memory (cleaned): Item + Item Level: 100 + Fractured
+      repo.getCardRewardHtml.mockResolvedValueOnce(
+        '<span class="tc -rare">Item</span><br><span class="tc -default">Item Level:</span> <span class="tc -normal">100</span><br><span class="tc -fractured">Fractured</span>',
+      );
+
+      const result = await service.getRelatedCards("poe1", "A Dusty Memory");
+
+      // All spans are skippable: "Item" (generic), "Item Level:" (modifier),
+      // "100" (number), "Fractured" (modifier) — should return empty
+      expect(result).toEqual({ similarCards: [], chainCards: [] });
+    });
+
+    it("should skip 'Elder Item' and 'Influenced Item' modifiers", async () => {
+      const repo = getRepoMock();
+      // Prejudice (cleaned): <span class="tc -unique">Item</span><br><span class="tc -default">Influenced Item</span>
+      repo.getCardRewardHtml.mockResolvedValueOnce(
+        '<span class="tc -unique">Item</span><br><span class="tc -default">Influenced Item</span>',
+      );
+
+      const result = await service.getRelatedCards("poe1", "Prejudice");
+
+      expect(result).toEqual({ similarCards: [], chainCards: [] });
+    });
+
+    it("should follow chain cards in cleaned HTML format (fresh DB)", async () => {
+      const repo = getRepoMock();
+
+      // The Nurse rewards The Doctor (cleaned format — no wiki links)
+      repo.getCardRewardHtml
+        .mockResolvedValueOnce('<span class="tc -divination">The Doctor</span>')
+        // The Doctor rewards Headhunter (cleaned format)
+        .mockResolvedValueOnce('<span class="tc -unique">Headhunter</span>');
+
+      repo.findCardByName.mockResolvedValueOnce({
+        name: "The Doctor",
+        artSrc: "doctor.png",
+        stackSize: 8,
+        description: "8/8 Headhunter",
+        rewardHtml: '<span class="tc -unique">Headhunter</span>',
+        flavourHtml: "",
+        rarity: 1,
+        filterRarity: null,
+        prohibitedLibraryRarity: null,
+        fromBoss: false,
+      });
+
+      repo.findCardsByRewardMatch.mockResolvedValue([]);
+
+      const result = await service.getRelatedCards("poe1", "The Nurse");
+
+      // Should follow chain via cleaned HTML spans
+      expect(repo.getCardRewardHtml).toHaveBeenCalledWith("poe1", "The Nurse");
+      expect(repo.getCardRewardHtml).toHaveBeenCalledWith("poe1", "The Doctor");
+      expect(repo.findCardsByRewardMatch).toHaveBeenCalledWith(
+        "poe1",
+        "Headhunter",
+        "The Nurse",
+        20,
+      );
+      expect(result.chainCards).toContainEqual(
+        expect.objectContaining({ name: "The Doctor", relationship: "chain" }),
+      );
+    });
+
+    it("should find upstream cards in cleaned HTML format (fresh DB)", async () => {
+      const repo = getRepoMock();
+      // The Doctor rewards Headhunter (cleaned format)
+      repo.getCardRewardHtml.mockResolvedValueOnce(
+        '<span class="tc -unique">Headhunter</span>',
+      );
+
+      const nurseCard = {
+        name: "The Nurse",
+        artSrc: "nurse.png",
+        stackSize: 8,
+        description: "Rewards The Doctor",
+        rewardHtml: '<span class="tc -divination">The Doctor</span>',
+        flavourHtml: "",
+        rarity: 2,
+        filterRarity: null,
+        prohibitedLibraryRarity: null,
+        fromBoss: false,
+      };
+
+      repo.findCardsByRewardMatch
+        .mockResolvedValueOnce([]) // terminal: "Headhunter"
+        .mockResolvedValueOnce([nurseCard]); // upstream: cards that reward "The Doctor"
+
+      const result = await service.getRelatedCards("poe1", "The Doctor");
+
+      expect(result.chainCards).toHaveLength(1);
+      expect(result.chainCards[0].name).toBe("The Nurse");
+      expect(result.chainCards[0].relationship).toBe("chain");
+    });
+
+    it("should match similar cards with different quantities of the same currency (fresh DB)", async () => {
+      const repo = getRepoMock();
+      // Abandoned Wealth: 3x Exalted Orb (cleaned)
+      repo.getCardRewardHtml.mockResolvedValueOnce(
+        '<span class="tc -currency">3x Exalted Orb</span>',
+      );
+
+      const alluringBounty = {
+        name: "Alluring Bounty",
+        artSrc: "bounty.png",
+        stackSize: 7,
+        description: "10x Exalted Orb",
+        rewardHtml: '<span class="tc -currency">10x Exalted Orb</span>',
+        flavourHtml: "",
+        rarity: 3,
+        filterRarity: null,
+        prohibitedLibraryRarity: null,
+        fromBoss: false,
+      };
+
+      repo.findCardsByRewardMatch
+        .mockResolvedValueOnce([alluringBounty]) // terminal: "Exalted Orb"
+        .mockResolvedValueOnce([]); // upstream
+
+      const result = await service.getRelatedCards("poe1", "Abandoned Wealth");
+
+      // Should search for "Exalted Orb" (quantity stripped), finding Alluring Bounty
+      expect(repo.findCardsByRewardMatch).toHaveBeenCalledWith(
+        "poe1",
+        "Exalted Orb",
+        "Abandoned Wealth",
+        20,
+      );
+      expect(result.similarCards).toHaveLength(1);
+      expect(result.similarCards[0].name).toBe("Alluring Bounty");
+    });
+
+    it("should skip Corrupted and modifier tags in cleaned HTML format", async () => {
+      const repo = getRepoMock();
+      // The Fiend (cleaned): Headhunter + Corrupted
+      repo.getCardRewardHtml.mockResolvedValueOnce(
+        '<span class="tc -unique">Headhunter</span><br><span class="tc -corrupted">Corrupted</span>',
+      );
+      repo.findCardsByRewardMatch.mockResolvedValue([]);
+
+      await service.getRelatedCards("poe1", "The Fiend");
+
+      // Should extract "Headhunter", not "Corrupted"
+      expect(repo.findCardsByRewardMatch).toHaveBeenCalledWith(
+        "poe1",
+        "Headhunter",
+        "The Fiend",
+        20,
+      );
+    });
+
+    it("should skip Two-Implicit modifier in cleaned HTML", async () => {
+      const repo = getRepoMock();
+      // Arrogance of the Vaal (cleaned): Item + Two-Implicit + Corrupted
+      // "Item" is generic (skipped), "Two-Implicit" is modifier (skipped),
+      // "Corrupted" is modifier (skipped) → no terminal reward
+      repo.getCardRewardHtml.mockResolvedValueOnce(
+        '<span class="tc -unique">Item</span><br> <span class="tc -corrupted">Two-Implicit</span><br> <span class="tc -corrupted">Corrupted</span>',
+      );
+
+      const result = await service.getRelatedCards(
+        "poe1",
+        "Arrogance of the Vaal",
+      );
+
+      expect(result).toEqual({ similarCards: [], chainCards: [] });
+    });
+
+    it("should handle Synthesised and Three-Implicit modifiers in cleaned HTML", async () => {
+      const repo = getRepoMock();
+      // Magnum Opus (cleaned): Item + Item Level: 100 + Three-Implicit + Synthesised
+      repo.getCardRewardHtml.mockResolvedValueOnce(
+        '<span class="tc -white">Item</span><br><span class="tc -default">Item Level:</span> <span class="tc -normal">100</span><br><span class="tc -enchanted">Three-Implicit</span><br><span class="tc -enchanted">Synthesised</span>',
+      );
+
+      const result = await service.getRelatedCards("poe1", "Magnum Opus");
+
+      expect(result).toEqual({ similarCards: [], chainCards: [] });
+    });
   });
 
   // ─── openCardInMainWindow (Milestone 5) ─────────────────────────────────
@@ -1740,7 +1964,6 @@ describe("CardDetailsService", () => {
           {} as Electron.IpcMainInvokeEvent,
           "poe1",
           "the-doctor",
-          "Settlers",
           "Keepers",
         );
 
@@ -1760,11 +1983,7 @@ describe("CardDetailsService", () => {
         const repo = getRepoMock();
         repo.getCardRewardHtml.mockResolvedValue(null);
 
-        const result = await service.resolveCardBySlug(
-          "poe1",
-          "the-doctor",
-          "Settlers",
-        );
+        const result = await service.resolveCardBySlug("poe1", "the-doctor");
 
         expect(result).not.toBeNull();
         expect((result as { card: { name: string } }).card.name).toBe(
@@ -1780,13 +1999,12 @@ describe("CardDetailsService", () => {
         const result = await service.resolveCardBySlug(
           "poe1",
           "nonexistent-card",
-          "Settlers",
         );
 
         expect(result).toBeNull();
       });
 
-      it("should pass plLeague and selectedLeague to getAllByGame and getPersonalAnalytics", async () => {
+      it("should pass selectedLeague to getAllByGame and getPersonalAnalytics", async () => {
         mockDivCardsGetAllByGame.mockResolvedValue([
           { ...mockCard, name: "The Doctor" },
         ]);
@@ -1794,19 +2012,9 @@ describe("CardDetailsService", () => {
         const repo = getRepoMock();
         repo.getCardRewardHtml.mockResolvedValue(null);
 
-        await service.resolveCardBySlug(
-          "poe1",
-          "the-doctor",
-          "Settlers",
-          "Keepers",
-        );
+        await service.resolveCardBySlug("poe1", "the-doctor", "Keepers");
 
-        expect(mockDivCardsGetAllByGame).toHaveBeenCalledWith(
-          "poe1",
-          undefined,
-          null,
-          "Settlers",
-        );
+        expect(mockDivCardsGetAllByGame).toHaveBeenCalledWith("poe1");
 
         // selectedLeague "Keepers" should be passed through to getPersonalAnalytics
         // which translates it to leagueFilter for repo calls
@@ -1817,21 +2025,6 @@ describe("CardDetailsService", () => {
         );
       });
 
-      it("should skip personal analytics when plLeague is not provided", async () => {
-        mockDivCardsGetAllByGame.mockResolvedValue([
-          { ...mockCard, name: "The Doctor" },
-        ]);
-
-        const repo = getRepoMock();
-        repo.getCardRewardHtml.mockResolvedValue(null);
-
-        const result = await service.resolveCardBySlug("poe1", "the-doctor");
-
-        expect(result).not.toBeNull();
-        expect(result!.personalAnalytics).toBeNull();
-        expect(repo.getCardPersonalStats).not.toHaveBeenCalled();
-      });
-
       it("should return empty relatedCards when getRelatedCards encounters an error", async () => {
         mockDivCardsGetAllByGame.mockResolvedValue([
           { ...mockCard, name: "The Doctor" },
@@ -1840,11 +2033,7 @@ describe("CardDetailsService", () => {
         const repo = getRepoMock();
         repo.getCardRewardHtml.mockRejectedValue(new Error("DB error"));
 
-        const result = await service.resolveCardBySlug(
-          "poe1",
-          "the-doctor",
-          "Settlers",
-        );
+        const result = await service.resolveCardBySlug("poe1", "the-doctor");
 
         expect(result).not.toBeNull();
         // getRelatedCards catches internally and returns empty result
@@ -1859,11 +2048,7 @@ describe("CardDetailsService", () => {
           new Error("Service unavailable"),
         );
 
-        const result = await service.resolveCardBySlug(
-          "poe1",
-          "the-doctor",
-          "Settlers",
-        );
+        const result = await service.resolveCardBySlug("poe1", "the-doctor");
 
         expect(result).toBeNull();
         expect(mockLoggerError).toHaveBeenCalledWith(
@@ -1883,7 +2068,6 @@ describe("CardDetailsService", () => {
         const result = await service.resolveCardBySlug(
           "poe1",
           "the-king-s-blade",
-          "Settlers",
         );
 
         expect(result).not.toBeNull();

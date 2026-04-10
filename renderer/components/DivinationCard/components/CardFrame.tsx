@@ -1,4 +1,4 @@
-import cardFrame from "~/renderer/assets/poe1/Divination_card_frame.png";
+import { cardFrame } from "~/renderer/lib/poe1-card-assets";
 
 /**
  * Card frame background image

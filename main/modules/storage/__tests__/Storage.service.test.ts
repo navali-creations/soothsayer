@@ -398,36 +398,27 @@ describe("StorageService", () => {
       expect(result[0].leagueName).toBe("Dawn of the Hunt");
     });
 
-    it("should include prohibited library data in size estimate", async () => {
+    it("should include divination card availability data in size estimate", async () => {
       await seedLeague(testDb.kysely, {
         name: "PL League",
         game: "poe1",
       });
 
-      // Insert prohibited_library_card_weights directly
+      // Insert divination_card_availability directly
       testDb.db
         .prepare(
-          `INSERT INTO prohibited_library_card_weights
-           (card_name, game, league, weight, rarity, from_boss, loaded_at)
+          `INSERT INTO divination_card_availability
+           (game, league, card_name, from_boss, is_disabled, weight, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
         )
-        .run("The Doctor", "poe1", "PL League", 100, 4, 0, "2025-01-01");
-
-      // Insert prohibited_library_cache_metadata directly
-      testDb.db
-        .prepare(
-          `INSERT INTO prohibited_library_cache_metadata
-           (game, league, loaded_at, app_version, card_count)
-           VALUES (?, ?, ?, ?, ?)`,
-        )
-        .run("poe1", "PL League", "2025-01-01", "0.7.0", 1);
+        .run("poe1", "PL League", "The Doctor", 0, 0, 500, "2025-01-01");
 
       const handler = getIpcHandler(StorageChannel.GetLeagueUsage);
       const result = await handler({});
 
       expect(result).toHaveLength(1);
-      // Should include AVG_PL_WEIGHT_ROW_BYTES (120) + AVG_PL_CACHE_META_ROW_BYTES (100)
-      expect(result[0].estimatedSizeBytes).toBe(220);
+      // Should include 1 * AVG_AVAILABILITY_ROW_BYTES (120)
+      expect(result[0].estimatedSizeBytes).toBe(120);
     });
 
     it("should include session_card_events in size estimate", async () => {
@@ -603,23 +594,6 @@ describe("StorageService", () => {
         rarity: 4,
       });
 
-      // Insert prohibited library data
-      testDb.db
-        .prepare(
-          `INSERT INTO prohibited_library_card_weights
-           (card_name, game, league, weight, rarity, from_boss, loaded_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .run("The Doctor", "poe1", "Full League", 100, 4, 0, "2025-01-01");
-
-      testDb.db
-        .prepare(
-          `INSERT INTO prohibited_library_cache_metadata
-           (game, league, loaded_at, app_version, card_count)
-           VALUES (?, ?, ?, ?, ?)`,
-        )
-        .run("poe1", "Full League", "2025-01-01", "0.7.0", 1);
-
       // Insert poe_leagues_cache
       testDb.db
         .prepare(
@@ -628,6 +602,15 @@ describe("StorageService", () => {
            VALUES (?, ?, ?, ?, ?, ?)`,
         )
         .run("cache-1", "poe1", leagueId, "Full League", 1, "2025-01-01");
+
+      // Insert divination_card_availability for this league
+      testDb.db
+        .prepare(
+          `INSERT INTO divination_card_availability
+           (game, league, card_name, from_boss, is_disabled, weight, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run("poe1", "Full League", "The Doctor", 0, 0, 500, "2025-01-01");
 
       // Insert csv_export_snapshots for this league
       await seedCsvExportSnapshot(testDb.kysely, [
@@ -690,26 +673,19 @@ describe("StorageService", () => {
         .all("poe1", "Full League");
       expect(remainingRarities).toHaveLength(0);
 
-      const remainingPlWeights = testDb.db
-        .prepare(
-          "SELECT * FROM prohibited_library_card_weights WHERE game = ? AND league = ?",
-        )
-        .all("poe1", "Full League");
-      expect(remainingPlWeights).toHaveLength(0);
-
-      const remainingPlMeta = testDb.db
-        .prepare(
-          "SELECT * FROM prohibited_library_cache_metadata WHERE game = ? AND league = ?",
-        )
-        .all("poe1", "Full League");
-      expect(remainingPlMeta).toHaveLength(0);
-
       const remainingLeagueCache = testDb.db
         .prepare(
           "SELECT * FROM poe_leagues_cache WHERE game = ? AND league_id = ?",
         )
         .all("poe1", leagueId);
       expect(remainingLeagueCache).toHaveLength(0);
+
+      const remainingAvailability = testDb.db
+        .prepare(
+          "SELECT * FROM divination_card_availability WHERE game = ? AND league = ?",
+        )
+        .all("poe1", "Full League");
+      expect(remainingAvailability).toHaveLength(0);
 
       const remainingCsvSnapshots = testDb.db
         .prepare(
@@ -750,6 +726,22 @@ describe("StorageService", () => {
       await seedSnapshot(testDb.kysely, { leagueId: leagueToDelete });
       await seedSnapshot(testDb.kysely, { leagueId: leagueToKeep });
 
+      // Seed divination_card_availability for both leagues
+      testDb.db
+        .prepare(
+          `INSERT INTO divination_card_availability
+           (game, league, card_name, from_boss, is_disabled, weight, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run("poe1", "Delete Me", "The Doctor", 0, 0, 500, "2025-01-01");
+      testDb.db
+        .prepare(
+          `INSERT INTO divination_card_availability
+           (game, league, card_name, from_boss, is_disabled, weight, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run("poe1", "Keep Me", "Rain of Chaos", 0, 0, 1000, "2025-01-01");
+
       // Seed csv_export_snapshots for both leagues
       await seedCsvExportSnapshot(testDb.kysely, [
         {
@@ -779,6 +771,13 @@ describe("StorageService", () => {
         .all(leagueToDelete);
       expect(deletedSessions).toHaveLength(0);
 
+      const deletedAvailability = testDb.db
+        .prepare(
+          "SELECT * FROM divination_card_availability WHERE game = ? AND league = ?",
+        )
+        .all("poe1", "Delete Me");
+      expect(deletedAvailability).toHaveLength(0);
+
       const deletedCsvSnapshots = testDb.db
         .prepare(
           "SELECT * FROM csv_export_snapshots WHERE game = ? AND scope = ?",
@@ -801,6 +800,13 @@ describe("StorageService", () => {
         .prepare("SELECT * FROM snapshots WHERE league_id = ?")
         .all(leagueToKeep);
       expect(keptSnapshots).toHaveLength(1);
+
+      const keptAvailability = testDb.db
+        .prepare(
+          "SELECT * FROM divination_card_availability WHERE game = ? AND league = ?",
+        )
+        .all("poe1", "Keep Me");
+      expect(keptAvailability).toHaveLength(1);
 
       const keptCsvSnapshots = testDb.db
         .prepare(

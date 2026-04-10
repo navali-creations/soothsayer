@@ -15,6 +15,8 @@ interface DivinationCardDTO {
   filterRarity: KnownRarity | null;
   prohibitedLibraryRarity: Rarity | null;
   fromBoss: boolean;
+  isDisabled: boolean;
+  inPool: boolean;
   game: "poe1" | "poe2";
   createdAt: string;
   updatedAt: string;
@@ -49,6 +51,13 @@ export interface CardsSlice {
     rarityFilter: number | "all";
     /** When false (default), cards with fromBoss === true are hidden */
     includeBossCards: boolean;
+    /** When false (default), cards with isDisabled === true are hidden */
+    includeDisabledCards: boolean;
+    /** When true, shows all cards including those not in the current league pool */
+    showAllCards: boolean;
+    // Internal dedup keys (not part of public API)
+    _lastCardsKey: string | null;
+    _pendingCardsKey: string | null;
     sortField: SortField;
     sortDirection: SortDirection;
 
@@ -61,6 +70,8 @@ export interface CardsSlice {
     setSearchQuery: (query: string) => void;
     setRarityFilter: (rarity: number | "all") => void;
     setIncludeBossCards: (include: boolean) => void;
+    setIncludeDisabledCards: (include: boolean) => void;
+    setShowAllCards: (show: boolean) => void;
     setSortField: (field: SortField) => void;
     setSortDirection: (direction: SortDirection) => void;
     toggleSortDirection: () => void;
@@ -91,6 +102,10 @@ export const createCardsSlice: StateCreator<
     searchQuery: "",
     rarityFilter: "all",
     includeBossCards: false,
+    includeDisabledCards: false,
+    showAllCards: false,
+    _lastCardsKey: null,
+    _pendingCardsKey: null,
     sortField: "name",
     sortDirection: "asc",
     currentPage: 1,
@@ -99,25 +114,38 @@ export const createCardsSlice: StateCreator<
     // Load all cards for a game
     loadCards: async () => {
       const activeGame = get().settings.getSelectedGame();
+      const key = activeGame;
+
+      // Dedup: skip if we already loaded this exact key or a load is in-flight for it
+      if (key === get().cards._lastCardsKey) return;
+      if (key === get().cards._pendingCardsKey) return;
+
       set(({ cards }) => {
         cards.isLoading = true;
         cards.error = null;
+        cards._pendingCardsKey = key;
       });
 
       try {
-        const fetchedCards =
-          await window.electron.divinationCards.getAll(activeGame);
+        // Always fetch all cards; pool filtering is handled client-side
+        const fetchedCards = await window.electron.divinationCards.getAll(
+          activeGame,
+          false,
+        );
 
         set(({ cards }) => {
           cards.allCards = fetchedCards;
           cards.isLoading = false;
-          cards.currentPage = 1; // Reset to first page when loading new data
+          cards.currentPage = 1;
+          cards._lastCardsKey = key;
+          cards._pendingCardsKey = null;
         });
       } catch (error) {
         console.error("[CardsSlice] Failed to load cards:", error);
         set(({ cards }) => {
           cards.error = (error as Error).message;
           cards.isLoading = false;
+          cards._pendingCardsKey = null;
         });
       }
     },
@@ -141,6 +169,20 @@ export const createCardsSlice: StateCreator<
     setIncludeBossCards: (include: boolean) => {
       set(({ cards }) => {
         cards.includeBossCards = include;
+        cards.currentPage = 1; // Reset to first page
+      });
+    },
+
+    setIncludeDisabledCards: (include: boolean) => {
+      set(({ cards }) => {
+        cards.includeDisabledCards = include;
+        cards.currentPage = 1; // Reset to first page
+      });
+    },
+
+    setShowAllCards: (show: boolean) => {
+      set(({ cards }) => {
+        cards.showAllCards = show;
         cards.currentPage = 1; // Reset to first page
       });
     },
@@ -195,6 +237,7 @@ export const createCardsSlice: StateCreator<
         searchQuery,
         rarityFilter,
         includeBossCards,
+        includeDisabledCards,
         sortField,
         sortDirection,
       } = get().cards;
@@ -202,9 +245,19 @@ export const createCardsSlice: StateCreator<
 
       let result = [...allCards];
 
+      // Hide out-of-pool cards unless showAllCards is enabled (client-side filter)
+      if (!get().cards.showAllCards) {
+        result = result.filter((card) => card.inPool);
+      }
+
       // Hide boss-exclusive cards unless explicitly included
       if (!includeBossCards) {
         result = result.filter((card) => !card.fromBoss);
+      }
+
+      // Hide disabled cards unless explicitly included
+      if (!includeDisabledCards) {
+        result = result.filter((card) => !card.isDisabled);
       }
 
       // Apply search filter

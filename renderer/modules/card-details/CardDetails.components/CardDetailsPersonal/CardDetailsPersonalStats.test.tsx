@@ -68,11 +68,6 @@ const validPersonalAnalytics = {
   sessionCount: 8,
   averageDropsPerSession: 5.25,
   fromBoss: false,
-  prohibitedLibrary: {
-    weight: 50,
-    rarity: 2 as const,
-    fromBoss: false,
-  },
   totalDecksOpenedAllSessions: 10000,
   dropTimeline: [],
   leagueDateRanges: [],

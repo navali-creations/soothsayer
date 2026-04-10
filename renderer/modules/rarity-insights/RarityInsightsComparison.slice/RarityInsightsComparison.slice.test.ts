@@ -29,6 +29,7 @@ function makeCard(
     filterRarity: null,
     prohibitedLibraryRarity: null,
     fromBoss: false,
+    isDisabled: false,
     game: "poe1",
     createdAt: "",
     updatedAt: "",
@@ -117,6 +118,7 @@ describe("RarityInsightsComparison.slice", () => {
       expect(s.parseErrors).toEqual(new Map());
       expect(s.showDiffsOnly).toBe(false);
       expect(s.includeBossCards).toBe(false);
+      expect(s.includeDisabledCards).toBe(false);
       expect(s.priorityPoeNinjaRarity).toBeNull();
       expect(s.priorityPlRarity).toBeNull();
       expect(s.priorityFilterRarities).toEqual({});
@@ -388,6 +390,20 @@ describe("RarityInsightsComparison.slice", () => {
     });
   });
 
+  describe("setIncludeDisabledCards", () => {
+    it("should default to false", () => {
+      expect(slice().includeDisabledCards).toBe(false);
+    });
+
+    it("should toggle includeDisabledCards", () => {
+      slice().setIncludeDisabledCards(true);
+      expect(slice().includeDisabledCards).toBe(true);
+
+      slice().setIncludeDisabledCards(false);
+      expect(slice().includeDisabledCards).toBe(false);
+    });
+  });
+
   // ─── 9. handlePoeNinjaRarityClick ────────────────────────────────────
 
   describe("handlePoeNinjaRarityClick", () => {
@@ -577,6 +593,7 @@ describe("RarityInsightsComparison.slice", () => {
       });
       slice().setShowDiffsOnly(true);
       slice().setIncludeBossCards(true);
+      slice().setIncludeDisabledCards(true);
       slice().handlePoeNinjaRarityClick(2);
 
       // Reset
@@ -588,6 +605,7 @@ describe("RarityInsightsComparison.slice", () => {
       expect(slice().parseErrors.size).toBe(0);
       expect(slice().showDiffsOnly).toBe(false);
       expect(slice().includeBossCards).toBe(false);
+      expect(slice().includeDisabledCards).toBe(false);
       expect(slice().priorityPoeNinjaRarity).toBeNull();
       expect(slice().priorityPlRarity).toBeNull();
       expect(slice().priorityFilterRarities).toEqual({});
@@ -793,6 +811,41 @@ describe("RarityInsightsComparison.slice", () => {
       expect(count).toBe(2);
     });
 
+    it("excludes disabled cards by default", () => {
+      store = createTestStore({
+        cards: {
+          allCards: [
+            makeCard({ id: "1", name: "The Doctor", isDisabled: false }),
+            makeCard({ id: "2", name: "Disabled Card", isDisabled: true }),
+          ],
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any,
+      });
+
+      const count = store
+        .getState()
+        .rarityInsightsComparison.getDisplayRowCount();
+      expect(count).toBe(1);
+    });
+
+    it("includes disabled cards when includeDisabledCards is true", () => {
+      store = createTestStore({
+        cards: {
+          allCards: [
+            makeCard({ id: "1", name: "The Doctor", isDisabled: false }),
+            makeCard({ id: "2", name: "Disabled Card", isDisabled: true }),
+          ],
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any,
+      });
+
+      store.getState().rarityInsightsComparison.setIncludeDisabledCards(true);
+      const count = store
+        .getState()
+        .rarityInsightsComparison.getDisplayRowCount();
+      expect(count).toBe(2);
+    });
+
     it("filters by differences when showDiffsOnly is true", async () => {
       store = makeStoreWithCards();
       electron = window.electron as unknown as ElectronMock;
@@ -978,6 +1031,58 @@ describe("RarityInsightsComparison.slice", () => {
       });
 
       store.getState().rarityInsightsComparison.setIncludeBossCards(true);
+      const rows = store.getState().rarityInsightsComparison.getDisplayRows();
+      expect(rows).toHaveLength(2);
+    });
+
+    it("excludes disabled cards by default", () => {
+      store = createTestStore({
+        cards: {
+          allCards: [
+            makeCard({
+              id: "1",
+              name: "The Doctor",
+              rarity: 1,
+              isDisabled: false,
+            }),
+            makeCard({
+              id: "2",
+              name: "Disabled Card",
+              rarity: 3,
+              isDisabled: true,
+            }),
+          ],
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any,
+      });
+
+      const rows = store.getState().rarityInsightsComparison.getDisplayRows();
+      expect(rows).toHaveLength(1);
+      expect(rows[0].name).toBe("The Doctor");
+    });
+
+    it("includes disabled cards when includeDisabledCards is true", () => {
+      store = createTestStore({
+        cards: {
+          allCards: [
+            makeCard({
+              id: "1",
+              name: "The Doctor",
+              rarity: 1,
+              isDisabled: false,
+            }),
+            makeCard({
+              id: "2",
+              name: "Disabled Card",
+              rarity: 3,
+              isDisabled: true,
+            }),
+          ],
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any,
+      });
+
+      store.getState().rarityInsightsComparison.setIncludeDisabledCards(true);
       const rows = store.getState().rarityInsightsComparison.getDisplayRows();
       expect(rows).toHaveLength(2);
     });

@@ -129,7 +129,15 @@ const StatisticsPage = () => {
       <PageContainer.Content className="!overflow-hidden flex flex-col gap-4">
         <StatisticsStats
           totalCount={stats?.totalCount ?? 0}
-          uniqueCardCount={stats ? Object.keys(cards).length : 0}
+          uniqueCardCount={
+            stats
+              ? Object.values(cards).filter(
+                  (entry) =>
+                    !entry.divinationCard?.isDisabled &&
+                    !entry.divinationCard?.fromBoss,
+                ).length
+              : 0
+          }
           isDataLoading={isDataLoading}
         />
         <div className="flex gap-4 flex-1 min-h-0">

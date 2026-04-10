@@ -73,9 +73,6 @@ export const useUpdater = () => useSlice("updater");
 /** Select the `profitForecast` slice. */
 export const useProfitForecast = () => useSlice("profitForecast");
 
-/** Select the `prohibitedLibrary` slice. */
-export const useProhibitedLibrary = () => useSlice("prohibitedLibrary");
-
 /** Select the `rarityInsights` slice. */
 export const useRarityInsights = () => useSlice("rarityInsights");
 

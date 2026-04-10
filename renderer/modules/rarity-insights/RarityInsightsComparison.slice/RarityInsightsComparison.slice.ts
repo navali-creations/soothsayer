@@ -52,6 +52,8 @@ export interface RarityInsightsComparisonSlice {
     showDiffsOnly: boolean;
     /** When false (default), cards with fromBoss === true are hidden from the table */
     includeBossCards: boolean;
+    /** When false (default), cards with isDisabled === true are hidden from the table */
+    includeDisabledCards: boolean;
 
     // Priority rarity filters (drive the custom sort functions)
     priorityPoeNinjaRarity: Rarity | null;
@@ -68,6 +70,7 @@ export interface RarityInsightsComparisonSlice {
     rescan: () => Promise<void>;
     setShowDiffsOnly: (show: boolean) => void;
     setIncludeBossCards: (include: boolean) => void;
+    setIncludeDisabledCards: (include: boolean) => void;
     // Priority rarity actions — toggle on click, clear when switching sort column
     handlePoeNinjaRarityClick: (rarity: Rarity) => void;
     handlePlRarityClick: (rarity: KnownRarity) => void;
@@ -90,6 +93,11 @@ export interface RarityInsightsComparisonSlice {
   };
 }
 
+// ── getDifferences cache (module-scoped) ────────────────────────────────
+let _cachedDifferencesKey = "";
+let _cachedDifferencesValue: Set<string> = new Set();
+let _diffsCacheVersion = 0;
+
 export const createRarityInsightsComparisonSlice: StateCreator<
   BoundStore,
   [["zustand/devtools", never], ["zustand/immer", never]],
@@ -104,6 +112,7 @@ export const createRarityInsightsComparisonSlice: StateCreator<
     parseErrors: new Map(),
     showDiffsOnly: false,
     includeBossCards: false,
+    includeDisabledCards: false,
     priorityPoeNinjaRarity: null,
     priorityPlRarity: null,
     priorityFilterRarities: {},
@@ -266,6 +275,16 @@ export const createRarityInsightsComparisonSlice: StateCreator<
       );
     },
 
+    setIncludeDisabledCards: (include: boolean) => {
+      set(
+        ({ rarityInsightsComparison }) => {
+          rarityInsightsComparison.includeDisabledCards = include;
+        },
+        false,
+        "rarityInsightsComparison/setIncludeDisabledCards",
+      );
+    },
+
     handlePoeNinjaRarityClick: (rarity: Rarity) => {
       set(
         ({ rarityInsightsComparison: s }) => {
@@ -368,6 +387,7 @@ export const createRarityInsightsComparisonSlice: StateCreator<
             false,
             "rarityInsightsComparison/updateFilterCardRarity/success",
           );
+          _diffsCacheVersion++;
           trackEvent("modify-rarity-filter", {
             filterId,
             cardName,
@@ -390,6 +410,7 @@ export const createRarityInsightsComparisonSlice: StateCreator<
           rarityInsightsComparison.parseErrors = new Map();
           rarityInsightsComparison.showDiffsOnly = false;
           rarityInsightsComparison.includeBossCards = false;
+          rarityInsightsComparison.includeDisabledCards = false;
           rarityInsightsComparison.priorityPoeNinjaRarity = null;
           rarityInsightsComparison.priorityPlRarity = null;
           rarityInsightsComparison.priorityFilterRarities = {};
@@ -398,6 +419,9 @@ export const createRarityInsightsComparisonSlice: StateCreator<
         false,
         "rarityInsightsComparison/reset",
       );
+      _cachedDifferencesKey = "";
+      _cachedDifferencesValue = new Set();
+      _diffsCacheVersion = 0;
     },
 
     // ─── Getters ───────────────────────────────────────────────────────
@@ -418,11 +442,37 @@ export const createRarityInsightsComparisonSlice: StateCreator<
 
     getDifferences: () => {
       const { rarityInsightsComparison, cards } = get();
-      const parsed = rarityInsightsComparison.selectedFilters
-        .map((id) => rarityInsightsComparison.parsedResults.get(id))
+      const { selectedFilters, parsedResults } = rarityInsightsComparison;
+
+      // Build a lightweight cache key from the inputs that drive the diff.
+      // Key components: sorted selected filter IDs, each filter's totalCards
+      // and rarities map size, allCards length, and a version counter that
+      // bumps when individual rarity values are edited in-place.
+      const sortedIds = selectedFilters.slice().sort();
+      const keyParts: string[] = [];
+      for (const id of sortedIds) {
+        const p = parsedResults.get(id);
+        keyParts.push(
+          p ? `${id}:${p.totalCards}:${p.rarities.size}` : `${id}:-`,
+        );
+      }
+      keyParts.push(`cards:${cards.allCards.length}`);
+      keyParts.push(`v:${_diffsCacheVersion}`);
+      const cacheKey = keyParts.join("|");
+
+      if (cacheKey === _cachedDifferencesKey) {
+        return _cachedDifferencesValue;
+      }
+
+      const parsed = selectedFilters
+        .map((id) => parsedResults.get(id))
         .filter(Boolean) as ParsedRarityInsightsRarities[];
 
-      if (parsed.length === 0) return new Set<string>();
+      if (parsed.length === 0) {
+        _cachedDifferencesKey = cacheKey;
+        _cachedDifferencesValue = new Set();
+        return _cachedDifferencesValue;
+      }
 
       const diffs = new Set<string>();
       for (const card of cards.allCards) {
@@ -436,6 +486,9 @@ export const createRarityInsightsComparisonSlice: StateCreator<
           }
         }
       }
+
+      _cachedDifferencesKey = cacheKey;
+      _cachedDifferencesValue = diffs;
       return diffs;
     },
 
@@ -446,7 +499,8 @@ export const createRarityInsightsComparisonSlice: StateCreator<
 
     getDisplayRowCount: () => {
       const { rarityInsightsComparison, cards } = get();
-      const { showDiffsOnly, includeBossCards } = rarityInsightsComparison;
+      const { showDiffsOnly, includeBossCards, includeDisabledCards } =
+        rarityInsightsComparison;
       const { allCards } = cards;
 
       let filtered = allCards;
@@ -454,6 +508,11 @@ export const createRarityInsightsComparisonSlice: StateCreator<
       // Filter out boss-exclusive cards unless explicitly included
       if (!includeBossCards) {
         filtered = filtered.filter((c) => !c.fromBoss);
+      }
+
+      // Filter out disabled cards (not in the drop pool)
+      if (!includeDisabledCards) {
+        filtered = filtered.filter((c) => !c.isDisabled);
       }
 
       if (!showDiffsOnly) return filtered.length;
@@ -469,6 +528,7 @@ export const createRarityInsightsComparisonSlice: StateCreator<
       const {
         showDiffsOnly,
         includeBossCards,
+        includeDisabledCards,
         selectedFilters,
         parsedResults,
       } = rarityInsightsComparison;
@@ -480,6 +540,11 @@ export const createRarityInsightsComparisonSlice: StateCreator<
       let filtered = allCards;
       if (!includeBossCards) {
         filtered = filtered.filter((c) => !c.fromBoss);
+      }
+
+      // Filter out disabled cards (not in the drop pool)
+      if (!includeDisabledCards) {
+        filtered = filtered.filter((c) => !c.isDisabled);
       }
 
       // Filter by diffs only

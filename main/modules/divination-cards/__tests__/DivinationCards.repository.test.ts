@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   createTestDatabase,
+  seedDivinationCardRarity,
   seedFilterCardRarity,
   seedFilterMetadata,
   type TestDatabase,
@@ -947,41 +948,26 @@ describe("DivinationCardsRepository", () => {
       await insertCard("poe1", "The Doctor");
       await insertCard("poe1", "Rain of Chaos");
 
-      // Seed PL card weights directly
-      await testDb.kysely
-        .insertInto("prohibited_library_card_weights")
-        .values({
-          card_name: "The Doctor",
-          game: "poe1",
-          league: "Settlers",
-          weight: 10,
-          rarity: 1,
-          from_boss: 0,
-          loaded_at: new Date().toISOString(),
-        })
-        .execute();
+      // Seed PL rarity via divination_card_rarities (prohibited_library_rarity column)
+      await seedDivinationCardRarity(testDb.kysely, {
+        game: "poe1",
+        league: "Settlers",
+        cardName: "The Doctor",
+        rarity: 0 as Rarity,
+        prohibitedLibraryRarity: 1 as Rarity,
+      });
 
-      await testDb.kysely
-        .insertInto("prohibited_library_card_weights")
-        .values({
-          card_name: "Rain of Chaos",
-          game: "poe1",
-          league: "Settlers",
-          weight: 5000,
-          rarity: 4,
-          from_boss: 0,
-          loaded_at: new Date().toISOString(),
-        })
-        .execute();
+      await seedDivinationCardRarity(testDb.kysely, {
+        game: "poe1",
+        league: "Settlers",
+        cardName: "Rain of Chaos",
+        rarity: 0 as Rarity,
+        prohibitedLibraryRarity: 4 as Rarity,
+      });
     });
 
     it("getAllByGame should include prohibitedLibraryRarity when plLeague is provided", async () => {
-      const cards = await repository.getAllByGame(
-        "poe1",
-        undefined,
-        undefined,
-        "Settlers",
-      );
+      const cards = await repository.getAllByGame("poe1", "Settlers");
 
       const doctor = cards.find((c) => c.name === "The Doctor");
       const rain = cards.find((c) => c.name === "Rain of Chaos");
@@ -1001,12 +987,7 @@ describe("DivinationCardsRepository", () => {
     });
 
     it("getAllByGame should return null prohibitedLibraryRarity for non-matching plLeague", async () => {
-      const cards = await repository.getAllByGame(
-        "poe1",
-        undefined,
-        undefined,
-        "NonExistentLeague",
-      );
+      const cards = await repository.getAllByGame("poe1", "NonExistentLeague");
 
       const doctor = cards.find((c) => c.name === "The Doctor");
       expect(doctor).toBeDefined();
@@ -1014,12 +995,7 @@ describe("DivinationCardsRepository", () => {
     });
 
     it("getById should include prohibitedLibraryRarity when plLeague is provided", async () => {
-      const card = await repository.getById(
-        "poe1_the-doctor",
-        undefined,
-        undefined,
-        "Settlers",
-      );
+      const card = await repository.getById("poe1_the-doctor", "Settlers");
 
       expect(card).toBeDefined();
       expect(card!.prohibitedLibraryRarity).toBe(1);
@@ -1033,13 +1009,7 @@ describe("DivinationCardsRepository", () => {
     });
 
     it("getByName should include prohibitedLibraryRarity when plLeague is provided", async () => {
-      const card = await repository.getByName(
-        "poe1",
-        "The Doctor",
-        undefined,
-        undefined,
-        "Settlers",
-      );
+      const card = await repository.getByName("poe1", "The Doctor", "Settlers");
 
       expect(card).toBeDefined();
       expect(card!.prohibitedLibraryRarity).toBe(1);
@@ -1053,13 +1023,7 @@ describe("DivinationCardsRepository", () => {
     });
 
     it("searchByName should include prohibitedLibraryRarity when plLeague is provided", async () => {
-      const cards = await repository.searchByName(
-        "poe1",
-        "Doctor",
-        undefined,
-        undefined,
-        "Settlers",
-      );
+      const cards = await repository.searchByName("poe1", "Doctor", "Settlers");
 
       expect(cards).toHaveLength(1);
       expect(cards[0].prohibitedLibraryRarity).toBe(1);
@@ -1073,7 +1037,7 @@ describe("DivinationCardsRepository", () => {
     });
 
     it("should combine league, filterId, and plLeague joins together", async () => {
-      // Add a league-based rarity
+      // Update the league-based rarity (the row already exists from beforeEach seed)
       await repository.updateRarity("poe1", "Settlers", "The Doctor", 2);
 
       // Add a filter with filter card rarities
@@ -1092,7 +1056,6 @@ describe("DivinationCardsRepository", () => {
         "poe1",
         "Settlers",
         "filter_test",
-        "Settlers",
       );
 
       const doctor = cards.find((c) => c.name === "The Doctor");

@@ -44,6 +44,8 @@ function makeCard(overrides: Record<string, unknown> = {}) {
     filterRarity: null,
     prohibitedLibraryRarity: null,
     fromBoss: false,
+    isDisabled: false,
+    inPool: true,
     game: "poe1" as const,
     createdAt: "",
     updatedAt: "",
@@ -144,6 +146,14 @@ describe("Cards.slice", () => {
     it("has pageSize 20", () => {
       expect(store.getState().cards.pageSize).toBe(20);
     });
+
+    it("has _lastCardsKey null", () => {
+      expect(store.getState().cards._lastCardsKey).toBeNull();
+    });
+
+    it("has _pendingCardsKey null", () => {
+      expect(store.getState().cards._pendingCardsKey).toBeNull();
+    });
   });
 
   // ─── loadCards ───────────────────────────────────────────────────────
@@ -155,7 +165,10 @@ describe("Cards.slice", () => {
 
       await store.getState().cards.loadCards();
 
-      expect(electron.divinationCards.getAll).toHaveBeenCalledWith("poe1");
+      expect(electron.divinationCards.getAll).toHaveBeenCalledWith(
+        "poe1",
+        false,
+      );
     });
 
     it("sets isLoading true while loading", async () => {
@@ -230,6 +243,53 @@ describe("Cards.slice", () => {
     });
   });
 
+  // ─── loadCards dedup ────────────────────────────────────────────────
+
+  describe("loadCards dedup", () => {
+    it("skips fetch when _lastCardsKey matches active game", async () => {
+      electron.divinationCards.getAll.mockResolvedValue(makeSampleCards());
+      await store.getState().cards.loadCards();
+      expect(electron.divinationCards.getAll).toHaveBeenCalledTimes(1);
+
+      // Second call with same game should be deduped
+      await store.getState().cards.loadCards();
+      expect(electron.divinationCards.getAll).toHaveBeenCalledTimes(1);
+    });
+
+    it("fetches again after game changes", async () => {
+      electron.divinationCards.getAll.mockResolvedValue(makeSampleCards());
+      await store.getState().cards.loadCards();
+      expect(electron.divinationCards.getAll).toHaveBeenCalledTimes(1);
+
+      // Switch game
+      store.setState((s) => {
+        s.settings.selectedGame = "poe2";
+      });
+      electron.divinationCards.getAll.mockResolvedValue([]);
+      await store.getState().cards.loadCards();
+      expect(electron.divinationCards.getAll).toHaveBeenCalledTimes(2);
+    });
+
+    it("fetches again after _lastCardsKey is cleared", async () => {
+      electron.divinationCards.getAll.mockResolvedValue(makeSampleCards());
+      await store.getState().cards.loadCards();
+      expect(electron.divinationCards.getAll).toHaveBeenCalledTimes(1);
+
+      store.setState((s) => {
+        s.cards._lastCardsKey = null;
+      });
+      await store.getState().cards.loadCards();
+      expect(electron.divinationCards.getAll).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not set _lastCardsKey on failed load", async () => {
+      electron.divinationCards.getAll.mockRejectedValue(new Error("fail"));
+      await store.getState().cards.loadCards();
+      expect(store.getState().cards._lastCardsKey).toBeNull();
+      expect(store.getState().cards._pendingCardsKey).toBeNull();
+    });
+  });
+
   // ─── Setters (page reset) ───────────────────────────────────────────
 
   describe("setters reset page", () => {
@@ -251,6 +311,13 @@ describe("Cards.slice", () => {
       store.getState().cards.setRarityFilter(2);
       store.getState().cards.setRarityFilter("all");
       expect(store.getState().cards.rarityFilter).toBe("all");
+    });
+
+    it("setShowAllCards does not trigger loadCards", () => {
+      electron.divinationCards.getAll.mockResolvedValue([]);
+      store.getState().cards.setShowAllCards(true);
+      // getAll should not have been called — filtering is client-side now
+      expect(electron.divinationCards.getAll).not.toHaveBeenCalled();
     });
 
     it("setIncludeBossCards sets flag and resets page", () => {
@@ -359,6 +426,32 @@ describe("Cards.slice", () => {
       const names = filtered.map((c) => c.name);
       expect(names).not.toContain("The Demon");
       expect(filtered).toHaveLength(4);
+    });
+
+    it("hides out-of-pool cards by default", () => {
+      // Replace allCards with a mix of inPool and not-inPool
+      store.setState((s) => {
+        s.cards.allCards = [
+          makeCard({ id: "1", name: "In Pool", inPool: true }),
+          makeCard({ id: "2", name: "Out of Pool", inPool: false }),
+        ];
+      });
+      const filtered = store.getState().cards.getFilteredAndSortedCards();
+      expect(filtered.map((c) => c.name)).toEqual(["In Pool"]);
+    });
+
+    it("shows out-of-pool cards when showAllCards is true", () => {
+      store.setState((s) => {
+        s.cards.allCards = [
+          makeCard({ id: "1", name: "In Pool", inPool: true }),
+          makeCard({ id: "2", name: "Out of Pool", inPool: false }),
+        ];
+      });
+      store.getState().cards.setShowAllCards(true);
+      const filtered = store.getState().cards.getFilteredAndSortedCards();
+      const names = filtered.map((c) => c.name);
+      expect(names).toContain("In Pool");
+      expect(names).toContain("Out of Pool");
     });
 
     it("includes boss cards when includeBossCards is true", () => {
@@ -751,6 +844,10 @@ describe("Cards.slice", () => {
       store.getState().cards.setCurrentPage(2);
       expect(store.getState().cards.currentPage).toBe(2);
 
+      // Reset dedup key so the second load proceeds
+      store.setState((s) => {
+        s.cards._lastCardsKey = null;
+      });
       const cards2 = [makeCard({ id: "99", name: "Only Card" })];
       electron.divinationCards.getAll.mockResolvedValue(cards2);
       await store.getState().cards.loadCards();
@@ -820,7 +917,10 @@ describe("Cards.slice", () => {
 
       electron.divinationCards.getAll.mockResolvedValueOnce(poe2Cards);
       await store.getState().cards.loadCards();
-      expect(electron.divinationCards.getAll).toHaveBeenLastCalledWith("poe2");
+      expect(electron.divinationCards.getAll).toHaveBeenLastCalledWith(
+        "poe2",
+        false,
+      );
       expect(store.getState().cards.allCards[0].name).toBe("POE2 Card");
     });
   });

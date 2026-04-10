@@ -8,18 +8,29 @@ interface CardDetailsHeaderProps {
   cardName: string;
   rarity: Rarity;
   fromBoss: boolean;
+  isDisabled: boolean;
+  inPool: boolean;
 }
 
 const CardDetailsHeader = ({
   cardName,
   rarity,
   fromBoss,
+  isDisabled,
+  inPool,
 }: CardDetailsHeaderProps) => {
   return (
     <PageContainer.Header
       title={cardName}
       titleClassName="font-fontin"
-      subtitle={<HeaderSubtitle rarity={rarity} fromBoss={fromBoss} />}
+      subtitle={
+        <HeaderSubtitle
+          rarity={rarity}
+          fromBoss={fromBoss}
+          isDisabled={isDisabled}
+          inPool={inPool}
+        />
+      }
       actions={<HeaderActions />}
     />
   );

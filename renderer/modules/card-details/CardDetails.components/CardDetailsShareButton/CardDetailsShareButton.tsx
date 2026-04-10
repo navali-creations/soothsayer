@@ -55,16 +55,6 @@ const CardDetailsShareButton = ({
       );
     }
 
-    if (personalAnalytics?.prohibitedLibrary) {
-      const { weight } = personalAnalytics.prohibitedLibrary;
-      if (weight > 0) {
-        priceParts.push(`Weight: ${weight.toLocaleString()}`);
-
-        // Compute "1 in X decks" if we have weight
-        // We don't have totalWeight here easily, so we just show the weight
-      }
-    }
-
     if (stackSize > 1) {
       priceParts.push(`Stack: ${stackSize}`);
     }

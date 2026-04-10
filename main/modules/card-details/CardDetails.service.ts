@@ -160,8 +160,6 @@ class CardDetailsService {
         _event: Electron.IpcMainInvokeEvent,
         game: GameType,
         cardName: string,
-        _rewardHtml?: string,
-        league?: string,
       ): Promise<RelatedCardsResultDTO> => {
         const empty: RelatedCardsResultDTO = {
           similarCards: [],
@@ -181,7 +179,7 @@ class CardDetailsService {
           return empty;
         }
 
-        return this.getRelatedCards(game, cardName, league);
+        return this.getRelatedCards(game, cardName);
       },
     );
 
@@ -191,7 +189,6 @@ class CardDetailsService {
         _event: Electron.IpcMainInvokeEvent,
         game: GameType,
         cardSlug: string,
-        plLeague?: string,
         selectedLeague?: string,
       ): Promise<CardDetailsInitDTO | null> => {
         if (!game || !cardSlug) {
@@ -207,7 +204,7 @@ class CardDetailsService {
           return null;
         }
 
-        return this.resolveCardBySlug(game, cardSlug, plLeague, selectedLeague);
+        return this.resolveCardBySlug(game, cardSlug, selectedLeague);
       },
     );
 
@@ -248,21 +245,17 @@ class CardDetailsService {
   public async resolveCardBySlug(
     game: GameType,
     cardSlug: string,
-    plLeague?: string,
     selectedLeague?: string,
   ): Promise<CardDetailsInitDTO | null> {
     this.logger.log(
       `Resolving card by slug "${cardSlug}" for ${game}` +
-        (plLeague ? ` (plLeague: ${plLeague})` : "") +
         (selectedLeague ? ` (selectedLeague: ${selectedLeague})` : ""),
     );
 
     try {
       // Step 1: Resolve slug → card name using the divination cards service
       const divCardsService = DivinationCardsService.getInstance();
-      const allCards = await divCardsService
-        .getRepository()
-        .getAllByGame(game, undefined, null, plLeague ?? null);
+      const allCards = await divCardsService.getRepository().getAllByGame(game);
 
       const matched = allCards.find((c) => cardNameToSlug(c.name) === cardSlug);
 
@@ -276,10 +269,13 @@ class CardDetailsService {
 
       // Step 2: Fetch personal analytics and related cards in parallel
       const [personalAnalytics, relatedCards] = await Promise.all([
-        plLeague
-          ? this.getPersonalAnalytics(game, plLeague, cardName, selectedLeague)
-          : Promise.resolve(null),
-        this.getRelatedCards(game, cardName, plLeague).catch((err) => {
+        this.getPersonalAnalytics(
+          game,
+          selectedLeague ?? "all",
+          cardName,
+          selectedLeague,
+        ),
+        this.getRelatedCards(game, cardName).catch((err) => {
           this.logger.error(
             `Failed to fetch related cards for "${cardName}":`,
             err,
@@ -470,16 +466,14 @@ class CardDetailsService {
       // Run independent queries in parallel
       const [
         personalStats,
-        fromBoss,
-        plData,
+        availability,
         dropTimelineRaw,
         totalDecks,
         leagueDateRangesRaw,
         firstSessionStartDate,
       ] = await Promise.all([
         this.repository.getCardPersonalStats(game, cardName, leagueFilter),
-        this.repository.getFromBoss(game, cardName),
-        this.repository.getProhibitedLibraryData(game, league, cardName),
+        this.repository.getCardAvailability(game, league, cardName),
         this.repository.getDropTimeline(game, cardName, leagueFilter),
         this.repository.getTotalDecksOpenedAllSessions(game, leagueFilter),
         this.repository.getLeagueDateRanges(game),
@@ -549,14 +543,8 @@ class CardDetailsService {
         lastSeenAt: personalStats.lastSeenAt,
         sessionCount: personalStats.sessionCount,
         averageDropsPerSession,
-        fromBoss,
-        prohibitedLibrary: plData
-          ? {
-              weight: plData.weight,
-              rarity: plData.rarity,
-              fromBoss: plData.fromBoss,
-            }
-          : null,
+        fromBoss: availability.fromBoss,
+        weight: availability.weight,
         totalDecksOpenedAllSessions: totalDecks,
         dropTimeline,
         leagueDateRanges,
@@ -583,14 +571,23 @@ class CardDetailsService {
   /**
    * Extract the core reward item name from a card's reward_html.
    *
-   * Parses wiki-link format `[[Link|Display]]` to get the display name,
-   * skipping modifier tags like `Corrupted`, `Two-Implicit`, `Item Level: XX`,
+   * Supports two formats:
+   * 1. Wiki-link format: `[[Link|Display]]` or `[[Link]]` (raw package data)
+   * 2. Plain HTML format: `<span class="tc -xxx">Name</span>` (after
+   *    `cleanWikiMarkup()` strips wiki links at write time in `syncCards()`)
+   *
+   * Skips modifier tags like `Corrupted`, `Two-Implicit`, `Item Level: XX`,
    * `Mirrored`, etc. which are not the actual reward item.
    *
    * Examples:
    * - `[[Headhunter|Headhunter]]` → "Headhunter"
    * - `[[The Doctor|The Doctor]]` → "The Doctor"
    * - `[[Mageblood|Mageblood]]<br>..Corrupted..` → "Mageblood"
+   * - `<span class="tc -divination">The Doctor</span>` → "The Doctor"
+   * - `<span class="tc -currency">Mirror of Kalandra</span>` → "Mirror of Kalandra"
+   * - `<span class="tc -currency">3x Exalted Orb</span>` → "Exalted Orb"
+   * - `<span class="tc -currency">1,500x Chromatic Orb</span>` → "Chromatic Orb"
+   * - `<span class="tc -unique">Item</span>` → null (generic placeholder, skipped)
    */
   private extractRewardItemName(rewardHtml: string): string | null {
     if (!rewardHtml) return null;
@@ -599,12 +596,26 @@ class CardDetailsService {
     const SKIP_PATTERNS = [
       /^corrupted$/i,
       /^two-implicit$/i,
+      /^three-implicit$/i,
       /^item level/i,
       /^mirrored$/i,
       /^unidentified$/i,
+      /^item$/i, // Generic "Item" placeholder (e.g. Jack in the Box, A Dusty Memory)
+      /^elder item$/i,
+      /^influenced item$/i,
+      /^elevated item$/i,
+      /^double-influenced item$/i,
+      /^synthesised$/i,
+      /^fractured$/i,
     ];
 
-    // Extract all wiki links: [[target|display]] or [[target]]
+    // Strip quantity prefixes like "3x ", "10x ", "1,500x " from reward text.
+    // Cards like "Abandoned Wealth" reward "3x Exalted Orb" — we want just "Exalted Orb"
+    // so that LIKE '%Exalted Orb%' matches other cards with the same reward item.
+    const stripQuantityPrefix = (text: string): string =>
+      text.replace(/^[\d,]+x\s+/, "");
+
+    // Strategy 1: Extract from wiki links [[target|display]] or [[target]]
     const wikiLinkRegex = /\[\[([^\]|]+?)(?:\|([^\]]+?))?\]\]/g;
 
     for (const match of rewardHtml.matchAll(wikiLinkRegex)) {
@@ -618,6 +629,28 @@ class CardDetailsService {
 
       // This is the actual reward item name
       return display;
+    }
+
+    // Strategy 2: Extract from plain HTML <span class="tc -xxx">Name</span>
+    // syncCards() runs cleanWikiMarkup() at write time, stripping [[wiki|links]]
+    // and leaving plain text inside <span> tags. The database therefore stores
+    // cleaned HTML, so we need to parse it here as a fallback.
+    const spanRegex = /<span[^>]*class="tc\s[^"]*"[^>]*>([^<]+)<\/span>/g;
+
+    for (const match of rewardHtml.matchAll(spanRegex)) {
+      let text = match[1].trim();
+      if (!text) continue;
+
+      // Strip quantity prefix (e.g. "3x Exalted Orb" → "Exalted Orb")
+      text = stripQuantityPrefix(text);
+
+      // Skip modifier tags and generic placeholders
+      if (SKIP_PATTERNS.some((p) => p.test(text))) continue;
+
+      // Skip pure numbers (e.g. "100" from Item Level spans)
+      if (/^\d+$/.test(text)) continue;
+
+      return text;
     }
 
     return null;
@@ -702,7 +735,6 @@ class CardDetailsService {
   public async getRelatedCards(
     game: GameType,
     cardName: string,
-    plLeague?: string,
   ): Promise<RelatedCardsResultDTO> {
     const empty: RelatedCardsResultDTO = { similarCards: [], chainCards: [] };
     this.logger.log(`Getting related cards for "${cardName}" in ${game}`);
@@ -750,7 +782,6 @@ class CardDetailsService {
         terminalReward,
         cardName,
         20,
-        plLeague,
       );
       const similarCards: RelatedCardDTO[] = terminalMatches.map((c) => ({
         ...c,
@@ -776,7 +807,6 @@ class CardDetailsService {
         const chainCard = await this.repository.findCardByName(
           game,
           chainCardName,
-          plLeague,
         );
         if (chainCard) {
           chainSet.add(chainCard.name);
@@ -793,7 +823,6 @@ class CardDetailsService {
           chainCardName,
           cardName,
           10,
-          plLeague,
         );
         for (const m of matches) {
           if (!chainSet.has(m.name) && m.name !== cardName) {
@@ -810,7 +839,6 @@ class CardDetailsService {
         cardName,
         cardName,
         10,
-        plLeague,
       );
       for (const m of upstreamMatches) {
         if (!chainSet.has(m.name) && m.name !== cardName) {
@@ -856,9 +884,7 @@ class CardDetailsService {
       const totalCount = deduplicatedChain.length + deduplicatedSimilar.length;
       this.logger.log(
         `Found ${totalCount} related card(s) for "${cardName}" ` +
-          `(${deduplicatedChain.length} chain, ${
-            deduplicatedSimilar.length
-          } similar), plLeague="${plLeague ?? "none"}"`,
+          `(${deduplicatedChain.length} chain, ${deduplicatedSimilar.length} similar)`,
       );
 
       for (const card of [...deduplicatedChain, ...deduplicatedSimilar]) {

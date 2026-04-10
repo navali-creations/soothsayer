@@ -8,23 +8,20 @@ import { useCardDetails, useProfitForecast } from "~/renderer/store";
  * Shows how much this card contributes to the expected value of
  * opening a single stacked deck, in chaos orbs.
  *
- * Reads `totalWeight` from the `profitForecast` slice, derives
- * `chaosValue` from `priceHistory`, and computes EV via the
- * `cardDetails.getEvContribution` getter.
+ * Reads `evContribution` directly from the matching `CardForecastRow`
+ * in the `profitForecast` slice (already floored, renormalized, and
+ * calibrated) instead of computing it via a card-details getter.
  */
 const EvContributionSection = () => {
-  const { priceHistory, getEvContribution } = useCardDetails();
-  const { totalWeight } = useProfitForecast();
+  const { personalAnalytics } = useCardDetails();
+  const { rows } = useProfitForecast();
 
-  // Derive chaos value from price history
-  const chaosValue =
-    priceHistory?.currentDivineRate && priceHistory?.chaosToDivineRatio
-      ? priceHistory.currentDivineRate / priceHistory.chaosToDivineRatio
-      : 0;
+  const cardName = personalAnalytics?.cardName;
+  const row = cardName ? rows.find((r) => r.cardName === cardName) : undefined;
 
-  const ev = getEvContribution(totalWeight, chaosValue);
+  if (!row || row.evContribution <= 0) return null;
 
-  if (ev === null || chaosValue <= 0) return null;
+  const ev = row.evContribution;
 
   // Format EV nicely
   const evFormatted =

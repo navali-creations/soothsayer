@@ -90,18 +90,6 @@ export interface LeagueDateRangeDTO {
   endDate: string | null;
 }
 
-/**
- * Prohibited Library weight data for a card.
- */
-export interface ProhibitedLibraryDataDTO {
-  /** The raw weight value */
-  weight: number;
-  /** Rarity tier derived from weight (0–4) */
-  rarity: Rarity;
-  /** Whether the card is boss-exclusive */
-  fromBoss: boolean;
-}
-
 // ─── Related Cards DTOs ──────────────────────────────────────────────────────
 
 /**
@@ -186,10 +174,10 @@ export interface CardPersonalAnalyticsDTO {
   sessionCount: number;
   /** Average drops per session (totalLifetimeDrops / sessionCount) */
   averageDropsPerSession: number;
-  /** Whether this card only drops from bosses (from divination_cards.from_boss) */
+  /** Whether this card only drops from bosses (from divination_card_availability.from_boss) */
   fromBoss: boolean;
-  /** Prohibited Library weight/rarity data, null if unavailable */
-  prohibitedLibrary: ProhibitedLibraryDataDTO | null;
+  /** Per-card weight from divination_card_availability (null if no data) */
+  weight: number | null;
   /** Total decks opened across ALL user sessions (for luck calculation) */
   totalDecksOpenedAllSessions: number;
   /** Per-session drop timeline for charting */

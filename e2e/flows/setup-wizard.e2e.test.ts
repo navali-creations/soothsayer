@@ -216,13 +216,11 @@ test.describe("Setup Wizard", () => {
 
       // Toggle PoE 2 on — "Playing both?" should appear
       await clickGameCard(page, "Path of Exile 2");
-      await page.waitForTimeout(300);
       const bothText = page.getByText("Playing both?");
       await expect(bothText).toBeVisible({ timeout: 3_000 });
 
       // Toggle PoE 2 off — "Playing both?" should disappear
       await clickGameCard(page, "Path of Exile 2");
-      await page.waitForTimeout(300);
       await expect(bothText).not.toBeVisible({ timeout: 3_000 });
 
       // Seed leagues before advancing to step 2
@@ -266,7 +264,7 @@ test.describe("Setup Wizard", () => {
 
       // Select league
       await selectLeagueInDropdown(page, "Standard");
-      await page.waitForTimeout(500);
+      await expect(getNextButton(page)).toBeEnabled({ timeout: 5_000 });
 
       // Click Next → Step 3
       await getNextButton(page).click();
@@ -325,7 +323,13 @@ test.describe("Setup Wizard", () => {
       // We click Finish to verify the UI interaction, then use skipSetup via
       // IPC as a fallback to bypass filesystem validation.
       await finishBtn.click();
-      await page.waitForTimeout(1_000);
+
+      // Wait for the route to settle (either redirected to "/" or stayed on
+      // "/setup" because Client.txt doesn't exist). Poll instead of using a
+      // fixed timeout so CI machines aren't flaky.
+      await expect
+        .poll(async () => getCurrentRoute(page), { timeout: 5_000 })
+        .toMatch(/^\/(setup)?$/);
 
       // If completeSetup failed (no real Client.txt), force-complete via IPC
       const route = await getCurrentRoute(page);
@@ -370,7 +374,6 @@ test.describe("Setup Wizard", () => {
 
       // Select both games so we can verify state preservation later
       await clickGameCard(page, "Path of Exile 2");
-      await page.waitForTimeout(300);
       await expect(page.getByText("Playing both?")).toBeVisible({
         timeout: 3_000,
       });
@@ -389,10 +392,18 @@ test.describe("Setup Wizard", () => {
         timeout: 10_000,
       });
 
-      // Select a league so we can advance to step 3
-      await page.waitForTimeout(1_000);
+      // Wait for dropdown to be populated, then select a league
+      await expect
+        .poll(
+          async () =>
+            page
+              .locator("select.select-bordered option:not([disabled])")
+              .count(),
+          { timeout: 10_000, intervals: [200, 500, 1_000] },
+        )
+        .toBeGreaterThanOrEqual(1);
       await selectLeagueInDropdown(page, "Standard");
-      await page.waitForTimeout(500);
+      await expect(getNextButton(page)).toBeEnabled({ timeout: 5_000 });
 
       // Step 2 → Step 3
       await getNextButton(page).click();

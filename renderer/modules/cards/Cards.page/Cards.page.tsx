@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { PageContainer } from "~/renderer/components";
 import { useCards } from "~/renderer/store";
@@ -10,14 +10,20 @@ const CardsPage = () => {
   const {
     allCards,
     loadCards,
-    getPaginatedCards,
     getFilteredAndSortedCards,
-    getTotalPages,
+    currentPage,
+    pageSize,
   } = useCards();
 
-  const paginatedCards = getPaginatedCards();
+  // Compute the filtered + sorted list once per render.
+  // getPaginatedCards() and getTotalPages() used to call this again internally;
+  // deriving pagination inline avoids two redundant filter+sort passes.
   const filteredCards = getFilteredAndSortedCards();
-  const totalPages = getTotalPages();
+  const totalPages = Math.ceil(filteredCards.length / pageSize);
+  const paginatedCards = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredCards.slice(start, start + pageSize);
+  }, [filteredCards, currentPage, pageSize]);
 
   const scrollToTop = useCallback(() => {
     scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });

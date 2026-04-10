@@ -260,7 +260,6 @@ describe("CardDetailsShareButton — clipboard content", () => {
         totalLifetimeDrops: 10,
         sessionCount: 3,
         firstDiscoveredAt: "2024-01-15T00:00:00Z",
-        prohibitedLibrary: null,
       },
     });
     await clickAndWaitForClipboard(user);

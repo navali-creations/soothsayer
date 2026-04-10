@@ -291,6 +291,11 @@ class DatabaseService {
         ON sessions(started_at DESC)
       `);
 
+      this.db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_sessions_snapshot
+        ON sessions(snapshot_id)
+      `);
+
       // ═══════════════════════════════════════════════════════════════
       // SESSION CARDS
       // ═══════════════════════════════════════════════════════════════
@@ -436,7 +441,6 @@ class DatabaseService {
         flavour_html TEXT,
         game TEXT NOT NULL CHECK(game IN ('poe1', 'poe2')),
         data_hash TEXT NOT NULL,
-        from_boss INTEGER NOT NULL DEFAULT 0 CHECK(from_boss IN (0, 1)),
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now')),
         UNIQUE(game, name)
@@ -446,16 +450,6 @@ class DatabaseService {
       this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_divination_cards_game_name
       ON divination_cards(game, name)
-    `);
-
-      this.db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_divination_cards_name
-      ON divination_cards(name)
-    `);
-
-      this.db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_divination_cards_stack_size
-      ON divination_cards(stack_size)
     `);
 
       // ═══════════════════════════════════════════════════════════════
@@ -468,6 +462,7 @@ class DatabaseService {
           card_name TEXT NOT NULL,
           rarity INTEGER NOT NULL CHECK(rarity >= 0 AND rarity <= 4),
           override_rarity INTEGER CHECK(override_rarity IS NULL OR (override_rarity >= 0 AND override_rarity <= 4)),
+          prohibited_library_rarity INTEGER DEFAULT NULL CHECK(prohibited_library_rarity IS NULL OR (prohibited_library_rarity >= 0 AND prohibited_library_rarity <= 4)),
           last_updated TEXT NOT NULL DEFAULT (datetime('now')),
           PRIMARY KEY (game, league, card_name)
         )
@@ -481,6 +476,38 @@ class DatabaseService {
       this.db.exec(`
         CREATE INDEX IF NOT EXISTS idx_card_rarities_card_name
         ON divination_card_rarities(card_name)
+      `);
+
+      // ═══════════════════════════════════════════════════════════════
+      // DIVINATION CARD AVAILABILITY (league-aware from_boss / is_disabled)
+      // ═══════════════════════════════════════════════════════════════
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS divination_card_availability (
+          game TEXT NOT NULL CHECK(game IN ('poe1', 'poe2')),
+          league TEXT NOT NULL,
+          card_name TEXT NOT NULL,
+          from_boss INTEGER NOT NULL DEFAULT 0 CHECK(from_boss IN (0, 1)),
+          is_disabled INTEGER NOT NULL DEFAULT 0 CHECK(is_disabled IN (0, 1)),
+          weight INTEGER DEFAULT NULL,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          PRIMARY KEY (game, league, card_name)
+        )
+      `);
+
+      this.db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_card_availability_game_league
+        ON divination_card_availability(game, league)
+      `);
+
+      this.db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_card_availability_card_name
+        ON divination_card_availability(card_name)
+      `);
+
+      this.db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_card_availability_pool
+        ON divination_card_availability(game, league, from_boss, is_disabled)
       `);
 
       // ═══════════════════════════════════════════════════════════════
@@ -548,49 +575,6 @@ class DatabaseService {
       `);
 
       // ═══════════════════════════════════════════════════════════════
-      // PROHIBITED LIBRARY CARD WEIGHTS (empirical drop weights from CSV)
-      // ═══════════════════════════════════════════════════════════════
-      this.db.exec(`
-        CREATE TABLE IF NOT EXISTS prohibited_library_card_weights (
-          card_name   TEXT    NOT NULL,
-          game        TEXT    NOT NULL CHECK(game IN ('poe1', 'poe2')),
-          league      TEXT    NOT NULL,
-          weight      INTEGER NOT NULL,
-          rarity      INTEGER NOT NULL CHECK(rarity BETWEEN 0 AND 4),
-          from_boss   INTEGER NOT NULL DEFAULT 0 CHECK(from_boss IN (0, 1)),
-          loaded_at   TEXT    NOT NULL,
-          created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
-          updated_at  TEXT    NOT NULL DEFAULT (datetime('now')),
-          PRIMARY KEY (card_name, game, league)
-        )
-      `);
-
-      this.db.exec(`
-        CREATE INDEX IF NOT EXISTS idx_pl_card_weights_game_league
-        ON prohibited_library_card_weights(game, league)
-      `);
-
-      this.db.exec(`
-        CREATE INDEX IF NOT EXISTS idx_pl_card_weights_card_name
-        ON prohibited_library_card_weights(card_name)
-      `);
-
-      // ═══════════════════════════════════════════════════════════════
-      // PROHIBITED LIBRARY CACHE METADATA (tracks CSV parse state)
-      // ═══════════════════════════════════════════════════════════════
-      this.db.exec(`
-        CREATE TABLE IF NOT EXISTS prohibited_library_cache_metadata (
-          game        TEXT NOT NULL PRIMARY KEY CHECK(game IN ('poe1', 'poe2')),
-          league      TEXT NOT NULL,
-          loaded_at   TEXT NOT NULL,
-          app_version TEXT NOT NULL,
-          card_count  INTEGER NOT NULL,
-          created_at  TEXT NOT NULL DEFAULT (datetime('now')),
-          updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
-        )
-      `);
-
-      // ═══════════════════════════════════════════════════════════════
       // CARD PRICE HISTORY CACHE (poe.ninja exchange details cache)
       // ═══════════════════════════════════════════════════════════════
       this.db.exec(`
@@ -606,11 +590,6 @@ class DatabaseService {
           updated_at TEXT NOT NULL DEFAULT (datetime('now')),
           UNIQUE(game, league, details_id)
         )
-      `);
-
-      this.db.exec(`
-        CREATE INDEX IF NOT EXISTS idx_card_price_cache_lookup
-        ON card_price_history_cache(game, league, details_id)
       `);
 
       // ═══════════════════════════════════════════════════════════════
@@ -821,6 +800,10 @@ class DatabaseService {
     this.db = new Database(this.dbPath);
     this.db.pragma("journal_mode = WAL");
     this.db.pragma("foreign_keys = ON");
+    this.db.pragma("synchronous = NORMAL");
+    this.db.pragma("cache_size = -16000");
+    this.db.pragma("busy_timeout = 5000");
+    this.db.pragma("temp_store = MEMORY");
 
     // Reinitialize Kysely
     this.kysely = new Kysely<DatabaseSchema>({

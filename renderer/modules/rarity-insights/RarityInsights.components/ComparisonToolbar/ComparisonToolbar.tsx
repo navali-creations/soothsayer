@@ -1,4 +1,5 @@
 import { GiCrownedSkull } from "react-icons/gi";
+import { MdBlock } from "react-icons/md";
 
 import { useRarityInsightsComparison } from "~/renderer/store";
 
@@ -8,6 +9,8 @@ const ComparisonToolbar = () => {
     setShowDiffsOnly,
     includeBossCards,
     setIncludeBossCards,
+    includeDisabledCards,
+    setIncludeDisabledCards,
     getCanShowDiffs,
     getAllSelectedParsed,
     getDifferences,
@@ -15,9 +18,8 @@ const ComparisonToolbar = () => {
 
   const canShowDiffs = getCanShowDiffs();
   const allSelectedParsed = getAllSelectedParsed();
-  const differences = getDifferences();
-
   const diffsEnabled = canShowDiffs && allSelectedParsed;
+  const differences = diffsEnabled ? getDifferences() : new Set<string>();
 
   return (
     <div
@@ -34,6 +36,19 @@ const ComparisonToolbar = () => {
         <span className="label-text text-sm inline-flex items-center gap-1">
           <GiCrownedSkull className="w-3.5 h-3.5 text-warning/70" />
           Include boss cards
+        </span>
+      </label>
+
+      <label className="label cursor-pointer gap-2">
+        <input
+          type="checkbox"
+          className="checkbox checkbox-xs checkbox-error"
+          checked={includeDisabledCards}
+          onChange={(e) => setIncludeDisabledCards(e.target.checked)}
+        />
+        <span className="label-text text-sm inline-flex items-center gap-1">
+          <MdBlock className="w-3.5 h-3.5 text-error/70" />
+          Include disabled cards
         </span>
       </label>
 

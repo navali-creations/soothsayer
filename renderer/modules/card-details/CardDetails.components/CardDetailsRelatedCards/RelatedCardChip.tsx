@@ -3,6 +3,7 @@ import { useId, useMemo } from "react";
 import type { RelatedCardDTO } from "~/main/modules/card-details/CardDetails.dto";
 import DivinationCard from "~/renderer/components/DivinationCard/DivinationCard";
 import Link from "~/renderer/components/Link/Link";
+import { useCardImage } from "~/renderer/hooks/useCardImage";
 import { usePopover } from "~/renderer/hooks/usePopover/usePopover";
 import {
   cardNameToSlug,
@@ -10,7 +11,7 @@ import {
   RARITY_LABELS,
 } from "~/renderer/utils";
 
-import { getCardImage, getDisplayRarity, toCardEntry } from "./helpers";
+import { getDisplayRarity, toCardEntry } from "./helpers";
 
 // ─── Card Chip Component with Image ────────────────────────────────────────
 
@@ -27,7 +28,7 @@ function RelatedCardChip({ card }: { card: RelatedCardDTO }) {
   });
 
   const cardEntry = useMemo(() => toCardEntry(card), [card]);
-  const imageSrc = getCardImage(card.artSrc);
+  const imageSrc = useCardImage(card.artSrc);
 
   // Build a 10% opacity rarity background for hover
   const hoverBg = `rgba(${styles.glowRgb}, 0.10)`;

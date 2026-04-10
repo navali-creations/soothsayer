@@ -2,7 +2,6 @@ import { ipcMain } from "electron";
 
 import { DatabaseService } from "~/main/modules/database";
 import { LoggerService } from "~/main/modules/logger";
-import { ProhibitedLibraryService } from "~/main/modules/prohibited-library";
 import {
   assertArray,
   assertBoundedString,
@@ -174,7 +173,7 @@ export class ProfitForecastService {
    * 1. Look up the league ID (read-only — returns null if league doesn't exist)
    * 2. Query the most recent snapshot for that league (no time restriction)
    * 3. If snapshot found, merge exchange + stash card prices (exchange preferred)
-   * 4. Query PL card weights (weight > 0) via ProhibitedLibraryService
+   * 4. Query card availability weights (weight > 0)
    * 5. Build pre-computed rows, EV per deck, and base rate
    * 6. Return combined DTO
    */
@@ -183,7 +182,7 @@ export class ProfitForecastService {
     league: string,
   ): Promise<ProfitForecastDataDTO> {
     // Fetch weights first — we always return these even without a snapshot
-    const weights = await this.getWeights(game);
+    const weights = await this.getWeights(game, league);
 
     // Look up league (read-only, no creation)
     const leagueRow = await this.kysely
@@ -514,43 +513,45 @@ export class ProfitForecastService {
    */
   private async getWeights(
     game: "poe1" | "poe2",
+    league: string,
   ): Promise<ProfitForecastWeightDTO[]> {
     try {
-      const plService = ProhibitedLibraryService.getInstance();
-      const repository = plService.getRepository();
+      // Read weights directly from divination_card_availability
+      const rows = await this.kysely
+        .selectFrom("divination_card_availability as dca")
+        .select(["dca.card_name", "dca.weight", "dca.from_boss"])
+        .where("dca.game", "=", game)
+        .where("dca.league", "=", league)
+        .where("dca.is_disabled", "=", 0)
+        .execute();
 
-      // Lazy-load if needed (no-op when data already exists)
-      await plService.ensureLoaded(game);
-
-      const metadata = await repository.getMetadata(game);
-      if (!metadata) {
-        this.logger.warn(`[${game}] No PL metadata after ensureLoaded`);
+      if (rows.length === 0) {
+        this.logger.warn(`[${game}] No availability rows for league=${league}`);
         return [];
       }
 
-      const allWeights = await repository.getCardWeights(game, metadata.league);
-
       // Exclude boss-only cards (they don't drop from stacked decks)
-      const nonBoss = allWeights.filter((w) => !w.fromBoss);
+      const eligible = rows.filter((r) => !r.from_boss);
 
       // Find the minimum observed non-zero weight in the dataset.
-      // Cards with weight 0 weren't seen in this league's sample but CAN
+      // Cards with weight 0 or NULL weren't seen in this league's sample but CAN
       // still drop from stacked decks — they're ultra-rare, not impossible.
       // We assign them the floor weight so they appear in the forecast with
       // the rarest-possible probability.
-      const minWeight = nonBoss.reduce(
-        (min, w) => (w.weight > 0 && w.weight < min ? w.weight : min),
+      const minWeight = eligible.reduce(
+        (min, r) =>
+          r.weight != null && r.weight > 0 && r.weight < min ? r.weight : min,
         Number.MAX_SAFE_INTEGER,
       );
       const floorWeight = minWeight === Number.MAX_SAFE_INTEGER ? 1 : minWeight;
 
-      return nonBoss.map((w) => ({
-        cardName: w.cardName,
-        weight: w.weight > 0 ? w.weight : floorWeight,
+      return eligible.map((r) => ({
+        cardName: r.card_name,
+        weight: r.weight != null && r.weight > 0 ? r.weight : floorWeight,
         fromBoss: false,
       }));
     } catch (error) {
-      this.logger.error(`Failed to load PL weights for game=${game}:`, error);
+      this.logger.error(`Failed to load weights for game=${game}:`, error);
       return [];
     }
   }

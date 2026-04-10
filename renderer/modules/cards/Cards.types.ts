@@ -12,4 +12,6 @@ export interface DivinationCardRow {
   filterRarity: KnownRarity | null;
   prohibitedLibraryRarity: Rarity | null;
   fromBoss: boolean;
+  isDisabled: boolean;
+  inPool: boolean;
 }

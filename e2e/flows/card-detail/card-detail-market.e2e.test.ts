@@ -17,7 +17,7 @@
  *
  * Prerequisites:
  * - App must be built (`.vite/build/main.js` exists)
- * - No external services required — cards load from bundled `renderer/assets/poe1/cards.json`
+ * - No external services required — cards load from `@navali/poe1-divination-cards` package data
  *   into local SQLite at startup
  * - Price history is seeded from `e2e/fixtures/poe-ninja-fixture.ts` into
  *   the local cache before tests run (see `ensureDataSeeded`)
@@ -63,7 +63,9 @@ async function switchToMarketTab(page: Page) {
   });
   await expect(marketTab).toBeVisible({ timeout: 10_000 });
   await marketTab.click();
-  await page.waitForTimeout(500);
+
+  // Wait for the tab to become active instead of using a fixed timeout
+  await expect(marketTab).toHaveClass(/tab-active/, { timeout: 5_000 });
 }
 
 /**
@@ -396,15 +398,12 @@ test.describe("Card Detail Page — Market Data", () => {
       await goToCardDetail(page, "house-of-mirrors");
       await switchToMarketTab(page);
 
-      // Let market data start loading
-      await page.waitForTimeout(1_000);
-
       // Switch back to Your Data
       const yourDataTab = page.locator('button[role="tab"]', {
         hasText: "Your Data",
       });
       await yourDataTab.click();
-      await page.waitForTimeout(1_000);
+      await expect(yourDataTab).toHaveClass(/tab-active/, { timeout: 5_000 });
 
       const isYourDataActive = await yourDataTab.evaluate((el) =>
         el.classList.contains("tab-active"),
@@ -442,7 +441,7 @@ test.describe("Card Detail Page — Market Data", () => {
         hasText: "Your Data",
       });
       await yourDataTab.click();
-      await page.waitForTimeout(500);
+      await expect(yourDataTab).toHaveClass(/tab-active/, { timeout: 5_000 });
 
       route = await getCurrentRoute(page);
       expect(route).toBe("/cards/house-of-mirrors");

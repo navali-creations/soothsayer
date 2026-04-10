@@ -5,8 +5,17 @@ import { CardArt } from "./components/card-content/CardArt";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/assets/poe1/Divination_card_frame.png", () => ({
-  default: "mocked-card-frame.png",
+vi.mock("~/renderer/lib/poe1-card-assets", () => ({
+  cardFrame: "mocked-card-frame.png",
+  cardSeparator: "mocked-card-separator.png",
+  getCardImage: (_artSrc: string) => "",
+  loadCardImage: (_artSrc: string) => Promise.resolve(""),
+}));
+
+// CardArt now uses the useCardImage hook — mock it to return "" synchronously
+// so tests don't need to await async image loading.
+vi.mock("~/renderer/hooks/useCardImage", () => ({
+  useCardImage: (_artSrc: string) => "",
 }));
 
 // ─── CardFrame Tests ───────────────────────────────────────────────────────

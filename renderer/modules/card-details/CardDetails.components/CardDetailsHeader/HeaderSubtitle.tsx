@@ -5,9 +5,16 @@ import type { Rarity } from "~/types/data-stores";
 interface HeaderSubtitleProps {
   rarity: Rarity;
   fromBoss: boolean;
+  isDisabled: boolean;
+  inPool: boolean;
 }
 
-const HeaderSubtitle = ({ rarity, fromBoss }: HeaderSubtitleProps) => {
+const HeaderSubtitle = ({
+  rarity,
+  fromBoss,
+  isDisabled,
+  inPool,
+}: HeaderSubtitleProps) => {
   const styles = getRarityStyles(rarity);
   const rarityLabel = RARITY_LABELS[rarity] ?? "Unknown";
 
@@ -28,6 +35,16 @@ const HeaderSubtitle = ({ rarity, fromBoss }: HeaderSubtitleProps) => {
       {fromBoss && (
         <span className="badge badge-sm badge-warning whitespace-nowrap">
           Boss-exclusive
+        </span>
+      )}
+      {isDisabled && (
+        <span className="badge badge-sm badge-error whitespace-nowrap">
+          Drop-disabled
+        </span>
+      )}
+      {!inPool && (
+        <span className="badge badge-sm badge-ghost whitespace-nowrap">
+          Not in league pool
         </span>
       )}
     </Flex>

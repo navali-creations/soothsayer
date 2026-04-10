@@ -1,23 +1,11 @@
 import { type Kysely, sql } from "kysely";
 
-import type { Database } from "~/main/modules/database";
+import type {
+  CardPriceHistoryCacheRow,
+  Database,
+} from "~/main/modules/database";
 import { cleanWikiMarkup } from "~/main/utils/cleanWikiMarkup";
 import type { KnownRarity, Rarity } from "~/types/data-stores";
-
-/**
- * Raw row shape for the card_price_history_cache table.
- */
-export interface CardPriceHistoryCacheRow {
-  id: number;
-  game: string;
-  league: string;
-  details_id: string;
-  card_name: string;
-  response_data: string;
-  fetched_at: string;
-  created_at: string;
-  updated_at: string;
-}
 
 /**
  * Repository for the local SQLite cache of poe.ninja price history data.
@@ -170,49 +158,27 @@ export class CardDetailsRepository {
   }
 
   /**
-   * Check whether a card is boss-exclusive from the divination_cards table.
+   * Get availability data for a card from the divination_card_availability table.
    *
-   * @returns `true` if the card exists and `from_boss = 1`, `false` otherwise.
+   * @returns An object with `fromBoss` (whether the card is boss-exclusive)
+   *          and `weight` (per-card weight, or `null` if no data).
    */
-  async getFromBoss(game: string, cardName: string): Promise<boolean> {
-    const result = await this.kysely
-      .selectFrom("divination_cards")
-      .select("from_boss")
-      .where("name", "=", cardName)
-      .where("game", "=", game as "poe1" | "poe2")
-      .executeTakeFirst();
-
-    return result?.from_boss === 1;
-  }
-
-  /**
-   * Get Prohibited Library weight data for a card.
-   *
-   * @returns Weight, rarity, and fromBoss data, or `null` if no PL data exists.
-   */
-  async getProhibitedLibraryData(
+  async getCardAvailability(
     game: string,
     league: string,
     cardName: string,
-  ): Promise<{
-    weight: number;
-    rarity: Rarity;
-    fromBoss: boolean;
-  } | null> {
+  ): Promise<{ fromBoss: boolean; weight: number | null }> {
     const result = await this.kysely
-      .selectFrom("prohibited_library_card_weights")
-      .select(["weight", "rarity", "from_boss"])
+      .selectFrom("divination_card_availability")
+      .select(["from_boss", "weight"])
       .where("card_name", "=", cardName)
       .where("game", "=", game as "poe1" | "poe2")
       .where("league", "=", league)
       .executeTakeFirst();
 
-    if (!result) return null;
-
     return {
-      weight: result.weight,
-      rarity: result.rarity as Rarity,
-      fromBoss: result.from_boss === 1,
+      fromBoss: result?.from_boss === 1,
+      weight: result?.weight ?? null,
     };
   }
 
@@ -384,14 +350,13 @@ export class CardDetailsRepository {
    * then queries `divination_cards` for other cards whose `reward_html` contains
    * the same item name (case-insensitive). The current card is excluded.
    *
-   * Also joins with `divination_card_rarities` to include rarity data, and
-   * optionally with `prohibited_library_card_weights` for PL-based rarity.
+   * Also joins with `divination_card_rarities` to include rarity data and
+   * Prohibited Library rarity.
    *
    * @param game - The game type ("poe1" or "poe2")
    * @param rewardItemName - Plain-text reward item name to search for
    * @param excludeCardName - The current card name to exclude from results
    * @param limit - Maximum number of related cards to return (default: 5)
-   * @param plLeague - Optional league name to join PL weight-based rarity
    * @returns Array of related card data
    */
   async findCardsByRewardMatch(
@@ -399,7 +364,6 @@ export class CardDetailsRepository {
     rewardItemName: string,
     excludeCardName: string,
     limit = 5,
-    plLeague?: string,
   ): Promise<
     Array<{
       name: string;
@@ -434,7 +398,6 @@ export class CardDetailsRepository {
         "dc.description",
         "dc.reward_html as rewardHtml",
         "dc.flavour_html as flavourHtml",
-        "dc.from_boss as fromBoss",
         sql<number>`COALESCE(dcr.rarity, 0)`.as("rarity"),
       ])
       .where("dc.game", "=", game as "poe1" | "poe2")
@@ -443,24 +406,13 @@ export class CardDetailsRepository {
       .orderBy("dc.name", "asc")
       .limit(limit);
 
-    if (plLeague) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      query = query
-        .leftJoin("prohibited_library_card_weights as plcw", (join) =>
-          join
-            .onRef("plcw.card_name", "=", "dc.name")
-            .onRef("plcw.game", "=", "dc.game")
-            .on("plcw.league", "=", plLeague),
-        )
-        .select(
-          sql<number | null>`plcw.rarity`.as("prohibited_library_rarity"),
-        ) as any;
-    } else {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      query = query.select(
-        sql<null>`NULL`.as("prohibited_library_rarity"),
-      ) as any;
-    }
+    // Prohibited Library rarity — read from divination_card_rarities (populated by syncCards)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    query = query.select(
+      sql<number | null>`dcr.prohibited_library_rarity`.as(
+        "prohibited_library_rarity",
+      ),
+    ) as any;
 
     const rows = await query.execute();
 
@@ -478,7 +430,7 @@ export class CardDetailsRepository {
           ? ((row as Record<string, unknown>)
               .prohibited_library_rarity as Rarity)
           : null,
-      fromBoss: row.fromBoss === 1,
+      fromBoss: false,
     }));
   }
 
@@ -489,17 +441,13 @@ export class CardDetailsRepository {
    * discovered during reward-chain traversal so they can be included
    * as "chain" entries in the related cards section.
    *
-   * Optionally joins with `prohibited_library_card_weights` for PL-based rarity.
-   *
    * @param game - The game type ("poe1" or "poe2")
    * @param cardName - The exact card name to look up
-   * @param plLeague - Optional league name to join PL weight-based rarity
    * @returns Card data, or `null` if not found
    */
   async findCardByName(
     game: string,
     cardName: string,
-    plLeague?: string,
   ): Promise<{
     name: string;
     artSrc: string;
@@ -530,30 +478,18 @@ export class CardDetailsRepository {
         "dc.description",
         "dc.reward_html as rewardHtml",
         "dc.flavour_html as flavourHtml",
-        "dc.from_boss as fromBoss",
         sql<number>`COALESCE(dcr.rarity, 0)`.as("rarity"),
       ])
       .where("dc.game", "=", game as "poe1" | "poe2")
       .where("dc.name", "=", cardName);
 
-    if (plLeague) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      query = query
-        .leftJoin("prohibited_library_card_weights as plcw", (join) =>
-          join
-            .onRef("plcw.card_name", "=", "dc.name")
-            .onRef("plcw.game", "=", "dc.game")
-            .on("plcw.league", "=", plLeague),
-        )
-        .select(
-          sql<number | null>`plcw.rarity`.as("prohibited_library_rarity"),
-        ) as any;
-    } else {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      query = query.select(
-        sql<null>`NULL`.as("prohibited_library_rarity"),
-      ) as any;
-    }
+    // Prohibited Library rarity — read from divination_card_rarities (populated by syncCards)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    query = query.select(
+      sql<number | null>`dcr.prohibited_library_rarity`.as(
+        "prohibited_library_rarity",
+      ),
+    ) as any;
 
     const row = await query.executeTakeFirst();
 
@@ -573,7 +509,7 @@ export class CardDetailsRepository {
           ? ((row as Record<string, unknown>)
               .prohibited_library_rarity as Rarity)
           : null,
-      fromBoss: row.fromBoss === 1,
+      fromBoss: false,
     };
   }
 }

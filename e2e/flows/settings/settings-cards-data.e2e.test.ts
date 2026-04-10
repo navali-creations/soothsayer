@@ -103,22 +103,12 @@ test.describe("Settings – Cards (Data)", () => {
       const persisted = await getSetting<string>(page, "raritySource");
       expect(persisted).toBe("prohibited-library");
 
-      // Verify the Prohibited Library status block appears when PL is selected
-      await expect(
-        card.getByText(/prohibited library data/i).first(),
-      ).toBeVisible({ timeout: 5_000 });
-
       // Switch back to poe.ninja
       await select.selectOption("poe.ninja");
       await expect(select).toHaveValue("poe.ninja", { timeout: 5_000 });
 
       const restoredPersisted = await getSetting<string>(page, "raritySource");
       expect(restoredPersisted).toBe("poe.ninja");
-
-      // PL status block should be hidden when switching away from PL
-      await expect(
-        card.getByText(/prohibited library data/i).first(),
-      ).not.toBeVisible({ timeout: 3_000 });
 
       // Restore original if it was different
       if (originalValue !== "poe.ninja") {
@@ -177,7 +167,7 @@ test.describe("Settings – Cards (Data)", () => {
       expect(hasCount || hasNoFilters).toBe(true);
     });
 
-    test("full flow: render → switch source → verify PL block → rescan → restore", async ({
+    test("full flow: render → switch source → rescan → restore", async ({
       page,
     }) => {
       const card = page.locator(".card", { hasText: "Rarity Source" });
@@ -193,30 +183,21 @@ test.describe("Settings – Cards (Data)", () => {
 
       const originalValue = await select.inputValue();
 
-      // 2. Switch to prohibited-library → PL block should appear
+      // 2. Switch to prohibited-library
       await select.selectOption("prohibited-library");
       await expect(select).toHaveValue("prohibited-library", {
         timeout: 5_000,
       });
-      await expect(
-        card.getByText(/prohibited library data/i).first(),
-      ).toBeVisible({ timeout: 5_000 });
 
-      // 3. PL block should have a Reload button
-      const reloadButton = card
-        .locator("button", { hasText: /reload/i })
-        .first();
-      await expect(reloadButton).toBeVisible();
+      // 3. Verify IPC persistence
+      const persisted = await getSetting<string>(page, "raritySource");
+      expect(persisted).toBe("prohibited-library");
 
-      // 4. Click Reload — should not crash
-      await reloadButton.click();
-      await expect(reloadButton).toBeVisible({ timeout: 5_000 });
-
-      // 5. Rescan filters
+      // 4. Rescan filters
       await rescanButton.click();
       await expect(rescanButton).toBeEnabled({ timeout: 30_000 });
 
-      // 6. Restore original source
+      // 5. Restore original source
       await select.selectOption(originalValue || "poe.ninja");
       await expect(select).toHaveValue(originalValue || "poe.ninja", {
         timeout: 5_000,

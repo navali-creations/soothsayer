@@ -15,11 +15,13 @@ const mockUseRarityInsightsComparison = vi.mocked(useRarityInsightsComparison);
 
 const mockSetShowDiffsOnly = vi.fn();
 const mockSetIncludeBossCards = vi.fn();
+const mockSetIncludeDisabledCards = vi.fn();
 
 function setupStore(
   overrides: {
     showDiffsOnly?: boolean;
     includeBossCards?: boolean;
+    includeDisabledCards?: boolean;
     canShowDiffs?: boolean;
     allSelectedParsed?: boolean;
     differences?: Set<string>;
@@ -30,6 +32,8 @@ function setupStore(
     setShowDiffsOnly: mockSetShowDiffsOnly,
     includeBossCards: overrides.includeBossCards ?? false,
     setIncludeBossCards: mockSetIncludeBossCards,
+    includeDisabledCards: overrides.includeDisabledCards ?? false,
+    setIncludeDisabledCards: mockSetIncludeDisabledCards,
     getCanShowDiffs: () => overrides.canShowDiffs ?? false,
     getAllSelectedParsed: () => overrides.allSelectedParsed ?? false,
     getDifferences: () => overrides.differences ?? new Set<string>(),
@@ -53,6 +57,13 @@ describe("ComparisonToolbar", () => {
       expect(screen.getByText("Include boss cards")).toBeInTheDocument();
     });
 
+    it("renders the Include disabled cards checkbox", () => {
+      setupStore();
+      renderWithProviders(<ComparisonToolbar />);
+
+      expect(screen.getByText("Include disabled cards")).toBeInTheDocument();
+    });
+
     it("renders the Show differences only checkbox", () => {
       setupStore();
       renderWithProviders(<ComparisonToolbar />);
@@ -60,12 +71,12 @@ describe("ComparisonToolbar", () => {
       expect(screen.getByText(/Show differences only/)).toBeInTheDocument();
     });
 
-    it("renders two checkboxes", () => {
+    it("renders three checkboxes", () => {
       setupStore();
       renderWithProviders(<ComparisonToolbar />);
 
       const checkboxes = screen.getAllByRole("checkbox");
-      expect(checkboxes).toHaveLength(2);
+      expect(checkboxes).toHaveLength(3);
     });
   });
 
@@ -118,6 +129,55 @@ describe("ComparisonToolbar", () => {
     });
   });
 
+  // ── Include disabled cards checkbox ────────────────────────────────────
+
+  describe("Include disabled cards checkbox", () => {
+    it("is unchecked when includeDisabledCards is false", () => {
+      setupStore({ includeDisabledCards: false });
+      renderWithProviders(<ComparisonToolbar />);
+
+      const checkboxes = screen.getAllByRole("checkbox");
+      // Disabled cards checkbox is the second one
+      expect(checkboxes[1]).not.toBeChecked();
+    });
+
+    it("is checked when includeDisabledCards is true", () => {
+      setupStore({ includeDisabledCards: true });
+      renderWithProviders(<ComparisonToolbar />);
+
+      const checkboxes = screen.getAllByRole("checkbox");
+      expect(checkboxes[1]).toBeChecked();
+    });
+
+    it("is always enabled regardless of diffs state", () => {
+      setupStore({ canShowDiffs: false, allSelectedParsed: false });
+      renderWithProviders(<ComparisonToolbar />);
+
+      const checkboxes = screen.getAllByRole("checkbox");
+      expect(checkboxes[1]).not.toBeDisabled();
+    });
+
+    it("calls setIncludeDisabledCards(true) when toggled on", async () => {
+      setupStore({ includeDisabledCards: false });
+      const { user } = renderWithProviders(<ComparisonToolbar />);
+
+      const checkboxes = screen.getAllByRole("checkbox");
+      await user.click(checkboxes[1]);
+
+      expect(mockSetIncludeDisabledCards).toHaveBeenCalledWith(true);
+    });
+
+    it("calls setIncludeDisabledCards(false) when toggled off", async () => {
+      setupStore({ includeDisabledCards: true });
+      const { user } = renderWithProviders(<ComparisonToolbar />);
+
+      const checkboxes = screen.getAllByRole("checkbox");
+      await user.click(checkboxes[1]);
+
+      expect(mockSetIncludeDisabledCards).toHaveBeenCalledWith(false);
+    });
+  });
+
   // ── Show differences only checkbox ─────────────────────────────────────
 
   describe("Show differences only checkbox", () => {
@@ -126,7 +186,7 @@ describe("ComparisonToolbar", () => {
       renderWithProviders(<ComparisonToolbar />);
 
       const checkboxes = screen.getAllByRole("checkbox");
-      expect(checkboxes[1]).toBeDisabled();
+      expect(checkboxes[2]).toBeDisabled();
     });
 
     it("is disabled when allSelectedParsed is false", () => {
@@ -134,7 +194,7 @@ describe("ComparisonToolbar", () => {
       renderWithProviders(<ComparisonToolbar />);
 
       const checkboxes = screen.getAllByRole("checkbox");
-      expect(checkboxes[1]).toBeDisabled();
+      expect(checkboxes[2]).toBeDisabled();
     });
 
     it("is disabled when both canShowDiffs and allSelectedParsed are false", () => {
@@ -142,7 +202,7 @@ describe("ComparisonToolbar", () => {
       renderWithProviders(<ComparisonToolbar />);
 
       const checkboxes = screen.getAllByRole("checkbox");
-      expect(checkboxes[1]).toBeDisabled();
+      expect(checkboxes[2]).toBeDisabled();
     });
 
     it("is enabled when canShowDiffs and allSelectedParsed are both true", () => {
@@ -150,7 +210,7 @@ describe("ComparisonToolbar", () => {
       renderWithProviders(<ComparisonToolbar />);
 
       const checkboxes = screen.getAllByRole("checkbox");
-      expect(checkboxes[1]).not.toBeDisabled();
+      expect(checkboxes[2]).not.toBeDisabled();
     });
 
     it("is unchecked when showDiffsOnly is false", () => {
@@ -162,7 +222,7 @@ describe("ComparisonToolbar", () => {
       renderWithProviders(<ComparisonToolbar />);
 
       const checkboxes = screen.getAllByRole("checkbox");
-      expect(checkboxes[1]).not.toBeChecked();
+      expect(checkboxes[2]).not.toBeChecked();
     });
 
     it("is checked when showDiffsOnly is true", () => {
@@ -174,7 +234,7 @@ describe("ComparisonToolbar", () => {
       renderWithProviders(<ComparisonToolbar />);
 
       const checkboxes = screen.getAllByRole("checkbox");
-      expect(checkboxes[1]).toBeChecked();
+      expect(checkboxes[2]).toBeChecked();
     });
 
     it("calls setShowDiffsOnly(true) when toggled on", async () => {
@@ -186,7 +246,7 @@ describe("ComparisonToolbar", () => {
       const { user } = renderWithProviders(<ComparisonToolbar />);
 
       const checkboxes = screen.getAllByRole("checkbox");
-      await user.click(checkboxes[1]);
+      await user.click(checkboxes[2]);
 
       expect(mockSetShowDiffsOnly).toHaveBeenCalledWith(true);
     });
@@ -200,7 +260,7 @@ describe("ComparisonToolbar", () => {
       const { user } = renderWithProviders(<ComparisonToolbar />);
 
       const checkboxes = screen.getAllByRole("checkbox");
-      await user.click(checkboxes[1]);
+      await user.click(checkboxes[2]);
 
       expect(mockSetShowDiffsOnly).toHaveBeenCalledWith(false);
     });
@@ -214,8 +274,8 @@ describe("ComparisonToolbar", () => {
       renderWithProviders(<ComparisonToolbar />);
 
       const checkboxes = screen.getAllByRole("checkbox");
-      expect(checkboxes[1]).toBeDisabled();
-      expect(checkboxes[1]).not.toBeChecked();
+      expect(checkboxes[2]).toBeDisabled();
+      expect(checkboxes[2]).not.toBeChecked();
     });
   });
 

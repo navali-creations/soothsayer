@@ -6,7 +6,6 @@ export { default as FilePathSettingCard } from "./FilePathSettingCard/FilePathSe
 export { default as FilterSettingsCard } from "./FilterSettingsCard/FilterSettingsCard";
 export { default as OverlaySettingsCard } from "./OverlaySettingsCard/OverlaySettingsCard";
 export { default as PrivacySettingsCard } from "./PrivacySettingsCard/PrivacySettingsCard";
-export { default as ProhibitedLibraryStatusBlock } from "./ProhibitedLibraryStatusBlock/ProhibitedLibraryStatusBlock";
 export { default as SettingField } from "./SettingField/SettingField";
 export { default as SettingsCategoryCard } from "./SettingsCategoryCard/SettingsCategoryCard";
 export { default as StorageSettingsCard } from "./StorageSettingsCard/StorageSettingsCard";

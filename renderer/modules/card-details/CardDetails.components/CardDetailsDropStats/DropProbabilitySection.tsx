@@ -5,16 +5,31 @@ import { useCardDetails, useProfitForecast } from "~/renderer/store";
 /**
  * Drop probability & expected decks section.
  *
- * Reads `totalWeight` from the `profitForecast` slice and computes
- * probability via the `cardDetails.getDropProbability` getter.
+ * Looks up the matching `CardForecastRow` from `profitForecast.rows`
+ * by card name and derives drop-chance / expected-decks display values
+ * directly from `row.probability`.
  */
 const DropProbabilitySection = () => {
-  const { getDropProbability } = useCardDetails();
-  const { totalWeight } = useProfitForecast();
+  const { personalAnalytics } = useCardDetails();
+  const { rows } = useProfitForecast();
 
-  const prob = getDropProbability(totalWeight);
+  const cardName = personalAnalytics?.cardName;
+  const row = rows.find((r) => r.cardName === cardName);
 
-  if (!prob) return null;
+  if (!row || row.probability <= 0) return null;
+
+  const expectedDecks = 1 / row.probability;
+  const dropChanceFormatted = `1 in ${Math.round(
+    expectedDecks,
+  ).toLocaleString()}`;
+
+  const percent = row.probability * 100;
+  const percentFormatted =
+    percent >= 1
+      ? `${percent.toFixed(1)}%`
+      : percent >= 0.01
+        ? `${percent.toFixed(4)}%`
+        : `${percent.toExponential(2)}%`;
 
   return (
     <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
@@ -23,10 +38,10 @@ const DropProbabilitySection = () => {
           <FiTarget className="w-3 h-3" /> Drop Chance
         </span>
         <p className="font-semibold tabular-nums text-lg">
-          {prob.dropChanceFormatted}
+          {dropChanceFormatted}
         </p>
         <p className="text-xs text-base-content/40 tabular-nums">
-          {prob.percentFormatted}
+          {percentFormatted}
         </p>
       </div>
       <div>
@@ -34,7 +49,7 @@ const DropProbabilitySection = () => {
           <FiActivity className="w-3 h-3" /> Expected Decks
         </span>
         <p className="font-semibold tabular-nums">
-          {Math.round(prob.expectedDecks).toLocaleString()}
+          {Math.round(expectedDecks).toLocaleString()}
         </p>
         <p className="text-xs text-base-content/40">
           decks to find one on average

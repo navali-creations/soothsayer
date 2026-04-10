@@ -61,6 +61,7 @@ export const StatisticsStats = ({
     selectedLeague,
     sessionHighlights,
     stackedDeckCardCount,
+    cardPoolBreakdown,
     isLoadingHighlights,
     fetchSessionHighlights,
   } = useStatistics();
@@ -163,6 +164,7 @@ export const StatisticsStats = ({
             <StatsUniqueCardsCollected
               collectedCount={uniqueCardCount}
               totalAvailable={stackedDeckCardCount ?? null}
+              breakdown={cardPoolBreakdown ?? null}
             />
           </Cell>
         ) : (

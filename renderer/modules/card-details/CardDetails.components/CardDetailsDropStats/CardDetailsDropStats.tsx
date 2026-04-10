@@ -7,33 +7,35 @@ import YourLuckSection from "./YourLuckSection";
 /**
  * Drop statistics panel for the card details page.
  *
- * Displays three data points that depend on Prohibited Library weight data
+ * Displays three data points that depend on card weight data
  * and personal analytics:
  *
  * 1. **Drop Probability & Expected Decks** — "1 in X stacked decks"
  * 2. **EV Contribution** — How much this card contributes to expected value per deck
  * 3. **"Your Luck" Comparison** — Actual vs. expected drops with luck ratio
  *
- * All sections require PL weight data (weight > 0) to render.
+ * All sections require a matching row in the profit forecast with probability > 0.
  * EV Contribution additionally requires a chaos value from snapshot prices.
  * "Your Luck" requires personal analytics (drops + total decks opened).
  *
- * No props — reads `totalWeight` from the `profitForecast` slice and
- * all card-specific data from the `cardDetails` slice.
+ * No props — looks up the matching `CardForecastRow` from the `profitForecast`
+ * slice (via `useProfitForecast().rows`) using the card name from `cardDetails`.
  */
 const CardDetailsDropStats = () => {
   const { personalAnalytics } = useCardDetails();
-  const { totalWeight } = useProfitForecast();
+  const { totalWeight, rows } = useProfitForecast();
 
-  // Don't render if no personal analytics or no PL data
-  if (!personalAnalytics?.prohibitedLibrary) {
+  const forecastRow = rows.find(
+    (r) => r.cardName === personalAnalytics?.cardName,
+  );
+
+  // Don't render if no matching forecast row or probability is not positive
+  if (!forecastRow || forecastRow.probability <= 0) {
     return null;
   }
 
-  const { weight } = personalAnalytics.prohibitedLibrary;
-
-  // Don't render if the card has no weight (boss-exclusive or no data)
-  if (weight <= 0 || totalWeight <= 0) {
+  // Don't render if no total weight (profit forecast not loaded)
+  if (totalWeight <= 0) {
     return null;
   }
 
@@ -52,7 +54,7 @@ const CardDetailsDropStats = () => {
       </div>
 
       {/* Your Luck comparison */}
-      {personalAnalytics.totalLifetimeDrops > 0 && (
+      {personalAnalytics && personalAnalytics.totalLifetimeDrops > 0 && (
         <div className="border-t border-base-300 pt-3">
           <YourLuckSection />
         </div>

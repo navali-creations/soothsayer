@@ -80,6 +80,7 @@ const ProfitForecastPage = () => {
             flavourHtml: card.flavourHtml,
             rarity: card.rarity,
             fromBoss: card.fromBoss,
+            isDisabled: card.isDisabled,
           });
         }
         setCardMetadataMap(map);

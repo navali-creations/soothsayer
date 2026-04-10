@@ -1,4 +1,4 @@
-import cardSeparator from "~/renderer/assets/poe1/Divination_card_separator.png";
+import { cardSeparator } from "~/renderer/lib/poe1-card-assets";
 import { sanitizeHtml } from "~/renderer/sanitize";
 
 interface CardRewardFlavourProps {

@@ -1,13 +1,9 @@
 import { useParams } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef } from "react";
 
 import { PageContainer } from "~/renderer/components";
 import { trackEvent } from "~/renderer/modules/umami";
-import {
-  useCardDetails,
-  useProhibitedLibrary,
-  useSettings,
-} from "~/renderer/store";
+import { useCardDetails, useSettings } from "~/renderer/store";
 import type { CardEntry } from "~/types/data-stores";
 
 import CardDetailsError from "../CardDetails.components/CardDetailsError";
@@ -38,47 +34,9 @@ const CardDetailsPage = () => {
     activeTab,
     getDisplayRarity,
   } = useCardDetails();
-  const {
-    poe1Status,
-    poe2Status,
-    fetchStatus: fetchPlStatus,
-  } = useProhibitedLibrary();
 
   const game = getSelectedGame();
   const globalLeague = getActiveGameViewSelectedLeague();
-
-  // ─── PL League Resolution ──────────────────────────────────────────────
-  //
-  // Resolve the PL league to use for rarity lookups.
-  // PL data is always keyed by a challenge league (never "Standard").
-  // The canonical source is plStatus.league from the PL metadata.
-  //
-  // Resolution order:
-  //   1. User picked a specific challenge league → use it directly.
-  //   2. "all" / "Standard" / anything else → use plStatus.league.
-  const plStatusForGame = game === "poe1" ? poe1Status : poe2Status;
-
-  const plLeague = useMemo(() => {
-    const plMetadataLeague = plStatusForGame?.league ?? null;
-
-    if (
-      selectedLeague !== "all" &&
-      selectedLeague.toLowerCase() !== "standard"
-    ) {
-      return selectedLeague;
-    }
-
-    return plMetadataLeague;
-  }, [selectedLeague, plStatusForGame]);
-
-  // ─── Lazy-load PL status ───────────────────────────────────────────────
-  // PL data is lazy-loaded — only fetched on pages that need it.
-
-  useEffect(() => {
-    if (!plStatusForGame) {
-      fetchPlStatus();
-    }
-  }, [plStatusForGame, fetchPlStatus]);
 
   // ─── Reset league on card navigation ───────────────────────────────────
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — reset on card navigation
@@ -93,22 +51,20 @@ const CardDetailsPage = () => {
   // chain of separate resolveCard / fetchPersonalAnalytics / fetchRelatedCards
   // effects.
   //
-  // Re-runs when game, slug, or plLeague changes. The `selectedLeague` is
-  // intentionally excluded — league switches use `refreshPersonalAnalytics`
-  // instead of a full re-init.
+  // Re-runs when game, slug, or selectedLeague changes.
 
   const hasInitializedRef = useRef<string | null>(null);
 
   useEffect(() => {
-    const initKey = `${game}:${cardSlug}:${plLeague}`;
+    const initKey = `${game}:${cardSlug}:${selectedLeague}`;
     if (hasInitializedRef.current === initKey) return;
     hasInitializedRef.current = initKey;
 
-    initializeCardDetails(game, cardSlug, plLeague, selectedLeague);
+    initializeCardDetails(game, cardSlug, selectedLeague);
 
     // Track card detail view
     trackEvent("card-details:view", { cardSlug });
-  }, [game, cardSlug, plLeague, selectedLeague, initializeCardDetails]);
+  }, [game, cardSlug, selectedLeague, initializeCardDetails]);
 
   // ─── League switch → refresh personal analytics only ───────────────────
   //
@@ -124,7 +80,7 @@ const CardDetailsPage = () => {
   useEffect(() => {
     if (!card) return;
 
-    const fetchKey = `${game}:${plLeague}:${card.name}:${selectedLeague}`;
+    const fetchKey = `${game}:${card.name}:${selectedLeague}`;
 
     // Skip if this is the first render (init already fetched analytics)
     // or if nothing actually changed.
@@ -135,8 +91,8 @@ const CardDetailsPage = () => {
     if (lastLeagueFetchRef.current === fetchKey) return;
     lastLeagueFetchRef.current = fetchKey;
 
-    refreshPersonalAnalytics(game, plLeague, card.name, selectedLeague);
-  }, [game, plLeague, selectedLeague, card, refreshPersonalAnalytics]);
+    refreshPersonalAnalytics(game, card.name, selectedLeague);
+  }, [game, selectedLeague, card, refreshPersonalAnalytics]);
 
   // ─── Cleanup on unmount / card change ──────────────────────────────────
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — clear on card/game change
@@ -199,6 +155,7 @@ const CardDetailsPage = () => {
       rarity: displayRarity,
       filterRarity: card.filterRarity,
       fromBoss: card.fromBoss,
+      isDisabled: card.isDisabled,
     },
   };
 
@@ -210,6 +167,8 @@ const CardDetailsPage = () => {
         cardName={card.name}
         rarity={displayRarity}
         fromBoss={card.fromBoss}
+        isDisabled={card.isDisabled}
+        inPool={card.inPool}
       />
       <PageContainer.Content>
         <div className="grid grid-cols-4 gap-6">

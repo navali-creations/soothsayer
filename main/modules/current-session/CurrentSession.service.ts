@@ -807,7 +807,7 @@ class CurrentSessionService {
           artSrc: meta.artSrc,
           flavourHtml: cleanWikiMarkup(meta.flavourHtml),
           rarity: rarities?.get(cardName) ?? 4,
-          fromBoss: meta.fromBoss,
+          fromBoss: false,
         });
       }
     }

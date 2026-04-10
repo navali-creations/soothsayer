@@ -81,7 +81,7 @@ const mockFilteredCards: DivinationCardRow[] = [
   makeCard({ id: "3", name: "The Fiend" }),
 ];
 
-const mockPaginatedCards: DivinationCardRow[] = [
+const _mockPaginatedCards: DivinationCardRow[] = [
   makeCard({ id: "1", name: "The Doctor" }),
   makeCard({ id: "2", name: "House of Mirrors" }),
 ];
@@ -91,18 +91,18 @@ const mockLoadCards = vi.fn();
 function setupStore(
   overrides: {
     allCards?: DivinationCardRow[];
-    paginatedCards?: DivinationCardRow[];
     filteredCards?: DivinationCardRow[];
-    totalPages?: number;
+    currentPage?: number;
+    pageSize?: number;
   } = {},
 ) {
   mockUseCards.mockReturnValue({
     allCards: overrides.allCards ?? mockAllCards,
     loadCards: mockLoadCards,
-    getPaginatedCards: () => overrides.paginatedCards ?? mockPaginatedCards,
     getFilteredAndSortedCards: () =>
       overrides.filteredCards ?? mockFilteredCards,
-    getTotalPages: () => overrides.totalPages ?? 3,
+    currentPage: overrides.currentPage ?? 1,
+    pageSize: overrides.pageSize ?? 20,
   } as any);
 }
 
@@ -183,22 +183,37 @@ describe("CardsPage", () => {
   });
 
   it("passes paginatedCards to CardsGrid", () => {
-    setupStore({ paginatedCards: mockPaginatedCards });
+    // filteredCards has 3 items, pageSize=20, currentPage=1 → all 3 shown
+    setupStore({ filteredCards: mockFilteredCards, pageSize: 20 });
     renderWithProviders(<CardsPage />);
 
     const grid = screen.getByTestId("cards-grid");
     expect(grid).toHaveAttribute(
       "data-count",
-      String(mockPaginatedCards.length),
+      String(mockFilteredCards.length),
     );
   });
 
+  it("paginates cards based on currentPage and pageSize", () => {
+    // 3 filtered cards, pageSize=2, page 1 → first 2 shown
+    setupStore({
+      filteredCards: mockFilteredCards,
+      pageSize: 2,
+      currentPage: 1,
+    });
+    renderWithProviders(<CardsPage />);
+
+    const grid = screen.getByTestId("cards-grid");
+    expect(grid).toHaveAttribute("data-count", "2");
+  });
+
   it("passes totalPages to CardsPagination", () => {
-    setupStore({ totalPages: 7 });
+    // 3 filtered cards / pageSize 1 = 3 pages
+    setupStore({ filteredCards: mockFilteredCards, pageSize: 1 });
     renderWithProviders(<CardsPage />);
 
     const pagination = screen.getByTestId("cards-pagination");
-    expect(pagination).toHaveAttribute("data-total-pages", "7");
+    expect(pagination).toHaveAttribute("data-total-pages", "3");
   });
 
   it("renders the page container", () => {

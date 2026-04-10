@@ -8,14 +8,20 @@ import { useCardDetails, useProfitForecast } from "~/renderer/store";
  * Compares the user's actual drop rate against the statistical expectation
  * based on Prohibited Library weight data and total stacked decks opened.
  *
- * Reads `totalWeight` from the `profitForecast` slice and computes
- * the luck comparison via the `cardDetails.getLuckComparison` getter.
+ * Reads the card's `probability` from the matching `CardForecastRow` in
+ * `profitForecast.rows` and passes it to the `cardDetails.getLuckComparison`
+ * getter.
  */
 const YourLuckSection = () => {
-  const { getLuckComparison } = useCardDetails();
-  const { totalWeight } = useProfitForecast();
+  const { getLuckComparison, personalAnalytics } = useCardDetails();
+  const { rows } = useProfitForecast();
 
-  const luck = getLuckComparison(totalWeight);
+  const cardName = personalAnalytics?.cardName;
+  const row = cardName ? rows.find((r) => r.cardName === cardName) : undefined;
+
+  if (!row) return null;
+
+  const luck = getLuckComparison(row.probability);
 
   if (!luck) return null;
 

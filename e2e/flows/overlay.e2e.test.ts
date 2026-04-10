@@ -465,10 +465,10 @@ test.describe("Overlay", () => {
 
       // After showing, the tooltip should reflect "Hide Overlay"
       // (the Zustand store updates via onVisibilityChanged listener)
-      // Give the store a moment to propagate
-      await page.waitForTimeout(200);
-
       if (tooltipVisible) {
+        await expect(tooltipContainer).toHaveAttribute("data-tip", /Overlay/, {
+          timeout: 5_000,
+        });
         const dataTipAfter = await tooltipContainer.getAttribute("data-tip");
         if (dataTipAfter) {
           expect(dataTipAfter).toContain("Overlay");

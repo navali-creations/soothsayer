@@ -21,9 +21,9 @@
 import type { Page } from "@playwright/test";
 
 import { expect, test } from "../../helpers/electron-test";
+import { setSetting } from "../../helpers/ipc-helpers";
 import {
   ensurePostSetup,
-  expectRouteStartsWith,
   getCurrentRoute,
   navigateTo,
 } from "../../helpers/navigation";
@@ -182,7 +182,6 @@ async function navigateToForecast(page: Page) {
   const currentRoute = await getCurrentRoute(page);
   if (currentRoute === "/profit-forecast") {
     await navigateTo(page, "/");
-    await page.waitForTimeout(200);
   }
 
   await goToProfitForecast(page);
@@ -191,7 +190,6 @@ async function navigateToForecast(page: Page) {
   // Switch to Table view for tests that interact with table rows
   const tableTab = page.getByRole("button", { name: "Table" });
   await tableTab.click();
-  await page.waitForTimeout(300);
 
   // Wait for the table to actually have rows after switching view
   await expect
@@ -230,7 +228,7 @@ async function openHelpModal(page: Page) {
       });
     })
     .catch(() => {});
-  await page.waitForTimeout(200);
+  await expect(page.locator("dialog[open]")).toHaveCount(0, { timeout: 2_000 });
 
   // The help button is inside main, has class gap-1, contains an SVG with
   // class w-4 h-4 (the FiHelpCircle icon), and has no visible text.
@@ -253,6 +251,20 @@ async function openHelpModal(page: Page) {
 test.describe("Profit Forecast – UI & Modal", () => {
   test.beforeEach(async ({ page }) => {
     await ensurePostSetup(page);
+    // Workers are reused across test files. A prior file (e.g. app-menu)
+    // may have changed `poe1SelectedLeague` to a league whose
+    // `divination_card_availability` rows don't exist, causing
+    // `loadCards(onlyInPool=true)` to return 0 cards → empty table.
+    // Reset to "Standard" in both the DB and the Zustand store.
+    await setSetting(page, "poe1SelectedLeague", "Standard");
+    await page.evaluate(() => {
+      const store = (window as any).__zustandStore;
+      if (store) {
+        store.setState((s: any) => {
+          s.settings.poe1SelectedLeague = "Standard";
+        });
+      }
+    });
     await ensureDataSeeded(page);
   });
 
@@ -435,17 +447,16 @@ test.describe("Profit Forecast – UI & Modal", () => {
 
       // Check the box to hide anomalous rows
       await anomalousCheckbox.check();
-      await page.waitForTimeout(300);
-
-      const filteredRowCount = await tableRows.count();
-      expect(filteredRowCount).toBeLessThan(initialRowCount);
+      await expect
+        .poll(async () => tableRows.count(), {
+          timeout: 3_000,
+          intervals: [100, 200],
+        })
+        .toBeLessThan(initialRowCount);
 
       // Uncheck — rows should return
       await anomalousCheckbox.uncheck();
-      await page.waitForTimeout(300);
-
-      const restoredRowCount = await tableRows.count();
-      expect(restoredRowCount).toBe(initialRowCount);
+      await expect(tableRows).toHaveCount(initialRowCount, { timeout: 3_000 });
     });
 
     test("hide low confidence checkbox filters table rows when low confidence cards exist", async ({
@@ -464,17 +475,16 @@ test.describe("Profit Forecast – UI & Modal", () => {
 
       // Check the box to hide low confidence rows
       await lowConfCheckbox.check();
-      await page.waitForTimeout(300);
-
-      const filteredRowCount = await tableRows.count();
-      expect(filteredRowCount).toBeLessThan(initialRowCount);
+      await expect
+        .poll(async () => tableRows.count(), {
+          timeout: 3_000,
+          intervals: [100, 200],
+        })
+        .toBeLessThan(initialRowCount);
 
       // Uncheck — rows should return
       await lowConfCheckbox.uncheck();
-      await page.waitForTimeout(300);
-
-      const restoredRowCount = await tableRows.count();
-      expect(restoredRowCount).toBe(initialRowCount);
+      await expect(tableRows).toHaveCount(initialRowCount, { timeout: 3_000 });
     });
   });
 
@@ -502,10 +512,11 @@ test.describe("Profit Forecast – UI & Modal", () => {
       await cardLink.click();
 
       // Wait for navigation to settle
-      await page.waitForTimeout(500);
-
-      // Assert the route navigated to /cards/<slug>
-      await expectRouteStartsWith(page, "/cards/");
+      await expect
+        .poll(async () => page.evaluate(() => window.location.hash), {
+          timeout: 5_000,
+        })
+        .toMatch(/^#\/cards\//);
 
       // Verify the card detail page loaded
       const main = page.locator("main");

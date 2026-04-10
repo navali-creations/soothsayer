@@ -123,7 +123,21 @@ export interface DivinationCardsTable {
   flavour_html: string;
   game: "poe1" | "poe2";
   data_hash: string;
-  from_boss: ColumnType<number, number | undefined, number | undefined>; // SQLite boolean (0 or 1)
+  created_at: ColumnType<string, string | undefined, never>;
+  updated_at: ColumnType<string, string | undefined, string | undefined>;
+}
+
+export interface DivinationCardAvailabilityTable {
+  game: "poe1" | "poe2";
+  league: string;
+  card_name: string;
+  from_boss: ColumnType<number, number | undefined, number | undefined>;
+  is_disabled: ColumnType<number, number | undefined, number | undefined>;
+  weight: ColumnType<
+    number | null,
+    number | null | undefined,
+    number | null | undefined
+  >;
   created_at: ColumnType<string, string | undefined, never>;
   updated_at: ColumnType<string, string | undefined, string | undefined>;
 }
@@ -134,6 +148,7 @@ export interface DivinationCardRaritiesTable {
   card_name: string;
   rarity: Rarity; // 0=unknown, 1=extremely rare, 2=rare, 3=less common, 4=common
   override_rarity: Rarity | null; // User-set rarity override for low-confidence/unknown cards; NULL = use system rarity
+  prohibited_library_rarity: Rarity | null;
   last_updated: ColumnType<string, string | undefined, string | undefined>;
 }
 
@@ -154,28 +169,6 @@ export interface PoeLeaguesCacheMetadataTable {
   game: "poe1" | "poe2";
   last_fetched_at: string;
   created_at: ColumnType<string, string | undefined, never>;
-}
-
-export interface ProhibitedLibraryCardWeightsTable {
-  card_name: string;
-  game: "poe1" | "poe2";
-  league: string;
-  weight: number;
-  rarity: Rarity;
-  from_boss: number; // SQLite boolean (0 or 1)
-  loaded_at: string;
-  created_at: ColumnType<string, string | undefined, never>;
-  updated_at: ColumnType<string, string | undefined, string | undefined>;
-}
-
-export interface ProhibitedLibraryCacheMetadataTable {
-  game: "poe1" | "poe2";
-  league: string;
-  loaded_at: string;
-  app_version: string;
-  card_count: number;
-  created_at: ColumnType<string, string | undefined, never>;
-  updated_at: ColumnType<string, string | undefined, string | undefined>;
 }
 
 export interface MigrationsTable {
@@ -318,6 +311,7 @@ export interface Database {
   cards: CardsTable;
   divination_cards: DivinationCardsTable;
   divination_card_rarities: DivinationCardRaritiesTable;
+  divination_card_availability: DivinationCardAvailabilityTable;
   poe_leagues_cache: PoeLeaguesCacheTable;
   poe_leagues_cache_metadata: PoeLeaguesCacheMetadataTable;
   card_price_history_cache: CardPriceHistoryCacheTable;
@@ -326,8 +320,6 @@ export interface Database {
   user_settings: UserSettingsTable;
   filter_metadata: FilterMetadataTable;
   filter_card_rarities: FilterCardRaritiesTable;
-  prohibited_library_card_weights: ProhibitedLibraryCardWeightsTable;
-  prohibited_library_cache_metadata: ProhibitedLibraryCacheMetadataTable;
 }
 
 /**
@@ -347,9 +339,5 @@ export type PoeLeaguesCacheMetadataRow =
   Selectable<PoeLeaguesCacheMetadataTable>;
 export type FilterMetadataRow = Selectable<FilterMetadataTable>;
 export type FilterCardRaritiesRow = Selectable<FilterCardRaritiesTable>;
-export type ProhibitedLibraryCardWeightsRow =
-  Selectable<ProhibitedLibraryCardWeightsTable>;
-export type ProhibitedLibraryCacheMetadataRow =
-  Selectable<ProhibitedLibraryCacheMetadataTable>;
 export type CardPriceHistoryCacheRow = Selectable<CardPriceHistoryCacheTable>;
 export type CsvExportSnapshotsRow = Selectable<CsvExportSnapshotsTable>;

@@ -54,6 +54,12 @@ export interface StatisticsSlice {
     showUncollectedCards: boolean;
     sessionHighlights: SessionHighlights | null;
     stackedDeckCardCount: number | null;
+    cardPoolBreakdown: {
+      total: number;
+      bossOnly: number;
+      disabled: number;
+      droppable: number;
+    } | null;
     uncollectedCardNames: string[];
     uncollectedCardMetadata: Record<string, DivinationCardMetadata>;
     isLoadingHighlights: boolean;
@@ -126,6 +132,7 @@ export const createStatisticsSlice: StateCreator<
     showUncollectedCards: false,
     sessionHighlights: null,
     stackedDeckCardCount: null,
+    cardPoolBreakdown: null,
     uncollectedCardNames: [],
     uncollectedCardMetadata: {},
     isLoadingHighlights: false,
@@ -310,6 +317,7 @@ export const createStatisticsSlice: StateCreator<
                 flavourHtml: card.flavourHtml,
                 rarity: card.rarity,
                 fromBoss: card.fromBoss,
+                isDisabled: card.isDisabled,
               };
             }
           }
@@ -352,18 +360,20 @@ export const createStatisticsSlice: StateCreator<
           totalNetProfit,
           totalTimeSpent,
           winRate,
+          cardPoolBreakdown,
         ] = await Promise.all([
           window.electron.sessions.getMostProfitable(game, league),
           window.electron.sessions.getLongestSession(game, league),
           window.electron.sessions.getMostDecksOpened(game, league),
           window.electron.sessions.getTotalDecksOpened(game, league),
-          window.electron.sessions.getStackedDeckCardCount(game),
+          window.electron.sessions.getStackedDeckCardCount(game, league),
           window.electron.sessions.getSessionAverages(game, league),
           window.electron.sessions.getBiggestLetdown(game, league),
           window.electron.sessions.getLuckyBreak(game, league),
           window.electron.sessions.getTotalNetProfit(game, league),
           window.electron.sessions.getTotalTimeSpent(game, league),
           window.electron.sessions.getWinRate(game, league),
+          window.electron.sessions.getCardPoolBreakdown(game, league),
         ]);
 
         // Derive avg profit per deck from total profit and total decks
@@ -404,6 +414,7 @@ export const createStatisticsSlice: StateCreator<
           };
           statistics.stackedDeckCardCount =
             stackedDeckCardCount > 0 ? stackedDeckCardCount : null;
+          statistics.cardPoolBreakdown = cardPoolBreakdown;
           statistics.isLoadingHighlights = false;
           statistics._lastHighlightsKey = key;
           statistics._pendingHighlightsKey = "";
@@ -413,6 +424,7 @@ export const createStatisticsSlice: StateCreator<
         set(({ statistics }) => {
           statistics.sessionHighlights = null;
           statistics.stackedDeckCardCount = null;
+          statistics.cardPoolBreakdown = null;
           statistics.isLoadingHighlights = false;
           statistics._lastHighlightsKey = "";
           statistics._pendingHighlightsKey = "";

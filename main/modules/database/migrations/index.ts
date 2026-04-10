@@ -11,6 +11,11 @@ import { migration_20260305_014700_add_card_price_history_cache } from "./202603
 import { migration_20260314_131100_add_csv_export_snapshots } from "./20260314_131100_add_csv_export_snapshots";
 import { migration_20260331_225900_create_session_card_events } from "./20260331_225900_create_session_card_events";
 import { migration_20260405_114200_remove_autoincrement } from "./20260405_114200_remove_autoincrement";
+import { migration_20260408_160000_create_availability_and_drop_from_boss } from "./20260408_160000_create_availability_and_drop_from_boss";
+import { migration_20260408_170000_add_weight_to_availability } from "./20260408_170000_add_weight_to_availability";
+import { migration_20260408_180000_add_pl_rarity_to_card_rarities } from "./20260408_180000_add_pl_rarity_to_card_rarities";
+import { migration_20260408_190000_drop_prohibited_library_tables } from "./20260408_190000_drop_prohibited_library_tables";
+import { migration_20260410_010600_index_optimization_cleanup } from "./20260410_010600_index_optimization_cleanup";
 import type { Migration } from "./Migration.interface";
 
 /**
@@ -34,6 +39,11 @@ export const migrations: Migration[] = [
   migration_20260314_131100_add_csv_export_snapshots,
   migration_20260331_225900_create_session_card_events,
   migration_20260405_114200_remove_autoincrement,
+  migration_20260408_160000_create_availability_and_drop_from_boss,
+  migration_20260408_170000_add_weight_to_availability,
+  migration_20260408_180000_add_pl_rarity_to_card_rarities,
+  migration_20260408_190000_drop_prohibited_library_tables,
+  migration_20260410_010600_index_optimization_cleanup,
 ];
 
 export type { Migration } from "./Migration.interface";

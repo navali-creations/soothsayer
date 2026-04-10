@@ -50,9 +50,9 @@ function makePersonalAnalytics(overrides: Record<string, unknown> = {}) {
   return {
     totalLifetimeDrops: 5,
     totalDecksOpenedAllSessions: 200,
+    weight: 500,
     dropTimeline: [],
     leagueDateRanges: [],
-    prohibitedLibrary: null,
     ...overrides,
   };
 }
@@ -204,7 +204,7 @@ describe("CardDetails.slice", () => {
 
       const promise = store
         .getState()
-        .cardDetails.initializeCardDetails("poe1", "the-doctor", null, "all");
+        .cardDetails.initializeCardDetails("poe1", "the-doctor", "all");
 
       expect(store.getState().cardDetails.isLoadingCard).toBe(true);
       expect(store.getState().cardDetails.isLoadingPersonalAnalytics).toBe(
@@ -234,7 +234,7 @@ describe("CardDetails.slice", () => {
 
       const promise = store
         .getState()
-        .cardDetails.initializeCardDetails("poe1", "the-doctor", null, "all");
+        .cardDetails.initializeCardDetails("poe1", "the-doctor", "all");
 
       expect(store.getState().cardDetails.card).toBeNull();
       expect(store.getState().cardDetails.personalAnalytics).toBeNull();
@@ -250,7 +250,7 @@ describe("CardDetails.slice", () => {
 
       await store
         .getState()
-        .cardDetails.initializeCardDetails("poe1", "the-doctor", null, "all");
+        .cardDetails.initializeCardDetails("poe1", "the-doctor", "all");
 
       const state = store.getState().cardDetails;
       expect(state.card).toEqual(result.card);
@@ -269,17 +269,11 @@ describe("CardDetails.slice", () => {
 
       await store
         .getState()
-        .cardDetails.initializeCardDetails(
-          "poe1",
-          "the-doctor",
-          "Settlers",
-          "all",
-        );
+        .cardDetails.initializeCardDetails("poe1", "the-doctor", "all");
 
       expect(electron.cardDetails.resolveCardBySlug).toHaveBeenCalledWith(
         "poe1",
         "the-doctor",
-        "Settlers",
         undefined,
       );
     });
@@ -291,17 +285,11 @@ describe("CardDetails.slice", () => {
 
       await store
         .getState()
-        .cardDetails.initializeCardDetails(
-          "poe1",
-          "the-doctor",
-          "Settlers",
-          "Necropolis",
-        );
+        .cardDetails.initializeCardDetails("poe1", "the-doctor", "Necropolis");
 
       expect(electron.cardDetails.resolveCardBySlug).toHaveBeenCalledWith(
         "poe1",
         "the-doctor",
-        "Settlers",
         "Necropolis",
       );
     });
@@ -311,7 +299,7 @@ describe("CardDetails.slice", () => {
 
       await store
         .getState()
-        .cardDetails.initializeCardDetails("poe1", "nonexistent", null, "all");
+        .cardDetails.initializeCardDetails("poe1", "nonexistent", "all");
 
       const state = store.getState().cardDetails;
       expect(state.card).toBeNull();
@@ -328,7 +316,7 @@ describe("CardDetails.slice", () => {
 
       await store
         .getState()
-        .cardDetails.initializeCardDetails("poe1", "the-doctor", null, "all");
+        .cardDetails.initializeCardDetails("poe1", "the-doctor", "all");
 
       const state = store.getState().cardDetails;
       expect(state.card).toBeNull();
@@ -343,7 +331,7 @@ describe("CardDetails.slice", () => {
 
       await store
         .getState()
-        .cardDetails.initializeCardDetails("poe1", "the-doctor", null, "all");
+        .cardDetails.initializeCardDetails("poe1", "the-doctor", "all");
 
       expect(store.getState().cardDetails.cardError).toBe(
         "Failed to load card details",
@@ -357,7 +345,7 @@ describe("CardDetails.slice", () => {
       );
       await store
         .getState()
-        .cardDetails.initializeCardDetails("poe1", "the-doctor", null, "all");
+        .cardDetails.initializeCardDetails("poe1", "the-doctor", "all");
       expect(store.getState().cardDetails.cardError).toBe("first error");
 
       // Second call succeeds
@@ -366,7 +354,7 @@ describe("CardDetails.slice", () => {
       );
       await store
         .getState()
-        .cardDetails.initializeCardDetails("poe1", "the-doctor", null, "all");
+        .cardDetails.initializeCardDetails("poe1", "the-doctor", "all");
       expect(store.getState().cardDetails.cardError).toBeNull();
     });
   });
@@ -374,22 +362,6 @@ describe("CardDetails.slice", () => {
   // ─── refreshPersonalAnalytics ──────────────────────────────────────
 
   describe("refreshPersonalAnalytics", () => {
-    it("does nothing when plLeague is null", async () => {
-      await store
-        .getState()
-        .cardDetails.refreshPersonalAnalytics(
-          "poe1",
-          null,
-          "The Doctor",
-          "all",
-        );
-
-      expect(electron.cardDetails.getPersonalAnalytics).not.toHaveBeenCalled();
-      expect(store.getState().cardDetails.isLoadingPersonalAnalytics).toBe(
-        false,
-      );
-    });
-
     it("sets loading and leagueSwitching flags on start", async () => {
       let resolveIpc!: (value: unknown) => void;
       electron.cardDetails.getPersonalAnalytics.mockReturnValue(
@@ -400,12 +372,7 @@ describe("CardDetails.slice", () => {
 
       const promise = store
         .getState()
-        .cardDetails.refreshPersonalAnalytics(
-          "poe1",
-          "Settlers",
-          "The Doctor",
-          "all",
-        );
+        .cardDetails.refreshPersonalAnalytics("poe1", "The Doctor", "all");
 
       expect(store.getState().cardDetails.isLoadingPersonalAnalytics).toBe(
         true,
@@ -422,12 +389,7 @@ describe("CardDetails.slice", () => {
 
       await store
         .getState()
-        .cardDetails.refreshPersonalAnalytics(
-          "poe1",
-          "Settlers",
-          "The Doctor",
-          "all",
-        );
+        .cardDetails.refreshPersonalAnalytics("poe1", "The Doctor", "all");
 
       const state = store.getState().cardDetails;
       expect(state.personalAnalytics).toEqual(analytics);
@@ -442,16 +404,11 @@ describe("CardDetails.slice", () => {
 
       await store
         .getState()
-        .cardDetails.refreshPersonalAnalytics(
-          "poe1",
-          "Settlers",
-          "The Doctor",
-          "all",
-        );
+        .cardDetails.refreshPersonalAnalytics("poe1", "The Doctor", "all");
 
       expect(electron.cardDetails.getPersonalAnalytics).toHaveBeenCalledWith(
         "poe1",
-        "Settlers",
+        "all",
         "The Doctor",
         undefined,
       );
@@ -466,14 +423,13 @@ describe("CardDetails.slice", () => {
         .getState()
         .cardDetails.refreshPersonalAnalytics(
           "poe1",
-          "Settlers",
           "The Doctor",
           "Necropolis",
         );
 
       expect(electron.cardDetails.getPersonalAnalytics).toHaveBeenCalledWith(
         "poe1",
-        "Settlers",
+        "Necropolis",
         "The Doctor",
         "Necropolis",
       );
@@ -486,12 +442,7 @@ describe("CardDetails.slice", () => {
 
       await store
         .getState()
-        .cardDetails.refreshPersonalAnalytics(
-          "poe1",
-          "Settlers",
-          "The Doctor",
-          "all",
-        );
+        .cardDetails.refreshPersonalAnalytics("poe1", "The Doctor", "all");
 
       const state = store.getState().cardDetails;
       expect(state.personalAnalyticsError).toBe("analytics error");
@@ -504,12 +455,7 @@ describe("CardDetails.slice", () => {
 
       await store
         .getState()
-        .cardDetails.refreshPersonalAnalytics(
-          "poe1",
-          "Settlers",
-          "The Doctor",
-          "all",
-        );
+        .cardDetails.refreshPersonalAnalytics("poe1", "The Doctor", "all");
 
       expect(store.getState().cardDetails.personalAnalyticsError).toBe(
         "Failed to load personal analytics",
@@ -952,19 +898,18 @@ describe("CardDetails.slice", () => {
       expect(store.getState().cardDetails.isLoadingRelatedCards).toBe(false);
     });
 
-    it("passes league argument to IPC", async () => {
+    it("passes arguments to IPC", async () => {
       electron.cardDetails.getRelatedCards.mockResolvedValue(
         makeRelatedCards(),
       );
 
       await store
         .getState()
-        .cardDetails.fetchRelatedCards("poe1", "The Doctor", "Settlers");
+        .cardDetails.fetchRelatedCards("poe1", "The Doctor");
 
       expect(electron.cardDetails.getRelatedCards).toHaveBeenCalledWith(
         "poe1",
         "The Doctor",
-        "Settlers",
       );
     });
 
@@ -1006,7 +951,7 @@ describe("CardDetails.slice", () => {
       electron.cardDetails.resolveCardBySlug.mockResolvedValue(result);
       await store
         .getState()
-        .cardDetails.initializeCardDetails("poe1", "the-doctor", null, "all");
+        .cardDetails.initializeCardDetails("poe1", "the-doctor", "all");
 
       const priceHistory = makePriceHistory();
       electron.cardDetails.getPriceHistory.mockResolvedValue(priceHistory);
@@ -1113,40 +1058,31 @@ describe("CardDetails.slice", () => {
         expect(store.getState().cardDetails.getDisplayRarity()).toBe(1);
       });
 
-      it("returns personalAnalytics PL rarity over card PL rarity", () => {
+      it("uses card PL rarity over poe.ninja rarity", () => {
         store.setState((s) => {
           s.cardDetails.card = makeCard({
             rarity: 2,
             prohibitedLibraryRarity: 1,
           }) as any;
-          s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            prohibitedLibrary: { rarity: 3, weight: 100 },
-          }) as any;
         });
-        expect(store.getState().cardDetails.getDisplayRarity()).toBe(3);
+        expect(store.getState().cardDetails.getDisplayRarity()).toBe(1);
       });
 
-      it("falls through cascade: no analytics PL → no card PL → card rarity", () => {
+      it("falls through to card rarity when PL rarity is null", () => {
         store.setState((s) => {
           s.cardDetails.card = makeCard({
             rarity: 1,
             prohibitedLibraryRarity: null,
           }) as any;
-          s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            prohibitedLibrary: null,
-          }) as any;
         });
         expect(store.getState().cardDetails.getDisplayRarity()).toBe(1);
       });
 
-      it("uses card PL rarity when analytics PL is null", () => {
+      it("uses card PL rarity when available", () => {
         store.setState((s) => {
           s.cardDetails.card = makeCard({
             rarity: 4,
             prohibitedLibraryRarity: 2,
-          }) as any;
-          s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            prohibitedLibrary: null,
           }) as any;
         });
         expect(store.getState().cardDetails.getDisplayRarity()).toBe(2);
@@ -1159,11 +1095,8 @@ describe("CardDetails.slice", () => {
             rarity: 0,
             prohibitedLibraryRarity: null,
           }) as any;
-          s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            prohibitedLibrary: null,
-          }) as any;
         });
-        // null ?? null ?? 0 → 0
+        // null ?? 0 → 0
         expect(store.getState().cardDetails.getDisplayRarity()).toBe(0);
       });
     });
@@ -1493,472 +1426,115 @@ describe("CardDetails.slice", () => {
       });
     });
 
-    // ─── getDropProbability ──────────────────────────────────────────
-
-    describe("getDropProbability", () => {
-      it("returns null when no analytics", () => {
-        expect(
-          store.getState().cardDetails.getDropProbability(10000),
-        ).toBeNull();
-      });
-
-      it("returns null when no prohibitedLibrary data", () => {
-        store.setState((s) => {
-          s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            prohibitedLibrary: null,
-          }) as any;
-        });
-        expect(
-          store.getState().cardDetails.getDropProbability(10000),
-        ).toBeNull();
-      });
-
-      it("returns null when weight is 0", () => {
-        store.setState((s) => {
-          s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            prohibitedLibrary: { rarity: 1, weight: 0 },
-          }) as any;
-        });
-        expect(
-          store.getState().cardDetails.getDropProbability(10000),
-        ).toBeNull();
-      });
-
-      it("returns null when totalWeight is 0", () => {
-        store.setState((s) => {
-          s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            prohibitedLibrary: { rarity: 1, weight: 50 },
-          }) as any;
-        });
-        expect(store.getState().cardDetails.getDropProbability(0)).toBeNull();
-      });
-
-      it("returns null when totalWeight is negative", () => {
-        store.setState((s) => {
-          s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            prohibitedLibrary: { rarity: 1, weight: 50 },
-          }) as any;
-        });
-        expect(
-          store.getState().cardDetails.getDropProbability(-100),
-        ).toBeNull();
-      });
-
-      it("computes probability and expectedDecks", () => {
-        store.setState((s) => {
-          s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            prohibitedLibrary: { rarity: 1, weight: 100 },
-          }) as any;
-        });
-
-        const result = store.getState().cardDetails.getDropProbability(10000);
-        expect(result).not.toBeNull();
-        expect(result!.probability).toBe(0.01);
-        expect(result!.expectedDecks).toBe(100);
-      });
-
-      it("formats dropChanceFormatted as '1 in X'", () => {
-        store.setState((s) => {
-          s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            prohibitedLibrary: { rarity: 1, weight: 50 },
-          }) as any;
-        });
-
-        const result = store.getState().cardDetails.getDropProbability(10000);
-        expect(result!.dropChanceFormatted).toBe("1 in 200");
-      });
-
-      it("formats percentFormatted for >= 1%", () => {
-        store.setState((s) => {
-          s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            prohibitedLibrary: { rarity: 4, weight: 2000 },
-          }) as any;
-        });
-
-        const result = store.getState().cardDetails.getDropProbability(10000);
-        // 2000/10000 = 20%
-        expect(result!.percentFormatted).toBe("20.0%");
-      });
-
-      it("formats percentFormatted for small percentages (>= 0.01%)", () => {
-        store.setState((s) => {
-          s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            prohibitedLibrary: { rarity: 1, weight: 50 },
-          }) as any;
-        });
-
-        const result = store.getState().cardDetails.getDropProbability(10000);
-        // 50/10000 = 0.5%
-        expect(result!.percentFormatted).toBe("0.5000%");
-      });
-
-      it("formats percentFormatted with scientific notation for very small values", () => {
-        store.setState((s) => {
-          s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            prohibitedLibrary: { rarity: 1, weight: 1 },
-          }) as any;
-        });
-
-        const result = store.getState().cardDetails.getDropProbability(1000000);
-        // 1/1000000 = 0.0001% which is < 0.01%
-        expect(result!.percentFormatted).toMatch(/e/);
-      });
-
-      it("computes correct values for common card", () => {
-        store.setState((s) => {
-          s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            prohibitedLibrary: { rarity: 4, weight: 5000 },
-          }) as any;
-        });
-
-        const result = store.getState().cardDetails.getDropProbability(10000);
-        expect(result!.probability).toBe(0.5);
-        expect(result!.expectedDecks).toBe(2);
-        expect(result!.percentFormatted).toBe("50.0%");
-      });
-    });
-
-    // ─── getEvContribution ───────────────────────────────────────────
-
-    describe("getEvContribution", () => {
-      it("returns null when no analytics", () => {
-        expect(
-          store.getState().cardDetails.getEvContribution(10000, 100),
-        ).toBeNull();
-      });
-
-      it("returns null when no prohibitedLibrary data", () => {
-        store.setState((s) => {
-          s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            prohibitedLibrary: null,
-          }) as any;
-        });
-        expect(
-          store.getState().cardDetails.getEvContribution(10000, 100),
-        ).toBeNull();
-      });
-
-      it("returns null when weight is 0", () => {
-        store.setState((s) => {
-          s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            prohibitedLibrary: { rarity: 1, weight: 0 },
-          }) as any;
-        });
-        expect(
-          store.getState().cardDetails.getEvContribution(10000, 100),
-        ).toBeNull();
-      });
-
-      it("returns null when totalWeight is 0", () => {
-        store.setState((s) => {
-          s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            prohibitedLibrary: { rarity: 1, weight: 50 },
-          }) as any;
-        });
-        expect(
-          store.getState().cardDetails.getEvContribution(0, 100),
-        ).toBeNull();
-      });
-
-      it("returns null when chaosValue is 0", () => {
-        store.setState((s) => {
-          s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            prohibitedLibrary: { rarity: 1, weight: 50 },
-          }) as any;
-        });
-        expect(
-          store.getState().cardDetails.getEvContribution(10000, 0),
-        ).toBeNull();
-      });
-
-      it("returns null when chaosValue is negative", () => {
-        store.setState((s) => {
-          s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            prohibitedLibrary: { rarity: 1, weight: 50 },
-          }) as any;
-        });
-        expect(
-          store.getState().cardDetails.getEvContribution(10000, -10),
-        ).toBeNull();
-      });
-
-      it("computes probability × chaosValue", () => {
-        store.setState((s) => {
-          s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            prohibitedLibrary: { rarity: 1, weight: 100 },
-          }) as any;
-        });
-
-        // probability = 100/10000 = 0.01
-        // ev = 0.01 × 500 = 5.0
-        const result = store
-          .getState()
-          .cardDetails.getEvContribution(10000, 500);
-        expect(result).toBe(5);
-      });
-
-      it("rounds to 4 decimal places", () => {
-        store.setState((s) => {
-          s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            prohibitedLibrary: { rarity: 1, weight: 3 },
-          }) as any;
-        });
-
-        // probability = 3/10000 = 0.0003
-        // ev = 0.0003 × 1234 = 0.3702
-        const result = store
-          .getState()
-          .cardDetails.getEvContribution(10000, 1234);
-        expect(result).toBe(0.3702);
-      });
-
-      it("handles large chaos values", () => {
-        store.setState((s) => {
-          s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            prohibitedLibrary: { rarity: 1, weight: 10 },
-          }) as any;
-        });
-
-        // probability = 10/10000 = 0.001
-        // ev = 0.001 × 100000 = 100.0
-        const result = store
-          .getState()
-          .cardDetails.getEvContribution(10000, 100000);
-        expect(result).toBe(100);
-      });
-    });
-
     // ─── getLuckComparison ───────────────────────────────────────────
 
     describe("getLuckComparison", () => {
-      it("returns null when no analytics", () => {
-        expect(
-          store.getState().cardDetails.getLuckComparison(10000),
-        ).toBeNull();
+      it("returns null when no personalAnalytics", () => {
+        expect(store.getState().cardDetails.getLuckComparison(0.05)).toBeNull();
       });
 
-      it("returns null when no prohibitedLibrary data", () => {
+      it("returns null when probability is 0", () => {
         store.setState((s) => {
-          s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            prohibitedLibrary: null,
-          }) as any;
-        });
-        expect(
-          store.getState().cardDetails.getLuckComparison(10000),
-        ).toBeNull();
-      });
-
-      it("returns null when weight is 0", () => {
-        store.setState((s) => {
-          s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            prohibitedLibrary: { rarity: 1, weight: 0 },
-          }) as any;
-        });
-        expect(
-          store.getState().cardDetails.getLuckComparison(10000),
-        ).toBeNull();
-      });
-
-      it("returns null when totalWeight is 0", () => {
-        store.setState((s) => {
-          s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            prohibitedLibrary: { rarity: 1, weight: 50 },
-          }) as any;
+          s.cardDetails.personalAnalytics = makePersonalAnalytics() as any;
         });
         expect(store.getState().cardDetails.getLuckComparison(0)).toBeNull();
       });
 
-      it("returns hasSufficientData=false when totalDecks < 100", () => {
+      it("returns null when probability is negative", () => {
+        store.setState((s) => {
+          s.cardDetails.personalAnalytics = makePersonalAnalytics() as any;
+        });
+        expect(
+          store.getState().cardDetails.getLuckComparison(-0.05),
+        ).toBeNull();
+      });
+
+      it("returns edge-case result when totalDecksOpenedAllSessions is 0", () => {
         store.setState((s) => {
           s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            totalDecksOpenedAllSessions: 50,
-            totalLifetimeDrops: 2,
-            prohibitedLibrary: { rarity: 1, weight: 100 },
+            totalDecksOpenedAllSessions: 0,
           }) as any;
         });
-
-        const result = store.getState().cardDetails.getLuckComparison(10000);
+        const result = store.getState().cardDetails.getLuckComparison(0.05);
+        // expectedDrops = 0.05 * 0 = 0, but actualDrops defaults to 5
+        // so we hit the expectedDrops <= 0 edge case
         expect(result).not.toBeNull();
+        expect(result!.expectedDrops).toBe(0);
+        expect(result!.actualDrops).toBe(5);
+        expect(result!.luckRatio).toBe(Number.POSITIVE_INFINITY);
+        expect(result!.label).toBe("∞× luckier");
+        expect(result!.color).toBe("success");
         expect(result!.hasSufficientData).toBe(false);
       });
 
-      it("returns hasSufficientData=true when totalDecks >= 100", () => {
+      it("returns informative 'luckier' label when luckRatio >= 1.2", () => {
         store.setState((s) => {
           s.cardDetails.personalAnalytics = makePersonalAnalytics({
+            weight: 500,
+            totalLifetimeDrops: 30,
             totalDecksOpenedAllSessions: 200,
-            totalLifetimeDrops: 3,
-            prohibitedLibrary: { rarity: 1, weight: 100 },
           }) as any;
         });
-
-        const result = store.getState().cardDetails.getLuckComparison(10000);
-        expect(result!.hasSufficientData).toBe(true);
-      });
-
-      it("returns hasSufficientData=true at exactly 100 decks", () => {
-        store.setState((s) => {
-          s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            totalDecksOpenedAllSessions: 100,
-            totalLifetimeDrops: 1,
-            prohibitedLibrary: { rarity: 1, weight: 100 },
-          }) as any;
-        });
-
-        const result = store.getState().cardDetails.getLuckComparison(10000);
-        expect(result!.hasSufficientData).toBe(true);
-      });
-
-      it("returns 'success' color and luckier label when luckRatio >= 1.2", () => {
-        // probability = 100/10000 = 0.01
-        // expectedDrops = 1000 * 0.01 = 10
-        // actualDrops = 15
-        // luckRatio = 15/10 = 1.5
-        store.setState((s) => {
-          s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            totalDecksOpenedAllSessions: 1000,
-            totalLifetimeDrops: 15,
-            prohibitedLibrary: { rarity: 1, weight: 100 },
-          }) as any;
-        });
-
-        const result = store.getState().cardDetails.getLuckComparison(10000);
-        expect(result!.luckRatio).toBe(1.5);
-        expect(result!.label).toContain("luckier");
+        const result = store.getState().cardDetails.getLuckComparison(0.05);
+        expect(result).not.toBeNull();
+        // expected = 0.05 * 200 = 10, actual = 30, ratio = 3.0
+        expect(result!.expectedDrops).toBeCloseTo(10);
+        expect(result!.actualDrops).toBe(30);
+        expect(result!.luckRatio).toBeCloseTo(3.0);
+        expect(result!.label).toBe("3.0× luckier than average");
         expect(result!.color).toBe("success");
       });
 
-      it("returns 'error' color and below expected label when luckRatio <= 0.8", () => {
-        // expectedDrops = 1000 * 0.01 = 10
-        // actualDrops = 5
-        // luckRatio = 5/10 = 0.5
+      it("returns informative 'below expected' label when luckRatio <= 0.8", () => {
         store.setState((s) => {
           s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            totalDecksOpenedAllSessions: 1000,
-            totalLifetimeDrops: 5,
-            prohibitedLibrary: { rarity: 1, weight: 100 },
+            weight: 500,
+            totalLifetimeDrops: 1,
+            totalDecksOpenedAllSessions: 200,
           }) as any;
         });
-
-        const result = store.getState().cardDetails.getLuckComparison(10000);
-        expect(result!.luckRatio).toBe(0.5);
-        expect(result!.label).toContain("below expected");
+        const result = store.getState().cardDetails.getLuckComparison(0.05);
+        expect(result).not.toBeNull();
+        // expected = 0.05 * 200 = 10, actual = 1, ratio = 0.1
+        expect(result!.luckRatio).toBeCloseTo(0.1);
+        expect(result!.label).toBe("0.1× — below expected");
         expect(result!.color).toBe("error");
       });
 
-      it("returns 'warning' color and 'About average' label when ratio is between 0.8 and 1.2", () => {
-        // expectedDrops = 1000 * 0.01 = 10
-        // actualDrops = 10
-        // luckRatio = 10/10 = 1.0
+      it("returns 'About average' when luckRatio is between 0.8 and 1.2", () => {
         store.setState((s) => {
           s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            totalDecksOpenedAllSessions: 1000,
+            weight: 500,
             totalLifetimeDrops: 10,
-            prohibitedLibrary: { rarity: 1, weight: 100 },
+            totalDecksOpenedAllSessions: 200,
           }) as any;
         });
-
-        const result = store.getState().cardDetails.getLuckComparison(10000);
-        expect(result!.luckRatio).toBe(1);
+        const result = store.getState().cardDetails.getLuckComparison(0.05);
+        expect(result).not.toBeNull();
+        // expected = 10, actual = 10, ratio = 1.0
+        expect(result!.luckRatio).toBeCloseTo(1.0);
         expect(result!.label).toBe("About average");
         expect(result!.color).toBe("warning");
       });
 
-      it("classifies exactly 0.8 as below expected", () => {
-        // expectedDrops = 1000 * 0.01 = 10
-        // actualDrops = 8
-        // luckRatio = 8/10 = 0.8
+      it("reports hasSufficientData=true when decks >= 100", () => {
         store.setState((s) => {
           s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            totalDecksOpenedAllSessions: 1000,
-            totalLifetimeDrops: 8,
-            prohibitedLibrary: { rarity: 1, weight: 100 },
+            totalDecksOpenedAllSessions: 100,
           }) as any;
         });
-
-        const result = store.getState().cardDetails.getLuckComparison(10000);
-        expect(result!.luckRatio).toBe(0.8);
-        expect(result!.color).toBe("error");
+        const result = store.getState().cardDetails.getLuckComparison(0.05);
+        expect(result!.hasSufficientData).toBe(true);
       });
 
-      it("classifies exactly 1.2 as luckier", () => {
-        // expectedDrops = 1000 * 0.01 = 10
-        // actualDrops = 12
-        // luckRatio = 12/10 = 1.2
+      it("reports hasSufficientData=false when decks < 100", () => {
         store.setState((s) => {
           s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            totalDecksOpenedAllSessions: 1000,
-            totalLifetimeDrops: 12,
-            prohibitedLibrary: { rarity: 1, weight: 100 },
+            totalDecksOpenedAllSessions: 50,
           }) as any;
         });
-
-        const result = store.getState().cardDetails.getLuckComparison(10000);
-        expect(result!.luckRatio).toBe(1.2);
-        expect(result!.color).toBe("success");
-      });
-
-      it("handles edge case when expectedDrops is 0 but actualDrops > 0", () => {
-        // totalDecks = 0 → expectedDrops = 0
-        store.setState((s) => {
-          s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            totalDecksOpenedAllSessions: 0,
-            totalLifetimeDrops: 3,
-            prohibitedLibrary: { rarity: 1, weight: 100 },
-          }) as any;
-        });
-
-        const result = store.getState().cardDetails.getLuckComparison(10000);
-        expect(result).not.toBeNull();
-        expect(result!.luckRatio).toBe(Infinity);
-        expect(result!.label).toContain("luckier");
-        expect(result!.color).toBe("success");
-      });
-
-      it("handles edge case when expectedDrops is 0 and actualDrops is 0", () => {
-        store.setState((s) => {
-          s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            totalDecksOpenedAllSessions: 0,
-            totalLifetimeDrops: 0,
-            prohibitedLibrary: { rarity: 1, weight: 100 },
-          }) as any;
-        });
-
-        const result = store.getState().cardDetails.getLuckComparison(10000);
-        expect(result).not.toBeNull();
-        expect(result!.luckRatio).toBe(1);
-        expect(result!.label).toBe("As expected");
-        expect(result!.color).toBe("warning");
-      });
-
-      it("computes expectedDrops correctly", () => {
-        // probability = 200/10000 = 0.02
-        // expectedDrops = 500 * 0.02 = 10.0
-        store.setState((s) => {
-          s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            totalDecksOpenedAllSessions: 500,
-            totalLifetimeDrops: 10,
-            prohibitedLibrary: { rarity: 1, weight: 200 },
-          }) as any;
-        });
-
-        const result = store.getState().cardDetails.getLuckComparison(10000);
-        expect(result!.expectedDrops).toBe(10);
-        expect(result!.actualDrops).toBe(10);
-      });
-
-      it("rounds expectedDrops to 2 decimal places", () => {
-        // probability = 100/10000 = 0.01
-        // expectedDrops = 333 * 0.01 = 3.33
-        store.setState((s) => {
-          s.cardDetails.personalAnalytics = makePersonalAnalytics({
-            totalDecksOpenedAllSessions: 333,
-            totalLifetimeDrops: 3,
-            prohibitedLibrary: { rarity: 1, weight: 100 },
-          }) as any;
-        });
-
-        const result = store.getState().cardDetails.getLuckComparison(10000);
-        expect(result!.expectedDrops).toBe(3.33);
+        const result = store.getState().cardDetails.getLuckComparison(0.05);
+        expect(result!.hasSufficientData).toBe(false);
       });
     });
   });
@@ -1980,12 +1556,12 @@ describe("CardDetails.slice", () => {
 
       await store
         .getState()
-        .cardDetails.initializeCardDetails("poe1", "card-a", null, "all");
+        .cardDetails.initializeCardDetails("poe1", "card-a", "all");
       expect(store.getState().cardDetails.card!.name).toBe("Card A");
 
       await store
         .getState()
-        .cardDetails.initializeCardDetails("poe1", "card-b", null, "all");
+        .cardDetails.initializeCardDetails("poe1", "card-b", "all");
       expect(store.getState().cardDetails.card!.name).toBe("Card B");
     });
 
@@ -1995,7 +1571,7 @@ describe("CardDetails.slice", () => {
       );
       await store
         .getState()
-        .cardDetails.initializeCardDetails("poe1", "the-doctor", null, "all");
+        .cardDetails.initializeCardDetails("poe1", "the-doctor", "all");
 
       expect(store.getState().cardDetails.card).not.toBeNull();
 
@@ -2026,12 +1602,7 @@ describe("CardDetails.slice", () => {
       );
       await store
         .getState()
-        .cardDetails.initializeCardDetails(
-          "poe1",
-          "the-doctor",
-          "Settlers",
-          "all",
-        );
+        .cardDetails.initializeCardDetails("poe1", "the-doctor", "all");
       expect(store.getState().cardDetails.card).not.toBeNull();
 
       // 2. Fetch prices
@@ -2056,7 +1627,6 @@ describe("CardDetails.slice", () => {
         .getState()
         .cardDetails.refreshPersonalAnalytics(
           "poe1",
-          "Settlers",
           "The Doctor",
           "Necropolis",
         );
@@ -2082,7 +1652,7 @@ describe("CardDetails.slice", () => {
       );
       await store
         .getState()
-        .cardDetails.initializeCardDetails("poe1", "the-doctor", null, "all");
+        .cardDetails.initializeCardDetails("poe1", "the-doctor", "all");
 
       store.getState().cardDetails.clearCardDetails();
 

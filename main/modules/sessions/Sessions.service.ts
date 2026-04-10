@@ -301,10 +301,16 @@ class SessionsService {
 
     ipcMain.handle(
       SessionsChannel.GetStackedDeckCardCount,
-      async (_event, game: GameType) => {
+      async (_event, game: GameType, league?: string) => {
         try {
           assertGameType(game, SessionsChannel.GetStackedDeckCardCount);
-          return this.repository.getStackedDeckCardCount(game);
+          assertOptionalString(
+            league,
+            "league",
+            SessionsChannel.GetStackedDeckCardCount,
+            256,
+          );
+          return this.repository.getStackedDeckCardCount(game, league);
         } catch (error) {
           return handleValidationError(
             error,
@@ -316,10 +322,16 @@ class SessionsService {
 
     ipcMain.handle(
       SessionsChannel.GetStackedDeckCardNames,
-      async (_event, game: GameType) => {
+      async (_event, game: GameType, league?: string) => {
         try {
           assertGameType(game, SessionsChannel.GetStackedDeckCardNames);
-          return this.repository.getStackedDeckCardNames(game);
+          assertOptionalString(
+            league,
+            "league",
+            SessionsChannel.GetStackedDeckCardNames,
+            256,
+          );
+          return this.repository.getStackedDeckCardNames(game, league);
         } catch (error) {
           return handleValidationError(
             error,
@@ -426,6 +438,28 @@ class SessionsService {
           return this.getSparklines(sessionIds);
         } catch (error) {
           return handleValidationError(error, SessionsChannel.GetSparklines);
+        }
+      },
+    );
+
+    ipcMain.handle(
+      SessionsChannel.GetCardPoolBreakdown,
+      async (_event, game: "poe1" | "poe2", league?: string) => {
+        try {
+          assertGameType(game, SessionsChannel.GetCardPoolBreakdown);
+          assertOptionalString(
+            league,
+            "league",
+            SessionsChannel.GetCardPoolBreakdown,
+            256,
+          );
+          const leagueFilter = league && league !== "all" ? league : undefined;
+          return this.repository.getCardPoolBreakdown(game, leagueFilter);
+        } catch (error) {
+          return handleValidationError(
+            error,
+            SessionsChannel.GetCardPoolBreakdown,
+          );
         }
       },
     );

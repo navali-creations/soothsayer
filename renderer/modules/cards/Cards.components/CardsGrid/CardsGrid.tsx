@@ -1,33 +1,16 @@
 import { useNavigate } from "@tanstack/react-router";
 import { motion } from "motion/react";
+import { useCallback } from "react";
 import { GiCardRandom } from "react-icons/gi";
 
-import DivinationCard from "~/renderer/components/DivinationCard/DivinationCard";
 import { useCards, useSettings } from "~/renderer/store";
 import { cardNameToSlug } from "~/renderer/utils";
-import type { CardEntry, Rarity, RaritySource } from "~/types/data-stores";
 
 import type { DivinationCardRow } from "../../Cards.types";
+import CardGridItem from "../CardGridItem/CardGridItem";
 
 interface CardsGridProps {
   cards: DivinationCardRow[];
-}
-
-/**
- * Resolve the effective rarity for a card based on the active rarity source.
- */
-function getEffectiveRarity(
-  card: DivinationCardRow,
-  raritySource: RaritySource,
-): Rarity {
-  switch (raritySource) {
-    case "filter":
-      return card.filterRarity ?? card.rarity;
-    case "prohibited-library":
-      return card.prohibitedLibraryRarity ?? card.rarity;
-    default:
-      return card.rarity;
-  }
 }
 
 export const CardsGrid = ({ cards }: CardsGridProps) => {
@@ -37,29 +20,25 @@ export const CardsGrid = ({ cards }: CardsGridProps) => {
     searchQuery,
     rarityFilter,
     includeBossCards,
+    includeDisabledCards,
+    showAllCards,
     sortField,
     sortDirection,
   } = useCards();
   const { raritySource } = useSettings();
 
-  const convertToCardEntry = (card: DivinationCardRow): CardEntry => ({
-    name: card.name,
-    count: 0, // No count for gallery view
-    processedIds: [],
-    divinationCard: {
-      id: card.id,
-      stackSize: card.stackSize,
-      description: card.description,
-      rewardHtml: card.rewardHtml,
-      artSrc: card.artSrc,
-      flavourHtml: card.flavourHtml,
-      rarity: getEffectiveRarity(card, raritySource),
-      fromBoss: card.fromBoss,
+  const handleNavigate = useCallback(
+    (cardName: string) => {
+      navigate({
+        to: "/cards/$cardSlug",
+        params: { cardSlug: cardNameToSlug(cardName) },
+      });
     },
-  });
+    [navigate]
+  );
 
   // Create a unique key that changes when filters/page change to force re-animation
-  const gridKey = `${currentPage}-${searchQuery}-${rarityFilter}-${includeBossCards}-${sortField}-${sortDirection}-${raritySource}`;
+  const gridKey = `${currentPage}-${searchQuery}-${rarityFilter}-${includeBossCards}-${includeDisabledCards}-${showAllCards}-${sortField}-${sortDirection}-${raritySource}`;
 
   if (cards.length === 0) {
     return (
@@ -86,24 +65,14 @@ export const CardsGrid = ({ cards }: CardsGridProps) => {
       className="p-1.5 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 pb-4 overflow-hidden"
     >
       {cards.map((card) => (
-        <li
+        <CardGridItem
           key={`${gridKey}-${card.id}`}
-          className="flex flex-col items-center gap-2 animation-stagger"
-        >
-          <div
-            className="w-full flex justify-center cursor-pointer"
-            onClick={() =>
-              navigate({
-                to: "/cards/$cardSlug",
-                params: { cardSlug: cardNameToSlug(card.name) },
-              })
-            }
-          >
-            <div className="scale-70 origin-top -mb-36">
-              <DivinationCard card={convertToCardEntry(card)} />
-            </div>
-          </div>
-        </li>
+          card={card}
+          raritySource={raritySource}
+          showAllCards={showAllCards}
+          gridKey={gridKey}
+          onNavigate={handleNavigate}
+        />
       ))}
     </ul>
   );

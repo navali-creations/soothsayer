@@ -15,6 +15,9 @@ importers:
 
   .:
     dependencies:
+      '@navali/poe1-divination-cards':
+        specifier: ^3.28.2
+        version: 3.28.2
       better-sqlite3:
         specifier: ^12.8.0
         version: 12.8.0
@@ -920,6 +923,9 @@ packages:
     peerDependencies:
       '@emnapi/core': ^1.7.1
       '@emnapi/runtime': ^1.7.1
+
+  '@navali/poe1-divination-cards@3.28.2':
+    resolution: {integrity: sha512-Fm18sshXig/QLFGDFUZAcfka4zMfcFYDgPQMY4ODEfxgfdVWJDo+I5z9LqBCplD/XaZ8deD3lPxy+ySVazWIhQ==}
 
   '@nodelib/fs.scandir@2.1.5':
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
@@ -6447,6 +6453,8 @@ snapshots:
       '@emnapi/runtime': 1.9.1
       '@tybys/wasm-util': 0.10.1
     optional: true
+
+  '@navali/poe1-divination-cards@3.28.2': {}
 
   '@nodelib/fs.scandir@2.1.5':
     dependencies:

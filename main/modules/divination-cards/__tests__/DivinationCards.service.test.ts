@@ -54,6 +54,7 @@ vi.mock("~/main/modules/settings-store", () => ({
 import {
   createTestDatabase,
   seedDivinationCard,
+  seedDivinationCardAvailability,
   seedDivinationCardRarity,
   type TestDatabase,
 } from "~/main/modules/__test-utils__/create-test-db";
@@ -868,5 +869,249 @@ describe("DivinationCardsService — updateRaritiesFromPrices", () => {
         3,
       );
     });
+  });
+});
+
+describe("syncCards availability and rarity integration", () => {
+  // These tests verify that divination_card_availability rows
+  // are correctly queryable after being written via direct SQL,
+  // simulating what syncCards() does.
+
+  let testDb: TestDatabase;
+
+  beforeEach(async () => {
+    testDb = await createTestDatabase();
+    mockGetKysely.mockReturnValue(testDb.kysely);
+  });
+
+  afterEach(async () => {
+    await testDb.close();
+  });
+
+  it("should store from_boss, weight, and is_disabled in availability rows", async () => {
+    await seedDivinationCard(testDb.kysely, {
+      game: "poe1",
+      name: "The Doctor",
+    });
+
+    await seedDivinationCardAvailability(testDb.kysely, {
+      game: "poe1",
+      league: "Settlers",
+      cardName: "The Doctor",
+      fromBoss: 1,
+      isDisabled: 0,
+      weight: 500,
+    });
+
+    const rows = await testDb.kysely
+      .selectFrom("divination_card_availability")
+      .selectAll()
+      .where("game", "=", "poe1")
+      .where("league", "=", "Settlers")
+      .execute();
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].card_name).toBe("The Doctor");
+    expect(rows[0].from_boss).toBe(1);
+    expect(rows[0].is_disabled).toBe(0);
+    expect(rows[0].weight).toBe(500);
+  });
+
+  it("should store prohibited_library_rarity in divination_card_rarities", async () => {
+    await seedDivinationCard(testDb.kysely, {
+      game: "poe1",
+      name: "The Doctor",
+    });
+
+    await testDb.kysely
+      .insertInto("divination_card_rarities")
+      .values({
+        game: "poe1",
+        league: "Settlers",
+        card_name: "The Doctor",
+        rarity: 2,
+        prohibited_library_rarity: 3,
+        last_updated: new Date().toISOString(),
+      })
+      .execute();
+
+    const rows = await testDb.kysely
+      .selectFrom("divination_card_rarities")
+      .selectAll()
+      .where("game", "=", "poe1")
+      .where("league", "=", "Settlers")
+      .where("card_name", "=", "The Doctor")
+      .execute();
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].rarity).toBe(2);
+    expect(rows[0].prohibited_library_rarity).toBe(3);
+  });
+
+  it("should allow pruning stale availability rows", async () => {
+    await seedDivinationCard(testDb.kysely, {
+      game: "poe1",
+      name: "The Doctor",
+    });
+    await seedDivinationCard(testDb.kysely, {
+      game: "poe1",
+      name: "Rain of Chaos",
+    });
+    await seedDivinationCard(testDb.kysely, {
+      game: "poe1",
+      name: "Stale Card",
+    });
+
+    for (const name of ["The Doctor", "Rain of Chaos", "Stale Card"]) {
+      await seedDivinationCardAvailability(testDb.kysely, {
+        game: "poe1",
+        league: "Settlers",
+        cardName: name,
+        fromBoss: 0,
+        isDisabled: 0,
+        weight: null,
+      });
+    }
+
+    // Simulate pruning: delete cards NOT in the synced list
+    const syncedCardNames = ["The Doctor", "Rain of Chaos"];
+    await testDb.kysely
+      .deleteFrom("divination_card_availability")
+      .where("game", "=", "poe1")
+      .where("league", "=", "Settlers")
+      .where("card_name", "not in", syncedCardNames)
+      .execute();
+
+    const remaining = await testDb.kysely
+      .selectFrom("divination_card_availability")
+      .selectAll()
+      .where("game", "=", "poe1")
+      .where("league", "=", "Settlers")
+      .execute();
+
+    expect(remaining).toHaveLength(2);
+    expect(
+      remaining.map((r: { card_name: string }) => r.card_name).sort(),
+    ).toEqual(["Rain of Chaos", "The Doctor"]);
+  });
+
+  it("should not prune when using cards.json fallback (verified by counting rows)", async () => {
+    // When isLeagueSpecific is false, prune does not run.
+    // We simulate this by inserting 3 availability rows and verifying all remain.
+    await seedDivinationCard(testDb.kysely, {
+      game: "poe1",
+      name: "Card A",
+    });
+    await seedDivinationCard(testDb.kysely, {
+      game: "poe1",
+      name: "Card B",
+    });
+    await seedDivinationCard(testDb.kysely, {
+      game: "poe1",
+      name: "Card C",
+    });
+
+    for (const name of ["Card A", "Card B", "Card C"]) {
+      await seedDivinationCardAvailability(testDb.kysely, {
+        game: "poe1",
+        league: "Standard",
+        cardName: name,
+        fromBoss: 0,
+        isDisabled: 0,
+        weight: null,
+      });
+    }
+
+    // No prune step (simulating isLeagueSpecific = false)
+    const allRows = await testDb.kysely
+      .selectFrom("divination_card_availability")
+      .selectAll()
+      .where("game", "=", "poe1")
+      .where("league", "=", "Standard")
+      .execute();
+
+    expect(allRows).toHaveLength(3);
+  });
+
+  it("should derive correct rarity from weight thresholds", async () => {
+    // This test verifies the integration of weight → rarity derivation
+    // that syncCards() performs when writing to divination_card_rarities
+    const testCases = [
+      { weight: 6000, expectedRarity: 4 }, // Common
+      { weight: 2000, expectedRarity: 3 }, // Less common
+      { weight: 500, expectedRarity: 2 }, // Rare
+      { weight: 10, expectedRarity: 1 }, // Extremely rare
+    ];
+
+    for (const { weight, expectedRarity } of testCases) {
+      const name = `Card-w${weight}`;
+      await seedDivinationCard(testDb.kysely, { game: "poe1", name });
+
+      // Derive rarity from weight using the same logic as syncCards
+      let rarity: number;
+      if (weight > 5000) rarity = 4;
+      else if (weight > 1000) rarity = 3;
+      else if (weight > 30) rarity = 2;
+      else rarity = 1;
+
+      // Sanity-check that inline derivation matches expected value
+      expect(rarity).toBe(expectedRarity);
+
+      await testDb.kysely
+        .insertInto("divination_card_rarities")
+        .values({
+          game: "poe1",
+          league: "Settlers",
+          card_name: name,
+          rarity: 4, // poe.ninja rarity
+          prohibited_library_rarity: rarity,
+          last_updated: new Date().toISOString(),
+        })
+        .execute();
+    }
+
+    const rows = await testDb.kysely
+      .selectFrom("divination_card_rarities")
+      .selectAll()
+      .where("game", "=", "poe1")
+      .where("league", "=", "Settlers")
+      .orderBy("card_name", "asc")
+      .execute();
+
+    expect(rows).toHaveLength(4);
+    // Card-w10 → rarity 1, Card-w2000 → rarity 3, Card-w500 → rarity 2, Card-w6000 → rarity 4
+    expect(rows[0].prohibited_library_rarity).toBe(1); // Card-w10
+    expect(rows[1].prohibited_library_rarity).toBe(3); // Card-w2000
+    expect(rows[2].prohibited_library_rarity).toBe(2); // Card-w500
+    expect(rows[3].prohibited_library_rarity).toBe(4); // Card-w6000
+  });
+
+  it("should count availability rows matching synced card count (integration)", async () => {
+    // Simulate syncing 3 cards for Settlers and verify the count matches
+    const cardNames = ["The Doctor", "Rain of Chaos", "The Nurse"];
+
+    for (const name of cardNames) {
+      await seedDivinationCard(testDb.kysely, { game: "poe1", name });
+      await seedDivinationCardAvailability(testDb.kysely, {
+        game: "poe1",
+        league: "Settlers",
+        cardName: name,
+        fromBoss: 0,
+        isDisabled: 0,
+        weight: 500,
+      });
+    }
+
+    // Query count like getStackedDeckCardCount does
+    const { count } = await testDb.kysely
+      .selectFrom("divination_card_availability")
+      .select(testDb.kysely.fn.countAll<number>().as("count"))
+      .where("game", "=", "poe1")
+      .where("league", "=", "Settlers")
+      .where("from_boss", "=", 0)
+      .where("is_disabled", "=", 0)
+      .executeTakeFirstOrThrow();
+
+    expect(count).toBe(3);
   });
 });

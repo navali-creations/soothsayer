@@ -7,6 +7,7 @@ import type {
 import { SessionsChannel } from "./Sessions.channels";
 import type {
   BiggestLetdownSessionDTO,
+  CardPoolBreakdownDTO,
   LongestSessionDTO,
   LuckyBreakSessionDTO,
   MostDecksOpenedDTO,
@@ -112,10 +113,13 @@ const SessionsAPI = {
     league?: string,
   ): Promise<TotalNetProfitDTO | null> =>
     ipcRenderer.invoke(SessionsChannel.GetTotalNetProfit, game, league),
-  getStackedDeckCardCount: (game: GameType): Promise<number> =>
-    ipcRenderer.invoke(SessionsChannel.GetStackedDeckCardCount, game),
-  getStackedDeckCardNames: (game: GameType): Promise<string[]> =>
-    ipcRenderer.invoke(SessionsChannel.GetStackedDeckCardNames, game),
+  getStackedDeckCardCount: (game: GameType, league?: string): Promise<number> =>
+    ipcRenderer.invoke(SessionsChannel.GetStackedDeckCardCount, game, league),
+  getStackedDeckCardNames: (
+    game: GameType,
+    league?: string,
+  ): Promise<string[]> =>
+    ipcRenderer.invoke(SessionsChannel.GetStackedDeckCardNames, game, league),
   getUncollectedCardNames: (
     game: GameType,
     league?: string,
@@ -137,10 +141,16 @@ const SessionsAPI = {
     sessionIds: string[],
   ): Promise<Record<string, SparklinePointDTO[]>> =>
     ipcRenderer.invoke(SessionsChannel.GetSparklines, sessionIds),
+  getCardPoolBreakdown: (
+    game: string,
+    league?: string,
+  ): Promise<CardPoolBreakdownDTO> =>
+    ipcRenderer.invoke(SessionsChannel.GetCardPoolBreakdown, game, league),
 };
 
 export type {
   BiggestLetdownSessionDTO,
+  CardPoolBreakdownDTO,
   LongestSessionDTO,
   LuckyBreakSessionDTO,
   MostDecksOpenedDTO,

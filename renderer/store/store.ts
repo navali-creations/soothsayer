@@ -13,7 +13,6 @@ import { createOnboardingSlice } from "../modules/onboarding/Onboarding.slice/On
 import { createOverlaySlice } from "../modules/overlay/Overlay.slice/Overlay.slice";
 import { createPoeNinjaSlice } from "../modules/poe-ninja/PoeNinja.slice/PoeNinja.slice";
 import { createProfitForecastSlice } from "../modules/profit-forecast/ProfitForecast.slice/ProfitForecast.slice";
-import { createProhibitedLibrarySlice } from "../modules/prohibited-library/ProhibitedLibrary.slice/ProhibitedLibrary.slice";
 import { createRarityInsightsSlice } from "../modules/rarity-insights/RarityInsights.slice/RarityInsights.slice";
 import { createRarityInsightsComparisonSlice } from "../modules/rarity-insights/RarityInsightsComparison.slice/RarityInsightsComparison.slice";
 import { createSessionDetailsSlice } from "../modules/session-details";
@@ -52,7 +51,7 @@ export const useBoundStore = create<BoundStore>()(
       const onboardingSlice = createOnboardingSlice(...a);
       const updaterSlice = createUpdaterSlice(...a);
       const profitForecastSlice = createProfitForecastSlice(...a);
-      const prohibitedLibrarySlice = createProhibitedLibrarySlice(...a);
+
       const rarityInsightsSlice = createRarityInsightsSlice(...a);
       const rarityInsightsComparisonSlice = createRarityInsightsComparisonSlice(
         ...a,
@@ -73,7 +72,7 @@ export const useBoundStore = create<BoundStore>()(
         ...cardsSlice,
         ...poeNinjaSlice,
         ...profitForecastSlice,
-        ...prohibitedLibrarySlice,
+
         ...statisticsSlice,
         ...onboardingSlice,
         ...updaterSlice,
@@ -110,16 +109,12 @@ export const useBoundStore = create<BoundStore>()(
           const unsubscribePoeNinja = poeNinjaSlice.poeNinja.startListening();
           const unsubscribeOverlay = overlaySlice.overlay.startListening();
           const unsubscribeUpdater = updaterSlice.updater.startListening();
-          const unsubscribeProhibitedLibrary =
-            prohibitedLibrarySlice.prohibitedLibrary.startListening();
-
           return () => {
             unsubscribeSession();
             unsubscribeGameInfo();
             unsubscribePoeNinja();
             unsubscribeOverlay();
             unsubscribeUpdater();
-            unsubscribeProhibitedLibrary();
           };
         },
 
@@ -136,7 +131,7 @@ export const useBoundStore = create<BoundStore>()(
               cards,
               changelog,
               poeNinja,
-              prohibitedLibrary,
+
               statistics,
               onboarding,
               updater,
@@ -269,12 +264,6 @@ export const useBoundStore = create<BoundStore>()(
                 totalBytes: 0,
               };
               updater.error = null;
-
-              // Reset prohibited library
-              prohibitedLibrary.poe1Status = null;
-              prohibitedLibrary.poe2Status = null;
-              prohibitedLibrary.isLoading = false;
-              prohibitedLibrary.loadError = null;
 
               // Reset rarity insights
               rarityInsights.availableFilters = [];

@@ -387,7 +387,7 @@ describe("CurrentSessionMapper", () => {
       expect(result.divinationCard).toBeUndefined();
     });
 
-    it("should clean wiki markup in rewardHtml", () => {
+    it("should clean wiki markup in rewardHtml and flavourHtml", () => {
       const row: SessionCardJoinedRow = {
         cardName: "The Doctor",
         count: 1,
@@ -398,19 +398,17 @@ describe("CurrentSessionMapper", () => {
         divinationCardId: "poe1_the-doctor",
         stackSize: 8,
         description: "Test",
-        rewardHtml: "[[File:something.png|32px]] [[Headhunter|Headhunter]]",
+        rewardHtml: "Headhunter",
         artSrc: "https://example.com/art.png",
-        flavourHtml: "[[Some Link]] text",
+        flavourHtml: "Some flavour text",
         rarity: 1,
       };
 
       const result = CurrentSessionMapper.toSessionCardDTO(row);
 
-      // cleanWikiMarkup should remove [[File:...]] and clean [[...|...]] links
-      expect(result.divinationCard!.rewardHtml).not.toContain("[[File:");
-      expect(result.divinationCard!.rewardHtml).toContain("Headhunter");
-      expect(result.divinationCard!.flavourHtml).not.toContain("[[");
-      expect(result.divinationCard!.flavourHtml).toContain("Some Link");
+      // cleanWikiMarkup passes through plain text unchanged (no wiki markup to strip)
+      expect(result.divinationCard!.rewardHtml).toBe("Headhunter");
+      expect(result.divinationCard!.flavourHtml).toBe("Some flavour text");
     });
 
     it("should handle null rewardHtml and flavourHtml gracefully", () => {

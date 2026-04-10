@@ -23,7 +23,6 @@ import {
   OverlayService,
   PoeLeaguesService,
   PoeProcessService,
-  ProhibitedLibraryService,
   SessionsService,
   SettingsKey,
   SettingsStoreService,
@@ -246,14 +245,7 @@ class MainWindowService {
     await divinationCards.initialize();
     console.log("[Init] ✓ Divination Cards");
 
-    // 5b. Prohibited Library — no eager loading.
-    // PL data is loaded lazily on first access (e.g. Profit Forecast page,
-    // Rarity Model page, or Settings → Reload). This avoids parsing the
-    // bundled CSV and writing to SQLite on every app startup.
-    ProhibitedLibraryService.getInstance();
-    console.log("[Init] ✓ Prohibited Library (lazy)");
-
-    // 5c. Card Details (price history from poe.ninja, cached in SQLite)
+    // 5b. Card Details (price history from poe.ninja, cached in SQLite)
     CardDetailsService.getInstance();
     console.log("[Init] ✓ Card Details");
 

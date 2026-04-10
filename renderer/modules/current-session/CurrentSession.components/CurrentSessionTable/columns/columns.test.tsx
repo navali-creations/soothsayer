@@ -25,7 +25,6 @@ vi.mock("~/renderer/store", () => {
     useOnboarding: () => useBoundStore().onboarding,
     useUpdater: () => useBoundStore().updater,
     useProfitForecast: () => useBoundStore().profitForecast,
-    useProhibitedLibrary: () => useBoundStore().prohibitedLibrary,
     useRarityInsights: () => useBoundStore().rarityInsights,
     useRarityInsightsComparison: () => useBoundStore().rarityInsightsComparison,
     useCardDetails: () => useBoundStore().cardDetails,

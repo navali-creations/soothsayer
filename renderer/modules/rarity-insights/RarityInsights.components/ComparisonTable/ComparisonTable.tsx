@@ -163,6 +163,9 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
   const includeBossCards = useBoundStore(
     (s) => s.rarityInsightsComparison.includeBossCards,
   );
+  const includeDisabledCards = useBoundStore(
+    (s) => s.rarityInsightsComparison.includeDisabledCards,
+  );
 
   // Defer the values that drive the expensive displayRows rebuild so React
   // can commit the sidebar / toolbar re-render (cheap) immediately and
@@ -212,6 +215,10 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
       filtered = filtered.filter((c) => !c.fromBoss);
     }
 
+    if (!includeDisabledCards) {
+      filtered = filtered.filter((c) => !c.isDisabled);
+    }
+
     if (showDiffsOnly && differences.size > 0) {
       filtered = filtered.filter((c) => differences.has(c.name));
     }
@@ -247,6 +254,7 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
     parsedResults,
     showDiffsOnly,
     includeBossCards,
+    includeDisabledCards,
   ]);
 
   // Columns use NON-deferred store values so that new filter columns

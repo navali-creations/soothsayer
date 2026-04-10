@@ -28,8 +28,7 @@ const AVG_SESSION_SUMMARY_ROW_BYTES = 300;
 const AVG_SNAPSHOT_ROW_BYTES = 150;
 const AVG_SNAPSHOT_CARD_PRICE_ROW_BYTES = 100;
 const AVG_RARITY_ROW_BYTES = 80;
-const AVG_PL_WEIGHT_ROW_BYTES = 120;
-const AVG_PL_CACHE_META_ROW_BYTES = 100;
+const AVG_AVAILABILITY_ROW_BYTES = 120;
 const AVG_POE_LEAGUE_CACHE_ROW_BYTES = 150;
 
 // Low disk space threshold: 1 GB
@@ -308,8 +307,7 @@ class StorageService {
           COALESCE(snap.snapshot_count, 0)     AS snapshot_count,
           COALESCE(snap.card_price_count, 0)   AS card_price_count,
           COALESCE(r.rarity_count, 0)          AS rarity_count,
-          COALESCE(pl.pl_weight_count, 0)      AS pl_weight_count,
-          COALESCE(plm.pl_meta_count, 0)       AS pl_meta_count,
+          COALESCE(avail.availability_count, 0) AS availability_count,
           COALESCE(plc.poe_league_cache_count, 0) AS poe_league_cache_count,
           COALESCE(active.active_count, 0)     AS active_count
         FROM leagues l
@@ -360,15 +358,10 @@ class StorageService {
         ) r ON r.game = l.game AND r.league = l.name
 
         LEFT JOIN (
-          SELECT game, league, COUNT(*) AS pl_weight_count
-          FROM prohibited_library_card_weights
+          SELECT game, league, COUNT(*) AS availability_count
+          FROM divination_card_availability
           GROUP BY game, league
-        ) pl ON pl.game = l.game AND pl.league = l.name
-
-        LEFT JOIN (
-          SELECT game, league, 1 AS pl_meta_count
-          FROM prohibited_library_cache_metadata
-        ) plm ON plm.game = l.game AND plm.league = l.name
+        ) avail ON avail.game = l.game AND avail.league = l.name
 
         LEFT JOIN (
           SELECT game, league_id, COUNT(*) AS poe_league_cache_count
@@ -397,8 +390,7 @@ class StorageService {
       snapshot_count: number;
       card_price_count: number;
       rarity_count: number;
-      pl_weight_count: number;
-      pl_meta_count: number;
+      availability_count: number;
       poe_league_cache_count: number;
       active_count: number;
     }>;
@@ -412,8 +404,7 @@ class StorageService {
         row.snapshot_count * AVG_SNAPSHOT_ROW_BYTES +
         row.card_price_count * AVG_SNAPSHOT_CARD_PRICE_ROW_BYTES +
         row.rarity_count * AVG_RARITY_ROW_BYTES +
-        row.pl_weight_count * AVG_PL_WEIGHT_ROW_BYTES +
-        row.pl_meta_count * AVG_PL_CACHE_META_ROW_BYTES +
+        row.availability_count * AVG_AVAILABILITY_ROW_BYTES +
         row.poe_league_cache_count * AVG_POE_LEAGUE_CACHE_ROW_BYTES;
 
       return {
@@ -517,17 +508,12 @@ class StorageService {
           "DELETE FROM divination_card_rarities WHERE game = ? AND league = ?",
         ).run(league.game, league.name);
 
-        // 7. prohibited_library_card_weights WHERE game AND league = league_name
+        // 6b. divination_card_availability WHERE game AND league = league_name
         db.prepare(
-          "DELETE FROM prohibited_library_card_weights WHERE game = ? AND league = ?",
+          "DELETE FROM divination_card_availability WHERE game = ? AND league = ?",
         ).run(league.game, league.name);
 
-        // 8. prohibited_library_cache_metadata WHERE game AND league = league_name
-        db.prepare(
-          "DELETE FROM prohibited_library_cache_metadata WHERE game = ? AND league = ?",
-        ).run(league.game, league.name);
-
-        // 9. poe_leagues_cache WHERE game AND league_id
+        // 7. poe_leagues_cache WHERE game AND league_id
         db.prepare(
           "DELETE FROM poe_leagues_cache WHERE game = ? AND league_id = ?",
         ).run(league.game, leagueId);

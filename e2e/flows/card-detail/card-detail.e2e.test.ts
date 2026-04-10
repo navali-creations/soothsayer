@@ -16,7 +16,7 @@
  *
  * Prerequisites:
  * - App must be built (`.vite/build/main.js` exists)
- * - No external services required — cards load from bundled `renderer/assets/poe1/cards.json`
+ * - No external services required — cards load from `@navali/poe1-divination-cards` package data
  *   into local SQLite at startup
  * - Session data is seeded via test-only IPC handlers (`E2E_TESTING=true`)
  *

@@ -120,6 +120,12 @@ export function createElectronMock() {
       getTotalNetProfit: vi.fn().mockResolvedValue(null),
       getTotalTimeSpent: vi.fn().mockResolvedValue(null),
       getWinRate: vi.fn().mockResolvedValue(null),
+      getCardPoolBreakdown: vi.fn().mockResolvedValue({
+        total: 0,
+        bossOnly: 0,
+        disabled: 0,
+        droppable: 0,
+      }),
       getStackedDeckCardCount: vi.fn().mockResolvedValue(0),
       getStackedDeckCardNames: vi.fn().mockResolvedValue([]),
       getUncollectedCardNames: vi.fn().mockResolvedValue([]),
@@ -264,18 +270,6 @@ export function createElectronMock() {
         .fn()
         .mockResolvedValue({ success: true, totalCards: 0, filterName: "" }),
       onFilterRaritiesApplied: mockListener(),
-    },
-
-    // ── Prohibited Library ─────────────────────────────────────────────
-    prohibitedLibrary: {
-      reload: vi
-        .fn()
-        .mockResolvedValue({ success: true, totalCards: 0, game: "poe1" }),
-      getStatus: vi.fn().mockResolvedValue(null),
-      getCardWeights: vi.fn().mockResolvedValue([]),
-      getFromBossCards: vi.fn().mockResolvedValue([]),
-      onDataRefreshed: mockListener(),
-      onLoadError: mockListener(),
     },
 
     // ── Profit Forecast ────────────────────────────────────────────────

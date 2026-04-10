@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { memo, useMemo, useRef } from "react";
 
 import { getRarityStyles } from "~/renderer/utils";
 
@@ -9,13 +9,16 @@ import { CardName } from "./components/card-content/CardName";
 import { CardPlaceholder } from "./components/card-content/CardPlaceholder";
 import { CardRewardFlavour } from "./components/card-content/CardRewardFlavour";
 import { CardStackSize } from "./components/card-content/CardStackSize";
+import { DisabledIndicator } from "./components/card-content/DisabledIndicator";
 import { CARD_EFFECTS } from "./constants";
 import { RarityEffects } from "./effects/RarityEffects";
 import { useCardMouseEffects } from "./hooks/useCardMouseEffects/useCardMouseEffects";
 import type { DivinationCardProps } from "./types";
 import { processRewardHtml } from "./utils/htmlProcessor/htmlProcessor";
 
-function DivinationCard({ card }: DivinationCardProps) {
+const DivinationCard = memo(function DivinationCard({
+  card,
+}: DivinationCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const { mousePos, isHovered, rotateX, rotateY } =
     useCardMouseEffects(cardRef);
@@ -25,7 +28,7 @@ function DivinationCard({ card }: DivinationCardProps) {
       card.divinationCard?.rewardHtml
         ? processRewardHtml(card.divinationCard.rewardHtml)
         : "",
-    [card.divinationCard],
+    [card.divinationCard?.rewardHtml],
   );
 
   if (!card.divinationCard) {
@@ -67,6 +70,7 @@ function DivinationCard({ card }: DivinationCardProps) {
   const flavourHtml = card.divinationCard.flavourHtml ?? "";
   const rarity = card.divinationCard.rarity ?? 4;
   const fromBoss = card.divinationCard.fromBoss ?? false;
+  const isDisabled = card.divinationCard.isDisabled ?? false;
   const { glowRgb } = getRarityStyles(rarity);
 
   const posX = mousePos.x;
@@ -111,8 +115,9 @@ function DivinationCard({ card }: DivinationCardProps) {
         />
       </div>
       <BossIndicator fromBoss={fromBoss} />
+      <DisabledIndicator isDisabled={isDisabled} />
     </div>
   );
-}
+});
 
 export default DivinationCard;

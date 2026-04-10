@@ -57,6 +57,8 @@ vi.mock("~/renderer/utils", () => ({
 const mockSetSearchQuery = vi.fn();
 const mockSetRarityFilter = vi.fn();
 const mockSetIncludeBossCards = vi.fn();
+const mockSetIncludeDisabledCards = vi.fn();
+const mockSetShowAllCards = vi.fn();
 const mockLoadCards = vi.fn().mockResolvedValue(undefined);
 const mockScanFilters = vi.fn().mockResolvedValue(undefined);
 const mockSelectFilter = vi.fn().mockResolvedValue(undefined);
@@ -68,6 +70,8 @@ function setupStore(
     searchQuery?: string;
     rarityFilter?: string | number;
     includeBossCards?: boolean;
+    includeDisabledCards?: boolean;
+    showAllCards?: boolean;
     raritySource?: string;
     selectedFilterId?: string | null;
     availableFilters?: any[];
@@ -79,9 +83,13 @@ function setupStore(
     searchQuery: overrides.searchQuery ?? "",
     rarityFilter: overrides.rarityFilter ?? "all",
     includeBossCards: overrides.includeBossCards ?? false,
+    includeDisabledCards: overrides.includeDisabledCards ?? false,
+    showAllCards: overrides.showAllCards ?? false,
     setSearchQuery: mockSetSearchQuery,
     setRarityFilter: mockSetRarityFilter,
     setIncludeBossCards: mockSetIncludeBossCards,
+    setIncludeDisabledCards: mockSetIncludeDisabledCards,
+    setShowAllCards: mockSetShowAllCards,
     loadCards: mockLoadCards,
   } as any);
   mockUseSettings.mockReturnValue({
@@ -109,6 +117,8 @@ describe("CardsActions", () => {
     mockSetSearchQuery.mockClear();
     mockSetRarityFilter.mockClear();
     mockSetIncludeBossCards.mockClear();
+    mockSetIncludeDisabledCards.mockClear();
+    mockSetShowAllCards.mockClear();
     mockLoadCards.mockClear();
     mockScanFilters.mockClear();
     mockUpdateSetting.mockClear();
@@ -151,7 +161,8 @@ describe("CardsActions", () => {
       setupStore();
       renderWithProviders(<CardsActions />);
 
-      expect(screen.getByRole("checkbox")).toBeInTheDocument();
+      const checkboxes = screen.getAllByRole("checkbox");
+      expect(checkboxes.length).toBe(3);
     });
 
     it('renders "Include boss cards" label text', () => {
@@ -159,6 +170,13 @@ describe("CardsActions", () => {
       renderWithProviders(<CardsActions />);
 
       expect(screen.getByText("Include boss cards")).toBeInTheDocument();
+    });
+
+    it('renders "Include disabled cards" label text', () => {
+      setupStore();
+      renderWithProviders(<CardsActions />);
+
+      expect(screen.getByText("Include disabled cards")).toBeInTheDocument();
     });
 
     it("renders all rarity filter options", () => {
@@ -240,21 +258,33 @@ describe("CardsActions", () => {
       setupStore({ includeBossCards: false });
       renderWithProviders(<CardsActions />);
 
-      expect(screen.getByRole("checkbox")).not.toBeChecked();
+      const bossCheckbox = screen
+        .getByText("Include boss cards")
+        .closest("label")!
+        .querySelector("input[type='checkbox']")!;
+      expect(bossCheckbox).not.toBeChecked();
     });
 
     it("checkbox is checked when includeBossCards is true", () => {
       setupStore({ includeBossCards: true });
       renderWithProviders(<CardsActions />);
 
-      expect(screen.getByRole("checkbox")).toBeChecked();
+      const bossCheckbox = screen
+        .getByText("Include boss cards")
+        .closest("label")!
+        .querySelector("input[type='checkbox']")!;
+      expect(bossCheckbox).toBeChecked();
     });
 
     it("calls setIncludeBossCards when checkbox is toggled on", async () => {
       setupStore({ includeBossCards: false });
       const { user } = renderWithProviders(<CardsActions />);
 
-      await user.click(screen.getByRole("checkbox"));
+      const bossCheckbox = screen
+        .getByText("Include boss cards")
+        .closest("label")!
+        .querySelector("input[type='checkbox']")!;
+      await user.click(bossCheckbox);
 
       expect(mockSetIncludeBossCards).toHaveBeenCalledWith(true);
     });
@@ -263,7 +293,11 @@ describe("CardsActions", () => {
       setupStore({ includeBossCards: true });
       const { user } = renderWithProviders(<CardsActions />);
 
-      await user.click(screen.getByRole("checkbox"));
+      const bossCheckbox = screen
+        .getByText("Include boss cards")
+        .closest("label")!
+        .querySelector("input[type='checkbox']")!;
+      await user.click(bossCheckbox);
 
       expect(mockSetIncludeBossCards).toHaveBeenCalledWith(false);
     });
@@ -275,7 +309,77 @@ describe("CardsActions", () => {
         <CardsActions onFilterChange={onFilterChange} />,
       );
 
-      await user.click(screen.getByRole("checkbox"));
+      const bossCheckbox = screen
+        .getByText("Include boss cards")
+        .closest("label")!
+        .querySelector("input[type='checkbox']")!;
+      await user.click(bossCheckbox);
+
+      expect(onFilterChange).toHaveBeenCalled();
+    });
+  });
+
+  describe("disabled cards toggle", () => {
+    it("checkbox is unchecked when includeDisabledCards is false", () => {
+      setupStore({ includeDisabledCards: false });
+      renderWithProviders(<CardsActions />);
+
+      const disabledCheckbox = screen
+        .getByText("Include disabled cards")
+        .closest("label")!
+        .querySelector("input[type='checkbox']")!;
+      expect(disabledCheckbox).not.toBeChecked();
+    });
+
+    it("checkbox is checked when includeDisabledCards is true", () => {
+      setupStore({ includeDisabledCards: true });
+      renderWithProviders(<CardsActions />);
+
+      const disabledCheckbox = screen
+        .getByText("Include disabled cards")
+        .closest("label")!
+        .querySelector("input[type='checkbox']")!;
+      expect(disabledCheckbox).toBeChecked();
+    });
+
+    it("calls setIncludeDisabledCards when checkbox is toggled on", async () => {
+      setupStore({ includeDisabledCards: false });
+      const { user } = renderWithProviders(<CardsActions />);
+
+      const disabledCheckbox = screen
+        .getByText("Include disabled cards")
+        .closest("label")!
+        .querySelector("input[type='checkbox']")!;
+      await user.click(disabledCheckbox);
+
+      expect(mockSetIncludeDisabledCards).toHaveBeenCalledWith(true);
+    });
+
+    it("calls setIncludeDisabledCards when checkbox is toggled off", async () => {
+      setupStore({ includeDisabledCards: true });
+      const { user } = renderWithProviders(<CardsActions />);
+
+      const disabledCheckbox = screen
+        .getByText("Include disabled cards")
+        .closest("label")!
+        .querySelector("input[type='checkbox']")!;
+      await user.click(disabledCheckbox);
+
+      expect(mockSetIncludeDisabledCards).toHaveBeenCalledWith(false);
+    });
+
+    it("calls onFilterChange when disabled cards toggle changes", async () => {
+      setupStore({ includeDisabledCards: false });
+      const onFilterChange = vi.fn();
+      const { user } = renderWithProviders(
+        <CardsActions onFilterChange={onFilterChange} />,
+      );
+
+      const disabledCheckbox = screen
+        .getByText("Include disabled cards")
+        .closest("label")!
+        .querySelector("input[type='checkbox']")!;
+      await user.click(disabledCheckbox);
 
       expect(onFilterChange).toHaveBeenCalled();
     });

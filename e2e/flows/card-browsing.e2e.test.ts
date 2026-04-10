@@ -42,35 +42,35 @@ import { seedCardRarities } from "../helpers/seed-db";
 // ─── Rarity seed data ─────────────────────────────────────────────────────────
 
 const RARITY_SEEDS: SeedCardRarityOptions[] = [
-  // Extremely Rare (1)
-  { cardName: "House of Mirrors", rarity: 1 },
-  { cardName: "The Doctor", rarity: 1 },
-  { cardName: "Unrequited Love", rarity: 1 },
-  { cardName: "The Fiend", rarity: 1 },
-  { cardName: "The Immortal", rarity: 1 },
-  // Rare (2)
-  { cardName: "The Nurse", rarity: 2 },
-  { cardName: "The Patient", rarity: 2 },
-  { cardName: "The Enlightened", rarity: 2 },
-  { cardName: "Abandoned Wealth", rarity: 2 },
-  { cardName: "The Demon", rarity: 2 },
-  { cardName: "Seven Years Bad Luck", rarity: 2 },
-  // Less Common (3)
-  { cardName: "The Wretched", rarity: 3 },
-  { cardName: "Humility", rarity: 3 },
-  { cardName: "The Gambler", rarity: 3 },
-  { cardName: "Loyalty", rarity: 3 },
-  { cardName: "The Union", rarity: 3 },
-  { cardName: "Lucky Connections", rarity: 3 },
-  // Common (4)
-  { cardName: "Rain of Chaos", rarity: 4 },
-  { cardName: "Carrion Crow", rarity: 4 },
-  { cardName: "The Lover", rarity: 4 },
-  { cardName: "The Hermit", rarity: 4 },
-  { cardName: "The Scholar", rarity: 4 },
-  { cardName: "Lantador's Lost Love", rarity: 4 },
-  { cardName: "The Inoculated", rarity: 4 },
-  { cardName: "The Metalsmith's Gift", rarity: 4 },
+  // Extremely Rare (1) — PL agrees on most, but bumps one to Rare
+  { cardName: "House of Mirrors", rarity: 1, prohibitedLibraryRarity: 1 },
+  { cardName: "The Doctor", rarity: 1, prohibitedLibraryRarity: 1 },
+  { cardName: "Unrequited Love", rarity: 1, prohibitedLibraryRarity: 2 },
+  { cardName: "The Fiend", rarity: 1, prohibitedLibraryRarity: 1 },
+  { cardName: "The Immortal", rarity: 1, prohibitedLibraryRarity: 1 },
+  // Rare (2) — PL shifts some up or down
+  { cardName: "The Nurse", rarity: 2, prohibitedLibraryRarity: 1 },
+  { cardName: "The Patient", rarity: 2, prohibitedLibraryRarity: 2 },
+  { cardName: "The Enlightened", rarity: 2, prohibitedLibraryRarity: 3 },
+  { cardName: "Abandoned Wealth", rarity: 2, prohibitedLibraryRarity: 2 },
+  { cardName: "The Demon", rarity: 2, prohibitedLibraryRarity: 1 },
+  { cardName: "Seven Years Bad Luck", rarity: 2, prohibitedLibraryRarity: 2 },
+  // Less Common (3) — PL shifts some
+  { cardName: "The Wretched", rarity: 3, prohibitedLibraryRarity: 2 },
+  { cardName: "Humility", rarity: 3, prohibitedLibraryRarity: 4 },
+  { cardName: "The Gambler", rarity: 3, prohibitedLibraryRarity: 3 },
+  { cardName: "Loyalty", rarity: 3, prohibitedLibraryRarity: 3 },
+  { cardName: "The Union", rarity: 3, prohibitedLibraryRarity: 4 },
+  { cardName: "Lucky Connections", rarity: 3, prohibitedLibraryRarity: 3 },
+  // Common (4) — PL bumps a few down
+  { cardName: "Rain of Chaos", rarity: 4, prohibitedLibraryRarity: 4 },
+  { cardName: "Carrion Crow", rarity: 4, prohibitedLibraryRarity: 3 },
+  { cardName: "The Lover", rarity: 4, prohibitedLibraryRarity: 4 },
+  { cardName: "The Hermit", rarity: 4, prohibitedLibraryRarity: 4 },
+  { cardName: "The Scholar", rarity: 4, prohibitedLibraryRarity: 3 },
+  { cardName: "Lantador's Lost Love", rarity: 4, prohibitedLibraryRarity: 4 },
+  { cardName: "The Inoculated", rarity: 4, prohibitedLibraryRarity: 4 },
+  { cardName: "The Metalsmith's Gift", rarity: 4, prohibitedLibraryRarity: 4 },
 ];
 
 let raritiesSeeded = false;

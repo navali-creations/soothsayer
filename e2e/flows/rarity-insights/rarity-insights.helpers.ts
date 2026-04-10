@@ -24,6 +24,7 @@ import {
   RARITY_INSIGHTS_CARDS,
 } from "../../fixtures/rarity-insights-fixture";
 import { expect } from "../../helpers/electron-test";
+import { setSetting } from "../../helpers/ipc-helpers";
 import { getCurrentRoute, navigateTo } from "../../helpers/navigation";
 import {
   seedFilterData,
@@ -47,6 +48,31 @@ export function createSeedGuard() {
   let dataSeeded = false;
 
   return async function ensureDataSeeded(page: Page) {
+    // ── Always: reset league to the fixture league ────────────────────
+    // Workers are reused across test files. A prior file (e.g. app-menu)
+    // may have changed `poe1SelectedLeague` to a league whose
+    // `divination_card_availability` rows were never seeded, causing
+    // `loadCards(onlyInPool=true)` to return 0 cards and the table to
+    // render empty. Reset to the fixture league on every call so the
+    // setting is correct even if a previous file on this worker
+    // contaminated it.
+    //
+    // We write to BOTH the main-process DB (via IPC setSetting) and the
+    // renderer Zustand store. The DB write ensures the IPC handler for
+    // `divinationCards.getAll` reads the correct league. The store write
+    // ensures the renderer's `useEffect` dependencies and
+    // `getActiveGameViewSelectedLeague()` return the correct value so
+    // `loadCards()` is triggered with the right context.
+    await setSetting(page, "poe1SelectedLeague", FIXTURE_LEAGUE);
+    await page.evaluate((league) => {
+      const store = (window as any).__zustandStore;
+      if (store) {
+        store.setState((s: any) => {
+          s.settings.poe1SelectedLeague = league;
+        });
+      }
+    }, FIXTURE_LEAGUE);
+
     if (dataSeeded) return;
 
     try {
@@ -148,8 +174,10 @@ export async function goToRarityInsights(page: Page) {
   const currentRoute = await getCurrentRoute(page);
   if (currentRoute === "/rarity-insights") {
     await navigateTo(page, "/");
-    // Brief pause so React tears down the RI page component.
-    await page.waitForTimeout(150);
+    // Wait for React to tear down the RI page component.
+    await expect(
+      page.getByRole("heading", { name: /Rarity Insights/i }).first(),
+    ).not.toBeVisible({ timeout: 5_000 });
   }
 
   await navigateTo(page, "/rarity-insights");
@@ -175,12 +203,20 @@ export async function waitForPageSettled(page: Page) {
 
 /**
  * Waits for the comparison table to have at least one data row.
+ *
+ * First ensures the cards loading phase has completed (via
+ * `waitForCardsLoaded`) so we don't race against the loading overlay,
+ * then polls for at least one `<tr>` inside `<tbody>`.
  */
 export async function waitForTableRows(page: Page) {
-  await page
-    .locator("table tbody tr")
-    .first()
-    .waitFor({ state: "visible", timeout: 15_000 });
+  await waitForCardsLoaded(page);
+
+  await expect
+    .poll(async () => page.locator("table tbody tr").count(), {
+      timeout: 15_000,
+      intervals: [100, 200, 500, 1_000],
+    })
+    .toBeGreaterThan(0);
 }
 
 /**
@@ -239,10 +275,14 @@ export async function waitForCardsLoaded(page: Page) {
   }
 
   // Phase 2: Confirm at least one table row is present (data has rendered).
-  await page
-    .locator("table tbody tr")
-    .first()
-    .waitFor({ state: "visible", timeout: 10_000 });
+  // Use poll-based wait instead of a hard waitFor — on slow CI runners the
+  // table may take a moment to render after the loading overlay disappears.
+  await expect
+    .poll(async () => page.locator("table tbody tr").count(), {
+      timeout: 15_000,
+      intervals: [100, 200, 500, 1_000],
+    })
+    .toBeGreaterThan(0);
 }
 
 // ─── Table Inspection ─────────────────────────────────────────────────────────

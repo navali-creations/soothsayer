@@ -2786,4 +2786,613 @@ describe("SessionsRepository", () => {
       expect(result[s2]).toBeUndefined();
     });
   });
+
+  describe("getStackedDeckCardCount", () => {
+    it("should return 0 when no availability rows exist for the league", async () => {
+      const count = await repository.getStackedDeckCardCount(
+        "poe1",
+        "Settlers",
+      );
+      expect(count).toBe(0);
+    });
+
+    it("should count only non-boss, non-disabled cards", async () => {
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Normal Card",
+      });
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Boss Card",
+      });
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Disabled Card",
+      });
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Boss Disabled Card",
+      });
+
+      await testDb.kysely
+        .insertInto("divination_card_availability")
+        .values({
+          game: "poe1",
+          league: "Settlers",
+          card_name: "Normal Card",
+          from_boss: 0,
+          is_disabled: 0,
+          weight: 500,
+          updated_at: new Date().toISOString(),
+        })
+        .execute();
+
+      await testDb.kysely
+        .insertInto("divination_card_availability")
+        .values({
+          game: "poe1",
+          league: "Settlers",
+          card_name: "Boss Card",
+          from_boss: 1,
+          is_disabled: 0,
+          weight: 500,
+          updated_at: new Date().toISOString(),
+        })
+        .execute();
+
+      await testDb.kysely
+        .insertInto("divination_card_availability")
+        .values({
+          game: "poe1",
+          league: "Settlers",
+          card_name: "Disabled Card",
+          from_boss: 0,
+          is_disabled: 1,
+          weight: 500,
+          updated_at: new Date().toISOString(),
+        })
+        .execute();
+
+      await testDb.kysely
+        .insertInto("divination_card_availability")
+        .values({
+          game: "poe1",
+          league: "Settlers",
+          card_name: "Boss Disabled Card",
+          from_boss: 1,
+          is_disabled: 1,
+          weight: 500,
+          updated_at: new Date().toISOString(),
+        })
+        .execute();
+
+      const count = await repository.getStackedDeckCardCount(
+        "poe1",
+        "Settlers",
+      );
+      expect(count).toBe(1);
+    });
+
+    it("should count only cards for the specified league", async () => {
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Settlers Card A",
+      });
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Settlers Card B",
+      });
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Standard Card",
+      });
+
+      await testDb.kysely
+        .insertInto("divination_card_availability")
+        .values({
+          game: "poe1",
+          league: "Settlers",
+          card_name: "Settlers Card A",
+          from_boss: 0,
+          is_disabled: 0,
+          weight: 500,
+          updated_at: new Date().toISOString(),
+        })
+        .execute();
+
+      await testDb.kysely
+        .insertInto("divination_card_availability")
+        .values({
+          game: "poe1",
+          league: "Settlers",
+          card_name: "Settlers Card B",
+          from_boss: 0,
+          is_disabled: 0,
+          weight: 500,
+          updated_at: new Date().toISOString(),
+        })
+        .execute();
+
+      await testDb.kysely
+        .insertInto("divination_card_availability")
+        .values({
+          game: "poe1",
+          league: "Standard",
+          card_name: "Standard Card",
+          from_boss: 0,
+          is_disabled: 0,
+          weight: 500,
+          updated_at: new Date().toISOString(),
+        })
+        .execute();
+
+      const count = await repository.getStackedDeckCardCount(
+        "poe1",
+        "Settlers",
+      );
+      expect(count).toBe(2);
+    });
+
+    it("should count all divination_cards when no league is provided", async () => {
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Card One",
+      });
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Card Two",
+      });
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Card Three",
+      });
+
+      const count = await repository.getStackedDeckCardCount("poe1");
+      expect(count).toBe(3);
+    });
+  });
+
+  describe("getCardPoolBreakdown", () => {
+    it("should return all zeros when no availability rows exist for the league", async () => {
+      const result = await repository.getCardPoolBreakdown("poe1", "Settlers");
+      expect(result).toEqual({
+        total: 0,
+        bossOnly: 0,
+        disabled: 0,
+        droppable: 0,
+      });
+    });
+
+    it("should return correct breakdown with mixed card types", async () => {
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Normal A",
+      });
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Normal B",
+      });
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Boss Card",
+      });
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Disabled Card",
+      });
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Boss Disabled Card",
+      });
+
+      await testDb.kysely
+        .insertInto("divination_card_availability")
+        .values({
+          game: "poe1",
+          league: "Settlers",
+          card_name: "Normal A",
+          from_boss: 0,
+          is_disabled: 0,
+          weight: 500,
+          updated_at: new Date().toISOString(),
+        })
+        .execute();
+
+      await testDb.kysely
+        .insertInto("divination_card_availability")
+        .values({
+          game: "poe1",
+          league: "Settlers",
+          card_name: "Normal B",
+          from_boss: 0,
+          is_disabled: 0,
+          weight: 500,
+          updated_at: new Date().toISOString(),
+        })
+        .execute();
+
+      await testDb.kysely
+        .insertInto("divination_card_availability")
+        .values({
+          game: "poe1",
+          league: "Settlers",
+          card_name: "Boss Card",
+          from_boss: 1,
+          is_disabled: 0,
+          weight: 500,
+          updated_at: new Date().toISOString(),
+        })
+        .execute();
+
+      await testDb.kysely
+        .insertInto("divination_card_availability")
+        .values({
+          game: "poe1",
+          league: "Settlers",
+          card_name: "Disabled Card",
+          from_boss: 0,
+          is_disabled: 1,
+          weight: 500,
+          updated_at: new Date().toISOString(),
+        })
+        .execute();
+
+      await testDb.kysely
+        .insertInto("divination_card_availability")
+        .values({
+          game: "poe1",
+          league: "Settlers",
+          card_name: "Boss Disabled Card",
+          from_boss: 1,
+          is_disabled: 1,
+          weight: 500,
+          updated_at: new Date().toISOString(),
+        })
+        .execute();
+
+      const result = await repository.getCardPoolBreakdown("poe1", "Settlers");
+      expect(result).toEqual({
+        total: 5,
+        bossOnly: 2,
+        disabled: 2,
+        droppable: 2,
+      });
+    });
+
+    it("should return total count for all-time when no league is provided", async () => {
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Card X",
+      });
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Card Y",
+      });
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Card Z",
+      });
+
+      const result = await repository.getCardPoolBreakdown("poe1");
+      expect(result).toEqual({
+        total: 3,
+        bossOnly: 0,
+        disabled: 0,
+        droppable: 3,
+      });
+    });
+  });
+
+  describe("getStackedDeckCardNames", () => {
+    it("should return empty array when no availability rows exist", async () => {
+      const names = await repository.getStackedDeckCardNames(
+        "poe1",
+        "Settlers",
+      );
+      expect(names).toEqual([]);
+    });
+
+    it("should return only non-boss, non-disabled card names sorted alphabetically", async () => {
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Zenith",
+      });
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Alpha",
+      });
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Boss Card",
+      });
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Disabled Card",
+      });
+
+      await testDb.kysely
+        .insertInto("divination_card_availability")
+        .values({
+          game: "poe1",
+          league: "Settlers",
+          card_name: "Zenith",
+          from_boss: 0,
+          is_disabled: 0,
+          weight: 500,
+          updated_at: new Date().toISOString(),
+        })
+        .execute();
+
+      await testDb.kysely
+        .insertInto("divination_card_availability")
+        .values({
+          game: "poe1",
+          league: "Settlers",
+          card_name: "Alpha",
+          from_boss: 0,
+          is_disabled: 0,
+          weight: 500,
+          updated_at: new Date().toISOString(),
+        })
+        .execute();
+
+      await testDb.kysely
+        .insertInto("divination_card_availability")
+        .values({
+          game: "poe1",
+          league: "Settlers",
+          card_name: "Boss Card",
+          from_boss: 1,
+          is_disabled: 0,
+          weight: 500,
+          updated_at: new Date().toISOString(),
+        })
+        .execute();
+
+      await testDb.kysely
+        .insertInto("divination_card_availability")
+        .values({
+          game: "poe1",
+          league: "Settlers",
+          card_name: "Disabled Card",
+          from_boss: 0,
+          is_disabled: 1,
+          weight: 500,
+          updated_at: new Date().toISOString(),
+        })
+        .execute();
+
+      const names = await repository.getStackedDeckCardNames(
+        "poe1",
+        "Settlers",
+      );
+      expect(names).toEqual(["Alpha", "Zenith"]);
+    });
+
+    it("should only return card names for the specified league", async () => {
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Settlers Only",
+      });
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Standard Only",
+      });
+
+      await testDb.kysely
+        .insertInto("divination_card_availability")
+        .values({
+          game: "poe1",
+          league: "Settlers",
+          card_name: "Settlers Only",
+          from_boss: 0,
+          is_disabled: 0,
+          weight: 500,
+          updated_at: new Date().toISOString(),
+        })
+        .execute();
+
+      await testDb.kysely
+        .insertInto("divination_card_availability")
+        .values({
+          game: "poe1",
+          league: "Standard",
+          card_name: "Standard Only",
+          from_boss: 0,
+          is_disabled: 0,
+          weight: 500,
+          updated_at: new Date().toISOString(),
+        })
+        .execute();
+
+      const names = await repository.getStackedDeckCardNames(
+        "poe1",
+        "Settlers",
+      );
+      expect(names).toEqual(["Settlers Only"]);
+    });
+  });
+
+  describe("getUncollectedCardNames", () => {
+    it("should return all pool card names when none have been collected", async () => {
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Alpha Card",
+      });
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Beta Card",
+      });
+
+      await testDb.kysely
+        .insertInto("divination_card_availability")
+        .values({
+          game: "poe1",
+          league: "Settlers",
+          card_name: "Alpha Card",
+          from_boss: 0,
+          is_disabled: 0,
+          weight: 500,
+          updated_at: new Date().toISOString(),
+        })
+        .execute();
+
+      await testDb.kysely
+        .insertInto("divination_card_availability")
+        .values({
+          game: "poe1",
+          league: "Settlers",
+          card_name: "Beta Card",
+          from_boss: 0,
+          is_disabled: 0,
+          weight: 500,
+          updated_at: new Date().toISOString(),
+        })
+        .execute();
+
+      const names = await repository.getUncollectedCardNames(
+        "poe1",
+        "Settlers",
+      );
+      expect(names).toEqual(["Alpha Card", "Beta Card"]);
+    });
+
+    it("should exclude collected card names from results", async () => {
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Card A",
+      });
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Card B",
+      });
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Card C",
+      });
+
+      await testDb.kysely
+        .insertInto("divination_card_availability")
+        .values({
+          game: "poe1",
+          league: "Settlers",
+          card_name: "Card A",
+          from_boss: 0,
+          is_disabled: 0,
+          weight: 500,
+          updated_at: new Date().toISOString(),
+        })
+        .execute();
+
+      await testDb.kysely
+        .insertInto("divination_card_availability")
+        .values({
+          game: "poe1",
+          league: "Settlers",
+          card_name: "Card B",
+          from_boss: 0,
+          is_disabled: 0,
+          weight: 500,
+          updated_at: new Date().toISOString(),
+        })
+        .execute();
+
+      await testDb.kysely
+        .insertInto("divination_card_availability")
+        .values({
+          game: "poe1",
+          league: "Settlers",
+          card_name: "Card C",
+          from_boss: 0,
+          is_disabled: 0,
+          weight: 500,
+          updated_at: new Date().toISOString(),
+        })
+        .execute();
+
+      // Mark "Card B" as collected in the cards table
+      await testDb.kysely
+        .insertInto("cards")
+        .values({
+          game: "poe1",
+          scope: "Settlers",
+          card_name: "Card B",
+          count: 3,
+          last_updated: new Date().toISOString(),
+        })
+        .execute();
+
+      const names = await repository.getUncollectedCardNames(
+        "poe1",
+        "Settlers",
+      );
+      expect(names).toEqual(["Card A", "Card C"]);
+    });
+
+    it("should return empty array when all cards are collected", async () => {
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Card X",
+      });
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Card Y",
+      });
+
+      await testDb.kysely
+        .insertInto("divination_card_availability")
+        .values({
+          game: "poe1",
+          league: "Settlers",
+          card_name: "Card X",
+          from_boss: 0,
+          is_disabled: 0,
+          weight: 500,
+          updated_at: new Date().toISOString(),
+        })
+        .execute();
+
+      await testDb.kysely
+        .insertInto("divination_card_availability")
+        .values({
+          game: "poe1",
+          league: "Settlers",
+          card_name: "Card Y",
+          from_boss: 0,
+          is_disabled: 0,
+          weight: 500,
+          updated_at: new Date().toISOString(),
+        })
+        .execute();
+
+      // Mark both cards as collected
+      await testDb.kysely
+        .insertInto("cards")
+        .values({
+          game: "poe1",
+          scope: "Settlers",
+          card_name: "Card X",
+          count: 1,
+          last_updated: new Date().toISOString(),
+        })
+        .execute();
+
+      await testDb.kysely
+        .insertInto("cards")
+        .values({
+          game: "poe1",
+          scope: "Settlers",
+          card_name: "Card Y",
+          count: 2,
+          last_updated: new Date().toISOString(),
+        })
+        .execute();
+
+      const names = await repository.getUncollectedCardNames(
+        "poe1",
+        "Settlers",
+      );
+      expect(names).toEqual([]);
+    });
+  });
 });

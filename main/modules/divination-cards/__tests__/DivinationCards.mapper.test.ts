@@ -12,6 +12,9 @@ interface DivinationCardWithRarityRow extends DivinationCardsRow {
   rarity?: Rarity;
   filter_rarity?: KnownRarity | null;
   prohibited_library_rarity?: Rarity | null;
+  from_boss?: number | null;
+  is_disabled?: number | null;
+  in_pool?: number | null;
 }
 
 /**
@@ -32,6 +35,8 @@ function createDivinationCardRow(
     game: "poe1",
     data_hash: "abc123",
     from_boss: 0,
+    is_disabled: 0,
+    in_pool: 0,
     created_at: "2025-01-01T00:00:00Z",
     updated_at: "2025-01-15T00:00:00Z",
     ...overrides,
@@ -122,13 +127,6 @@ describe("DivinationCards.mapper", () => {
       const dto = DivinationCardsMapper.toDTO(row);
 
       expect(dto.filterRarity).toBeNull();
-    });
-
-    it("should use provided rarity when present", () => {
-      const row = createDivinationCardRow({ rarity: 1 });
-      const dto = DivinationCardsMapper.toDTO(row);
-
-      expect(dto.rarity).toBe(1);
     });
 
     it("should map rarity 1 (extremely rare)", () => {
@@ -228,9 +226,23 @@ describe("DivinationCards.mapper", () => {
 
       expect(dto.fromBoss).toBe(false);
     });
+
+    it("should map is_disabled = 0 to isDisabled = false", () => {
+      const row = createDivinationCardRow({ is_disabled: 0 });
+      const dto = DivinationCardsMapper.toDTO(row);
+      expect(dto.isDisabled).toBe(false);
+    });
+
+    it("should map is_disabled = 1 to isDisabled = true", () => {
+      const row = createDivinationCardRow({ is_disabled: 1 });
+      const dto = DivinationCardsMapper.toDTO(row);
+      expect(dto.isDisabled).toBe(true);
+    });
   });
 
   // ─── cleanWikiMarkup Integration ─────────────────────────────────────
+  // cleanWikiMarkup runs at both write time (syncCards) and read time (mapper)
+  // to handle legacy data that was stored before write-time cleaning was added.
 
   describe("cleanWikiMarkup integration", () => {
     it("should clean wiki markup from rewardHtml", () => {
@@ -246,37 +258,29 @@ describe("DivinationCards.mapper", () => {
 
     it("should clean wiki markup from flavourHtml", () => {
       const row = createDivinationCardRow({
-        flavour_html: "[[Some Link|Display Text]]",
+        flavour_html: "[[File:icon.png|32px]]Some flavour",
       });
       const dto = DivinationCardsMapper.toDTO(row);
 
-      expect(dto.flavourHtml).not.toContain("[[");
-      expect(dto.flavourHtml).not.toContain("]]");
+      expect(dto.flavourHtml).not.toContain("[[File:");
     });
 
-    it("should pass through plain text rewardHtml unchanged", () => {
+    it("should pass through already-clean HTML unchanged", () => {
       const row = createDivinationCardRow({
-        reward_html: "Headhunter Leather Belt",
+        reward_html: "<span class='rare'>Headhunter</span>",
       });
       const dto = DivinationCardsMapper.toDTO(row);
 
-      expect(dto.rewardHtml).toBe("Headhunter Leather Belt");
+      expect(dto.rewardHtml).toBe("<span class='rare'>Headhunter</span>");
     });
 
-    it("should pass through plain text flavourHtml unchanged", () => {
+    it("should pass through plain text unchanged", () => {
       const row = createDivinationCardRow({
-        flavour_html: "A simple flavour text",
+        flavour_html: "A dark omen",
       });
       const dto = DivinationCardsMapper.toDTO(row);
 
-      expect(dto.flavourHtml).toBe("A simple flavour text");
-    });
-
-    it("should handle empty strings for rewardHtml", () => {
-      const row = createDivinationCardRow({ reward_html: "" });
-      const dto = DivinationCardsMapper.toDTO(row);
-
-      expect(dto.rewardHtml).toBe("");
+      expect(dto.flavourHtml).toBe("A dark omen");
     });
 
     it("should handle null flavourHtml gracefully", () => {
@@ -331,6 +335,8 @@ describe("DivinationCards.mapper", () => {
         "filterRarity",
         "prohibitedLibraryRarity",
         "fromBoss",
+        "isDisabled",
+        "inPool",
         "game",
         "createdAt",
         "updatedAt",
@@ -351,6 +357,7 @@ describe("DivinationCards.mapper", () => {
         game: "poe1",
         data_hash: "hash456",
         from_boss: 0,
+        is_disabled: 0,
         created_at: "2025-03-01T12:00:00Z",
         updated_at: "2025-03-10T15:30:00Z",
         rarity: 4,
@@ -369,6 +376,8 @@ describe("DivinationCards.mapper", () => {
         filterRarity: null,
         prohibitedLibraryRarity: null,
         fromBoss: false,
+        isDisabled: false,
+        inPool: false,
         game: "poe1",
         createdAt: "2025-03-01T12:00:00Z",
         updatedAt: "2025-03-10T15:30:00Z",

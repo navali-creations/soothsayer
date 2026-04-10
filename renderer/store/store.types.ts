@@ -8,7 +8,6 @@ import type { OnboardingSlice } from "../modules/onboarding/Onboarding.slice/Onb
 import type { OverlaySlice } from "../modules/overlay/Overlay.slice/Overlay.slice";
 import type { PoeNinjaSlice } from "../modules/poe-ninja/PoeNinja.slice/PoeNinja.slice";
 import type { ProfitForecastSlice } from "../modules/profit-forecast/ProfitForecast.slice/ProfitForecast.slice";
-import type { ProhibitedLibrarySlice } from "../modules/prohibited-library/ProhibitedLibrary.slice/ProhibitedLibrary.slice";
 import type { RarityInsightsSlice } from "../modules/rarity-insights/RarityInsights.slice/RarityInsights.slice";
 import type { RarityInsightsComparisonSlice } from "../modules/rarity-insights/RarityInsightsComparison.slice/RarityInsightsComparison.slice";
 import type { SessionDetailsSlice } from "../modules/session-details";
@@ -47,7 +46,6 @@ export type BoundStore = GameInfoSlice &
   ChangelogSlice &
   OverlaySlice &
   PoeNinjaSlice &
-  ProhibitedLibrarySlice &
   StatisticsSlice &
   OnboardingSlice &
   UpdaterSlice &

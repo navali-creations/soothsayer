@@ -1,20 +1,14 @@
-import { useCallback, useEffect } from "react";
+import { useCallback } from "react";
 import { FiAlertTriangle, FiRefreshCw } from "react-icons/fi";
 
 import { Button } from "~/renderer/components";
 import { trackEvent } from "~/renderer/modules/umami";
-import {
-  useProhibitedLibrary,
-  useRarityInsights,
-  useSettings,
-} from "~/renderer/store";
+import { useRarityInsights, useSettings } from "~/renderer/store";
 import {
   decodeRaritySourceValue,
   encodeRaritySourceValue,
   getAnalyticsRaritySource,
 } from "~/renderer/utils";
-
-import ProhibitedLibraryStatusBlock from "../ProhibitedLibraryStatusBlock/ProhibitedLibraryStatusBlock";
 
 const FilterSettingsCard = () => {
   const { raritySource, selectedFilterId, updateSetting } = useSettings();
@@ -29,22 +23,8 @@ const FilterSettingsCard = () => {
     getLocalFilters,
     getOnlineFilters,
   } = useRarityInsights();
-  const {
-    poe1Status,
-    poe2Status,
-    fetchStatus: fetchPlStatus,
-  } = useProhibitedLibrary();
-
   const localFilters = getLocalFilters();
   const onlineFilters = getOnlineFilters();
-
-  // Fetch PL status on mount so the status block has data.
-  // Skip if already loaded — avoids 2 redundant IPC round-trips on re-mount.
-  useEffect(() => {
-    if (!poe1Status && !poe2Status) {
-      fetchPlStatus();
-    }
-  }, [poe1Status, poe2Status, fetchPlStatus]);
 
   const handleDropdownChange = useCallback(
     async (value: string) => {
@@ -160,11 +140,6 @@ const FilterSettingsCard = () => {
 
           {/* Scan error */}
           {scanError && <p className="text-xs text-error">{scanError}</p>}
-
-          {/* Prohibited Library status block */}
-          {raritySource === "prohibited-library" && (
-            <ProhibitedLibraryStatusBlock />
-          )}
 
           {/* No filters found hint */}
           {!isScanning && availableFilters.length === 0 && (

@@ -1,10 +1,36 @@
-import { type Kysely, sql } from "kysely";
+import {
+  type Kysely,
+  type SelectQueryBuilder,
+  type SqlBool,
+  sql,
+} from "kysely";
 
 import type { Database } from "~/main/modules/database";
 import type { Rarity } from "~/types/data-stores";
 
 import type { DivinationCardDTO } from "./DivinationCards.dto";
-import { DivinationCardsMapper } from "./DivinationCards.mapper";
+import {
+  DivinationCardsMapper,
+  type DivinationCardWithRarityRow,
+} from "./DivinationCards.mapper";
+
+/**
+ * Base columns selected from divination_cards in every card query.
+ * Defined once to avoid repetition across getAllByGame, getById, getByName, searchByName.
+ */
+const BASE_CARD_COLUMNS = [
+  "dc.id",
+  "dc.name",
+  "dc.stack_size",
+  "dc.description",
+  "dc.reward_html",
+  "dc.art_src",
+  "dc.flavour_html",
+  "dc.game",
+  "dc.data_hash",
+  "dc.created_at",
+  "dc.updated_at",
+] as const;
 
 /**
  * Repository for Divination Cards
@@ -26,88 +52,123 @@ export class DivinationCardsRepository {
   }
 
   /**
+   * Apply the rarity joins (price-based, filter-based) and select Prohibited Library
+   * rarity from the already-joined `divination_card_rarities` table.
+   *
+   * Every code path selects exactly three extra columns — `rarity`, `filter_rarity`,
+   * and `prohibited_library_rarity` — either from a real LEFT JOIN / column or as a
+   * literal fallback (0 / NULL). This keeps the result shape consistent for the mapper.
+   *
+   * @param qb      - Query builder with base columns already selected
+   * @param league   - Optional league name for price-based rarity lookup
+   * @param filterId - Optional filter ID for filter-based rarity lookup
+   *
+   * NOTE: The LEFT JOINs here (including to divination_card_availability)
+   * are intentional. This method reads metadata for a specific known card —
+   * it does not enumerate the league pool. A missing availability row is
+   * handled via COALESCE defaults. This is distinct from the pool queries
+   * in Sessions.repository.ts which start from divination_card_availability
+   * to avoid inflating counts.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private withRarityJoins<T extends SelectQueryBuilder<any, any, any>>(
+    qb: T,
+    league?: string,
+    filterId?: string | null,
+    onlyInPool?: boolean,
+  ) {
+    // --- Price-based rarity ---
+    // Effective rarity = user override if set, else system rarity, else 0 (Unknown)
+    let query: SelectQueryBuilder<any, any, any> = league
+      ? qb
+          .leftJoin("divination_card_rarities as dcr", (join) =>
+            join
+              .onRef("dcr.card_name", "=", "dc.name")
+              .onRef("dcr.game", "=", "dc.game")
+              .on("dcr.league", "=", league),
+          )
+          .select(
+            sql<number>`COALESCE(dcr.override_rarity, dcr.rarity, 0)`.as(
+              "rarity",
+            ),
+          )
+      : qb.select(sql<number>`0`.as("rarity"));
+
+    // --- Filter-based rarity ---
+    query = filterId
+      ? query
+          .leftJoin("filter_card_rarities as fcr", (join) =>
+            join
+              .onRef("fcr.card_name", "=", "dc.name")
+              .on("fcr.filter_id", "=", filterId),
+          )
+          .select(sql<number | null>`fcr.rarity`.as("filter_rarity"))
+      : query.select(sql<null>`NULL`.as("filter_rarity"));
+
+    // --- Prohibited Library rarity ---
+    // Read directly from divination_card_rarities (populated by syncCards Phase 2b).
+    // No separate table join needed — dcr is already joined above.
+    query = league
+      ? query.select(
+          sql<number | null>`dcr.prohibited_library_rarity`.as(
+            "prohibited_library_rarity",
+          ),
+        )
+      : query.select(sql<null>`NULL`.as("prohibited_library_rarity"));
+
+    // --- Availability (from_boss, is_disabled, in_pool) ---
+    if (league) {
+      const availJoin = (join: any) =>
+        join
+          .onRef("dca.card_name", "=", "dc.name")
+          .onRef("dca.game", "=", "dc.game")
+          .on("dca.league", "=", league);
+
+      const joined = onlyInPool
+        ? query.innerJoin("divination_card_availability as dca", availJoin)
+        : query.leftJoin("divination_card_availability as dca", availJoin);
+
+      query = joined
+        .select(sql<number>`COALESCE(dca.from_boss, 0)`.as("from_boss"))
+        .select(sql<number>`COALESCE(dca.is_disabled, 0)`.as("is_disabled"))
+        .select(
+          sql<number>`CASE WHEN dca.card_name IS NOT NULL THEN 1 ELSE 0 END`.as(
+            "in_pool",
+          ),
+        );
+    } else {
+      query = query
+        .select(sql<number>`0`.as("from_boss"))
+        .select(sql<number>`0`.as("is_disabled"))
+        .select(sql<number>`1`.as("in_pool"));
+    }
+
+    return query;
+  }
+
+  /**
    * Get all cards for a specific game with rarities from a specific league.
    * Optionally joins with filter_card_rarities to provide filter-based rarity.
-   * Optionally joins with prohibited_library_card_weights to provide PL-based rarity.
    *
    * @param game - The game type ("poe1" or "poe2")
    * @param league - Optional league name for price-based rarity lookup
    * @param filterId - Optional filter ID for filter-based rarity lookup
-   * @param plLeague - Optional league name for Prohibited Library rarity lookup (pre-resolved with fallback)
    */
   async getAllByGame(
     game: "poe1" | "poe2",
     league?: string,
     filterId?: string | null,
-    plLeague?: string | null,
+    onlyInPool?: boolean,
   ): Promise<DivinationCardDTO[]> {
-    let query = this.kysely
+    const base = this.kysely
       .selectFrom("divination_cards as dc")
-      .select([
-        "dc.id",
-        "dc.name",
-        "dc.stack_size",
-        "dc.description",
-        "dc.reward_html",
-        "dc.art_src",
-        "dc.flavour_html",
-        "dc.game",
-        "dc.data_hash",
-        "dc.from_boss",
-        "dc.created_at",
-        "dc.updated_at",
-      ])
+      .select([...BASE_CARD_COLUMNS])
       .where("dc.game", "=", game);
 
-    // Join with price-based rarities if league is provided
-    // Effective rarity = user override if set, else system rarity, else 0 (Unknown)
-    if (league) {
-      query = query
-        .leftJoin("divination_card_rarities as dcr", (join) =>
-          join
-            .onRef("dcr.card_name", "=", "dc.name")
-            .onRef("dcr.game", "=", "dc.game")
-            .on("dcr.league", "=", league),
-        )
-        .select(
-          sql<number>`COALESCE(dcr.override_rarity, dcr.rarity, 0)`.as(
-            "rarity",
-          ),
-        );
-    } else {
-      query = query.select(sql<number>`0`.as("rarity"));
-    }
-
-    // Join with filter-based rarities if filterId is provided
-    if (filterId) {
-      query = query
-        .leftJoin("filter_card_rarities as fcr", (join) =>
-          join
-            .onRef("fcr.card_name", "=", "dc.name")
-            .on("fcr.filter_id", "=", filterId),
-        )
-        .select(sql<number | null>`fcr.rarity`.as("filter_rarity"));
-    } else {
-      query = query.select(sql<null>`NULL`.as("filter_rarity"));
-    }
-
-    // Join with Prohibited Library card weights if plLeague is provided
-    if (plLeague) {
-      query = query
-        .leftJoin("prohibited_library_card_weights as plcw", (join) =>
-          join
-            .onRef("plcw.card_name", "=", "dc.name")
-            .onRef("plcw.game", "=", "dc.game")
-            .on("plcw.league", "=", plLeague),
-        )
-        .select(
-          sql<number | null>`plcw.rarity`.as("prohibited_library_rarity"),
-        );
-    } else {
-      query = query.select(sql<null>`NULL`.as("prohibited_library_rarity"));
-    }
-
-    const rows = await query.orderBy("dc.name", "asc").execute();
+    const query = this.withRarityJoins(base, league, filterId, onlyInPool);
+    const rows = (await query
+      .orderBy("dc.name", "asc")
+      .execute()) as DivinationCardWithRarityRow[];
 
     return rows.map(DivinationCardsMapper.toDTO);
   }
@@ -115,83 +176,25 @@ export class DivinationCardsRepository {
   /**
    * Get a specific card by ID with rarity from a specific league.
    * Optionally joins with filter_card_rarities to provide filter-based rarity.
-   * Optionally joins with prohibited_library_card_weights to provide PL-based rarity.
    *
    * @param id - The card ID (e.g., "poe1_a-chilling-wind")
    * @param league - Optional league name for price-based rarity lookup
    * @param filterId - Optional filter ID for filter-based rarity lookup
-   * @param plLeague - Optional league name for Prohibited Library rarity lookup (pre-resolved with fallback)
    */
   async getById(
     id: string,
     league?: string,
     filterId?: string | null,
-    plLeague?: string | null,
   ): Promise<DivinationCardDTO | null> {
-    let query = this.kysely
+    const base = this.kysely
       .selectFrom("divination_cards as dc")
-      .select([
-        "dc.id",
-        "dc.name",
-        "dc.stack_size",
-        "dc.description",
-        "dc.reward_html",
-        "dc.art_src",
-        "dc.flavour_html",
-        "dc.game",
-        "dc.data_hash",
-        "dc.from_boss",
-        "dc.created_at",
-        "dc.updated_at",
-      ])
+      .select([...BASE_CARD_COLUMNS])
       .where("dc.id", "=", id);
 
-    if (league) {
-      query = query
-        .leftJoin("divination_card_rarities as dcr", (join) =>
-          join
-            .onRef("dcr.card_name", "=", "dc.name")
-            .onRef("dcr.game", "=", "dc.game")
-            .on("dcr.league", "=", league),
-        )
-        .select(
-          sql<number>`COALESCE(dcr.override_rarity, dcr.rarity, 0)`.as(
-            "rarity",
-          ),
-        );
-    } else {
-      query = query.select(sql<number>`0`.as("rarity"));
-    }
-
-    if (filterId) {
-      query = query
-        .leftJoin("filter_card_rarities as fcr", (join) =>
-          join
-            .onRef("fcr.card_name", "=", "dc.name")
-            .on("fcr.filter_id", "=", filterId),
-        )
-        .select(sql<number | null>`fcr.rarity`.as("filter_rarity"));
-    } else {
-      query = query.select(sql<null>`NULL`.as("filter_rarity"));
-    }
-
-    // Join with Prohibited Library card weights if plLeague is provided
-    if (plLeague) {
-      query = query
-        .leftJoin("prohibited_library_card_weights as plcw", (join) =>
-          join
-            .onRef("plcw.card_name", "=", "dc.name")
-            .onRef("plcw.game", "=", "dc.game")
-            .on("plcw.league", "=", plLeague),
-        )
-        .select(
-          sql<number | null>`plcw.rarity`.as("prohibited_library_rarity"),
-        );
-    } else {
-      query = query.select(sql<null>`NULL`.as("prohibited_library_rarity"));
-    }
-
-    const row = await query.executeTakeFirst();
+    const query = this.withRarityJoins(base, league, filterId);
+    const row = (await query.executeTakeFirst()) as
+      | DivinationCardWithRarityRow
+      | undefined;
 
     return row ? DivinationCardsMapper.toDTO(row) : null;
   }
@@ -199,86 +202,28 @@ export class DivinationCardsRepository {
   /**
    * Get a specific card by name and game with rarity from a specific league.
    * Optionally joins with filter_card_rarities to provide filter-based rarity.
-   * Optionally joins with prohibited_library_card_weights to provide PL-based rarity.
    *
    * @param game - The game type ("poe1" or "poe2")
    * @param name - The card name
    * @param league - Optional league name for price-based rarity lookup
    * @param filterId - Optional filter ID for filter-based rarity lookup
-   * @param plLeague - Optional league name for Prohibited Library rarity lookup (pre-resolved with fallback)
    */
   async getByName(
     game: "poe1" | "poe2",
     name: string,
     league?: string,
     filterId?: string | null,
-    plLeague?: string | null,
   ): Promise<DivinationCardDTO | null> {
-    let query = this.kysely
+    const base = this.kysely
       .selectFrom("divination_cards as dc")
-      .select([
-        "dc.id",
-        "dc.name",
-        "dc.stack_size",
-        "dc.description",
-        "dc.reward_html",
-        "dc.art_src",
-        "dc.flavour_html",
-        "dc.game",
-        "dc.data_hash",
-        "dc.from_boss",
-        "dc.created_at",
-        "dc.updated_at",
-      ])
+      .select([...BASE_CARD_COLUMNS])
       .where("dc.game", "=", game)
       .where("dc.name", "=", name);
 
-    if (league) {
-      query = query
-        .leftJoin("divination_card_rarities as dcr", (join) =>
-          join
-            .onRef("dcr.card_name", "=", "dc.name")
-            .onRef("dcr.game", "=", "dc.game")
-            .on("dcr.league", "=", league),
-        )
-        .select(
-          sql<number>`COALESCE(dcr.override_rarity, dcr.rarity, 0)`.as(
-            "rarity",
-          ),
-        );
-    } else {
-      query = query.select(sql<number>`0`.as("rarity"));
-    }
-
-    if (filterId) {
-      query = query
-        .leftJoin("filter_card_rarities as fcr", (join) =>
-          join
-            .onRef("fcr.card_name", "=", "dc.name")
-            .on("fcr.filter_id", "=", filterId),
-        )
-        .select(sql<number | null>`fcr.rarity`.as("filter_rarity"));
-    } else {
-      query = query.select(sql<null>`NULL`.as("filter_rarity"));
-    }
-
-    // Join with Prohibited Library card weights if plLeague is provided
-    if (plLeague) {
-      query = query
-        .leftJoin("prohibited_library_card_weights as plcw", (join) =>
-          join
-            .onRef("plcw.card_name", "=", "dc.name")
-            .onRef("plcw.game", "=", "dc.game")
-            .on("plcw.league", "=", plLeague),
-        )
-        .select(
-          sql<number | null>`plcw.rarity`.as("prohibited_library_rarity"),
-        );
-    } else {
-      query = query.select(sql<null>`NULL`.as("prohibited_library_rarity"));
-    }
-
-    const row = await query.executeTakeFirst();
+    const query = this.withRarityJoins(base, league, filterId);
+    const row = (await query.executeTakeFirst()) as
+      | DivinationCardWithRarityRow
+      | undefined;
 
     return row ? DivinationCardsMapper.toDTO(row) : null;
   }
@@ -286,88 +231,30 @@ export class DivinationCardsRepository {
   /**
    * Search cards by name (case-insensitive partial match) with rarities from a specific league.
    * Optionally joins with filter_card_rarities to provide filter-based rarity.
-   * Optionally joins with prohibited_library_card_weights to provide PL-based rarity.
    *
    * @param game - The game type ("poe1" or "poe2")
    * @param query - The search query string
    * @param league - Optional league name for price-based rarity lookup
    * @param filterId - Optional filter ID for filter-based rarity lookup
-   * @param plLeague - Optional league name for Prohibited Library rarity lookup (pre-resolved with fallback)
    */
   async searchByName(
     game: "poe1" | "poe2",
     query: string,
     league?: string,
     filterId?: string | null,
-    plLeague?: string | null,
   ): Promise<DivinationCardDTO[]> {
-    let queryBuilder = this.kysely
+    const escaped = query.replace(/[%_\\]/g, "\\$&");
+
+    const base = this.kysely
       .selectFrom("divination_cards as dc")
-      .select([
-        "dc.id",
-        "dc.name",
-        "dc.stack_size",
-        "dc.description",
-        "dc.reward_html",
-        "dc.art_src",
-        "dc.flavour_html",
-        "dc.game",
-        "dc.data_hash",
-        "dc.from_boss",
-        "dc.created_at",
-        "dc.updated_at",
-      ])
+      .select([...BASE_CARD_COLUMNS])
       .where("dc.game", "=", game)
-      .where("dc.name", "like", `%${query}%`);
+      .where(sql<SqlBool>`dc.name LIKE ${`%${escaped}%`} ESCAPE '\\'`);
 
-    if (league) {
-      queryBuilder = queryBuilder
-        .leftJoin("divination_card_rarities as dcr", (join) =>
-          join
-            .onRef("dcr.card_name", "=", "dc.name")
-            .onRef("dcr.game", "=", "dc.game")
-            .on("dcr.league", "=", league),
-        )
-        .select(
-          sql<number>`COALESCE(dcr.override_rarity, dcr.rarity, 0)`.as(
-            "rarity",
-          ),
-        );
-    } else {
-      queryBuilder = queryBuilder.select(sql<number>`0`.as("rarity"));
-    }
-
-    if (filterId) {
-      queryBuilder = queryBuilder
-        .leftJoin("filter_card_rarities as fcr", (join) =>
-          join
-            .onRef("fcr.card_name", "=", "dc.name")
-            .on("fcr.filter_id", "=", filterId),
-        )
-        .select(sql<number | null>`fcr.rarity`.as("filter_rarity"));
-    } else {
-      queryBuilder = queryBuilder.select(sql<null>`NULL`.as("filter_rarity"));
-    }
-
-    // Join with Prohibited Library card weights if plLeague is provided
-    if (plLeague) {
-      queryBuilder = queryBuilder
-        .leftJoin("prohibited_library_card_weights as plcw", (join) =>
-          join
-            .onRef("plcw.card_name", "=", "dc.name")
-            .onRef("plcw.game", "=", "dc.game")
-            .on("plcw.league", "=", plLeague),
-        )
-        .select(
-          sql<number | null>`plcw.rarity`.as("prohibited_library_rarity"),
-        );
-    } else {
-      queryBuilder = queryBuilder.select(
-        sql<null>`NULL`.as("prohibited_library_rarity"),
-      );
-    }
-
-    const rows = await queryBuilder.orderBy("dc.name", "asc").execute();
+    const qb = this.withRarityJoins(base, league, filterId);
+    const rows = (await qb
+      .orderBy("dc.name", "asc")
+      .execute()) as DivinationCardWithRarityRow[];
 
     return rows.map(DivinationCardsMapper.toDTO);
   }
@@ -392,11 +279,32 @@ export class DivinationCardsRepository {
     const id = this.generateId(game, name);
     const result = await this.kysely
       .selectFrom("divination_cards")
-      .select((eb) => eb.fn.countAll<number>().as("count"))
+      .select(sql`1`.as("exists"))
       .where("id", "=", id)
+      .limit(1)
       .executeTakeFirst();
 
-    return (result?.count ?? 0) > 0;
+    return result !== undefined;
+  }
+
+  /**
+   * Batch-fetch all card hashes for a game.
+   * Returns a Map of card name → data_hash.
+   */
+  async getAllCardHashes(game: "poe1" | "poe2"): Promise<Map<string, string>> {
+    const rows = await this.kysely
+      .selectFrom("divination_cards")
+      .select(["name", "data_hash"])
+      .where("game", "=", game)
+      .execute();
+
+    const map = new Map<string, string>();
+    for (const row of rows) {
+      if (row.data_hash) {
+        map.set(row.name, row.data_hash);
+      }
+    }
+    return map;
   }
 
   /**
@@ -537,16 +445,57 @@ export class DivinationCardsRepository {
     league: string,
     updates: Array<{ name: string; rarity: Rarity; clearOverride?: boolean }>,
   ): Promise<void> {
-    // Use transaction for bulk updates
-    for (const { name, rarity, clearOverride } of updates) {
-      await this.updateRarity(
-        game,
-        league,
-        name,
-        rarity,
-        clearOverride ?? false,
-      );
-    }
+    if (updates.length === 0) return;
+
+    const clearGroup = updates.filter((u) => u.clearOverride ?? false);
+    const keepGroup = updates.filter((u) => !(u.clearOverride ?? false));
+
+    await this.kysely.transaction().execute(async (trx) => {
+      if (clearGroup.length > 0) {
+        await trx
+          .insertInto("divination_card_rarities")
+          .values(
+            clearGroup.map(({ name, rarity }) => ({
+              game,
+              league,
+              card_name: name,
+              rarity,
+              override_rarity: null,
+              last_updated: sql`datetime('now')`,
+            })),
+          )
+          .onConflict((oc) =>
+            oc.columns(["game", "league", "card_name"]).doUpdateSet({
+              rarity: sql`excluded.rarity`,
+              override_rarity: null,
+              last_updated: sql`datetime('now')`,
+            }),
+          )
+          .execute();
+      }
+
+      if (keepGroup.length > 0) {
+        await trx
+          .insertInto("divination_card_rarities")
+          .values(
+            keepGroup.map(({ name, rarity }) => ({
+              game,
+              league,
+              card_name: name,
+              rarity,
+              override_rarity: null,
+              last_updated: sql`datetime('now')`,
+            })),
+          )
+          .onConflict((oc) =>
+            oc.columns(["game", "league", "card_name"]).doUpdateSet({
+              rarity: sql`excluded.rarity`,
+              last_updated: sql`datetime('now')`,
+            }),
+          )
+          .execute();
+      }
+    });
   }
 
   /**
@@ -611,32 +560,34 @@ export class DivinationCardsRepository {
 
     let inserted = 0;
 
-    for (const name of names) {
-      const id = this.generateId(game, name);
-      const result = await this.kysely
-        .insertInto("divination_cards")
-        .values({
-          id,
-          game,
-          name,
-          stack_size: 1,
-          description: "",
-          reward_html: "",
-          art_src: "",
-          flavour_html: "",
-          data_hash: hashFn(name),
-        })
-        .onConflict((oc) => oc.column("id").doNothing())
-        .executeTakeFirst();
+    await this.kysely.transaction().execute(async (trx) => {
+      for (const name of names) {
+        const id = this.generateId(game, name);
+        const result = await trx
+          .insertInto("divination_cards")
+          .values({
+            id,
+            game,
+            name,
+            stack_size: 1,
+            description: "",
+            reward_html: "",
+            art_src: "",
+            flavour_html: "",
+            data_hash: hashFn(name),
+          })
+          .onConflict((oc) => oc.column("id").doNothing())
+          .executeTakeFirst();
 
-      // SQLite returns numInsertedOrUpdatedRows = 0 for ignored conflicts
-      if (
-        result.numInsertedOrUpdatedRows !== undefined &&
-        Number(result.numInsertedOrUpdatedRows) > 0
-      ) {
-        inserted++;
+        // SQLite returns numInsertedOrUpdatedRows = 0 for ignored conflicts
+        if (
+          result.numInsertedOrUpdatedRows !== undefined &&
+          Number(result.numInsertedOrUpdatedRows) > 0
+        ) {
+          inserted++;
+        }
       }
-    }
+    });
 
     return inserted;
   }

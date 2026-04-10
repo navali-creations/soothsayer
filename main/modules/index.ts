@@ -16,7 +16,6 @@ export * from "./performance-logger";
 export * from "./poe-leagues";
 export * from "./poe-process";
 export * from "./profit-forecast";
-export * from "./prohibited-library";
 export * from "./rarity-insights";
 export * from "./sentry";
 export * from "./sessions";

@@ -666,40 +666,70 @@ describe("CardDetailsRepository", () => {
     });
   });
 
-  // ─── getFromBoss ─────────────────────────────────────────────────────────
+  // ─── getCardAvailability ─────────────────────────────────────────────────
 
-  describe("getFromBoss", () => {
-    it("should return false when the card does not exist", async () => {
-      const result = await repository.getFromBoss("poe1", "Nonexistent Card");
-      expect(result).toBe(false);
+  describe("getCardAvailability", () => {
+    it("should return fromBoss false and weight null when the card does not exist", async () => {
+      const result = await repository.getCardAvailability(
+        "poe1",
+        "Settlers",
+        "Nonexistent Card",
+      );
+      expect(result).toEqual({ fromBoss: false, weight: null });
     });
 
-    it("should return true for a boss-exclusive card", async () => {
+    it("should return fromBoss true for a boss-exclusive card", async () => {
       await seedDivinationCard(testDb.kysely, {
         game: "poe1",
         name: "The Wretched",
       });
 
-      // Set from_boss to 1
+      // Insert into divination_card_availability with from_boss = 1
       await testDb.kysely
-        .updateTable("divination_cards")
-        .set({ from_boss: 1 })
-        .where("name", "=", "The Wretched")
-        .where("game", "=", "poe1")
+        .insertInto("divination_card_availability")
+        .values({
+          game: "poe1",
+          league: "Settlers",
+          card_name: "The Wretched",
+          from_boss: 1,
+          is_disabled: 0,
+        })
         .execute();
 
-      const result = await repository.getFromBoss("poe1", "The Wretched");
-      expect(result).toBe(true);
+      const result = await repository.getCardAvailability(
+        "poe1",
+        "Settlers",
+        "The Wretched",
+      );
+      expect(result.fromBoss).toBe(true);
+      expect(result.weight).toBeNull();
     });
 
-    it("should return false for a non-boss card", async () => {
+    it("should return fromBoss false for a non-boss card", async () => {
       await seedDivinationCard(testDb.kysely, {
         game: "poe1",
         name: "The Doctor",
       });
 
-      const result = await repository.getFromBoss("poe1", "The Doctor");
-      expect(result).toBe(false);
+      // Insert into divination_card_availability with from_boss = 0 (default)
+      await testDb.kysely
+        .insertInto("divination_card_availability")
+        .values({
+          game: "poe1",
+          league: "Settlers",
+          card_name: "The Doctor",
+          from_boss: 0,
+          is_disabled: 0,
+        })
+        .execute();
+
+      const result = await repository.getCardAvailability(
+        "poe1",
+        "Settlers",
+        "The Doctor",
+      );
+      expect(result.fromBoss).toBe(false);
+      expect(result.weight).toBeNull();
     });
 
     it("should isolate by game type", async () => {
@@ -707,120 +737,53 @@ describe("CardDetailsRepository", () => {
         game: "poe1",
         name: "Test Card",
       });
+
+      // Insert into divination_card_availability for poe1 only
       await testDb.kysely
-        .updateTable("divination_cards")
-        .set({ from_boss: 1 })
-        .where("name", "=", "Test Card")
-        .where("game", "=", "poe1")
-        .execute();
-
-      // poe2 version doesn't exist, should return false
-      const result = await repository.getFromBoss("poe2", "Test Card");
-      expect(result).toBe(false);
-    });
-  });
-
-  // ─── getProhibitedLibraryData ────────────────────────────────────────────
-
-  describe("getProhibitedLibraryData", () => {
-    it("should return null when no PL data exists", async () => {
-      const result = await repository.getProhibitedLibraryData(
-        "poe1",
-        "Settlers",
-        "The Doctor",
-      );
-      expect(result).toBeNull();
-    });
-
-    it("should return weight, rarity, and fromBoss when PL data exists", async () => {
-      await testDb.kysely
-        .insertInto("prohibited_library_card_weights")
+        .insertInto("divination_card_availability")
         .values({
-          card_name: "The Doctor",
           game: "poe1",
           league: "Settlers",
-          weight: 1,
-          rarity: 1,
-          from_boss: 0,
-          loaded_at: new Date().toISOString(),
-        })
-        .execute();
-
-      const result = await repository.getProhibitedLibraryData(
-        "poe1",
-        "Settlers",
-        "The Doctor",
-      );
-
-      expect(result).not.toBeNull();
-      expect(result!.weight).toBe(1);
-      expect(result!.rarity).toBe(1);
-      expect(result!.fromBoss).toBe(false);
-    });
-
-    it("should return fromBoss true when from_boss is 1", async () => {
-      await testDb.kysely
-        .insertInto("prohibited_library_card_weights")
-        .values({
-          card_name: "The Wretched",
-          game: "poe1",
-          league: "Settlers",
-          weight: 0,
-          rarity: 2,
+          card_name: "Test Card",
           from_boss: 1,
-          loaded_at: new Date().toISOString(),
+          is_disabled: 0,
         })
         .execute();
 
-      const result = await repository.getProhibitedLibraryData(
-        "poe1",
-        "Settlers",
-        "The Wretched",
-      );
-
-      expect(result).not.toBeNull();
-      expect(result!.fromBoss).toBe(true);
-      expect(result!.weight).toBe(0);
-    });
-
-    it("should isolate by game and league", async () => {
-      await testDb.kysely
-        .insertInto("prohibited_library_card_weights")
-        .values({
-          card_name: "The Doctor",
-          game: "poe1",
-          league: "Settlers",
-          weight: 5,
-          rarity: 1,
-          from_boss: 0,
-          loaded_at: new Date().toISOString(),
-        })
-        .execute();
-
-      // Different game
-      const poe2Result = await repository.getProhibitedLibraryData(
+      // poe2 version doesn't exist, should return defaults
+      const result = await repository.getCardAvailability(
         "poe2",
         "Settlers",
-        "The Doctor",
+        "Test Card",
       );
-      expect(poe2Result).toBeNull();
+      expect(result).toEqual({ fromBoss: false, weight: null });
+    });
 
-      // Different league
-      const standardResult = await repository.getProhibitedLibraryData(
-        "poe1",
-        "Standard",
-        "The Doctor",
-      );
-      expect(standardResult).toBeNull();
+    it("should isolate by league", async () => {
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "Test Card",
+      });
 
-      // Correct match
-      const correctResult = await repository.getProhibitedLibraryData(
+      // Insert into divination_card_availability for Settlers league
+      await testDb.kysely
+        .insertInto("divination_card_availability")
+        .values({
+          game: "poe1",
+          league: "Settlers",
+          card_name: "Test Card",
+          from_boss: 1,
+          is_disabled: 0,
+        })
+        .execute();
+
+      // Different league should return defaults
+      const result = await repository.getCardAvailability(
         "poe1",
-        "Settlers",
-        "The Doctor",
+        "Keepers",
+        "Test Card",
       );
-      expect(correctResult).not.toBeNull();
-      expect(correctResult!.weight).toBe(5);
+      expect(result).toEqual({ fromBoss: false, weight: null });
     });
   });
 
@@ -1524,21 +1487,17 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should correctly map fromBoss flag", async () => {
+      // from_boss has moved to divination_card_availability;
+      // findCardByName does not query that table, so it always returns false.
       await seedDivinationCard(testDb.kysely, {
         name: "The Fiend",
         rewardHtml: '<span class="tc -unique">[[Headhunter]]</span>',
       });
-      // Set from_boss directly
-      await testDb.kysely
-        .updateTable("divination_cards")
-        .set({ from_boss: 1 })
-        .where("name", "=", "The Fiend")
-        .execute();
 
       const result = await repository.findCardByName("poe1", "The Fiend");
 
       expect(result).not.toBeNull();
-      expect(result!.fromBoss).toBe(true);
+      expect(result!.fromBoss).toBe(false);
     });
 
     it("should return null prohibitedLibraryRarity when no plLeague is given", async () => {
@@ -1552,46 +1511,24 @@ describe("CardDetailsRepository", () => {
       expect(result!.prohibitedLibraryRarity).toBeNull();
     });
 
-    it("should include prohibitedLibraryRarity when plLeague is given and PL data exists", async () => {
+    it("should include prohibitedLibraryRarity from divination_card_rarities when rarity row exists", async () => {
       await seedDivinationCard(testDb.kysely, {
-        name: "The Doctor",
-      });
-      await testDb.kysely
-        .insertInto("prohibited_library_card_weights")
-        .values({
-          card_name: "The Doctor",
-          game: "poe1",
-          league: "Settlers",
-          weight: 500,
-          rarity: 2,
-          from_boss: 0,
-          loaded_at: new Date().toISOString(),
-        })
-        .execute();
-
-      const result = await repository.findCardByName(
-        "poe1",
-        "The Doctor",
-        "Settlers",
-      );
-
-      expect(result).not.toBeNull();
-      expect(result!.prohibitedLibraryRarity).toBe(2);
-    });
-
-    it("should return null prohibitedLibraryRarity when plLeague is given but no PL data exists", async () => {
-      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
         name: "The Doctor",
       });
 
-      const result = await repository.findCardByName(
-        "poe1",
-        "The Doctor",
-        "Settlers",
-      );
+      await seedDivinationCardRarity(testDb.kysely, {
+        game: "poe1",
+        league: "Settlers",
+        cardName: "The Doctor",
+        rarity: 2,
+        prohibitedLibraryRarity: 1,
+      });
+
+      const result = await repository.findCardByName("poe1", "The Doctor");
 
       expect(result).not.toBeNull();
-      expect(result!.prohibitedLibraryRarity).toBeNull();
+      expect(result!.prohibitedLibraryRarity).toBe(1);
     });
   });
 
@@ -1818,17 +1755,12 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should correctly map fromBoss flag", async () => {
+      // from_boss has moved to divination_card_availability;
+      // findCardsByRewardMatch does not query that table, so it always returns false.
       await seedDivinationCard(testDb.kysely, {
         name: "The Fiend",
         rewardHtml: "<span>Headhunter unique</span>",
       });
-
-      // Manually set from_boss to 1
-      await testDb.kysely
-        .updateTable("divination_cards")
-        .set({ from_boss: 1 })
-        .where("name", "=", "The Fiend")
-        .execute();
 
       const result = await repository.findCardsByRewardMatch(
         "poe1",
@@ -1837,7 +1769,7 @@ describe("CardDetailsRepository", () => {
       );
 
       expect(result).toHaveLength(1);
-      expect(result[0].fromBoss).toBe(true);
+      expect(result[0].fromBoss).toBe(false);
     });
 
     it("should return results ordered by name ascending", async () => {
@@ -1882,36 +1814,6 @@ describe("CardDetailsRepository", () => {
       expect(result[0].name).toBe("The Doctor");
     });
 
-    it("should include prohibitedLibraryRarity when plLeague is provided", async () => {
-      await seedDivinationCard(testDb.kysely, {
-        name: "The Doctor",
-        rewardHtml: "Headhunter",
-      });
-      await testDb.kysely
-        .insertInto("prohibited_library_card_weights")
-        .values({
-          card_name: "The Doctor",
-          game: "poe1",
-          league: "Settlers",
-          weight: 100,
-          rarity: 4,
-          from_boss: 0,
-          loaded_at: new Date().toISOString(),
-        })
-        .execute();
-
-      const result = await repository.findCardsByRewardMatch(
-        "poe1",
-        "Headhunter",
-        "Some Other Card",
-        5,
-        "Settlers",
-      );
-
-      expect(result).toHaveLength(1);
-      expect(result[0].prohibitedLibraryRarity).toBe(4);
-    });
-
     it("should return null prohibitedLibraryRarity when plLeague is not provided", async () => {
       await seedDivinationCard(testDb.kysely, {
         name: "The Doctor",
@@ -1926,6 +1828,31 @@ describe("CardDetailsRepository", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].prohibitedLibraryRarity).toBeNull();
+    });
+
+    it("should include prohibitedLibraryRarity from divination_card_rarities when rarity row exists", async () => {
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "The Doctor",
+        rewardHtml: "<span>Headhunter</span>",
+      });
+
+      await seedDivinationCardRarity(testDb.kysely, {
+        game: "poe1",
+        league: "Settlers",
+        cardName: "The Doctor",
+        rarity: 2,
+        prohibitedLibraryRarity: 3,
+      });
+
+      const result = await repository.findCardsByRewardMatch(
+        "poe1",
+        "Headhunter",
+        "Some Other Card",
+      );
+
+      expect(result).toHaveLength(1);
+      expect(result[0].prohibitedLibraryRarity).toBe(3);
     });
   });
 });

@@ -16,6 +16,7 @@ export interface CardWithMetadataRow
   dc_art_src: string | null;
   dc_flavour_html: string | null;
   dc_from_boss: number | null;
+  dc_is_disabled: number | null;
   dc_rarity: number | null;
 }
 
@@ -46,6 +47,7 @@ export class DataStoreMapper {
             flavourHtml: cleanWikiMarkup(row.dc_flavour_html),
             rarity,
             fromBoss: row.dc_from_boss === 1,
+            isDisabled: row.dc_is_disabled === 1,
           }
         : undefined,
     };

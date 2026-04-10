@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 
 import { FuseV1Options, FuseVersion } from "@electron/fuses";
@@ -18,7 +19,7 @@ const config: ForgeConfig = {
     icon: path.resolve(__dirname, "renderer/assets/logo/windows/icon"),
     extraResource: [
       "./renderer/assets/logo",
-      "./renderer/assets/poe1",
+      "./.forge-staging/poe1",
       "./CHANGELOG.md",
     ],
     ignore: (file: string) => {
@@ -30,6 +31,22 @@ const config: ForgeConfig = {
   },
   rebuildConfig: {
     force: true,
+  },
+  hooks: {
+    generateAssets: async () => {
+      // Copies the entire data/ directory from the navali package into the
+      // staging area. This includes prohibited-library-weights.csv which is
+      // no longer read at runtime (weight/from_boss now come from the JSON
+      // files), but it's only ~30 KB so excluding it isn't worth the
+      // complexity of a filtered copy.
+      const src = path.resolve(
+        __dirname,
+        "node_modules/@navali/poe1-divination-cards/data",
+      );
+      const dest = path.resolve(__dirname, ".forge-staging/poe1");
+      fs.cpSync(src, dest, { recursive: true, force: true });
+      console.log("[forge] Staged poe1 card data →", dest);
+    },
   },
   makers: [
     new MakerSquirrel({

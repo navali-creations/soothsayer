@@ -962,15 +962,79 @@ export class SessionsRepository {
    * @param game - Game type filter
    * @param league - Optional league name filter
    */
-  async getStackedDeckCardCount(game: "poe1" | "poe2"): Promise<number> {
+  async getStackedDeckCardCount(
+    game: "poe1" | "poe2",
+    league?: string,
+  ): Promise<number> {
+    if (!league) {
+      // All-time: count all cards for the game (no league pool to filter against)
+      const result = await this.kysely
+        .selectFrom("divination_cards as dc")
+        .select(sql<number>`COUNT(*)`.as("count"))
+        .where("dc.game", "=", game)
+        .executeTakeFirstOrThrow();
+      return (result as any).count;
+    }
+
+    // League-scoped: start from availability (the league pool).
+    // No JOIN needed — availability table has all the filtering columns.
     const result = await this.kysely
-      .selectFrom("divination_cards")
+      .selectFrom("divination_card_availability as dca")
       .select(sql<number>`COUNT(*)`.as("count"))
-      .where("game", "=", game)
-      .where("from_boss", "=", 0)
+      .where("dca.game", "=", game)
+      .where("dca.league", "=", league)
+      .where("dca.from_boss", "=", 0)
+      .where("dca.is_disabled", "=", 0)
       .executeTakeFirstOrThrow();
 
-    return result.count;
+    return (result as any).count;
+  }
+
+  async getCardPoolBreakdown(
+    game: "poe1" | "poe2",
+    league?: string,
+  ): Promise<{
+    total: number;
+    bossOnly: number;
+    disabled: number;
+    droppable: number;
+  }> {
+    if (!league) {
+      // All-time: just count all cards
+      const result = await this.kysely
+        .selectFrom("divination_cards as dc")
+        .select(sql<number>`COUNT(*)`.as("total"))
+        .where("dc.game", "=", game)
+        .executeTakeFirstOrThrow();
+      const total = (result as any).total;
+      return { total, bossOnly: 0, disabled: 0, droppable: total };
+    }
+
+    // League-scoped: query availability for full breakdown
+    const result = await this.kysely
+      .selectFrom("divination_card_availability as dca")
+      .select([
+        sql<number>`COUNT(*)`.as("total"),
+        sql<number>`COALESCE(SUM(CASE WHEN dca.from_boss = 1 THEN 1 ELSE 0 END), 0)`.as(
+          "boss_only",
+        ),
+        sql<number>`COALESCE(SUM(CASE WHEN dca.is_disabled = 1 THEN 1 ELSE 0 END), 0)`.as(
+          "disabled",
+        ),
+        sql<number>`COALESCE(SUM(CASE WHEN dca.from_boss = 0 AND dca.is_disabled = 0 THEN 1 ELSE 0 END), 0)`.as(
+          "droppable",
+        ),
+      ])
+      .where("dca.game", "=", game)
+      .where("dca.league", "=", league)
+      .executeTakeFirstOrThrow();
+
+    return {
+      total: (result as any).total,
+      bossOnly: (result as any).boss_only,
+      disabled: (result as any).disabled,
+      droppable: (result as any).droppable,
+    };
   }
 
   async getTotalDecksOpened(
@@ -1003,16 +1067,33 @@ export class SessionsRepository {
    * Get all card names that can drop from stacked decks (excluding boss-only drops)
    * @param game - Game type filter
    */
-  async getStackedDeckCardNames(game: "poe1" | "poe2"): Promise<string[]> {
+  async getStackedDeckCardNames(
+    game: "poe1" | "poe2",
+    league?: string,
+  ): Promise<string[]> {
+    if (!league) {
+      // All-time: return all cards for the game
+      const rows = await this.kysely
+        .selectFrom("divination_cards as dc")
+        .select("dc.name")
+        .where("dc.game", "=", game)
+        .orderBy("dc.name", "asc")
+        .execute();
+      return rows.map((r: any) => r.name);
+    }
+
+    // League-scoped: start from availability (the league pool)
     const rows = await this.kysely
-      .selectFrom("divination_cards")
-      .select("name")
-      .where("game", "=", game)
-      .where("from_boss", "=", 0)
-      .orderBy("name", "asc")
+      .selectFrom("divination_card_availability as dca")
+      .select("dca.card_name as name")
+      .where("dca.game", "=", game)
+      .where("dca.league", "=", league)
+      .where("dca.from_boss", "=", 0)
+      .where("dca.is_disabled", "=", 0)
+      .orderBy("dca.card_name", "asc")
       .execute();
 
-    return rows.map((r) => r.name);
+    return rows.map((r: any) => r.name);
   }
 
   /**
@@ -1035,16 +1116,31 @@ export class SessionsRepository {
       collectedSubquery = collectedSubquery.where("scope", "=", league);
     }
 
+    if (!league) {
+      // All-time: return all uncollected cards for the game
+      const rows = await this.kysely
+        .selectFrom("divination_cards as dc")
+        .select("dc.name")
+        .where("dc.game", "=", game)
+        .where("dc.name", "not in", collectedSubquery)
+        .orderBy("dc.name", "asc")
+        .execute();
+      return rows.map((r: any) => r.name);
+    }
+
+    // League-scoped: start from availability (the league pool)
     const rows = await this.kysely
-      .selectFrom("divination_cards")
-      .select("name")
-      .where("game", "=", game)
-      .where("from_boss", "=", 0)
-      .where("name", "not in", collectedSubquery)
-      .orderBy("name", "asc")
+      .selectFrom("divination_card_availability as dca")
+      .select("dca.card_name as name")
+      .where("dca.game", "=", game)
+      .where("dca.league", "=", league)
+      .where("dca.from_boss", "=", 0)
+      .where("dca.is_disabled", "=", 0)
+      .where("dca.card_name", "not in", collectedSubquery)
+      .orderBy("dca.card_name", "asc")
       .execute();
 
-    return rows.map((r) => r.name);
+    return rows.map((r: any) => r.name);
   }
 
   async getSessionChartData(

@@ -32,6 +32,9 @@ import {
 } from "../../helpers/navigation";
 import { seedSessionPrerequisites } from "../../helpers/seed-db";
 
+/** The league that seedSessionPrerequisites and syncCards use by default. */
+const FIXTURE_LEAGUE = "Standard";
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 /** How long to wait for triggers to render (library uses delay: 500ms). */
@@ -132,6 +135,21 @@ test.describe("Onboarding — Rarity Insights Page Beacons", () => {
 
   test.beforeEach(async ({ page }) => {
     await ensurePostSetup(page);
+    // Workers are reused across test files. A prior file (e.g. app-menu)
+    // may have changed `poe1SelectedLeague` to a league whose
+    // `divination_card_availability` rows don't exist, causing
+    // `loadCards(onlyInPool=true)` to return 0 cards → empty table →
+    // missing column-header beacons. Reset to the fixture league in both
+    // the DB (for the IPC handler) and the Zustand store (for useEffect).
+    await setSetting(page, "poe1SelectedLeague", FIXTURE_LEAGUE);
+    await page.evaluate((league) => {
+      const store = (window as any).__zustandStore;
+      if (store) {
+        store.setState((s: any) => {
+          s.settings.poe1SelectedLeague = league;
+        });
+      }
+    }, FIXTURE_LEAGUE);
     await seedSessionPrerequisites(page);
   });
 

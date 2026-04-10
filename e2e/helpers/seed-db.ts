@@ -27,7 +27,7 @@ import type { RarityInsightsCardFixture } from "../fixtures/rarity-insights-fixt
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export interface SeedLeagueOptions {
+interface SeedLeagueOptions {
   /** Unique league ID. Defaults to `"poe1_standard"`. */
   id?: string;
   /** Game type. Defaults to `"poe1"`. */
@@ -38,7 +38,7 @@ export interface SeedLeagueOptions {
   startDate?: string;
 }
 
-export interface SeedSnapshotOptions {
+interface SeedSnapshotOptions {
   /** Unique snapshot ID. Defaults to `"e2e-snapshot-001"`. */
   id?: string;
   /** League ID this snapshot belongs to. Defaults to `"poe1_standard"`. */
@@ -62,9 +62,11 @@ export interface SeedCardRarityOptions {
   cardName: string;
   /** Rarity tier: 0 = unknown, 1 = extremely rare, 2 = rare, 3 = less common, 4 = common. */
   rarity: number;
+  /** Prohibited Library rarity tier (0–4). Defaults to `null`. */
+  prohibitedLibraryRarity?: number | null;
 }
 
-export interface SeedSnapshotCardPriceOptions {
+interface SeedSnapshotCardPriceOptions {
   snapshotId: string;
   cardName: string;
   priceSource?: "exchange" | "stash";
@@ -161,7 +163,7 @@ async function dbQuery<T = Record<string, unknown>>(
  *
  * Uses `INSERT OR IGNORE` so it's safe to call multiple times with the same ID.
  */
-export async function seedLeague(
+async function seedLeague(
   page: Page,
   options: SeedLeagueOptions = {},
 ): Promise<string> {
@@ -341,9 +343,15 @@ export async function seedCardRarities(
     await dbExec(
       page,
       `INSERT OR REPLACE INTO divination_card_rarities
-         (game, league, card_name, rarity, last_updated)
-       VALUES (?, ?, ?, ?, datetime('now'))`,
-      [r.game ?? "poe1", r.league ?? "Standard", r.cardName, r.rarity],
+         (game, league, card_name, rarity, prohibited_library_rarity, last_updated)
+       VALUES (?, ?, ?, ?, ?, datetime('now'))`,
+      [
+        r.game ?? "poe1",
+        r.league ?? "Standard",
+        r.cardName,
+        r.rarity,
+        r.prohibitedLibraryRarity ?? null,
+      ],
     );
   }
 }
@@ -570,7 +578,7 @@ export async function seedMultipleCompletedSessions(
  *
  * @returns The processed ID that was used (useful for assertions).
  */
-export async function injectCardDrop(
+async function injectCardDrop(
   page: Page,
   options: InjectCardDropOptions,
 ): Promise<string> {
@@ -714,7 +722,7 @@ export async function injectCardDrops(
  * @param app  - Playwright ElectronApplication (main process)
  * @param game - Game type whose session data to broadcast (default: "poe1")
  */
-export async function emitSessionDataUpdate(
+async function emitSessionDataUpdate(
   page: Page,
   app: ElectronApplication,
   game: string = "poe1",
@@ -743,89 +751,6 @@ export async function emitSessionDataUpdate(
     },
     { game, data: sessionData },
   );
-
-  // 3. Give the renderer a tick to process the IPC event and re-render
-  await page.waitForTimeout(100);
-}
-
-// ─── Query Helpers ────────────────────────────────────────────────────────────
-
-/**
- * Check whether a league row already exists in the database.
- */
-export async function hasLeague(
-  page: Page,
-  game: string,
-  leagueName: string,
-): Promise<boolean> {
-  const rows = await dbQuery<{ id: string }>(
-    page,
-    `SELECT id FROM leagues WHERE game = ? AND name = ?`,
-    [game, leagueName],
-  );
-  return rows.length > 0;
-}
-
-/**
- * Check whether at least one snapshot row exists for a given league.
- */
-export async function hasSnapshot(
-  page: Page,
-  leagueId: string,
-): Promise<boolean> {
-  const rows = await dbQuery<{ id: string }>(
-    page,
-    `SELECT id FROM snapshots WHERE league_id = ?`,
-    [leagueId],
-  );
-  return rows.length > 0;
-}
-
-// ─── Multi-League Seeder ──────────────────────────────────────────────────────
-
-/**
- * Seed multiple leagues with their snapshots and card prices.
- *
- * This is a convenience wrapper around {@link seedSessionPrerequisites} for
- * tests that need more than one league (e.g. starting sessions with different
- * leagues to verify they appear separately in session history).
- *
- * @example
- * ```ts
- * const leagues = await seedMultipleLeagues(page, [
- *   { game: "poe1", leagueName: "Standard" },
- *   { game: "poe1", leagueName: "Settlers of Kalguur" },
- * ]);
- * ```
- */
-export async function seedMultipleLeagues(
-  page: Page,
-  leagues: Array<{
-    game?: string;
-    leagueName: string;
-    leagueId?: string;
-    snapshotId?: string;
-  }>,
-): Promise<
-  Array<{ leagueId: string; snapshotId: string; leagueName: string }>
-> {
-  const results: Array<{
-    leagueId: string;
-    snapshotId: string;
-    leagueName: string;
-  }> = [];
-
-  for (const league of leagues) {
-    const { leagueId, snapshotId } = await seedSessionPrerequisites(page, {
-      game: league.game,
-      leagueName: league.leagueName,
-      leagueId: league.leagueId,
-      snapshotId: league.snapshotId,
-    });
-    results.push({ leagueId, snapshotId, leagueName: league.leagueName });
-  }
-
-  return results;
 }
 
 // ─── Price History Cache Seeding ──────────────────────────────────────────────
@@ -878,24 +803,9 @@ export async function seedPriceHistoryCache(
   );
 }
 
-/**
- * Seed price history cache for multiple cards at once.
- *
- * @param page - Playwright Page
- * @param fixtures - Array of `CardPriceHistoryFixture` entries to seed
- */
-export async function seedPriceHistoryCacheBatch(
-  page: Page,
-  fixtures: CardPriceHistoryFixture[],
-): Promise<void> {
-  for (const fixture of fixtures) {
-    await seedPriceHistoryCache(page, fixture);
-  }
-}
-
 // ─── Rarity Insights Composite Seeder ─────────────────────────────────────────
 
-export interface SeedRarityInsightsOptions {
+interface SeedRarityInsightsOptions {
   /** Game type. Defaults to `"poe1"`. */
   game?: string;
   /** League name. Defaults to `"Standard"`. */
@@ -920,14 +830,15 @@ export interface SeedRarityInsightsOptions {
  * Seed the complete Rarity Insights fixture data into the database.
  *
  * This is a composite seeder that populates:
- * 1. `divination_cards` — card metadata with `from_boss` flags
+ * 1. `divination_cards` — card metadata
  * 2. `divination_card_rarities` — poe.ninja-derived rarities
  * 3. `prohibited_library_card_weights` — Prohibited Library weights + rarities
  * 4. `prohibited_library_cache_metadata` — marks PL data as loaded
+ * 5. `divination_card_availability` — per-league card pool with weight/boss/disabled flags
  *
- * **Steps 5 & 6 are intentionally deferred:**
- * 5. `filter_metadata` — seeded later by `injectSeededFilters()`
- * 6. `filter_card_rarities` — seeded later by `injectSeededFilters()`
+ * **Steps 6 & 7 are intentionally deferred:**
+ * 6. `filter_metadata` — seeded later by `injectSeededFilters()`
+ * 7. `filter_card_rarities` — seeded later by `injectSeededFilters()`
  *
  * Filter data is NOT seeded here because the Rarity Insights page auto-scans
  * filter directories on mount.  The scan's cleanup phase
@@ -950,23 +861,14 @@ export async function seedRarityInsightsData(
 
   const now = new Date().toISOString();
 
-  // Retrieve the real app version so the PL cache metadata matches what
-  // `ProhibitedLibraryService.ensureLoaded()` expects.  When the seeded
-  // `app_version` matches the running version the service treats the data
-  // as up-to-date and skips re-parsing the bundled CSV — which would
-  // overwrite the fixture PL weights with production CSV data.
-  const appVersion: string = await page.evaluate(() =>
-    (window as any).electron.app.getVersion(),
-  );
-
   // ── 1. Seed divination_cards ───────────────────────────────────────────
   for (const card of cards) {
     await dbExec(
       page,
       `INSERT OR REPLACE INTO divination_cards
          (id, name, stack_size, description, reward_html, art_src, flavour_html,
-          game, data_hash, from_boss, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          game, data_hash, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         card.id,
         card.name,
@@ -977,7 +879,6 @@ export async function seedRarityInsightsData(
         card.flavourHtml,
         card.game,
         card.dataHash,
-        card.fromBoss ? 1 : 0,
         now,
         now,
       ],
@@ -989,9 +890,9 @@ export async function seedRarityInsightsData(
     await dbExec(
       page,
       `INSERT OR REPLACE INTO divination_card_rarities
-         (game, league, card_name, rarity, last_updated)
-       VALUES (?, ?, ?, ?, ?)`,
-      [game, league, card.name, card.poeNinjaRarity, now],
+         (game, league, card_name, rarity, prohibited_library_rarity, last_updated)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [game, league, card.name, card.poeNinjaRarity, card.plRarity, now],
     );
   }
 
@@ -1028,54 +929,47 @@ export async function seedRarityInsightsData(
     [game, league, now, game, ...fixtureNames],
   );
 
-  // ── 3. Seed prohibited_library_card_weights ───────────────────────────
+  // ── 3. Seed divination_card_availability (PL league) ──────────────────
   for (const card of cards) {
     if (card.plWeight == null || card.plRarity == null) continue;
     await dbExec(
       page,
-      `INSERT OR REPLACE INTO prohibited_library_card_weights
-         (card_name, game, league, weight, rarity, from_boss, loaded_at, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR REPLACE INTO divination_card_availability
+         (card_name, game, league, weight, from_boss, is_disabled, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [card.name, game, plLeague, card.plWeight, 0, 0, now],
+    );
+  }
+
+  // ── 5. Seed divination_card_availability ─────────────────────────────
+  //    Creates per-league availability rows so that league-scoped queries
+  //    (getStackedDeckCardCount, Cards page pool filter) have data.
+  for (const card of cards) {
+    await dbExec(
+      page,
+      `INSERT OR REPLACE INTO divination_card_availability
+         (game, league, card_name, from_boss, is_disabled, weight, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
-        card.name,
         game,
-        plLeague,
-        card.plWeight,
-        card.plRarity,
-        card.plFromBoss ? 1 : 0,
-        now,
-        now,
+        league,
+        card.name,
+        card.fromBoss ? 1 : 0,
+        0,
+        card.plWeight ?? null,
         now,
       ],
     );
   }
 
-  // ── 4. Seed prohibited_library_cache_metadata ─────────────────────────
-  //    Marks PL data as loaded so the app doesn't try to re-parse the CSV.
-  await dbExec(
-    page,
-    `INSERT OR REPLACE INTO prohibited_library_cache_metadata
-       (game, league, loaded_at, app_version, card_count, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [
-      game,
-      plLeague,
-      now,
-      appVersion,
-      cards.filter((c) => c.plWeight != null).length,
-      now,
-      now,
-    ],
-  );
-
-  // ── 5 & 6. filter_metadata + filter_card_rarities ─────────────────────
+  // ── 6 & 7. filter_metadata + filter_card_rarities ─────────────────────
   // In E2E mode the filesystem auto-scan is disabled (see store hydrate()),
   // so these rows won't be cascade-deleted.  Seed them upfront alongside
   // everything else.
   await seedFilterData(page, cards);
 }
 
-// ─── Filter Data Seeder (steps 5 + 6, extracted) ─────────────────────────────
+// ─── Filter Data Seeder (steps 6 + 7, extracted) ─────────────────────────────
 
 export interface SeedFilterDataOptions {
   filter1Id?: string;
@@ -1237,8 +1131,8 @@ export async function seedDivinationCards(
       page,
       `INSERT OR REPLACE INTO divination_cards
          (id, name, stack_size, description, reward_html, art_src, flavour_html,
-          game, data_hash, from_boss, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          game, data_hash, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         card.id,
         card.name,
@@ -1249,7 +1143,6 @@ export async function seedDivinationCards(
         card.flavourHtml,
         card.game,
         card.dataHash,
-        card.fromBoss ? 1 : 0,
         now,
         now,
       ],

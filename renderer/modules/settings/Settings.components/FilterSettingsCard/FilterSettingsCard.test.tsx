@@ -7,11 +7,7 @@ import {
   waitFor,
 } from "~/renderer/__test-setup__/render";
 import { trackEvent } from "~/renderer/modules/umami";
-import {
-  useProhibitedLibrary,
-  useRarityInsights,
-  useSettings,
-} from "~/renderer/store";
+import { useRarityInsights, useSettings } from "~/renderer/store";
 
 import FilterSettingsCard from "./FilterSettingsCard";
 
@@ -20,12 +16,10 @@ import FilterSettingsCard from "./FilterSettingsCard";
 vi.mock("~/renderer/store", () => ({
   useSettings: vi.fn(),
   useRarityInsights: vi.fn(),
-  useProhibitedLibrary: vi.fn(),
 }));
 
 const mockUseSettings = vi.mocked(useSettings);
 const mockUseRarityInsights = vi.mocked(useRarityInsights);
-const mockUseProhibitedLibrary = vi.mocked(useProhibitedLibrary);
 
 vi.mock("~/renderer/components", () => ({
   Button: ({ children, onClick, disabled, loading, ...props }: any) => (
@@ -33,10 +27,6 @@ vi.mock("~/renderer/components", () => ({
       {loading ? "Loading..." : children}
     </button>
   ),
-}));
-
-vi.mock("../ProhibitedLibraryStatusBlock/ProhibitedLibraryStatusBlock", () => ({
-  default: () => <div data-testid="pl-status" />,
 }));
 
 vi.mock("~/renderer/utils", () => ({
@@ -70,7 +60,6 @@ function createMockStore(overrides: any = {}) {
   const mockSelectFilter = vi.fn().mockResolvedValue(undefined);
   const mockClearSelectedFilter = vi.fn().mockResolvedValue(undefined);
   const mockUpdateSetting = vi.fn().mockResolvedValue(undefined);
-  const mockFetchPlStatus = vi.fn().mockResolvedValue(undefined);
 
   return {
     settings: {
@@ -91,10 +80,6 @@ function createMockStore(overrides: any = {}) {
       getOnlineFilters: () => [],
       ...overrides.rarityInsights,
     },
-    prohibitedLibrary: {
-      fetchStatus: mockFetchPlStatus,
-      ...overrides.prohibitedLibrary,
-    },
   } as any;
 }
 
@@ -103,7 +88,6 @@ function setupStore(overrides: any = {}) {
 
   mockUseSettings.mockReturnValue(store.settings);
   mockUseRarityInsights.mockReturnValue(store.rarityInsights);
-  mockUseProhibitedLibrary.mockReturnValue(store.prohibitedLibrary);
 
   return store;
 }
@@ -126,7 +110,7 @@ describe("FilterSettingsCard", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders source dropdown with poe.ninja and Prohibited Library options", () => {
+  it("renders source dropdown with poe.ninja option", () => {
     renderWithProviders(<FilterSettingsCard />);
 
     const select = screen.getByRole("combobox");
@@ -135,7 +119,6 @@ describe("FilterSettingsCard", () => {
     const options = screen.getAllByRole("option");
     const optionTexts = options.map((o) => o.textContent);
     expect(optionTexts).toContain("poe.ninja (price-based)");
-    expect(optionTexts).toContain("Prohibited Library (weight-based)");
   });
 
   it("renders Rescan button", () => {
@@ -232,50 +215,14 @@ describe("FilterSettingsCard", () => {
     expect(screen.getByText("1 filter available")).toBeInTheDocument();
   });
 
-  // ── Prohibited Library status block ────────────────────────────────────
-
-  it('shows PL status block when raritySource === "prohibited-library"', () => {
-    setupStore({
-      settings: {
-        raritySource: "prohibited-library",
-      },
-    });
-
-    renderWithProviders(<FilterSettingsCard />);
-
-    expect(screen.getByTestId("pl-status")).toBeInTheDocument();
-  });
-
-  it("hides PL status block when using other source", () => {
-    setupStore({
-      settings: {
-        raritySource: "poe.ninja",
-      },
-    });
-
-    renderWithProviders(<FilterSettingsCard />);
-
-    expect(screen.queryByTestId("pl-status")).not.toBeInTheDocument();
-  });
-
-  // ── fetchPlStatus on mount ─────────────────────────────────────────────
-
-  it("calls fetchPlStatus() on mount", () => {
-    const store = setupStore();
-
-    renderWithProviders(<FilterSettingsCard />);
-
-    expect(store.prohibitedLibrary.fetchStatus).toHaveBeenCalledTimes(1);
-  });
-
   // ── handleDropdownChange ───────────────────────────────────────────────
 
   describe("handleDropdownChange", () => {
     it('switching to poe.ninja calls updateSetting("raritySource", "poe.ninja")', async () => {
       const store = setupStore({
         settings: {
-          raritySource: "prohibited-library",
-          selectedFilterId: null,
+          raritySource: "filter",
+          selectedFilterId: "some-filter",
         },
       });
 
@@ -288,24 +235,6 @@ describe("FilterSettingsCard", () => {
         expect(store.settings.updateSetting).toHaveBeenCalledWith(
           "raritySource",
           "poe.ninja",
-        );
-      });
-    });
-
-    it('switching to prohibited-library calls updateSetting("raritySource", "prohibited-library")', async () => {
-      const store = setupStore({
-        settings: { raritySource: "poe.ninja", selectedFilterId: null },
-      });
-
-      renderWithProviders(<FilterSettingsCard />);
-
-      const select = screen.getByRole("combobox");
-      fireEvent.change(select, { target: { value: "prohibited-library" } });
-
-      await waitFor(() => {
-        expect(store.settings.updateSetting).toHaveBeenCalledWith(
-          "raritySource",
-          "prohibited-library",
         );
       });
     });
@@ -365,47 +294,9 @@ describe("FilterSettingsCard", () => {
         );
       });
     });
-
-    it("switching between non-filter sources does not call clearSelectedFilter", async () => {
-      const store = setupStore({
-        settings: { raritySource: "poe.ninja", selectedFilterId: null },
-      });
-
-      renderWithProviders(<FilterSettingsCard />);
-
-      const select = screen.getByRole("combobox");
-      fireEvent.change(select, { target: { value: "prohibited-library" } });
-
-      await waitFor(() => {
-        expect(store.settings.updateSetting).toHaveBeenCalledWith(
-          "raritySource",
-          "prohibited-library",
-        );
-      });
-
-      expect(store.rarityInsights.clearSelectedFilter).not.toHaveBeenCalled();
-    });
   });
 
   // ── trackEvent ─────────────────────────────────────────────────────────
-
-  it("trackEvent is called when dropdown changes", async () => {
-    setupStore({
-      settings: { raritySource: "poe.ninja", selectedFilterId: null },
-    });
-
-    renderWithProviders(<FilterSettingsCard />);
-
-    const select = screen.getByRole("combobox");
-    fireEvent.change(select, { target: { value: "prohibited-library" } });
-
-    await waitFor(() => {
-      expect(mockTrackEvent).toHaveBeenCalledWith("settings-change", {
-        setting: "raritySource",
-        value: "poe.ninja", // mocked getAnalyticsRaritySource always returns "poe.ninja"
-      });
-    });
-  });
 
   it("trackEvent is called with filter-scan when rescan is clicked", async () => {
     const store = setupStore();

@@ -9,54 +9,6 @@ import { join, resolve } from "node:path";
 const MAX_WALK_DEPTH = 5;
 
 /**
- * Resolve the project root directory from an arbitrary starting path.
- *
- * With Electron Forge + Vite, `app.getAppPath()` returns the
- * `.vite/build/` directory (where the bundled `main.js` lives) rather
- * than the actual project root.  This helper walks up the directory tree
- * until it finds a directory that contains the given `marker` (a file or
- * directory that is known to exist at the project root).
- *
- * Falls back to `startPath` if no ancestor matches so that callers get a
- * predictable ENOENT rather than undefined behaviour.
- *
- * @param startPath  The initial path — typically `app.getAppPath()`.
- * @param marker     A relative path that must exist at the project root.
- *                   Defaults to `"renderer/assets"` which is present in
- *                   every Soothsayer checkout.
- * @returns The resolved project root, or `startPath` as a fallback.
- *
- * @example
- * ```ts
- * // Resolve from .vite/build/ to the project root
- * const root = resolveProjectRoot(app.getAppPath());
- * const csv  = join(root, "renderer/assets/poe1/weights.csv");
- * ```
- */
-export function resolveProjectRoot(
-  startPath: string,
-  marker: string = "renderer/assets",
-): string {
-  // Fast path: marker exists relative to startPath already
-  if (existsSync(join(startPath, marker))) {
-    return startPath;
-  }
-
-  let candidate = startPath;
-  for (let i = 0; i < MAX_WALK_DEPTH; i++) {
-    const parent = resolve(candidate, "..");
-    if (parent === candidate) break; // reached filesystem root
-    candidate = parent;
-    if (existsSync(join(candidate, marker))) {
-      return candidate;
-    }
-  }
-
-  // Nothing found — return the original path so callers get a clear error
-  return startPath;
-}
-
-/**
  * Resolve an individual file that should exist somewhere above `startPath`.
  *
  * This is a convenience wrapper around a parent-directory walk that looks
@@ -66,7 +18,7 @@ export function resolveProjectRoot(
  *
  * @param startPath  The initial path — typically `app.getAppPath()`.
  * @param filePath   The relative file path to search for, e.g.
- *                   `"CHANGELOG.md"` or `"renderer/assets/poe1/foo.csv"`.
+ *                   `"CHANGELOG.md"` or `"renderer/assets/audio/drop.wav"`.
  * @returns The absolute path to the file if found, otherwise
  *          `join(startPath, filePath)` as a fallback.
  *

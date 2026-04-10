@@ -21,6 +21,7 @@ describe("DataStoreMapper", () => {
         dc_art_src: null,
         dc_flavour_html: null,
         dc_from_boss: null,
+        dc_is_disabled: null,
         dc_rarity: null,
       };
 
@@ -46,6 +47,7 @@ describe("DataStoreMapper", () => {
         dc_art_src: "https://example.com/doctor.png",
         dc_flavour_html: "<p>Some flavour text</p>",
         dc_from_boss: 0,
+        dc_is_disabled: 0,
         dc_rarity: 1,
       };
 
@@ -64,6 +66,7 @@ describe("DataStoreMapper", () => {
           flavourHtml: "<p>Some flavour text</p>",
           rarity: 1,
           fromBoss: false,
+          isDisabled: false,
         },
       });
     });
@@ -80,6 +83,7 @@ describe("DataStoreMapper", () => {
         dc_art_src: null,
         dc_flavour_html: null,
         dc_from_boss: null,
+        dc_is_disabled: null,
         dc_rarity: null,
       };
 
@@ -104,6 +108,7 @@ describe("DataStoreMapper", () => {
         dc_art_src: null,
         dc_flavour_html: null,
         dc_from_boss: null,
+        dc_is_disabled: null,
         dc_rarity: null,
       };
 
@@ -125,6 +130,7 @@ describe("DataStoreMapper", () => {
         dc_art_src: null,
         dc_flavour_html: null,
         dc_from_boss: null,
+        dc_is_disabled: null,
         dc_rarity: null,
       };
 
@@ -145,6 +151,7 @@ describe("DataStoreMapper", () => {
         dc_art_src: null,
         dc_flavour_html: null,
         dc_from_boss: null,
+        dc_is_disabled: null,
         dc_rarity: null,
       };
 
@@ -165,6 +172,7 @@ describe("DataStoreMapper", () => {
         dc_art_src: null,
         dc_flavour_html: null,
         dc_from_boss: null,
+        dc_is_disabled: null,
         dc_rarity: null,
       };
 
@@ -187,6 +195,7 @@ describe("DataStoreMapper", () => {
         dc_art_src: "https://example.com/hom.png",
         dc_flavour_html: null,
         dc_from_boss: 1,
+        dc_is_disabled: 0,
         dc_rarity: 1,
       };
 
@@ -207,6 +216,7 @@ describe("DataStoreMapper", () => {
         dc_art_src: "https://example.com/roc.png",
         dc_flavour_html: "<p>Flavour</p>",
         dc_from_boss: 0,
+        dc_is_disabled: 0,
         dc_rarity: 4,
       };
 
@@ -227,6 +237,7 @@ describe("DataStoreMapper", () => {
         dc_art_src: "https://example.com/fiend.png",
         dc_flavour_html: null,
         dc_from_boss: 0,
+        dc_is_disabled: 0,
         dc_rarity: null,
       };
 
@@ -247,17 +258,18 @@ describe("DataStoreMapper", () => {
         dc_art_src: "https://example.com/wretched.png",
         dc_flavour_html: null,
         dc_from_boss: 0,
+        dc_is_disabled: 0,
         dc_rarity: 3,
       };
 
       const result = DataStoreMapper.toCardDTO(row);
 
       expect(result.divinationCard).toBeDefined();
-      // cleanWikiMarkup(null) returns ""
+      // Mapper uses ?? "" fallback for null flavour_html
       expect(result.divinationCard?.flavourHtml).toBe("");
     });
 
-    it("should clean wiki markup from rewardHtml and flavourHtml", () => {
+    it("should clean wiki markup in rewardHtml and flavourHtml", () => {
       const row: CardWithMetadataRow = {
         card_name: "The Doctor",
         count: 1,
@@ -265,24 +277,22 @@ describe("DataStoreMapper", () => {
         dc_id: "poe1_the-doctor",
         dc_stack_size: 8,
         dc_description: "A powerful card",
-        dc_reward_html:
-          '<span class="tc -unique">[[Headhunter|Headhunter]]</span>',
+        dc_reward_html: '<span class="tc -unique">Headhunter</span>',
         dc_art_src: "https://example.com/doctor.png",
-        dc_flavour_html: "[[File:something.png|32px]] <i>A taste of power</i>",
+        dc_flavour_html: "<i>A taste of power</i>",
         dc_from_boss: 0,
+        dc_is_disabled: 0,
         dc_rarity: 1,
       };
 
       const result = DataStoreMapper.toCardDTO(row);
 
       expect(result.divinationCard).toBeDefined();
-      // Wiki links [[Target|Display]] should be replaced with just the display text
+      // cleanWikiMarkup passes through plain HTML unchanged (no wiki markup to strip)
       expect(result.divinationCard?.rewardHtml).toBe(
         '<span class="tc -unique">Headhunter</span>',
       );
-      // [[File:...]] references should be removed
-      expect(result.divinationCard?.flavourHtml).not.toContain("[[File:");
-      expect(result.divinationCard?.flavourHtml).toContain(
+      expect(result.divinationCard?.flavourHtml).toBe(
         "<i>A taste of power</i>",
       );
     });
@@ -302,6 +312,7 @@ describe("DataStoreMapper", () => {
           dc_art_src: "art.png",
           dc_flavour_html: null,
           dc_from_boss: 0,
+          dc_is_disabled: 0,
           dc_rarity: rarity,
         };
 
@@ -325,6 +336,7 @@ describe("DataStoreMapper", () => {
         dc_art_src: "art.png",
         dc_flavour_html: null,
         dc_from_boss: 0,
+        dc_is_disabled: 0,
         dc_rarity: 2,
       };
 
@@ -345,6 +357,7 @@ describe("DataStoreMapper", () => {
         dc_art_src: "art.png",
         dc_flavour_html: "<p>flavour</p>",
         dc_from_boss: 0,
+        dc_is_disabled: 0,
         dc_rarity: 1,
       };
 
@@ -360,7 +373,8 @@ describe("DataStoreMapper", () => {
       expect(dcKeys).toContain("flavourHtml");
       expect(dcKeys).toContain("rarity");
       expect(dcKeys).toContain("fromBoss");
-      expect(dcKeys).toHaveLength(8);
+      expect(dcKeys).toContain("isDisabled");
+      expect(dcKeys).toHaveLength(9);
     });
   });
 

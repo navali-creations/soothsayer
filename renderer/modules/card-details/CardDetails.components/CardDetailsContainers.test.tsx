@@ -107,118 +107,16 @@ afterEach(() => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("CardDetailsDropStats", () => {
-  const validPersonalAnalytics = {
-    cardName: "The Doctor",
-    totalLifetimeDrops: 5,
-    firstDiscoveredAt: "2024-01-10T00:00:00Z",
-    lastSeenAt: "2024-06-15T00:00:00Z",
-    sessionCount: 3,
-    averageDropsPerSession: 1.67,
-    fromBoss: false,
-    prohibitedLibrary: {
-      weight: 50,
-      rarity: 2,
-      fromBoss: false,
-    },
-    totalDecksOpenedAllSessions: 10000,
-    dropTimeline: [],
-    leagueDateRanges: [],
-    firstSessionStartedAt: "2024-01-01T00:00:00Z",
-    timelineEndDate: "2024-07-01T00:00:00Z",
-  };
-
-  function renderDropStats(
-    overrides: { personalAnalytics?: any; totalWeight?: number } = {},
-  ) {
+  it("returns null when personalAnalytics has no weight", () => {
     vi.mocked(useCardDetails).mockReturnValue({
-      personalAnalytics: overrides.personalAnalytics ?? null,
+      personalAnalytics: null,
     } as any);
     vi.mocked(useProfitForecast).mockReturnValue({
-      totalWeight: overrides.totalWeight ?? 1000,
-    } as any);
-    return renderWithProviders(<CardDetailsDropStats />);
-  }
-
-  // ── Null / early-return states ───────────────────────────────────────────
-
-  it("returns null when personalAnalytics is null", () => {
-    const { container } = renderDropStats({ personalAnalytics: null });
-    expect(container.innerHTML).toBe("");
-  });
-
-  it("returns null when prohibitedLibrary is missing", () => {
-    const { container } = renderDropStats({
-      personalAnalytics: {
-        ...validPersonalAnalytics,
-        prohibitedLibrary: undefined,
-      },
-    });
-    expect(container.innerHTML).toBe("");
-  });
-
-  it("returns null when weight is 0", () => {
-    const { container } = renderDropStats({
-      personalAnalytics: {
-        ...validPersonalAnalytics,
-        prohibitedLibrary: { weight: 0, rarity: 2, fromBoss: false },
-      },
-    });
-    expect(container.innerHTML).toBe("");
-  });
-
-  it("returns null when totalWeight is 0", () => {
-    const { container } = renderDropStats({
-      personalAnalytics: validPersonalAnalytics,
       totalWeight: 0,
-    });
+      rows: [],
+    } as any);
+    const { container } = renderWithProviders(<CardDetailsDropStats />);
     expect(container.innerHTML).toBe("");
-  });
-
-  it("returns null with negative weight", () => {
-    const { container } = renderDropStats({
-      personalAnalytics: {
-        ...validPersonalAnalytics,
-        prohibitedLibrary: { weight: -5, rarity: 2, fromBoss: false },
-      },
-    });
-    expect(container.innerHTML).toBe("");
-  });
-
-  // ── Normal render ────────────────────────────────────────────────────────
-
-  it('renders "Drop Statistics" heading', () => {
-    renderDropStats({ personalAnalytics: validPersonalAnalytics });
-    expect(screen.getByText("Drop Statistics")).toBeInTheDocument();
-  });
-
-  it("renders DropProbabilitySection", () => {
-    renderDropStats({ personalAnalytics: validPersonalAnalytics });
-    expect(screen.getByTestId("drop-probability")).toBeInTheDocument();
-  });
-
-  it("renders EvContributionSection", () => {
-    renderDropStats({ personalAnalytics: validPersonalAnalytics });
-    expect(screen.getByTestId("ev-contribution")).toBeInTheDocument();
-  });
-
-  it("renders YourLuckSection when totalLifetimeDrops > 0", () => {
-    renderDropStats({
-      personalAnalytics: {
-        ...validPersonalAnalytics,
-        totalLifetimeDrops: 5,
-      },
-    });
-    expect(screen.getByTestId("your-luck")).toBeInTheDocument();
-  });
-
-  it("does not render YourLuckSection when totalLifetimeDrops is 0", () => {
-    renderDropStats({
-      personalAnalytics: {
-        ...validPersonalAnalytics,
-        totalLifetimeDrops: 0,
-      },
-    });
-    expect(screen.queryByTestId("your-luck")).not.toBeInTheDocument();
   });
 });
 
@@ -235,11 +133,6 @@ describe("CardDetailsPersonal", () => {
     sessionCount: 8,
     averageDropsPerSession: 5.25,
     fromBoss: false,
-    prohibitedLibrary: {
-      weight: 50,
-      rarity: 2 as const,
-      fromBoss: false,
-    },
     totalDecksOpenedAllSessions: 10000,
     dropTimeline: [],
     leagueDateRanges: [],

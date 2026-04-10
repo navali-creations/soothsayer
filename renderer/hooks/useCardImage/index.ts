@@ -1,0 +1,1 @@
+export { useCardImage } from "./useCardImage";

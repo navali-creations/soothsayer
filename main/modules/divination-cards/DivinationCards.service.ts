@@ -3,16 +3,16 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { app, ipcMain } from "electron";
+import { type Kysely, sql } from "kysely";
 
-import { DatabaseService } from "~/main/modules/database";
+import { type Database, DatabaseService } from "~/main/modules/database";
 import { LoggerService } from "~/main/modules/logger";
-import { ProhibitedLibraryRepository } from "~/main/modules/prohibited-library/ProhibitedLibrary.repository";
-import { ProhibitedLibraryService } from "~/main/modules/prohibited-library/ProhibitedLibrary.service";
 import { RarityInsightsRepository } from "~/main/modules/rarity-insights/RarityInsights.repository";
 import {
   SettingsKey,
   SettingsStoreService,
 } from "~/main/modules/settings-store";
+import { cleanWikiMarkup } from "~/main/utils/cleanWikiMarkup";
 import {
   assertBoundedString,
   assertCardName,
@@ -20,8 +20,10 @@ import {
   assertInteger,
   handleValidationError,
 } from "~/main/utils/ipc-validation";
-import { resolveProjectRoot } from "~/main/utils/resolve-dev-path";
-import type { Confidence, KnownRarity, Rarity } from "~/types/data-stores";
+import { resolveDevFile } from "~/main/utils/resolve-dev-path";
+import { resolvePoe1CardsJsonPath } from "~/main/utils/resolve-poe1-package-path";
+import { weightToDropRarity } from "~/main/utils/weight-to-rarity";
+import type { Confidence, Rarity } from "~/types/data-stores";
 
 import { DivinationCardsChannel } from "./DivinationCards.channels";
 import type {
@@ -38,6 +40,9 @@ interface DivinationCardJson {
   reward_html: string;
   art_src: string;
   flavour_html: string;
+  is_disabled?: boolean; // from package — only present in cards.json, absent in league-specific files
+  weight?: number; // PL weight (0 for some boss-only cards)
+  from_boss?: boolean; // explicitly flagged boss-only card
 }
 
 /**
@@ -47,9 +52,10 @@ interface DivinationCardJson {
 class DivinationCardsService {
   private static _instance: DivinationCardsService;
   private readonly logger = LoggerService.createLogger("DivinationCards");
+  private readonly kysely: Kysely<Database>;
   private repository: DivinationCardsRepository;
   private rarityInsightsRepository: RarityInsightsRepository;
-  private prohibitedLibraryRepository: ProhibitedLibraryRepository;
+
   private settingsStore: SettingsStoreService;
   private readonly poe1CardsJsonPath: string;
   private readonly poe2CardsJsonPath: string;
@@ -63,13 +69,10 @@ class DivinationCardsService {
 
   private constructor() {
     const database = DatabaseService.getInstance();
-    this.repository = new DivinationCardsRepository(database.getKysely());
-    this.rarityInsightsRepository = new RarityInsightsRepository(
-      database.getKysely(),
-    );
-    this.prohibitedLibraryRepository = new ProhibitedLibraryRepository(
-      database.getKysely(),
-    );
+    this.kysely = database.getKysely();
+    this.repository = new DivinationCardsRepository(this.kysely);
+    this.rarityInsightsRepository = new RarityInsightsRepository(this.kysely);
+
     this.settingsStore = SettingsStoreService.getInstance();
 
     // Determine paths based on whether app is packaged
@@ -90,23 +93,17 @@ class DivinationCardsService {
       // In development, app.getAppPath() returns the directory containing
       // the main entry file. With Electron Forge + Vite this is typically
       // `.vite/build/` which does NOT contain the renderer assets.
-      // Walk up from appPath until we find the `renderer/assets` directory,
+      // Walk up from appPath until we find the card JSON files,
       // falling back to appPath itself for non-Vite setups where the assets
       // are relative to the main entry.
-      const basePath = resolveProjectRoot(app.getAppPath());
-      this.poe1CardsJsonPath = join(
-        basePath,
-        "renderer",
-        "assets",
-        "poe1",
-        "cards.json",
+      const appPath = app.getAppPath();
+      this.poe1CardsJsonPath = resolveDevFile(
+        appPath,
+        join("renderer", "assets", "poe1", "cards.json"),
       );
-      this.poe2CardsJsonPath = join(
-        basePath,
-        "renderer",
-        "assets",
-        "poe2",
-        "cards.json",
+      this.poe2CardsJsonPath = resolveDevFile(
+        appPath,
+        join("renderer", "assets", "poe2", "cards.json"),
       );
     }
 
@@ -123,11 +120,30 @@ class DivinationCardsService {
    */
   public async initialize(): Promise<void> {
     try {
+      // Get the selected league so we can resolve a league-specific JSON
+      const league = await this.settingsStore.get(
+        SettingsKey.SelectedPoe1League,
+      );
+      const poe1League = league || "Standard";
+
+      // Resolve path — tries cards-<League>.json first, falls back to cards.json
+      const jsonPath = resolvePoe1CardsJsonPath(
+        poe1League,
+        app.isPackaged,
+        process.resourcesPath,
+      );
+      const isLeagueSpecific = jsonPath.includes(`cards-${poe1League}.json`);
+
       // Initialize PoE1 cards
-      await this.initializeGameCards("poe1", this.poe1CardsJsonPath);
+      await this.initializeGameCards(
+        "poe1",
+        jsonPath,
+        poe1League,
+        isLeagueSpecific,
+      );
 
       // Initialize PoE2 cards (when available)
-      // await this.initializeGameCards("poe2", this.poe2CardsJsonPath);
+      // await this.initializeGameCards("poe2", this.poe2CardsJsonPath, "Standard", false);
 
       this.logger.log("Successfully initialized all cards");
 
@@ -145,13 +161,22 @@ class DivinationCardsService {
   private async initializeGameCards(
     game: "poe1" | "poe2",
     jsonPath: string,
+    league: string,
+    isLeagueSpecific: boolean,
   ): Promise<void> {
     try {
       const cards = this.loadCardsFromJson(jsonPath);
-      await this.syncCards(game, cards);
+      await this.syncCards(game, cards, league, isLeagueSpecific);
       this.logger.log(
-        `Initialized ${game.toUpperCase()} with ${cards.length} cards`,
+        `Initialized ${game.toUpperCase()} ${league} with ${
+          cards.length
+        } cards (league-specific: ${isLeagueSpecific})`,
       );
+      if (!isLeagueSpecific && league !== "Standard") {
+        this.logger.warn(
+          `No league-specific JSON for ${league}, using cards.json fallback — pool accuracy will be reduced`,
+        );
+      }
     } catch (error) {
       // If file doesn't exist (like poe2 cards), just log and continue
       if ((error as any)?.code === "ENOENT") {
@@ -167,7 +192,31 @@ class DivinationCardsService {
    */
   private loadCardsFromJson(jsonPath: string): DivinationCardJson[] {
     const jsonContent = readFileSync(jsonPath, "utf-8");
-    return JSON.parse(jsonContent) as DivinationCardJson[];
+    const parsed: unknown = JSON.parse(jsonContent);
+    if (!Array.isArray(parsed)) {
+      throw new Error(`Expected array in ${jsonPath}, got ${typeof parsed}`);
+    }
+    for (let i = 0; i < parsed.length; i++) {
+      const card = parsed[i];
+      if (
+        typeof card !== "object" ||
+        card === null ||
+        typeof card.name !== "string" ||
+        typeof card.stack_size !== "number" ||
+        typeof card.art_src !== "string"
+      ) {
+        throw new Error(`Invalid card entry at index ${i} in ${jsonPath}`);
+      }
+    }
+    const withNewFields = parsed.filter(
+      (c: any) => c.weight !== undefined || c.from_boss !== undefined,
+    ).length;
+    if (withNewFields > 0) {
+      this.logger.log(
+        `Loaded ${parsed.length} cards from ${jsonPath} (${withNewFields} with weight/from_boss data)`,
+      );
+    }
+    return parsed as DivinationCardJson[];
   }
 
   /**
@@ -194,14 +243,24 @@ class DivinationCardsService {
   private async syncCards(
     game: "poe1" | "poe2",
     cards: DivinationCardJson[],
+    league: string,
+    isLeagueSpecific: boolean,
   ): Promise<void> {
+    // ── Phase 1: Upsert divination_cards (master catalogue) ──────────
+    // Batch-fetch all existing hashes in one query instead of per-card SELECTs.
+    const existingHashes = await this.repository.getAllCardHashes(game);
+
     let inserted = 0;
     let updated = 0;
     let unchanged = 0;
 
     for (const card of cards) {
       const cardHash = this.hashCard(card);
-      const existingHash = await this.repository.getCardHash(game, card.name);
+      // Clean wiki markup at write time so all read paths get pre-cleaned HTML.
+      // Hash uses raw values to detect source changes; DB stores cleaned values.
+      const cleanedRewardHtml = cleanWikiMarkup(card.reward_html);
+      const cleanedFlavourHtml = cleanWikiMarkup(card.flavour_html || "");
+      const existingHash = existingHashes.get(card.name) ?? null;
 
       if (!existingHash) {
         // Insert new card
@@ -210,9 +269,9 @@ class DivinationCardsService {
           card.name,
           card.stack_size,
           card.description,
-          card.reward_html,
+          cleanedRewardHtml,
           card.art_src,
-          card.flavour_html || "",
+          cleanedFlavourHtml,
           cardHash,
         );
         inserted++;
@@ -223,9 +282,9 @@ class DivinationCardsService {
           card.name,
           card.stack_size,
           card.description,
-          card.reward_html,
+          cleanedRewardHtml,
           card.art_src,
-          card.flavour_html || "",
+          cleanedFlavourHtml,
           cardHash,
         );
         updated++;
@@ -237,6 +296,100 @@ class DivinationCardsService {
     this.logger.log(
       `${game.toUpperCase()} sync: ${inserted} inserted, ${updated} updated, ${unchanged} unchanged`,
     );
+
+    // ── Phase 2: Upsert divination_card_availability ─────────────────
+    // syncCards() is the single writer for from_boss, weight, and
+    // is_disabled in divination_card_availability.
+    // Wrapped in a single transaction to avoid ~500 individual auto-commits.
+    const kysely = this.kysely;
+
+    if (cards.length > 0) {
+      await kysely
+        .insertInto("divination_card_availability")
+        .values(
+          cards.map((card) => ({
+            game,
+            league,
+            card_name: card.name,
+            is_disabled: (card.is_disabled ?? false) ? 1 : 0,
+            from_boss: (card.from_boss ?? false) ? 1 : 0,
+            weight: card.weight ?? null,
+            updated_at: sql`datetime('now')`,
+          })),
+        )
+        .onConflict((oc) =>
+          oc.columns(["game", "league", "card_name"]).doUpdateSet({
+            is_disabled: sql`excluded.is_disabled`,
+            from_boss: sql`excluded.from_boss`,
+            weight: sql`excluded.weight`,
+            updated_at: sql`datetime('now')`,
+          }),
+        )
+        .execute();
+
+      this.logger.log(
+        `${game.toUpperCase()} ${league}: upserted ${
+          cards.length
+        } availability rows`,
+      );
+    }
+
+    // ── Phase 2b: Derive prohibited_library_rarity from weight ───────
+    // Write PL rarity into divination_card_rarities. The ON CONFLICT only
+    // touches prohibited_library_rarity, leaving poe.ninja rarity and
+    // user overrides intact.
+    if (cards.length > 0) {
+      await kysely
+        .insertInto("divination_card_rarities")
+        .values(
+          cards.map((card) => ({
+            game,
+            league,
+            card_name: card.name,
+            rarity: 0,
+            prohibited_library_rarity:
+              card.weight != null && card.weight > 0
+                ? weightToDropRarity(card.weight)
+                : 0,
+            last_updated: sql`datetime('now')`,
+          })),
+        )
+        .onConflict((oc) =>
+          oc.columns(["game", "league", "card_name"]).doUpdateSet({
+            prohibited_library_rarity: sql`excluded.prohibited_library_rarity`,
+            last_updated: sql`datetime('now')`,
+          }),
+        )
+        .execute();
+
+      this.logger.log(
+        `${game.toUpperCase()} ${league}: wrote prohibited_library_rarity for ${
+          cards.length
+        } cards`,
+      );
+    }
+
+    // ── Phase 3: Prune stale availability rows ───────────────────────
+    // Only prune when a league-specific JSON was loaded. League-specific
+    // files are authoritative for that league's card pool; the generic
+    // cards.json contains all cards across all leagues so pruning
+    // against it would be meaningless.
+    if (isLeagueSpecific) {
+      const syncedCardNames = cards.map((c) => c.name);
+      const pruneResult = await kysely
+        .deleteFrom("divination_card_availability")
+        .where("game", "=", game)
+        .where("league", "=", league)
+        .where("card_name", "not in", syncedCardNames)
+        .execute();
+
+      const pruned = Number(pruneResult[0]?.numDeletedRows ?? 0);
+      if (pruned > 0) {
+        this.logger.log(
+          `${game.toUpperCase()} ${league}: pruned ${pruned} stale availability rows`,
+        );
+      }
+    }
   }
 
   /**
@@ -248,6 +401,7 @@ class DivinationCardsService {
       async (
         _event,
         game: "poe1" | "poe2",
+        onlyInPool?: boolean,
       ): Promise<DivinationCardDTO[] | { success: false; error: string }> => {
         try {
           assertGameType(game, DivinationCardsChannel.GetAll);
@@ -257,13 +411,12 @@ class DivinationCardsService {
               : SettingsKey.SelectedPoe2League;
           const league = await this.settingsStore.get(leagueKey);
           const filterId = await this.getSelectedFilterId();
-          const plLeague = await this.resolveProhibitedLibraryLeague(game);
 
           return this.repository.getAllByGame(
             game,
             league || undefined,
             filterId,
-            plLeague,
+            onlyInPool ?? false,
           );
         } catch (error) {
           return handleValidationError(error, DivinationCardsChannel.GetAll);
@@ -289,14 +442,8 @@ class DivinationCardsService {
               : SettingsKey.SelectedPoe2League;
           const league = await this.settingsStore.get(leagueKey);
           const filterId = await this.getSelectedFilterId();
-          const plLeague = await this.resolveProhibitedLibraryLeague(game);
 
-          return this.repository.getById(
-            id,
-            league || undefined,
-            filterId,
-            plLeague,
-          );
+          return this.repository.getById(id, league || undefined, filterId);
         } catch (error) {
           return handleValidationError(error, DivinationCardsChannel.GetById);
         }
@@ -326,14 +473,12 @@ class DivinationCardsService {
               : SettingsKey.SelectedPoe2League;
           const league = await this.settingsStore.get(leagueKey);
           const filterId = await this.getSelectedFilterId();
-          const plLeague = await this.resolveProhibitedLibraryLeague(game);
 
           return this.repository.getByName(
             game,
             name,
             league || undefined,
             filterId,
-            plLeague,
           );
         } catch (error) {
           return handleValidationError(error, DivinationCardsChannel.GetByName);
@@ -364,14 +509,12 @@ class DivinationCardsService {
               : SettingsKey.SelectedPoe2League;
           const league = await this.settingsStore.get(leagueKey);
           const filterId = await this.getSelectedFilterId();
-          const plLeague = await this.resolveProhibitedLibraryLeague(game);
 
           const cards = await this.repository.searchByName(
             game,
             query,
             league || undefined,
             filterId,
-            plLeague,
           );
           return {
             cards,
@@ -430,10 +573,31 @@ class DivinationCardsService {
       ): Promise<{ success: boolean } | { success: false; error: string }> => {
         try {
           assertGameType(game, DivinationCardsChannel.ForceSync);
-          const jsonPath =
-            game === "poe1" ? this.poe1CardsJsonPath : this.poe2CardsJsonPath;
+
+          // Resolve league-aware JSON path
+          let jsonPath: string;
+          let league: string;
+          let isLeagueSpecific: boolean;
+
+          if (game === "poe1") {
+            const selectedLeague = await this.settingsStore.get(
+              SettingsKey.SelectedPoe1League,
+            );
+            league = selectedLeague || "Standard";
+            jsonPath = resolvePoe1CardsJsonPath(
+              league,
+              app.isPackaged,
+              process.resourcesPath,
+            );
+            isLeagueSpecific = jsonPath.includes(`cards-${league}.json`);
+          } else {
+            league = "Standard";
+            jsonPath = this.poe2CardsJsonPath;
+            isLeagueSpecific = false;
+          }
+
           const cards = this.loadCardsFromJson(jsonPath);
-          await this.syncCards(game, cards);
+          await this.syncCards(game, cards, league, isLeagueSpecific);
           return { success: true };
         } catch (error) {
           return handleValidationError(error, DivinationCardsChannel.ForceSync);
@@ -586,7 +750,8 @@ class DivinationCardsService {
     // ── Auto-create stub rows for new cards from the snapshot ───────────
     // poe.ninja may contain cards not yet in the bundled cards.json.
     // Insert minimal stub rows so they become discoverable immediately.
-    await this.ensureCardsFromSnapshot(game, Object.keys(cardPrices));
+    // Pass the league so stub availability rows are also created (M8).
+    await this.ensureCardsFromSnapshot(game, Object.keys(cardPrices), league);
 
     const updates: Array<{
       name: string;
@@ -595,7 +760,8 @@ class DivinationCardsService {
     }> = [];
 
     // Get all cards for this game (now includes any newly-inserted stubs)
-    const allCards = await this.repository.getAllByGame(game);
+    // Use lightweight name-only query instead of full DTO fetch with JOINs.
+    const allCardNames = await this.repository.getAllCardNames(game);
     const pricedCardNames = new Set(Object.keys(cardPrices));
 
     // Update rarity for cards with prices
@@ -646,9 +812,9 @@ class DivinationCardsService {
     }
 
     // Set all cards WITHOUT prices to rarity 0 (Unknown) — no data available
-    for (const card of allCards) {
-      if (!pricedCardNames.has(card.name)) {
-        updates.push({ name: card.name, rarity: 0, clearOverride: false });
+    for (const name of allCardNames) {
+      if (!pricedCardNames.has(name)) {
+        updates.push({ name, rarity: 0, clearOverride: false });
       }
     }
 
@@ -697,140 +863,6 @@ class DivinationCardsService {
   }
 
   /**
-   * Resolve the Prohibited Library league to use for LEFT JOINs.
-   *
-   * Uses the same fallback logic as the PL service's IPC handlers:
-   * 1. Try the user's active league
-   * 2. If no PL data exists for that league, fall back to whatever league
-   *    is recorded in the PL cache metadata (the CSV's n-1 column league)
-   *
-   * Returns null if no PL data is available at all for this game.
-   */
-  private async resolveProhibitedLibraryLeague(
-    game: "poe1" | "poe2",
-  ): Promise<string | null> {
-    try {
-      // Lazy-load PL data from bundled CSV if not yet in the database.
-      // Without this, new users who navigate directly to the Rarity Model
-      // page (before visiting Profit Forecast or Settings) would see no
-      // Prohibited Library rarity column values.
-      await ProhibitedLibraryService.getInstance().ensureLoaded(game);
-
-      const leagueKey =
-        game === "poe1"
-          ? SettingsKey.SelectedPoe1League
-          : SettingsKey.SelectedPoe2League;
-      const activeLeague = await this.settingsStore.get(leagueKey);
-
-      if (activeLeague) {
-        // Check if PL data exists for the active league
-        const weights = await this.prohibitedLibraryRepository.getCardWeights(
-          game,
-          activeLeague,
-        );
-        if (weights.length > 0) {
-          return activeLeague;
-        }
-      }
-
-      // Fall back to the league in PL metadata (n-1 dataset)
-      const metadata = await this.prohibitedLibraryRepository.getMetadata(game);
-      return metadata?.league ?? null;
-    } catch {
-      return null;
-    }
-  }
-
-  /**
-   * Update card rarities from Prohibited Library data.
-   *
-   * Reads PL card weights for the given game and writes their rarity values
-   * into `divination_card_rarities` for the specified league. Cards not
-   * present in the PL dataset are set to rarity 0 (Unknown).
-   *
-   * This is the PL counterpart to `updateRaritiesFromPrices()` and
-   * `updateRaritiesFromFilter()`. Called by SnapshotService when
-   * rarity source is `"prohibited-library"`.
-   *
-   * @param game - The game type ("poe1" or "poe2")
-   * @param league - The league name to write rarities for
-   */
-  public async updateRaritiesFromProhibitedLibrary(
-    game: "poe1" | "poe2",
-    league: string,
-  ): Promise<void> {
-    // Resolve which PL league to read from (active → metadata fallback)
-    const plLeague = await this.resolveProhibitedLibraryLeague(game);
-
-    if (!plLeague) {
-      this.logger.warn(
-        `updateRaritiesFromProhibitedLibrary: No PL data available for ${game} — skipping`,
-      );
-      return;
-    }
-
-    // Fetch PL card weights
-    const plWeights = await this.prohibitedLibraryRepository.getCardWeights(
-      game,
-      plLeague,
-    );
-
-    if (plWeights.length === 0) {
-      this.logger.warn(
-        `updateRaritiesFromProhibitedLibrary: PL league "${plLeague}" has no weights for ${game} — skipping`,
-      );
-      return;
-    }
-
-    // Build a lookup map: card name → PL rarity
-    const plRarityMap = new Map<string, KnownRarity>();
-    for (const entry of plWeights) {
-      plRarityMap.set(entry.cardName, entry.rarity as KnownRarity);
-    }
-
-    // Get all card names for this game
-    const allCardNames = await this.repository.getAllCardNames(game);
-
-    const updates: Array<{
-      name: string;
-      rarity: Rarity;
-      clearOverride: boolean;
-    }> = [];
-
-    for (const cardName of allCardNames) {
-      const plRarity = plRarityMap.get(cardName);
-      if (plRarity !== undefined) {
-        // Card exists in PL data — use PL rarity (including 0 = unknown),
-        // clear any user override (PL data is authoritative when this source is active)
-        updates.push({ name: cardName, rarity: plRarity, clearOverride: true });
-      } else {
-        // Card not in PL dataset — set to Unknown, preserve any user override
-        updates.push({ name: cardName, rarity: 0, clearOverride: false });
-      }
-    }
-
-    if (updates.length > 0) {
-      await this.repository.updateRarities(game, league, updates);
-
-      // Log distribution
-      const distribution = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 };
-      for (const u of updates) {
-        distribution[u.rarity]++;
-      }
-
-      this.logger.log(
-        `Updated rarities from Prohibited Library for ${
-          updates.length
-        } ${game.toUpperCase()}/${league} cards ` +
-          `(${plRarityMap.size} in PL, ${
-            updates.length - plRarityMap.size
-          } not in PL, PL league="${plLeague}"). ` +
-          `Distribution: r0=${distribution[0]} r1=${distribution[1]} r2=${distribution[2]} r3=${distribution[3]} r4=${distribution[4]}`,
-      );
-    }
-  }
-
-  /**
    * Get the repository instance (for testing or advanced usage)
    */
   public getRepository(): DivinationCardsRepository {
@@ -858,10 +890,13 @@ class DivinationCardsService {
    *
    * @param game  - The game type ("poe1" or "poe2")
    * @param snapshotCardNames - All card names present in the snapshot
+   * @param league - Optional league name; when provided, stub availability
+   *   rows are also inserted so the new cards appear in the league pool.
    */
   public async ensureCardsFromSnapshot(
     game: "poe1" | "poe2",
     snapshotCardNames: string[],
+    league?: string,
   ): Promise<void> {
     if (snapshotCardNames.length === 0) return;
 
@@ -896,6 +931,40 @@ class DivinationCardsService {
           ", ",
         )}`,
       );
+    }
+
+    // ── Insert stub availability rows for the active league ────────────
+    // After inserting stub divination_cards rows, also add availability
+    // for the current league so the card appears in the league pool.
+    // Uses doNothing() on conflict — if the row already exists (e.g. from
+    // a later syncCards() run after a package update), don't overwrite it.
+    if (missingNames.length > 0 && league) {
+      const kysely = this.kysely;
+      if (kysely) {
+        await kysely
+          .insertInto("divination_card_availability")
+          .values(
+            missingNames.map((name) => ({
+              game,
+              league,
+              card_name: name,
+              from_boss: 0,
+              is_disabled: 0,
+              weight: null,
+              updated_at: sql`datetime('now')`,
+            })),
+          )
+          .onConflict((oc) =>
+            oc.columns(["game", "league", "card_name"]).doNothing(),
+          )
+          .execute();
+
+        this.logger.log(
+          `Inserted stub availability rows for ${
+            missingNames.length
+          } card(s) in ${game.toUpperCase()}/${league}`,
+        );
+      }
     }
   }
 }

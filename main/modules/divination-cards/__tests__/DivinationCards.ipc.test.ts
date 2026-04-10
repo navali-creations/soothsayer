@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // ─── Hoisted mock functions ──────────────────────────────────────────────────
 const {
   mockIpcHandle,
+  mockReadFile,
   mockReadFileSync,
   mockSettingsGet,
   mockSettingsSet,
@@ -14,6 +15,7 @@ const {
   mockRepositoryGetCardCount,
   mockRepositoryGetLastUpdated,
   mockRepositoryGetCardHash,
+  mockRepositoryGetAllCardHashes,
   mockRepositoryInsertCard,
   mockRepositoryUpdateCard,
   mockRepositoryUpdateRarities,
@@ -22,11 +24,11 @@ const {
   mockRepositoryGetAllCardNames,
   mockRepositoryInsertStubCards,
   mockElectronApp,
-  mockPlRepoGetCardWeights,
-  mockPlRepoGetMetadata,
   mockRarityInsightsRepoGetCardRarities,
+  mockResolvePoe1CardsJsonPath,
 } = vi.hoisted(() => ({
   mockIpcHandle: vi.fn(),
+  mockReadFile: vi.fn(),
   mockReadFileSync: vi.fn(),
   mockSettingsGet: vi.fn(),
   mockSettingsSet: vi.fn(),
@@ -38,6 +40,7 @@ const {
   mockRepositoryGetCardCount: vi.fn(),
   mockRepositoryGetLastUpdated: vi.fn(),
   mockRepositoryGetCardHash: vi.fn(),
+  mockRepositoryGetAllCardHashes: vi.fn(),
   mockRepositoryInsertCard: vi.fn(),
   mockRepositoryUpdateCard: vi.fn(),
   mockRepositoryUpdateRarities: vi.fn(),
@@ -50,9 +53,8 @@ const {
     getAppPath: vi.fn(() => "/mock-app-path"),
     getPath: vi.fn(() => "/mock-path"),
   },
-  mockPlRepoGetCardWeights: vi.fn(),
-  mockPlRepoGetMetadata: vi.fn(),
   mockRarityInsightsRepoGetCardRarities: vi.fn(),
+  mockResolvePoe1CardsJsonPath: vi.fn(),
 }));
 
 // ─── Mock Electron ───────────────────────────────────────────────────────────
@@ -76,9 +78,50 @@ vi.mock("electron", () => ({
 
 // ─── Mock node:fs ────────────────────────────────────────────────────────────
 vi.mock("node:fs", () => ({
-  readFileSync: mockReadFileSync,
   existsSync: vi.fn(() => false),
   writeFileSync: vi.fn(),
+  readFileSync: mockReadFileSync,
+}));
+
+// ─── Mock node:fs/promises ───────────────────────────────────────────────────
+vi.mock("node:fs/promises", () => ({
+  readFile: mockReadFile,
+}));
+
+// ─── Mock resolve-poe1-package-path ──────────────────────────────────────────
+vi.mock("~/main/utils/resolve-poe1-package-path", () => ({
+  resolvePoe1CardsJsonPath: mockResolvePoe1CardsJsonPath,
+}));
+
+// ─── Mock resolve-dev-path ───────────────────────────────────────────────────
+vi.mock("~/main/utils/resolve-dev-path", () => ({
+  resolveProjectRoot: vi.fn((startPath: string) => startPath),
+  resolveDevFile: vi.fn(
+    (startPath: string, filePath: string) => `${startPath}/${filePath}`,
+  ),
+}));
+
+// ─── Mock weight-to-rarity ──────────────────────────────────────────────────
+vi.mock("~/main/utils/weight-to-rarity", () => ({
+  weightToDropRarity: vi.fn((weight: number) => {
+    if (weight > 5000) return 4;
+    if (weight > 1000) return 3;
+    if (weight > 30) return 2;
+    return 1;
+  }),
+}));
+
+// ─── Mock LoggerService ──────────────────────────────────────────────────────
+vi.mock("~/main/modules/logger", () => ({
+  LoggerService: {
+    createLogger: vi.fn(() => ({
+      log: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+    })),
+  },
 }));
 
 // ─── Mock node:crypto ────────────────────────────────────────────────────────
@@ -127,6 +170,7 @@ vi.mock("../DivinationCards.repository", () => ({
     getCardCount = mockRepositoryGetCardCount;
     getLastUpdated = mockRepositoryGetLastUpdated;
     getCardHash = mockRepositoryGetCardHash;
+    getAllCardHashes = mockRepositoryGetAllCardHashes;
     insertCard = mockRepositoryInsertCard;
     updateCard = mockRepositoryUpdateCard;
     updateRarities = mockRepositoryUpdateRarities;
@@ -146,31 +190,6 @@ vi.mock("~/main/modules/rarity-insights/RarityInsights.repository", () => ({
     replaceCardRarities = vi.fn().mockResolvedValue(undefined);
     getCardRarityCount = vi.fn().mockResolvedValue(0);
     getCardRarity = vi.fn().mockResolvedValue(null);
-  },
-}));
-
-// ─── Mock ProhibitedLibraryRepository ────────────────────────────────────────
-vi.mock(
-  "~/main/modules/prohibited-library/ProhibitedLibrary.repository",
-  () => ({
-    ProhibitedLibraryRepository: class MockProhibitedLibraryRepository {
-      getCardWeights = mockPlRepoGetCardWeights;
-      getMetadata = mockPlRepoGetMetadata;
-      upsertCardWeights = vi.fn().mockResolvedValue(undefined);
-      upsertMetadata = vi.fn().mockResolvedValue(undefined);
-      syncFromBossFlags = vi.fn().mockResolvedValue(undefined);
-      getFromBossCards = vi.fn().mockResolvedValue([]);
-      deleteCardWeights = vi.fn().mockResolvedValue(undefined);
-    },
-  }),
-);
-
-// ─── Mock ProhibitedLibraryService ───────────────────────────────────────────
-vi.mock("~/main/modules/prohibited-library/ProhibitedLibrary.service", () => ({
-  ProhibitedLibraryService: {
-    getInstance: vi.fn(() => ({
-      ensureLoaded: vi.fn().mockResolvedValue(undefined),
-    })),
   },
 }));
 
@@ -225,6 +244,7 @@ const SAMPLE_CARD_DTO = {
   game: "poe1" as const,
   createdAt: "2025-01-01",
   updatedAt: "2025-01-01",
+  inPool: true,
 };
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -242,6 +262,9 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     // Default mock returns
     mockReadFileSync.mockReturnValue(SAMPLE_CARDS_JSON);
     mockSettingsGet.mockResolvedValue("Settlers");
+    mockResolvePoe1CardsJsonPath.mockReturnValue(
+      "/mock-resolved/cards-Settlers.json",
+    );
     mockRepositoryGetAllByGame.mockResolvedValue([SAMPLE_CARD_DTO]);
     mockRepositoryGetById.mockResolvedValue(SAMPLE_CARD_DTO);
     mockRepositoryGetByName.mockResolvedValue(SAMPLE_CARD_DTO);
@@ -249,6 +272,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     mockRepositoryGetCardCount.mockResolvedValue(42);
     mockRepositoryGetLastUpdated.mockResolvedValue("2025-01-01T00:00:00");
     mockRepositoryGetCardHash.mockResolvedValue(null);
+    mockRepositoryGetAllCardHashes.mockResolvedValue(new Map());
     mockRepositoryInsertCard.mockResolvedValue(undefined);
     mockRepositoryUpdateCard.mockResolvedValue(undefined);
     mockRepositoryUpdateRarities.mockResolvedValue(undefined);
@@ -257,9 +281,59 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     mockRepositoryGetAllCardNames.mockResolvedValue([]);
     mockRepositoryInsertStubCards.mockResolvedValue(0);
     mockSettingsSet.mockResolvedValue(undefined);
-    mockPlRepoGetCardWeights.mockResolvedValue([]);
-    mockPlRepoGetMetadata.mockResolvedValue(null);
     mockRarityInsightsRepoGetCardRarities.mockResolvedValue([]);
+
+    // Provide a default mock Kysely so this.kysely is defined.
+    // syncCards uses this.kysely.insertInto() directly for Phase 2 (availability)
+    // and Phase 2b (PL rarity), and this.kysely.deleteFrom() for Phase 3 pruning.
+    // ensureCardsFromSnapshot uses this.kysely.insertInto() directly for availability.
+    mockGetKysely.mockReturnValue({
+      insertInto: vi.fn().mockReturnValue({
+        values: vi.fn().mockReturnValue({
+          onConflict: vi.fn().mockReturnValue({
+            execute: vi.fn().mockResolvedValue(undefined),
+          }),
+        }),
+      }),
+      deleteFrom: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              execute: vi.fn().mockResolvedValue({ numDeletedRows: 0n }),
+            }),
+            execute: vi.fn().mockResolvedValue({ numDeletedRows: 0n }),
+          }),
+          execute: vi.fn().mockResolvedValue({ numDeletedRows: 0n }),
+        }),
+        execute: vi.fn().mockResolvedValue({ numDeletedRows: 0n }),
+      }),
+      transaction: vi.fn().mockReturnValue({
+        execute: vi.fn().mockImplementation(async (cb) => {
+          const mockTrx = {
+            insertInto: vi.fn().mockReturnValue({
+              values: vi.fn().mockReturnValue({
+                onConflict: vi.fn().mockReturnValue({
+                  execute: vi.fn().mockResolvedValue(undefined),
+                }),
+              }),
+            }),
+            deleteFrom: vi.fn().mockReturnValue({
+              where: vi.fn().mockReturnValue({
+                where: vi.fn().mockReturnValue({
+                  where: vi.fn().mockReturnValue({
+                    execute: vi.fn().mockResolvedValue({ numDeletedRows: 0n }),
+                  }),
+                  execute: vi.fn().mockResolvedValue({ numDeletedRows: 0n }),
+                }),
+                execute: vi.fn().mockResolvedValue({ numDeletedRows: 0n }),
+              }),
+              execute: vi.fn().mockResolvedValue({ numDeletedRows: 0n }),
+            }),
+          };
+          await cb(mockTrx);
+        }),
+      }),
+    });
 
     service = DivinationCardsService.getInstance();
   });
@@ -318,7 +392,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
         "poe1",
         "Settlers",
         null,
-        null,
+        false,
       );
       expect(result).toEqual([SAMPLE_CARD_DTO]);
     });
@@ -332,7 +406,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
         "poe1",
         undefined,
         null,
-        null,
+        false,
       );
     });
 
@@ -402,7 +476,6 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
         "poe1_the-doctor",
         "Settlers",
         null,
-        null,
       );
       expect(result).toEqual(SAMPLE_CARD_DTO);
     });
@@ -430,7 +503,6 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
       expect(mockRepositoryGetById).toHaveBeenCalledWith(
         "poe1_test",
         undefined,
-        null,
         null,
       );
     });
@@ -476,7 +548,6 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
         "poe1",
         "The Doctor",
         "Settlers",
-        null,
         null,
       );
       expect(result).toEqual(SAMPLE_CARD_DTO);
@@ -532,7 +603,6 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
         "poe1",
         "Doctor",
         "Settlers",
-        null,
         null,
       );
       expect(result).toEqual({
@@ -720,8 +790,8 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should insert new cards during sync", async () => {
-      // getCardHash returns null → card is new
-      mockRepositoryGetCardHash.mockResolvedValue(null);
+      // getAllCardHashes returns empty map → all cards are new
+      mockRepositoryGetAllCardHashes.mockResolvedValue(new Map());
 
       const handler = getIpcHandler("divination-cards:force-sync");
       await handler({}, "poe1");
@@ -731,8 +801,13 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should update cards when hash differs during sync", async () => {
-      // getCardHash returns a different hash → card needs update
-      mockRepositoryGetCardHash.mockResolvedValue("different-old-hash");
+      // getAllCardHashes returns different hashes → cards need update
+      mockRepositoryGetAllCardHashes.mockResolvedValue(
+        new Map([
+          ["The Doctor", "different-old-hash"],
+          ["Rain of Chaos", "different-old-hash"],
+        ]),
+      );
 
       const handler = getIpcHandler("divination-cards:force-sync");
       await handler({}, "poe1");
@@ -742,8 +817,13 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should skip cards when hash matches during sync", async () => {
-      // getCardHash returns matching hash → card is unchanged
-      mockRepositoryGetCardHash.mockResolvedValue("mock-hash-value");
+      // getAllCardHashes returns matching hash → cards are unchanged
+      mockRepositoryGetAllCardHashes.mockResolvedValue(
+        new Map([
+          ["The Doctor", "mock-hash-value"],
+          ["Rain of Chaos", "mock-hash-value"],
+        ]),
+      );
 
       const handler = getIpcHandler("divination-cards:force-sync");
       await handler({}, "poe1");
@@ -757,7 +837,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
   describe("initialize", () => {
     it("should initialize poe1 cards from JSON", async () => {
-      mockRepositoryGetCardHash.mockResolvedValue(null);
+      mockRepositoryGetAllCardHashes.mockResolvedValue(new Map());
 
       await service.initialize();
 
@@ -767,7 +847,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should insert cards with correct data", async () => {
-      mockRepositoryGetCardHash.mockResolvedValue(null);
+      mockRepositoryGetAllCardHashes.mockResolvedValue(new Map());
 
       await service.initialize();
 
@@ -785,7 +865,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should handle empty flavour_html with empty string fallback", async () => {
-      mockRepositoryGetCardHash.mockResolvedValue(null);
+      mockRepositoryGetAllCardHashes.mockResolvedValue(new Map());
 
       await service.initialize();
 
@@ -798,12 +878,17 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
         "<span>Chaos Orb</span>",
         "https://example.com/rain.png",
         "",
-        expect.any(String),
+        expect.any(String), // hash
       );
     });
 
     it("should update existing cards when hash differs", async () => {
-      mockRepositoryGetCardHash.mockResolvedValue("old-hash");
+      mockRepositoryGetAllCardHashes.mockResolvedValue(
+        new Map([
+          ["The Doctor", "old-hash"],
+          ["Rain of Chaos", "old-hash"],
+        ]),
+      );
 
       await service.initialize();
 
@@ -812,7 +897,12 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should skip unchanged cards when hash matches", async () => {
-      mockRepositoryGetCardHash.mockResolvedValue("mock-hash-value");
+      mockRepositoryGetAllCardHashes.mockResolvedValue(
+        new Map([
+          ["The Doctor", "mock-hash-value"],
+          ["Rain of Chaos", "mock-hash-value"],
+        ]),
+      );
 
       await service.initialize();
 
@@ -821,10 +911,13 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should handle mixed insert/update/skip during sync", async () => {
-      // First call: null (insert), second call: different hash (update)
-      mockRepositoryGetCardHash
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce("different-hash");
+      // The Doctor: not in DB (insert), Rain of Chaos: different hash (update)
+      mockRepositoryGetAllCardHashes.mockResolvedValue(
+        new Map([
+          ["Rain of Chaos", "different-hash"], // Rain of Chaos → update (different hash)
+          // The Doctor is absent from map → insert
+        ]),
+      );
 
       await service.initialize();
 
@@ -950,6 +1043,127 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
         expect.any(Function),
       );
     });
+
+    it("should insert availability rows when league is provided and cards are missing", async () => {
+      const mockExecute = vi.fn();
+      const mockOnConflict = vi.fn().mockReturnValue({ execute: mockExecute });
+      const mockValues = vi.fn().mockReturnValue({
+        onConflict: mockOnConflict,
+      });
+      const mockInsertInto = vi.fn().mockReturnValue({
+        values: mockValues,
+      });
+      const mockKysely = { insertInto: mockInsertInto };
+
+      mockGetKysely.mockReturnValue(mockKysely);
+      mockRepositoryGetAllCardNames.mockResolvedValue([]);
+      mockRepositoryInsertStubCards.mockResolvedValue(2);
+
+      // Re-create service so it picks up the new mockGetKysely return value
+      // @ts-expect-error — accessing private static for testing
+      DivinationCardsService._instance = undefined;
+      const freshService = DivinationCardsService.getInstance();
+
+      await freshService.ensureCardsFromSnapshot(
+        "poe1",
+        ["New Card A", "New Card B"],
+        "Settlers",
+      );
+
+      expect(mockInsertInto).toHaveBeenCalledTimes(1);
+      expect(mockInsertInto).toHaveBeenCalledWith(
+        "divination_card_availability",
+      );
+      expect(mockValues).toHaveBeenCalledTimes(1);
+      expect(mockValues).toHaveBeenCalledWith([
+        expect.objectContaining({
+          game: "poe1",
+          league: "Settlers",
+          card_name: "New Card A",
+          from_boss: 0,
+          is_disabled: 0,
+          weight: null,
+        }),
+        expect.objectContaining({
+          game: "poe1",
+          league: "Settlers",
+          card_name: "New Card B",
+          from_boss: 0,
+          is_disabled: 0,
+          weight: null,
+        }),
+      ]);
+      expect(mockOnConflict).toHaveBeenCalledTimes(1);
+      expect(mockExecute).toHaveBeenCalledTimes(1);
+    });
+
+    it("should handle ensureCardsFromSnapshot without league (undefined)", async () => {
+      const mockInsertInto = vi.fn();
+      const mockKysely = { insertInto: mockInsertInto };
+
+      mockGetKysely.mockReturnValue(mockKysely);
+      mockRepositoryGetAllCardNames.mockResolvedValue([]);
+      mockRepositoryInsertStubCards.mockResolvedValue(1);
+
+      // Re-create service so it picks up the new mockGetKysely return value
+      // @ts-expect-error — accessing private static for testing
+      DivinationCardsService._instance = undefined;
+      const freshService = DivinationCardsService.getInstance();
+
+      await freshService.ensureCardsFromSnapshot("poe1", ["New Card"]);
+
+      // insertStubCards should still be called
+      expect(mockRepositoryInsertStubCards).toHaveBeenCalledWith(
+        "poe1",
+        ["New Card"],
+        expect.any(Function),
+      );
+      // But insertInto should NOT be called since league is undefined
+      expect(mockInsertInto).not.toHaveBeenCalled();
+    });
+
+    it("should not insert availability rows when kysely is not available", async () => {
+      mockGetKysely.mockReturnValue(undefined);
+      mockRepositoryGetAllCardNames.mockResolvedValue([]);
+      mockRepositoryInsertStubCards.mockResolvedValue(1);
+
+      // Re-create service so it picks up the undefined kysely
+      // @ts-expect-error — accessing private static for testing
+      DivinationCardsService._instance = undefined;
+      const freshService = DivinationCardsService.getInstance();
+
+      // Should not throw even with league provided but no kysely
+      await freshService.ensureCardsFromSnapshot(
+        "poe1",
+        ["New Card"],
+        "Settlers",
+      );
+
+      expect(mockRepositoryInsertStubCards).toHaveBeenCalled();
+    });
+
+    it("should not insert availability rows when no missing names exist", async () => {
+      const mockInsertInto = vi.fn();
+      const mockKysely = { insertInto: mockInsertInto };
+
+      mockGetKysely.mockReturnValue(mockKysely);
+      mockRepositoryGetAllCardNames.mockResolvedValue(["Existing Card"]);
+
+      // Re-create service so it picks up the new mockGetKysely return value
+      // @ts-expect-error — accessing private static for testing
+      DivinationCardsService._instance = undefined;
+      const freshService = DivinationCardsService.getInstance();
+
+      await freshService.ensureCardsFromSnapshot(
+        "poe1",
+        ["Existing Card"],
+        "Settlers",
+      );
+
+      // All names already exist → no stub inserts, no availability inserts
+      expect(mockRepositoryInsertStubCards).not.toHaveBeenCalled();
+      expect(mockInsertInto).not.toHaveBeenCalled();
+    });
   });
 
   // ─── updateRaritiesFromPrices (public method) ─────────────────────────
@@ -958,9 +1172,6 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     it("should call ensureCardsFromSnapshot before processing rarities", async () => {
       const divine = 200;
       mockRepositoryGetAllCardNames.mockResolvedValue(["The Doctor"]);
-      mockRepositoryGetAllByGame.mockResolvedValue([
-        { name: "The Doctor", rarity: 4 },
-      ]);
 
       await service.updateRaritiesFromPrices("poe1", "Settlers", divine, {
         "The Doctor": { chaosValue: 1500 },
@@ -972,13 +1183,49 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
       expect(mockRepositoryGetAllCardNames).toHaveBeenCalledWith("poe1");
     });
 
+    it("should pass league to ensureCardsFromSnapshot when provided", async () => {
+      const divine = 200;
+      const ensureSpy = vi
+        .spyOn(service, "ensureCardsFromSnapshot")
+        .mockResolvedValue(undefined);
+      mockRepositoryGetAllCardNames.mockResolvedValue([]);
+
+      await service.updateRaritiesFromPrices("poe1", "Settlers", divine, {
+        "The Doctor": { chaosValue: 1500 },
+      });
+
+      expect(ensureSpy).toHaveBeenCalledWith(
+        "poe1",
+        ["The Doctor"],
+        "Settlers",
+      );
+
+      ensureSpy.mockRestore();
+    });
+
+    it("should pass league through to ensureCardsFromSnapshot for poe2", async () => {
+      const divine = 150;
+      const ensureSpy = vi
+        .spyOn(service, "ensureCardsFromSnapshot")
+        .mockResolvedValue(undefined);
+      mockRepositoryGetAllCardNames.mockResolvedValue([]);
+
+      await service.updateRaritiesFromPrices("poe2", "Standard", divine, {
+        "Test Card": { chaosValue: 200 },
+      });
+
+      expect(ensureSpy).toHaveBeenCalledWith("poe2", ["Test Card"], "Standard");
+
+      ensureSpy.mockRestore();
+    });
+
     it("should classify cards into correct rarities", async () => {
       const divine = 200;
-      mockRepositoryGetAllByGame.mockResolvedValue([
-        { name: "The Doctor", rarity: 4 },
-        { name: "Rain of Chaos", rarity: 4 },
-        { name: "The Gambler", rarity: 4 },
-        { name: "Unpriced Card", rarity: 4 },
+      mockRepositoryGetAllCardNames.mockResolvedValue([
+        "The Doctor",
+        "Rain of Chaos",
+        "The Gambler",
+        "Unpriced Card",
       ]);
 
       await service.updateRaritiesFromPrices("poe1", "Settlers", divine, {
@@ -1001,7 +1248,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
     it("should set rarity 1 for cards worth ≥70% of a divine", async () => {
       const divine = 100;
-      mockRepositoryGetAllByGame.mockResolvedValue([]);
+      mockRepositoryGetAllCardNames.mockResolvedValue([]);
 
       await service.updateRaritiesFromPrices("poe1", "Settlers", divine, {
         "Expensive Card": { chaosValue: 70 }, // exactly 70%
@@ -1018,7 +1265,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
     it("should set rarity 2 for cards worth 35-70% of a divine", async () => {
       const divine = 100;
-      mockRepositoryGetAllByGame.mockResolvedValue([]);
+      mockRepositoryGetAllCardNames.mockResolvedValue([]);
 
       await service.updateRaritiesFromPrices("poe1", "Settlers", divine, {
         "Medium Card": { chaosValue: 50 }, // 50%
@@ -1035,7 +1282,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
     it("should set rarity 3 for cards worth 5-35% of a divine", async () => {
       const divine = 100;
-      mockRepositoryGetAllByGame.mockResolvedValue([]);
+      mockRepositoryGetAllCardNames.mockResolvedValue([]);
 
       await service.updateRaritiesFromPrices("poe1", "Settlers", divine, {
         "Uncommon Card": { chaosValue: 20 }, // 20%
@@ -1052,7 +1299,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
     it("should set rarity 4 for cards worth <5% of a divine", async () => {
       const divine = 100;
-      mockRepositoryGetAllByGame.mockResolvedValue([]);
+      mockRepositoryGetAllCardNames.mockResolvedValue([]);
 
       await service.updateRaritiesFromPrices("poe1", "Settlers", divine, {
         "Common Card": { chaosValue: 4 }, // 4%
@@ -1069,10 +1316,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
     it("should set rarity 0 for all unpriced cards", async () => {
       const divine = 200;
-      mockRepositoryGetAllByGame.mockResolvedValue([
-        { name: "Card A", rarity: 1 },
-        { name: "Card B", rarity: 1 },
-      ]);
+      mockRepositoryGetAllCardNames.mockResolvedValue(["Card A", "Card B"]);
 
       await service.updateRaritiesFromPrices("poe1", "Settlers", divine, {});
 
@@ -1087,7 +1331,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should not call updateRarities when there are no cards at all", async () => {
-      mockRepositoryGetAllByGame.mockResolvedValue([]);
+      mockRepositoryGetAllCardNames.mockResolvedValue([]);
 
       await service.updateRaritiesFromPrices("poe1", "Settlers", 200, {});
 
@@ -1096,7 +1340,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
     it("should handle boundary at exactly 35% of divine (rarity 2)", async () => {
       const divine = 100;
-      mockRepositoryGetAllByGame.mockResolvedValue([]);
+      mockRepositoryGetAllCardNames.mockResolvedValue([]);
 
       await service.updateRaritiesFromPrices("poe1", "Settlers", divine, {
         "Boundary Card": { chaosValue: 35 }, // exactly 35%
@@ -1113,7 +1357,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
     it("should handle boundary at exactly 5% of divine (rarity 3)", async () => {
       const divine = 100;
-      mockRepositoryGetAllByGame.mockResolvedValue([]);
+      mockRepositoryGetAllCardNames.mockResolvedValue([]);
 
       await service.updateRaritiesFromPrices("poe1", "Settlers", divine, {
         "Boundary Card": { chaosValue: 5 }, // exactly 5%
@@ -1129,13 +1373,13 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should pass correct game and league to the repository", async () => {
-      mockRepositoryGetAllByGame.mockResolvedValue([]);
+      mockRepositoryGetAllCardNames.mockResolvedValue([]);
 
       await service.updateRaritiesFromPrices("poe2", "Standard", 150, {
         "Test Card": { chaosValue: 200 },
       });
 
-      expect(mockRepositoryGetAllByGame).toHaveBeenCalledWith("poe2");
+      expect(mockRepositoryGetAllCardNames).toHaveBeenCalledWith("poe2");
       expect(mockRepositoryUpdateRarities).toHaveBeenCalledWith(
         "poe2",
         "Standard",
@@ -1145,7 +1389,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
     it("should set rarity 0 for low-confidence cards regardless of price", async () => {
       const divine = 200;
-      mockRepositoryGetAllByGame.mockResolvedValue([]);
+      mockRepositoryGetAllCardNames.mockResolvedValue([]);
 
       await service.updateRaritiesFromPrices("poe1", "Settlers", divine, {
         "Nook's Crown": { chaosValue: 176.2, confidence: 3 }, // Would be rarity 1 if confident
@@ -1164,7 +1408,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
     it("should calculate normal rarity for medium-confidence cards", async () => {
       const divine = 200;
-      mockRepositoryGetAllByGame.mockResolvedValue([]);
+      mockRepositoryGetAllCardNames.mockResolvedValue([]);
 
       await service.updateRaritiesFromPrices("poe1", "Settlers", divine, {
         "Unrequited Love": { chaosValue: 10872, confidence: 2 }, // 5436% → rarity 1
@@ -1181,7 +1425,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
     it("should calculate normal rarity for high-confidence cards", async () => {
       const divine = 200;
-      mockRepositoryGetAllByGame.mockResolvedValue([]);
+      mockRepositoryGetAllCardNames.mockResolvedValue([]);
 
       await service.updateRaritiesFromPrices("poe1", "Settlers", divine, {
         "House of Mirrors": { chaosValue: 21814, confidence: 1 },
@@ -1198,7 +1442,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
     it("should default to high confidence when confidence is not specified", async () => {
       const divine = 100;
-      mockRepositoryGetAllByGame.mockResolvedValue([]);
+      mockRepositoryGetAllCardNames.mockResolvedValue([]);
 
       await service.updateRaritiesFromPrices("poe1", "Settlers", divine, {
         "Legacy Card": { chaosValue: 70 }, // No confidence field → default high → rarity 1
@@ -1215,9 +1459,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
     it("should handle mix of confidence levels correctly", async () => {
       const divine = 200;
-      mockRepositoryGetAllByGame.mockResolvedValue([
-        { name: "Unpriced Card", rarity: 1 },
-      ]);
+      mockRepositoryGetAllCardNames.mockResolvedValue(["Unpriced Card"]);
 
       await service.updateRaritiesFromPrices("poe1", "Settlers", divine, {
         "High Conf": { chaosValue: 1500, confidence: 1 }, // rarity 1
@@ -1473,260 +1715,6 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
   });
 
-  // ─── resolveProhibitedLibraryLeague ───────────────────────────────────
-
-  describe("resolveProhibitedLibraryLeague", () => {
-    // This private method is tested indirectly through the IPC handlers
-    // (GetAll, GetById, GetByName, SearchByName) which call it internally
-
-    it("should use active league when PL data exists for it", async () => {
-      mockSettingsGet.mockResolvedValue("Settlers");
-      mockPlRepoGetCardWeights.mockResolvedValue([
-        { cardName: "The Doctor", rarity: 1, game: "poe1", league: "Settlers" },
-      ]);
-
-      const handler = getIpcHandler("divination-cards:get-all");
-      await handler({}, "poe1");
-
-      // Should have passed "Settlers" as plLeague
-      expect(mockRepositoryGetAllByGame).toHaveBeenCalledWith(
-        "poe1",
-        "Settlers",
-        null,
-        "Settlers",
-      );
-    });
-
-    it("should fall back to PL metadata league when active league has no PL data", async () => {
-      mockSettingsGet.mockResolvedValue("NewLeague");
-      // First call: check active league — empty
-      mockPlRepoGetCardWeights.mockResolvedValue([]);
-      // Metadata returns a different league
-      mockPlRepoGetMetadata.mockResolvedValue({
-        league: "OldLeague",
-        game: "poe1",
-      });
-
-      const handler = getIpcHandler("divination-cards:get-all");
-      await handler({}, "poe1");
-
-      expect(mockRepositoryGetAllByGame).toHaveBeenCalledWith(
-        "poe1",
-        "NewLeague",
-        null,
-        "OldLeague",
-      );
-    });
-
-    it("should return null plLeague when no PL data exists at all", async () => {
-      mockSettingsGet.mockResolvedValue("Settlers");
-      mockPlRepoGetCardWeights.mockResolvedValue([]);
-      mockPlRepoGetMetadata.mockResolvedValue(null);
-
-      const handler = getIpcHandler("divination-cards:get-all");
-      await handler({}, "poe1");
-
-      expect(mockRepositoryGetAllByGame).toHaveBeenCalledWith(
-        "poe1",
-        "Settlers",
-        null,
-        null,
-      );
-    });
-
-    it("should return null plLeague when settings.get throws", async () => {
-      // Make settingsGet throw for the league key but work for the first call
-      let callCount = 0;
-      mockSettingsGet.mockImplementation(async () => {
-        callCount++;
-        if (callCount === 1) return "Settlers"; // league for the query
-        throw new Error("Settings broken");
-      });
-
-      const handler = getIpcHandler("divination-cards:get-all");
-      await handler({}, "poe1");
-
-      // The resolveProhibitedLibraryLeague catch should return null
-      // getAllByGame should have been called (the error doesn't prevent it)
-      expect(mockRepositoryGetAllByGame).toHaveBeenCalled();
-    });
-  });
-
-  // ─── updateRaritiesFromProhibitedLibrary ──────────────────────────────
-
-  describe("updateRaritiesFromProhibitedLibrary", () => {
-    it("should update rarities from PL card weights", async () => {
-      // resolveProhibitedLibraryLeague will find data for the active league
-      mockSettingsGet.mockResolvedValue("Settlers");
-      mockPlRepoGetCardWeights
-        .mockResolvedValueOnce([
-          // First call: resolveProhibitedLibraryLeague checking active league
-          {
-            cardName: "The Doctor",
-            rarity: 1,
-            game: "poe1",
-            league: "Settlers",
-          },
-          {
-            cardName: "Rain of Chaos",
-            rarity: 4,
-            game: "poe1",
-            league: "Settlers",
-          },
-        ])
-        .mockResolvedValueOnce([
-          // Second call: the actual fetch in updateRaritiesFromProhibitedLibrary
-          {
-            cardName: "The Doctor",
-            rarity: 1,
-            game: "poe1",
-            league: "Settlers",
-          },
-          {
-            cardName: "Rain of Chaos",
-            rarity: 4,
-            game: "poe1",
-            league: "Settlers",
-          },
-        ]);
-
-      mockRepositoryGetAllCardNames.mockResolvedValue([
-        "The Doctor",
-        "Rain of Chaos",
-        "Her Mask",
-      ]);
-
-      await service.updateRaritiesFromProhibitedLibrary("poe1", "Settlers");
-
-      expect(mockRepositoryUpdateRarities).toHaveBeenCalledWith(
-        "poe1",
-        "Settlers",
-        expect.arrayContaining([
-          { name: "The Doctor", rarity: 1, clearOverride: true },
-          { name: "Rain of Chaos", rarity: 4, clearOverride: true },
-          { name: "Her Mask", rarity: 0, clearOverride: false }, // not in PL → Unknown
-        ]),
-      );
-    });
-
-    it("should skip update when no PL league is resolved", async () => {
-      mockSettingsGet.mockResolvedValue(null); // no active league
-      mockPlRepoGetMetadata.mockResolvedValue(null); // no metadata fallback
-
-      await service.updateRaritiesFromProhibitedLibrary("poe1", "Settlers");
-
-      expect(mockRepositoryUpdateRarities).not.toHaveBeenCalled();
-    });
-
-    it("should skip update when PL league has no weights", async () => {
-      mockSettingsGet.mockResolvedValue("Settlers");
-      // resolveProhibitedLibraryLeague: active league check
-      mockPlRepoGetCardWeights
-        .mockResolvedValueOnce([
-          { cardName: "x", rarity: 1, game: "poe1", league: "Settlers" },
-        ])
-        // updateRaritiesFromProhibitedLibrary: actual fetch returns empty
-        .mockResolvedValueOnce([]);
-
-      await service.updateRaritiesFromProhibitedLibrary("poe1", "Settlers");
-
-      expect(mockRepositoryUpdateRarities).not.toHaveBeenCalled();
-    });
-
-    it("should set rarity 0 for cards not in PL data", async () => {
-      mockSettingsGet.mockResolvedValue("Settlers");
-      mockPlRepoGetCardWeights
-        .mockResolvedValueOnce([
-          {
-            cardName: "The Doctor",
-            rarity: 1,
-            game: "poe1",
-            league: "Settlers",
-          },
-        ])
-        .mockResolvedValueOnce([
-          {
-            cardName: "The Doctor",
-            rarity: 1,
-            game: "poe1",
-            league: "Settlers",
-          },
-        ]);
-
-      mockRepositoryGetAllCardNames.mockResolvedValue([
-        "The Doctor",
-        "Untracked Card",
-      ]);
-
-      await service.updateRaritiesFromProhibitedLibrary("poe1", "Settlers");
-
-      expect(mockRepositoryUpdateRarities).toHaveBeenCalledWith(
-        "poe1",
-        "Settlers",
-        expect.arrayContaining([
-          { name: "The Doctor", rarity: 1, clearOverride: true },
-          { name: "Untracked Card", rarity: 0, clearOverride: false },
-        ]),
-      );
-    });
-
-    it("should use metadata fallback league when active league has no PL data", async () => {
-      mockSettingsGet.mockResolvedValue("NewLeague");
-      // resolveProhibitedLibraryLeague: active league has no data
-      mockPlRepoGetCardWeights
-        .mockResolvedValueOnce([]) // no weights for "NewLeague"
-        .mockResolvedValueOnce([
-          // weights fetched for fallback league
-          {
-            cardName: "The Doctor",
-            rarity: 2,
-            game: "poe1",
-            league: "OldLeague",
-          },
-        ]);
-      mockPlRepoGetMetadata.mockResolvedValue({
-        league: "OldLeague",
-        game: "poe1",
-      });
-      mockRepositoryGetAllCardNames.mockResolvedValue(["The Doctor"]);
-
-      await service.updateRaritiesFromProhibitedLibrary("poe1", "NewLeague");
-
-      expect(mockRepositoryUpdateRarities).toHaveBeenCalledWith(
-        "poe1",
-        "NewLeague",
-        [{ name: "The Doctor", rarity: 2, clearOverride: true }],
-      );
-    });
-
-    it("should not call updateRarities when no cards exist for the game", async () => {
-      mockSettingsGet.mockResolvedValue("Settlers");
-      mockPlRepoGetCardWeights
-        .mockResolvedValueOnce([
-          {
-            cardName: "The Doctor",
-            rarity: 1,
-            game: "poe1",
-            league: "Settlers",
-          },
-        ])
-        .mockResolvedValueOnce([
-          {
-            cardName: "The Doctor",
-            rarity: 1,
-            game: "poe1",
-            league: "Settlers",
-          },
-        ]);
-
-      mockRepositoryGetAllCardNames.mockResolvedValue([]);
-
-      await service.updateRaritiesFromProhibitedLibrary("poe1", "Settlers");
-
-      expect(mockRepositoryUpdateRarities).not.toHaveBeenCalled();
-    });
-  });
-
   // ─── getSelectedFilterId ──────────────────────────────────────────────
 
   describe("getSelectedFilterId", () => {
@@ -1790,7 +1778,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
         "poe1",
         "Necropolis",
         null,
-        null,
+        false,
       );
     });
 
@@ -1804,7 +1792,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
         "poe2",
         "Standard",
         null,
-        null,
+        false,
       );
     });
 
@@ -1817,7 +1805,6 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
         "poe1",
         "The Doctor",
         "Necropolis",
-        null,
         null,
       );
     });
@@ -1845,7 +1832,6 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
         "poe1",
         "Doc",
         "League123",
-        null,
         null,
       );
     });
@@ -1930,29 +1916,34 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
   // ─── Path resolution ────────────────────────────────────────────────────
 
   describe("card JSON path resolution", () => {
-    it("should use app.getAppPath() based path when NOT packaged", async () => {
-      // The default beforeEach already sets isPackaged = false
-      mockRepositoryGetCardHash.mockResolvedValue(null);
+    it("should use resolvePoe1CardsJsonPath for path resolution", async () => {
+      mockRepositoryGetAllCardHashes.mockResolvedValue(new Map());
+      mockResolvePoe1CardsJsonPath.mockReturnValue(
+        "/resolved/cards-Settlers.json",
+      );
 
       await service.initialize();
 
-      // readFileSync should have been called with the dev path
-      const callPath = mockReadFileSync.mock.calls[0][0] as string;
-      // Normalize separators for cross-platform
-      const normalized = callPath.replace(/\\/g, "/");
-      expect(normalized).toBe("/mock-app-path/renderer/assets/poe1/cards.json");
+      expect(mockResolvePoe1CardsJsonPath).toHaveBeenCalledWith(
+        "Settlers", // from mockSettingsGet default
+        false, // app.isPackaged
+        process.resourcesPath, // resourcesPath from process
+      );
     });
 
-    it("should use process.resourcesPath based path when packaged", async () => {
-      // Reset singleton so we can create a fresh one with isPackaged = true
+    it("should pass resourcesPath when packaged", async () => {
+      // Reset singleton
       // @ts-expect-error — accessing private static for testing
       DivinationCardsService._instance = undefined;
       vi.clearAllMocks();
       mockReadFileSync.mockReturnValue(SAMPLE_CARDS_JSON);
-      mockRepositoryGetCardHash.mockResolvedValue(null);
+      mockSettingsGet.mockResolvedValue("Settlers");
+      mockRepositoryGetAllCardHashes.mockResolvedValue(new Map());
       mockRepositoryInsertCard.mockResolvedValue(undefined);
+      mockResolvePoe1CardsJsonPath.mockReturnValue(
+        "/resources/poe1/cards-Settlers.json",
+      );
 
-      // Set packaged mode and resourcesPath
       mockElectronApp.isPackaged = true;
       const originalResourcesPath = process.resourcesPath;
       Object.defineProperty(process, "resourcesPath", {
@@ -1965,15 +1956,12 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
         const packagedService = DivinationCardsService.getInstance();
         await packagedService.initialize();
 
-        // readFileSync should have been called with the packaged path
-        const callPath = mockReadFileSync.mock.calls[0][0] as string;
-        const normalized = callPath.replace(/\\/g, "/");
-        expect(normalized).toBe("/mock-resources/poe1/cards.json");
-
-        // Crucially: NOT the old broken path that included renderer/assets/
-        expect(normalized).not.toContain("renderer/assets");
+        expect(mockResolvePoe1CardsJsonPath).toHaveBeenCalledWith(
+          "Settlers",
+          true,
+          "/mock-resources",
+        );
       } finally {
-        // Restore
         mockElectronApp.isPackaged = false;
         Object.defineProperty(process, "resourcesPath", {
           value: originalResourcesPath,
@@ -1985,50 +1973,36 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
       }
     });
 
-    it("should NOT use renderer/assets in packaged path (regression guard)", async () => {
-      // This test specifically guards against the bug where the packaged app
-      // tried to read from process.resourcesPath/renderer/assets/poe1/cards.json
-      // which doesn't exist because extraResource copies directories as
-      // resources/<dirname>/ not resources/renderer/assets/<dirname>/
+    it("should fall back to Standard when no league is set", async () => {
+      mockSettingsGet.mockResolvedValue(null);
+      mockRepositoryGetAllCardHashes.mockResolvedValue(new Map());
+      mockResolvePoe1CardsJsonPath.mockReturnValue("/resolved/cards.json");
 
+      // Reset singleton to pick up the null setting
       // @ts-expect-error — accessing private static for testing
       DivinationCardsService._instance = undefined;
       vi.clearAllMocks();
       mockReadFileSync.mockReturnValue(SAMPLE_CARDS_JSON);
-      mockRepositoryGetCardHash.mockResolvedValue(null);
+      mockSettingsGet.mockResolvedValue(null);
+      mockRepositoryGetAllCardHashes.mockResolvedValue(new Map());
       mockRepositoryInsertCard.mockResolvedValue(undefined);
+      mockResolvePoe1CardsJsonPath.mockReturnValue("/resolved/cards.json");
 
-      mockElectronApp.isPackaged = true;
-      const originalResourcesPath = process.resourcesPath;
-      Object.defineProperty(process, "resourcesPath", {
-        value: "C:\\Users\\test\\AppData\\Local\\soothsayer\\resources",
-        writable: true,
-        configurable: true,
-      });
+      const freshService = DivinationCardsService.getInstance();
+      await freshService.initialize();
 
-      try {
-        const packagedService = DivinationCardsService.getInstance();
-        await packagedService.initialize();
+      expect(mockResolvePoe1CardsJsonPath).toHaveBeenCalledWith(
+        "Standard",
+        false,
+        process.resourcesPath,
+      );
 
-        const callPath = mockReadFileSync.mock.calls[0][0] as string;
-        const normalized = callPath.replace(/\\/g, "/");
-
-        // The path should end with /poe1/cards.json directly under resources
-        expect(normalized).toMatch(/\/resources\/poe1\/cards\.json$/);
-        // And must NOT contain the old broken renderer/assets prefix
-        expect(normalized).not.toContain("renderer/assets");
-      } finally {
-        mockElectronApp.isPackaged = false;
-        Object.defineProperty(process, "resourcesPath", {
-          value: originalResourcesPath,
-          writable: true,
-          configurable: true,
-        });
-        // @ts-expect-error — accessing private static for testing
-        DivinationCardsService._instance = undefined;
-      }
+      // @ts-expect-error — accessing private static for testing
+      DivinationCardsService._instance = undefined;
     });
   });
+
+  // ─── Lazy loading and league caching ────────────────────────────────────
 
   // ─── accessor methods ─────────────────────────────────────────────────
 

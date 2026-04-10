@@ -370,7 +370,10 @@ test.describe("Rarity Insights — Interactions", () => {
       // reads cached filter_card_rarities from the DB — no disk access needed.
 
       const selected = await selectFilterInDropdown(page, FILTER_1_NAME);
-      if (!selected) return;
+      if (!selected) {
+        test.skip(true, "Filter dropdown did not open or filter not found");
+        return;
+      }
       await closeFiltersDropdown(page);
 
       // Wait for the comparison slice to finish parsing the selected filter.
@@ -397,6 +400,10 @@ test.describe("Rarity Insights — Interactions", () => {
           .toBe(true);
       } catch {
         await safeCleanup();
+        test.skip(
+          true,
+          "Filter never finished parsing (getAllSelectedParsed timed out)",
+        );
         return;
       }
 
@@ -410,6 +417,10 @@ test.describe("Rarity Insights — Interactions", () => {
         await expect(diffCheckbox).toBeEnabled({ timeout: 10_000 });
       } catch {
         await safeCleanup();
+        test.skip(
+          true,
+          "Diff checkbox never became enabled after filter selection",
+        );
         return;
       }
 
@@ -434,6 +445,10 @@ test.describe("Rarity Insights — Interactions", () => {
       } catch {
         // Pagination never appeared — bail out rather than assert on stale data
         await safeCleanup();
+        test.skip(
+          true,
+          "Pagination footer never appeared with a non-zero count",
+        );
         return;
       }
 
@@ -522,18 +537,27 @@ test.describe("Rarity Insights — Interactions", () => {
       // cards while filter_card_rarities has rarity 4 — the backfill race).
       // Toggling "Show differences only" would keep the count at beforeCount,
       // and the poll would time out after 20 s for no reason.
-      if (
+      const dc =
         diagBefore &&
-        "diffCount" in diagBefore &&
-        "totalCards" in diagBefore &&
-        diagBefore.diffCount >= diagBefore.totalCards - 5 // allow a tiny margin
-      ) {
+        typeof diagBefore === "object" &&
+        "diffCount" in diagBefore
+          ? (diagBefore.diffCount as number)
+          : undefined;
+      const tc =
+        diagBefore &&
+        typeof diagBefore === "object" &&
+        "totalCards" in diagBefore
+          ? (diagBefore.totalCards as number)
+          : undefined;
+
+      if (dc !== undefined && tc !== undefined && dc >= tc - 5) {
         console.error(
-          `[E2E DIAG] All ${diagBefore.diffCount}/${diagBefore.totalCards} cards are diffs — ` +
+          `[E2E DIAG] All ${dc}/${tc} cards are diffs — ` +
             `seeded data is likely corrupted. Skipping assertion. ` +
-            `Sample diffs: ${JSON.stringify(diagBefore.sampleDiffs)}`,
+            `Sample diffs: ${JSON.stringify((diagBefore as any).sampleDiffs)}`,
         );
         await safeCleanup();
+        test.skip(true, `Seeded data corrupted: ${dc}/${tc} cards are diffs`);
         return;
       }
 

@@ -13,8 +13,11 @@ export const DivinationCardsApi = {
   /**
    * Get all divination cards for a game
    */
-  getAll: (game: "poe1" | "poe2"): Promise<DivinationCardDTO[]> => {
-    return ipcRenderer.invoke(DivinationCardsChannel.GetAll, game);
+  getAll: (
+    game: "poe1" | "poe2",
+    onlyInPool?: boolean,
+  ): Promise<DivinationCardDTO[]> => {
+    return ipcRenderer.invoke(DivinationCardsChannel.GetAll, game, onlyInPool);
   },
 
   /**

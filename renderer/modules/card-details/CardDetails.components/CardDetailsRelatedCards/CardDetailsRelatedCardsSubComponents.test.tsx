@@ -63,6 +63,12 @@ vi.mock("./helpers", () => ({
   }),
 }));
 
+// RelatedCardChip now uses the useCardImage hook for lazy image loading.
+// Mock it to return the same deterministic value the old getCardImage mock did.
+vi.mock("~/renderer/hooks/useCardImage", () => ({
+  useCardImage: (artSrc: string) => (artSrc ? `img-${artSrc}` : ""),
+}));
+
 // ─── Component imports (after all mocks) ─────────────────────────────────
 
 import type RelatedCardChip from "./RelatedCardChip";

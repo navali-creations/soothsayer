@@ -73,7 +73,6 @@ export interface CardDetailsSlice {
     initializeCardDetails: (
       game: GameType,
       cardSlug: string,
-      plLeague: string | null,
       selectedLeague: string,
     ) => Promise<void>;
 
@@ -83,7 +82,6 @@ export interface CardDetailsSlice {
      */
     refreshPersonalAnalytics: (
       game: GameType,
-      plLeague: string | null,
       cardName: string,
       selectedLeague: string,
     ) => Promise<void>;
@@ -117,11 +115,7 @@ export interface CardDetailsSlice {
       cardName: string,
       league?: string,
     ) => void;
-    fetchRelatedCards: (
-      game: GameType,
-      cardName: string,
-      league?: string,
-    ) => Promise<void>;
+    fetchRelatedCards: (game: GameType, cardName: string) => Promise<void>;
     clearCardDetails: () => void;
 
     // ─── Getters (Card) ─────────────────────────────────────────────────
@@ -143,39 +137,12 @@ export interface CardDetailsSlice {
     getAvailableLeagues: () => string[];
 
     /**
-     * Compute drop probability and expected decks from PL weight data.
-     *
-     * @param totalWeight - The total weight across all cards in the PL dataset.
-     *   If 0 or not provided, returns null (probability can't be computed without
-     *   the full denominator). The caller should source this from the profit
-     *   forecast slice or pass it explicitly.
-     */
-    getDropProbability: (totalWeight: number) => {
-      probability: number;
-      expectedDecks: number;
-      dropChanceFormatted: string;
-      percentFormatted: string;
-    } | null;
-
-    /**
-     * Compute EV contribution per stacked deck.
-     * Requires both PL weight and a chaos value.
-     *
-     * @param totalWeight - Sum of all PL weights.
-     * @param chaosValue - The card's chaos value from snapshot prices.
-     */
-    getEvContribution: (
-      totalWeight: number,
-      chaosValue: number,
-    ) => number | null;
-
-    /**
      * Compare the user's actual drop rate against the statistical expectation.
      *
-     * @param totalWeight - Sum of all PL weights.
+     * @param probability - The correct probability from the profit forecast row.
      * @returns Luck comparison data, or null if insufficient data.
      */
-    getLuckComparison: (totalWeight: number) => {
+    getLuckComparison: (probability: number) => {
       expectedDrops: number;
       actualDrops: number;
       luckRatio: number;
@@ -227,7 +194,6 @@ export const createCardDetailsSlice: StateCreator<
     initializeCardDetails: async (
       game: GameType,
       cardSlug: string,
-      plLeague: string | null,
       selectedLeague: string,
     ) => {
       set(
@@ -249,7 +215,6 @@ export const createCardDetailsSlice: StateCreator<
         const result = await window.electron.cardDetails.resolveCardBySlug(
           game,
           cardSlug,
-          plLeague ?? undefined,
           leagueArg,
         );
 
@@ -307,12 +272,9 @@ export const createCardDetailsSlice: StateCreator<
 
     refreshPersonalAnalytics: async (
       game: GameType,
-      plLeague: string | null,
       cardName: string,
       selectedLeague: string,
     ) => {
-      if (!plLeague) return;
-
       set(
         ({ cardDetails }) => {
           cardDetails.isLoadingPersonalAnalytics = true;
@@ -327,7 +289,7 @@ export const createCardDetailsSlice: StateCreator<
         const leagueArg = selectedLeague === "all" ? undefined : selectedLeague;
         const data = await window.electron.cardDetails.getPersonalAnalytics(
           game,
-          plLeague,
+          selectedLeague ?? "all",
           cardName,
           leagueArg,
         );
@@ -587,11 +549,7 @@ export const createCardDetailsSlice: StateCreator<
 
     // ─── Fetch Related Cards ─────────────────────────────────────────────
 
-    fetchRelatedCards: async (
-      game: GameType,
-      cardName: string,
-      league?: string,
-    ) => {
+    fetchRelatedCards: async (game: GameType, cardName: string) => {
       set(
         ({ cardDetails }) => {
           cardDetails.isLoadingRelatedCards = true;
@@ -604,7 +562,6 @@ export const createCardDetailsSlice: StateCreator<
         const data = await window.electron.cardDetails.getRelatedCards(
           game,
           cardName,
-          league,
         );
 
         set(
@@ -677,12 +634,9 @@ export const createCardDetailsSlice: StateCreator<
     // ─── Card Getters ────────────────────────────────────────────────────
 
     getDisplayRarity: () => {
-      const { card, personalAnalytics } = get().cardDetails;
-      // PL from personal analytics is source of truth → DTO PL rarity → poe.ninja rarity → fallback 4
-      return (personalAnalytics?.prohibitedLibrary?.rarity ??
-        card?.prohibitedLibraryRarity ??
-        card?.rarity ??
-        4) as Rarity;
+      const { card } = get().cardDetails;
+      // PL rarity from card DTO → poe.ninja rarity → fallback 4
+      return (card?.prohibitedLibraryRarity ?? card?.rarity ?? 4) as Rarity;
     },
 
     // ─── Price Getters ───────────────────────────────────────────────────
@@ -747,60 +701,14 @@ export const createCardDetailsSlice: StateCreator<
       return analytics.leagueDateRanges.map((lr) => lr.name);
     },
 
-    getDropProbability: (totalWeight: number) => {
+    getLuckComparison: (probability: number) => {
       const analytics = get().cardDetails.personalAnalytics;
-      if (!analytics?.prohibitedLibrary) return null;
-
-      const { weight } = analytics.prohibitedLibrary;
-      if (weight <= 0 || totalWeight <= 0) return null;
-
-      const probability = weight / totalWeight;
-      const expectedDecks = 1 / probability;
-
-      // Format "1 in X" — round to a readable integer
-      const dropChanceFormatted = `1 in ${Math.round(
-        expectedDecks,
-      ).toLocaleString()}`;
-
-      // Format percentage (e.g. "0.0208%")
-      const percent = probability * 100;
-      const percentFormatted =
-        percent >= 1
-          ? `${percent.toFixed(1)}%`
-          : percent >= 0.01
-            ? `${percent.toFixed(4)}%`
-            : `${percent.toExponential(2)}%`;
-
-      return {
-        probability,
-        expectedDecks,
-        dropChanceFormatted,
-        percentFormatted,
-      };
-    },
-
-    getEvContribution: (totalWeight: number, chaosValue: number) => {
-      const analytics = get().cardDetails.personalAnalytics;
-      if (!analytics?.prohibitedLibrary) return null;
-
-      const { weight } = analytics.prohibitedLibrary;
-      if (weight <= 0 || totalWeight <= 0 || chaosValue <= 0) return null;
-
-      const probability = weight / totalWeight;
-      return Math.round(probability * chaosValue * 10000) / 10000;
-    },
-
-    getLuckComparison: (totalWeight: number) => {
-      const analytics = get().cardDetails.personalAnalytics;
-      if (!analytics?.prohibitedLibrary) return null;
-
-      const { weight } = analytics.prohibitedLibrary;
-      if (weight <= 0 || totalWeight <= 0) return null;
+      if (!analytics) return null;
+      if (probability <= 0) return null;
 
       const totalDecks = analytics.totalDecksOpenedAllSessions;
       const hasSufficientData = totalDecks >= MIN_DECKS_FOR_LUCK;
 
-      const probability = weight / totalWeight;
       const expectedDrops = totalDecks * probability;
       const actualDrops = analytics.totalLifetimeDrops;
 

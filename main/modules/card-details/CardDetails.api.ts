@@ -67,20 +67,16 @@ export const CardDetailsAPI = {
    *
    * @param game - The game type ("poe1" or "poe2")
    * @param cardName - The card's display name (e.g. "House of Mirrors")
-   * @param league - Optional league name for Prohibited Library rarity lookup
    * @returns Related cards result with similarCards and chainCards arrays
    */
   getRelatedCards: (
     game: GameType,
     cardName: string,
-    league?: string,
   ): Promise<RelatedCardsResultDTO> => {
     return ipcRenderer.invoke(
       CardDetailsChannel.GetRelatedCards,
       game,
       cardName,
-      undefined, // rewardHtml — kept for IPC compat, ignored by service
-      league,
     );
   },
 
@@ -94,21 +90,18 @@ export const CardDetailsAPI = {
    *
    * @param game - The game type ("poe1" or "poe2")
    * @param cardSlug - The URL slug (e.g. "house-of-mirrors")
-   * @param plLeague - Optional Prohibited Library league for rarity lookups
    * @param selectedLeague - Optional league filter for personal analytics
    * @returns Unified init DTO, or null if the slug doesn't match any card
    */
   resolveCardBySlug: (
     game: GameType,
     cardSlug: string,
-    plLeague?: string,
     selectedLeague?: string,
   ): Promise<CardDetailsInitDTO | null> => {
     return ipcRenderer.invoke(
       CardDetailsChannel.ResolveCardBySlug,
       game,
       cardSlug,
-      plLeague,
       selectedLeague,
     );
   },

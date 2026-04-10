@@ -13,7 +13,6 @@ import type { PoeLeaguesAPI } from "../main/modules/poe-leagues/PoeLeagues.api";
 import type { PoeNinjaAPI } from "../main/modules/poe-ninja/PoeNinja.api";
 import type { PoeProcessAPI } from "../main/modules/poe-process/PoeProcess.api";
 import type { ProfitForecastAPI } from "../main/modules/profit-forecast/ProfitForecast.api";
-import type { ProhibitedLibraryAPI } from "../main/modules/prohibited-library/ProhibitedLibrary.api";
 import type { RarityInsightsAPI } from "../main/modules/rarity-insights/RarityInsights.api";
 import type { SessionsAPI } from "../main/modules/sessions/Sessions.api";
 import type { SettingsStoreAPI } from "../main/modules/settings-store/SettingsStore.api";
@@ -44,7 +43,6 @@ declare global {
       divinationCards: typeof DivinationCardsApi;
       updater: typeof UpdaterAPI;
       rarityInsights: typeof RarityInsightsAPI;
-      prohibitedLibrary: typeof ProhibitedLibraryAPI;
       profitForecast: typeof ProfitForecastAPI;
       storage: typeof StorageAPI;
     };

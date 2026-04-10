@@ -27,6 +27,11 @@ export default defineConfig({
       "~enums": resolve(__dirname, "./enums"),
     },
   },
+  server: {
+    watch: {
+      ignored: ["**/node_modules/@navali/**"],
+    },
+  },
   build: {
     rollupOptions: {
       input: {

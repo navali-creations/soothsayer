@@ -132,3 +132,10 @@ export interface SparklinePointDTO {
   x: number;
   profit: number;
 }
+
+export interface CardPoolBreakdownDTO {
+  total: number;
+  bossOnly: number;
+  disabled: number;
+  droppable: number;
+}

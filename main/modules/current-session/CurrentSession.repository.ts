@@ -524,7 +524,6 @@ export class CurrentSessionRepository {
     rewardHtml: string | null;
     artSrc: string | null;
     flavourHtml: string | null;
-    fromBoss: boolean;
   } | null> {
     const row = await this.kysely
       .selectFrom("divination_cards")
@@ -535,7 +534,6 @@ export class CurrentSessionRepository {
         "reward_html as rewardHtml",
         "art_src as artSrc",
         "flavour_html as flavourHtml",
-        "from_boss",
       ])
       .where("name", "=", cardName)
       .where("game", "=", game)
@@ -550,7 +548,6 @@ export class CurrentSessionRepository {
       rewardHtml: row.rewardHtml ?? null,
       artSrc: row.artSrc ?? null,
       flavourHtml: row.flavourHtml ?? null,
-      fromBoss: !!row.from_boss,
     };
   }
 

@@ -1,6 +1,8 @@
 import { useCallback, useMemo } from "react";
 import { FiRefreshCw } from "react-icons/fi";
 import { GiCrownedSkull } from "react-icons/gi";
+import { MdBlock } from "react-icons/md";
+import { TbCards } from "react-icons/tb";
 
 import {
   type RaritySourceGroup,
@@ -35,9 +37,13 @@ export const CardsActions = ({ onFilterChange }: CardsActionsProps) => {
     searchQuery,
     rarityFilter,
     includeBossCards,
+    includeDisabledCards,
+    showAllCards,
     setSearchQuery,
     setRarityFilter,
     setIncludeBossCards,
+    setIncludeDisabledCards,
+    setShowAllCards,
     loadCards,
   } = useCards();
   const { raritySource, selectedFilterId, updateSetting } = useSettings();
@@ -213,8 +219,23 @@ export const CardsActions = ({ onFilterChange }: CardsActionsProps) => {
         </select>
       </div>
 
-      {/* Boss cards toggle */}
-      <div className="flex justify-end">
+      {/* Pool, boss cards & disabled cards toggles */}
+      <div className="flex justify-end gap-4">
+        <label className="label cursor-pointer gap-2">
+          <input
+            type="checkbox"
+            className="checkbox checkbox-xs checkbox-info w-3.5 h-3.5"
+            checked={showAllCards}
+            onChange={(e) => {
+              setShowAllCards(e.target.checked);
+              onFilterChange?.();
+            }}
+          />
+          <span className="label-text text-sm inline-flex items-center gap-1">
+            <TbCards className="w-3.5 h-3.5 text-info/70" />
+            Show all cards
+          </span>
+        </label>
         <label className="label cursor-pointer gap-2">
           <input
             type="checkbox"
@@ -228,6 +249,21 @@ export const CardsActions = ({ onFilterChange }: CardsActionsProps) => {
           <span className="label-text text-sm inline-flex items-center gap-1">
             <GiCrownedSkull className="w-3.5 h-3.5 text-warning/70" />
             Include boss cards
+          </span>
+        </label>
+        <label className="label cursor-pointer gap-2">
+          <input
+            type="checkbox"
+            className="checkbox checkbox-xs checkbox-error w-3.5 h-3.5"
+            checked={includeDisabledCards}
+            onChange={(e) => {
+              setIncludeDisabledCards(e.target.checked);
+              onFilterChange?.();
+            }}
+          />
+          <span className="label-text text-sm inline-flex items-center gap-1">
+            <MdBlock className="w-3.5 h-3.5 text-error/70" />
+            Include disabled cards
           </span>
         </label>
       </div>

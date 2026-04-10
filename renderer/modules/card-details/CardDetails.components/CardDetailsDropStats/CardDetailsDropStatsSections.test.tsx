@@ -18,75 +18,57 @@ import YourLuckSection from "./YourLuckSection";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-function createDropProbabilityState(
-  prob: {
-    dropChanceFormatted: string;
-    percentFormatted: string;
-    expectedDecks: number;
-  } | null = null,
-) {
+function createDropProbabilityState(probability: number | null) {
   return {
     cardDetails: {
-      getDropProbability: vi.fn(() => prob),
+      personalAnalytics:
+        probability !== null ? { cardName: "Test Card" } : null,
     },
     profitForecast: {
-      totalWeight: 10000,
+      rows:
+        probability !== null
+          ? [
+              {
+                cardName: "Test Card",
+                probability,
+                evContribution: 0,
+              },
+            ]
+          : [],
     },
   };
 }
 
-function renderDropProbability(
-  prob: {
-    dropChanceFormatted: string;
-    percentFormatted: string;
-    expectedDecks: number;
-  } | null = null,
-) {
-  const mockState = createDropProbabilityState(prob);
+function renderDropProbability(probability: number | null) {
+  const mockState = createDropProbabilityState(probability);
   vi.mocked(useCardDetails).mockReturnValue(mockState.cardDetails as any);
   vi.mocked(useProfitForecast).mockReturnValue(mockState.profitForecast as any);
   const result = renderWithProviders(<DropProbabilitySection />);
   return { ...result, mockState };
 }
 
-function createEvContributionState(
-  overrides: {
-    ev?: number | null;
-    currentDivineRate?: number;
-    chaosToDivineRatio?: number;
-    nullPriceHistory?: boolean;
-  } = {},
-) {
-  const {
-    ev = 0.5,
-    currentDivineRate = 200,
-    chaosToDivineRatio = 1,
-    nullPriceHistory = false,
-  } = overrides;
-
+function createEvContributionState(overrides: { ev: number | null }) {
   return {
     cardDetails: {
-      priceHistory: nullPriceHistory
-        ? null
-        : currentDivineRate > 0
-          ? { currentDivineRate, chaosToDivineRatio }
-          : null,
-      getEvContribution: vi.fn(() => ev),
+      personalAnalytics:
+        overrides.ev !== null ? { cardName: "Test Card" } : null,
     },
     profitForecast: {
-      totalWeight: 10000,
+      rows:
+        overrides.ev !== null
+          ? [
+              {
+                cardName: "Test Card",
+                probability: 0.05,
+                evContribution: overrides.ev,
+              },
+            ]
+          : [],
     },
   };
 }
 
-function renderEvContribution(
-  overrides: {
-    ev?: number | null;
-    currentDivineRate?: number;
-    chaosToDivineRatio?: number;
-    nullPriceHistory?: boolean;
-  } = {},
-) {
+function renderEvContribution(overrides: { ev: number | null }) {
   const mockState = createEvContributionState(overrides);
   vi.mocked(useCardDetails).mockReturnValue(mockState.cardDetails as any);
   vi.mocked(useProfitForecast).mockReturnValue(mockState.profitForecast as any);
@@ -106,10 +88,11 @@ function createYourLuckState(
 ) {
   return {
     cardDetails: {
+      personalAnalytics: { cardName: "Test Card" },
       getLuckComparison: vi.fn(() => luck),
     },
     profitForecast: {
-      totalWeight: 10000,
+      rows: [{ cardName: "Test Card", probability: 0.05 }],
     },
   };
 }
@@ -142,49 +125,51 @@ afterEach(() => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("DropProbabilitySection", () => {
-  const defaultProb = {
-    dropChanceFormatted: "1 in 500",
-    percentFormatted: "0.20%",
-    expectedDecks: 500,
-  };
-
-  it("returns null when getDropProbability returns null", () => {
+  it("returns null when no matching row", () => {
     const { container } = renderDropProbability(null);
     expect(container.innerHTML).toBe("");
   });
 
+  it("returns null when probability is 0", () => {
+    const { container } = renderDropProbability(0);
+    expect(container.innerHTML).toBe("");
+  });
+
+  it("returns null when probability is negative", () => {
+    const { container } = renderDropProbability(-0.01);
+    expect(container.innerHTML).toBe("");
+  });
+
   it('renders "Drop Chance" label', () => {
-    renderDropProbability(defaultProb);
+    renderDropProbability(0.002);
     expect(screen.getByText("Drop Chance")).toBeInTheDocument();
   });
 
   it("renders drop chance formatted text", () => {
-    renderDropProbability(defaultProb);
+    // probability = 0.002 → 1/0.002 = 500 → "1 in 500"
+    renderDropProbability(0.002);
     expect(screen.getByText("1 in 500")).toBeInTheDocument();
   });
 
   it("renders percent formatted text", () => {
-    renderDropProbability(defaultProb);
-    expect(screen.getByText("0.20%")).toBeInTheDocument();
+    // probability = 0.002 → 0.2% → "0.2000%"
+    renderDropProbability(0.002);
+    expect(screen.getByText("0.2000%")).toBeInTheDocument();
   });
 
   it('renders "Expected Decks" label', () => {
-    renderDropProbability(defaultProb);
+    renderDropProbability(0.002);
     expect(screen.getByText("Expected Decks")).toBeInTheDocument();
   });
 
   it("renders expected decks count rounded and locale-formatted", () => {
-    renderDropProbability({
-      dropChanceFormatted: "1 in 1234",
-      percentFormatted: "0.08%",
-      expectedDecks: 1234.7,
-    });
-    // Math.round(1234.7) = 1235, toLocaleString → "1,235"
+    // probability = 1/1234.56 → expectedDecks = 1234.56 → round → 1235 → "1,235"
+    renderDropProbability(1 / 1234.56);
     expect(screen.getByText("1,235")).toBeInTheDocument();
   });
 
   it('renders "decks to find one on average" description', () => {
-    renderDropProbability(defaultProb);
+    renderDropProbability(0.002);
     expect(
       screen.getByText("decks to find one on average"),
     ).toBeInTheDocument();
@@ -196,83 +181,44 @@ describe("DropProbabilitySection", () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("EvContributionSection", () => {
-  it("returns null when getEvContribution returns null", () => {
+  it("returns null when no matching row", () => {
     const { container } = renderEvContribution({ ev: null });
     expect(container.innerHTML).toBe("");
   });
 
-  it("returns null when chaosValue is 0 (no priceHistory)", () => {
-    const { container } = renderEvContribution({
-      ev: 0.5,
-      currentDivineRate: 0,
-    });
+  it("returns null when evContribution is 0", () => {
+    const { container } = renderEvContribution({ ev: 0 });
     expect(container.innerHTML).toBe("");
   });
 
-  it("returns null when priceHistory is null", () => {
-    const { container } = renderEvContribution({
-      ev: 0.5,
-      nullPriceHistory: true,
-    });
+  it("returns null when evContribution is negative", () => {
+    const { container } = renderEvContribution({ ev: -0.5 });
     expect(container.innerHTML).toBe("");
   });
 
   it('renders "EV Contribution" label', () => {
-    renderEvContribution({
-      ev: 1.5,
-      currentDivineRate: 200,
-      chaosToDivineRatio: 1,
-    });
+    renderEvContribution({ ev: 1.5 });
     expect(screen.getByText("EV Contribution")).toBeInTheDocument();
   });
 
   it("renders formatted EV with 2 decimals for ev >= 1", () => {
-    renderEvContribution({
-      ev: 2.456789,
-      currentDivineRate: 200,
-      chaosToDivineRatio: 1,
-    });
+    renderEvContribution({ ev: 2.456789 });
     expect(screen.getByText(/2\.46/)).toBeInTheDocument();
   });
 
   it("renders formatted EV with 4 decimals for ev >= 0.01", () => {
-    renderEvContribution({
-      ev: 0.0567,
-      currentDivineRate: 200,
-      chaosToDivineRatio: 1,
-    });
+    renderEvContribution({ ev: 0.0567 });
     expect(screen.getByText(/0\.0567/)).toBeInTheDocument();
   });
 
   it("renders formatted EV in exponential for very small ev", () => {
-    renderEvContribution({
-      ev: 0.00123,
-      currentDivineRate: 200,
-      chaosToDivineRatio: 1,
-    });
+    renderEvContribution({ ev: 0.00123 });
     expect(screen.getByText(/1\.23e-3/)).toBeInTheDocument();
   });
 
   it('renders "chaos per deck" label', () => {
-    renderEvContribution({
-      ev: 1.5,
-      currentDivineRate: 200,
-      chaosToDivineRatio: 1,
-    });
+    renderEvContribution({ ev: 1.5 });
     expect(screen.getByText("chaos per deck")).toBeInTheDocument();
-  });
-
-  it("calls getEvContribution with totalWeight and derived chaosValue", () => {
-    const { mockState } = renderEvContribution({
-      ev: 1.0,
-      currentDivineRate: 200,
-      chaosToDivineRatio: 2,
-    });
-    // chaosValue = currentDivineRate / chaosToDivineRatio = 200 / 2 = 100
-    expect(mockState.cardDetails.getEvContribution).toHaveBeenCalledWith(
-      10000,
-      100,
-    );
   });
 });
 
@@ -282,7 +228,7 @@ describe("EvContributionSection", () => {
 
 describe("YourLuckSection", () => {
   const baseLuck = {
-    label: "You're Lucky!",
+    label: "3.0× luckier than average",
     expectedDrops: 1.5,
     actualDrops: 3,
     luckRatio: 2.0,
@@ -302,7 +248,7 @@ describe("YourLuckSection", () => {
 
   it("renders luck label text", () => {
     renderYourLuck(baseLuck);
-    expect(screen.getByText("You're Lucky!")).toBeInTheDocument();
+    expect(screen.getByText("3.0× luckier than average")).toBeInTheDocument();
   });
 
   it("renders expected drops value", () => {
@@ -325,7 +271,7 @@ describe("YourLuckSection", () => {
       ...baseLuck,
       color: "success",
     });
-    const label = screen.getByText("You're Lucky!");
+    const label = screen.getByText("3.0× luckier than average");
     expect(label.className).toContain("text-success");
 
     const bar = container.querySelector(".bg-success");
@@ -335,10 +281,10 @@ describe("YourLuckSection", () => {
   it("uses text-error class for error color", () => {
     const { container } = renderYourLuck({
       ...baseLuck,
-      label: "Unlucky",
+      label: "0.1× — below expected",
       color: "error",
     });
-    const label = screen.getByText("Unlucky");
+    const label = screen.getByText("0.1× — below expected");
     expect(label.className).toContain("text-error");
 
     const bar = container.querySelector(".bg-error");
@@ -348,10 +294,10 @@ describe("YourLuckSection", () => {
   it("uses text-warning class for warning color", () => {
     const { container } = renderYourLuck({
       ...baseLuck,
-      label: "About Average",
+      label: "About average",
       color: "warning",
     });
-    const label = screen.getByText("About Average");
+    const label = screen.getByText("About average");
     expect(label.className).toContain("text-warning");
 
     const bar = container.querySelector(".bg-warning");
@@ -455,8 +401,8 @@ describe("YourLuckSection", () => {
     expect(panel).toBeInTheDocument();
   });
 
-  it("calls getLuckComparison with totalWeight from profitForecast", () => {
+  it("calls getLuckComparison with probability from forecast row", () => {
     const { mockState } = renderYourLuck(baseLuck);
-    expect(mockState.cardDetails.getLuckComparison).toHaveBeenCalledWith(10000);
+    expect(mockState.cardDetails.getLuckComparison).toHaveBeenCalledWith(0.05);
   });
 });

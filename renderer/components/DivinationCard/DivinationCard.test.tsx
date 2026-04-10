@@ -51,6 +51,7 @@ function makeMetadata(
     id: "poe1_the-doctor",
     rarity: 4,
     fromBoss: false,
+    isDisabled: false,
     ...overrides,
   };
 }
@@ -202,6 +203,32 @@ describe("DivinationCard", () => {
 
       expect(
         screen.queryByTitle("Boss-exclusive card"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows DisabledIndicator when isDisabled is true", () => {
+      const card = makeCard({
+        divinationCard: makeMetadata({ isDisabled: true }),
+      });
+      renderWithProviders(<DivinationCard card={card} />);
+
+      expect(
+        screen.getByTitle(
+          "This card is drop-disabled and cannot currently be obtained",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("hides DisabledIndicator when isDisabled is false", () => {
+      const card = makeCard({
+        divinationCard: makeMetadata({ isDisabled: false }),
+      });
+      renderWithProviders(<DivinationCard card={card} />);
+
+      expect(
+        screen.queryByTitle(
+          "This card is drop-disabled and cannot currently be obtained",
+        ),
       ).not.toBeInTheDocument();
     });
   });

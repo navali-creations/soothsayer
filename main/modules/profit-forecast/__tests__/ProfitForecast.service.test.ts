@@ -6,9 +6,6 @@ const {
   mockIpcHandle,
   mockGetKysely,
   mockSettingsGet,
-  mockRepositoryGetCardWeights,
-  mockRepositoryGetMetadata,
-  mockEnsureLoaded,
   mockLoggerLog,
   mockLoggerError,
   mockKyselySelectFrom,
@@ -19,9 +16,6 @@ const {
     mockIpcHandle: vi.fn(),
     mockGetKysely: vi.fn(),
     mockSettingsGet: vi.fn(),
-    mockRepositoryGetCardWeights: vi.fn(),
-    mockRepositoryGetMetadata: vi.fn(),
-    mockEnsureLoaded: vi.fn(),
     mockLoggerLog: vi.fn(),
     mockLoggerError: vi.fn(),
     mockKyselySelectFrom,
@@ -60,20 +54,6 @@ vi.mock("~/main/modules/settings-store", () => ({
     SelectedPoe1League: "poe1SelectedLeague",
     SelectedPoe2League: "poe2SelectedLeague",
     ActiveGame: "selectedGame",
-  },
-}));
-
-// ─── Mock ProhibitedLibraryService ───────────────────────────────────────────
-
-vi.mock("~/main/modules/prohibited-library", () => ({
-  ProhibitedLibraryService: {
-    getInstance: vi.fn(() => ({
-      getRepository: vi.fn(() => ({
-        getCardWeights: mockRepositoryGetCardWeights,
-        getMetadata: mockRepositoryGetMetadata,
-      })),
-      ensureLoaded: mockEnsureLoaded,
-    })),
   },
 }));
 
@@ -282,86 +262,27 @@ const MOCK_CARD_PRICE_ROWS_MIXED = [
   },
 ];
 
-const MOCK_PL_WEIGHTS = [
-  {
-    cardName: "The Doctor",
-    game: "poe1" as const,
-    league: "Keepers",
-    weight: 10,
-    rarity: 1 as const,
-    fromBoss: false,
-    loadedAt: "2025-06-01T00:00:00Z",
-  },
-  {
-    cardName: "Rain of Chaos",
-    game: "poe1" as const,
-    league: "Keepers",
-    weight: 121400,
-    rarity: 4 as const,
-    fromBoss: false,
-    loadedAt: "2025-06-01T00:00:00Z",
-  },
-  {
-    cardName: "The Nurse",
-    game: "poe1" as const,
-    league: "Keepers",
-    weight: 1500,
-    rarity: 2 as const,
-    fromBoss: false,
-    loadedAt: "2025-06-01T00:00:00Z",
-  },
-  {
-    cardName: "The Void",
-    game: "poe1" as const,
-    league: "Keepers",
-    weight: 0,
-    rarity: 0 as const,
-    fromBoss: true,
-    loadedAt: "2025-06-01T00:00:00Z",
-  },
+// ─── Availability mock data (divination_card_availability rows) ──────────────
+// Shape: { card_name: string, weight: number | null, from_boss: number }
+
+const MOCK_AVAILABILITY_ROWS = [
+  { card_name: "The Doctor", weight: 10, from_boss: 0 },
+  { card_name: "Rain of Chaos", weight: 121400, from_boss: 0 },
+  { card_name: "The Nurse", weight: 1500, from_boss: 0 },
+  { card_name: "The Void", weight: 0, from_boss: 1 },
 ];
 
-const MOCK_POE2_PL_WEIGHTS = [
-  {
-    cardName: "The Doctor",
-    game: "poe2" as const,
-    league: "Dawn",
-    weight: 15,
-    rarity: 1 as const,
-    fromBoss: false,
-    loadedAt: "2025-07-01T00:00:00Z",
-  },
-  {
-    cardName: "Rain of Chaos",
-    game: "poe2" as const,
-    league: "Dawn",
-    weight: 95000,
-    rarity: 4 as const,
-    fromBoss: false,
-    loadedAt: "2025-07-01T00:00:00Z",
-  },
-  {
-    cardName: "The Nurse",
-    game: "poe2" as const,
-    league: "Dawn",
-    weight: 2000,
-    rarity: 2 as const,
-    fromBoss: false,
-    loadedAt: "2025-07-01T00:00:00Z",
-  },
+const MOCK_POE2_AVAILABILITY_ROWS = [
+  { card_name: "The Doctor", weight: 15, from_boss: 0 },
+  { card_name: "Rain of Chaos", weight: 95000, from_boss: 0 },
+  { card_name: "The Nurse", weight: 2000, from_boss: 0 },
 ];
 
-const MOCK_PL_WEIGHTS_WITH_BOSS = [
-  ...MOCK_PL_WEIGHTS.slice(0, 3),
-  {
-    cardName: "A Chilling Wind",
-    game: "poe1" as const,
-    league: "Keepers",
-    weight: 8000,
-    rarity: 3 as const,
-    fromBoss: true,
-    loadedAt: "2025-06-01T00:00:00Z",
-  },
+const MOCK_AVAILABILITY_ROWS_WITH_BOSS = [
+  { card_name: "The Doctor", weight: 10, from_boss: 0 },
+  { card_name: "Rain of Chaos", weight: 121400, from_boss: 0 },
+  { card_name: "The Nurse", weight: 1500, from_boss: 0 },
+  { card_name: "A Chilling Wind", weight: 8000, from_boss: 1 },
 ];
 
 // ─── selectFrom routing ──────────────────────────────────────────────────────
@@ -377,6 +298,8 @@ function setupDefaultChains() {
   const leagueChain = createKyselyChain(MOCK_LEAGUE_ROW);
   const snapshotChain = createKyselyChain(MOCK_SNAPSHOT_ROW);
   const priceChain = createKyselyChain(MOCK_CARD_PRICE_ROWS_EXCHANGE);
+  const divinationCardsChain = createKyselyChain([]);
+  const availabilityChain = createKyselyChain(MOCK_AVAILABILITY_ROWS);
 
   mockKyselySelectFrom.mockImplementation((table: string) => {
     switch (table) {
@@ -386,12 +309,22 @@ function setupDefaultChains() {
         return snapshotChain;
       case "snapshot_card_prices":
         return priceChain;
+      case "divination_cards":
+        return divinationCardsChain;
+      case "divination_card_availability as dca":
+        return availabilityChain;
       default:
         return createKyselyChain(undefined);
     }
   });
 
-  return { leagueChain, snapshotChain, priceChain };
+  return {
+    leagueChain,
+    snapshotChain,
+    priceChain,
+    divinationCardsChain,
+    availabilityChain,
+  };
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -414,17 +347,8 @@ describe("ProfitForecastService", () => {
     // Set up default chains
     chains = setupDefaultChains();
 
-    // Default mock returns — metadata exists (CSV was loaded during init)
+    // Default mock returns
     mockSettingsGet.mockResolvedValue("Keepers");
-    mockRepositoryGetCardWeights.mockResolvedValue(MOCK_PL_WEIGHTS);
-    mockRepositoryGetMetadata.mockResolvedValue({
-      game: "poe1",
-      league: "Keepers",
-      loaded_at: "2025-06-01T00:00:00Z",
-      app_version: "1.0.0",
-      card_count: 4,
-    });
-    mockEnsureLoaded.mockResolvedValue(undefined);
 
     service = ProfitForecastService.getInstance();
   });
@@ -503,12 +427,12 @@ describe("ProfitForecastService", () => {
       expect(rain.isAnomalous).toBe(false);
       expect(rain.hasPrice).toBe(true);
 
-      // Rows should be filtered to exclude boss cards (The Void is fromBoss)
+      // Rows should be filtered to exclude boss cards (The Void is from_boss=1)
       expect(result.rows).toHaveLength(3);
       expect(result.rows.map((r) => r.cardName)).toEqual(
         expect.arrayContaining(["The Doctor", "Rain of Chaos", "The Nurse"]),
       );
-      // The Void has weight 0 and fromBoss=true so should be excluded
+      // The Void has from_boss=1 so should be excluded
       expect(result.rows.map((r) => r.cardName)).not.toContain("The Void");
     });
 
@@ -714,7 +638,7 @@ describe("ProfitForecastService", () => {
 
     it("should pass the correct game to the leagues query", async () => {
       mockSettingsGet.mockResolvedValue("Poe2League");
-      mockRepositoryGetCardWeights.mockResolvedValue([]);
+      chains.availabilityChain.execute.mockResolvedValue([]);
       chains.leagueChain.executeTakeFirst.mockResolvedValue(undefined);
 
       await service.getData("poe2", "Poe2League");
@@ -779,10 +703,7 @@ describe("ProfitForecastService", () => {
 
       const result = await service.getData("poe1", "Keepers");
 
-      // House of Mirrors is not in the PL weights, but if it has a price it
-      // won't appear in rows (rows are built from weights). Check that rows
-      // for existing weights don't have House of Mirrors data mixed in.
-      // Actually: House of Mirrors is not in MOCK_PL_WEIGHTS, so it won't
+      // House of Mirrors is not in the availability rows, so it won't
       // be in rows at all. The price exists but no weight row maps to it.
       // We can verify that weights-only rows don't erroneously get this price.
       const nurse = result.rows.find((r) => r.cardName === "The Nurse")!;
@@ -839,7 +760,7 @@ describe("ProfitForecastService", () => {
       expect(rain.confidence).toBe(2);
       const nurse = result.rows.find((r) => r.cardName === "The Nurse")!;
       expect(nurse.confidence).toBe(3);
-      // House of Mirrors is stash-only with confidence 3 but not in PL weights,
+      // House of Mirrors is stash-only with confidence 3 but not in availability rows,
       // so it won't appear in rows. We can't check it here.
     });
 
@@ -886,14 +807,9 @@ describe("ProfitForecastService", () => {
         MOCK_POE2_SNAPSHOT_ROW,
       );
       chains.priceChain.execute.mockResolvedValue(MOCK_POE2_CARD_PRICE_ROWS);
-      mockRepositoryGetCardWeights.mockResolvedValue(MOCK_POE2_PL_WEIGHTS);
-      mockRepositoryGetMetadata.mockResolvedValue({
-        game: "poe2",
-        league: "Dawn",
-        loaded_at: "2025-07-01T00:00:00Z",
-        app_version: "1.1.0",
-        card_count: 3,
-      });
+      chains.availabilityChain.execute.mockResolvedValue(
+        MOCK_POE2_AVAILABILITY_ROWS,
+      );
     });
 
     it("should return full snapshot and weights for poe2", async () => {
@@ -908,7 +824,7 @@ describe("ProfitForecastService", () => {
       expect(result.rows).toHaveLength(3);
     });
 
-    it("should query with game=poe2 for league and pass poe2 to ensureLoaded", async () => {
+    it("should query with game=poe2 for league and query availability with poe2", async () => {
       await service.getData("poe2", "Dawn");
 
       expect(chains.leagueChain.where).toHaveBeenCalledWith(
@@ -921,13 +837,27 @@ describe("ProfitForecastService", () => {
         "=",
         "Dawn",
       );
-      expect(mockEnsureLoaded).toHaveBeenCalledWith("poe2");
+      expect(mockKyselySelectFrom).toHaveBeenCalledWith(
+        "divination_card_availability as dca",
+      );
     });
 
-    it("should query poe2 weights using metadata league", async () => {
+    it("should query poe2 weights using the league passed to getData", async () => {
       await service.getData("poe2", "Dawn");
 
-      expect(mockRepositoryGetCardWeights).toHaveBeenCalledWith("poe2", "Dawn");
+      expect(mockKyselySelectFrom).toHaveBeenCalledWith(
+        "divination_card_availability as dca",
+      );
+      expect(chains.availabilityChain.where).toHaveBeenCalledWith(
+        "dca.game",
+        "=",
+        "poe2",
+      );
+      expect(chains.availabilityChain.where).toHaveBeenCalledWith(
+        "dca.league",
+        "=",
+        "Dawn",
+      );
     });
 
     it("should merge poe2 exchange and stash prices correctly", async () => {
@@ -986,8 +916,8 @@ describe("ProfitForecastService", () => {
       expect(result.rows).toHaveLength(3);
     });
 
-    it("should return empty weights for poe2 when metadata is missing", async () => {
-      mockRepositoryGetMetadata.mockResolvedValue(undefined);
+    it("should return empty weights for poe2 when availability returns no rows", async () => {
+      chains.availabilityChain.execute.mockResolvedValue([]);
 
       const result = await service.getData("poe2", "Dawn");
 
@@ -996,17 +926,9 @@ describe("ProfitForecastService", () => {
     });
 
     it("should exclude poe2 boss cards from weights", async () => {
-      mockRepositoryGetCardWeights.mockResolvedValue([
-        ...MOCK_POE2_PL_WEIGHTS,
-        {
-          cardName: "Poe2 Boss Card",
-          game: "poe2" as const,
-          league: "Dawn",
-          weight: 500,
-          rarity: 2 as const,
-          fromBoss: true,
-          loadedAt: "2025-07-01T00:00:00Z",
-        },
+      chains.availabilityChain.execute.mockResolvedValue([
+        ...MOCK_POE2_AVAILABILITY_ROWS,
+        { card_name: "Poe2 Boss Card", weight: 500, from_boss: 1 },
       ]);
 
       const result = await service.getData("poe2", "Dawn");
@@ -1018,34 +940,10 @@ describe("ProfitForecastService", () => {
     });
 
     it("should assign floor weight to poe2 zero-weight non-boss cards", async () => {
-      mockRepositoryGetCardWeights.mockResolvedValue([
-        {
-          cardName: "Common Card",
-          game: "poe2" as const,
-          league: "Dawn",
-          weight: 50000,
-          rarity: 4 as const,
-          fromBoss: false,
-          loadedAt: "2025-07-01T00:00:00Z",
-        },
-        {
-          cardName: "Rare Card",
-          game: "poe2" as const,
-          league: "Dawn",
-          weight: 5,
-          rarity: 1 as const,
-          fromBoss: false,
-          loadedAt: "2025-07-01T00:00:00Z",
-        },
-        {
-          cardName: "Unseen Card",
-          game: "poe2" as const,
-          league: "Dawn",
-          weight: 0,
-          rarity: 1 as const,
-          fromBoss: false,
-          loadedAt: "2025-07-01T00:00:00Z",
-        },
+      chains.availabilityChain.execute.mockResolvedValue([
+        { card_name: "Common Card", weight: 50000, from_boss: 0 },
+        { card_name: "Rare Card", weight: 5, from_boss: 0 },
+        { card_name: "Unseen Card", weight: 0, from_boss: 0 },
       ]);
 
       const result = await service.getData("poe2", "Dawn");
@@ -1083,7 +981,7 @@ describe("ProfitForecastService", () => {
     it("should exclude boss cards but keep zero-weight non-boss cards", async () => {
       const result = await service.getData("poe1", "Keepers");
 
-      // MOCK_PL_WEIGHTS has 4 entries: The Void is fromBoss so excluded,
+      // MOCK_AVAILABILITY_ROWS has 4 entries: The Void is from_boss=1 so excluded,
       // the other 3 are non-boss and all kept (even if weight were 0)
       expect(result.rows).toHaveLength(3);
       expect(result.rows.map((r) => r.cardName)).not.toContain("The Void");
@@ -1099,11 +997,13 @@ describe("ProfitForecastService", () => {
     });
 
     it("should exclude boss cards from weights", async () => {
-      mockRepositoryGetCardWeights.mockResolvedValue(MOCK_PL_WEIGHTS_WITH_BOSS);
+      chains.availabilityChain.execute.mockResolvedValue(
+        MOCK_AVAILABILITY_ROWS_WITH_BOSS,
+      );
 
       const result = await service.getData("poe1", "Keepers");
 
-      // A Chilling Wind has fromBoss=true so it should be excluded
+      // A Chilling Wind has from_boss=1 so it should be excluded
       const chillingWind = result.rows.find(
         (r) => r.cardName === "A Chilling Wind",
       );
@@ -1113,36 +1013,41 @@ describe("ProfitForecastService", () => {
       expect(result.rows.every((r) => r.fromBoss === false)).toBe(true);
     });
 
-    it("should query weights using the metadata league, not the user's active league", async () => {
-      // User has "Standard" selected, but CSV data was stored under "Keepers"
+    it("should query weights using the league passed to getData directly", async () => {
+      // The metadata league concept is gone — weights now use whatever league is passed
       mockSettingsGet.mockResolvedValue("Standard");
 
       await service.getData("poe1", "Standard");
 
-      // Should query with metadata.league ("Keepers"), not the active league
-      expect(mockRepositoryGetCardWeights).toHaveBeenCalledWith(
-        "poe1",
-        "Keepers",
+      // Should query with "Standard" directly
+      expect(mockKyselySelectFrom).toHaveBeenCalledWith(
+        "divination_card_availability as dca",
+      );
+      expect(chains.availabilityChain.where).toHaveBeenCalledWith(
+        "dca.league",
+        "=",
+        "Standard",
       );
     });
 
-    it("should call ensureLoaded before querying weights", async () => {
+    it("should query divination_card_availability for weights", async () => {
       await service.getData("poe1", "Keepers");
 
-      expect(mockEnsureLoaded).toHaveBeenCalledWith("poe1");
+      expect(mockKyselySelectFrom).toHaveBeenCalledWith(
+        "divination_card_availability as dca",
+      );
     });
 
-    it("should return empty weights when metadata is null after ensureLoaded", async () => {
-      mockRepositoryGetMetadata.mockResolvedValue(undefined);
+    it("should return empty weights when availability returns no rows", async () => {
+      chains.availabilityChain.execute.mockResolvedValue([]);
 
       const result = await service.getData("poe1", "Keepers");
 
-      expect(mockEnsureLoaded).toHaveBeenCalledWith("poe1");
       expect(result.rows).toHaveLength(0);
     });
 
-    it("should return empty weights and log error when PL service throws", async () => {
-      mockRepositoryGetCardWeights.mockRejectedValue(
+    it("should return empty weights and log error when availability query throws", async () => {
+      chains.availabilityChain.execute.mockRejectedValue(
         new Error("Database corrupted"),
       );
 
@@ -1152,26 +1057,10 @@ describe("ProfitForecastService", () => {
       expect(mockLoggerError).toHaveBeenCalled();
     });
 
-    it("should assign floor weight of 1 when all non-boss PL weights are zero", async () => {
-      mockRepositoryGetCardWeights.mockResolvedValue([
-        {
-          cardName: "Card A",
-          game: "poe1",
-          league: "Keepers",
-          weight: 0,
-          rarity: 0,
-          fromBoss: false,
-          loadedAt: "2025-06-01T00:00:00Z",
-        },
-        {
-          cardName: "Card B",
-          game: "poe1",
-          league: "Keepers",
-          weight: 0,
-          rarity: 0,
-          fromBoss: true,
-          loadedAt: "2025-06-01T00:00:00Z",
-        },
+    it("should assign floor weight of 1 when all non-boss weights are zero", async () => {
+      chains.availabilityChain.execute.mockResolvedValue([
+        { card_name: "Card A", weight: 0, from_boss: 0 },
+        { card_name: "Card B", weight: 0, from_boss: 1 },
       ]);
 
       const result = await service.getData("poe1", "Keepers");
@@ -1183,43 +1072,11 @@ describe("ProfitForecastService", () => {
     });
 
     it("should assign the minimum observed non-zero weight to zero-weight non-boss cards", async () => {
-      mockRepositoryGetCardWeights.mockResolvedValue([
-        {
-          cardName: "Rain of Chaos",
-          game: "poe1",
-          league: "Keepers",
-          weight: 121400,
-          rarity: 4,
-          fromBoss: false,
-          loadedAt: "2025-06-01T00:00:00Z",
-        },
-        {
-          cardName: "The Doctor",
-          game: "poe1",
-          league: "Keepers",
-          weight: 10,
-          rarity: 1,
-          fromBoss: false,
-          loadedAt: "2025-06-01T00:00:00Z",
-        },
-        {
-          cardName: "House of Mirrors",
-          game: "poe1",
-          league: "Keepers",
-          weight: 0,
-          rarity: 1,
-          fromBoss: false,
-          loadedAt: "2025-06-01T00:00:00Z",
-        },
-        {
-          cardName: "History",
-          game: "poe1",
-          league: "Keepers",
-          weight: 3,
-          rarity: 1,
-          fromBoss: false,
-          loadedAt: "2025-06-01T00:00:00Z",
-        },
+      chains.availabilityChain.execute.mockResolvedValue([
+        { card_name: "Rain of Chaos", weight: 121400, from_boss: 0 },
+        { card_name: "The Doctor", weight: 10, from_boss: 0 },
+        { card_name: "House of Mirrors", weight: 0, from_boss: 0 },
+        { card_name: "History", weight: 3, from_boss: 0 },
       ]);
 
       const result = await service.getData("poe1", "Keepers");
@@ -1355,7 +1212,7 @@ describe("ProfitForecastService", () => {
     it("should accept valid poe2 game type", async () => {
       const handler = getIpcHandler(ProfitForecastChannel.GetData);
       mockSettingsGet.mockResolvedValue("Poe2League");
-      mockRepositoryGetCardWeights.mockResolvedValue([]);
+      chains.availabilityChain.execute.mockResolvedValue([]);
       chains.leagueChain.executeTakeFirst.mockResolvedValue(undefined);
 
       const result = await handler({}, "poe2", "SomeLeague");
@@ -1611,21 +1468,26 @@ describe("ProfitForecastService", () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // Standard / Permanent League Fallback (n-1)
+  // Weights use the league passed to getData directly
   // ═══════════════════════════════════════════════════════════════════════════
 
   describe("PL weights are league-independent (use metadata league)", () => {
     it("should return weights regardless of user's active league", async () => {
-      // User has "Standard" selected but CSV data is stored under "Keepers"
+      // User has "Standard" selected — weights now come from the league
+      // passed to getData directly
       mockSettingsGet.mockResolvedValue("Standard");
 
       const result = await service.getData("poe1", "Standard");
 
-      // Weights come from metadata.league ("Keepers"), not the active league
+      // Weights come from the availability query with league="Standard"
       expect(result.rows).toHaveLength(3);
-      expect(mockRepositoryGetCardWeights).toHaveBeenCalledWith(
-        "poe1",
-        "Keepers",
+      expect(mockKyselySelectFrom).toHaveBeenCalledWith(
+        "divination_card_availability as dca",
+      );
+      expect(chains.availabilityChain.where).toHaveBeenCalledWith(
+        "dca.league",
+        "=",
+        "Standard",
       );
     });
 
@@ -1635,11 +1497,11 @@ describe("ProfitForecastService", () => {
       const result = await service.getData("poe1", "Hardcore");
 
       expect(result.rows).toHaveLength(3);
-      // Only one call to getCardWeights — no fallback needed
-      expect(mockRepositoryGetCardWeights).toHaveBeenCalledTimes(1);
-      expect(mockRepositoryGetCardWeights).toHaveBeenCalledWith(
-        "poe1",
-        "Keepers",
+      // Weights query uses the league passed to getData
+      expect(chains.availabilityChain.where).toHaveBeenCalledWith(
+        "dca.league",
+        "=",
+        "Hardcore",
       );
     });
   });
@@ -1688,7 +1550,7 @@ describe("ProfitForecastService", () => {
       const result = await service.getData("poe1", "Keepers");
 
       // The rows are built from weights, not prices.
-      // Only cards in PL weights will have rows, but those that match
+      // Only cards in availability rows will have rows, but those that match
       // a price entry will have hasPrice=true.
       const pricedRows = result.rows.filter((r) => r.hasPrice);
       // The default weights have "The Doctor", "Rain of Chaos", "The Nurse"
@@ -1712,7 +1574,7 @@ describe("ProfitForecastService", () => {
 
       const result = await service.getData("poe1", "Keepers");
 
-      // "A Mother's Parting Gift" is not in PL weights, so it won't be in rows.
+      // "A Mother's Parting Gift" is not in availability rows, so it won't be in rows.
       // But we can verify the service doesn't crash with special characters.
       expect(result.snapshotFetchedAt).not.toBeNull();
       expect(result.rows).toHaveLength(3);
@@ -1739,10 +1601,10 @@ describe("ProfitForecastService", () => {
 
   describe("detectAnomalousCardPrices (via getData)", () => {
     /**
-     * Helper: builds N price rows (exchange) and N matching PL weight entries.
+     * Helper: builds N price rows (exchange) and N matching availability entries.
      *
      * Each entry is { name, chaos, weight }.  Confidence defaults to 1.
-     * Returns { priceRows, plWeights } ready to plug into mocks.
+     * Returns { priceRows, availabilityRows } ready to plug into mocks.
      */
     function buildTestData(
       entries: {
@@ -1761,22 +1623,18 @@ describe("ProfitForecastService", () => {
         confidence: e.confidence ?? 1,
       }));
 
-      const plWeights = entries.map((e) => ({
-        cardName: e.name,
-        game: "poe1" as const,
-        league: "Keepers",
+      const availabilityRows = entries.map((e) => ({
+        card_name: e.name,
         weight: e.weight,
-        rarity: 4 as const,
-        fromBoss: false,
-        loadedAt: "2025-06-01T00:00:00Z",
+        from_boss: 0,
       }));
 
-      return { priceRows, plWeights };
+      return { priceRows, availabilityRows };
     }
 
     it("should flag a common card with an anomalously high price", async () => {
       // 8 common cards priced 0.5–4 chaos, one common card priced 500 chaos
-      const { priceRows, plWeights } = buildTestData([
+      const { priceRows, availabilityRows } = buildTestData([
         { name: "Card A", chaos: 0.5, weight: 100000 },
         { name: "Card B", chaos: 1.0, weight: 90000 },
         { name: "Card C", chaos: 1.5, weight: 80000 },
@@ -1789,7 +1647,7 @@ describe("ProfitForecastService", () => {
       ]);
 
       chains.priceChain.execute.mockResolvedValue(priceRows);
-      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+      chains.availabilityChain.execute.mockResolvedValue(availabilityRows);
 
       const result = await service.getData("poe1", "Keepers");
 
@@ -1809,7 +1667,7 @@ describe("ProfitForecastService", () => {
 
     it("should not flag rare cards even if they are expensive", async () => {
       // Rare cards (low weight) with high prices — should never be flagged
-      const { priceRows, plWeights } = buildTestData([
+      const { priceRows, availabilityRows } = buildTestData([
         { name: "Common A", chaos: 0.5, weight: 100000 },
         { name: "Common B", chaos: 1.0, weight: 90000 },
         { name: "Common C", chaos: 1.5, weight: 80000 },
@@ -1820,7 +1678,7 @@ describe("ProfitForecastService", () => {
       ]);
 
       chains.priceChain.execute.mockResolvedValue(priceRows);
-      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+      chains.availabilityChain.execute.mockResolvedValue(availabilityRows);
 
       const result = await service.getData("poe1", "Keepers");
 
@@ -1835,7 +1693,7 @@ describe("ProfitForecastService", () => {
     it("should exclude low-confidence (confidence=3) cards from detection candidates", async () => {
       // A common card with a high price but confidence=3 should NOT be flagged
       // because confidence=3 cards are excluded from the candidate pool entirely
-      const { priceRows, plWeights } = buildTestData([
+      const { priceRows, availabilityRows } = buildTestData([
         { name: "Common A", chaos: 0.5, weight: 100000 },
         { name: "Common B", chaos: 1.0, weight: 90000 },
         { name: "Common C", chaos: 1.5, weight: 80000 },
@@ -1850,7 +1708,7 @@ describe("ProfitForecastService", () => {
       ]);
 
       chains.priceChain.execute.mockResolvedValue(priceRows);
-      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+      chains.availabilityChain.execute.mockResolvedValue(availabilityRows);
 
       const result = await service.getData("poe1", "Keepers");
 
@@ -1864,7 +1722,7 @@ describe("ProfitForecastService", () => {
 
     it("should skip detection when fewer than 5 candidates exist", async () => {
       // Only 4 priced+weighted cards → too few for detection
-      const { priceRows, plWeights } = buildTestData([
+      const { priceRows, availabilityRows } = buildTestData([
         { name: "Card A", chaos: 0.5, weight: 100000 },
         { name: "Card B", chaos: 1.0, weight: 90000 },
         { name: "Card C", chaos: 1.5, weight: 80000 },
@@ -1872,7 +1730,7 @@ describe("ProfitForecastService", () => {
       ]);
 
       chains.priceChain.execute.mockResolvedValue(priceRows);
-      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+      chains.availabilityChain.execute.mockResolvedValue(availabilityRows);
 
       const result = await service.getData("poe1", "Keepers");
 
@@ -1887,7 +1745,7 @@ describe("ProfitForecastService", () => {
       // fewer than 3 have chaosValue > 0 (zero-priced cards are filtered out
       // of the commonPrices array). Here 5 candidates exist and 3 are common,
       // but 2 of the common cards have chaosValue = 0 so commonPrices.length < 3.
-      const { priceRows, plWeights } = buildTestData([
+      const { priceRows, availabilityRows } = buildTestData([
         { name: "Common A", chaos: 0, weight: 100000 }, // common but zero price
         { name: "Common B", chaos: 0, weight: 90000 }, // common but zero price
         { name: "Common C", chaos: 999, weight: 80000 }, // common, only positive price
@@ -1896,7 +1754,7 @@ describe("ProfitForecastService", () => {
       ]);
 
       chains.priceChain.execute.mockResolvedValue(priceRows);
-      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+      chains.availabilityChain.execute.mockResolvedValue(availabilityRows);
 
       const result = await service.getData("poe1", "Keepers");
 
@@ -1908,7 +1766,7 @@ describe("ProfitForecastService", () => {
 
     it("should not flag anything when all common cards have similar low prices", async () => {
       // All common cards have prices in a tight range → no outliers
-      const { priceRows, plWeights } = buildTestData([
+      const { priceRows, availabilityRows } = buildTestData([
         { name: "Card A", chaos: 0.5, weight: 100000 },
         { name: "Card B", chaos: 0.6, weight: 90000 },
         { name: "Card C", chaos: 0.7, weight: 80000 },
@@ -1918,7 +1776,7 @@ describe("ProfitForecastService", () => {
       ]);
 
       chains.priceChain.execute.mockResolvedValue(priceRows);
-      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+      chains.availabilityChain.execute.mockResolvedValue(availabilityRows);
 
       const result = await service.getData("poe1", "Keepers");
 
@@ -1940,7 +1798,7 @@ describe("ProfitForecastService", () => {
       // All common cards priced at 1 chaos, except one outlier at 10.
       // Lower half all = 1, so IQR = 0. Fallback = max(1*5, 1+1) = 5.
       // The 10-chaos card exceeds 5 → flagged.
-      const { priceRows, plWeights } = buildTestData([
+      const { priceRows, availabilityRows } = buildTestData([
         { name: "Card A", chaos: 1, weight: 100000 },
         { name: "Card B", chaos: 1, weight: 90000 },
         { name: "Card C", chaos: 1, weight: 80000 },
@@ -1951,7 +1809,7 @@ describe("ProfitForecastService", () => {
       ]);
 
       chains.priceChain.execute.mockResolvedValue(priceRows);
-      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+      chains.availabilityChain.execute.mockResolvedValue(availabilityRows);
 
       const result = await service.getData("poe1", "Keepers");
 
@@ -1966,7 +1824,7 @@ describe("ProfitForecastService", () => {
     it("should not flag a common card just barely above baseline when IQR is 0", async () => {
       // All common cards priced at 1 chaos, one card at 4 chaos.
       // Fallback threshold = max(1*5, 1+1) = 5. Card at 4 < 5 → not flagged.
-      const { priceRows, plWeights } = buildTestData([
+      const { priceRows, availabilityRows } = buildTestData([
         { name: "Card A", chaos: 1, weight: 100000 },
         { name: "Card B", chaos: 1, weight: 90000 },
         { name: "Card C", chaos: 1, weight: 80000 },
@@ -1977,7 +1835,7 @@ describe("ProfitForecastService", () => {
       ]);
 
       chains.priceChain.execute.mockResolvedValue(priceRows);
-      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+      chains.availabilityChain.execute.mockResolvedValue(availabilityRows);
 
       const result = await service.getData("poe1", "Keepers");
 
@@ -1987,7 +1845,7 @@ describe("ProfitForecastService", () => {
     });
 
     it("should flag multiple anomalous common cards simultaneously", async () => {
-      const { priceRows, plWeights } = buildTestData([
+      const { priceRows, availabilityRows } = buildTestData([
         { name: "Card A", chaos: 0.5, weight: 100000 },
         { name: "Card B", chaos: 1.0, weight: 90000 },
         { name: "Card C", chaos: 1.5, weight: 80000 },
@@ -1999,7 +1857,7 @@ describe("ProfitForecastService", () => {
       ]);
 
       chains.priceChain.execute.mockResolvedValue(priceRows);
-      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+      chains.availabilityChain.execute.mockResolvedValue(availabilityRows);
 
       const result = await service.getData("poe1", "Keepers");
 
@@ -2017,9 +1875,9 @@ describe("ProfitForecastService", () => {
       ).toBe(false);
     });
 
-    it("should not flag cards that have no matching PL weight", async () => {
+    it("should not flag cards that have no matching availability weight", async () => {
       // Price exists but no weight entry → card is excluded from detection
-      const { priceRows: baseRows, plWeights } = buildTestData([
+      const { priceRows: baseRows, availabilityRows } = buildTestData([
         { name: "Card A", chaos: 0.5, weight: 100000 },
         { name: "Card B", chaos: 1.0, weight: 90000 },
         { name: "Card C", chaos: 1.5, weight: 80000 },
@@ -2041,11 +1899,11 @@ describe("ProfitForecastService", () => {
       ];
 
       chains.priceChain.execute.mockResolvedValue(priceRows);
-      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+      chains.availabilityChain.execute.mockResolvedValue(availabilityRows);
 
       const result = await service.getData("poe1", "Keepers");
 
-      // "No Weight Card" has no PL weight entry, so it won't appear in rows.
+      // "No Weight Card" has no availability entry, so it won't appear in rows.
       // We verify the detection doesn't crash and other cards are fine.
       const noWeightRow = result.rows.find(
         (r) => r.cardName === "No Weight Card",
@@ -2059,7 +1917,7 @@ describe("ProfitForecastService", () => {
 
     it("should not flag cards with zero weight even if priced", async () => {
       // A card with weight=0 should be excluded from candidates
-      const { priceRows, plWeights } = buildTestData([
+      const { priceRows, availabilityRows } = buildTestData([
         { name: "Card A", chaos: 0.5, weight: 100000 },
         { name: "Card B", chaos: 1.0, weight: 90000 },
         { name: "Card C", chaos: 1.5, weight: 80000 },
@@ -2069,7 +1927,7 @@ describe("ProfitForecastService", () => {
       ]);
 
       chains.priceChain.execute.mockResolvedValue(priceRows);
-      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+      chains.availabilityChain.execute.mockResolvedValue(availabilityRows);
 
       const result = await service.getData("poe1", "Keepers");
 
@@ -2080,7 +1938,7 @@ describe("ProfitForecastService", () => {
     });
 
     it("should include anomalous count in the success log message", async () => {
-      const { priceRows, plWeights } = buildTestData([
+      const { priceRows, availabilityRows } = buildTestData([
         { name: "Card A", chaos: 0.5, weight: 100000 },
         { name: "Card B", chaos: 1.0, weight: 90000 },
         { name: "Card C", chaos: 1.5, weight: 80000 },
@@ -2091,7 +1949,7 @@ describe("ProfitForecastService", () => {
       ]);
 
       chains.priceChain.execute.mockResolvedValue(priceRows);
-      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+      chains.availabilityChain.execute.mockResolvedValue(availabilityRows);
 
       await service.getData("poe1", "Keepers");
 
@@ -2106,7 +1964,7 @@ describe("ProfitForecastService", () => {
     });
 
     it("should log 0 anomalous when no cards are flagged", async () => {
-      const { priceRows, plWeights } = buildTestData([
+      const { priceRows, availabilityRows } = buildTestData([
         { name: "Card A", chaos: 0.5, weight: 100000 },
         { name: "Card B", chaos: 1.0, weight: 90000 },
         { name: "Card C", chaos: 1.5, weight: 80000 },
@@ -2115,7 +1973,7 @@ describe("ProfitForecastService", () => {
       ]);
 
       chains.priceChain.execute.mockResolvedValue(priceRows);
-      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+      chains.availabilityChain.execute.mockResolvedValue(availabilityRows);
 
       await service.getData("poe1", "Keepers");
 
@@ -2132,7 +1990,7 @@ describe("ProfitForecastService", () => {
     it("should handle a realistic late-league scenario with inflated common cards", async () => {
       // Simulates end-of-league thin market: most common cards are ~0.5c,
       // but a few have single-listing artifacts pushing them to 10-50c
-      const { priceRows, plWeights } = buildTestData([
+      const { priceRows, availabilityRows } = buildTestData([
         { name: "Rain of Chaos", chaos: 0.3, weight: 121400 },
         { name: "The Lover", chaos: 0.4, weight: 113000 },
         { name: "The Hermit", chaos: 0.5, weight: 105000 },
@@ -2153,7 +2011,7 @@ describe("ProfitForecastService", () => {
       ]);
 
       chains.priceChain.execute.mockResolvedValue(priceRows);
-      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+      chains.availabilityChain.execute.mockResolvedValue(availabilityRows);
 
       const result = await service.getData("poe1", "Keepers");
 
@@ -2188,7 +2046,7 @@ describe("ProfitForecastService", () => {
 
     it("should not flag when only 4 candidates after excluding confidence=3 cards", async () => {
       // 6 total price entries, but 2 have confidence=3, leaving only 4 candidates
-      const { priceRows, plWeights } = buildTestData([
+      const { priceRows, availabilityRows } = buildTestData([
         { name: "Card A", chaos: 0.5, weight: 100000 },
         { name: "Card B", chaos: 1.0, weight: 90000 },
         { name: "Card C", chaos: 1.5, weight: 80000 },
@@ -2198,7 +2056,7 @@ describe("ProfitForecastService", () => {
       ]);
 
       chains.priceChain.execute.mockResolvedValue(priceRows);
-      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+      chains.availabilityChain.execute.mockResolvedValue(availabilityRows);
 
       const result = await service.getData("poe1", "Keepers");
 
@@ -2213,7 +2071,7 @@ describe("ProfitForecastService", () => {
 
     it("should handle exactly 5 candidates (minimum for detection)", async () => {
       // Exactly 5 candidates — detection should proceed
-      const { priceRows, plWeights } = buildTestData([
+      const { priceRows, availabilityRows } = buildTestData([
         { name: "Card A", chaos: 0.5, weight: 100000 },
         { name: "Card B", chaos: 1.0, weight: 90000 },
         { name: "Card C", chaos: 1.5, weight: 80000 },
@@ -2222,7 +2080,7 @@ describe("ProfitForecastService", () => {
       ]);
 
       chains.priceChain.execute.mockResolvedValue(priceRows);
-      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+      chains.availabilityChain.execute.mockResolvedValue(availabilityRows);
 
       const result = await service.getData("poe1", "Keepers");
 
@@ -2239,7 +2097,7 @@ describe("ProfitForecastService", () => {
 
     it("should not mutate isAnomalous for cards below the threshold", async () => {
       // Prices that vary but all within normal range
-      const { priceRows, plWeights } = buildTestData([
+      const { priceRows, availabilityRows } = buildTestData([
         { name: "Card A", chaos: 1.0, weight: 100000 },
         { name: "Card B", chaos: 2.0, weight: 90000 },
         { name: "Card C", chaos: 3.0, weight: 80000 },
@@ -2250,7 +2108,7 @@ describe("ProfitForecastService", () => {
       ]);
 
       chains.priceChain.execute.mockResolvedValue(priceRows);
-      mockRepositoryGetCardWeights.mockResolvedValue(plWeights);
+      chains.availabilityChain.execute.mockResolvedValue(availabilityRows);
 
       const result = await service.getData("poe1", "Keepers");
 
@@ -2283,7 +2141,7 @@ describe("ProfitForecastService", () => {
           confidence: 1,
         },
       ]);
-      mockRepositoryGetCardWeights.mockResolvedValue([]);
+      chains.availabilityChain.execute.mockResolvedValue([]);
 
       const result = await service.getData("poe1", "Keepers");
 

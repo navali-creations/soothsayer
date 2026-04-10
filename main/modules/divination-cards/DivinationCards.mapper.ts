@@ -7,10 +7,13 @@ import type { DivinationCardDTO } from "./DivinationCards.dto";
 /**
  * Row type with joined rarity data
  */
-interface DivinationCardWithRarityRow extends DivinationCardsRow {
+export interface DivinationCardWithRarityRow extends DivinationCardsRow {
   rarity?: Rarity;
   filter_rarity?: KnownRarity | null;
   prohibited_library_rarity?: Rarity | null;
+  from_boss?: number | null;
+  is_disabled?: number | null;
+  in_pool?: number | null;
 }
 
 /**
@@ -30,6 +33,8 @@ export class DivinationCardsMapper {
       filterRarity: row.filter_rarity ?? null,
       prohibitedLibraryRarity: row.prohibited_library_rarity ?? null,
       fromBoss: row.from_boss === 1,
+      isDisabled: row.is_disabled === 1,
+      inPool: row.in_pool === 1,
       game: row.game,
       createdAt: row.created_at,
       updatedAt: row.updated_at,

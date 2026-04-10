@@ -34,6 +34,7 @@ export interface DivinationCardMetadata {
   id: string;
   rarity: Rarity;
   fromBoss: boolean;
+  isDisabled?: boolean;
   stackSize?: number | null;
   description?: string | null;
   rewardHtml?: string | null;

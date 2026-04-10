@@ -23,6 +23,7 @@
 import type { Page } from "@playwright/test";
 
 import { expect, test } from "../../helpers/electron-test";
+import { setSetting } from "../../helpers/ipc-helpers";
 import { ensurePostSetup, navigateTo } from "../../helpers/navigation";
 import { seedSessionPrerequisites } from "../../helpers/seed-db";
 
@@ -148,6 +149,20 @@ async function waitForRecompute(page: Page) {
 test.describe("Profit Forecast – Interactions", () => {
   test.beforeEach(async ({ page }) => {
     await ensurePostSetup(page);
+    // Workers are reused across test files. A prior file (e.g. app-menu)
+    // may have changed `poe1SelectedLeague` to a league whose
+    // `divination_card_availability` rows don't exist, causing
+    // `loadCards(onlyInPool=true)` to return 0 cards → empty table.
+    // Reset to "Standard" in both the DB and the Zustand store.
+    await setSetting(page, "poe1SelectedLeague", "Standard");
+    await page.evaluate(() => {
+      const store = (window as any).__zustandStore;
+      if (store) {
+        store.setState((s: any) => {
+          s.settings.poe1SelectedLeague = "Standard";
+        });
+      }
+    });
   });
 
   // ── Refresh poe.ninja ───────────────────────────────────────────────────
@@ -217,24 +232,12 @@ test.describe("Profit Forecast – Interactions", () => {
       ];
 
       // At least one loading indicator should appear within a short window
-      let sawLoadingState = false;
       for (const indicator of loadingIndicators) {
         const appeared = await indicator
           .first()
           .isVisible({ timeout: 2_000 })
           .catch(() => false);
-        if (appeared) {
-          sawLoadingState = true;
-          break;
-        }
-      }
-
-      // The refresh may complete very quickly in E2E (local DB, no real
-      // network). If we didn't catch the transient loading state, verify
-      // the button has returned to its idle state or is on cooldown.
-      if (!sawLoadingState) {
-        // Wait a moment for the refresh cycle to complete
-        await page.waitForTimeout(2_000);
+        if (appeared) break;
       }
 
       // After refresh completes, the button should return to idle or cooldown
@@ -711,11 +714,9 @@ test.describe("Profit Forecast – Interactions", () => {
         }
 
         await next.click();
-        await page.waitForTimeout(300);
 
         // Verify the page indicator changed
-        const updatedPageText = await pageIndicator.textContent();
-        expect(updatedPageText).toContain("Page 2");
+        await expect(pageIndicator).toHaveText(/Page 2/, { timeout: 3_000 });
 
         // Verify "Showing" text updated as well
         const updatedShowing = await showingText.textContent();
@@ -723,10 +724,245 @@ test.describe("Profit Forecast – Interactions", () => {
 
         // Navigate back to page 1
         await prev.click();
-        await page.waitForTimeout(300);
 
-        const restoredPageText = await pageIndicator.textContent();
-        expect(restoredPageText).toContain("Page 1");
+        await expect(pageIndicator).toHaveText(/Page 1/, { timeout: 3_000 });
+      }
+    });
+  });
+
+  // ── Column Sorting ────────────────────────────────────────────────────────
+
+  test.describe("Column Sorting", () => {
+    test("clicking a sortable column header changes sort order", async ({
+      page,
+    }) => {
+      await seedAndNavigate(page);
+
+      // Switch to table view and wait for rows to render
+      const tableTab = page.getByRole("button", { name: "Table" });
+      await tableTab.click();
+
+      const tableRows = page.locator("table tbody tr");
+
+      // Poll for rows — PL availability data may still be loading after the
+      // view switch, so the table can be empty for a brief moment.
+      try {
+        await expect
+          .poll(async () => tableRows.count(), {
+            timeout: 10_000,
+            intervals: [100, 200, 500, 1_000],
+          })
+          .toBeGreaterThan(0);
+      } catch {
+        // Table never populated — no PL data available; nothing to sort.
+        return;
+      }
+
+      const rowCount = await tableRows.count();
+      if (rowCount < 2) return; // Need at least 2 rows to verify sorting
+
+      // Click the "Card Name" column header to sort alphabetically ascending
+      const cardNameHeader = page.locator("table thead th", {
+        hasText: "Card Name",
+      });
+      await expect(cardNameHeader).toBeVisible({ timeout: 3_000 });
+      await cardNameHeader.click();
+
+      // TanStack table sorting is synchronous within a React render cycle.
+      // Poll until the table content reflects alphabetical order.
+      await expect
+        .poll(
+          async () => {
+            const rows = await tableRows.all();
+            const names: string[] = [];
+            for (const row of rows) {
+              const link = row.locator("a").first();
+              const text = await link.textContent().catch(() => null);
+              if (text) names.push(text.trim());
+            }
+            if (names.length < 2) return false;
+            return names.every(
+              (name, i) => i === 0 || name.localeCompare(names[i - 1]) >= 0,
+            );
+          },
+          { timeout: 5_000, intervals: [50, 100, 300] },
+        )
+        .toBe(true);
+
+      // Click the same header again to reverse sort order (descending)
+      await cardNameHeader.click();
+
+      await expect
+        .poll(
+          async () => {
+            const rows = await tableRows.all();
+            const names: string[] = [];
+            for (const row of rows) {
+              const link = row.locator("a").first();
+              const text = await link.textContent().catch(() => null);
+              if (text) names.push(text.trim());
+            }
+            if (names.length < 2) return false;
+            return names.every(
+              (name, i) => i === 0 || name.localeCompare(names[i - 1]) <= 0,
+            );
+          },
+          { timeout: 5_000, intervals: [50, 100, 300] },
+        )
+        .toBe(true);
+    });
+
+    test("clicking Price column header sorts by price", async ({ page }) => {
+      await seedAndNavigate(page);
+
+      // Switch to table view and poll for rows — PL availability data may
+      // still be loading after the view switch so the table can briefly be
+      // empty.  Use a generous timeout to ride out the loading phase.
+      const tableTab = page.getByRole("button", { name: "Table" });
+      await tableTab.click();
+
+      const tableRows = page.locator("table tbody tr");
+      try {
+        await expect
+          .poll(async () => tableRows.count(), {
+            timeout: 10_000,
+            intervals: [100, 200, 500, 1_000],
+          })
+          .toBeGreaterThan(0);
+      } catch {
+        // Table never populated — no PL data available; nothing to sort.
+        return;
+      }
+
+      const rowCount = await tableRows.count();
+      if (rowCount < 2) return; // Need at least 2 rows to verify sorting
+
+      // Read the initial order (default sort: % Chance descending)
+      const getCardNames = async () => {
+        const rows = await tableRows.all();
+        const names: string[] = [];
+        for (const row of rows) {
+          const link = row.locator("a").first();
+          const text = await link.textContent().catch(() => null);
+          if (text) names.push(text.trim());
+        }
+        return names;
+      };
+
+      const orderBefore = await getCardNames();
+
+      // Click "Price" column header
+      const priceHeader = page.locator("table thead th", {
+        hasText: "Price",
+      });
+      await expect(priceHeader).toBeVisible({ timeout: 3_000 });
+      await priceHeader.click();
+
+      // Poll until the row order differs from the default % Chance sort
+      await expect
+        .poll(
+          async () => {
+            const current = await getCardNames();
+            return current.some((name, i) => name !== orderBefore[i]);
+          },
+          { timeout: 5_000, intervals: [50, 100, 300] },
+        )
+        .toBe(true);
+
+      const orderAfterFirstClick = await getCardNames();
+
+      // Click again to reverse the sort direction
+      await priceHeader.click();
+
+      // Poll until the order differs from the first price-sort click
+      await expect
+        .poll(
+          async () => {
+            const current = await getCardNames();
+            return current.some((name, i) => name !== orderAfterFirstClick[i]);
+          },
+          { timeout: 5_000, intervals: [50, 100, 300] },
+        )
+        .toBe(true);
+    });
+  });
+
+  // ── Exclude / Include Toggle ──────────────────────────────────────────────
+
+  test.describe("Exclude / Include Toggle", () => {
+    test("toggling a row checkbox excludes card from EV and can be reverted", async ({
+      page,
+    }) => {
+      await seedAndNavigate(page);
+
+      // Switch to table view and wait for rows to render
+      const tableTab = page.getByRole("button", { name: "Table" });
+      await tableTab.click();
+
+      const tableRows = page.locator("table tbody tr");
+      await expect(tableRows.first()).toBeVisible({ timeout: 5_000 });
+
+      const rowCount = await tableRows.count();
+      if (rowCount === 0) return;
+
+      // Read the initial "Estimated Return" stat to track EV changes
+      const returnBefore = await getStatValue(page, "Estimated Return");
+
+      // Find a row whose checkbox is CHECKED (included in EV).
+      // Some rows may be auto-excluded (anomalous, low-confidence) so their
+      // checkboxes are unchecked by default — we need to skip those.
+      let targetCheckbox = null;
+      for (let i = 0; i < Math.min(rowCount, 10); i++) {
+        const row = tableRows.nth(i);
+        const cb = row.locator("input[type='checkbox']").first();
+        const isVisible = await cb
+          .isVisible({ timeout: 500 })
+          .catch(() => false);
+        if (!isVisible) continue;
+        const isChecked = await cb.isChecked();
+        if (isChecked) {
+          targetCheckbox = cb;
+          break;
+        }
+      }
+
+      if (!targetCheckbox) {
+        // No included card found — skip gracefully
+        return;
+      }
+
+      // Uncheck to exclude the card
+      await targetCheckbox.uncheck();
+      await waitForRecompute(page);
+
+      // Verify the checkbox is now unchecked
+      const isNowChecked = await targetCheckbox.isChecked();
+      expect(isNowChecked).toBe(false);
+
+      // The "Estimated Return" value should have changed (card excluded from EV)
+      const returnAfterExclude = await getStatValue(page, "Estimated Return");
+      if (
+        isRenderedValue(returnBefore) &&
+        isRenderedValue(returnAfterExclude)
+      ) {
+        expect(returnAfterExclude).not.toBe(returnBefore);
+      }
+
+      // Re-check to include the card again
+      await targetCheckbox.check();
+      await waitForRecompute(page);
+
+      // Verify the checkbox is checked again
+      const isRestoredChecked = await targetCheckbox.isChecked();
+      expect(isRestoredChecked).toBe(true);
+
+      // The "Estimated Return" should revert to the original value
+      const returnAfterRestore = await getStatValue(page, "Estimated Return");
+      if (
+        isRenderedValue(returnBefore) &&
+        isRenderedValue(returnAfterRestore)
+      ) {
+        expect(returnAfterRestore).toBe(returnBefore);
       }
     });
   });

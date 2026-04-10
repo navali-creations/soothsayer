@@ -76,10 +76,6 @@ import {
   type ProfitForecastSlice,
 } from "~/renderer/modules/profit-forecast/ProfitForecast.slice/ProfitForecast.slice";
 import {
-  createProhibitedLibrarySlice,
-  type ProhibitedLibrarySlice,
-} from "~/renderer/modules/prohibited-library/ProhibitedLibrary.slice/ProhibitedLibrary.slice";
-import {
   createRarityInsightsSlice,
   type RarityInsightsSlice,
 } from "~/renderer/modules/rarity-insights/RarityInsights.slice/RarityInsights.slice";
@@ -139,7 +135,6 @@ type BoundStore = GameInfoSlice &
   ChangelogSlice &
   OverlaySlice &
   PoeNinjaSlice &
-  ProhibitedLibrarySlice &
   StatisticsSlice &
   OnboardingSlice &
   UpdaterSlice &
@@ -223,7 +218,6 @@ export function createTestStore(overrides?: StoreOverrides) {
         const onboardingSlice = createOnboardingSlice(...a);
         const updaterSlice = createUpdaterSlice(...a);
         const profitForecastSlice = createProfitForecastSlice(...a);
-        const prohibitedLibrarySlice = createProhibitedLibrarySlice(...a);
         const rarityInsightsSlice = createRarityInsightsSlice(...a);
         const rarityInsightsComparisonSlice =
           createRarityInsightsComparisonSlice(...a);
@@ -243,7 +237,6 @@ export function createTestStore(overrides?: StoreOverrides) {
           ...cardsSlice,
           ...poeNinjaSlice,
           ...profitForecastSlice,
-          ...prohibitedLibrarySlice,
           ...statisticsSlice,
           ...onboardingSlice,
           ...updaterSlice,

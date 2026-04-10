@@ -184,7 +184,7 @@ test.describe("Smoke Tests", () => {
         "divinationCards",
         "updater",
         "rarityInsights",
-        "prohibitedLibrary",
+        "diagLog",
         "profitForecast",
         "storage",
       ];

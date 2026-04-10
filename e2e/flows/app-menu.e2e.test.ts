@@ -274,12 +274,20 @@ test.describe("AppMenu", () => {
       );
       if (alreadyMinimized) {
         await browserWindow.evaluate((win) => win.restore());
-        await page.waitForTimeout(500);
+        await expect
+          .poll(() => browserWindow.evaluate((win) => win.isMinimized()), {
+            timeout: 5_000,
+          })
+          .toBe(false);
       }
 
       // Minimize via the preload IPC bridge
       await callElectronAPI(page, "mainWindow", "minimize");
-      await page.waitForTimeout(500);
+      await expect
+        .poll(() => browserWindow.evaluate((win) => win.isMinimized()), {
+          timeout: 5_000,
+        })
+        .toBe(true);
 
       // Verify the window is minimized from the Electron main process side
       const isMinimized = await browserWindow.evaluate((win) =>
@@ -291,7 +299,11 @@ test.describe("AppMenu", () => {
 
       // Restore so subsequent tests are not affected
       await browserWindow.evaluate((win) => win.restore());
-      await page.waitForTimeout(500);
+      await expect
+        .poll(() => browserWindow.evaluate((win) => win.isMinimized()), {
+          timeout: 5_000,
+        })
+        .toBe(false);
 
       const isRestoredAfter = await browserWindow.evaluate((win) =>
         win.isMinimized(),
@@ -314,12 +326,20 @@ test.describe("AppMenu", () => {
       );
       if (alreadyMaximized) {
         await browserWindow.evaluate((win) => win.unmaximize());
-        await page.waitForTimeout(500);
+        await expect
+          .poll(() => browserWindow.evaluate((win) => win.isMaximized()), {
+            timeout: 5_000,
+          })
+          .toBe(false);
       }
 
       // Maximize via the preload IPC bridge
       await callElectronAPI(page, "mainWindow", "maximize");
-      await page.waitForTimeout(500);
+      await expect
+        .poll(() => browserWindow.evaluate((win) => win.isMaximized()), {
+          timeout: 5_000,
+        })
+        .toBe(true);
 
       // Verify the window is maximized from the Electron main process side
       const isMaximized = await browserWindow.evaluate((win) =>
@@ -342,7 +362,11 @@ test.describe("AppMenu", () => {
 
       // Unmaximize via the preload IPC bridge
       await callElectronAPI(page, "mainWindow", "unmaximize");
-      await page.waitForTimeout(500);
+      await expect
+        .poll(() => browserWindow.evaluate((win) => win.isMaximized()), {
+          timeout: 5_000,
+        })
+        .toBe(false);
 
       // Verify the window is no longer maximized
       const isMaximizedAfter = await browserWindow.evaluate((win) =>
@@ -707,6 +731,21 @@ test.describe("AppMenu", () => {
         "poe1SelectedLeague",
       );
       expect(storedAfterReload).toBeTruthy();
+
+      // Clean up: reset the league back to "Standard" so subsequent test
+      // files that share this worker don't inherit "Settlers of Kalguur".
+      // Without this, tests that rely on `loadCards(onlyInPool=true)` get
+      // 0 cards because `divination_card_availability` only has rows for
+      // the league that `syncCards()` ran with at startup ("Standard").
+      await setSetting(page, "poe1SelectedLeague", "Standard");
+      await page.evaluate(() => {
+        const store = (window as any).__zustandStore;
+        if (store) {
+          store.setState((s: any) => {
+            s.settings.poe1SelectedLeague = "Standard";
+          });
+        }
+      });
     });
   });
 });
