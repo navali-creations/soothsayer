@@ -34,7 +34,7 @@ export const CardsGrid = ({ cards }: CardsGridProps) => {
         params: { cardSlug: cardNameToSlug(cardName) },
       });
     },
-    [navigate]
+    [navigate],
   );
 
   // Create a unique key that changes when filters/page change to force re-animation

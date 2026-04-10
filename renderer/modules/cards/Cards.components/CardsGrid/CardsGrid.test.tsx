@@ -42,7 +42,7 @@ vi.mock("motion/react", () => ({
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 function makeCard(
-  overrides: Partial<DivinationCardRow> = {}
+  overrides: Partial<DivinationCardRow> = {},
 ): DivinationCardRow {
   return {
     id: "card-1",
@@ -69,7 +69,7 @@ function setupStore(
     sortField?: string;
     sortDirection?: string;
     raritySource?: string;
-  } = {}
+  } = {},
 ) {
   mockUseCards.mockReturnValue({
     currentPage: overrides.currentPage ?? 1,
@@ -105,7 +105,7 @@ describe("CardsGrid", () => {
       renderWithProviders(<CardsGrid cards={[]} />);
 
       expect(
-        screen.getByText("Try adjusting your filters")
+        screen.getByText("Try adjusting your filters"),
       ).toBeInTheDocument();
     });
 
@@ -130,7 +130,7 @@ describe("CardsGrid", () => {
 
       expect(screen.getByTestId("card-item-The Doctor")).toBeInTheDocument();
       expect(
-        screen.getByTestId("card-item-House of Mirrors")
+        screen.getByTestId("card-item-House of Mirrors"),
       ).toBeInTheDocument();
       expect(screen.getByTestId("card-item-The Fiend")).toBeInTheDocument();
     });
@@ -204,7 +204,7 @@ describe("CardsGrid", () => {
         expect.objectContaining({
           to: "/cards/$cardSlug",
           params: expect.objectContaining({ cardSlug: expect.any(String) }),
-        })
+        }),
       );
     });
   });

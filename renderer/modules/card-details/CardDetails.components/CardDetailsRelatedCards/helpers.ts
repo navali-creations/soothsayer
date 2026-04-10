@@ -1,9 +1,5 @@
 import type { RelatedCardDTO } from "~/main/modules/card-details/CardDetails.dto";
-import { getCardImage } from "~/renderer/lib/poe1-card-assets";
 import type { CardEntry, Rarity } from "~/types/data-stores";
-
-// Re-export for consumers that import getCardImage from this module
-export { getCardImage };
 
 /**
  * Get the display rarity for a related card DTO.

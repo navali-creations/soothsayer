@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import type { RelatedCardDTO } from "~/main/modules/card-details/CardDetails.dto";
+import { getCardImage } from "~/renderer/lib/poe1-card-assets";
 import {
-  getCardImage,
   getDisplayRarity,
   toCardEntry,
 } from "~/renderer/modules/card-details/CardDetails.components/CardDetailsRelatedCards/helpers";

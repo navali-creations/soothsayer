@@ -87,8 +87,6 @@ export interface RarityInsightsComparisonSlice {
     getSelectedFilterDetails: () => DiscoveredRarityInsightsDTO[];
     getAllSelectedParsed: () => boolean;
     getDifferences: () => Set<string>;
-    getDisplayRows: () => ComparisonRow[];
-    getDisplayRowCount: () => number;
     getCanShowDiffs: () => boolean;
   };
 }
@@ -495,88 +493,6 @@ export const createRarityInsightsComparisonSlice: StateCreator<
     getCanShowDiffs: () => {
       const { rarityInsightsComparison } = get();
       return rarityInsightsComparison.selectedFilters.length >= 1;
-    },
-
-    getDisplayRowCount: () => {
-      const { rarityInsightsComparison, cards } = get();
-      const { showDiffsOnly, includeBossCards, includeDisabledCards } =
-        rarityInsightsComparison;
-      const { allCards } = cards;
-
-      let filtered = allCards;
-
-      // Filter out boss-exclusive cards unless explicitly included
-      if (!includeBossCards) {
-        filtered = filtered.filter((c) => !c.fromBoss);
-      }
-
-      // Filter out disabled cards (not in the drop pool)
-      if (!includeDisabledCards) {
-        filtered = filtered.filter((c) => !c.isDisabled);
-      }
-
-      if (!showDiffsOnly) return filtered.length;
-
-      const differences = get().rarityInsightsComparison.getDifferences();
-      if (differences.size === 0) return filtered.length;
-
-      return filtered.filter((c) => differences.has(c.name)).length;
-    },
-
-    getDisplayRows: () => {
-      const { rarityInsightsComparison, cards } = get();
-      const {
-        showDiffsOnly,
-        includeBossCards,
-        includeDisabledCards,
-        selectedFilters,
-        parsedResults,
-      } = rarityInsightsComparison;
-      const { allCards } = cards;
-
-      const differences = get().rarityInsightsComparison.getDifferences();
-
-      // Filter out boss-exclusive cards unless explicitly included
-      let filtered = allCards;
-      if (!includeBossCards) {
-        filtered = filtered.filter((c) => !c.fromBoss);
-      }
-
-      // Filter out disabled cards (not in the drop pool)
-      if (!includeDisabledCards) {
-        filtered = filtered.filter((c) => !c.isDisabled);
-      }
-
-      // Filter by diffs only
-      if (showDiffsOnly && differences.size > 0) {
-        filtered = filtered.filter((c) => differences.has(c.name));
-      }
-
-      // Map to ComparisonRow
-      return filtered.map((card) => {
-        const filterRarities: Record<string, KnownRarity | null> = {};
-        for (const filterId of selectedFilters) {
-          const parsed = parsedResults.get(filterId);
-          filterRarities[filterId] = parsed
-            ? (parsed.rarities.get(card.name) ?? (4 as KnownRarity))
-            : null;
-        }
-
-        return {
-          id: card.id,
-          name: card.name,
-          stackSize: card.stackSize,
-          description: card.description,
-          rewardHtml: card.rewardHtml,
-          artSrc: card.artSrc,
-          flavourHtml: card.flavourHtml,
-          rarity: card.rarity,
-          isDifferent: differences.has(card.name),
-          filterRarities,
-          prohibitedLibraryRarity: card.prohibitedLibraryRarity ?? null,
-          fromBoss: card.fromBoss ?? false,
-        };
-      });
     },
   },
 });

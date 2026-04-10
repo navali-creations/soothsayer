@@ -81,11 +81,6 @@ const mockFilteredCards: DivinationCardRow[] = [
   makeCard({ id: "3", name: "The Fiend" }),
 ];
 
-const _mockPaginatedCards: DivinationCardRow[] = [
-  makeCard({ id: "1", name: "The Doctor" }),
-  makeCard({ id: "2", name: "House of Mirrors" }),
-];
-
 const mockLoadCards = vi.fn();
 
 function setupStore(

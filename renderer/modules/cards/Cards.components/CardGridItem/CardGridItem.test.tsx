@@ -137,18 +137,14 @@ describe("CardGridItem", () => {
       const card = makeCard({ inPool: false });
       renderCardGridItem({ card, showAllCards: false });
 
-      expect(
-        screen.queryByText("Not in league pool"),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByText("Not in league pool")).not.toBeInTheDocument();
     });
 
     it("does not show badge when card is in pool", () => {
       const card = makeCard({ inPool: true });
       renderCardGridItem({ card, showAllCards: true });
 
-      expect(
-        screen.queryByText("Not in league pool"),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByText("Not in league pool")).not.toBeInTheDocument();
     });
 
     it("applies opacity-40 class when card is out of pool", () => {
