@@ -82,6 +82,8 @@ vi.mock("@supabase/supabase-js", () => ({
 
 // ─── Import after mocks ──────────────────────────────────────────────────────
 
+import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
+
 import { SupabaseClientService } from "../Supabase.service";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -158,8 +160,7 @@ describe("SupabaseClientService", () => {
     vi.clearAllMocks();
 
     // Reset singleton between tests
-    // @ts-expect-error — accessing private static for testing
-    SupabaseClientService._instance = undefined;
+    resetSingleton(SupabaseClientService);
 
     // Default: no stored session file
     mockFsExistsSync.mockReturnValue(false);
@@ -1177,8 +1178,7 @@ describe("SecureSessionStorage (via SupabaseClientService)", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // @ts-expect-error — accessing private static for testing
-    SupabaseClientService._instance = undefined;
+    resetSingleton(SupabaseClientService);
     mockSafeStorageIsEncryptionAvailable.mockReturnValue(true);
     mockFsExistsSync.mockReturnValue(false);
     mockOnAuthStateChange.mockReturnValue({
@@ -1559,8 +1559,7 @@ describe("SecureSessionStorage (via SupabaseClientService)", () => {
 describe("SupabaseClientService — full lifecycle", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // @ts-expect-error — accessing private static for testing
-    SupabaseClientService._instance = undefined;
+    resetSingleton(SupabaseClientService);
     mockFsExistsSync.mockReturnValue(false);
     mockSafeStorageIsEncryptionAvailable.mockReturnValue(true);
     globalThis.fetch = mockFetch;

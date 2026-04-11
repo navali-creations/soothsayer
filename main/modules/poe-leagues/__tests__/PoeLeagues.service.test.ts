@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
+
 // ─── Mock Electron before any imports that use it ────────────────────────────
 vi.mock("electron", () => ({
   ipcMain: {
@@ -101,15 +103,13 @@ describe("PoeLeaguesService", () => {
     mockSettingsSet.mockReset();
 
     // Reset the singleton so each test gets a fresh instance
-    // @ts-expect-error accessing private static for testing
-    PoeLeaguesService._instance = undefined;
+    resetSingleton(PoeLeaguesService);
 
     service = PoeLeaguesService.getInstance();
   });
 
   afterEach(async () => {
-    // @ts-expect-error accessing private static for testing
-    PoeLeaguesService._instance = undefined;
+    resetSingleton(PoeLeaguesService);
     await testDb.close();
     vi.clearAllMocks();
   });

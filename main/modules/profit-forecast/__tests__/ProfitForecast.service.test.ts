@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  createDatabaseServiceMock,
+  createElectronMock,
+  createSettingsStoreMock,
+  getIpcHandler,
+} from "~/main/modules/__test-utils__/mock-factories";
+import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
+
 // ─── Hoisted mock functions ──────────────────────────────────────────────────
 
 const {
@@ -24,38 +32,19 @@ const {
 
 // ─── Mock Electron ───────────────────────────────────────────────────────────
 
-vi.mock("electron", () => ({
-  ipcMain: {
-    handle: mockIpcHandle,
-    on: vi.fn(),
-    removeHandler: vi.fn(),
-  },
-}));
+vi.mock("electron", () => createElectronMock({ mockIpcHandle }));
 
 // ─── Mock DatabaseService ────────────────────────────────────────────────────
 
-vi.mock("~/main/modules/database", () => ({
-  DatabaseService: {
-    getInstance: vi.fn(() => ({
-      getKysely: mockGetKysely,
-    })),
-  },
-}));
+vi.mock("~/main/modules/database", () =>
+  createDatabaseServiceMock({ mockGetKysely }),
+);
 
 // ─── Mock SettingsStoreService ───────────────────────────────────────────────
 
-vi.mock("~/main/modules/settings-store", () => ({
-  SettingsStoreService: {
-    getInstance: vi.fn(() => ({
-      get: mockSettingsGet,
-    })),
-  },
-  SettingsKey: {
-    SelectedPoe1League: "poe1SelectedLeague",
-    SelectedPoe2League: "poe2SelectedLeague",
-    ActiveGame: "selectedGame",
-  },
-}));
+vi.mock("~/main/modules/settings-store", () =>
+  createSettingsStoreMock({ mockGet: mockSettingsGet }),
+);
 
 // ─── Mock LoggerService ──────────────────────────────────────────────────────
 
@@ -102,21 +91,6 @@ function createKyselyChain(resolvedValue: any = undefined) {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function getIpcHandler(channel: string): (...args: any[]) => Promise<any> {
-  const call = mockIpcHandle.mock.calls.find(
-    ([registeredChannel]: [string]) => registeredChannel === channel,
-  );
-  if (!call) {
-    throw new Error(
-      `No IPC handler registered for channel "${channel}". ` +
-        `Registered channels: ${mockIpcHandle.mock.calls
-          .map(([c]: [string]) => c)
-          .join(", ")}`,
-    );
-  }
-  return call[1];
-}
 
 // ─── Test Data ───────────────────────────────────────────────────────────────
 
@@ -337,8 +311,7 @@ describe("ProfitForecastService", () => {
     vi.clearAllMocks();
 
     // Reset singleton
-    // @ts-expect-error — accessing private static for testing
-    ProfitForecastService._instance = undefined;
+    resetSingleton(ProfitForecastService);
 
     // Set up Kysely mock
     const mockKysely = { selectFrom: mockKyselySelectFrom };
@@ -370,8 +343,7 @@ describe("ProfitForecastService", () => {
 
     it("should return a new instance after resetting the singleton", () => {
       const instance1 = ProfitForecastService.getInstance();
-      // @ts-expect-error — accessing private static for testing
-      ProfitForecastService._instance = undefined;
+      resetSingleton(ProfitForecastService);
       const instance2 = ProfitForecastService.getInstance();
       expect(instance1).not.toBe(instance2);
     });
@@ -954,7 +926,10 @@ describe("ProfitForecastService", () => {
     });
 
     it("should work end-to-end through the IPC handler for poe2", async () => {
-      const handler = getIpcHandler(ProfitForecastChannel.GetData);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        ProfitForecastChannel.GetData,
+      );
       const result = await handler({}, "poe2", "Dawn");
 
       expect(result.snapshotFetchedAt).not.toBeNull();
@@ -1128,7 +1103,10 @@ describe("ProfitForecastService", () => {
 
   describe("IPC handler validation", () => {
     it("should return validation error for invalid game type", async () => {
-      const handler = getIpcHandler(ProfitForecastChannel.GetData);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        ProfitForecastChannel.GetData,
+      );
       const result = await handler({}, "invalid-game", "Keepers");
 
       expect(result).toEqual(
@@ -1140,7 +1118,10 @@ describe("ProfitForecastService", () => {
     });
 
     it("should return validation error when game is a number", async () => {
-      const handler = getIpcHandler(ProfitForecastChannel.GetData);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        ProfitForecastChannel.GetData,
+      );
       const result = await handler({}, 123, "Keepers");
 
       expect(result).toEqual(
@@ -1152,7 +1133,10 @@ describe("ProfitForecastService", () => {
     });
 
     it("should return validation error when game is null", async () => {
-      const handler = getIpcHandler(ProfitForecastChannel.GetData);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        ProfitForecastChannel.GetData,
+      );
       const result = await handler({}, null, "Keepers");
 
       expect(result).toEqual(
@@ -1164,7 +1148,10 @@ describe("ProfitForecastService", () => {
     });
 
     it("should return validation error when league is a number", async () => {
-      const handler = getIpcHandler(ProfitForecastChannel.GetData);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        ProfitForecastChannel.GetData,
+      );
       const result = await handler({}, "poe1", 42);
 
       expect(result).toEqual(
@@ -1176,7 +1163,10 @@ describe("ProfitForecastService", () => {
     });
 
     it("should return validation error when league is null", async () => {
-      const handler = getIpcHandler(ProfitForecastChannel.GetData);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        ProfitForecastChannel.GetData,
+      );
       const result = await handler({}, "poe1", null);
 
       expect(result).toEqual(
@@ -1188,7 +1178,10 @@ describe("ProfitForecastService", () => {
     });
 
     it("should return validation error when league is undefined", async () => {
-      const handler = getIpcHandler(ProfitForecastChannel.GetData);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        ProfitForecastChannel.GetData,
+      );
       const result = await handler({}, "poe1", undefined);
 
       expect(result).toEqual(
@@ -1200,7 +1193,10 @@ describe("ProfitForecastService", () => {
     });
 
     it("should accept valid poe1 game type", async () => {
-      const handler = getIpcHandler(ProfitForecastChannel.GetData);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        ProfitForecastChannel.GetData,
+      );
       const result = await handler({}, "poe1", "Keepers");
 
       // Should not be a validation error — should return actual data
@@ -1210,7 +1206,10 @@ describe("ProfitForecastService", () => {
     });
 
     it("should accept valid poe2 game type", async () => {
-      const handler = getIpcHandler(ProfitForecastChannel.GetData);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        ProfitForecastChannel.GetData,
+      );
       mockSettingsGet.mockResolvedValue("Poe2League");
       chains.availabilityChain.execute.mockResolvedValue([]);
       chains.leagueChain.executeTakeFirst.mockResolvedValue(undefined);
@@ -1228,7 +1227,10 @@ describe("ProfitForecastService", () => {
 
   describe("IPC handler integration", () => {
     it("should return full data through the IPC handler", async () => {
-      const handler = getIpcHandler(ProfitForecastChannel.GetData);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        ProfitForecastChannel.GetData,
+      );
       const result = await handler({}, "poe1", "Keepers");
 
       expect(result.snapshotFetchedAt).not.toBeNull();
@@ -1242,7 +1244,10 @@ describe("ProfitForecastService", () => {
     it("should return null snapshot and weights through the IPC handler when no league exists", async () => {
       chains.leagueChain.executeTakeFirst.mockResolvedValue(undefined);
 
-      const handler = getIpcHandler(ProfitForecastChannel.GetData);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        ProfitForecastChannel.GetData,
+      );
       const result = await handler({}, "poe1", "NonExistent");
 
       expect(result.snapshotFetchedAt).toBeNull();
@@ -1252,7 +1257,10 @@ describe("ProfitForecastService", () => {
     it("should return null snapshot when league exists but no snapshot found via IPC handler", async () => {
       chains.snapshotChain.executeTakeFirst.mockResolvedValue(undefined);
 
-      const handler = getIpcHandler(ProfitForecastChannel.GetData);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        ProfitForecastChannel.GetData,
+      );
       const result = await handler({}, "poe1", "Keepers");
 
       expect(result.snapshotFetchedAt).toBeNull();
@@ -1587,7 +1595,10 @@ describe("ProfitForecastService", () => {
 
       // getData will throw, but let's verify the behavior through the IPC handler
       // which has try/catch wrapping
-      const handler = getIpcHandler(ProfitForecastChannel.GetData);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        ProfitForecastChannel.GetData,
+      );
       // The error will propagate since it's not an IpcValidationError
       await expect(handler({}, "poe1", "Keepers")).rejects.toThrow(
         "DB read error",
@@ -2195,7 +2206,10 @@ describe("ProfitForecastService", () => {
     // ─── Happy Path ────────────────────────────────────────────────────────
 
     it("should return a valid ProfitForecastComputeResponse for a valid request", () => {
-      const handler = getIpcHandler(ProfitForecastChannel.Compute);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        ProfitForecastChannel.Compute,
+      );
       const result = handler({}, VALID_COMPUTE_REQUEST);
 
       expect(result).toHaveProperty("rowFields");
@@ -2206,7 +2220,10 @@ describe("ProfitForecastService", () => {
     });
 
     it("should return rowFields keyed by card name", () => {
-      const handler = getIpcHandler(ProfitForecastChannel.Compute);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        ProfitForecastChannel.Compute,
+      );
       const result = handler({}, VALID_COMPUTE_REQUEST);
 
       expect(result.rowFields).toHaveProperty("Test Card");
@@ -2219,7 +2236,10 @@ describe("ProfitForecastService", () => {
     });
 
     it("should return totalCost as a positive number", () => {
-      const handler = getIpcHandler(ProfitForecastChannel.Compute);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        ProfitForecastChannel.Compute,
+      );
       const result = handler({}, VALID_COMPUTE_REQUEST);
 
       expect(typeof result.totalCost).toBe("number");
@@ -2227,7 +2247,10 @@ describe("ProfitForecastService", () => {
     });
 
     it("should return pnlCurve as an array with data points", () => {
-      const handler = getIpcHandler(ProfitForecastChannel.Compute);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        ProfitForecastChannel.Compute,
+      );
       const result = handler({}, VALID_COMPUTE_REQUEST);
 
       expect(Array.isArray(result.pnlCurve)).toBe(true);
@@ -2240,7 +2263,10 @@ describe("ProfitForecastService", () => {
     });
 
     it("should return confidenceInterval with estimated and optimistic", () => {
-      const handler = getIpcHandler(ProfitForecastChannel.Compute);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        ProfitForecastChannel.Compute,
+      );
       const result = handler({}, VALID_COMPUTE_REQUEST);
 
       expect(result.confidenceInterval).toHaveProperty("estimated");
@@ -2250,7 +2276,10 @@ describe("ProfitForecastService", () => {
     });
 
     it("should return batchPnL with revenue, cost, netPnL, and confidence", () => {
-      const handler = getIpcHandler(ProfitForecastChannel.Compute);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        ProfitForecastChannel.Compute,
+      );
       const result = handler({}, VALID_COMPUTE_REQUEST);
 
       expect(result.batchPnL).toHaveProperty("revenue");
@@ -2264,7 +2293,10 @@ describe("ProfitForecastService", () => {
     // ─── Input Validation ──────────────────────────────────────────────────
 
     it("should return validation error when request is null", () => {
-      const handler = getIpcHandler(ProfitForecastChannel.Compute);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        ProfitForecastChannel.Compute,
+      );
 
       const result = handler({}, null);
       expect(result).toEqual({
@@ -2274,7 +2306,10 @@ describe("ProfitForecastService", () => {
     });
 
     it("should return validation error when request is undefined", () => {
-      const handler = getIpcHandler(ProfitForecastChannel.Compute);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        ProfitForecastChannel.Compute,
+      );
 
       const result = handler({}, undefined);
       expect(result).toEqual({
@@ -2284,7 +2319,10 @@ describe("ProfitForecastService", () => {
     });
 
     it("should return validation error when request has no rows property", () => {
-      const handler = getIpcHandler(ProfitForecastChannel.Compute);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        ProfitForecastChannel.Compute,
+      );
 
       const result = handler({}, { selectedBatch: 10000 });
       expect(result).toEqual({
@@ -2294,7 +2332,10 @@ describe("ProfitForecastService", () => {
     });
 
     it("should return validation error when rows is not an array", () => {
-      const handler = getIpcHandler(ProfitForecastChannel.Compute);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        ProfitForecastChannel.Compute,
+      );
 
       const result = handler(
         {},
@@ -2309,7 +2350,10 @@ describe("ProfitForecastService", () => {
     // ─── Custom Base Rate ──────────────────────────────────────────────────
 
     it("should apply custom base rate with stepDrop=0 when customBaseRate is set", () => {
-      const handler = getIpcHandler(ProfitForecastChannel.Compute);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        ProfitForecastChannel.Compute,
+      );
 
       const requestWithCustomRate = {
         ...VALID_COMPUTE_REQUEST,

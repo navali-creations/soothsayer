@@ -1,15 +1,14 @@
 import { render, screen } from "@testing-library/react";
-import React from "react";
 import { vi } from "vitest";
 
 // ─── Router mock ───────────────────────────────────────────────────────────
 
-vi.mock("@tanstack/react-router", () => ({
-  createLink: (Component: any) =>
-    React.forwardRef((props: any, ref: any) => (
-      <Component ref={ref} {...props} />
-    )),
-}));
+vi.mock("@tanstack/react-router", async () => {
+  const { createRouterMock } = await import(
+    "~/renderer/__test-setup__/router-mock"
+  );
+  return createRouterMock({ includeCreateLink: true });
+});
 
 // ─── Import component after mocks ─────────────────────────────────────────
 

@@ -1,5 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  createDatabaseServiceMock,
+  createElectronMock,
+  createIpcValidationMock,
+  createSupabaseClientMock,
+  getIpcHandler,
+} from "~/main/modules/__test-utils__/mock-factories";
+import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
+
 // ─── Hoisted mock functions ──────────────────────────────────────────────────
 const {
   mockIpcHandle,
@@ -34,46 +43,20 @@ const {
 }));
 
 // ─── Mock Electron ───────────────────────────────────────────────────────────
-vi.mock("electron", () => ({
-  ipcMain: {
-    handle: mockIpcHandle,
-    on: vi.fn(),
-    removeHandler: vi.fn(),
-  },
-  BrowserWindow: {
-    getAllWindows: vi.fn(() => []),
-    getFocusedWindow: vi.fn(() => null),
-  },
-  app: {
-    isPackaged: false,
-    getAppPath: vi.fn(() => "/mock-app-path"),
-    getPath: vi.fn(() => "/mock-path"),
-  },
-  dialog: {
-    showMessageBox: vi.fn(),
-    showSaveDialog: vi.fn(),
-  },
-}));
+vi.mock("electron", () => createElectronMock({ mockIpcHandle }));
 
 // ─── Mock DatabaseService ────────────────────────────────────────────────────
-vi.mock("~/main/modules/database", () => ({
-  DatabaseService: {
-    getInstance: vi.fn(() => ({
-      getKysely: mockGetKysely,
-      reset: vi.fn(),
-    })),
-  },
-}));
+vi.mock("~/main/modules/database", () =>
+  createDatabaseServiceMock({ mockGetKysely }),
+);
 
 // ─── Mock SupabaseClientService ──────────────────────────────────────────────
-vi.mock("~/main/modules/supabase", () => ({
-  SupabaseClientService: {
-    getInstance: vi.fn(() => ({
-      isConfigured: mockIsConfigured,
-      callEdgeFunction: mockCallEdgeFunction,
-    })),
-  },
-}));
+vi.mock("~/main/modules/supabase", () =>
+  createSupabaseClientMock({
+    mockIsConfigured,
+    mockCallEdgeFunction,
+  }),
+);
 
 // ─── Mock SettingsStoreService ───────────────────────────────────────────────
 vi.mock("~/main/modules", () => ({
@@ -103,32 +86,19 @@ vi.mock("../PoeLeagues.repository", () => ({
 }));
 
 // ─── Mock IPC validation utils ───────────────────────────────────────────────
-vi.mock("~/main/utils/ipc-validation", () => ({
-  assertGameType: mockAssertGameType,
-  assertBoundedString: mockAssertBoundedString,
-  handleValidationError: mockHandleValidationError,
-}));
+vi.mock("~/main/utils/ipc-validation", () =>
+  createIpcValidationMock({
+    mockAssertGameType,
+    mockAssertBoundedString,
+    mockHandleValidationError,
+  }),
+);
 
 // ─── Import under test ──────────────────────────────────────────────────────
 import { PoeLeaguesChannel } from "../PoeLeagues.channels";
 import { PoeLeaguesService } from "../PoeLeagues.service";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function getIpcHandler(channel: string): (...args: any[]) => any {
-  const call = mockIpcHandle.mock.calls.find(
-    ([ch]: [string]) => ch === channel,
-  );
-  if (!call) {
-    const registered = mockIpcHandle.mock.calls
-      .map(([ch]: [string]) => ch)
-      .join(", ");
-    throw new Error(
-      `ipcMain.handle was not called with "${channel}". Registered: ${registered}`,
-    );
-  }
-  return call[1];
-}
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
@@ -139,8 +109,7 @@ describe("PoeLeaguesService — IPC handlers", () => {
     vi.clearAllMocks();
 
     // Reset singleton
-    // @ts-expect-error — accessing private static for testing
-    PoeLeaguesService._instance = undefined;
+    resetSingleton(PoeLeaguesService);
 
     // Reset validation mocks to no-op implementations
     mockAssertGameType.mockImplementation(() => {});
@@ -163,8 +132,7 @@ describe("PoeLeaguesService — IPC handlers", () => {
   });
 
   afterEach(() => {
-    // @ts-expect-error — accessing private static for testing
-    PoeLeaguesService._instance = undefined;
+    resetSingleton(PoeLeaguesService);
     vi.restoreAllMocks();
   });
 
@@ -172,9 +140,9 @@ describe("PoeLeaguesService — IPC handlers", () => {
 
   describe("handler registration", () => {
     it("should register handlers for all expected IPC channels", () => {
-      const registeredChannels = mockIpcHandle.mock.calls.map(
-        ([ch]: [string]) => ch,
-      );
+      const registeredChannels = (
+        mockIpcHandle.mock.calls as [string, unknown][]
+      ).map(([ch]: [string]) => ch);
 
       expect(registeredChannels).toContain(PoeLeaguesChannel.FetchLeagues);
       expect(registeredChannels).toContain(PoeLeaguesChannel.GetSelectedLeague);
@@ -200,7 +168,10 @@ describe("PoeLeaguesService — IPC handlers", () => {
         },
       ]);
 
-      const handler = getIpcHandler(PoeLeaguesChannel.FetchLeagues);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        PoeLeaguesChannel.FetchLeagues,
+      );
       const result = await handler({}, "poe1");
 
       expect(mockAssertGameType).toHaveBeenCalledWith(
@@ -224,7 +195,10 @@ describe("PoeLeaguesService — IPC handlers", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(PoeLeaguesChannel.FetchLeagues);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        PoeLeaguesChannel.FetchLeagues,
+      );
       await handler({}, "bad-game");
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
@@ -238,7 +212,10 @@ describe("PoeLeaguesService — IPC handlers", () => {
         throw new Error("Invalid");
       });
 
-      const handler = getIpcHandler(PoeLeaguesChannel.FetchLeagues);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        PoeLeaguesChannel.FetchLeagues,
+      );
       await handler({}, null);
 
       expect(mockRepoIsCacheStale).not.toHaveBeenCalled();
@@ -257,7 +234,10 @@ describe("PoeLeaguesService — IPC handlers", () => {
       };
       mockHandleValidationError.mockReturnValueOnce(errorPayload);
 
-      const handler = getIpcHandler(PoeLeaguesChannel.FetchLeagues);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        PoeLeaguesChannel.FetchLeagues,
+      );
       const result = await handler({}, 42);
 
       expect(result).toEqual(errorPayload);
@@ -272,7 +252,10 @@ describe("PoeLeaguesService — IPC handlers", () => {
         .mockResolvedValueOnce("poe1") // ActiveGame
         .mockResolvedValueOnce("Settlers"); // SelectedPoe1League
 
-      const handler = getIpcHandler(PoeLeaguesChannel.GetSelectedLeague);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        PoeLeaguesChannel.GetSelectedLeague,
+      );
       const result = await handler({});
 
       expect(mockSettingsGet).toHaveBeenCalledWith("activeGame");
@@ -285,7 +268,10 @@ describe("PoeLeaguesService — IPC handlers", () => {
         .mockResolvedValueOnce("poe2") // ActiveGame
         .mockResolvedValueOnce("Standard"); // SelectedPoe2League
 
-      const handler = getIpcHandler(PoeLeaguesChannel.GetSelectedLeague);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        PoeLeaguesChannel.GetSelectedLeague,
+      );
       const result = await handler({});
 
       expect(mockSettingsGet).toHaveBeenCalledWith("activeGame");
@@ -298,7 +284,10 @@ describe("PoeLeaguesService — IPC handlers", () => {
         .mockResolvedValueOnce("poe1") // ActiveGame
         .mockResolvedValueOnce(null); // SelectedPoe1League is null
 
-      const handler = getIpcHandler(PoeLeaguesChannel.GetSelectedLeague);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        PoeLeaguesChannel.GetSelectedLeague,
+      );
       const result = await handler({});
 
       expect(result).toBe("");
@@ -309,7 +298,10 @@ describe("PoeLeaguesService — IPC handlers", () => {
         .mockResolvedValueOnce("poe2") // ActiveGame
         .mockResolvedValueOnce(null); // SelectedPoe2League is null
 
-      const handler = getIpcHandler(PoeLeaguesChannel.GetSelectedLeague);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        PoeLeaguesChannel.GetSelectedLeague,
+      );
       const result = await handler({});
 
       expect(result).toBe("");
@@ -320,7 +312,10 @@ describe("PoeLeaguesService — IPC handlers", () => {
         .mockResolvedValueOnce("poe1")
         .mockResolvedValueOnce(undefined);
 
-      const handler = getIpcHandler(PoeLeaguesChannel.GetSelectedLeague);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        PoeLeaguesChannel.GetSelectedLeague,
+      );
       const result = await handler({});
 
       expect(result).toBe("");
@@ -332,7 +327,10 @@ describe("PoeLeaguesService — IPC handlers", () => {
         .mockResolvedValueOnce("something-else") // ActiveGame
         .mockResolvedValueOnce("FallbackLeague"); // SelectedPoe2League
 
-      const handler = getIpcHandler(PoeLeaguesChannel.GetSelectedLeague);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        PoeLeaguesChannel.GetSelectedLeague,
+      );
       const result = await handler({});
 
       expect(mockSettingsGet).toHaveBeenCalledWith("selectedPoe2League");
@@ -346,7 +344,10 @@ describe("PoeLeaguesService — IPC handlers", () => {
     it("should validate leagueId and set poe1 league when activeGame is poe1", async () => {
       mockSettingsGet.mockResolvedValue("poe1"); // ActiveGame
 
-      const handler = getIpcHandler(PoeLeaguesChannel.SelectLeague);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        PoeLeaguesChannel.SelectLeague,
+      );
       const result = await handler({}, "Settlers");
 
       expect(mockAssertBoundedString).toHaveBeenCalledWith(
@@ -366,7 +367,10 @@ describe("PoeLeaguesService — IPC handlers", () => {
     it("should set poe2 league when activeGame is poe2", async () => {
       mockSettingsGet.mockResolvedValue("poe2"); // ActiveGame
 
-      const handler = getIpcHandler(PoeLeaguesChannel.SelectLeague);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        PoeLeaguesChannel.SelectLeague,
+      );
       const result = await handler({}, "Standard");
 
       expect(mockSettingsSet).toHaveBeenCalledWith(
@@ -379,7 +383,10 @@ describe("PoeLeaguesService — IPC handlers", () => {
     it("should default to poe2 league key when activeGame is not poe1", async () => {
       mockSettingsGet.mockResolvedValue("something-else");
 
-      const handler = getIpcHandler(PoeLeaguesChannel.SelectLeague);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        PoeLeaguesChannel.SelectLeague,
+      );
       const result = await handler({}, "MyLeague");
 
       expect(mockSettingsSet).toHaveBeenCalledWith(
@@ -396,7 +403,10 @@ describe("PoeLeaguesService — IPC handlers", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(PoeLeaguesChannel.SelectLeague);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        PoeLeaguesChannel.SelectLeague,
+      );
       await handler({}, 12345);
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
@@ -412,7 +422,10 @@ describe("PoeLeaguesService — IPC handlers", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(PoeLeaguesChannel.SelectLeague);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        PoeLeaguesChannel.SelectLeague,
+      );
       await handler({}, null);
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
@@ -429,7 +442,10 @@ describe("PoeLeaguesService — IPC handlers", () => {
       });
 
       const longId = "a".repeat(41);
-      const handler = getIpcHandler(PoeLeaguesChannel.SelectLeague);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        PoeLeaguesChannel.SelectLeague,
+      );
       await handler({}, longId);
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
@@ -450,7 +466,10 @@ describe("PoeLeaguesService — IPC handlers", () => {
       };
       mockHandleValidationError.mockReturnValueOnce(errorPayload);
 
-      const handler = getIpcHandler(PoeLeaguesChannel.SelectLeague);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        PoeLeaguesChannel.SelectLeague,
+      );
       const result = await handler({}, undefined);
 
       expect(result).toEqual(errorPayload);
@@ -461,7 +480,10 @@ describe("PoeLeaguesService — IPC handlers", () => {
         throw new Error("Invalid");
       });
 
-      const handler = getIpcHandler(PoeLeaguesChannel.SelectLeague);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        PoeLeaguesChannel.SelectLeague,
+      );
       await handler({}, "");
 
       expect(mockSettingsSet).not.toHaveBeenCalled();
@@ -471,7 +493,10 @@ describe("PoeLeaguesService — IPC handlers", () => {
       mockSettingsGet.mockResolvedValue("poe1");
 
       const id = "a".repeat(40);
-      const handler = getIpcHandler(PoeLeaguesChannel.SelectLeague);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        PoeLeaguesChannel.SelectLeague,
+      );
       const result = await handler({}, id);
 
       expect(mockAssertBoundedString).toHaveBeenCalledWith(
@@ -497,7 +522,10 @@ describe("PoeLeaguesService — IPC handlers", () => {
         throw new Error("bad game");
       });
 
-      const handler = getIpcHandler(PoeLeaguesChannel.FetchLeagues);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        PoeLeaguesChannel.FetchLeagues,
+      );
       const result = await handler({}, "invalid");
 
       expect(result).toEqual(errorPayload);
@@ -513,7 +541,10 @@ describe("PoeLeaguesService — IPC handlers", () => {
         throw new Error("Invalid leagueId");
       });
 
-      const handler = getIpcHandler(PoeLeaguesChannel.SelectLeague);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        PoeLeaguesChannel.SelectLeague,
+      );
       const result = await handler({}, null);
 
       expect(result).toEqual(errorPayload);
@@ -524,7 +555,10 @@ describe("PoeLeaguesService — IPC handlers", () => {
         throw new Error("Invalid");
       });
 
-      const handler = getIpcHandler(PoeLeaguesChannel.FetchLeagues);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        PoeLeaguesChannel.FetchLeagues,
+      );
       await handler({}, "bad");
 
       expect(mockSettingsGet).not.toHaveBeenCalled();

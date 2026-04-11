@@ -5,39 +5,11 @@ import CurrentSessionPage from "./CurrentSession.page";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => {
-  const useBoundStore = vi.fn();
-  return {
-    useBoundStore,
-    useCurrentSession: () => useBoundStore().currentSession,
-    useSettings: () => useBoundStore().settings,
-    usePoeNinja: () => useBoundStore().poeNinja,
-    useSessionDetails: () => useBoundStore().sessionDetails,
-    useOverlay: () => useBoundStore().overlay,
-    useAppMenu: () => useBoundStore().appMenu,
-    useSetup: () => useBoundStore().setup,
-    useStorage: () => useBoundStore().storage,
-    useGameInfo: () => useBoundStore().gameInfo,
-    useCards: () => useBoundStore().cards,
-    useSessions: () => useBoundStore().sessions,
-    useChangelog: () => useBoundStore().changelog,
-    useStatistics: () => useBoundStore().statistics,
-    useOnboarding: () => useBoundStore().onboarding,
-    useUpdater: () => useBoundStore().updater,
-    useProfitForecast: () => useBoundStore().profitForecast,
-    useRarityInsights: () => useBoundStore().rarityInsights,
-    useRarityInsightsComparison: () => useBoundStore().rarityInsightsComparison,
-    useCardDetails: () => useBoundStore().cardDetails,
-    useRootActions: () => {
-      const s = useBoundStore();
-      return {
-        hydrate: s.hydrate,
-        startListeners: s.startListeners,
-        reset: s.reset,
-      };
-    },
-    useSlice: (key: string) => useBoundStore()?.[key],
-  };
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
 });
 
 const mockUseBoundStore = vi.mocked(useBoundStore);
@@ -77,14 +49,12 @@ vi.mock("~/renderer/components", () => ({
   ),
 }));
 
-vi.mock("motion/react", () => ({
-  AnimatePresence: ({ children }: any) => <>{children}</>,
-  motion: {
-    div: ({ children, style, ...props }: any) => (
-      <div {...props}>{children}</div>
-    ),
-  },
-}));
+vi.mock("motion/react", async () => {
+  const { createMotionMock } = await import(
+    "~/renderer/__test-setup__/motion-mock"
+  );
+  return createMotionMock();
+});
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 

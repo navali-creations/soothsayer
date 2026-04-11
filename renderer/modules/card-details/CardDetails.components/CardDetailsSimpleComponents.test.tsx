@@ -4,16 +4,21 @@ import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
 
 // ─── Router mock ───────────────────────────────────────────────────────────
 
-const mockNavigate = vi.fn();
-const mockHistoryBack = vi.fn();
-
-vi.mock("@tanstack/react-router", () => ({
-  useNavigate: () => mockNavigate,
-  useParams: () => ({ cardSlug: "the-doctor" }),
-  useRouter: () => ({ history: { back: mockHistoryBack } }),
-  Link: ({ children, ...props }: any) => <a {...props}>{children}</a>,
-  createLink: () => ({}),
+const { mockNavigate, mockHistoryBack } = vi.hoisted(() => ({
+  mockNavigate: vi.fn(),
+  mockHistoryBack: vi.fn(),
 }));
+
+vi.mock("@tanstack/react-router", async () => {
+  const { createFullRouterMock } = await import(
+    "~/renderer/__test-setup__/router-mock"
+  );
+  return createFullRouterMock({
+    mockNavigate,
+    mockHistoryBack,
+    useParamsReturn: { cardSlug: "the-doctor" },
+  });
+});
 
 // ─── Component imports ─────────────────────────────────────────────────────
 

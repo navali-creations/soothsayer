@@ -2,26 +2,13 @@ import clsx from "clsx";
 import { memo, useCallback, useMemo } from "react";
 
 import DivinationCard from "~/renderer/components/DivinationCard/DivinationCard";
-import type { CardEntry, Rarity, RaritySource } from "~/types/data-stores";
+import { getEffectiveRarity } from "~/renderer/utils/get-effective-rarity";
+import { toCardMetadata } from "~/renderer/utils/to-card-metadata";
+import type { CardEntry, RaritySource } from "~/types/data-stores";
 
 import type { DivinationCardRow } from "../../Cards.types";
 
-/**
- * Resolve the effective rarity for a card based on the active rarity source.
- */
-export function getEffectiveRarity(
-  card: DivinationCardRow,
-  raritySource: RaritySource,
-): Rarity {
-  switch (raritySource) {
-    case "filter":
-      return card.filterRarity ?? card.rarity;
-    case "prohibited-library":
-      return card.prohibitedLibraryRarity ?? card.rarity;
-    default:
-      return card.rarity;
-  }
-}
+export { getEffectiveRarity } from "~/renderer/utils/get-effective-rarity";
 
 export interface CardGridItemProps {
   card: DivinationCardRow;
@@ -49,17 +36,9 @@ const CardGridItem = memo(function CardGridItem({
       name: card.name,
       count: 0,
       processedIds: [],
-      divinationCard: {
-        id: card.id,
-        stackSize: card.stackSize,
-        description: card.description,
-        rewardHtml: card.rewardHtml,
-        artSrc: card.artSrc,
-        flavourHtml: card.flavourHtml,
+      divinationCard: toCardMetadata(card, {
         rarity: getEffectiveRarity(card, raritySource),
-        fromBoss: card.fromBoss,
-        isDisabled: card.isDisabled,
-      },
+      }),
     }),
     [card, raritySource],
   );

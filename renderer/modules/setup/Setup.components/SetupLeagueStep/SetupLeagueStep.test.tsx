@@ -1,21 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useGameInfo, useSetup } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import SetupLeagueStep from "./SetupLeagueStep";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useSetup: vi.fn(),
-  useGameInfo: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-const mockUseSetup = vi.mocked(useSetup);
-const mockUseGameInfo = vi.mocked(useGameInfo);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
 function createMockSetup(overrides: any = {}) {
   return {
@@ -46,12 +47,21 @@ function createMockGameInfo(overrides: any = {}) {
   } as any;
 }
 
+function setupBoundStore(
+  setupOverrides: any = {},
+  gameInfoOverrides: any = {},
+) {
+  const setup = createMockSetup(setupOverrides);
+  const gameInfo = createMockGameInfo(gameInfoOverrides);
+  mockUseBoundStore.mockReturnValue({ setup, gameInfo } as any);
+  return { setup, gameInfo };
+}
+
 // ─── Tests ─────────────────────────────────────────────────────────────────
 
 describe("SetupLeagueStep", () => {
   beforeEach(() => {
-    mockUseSetup.mockReturnValue(createMockSetup());
-    mockUseGameInfo.mockReturnValue(createMockGameInfo());
+    setupBoundStore();
   });
 
   // ── Heading and description ──────────────────────────────────────────
@@ -84,17 +94,15 @@ describe("SetupLeagueStep", () => {
     });
 
     it("shows PoE2 league dropdown when poe2 is selected", () => {
-      mockUseSetup.mockReturnValue(
-        createMockSetup({
-          setupState: {
-            currentStep: 3,
-            isComplete: false,
-            selectedGames: ["poe2"],
-            poe1League: "",
-            poe2League: "",
-          },
-        }),
-      );
+      setupBoundStore({
+        setupState: {
+          currentStep: 3,
+          isComplete: false,
+          selectedGames: ["poe2"],
+          poe1League: "",
+          poe2League: "",
+        },
+      });
 
       renderWithProviders(<SetupLeagueStep />);
 
@@ -105,17 +113,15 @@ describe("SetupLeagueStep", () => {
     });
 
     it("shows both dropdowns when both games are selected", () => {
-      mockUseSetup.mockReturnValue(
-        createMockSetup({
-          setupState: {
-            currentStep: 3,
-            isComplete: false,
-            selectedGames: ["poe1", "poe2"],
-            poe1League: "",
-            poe2League: "",
-          },
-        }),
-      );
+      setupBoundStore({
+        setupState: {
+          currentStep: 3,
+          isComplete: false,
+          selectedGames: ["poe1", "poe2"],
+          poe1League: "",
+          poe2League: "",
+        },
+      });
 
       renderWithProviders(<SetupLeagueStep />);
 
@@ -129,8 +135,8 @@ describe("SetupLeagueStep", () => {
   describe("fetching leagues on mount", () => {
     it("calls fetchLeagues on mount for selected games", () => {
       const fetchLeagues = vi.fn();
-      mockUseSetup.mockReturnValue(
-        createMockSetup({
+      setupBoundStore(
+        {
           setupState: {
             currentStep: 3,
             isComplete: false,
@@ -138,9 +144,9 @@ describe("SetupLeagueStep", () => {
             poe1League: "",
             poe2League: "",
           },
-        }),
+        },
+        { fetchLeagues },
       );
-      mockUseGameInfo.mockReturnValue(createMockGameInfo({ fetchLeagues }));
 
       renderWithProviders(<SetupLeagueStep />);
 
@@ -150,7 +156,7 @@ describe("SetupLeagueStep", () => {
 
     it("calls fetchLeagues only for poe1 when only poe1 is selected", () => {
       const fetchLeagues = vi.fn();
-      mockUseGameInfo.mockReturnValue(createMockGameInfo({ fetchLeagues }));
+      setupBoundStore({}, { fetchLeagues });
 
       renderWithProviders(<SetupLeagueStep />);
 
@@ -163,9 +169,7 @@ describe("SetupLeagueStep", () => {
 
   describe("loading state", () => {
     it("shows loading state when isLoadingLeagues is true", () => {
-      mockUseGameInfo.mockReturnValue(
-        createMockGameInfo({ isLoadingLeagues: true }),
-      );
+      setupBoundStore({}, { isLoadingLeagues: true });
 
       renderWithProviders(<SetupLeagueStep />);
 
@@ -173,9 +177,7 @@ describe("SetupLeagueStep", () => {
     });
 
     it("does not render select element when loading", () => {
-      mockUseGameInfo.mockReturnValue(
-        createMockGameInfo({ isLoadingLeagues: true }),
-      );
+      setupBoundStore({}, { isLoadingLeagues: true });
 
       renderWithProviders(<SetupLeagueStep />);
 
@@ -187,9 +189,7 @@ describe("SetupLeagueStep", () => {
 
   describe("error state", () => {
     it("shows error message when leaguesError is set", () => {
-      mockUseGameInfo.mockReturnValue(
-        createMockGameInfo({ leaguesError: "Network error" }),
-      );
+      setupBoundStore({}, { leaguesError: "Network error" });
 
       renderWithProviders(<SetupLeagueStep />);
 
@@ -197,9 +197,7 @@ describe("SetupLeagueStep", () => {
     });
 
     it("shows Retry button when leaguesError is set", () => {
-      mockUseGameInfo.mockReturnValue(
-        createMockGameInfo({ leaguesError: "Network error" }),
-      );
+      setupBoundStore({}, { leaguesError: "Network error" });
 
       renderWithProviders(<SetupLeagueStep />);
 
@@ -208,9 +206,7 @@ describe("SetupLeagueStep", () => {
 
     it("calls fetchLeagues when Retry button is clicked", async () => {
       const fetchLeagues = vi.fn();
-      mockUseGameInfo.mockReturnValue(
-        createMockGameInfo({ leaguesError: "Network error", fetchLeagues }),
-      );
+      setupBoundStore({}, { leaguesError: "Network error", fetchLeagues });
 
       const { user } = renderWithProviders(<SetupLeagueStep />);
 
@@ -227,7 +223,7 @@ describe("SetupLeagueStep", () => {
   describe("league selection", () => {
     it("selecting a league calls selectLeague", async () => {
       const selectLeague = vi.fn();
-      mockUseSetup.mockReturnValue(createMockSetup({ selectLeague }));
+      setupBoundStore({ selectLeague });
 
       const { user } = renderWithProviders(<SetupLeagueStep />);
 
@@ -254,17 +250,15 @@ describe("SetupLeagueStep", () => {
 
   describe("both leagues configured", () => {
     it("shows 'Both leagues configured' when both leagues are set", () => {
-      mockUseSetup.mockReturnValue(
-        createMockSetup({
-          setupState: {
-            currentStep: 3,
-            isComplete: false,
-            selectedGames: ["poe1", "poe2"],
-            poe1League: "standard",
-            poe2League: "standard2",
-          },
-        }),
-      );
+      setupBoundStore({
+        setupState: {
+          currentStep: 3,
+          isComplete: false,
+          selectedGames: ["poe1", "poe2"],
+          poe1League: "standard",
+          poe2League: "standard2",
+        },
+      });
 
       renderWithProviders(<SetupLeagueStep />);
 
@@ -272,17 +266,15 @@ describe("SetupLeagueStep", () => {
     });
 
     it("does not show 'Both leagues configured' when only one league is set", () => {
-      mockUseSetup.mockReturnValue(
-        createMockSetup({
-          setupState: {
-            currentStep: 3,
-            isComplete: false,
-            selectedGames: ["poe1", "poe2"],
-            poe1League: "standard",
-            poe2League: "",
-          },
-        }),
-      );
+      setupBoundStore({
+        setupState: {
+          currentStep: 3,
+          isComplete: false,
+          selectedGames: ["poe1", "poe2"],
+          poe1League: "standard",
+          poe2League: "",
+        },
+      });
 
       renderWithProviders(<SetupLeagueStep />);
 
@@ -292,17 +284,15 @@ describe("SetupLeagueStep", () => {
     });
 
     it("does not show 'Both leagues configured' when only one game is selected", () => {
-      mockUseSetup.mockReturnValue(
-        createMockSetup({
-          setupState: {
-            currentStep: 3,
-            isComplete: false,
-            selectedGames: ["poe1"],
-            poe1League: "standard",
-            poe2League: "",
-          },
-        }),
-      );
+      setupBoundStore({
+        setupState: {
+          currentStep: 3,
+          isComplete: false,
+          selectedGames: ["poe1"],
+          poe1League: "standard",
+          poe2League: "",
+        },
+      });
 
       renderWithProviders(<SetupLeagueStep />);
 
@@ -316,11 +306,12 @@ describe("SetupLeagueStep", () => {
 
   describe("empty leagues", () => {
     it("shows 'No leagues available' when leagues array is empty", () => {
-      mockUseGameInfo.mockReturnValue(
-        createMockGameInfo({
+      setupBoundStore(
+        {},
+        {
           poe1Leagues: [],
           poe2Leagues: [],
-        }),
+        },
       );
 
       renderWithProviders(<SetupLeagueStep />);
@@ -333,11 +324,9 @@ describe("SetupLeagueStep", () => {
 
   describe("edge cases", () => {
     it("handles null setupState gracefully", () => {
-      mockUseSetup.mockReturnValue(
-        createMockSetup({
-          setupState: null,
-        }),
-      );
+      setupBoundStore({
+        setupState: null,
+      });
 
       renderWithProviders(<SetupLeagueStep />);
 

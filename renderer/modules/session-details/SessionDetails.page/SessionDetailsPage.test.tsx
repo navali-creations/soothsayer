@@ -1,3 +1,4 @@
+import { makeDetailedSession } from "~/renderer/__test-setup__/fixtures";
 import {
   renderWithProviders,
   screen,
@@ -13,13 +14,19 @@ vi.mock("~/renderer/store", () => ({
   useSessionDetails: vi.fn(),
 }));
 
-const mockHistoryBack = vi.fn();
-
-vi.mock("@tanstack/react-router", () => ({
-  useNavigate: () => vi.fn(),
-  useParams: () => ({ sessionId: "test-session-123" }),
-  useRouter: () => ({ history: { back: mockHistoryBack } }),
+const { mockHistoryBack } = vi.hoisted(() => ({
+  mockHistoryBack: vi.fn(),
 }));
+
+vi.mock("@tanstack/react-router", async () => {
+  const { createRouterMock } = await import(
+    "~/renderer/__test-setup__/router-mock"
+  );
+  return createRouterMock({
+    mockHistoryBack,
+    useParamsReturn: { sessionId: "test-session-123" },
+  });
+});
 
 vi.mock("../SessionDetails.components", () => ({
   SessionDetailsActions: ({ onExportCsv }: any) => (
@@ -73,10 +80,6 @@ vi.mock("react-icons/fi", () => ({
   FiArrowLeft: () => <span data-testid="icon-arrow-left" />,
 }));
 
-vi.mock("~/renderer/modules/umami", () => ({
-  trackEvent: vi.fn(),
-}));
-
 const mockUseSessionDetails = vi.mocked(useSessionDetails);
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -108,11 +111,9 @@ function setupStore(overrides: any = {}) {
 }
 
 function makeSession(overrides: any = {}) {
-  return {
-    totalCount: 50,
+  return makeDetailedSession({
     startedAt: "2024-01-15T10:00:00Z",
     endedAt: "2024-01-15T11:30:00Z",
-    league: "Settlers",
     cards: [
       {
         name: "The Doctor",
@@ -159,7 +160,7 @@ function makeSession(overrides: any = {}) {
       stackedDeckChaosCost: 2,
     },
     ...overrides,
-  };
+  } as any);
 }
 
 // ─── Tests ─────────────────────────────────────────────────────────────────

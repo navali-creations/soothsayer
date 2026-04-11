@@ -1,4 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+﻿import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { getIpcHandler } from "~/main/modules/__test-utils__/mock-factories";
+import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
 
 // ─── Hoisted mock functions ──────────────────────────────────────────────────
 const {
@@ -217,21 +220,6 @@ import { SettingsStoreService } from "../SettingsStore.service";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function getIpcHandler(channel: string): (...args: any[]) => any {
-  const call = mockIpcHandle.mock.calls.find(
-    ([ch]: [string]) => ch === channel,
-  );
-  if (!call) {
-    const registered = mockIpcHandle.mock.calls
-      .map(([ch]: [string]) => ch)
-      .join(", ");
-    throw new Error(
-      `ipcMain.handle was not called with "${channel}". Registered: ${registered}`,
-    );
-  }
-  return call[1];
-}
-
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe("SettingsStoreService — IPC handlers", () => {
@@ -261,15 +249,13 @@ describe("SettingsStoreService — IPC handlers", () => {
     mockShellOpenPath.mockResolvedValue("");
 
     // Reset singleton
-    // @ts-expect-error — accessing private static for testing
-    SettingsStoreService._instance = undefined;
+    resetSingleton(SettingsStoreService);
 
     _service = SettingsStoreService.getInstance();
   });
 
   afterEach(() => {
-    // @ts-expect-error — accessing private static for testing
-    SettingsStoreService._instance = undefined;
+    resetSingleton(SettingsStoreService);
     vi.restoreAllMocks();
   });
 
@@ -323,9 +309,10 @@ describe("SettingsStoreService — IPC handlers", () => {
 
   describe("GetAllSettings handler", () => {
     it("should return all settings", async () => {
-      const result = await getIpcHandler(SettingsStoreChannel.GetAllSettings)(
-        {},
-      );
+      const result = await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.GetAllSettings,
+      )({});
 
       expect(mockRepositoryGetAll).toHaveBeenCalled();
       expect(result).toEqual(
@@ -339,19 +326,19 @@ describe("SettingsStoreService — IPC handlers", () => {
   describe("GetSetting handler", () => {
     it("should return a setting value by key", async () => {
       mockRepositoryGet.mockResolvedValue("exit");
-      const result = await getIpcHandler(SettingsStoreChannel.GetSetting)(
-        {},
-        "appExitAction",
-      );
+      const result = await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.GetSetting,
+      )({}, "appExitAction");
 
       expect(result).toBe("exit");
     });
 
     it("should return validation error for non-string key", async () => {
-      const result = await getIpcHandler(SettingsStoreChannel.GetSetting)(
-        {},
-        123,
-      );
+      const result = await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.GetSetting,
+      )({}, 123);
 
       expect(result).toEqual({
         success: false,
@@ -360,10 +347,10 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should return validation error for null key", async () => {
-      const result = await getIpcHandler(SettingsStoreChannel.GetSetting)(
-        {},
-        null,
-      );
+      const result = await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.GetSetting,
+      )({}, null);
 
       expect(result).toEqual({
         success: false,
@@ -376,7 +363,7 @@ describe("SettingsStoreService — IPC handlers", () => {
 
   describe("SetSetting handler", () => {
     const setSetting = (...args: any[]) =>
-      getIpcHandler(SettingsStoreChannel.SetSetting)(...args);
+      getIpcHandler(mockIpcHandle, SettingsStoreChannel.SetSetting)(...args);
 
     // ── poe1ClientTxtPath ──
 
@@ -1430,6 +1417,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     it("GetPoe1ClientPath should return the path", async () => {
       mockRepositoryGetPoe1ClientTxtPath.mockResolvedValue("/path/to/poe1");
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.GetPoe1ClientPath,
       )({});
 
@@ -1439,6 +1427,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     it("GetPoe1ClientPath should return null when not set", async () => {
       mockRepositoryGetPoe1ClientTxtPath.mockResolvedValue(null);
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.GetPoe1ClientPath,
       )({});
 
@@ -1448,6 +1437,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     it("GetPoe2ClientPath should return the path", async () => {
       mockRepositoryGetPoe2ClientTxtPath.mockResolvedValue("/path/to/poe2");
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.GetPoe2ClientPath,
       )({});
 
@@ -1457,6 +1447,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     it("GetAppExitBehavior should return the behavior", async () => {
       mockRepositoryGetAppExitAction.mockResolvedValue("minimize");
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.GetAppExitBehavior,
       )({});
 
@@ -1466,6 +1457,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     it("GetLaunchOnStartup should return boolean", async () => {
       mockRepositoryGetAppOpenAtLogin.mockResolvedValue(true);
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.GetLaunchOnStartup,
       )({});
 
@@ -1475,6 +1467,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     it("GetStartMinimized should return boolean", async () => {
       mockRepositoryGetAppOpenAtLoginMinimized.mockResolvedValue(true);
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.GetStartMinimized,
       )({});
 
@@ -1483,9 +1476,10 @@ describe("SettingsStoreService — IPC handlers", () => {
 
     it("GetActiveGame should return the game", async () => {
       mockRepositoryGetSelectedGame.mockResolvedValue("poe2");
-      const result = await getIpcHandler(SettingsStoreChannel.GetActiveGame)(
-        {},
-      );
+      const result = await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.GetActiveGame,
+      )({});
 
       expect(result).toBe("poe2");
     });
@@ -1493,6 +1487,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     it("GetInstalledGames should return the games array", async () => {
       mockRepositoryGetInstalledGames.mockResolvedValue(["poe1", "poe2"]);
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.GetInstalledGames,
       )({});
 
@@ -1502,6 +1497,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     it("GetSelectedPoe1League should return the league", async () => {
       mockRepositoryGetPoe1SelectedLeague.mockResolvedValue("Settlers");
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.GetSelectedPoe1League,
       )({});
 
@@ -1511,6 +1507,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     it("GetSelectedPoe2League should return the league", async () => {
       mockRepositoryGetPoe2SelectedLeague.mockResolvedValue("Standard");
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.GetSelectedPoe2League,
       )({});
 
@@ -1520,6 +1517,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     it("GetSelectedPoe1PriceSource should return the source", async () => {
       mockRepositoryGetPoe1PriceSource.mockResolvedValue("stash");
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.GetSelectedPoe1PriceSource,
       )({});
 
@@ -1529,6 +1527,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     it("GetSelectedPoe2PriceSource should return the source", async () => {
       mockRepositoryGetPoe2PriceSource.mockResolvedValue("exchange");
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.GetSelectedPoe2PriceSource,
       )({});
 
@@ -1542,10 +1541,10 @@ describe("SettingsStoreService — IPC handlers", () => {
     // ── SetPoe1ClientPath ──
 
     it("should set poe1 client path with valid path and notify ClientLogReader", async () => {
-      await getIpcHandler(SettingsStoreChannel.SetPoe1ClientPath)(
-        {},
-        "C:\\Program Files\\PoE\\client.txt",
-      );
+      await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.SetPoe1ClientPath,
+      )({}, "C:\\Program Files\\PoE\\client.txt");
 
       expect(mockRepositorySetPoe1ClientTxtPath).toHaveBeenCalledWith(
         "C:\\Program Files\\PoE\\client.txt",
@@ -1559,6 +1558,7 @@ describe("SettingsStoreService — IPC handlers", () => {
 
     it("should reject non-string for poe1 client path", async () => {
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.SetPoe1ClientPath,
       )({}, 123);
 
@@ -1570,6 +1570,7 @@ describe("SettingsStoreService — IPC handlers", () => {
 
     it("should reject path with null bytes for poe1 client path", async () => {
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.SetPoe1ClientPath,
       )({}, "path\0injection");
 
@@ -1582,10 +1583,10 @@ describe("SettingsStoreService — IPC handlers", () => {
     // ── SetPoe2ClientPath ──
 
     it("should set poe2 client path with valid path and notify ClientLogReader", async () => {
-      await getIpcHandler(SettingsStoreChannel.SetPoe2ClientPath)(
-        {},
-        "/home/user/poe2/client.txt",
-      );
+      await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.SetPoe2ClientPath,
+      )({}, "/home/user/poe2/client.txt");
 
       expect(mockRepositorySetPoe2ClientTxtPath).toHaveBeenCalledWith(
         "/home/user/poe2/client.txt",
@@ -1599,6 +1600,7 @@ describe("SettingsStoreService — IPC handlers", () => {
 
     it("should reject non-string for poe2 client path", async () => {
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.SetPoe2ClientPath,
       )({}, true);
 
@@ -1611,22 +1613,26 @@ describe("SettingsStoreService — IPC handlers", () => {
     // ── SetAppExitBehavior ──
 
     it("should set exit behavior to 'exit'", async () => {
-      await getIpcHandler(SettingsStoreChannel.SetAppExitBehavior)({}, "exit");
+      await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.SetAppExitBehavior,
+      )({}, "exit");
 
       expect(mockRepositorySetAppExitAction).toHaveBeenCalledWith("exit");
     });
 
     it("should set exit behavior to 'minimize'", async () => {
-      await getIpcHandler(SettingsStoreChannel.SetAppExitBehavior)(
-        {},
-        "minimize",
-      );
+      await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.SetAppExitBehavior,
+      )({}, "minimize");
 
       expect(mockRepositorySetAppExitAction).toHaveBeenCalledWith("minimize");
     });
 
     it("should reject invalid exit behavior", async () => {
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.SetAppExitBehavior,
       )({}, "close");
 
@@ -1638,6 +1644,7 @@ describe("SettingsStoreService — IPC handlers", () => {
 
     it("should reject non-string exit behavior", async () => {
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.SetAppExitBehavior,
       )({}, 42);
 
@@ -1650,19 +1657,26 @@ describe("SettingsStoreService — IPC handlers", () => {
     // ── SetLaunchOnStartup ──
 
     it("should set launch on startup to true", async () => {
-      await getIpcHandler(SettingsStoreChannel.SetLaunchOnStartup)({}, true);
+      await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.SetLaunchOnStartup,
+      )({}, true);
 
       expect(mockRepositorySetAppOpenAtLogin).toHaveBeenCalledWith(true);
     });
 
     it("should set launch on startup to false", async () => {
-      await getIpcHandler(SettingsStoreChannel.SetLaunchOnStartup)({}, false);
+      await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.SetLaunchOnStartup,
+      )({}, false);
 
       expect(mockRepositorySetAppOpenAtLogin).toHaveBeenCalledWith(false);
     });
 
     it("should reject non-boolean for launch on startup", async () => {
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.SetLaunchOnStartup,
       )({}, "true");
 
@@ -1675,7 +1689,10 @@ describe("SettingsStoreService — IPC handlers", () => {
     // ── SetStartMinimized ──
 
     it("should set start minimized to true", async () => {
-      await getIpcHandler(SettingsStoreChannel.SetStartMinimized)({}, true);
+      await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.SetStartMinimized,
+      )({}, true);
 
       expect(mockRepositorySetAppOpenAtLoginMinimized).toHaveBeenCalledWith(
         true,
@@ -1684,6 +1701,7 @@ describe("SettingsStoreService — IPC handlers", () => {
 
     it("should reject non-boolean for start minimized", async () => {
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.SetStartMinimized,
       )({}, 1);
 
@@ -1696,22 +1714,28 @@ describe("SettingsStoreService — IPC handlers", () => {
     // ── SetActiveGame ──
 
     it("should set active game to 'poe1'", async () => {
-      await getIpcHandler(SettingsStoreChannel.SetActiveGame)({}, "poe1");
+      await getIpcHandler(mockIpcHandle, SettingsStoreChannel.SetActiveGame)(
+        {},
+        "poe1",
+      );
 
       expect(mockRepositorySetSelectedGame).toHaveBeenCalledWith("poe1");
     });
 
     it("should set active game to 'poe2'", async () => {
-      await getIpcHandler(SettingsStoreChannel.SetActiveGame)({}, "poe2");
+      await getIpcHandler(mockIpcHandle, SettingsStoreChannel.SetActiveGame)(
+        {},
+        "poe2",
+      );
 
       expect(mockRepositorySetSelectedGame).toHaveBeenCalledWith("poe2");
     });
 
     it("should reject invalid game type for active game", async () => {
-      const result = await getIpcHandler(SettingsStoreChannel.SetActiveGame)(
-        {},
-        "poe3",
-      );
+      const result = await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.SetActiveGame,
+      )({}, "poe3");
 
       expect(result).toEqual({
         success: false,
@@ -1722,10 +1746,10 @@ describe("SettingsStoreService — IPC handlers", () => {
     // ── SetInstalledGames ──
 
     it("should set installed games", async () => {
-      await getIpcHandler(SettingsStoreChannel.SetInstalledGames)({}, [
-        "poe1",
-        "poe2",
-      ]);
+      await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.SetInstalledGames,
+      )({}, ["poe1", "poe2"]);
 
       expect(mockRepositorySetInstalledGames).toHaveBeenCalledWith([
         "poe1",
@@ -1735,6 +1759,7 @@ describe("SettingsStoreService — IPC handlers", () => {
 
     it("should reject non-array for installed games", async () => {
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.SetInstalledGames,
       )({}, "poe1");
 
@@ -1746,6 +1771,7 @@ describe("SettingsStoreService — IPC handlers", () => {
 
     it("should reject array with invalid game for installed games", async () => {
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.SetInstalledGames,
       )({}, ["poe1", "invalid"]);
 
@@ -1758,10 +1784,10 @@ describe("SettingsStoreService — IPC handlers", () => {
     // ── SetSelectedPoe1League ──
 
     it("should set poe1 league", async () => {
-      await getIpcHandler(SettingsStoreChannel.SetSelectedPoe1League)(
-        {},
-        "Settlers",
-      );
+      await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.SetSelectedPoe1League,
+      )({}, "Settlers");
 
       expect(mockRepositorySetPoe1SelectedLeague).toHaveBeenCalledWith(
         "Settlers",
@@ -1770,6 +1796,7 @@ describe("SettingsStoreService — IPC handlers", () => {
 
     it("should reject non-string for poe1 league", async () => {
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.SetSelectedPoe1League,
       )({}, 42);
 
@@ -1782,10 +1809,10 @@ describe("SettingsStoreService — IPC handlers", () => {
     // ── SetSelectedPoe2League ──
 
     it("should set poe2 league", async () => {
-      await getIpcHandler(SettingsStoreChannel.SetSelectedPoe2League)(
-        {},
-        "Standard",
-      );
+      await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.SetSelectedPoe2League,
+      )({}, "Standard");
 
       expect(mockRepositorySetPoe2SelectedLeague).toHaveBeenCalledWith(
         "Standard",
@@ -1794,6 +1821,7 @@ describe("SettingsStoreService — IPC handlers", () => {
 
     it("should reject non-string for poe2 league", async () => {
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.SetSelectedPoe2League,
       )({}, null);
 
@@ -1806,25 +1834,26 @@ describe("SettingsStoreService — IPC handlers", () => {
     // ── SetSelectedPoe1PriceSource ──
 
     it("should set poe1 price source to 'exchange'", async () => {
-      await getIpcHandler(SettingsStoreChannel.SetSelectedPoe1PriceSource)(
-        {},
-        "exchange",
-      );
+      await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.SetSelectedPoe1PriceSource,
+      )({}, "exchange");
 
       expect(mockRepositorySetPoe1PriceSource).toHaveBeenCalledWith("exchange");
     });
 
     it("should set poe1 price source to 'stash'", async () => {
-      await getIpcHandler(SettingsStoreChannel.SetSelectedPoe1PriceSource)(
-        {},
-        "stash",
-      );
+      await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.SetSelectedPoe1PriceSource,
+      )({}, "stash");
 
       expect(mockRepositorySetPoe1PriceSource).toHaveBeenCalledWith("stash");
     });
 
     it("should reject invalid poe1 price source", async () => {
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.SetSelectedPoe1PriceSource,
       )({}, "market");
 
@@ -1837,25 +1866,26 @@ describe("SettingsStoreService — IPC handlers", () => {
     // ── SetSelectedPoe2PriceSource ──
 
     it("should set poe2 price source to 'exchange'", async () => {
-      await getIpcHandler(SettingsStoreChannel.SetSelectedPoe2PriceSource)(
-        {},
-        "exchange",
-      );
+      await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.SetSelectedPoe2PriceSource,
+      )({}, "exchange");
 
       expect(mockRepositorySetPoe2PriceSource).toHaveBeenCalledWith("exchange");
     });
 
     it("should set poe2 price source to 'stash'", async () => {
-      await getIpcHandler(SettingsStoreChannel.SetSelectedPoe2PriceSource)(
-        {},
-        "stash",
-      );
+      await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.SetSelectedPoe2PriceSource,
+      )({}, "stash");
 
       expect(mockRepositorySetPoe2PriceSource).toHaveBeenCalledWith("stash");
     });
 
     it("should reject invalid poe2 price source", async () => {
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.SetSelectedPoe2PriceSource,
       )({}, "auction");
 
@@ -1870,9 +1900,10 @@ describe("SettingsStoreService — IPC handlers", () => {
 
   describe("ResetDatabase handler", () => {
     it("should call database reset and return success", async () => {
-      const result = await getIpcHandler(SettingsStoreChannel.ResetDatabase)(
-        {},
-      );
+      const result = await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.ResetDatabase,
+      )({});
 
       expect(mockDatabaseReset).toHaveBeenCalled();
       expect(result).toEqual({
@@ -1886,9 +1917,10 @@ describe("SettingsStoreService — IPC handlers", () => {
         throw new Error("Database file locked");
       });
 
-      const result = await getIpcHandler(SettingsStoreChannel.ResetDatabase)(
-        {},
-      );
+      const result = await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.ResetDatabase,
+      )({});
 
       expect(result).toEqual({
         success: false,
@@ -1901,11 +1933,10 @@ describe("SettingsStoreService — IPC handlers", () => {
 
   describe("security validation", () => {
     it("should not allow a boolean to be set as a string setting", async () => {
-      const result = await getIpcHandler(SettingsStoreChannel.SetSetting)(
-        {},
-        "poe1SelectedLeague",
-        true,
-      );
+      const result = await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.SetSetting,
+      )({}, "poe1SelectedLeague", true);
 
       expect(result).toEqual({
         success: false,
@@ -1914,11 +1945,10 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should not allow a string to be set as a boolean setting", async () => {
-      const result = await getIpcHandler(SettingsStoreChannel.SetSetting)(
-        {},
-        "appOpenAtLogin",
-        "true",
-      );
+      const result = await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.SetSetting,
+      )({}, "appOpenAtLogin", "true");
 
       expect(result).toEqual({
         success: false,
@@ -1927,11 +1957,10 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should not allow a number to be set as a game type", async () => {
-      const result = await getIpcHandler(SettingsStoreChannel.SetSetting)(
-        {},
-        "selectedGame",
-        1,
-      );
+      const result = await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.SetSetting,
+      )({}, "selectedGame", 1);
 
       expect(result).toEqual({
         success: false,
@@ -1941,6 +1970,7 @@ describe("SettingsStoreService — IPC handlers", () => {
 
     it("should not allow injection via file path with null bytes in typed setter", async () => {
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.SetPoe1ClientPath,
       )({}, "safe/path\0/etc/passwd");
 
@@ -1952,6 +1982,7 @@ describe("SettingsStoreService — IPC handlers", () => {
 
     it("should not allow an excessively long file path in typed setter", async () => {
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.SetPoe1ClientPath,
       )({}, "x".repeat(4097));
 
@@ -1962,10 +1993,10 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should accept file path at max length boundary (4096)", async () => {
-      await getIpcHandler(SettingsStoreChannel.SetPoe1ClientPath)(
-        {},
-        "x".repeat(4096),
-      );
+      await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.SetPoe1ClientPath,
+      )({}, "x".repeat(4096));
 
       expect(mockRepositorySetPoe1ClientTxtPath).toHaveBeenCalledWith(
         "x".repeat(4096),
@@ -1973,11 +2004,10 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should prevent setting an unknown key through the generic SetSetting handler", async () => {
-      const result = await getIpcHandler(SettingsStoreChannel.SetSetting)(
-        {},
-        "dangerousKey",
-        "malicious_value",
-      );
+      const result = await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.SetSetting,
+      )({}, "dangerousKey", "malicious_value");
 
       expect(result).toEqual({
         success: false,
@@ -1990,7 +2020,7 @@ describe("SettingsStoreService — IPC handlers", () => {
       // SQL injection strings are still valid strings — the validation
       // only checks type, not content (SQL injection is prevented by
       // parameterized queries in the repository)
-      await getIpcHandler(SettingsStoreChannel.SetSetting)(
+      await getIpcHandler(mockIpcHandle, SettingsStoreChannel.SetSetting)(
         {},
         "poe1SelectedLeague",
         "'; DROP TABLE user_settings;--",
@@ -2007,7 +2037,7 @@ describe("SettingsStoreService — IPC handlers", () => {
 
   describe("overlay settings broadcast", () => {
     it("should broadcast overlay:settings-changed when poe1PriceSource is set via generic handler", async () => {
-      await getIpcHandler(SettingsStoreChannel.SetSetting)(
+      await getIpcHandler(mockIpcHandle, SettingsStoreChannel.SetSetting)(
         {},
         SettingsKey.Poe1PriceSource,
         "stash",
@@ -2023,7 +2053,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should broadcast overlay:settings-changed when poe2PriceSource is set via generic handler", async () => {
-      await getIpcHandler(SettingsStoreChannel.SetSetting)(
+      await getIpcHandler(mockIpcHandle, SettingsStoreChannel.SetSetting)(
         {},
         SettingsKey.Poe2PriceSource,
         "exchange",
@@ -2039,7 +2069,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should broadcast overlay:settings-changed when selectedGame is set via generic handler", async () => {
-      await getIpcHandler(SettingsStoreChannel.SetSetting)(
+      await getIpcHandler(mockIpcHandle, SettingsStoreChannel.SetSetting)(
         {},
         SettingsKey.ActiveGame,
         "poe2",
@@ -2055,7 +2085,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should NOT broadcast overlay:settings-changed for unrelated settings", async () => {
-      await getIpcHandler(SettingsStoreChannel.SetSetting)(
+      await getIpcHandler(mockIpcHandle, SettingsStoreChannel.SetSetting)(
         {},
         SettingsKey.AudioVolume,
         0.8,
@@ -2071,7 +2101,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should broadcast overlay:settings-changed when overlayFontSize is set via generic handler", async () => {
-      await getIpcHandler(SettingsStoreChannel.SetSetting)(
+      await getIpcHandler(mockIpcHandle, SettingsStoreChannel.SetSetting)(
         {},
         SettingsKey.OverlayFontSize,
         1.5,
@@ -2087,7 +2117,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should broadcast overlay:settings-changed when overlayToolbarFontSize is set via generic handler", async () => {
-      await getIpcHandler(SettingsStoreChannel.SetSetting)(
+      await getIpcHandler(mockIpcHandle, SettingsStoreChannel.SetSetting)(
         {},
         SettingsKey.OverlayToolbarFontSize,
         0.8,
@@ -2103,10 +2133,10 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should broadcast overlay:settings-changed when poe1 price source is set via typed handler", async () => {
-      await getIpcHandler(SettingsStoreChannel.SetSelectedPoe1PriceSource)(
-        {},
-        "stash",
-      );
+      await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.SetSelectedPoe1PriceSource,
+      )({}, "stash");
 
       expect(mockRepositorySetPoe1PriceSource).toHaveBeenCalledWith("stash");
       expect(mockWebContentsSend).toHaveBeenCalledWith(
@@ -2115,10 +2145,10 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should broadcast overlay:settings-changed when poe2 price source is set via typed handler", async () => {
-      await getIpcHandler(SettingsStoreChannel.SetSelectedPoe2PriceSource)(
-        {},
-        "stash",
-      );
+      await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.SetSelectedPoe2PriceSource,
+      )({}, "stash");
 
       expect(mockRepositorySetPoe2PriceSource).toHaveBeenCalledWith("stash");
       expect(mockWebContentsSend).toHaveBeenCalledWith(
@@ -2127,10 +2157,10 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should NOT broadcast when typed price source handler rejects invalid input", async () => {
-      await getIpcHandler(SettingsStoreChannel.SetSelectedPoe1PriceSource)(
-        {},
-        "invalid-source",
-      );
+      await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.SetSelectedPoe1PriceSource,
+      )({}, "invalid-source");
 
       expect(mockRepositorySetPoe1PriceSource).not.toHaveBeenCalled();
       expect(mockWebContentsSend).not.toHaveBeenCalledWith(
@@ -2147,7 +2177,7 @@ describe("SettingsStoreService — IPC handlers", () => {
         { isDestroyed: () => false, webContents: { send: send1 } },
       ]);
 
-      await getIpcHandler(SettingsStoreChannel.SetSetting)(
+      await getIpcHandler(mockIpcHandle, SettingsStoreChannel.SetSetting)(
         {},
         SettingsKey.Poe1PriceSource,
         "exchange",
@@ -2170,9 +2200,10 @@ describe("SettingsStoreService — IPC handlers", () => {
         "drop.mp3",
       ]);
 
-      const result = await getIpcHandler(SettingsStoreChannel.ScanCustomSounds)(
-        {},
-      );
+      const result = await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.ScanCustomSounds,
+      )({});
 
       expect(result).toHaveLength(3);
       expect(result[0].filename).toBe("alert1.mp3");
@@ -2185,9 +2216,10 @@ describe("SettingsStoreService — IPC handlers", () => {
     it("should return empty array when directory is empty", async () => {
       mockFsReaddir.mockResolvedValue([]);
 
-      const result = await getIpcHandler(SettingsStoreChannel.ScanCustomSounds)(
-        {},
-      );
+      const result = await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.ScanCustomSounds,
+      )({});
 
       expect(result).toEqual([]);
     });
@@ -2196,9 +2228,10 @@ describe("SettingsStoreService — IPC handlers", () => {
       // The readdir is wrapped with .catch(() => []) in the service
       mockFsReaddir.mockRejectedValue(new Error("ENOENT"));
 
-      const result = await getIpcHandler(SettingsStoreChannel.ScanCustomSounds)(
-        {},
-      );
+      const result = await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.ScanCustomSounds,
+      )({});
 
       expect(result).toEqual([]);
     });
@@ -2209,9 +2242,10 @@ describe("SettingsStoreService — IPC handlers", () => {
         throw new Error("Documents path unavailable");
       });
 
-      const result = await getIpcHandler(SettingsStoreChannel.ScanCustomSounds)(
-        {},
-      );
+      const result = await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.ScanCustomSounds,
+      )({});
 
       expect(result).toEqual([]);
     });
@@ -2224,9 +2258,10 @@ describe("SettingsStoreService — IPC handlers", () => {
         "image.png",
       ]);
 
-      const result = await getIpcHandler(SettingsStoreChannel.ScanCustomSounds)(
-        {},
-      );
+      const result = await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.ScanCustomSounds,
+      )({});
 
       expect(result).toEqual([]);
     });
@@ -2238,6 +2273,7 @@ describe("SettingsStoreService — IPC handlers", () => {
       mockFsReadFile.mockResolvedValue(audioBuffer);
 
       const getCustomSoundData = getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.GetCustomSoundData,
       );
       // The service computes soundsDir via path.join(app.getPath("documents"), ...)
@@ -2272,6 +2308,7 @@ describe("SettingsStoreService — IPC handlers", () => {
 
     it("should reject file path outside PoE directory", async () => {
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.GetCustomSoundData,
       )({}, "/some/other/path/evil.mp3");
 
@@ -2289,6 +2326,7 @@ describe("SettingsStoreService — IPC handlers", () => {
       const filePath = nodePath.join(soundsDir, "missing.mp3");
 
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.GetCustomSoundData,
       )({}, filePath);
 
@@ -2297,6 +2335,7 @@ describe("SettingsStoreService — IPC handlers", () => {
 
     it("should reject non-string filePath", async () => {
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.GetCustomSoundData,
       )({}, 123);
 
@@ -2306,6 +2345,7 @@ describe("SettingsStoreService — IPC handlers", () => {
 
     it("should reject filePath with null bytes", async () => {
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.GetCustomSoundData,
       )({}, "/path/to\0/evil.mp3");
 
@@ -2321,6 +2361,7 @@ describe("SettingsStoreService — IPC handlers", () => {
       });
 
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.GetCustomSoundData,
       )({}, "/some/valid/path.mp3");
 
@@ -2363,6 +2404,7 @@ describe("SettingsStoreService — IPC handlers", () => {
       );
 
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.GetCustomSoundData,
       )({}, filePath);
 
@@ -2378,6 +2420,7 @@ describe("SettingsStoreService — IPC handlers", () => {
       mockShellOpenPath.mockResolvedValue("");
 
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.OpenCustomSoundsFolder,
       )({});
 
@@ -2393,6 +2436,7 @@ describe("SettingsStoreService — IPC handlers", () => {
       mockFsMkdir.mockRejectedValue(new Error("Permission denied"));
 
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.OpenCustomSoundsFolder,
       )({});
 
@@ -2405,6 +2449,7 @@ describe("SettingsStoreService — IPC handlers", () => {
       mockShellOpenPath.mockRejectedValue(new Error("Cannot open"));
 
       const result = await getIpcHandler(
+        mockIpcHandle,
         SettingsStoreChannel.OpenCustomSoundsFolder,
       )({});
 

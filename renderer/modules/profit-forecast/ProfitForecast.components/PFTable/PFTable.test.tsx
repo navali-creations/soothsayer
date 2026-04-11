@@ -3,17 +3,19 @@ import {
   renderWithProviders,
   screen,
 } from "~/renderer/__test-setup__/render";
-import { usePoeNinja, useProfitForecast } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import type { CardForecastRow } from "../../ProfitForecast.slice/ProfitForecast.slice";
 import PFTable from "./PFTable";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useProfitForecast: vi.fn(),
-  usePoeNinja: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
 let lastTableProps: any = {};
 
@@ -42,8 +44,7 @@ vi.mock("./columns", () => ({
   createPFStatusColumn: vi.fn(() => ({ id: "status" })),
 }));
 
-const mockUseProfitForecast = vi.mocked(useProfitForecast);
-const mockUsePoeNinja = vi.mocked(usePoeNinja);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
 // Re-import column factories so we can assert on calls
 import { createPFCardNameColumn } from "./columns";
@@ -92,8 +93,10 @@ function setupStore(overrides: any = {}) {
     isRefreshing: false,
     ...overrides.poeNinja,
   } as any;
-  mockUseProfitForecast.mockReturnValue(profitForecast);
-  mockUsePoeNinja.mockReturnValue(poeNinja);
+  mockUseBoundStore.mockReturnValue({
+    profitForecast,
+    poeNinja,
+  } as any);
   return { profitForecast, poeNinja };
 }
 

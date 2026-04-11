@@ -6,38 +6,11 @@ import { getRarityStyles } from "~/renderer/utils";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => {
-  const useBoundStore = vi.fn();
-  return {
-    useBoundStore,
-    useCurrentSession: () => useBoundStore().currentSession,
-    useSettings: () => useBoundStore().settings,
-    usePoeNinja: () => useBoundStore().poeNinja,
-    useSessionDetails: () => useBoundStore().sessionDetails,
-    useOverlay: () => useBoundStore().overlay,
-    useAppMenu: () => useBoundStore().appMenu,
-    useSetup: () => useBoundStore().setup,
-    useStorage: () => useBoundStore().storage,
-    useGameInfo: () => useBoundStore().gameInfo,
-    useCards: () => useBoundStore().cards,
-    useSessions: () => useBoundStore().sessions,
-    useChangelog: () => useBoundStore().changelog,
-    useStatistics: () => useBoundStore().statistics,
-    useOnboarding: () => useBoundStore().onboarding,
-    useUpdater: () => useBoundStore().updater,
-    useProfitForecast: () => useBoundStore().profitForecast,
-    useRarityInsights: () => useBoundStore().rarityInsights,
-    useRarityInsightsComparison: () => useBoundStore().rarityInsightsComparison,
-    useRootActions: () => {
-      const s = useBoundStore();
-      return {
-        hydrate: s.hydrate,
-        startListeners: s.startListeners,
-        reset: s.reset,
-      };
-    },
-    useSlice: (key: string) => useBoundStore()?.[key],
-  };
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
 });
 
 vi.mock("~/renderer/utils", () => ({
@@ -53,18 +26,12 @@ vi.mock("~/renderer/utils", () => ({
   })),
 }));
 
-vi.mock("motion/react", () => ({
-  AnimatePresence: ({ children }: any) => (
-    <div data-testid="animate-presence">{children}</div>
-  ),
-  motion: {
-    div: ({ children, ...props }: any) => {
-      // Filter out motion-specific props that aren't valid DOM attributes
-      const { layout, initial, animate, exit, transition, ...domProps } = props;
-      return <div {...domProps}>{children}</div>;
-    },
-  },
-}));
+vi.mock("motion/react", async () => {
+  const { createMotionMock } = await import(
+    "~/renderer/__test-setup__/motion-mock"
+  );
+  return createMotionMock({ animatePresenceTestId: "animate-presence" });
+});
 
 vi.mock("../DropBeamColumn", () => ({
   DropBeamColumn: (props: any) => (

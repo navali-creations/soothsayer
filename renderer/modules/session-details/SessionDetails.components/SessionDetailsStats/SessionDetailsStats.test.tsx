@@ -1,5 +1,5 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useSessionDetails } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import { SessionDetailsDurationStat } from "./SessionDetailsDurationStat/SessionDetailsDurationStat";
 import { SessionDetailsNetProfitStat } from "./SessionDetailsNetProfitStat/SessionDetailsNetProfitStat";
@@ -9,11 +9,14 @@ import { SessionDetailsTotalValueStat } from "./SessionDetailsTotalValueStat/Ses
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useSessionDetails: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
-const mockUseSessionDetails = vi.mocked(useSessionDetails);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
 // Mock the barrel index that the *container* component imports from.
 // This does NOT affect the direct file-level imports above, so the real
@@ -124,7 +127,7 @@ function createMockSessionDetails(overrides: Record<string, any> = {}) {
 
 function setupMockStore(overrides: Record<string, any> = {}) {
   const sessionDetails = createMockSessionDetails(overrides);
-  mockUseSessionDetails.mockReturnValue(sessionDetails as any);
+  mockUseBoundStore.mockReturnValue({ sessionDetails } as any);
   return sessionDetails;
 }
 

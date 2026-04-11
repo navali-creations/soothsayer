@@ -1,55 +1,35 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  createDatabaseServiceMock,
+  createElectronMock,
+  createSettingsStoreMock,
+} from "~/main/modules/__test-utils__/mock-factories";
 import type { Rarity } from "~/types/data-stores";
 
-// ─── Mock Electron before any imports that use it ────────────────────────────
-vi.mock("electron", () => ({
-  ipcMain: {
-    handle: vi.fn(),
-    on: vi.fn(),
-    removeHandler: vi.fn(),
-  },
-  BrowserWindow: {
-    getAllWindows: vi.fn(() => []),
-    getFocusedWindow: vi.fn(() => null),
-  },
-  app: {
-    isPackaged: false,
-    getAppPath: vi.fn(() => "/mock-app-path"),
-    getPath: vi.fn(() => "/mock-path"),
-  },
-  dialog: {
-    showMessageBox: vi.fn(),
-    showSaveDialog: vi.fn(),
-  },
+// ─── Hoisted mock functions ─────────────────────────────────────────────────
+const { mockGetKysely } = vi.hoisted(() => ({
+  mockGetKysely: vi.fn(),
 }));
+
+// ─── Mock Electron before any imports that use it ────────────────────────────
+vi.mock("electron", () => createElectronMock());
 
 // ─── Mock DatabaseService singleton ──────────────────────────────────────────
-const mockGetKysely = vi.fn();
-vi.mock("~/main/modules/database", () => ({
-  DatabaseService: {
-    getInstance: vi.fn(() => ({
-      getKysely: mockGetKysely,
-      reset: vi.fn(),
-    })),
-  },
-}));
+vi.mock("~/main/modules/database", () =>
+  createDatabaseServiceMock({ mockGetKysely }),
+);
 
 // ─── Mock SettingsStoreService ───────────────────────────────────────────────
-vi.mock("~/main/modules/settings-store", () => ({
-  SettingsStoreService: {
-    getInstance: vi.fn(() => ({
-      get: vi.fn().mockResolvedValue(null),
-      set: vi.fn(),
-      getAllSettings: vi.fn(),
-    })),
-  },
-  SettingsKey: {
-    ActiveGame: "selectedGame",
-    SelectedPoe1League: "poe1SelectedLeague",
-    SelectedPoe2League: "poe2SelectedLeague",
-  },
-}));
+vi.mock("~/main/modules/settings-store", () =>
+  createSettingsStoreMock({
+    mockGet: vi.fn().mockResolvedValue(null),
+    settingsKeys: {
+      SelectedPoe1League: "poe1SelectedLeague",
+      SelectedPoe2League: "poe2SelectedLeague",
+    },
+  }),
+);
 
 import {
   createTestDatabase,

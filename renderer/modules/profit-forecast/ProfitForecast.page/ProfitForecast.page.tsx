@@ -4,6 +4,7 @@ import { FiAlertTriangle, FiInfo, FiRefreshCw } from "react-icons/fi";
 import { Button, PageContainer } from "~/renderer/components";
 import { useDebounce } from "~/renderer/hooks";
 import { usePoeNinja, useProfitForecast, useSettings } from "~/renderer/store";
+import { toCardMetadata } from "~/renderer/utils/to-card-metadata";
 import type { DivinationCardMetadata } from "~/types/data-stores";
 
 import PFBreakevenChart from "../ProfitForecast.components/PFBreakevenChart/PFBreakevenChart";
@@ -71,17 +72,7 @@ const ProfitForecastPage = () => {
 
         const map = new Map<string, DivinationCardMetadata>();
         for (const card of allCards) {
-          map.set(card.name, {
-            id: card.id,
-            stackSize: card.stackSize,
-            description: card.description,
-            rewardHtml: card.rewardHtml,
-            artSrc: card.artSrc,
-            flavourHtml: card.flavourHtml,
-            rarity: card.rarity,
-            fromBoss: card.fromBoss,
-            isDisabled: card.isDisabled,
-          });
+          map.set(card.name, toCardMetadata(card));
         }
         setCardMetadataMap(map);
       } catch {

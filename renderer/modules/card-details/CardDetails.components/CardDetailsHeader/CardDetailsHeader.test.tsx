@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
+import { trackEvent } from "~/renderer/modules/umami";
 import { useCardDetails, useSettings } from "~/renderer/store";
 
 // ─── Store mock ────────────────────────────────────────────────────────────
@@ -12,20 +13,20 @@ vi.mock("~/renderer/store", () => ({
 
 // ─── Router mock ───────────────────────────────────────────────────────────
 
-const mockHistoryBack = vi.fn();
-
-vi.mock("@tanstack/react-router", () => ({
-  useNavigate: vi.fn(() => vi.fn()),
-  useRouter: () => ({ history: { back: mockHistoryBack } }),
+const { mockHistoryBack } = vi.hoisted(() => ({
+  mockHistoryBack: vi.fn(),
 }));
 
-// ─── Umami mock ────────────────────────────────────────────────────────────
+vi.mock("@tanstack/react-router", async () => {
+  const { createNavigateWithHistoryMock } = await import(
+    "~/renderer/__test-setup__/router-mock"
+  );
+  return createNavigateWithHistoryMock(vi.fn(), mockHistoryBack);
+});
 
-const mockTrackEvent = vi.fn();
+// ─── Umami (globally mocked in __test-setup__/setup.ts) ────────────────────
 
-vi.mock("~/renderer/modules/umami", () => ({
-  trackEvent: (...args: any[]) => mockTrackEvent(...args),
-}));
+const mockTrackEvent = vi.mocked(trackEvent);
 
 // ─── Component library mocks ──────────────────────────────────────────────
 

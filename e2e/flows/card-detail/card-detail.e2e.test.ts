@@ -30,6 +30,7 @@ import {
   clickSidebarLink,
   ensurePostSetup,
   getCurrentRoute,
+  goToCardDetail,
   navigateTo,
   waitForRoute,
 } from "../../helpers/navigation";
@@ -41,15 +42,6 @@ import {
 } from "../../helpers/seed-db";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * Navigate to the card detail page for a given card slug and wait for main
- * content to be visible.
- */
-async function goToCardDetail(page: Page, slug: string) {
-  await navigateTo(page, `/cards/${slug}`);
-  await page.locator("main").waitFor({ state: "visible", timeout: 15_000 });
-}
 
 /**
  * Navigate to the cards grid and wait for at least one card item to render.

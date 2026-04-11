@@ -4,6 +4,7 @@ import { devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 
 import type { ElectronMock } from "~/renderer/__test-setup__/electron-mock";
+import { makeDivinationCardDTO as makeCard } from "~/renderer/__test-setup__/fixtures";
 import {
   type CardDetailsSlice,
   createCardDetailsSlice,
@@ -25,26 +26,6 @@ function createTestStore() {
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
-
-function makeCard(overrides: Record<string, unknown> = {}) {
-  return {
-    id: "1",
-    name: "The Doctor",
-    stackSize: 8,
-    description: "",
-    rewardHtml: "",
-    artSrc: "",
-    flavourHtml: "",
-    rarity: 1 as const,
-    filterRarity: null,
-    prohibitedLibraryRarity: null,
-    fromBoss: false,
-    game: "poe1" as const,
-    createdAt: "",
-    updatedAt: "",
-    ...overrides,
-  };
-}
 
 function makePersonalAnalytics(overrides: Record<string, unknown> = {}) {
   return {

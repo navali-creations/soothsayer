@@ -1,19 +1,18 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useCards, useRarityInsights, useSettings } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import { CardsActions } from "./CardsActions";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useCards: vi.fn(),
-  useSettings: vi.fn(),
-  useRarityInsights: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
-const mockUseCards = vi.mocked(useCards);
-const mockUseSettings = vi.mocked(useSettings);
-const mockUseRarityInsights = vi.mocked(useRarityInsights);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
 vi.mock("~/renderer/components", () => ({
   RaritySourceSelect: ({ value, onChange, disabled }: any) => (
@@ -35,12 +34,6 @@ vi.mock("~/renderer/components", () => ({
       placeholder={placeholder}
     />
   ),
-}));
-
-vi.mock("~/renderer/modules/umami", () => ({
-  initUmami: vi.fn(),
-  trackEvent: vi.fn(),
-  trackPageView: vi.fn(),
 }));
 
 vi.mock("~/renderer/utils", () => ({
@@ -79,33 +72,35 @@ function setupStore(
     lastScannedAt?: string | null;
   } = {},
 ) {
-  mockUseCards.mockReturnValue({
-    searchQuery: overrides.searchQuery ?? "",
-    rarityFilter: overrides.rarityFilter ?? "all",
-    includeBossCards: overrides.includeBossCards ?? false,
-    includeDisabledCards: overrides.includeDisabledCards ?? false,
-    showAllCards: overrides.showAllCards ?? false,
-    setSearchQuery: mockSetSearchQuery,
-    setRarityFilter: mockSetRarityFilter,
-    setIncludeBossCards: mockSetIncludeBossCards,
-    setIncludeDisabledCards: mockSetIncludeDisabledCards,
-    setShowAllCards: mockSetShowAllCards,
-    loadCards: mockLoadCards,
-  } as any);
-  mockUseSettings.mockReturnValue({
-    raritySource: overrides.raritySource ?? "poe.ninja",
-    selectedFilterId: overrides.selectedFilterId ?? null,
-    updateSetting: mockUpdateSetting,
-  } as any);
-  mockUseRarityInsights.mockReturnValue({
-    availableFilters: overrides.availableFilters ?? [{ id: "f1" }],
-    isScanning: overrides.isScanning ?? false,
-    lastScannedAt: overrides.lastScannedAt ?? new Date().toISOString(),
-    scanFilters: mockScanFilters,
-    selectFilter: mockSelectFilter,
-    clearSelectedFilter: mockClearSelectedFilter,
-    getLocalFilters: () => [],
-    getOnlineFilters: () => [],
+  mockUseBoundStore.mockReturnValue({
+    cards: {
+      searchQuery: overrides.searchQuery ?? "",
+      rarityFilter: overrides.rarityFilter ?? "all",
+      includeBossCards: overrides.includeBossCards ?? false,
+      includeDisabledCards: overrides.includeDisabledCards ?? false,
+      showAllCards: overrides.showAllCards ?? false,
+      setSearchQuery: mockSetSearchQuery,
+      setRarityFilter: mockSetRarityFilter,
+      setIncludeBossCards: mockSetIncludeBossCards,
+      setIncludeDisabledCards: mockSetIncludeDisabledCards,
+      setShowAllCards: mockSetShowAllCards,
+      loadCards: mockLoadCards,
+    },
+    settings: {
+      raritySource: overrides.raritySource ?? "poe.ninja",
+      selectedFilterId: overrides.selectedFilterId ?? null,
+      updateSetting: mockUpdateSetting,
+    },
+    rarityInsights: {
+      availableFilters: overrides.availableFilters ?? [{ id: "f1" }],
+      isScanning: overrides.isScanning ?? false,
+      lastScannedAt: overrides.lastScannedAt ?? new Date().toISOString(),
+      scanFilters: mockScanFilters,
+      selectFilter: mockSelectFilter,
+      clearSelectedFilter: mockClearSelectedFilter,
+      getLocalFilters: () => [],
+      getOnlineFilters: () => [],
+    },
   } as any);
 }
 

@@ -1,4 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+﻿import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { getIpcHandler } from "~/main/modules/__test-utils__/mock-factories";
 
 // ─── Hoisted mock functions ──────────────────────────────────────────────────
 const {
@@ -110,25 +112,12 @@ vi.mock("~/main/utils/ipc-validation", () => ({
 }));
 
 // ─── Import under test ──────────────────────────────────────────────────────
+import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
+
 import { SnapshotChannel } from "../Snapshot.channels";
 import { SnapshotService } from "../Snapshot.service";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function getIpcHandler(channel: string): (...args: any[]) => any {
-  const call = mockIpcHandle.mock.calls.find(
-    ([ch]: [string]) => ch === channel,
-  );
-  if (!call) {
-    const registered = mockIpcHandle.mock.calls
-      .map(([ch]: [string]) => ch)
-      .join(", ");
-    throw new Error(
-      `ipcMain.handle was not called with "${channel}". Registered: ${registered}`,
-    );
-  }
-  return call[1];
-}
 
 // ─── Sample data ─────────────────────────────────────────────────────────────
 
@@ -158,8 +147,7 @@ describe("SnapshotService — IPC handlers", () => {
     vi.clearAllMocks();
 
     // Reset singleton
-    // @ts-expect-error — accessing private static for testing
-    SnapshotService._instance = undefined;
+    resetSingleton(SnapshotService);
 
     // Reset validation mocks to no-op / pass-through implementations
     mockAssertGameType.mockImplementation(() => {});
@@ -182,8 +170,7 @@ describe("SnapshotService — IPC handlers", () => {
   afterEach(() => {
     // Stop all auto-refresh intervals to prevent leaks
     service.stopAllAutoRefresh();
-    // @ts-expect-error — accessing private static for testing
-    SnapshotService._instance = undefined;
+    resetSingleton(SnapshotService);
     vi.restoreAllMocks();
   });
 
@@ -223,7 +210,10 @@ describe("SnapshotService — IPC handlers", () => {
 
   describe("GetLatestSnapshot handler", () => {
     it("should validate game type and league then return recent snapshot", async () => {
-      const handler = getIpcHandler(SnapshotChannel.GetLatestSnapshot);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SnapshotChannel.GetLatestSnapshot,
+      );
       const result = await handler({}, "poe1", "Settlers");
 
       expect(mockAssertGameType).toHaveBeenCalledWith(
@@ -240,14 +230,20 @@ describe("SnapshotService — IPC handlers", () => {
     });
 
     it("should call ensureLeague to resolve the league id", async () => {
-      const handler = getIpcHandler(SnapshotChannel.GetLatestSnapshot);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SnapshotChannel.GetLatestSnapshot,
+      );
       await handler({}, "poe1", "Settlers");
 
       expect(mockRepoGetLeagueByName).toHaveBeenCalledWith("poe1", "Settlers");
     });
 
     it("should call getRecentSnapshot with the resolved league id", async () => {
-      const handler = getIpcHandler(SnapshotChannel.GetLatestSnapshot);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SnapshotChannel.GetLatestSnapshot,
+      );
       await handler({}, "poe1", "Settlers");
 
       expect(mockRepoGetRecentSnapshot).toHaveBeenCalledWith(
@@ -259,7 +255,10 @@ describe("SnapshotService — IPC handlers", () => {
     it("should return null when no recent snapshot exists", async () => {
       mockRepoGetRecentSnapshot.mockResolvedValue(null);
 
-      const handler = getIpcHandler(SnapshotChannel.GetLatestSnapshot);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SnapshotChannel.GetLatestSnapshot,
+      );
       const result = await handler({}, "poe1", "Settlers");
 
       expect(result).toBeNull();
@@ -268,7 +267,10 @@ describe("SnapshotService — IPC handlers", () => {
     it("should create a new league if it does not exist", async () => {
       mockRepoGetLeagueByName.mockResolvedValue(null);
 
-      const handler = getIpcHandler(SnapshotChannel.GetLatestSnapshot);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SnapshotChannel.GetLatestSnapshot,
+      );
       await handler({}, "poe1", "NewLeague");
 
       expect(mockRepoCreateLeague).toHaveBeenCalledWith(
@@ -280,14 +282,20 @@ describe("SnapshotService — IPC handlers", () => {
     });
 
     it("should not create a new league if it already exists", async () => {
-      const handler = getIpcHandler(SnapshotChannel.GetLatestSnapshot);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SnapshotChannel.GetLatestSnapshot,
+      );
       await handler({}, "poe1", "Settlers");
 
       expect(mockRepoCreateLeague).not.toHaveBeenCalled();
     });
 
     it("should work with poe2 game type", async () => {
-      const handler = getIpcHandler(SnapshotChannel.GetLatestSnapshot);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SnapshotChannel.GetLatestSnapshot,
+      );
       await handler({}, "poe2", "SomeLeague");
 
       expect(mockAssertGameType).toHaveBeenCalledWith(
@@ -308,7 +316,10 @@ describe("SnapshotService — IPC handlers", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(SnapshotChannel.GetLatestSnapshot);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SnapshotChannel.GetLatestSnapshot,
+      );
       await handler({}, "invalid-game", "Settlers");
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
@@ -323,7 +334,10 @@ describe("SnapshotService — IPC handlers", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(SnapshotChannel.GetLatestSnapshot);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SnapshotChannel.GetLatestSnapshot,
+      );
       await handler({}, "poe1", 12345);
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
@@ -339,7 +353,10 @@ describe("SnapshotService — IPC handlers", () => {
       });
 
       const longLeague = "x".repeat(257);
-      const handler = getIpcHandler(SnapshotChannel.GetLatestSnapshot);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SnapshotChannel.GetLatestSnapshot,
+      );
       await handler({}, "poe1", longLeague);
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
@@ -353,7 +370,10 @@ describe("SnapshotService — IPC handlers", () => {
         throw new Error("Invalid game type");
       });
 
-      const handler = getIpcHandler(SnapshotChannel.GetLatestSnapshot);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SnapshotChannel.GetLatestSnapshot,
+      );
       await handler({}, "bad", "Settlers");
 
       expect(mockRepoGetLeagueByName).not.toHaveBeenCalled();
@@ -365,7 +385,10 @@ describe("SnapshotService — IPC handlers", () => {
         throw new Error("league must be a string");
       });
 
-      const handler = getIpcHandler(SnapshotChannel.GetLatestSnapshot);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SnapshotChannel.GetLatestSnapshot,
+      );
       await handler({}, "poe1", null);
 
       expect(mockRepoGetLeagueByName).not.toHaveBeenCalled();
@@ -382,7 +405,10 @@ describe("SnapshotService — IPC handlers", () => {
         throw new Error("bad");
       });
 
-      const handler = getIpcHandler(SnapshotChannel.GetLatestSnapshot);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SnapshotChannel.GetLatestSnapshot,
+      );
       const result = await handler({}, 123, "Settlers");
 
       expect(result).toEqual(errorPayload);
@@ -398,7 +424,10 @@ describe("SnapshotService — IPC handlers", () => {
         throw new Error("bad");
       });
 
-      const handler = getIpcHandler(SnapshotChannel.GetLatestSnapshot);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SnapshotChannel.GetLatestSnapshot,
+      );
       const result = await handler({}, "poe1", undefined);
 
       expect(result).toEqual(errorPayload);
@@ -415,7 +444,10 @@ describe("SnapshotService — IPC handlers", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(SnapshotChannel.GetLatestSnapshot);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SnapshotChannel.GetLatestSnapshot,
+      );
       const result = await handler({}, null, "Settlers");
 
       expect(result).toEqual(errorPayload);
@@ -439,7 +471,10 @@ describe("SnapshotService — IPC handlers", () => {
         throw new Error("bad");
       });
 
-      const handler = getIpcHandler(SnapshotChannel.GetLatestSnapshot);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SnapshotChannel.GetLatestSnapshot,
+      );
       const result = await handler({}, null, "Settlers");
 
       expect(result).toEqual(errorPayload);
@@ -450,7 +485,10 @@ describe("SnapshotService — IPC handlers", () => {
         throw new Error("bad");
       });
 
-      const handler = getIpcHandler(SnapshotChannel.GetLatestSnapshot);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SnapshotChannel.GetLatestSnapshot,
+      );
       await handler({}, "bad", "Settlers");
 
       expect(mockRepoGetLeagueByName).not.toHaveBeenCalled();
@@ -463,7 +501,10 @@ describe("SnapshotService — IPC handlers", () => {
         throw new Error("bad");
       });
 
-      const handler = getIpcHandler(SnapshotChannel.GetLatestSnapshot);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SnapshotChannel.GetLatestSnapshot,
+      );
       await handler({}, "poe1", null);
 
       expect(mockRepoGetLeagueByName).not.toHaveBeenCalled();
@@ -476,7 +517,10 @@ describe("SnapshotService — IPC handlers", () => {
         new Error("DB connection failed"),
       );
 
-      const handler = getIpcHandler(SnapshotChannel.GetLatestSnapshot);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SnapshotChannel.GetLatestSnapshot,
+      );
       await handler({}, "poe1", "Settlers");
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
@@ -488,7 +532,10 @@ describe("SnapshotService — IPC handlers", () => {
     it("should handle unexpected errors from getRecentSnapshot gracefully", async () => {
       mockRepoGetRecentSnapshot.mockRejectedValue(new Error("Query failed"));
 
-      const handler = getIpcHandler(SnapshotChannel.GetLatestSnapshot);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SnapshotChannel.GetLatestSnapshot,
+      );
       await handler({}, "poe1", "Settlers");
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
@@ -510,7 +557,10 @@ describe("SnapshotService — IPC handlers", () => {
       mockIsConfigured.mockReturnValue(false);
       mockRepoGetRecentSnapshot.mockResolvedValue(null);
 
-      const handler = getIpcHandler(SnapshotChannel.RefreshPrices);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SnapshotChannel.RefreshPrices,
+      );
       // Will throw deep in getSnapshotForSession because Supabase is not
       // configured and no recent snapshot exists — that's OK, we just want
       // to verify that validation runs first.
@@ -538,7 +588,10 @@ describe("SnapshotService — IPC handlers", () => {
         throw new Error("bad");
       });
 
-      const handler = getIpcHandler(SnapshotChannel.RefreshPrices);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SnapshotChannel.RefreshPrices,
+      );
       const result = await handler({}, "invalid", "Settlers");
 
       expect(result).toEqual(errorPayload);
@@ -554,7 +607,10 @@ describe("SnapshotService — IPC handlers", () => {
         throw new Error("bad");
       });
 
-      const handler = getIpcHandler(SnapshotChannel.RefreshPrices);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SnapshotChannel.RefreshPrices,
+      );
       const result = await handler({}, "poe1", null);
 
       expect(result).toEqual(errorPayload);
@@ -565,7 +621,10 @@ describe("SnapshotService — IPC handlers", () => {
 
   describe("GetRefreshStatus handler", () => {
     it("should validate game type and league then return refresh status", async () => {
-      const handler = getIpcHandler(SnapshotChannel.GetRefreshStatus);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SnapshotChannel.GetRefreshStatus,
+      );
       const result = await handler({}, "poe1", "Settlers");
 
       expect(mockAssertGameType).toHaveBeenCalledWith(
@@ -589,14 +648,20 @@ describe("SnapshotService — IPC handlers", () => {
     it("should return null fields when no recent snapshot exists", async () => {
       mockRepoGetRecentSnapshot.mockResolvedValue(null);
 
-      const handler = getIpcHandler(SnapshotChannel.GetRefreshStatus);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SnapshotChannel.GetRefreshStatus,
+      );
       const result = await handler({}, "poe1", "Settlers");
 
       expect(result).toEqual({ fetchedAt: null, refreshableAt: null });
     });
 
     it("should compute refreshableAt as createdAt + AUTO_REFRESH_INTERVAL_HOURS", async () => {
-      const handler = getIpcHandler(SnapshotChannel.GetRefreshStatus);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SnapshotChannel.GetRefreshStatus,
+      );
       const result = await handler({}, "poe1", "Settlers");
 
       const expectedRefreshableAt = new Date(
@@ -617,7 +682,10 @@ describe("SnapshotService — IPC handlers", () => {
         throw new Error("bad");
       });
 
-      const handler = getIpcHandler(SnapshotChannel.GetRefreshStatus);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SnapshotChannel.GetRefreshStatus,
+      );
       const result = await handler({}, "invalid", "Settlers");
 
       expect(result).toEqual(errorPayload);
@@ -633,7 +701,10 @@ describe("SnapshotService — IPC handlers", () => {
         throw new Error("bad");
       });
 
-      const handler = getIpcHandler(SnapshotChannel.GetRefreshStatus);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SnapshotChannel.GetRefreshStatus,
+      );
       const result = await handler({}, "poe1", null);
 
       expect(result).toEqual(errorPayload);
@@ -644,7 +715,10 @@ describe("SnapshotService — IPC handlers", () => {
         throw new Error("bad");
       });
 
-      const handler = getIpcHandler(SnapshotChannel.GetRefreshStatus);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SnapshotChannel.GetRefreshStatus,
+      );
       await handler({}, "bad", "Settlers");
 
       expect(mockRepoGetLeagueByName).not.toHaveBeenCalled();
@@ -656,7 +730,10 @@ describe("SnapshotService — IPC handlers", () => {
         new Error("DB connection failed"),
       );
 
-      const handler = getIpcHandler(SnapshotChannel.GetRefreshStatus);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SnapshotChannel.GetRefreshStatus,
+      );
       await handler({}, "poe1", "Settlers");
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(

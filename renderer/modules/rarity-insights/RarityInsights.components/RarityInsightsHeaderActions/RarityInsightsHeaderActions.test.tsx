@@ -1,17 +1,18 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { usePoeNinja, useSettings } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import RarityInsightsHeaderActions from "./RarityInsightsHeaderActions";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useSettings: vi.fn(),
-  usePoeNinja: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
-const mockUseSettings = vi.mocked(useSettings);
-const mockUsePoeNinja = vi.mocked(usePoeNinja);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
 // Mock the hooks module to control the ticking timer
 vi.mock("~/renderer/hooks", () => ({
@@ -66,15 +67,17 @@ function setupStore(
     league?: string | null;
   } = {},
 ) {
-  mockUseSettings.mockReturnValue({
-    getSelectedGame: () => overrides.game ?? "poe2",
-    getActiveGameViewSelectedLeague: () =>
-      "league" in overrides ? overrides.league : "Standard",
-  } as any);
-  mockUsePoeNinja.mockReturnValue({
-    isRefreshing: overrides.isRefreshing ?? false,
-    refreshPrices: mockRefreshPrices,
-    getRefreshableAt: () => overrides.refreshableAt ?? null,
+  mockUseBoundStore.mockReturnValue({
+    settings: {
+      getSelectedGame: () => overrides.game ?? "poe2",
+      getActiveGameViewSelectedLeague: () =>
+        "league" in overrides ? overrides.league : "Standard",
+    },
+    poeNinja: {
+      isRefreshing: overrides.isRefreshing ?? false,
+      refreshPrices: mockRefreshPrices,
+      getRefreshableAt: () => overrides.refreshableAt ?? null,
+    },
   } as any);
 }
 

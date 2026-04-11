@@ -1,6 +1,8 @@
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
 
+import { useBoundStore } from "~/renderer/store";
+
 // ── Mocks (must be declared before component import) ────────────────────────
 // vi.mock factories are hoisted above imports, so we cannot reference
 // top-level `const` variables inside them. Instead we define plain
@@ -116,47 +118,11 @@ const mockGetSession = vi.fn(() => ({
 }));
 const mockGetChaosToDivineRatio = vi.fn(() => 200);
 
-vi.mock("~/renderer/store", () => {
-  const useBoundStore = vi.fn(() => ({
-    currentSession: {
-      getSession: mockGetSession,
-      getChaosToDivineRatio: mockGetChaosToDivineRatio,
-    },
-    sessionDetails: {
-      getSession: vi.fn(() => null),
-    },
-  }));
-  return {
-    useBoundStore,
-    useCurrentSession: () => useBoundStore().currentSession,
-    useSettings: () => useBoundStore().settings,
-    usePoeNinja: () => useBoundStore().poeNinja,
-    useSessionDetails: () => useBoundStore().sessionDetails,
-    useOverlay: () => useBoundStore().overlay,
-    useAppMenu: () => useBoundStore().appMenu,
-    useSetup: () => useBoundStore().setup,
-    useStorage: () => useBoundStore().storage,
-    useGameInfo: () => useBoundStore().gameInfo,
-    useCards: () => useBoundStore().cards,
-    useSessions: () => useBoundStore().sessions,
-    useChangelog: () => useBoundStore().changelog,
-    useStatistics: () => useBoundStore().statistics,
-    useOnboarding: () => useBoundStore().onboarding,
-    useUpdater: () => useBoundStore().updater,
-    useProfitForecast: () => useBoundStore().profitForecast,
-    useRarityInsights: () => useBoundStore().rarityInsights,
-    useRarityInsightsComparison: () => useBoundStore().rarityInsightsComparison,
-    useCardDetails: () => useBoundStore().cardDetails,
-    useRootActions: () => {
-      const s = useBoundStore();
-      return {
-        hydrate: s.hydrate,
-        startListeners: s.startListeners,
-        reset: s.reset,
-      };
-    },
-    useSlice: (key: string) => useBoundStore()?.[key],
-  };
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
 });
 
 vi.mock("~/renderer/components/DivinationCard", () => ({
@@ -168,6 +134,17 @@ vi.mock("~/renderer/components/DivinationCard", () => ({
 // ── Imports (after mocks) ───────────────────────────────────────────────────
 
 import { formatCurrency } from "~/renderer/utils";
+
+vi.mocked(useBoundStore).mockReturnValue({
+  currentSession: {
+    getSession: mockGetSession,
+    getChaosToDivineRatio: mockGetChaosToDivineRatio,
+  },
+  sessionDetails: {
+    getSession: vi.fn(() => null),
+  },
+} as any);
+
 import type { AggregatedTimeline } from "~/types/data-stores";
 
 import { timelineBuffer } from "../timeline-buffer/timeline-buffer";

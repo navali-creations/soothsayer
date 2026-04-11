@@ -1,13 +1,16 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useSessionDetails } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import { SessionDetailsDurationStat } from "./SessionDetailsDurationStat";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useSessionDetails: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
 vi.mock("~/renderer/components", () => ({
   Stat: Object.assign(
@@ -37,14 +40,14 @@ vi.mock("~/renderer/components", () => ({
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-const mockUseSessionDetails = vi.mocked(useSessionDetails);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
 function setupStore(overrides: Record<string, any> = {}) {
   const sessionDetails = {
     getDuration: vi.fn().mockReturnValue("1h 30m"),
     ...overrides,
   };
-  mockUseSessionDetails.mockReturnValue(sessionDetails as any);
+  mockUseBoundStore.mockReturnValue({ sessionDetails } as any);
   return sessionDetails;
 }
 

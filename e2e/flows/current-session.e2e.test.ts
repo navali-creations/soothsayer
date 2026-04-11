@@ -30,6 +30,7 @@ import {
   waitForHydration,
   waitForRoute,
 } from "../helpers/navigation";
+import { ensureOverlayHidden, waitForOverlayState } from "../helpers/overlay";
 import {
   injectCardDrops,
   seedLeagueCache,
@@ -61,31 +62,6 @@ async function waitForSessionState(
   throw new Error(
     `Session did not become ${
       expectedActive ? "active" : "inactive"
-    } within ${timeout}ms`,
-  );
-}
-
-/**
- * Polls `overlay.isVisible` until it matches the expected state.
- */
-async function waitForOverlayState(
-  page: Page,
-  expectedVisible: boolean,
-  timeout = 5_000,
-) {
-  const start = Date.now();
-  while (Date.now() - start < timeout) {
-    const isVisible = await callElectronAPI<boolean>(
-      page,
-      "overlay",
-      "isVisible",
-    );
-    if (isVisible === expectedVisible) return;
-    await page.waitForTimeout(100);
-  }
-  throw new Error(
-    `Overlay did not become ${
-      expectedVisible ? "visible" : "hidden"
     } within ${timeout}ms`,
   );
 }
@@ -409,23 +385,6 @@ test.describe("Current Session", () => {
         await callElectronAPI(page, "session", "stop", "poe1");
       } catch {
         // Session may already be stopped
-      }
-    }
-
-    /** Hide overlay (best-effort). */
-    async function ensureOverlayHidden(page: Page) {
-      try {
-        const visible = await callElectronAPI<boolean>(
-          page,
-          "overlay",
-          "isVisible",
-        );
-        if (visible) {
-          await callElectronAPI(page, "overlay", "hide");
-          await waitForOverlayState(page, false);
-        }
-      } catch {
-        // Overlay may not have been created yet
       }
     }
 

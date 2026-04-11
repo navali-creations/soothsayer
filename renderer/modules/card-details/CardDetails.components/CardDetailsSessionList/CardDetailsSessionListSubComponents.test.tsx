@@ -1,5 +1,6 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { makeSessionsSummary } from "~/renderer/__test-setup__/fixtures";
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
@@ -59,21 +60,20 @@ afterEach(() => {
 
 function makeSession(overrides: Record<string, any> = {}) {
   return {
-    sessionId: "session-1",
+    ...makeSessionsSummary({
+      sessionId: "session-1",
+      league: "Standard",
+      endedAt: "2024-01-15T11:30:00Z",
+      durationMinutes: 90,
+      totalDecksOpened: 150,
+      totalStashValue: 200,
+      totalExchangeNetProfit: 100,
+      totalStashNetProfit: 50,
+      exchangeChaosToDivine: 200,
+      stashChaosToDivine: 200,
+      stackedDeckChaosCost: 5,
+    }),
     game: "poe2",
-    league: "Standard",
-    startedAt: "2024-01-15T10:00:00Z",
-    endedAt: "2024-01-15T11:30:00Z",
-    durationMinutes: 90,
-    totalDecksOpened: 150,
-    totalExchangeValue: 500,
-    totalStashValue: 200,
-    totalExchangeNetProfit: 100,
-    totalStashNetProfit: 50,
-    exchangeChaosToDivine: 200,
-    stashChaosToDivine: 200,
-    stackedDeckChaosCost: 5,
-    isActive: false,
     cardCount: 3,
     ...overrides,
   };

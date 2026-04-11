@@ -1,3 +1,4 @@
+import { makeDivinationCardRow } from "~/renderer/__test-setup__/fixtures";
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
 
 import type { DivinationCardRow } from "../../Cards.types";
@@ -18,27 +19,6 @@ vi.mock("~/renderer/components/DivinationCard/DivinationCard", () => ({
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-function makeCard(
-  overrides: Partial<DivinationCardRow> = {},
-): DivinationCardRow {
-  return {
-    id: "card-1",
-    name: "The Doctor",
-    stackSize: 8,
-    description: "A test card",
-    rewardHtml: "<span>Reward</span>",
-    artSrc: "https://example.com/art.png",
-    flavourHtml: "<em>Flavour</em>",
-    rarity: 1,
-    filterRarity: null,
-    prohibitedLibraryRarity: null,
-    fromBoss: false,
-    isDisabled: false,
-    inPool: true,
-    ...overrides,
-  };
-}
-
 function renderCardGridItem(
   overrides: {
     card?: DivinationCardRow;
@@ -49,7 +29,7 @@ function renderCardGridItem(
   } = {},
 ) {
   const props = {
-    card: overrides.card ?? makeCard(),
+    card: overrides.card ?? makeDivinationCardRow(),
     raritySource: (overrides.raritySource ?? "poe.ninja") as any,
     showAllCards: overrides.showAllCards ?? false,
     gridKey: overrides.gridKey ?? "test-grid",
@@ -67,27 +47,33 @@ describe("getEffectiveRarity", () => {
   });
 
   it("returns filterRarity when raritySource is 'filter' and filterRarity is set", () => {
-    const card = makeCard({ rarity: 1, filterRarity: 5 });
+    const card = makeDivinationCardRow({ rarity: 1, filterRarity: 5 });
     expect(getEffectiveRarity(card, "filter")).toBe(5);
   });
 
   it("falls back to rarity when raritySource is 'filter' and filterRarity is null", () => {
-    const card = makeCard({ rarity: 1, filterRarity: null });
+    const card = makeDivinationCardRow({ rarity: 1, filterRarity: null });
     expect(getEffectiveRarity(card, "filter")).toBe(1);
   });
 
   it("returns prohibitedLibraryRarity when raritySource is 'prohibited-library' and it is set", () => {
-    const card = makeCard({ rarity: 1, prohibitedLibraryRarity: 7 });
+    const card = makeDivinationCardRow({
+      rarity: 1,
+      prohibitedLibraryRarity: 7,
+    });
     expect(getEffectiveRarity(card, "prohibited-library")).toBe(7);
   });
 
   it("falls back to rarity when raritySource is 'prohibited-library' and prohibitedLibraryRarity is null", () => {
-    const card = makeCard({ rarity: 1, prohibitedLibraryRarity: null });
+    const card = makeDivinationCardRow({
+      rarity: 1,
+      prohibitedLibraryRarity: null,
+    });
     expect(getEffectiveRarity(card, "prohibited-library")).toBe(1);
   });
 
   it("returns rarity for default/unknown raritySource", () => {
-    const card = makeCard({ rarity: 3 });
+    const card = makeDivinationCardRow({ rarity: 3 });
     expect(getEffectiveRarity(card, "poe.ninja")).toBe(3);
   });
 });
@@ -99,14 +85,14 @@ describe("CardGridItem", () => {
 
   describe("rendering", () => {
     it("renders the DivinationCard component", () => {
-      const card = makeCard({ name: "The Doctor" });
+      const card = makeDivinationCardRow({ name: "The Doctor" });
       renderCardGridItem({ card });
 
       expect(screen.getByTestId("card-The Doctor")).toBeInTheDocument();
     });
 
     it("passes the correct rarity from getEffectiveRarity to DivinationCard", () => {
-      const card = makeCard({ rarity: 1, filterRarity: 5 });
+      const card = makeDivinationCardRow({ rarity: 1, filterRarity: 5 });
       renderCardGridItem({ card, raritySource: "filter" });
 
       expect(screen.getByTestId("card-The Doctor")).toHaveAttribute(
@@ -127,28 +113,28 @@ describe("CardGridItem", () => {
 
   describe("out-of-pool badge", () => {
     it("shows 'Not in league pool' badge when showAllCards is true and card is not in pool", () => {
-      const card = makeCard({ inPool: false });
+      const card = makeDivinationCardRow({ inPool: false });
       renderCardGridItem({ card, showAllCards: true });
 
       expect(screen.getByText("Not in league pool")).toBeInTheDocument();
     });
 
     it("does not show badge when showAllCards is false", () => {
-      const card = makeCard({ inPool: false });
+      const card = makeDivinationCardRow({ inPool: false });
       renderCardGridItem({ card, showAllCards: false });
 
       expect(screen.queryByText("Not in league pool")).not.toBeInTheDocument();
     });
 
     it("does not show badge when card is in pool", () => {
-      const card = makeCard({ inPool: true });
+      const card = makeDivinationCardRow({ inPool: true });
       renderCardGridItem({ card, showAllCards: true });
 
       expect(screen.queryByText("Not in league pool")).not.toBeInTheDocument();
     });
 
     it("applies opacity-40 class when card is out of pool", () => {
-      const card = makeCard({ inPool: false });
+      const card = makeDivinationCardRow({ inPool: false });
       const { container } = renderCardGridItem({ card, showAllCards: true });
 
       const li = container.querySelector("li");
@@ -156,7 +142,7 @@ describe("CardGridItem", () => {
     });
 
     it("does not apply opacity-40 class when card is in pool", () => {
-      const card = makeCard({ inPool: true });
+      const card = makeDivinationCardRow({ inPool: true });
       const { container } = renderCardGridItem({ card, showAllCards: true });
 
       const li = container.querySelector("li");
@@ -167,7 +153,7 @@ describe("CardGridItem", () => {
   describe("navigation", () => {
     it("calls onNavigate with card name when clicked", async () => {
       const onNavigate = vi.fn();
-      const card = makeCard({ name: "The Doctor" });
+      const card = makeDivinationCardRow({ name: "The Doctor" });
       const { user } = renderCardGridItem({ card, onNavigate });
 
       await user.click(screen.getByTestId("card-The Doctor"));

@@ -1,38 +1,25 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {
-  createTestDatabase,
-  seedCsvExportSnapshot,
-  type TestDatabase,
-} from "~/main/modules/__test-utils__/create-test-db";
+import { seedCsvExportSnapshot } from "~/main/modules/__test-utils__/create-test-db";
+import { setupRepositoryTest } from "~/main/modules/__test-utils__/repository-test-setup";
 
 import { CsvIntegrityStatus } from "../Csv.dto";
 import { CsvRepository } from "../Csv.repository";
 
 describe("CsvRepository", () => {
-  let testDb: TestDatabase;
-  let repository: CsvRepository;
-
-  beforeEach(() => {
-    testDb = createTestDatabase();
-    repository = new CsvRepository(testDb.kysely);
-  });
-
-  afterEach(async () => {
-    await testDb.close();
-  });
+  const { getRepository, getTestDb } = setupRepositoryTest(CsvRepository);
 
   // ─── getSnapshot ──────────────────────────────────────────────────────────
 
   describe("getSnapshot", () => {
     it("should return an empty array when no snapshots exist", async () => {
-      const result = await repository.getSnapshot("poe1", "all-time");
+      const result = await getRepository().getSnapshot("poe1", "all-time");
 
       expect(result).toEqual([]);
     });
 
     it("should return snapshot rows for the given game and scope", async () => {
-      await seedCsvExportSnapshot(testDb.kysely, [
+      await seedCsvExportSnapshot(getTestDb().kysely, [
         {
           game: "poe1",
           scope: "all-time",
@@ -51,7 +38,7 @@ describe("CsvRepository", () => {
         },
       ]);
 
-      const result = await repository.getSnapshot("poe1", "all-time");
+      const result = await getRepository().getSnapshot("poe1", "all-time");
 
       expect(result).toHaveLength(2);
       expect(result).toContainEqual(
@@ -77,7 +64,7 @@ describe("CsvRepository", () => {
     });
 
     it("should not return snapshots for a different game", async () => {
-      await seedCsvExportSnapshot(testDb.kysely, [
+      await seedCsvExportSnapshot(getTestDb().kysely, [
         {
           game: "poe2",
           scope: "all-time",
@@ -87,13 +74,13 @@ describe("CsvRepository", () => {
         },
       ]);
 
-      const result = await repository.getSnapshot("poe1", "all-time");
+      const result = await getRepository().getSnapshot("poe1", "all-time");
 
       expect(result).toEqual([]);
     });
 
     it("should not return snapshots for a different scope", async () => {
-      await seedCsvExportSnapshot(testDb.kysely, [
+      await seedCsvExportSnapshot(getTestDb().kysely, [
         {
           game: "poe1",
           scope: "Settlers",
@@ -103,13 +90,13 @@ describe("CsvRepository", () => {
         },
       ]);
 
-      const result = await repository.getSnapshot("poe1", "all-time");
+      const result = await getRepository().getSnapshot("poe1", "all-time");
 
       expect(result).toEqual([]);
     });
 
     it("should return DTOs with correct field mapping", async () => {
-      await seedCsvExportSnapshot(testDb.kysely, [
+      await seedCsvExportSnapshot(getTestDb().kysely, [
         {
           game: "poe1",
           scope: "all-time",
@@ -122,7 +109,7 @@ describe("CsvRepository", () => {
         },
       ]);
 
-      const result = await repository.getSnapshot("poe1", "all-time");
+      const result = await getRepository().getSnapshot("poe1", "all-time");
 
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual({
@@ -142,13 +129,13 @@ describe("CsvRepository", () => {
 
   describe("getSnapshotMeta", () => {
     it("should return null when no snapshots exist", async () => {
-      const result = await repository.getSnapshotMeta("poe1", "all-time");
+      const result = await getRepository().getSnapshotMeta("poe1", "all-time");
 
       expect(result).toBeNull();
     });
 
     it("should return the total count and exported timestamp", async () => {
-      await seedCsvExportSnapshot(testDb.kysely, [
+      await seedCsvExportSnapshot(getTestDb().kysely, [
         {
           game: "poe1",
           scope: "all-time",
@@ -167,7 +154,7 @@ describe("CsvRepository", () => {
         },
       ]);
 
-      const result = await repository.getSnapshotMeta("poe1", "all-time");
+      const result = await getRepository().getSnapshotMeta("poe1", "all-time");
 
       expect(result).not.toBeNull();
       // totalCount is the SUM of all per-card counts
@@ -176,7 +163,7 @@ describe("CsvRepository", () => {
     });
 
     it("should return null for a different game", async () => {
-      await seedCsvExportSnapshot(testDb.kysely, [
+      await seedCsvExportSnapshot(getTestDb().kysely, [
         {
           game: "poe2",
           scope: "all-time",
@@ -186,13 +173,13 @@ describe("CsvRepository", () => {
         },
       ]);
 
-      const result = await repository.getSnapshotMeta("poe1", "all-time");
+      const result = await getRepository().getSnapshotMeta("poe1", "all-time");
 
       expect(result).toBeNull();
     });
 
     it("should return null for a different scope", async () => {
-      await seedCsvExportSnapshot(testDb.kysely, [
+      await seedCsvExportSnapshot(getTestDb().kysely, [
         {
           game: "poe1",
           scope: "Settlers",
@@ -202,13 +189,13 @@ describe("CsvRepository", () => {
         },
       ]);
 
-      const result = await repository.getSnapshotMeta("poe1", "all-time");
+      const result = await getRepository().getSnapshotMeta("poe1", "all-time");
 
       expect(result).toBeNull();
     });
 
     it("should return the latest exported_at when rows have different timestamps", async () => {
-      await seedCsvExportSnapshot(testDb.kysely, [
+      await seedCsvExportSnapshot(getTestDb().kysely, [
         {
           game: "poe1",
           scope: "all-time",
@@ -220,8 +207,8 @@ describe("CsvRepository", () => {
       ]);
 
       // Insert a second row with a later timestamp (simulating a separate insert)
-      await testDb.kysely
-        .insertInto("csv_export_snapshots")
+      await getTestDb()
+        .kysely.insertInto("csv_export_snapshots")
         .values({
           game: "poe1",
           scope: "all-time",
@@ -234,7 +221,7 @@ describe("CsvRepository", () => {
         })
         .execute();
 
-      const result = await repository.getSnapshotMeta("poe1", "all-time");
+      const result = await getRepository().getSnapshotMeta("poe1", "all-time");
 
       expect(result).not.toBeNull();
       expect(result!.totalCount).toBe(8);
@@ -247,12 +234,12 @@ describe("CsvRepository", () => {
 
   describe("saveSnapshot", () => {
     it("should insert new snapshot rows", async () => {
-      await repository.saveSnapshot("poe1", "all-time", [
+      await getRepository().saveSnapshot("poe1", "all-time", [
         { cardName: "The Doctor", count: 5 },
         { cardName: "Rain of Chaos", count: 10 },
       ]);
 
-      const rows = await repository.getSnapshot("poe1", "all-time");
+      const rows = await getRepository().getSnapshot("poe1", "all-time");
 
       expect(rows).toHaveLength(2);
       expect(rows).toContainEqual(
@@ -274,13 +261,13 @@ describe("CsvRepository", () => {
     it("should set exported_at on all rows", async () => {
       const before = new Date().toISOString();
 
-      await repository.saveSnapshot("poe1", "all-time", [
+      await getRepository().saveSnapshot("poe1", "all-time", [
         { cardName: "The Doctor", count: 1 },
       ]);
 
       const after = new Date().toISOString();
 
-      const rows = await repository.getSnapshot("poe1", "all-time");
+      const rows = await getRepository().getSnapshot("poe1", "all-time");
       expect(rows).toHaveLength(1);
       expect(rows[0].exportedAt >= before).toBe(true);
       expect(rows[0].exportedAt <= after).toBe(true);
@@ -288,19 +275,19 @@ describe("CsvRepository", () => {
 
     it("should upsert (overwrite) existing rows on conflict", async () => {
       // Insert initial snapshot
-      await repository.saveSnapshot("poe1", "all-time", [
+      await getRepository().saveSnapshot("poe1", "all-time", [
         { cardName: "The Doctor", count: 3 },
         { cardName: "Rain of Chaos", count: 7 },
       ]);
 
       // Overwrite with updated counts
-      await repository.saveSnapshot("poe1", "all-time", [
+      await getRepository().saveSnapshot("poe1", "all-time", [
         { cardName: "The Doctor", count: 8 },
         { cardName: "Rain of Chaos", count: 12 },
         { cardName: "The Nurse", count: 2 },
       ]);
 
-      const rows = await repository.getSnapshot("poe1", "all-time");
+      const rows = await getRepository().getSnapshot("poe1", "all-time");
 
       expect(rows).toHaveLength(3);
       expect(rows).toContainEqual(
@@ -327,7 +314,7 @@ describe("CsvRepository", () => {
     });
 
     it("should persist integrity status and details", async () => {
-      await repository.saveSnapshot(
+      await getRepository().saveSnapshot(
         "poe1",
         "all-time",
         [{ cardName: "The Doctor", count: 5 }],
@@ -335,7 +322,7 @@ describe("CsvRepository", () => {
         '{"allTimeVsGlobal":"ok","allTimeVsLeagues":"ok"}',
       );
 
-      const rows = await repository.getSnapshot("poe1", "all-time");
+      const rows = await getRepository().getSnapshot("poe1", "all-time");
 
       expect(rows).toHaveLength(1);
       expect(rows[0].integrityStatus).toBe(CsvIntegrityStatus.Pass);
@@ -346,7 +333,7 @@ describe("CsvRepository", () => {
 
     it("should update integrity fields on upsert", async () => {
       // Initial save with no integrity data
-      await repository.saveSnapshot(
+      await getRepository().saveSnapshot(
         "poe1",
         "all-time",
         [{ cardName: "The Doctor", count: 5 }],
@@ -355,7 +342,7 @@ describe("CsvRepository", () => {
       );
 
       // Update with integrity data
-      await repository.saveSnapshot(
+      await getRepository().saveSnapshot(
         "poe1",
         "all-time",
         [{ cardName: "The Doctor", count: 8 }],
@@ -363,7 +350,7 @@ describe("CsvRepository", () => {
         '{"processedIdsMismatch":true}',
       );
 
-      const rows = await repository.getSnapshot("poe1", "all-time");
+      const rows = await getRepository().getSnapshot("poe1", "all-time");
 
       expect(rows).toHaveLength(1);
       expect(rows[0].count).toBe(8);
@@ -372,23 +359,23 @@ describe("CsvRepository", () => {
     });
 
     it("should do nothing when entries array is empty", async () => {
-      await repository.saveSnapshot("poe1", "all-time", []);
+      await getRepository().saveSnapshot("poe1", "all-time", []);
 
-      const rows = await repository.getSnapshot("poe1", "all-time");
+      const rows = await getRepository().getSnapshot("poe1", "all-time");
 
       expect(rows).toEqual([]);
     });
 
     it("should keep snapshots for different scopes separate", async () => {
-      await repository.saveSnapshot("poe1", "all-time", [
+      await getRepository().saveSnapshot("poe1", "all-time", [
         { cardName: "The Doctor", count: 10 },
       ]);
-      await repository.saveSnapshot("poe1", "Settlers", [
+      await getRepository().saveSnapshot("poe1", "Settlers", [
         { cardName: "The Doctor", count: 3 },
       ]);
 
-      const allTime = await repository.getSnapshot("poe1", "all-time");
-      const settlers = await repository.getSnapshot("poe1", "Settlers");
+      const allTime = await getRepository().getSnapshot("poe1", "all-time");
+      const settlers = await getRepository().getSnapshot("poe1", "Settlers");
 
       expect(allTime).toHaveLength(1);
       expect(allTime[0].count).toBe(10);
@@ -400,15 +387,15 @@ describe("CsvRepository", () => {
     });
 
     it("should keep snapshots for different games separate", async () => {
-      await repository.saveSnapshot("poe1", "all-time", [
+      await getRepository().saveSnapshot("poe1", "all-time", [
         { cardName: "The Doctor", count: 10 },
       ]);
-      await repository.saveSnapshot("poe2", "all-time", [
+      await getRepository().saveSnapshot("poe2", "all-time", [
         { cardName: "The Doctor", count: 2 },
       ]);
 
-      const poe1 = await repository.getSnapshot("poe1", "all-time");
-      const poe2 = await repository.getSnapshot("poe2", "all-time");
+      const poe1 = await getRepository().getSnapshot("poe1", "all-time");
+      const poe2 = await getRepository().getSnapshot("poe2", "all-time");
 
       expect(poe1).toHaveLength(1);
       expect(poe1[0].count).toBe(10);
@@ -422,7 +409,7 @@ describe("CsvRepository", () => {
 
   describe("deleteSnapshotsByScope", () => {
     it("should delete all snapshot rows for the given scope", async () => {
-      await seedCsvExportSnapshot(testDb.kysely, [
+      await seedCsvExportSnapshot(getTestDb().kysely, [
         {
           game: "poe1",
           scope: "Settlers",
@@ -439,14 +426,14 @@ describe("CsvRepository", () => {
         },
       ]);
 
-      await repository.deleteSnapshotsByScope("Settlers");
+      await getRepository().deleteSnapshotsByScope("Settlers");
 
-      const result = await repository.getSnapshot("poe1", "Settlers");
+      const result = await getRepository().getSnapshot("poe1", "Settlers");
       expect(result).toEqual([]);
     });
 
     it("should not affect snapshots for other scopes", async () => {
-      await seedCsvExportSnapshot(testDb.kysely, [
+      await seedCsvExportSnapshot(getTestDb().kysely, [
         {
           game: "poe1",
           scope: "Settlers",
@@ -463,10 +450,10 @@ describe("CsvRepository", () => {
         },
       ]);
 
-      await repository.deleteSnapshotsByScope("Settlers");
+      await getRepository().deleteSnapshotsByScope("Settlers");
 
-      const settlers = await repository.getSnapshot("poe1", "Settlers");
-      const allTime = await repository.getSnapshot("poe1", "all-time");
+      const settlers = await getRepository().getSnapshot("poe1", "Settlers");
+      const allTime = await getRepository().getSnapshot("poe1", "all-time");
 
       expect(settlers).toEqual([]);
       expect(allTime).toHaveLength(1);
@@ -474,7 +461,7 @@ describe("CsvRepository", () => {
     });
 
     it("should delete across all games for the given scope", async () => {
-      await seedCsvExportSnapshot(testDb.kysely, [
+      await seedCsvExportSnapshot(getTestDb().kysely, [
         {
           game: "poe1",
           scope: "Settlers",
@@ -491,10 +478,10 @@ describe("CsvRepository", () => {
         },
       ]);
 
-      await repository.deleteSnapshotsByScope("Settlers");
+      await getRepository().deleteSnapshotsByScope("Settlers");
 
-      const poe1 = await repository.getSnapshot("poe1", "Settlers");
-      const poe2 = await repository.getSnapshot("poe2", "Settlers");
+      const poe1 = await getRepository().getSnapshot("poe1", "Settlers");
+      const poe2 = await getRepository().getSnapshot("poe2", "Settlers");
 
       expect(poe1).toEqual([]);
       expect(poe2).toEqual([]);
@@ -502,9 +489,9 @@ describe("CsvRepository", () => {
 
     it("should be a no-op when no matching rows exist", async () => {
       // Should not throw
-      await repository.deleteSnapshotsByScope("NonExistent");
+      await getRepository().deleteSnapshotsByScope("NonExistent");
 
-      const result = await repository.getSnapshot("poe1", "NonExistent");
+      const result = await getRepository().getSnapshot("poe1", "NonExistent");
       expect(result).toEqual([]);
     });
   });
@@ -513,7 +500,7 @@ describe("CsvRepository", () => {
 
   describe("deleteSnapshotsByGameAndScope", () => {
     it("should delete snapshot rows for the specific game and scope", async () => {
-      await seedCsvExportSnapshot(testDb.kysely, [
+      await seedCsvExportSnapshot(getTestDb().kysely, [
         {
           game: "poe1",
           scope: "Settlers",
@@ -530,10 +517,10 @@ describe("CsvRepository", () => {
         },
       ]);
 
-      await repository.deleteSnapshotsByGameAndScope("poe1", "Settlers");
+      await getRepository().deleteSnapshotsByGameAndScope("poe1", "Settlers");
 
-      const poe1 = await repository.getSnapshot("poe1", "Settlers");
-      const poe2 = await repository.getSnapshot("poe2", "Settlers");
+      const poe1 = await getRepository().getSnapshot("poe1", "Settlers");
+      const poe2 = await getRepository().getSnapshot("poe2", "Settlers");
 
       expect(poe1).toEqual([]);
       // poe2 should not be affected
@@ -542,7 +529,7 @@ describe("CsvRepository", () => {
     });
 
     it("should not affect other scopes for the same game", async () => {
-      await seedCsvExportSnapshot(testDb.kysely, [
+      await seedCsvExportSnapshot(getTestDb().kysely, [
         {
           game: "poe1",
           scope: "Settlers",
@@ -559,10 +546,10 @@ describe("CsvRepository", () => {
         },
       ]);
 
-      await repository.deleteSnapshotsByGameAndScope("poe1", "Settlers");
+      await getRepository().deleteSnapshotsByGameAndScope("poe1", "Settlers");
 
-      const settlers = await repository.getSnapshot("poe1", "Settlers");
-      const allTime = await repository.getSnapshot("poe1", "all-time");
+      const settlers = await getRepository().getSnapshot("poe1", "Settlers");
+      const allTime = await getRepository().getSnapshot("poe1", "all-time");
 
       expect(settlers).toEqual([]);
       expect(allTime).toHaveLength(1);
@@ -570,9 +557,12 @@ describe("CsvRepository", () => {
     });
 
     it("should be a no-op when no matching rows exist", async () => {
-      await repository.deleteSnapshotsByGameAndScope("poe1", "NonExistent");
+      await getRepository().deleteSnapshotsByGameAndScope(
+        "poe1",
+        "NonExistent",
+      );
 
-      const result = await repository.getSnapshot("poe1", "NonExistent");
+      const result = await getRepository().getSnapshot("poe1", "NonExistent");
       expect(result).toEqual([]);
     });
   });
@@ -582,22 +572,28 @@ describe("CsvRepository", () => {
   describe("multi-scope and multi-game isolation", () => {
     it("should maintain independent snapshots across games and scopes", async () => {
       // Save snapshots for different game+scope combinations
-      await repository.saveSnapshot("poe1", "all-time", [
+      await getRepository().saveSnapshot("poe1", "all-time", [
         { cardName: "The Doctor", count: 10 },
         { cardName: "Rain of Chaos", count: 20 },
       ]);
-      await repository.saveSnapshot("poe1", "Settlers", [
+      await getRepository().saveSnapshot("poe1", "Settlers", [
         { cardName: "The Doctor", count: 3 },
       ]);
-      await repository.saveSnapshot("poe2", "all-time", [
+      await getRepository().saveSnapshot("poe2", "all-time", [
         { cardName: "The Doctor", count: 1 },
       ]);
 
       // Verify each game+scope has its own snapshot
-      const poe1AllTime = await repository.getSnapshot("poe1", "all-time");
-      const poe1Settlers = await repository.getSnapshot("poe1", "Settlers");
-      const poe2AllTime = await repository.getSnapshot("poe2", "all-time");
-      const poe2Settlers = await repository.getSnapshot("poe2", "Settlers");
+      const poe1AllTime = await getRepository().getSnapshot("poe1", "all-time");
+      const poe1Settlers = await getRepository().getSnapshot(
+        "poe1",
+        "Settlers",
+      );
+      const poe2AllTime = await getRepository().getSnapshot("poe2", "all-time");
+      const poe2Settlers = await getRepository().getSnapshot(
+        "poe2",
+        "Settlers",
+      );
 
       expect(poe1AllTime).toHaveLength(2);
       expect(poe1Settlers).toHaveLength(1);
@@ -617,17 +613,23 @@ describe("CsvRepository", () => {
     });
 
     it("should correctly reflect metadata per game+scope", async () => {
-      await repository.saveSnapshot("poe1", "all-time", [
+      await getRepository().saveSnapshot("poe1", "all-time", [
         { cardName: "The Doctor", count: 10 },
         { cardName: "Rain of Chaos", count: 20 },
       ]);
-      await repository.saveSnapshot("poe1", "Settlers", [
+      await getRepository().saveSnapshot("poe1", "Settlers", [
         { cardName: "The Doctor", count: 3 },
       ]);
 
-      const allTimeMeta = await repository.getSnapshotMeta("poe1", "all-time");
-      const settlersMeta = await repository.getSnapshotMeta("poe1", "Settlers");
-      const nonExistent = await repository.getSnapshotMeta(
+      const allTimeMeta = await getRepository().getSnapshotMeta(
+        "poe1",
+        "all-time",
+      );
+      const settlersMeta = await getRepository().getSnapshotMeta(
+        "poe1",
+        "Settlers",
+      );
+      const nonExistent = await getRepository().getSnapshotMeta(
         "poe1",
         "Necropolis",
       );
@@ -647,27 +649,27 @@ describe("CsvRepository", () => {
   describe("snapshot overwrite workflow", () => {
     it("should correctly overwrite a snapshot with updated counts (simulating export flow)", async () => {
       // First export: user has 5 Doctors and 10 Rain of Chaos
-      await repository.saveSnapshot("poe1", "all-time", [
+      await getRepository().saveSnapshot("poe1", "all-time", [
         { cardName: "The Doctor", count: 5 },
         { cardName: "Rain of Chaos", count: 10 },
       ]);
 
-      let meta = await repository.getSnapshotMeta("poe1", "all-time");
+      let meta = await getRepository().getSnapshotMeta("poe1", "all-time");
       expect(meta!.totalCount).toBe(15);
 
       // User opens more decks — now has 8 Doctors and 12 Rain of Chaos plus 2 Nurses
       // Second export overwrites the snapshot with new totals
-      await repository.saveSnapshot("poe1", "all-time", [
+      await getRepository().saveSnapshot("poe1", "all-time", [
         { cardName: "The Doctor", count: 8 },
         { cardName: "Rain of Chaos", count: 12 },
         { cardName: "The Nurse", count: 2 },
       ]);
 
-      meta = await repository.getSnapshotMeta("poe1", "all-time");
+      meta = await getRepository().getSnapshotMeta("poe1", "all-time");
       expect(meta!.totalCount).toBe(22);
 
       // Verify individual counts
-      const rows = await repository.getSnapshot("poe1", "all-time");
+      const rows = await getRepository().getSnapshot("poe1", "all-time");
       expect(rows).toHaveLength(3);
 
       const doctor = rows.find((r) => r.cardName === "The Doctor");
@@ -682,7 +684,7 @@ describe("CsvRepository", () => {
 
     it("should leave old card rows when they are not in the new snapshot", async () => {
       // First export includes "The Doctor" and "Rain of Chaos"
-      await repository.saveSnapshot("poe1", "all-time", [
+      await getRepository().saveSnapshot("poe1", "all-time", [
         { cardName: "The Doctor", count: 5 },
         { cardName: "Rain of Chaos", count: 10 },
       ]);
@@ -690,11 +692,11 @@ describe("CsvRepository", () => {
       // Second export only updates "The Doctor" (e.g., a partial re-export)
       // Note: in practice, our service always sends all current cards,
       // but the repository should handle partial updates gracefully
-      await repository.saveSnapshot("poe1", "all-time", [
+      await getRepository().saveSnapshot("poe1", "all-time", [
         { cardName: "The Doctor", count: 8 },
       ]);
 
-      const rows = await repository.getSnapshot("poe1", "all-time");
+      const rows = await getRepository().getSnapshot("poe1", "all-time");
 
       // Both rows should still exist — "Rain of Chaos" retains its old count
       expect(rows).toHaveLength(2);

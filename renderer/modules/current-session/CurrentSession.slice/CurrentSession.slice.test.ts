@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ElectronMock } from "~/renderer/__test-setup__/electron-mock";
+import { makeDetailedSession } from "~/renderer/__test-setup__/fixtures";
 import {
   createTestStore,
   type TestStore,
@@ -13,8 +14,7 @@ import type { DetailedDivinationCardStats } from "~/types/data-stores";
 function makeSession(
   overrides: Partial<DetailedDivinationCardStats> = {},
 ): DetailedDivinationCardStats {
-  return {
-    totalCount: 50,
+  return makeDetailedSession({
     cards: [
       {
         name: "The Doctor",
@@ -51,7 +51,6 @@ function makeSession(
     ],
     startedAt: "2024-01-01T00:00:00Z",
     endedAt: null,
-    league: "Settlers",
     totals: {
       exchange: {
         totalValue: 2430,
@@ -67,7 +66,7 @@ function makeSession(
       totalDeckCost: 150,
     },
     ...overrides,
-  };
+  } as any);
 }
 
 function makeSessionInfo(

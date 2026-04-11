@@ -1,5 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  createDatabaseServiceMock,
+  createElectronMock,
+  createIpcValidationMock,
+  createPerformanceLoggerMock,
+  getIpcHandler,
+} from "~/main/modules/__test-utils__/mock-factories";
+import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
+
 // ─── Hoisted mock functions ──────────────────────────────────────────────────
 const {
   mockIpcHandle,
@@ -38,48 +47,20 @@ const {
 }));
 
 // ─── Mock Electron ───────────────────────────────────────────────────────────
-vi.mock("electron", () => ({
-  ipcMain: {
-    handle: mockIpcHandle,
-    on: vi.fn(),
-    removeHandler: vi.fn(),
-  },
-  BrowserWindow: {
-    getAllWindows: vi.fn(() => []),
-    getFocusedWindow: vi.fn(() => null),
-  },
-  app: {
-    isPackaged: false,
-    getAppPath: vi.fn(() => "/mock-app-path"),
-    getPath: vi.fn(() => "/mock-path"),
-  },
-  dialog: {
-    showMessageBox: vi.fn(),
-    showSaveDialog: vi.fn(),
-  },
-}));
+vi.mock("electron", () => createElectronMock({ mockIpcHandle }));
 
 // ─── Mock DatabaseService ────────────────────────────────────────────────────
-vi.mock("~/main/modules/database", () => ({
-  DatabaseService: {
-    getInstance: vi.fn(() => ({
-      getKysely: mockGetKysely,
-      reset: vi.fn(),
-    })),
-  },
-}));
+vi.mock("~/main/modules/database", () =>
+  createDatabaseServiceMock({ mockGetKysely }),
+);
 
 // ─── Mock PerformanceLoggerService ───────────────────────────────────────────
-vi.mock("~/main/modules/performance-logger", () => ({
-  PerformanceLoggerService: {
-    getInstance: vi.fn(() => ({
-      startTimers: mockPerfStartTimers,
-      log: mockPerfLog,
-      startTimer: vi.fn(),
-      time: vi.fn(),
-    })),
-  },
-}));
+vi.mock("~/main/modules/performance-logger", () =>
+  createPerformanceLoggerMock({
+    mockStartTimers: mockPerfStartTimers,
+    mockLog: mockPerfLog,
+  }),
+);
 
 // ─── Mock DataStoreRepository ────────────────────────────────────────────────
 vi.mock("../DataStore.repository", () => ({
@@ -97,32 +78,19 @@ vi.mock("../DataStore.repository", () => ({
 }));
 
 // ─── Mock IPC validation utils ───────────────────────────────────────────────
-vi.mock("~/main/utils/ipc-validation", () => ({
-  assertGameType: mockAssertGameType,
-  assertBoundedString: mockAssertBoundedString,
-  handleValidationError: mockHandleValidationError,
-}));
+vi.mock("~/main/utils/ipc-validation", () =>
+  createIpcValidationMock({
+    mockAssertGameType,
+    mockAssertBoundedString,
+    mockHandleValidationError,
+  }),
+);
 
 // ─── Import under test ──────────────────────────────────────────────────────
 import { DataStoreChannel } from "../DataStore.channels";
 import { DataStoreService } from "../DataStore.service";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function getIpcHandler(channel: string): (...args: any[]) => any {
-  const call = mockIpcHandle.mock.calls.find(
-    ([ch]: [string]) => ch === channel,
-  );
-  if (!call) {
-    const registered = mockIpcHandle.mock.calls
-      .map(([ch]: [string]) => ch)
-      .join(", ");
-    throw new Error(
-      `ipcMain.handle was not called with "${channel}". Registered: ${registered}`,
-    );
-  }
-  return call[1];
-}
 
 // ─── Sample data ─────────────────────────────────────────────────────────────
 
@@ -142,8 +110,7 @@ describe("DataStoreService — IPC handlers", () => {
     vi.clearAllMocks();
 
     // Reset singleton
-    // @ts-expect-error — accessing private static for testing
-    DataStoreService._instance = undefined;
+    resetSingleton(DataStoreService);
 
     // Reset validation mocks to no-op implementations
     mockAssertGameType.mockImplementation(() => {});
@@ -164,8 +131,7 @@ describe("DataStoreService — IPC handlers", () => {
   });
 
   afterEach(() => {
-    // @ts-expect-error — accessing private static for testing
-    DataStoreService._instance = undefined;
+    resetSingleton(DataStoreService);
     vi.restoreAllMocks();
   });
 
@@ -173,9 +139,9 @@ describe("DataStoreService — IPC handlers", () => {
 
   describe("handler registration", () => {
     it("should register handlers for all expected IPC channels", () => {
-      const registeredChannels = mockIpcHandle.mock.calls.map(
-        ([ch]: [string]) => ch,
-      );
+      const registeredChannels = (
+        mockIpcHandle.mock.calls as [string, any][]
+      ).map(([ch]: [string]) => ch);
 
       expect(registeredChannels).toContain(DataStoreChannel.GetAllTimeStats);
       expect(registeredChannels).toContain(DataStoreChannel.GetLeagueStats);
@@ -192,7 +158,10 @@ describe("DataStoreService — IPC handlers", () => {
 
   describe("GetAllTimeStats handler", () => {
     it("should validate game type and return all-time stats on success", async () => {
-      const handler = getIpcHandler(DataStoreChannel.GetAllTimeStats);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        DataStoreChannel.GetAllTimeStats,
+      );
       const result = await handler({}, "poe1");
 
       expect(mockAssertGameType).toHaveBeenCalledWith(
@@ -225,7 +194,10 @@ describe("DataStoreService — IPC handlers", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(DataStoreChannel.GetAllTimeStats);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        DataStoreChannel.GetAllTimeStats,
+      );
       await handler({}, "invalid");
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
@@ -239,7 +211,10 @@ describe("DataStoreService — IPC handlers", () => {
         throw new Error("Invalid");
       });
 
-      const handler = getIpcHandler(DataStoreChannel.GetAllTimeStats);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        DataStoreChannel.GetAllTimeStats,
+      );
       await handler({}, 123);
 
       expect(mockRepoGetCardsByScope).not.toHaveBeenCalled();
@@ -250,7 +225,10 @@ describe("DataStoreService — IPC handlers", () => {
     it("should return undefined lastUpdated when repo returns null", async () => {
       mockRepoGetLastUpdatedByScope.mockResolvedValue(null);
 
-      const handler = getIpcHandler(DataStoreChannel.GetAllTimeStats);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        DataStoreChannel.GetAllTimeStats,
+      );
       const result = await handler({}, "poe1");
 
       expect(result.lastUpdated).toBeUndefined();
@@ -260,7 +238,10 @@ describe("DataStoreService — IPC handlers", () => {
       mockRepoGetCardsByScope.mockResolvedValue([]);
       mockRepoGetTotalCountByScope.mockResolvedValue(0);
 
-      const handler = getIpcHandler(DataStoreChannel.GetAllTimeStats);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        DataStoreChannel.GetAllTimeStats,
+      );
       const result = await handler({}, "poe2");
 
       expect(result).toEqual({
@@ -275,7 +256,10 @@ describe("DataStoreService — IPC handlers", () => {
 
   describe("GetLeagueStats handler", () => {
     it("should validate game and league then return league stats", async () => {
-      const handler = getIpcHandler(DataStoreChannel.GetLeagueStats);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        DataStoreChannel.GetLeagueStats,
+      );
       const result = await handler({}, "poe1", "Settlers");
 
       expect(mockAssertGameType).toHaveBeenCalledWith(
@@ -314,7 +298,10 @@ describe("DataStoreService — IPC handlers", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(DataStoreChannel.GetLeagueStats);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        DataStoreChannel.GetLeagueStats,
+      );
       await handler({}, "invalid", "Settlers");
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
@@ -330,7 +317,10 @@ describe("DataStoreService — IPC handlers", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(DataStoreChannel.GetLeagueStats);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        DataStoreChannel.GetLeagueStats,
+      );
       await handler({}, "poe1", 12345);
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
@@ -344,25 +334,34 @@ describe("DataStoreService — IPC handlers", () => {
         throw new Error("Invalid");
       });
 
-      const handler = getIpcHandler(DataStoreChannel.GetLeagueStats);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        DataStoreChannel.GetLeagueStats,
+      );
       await handler({}, null, "Settlers");
 
       expect(mockRepoGetCardsByScope).not.toHaveBeenCalled();
     });
 
-    it("should not call repository when league validation fails", async () => {
+    it("should not call repository when game validation fails", async () => {
       mockAssertBoundedString.mockImplementationOnce(() => {
         throw new Error("Invalid");
       });
 
-      const handler = getIpcHandler(DataStoreChannel.GetLeagueStats);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        DataStoreChannel.GetLeagueStats,
+      );
       await handler({}, "poe1", "");
 
       expect(mockRepoGetCardsByScope).not.toHaveBeenCalled();
     });
 
     it("should work with poe2 game type", async () => {
-      const handler = getIpcHandler(DataStoreChannel.GetLeagueStats);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        DataStoreChannel.GetLeagueStats,
+      );
       const result = await handler({}, "poe2", "Standard");
 
       expect(mockAssertGameType).toHaveBeenCalledWith(
@@ -378,7 +377,7 @@ describe("DataStoreService — IPC handlers", () => {
 
   describe("data-store:get-leagues handler", () => {
     it("should validate game type and return available leagues", async () => {
-      const handler = getIpcHandler(DataStoreChannel.GetLeagues);
+      const handler = getIpcHandler(mockIpcHandle, DataStoreChannel.GetLeagues);
       const result = await handler({}, "poe1");
 
       expect(mockAssertGameType).toHaveBeenCalledWith(
@@ -396,7 +395,7 @@ describe("DataStoreService — IPC handlers", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(DataStoreChannel.GetLeagues);
+      const handler = getIpcHandler(mockIpcHandle, DataStoreChannel.GetLeagues);
       await handler({}, "bad-game");
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
@@ -410,7 +409,7 @@ describe("DataStoreService — IPC handlers", () => {
         throw new Error("Invalid");
       });
 
-      const handler = getIpcHandler(DataStoreChannel.GetLeagues);
+      const handler = getIpcHandler(mockIpcHandle, DataStoreChannel.GetLeagues);
       await handler({}, undefined);
 
       expect(mockRepoGetAvailableLeagues).not.toHaveBeenCalled();
@@ -419,7 +418,7 @@ describe("DataStoreService — IPC handlers", () => {
     it("should return empty array when no leagues exist", async () => {
       mockRepoGetAvailableLeagues.mockResolvedValue([]);
 
-      const handler = getIpcHandler(DataStoreChannel.GetLeagues);
+      const handler = getIpcHandler(mockIpcHandle, DataStoreChannel.GetLeagues);
       const result = await handler({}, "poe2");
 
       expect(result).toEqual([]);
@@ -428,7 +427,7 @@ describe("DataStoreService — IPC handlers", () => {
     it("should work with poe2 game type", async () => {
       mockRepoGetAvailableLeagues.mockResolvedValue(["Standard"]);
 
-      const handler = getIpcHandler(DataStoreChannel.GetLeagues);
+      const handler = getIpcHandler(mockIpcHandle, DataStoreChannel.GetLeagues);
       const result = await handler({}, "poe2");
 
       expect(mockAssertGameType).toHaveBeenCalledWith(
@@ -447,7 +446,7 @@ describe("DataStoreService — IPC handlers", () => {
       const errorPayload = { success: false, error: "Invalid input" };
       mockHandleValidationError.mockReturnValueOnce(errorPayload);
 
-      const handler = getIpcHandler(DataStoreChannel.GetLeagues);
+      const handler = getIpcHandler(mockIpcHandle, DataStoreChannel.GetLeagues);
       const result = await handler({}, 42);
 
       expect(result).toEqual(errorPayload);
@@ -458,7 +457,7 @@ describe("DataStoreService — IPC handlers", () => {
 
   describe("data-store:get-global handler", () => {
     it("should return global stats", async () => {
-      const handler = getIpcHandler(DataStoreChannel.GetGlobal);
+      const handler = getIpcHandler(mockIpcHandle, DataStoreChannel.GetGlobal);
       const result = await handler({});
 
       expect(mockRepoGetGlobalStat).toHaveBeenCalledWith(
@@ -472,7 +471,7 @@ describe("DataStoreService — IPC handlers", () => {
     it("should return zero totalStackedDecksOpened when no stat exists", async () => {
       mockRepoGetGlobalStat.mockResolvedValue(null);
 
-      const handler = getIpcHandler(DataStoreChannel.GetGlobal);
+      const handler = getIpcHandler(mockIpcHandle, DataStoreChannel.GetGlobal);
       const result = await handler({});
 
       expect(result).toEqual({
@@ -481,7 +480,7 @@ describe("DataStoreService — IPC handlers", () => {
     });
 
     it("should not require any arguments", async () => {
-      const handler = getIpcHandler(DataStoreChannel.GetGlobal);
+      const handler = getIpcHandler(mockIpcHandle, DataStoreChannel.GetGlobal);
       const result = await handler({});
 
       // Should not call any validation functions
@@ -497,7 +496,7 @@ describe("DataStoreService — IPC handlers", () => {
         value: 999,
       });
 
-      const handler = getIpcHandler(DataStoreChannel.GetGlobal);
+      const handler = getIpcHandler(mockIpcHandle, DataStoreChannel.GetGlobal);
       const result = await handler({});
 
       expect(result.totalStackedDecksOpened).toBe(999);
@@ -514,7 +513,10 @@ describe("DataStoreService — IPC handlers", () => {
         throw new Error("bad game");
       });
 
-      const handler = getIpcHandler(DataStoreChannel.GetAllTimeStats);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        DataStoreChannel.GetAllTimeStats,
+      );
       const result = await handler({}, "invalid");
 
       expect(result).toEqual(errorPayload);
@@ -525,7 +527,10 @@ describe("DataStoreService — IPC handlers", () => {
         throw new Error("Invalid");
       });
 
-      const handler = getIpcHandler(DataStoreChannel.GetAllTimeStats);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        DataStoreChannel.GetAllTimeStats,
+      );
       await handler({}, null);
 
       expect(mockRepoGetCardsByScope).not.toHaveBeenCalled();
@@ -538,7 +543,10 @@ describe("DataStoreService — IPC handlers", () => {
         throw new Error("Invalid");
       });
 
-      const handler = getIpcHandler(DataStoreChannel.GetLeagueStats);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        DataStoreChannel.GetLeagueStats,
+      );
       await handler({}, false, "Settlers");
 
       expect(mockRepoGetCardsByScope).not.toHaveBeenCalled();
@@ -551,7 +559,10 @@ describe("DataStoreService — IPC handlers", () => {
         throw new Error("Invalid");
       });
 
-      const handler = getIpcHandler(DataStoreChannel.GetLeagueStats);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        DataStoreChannel.GetLeagueStats,
+      );
       await handler({}, "poe1", null);
 
       expect(mockRepoGetCardsByScope).not.toHaveBeenCalled();
@@ -562,7 +573,7 @@ describe("DataStoreService — IPC handlers", () => {
         throw new Error("Invalid");
       });
 
-      const handler = getIpcHandler(DataStoreChannel.GetLeagues);
+      const handler = getIpcHandler(mockIpcHandle, DataStoreChannel.GetLeagues);
       await handler({}, []);
 
       expect(mockRepoGetAvailableLeagues).not.toHaveBeenCalled();

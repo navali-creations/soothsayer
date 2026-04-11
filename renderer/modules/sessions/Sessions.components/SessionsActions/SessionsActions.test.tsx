@@ -1,13 +1,16 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useSessions } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import { SessionsActions } from "./SessionsActions";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useSessions: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
 vi.mock("~/renderer/components", () => ({
   Flex: ({ children, ...props }: any) => <div {...props}>{children}</div>,
@@ -25,7 +28,7 @@ vi.mock("~/renderer/hooks", () => ({
   useDebounce: vi.fn((value: string) => value),
 }));
 
-const mockUseSessions = vi.mocked(useSessions);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -43,7 +46,8 @@ function createMockSessions(overrides: any = {}) {
 
 function setupStore(overrides: any = {}) {
   const sessions = createMockSessions(overrides.sessions);
-  mockUseSessions.mockReturnValue(sessions);
+  const store = { sessions } as any;
+  mockUseBoundStore.mockReturnValue(store);
   return sessions;
 }
 

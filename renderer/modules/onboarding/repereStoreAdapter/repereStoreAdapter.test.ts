@@ -2,11 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useBoundStore: {
-    getState: vi.fn(),
-  },
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  const mock = createStoreMock();
+  (mock.useBoundStore as any).getState = vi.fn();
+  return mock;
+});
 
 import { useBoundStore } from "~/renderer/store";
 

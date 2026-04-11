@@ -5,19 +5,22 @@ import {
   screen,
   waitFor,
 } from "~/renderer/__test-setup__/render";
-import { useSetup } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import SetupClientPathStep from "./SetupClientPathStep";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useSetup: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-const mockUseSetup = vi.mocked(useSetup);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
 function createMockStore(overrides: any = {}) {
   return {
@@ -38,7 +41,7 @@ function createMockStore(overrides: any = {}) {
 
 describe("SetupClientPathStep", () => {
   beforeEach(() => {
-    mockUseSetup.mockReturnValue(createMockStore());
+    mockUseBoundStore.mockReturnValue({ setup: createMockStore() } as any);
   });
 
   // ── Heading and description ────────────────────────────────────────────
@@ -67,15 +70,15 @@ describe("SetupClientPathStep", () => {
 
   describe("path selectors", () => {
     it("shows PoE1 path selector when poe1 is selected", () => {
-      mockUseSetup.mockReturnValue(
-        createMockStore({
+      mockUseBoundStore.mockReturnValue({
+        setup: createMockStore({
           setupState: {
             selectedGames: ["poe1"],
             poe1ClientPath: "",
             poe2ClientPath: "",
           },
         }),
-      );
+      } as any);
 
       renderWithProviders(<SetupClientPathStep />);
 
@@ -88,15 +91,15 @@ describe("SetupClientPathStep", () => {
     });
 
     it("shows PoE2 path selector when poe2 is selected", () => {
-      mockUseSetup.mockReturnValue(
-        createMockStore({
+      mockUseBoundStore.mockReturnValue({
+        setup: createMockStore({
           setupState: {
             selectedGames: ["poe2"],
             poe1ClientPath: "",
             poe2ClientPath: "",
           },
         }),
-      );
+      } as any);
 
       renderWithProviders(<SetupClientPathStep />);
 
@@ -109,15 +112,15 @@ describe("SetupClientPathStep", () => {
     });
 
     it("shows both selectors when both games are selected", () => {
-      mockUseSetup.mockReturnValue(
-        createMockStore({
+      mockUseBoundStore.mockReturnValue({
+        setup: createMockStore({
           setupState: {
             selectedGames: ["poe1", "poe2"],
             poe1ClientPath: "",
             poe2ClientPath: "",
           },
         }),
-      );
+      } as any);
 
       renderWithProviders(<SetupClientPathStep />);
 
@@ -134,15 +137,15 @@ describe("SetupClientPathStep", () => {
 
   describe("path status indicators", () => {
     it("shows 'Required' warning when path is empty", () => {
-      mockUseSetup.mockReturnValue(
-        createMockStore({
+      mockUseBoundStore.mockReturnValue({
+        setup: createMockStore({
           setupState: {
             selectedGames: ["poe1"],
             poe1ClientPath: "",
             poe2ClientPath: "",
           },
         }),
-      );
+      } as any);
 
       renderWithProviders(<SetupClientPathStep />);
 
@@ -150,15 +153,15 @@ describe("SetupClientPathStep", () => {
     });
 
     it("shows success indicator when path is filled", () => {
-      mockUseSetup.mockReturnValue(
-        createMockStore({
+      mockUseBoundStore.mockReturnValue({
+        setup: createMockStore({
           setupState: {
             selectedGames: ["poe1"],
             poe1ClientPath: "C:\\Games\\PoE\\logs\\Client.txt",
             poe2ClientPath: "",
           },
         }),
-      );
+      } as any);
 
       renderWithProviders(<SetupClientPathStep />);
 
@@ -171,15 +174,15 @@ describe("SetupClientPathStep", () => {
 
   describe("browse button interaction", () => {
     it("calls window.electron.selectFile when Browse is clicked", async () => {
-      mockUseSetup.mockReturnValue(
-        createMockStore({
+      mockUseBoundStore.mockReturnValue({
+        setup: createMockStore({
           setupState: {
             selectedGames: ["poe1"],
             poe1ClientPath: "",
             poe2ClientPath: "",
           },
         }),
-      );
+      } as any);
 
       const { user } = renderWithProviders(<SetupClientPathStep />);
 
@@ -203,7 +206,7 @@ describe("SetupClientPathStep", () => {
           poe2ClientPath: "",
         },
       });
-      mockUseSetup.mockReturnValue(store);
+      mockUseBoundStore.mockReturnValue({ setup: store } as any);
 
       vi.mocked(window.electron.selectFile).mockResolvedValue(
         "C:\\Games\\PoE\\logs\\Client.txt",
@@ -232,7 +235,7 @@ describe("SetupClientPathStep", () => {
           poe2ClientPath: "",
         },
       });
-      mockUseSetup.mockReturnValue(store);
+      mockUseBoundStore.mockReturnValue({ setup: store } as any);
 
       // selectFile resolves to undefined when the user cancels
       vi.mocked(window.electron.selectFile).mockResolvedValue(undefined);
@@ -250,15 +253,15 @@ describe("SetupClientPathStep", () => {
     });
 
     it("calls window.electron.selectFile for PoE2 when PoE2 Browse is clicked", async () => {
-      mockUseSetup.mockReturnValue(
-        createMockStore({
+      mockUseBoundStore.mockReturnValue({
+        setup: createMockStore({
           setupState: {
             selectedGames: ["poe2"],
             poe1ClientPath: "",
             poe2ClientPath: "",
           },
         }),
-      );
+      } as any);
 
       const { user } = renderWithProviders(<SetupClientPathStep />);
 
@@ -285,15 +288,15 @@ describe("SetupClientPathStep", () => {
     });
 
     it("shows (2) hints when both games are selected", () => {
-      mockUseSetup.mockReturnValue(
-        createMockStore({
+      mockUseBoundStore.mockReturnValue({
+        setup: createMockStore({
           setupState: {
             selectedGames: ["poe1", "poe2"],
             poe1ClientPath: "",
             poe2ClientPath: "",
           },
         }),
-      );
+      } as any);
 
       renderWithProviders(<SetupClientPathStep />);
 

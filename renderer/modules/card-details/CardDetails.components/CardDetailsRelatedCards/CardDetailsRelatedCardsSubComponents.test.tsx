@@ -30,12 +30,12 @@ vi.mock("~/renderer/components/Link/Link", () => ({
   ),
 }));
 
-vi.mock("~/renderer/hooks/usePopover/usePopover", () => ({
-  usePopover: () => ({
-    triggerRef: { current: null },
-    popoverRef: { current: null },
-  }),
-}));
+vi.mock("~/renderer/hooks/usePopover/usePopover", async () => {
+  const { createPopoverMock } = await import(
+    "~/renderer/__test-setup__/popover-mock"
+  );
+  return createPopoverMock();
+});
 
 vi.mock("~/renderer/utils", () => ({
   cardNameToSlug: (name: string) => name.toLowerCase().replace(/\s+/g, "-"),

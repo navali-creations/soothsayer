@@ -3,17 +3,18 @@ import {
   screen,
   waitFor,
 } from "~/renderer/__test-setup__/render";
-import { usePoeNinja, useProfitForecast, useSettings } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import PFHeaderActions from "./PFHeaderActions";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useSettings: vi.fn(),
-  usePoeNinja: vi.fn(),
-  useProfitForecast: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
 vi.mock("../PFHelpModal/PFHelpModal", () => ({
   default: ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) =>
@@ -77,9 +78,7 @@ vi.mock("~/renderer/components", () => ({
   ),
 }));
 
-const mockUseSettings = vi.mocked(useSettings);
-const mockUsePoeNinja = vi.mocked(usePoeNinja);
-const mockUseProfitForecast = vi.mocked(useProfitForecast);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -113,9 +112,11 @@ function setupStore(overrides: any = {}) {
   const settings = createMockSettings(overrides.settings);
   const poeNinja = createMockPoeNinja(overrides.poeNinja);
   const profitForecast = createMockProfitForecast(overrides.profitForecast);
-  mockUseSettings.mockReturnValue(settings);
-  mockUsePoeNinja.mockReturnValue(poeNinja);
-  mockUseProfitForecast.mockReturnValue(profitForecast);
+  mockUseBoundStore.mockReturnValue({
+    settings,
+    poeNinja,
+    profitForecast,
+  } as any);
   return { settings, poeNinja, profitForecast };
 }
 

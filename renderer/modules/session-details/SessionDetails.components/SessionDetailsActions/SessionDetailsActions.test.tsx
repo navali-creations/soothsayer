@@ -1,20 +1,27 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useSessionDetails } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import SessionDetailsActions from "./SessionDetailsActions";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useSessionDetails: vi.fn(),
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
+
+const { mockHistoryBack } = vi.hoisted(() => ({
+  mockHistoryBack: vi.fn(),
 }));
 
-const mockHistoryBack = vi.fn();
-
-vi.mock("@tanstack/react-router", () => ({
-  useNavigate: () => vi.fn(),
-  useRouter: () => ({ history: { back: mockHistoryBack } }),
-}));
+vi.mock("@tanstack/react-router", async () => {
+  const { createNavigateWithHistoryMock } = await import(
+    "~/renderer/__test-setup__/router-mock"
+  );
+  return createNavigateWithHistoryMock(vi.fn(), mockHistoryBack);
+});
 
 vi.mock("~/renderer/components", () => ({
   BackButton: ({ fallback, label, ...props }: any) => (
@@ -46,7 +53,7 @@ vi.mock("react-icons/gi", () => ({
   GiLockedChest: () => <span data-testid="icon-chest" />,
 }));
 
-const mockUseSessionDetails = vi.mocked(useSessionDetails);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -60,7 +67,7 @@ function createMockSessionDetails(overrides: any = {}) {
 
 function setupStore(overrides: any = {}) {
   const sessionDetails = createMockSessionDetails(overrides.sessionDetails);
-  mockUseSessionDetails.mockReturnValue(sessionDetails);
+  mockUseBoundStore.mockReturnValue({ sessionDetails } as any);
   return sessionDetails;
 }
 

@@ -1,14 +1,17 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useSessionDetails } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import type { CardEntry } from "../../SessionDetails.types";
 import SessionDetailsTable from "./SessionDetailsTable";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useSessionDetails: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
 vi.mock("~/renderer/components/CardNameLink/CardNameLink", () => ({
   default: ({ cardName, className }: any) => (
@@ -18,12 +21,12 @@ vi.mock("~/renderer/components/CardNameLink/CardNameLink", () => ({
   ),
 }));
 
-vi.mock("~/renderer/hooks/usePopover/usePopover", () => ({
-  usePopover: () => ({
-    triggerRef: { current: null },
-    popoverRef: { current: null },
-  }),
-}));
+vi.mock("~/renderer/hooks/usePopover/usePopover", async () => {
+  const { createPopoverMock } = await import(
+    "~/renderer/__test-setup__/popover-mock"
+  );
+  return createPopoverMock();
+});
 
 vi.mock("~/renderer/components", () => ({
   DivinationCard: ({ card }: any) => (
@@ -99,7 +102,7 @@ vi.mock("react-icons/fi", () => ({
   FiEyeOff: (props: any) => <span data-testid="icon-eye-off" {...props} />,
 }));
 
-const mockUseSessionDetails = vi.mocked(useSessionDetails);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -148,7 +151,7 @@ function createMockSessionDetails(overrides: any = {}) {
 
 function setupStore(overrides: any = {}) {
   const store = createMockSessionDetails(overrides);
-  mockUseSessionDetails.mockReturnValue(store);
+  mockUseBoundStore.mockReturnValue({ sessionDetails: store } as any);
   return store;
 }
 

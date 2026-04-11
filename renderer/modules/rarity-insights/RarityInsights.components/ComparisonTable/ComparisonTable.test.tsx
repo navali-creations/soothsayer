@@ -1,5 +1,6 @@
 import { render } from "@testing-library/react";
 
+import { makeDivinationCardDTO } from "~/renderer/__test-setup__/fixtures";
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
 import { useBoundStore } from "~/renderer/store";
 
@@ -7,9 +8,12 @@ import ComparisonTable from "./ComparisonTable";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
 vi.mock("../PoeNinjaColumnHeader", () => ({
   default: () => <div data-testid="ninja-header" />,
@@ -86,7 +90,7 @@ vi.mock("~/renderer/components", () => ({
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 function makeCard(overrides: Record<string, any> = {}) {
-  return {
+  return makeDivinationCardDTO({
     id: overrides.id ?? "poe1_test-card",
     name: overrides.name ?? "Test Card",
     stackSize: overrides.stackSize ?? 5,
@@ -95,13 +99,13 @@ function makeCard(overrides: Record<string, any> = {}) {
     artSrc: overrides.artSrc ?? "art.png",
     flavourHtml: overrides.flavourHtml ?? "",
     rarity: overrides.rarity ?? 3,
+    createdAt: overrides.createdAt ?? "2024-01-01",
+    updatedAt: overrides.updatedAt ?? "2024-01-01",
     filterRarity: overrides.filterRarity ?? null,
     prohibitedLibraryRarity: overrides.prohibitedLibraryRarity ?? null,
     fromBoss: overrides.fromBoss ?? false,
     game: overrides.game ?? "poe1",
-    createdAt: overrides.createdAt ?? "2024-01-01",
-    updatedAt: overrides.updatedAt ?? "2024-01-01",
-  };
+  });
 }
 
 function makeFilter(overrides: Record<string, any> = {}) {

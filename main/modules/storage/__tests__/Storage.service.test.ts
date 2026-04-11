@@ -1,4 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+﻿import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { getIpcHandler } from "~/main/modules/__test-utils__/mock-factories";
 
 // ─── Hoisted mock functions ──────────────────────────────────────────────────
 const {
@@ -101,7 +103,6 @@ vi.mock("node:fs", async () => {
   };
 });
 
-// ─── Import test utilities and module under test ─────────────────────────────
 import {
   createTestDatabase,
   seedCsvExportSnapshot,
@@ -114,26 +115,13 @@ import {
   seedSnapshot,
   type TestDatabase,
 } from "~/main/modules/__test-utils__/create-test-db";
+// ─── Import test utilities and module under test ─────────────────────────────
+import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
 
 import { StorageChannel } from "../Storage.channels";
 import { StorageService } from "../Storage.service";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function getIpcHandler(channel: string): (...args: any[]) => any {
-  const call = mockIpcHandle.mock.calls.find(
-    ([ch]: [string]) => ch === channel,
-  );
-  if (!call) {
-    const registered = mockIpcHandle.mock.calls
-      .map(([ch]: [string]) => ch)
-      .join(", ");
-    throw new Error(
-      `ipcMain.handle was not called with "${channel}". Registered: ${registered}`,
-    );
-  }
-  return call[1];
-}
 
 // ─── Test Suite ──────────────────────────────────────────────────────────────
 
@@ -165,15 +153,13 @@ describe("StorageService", () => {
     mockReaddir.mockResolvedValue([]);
 
     // Reset the singleton
-    // @ts-expect-error accessing private static for testing
-    StorageService._instance = undefined;
+    resetSingleton(StorageService);
 
     StorageService.getInstance();
   });
 
   afterEach(async () => {
-    // @ts-expect-error accessing private static for testing
-    StorageService._instance = undefined;
+    resetSingleton(StorageService);
     await testDb.close();
     vi.clearAllMocks();
   });
@@ -184,8 +170,7 @@ describe("StorageService", () => {
 
   describe("getInstance", () => {
     it("should return the same instance on repeated calls", () => {
-      // @ts-expect-error accessing private static for testing
-      StorageService._instance = undefined;
+      resetSingleton(StorageService);
       const a = StorageService.getInstance();
       const b = StorageService.getInstance();
       expect(a).toBe(b);
@@ -224,7 +209,10 @@ describe("StorageService", () => {
 
   describe("getLeagueStorageUsage", () => {
     it("should return empty array when no leagues exist", async () => {
-      const handler = getIpcHandler(StorageChannel.GetLeagueUsage);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.GetLeagueUsage,
+      );
       const result = await handler({});
 
       expect(result).toEqual([]);
@@ -233,7 +221,10 @@ describe("StorageService", () => {
     it("should return league with zero counts when league has no data", async () => {
       await seedLeague(testDb.kysely, { name: "Empty League", game: "poe1" });
 
-      const handler = getIpcHandler(StorageChannel.GetLeagueUsage);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.GetLeagueUsage,
+      );
       const result = await handler({});
 
       expect(result).toHaveLength(1);
@@ -279,7 +270,10 @@ describe("StorageService", () => {
         league: "Settlers",
       });
 
-      const handler = getIpcHandler(StorageChannel.GetLeagueUsage);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.GetLeagueUsage,
+      );
       const result = await handler({});
 
       expect(result).toHaveLength(1);
@@ -300,7 +294,10 @@ describe("StorageService", () => {
         isActive: true,
       });
 
-      const handler = getIpcHandler(StorageChannel.GetLeagueUsage);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.GetLeagueUsage,
+      );
       const result = await handler({});
 
       expect(result).toHaveLength(1);
@@ -341,7 +338,10 @@ describe("StorageService", () => {
         isActive: false,
       });
 
-      const handler = getIpcHandler(StorageChannel.GetLeagueUsage);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.GetLeagueUsage,
+      );
       const result = await handler({});
 
       expect(result).toHaveLength(2);
@@ -370,7 +370,10 @@ describe("StorageService", () => {
         rarity: 1,
       });
 
-      const handler = getIpcHandler(StorageChannel.GetLeagueUsage);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.GetLeagueUsage,
+      );
       const result = await handler({});
 
       expect(result).toHaveLength(1);
@@ -390,7 +393,10 @@ describe("StorageService", () => {
         isActive: false,
       });
 
-      const handler = getIpcHandler(StorageChannel.GetLeagueUsage);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.GetLeagueUsage,
+      );
       const result = await handler({});
 
       expect(result).toHaveLength(1);
@@ -413,7 +419,10 @@ describe("StorageService", () => {
         )
         .run("poe1", "PL League", "The Doctor", 0, 0, 500, "2025-01-01");
 
-      const handler = getIpcHandler(StorageChannel.GetLeagueUsage);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.GetLeagueUsage,
+      );
       const result = await handler({});
 
       expect(result).toHaveLength(1);
@@ -452,7 +461,10 @@ describe("StorageService", () => {
         },
       ]);
 
-      const handler = getIpcHandler(StorageChannel.GetLeagueUsage);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.GetLeagueUsage,
+      );
       const result = await handler({});
 
       expect(result).toHaveLength(1);
@@ -467,7 +479,10 @@ describe("StorageService", () => {
 
   describe("deleteLeagueData", () => {
     it("should return error for empty league ID", async () => {
-      const handler = getIpcHandler(StorageChannel.DeleteLeagueData);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.DeleteLeagueData,
+      );
       const result = await handler({}, "");
 
       expect(result).toMatchObject({
@@ -478,7 +493,10 @@ describe("StorageService", () => {
     });
 
     it("should return error for null league ID", async () => {
-      const handler = getIpcHandler(StorageChannel.DeleteLeagueData);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.DeleteLeagueData,
+      );
       const result = await handler({}, null);
 
       expect(result).toMatchObject({
@@ -489,7 +507,10 @@ describe("StorageService", () => {
     });
 
     it("should return error for non-string league ID", async () => {
-      const handler = getIpcHandler(StorageChannel.DeleteLeagueData);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.DeleteLeagueData,
+      );
       const result = await handler({}, 12345);
 
       expect(result).toMatchObject({
@@ -510,7 +531,10 @@ describe("StorageService", () => {
         isActive: true,
       });
 
-      const handler = getIpcHandler(StorageChannel.DeleteLeagueData);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.DeleteLeagueData,
+      );
       const result = await handler({}, leagueId);
 
       expect(result).toMatchObject({
@@ -521,7 +545,10 @@ describe("StorageService", () => {
     });
 
     it("should return error when league does not exist", async () => {
-      const handler = getIpcHandler(StorageChannel.DeleteLeagueData);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.DeleteLeagueData,
+      );
       const result = await handler({}, "non-existent-league-id");
 
       expect(result).toMatchObject({
@@ -537,7 +564,10 @@ describe("StorageService", () => {
         game: "poe1",
       });
 
-      const handler = getIpcHandler(StorageChannel.DeleteLeagueData);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.DeleteLeagueData,
+      );
       const result = await handler({}, leagueId);
 
       expect(result.success).toBe(true);
@@ -630,7 +660,10 @@ describe("StorageService", () => {
         },
       ]);
 
-      const handler = getIpcHandler(StorageChannel.DeleteLeagueData);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.DeleteLeagueData,
+      );
       const result = await handler({}, leagueId);
 
       expect(result.success).toBe(true);
@@ -762,7 +795,10 @@ describe("StorageService", () => {
         },
       ]);
 
-      const handler = getIpcHandler(StorageChannel.DeleteLeagueData);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.DeleteLeagueData,
+      );
       await handler({}, leagueToDelete);
 
       // Deleted league's data should be gone
@@ -849,7 +885,10 @@ describe("StorageService", () => {
         },
       ]);
 
-      const handler = getIpcHandler(StorageChannel.DeleteLeagueData);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.DeleteLeagueData,
+      );
       const result = await handler({}, leagueId);
 
       expect(result.success).toBe(true);
@@ -901,7 +940,10 @@ describe("StorageService", () => {
         },
       ]);
 
-      const handler = getIpcHandler(StorageChannel.DeleteLeagueData);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.DeleteLeagueData,
+      );
       const result = await handler({}, poe1League);
 
       expect(result.success).toBe(true);
@@ -947,7 +989,10 @@ describe("StorageService", () => {
         { cardName: "Rain of Chaos", count: 15 },
       ]);
 
-      const handler = getIpcHandler(StorageChannel.DeleteLeagueData);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.DeleteLeagueData,
+      );
       const result = await handler({}, leagueId);
 
       expect(result.success).toBe(true);
@@ -980,7 +1025,10 @@ describe("StorageService", () => {
         isActive: false,
       });
 
-      const handler = getIpcHandler(StorageChannel.DeleteLeagueData);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.DeleteLeagueData,
+      );
       const result = await handler({}, leagueId);
 
       expect(result.success).toBe(true);
@@ -1001,7 +1049,10 @@ describe("StorageService", () => {
       // cascade DELETE references, causing an SQL error mid-transaction.
       testDb.db.exec("DROP TABLE snapshot_card_prices");
 
-      const handler = getIpcHandler(StorageChannel.DeleteLeagueData);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.DeleteLeagueData,
+      );
       const result = await handler({}, leagueId);
 
       expect(result.success).toBe(false);
@@ -1044,7 +1095,10 @@ describe("StorageService", () => {
         rarity: 2,
       });
 
-      const handler = getIpcHandler(StorageChannel.DeleteLeagueData);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.DeleteLeagueData,
+      );
       const result = await handler({}, leagueId);
 
       expect(result.success).toBe(true);
@@ -1071,7 +1125,10 @@ describe("StorageService", () => {
         bavail: 125000000,
       });
 
-      const handler = getIpcHandler(StorageChannel.CheckDiskSpace);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.CheckDiskSpace,
+      );
       const result = await handler({});
 
       expect(result.isLow).toBe(false);
@@ -1086,7 +1143,10 @@ describe("StorageService", () => {
         bavail: 122070, // ~500 MB
       });
 
-      const handler = getIpcHandler(StorageChannel.CheckDiskSpace);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.CheckDiskSpace,
+      );
       const result = await handler({});
 
       expect(result.isLow).toBe(true);
@@ -1100,7 +1160,10 @@ describe("StorageService", () => {
         bavail: 0,
       });
 
-      const handler = getIpcHandler(StorageChannel.CheckDiskSpace);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.CheckDiskSpace,
+      );
       const result = await handler({});
 
       expect(result.isLow).toBe(true);
@@ -1117,7 +1180,10 @@ describe("StorageService", () => {
         bavail: 262144, // 4096 * 262144 = 1073741824 = exactly 1 GB
       });
 
-      const handler = getIpcHandler(StorageChannel.CheckDiskSpace);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.CheckDiskSpace,
+      );
       const result = await handler({});
 
       // 1 GB is not "less than 1 GB", so it should not be low
@@ -1131,7 +1197,10 @@ describe("StorageService", () => {
         bavail: 262143, // just under 1 GB
       });
 
-      const handler = getIpcHandler(StorageChannel.CheckDiskSpace);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.CheckDiskSpace,
+      );
       const result = await handler({});
 
       expect(result.isLow).toBe(true);
@@ -1140,7 +1209,10 @@ describe("StorageService", () => {
     it("should handle statfsSync throwing an error gracefully", async () => {
       mockStatfs.mockRejectedValue(new Error("Permission denied"));
 
-      const handler = getIpcHandler(StorageChannel.CheckDiskSpace);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.CheckDiskSpace,
+      );
       const result = await handler({});
 
       // getDiskStats returns { total: 0, free: 0 } on error, so free < 1GB → isLow
@@ -1158,7 +1230,7 @@ describe("StorageService", () => {
       mockAppGetPath.mockReturnValue("/home/seb/.config/soothsayer");
       mockGetPath.mockReturnValue("/home/seb/.config/soothsayer/soothsayer.db");
 
-      const handler = getIpcHandler(StorageChannel.GetInfo);
+      const handler = getIpcHandler(mockIpcHandle, StorageChannel.GetInfo);
       const result = await handler({});
 
       // Path should be masked — user-specific segments replaced with **
@@ -1172,7 +1244,7 @@ describe("StorageService", () => {
     it("should return full unmasked appDataPath via RevealPaths handler", async () => {
       mockAppGetPath.mockReturnValue("/home/seb/.config/soothsayer");
 
-      const handler = getIpcHandler(StorageChannel.RevealPaths);
+      const handler = getIpcHandler(mockIpcHandle, StorageChannel.RevealPaths);
       const result = await handler({});
 
       expect(result.appDataPath).toBe("/home/seb/.config/soothsayer");
@@ -1186,7 +1258,7 @@ describe("StorageService", () => {
         bavail: 500000,
       });
 
-      const handler = getIpcHandler(StorageChannel.GetInfo);
+      const handler = getIpcHandler(mockIpcHandle, StorageChannel.GetInfo);
       const result = await handler({});
 
       expect(result.diskTotalBytes).toBe(4096 * 1000000);
@@ -1199,14 +1271,14 @@ describe("StorageService", () => {
         isFile: () => true,
       });
 
-      const handler = getIpcHandler(StorageChannel.GetInfo);
+      const handler = getIpcHandler(mockIpcHandle, StorageChannel.GetInfo);
       const result = await handler({});
 
       expect(result.dbSizeBytes).toBe(82 * 1024 * 1024);
     });
 
     it("should include breakdown array", async () => {
-      const handler = getIpcHandler(StorageChannel.GetInfo);
+      const handler = getIpcHandler(mockIpcHandle, StorageChannel.GetInfo);
       const result = await handler({});
 
       expect(result.breakdown).toBeDefined();
@@ -1221,7 +1293,7 @@ describe("StorageService", () => {
         return { size: 0, isFile: () => true };
       });
 
-      const handler = getIpcHandler(StorageChannel.GetInfo);
+      const handler = getIpcHandler(mockIpcHandle, StorageChannel.GetInfo);
       const result = await handler({});
 
       expect(result.dbSizeBytes).toBe(0);
@@ -1242,7 +1314,7 @@ describe("StorageService", () => {
         return { bsize: 4096, blocks: 1000000, bavail: 800000 };
       });
 
-      const handler = getIpcHandler(StorageChannel.GetInfo);
+      const handler = getIpcHandler(mockIpcHandle, StorageChannel.GetInfo);
       const result = await handler({});
 
       // Results should include both drive stats
@@ -1270,7 +1342,7 @@ describe("StorageService", () => {
         isFile: () => true,
       });
 
-      const handler = getIpcHandler(StorageChannel.GetInfo);
+      const handler = getIpcHandler(mockIpcHandle, StorageChannel.GetInfo);
       const result = await handler({});
 
       const dbCategory = result.breakdown.find(
@@ -1291,7 +1363,7 @@ describe("StorageService", () => {
       ]);
       mockFspStat.mockResolvedValue({ size: 1024, isFile: () => true });
 
-      const handler = getIpcHandler(StorageChannel.GetInfo);
+      const handler = getIpcHandler(mockIpcHandle, StorageChannel.GetInfo);
       const result = await handler({});
 
       const dbCategory = result.breakdown.find(
@@ -1317,7 +1389,7 @@ describe("StorageService", () => {
       ]);
       mockFspStat.mockResolvedValue({ size: 512, isFile: () => true });
 
-      const handler = getIpcHandler(StorageChannel.GetInfo);
+      const handler = getIpcHandler(mockIpcHandle, StorageChannel.GetInfo);
       const result = await handler({});
 
       const dbCategory = result.breakdown.find(
@@ -1359,7 +1431,7 @@ describe("StorageService", () => {
       });
       mockFspStat.mockResolvedValue({ size: 256, isFile: () => true });
 
-      const handler = getIpcHandler(StorageChannel.GetInfo);
+      const handler = getIpcHandler(mockIpcHandle, StorageChannel.GetInfo);
       const result = await handler({});
 
       const dbCategory = result.breakdown.find(
@@ -1394,7 +1466,7 @@ describe("StorageService", () => {
       });
       mockFspStat.mockResolvedValue({ size: 4096, isFile: () => true });
 
-      const handler = getIpcHandler(StorageChannel.GetInfo);
+      const handler = getIpcHandler(mockIpcHandle, StorageChannel.GetInfo);
       const result = await handler({});
 
       const cacheCategory = result.breakdown.find(
@@ -1430,7 +1502,7 @@ describe("StorageService", () => {
       });
       mockFspStat.mockResolvedValue({ size: 2048, isFile: () => true });
 
-      const handler = getIpcHandler(StorageChannel.GetInfo);
+      const handler = getIpcHandler(mockIpcHandle, StorageChannel.GetInfo);
       const result = await handler({});
 
       const cacheCategory = result.breakdown.find(
@@ -1465,7 +1537,7 @@ describe("StorageService", () => {
       });
       mockFspStat.mockResolvedValue({ size: 1024, isFile: () => true });
 
-      const handler = getIpcHandler(StorageChannel.GetInfo);
+      const handler = getIpcHandler(mockIpcHandle, StorageChannel.GetInfo);
       const result = await handler({});
 
       const cacheCategory = result.breakdown.find(
@@ -1500,7 +1572,7 @@ describe("StorageService", () => {
       });
       mockFspStat.mockResolvedValue({ size: 512, isFile: () => true });
 
-      const handler = getIpcHandler(StorageChannel.GetInfo);
+      const handler = getIpcHandler(mockIpcHandle, StorageChannel.GetInfo);
       const result = await handler({});
 
       const cacheCategory = result.breakdown.find(
@@ -1520,7 +1592,7 @@ describe("StorageService", () => {
       ]);
       mockFspStat.mockResolvedValue({ size: 128, isFile: () => true });
 
-      const handler = getIpcHandler(StorageChannel.GetInfo);
+      const handler = getIpcHandler(mockIpcHandle, StorageChannel.GetInfo);
       const result = await handler({});
 
       const otherCategory = result.breakdown.find(
@@ -1533,7 +1605,7 @@ describe("StorageService", () => {
     it("should handle directory read errors gracefully", async () => {
       mockReaddir.mockRejectedValue(new Error("Access denied"));
 
-      const handler = getIpcHandler(StorageChannel.GetInfo);
+      const handler = getIpcHandler(mockIpcHandle, StorageChannel.GetInfo);
       const result = await handler({});
 
       // Should return empty breakdown, not throw
@@ -1563,7 +1635,7 @@ describe("StorageService", () => {
         return { size: 256, isFile: () => true };
       });
 
-      const handler = getIpcHandler(StorageChannel.GetInfo);
+      const handler = getIpcHandler(mockIpcHandle, StorageChannel.GetInfo);
       const result = await handler({});
 
       // Should still include the readable file
@@ -1623,7 +1695,7 @@ describe("StorageService", () => {
         return { size: 0, isFile: () => true };
       });
 
-      const handler = getIpcHandler(StorageChannel.GetInfo);
+      const handler = getIpcHandler(mockIpcHandle, StorageChannel.GetInfo);
       const result = await handler({});
 
       // breakdown should be sorted by size descending
@@ -1648,7 +1720,7 @@ describe("StorageService", () => {
       ]);
       mockFspStat.mockResolvedValue({ size: 1024, isFile: () => true });
 
-      const handler = getIpcHandler(StorageChannel.GetInfo);
+      const handler = getIpcHandler(mockIpcHandle, StorageChannel.GetInfo);
       const result = await handler({});
 
       // Should only include the "database" category
@@ -1669,7 +1741,7 @@ describe("StorageService", () => {
       ]);
       mockFspStat.mockResolvedValue({ size: 512, isFile: () => true });
 
-      const handler = getIpcHandler(StorageChannel.GetInfo);
+      const handler = getIpcHandler(mockIpcHandle, StorageChannel.GetInfo);
       const result = await handler({});
 
       const dbCategory = result.breakdown.find(
@@ -1689,7 +1761,7 @@ describe("StorageService", () => {
       ]);
       mockFspStat.mockResolvedValue({ size: 128, isFile: () => true });
 
-      const handler = getIpcHandler(StorageChannel.GetInfo);
+      const handler = getIpcHandler(mockIpcHandle, StorageChannel.GetInfo);
       const result = await handler({});
 
       const dbCategory = result.breakdown.find(
@@ -1724,7 +1796,7 @@ describe("StorageService", () => {
       });
       mockFspStat.mockResolvedValue({ size: 2048, isFile: () => true });
 
-      const handler = getIpcHandler(StorageChannel.GetInfo);
+      const handler = getIpcHandler(mockIpcHandle, StorageChannel.GetInfo);
       const result = await handler({});
 
       const cacheCategory = result.breakdown.find(
@@ -1759,7 +1831,7 @@ describe("StorageService", () => {
       });
       mockFspStat.mockResolvedValue({ size: 3072, isFile: () => true });
 
-      const handler = getIpcHandler(StorageChannel.GetInfo);
+      const handler = getIpcHandler(mockIpcHandle, StorageChannel.GetInfo);
       const result = await handler({});
 
       const cacheCategory = result.breakdown.find(
@@ -1806,7 +1878,7 @@ describe("StorageService", () => {
       });
       mockFspStat.mockResolvedValue({ size: 1024, isFile: () => true });
 
-      const handler = getIpcHandler(StorageChannel.GetInfo);
+      const handler = getIpcHandler(mockIpcHandle, StorageChannel.GetInfo);
       const result = await handler({});
 
       const dbCategory = result.breakdown.find(
@@ -1867,7 +1939,7 @@ describe("StorageService", () => {
       });
       mockFspStat.mockResolvedValue({ size: 64, isFile: () => true });
 
-      const handler = getIpcHandler(StorageChannel.GetInfo);
+      const handler = getIpcHandler(mockIpcHandle, StorageChannel.GetInfo);
       const result = await handler({});
 
       // The deeply nested file should be categorized
@@ -1888,7 +1960,7 @@ describe("StorageService", () => {
       mockFspStat.mockRejectedValue(new Error("ENOENT"));
       mockReaddir.mockResolvedValue([]);
 
-      const handler = getIpcHandler(StorageChannel.GetInfo);
+      const handler = getIpcHandler(mockIpcHandle, StorageChannel.GetInfo);
       const result = await handler({});
 
       expect(result.dbSizeBytes).toBe(0);
@@ -1897,7 +1969,7 @@ describe("StorageService", () => {
     it("getDiskStats should return zero total and free on error", async () => {
       mockStatfs.mockRejectedValue(new Error("ENOENT"));
 
-      const handler = getIpcHandler(StorageChannel.GetInfo);
+      const handler = getIpcHandler(mockIpcHandle, StorageChannel.GetInfo);
       const result = await handler({});
 
       expect(result.diskTotalBytes).toBe(0);
@@ -1923,7 +1995,10 @@ describe("StorageService", () => {
         isActive: true,
       });
 
-      const deleteHandler = getIpcHandler(StorageChannel.DeleteLeagueData);
+      const deleteHandler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.DeleteLeagueData,
+      );
 
       // Attempt to delete while session is active should fail
       const failResult = await deleteHandler({}, leagueId);
@@ -1951,8 +2026,14 @@ describe("StorageService", () => {
         isActive: false,
       });
 
-      const usageHandler = getIpcHandler(StorageChannel.GetLeagueUsage);
-      const deleteHandler = getIpcHandler(StorageChannel.DeleteLeagueData);
+      const usageHandler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.GetLeagueUsage,
+      );
+      const deleteHandler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.DeleteLeagueData,
+      );
 
       // Should appear in usage
       const beforeUsage = await usageHandler({});
@@ -1989,12 +2070,18 @@ describe("StorageService", () => {
       });
 
       // Delete only the poe1 league
-      const deleteHandler = getIpcHandler(StorageChannel.DeleteLeagueData);
+      const deleteHandler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.DeleteLeagueData,
+      );
       const result = await deleteHandler({}, poe1League);
       expect(result.success).toBe(true);
 
       // poe2 league should still exist
-      const usageHandler = getIpcHandler(StorageChannel.GetLeagueUsage);
+      const usageHandler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.GetLeagueUsage,
+      );
       const usage = await usageHandler({});
       expect(usage).toHaveLength(1);
       expect(usage[0].game).toBe("poe2");
@@ -2036,7 +2123,10 @@ describe("StorageService", () => {
         ],
       });
 
-      const handler = getIpcHandler(StorageChannel.DeleteLeagueData);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.DeleteLeagueData,
+      );
       const result = await handler({}, leagueId);
       expect(result.success).toBe(true);
 
@@ -2062,7 +2152,10 @@ describe("StorageService", () => {
         )
         .run("cache-1", "poe1", leagueId, "Cached League", 1, "2025-01-01");
 
-      const usageHandler = getIpcHandler(StorageChannel.GetLeagueUsage);
+      const usageHandler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.GetLeagueUsage,
+      );
       const usage = await usageHandler({});
 
       expect(usage).toHaveLength(1);

@@ -24,9 +24,9 @@ import {
   RARITY_INSIGHTS_CARDS,
 } from "../../fixtures/rarity-insights-fixture";
 import { expect } from "../../helpers/electron-test";
-import { setSetting } from "../../helpers/ipc-helpers";
 import { getCurrentRoute, navigateTo } from "../../helpers/navigation";
 import {
+  resetLeagueToFixture,
   seedFilterData,
   seedLeagueCache,
   seedRarityInsightsData,
@@ -63,15 +63,7 @@ export function createSeedGuard() {
     // ensures the renderer's `useEffect` dependencies and
     // `getActiveGameViewSelectedLeague()` return the correct value so
     // `loadCards()` is triggered with the right context.
-    await setSetting(page, "poe1SelectedLeague", FIXTURE_LEAGUE);
-    await page.evaluate((league) => {
-      const store = (window as any).__zustandStore;
-      if (store) {
-        store.setState((s: any) => {
-          s.settings.poe1SelectedLeague = league;
-        });
-      }
-    }, FIXTURE_LEAGUE);
+    await resetLeagueToFixture(page, FIXTURE_LEAGUE);
 
     if (dataSeeded) return;
 

@@ -1,37 +1,28 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
-  createTestDatabase,
   seedDivinationCard,
   seedDivinationCardRarity,
   seedLeague,
   seedSession,
   seedSessionCards,
-  type TestDatabase,
 } from "~/main/modules/__test-utils__/create-test-db";
+import { setupRepositoryTest } from "~/main/modules/__test-utils__/repository-test-setup";
 
 import { CardDetailsRepository } from "../CardDetails.repository";
 
 // ─── Test Setup ──────────────────────────────────────────────────────────────
 
 describe("CardDetailsRepository", () => {
-  let testDb: TestDatabase;
-  let repository: CardDetailsRepository;
-
-  beforeEach(() => {
-    testDb = createTestDatabase();
-    repository = new CardDetailsRepository(testDb.kysely);
-  });
-
-  afterEach(async () => {
-    await testDb.close();
-  });
+  const { getRepository, getTestDb } = setupRepositoryTest(
+    CardDetailsRepository,
+  );
 
   // ─── getCachedPriceHistory ───────────────────────────────────────────────
 
   describe("getCachedPriceHistory", () => {
     it("should return null when no cache entry exists (cache miss)", async () => {
-      const result = await repository.getCachedPriceHistory(
+      const result = await getRepository().getCachedPriceHistory(
         "poe1",
         "Settlers",
         "house-of-mirrors",
@@ -45,7 +36,7 @@ describe("CardDetailsRepository", () => {
         currentDivineRate: 300.4,
       });
 
-      await repository.upsertPriceHistory(
+      await getRepository().upsertPriceHistory(
         "poe1",
         "Settlers",
         "house-of-mirrors",
@@ -54,7 +45,7 @@ describe("CardDetailsRepository", () => {
         "2026-03-05T12:00:00Z",
       );
 
-      const result = await repository.getCachedPriceHistory(
+      const result = await getRepository().getCachedPriceHistory(
         "poe1",
         "Settlers",
         "house-of-mirrors",
@@ -70,7 +61,7 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should not return entries for a different game", async () => {
-      await repository.upsertPriceHistory(
+      await getRepository().upsertPriceHistory(
         "poe1",
         "Settlers",
         "house-of-mirrors",
@@ -79,7 +70,7 @@ describe("CardDetailsRepository", () => {
         "2026-03-05T12:00:00Z",
       );
 
-      const result = await repository.getCachedPriceHistory(
+      const result = await getRepository().getCachedPriceHistory(
         "poe2",
         "Settlers",
         "house-of-mirrors",
@@ -89,7 +80,7 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should not return entries for a different league", async () => {
-      await repository.upsertPriceHistory(
+      await getRepository().upsertPriceHistory(
         "poe1",
         "Settlers",
         "house-of-mirrors",
@@ -98,7 +89,7 @@ describe("CardDetailsRepository", () => {
         "2026-03-05T12:00:00Z",
       );
 
-      const result = await repository.getCachedPriceHistory(
+      const result = await getRepository().getCachedPriceHistory(
         "poe1",
         "Standard",
         "house-of-mirrors",
@@ -108,7 +99,7 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should not return entries for a different detailsId", async () => {
-      await repository.upsertPriceHistory(
+      await getRepository().upsertPriceHistory(
         "poe1",
         "Settlers",
         "house-of-mirrors",
@@ -117,7 +108,7 @@ describe("CardDetailsRepository", () => {
         "2026-03-05T12:00:00Z",
       );
 
-      const result = await repository.getCachedPriceHistory(
+      const result = await getRepository().getCachedPriceHistory(
         "poe1",
         "Settlers",
         "the-doctor",
@@ -131,7 +122,7 @@ describe("CardDetailsRepository", () => {
 
   describe("upsertPriceHistory", () => {
     it("should insert a new cache entry", async () => {
-      await repository.upsertPriceHistory(
+      await getRepository().upsertPriceHistory(
         "poe1",
         "Settlers",
         "the-doctor",
@@ -140,7 +131,7 @@ describe("CardDetailsRepository", () => {
         "2026-03-05T12:00:00Z",
       );
 
-      const result = await repository.getCachedPriceHistory(
+      const result = await getRepository().getCachedPriceHistory(
         "poe1",
         "Settlers",
         "the-doctor",
@@ -154,7 +145,7 @@ describe("CardDetailsRepository", () => {
 
     it("should update an existing cache entry (upsert)", async () => {
       // Insert original
-      await repository.upsertPriceHistory(
+      await getRepository().upsertPriceHistory(
         "poe1",
         "Settlers",
         "the-doctor",
@@ -164,7 +155,7 @@ describe("CardDetailsRepository", () => {
       );
 
       // Upsert with new data
-      await repository.upsertPriceHistory(
+      await getRepository().upsertPriceHistory(
         "poe1",
         "Settlers",
         "the-doctor",
@@ -173,7 +164,7 @@ describe("CardDetailsRepository", () => {
         "2026-03-05T13:00:00Z",
       );
 
-      const result = await repository.getCachedPriceHistory(
+      const result = await getRepository().getCachedPriceHistory(
         "poe1",
         "Settlers",
         "the-doctor",
@@ -185,7 +176,7 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should preserve separate entries for different games", async () => {
-      await repository.upsertPriceHistory(
+      await getRepository().upsertPriceHistory(
         "poe1",
         "Settlers",
         "the-doctor",
@@ -194,7 +185,7 @@ describe("CardDetailsRepository", () => {
         "2026-03-05T12:00:00Z",
       );
 
-      await repository.upsertPriceHistory(
+      await getRepository().upsertPriceHistory(
         "poe2",
         "Settlers",
         "the-doctor",
@@ -203,12 +194,12 @@ describe("CardDetailsRepository", () => {
         "2026-03-05T12:00:00Z",
       );
 
-      const poe1 = await repository.getCachedPriceHistory(
+      const poe1 = await getRepository().getCachedPriceHistory(
         "poe1",
         "Settlers",
         "the-doctor",
       );
-      const poe2 = await repository.getCachedPriceHistory(
+      const poe2 = await getRepository().getCachedPriceHistory(
         "poe2",
         "Settlers",
         "the-doctor",
@@ -219,7 +210,7 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should preserve separate entries for different leagues", async () => {
-      await repository.upsertPriceHistory(
+      await getRepository().upsertPriceHistory(
         "poe1",
         "Settlers",
         "the-doctor",
@@ -228,7 +219,7 @@ describe("CardDetailsRepository", () => {
         "2026-03-05T12:00:00Z",
       );
 
-      await repository.upsertPriceHistory(
+      await getRepository().upsertPriceHistory(
         "poe1",
         "Standard",
         "the-doctor",
@@ -237,12 +228,12 @@ describe("CardDetailsRepository", () => {
         "2026-03-05T12:00:00Z",
       );
 
-      const settlers = await repository.getCachedPriceHistory(
+      const settlers = await getRepository().getCachedPriceHistory(
         "poe1",
         "Settlers",
         "the-doctor",
       );
-      const standard = await repository.getCachedPriceHistory(
+      const standard = await getRepository().getCachedPriceHistory(
         "poe1",
         "Standard",
         "the-doctor",
@@ -253,7 +244,7 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should update card_name on upsert (e.g. if name formatting changes)", async () => {
-      await repository.upsertPriceHistory(
+      await getRepository().upsertPriceHistory(
         "poe1",
         "Settlers",
         "the-doctor",
@@ -262,7 +253,7 @@ describe("CardDetailsRepository", () => {
         "2026-03-05T12:00:00Z",
       );
 
-      await repository.upsertPriceHistory(
+      await getRepository().upsertPriceHistory(
         "poe1",
         "Settlers",
         "the-doctor",
@@ -271,7 +262,7 @@ describe("CardDetailsRepository", () => {
         "2026-03-05T12:30:00Z",
       );
 
-      const result = await repository.getCachedPriceHistory(
+      const result = await getRepository().getCachedPriceHistory(
         "poe1",
         "Settlers",
         "the-doctor",
@@ -290,14 +281,14 @@ describe("CardDetailsRepository", () => {
       ).toISOString(); // 10 minutes ago
       const ttl = 30 * 60 * 1000; // 30 minutes
 
-      expect(repository.isCacheStale(recentTimestamp, ttl)).toBe(false);
+      expect(getRepository().isCacheStale(recentTimestamp, ttl)).toBe(false);
     });
 
     it("should return true when cache is stale (past TTL)", () => {
       const oldTimestamp = new Date(Date.now() - 60 * 60 * 1000).toISOString(); // 1 hour ago
       const ttl = 30 * 60 * 1000; // 30 minutes
 
-      expect(repository.isCacheStale(oldTimestamp, ttl)).toBe(true);
+      expect(getRepository().isCacheStale(oldTimestamp, ttl)).toBe(true);
     });
 
     it("should return false when cache is exactly at TTL boundary", () => {
@@ -309,38 +300,40 @@ describe("CardDetailsRepository", () => {
 
       // Due to timing imprecision this could be either true or false
       // but in practice, just check it returns a boolean
-      const result = repository.isCacheStale(exactTimestamp, ttl);
+      const result = getRepository().isCacheStale(exactTimestamp, ttl);
       expect(typeof result).toBe("boolean");
     });
 
     it("should use default TTL of 30 minutes when not specified", () => {
       const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-      expect(repository.isCacheStale(fiveMinAgo)).toBe(false);
+      expect(getRepository().isCacheStale(fiveMinAgo)).toBe(false);
 
       const twoHoursAgo = new Date(
         Date.now() - 2 * 60 * 60 * 1000,
       ).toISOString();
-      expect(repository.isCacheStale(twoHoursAgo)).toBe(true);
+      expect(getRepository().isCacheStale(twoHoursAgo)).toBe(true);
     });
 
     it("should return true for very old timestamps", () => {
       const veryOld = "2024-01-01T00:00:00Z";
-      expect(repository.isCacheStale(veryOld)).toBe(true);
+      expect(getRepository().isCacheStale(veryOld)).toBe(true);
     });
 
     it("should return false for timestamps in the future", () => {
       const future = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-      expect(repository.isCacheStale(future)).toBe(false);
+      expect(getRepository().isCacheStale(future)).toBe(false);
     });
 
     it("should respect custom TTL values", () => {
       const twoMinAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
 
       // With 1 minute TTL, 2 minutes ago is stale
-      expect(repository.isCacheStale(twoMinAgo, 60 * 1000)).toBe(true);
+      expect(getRepository().isCacheStale(twoMinAgo, 60 * 1000)).toBe(true);
 
       // With 5 minute TTL, 2 minutes ago is fresh
-      expect(repository.isCacheStale(twoMinAgo, 5 * 60 * 1000)).toBe(false);
+      expect(getRepository().isCacheStale(twoMinAgo, 5 * 60 * 1000)).toBe(
+        false,
+      );
     });
   });
 
@@ -349,7 +342,7 @@ describe("CardDetailsRepository", () => {
   describe("deleteCacheForLeague", () => {
     it("should delete all entries for a specific game+league", async () => {
       // Insert entries for two different cards in the same league
-      await repository.upsertPriceHistory(
+      await getRepository().upsertPriceHistory(
         "poe1",
         "Settlers",
         "the-doctor",
@@ -357,7 +350,7 @@ describe("CardDetailsRepository", () => {
         "{}",
         "2026-03-05T12:00:00Z",
       );
-      await repository.upsertPriceHistory(
+      await getRepository().upsertPriceHistory(
         "poe1",
         "Settlers",
         "house-of-mirrors",
@@ -366,14 +359,14 @@ describe("CardDetailsRepository", () => {
         "2026-03-05T12:00:00Z",
       );
 
-      await repository.deleteCacheForLeague("poe1", "Settlers");
+      await getRepository().deleteCacheForLeague("poe1", "Settlers");
 
-      const r1 = await repository.getCachedPriceHistory(
+      const r1 = await getRepository().getCachedPriceHistory(
         "poe1",
         "Settlers",
         "the-doctor",
       );
-      const r2 = await repository.getCachedPriceHistory(
+      const r2 = await getRepository().getCachedPriceHistory(
         "poe1",
         "Settlers",
         "house-of-mirrors",
@@ -384,7 +377,7 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should not delete entries for a different league", async () => {
-      await repository.upsertPriceHistory(
+      await getRepository().upsertPriceHistory(
         "poe1",
         "Settlers",
         "the-doctor",
@@ -392,7 +385,7 @@ describe("CardDetailsRepository", () => {
         '{"league": "Settlers"}',
         "2026-03-05T12:00:00Z",
       );
-      await repository.upsertPriceHistory(
+      await getRepository().upsertPriceHistory(
         "poe1",
         "Standard",
         "the-doctor",
@@ -401,14 +394,14 @@ describe("CardDetailsRepository", () => {
         "2026-03-05T12:00:00Z",
       );
 
-      await repository.deleteCacheForLeague("poe1", "Settlers");
+      await getRepository().deleteCacheForLeague("poe1", "Settlers");
 
-      const deleted = await repository.getCachedPriceHistory(
+      const deleted = await getRepository().getCachedPriceHistory(
         "poe1",
         "Settlers",
         "the-doctor",
       );
-      const preserved = await repository.getCachedPriceHistory(
+      const preserved = await getRepository().getCachedPriceHistory(
         "poe1",
         "Standard",
         "the-doctor",
@@ -420,7 +413,7 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should not delete entries for a different game", async () => {
-      await repository.upsertPriceHistory(
+      await getRepository().upsertPriceHistory(
         "poe1",
         "Settlers",
         "the-doctor",
@@ -428,7 +421,7 @@ describe("CardDetailsRepository", () => {
         '{"game": "poe1"}',
         "2026-03-05T12:00:00Z",
       );
-      await repository.upsertPriceHistory(
+      await getRepository().upsertPriceHistory(
         "poe2",
         "Settlers",
         "the-doctor",
@@ -437,14 +430,14 @@ describe("CardDetailsRepository", () => {
         "2026-03-05T12:00:00Z",
       );
 
-      await repository.deleteCacheForLeague("poe1", "Settlers");
+      await getRepository().deleteCacheForLeague("poe1", "Settlers");
 
-      const deleted = await repository.getCachedPriceHistory(
+      const deleted = await getRepository().getCachedPriceHistory(
         "poe1",
         "Settlers",
         "the-doctor",
       );
-      const preserved = await repository.getCachedPriceHistory(
+      const preserved = await getRepository().getCachedPriceHistory(
         "poe2",
         "Settlers",
         "the-doctor",
@@ -457,7 +450,7 @@ describe("CardDetailsRepository", () => {
     it("should be a no-op when there are no matching entries", async () => {
       // Should not throw
       await expect(
-        repository.deleteCacheForLeague("poe1", "NonExistentLeague"),
+        getRepository().deleteCacheForLeague("poe1", "NonExistentLeague"),
       ).resolves.not.toThrow();
     });
   });
@@ -466,7 +459,7 @@ describe("CardDetailsRepository", () => {
 
   describe("deleteAll", () => {
     it("should delete all cache entries", async () => {
-      await repository.upsertPriceHistory(
+      await getRepository().upsertPriceHistory(
         "poe1",
         "Settlers",
         "the-doctor",
@@ -474,7 +467,7 @@ describe("CardDetailsRepository", () => {
         "{}",
         "2026-03-05T12:00:00Z",
       );
-      await repository.upsertPriceHistory(
+      await getRepository().upsertPriceHistory(
         "poe2",
         "Standard",
         "house-of-mirrors",
@@ -483,14 +476,14 @@ describe("CardDetailsRepository", () => {
         "2026-03-05T12:00:00Z",
       );
 
-      await repository.deleteAll();
+      await getRepository().deleteAll();
 
-      const r1 = await repository.getCachedPriceHistory(
+      const r1 = await getRepository().getCachedPriceHistory(
         "poe1",
         "Settlers",
         "the-doctor",
       );
-      const r2 = await repository.getCachedPriceHistory(
+      const r2 = await getRepository().getCachedPriceHistory(
         "poe2",
         "Standard",
         "house-of-mirrors",
@@ -501,7 +494,7 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should be a no-op when the table is empty", async () => {
-      await expect(repository.deleteAll()).resolves.not.toThrow();
+      await expect(getRepository().deleteAll()).resolves.not.toThrow();
     });
   });
 
@@ -509,7 +502,7 @@ describe("CardDetailsRepository", () => {
 
   describe("getCardPersonalStats", () => {
     it("should return zeros and nulls when no drops exist", async () => {
-      const result = await repository.getCardPersonalStats(
+      const result = await getRepository().getCardPersonalStats(
         "poe1",
         "House of Mirrors",
       );
@@ -521,9 +514,11 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should aggregate drops across multiple sessions", async () => {
-      const leagueId = await seedLeague(testDb.kysely, { name: "Settlers" });
+      const leagueId = await seedLeague(getTestDb().kysely, {
+        name: "Settlers",
+      });
 
-      const session1Id = await seedSession(testDb.kysely, {
+      const session1Id = await seedSession(getTestDb().kysely, {
         game: "poe1",
         leagueId,
         startedAt: "2025-06-01T10:00:00Z",
@@ -531,11 +526,11 @@ describe("CardDetailsRepository", () => {
         totalCount: 100,
         isActive: false,
       });
-      await seedSessionCards(testDb.kysely, session1Id, [
+      await seedSessionCards(getTestDb().kysely, session1Id, [
         { cardName: "The Doctor", count: 2 },
       ]);
 
-      const session2Id = await seedSession(testDb.kysely, {
+      const session2Id = await seedSession(getTestDb().kysely, {
         game: "poe1",
         leagueId,
         startedAt: "2025-06-15T10:00:00Z",
@@ -543,11 +538,11 @@ describe("CardDetailsRepository", () => {
         totalCount: 200,
         isActive: false,
       });
-      await seedSessionCards(testDb.kysely, session2Id, [
+      await seedSessionCards(getTestDb().kysely, session2Id, [
         { cardName: "The Doctor", count: 3 },
       ]);
 
-      const result = await repository.getCardPersonalStats(
+      const result = await getRepository().getCardPersonalStats(
         "poe1",
         "The Doctor",
       );
@@ -559,31 +554,33 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should isolate by game type", async () => {
-      const leagueId = await seedLeague(testDb.kysely, { name: "Settlers" });
+      const leagueId = await seedLeague(getTestDb().kysely, {
+        name: "Settlers",
+      });
 
-      const poe1Session = await seedSession(testDb.kysely, {
+      const poe1Session = await seedSession(getTestDb().kysely, {
         game: "poe1",
         leagueId,
         totalCount: 50,
       });
-      await seedSessionCards(testDb.kysely, poe1Session, [
+      await seedSessionCards(getTestDb().kysely, poe1Session, [
         { cardName: "The Doctor", count: 3 },
       ]);
 
-      const poe2Session = await seedSession(testDb.kysely, {
+      const poe2Session = await seedSession(getTestDb().kysely, {
         game: "poe2",
         leagueId,
         totalCount: 50,
       });
-      await seedSessionCards(testDb.kysely, poe2Session, [
+      await seedSessionCards(getTestDb().kysely, poe2Session, [
         { cardName: "The Doctor", count: 7 },
       ]);
 
-      const poe1Result = await repository.getCardPersonalStats(
+      const poe1Result = await getRepository().getCardPersonalStats(
         "poe1",
         "The Doctor",
       );
-      const poe2Result = await repository.getCardPersonalStats(
+      const poe2Result = await getRepository().getCardPersonalStats(
         "poe2",
         "The Doctor",
       );
@@ -595,18 +592,20 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should handle card in one session only", async () => {
-      const leagueId = await seedLeague(testDb.kysely, { name: "Settlers" });
+      const leagueId = await seedLeague(getTestDb().kysely, {
+        name: "Settlers",
+      });
 
-      const sessionId = await seedSession(testDb.kysely, {
+      const sessionId = await seedSession(getTestDb().kysely, {
         game: "poe1",
         leagueId,
         totalCount: 100,
       });
-      await seedSessionCards(testDb.kysely, sessionId, [
+      await seedSessionCards(getTestDb().kysely, sessionId, [
         { cardName: "Rain of Chaos", count: 10 },
       ]);
 
-      const result = await repository.getCardPersonalStats(
+      const result = await getRepository().getCardPersonalStats(
         "poe1",
         "Rain of Chaos",
       );
@@ -616,32 +615,32 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should filter by league when league parameter is provided", async () => {
-      const settlersId = await seedLeague(testDb.kysely, {
+      const settlersId = await seedLeague(getTestDb().kysely, {
         name: "Settlers",
       });
-      const keepersId = await seedLeague(testDb.kysely, {
+      const keepersId = await seedLeague(getTestDb().kysely, {
         name: "Keepers",
       });
 
-      const s1 = await seedSession(testDb.kysely, {
+      const s1 = await seedSession(getTestDb().kysely, {
         game: "poe1",
         leagueId: settlersId,
         totalCount: 100,
       });
-      await seedSessionCards(testDb.kysely, s1, [
+      await seedSessionCards(getTestDb().kysely, s1, [
         { cardName: "The Doctor", count: 3 },
       ]);
 
-      const s2 = await seedSession(testDb.kysely, {
+      const s2 = await seedSession(getTestDb().kysely, {
         game: "poe1",
         leagueId: keepersId,
         totalCount: 200,
       });
-      await seedSessionCards(testDb.kysely, s2, [
+      await seedSessionCards(getTestDb().kysely, s2, [
         { cardName: "The Doctor", count: 7 },
       ]);
 
-      const settlersResult = await repository.getCardPersonalStats(
+      const settlersResult = await getRepository().getCardPersonalStats(
         "poe1",
         "The Doctor",
         "Settlers",
@@ -649,7 +648,7 @@ describe("CardDetailsRepository", () => {
       expect(settlersResult.totalDrops).toBe(3);
       expect(settlersResult.sessionCount).toBe(1);
 
-      const keepersResult = await repository.getCardPersonalStats(
+      const keepersResult = await getRepository().getCardPersonalStats(
         "poe1",
         "The Doctor",
         "Keepers",
@@ -657,7 +656,7 @@ describe("CardDetailsRepository", () => {
       expect(keepersResult.totalDrops).toBe(7);
       expect(keepersResult.sessionCount).toBe(1);
 
-      const allResult = await repository.getCardPersonalStats(
+      const allResult = await getRepository().getCardPersonalStats(
         "poe1",
         "The Doctor",
       );
@@ -670,7 +669,7 @@ describe("CardDetailsRepository", () => {
 
   describe("getCardAvailability", () => {
     it("should return fromBoss false and weight null when the card does not exist", async () => {
-      const result = await repository.getCardAvailability(
+      const result = await getRepository().getCardAvailability(
         "poe1",
         "Settlers",
         "Nonexistent Card",
@@ -679,14 +678,14 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should return fromBoss true for a boss-exclusive card", async () => {
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         game: "poe1",
         name: "The Wretched",
       });
 
       // Insert into divination_card_availability with from_boss = 1
-      await testDb.kysely
-        .insertInto("divination_card_availability")
+      await getTestDb()
+        .kysely.insertInto("divination_card_availability")
         .values({
           game: "poe1",
           league: "Settlers",
@@ -696,7 +695,7 @@ describe("CardDetailsRepository", () => {
         })
         .execute();
 
-      const result = await repository.getCardAvailability(
+      const result = await getRepository().getCardAvailability(
         "poe1",
         "Settlers",
         "The Wretched",
@@ -706,14 +705,14 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should return fromBoss false for a non-boss card", async () => {
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         game: "poe1",
         name: "The Doctor",
       });
 
       // Insert into divination_card_availability with from_boss = 0 (default)
-      await testDb.kysely
-        .insertInto("divination_card_availability")
+      await getTestDb()
+        .kysely.insertInto("divination_card_availability")
         .values({
           game: "poe1",
           league: "Settlers",
@@ -723,7 +722,7 @@ describe("CardDetailsRepository", () => {
         })
         .execute();
 
-      const result = await repository.getCardAvailability(
+      const result = await getRepository().getCardAvailability(
         "poe1",
         "Settlers",
         "The Doctor",
@@ -733,14 +732,14 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should isolate by game type", async () => {
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         game: "poe1",
         name: "Test Card",
       });
 
       // Insert into divination_card_availability for poe1 only
-      await testDb.kysely
-        .insertInto("divination_card_availability")
+      await getTestDb()
+        .kysely.insertInto("divination_card_availability")
         .values({
           game: "poe1",
           league: "Settlers",
@@ -751,7 +750,7 @@ describe("CardDetailsRepository", () => {
         .execute();
 
       // poe2 version doesn't exist, should return defaults
-      const result = await repository.getCardAvailability(
+      const result = await getRepository().getCardAvailability(
         "poe2",
         "Settlers",
         "Test Card",
@@ -760,14 +759,14 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should isolate by league", async () => {
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         game: "poe1",
         name: "Test Card",
       });
 
       // Insert into divination_card_availability for Settlers league
-      await testDb.kysely
-        .insertInto("divination_card_availability")
+      await getTestDb()
+        .kysely.insertInto("divination_card_availability")
         .values({
           game: "poe1",
           league: "Settlers",
@@ -778,7 +777,7 @@ describe("CardDetailsRepository", () => {
         .execute();
 
       // Different league should return defaults
-      const result = await repository.getCardAvailability(
+      const result = await getRepository().getCardAvailability(
         "poe1",
         "Keepers",
         "Test Card",
@@ -791,44 +790,52 @@ describe("CardDetailsRepository", () => {
 
   describe("getDropTimeline", () => {
     it("should return empty array when no drops exist", async () => {
-      const result = await repository.getDropTimeline("poe1", "The Doctor");
+      const result = await getRepository().getDropTimeline(
+        "poe1",
+        "The Doctor",
+      );
       expect(result).toEqual([]);
     });
 
     it("should return per-session drops ordered chronologically", async () => {
-      const leagueId = await seedLeague(testDb.kysely, { name: "Settlers" });
+      const leagueId = await seedLeague(getTestDb().kysely, {
+        name: "Settlers",
+      });
 
-      const session1Id = await seedSession(testDb.kysely, {
+      const session1Id = await seedSession(getTestDb().kysely, {
         game: "poe1",
         leagueId,
         startedAt: "2025-06-01T10:00:00Z",
         totalCount: 100,
       });
-      await seedSessionCards(testDb.kysely, session1Id, [
+      await seedSessionCards(getTestDb().kysely, session1Id, [
         { cardName: "The Doctor", count: 1 },
       ]);
 
-      const session2Id = await seedSession(testDb.kysely, {
+      const session2Id = await seedSession(getTestDb().kysely, {
         game: "poe1",
         leagueId,
         startedAt: "2025-06-15T10:00:00Z",
         totalCount: 200,
       });
-      await seedSessionCards(testDb.kysely, session2Id, [
+      await seedSessionCards(getTestDb().kysely, session2Id, [
         { cardName: "The Doctor", count: 3 },
       ]);
 
-      const session3Id = await seedSession(testDb.kysely, {
+      const session3Id = await seedSession(getTestDb().kysely, {
         game: "poe1",
         leagueId,
         startedAt: "2025-06-10T10:00:00Z",
         totalCount: 150,
       });
-      await seedSessionCards(testDb.kysely, session3Id, [
+      await seedSessionCards(getTestDb().kysely, session3Id, [
         { cardName: "The Doctor", count: 2 },
       ]);
 
-      const result = await repository.getDropTimeline("poe1", "The Doctor");
+      const result = await getRepository().getDropTimeline(
+        "poe1",
+        "The Doctor",
+      );
 
       expect(result).toHaveLength(3);
       // Should be ordered by started_at ASC
@@ -846,28 +853,36 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should isolate by game type", async () => {
-      const leagueId = await seedLeague(testDb.kysely, { name: "Settlers" });
+      const leagueId = await seedLeague(getTestDb().kysely, {
+        name: "Settlers",
+      });
 
-      const poe1Session = await seedSession(testDb.kysely, {
+      const poe1Session = await seedSession(getTestDb().kysely, {
         game: "poe1",
         leagueId,
         totalCount: 50,
       });
-      await seedSessionCards(testDb.kysely, poe1Session, [
+      await seedSessionCards(getTestDb().kysely, poe1Session, [
         { cardName: "The Doctor", count: 1 },
       ]);
 
-      const poe2Session = await seedSession(testDb.kysely, {
+      const poe2Session = await seedSession(getTestDb().kysely, {
         game: "poe2",
         leagueId,
         totalCount: 50,
       });
-      await seedSessionCards(testDb.kysely, poe2Session, [
+      await seedSessionCards(getTestDb().kysely, poe2Session, [
         { cardName: "The Doctor", count: 2 },
       ]);
 
-      const poe1Result = await repository.getDropTimeline("poe1", "The Doctor");
-      const poe2Result = await repository.getDropTimeline("poe2", "The Doctor");
+      const poe1Result = await getRepository().getDropTimeline(
+        "poe1",
+        "The Doctor",
+      );
+      const poe2Result = await getRepository().getDropTimeline(
+        "poe2",
+        "The Doctor",
+      );
 
       expect(poe1Result).toHaveLength(1);
       expect(poe1Result[0].count).toBe(1);
@@ -876,23 +891,25 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should not include sessions for other cards", async () => {
-      const leagueId = await seedLeague(testDb.kysely, { name: "Settlers" });
+      const leagueId = await seedLeague(getTestDb().kysely, {
+        name: "Settlers",
+      });
 
-      const sessionId = await seedSession(testDb.kysely, {
+      const sessionId = await seedSession(getTestDb().kysely, {
         game: "poe1",
         leagueId,
         totalCount: 100,
       });
-      await seedSessionCards(testDb.kysely, sessionId, [
+      await seedSessionCards(getTestDb().kysely, sessionId, [
         { cardName: "The Doctor", count: 2 },
         { cardName: "Rain of Chaos", count: 50 },
       ]);
 
-      const doctorTimeline = await repository.getDropTimeline(
+      const doctorTimeline = await getRepository().getDropTimeline(
         "poe1",
         "The Doctor",
       );
-      const rainTimeline = await repository.getDropTimeline(
+      const rainTimeline = await getRepository().getDropTimeline(
         "poe1",
         "Rain of Chaos",
       );
@@ -904,32 +921,32 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should filter by league when league parameter is provided", async () => {
-      const settlersId = await seedLeague(testDb.kysely, {
+      const settlersId = await seedLeague(getTestDb().kysely, {
         name: "Settlers",
       });
-      const keepersId = await seedLeague(testDb.kysely, {
+      const keepersId = await seedLeague(getTestDb().kysely, {
         name: "Keepers",
       });
 
-      const s1 = await seedSession(testDb.kysely, {
+      const s1 = await seedSession(getTestDb().kysely, {
         game: "poe1",
         leagueId: settlersId,
         totalCount: 50,
       });
-      await seedSessionCards(testDb.kysely, s1, [
+      await seedSessionCards(getTestDb().kysely, s1, [
         { cardName: "The Doctor", count: 1 },
       ]);
 
-      const s2 = await seedSession(testDb.kysely, {
+      const s2 = await seedSession(getTestDb().kysely, {
         game: "poe1",
         leagueId: keepersId,
         totalCount: 80,
       });
-      await seedSessionCards(testDb.kysely, s2, [
+      await seedSessionCards(getTestDb().kysely, s2, [
         { cardName: "The Doctor", count: 4 },
       ]);
 
-      const settlersOnly = await repository.getDropTimeline(
+      const settlersOnly = await getRepository().getDropTimeline(
         "poe1",
         "The Doctor",
         "Settlers",
@@ -938,7 +955,7 @@ describe("CardDetailsRepository", () => {
       expect(settlersOnly[0].count).toBe(1);
       expect(settlersOnly[0].league).toBe("Settlers");
 
-      const keepersOnly = await repository.getDropTimeline(
+      const keepersOnly = await getRepository().getDropTimeline(
         "poe1",
         "The Doctor",
         "Keepers",
@@ -947,7 +964,7 @@ describe("CardDetailsRepository", () => {
       expect(keepersOnly[0].count).toBe(4);
       expect(keepersOnly[0].league).toBe("Keepers");
 
-      const all = await repository.getDropTimeline("poe1", "The Doctor");
+      const all = await getRepository().getDropTimeline("poe1", "The Doctor");
       expect(all).toHaveLength(2);
     });
   });
@@ -956,86 +973,96 @@ describe("CardDetailsRepository", () => {
 
   describe("getTotalDecksOpenedAllSessions", () => {
     it("should return 0 when no sessions exist", async () => {
-      const result = await repository.getTotalDecksOpenedAllSessions("poe1");
+      const result =
+        await getRepository().getTotalDecksOpenedAllSessions("poe1");
       expect(result).toBe(0);
     });
 
     it("should sum total_count across all sessions for a game", async () => {
-      const leagueId = await seedLeague(testDb.kysely, { name: "Settlers" });
+      const leagueId = await seedLeague(getTestDb().kysely, {
+        name: "Settlers",
+      });
 
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         game: "poe1",
         leagueId,
         totalCount: 100,
       });
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         game: "poe1",
         leagueId,
         totalCount: 200,
       });
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         game: "poe1",
         leagueId,
         totalCount: 50,
       });
 
-      const result = await repository.getTotalDecksOpenedAllSessions("poe1");
+      const result =
+        await getRepository().getTotalDecksOpenedAllSessions("poe1");
       expect(result).toBe(350);
     });
 
     it("should isolate by game type", async () => {
-      const leagueId = await seedLeague(testDb.kysely, { name: "Settlers" });
+      const leagueId = await seedLeague(getTestDb().kysely, {
+        name: "Settlers",
+      });
 
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         game: "poe1",
         leagueId,
         totalCount: 100,
       });
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         game: "poe2",
         leagueId,
         totalCount: 500,
       });
 
-      const poe1Total = await repository.getTotalDecksOpenedAllSessions("poe1");
-      const poe2Total = await repository.getTotalDecksOpenedAllSessions("poe2");
+      const poe1Total =
+        await getRepository().getTotalDecksOpenedAllSessions("poe1");
+      const poe2Total =
+        await getRepository().getTotalDecksOpenedAllSessions("poe2");
 
       expect(poe1Total).toBe(100);
       expect(poe2Total).toBe(500);
     });
 
     it("should filter by league when league parameter is provided", async () => {
-      const settlersId = await seedLeague(testDb.kysely, {
+      const settlersId = await seedLeague(getTestDb().kysely, {
         name: "Settlers",
       });
-      const keepersId = await seedLeague(testDb.kysely, {
+      const keepersId = await seedLeague(getTestDb().kysely, {
         name: "Keepers",
       });
 
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         game: "poe1",
         leagueId: settlersId,
         totalCount: 100,
       });
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         game: "poe1",
         leagueId: keepersId,
         totalCount: 300,
       });
 
-      const settlersTotal = await repository.getTotalDecksOpenedAllSessions(
-        "poe1",
-        "Settlers",
-      );
+      const settlersTotal =
+        await getRepository().getTotalDecksOpenedAllSessions(
+          "poe1",
+          "Settlers",
+        );
       expect(settlersTotal).toBe(100);
 
-      const keepersTotal = await repository.getTotalDecksOpenedAllSessions(
+      const keepersTotal = await getRepository().getTotalDecksOpenedAllSessions(
         "poe1",
         "Keepers",
       );
       expect(keepersTotal).toBe(300);
 
-      const allTotal = await repository.getTotalDecksOpenedAllSessions("poe1");
+      const allTotal =
+        await getRepository().getTotalDecksOpenedAllSessions("poe1");
       expect(allTotal).toBe(400);
     });
   });
@@ -1046,7 +1073,7 @@ describe("CardDetailsRepository", () => {
     it("should insert, verify fresh, then verify stale after TTL", async () => {
       const fetchedAt = new Date().toISOString();
 
-      await repository.upsertPriceHistory(
+      await getRepository().upsertPriceHistory(
         "poe1",
         "Settlers",
         "the-doctor",
@@ -1056,10 +1083,12 @@ describe("CardDetailsRepository", () => {
       );
 
       // Should be fresh
-      expect(repository.isCacheStale(fetchedAt, 30 * 60 * 1000)).toBe(false);
+      expect(getRepository().isCacheStale(fetchedAt, 30 * 60 * 1000)).toBe(
+        false,
+      );
 
       // Retrieve and verify
-      const cached = await repository.getCachedPriceHistory(
+      const cached = await getRepository().getCachedPriceHistory(
         "poe1",
         "Settlers",
         "the-doctor",
@@ -1069,12 +1098,12 @@ describe("CardDetailsRepository", () => {
 
       // Simulate staleness with a very short TTL (1ms — enough time has passed)
       await new Promise((r) => setTimeout(r, 2));
-      expect(repository.isCacheStale(fetchedAt, 1)).toBe(true);
+      expect(getRepository().isCacheStale(fetchedAt, 1)).toBe(true);
     });
 
     it("should upsert and verify only one row exists per unique key", async () => {
       // Insert twice with different data
-      await repository.upsertPriceHistory(
+      await getRepository().upsertPriceHistory(
         "poe1",
         "Settlers",
         "the-doctor",
@@ -1082,7 +1111,7 @@ describe("CardDetailsRepository", () => {
         '{"version": 1}',
         "2026-03-05T12:00:00Z",
       );
-      await repository.upsertPriceHistory(
+      await getRepository().upsertPriceHistory(
         "poe1",
         "Settlers",
         "the-doctor",
@@ -1092,7 +1121,7 @@ describe("CardDetailsRepository", () => {
       );
 
       // Should only get the latest version
-      const result = await repository.getCachedPriceHistory(
+      const result = await getRepository().getCachedPriceHistory(
         "poe1",
         "Settlers",
         "the-doctor",
@@ -1109,29 +1138,29 @@ describe("CardDetailsRepository", () => {
 
   describe("getLeagueDateRanges", () => {
     it("should return empty array when no leagues exist", async () => {
-      const result = await repository.getLeagueDateRanges("poe1");
+      const result = await getRepository().getLeagueDateRanges("poe1");
       expect(result).toEqual([]);
     });
 
     it("should return empty array when leagues exist but have no sessions", async () => {
-      await seedLeague(testDb.kysely, { name: "Settlers" });
+      await seedLeague(getTestDb().kysely, { name: "Settlers" });
 
-      const result = await repository.getLeagueDateRanges("poe1");
+      const result = await getRepository().getLeagueDateRanges("poe1");
       expect(result).toEqual([]);
     });
 
     it("should return league date ranges for leagues with sessions", async () => {
-      const leagueId = await seedLeague(testDb.kysely, {
+      const leagueId = await seedLeague(getTestDb().kysely, {
         name: "Settlers",
         startDate: "2025-01-01T00:00:00Z",
       });
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         game: "poe1",
         leagueId,
         totalCount: 10,
       });
 
-      const result = await repository.getLeagueDateRanges("poe1");
+      const result = await getRepository().getLeagueDateRanges("poe1");
 
       expect(result).toHaveLength(1);
       expect(result[0].name).toBe("Settlers");
@@ -1140,51 +1169,51 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should return leagues with end_date when set", async () => {
-      const leagueId = await seedLeague(testDb.kysely, {
+      const leagueId = await seedLeague(getTestDb().kysely, {
         name: "Settlers",
         startDate: "2025-01-01T00:00:00Z",
       });
       // Set end_date directly since seedLeague doesn't support it
-      await testDb.kysely
-        .updateTable("leagues")
+      await getTestDb()
+        .kysely.updateTable("leagues")
         .set({ end_date: "2025-04-01T00:00:00Z" })
         .where("id", "=", leagueId)
         .execute();
 
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         game: "poe1",
         leagueId,
         totalCount: 10,
       });
 
-      const result = await repository.getLeagueDateRanges("poe1");
+      const result = await getRepository().getLeagueDateRanges("poe1");
 
       expect(result).toHaveLength(1);
       expect(result[0].endDate).toBe("2025-04-01T00:00:00Z");
     });
 
     it("should return multiple leagues ordered by start_date ascending", async () => {
-      const keepersId = await seedLeague(testDb.kysely, {
+      const keepersId = await seedLeague(getTestDb().kysely, {
         name: "Keepers",
         startDate: "2025-06-01T00:00:00Z",
       });
-      const settlersId = await seedLeague(testDb.kysely, {
+      const settlersId = await seedLeague(getTestDb().kysely, {
         name: "Settlers",
         startDate: "2025-01-01T00:00:00Z",
       });
 
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         game: "poe1",
         leagueId: settlersId,
         totalCount: 10,
       });
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         game: "poe1",
         leagueId: keepersId,
         totalCount: 20,
       });
 
-      const result = await repository.getLeagueDateRanges("poe1");
+      const result = await getRepository().getLeagueDateRanges("poe1");
 
       expect(result).toHaveLength(2);
       expect(result[0].name).toBe("Settlers");
@@ -1192,28 +1221,28 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should isolate by game type", async () => {
-      const poe1League = await seedLeague(testDb.kysely, {
+      const poe1League = await seedLeague(getTestDb().kysely, {
         name: "Settlers",
         game: "poe1",
       });
-      const poe2League = await seedLeague(testDb.kysely, {
+      const poe2League = await seedLeague(getTestDb().kysely, {
         name: "Dawn",
         game: "poe2",
       });
 
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         game: "poe1",
         leagueId: poe1League,
         totalCount: 10,
       });
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         game: "poe2",
         leagueId: poe2League,
         totalCount: 20,
       });
 
-      const poe1Result = await repository.getLeagueDateRanges("poe1");
-      const poe2Result = await repository.getLeagueDateRanges("poe2");
+      const poe1Result = await getRepository().getLeagueDateRanges("poe1");
+      const poe2Result = await getRepository().getLeagueDateRanges("poe2");
 
       expect(poe1Result).toHaveLength(1);
       expect(poe1Result[0].name).toBe("Settlers");
@@ -1222,21 +1251,21 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should deduplicate leagues with multiple sessions", async () => {
-      const leagueId = await seedLeague(testDb.kysely, {
+      const leagueId = await seedLeague(getTestDb().kysely, {
         name: "Settlers",
       });
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         game: "poe1",
         leagueId,
         totalCount: 10,
       });
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         game: "poe1",
         leagueId,
         totalCount: 20,
       });
 
-      const result = await repository.getLeagueDateRanges("poe1");
+      const result = await getRepository().getLeagueDateRanges("poe1");
 
       // Should group by league, not return one per session
       expect(result).toHaveLength(1);
@@ -1248,97 +1277,97 @@ describe("CardDetailsRepository", () => {
 
   describe("getFirstSessionStartDate", () => {
     it("should return null when no sessions exist", async () => {
-      const result = await repository.getFirstSessionStartDate("poe1");
+      const result = await getRepository().getFirstSessionStartDate("poe1");
       expect(result).toBeNull();
     });
 
     it("should return the earliest session start date", async () => {
-      const leagueId = await seedLeague(testDb.kysely, {
+      const leagueId = await seedLeague(getTestDb().kysely, {
         name: "Settlers",
       });
 
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         game: "poe1",
         leagueId,
         startedAt: "2025-06-15T10:00:00Z",
         totalCount: 50,
       });
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         game: "poe1",
         leagueId,
         startedAt: "2025-06-01T08:00:00Z",
         totalCount: 30,
       });
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         game: "poe1",
         leagueId,
         startedAt: "2025-06-10T12:00:00Z",
         totalCount: 40,
       });
 
-      const result = await repository.getFirstSessionStartDate("poe1");
+      const result = await getRepository().getFirstSessionStartDate("poe1");
       expect(result).toBe("2025-06-01T08:00:00Z");
     });
 
     it("should isolate by game type", async () => {
-      const leagueId = await seedLeague(testDb.kysely, {
+      const leagueId = await seedLeague(getTestDb().kysely, {
         name: "Settlers",
       });
 
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         game: "poe1",
         leagueId,
         startedAt: "2025-06-01T10:00:00Z",
         totalCount: 50,
       });
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         game: "poe2",
         leagueId,
         startedAt: "2025-05-01T10:00:00Z",
         totalCount: 30,
       });
 
-      const poe1Result = await repository.getFirstSessionStartDate("poe1");
-      const poe2Result = await repository.getFirstSessionStartDate("poe2");
+      const poe1Result = await getRepository().getFirstSessionStartDate("poe1");
+      const poe2Result = await getRepository().getFirstSessionStartDate("poe2");
 
       expect(poe1Result).toBe("2025-06-01T10:00:00Z");
       expect(poe2Result).toBe("2025-05-01T10:00:00Z");
     });
 
     it("should filter by league when league parameter is provided", async () => {
-      const settlersId = await seedLeague(testDb.kysely, {
+      const settlersId = await seedLeague(getTestDb().kysely, {
         name: "Settlers",
       });
-      const keepersId = await seedLeague(testDb.kysely, {
+      const keepersId = await seedLeague(getTestDb().kysely, {
         name: "Keepers",
       });
 
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         game: "poe1",
         leagueId: settlersId,
         startedAt: "2025-01-15T10:00:00Z",
         totalCount: 50,
       });
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         game: "poe1",
         leagueId: keepersId,
         startedAt: "2025-06-01T10:00:00Z",
         totalCount: 30,
       });
 
-      const settlersFirst = await repository.getFirstSessionStartDate(
+      const settlersFirst = await getRepository().getFirstSessionStartDate(
         "poe1",
         "Settlers",
       );
       expect(settlersFirst).toBe("2025-01-15T10:00:00Z");
 
-      const keepersFirst = await repository.getFirstSessionStartDate(
+      const keepersFirst = await getRepository().getFirstSessionStartDate(
         "poe1",
         "Keepers",
       );
       expect(keepersFirst).toBe("2025-06-01T10:00:00Z");
 
-      const allFirst = await repository.getFirstSessionStartDate("poe1");
+      const allFirst = await getRepository().getFirstSessionStartDate("poe1");
       expect(allFirst).toBe("2025-01-15T10:00:00Z");
     });
   });
@@ -1347,7 +1376,7 @@ describe("CardDetailsRepository", () => {
 
   describe("getCardRewardHtml", () => {
     it("should return null when the card does not exist", async () => {
-      const result = await repository.getCardRewardHtml(
+      const result = await getRepository().getCardRewardHtml(
         "poe1",
         "Nonexistent Card",
       );
@@ -1355,12 +1384,15 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should return the reward_html for an existing card", async () => {
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         name: "The Doctor",
         rewardHtml: '<span class="tc -unique">[[Headhunter|Headhunter]]</span>',
       });
 
-      const result = await repository.getCardRewardHtml("poe1", "The Doctor");
+      const result = await getRepository().getCardRewardHtml(
+        "poe1",
+        "The Doctor",
+      );
 
       expect(result).toBe(
         '<span class="tc -unique">[[Headhunter|Headhunter]]</span>',
@@ -1368,22 +1400,22 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should isolate by game type", async () => {
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         game: "poe1",
         name: "The Doctor",
         rewardHtml: "<span>poe1 reward</span>",
       });
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         game: "poe2",
         name: "The Doctor",
         rewardHtml: "<span>poe2 reward</span>",
       });
 
-      const poe1Result = await repository.getCardRewardHtml(
+      const poe1Result = await getRepository().getCardRewardHtml(
         "poe1",
         "The Doctor",
       );
-      const poe2Result = await repository.getCardRewardHtml(
+      const poe2Result = await getRepository().getCardRewardHtml(
         "poe2",
         "The Doctor",
       );
@@ -1393,16 +1425,19 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should match by exact name only", async () => {
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         name: "The Doctor",
         rewardHtml: "<span>Doctor Reward</span>",
       });
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         name: "The Doctored",
         rewardHtml: "<span>Doctored Reward</span>",
       });
 
-      const result = await repository.getCardRewardHtml("poe1", "The Doctor");
+      const result = await getRepository().getCardRewardHtml(
+        "poe1",
+        "The Doctor",
+      );
       expect(result).toBe("<span>Doctor Reward</span>");
     });
   });
@@ -1411,7 +1446,7 @@ describe("CardDetailsRepository", () => {
 
   describe("findCardByName", () => {
     it("should return null when the card does not exist", async () => {
-      const result = await repository.findCardByName(
+      const result = await getRepository().findCardByName(
         "poe1",
         "Nonexistent Card",
       );
@@ -1419,17 +1454,17 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should return null for empty card name", async () => {
-      const result = await repository.findCardByName("poe1", "");
+      const result = await getRepository().findCardByName("poe1", "");
       expect(result).toBeNull();
     });
 
     it("should return null for whitespace-only card name", async () => {
-      const result = await repository.findCardByName("poe1", "   ");
+      const result = await getRepository().findCardByName("poe1", "   ");
       expect(result).toBeNull();
     });
 
     it("should return card data for an existing card", async () => {
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         name: "The Doctor",
         stackSize: 8,
         description: "8/8 Headhunter",
@@ -1438,7 +1473,7 @@ describe("CardDetailsRepository", () => {
         flavourHtml: "<i>A taste of power</i>",
       });
 
-      const result = await repository.findCardByName("poe1", "The Doctor");
+      const result = await getRepository().findCardByName("poe1", "The Doctor");
 
       expect(result).not.toBeNull();
       expect(result!.name).toBe("The Doctor");
@@ -1449,36 +1484,42 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should include rarity from divination_card_rarities when available", async () => {
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         name: "The Doctor",
       });
-      await seedDivinationCardRarity(testDb.kysely, {
+      await seedDivinationCardRarity(getTestDb().kysely, {
         game: "poe1",
         league: "Settlers",
         cardName: "The Doctor",
         rarity: 3,
       });
 
-      const result = await repository.findCardByName("poe1", "The Doctor");
+      const result = await getRepository().findCardByName("poe1", "The Doctor");
 
       expect(result).not.toBeNull();
       expect(result!.rarity).toBe(3);
     });
 
     it("should isolate by game type", async () => {
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         game: "poe1",
         name: "The Doctor",
         description: "poe1 version",
       });
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         game: "poe2",
         name: "The Doctor",
         description: "poe2 version",
       });
 
-      const poe1Result = await repository.findCardByName("poe1", "The Doctor");
-      const poe2Result = await repository.findCardByName("poe2", "The Doctor");
+      const poe1Result = await getRepository().findCardByName(
+        "poe1",
+        "The Doctor",
+      );
+      const poe2Result = await getRepository().findCardByName(
+        "poe2",
+        "The Doctor",
+      );
 
       expect(poe1Result).not.toBeNull();
       expect(poe1Result!.description).toBe("poe1 version");
@@ -1489,35 +1530,35 @@ describe("CardDetailsRepository", () => {
     it("should correctly map fromBoss flag", async () => {
       // from_boss has moved to divination_card_availability;
       // findCardByName does not query that table, so it always returns false.
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         name: "The Fiend",
         rewardHtml: '<span class="tc -unique">[[Headhunter]]</span>',
       });
 
-      const result = await repository.findCardByName("poe1", "The Fiend");
+      const result = await getRepository().findCardByName("poe1", "The Fiend");
 
       expect(result).not.toBeNull();
       expect(result!.fromBoss).toBe(false);
     });
 
     it("should return null prohibitedLibraryRarity when no plLeague is given", async () => {
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         name: "The Doctor",
       });
 
-      const result = await repository.findCardByName("poe1", "The Doctor");
+      const result = await getRepository().findCardByName("poe1", "The Doctor");
 
       expect(result).not.toBeNull();
       expect(result!.prohibitedLibraryRarity).toBeNull();
     });
 
     it("should include prohibitedLibraryRarity from divination_card_rarities when rarity row exists", async () => {
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         game: "poe1",
         name: "The Doctor",
       });
 
-      await seedDivinationCardRarity(testDb.kysely, {
+      await seedDivinationCardRarity(getTestDb().kysely, {
         game: "poe1",
         league: "Settlers",
         cardName: "The Doctor",
@@ -1525,7 +1566,7 @@ describe("CardDetailsRepository", () => {
         prohibitedLibraryRarity: 1,
       });
 
-      const result = await repository.findCardByName("poe1", "The Doctor");
+      const result = await getRepository().findCardByName("poe1", "The Doctor");
 
       expect(result).not.toBeNull();
       expect(result!.prohibitedLibraryRarity).toBe(1);
@@ -1536,12 +1577,12 @@ describe("CardDetailsRepository", () => {
 
   describe("findCardsByRewardMatch", () => {
     it("should return empty array when no cards match the reward text", async () => {
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         name: "The Doctor",
         rewardHtml: "<span>Headhunter</span>",
       });
 
-      const result = await repository.findCardsByRewardMatch(
+      const result = await getRepository().findCardsByRewardMatch(
         "poe1",
         "Mirror of Kalandra",
         "Some Other Card",
@@ -1551,20 +1592,20 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should find cards with matching reward text (case-insensitive LIKE)", async () => {
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         name: "The Doctor",
         rewardHtml: "<span>Headhunter</span>",
       });
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         name: "The Nurse",
         rewardHtml: "<span>The Doctor (Headhunter related)</span>",
       });
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         name: "Apprentice's Path",
         rewardHtml: "<span>Headhunter unique belt</span>",
       });
 
-      const result = await repository.findCardsByRewardMatch(
+      const result = await getRepository().findCardsByRewardMatch(
         "poe1",
         "Headhunter",
         "The Doctor",
@@ -1578,16 +1619,16 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should exclude the current card from results", async () => {
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         name: "House of Mirrors",
         rewardHtml: "<span>Mirror of Kalandra</span>",
       });
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         name: "Seven Years Bad Luck",
         rewardHtml: "<span>Mirror of Kalandra shard</span>",
       });
 
-      const result = await repository.findCardsByRewardMatch(
+      const result = await getRepository().findCardsByRewardMatch(
         "poe1",
         "Mirror of Kalandra",
         "House of Mirrors",
@@ -1598,12 +1639,12 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should return empty array when reward text is too short (< 3 chars)", async () => {
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         name: "The Doctor",
         rewardHtml: "<span>HH</span>",
       });
 
-      const result = await repository.findCardsByRewardMatch(
+      const result = await getRepository().findCardsByRewardMatch(
         "poe1",
         "HH",
         "Some Card",
@@ -1613,7 +1654,7 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should return empty array when reward text is empty", async () => {
-      const result = await repository.findCardsByRewardMatch(
+      const result = await getRepository().findCardsByRewardMatch(
         "poe1",
         "",
         "Some Card",
@@ -1625,13 +1666,13 @@ describe("CardDetailsRepository", () => {
     it("should limit results to the specified number", async () => {
       // Create 7 cards with matching reward
       for (let i = 1; i <= 7; i++) {
-        await seedDivinationCard(testDb.kysely, {
+        await seedDivinationCard(getTestDb().kysely, {
           name: `Test Card ${i}`,
           rewardHtml: `<span>Exalted Orb reward ${i}</span>`,
         });
       }
 
-      const result = await repository.findCardsByRewardMatch(
+      const result = await getRepository().findCardsByRewardMatch(
         "poe1",
         "Exalted Orb",
         "Some Other Card",
@@ -1643,13 +1684,13 @@ describe("CardDetailsRepository", () => {
 
     it("should default limit to 5", async () => {
       for (let i = 1; i <= 8; i++) {
-        await seedDivinationCard(testDb.kysely, {
+        await seedDivinationCard(getTestDb().kysely, {
           name: `Divine Card ${i}`,
           rewardHtml: `<span>Divine Orb reward ${i}</span>`,
         });
       }
 
-      const result = await repository.findCardsByRewardMatch(
+      const result = await getRepository().findCardsByRewardMatch(
         "poe1",
         "Divine Orb",
         "Some Other Card",
@@ -1659,23 +1700,23 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should isolate by game type", async () => {
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         game: "poe1",
         name: "The Doctor",
         rewardHtml: "<span>Headhunter</span>",
       });
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         game: "poe2",
         name: "The Nurse",
         rewardHtml: "<span>Headhunter belt</span>",
       });
 
-      const poe1Result = await repository.findCardsByRewardMatch(
+      const poe1Result = await getRepository().findCardsByRewardMatch(
         "poe1",
         "Headhunter",
         "Some Other Card",
       );
-      const poe2Result = await repository.findCardsByRewardMatch(
+      const poe2Result = await getRepository().findCardsByRewardMatch(
         "poe2",
         "Headhunter",
         "Some Other Card",
@@ -1688,14 +1729,14 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should return correct card properties", async () => {
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         name: "The Doctor",
         stackSize: 8,
         rewardHtml: "<span>Headhunter</span>",
         artSrc: "https://example.com/doctor.png",
       });
 
-      const result = await repository.findCardsByRewardMatch(
+      const result = await getRepository().findCardsByRewardMatch(
         "poe1",
         "Headhunter",
         "Some Other Card",
@@ -1717,18 +1758,18 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should include rarity from divination_card_rarities when available", async () => {
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         name: "The Doctor",
         rewardHtml: "<span>Headhunter</span>",
       });
-      await seedDivinationCardRarity(testDb.kysely, {
+      await seedDivinationCardRarity(getTestDb().kysely, {
         game: "poe1",
         league: "Settlers",
         cardName: "The Doctor",
         rarity: 1,
       });
 
-      const result = await repository.findCardsByRewardMatch(
+      const result = await getRepository().findCardsByRewardMatch(
         "poe1",
         "Headhunter",
         "Some Other Card",
@@ -1739,12 +1780,12 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should default rarity to 0 when no rarity data exists", async () => {
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         name: "The Doctor",
         rewardHtml: "<span>Headhunter</span>",
       });
 
-      const result = await repository.findCardsByRewardMatch(
+      const result = await getRepository().findCardsByRewardMatch(
         "poe1",
         "Headhunter",
         "Some Other Card",
@@ -1757,12 +1798,12 @@ describe("CardDetailsRepository", () => {
     it("should correctly map fromBoss flag", async () => {
       // from_boss has moved to divination_card_availability;
       // findCardsByRewardMatch does not query that table, so it always returns false.
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         name: "The Fiend",
         rewardHtml: "<span>Headhunter unique</span>",
       });
 
-      const result = await repository.findCardsByRewardMatch(
+      const result = await getRepository().findCardsByRewardMatch(
         "poe1",
         "Headhunter",
         "Some Other Card",
@@ -1773,20 +1814,20 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should return results ordered by name ascending", async () => {
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         name: "Zephyr Card",
         rewardHtml: "<span>Chaos Orb reward</span>",
       });
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         name: "Alpha Card",
         rewardHtml: "<span>Chaos Orb reward</span>",
       });
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         name: "Middle Card",
         rewardHtml: "<span>Chaos Orb reward</span>",
       });
 
-      const result = await repository.findCardsByRewardMatch(
+      const result = await getRepository().findCardsByRewardMatch(
         "poe1",
         "Chaos Orb",
         "Some Other Card",
@@ -1799,12 +1840,12 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should trim whitespace from reward text before searching", async () => {
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         name: "The Doctor",
         rewardHtml: "Headhunter",
       });
 
-      const result = await repository.findCardsByRewardMatch(
+      const result = await getRepository().findCardsByRewardMatch(
         "poe1",
         "   Headhunter   ",
         "Some Other Card",
@@ -1815,12 +1856,12 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should return null prohibitedLibraryRarity when plLeague is not provided", async () => {
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         name: "The Doctor",
         rewardHtml: "Headhunter",
       });
 
-      const result = await repository.findCardsByRewardMatch(
+      const result = await getRepository().findCardsByRewardMatch(
         "poe1",
         "Headhunter",
         "Some Other Card",
@@ -1831,13 +1872,13 @@ describe("CardDetailsRepository", () => {
     });
 
     it("should include prohibitedLibraryRarity from divination_card_rarities when rarity row exists", async () => {
-      await seedDivinationCard(testDb.kysely, {
+      await seedDivinationCard(getTestDb().kysely, {
         game: "poe1",
         name: "The Doctor",
         rewardHtml: "<span>Headhunter</span>",
       });
 
-      await seedDivinationCardRarity(testDb.kysely, {
+      await seedDivinationCardRarity(getTestDb().kysely, {
         game: "poe1",
         league: "Settlers",
         cardName: "The Doctor",
@@ -1845,7 +1886,7 @@ describe("CardDetailsRepository", () => {
         prohibitedLibraryRarity: 3,
       });
 
-      const result = await repository.findCardsByRewardMatch(
+      const result = await getRepository().findCardsByRewardMatch(
         "poe1",
         "Headhunter",
         "Some Other Card",

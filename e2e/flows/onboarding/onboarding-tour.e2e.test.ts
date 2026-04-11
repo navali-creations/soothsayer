@@ -27,10 +27,18 @@ import { setSetting } from "../../helpers/ipc-helpers";
 import {
   ensurePostSetup,
   navigateTo,
+  switchToTableView,
   waitForHydration,
   waitForRoute,
 } from "../../helpers/navigation";
-import { seedSessionPrerequisites } from "../../helpers/seed-db";
+import {
+  acknowledgeAllBeacons,
+  waitForTriggers,
+} from "../../helpers/onboarding";
+import {
+  resetLeagueToFixture,
+  seedSessionPrerequisites,
+} from "../../helpers/seed-db";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -70,107 +78,6 @@ const PRE_DISMISSED_BEACONS = [
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
- * Waits for all beacon triggers to finish rendering on the current page.
- */
-async function waitForTriggers(page: Page, expectedCount: number) {
-  const triggers = page.locator("[data-repere-trigger]");
-  await expect(triggers).toHaveCount(expectedCount, {
-    timeout: TRIGGER_RENDER_TIMEOUT,
-  });
-}
-
-/**
- * Asserts that a popover opened and is visible.
- */
-async function expectPopoverVisible(page: Page) {
-  const openPopover = page.locator("[data-repere-popover]:popover-open");
-  await expect(openPopover).toBeVisible({ timeout: 5_000 });
-}
-
-/**
- * Clicks the "Got it" acknowledge button inside the currently open popover.
- * After clicking, the trigger for this beacon should disappear.
- *
- * @param page - Playwright Page
- * @param expectedRemainingTriggers - If provided, waits for the trigger count
- *   to reach this value after dismissal (replaces the old hard 300ms sleep).
- */
-async function acknowledgeBeacon(
-  page: Page,
-  expectedRemainingTriggers?: number,
-) {
-  const openPopover = page.locator("[data-repere-popover]:popover-open");
-  const gotIt = openPopover.getByText("Got it");
-  await expect(gotIt).toBeVisible({ timeout: 5_000 });
-
-  try {
-    await gotIt.click({ timeout: 3_000 });
-  } catch {
-    // Click fired but the element was detached before Playwright could
-    // confirm — that's the expected behaviour for native popover dismiss.
-  }
-
-  // Wait for the popover to close after dismiss
-  await expect(page.locator("[data-repere-popover]:popover-open")).toHaveCount(
-    0,
-    { timeout: 5_000 },
-  );
-
-  // Wait for the trigger to actually be removed from the DOM (replaces hard 300ms sleep)
-  if (expectedRemainingTriggers !== undefined) {
-    await expect(page.locator("[data-repere-trigger]")).toHaveCount(
-      expectedRemainingTriggers,
-      { timeout: 5_000 },
-    );
-  }
-}
-
-/**
- * Full lifecycle for a single beacon: open popover → verify → acknowledge.
- */
-async function acknowledgeFirstBeacon(
-  page: Page,
-  expectedRemainingTriggers?: number,
-) {
-  const trigger = page.locator("[data-repere-trigger]").first();
-  await expect(trigger).toBeAttached({ timeout: TRIGGER_RENDER_TIMEOUT });
-  await trigger.evaluate((el: HTMLElement) => el.click());
-
-  await expectPopoverVisible(page);
-  await acknowledgeBeacon(page, expectedRemainingTriggers);
-}
-
-/**
- * Acknowledges all currently visible beacon triggers on the page, one by one.
- */
-async function acknowledgeAllBeacons(page: Page, count: number) {
-  for (let i = 0; i < count; i++) {
-    await acknowledgeFirstBeacon(page, count - i - 1);
-  }
-}
-
-/**
- * Switches the Profit Forecast page from the default "chart" view to "table"
- * view by clicking the Table badge in the cost model panel.
- */
-async function switchToTableView(page: Page) {
-  const tableBadge = page.locator("button", { hasText: "Table" }).first();
-  await expect(tableBadge).toBeVisible({ timeout: 5_000 });
-  await tableBadge.click();
-  // Wait for the table to render instead of a hard 500ms sleep
-  await page
-    .locator("table, [role='table']")
-    .first()
-    .waitFor({
-      state: "visible",
-      timeout: 5_000,
-    })
-    .catch(() => {
-      // Table may use a different structure; fall back to a short settle
-    });
-}
-
-/**
  * Common setup for Profit Forecast beacon tests:
  * pre-dismiss previous beacons, reload, navigate to profit forecast.
  * Stays in the default **chart** view (3 beacons visible).
@@ -196,22 +103,7 @@ async function setupProfitForecastBeacons(page: Page) {
 test.describe("Onboarding — Profit Forecast Beacons", () => {
   test.beforeEach(async ({ page }) => {
     await ensurePostSetup(page);
-    // Workers are reused across test files. A prior file (e.g. app-menu)
-    // may have changed `poe1SelectedLeague` to a league whose
-    // `divination_card_availability` rows don't exist, causing
-    // `loadCards(onlyInPool=true)` to return 0 cards → empty table →
-    // missing column-header beacons on Profit Forecast.
-    // Reset to "Standard" in both the DB and the Zustand store.
-    await setSetting(page, "poe1SelectedLeague", "Standard");
-    await page.evaluate(() => {
-      const store = (window as any).__zustandStore;
-      if (store) {
-        store.setState((s: any) => {
-          s.settings.poe1SelectedLeague = "Standard";
-        });
-      }
-    });
-    // Seed data so pages that depend on league/snapshot data render correctly
+    await resetLeagueToFixture(page, "Standard");
     await seedSessionPrerequisites(page);
   });
 

@@ -18,18 +18,19 @@ vi.mock("~/renderer/components/DivinationCard/DivinationCard", () => ({
   ),
 }));
 
-vi.mock("~/renderer/hooks/usePopover/usePopover", () => ({
-  usePopover: () => ({
-    triggerRef: { current: null },
-    popoverRef: { current: null },
-  }),
-}));
+vi.mock("~/renderer/hooks/usePopover/usePopover", async () => {
+  const { createPopoverMock } = await import(
+    "~/renderer/__test-setup__/popover-mock"
+  );
+  return createPopoverMock();
+});
 
-vi.mock("@tanstack/react-router", () => ({
-  useNavigate: () => vi.fn(),
-  Link: ({ children, ...props }: any) => <a {...props}>{children}</a>,
-  createLink: () => (props: any) => <a {...props} />,
-}));
+vi.mock("@tanstack/react-router", async () => {
+  const { createFullRouterMock } = await import(
+    "~/renderer/__test-setup__/router-mock"
+  );
+  return createFullRouterMock();
+});
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 

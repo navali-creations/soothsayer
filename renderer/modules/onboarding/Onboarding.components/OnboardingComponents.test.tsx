@@ -51,10 +51,6 @@ vi.mock("react-icons/ti", () => ({
   ),
 }));
 
-vi.mock("~/renderer/modules/umami", () => ({
-  trackEvent: vi.fn(),
-}));
-
 // ─── Imports (after mocks) ─────────────────────────────────────────────────
 
 import { trackEvent } from "~/renderer/modules/umami";

@@ -1,15 +1,18 @@
 import React from "react";
 
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useProfitForecast } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import PFBreakevenChart from "./PFBreakevenChart";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useProfitForecast: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
 vi.mock("~/renderer/hooks", () => ({
   useChartColors: vi.fn(() => ({
@@ -81,7 +84,7 @@ vi.mock("recharts", () => ({
   },
 }));
 
-const mockUseProfitForecast = vi.mocked(useProfitForecast);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -101,7 +104,7 @@ function createMockStore(overrides: any = {}) {
 
 function setupStore(overrides: any = {}) {
   const store = createMockStore(overrides);
-  mockUseProfitForecast.mockReturnValue(store);
+  mockUseBoundStore.mockReturnValue({ profitForecast: store } as any);
   return store;
 }
 

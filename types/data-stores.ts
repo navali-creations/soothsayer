@@ -218,11 +218,3 @@ export interface DetailedDivinationCardStats {
 export interface GlobalStats {
   totalStackedDecksOpened: number;
 }
-
-// New card data when detected from logs
-export interface NewCardData {
-  cardName: string;
-  processedId: string;
-  game: GameType;
-  league: string;
-}

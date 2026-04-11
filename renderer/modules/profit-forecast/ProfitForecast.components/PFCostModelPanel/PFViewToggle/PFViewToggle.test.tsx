@@ -1,32 +1,35 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useProfitForecast } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import PFViewToggle from "./PFViewToggle";
 
-vi.mock("~/renderer/store", () => ({
-  useProfitForecast: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
-const mockUseProfitForecast = vi.mocked(useProfitForecast);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
-function createMockState(overrides: any = {}) {
+function createMockProfitForecast(overrides: any = {}) {
   return {
     forecastView: "chart" as "chart" | "table",
     setForecastView: vi.fn(),
-    ...overrides.profitForecast,
+    ...overrides,
   } as any;
 }
 
 function setupStore(overrides: any = {}) {
-  const state = createMockState(overrides);
-  mockUseProfitForecast.mockReturnValue(state);
-  return state;
+  const profitForecast = createMockProfitForecast(overrides.profitForecast);
+  mockUseBoundStore.mockReturnValue({ profitForecast } as any);
+  return { profitForecast };
 }
 
 function renderToggle(storeOverrides: any = {}) {
   const state = setupStore(storeOverrides);
   const result = renderWithProviders(<PFViewToggle />);
-  return { state: { profitForecast: state }, ...result };
+  return { state, ...result };
 }
 
 function getViewButtons() {

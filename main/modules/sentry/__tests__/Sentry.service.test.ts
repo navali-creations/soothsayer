@@ -38,6 +38,8 @@ vi.mock("../../../package.json", () => ({
 const RELEASE_PATTERN = expect.stringMatching(/^soothsayer@\d+\.\d+\.\d+$/);
 
 // ─── Import under test (after mocks) ────────────────────────────────────────
+import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
+
 import {
   SentryService,
   scrubBreadcrumbData,
@@ -55,8 +57,7 @@ describe("SentryService", () => {
     mockAppIsPackaged.value = false;
 
     // Reset singleton so each test gets a fresh instance
-    // @ts-expect-error — accessing private static for testing
-    SentryService._instance = undefined;
+    resetSingleton(SentryService);
   });
 
   afterEach(() => {
@@ -224,8 +225,7 @@ describe("SentryService", () => {
       expect(first.isInitialized()).toBe(true);
 
       // Reset singleton
-      // @ts-expect-error — accessing private static for testing
-      SentryService._instance = undefined;
+      resetSingleton(SentryService);
 
       // New instance should be uninitialized
       const second = SentryService.getInstance();
@@ -237,8 +237,7 @@ describe("SentryService", () => {
       const first = SentryService.getInstance();
       first.initialize();
 
-      // @ts-expect-error — accessing private static for testing
-      SentryService._instance = undefined;
+      resetSingleton(SentryService);
       vi.clearAllMocks();
 
       const second = SentryService.getInstance();
@@ -370,8 +369,7 @@ describe("Sentry callbacks (beforeSend / beforeBreadcrumb)", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // @ts-expect-error — accessing private static for testing
-    SentryService._instance = undefined;
+    resetSingleton(SentryService);
 
     const service = SentryService.getInstance();
     service.initialize();

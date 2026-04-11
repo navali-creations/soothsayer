@@ -34,10 +34,6 @@ vi.mock("react-icons/ti", () => ({
   ),
 }));
 
-vi.mock("~/renderer/modules/umami", () => ({
-  trackEvent: vi.fn(),
-}));
-
 vi.mock(
   "~/renderer/modules/onboarding/repereStoreAdapter/repereStoreAdapter",
   () => ({

@@ -1,12 +1,15 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useProfitForecast } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import { formatDivine } from "../../../ProfitForecast.utils/ProfitForecast.utils";
 import PFEstimatedNetStat from "./PFEstimatedNetStat";
 
-vi.mock("~/renderer/store", () => ({
-  useProfitForecast: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
 vi.mock("~/renderer/components", () => ({
   Stat: Object.assign(
@@ -35,7 +38,7 @@ vi.mock("~/renderer/components", () => ({
   ),
 }));
 
-const mockUseProfitForecast = vi.mocked(useProfitForecast);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
 function createMockState(overrides: any = {}) {
   return {
@@ -57,7 +60,7 @@ function createMockState(overrides: any = {}) {
 
 function setupStore(overrides: any = {}) {
   const state = createMockState(overrides);
-  mockUseProfitForecast.mockReturnValue(state);
+  mockUseBoundStore.mockReturnValue({ profitForecast: state } as any);
   return state;
 }
 

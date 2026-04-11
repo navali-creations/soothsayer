@@ -1,16 +1,20 @@
+import { makeSessionsSummary } from "~/renderer/__test-setup__/fixtures";
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useSessions } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import type { SessionsSummary } from "../../Sessions.types";
 import { SessionsPagination } from "./SessionsPagination";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useSessions: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
-const mockUseSessions = vi.mocked(useSessions);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
 vi.mock("~/renderer/components", () => ({
   Button: ({ children, onClick, disabled, ...rest }: any) => (
@@ -32,28 +36,6 @@ vi.mock("react-icons/fi", () => ({
 
 const mockSetPage = vi.fn();
 
-function makeSession(
-  overrides: Partial<SessionsSummary> = {},
-): SessionsSummary {
-  return {
-    sessionId: "sess-1",
-    startedAt: "2024-01-15T10:00:00Z",
-    endedAt: "2024-01-15T11:00:00Z",
-    league: "Settlers",
-    isActive: false,
-    durationMinutes: 60,
-    totalDecksOpened: 100,
-    totalExchangeValue: 500,
-    totalStashValue: 600,
-    totalExchangeNetProfit: 200,
-    totalStashNetProfit: 250,
-    exchangeChaosToDivine: 150,
-    stashChaosToDivine: 150,
-    stackedDeckChaosCost: 3,
-    ...overrides,
-  };
-}
-
 function setupStore(overrides: {
   currentPage?: number;
   pageSize?: number;
@@ -62,13 +44,15 @@ function setupStore(overrides: {
   filteredSessions?: SessionsSummary[];
 }) {
   mockSetPage.mockClear();
-  mockUseSessions.mockReturnValue({
-    getCurrentPage: () => overrides.currentPage ?? 1,
-    getPageSize: () => overrides.pageSize ?? 12,
-    getTotalPages: () => overrides.totalPages ?? 1,
-    getTotalSessions: () => overrides.totalSessions ?? 0,
-    getFilteredSessions: () => overrides.filteredSessions ?? [],
-    setPage: mockSetPage,
+  mockUseBoundStore.mockReturnValue({
+    sessions: {
+      getCurrentPage: () => overrides.currentPage ?? 1,
+      getPageSize: () => overrides.pageSize ?? 12,
+      getTotalPages: () => overrides.totalPages ?? 1,
+      getTotalSessions: () => overrides.totalSessions ?? 0,
+      getFilteredSessions: () => overrides.filteredSessions ?? [],
+      setPage: mockSetPage,
+    },
   } as any);
 }
 
@@ -88,9 +72,9 @@ describe("SessionsPagination", () => {
 
   it('shows "Showing X to Y of Z sessions" text', () => {
     const sessions = [
-      makeSession({ sessionId: "s1" }),
-      makeSession({ sessionId: "s2" }),
-      makeSession({ sessionId: "s3" }),
+      makeSessionsSummary({ sessionId: "s1" }),
+      makeSessionsSummary({ sessionId: "s2" }),
+      makeSessionsSummary({ sessionId: "s3" }),
     ];
     setupStore({
       filteredSessions: sessions,
@@ -107,7 +91,7 @@ describe("SessionsPagination", () => {
   });
 
   it("computes correct range on a middle page", () => {
-    const sessions = [makeSession({ sessionId: "s1" })];
+    const sessions = [makeSessionsSummary({ sessionId: "s1" })];
     setupStore({
       filteredSessions: sessions,
       currentPage: 2,
@@ -123,7 +107,7 @@ describe("SessionsPagination", () => {
   });
 
   it("clamps endItem to totalSessions on the last page", () => {
-    const sessions = [makeSession({ sessionId: "s1" })];
+    const sessions = [makeSessionsSummary({ sessionId: "s1" })];
     setupStore({
       filteredSessions: sessions,
       currentPage: 3,
@@ -139,7 +123,7 @@ describe("SessionsPagination", () => {
   });
 
   it("shows page indicator text", () => {
-    const sessions = [makeSession({ sessionId: "s1" })];
+    const sessions = [makeSessionsSummary({ sessionId: "s1" })];
     setupStore({
       filteredSessions: sessions,
       currentPage: 2,
@@ -153,7 +137,7 @@ describe("SessionsPagination", () => {
   // ── Button disabled states ─────────────────────────────────────────────
 
   it("disables first and prev buttons on page 1", () => {
-    const sessions = [makeSession({ sessionId: "s1" })];
+    const sessions = [makeSessionsSummary({ sessionId: "s1" })];
     setupStore({
       filteredSessions: sessions,
       currentPage: 1,
@@ -174,7 +158,7 @@ describe("SessionsPagination", () => {
   });
 
   it("disables next and last buttons on the last page", () => {
-    const sessions = [makeSession({ sessionId: "s1" })];
+    const sessions = [makeSessionsSummary({ sessionId: "s1" })];
     setupStore({
       filteredSessions: sessions,
       currentPage: 3,
@@ -194,7 +178,7 @@ describe("SessionsPagination", () => {
   });
 
   it("disables all navigation buttons when there is only one page", () => {
-    const sessions = [makeSession({ sessionId: "s1" })];
+    const sessions = [makeSessionsSummary({ sessionId: "s1" })];
     setupStore({
       filteredSessions: sessions,
       currentPage: 1,
@@ -213,7 +197,7 @@ describe("SessionsPagination", () => {
   // ── Button click handlers ──────────────────────────────────────────────
 
   it("clicking next calls setPage(currentPage + 1)", async () => {
-    const sessions = [makeSession({ sessionId: "s1" })];
+    const sessions = [makeSessionsSummary({ sessionId: "s1" })];
     setupStore({
       filteredSessions: sessions,
       currentPage: 2,
@@ -231,7 +215,7 @@ describe("SessionsPagination", () => {
   });
 
   it("clicking prev calls setPage(currentPage - 1)", async () => {
-    const sessions = [makeSession({ sessionId: "s1" })];
+    const sessions = [makeSessionsSummary({ sessionId: "s1" })];
     setupStore({
       filteredSessions: sessions,
       currentPage: 3,
@@ -249,7 +233,7 @@ describe("SessionsPagination", () => {
   });
 
   it("clicking first calls setPage(1)", async () => {
-    const sessions = [makeSession({ sessionId: "s1" })];
+    const sessions = [makeSessionsSummary({ sessionId: "s1" })];
     setupStore({
       filteredSessions: sessions,
       currentPage: 3,
@@ -267,7 +251,7 @@ describe("SessionsPagination", () => {
   });
 
   it("clicking last calls setPage(totalPages)", async () => {
-    const sessions = [makeSession({ sessionId: "s1" })];
+    const sessions = [makeSessionsSummary({ sessionId: "s1" })];
     setupStore({
       filteredSessions: sessions,
       currentPage: 2,

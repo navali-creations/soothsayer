@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { getIpcHandler } from "~/main/modules/__test-utils__/mock-factories";
+import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
+
 // ─── Hoisted mock functions (available inside vi.mock factories) ─────────────
 const {
   mockAppOn,
@@ -150,22 +153,6 @@ function getAppEventHandler(event: string): (...args: any[]) => any {
   return call[1];
 }
 
-/** Get the IPC handler registered for a given channel */
-function getIpcHandler(channel: string): (...args: any[]) => any {
-  const call = mockIpcHandle.mock.calls.find(
-    ([ch]: [string]) => ch === channel,
-  );
-  if (!call) {
-    const registered = mockIpcHandle.mock.calls
-      .map(([ch]: [string]) => ch)
-      .join(", ");
-    throw new Error(
-      `ipcMain.handle was not called with "${channel}". Registered channels: ${registered}`,
-    );
-  }
-  return call[1];
-}
-
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe("AppService", () => {
@@ -185,8 +172,7 @@ describe("AppService", () => {
       .mockImplementation((() => {}) as any);
 
     // Reset singleton
-    // @ts-expect-error — accessing private static for testing
-    AppService._instance = undefined;
+    resetSingleton(AppService);
 
     // Default: non-packaged, Windows
     mockAppIsPackaged.value = false;
@@ -218,8 +204,7 @@ describe("AppService", () => {
   describe("getInstance", () => {
     it("should return the same instance on repeated calls", () => {
       // Reset so getInstance creates fresh
-      // @ts-expect-error
-      AppService._instance = undefined;
+      resetSingleton(AppService);
 
       const a = AppService.getInstance();
       const b = AppService.getInstance();
@@ -227,8 +212,7 @@ describe("AppService", () => {
     });
 
     it("should create a new instance if none exists", () => {
-      // @ts-expect-error
-      AppService._instance = undefined;
+      resetSingleton(AppService);
       const instance = AppService.getInstance();
       expect(instance).toBeInstanceOf(AppService);
     });
@@ -239,8 +223,7 @@ describe("AppService", () => {
   describe("constructor", () => {
     it("should call setAppNameForWinNotifications on Windows", () => {
       Object.defineProperty(process, "platform", { value: "win32" });
-      // @ts-expect-error
-      AppService._instance = undefined;
+      resetSingleton(AppService);
       const _svc = new AppService();
       expect(mockAppSetAppUserModelId).toHaveBeenCalledWith("Soothsayer");
     });
@@ -345,7 +328,7 @@ describe("AppService", () => {
     it("should return the app version from package.json when the handler is invoked", () => {
       service.emitGetVersion();
 
-      const handler = getIpcHandler(AppChannel.GetVersion);
+      const handler = getIpcHandler(mockIpcHandle, AppChannel.GetVersion);
       const result = handler();
 
       expect(result).toMatch(/^\d+\.\d+\.\d+$/);
@@ -368,7 +351,7 @@ describe("AppService", () => {
       service.isQuitting = false;
       service.emitRestart();
 
-      const handler = getIpcHandler(AppChannel.Restart);
+      const handler = getIpcHandler(mockIpcHandle, AppChannel.Restart);
       handler();
 
       expect(mockAppRelaunch).toHaveBeenCalled();
@@ -379,7 +362,7 @@ describe("AppService", () => {
       service.isQuitting = true;
       service.emitRestart();
 
-      const handler = getIpcHandler(AppChannel.Restart);
+      const handler = getIpcHandler(mockIpcHandle, AppChannel.Restart);
       handler();
 
       expect(mockAppRelaunch).not.toHaveBeenCalled();
@@ -862,8 +845,7 @@ describe("AppService", () => {
 
   describe("isQuitting state", () => {
     it("should default to false", () => {
-      // @ts-expect-error
-      AppService._instance = undefined;
+      resetSingleton(AppService);
       const svc = new AppService();
       expect(svc.isQuitting).toBe(false);
     });
@@ -879,8 +861,7 @@ describe("AppService", () => {
   describe("full lifecycle", () => {
     it("should handle a complete app lifecycle: start -> register hooks -> before-quit cleanup", async () => {
       // 1. Create service (start)
-      // @ts-expect-error
-      AppService._instance = undefined;
+      resetSingleton(AppService);
       const svc = new AppService();
       svc.isQuitting = false;
 

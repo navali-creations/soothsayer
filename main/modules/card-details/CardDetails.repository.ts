@@ -343,6 +343,65 @@ export class CardDetailsRepository {
 
   // ─── Related Cards Queries ─────────────────────────────────────────────
 
+  private buildCardDetailsQuery(game: string) {
+    let query = this.kysely
+      .selectFrom("divination_cards as dc")
+      .leftJoin("divination_card_rarities as dcr", (join) =>
+        join
+          .onRef("dc.name", "=", "dcr.card_name")
+          .onRef("dc.game", "=", "dcr.game"),
+      )
+      .select([
+        "dc.name",
+        "dc.art_src as artSrc",
+        "dc.stack_size as stackSize",
+        "dc.description",
+        "dc.reward_html as rewardHtml",
+        "dc.flavour_html as flavourHtml",
+        sql<number>`COALESCE(dcr.rarity, 0)`.as("rarity"),
+      ])
+      .where("dc.game", "=", game as "poe1" | "poe2");
+
+    // Prohibited Library rarity
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    query = query.select(
+      sql<number | null>`dcr.prohibited_library_rarity`.as(
+        "prohibited_library_rarity",
+      ),
+    ) as any;
+
+    return query;
+  }
+
+  private mapCardDetailsRow(row: Record<string, unknown>): {
+    name: string;
+    artSrc: string;
+    stackSize: number;
+    description: string;
+    rewardHtml: string;
+    flavourHtml: string;
+    rarity: Rarity;
+    filterRarity: KnownRarity | null;
+    prohibitedLibraryRarity: Rarity | null;
+    fromBoss: boolean;
+  } {
+    return {
+      name: row.name as string,
+      artSrc: row.artSrc as string,
+      stackSize: row.stackSize as number,
+      description: (row.description as string) ?? "",
+      rewardHtml: cleanWikiMarkup(row.rewardHtml as string),
+      flavourHtml: cleanWikiMarkup(row.flavourHtml as string),
+      rarity: ((row.rarity as number) ?? 0) as Rarity,
+      filterRarity: null,
+      prohibitedLibraryRarity:
+        row.prohibited_library_rarity != null
+          ? (row.prohibited_library_rarity as Rarity)
+          : null,
+      fromBoss: false,
+    };
+  }
+
   /**
    * Find cards that share a similar reward by doing a LIKE search on `reward_html`.
    *
@@ -384,54 +443,17 @@ export class CardDetailsRepository {
 
     const searchTerm = `%${rewardItemName.trim()}%`;
 
-    let query = this.kysely
-      .selectFrom("divination_cards as dc")
-      .leftJoin("divination_card_rarities as dcr", (join) =>
-        join
-          .onRef("dc.name", "=", "dcr.card_name")
-          .onRef("dc.game", "=", "dcr.game"),
-      )
-      .select([
-        "dc.name",
-        "dc.art_src as artSrc",
-        "dc.stack_size as stackSize",
-        "dc.description",
-        "dc.reward_html as rewardHtml",
-        "dc.flavour_html as flavourHtml",
-        sql<number>`COALESCE(dcr.rarity, 0)`.as("rarity"),
-      ])
-      .where("dc.game", "=", game as "poe1" | "poe2")
+    const query = this.buildCardDetailsQuery(game)
       .where("dc.name", "!=", excludeCardName)
       .where("dc.reward_html", "like", searchTerm)
       .orderBy("dc.name", "asc")
       .limit(limit);
 
-    // Prohibited Library rarity — read from divination_card_rarities (populated by syncCards)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    query = query.select(
-      sql<number | null>`dcr.prohibited_library_rarity`.as(
-        "prohibited_library_rarity",
-      ),
-    ) as any;
-
     const rows = await query.execute();
 
-    return rows.map((row) => ({
-      name: row.name,
-      artSrc: row.artSrc,
-      stackSize: row.stackSize,
-      description: row.description ?? "",
-      rewardHtml: cleanWikiMarkup(row.rewardHtml),
-      flavourHtml: cleanWikiMarkup(row.flavourHtml),
-      rarity: (row.rarity ?? 0) as Rarity,
-      filterRarity: null, // Filter rarity requires a separate join; omitted for simplicity
-      prohibitedLibraryRarity:
-        (row as Record<string, unknown>).prohibited_library_rarity != null
-          ? ((row as Record<string, unknown>)
-              .prohibited_library_rarity as Rarity)
-          : null,
-      fromBoss: false,
-    }));
+    return rows.map((row) =>
+      this.mapCardDetailsRow(row as Record<string, unknown>),
+    );
   }
 
   /**
@@ -464,52 +486,16 @@ export class CardDetailsRepository {
       return null;
     }
 
-    let query = this.kysely
-      .selectFrom("divination_cards as dc")
-      .leftJoin("divination_card_rarities as dcr", (join) =>
-        join
-          .onRef("dc.name", "=", "dcr.card_name")
-          .onRef("dc.game", "=", "dcr.game"),
-      )
-      .select([
-        "dc.name",
-        "dc.art_src as artSrc",
-        "dc.stack_size as stackSize",
-        "dc.description",
-        "dc.reward_html as rewardHtml",
-        "dc.flavour_html as flavourHtml",
-        sql<number>`COALESCE(dcr.rarity, 0)`.as("rarity"),
-      ])
-      .where("dc.game", "=", game as "poe1" | "poe2")
-      .where("dc.name", "=", cardName);
-
-    // Prohibited Library rarity — read from divination_card_rarities (populated by syncCards)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    query = query.select(
-      sql<number | null>`dcr.prohibited_library_rarity`.as(
-        "prohibited_library_rarity",
-      ),
-    ) as any;
+    const query = this.buildCardDetailsQuery(game).where(
+      "dc.name",
+      "=",
+      cardName,
+    );
 
     const row = await query.executeTakeFirst();
 
     if (!row) return null;
 
-    return {
-      name: row.name,
-      artSrc: row.artSrc,
-      stackSize: row.stackSize,
-      description: row.description ?? "",
-      rewardHtml: cleanWikiMarkup(row.rewardHtml),
-      flavourHtml: cleanWikiMarkup(row.flavourHtml),
-      rarity: (row.rarity ?? 0) as Rarity,
-      filterRarity: null,
-      prohibitedLibraryRarity:
-        (row as Record<string, unknown>).prohibited_library_rarity != null
-          ? ((row as Record<string, unknown>)
-              .prohibited_library_rarity as Rarity)
-          : null,
-      fromBoss: false,
-    };
+    return this.mapCardDetailsRow(row as Record<string, unknown>);
   }
 }

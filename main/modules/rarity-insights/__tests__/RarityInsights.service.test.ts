@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { getIpcHandler } from "~/main/modules/__test-utils__/mock-factories";
+
 // ─── Hoisted mock functions (available inside vi.mock factories) ─────────────
 const {
   mockIpcHandle,
@@ -151,6 +153,8 @@ vi.mock("~/main/modules/divination-cards", () => ({
 }));
 
 // ─── Import under test (after mocks) ────────────────────────────────────────
+import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
+
 import { RarityInsightsChannel } from "../RarityInsights.channels";
 import type {
   DiscoveredRarityInsightsDTO,
@@ -161,16 +165,6 @@ import type {
 import { RarityInsightsService } from "../RarityInsights.service";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function getIpcHandler(channel: string): (...args: any[]) => Promise<any> {
-  const call = mockIpcHandle.mock.calls.find(
-    ([ch]: [string]) => ch === channel,
-  );
-  if (!call) {
-    throw new Error(`ipcMain.handle was not called with "${channel}"`);
-  }
-  return call[1];
-}
 
 function makeRarityInsightsMetadataDTO(
   overrides: Partial<RarityInsightsMetadataDTO> = {},
@@ -215,8 +209,7 @@ describe("RarityInsightsService", () => {
     vi.clearAllMocks();
 
     // Reset singleton
-    // @ts-expect-error — accessing private static for testing
-    RarityInsightsService._instance = undefined;
+    resetSingleton(RarityInsightsService);
 
     // Default mock implementations
     mockSettingsGet.mockImplementation(async (key: string) => {
@@ -415,7 +408,10 @@ describe("RarityInsightsService", () => {
       mockScanAll.mockResolvedValue([]);
       mockRepoGetAll.mockResolvedValue([]);
 
-      const handler = getIpcHandler(RarityInsightsChannel.ScanRarityInsights);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        RarityInsightsChannel.ScanRarityInsights,
+      );
       const result: RarityInsightsScanResultDTO = await handler({});
 
       expect(result.filters).toEqual([]);
@@ -459,7 +455,10 @@ describe("RarityInsightsService", () => {
     it("should work through the IPC handler", async () => {
       mockRepoGetAll.mockResolvedValue([]);
 
-      const handler = getIpcHandler(RarityInsightsChannel.GetAllRarityInsights);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        RarityInsightsChannel.GetAllRarityInsights,
+      );
       const result: DiscoveredRarityInsightsDTO[] = await handler({});
 
       expect(result).toEqual([]);
@@ -492,7 +491,10 @@ describe("RarityInsightsService", () => {
     it("should work through the IPC handler", async () => {
       mockRepoGetById.mockResolvedValue(null);
 
-      const handler = getIpcHandler(RarityInsightsChannel.GetRarityInsights);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        RarityInsightsChannel.GetRarityInsights,
+      );
       const result = await handler({}, "filter_abc12345");
 
       expect(result).toBeNull();
@@ -535,7 +537,10 @@ describe("RarityInsightsService", () => {
       const metadata = makeRarityInsightsMetadataDTO({ id: "filter_abc12345" });
       mockRepoGetById.mockResolvedValue(metadata);
 
-      const handler = getIpcHandler(RarityInsightsChannel.ParseRarityInsights);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        RarityInsightsChannel.ParseRarityInsights,
+      );
       const result = await handler({}, "filter_abc12345");
 
       expect(result.filterId).toBe("filter_abc12345");
@@ -581,7 +586,10 @@ describe("RarityInsightsService", () => {
       const metadata = makeRarityInsightsMetadataDTO({ id: "filter_abc12345" });
       mockRepoGetById.mockResolvedValue(metadata);
 
-      const handler = getIpcHandler(RarityInsightsChannel.SelectRarityInsights);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        RarityInsightsChannel.SelectRarityInsights,
+      );
       await handler({}, "filter_abc12345");
 
       expect(mockSettingsSet).toHaveBeenCalledWith(
@@ -591,7 +599,10 @@ describe("RarityInsightsService", () => {
     });
 
     it("should work through the IPC handler (clear)", async () => {
-      const handler = getIpcHandler(RarityInsightsChannel.SelectRarityInsights);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        RarityInsightsChannel.SelectRarityInsights,
+      );
       await handler({}, null);
 
       expect(mockSettingsSet).toHaveBeenCalledWith("selectedFilterId", null);
@@ -648,6 +659,7 @@ describe("RarityInsightsService", () => {
       });
 
       const handler = getIpcHandler(
+        mockIpcHandle,
         RarityInsightsChannel.GetSelectedRarityInsights,
       );
       const result = await handler({});
@@ -689,7 +701,10 @@ describe("RarityInsightsService", () => {
         return undefined;
       });
 
-      const handler = getIpcHandler(RarityInsightsChannel.GetRaritySource);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        RarityInsightsChannel.GetRaritySource,
+      );
       const result: RaritySource = await handler({});
 
       expect(result).toBe("poe.ninja");
@@ -731,7 +746,10 @@ describe("RarityInsightsService", () => {
     });
 
     it("should work through the IPC handler", async () => {
-      const handler = getIpcHandler(RarityInsightsChannel.SetRaritySource);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        RarityInsightsChannel.SetRaritySource,
+      );
       await handler({}, "filter");
 
       expect(mockSettingsSet).toHaveBeenCalledWith("raritySource", "filter");
@@ -838,7 +856,10 @@ describe("RarityInsightsService", () => {
     it("should handle scanner throwing an error gracefully via IPC", async () => {
       mockScanAll.mockRejectedValue(new Error("Disk read error"));
 
-      const handler = getIpcHandler(RarityInsightsChannel.ScanRarityInsights);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        RarityInsightsChannel.ScanRarityInsights,
+      );
 
       // The IPC handler doesn't catch errors — they propagate to the renderer
       await expect(handler({})).rejects.toThrow("Disk read error");
@@ -1056,6 +1077,7 @@ describe("RarityInsightsService", () => {
       ]);
 
       const handler = getIpcHandler(
+        mockIpcHandle,
         RarityInsightsChannel.ApplyRarityInsightsRarities,
       );
       const result = await handler({}, "filter_ipc", "poe1", "Settlers");
@@ -1072,6 +1094,7 @@ describe("RarityInsightsService", () => {
   describe("UpdateRarityInsightsCardRarity IPC handler", () => {
     it("should update card rarity with valid inputs", async () => {
       const handler = getIpcHandler(
+        mockIpcHandle,
         RarityInsightsChannel.UpdateRarityInsightsCardRarity,
       );
       const result = await handler({}, "filter_abc12345", "The Doctor", 1);
@@ -1086,6 +1109,7 @@ describe("RarityInsightsService", () => {
 
     it("should update card rarity with rarity 4", async () => {
       const handler = getIpcHandler(
+        mockIpcHandle,
         RarityInsightsChannel.UpdateRarityInsightsCardRarity,
       );
       const result = await handler({}, "filter_abc12345", "Rain of Chaos", 4);
@@ -1100,6 +1124,7 @@ describe("RarityInsightsService", () => {
 
     it("should reject rarity below 1", async () => {
       const handler = getIpcHandler(
+        mockIpcHandle,
         RarityInsightsChannel.UpdateRarityInsightsCardRarity,
       );
       const result = await handler({}, "filter_abc12345", "The Doctor", 0);
@@ -1113,6 +1138,7 @@ describe("RarityInsightsService", () => {
 
     it("should reject rarity above 4", async () => {
       const handler = getIpcHandler(
+        mockIpcHandle,
         RarityInsightsChannel.UpdateRarityInsightsCardRarity,
       );
       const result = await handler({}, "filter_abc12345", "The Doctor", 5);
@@ -1126,6 +1152,7 @@ describe("RarityInsightsService", () => {
 
     it("should reject non-string filterId", async () => {
       const handler = getIpcHandler(
+        mockIpcHandle,
         RarityInsightsChannel.UpdateRarityInsightsCardRarity,
       );
       const result = await handler({}, 123, "The Doctor", 1);
@@ -1138,6 +1165,7 @@ describe("RarityInsightsService", () => {
 
     it("should reject non-string cardName", async () => {
       const handler = getIpcHandler(
+        mockIpcHandle,
         RarityInsightsChannel.UpdateRarityInsightsCardRarity,
       );
       const result = await handler({}, "filter_abc12345", null, 1);

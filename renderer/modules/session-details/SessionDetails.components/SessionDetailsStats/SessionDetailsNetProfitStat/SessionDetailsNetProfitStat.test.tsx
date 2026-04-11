@@ -1,13 +1,16 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useSessionDetails } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import { SessionDetailsNetProfitStat } from "./SessionDetailsNetProfitStat";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useSessionDetails: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
 vi.mock("react-icons/fi", () => ({
   FiInfo: (props: any) => <span data-testid="icon-info" {...props} />,
@@ -72,7 +75,7 @@ vi.mock(
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-const mockUseSessionDetails = vi.mocked(useSessionDetails);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
 function setupStore(overrides: Record<string, any> = {}) {
   const sessionDetails = {
@@ -89,7 +92,7 @@ function setupStore(overrides: Record<string, any> = {}) {
     getTimeline: vi.fn().mockReturnValue(null),
     ...overrides,
   };
-  mockUseSessionDetails.mockReturnValue(sessionDetails as any);
+  mockUseBoundStore.mockReturnValue({ sessionDetails } as any);
   return sessionDetails;
 }
 

@@ -80,17 +80,14 @@ export interface MostDecksOpenedDTO extends SessionHighlightDTO {
   durationMinutes: number | null;
 }
 
-export interface BiggestLetdownSessionDTO extends SessionHighlightDTO {
+interface SessionProfitHighlightDTO extends SessionHighlightDTO {
   totalDecksOpened: number;
   profit: number;
   chaosPerDivine: number;
 }
 
-export interface LuckyBreakSessionDTO extends SessionHighlightDTO {
-  totalDecksOpened: number;
-  profit: number;
-  chaosPerDivine: number;
-}
+export type BiggestLetdownSessionDTO = SessionProfitHighlightDTO;
+export type LuckyBreakSessionDTO = SessionProfitHighlightDTO;
 
 export interface TotalNetProfitDTO {
   totalProfit: number;

@@ -324,3 +324,42 @@ export async function ensurePostSetup(page: Page): Promise<void> {
   }
   await page.locator("aside").waitFor({ state: "visible", timeout: 15_000 });
 }
+
+/**
+ * Navigate to a card detail page by slug.
+ */
+export async function goToCardDetail(page: Page, slug: string) {
+  await navigateTo(page, `/cards/${slug}`);
+  await page.locator("main").waitFor({ state: "visible", timeout: 15_000 });
+}
+
+/**
+ * Navigate to the Profit Forecast page and wait for it to render.
+ */
+export async function goToProfitForecast(page: Page) {
+  await navigateTo(page, "/profit-forecast");
+  await page
+    .getByText("Profit Forecast", { exact: false })
+    .first()
+    .waitFor({ state: "visible", timeout: 10_000 });
+}
+
+/**
+ * Switches the Profit Forecast page from the default "chart" view to "table"
+ * view by clicking the Table badge in the cost model panel.
+ */
+export async function switchToTableView(page: Page) {
+  const tableBadge = page.locator("button", { hasText: "Table" }).first();
+  await expect(tableBadge).toBeVisible({ timeout: 5_000 });
+  await tableBadge.click();
+  // Wait for the table to render — if PL data is loaded the full <table>
+  // appears; otherwise PFTable shows a fallback "No cards match" div.
+  // Either outcome is acceptable.
+  await page
+    .locator("table, [role='table']")
+    .first()
+    .waitFor({ state: "visible", timeout: 5_000 })
+    .catch(() => {
+      // Table has no rows — PFTable renders a fallback div instead of <table>.
+    });
+}

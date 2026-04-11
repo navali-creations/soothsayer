@@ -1,5 +1,6 @@
+import { makeCardEntry } from "~/renderer/__test-setup__/fixtures";
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import type { CardEntry, DivinationCardMetadata } from "~/types/data-stores";
+import type { DivinationCardMetadata } from "~/types/data-stores";
 
 import DivinationCard from "./DivinationCard";
 
@@ -56,20 +57,12 @@ function makeMetadata(
   };
 }
 
-function makeCard(overrides: Partial<CardEntry> = {}): CardEntry {
-  return {
-    name: "The Doctor",
-    count: 3,
-    ...overrides,
-  };
-}
-
 // ─── Tests ─────────────────────────────────────────────────────────────────
 
 describe("DivinationCard", () => {
   describe("placeholder fallback when divinationCard is missing", () => {
     it("renders placeholder card frame when divinationCard is undefined", () => {
-      const card = makeCard({ divinationCard: undefined });
+      const card = makeCardEntry({ count: 3, divinationCard: undefined });
       const { container } = renderWithProviders(<DivinationCard card={card} />);
       expect(container.innerHTML).not.toBe("");
       expect(screen.getByTestId("card-frame")).toBeInTheDocument();
@@ -77,7 +70,8 @@ describe("DivinationCard", () => {
     });
 
     it("shows card name in the placeholder", () => {
-      const card = makeCard({
+      const card = makeCardEntry({
+        count: 3,
         name: "House of Mirrors",
         divinationCard: undefined,
       });
@@ -88,7 +82,7 @@ describe("DivinationCard", () => {
     });
 
     it("shows placeholder message text", () => {
-      const card = makeCard({ divinationCard: undefined });
+      const card = makeCardEntry({ count: 3, divinationCard: undefined });
       renderWithProviders(<DivinationCard card={card} />);
 
       expect(
@@ -97,21 +91,21 @@ describe("DivinationCard", () => {
     });
 
     it("does not render CardArt in placeholder mode", () => {
-      const card = makeCard({ divinationCard: undefined });
+      const card = makeCardEntry({ count: 3, divinationCard: undefined });
       renderWithProviders(<DivinationCard card={card} />);
 
       expect(screen.queryByTestId("card-art")).not.toBeInTheDocument();
     });
 
     it("does not render RarityEffects in placeholder mode", () => {
-      const card = makeCard({ divinationCard: undefined });
+      const card = makeCardEntry({ count: 3, divinationCard: undefined });
       renderWithProviders(<DivinationCard card={card} />);
 
       expect(screen.queryByTestId("rarity-effects")).not.toBeInTheDocument();
     });
 
     it("does not render BossIndicator in placeholder mode", () => {
-      const card = makeCard({ divinationCard: undefined });
+      const card = makeCardEntry({ count: 3, divinationCard: undefined });
       renderWithProviders(<DivinationCard card={card} />);
 
       expect(
@@ -120,7 +114,7 @@ describe("DivinationCard", () => {
     });
 
     it("renders with data-mode='placeholder'", () => {
-      const card = makeCard({ divinationCard: undefined });
+      const card = makeCardEntry({ count: 3, divinationCard: undefined });
       renderWithProviders(<DivinationCard card={card} />);
 
       expect(screen.getByTestId("divination-card")).toHaveAttribute(
@@ -132,7 +126,7 @@ describe("DivinationCard", () => {
 
   describe("full card rendering with divinationCard metadata", () => {
     it("renders with data-mode='full' when divinationCard is present", () => {
-      const card = makeCard({ divinationCard: makeMetadata() });
+      const card = makeCardEntry({ count: 3, divinationCard: makeMetadata() });
       renderWithProviders(<DivinationCard card={card} />);
 
       expect(screen.getByTestId("divination-card")).toHaveAttribute(
@@ -142,7 +136,7 @@ describe("DivinationCard", () => {
     });
 
     it("renders frame, art, and rarity effects", () => {
-      const card = makeCard({ divinationCard: makeMetadata() });
+      const card = makeCardEntry({ count: 3, divinationCard: makeMetadata() });
       renderWithProviders(<DivinationCard card={card} />);
 
       expect(screen.getByTestId("card-frame")).toBeInTheDocument();
@@ -151,14 +145,15 @@ describe("DivinationCard", () => {
     });
 
     it("does not render placeholder when divinationCard is present", () => {
-      const card = makeCard({ divinationCard: makeMetadata() });
+      const card = makeCardEntry({ count: 3, divinationCard: makeMetadata() });
       renderWithProviders(<DivinationCard card={card} />);
 
       expect(screen.queryByTestId("card-placeholder")).not.toBeInTheDocument();
     });
 
     it("renders card name", () => {
-      const card = makeCard({
+      const card = makeCardEntry({
+        count: 3,
         name: "House of Mirrors",
         divinationCard: makeMetadata(),
       });
@@ -168,7 +163,7 @@ describe("DivinationCard", () => {
     });
 
     it("renders stack size in count/stackSize format", () => {
-      const card = makeCard({
+      const card = makeCardEntry({
         count: 2,
         divinationCard: makeMetadata({ stackSize: 8 }),
       });
@@ -178,7 +173,8 @@ describe("DivinationCard", () => {
     });
 
     it("shows BossIndicator when fromBoss is true", () => {
-      const card = makeCard({
+      const card = makeCardEntry({
+        count: 3,
         divinationCard: makeMetadata({ fromBoss: true }),
       });
       renderWithProviders(<DivinationCard card={card} />);
@@ -187,7 +183,8 @@ describe("DivinationCard", () => {
     });
 
     it("hides BossIndicator when fromBoss is false", () => {
-      const card = makeCard({
+      const card = makeCardEntry({
+        count: 3,
         divinationCard: makeMetadata({ fromBoss: false }),
       });
       renderWithProviders(<DivinationCard card={card} />);
@@ -198,7 +195,7 @@ describe("DivinationCard", () => {
     });
 
     it("hides BossIndicator when fromBoss is not provided (defaults to false)", () => {
-      const card = makeCard({ divinationCard: makeMetadata() });
+      const card = makeCardEntry({ count: 3, divinationCard: makeMetadata() });
       renderWithProviders(<DivinationCard card={card} />);
 
       expect(
@@ -207,7 +204,8 @@ describe("DivinationCard", () => {
     });
 
     it("shows DisabledIndicator when isDisabled is true", () => {
-      const card = makeCard({
+      const card = makeCardEntry({
+        count: 3,
         divinationCard: makeMetadata({ isDisabled: true }),
       });
       renderWithProviders(<DivinationCard card={card} />);
@@ -220,7 +218,8 @@ describe("DivinationCard", () => {
     });
 
     it("hides DisabledIndicator when isDisabled is false", () => {
-      const card = makeCard({
+      const card = makeCardEntry({
+        count: 3,
         divinationCard: makeMetadata({ isDisabled: false }),
       });
       renderWithProviders(<DivinationCard card={card} />);
@@ -237,7 +236,10 @@ describe("DivinationCard", () => {
     it.each([
       0, 1, 2, 3, 4,
     ] as const)("passes rarity %i to RarityEffects", (rarity) => {
-      const card = makeCard({ divinationCard: makeMetadata({ rarity }) });
+      const card = makeCardEntry({
+        count: 3,
+        divinationCard: makeMetadata({ rarity }),
+      });
       renderWithProviders(<DivinationCard card={card} />);
 
       const effects = screen.getByTestId("rarity-effects");
@@ -245,7 +247,7 @@ describe("DivinationCard", () => {
     });
 
     it("defaults rarity to 4 when not provided", () => {
-      const card = makeCard({ divinationCard: makeMetadata() });
+      const card = makeCardEntry({ count: 3, divinationCard: makeMetadata() });
       renderWithProviders(<DivinationCard card={card} />);
 
       const effects = screen.getByTestId("rarity-effects");
@@ -255,7 +257,8 @@ describe("DivinationCard", () => {
 
   describe("CardArt props", () => {
     it("passes correct artSrc to CardArt", () => {
-      const card = makeCard({
+      const card = makeCardEntry({
+        count: 3,
         name: "The Fiend",
         divinationCard: makeMetadata({
           artSrc: "https://example.com/fiend.png",
@@ -274,7 +277,8 @@ describe("DivinationCard", () => {
 
   describe("default values when metadata fields are null or missing", () => {
     it("defaults artSrc to empty string when null", () => {
-      const card = makeCard({
+      const card = makeCardEntry({
+        count: 3,
         divinationCard: makeMetadata({ artSrc: null }),
       });
       renderWithProviders(<DivinationCard card={card} />);
@@ -286,7 +290,7 @@ describe("DivinationCard", () => {
     });
 
     it("defaults stackSize to 1 when null", () => {
-      const card = makeCard({
+      const card = makeCardEntry({
         count: 5,
         divinationCard: makeMetadata({ stackSize: null }),
       });
@@ -296,7 +300,7 @@ describe("DivinationCard", () => {
     });
 
     it("defaults rarity to 4 when not provided", () => {
-      const card = makeCard({ divinationCard: makeMetadata() });
+      const card = makeCardEntry({ count: 3, divinationCard: makeMetadata() });
       renderWithProviders(<DivinationCard card={card} />);
 
       expect(screen.getByTestId("rarity-effects")).toHaveAttribute(
@@ -306,7 +310,7 @@ describe("DivinationCard", () => {
     });
 
     it("defaults artSrc to empty string when not provided", () => {
-      const card = makeCard({ divinationCard: makeMetadata() });
+      const card = makeCardEntry({ count: 3, divinationCard: makeMetadata() });
       renderWithProviders(<DivinationCard card={card} />);
 
       expect(screen.getByTestId("card-art")).toHaveAttribute(
@@ -318,7 +322,8 @@ describe("DivinationCard", () => {
 
   describe("rewardHtml processing", () => {
     it("processes rewardHtml and passes it to CardRewardFlavour", () => {
-      const card = makeCard({
+      const card = makeCardEntry({
+        count: 3,
         divinationCard: makeMetadata({
           rewardHtml: '<span class="-mod">some reward</span>',
         }),
@@ -333,7 +338,7 @@ describe("DivinationCard", () => {
     });
 
     it("renders empty reward when rewardHtml is not provided", () => {
-      const card = makeCard({ divinationCard: makeMetadata() });
+      const card = makeCardEntry({ count: 3, divinationCard: makeMetadata() });
       renderWithProviders(<DivinationCard card={card} />);
 
       // Component should still render without errors
@@ -341,7 +346,8 @@ describe("DivinationCard", () => {
     });
 
     it("renders empty reward when rewardHtml is null", () => {
-      const card = makeCard({
+      const card = makeCardEntry({
+        count: 3,
         divinationCard: makeMetadata({ rewardHtml: null }),
       });
       renderWithProviders(<DivinationCard card={card} />);
@@ -352,7 +358,8 @@ describe("DivinationCard", () => {
 
   describe("flavour text", () => {
     it("renders flavour text when flavourHtml is provided", () => {
-      const card = makeCard({
+      const card = makeCardEntry({
+        count: 3,
         divinationCard: makeMetadata({
           flavourHtml: "<em>A taste of power.</em>",
         }),
@@ -365,7 +372,8 @@ describe("DivinationCard", () => {
     });
 
     it("does not render flavour separator when flavourHtml is empty", () => {
-      const card = makeCard({
+      const card = makeCardEntry({
+        count: 3,
         divinationCard: makeMetadata({ flavourHtml: "" }),
       });
       const { container } = renderWithProviders(<DivinationCard card={card} />);

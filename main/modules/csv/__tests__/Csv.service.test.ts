@@ -1,5 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  createDatabaseServiceMock,
+  createDataStoreServiceMock,
+  createElectronMock,
+  createPerformanceLoggerMock,
+  createSettingsStoreMock,
+  getIpcHandler,
+} from "~/main/modules/__test-utils__/mock-factories";
+import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
+
 // ─── Hoisted mock functions (available inside vi.mock factories) ─────────────
 const {
   mockIpcHandle,
@@ -87,26 +97,13 @@ function createMockKysely(options?: {
 }
 
 // ─── Mock Electron before any imports that use it ────────────────────────────
-vi.mock("electron", () => ({
-  ipcMain: {
-    handle: mockIpcHandle,
-    on: vi.fn(),
-    removeHandler: vi.fn(),
-  },
-  BrowserWindow: {
-    getAllWindows: mockGetAllWindows,
-    getFocusedWindow: vi.fn(() => null),
-  },
-  app: {
-    isPackaged: false,
-    getAppPath: vi.fn(() => "/mock-app-path"),
-    getPath: vi.fn(() => "/mock-path"),
-  },
-  dialog: {
-    showMessageBox: vi.fn(),
-    showSaveDialog: mockShowSaveDialog,
-  },
-}));
+vi.mock("electron", () =>
+  createElectronMock({
+    mockIpcHandle,
+    mockGetAllWindows,
+    mockShowSaveDialog,
+  }),
+);
 
 // ─── Mock fs.promises ────────────────────────────────────────────────────────
 vi.mock("node:fs", () => ({
@@ -117,51 +114,30 @@ vi.mock("node:fs", () => ({
 }));
 
 // ─── Mock DatabaseService singleton ──────────────────────────────────────────
-vi.mock("~/main/modules/database", () => ({
-  DatabaseService: {
-    getInstance: vi.fn(() => ({
-      getKysely: mockGetKysely,
-      reset: vi.fn(),
-    })),
-  },
-}));
+vi.mock("~/main/modules/database", () =>
+  createDatabaseServiceMock({ mockGetKysely }),
+);
 
 // ─── Mock PerformanceLoggerService ───────────────────────────────────────────
-vi.mock("~/main/modules/performance-logger", () => ({
-  PerformanceLoggerService: {
-    getInstance: vi.fn(() => ({
-      log: vi.fn(),
-      startTimer: vi.fn(() => null),
-      startTimers: vi.fn(() => null),
-    })),
-  },
-}));
+vi.mock("~/main/modules/performance-logger", () =>
+  createPerformanceLoggerMock(),
+);
 
 // ─── Mock DataStoreService ───────────────────────────────────────────────────
-vi.mock("~/main/modules/data-store", () => ({
-  DataStoreService: {
-    getInstance: vi.fn(() => ({
-      getAllTimeStats: mockGetAllTimeStats,
-      getLeagueStats: mockGetLeagueStats,
-      addCard: vi.fn(),
-      getGlobalStats: vi.fn(),
-    })),
-  },
-}));
+vi.mock("~/main/modules/data-store", () =>
+  createDataStoreServiceMock({
+    mockGetAllTimeStats,
+    mockGetLeagueStats,
+  }),
+);
 
 // ─── Mock SettingsStoreService ───────────────────────────────────────────────
-vi.mock("~/main/modules/settings-store", () => ({
-  SettingsStoreService: {
-    getInstance: vi.fn(() => ({
-      get: mockSettingsGet,
-      set: mockSettingsSet,
-      getAllSettings: vi.fn(),
-    })),
-  },
-  SettingsKey: {
-    ActiveGame: "selectedGame",
-  },
-}));
+vi.mock("~/main/modules/settings-store", () =>
+  createSettingsStoreMock({
+    mockGet: mockSettingsGet,
+    mockSet: mockSettingsSet,
+  }),
+);
 
 // ─── Mock SessionsService ────────────────────────────────────────────────────
 vi.mock("~/main/modules/sessions", () => ({
@@ -202,35 +178,20 @@ import { CsvService } from "../Csv.service";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-/**
- * After CsvService is instantiated, the constructor calls setupHandlers()
- * which registers ipcMain.handle calls for each CsvChannel.
- * This helper extracts and returns the handler callback for the given channel.
- */
-function getHandler(channel: string): (...args: any[]) => Promise<any> {
-  const call = mockIpcHandle.mock.calls.find(
-    ([ch]: [string]) => ch === channel,
-  );
-  if (!call) {
-    throw new Error(`ipcMain.handle was not called with "${channel}"`);
-  }
-  return call[1];
-}
-
 function getExportAllHandler(): (...args: any[]) => Promise<any> {
-  return getHandler(CsvChannel.ExportAll);
+  return getIpcHandler(mockIpcHandle, CsvChannel.ExportAll);
 }
 
 function getExportIncrementalHandler(): (...args: any[]) => Promise<any> {
-  return getHandler(CsvChannel.ExportIncremental);
+  return getIpcHandler(mockIpcHandle, CsvChannel.ExportIncremental);
 }
 
 function getExportSessionHandler(): (...args: any[]) => Promise<any> {
-  return getHandler(CsvChannel.ExportSession);
+  return getIpcHandler(mockIpcHandle, CsvChannel.ExportSession);
 }
 
 function getSnapshotMetaHandler(): (...args: any[]) => Promise<any> {
-  return getHandler(CsvChannel.GetSnapshotMeta);
+  return getIpcHandler(mockIpcHandle, CsvChannel.GetSnapshotMeta);
 }
 
 /**
@@ -253,8 +214,7 @@ function recreateServiceWithKysely(
   mockIpcHandle.mockReset();
 
   // Destroy singleton
-  // @ts-expect-error accessing private static for testing
-  CsvService._instance = undefined;
+  resetSingleton(CsvService);
 
   // Re-apply default mocks (they were cleared by the reset above or need fresh values)
   mockGetAllWindows.mockReturnValue([defaults.mockMainWindow]);
@@ -332,16 +292,14 @@ describe("CsvService", () => {
     mockWriteFile.mockResolvedValue(undefined);
 
     // Reset singleton
-    // @ts-expect-error accessing private static for testing
-    CsvService._instance = undefined;
+    resetSingleton(CsvService);
 
     _service = CsvService.getInstance();
     exportAllHandler = getExportAllHandler();
   });
 
   afterEach(() => {
-    // @ts-expect-error accessing private static for testing
-    CsvService._instance = undefined;
+    resetSingleton(CsvService);
     vi.clearAllMocks();
   });
 

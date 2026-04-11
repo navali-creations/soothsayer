@@ -677,74 +677,7 @@ export class SessionsRepository {
     league: string;
     chaosPerDivine: number;
   } | null> {
-    let query = this.kysely
-      .selectFrom("sessions as s")
-      .leftJoin("session_summaries as ss", "s.id", "ss.session_id")
-      .innerJoin("leagues as l", "s.league_id", "l.id")
-      .leftJoin("snapshots as snap", "s.snapshot_id", "snap.id")
-      .select([
-        "s.id as sessionId",
-        "s.started_at as date",
-        "l.name as league",
-        sql<number>`COALESCE(ss.total_decks_opened, s.total_count)`.as(
-          "totalDecksOpened",
-        ),
-        sql<number>`
-          COALESCE(
-            ss.total_exchange_net_profit,
-            (
-              SELECT COALESCE(SUM(sc.count * scp.chaos_value), 0)
-              FROM session_cards sc
-              LEFT JOIN snapshot_card_prices scp
-                ON scp.snapshot_id = s.snapshot_id
-                AND scp.card_name = sc.card_name
-                AND scp.price_source = 'exchange'
-              WHERE sc.session_id = s.id
-                AND sc.hide_price_exchange = 0
-            ) - COALESCE(snap.stacked_deck_chaos_cost, 0) * s.total_count
-          )
-        `.as("profit"),
-        sql<number>`COALESCE(ss.exchange_chaos_to_divine, snap.exchange_chaos_to_divine, 0)`.as(
-          "chaosPerDivine",
-        ),
-      ])
-      .where("s.game", "=", game)
-      .where("s.is_active", "=", 0)
-      .where("s.total_count", ">", 0)
-      .where(
-        sql`COALESCE(ss.total_decks_opened, s.total_count)`,
-        ">=",
-        sql`(
-          SELECT AVG(COALESCE(ss2.total_decks_opened, s2.total_count))
-          FROM sessions s2
-          LEFT JOIN session_summaries ss2 ON s2.id = ss2.session_id
-          INNER JOIN leagues l2 ON s2.league_id = l2.id
-          WHERE s2.game = ${game}
-            AND s2.is_active = 0
-            AND s2.total_count > 0
-            ${league ? sql`AND l2.name = ${league}` : sql``}
-        )`,
-      );
-
-    if (league) {
-      query = query.where("l.name", "=", league);
-    }
-
-    const row = await query
-      .orderBy("profit", "asc")
-      .limit(1)
-      .executeTakeFirst();
-
-    if (!row) return null;
-
-    return {
-      sessionId: row.sessionId,
-      date: row.date,
-      totalDecksOpened: row.totalDecksOpened,
-      profit: row.profit,
-      league: row.league,
-      chaosPerDivine: row.chaosPerDivine,
-    };
+    return this.getSessionProfitHighlight(game, league, "worst");
   }
 
   async getLuckyBreakSession(
@@ -758,6 +691,26 @@ export class SessionsRepository {
     league: string;
     chaosPerDivine: number;
   } | null> {
+    return this.getSessionProfitHighlight(game, league, "best");
+  }
+
+  private async getSessionProfitHighlight(
+    game: "poe1" | "poe2",
+    league: string | undefined,
+    direction: "best" | "worst",
+  ): Promise<{
+    sessionId: string;
+    date: string;
+    totalDecksOpened: number;
+    profit: number;
+    league: string;
+    chaosPerDivine: number;
+  } | null> {
+    const comparisonOp =
+      direction === "worst" ? (">=" as const) : ("<=" as const);
+    const sortOrder =
+      direction === "worst" ? ("asc" as const) : ("desc" as const);
+
     let query = this.kysely
       .selectFrom("sessions as s")
       .leftJoin("session_summaries as ss", "s.id", "ss.session_id")
@@ -794,7 +747,7 @@ export class SessionsRepository {
       .where("s.total_count", ">", 0)
       .where(
         sql`COALESCE(ss.total_decks_opened, s.total_count)`,
-        "<=",
+        comparisonOp,
         sql`(
           SELECT AVG(COALESCE(ss2.total_decks_opened, s2.total_count))
           FROM sessions s2
@@ -812,7 +765,7 @@ export class SessionsRepository {
     }
 
     const row = await query
-      .orderBy("profit", "desc")
+      .orderBy("profit", sortOrder)
       .limit(1)
       .executeTakeFirst();
 

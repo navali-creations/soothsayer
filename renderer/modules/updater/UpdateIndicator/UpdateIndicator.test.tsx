@@ -1,17 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useUpdater } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import UpdateIndicator from "./UpdateIndicator";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useUpdater: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
-const mockUseUpdater = vi.mocked(useUpdater);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
 vi.mock("~/renderer/components", () => ({
   Button: ({ children, onClick, ...props }: any) => (
@@ -44,7 +47,7 @@ function createMockStore(overrides: any = {}) {
 
 function setupStore(overrides: any = {}) {
   const store = createMockStore(overrides);
-  mockUseUpdater.mockReturnValue(store);
+  mockUseBoundStore.mockReturnValue({ updater: store } as any);
   return store;
 }
 

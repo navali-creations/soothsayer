@@ -1,5 +1,5 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useProfitForecast } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import type { CardForecastRow } from "../../ProfitForecast.slice/ProfitForecast.slice";
 import {
@@ -16,9 +16,12 @@ import PFStatusCell from "./PFStatusColumn/PFStatusCell";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useProfitForecast: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
 vi.mock("~/renderer/components/CardNameLink/CardNameLink", () => ({
   default: ({ cardName, className }: any) => (
@@ -34,20 +37,21 @@ vi.mock("~/renderer/components/DivinationCard/DivinationCard", () => ({
   ),
 }));
 
-vi.mock("~/renderer/hooks/usePopover/usePopover", () => ({
-  usePopover: () => ({
-    triggerRef: { current: null },
-    popoverRef: { current: null },
-  }),
-}));
+vi.mock("~/renderer/hooks/usePopover/usePopover", async () => {
+  const { createPopoverMock } = await import(
+    "~/renderer/__test-setup__/popover-mock"
+  );
+  return createPopoverMock();
+});
 
-vi.mock("@tanstack/react-router", () => ({
-  useNavigate: () => vi.fn(),
-  Link: ({ children, ...props }: any) => <a {...props}>{children}</a>,
-  createLink: () => (props: any) => <a {...props} />,
-}));
+vi.mock("@tanstack/react-router", async () => {
+  const { createFullRouterMock } = await import(
+    "~/renderer/__test-setup__/router-mock"
+  );
+  return createFullRouterMock();
+});
 
-const mockUseProfitForecast = vi.mocked(useProfitForecast);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -99,7 +103,7 @@ function setupStore(overrides: any = {}) {
     chaosToDivineRatio: 200,
     ...overrides.profitForecast,
   } as any;
-  mockUseProfitForecast.mockReturnValue(store);
+  mockUseBoundStore.mockReturnValue({ profitForecast: store } as any);
   return { profitForecast: store };
 }
 

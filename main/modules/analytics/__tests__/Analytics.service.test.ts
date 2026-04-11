@@ -1,37 +1,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// ─── Mock Electron before any imports that use it ────────────────────────────
-vi.mock("electron", () => ({
-  ipcMain: {
-    handle: vi.fn(),
-    on: vi.fn(),
-    removeHandler: vi.fn(),
-  },
-  BrowserWindow: {
-    getAllWindows: vi.fn(() => []),
-    getFocusedWindow: vi.fn(() => null),
-  },
-  app: {
-    isPackaged: false,
-    getAppPath: vi.fn(() => "/mock-app-path"),
-    getPath: vi.fn(() => "/mock-path"),
-  },
-  dialog: {
-    showMessageBox: vi.fn(),
-    showSaveDialog: vi.fn(),
-  },
+import {
+  createDatabaseServiceMock,
+  createElectronMock,
+} from "~/main/modules/__test-utils__/mock-factories";
+import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
+
+// ─── Hoisted mock functions ─────────────────────────────────────────────────
+const { mockGetKysely } = vi.hoisted(() => ({
+  mockGetKysely: vi.fn(),
 }));
 
+// ─── Mock Electron before any imports that use it ────────────────────────────
+vi.mock("electron", () => createElectronMock());
+
 // ─── Mock DatabaseService singleton ──────────────────────────────────────────
-const mockGetKysely = vi.fn();
-vi.mock("~/main/modules/database", () => ({
-  DatabaseService: {
-    getInstance: vi.fn(() => ({
-      getKysely: mockGetKysely,
-      reset: vi.fn(),
-    })),
-  },
-}));
+vi.mock("~/main/modules/database", () =>
+  createDatabaseServiceMock({ mockGetKysely }),
+);
 
 import {
   createTestDatabase,
@@ -54,15 +40,13 @@ describe("AnalyticsService", () => {
     mockGetKysely.mockReturnValue(testDb.kysely);
 
     // Reset the singleton so each test gets a fresh instance
-    // @ts-expect-error accessing private static for testing
-    AnalyticsService._instance = undefined;
+    resetSingleton(AnalyticsService);
 
     service = AnalyticsService.getInstance();
   });
 
   afterEach(async () => {
-    // @ts-expect-error accessing private static for testing
-    AnalyticsService._instance = undefined;
+    resetSingleton(AnalyticsService);
     await testDb.close();
     vi.clearAllMocks();
   });

@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
+
 // ─── Hoisted mock functions (available inside vi.mock factories) ─────────────
 const {
   mockAppGetPath,
@@ -145,8 +147,7 @@ describe("DatabaseService", () => {
     dbInstances = [];
 
     // Reset singleton and isPackaged
-    // @ts-expect-error — accessing private static for testing
-    DatabaseService._instance = undefined;
+    resetSingleton(DatabaseService);
     mockAppIsPackaged.value = false;
 
     // Reset mocks that may have had their implementation changed (e.g., by migration error tests)
@@ -317,8 +318,7 @@ describe("DatabaseService", () => {
     it("should use soothsayer.local.db for local Supabase URL (localhost)", () => {
       vi.stubEnv("VITE_SUPABASE_URL", "http://localhost:54321");
 
-      // @ts-expect-error
-      DatabaseService._instance = undefined;
+      resetSingleton(DatabaseService);
       DatabaseService.getInstance();
 
       expect(mockDatabaseConstructor).toHaveBeenCalledWith(
@@ -330,8 +330,7 @@ describe("DatabaseService", () => {
     it("should use soothsayer.local.db for local Supabase URL (127.0.0.1)", () => {
       vi.stubEnv("VITE_SUPABASE_URL", "http://127.0.0.1:54321");
 
-      // @ts-expect-error
-      DatabaseService._instance = undefined;
+      resetSingleton(DatabaseService);
       DatabaseService.getInstance();
 
       expect(mockDatabaseConstructor).toHaveBeenCalledWith(
@@ -343,8 +342,7 @@ describe("DatabaseService", () => {
     it("should use soothsayer.db for remote Supabase URL when not packaged", () => {
       vi.stubEnv("VITE_SUPABASE_URL", "https://project.supabase.co");
 
-      // @ts-expect-error
-      DatabaseService._instance = undefined;
+      resetSingleton(DatabaseService);
       DatabaseService.getInstance();
 
       expect(mockDatabaseConstructor).toHaveBeenCalledWith(
@@ -360,8 +358,7 @@ describe("DatabaseService", () => {
       vi.stubEnv("VITE_SUPABASE_URL", "https://project.supabase.co");
       mockAppIsPackaged.value = true;
 
-      // @ts-expect-error
-      DatabaseService._instance = undefined;
+      resetSingleton(DatabaseService);
       DatabaseService.getInstance();
 
       expect(mockDatabaseConstructor).toHaveBeenCalledWith(
@@ -374,8 +371,7 @@ describe("DatabaseService", () => {
       vi.stubEnv("VITE_SUPABASE_URL", "http://localhost:54321");
       mockAppIsPackaged.value = true;
 
-      // @ts-expect-error
-      DatabaseService._instance = undefined;
+      resetSingleton(DatabaseService);
       DatabaseService.getInstance();
 
       // Local Supabase always wins regardless of isPackaged
@@ -388,8 +384,7 @@ describe("DatabaseService", () => {
     it("should use soothsayer.db when VITE_SUPABASE_URL is undefined (fallback to empty string)", () => {
       vi.stubEnv("VITE_SUPABASE_URL", "");
 
-      // @ts-expect-error
-      DatabaseService._instance = undefined;
+      resetSingleton(DatabaseService);
       DatabaseService.getInstance();
 
       // Empty string is not local, and app is not packaged, so default dev DB
@@ -510,8 +505,7 @@ describe("DatabaseService", () => {
     it("should include the user data directory in the path", () => {
       mockAppGetPath.mockReturnValue("/custom-user-data");
 
-      // @ts-expect-error
-      DatabaseService._instance = undefined;
+      resetSingleton(DatabaseService);
       const service = DatabaseService.getInstance();
 
       const dbPath = service.getPath();
@@ -705,8 +699,7 @@ describe("DatabaseService", () => {
         throw new Error("Migration failed: bad SQL");
       });
 
-      // @ts-expect-error
-      DatabaseService._instance = undefined;
+      resetSingleton(DatabaseService);
 
       expect(() => DatabaseService.getInstance()).toThrow("Migration failed");
     });
@@ -720,8 +713,7 @@ describe("DatabaseService", () => {
         throw new Error("Migration syntax error");
       });
 
-      // @ts-expect-error
-      DatabaseService._instance = undefined;
+      resetSingleton(DatabaseService);
 
       try {
         DatabaseService.getInstance();
@@ -831,8 +823,7 @@ describe("DatabaseService", () => {
     it("should handle user data path with spaces", () => {
       mockAppGetPath.mockReturnValue("/Users/some user/app data");
 
-      // @ts-expect-error
-      DatabaseService._instance = undefined;
+      resetSingleton(DatabaseService);
       const service = DatabaseService.getInstance();
 
       const dbPath = service.getPath();
@@ -844,8 +835,7 @@ describe("DatabaseService", () => {
     it("should construct path using the user data directory from app.getPath", () => {
       mockAppGetPath.mockReturnValue("/specific/path");
 
-      // @ts-expect-error
-      DatabaseService._instance = undefined;
+      resetSingleton(DatabaseService);
       const service = DatabaseService.getInstance();
 
       const dbPath = service.getPath();

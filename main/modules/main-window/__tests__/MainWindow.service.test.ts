@@ -2,6 +2,8 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
+
 // ─── Hoisted mock functions (available inside vi.mock factories) ─────────────
 const {
   mockIpcHandle,
@@ -344,8 +346,7 @@ describe("MainWindowService", () => {
     browserWindowInstances = [];
 
     // Reset singleton
-    // @ts-expect-error — accessing private static for testing
-    MainWindowService._instance = undefined;
+    resetSingleton(MainWindowService);
 
     // Default: development mode, Windows
     mockAppIsPackaged.value = false;
@@ -400,8 +401,7 @@ describe("MainWindowService", () => {
     });
 
     it("should create a new instance if none exists", () => {
-      // @ts-expect-error
-      MainWindowService._instance = undefined;
+      resetSingleton(MainWindowService);
       const instance = MainWindowService.getInstance();
       expect(instance).toBeInstanceOf(MainWindowService);
     });
@@ -411,22 +411,19 @@ describe("MainWindowService", () => {
 
   describe("before createMainWindow", () => {
     it("getWindow should return null before window is created", () => {
-      // @ts-expect-error
-      MainWindowService._instance = undefined;
+      resetSingleton(MainWindowService);
       const svc = MainWindowService.getInstance();
       expect(svc.getWindow()).toBeNull();
     });
 
     it("isDestroyed should return true before window is created", () => {
-      // @ts-expect-error
-      MainWindowService._instance = undefined;
+      resetSingleton(MainWindowService);
       const svc = MainWindowService.getInstance();
       expect(svc.isDestroyed()).toBe(true);
     });
 
     it("getWebContents should return undefined before window is created", () => {
-      // @ts-expect-error
-      MainWindowService._instance = undefined;
+      resetSingleton(MainWindowService);
       const svc = MainWindowService.getInstance();
       expect(svc.getWebContents()).toBeUndefined();
     });
@@ -462,8 +459,7 @@ describe("MainWindowService", () => {
       // @ts-expect-error
       globalThis.MAIN_WINDOW_VITE_DEV_SERVER_URL = "";
 
-      // @ts-expect-error
-      MainWindowService._instance = undefined;
+      resetSingleton(MainWindowService);
       const svc = MainWindowService.getInstance();
 
       await svc.createMainWindow();
@@ -479,8 +475,7 @@ describe("MainWindowService", () => {
     it("should skip loadFile/loadURL when app is already quitting", async () => {
       mockAppServiceIsQuitting.value = true;
 
-      // @ts-expect-error
-      MainWindowService._instance = undefined;
+      resetSingleton(MainWindowService);
       const svc = MainWindowService.getInstance();
 
       await svc.createMainWindow();
@@ -495,8 +490,7 @@ describe("MainWindowService", () => {
     it("should skip loadFile/loadURL when window is already destroyed", async () => {
       mockBrowserWindowIsDestroyed.mockReturnValue(true);
 
-      // @ts-expect-error
-      MainWindowService._instance = undefined;
+      resetSingleton(MainWindowService);
       const svc = MainWindowService.getInstance();
 
       await svc.createMainWindow();
@@ -1106,8 +1100,7 @@ describe("MainWindowService", () => {
       it("should use windows icon path on win32", async () => {
         Object.defineProperty(process, "platform", { value: "win32" });
 
-        // @ts-expect-error
-        MainWindowService._instance = undefined;
+        resetSingleton(MainWindowService);
         const svc = MainWindowService.getInstance();
         mockNativeImageCreateFromPath.mockClear();
 
@@ -1127,8 +1120,7 @@ describe("MainWindowService", () => {
       it("should use macOS icon path on darwin", async () => {
         Object.defineProperty(process, "platform", { value: "darwin" });
 
-        // @ts-expect-error
-        MainWindowService._instance = undefined;
+        resetSingleton(MainWindowService);
         const svc = MainWindowService.getInstance();
         mockNativeImageCreateFromPath.mockClear();
 
@@ -1146,8 +1138,7 @@ describe("MainWindowService", () => {
       it("should use linux icon path on linux", async () => {
         Object.defineProperty(process, "platform", { value: "linux" });
 
-        // @ts-expect-error
-        MainWindowService._instance = undefined;
+        resetSingleton(MainWindowService);
         const svc = MainWindowService.getInstance();
         mockNativeImageCreateFromPath.mockClear();
 
@@ -1190,8 +1181,7 @@ describe("MainWindowService", () => {
       it("should use resourcesPath instead of appPath on win32", async () => {
         Object.defineProperty(process, "platform", { value: "win32" });
 
-        // @ts-expect-error
-        MainWindowService._instance = undefined;
+        resetSingleton(MainWindowService);
         const svc = MainWindowService.getInstance();
         mockNativeImageCreateFromPath.mockClear();
 
@@ -1207,8 +1197,7 @@ describe("MainWindowService", () => {
       it("should use resourcesPath for macOS in production", async () => {
         Object.defineProperty(process, "platform", { value: "darwin" });
 
-        // @ts-expect-error
-        MainWindowService._instance = undefined;
+        resetSingleton(MainWindowService);
         const svc = MainWindowService.getInstance();
         mockNativeImageCreateFromPath.mockClear();
 
@@ -1225,8 +1214,7 @@ describe("MainWindowService", () => {
       it("should use resourcesPath for linux in production", async () => {
         Object.defineProperty(process, "platform", { value: "linux" });
 
-        // @ts-expect-error
-        MainWindowService._instance = undefined;
+        resetSingleton(MainWindowService);
         const svc = MainWindowService.getInstance();
         mockNativeImageCreateFromPath.mockClear();
 
@@ -1409,8 +1397,7 @@ describe("MainWindowService", () => {
         .mockResolvedValueOnce(savedBounds) // MainWindowBounds
         .mockResolvedValue(false);
 
-      // @ts-expect-error — reset singleton for fresh settings mock
-      MainWindowService._instance = undefined;
+      resetSingleton(MainWindowService);
       const svc = MainWindowService.getInstance();
       await svc.createMainWindow();
 
@@ -1430,8 +1417,7 @@ describe("MainWindowService", () => {
         { workArea: { x: 0, y: 0, width: 1920, height: 1080 } },
       ]);
 
-      // @ts-expect-error — reset singleton for fresh settings mock
-      MainWindowService._instance = undefined;
+      resetSingleton(MainWindowService);
       const svc = MainWindowService.getInstance();
       await svc.createMainWindow();
 
@@ -1442,8 +1428,7 @@ describe("MainWindowService", () => {
     it("should use defaults when no saved bounds exist", async () => {
       mockSettingsGet.mockResolvedValue(null);
 
-      // @ts-expect-error — reset singleton for fresh settings mock
-      MainWindowService._instance = undefined;
+      resetSingleton(MainWindowService);
       const svc = MainWindowService.getInstance();
       await svc.createMainWindow();
 

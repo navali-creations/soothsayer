@@ -1,16 +1,20 @@
+import { makeDivinationCardRow } from "~/renderer/__test-setup__/fixtures";
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useCards } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import type { DivinationCardRow } from "../Cards.types";
 import CardsPage from "./Cards.page";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useCards: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
-const mockUseCards = vi.mocked(useCards);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
 vi.mock("../Cards.components", () => ({
   CardsActions: ({ onFilterChange }: any) => (
@@ -48,37 +52,18 @@ vi.mock("~/renderer/components", () => ({
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-function makeCard(
-  overrides: Partial<DivinationCardRow> = {},
-): DivinationCardRow {
-  return {
-    id: "card-1",
-    name: "The Doctor",
-    stackSize: 8,
-    description: "A test card",
-    rewardHtml: "<span>Reward</span>",
-    artSrc: "https://example.com/art.png",
-    flavourHtml: "<em>Flavour</em>",
-    rarity: 1,
-    filterRarity: null,
-    prohibitedLibraryRarity: null,
-    fromBoss: false,
-    ...overrides,
-  };
-}
-
 const mockAllCards: DivinationCardRow[] = [
-  makeCard({ id: "1", name: "The Doctor" }),
-  makeCard({ id: "2", name: "House of Mirrors" }),
-  makeCard({ id: "3", name: "The Fiend" }),
-  makeCard({ id: "4", name: "The Nurse" }),
-  makeCard({ id: "5", name: "The Patient" }),
+  makeDivinationCardRow({ id: "1", name: "The Doctor" }),
+  makeDivinationCardRow({ id: "2", name: "House of Mirrors" }),
+  makeDivinationCardRow({ id: "3", name: "The Fiend" }),
+  makeDivinationCardRow({ id: "4", name: "The Nurse" }),
+  makeDivinationCardRow({ id: "5", name: "The Patient" }),
 ];
 
 const mockFilteredCards: DivinationCardRow[] = [
-  makeCard({ id: "1", name: "The Doctor" }),
-  makeCard({ id: "2", name: "House of Mirrors" }),
-  makeCard({ id: "3", name: "The Fiend" }),
+  makeDivinationCardRow({ id: "1", name: "The Doctor" }),
+  makeDivinationCardRow({ id: "2", name: "House of Mirrors" }),
+  makeDivinationCardRow({ id: "3", name: "The Fiend" }),
 ];
 
 const mockLoadCards = vi.fn();
@@ -91,13 +76,15 @@ function setupStore(
     pageSize?: number;
   } = {},
 ) {
-  mockUseCards.mockReturnValue({
-    allCards: overrides.allCards ?? mockAllCards,
-    loadCards: mockLoadCards,
-    getFilteredAndSortedCards: () =>
-      overrides.filteredCards ?? mockFilteredCards,
-    currentPage: overrides.currentPage ?? 1,
-    pageSize: overrides.pageSize ?? 20,
+  mockUseBoundStore.mockReturnValue({
+    cards: {
+      allCards: overrides.allCards ?? mockAllCards,
+      loadCards: mockLoadCards,
+      getFilteredAndSortedCards: () =>
+        overrides.filteredCards ?? mockFilteredCards,
+      currentPage: overrides.currentPage ?? 1,
+      pageSize: overrides.pageSize ?? 20,
+    },
   } as any);
 }
 

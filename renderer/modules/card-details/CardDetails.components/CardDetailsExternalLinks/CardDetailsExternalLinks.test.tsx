@@ -5,12 +5,14 @@ import { CardDetailsExternalLinks } from "~/renderer/modules/card-details/CardDe
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("@tanstack/react-router", () => ({
-  useNavigate: () => vi.fn(),
-  useParams: () => ({ cardSlug: "the-doctor" }),
-  Link: ({ children, ...props }: any) => <a {...props}>{children}</a>,
-  createLink: () => ({}),
-}));
+vi.mock("@tanstack/react-router", async () => {
+  const { createFullRouterMock } = await import(
+    "~/renderer/__test-setup__/router-mock"
+  );
+  return createFullRouterMock({
+    useParamsReturn: { cardSlug: "the-doctor" },
+  });
+});
 
 afterEach(() => {
   vi.restoreAllMocks();

@@ -1,5 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  createDatabaseServiceMock,
+  createElectronMock,
+  createLoggerServiceMock,
+  createSettingsStoreMock,
+  getIpcHandler,
+} from "~/main/modules/__test-utils__/mock-factories";
+import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
+
 // ─── Hoisted mock functions ──────────────────────────────────────────────────
 const {
   mockIpcHandle,
@@ -59,22 +68,9 @@ const {
 
 // ─── Mock Electron ───────────────────────────────────────────────────────────
 
-vi.mock("electron", () => ({
-  ipcMain: {
-    handle: mockIpcHandle,
-    on: vi.fn(),
-    removeHandler: vi.fn(),
-  },
-  BrowserWindow: {
-    getAllWindows: vi.fn(() => []),
-    getFocusedWindow: vi.fn(() => null),
-  },
-  app: mockElectronApp,
-  dialog: {
-    showMessageBox: vi.fn(),
-    showSaveDialog: vi.fn(),
-  },
-}));
+vi.mock("electron", () =>
+  createElectronMock({ mockIpcHandle, mockApp: mockElectronApp }),
+);
 
 // ─── Mock node:fs ────────────────────────────────────────────────────────────
 vi.mock("node:fs", () => ({
@@ -112,17 +108,7 @@ vi.mock("~/main/utils/weight-to-rarity", () => ({
 }));
 
 // ─── Mock LoggerService ──────────────────────────────────────────────────────
-vi.mock("~/main/modules/logger", () => ({
-  LoggerService: {
-    createLogger: vi.fn(() => ({
-      log: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-    })),
-  },
-}));
+vi.mock("~/main/modules/logger", () => createLoggerServiceMock());
 
 // ─── Mock node:crypto ────────────────────────────────────────────────────────
 vi.mock("node:crypto", () => ({
@@ -133,32 +119,21 @@ vi.mock("node:crypto", () => ({
 }));
 
 // ─── Mock DatabaseService ────────────────────────────────────────────────────
-vi.mock("~/main/modules/database", () => ({
-  DatabaseService: {
-    getInstance: vi.fn(() => ({
-      getKysely: mockGetKysely,
-      reset: vi.fn(),
-    })),
-  },
-}));
+vi.mock("~/main/modules/database", () =>
+  createDatabaseServiceMock({ mockGetKysely }),
+);
 
 // ─── Mock SettingsStoreService ───────────────────────────────────────────────
-vi.mock("~/main/modules/settings-store", () => ({
-  SettingsStoreService: {
-    getInstance: vi.fn(() => ({
-      get: mockSettingsGet,
-      set: mockSettingsSet,
-      getAllSettings: vi.fn(),
-    })),
-  },
-  SettingsKey: {
-    ActiveGame: "selectedGame",
-    SelectedPoe1League: "poe1SelectedLeague",
-    SelectedPoe2League: "poe2SelectedLeague",
-    RaritySource: "raritySource",
-    SelectedFilterId: "selectedFilterId",
-  },
-}));
+vi.mock("~/main/modules/settings-store", () =>
+  createSettingsStoreMock({
+    mockGet: mockSettingsGet,
+    mockSet: mockSettingsSet,
+    settingsKeys: {
+      SelectedPoe1League: "poe1SelectedLeague",
+      SelectedPoe2League: "poe2SelectedLeague",
+    },
+  }),
+);
 
 // ─── Mock DivinationCardsRepository ──────────────────────────────────────────
 vi.mock("../DivinationCards.repository", () => ({
@@ -197,21 +172,6 @@ vi.mock("~/main/modules/rarity-insights/RarityInsights.repository", () => ({
 import { DivinationCardsService } from "../DivinationCards.service";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function getIpcHandler(channel: string): (...args: any[]) => any {
-  const call = mockIpcHandle.mock.calls.find(
-    ([ch]: [string]) => ch === channel,
-  );
-  if (!call) {
-    const registered = mockIpcHandle.mock.calls
-      .map(([ch]: [string]) => ch)
-      .join(", ");
-    throw new Error(
-      `ipcMain.handle was not called with "${channel}". Registered: ${registered}`,
-    );
-  }
-  return call[1];
-}
 
 const SAMPLE_CARDS_JSON = JSON.stringify([
   {
@@ -256,8 +216,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     vi.clearAllMocks();
 
     // Reset singleton
-    // @ts-expect-error — accessing private static for testing
-    DivinationCardsService._instance = undefined;
+    resetSingleton(DivinationCardsService);
 
     // Default mock returns
     mockReadFileSync.mockReturnValue(SAMPLE_CARDS_JSON);
@@ -339,8 +298,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
   });
 
   afterEach(() => {
-    // @ts-expect-error — accessing private static for testing
-    DivinationCardsService._instance = undefined;
+    resetSingleton(DivinationCardsService);
     vi.restoreAllMocks();
   });
 
@@ -355,8 +313,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
     it("should return a new instance after resetting the singleton", () => {
       const instance1 = DivinationCardsService.getInstance();
-      // @ts-expect-error — accessing private static for testing
-      DivinationCardsService._instance = undefined;
+      resetSingleton(DivinationCardsService);
       const instance2 = DivinationCardsService.getInstance();
       expect(instance1).not.toBe(instance2);
     });
@@ -385,7 +342,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
   describe("GetAll handler", () => {
     it("should return all cards for a valid game type", async () => {
-      const handler = getIpcHandler("divination-cards:get-all");
+      const handler = getIpcHandler(mockIpcHandle, "divination-cards:get-all");
       const result = await handler({}, "poe1");
 
       expect(mockRepositoryGetAllByGame).toHaveBeenCalledWith(
@@ -399,7 +356,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
     it("should pass undefined league when settings return null", async () => {
       mockSettingsGet.mockResolvedValue(null);
-      const handler = getIpcHandler("divination-cards:get-all");
+      const handler = getIpcHandler(mockIpcHandle, "divination-cards:get-all");
       await handler({}, "poe1");
 
       expect(mockRepositoryGetAllByGame).toHaveBeenCalledWith(
@@ -411,21 +368,21 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should use poe2 league key when game is poe2", async () => {
-      const handler = getIpcHandler("divination-cards:get-all");
+      const handler = getIpcHandler(mockIpcHandle, "divination-cards:get-all");
       await handler({}, "poe2");
 
       expect(mockSettingsGet).toHaveBeenCalledWith("poe2SelectedLeague");
     });
 
     it("should use poe1 league key when game is poe1", async () => {
-      const handler = getIpcHandler("divination-cards:get-all");
+      const handler = getIpcHandler(mockIpcHandle, "divination-cards:get-all");
       await handler({}, "poe1");
 
       expect(mockSettingsGet).toHaveBeenCalledWith("poe1SelectedLeague");
     });
 
     it("should return validation error for invalid game type", async () => {
-      const handler = getIpcHandler("divination-cards:get-all");
+      const handler = getIpcHandler(mockIpcHandle, "divination-cards:get-all");
       const result = await handler({}, "invalid");
 
       expect(result).toEqual({
@@ -435,7 +392,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should return validation error when game is a number", async () => {
-      const handler = getIpcHandler("divination-cards:get-all");
+      const handler = getIpcHandler(mockIpcHandle, "divination-cards:get-all");
       const result = await handler({}, 123);
 
       expect(result).toEqual({
@@ -445,7 +402,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should return validation error when game is null", async () => {
-      const handler = getIpcHandler("divination-cards:get-all");
+      const handler = getIpcHandler(mockIpcHandle, "divination-cards:get-all");
       const result = await handler({}, null);
 
       expect(result).toEqual({
@@ -455,7 +412,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should return validation error when game is undefined", async () => {
-      const handler = getIpcHandler("divination-cards:get-all");
+      const handler = getIpcHandler(mockIpcHandle, "divination-cards:get-all");
       const result = await handler({}, undefined);
 
       expect(result).toEqual({
@@ -469,7 +426,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
   describe("GetById handler", () => {
     it("should return a card by id for poe1", async () => {
-      const handler = getIpcHandler("divination-cards:get-by-id");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:get-by-id",
+      );
       const result = await handler({}, "poe1_the-doctor");
 
       expect(mockRepositoryGetById).toHaveBeenCalledWith(
@@ -481,7 +441,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should return a card by id for poe2", async () => {
-      const handler = getIpcHandler("divination-cards:get-by-id");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:get-by-id",
+      );
       await handler({}, "poe2_the-doctor");
 
       expect(mockSettingsGet).toHaveBeenCalledWith("poe2SelectedLeague");
@@ -489,7 +452,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
     it("should return null for non-existent card", async () => {
       mockRepositoryGetById.mockResolvedValue(null);
-      const handler = getIpcHandler("divination-cards:get-by-id");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:get-by-id",
+      );
       const result = await handler({}, "poe1_nonexistent");
 
       expect(result).toBeNull();
@@ -497,7 +463,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
     it("should pass undefined league when settings return null", async () => {
       mockSettingsGet.mockResolvedValue(null);
-      const handler = getIpcHandler("divination-cards:get-by-id");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:get-by-id",
+      );
       await handler({}, "poe1_test");
 
       expect(mockRepositoryGetById).toHaveBeenCalledWith(
@@ -508,7 +477,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should return validation error for non-string id", async () => {
-      const handler = getIpcHandler("divination-cards:get-by-id");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:get-by-id",
+      );
       const result = await handler({}, 123);
 
       expect(result).toEqual({
@@ -518,7 +490,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should return validation error for id exceeding max length", async () => {
-      const handler = getIpcHandler("divination-cards:get-by-id");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:get-by-id",
+      );
       const result = await handler({}, "x".repeat(41));
 
       expect(result).toEqual({
@@ -528,7 +503,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should accept id at exactly max length (40)", async () => {
-      const handler = getIpcHandler("divination-cards:get-by-id");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:get-by-id",
+      );
       const id = `poe1_${"x".repeat(35)}`;
       const result = await handler({}, id);
 
@@ -541,7 +519,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
   describe("GetByName handler", () => {
     it("should return a card by game and name", async () => {
-      const handler = getIpcHandler("divination-cards:get-by-name");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:get-by-name",
+      );
       const result = await handler({}, "poe1", "The Doctor");
 
       expect(mockRepositoryGetByName).toHaveBeenCalledWith(
@@ -555,14 +536,20 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
     it("should return null for non-existent card name", async () => {
       mockRepositoryGetByName.mockResolvedValue(null);
-      const handler = getIpcHandler("divination-cards:get-by-name");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:get-by-name",
+      );
       const result = await handler({}, "poe1", "Nonexistent Card");
 
       expect(result).toBeNull();
     });
 
     it("should return validation error for invalid game type", async () => {
-      const handler = getIpcHandler("divination-cards:get-by-name");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:get-by-name",
+      );
       const result = await handler({}, "invalid", "The Doctor");
 
       expect(result).toEqual({
@@ -572,7 +559,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should return validation error for non-string name", async () => {
-      const handler = getIpcHandler("divination-cards:get-by-name");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:get-by-name",
+      );
       const result = await handler({}, "poe1", 123);
 
       expect(result).toEqual({
@@ -582,7 +572,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should return validation error for name exceeding max length", async () => {
-      const handler = getIpcHandler("divination-cards:get-by-name");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:get-by-name",
+      );
       const result = await handler({}, "poe1", "x".repeat(41));
 
       expect(result).toEqual({
@@ -596,7 +589,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
   describe("SearchByName handler", () => {
     it("should return search results with total count", async () => {
-      const handler = getIpcHandler("divination-cards:search-by-name");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:search-by-name",
+      );
       const result = await handler({}, "poe1", "Doctor");
 
       expect(mockRepositorySearchByName).toHaveBeenCalledWith(
@@ -613,7 +609,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
     it("should return empty results for no matches", async () => {
       mockRepositorySearchByName.mockResolvedValue([]);
-      const handler = getIpcHandler("divination-cards:search-by-name");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:search-by-name",
+      );
       const result = await handler({}, "poe1", "zzz_nonexistent");
 
       expect(result).toEqual({
@@ -629,7 +628,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
       ];
       mockRepositorySearchByName.mockResolvedValue(cards);
 
-      const handler = getIpcHandler("divination-cards:search-by-name");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:search-by-name",
+      );
       const result = await handler({}, "poe1", "card");
 
       expect(result).toEqual({
@@ -639,7 +641,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should return validation error for invalid game type", async () => {
-      const handler = getIpcHandler("divination-cards:search-by-name");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:search-by-name",
+      );
       const result = await handler({}, "invalid", "Doctor");
 
       expect(result).toEqual({
@@ -649,7 +654,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should return validation error for non-string query", async () => {
-      const handler = getIpcHandler("divination-cards:search-by-name");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:search-by-name",
+      );
       const result = await handler({}, "poe1", 42);
 
       expect(result).toEqual({
@@ -659,7 +667,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should return validation error for query exceeding max length", async () => {
-      const handler = getIpcHandler("divination-cards:search-by-name");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:search-by-name",
+      );
       const result = await handler({}, "poe1", "x".repeat(41));
 
       expect(result).toEqual({
@@ -673,7 +684,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
   describe("GetCount handler", () => {
     it("should return the card count for a valid game", async () => {
-      const handler = getIpcHandler("divination-cards:get-count");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:get-count",
+      );
       const result = await handler({}, "poe1");
 
       expect(mockRepositoryGetCardCount).toHaveBeenCalledWith("poe1");
@@ -682,7 +696,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
     it("should return the card count for poe2", async () => {
       mockRepositoryGetCardCount.mockResolvedValue(10);
-      const handler = getIpcHandler("divination-cards:get-count");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:get-count",
+      );
       const result = await handler({}, "poe2");
 
       expect(mockRepositoryGetCardCount).toHaveBeenCalledWith("poe2");
@@ -690,7 +707,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should return validation error for invalid game type", async () => {
-      const handler = getIpcHandler("divination-cards:get-count");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:get-count",
+      );
       const result = await handler({}, "invalid");
 
       expect(result).toEqual({
@@ -700,7 +720,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should return validation error for non-string game", async () => {
-      const handler = getIpcHandler("divination-cards:get-count");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:get-count",
+      );
       const result = await handler({}, 123);
 
       expect(result).toEqual({
@@ -714,7 +737,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
   describe("GetStats handler", () => {
     it("should return stats for a valid game", async () => {
-      const handler = getIpcHandler("divination-cards:get-stats");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:get-stats",
+      );
       const result = await handler({}, "poe1");
 
       expect(result).toEqual({
@@ -726,7 +752,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
     it("should return empty string lastUpdated when repository returns null", async () => {
       mockRepositoryGetLastUpdated.mockResolvedValue(null);
-      const handler = getIpcHandler("divination-cards:get-stats");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:get-stats",
+      );
       const result = await handler({}, "poe1");
 
       expect(result).toEqual({
@@ -739,7 +768,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     it("should return stats for poe2", async () => {
       mockRepositoryGetCardCount.mockResolvedValue(5);
       mockRepositoryGetLastUpdated.mockResolvedValue("2025-06-01");
-      const handler = getIpcHandler("divination-cards:get-stats");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:get-stats",
+      );
       const result = await handler({}, "poe2");
 
       expect(result).toEqual({
@@ -750,7 +782,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should return validation error for invalid game type", async () => {
-      const handler = getIpcHandler("divination-cards:get-stats");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:get-stats",
+      );
       const result = await handler({}, "invalid");
 
       expect(result).toEqual({
@@ -764,7 +799,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
   describe("ForceSync handler", () => {
     it("should sync poe1 cards from JSON and return success", async () => {
-      const handler = getIpcHandler("divination-cards:force-sync");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:force-sync",
+      );
       const result = await handler({}, "poe1");
 
       expect(mockReadFileSync).toHaveBeenCalled();
@@ -772,7 +810,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should sync poe2 cards from JSON and return success", async () => {
-      const handler = getIpcHandler("divination-cards:force-sync");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:force-sync",
+      );
       const result = await handler({}, "poe2");
 
       expect(mockReadFileSync).toHaveBeenCalled();
@@ -780,7 +821,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should return validation error for invalid game type", async () => {
-      const handler = getIpcHandler("divination-cards:force-sync");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:force-sync",
+      );
       const result = await handler({}, "invalid");
 
       expect(result).toEqual({
@@ -793,7 +837,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
       // getAllCardHashes returns empty map → all cards are new
       mockRepositoryGetAllCardHashes.mockResolvedValue(new Map());
 
-      const handler = getIpcHandler("divination-cards:force-sync");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:force-sync",
+      );
       await handler({}, "poe1");
 
       // Should call insertCard for each card in the JSON (2 cards)
@@ -809,7 +856,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
         ]),
       );
 
-      const handler = getIpcHandler("divination-cards:force-sync");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:force-sync",
+      );
       await handler({}, "poe1");
 
       expect(mockRepositoryUpdateCard).toHaveBeenCalledTimes(2);
@@ -825,7 +875,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
         ]),
       );
 
-      const handler = getIpcHandler("divination-cards:force-sync");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:force-sync",
+      );
       await handler({}, "poe1");
 
       expect(mockRepositoryInsertCard).not.toHaveBeenCalled();
@@ -1060,8 +1113,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
       mockRepositoryInsertStubCards.mockResolvedValue(2);
 
       // Re-create service so it picks up the new mockGetKysely return value
-      // @ts-expect-error — accessing private static for testing
-      DivinationCardsService._instance = undefined;
+      resetSingleton(DivinationCardsService);
       const freshService = DivinationCardsService.getInstance();
 
       await freshService.ensureCardsFromSnapshot(
@@ -1106,8 +1158,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
       mockRepositoryInsertStubCards.mockResolvedValue(1);
 
       // Re-create service so it picks up the new mockGetKysely return value
-      // @ts-expect-error — accessing private static for testing
-      DivinationCardsService._instance = undefined;
+      resetSingleton(DivinationCardsService);
       const freshService = DivinationCardsService.getInstance();
 
       await freshService.ensureCardsFromSnapshot("poe1", ["New Card"]);
@@ -1128,8 +1179,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
       mockRepositoryInsertStubCards.mockResolvedValue(1);
 
       // Re-create service so it picks up the undefined kysely
-      // @ts-expect-error — accessing private static for testing
-      DivinationCardsService._instance = undefined;
+      resetSingleton(DivinationCardsService);
       const freshService = DivinationCardsService.getInstance();
 
       // Should not throw even with league provided but no kysely
@@ -1150,8 +1200,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
       mockRepositoryGetAllCardNames.mockResolvedValue(["Existing Card"]);
 
       // Re-create service so it picks up the new mockGetKysely return value
-      // @ts-expect-error — accessing private static for testing
-      DivinationCardsService._instance = undefined;
+      resetSingleton(DivinationCardsService);
       const freshService = DivinationCardsService.getInstance();
 
       await freshService.ensureCardsFromSnapshot(
@@ -1486,7 +1535,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     it("should update rarity for a valid card", async () => {
       mockSettingsGet.mockResolvedValue("Settlers");
 
-      const handler = getIpcHandler("divination-cards:update-rarity");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:update-rarity",
+      );
       const result = await handler({}, "poe1", "The Doctor", 1);
 
       expect(result).toEqual({ success: true });
@@ -1501,7 +1553,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     it("should update rarity for poe2", async () => {
       mockSettingsGet.mockResolvedValue("Standard");
 
-      const handler = getIpcHandler("divination-cards:update-rarity");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:update-rarity",
+      );
       const result = await handler({}, "poe2", "Rain of Chaos", 4);
 
       expect(result).toEqual({ success: true });
@@ -1516,7 +1571,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     it("should return error when no league is selected", async () => {
       mockSettingsGet.mockResolvedValue(null);
 
-      const handler = getIpcHandler("divination-cards:update-rarity");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:update-rarity",
+      );
       const result = await handler({}, "poe1", "The Doctor", 1);
 
       expect(result).toEqual({ success: false, error: "No league selected" });
@@ -1526,14 +1584,20 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     it("should return error when league is empty string", async () => {
       mockSettingsGet.mockResolvedValue("");
 
-      const handler = getIpcHandler("divination-cards:update-rarity");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:update-rarity",
+      );
       const result = await handler({}, "poe1", "The Doctor", 1);
 
       expect(result).toEqual({ success: false, error: "No league selected" });
     });
 
     it("should reject invalid game type", async () => {
-      const handler = getIpcHandler("divination-cards:update-rarity");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:update-rarity",
+      );
       const result = await handler({}, "poe3", "The Doctor", 1);
 
       expect(result).toEqual({
@@ -1543,7 +1607,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should reject rarity below 1", async () => {
-      const handler = getIpcHandler("divination-cards:update-rarity");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:update-rarity",
+      );
       const result = await handler({}, "poe1", "The Doctor", 0);
 
       expect(result).toEqual({
@@ -1553,7 +1620,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should reject rarity above 4", async () => {
-      const handler = getIpcHandler("divination-cards:update-rarity");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:update-rarity",
+      );
       const result = await handler({}, "poe1", "The Doctor", 5);
 
       expect(result).toEqual({
@@ -1563,7 +1633,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should reject non-string card name", async () => {
-      const handler = getIpcHandler("divination-cards:update-rarity");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:update-rarity",
+      );
       const result = await handler({}, "poe1", null, 1);
 
       expect(result).toEqual({
@@ -1573,7 +1646,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("should reject non-integer rarity", async () => {
-      const handler = getIpcHandler("divination-cards:update-rarity");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:update-rarity",
+      );
       const result = await handler({}, "poe1", "The Doctor", 2.5);
 
       expect(result).toEqual({
@@ -1770,7 +1846,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
   describe("league-specific IPC behavior", () => {
     it("GetAll should query with the league from settings for poe1", async () => {
       mockSettingsGet.mockResolvedValue("Necropolis");
-      const handler = getIpcHandler("divination-cards:get-all");
+      const handler = getIpcHandler(mockIpcHandle, "divination-cards:get-all");
       await handler({}, "poe1");
 
       expect(mockSettingsGet).toHaveBeenCalledWith("poe1SelectedLeague");
@@ -1784,7 +1860,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
     it("GetAll should query with the league from settings for poe2", async () => {
       mockSettingsGet.mockResolvedValue("Standard");
-      const handler = getIpcHandler("divination-cards:get-all");
+      const handler = getIpcHandler(mockIpcHandle, "divination-cards:get-all");
       await handler({}, "poe2");
 
       expect(mockSettingsGet).toHaveBeenCalledWith("poe2SelectedLeague");
@@ -1798,7 +1874,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
     it("GetByName should query with the league from settings", async () => {
       mockSettingsGet.mockResolvedValue("Necropolis");
-      const handler = getIpcHandler("divination-cards:get-by-name");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:get-by-name",
+      );
       await handler({}, "poe1", "The Doctor");
 
       expect(mockRepositoryGetByName).toHaveBeenCalledWith(
@@ -1810,14 +1889,20 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("GetById should detect poe2 game from id prefix", async () => {
-      const handler = getIpcHandler("divination-cards:get-by-id");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:get-by-id",
+      );
       await handler({}, "poe2_some-card");
 
       expect(mockSettingsGet).toHaveBeenCalledWith("poe2SelectedLeague");
     });
 
     it("GetById should detect poe1 game from id prefix", async () => {
-      const handler = getIpcHandler("divination-cards:get-by-id");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:get-by-id",
+      );
       await handler({}, "poe1_some-card");
 
       expect(mockSettingsGet).toHaveBeenCalledWith("poe1SelectedLeague");
@@ -1825,7 +1910,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
     it("SearchByName should query with the league from settings", async () => {
       mockSettingsGet.mockResolvedValue("League123");
-      const handler = getIpcHandler("divination-cards:search-by-name");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:search-by-name",
+      );
       await handler({}, "poe1", "Doc");
 
       expect(mockRepositorySearchByName).toHaveBeenCalledWith(
@@ -1841,7 +1929,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
   describe("validation edge cases", () => {
     it("GetAll should reject empty string game", async () => {
-      const handler = getIpcHandler("divination-cards:get-all");
+      const handler = getIpcHandler(mockIpcHandle, "divination-cards:get-all");
       const result = await handler({}, "");
 
       expect(result).toEqual({
@@ -1851,7 +1939,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("GetByName should reject empty string name", async () => {
-      const handler = getIpcHandler("divination-cards:get-by-name");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:get-by-name",
+      );
       // assertBoundedString allows empty strings, but game validation should still pass
       // Actually, empty string IS a valid string — it just won't match anything
       // The service uses assertBoundedString which only checks type and length
@@ -1862,7 +1953,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("GetById should reject null id", async () => {
-      const handler = getIpcHandler("divination-cards:get-by-id");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:get-by-id",
+      );
       const result = await handler({}, null);
 
       expect(result).toEqual({
@@ -1872,7 +1966,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("GetCount should reject boolean game", async () => {
-      const handler = getIpcHandler("divination-cards:get-count");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:get-count",
+      );
       const result = await handler({}, true);
 
       expect(result).toEqual({
@@ -1882,7 +1979,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("GetStats should reject object game", async () => {
-      const handler = getIpcHandler("divination-cards:get-stats");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:get-stats",
+      );
       const result = await handler({}, { game: "poe1" });
 
       expect(result).toEqual({
@@ -1892,7 +1992,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("ForceSync should reject array game", async () => {
-      const handler = getIpcHandler("divination-cards:force-sync");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:force-sync",
+      );
       const result = await handler({}, ["poe1"]);
 
       expect(result).toEqual({
@@ -1902,7 +2005,10 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
     });
 
     it("SearchByName should reject both invalid game and query", async () => {
-      const handler = getIpcHandler("divination-cards:search-by-name");
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:search-by-name",
+      );
       // Game validation runs first, so we get a game validation error
       const result = await handler({}, 42, 42);
 
@@ -1933,8 +2039,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
 
     it("should pass resourcesPath when packaged", async () => {
       // Reset singleton
-      // @ts-expect-error — accessing private static for testing
-      DivinationCardsService._instance = undefined;
+      resetSingleton(DivinationCardsService);
       vi.clearAllMocks();
       mockReadFileSync.mockReturnValue(SAMPLE_CARDS_JSON);
       mockSettingsGet.mockResolvedValue("Settlers");
@@ -1968,8 +2073,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
           writable: true,
           configurable: true,
         });
-        // @ts-expect-error — accessing private static for testing
-        DivinationCardsService._instance = undefined;
+        resetSingleton(DivinationCardsService);
       }
     });
 
@@ -1979,8 +2083,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
       mockResolvePoe1CardsJsonPath.mockReturnValue("/resolved/cards.json");
 
       // Reset singleton to pick up the null setting
-      // @ts-expect-error — accessing private static for testing
-      DivinationCardsService._instance = undefined;
+      resetSingleton(DivinationCardsService);
       vi.clearAllMocks();
       mockReadFileSync.mockReturnValue(SAMPLE_CARDS_JSON);
       mockSettingsGet.mockResolvedValue(null);
@@ -1997,8 +2100,7 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
         process.resourcesPath,
       );
 
-      // @ts-expect-error — accessing private static for testing
-      DivinationCardsService._instance = undefined;
+      resetSingleton(DivinationCardsService);
     });
   });
 

@@ -1,15 +1,18 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
 import { createCardRatioColumn } from "~/renderer/components";
-import { useStatistics } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import type { CardEntry } from "../../Statistics.types";
 import { StatisticsTable } from "./StatisticsTable";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useStatistics: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
 vi.mock("~/renderer/components", () => ({
   Dropdown: ({ trigger, children, ...props }: any) => (
@@ -49,7 +52,7 @@ vi.mock("~/renderer/components", () => ({
   })),
 }));
 
-const mockUseStatistics = vi.mocked(useStatistics);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -76,7 +79,7 @@ function setupStore(
     exportAll: vi.fn().mockResolvedValue({ success: false }),
     exportIncremental: vi.fn().mockResolvedValue({ success: false }),
   } as any;
-  mockUseStatistics.mockReturnValue(store);
+  mockUseBoundStore.mockReturnValue({ statistics: store } as any);
   return store;
 }
 

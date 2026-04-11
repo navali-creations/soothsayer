@@ -1,18 +1,19 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { usePoeNinja, useProfitForecast } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import { RATE_FLOOR } from "../../ProfitForecast.slice/ProfitForecast.slice";
 import PFCostModelPanel from "./PFCostModelPanel";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useProfitForecast: vi.fn(),
-  usePoeNinja: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
-const mockUseProfitForecast = vi.mocked(useProfitForecast);
-const mockUsePoeNinja = vi.mocked(usePoeNinja);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -53,8 +54,7 @@ function createMockPoeNinja(overrides: any = {}) {
 function setupStore(overrides: any = {}) {
   const profitForecast = createMockProfitForecast(overrides.profitForecast);
   const poeNinja = createMockPoeNinja(overrides.poeNinja);
-  mockUseProfitForecast.mockReturnValue(profitForecast);
-  mockUsePoeNinja.mockReturnValue(poeNinja);
+  mockUseBoundStore.mockReturnValue({ profitForecast, poeNinja } as any);
   return { profitForecast, poeNinja };
 }
 

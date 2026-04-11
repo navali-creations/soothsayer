@@ -257,6 +257,8 @@ globalThis.MAIN_WINDOW_VITE_DEV_SERVER_URL = "http://localhost:3000";
 globalThis.MAIN_WINDOW_VITE_NAME = "main_window";
 
 // ─── Import under test (after mocks) ────────────────────────────────────────
+import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
+
 import { OverlayChannel } from "../Overlay.channels";
 import { OverlayService } from "../Overlay.service";
 
@@ -344,8 +346,7 @@ describe("OverlayService", () => {
     overlayWindowOpts = [];
 
     // Reset singleton
-    // @ts-expect-error — accessing private static for testing
-    OverlayService._instance = undefined;
+    resetSingleton(OverlayService);
 
     // Default mock return values
     mockSettingsGet.mockResolvedValue(null);

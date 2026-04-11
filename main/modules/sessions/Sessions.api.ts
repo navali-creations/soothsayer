@@ -14,46 +14,20 @@ import type {
   MostProfitableSessionDTO,
   SessionAveragesDTO,
   SessionChartDataPointDTO,
+  SessionSummaryDTO,
+  SessionsPageDTO,
   SparklinePointDTO,
   TotalNetProfitDTO,
   TotalTimeSpentDTO,
   WinRateDTO,
 } from "./Sessions.dto";
 
-interface SessionSummary {
-  sessionId: string;
-  game: string;
-  league: string;
-  startedAt: string;
-  endedAt: string;
-  durationMinutes: number;
-  totalDecksOpened: number;
-  totalExchangeValue: number;
-  totalStashValue: number;
-  totalExchangeNetProfit: number | null;
-  totalStashNetProfit: number | null;
-  exchangeChaosToDivine: number;
-  stashChaosToDivine: number;
-  stackedDeckChaosCost: number;
-  isActive: boolean;
-  /** Number of this specific card found in the session (only set by searchByCard) */
-  cardCount?: number;
-}
-
-interface SessionsPage {
-  sessions: SessionSummary[];
-  total: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
-}
-
 const SessionsAPI = {
   getAll: (
     game: GameType,
     page?: number,
     pageSize?: number,
-  ): Promise<SessionsPage> =>
+  ): Promise<SessionsPageDTO> =>
     ipcRenderer.invoke(SessionsChannel.GetAll, game, page, pageSize),
   getById: (sessionId: string): Promise<DetailedDivinationCardStats | null> =>
     ipcRenderer.invoke(SessionsChannel.GetById, sessionId),
@@ -65,7 +39,7 @@ const SessionsAPI = {
     league?: string,
     sortColumn?: "date" | "league" | "found" | "duration" | "decks",
     sortDirection?: "asc" | "desc",
-  ): Promise<SessionsPage> =>
+  ): Promise<SessionsPageDTO> =>
     ipcRenderer.invoke(
       SessionsChannel.SearchByCard,
       game,
@@ -157,8 +131,8 @@ export type {
   MostProfitableSessionDTO,
   SessionAveragesDTO,
   SessionChartDataPointDTO,
-  SessionSummary,
-  SessionsPage,
+  SessionSummaryDTO as SessionSummary,
+  SessionsPageDTO as SessionsPage,
   SparklinePointDTO,
   TotalNetProfitDTO,
   TotalTimeSpentDTO,

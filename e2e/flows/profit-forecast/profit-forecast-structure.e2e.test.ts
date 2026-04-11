@@ -21,29 +21,19 @@
 import type { Page } from "@playwright/test";
 
 import { expect, test } from "../../helpers/electron-test";
-import { setSetting } from "../../helpers/ipc-helpers";
 import {
   ensurePostSetup,
   getCurrentRoute,
+  goToProfitForecast,
   navigateTo,
 } from "../../helpers/navigation";
 import {
+  resetLeagueToFixture,
   seedLeagueCache,
   seedSessionPrerequisites,
 } from "../../helpers/seed-db";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * Navigate to the Profit Forecast page and wait for it to settle.
- */
-async function goToProfitForecast(page: Page) {
-  await navigateTo(page, "/profit-forecast");
-  await page
-    .getByText("Profit Forecast", { exact: false })
-    .first()
-    .waitFor({ state: "visible", timeout: 10_000 });
-}
 
 /**
  * Wait for the profit-forecast data to finish loading.
@@ -251,20 +241,7 @@ async function openHelpModal(page: Page) {
 test.describe("Profit Forecast – UI & Modal", () => {
   test.beforeEach(async ({ page }) => {
     await ensurePostSetup(page);
-    // Workers are reused across test files. A prior file (e.g. app-menu)
-    // may have changed `poe1SelectedLeague` to a league whose
-    // `divination_card_availability` rows don't exist, causing
-    // `loadCards(onlyInPool=true)` to return 0 cards → empty table.
-    // Reset to "Standard" in both the DB and the Zustand store.
-    await setSetting(page, "poe1SelectedLeague", "Standard");
-    await page.evaluate(() => {
-      const store = (window as any).__zustandStore;
-      if (store) {
-        store.setState((s: any) => {
-          s.settings.poe1SelectedLeague = "Standard";
-        });
-      }
-    });
+    await resetLeagueToFixture(page, "Standard");
     await ensureDataSeeded(page);
   });
 

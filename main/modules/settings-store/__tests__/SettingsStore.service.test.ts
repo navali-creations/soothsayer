@@ -37,6 +37,7 @@ import {
   createTestDatabase,
   type TestDatabase,
 } from "~/main/modules/__test-utils__/create-test-db";
+import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
 
 import { SettingsStoreService } from "../SettingsStore.service";
 
@@ -49,15 +50,13 @@ describe("SettingsStoreService", () => {
     mockGetKysely.mockReturnValue(testDb.kysely);
 
     // Reset the singleton so each test gets a fresh instance
-    // @ts-expect-error accessing private static for testing
-    SettingsStoreService._instance = undefined;
+    resetSingleton(SettingsStoreService);
 
     service = SettingsStoreService.getInstance();
   });
 
   afterEach(async () => {
-    // @ts-expect-error accessing private static for testing
-    SettingsStoreService._instance = undefined;
+    resetSingleton(SettingsStoreService);
     await testDb.close();
     vi.clearAllMocks();
   });

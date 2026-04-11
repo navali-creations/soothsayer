@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  createDatabaseServiceMock,
+  createElectronMock,
+  createPerformanceLoggerMock,
+  createSettingsStoreMock,
+} from "~/main/modules/__test-utils__/mock-factories";
+import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
+
 // ─── Hoisted mock functions (available inside vi.mock factories) ─────────────
 const {
   mockWatchFile,
@@ -40,26 +48,7 @@ const {
 }));
 
 // ─── Mock Electron before any imports that use it ────────────────────────────
-vi.mock("electron", () => ({
-  ipcMain: {
-    handle: vi.fn(),
-    on: vi.fn(),
-    removeHandler: vi.fn(),
-  },
-  BrowserWindow: {
-    getAllWindows: vi.fn(() => []),
-    getFocusedWindow: vi.fn(() => null),
-  },
-  app: {
-    isPackaged: false,
-    getAppPath: vi.fn(() => "/mock-app-path"),
-    getPath: vi.fn(() => "/mock-path"),
-  },
-  dialog: {
-    showMessageBox: vi.fn(),
-    showSaveDialog: vi.fn(),
-  },
-}));
+vi.mock("electron", () => createElectronMock());
 
 // ─── Mock node:fs ────────────────────────────────────────────────────────────
 vi.mock("node:fs", () => ({
@@ -88,25 +77,18 @@ vi.mock("node:fs", () => ({
 }));
 
 // ─── Mock DatabaseService singleton ──────────────────────────────────────────
-vi.mock("~/main/modules/database", () => ({
-  DatabaseService: {
-    getInstance: vi.fn(() => ({
-      getKysely: mockGetKysely,
-      reset: vi.fn(),
-    })),
-  },
-}));
+vi.mock("~/main/modules/database", () =>
+  createDatabaseServiceMock({ mockGetKysely }),
+);
 
 // ─── Mock PerformanceLoggerService ───────────────────────────────────────────
-vi.mock("~/main/modules/performance-logger", () => ({
-  PerformanceLoggerService: {
-    getInstance: vi.fn(() => ({
-      log: mockPerfLog,
-      startTimer: mockPerfStartTimer,
-      startTimers: mockPerfStartTimers,
-    })),
-  },
-}));
+vi.mock("~/main/modules/performance-logger", () =>
+  createPerformanceLoggerMock({
+    mockLog: mockPerfLog,
+    mockStartTimer: mockPerfStartTimer,
+    mockStartTimers: mockPerfStartTimers,
+  }),
+);
 
 // ─── Mock CurrentSessionService ──────────────────────────────────────────────
 vi.mock("~/main/modules/current-session", () => ({
@@ -121,20 +103,12 @@ vi.mock("~/main/modules/current-session", () => ({
 }));
 
 // ─── Mock SettingsStoreService ───────────────────────────────────────────────
-vi.mock("~/main/modules/settings-store", () => ({
-  SettingsStoreService: {
-    getInstance: vi.fn(() => ({
-      get: mockSettingsGet,
-      set: mockSettingsSet,
-      getAllSettings: vi.fn(),
-    })),
-  },
-  SettingsKey: {
-    ActiveGame: "selectedGame",
-    Poe1ClientTxtPath: "poe1ClientTxtPath",
-    Poe2ClientTxtPath: "poe2ClientTxtPath",
-  },
-}));
+vi.mock("~/main/modules/settings-store", () =>
+  createSettingsStoreMock({
+    mockGet: mockSettingsGet,
+    mockSet: mockSettingsSet,
+  }),
+);
 
 // Also mock the barrel import path used by the service
 vi.mock("~/main/modules", () => ({
@@ -146,25 +120,15 @@ vi.mock("~/main/modules", () => ({
       addCard: mockAddCard,
     })),
   },
-  PerformanceLoggerService: {
-    getInstance: vi.fn(() => ({
-      log: mockPerfLog,
-      startTimer: mockPerfStartTimer,
-      startTimers: mockPerfStartTimers,
-    })),
-  },
-  SettingsStoreService: {
-    getInstance: vi.fn(() => ({
-      get: mockSettingsGet,
-      set: mockSettingsSet,
-      getAllSettings: vi.fn(),
-    })),
-  },
-  SettingsKey: {
-    ActiveGame: "selectedGame",
-    Poe1ClientTxtPath: "poe1ClientTxtPath",
-    Poe2ClientTxtPath: "poe2ClientTxtPath",
-  },
+  ...createPerformanceLoggerMock({
+    mockLog: mockPerfLog,
+    mockStartTimer: mockPerfStartTimer,
+    mockStartTimers: mockPerfStartTimers,
+  }),
+  ...createSettingsStoreMock({
+    mockGet: mockSettingsGet,
+    mockSet: mockSettingsSet,
+  }),
 }));
 
 // ─── Mock the parseCards util ────────────────────────────────────────────────
@@ -264,13 +228,11 @@ describe("ClientLogReaderService", () => {
     });
 
     // Reset singleton
-    // @ts-expect-error accessing private static for testing
-    ClientLogReaderService._instance = undefined;
+    resetSingleton(ClientLogReaderService);
   });
 
   afterEach(() => {
-    // @ts-expect-error accessing private static for testing
-    ClientLogReaderService._instance = undefined;
+    resetSingleton(ClientLogReaderService);
     vi.clearAllMocks();
   });
 

@@ -24,6 +24,7 @@ import type { ElectronApplication, Page } from "@playwright/test";
 
 import type { CardPriceHistoryFixture } from "../fixtures/poe-ninja-fixture";
 import type { RarityInsightsCardFixture } from "../fixtures/rarity-insights-fixture";
+import { setSetting } from "./ipc-helpers";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1408,4 +1409,31 @@ export async function seedDataStoreForStatistics(
   for (const [game, cards] of byGame) {
     await seedDataStoreCards(page, { game, scope: "all-time", cards });
   }
+}
+
+/**
+ * Resets `poe1SelectedLeague` in both the main-process DB (via setSetting)
+ * and the renderer Zustand store so that subsequent `loadCards()` calls
+ * use the correct league context.
+ *
+ * Workers are reused across test files, so a prior file (e.g. app-menu)
+ * may have changed `poe1SelectedLeague` to a league whose
+ * `divination_card_availability` rows don't exist, causing 0 cards.
+ *
+ * @param page - Playwright Page
+ * @param league - League name to reset to (default: "Standard")
+ */
+export async function resetLeagueToFixture(
+  page: Page,
+  league = "Standard",
+): Promise<void> {
+  await setSetting(page, "poe1SelectedLeague", league);
+  await page.evaluate((l) => {
+    const store = (window as any).__zustandStore;
+    if (store) {
+      store.setState((s: any) => {
+        s.settings.poe1SelectedLeague = l;
+      });
+    }
+  }, league);
 }

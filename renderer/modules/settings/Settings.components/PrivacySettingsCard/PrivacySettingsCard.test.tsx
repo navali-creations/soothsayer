@@ -5,17 +5,20 @@ import {
   screen,
   waitFor,
 } from "~/renderer/__test-setup__/render";
-import { useSettings } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import PrivacySettingsCard from "./PrivacySettingsCard";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useSettings: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
-const mockUseSettings = vi.mocked(useSettings);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
 vi.mock("~/renderer/components", () => ({
   Link: ({ children, to, ...props }: any) => (
@@ -47,7 +50,7 @@ function setupStore(
     ...overrides,
   };
 
-  mockUseSettings.mockReturnValue(settings as any);
+  mockUseBoundStore.mockReturnValue({ settings } as any);
 
   return settings;
 }

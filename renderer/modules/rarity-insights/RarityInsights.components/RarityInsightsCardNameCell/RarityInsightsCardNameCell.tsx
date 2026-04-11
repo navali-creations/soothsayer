@@ -3,6 +3,7 @@ import { memo, useId, useMemo } from "react";
 import CardNameLink from "~/renderer/components/CardNameLink/CardNameLink";
 import DivinationCard from "~/renderer/components/DivinationCard/DivinationCard";
 import { usePopover } from "~/renderer/hooks/usePopover/usePopover";
+import { toCardMetadata } from "~/renderer/utils/to-card-metadata";
 import type { CardEntry } from "~/types/data-stores";
 
 import type { ComparisonRow } from "../../RarityInsightsComparison.slice/RarityInsightsComparison.slice";
@@ -25,28 +26,9 @@ const RarityInsightsCardNameCell = memo(
       () => ({
         name: card.name,
         count: 0,
-        divinationCard: {
-          id: card.id,
-          stackSize: card.stackSize,
-          description: card.description,
-          rewardHtml: card.rewardHtml,
-          artSrc: card.artSrc,
-          flavourHtml: card.flavourHtml,
-          rarity: card.rarity,
-          fromBoss: card.fromBoss,
-        },
+        divinationCard: toCardMetadata(card),
       }),
-      [
-        card.id,
-        card.name,
-        card.stackSize,
-        card.description,
-        card.rewardHtml,
-        card.artSrc,
-        card.flavourHtml,
-        card.rarity,
-        card.fromBoss,
-      ],
+      [card],
     );
 
     return (

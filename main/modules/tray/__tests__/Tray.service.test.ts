@@ -110,6 +110,8 @@ vi.mock("~/main/modules", () => ({
   },
 }));
 
+import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
+
 import { TrayService } from "../Tray.service";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -141,8 +143,7 @@ describe("TrayService", () => {
     trayInstances = [];
 
     // Reset singleton
-    // @ts-expect-error — accessing private static for testing
-    TrayService._instance = undefined;
+    resetSingleton(TrayService);
 
     // Default: development mode, Windows
     mockAppIsPackaged.value = false;

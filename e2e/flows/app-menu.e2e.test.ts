@@ -29,35 +29,10 @@ import {
   waitForHydration,
   waitForRoute,
 } from "../helpers/navigation";
+import { waitForOverlayState } from "../helpers/overlay";
 import { seedLeagueCache, seedSessionPrerequisites } from "../helpers/seed-db";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * Poll the overlay's `isVisible` state via IPC until it matches the
- * expected value, or throw after `timeout` ms.
- */
-async function waitForOverlayState(
-  page: Page,
-  expectedVisible: boolean,
-  timeout = 5_000,
-) {
-  const start = Date.now();
-  while (Date.now() - start < timeout) {
-    const isVisible = await callElectronAPI<boolean>(
-      page,
-      "overlay",
-      "isVisible",
-    );
-    if (isVisible === expectedVisible) return;
-    await page.waitForTimeout(100);
-  }
-  throw new Error(
-    `Overlay did not become ${
-      expectedVisible ? "visible" : "hidden"
-    } within ${timeout}ms`,
-  );
-}
 
 /**
  * Reliably open the "More options" dropdown and wait for the popover to

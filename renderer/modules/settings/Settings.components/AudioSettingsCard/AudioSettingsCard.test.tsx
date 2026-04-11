@@ -9,17 +9,20 @@ import {
   waitFor,
 } from "~/renderer/__test-setup__/render";
 import { trackEvent } from "~/renderer/modules/umami";
-import { useSettings } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import AudioSettingsCard from "./AudioSettingsCard";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useSettings: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
-const mockUseSettings = vi.mocked(useSettings);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
 vi.mock("~/renderer/components", () => ({
   Button: ({ children, onClick, disabled, loading, ...props }: any) => (
@@ -43,10 +46,6 @@ vi.mock("~/renderer/utils", () => ({
   RARITY_LABELS: { 1: "Common", 2: "Uncommon", 3: "Rare" },
 }));
 
-vi.mock("~/renderer/modules/umami", () => ({
-  trackEvent: vi.fn(),
-}));
-
 vi.mock("react-icons/fi", () => ({
   FiFolder: () => <span data-testid="icon-folder" />,
   FiPlay: () => <span data-testid="icon-play" />,
@@ -59,25 +58,27 @@ vi.mock("react-icons/fi", () => ({
 
 function createMockSettings(overrides: any = {}) {
   return {
-    audioDetectedFiles: [],
-    audioIsScanning: false,
-    audioPreviewingFile: null,
-    scanCustomSounds: vi.fn().mockResolvedValue(undefined),
-    setAudioPreviewingFile: vi.fn(),
-    updateSetting: vi.fn().mockResolvedValue(undefined),
-    audioEnabled: true,
-    audioVolume: 0.5,
-    audioRarity1Path: null,
-    audioRarity2Path: null,
-    audioRarity3Path: null,
-    ...overrides.settings,
+    settings: {
+      audioDetectedFiles: [],
+      audioIsScanning: false,
+      audioPreviewingFile: null,
+      scanCustomSounds: vi.fn().mockResolvedValue(undefined),
+      setAudioPreviewingFile: vi.fn(),
+      updateSetting: vi.fn().mockResolvedValue(undefined),
+      audioEnabled: true,
+      audioVolume: 0.5,
+      audioRarity1Path: null,
+      audioRarity2Path: null,
+      audioRarity3Path: null,
+      ...overrides.settings,
+    },
   } as any;
 }
 
 function setupStore(overrides: any = {}) {
-  const settings = createMockSettings(overrides);
-  mockUseSettings.mockReturnValue(settings);
-  return { settings };
+  const store = createMockSettings(overrides);
+  mockUseBoundStore.mockReturnValue(store);
+  return { settings: store.settings };
 }
 
 // ─── Tests ─────────────────────────────────────────────────────────────────

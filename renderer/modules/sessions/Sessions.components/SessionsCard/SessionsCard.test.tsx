@@ -1,6 +1,6 @@
+import { makeSessionsSummary } from "~/renderer/__test-setup__/fixtures";
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
 
-import type { SessionsSummary } from "../../Sessions.types";
 import { SessionCard } from "./SessionsCard";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
@@ -46,25 +46,13 @@ vi.mock("react-icons/gi", () => ({
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 function makeSession(
-  overrides: Partial<SessionsSummary> = {},
-): SessionsSummary {
-  return {
+  overrides: Parameters<typeof makeSessionsSummary>[0] = {},
+) {
+  return makeSessionsSummary({
     sessionId: "sess-abc-123",
-    startedAt: "2024-01-15T10:00:00Z",
-    endedAt: "2024-01-15T11:00:00Z",
-    league: "Settlers",
-    isActive: false,
     durationMinutes: 45,
-    totalDecksOpened: 100,
-    totalExchangeValue: 500,
-    totalStashValue: 600,
-    totalExchangeNetProfit: 200,
-    totalStashNetProfit: 250,
-    exchangeChaosToDivine: 150,
-    stashChaosToDivine: 150,
-    stackedDeckChaosCost: 3,
     ...overrides,
-  };
+  });
 }
 
 // ─── Tests ─────────────────────────────────────────────────────────────────

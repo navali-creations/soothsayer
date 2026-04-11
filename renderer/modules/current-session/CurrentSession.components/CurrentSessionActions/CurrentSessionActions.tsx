@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
-import { useCallback, useMemo } from "react";
+import { useMemo } from "react";
 import { FiPlay, FiRefreshCw } from "react-icons/fi";
 import { GiCardExchange, GiLockedChest } from "react-icons/gi";
 
@@ -10,17 +10,13 @@ import {
   type RaritySourceOption,
   RaritySourceSelect,
 } from "~/renderer/components";
-import { trackEvent } from "~/renderer/modules/umami";
+import { useRaritySourceChange } from "~/renderer/hooks/useRaritySourceChange/useRaritySourceChange";
 import {
   useCurrentSession,
   useRarityInsights,
   useSettings,
 } from "~/renderer/store";
-import {
-  decodeRaritySourceValue,
-  encodeRaritySourceValue,
-  getAnalyticsRaritySource,
-} from "~/renderer/utils";
+import { encodeRaritySourceValue } from "~/renderer/utils";
 
 /**
  * Small helper that renders a dataset-driven menu label with a dotted
@@ -38,20 +34,17 @@ const CurrentSessionActions = () => {
   const {
     raritySource,
     selectedFilterId,
-    updateSetting,
     getActiveGameViewPriceSource,
     setActiveGameViewPriceSource,
   } = useSettings();
   const {
-    availableFilters,
     isScanning,
     lastScannedAt,
     scanFilters,
-    selectFilter,
-    clearSelectedFilter,
     getLocalFilters,
     getOnlineFilters,
   } = useRarityInsights();
+  const handleDropdownChange = useRaritySourceChange();
 
   const isActive = getIsCurrentSessionActive();
   const priceSource = getActiveGameViewPriceSource();
@@ -61,41 +54,6 @@ const CurrentSessionActions = () => {
   const handlePriceSourceChange = async (source: "exchange" | "stash") => {
     await setActiveGameViewPriceSource(source);
   };
-
-  const handleDropdownChange = useCallback(
-    async (value: string) => {
-      const { raritySource: newSource, filterId: newFilterId } =
-        decodeRaritySourceValue(value);
-
-      // Update rarity source setting
-      await updateSetting("raritySource", newSource);
-      trackEvent("settings-change", {
-        setting: "raritySource",
-        value: getAnalyticsRaritySource(
-          newSource,
-          newFilterId,
-          availableFilters,
-        ),
-      });
-
-      if (newSource === "filter" && newFilterId) {
-        await selectFilter(newFilterId);
-        await updateSetting("selectedFilterId", newFilterId);
-      } else {
-        if (selectedFilterId) {
-          await clearSelectedFilter();
-          await updateSetting("selectedFilterId", null);
-        }
-      }
-    },
-    [
-      updateSetting,
-      selectFilter,
-      clearSelectedFilter,
-      selectedFilterId,
-      availableFilters,
-    ],
-  );
 
   const dropdownValue = encodeRaritySourceValue(raritySource, selectedFilterId);
 

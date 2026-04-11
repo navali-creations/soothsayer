@@ -1,16 +1,20 @@
+import { makeSessionsSummary } from "~/renderer/__test-setup__/fixtures";
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useSessions } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import type { SessionsSummary } from "../../Sessions.types";
 import { SessionsGrid } from "./SessionsGrid";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useSessions: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
-const mockUseSessions = vi.mocked(useSessions);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
 vi.mock("../SessionsCard/SessionsCard", () => ({
   SessionCard: ({ session }: { session: SessionsSummary }) => (
@@ -20,36 +24,16 @@ vi.mock("../SessionsCard/SessionsCard", () => ({
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-function makeSession(
-  overrides: Partial<SessionsSummary> = {},
-): SessionsSummary {
-  return {
-    sessionId: "sess-1",
-    startedAt: "2024-01-15T10:00:00Z",
-    endedAt: "2024-01-15T11:00:00Z",
-    league: "Settlers",
-    isActive: false,
-    durationMinutes: 60,
-    totalDecksOpened: 100,
-    totalExchangeValue: 500,
-    totalStashValue: 600,
-    totalExchangeNetProfit: 200,
-    totalStashNetProfit: 250,
-    exchangeChaosToDivine: 150,
-    stashChaosToDivine: 150,
-    stackedDeckChaosCost: 3,
-    ...overrides,
-  };
-}
-
 function setupStore(overrides: {
   filteredSessions?: SessionsSummary[];
   selectedLeague?: string;
 }) {
-  mockUseSessions.mockReturnValue({
-    getFilteredSessions: () => overrides.filteredSessions ?? [],
-    getSelectedLeague: () => overrides.selectedLeague ?? "all",
-    getSparklines: () => ({}),
+  mockUseBoundStore.mockReturnValue({
+    sessions: {
+      getFilteredSessions: () => overrides.filteredSessions ?? [],
+      getSelectedLeague: () => overrides.selectedLeague ?? "all",
+      getSparklines: () => ({}),
+    },
   } as any);
 }
 
@@ -92,9 +76,9 @@ describe("SessionsGrid", () => {
   describe("with sessions", () => {
     it("renders a SessionCard for each session", () => {
       const sessions = [
-        makeSession({ sessionId: "sess-1", league: "Settlers" }),
-        makeSession({ sessionId: "sess-2", league: "Standard" }),
-        makeSession({ sessionId: "sess-3", league: "Settlers" }),
+        makeSessionsSummary({ sessionId: "sess-1", league: "Settlers" }),
+        makeSessionsSummary({ sessionId: "sess-2", league: "Standard" }),
+        makeSessionsSummary({ sessionId: "sess-3", league: "Settlers" }),
       ];
       setupStore({ filteredSessions: sessions });
       renderWithProviders(<SessionsGrid />);
@@ -105,7 +89,7 @@ describe("SessionsGrid", () => {
     });
 
     it("does not show empty state message when sessions exist", () => {
-      const sessions = [makeSession({ sessionId: "sess-1" })];
+      const sessions = [makeSessionsSummary({ sessionId: "sess-1" })];
       setupStore({ filteredSessions: sessions });
       renderWithProviders(<SessionsGrid />);
 
@@ -114,8 +98,8 @@ describe("SessionsGrid", () => {
 
     it("renders sessions inside a list", () => {
       const sessions = [
-        makeSession({ sessionId: "sess-1" }),
-        makeSession({ sessionId: "sess-2" }),
+        makeSessionsSummary({ sessionId: "sess-1" }),
+        makeSessionsSummary({ sessionId: "sess-2" }),
       ];
       setupStore({ filteredSessions: sessions });
       renderWithProviders(<SessionsGrid />);
@@ -129,8 +113,8 @@ describe("SessionsGrid", () => {
 
     it("passes session data to SessionCard", () => {
       const sessions = [
-        makeSession({ sessionId: "sess-1", league: "Settlers" }),
-        makeSession({ sessionId: "sess-2", league: "Standard" }),
+        makeSessionsSummary({ sessionId: "sess-1", league: "Settlers" }),
+        makeSessionsSummary({ sessionId: "sess-2", league: "Standard" }),
       ];
       setupStore({ filteredSessions: sessions });
       renderWithProviders(<SessionsGrid />);

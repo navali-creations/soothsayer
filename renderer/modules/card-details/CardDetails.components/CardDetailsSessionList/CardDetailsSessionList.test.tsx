@@ -9,11 +9,14 @@ vi.mock("~/renderer/store", () => ({ useCardDetails: vi.fn() }));
 
 // ─── Router mock ───────────────────────────────────────────────────────────
 
-const mockNavigate = vi.fn();
+const { mockNavigate } = vi.hoisted(() => ({ mockNavigate: vi.fn() }));
 
-vi.mock("@tanstack/react-router", () => ({
-  useNavigate: vi.fn(() => mockNavigate),
-}));
+vi.mock("@tanstack/react-router", async () => {
+  const { createNavigateOnlyMock } = await import(
+    "~/renderer/__test-setup__/router-mock"
+  );
+  return createNavigateOnlyMock(mockNavigate);
+});
 
 // ─── Child component stubs ─────────────────────────────────────────────────
 

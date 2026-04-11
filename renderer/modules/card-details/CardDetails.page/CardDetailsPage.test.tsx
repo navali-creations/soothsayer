@@ -12,11 +12,16 @@ vi.mock("~/renderer/store", () => ({
 
 // ─── Router mock ───────────────────────────────────────────────────────────
 
-const mockUseParams = vi.fn(() => ({ cardSlug: "test-card" }));
-
-vi.mock("@tanstack/react-router", () => ({
-  useParams: (...args: any[]) => mockUseParams(...args),
+const { mockUseParams } = vi.hoisted(() => ({
+  mockUseParams: vi.fn(() => ({ cardSlug: "test-card" })),
 }));
+
+vi.mock("@tanstack/react-router", async () => {
+  const { createRouterMock } = await import(
+    "~/renderer/__test-setup__/router-mock"
+  );
+  return createRouterMock({ useParamsReturn: mockUseParams });
+});
 
 // ─── Child component stubs ─────────────────────────────────────────────────
 
@@ -63,8 +68,6 @@ vi.mock("../CardDetails.components/YourDataTabContent", () => ({
     />
   ),
 }));
-
-vi.mock("~/renderer/modules/umami", () => ({ trackEvent: vi.fn() }));
 
 vi.mock("~/renderer/components", () => ({
   PageContainer: Object.assign(

@@ -30,7 +30,15 @@ import {
   waitForHydration,
   waitForRoute,
 } from "../../helpers/navigation";
-import { seedSessionPrerequisites } from "../../helpers/seed-db";
+import {
+  acknowledgeBeacon,
+  expectPopoverVisible,
+  waitForTriggers,
+} from "../../helpers/onboarding";
+import {
+  resetLeagueToFixture,
+  seedSessionPrerequisites,
+} from "../../helpers/seed-db";
 
 /** The league that seedSessionPrerequisites and syncCards use by default. */
 const FIXTURE_LEAGUE = "Standard";
@@ -50,64 +58,6 @@ const RARITY_INSIGHTS_BEACONS = [
 ] as const;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-async function waitForTriggers(page: Page, expectedCount: number) {
-  const triggers = page.locator("[data-repere-trigger]");
-  await expect(triggers).toHaveCount(expectedCount, {
-    timeout: TRIGGER_RENDER_TIMEOUT,
-  });
-}
-
-async function expectPopoverVisible(page: Page) {
-  const openPopover = page.locator("[data-repere-popover]:popover-open");
-  await expect(openPopover).toBeVisible({ timeout: 5_000 });
-}
-
-async function acknowledgeBeacon(
-  page: Page,
-  expectedRemainingTriggers?: number,
-) {
-  const openPopover = page.locator("[data-repere-popover]:popover-open");
-  const gotIt = openPopover.getByText("Got it");
-  await expect(gotIt).toBeVisible({ timeout: 5_000 });
-
-  try {
-    await gotIt.click({ timeout: 3_000 });
-  } catch {
-    // Click fired but the element was detached before Playwright could
-    // confirm — that's the expected behaviour for native popover dismiss.
-  }
-
-  // If the click didn't register (CI timing), force-hide via JS.
-  const stillOpen = await page
-    .locator("[data-repere-popover]:popover-open")
-    .count();
-  if (stillOpen > 0) {
-    await page.evaluate(() => {
-      const open = document.querySelector(
-        "[data-repere-popover]:popover-open",
-      ) as HTMLElement | null;
-      if (open && typeof open.hidePopover === "function") {
-        open.hidePopover();
-      }
-    });
-  }
-
-  await expect(page.locator("[data-repere-popover]:popover-open")).toHaveCount(
-    0,
-    { timeout: 5_000 },
-  );
-
-  // Wait for the trigger to actually be removed from the DOM (replaces hard 300ms sleep).
-  // The repere library needs a moment to update its internal state and remove
-  // the dismissed trigger element.
-  if (expectedRemainingTriggers !== undefined) {
-    await expect(page.locator("[data-repere-trigger]")).toHaveCount(
-      expectedRemainingTriggers,
-      { timeout: 5_000 },
-    );
-  }
-}
 
 /**
  * Navigates to rarity insights with dismissed globals and waits for page-specific beacons.
@@ -135,21 +85,7 @@ test.describe("Onboarding — Rarity Insights Page Beacons", () => {
 
   test.beforeEach(async ({ page }) => {
     await ensurePostSetup(page);
-    // Workers are reused across test files. A prior file (e.g. app-menu)
-    // may have changed `poe1SelectedLeague` to a league whose
-    // `divination_card_availability` rows don't exist, causing
-    // `loadCards(onlyInPool=true)` to return 0 cards → empty table →
-    // missing column-header beacons. Reset to the fixture league in both
-    // the DB (for the IPC handler) and the Zustand store (for useEffect).
-    await setSetting(page, "poe1SelectedLeague", FIXTURE_LEAGUE);
-    await page.evaluate((league) => {
-      const store = (window as any).__zustandStore;
-      if (store) {
-        store.setState((s: any) => {
-          s.settings.poe1SelectedLeague = league;
-        });
-      }
-    }, FIXTURE_LEAGUE);
+    await resetLeagueToFixture(page, FIXTURE_LEAGUE);
     await seedSessionPrerequisites(page);
   });
 

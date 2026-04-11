@@ -1,15 +1,18 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useRarityInsightsComparison } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import ComparisonToolbar from "./ComparisonToolbar";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useRarityInsightsComparison: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
-const mockUseRarityInsightsComparison = vi.mocked(useRarityInsightsComparison);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -27,16 +30,18 @@ function setupStore(
     differences?: Set<string>;
   } = {},
 ) {
-  mockUseRarityInsightsComparison.mockReturnValue({
-    showDiffsOnly: overrides.showDiffsOnly ?? false,
-    setShowDiffsOnly: mockSetShowDiffsOnly,
-    includeBossCards: overrides.includeBossCards ?? false,
-    setIncludeBossCards: mockSetIncludeBossCards,
-    includeDisabledCards: overrides.includeDisabledCards ?? false,
-    setIncludeDisabledCards: mockSetIncludeDisabledCards,
-    getCanShowDiffs: () => overrides.canShowDiffs ?? false,
-    getAllSelectedParsed: () => overrides.allSelectedParsed ?? false,
-    getDifferences: () => overrides.differences ?? new Set<string>(),
+  mockUseBoundStore.mockReturnValue({
+    rarityInsightsComparison: {
+      showDiffsOnly: overrides.showDiffsOnly ?? false,
+      setShowDiffsOnly: mockSetShowDiffsOnly,
+      includeBossCards: overrides.includeBossCards ?? false,
+      setIncludeBossCards: mockSetIncludeBossCards,
+      includeDisabledCards: overrides.includeDisabledCards ?? false,
+      setIncludeDisabledCards: mockSetIncludeDisabledCards,
+      getCanShowDiffs: () => overrides.canShowDiffs ?? false,
+      getAllSelectedParsed: () => overrides.allSelectedParsed ?? false,
+      getDifferences: () => overrides.differences ?? new Set<string>(),
+    },
   } as any);
 }
 

@@ -1,15 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useChangelog } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import ChangelogPage from "./Changelog.page";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useChangelog: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
 vi.mock("~/renderer/components", () => ({
   PageContainer: Object.assign(
@@ -40,7 +43,7 @@ vi.mock("../Changelog.components", () => ({
   ),
 }));
 
-const mockUseChangelog = vi.mocked(useChangelog);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -56,7 +59,7 @@ function createMockChangelog(overrides: any = {}) {
 
 function setupStore(overrides: any = {}) {
   const changelog = createMockChangelog(overrides);
-  mockUseChangelog.mockReturnValue(changelog);
+  mockUseBoundStore.mockReturnValue({ changelog } as any);
   return { changelog };
 }
 

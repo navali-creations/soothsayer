@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
+
 // ─── Mock Electron before any imports that use it ────────────────────────────
 vi.mock("electron", () => ({
   ipcMain: {
@@ -61,15 +63,13 @@ describe("DataStoreService", () => {
     mockGetKysely.mockReturnValue(testDb.kysely);
 
     // Reset the singleton so each test gets a fresh instance
-    // @ts-expect-error accessing private static for testing
-    DataStoreService._instance = undefined;
+    resetSingleton(DataStoreService);
 
     service = DataStoreService.getInstance();
   });
 
   afterEach(async () => {
-    // @ts-expect-error accessing private static for testing
-    DataStoreService._instance = undefined;
+    resetSingleton(DataStoreService);
     await testDb.close();
     vi.clearAllMocks();
   });

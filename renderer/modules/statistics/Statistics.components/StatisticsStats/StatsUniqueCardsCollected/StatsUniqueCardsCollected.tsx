@@ -1,13 +1,9 @@
 import { FiInfo } from "react-icons/fi";
 
+import type { CardPoolBreakdownDTO as CardPoolBreakdown } from "~/main/modules/sessions/Sessions.dto";
 import { Stat } from "~/renderer/components";
 
-export interface CardPoolBreakdown {
-  total: number;
-  bossOnly: number;
-  disabled: number;
-  droppable: number;
-}
+export type { CardPoolBreakdownDTO as CardPoolBreakdown } from "~/main/modules/sessions/Sessions.dto";
 
 interface StatsUniqueCardsCollectedProps {
   collectedCount: number;

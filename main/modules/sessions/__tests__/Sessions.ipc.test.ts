@@ -1,4 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+﻿import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { getIpcHandler } from "~/main/modules/__test-utils__/mock-factories";
 
 // ─── Hoisted mock functions ──────────────────────────────────────────────────
 const {
@@ -132,25 +134,12 @@ vi.mock("~/main/utils/ipc-validation", () => ({
 }));
 
 // ─── Import under test ──────────────────────────────────────────────────────
+import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
+
 import { SessionsChannel } from "../Sessions.channels";
 import { SessionsService } from "../Sessions.service";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function getIpcHandler(channel: string): (...args: any[]) => any {
-  const call = mockIpcHandle.mock.calls.find(
-    ([ch]: [string]) => ch === channel,
-  );
-  if (!call) {
-    const registered = mockIpcHandle.mock.calls
-      .map(([ch]: [string]) => ch)
-      .join(", ");
-    throw new Error(
-      `ipcMain.handle was not called with "${channel}". Registered: ${registered}`,
-    );
-  }
-  return call[1];
-}
 
 // ─── Sample data ─────────────────────────────────────────────────────────────
 
@@ -212,8 +201,7 @@ describe("SessionsService — IPC handlers", () => {
     vi.clearAllMocks();
 
     // Reset singleton
-    // @ts-expect-error — accessing private static for testing
-    SessionsService._instance = undefined;
+    resetSingleton(SessionsService);
 
     // Reset validation mocks to no-op / pass-through implementations
     mockAssertGameType.mockImplementation(() => {});
@@ -247,8 +235,7 @@ describe("SessionsService — IPC handlers", () => {
   });
 
   afterEach(() => {
-    // @ts-expect-error — accessing private static for testing
-    SessionsService._instance = undefined;
+    resetSingleton(SessionsService);
     vi.restoreAllMocks();
   });
 
@@ -298,7 +285,7 @@ describe("SessionsService — IPC handlers", () => {
 
   describe("GetAll handler", () => {
     it("should validate game type and return paginated sessions on success", async () => {
-      const handler = getIpcHandler(SessionsChannel.GetAll);
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetAll);
       const result = await handler({}, "poe1", 1, 20);
 
       expect(mockAssertGameType).toHaveBeenCalledWith(
@@ -323,7 +310,7 @@ describe("SessionsService — IPC handlers", () => {
 
     it("should calculate correct offset for page 2", async () => {
       mockRepoGetSessionCount.mockResolvedValue(50);
-      const handler = getIpcHandler(SessionsChannel.GetAll);
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetAll);
       await handler({}, "poe1", 2, 10);
 
       expect(mockRepoGetSessionsPage).toHaveBeenCalledWith("poe1", 10, 10);
@@ -331,7 +318,7 @@ describe("SessionsService — IPC handlers", () => {
 
     it("should calculate correct totalPages", async () => {
       mockRepoGetSessionCount.mockResolvedValue(45);
-      const handler = getIpcHandler(SessionsChannel.GetAll);
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetAll);
       const result = await handler({}, "poe1", 1, 20);
 
       expect(result.totalPages).toBe(3);
@@ -339,7 +326,7 @@ describe("SessionsService — IPC handlers", () => {
     });
 
     it("should use default page and pageSize from assertPage/assertPageSize when values are undefined", async () => {
-      const handler = getIpcHandler(SessionsChannel.GetAll);
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetAll);
       const _result = await handler({}, "poe1", undefined, undefined);
 
       // The handler signature has defaults (page = 1, pageSize = 20),
@@ -358,7 +345,7 @@ describe("SessionsService — IPC handlers", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(SessionsChannel.GetAll);
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetAll);
       await handler({}, "invalid-game", 1, 20);
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
@@ -372,7 +359,7 @@ describe("SessionsService — IPC handlers", () => {
         throw new Error("Invalid game type");
       });
 
-      const handler = getIpcHandler(SessionsChannel.GetAll);
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetAll);
       await handler({}, "bad", 1, 20);
 
       expect(mockRepoGetSessionCount).not.toHaveBeenCalled();
@@ -384,7 +371,7 @@ describe("SessionsService — IPC handlers", () => {
         throw new Error("Invalid page");
       });
 
-      const handler = getIpcHandler(SessionsChannel.GetAll);
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetAll);
       await handler({}, "poe1", -1, 20);
 
       expect(mockRepoGetSessionCount).not.toHaveBeenCalled();
@@ -396,7 +383,7 @@ describe("SessionsService — IPC handlers", () => {
         throw new Error("Invalid pageSize");
       });
 
-      const handler = getIpcHandler(SessionsChannel.GetAll);
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetAll);
       await handler({}, "poe1", 1, 999);
 
       expect(mockRepoGetSessionCount).not.toHaveBeenCalled();
@@ -413,7 +400,7 @@ describe("SessionsService — IPC handlers", () => {
         throw new Error("bad");
       });
 
-      const handler = getIpcHandler(SessionsChannel.GetAll);
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetAll);
       const result = await handler({}, 123, 1, 20);
 
       expect(result).toEqual(errorPayload);
@@ -423,7 +410,7 @@ describe("SessionsService — IPC handlers", () => {
       mockRepoGetSessionCount.mockResolvedValue(0);
       mockRepoGetSessionsPage.mockResolvedValue([]);
 
-      const handler = getIpcHandler(SessionsChannel.GetAll);
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetAll);
       const result = await handler({}, "poe1", 1, 20);
 
       expect(result).toEqual({
@@ -436,7 +423,7 @@ describe("SessionsService — IPC handlers", () => {
     });
 
     it("should work with poe2 game type", async () => {
-      const handler = getIpcHandler(SessionsChannel.GetAll);
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetAll);
       await handler({}, "poe2", 1, 10);
 
       expect(mockAssertGameType).toHaveBeenCalledWith(
@@ -452,7 +439,7 @@ describe("SessionsService — IPC handlers", () => {
 
   describe("GetById handler", () => {
     it("should validate sessionId and return session details on success", async () => {
-      const handler = getIpcHandler(SessionsChannel.GetById);
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetById);
       const result = await handler({}, "session-1");
 
       expect(mockAssertSessionId).toHaveBeenCalledWith(
@@ -468,7 +455,7 @@ describe("SessionsService — IPC handlers", () => {
     it("should return null for non-existent session", async () => {
       mockRepoGetSessionById.mockResolvedValue(null);
 
-      const handler = getIpcHandler(SessionsChannel.GetById);
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetById);
       const result = await handler({}, "nonexistent-id");
 
       expect(result).toBeNull();
@@ -477,7 +464,7 @@ describe("SessionsService — IPC handlers", () => {
     it("should not fetch cards when session does not exist", async () => {
       mockRepoGetSessionById.mockResolvedValue(null);
 
-      const handler = getIpcHandler(SessionsChannel.GetById);
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetById);
       await handler({}, "nonexistent-id");
 
       expect(mockRepoGetSessionCards).not.toHaveBeenCalled();
@@ -489,7 +476,7 @@ describe("SessionsService — IPC handlers", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(SessionsChannel.GetById);
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetById);
       await handler({}, 12345);
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
@@ -503,7 +490,7 @@ describe("SessionsService — IPC handlers", () => {
         throw new Error("Invalid sessionId");
       });
 
-      const handler = getIpcHandler(SessionsChannel.GetById);
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetById);
       await handler({}, null);
 
       expect(mockRepoGetSessionById).not.toHaveBeenCalled();
@@ -520,7 +507,7 @@ describe("SessionsService — IPC handlers", () => {
         throw new Error("bad");
       });
 
-      const handler = getIpcHandler(SessionsChannel.GetById);
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetById);
       const result = await handler({}, undefined);
 
       expect(result).toEqual(errorPayload);
@@ -532,7 +519,7 @@ describe("SessionsService — IPC handlers", () => {
         snapshotId: "snap-1",
       });
 
-      const handler = getIpcHandler(SessionsChannel.GetById);
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetById);
       await handler({}, "session-1");
 
       expect(mockSnapshotLoadSnapshot).toHaveBeenCalledWith("snap-1");
@@ -544,14 +531,14 @@ describe("SessionsService — IPC handlers", () => {
         snapshotId: null,
       });
 
-      const handler = getIpcHandler(SessionsChannel.GetById);
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetById);
       await handler({}, "session-1");
 
       expect(mockSnapshotLoadSnapshot).not.toHaveBeenCalled();
     });
 
     it("should return cards array with correct card names", async () => {
-      const handler = getIpcHandler(SessionsChannel.GetById);
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetById);
       const result = await handler({}, "session-1");
 
       expect(result).not.toBeNull();
@@ -564,7 +551,7 @@ describe("SessionsService — IPC handlers", () => {
     });
 
     it("should include card counts in the result", async () => {
-      const handler = getIpcHandler(SessionsChannel.GetById);
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetById);
       const result = await handler({}, "session-1");
 
       const doctor = result.cards.find((c: any) => c.name === "The Doctor");
@@ -575,7 +562,7 @@ describe("SessionsService — IPC handlers", () => {
     });
 
     it("should include startedAt, endedAt, and duration from the session", async () => {
-      const handler = getIpcHandler(SessionsChannel.GetById);
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetById);
       const result = await handler({}, "session-1");
 
       expect(result.startedAt).toBe("2025-01-15T10:00:00Z");
@@ -584,7 +571,7 @@ describe("SessionsService — IPC handlers", () => {
     });
 
     it("should include league from the session", async () => {
-      const handler = getIpcHandler(SessionsChannel.GetById);
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetById);
       const result = await handler({}, "session-1");
 
       expect(result.league).toBe("Settlers");
@@ -596,7 +583,7 @@ describe("SessionsService — IPC handlers", () => {
         snapshotId: null,
       });
 
-      const handler = getIpcHandler(SessionsChannel.GetById);
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetById);
       const result = await handler({}, "session-1");
 
       expect(result.totals).toBeUndefined();
@@ -625,7 +612,7 @@ describe("SessionsService — IPC handlers", () => {
         },
       });
 
-      const handler = getIpcHandler(SessionsChannel.GetById);
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetById);
       const result = await handler({}, "session-1");
 
       expect(result.totals).toBeDefined();
@@ -645,7 +632,7 @@ describe("SessionsService — IPC handlers", () => {
       });
       mockSnapshotLoadSnapshot.mockResolvedValue(null);
 
-      const handler = getIpcHandler(SessionsChannel.GetById);
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetById);
       const result = await handler({}, "session-1");
 
       expect(result).not.toBeNull();
@@ -672,7 +659,7 @@ describe("SessionsService — IPC handlers", () => {
         },
       ]);
 
-      const handler = getIpcHandler(SessionsChannel.GetById);
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetById);
       const result = await handler({}, "session-1");
 
       const doctor = result.cards.find((c: any) => c.name === "The Doctor");
@@ -712,7 +699,7 @@ describe("SessionsService — IPC handlers", () => {
         },
       });
 
-      const handler = getIpcHandler(SessionsChannel.GetById);
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetById);
       const result = await handler({}, "session-1");
 
       const card = result.cards.find((c: any) => c.name === "Hidden Card");
@@ -730,7 +717,10 @@ describe("SessionsService — IPC handlers", () => {
 
   describe("SearchByCard handler", () => {
     it("should validate game, cardName, page, pageSize and return results", async () => {
-      const handler = getIpcHandler(SessionsChannel.SearchByCard);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.SearchByCard,
+      );
       const result = await handler({}, "poe1", "Doctor", 1, 20);
 
       expect(mockAssertGameType).toHaveBeenCalledWith(
@@ -774,7 +764,10 @@ describe("SessionsService — IPC handlers", () => {
 
     it("should calculate correct offset for page 3", async () => {
       mockRepoGetSessionCountByCard.mockResolvedValue(100);
-      const handler = getIpcHandler(SessionsChannel.SearchByCard);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.SearchByCard,
+      );
       await handler({}, "poe1", "Chaos", 3, 15);
 
       expect(mockRepoSearchSessionsByCard).toHaveBeenCalledWith(
@@ -790,7 +783,10 @@ describe("SessionsService — IPC handlers", () => {
 
     it("should calculate correct totalPages for search results", async () => {
       mockRepoGetSessionCountByCard.mockResolvedValue(37);
-      const handler = getIpcHandler(SessionsChannel.SearchByCard);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.SearchByCard,
+      );
       const result = await handler({}, "poe1", "Rain", 1, 10);
 
       expect(result.totalPages).toBe(4);
@@ -803,7 +799,10 @@ describe("SessionsService — IPC handlers", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(SessionsChannel.SearchByCard);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.SearchByCard,
+      );
       await handler({}, "bad-game", "Doctor", 1, 20);
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
@@ -818,7 +817,10 @@ describe("SessionsService — IPC handlers", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(SessionsChannel.SearchByCard);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.SearchByCard,
+      );
       await handler({}, "poe1", 12345, 1, 20);
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
@@ -832,7 +834,10 @@ describe("SessionsService — IPC handlers", () => {
         throw new Error("bad");
       });
 
-      const handler = getIpcHandler(SessionsChannel.SearchByCard);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.SearchByCard,
+      );
       await handler({}, "bad", "Doctor", 1, 20);
 
       expect(mockRepoGetSessionCountByCard).not.toHaveBeenCalled();
@@ -844,7 +849,10 @@ describe("SessionsService — IPC handlers", () => {
         throw new Error("bad");
       });
 
-      const handler = getIpcHandler(SessionsChannel.SearchByCard);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.SearchByCard,
+      );
       await handler({}, "poe1", null, 1, 20);
 
       expect(mockRepoGetSessionCountByCard).not.toHaveBeenCalled();
@@ -856,7 +864,10 @@ describe("SessionsService — IPC handlers", () => {
         throw new Error("bad page");
       });
 
-      const handler = getIpcHandler(SessionsChannel.SearchByCard);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.SearchByCard,
+      );
       await handler({}, "poe1", "Doctor", -5, 20);
 
       expect(mockRepoGetSessionCountByCard).not.toHaveBeenCalled();
@@ -868,7 +879,10 @@ describe("SessionsService — IPC handlers", () => {
         throw new Error("bad pageSize");
       });
 
-      const handler = getIpcHandler(SessionsChannel.SearchByCard);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.SearchByCard,
+      );
       await handler({}, "poe1", "Doctor", 1, 500);
 
       expect(mockRepoGetSessionCountByCard).not.toHaveBeenCalled();
@@ -885,7 +899,10 @@ describe("SessionsService — IPC handlers", () => {
         throw new Error("bad");
       });
 
-      const handler = getIpcHandler(SessionsChannel.SearchByCard);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.SearchByCard,
+      );
       const result = await handler({}, "poe1", undefined, 1, 20);
 
       expect(result).toEqual(errorPayload);
@@ -895,7 +912,10 @@ describe("SessionsService — IPC handlers", () => {
       mockRepoGetSessionCountByCard.mockResolvedValue(0);
       mockRepoSearchSessionsByCard.mockResolvedValue([]);
 
-      const handler = getIpcHandler(SessionsChannel.SearchByCard);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.SearchByCard,
+      );
       const result = await handler({}, "poe1", "NonExistentCard", 1, 20);
 
       expect(result).toEqual({
@@ -908,7 +928,10 @@ describe("SessionsService — IPC handlers", () => {
     });
 
     it("should work with poe2 game type", async () => {
-      const handler = getIpcHandler(SessionsChannel.SearchByCard);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.SearchByCard,
+      );
       await handler({}, "poe2", "Some Card", 1, 10);
 
       expect(mockAssertGameType).toHaveBeenCalledWith(
@@ -932,7 +955,10 @@ describe("SessionsService — IPC handlers", () => {
     });
 
     it("should use default page and pageSize when values are undefined", async () => {
-      const handler = getIpcHandler(SessionsChannel.SearchByCard);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.SearchByCard,
+      );
       await handler({}, "poe1", "Doctor", undefined, undefined);
 
       // The handler signature has defaults (page = 1, pageSize = 20),
@@ -970,7 +996,10 @@ describe("SessionsService — IPC handlers", () => {
       mockRepoGetSparklineData.mockResolvedValue(rawSparklineData);
       mockRepoGetDeckCosts.mockResolvedValue(new Map([["session-1", 0]]));
 
-      const handler = getIpcHandler(SessionsChannel.GetSparklines);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.GetSparklines,
+      );
       const result = await handler({}, ["session-1"]);
 
       expect(mockAssertStringArray).toHaveBeenCalledWith(
@@ -994,7 +1023,10 @@ describe("SessionsService — IPC handlers", () => {
       });
       mockRepoGetDeckCosts.mockResolvedValue(new Map([["s1", 3]]));
 
-      const handler = getIpcHandler(SessionsChannel.GetSparklines);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.GetSparklines,
+      );
       const result = await handler({}, ["s1"]);
 
       // profit = cumChaos - cumDrops * deckCost
@@ -1013,14 +1045,20 @@ describe("SessionsService — IPC handlers", () => {
       mockRepoGetSparklineData.mockResolvedValue(rawData);
       mockRepoGetDeckCosts.mockResolvedValue(new Map([["s1", 0]]));
 
-      const handler = getIpcHandler(SessionsChannel.GetSparklines);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.GetSparklines,
+      );
       const result = await handler({}, ["s1"]);
 
       expect(result).toEqual(rawData);
     });
 
     it("should handle empty sessionIds array", async () => {
-      const handler = getIpcHandler(SessionsChannel.GetSparklines);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.GetSparklines,
+      );
       const result = await handler({}, []);
 
       expect(mockAssertStringArray).toHaveBeenCalledWith(
@@ -1051,7 +1089,10 @@ describe("SessionsService — IPC handlers", () => {
         ]),
       );
 
-      const handler = getIpcHandler(SessionsChannel.GetSparklines);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.GetSparklines,
+      );
       const result = await handler({}, ["s1", "s2"]);
 
       expect(mockRepoGetSparklineData).toHaveBeenCalledWith(["s1", "s2"]);
@@ -1068,7 +1109,10 @@ describe("SessionsService — IPC handlers", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(SessionsChannel.GetSparklines);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.GetSparklines,
+      );
       await handler({}, "not-an-array");
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
@@ -1082,7 +1126,10 @@ describe("SessionsService — IPC handlers", () => {
         throw new Error("Invalid");
       });
 
-      const handler = getIpcHandler(SessionsChannel.GetSparklines);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.GetSparklines,
+      );
       await handler({}, null);
 
       expect(mockRepoGetSparklineData).not.toHaveBeenCalled();
@@ -1098,7 +1145,10 @@ describe("SessionsService — IPC handlers", () => {
         throw new Error("bad");
       });
 
-      const handler = getIpcHandler(SessionsChannel.GetSparklines);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.GetSparklines,
+      );
       const result = await handler({}, 12345);
 
       expect(result).toEqual(errorPayload);
@@ -1118,7 +1168,7 @@ describe("SessionsService — IPC handlers", () => {
         throw new Error("bad");
       });
 
-      const handler = getIpcHandler(SessionsChannel.GetAll);
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetAll);
       const result = await handler({}, null, 1, 20);
 
       expect(result).toEqual(errorPayload);
@@ -1134,7 +1184,7 @@ describe("SessionsService — IPC handlers", () => {
         throw new Error("bad");
       });
 
-      const handler = getIpcHandler(SessionsChannel.GetById);
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetById);
       const result = await handler({}, null);
 
       expect(result).toEqual(errorPayload);
@@ -1150,7 +1200,10 @@ describe("SessionsService — IPC handlers", () => {
         throw new Error("bad");
       });
 
-      const handler = getIpcHandler(SessionsChannel.SearchByCard);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.SearchByCard,
+      );
       const result = await handler({}, null, "Doctor", 1, 20);
 
       expect(result).toEqual(errorPayload);
@@ -1161,7 +1214,7 @@ describe("SessionsService — IPC handlers", () => {
         throw new Error("bad");
       });
 
-      const handler = getIpcHandler(SessionsChannel.GetAll);
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetAll);
       await handler({}, "bad");
 
       expect(mockRepoGetSessionCount).not.toHaveBeenCalled();
@@ -1173,7 +1226,7 @@ describe("SessionsService — IPC handlers", () => {
         throw new Error("bad");
       });
 
-      const handler = getIpcHandler(SessionsChannel.GetById);
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetById);
       await handler({}, null);
 
       expect(mockRepoGetSessionById).not.toHaveBeenCalled();
@@ -1186,7 +1239,10 @@ describe("SessionsService — IPC handlers", () => {
         throw new Error("bad");
       });
 
-      const handler = getIpcHandler(SessionsChannel.SearchByCard);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.SearchByCard,
+      );
       await handler({}, null, "Doctor", 1, 20);
 
       expect(mockRepoGetSessionCountByCard).not.toHaveBeenCalled();

@@ -1,13 +1,16 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useSessionDetails } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import { SessionDetailsOpenedDecksStat } from "./SessionDetailsOpenedDecksStat";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useSessionDetails: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
 vi.mock("~/renderer/components", () => ({
   Stat: Object.assign(
@@ -52,7 +55,7 @@ function setupStore(overrides: Record<string, any> = {}) {
     getTimeline: vi.fn().mockReturnValue(null),
     ...overrides,
   };
-  vi.mocked(useSessionDetails).mockReturnValue(sessionDetails as any);
+  vi.mocked(useBoundStore).mockReturnValue({ sessionDetails } as any);
   return sessionDetails;
 }
 

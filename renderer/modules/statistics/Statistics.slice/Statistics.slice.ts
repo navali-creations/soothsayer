@@ -1,6 +1,7 @@
 import type { StateCreator } from "zustand";
 
 import type { SnapshotMetaResult } from "~/main/modules/csv/Csv.api";
+import type { CardPoolBreakdownDTO } from "~/main/modules/sessions/Sessions.dto";
 import type {
   BrushRange,
   MetricKey,
@@ -8,6 +9,7 @@ import type {
 } from "~/renderer/components/CombinedChartCanvas/chart-types/chart-types";
 import { METRICS } from "~/renderer/components/CombinedChartCanvas/chart-types/chart-types";
 import type { BoundStore } from "~/renderer/store/store.types";
+import { toCardMetadata } from "~/renderer/utils/to-card-metadata";
 import type {
   DivinationCardMetadata,
   SimpleDivinationCardStats,
@@ -54,12 +56,7 @@ export interface StatisticsSlice {
     showUncollectedCards: boolean;
     sessionHighlights: SessionHighlights | null;
     stackedDeckCardCount: number | null;
-    cardPoolBreakdown: {
-      total: number;
-      bossOnly: number;
-      disabled: number;
-      droppable: number;
-    } | null;
+    cardPoolBreakdown: CardPoolBreakdownDTO | null;
     uncollectedCardNames: string[];
     uncollectedCardMetadata: Record<string, DivinationCardMetadata>;
     isLoadingHighlights: boolean;
@@ -308,17 +305,7 @@ export const createStatisticsSlice: StateCreator<
           const uncollectedSet = new Set(names);
           for (const card of allCards) {
             if (uncollectedSet.has(card.name)) {
-              metadataMap[card.name] = {
-                id: card.id,
-                stackSize: card.stackSize,
-                description: card.description,
-                rewardHtml: card.rewardHtml,
-                artSrc: card.artSrc,
-                flavourHtml: card.flavourHtml,
-                rarity: card.rarity,
-                fromBoss: card.fromBoss,
-                isDisabled: card.isDisabled,
-              };
+              metadataMap[card.name] = toCardMetadata(card);
             }
           }
         }

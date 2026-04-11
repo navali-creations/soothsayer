@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { PageContainer } from "~/renderer/components";
 import { trackEvent } from "~/renderer/modules/umami";
 import { useCardDetails, useSettings } from "~/renderer/store";
+import { toCardMetadata } from "~/renderer/utils/to-card-metadata";
 import type { CardEntry } from "~/types/data-stores";
 
 import CardDetailsError from "../CardDetails.components/CardDetailsError";
@@ -145,18 +146,10 @@ const CardDetailsPage = () => {
   const displayCard: CardEntry = {
     name: card.name,
     count: 0,
-    divinationCard: {
-      id: card.id,
-      stackSize: card.stackSize,
-      description: card.description,
-      rewardHtml: card.rewardHtml,
-      artSrc: card.artSrc,
-      flavourHtml: card.flavourHtml,
+    divinationCard: toCardMetadata(card, {
       rarity: displayRarity,
       filterRarity: card.filterRarity,
-      fromBoss: card.fromBoss,
-      isDisabled: card.isDisabled,
-    },
+    }),
   };
 
   const isYourDataLoading = isLoadingPersonalAnalytics || isLeagueSwitching;

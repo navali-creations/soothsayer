@@ -7,9 +7,12 @@ import SettingsPage from "./Settings.page";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
 const mockUseBoundStore = vi.mocked(useBoundStore);
 
@@ -71,12 +74,12 @@ vi.mock("~/renderer/components", () => ({
   ),
 }));
 
-vi.mock("motion/react", () => ({
-  AnimatePresence: ({ children }: any) => <>{children}</>,
-  motion: {
-    div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-  },
-}));
+vi.mock("motion/react", async () => {
+  const { createMotionMock } = await import(
+    "~/renderer/__test-setup__/motion-mock"
+  );
+  return createMotionMock();
+});
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 

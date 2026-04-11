@@ -1,5 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  createDatabaseServiceMock,
+  createDataStoreServiceMock,
+  createElectronMock,
+  createIpcValidationMock,
+  createPerformanceLoggerMock,
+  createSettingsStoreMock,
+  createSnapshotServiceMock,
+} from "~/main/modules/__test-utils__/mock-factories";
+import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
+
 // ─── Hoisted mock functions (available inside vi.mock factories) ─────────────
 const {
   mockIpcHandle,
@@ -51,26 +62,13 @@ const {
 }));
 
 // ─── Mock Electron before any imports that use it ────────────────────────────
-vi.mock("electron", () => ({
-  ipcMain: {
-    handle: mockIpcHandle,
-    on: vi.fn(),
-    removeHandler: vi.fn(),
-  },
-  BrowserWindow: {
-    getAllWindows: mockGetAllWindows,
-    getFocusedWindow: vi.fn(() => null),
-  },
-  app: {
-    isPackaged: false,
-    getAppPath: vi.fn(() => "/mock-app-path"),
-    getPath: vi.fn(() => "/mock-path"),
-  },
-  dialog: {
-    showMessageBox: vi.fn(),
-    showSaveDialog: vi.fn(),
-  },
-}));
+vi.mock("electron", () =>
+  createElectronMock({
+    mockIpcHandle,
+    mockWebContentsSend,
+    mockGetAllWindows,
+  }),
+);
 
 // ─── Mock crypto for deterministic UUIDs ─────────────────────────────────────
 let uuidCounter = 0;
@@ -82,71 +80,46 @@ vi.mock("node:crypto", () => ({
 }));
 
 // ─── Mock DatabaseService singleton ──────────────────────────────────────────
-vi.mock("~/main/modules/database", () => ({
-  DatabaseService: {
-    getInstance: vi.fn(() => ({
-      getKysely: mockGetKysely,
-      getDb: mockGetDb,
-      reset: vi.fn(),
-    })),
-  },
-}));
+vi.mock("~/main/modules/database", () =>
+  createDatabaseServiceMock({ mockGetKysely, mockGetDb }),
+);
 
 // ─── Mock PerformanceLoggerService ───────────────────────────────────────────
-vi.mock("~/main/modules/performance-logger", () => ({
-  PerformanceLoggerService: {
-    getInstance: vi.fn(() => ({
-      log: mockPerfLog,
-      startTimer: mockPerfStartTimer,
-      startTimers: mockPerfStartTimers,
-    })),
-  },
-}));
+vi.mock("~/main/modules/performance-logger", () =>
+  createPerformanceLoggerMock({
+    mockLog: mockPerfLog,
+    mockStartTimer: mockPerfStartTimer,
+    mockStartTimers: mockPerfStartTimers,
+  }),
+);
 
 // ─── Mock SnapshotService ────────────────────────────────────────────────────
-vi.mock("~/main/modules/snapshots", () => ({
-  SnapshotService: {
-    getInstance: vi.fn(() => ({
-      getSnapshotForSession: mockGetSnapshotForSession,
-      loadSnapshot: mockLoadSnapshot,
-      startAutoRefresh: mockStartAutoRefresh,
-      stopAutoRefresh: mockStopAutoRefresh,
-    })),
-  },
-}));
+vi.mock("~/main/modules/snapshots", () =>
+  createSnapshotServiceMock({
+    mockGetSnapshotForSession,
+    mockLoadSnapshot,
+    mockStartAutoRefresh,
+    mockStopAutoRefresh,
+  }),
+);
 
 // ─── Mock DataStoreService ───────────────────────────────────────────────────
-vi.mock("~/main/modules/data-store", () => ({
-  DataStoreService: {
-    getInstance: vi.fn(() => ({
-      addCard: mockDataStoreAddCard,
-      getAllTimeStats: mockGetAllTimeStats,
-      getLeagueStats: vi.fn(),
-      getGlobalStats: vi.fn(),
-    })),
-  },
-}));
+vi.mock("~/main/modules/data-store", () =>
+  createDataStoreServiceMock({
+    mockAddCard: mockDataStoreAddCard,
+    mockGetAllTimeStats,
+  }),
+);
 
 // ─── Mock IPC validation utils ───────────────────────────────────────────────
-vi.mock("~/main/utils/ipc-validation", () => ({
-  assertGameType: vi.fn(),
-  assertString: vi.fn(),
-  assertBoolean: vi.fn(),
-  assertCardName: vi.fn(),
-  assertPriceSource: vi.fn(),
-  assertSessionId: vi.fn(),
-  handleValidationError: vi.fn((_error: unknown, _channel: string) => ({
-    success: false,
-    error: "Validation error",
-  })),
-  IpcValidationError: class IpcValidationError extends Error {
-    detail: string;
-    constructor(message: string, detail: string) {
-      super(message);
-      this.detail = detail;
-    }
-  },
-}));
+vi.mock("~/main/utils/ipc-validation", () =>
+  createIpcValidationMock({
+    mockHandleValidationError: vi.fn((_error: unknown, _channel: string) => ({
+      success: false,
+      error: "Validation error",
+    })),
+  }),
+);
 
 // ─── Mock RarityInsightsService ─────────────────────────────────────────────────────
 vi.mock("~/main/modules/rarity-insights/RarityInsights.service", () => ({
@@ -159,22 +132,13 @@ vi.mock("~/main/modules/rarity-insights/RarityInsights.service", () => ({
 }));
 
 // ─── Mock SettingsStoreService ───────────────────────────────────────────────
-vi.mock("~/main/modules/settings-store", () => ({
-  SettingsStoreService: {
-    getInstance: vi.fn(() => ({
-      get: mockSettingsGet,
-      set: vi.fn().mockResolvedValue(undefined),
-      getAllSettings: vi.fn().mockResolvedValue({}),
-    })),
-  },
-  SettingsKey: {
-    RaritySource: "raritySource",
-    SelectedFilterId: "selectedFilterId",
-    ActiveGame: "selectedGame",
-    Poe1SelectedLeague: "poe1SelectedLeague",
-    Poe2SelectedLeague: "poe2SelectedLeague",
-  },
-}));
+vi.mock("~/main/modules/settings-store", () =>
+  createSettingsStoreMock({
+    mockGet: mockSettingsGet,
+    mockSet: vi.fn().mockResolvedValue(undefined),
+    mockGetAllSettings: vi.fn().mockResolvedValue({}),
+  }),
+);
 
 import {
   createTestDatabase,
@@ -295,15 +259,13 @@ describe("CurrentSessionService", () => {
     mockLoadSnapshot.mockResolvedValue(createMockPriceSnapshot());
 
     // Reset singleton
-    // @ts-expect-error accessing private static for testing
-    CurrentSessionService._instance = undefined;
+    resetSingleton(CurrentSessionService);
 
     service = CurrentSessionService.getInstance();
   });
 
   afterEach(async () => {
-    // @ts-expect-error accessing private static for testing
-    CurrentSessionService._instance = undefined;
+    resetSingleton(CurrentSessionService);
     await testDb.close();
     vi.clearAllMocks();
   });
@@ -900,8 +862,7 @@ describe("CurrentSessionService", () => {
       mockLoadSnapshot.mockResolvedValue(null);
 
       // Reset singleton so it picks up the new mock
-      // @ts-expect-error accessing private static for testing
-      CurrentSessionService._instance = undefined;
+      resetSingleton(CurrentSessionService);
       service = CurrentSessionService.getInstance();
 
       await service.startSession("poe1", "Settlers");
@@ -1784,8 +1745,7 @@ describe("CurrentSessionService", () => {
         .execute();
 
       // Reset singleton and recreate to trigger constructor's loadGlobalProcessedIds
-      // @ts-expect-error accessing private static for testing
-      CurrentSessionService._instance = undefined;
+      resetSingleton(CurrentSessionService);
       const freshService = CurrentSessionService.getInstance();
 
       // Wait for the async loadGlobalProcessedIds to complete
@@ -1797,8 +1757,7 @@ describe("CurrentSessionService", () => {
       expect(ids.has("existing-poe2-id-2")).toBe(true);
 
       // Clean up singleton reference
-      // @ts-expect-error accessing private static for testing
-      CurrentSessionService._instance = undefined;
+      resetSingleton(CurrentSessionService);
     });
   });
 });

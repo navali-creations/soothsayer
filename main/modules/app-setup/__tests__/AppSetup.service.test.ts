@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  createElectronMock,
+  createIpcValidationMock,
+  createSettingsStoreMock,
+  getIpcHandler,
+} from "~/main/modules/__test-utils__/mock-factories";
+import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
+
 // ─── Hoisted mock functions (available inside vi.mock factories) ─────────────
 const {
   mockIpcHandle,
@@ -18,26 +26,7 @@ const {
 }));
 
 // ─── Mock Electron ───────────────────────────────────────────────────────────
-vi.mock("electron", () => ({
-  ipcMain: {
-    handle: mockIpcHandle,
-    on: vi.fn(),
-    removeHandler: vi.fn(),
-  },
-  BrowserWindow: {
-    getAllWindows: vi.fn(() => []),
-    getFocusedWindow: vi.fn(() => null),
-  },
-  app: {
-    isPackaged: false,
-    getAppPath: vi.fn(() => "/mock-app-path"),
-    getPath: vi.fn(() => "/mock-path"),
-  },
-  dialog: {
-    showMessageBox: vi.fn(),
-    showSaveDialog: vi.fn(),
-  },
-}));
+vi.mock("electron", () => createElectronMock({ mockIpcHandle }));
 
 // ─── Mock node:fs ────────────────────────────────────────────────────────────
 vi.mock("node:fs", () => ({
@@ -50,36 +39,23 @@ vi.mock("node:fs", () => ({
 }));
 
 // ─── Mock SettingsStoreService ───────────────────────────────────────────────
-vi.mock("~/main/modules/settings-store", () => ({
-  SettingsStoreService: {
-    getInstance: vi.fn(() => ({
-      get: mockSettingsGet,
-      set: mockSettingsSet,
-      getAllSettings: mockSettingsGetAllSettings,
-    })),
-  },
-  SettingsKey: {
-    ActiveGame: "selectedGame",
-    InstalledGames: "installedGames",
-    Poe1ClientTxtPath: "poe1ClientTxtPath",
-    Poe2ClientTxtPath: "poe2ClientTxtPath",
-    SelectedPoe1League: "poe1SelectedLeague",
-    SelectedPoe2League: "poe2SelectedLeague",
-    SetupCompleted: "setupCompleted",
-    SetupStep: "setupStep",
-    TelemetryCrashReporting: "telemetryCrashReporting",
-    TelemetryUsageAnalytics: "telemetryUsageAnalytics",
-  },
-}));
+vi.mock("~/main/modules/settings-store", () =>
+  createSettingsStoreMock({
+    mockGet: mockSettingsGet,
+    mockSet: mockSettingsSet,
+    mockGetAllSettings: mockSettingsGetAllSettings,
+  }),
+);
 
 // ─── Mock ipc-validation ─────────────────────────────────────────────────────
-vi.mock("~/main/utils/ipc-validation", () => ({
-  assertSetupStep: vi.fn(),
-  handleValidationError: vi.fn((_error: unknown, _channel: string) => ({
-    success: false,
-    error: "Invalid input: validation error",
-  })),
-}));
+vi.mock("~/main/utils/ipc-validation", () =>
+  createIpcValidationMock({
+    mockHandleValidationError: vi.fn((_error: unknown, _channel: string) => ({
+      success: false,
+      error: "Invalid input: validation error",
+    })),
+  }),
+);
 
 import { SettingsKey } from "~/main/modules/settings-store";
 
@@ -88,16 +64,6 @@ import { AppSetupChannel } from "../AppSetup.channels";
 import { AppSetupService } from "../AppSetup.service";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function getIpcHandler(channel: string): (...args: any[]) => Promise<any> {
-  const call = mockIpcHandle.mock.calls.find(
-    ([ch]: [string]) => ch === channel,
-  );
-  if (!call) {
-    throw new Error(`ipcMain.handle was not called with "${channel}"`);
-  }
-  return call[1];
-}
 
 // ─── Default settings factory ────────────────────────────────────────────────
 
@@ -126,8 +92,7 @@ describe("AppSetupService", () => {
     vi.clearAllMocks();
 
     // Reset singleton
-    // @ts-expect-error — accessing private static for testing
-    AppSetupService._instance = undefined;
+    resetSingleton(AppSetupService);
 
     // Default mock implementations
     mockSettingsGet.mockImplementation(async (key: string) => {
@@ -217,7 +182,10 @@ describe("AppSetupService", () => {
     });
 
     it("should work through the IPC handler", async () => {
-      const handler = getIpcHandler(AppSetupChannel.GetSetupState);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        AppSetupChannel.GetSetupState,
+      );
       const result = await handler();
 
       expect(result).toHaveProperty("currentStep");
@@ -254,7 +222,10 @@ describe("AppSetupService", () => {
         return undefined;
       });
 
-      const handler = getIpcHandler(AppSetupChannel.IsSetupComplete);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        AppSetupChannel.IsSetupComplete,
+      );
       const result = await handler();
       expect(result).toBe(true);
     });
@@ -564,7 +535,10 @@ describe("AppSetupService", () => {
         return undefined;
       });
 
-      const handler = getIpcHandler(AppSetupChannel.ValidateCurrentStep);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        AppSetupChannel.ValidateCurrentStep,
+      );
       const result = await handler();
       expect(result.isValid).toBe(true);
     });
@@ -680,7 +654,7 @@ describe("AppSetupService", () => {
         return undefined;
       });
 
-      const handler = getIpcHandler(AppSetupChannel.AdvanceStep);
+      const handler = getIpcHandler(mockIpcHandle, AppSetupChannel.AdvanceStep);
       const result = await handler();
       expect(result.success).toBe(true);
     });
@@ -854,7 +828,10 @@ describe("AppSetupService", () => {
       mockExistsSync.mockReturnValue(true);
       mockStatSync.mockReturnValue({ isFile: () => true });
 
-      const handler = getIpcHandler(AppSetupChannel.CompleteSetup);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        AppSetupChannel.CompleteSetup,
+      );
       const result = await handler();
       expect(result.success).toBe(true);
     });
@@ -874,7 +851,7 @@ describe("AppSetupService", () => {
     });
 
     it("should work through the IPC handler", async () => {
-      const handler = getIpcHandler(AppSetupChannel.ResetSetup);
+      const handler = getIpcHandler(mockIpcHandle, AppSetupChannel.ResetSetup);
       await handler();
 
       expect(mockSettingsSet).toHaveBeenCalledWith(
@@ -907,7 +884,7 @@ describe("AppSetupService", () => {
     });
 
     it("should work through the IPC handler", async () => {
-      const handler = getIpcHandler(AppSetupChannel.SkipSetup);
+      const handler = getIpcHandler(mockIpcHandle, AppSetupChannel.SkipSetup);
       await handler();
 
       expect(mockSettingsSet).toHaveBeenCalledWith(
@@ -935,7 +912,7 @@ describe("AppSetupService", () => {
         return undefined;
       });
 
-      const handler = getIpcHandler(AppSetupChannel.GoToStep);
+      const handler = getIpcHandler(mockIpcHandle, AppSetupChannel.GoToStep);
       await handler({}, 1);
 
       const { assertSetupStep } = await import("~/main/utils/ipc-validation");
@@ -956,7 +933,7 @@ describe("AppSetupService", () => {
         error: "Invalid input: validation error",
       });
 
-      const handler = getIpcHandler(AppSetupChannel.GoToStep);
+      const handler = getIpcHandler(mockIpcHandle, AppSetupChannel.GoToStep);
       const result = await handler({}, 999);
 
       expect(result).toEqual({

@@ -91,6 +91,7 @@ import {
   seedSnapshot,
   type TestDatabase,
 } from "~/main/modules/__test-utils__/create-test-db";
+import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
 
 import { SnapshotChannel } from "../Snapshot.channels";
 import { SnapshotService } from "../Snapshot.service";
@@ -115,16 +116,14 @@ describe("SnapshotService", () => {
     mockGetAllWindows.mockReturnValue([]);
 
     // Reset the singleton so each test gets a fresh instance
-    // @ts-expect-error accessing private static for testing
-    SnapshotService._instance = undefined;
+    resetSingleton(SnapshotService);
 
     service = SnapshotService.getInstance();
   });
 
   afterEach(async () => {
     service.stopAllAutoRefresh();
-    // @ts-expect-error accessing private static for testing
-    SnapshotService._instance = undefined;
+    resetSingleton(SnapshotService);
     await testDb.close();
     vi.clearAllMocks();
   });

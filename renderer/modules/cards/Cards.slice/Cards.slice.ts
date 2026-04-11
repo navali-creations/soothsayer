@@ -1,22 +1,11 @@
 import type { StateCreator } from "zustand";
 
 import type { BoundStore } from "~/renderer/store/store.types";
-import type { KnownRarity, Rarity, RaritySource } from "~/types/data-stores";
+import { getEffectiveRarity } from "~/renderer/utils/get-effective-rarity";
 
-interface DivinationCardDTO {
-  id: string;
-  name: string;
-  stackSize: number;
-  description: string;
-  rewardHtml: string;
-  artSrc: string;
-  flavourHtml: string;
-  rarity: Rarity;
-  filterRarity: KnownRarity | null;
-  prohibitedLibraryRarity: Rarity | null;
-  fromBoss: boolean;
-  isDisabled: boolean;
-  inPool: boolean;
+import type { DivinationCardRow } from "../Cards.types";
+
+interface DivinationCardDTO extends DivinationCardRow {
   game: "poe1" | "poe2";
   createdAt: string;
   updatedAt: string;
@@ -24,20 +13,6 @@ interface DivinationCardDTO {
 
 type SortField = "name" | "rarity" | "stackSize";
 type SortDirection = "asc" | "desc";
-
-function getEffectiveRarity(
-  card: DivinationCardDTO,
-  raritySource: RaritySource,
-): Rarity {
-  switch (raritySource) {
-    case "filter":
-      return card.filterRarity ?? card.rarity;
-    case "prohibited-library":
-      return card.prohibitedLibraryRarity ?? card.rarity;
-    default:
-      return card.rarity;
-  }
-}
 
 export interface CardsSlice {
   cards: {

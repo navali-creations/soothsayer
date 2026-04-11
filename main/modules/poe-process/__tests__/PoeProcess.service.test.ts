@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { getIpcHandler } from "~/main/modules/__test-utils__/mock-factories";
+
 // ─── Hoisted mock functions (available inside vi.mock factories) ─────────────
 const {
   mockIpcHandle,
@@ -67,21 +69,12 @@ vi.mock("~/main/modules", () => ({
   },
 }));
 
+import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
+
 // ─── Import under test (after mocks) ────────────────────────────────────────
 import { PoeProcessService } from "../PoeProcess.service";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-/** Extract the handler registered for a given IPC channel */
-function getIpcHandler(channel: string): (...args: any[]) => any {
-  const call = mockIpcHandle.mock.calls.find(
-    ([ch]: [string]) => ch === channel,
-  );
-  if (!call) {
-    throw new Error(`ipcMain.handle was not called with "${channel}"`);
-  }
-  return call[1];
-}
 
 /** Get the callback registered on the poller for a given event */
 function getPollerListener(event: string): (...args: any[]) => void {
@@ -171,9 +164,7 @@ describe("PoeProcessService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Reset singleton
-    // @ts-expect-error — accessing private static for testing
-    PoeProcessService._instance = undefined;
+    resetSingleton(PoeProcessService);
 
     service = PoeProcessService.getInstance();
 
@@ -232,7 +223,7 @@ describe("PoeProcessService", () => {
 
   describe("IPC: poe-process:is-running", () => {
     it("should return default state when no events have occurred", () => {
-      const handler = getIpcHandler("poe-process:is-running");
+      const handler = getIpcHandler(mockIpcHandle, "poe-process:is-running");
       const result = handler();
       expect(result).toEqual({ isRunning: false, processName: "" });
     });
@@ -243,7 +234,7 @@ describe("PoeProcessService", () => {
         processName: "PathOfExile.exe",
       });
 
-      const handler = getIpcHandler("poe-process:is-running");
+      const handler = getIpcHandler(mockIpcHandle, "poe-process:is-running");
       const result = handler();
       expect(result).toEqual({
         isRunning: true,
@@ -264,7 +255,7 @@ describe("PoeProcessService", () => {
         processName: "PathOfExile.exe",
       });
 
-      const handler = getIpcHandler("poe-process:is-running");
+      const handler = getIpcHandler(mockIpcHandle, "poe-process:is-running");
       const result = handler();
       expect(result).toEqual({ isRunning: false, processName: "" });
     });
@@ -275,7 +266,7 @@ describe("PoeProcessService", () => {
         processName: "PathOfExileSteam.exe",
       });
 
-      const handler = getIpcHandler("poe-process:is-running");
+      const handler = getIpcHandler(mockIpcHandle, "poe-process:is-running");
       const result = handler();
       expect(result).toEqual({
         isRunning: true,
@@ -342,7 +333,7 @@ describe("PoeProcessService", () => {
           processName: "PathOfExile.exe",
         });
 
-        const handler = getIpcHandler("poe-process:is-running");
+        const handler = getIpcHandler(mockIpcHandle, "poe-process:is-running");
         const result = handler();
         expect(result.isRunning).toBe(true);
         expect(result.processName).toBe("PathOfExile.exe");
@@ -376,7 +367,7 @@ describe("PoeProcessService", () => {
           processName: "PathOfExile.exe",
         });
 
-        const handler = getIpcHandler("poe-process:is-running");
+        const handler = getIpcHandler(mockIpcHandle, "poe-process:is-running");
         const result = handler();
         expect(result.isRunning).toBe(false);
         expect(result.processName).toBe("");
@@ -403,7 +394,7 @@ describe("PoeProcessService", () => {
           processName: "PathOfExile2Steam.exe",
         });
 
-        const handler = getIpcHandler("poe-process:is-running");
+        const handler = getIpcHandler(mockIpcHandle, "poe-process:is-running");
         const result = handler();
         expect(result.isRunning).toBe(true);
         expect(result.processName).toBe("PathOfExile2Steam.exe");
@@ -689,7 +680,7 @@ describe("PoeProcessService", () => {
     });
 
     it("should track state through start -> data -> stop cycle", () => {
-      const handler = getIpcHandler("poe-process:is-running");
+      const handler = getIpcHandler(mockIpcHandle, "poe-process:is-running");
 
       // Initial state
       expect(handler()).toEqual({ isRunning: false, processName: "" });
@@ -726,7 +717,7 @@ describe("PoeProcessService", () => {
     });
 
     it("should handle switching between PoE1 and PoE2 processes", () => {
-      const handler = getIpcHandler("poe-process:is-running");
+      const handler = getIpcHandler(mockIpcHandle, "poe-process:is-running");
 
       // PoE1 starts
       pollerListeners.start({

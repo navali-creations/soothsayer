@@ -5,9 +5,12 @@ import CurrentSessionMostValuableStat from "./CurrentSessionMostValueableCardSta
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useBoundStore: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
 vi.mock("~/renderer/components", () => ({
   AnimatedNumber: ({ value, decimals, suffix, className }: any) => (

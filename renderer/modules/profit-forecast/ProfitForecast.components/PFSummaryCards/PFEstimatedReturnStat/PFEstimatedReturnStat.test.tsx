@@ -1,12 +1,15 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useProfitForecast } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import { formatDivine } from "../../../ProfitForecast.utils/ProfitForecast.utils";
 import PFEstimatedReturnStat from "./PFEstimatedReturnStat";
 
-vi.mock("~/renderer/store", () => ({
-  useProfitForecast: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
 vi.mock("~/renderer/components", () => ({
   Stat: Object.assign(
@@ -35,23 +38,23 @@ vi.mock("~/renderer/components", () => ({
   ),
 }));
 
-const mockUseProfitForecast = vi.mocked(useProfitForecast);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
-function createMockState(overrides: any = {}) {
+function createMockProfitForecast(overrides: any = {}) {
   return {
     isLoading: false,
     evPerDeck: 10,
     chaosToDivineRatio: 200,
     getTotalRevenue: vi.fn(() => 20000),
     hasData: vi.fn(() => true),
-    ...overrides.profitForecast,
+    ...overrides,
   } as any;
 }
 
 function setupStore(overrides: any = {}) {
-  const state = createMockState(overrides);
-  mockUseProfitForecast.mockReturnValue(state);
-  return state;
+  const profitForecast = createMockProfitForecast(overrides.profitForecast);
+  mockUseBoundStore.mockReturnValue({ profitForecast } as any);
+  return { profitForecast };
 }
 
 function renderStat(storeOverrides: any = {}) {

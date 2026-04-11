@@ -1,5 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  createDatabaseServiceMock,
+  createDataStoreServiceMock,
+  createElectronMock,
+  createIpcValidationMock,
+  createPerformanceLoggerMock,
+  createSettingsStoreMock,
+  createSnapshotServiceMock,
+  getIpcHandler,
+} from "~/main/modules/__test-utils__/mock-factories";
+import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
+
 // ─── Hoisted mock functions ──────────────────────────────────────────────────
 const {
   mockIpcHandle,
@@ -104,26 +116,13 @@ const {
 });
 
 // ─── Mock Electron ───────────────────────────────────────────────────────────
-vi.mock("electron", () => ({
-  ipcMain: {
-    handle: mockIpcHandle,
-    on: vi.fn(),
-    removeHandler: vi.fn(),
-  },
-  BrowserWindow: {
-    getAllWindows: mockGetAllWindows,
-    getFocusedWindow: vi.fn(() => null),
-  },
-  app: {
-    isPackaged: false,
-    getAppPath: vi.fn(() => "/mock-app-path"),
-    getPath: vi.fn(() => "/mock-path"),
-  },
-  dialog: {
-    showMessageBox: vi.fn(),
-    showSaveDialog: vi.fn(),
-  },
-}));
+vi.mock("electron", () =>
+  createElectronMock({
+    mockIpcHandle,
+    mockGetAllWindows,
+    mockWebContentsSend,
+  }),
+);
 
 // ─── Mock node:crypto ────────────────────────────────────────────────────────
 let uuidCounter = 0;
@@ -133,50 +132,36 @@ vi.mock("node:crypto", () => ({
 }));
 
 // ─── Mock DatabaseService ────────────────────────────────────────────────────
-vi.mock("~/main/modules/database", () => ({
-  DatabaseService: {
-    getInstance: vi.fn(() => ({
-      getKysely: mockGetKysely,
-      getDb: mockGetDb,
-      reset: vi.fn(),
-    })),
-  },
-}));
+vi.mock("~/main/modules/database", () =>
+  createDatabaseServiceMock({ mockGetKysely, mockGetDb }),
+);
 
 // ─── Mock PerformanceLoggerService ───────────────────────────────────────────
-vi.mock("~/main/modules/performance-logger", () => ({
-  PerformanceLoggerService: {
-    getInstance: vi.fn(() => ({
-      log: mockPerfLog,
-      startTimer: mockPerfStartTimer,
-      startTimers: mockPerfStartTimers,
-    })),
-  },
-}));
+vi.mock("~/main/modules/performance-logger", () =>
+  createPerformanceLoggerMock({
+    mockLog: mockPerfLog,
+    mockStartTimer: mockPerfStartTimer,
+    mockStartTimers: mockPerfStartTimers,
+  }),
+);
 
 // ─── Mock SnapshotService ────────────────────────────────────────────────────
-vi.mock("~/main/modules/snapshots", () => ({
-  SnapshotService: {
-    getInstance: vi.fn(() => ({
-      getSnapshotForSession: mockGetSnapshotForSession,
-      loadSnapshot: mockLoadSnapshot,
-      startAutoRefresh: mockStartAutoRefresh,
-      stopAutoRefresh: mockStopAutoRefresh,
-    })),
-  },
-}));
+vi.mock("~/main/modules/snapshots", () =>
+  createSnapshotServiceMock({
+    mockGetSnapshotForSession,
+    mockLoadSnapshot,
+    mockStartAutoRefresh,
+    mockStopAutoRefresh,
+  }),
+);
 
 // ─── Mock DataStoreService ───────────────────────────────────────────────────
-vi.mock("~/main/modules/data-store", () => ({
-  DataStoreService: {
-    getInstance: vi.fn(() => ({
-      addCard: mockDataStoreAddCard,
-      getAllTimeStats: mockGetAllTimeStats,
-      getLeagueStats: vi.fn(),
-      getGlobalStats: vi.fn(),
-    })),
-  },
-}));
+vi.mock("~/main/modules/data-store", () =>
+  createDataStoreServiceMock({
+    mockAddCard: mockDataStoreAddCard,
+    mockGetAllTimeStats: mockGetAllTimeStats,
+  }),
+);
 
 // ─── Mock CurrentSessionRepository ───────────────────────────────────────────
 vi.mock("../CurrentSession.repository", () => ({
@@ -209,22 +194,7 @@ vi.mock("~/main/modules/rarity-insights/RarityInsights.service", () => ({
 }));
 
 // ─── Mock SettingsStoreService ───────────────────────────────────────────────
-vi.mock("~/main/modules/settings-store", () => ({
-  SettingsStoreService: {
-    getInstance: vi.fn(() => ({
-      get: vi.fn().mockResolvedValue(null),
-      set: vi.fn().mockResolvedValue(undefined),
-      getAllSettings: vi.fn().mockResolvedValue({}),
-    })),
-  },
-  SettingsKey: {
-    RaritySource: "raritySource",
-    SelectedFilterId: "selectedFilterId",
-    ActiveGame: "selectedGame",
-    Poe1SelectedLeague: "poe1SelectedLeague",
-    Poe2SelectedLeague: "poe2SelectedLeague",
-  },
-}));
+vi.mock("~/main/modules/settings-store", () => createSettingsStoreMock());
 
 // ─── Mock cleanWikiMarkup ────────────────────────────────────────────────────
 vi.mock("~/main/utils/cleanWikiMarkup", () => ({
@@ -232,38 +202,25 @@ vi.mock("~/main/utils/cleanWikiMarkup", () => ({
 }));
 
 // ─── Mock IPC validation utils ───────────────────────────────────────────────
-vi.mock("~/main/utils/ipc-validation", () => ({
-  assertGameType: mockAssertGameType,
-  assertString: mockAssertString,
-  assertBoundedString: mockAssertBoundedString,
-  assertBoolean: mockAssertBoolean,
-  assertCardName: mockAssertCardName,
-  assertPriceSource: mockAssertPriceSource,
-  assertSessionId: mockAssertSessionId,
-  handleValidationError: mockHandleValidationError,
-  IpcValidationError: MockIpcValidationError,
-}));
+vi.mock("~/main/utils/ipc-validation", () =>
+  createIpcValidationMock({
+    mockAssertGameType,
+    mockAssertString,
+    mockAssertBoundedString,
+    mockAssertBoolean,
+    mockAssertCardName,
+    mockAssertPriceSource,
+    mockAssertSessionId,
+    mockHandleValidationError,
+    MockIpcValidationError,
+  }),
+);
 
 // ─── Import under test ──────────────────────────────────────────────────────
 import { CurrentSessionChannel } from "../CurrentSession.channels";
 import { CurrentSessionService } from "../CurrentSession.service";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function getIpcHandler(channel: string): (...args: any[]) => any {
-  const call = mockIpcHandle.mock.calls.find(
-    ([ch]: [string]) => ch === channel,
-  );
-  if (!call) {
-    const registered = mockIpcHandle.mock.calls
-      .map(([ch]: [string]) => ch)
-      .join(", ");
-    throw new Error(
-      `ipcMain.handle was not called with "${channel}". Registered: ${registered}`,
-    );
-  }
-  return call[1];
-}
 
 const MOCK_SNAPSHOT = {
   snapshotId: "snap-1",
@@ -300,8 +257,7 @@ describe("CurrentSessionService — IPC handlers", () => {
     vi.clearAllMocks();
 
     // Reset singleton
-    // @ts-expect-error — accessing private static for testing
-    CurrentSessionService._instance = undefined;
+    resetSingleton(CurrentSessionService);
 
     // Reset validation mocks to no-op implementations
     // (clearAllMocks does not reset implementations set via mockImplementation)
@@ -352,8 +308,7 @@ describe("CurrentSessionService — IPC handlers", () => {
   });
 
   afterEach(() => {
-    // @ts-expect-error — accessing private static for testing
-    CurrentSessionService._instance = undefined;
+    resetSingleton(CurrentSessionService);
     vi.restoreAllMocks();
   });
 
@@ -380,7 +335,7 @@ describe("CurrentSessionService — IPC handlers", () => {
 
   describe("Start handler", () => {
     it("should validate inputs and return success on valid start", async () => {
-      const handler = getIpcHandler(CurrentSessionChannel.Start);
+      const handler = getIpcHandler(mockIpcHandle, CurrentSessionChannel.Start);
       const result = await handler(null, "poe1", "Settlers");
 
       expect(mockAssertGameType).toHaveBeenCalledWith(
@@ -397,7 +352,7 @@ describe("CurrentSessionService — IPC handlers", () => {
     });
 
     it("should call startSession with validated game and league", async () => {
-      const handler = getIpcHandler(CurrentSessionChannel.Start);
+      const handler = getIpcHandler(mockIpcHandle, CurrentSessionChannel.Start);
       await handler(null, "poe1", "Settlers");
 
       // startSession internally calls getLeagueId, createSession, etc.
@@ -413,7 +368,7 @@ describe("CurrentSessionService — IPC handlers", () => {
         );
       });
 
-      const handler = getIpcHandler(CurrentSessionChannel.Start);
+      const handler = getIpcHandler(mockIpcHandle, CurrentSessionChannel.Start);
       const result = await handler(null, "bad", "Settlers");
 
       expect(result).toEqual({
@@ -427,7 +382,7 @@ describe("CurrentSessionService — IPC handlers", () => {
       // Make startSession throw a generic Error (e.g., league not found)
       mockRepoGetLeagueId.mockResolvedValue(null);
 
-      const handler = getIpcHandler(CurrentSessionChannel.Start);
+      const handler = getIpcHandler(mockIpcHandle, CurrentSessionChannel.Start);
       const result = await handler(null, "poe1", "NonExistentLeague");
 
       expect(result).toEqual({
@@ -439,7 +394,7 @@ describe("CurrentSessionService — IPC handlers", () => {
     it("should return 'Unknown error' for non-Error throws", async () => {
       mockRepoGetLeagueId.mockRejectedValue("string-error");
 
-      const handler = getIpcHandler(CurrentSessionChannel.Start);
+      const handler = getIpcHandler(mockIpcHandle, CurrentSessionChannel.Start);
       const result = await handler(null, "poe1", "Settlers");
 
       expect(result).toEqual({
@@ -453,7 +408,7 @@ describe("CurrentSessionService — IPC handlers", () => {
         throw new MockIpcValidationError(CurrentSessionChannel.Start, "bad");
       });
 
-      const handler = getIpcHandler(CurrentSessionChannel.Start);
+      const handler = getIpcHandler(mockIpcHandle, CurrentSessionChannel.Start);
       await handler(null, "bad", "Settlers");
 
       // Start handler does NOT use handleValidationError, it handles errors directly
@@ -468,7 +423,7 @@ describe("CurrentSessionService — IPC handlers", () => {
         );
       });
 
-      const handler = getIpcHandler(CurrentSessionChannel.Start);
+      const handler = getIpcHandler(mockIpcHandle, CurrentSessionChannel.Start);
       const result = await handler(null, "poe1", 12345);
 
       expect(result).toEqual({
@@ -482,14 +437,17 @@ describe("CurrentSessionService — IPC handlers", () => {
 
   describe("Stop handler", () => {
     async function startASession(game = "poe1") {
-      const startHandler = getIpcHandler(CurrentSessionChannel.Start);
+      const startHandler = getIpcHandler(
+        mockIpcHandle,
+        CurrentSessionChannel.Start,
+      );
       await startHandler(null, game, "Settlers");
     }
 
     it("should validate game type and return success with session data", async () => {
       await startASession();
 
-      const handler = getIpcHandler(CurrentSessionChannel.Stop);
+      const handler = getIpcHandler(mockIpcHandle, CurrentSessionChannel.Stop);
       const result = await handler(null, "poe1");
 
       expect(mockAssertGameType).toHaveBeenCalledWith(
@@ -514,7 +472,7 @@ describe("CurrentSessionService — IPC handlers", () => {
         });
 
       await startASession();
-      const handler = getIpcHandler(CurrentSessionChannel.Stop);
+      const handler = getIpcHandler(mockIpcHandle, CurrentSessionChannel.Stop);
       const result = await handler(null, "bad");
 
       expect(result).toEqual({
@@ -525,7 +483,7 @@ describe("CurrentSessionService — IPC handlers", () => {
 
     it("should return error message for generic errors (no active session)", async () => {
       // Don't start a session → stopSession will throw "No active session"
-      const handler = getIpcHandler(CurrentSessionChannel.Stop);
+      const handler = getIpcHandler(mockIpcHandle, CurrentSessionChannel.Stop);
       const result = await handler(null, "poe1");
 
       expect(result).toEqual({
@@ -540,7 +498,7 @@ describe("CurrentSessionService — IPC handlers", () => {
       // Make stopSession throw a non-Error
       mockRepoGetSessionTotalCount.mockRejectedValue(42);
 
-      const handler = getIpcHandler(CurrentSessionChannel.Stop);
+      const handler = getIpcHandler(mockIpcHandle, CurrentSessionChannel.Stop);
       const result = await handler(null, "poe1");
 
       expect(result).toEqual({
@@ -554,7 +512,7 @@ describe("CurrentSessionService — IPC handlers", () => {
         throw new MockIpcValidationError(CurrentSessionChannel.Stop, "bad");
       });
 
-      const handler = getIpcHandler(CurrentSessionChannel.Stop);
+      const handler = getIpcHandler(mockIpcHandle, CurrentSessionChannel.Stop);
       await handler(null, "bad");
 
       expect(mockHandleValidationError).not.toHaveBeenCalled();
@@ -565,7 +523,10 @@ describe("CurrentSessionService — IPC handlers", () => {
 
   describe("IsActive handler", () => {
     it("should validate game type and return false when no session is active", () => {
-      const handler = getIpcHandler(CurrentSessionChannel.IsActive);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        CurrentSessionChannel.IsActive,
+      );
       const result = handler(null, "poe1");
 
       expect(mockAssertGameType).toHaveBeenCalledWith(
@@ -576,10 +537,16 @@ describe("CurrentSessionService — IPC handlers", () => {
     });
 
     it("should return true when a session is active", async () => {
-      const startHandler = getIpcHandler(CurrentSessionChannel.Start);
+      const startHandler = getIpcHandler(
+        mockIpcHandle,
+        CurrentSessionChannel.Start,
+      );
       await startHandler(null, "poe1", "Settlers");
 
-      const handler = getIpcHandler(CurrentSessionChannel.IsActive);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        CurrentSessionChannel.IsActive,
+      );
       const result = handler(null, "poe1");
 
       expect(result).toBe(true);
@@ -591,7 +558,10 @@ describe("CurrentSessionService — IPC handlers", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(CurrentSessionChannel.IsActive);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        CurrentSessionChannel.IsActive,
+      );
       handler(null, "bad");
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
@@ -607,7 +577,10 @@ describe("CurrentSessionService — IPC handlers", () => {
         throw new Error("bad");
       });
 
-      const handler = getIpcHandler(CurrentSessionChannel.IsActive);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        CurrentSessionChannel.IsActive,
+      );
       const result = handler(null, "bad");
 
       expect(result).toEqual(errorPayload);
@@ -618,7 +591,7 @@ describe("CurrentSessionService — IPC handlers", () => {
 
   describe("Get handler", () => {
     it("should validate game type and return null when no session is active", async () => {
-      const handler = getIpcHandler(CurrentSessionChannel.Get);
+      const handler = getIpcHandler(mockIpcHandle, CurrentSessionChannel.Get);
       const result = await handler(null, "poe1");
 
       expect(mockAssertGameType).toHaveBeenCalledWith(
@@ -629,10 +602,13 @@ describe("CurrentSessionService — IPC handlers", () => {
     });
 
     it("should return session data when a session is active", async () => {
-      const startHandler = getIpcHandler(CurrentSessionChannel.Start);
+      const startHandler = getIpcHandler(
+        mockIpcHandle,
+        CurrentSessionChannel.Start,
+      );
       await startHandler(null, "poe1", "Settlers");
 
-      const handler = getIpcHandler(CurrentSessionChannel.Get);
+      const handler = getIpcHandler(mockIpcHandle, CurrentSessionChannel.Get);
       const result = await handler(null, "poe1");
 
       expect(result).not.toBeNull();
@@ -647,7 +623,7 @@ describe("CurrentSessionService — IPC handlers", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(CurrentSessionChannel.Get);
+      const handler = getIpcHandler(mockIpcHandle, CurrentSessionChannel.Get);
       await handler(null, "bad");
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
@@ -663,7 +639,7 @@ describe("CurrentSessionService — IPC handlers", () => {
         throw new Error("bad");
       });
 
-      const handler = getIpcHandler(CurrentSessionChannel.Get);
+      const handler = getIpcHandler(mockIpcHandle, CurrentSessionChannel.Get);
       const result = await handler(null, "bad");
 
       expect(result).toEqual(errorPayload);
@@ -674,7 +650,7 @@ describe("CurrentSessionService — IPC handlers", () => {
 
   describe("Info handler", () => {
     it("should validate game type and return null when no session is active", () => {
-      const handler = getIpcHandler(CurrentSessionChannel.Info);
+      const handler = getIpcHandler(mockIpcHandle, CurrentSessionChannel.Info);
       const result = handler(null, "poe1");
 
       expect(mockAssertGameType).toHaveBeenCalledWith(
@@ -685,10 +661,13 @@ describe("CurrentSessionService — IPC handlers", () => {
     });
 
     it("should return session info when a session is active", async () => {
-      const startHandler = getIpcHandler(CurrentSessionChannel.Start);
+      const startHandler = getIpcHandler(
+        mockIpcHandle,
+        CurrentSessionChannel.Start,
+      );
       await startHandler(null, "poe1", "Settlers");
 
-      const handler = getIpcHandler(CurrentSessionChannel.Info);
+      const handler = getIpcHandler(mockIpcHandle, CurrentSessionChannel.Info);
       const result = handler(null, "poe1");
 
       expect(result).toEqual(
@@ -706,7 +685,7 @@ describe("CurrentSessionService — IPC handlers", () => {
         throw validationError;
       });
 
-      const handler = getIpcHandler(CurrentSessionChannel.Info);
+      const handler = getIpcHandler(mockIpcHandle, CurrentSessionChannel.Info);
       handler(null, "bad");
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
@@ -722,7 +701,7 @@ describe("CurrentSessionService — IPC handlers", () => {
         throw new Error("bad");
       });
 
-      const handler = getIpcHandler(CurrentSessionChannel.Info);
+      const handler = getIpcHandler(mockIpcHandle, CurrentSessionChannel.Info);
       const result = handler(null, "bad");
 
       expect(result).toEqual(errorPayload);
@@ -733,7 +712,10 @@ describe("CurrentSessionService — IPC handlers", () => {
 
   describe("UpdateCardPriceVisibility handler", () => {
     async function startASession() {
-      const startHandler = getIpcHandler(CurrentSessionChannel.Start);
+      const startHandler = getIpcHandler(
+        mockIpcHandle,
+        CurrentSessionChannel.Start,
+      );
       await startHandler(null, "poe1", "Settlers");
     }
 
@@ -741,6 +723,7 @@ describe("CurrentSessionService — IPC handlers", () => {
       await startASession();
 
       const handler = getIpcHandler(
+        mockIpcHandle,
         CurrentSessionChannel.UpdateCardPriceVisibility,
       );
       const result = await handler(
@@ -780,6 +763,7 @@ describe("CurrentSessionService — IPC handlers", () => {
       await startASession();
 
       const handler = getIpcHandler(
+        mockIpcHandle,
         CurrentSessionChannel.UpdateCardPriceVisibility,
       );
       await handler(null, "poe1", "current", "exchange", "The Doctor", true);
@@ -796,6 +780,7 @@ describe("CurrentSessionService — IPC handlers", () => {
       });
 
       const handler = getIpcHandler(
+        mockIpcHandle,
         CurrentSessionChannel.UpdateCardPriceVisibility,
       );
       const result = await handler(
@@ -822,6 +807,7 @@ describe("CurrentSessionService — IPC handlers", () => {
       });
 
       const handler = getIpcHandler(
+        mockIpcHandle,
         CurrentSessionChannel.UpdateCardPriceVisibility,
       );
       const result = await handler(null, "poe1", 123, "exchange", "Card", true);
@@ -841,6 +827,7 @@ describe("CurrentSessionService — IPC handlers", () => {
       });
 
       const handler = getIpcHandler(
+        mockIpcHandle,
         CurrentSessionChannel.UpdateCardPriceVisibility,
       );
       const result = await handler(
@@ -867,6 +854,7 @@ describe("CurrentSessionService — IPC handlers", () => {
       });
 
       const handler = getIpcHandler(
+        mockIpcHandle,
         CurrentSessionChannel.UpdateCardPriceVisibility,
       );
       const result = await handler(
@@ -893,6 +881,7 @@ describe("CurrentSessionService — IPC handlers", () => {
       });
 
       const handler = getIpcHandler(
+        mockIpcHandle,
         CurrentSessionChannel.UpdateCardPriceVisibility,
       );
       const result = await handler(
@@ -913,6 +902,7 @@ describe("CurrentSessionService — IPC handlers", () => {
     it("should return generic error for non-validation errors", async () => {
       // "current" sessionId with no active session → throws generic Error
       const handler = getIpcHandler(
+        mockIpcHandle,
         CurrentSessionChannel.UpdateCardPriceVisibility,
       );
       const result = await handler(
@@ -936,6 +926,7 @@ describe("CurrentSessionService — IPC handlers", () => {
       mockRepoUpdateCardPriceVisibility.mockRejectedValue("kaboom");
 
       const handler = getIpcHandler(
+        mockIpcHandle,
         CurrentSessionChannel.UpdateCardPriceVisibility,
       );
       const result = await handler(
@@ -962,6 +953,7 @@ describe("CurrentSessionService — IPC handlers", () => {
       });
 
       const handler = getIpcHandler(
+        mockIpcHandle,
         CurrentSessionChannel.UpdateCardPriceVisibility,
       );
       await handler(null, "bad", "s", "exchange", "Card", true);
@@ -979,7 +971,10 @@ describe("CurrentSessionService — IPC handlers", () => {
         throw validationError;
       });
 
-      const isActiveHandler = getIpcHandler(CurrentSessionChannel.IsActive);
+      const isActiveHandler = getIpcHandler(
+        mockIpcHandle,
+        CurrentSessionChannel.IsActive,
+      );
       isActiveHandler(null, "bad");
       expect(mockHandleValidationError).toHaveBeenCalledWith(
         validationError,
@@ -988,7 +983,10 @@ describe("CurrentSessionService — IPC handlers", () => {
 
       mockHandleValidationError.mockClear();
 
-      const infoHandler = getIpcHandler(CurrentSessionChannel.Info);
+      const infoHandler = getIpcHandler(
+        mockIpcHandle,
+        CurrentSessionChannel.Info,
+      );
       infoHandler(null, "bad");
       expect(mockHandleValidationError).toHaveBeenCalledWith(
         validationError,
@@ -1002,7 +1000,10 @@ describe("CurrentSessionService — IPC handlers", () => {
         throw new MockIpcValidationError(CurrentSessionChannel.Start, "bad");
       });
 
-      const startHandler = getIpcHandler(CurrentSessionChannel.Start);
+      const startHandler = getIpcHandler(
+        mockIpcHandle,
+        CurrentSessionChannel.Start,
+      );
       const ipcResult = await startHandler(null, "bad", "Settlers");
       expect(ipcResult.error).toContain("Invalid input:");
 

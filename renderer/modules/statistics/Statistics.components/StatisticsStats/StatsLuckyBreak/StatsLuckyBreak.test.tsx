@@ -5,11 +5,16 @@ import { StatsLuckyBreak } from "./StatsLuckyBreak";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-const mockNavigate = vi.fn();
-
-vi.mock("@tanstack/react-router", () => ({
-  useNavigate: () => mockNavigate,
+const { mockNavigate } = vi.hoisted(() => ({
+  mockNavigate: vi.fn(),
 }));
+
+vi.mock("@tanstack/react-router", async () => {
+  const { createNavigateOnlyMock } = await import(
+    "~/renderer/__test-setup__/router-mock"
+  );
+  return createNavigateOnlyMock(mockNavigate);
+});
 
 vi.mock("~/renderer/components", () => ({
   Stat: Object.assign(

@@ -6,17 +6,20 @@ import {
   screen,
   waitFor,
 } from "~/renderer/__test-setup__/render";
-import { useSettings } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import OverlaySettingsCard from "./OverlaySettingsCard";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useSettings: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
-const mockUseSettings = vi.mocked(useSettings);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
 vi.mock("~/renderer/components", () => ({
   Button: ({ children, onClick, ...props }: any) => (
@@ -35,10 +38,6 @@ vi.mock("react-icons/fi", () => ({
 vi.mock("react-icons/lu", () => ({
   LuMoveHorizontal: () => <span data-testid="icon-move-h" />,
   LuMoveVertical: () => <span data-testid="icon-move-v" />,
-}));
-
-vi.mock("~/renderer/modules/umami", () => ({
-  trackEvent: vi.fn(),
 }));
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -63,7 +62,7 @@ function createMockSettings(overrides: any = {}) {
 function setupStore(overrides: any = {}) {
   const settings = createMockSettings(overrides);
 
-  mockUseSettings.mockReturnValue(settings);
+  mockUseBoundStore.mockReturnValue({ settings } as any);
 
   return settings;
 }

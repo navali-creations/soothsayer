@@ -10,13 +10,9 @@ import {
   RaritySourceSelect,
   Search,
 } from "~/renderer/components";
-import { trackEvent } from "~/renderer/modules/umami";
+import { useRaritySourceChange } from "~/renderer/hooks/useRaritySourceChange/useRaritySourceChange";
 import { useCards, useRarityInsights, useSettings } from "~/renderer/store";
-import {
-  decodeRaritySourceValue,
-  encodeRaritySourceValue,
-  getAnalyticsRaritySource,
-} from "~/renderer/utils";
+import { encodeRaritySourceValue } from "~/renderer/utils";
 
 /**
  * Small helper that renders a dataset-driven menu label with a dotted
@@ -46,60 +42,26 @@ export const CardsActions = ({ onFilterChange }: CardsActionsProps) => {
     setShowAllCards,
     loadCards,
   } = useCards();
-  const { raritySource, selectedFilterId, updateSetting } = useSettings();
+  const { raritySource, selectedFilterId } = useSettings();
   const {
-    availableFilters,
     isScanning,
     lastScannedAt,
     scanFilters,
-    selectFilter,
-    clearSelectedFilter,
     getLocalFilters,
     getOnlineFilters,
   } = useRarityInsights();
+  const handleRaritySourceChange = useRaritySourceChange();
 
   const localFilters = getLocalFilters();
   const onlineFilters = getOnlineFilters();
 
   const handleDropdownChange = useCallback(
     async (value: string) => {
-      const { raritySource: newSource, filterId: newFilterId } =
-        decodeRaritySourceValue(value);
-
-      // Update rarity source setting
-      await updateSetting("raritySource", newSource);
-      trackEvent("settings-change", {
-        setting: "raritySource",
-        value: getAnalyticsRaritySource(
-          newSource,
-          newFilterId,
-          availableFilters,
-        ),
-      });
-
-      if (newSource === "filter" && newFilterId) {
-        await selectFilter(newFilterId);
-        await updateSetting("selectedFilterId", newFilterId);
-      } else {
-        if (selectedFilterId) {
-          await clearSelectedFilter();
-          await updateSetting("selectedFilterId", null);
-        }
-      }
-
-      // Refresh cards list to reflect the new rarity source / filter
+      await handleRaritySourceChange(value);
       await loadCards();
       onFilterChange?.();
     },
-    [
-      updateSetting,
-      selectFilter,
-      clearSelectedFilter,
-      selectedFilterId,
-      availableFilters,
-      loadCards,
-      onFilterChange,
-    ],
+    [handleRaritySourceChange, loadCards, onFilterChange],
   );
 
   const dropdownValue = encodeRaritySourceValue(raritySource, selectedFilterId);

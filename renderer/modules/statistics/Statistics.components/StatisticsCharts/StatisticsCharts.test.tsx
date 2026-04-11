@@ -1,13 +1,18 @@
 import { fireEvent } from "@testing-library/react";
 
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
+import { useBoundStore } from "~/renderer/store";
 
 import { StatisticsCharts } from "./StatisticsCharts";
 
-const useStatistics = vi.fn() as any;
-vi.mock("~/renderer/store", () => ({
-  useStatistics: (...args: any[]) => useStatistics(...args),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
+
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
 vi.mock("~/renderer/hooks", () => ({
   useChartColors: () => ({
@@ -67,17 +72,19 @@ function setupStore(
   const toggleChartMetric = vi.fn();
   const setBrushRange = vi.fn();
 
-  useStatistics.mockReturnValue({
-    statScope: overrides.statScope ?? "all-time",
-    selectedLeague: overrides.selectedLeague ?? "",
-    chartRawData: overrides.chartRawData ?? [],
-    isChartLoading: overrides.isChartLoading ?? false,
-    hiddenMetrics: overrides.hiddenMetrics ?? new Set(),
-    brushRange: overrides.brushRange ?? { startIndex: 0, endIndex: 0 },
-    fetchChartData,
-    toggleChartMetric,
-    setBrushRange,
-  });
+  mockUseBoundStore.mockReturnValue({
+    statistics: {
+      statScope: overrides.statScope ?? "all-time",
+      selectedLeague: overrides.selectedLeague ?? "",
+      chartRawData: overrides.chartRawData ?? [],
+      isChartLoading: overrides.isChartLoading ?? false,
+      hiddenMetrics: overrides.hiddenMetrics ?? new Set(),
+      brushRange: overrides.brushRange ?? { startIndex: 0, endIndex: 0 },
+      fetchChartData,
+      toggleChartMetric,
+      setBrushRange,
+    },
+  } as any);
 
   return { fetchChartData, toggleChartMetric, setBrushRange };
 }

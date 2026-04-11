@@ -32,7 +32,7 @@ import { expect, test } from "../../helpers/electron-test";
 import {
   ensurePostSetup,
   getCurrentRoute,
-  navigateTo,
+  goToCardDetail,
 } from "../../helpers/navigation";
 import {
   seedCardRarities,
@@ -42,15 +42,6 @@ import {
 } from "../../helpers/seed-db";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * Navigate to the card detail page for a given card slug and wait for main
- * content to be visible.
- */
-async function goToCardDetail(page: Page, slug: string) {
-  await navigateTo(page, `/cards/${slug}`);
-  await page.locator("main").waitFor({ state: "visible", timeout: 15_000 });
-}
 
 /**
  * Click the "Market Data" tab on the card detail page.

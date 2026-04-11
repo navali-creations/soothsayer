@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
+
 // No Electron mocks needed — PerformanceLoggerService is a pure utility
 
 describe("PerformanceLoggerService", () => {
@@ -29,7 +31,7 @@ describe("PerformanceLoggerService", () => {
     PerformanceLoggerService = mod.PerformanceLoggerService;
 
     // Reset the singleton so we get a fresh instance
-    PerformanceLoggerService._instance = undefined;
+    resetSingleton(PerformanceLoggerService);
 
     return PerformanceLoggerService.getInstance();
   }

@@ -1,15 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useSetup } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import SetupContainer from "./SetupContainer";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useSetup: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
 vi.mock("../SetupProgressBar/SetupProgressBar", () => ({
   default: ({ currentStep }: any) => (
@@ -19,7 +22,7 @@ vi.mock("../SetupProgressBar/SetupProgressBar", () => ({
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-const mockUseSetup = vi.mocked(useSetup);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
 function createMockStore(overrides: any = {}) {
   return {
@@ -37,7 +40,7 @@ function createMockStore(overrides: any = {}) {
 
 describe("SetupContainer", () => {
   beforeEach(() => {
-    mockUseSetup.mockReturnValue(createMockStore());
+    mockUseBoundStore.mockReturnValue({ setup: createMockStore() } as any);
   });
 
   // ── Renders children ─────────────────────────────────────────────────
@@ -68,9 +71,9 @@ describe("SetupContainer", () => {
   // ── Progress bar ─────────────────────────────────────────────────────
 
   it("renders SetupProgressBar with the correct current step", () => {
-    mockUseSetup.mockReturnValue(
-      createMockStore({ setupState: { currentStep: 3 } }),
-    );
+    mockUseBoundStore.mockReturnValue({
+      setup: createMockStore({ setupState: { currentStep: 3 } }),
+    } as any);
 
     renderWithProviders(
       <SetupContainer>
@@ -97,7 +100,9 @@ describe("SetupContainer", () => {
   // ── Null setupState edge case ────────────────────────────────────────
 
   it("defaults to step 1 when setupState is null", () => {
-    mockUseSetup.mockReturnValue(createMockStore({ setupState: null }));
+    mockUseBoundStore.mockReturnValue({
+      setup: createMockStore({ setupState: null }),
+    } as any);
 
     renderWithProviders(
       <SetupContainer>

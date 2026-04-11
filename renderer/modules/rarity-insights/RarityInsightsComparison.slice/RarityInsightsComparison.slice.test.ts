@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DivinationCardDTO } from "~/main/modules/divination-cards/DivinationCards.dto";
 import type { DiscoveredRarityInsightsDTO } from "~/main/modules/rarity-insights/RarityInsights.dto";
 import type { ElectronMock } from "~/renderer/__test-setup__/electron-mock";
+import { makeDivinationCardDTO } from "~/renderer/__test-setup__/fixtures";
 import {
   createTestStore,
   type TestStore,
@@ -17,24 +18,7 @@ let electron: ElectronMock;
 function makeCard(
   overrides: Partial<DivinationCardDTO> = {},
 ): DivinationCardDTO {
-  return {
-    id: "1",
-    name: "The Doctor",
-    stackSize: 8,
-    description: "",
-    rewardHtml: "",
-    artSrc: "",
-    flavourHtml: "",
-    rarity: 1,
-    filterRarity: null,
-    prohibitedLibraryRarity: null,
-    fromBoss: false,
-    isDisabled: false,
-    game: "poe1",
-    createdAt: "",
-    updatedAt: "",
-    ...overrides,
-  };
+  return makeDivinationCardDTO(overrides) as DivinationCardDTO;
 }
 
 function makeFilter(

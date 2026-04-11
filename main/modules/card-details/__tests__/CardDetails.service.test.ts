@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  createDatabaseServiceMock,
+  createElectronMock,
+} from "~/main/modules/__test-utils__/mock-factories";
+import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
+
 import type { CardDetailsInitDTO } from "../CardDetails.dto";
 import { cardNameToDetailsId } from "../CardDetails.service";
 
@@ -117,30 +123,13 @@ const {
   };
 });
 
-vi.mock("electron", () => ({
-  ipcMain: {
-    handle: mockIpcMainHandle,
-    on: vi.fn(),
-    removeHandler: vi.fn(),
-  },
-  BrowserWindow: {
-    getAllWindows: vi.fn(() => []),
-    getFocusedWindow: vi.fn(() => null),
-  },
-  app: {
-    isPackaged: false,
-    getAppPath: vi.fn(() => "/mock-app-path"),
-    getPath: vi.fn(() => "/mock-path"),
-  },
-}));
+vi.mock("electron", () =>
+  createElectronMock({ mockIpcHandle: mockIpcMainHandle }),
+);
 
-vi.mock("~/main/modules/database", () => ({
-  DatabaseService: {
-    getInstance: vi.fn(() => ({
-      getKysely: mockGetKysely,
-    })),
-  },
-}));
+vi.mock("~/main/modules/database", () =>
+  createDatabaseServiceMock({ mockGetKysely }),
+);
 
 vi.mock("~/main/modules/main-window", () => ({
   MainWindowService: {
@@ -298,15 +287,13 @@ describe("CardDetailsService", () => {
     vi.clearAllMocks();
 
     // Reset singleton
-    // @ts-expect-error — accessing private static for testing
-    CardDetailsService._instance = undefined;
+    resetSingleton(CardDetailsService);
 
     service = CardDetailsService.getInstance();
   });
 
   afterEach(() => {
-    // @ts-expect-error — accessing private static for testing
-    CardDetailsService._instance = undefined;
+    resetSingleton(CardDetailsService);
     vi.restoreAllMocks();
   });
 
@@ -321,8 +308,7 @@ describe("CardDetailsService", () => {
 
     it("should return a new instance after resetting the singleton", () => {
       const instance1 = CardDetailsService.getInstance();
-      // @ts-expect-error — accessing private static for testing
-      CardDetailsService._instance = undefined;
+      resetSingleton(CardDetailsService);
       const instance2 = CardDetailsService.getInstance();
       expect(instance1).not.toBe(instance2);
     });

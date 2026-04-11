@@ -6,10 +6,12 @@ import BackButton from "./BackButton";
 
 // ─── Router mock ───────────────────────────────────────────────────────────
 
-vi.mock("@tanstack/react-router", () => ({
-  useNavigate: vi.fn(),
-  useRouter: vi.fn(),
-}));
+vi.mock("@tanstack/react-router", async () => {
+  const { createRouterMock } = await import(
+    "~/renderer/__test-setup__/router-mock"
+  );
+  return { ...createRouterMock(), useNavigate: vi.fn(), useRouter: vi.fn() };
+});
 
 // ─── Tests ─────────────────────────────────────────────────────────────────
 

@@ -1,4 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+﻿import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { getIpcHandler } from "~/main/modules/__test-utils__/mock-factories";
+import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
 
 // ─── Hoisted mock functions ──────────────────────────────────────────────────
 const {
@@ -73,21 +76,6 @@ import { UpdaterService } from "../Updater.service";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function getIpcHandler(channel: string): (...args: any[]) => any {
-  const call = mockIpcHandle.mock.calls.find(
-    ([ch]: [string]) => ch === channel,
-  );
-  if (!call) {
-    const registered = mockIpcHandle.mock.calls
-      .map(([ch]: [string]) => ch)
-      .join(", ");
-    throw new Error(
-      `ipcMain.handle was not called with "${channel}". Registered: ${registered}`,
-    );
-  }
-  return call[1];
-}
-
 function createMockBrowserWindow() {
   return {
     webContents: {
@@ -144,8 +132,7 @@ describe("UpdaterService", () => {
     vi.useFakeTimers({ shouldAdvanceTime: false });
 
     // Reset singleton
-    // @ts-expect-error — accessing private static for testing
-    UpdaterService._instance = undefined;
+    resetSingleton(UpdaterService);
 
     // Default: not packaged, win32
     mockElectronApp.isPackaged = false;
@@ -163,8 +150,7 @@ describe("UpdaterService", () => {
   afterEach(() => {
     service.destroy();
 
-    // @ts-expect-error — accessing private static for testing
-    UpdaterService._instance = undefined;
+    resetSingleton(UpdaterService);
 
     Object.defineProperty(process, "platform", {
       value: originalPlatform,
@@ -187,8 +173,7 @@ describe("UpdaterService", () => {
 
     it("should return a new instance after resetting the singleton", () => {
       const instance1 = UpdaterService.getInstance();
-      // @ts-expect-error — accessing private static for testing
-      UpdaterService._instance = undefined;
+      resetSingleton(UpdaterService);
       const instance2 = UpdaterService.getInstance();
       expect(instance1).not.toBe(instance2);
     });
@@ -253,8 +238,7 @@ describe("UpdaterService", () => {
       });
 
       // Need a fresh instance since isLinux is set in constructor
-      // @ts-expect-error — accessing private static for testing
-      UpdaterService._instance = undefined;
+      resetSingleton(UpdaterService);
       service = UpdaterService.getInstance();
 
       const mockWindow = createMockBrowserWindow();
@@ -272,8 +256,7 @@ describe("UpdaterService", () => {
         configurable: true,
       });
 
-      // @ts-expect-error — accessing private static for testing
-      UpdaterService._instance = undefined;
+      resetSingleton(UpdaterService);
       service = UpdaterService.getInstance();
 
       const mockWindow = createMockBrowserWindow();
@@ -291,8 +274,7 @@ describe("UpdaterService", () => {
         configurable: true,
       });
 
-      // @ts-expect-error — accessing private static for testing
-      UpdaterService._instance = undefined;
+      resetSingleton(UpdaterService);
       service = UpdaterService.getInstance();
 
       const mockWindow = createMockBrowserWindow();
@@ -310,8 +292,7 @@ describe("UpdaterService", () => {
         configurable: true,
       });
 
-      // @ts-expect-error — accessing private static for testing
-      UpdaterService._instance = undefined;
+      resetSingleton(UpdaterService);
       service = UpdaterService.getInstance();
 
       const mockWindow = createMockBrowserWindow();
@@ -354,8 +335,7 @@ describe("UpdaterService", () => {
         configurable: true,
       });
 
-      // @ts-expect-error — accessing private static for testing
-      UpdaterService._instance = undefined;
+      resetSingleton(UpdaterService);
       service = UpdaterService.getInstance();
 
       const mockWindow = createMockBrowserWindow();
@@ -407,8 +387,7 @@ describe("UpdaterService", () => {
         configurable: true,
       });
 
-      // @ts-expect-error — accessing private static for testing
-      UpdaterService._instance = undefined;
+      resetSingleton(UpdaterService);
       service = UpdaterService.getInstance();
 
       const mockWindow = createMockBrowserWindow();
@@ -427,8 +406,7 @@ describe("UpdaterService", () => {
         configurable: true,
       });
 
-      // @ts-expect-error — accessing private static for testing
-      UpdaterService._instance = undefined;
+      resetSingleton(UpdaterService);
       service = UpdaterService.getInstance();
 
       const result = service.checkForUpdates();
@@ -508,8 +486,7 @@ describe("UpdaterService", () => {
         configurable: true,
       });
 
-      // @ts-expect-error — accessing private static for testing
-      UpdaterService._instance = undefined;
+      resetSingleton(UpdaterService);
       service = UpdaterService.getInstance();
 
       const mockWindow = createMockBrowserWindow();
@@ -529,8 +506,7 @@ describe("UpdaterService", () => {
         configurable: true,
       });
 
-      // @ts-expect-error — accessing private static for testing
-      UpdaterService._instance = undefined;
+      resetSingleton(UpdaterService);
       service = UpdaterService.getInstance();
 
       const mockWindow = createMockBrowserWindow();
@@ -556,8 +532,7 @@ describe("UpdaterService", () => {
         configurable: true,
       });
 
-      // @ts-expect-error — accessing private static for testing
-      UpdaterService._instance = undefined;
+      resetSingleton(UpdaterService);
       service = UpdaterService.getInstance();
 
       const mockWindow = createMockBrowserWindow();
@@ -581,7 +556,10 @@ describe("UpdaterService", () => {
 
     describe("CheckForUpdates handler", () => {
       it("should return null when not packaged", async () => {
-        const handler = getIpcHandler(UpdaterChannel.CheckForUpdates);
+        const handler = getIpcHandler(
+          mockIpcHandle,
+          UpdaterChannel.CheckForUpdates,
+        );
         const result = await handler();
 
         expect(result).toBeNull();
@@ -590,7 +568,10 @@ describe("UpdaterService", () => {
 
     describe("GetUpdateInfo handler", () => {
       it("should return null when no update info exists", async () => {
-        const handler = getIpcHandler(UpdaterChannel.GetUpdateInfo);
+        const handler = getIpcHandler(
+          mockIpcHandle,
+          UpdaterChannel.GetUpdateInfo,
+        );
         const result = await handler();
 
         expect(result).toBeNull();
@@ -612,7 +593,10 @@ describe("UpdaterService", () => {
         // @ts-expect-error — accessing private for testing
         service.lastUpdateInfo = updateInfo;
 
-        const handler = getIpcHandler(UpdaterChannel.GetUpdateInfo);
+        const handler = getIpcHandler(
+          mockIpcHandle,
+          UpdaterChannel.GetUpdateInfo,
+        );
         const result = await handler();
 
         expect(result).toEqual(updateInfo);
@@ -627,14 +611,16 @@ describe("UpdaterService", () => {
           configurable: true,
         });
 
-        // @ts-expect-error — accessing private static for testing
-        UpdaterService._instance = undefined;
+        resetSingleton(UpdaterService);
         service = UpdaterService.getInstance();
 
         const mockWindow = createMockBrowserWindow();
         service.initialize(mockWindow);
 
-        const handler = getIpcHandler(UpdaterChannel.DownloadUpdate);
+        const handler = getIpcHandler(
+          mockIpcHandle,
+          UpdaterChannel.DownloadUpdate,
+        );
         const result = await handler();
 
         expect(result).toEqual({ success: true });
@@ -644,7 +630,10 @@ describe("UpdaterService", () => {
         // @ts-expect-error — accessing private for testing
         service.updateDownloaded = true;
 
-        const handler = getIpcHandler(UpdaterChannel.DownloadUpdate);
+        const handler = getIpcHandler(
+          mockIpcHandle,
+          UpdaterChannel.DownloadUpdate,
+        );
         const result = await handler();
 
         expect(result).toEqual({ success: true });
@@ -654,7 +643,10 @@ describe("UpdaterService", () => {
         // @ts-expect-error — accessing private for testing
         service.updateStatus = "downloading";
 
-        const handler = getIpcHandler(UpdaterChannel.DownloadUpdate);
+        const handler = getIpcHandler(
+          mockIpcHandle,
+          UpdaterChannel.DownloadUpdate,
+        );
         const result = await handler();
 
         expect(result).toEqual({ success: true });
@@ -663,7 +655,10 @@ describe("UpdaterService", () => {
 
     describe("InstallUpdate handler", () => {
       it("should call installUpdate and return result", async () => {
-        const handler = getIpcHandler(UpdaterChannel.InstallUpdate);
+        const handler = getIpcHandler(
+          mockIpcHandle,
+          UpdaterChannel.InstallUpdate,
+        );
         const result = await handler();
 
         expect(result).toEqual({
@@ -680,7 +675,10 @@ describe("UpdaterService", () => {
           json: vi.fn().mockResolvedValue(SAMPLE_GITHUB_RELEASE),
         });
 
-        const handler = getIpcHandler(UpdaterChannel.GetLatestRelease);
+        const handler = getIpcHandler(
+          mockIpcHandle,
+          UpdaterChannel.GetLatestRelease,
+        );
         const result = await handler();
 
         expect(result).not.toBeNull();
@@ -702,7 +700,10 @@ describe("UpdaterService", () => {
           statusText: "Not Found",
         });
 
-        const handler = getIpcHandler(UpdaterChannel.GetLatestRelease);
+        const handler = getIpcHandler(
+          mockIpcHandle,
+          UpdaterChannel.GetLatestRelease,
+        );
         const result = await handler();
 
         expect(result).toBeNull();
@@ -711,7 +712,10 @@ describe("UpdaterService", () => {
       it("should return null when fetch throws", async () => {
         mockFetch.mockRejectedValueOnce(new Error("Network error"));
 
-        const handler = getIpcHandler(UpdaterChannel.GetLatestRelease);
+        const handler = getIpcHandler(
+          mockIpcHandle,
+          UpdaterChannel.GetLatestRelease,
+        );
         const result = await handler();
 
         expect(result).toBeNull();
@@ -724,7 +728,10 @@ describe("UpdaterService", () => {
           json: vi.fn().mockResolvedValue(releaseNoBody),
         });
 
-        const handler = getIpcHandler(UpdaterChannel.GetLatestRelease);
+        const handler = getIpcHandler(
+          mockIpcHandle,
+          UpdaterChannel.GetLatestRelease,
+        );
         const result = await handler();
 
         expect(result).not.toBeNull();
@@ -739,7 +746,10 @@ describe("UpdaterService", () => {
           json: vi.fn().mockResolvedValue(release),
         });
 
-        const handler = getIpcHandler(UpdaterChannel.GetLatestRelease);
+        const handler = getIpcHandler(
+          mockIpcHandle,
+          UpdaterChannel.GetLatestRelease,
+        );
         const result = await handler();
 
         expect(result.version).toBe("3.2.1");
@@ -752,7 +762,10 @@ describe("UpdaterService", () => {
           json: vi.fn().mockResolvedValue(release),
         });
 
-        const handler = getIpcHandler(UpdaterChannel.GetLatestRelease);
+        const handler = getIpcHandler(
+          mockIpcHandle,
+          UpdaterChannel.GetLatestRelease,
+        );
         const result = await handler();
 
         expect(result.name).toBe(release.tag_name);
@@ -763,7 +776,10 @@ describe("UpdaterService", () => {
       it("should read and parse CHANGELOG.md successfully", async () => {
         mockReadFileSync.mockReturnValue(SAMPLE_CHANGELOG);
 
-        const handler = getIpcHandler(UpdaterChannel.GetChangelog);
+        const handler = getIpcHandler(
+          mockIpcHandle,
+          UpdaterChannel.GetChangelog,
+        );
         const result = await handler();
 
         expect(result.success).toBe(true);
@@ -776,7 +792,10 @@ describe("UpdaterService", () => {
           throw new Error("ENOENT: no such file or directory");
         });
 
-        const handler = getIpcHandler(UpdaterChannel.GetChangelog);
+        const handler = getIpcHandler(
+          mockIpcHandle,
+          UpdaterChannel.GetChangelog,
+        );
         const result = await handler();
 
         expect(result.success).toBe(false);
@@ -797,13 +816,15 @@ describe("UpdaterService", () => {
         });
 
         // Re-initialize to pick up isPackaged
-        // @ts-expect-error — accessing private static for testing
-        UpdaterService._instance = undefined;
+        resetSingleton(UpdaterService);
         service = UpdaterService.getInstance();
         const mockWindow = createMockBrowserWindow();
         service.initialize(mockWindow);
 
-        const handler = getIpcHandler(UpdaterChannel.GetChangelog);
+        const handler = getIpcHandler(
+          mockIpcHandle,
+          UpdaterChannel.GetChangelog,
+        );
         await handler();
 
         const calledPath = mockReadFileSync.mock.calls[0][0] as string;
@@ -828,7 +849,10 @@ describe("UpdaterService", () => {
         mockElectronApp.isPackaged = false;
         mockReadFileSync.mockReturnValue(SAMPLE_CHANGELOG);
 
-        const handler = getIpcHandler(UpdaterChannel.GetChangelog);
+        const handler = getIpcHandler(
+          mockIpcHandle,
+          UpdaterChannel.GetChangelog,
+        );
         await handler();
 
         const calledPath = mockReadFileSync.mock.calls[0][0] as string;
@@ -838,7 +862,10 @@ describe("UpdaterService", () => {
       it("should handle Windows CRLF line endings", async () => {
         mockReadFileSync.mockReturnValue(SAMPLE_CHANGELOG_CRLF);
 
-        const handler = getIpcHandler(UpdaterChannel.GetChangelog);
+        const handler = getIpcHandler(
+          mockIpcHandle,
+          UpdaterChannel.GetChangelog,
+        );
         const result = await handler();
 
         expect(result.success).toBe(true);
@@ -1527,8 +1554,7 @@ describe("UpdaterService", () => {
         configurable: true,
       });
 
-      // @ts-expect-error — accessing private static for testing
-      UpdaterService._instance = undefined;
+      resetSingleton(UpdaterService);
       service = UpdaterService.getInstance();
     });
 
@@ -1648,8 +1674,7 @@ describe("UpdaterService", () => {
         configurable: true,
       });
 
-      // @ts-expect-error — accessing private static for testing
-      UpdaterService._instance = undefined;
+      resetSingleton(UpdaterService);
       service = UpdaterService.getInstance();
 
       const mockWindow = createMockBrowserWindow();
@@ -1674,8 +1699,7 @@ describe("UpdaterService", () => {
         configurable: true,
       });
 
-      // @ts-expect-error — accessing private static for testing
-      UpdaterService._instance = undefined;
+      resetSingleton(UpdaterService);
       service = UpdaterService.getInstance();
 
       const mockWindow = createMockBrowserWindow();
@@ -1700,8 +1724,7 @@ describe("UpdaterService", () => {
         configurable: true,
       });
 
-      // @ts-expect-error — accessing private static for testing
-      UpdaterService._instance = undefined;
+      resetSingleton(UpdaterService);
       service = UpdaterService.getInstance();
 
       const mockWindow = createMockBrowserWindow();
@@ -1727,8 +1750,7 @@ describe("UpdaterService", () => {
         configurable: true,
       });
 
-      // @ts-expect-error — accessing private static for testing
-      UpdaterService._instance = undefined;
+      resetSingleton(UpdaterService);
       service = UpdaterService.getInstance();
 
       const mockWindow = createMockBrowserWindow();
@@ -1753,8 +1775,7 @@ describe("UpdaterService", () => {
         configurable: true,
       });
 
-      // @ts-expect-error — accessing private static for testing
-      UpdaterService._instance = undefined;
+      resetSingleton(UpdaterService);
       service = UpdaterService.getInstance();
 
       const mockWindow = createMockBrowserWindow();
@@ -1806,8 +1827,7 @@ describe("UpdaterService", () => {
         configurable: true,
       });
 
-      // @ts-expect-error — accessing private static for testing
-      UpdaterService._instance = undefined;
+      resetSingleton(UpdaterService);
       service = UpdaterService.getInstance();
 
       const mockWindow = createMockBrowserWindow();
@@ -1835,8 +1855,7 @@ describe("UpdaterService", () => {
         configurable: true,
       });
 
-      // @ts-expect-error — accessing private static for testing
-      UpdaterService._instance = undefined;
+      resetSingleton(UpdaterService);
       service = UpdaterService.getInstance();
 
       const mockWindow = createMockBrowserWindow();
@@ -1858,8 +1877,7 @@ describe("UpdaterService", () => {
         configurable: true,
       });
 
-      // @ts-expect-error — accessing private static for testing
-      UpdaterService._instance = undefined;
+      resetSingleton(UpdaterService);
       service = UpdaterService.getInstance();
 
       const mockWindow = createMockBrowserWindow();
@@ -1927,7 +1945,10 @@ describe("UpdaterService", () => {
         json: vi.fn().mockResolvedValue(releaseNullBody),
       });
 
-      const handler = getIpcHandler(UpdaterChannel.GetLatestRelease);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        UpdaterChannel.GetLatestRelease,
+      );
       const result = await handler();
 
       expect(result).not.toBeNull();
@@ -1944,7 +1965,10 @@ describe("UpdaterService", () => {
         json: vi.fn().mockResolvedValue(releaseNullName),
       });
 
-      const handler = getIpcHandler(UpdaterChannel.GetLatestRelease);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        UpdaterChannel.GetLatestRelease,
+      );
       const result = await handler();
 
       expect(result).not.toBeNull();
@@ -1979,8 +2003,7 @@ describe("UpdaterService", () => {
         configurable: true,
       });
 
-      // @ts-expect-error — accessing private static for testing
-      UpdaterService._instance = undefined;
+      resetSingleton(UpdaterService);
       service = UpdaterService.getInstance();
 
       const mockWindow = createMockBrowserWindow();
@@ -2016,8 +2039,7 @@ describe("UpdaterService", () => {
         configurable: true,
       });
 
-      // @ts-expect-error — accessing private static for testing
-      UpdaterService._instance = undefined;
+      resetSingleton(UpdaterService);
       service = UpdaterService.getInstance();
 
       const mockWindow = createMockBrowserWindow();

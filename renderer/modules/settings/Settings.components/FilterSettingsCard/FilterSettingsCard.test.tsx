@@ -7,19 +7,20 @@ import {
   waitFor,
 } from "~/renderer/__test-setup__/render";
 import { trackEvent } from "~/renderer/modules/umami";
-import { useRarityInsights, useSettings } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import FilterSettingsCard from "./FilterSettingsCard";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useSettings: vi.fn(),
-  useRarityInsights: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
-const mockUseSettings = vi.mocked(useSettings);
-const mockUseRarityInsights = vi.mocked(useRarityInsights);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
 vi.mock("~/renderer/components", () => ({
   Button: ({ children, onClick, disabled, loading, ...props }: any) => (
@@ -40,10 +41,6 @@ vi.mock("~/renderer/utils", () => ({
     filterId ? `filter:${filterId}` : source,
   ),
   getAnalyticsRaritySource: vi.fn(() => "poe.ninja"),
-}));
-
-vi.mock("~/renderer/modules/umami", () => ({
-  trackEvent: vi.fn(),
 }));
 
 const mockTrackEvent = vi.mocked(trackEvent);
@@ -86,8 +83,7 @@ function createMockStore(overrides: any = {}) {
 function setupStore(overrides: any = {}) {
   const store = createMockStore(overrides);
 
-  mockUseSettings.mockReturnValue(store.settings);
-  mockUseRarityInsights.mockReturnValue(store.rarityInsights);
+  mockUseBoundStore.mockReturnValue(store);
 
   return store;
 }

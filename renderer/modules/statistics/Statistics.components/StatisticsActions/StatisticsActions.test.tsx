@@ -1,23 +1,22 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useStatistics } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import { StatisticsActions } from "./StatisticsActions";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useStatistics: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
 vi.mock("~/renderer/components", () => ({
   Flex: ({ children, ...props }: any) => <div {...props}>{children}</div>,
 }));
 
-vi.mock("~/renderer/modules/umami", () => ({
-  trackEvent: vi.fn(),
-}));
-
-const mockUseStatistics = vi.mocked(useStatistics);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -32,7 +31,7 @@ function createMockStatistics(overrides: any = {}) {
 
 function setupStore(overrides: any = {}) {
   const statistics = createMockStatistics(overrides);
-  mockUseStatistics.mockReturnValue(statistics);
+  mockUseBoundStore.mockReturnValue({ statistics } as any);
   return statistics;
 }
 

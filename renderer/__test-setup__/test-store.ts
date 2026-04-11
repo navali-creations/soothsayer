@@ -35,113 +35,30 @@ import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 
-import {
-  type AppMenuSlice,
-  createAppMenuSlice,
-} from "~/renderer/modules/app-menu/AppMenu.slice/AppMenu.slice";
-import {
-  type CardDetailsSlice,
-  createCardDetailsSlice,
-} from "~/renderer/modules/card-details/CardDetails.slice/CardDetails.slice";
-import {
-  type CardsSlice,
-  createCardsSlice,
-} from "~/renderer/modules/cards/Cards.slice/Cards.slice";
-import {
-  type ChangelogSlice,
-  createChangelogSlice,
-} from "~/renderer/modules/changelog/Changelog.slice/Changelog.slice";
-import {
-  createSessionSlice,
-  type SessionSlice,
-} from "~/renderer/modules/current-session/CurrentSession.slice/CurrentSession.slice";
-import {
-  createGameInfoSlice,
-  type GameInfoSlice,
-} from "~/renderer/modules/game-info/GameInfo.slice/GameInfo.slice";
-import {
-  createOnboardingSlice,
-  type OnboardingSlice,
-} from "~/renderer/modules/onboarding/Onboarding.slice/Onboarding.slice";
-import {
-  createOverlaySlice,
-  type OverlaySlice,
-} from "~/renderer/modules/overlay/Overlay.slice/Overlay.slice";
-import {
-  createPoeNinjaSlice,
-  type PoeNinjaSlice,
-} from "~/renderer/modules/poe-ninja/PoeNinja.slice/PoeNinja.slice";
-import {
-  createProfitForecastSlice,
-  type ProfitForecastSlice,
-} from "~/renderer/modules/profit-forecast/ProfitForecast.slice/ProfitForecast.slice";
-import {
-  createRarityInsightsSlice,
-  type RarityInsightsSlice,
-} from "~/renderer/modules/rarity-insights/RarityInsights.slice/RarityInsights.slice";
-import {
-  createRarityInsightsComparisonSlice,
-  type RarityInsightsComparisonSlice,
-} from "~/renderer/modules/rarity-insights/RarityInsightsComparison.slice/RarityInsightsComparison.slice";
-import {
-  createSessionDetailsSlice,
-  type SessionDetailsSlice,
-} from "~/renderer/modules/session-details/SessionDetails.slice/SessionDetails.slice";
-import {
-  createSessionsSlice,
-  type SessionsSlice,
-} from "~/renderer/modules/sessions/Sessions.slice/Sessions.slice";
-import {
-  createSettingsSlice,
-  type SettingsSlice,
-} from "~/renderer/modules/settings/Settings.slice/Settings.slice";
-import {
-  createStorageSlice,
-  type StorageSlice,
-} from "~/renderer/modules/settings/Storage.slice/Storage.slice";
-import {
-  createSetupSlice,
-  type SetupSlice,
-} from "~/renderer/modules/setup/Setup.slice/Setup.slice";
-import {
-  createStatisticsSlice,
-  type StatisticsSlice,
-} from "~/renderer/modules/statistics/Statistics.slice/Statistics.slice";
-import {
-  createUpdaterSlice,
-  type UpdaterSlice,
-} from "~/renderer/modules/updater/Updater.slice/Updater.slice";
+import { createAppMenuSlice } from "~/renderer/modules/app-menu/AppMenu.slice/AppMenu.slice";
+import { createCardDetailsSlice } from "~/renderer/modules/card-details/CardDetails.slice/CardDetails.slice";
+import { createCardsSlice } from "~/renderer/modules/cards/Cards.slice/Cards.slice";
+import { createChangelogSlice } from "~/renderer/modules/changelog/Changelog.slice/Changelog.slice";
+import { createSessionSlice } from "~/renderer/modules/current-session/CurrentSession.slice/CurrentSession.slice";
+import { createGameInfoSlice } from "~/renderer/modules/game-info/GameInfo.slice/GameInfo.slice";
+import { createOnboardingSlice } from "~/renderer/modules/onboarding/Onboarding.slice/Onboarding.slice";
+import { createOverlaySlice } from "~/renderer/modules/overlay/Overlay.slice/Overlay.slice";
+import { createPoeNinjaSlice } from "~/renderer/modules/poe-ninja/PoeNinja.slice/PoeNinja.slice";
+import { createProfitForecastSlice } from "~/renderer/modules/profit-forecast/ProfitForecast.slice/ProfitForecast.slice";
+import { createRarityInsightsSlice } from "~/renderer/modules/rarity-insights/RarityInsights.slice/RarityInsights.slice";
+import { createRarityInsightsComparisonSlice } from "~/renderer/modules/rarity-insights/RarityInsightsComparison.slice/RarityInsightsComparison.slice";
+import { createSessionDetailsSlice } from "~/renderer/modules/session-details/SessionDetails.slice/SessionDetails.slice";
+import { createSessionsSlice } from "~/renderer/modules/sessions/Sessions.slice/Sessions.slice";
+import { createSettingsSlice } from "~/renderer/modules/settings/Settings.slice/Settings.slice";
+import { createStorageSlice } from "~/renderer/modules/settings/Storage.slice/Storage.slice";
+import { createSetupSlice } from "~/renderer/modules/setup/Setup.slice/Setup.slice";
+import { createStatisticsSlice } from "~/renderer/modules/statistics/Statistics.slice/Statistics.slice";
+import { createUpdaterSlice } from "~/renderer/modules/updater/Updater.slice/Updater.slice";
+import type { BoundStore } from "~/renderer/store/store.types";
 
 enableMapSet();
 
-// ─── Root store type (mirrors the production BoundStore) ───────────────────
-
-interface RootActions {
-  hydrate: () => Promise<void>;
-  startListeners: () => () => void;
-  reset: () => void;
-}
-
-type BoundStore = GameInfoSlice &
-  SettingsSlice &
-  StorageSlice &
-  SetupSlice &
-  SessionSlice &
-  SessionsSlice &
-  SessionDetailsSlice &
-  CardDetailsSlice &
-  CardsSlice &
-  AppMenuSlice &
-  ChangelogSlice &
-  OverlaySlice &
-  PoeNinjaSlice &
-  StatisticsSlice &
-  OnboardingSlice &
-  UpdaterSlice &
-  RarityInsightsSlice &
-  ProfitForecastSlice &
-  RarityInsightsComparisonSlice &
-  RootActions;
+// ─── Root store type (imported from production) ───────────────────
 
 // ─── Deep partial type for overrides ───────────────────────────────────────
 

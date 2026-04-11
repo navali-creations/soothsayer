@@ -31,6 +31,13 @@ import {
   waitForHydration,
   waitForRoute,
 } from "../../helpers/navigation";
+import {
+  acknowledgeAllBeacons,
+  acknowledgeBeacon,
+  expectPopoverHidden,
+  expectPopoverVisible,
+  waitForTriggers,
+} from "../../helpers/onboarding";
 import { seedSessionPrerequisites } from "../../helpers/seed-db";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -50,120 +57,12 @@ const CURRENT_SESSION_BEACONS = [
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
- * Waits for all beacon triggers to finish rendering on the current page.
- */
-async function waitForTriggers(page: Page, expectedCount: number) {
-  const triggers = page.locator("[data-repere-trigger]");
-  await expect(triggers).toHaveCount(expectedCount, {
-    timeout: TRIGGER_RENDER_TIMEOUT,
-  });
-}
-
-/**
  * Clicks a beacon trigger button by its index among all visible triggers.
  */
 async function clickTrigger(page: Page, index: number) {
   const trigger = page.locator("[data-repere-trigger]").nth(index);
   await expect(trigger).toBeAttached({ timeout: TRIGGER_RENDER_TIMEOUT });
   await trigger.evaluate((el: HTMLElement) => el.click());
-}
-
-/**
- * Asserts that a popover opened and is visible.
- */
-async function expectPopoverVisible(page: Page) {
-  const openPopover = page.locator("[data-repere-popover]:popover-open");
-  await expect(openPopover).toBeVisible({ timeout: 5_000 });
-}
-
-/**
- * Asserts that no popover is currently open.
- */
-async function expectPopoverHidden(page: Page) {
-  const openPopover = page.locator("[data-repere-popover]:popover-open");
-  await expect(openPopover).toHaveCount(0, { timeout: 5_000 });
-}
-
-/**
- * Waits for the repere library to finish updating after a beacon dismissal.
- * Instead of a hard 300ms delay, we wait for the trigger to actually be
- * removed from the DOM, which is the real signal that the library has
- * finished its internal state update.
- */
-async function waitForTriggerCountChange(
-  page: Page,
-  expectedCount: number,
-): Promise<void> {
-  await expect(page.locator("[data-repere-trigger]")).toHaveCount(
-    expectedCount,
-    { timeout: 5_000 },
-  );
-}
-
-/**
- * Clicks the "Got it" acknowledge button inside the currently open popover.
- * After clicking, the trigger for this beacon should disappear.
- *
- * @param page - Playwright Page
- * @param expectedRemainingTriggers - Expected trigger count after dismissal.
- *   If provided, waits for the trigger count to reach this value instead of
- *   using a hard delay.
- */
-async function acknowledgeBeacon(
-  page: Page,
-  expectedRemainingTriggers?: number,
-) {
-  const openPopover = page.locator("[data-repere-popover]:popover-open");
-  const gotIt = openPopover.getByText("Got it");
-  await expect(gotIt).toBeVisible({ timeout: 5_000 });
-
-  try {
-    await gotIt.click({ timeout: 3_000 });
-  } catch {
-    // Click fired but the element was detached before Playwright could
-    // confirm — that's the expected behaviour for native popover dismiss.
-  }
-
-  // If the click didn't register (CI timing), force-hide via JS.
-  const stillOpen = await page
-    .locator("[data-repere-popover]:popover-open")
-    .count();
-  if (stillOpen > 0) {
-    await page.evaluate(() => {
-      const open = document.querySelector(
-        "[data-repere-popover]:popover-open",
-      ) as HTMLElement | null;
-      if (open && typeof open.hidePopover === "function") {
-        open.hidePopover();
-      }
-    });
-  }
-
-  // Wait for the popover to close after dismiss
-  await expect(page.locator("[data-repere-popover]:popover-open")).toHaveCount(
-    0,
-    { timeout: 5_000 },
-  );
-
-  // Wait for the trigger to be removed from the DOM instead of a hard 300ms delay
-  if (expectedRemainingTriggers !== undefined) {
-    await waitForTriggerCountChange(page, expectedRemainingTriggers);
-  }
-}
-
-/**
- * Full lifecycle for a single beacon: open popover → verify → acknowledge.
- */
-async function acknowledgeFirstBeacon(
-  page: Page,
-  expectedRemainingTriggers?: number,
-) {
-  const trigger = page.locator("[data-repere-trigger]").first();
-  await expect(trigger).toBeAttached({ timeout: TRIGGER_RENDER_TIMEOUT });
-  await trigger.evaluate((el: HTMLElement) => el.click());
-
-  await expectPopoverVisible(page);
-  await acknowledgeBeacon(page, expectedRemainingTriggers);
 }
 
 /**
@@ -194,15 +93,6 @@ async function testCloseReopenAndAcknowledge(
 
   // Step 5: Acknowledge
   await acknowledgeBeacon(page, expectedRemainingTriggers);
-}
-
-/**
- * Acknowledges all currently visible beacon triggers on the page, one by one.
- */
-async function acknowledgeAllBeacons(page: Page, count: number) {
-  for (let i = 0; i < count; i++) {
-    await acknowledgeFirstBeacon(page, count - i - 1);
-  }
 }
 
 /**

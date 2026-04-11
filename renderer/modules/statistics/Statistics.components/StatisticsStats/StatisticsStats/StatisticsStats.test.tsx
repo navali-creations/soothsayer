@@ -1,14 +1,17 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useStatistics } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import type { SessionHighlights } from "../../../Statistics.types";
 import { StatisticsStats } from "./StatisticsStats";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useStatistics: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
 vi.mock("~/renderer/components", () => ({
   Stat: Object.assign(
@@ -52,7 +55,7 @@ vi.mock("~/renderer/components/CardNameLink/CardNameLink", () => ({
   ),
 }));
 
-const mockUseStatistics = vi.mocked(useStatistics);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -135,16 +138,18 @@ function setupStore(
   } = {},
 ) {
   const fetchSessionHighlights = vi.fn();
-  mockUseStatistics.mockReturnValue({
-    statScope: overrides.statScope ?? "all-time",
-    selectedLeague: overrides.selectedLeague ?? "",
-    sessionHighlights:
-      "sessionHighlights" in overrides
-        ? overrides.sessionHighlights
-        : defaultHighlights,
-    stackedDeckCardCount: overrides.stackedDeckCardCount ?? null,
-    isLoadingHighlights: overrides.isLoadingHighlights ?? false,
-    fetchSessionHighlights,
+  mockUseBoundStore.mockReturnValue({
+    statistics: {
+      statScope: overrides.statScope ?? "all-time",
+      selectedLeague: overrides.selectedLeague ?? "",
+      sessionHighlights:
+        "sessionHighlights" in overrides
+          ? overrides.sessionHighlights
+          : defaultHighlights,
+      stackedDeckCardCount: overrides.stackedDeckCardCount ?? null,
+      isLoadingHighlights: overrides.isLoadingHighlights ?? false,
+      fetchSessionHighlights,
+    },
   } as any);
   return { fetchSessionHighlights };
 }

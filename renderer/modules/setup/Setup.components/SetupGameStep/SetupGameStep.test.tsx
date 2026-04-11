@@ -1,21 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { useSetup } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import SetupGameStep from "./SetupGameStep";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useSetup: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-const mockUseSetup = vi.mocked(useSetup);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
-function createMockStore(overrides: Record<string, unknown> = {}) {
+function createMockSetup(overrides: Record<string, unknown> = {}) {
   return {
     setupState: {
       currentStep: 1,
@@ -33,11 +36,17 @@ function createMockStore(overrides: Record<string, unknown> = {}) {
   } as any;
 }
 
+function setupStore(overrides: Record<string, unknown> = {}) {
+  const setup = createMockSetup(overrides);
+  mockUseBoundStore.mockReturnValue({ setup } as any);
+  return setup;
+}
+
 // ─── Tests ─────────────────────────────────────────────────────────────────
 
 describe("SetupGameStep", () => {
   beforeEach(() => {
-    mockUseSetup.mockReturnValue(createMockStore());
+    setupStore();
   });
 
   // ── Heading and description ────────────────────────────────────────────
@@ -91,15 +100,13 @@ describe("SetupGameStep", () => {
 
   describe("selection state", () => {
     it("shows selected state for poe1 when it is in selectedGames", () => {
-      mockUseSetup.mockReturnValue(
-        createMockStore({
-          setupState: {
-            currentStep: 1,
-            isComplete: false,
-            selectedGames: ["poe1"],
-          },
-        }),
-      );
+      setupStore({
+        setupState: {
+          currentStep: 1,
+          isComplete: false,
+          selectedGames: ["poe1"],
+        },
+      });
 
       renderWithProviders(<SetupGameStep />);
 
@@ -108,15 +115,13 @@ describe("SetupGameStep", () => {
     });
 
     it("shows selected state for both games when both are in selectedGames", () => {
-      mockUseSetup.mockReturnValue(
-        createMockStore({
-          setupState: {
-            currentStep: 1,
-            isComplete: false,
-            selectedGames: ["poe1", "poe2"],
-          },
-        }),
-      );
+      setupStore({
+        setupState: {
+          currentStep: 1,
+          isComplete: false,
+          selectedGames: ["poe1", "poe2"],
+        },
+      });
 
       renderWithProviders(<SetupGameStep />);
 
@@ -128,15 +133,13 @@ describe("SetupGameStep", () => {
     });
 
     it("shows unselected state for poe2 when only poe1 is selected", () => {
-      mockUseSetup.mockReturnValue(
-        createMockStore({
-          setupState: {
-            currentStep: 1,
-            isComplete: false,
-            selectedGames: ["poe1"],
-          },
-        }),
-      );
+      setupStore({
+        setupState: {
+          currentStep: 1,
+          isComplete: false,
+          selectedGames: ["poe1"],
+        },
+      });
 
       renderWithProviders(<SetupGameStep />);
 
@@ -145,15 +148,13 @@ describe("SetupGameStep", () => {
     });
 
     it("renders a checkbox SVG indicator for selected games", () => {
-      mockUseSetup.mockReturnValue(
-        createMockStore({
-          setupState: {
-            currentStep: 1,
-            isComplete: false,
-            selectedGames: ["poe1", "poe2"],
-          },
-        }),
-      );
+      setupStore({
+        setupState: {
+          currentStep: 1,
+          isComplete: false,
+          selectedGames: ["poe1", "poe2"],
+        },
+      });
 
       renderWithProviders(<SetupGameStep />);
 
@@ -169,7 +170,7 @@ describe("SetupGameStep", () => {
   describe("toggle interaction", () => {
     it("calls toggleGame with 'poe2' when clicking PoE2 button", async () => {
       const toggleGame = vi.fn();
-      mockUseSetup.mockReturnValue(createMockStore({ toggleGame }));
+      setupStore({ toggleGame });
 
       const { user } = renderWithProviders(<SetupGameStep />);
 
@@ -181,16 +182,14 @@ describe("SetupGameStep", () => {
 
     it("calls toggleGame with 'poe1' when clicking PoE1 button", async () => {
       const toggleGame = vi.fn();
-      mockUseSetup.mockReturnValue(
-        createMockStore({
-          toggleGame,
-          setupState: {
-            currentStep: 1,
-            isComplete: false,
-            selectedGames: ["poe1", "poe2"],
-          },
-        }),
-      );
+      setupStore({
+        toggleGame,
+        setupState: {
+          currentStep: 1,
+          isComplete: false,
+          selectedGames: ["poe1", "poe2"],
+        },
+      });
 
       const { user } = renderWithProviders(<SetupGameStep />);
 
@@ -205,15 +204,13 @@ describe("SetupGameStep", () => {
 
   describe("disabled state", () => {
     it("disables the only selected game so it cannot be deselected", () => {
-      mockUseSetup.mockReturnValue(
-        createMockStore({
-          setupState: {
-            currentStep: 1,
-            isComplete: false,
-            selectedGames: ["poe1"],
-          },
-        }),
-      );
+      setupStore({
+        setupState: {
+          currentStep: 1,
+          isComplete: false,
+          selectedGames: ["poe1"],
+        },
+      });
 
       renderWithProviders(<SetupGameStep />);
 
@@ -222,15 +219,13 @@ describe("SetupGameStep", () => {
     });
 
     it("does not disable the only selected game's counterpart", () => {
-      mockUseSetup.mockReturnValue(
-        createMockStore({
-          setupState: {
-            currentStep: 1,
-            isComplete: false,
-            selectedGames: ["poe1"],
-          },
-        }),
-      );
+      setupStore({
+        setupState: {
+          currentStep: 1,
+          isComplete: false,
+          selectedGames: ["poe1"],
+        },
+      });
 
       renderWithProviders(<SetupGameStep />);
 
@@ -239,15 +234,13 @@ describe("SetupGameStep", () => {
     });
 
     it("shows tooltip title on the disabled button", () => {
-      mockUseSetup.mockReturnValue(
-        createMockStore({
-          setupState: {
-            currentStep: 1,
-            isComplete: false,
-            selectedGames: ["poe2"],
-          },
-        }),
-      );
+      setupStore({
+        setupState: {
+          currentStep: 1,
+          isComplete: false,
+          selectedGames: ["poe2"],
+        },
+      });
 
       renderWithProviders(<SetupGameStep />);
 
@@ -259,15 +252,13 @@ describe("SetupGameStep", () => {
     });
 
     it("does not disable either game when both are selected", () => {
-      mockUseSetup.mockReturnValue(
-        createMockStore({
-          setupState: {
-            currentStep: 1,
-            isComplete: false,
-            selectedGames: ["poe1", "poe2"],
-          },
-        }),
-      );
+      setupStore({
+        setupState: {
+          currentStep: 1,
+          isComplete: false,
+          selectedGames: ["poe1", "poe2"],
+        },
+      });
 
       renderWithProviders(<SetupGameStep />);
 
@@ -280,16 +271,14 @@ describe("SetupGameStep", () => {
 
     it("does not call toggleGame when clicking a disabled button", async () => {
       const toggleGame = vi.fn();
-      mockUseSetup.mockReturnValue(
-        createMockStore({
-          toggleGame,
-          setupState: {
-            currentStep: 1,
-            isComplete: false,
-            selectedGames: ["poe1"],
-          },
-        }),
-      );
+      setupStore({
+        toggleGame,
+        setupState: {
+          currentStep: 1,
+          isComplete: false,
+          selectedGames: ["poe1"],
+        },
+      });
 
       const { user } = renderWithProviders(<SetupGameStep />);
 
@@ -304,15 +293,13 @@ describe("SetupGameStep", () => {
 
   describe("both games hint", () => {
     it("shows 'Playing both?' hint when both games are selected", () => {
-      mockUseSetup.mockReturnValue(
-        createMockStore({
-          setupState: {
-            currentStep: 1,
-            isComplete: false,
-            selectedGames: ["poe1", "poe2"],
-          },
-        }),
-      );
+      setupStore({
+        setupState: {
+          currentStep: 1,
+          isComplete: false,
+          selectedGames: ["poe1", "poe2"],
+        },
+      });
 
       renderWithProviders(<SetupGameStep />);
 
@@ -325,15 +312,13 @@ describe("SetupGameStep", () => {
     });
 
     it("does not show 'Playing both?' hint when only one game is selected", () => {
-      mockUseSetup.mockReturnValue(
-        createMockStore({
-          setupState: {
-            currentStep: 1,
-            isComplete: false,
-            selectedGames: ["poe1"],
-          },
-        }),
-      );
+      setupStore({
+        setupState: {
+          currentStep: 1,
+          isComplete: false,
+          selectedGames: ["poe1"],
+        },
+      });
 
       renderWithProviders(<SetupGameStep />);
 
@@ -345,7 +330,7 @@ describe("SetupGameStep", () => {
 
   describe("edge cases", () => {
     it("handles null setupState gracefully (defaults to empty selectedGames)", () => {
-      mockUseSetup.mockReturnValue(createMockStore({ setupState: null }));
+      setupStore({ setupState: null });
 
       renderWithProviders(<SetupGameStep />);
 

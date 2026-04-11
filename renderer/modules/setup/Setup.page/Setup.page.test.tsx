@@ -5,15 +5,18 @@ import {
   screen,
   waitFor,
 } from "~/renderer/__test-setup__/render";
-import { useSetup } from "~/renderer/store";
+import { useBoundStore } from "~/renderer/store";
 
 import SetupPage from "./Setup.page";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/store", () => ({
-  useSetup: vi.fn(),
-}));
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
 vi.mock("~/main/modules/app-setup/AppSetup.types", () => ({
   SETUP_STEPS: {
@@ -39,9 +42,9 @@ vi.mock("../Setup.components", () => ({
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-const mockUseSetup = vi.mocked(useSetup);
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
-function createMockStore(overrides: Record<string, unknown> = {}) {
+function createMockSetup(overrides: Record<string, unknown> = {}) {
   return {
     setupState: {
       currentStep: 1,
@@ -61,18 +64,24 @@ function createMockStore(overrides: Record<string, unknown> = {}) {
   } as any;
 }
 
+function setupBoundStore(overrides: Record<string, unknown> = {}) {
+  const setup = createMockSetup(overrides);
+  mockUseBoundStore.mockReturnValue({ setup } as any);
+  return setup;
+}
+
 // ─── Tests ─────────────────────────────────────────────────────────────────
 
 describe("SetupPage", () => {
   beforeEach(() => {
-    mockUseSetup.mockReturnValue(createMockStore());
+    setupBoundStore();
   });
 
   // ── Loading states ─────────────────────────────────────────────────────
 
   describe("loading states", () => {
     it("shows loading spinner when setupState is null", () => {
-      mockUseSetup.mockReturnValue(createMockStore({ setupState: null }));
+      setupBoundStore({ setupState: null });
 
       renderWithProviders(<SetupPage />);
 
@@ -82,15 +91,13 @@ describe("SetupPage", () => {
     });
 
     it("shows loading spinner when currentStep is NOT_STARTED (0)", () => {
-      mockUseSetup.mockReturnValue(
-        createMockStore({
-          setupState: {
-            currentStep: 0,
-            isComplete: false,
-            selectedGames: ["poe1"],
-          },
-        }),
-      );
+      setupBoundStore({
+        setupState: {
+          currentStep: 0,
+          isComplete: false,
+          selectedGames: ["poe1"],
+        },
+      });
 
       renderWithProviders(<SetupPage />);
 
@@ -105,7 +112,7 @@ describe("SetupPage", () => {
   describe("lifecycle effects", () => {
     it("calls trackSetupStarted on mount", () => {
       const trackSetupStarted = vi.fn();
-      mockUseSetup.mockReturnValue(createMockStore({ trackSetupStarted }));
+      setupBoundStore({ trackSetupStarted });
 
       renderWithProviders(<SetupPage />);
 
@@ -114,16 +121,14 @@ describe("SetupPage", () => {
 
     it("calls advanceStep when at step 0 (auto-advance)", async () => {
       const advanceStep = vi.fn();
-      mockUseSetup.mockReturnValue(
-        createMockStore({
-          setupState: {
-            currentStep: 0,
-            isComplete: false,
-            selectedGames: ["poe1"],
-          },
-          advanceStep,
-        }),
-      );
+      setupBoundStore({
+        setupState: {
+          currentStep: 0,
+          isComplete: false,
+          selectedGames: ["poe1"],
+        },
+        advanceStep,
+      });
 
       renderWithProviders(<SetupPage />);
 
@@ -134,16 +139,14 @@ describe("SetupPage", () => {
 
     it("calls validateCurrentStep when step > 0", () => {
       const validateCurrentStep = vi.fn();
-      mockUseSetup.mockReturnValue(
-        createMockStore({
-          setupState: {
-            currentStep: 2,
-            isComplete: false,
-            selectedGames: ["poe1"],
-          },
-          validateCurrentStep,
-        }),
-      );
+      setupBoundStore({
+        setupState: {
+          currentStep: 2,
+          isComplete: false,
+          selectedGames: ["poe1"],
+        },
+        validateCurrentStep,
+      });
 
       renderWithProviders(<SetupPage />);
 
@@ -155,15 +158,13 @@ describe("SetupPage", () => {
 
   describe("step rendering", () => {
     it("renders SetupGameStep when currentStep is SELECT_GAME (1)", () => {
-      mockUseSetup.mockReturnValue(
-        createMockStore({
-          setupState: {
-            currentStep: 1,
-            isComplete: false,
-            selectedGames: ["poe1"],
-          },
-        }),
-      );
+      setupBoundStore({
+        setupState: {
+          currentStep: 1,
+          isComplete: false,
+          selectedGames: ["poe1"],
+        },
+      });
 
       renderWithProviders(<SetupPage />);
 
@@ -178,15 +179,13 @@ describe("SetupPage", () => {
     });
 
     it("renders SetupLeagueStep when currentStep is SELECT_LEAGUE (2)", () => {
-      mockUseSetup.mockReturnValue(
-        createMockStore({
-          setupState: {
-            currentStep: 2,
-            isComplete: false,
-            selectedGames: ["poe1"],
-          },
-        }),
-      );
+      setupBoundStore({
+        setupState: {
+          currentStep: 2,
+          isComplete: false,
+          selectedGames: ["poe1"],
+        },
+      });
 
       renderWithProviders(<SetupPage />);
 
@@ -201,15 +200,13 @@ describe("SetupPage", () => {
     });
 
     it("renders SetupClientPathStep when currentStep is SELECT_CLIENT_PATH (3)", () => {
-      mockUseSetup.mockReturnValue(
-        createMockStore({
-          setupState: {
-            currentStep: 3,
-            isComplete: false,
-            selectedGames: ["poe1"],
-          },
-        }),
-      );
+      setupBoundStore({
+        setupState: {
+          currentStep: 3,
+          isComplete: false,
+          selectedGames: ["poe1"],
+        },
+      });
 
       renderWithProviders(<SetupPage />);
 
@@ -222,15 +219,13 @@ describe("SetupPage", () => {
     });
 
     it("renders SetupTelemetryStep when currentStep is TELEMETRY_CONSENT (4)", () => {
-      mockUseSetup.mockReturnValue(
-        createMockStore({
-          setupState: {
-            currentStep: 4,
-            isComplete: false,
-            selectedGames: ["poe1"],
-          },
-        }),
-      );
+      setupBoundStore({
+        setupState: {
+          currentStep: 4,
+          isComplete: false,
+          selectedGames: ["poe1"],
+        },
+      });
 
       renderWithProviders(<SetupPage />);
 
@@ -261,30 +256,26 @@ describe("SetupPage", () => {
 
     it("renders SetupActions on every visible step", () => {
       // Step 2
-      mockUseSetup.mockReturnValue(
-        createMockStore({
-          setupState: {
-            currentStep: 2,
-            isComplete: false,
-            selectedGames: ["poe1"],
-          },
-        }),
-      );
+      setupBoundStore({
+        setupState: {
+          currentStep: 2,
+          isComplete: false,
+          selectedGames: ["poe1"],
+        },
+      });
 
       const { unmount } = renderWithProviders(<SetupPage />);
       expect(screen.getByTestId("setup-actions")).toBeInTheDocument();
       unmount();
 
       // Step 3
-      mockUseSetup.mockReturnValue(
-        createMockStore({
-          setupState: {
-            currentStep: 3,
-            isComplete: false,
-            selectedGames: ["poe1"],
-          },
-        }),
-      );
+      setupBoundStore({
+        setupState: {
+          currentStep: 3,
+          isComplete: false,
+          selectedGames: ["poe1"],
+        },
+      });
 
       renderWithProviders(<SetupPage />);
       expect(screen.getByTestId("setup-actions")).toBeInTheDocument();
@@ -292,15 +283,13 @@ describe("SetupPage", () => {
 
     it("renders SetupErrorDisplay on every visible step", () => {
       // Step 4
-      mockUseSetup.mockReturnValue(
-        createMockStore({
-          setupState: {
-            currentStep: 4,
-            isComplete: false,
-            selectedGames: ["poe1"],
-          },
-        }),
-      );
+      setupBoundStore({
+        setupState: {
+          currentStep: 4,
+          isComplete: false,
+          selectedGames: ["poe1"],
+        },
+      });
 
       renderWithProviders(<SetupPage />);
       expect(screen.getByTestId("setup-error-display")).toBeInTheDocument();

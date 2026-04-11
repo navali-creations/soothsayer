@@ -1,29 +1,18 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
-  createTestDatabase,
   seedCards,
   seedLeague,
   seedSession,
   seedSessionCards,
   seedSnapshot,
-  type TestDatabase,
 } from "~/main/modules/__test-utils__/create-test-db";
+import { setupRepositoryTest } from "~/main/modules/__test-utils__/repository-test-setup";
 
 import { AnalyticsRepository } from "../Analytics.repository";
 
 describe("AnalyticsRepository", () => {
-  let testDb: TestDatabase;
-  let repository: AnalyticsRepository;
-
-  beforeEach(() => {
-    testDb = createTestDatabase();
-    repository = new AnalyticsRepository(testDb.kysely);
-  });
-
-  afterEach(async () => {
-    await testDb.close();
-  });
+  const { getRepository, getTestDb } = setupRepositoryTest(AnalyticsRepository);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // getMostCommonCards
@@ -31,7 +20,7 @@ describe("AnalyticsRepository", () => {
 
   describe("getMostCommonCards", () => {
     it("should return empty array when no cards exist", async () => {
-      const results = await repository.getMostCommonCards(
+      const results = await getRepository().getMostCommonCards(
         "poe1",
         "Settlers",
         10,
@@ -40,7 +29,7 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should return cards ordered by count descending", async () => {
-      await seedCards(testDb.kysely, [
+      await seedCards(getTestDb().kysely, [
         {
           game: "poe1",
           scope: "Settlers",
@@ -51,7 +40,7 @@ describe("AnalyticsRepository", () => {
         { game: "poe1", scope: "Settlers", cardName: "Her Mask", count: 300 },
       ]);
 
-      const results = await repository.getMostCommonCards(
+      const results = await getRepository().getMostCommonCards(
         "poe1",
         "Settlers",
         10,
@@ -67,7 +56,7 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should respect the limit parameter", async () => {
-      await seedCards(testDb.kysely, [
+      await seedCards(getTestDb().kysely, [
         {
           game: "poe1",
           scope: "Settlers",
@@ -78,7 +67,7 @@ describe("AnalyticsRepository", () => {
         { game: "poe1", scope: "Settlers", cardName: "The Doctor", count: 2 },
       ]);
 
-      const results = await repository.getMostCommonCards(
+      const results = await getRepository().getMostCommonCards(
         "poe1",
         "Settlers",
         2,
@@ -90,7 +79,7 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should calculate correct percentages", async () => {
-      await seedCards(testDb.kysely, [
+      await seedCards(getTestDb().kysely, [
         {
           game: "poe1",
           scope: "Settlers",
@@ -101,7 +90,7 @@ describe("AnalyticsRepository", () => {
         { game: "poe1", scope: "Settlers", cardName: "The Doctor", count: 20 },
       ]);
 
-      const results = await repository.getMostCommonCards(
+      const results = await getRepository().getMostCommonCards(
         "poe1",
         "Settlers",
         10,
@@ -114,7 +103,7 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should filter by game", async () => {
-      await seedCards(testDb.kysely, [
+      await seedCards(getTestDb().kysely, [
         {
           game: "poe1",
           scope: "Settlers",
@@ -124,7 +113,7 @@ describe("AnalyticsRepository", () => {
         { game: "poe2", scope: "Settlers", cardName: "Her Mask", count: 300 },
       ]);
 
-      const results = await repository.getMostCommonCards(
+      const results = await getRepository().getMostCommonCards(
         "poe1",
         "Settlers",
         10,
@@ -135,7 +124,7 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should filter by league name (scope)", async () => {
-      await seedCards(testDb.kysely, [
+      await seedCards(getTestDb().kysely, [
         {
           game: "poe1",
           scope: "Settlers",
@@ -145,7 +134,7 @@ describe("AnalyticsRepository", () => {
         { game: "poe1", scope: "Standard", cardName: "Her Mask", count: 300 },
       ]);
 
-      const results = await repository.getMostCommonCards(
+      const results = await getRepository().getMostCommonCards(
         "poe1",
         "Settlers",
         10,
@@ -156,7 +145,7 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should return correct DTO shape with cardName, count, and percentage", async () => {
-      await seedCards(testDb.kysely, [
+      await seedCards(getTestDb().kysely, [
         {
           game: "poe1",
           scope: "Settlers",
@@ -165,7 +154,7 @@ describe("AnalyticsRepository", () => {
         },
       ]);
 
-      const results = await repository.getMostCommonCards(
+      const results = await getRepository().getMostCommonCards(
         "poe1",
         "Settlers",
         10,
@@ -179,7 +168,7 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should handle a single card returning 100% percentage", async () => {
-      await seedCards(testDb.kysely, [
+      await seedCards(getTestDb().kysely, [
         {
           game: "poe1",
           scope: "Settlers",
@@ -188,7 +177,7 @@ describe("AnalyticsRepository", () => {
         },
       ]);
 
-      const results = await repository.getMostCommonCards(
+      const results = await getRepository().getMostCommonCards(
         "poe1",
         "Settlers",
         10,
@@ -199,7 +188,7 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should handle card names with special characters", async () => {
-      await seedCards(testDb.kysely, [
+      await seedCards(getTestDb().kysely, [
         {
           game: "poe1",
           scope: "Settlers",
@@ -214,7 +203,7 @@ describe("AnalyticsRepository", () => {
         },
       ]);
 
-      const results = await repository.getMostCommonCards(
+      const results = await getRepository().getMostCommonCards(
         "poe1",
         "Settlers",
         10,
@@ -232,13 +221,13 @@ describe("AnalyticsRepository", () => {
 
   describe("getHighestValueCards", () => {
     it("should return empty array when no snapshots exist", async () => {
-      await seedLeague(testDb.kysely, {
+      await seedLeague(getTestDb().kysely, {
         id: "league-001",
         game: "poe1",
         name: "Settlers",
       });
 
-      const results = await repository.getHighestValueCards(
+      const results = await getRepository().getHighestValueCards(
         "poe1",
         "Settlers",
         "exchange",
@@ -249,14 +238,14 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should return cards ordered by max chaos value descending", async () => {
-      const leagueId = await seedLeague(testDb.kysely, {
+      const leagueId = await seedLeague(getTestDb().kysely, {
         id: "league-001",
         game: "poe1",
         name: "Settlers",
         startDate: "2025-01-01T00:00:00Z",
       });
 
-      await seedSnapshot(testDb.kysely, {
+      await seedSnapshot(getTestDb().kysely, {
         id: "snap-001",
         leagueId,
         fetchedAt: "2025-01-15T12:00:00Z",
@@ -282,7 +271,7 @@ describe("AnalyticsRepository", () => {
         ],
       });
 
-      const results = await repository.getHighestValueCards(
+      const results = await getRepository().getHighestValueCards(
         "poe1",
         "Settlers",
         "exchange",
@@ -299,14 +288,14 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should respect the limit parameter", async () => {
-      const leagueId = await seedLeague(testDb.kysely, {
+      const leagueId = await seedLeague(getTestDb().kysely, {
         id: "league-001",
         game: "poe1",
         name: "Settlers",
         startDate: "2025-01-01T00:00:00Z",
       });
 
-      await seedSnapshot(testDb.kysely, {
+      await seedSnapshot(getTestDb().kysely, {
         id: "snap-001",
         leagueId,
         fetchedAt: "2025-01-15T12:00:00Z",
@@ -332,7 +321,7 @@ describe("AnalyticsRepository", () => {
         ],
       });
 
-      const results = await repository.getHighestValueCards(
+      const results = await getRepository().getHighestValueCards(
         "poe1",
         "Settlers",
         "exchange",
@@ -344,14 +333,14 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should filter by price source", async () => {
-      const leagueId = await seedLeague(testDb.kysely, {
+      const leagueId = await seedLeague(getTestDb().kysely, {
         id: "league-001",
         game: "poe1",
         name: "Settlers",
         startDate: "2025-01-01T00:00:00Z",
       });
 
-      await seedSnapshot(testDb.kysely, {
+      await seedSnapshot(getTestDb().kysely, {
         id: "snap-001",
         leagueId,
         fetchedAt: "2025-01-15T12:00:00Z",
@@ -371,14 +360,14 @@ describe("AnalyticsRepository", () => {
         ],
       });
 
-      const exchangeResults = await repository.getHighestValueCards(
+      const exchangeResults = await getRepository().getHighestValueCards(
         "poe1",
         "Settlers",
         "exchange",
         10,
       );
 
-      const stashResults = await repository.getHighestValueCards(
+      const stashResults = await getRepository().getHighestValueCards(
         "poe1",
         "Settlers",
         "stash",
@@ -393,21 +382,21 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should filter by game", async () => {
-      const poe1League = await seedLeague(testDb.kysely, {
+      const poe1League = await seedLeague(getTestDb().kysely, {
         id: "league-poe1",
         game: "poe1",
         name: "Settlers",
         startDate: "2025-01-01T00:00:00Z",
       });
 
-      const poe2League = await seedLeague(testDb.kysely, {
+      const poe2League = await seedLeague(getTestDb().kysely, {
         id: "league-poe2",
         game: "poe2",
         name: "Dawn",
         startDate: "2025-01-01T00:00:00Z",
       });
 
-      await seedSnapshot(testDb.kysely, {
+      await seedSnapshot(getTestDb().kysely, {
         id: "snap-poe1",
         leagueId: poe1League,
         fetchedAt: "2025-01-15T12:00:00Z",
@@ -421,7 +410,7 @@ describe("AnalyticsRepository", () => {
         ],
       });
 
-      await seedSnapshot(testDb.kysely, {
+      await seedSnapshot(getTestDb().kysely, {
         id: "snap-poe2",
         leagueId: poe2League,
         fetchedAt: "2025-01-15T12:00:00Z",
@@ -435,7 +424,7 @@ describe("AnalyticsRepository", () => {
         ],
       });
 
-      const results = await repository.getHighestValueCards(
+      const results = await getRepository().getHighestValueCards(
         "poe1",
         "Settlers",
         "exchange",
@@ -447,21 +436,21 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should filter by league name", async () => {
-      const settlersId = await seedLeague(testDb.kysely, {
+      const settlersId = await seedLeague(getTestDb().kysely, {
         id: "league-settlers",
         game: "poe1",
         name: "Settlers",
         startDate: "2025-01-01T00:00:00Z",
       });
 
-      const standardId = await seedLeague(testDb.kysely, {
+      const standardId = await seedLeague(getTestDb().kysely, {
         id: "league-standard",
         game: "poe1",
         name: "Standard",
         startDate: "2020-01-01T00:00:00Z",
       });
 
-      await seedSnapshot(testDb.kysely, {
+      await seedSnapshot(getTestDb().kysely, {
         id: "snap-settlers",
         leagueId: settlersId,
         fetchedAt: "2025-01-15T12:00:00Z",
@@ -475,7 +464,7 @@ describe("AnalyticsRepository", () => {
         ],
       });
 
-      await seedSnapshot(testDb.kysely, {
+      await seedSnapshot(getTestDb().kysely, {
         id: "snap-standard",
         leagueId: standardId,
         fetchedAt: "2025-01-15T12:00:00Z",
@@ -489,7 +478,7 @@ describe("AnalyticsRepository", () => {
         ],
       });
 
-      const results = await repository.getHighestValueCards(
+      const results = await getRepository().getHighestValueCards(
         "poe1",
         "Settlers",
         "exchange",
@@ -501,14 +490,14 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should calculate daysIntoLeague correctly", async () => {
-      const leagueId = await seedLeague(testDb.kysely, {
+      const leagueId = await seedLeague(getTestDb().kysely, {
         id: "league-001",
         game: "poe1",
         name: "Settlers",
         startDate: "2025-01-01T00:00:00Z",
       });
 
-      await seedSnapshot(testDb.kysely, {
+      await seedSnapshot(getTestDb().kysely, {
         id: "snap-001",
         leagueId,
         fetchedAt: "2025-01-31T12:00:00Z",
@@ -522,7 +511,7 @@ describe("AnalyticsRepository", () => {
         ],
       });
 
-      const results = await repository.getHighestValueCards(
+      const results = await getRepository().getHighestValueCards(
         "poe1",
         "Settlers",
         "exchange",
@@ -535,14 +524,14 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should return the peak chaos value across multiple snapshots", async () => {
-      const leagueId = await seedLeague(testDb.kysely, {
+      const leagueId = await seedLeague(getTestDb().kysely, {
         id: "league-001",
         game: "poe1",
         name: "Settlers",
         startDate: "2025-01-01T00:00:00Z",
       });
 
-      await seedSnapshot(testDb.kysely, {
+      await seedSnapshot(getTestDb().kysely, {
         id: "snap-001",
         leagueId,
         fetchedAt: "2025-01-10T12:00:00Z",
@@ -556,7 +545,7 @@ describe("AnalyticsRepository", () => {
         ],
       });
 
-      await seedSnapshot(testDb.kysely, {
+      await seedSnapshot(getTestDb().kysely, {
         id: "snap-002",
         leagueId,
         fetchedAt: "2025-01-20T12:00:00Z",
@@ -570,7 +559,7 @@ describe("AnalyticsRepository", () => {
         ],
       });
 
-      const results = await repository.getHighestValueCards(
+      const results = await getRepository().getHighestValueCards(
         "poe1",
         "Settlers",
         "exchange",
@@ -588,13 +577,13 @@ describe("AnalyticsRepository", () => {
 
   describe("getCardPriceHistory", () => {
     it("should return empty array when no price history exists", async () => {
-      await seedLeague(testDb.kysely, {
+      await seedLeague(getTestDb().kysely, {
         id: "league-001",
         game: "poe1",
         name: "Settlers",
       });
 
-      const results = await repository.getCardPriceHistory(
+      const results = await getRepository().getCardPriceHistory(
         "poe1",
         "Settlers",
         "The Doctor",
@@ -605,14 +594,14 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should return price history ordered by timestamp ascending", async () => {
-      const leagueId = await seedLeague(testDb.kysely, {
+      const leagueId = await seedLeague(getTestDb().kysely, {
         id: "league-001",
         game: "poe1",
         name: "Settlers",
         startDate: "2025-01-01T00:00:00Z",
       });
 
-      await seedSnapshot(testDb.kysely, {
+      await seedSnapshot(getTestDb().kysely, {
         id: "snap-001",
         leagueId,
         fetchedAt: "2025-01-10T12:00:00Z",
@@ -626,7 +615,7 @@ describe("AnalyticsRepository", () => {
         ],
       });
 
-      await seedSnapshot(testDb.kysely, {
+      await seedSnapshot(getTestDb().kysely, {
         id: "snap-002",
         leagueId,
         fetchedAt: "2025-01-05T12:00:00Z",
@@ -640,7 +629,7 @@ describe("AnalyticsRepository", () => {
         ],
       });
 
-      await seedSnapshot(testDb.kysely, {
+      await seedSnapshot(getTestDb().kysely, {
         id: "snap-003",
         leagueId,
         fetchedAt: "2025-01-20T12:00:00Z",
@@ -654,7 +643,7 @@ describe("AnalyticsRepository", () => {
         ],
       });
 
-      const results = await repository.getCardPriceHistory(
+      const results = await getRepository().getCardPriceHistory(
         "poe1",
         "Settlers",
         "The Doctor",
@@ -672,14 +661,14 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should filter by card name", async () => {
-      const leagueId = await seedLeague(testDb.kysely, {
+      const leagueId = await seedLeague(getTestDb().kysely, {
         id: "league-001",
         game: "poe1",
         name: "Settlers",
         startDate: "2025-01-01T00:00:00Z",
       });
 
-      await seedSnapshot(testDb.kysely, {
+      await seedSnapshot(getTestDb().kysely, {
         id: "snap-001",
         leagueId,
         fetchedAt: "2025-01-10T12:00:00Z",
@@ -699,7 +688,7 @@ describe("AnalyticsRepository", () => {
         ],
       });
 
-      const results = await repository.getCardPriceHistory(
+      const results = await getRepository().getCardPriceHistory(
         "poe1",
         "Settlers",
         "The Doctor",
@@ -711,14 +700,14 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should filter by price source", async () => {
-      const leagueId = await seedLeague(testDb.kysely, {
+      const leagueId = await seedLeague(getTestDb().kysely, {
         id: "league-001",
         game: "poe1",
         name: "Settlers",
         startDate: "2025-01-01T00:00:00Z",
       });
 
-      await seedSnapshot(testDb.kysely, {
+      await seedSnapshot(getTestDb().kysely, {
         id: "snap-001",
         leagueId,
         fetchedAt: "2025-01-10T12:00:00Z",
@@ -738,14 +727,14 @@ describe("AnalyticsRepository", () => {
         ],
       });
 
-      const exchangeResults = await repository.getCardPriceHistory(
+      const exchangeResults = await getRepository().getCardPriceHistory(
         "poe1",
         "Settlers",
         "The Doctor",
         "exchange",
       );
 
-      const stashResults = await repository.getCardPriceHistory(
+      const stashResults = await getRepository().getCardPriceHistory(
         "poe1",
         "Settlers",
         "The Doctor",
@@ -760,14 +749,14 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should calculate daysIntoLeague correctly", async () => {
-      const leagueId = await seedLeague(testDb.kysely, {
+      const leagueId = await seedLeague(getTestDb().kysely, {
         id: "league-001",
         game: "poe1",
         name: "Settlers",
         startDate: "2025-01-01T00:00:00Z",
       });
 
-      await seedSnapshot(testDb.kysely, {
+      await seedSnapshot(getTestDb().kysely, {
         id: "snap-001",
         leagueId,
         fetchedAt: "2025-02-01T00:00:00Z",
@@ -781,7 +770,7 @@ describe("AnalyticsRepository", () => {
         ],
       });
 
-      const results = await repository.getCardPriceHistory(
+      const results = await getRepository().getCardPriceHistory(
         "poe1",
         "Settlers",
         "The Doctor",
@@ -794,14 +783,14 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should return the correct DTO shape", async () => {
-      const leagueId = await seedLeague(testDb.kysely, {
+      const leagueId = await seedLeague(getTestDb().kysely, {
         id: "league-001",
         game: "poe1",
         name: "Settlers",
         startDate: "2025-01-01T00:00:00Z",
       });
 
-      await seedSnapshot(testDb.kysely, {
+      await seedSnapshot(getTestDb().kysely, {
         id: "snap-001",
         leagueId,
         fetchedAt: "2025-01-15T12:00:00Z",
@@ -815,7 +804,7 @@ describe("AnalyticsRepository", () => {
         ],
       });
 
-      const results = await repository.getCardPriceHistory(
+      const results = await getRepository().getCardPriceHistory(
         "poe1",
         "Settlers",
         "The Doctor",
@@ -831,21 +820,21 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should not return prices from a different league", async () => {
-      const settlersId = await seedLeague(testDb.kysely, {
+      const settlersId = await seedLeague(getTestDb().kysely, {
         id: "league-settlers",
         game: "poe1",
         name: "Settlers",
         startDate: "2025-01-01T00:00:00Z",
       });
 
-      const standardId = await seedLeague(testDb.kysely, {
+      const standardId = await seedLeague(getTestDb().kysely, {
         id: "league-standard",
         game: "poe1",
         name: "Standard",
         startDate: "2020-01-01T00:00:00Z",
       });
 
-      await seedSnapshot(testDb.kysely, {
+      await seedSnapshot(getTestDb().kysely, {
         id: "snap-settlers",
         leagueId: settlersId,
         fetchedAt: "2025-01-10T12:00:00Z",
@@ -859,7 +848,7 @@ describe("AnalyticsRepository", () => {
         ],
       });
 
-      await seedSnapshot(testDb.kysely, {
+      await seedSnapshot(getTestDb().kysely, {
         id: "snap-standard",
         leagueId: standardId,
         fetchedAt: "2025-01-10T12:00:00Z",
@@ -873,7 +862,7 @@ describe("AnalyticsRepository", () => {
         ],
       });
 
-      const results = await repository.getCardPriceHistory(
+      const results = await getRepository().getCardPriceHistory(
         "poe1",
         "Settlers",
         "The Doctor",
@@ -891,7 +880,7 @@ describe("AnalyticsRepository", () => {
 
   describe("getLeagueStats", () => {
     it("should return null-valued stats when no cards exist for the league", async () => {
-      const result = await repository.getLeagueStats("poe1", "Settlers");
+      const result = await getRepository().getLeagueStats("poe1", "Settlers");
 
       // With no matching rows, SUM returns null and COUNT returns 0
       expect(result).not.toBeNull();
@@ -899,7 +888,7 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should return correct total and unique card counts", async () => {
-      await seedCards(testDb.kysely, [
+      await seedCards(getTestDb().kysely, [
         {
           game: "poe1",
           scope: "Settlers",
@@ -910,7 +899,7 @@ describe("AnalyticsRepository", () => {
         { game: "poe1", scope: "Settlers", cardName: "The Doctor", count: 2 },
       ]);
 
-      const result = await repository.getLeagueStats("poe1", "Settlers");
+      const result = await getRepository().getLeagueStats("poe1", "Settlers");
 
       expect(result).not.toBeNull();
       expect(result!.totalCards).toBe(802); // 500 + 300 + 2
@@ -918,7 +907,7 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should filter by game", async () => {
-      await seedCards(testDb.kysely, [
+      await seedCards(getTestDb().kysely, [
         {
           game: "poe1",
           scope: "Settlers",
@@ -928,7 +917,7 @@ describe("AnalyticsRepository", () => {
         { game: "poe2", scope: "Settlers", cardName: "Her Mask", count: 300 },
       ]);
 
-      const result = await repository.getLeagueStats("poe1", "Settlers");
+      const result = await getRepository().getLeagueStats("poe1", "Settlers");
 
       expect(result).not.toBeNull();
       expect(result!.totalCards).toBe(500);
@@ -936,7 +925,7 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should filter by league name (scope)", async () => {
-      await seedCards(testDb.kysely, [
+      await seedCards(getTestDb().kysely, [
         {
           game: "poe1",
           scope: "Settlers",
@@ -946,7 +935,7 @@ describe("AnalyticsRepository", () => {
         { game: "poe1", scope: "Standard", cardName: "Her Mask", count: 300 },
       ]);
 
-      const result = await repository.getLeagueStats("poe1", "Settlers");
+      const result = await getRepository().getLeagueStats("poe1", "Settlers");
 
       expect(result).not.toBeNull();
       expect(result!.totalCards).toBe(500);
@@ -954,7 +943,7 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should handle a single card entry", async () => {
-      await seedCards(testDb.kysely, [
+      await seedCards(getTestDb().kysely, [
         {
           game: "poe1",
           scope: "Settlers",
@@ -963,7 +952,7 @@ describe("AnalyticsRepository", () => {
         },
       ]);
 
-      const result = await repository.getLeagueStats("poe1", "Settlers");
+      const result = await getRepository().getLeagueStats("poe1", "Settlers");
 
       expect(result).not.toBeNull();
       expect(result!.totalCards).toBe(42);
@@ -995,25 +984,28 @@ describe("AnalyticsRepository", () => {
 
   describe("getLeagueSessionCount", () => {
     it("should return 0 when no sessions exist", async () => {
-      await seedLeague(testDb.kysely, {
+      await seedLeague(getTestDb().kysely, {
         id: "league-001",
         game: "poe1",
         name: "Settlers",
       });
 
-      const count = await repository.getLeagueSessionCount("poe1", "Settlers");
+      const count = await getRepository().getLeagueSessionCount(
+        "poe1",
+        "Settlers",
+      );
 
       expect(count).toBe(0);
     });
 
     it("should count sessions for a specific game and league", async () => {
-      const leagueId = await seedLeague(testDb.kysely, {
+      const leagueId = await seedLeague(getTestDb().kysely, {
         id: "league-001",
         game: "poe1",
         name: "Settlers",
       });
 
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         id: "session-001",
         game: "poe1",
         leagueId,
@@ -1021,7 +1013,7 @@ describe("AnalyticsRepository", () => {
         isActive: false,
       });
 
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         id: "session-002",
         game: "poe1",
         leagueId,
@@ -1029,103 +1021,115 @@ describe("AnalyticsRepository", () => {
         isActive: false,
       });
 
-      const count = await repository.getLeagueSessionCount("poe1", "Settlers");
+      const count = await getRepository().getLeagueSessionCount(
+        "poe1",
+        "Settlers",
+      );
 
       expect(count).toBe(2);
     });
 
     it("should not count sessions from different leagues", async () => {
-      const settlersId = await seedLeague(testDb.kysely, {
+      const settlersId = await seedLeague(getTestDb().kysely, {
         id: "league-settlers",
         game: "poe1",
         name: "Settlers",
       });
 
-      const standardId = await seedLeague(testDb.kysely, {
+      const standardId = await seedLeague(getTestDb().kysely, {
         id: "league-standard",
         game: "poe1",
         name: "Standard",
       });
 
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         id: "session-001",
         game: "poe1",
         leagueId: settlersId,
         isActive: false,
       });
 
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         id: "session-002",
         game: "poe1",
         leagueId: standardId,
         isActive: false,
       });
 
-      const count = await repository.getLeagueSessionCount("poe1", "Settlers");
+      const count = await getRepository().getLeagueSessionCount(
+        "poe1",
+        "Settlers",
+      );
 
       expect(count).toBe(1);
     });
 
     it("should not count sessions from different games", async () => {
-      const poe1League = await seedLeague(testDb.kysely, {
+      const poe1League = await seedLeague(getTestDb().kysely, {
         id: "league-poe1",
         game: "poe1",
         name: "Settlers",
       });
 
-      const poe2League = await seedLeague(testDb.kysely, {
+      const poe2League = await seedLeague(getTestDb().kysely, {
         id: "league-poe2",
         game: "poe2",
         name: "Dawn",
       });
 
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         id: "session-001",
         game: "poe1",
         leagueId: poe1League,
         isActive: false,
       });
 
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         id: "session-002",
         game: "poe2",
         leagueId: poe2League,
         isActive: false,
       });
 
-      const count = await repository.getLeagueSessionCount("poe1", "Settlers");
+      const count = await getRepository().getLeagueSessionCount(
+        "poe1",
+        "Settlers",
+      );
 
       expect(count).toBe(1);
     });
 
     it("should include both active and inactive sessions", async () => {
-      const leagueId = await seedLeague(testDb.kysely, {
+      const leagueId = await seedLeague(getTestDb().kysely, {
         id: "league-001",
         game: "poe1",
         name: "Settlers",
       });
 
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         id: "session-001",
         game: "poe1",
         leagueId,
         isActive: false,
       });
 
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         id: "session-002",
         game: "poe1",
         leagueId,
         isActive: true,
       });
 
-      const count = await repository.getLeagueSessionCount("poe1", "Settlers");
+      const count = await getRepository().getLeagueSessionCount(
+        "poe1",
+        "Settlers",
+      );
 
       expect(count).toBe(2);
     });
 
     it("should return 0 when league does not exist", async () => {
-      const count = await repository.getLeagueSessionCount(
+      const count = await getRepository().getLeagueSessionCount(
         "poe1",
         "NonExistentLeague",
       );
@@ -1140,27 +1144,27 @@ describe("AnalyticsRepository", () => {
 
   describe("compareSessions", () => {
     it("should return empty array when both sessions have no cards", async () => {
-      const leagueId = await seedLeague(testDb.kysely, {
+      const leagueId = await seedLeague(getTestDb().kysely, {
         id: "league-001",
         game: "poe1",
         name: "Settlers",
       });
 
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         id: "session-001",
         game: "poe1",
         leagueId,
         isActive: false,
       });
 
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         id: "session-002",
         game: "poe1",
         leagueId,
         isActive: false,
       });
 
-      const results = await repository.compareSessions(
+      const results = await getRepository().compareSessions(
         "session-001",
         "session-002",
       );
@@ -1169,37 +1173,37 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should compare cards between two sessions", async () => {
-      const leagueId = await seedLeague(testDb.kysely, {
+      const leagueId = await seedLeague(getTestDb().kysely, {
         id: "league-001",
         game: "poe1",
         name: "Settlers",
       });
 
-      const session1 = await seedSession(testDb.kysely, {
+      const session1 = await seedSession(getTestDb().kysely, {
         id: "session-001",
         game: "poe1",
         leagueId,
         isActive: false,
       });
 
-      const session2 = await seedSession(testDb.kysely, {
+      const session2 = await seedSession(getTestDb().kysely, {
         id: "session-002",
         game: "poe1",
         leagueId,
         isActive: false,
       });
 
-      await seedSessionCards(testDb.kysely, session1, [
+      await seedSessionCards(getTestDb().kysely, session1, [
         { cardName: "Rain of Chaos", count: 50 },
         { cardName: "The Doctor", count: 2 },
       ]);
 
-      await seedSessionCards(testDb.kysely, session2, [
+      await seedSessionCards(getTestDb().kysely, session2, [
         { cardName: "Rain of Chaos", count: 80 },
         { cardName: "The Doctor", count: 1 },
       ]);
 
-      const results = await repository.compareSessions(
+      const results = await getRepository().compareSessions(
         "session-001",
         "session-002",
       );
@@ -1222,33 +1226,33 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should handle card present only in session 1", async () => {
-      const leagueId = await seedLeague(testDb.kysely, {
+      const leagueId = await seedLeague(getTestDb().kysely, {
         id: "league-001",
         game: "poe1",
         name: "Settlers",
       });
 
-      const session1 = await seedSession(testDb.kysely, {
+      const session1 = await seedSession(getTestDb().kysely, {
         id: "session-001",
         game: "poe1",
         leagueId,
         isActive: false,
       });
 
-      const _session2 = await seedSession(testDb.kysely, {
+      const _session2 = await seedSession(getTestDb().kysely, {
         id: "session-002",
         game: "poe1",
         leagueId,
         isActive: false,
       });
 
-      await seedSessionCards(testDb.kysely, session1, [
+      await seedSessionCards(getTestDb().kysely, session1, [
         { cardName: "The Doctor", count: 3 },
       ]);
 
       // session2 has no cards
 
-      const results = await repository.compareSessions(
+      const results = await getRepository().compareSessions(
         "session-001",
         "session-002",
       );
@@ -1261,20 +1265,20 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should handle card present only in session 2", async () => {
-      const leagueId = await seedLeague(testDb.kysely, {
+      const leagueId = await seedLeague(getTestDb().kysely, {
         id: "league-001",
         game: "poe1",
         name: "Settlers",
       });
 
-      const _session1 = await seedSession(testDb.kysely, {
+      const _session1 = await seedSession(getTestDb().kysely, {
         id: "session-001",
         game: "poe1",
         leagueId,
         isActive: false,
       });
 
-      const session2 = await seedSession(testDb.kysely, {
+      const session2 = await seedSession(getTestDb().kysely, {
         id: "session-002",
         game: "poe1",
         leagueId,
@@ -1283,11 +1287,11 @@ describe("AnalyticsRepository", () => {
 
       // session1 has no cards
 
-      await seedSessionCards(testDb.kysely, session2, [
+      await seedSessionCards(getTestDb().kysely, session2, [
         { cardName: "House of Mirrors", count: 1 },
       ]);
 
-      const results = await repository.compareSessions(
+      const results = await getRepository().compareSessions(
         "session-001",
         "session-002",
       );
@@ -1300,39 +1304,39 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should sort results by absolute difference descending", async () => {
-      const leagueId = await seedLeague(testDb.kysely, {
+      const leagueId = await seedLeague(getTestDb().kysely, {
         id: "league-001",
         game: "poe1",
         name: "Settlers",
       });
 
-      const session1 = await seedSession(testDb.kysely, {
+      const session1 = await seedSession(getTestDb().kysely, {
         id: "session-001",
         game: "poe1",
         leagueId,
         isActive: false,
       });
 
-      const session2 = await seedSession(testDb.kysely, {
+      const session2 = await seedSession(getTestDb().kysely, {
         id: "session-002",
         game: "poe1",
         leagueId,
         isActive: false,
       });
 
-      await seedSessionCards(testDb.kysely, session1, [
+      await seedSessionCards(getTestDb().kysely, session1, [
         { cardName: "Rain of Chaos", count: 50 },
         { cardName: "The Doctor", count: 10 },
         { cardName: "Her Mask", count: 30 },
       ]);
 
-      await seedSessionCards(testDb.kysely, session2, [
+      await seedSessionCards(getTestDb().kysely, session2, [
         { cardName: "Rain of Chaos", count: 52 }, // diff = 2
         { cardName: "The Doctor", count: 0 }, // diff = -10
         { cardName: "Her Mask", count: 35 }, // diff = 5
       ]);
 
-      const results = await repository.compareSessions(
+      const results = await getRepository().compareSessions(
         "session-001",
         "session-002",
       );
@@ -1348,35 +1352,35 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should handle sessions with identical cards", async () => {
-      const leagueId = await seedLeague(testDb.kysely, {
+      const leagueId = await seedLeague(getTestDb().kysely, {
         id: "league-001",
         game: "poe1",
         name: "Settlers",
       });
 
-      const session1 = await seedSession(testDb.kysely, {
+      const session1 = await seedSession(getTestDb().kysely, {
         id: "session-001",
         game: "poe1",
         leagueId,
         isActive: false,
       });
 
-      const session2 = await seedSession(testDb.kysely, {
+      const session2 = await seedSession(getTestDb().kysely, {
         id: "session-002",
         game: "poe1",
         leagueId,
         isActive: false,
       });
 
-      await seedSessionCards(testDb.kysely, session1, [
+      await seedSessionCards(getTestDb().kysely, session1, [
         { cardName: "Rain of Chaos", count: 50 },
       ]);
 
-      await seedSessionCards(testDb.kysely, session2, [
+      await seedSessionCards(getTestDb().kysely, session2, [
         { cardName: "Rain of Chaos", count: 50 },
       ]);
 
-      const results = await repository.compareSessions(
+      const results = await getRepository().compareSessions(
         "session-001",
         "session-002",
       );
@@ -1386,37 +1390,37 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should handle card names with special characters", async () => {
-      const leagueId = await seedLeague(testDb.kysely, {
+      const leagueId = await seedLeague(getTestDb().kysely, {
         id: "league-001",
         game: "poe1",
         name: "Settlers",
       });
 
-      const session1 = await seedSession(testDb.kysely, {
+      const session1 = await seedSession(getTestDb().kysely, {
         id: "session-001",
         game: "poe1",
         leagueId,
         isActive: false,
       });
 
-      const session2 = await seedSession(testDb.kysely, {
+      const session2 = await seedSession(getTestDb().kysely, {
         id: "session-002",
         game: "poe1",
         leagueId,
         isActive: false,
       });
 
-      await seedSessionCards(testDb.kysely, session1, [
+      await seedSessionCards(getTestDb().kysely, session1, [
         { cardName: "The King's Heart", count: 5 },
         { cardName: "Brother's Stash", count: 3 },
       ]);
 
-      await seedSessionCards(testDb.kysely, session2, [
+      await seedSessionCards(getTestDb().kysely, session2, [
         { cardName: "The King's Heart", count: 7 },
         { cardName: "Brother's Stash", count: 1 },
       ]);
 
-      const results = await repository.compareSessions(
+      const results = await getRepository().compareSessions(
         "session-001",
         "session-002",
       );
@@ -1441,12 +1445,15 @@ describe("AnalyticsRepository", () => {
 
   describe("getOccurrenceRatios", () => {
     it("should return empty array when no cards exist", async () => {
-      const results = await repository.getOccurrenceRatios("poe1", "Settlers");
+      const results = await getRepository().getOccurrenceRatios(
+        "poe1",
+        "Settlers",
+      );
       expect(results).toEqual([]);
     });
 
     it("should return ratios ordered by count descending", async () => {
-      await seedCards(testDb.kysely, [
+      await seedCards(getTestDb().kysely, [
         {
           game: "poe1",
           scope: "Settlers",
@@ -1457,7 +1464,10 @@ describe("AnalyticsRepository", () => {
         { game: "poe1", scope: "Settlers", cardName: "Her Mask", count: 300 },
       ]);
 
-      const results = await repository.getOccurrenceRatios("poe1", "Settlers");
+      const results = await getRepository().getOccurrenceRatios(
+        "poe1",
+        "Settlers",
+      );
 
       expect(results).toHaveLength(3);
       expect(results[0].cardName).toBe("Rain of Chaos");
@@ -1466,7 +1476,7 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should calculate correct ratios and percentages", async () => {
-      await seedCards(testDb.kysely, [
+      await seedCards(getTestDb().kysely, [
         {
           game: "poe1",
           scope: "Settlers",
@@ -1477,7 +1487,10 @@ describe("AnalyticsRepository", () => {
         { game: "poe1", scope: "Settlers", cardName: "The Doctor", count: 20 },
       ]);
 
-      const results = await repository.getOccurrenceRatios("poe1", "Settlers");
+      const results = await getRepository().getOccurrenceRatios(
+        "poe1",
+        "Settlers",
+      );
 
       // Total = 100
       expect(results[0].ratio).toBeCloseTo(0.5, 2);
@@ -1489,7 +1502,7 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should have ratios that sum to approximately 1.0", async () => {
-      await seedCards(testDb.kysely, [
+      await seedCards(getTestDb().kysely, [
         {
           game: "poe1",
           scope: "Settlers",
@@ -1501,14 +1514,17 @@ describe("AnalyticsRepository", () => {
         { game: "poe1", scope: "Settlers", cardName: "The Fiend", count: 100 },
       ]);
 
-      const results = await repository.getOccurrenceRatios("poe1", "Settlers");
+      const results = await getRepository().getOccurrenceRatios(
+        "poe1",
+        "Settlers",
+      );
 
       const totalRatio = results.reduce((sum, r) => sum + r.ratio, 0);
       expect(totalRatio).toBeCloseTo(1.0, 5);
     });
 
     it("should have percentages that sum to approximately 100", async () => {
-      await seedCards(testDb.kysely, [
+      await seedCards(getTestDb().kysely, [
         {
           game: "poe1",
           scope: "Settlers",
@@ -1520,14 +1536,17 @@ describe("AnalyticsRepository", () => {
         { game: "poe1", scope: "Settlers", cardName: "The Fiend", count: 100 },
       ]);
 
-      const results = await repository.getOccurrenceRatios("poe1", "Settlers");
+      const results = await getRepository().getOccurrenceRatios(
+        "poe1",
+        "Settlers",
+      );
 
       const totalPercentage = results.reduce((sum, r) => sum + r.percentage, 0);
       expect(totalPercentage).toBeCloseTo(100, 1);
     });
 
     it("should filter by game", async () => {
-      await seedCards(testDb.kysely, [
+      await seedCards(getTestDb().kysely, [
         {
           game: "poe1",
           scope: "Settlers",
@@ -1537,14 +1556,17 @@ describe("AnalyticsRepository", () => {
         { game: "poe2", scope: "Settlers", cardName: "Her Mask", count: 300 },
       ]);
 
-      const results = await repository.getOccurrenceRatios("poe1", "Settlers");
+      const results = await getRepository().getOccurrenceRatios(
+        "poe1",
+        "Settlers",
+      );
 
       expect(results).toHaveLength(1);
       expect(results[0].cardName).toBe("Rain of Chaos");
     });
 
     it("should filter by league name (scope)", async () => {
-      await seedCards(testDb.kysely, [
+      await seedCards(getTestDb().kysely, [
         {
           game: "poe1",
           scope: "Settlers",
@@ -1554,7 +1576,10 @@ describe("AnalyticsRepository", () => {
         { game: "poe1", scope: "Standard", cardName: "Her Mask", count: 300 },
       ]);
 
-      const results = await repository.getOccurrenceRatios("poe1", "Settlers");
+      const results = await getRepository().getOccurrenceRatios(
+        "poe1",
+        "Settlers",
+      );
 
       expect(results).toHaveLength(1);
       expect(results[0].cardName).toBe("Rain of Chaos");
@@ -1563,7 +1588,7 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should return the correct DTO shape", async () => {
-      await seedCards(testDb.kysely, [
+      await seedCards(getTestDb().kysely, [
         {
           game: "poe1",
           scope: "Settlers",
@@ -1572,7 +1597,10 @@ describe("AnalyticsRepository", () => {
         },
       ]);
 
-      const results = await repository.getOccurrenceRatios("poe1", "Settlers");
+      const results = await getRepository().getOccurrenceRatios(
+        "poe1",
+        "Settlers",
+      );
 
       expect(results).toHaveLength(1);
       expect(results[0]).toHaveProperty("cardName");
@@ -1582,7 +1610,7 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should handle very small ratios for rare cards", async () => {
-      await seedCards(testDb.kysely, [
+      await seedCards(getTestDb().kysely, [
         {
           game: "poe1",
           scope: "Settlers",
@@ -1598,7 +1626,10 @@ describe("AnalyticsRepository", () => {
         },
       ]);
 
-      const results = await repository.getOccurrenceRatios("poe1", "Settlers");
+      const results = await getRepository().getOccurrenceRatios(
+        "poe1",
+        "Settlers",
+      );
 
       // The Doctor and House of Mirrors should have very small ratios
       const doctor = results.find((r) => r.cardName === "The Doctor");
@@ -1615,7 +1646,7 @@ describe("AnalyticsRepository", () => {
   describe("cross-feature integration", () => {
     it("should support a full analytics workflow: seed data → query stats → query ratios", async () => {
       // Seed card data
-      await seedCards(testDb.kysely, [
+      await seedCards(getTestDb().kysely, [
         {
           game: "poe1",
           scope: "Settlers",
@@ -1627,13 +1658,13 @@ describe("AnalyticsRepository", () => {
       ]);
 
       // Query league stats
-      const stats = await repository.getLeagueStats("poe1", "Settlers");
+      const stats = await getRepository().getLeagueStats("poe1", "Settlers");
       expect(stats).not.toBeNull();
       expect(stats!.totalCards).toBe(705);
       expect(stats!.uniqueCards).toBe(3);
 
       // Query most common cards
-      const mostCommon = await repository.getMostCommonCards(
+      const mostCommon = await getRepository().getMostCommonCards(
         "poe1",
         "Settlers",
         10,
@@ -1642,14 +1673,17 @@ describe("AnalyticsRepository", () => {
       expect(mostCommon[0].cardName).toBe("Rain of Chaos");
 
       // Query occurrence ratios
-      const ratios = await repository.getOccurrenceRatios("poe1", "Settlers");
+      const ratios = await getRepository().getOccurrenceRatios(
+        "poe1",
+        "Settlers",
+      );
       expect(ratios).toHaveLength(3);
       const totalRatio = ratios.reduce((sum, r) => sum + r.ratio, 0);
       expect(totalRatio).toBeCloseTo(1.0, 5);
     });
 
     it("should support a complete price analysis workflow", async () => {
-      const leagueId = await seedLeague(testDb.kysely, {
+      const leagueId = await seedLeague(getTestDb().kysely, {
         id: "league-001",
         game: "poe1",
         name: "Settlers",
@@ -1657,7 +1691,7 @@ describe("AnalyticsRepository", () => {
       });
 
       // Seed snapshots for price history
-      await seedSnapshot(testDb.kysely, {
+      await seedSnapshot(getTestDb().kysely, {
         id: "snap-001",
         leagueId,
         fetchedAt: "2025-01-05T12:00:00Z",
@@ -1677,7 +1711,7 @@ describe("AnalyticsRepository", () => {
         ],
       });
 
-      await seedSnapshot(testDb.kysely, {
+      await seedSnapshot(getTestDb().kysely, {
         id: "snap-002",
         leagueId,
         fetchedAt: "2025-01-15T12:00:00Z",
@@ -1698,7 +1732,7 @@ describe("AnalyticsRepository", () => {
       });
 
       // Query highest value cards
-      const highestValue = await repository.getHighestValueCards(
+      const highestValue = await getRepository().getHighestValueCards(
         "poe1",
         "Settlers",
         "exchange",
@@ -1709,7 +1743,7 @@ describe("AnalyticsRepository", () => {
       expect(highestValue[0].maxChaosValue).toBe(95000);
 
       // Query price history for The Doctor
-      const priceHistory = await repository.getCardPriceHistory(
+      const priceHistory = await getRepository().getCardPriceHistory(
         "poe1",
         "Settlers",
         "The Doctor",
@@ -1721,14 +1755,14 @@ describe("AnalyticsRepository", () => {
     });
 
     it("should support a session comparison workflow", async () => {
-      const leagueId = await seedLeague(testDb.kysely, {
+      const leagueId = await seedLeague(getTestDb().kysely, {
         id: "league-001",
         game: "poe1",
         name: "Settlers",
       });
 
       // Create two sessions with cards
-      const session1 = await seedSession(testDb.kysely, {
+      const session1 = await seedSession(getTestDb().kysely, {
         id: "session-001",
         game: "poe1",
         leagueId,
@@ -1738,7 +1772,7 @@ describe("AnalyticsRepository", () => {
         isActive: false,
       });
 
-      const session2 = await seedSession(testDb.kysely, {
+      const session2 = await seedSession(getTestDb().kysely, {
         id: "session-002",
         game: "poe1",
         leagueId,
@@ -1748,20 +1782,20 @@ describe("AnalyticsRepository", () => {
         isActive: false,
       });
 
-      await seedSessionCards(testDb.kysely, session1, [
+      await seedSessionCards(getTestDb().kysely, session1, [
         { cardName: "Rain of Chaos", count: 60 },
         { cardName: "Her Mask", count: 30 },
         { cardName: "The Doctor", count: 1 },
       ]);
 
-      await seedSessionCards(testDb.kysely, session2, [
+      await seedSessionCards(getTestDb().kysely, session2, [
         { cardName: "Rain of Chaos", count: 90 },
         { cardName: "Her Mask", count: 40 },
         { cardName: "House of Mirrors", count: 1 },
       ]);
 
       // Compare sessions
-      const comparison = await repository.compareSessions(
+      const comparison = await getRepository().compareSessions(
         "session-001",
         "session-002",
       );
@@ -1784,7 +1818,7 @@ describe("AnalyticsRepository", () => {
       expect(mirrors!.session2Count).toBe(1);
 
       // Count sessions
-      const sessionCount = await repository.getLeagueSessionCount(
+      const sessionCount = await getRepository().getLeagueSessionCount(
         "poe1",
         "Settlers",
       );
@@ -1793,14 +1827,14 @@ describe("AnalyticsRepository", () => {
 
     it("should correctly isolate data between poe1 and poe2", async () => {
       // Seed poe1 data
-      const poe1League = await seedLeague(testDb.kysely, {
+      const poe1League = await seedLeague(getTestDb().kysely, {
         id: "league-poe1",
         game: "poe1",
         name: "Settlers",
         startDate: "2025-01-01T00:00:00Z",
       });
 
-      await seedCards(testDb.kysely, [
+      await seedCards(getTestDb().kysely, [
         {
           game: "poe1",
           scope: "Settlers",
@@ -1809,14 +1843,14 @@ describe("AnalyticsRepository", () => {
         },
       ]);
 
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         id: "session-poe1",
         game: "poe1",
         leagueId: poe1League,
         isActive: false,
       });
 
-      await seedSnapshot(testDb.kysely, {
+      await seedSnapshot(getTestDb().kysely, {
         id: "snap-poe1",
         leagueId: poe1League,
         fetchedAt: "2025-01-15T12:00:00Z",
@@ -1831,18 +1865,18 @@ describe("AnalyticsRepository", () => {
       });
 
       // Seed poe2 data
-      const poe2League = await seedLeague(testDb.kysely, {
+      const poe2League = await seedLeague(getTestDb().kysely, {
         id: "league-poe2",
         game: "poe2",
         name: "Dawn",
         startDate: "2025-01-01T00:00:00Z",
       });
 
-      await seedCards(testDb.kysely, [
+      await seedCards(getTestDb().kysely, [
         { game: "poe2", scope: "Dawn", cardName: "Some PoE2 Card", count: 300 },
       ]);
 
-      await seedSession(testDb.kysely, {
+      await seedSession(getTestDb().kysely, {
         id: "session-poe2",
         game: "poe2",
         leagueId: poe2League,
@@ -1850,17 +1884,20 @@ describe("AnalyticsRepository", () => {
       });
 
       // Verify poe1 queries don't include poe2 data
-      const poe1Stats = await repository.getLeagueStats("poe1", "Settlers");
+      const poe1Stats = await getRepository().getLeagueStats(
+        "poe1",
+        "Settlers",
+      );
       expect(poe1Stats!.totalCards).toBe(500);
       expect(poe1Stats!.uniqueCards).toBe(1);
 
-      const poe1SessionCount = await repository.getLeagueSessionCount(
+      const poe1SessionCount = await getRepository().getLeagueSessionCount(
         "poe1",
         "Settlers",
       );
       expect(poe1SessionCount).toBe(1);
 
-      const poe1HighestValue = await repository.getHighestValueCards(
+      const poe1HighestValue = await getRepository().getHighestValueCards(
         "poe1",
         "Settlers",
         "exchange",
@@ -1870,11 +1907,11 @@ describe("AnalyticsRepository", () => {
       expect(poe1HighestValue[0].cardName).toBe("Rain of Chaos");
 
       // Verify poe2 queries don't include poe1 data
-      const poe2Stats = await repository.getLeagueStats("poe2", "Dawn");
+      const poe2Stats = await getRepository().getLeagueStats("poe2", "Dawn");
       expect(poe2Stats!.totalCards).toBe(300);
       expect(poe2Stats!.uniqueCards).toBe(1);
 
-      const poe2SessionCount = await repository.getLeagueSessionCount(
+      const poe2SessionCount = await getRepository().getLeagueSessionCount(
         "poe2",
         "Dawn",
       );
