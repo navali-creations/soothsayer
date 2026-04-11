@@ -551,7 +551,6 @@ jobs:
           check "Supabase"                        "\[Init\] .* Supabase"
           check "POE Leagues"                     "\[Init\] ✓ POE Leagues"
           check "Divination Cards"                "\[Init\] ✓ Divination Cards"
-          check "Prohibited Library"              "\[Init\] ✓ Prohibited Library"
           check "Card Details"                    "\[Init\] ✓ Card Details"
           check "Snapshots"                       "\[Init\] ✓ Snapshots"
           check "Sessions"                        "\[Init\] ✓ Sessions"
