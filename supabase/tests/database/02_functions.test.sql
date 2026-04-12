@@ -125,6 +125,18 @@ VALUES ('eeee5555-eeee-eeee-eeee-eeeeeeeeeeee', 'dddd4444-dddd-dddd-dddd-ddddddd
 INSERT INTO snapshots (id, league_id, fetched_at, exchange_chaos_to_divine, stash_chaos_to_divine, stacked_deck_chaos_cost)
 VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'dddd4444-dddd-dddd-dddd-dddddddddddd', NOW(), 150.00, 148.00, 1.5);
 
+-- Insert test cards for card_prices tests (Phase B: card_id is NOT NULL)
+INSERT INTO cards (id, game, name) VALUES
+  ('cc000001-0000-0000-0000-000000000001', 'poe1', 'Test Exchange'),
+  ('cc000001-0000-0000-0000-000000000002', 'poe1', 'Test Stash'),
+  ('cc000001-0000-0000-0000-000000000003', 'poe1', 'Test Bad'),
+  ('cc000001-0000-0000-0000-000000000004', 'poe1', 'Confidence Default'),
+  ('cc000001-0000-0000-0000-000000000005', 'poe1', 'Confidence 1'),
+  ('cc000001-0000-0000-0000-000000000006', 'poe1', 'Confidence 2'),
+  ('cc000001-0000-0000-0000-000000000007', 'poe1', 'Confidence 3'),
+  ('cc000001-0000-0000-0000-000000000008', 'poe1', 'Confidence 0'),
+  ('cc000001-0000-0000-0000-000000000009', 'poe1', 'Confidence 4');
+
 -- ═══════════════════════════════════════════════════════════════
 -- TEST: check_and_log_request — allows request when under limit
 -- ═══════════════════════════════════════════════════════════════
@@ -459,20 +471,20 @@ SELECT results_eq(
 -- ═══════════════════════════════════════════════════════════════
 
 SELECT lives_ok(
-  $$INSERT INTO card_prices (snapshot_id, card_name, price_source, chaos_value, divine_value)
-    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'Test Exchange', 'exchange', 10.00, 0.0667)$$,
+  $$INSERT INTO card_prices (snapshot_id, card_id, price_source, chaos_value, divine_value)
+    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'cc000001-0000-0000-0000-000000000001', 'exchange', 10.00, 0.0667)$$,
   'card_prices should accept price_source = exchange'
 );
 
 SELECT lives_ok(
-  $$INSERT INTO card_prices (snapshot_id, card_name, price_source, chaos_value, divine_value)
-    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'Test Stash', 'stash', 10.00, 0.0667)$$,
+  $$INSERT INTO card_prices (snapshot_id, card_id, price_source, chaos_value, divine_value)
+    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'cc000001-0000-0000-0000-000000000002', 'stash', 10.00, 0.0667)$$,
   'card_prices should accept price_source = stash'
 );
 
 SELECT throws_ok(
-  $$INSERT INTO card_prices (snapshot_id, card_name, price_source, chaos_value, divine_value)
-    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'Test Bad', 'invalid_source', 10.00, 0.0667)$$,
+  $$INSERT INTO card_prices (snapshot_id, card_id, price_source, chaos_value, divine_value)
+    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'cc000001-0000-0000-0000-000000000003', 'invalid_source', 10.00, 0.0667)$$,
   '23514', -- check_violation
   NULL,
   'card_prices should reject invalid price_source (CHECK constraint)'
@@ -484,8 +496,8 @@ SELECT throws_ok(
 
 -- Default value: inserting without confidence should default to 1
 SELECT results_eq(
-  $$INSERT INTO card_prices (snapshot_id, card_name, price_source, chaos_value, divine_value)
-    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'Confidence Default', 'exchange', 5.00, 0.03)
+  $$INSERT INTO card_prices (snapshot_id, card_id, price_source, chaos_value, divine_value)
+    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'cc000001-0000-0000-0000-000000000004', 'exchange', 5.00, 0.03)
     RETURNING confidence::int$$,
   ARRAY[1],
   'card_prices.confidence should default to 1 when not specified'
@@ -493,35 +505,35 @@ SELECT results_eq(
 
 -- Accepts valid confidence values: 1, 2, 3
 SELECT lives_ok(
-  $$INSERT INTO card_prices (snapshot_id, card_name, price_source, chaos_value, divine_value, confidence)
-    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'Confidence 1', 'stash', 5.00, 0.03, 1)$$,
+  $$INSERT INTO card_prices (snapshot_id, card_id, price_source, chaos_value, divine_value, confidence)
+    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'cc000001-0000-0000-0000-000000000005', 'stash', 5.00, 0.03, 1)$$,
   'card_prices should accept confidence = 1'
 );
 
 SELECT lives_ok(
-  $$INSERT INTO card_prices (snapshot_id, card_name, price_source, chaos_value, divine_value, confidence)
-    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'Confidence 2', 'stash', 5.00, 0.03, 2)$$,
+  $$INSERT INTO card_prices (snapshot_id, card_id, price_source, chaos_value, divine_value, confidence)
+    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'cc000001-0000-0000-0000-000000000006', 'stash', 5.00, 0.03, 2)$$,
   'card_prices should accept confidence = 2'
 );
 
 SELECT lives_ok(
-  $$INSERT INTO card_prices (snapshot_id, card_name, price_source, chaos_value, divine_value, confidence)
-    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'Confidence 3', 'stash', 5.00, 0.03, 3)$$,
+  $$INSERT INTO card_prices (snapshot_id, card_id, price_source, chaos_value, divine_value, confidence)
+    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'cc000001-0000-0000-0000-000000000007', 'stash', 5.00, 0.03, 3)$$,
   'card_prices should accept confidence = 3'
 );
 
 -- Rejects invalid confidence values
 SELECT throws_ok(
-  $$INSERT INTO card_prices (snapshot_id, card_name, price_source, chaos_value, divine_value, confidence)
-    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'Confidence 0', 'stash', 5.00, 0.03, 0)$$,
+  $$INSERT INTO card_prices (snapshot_id, card_id, price_source, chaos_value, divine_value, confidence)
+    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'cc000001-0000-0000-0000-000000000008', 'stash', 5.00, 0.03, 0)$$,
   '23514', -- check_violation
   NULL,
   'card_prices should reject confidence = 0 (CHECK constraint)'
 );
 
 SELECT throws_ok(
-  $$INSERT INTO card_prices (snapshot_id, card_name, price_source, chaos_value, divine_value, confidence)
-    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'Confidence 4', 'stash', 5.00, 0.03, 4)$$,
+  $$INSERT INTO card_prices (snapshot_id, card_id, price_source, chaos_value, divine_value, confidence)
+    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'cc000001-0000-0000-0000-000000000009', 'stash', 5.00, 0.03, 4)$$,
   '23514', -- check_violation
   NULL,
   'card_prices should reject confidence = 4 (CHECK constraint)'
@@ -720,18 +732,15 @@ SELECT results_eq(
 -- TEST: populate_cards_for_game — populates cards from card_prices
 -- ═══════════════════════════════════════════════════════════════
 
--- The test league 'dddd4444-...' already has card_prices rows from earlier tests.
--- populate_cards_for_game should find them and insert into cards.
--- First, clean any cards that might exist for poe1 from other tests
-DELETE FROM cards WHERE game = 'poe1' AND name IN ('Test Exchange', 'Test Stash', 'Confidence Default', 'Confidence 1', 'Confidence 2', 'Confidence 3');
-
+-- The test cards already exist from the seed data above.
+-- populate_cards_for_game should find them via card_id JOIN but insert 0 new cards.
 SELECT results_eq(
   $$SELECT populate_cards_for_game('poe1')$$,
-  ARRAY[6],
-  'populate_cards_for_game should insert cards from card_prices'
+  ARRAY[0],
+  'populate_cards_for_game should insert 0 new cards (all already exist from seed data)'
 );
 
--- Running again should insert 0 (idempotent)
+-- Running again should still insert 0 (idempotent)
 SELECT results_eq(
   $$SELECT populate_cards_for_game('poe1')$$,
   ARRAY[0],

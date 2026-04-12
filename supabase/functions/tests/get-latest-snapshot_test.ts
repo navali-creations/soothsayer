@@ -50,7 +50,7 @@ function createFunctionRequest(
     body?: unknown;
     bearerToken?: string;
     apikey?: string;
-  } = {},
+  } = {}
 ): Request {
   return createMockRequest(
     "http://localhost:54321/functions/v1/get-latest-snapshot",
@@ -59,7 +59,7 @@ function createFunctionRequest(
       body: options.body,
       bearerToken: options.bearerToken,
       apikey: options.apikey,
-    },
+    }
   );
 }
 
@@ -83,13 +83,13 @@ function setupAuthorizedMocks() {
             exp: 9999999999,
           },
         }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      ),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
   );
 
   // Mock rate limit RPC → allowed
   fetchMock.onUrlContaining(supabaseUrls.rpc("check_and_log_request"), () =>
-    rpcResponse({ allowed: true }),
+    rpcResponse({ allowed: true })
   );
 
   return fetchMock;
@@ -107,7 +107,7 @@ function setupFullQueryChain(
     league?: Record<string, unknown>;
     snapshot?: Record<string, unknown>;
     cardPrices?: Array<Record<string, unknown>>;
-  } = {},
+  } = {}
 ) {
   const league = options.league ?? mockLeague();
   const snapshot = options.snapshot ?? mockSnapshot();
@@ -152,14 +152,14 @@ quietTest(
     const fetchMock = mockFetch();
 
     const req = createOptionsRequest(
-      "http://localhost:54321/functions/v1/get-latest-snapshot",
+      "http://localhost:54321/functions/v1/get-latest-snapshot"
     );
     const resp = await handler(req);
 
     assertEquals(resp.status, 200);
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest("get-latest-snapshot — GET request returns 405", async () => {
@@ -224,7 +224,7 @@ quietTest(
     assertEquals(body.error, "Missing Authorization header");
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest("get-latest-snapshot — invalid JWT returns 401", async () => {
@@ -236,7 +236,7 @@ quietTest("get-latest-snapshot — invalid JWT returns 401", async () => {
       new Response(JSON.stringify({ error: "invalid" }), {
         status: 401,
         headers: { "Content-Type": "application/json" },
-      }),
+      })
   );
 
   const req = createFunctionRequest({
@@ -304,7 +304,7 @@ quietTest(
     assertStringIncludes(body.error, "Missing required parameters");
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest("get-latest-snapshot — empty body returns 400", async () => {
@@ -391,7 +391,7 @@ quietTest(
     // We need at least the first query (poe_leagues) to show that validation passed
     fetchMock.onUrlContaining(
       supabaseUrls.table("poe_leagues"),
-      () => postgrestResponse(null, 406), // single() with no match returns 406 in PostgREST
+      () => postgrestResponse(null, 406) // single() with no match returns 406 in PostgREST
     );
 
     const req = createFunctionRequest({
@@ -410,11 +410,11 @@ quietTest(
     // Should NOT be 400 — it should proceed to the league lookup
     assert(
       resp.status !== 400,
-      `Expected non-400 for valid 80-char league, got ${resp.status}`,
+      `Expected non-400 for valid 80-char league, got ${resp.status}`
     );
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -434,7 +434,7 @@ quietTest(
           apikey: "test-anon-key",
         },
         body: "not valid json at all",
-      },
+      }
     );
     const resp = await handler(req);
 
@@ -450,7 +450,7 @@ quietTest(
     assertStringIncludes(body.error, "Missing required parameters");
 
     fetchMock.restore();
-  },
+  }
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -476,8 +476,8 @@ quietTest("get-latest-snapshot — league not found returns 404", async () => {
         {
           status: 406,
           headers: { "Content-Type": "application/json; charset=utf-8" },
-        },
-      ),
+        }
+      )
   );
 
   const req = createFunctionRequest({
@@ -515,7 +515,7 @@ quietTest(
 
     // League found
     fetchMock.onUrlContaining(supabaseUrls.table("poe_leagues"), () =>
-      postgrestResponse(league),
+      postgrestResponse(league)
     );
 
     // Snapshot query returns no rows (PostgREST .single() → 406)
@@ -532,8 +532,8 @@ quietTest(
           {
             status: 406,
             headers: { "Content-Type": "application/json; charset=utf-8" },
-          },
-        ),
+          }
+        )
     );
 
     const req = createFunctionRequest({
@@ -554,7 +554,7 @@ quietTest(
     assertEquals(body.error, "No snapshot found for this league");
 
     fetchMock.restore();
-  },
+  }
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -572,11 +572,11 @@ quietTest(
     const snapshot = mockSnapshot();
 
     fetchMock.onUrlContaining(supabaseUrls.table("poe_leagues"), () =>
-      postgrestResponse(league),
+      postgrestResponse(league)
     );
 
     fetchMock.onUrlContaining(supabaseUrls.table("snapshots"), () =>
-      postgrestResponse(snapshot),
+      postgrestResponse(snapshot)
     );
 
     // card_prices query fails
@@ -593,8 +593,8 @@ quietTest(
           {
             status: 403,
             headers: { "Content-Type": "application/json; charset=utf-8" },
-          },
-        ),
+          }
+        )
     );
 
     const req = createFunctionRequest({
@@ -615,7 +615,7 @@ quietTest(
     assert(body.error !== undefined, "Should have an error field");
 
     fetchMock.restore();
-  },
+  }
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -640,28 +640,28 @@ quietTest(
     });
     const cardPrices = [
       {
-        card_name: "The Doctor",
+        cards: { name: "The Doctor" },
         price_source: "exchange",
         chaos_value: 1200,
         divine_value: 8.0,
         confidence: 1,
       },
       {
-        card_name: "House of Mirrors",
+        cards: { name: "House of Mirrors" },
         price_source: "exchange",
         chaos_value: 3000,
         divine_value: 20.0,
         confidence: 1,
       },
       {
-        card_name: "The Doctor",
+        cards: { name: "The Doctor" },
         price_source: "stash",
         chaos_value: 1180,
         divine_value: 7.9,
         confidence: 2,
       },
       {
-        card_name: "Rain of Chaos",
+        cards: { name: "Rain of Chaos" },
         price_source: "stash",
         chaos_value: 0.5,
         divine_value: 0.0,
@@ -700,7 +700,7 @@ quietTest(
     assert(body.cardPrices !== undefined, "Response should have cardPrices");
     assert(
       body.cardPrices.exchange !== undefined,
-      "Should have exchange prices",
+      "Should have exchange prices"
     );
     assert(body.cardPrices.stash !== undefined, "Should have stash prices");
 
@@ -711,7 +711,7 @@ quietTest(
     assertEquals(body.cardPrices.exchange["House of Mirrors"].chaosValue, 3000);
     assertEquals(
       body.cardPrices.exchange["House of Mirrors"].divineValue,
-      20.0,
+      20.0
     );
     assertEquals(body.cardPrices.exchange["House of Mirrors"].confidence, 1);
 
@@ -723,7 +723,7 @@ quietTest(
     assertEquals(body.cardPrices.stash["Rain of Chaos"].confidence, 3);
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -736,14 +736,14 @@ quietTest(
     // Card prices without confidence field (simulates old data before column was added)
     const cardPrices = [
       {
-        card_name: "The Nurse",
+        cards: { name: "The Nurse" },
         price_source: "exchange",
         chaos_value: 200,
         divine_value: 1.3,
         // no confidence field
       },
       {
-        card_name: "The Nurse",
+        cards: { name: "The Nurse" },
         price_source: "stash",
         chaos_value: 195,
         divine_value: 1.28,
@@ -773,16 +773,16 @@ quietTest(
     assertEquals(
       body.cardPrices.exchange["The Nurse"].confidence,
       1,
-      "Exchange confidence should default to 1 when missing",
+      "Exchange confidence should default to 1 when missing"
     );
     assertEquals(
       body.cardPrices.stash["The Nurse"].confidence,
       1,
-      "Stash confidence should default to 1 when missing",
+      "Stash confidence should default to 1 when missing"
     );
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -794,21 +794,21 @@ quietTest(
 
     const cardPrices = [
       {
-        card_name: "High Confidence Card",
+        cards: { name: "High Confidence Card" },
         price_source: "stash",
         chaos_value: 500,
         divine_value: 3.3,
         confidence: 1,
       },
       {
-        card_name: "Medium Confidence Card",
+        cards: { name: "Medium Confidence Card" },
         price_source: "stash",
         chaos_value: 100,
         divine_value: 0.67,
         confidence: 2,
       },
       {
-        card_name: "Low Confidence Card",
+        cards: { name: "Low Confidence Card" },
         price_source: "stash",
         chaos_value: 10,
         divine_value: 0.07,
@@ -839,7 +839,7 @@ quietTest(
     assertEquals(body.cardPrices.stash["Low Confidence Card"].confidence, 3);
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -851,7 +851,7 @@ quietTest(
 
     const cardPrices = [
       {
-        card_name: "The Nurse",
+        cards: { name: "The Nurse" },
         price_source: "exchange",
         chaos_value: 200,
         divine_value: 1.3,
@@ -882,7 +882,7 @@ quietTest(
     assertEquals(nurseExchange.stackSize, undefined);
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -914,7 +914,7 @@ quietTest(
     assertEquals(Object.keys(body.cardPrices.stash).length, 0);
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -946,7 +946,7 @@ quietTest(
     assertEquals(body.snapshot.stackedDeckChaosCost, 0);
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -976,7 +976,7 @@ quietTest(
     assertEquals(cacheControl, "private, max-age=14400"); // 4 hours
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest("get-latest-snapshot — response includes CORS headers", async () => {
@@ -1055,13 +1055,13 @@ quietTest(
     // Two rows for the same card name in exchange (shouldn't normally happen, but tests handler behavior)
     const cardPrices = [
       {
-        card_name: "The Doctor",
+        cards: { name: "The Doctor" },
         price_source: "exchange",
         chaos_value: 1200,
         divine_value: 8.0,
       },
       {
-        card_name: "The Doctor",
+        cards: { name: "The Doctor" },
         price_source: "exchange",
         chaos_value: 1300,
         divine_value: 8.7,
@@ -1091,7 +1091,7 @@ quietTest(
     assertEquals(body.cardPrices.exchange["The Doctor"].divineValue, 8.7);
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -1103,13 +1103,13 @@ quietTest(
 
     const cardPrices = [
       {
-        card_name: "The Doctor",
+        cards: { name: "The Doctor" },
         price_source: "exchange",
         chaos_value: 1200,
         divine_value: 8.0,
       },
       {
-        card_name: "The Doctor",
+        cards: { name: "The Doctor" },
         price_source: "stash",
         chaos_value: 1180,
         divine_value: 7.9,
@@ -1141,7 +1141,7 @@ quietTest(
     assertEquals(body.cardPrices.stash["The Doctor"].chaosValue, 1180);
 
     fetchMock.restore();
-  },
+  }
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1166,13 +1166,13 @@ quietTest("get-latest-snapshot — rate limited user gets 429", async () => {
             exp: 9999999999,
           },
         }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      ),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
   );
 
   // Mock rate limit → exceeded
   fetchMock.onUrlContaining(supabaseUrls.rpc("check_and_log_request"), () =>
-    rpcResponse({ allowed: false, reason: "rate_limited" }),
+    rpcResponse({ allowed: false, reason: "rate_limited" })
   );
 
   const req = createFunctionRequest({
@@ -1213,8 +1213,8 @@ quietTest("get-latest-snapshot — banned user gets 403", async () => {
             exp: 9999999999,
           },
         }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      ),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
   );
 
   // Mock rate limit → banned
@@ -1223,7 +1223,7 @@ quietTest("get-latest-snapshot — banned user gets 403", async () => {
       allowed: false,
       reason: "banned",
       detail: "Account suspended for abuse",
-    }),
+    })
   );
 
   const req = createFunctionRequest({
@@ -1261,13 +1261,13 @@ quietTest(
     const cardPrices: Array<Record<string, unknown>> = [];
     for (let i = 0; i < 200; i++) {
       cardPrices.push({
-        card_name: `Card ${i}`,
+        cards: { name: `Card ${i}` },
         price_source: "exchange",
         chaos_value: i * 10,
         divine_value: i * 0.07,
       });
       cardPrices.push({
-        card_name: `Card ${i}`,
+        cards: { name: `Card ${i}` },
         price_source: "stash",
         chaos_value: i * 9.8,
         divine_value: i * 0.065,
@@ -1300,7 +1300,7 @@ quietTest(
     assertEquals(body.cardPrices.stash["Card 99"].chaosValue, 99 * 9.8);
 
     fetchMock.restore();
-  },
+  }
 );
 
 // Cleanup env at the end

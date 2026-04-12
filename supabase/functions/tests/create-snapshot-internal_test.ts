@@ -45,9 +45,25 @@ assert(handler !== null, "Handler should have been captured from Deno.serve");
 
 // ─── Mock Data Factories ─────────────────────────────────────────────────────
 
+/** Generates a deterministic card ID from a card name (e.g., "The Doctor" → "card-id-the-doctor") */
+function cardId(name: string): string {
+  return `card-id-${name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")}`;
+}
+
+/**
+ * Given an array of card names, returns the mock cards table rows
+ * (each with a deterministic `id` and the original `name`).
+ */
+function mockCardRows(names: string[]): Array<{ id: string; name: string }> {
+  return names.map((n) => ({ id: cardId(n), name: n }));
+}
+
 /** Creates a mock poe.ninja exchange API response */
 function mockExchangeResponse(
-  overrides: { items?: unknown[]; lines?: unknown[]; core?: unknown } = {},
+  overrides: { items?: unknown[]; lines?: unknown[]; core?: unknown } = {}
 ) {
   return {
     items: overrides.items ?? [
@@ -153,13 +169,15 @@ function setupFullMocks(
     snapshotInsertResult?: Record<string, unknown>;
     snapshotInsertError?: boolean;
     cardPricesInsertError?: boolean;
-  } = {},
+  } = {}
 ) {
   // Ensure env is set for every test that uses this helper
   const cleanupEnv = setupEnv();
   const fetchMock = mockFetch();
   const insertedSnapshots: Array<{ url: string; body: string }> = [];
   const insertedCardPrices: Array<{ url: string; body: string }> = [];
+  /** Card names seen via the cards upsert, used to return IDs on GET */
+  const upsertedCardNames: string[] = [];
 
   // ── Supabase DB mocks ──
 
@@ -182,7 +200,7 @@ function setupFullMocks(
           {
             status: 406,
             headers: { "Content-Type": "application/json; charset=utf-8" },
-          },
+          }
         );
       }
       const league =
@@ -212,7 +230,7 @@ function setupFullMocks(
             {
               status: 406,
               headers: { "Content-Type": "application/json; charset=utf-8" },
-            },
+            }
           );
         }
         return postgrestResponse(options.recentSnapshot);
@@ -228,7 +246,7 @@ function setupFullMocks(
         {
           status: 406,
           headers: { "Content-Type": "application/json; charset=utf-8" },
-        },
+        }
       );
     },
   });
@@ -265,7 +283,7 @@ function setupFullMocks(
           {
             status: 409,
             headers: { "Content-Type": "application/json; charset=utf-8" },
-          },
+          }
         );
       }
 
@@ -279,6 +297,53 @@ function setupFullMocks(
         created_at: new Date().toISOString(),
       };
       return postgrestResponse(result, 201);
+    },
+  });
+
+  // Cards table — POST (upsert unique card names)
+  fetchMock.addRoute({
+    match: (url, init) => {
+      const isCards = url.includes(supabaseUrls.table("cards"));
+      const method = init?.method?.toUpperCase() ?? "GET";
+      return isCards && method === "POST";
+    },
+    handler: async (input, init) => {
+      let body = "";
+      if (typeof input === "object" && "body" in input) {
+        body = await (input as Request).text();
+      } else if (init?.body) {
+        body =
+          typeof init.body === "string"
+            ? init.body
+            : new TextDecoder().decode(init.body as ArrayBuffer);
+      }
+      try {
+        const rows = JSON.parse(body);
+        if (Array.isArray(rows)) {
+          for (const row of rows) {
+            if (row.name && !upsertedCardNames.includes(row.name)) {
+              upsertedCardNames.push(row.name);
+            }
+          }
+        }
+      } catch {
+        /* ignore parse errors */
+      }
+      return postgrestResponse([], 201);
+    },
+  });
+
+  // Cards table — GET (select id, name for cardIdMap)
+  fetchMock.addRoute({
+    match: (url, init) => {
+      const isCards = url.includes(supabaseUrls.table("cards"));
+      const method = init?.method?.toUpperCase() ?? "GET";
+      return isCards && method === "GET";
+    },
+    handler: () => {
+      // Return deterministic card IDs for every card name that was upserted
+      const rows = mockCardRows(upsertedCardNames);
+      return postgrestResponse(rows);
     },
   });
 
@@ -315,7 +380,7 @@ function setupFullMocks(
           {
             status: 409,
             headers: { "Content-Type": "application/json; charset=utf-8" },
-          },
+          }
         );
       }
       return postgrestResponse([], 201);
@@ -336,7 +401,7 @@ function setupFullMocks(
       }
       return new Response(
         JSON.stringify(options.exchangeData ?? mockExchangeResponse()),
-        { status: 200, headers: { "Content-Type": "application/json" } },
+        { status: 200, headers: { "Content-Type": "application/json" } }
       );
     },
   });
@@ -353,7 +418,7 @@ function setupFullMocks(
       }
       return new Response(
         JSON.stringify(options.currencyData ?? mockCurrencyResponse()),
-        { status: 200, headers: { "Content-Type": "application/json" } },
+        { status: 200, headers: { "Content-Type": "application/json" } }
       );
     },
   });
@@ -368,7 +433,7 @@ function setupFullMocks(
       }
       return new Response(
         JSON.stringify(options.stashData ?? mockStashResponse()),
-        { status: 200, headers: { "Content-Type": "application/json" } },
+        { status: 200, headers: { "Content-Type": "application/json" } }
       );
     },
   });
@@ -395,7 +460,7 @@ quietTest(
 
     const req = createMockRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
-      { method: "POST", body: { game: "poe1", leagueId: "Dawn" } },
+      { method: "POST", body: { game: "poe1", leagueId: "Dawn" } }
     );
     const resp = await handler(req);
 
@@ -405,7 +470,7 @@ quietTest(
 
     fetchMock.restore();
     cleanupEnv();
-  },
+  }
 );
 
 quietTest(
@@ -417,7 +482,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "wrong-secret-value",
+      "wrong-secret-value"
     );
     const resp = await handler(req);
 
@@ -427,7 +492,7 @@ quietTest(
 
     fetchMock.restore();
     cleanupEnv();
-  },
+  }
 );
 
 quietTest(
@@ -438,7 +503,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
 
     const resp = await handler(req);
@@ -447,7 +512,7 @@ quietTest(
     assertEquals(resp.status, 200);
 
     fetchMock.restore();
-  },
+  }
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -463,7 +528,7 @@ quietTest("create-snapshot-internal — GET request returns 405", async () => {
     {
       method: "GET",
       cronSecret: "test-cron-secret",
-    },
+    }
   );
   const resp = await handler(req);
 
@@ -484,7 +549,7 @@ quietTest("create-snapshot-internal — PUT request returns 405", async () => {
     {
       method: "PUT",
       cronSecret: "test-cron-secret",
-    },
+    }
   );
   const resp = await handler(req);
 
@@ -503,7 +568,7 @@ quietTest("create-snapshot-internal — DELETE request returns 405", async () =>
     {
       method: "DELETE",
       cronSecret: "test-cron-secret",
-    },
+    }
   );
   const resp = await handler(req);
 
@@ -526,7 +591,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { leagueId: "Dawn" }, // No game
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -536,7 +601,7 @@ quietTest(
 
     fetchMock.restore();
     cleanupEnv();
-  },
+  }
 );
 
 quietTest(
@@ -548,7 +613,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1" }, // No leagueId
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -558,7 +623,7 @@ quietTest(
 
     fetchMock.restore();
     cleanupEnv();
-  },
+  }
 );
 
 quietTest("create-snapshot-internal — empty body returns 400", async () => {
@@ -568,7 +633,7 @@ quietTest("create-snapshot-internal — empty body returns 400", async () => {
   const req = createInternalRequest(
     "http://localhost:54321/functions/v1/create-snapshot-internal",
     {},
-    "test-cron-secret",
+    "test-cron-secret"
   );
   const resp = await handler(req);
 
@@ -592,7 +657,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "NonExistentLeague" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -601,7 +666,7 @@ quietTest(
     assertEquals(body.error, "League not found");
 
     fetchMock.restore();
-  },
+  }
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -621,7 +686,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -632,7 +697,7 @@ quietTest(
     assertEquals(body.snapshot.id, "recent-snapshot-uuid");
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -645,7 +710,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -656,11 +721,11 @@ quietTest(
     // Should have inserted a new snapshot
     assert(
       insertedSnapshots.length > 0,
-      "Should have inserted at least one snapshot",
+      "Should have inserted at least one snapshot"
     );
 
     fetchMock.restore();
-  },
+  }
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -680,7 +745,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Settlers" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     await handler(req);
 
@@ -688,19 +753,19 @@ quietTest(
       (c) =>
         c.url.includes("poe.ninja") &&
         c.url.includes("exchange") &&
-        c.url.includes("DivinationCard"),
+        c.url.includes("DivinationCard")
     );
     assert(
       exchangeCall !== undefined,
-      "Should have called poe.ninja exchange API",
+      "Should have called poe.ninja exchange API"
     );
     assertStringIncludes(
       exchangeCall!.url,
-      encodeURIComponent("Settlers of Kalguur"),
+      encodeURIComponent("Settlers of Kalguur")
     );
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -717,21 +782,21 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     await handler(req);
 
     const stashCall = fetchMock.calls.find(
       (c) =>
         c.url.includes("poe.ninja") &&
-        c.url.includes("stash/current/item/overview"),
+        c.url.includes("stash/current/item/overview")
     );
     assert(stashCall !== undefined, "Should have called poe.ninja stash API");
     assertStringIncludes(stashCall!.url, "Dawn");
     assertStringIncludes(stashCall!.url, "/poe1/");
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest("create-snapshot-internal — skips stash API for poe2", async () => {
@@ -741,14 +806,14 @@ quietTest("create-snapshot-internal — skips stash API for poe2", async () => {
   const req = createInternalRequest(
     "http://localhost:54321/functions/v1/create-snapshot-internal",
     { game: "poe2", leagueId: "Standard" },
-    "test-cron-secret",
+    "test-cron-secret"
   );
   await handler(req);
 
   const stashCall = fetchMock.calls.find(
     (c) =>
       c.url.includes("poe.ninja") &&
-      c.url.includes("stash/current/item/overview"),
+      c.url.includes("stash/current/item/overview")
   );
   assertEquals(stashCall, undefined, "Should NOT call stash API for poe2");
 
@@ -763,7 +828,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     await handler(req);
 
@@ -771,15 +836,15 @@ quietTest(
       (c) =>
         c.url.includes("poe.ninja") &&
         c.url.includes("exchange") &&
-        c.url.includes("Currency"),
+        c.url.includes("Currency")
     );
     assert(
       currencyCall !== undefined,
-      "Should have called poe.ninja currency API for stacked deck price",
+      "Should have called poe.ninja currency API for stacked deck price"
     );
 
     fetchMock.restore();
-  },
+  }
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -797,7 +862,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -806,7 +871,7 @@ quietTest(
     assertStringIncludes(body.error, "poe.ninja exchange API failed");
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -820,7 +885,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -829,7 +894,7 @@ quietTest(
     assertStringIncludes(body.error, "poe.ninja stash API failed");
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -843,7 +908,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -853,7 +918,7 @@ quietTest(
     assertEquals(body.success, true);
 
     fetchMock.restore();
-  },
+  }
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -870,7 +935,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -882,19 +947,19 @@ quietTest(
     assert(inserted.fetched_at !== undefined, "Should have fetched_at");
     assert(
       typeof inserted.exchange_chaos_to_divine === "number",
-      "Should have exchange ratio",
+      "Should have exchange ratio"
     );
     assert(
       typeof inserted.stash_chaos_to_divine === "number",
-      "Should have stash ratio",
+      "Should have stash ratio"
     );
     assert(
       typeof inserted.stacked_deck_chaos_cost === "number",
-      "Should have stacked deck cost",
+      "Should have stacked deck cost"
     );
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -908,7 +973,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -917,7 +982,7 @@ quietTest(
     assertStringIncludes(body.error, "Failed to create snapshot");
 
     fetchMock.restore();
-  },
+  }
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -945,7 +1010,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -955,17 +1020,26 @@ quietTest(
     const prices = JSON.parse(insertedCardPrices[0].body);
     assert(Array.isArray(prices), "Card prices should be an array");
 
-    // All prices should have the snapshot_id
+    // All prices should have the snapshot_id and card_id, but NOT card_name
     for (const price of prices) {
       assertEquals(
         price.snapshot_id,
         "snapshot-for-prices-test",
-        `Card price for ${price.card_name} should reference the snapshot`,
+        `Card price should reference the snapshot`
+      );
+      assert(
+        typeof price.card_id === "string" && price.card_id.length > 0,
+        "Each card price should have a non-empty card_id"
+      );
+      assertEquals(
+        (price as any).card_name,
+        undefined,
+        "card_name should not be in insert payload"
       );
     }
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -978,7 +1052,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -988,7 +1062,7 @@ quietTest(
     const prices = JSON.parse(insertedCardPrices[0].body);
 
     const exchangePrices = prices.filter(
-      (p: any) => p.price_source === "exchange",
+      (p: any) => p.price_source === "exchange"
     );
     const stashPrices = prices.filter((p: any) => p.price_source === "stash");
 
@@ -996,7 +1070,7 @@ quietTest(
     assert(stashPrices.length > 0, "Should have stash prices");
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -1023,7 +1097,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -1031,14 +1105,19 @@ quietTest(
     const prices = JSON.parse(insertedCardPrices[0].body);
 
     const exchangePrices = prices.filter(
-      (p: any) => p.price_source === "exchange",
+      (p: any) => p.price_source === "exchange"
     );
     // Only "The Doctor" should be included (Cards category)
     assertEquals(exchangePrices.length, 1);
-    assertEquals(exchangePrices[0].card_name, "The Doctor");
+    assertEquals(exchangePrices[0].card_id, cardId("The Doctor"));
+    assertEquals(
+      (exchangePrices[0] as any).card_name,
+      undefined,
+      "card_name should not be in insert payload"
+    );
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -1051,7 +1130,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -1060,19 +1139,24 @@ quietTest(
 
     const prices = JSON.parse(insertedCardPrices[0].body);
     const exchangePrices = prices.filter(
-      (p: any) => p.price_source === "exchange",
+      (p: any) => p.price_source === "exchange"
     );
 
     for (const price of exchangePrices) {
       assertEquals(
         price.confidence,
         1,
-        `Exchange price for ${price.card_name} should always be high confidence (1)`,
+        `Exchange price for card_id=${price.card_id} should always be high confidence (1)`
+      );
+      assertEquals(
+        (price as any).card_name,
+        undefined,
+        "card_name should not be in insert payload"
       );
     }
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -1107,7 +1191,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -1116,13 +1200,18 @@ quietTest(
     const stashPrices = prices.filter((p: any) => p.price_source === "stash");
 
     const hom = stashPrices.find(
-      (p: any) => p.card_name === "House of Mirrors",
+      (p: any) => p.card_id === cardId("House of Mirrors")
     );
     assert(hom !== undefined, "Should have House of Mirrors");
     assertEquals(hom.confidence, 1);
+    assertEquals(
+      (hom as any).card_name,
+      undefined,
+      "card_name should not be in insert payload"
+    );
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -1157,7 +1246,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -1165,12 +1254,19 @@ quietTest(
     const prices = JSON.parse(insertedCardPrices[0].body);
     const stashPrices = prices.filter((p: any) => p.price_source === "stash");
 
-    const ul = stashPrices.find((p: any) => p.card_name === "Unrequited Love");
+    const ul = stashPrices.find(
+      (p: any) => p.card_id === cardId("Unrequited Love")
+    );
     assert(ul !== undefined, "Should have Unrequited Love");
     assertEquals(ul.confidence, 2);
+    assertEquals(
+      (ul as any).card_name,
+      undefined,
+      "card_name should not be in insert payload"
+    );
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -1221,7 +1317,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -1229,16 +1325,30 @@ quietTest(
     const prices = JSON.parse(insertedCardPrices[0].body);
     const stashPrices = prices.filter((p: any) => p.price_source === "stash");
 
-    const nooks = stashPrices.find((p: any) => p.card_name === "Nook's Crown");
+    const nooks = stashPrices.find(
+      (p: any) => p.card_id === cardId("Nook's Crown")
+    );
     assert(nooks !== undefined, "Should have Nook's Crown");
     assertEquals(nooks.confidence, 3);
+    assertEquals(
+      (nooks as any).card_name,
+      undefined,
+      "card_name should not be in insert payload"
+    );
 
-    const history = stashPrices.find((p: any) => p.card_name === "History");
+    const history = stashPrices.find(
+      (p: any) => p.card_id === cardId("History")
+    );
     assert(history !== undefined, "Should have History");
     assertEquals(history.confidence, 3);
+    assertEquals(
+      (history as any).card_name,
+      undefined,
+      "card_name should not be in insert payload"
+    );
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -1264,7 +1374,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -1273,13 +1383,18 @@ quietTest(
     const stashPrices = prices.filter((p: any) => p.price_source === "stash");
 
     const card = stashPrices.find(
-      (p: any) => p.card_name === "No Sparkline Card",
+      (p: any) => p.card_id === cardId("No Sparkline Card")
     );
     assert(card !== undefined, "Should have No Sparkline Card");
     assertEquals(card.confidence, 3);
+    assertEquals(
+      (card as any).card_name,
+      undefined,
+      "card_name should not be in insert payload"
+    );
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -1304,7 +1419,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -1313,17 +1428,22 @@ quietTest(
 
     const stashPrices = prices.filter((p: any) => p.price_source === "stash");
     const wretched = stashPrices.find(
-      (p: any) => p.card_name === "The Wretched",
+      (p: any) => p.card_id === cardId("The Wretched")
     );
     assert(wretched !== undefined, "Should have The Wretched in stash prices");
     assertEquals(
+      (wretched as any).card_name,
+      undefined,
+      "card_name should not be in insert payload"
+    );
+    assertEquals(
       wretched.stack_size,
       undefined,
-      "stack_size should not be present",
+      "stack_size should not be present"
     );
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -1337,7 +1457,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -1346,7 +1466,7 @@ quietTest(
     assertStringIncludes(body.error, "Failed to insert card prices");
 
     fetchMock.restore();
-  },
+  }
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1361,7 +1481,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -1373,31 +1493,31 @@ quietTest(
     assert(body.snapshot.id !== undefined, "Snapshot should have id");
     assert(
       body.snapshot.leagueId !== undefined,
-      "Snapshot should have leagueId",
+      "Snapshot should have leagueId"
     );
     assert(
       body.snapshot.fetchedAt !== undefined,
-      "Snapshot should have fetchedAt",
+      "Snapshot should have fetchedAt"
     );
     assert(
       body.snapshot.exchangeChaosToDivine !== undefined,
-      "Snapshot should have exchangeChaosToDivine",
+      "Snapshot should have exchangeChaosToDivine"
     );
     assert(
       body.snapshot.stashChaosToDivine !== undefined,
-      "Snapshot should have stashChaosToDivine",
+      "Snapshot should have stashChaosToDivine"
     );
     assert(
       body.snapshot.stackedDeckChaosCost !== undefined,
-      "Snapshot should have stackedDeckChaosCost",
+      "Snapshot should have stackedDeckChaosCost"
     );
     assert(
       typeof body.snapshot.cardCount === "number",
-      "Snapshot should have cardCount as number",
+      "Snapshot should have cardCount as number"
     );
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -1421,7 +1541,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -1436,7 +1556,7 @@ quietTest(
     assertEquals(body.snapshot.stackedDeckChaosCost, 2.0);
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -1448,7 +1568,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -1461,7 +1581,7 @@ quietTest(
     assert(body.snapshot.cardCount > 0, "cardCount should be greater than 0");
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -1472,7 +1592,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -1480,7 +1600,7 @@ quietTest(
     assertEquals(resp.headers.get("Content-Type"), "application/json");
 
     fetchMock.restore();
-  },
+  }
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1504,7 +1624,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -1515,7 +1635,7 @@ quietTest(
     assertEquals(inserted.exchange_chaos_to_divine, 100); // 1/0.01 = 100
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -1535,7 +1655,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -1546,7 +1666,7 @@ quietTest(
     assertEquals(inserted.exchange_chaos_to_divine, 100); // Default fallback
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -1572,7 +1692,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -1583,7 +1703,7 @@ quietTest(
     assertEquals(inserted.stash_chaos_to_divine, 150); // 300/2
 
     fetchMock.restore();
-  },
+  }
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1603,7 +1723,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -1614,7 +1734,7 @@ quietTest(
     assertEquals(inserted.stacked_deck_chaos_cost, 2.5);
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -1636,7 +1756,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -1647,7 +1767,7 @@ quietTest(
     assertEquals(inserted.stacked_deck_chaos_cost, 0);
 
     fetchMock.restore();
-  },
+  }
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1671,7 +1791,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -1680,7 +1800,7 @@ quietTest(
     assertEquals(body.snapshot.cardCount, 0);
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -1696,7 +1816,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -1709,7 +1829,7 @@ quietTest(
     }
 
     fetchMock.restore();
-  },
+  }
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1734,7 +1854,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -1743,19 +1863,24 @@ quietTest(
 
     const prices = JSON.parse(insertedCardPrices[0].body);
     const exchangePrices = prices.filter(
-      (p: any) => p.price_source === "exchange",
+      (p: any) => p.price_source === "exchange"
     );
 
     assert(exchangePrices.length >= 1);
     const testCard = exchangePrices.find(
-      (p: any) => p.card_name === "Test Card",
+      (p: any) => p.card_id === cardId("Test Card")
     );
     assert(testCard !== undefined, "Should have Test Card");
     assertEquals(testCard.chaos_value, 400);
     assertEquals(testCard.divine_value, 2.0); // 400 / 200, rounded to 2 decimals
+    assertEquals(
+      (testCard as any).card_name,
+      undefined,
+      "card_name should not be in insert payload"
+    );
 
     fetchMock.restore();
-  },
+  }
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1770,7 +1895,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -1782,7 +1907,7 @@ quietTest(
     assertStringIncludes(acah!, "authorization");
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -1793,7 +1918,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "NonExistent" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     const resp = await handler(req);
 
@@ -1801,7 +1926,7 @@ quietTest(
     assertEquals(resp.headers.get("Content-Type"), "application/json");
 
     fetchMock.restore();
-  },
+  }
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1817,7 +1942,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Standard" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     await handler(req);
 
@@ -1825,16 +1950,16 @@ quietTest(
       (c) =>
         c.url.includes("poe.ninja") &&
         c.url.includes("exchange") &&
-        c.url.includes("DivinationCard"),
+        c.url.includes("DivinationCard")
     );
     assert(exchangeCall !== undefined, "Should have called exchange API");
     assertStringIncludes(
       exchangeCall!.url,
-      "poe.ninja/poe1/api/economy/exchange",
+      "poe.ninja/poe1/api/economy/exchange"
     );
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -1846,7 +1971,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe2", leagueId: "Standard" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     await handler(req);
 
@@ -1854,16 +1979,16 @@ quietTest(
       (c) =>
         c.url.includes("poe.ninja") &&
         c.url.includes("exchange") &&
-        c.url.includes("DivinationCard"),
+        c.url.includes("DivinationCard")
     );
     assert(exchangeCall !== undefined, "Should have called exchange API");
     assertStringIncludes(
       exchangeCall!.url,
-      "poe.ninja/poe2/api/economy/exchange",
+      "poe.ninja/poe2/api/economy/exchange"
     );
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -1875,7 +2000,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     await handler(req);
 
@@ -1883,16 +2008,16 @@ quietTest(
       (c) =>
         c.url.includes("poe.ninja") &&
         c.url.includes("exchange") &&
-        c.url.includes("Currency"),
+        c.url.includes("Currency")
     );
     assert(currencyCall !== undefined, "Should have called currency API");
     assertStringIncludes(
       currencyCall!.url,
-      "poe.ninja/poe1/api/economy/exchange",
+      "poe.ninja/poe1/api/economy/exchange"
     );
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -1904,7 +2029,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe2", leagueId: "Standard" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     await handler(req);
 
@@ -1912,16 +2037,16 @@ quietTest(
       (c) =>
         c.url.includes("poe.ninja") &&
         c.url.includes("exchange") &&
-        c.url.includes("Currency"),
+        c.url.includes("Currency")
     );
     assert(currencyCall !== undefined, "Should have called currency API");
     assertStringIncludes(
       currencyCall!.url,
-      "poe.ninja/poe2/api/economy/exchange",
+      "poe.ninja/poe2/api/economy/exchange"
     );
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -1933,21 +2058,21 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     await handler(req);
 
     const stashCall = fetchMock.calls.find(
       (c) =>
         c.url.includes("poe.ninja") &&
-        c.url.includes("stash/current/item/overview"),
+        c.url.includes("stash/current/item/overview")
     );
     assert(stashCall !== undefined, "Should have called stash API for poe1");
     assertStringIncludes(stashCall!.url, "/poe1/");
     assertStringIncludes(stashCall!.url, "DivinationCard");
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -1959,23 +2084,23 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe2", leagueId: "Standard" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     await handler(req);
 
     const stashCall = fetchMock.calls.find(
       (c) =>
         c.url.includes("poe.ninja") &&
-        c.url.includes("stash/current/item/overview"),
+        c.url.includes("stash/current/item/overview")
     );
     assertEquals(
       stashCall,
       undefined,
-      "Should NOT have called stash API for poe2",
+      "Should NOT have called stash API for poe2"
     );
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -1987,7 +2112,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe2", leagueId: "Standard" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     await handler(req);
 
@@ -1996,13 +2121,13 @@ quietTest(
       (c) =>
         c.url.includes("poe.ninja") &&
         c.url.includes("exchange") &&
-        c.url.includes("DivinationCard"),
+        c.url.includes("DivinationCard")
     );
     assert(exchangeCall !== undefined, "Should have called exchange API");
     assertStringIncludes(exchangeCall!.url, "/poe2/");
     assert(
       !exchangeCall!.url.includes("/poe1/"),
-      "Exchange URL should NOT contain /poe1/ when game is poe2",
+      "Exchange URL should NOT contain /poe1/ when game is poe2"
     );
 
     // Currency API: should use /poe2/ path prefix
@@ -2010,25 +2135,25 @@ quietTest(
       (c) =>
         c.url.includes("poe.ninja") &&
         c.url.includes("exchange") &&
-        c.url.includes("Currency"),
+        c.url.includes("Currency")
     );
     assert(currencyCall !== undefined, "Should have called currency API");
     assertStringIncludes(currencyCall!.url, "/poe2/");
     assert(
       !currencyCall!.url.includes("/poe1/"),
-      "Currency URL should NOT contain /poe1/ when game is poe2",
+      "Currency URL should NOT contain /poe1/ when game is poe2"
     );
 
     // Stash API: should NOT be called for poe2
     const stashCall = fetchMock.calls.find(
       (c) =>
         c.url.includes("poe.ninja") &&
-        c.url.includes("stash/current/item/overview"),
+        c.url.includes("stash/current/item/overview")
     );
     assertEquals(stashCall, undefined, "Should NOT call stash API for poe2");
 
     fetchMock.restore();
-  },
+  }
 );
 
 quietTest(
@@ -2040,7 +2165,7 @@ quietTest(
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
       { game: "poe1", leagueId: "Settlers" },
-      "test-cron-secret",
+      "test-cron-secret"
     );
     await handler(req);
 
@@ -2050,36 +2175,36 @@ quietTest(
 
     assert(
       ninjaUrls.length >= 3,
-      "Should have made at least 3 poe.ninja calls (exchange, currency, stash)",
+      "Should have made at least 3 poe.ninja calls (exchange, currency, stash)"
     );
 
     for (const url of ninjaUrls) {
       assert(
         !url.includes("/poe2/"),
-        `poe1 game should not produce poe2 in URL: ${url}`,
+        `poe1 game should not produce poe2 in URL: ${url}`
       );
     }
 
     // Verify exchange and currency use /poe1/ prefix
     const exchangeCall = ninjaUrls.find(
-      (u) => u.includes("exchange") && u.includes("DivinationCard"),
+      (u) => u.includes("exchange") && u.includes("DivinationCard")
     );
     assert(exchangeCall !== undefined, "Should have exchange call");
     assertStringIncludes(exchangeCall!, "/poe1/");
 
     const currencyCall = ninjaUrls.find(
-      (u) => u.includes("exchange") && u.includes("Currency"),
+      (u) => u.includes("exchange") && u.includes("Currency")
     );
     assert(currencyCall !== undefined, "Should have currency call");
     assertStringIncludes(currencyCall!, "/poe1/");
 
     // Verify stash uses /poe1/ prefix and correct path
     const stashCall = ninjaUrls.find((u) =>
-      u.includes("stash/current/item/overview"),
+      u.includes("stash/current/item/overview")
     );
     assert(stashCall !== undefined, "Should have stash call");
     assertStringIncludes(stashCall!, "/poe1/");
 
     fetchMock.restore();
-  },
+  }
 );

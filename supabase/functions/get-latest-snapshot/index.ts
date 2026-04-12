@@ -40,7 +40,7 @@ Deno.serve(async (req: Request) => {
     {
       global: { headers: { Authorization: `Bearer ${token}` } },
       auth: { persistSession: false, autoRefreshToken: false },
-    },
+    }
   );
 
   const { data: league, error: leagueError } = await supabase
@@ -56,7 +56,7 @@ Deno.serve(async (req: Request) => {
   const { data: snapshot, error: snapshotError } = await supabase
     .from("snapshots")
     .select(
-      "id, league_id, fetched_at, exchange_chaos_to_divine, stash_chaos_to_divine, stacked_deck_chaos_cost, stacked_deck_max_volume_rate",
+      "id, league_id, fetched_at, exchange_chaos_to_divine, stash_chaos_to_divine, stacked_deck_chaos_cost, stacked_deck_max_volume_rate"
     )
     .eq("league_id", league.id)
     .order("fetched_at", { ascending: false })
@@ -71,7 +71,9 @@ Deno.serve(async (req: Request) => {
 
   const { data: cardPrices, error: pricesError } = await supabase
     .from("card_prices")
-    .select("card_name, price_source, chaos_value, divine_value, confidence")
+    .select(
+      "card_id, cards(name), price_source, chaos_value, divine_value, confidence"
+    )
     .eq("snapshot_id", snapshot.id);
 
   if (pricesError)
@@ -81,14 +83,16 @@ Deno.serve(async (req: Request) => {
   const stashPrices: Record<string, any> = {};
 
   for (const price of cardPrices ?? []) {
+    const cardName = (price as any).cards?.name;
+    if (!cardName) continue; // skip orphaned prices
+
     const priceData = {
       chaosValue: price.chaos_value,
       divineValue: price.divine_value,
       confidence: price.confidence ?? 1,
     };
-    if (price.price_source === "exchange")
-      exchangePrices[price.card_name] = priceData;
-    else stashPrices[price.card_name] = priceData;
+    if (price.price_source === "exchange") exchangePrices[cardName] = priceData;
+    else stashPrices[cardName] = priceData;
   }
 
   return responseJson({
