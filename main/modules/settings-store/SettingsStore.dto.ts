@@ -40,6 +40,7 @@ export interface UserSettingsDTO {
   telemetryCrashReporting: boolean;
   telemetryUsageAnalytics: boolean;
   csvExportPath: string | null;
+  communityUploadsEnabled: boolean;
 }
 
 /**

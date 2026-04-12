@@ -238,6 +238,9 @@ export interface UserSettingsTable {
   // CSV export settings
   csv_export_path: string | null; // User-configurable directory for CSV exports
 
+  // Community uploads
+  community_uploads_enabled: number; // SQLite boolean (0 or 1) — default 1 (enabled)
+
   // Metadata
   created_at: ColumnType<string, string | undefined, never>;
   updated_at: ColumnType<string, string | undefined, string | undefined>;

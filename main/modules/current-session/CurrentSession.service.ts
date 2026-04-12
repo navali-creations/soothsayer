@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import type BetterSqlite3 from "better-sqlite3";
 import { BrowserWindow, ipcMain } from "electron";
 
+import { CommunityUploadService } from "~/main/modules/community-upload";
 import { DatabaseService } from "~/main/modules/database";
 import { PerformanceLoggerService } from "~/main/modules/performance-logger";
 import { RarityInsightsService } from "~/main/modules/rarity-insights/RarityInsights.service";
@@ -561,6 +562,11 @@ class CurrentSessionService {
       activeSession.league,
       endedAt,
     );
+
+    // Community upload (fire-and-forget — must not block session teardown)
+    CommunityUploadService.getInstance()
+      .uploadOnSessionEnd(game, activeSession.league)
+      .catch(() => {}); // Error already logged inside uploadOnSessionEnd
 
     // Clear recent drops (processed_ids table) and re-sync the in-memory set
     // so it matches the pruned DB (otherwise it grows unboundedly across sessions)

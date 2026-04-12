@@ -95,6 +95,7 @@ export const createSettingsSlice: StateCreator<
     telemetryCrashReporting: false,
     telemetryUsageAnalytics: false,
     csvExportPath: null,
+    communityUploadsEnabled: true,
 
     // Additional state
     isLoading: false,
@@ -306,6 +307,8 @@ export const createSettingsSlice: StateCreator<
           settings.overlayToolbarFontSize = newSettings.overlayToolbarFontSize;
           settings.mainWindowBounds = newSettings.mainWindowBounds;
           settings.csvExportPath = newSettings.csvExportPath;
+          settings.communityUploadsEnabled =
+            newSettings.communityUploadsEnabled;
         },
         false,
         "settingsSlice/setSettings",

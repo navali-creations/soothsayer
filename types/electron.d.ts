@@ -2,6 +2,7 @@ import type { AnalyticsAPI } from "../main/modules/analytics/Analytics.api";
 import type { AppAPI } from "../main/modules/app/App.api";
 import type { AppSetupAPI } from "../main/modules/app-setup/AppSetup.api";
 import type { CardDetailsAPI } from "../main/modules/card-details/CardDetails.api";
+import type { CommunityUploadAPI } from "../main/modules/community-upload/CommunityUpload.api";
 import type { CsvAPI } from "../main/modules/csv/Csv.api";
 import type { CurrentSessionAPI } from "../main/modules/current-session/CurrentSession.api";
 import type { DataStoreAPI } from "../main/modules/data-store/DataStore.api";
@@ -24,6 +25,7 @@ declare global {
   interface Window {
     electron: {
       selectFile: (options: any) => Promise<string | undefined>;
+      communityUpload: typeof CommunityUploadAPI;
       csv: typeof CsvAPI;
       cardDetails: typeof CardDetailsAPI;
       session: typeof CurrentSessionAPI;

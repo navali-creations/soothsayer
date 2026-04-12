@@ -15,6 +15,7 @@ import {
   AppService,
   CardDetailsService,
   ClientLogReaderService,
+  CommunityUploadService,
   CsvService,
   CurrentSessionService,
   DatabaseService,
@@ -259,7 +260,11 @@ class MainWindowService {
     SessionsService.getInstance();
     console.log("[Init] ✓ Sessions");
 
-    // 8. Analytics (depends on database)
+    // 8. Community upload (depends on database + settings + supabase)
+    CommunityUploadService.getInstance();
+    console.log("[Init] ✓ Community Upload");
+
+    // 9. Analytics (depends on database)
     AnalyticsService.getInstance();
     console.log("[Init] ✓ Analytics");
 

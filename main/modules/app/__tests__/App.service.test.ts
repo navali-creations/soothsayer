@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getIpcHandler } from "~/main/modules/__test-utils__/mock-factories";
+import {
+  createBarrelMock,
+  getIpcHandler,
+} from "~/main/modules/__test-utils__/mock-factories";
 import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
 
 // ─── Hoisted mock functions (available inside vi.mock factories) ─────────────
@@ -83,55 +86,52 @@ vi.mock("../../../package.json", () => ({
 }));
 
 // ─── Mock ~/main/modules barrel ──────────────────────────────────────────────
-vi.mock("~/main/modules", () => ({
-  CurrentSessionService: {
-    getInstance: vi.fn(() => ({
-      isSessionActive: mockCurrentSessionIsActive,
-      stopSession: mockCurrentSessionStopSession,
-    })),
-  },
-  DatabaseService: {
-    getInstance: vi.fn(() => ({
-      optimize: mockDatabaseOptimize,
-      close: mockDatabaseClose,
-    })),
-  },
-  MainWindowService: {
-    getInstance: vi.fn(() => ({
-      show: vi.fn(),
-    })),
-  },
-  OverlayService: {
-    getInstance: vi.fn(() => ({
-      destroy: mockOverlayDestroy,
-    })),
-  },
-  PoeProcessService: {
-    getInstance: vi.fn(() => ({
-      stop: mockPoeProcessStop,
-    })),
-  },
-  SettingsStoreService: {
-    getInstance: vi.fn(() => ({
-      get: mockSettingsGet,
-    })),
-  },
-  SettingsKey: {
-    AppExitAction: "appExitAction",
-    AppOpenAtLogin: "appOpenAtLogin",
-    AppOpenAtLoginMinimized: "appOpenAtLoginMinimized",
-  },
-  SnapshotService: {
-    getInstance: vi.fn(() => ({
-      stopAllAutoRefresh: mockSnapshotStopAllAutoRefresh,
-    })),
-  },
-  TrayService: {
-    getInstance: vi.fn(() => ({
-      destroyTray: mockTrayDestroyTray,
-    })),
-  },
-}));
+vi.mock("~/main/modules", () =>
+  createBarrelMock({
+    CurrentSessionService: {
+      getInstance: vi.fn(() => ({
+        isSessionActive: mockCurrentSessionIsActive,
+        stopSession: mockCurrentSessionStopSession,
+      })),
+    },
+    DatabaseService: {
+      getInstance: vi.fn(() => ({
+        optimize: mockDatabaseOptimize,
+        close: mockDatabaseClose,
+      })),
+    },
+    MainWindowService: {
+      getInstance: vi.fn(() => ({
+        show: vi.fn(),
+      })),
+    },
+    OverlayService: {
+      getInstance: vi.fn(() => ({
+        destroy: mockOverlayDestroy,
+      })),
+    },
+    PoeProcessService: {
+      getInstance: vi.fn(() => ({
+        stop: mockPoeProcessStop,
+      })),
+    },
+    SettingsStoreService: {
+      getInstance: vi.fn(() => ({
+        get: mockSettingsGet,
+      })),
+    },
+    SnapshotService: {
+      getInstance: vi.fn(() => ({
+        stopAllAutoRefresh: mockSnapshotStopAllAutoRefresh,
+      })),
+    },
+    TrayService: {
+      getInstance: vi.fn(() => ({
+        destroyTray: mockTrayDestroyTray,
+      })),
+    },
+  }),
+);
 
 import { AppChannel } from "../App.channels";
 // ─── Import under test (after mocks) ────────────────────────────────────────

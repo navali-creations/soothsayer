@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
           persistSession: false,
           autoRefreshToken: false,
         },
-      }
+      },
     );
 
     // 1. Find league
@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
     }
 
     console.log(
-      `${tag} Resolved league: id=${league.id}, name="${league.name}"`
+      `${tag} Resolved league: id=${league.id}, name="${league.name}"`,
     );
 
     // // 2. Check for recent snapshot (< 10 minutes) to prevent duplicates
@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
 
     if (recentSnapshot) {
       console.log(
-        `${tag} Recent snapshot exists (${recentSnapshot.fetched_at}), skipping...`
+        `${tag} Recent snapshot exists (${recentSnapshot.fetched_at}), skipping...`,
       );
       return responseJson({
         status: 200,
@@ -93,14 +93,14 @@ Deno.serve(async (req) => {
     // 3. Fetch from poe.ninja exchange API
     const gamePrefix = game === "poe2" ? "poe2" : "poe1";
     const exchangeUrl = `https://poe.ninja/${gamePrefix}/api/economy/exchange/current/overview?league=${encodeURIComponent(
-      league.name
+      league.name,
     )}&type=DivinationCard`;
     console.log(`${tag} Fetching exchange API: ${exchangeUrl}`);
     const exchangeResponse = await fetch(exchangeUrl);
 
     if (!exchangeResponse.ok) {
       throw new Error(
-        `poe.ninja exchange API failed: ${exchangeResponse.statusText}`
+        `poe.ninja exchange API failed: ${exchangeResponse.statusText}`,
       );
     }
 
@@ -138,19 +138,19 @@ Deno.serve(async (req) => {
     let stackedDeckMaxVolumeRate: number | null = null;
     try {
       const currencyUrl = `https://poe.ninja/${gamePrefix}/api/economy/exchange/current/overview?league=${encodeURIComponent(
-        league.name
+        league.name,
       )}&type=Currency`;
       console.log(`${tag} Fetching currency API: ${currencyUrl}`);
       const currencyResponse = await fetch(currencyUrl);
 
       if (!currencyResponse.ok) {
         console.warn(
-          `${tag} Currency API failed: ${currencyResponse.statusText}, defaulting stacked deck cost to 0`
+          `${tag} Currency API failed: ${currencyResponse.statusText}, defaulting stacked deck cost to 0`,
         );
       } else {
         const currencyData = await currencyResponse.json();
         const stackedDeck = currencyData.lines?.find(
-          (line: any) => line.id === "stacked-deck"
+          (line: any) => line.id === "stacked-deck",
         );
         stackedDeckChaosCost = stackedDeck?.primaryValue || 0;
         const rawMaxVolumeRate = stackedDeck?.maxVolumeRate ?? null;
@@ -159,13 +159,13 @@ Deno.serve(async (req) => {
         console.log(
           `${tag} Stacked Deck cost: ${stackedDeckChaosCost} chaos, maxVolumeRate: ${
             stackedDeckMaxVolumeRate ?? "N/A"
-          } decks/divine`
+          } decks/divine`,
         );
       }
     } catch (currencyError) {
       console.warn(
         `${tag} Failed to fetch stacked deck price, defaulting to 0:`,
-        currencyError
+        currencyError,
       );
     }
 
@@ -177,14 +177,14 @@ Deno.serve(async (req) => {
       console.log(`${tag} Skipping stash API (not available for poe2)`);
     } else {
       const stashUrl = `https://poe.ninja/poe1/api/economy/stash/current/item/overview?league=${encodeURIComponent(
-        league.name
+        league.name,
       )}&type=DivinationCard`;
       console.log(`${tag} Fetching stash API: ${stashUrl}`);
       const stashResponse = await fetch(stashUrl);
 
       if (!stashResponse.ok) {
         throw new Error(
-          `poe.ninja stash API failed: ${stashResponse.statusText}`
+          `poe.ninja stash API failed: ${stashResponse.statusText}`,
         );
       }
 
@@ -199,7 +199,7 @@ Deno.serve(async (req) => {
       }
 
       console.log(
-        `${tag} Stash chaos-to-divine ratio: ${stashChaosToDivineRatio}`
+        `${tag} Stash chaos-to-divine ratio: ${stashChaosToDivineRatio}`,
       );
 
       // Compute confidence level from poe.ninja stash data.
@@ -235,7 +235,7 @@ Deno.serve(async (req) => {
       }
 
       console.log(
-        `${tag} Fetched ${stashCardPrices.length} stash prices — confidence: ${confidenceCounts[1]} high, ${confidenceCounts[2]} medium, ${confidenceCounts[3]} low`
+        `${tag} Fetched ${stashCardPrices.length} stash prices — confidence: ${confidenceCounts[1]} high, ${confidenceCounts[2]} medium, ${confidenceCounts[3]} low`,
       );
     }
 
@@ -282,7 +282,7 @@ Deno.serve(async (req) => {
 
       if (cardsUpsertError) {
         console.warn(
-          `${tag} Failed to upsert cards (non-fatal): ${cardsUpsertError.message}`
+          `${tag} Failed to upsert cards (non-fatal): ${cardsUpsertError.message}`,
         );
       }
     }
@@ -302,17 +302,17 @@ Deno.serve(async (req) => {
 
     if (cardIdError) {
       console.warn(
-        `${tag} Failed to fetch card IDs (non-fatal): ${cardIdError.message}`
+        `${tag} Failed to fetch card IDs (non-fatal): ${cardIdError.message}`,
       );
     }
 
     console.log(
-      `${tag} Upserted ${uniqueCardNames.length} card names, resolved ${cardIdMap.size} card IDs`
+      `${tag} Upserted ${uniqueCardNames.length} card names, resolved ${cardIdMap.size} card IDs`,
     );
 
     if (uniqueCardNames.length > 0 && cardIdMap.size === 0) {
       console.error(
-        `${tag} ALERT: Had ${uniqueCardNames.length} card names but resolved 0 card IDs — all prices will be skipped for this snapshot`
+        `${tag} ALERT: Had ${uniqueCardNames.length} card names but resolved 0 card IDs — all prices will be skipped for this snapshot`,
       );
     }
 
@@ -346,7 +346,7 @@ Deno.serve(async (req) => {
 
     if (skippedCount > 0) {
       console.warn(
-        `${tag} Skipped ${skippedCount} prices due to missing card_id`
+        `${tag} Skipped ${skippedCount} prices due to missing card_id`,
       );
     }
 
@@ -360,13 +360,13 @@ Deno.serve(async (req) => {
     }
 
     console.log(
-      `${tag} Inserted ${allCardPrices.length} card prices (${exchangeCardPrices.length} exchange + ${stashCardPrices.length} stash)`
+      `${tag} Inserted ${allCardPrices.length} card prices (${exchangeCardPrices.length} exchange + ${stashCardPrices.length} stash)`,
     );
 
     console.log(
       `${tag} ✅ Snapshot complete: id=${snapshot.id}, cards=${
         allCardPrices.length
-      }${skippedCount > 0 ? `, skipped=${skippedCount}` : ""}`
+      }${skippedCount > 0 ? `, skipped=${skippedCount}` : ""}`,
     );
 
     return responseJson({

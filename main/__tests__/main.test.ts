@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createBarrelMock } from "~/main/modules/__test-utils__/mock-factories";
+
 // ─── Hoisted mock functions (available inside vi.mock factories) ─────────────
 const {
   mockSquirrelStartup,
@@ -139,7 +141,7 @@ vi.mock("~/main/modules", () => {
   };
   mockAppGetInstance.mockReturnValue(mockAppInstance);
 
-  return {
+  return createBarrelMock({
     AppService: { getInstance: mockAppGetInstance },
     DiagLogService: { getInstance: vi.fn(() => ({})) },
     MainWindowService: { getInstance: mockMainWindowGetInstance },
@@ -151,7 +153,7 @@ vi.mock("~/main/modules", () => {
     ProfitForecastService: { getInstance: mockProfitForecastGetInstance },
     StorageService: { getInstance: mockStorageServiceGetInstance },
     SupabaseClientService: { getInstance: mockSupabaseGetInstance },
-  };
+  });
 });
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

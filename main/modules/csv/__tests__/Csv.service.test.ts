@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  createBarrelMock,
   createDatabaseServiceMock,
   createDataStoreServiceMock,
   createElectronMock,
@@ -149,29 +150,28 @@ vi.mock("~/main/modules/sessions", () => ({
 }));
 
 // ─── Mock the barrel import path ─────────────────────────────────────────────
-vi.mock("~/main/modules", () => ({
-  DataStoreService: {
-    getInstance: vi.fn(() => ({
-      getAllTimeStats: mockGetAllTimeStats,
-      getLeagueStats: mockGetLeagueStats,
-    })),
-  },
-  SettingsStoreService: {
-    getInstance: vi.fn(() => ({
-      get: mockSettingsGet,
-      set: mockSettingsSet,
-      getAllSettings: vi.fn(),
-    })),
-  },
-  SettingsKey: {
-    ActiveGame: "selectedGame",
-  },
-  SessionsService: {
-    getInstance: vi.fn(() => ({
-      getSessionById: mockGetSessionById,
-    })),
-  },
-}));
+vi.mock("~/main/modules", () =>
+  createBarrelMock({
+    DataStoreService: {
+      getInstance: vi.fn(() => ({
+        getAllTimeStats: mockGetAllTimeStats,
+        getLeagueStats: mockGetLeagueStats,
+      })),
+    },
+    SettingsStoreService: {
+      getInstance: vi.fn(() => ({
+        get: mockSettingsGet,
+        set: mockSettingsSet,
+        getAllSettings: vi.fn(),
+      })),
+    },
+    SessionsService: {
+      getInstance: vi.fn(() => ({
+        getSessionById: mockGetSessionById,
+      })),
+    },
+  }),
+);
 
 import { CsvChannel } from "../Csv.channels";
 import { CsvService } from "../Csv.service";

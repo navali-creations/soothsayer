@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getIpcHandler } from "~/main/modules/__test-utils__/mock-factories";
+import {
+  createBarrelMock,
+  getIpcHandler,
+} from "~/main/modules/__test-utils__/mock-factories";
 
 // ─── Hoisted mock functions (available inside vi.mock factories) ─────────────
 const {
@@ -59,15 +62,7 @@ vi.mock("~/main/pollers/PoeProcessPoller", () => {
 });
 
 // ─── Mock barrel imports that PoeProcessService uses from ~/main/modules ─────
-vi.mock("~/main/modules", () => ({
-  PoeProcessChannel: {
-    Start: "poe-process:start",
-    Stop: "poe-process:stop",
-    IsRunning: "poe-process:is-running",
-    GetState: "poe-process:get-state",
-    GetError: "poe-process:get-error",
-  },
-}));
+vi.mock("~/main/modules", () => createBarrelMock());
 
 import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
 

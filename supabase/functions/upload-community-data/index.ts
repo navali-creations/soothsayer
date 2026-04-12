@@ -13,7 +13,9 @@ interface CardEntry {
 }
 
 interface RequestBody {
-  league_id: string;
+  league_id?: string;
+  league_name?: string;
+  game?: "poe1" | "poe2";
   device_id: string;
   ggg_access_token?: string;
   cards: CardEntry[];
@@ -82,8 +84,34 @@ function validateBody(
 
   const b = body as Record<string, unknown>;
 
-  if (typeof b.league_id !== "string" || !UUID_RE.test(b.league_id)) {
+  const hasLeagueId = typeof b.league_id === "string" && b.league_id.length > 0;
+  const hasLeagueName =
+    typeof b.league_name === "string" && b.league_name.length > 0;
+  const hasGame = b.game === "poe1" || b.game === "poe2";
+
+  if (!hasLeagueId && !hasLeagueName) {
+    return {
+      ok: false,
+      error: "Either league_id (UUID) or league_name + game must be provided",
+    };
+  }
+
+  if (hasLeagueId && !UUID_RE.test(b.league_id as string)) {
     return { ok: false, error: "league_id must be a valid UUID string" };
+  }
+
+  if (hasLeagueName && !hasGame) {
+    return {
+      ok: false,
+      error: 'game must be "poe1" or "poe2" when league_name is provided',
+    };
+  }
+
+  if (hasLeagueName && (b.league_name as string).length > 200) {
+    return {
+      ok: false,
+      error: "league_name exceeds maximum length of 200 characters",
+    };
   }
 
   if (typeof b.device_id !== "string" || !UUID_RE.test(b.device_id)) {
@@ -135,7 +163,9 @@ function validateBody(
   return {
     ok: true,
     data: {
-      league_id: b.league_id as string,
+      league_id: hasLeagueId ? (b.league_id as string) : undefined,
+      league_name: hasLeagueName ? (b.league_name as string) : undefined,
+      game: hasGame ? (b.game as "poe1" | "poe2") : undefined,
       device_id: b.device_id as string,
       ggg_access_token:
         typeof b.ggg_access_token === "string" &&
@@ -185,6 +215,8 @@ Deno.serve(async (req: Request) => {
 
   const {
     league_id: leagueId,
+    league_name: leagueName,
+    game: gameParam,
     device_id: deviceId,
     ggg_access_token,
     cards,
@@ -198,11 +230,29 @@ Deno.serve(async (req: Request) => {
   );
 
   // 4. Verify league exists
-  const { data: league, error: leagueError } = await supabase
-    .from("poe_leagues")
-    .select("id, game")
-    .eq("id", leagueId)
-    .single();
+  let league: { id: string; game: string } | null = null;
+  let leagueError: unknown = null;
+
+  if (leagueId) {
+    // Lookup by UUID
+    const result = await supabase
+      .from("poe_leagues")
+      .select("id, game")
+      .eq("id", leagueId)
+      .single();
+    league = result.data;
+    leagueError = result.error;
+  } else if (leagueName && gameParam) {
+    // Lookup by GGG league name + game
+    const result = await supabase
+      .from("poe_leagues")
+      .select("id, game")
+      .eq("league_id", leagueName)
+      .eq("game", gameParam)
+      .single();
+    league = result.data;
+    leagueError = result.error;
+  }
 
   if (leagueError || !league) {
     return responseJson({ status: 404, body: { error: "League not found" } });

@@ -674,6 +674,9 @@ class DatabaseService {
           -- CSV export settings
           csv_export_path TEXT,
 
+          -- Community uploads
+          community_uploads_enabled INTEGER NOT NULL DEFAULT 1,
+
           -- Metadata
           created_at TEXT NOT NULL DEFAULT (datetime('now')),
           updated_at TEXT NOT NULL DEFAULT (datetime('now'))

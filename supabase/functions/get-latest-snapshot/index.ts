@@ -40,7 +40,7 @@ Deno.serve(async (req: Request) => {
     {
       global: { headers: { Authorization: `Bearer ${token}` } },
       auth: { persistSession: false, autoRefreshToken: false },
-    }
+    },
   );
 
   const { data: league, error: leagueError } = await supabase
@@ -56,7 +56,7 @@ Deno.serve(async (req: Request) => {
   const { data: snapshot, error: snapshotError } = await supabase
     .from("snapshots")
     .select(
-      "id, league_id, fetched_at, exchange_chaos_to_divine, stash_chaos_to_divine, stacked_deck_chaos_cost, stacked_deck_max_volume_rate"
+      "id, league_id, fetched_at, exchange_chaos_to_divine, stash_chaos_to_divine, stacked_deck_chaos_cost, stacked_deck_max_volume_rate",
     )
     .eq("league_id", league.id)
     .order("fetched_at", { ascending: false })
@@ -72,7 +72,7 @@ Deno.serve(async (req: Request) => {
   const { data: cardPrices, error: pricesError } = await supabase
     .from("card_prices")
     .select(
-      "card_id, cards(name), price_source, chaos_value, divine_value, confidence"
+      "card_id, cards(name), price_source, chaos_value, divine_value, confidence",
     )
     .eq("snapshot_id", snapshot.id);
 

@@ -99,7 +99,7 @@ export interface DatabaseServiceMockOverrides {
  * ```
  */
 export function createDatabaseServiceMock(
-  overrides: DatabaseServiceMockOverrides = {},
+  overrides: DatabaseServiceMockOverrides = {}
 ) {
   return {
     DatabaseService: {
@@ -130,7 +130,7 @@ export interface PerformanceLoggerMockOverrides {
  * ```
  */
 export function createPerformanceLoggerMock(
-  overrides: PerformanceLoggerMockOverrides = {},
+  overrides: PerformanceLoggerMockOverrides = {}
 ) {
   return {
     PerformanceLoggerService: {
@@ -172,7 +172,7 @@ export interface SettingsStoreMockOverrides {
  * ```
  */
 export function createSettingsStoreMock(
-  overrides: SettingsStoreMockOverrides = {},
+  overrides: SettingsStoreMockOverrides = {}
 ) {
   return {
     SettingsStoreService: {
@@ -213,6 +213,7 @@ export function createSettingsStoreMock(
       TelemetryCrashReporting: "telemetryCrashReporting",
       TelemetryUsageAnalytics: "telemetryUsageAnalytics",
       CsvExportPath: "csvExportPath",
+      CommunityUploadsEnabled: "communityUploadsEnabled",
       ...(overrides.settingsKeys ?? {}),
     },
   };
@@ -239,7 +240,7 @@ export interface DataStoreServiceMockOverrides {
  * ```
  */
 export function createDataStoreServiceMock(
-  overrides: DataStoreServiceMockOverrides = {},
+  overrides: DataStoreServiceMockOverrides = {}
 ) {
   return {
     DataStoreService: {
@@ -273,7 +274,7 @@ export interface SnapshotServiceMockOverrides {
  * ```
  */
 export function createSnapshotServiceMock(
-  overrides: SnapshotServiceMockOverrides = {},
+  overrides: SnapshotServiceMockOverrides = {}
 ) {
   return {
     SnapshotService: {
@@ -319,10 +320,7 @@ export interface IpcValidationMockOverrides {
   mockAssertEnumArray?: MockFn;
   mockHandleValidationError?: MockFn;
   /** A custom IpcValidationError class to include in the mock module */
-  MockIpcValidationError?: new (
-    channel: string,
-    detail: string,
-  ) => Error;
+  MockIpcValidationError?: new (channel: string, detail: string) => Error;
 }
 
 /**
@@ -344,7 +342,7 @@ export interface IpcValidationMockOverrides {
  * ```
  */
 export function createIpcValidationMock(
-  overrides: IpcValidationMockOverrides = {},
+  overrides: IpcValidationMockOverrides = {}
 ) {
   return {
     assertGameType: overrides.mockAssertGameType ?? vi.fn(),
@@ -431,7 +429,7 @@ export interface SupabaseClientMockOverrides {
  * ```
  */
 export function createSupabaseClientMock(
-  overrides: SupabaseClientMockOverrides = {},
+  overrides: SupabaseClientMockOverrides = {}
 ) {
   return {
     SupabaseClientService: {
@@ -466,15 +464,173 @@ export function createSupabaseClientMock(
  */
 export function getIpcHandler(
   mockIpcHandle: MockFn,
-  channel: string,
+  channel: string
 ): (...args: any[]) => any {
   const calls = mockIpcHandle.mock.calls as [string, (...args: any[]) => any][];
   const call = calls.find(([ch]) => ch === channel);
   if (!call) {
     const registered = calls.map(([ch]) => ch).join(", ");
     throw new Error(
-      `ipcMain.handle was not called with "${channel}". Registered: ${registered}`,
+      `ipcMain.handle was not called with "${channel}". Registered: ${registered}`
     );
   }
   return call[1];
+}
+
+// ─── Barrel Mock ("~/main/modules") ──────────────────────────────────────────
+
+/**
+ * Default no-op service mock: `{ getInstance: vi.fn(() => ({})) }`.
+ * Used for every Service export that the test doesn't care about.
+ */
+function stubService() {
+  return { getInstance: vi.fn(() => ({})) };
+}
+
+/**
+ * Creates a complete mock for the `~/main/modules` barrel export.
+ *
+ * Every Service is stubbed with `{ getInstance: vi.fn(() => ({})) }` by
+ * default, every Channel enum gets its real string values, and `SettingsKey`
+ * mirrors the real enum. Tests supply **only** the overrides they care about.
+ *
+ * Adding a new module to the app? Add one line here — zero changes in test
+ * files.
+ *
+ * @example
+ * ```ts
+ * // Minimal — everything is a no-op stub:
+ * vi.mock("~/main/modules", () => createBarrelMock());
+ *
+ * // With overrides for the things you actually test:
+ * const { mockSettingsGet } = vi.hoisted(() => ({ mockSettingsGet: vi.fn() }));
+ * vi.mock("~/main/modules", () =>
+ *   createBarrelMock({
+ *     SettingsStoreService: {
+ *       getInstance: vi.fn(() => ({ get: mockSettingsGet })),
+ *     },
+ *   }),
+ * );
+ * ```
+ */
+export function createBarrelMock(
+  overrides: Record<string, unknown> = {}
+): Record<string, unknown> {
+  const defaults: Record<string, unknown> = {
+    // ── Services ───────────────────────────────────────────────────────
+    AnalyticsService: stubService(),
+    AppService: stubService(),
+    AppSetupService: stubService(),
+    CardDetailsService: stubService(),
+    ClientLogReaderService: stubService(),
+    CommunityUploadService: stubService(),
+    CsvService: stubService(),
+    CurrentSessionService: stubService(),
+    DatabaseService: stubService(),
+    DataStoreService: stubService(),
+    DiagLogService: stubService(),
+    DivinationCardsService: stubService(),
+    LoggerService: {
+      createLogger: vi.fn(() => ({
+        log: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        debug: vi.fn(),
+      })),
+    },
+    MainWindowService: stubService(),
+    OverlayService: stubService(),
+    PerformanceLoggerService: {
+      getInstance: vi.fn(() => ({
+        log: vi.fn(),
+        startTimer: vi.fn(() => null),
+        startTimers: vi.fn(() => null),
+        time: vi.fn(),
+      })),
+    },
+    PoeLeaguesService: stubService(),
+    PoeProcessService: stubService(),
+    ProfitForecastService: stubService(),
+    RarityInsightsService: stubService(),
+    SentryService: stubService(),
+    SessionsService: stubService(),
+    SettingsStoreService: {
+      getInstance: vi.fn(() => ({
+        get: vi.fn(),
+        set: vi.fn(),
+        getAllSettings: vi.fn(),
+      })),
+    },
+    SnapshotService: stubService(),
+    StorageService: stubService(),
+    SupabaseClientService: {
+      getInstance: vi.fn(() => ({
+        isConfigured: vi.fn(),
+        configure: vi.fn(),
+        callEdgeFunction: vi.fn(),
+        getLatestSnapshot: vi.fn(),
+      })),
+    },
+    TrayService: stubService(),
+    UpdaterService: stubService(),
+
+    // ── Channel enums ──────────────────────────────────────────────────
+    // Only channels that tests reference as values (not just types) need
+    // to appear here. Add more as needed.
+    MainWindowChannel: {
+      OnAppStart: "on-app-restart",
+      OnClose: "on-close",
+      ReadyToShow: "ready-to-show",
+      Close: "main-window:close",
+      Maximize: "main-window:maximize",
+      Minimize: "main-window:minimize",
+      Unmaximize: "main-window:unmaximize",
+      IsMaximized: "main-window:is-maximized",
+    },
+    PoeProcessChannel: {
+      Start: "poe-process:start",
+      Stop: "poe-process:stop",
+      IsRunning: "poe-process:is-running",
+      GetState: "poe-process:get-state",
+      GetError: "poe-process:get-error",
+    },
+
+    // ── SettingsKey (mirrors real values) ──────────────────────────────
+    SettingsKey: {
+      AppExitAction: "appExitAction",
+      AppOpenAtLogin: "appOpenAtLogin",
+      AppOpenAtLoginMinimized: "appOpenAtLoginMinimized",
+      OnboardingDismissedBeacons: "onboardingDismissedBeacons",
+      OverlayBounds: "overlayBounds",
+      Poe1ClientTxtPath: "poe1ClientTxtPath",
+      SelectedPoe1League: "poe1SelectedLeague",
+      Poe1PriceSource: "poe1PriceSource",
+      Poe2ClientTxtPath: "poe2ClientTxtPath",
+      SelectedPoe2League: "poe2SelectedLeague",
+      Poe2PriceSource: "poe2PriceSource",
+      ActiveGame: "selectedGame",
+      InstalledGames: "installedGames",
+      SetupCompleted: "setupCompleted",
+      SetupStep: "setupStep",
+      SetupVersion: "setupVersion",
+      AudioEnabled: "audioEnabled",
+      AudioVolume: "audioVolume",
+      AudioRarity1Path: "audioRarity1Path",
+      AudioRarity2Path: "audioRarity2Path",
+      AudioRarity3Path: "audioRarity3Path",
+      RaritySource: "raritySource",
+      SelectedFilterId: "selectedFilterId",
+      LastSeenAppVersion: "lastSeenAppVersion",
+      OverlayFontSize: "overlayFontSize",
+      OverlayToolbarFontSize: "overlayToolbarFontSize",
+      MainWindowBounds: "mainWindowBounds",
+      TelemetryCrashReporting: "telemetryCrashReporting",
+      TelemetryUsageAnalytics: "telemetryUsageAnalytics",
+      CsvExportPath: "csvExportPath",
+      CommunityUploadsEnabled: "communityUploadsEnabled",
+    },
+  };
+
+  return { ...defaults, ...overrides };
 }

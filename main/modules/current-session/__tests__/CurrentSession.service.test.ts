@@ -140,6 +140,15 @@ vi.mock("~/main/modules/settings-store", () =>
   }),
 );
 
+// ─── Mock CommunityUploadService ─────────────────────────────────────────────
+vi.mock("~/main/modules/community-upload", () => ({
+  CommunityUploadService: {
+    getInstance: vi.fn(() => ({
+      uploadOnSessionEnd: vi.fn().mockResolvedValue(undefined),
+    })),
+  },
+}));
+
 import {
   createTestDatabase,
   seedDivinationCard,

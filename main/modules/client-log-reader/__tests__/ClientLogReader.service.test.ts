@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  createBarrelMock,
   createDatabaseServiceMock,
   createElectronMock,
   createPerformanceLoggerMock,
@@ -111,25 +112,33 @@ vi.mock("~/main/modules/settings-store", () =>
 );
 
 // Also mock the barrel import path used by the service
-vi.mock("~/main/modules", () => ({
-  CurrentSessionService: {
-    getInstance: vi.fn(() => ({
-      isSessionActive: mockIsSessionActive,
-      getActiveSessionInfo: mockGetActiveSessionInfo,
-      getAllProcessedIds: mockGetAllProcessedIds,
-      addCard: mockAddCard,
-    })),
-  },
-  ...createPerformanceLoggerMock({
-    mockLog: mockPerfLog,
-    mockStartTimer: mockPerfStartTimer,
-    mockStartTimers: mockPerfStartTimers,
+vi.mock("~/main/modules", () =>
+  createBarrelMock({
+    CurrentSessionService: {
+      getInstance: vi.fn(() => ({
+        isSessionActive: mockIsSessionActive,
+        getActiveSessionInfo: mockGetActiveSessionInfo,
+        getAllProcessedIds: mockGetAllProcessedIds,
+        addCard: mockAddCard,
+      })),
+    },
+    PerformanceLoggerService: {
+      getInstance: vi.fn(() => ({
+        log: mockPerfLog,
+        startTimer: mockPerfStartTimer,
+        startTimers: mockPerfStartTimers,
+        time: vi.fn(),
+      })),
+    },
+    SettingsStoreService: {
+      getInstance: vi.fn(() => ({
+        get: mockSettingsGet,
+        set: mockSettingsSet,
+        getAllSettings: vi.fn(),
+      })),
+    },
   }),
-  ...createSettingsStoreMock({
-    mockGet: mockSettingsGet,
-    mockSet: mockSettingsSet,
-  }),
-}));
+);
 
 // ─── Mock the parseCards util ────────────────────────────────────────────────
 vi.mock("../utils", () => ({

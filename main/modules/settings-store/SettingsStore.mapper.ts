@@ -60,6 +60,7 @@ export function toUserSettingsDTO(row: UserSettingsRow): UserSettingsDTO {
       ? JSON.parse(row.main_window_bounds)
       : null,
     csvExportPath: row.csv_export_path ?? null,
+    communityUploadsEnabled: Boolean(row.community_uploads_enabled),
   };
 }
 
@@ -142,6 +143,7 @@ export function toDBKey(key: keyof UserSettingsDTO): keyof UserSettingsTable {
     overlayToolbarFontSize: "overlay_toolbar_font_size",
     mainWindowBounds: "main_window_bounds",
     csvExportPath: "csv_export_path",
+    communityUploadsEnabled: "community_uploads_enabled",
   };
   return mapping[key];
 }

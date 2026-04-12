@@ -2,6 +2,8 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createBarrelMock } from "~/main/modules/__test-utils__/mock-factories";
+
 // ─── Hoisted mock functions (available inside vi.mock factories) ─────────────
 const {
   mockTrayConstructor,
@@ -97,18 +99,20 @@ vi.mock("electron", () => {
 });
 
 // ─── Mock MainWindowService ──────────────────────────────────────────────────
-vi.mock("~/main/modules", () => ({
-  MainWindowService: {
-    getInstance: vi.fn(() => ({
-      show: mockMainWindowShow,
-    })),
-  },
-  AppService: {
-    getInstance: vi.fn(() => ({
-      quit: mockAppServiceQuit,
-    })),
-  },
-}));
+vi.mock("~/main/modules", () =>
+  createBarrelMock({
+    AppService: {
+      getInstance: vi.fn(() => ({
+        quit: mockAppServiceQuit,
+      })),
+    },
+    MainWindowService: {
+      getInstance: vi.fn(() => ({
+        show: mockMainWindowShow,
+      })),
+    },
+  }),
+);
 
 import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
 

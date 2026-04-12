@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  createBarrelMock,
   createDatabaseServiceMock,
   createElectronMock,
   createIpcValidationMock,
@@ -59,20 +60,17 @@ vi.mock("~/main/modules/supabase", () =>
 );
 
 // ─── Mock SettingsStoreService ───────────────────────────────────────────────
-vi.mock("~/main/modules", () => ({
-  SettingsStoreService: {
-    getInstance: vi.fn(() => ({
-      get: mockSettingsGet,
-      set: mockSettingsSet,
-      getAllSettings: vi.fn(),
-    })),
-  },
-  SettingsKey: {
-    ActiveGame: "activeGame",
-    SelectedPoe1League: "selectedPoe1League",
-    SelectedPoe2League: "selectedPoe2League",
-  },
-}));
+vi.mock("~/main/modules", () =>
+  createBarrelMock({
+    SettingsStoreService: {
+      getInstance: vi.fn(() => ({
+        get: mockSettingsGet,
+        set: mockSettingsSet,
+        getAllSettings: vi.fn(),
+      })),
+    },
+  }),
+);
 
 // ─── Mock PoeLeaguesRepository ───────────────────────────────────────────────
 vi.mock("../PoeLeagues.repository", () => ({
@@ -258,8 +256,8 @@ describe("PoeLeaguesService — IPC handlers", () => {
       );
       const result = await handler({});
 
-      expect(mockSettingsGet).toHaveBeenCalledWith("activeGame");
-      expect(mockSettingsGet).toHaveBeenCalledWith("selectedPoe1League");
+      expect(mockSettingsGet).toHaveBeenCalledWith("selectedGame");
+      expect(mockSettingsGet).toHaveBeenCalledWith("poe1SelectedLeague");
       expect(result).toBe("Settlers");
     });
 
@@ -274,8 +272,8 @@ describe("PoeLeaguesService — IPC handlers", () => {
       );
       const result = await handler({});
 
-      expect(mockSettingsGet).toHaveBeenCalledWith("activeGame");
-      expect(mockSettingsGet).toHaveBeenCalledWith("selectedPoe2League");
+      expect(mockSettingsGet).toHaveBeenCalledWith("selectedGame");
+      expect(mockSettingsGet).toHaveBeenCalledWith("poe2SelectedLeague");
       expect(result).toBe("Standard");
     });
 
@@ -333,7 +331,7 @@ describe("PoeLeaguesService — IPC handlers", () => {
       );
       const result = await handler({});
 
-      expect(mockSettingsGet).toHaveBeenCalledWith("selectedPoe2League");
+      expect(mockSettingsGet).toHaveBeenCalledWith("poe2SelectedLeague");
       expect(result).toBe("FallbackLeague");
     });
   });
@@ -356,9 +354,9 @@ describe("PoeLeaguesService — IPC handlers", () => {
         PoeLeaguesChannel.SelectLeague,
         40,
       );
-      expect(mockSettingsGet).toHaveBeenCalledWith("activeGame");
+      expect(mockSettingsGet).toHaveBeenCalledWith("selectedGame");
       expect(mockSettingsSet).toHaveBeenCalledWith(
-        "selectedPoe1League",
+        "poe1SelectedLeague",
         "Settlers",
       );
       expect(result).toEqual({ success: true, league: "Settlers" });
@@ -374,7 +372,7 @@ describe("PoeLeaguesService — IPC handlers", () => {
       const result = await handler({}, "Standard");
 
       expect(mockSettingsSet).toHaveBeenCalledWith(
-        "selectedPoe2League",
+        "poe2SelectedLeague",
         "Standard",
       );
       expect(result).toEqual({ success: true, league: "Standard" });
@@ -390,7 +388,7 @@ describe("PoeLeaguesService — IPC handlers", () => {
       const result = await handler({}, "MyLeague");
 
       expect(mockSettingsSet).toHaveBeenCalledWith(
-        "selectedPoe2League",
+        "poe2SelectedLeague",
         "MyLeague",
       );
       expect(result).toEqual({ success: true, league: "MyLeague" });

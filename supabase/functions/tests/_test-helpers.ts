@@ -14,7 +14,7 @@
 
 export type FetchHandler = (
   input: string | URL | Request,
-  init?: RequestInit
+  init?: RequestInit,
 ) => Response | Promise<Response>;
 
 export type FetchRoute = {
@@ -46,8 +46,8 @@ export function mockFetch() {
       typeof input === "string"
         ? input
         : input instanceof URL
-        ? input.toString()
-        : input.url;
+          ? input.toString()
+          : input.url;
 
     calls.push({ url, init });
 
@@ -59,11 +59,11 @@ export function mockFetch() {
 
     // No matching route — return a descriptive error instead of throwing
     console.warn(
-      `[mockFetch] Unhandled request: ${init?.method ?? "GET"} ${url}`
+      `[mockFetch] Unhandled request: ${init?.method ?? "GET"} ${url}`,
     );
     return new Response(
       JSON.stringify({ error: `Unhandled mock fetch: ${url}` }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
+      { status: 500, headers: { "Content-Type": "application/json" } },
     );
   };
 
@@ -198,7 +198,7 @@ type MockRequestOptions = {
  */
 export function createMockRequest(
   url = "http://localhost:54321/functions/v1/test",
-  options: MockRequestOptions = {}
+  options: MockRequestOptions = {},
 ): Request {
   const {
     method = "POST",
@@ -246,7 +246,7 @@ export function createMockRequest(
 export function createAuthorizedRequest(
   url: string,
   body: unknown,
-  token = "test-jwt-token"
+  token = "test-jwt-token",
 ): Request {
   return createMockRequest(url, {
     method: "POST",
@@ -262,7 +262,7 @@ export function createAuthorizedRequest(
 export function createInternalRequest(
   url: string,
   body: unknown,
-  cronSecret = "test-cron-secret"
+  cronSecret = "test-cron-secret",
 ): Request {
   return createMockRequest(url, {
     method: "POST",
@@ -275,7 +275,7 @@ export function createInternalRequest(
  * Shorthand for a CORS preflight request.
  */
 export function createOptionsRequest(
-  url = "http://localhost:54321/functions/v1/test"
+  url = "http://localhost:54321/functions/v1/test",
 ): Request {
   return createMockRequest(url, { method: "OPTIONS" });
 }
@@ -312,7 +312,7 @@ export function stubDenoServe() {
   // deno-lint-ignore no-explicit-any
   (Deno as any).serve = (
     handlerOrOptions: ServeHandler | Record<string, unknown>,
-    maybeHandler?: ServeHandler
+    maybeHandler?: ServeHandler,
   ) => {
     if (typeof handlerOrOptions === "function") {
       capturedHandler = handlerOrOptions;
@@ -352,7 +352,7 @@ export function stubDenoServe() {
 export function postgrestResponse(
   data: unknown,
   status = 200,
-  headers: Record<string, string> = {}
+  headers: Record<string, string> = {},
 ): Response {
   // PostgREST returns arrays for select queries, objects for single
   return new Response(JSON.stringify(data), {
@@ -371,7 +371,7 @@ export function postgrestResponse(
 export function postgrestError(
   message: string,
   code = "PGRST000",
-  status = 400
+  status = 400,
 ): Response {
   return new Response(
     JSON.stringify({
@@ -383,7 +383,7 @@ export function postgrestError(
     {
       status,
       headers: { "Content-Type": "application/json; charset=utf-8" },
-    }
+    },
   );
 }
 
@@ -404,7 +404,7 @@ export function authResponse(userId: string, role = "authenticated"): Response {
     {
       status: 200,
       headers: { "Content-Type": "application/json" },
-    }
+    },
   );
 }
 
@@ -455,7 +455,7 @@ export function createTestJwt(claims: Record<string, unknown> = {}): string {
  * Parses a Response body as JSON. Useful in test assertions.
  */
 export async function responseBody<T = unknown>(
-  response: Response
+  response: Response,
 ): Promise<T> {
   return (await response.json()) as T;
 }
@@ -466,12 +466,12 @@ export async function responseBody<T = unknown>(
  */
 export async function assertResponse<T = unknown>(
   response: Response,
-  expectedStatus: number
+  expectedStatus: number,
 ): Promise<T> {
   if (response.status !== expectedStatus) {
     const body = await response.text();
     throw new Error(
-      `Expected status ${expectedStatus}, got ${response.status}. Body: ${body}`
+      `Expected status ${expectedStatus}, got ${response.status}. Body: ${body}`,
     );
   }
   const text = await response.clone().text();
@@ -535,7 +535,7 @@ export function mockSnapshot(overrides: Record<string, unknown> = {}) {
  * Creates mock card_prices rows.
  */
 export function mockCardPrices(
-  snapshotId = "snapshot-uuid-001"
+  snapshotId = "snapshot-uuid-001",
 ): Array<Record<string, unknown>> {
   return [
     {

@@ -115,6 +115,7 @@ class SettingsStoreService {
             case "audioEnabled":
             case "telemetryCrashReporting":
             case "telemetryUsageAnalytics":
+            case "communityUploadsEnabled":
               assertBoolean(value, key, ch);
               break;
             case "selectedGame":

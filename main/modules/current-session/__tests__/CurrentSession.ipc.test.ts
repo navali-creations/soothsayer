@@ -196,6 +196,15 @@ vi.mock("~/main/modules/rarity-insights/RarityInsights.service", () => ({
 // ─── Mock SettingsStoreService ───────────────────────────────────────────────
 vi.mock("~/main/modules/settings-store", () => createSettingsStoreMock());
 
+// ─── Mock CommunityUploadService ─────────────────────────────────────────────
+vi.mock("~/main/modules/community-upload", () => ({
+  CommunityUploadService: {
+    getInstance: vi.fn(() => ({
+      uploadOnSessionEnd: vi.fn().mockResolvedValue(undefined),
+    })),
+  },
+}));
+
 // ─── Mock cleanWikiMarkup ────────────────────────────────────────────────────
 vi.mock("~/main/utils/cleanWikiMarkup", () => ({
   cleanWikiMarkup: (html: string | null | undefined) => html ?? "",

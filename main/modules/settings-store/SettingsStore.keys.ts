@@ -32,6 +32,7 @@ export const SettingsKey = {
   TelemetryCrashReporting: "telemetryCrashReporting",
   TelemetryUsageAnalytics: "telemetryUsageAnalytics",
   CsvExportPath: "csvExportPath",
+  CommunityUploadsEnabled: "communityUploadsEnabled",
 } as const;
 
 export type SettingsKeyType = (typeof SettingsKey)[keyof typeof SettingsKey];

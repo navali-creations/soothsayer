@@ -2,6 +2,7 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createBarrelMock } from "~/main/modules/__test-utils__/mock-factories";
 import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
 
 // ─── Hoisted mock functions (available inside vi.mock factories) ─────────────
@@ -164,96 +165,74 @@ vi.mock("~/main/utils/ipc-validation", () => ({
 }));
 
 // ─── Mock all services from barrel ───────────────────────────────────────────
-vi.mock("~/main/modules", () => ({
-  AnalyticsService: { getInstance: vi.fn(() => ({})) },
-  AppService: {
-    getInstance: vi.fn(() => ({
-      get isQuitting() {
-        return mockAppServiceIsQuitting.value;
-      },
-      set isQuitting(val: boolean) {
-        mockAppServiceIsQuitting.value = val;
-      },
-    })),
-  },
-  ClientLogReaderService: {
-    getInstance: vi.fn(() =>
-      Promise.resolve({
-        on: vi.fn().mockReturnThis(),
-      }),
-    ),
-  },
-  CsvService: { getInstance: vi.fn(() => ({})) },
-  CurrentSessionService: {
-    getInstance: vi.fn(() => ({
-      initialize: vi.fn().mockResolvedValue(undefined),
-    })),
-  },
-  DatabaseService: {
-    getInstance: vi.fn(() => ({
-      getPath: vi.fn(() => "/mock/db/path"),
-    })),
-  },
-  CardDetailsService: {
-    getInstance: vi.fn(() => ({})),
-  },
-  DivinationCardsService: {
-    getInstance: vi.fn(() => ({
-      initialize: vi.fn().mockResolvedValue(undefined),
-    })),
-  },
-  MainWindowChannel: {
-    OnAppStart: "on-app-restart",
-    OnClose: "on-close",
-    ReadyToShow: "ready-to-show",
-    Close: "main-window:close",
-    Maximize: "main-window:maximize",
-    Minimize: "main-window:minimize",
-    Unmaximize: "main-window:unmaximize",
-    IsMaximized: "main-window:is-maximized",
-  },
-  OverlayService: {
-    getInstance: vi.fn(() => ({
-      destroy: mockOverlayDestroy,
-    })),
-  },
-  PoeLeaguesService: { getInstance: vi.fn(() => ({})) },
-  PoeProcessService: {
-    getInstance: vi.fn(() => ({
-      initialize: vi.fn(),
-    })),
-  },
-  SessionsService: { getInstance: vi.fn(() => ({})) },
-  SettingsStoreService: {
-    getInstance: vi.fn(() => ({
-      get: mockSettingsGet,
-      set: mockSettingsSet,
-    })),
-  },
-  SettingsKey: {
-    AppExitAction: "appExitAction",
-    AppOpenAtLogin: "appOpenAtLogin",
-    AppOpenAtLoginMinimized: "appOpenAtLoginMinimized",
-    MainWindowBounds: "mainWindowBounds",
-  },
-  SnapshotService: { getInstance: vi.fn(() => ({})) },
-  SupabaseClientService: {
-    getInstance: vi.fn(() => ({
-      isConfigured: mockSupabaseIsConfigured,
-    })),
-  },
-  TrayService: {
-    getInstance: vi.fn(() => ({
-      createTray: vi.fn(),
-    })),
-  },
-  UpdaterService: {
-    getInstance: vi.fn(() => ({
-      initialize: vi.fn(),
-      destroy: vi.fn(),
-    })),
-  },
-}));
+vi.mock("~/main/modules", () =>
+  createBarrelMock({
+    AppService: {
+      getInstance: vi.fn(() => ({
+        get isQuitting() {
+          return mockAppServiceIsQuitting.value;
+        },
+        set isQuitting(val: boolean) {
+          mockAppServiceIsQuitting.value = val;
+        },
+      })),
+    },
+    ClientLogReaderService: {
+      getInstance: vi.fn(() =>
+        Promise.resolve({
+          on: vi.fn().mockReturnThis(),
+        }),
+      ),
+    },
+    CurrentSessionService: {
+      getInstance: vi.fn(() => ({
+        initialize: vi.fn().mockResolvedValue(undefined),
+      })),
+    },
+    DatabaseService: {
+      getInstance: vi.fn(() => ({
+        getPath: vi.fn(() => "/mock/db/path"),
+      })),
+    },
+    DivinationCardsService: {
+      getInstance: vi.fn(() => ({
+        initialize: vi.fn().mockResolvedValue(undefined),
+      })),
+    },
+    OverlayService: {
+      getInstance: vi.fn(() => ({
+        destroy: mockOverlayDestroy,
+      })),
+    },
+    PoeProcessService: {
+      getInstance: vi.fn(() => ({
+        initialize: vi.fn(),
+      })),
+    },
+    SettingsStoreService: {
+      getInstance: vi.fn(() => ({
+        get: mockSettingsGet,
+        set: mockSettingsSet,
+      })),
+    },
+    SupabaseClientService: {
+      getInstance: vi.fn(() => ({
+        isConfigured: mockSupabaseIsConfigured,
+      })),
+    },
+    TrayService: {
+      getInstance: vi.fn(() => ({
+        createTray: vi.fn(),
+      })),
+    },
+    UpdaterService: {
+      getInstance: vi.fn(() => ({
+        initialize: vi.fn(),
+        destroy: vi.fn(),
+      })),
+    },
+  }),
+);
 
 // ─── Global constants injected by Vite at build time ─────────────────────────
 // @ts-expect-error — injected by Vite at build time
