@@ -397,3 +397,9 @@ verify_jwt = false
 
 [functions.create-snapshot-internal]
 verify_jwt = false
+
+[functions.upload-community-data]
+verify_jwt = false
+
+[functions.get-community-drop-rates]
+verify_jwt = false

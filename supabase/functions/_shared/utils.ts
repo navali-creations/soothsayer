@@ -9,6 +9,14 @@ type RateLimitContext = {
   appVersion?: string | null;
 };
 
+type IdentifierRateLimitContext = {
+  adminClient?: SupabaseClient;
+  identifier: string;
+  endpoint: string;
+  windowMs: number;
+  maxHits: number;
+};
+
 function createAdminClient(): SupabaseClient {
   return createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -63,6 +71,67 @@ export async function enforceRateLimit({
   if (!data.allowed) {
     if (data.reason === "banned") {
       const err = new Error(data.detail ?? "Account suspended");
+      (err as any).status = 403;
+      throw err;
+    }
+
+    if (data.reason === "rate_limited") {
+      const err = new Error("Rate limit exceeded");
+      (err as any).status = 429;
+      throw err;
+    }
+
+    // Unknown rejection reason — fail closed
+    const err = new Error(data.detail ?? "Request rejected");
+    (err as any).status = 403;
+    throw err;
+  }
+}
+
+/**
+ * Atomic rate limit enforcement for API-key / identifier-based callers.
+ *
+ * Uses the same `check_and_log_request` Postgres function as `enforceRateLimit`,
+ * but passes `p_identifier` instead of `p_user_id`. This supports the dual-identity
+ * extension from the Option A migration.
+ *
+ * No IP addresses are collected or stored (privacy-first).
+ */
+export async function enforceRateLimitByIdentifier({
+  adminClient = createAdminClient(),
+  identifier,
+  endpoint,
+  windowMs,
+  maxHits,
+}: IdentifierRateLimitContext): Promise<void> {
+  const windowMinutes = Math.ceil(windowMs / 60_000);
+
+  const { data, error } = await adminClient.rpc("check_and_log_request", {
+    p_user_id: null,
+    p_endpoint: endpoint,
+    p_window_minutes: windowMinutes,
+    p_max_hits: maxHits,
+    p_app_version: null,
+    p_identifier: identifier,
+  });
+
+  if (error) {
+    console.error(
+      "[RateLimit] check_and_log_request (identifier) RPC failed:",
+      error,
+    );
+    // Fail closed — if we can't verify the rate limit, reject the request
+    throw new Error("Rate limit check failed");
+  }
+
+  if (!data || typeof data !== "object") {
+    console.error("[RateLimit] Unexpected RPC response (identifier):", data);
+    throw new Error("Rate limit check failed");
+  }
+
+  if (!data.allowed) {
+    if (data.reason === "banned") {
+      const err = new Error(data.detail ?? "Access suspended");
       (err as any).status = 403;
       throw err;
     }

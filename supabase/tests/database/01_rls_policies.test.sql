@@ -10,7 +10,7 @@
 
 BEGIN;
 
-SELECT plan(37);
+SELECT plan(52);
 
 -- ═══════════════════════════════════════════════════════════════
 -- VERIFY RLS IS ENABLED ON ALL TABLES
@@ -44,6 +44,21 @@ SELECT ok(
 SELECT ok(
   (SELECT relrowsecurity FROM pg_class WHERE relname = 'local_config' AND relnamespace = 'public'::regnamespace),
   'RLS should be enabled on local_config'
+);
+
+SELECT ok(
+  (SELECT relrowsecurity FROM pg_class WHERE relname = 'cards' AND relnamespace = 'public'::regnamespace),
+  'RLS should be enabled on cards'
+);
+
+SELECT ok(
+  (SELECT relrowsecurity FROM pg_class WHERE relname = 'community_uploads' AND relnamespace = 'public'::regnamespace),
+  'RLS should be enabled on community_uploads'
+);
+
+SELECT ok(
+  (SELECT relrowsecurity FROM pg_class WHERE relname = 'community_card_data' AND relnamespace = 'public'::regnamespace),
+  'RLS should be enabled on community_card_data'
 );
 
 -- ═══════════════════════════════════════════════════════════════
@@ -100,6 +115,32 @@ SELECT policies_are(
     'service_role_only'
   ],
   'local_config should have the expected RLS policies'
+);
+
+SELECT policies_are(
+  'public', 'cards',
+  ARRAY[
+    'Public read access for cards',
+    'Service role full access for cards'
+  ],
+  'cards should have the expected RLS policies'
+);
+
+SELECT policies_are(
+  'public', 'community_uploads',
+  ARRAY[
+    'Service role full access for community_uploads'
+  ],
+  'community_uploads should have the expected RLS policies'
+);
+
+SELECT policies_are(
+  'public', 'community_card_data',
+  ARRAY[
+    'Public read access for community_card_data',
+    'Service role full access for community_card_data'
+  ],
+  'community_card_data should have the expected RLS policies'
 );
 
 -- ═══════════════════════════════════════════════════════════════
@@ -172,6 +213,18 @@ VALUES ('b2c3d4e5-f6a7-8901-bcde-f12345678901', 'Test ban');
 INSERT INTO local_config (key, value)
 VALUES ('rls_test_key', 'rls_test_value');
 
+-- Insert test card
+INSERT INTO cards (id, game, name)
+VALUES ('44444444-4444-4444-4444-444444444444', 'poe1', 'The Doctor');
+
+-- Insert test community upload (service_role bypasses RLS)
+INSERT INTO community_uploads (id, league_id, device_id, is_verified, total_cards_uploaded, upload_count)
+VALUES ('55555555-5555-5555-5555-555555555555', '11111111-1111-1111-1111-111111111111', 'test-device-001', false, 10, 1);
+
+-- Insert test community card data
+INSERT INTO community_card_data (id, upload_id, card_id, count)
+VALUES ('66666666-6666-6666-6666-666666666666', '55555555-5555-5555-5555-555555555555', '44444444-4444-4444-4444-444444444444', 5);
+
 -- ═══════════════════════════════════════════════════════════════
 -- ANON ROLE: READ ACCESS TESTS
 -- ═══════════════════════════════════════════════════════════════
@@ -193,9 +246,33 @@ SELECT isnt_empty(
   'anon should be able to read card_prices'
 );
 
+SELECT isnt_empty(
+  $$SELECT * FROM cards WHERE id = '44444444-4444-4444-4444-444444444444'$$,
+  'anon should be able to read cards'
+);
+
+SELECT isnt_empty(
+  $$SELECT * FROM community_card_data WHERE id = '66666666-6666-6666-6666-666666666666'$$,
+  'anon should be able to read community_card_data'
+);
+
 -- ═══════════════════════════════════════════════════════════════
 -- ANON ROLE: WRITE ACCESS DENIED
 -- ═══════════════════════════════════════════════════════════════
+
+SELECT throws_ok(
+  $$INSERT INTO cards (game, name) VALUES ('poe1', 'Anon Hack Card')$$,
+  '42501',
+  NULL,
+  'anon should NOT be able to insert into cards'
+);
+
+SELECT throws_ok(
+  $$INSERT INTO community_card_data (upload_id, card_id, count) VALUES ('55555555-5555-5555-5555-555555555555', '44444444-4444-4444-4444-444444444444', 1)$$,
+  '42501',
+  NULL,
+  'anon should NOT be able to insert into community_card_data'
+);
 
 SELECT throws_ok(
   $$INSERT INTO poe_leagues (game, league_id, name) VALUES ('poe1', 'anon_hack', 'Anon Hack')$$,
@@ -238,6 +315,11 @@ SELECT is_empty(
   'anon should see no rows in banned_users'
 );
 
+SELECT is_empty(
+  $$SELECT * FROM community_uploads$$,
+  'anon should see no rows in community_uploads'
+);
+
 -- local_config has table-level privileges revoked for anon (REVOKE ALL),
 -- so SELECT throws permission denied rather than returning empty
 SELECT throws_ok(
@@ -273,6 +355,16 @@ SELECT isnt_empty(
   'authenticated user should be able to read card_prices'
 );
 
+SELECT isnt_empty(
+  $$SELECT * FROM cards WHERE id = '44444444-4444-4444-4444-444444444444'$$,
+  'authenticated user should be able to read cards'
+);
+
+SELECT isnt_empty(
+  $$SELECT * FROM community_card_data WHERE id = '66666666-6666-6666-6666-666666666666'$$,
+  'authenticated user should be able to read community_card_data'
+);
+
 -- User 1 should see only their own api_requests
 SELECT results_eq(
   $$SELECT COUNT(*)::int FROM api_requests$$,
@@ -293,6 +385,11 @@ SELECT results_eq(
 SELECT is_empty(
   $$SELECT * FROM banned_users$$,
   'authenticated user should see no rows in banned_users'
+);
+
+SELECT is_empty(
+  $$SELECT * FROM community_uploads$$,
+  'authenticated user should see no rows in community_uploads'
 );
 
 -- local_config has table-level privileges revoked for authenticated (REVOKE ALL),
@@ -326,6 +423,13 @@ SELECT results_eq(
 -- ═══════════════════════════════════════════════════════════════
 -- AUTHENTICATED ROLE: WRITE ACCESS DENIED ON PROTECTED TABLES
 -- ═══════════════════════════════════════════════════════════════
+
+SELECT throws_ok(
+  $$INSERT INTO cards (game, name) VALUES ('poe1', 'Auth Hack Card')$$,
+  '42501',
+  NULL,
+  'authenticated user should NOT be able to insert into cards'
+);
 
 SELECT throws_ok(
   $$INSERT INTO poe_leagues (game, league_id, name) VALUES ('poe1', 'auth_hack', 'Auth Hack')$$,

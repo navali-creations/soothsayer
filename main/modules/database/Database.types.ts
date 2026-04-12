@@ -298,7 +298,13 @@ export interface CsvExportSnapshotsTable {
   updated_at: ColumnType<string, string | undefined, string | undefined>;
 }
 
+export interface AppMetadataTable {
+  key: string;
+  value: string;
+}
+
 export interface Database {
+  app_metadata: AppMetadataTable;
   global_stats: GlobalStatsTable;
   leagues: LeaguesTable;
   snapshots: SnapshotsTable;

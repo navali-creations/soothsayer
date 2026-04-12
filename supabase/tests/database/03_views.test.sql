@@ -14,7 +14,7 @@
 
 BEGIN;
 
-SELECT plan(21);
+SELECT plan(26);
 
 -- ═══════════════════════════════════════════════════════════════
 -- VIEW EXISTENCE & COLUMNS
@@ -30,6 +30,8 @@ SELECT has_column('public', 'abuse_monitor', 'last_request', 'abuse_monitor shou
 SELECT has_column('public', 'abuse_monitor', 'last_hour', 'abuse_monitor should have last_hour column');
 SELECT has_column('public', 'abuse_monitor', 'last_24h', 'abuse_monitor should have last_24h column');
 SELECT has_column('public', 'abuse_monitor', 'is_banned', 'abuse_monitor should have is_banned column');
+SELECT has_column('public', 'abuse_monitor', 'identifier', 'abuse_monitor should have identifier column');
+SELECT has_column('public', 'abuse_monitor', 'identity', 'abuse_monitor should have identity column');
 
 -- ═══════════════════════════════════════════════════════════════
 -- SEED TEST DATA
@@ -183,6 +185,46 @@ SELECT results_eq(
       AND endpoint = 'endpoint-a'$$,
   ARRAY[true],
   'abuse_monitor first_request should be earlier than last_request'
+);
+
+-- ═══════════════════════════════════════════════════════════════
+-- SERVICE_ROLE: IDENTIFIER-BASED ROWS IN VIEW
+-- ═══════════════════════════════════════════════════════════════
+
+RESET ROLE;
+
+-- Insert identifier-based api_requests (no user_id)
+INSERT INTO api_requests (user_id, identifier, endpoint, created_at) VALUES
+  (NULL, 'test-api-key-view', 'get-community-drop-rates', NOW() - INTERVAL '10 minutes'),
+  (NULL, 'test-api-key-view', 'get-community-drop-rates', NOW() - INTERVAL '20 minutes');
+
+SET ROLE service_role;
+
+-- Identifier rows should appear in abuse_monitor with correct identity
+SELECT results_eq(
+  $$SELECT identity FROM abuse_monitor
+    WHERE identifier = 'test-api-key-view'
+      AND endpoint = 'get-community-drop-rates'$$,
+  ARRAY['test-api-key-view'::text],
+  'abuse_monitor identity column should equal identifier for API-key rows'
+);
+
+-- Identifier rows should show user_id as NULL
+SELECT results_eq(
+  $$SELECT (user_id IS NULL)::boolean FROM abuse_monitor
+    WHERE identifier = 'test-api-key-view'
+      AND endpoint = 'get-community-drop-rates'$$,
+  ARRAY[true],
+  'abuse_monitor user_id should be NULL for identifier-based rows'
+);
+
+-- is_banned should be false for non-banned identifier
+SELECT results_eq(
+  $$SELECT is_banned FROM abuse_monitor
+    WHERE identifier = 'test-api-key-view'
+      AND endpoint = 'get-community-drop-rates'$$,
+  ARRAY[false],
+  'abuse_monitor is_banned should be false for non-banned identifier'
 );
 
 -- ═══════════════════════════════════════════════════════════════

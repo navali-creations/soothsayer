@@ -259,10 +259,75 @@ Deno.serve(async (req) => {
 
     console.log(`${tag} Created snapshot ${snapshot.id}`);
 
+    // 6b. Upsert unique card names into `cards` table
+    const uniqueCardNames = [
+      ...new Set([
+        ...exchangeCardPrices.map((p) => p.card_name),
+        ...stashCardPrices.map((p) => p.card_name),
+      ]),
+    ];
+
+    if (uniqueCardNames.length > 0) {
+      const cardRows = uniqueCardNames.map((name) => ({
+        game,
+        name,
+      }));
+
+      const { error: cardsUpsertError } = await supabase
+        .from("cards")
+        .upsert(cardRows, {
+          onConflict: "game,name",
+          ignoreDuplicates: true,
+        });
+
+      if (cardsUpsertError) {
+        console.warn(
+          `${tag} Failed to upsert cards (non-fatal): ${cardsUpsertError.message}`,
+        );
+      }
+    }
+
+    // 6c. Build card name → card_id map
+    const { data: cardIdRows, error: cardIdError } = await supabase
+      .from("cards")
+      .select("id, name")
+      .eq("game", game);
+
+    const cardIdMap = new Map<string, string>();
+    if (cardIdRows) {
+      for (const row of cardIdRows) {
+        cardIdMap.set(row.name, row.id);
+      }
+    }
+
+    if (cardIdError) {
+      console.warn(
+        `${tag} Failed to fetch card IDs (non-fatal): ${cardIdError.message}`,
+      );
+    }
+
+    console.log(
+      `${tag} Upserted ${uniqueCardNames.length} card names, resolved ${cardIdMap.size} card IDs`,
+    );
+
+    if (uniqueCardNames.length > 0 && cardIdMap.size === 0) {
+      console.error(
+        `${tag} ALERT: Had ${uniqueCardNames.length} card names but resolved 0 card IDs — all card_id values will be null for this snapshot`,
+      );
+    }
+
     // 7. Insert all card prices
     const allCardPrices = [
-      ...exchangeCardPrices.map((p) => ({ ...p, snapshot_id: snapshot.id })),
-      ...stashCardPrices.map((p) => ({ ...p, snapshot_id: snapshot.id })),
+      ...exchangeCardPrices.map((p) => ({
+        ...p,
+        snapshot_id: snapshot.id,
+        card_id: cardIdMap.get(p.card_name) ?? null,
+      })),
+      ...stashCardPrices.map((p) => ({
+        ...p,
+        snapshot_id: snapshot.id,
+        card_id: cardIdMap.get(p.card_name) ?? null,
+      })),
     ];
 
     // Batch insert (Supabase handles this efficiently)

@@ -9,7 +9,7 @@
 
 BEGIN;
 
-SELECT plan(46);
+SELECT plan(64);
 
 -- ═══════════════════════════════════════════════════════════════
 -- VERIFY FUNCTIONS EXIST
@@ -17,20 +17,20 @@ SELECT plan(46);
 
 SELECT has_function(
   'public', 'check_and_log_request',
-  ARRAY['uuid', 'text', 'integer', 'integer', 'text'],
-  'check_and_log_request(uuid, text, int, int, text) should exist'
+  ARRAY['uuid', 'text', 'integer', 'integer', 'text', 'text'],
+  'check_and_log_request(uuid, text, int, int, text, text) should exist'
 );
 
 SELECT has_function(
   'public', 'ban_user',
-  ARRAY['uuid', 'text', 'integer'],
-  'ban_user(uuid, text, integer) should exist'
+  ARRAY['uuid', 'text', 'integer', 'text'],
+  'ban_user(uuid, text, integer, text) should exist'
 );
 
 SELECT has_function(
   'public', 'unban_user',
-  ARRAY['uuid'],
-  'unban_user(uuid) should exist'
+  ARRAY['uuid', 'text'],
+  'unban_user(uuid, text) should exist'
 );
 
 SELECT has_function(
@@ -59,6 +59,23 @@ SELECT has_function(
 SELECT has_function(
   'public', 'sync_leagues_from_api',
   'sync_leagues_from_api() should exist'
+);
+
+SELECT has_function(
+  'public', 'populate_cards_for_game',
+  ARRAY['text'],
+  'populate_cards_for_game(text) should exist'
+);
+
+SELECT has_function(
+  'public', 'flag_suspicious_uploads',
+  ARRAY['uuid'],
+  'flag_suspicious_uploads(uuid) should exist'
+);
+
+SELECT has_function(
+  'public', 'manage_card_population_cron_jobs',
+  'manage_card_population_cron_jobs() should exist'
 );
 
 -- ═══════════════════════════════════════════════════════════════
@@ -519,6 +536,213 @@ SELECT throws_ok(
   '23503', -- foreign_key_violation (RESTRICT)
   NULL,
   'Deleting a league with snapshots should fail (ON DELETE RESTRICT)'
+);
+
+-- ═══════════════════════════════════════════════════════════════
+-- TEST: check_and_log_request — identifier-based rate limiting
+-- ═══════════════════════════════════════════════════════════════
+
+-- Identifier-based request should be allowed
+SELECT results_eq(
+  $$SELECT (check_and_log_request(
+    p_user_id := NULL,
+    p_endpoint := 'api-key-endpoint',
+    p_window_minutes := 60,
+    p_max_hits := 3,
+    p_app_version := NULL,
+    p_identifier := 'test-api-key-001'
+  ))::json->>'allowed'$$,
+  ARRAY['true'],
+  'check_and_log_request should allow identifier-based request under limit'
+);
+
+-- Verify it was logged with identifier (not user_id)
+SELECT results_eq(
+  $$SELECT COUNT(*)::int FROM api_requests
+    WHERE identifier = 'test-api-key-001'
+      AND endpoint = 'api-key-endpoint'
+      AND user_id IS NULL$$,
+  ARRAY[1],
+  'identifier-based request should be logged with NULL user_id'
+);
+
+-- Fill up to rate limit (2 more, limit is 3)
+SELECT check_and_log_request(
+  p_user_id := NULL, p_endpoint := 'api-key-endpoint',
+  p_window_minutes := 60, p_max_hits := 3,
+  p_app_version := NULL, p_identifier := 'test-api-key-001'
+);
+SELECT check_and_log_request(
+  p_user_id := NULL, p_endpoint := 'api-key-endpoint',
+  p_window_minutes := 60, p_max_hits := 3,
+  p_app_version := NULL, p_identifier := 'test-api-key-001'
+);
+
+-- 4th request should be rate limited
+SELECT results_eq(
+  $$SELECT (check_and_log_request(
+    p_user_id := NULL,
+    p_endpoint := 'api-key-endpoint',
+    p_window_minutes := 60,
+    p_max_hits := 3,
+    p_app_version := NULL,
+    p_identifier := 'test-api-key-001'
+  ))::json->>'reason'$$,
+  ARRAY['rate_limited'],
+  'identifier-based request should be rate limited after exceeding max hits'
+);
+
+-- Different identifier on same endpoint should be allowed
+SELECT results_eq(
+  $$SELECT (check_and_log_request(
+    p_user_id := NULL,
+    p_endpoint := 'api-key-endpoint',
+    p_window_minutes := 60,
+    p_max_hits := 3,
+    p_app_version := NULL,
+    p_identifier := 'test-api-key-002'
+  ))::json->>'allowed'$$,
+  ARRAY['true'],
+  'different identifier on same endpoint should be allowed (isolated rate limits)'
+);
+
+-- ═══════════════════════════════════════════════════════════════
+-- TEST: check_and_log_request — identity validation (fail-closed)
+-- ═══════════════════════════════════════════════════════════════
+
+-- Both identities provided: should fail
+SELECT results_eq(
+  $$SELECT (check_and_log_request(
+    p_user_id := 'aaaa1111-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    p_endpoint := 'test',
+    p_window_minutes := 60,
+    p_max_hits := 10,
+    p_app_version := NULL,
+    p_identifier := 'some-key'
+  ))::json->>'reason'$$,
+  ARRAY['invalid_request'],
+  'check_and_log_request should reject when both user_id and identifier are provided'
+);
+
+-- Neither identity provided: should fail
+SELECT results_eq(
+  $$SELECT (check_and_log_request(
+    p_user_id := NULL,
+    p_endpoint := 'test',
+    p_window_minutes := 60,
+    p_max_hits := 10,
+    p_app_version := NULL,
+    p_identifier := NULL
+  ))::json->>'reason'$$,
+  ARRAY['invalid_request'],
+  'check_and_log_request should reject when neither user_id nor identifier is provided'
+);
+
+-- ═══════════════════════════════════════════════════════════════
+-- TEST: ban_user / unban_user — identifier-based banning
+-- ═══════════════════════════════════════════════════════════════
+
+-- Ban an identifier
+SELECT results_eq(
+  $$SELECT (ban_user(
+    p_user_id := NULL,
+    p_reason := 'API key abuse',
+    p_duration_hours := NULL,
+    p_identifier := 'banned-api-key'
+  ))::json->>'success'$$,
+  ARRAY['true'],
+  'ban_user should succeed for identifier-based ban'
+);
+
+-- Verify banned identifier is rejected by check_and_log_request
+SELECT results_eq(
+  $$SELECT (check_and_log_request(
+    p_user_id := NULL,
+    p_endpoint := 'any-endpoint',
+    p_window_minutes := 60,
+    p_max_hits := 100,
+    p_app_version := NULL,
+    p_identifier := 'banned-api-key'
+  ))::json->>'reason'$$,
+  ARRAY['banned'],
+  'check_and_log_request should reject banned identifier'
+);
+
+-- Unban the identifier
+SELECT results_eq(
+  $$SELECT (unban_user(
+    p_user_id := NULL,
+    p_identifier := 'banned-api-key'
+  ))::json->>'success'$$,
+  ARRAY['true'],
+  'unban_user should succeed for identifier-based unban'
+);
+
+-- After unbanning, identifier should be allowed again
+SELECT results_eq(
+  $$SELECT (check_and_log_request(
+    p_user_id := NULL,
+    p_endpoint := 'any-endpoint',
+    p_window_minutes := 60,
+    p_max_hits := 100,
+    p_app_version := NULL,
+    p_identifier := 'banned-api-key'
+  ))::json->>'allowed'$$,
+  ARRAY['true'],
+  'unbanned identifier should be allowed to make requests again'
+);
+
+-- ban_user validation: both identities should fail
+SELECT results_eq(
+  $$SELECT (ban_user(
+    p_user_id := 'aaaa1111-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    p_reason := 'test',
+    p_duration_hours := NULL,
+    p_identifier := 'some-key'
+  ))::json->>'success'$$,
+  ARRAY['false'],
+  'ban_user should fail when both user_id and identifier are provided'
+);
+
+-- ban_user validation: neither identity should fail
+SELECT results_eq(
+  $$SELECT (ban_user(
+    p_user_id := NULL,
+    p_reason := 'test',
+    p_duration_hours := NULL,
+    p_identifier := NULL
+  ))::json->>'success'$$,
+  ARRAY['false'],
+  'ban_user should fail when neither user_id nor identifier is provided'
+);
+
+-- ═══════════════════════════════════════════════════════════════
+-- TEST: populate_cards_for_game — populates cards from card_prices
+-- ═══════════════════════════════════════════════════════════════
+
+-- The test league 'dddd4444-...' already has card_prices rows from earlier tests.
+-- populate_cards_for_game should find them and insert into cards.
+-- First, clean any cards that might exist for poe1 from other tests
+DELETE FROM cards WHERE game = 'poe1' AND name IN ('Test Exchange', 'Test Stash', 'Confidence Default', 'Confidence 1', 'Confidence 2', 'Confidence 3');
+
+SELECT results_eq(
+  $$SELECT populate_cards_for_game('poe1')$$,
+  ARRAY[6],
+  'populate_cards_for_game should insert cards from card_prices'
+);
+
+-- Running again should insert 0 (idempotent)
+SELECT results_eq(
+  $$SELECT populate_cards_for_game('poe1')$$,
+  ARRAY[0],
+  'populate_cards_for_game should be idempotent (0 new cards on re-run)'
+);
+
+-- Invalid game should return 0
+SELECT results_eq(
+  $$SELECT populate_cards_for_game('poe3')$$,
+  ARRAY[0],
+  'populate_cards_for_game should return 0 for invalid game'
 );
 
 -- ═══════════════════════════════════════════════════════════════
