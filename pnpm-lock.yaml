@@ -161,8 +161,8 @@ importers:
         specifier: ^29.0.1
         version: 29.0.1
       kysely:
-        specifier: ^0.28.15
-        version: 0.28.15
+        specifier: ^0.28.16
+        version: 0.28.16
       motion:
         specifier: ^12.38.0
         version: 12.38.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -3509,8 +3509,8 @@ packages:
   keyv@4.5.4:
     resolution: {integrity: sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==}
 
-  kysely@0.28.15:
-    resolution: {integrity: sha512-r2clcf7HLWvDXaVUEvQymXJY4i3bSOIV3xsL/Upy3ZfSv5HeKsk9tsqbBptLvth5qHEIhxeHTA2jNLyQABkLBA==}
+  kysely@0.28.16:
+    resolution: {integrity: sha512-3i5pmOiZvMDj00qhrIVbH0AnioVTx22DMP7Vn5At4yJO46iy+FM8Y/g61ltenLVSo3fiO8h8Q3QOFgf/gQ72ww==}
     engines: {node: '>=20.0.0'}
 
   lie@3.3.0:
@@ -9216,7 +9216,7 @@ snapshots:
     dependencies:
       json-buffer: 3.0.1
 
-  kysely@0.28.15: {}
+  kysely@0.28.16: {}
 
   lie@3.3.0:
     dependencies:
