@@ -187,4 +187,61 @@ describe("PrivacyPolicyPage", () => {
 
     expect(screen.getByTestId("markdown")).toHaveTextContent("");
   });
+
+  // ── Fetch error catch handler (L36) ────────────────────────────────────
+
+  it("shows error message from caught Error object in catch block", async () => {
+    mockFetchFailure("ECONNREFUSED");
+
+    renderWithProviders(<PrivacyPolicyPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("page-subtitle")).toHaveTextContent("Error");
+    });
+
+    // The catch block does: setError((err as Error).message)
+    expect(screen.getByText("ECONNREFUSED")).toBeInTheDocument();
+
+    // Should not render markdown
+    expect(screen.queryByTestId("markdown")).not.toBeInTheDocument();
+
+    // Should render the error alert
+    const alert = document.querySelector(".alert-error");
+    expect(alert).toBeInTheDocument();
+  });
+
+  // ── MarkdownRenderer rendering (L86) ───────────────────────────────────
+
+  it("passes content to MarkdownRenderer via children prop", async () => {
+    const mdContent = "# Hello World\n\nSome **bold** text.";
+    mockFetchSuccess(mdContent);
+
+    renderWithProviders(<PrivacyPolicyPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("markdown")).toBeInTheDocument();
+    });
+
+    // MarkdownRenderer receives {content ?? ""} as children (raw markdown, not parsed)
+    expect(screen.getByTestId("markdown")).toHaveTextContent(
+      /Hello World.*Some.*bold.*text/,
+    );
+  });
+
+  it("renders MarkdownRenderer with empty string fallback when content is null-ish", async () => {
+    // Fetch returns empty string → content is set to ""
+    // Component renders <MarkdownRenderer>{content ?? ""}</MarkdownRenderer>
+    mockFetchSuccess("");
+
+    renderWithProviders(<PrivacyPolicyPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("markdown")).toBeInTheDocument();
+    });
+
+    // The subtitle should reflect success, not loading or error
+    expect(screen.getByTestId("page-subtitle")).toHaveTextContent(
+      "How Soothsayer handles your data",
+    );
+  });
 });

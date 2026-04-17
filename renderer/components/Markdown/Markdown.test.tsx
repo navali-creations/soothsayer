@@ -182,6 +182,19 @@ describe("MarkdownRenderer", () => {
     expect(code).toHaveTextContent("code block content");
   });
 
+  it("renders fenced code block with language className using block-style branch", () => {
+    const md = "```js\nconsole.log('hello');\n```";
+    render(<MarkdownRenderer>{md}</MarkdownRenderer>);
+    // When className exists (e.g. "language-js"), the code component takes the
+    // block branch. The spread of {...props} overwrites the hardcoded className,
+    // so the element ends up with just the language class.
+    const code = document.querySelector("code.language-js");
+    expect(code).toBeInTheDocument();
+    expect(code).toHaveClass("language-js");
+    // Verify it's inside a <pre> (block code path, not inline)
+    expect(code?.parentElement?.tagName).toBe("PRE");
+  });
+
   // ─── Blockquote ───────────────────────────────────────────────────────────
 
   it("renders blockquotes with border-l-2", () => {

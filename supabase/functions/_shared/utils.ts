@@ -157,7 +157,8 @@ type ResponseJson = {
 
 function normalizeError(e: unknown) {
   if (e instanceof Error) {
-    return { message: e.message, name: e.name, stack: e.stack };
+    // L5: Stack traces are logged server-side via console.error, not returned to clients
+    return { message: e.message, name: e.name };
   }
   return e;
 }
@@ -165,7 +166,7 @@ function normalizeError(e: unknown) {
 export function responseJson({ status, body, headers = {} }: ResponseJson) {
   const corsHeaders = {
     "Access-Control-Allow-Headers":
-      "authorization, x-client-info, apikey, content-type",
+      "authorization, x-client-info, apikey, content-type, x-ggg-token",
   };
 
   return new Response(
@@ -194,7 +195,7 @@ export async function authorize({
   const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers":
-      "authorization, x-client-info, apikey, content-type",
+      "authorization, x-client-info, apikey, content-type, x-ggg-token",
   };
 
   if (req.method === "OPTIONS")

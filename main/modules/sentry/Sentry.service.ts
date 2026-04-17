@@ -113,6 +113,10 @@ class SentryService {
       beforeBreadcrumb(breadcrumb) {
         if (breadcrumb.message) {
           breadcrumb.message = scrubPaths(breadcrumb.message);
+          breadcrumb.message = breadcrumb.message.replace(
+            /username=[^\s,)]+/g,
+            "username=[redacted]",
+          );
         }
         if (breadcrumb.data) {
           breadcrumb.data = scrubBreadcrumbData(

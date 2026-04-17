@@ -334,6 +334,52 @@ describe("drawXAxis", () => {
     drawXAxis(dc, data);
     expect(ctx.fillText).toHaveBeenCalled();
   });
+
+  it("draws the last label when it has enough gap from the last stepped label", () => {
+    // Use wide spacing so that the last non-stepped label has minGap (18) room
+    const _dc = makeDC(ctx, {
+      mapX: vi.fn((i: number) => 50 + i * 40),
+    });
+    // 10 points: indices 0–9, xSpacing=40, minLabelSpacing=30 → xStep=1
+    // With xStep=1, lastI%1===0, so it won't enter the branch.
+    // Need xStep > 1: use narrower spacing so step > 1, but last gap >= 18.
+    // mapX spacing=20, count=10: xSpacing=20, minLabelSpacing~30 → xStep=2
+    // stepped: 0,2,4,6,8. lastI=9, 9%2=1≠0. last stepped x=50+8*20=210, last x=50+9*20=230. gap=20>=18 ✓
+    const dc2 = makeDC(ctx, {
+      mapX: vi.fn((i: number) => 50 + i * 20),
+    });
+    const data = makeVisibleData(10);
+
+    ctx.fillText.mockClear();
+    drawXAxis(dc2, data);
+
+    // The last fillText call should be for the last data point's sessionIndex
+    const calls = ctx.fillText.mock.calls;
+    const lastCall = calls[calls.length - 1];
+    expect(lastCall[0]).toBe(String(data[9].sessionIndex));
+  });
+
+  it("skips the last label when it would overlap the last stepped label", () => {
+    // chartWidth=44 → maxXTicks = min(10, max(2, floor(44/22))) = 2
+    // numVisible=10, xStep = ceil(10/2) = 5
+    // stepped indices: 0, 5. lastI=9, 9%5=4≠0 → enters branch.
+    // last stepped x = 50+5*5=75, last x = 50+9*5=95. gap=20 >= 18 → drawn!
+    // With spacing=3: last stepped x=50+5*3=65, last x=50+9*3=77. gap=12 < 18 → skipped.
+    const narrowLayout = { ...makeLayout(), chartWidth: 44 };
+    const dc = makeDC(ctx, {
+      layout: narrowLayout,
+      mapX: vi.fn((i: number) => 50 + i * 3),
+    });
+    const data = makeVisibleData(10);
+
+    ctx.fillText.mockClear();
+    drawXAxis(dc, data);
+
+    const calls = ctx.fillText.mock.calls;
+    const lastCall = calls[calls.length - 1];
+    // The last drawn label should NOT be the last data point (index 9)
+    expect(lastCall[0]).not.toBe(String(data[9].sessionIndex));
+  });
 });
 
 // ─── drawProfitArea ────────────────────────────────────────────────────────────
@@ -564,5 +610,48 @@ describe("drawBrush", () => {
     // Range labels are drawn with fillText — at least the start and end labels
     const fillTextCalls = ctx.fillText.mock.calls;
     expect(fillTextCalls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("handles flat profit data where bMin === bMax (L482, L518-519)", () => {
+    const bdc = makeBDC(ctx);
+    // All points have identical profitDivine → bMin === bMax triggers the ±1 branch
+    const flatData = Array.from({ length: 5 }, (_, i) =>
+      makeDataPoint({
+        sessionIndex: i + 1,
+        profitDivine: 10,
+        rawDecks: i * 2,
+      }),
+    );
+    // Should not throw and should still draw
+    drawBrush(bdc, flatData);
+    expect(ctx.beginPath).toHaveBeenCalled();
+    expect(ctx.stroke).toHaveBeenCalled();
+  });
+
+  it("dims left area when bxStart > brushLeft (L531 left dim)", () => {
+    // brushRange starting at index 2 means bxStart = 50 + 2*4 = 58 > brushLeft(50)
+    const bdc = makeBDC(ctx, { brushRange: { startIndex: 2, endIndex: 9 } });
+    const data = makeVisibleData(10);
+    drawBrush(bdc, data);
+    // fillRect should be called for the left dim region
+    const fillRectCalls = ctx.fillRect.mock.calls;
+    // At least one call should dim the left area (x=brushLeft, width = bxStart - brushLeft)
+    const leftDim = fillRectCalls.find(
+      (call: number[]) => call[0] === 50 && call[2] > 0 && call[2] < 400,
+    );
+    expect(leftDim).toBeDefined();
+  });
+
+  it("dims right area when bxEnd < brushRight (L531 right dim)", () => {
+    // brushRange ending at index 5 means bxEnd = 50 + 5*4 = 70 < brushRight(450)
+    const bdc = makeBDC(ctx, { brushRange: { startIndex: 0, endIndex: 5 } });
+    const data = makeVisibleData(10);
+    drawBrush(bdc, data);
+    const fillRectCalls = ctx.fillRect.mock.calls;
+    // Right dim: fillRect(bxEnd, brushTop, brushRight - bxEnd, brushH)
+    const rightDim = fillRectCalls.find(
+      (call: number[]) => call[0] === 70 && call[2] === 380,
+    );
+    expect(rightDim).toBeDefined();
   });
 });

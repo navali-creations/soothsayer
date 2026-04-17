@@ -153,6 +153,15 @@ describe("Onboarding.slice", () => {
 
       expect(store.getState().onboarding.isDismissed("beacon-x")).toBe(false);
     });
+
+    it("returns false without throwing when dismissedBeacons is null/undefined", () => {
+      // Force dismissedBeacons to null to exercise the `|| []` fallback in isDismissed
+      store.setState((s) => {
+        (s.onboarding as any).dismissedBeacons = null;
+      });
+
+      expect(store.getState().onboarding.isDismissed("beacon-a")).toBe(false);
+    });
   });
 
   // ─── dismiss() ─────────────────────────────────────────────────────────

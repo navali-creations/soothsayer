@@ -39,59 +39,76 @@ const {
   mockShellOpenExternal,
   mockDialogShowOpenDialog,
   mockValidateFileDialogOptions,
+  mockAssertTrustedSender,
+  MockIpcValidationError,
   mockAppServiceIsQuitting,
   mockScreenGetAllDisplays,
   mockSupabaseIsConfigured,
-} = vi.hoisted(() => ({
-  mockIpcHandle: vi.fn(),
-  mockSettingsGet: vi.fn(),
-  mockSettingsSet: vi.fn(() => Promise.resolve()),
-  mockOverlayDestroy: vi.fn(),
-  mockBrowserWindowMinimize: vi.fn(),
-  mockBrowserWindowMaximize: vi.fn(),
-  mockBrowserWindowUnmaximize: vi.fn(),
-  mockBrowserWindowIsMaximized: vi.fn(() => false),
-  mockBrowserWindowIsMinimized: vi.fn(() => false),
-  mockBrowserWindowClose: vi.fn(),
-  mockBrowserWindowHide: vi.fn(),
-  mockBrowserWindowShow: vi.fn(),
-  mockBrowserWindowRestore: vi.fn(),
-  mockBrowserWindowFocus: vi.fn(),
-  mockBrowserWindowLoadURL: vi.fn(),
-  mockBrowserWindowLoadFile: vi.fn(),
-  mockBrowserWindowOnce: vi.fn(),
-  mockBrowserWindowOn: vi.fn(),
-  mockBrowserWindowIsDestroyed: vi.fn(() => false),
-  mockBrowserWindowGetBounds: vi.fn(() => ({
-    x: 100,
-    y: 100,
-    width: 1200,
-    height: 800,
-  })),
-  mockBrowserWindowRemoveListener: vi.fn(),
-  mockBrowserWindowWebContentsSend: vi.fn(),
-  mockBrowserWindowWebContentsOn: vi.fn(),
-  mockBrowserWindowWebContentsSetWindowOpenHandler: vi.fn(),
-  mockBrowserWindowWebContentsOpenDevTools: vi.fn(),
-  mockBrowserWindowWebContentsGetURL: vi.fn(() => "http://localhost:5173"),
-  mockNativeImageCreateFromPath: vi.fn(() => ({ isEmpty: vi.fn(() => false) })),
-  mockAppIsPackaged: { value: false },
-  mockAppGetAppPath: vi.fn(() => "/mock-app-path"),
-  mockShellOpenExternal: vi.fn(),
-  mockDialogShowOpenDialog: vi.fn(() =>
-    Promise.resolve({ canceled: false, filePaths: ["/mock/path/file.txt"] }),
-  ),
-  mockValidateFileDialogOptions: vi.fn((raw: any, _channel: string) => ({
-    title: raw?.title ?? "Select File",
-    filters: raw?.filters ?? [],
-    properties: raw?.properties ?? ["openFile"],
-  })),
-  mockAppServiceIsQuitting: { value: false },
-  mockScreenGetAllDisplays: vi.fn(() => [
-    { workArea: { x: 0, y: 0, width: 1920, height: 1080 } },
-  ]),
-  mockSupabaseIsConfigured: vi.fn(() => true),
-}));
+} = vi.hoisted(() => {
+  class _MockIpcValidationError extends Error {
+    detail: string;
+    constructor(channel: string, detail: string) {
+      super(`[IPC Validation] ${channel}: ${detail}`);
+      this.name = "IpcValidationError";
+      this.detail = detail;
+    }
+  }
+
+  return {
+    mockIpcHandle: vi.fn(),
+    mockSettingsGet: vi.fn(),
+    mockSettingsSet: vi.fn(() => Promise.resolve()),
+    mockOverlayDestroy: vi.fn(),
+    mockBrowserWindowMinimize: vi.fn(),
+    mockBrowserWindowMaximize: vi.fn(),
+    mockBrowserWindowUnmaximize: vi.fn(),
+    mockBrowserWindowIsMaximized: vi.fn(() => false),
+    mockBrowserWindowIsMinimized: vi.fn(() => false),
+    mockBrowserWindowClose: vi.fn(),
+    mockBrowserWindowHide: vi.fn(),
+    mockBrowserWindowShow: vi.fn(),
+    mockBrowserWindowRestore: vi.fn(),
+    mockBrowserWindowFocus: vi.fn(),
+    mockBrowserWindowLoadURL: vi.fn(),
+    mockBrowserWindowLoadFile: vi.fn(),
+    mockBrowserWindowOnce: vi.fn(),
+    mockBrowserWindowOn: vi.fn(),
+    mockBrowserWindowIsDestroyed: vi.fn(() => false),
+    mockBrowserWindowGetBounds: vi.fn(() => ({
+      x: 100,
+      y: 100,
+      width: 1200,
+      height: 800,
+    })),
+    mockBrowserWindowRemoveListener: vi.fn(),
+    mockBrowserWindowWebContentsSend: vi.fn(),
+    mockBrowserWindowWebContentsOn: vi.fn(),
+    mockBrowserWindowWebContentsSetWindowOpenHandler: vi.fn(),
+    mockBrowserWindowWebContentsOpenDevTools: vi.fn(),
+    mockBrowserWindowWebContentsGetURL: vi.fn(() => "http://localhost:5173"),
+    mockNativeImageCreateFromPath: vi.fn(() => ({
+      isEmpty: vi.fn(() => false),
+    })),
+    mockAppIsPackaged: { value: false },
+    mockAppGetAppPath: vi.fn(() => "/mock-app-path"),
+    mockShellOpenExternal: vi.fn(),
+    mockDialogShowOpenDialog: vi.fn(() =>
+      Promise.resolve({ canceled: false, filePaths: ["/mock/path/file.txt"] }),
+    ),
+    mockValidateFileDialogOptions: vi.fn((raw: any, _channel: string) => ({
+      title: raw?.title ?? "Select File",
+      filters: raw?.filters ?? [],
+      properties: raw?.properties ?? ["openFile"],
+    })),
+    mockAppServiceIsQuitting: { value: false },
+    mockScreenGetAllDisplays: vi.fn(() => [
+      { workArea: { x: 0, y: 0, width: 1920, height: 1080 } },
+    ]),
+    mockAssertTrustedSender: vi.fn(),
+    MockIpcValidationError: _MockIpcValidationError,
+    mockSupabaseIsConfigured: vi.fn(() => true),
+  };
+});
 
 // ─── Track BrowserWindow instances ───────────────────────────────────────────
 let browserWindowInstances: any[] = [];
@@ -161,6 +178,8 @@ vi.mock("electron", () => {
 
 // ─── Mock IPC validation ─────────────────────────────────────────────────────
 vi.mock("~/main/utils/ipc-validation", () => ({
+  assertTrustedSender: mockAssertTrustedSender,
+  registerTrustedWebContents: vi.fn(),
   validateFileDialogOptions: mockValidateFileDialogOptions,
 }));
 
@@ -175,6 +194,7 @@ vi.mock("~/main/modules", () =>
         set isQuitting(val: boolean) {
           mockAppServiceIsQuitting.value = val;
         },
+        emitOpenUrl: vi.fn(),
       })),
     },
     ClientLogReaderService: {
@@ -704,7 +724,7 @@ describe("MainWindowService", () => {
         properties: ["openFile"],
       };
 
-      await handler({}, options);
+      await handler({ sender: { id: 1 } }, options);
 
       expect(mockValidateFileDialogOptions).toHaveBeenCalledWith(
         options,
@@ -719,7 +739,7 @@ describe("MainWindowService", () => {
       });
 
       const handler = getIpcHandler("select-file", ipcHandlerCalls);
-      const result = await handler({}, {});
+      const result = await handler({ sender: { id: 1 } }, {});
 
       expect(result).toBe("/selected/file.csv");
     });
@@ -731,7 +751,7 @@ describe("MainWindowService", () => {
       });
 
       const handler = getIpcHandler("select-file", ipcHandlerCalls);
-      const result = await handler({}, {});
+      const result = await handler({ sender: { id: 1 } }, {});
 
       expect(result).toBeUndefined();
     });
@@ -744,13 +764,31 @@ describe("MainWindowService", () => {
       });
 
       const handler = getIpcHandler("select-file", ipcHandlerCalls);
-      await handler({}, {});
+      await handler({ sender: { id: 1 } }, {});
 
       expect(mockDialogShowOpenDialog).toHaveBeenCalledWith(expect.anything(), {
         title: "Validated Title",
         filters: [{ name: "CSV", extensions: ["csv"] }],
         properties: ["openFile"],
       });
+    });
+
+    it("should reject select-file from untrusted sender", async () => {
+      mockAssertTrustedSender.mockImplementation(() => {
+        throw new MockIpcValidationError(
+          "select-file",
+          "[Security] IPC call from untrusted webContents (id=999)",
+        );
+      });
+
+      const handler = getIpcHandler("select-file", ipcHandlerCalls);
+
+      await expect(handler({ sender: { id: 999 } }, {})).rejects.toThrow(
+        "untrusted webContents",
+      );
+
+      expect(mockAssertTrustedSender).toHaveBeenCalled();
+      expect(mockDialogShowOpenDialog).not.toHaveBeenCalled();
     });
   });
 

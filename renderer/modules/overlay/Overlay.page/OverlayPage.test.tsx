@@ -41,7 +41,8 @@ function defaultOverlayState(overrides: Record<string, unknown> = {}) {
 
 // Store
 vi.mock("~/renderer/store", () => {
-  const useBoundStore = vi.fn(() => defaultOverlayState());
+  const useBoundStore: any = vi.fn(() => defaultOverlayState());
+  useBoundStore.getState = () => useBoundStore();
   return {
     useBoundStore,
     useCurrentSession: () => useBoundStore().currentSession,
@@ -601,7 +602,233 @@ describe("OverlayApp", () => {
     });
   });
 
-  // ── onSettingsChanged handler ──────────────────────────────────────────
+  // ── onCardDelta handler ────────────────────────────────────────────────
+
+  describe("onCardDelta handler", () => {
+    it("updates an existing card entry when delta arrives for a known card", async () => {
+      let cardDeltaCb: (update: any) => void = () => {};
+      getElectron().session.onCardDelta.mockImplementation((cb: any) => {
+        cardDeltaCb = cb;
+        return vi.fn();
+      });
+
+      // Set up store state with an existing card
+      const stateWithCard = defaultOverlayState();
+      (stateWithCard.overlay.sessionData as any).cards = [
+        { cardName: "The Doctor", count: 1 },
+      ];
+      (stateWithCard.overlay.sessionData as any).isActive = true;
+      mockUseBoundStore.mockReturnValue(stateWithCard);
+
+      await renderAndSettle();
+      mockSetSessionData.mockClear();
+
+      // Simulate card delta for existing card
+      await act(async () => {
+        cardDeltaCb({
+          delta: {
+            cardName: "The Doctor",
+            newCount: 2,
+            totalCount: 5,
+            updatedTotals: {
+              exchange: { totalValue: 999, chaosToDivineRatio: 200 },
+            },
+            recentDrop: null,
+          },
+        });
+      });
+
+      expect(mockSetSessionData).toHaveBeenCalledTimes(1);
+      const call = mockSetSessionData.mock.calls[0][0];
+      expect(call.isActive).toBe(true);
+      expect(call.totalCount).toBe(5);
+      expect(call.totalProfit).toBe(999);
+      // Existing card should be updated, not duplicated
+      const doctorCards = call.cards.filter(
+        (c: any) => c.cardName === "The Doctor",
+      );
+      expect(doctorCards).toHaveLength(1);
+      expect(doctorCards[0].count).toBe(2);
+    });
+
+    it("adds a new card entry when delta arrives for an unknown card", async () => {
+      let cardDeltaCb: (update: any) => void = () => {};
+      getElectron().session.onCardDelta.mockImplementation((cb: any) => {
+        cardDeltaCb = cb;
+        return vi.fn();
+      });
+
+      await renderAndSettle();
+      mockSetSessionData.mockClear();
+
+      // Simulate card delta for a brand-new card
+      await act(async () => {
+        cardDeltaCb({
+          delta: {
+            cardName: "House of Mirrors",
+            newCount: 1,
+            totalCount: 1,
+            updatedTotals: {
+              exchange: { totalValue: 500, chaosToDivineRatio: 150 },
+            },
+            recentDrop: null,
+          },
+        });
+      });
+
+      expect(mockSetSessionData).toHaveBeenCalledTimes(1);
+      const call = mockSetSessionData.mock.calls[0][0];
+      const newCard = call.cards.find(
+        (c: any) => c.cardName === "House of Mirrors",
+      );
+      expect(newCard).toBeDefined();
+      expect(newCard.count).toBe(1);
+    });
+
+    it("prepends recentDrop when delta includes one", async () => {
+      let cardDeltaCb: (update: any) => void = () => {};
+      getElectron().session.onCardDelta.mockImplementation((cb: any) => {
+        cardDeltaCb = cb;
+        return vi.fn();
+      });
+
+      await renderAndSettle();
+      mockSetSessionData.mockClear();
+
+      await act(async () => {
+        cardDeltaCb({
+          delta: {
+            cardName: "The Doctor",
+            newCount: 1,
+            totalCount: 1,
+            updatedTotals: {
+              exchange: { totalValue: 100, chaosToDivineRatio: 200 },
+            },
+            recentDrop: {
+              cardName: "The Doctor",
+              rarity: 1,
+              exchangePrice: { chaosValue: 500, divineValue: 2.5 },
+              stashPrice: { chaosValue: 500, divineValue: 2.5 },
+            },
+          },
+        });
+      });
+
+      expect(mockSetSessionData).toHaveBeenCalledTimes(1);
+      const call = mockSetSessionData.mock.calls[0][0];
+      expect(call.recentDrops.length).toBeGreaterThan(0);
+      expect(call.recentDrops[0].cardName).toBe("The Doctor");
+      expect(call.recentDrops[0].rarity).toBe(1);
+    });
+
+    it("defaults rarity to 4 when recentDrop has no rarity", async () => {
+      let cardDeltaCb: (update: any) => void = () => {};
+      getElectron().session.onCardDelta.mockImplementation((cb: any) => {
+        cardDeltaCb = cb;
+        return vi.fn();
+      });
+
+      await renderAndSettle();
+      mockSetSessionData.mockClear();
+
+      await act(async () => {
+        cardDeltaCb({
+          delta: {
+            cardName: "Rain of Chaos",
+            newCount: 1,
+            totalCount: 1,
+            updatedTotals: {
+              exchange: { totalValue: 1, chaosToDivineRatio: 200 },
+            },
+            recentDrop: {
+              cardName: "Rain of Chaos",
+              // no rarity field
+              exchangePrice: { chaosValue: 1, divineValue: 0 },
+              stashPrice: { chaosValue: 1, divineValue: 0 },
+            },
+          },
+        });
+      });
+
+      const call = mockSetSessionData.mock.calls[0][0];
+      expect(call.recentDrops[0].rarity).toBe(4);
+    });
+
+    it("does nothing when delta is null/undefined", async () => {
+      let cardDeltaCb: (update: any) => void = () => {};
+      getElectron().session.onCardDelta.mockImplementation((cb: any) => {
+        cardDeltaCb = cb;
+        return vi.fn();
+      });
+
+      await renderAndSettle();
+      mockSetSessionData.mockClear();
+
+      await act(async () => {
+        cardDeltaCb({
+          delta: null,
+        });
+      });
+
+      expect(mockSetSessionData).not.toHaveBeenCalled();
+    });
+
+    it("uses stash priceSource when settings select stash, updating existing card and totals", async () => {
+      let cardDeltaCb: (update: any) => void = () => {};
+      getElectron().session.onCardDelta.mockImplementation((cb: any) => {
+        cardDeltaCb = cb;
+        return vi.fn();
+      });
+
+      // Configure stash as the price source
+      mockSettings({
+        selectedGame: "poe1",
+        poe1PriceSource: "stash",
+      });
+
+      // Set up store state with an existing card
+      const stateWithCard = defaultOverlayState();
+      (stateWithCard.overlay.sessionData as any).cards = [
+        { cardName: "The Doctor", count: 1 },
+      ];
+      (stateWithCard.overlay.sessionData as any).isActive = true;
+      mockUseBoundStore.mockReturnValue(stateWithCard);
+
+      await renderAndSettle();
+      mockSetSessionData.mockClear();
+
+      // Simulate card delta with stash totals (and exchange totals too, to ensure stash is picked)
+      await act(async () => {
+        cardDeltaCb({
+          delta: {
+            cardName: "The Doctor",
+            newCount: 3,
+            totalCount: 10,
+            updatedTotals: {
+              exchange: { totalValue: 500, chaosToDivineRatio: 100 },
+              stash: { totalValue: 777, chaosToDivineRatio: 140 },
+            },
+            recentDrop: null,
+          },
+        });
+      });
+
+      expect(mockSetSessionData).toHaveBeenCalledTimes(1);
+      const call = mockSetSessionData.mock.calls[0][0];
+      // Should use stash totalValue, not exchange
+      expect(call.totalProfit).toBe(777);
+      expect(call.chaosToDivineRatio).toBe(140);
+      expect(call.totalCount).toBe(10);
+      // Existing card should be updated
+      const doctorCards = call.cards.filter(
+        (c: any) => c.cardName === "The Doctor",
+      );
+      expect(doctorCards).toHaveLength(1);
+      expect(doctorCards[0].count).toBe(3);
+    });
+  });
+
+  // ── onSettingsChanged handler ─────────────────────────────────────────────
 
   describe("onSettingsChanged handler", () => {
     it("re-loads audio settings and re-fetches session data when settings change", async () => {

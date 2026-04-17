@@ -311,4 +311,174 @@ describe("CardDetailsPage — effects", () => {
     });
     expect(mockSlices.cardDetails.fetchPriceHistory).not.toHaveBeenCalled();
   });
+
+  it("calls refreshPersonalAnalytics when league changes after initial render", () => {
+    // Use a single mock object so the same refreshPersonalAnalytics fn is
+    // captured across renders (refs persist, but hook return is re-read).
+    const mockSlices = createMockSlices({
+      cardDetails: { selectedLeague: "all" },
+    });
+    const cardDetailsMock = { ...mockSlices.cardDetails };
+
+    vi.mocked(useSettings).mockReturnValue(mockSlices.settings as any);
+    vi.mocked(useCardDetails).mockReturnValue(cardDetailsMock as any);
+
+    const { rerender } = renderWithProviders(<CardDetailsPage />);
+
+    // First render — lastLeagueFetchRef was null, so it just sets the ref
+    expect(cardDetailsMock.refreshPersonalAnalytics).not.toHaveBeenCalled();
+
+    // Mutate the returned league so the next render sees a different fetchKey
+    cardDetailsMock.selectedLeague = "Settlers";
+
+    rerender(<CardDetailsPage />);
+
+    expect(cardDetailsMock.refreshPersonalAnalytics).toHaveBeenCalledWith(
+      "poe1",
+      "Test Card",
+      "Settlers",
+    );
+  });
+
+  it("does not call initializeCardDetails again when re-rendered with same params (dedup guard)", () => {
+    const mockSlices = createMockSlices({
+      cardDetails: { selectedLeague: "all" },
+    });
+    const cardDetailsMock = { ...mockSlices.cardDetails };
+
+    vi.mocked(useSettings).mockReturnValue(mockSlices.settings as any);
+    vi.mocked(useCardDetails).mockReturnValue(cardDetailsMock as any);
+
+    const { rerender } = renderWithProviders(<CardDetailsPage />);
+
+    expect(cardDetailsMock.initializeCardDetails).toHaveBeenCalledTimes(1);
+
+    // Re-render with the exact same params — the ref-based dedup guard
+    // should prevent a second call.
+    rerender(<CardDetailsPage />);
+
+    expect(cardDetailsMock.initializeCardDetails).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not call refreshPersonalAnalytics when league stays the same (dedup guard)", () => {
+    const mockSlices = createMockSlices({
+      cardDetails: { selectedLeague: "all" },
+    });
+    const cardDetailsMock = { ...mockSlices.cardDetails };
+
+    vi.mocked(useSettings).mockReturnValue(mockSlices.settings as any);
+    vi.mocked(useCardDetails).mockReturnValue(cardDetailsMock as any);
+
+    const { rerender } = renderWithProviders(<CardDetailsPage />);
+
+    // Re-render without changing league — should not trigger refresh
+    rerender(<CardDetailsPage />);
+
+    expect(cardDetailsMock.refreshPersonalAnalytics).not.toHaveBeenCalled();
+  });
+
+  it("does not call fetchPriceHistory again on re-render with same card/league/tab (dedup guard)", () => {
+    const mockSlices = createMockSlices({
+      cardDetails: { activeTab: "market" },
+    });
+    const cardDetailsMock = { ...mockSlices.cardDetails };
+
+    vi.mocked(useSettings).mockReturnValue(mockSlices.settings as any);
+    vi.mocked(useCardDetails).mockReturnValue(cardDetailsMock as any);
+
+    const { rerender } = renderWithProviders(<CardDetailsPage />);
+
+    expect(cardDetailsMock.fetchPriceHistory).toHaveBeenCalledTimes(1);
+
+    // Re-render with same params — priceFetchedRef dedup guard blocks second call
+    rerender(<CardDetailsPage />);
+
+    expect(cardDetailsMock.fetchPriceHistory).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls fetchPriceHistory when switching to market tab", () => {
+    const mockSlices = createMockSlices({
+      cardDetails: { activeTab: "your-data" },
+    });
+    const cardDetailsMock = { ...mockSlices.cardDetails };
+
+    vi.mocked(useSettings).mockReturnValue(mockSlices.settings as any);
+    vi.mocked(useCardDetails).mockReturnValue(cardDetailsMock as any);
+
+    const { rerender } = renderWithProviders(<CardDetailsPage />);
+
+    // Not called yet because activeTab is "your-data"
+    expect(cardDetailsMock.fetchPriceHistory).not.toHaveBeenCalled();
+
+    // Switch to market tab
+    cardDetailsMock.activeTab = "market";
+    rerender(<CardDetailsPage />);
+
+    expect(cardDetailsMock.fetchPriceHistory).toHaveBeenCalledWith(
+      "poe1",
+      "Settlers",
+      "Test Card",
+    );
+  });
+
+  it("does not call fetchPriceHistory when card is null", () => {
+    const { mockSlices } = renderPage({
+      cardDetails: { activeTab: "market", card: null },
+    });
+    expect(mockSlices.cardDetails.fetchPriceHistory).not.toHaveBeenCalled();
+  });
+
+  it("does not call fetchPriceHistory when globalLeague is null", () => {
+    const mockSlices = createMockSlices({
+      cardDetails: { activeTab: "market" },
+      settings: { getActiveGameViewSelectedLeague: vi.fn(() => null) },
+    });
+
+    vi.mocked(useSettings).mockReturnValue(mockSlices.settings as any);
+    vi.mocked(useCardDetails).mockReturnValue(mockSlices.cardDetails as any);
+
+    renderWithProviders(<CardDetailsPage />);
+
+    expect(mockSlices.cardDetails.fetchPriceHistory).not.toHaveBeenCalled();
+  });
+
+  it("does not call refreshPersonalAnalytics when re-rendered with same league (fetchKey dedup)", () => {
+    const mockSlices = createMockSlices({
+      cardDetails: { selectedLeague: "Settlers" },
+    });
+    const cardDetailsMock = { ...mockSlices.cardDetails };
+
+    vi.mocked(useSettings).mockReturnValue(mockSlices.settings as any);
+    vi.mocked(useCardDetails).mockReturnValue(cardDetailsMock as any);
+
+    const { rerender } = renderWithProviders(<CardDetailsPage />);
+
+    // First render sets lastLeagueFetchRef — no refresh call yet
+    expect(cardDetailsMock.refreshPersonalAnalytics).not.toHaveBeenCalled();
+
+    // Re-render with the exact same league — fetchKey matches ref, so guard returns early
+    rerender(<CardDetailsPage />);
+
+    expect(cardDetailsMock.refreshPersonalAnalytics).not.toHaveBeenCalled();
+  });
+
+  it("does not call refreshPersonalAnalytics when card is null during league change", () => {
+    const mockSlices = createMockSlices({
+      cardDetails: { card: null, selectedLeague: "all" },
+    });
+    const cardDetailsMock = { ...mockSlices.cardDetails };
+
+    vi.mocked(useSettings).mockReturnValue(mockSlices.settings as any);
+    vi.mocked(useCardDetails).mockReturnValue(cardDetailsMock as any);
+
+    const { rerender } = renderWithProviders(<CardDetailsPage />);
+
+    // Change league while card is still null — the early return guard at L92
+    // should prevent refreshPersonalAnalytics from being called.
+    cardDetailsMock.selectedLeague = "Settlers";
+
+    rerender(<CardDetailsPage />);
+
+    expect(cardDetailsMock.refreshPersonalAnalytics).not.toHaveBeenCalled();
+  });
 });

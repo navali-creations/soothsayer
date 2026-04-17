@@ -10,6 +10,17 @@ import {
   useTimelineInteractions,
 } from "./useTimelineInteractions";
 
+// ─── Mocks ──────────────────────────────────────────────────────────────────
+
+const mockNavigate = vi.fn();
+vi.mock("@tanstack/react-router", () => ({
+  useNavigate: () => mockNavigate,
+}));
+
+vi.mock("~/renderer/utils", () => ({
+  cardNameToSlug: (name: string) => name.toLowerCase().replace(/\s+/g, "-"),
+}));
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function createMockCanvas(): HTMLCanvasElement {
@@ -144,6 +155,7 @@ describe("useTimelineInteractions", () => {
       return 0;
     });
     vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    mockNavigate.mockReset();
   });
 
   afterEach(() => {
@@ -816,5 +828,70 @@ describe("useTimelineInteractions", () => {
     });
 
     expect(hoverIndexRef.current).toBeNull();
+  });
+
+  // ── Click handler ─────────────────────────────────────────────────────
+
+  it("should navigate to card details when clicking a bar with a cardName", () => {
+    canvas = createMockCanvas();
+    setupHook({ canvas });
+
+    const barPixelX = defaultMapX(1); // bar index 0 → cardName "The Doctor"
+    const cy = 100;
+
+    act(() => {
+      const event = new MouseEvent("click", {
+        clientX: barPixelX,
+        clientY: cy,
+        bubbles: true,
+      });
+      canvas.dispatchEvent(event);
+    });
+
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: "/cards/$cardSlug",
+      params: { cardSlug: "the-doctor" },
+    });
+  });
+
+  it("should not navigate when clicking empty area (no bar hit)", () => {
+    canvas = createMockCanvas();
+    setupHook({ canvas });
+
+    // x=8 maps to trailing point with barValue=null
+    const emptyPixelX = defaultMapX(8);
+
+    act(() => {
+      const event = new MouseEvent("click", {
+        clientX: emptyPixelX,
+        clientY: 100,
+        bubbles: true,
+      });
+      canvas.dispatchEvent(event);
+    });
+
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it("should not navigate when clicking a bar with no cardName", () => {
+    canvas = createMockCanvas();
+    const dataWithNullName: ProfitChartPoint[] = [
+      { x: 1, profit: 10, barValue: 50, cardName: null, rarity: null },
+      { x: 10, profit: 100, barValue: null, cardName: null, rarity: null },
+    ];
+    setupHook({ canvas, chartData: dataWithNullName });
+
+    const barPixelX = defaultMapX(1);
+
+    act(() => {
+      const event = new MouseEvent("click", {
+        clientX: barPixelX,
+        clientY: 100,
+        bubbles: true,
+      });
+      canvas.dispatchEvent(event);
+    });
+
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 });

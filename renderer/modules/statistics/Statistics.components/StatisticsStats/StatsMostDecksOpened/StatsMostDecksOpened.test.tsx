@@ -169,4 +169,27 @@ describe("StatsMostDecksOpened", () => {
     const stat = screen.getByTestId("stat");
     expect(stat).not.toHaveAttribute("role");
   });
+
+  // ── Duration formatting ──────────────────────────────────────────────
+
+  it("formats duration as hours and minutes when ≥ 60 minutes", () => {
+    const data = createData({ durationMinutes: 90 });
+    renderWithProviders(<StatsMostDecksOpened data={data} />);
+
+    expect(screen.getByText("1h 30m session")).toBeInTheDocument();
+  });
+
+  it("formats duration as hours only when minutes are exactly divisible by 60", () => {
+    const data = createData({ durationMinutes: 120 });
+    renderWithProviders(<StatsMostDecksOpened data={data} />);
+
+    expect(screen.getByText("2h session")).toBeInTheDocument();
+  });
+
+  it("formats duration as minutes only when < 60", () => {
+    const data = createData({ durationMinutes: 45 });
+    renderWithProviders(<StatsMostDecksOpened data={data} />);
+
+    expect(screen.getByText("45m session")).toBeInTheDocument();
+  });
 });

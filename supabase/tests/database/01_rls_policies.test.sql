@@ -137,7 +137,6 @@ SELECT policies_are(
 SELECT policies_are(
   'public', 'community_card_data',
   ARRAY[
-    'Public read access for community_card_data',
     'Service role full access for community_card_data'
   ],
   'community_card_data should have the expected RLS policies'
@@ -251,9 +250,9 @@ SELECT isnt_empty(
   'anon should be able to read cards'
 );
 
-SELECT isnt_empty(
+SELECT is_empty(
   $$SELECT * FROM community_card_data WHERE id = '66666666-6666-6666-6666-666666666666'$$,
-  'anon should be able to read community_card_data'
+  'anon should NOT be able to read community_card_data (service-role only)'
 );
 
 -- ═══════════════════════════════════════════════════════════════
@@ -360,9 +359,9 @@ SELECT isnt_empty(
   'authenticated user should be able to read cards'
 );
 
-SELECT isnt_empty(
+SELECT is_empty(
   $$SELECT * FROM community_card_data WHERE id = '66666666-6666-6666-6666-666666666666'$$,
-  'authenticated user should be able to read community_card_data'
+  'authenticated user should NOT be able to read community_card_data (service-role only)'
 );
 
 -- User 1 should see only their own api_requests

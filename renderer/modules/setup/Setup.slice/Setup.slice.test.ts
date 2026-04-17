@@ -692,6 +692,31 @@ describe("advanceStep", () => {
     });
   });
 
+  it("tracks setup-step-completed-league with poe1League undefined when only poe2 is selected", async () => {
+    const currentState = makeSetupState({
+      currentStep: 2,
+      selectedGames: ["poe2"],
+      poe1League: "Settlers",
+      poe2League: "Dawn",
+    });
+    const nextState = makeSetupState({ currentStep: 3 });
+
+    store.getState().setup.setSetupState(currentState);
+    electron.appSetup.advanceStep.mockResolvedValue({ success: true });
+    electron.appSetup.getSetupState.mockResolvedValue(nextState);
+
+    await store.getState().setup.advanceStep();
+
+    expect(trackEvent).toHaveBeenCalledWith("setup-step-completed-league", {
+      step_number: 2,
+      step_name: "league",
+      selectedGames: ["poe2"],
+      selection_type: "poe2_only",
+      poe1League: undefined,
+      poe2League: "Dawn",
+    });
+  });
+
   it("tracks setup-step-completed-client-path from step 3", async () => {
     const currentState = makeSetupState({
       currentStep: 3,

@@ -635,5 +635,40 @@ describe("GameInfoSlice", () => {
 
       vi.restoreAllMocks();
     });
+
+    it("hits the outer Promise.all .catch when fetchLeagues throws unexpectedly", async () => {
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+
+      electron.poeProcess.getState.mockResolvedValue(null);
+
+      // Setup complete so hydrate will call fetchLeagues
+      setupComplete(["poe1"]);
+
+      // Spy on fetchLeagues and make it throw (bypassing internal try/catch)
+      const originalFetchLeagues = store.getState().gameInfo.fetchLeagues;
+      store.setState((s) => {
+        s.gameInfo.fetchLeagues = async () => {
+          throw new Error("Unexpected outer error");
+        };
+      });
+
+      await store.getState().gameInfo.hydrate();
+
+      // Allow the background Promise.all .catch to settle
+      await vi.waitFor(() => {
+        expect(consoleSpy).toHaveBeenCalledWith(
+          "[GameInfo] Background league fetch failed:",
+          expect.any(Error),
+        );
+      });
+
+      // Restore
+      store.setState((s) => {
+        s.gameInfo.fetchLeagues = originalFetchLeagues;
+      });
+      consoleSpy.mockRestore();
+    });
   });
 });

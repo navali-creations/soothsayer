@@ -5,6 +5,13 @@ import CurrentSessionNetProfitStat from "./CurrentSessionNetProfitStat";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
+const timelineBufferMock = vi.hoisted(() => ({
+  totalDrops: 0,
+  chartData: [] as any[],
+  linePoints: [] as any[],
+  subscribe: vi.fn((_cb: any) => () => {}),
+}));
+
 vi.mock("~/renderer/store", async () => {
   const { createStoreMock } = await import(
     "~/renderer/__test-setup__/store-mock"
@@ -64,12 +71,7 @@ vi.mock(
 );
 
 vi.mock("../../SessionProfitTimeline/timeline-buffer/timeline-buffer", () => ({
-  timelineBuffer: {
-    totalDrops: 0,
-    chartData: [],
-    linePoints: [],
-    subscribe: (_cb: any) => () => {},
-  },
+  timelineBuffer: timelineBufferMock,
 }));
 
 const mockUseBoundStore = vi.mocked(useBoundStore);
@@ -384,6 +386,130 @@ describe("CurrentSessionNetProfitStat", () => {
         el.closest('[data-testid="stat-value"]'),
     );
     expect(chaosInValue).toBeDefined();
+  });
+
+  // ── Sparkline opacity sync via timelineBuffer subscription ─────────
+
+  it("sets sparkline wrapper opacity to '1' when buffer has data", () => {
+    let subscribedCb: (() => void) | undefined;
+    timelineBufferMock.subscribe.mockImplementation((cb: any) => {
+      subscribedCb = cb;
+      return () => {};
+    });
+    timelineBufferMock.totalDrops = 5;
+    timelineBufferMock.chartData = [1, 2, 3];
+
+    setupStore({ session: createSession(), isActive: true });
+    renderWithProviders(<CurrentSessionNetProfitStat />);
+
+    // The initial syncOpacity call inside useEffect should have set opacity
+    const sparklineWrapper = screen.getByTestId("mini-profit-sparkline")
+      .parentElement!;
+    expect(sparklineWrapper.style.opacity).toBe("1");
+
+    // Also invoke the subscribed callback to cover the subscribe path
+    subscribedCb?.();
+    expect(sparklineWrapper.style.opacity).toBe("1");
+
+    // Reset
+    timelineBufferMock.totalDrops = 0;
+    timelineBufferMock.chartData = [];
+  });
+
+  it("sets sparkline wrapper opacity to '0' when buffer has no data", () => {
+    timelineBufferMock.subscribe.mockImplementation((_cb: any) => {
+      return () => {};
+    });
+    timelineBufferMock.totalDrops = 0;
+    timelineBufferMock.chartData = [];
+
+    setupStore({ session: createSession(), isActive: true });
+    renderWithProviders(<CurrentSessionNetProfitStat />);
+
+    const sparklineWrapper = screen.getByTestId("mini-profit-sparkline")
+      .parentElement!;
+    expect(sparklineWrapper.style.opacity).toBe("0");
+  });
+
+  // ── Expand / Collapse button ───────────────────────────────────────
+
+  it("renders expand button when hasTimeline and onToggleExpanded are provided", () => {
+    setupStore({ session: createSession(), isActive: true });
+    const onToggle = vi.fn();
+    renderWithProviders(
+      <CurrentSessionNetProfitStat hasTimeline onToggleExpanded={onToggle} />,
+    );
+
+    // The expand button should be present (FiMaximize2 is rendered as <span />)
+    const buttons = screen.getAllByRole("button");
+    // There should be 2 buttons: info + expand
+    expect(buttons.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("calls onToggleExpanded when expand button is clicked", async () => {
+    setupStore({ session: createSession(), isActive: true });
+    const onToggle = vi.fn();
+    const { user } = renderWithProviders(
+      <CurrentSessionNetProfitStat hasTimeline onToggleExpanded={onToggle} />,
+    );
+
+    const buttons = screen.getAllByRole("button");
+    // The second button is the expand/collapse one
+    const expandBtn = buttons[1];
+    await user.click(expandBtn);
+
+    expect(onToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not render expand button when hasTimeline is false", () => {
+    setupStore({ session: createSession(), isActive: true });
+    const onToggle = vi.fn();
+    renderWithProviders(
+      <CurrentSessionNetProfitStat
+        hasTimeline={false}
+        onToggleExpanded={onToggle}
+      />,
+    );
+
+    // Only the info button should be present
+    const buttons = screen.getAllByRole("button");
+    expect(buttons).toHaveLength(1);
+  });
+
+  it("does not render expand button when onToggleExpanded is not provided", () => {
+    setupStore({ session: createSession(), isActive: true });
+    renderWithProviders(<CurrentSessionNetProfitStat hasTimeline />);
+
+    const buttons = screen.getAllByRole("button");
+    expect(buttons).toHaveLength(1);
+  });
+
+  it("shows collapse tooltip when expanded is true", () => {
+    setupStore({ session: createSession(), isActive: true });
+    renderWithProviders(
+      <CurrentSessionNetProfitStat
+        hasTimeline
+        expanded
+        onToggleExpanded={() => {}}
+      />,
+    );
+
+    const tooltip = document.querySelector('[data-tip="Collapse timeline"]');
+    expect(tooltip).toBeInTheDocument();
+  });
+
+  it("shows expand tooltip when expanded is false", () => {
+    setupStore({ session: createSession(), isActive: true });
+    renderWithProviders(
+      <CurrentSessionNetProfitStat
+        hasTimeline
+        expanded={false}
+        onToggleExpanded={() => {}}
+      />,
+    );
+
+    const tooltip = document.querySelector('[data-tip="Expand timeline"]');
+    expect(tooltip).toBeInTheDocument();
   });
 
   it("renders tooltip title on Net Profit text", () => {

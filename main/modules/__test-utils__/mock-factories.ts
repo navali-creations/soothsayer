@@ -99,7 +99,7 @@ export interface DatabaseServiceMockOverrides {
  * ```
  */
 export function createDatabaseServiceMock(
-  overrides: DatabaseServiceMockOverrides = {}
+  overrides: DatabaseServiceMockOverrides = {},
 ) {
   return {
     DatabaseService: {
@@ -130,7 +130,7 @@ export interface PerformanceLoggerMockOverrides {
  * ```
  */
 export function createPerformanceLoggerMock(
-  overrides: PerformanceLoggerMockOverrides = {}
+  overrides: PerformanceLoggerMockOverrides = {},
 ) {
   return {
     PerformanceLoggerService: {
@@ -172,7 +172,7 @@ export interface SettingsStoreMockOverrides {
  * ```
  */
 export function createSettingsStoreMock(
-  overrides: SettingsStoreMockOverrides = {}
+  overrides: SettingsStoreMockOverrides = {},
 ) {
   return {
     SettingsStoreService: {
@@ -240,7 +240,7 @@ export interface DataStoreServiceMockOverrides {
  * ```
  */
 export function createDataStoreServiceMock(
-  overrides: DataStoreServiceMockOverrides = {}
+  overrides: DataStoreServiceMockOverrides = {},
 ) {
   return {
     DataStoreService: {
@@ -274,7 +274,7 @@ export interface SnapshotServiceMockOverrides {
  * ```
  */
 export function createSnapshotServiceMock(
-  overrides: SnapshotServiceMockOverrides = {}
+  overrides: SnapshotServiceMockOverrides = {},
 ) {
   return {
     SnapshotService: {
@@ -293,6 +293,8 @@ export function createSnapshotServiceMock(
 // ─── IPC Validation Utils ────────────────────────────────────────────────────
 
 export interface IpcValidationMockOverrides {
+  mockAssertTrustedSender?: MockFn;
+  mockRegisterTrustedWebContents?: MockFn;
   mockAssertGameType?: MockFn;
   mockAssertString?: MockFn;
   mockAssertBoundedString?: MockFn;
@@ -320,7 +322,10 @@ export interface IpcValidationMockOverrides {
   mockAssertEnumArray?: MockFn;
   mockHandleValidationError?: MockFn;
   /** A custom IpcValidationError class to include in the mock module */
-  MockIpcValidationError?: new (channel: string, detail: string) => Error;
+  MockIpcValidationError?: new (
+    channel: string,
+    detail: string,
+  ) => Error;
 }
 
 /**
@@ -342,9 +347,12 @@ export interface IpcValidationMockOverrides {
  * ```
  */
 export function createIpcValidationMock(
-  overrides: IpcValidationMockOverrides = {}
+  overrides: IpcValidationMockOverrides = {},
 ) {
   return {
+    assertTrustedSender: overrides.mockAssertTrustedSender ?? vi.fn(),
+    registerTrustedWebContents:
+      overrides.mockRegisterTrustedWebContents ?? vi.fn(),
     assertGameType: overrides.mockAssertGameType ?? vi.fn(),
     assertString: overrides.mockAssertString ?? vi.fn(),
     assertBoundedString: overrides.mockAssertBoundedString ?? vi.fn(),
@@ -428,8 +436,59 @@ export interface SupabaseClientMockOverrides {
  * vi.mock("~/main/modules/supabase", () => createSupabaseClientMock());
  * ```
  */
+// ─── GGG Auth Service Mock ───────────────────────────────────────────────────
+
+interface GggAuthServiceMockOverrides {
+  mockGetAccessToken?: MockFn;
+  mockAuthenticate?: MockFn;
+  mockHandleCallback?: MockFn;
+  mockLogout?: MockFn;
+}
+
+/**
+ * Creates a mock for `~/main/modules/ggg-auth`.
+ *
+ * Usage:
+ * ```ts
+ * const { mockGetAccessToken } = vi.hoisted(() => ({
+ *   mockGetAccessToken: vi.fn(),
+ * }));
+ * vi.mock("~/main/modules/ggg-auth", () =>
+ *   createGggAuthServiceMock({ mockGetAccessToken }),
+ * );
+ * ```
+ */
+export function createGggAuthServiceMock(
+  overrides: GggAuthServiceMockOverrides = {},
+): Record<string, unknown> {
+  const {
+    mockGetAccessToken = vi.fn().mockResolvedValue(null),
+    mockAuthenticate = vi.fn(),
+    mockHandleCallback = vi.fn(),
+    mockLogout = vi.fn(),
+  } = overrides;
+
+  return {
+    GggAuthService: {
+      getInstance: vi.fn(() => ({
+        getAccessToken: mockGetAccessToken,
+        authenticate: mockAuthenticate,
+        handleCallback: mockHandleCallback,
+        logout: mockLogout,
+      })),
+    },
+    GggAuthChannel: {
+      GetAuthStatus: "ggg-auth:get-status",
+      Authenticate: "ggg-auth:authenticate",
+      Logout: "ggg-auth:logout",
+    },
+  };
+}
+
+// ─── Supabase Client Mock ────────────────────────────────────────────────────
+
 export function createSupabaseClientMock(
-  overrides: SupabaseClientMockOverrides = {}
+  overrides: SupabaseClientMockOverrides = {},
 ) {
   return {
     SupabaseClientService: {
@@ -464,14 +523,14 @@ export function createSupabaseClientMock(
  */
 export function getIpcHandler(
   mockIpcHandle: MockFn,
-  channel: string
+  channel: string,
 ): (...args: any[]) => any {
   const calls = mockIpcHandle.mock.calls as [string, (...args: any[]) => any][];
   const call = calls.find(([ch]) => ch === channel);
   if (!call) {
     const registered = calls.map(([ch]) => ch).join(", ");
     throw new Error(
-      `ipcMain.handle was not called with "${channel}". Registered: ${registered}`
+      `ipcMain.handle was not called with "${channel}". Registered: ${registered}`,
     );
   }
   return call[1];
@@ -514,7 +573,7 @@ function stubService() {
  * ```
  */
 export function createBarrelMock(
-  overrides: Record<string, unknown> = {}
+  overrides: Record<string, unknown> = {},
 ): Record<string, unknown> {
   const defaults: Record<string, unknown> = {
     // ── Services ───────────────────────────────────────────────────────
@@ -525,6 +584,14 @@ export function createBarrelMock(
     ClientLogReaderService: stubService(),
     CommunityUploadService: stubService(),
     CsvService: stubService(),
+    GggAuthService: {
+      getInstance: vi.fn(() => ({
+        getAccessToken: vi.fn().mockResolvedValue(null),
+        handleCallback: vi.fn(),
+        authenticate: vi.fn(),
+        logout: vi.fn(),
+      })),
+    },
     CurrentSessionService: stubService(),
     DatabaseService: stubService(),
     DataStoreService: stubService(),

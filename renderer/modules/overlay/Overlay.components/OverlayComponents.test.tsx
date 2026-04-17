@@ -573,6 +573,34 @@ describe("DropBeamColumn", () => {
     expect(beamEl).toBeInTheDocument();
     expect(beamEl.style.getPropertyValue("--beam")).toBe("orangered");
   });
+
+  it("applies tooltip-left class when isLeftHalf is true", () => {
+    setupStore({ isLeftHalf: true });
+    const { container } = renderWithProviders(
+      <DropBeamColumn showBeam={false} isUnknownRarity={true} />,
+    );
+
+    const warningTooltip = container.querySelector(
+      '[data-tip="Low confidence price"]',
+    ) as HTMLElement;
+    expect(warningTooltip).toBeInTheDocument();
+    expect(warningTooltip.className).toContain("tooltip-left");
+    expect(warningTooltip.className).not.toContain("tooltip-right");
+  });
+
+  it("applies tooltip-right class when isLeftHalf is false", () => {
+    setupStore({ isLeftHalf: false });
+    const { container } = renderWithProviders(
+      <DropBeamColumn showBeam={false} isUnknownRarity={true} />,
+    );
+
+    const warningTooltip = container.querySelector(
+      '[data-tip="Low confidence price"]',
+    ) as HTMLElement;
+    expect(warningTooltip).toBeInTheDocument();
+    expect(warningTooltip.className).toContain("tooltip-right");
+    expect(warningTooltip.className).not.toContain("tooltip-left");
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -716,5 +744,24 @@ describe("DropContentColumn", () => {
     const wrapper = container.querySelector(".font-fontin") as HTMLElement;
     expect(wrapper.className).toContain("flex-row");
     expect(wrapper.className).not.toContain("flex-row-reverse");
+  });
+
+  it("falls back to 'inherit' color when rarityStyles.text is empty", () => {
+    setupStore();
+    const styles = {
+      ...defaultRarityStyles,
+      text: "",
+    };
+    renderWithProviders(
+      <DropContentColumn
+        cardName="The Void"
+        chaosValue={100}
+        rarityStyles={styles}
+      />,
+    );
+
+    const cardName = screen.getByText("The Void");
+    // jsdom computes "inherit" to a concrete value, so check the inline style directly
+    expect(cardName.style.color).toBe("inherit");
   });
 });

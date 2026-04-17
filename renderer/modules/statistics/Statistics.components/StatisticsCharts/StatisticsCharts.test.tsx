@@ -33,7 +33,11 @@ vi.mock("~/renderer/hooks", () => ({
 
 vi.mock("~/renderer/components/CombinedChartCanvas", () => ({
   CombinedChartCanvas: (props: any) => (
-    <div data-testid="canvas-chart" data-stat-scope={props.statScope} />
+    <div
+      data-testid="canvas-chart"
+      data-stat-scope={props.statScope}
+      onClick={() => props.onBrushChange?.({ startIndex: 3, endIndex: 7 })}
+    />
   ),
 }));
 
@@ -290,6 +294,22 @@ describe("StatisticsCharts", () => {
       expect(setBrushRange).toHaveBeenCalledWith({
         startIndex: 0,
         endIndex: 1,
+      });
+    });
+
+    it("calls setBrushRange when onBrushChange is invoked from chart", () => {
+      const { setBrushRange } = setupStore({
+        chartRawData: mockRawChartData,
+      });
+
+      renderWithProviders(<StatisticsCharts />);
+
+      const chart = screen.getByTestId("canvas-chart");
+      fireEvent.click(chart);
+
+      expect(setBrushRange).toHaveBeenCalledWith({
+        startIndex: 3,
+        endIndex: 7,
       });
     });
   });

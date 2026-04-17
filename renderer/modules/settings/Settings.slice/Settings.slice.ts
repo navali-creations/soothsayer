@@ -161,6 +161,7 @@ export const createSettingsSlice: StateCreator<
             settings.telemetryCrashReporting = data.telemetryCrashReporting;
             settings.telemetryUsageAnalytics = data.telemetryUsageAnalytics;
             settings.csvExportPath = data.csvExportPath;
+            settings.communityUploadsEnabled = data.communityUploadsEnabled;
             settings.isLoading = false;
           },
           false,

@@ -42,6 +42,9 @@ vi.mock("~/renderer/components", () => ({
             @coremaintainer
           </CustomA>
           <CustomA href="https://example.com">Normal link</CustomA>
+          <CustomA href="https://github.com/user/repo/commit/def5678">
+            <span>non-string child</span>
+          </CustomA>
         </div>
       );
     }
@@ -223,6 +226,26 @@ describe("WhatsNewModal – custom whatsNewComponents", () => {
     const commitBadge = badges.find((b) => b.textContent?.includes("abc1234"));
     const link = commitBadge!.querySelector("a");
     expect(link).toHaveClass("hover:underline");
+  });
+
+  // ── Non-string children fallback (L22) ─────────────────────────────
+
+  it("handles non-string children by falling back to empty text", () => {
+    setupStore({
+      appMenu: { whatsNewRelease: RELEASE_WITH_BODY },
+    });
+    renderWithProviders(<WhatsNewModal />);
+
+    // The non-string child commit link should still render as a badge
+    // but with empty text content for the `text` variable
+    const badges = screen.getAllByTestId("badge");
+    const nonStringBadge = badges.find((b) => {
+      const link = b.querySelector("a");
+      return link?.getAttribute("href")?.includes("def5678");
+    });
+    expect(nonStringBadge).toBeDefined();
+    // It should still render as a commit badge (href matches commit pattern)
+    expect(nonStringBadge).toHaveAttribute("data-variant", "info");
   });
 });
 

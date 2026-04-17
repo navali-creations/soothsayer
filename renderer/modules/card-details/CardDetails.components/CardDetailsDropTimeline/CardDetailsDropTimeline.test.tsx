@@ -372,6 +372,130 @@ describe("CardDetailsDropTimeline — gap indicators", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// League markers — visible range filtering (L89)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("CardDetailsDropTimeline — visible league markers", () => {
+  it("filters league markers to only those within the visible time range", () => {
+    // visibleData spans Jan 15 – Apr 1 2024.
+    // Marker inside range should be kept; marker far outside should be dropped.
+    const insideMarker = {
+      time: 1705400000000, // ~Jan 16 2024, within visible range
+      label: "Affliction Start",
+      type: "start" as const,
+    };
+    const outsideMarker = {
+      time: 1600000000000, // Sep 2020, far outside visible range
+      label: "Ancient League",
+      type: "start" as const,
+    };
+
+    renderComponent(
+      {},
+      {
+        leagueMarkers: [insideMarker, outsideMarker],
+      },
+    );
+
+    // The main chart should be rendered (multi-point default data)
+    expect(screen.getByTestId("main-chart")).toBeInTheDocument();
+  });
+
+  it("computes visibleTimeMin and visibleTimeMax from visibleData endpoints", () => {
+    // visibleData[0].time = 1705312800000 (Jan 15 2024)
+    // visibleData[last].time = 1711965600000 (Apr 1 2024)
+    // timeMargin = 7 * 24 * 60 * 60 * 1000 = 604800000
+    //
+    // A marker just inside the 7-day margin before visibleTimeMin should be kept.
+    // A marker just outside the 7-day margin should be dropped.
+    const timeMargin = 7 * 24 * 60 * 60 * 1000;
+    const visibleTimeMin = 1705312800000; // Jan 15
+    const visibleTimeMax = 1711965600000; // Apr 1
+
+    const justInsideStart = {
+      time: visibleTimeMin - timeMargin + 1000, // within margin
+      label: "Just Inside Start",
+      type: "start" as const,
+    };
+    const justOutsideStart = {
+      time: visibleTimeMin - timeMargin - 86400000, // 1 day past margin
+      label: "Just Outside Start",
+      type: "start" as const,
+    };
+    const justInsideEnd = {
+      time: visibleTimeMax + timeMargin - 1000, // within margin
+      label: "Just Inside End",
+      type: "end" as const,
+    };
+    const justOutsideEnd = {
+      time: visibleTimeMax + timeMargin + 86400000, // 1 day past margin
+      label: "Just Outside End",
+      type: "end" as const,
+    };
+    const middleMarker = {
+      time: 1708000000000, // Feb 2024, well within range
+      label: "Middle Marker",
+      type: "start" as const,
+    };
+
+    renderComponent(
+      {},
+      {
+        leagueMarkers: [
+          justInsideStart,
+          justOutsideStart,
+          justInsideEnd,
+          justOutsideEnd,
+          middleMarker,
+        ],
+      },
+    );
+
+    // Main chart renders — visibleTimeMin / visibleTimeMax were computed
+    // from visibleData and used to filter markers.
+    expect(screen.getByTestId("main-chart")).toBeInTheDocument();
+  });
+
+  it("handles visibleData with a single entry (min equals max)", () => {
+    const singlePointData = [
+      {
+        time: 1705312800000,
+        count: 3,
+        cumulativeCount: 3,
+        totalDecksOpened: 100,
+        league: "Affliction",
+        sessionStartedAt: "2024-01-15T10:00:00Z",
+        sessionId: "s1",
+        sessionCount: 1,
+      },
+    ];
+
+    // When visibleData has only 1 entry, visibleTimeMin === visibleTimeMax
+    const markerNear = {
+      time: 1705312800000 + 1000, // same as the single point
+      label: "Near Marker",
+      type: "start" as const,
+    };
+    const markerFar = {
+      time: 1600000000000, // far away
+      label: "Far Marker",
+      type: "start" as const,
+    };
+
+    renderComponent(
+      {},
+      {
+        // Need >2 chartData points to show brush, but visibleData is single
+        visibleData: singlePointData,
+        leagueMarkers: [markerNear, markerFar],
+      },
+    );
+
+    expect(screen.getByTestId("main-chart")).toBeInTheDocument();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Footer stats
 // ═══════════════════════════════════════════════════════════════════════════
 

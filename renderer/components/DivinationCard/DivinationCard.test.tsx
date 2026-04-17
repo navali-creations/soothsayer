@@ -6,13 +6,15 @@ import DivinationCard from "./DivinationCard";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
+const mockMouseEffects = {
+  mousePos: { x: 0, y: 0 },
+  isHovered: false,
+  rotateX: 0,
+  rotateY: 0,
+};
+
 vi.mock("./hooks/useCardMouseEffects/useCardMouseEffects", () => ({
-  useCardMouseEffects: () => ({
-    mousePos: { x: 0, y: 0 },
-    isHovered: false,
-    rotateX: 0,
-    rotateY: 0,
-  }),
+  useCardMouseEffects: () => mockMouseEffects,
 }));
 
 vi.mock("./components/card-content/CardArt", () => ({
@@ -60,6 +62,13 @@ function makeMetadata(
 // ─── Tests ─────────────────────────────────────────────────────────────────
 
 describe("DivinationCard", () => {
+  beforeEach(() => {
+    mockMouseEffects.isHovered = false;
+    mockMouseEffects.rotateX = 0;
+    mockMouseEffects.rotateY = 0;
+    mockMouseEffects.mousePos = { x: 0, y: 0 };
+  });
+
   describe("placeholder fallback when divinationCard is missing", () => {
     it("renders placeholder card frame when divinationCard is undefined", () => {
       const card = makeCardEntry({ count: 3, divinationCard: undefined });
@@ -252,6 +261,109 @@ describe("DivinationCard", () => {
 
       const effects = screen.getByTestId("rarity-effects");
       expect(effects).toHaveAttribute("data-rarity", "4");
+    });
+  });
+
+  describe("hover state rotation", () => {
+    it("applies rotateX and rotateY when hovered on placeholder card", () => {
+      mockMouseEffects.isHovered = true;
+      mockMouseEffects.rotateX = 5;
+      mockMouseEffects.rotateY = -3;
+
+      const card = makeCardEntry({ count: 3, divinationCard: undefined });
+      renderWithProviders(<DivinationCard card={card} />);
+
+      const cardEl = screen.getByTestId("divination-card");
+      expect(cardEl.style.transform).toContain("rotateX(5deg)");
+      expect(cardEl.style.transform).toContain("rotateY(-3deg)");
+    });
+
+    it("applies rotateX and rotateY when hovered on full card", () => {
+      mockMouseEffects.isHovered = true;
+      mockMouseEffects.rotateX = 10;
+      mockMouseEffects.rotateY = -7;
+
+      const card = makeCardEntry({
+        count: 3,
+        divinationCard: makeMetadata({ rarity: 2 }),
+      });
+      renderWithProviders(<DivinationCard card={card} />);
+
+      const cardEl = screen.getByTestId("divination-card");
+      expect(cardEl.style.transform).toContain("rotateX(10deg)");
+      expect(cardEl.style.transform).toContain("rotateY(-7deg)");
+    });
+
+    it("uses 0 for rotateX and rotateY when not hovered", () => {
+      mockMouseEffects.isHovered = false;
+      mockMouseEffects.rotateX = 10;
+      mockMouseEffects.rotateY = -7;
+
+      const card = makeCardEntry({ count: 3, divinationCard: undefined });
+      renderWithProviders(<DivinationCard card={card} />);
+
+      const cardEl = screen.getByTestId("divination-card");
+      expect(cardEl.style.transform).toContain("rotateX(0deg)");
+      expect(cardEl.style.transform).toContain("rotateY(0deg)");
+    });
+  });
+
+  describe("card body rendering with metadata fields", () => {
+    it("renders artSrc, stackSize, flavourHtml, and rarity from divinationCard", () => {
+      const card = makeCardEntry({
+        count: 4,
+        name: "The Fiend",
+        divinationCard: makeMetadata({
+          artSrc: "https://example.com/fiend.png",
+          stackSize: 11,
+          flavourHtml: "<em>Dark power.</em>",
+          rarity: 2,
+        }),
+      });
+      const { container } = renderWithProviders(<DivinationCard card={card} />);
+
+      // artSrc forwarded to CardArt
+      const art = screen.getByTestId("card-art");
+      expect(art).toHaveAttribute(
+        "data-art-src",
+        "https://example.com/fiend.png",
+      );
+
+      // stackSize rendered as count/stackSize
+      expect(screen.getByText("4/11")).toBeInTheDocument();
+
+      // rarity forwarded to RarityEffects
+      const effects = screen.getByTestId("rarity-effects");
+      expect(effects).toHaveAttribute("data-rarity", "2");
+
+      // flavourHtml rendered
+      expect(container.querySelector("em")?.textContent).toBe("Dark power.");
+    });
+  });
+
+  describe("card body extraction defaults (L71-73)", () => {
+    it("defaults artSrc to '' when undefined, stackSize to 1 when undefined, flavourHtml to '' when undefined", () => {
+      const card = makeCardEntry({
+        count: 2,
+        divinationCard: makeMetadata({
+          artSrc: undefined,
+          stackSize: undefined,
+          flavourHtml: undefined,
+        }),
+      });
+      renderWithProviders(<DivinationCard card={card} />);
+
+      expect(screen.getByTestId("card-art")).toHaveAttribute(
+        "data-art-src",
+        "",
+      );
+      // stackSize defaults to 1, so count/stackSize = 2/1
+      expect(screen.getByText("2/1")).toBeInTheDocument();
+      // No flavour separator when flavourHtml is empty
+      expect(screen.getByTestId("divination-card")).toHaveAttribute(
+        "data-mode",
+        "full",
+      );
     });
   });
 

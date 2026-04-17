@@ -27,16 +27,43 @@ vi.mock("~/renderer/components", () => ({
     </button>
   ),
   Flex: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-  RaritySourceSelect: ({ value, onChange, disabled, ...props }: any) => (
-    <select
-      data-testid="rarity-source-select"
-      value={value}
-      onChange={(e: any) => onChange(e.target.value)}
-      disabled={disabled}
-      {...props}
-    >
-      <option value="poe.ninja">poe.ninja</option>
-    </select>
+  RaritySourceSelect: ({
+    value,
+    onChange,
+    disabled,
+    groups,
+    ...props
+  }: any) => (
+    <div data-testid="rarity-source-select-wrapper">
+      <select
+        data-testid="rarity-source-select"
+        value={value}
+        onChange={(e: any) => onChange(e.target.value)}
+        disabled={disabled}
+        {...props}
+      >
+        <option value="poe.ninja">poe.ninja</option>
+      </select>
+      {/* Render menuLabels so DatasetMenuLabel JSX is exercised */}
+      {groups?.map((g: any, gi: number) => (
+        <div key={gi}>
+          {g.options?.map((opt: any) =>
+            opt.menuLabel ? (
+              <span key={opt.value} data-testid={`menu-label-${opt.value}`}>
+                {opt.menuLabel}
+              </span>
+            ) : null,
+          )}
+          {g.action && (
+            <span data-testid={`group-action-${gi}`}>
+              {g.action.loading
+                ? g.action.loadingLabel || g.action.label
+                : g.action.label}
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
   ),
 }));
 
@@ -290,7 +317,85 @@ describe("CurrentSessionActions", () => {
     expect(screen.getByTestId("rarity-source-select")).toBeInTheDocument();
   });
 
+  // ── DatasetMenuLabel rendering ─────────────────────────────────────────
+
+  it("renders DatasetMenuLabel with label text and superscript hint for dataset options", () => {
+    setupStore();
+    renderWithProviders(<CurrentSessionActions />);
+
+    // The mock RaritySourceSelect now renders menuLabel content
+    const ninjaLabel = screen.getByTestId("menu-label-poe.ninja");
+    expect(ninjaLabel).toBeInTheDocument();
+    expect(ninjaLabel).toHaveTextContent("poe.ninja");
+    expect(ninjaLabel).toHaveTextContent("?");
+
+    const prohibitedLabel = screen.getByTestId("menu-label-prohibited-library");
+    expect(prohibitedLabel).toBeInTheDocument();
+    expect(prohibitedLabel).toHaveTextContent("Prohibited Library");
+    expect(prohibitedLabel).toHaveTextContent("?");
+  });
+
+  it("DatasetMenuLabel has dotted border and title hint", () => {
+    setupStore();
+    renderWithProviders(<CurrentSessionActions />);
+
+    const ninjaLabel = screen.getByTestId("menu-label-poe.ninja");
+    const innerSpan = ninjaLabel.querySelector("span.border-b");
+    expect(innerSpan).toBeInTheDocument();
+    expect(innerSpan).toHaveAttribute(
+      "title",
+      "Price based rarity from poe.ninja market data",
+    );
+  });
+
   // ── Exchange tab click ─────────────────────────────────────────────────
+
+  // ── Scanning state (L115-122) ──────────────────────────────────────────
+
+  it("shows Scanning... loading state when isScanning is true and filters exist", () => {
+    setupStore({
+      rarityInsights: {
+        isScanning: true,
+        lastScannedAt: Date.now(),
+        availableFilters: [],
+        getLocalFilters: vi.fn(() => []),
+        getOnlineFilters: vi.fn(() => []),
+      },
+    });
+    renderWithProviders(<CurrentSessionActions />);
+
+    expect(screen.getByText("Scanning...")).toBeInTheDocument();
+  });
+
+  it("shows Scan for filters when lastScannedAt is null and not scanning", () => {
+    setupStore({
+      rarityInsights: {
+        isScanning: false,
+        lastScannedAt: null,
+        availableFilters: [],
+        getLocalFilters: vi.fn(() => []),
+        getOnlineFilters: vi.fn(() => []),
+      },
+    });
+    renderWithProviders(<CurrentSessionActions />);
+
+    expect(screen.getByText("Scan for filters")).toBeInTheDocument();
+  });
+
+  it("shows Rescan filters when lastScannedAt is set, not scanning, and no filters found", () => {
+    setupStore({
+      rarityInsights: {
+        isScanning: false,
+        lastScannedAt: Date.now(),
+        availableFilters: [],
+        getLocalFilters: vi.fn(() => []),
+        getOnlineFilters: vi.fn(() => []),
+      },
+    });
+    renderWithProviders(<CurrentSessionActions />);
+
+    expect(screen.getByText("Rescan filters")).toBeInTheDocument();
+  });
 
   it('clicking Exchange tab calls setActiveGameViewPriceSource("exchange")', async () => {
     const store = setupStore({

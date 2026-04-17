@@ -6,7 +6,50 @@
  * the renderer (which could be compromised) sends well-formed data.
  */
 
+import type { IpcMainInvokeEvent, WebContents } from "electron";
+
 import type { SetupStep } from "~/main/modules/settings-store";
+
+// ─── Sender Validation (L6 Security Hardening) ──────────────────────────────
+
+/**
+ * Registry of the trusted main-window webContents ID.
+ * Set once at app startup via {@link registerTrustedWebContents}.
+ */
+let trustedWebContentsId: number | null = null;
+
+/**
+ * Register the main window's webContents ID as trusted.
+ * Call this once during app initialization after creating the main window.
+ */
+export function registerTrustedWebContents(webContents: WebContents): void {
+  trustedWebContentsId = webContents.id;
+}
+
+/**
+ * Asserts that an IPC event originated from the trusted main window.
+ * Throws {@link IpcValidationError} if the sender is not the registered main window.
+ *
+ * @param event  - The IPC invoke event (first argument every `ipcMain.handle` callback receives)
+ * @param channel - Channel name, used for error reporting
+ */
+export function assertTrustedSender(
+  event: IpcMainInvokeEvent,
+  channel: string,
+): void {
+  if (trustedWebContentsId === null) {
+    throw new IpcValidationError(
+      channel,
+      "[Security] Trusted webContents not registered",
+    );
+  }
+  if (event.sender.id !== trustedWebContentsId) {
+    throw new IpcValidationError(
+      channel,
+      `[Security] IPC call from untrusted webContents (id=${event.sender.id})`,
+    );
+  }
+}
 
 export class IpcValidationError extends Error {
   constructor(

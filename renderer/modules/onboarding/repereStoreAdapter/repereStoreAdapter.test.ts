@@ -126,6 +126,22 @@ describe("repereStoreAdapter", () => {
       expect(result).toEqual([]);
     });
 
+    it("returns empty array when dismissedBeacons is undefined (fallback)", () => {
+      setupState({ dismissedBeacons: undefined });
+
+      const result = repereStoreAdapter.getAll();
+
+      expect(result).toEqual([]);
+    });
+
+    it("returns empty array when dismissedBeacons is null (fallback)", () => {
+      setupState({ dismissedBeacons: null });
+
+      const result = repereStoreAdapter.getAll();
+
+      expect(result).toEqual([]);
+    });
+
     it("returns each beacon with isDismissed set to true", () => {
       setupState({ dismissedBeacons: ["only-one"] });
 

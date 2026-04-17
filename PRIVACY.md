@@ -1,7 +1,7 @@
 # Privacy Policy
 
 **Data Controller:** Soothsayer  
-**Last Updated:** March 2026
+**Last Updated:** April 2026
 
 Soothsayer is an open-source desktop application for tracking Path of Exile divination card drops. This privacy policy explains what data we collect, how we use it, and your rights.
 
@@ -31,15 +31,16 @@ Usage analytics do **not** include any personal identifiers. We see aggregated c
 
 The app creates an anonymous session with our backend (Supabase) to access shared data like price snapshots. This session uses a random UUID and is not linked to any personal identity.
 
-### Community Uploads (Future — Feature #57)
+### Community Drop Rate Uploads
 
-A planned future feature will allow users to voluntarily upload divination card data for community statistics. This will require linking a GGG (Grinding Gear Games) account via OAuth. When this feature ships:
+When community uploads are enabled (Settings → Privacy & Telemetry), Soothsayer automatically shares your stacked deck drop data at the end of each session to help build community drop rate statistics.
 
-- Your **GGG account name** and **GGG account UUID** will be stored alongside your upload
+- A **locally-generated random ID** (UUID) is used to identify your device for deduplication — this ID is generated once and stored only on your machine. It is not linked to any personal identity.
+- Your **card drop counts** (card name + cumulative count) are uploaded per league
+- If you link your GGG account via OAuth, your **GGG account name** and **GGG account UUID** are stored alongside your uploads for a "verified" badge
 - The GGG OAuth token is used solely to verify your identity and is **not** stored server-side
-- Uploads are **entirely voluntary** — you must explicitly initiate each one
-
-This privacy policy will be updated when this feature launches.
+- Uploads are **on by default** but can be disabled at any time in Settings → Privacy & Telemetry
+- GGG account linking is **entirely optional** — uploads work anonymously without it
 
 ---
 
@@ -58,7 +59,7 @@ This privacy policy will be updated when this feature launches.
 - **Crash reports** — to fix bugs and edge cases across different systems
 - **Usage analytics** — to understand which features matter most and prioritize development
 - **Anonymous sessions** — to provide access to shared price data and app functionality
-- **Community uploads (future)** — to aggregate card drop statistics for community insights
+- **Community uploads** — to aggregate card drop statistics for community insights on [wraeclast.cards](https://wraeclast.cards)
 
 ---
 
@@ -79,7 +80,7 @@ This privacy policy will be updated when this feature launches.
 | Sentry crash reports | 30 days (auto-deleted) |
 | Umami analytics | 90 days (aggregated, no personal data) |
 | Supabase `api_requests` | 24–48 hours (auto-cleaned via daily cron) |
-| Supabase community data (future) | Indefinite (pseudonymized by GGG UUID) |
+| Community upload data | Indefinite (pseudonymized by device UUID or GGG UUID) |
 | Local app data (SQLite) | Until you delete it — fully under your control |
 
 ---
@@ -94,6 +95,13 @@ You can disable crash reporting and/or usage analytics at any time:
 - **Setup Wizard (Step 4)** — new users choose during initial setup
 
 The app is **fully functional** with all telemetry disabled. No features are gated behind telemetry consent.
+
+### Community Uploads
+
+Community drop rate uploads are enabled by default and can be toggled independently:
+
+- **Settings → Privacy & Telemetry → Community Drop Rates** — toggle uploads on/off
+- Linking a GGG account is optional — use the "Link GGG Account" button in Settings to get a verified badge, or "Unlink" to return to anonymous uploads
 
 ### Your Local Data
 
@@ -123,8 +131,8 @@ Requests are processed within **30 days**.
 
 ### Important Notes
 
-- **Before the community upload feature ships:** We hold no data that can identify you. Crash reports have all personal information stripped, usage analytics are fully anonymous, and Supabase sessions use random UUIDs with no link to your identity.
-- **After the community upload feature ships:** Your GGG username becomes the lookup key. You can request export or deletion of all associated data.
+- **Without GGG account linked:** We hold no data that can identify you. Your device UUID is a random identifier with no link to your personal identity.
+- **With GGG account linked:** Your GGG username becomes the lookup key. You can request export or deletion of all associated data.
 - **Ban retention:** Under GDPR Article 17(3)(e), if your account has been flagged for abuse of community features, we may retain a pseudonymous abuse prevention record (containing no personally identifiable information) after processing a deletion request. This is necessary to protect the integrity of community-contributed data.
 
 ---
@@ -136,7 +144,7 @@ Requests are processed within **30 days**.
 | Sentry | Functional Software GmbH | Crash and error reporting |
 | Umami Cloud | Umami Software Inc. | Privacy-focused usage analytics |
 | Supabase | Supabase Inc. | Backend services and database |
-| GGG / Grinding Gear Games (future) | Grinding Gear Games Ltd. | OAuth identity verification only |
+| GGG / Grinding Gear Games | Grinding Gear Games Ltd. | OAuth identity verification only |
 
 Each third-party service has its own privacy policy. We encourage you to review them.
 

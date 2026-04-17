@@ -454,6 +454,32 @@ describe("LeagueDataSection", () => {
 
   // ── Multiple leagues in single game ────────────────────────────────────
 
+  it("switches back to poe1 data when clicking PoE1 tab", async () => {
+    const leagues = [
+      createLeague({ leagueId: "l1", game: "poe1", leagueName: "Settlers" }),
+      createLeague({ leagueId: "l2", game: "poe2", leagueName: "Dawn" }),
+    ];
+
+    const { user } = renderWithProviders(
+      <LeagueDataSection {...defaultProps} leagueUsage={leagues} />,
+    );
+
+    // First switch to poe2
+    const poe2Tab = screen.getAllByRole("tab")[1];
+    await user.click(poe2Tab);
+    expect(poe2Tab).toHaveClass("tab-active");
+
+    // Now click poe1 tab
+    const poe1Tab = screen.getAllByRole("tab")[0];
+    await user.click(poe1Tab);
+
+    expect(poe1Tab).toHaveClass("tab-active");
+    expect(poe2Tab).not.toHaveClass("tab-active");
+
+    const table = screen.getByTestId("table");
+    expect(table).toHaveAttribute("data-rows", "1");
+  });
+
   it("renders multiple leagues in the table", () => {
     const leagues = [
       createLeague({ leagueId: "l1", leagueName: "Settlers" }),

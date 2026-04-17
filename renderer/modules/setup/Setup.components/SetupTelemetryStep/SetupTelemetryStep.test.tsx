@@ -138,7 +138,7 @@ describe("SetupTelemetryStep", () => {
 
       expect(
         screen.getByText(
-          /Both are enabled by default\. You can opt out of either at any time/,
+          /All three are enabled by default\. You can opt out of any at any time/,
         ),
       ).toBeInTheDocument();
     });
@@ -148,6 +148,46 @@ describe("SetupTelemetryStep", () => {
 
       expect(
         screen.getByText("Settings → Privacy & Telemetry"),
+      ).toBeInTheDocument();
+    });
+  });
+
+  // ── Community Drop Rates section ───────────────────────────────────────
+
+  describe("community drop rates section", () => {
+    it("renders the 'Community Drop Rates' heading", () => {
+      renderWithProviders(<SetupTelemetryStep />);
+
+      expect(screen.getByText("Community Drop Rates")).toBeInTheDocument();
+    });
+
+    it("shows a link to wraeclast.cards", () => {
+      renderWithProviders(<SetupTelemetryStep />);
+
+      const link = screen.getByRole("link", { name: /wraeclast\.cards/i });
+      expect(link).toBeInTheDocument();
+    });
+
+    it("has the correct wraeclast.cards URL", () => {
+      renderWithProviders(<SetupTelemetryStep />);
+
+      const link = screen.getByRole("link", { name: /wraeclast\.cards/i });
+      expect(link).toHaveAttribute("href", "https://wraeclast.cards");
+    });
+
+    it("opens wraeclast.cards in a new tab", () => {
+      renderWithProviders(<SetupTelemetryStep />);
+
+      const link = screen.getByRole("link", { name: /wraeclast\.cards/i });
+      expect(link).toHaveAttribute("target", "_blank");
+      expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    });
+
+    it("mentions disabling in Settings", () => {
+      renderWithProviders(<SetupTelemetryStep />);
+
+      expect(
+        screen.getByText(/You can disable this in Settings at any time/),
       ).toBeInTheDocument();
     });
   });

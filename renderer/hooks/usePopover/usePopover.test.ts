@@ -68,6 +68,55 @@ function renderWithMocks(props: Parameters<typeof TestComponent>[0] = {}) {
 }
 
 describe("usePopover", () => {
+  describe("positionPopover early return when refs are null", () => {
+    it("does not throw when triggerRef and popoverRef have no elements attached", () => {
+      const { result } = renderHook(() => usePopover());
+
+      // triggerRef and popoverRef are not attached to any DOM elements,
+      // so positionPopover (called internally) should early-return without error.
+      expect(result.current.triggerRef.current).toBeNull();
+      expect(result.current.popoverRef.current).toBeNull();
+    });
+
+    it("does not throw when only triggerRef is null (popoverRef has element)", () => {
+      const popoverEl = document.createElement("div");
+      popoverEl.showPopover = vi.fn();
+      popoverEl.hidePopover = vi.fn();
+
+      const { result } = renderHook(() => usePopover());
+
+      // Manually assign popoverRef but leave triggerRef null
+      (
+        result.current
+          .popoverRef as React.MutableRefObject<HTMLDivElement | null>
+      ).current = popoverEl;
+
+      expect(result.current.triggerRef.current).toBeNull();
+      expect(result.current.popoverRef.current).toBe(popoverEl);
+    });
+
+    it("does not throw when only popoverRef is null (triggerRef has element)", () => {
+      const triggerEl = document.createElement("button");
+
+      const { result } = renderHook(() => usePopover());
+
+      // Manually assign triggerRef but leave popoverRef null
+      (
+        result.current.triggerRef as React.MutableRefObject<HTMLElement | null>
+      ).current = triggerEl;
+
+      expect(result.current.triggerRef.current).toBe(triggerEl);
+      expect(result.current.popoverRef.current).toBeNull();
+    });
+
+    it("does not throw when both refs are null", () => {
+      const { result } = renderHook(() => usePopover());
+
+      expect(result.current.triggerRef.current).toBeNull();
+      expect(result.current.popoverRef.current).toBeNull();
+    });
+  });
+
   beforeEach(() => {
     vi.useFakeTimers();
   });

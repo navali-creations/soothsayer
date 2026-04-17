@@ -10,6 +10,7 @@ import { CurrentSessionAPI } from "~/main/modules/current-session/CurrentSession
 import { DataStoreAPI } from "~/main/modules/data-store/DataStore.api";
 import { DiagLogAPI } from "~/main/modules/diag-log/DiagLog.api";
 import { DivinationCardsApi } from "~/main/modules/divination-cards/DivinationCards.api";
+import { GggAuthAPI } from "~/main/modules/ggg-auth/GggAuth.api";
 import { MainWindowAPI } from "~/main/modules/main-window/MainWindow.api";
 import { OverlayAPI } from "~/main/modules/overlay/Overlay.api";
 import { PoeLeaguesAPI } from "~/main/modules/poe-leagues/PoeLeagues.api";
@@ -58,6 +59,7 @@ contextBridge.exposeInMainWorld("electron", {
   },
 
   communityUpload: CommunityUploadAPI,
+  gggAuth: GggAuthAPI,
   csv: CsvAPI,
 
   cardDetails: CardDetailsAPI,

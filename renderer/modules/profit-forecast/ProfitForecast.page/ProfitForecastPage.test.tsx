@@ -398,6 +398,44 @@ describe("ProfitForecastPage", () => {
 
       expect(state.poeNinja.checkRefreshStatus).not.toHaveBeenCalled();
     });
+
+    it("builds cardMetadataMap from getAllCards result (L75 loop)", async () => {
+      const mockCards = [
+        { name: "The Doctor", artFilename: "doctor.png", rarity: 1 },
+        { name: "House of Mirrors", artFilename: "mirrors.png", rarity: 1 },
+      ];
+
+      // Ensure window.electron.cards.getAllCards resolves with cards
+      const origElectron = (window as any).electron;
+      (window as any).electron = {
+        ...origElectron,
+        divinationCards: {
+          ...(origElectron?.divinationCards ?? {}),
+          getAll: vi.fn().mockResolvedValue(mockCards),
+        },
+      };
+
+      setupStore({
+        profitForecast: {
+          rows: [{ name: "The Doctor" }],
+          isLoading: false,
+          hasData: vi.fn(() => true),
+          forecastView: "table",
+        },
+      });
+
+      renderWithProviders(<ProfitForecastPage />);
+
+      // Wait for the async metadata loading effect to complete
+      await waitFor(() => {
+        expect(
+          (window as any).electron.divinationCards.getAll,
+        ).toHaveBeenCalledWith("poe1");
+      });
+
+      // Restore
+      (window as any).electron = origElectron;
+    });
   });
 
   // ── No league ────────────────────────────────────────────────────────

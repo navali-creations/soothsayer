@@ -17,6 +17,7 @@ import { createRarityInsightsSlice } from "../modules/rarity-insights/RarityInsi
 import { createRarityInsightsComparisonSlice } from "../modules/rarity-insights/RarityInsightsComparison.slice/RarityInsightsComparison.slice";
 import { createSessionDetailsSlice } from "../modules/session-details";
 import { createSessionsSlice } from "../modules/sessions/Sessions.slice/Sessions.slice";
+import { createCommunityUploadSlice } from "../modules/settings/CommunityUpload.slice/CommunityUpload.slice";
 import { createSettingsSlice } from "../modules/settings/Settings.slice/Settings.slice";
 import { createStorageSlice } from "../modules/settings/Storage.slice/Storage.slice";
 import { createSetupSlice } from "../modules/setup/Setup.slice/Setup.slice";
@@ -56,6 +57,7 @@ export const useBoundStore = create<BoundStore>()(
       const rarityInsightsComparisonSlice = createRarityInsightsComparisonSlice(
         ...a,
       );
+      const communityUploadSlice = createCommunityUploadSlice(...a);
 
       return {
         ...settingsSlice,
@@ -78,6 +80,7 @@ export const useBoundStore = create<BoundStore>()(
         ...updaterSlice,
         ...rarityInsightsSlice,
         ...rarityInsightsComparisonSlice,
+        ...communityUploadSlice,
 
         hydrate: async () => {
           await Promise.all([
@@ -92,6 +95,9 @@ export const useBoundStore = create<BoundStore>()(
 
           // Check disk space after hydration (non-blocking)
           storageSlice.storage.checkDiskSpace();
+
+          // Fetch community upload & GGG auth status (non-blocking)
+          communityUploadSlice.communityUpload.fetchStatus();
 
           // Scan for available loot filters once at startup (non-blocking).
           // Skipped in E2E mode — tests seed filter data directly into the DB
@@ -309,6 +315,14 @@ export const useBoundStore = create<BoundStore>()(
               state.storage.error = null;
               state.storage.isDiskLow = false;
               state.storage.deletingLeagueId = null;
+
+              // Reset community upload
+              state.communityUpload.gggAuthenticated = false;
+              state.communityUpload.gggUsername = null;
+              state.communityUpload.gggAccountId = null;
+              state.communityUpload.isAuthenticating = false;
+              state.communityUpload.isLoadingStatus = false;
+              state.communityUpload.authError = null;
             },
           );
         },

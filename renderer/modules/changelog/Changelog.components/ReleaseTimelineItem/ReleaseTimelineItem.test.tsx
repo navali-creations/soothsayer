@@ -1,3 +1,4 @@
+import { fireEvent } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ChangelogRelease } from "~/main/modules/updater/Updater.api";
@@ -220,34 +221,46 @@ describe("ReleaseTimelineItem", () => {
     expect(windowOpenSpy).not.toHaveBeenCalled();
   });
 
-  it("keyboard Enter on card opens the release URL", async () => {
+  it("keyboard Enter on card opens the release URL and calls preventDefault", () => {
     renderItem();
 
     const links = screen.getAllByRole("link");
     const card = links.find((el) => el.tagName === "DIV")!;
-    card.focus();
 
-    await userEvent.keyboard("{Enter}");
+    const prevented = fireEvent.keyDown(card, { key: "Enter" });
 
     expect(windowOpenSpy).toHaveBeenCalledWith(
       "https://github.com/navali-creations/soothsayer/releases/tag/v1.2.3",
       "_blank",
     );
+    // fireEvent returns false when preventDefault was called
+    expect(prevented).toBe(false);
   });
 
-  it("keyboard Space on card opens the release URL", async () => {
+  it("keyboard Space on card opens the release URL and calls preventDefault", () => {
     renderItem();
 
     const links = screen.getAllByRole("link");
     const card = links.find((el) => el.tagName === "DIV")!;
-    card.focus();
 
-    await userEvent.keyboard(" ");
+    const prevented = fireEvent.keyDown(card, { key: " " });
 
     expect(windowOpenSpy).toHaveBeenCalledWith(
       "https://github.com/navali-creations/soothsayer/releases/tag/v1.2.3",
       "_blank",
     );
+    expect(prevented).toBe(false);
+  });
+
+  it("keyboard other keys do not open the release URL", () => {
+    renderItem();
+
+    const links = screen.getAllByRole("link");
+    const card = links.find((el) => el.tagName === "DIV")!;
+
+    fireEvent.keyDown(card, { key: "Tab" });
+
+    expect(windowOpenSpy).not.toHaveBeenCalled();
   });
 
   // ── Structure ──────────────────────────────────────────────────────────

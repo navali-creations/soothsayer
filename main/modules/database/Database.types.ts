@@ -306,6 +306,13 @@ export interface AppMetadataTable {
   value: string;
 }
 
+export interface CommunityUploadSnapshotTable {
+  game: string;
+  scope: string;
+  card_name: string;
+  count: number;
+}
+
 export interface Database {
   app_metadata: AppMetadataTable;
   global_stats: GlobalStatsTable;
@@ -325,6 +332,7 @@ export interface Database {
   poe_leagues_cache_metadata: PoeLeaguesCacheMetadataTable;
   card_price_history_cache: CardPriceHistoryCacheTable;
   csv_export_snapshots: CsvExportSnapshotsTable;
+  community_upload_snapshot: CommunityUploadSnapshotTable;
   migrations: MigrationsTable;
   user_settings: UserSettingsTable;
   filter_metadata: FilterMetadataTable;

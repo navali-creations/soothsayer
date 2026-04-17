@@ -592,6 +592,33 @@ describe("PFTable", () => {
       expect(table).toHaveAttribute("data-rows", "2");
     });
 
+    it("does not merge rows that have a price above the threshold (!excludedByMinPrice)", () => {
+      const filteredRows = [makeRow({ cardName: "The Doctor" })];
+      const allStoreRows = [
+        makeRow({ cardName: "The Doctor" }),
+        // This row has a price ABOVE the threshold — it should NOT be merged
+        makeRow({
+          cardName: "The Nurse",
+          chaosValue: 500,
+          hasPrice: true,
+        }),
+      ];
+
+      setupStore({
+        profitForecast: {
+          rows: allStoreRows,
+          minPriceThreshold: 10,
+          getFilteredRows: vi.fn(() => filteredRows),
+        },
+      });
+
+      renderWithProviders(<PFTable {...defaultProps} globalFilter="nurse" />);
+
+      const table = screen.getByTestId("table");
+      // "The Nurse" has price 500 >= threshold 10, so excludedByMinPrice is false → continue
+      expect(table).toHaveAttribute("data-rows", "1");
+    });
+
     it("performs case-insensitive matching for globalFilter", () => {
       const filteredRows: CardForecastRow[] = [];
       const allStoreRows = [

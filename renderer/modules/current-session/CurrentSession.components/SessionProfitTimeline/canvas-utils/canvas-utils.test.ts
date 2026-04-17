@@ -704,6 +704,97 @@ describe("canvas-utils", () => {
 
   // ── BAR_COLOR export ──────────────────────────────────────────────────
 
+  describe("drawHoverHighlight - spline fallback", () => {
+    it("should use dc.mapY fallback when spline is null", () => {
+      const ctx = createMockContext();
+      const chartData = [
+        makeChartPoint(5, 10, 5, "Card A"),
+        makeChartPoint(10, 20, 8, "Card B"),
+      ];
+      const layout = computeTimelineLayout(500, 300);
+      const domains = {
+        x: { min: 0, max: 20 },
+        y: { min: -10, max: 30 },
+      };
+      const dc = createDrawContext(ctx, layout, domains);
+
+      // Call with spline = undefined — should hit L430-431 fallback
+      drawHoverHighlight(dc, chartData, 0, "#4CAF50");
+
+      // Should still draw (save/restore called), using mapY instead of spline
+      expect(ctx.save).toHaveBeenCalled();
+      expect(ctx.restore).toHaveBeenCalled();
+      expect(ctx.arc).toHaveBeenCalled();
+    });
+
+    it("should use dc.mapY fallback when spline has fewer than 2 points", () => {
+      const ctx = createMockContext();
+      const chartData = [
+        makeChartPoint(5, 10, 5, "Card A"),
+        makeChartPoint(10, 20, 8, "Card B"),
+      ];
+      const layout = computeTimelineLayout(500, 300);
+      const domains = {
+        x: { min: 0, max: 20 },
+        y: { min: -10, max: 30 },
+      };
+      const dc = createDrawContext(ctx, layout, domains);
+
+      // Spline with only 1 point — should hit L430-431 fallback
+      const tinySpline = { points: [{ x: 50, y: 100 }], tangents: [0] };
+      drawHoverHighlight(dc, chartData, 0, "#4CAF50", tinySpline);
+
+      expect(ctx.save).toHaveBeenCalled();
+      expect(ctx.restore).toHaveBeenCalled();
+      expect(ctx.arc).toHaveBeenCalled();
+    });
+  });
+
+  describe("drawHoverHighlight - spline fallback (L430-431)", () => {
+    it("should use dc.mapY fallback when spline is null", () => {
+      const ctx = createMockContext();
+      const chartData = [
+        makeChartPoint(5, 10, 5, "Card A"),
+        makeChartPoint(10, 20, 8, "Card B"),
+      ];
+      const layout = computeTimelineLayout(500, 300);
+      const domains = {
+        x: { min: 0, max: 20 },
+        y: { min: -10, max: 30 },
+      };
+      const dc = createDrawContext(ctx, layout, domains);
+
+      // spline = undefined triggers the else branch at L430-431
+      drawHoverHighlight(dc, chartData, 0, "#4CAF50");
+
+      expect(ctx.save).toHaveBeenCalled();
+      expect(ctx.restore).toHaveBeenCalled();
+      expect(ctx.arc).toHaveBeenCalled();
+    });
+
+    it("should use dc.mapY fallback when spline has fewer than 2 points", () => {
+      const ctx = createMockContext();
+      const chartData = [
+        makeChartPoint(5, 10, 5, "Card A"),
+        makeChartPoint(10, 20, 8, "Card B"),
+      ];
+      const layout = computeTimelineLayout(500, 300);
+      const domains = {
+        x: { min: 0, max: 20 },
+        y: { min: -10, max: 30 },
+      };
+      const dc = createDrawContext(ctx, layout, domains);
+
+      // Spline with only 1 point triggers the else branch at L430-431
+      const tinySpline = { points: [{ x: 50, y: 100 }], tangents: [0] };
+      drawHoverHighlight(dc, chartData, 0, "#4CAF50", tinySpline as any);
+
+      expect(ctx.save).toHaveBeenCalled();
+      expect(ctx.restore).toHaveBeenCalled();
+      expect(ctx.arc).toHaveBeenCalled();
+    });
+  });
+
   describe("BAR_COLOR", () => {
     it("should be a valid rgba string", () => {
       expect(BAR_COLOR).toBe("rgba(255, 255, 255, 0.85)");

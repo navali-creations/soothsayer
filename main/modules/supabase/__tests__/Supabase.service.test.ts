@@ -1124,7 +1124,7 @@ describe("SupabaseClientService", () => {
       mockFetch.mockRejectedValue(abortError);
 
       await expect(service.callEdgeFunction("my-function", {})).rejects.toThrow(
-        "Edge Function my-function timed out after 10s",
+        "Edge Function my-function timed out after 30s",
       );
     });
 

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  createDatabaseServiceMock,
   createElectronMock,
   createIpcValidationMock,
   createSettingsStoreMock,
@@ -44,6 +45,21 @@ vi.mock("~/main/modules/settings-store", () =>
     mockGet: mockSettingsGet,
     mockSet: mockSettingsSet,
     mockGetAllSettings: mockSettingsGetAllSettings,
+  }),
+);
+
+// ─── Mock DatabaseService ────────────────────────────────────────────────────
+vi.mock("~/main/modules/database", () =>
+  createDatabaseServiceMock({
+    mockGetKysely: vi.fn(() => ({
+      insertInto: vi.fn().mockReturnValue({
+        values: vi.fn().mockReturnValue({
+          onConflict: vi.fn().mockReturnValue({
+            execute: vi.fn().mockResolvedValue(undefined),
+          }),
+        }),
+      }),
+    })),
   }),
 );
 

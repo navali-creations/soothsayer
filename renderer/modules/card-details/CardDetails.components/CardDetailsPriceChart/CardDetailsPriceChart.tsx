@@ -17,7 +17,12 @@ import { useCardDetails } from "~/renderer/store";
 
 import ChartTooltip from "./ChartTooltip";
 import { BRUSH_HEIGHT, CHART_HEIGHT } from "./constants";
-import { formatAxisDate, mapHistoryToChartData } from "./helpers";
+import {
+  formatAxisDate,
+  formatRate,
+  formatVolume,
+  mapHistoryToChartData,
+} from "./helpers";
 import PriceChartEmpty from "./PriceChartEmpty";
 import PriceChartError from "./PriceChartError";
 import type { ChartDataPoint } from "./types";
@@ -167,7 +172,7 @@ const CardDetailsPriceChart = () => {
             yAxisId="rate"
             orientation="left"
             domain={rateDomain}
-            tickFormatter={(value: number) => value.toFixed(1)}
+            tickFormatter={formatRate}
             tick={{ fontSize: 10, fill: c.bc35 }}
             stroke={c.bc10}
             tickLine={false}
@@ -180,12 +185,7 @@ const CardDetailsPriceChart = () => {
             yAxisId="volume"
             orientation="right"
             domain={volumeDomain}
-            tickFormatter={(value: number) => {
-              if (value >= 1_000_000)
-                return `${(value / 1_000_000).toFixed(1)}M`;
-              if (value >= 1_000) return `${(value / 1_000).toFixed(0)}K`;
-              return String(value);
-            }}
+            tickFormatter={formatVolume}
             tick={{ fontSize: 10, fill: c.bc15 }}
             stroke={c.bc05}
             tickLine={false}

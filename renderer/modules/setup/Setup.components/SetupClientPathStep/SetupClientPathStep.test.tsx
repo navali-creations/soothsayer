@@ -252,6 +252,35 @@ describe("SetupClientPathStep", () => {
       expect(selectClientPath).not.toHaveBeenCalled();
     });
 
+    it("calls selectClientPath with poe2 and path after file selection for PoE2", async () => {
+      const selectClientPath = vi.fn();
+      const store = createMockStore({
+        selectClientPath,
+        setupState: {
+          selectedGames: ["poe2"],
+          poe1ClientPath: "",
+          poe2ClientPath: "",
+        },
+      });
+      mockUseBoundStore.mockReturnValue({ setup: store } as any);
+
+      vi.mocked(window.electron.selectFile).mockResolvedValue(
+        "C:\\Games\\PoE2\\logs\\Client.txt",
+      );
+
+      const { user } = renderWithProviders(<SetupClientPathStep />);
+
+      const browseButton = screen.getByText("Browse");
+      await user.click(browseButton);
+
+      await waitFor(() => {
+        expect(selectClientPath).toHaveBeenCalledWith(
+          "poe2",
+          "C:\\Games\\PoE2\\logs\\Client.txt",
+        );
+      });
+    });
+
     it("calls window.electron.selectFile for PoE2 when PoE2 Browse is clicked", async () => {
       mockUseBoundStore.mockReturnValue({
         setup: createMockStore({

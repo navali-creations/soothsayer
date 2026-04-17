@@ -10,6 +10,7 @@ export * from "./data-store";
 export * from "./database";
 export * from "./diag-log";
 export * from "./divination-cards";
+export * from "./ggg-auth";
 export * from "./logger";
 export * from "./main-window";
 export * from "./overlay";

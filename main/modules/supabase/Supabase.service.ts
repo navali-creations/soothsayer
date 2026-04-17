@@ -95,6 +95,10 @@ class SecureSessionStorage {
       try {
         const encrypted = safeStorage.encryptString(sessionJson);
         fs.writeFileSync(this.sessionPath, encrypted);
+        // L1: Restrict session file to owner-only on Unix (Windows uses DPAPI)
+        if (process.platform !== "win32") {
+          fs.chmodSync(this.sessionPath, 0o600);
+        }
         console.log("[SecureSessionStorage] Session encrypted and saved");
         return;
       } catch (error) {
@@ -109,6 +113,10 @@ class SecureSessionStorage {
         "[SecureSessionStorage] Encryption not available - storing in plaintext (DEV ONLY)",
       );
       fs.writeFileSync(this.sessionPath, sessionJson, "utf8");
+      // L1: Restrict session file to owner-only on Unix (Windows uses DPAPI)
+      if (process.platform !== "win32") {
+        fs.chmodSync(this.sessionPath, 0o600);
+      }
       return;
     }
 
@@ -635,11 +643,12 @@ class SupabaseClientService {
    * Call a Supabase Edge Function with authentication
    * Generic method for calling any edge function
    */
-  private static readonly EDGE_FUNCTION_TIMEOUT_MS = 10_000; // 10 seconds
+  private static readonly EDGE_FUNCTION_TIMEOUT_MS = 30_000; // 30 seconds
 
   public async callEdgeFunction<T = unknown>(
     functionName: string,
     body: Record<string, unknown>,
+    extraHeaders?: Record<string, string>,
   ): Promise<T> {
     if (!this.client) {
       throw new Error("Supabase client not configured");
@@ -677,6 +686,7 @@ class SupabaseClientService {
             apikey: this.supabaseAnonKey,
             Authorization: `Bearer ${accessToken}`,
             "x-app-version": app.getVersion(),
+            ...extraHeaders,
           },
           body: JSON.stringify(body),
           signal: controller.signal,

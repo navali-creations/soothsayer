@@ -316,3 +316,157 @@ describe("CardDetailsShareButton — copy feedback", () => {
     expect(screen.queryByTestId("icon-copy")).not.toBeInTheDocument();
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Full combined clipboard content
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("CardDetailsShareButton — combined clipboard output", () => {
+  it("builds full summary with price, stack, full set, and personal analytics", async () => {
+    const { user } = renderComponent({
+      cardName: "The Doctor",
+      stackSize: 8,
+      rarity: 1,
+      fromBoss: true,
+      priceHistory: { currentDivineRate: 5.0 },
+      personalAnalytics: {
+        totalLifetimeDrops: 12,
+        sessionCount: 4,
+        firstDiscoveredAt: "2024-03-10T12:00:00Z",
+      },
+    });
+    await clickAndWaitForClipboard(user);
+
+    await waitFor(() => {
+      expect(mockWriteText).toHaveBeenCalledTimes(1);
+    });
+    const text = mockWriteText.mock.calls[0][0] as string;
+    const lines = text.split("\n");
+
+    // Line 1: name — rarity (Boss-exclusive)
+    expect(lines[0]).toBe("The Doctor — Extremely Rare (Boss-exclusive)");
+    // Line 2: price | stack
+    expect(lines[1]).toBe("Price: 5.0 div | Stack: 8");
+    // Line 3: full set
+    expect(lines[2]).toBe("Full set: 40.0 div");
+    // Line 4: personal stats
+    expect(lines[3]).toContain("First found:");
+    expect(lines[3]).toContain("Total drops: 12 across 4 sessions");
+  });
+
+  it("omits Stack when stackSize is 1", async () => {
+    const { user } = renderComponent({
+      cardName: "Rain of Chaos",
+      stackSize: 1,
+      rarity: 4,
+      fromBoss: false,
+      priceHistory: { currentDivineRate: 0.1 },
+    });
+    await clickAndWaitForClipboard(user);
+
+    await waitFor(() => {
+      expect(mockWriteText).toHaveBeenCalledTimes(1);
+    });
+    const text = mockWriteText.mock.calls[0][0] as string;
+    expect(text).toContain("Price: 0.1 div");
+    expect(text).not.toContain("Stack:");
+    expect(text).not.toContain("Full set:");
+  });
+
+  it("omits firstDiscoveredAt when it is null but still shows drops", async () => {
+    const { user } = renderComponent({
+      personalAnalytics: {
+        totalLifetimeDrops: 3,
+        sessionCount: 1,
+        firstDiscoveredAt: null,
+      },
+    });
+    await clickAndWaitForClipboard(user);
+
+    await waitFor(() => {
+      expect(mockWriteText).toHaveBeenCalledTimes(1);
+    });
+    const text = mockWriteText.mock.calls[0][0] as string;
+    expect(text).not.toContain("First found:");
+    expect(text).toContain("Total drops: 3 across 1 session");
+  });
+
+  it("uses singular 'session' when sessionCount is 1", async () => {
+    const { user } = renderComponent({
+      personalAnalytics: {
+        totalLifetimeDrops: 1,
+        sessionCount: 1,
+        firstDiscoveredAt: null,
+      },
+    });
+    await clickAndWaitForClipboard(user);
+
+    await waitFor(() => {
+      expect(mockWriteText).toHaveBeenCalledTimes(1);
+    });
+    const text = mockWriteText.mock.calls[0][0] as string;
+    expect(text).toMatch(/1 session$/m);
+    expect(text).not.toContain("sessions");
+  });
+
+  it("skips personal stats when totalLifetimeDrops is 0", async () => {
+    const { user } = renderComponent({
+      personalAnalytics: {
+        totalLifetimeDrops: 0,
+        sessionCount: 0,
+        firstDiscoveredAt: null,
+      },
+    });
+    await clickAndWaitForClipboard(user);
+
+    await waitFor(() => {
+      expect(mockWriteText).toHaveBeenCalledTimes(1);
+    });
+    const text = mockWriteText.mock.calls[0][0] as string;
+    expect(text).not.toContain("Total drops:");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Clipboard failure
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("CardDetailsShareButton — clipboard failure", () => {
+  it("logs error to console when clipboard.writeText rejects", async () => {
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    mockWriteText.mockRejectedValueOnce(new Error("denied"));
+
+    const { user } = renderComponent();
+    await user.click(screen.getByRole("button"));
+
+    await waitFor(() => {
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        "[CardDetailsShareButton] Failed to copy to clipboard:",
+        expect.any(Error),
+      );
+    });
+
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("does not show Copied! feedback when clipboard write fails", async () => {
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    mockWriteText.mockRejectedValueOnce(new Error("denied"));
+
+    const { user } = renderComponent();
+    await user.click(screen.getByRole("button"));
+
+    await waitFor(() => {
+      expect(consoleErrorSpy).toHaveBeenCalled();
+    });
+
+    expect(screen.queryByText("Copied!")).not.toBeInTheDocument();
+    expect(screen.getByText("Copy")).toBeInTheDocument();
+
+    consoleErrorSpy.mockRestore();
+  });
+});

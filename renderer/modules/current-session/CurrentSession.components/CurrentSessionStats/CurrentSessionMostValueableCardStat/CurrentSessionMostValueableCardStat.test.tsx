@@ -304,4 +304,90 @@ describe("CurrentSessionMostValuableStat", () => {
     const chaosValue = numbers.find((el) => el.textContent?.includes("c"));
     expect(chaosValue).toBeDefined();
   });
+
+  // ── Price extraction fallback (L41-42) ─────────────────────────────────
+
+  it("defaults currentPrice to 0 when priceInfo is undefined (exchange)", () => {
+    setupSelectorStore({
+      session: createSession({
+        cards: [
+          {
+            name: "No Price Card",
+            count: 1,
+            stashPrice: undefined,
+            exchangePrice: undefined,
+          },
+        ],
+      }),
+      priceSource: "exchange",
+    });
+    renderWithProviders(<CurrentSessionMostValuableStat />);
+
+    // Card passes filter (hidePrice is undefined → !undefined is true),
+    // so mostValuableCard is set with chaosValue defaulting to 0 → renders "0.00c"
+    const value = screen.getByTestId("stat-value");
+    expect(value).toHaveTextContent("0.00c");
+  });
+
+  it("defaults currentPrice to 0 when chaosValue is missing from priceInfo", () => {
+    setupSelectorStore({
+      session: createSession({
+        cards: [
+          {
+            name: "Partial Price Card",
+            count: 1,
+            stashPrice: { chaosValue: undefined, hidePrice: false },
+            exchangePrice: { chaosValue: undefined, hidePrice: false },
+          },
+        ],
+      }),
+      priceSource: "exchange",
+    });
+    renderWithProviders(<CurrentSessionMostValuableStat />);
+
+    // Card passes filter with chaosValue defaulting to 0 → renders "0.00c"
+    const value = screen.getByTestId("stat-value");
+    expect(value).toHaveTextContent("0.00c");
+  });
+
+  // ── Stash chaosToDivineRatio fallback (L57) ────────────────────────────
+
+  it("defaults chaosToDivineRatio to 0 when stash snapshot is missing", () => {
+    setupSelectorStore({
+      session: createSession({
+        cards: [createCard({ name: "The Doctor", stashChaos: 500 })],
+        priceSnapshot: {
+          timestamp: "2024-06-15T12:00:00.000Z",
+          stash: undefined,
+          exchange: { chaosToDivineRatio: 220 },
+        },
+      }),
+      priceSource: "stash",
+    });
+    renderWithProviders(<CurrentSessionMostValuableStat />);
+
+    // With chaosToDivineRatio defaulting to 0, chaosValue (500) >= 0,
+    // so it should display in divines path
+    const numbers = screen.getAllByTestId("animated-number");
+    expect(numbers.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("defaults chaosToDivineRatio to 0 when priceSnapshot is present but ratio is null", () => {
+    setupSelectorStore({
+      session: createSession({
+        cards: [createCard({ name: "The Doctor", exchangeChaos: 500 })],
+        priceSnapshot: {
+          timestamp: "2024-06-15T12:00:00.000Z",
+          stash: { chaosToDivineRatio: 200 },
+          exchange: { chaosToDivineRatio: null },
+        },
+      }),
+      priceSource: "exchange",
+    });
+    renderWithProviders(<CurrentSessionMostValuableStat />);
+
+    // chaosToDivineRatio falls back to 0, so 500 >= 0 → divines display
+    const numbers = screen.getAllByTestId("animated-number");
+    expect(numbers.length).toBeGreaterThanOrEqual(1);
+  });
 });

@@ -503,6 +503,18 @@ describe("RarityInsightsComparison.slice", () => {
       slice().handleTableSortingChange([{ id: "poeNinjaRarity", desc: true }]);
       expect(slice().priorityPoeNinjaRarity).toBe(2);
     });
+
+    it("deletes priorityFilterRarities entry when its column is no longer sorted", () => {
+      // Set a filter priority via handleFilterRarityClick
+      slice().handleFilterRarityClick("someFilterId", 2);
+      expect(slice().priorityFilterRarities).toHaveProperty("someFilterId", 2);
+
+      // Sort by a column that does NOT include filter_someFilterId
+      slice().handleTableSortingChange([{ id: "name", desc: false }]);
+
+      expect(slice().priorityFilterRarities).not.toHaveProperty("someFilterId");
+      expect(slice().priorityFilterRarities).toEqual({});
+    });
   });
 
   // ─── 13. updateFilterCardRarity ──────────────────────────────────────
@@ -536,6 +548,31 @@ describe("RarityInsightsComparison.slice", () => {
         cardName: "The Doctor",
         rarity: 3,
       });
+    });
+
+    it("does not crash when IPC throws an error", async () => {
+      // Parse a filter first
+      electron.rarityInsights.parse.mockResolvedValue({
+        filterId: "filter-1",
+        filterName: "My Filter",
+        totalCards: 1,
+        rarities: [{ filterId: "filter-1", cardName: "The Doctor", rarity: 1 }],
+        hasDivinationSection: true,
+      });
+      await slice().parseFilter("filter-1");
+
+      // Mock updateCardRarity to reject
+      electron.rarityInsights.updateCardRarity.mockRejectedValueOnce(
+        new Error("IPC exploded"),
+      );
+
+      // Should not throw
+      await slice().updateFilterCardRarity("filter-1", "The Doctor", 3);
+
+      // State should remain unchanged
+      expect(
+        slice().parsedResults.get("filter-1")!.rarities.get("The Doctor"),
+      ).toBe(1);
     });
 
     it("does not update local state when IPC returns success: false", async () => {
@@ -690,6 +727,34 @@ describe("RarityInsightsComparison.slice", () => {
       expect(diffs.has("House of Mirrors")).toBe(true);
       expect(diffs.has("The Doctor")).toBe(false);
       expect(diffs.has("Rain of Chaos")).toBe(false);
+    });
+
+    it("returns cached value on second call without state change", async () => {
+      store = makeStoreWithCards();
+      electron = window.electron as unknown as ElectronMock;
+      const s = () => store.getState().rarityInsightsComparison;
+
+      electron.rarityInsights.parse.mockResolvedValue({
+        filterId: "filter-1",
+        filterName: "My Filter",
+        totalCards: 3,
+        rarities: [
+          { filterId: "filter-1", cardName: "The Doctor", rarity: 1 },
+          { filterId: "filter-1", cardName: "House of Mirrors", rarity: 4 },
+          { filterId: "filter-1", cardName: "Rain of Chaos", rarity: 4 },
+        ],
+        hasDivinationSection: true,
+      });
+
+      s().toggleFilter("filter-1");
+      await vi.waitFor(() => {
+        expect(s().parsedResults.has("filter-1")).toBe(true);
+      });
+
+      const first = s().getDifferences();
+      const second = s().getDifferences();
+      // Same reference means it was returned from cache
+      expect(second).toBe(first);
     });
 
     it("returns empty set when no filters are parsed", () => {

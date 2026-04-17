@@ -442,6 +442,27 @@ describe("CardDetails.slice", () => {
         "Failed to load personal analytics",
       );
     });
+
+    it("falls back to 'all' when selectedLeague is null", async () => {
+      electron.cardDetails.getPersonalAnalytics.mockResolvedValue(
+        makePersonalAnalytics(),
+      );
+
+      await store
+        .getState()
+        .cardDetails.refreshPersonalAnalytics(
+          "poe1",
+          "The Doctor",
+          null as unknown as string,
+        );
+
+      expect(electron.cardDetails.getPersonalAnalytics).toHaveBeenCalledWith(
+        "poe1",
+        "all",
+        "The Doctor",
+        null,
+      );
+    });
   });
 
   // ─── setSelectedLeague / setActiveTab ──────────────────────────────
@@ -1446,6 +1467,22 @@ describe("CardDetails.slice", () => {
         expect(result!.label).toBe("∞× luckier");
         expect(result!.color).toBe("success");
         expect(result!.hasSufficientData).toBe(false);
+      });
+
+      it("returns luckRatio 1 and 'As expected' when expectedDrops <= 0 and actualDrops is 0", () => {
+        store.setState((s) => {
+          s.cardDetails.personalAnalytics = makePersonalAnalytics({
+            totalDecksOpenedAllSessions: 0,
+            totalLifetimeDrops: 0,
+          }) as any;
+        });
+        const result = store.getState().cardDetails.getLuckComparison(0.05);
+        expect(result).not.toBeNull();
+        expect(result!.expectedDrops).toBe(0);
+        expect(result!.actualDrops).toBe(0);
+        expect(result!.luckRatio).toBe(1);
+        expect(result!.label).toBe("As expected");
+        expect(result!.color).toBe("warning");
       });
 
       it("returns informative 'luckier' label when luckRatio >= 1.2", () => {

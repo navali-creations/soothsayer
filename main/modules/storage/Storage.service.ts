@@ -6,6 +6,7 @@ import { app, ipcMain } from "electron";
 import { DatabaseService } from "~/main/modules/database";
 import {
   assertLeagueId,
+  assertTrustedSender,
   IpcValidationError,
 } from "~/main/utils/ipc-validation";
 import { maskPath } from "~/main/utils/mask-path";
@@ -29,6 +30,8 @@ const AVG_SNAPSHOT_ROW_BYTES = 150;
 const AVG_SNAPSHOT_CARD_PRICE_ROW_BYTES = 100;
 const AVG_RARITY_ROW_BYTES = 80;
 const AVG_AVAILABILITY_ROW_BYTES = 120;
+const AVG_COMMUNITY_UPLOAD_SNAPSHOT_ROW_BYTES = 80;
+const AVG_CARD_ROW_BYTES = 100;
 const AVG_POE_LEAGUE_CACHE_ROW_BYTES = 150;
 
 // Low disk space threshold: 1 GB
@@ -71,8 +74,9 @@ class StorageService {
 
     ipcMain.handle(
       StorageChannel.DeleteLeagueData,
-      async (_event, leagueId: string): Promise<DeleteLeagueDataResult> => {
+      async (event, leagueId: string): Promise<DeleteLeagueDataResult> => {
         try {
+          assertTrustedSender(event, StorageChannel.DeleteLeagueData);
           assertLeagueId(leagueId, StorageChannel.DeleteLeagueData);
           return await this.deleteLeagueData(leagueId);
         } catch (error) {
@@ -308,6 +312,8 @@ class StorageService {
           COALESCE(snap.card_price_count, 0)   AS card_price_count,
           COALESCE(r.rarity_count, 0)          AS rarity_count,
           COALESCE(avail.availability_count, 0) AS availability_count,
+          COALESCE(crd.card_count, 0)           AS card_count,
+          COALESCE(cus.upload_snapshot_count, 0) AS upload_snapshot_count,
           COALESCE(plc.poe_league_cache_count, 0) AS poe_league_cache_count,
           COALESCE(active.active_count, 0)     AS active_count
         FROM leagues l
@@ -364,6 +370,19 @@ class StorageService {
         ) avail ON avail.game = l.game AND avail.league = l.name
 
         LEFT JOIN (
+          SELECT game, scope, COUNT(*) AS card_count
+          FROM cards
+          WHERE scope != 'all-time'
+          GROUP BY game, scope
+        ) crd ON crd.game = l.game AND crd.scope = l.name
+
+        LEFT JOIN (
+          SELECT game, scope, COUNT(*) AS upload_snapshot_count
+          FROM community_upload_snapshot
+          GROUP BY game, scope
+        ) cus ON cus.game = l.game AND cus.scope = l.name
+
+        LEFT JOIN (
           SELECT game, league_id, COUNT(*) AS poe_league_cache_count
           FROM poe_leagues_cache
           GROUP BY game, league_id
@@ -391,6 +410,8 @@ class StorageService {
       card_price_count: number;
       rarity_count: number;
       availability_count: number;
+      card_count: number;
+      upload_snapshot_count: number;
       poe_league_cache_count: number;
       active_count: number;
     }>;
@@ -405,6 +426,8 @@ class StorageService {
         row.card_price_count * AVG_SNAPSHOT_CARD_PRICE_ROW_BYTES +
         row.rarity_count * AVG_RARITY_ROW_BYTES +
         row.availability_count * AVG_AVAILABILITY_ROW_BYTES +
+        row.card_count * AVG_CARD_ROW_BYTES +
+        row.upload_snapshot_count * AVG_COMMUNITY_UPLOAD_SNAPSHOT_ROW_BYTES +
         row.poe_league_cache_count * AVG_POE_LEAGUE_CACHE_ROW_BYTES;
 
       return {
@@ -521,6 +544,17 @@ class StorageService {
         // 10. csv_export_snapshots WHERE game AND scope = league_name
         db.prepare(
           "DELETE FROM csv_export_snapshots WHERE game = ? AND scope = ?",
+        ).run(league.game, league.name);
+
+        // 10b. cards WHERE game AND scope = league_name (league-scoped aggregate data)
+        db.prepare("DELETE FROM cards WHERE game = ? AND scope = ?").run(
+          league.game,
+          league.name,
+        );
+
+        // 10c. community_upload_snapshot WHERE game AND scope = league_name
+        db.prepare(
+          "DELETE FROM community_upload_snapshot WHERE game = ? AND scope = ?",
         ).run(league.game, league.name);
 
         // 11. Delete the league itself

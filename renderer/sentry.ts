@@ -20,6 +20,20 @@ export function initSentry(enabled = true) {
 
   Sentry.init({
     dsn: import.meta.env.VITE_SENTRY_DSN,
+
+    // L7: Scrub GGG usernames from renderer console breadcrumbs
+    beforeBreadcrumb(breadcrumb) {
+      if (
+        breadcrumb.category === "console" &&
+        breadcrumb.message?.includes("username=")
+      ) {
+        breadcrumb.message = breadcrumb.message.replace(
+          /username=[^\s,)]+/g,
+          "username=[redacted]",
+        );
+      }
+      return breadcrumb;
+    },
   });
 
   initialized = true;

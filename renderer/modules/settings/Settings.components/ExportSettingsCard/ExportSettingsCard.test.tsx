@@ -160,6 +160,29 @@ describe("ExportSettingsCard", () => {
     });
   });
 
+  it("logs console.error when selectFile rejects", async () => {
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    window.electron.selectFile = vi
+      .fn()
+      .mockRejectedValue(new Error("Dialog crashed"));
+    const { user } = renderWithProviders(<ExportSettingsCard />);
+
+    const folderButton = screen.getByTestId("icon-folder").closest("button")!;
+    await user.click(folderButton);
+
+    await waitFor(() => {
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        "Error selecting export directory:",
+        expect.any(Error),
+      );
+    });
+
+    expect(mockUpdateSetting).not.toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
+  });
+
   it("does nothing if selectFile returns null/undefined", async () => {
     window.electron.selectFile = vi.fn().mockResolvedValue(null);
     const { user } = renderWithProviders(<ExportSettingsCard />);

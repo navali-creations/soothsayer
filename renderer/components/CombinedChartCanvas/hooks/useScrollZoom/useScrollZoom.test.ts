@@ -398,6 +398,34 @@ describe("useScrollZoom", () => {
     expect(onBrushChange).toHaveBeenCalledWith({ startIndex: 7, endIndex: 49 });
   });
 
+  it("returns early when shrink computes to 0 (window just above MIN_ZOOM_WINDOW)", () => {
+    const container = document.createElement("div");
+    const onBrushChange = vi.fn();
+    // window = 16-10 = 6, shrink = min(3, floor((6-5)/2)) = min(3, 0) = 0 → early return
+    const refs = createRefs({
+      container,
+      dataLength: 50,
+      brushStart: 10,
+      brushEnd: 16,
+      onBrushChange,
+    });
+
+    renderHook(() =>
+      useScrollZoom(
+        refs.containerRef,
+        refs.chartDataRef,
+        refs.brushRangeRef,
+        refs.onBrushChangeRef,
+      ),
+    );
+
+    act(() => {
+      fireWheel(container, -100);
+    });
+
+    expect(onBrushChange).not.toHaveBeenCalled();
+  });
+
   it("limits zoom-in shrink to avoid going below MIN_ZOOM_WINDOW", () => {
     const container = document.createElement("div");
     const onBrushChange = vi.fn();

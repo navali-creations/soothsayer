@@ -1,5 +1,10 @@
 import { useEffect } from "react";
-import { FiBarChart2, FiExternalLink, FiShield } from "react-icons/fi";
+import {
+  FiBarChart2,
+  FiExternalLink,
+  FiShield,
+  FiUploadCloud,
+} from "react-icons/fi";
 
 import { useBoundStore } from "~/renderer/store";
 
@@ -79,10 +84,36 @@ const SetupTelemetryStep = () => {
             </div>
           </div>
         </div>
+        {/* Community Drop Rates */}
+        <div className="bg-base-100 border border-base-content/10 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 text-primary">
+              <FiUploadCloud className="w-5 h-5" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-base-content">
+                Community Drop Rates
+              </h3>
+              <p className="text-xs text-base-content/60 mt-1">
+                Card names and drop counts are shared anonymously at the end of
+                each session to help build community drop rate statistics on{" "}
+                <a
+                  href="https://wraeclast.cards"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="link link-primary inline-flex items-center gap-0.5"
+                >
+                  wraeclast.cards <FiExternalLink className="w-3 h-3" />
+                </a>
+                . You can disable this in Settings at any time.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       <p className="text-xs text-base-content/50 mt-4">
-        Both are enabled by default. You can opt out of either at any time in{" "}
+        All three are enabled by default. You can opt out of any at any time in{" "}
         <span className="font-semibold text-base-content/70">
           Settings → Privacy & Telemetry
         </span>

@@ -5,6 +5,7 @@ import { type App, app, ipcMain } from "electron";
 import {
   CurrentSessionService,
   DatabaseService,
+  GggAuthService,
   type MainWindowServiceType,
   OverlayService,
   PoeProcessService,
@@ -89,14 +90,58 @@ class AppService {
   }
 
   public emitSecondInstance(mainWindow: MainWindowServiceType) {
-    this.app.on(AppChannel.SecondInstance, () => {
+    this.app.on(AppChannel.SecondInstance, (_event, commandLine) => {
       if (!mainWindow) {
         return;
       }
 
       // Focus on the main window if the user tried to open another
       mainWindow.show?.();
+
+      // Windows/Linux: deep link URL arrives via command line args
+      const deepLinkUrl = (commandLine as string[]).find((arg) =>
+        arg.startsWith("soothsayer://"),
+      );
+      if (deepLinkUrl) {
+        this.handleDeepLink(deepLinkUrl);
+      }
     });
+  }
+
+  /**
+   * Register the macOS `open-url` handler for deep links (e.g. OAuth callbacks).
+   * On macOS the OS delivers custom-protocol URLs via this app event rather than
+   * through `second-instance` command-line args.
+   */
+  public emitOpenUrl() {
+    this.app.on(AppChannel.OpenUrl, (event, url) => {
+      event.preventDefault();
+      this.handleDeepLink(url);
+    });
+  }
+
+  /**
+   * Route a `soothsayer://` deep link to the appropriate handler.
+   * Currently only `soothsayer://oauth/callback` is supported.
+   */
+  private handleDeepLink(url: string): void {
+    console.log("[App] Deep link received:", url);
+
+    try {
+      const parsed = new URL(url);
+
+      if (
+        parsed.protocol === "soothsayer:" &&
+        parsed.hostname === "oauth" &&
+        parsed.pathname === "/callback"
+      ) {
+        GggAuthService.getInstance().handleCallback(url);
+      } else {
+        console.warn("[App] Unrecognised deep link path:", url);
+      }
+    } catch (error) {
+      console.error("[App] Failed to parse deep link URL:", url, error);
+    }
   }
 
   /**

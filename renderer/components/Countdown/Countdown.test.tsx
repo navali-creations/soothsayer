@@ -109,6 +109,34 @@ describe("Countdown", () => {
     expect(separators).toHaveLength(2);
   });
 
+  it("applies 'relative' class instead of 'gap-0.5' when labelPosition is 'absolute'", () => {
+    renderWithProviders(
+      <Countdown
+        timer={{ hours: 1, minutes: 5, seconds: 30 }}
+        showLabels
+        labelPosition="absolute"
+        alwaysShowHours
+      />,
+    );
+
+    // The segment wrapper divs should have "relative" class (not "gap-0.5")
+    const segmentWrappers = document.querySelectorAll(
+      ".flex.flex-col.items-center",
+    );
+    for (const wrapper of segmentWrappers) {
+      expect(wrapper).toHaveClass("relative");
+      expect(wrapper).not.toHaveClass("gap-0.5");
+    }
+
+    // Labels should have absolute positioning classes
+    const label = screen.getByText("hrs");
+    expect(label).toHaveClass("absolute");
+    expect(label).toHaveClass("top-full");
+    expect(label).toHaveClass("left-1/2");
+    expect(label).toHaveClass("-translate-x-1/2");
+    expect(label).toHaveClass("mt-0.5");
+  });
+
   it("applies custom className to outer span", () => {
     const { container } = renderWithProviders(
       <Countdown timer={baseTimer} className="my-custom-class" />,

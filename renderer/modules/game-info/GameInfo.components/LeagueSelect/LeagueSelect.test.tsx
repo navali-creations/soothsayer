@@ -129,6 +129,34 @@ describe("LeagueSelect", () => {
     );
   });
 
+  it("resets correction tracking when selected league changes between renders", () => {
+    // First render: auto-corrects from "nonexistent" to "settlers"
+    const store = setupStore({
+      settings: {
+        getSelectedPoe1League: vi.fn(() => "nonexistent-league"),
+        getSelectedPoe2League: vi.fn(() => "standard"),
+        updateSetting: vi.fn(),
+      },
+    });
+    const { rerender } = renderWithProviders(<LeagueSelect game="poe1" />);
+
+    expect(store.settings.updateSetting).toHaveBeenCalledWith(
+      "poe1SelectedLeague",
+      "settlers",
+    );
+
+    store.settings.updateSetting.mockClear();
+
+    // Second render: selected league changed to "settlers" (the corrected value),
+    // so correctedFromRef resets because correctedFromRef.current !== selectedLeague
+    store.settings.getSelectedPoe1League = vi.fn(() => "settlers");
+    mockUseBoundStore.mockReturnValue(store);
+    rerender(<LeagueSelect game="poe1" />);
+
+    // No further corrections needed since "settlers" is available
+    expect(store.settings.updateSetting).not.toHaveBeenCalled();
+  });
+
   it("does not auto-correct when leagues haven't loaded (empty array)", () => {
     const store = setupStore({
       gameInfo: {

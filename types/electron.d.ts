@@ -8,6 +8,7 @@ import type { CurrentSessionAPI } from "../main/modules/current-session/CurrentS
 import type { DataStoreAPI } from "../main/modules/data-store/DataStore.api";
 import type { DiagLogAPI } from "../main/modules/diag-log/DiagLog.api";
 import type { DivinationCardsApi } from "../main/modules/divination-cards/DivinationCards.api";
+import type { GggAuthAPI } from "../main/modules/ggg-auth/GggAuth.api";
 import type { MainWindowAPI } from "../main/modules/main-window/MainWindow.api";
 import type { OverlayAPI } from "../main/modules/overlay/Overlay.api";
 import type { PoeLeaguesAPI } from "../main/modules/poe-leagues/PoeLeagues.api";
@@ -26,6 +27,7 @@ declare global {
     electron: {
       selectFile: (options: any) => Promise<string | undefined>;
       communityUpload: typeof CommunityUploadAPI;
+      gggAuth: typeof GggAuthAPI;
       csv: typeof CsvAPI;
       cardDetails: typeof CardDetailsAPI;
       session: typeof CurrentSessionAPI;

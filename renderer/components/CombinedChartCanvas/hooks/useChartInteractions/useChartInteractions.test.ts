@@ -427,6 +427,46 @@ describe("useChartInteractions", () => {
 
   // ── 14. Cursor resets to default outside chart and brush ──────
 
+  it("returns brush-body hit when cursor is well inside brush range (L104)", () => {
+    const params = createParams({ showBrush: true });
+    const canvas = params.canvasRef.current!;
+    const brushRange = params.brushRangeRef.current;
+
+    // Compute positions well inside the brush, far from traveller edges
+    const leftX =
+      DEFAULT_LAYOUT.brushLeft +
+      (brushRange.startIndex / 99) *
+        (DEFAULT_LAYOUT.brushRight - DEFAULT_LAYOUT.brushLeft);
+    const rightX =
+      DEFAULT_LAYOUT.brushLeft +
+      (brushRange.endIndex / 99) *
+        (DEFAULT_LAYOUT.brushRight - DEFAULT_LAYOUT.brushLeft);
+    // Use 50% between left and right — guaranteed to be far from travellers
+    const midX = (leftX + rightX) / 2;
+    const brushMidY =
+      (DEFAULT_LAYOUT.brushTop + DEFAULT_LAYOUT.brushBottom) / 2;
+
+    renderHook(() => useChartInteractions(params));
+
+    // Mousemove to brush body sets cursor to "grab" (brush-body hit)
+    act(() => {
+      fireMouseEvent(canvas, "mousemove", {
+        clientX: midX,
+        clientY: brushMidY,
+      });
+    });
+    expect(canvas.style.cursor).toBe("grab");
+
+    // Mousedown on brush body should start a brush-pan drag (cursor → grabbing)
+    act(() => {
+      fireMouseEvent(canvas, "mousedown", {
+        clientX: midX,
+        clientY: brushMidY,
+      });
+    });
+    expect(canvas.style.cursor).toBe("grabbing");
+  });
+
   it("sets cursor to default on mousemove outside both chart and brush areas", () => {
     const params = createParams();
     const canvas = params.canvasRef.current!;
@@ -460,5 +500,384 @@ describe("useChartInteractions", () => {
       fireMouseEvent(window, "mouseup");
     });
     expect(canvas.style.cursor).toBe("grab");
+  });
+
+  // ── 16. Mousedown on right traveller starts brush-right drag ──
+
+  it("starts brush-right drag on mousedown near right traveller", () => {
+    const params = createParams({ showBrush: true });
+    const canvas = params.canvasRef.current!;
+    const brushRange = params.brushRangeRef.current;
+
+    // mapBrushX(endIndex=30) = 50 + (30/99) * 400 ≈ 171.2
+    const rightTravellerX = Math.round(
+      DEFAULT_LAYOUT.brushLeft +
+        (brushRange.endIndex / 99) *
+          (DEFAULT_LAYOUT.brushRight - DEFAULT_LAYOUT.brushLeft),
+    );
+    const brushMidY =
+      (DEFAULT_LAYOUT.brushTop + DEFAULT_LAYOUT.brushBottom) / 2;
+
+    renderHook(() => useChartInteractions(params));
+
+    act(() => {
+      fireMouseEvent(canvas, "mousedown", {
+        clientX: rightTravellerX,
+        clientY: brushMidY,
+      });
+    });
+
+    // Verify drag is active: moving the mouse should call onBrushChangeRef
+    // with updated endIndex
+    act(() => {
+      fireMouseEvent(canvas, "mousemove", {
+        clientX: rightTravellerX + 50,
+        clientY: brushMidY,
+      });
+    });
+
+    expect(
+      params.onBrushChangeRef.current as ReturnType<typeof vi.fn>,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        startIndex: brushRange.startIndex,
+      }),
+    );
+  });
+
+  // ── 17. Mousedown on brush body starts brush-pan drag ─────────
+
+  it("starts brush-pan drag on mousedown over brush body", () => {
+    const params = createParams({ showBrush: true });
+    const canvas = params.canvasRef.current!;
+    const brushRange = params.brushRangeRef.current;
+
+    // Mid-point between left and right travellers
+    const leftX =
+      DEFAULT_LAYOUT.brushLeft +
+      (brushRange.startIndex / 99) *
+        (DEFAULT_LAYOUT.brushRight - DEFAULT_LAYOUT.brushLeft);
+    const rightX =
+      DEFAULT_LAYOUT.brushLeft +
+      (brushRange.endIndex / 99) *
+        (DEFAULT_LAYOUT.brushRight - DEFAULT_LAYOUT.brushLeft);
+    const midX = (leftX + rightX) / 2;
+    const brushMidY =
+      (DEFAULT_LAYOUT.brushTop + DEFAULT_LAYOUT.brushBottom) / 2;
+
+    renderHook(() => useChartInteractions(params));
+
+    act(() => {
+      fireMouseEvent(canvas, "mousedown", {
+        clientX: midX,
+        clientY: brushMidY,
+      });
+    });
+
+    // Cursor should be set to "grabbing" for brush-pan
+    expect(canvas.style.cursor).toBe("grabbing");
+  });
+
+  // ── 18. Brush-left drag updates startIndex via onBrushChange ──
+
+  it("updates brush startIndex when dragging left traveller", () => {
+    const params = createParams({ showBrush: true });
+    const canvas = params.canvasRef.current!;
+    const brushRange = params.brushRangeRef.current;
+
+    // Hit left traveller
+    const leftTravellerX = Math.round(
+      DEFAULT_LAYOUT.brushLeft +
+        (brushRange.startIndex / 99) *
+          (DEFAULT_LAYOUT.brushRight - DEFAULT_LAYOUT.brushLeft),
+    );
+    const brushMidY =
+      (DEFAULT_LAYOUT.brushTop + DEFAULT_LAYOUT.brushBottom) / 2;
+
+    renderHook(() => useChartInteractions(params));
+
+    // Mousedown on left traveller
+    act(() => {
+      fireMouseEvent(canvas, "mousedown", {
+        clientX: leftTravellerX,
+        clientY: brushMidY,
+      });
+    });
+
+    // Drag to the right
+    act(() => {
+      fireMouseEvent(canvas, "mousemove", {
+        clientX: leftTravellerX + 30,
+        clientY: brushMidY,
+      });
+    });
+
+    const onBrushChange = params.onBrushChangeRef.current as ReturnType<
+      typeof vi.fn
+    >;
+    expect(onBrushChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        endIndex: brushRange.endIndex,
+      }),
+    );
+    // startIndex should have increased (moved right)
+    const call = onBrushChange.mock.calls[0][0];
+    expect(call.startIndex).toBeGreaterThan(brushRange.startIndex);
+  });
+
+  // ── 19. Brush-pan drag moves both startIndex and endIndex ─────
+
+  it("moves brush range when dragging brush body", () => {
+    const params = createParams({ showBrush: true });
+    const canvas = params.canvasRef.current!;
+    const brushRange = params.brushRangeRef.current;
+
+    const leftX =
+      DEFAULT_LAYOUT.brushLeft +
+      (brushRange.startIndex / 99) *
+        (DEFAULT_LAYOUT.brushRight - DEFAULT_LAYOUT.brushLeft);
+    const rightX =
+      DEFAULT_LAYOUT.brushLeft +
+      (brushRange.endIndex / 99) *
+        (DEFAULT_LAYOUT.brushRight - DEFAULT_LAYOUT.brushLeft);
+    const midX = (leftX + rightX) / 2;
+    const brushMidY =
+      (DEFAULT_LAYOUT.brushTop + DEFAULT_LAYOUT.brushBottom) / 2;
+
+    renderHook(() => useChartInteractions(params));
+
+    // Mousedown on brush body
+    act(() => {
+      fireMouseEvent(canvas, "mousedown", {
+        clientX: midX,
+        clientY: brushMidY,
+      });
+    });
+
+    // Drag to the right
+    act(() => {
+      fireMouseEvent(canvas, "mousemove", {
+        clientX: midX + 40,
+        clientY: brushMidY,
+      });
+    });
+
+    const onBrushChange = params.onBrushChangeRef.current as ReturnType<
+      typeof vi.fn
+    >;
+    expect(onBrushChange).toHaveBeenCalled();
+    // The window size should be preserved
+    const call = onBrushChange.mock.calls[0][0];
+    expect(call.endIndex - call.startIndex).toBe(
+      brushRange.endIndex - brushRange.startIndex,
+    );
+  });
+
+  // ── 20. Chart-pan drag moves brush range and clears hover ─────
+
+  it("moves brush range and clears hover on chart-pan drag", () => {
+    const params = createParams();
+    const canvas = params.canvasRef.current!;
+    // Set a hover index that should be cleared
+    params.hoverIndexRef.current = 5;
+
+    renderHook(() => useChartInteractions(params));
+
+    // Mousedown in chart area
+    act(() => {
+      fireMouseEvent(canvas, "mousedown", { clientX: 200, clientY: 150 });
+    });
+
+    // Drag horizontally
+    act(() => {
+      fireMouseEvent(canvas, "mousemove", { clientX: 250, clientY: 150 });
+    });
+
+    const onBrushChange = params.onBrushChangeRef.current as ReturnType<
+      typeof vi.fn
+    >;
+    expect(onBrushChange).toHaveBeenCalled();
+    // Hover should be cleared during pan
+    expect(params.hoverIndexRef.current).toBeNull();
+    expect(params.setTooltip).toHaveBeenCalled();
+  });
+
+  // ── 21. Mouseup when no drag was happening does not change cursor ─
+
+  it("does not change cursor on mouseup when not dragging", () => {
+    const params = createParams();
+    const canvas = params.canvasRef.current!;
+    canvas.style.cursor = "default";
+
+    renderHook(() => useChartInteractions(params));
+
+    act(() => {
+      fireMouseEvent(window, "mouseup");
+    });
+
+    // Cursor should remain unchanged (no wasDragging)
+    expect(canvas.style.cursor).toBe("default");
+  });
+
+  // ── 22. Brush-pan clamps to left boundary ─────────────────────
+
+  it("clamps brush-pan to left boundary when dragged past start", () => {
+    const params = createParams({ showBrush: true });
+    const canvas = params.canvasRef.current!;
+    const brushRange = params.brushRangeRef.current;
+
+    const leftX =
+      DEFAULT_LAYOUT.brushLeft +
+      (brushRange.startIndex / 99) *
+        (DEFAULT_LAYOUT.brushRight - DEFAULT_LAYOUT.brushLeft);
+    const rightX =
+      DEFAULT_LAYOUT.brushLeft +
+      (brushRange.endIndex / 99) *
+        (DEFAULT_LAYOUT.brushRight - DEFAULT_LAYOUT.brushLeft);
+    const midX = (leftX + rightX) / 2;
+    const brushMidY =
+      (DEFAULT_LAYOUT.brushTop + DEFAULT_LAYOUT.brushBottom) / 2;
+
+    renderHook(() => useChartInteractions(params));
+
+    // Mousedown on brush body
+    act(() => {
+      fireMouseEvent(canvas, "mousedown", {
+        clientX: midX,
+        clientY: brushMidY,
+      });
+    });
+
+    // Drag far to the left (past boundary)
+    act(() => {
+      fireMouseEvent(canvas, "mousemove", {
+        clientX: midX - 500,
+        clientY: brushMidY,
+      });
+    });
+
+    const onBrushChange = params.onBrushChangeRef.current as ReturnType<
+      typeof vi.fn
+    >;
+    expect(onBrushChange).toHaveBeenCalled();
+    const call = onBrushChange.mock.calls[0][0];
+    expect(call.startIndex).toBe(0);
+  });
+
+  // ── 23. Chart-pan clamps to right boundary ────────────────────
+
+  it("clamps chart-pan to right boundary when dragged past end", () => {
+    // Set brush range near the end so dragging left (which moves range right) hits boundary
+    const params = createParams({
+      showBrush: true,
+    });
+    params.brushRangeRef.current = { startIndex: 80, endIndex: 99 };
+    const canvas = params.canvasRef.current!;
+
+    renderHook(() => useChartInteractions(params));
+
+    // Mousedown in chart area
+    act(() => {
+      fireMouseEvent(canvas, "mousedown", { clientX: 200, clientY: 150 });
+    });
+
+    // Drag far to the left (chart-pan: negative dx moves range right)
+    act(() => {
+      fireMouseEvent(canvas, "mousemove", { clientX: 50, clientY: 150 });
+    });
+
+    const onBrushChange = params.onBrushChangeRef.current as ReturnType<
+      typeof vi.fn
+    >;
+    expect(onBrushChange).toHaveBeenCalled();
+    const call = onBrushChange.mock.calls[0][0];
+    expect(call.endIndex).toBe(99);
+  });
+
+  // ── 24. No canvas → getCanvasCoords returns {0,0} ────────────
+
+  it("handles null canvas ref gracefully", () => {
+    const params = createParams({ canvasRef: { current: null } });
+
+    // Should not throw
+    const { result } = renderHook(() => useChartInteractions(params));
+    expect(result.current.hoverIndexRef).toBe(params.hoverIndexRef);
+  });
+
+  // ── 25. showBrush=false → hitTestBrush returns null ───────────
+
+  it("does not start brush drag when showBrush is false", () => {
+    const params = createParams({ showBrush: false });
+    const canvas = params.canvasRef.current!;
+
+    renderHook(() => useChartInteractions(params));
+
+    // Click in brush area — should not trigger brush drag since showBrush=false
+    const brushMidY =
+      (DEFAULT_LAYOUT.brushTop + DEFAULT_LAYOUT.brushBottom) / 2;
+    act(() => {
+      fireMouseEvent(canvas, "mousedown", { clientX: 100, clientY: brushMidY });
+    });
+
+    // No cursor change to grabbing (no brush drag started, and brush area is not chart area)
+    expect(canvas.style.cursor).not.toBe("grabbing");
+  });
+
+  // ── 26. Hover same index doesn't re-set tooltip ───────────────
+
+  it("returns null from hitTestBrush when cursor is in brush Y range but outside brush X range", () => {
+    const params = createParams({ showBrush: true });
+    const canvas = params.canvasRef.current!;
+    const brushRange = params.brushRangeRef.current;
+
+    // Compute the left traveller X position
+    const leftX =
+      DEFAULT_LAYOUT.brushLeft +
+      (brushRange.startIndex / 99) *
+        (DEFAULT_LAYOUT.brushRight - DEFAULT_LAYOUT.brushLeft);
+    // Place cursor well to the left of the left traveller, beyond tHit (BRUSH_TRAVELLER_WIDTH + 4)
+    const outsideX = leftX - (8 + 4) - 10;
+    const brushMidY =
+      (DEFAULT_LAYOUT.brushTop + DEFAULT_LAYOUT.brushBottom) / 2;
+
+    renderHook(() => useChartInteractions(params));
+
+    // Mousemove to a position within brush Y bounds but outside brush X range
+    act(() => {
+      fireMouseEvent(canvas, "mousemove", {
+        clientX: outsideX,
+        clientY: brushMidY,
+      });
+    });
+
+    // hitTestBrush returns null → cursor should be "default" (not grab/ew-resize)
+    expect(canvas.style.cursor).toBe("default");
+  });
+
+  it("does not re-set tooltip when hovering same index", () => {
+    const params = createParams();
+    const canvas = params.canvasRef.current!;
+
+    renderHook(() => useChartInteractions(params));
+
+    // First move to set hover
+    const cx = 55;
+    const cy = 150;
+    act(() => {
+      fireMouseEvent(canvas, "mousemove", { clientX: cx, clientY: cy });
+    });
+
+    const callCount = (params.setTooltip as ReturnType<typeof vi.fn>).mock.calls
+      .length;
+
+    // Move to same position again (same index)
+    act(() => {
+      fireMouseEvent(canvas, "mousemove", { clientX: cx, clientY: cy });
+    });
+
+    // setTooltip should not have been called again
+    expect(
+      (params.setTooltip as ReturnType<typeof vi.fn>).mock.calls.length,
+    ).toBe(callCount);
   });
 });

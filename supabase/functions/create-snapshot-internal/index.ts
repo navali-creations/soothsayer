@@ -12,7 +12,31 @@ Deno.serve(async (req) => {
     const secret = req.headers.get("x-cron-secret");
     const expectedSecret = Deno.env.get("INTERNAL_CRON_SECRET");
 
-    if (secret !== expectedSecret) {
+    const encoder = new TextEncoder();
+    const secretBytes = encoder.encode(secret ?? "");
+    const expectedBytes = encoder.encode(expectedSecret ?? "");
+
+    let isValid = false;
+    if (secretBytes.byteLength === expectedBytes.byteLength) {
+      const key = await crypto.subtle.importKey(
+        "raw",
+        new Uint8Array(32),
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign"],
+      );
+      const [macA, macB] = await Promise.all([
+        crypto.subtle.sign("HMAC", key, secretBytes),
+        crypto.subtle.sign("HMAC", key, expectedBytes),
+      ]);
+      const a = new Uint8Array(macA);
+      const b = new Uint8Array(macB);
+      let diff = 0;
+      for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+      isValid = diff === 0;
+    }
+
+    if (!isValid) {
       return responseJson({ status: 401, body: { error: "Unauthorized" } });
     }
 

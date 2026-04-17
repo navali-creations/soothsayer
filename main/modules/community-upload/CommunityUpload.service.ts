@@ -1,9 +1,10 @@
 import * as Sentry from "@sentry/electron/main";
-import { ipcMain } from "electron";
+import { app, ipcMain } from "electron";
 import type { Kysely } from "kysely";
 
 import { DatabaseService } from "~/main/modules/database";
 import type { Database } from "~/main/modules/database/Database.types";
+import { GggAuthService } from "~/main/modules/ggg-auth";
 import {
   SettingsKey,
   SettingsStoreService,
@@ -13,6 +14,7 @@ import {
   assertBoolean,
   assertBoundedString,
   assertGameType,
+  assertTrustedSender,
   handleValidationError,
 } from "~/main/utils/ipc-validation";
 
@@ -69,8 +71,9 @@ class CommunityUploadService {
 
     ipcMain.handle(
       CommunityUploadChannel.SetUploadsEnabled,
-      async (_event, enabled: unknown) => {
+      async (event, enabled: unknown) => {
         try {
+          assertTrustedSender(event, CommunityUploadChannel.SetUploadsEnabled);
           assertBoolean(
             enabled,
             "enabled",
@@ -134,13 +137,86 @@ class CommunityUploadService {
   }
 
   /**
-   * Check if community uploads are enabled
+   * Link GGG account to all existing community upload records for this device.
+   * Called after successful GGG OAuth. Fire-and-forget — errors are logged, never thrown.
+   */
+  public async linkGggAccount(): Promise<void> {
+    try {
+      if (!this.supabase.isConfigured()) {
+        console.log(
+          "[CommunityUpload] Supabase not configured, skipping GGG link",
+        );
+        return;
+      }
+
+      const enabled = await this.isEnabled();
+      if (!enabled) {
+        console.log("[CommunityUpload] Uploads disabled, skipping GGG link");
+        return;
+      }
+
+      const deviceId = await this.getDeviceId();
+
+      let gggAccessToken: string | null = null;
+      try {
+        gggAccessToken = await GggAuthService.getInstance().getAccessToken();
+      } catch {
+        console.warn(
+          "[CommunityUpload] Could not get GGG access token for link",
+        );
+        return;
+      }
+
+      if (!gggAccessToken) {
+        console.warn(
+          "[CommunityUpload] No GGG access token available for link",
+        );
+        return;
+      }
+
+      const result = await this.supabase.callEdgeFunction<{
+        success: boolean;
+        ggg_username: string;
+        ggg_uuid: string;
+        updated_records: number;
+      }>(
+        "upload-community-data",
+        {
+          action: "link-ggg",
+          device_id: deviceId,
+          is_packaged: app.isPackaged,
+        },
+        { "X-GGG-Token": gggAccessToken },
+      );
+
+      console.log(
+        `[CommunityUpload] GGG account linked: ${result.ggg_username} — ${result.updated_records} record(s) updated`,
+      );
+    } catch (error) {
+      // Fire-and-forget — don't break the auth flow
+      console.error("[CommunityUpload] Failed to link GGG account:", error);
+      Sentry.captureException(
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          tags: { module: "community-upload", operation: "link-ggg" },
+        },
+      );
+    }
+  }
+
+  /**
+   * Check if community uploads are enabled.
+   *
+   * Uploads default to enabled (opt-out model). The privacy policy change is
+   * communicated via the "What's New" modal, and users can disable uploads
+   * at any time in Settings → Privacy.
    */
   public async isEnabled(): Promise<boolean> {
     const enabled = await this.settingsStore.get(
       SettingsKey.CommunityUploadsEnabled,
     );
-    return enabled !== false; // Default to true if not set
+    // Only disabled when the user has explicitly toggled it off
+    return enabled !== false;
   }
 
   /**
@@ -183,15 +259,63 @@ class CommunityUploadService {
         return;
       }
 
-      // Format cards for the edge function
-      const cardEntries = cards.map((c) => ({
+      // Get the last-uploaded snapshot to compute delta
+      const snapshot = await this.kysely
+        .selectFrom("community_upload_snapshot")
+        .select(["card_name", "count"])
+        .where("game", "=", game)
+        .where("scope", "=", league)
+        .execute();
+
+      const snapshotMap = new Map(snapshot.map((s) => [s.card_name, s.count]));
+
+      // Only upload cards that are new or have increased counts
+      const changedCards = cards.filter((c) => {
+        const prev = snapshotMap.get(c.card_name);
+        return prev === undefined || c.count > prev;
+      });
+
+      if (changedCards.length === 0) {
+        console.log("[CommunityUpload] No changes since last upload, skipping");
+        return;
+      }
+
+      // Format changed cards for the edge function (still sends cumulative counts — server uses GREATEST)
+      const cardEntries = changedCards.map((c) => ({
         card_name: c.card_name,
         count: c.count,
       }));
 
+      // Attempt to get GGG access token for verified upload (non-fatal if unavailable)
+      let gggAccessToken: string | null = null;
+      try {
+        gggAccessToken = await GggAuthService.getInstance().getAccessToken();
+      } catch (_error) {
+        // GGG auth failure is non-fatal — proceed as anonymous upload
+        console.log(
+          "[CommunityUpload] GGG token unavailable, uploading anonymously",
+        );
+      }
+
       console.log(
-        `[CommunityUpload] Uploading ${cardEntries.length} unique cards for ${game}/${league}`,
+        `[CommunityUpload] Uploading ${cardEntries.length} unique cards for ${game}/${league}` +
+          (gggAccessToken ? " (verified)" : " (anonymous)"),
       );
+
+      // Build the edge function payload
+      const payload: Record<string, unknown> = {
+        league_name: league,
+        game,
+        device_id: deviceId,
+        cards: cardEntries,
+        is_packaged: app.isPackaged,
+      };
+
+      // Pass GGG token as a header rather than in the body
+      const extraHeaders: Record<string, string> = {};
+      if (gggAccessToken) {
+        extraHeaders["X-GGG-Token"] = gggAccessToken;
+      }
 
       // Call the edge function with league_name + game (not UUID)
       const result = await this.supabase.callEdgeFunction<{
@@ -201,16 +325,29 @@ class CommunityUploadService {
         unique_cards: number;
         upload_count: number;
         is_verified: boolean;
-      }>("upload-community-data", {
-        league_name: league,
-        game,
-        device_id: deviceId,
-        cards: cardEntries,
-      });
+      }>("upload-community-data", payload, extraHeaders);
 
       console.log(
-        `[CommunityUpload] Upload successful: ${result.unique_cards} unique cards, upload #${result.upload_count}`,
+        `[CommunityUpload] Upload successful: ${result.unique_cards} unique cards (${changedCards.length} changed), upload #${result.upload_count}`,
       );
+
+      // Persist snapshot of uploaded counts for delta computation on next upload
+      for (const card of changedCards) {
+        await this.kysely
+          .insertInto("community_upload_snapshot")
+          .values({
+            game,
+            scope: league,
+            card_name: card.card_name,
+            count: card.count,
+          })
+          .onConflict((oc) =>
+            oc
+              .columns(["game", "scope", "card_name"])
+              .doUpdateSet({ count: card.count }),
+          )
+          .execute();
+      }
 
       // Store last upload time
       const now = new Date().toISOString();
@@ -236,7 +373,10 @@ class CommunityUploadService {
         .execute();
     } catch (error) {
       // Fire-and-forget: log but don't throw
-      console.error("[CommunityUpload] Upload failed:", error);
+      console.error(
+        "[CommunityUpload] Upload failed:",
+        error instanceof Error ? error.message : String(error),
+      );
       Sentry.captureException(
         error instanceof Error ? error : new Error(String(error)),
         {

@@ -14,9 +14,20 @@ vi.mock("~/renderer/store", async () => {
 
 const mockUseBoundStore = vi.mocked(useBoundStore);
 
+let capturedOnToggleExpanded: (() => void) | null = null;
+
 vi.mock("../CurrentSession.components", () => ({
   CurrentSessionActions: () => <div data-testid="current-session-actions" />,
-  CurrentSessionStats: () => <div data-testid="current-session-stats" />,
+  CurrentSessionStats: (props: any) => {
+    capturedOnToggleExpanded = props.onToggleExpanded ?? null;
+    return (
+      <div
+        data-testid="current-session-stats"
+        data-expanded={props.expanded}
+        data-has-timeline={props.hasTimeline}
+      />
+    );
+  },
   CurrentSessionTable: () => <div data-testid="current-session-table" />,
   InactiveSessionAlert: () => <div data-testid="inactive-session-alert" />,
   LoadingAlert: () => <div data-testid="loading-alert" />,
@@ -71,6 +82,7 @@ function setupStore(overrides: { isLoading: boolean; isActive: boolean }) {
 
 describe("CurrentSessionPage", () => {
   afterEach(() => {
+    capturedOnToggleExpanded = null;
     vi.restoreAllMocks();
   });
 
@@ -164,5 +176,48 @@ describe("CurrentSessionPage", () => {
     ).not.toBeInTheDocument();
     expect(screen.queryByTestId("tracking-info-alert")).not.toBeInTheDocument();
     expect(screen.queryByTestId("loading-alert")).not.toBeInTheDocument();
+  });
+
+  it("does not show SessionProfitTimeline when not expanded", () => {
+    setupStore({ isLoading: false, isActive: true });
+    renderWithProviders(<CurrentSessionPage />);
+
+    expect(
+      screen.queryByTestId("session-profit-timeline"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows SessionProfitTimeline when expanded and active", async () => {
+    const { act } = await import("@testing-library/react");
+    setupStore({ isLoading: false, isActive: true });
+    renderWithProviders(<CurrentSessionPage />);
+
+    // Initially not expanded
+    expect(
+      screen.queryByTestId("session-profit-timeline"),
+    ).not.toBeInTheDocument();
+
+    // Toggle expanded via the captured callback
+    expect(capturedOnToggleExpanded).not.toBeNull();
+    act(() => {
+      capturedOnToggleExpanded!();
+    });
+
+    expect(screen.getByTestId("session-profit-timeline")).toBeInTheDocument();
+  });
+
+  it("does not show SessionProfitTimeline when expanded but not active", async () => {
+    const { act } = await import("@testing-library/react");
+    setupStore({ isLoading: false, isActive: false });
+    renderWithProviders(<CurrentSessionPage />);
+
+    expect(capturedOnToggleExpanded).not.toBeNull();
+    act(() => {
+      capturedOnToggleExpanded!();
+    });
+
+    expect(
+      screen.queryByTestId("session-profit-timeline"),
+    ).not.toBeInTheDocument();
   });
 });

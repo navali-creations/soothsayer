@@ -320,6 +320,62 @@ describe("SetupLeagueStep", () => {
     });
   });
 
+  // ── PoE2 league change and retry ─────────────────────────────────────
+
+  describe("poe2 league interactions", () => {
+    it("selecting a PoE2 league calls selectLeague with 'poe2'", async () => {
+      const selectLeague = vi.fn();
+      setupBoundStore(
+        {
+          selectLeague,
+          setupState: {
+            currentStep: 3,
+            isComplete: false,
+            selectedGames: ["poe2"],
+            poe1League: "",
+            poe2League: "",
+          },
+        },
+        {
+          poe2Leagues: [
+            { id: "standard2", name: "Standard" },
+            { id: "dawn", name: "Dawn" },
+          ],
+        },
+      );
+
+      const { user } = renderWithProviders(<SetupLeagueStep />);
+
+      const select = screen.getByRole("combobox");
+      await user.selectOptions(select, "dawn");
+
+      expect(selectLeague).toHaveBeenCalledWith("poe2", "dawn");
+    });
+
+    it("clicking Retry for PoE2 calls fetchLeagues('poe2')", async () => {
+      const fetchLeagues = vi.fn();
+      setupBoundStore(
+        {
+          setupState: {
+            currentStep: 3,
+            isComplete: false,
+            selectedGames: ["poe2"],
+            poe1League: "",
+            poe2League: "",
+          },
+        },
+        { leaguesError: "Network error", fetchLeagues },
+      );
+
+      const { user } = renderWithProviders(<SetupLeagueStep />);
+
+      const retryButton = screen.getByText("Retry");
+      await user.click(retryButton);
+
+      expect(fetchLeagues).toHaveBeenCalledWith("poe2");
+    });
+  });
+
   // ── Edge cases ───────────────────────────────────────────────────────
 
   describe("edge cases", () => {

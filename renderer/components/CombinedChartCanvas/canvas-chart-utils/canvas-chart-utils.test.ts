@@ -530,6 +530,16 @@ describe("computeDomains", () => {
     expect(result.decks.max).toBeGreaterThan(result.decks.min);
   });
 
+  it("expands zero-value decks range (v === 0 branch)", () => {
+    const visible = [makePoint(0, 0), makePoint(0, 0)];
+    const full = visible;
+    const result = computeDomains(visible, full, new Set());
+
+    // When decksMin === decksMax === 0, should expand to [0, 10]
+    expect(result.decks.min).toBe(0);
+    expect(result.decks.max).toBeGreaterThan(0);
+  });
+
   it("adds top breathing room for all-positive profit data", () => {
     const visible = [makePoint(10), makePoint(20)];
     const full = visible;
@@ -571,6 +581,22 @@ describe("computeDomains", () => {
     // With mostly-negative full data, bottom buffer should be heavier
     // The key assertion is that it doesn't crash and provides valid ranges
     expect(result.profit.min).toBeLessThan(result.profit.max);
+  });
+
+  it("applies asymmetric padding for mixed-but-mostly-negative visible profit data", () => {
+    // Visible data is mixed (both positive and negative) and full dataset sum < 0
+    // This hits the `else if (totalProfitSum < 0)` branch (lines 138-139)
+    const visible = [makePoint(-100), makePoint(-50), makePoint(10)];
+    const full = visible; // sum = -140, so totalProfitSum < 0
+    const result = computeDomains(visible, full, new Set());
+
+    const profitRange = 10 - -100; // 110
+    const profitPad = profitRange * 0.08; // 8.8
+
+    // Bottom gets full pad: pMin = -100 - 8.8 = -108.8
+    expect(result.profit.min).toBeCloseTo(-100 - profitPad, 5);
+    // Top gets 30% pad: pMax = 10 + 8.8 * 0.3 = 12.64
+    expect(result.profit.max).toBeCloseTo(10 + profitPad * 0.3, 5);
   });
 
   it("ensures decks min is never negative", () => {

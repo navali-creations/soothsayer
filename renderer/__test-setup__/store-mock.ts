@@ -42,6 +42,7 @@ export function createStoreMock() {
     useProfitForecast: () => useBoundStore().profitForecast,
     useRarityInsights: () => useBoundStore().rarityInsights,
     useRarityInsightsComparison: () => useBoundStore().rarityInsightsComparison,
+    useCommunityUpload: () => useBoundStore().communityUpload,
     useRootActions: () => {
       const s = useBoundStore();
       return {

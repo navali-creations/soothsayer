@@ -1,7 +1,7 @@
 -- =============================================================================
 -- Database Function Tests: check_and_log_request, ban/unban, rate limiting,
 -- log_api_request, get_user_request_count, get_latest_snapshot_for_league,
--- update_league_timestamp trigger
+-- update_league_timestamp trigger, flag_suspicious_uploads
 -- =============================================================================
 -- Run with: supabase test db
 -- Requires: supabase start (local Postgres instance running)
@@ -9,7 +9,7 @@
 
 BEGIN;
 
-SELECT plan(64);
+SELECT plan(75);
 
 -- ═══════════════════════════════════════════════════════════════
 -- VERIFY FUNCTIONS EXIST
@@ -752,6 +752,205 @@ SELECT results_eq(
   $$SELECT populate_cards_for_game('poe3')$$,
   ARRAY[0],
   'populate_cards_for_game should return 0 for invalid game'
+);
+
+-- ═══════════════════════════════════════════════════════════════
+-- TEST: flag_suspicious_uploads — statistical outlier detection
+-- ═══════════════════════════════════════════════════════════════
+
+-- --- Seed data for flag_suspicious_uploads tests ---
+
+-- Dedicated league for outlier / normal / idempotency tests
+INSERT INTO poe_leagues (id, game, league_id, name, is_active)
+VALUES ('fa000000-0000-0000-0000-000000000001', 'poe1', 'flag_test_league_1', 'Flag Test League 1', true);
+
+-- Test cards (needed as FK targets for community_card_data)
+INSERT INTO cards (id, game, name) VALUES
+  ('fc000000-0000-0000-0000-000000000001', 'poe1', 'Flag Test Card A'),
+  ('fc000000-0000-0000-0000-000000000002', 'poe1', 'Flag Test Card B'),
+  ('fc000000-0000-0000-0000-000000000003', 'poe1', 'Flag Test Card C'),
+  ('fc000000-0000-0000-0000-000000000004', 'poe1', 'Flag Test Card D');
+
+-- Normal uploads: 20 tightly clustered totals around 100.
+-- We need many normals so the single outlier doesn't inflate the stddev
+-- enough to hide itself (the function includes ALL non-suspicious rows
+-- in the baseline, including the outlier being evaluated).
+INSERT INTO community_uploads (id, league_id, device_id, total_cards_uploaded)
+VALUES
+  ('f0000000-0000-0000-0000-000000000001', 'fa000000-0000-0000-0000-000000000001', 'device-normal-01', 95),
+  ('f0000000-0000-0000-0000-000000000002', 'fa000000-0000-0000-0000-000000000001', 'device-normal-02', 100),
+  ('f0000000-0000-0000-0000-000000000003', 'fa000000-0000-0000-0000-000000000001', 'device-normal-03', 105),
+  ('f0000000-0000-0000-0000-000000000004', 'fa000000-0000-0000-0000-000000000001', 'device-normal-04', 110),
+  ('f0000000-0000-0000-0000-000000000031', 'fa000000-0000-0000-0000-000000000001', 'device-normal-05', 97),
+  ('f0000000-0000-0000-0000-000000000032', 'fa000000-0000-0000-0000-000000000001', 'device-normal-06', 102),
+  ('f0000000-0000-0000-0000-000000000033', 'fa000000-0000-0000-0000-000000000001', 'device-normal-07', 98),
+  ('f0000000-0000-0000-0000-000000000034', 'fa000000-0000-0000-0000-000000000001', 'device-normal-08', 103),
+  ('f0000000-0000-0000-0000-000000000035', 'fa000000-0000-0000-0000-000000000001', 'device-normal-09', 99),
+  ('f0000000-0000-0000-0000-000000000036', 'fa000000-0000-0000-0000-000000000001', 'device-normal-10', 101),
+  ('f0000000-0000-0000-0000-000000000037', 'fa000000-0000-0000-0000-000000000001', 'device-normal-11', 96),
+  ('f0000000-0000-0000-0000-000000000038', 'fa000000-0000-0000-0000-000000000001', 'device-normal-12', 104),
+  ('f0000000-0000-0000-0000-000000000039', 'fa000000-0000-0000-0000-000000000001', 'device-normal-13', 107),
+  ('f0000000-0000-0000-0000-00000000003a', 'fa000000-0000-0000-0000-000000000001', 'device-normal-14', 93),
+  ('f0000000-0000-0000-0000-00000000003b', 'fa000000-0000-0000-0000-000000000001', 'device-normal-15', 108),
+  ('f0000000-0000-0000-0000-00000000003c', 'fa000000-0000-0000-0000-000000000001', 'device-normal-16', 92),
+  ('f0000000-0000-0000-0000-00000000003d', 'fa000000-0000-0000-0000-000000000001', 'device-normal-17', 106),
+  ('f0000000-0000-0000-0000-00000000003e', 'fa000000-0000-0000-0000-000000000001', 'device-normal-18', 94),
+  ('f0000000-0000-0000-0000-00000000003f', 'fa000000-0000-0000-0000-000000000001', 'device-normal-19', 109),
+  ('f0000000-0000-0000-0000-000000000040', 'fa000000-0000-0000-0000-000000000001', 'device-normal-20', 91);
+
+-- Extreme outlier upload (total = 10000, well beyond mean + 3*stddev even
+-- when included in the baseline alongside 20 normals ~100).
+INSERT INTO community_uploads (id, league_id, device_id, total_cards_uploaded)
+VALUES ('f0000000-0000-0000-0000-000000000005', 'fa000000-0000-0000-0000-000000000001', 'device-outlier', 10000);
+
+-- Give normal uploads non-round card data (so they don't trigger round-number check).
+-- Only need entries for the first 4 (function only checks card_data rows, and the
+-- remaining 16 normals simply have no card_data rows, which means 0 total_entries
+-- and the round-number check short-circuits on v_total_entries > 0).
+INSERT INTO community_card_data (upload_id, card_id, count) VALUES
+  ('f0000000-0000-0000-0000-000000000001', 'fc000000-0000-0000-0000-000000000001', 47),
+  ('f0000000-0000-0000-0000-000000000001', 'fc000000-0000-0000-0000-000000000002', 48),
+  ('f0000000-0000-0000-0000-000000000002', 'fc000000-0000-0000-0000-000000000001', 51),
+  ('f0000000-0000-0000-0000-000000000002', 'fc000000-0000-0000-0000-000000000002', 49),
+  ('f0000000-0000-0000-0000-000000000003', 'fc000000-0000-0000-0000-000000000001', 53),
+  ('f0000000-0000-0000-0000-000000000003', 'fc000000-0000-0000-0000-000000000002', 52),
+  ('f0000000-0000-0000-0000-000000000004', 'fc000000-0000-0000-0000-000000000001', 55),
+  ('f0000000-0000-0000-0000-000000000004', 'fc000000-0000-0000-0000-000000000002', 55);
+
+-- Give outlier upload non-round card data too (isolate to card_ratio_outlier only)
+INSERT INTO community_card_data (upload_id, card_id, count) VALUES
+  ('f0000000-0000-0000-0000-000000000005', 'fc000000-0000-0000-0000-000000000001', 4999),
+  ('f0000000-0000-0000-0000-000000000005', 'fc000000-0000-0000-0000-000000000002', 5001);
+
+-- --- Test 1: Clear outlier is flagged ---
+
+SELECT results_eq(
+  $$SELECT flag_suspicious_uploads('fa000000-0000-0000-0000-000000000001')$$,
+  ARRAY[1],
+  'flag_suspicious_uploads should return 1 (one outlier flagged)'
+);
+
+SELECT results_eq(
+  $$SELECT is_suspicious FROM community_uploads WHERE id = 'f0000000-0000-0000-0000-000000000005'$$,
+  ARRAY[true],
+  'Outlier upload (total=10000) should have is_suspicious = true'
+);
+
+SELECT results_eq(
+  $$SELECT 'card_ratio_outlier' = ANY(suspicion_reasons) FROM community_uploads WHERE id = 'f0000000-0000-0000-0000-000000000005'$$,
+  ARRAY[true],
+  'Outlier upload should have card_ratio_outlier in suspicion_reasons'
+);
+
+-- --- Test 2: Normal uploads are NOT flagged ---
+
+SELECT results_eq(
+  $$SELECT COUNT(*)::int FROM community_uploads
+    WHERE league_id = 'fa000000-0000-0000-0000-000000000001'
+      AND is_suspicious = true
+      AND id != 'f0000000-0000-0000-0000-000000000005'$$,
+  ARRAY[0],
+  'Normal uploads should NOT be flagged as suspicious'
+);
+
+-- --- Test 3: Idempotency — running again returns 0, no double-flagging ---
+
+SELECT results_eq(
+  $$SELECT flag_suspicious_uploads('fa000000-0000-0000-0000-000000000001')$$,
+  ARRAY[0],
+  'flag_suspicious_uploads should return 0 on second run (idempotent)'
+);
+
+SELECT results_eq(
+  $$SELECT COUNT(*)::int FROM community_uploads
+    WHERE league_id = 'fa000000-0000-0000-0000-000000000001'
+      AND is_suspicious = true$$,
+  ARRAY[1],
+  'After second run, still only 1 upload should be flagged (no double-flagging)'
+);
+
+-- ═══════════════════════════════════════════════════════════════
+-- TEST: flag_suspicious_uploads — too_many_round_numbers
+-- ═══════════════════════════════════════════════════════════════
+
+-- Dedicated league for the round-number test
+INSERT INTO poe_leagues (id, game, league_id, name, is_active)
+VALUES ('fa000000-0000-0000-0000-000000000002', 'poe1', 'flag_test_league_2', 'Flag Test League 2', true);
+
+-- Two uploads with identical totals (so stddev=0, no outlier check fires)
+INSERT INTO community_uploads (id, league_id, device_id, total_cards_uploaded)
+VALUES
+  ('f0000000-0000-0000-0000-000000000010', 'fa000000-0000-0000-0000-000000000002', 'device-round-1', 200),
+  ('f0000000-0000-0000-0000-000000000011', 'fa000000-0000-0000-0000-000000000002', 'device-round-2', 200);
+
+-- Upload 10: >50% round counts (3 out of 4 are multiples of 10 = 75%)
+INSERT INTO community_card_data (upload_id, card_id, count) VALUES
+  ('f0000000-0000-0000-0000-000000000010', 'fc000000-0000-0000-0000-000000000001', 50),
+  ('f0000000-0000-0000-0000-000000000010', 'fc000000-0000-0000-0000-000000000002', 30),
+  ('f0000000-0000-0000-0000-000000000010', 'fc000000-0000-0000-0000-000000000003', 20),
+  ('f0000000-0000-0000-0000-000000000010', 'fc000000-0000-0000-0000-000000000004', 7);
+
+-- Upload 11: no round counts (clean upload)
+INSERT INTO community_card_data (upload_id, card_id, count) VALUES
+  ('f0000000-0000-0000-0000-000000000011', 'fc000000-0000-0000-0000-000000000001', 51),
+  ('f0000000-0000-0000-0000-000000000011', 'fc000000-0000-0000-0000-000000000002', 33),
+  ('f0000000-0000-0000-0000-000000000011', 'fc000000-0000-0000-0000-000000000003', 27),
+  ('f0000000-0000-0000-0000-000000000011', 'fc000000-0000-0000-0000-000000000004', 89);
+
+SELECT results_eq(
+  $$SELECT flag_suspicious_uploads('fa000000-0000-0000-0000-000000000002')$$,
+  ARRAY[1],
+  'flag_suspicious_uploads should flag 1 upload with too many round numbers'
+);
+
+SELECT results_eq(
+  $$SELECT is_suspicious FROM community_uploads WHERE id = 'f0000000-0000-0000-0000-000000000010'$$,
+  ARRAY[true],
+  'Upload with >50% round card counts should be flagged as suspicious'
+);
+
+SELECT results_eq(
+  $$SELECT 'too_many_round_numbers' = ANY(suspicion_reasons) FROM community_uploads WHERE id = 'f0000000-0000-0000-0000-000000000010'$$,
+  ARRAY[true],
+  'Round-number upload should have too_many_round_numbers in suspicion_reasons'
+);
+
+-- ═══════════════════════════════════════════════════════════════
+-- TEST: flag_suspicious_uploads — stddev=0 guard (all identical totals)
+-- ═══════════════════════════════════════════════════════════════
+
+-- Dedicated league for stddev=0 test
+INSERT INTO poe_leagues (id, game, league_id, name, is_active)
+VALUES ('fa000000-0000-0000-0000-000000000003', 'poe1', 'flag_test_league_3', 'Flag Test League 3', true);
+
+-- Three uploads with identical totals (stddev = 0)
+INSERT INTO community_uploads (id, league_id, device_id, total_cards_uploaded)
+VALUES
+  ('f0000000-0000-0000-0000-000000000020', 'fa000000-0000-0000-0000-000000000003', 'device-std0-1', 100),
+  ('f0000000-0000-0000-0000-000000000021', 'fa000000-0000-0000-0000-000000000003', 'device-std0-2', 100),
+  ('f0000000-0000-0000-0000-000000000022', 'fa000000-0000-0000-0000-000000000003', 'device-std0-3', 100);
+
+-- Give them all non-round card data so round-number check doesn't fire
+INSERT INTO community_card_data (upload_id, card_id, count) VALUES
+  ('f0000000-0000-0000-0000-000000000020', 'fc000000-0000-0000-0000-000000000001', 51),
+  ('f0000000-0000-0000-0000-000000000020', 'fc000000-0000-0000-0000-000000000002', 49),
+  ('f0000000-0000-0000-0000-000000000021', 'fc000000-0000-0000-0000-000000000001', 48),
+  ('f0000000-0000-0000-0000-000000000021', 'fc000000-0000-0000-0000-000000000002', 52),
+  ('f0000000-0000-0000-0000-000000000022', 'fc000000-0000-0000-0000-000000000001', 53),
+  ('f0000000-0000-0000-0000-000000000022', 'fc000000-0000-0000-0000-000000000002', 47);
+
+SELECT results_eq(
+  $$SELECT flag_suspicious_uploads('fa000000-0000-0000-0000-000000000003')$$,
+  ARRAY[0],
+  'flag_suspicious_uploads should return 0 when stddev=0 (all identical totals)'
+);
+
+SELECT results_eq(
+  $$SELECT COUNT(*)::int FROM community_uploads
+    WHERE league_id = 'fa000000-0000-0000-0000-000000000003'
+      AND is_suspicious = true$$,
+  ARRAY[0],
+  'No uploads should be flagged when stddev=0 and no round-number issues'
 );
 
 -- ═══════════════════════════════════════════════════════════════

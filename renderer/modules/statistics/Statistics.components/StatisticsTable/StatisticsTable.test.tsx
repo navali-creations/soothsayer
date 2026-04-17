@@ -1,5 +1,6 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
 import { createCardRatioColumn } from "~/renderer/components";
+import { trackEvent } from "~/renderer/modules/umami";
 import { useBoundStore } from "~/renderer/store";
 
 import type { CardEntry } from "../../Statistics.types";
@@ -13,6 +14,10 @@ vi.mock("~/renderer/store", async () => {
   );
   return createStoreMock();
 });
+
+vi.mock("~/renderer/modules/umami", () => ({
+  trackEvent: vi.fn(),
+}));
 
 vi.mock("~/renderer/components", () => ({
   Dropdown: ({ trigger, children, ...props }: any) => (
@@ -463,5 +468,245 @@ describe("StatisticsTable", () => {
 
     const search = screen.getByTestId("statistics-search");
     expect(search).toHaveAttribute("data-debounce-ms", "300");
+  });
+
+  // ── Export: handleExportAll ──────────────────────────────────────────
+
+  it("calls trackEvent after a successful exportAll", async () => {
+    const store = setupStore();
+    store.exportAll.mockResolvedValue({ success: true });
+    store.snapshotMeta = {
+      exists: true,
+      exportedAt: "2024-01-01T00:00:00Z",
+      totalCount: 10,
+      newCardCount: 2,
+      newTotalDrops: 5,
+    };
+    const cardData = createCardData([
+      { name: "Rain of Chaos", count: 10, ratio: 100 },
+    ]);
+
+    const { user } = renderWithProviders(
+      <StatisticsTable cardData={cardData} currentScope="all-time" />,
+    );
+
+    // Open the dropdown and click "Export All"
+    const trigger = screen.getByTestId("dropdown-trigger");
+    await user.click(trigger);
+
+    const exportAllButton = screen.getByText("Export All Cards");
+    await user.click(exportAllButton);
+
+    expect(store.exportAll).toHaveBeenCalledWith("all-time");
+    expect(trackEvent).toHaveBeenCalledWith("csv-export", {
+      type: "all",
+      scope: "all-time",
+      source: "statistics",
+    });
+  });
+
+  // ── Export: handleExportIncremental ─────────────────────────────────
+
+  it("calls trackEvent after a successful exportIncremental", async () => {
+    const store = setupStore();
+    store.exportIncremental.mockResolvedValue({ success: true });
+    store.snapshotMeta = {
+      exists: true,
+      exportedAt: "2024-01-01T00:00:00Z",
+      totalCount: 10,
+      newCardCount: 2,
+      newTotalDrops: 5,
+    };
+    const cardData = createCardData([
+      { name: "Rain of Chaos", count: 10, ratio: 100 },
+    ]);
+
+    const { user } = renderWithProviders(
+      <StatisticsTable cardData={cardData} currentScope="all-time" />,
+    );
+
+    const trigger = screen.getByTestId("dropdown-trigger");
+    await user.click(trigger);
+
+    const exportIncrementalButton = screen.getByText("Export Latest Cards");
+    await user.click(exportIncrementalButton);
+
+    expect(store.exportIncremental).toHaveBeenCalledWith("all-time");
+    expect(trackEvent).toHaveBeenCalledWith("csv-export", {
+      type: "incremental",
+      scope: "all-time",
+      newDrops: 5,
+      source: "statistics",
+    });
+  });
+
+  // ── Export: failure (not canceled) ───────────────────────────────────
+
+  it("alerts error message when exportAll fails and is not canceled", async () => {
+    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const store = setupStore();
+    store.exportAll.mockResolvedValue({
+      success: false,
+      canceled: false,
+      error: "Disk full",
+    });
+    store.snapshotMeta = {
+      exists: true,
+      exportedAt: "2024-01-01T00:00:00Z",
+      totalCount: 10,
+      newCardCount: 2,
+      newTotalDrops: 5,
+    };
+    const cardData = createCardData([
+      { name: "Rain of Chaos", count: 10, ratio: 100 },
+    ]);
+
+    const { user } = renderWithProviders(
+      <StatisticsTable cardData={cardData} currentScope="all-time" />,
+    );
+
+    const trigger = screen.getByTestId("dropdown-trigger");
+    await user.click(trigger);
+
+    const exportAllButton = screen.getByText("Export All Cards");
+    await user.click(exportAllButton);
+
+    expect(alertSpy).toHaveBeenCalledWith("Disk full");
+    alertSpy.mockRestore();
+  });
+
+  it("alerts error message when exportIncremental fails and is not canceled", async () => {
+    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const store = setupStore();
+    store.exportIncremental.mockResolvedValue({
+      success: false,
+      canceled: false,
+      error: "Disk full",
+    });
+    store.snapshotMeta = {
+      exists: true,
+      exportedAt: "2024-01-01T00:00:00Z",
+      totalCount: 10,
+      newCardCount: 2,
+      newTotalDrops: 5,
+    };
+    const cardData = createCardData([
+      { name: "Rain of Chaos", count: 10, ratio: 100 },
+    ]);
+
+    const { user } = renderWithProviders(
+      <StatisticsTable cardData={cardData} currentScope="all-time" />,
+    );
+
+    const trigger = screen.getByTestId("dropdown-trigger");
+    await user.click(trigger);
+
+    const exportIncrementalButton = screen.getByText("Export Latest Cards");
+    await user.click(exportIncrementalButton);
+
+    expect(alertSpy).toHaveBeenCalledWith("Disk full");
+    alertSpy.mockRestore();
+  });
+
+  // ── Export: failure with fallback error message ──────────────────────
+
+  it("alerts fallback message when exportAll fails with no error string", async () => {
+    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const store = setupStore();
+    store.exportAll.mockResolvedValue({
+      success: false,
+      canceled: false,
+    });
+    store.snapshotMeta = {
+      exists: true,
+      exportedAt: "2024-01-01T00:00:00Z",
+      totalCount: 10,
+      newCardCount: 2,
+      newTotalDrops: 5,
+    };
+    const cardData = createCardData([
+      { name: "Rain of Chaos", count: 10, ratio: 100 },
+    ]);
+
+    const { user } = renderWithProviders(
+      <StatisticsTable cardData={cardData} currentScope="all-time" />,
+    );
+
+    const trigger = screen.getByTestId("dropdown-trigger");
+    await user.click(trigger);
+
+    const exportAllButton = screen.getByText("Export All Cards");
+    await user.click(exportAllButton);
+
+    expect(alertSpy).toHaveBeenCalledWith(
+      "Failed to export CSV. Please try again.",
+    );
+    alertSpy.mockRestore();
+  });
+
+  // ── Export: canceled ─────────────────────────────────────────────────
+
+  it("does NOT alert when exportAll is canceled", async () => {
+    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const store = setupStore();
+    store.exportAll.mockResolvedValue({
+      success: false,
+      canceled: true,
+    });
+    store.snapshotMeta = {
+      exists: true,
+      exportedAt: "2024-01-01T00:00:00Z",
+      totalCount: 10,
+      newCardCount: 2,
+      newTotalDrops: 5,
+    };
+    const cardData = createCardData([
+      { name: "Rain of Chaos", count: 10, ratio: 100 },
+    ]);
+
+    const { user } = renderWithProviders(
+      <StatisticsTable cardData={cardData} currentScope="all-time" />,
+    );
+
+    const trigger = screen.getByTestId("dropdown-trigger");
+    await user.click(trigger);
+
+    const exportAllButton = screen.getByText("Export All Cards");
+    await user.click(exportAllButton);
+
+    expect(alertSpy).not.toHaveBeenCalled();
+    alertSpy.mockRestore();
+  });
+
+  it("does NOT alert when exportIncremental is canceled", async () => {
+    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const store = setupStore();
+    store.exportIncremental.mockResolvedValue({
+      success: false,
+      canceled: true,
+    });
+    store.snapshotMeta = {
+      exists: true,
+      exportedAt: "2024-01-01T00:00:00Z",
+      totalCount: 10,
+      newCardCount: 2,
+      newTotalDrops: 5,
+    };
+    const cardData = createCardData([
+      { name: "Rain of Chaos", count: 10, ratio: 100 },
+    ]);
+
+    const { user } = renderWithProviders(
+      <StatisticsTable cardData={cardData} currentScope="all-time" />,
+    );
+
+    const trigger = screen.getByTestId("dropdown-trigger");
+    await user.click(trigger);
+
+    const exportIncrementalButton = screen.getByText("Export Latest Cards");
+    await user.click(exportIncrementalButton);
+
+    expect(alertSpy).not.toHaveBeenCalled();
+    alertSpy.mockRestore();
   });
 });

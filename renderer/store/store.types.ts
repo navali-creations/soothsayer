@@ -12,6 +12,7 @@ import type { RarityInsightsSlice } from "../modules/rarity-insights/RarityInsig
 import type { RarityInsightsComparisonSlice } from "../modules/rarity-insights/RarityInsightsComparison.slice/RarityInsightsComparison.slice";
 import type { SessionDetailsSlice } from "../modules/session-details";
 import type { SessionsSlice } from "../modules/sessions/Sessions.slice/Sessions.slice";
+import type { CommunityUploadSlice } from "../modules/settings/CommunityUpload.slice/CommunityUpload.slice";
 import type { SettingsSlice } from "../modules/settings/Settings.slice/Settings.slice";
 import type { StorageSlice } from "../modules/settings/Storage.slice/Storage.slice";
 import type { SetupSlice } from "../modules/setup/Setup.slice/Setup.slice";
@@ -52,4 +53,5 @@ export type BoundStore = GameInfoSlice &
   RarityInsightsSlice &
   ProfitForecastSlice &
   RarityInsightsComparisonSlice &
+  CommunityUploadSlice &
   RootActions;

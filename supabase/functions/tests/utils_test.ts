@@ -84,7 +84,7 @@ quietTest(
     // The normalizeError replacer in responseJson converts Error instances
     assertEquals(body.error.message, "something broke");
     assertEquals(body.error.name, "Error");
-    assert(typeof body.error.stack === "string");
+    assertEquals(body.error.stack, undefined);
   },
 );
 

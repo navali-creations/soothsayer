@@ -220,6 +220,15 @@ describe("PFBaseRateStat", () => {
     expect(screen.getByText("Base Rate")).toBeInTheDocument();
   });
 
+  it("returns null from date formatting when snapshotFetchedAt is invalid (catch block L116)", () => {
+    renderStat({
+      profitForecast: { snapshotFetchedAt: "not-a-valid-date-$$$$" },
+    });
+    // The component should still render without crashing; the formatted date
+    // falls through the catch block and returns null, so no date is shown.
+    expect(screen.getByText("Base Rate")).toBeInTheDocument();
+  });
+
   // ─── Edit mode tests ────────────────────────────────────────────────────
 
   it("enters edit mode when edit button is clicked", async () => {

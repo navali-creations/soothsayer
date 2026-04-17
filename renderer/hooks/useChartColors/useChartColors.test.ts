@@ -533,7 +533,37 @@ describe("useChartColors", () => {
     });
   });
 
-  // ─── 7. Cleanup on unmount ────────────────────────────────────────────
+  // ─── 7. Fallback when canvas throws (catch block) ────────────────────
+
+  describe("fallback when canvas context throws", () => {
+    it("falls back to white rgb(255, 255, 255) when getImageData throws", () => {
+      mockComputedStyle({
+        "--color-base-content": "#1a2b3c",
+        "--color-primary": "#ff6600",
+        "--color-base-100": "#ffffff",
+        "--color-base-200": "#f0f0f0",
+        "--color-base-300": "#e0e0e0",
+      });
+
+      // Make getContext return a context whose getImageData throws
+      vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+        clearRect: vi.fn(),
+        fillStyle: "",
+        fillRect: vi.fn(),
+        getImageData: () => {
+          throw new Error("SecurityError");
+        },
+      } as any);
+
+      const { result } = renderHook(() => useChartColors());
+
+      expect(result.current.bc100).toBe("rgb(255, 255, 255)");
+      expect(result.current.primary).toBe("rgb(255, 255, 255)");
+      expect(result.current.bc50).toBe("rgba(255, 255, 255, 0.5)");
+    });
+  });
+
+  // ─── 8. Cleanup on unmount ────────────────────────────────────────────
 
   describe("cleanup on unmount", () => {
     it("calls MutationObserver.disconnect on unmount", () => {

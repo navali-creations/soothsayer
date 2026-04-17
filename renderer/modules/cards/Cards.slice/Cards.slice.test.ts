@@ -269,6 +269,27 @@ describe("Cards.slice", () => {
       expect(store.getState().cards._lastCardsKey).toBeNull();
       expect(store.getState().cards._pendingCardsKey).toBeNull();
     });
+
+    it("skips fetch when _pendingCardsKey matches active game (in-flight dedup)", async () => {
+      let resolveGetAll!: (value: unknown) => void;
+      electron.divinationCards.getAll.mockReturnValue(
+        new Promise((resolve) => {
+          resolveGetAll = resolve;
+        }),
+      );
+
+      // Start the first load — it will be pending
+      const firstLoad = store.getState().cards.loadCards();
+      expect(store.getState().cards._pendingCardsKey).toBe("poe1");
+
+      // Second call while first is still in-flight should be deduped
+      await store.getState().cards.loadCards();
+      expect(electron.divinationCards.getAll).toHaveBeenCalledTimes(1);
+
+      // Resolve the first load
+      resolveGetAll(makeSampleCards());
+      await firstLoad;
+    });
   });
 
   // ─── Setters (page reset) ───────────────────────────────────────────
@@ -305,6 +326,13 @@ describe("Cards.slice", () => {
       store.getState().cards.setCurrentPage(3);
       store.getState().cards.setIncludeBossCards(true);
       expect(store.getState().cards.includeBossCards).toBe(true);
+      expect(store.getState().cards.currentPage).toBe(1);
+    });
+
+    it("setIncludeDisabledCards sets flag and resets page", () => {
+      store.getState().cards.setCurrentPage(3);
+      store.getState().cards.setIncludeDisabledCards(true);
+      expect(store.getState().cards.includeDisabledCards).toBe(true);
       expect(store.getState().cards.currentPage).toBe(1);
     });
 
@@ -407,6 +435,19 @@ describe("Cards.slice", () => {
       const names = filtered.map((c) => c.name);
       expect(names).not.toContain("The Demon");
       expect(filtered).toHaveLength(4);
+    });
+
+    it("hides disabled cards by default", () => {
+      store.setState((s) => {
+        s.cards.allCards = [
+          makeCard({ id: "1", name: "Enabled Card", isDisabled: false }),
+          makeCard({ id: "2", name: "Disabled Card", isDisabled: true }),
+        ];
+      });
+      const filtered = store.getState().cards.getFilteredAndSortedCards();
+      const names = filtered.map((c) => c.name);
+      expect(names).toContain("Enabled Card");
+      expect(names).not.toContain("Disabled Card");
     });
 
     it("hides out-of-pool cards by default", () => {

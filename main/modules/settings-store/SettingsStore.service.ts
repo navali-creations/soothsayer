@@ -26,6 +26,7 @@ import {
   assertSetupStep,
   assertString,
   assertStringArray,
+  assertTrustedSender,
   handleValidationError,
   IpcValidationError,
 } from "~/main/utils/ipc-validation";
@@ -83,12 +84,13 @@ class SettingsStoreService {
     ipcMain.handle(
       SettingsStoreChannel.SetSetting,
       async <K extends keyof UserSettingsDTO>(
-        _event: IpcMainInvokeEvent,
+        event: IpcMainInvokeEvent,
         key: K,
         value: UserSettingsDTO[K],
       ) => {
         const ch = SettingsStoreChannel.SetSetting;
         try {
+          assertTrustedSender(event, ch);
           assertString(key, "key", ch);
           if (value === undefined) {
             throw new IpcValidationError(
@@ -297,8 +299,9 @@ class SettingsStoreService {
 
     ipcMain.handle(
       SettingsStoreChannel.SetPoe1ClientPath,
-      async (_event, path: string) => {
+      async (event, path: string) => {
         try {
+          assertTrustedSender(event, SettingsStoreChannel.SetPoe1ClientPath);
           assertFilePath(path, "path", SettingsStoreChannel.SetPoe1ClientPath);
           await this.repository.setPoe1ClientTxtPath(path);
 
@@ -320,8 +323,9 @@ class SettingsStoreService {
 
     ipcMain.handle(
       SettingsStoreChannel.SetPoe2ClientPath,
-      async (_event, path: string) => {
+      async (event, path: string) => {
         try {
+          assertTrustedSender(event, SettingsStoreChannel.SetPoe2ClientPath);
           assertFilePath(path, "path", SettingsStoreChannel.SetPoe2ClientPath);
           await this.repository.setPoe2ClientTxtPath(path);
 
@@ -625,8 +629,9 @@ class SettingsStoreService {
     );
 
     // Database management — confirmation is handled by the renderer UI
-    ipcMain.handle(SettingsStoreChannel.ResetDatabase, async () => {
+    ipcMain.handle(SettingsStoreChannel.ResetDatabase, async (event) => {
       try {
+        assertTrustedSender(event, SettingsStoreChannel.ResetDatabase);
         const db = DatabaseService.getInstance();
         db.reset();
         return { success: true, requiresRestart: true };

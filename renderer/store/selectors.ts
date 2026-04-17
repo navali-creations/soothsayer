@@ -80,6 +80,9 @@ export const useRarityInsights = () => useSlice("rarityInsights");
 export const useRarityInsightsComparison = () =>
   useSlice("rarityInsightsComparison");
 
+/** Select the `communityUpload` slice. */
+export const useCommunityUpload = () => useSlice("communityUpload");
+
 // ── Root actions ─────────────────────────────────────────────────────────────
 
 /**

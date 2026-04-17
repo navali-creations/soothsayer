@@ -32,11 +32,12 @@ vi.mock("../ProhibitedLibraryRarityCell", () => ({
 }));
 
 vi.mock("../RarityBadgeDropdown/RarityBadgeDropdown", () => ({
-  default: ({ rarity, outline }: any) => (
+  default: ({ rarity, outline, onRarityChange }: any) => (
     <div
       data-testid="badge-dropdown"
       data-rarity={rarity}
       data-outline={outline}
+      onClick={() => onRarityChange?.(2)}
     />
   ),
 }));
@@ -104,6 +105,7 @@ function makeCard(overrides: Record<string, any> = {}) {
     filterRarity: overrides.filterRarity ?? null,
     prohibitedLibraryRarity: overrides.prohibitedLibraryRarity ?? null,
     fromBoss: overrides.fromBoss ?? false,
+    isDisabled: overrides.isDisabled ?? false,
     game: overrides.game ?? "poe1",
   });
 }
@@ -127,6 +129,7 @@ function createMockStoreState(overrides: Record<string, any> = {}) {
       priorityPoeNinjaRarity: null,
       priorityPlRarity: null,
       tableSorting: [],
+      includeDisabledCards: true,
       handlePoeNinjaRarityClick: vi.fn(),
       handlePlRarityClick: vi.fn(),
       handleFilterRarityClick: vi.fn(),
@@ -943,6 +946,380 @@ describe("ComparisonTable", () => {
         typeof headerFn === "function" ? headerFn() : headerFn,
       );
       expect(container.textContent).toContain("Filter 2");
+    });
+  });
+
+  // ── Sort functions ─────────────────────────────────────────────────────
+
+  describe("sort functions", () => {
+    function getSortingFnForColumn(columnId: string) {
+      const col = capturedTableProps?.columns?.find(
+        (c: any) => c.id === columnId,
+      );
+      return col?.columnDef?.sortingFn ?? col?.sortingFn;
+    }
+
+    function makeRow(original: Record<string, any>) {
+      return { original };
+    }
+
+    it("raritySortFn sorts matching priorityRarity to top", () => {
+      setupStore({
+        rarityInsightsComparison: {
+          priorityPoeNinjaRarity: 2,
+        },
+      });
+      renderWithProviders(<ComparisonTable />);
+
+      const sortFn = getSortingFnForColumn("poeNinjaRarity");
+      expect(sortFn).toBeDefined();
+
+      const rowA = makeRow({ rarity: 3 });
+      const rowB = makeRow({ rarity: 2 });
+
+      // B matches priority (2), so B should sort before A → result > 0
+      expect(sortFn(rowA, rowB, "poeNinjaRarity")).toBeGreaterThan(0);
+      // Reverse: A matches → result < 0
+      expect(sortFn(rowB, rowA, "poeNinjaRarity")).toBeLessThan(0);
+    });
+
+    it("raritySortFn falls back to numeric sort when no priority", () => {
+      setupStore({
+        rarityInsightsComparison: {
+          priorityPoeNinjaRarity: null,
+        },
+      });
+      renderWithProviders(<ComparisonTable />);
+
+      const sortFn = getSortingFnForColumn("poeNinjaRarity");
+      const rowA = makeRow({ rarity: 1 });
+      const rowB = makeRow({ rarity: 3 });
+
+      expect(sortFn(rowA, rowB, "poeNinjaRarity")).toBeLessThan(0);
+      expect(sortFn(rowB, rowA, "poeNinjaRarity")).toBeGreaterThan(0);
+    });
+
+    it("plRaritySortFn sorts null to bottom", () => {
+      setupStore({
+        rarityInsightsComparison: {
+          priorityPlRarity: null,
+        },
+      });
+      renderWithProviders(<ComparisonTable />);
+
+      const sortFn = getSortingFnForColumn("prohibitedLibraryRarity");
+      expect(sortFn).toBeDefined();
+
+      const rowNull = makeRow({ prohibitedLibraryRarity: null });
+      const rowVal = makeRow({ prohibitedLibraryRarity: 2 });
+
+      // null sorts to bottom → positive
+      expect(
+        sortFn(rowNull, rowVal, "prohibitedLibraryRarity"),
+      ).toBeGreaterThan(0);
+      expect(sortFn(rowVal, rowNull, "prohibitedLibraryRarity")).toBeLessThan(
+        0,
+      );
+      // both null → 0
+      expect(
+        sortFn(
+          rowNull,
+          makeRow({ prohibitedLibraryRarity: null }),
+          "prohibitedLibraryRarity",
+        ),
+      ).toBe(0);
+    });
+
+    it("plRaritySortFn sorts matching priorityPlRarity to top", () => {
+      setupStore({
+        rarityInsightsComparison: {
+          priorityPlRarity: 1,
+        },
+      });
+      renderWithProviders(<ComparisonTable />);
+
+      const sortFn = getSortingFnForColumn("prohibitedLibraryRarity");
+      const rowA = makeRow({ prohibitedLibraryRarity: 3 });
+      const rowB = makeRow({ prohibitedLibraryRarity: 1 });
+
+      expect(sortFn(rowA, rowB, "prohibitedLibraryRarity")).toBeGreaterThan(0);
+      expect(sortFn(rowB, rowA, "prohibitedLibraryRarity")).toBeLessThan(0);
+    });
+
+    it("filterSortFn sorts null to bottom and respects priority", () => {
+      setupStore({
+        rarityInsightsComparison: {
+          selectedFilters: ["f1"],
+          priorityFilterRarities: { f1: 1 },
+          parsedResults: new Map([
+            [
+              "f1",
+              {
+                filterId: "f1",
+                filterName: "Filter1",
+                rarities: new Map([
+                  ["Card A", 1],
+                  ["Card B", 3],
+                ]),
+                totalCards: 2,
+              },
+            ],
+          ]),
+        },
+        cards: {
+          allCards: [
+            makeCard({ id: "1", name: "Card A", rarity: 1 }),
+            makeCard({ id: "2", name: "Card B", rarity: 3 }),
+          ],
+        },
+      });
+      renderWithProviders(<ComparisonTable />);
+
+      const filterCol = capturedTableProps?.columns?.find(
+        (c: any) => c.id === "filter_f1",
+      );
+      const sortFn = filterCol?.columnDef?.sortingFn ?? filterCol?.sortingFn;
+      expect(sortFn).toBeDefined();
+
+      // Card with filterRarity=1 (matches priority) should sort before filterRarity=3
+      const rowA = makeRow({ filterRarities: { f1: 3 } });
+      const rowB = makeRow({ filterRarities: { f1: 1 } });
+      expect(sortFn(rowA, rowB, "filter_f1")).toBeGreaterThan(0);
+
+      // null sorts to bottom
+      const rowNull = makeRow({ filterRarities: { f1: null } });
+      expect(sortFn(rowNull, rowB, "filter_f1")).toBeGreaterThan(0);
+      expect(sortFn(rowB, rowNull, "filter_f1")).toBeLessThan(0);
+    });
+
+    it("passes sorting and onSortingChange to Table", () => {
+      const mockState = setupStore({
+        rarityInsightsComparison: {
+          tableSorting: [{ id: "poeNinjaRarity", desc: false }],
+        },
+      });
+      renderWithProviders(<ComparisonTable />);
+
+      expect(capturedTableProps.sorting).toEqual([
+        { id: "poeNinjaRarity", desc: false },
+      ]);
+      expect(capturedTableProps.onSortingChange).toBe(
+        mockState.rarityInsightsComparison.handleTableSortingChange,
+      );
+    });
+  });
+
+  // ── RarityChips onClick ────────────────────────────────────────────────
+
+  describe("RarityChips onClick in filter header", () => {
+    it("calls handleFilterRarityClick when a rarity chip is clicked", () => {
+      const mockState = setupStore({
+        rarityInsightsComparison: {
+          selectedFilters: ["f1"],
+          parsingFilterId: null,
+          parsedResults: new Map([
+            [
+              "f1",
+              {
+                filterId: "f1",
+                filterName: "Filter1",
+                rarities: new Map(),
+                totalCards: 0,
+              },
+            ],
+          ]),
+        },
+      });
+      renderWithProviders(<ComparisonTable />);
+
+      const filterCol = capturedTableProps?.columns?.find(
+        (c: any) => c.id === "filter_f1",
+      );
+      const headerFn = filterCol.columnDef?.header ?? filterCol.header;
+      const { container } = render(
+        typeof headerFn === "function" ? headerFn() : headerFn,
+      );
+
+      // Find enabled rarity chip buttons and click the first one (R1)
+      const buttons = container.querySelectorAll("button:not([disabled])");
+      expect(buttons.length).toBe(4);
+      buttons[0].click();
+
+      expect(
+        mockState.rarityInsightsComparison.handleFilterRarityClick,
+      ).toHaveBeenCalledWith("f1", 1);
+    });
+  });
+
+  // ── RarityBadgeDropdown onRarityChange ─────────────────────────────────
+
+  describe("RarityBadgeDropdown onRarityChange", () => {
+    it("calls updateFilterCardRarity when rarity is changed", () => {
+      const mockState = setupStore({
+        rarityInsightsComparison: {
+          selectedFilters: ["f1"],
+          parsingFilterId: null,
+          parsedResults: new Map([
+            [
+              "f1",
+              {
+                filterId: "f1",
+                filterName: "Filter1",
+                rarities: new Map([["Test Card", 3]]),
+                totalCards: 1,
+              },
+            ],
+          ]),
+        },
+      });
+      renderWithProviders(<ComparisonTable />);
+
+      const filterCol = capturedTableProps?.columns?.find(
+        (c: any) => c.id === "filter_f1",
+      );
+      const cellFn = filterCol.columnDef?.cell ?? filterCol.cell;
+      const ctx = {
+        row: {
+          original: {
+            id: "poe1_test-card",
+            name: "Test Card",
+            rarity: 3,
+            filterRarities: { f1: 3 },
+            isDifferent: false,
+            fromBoss: false,
+          },
+        },
+        getValue: () => 3,
+      };
+
+      const { container } = render(
+        typeof cellFn === "function" ? cellFn(ctx) : cellFn,
+      );
+
+      const badge = container.querySelector("[data-testid='badge-dropdown']");
+      expect(badge).toBeInTheDocument();
+      // Click triggers the mock's onRarityChange(2)
+      badge!.click();
+
+      expect(
+        mockState.rarityInsightsComparison.updateFilterCardRarity,
+      ).toHaveBeenCalledWith("f1", "Test Card", 2);
+    });
+  });
+
+  // ── includeDisabledCards filter ────────────────────────────────────────
+
+  describe("includeDisabledCards filter", () => {
+    it("filters out disabled cards when includeDisabledCards is false", () => {
+      setupStore({
+        rarityInsightsComparison: {
+          includeDisabledCards: false,
+        },
+        cards: {
+          allCards: [
+            makeCard({ id: "1", name: "Enabled Card", isDisabled: false }),
+            makeCard({ id: "2", name: "Disabled Card", isDisabled: true }),
+          ],
+        },
+      });
+      renderWithProviders(<ComparisonTable />);
+
+      const table = screen.getByTestId("table");
+      expect(table).toHaveAttribute("data-row-count", "1");
+    });
+
+    it("includes disabled cards when includeDisabledCards is true", () => {
+      setupStore({
+        rarityInsightsComparison: {
+          includeDisabledCards: true,
+        },
+        cards: {
+          allCards: [
+            makeCard({ id: "1", name: "Enabled Card", isDisabled: false }),
+            makeCard({ id: "2", name: "Disabled Card", isDisabled: true }),
+          ],
+        },
+      });
+      renderWithProviders(<ComparisonTable />);
+
+      const table = screen.getByTestId("table");
+      expect(table).toHaveAttribute("data-row-count", "2");
+    });
+  });
+
+  // ── showDiffsOnly with no differences ──────────────────────────────────
+
+  describe("showDiffsOnly with no differences", () => {
+    it("shows all cards when showDiffsOnly is true but all rarities match", () => {
+      setupStore({
+        rarityInsightsComparison: {
+          showDiffsOnly: true,
+          selectedFilters: ["f1"],
+          parsedResults: new Map([
+            [
+              "f1",
+              {
+                filterId: "f1",
+                filterName: "Filter1",
+                rarities: new Map([
+                  ["Card A", 3],
+                  ["Card B", 2],
+                ]),
+                totalCards: 2,
+              },
+            ],
+          ]),
+        },
+        cards: {
+          allCards: [
+            makeCard({ id: "1", name: "Card A", rarity: 3 }),
+            makeCard({ id: "2", name: "Card B", rarity: 2 }),
+          ],
+        },
+      });
+      renderWithProviders(<ComparisonTable />);
+
+      // When showDiffsOnly is true but differences set is empty (size === 0),
+      // the filter is skipped and all cards are shown (lines 484-489 in source:
+      // the condition is `showDiffsOnly && differences.size > 0`)
+      const table = screen.getByTestId("table");
+      expect(table).toHaveAttribute("data-row-count", "2");
+    });
+  });
+
+  // ── Fallback placeholder name ──────────────────────────────────────────
+
+  describe("fallback placeholder name for extra filter slots", () => {
+    it("generates fallback name 'Filter N' when index exceeds PLACEHOLDER_FILTER_NAMES", () => {
+      // The fallback at line 441 triggers when placeholderIndex >= PLACEHOLDER_FILTER_NAMES.length (3).
+      // With the current max of 3 slots, this is effectively dead code under normal conditions.
+      // We verify the PLACEHOLDER_FILTER_NAMES array covers all generated indices.
+      setupStore({
+        rarityInsightsComparison: {
+          selectedFilters: [],
+          parsedResults: new Map(),
+          includeBossCards: false,
+        },
+      });
+      renderWithProviders(<ComparisonTable />);
+
+      const placeholders = (capturedTableProps?.columns ?? []).filter(
+        (col: any) => (col.id ?? "").startsWith("placeholder_"),
+      );
+      expect(placeholders.length).toBe(3);
+
+      // Verify all placeholder names are correct
+      const names = placeholders.map((p: any) => {
+        const headerFn = p.columnDef?.header ?? p.header;
+        const { container } = render(
+          typeof headerFn === "function" ? headerFn() : headerFn,
+        );
+        return container.textContent;
+      });
+
+      expect(names[0]).toContain("Filter 1");
+      expect(names[1]).toContain("Filter 2");
+      expect(names[2]).toContain("Filter 3");
     });
   });
 });

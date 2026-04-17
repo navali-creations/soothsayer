@@ -249,6 +249,33 @@ describe("useDropTimelineData — boundary sentinels", () => {
       expect(bp.sessionCount).toBe(0);
     }
   });
+
+  it("does not add trailing boundary sentinel when timelineEndDate is null", () => {
+    const analyticsNoEnd = {
+      ...mockAnalytics,
+      timelineEndDate: null,
+    };
+    const { result } = renderTimelineHook({
+      personalAnalytics: analyticsNoEnd,
+    });
+    // The last point should NOT be a boundary sentinel
+    const lastPoint =
+      result.current.chartData[result.current.chartData.length - 1];
+    expect(lastPoint.isBoundary).toBeFalsy();
+  });
+
+  it("does not add leading boundary sentinel when firstSessionStartedAt is null", () => {
+    const analyticsNoStart = {
+      ...mockAnalytics,
+      firstSessionStartedAt: null,
+    };
+    const { result } = renderTimelineHook({
+      personalAnalytics: analyticsNoStart,
+    });
+    // The first point should NOT be a boundary sentinel
+    const firstPoint = result.current.chartData[0];
+    expect(firstPoint.isBoundary).toBeFalsy();
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -291,6 +318,63 @@ describe("useDropTimelineData — league markers", () => {
     expect(settlersMarkers.length).toBeGreaterThanOrEqual(1);
   });
 
+  it("adds approximate end marker when league has no endDate and approxEnd is in the past", () => {
+    // Use a league with startDate far enough in the past that approxEnd < Date.now()
+    const pastAnalytics = {
+      ...mockAnalytics,
+      leagueDateRanges: [
+        { name: "OldLeague", startDate: "2020-01-01", endDate: null },
+      ],
+    };
+    const { result } = renderTimelineHook({ personalAnalytics: pastAnalytics });
+    const oldLeagueMarkers = result.current.leagueMarkers.filter((m) =>
+      m.label.includes("OldLeague"),
+    );
+    const startMarker = oldLeagueMarkers.find((m) => m.type === "start");
+    const endMarker = oldLeagueMarkers.find((m) => m.type === "end");
+    expect(startMarker).toBeDefined();
+    expect(startMarker!.label).toBe("OldLeague Start");
+    expect(endMarker).toBeDefined();
+    expect(endMarker!.label).toBe("~OldLeague End");
+    // approxEnd = startDate + 4*30 days
+    const expectedApproxEnd =
+      new Date("2020-01-01").getTime() + 4 * 30 * 24 * 60 * 60 * 1000;
+    expect(endMarker!.time).toBe(expectedApproxEnd);
+  });
+
+  it("does not add approximate end marker when approxEnd is in the future", () => {
+    // Use a league with startDate in the near future so approxEnd > Date.now()
+    const futureStart = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    const futureAnalytics = {
+      ...mockAnalytics,
+      leagueDateRanges: [
+        { name: "FutureLeague", startDate: futureStart, endDate: null },
+      ],
+    };
+    const { result } = renderTimelineHook({
+      personalAnalytics: futureAnalytics,
+    });
+    const futureMarkers = result.current.leagueMarkers.filter((m) =>
+      m.label.includes("FutureLeague"),
+    );
+    // Should only have the start marker, no approximate end
+    expect(futureMarkers.length).toBe(1);
+    expect(futureMarkers[0].type).toBe("start");
+  });
+
+  it("adds start marker for each league with a startDate", () => {
+    const { result } = renderTimelineHook();
+    const startMarkers = result.current.leagueMarkers.filter(
+      (m) => m.type === "start",
+    );
+    // Both Affliction and Settlers have startDate
+    expect(startMarkers.length).toBe(2);
+    expect(startMarkers[0].label).toBe("Affliction Start");
+    expect(startMarkers[1].label).toBe("Settlers Start");
+  });
+
   it("returns unique league names", () => {
     const { result } = renderTimelineHook();
     expect(result.current.uniqueLeagues).toContain("Affliction");
@@ -317,6 +401,24 @@ describe("useDropTimelineData — brush state", () => {
     });
     expect(result.current.brushStartIndex).toBe(1);
     expect(result.current.brushEndIndex).toBe(3);
+  });
+
+  it("handleBrushChange updates only startIndex when endIndex is omitted", () => {
+    const { result } = renderTimelineHook();
+    act(() => {
+      result.current.handleBrushChange({ startIndex: 2 });
+    });
+    expect(result.current.brushStartIndex).toBe(2);
+    expect(result.current.brushEndIndex).toBeUndefined();
+  });
+
+  it("handleBrushChange updates only endIndex when startIndex is omitted", () => {
+    const { result } = renderTimelineHook();
+    act(() => {
+      result.current.handleBrushChange({ endIndex: 4 });
+    });
+    expect(result.current.brushStartIndex).toBeUndefined();
+    expect(result.current.brushEndIndex).toBe(4);
   });
 });
 
@@ -583,6 +685,39 @@ describe("useDropTimelineData — selectedLeague brush auto-computation", () => 
     expect(endPoint.time).toBeGreaterThanOrEqual(lastLeagueTime - margin);
   });
 
+  it("returns early when selectedLeague is 'Standard' but no Standard data points exist", () => {
+    // Timeline has only non-Standard data — selecting Standard should hit
+    // the `if (standardPoints.length === 0) return;` early exit (L306).
+    const nonStandardOnly = [
+      {
+        sessionStartedAt: "2024-04-01T10:00:00Z",
+        count: 3,
+        cumulativeCount: 3,
+        totalDecksOpened: 50,
+        league: "Affliction",
+        sessionId: "s1",
+      },
+    ];
+    const analyticsNoStandard = {
+      totalLifetimeDrops: 3,
+      firstSessionStartedAt: "2024-03-01T00:00:00Z",
+      timelineEndDate: "2024-06-01T00:00:00Z",
+      leagueDateRanges: [
+        { name: "Affliction", startDate: "2023-12-08", endDate: "2024-03-25" },
+      ],
+    };
+
+    const { result } = renderTimelineHook({
+      dropTimeline: nonStandardOnly,
+      personalAnalytics: analyticsNoStandard,
+      selectedLeague: "Standard",
+    });
+
+    // No Standard points → early return, brush stays undefined
+    expect(result.current.brushStartIndex).toBeUndefined();
+    expect(result.current.brushEndIndex).toBeUndefined();
+  });
+
   it("resets brush to undefined when selectedLeague is 'all' with chartData", () => {
     const { result } = renderTimelineHook({
       dropTimeline: mixedLeagueTimeline,
@@ -600,6 +735,46 @@ describe("useDropTimelineData — selectedLeague brush auto-computation", () => 
       selectedLeague: "Standard",
     });
 
+    expect(result.current.brushStartIndex).toBeUndefined();
+    expect(result.current.brushEndIndex).toBeUndefined();
+  });
+
+  it("returns early when non-Standard league has no matching data points and no date range", () => {
+    const timelineOnlyStandard = [
+      {
+        sessionStartedAt: "2024-01-15T10:00:00Z",
+        count: 1,
+        cumulativeCount: 1,
+        totalDecksOpened: 10,
+        league: "Standard",
+        sessionId: "s1",
+      },
+      {
+        sessionStartedAt: "2024-02-15T10:00:00Z",
+        count: 2,
+        cumulativeCount: 3,
+        totalDecksOpened: 20,
+        league: "Standard",
+        sessionId: "s2",
+      },
+    ];
+
+    const analyticsNoMystery = {
+      totalLifetimeDrops: 3,
+      firstSessionStartedAt: "2024-01-10T00:00:00Z",
+      timelineEndDate: "2024-06-01T00:00:00Z",
+      leagueDateRanges: [
+        { name: "Standard", startDate: "2024-01-01", endDate: "2024-06-01" },
+      ],
+    };
+
+    const { result } = renderTimelineHook({
+      dropTimeline: timelineOnlyStandard,
+      personalAnalytics: analyticsNoMystery,
+      selectedLeague: "MysteryLeague",
+    });
+
+    // leaguePoints for "MysteryLeague" is empty → early return, brush stays undefined
     expect(result.current.brushStartIndex).toBeUndefined();
     expect(result.current.brushEndIndex).toBeUndefined();
   });
@@ -714,5 +889,223 @@ describe("useDropTimelineData — max values", () => {
     expect(result.current.visibleMaxPerSession).toBe(
       result.current.maxPerSession,
     );
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// flushGroup empty guard (line 132 — defensive, currently unreachable)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("useDropTimelineData — flushGroup edge cases", () => {
+  it("handles single-entry timeline without error (flushGroup called once)", () => {
+    const singleEntry = [
+      {
+        sessionStartedAt: "2024-01-15T10:00:00Z",
+        count: 1,
+        cumulativeCount: 1,
+        totalDecksOpened: 10,
+        league: "Affliction",
+        sessionId: "s1",
+      },
+    ];
+    const { result } = renderTimelineHook({ dropTimeline: singleEntry });
+    const realPoints = result.current.chartData.filter(
+      (p) => !p.isGap && !p.isBoundary,
+    );
+    expect(realPoints.length).toBe(1);
+    expect(realPoints[0].count).toBe(1);
+  });
+
+  it("handles timeline where every entry is a different day and league (flushGroup called per point)", () => {
+    // Each point triggers flushGroup for the previous group, then starts a new group.
+    // After the loop, flushGroup is called one final time.
+    // The currentGroup is never empty when flushGroup is called in this scenario.
+    const multiLeagueTimeline = [
+      {
+        sessionStartedAt: "2024-01-15T10:00:00Z",
+        count: 1,
+        cumulativeCount: 1,
+        totalDecksOpened: 10,
+        league: "LeagueA",
+        sessionId: "s1",
+      },
+      {
+        sessionStartedAt: "2024-02-20T10:00:00Z",
+        count: 2,
+        cumulativeCount: 3,
+        totalDecksOpened: 20,
+        league: "LeagueB",
+        sessionId: "s2",
+      },
+      {
+        sessionStartedAt: "2024-03-25T10:00:00Z",
+        count: 3,
+        cumulativeCount: 6,
+        totalDecksOpened: 30,
+        league: "LeagueC",
+        sessionId: "s3",
+      },
+    ];
+    const { result } = renderTimelineHook({
+      dropTimeline: multiLeagueTimeline,
+    });
+    const realPoints = result.current.chartData.filter(
+      (p) => !p.isGap && !p.isBoundary,
+    );
+    expect(realPoints.length).toBe(3);
+    expect(realPoints[0].league).toBe("LeagueA");
+    expect(realPoints[1].league).toBe("LeagueB");
+    expect(realPoints[2].league).toBe("LeagueC");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Sentinel insertion with non-empty result (line 205)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("useDropTimelineData — sentinel insertion", () => {
+  it("inserts both leading and trailing sentinels when bounds extend beyond data", () => {
+    // firstSessionStartedAt is before first data point, timelineEndDate is after last
+    const { result } = renderTimelineHook();
+    const first = result.current.chartData[0];
+    const last = result.current.chartData[result.current.chartData.length - 1];
+    // Leading sentinel from firstSessionStartedAt="2024-01-10T00:00:00Z"
+    expect(first.isBoundary).toBe(true);
+    expect(first.time).toBe(new Date("2024-01-10T00:00:00Z").getTime());
+    // Trailing sentinel from timelineEndDate="2024-05-01T00:00:00Z"
+    expect(last.isBoundary).toBe(true);
+    expect(last.time).toBe(new Date("2024-05-01T00:00:00Z").getTime());
+    // Gap indices should be shifted by 1 due to leading sentinel prepend
+    for (const idx of result.current.gapIndices) {
+      expect(result.current.chartData[idx].isGap).toBe(true);
+    }
+  });
+
+  it("shifts gap indices when leading sentinel is prepended", () => {
+    // Default mock has firstSessionStartedAt before first data point,
+    // so a leading sentinel is prepended and gap indices should shift
+    const { result } = renderTimelineHook();
+    // There should be a gap between Affliction and Settlers
+    expect(result.current.gapIndices.length).toBeGreaterThan(0);
+    const gapIdx = result.current.gapIndices[0];
+    // The gap should not be at index 0 (that's the boundary sentinel)
+    expect(gapIdx).toBeGreaterThan(0);
+    expect(result.current.chartData[gapIdx].isGap).toBe(true);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// League markers — startDate without endDate (lines 248, 261)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("useDropTimelineData — league markers edge cases", () => {
+  it("creates start marker for a league with only startDate (no endDate)", () => {
+    const analyticsStartOnly = {
+      ...mockAnalytics,
+      leagueDateRanges: [
+        { name: "NewLeague", startDate: "2024-06-01", endDate: null },
+      ],
+    };
+    const { result } = renderTimelineHook({
+      personalAnalytics: analyticsStartOnly,
+    });
+    const newLeagueMarkers = result.current.leagueMarkers.filter((m) =>
+      m.label.includes("NewLeague"),
+    );
+    const startMarker = newLeagueMarkers.find((m) => m.type === "start");
+    expect(startMarker).toBeDefined();
+    expect(startMarker!.time).toBe(new Date("2024-06-01").getTime());
+  });
+
+  it("creates approximate end marker for past league without endDate", () => {
+    // A league starting far in the past with no endDate triggers the
+    // `else if (lr.startDate)` branch (line 261) to add ~End marker
+    const pastAnalytics = {
+      ...mockAnalytics,
+      leagueDateRanges: [
+        { name: "AncientLeague", startDate: "2019-06-01", endDate: null },
+      ],
+    };
+    const { result } = renderTimelineHook({
+      personalAnalytics: pastAnalytics,
+    });
+    const ancientMarkers = result.current.leagueMarkers.filter((m) =>
+      m.label.includes("AncientLeague"),
+    );
+    const startMarker = ancientMarkers.find((m) => m.type === "start");
+    const endMarker = ancientMarkers.find((m) => m.type === "end");
+    expect(startMarker).toBeDefined();
+    expect(startMarker!.label).toBe("AncientLeague Start");
+    expect(endMarker).toBeDefined();
+    expect(endMarker!.label).toBe("~AncientLeague End");
+    // approxEnd = startDate + DEFAULT_LEAGUE_DURATION_MS (4 * 30 days)
+    const expectedApproxEnd =
+      new Date("2019-06-01").getTime() + 4 * 30 * 24 * 60 * 60 * 1000;
+    expect(endMarker!.time).toBe(expectedApproxEnd);
+  });
+
+  it("does not create approximate end marker when approxEnd is in the future", () => {
+    const futureStart = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    const futureAnalytics = {
+      ...mockAnalytics,
+      leagueDateRanges: [
+        { name: "UpcomingLeague", startDate: futureStart, endDate: null },
+      ],
+    };
+    const { result } = renderTimelineHook({
+      personalAnalytics: futureAnalytics,
+    });
+    const upcomingMarkers = result.current.leagueMarkers.filter((m) =>
+      m.label.includes("UpcomingLeague"),
+    );
+    // Only start marker, no approximate end
+    expect(upcomingMarkers.length).toBe(1);
+    expect(upcomingMarkers[0].type).toBe("start");
+    expect(upcomingMarkers[0].label).toBe("UpcomingLeague Start");
+  });
+
+  it("creates both start and end markers for league with both dates", () => {
+    const analyticsBothDates = {
+      ...mockAnalytics,
+      leagueDateRanges: [
+        {
+          name: "CompleteLeague",
+          startDate: "2023-06-01",
+          endDate: "2023-09-30",
+        },
+      ],
+    };
+    const { result } = renderTimelineHook({
+      personalAnalytics: analyticsBothDates,
+    });
+    const completeMarkers = result.current.leagueMarkers.filter((m) =>
+      m.label.includes("CompleteLeague"),
+    );
+    expect(completeMarkers.length).toBe(2);
+    const start = completeMarkers.find((m) => m.type === "start");
+    const end = completeMarkers.find((m) => m.type === "end");
+    expect(start).toBeDefined();
+    expect(start!.time).toBe(new Date("2023-06-01").getTime());
+    expect(end).toBeDefined();
+    expect(end!.time).toBe(new Date("2023-09-30").getTime());
+    expect(end!.label).toBe("CompleteLeague End");
+  });
+
+  it("skips league with no startDate and no endDate", () => {
+    const analyticsNoDate = {
+      ...mockAnalytics,
+      leagueDateRanges: [
+        { name: "MysteryLeague", startDate: null, endDate: null },
+      ],
+    };
+    const { result } = renderTimelineHook({
+      personalAnalytics: analyticsNoDate,
+    });
+    const mysteryMarkers = result.current.leagueMarkers.filter((m) =>
+      m.label.includes("MysteryLeague"),
+    );
+    expect(mysteryMarkers.length).toBe(0);
   });
 });

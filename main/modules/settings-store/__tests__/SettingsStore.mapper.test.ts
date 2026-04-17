@@ -51,6 +51,7 @@ function createSettingsRow(
     telemetry_crash_reporting: 0,
     telemetry_usage_analytics: 0,
     csv_export_path: null,
+    community_uploads_enabled: 0,
     created_at: "2025-01-01T00:00:00Z",
     updated_at: "2025-01-01T00:00:00Z",
     ...overrides,
@@ -293,6 +294,7 @@ describe("SettingsStore.mapper", () => {
         telemetryCrashReporting: false,
         telemetryUsageAnalytics: false,
         csvExportPath: null,
+        communityUploadsEnabled: false,
       });
     });
   });

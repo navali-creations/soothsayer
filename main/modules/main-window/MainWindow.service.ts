@@ -20,6 +20,7 @@ import {
   CurrentSessionService,
   DatabaseService,
   DivinationCardsService,
+  GggAuthService,
   MainWindowChannel,
   OverlayService,
   PoeLeaguesService,
@@ -32,7 +33,11 @@ import {
   TrayService,
   UpdaterService,
 } from "~/main/modules";
-import { validateFileDialogOptions } from "~/main/utils/ipc-validation";
+import {
+  assertTrustedSender,
+  registerTrustedWebContents,
+  validateFileDialogOptions,
+} from "~/main/utils/ipc-validation";
 
 class MainWindowService {
   private mainWindow!: BrowserWindow;
@@ -218,6 +223,10 @@ class MainWindowService {
 
     this.mainWindow = new BrowserWindow(windowOptions);
 
+    // Register the main window as the sole trusted IPC sender (L6 security hardening)
+    registerTrustedWebContents(this.mainWindow.webContents);
+    console.log("[Init] ✓ Trusted webContents registered");
+
     // Initialize services in correct order
     console.log("[Init] Initializing services...");
 
@@ -263,6 +272,11 @@ class MainWindowService {
     // 8. Community upload (depends on database + settings + supabase)
     CommunityUploadService.getInstance();
     console.log("[Init] ✓ Community Upload");
+
+    // 8b. GGG OAuth (depends on nothing — registers IPC handlers + deep link route)
+    GggAuthService.getInstance();
+    AppService.getInstance().emitOpenUrl();
+    console.log("[Init] ✓ GGG Auth");
 
     // 9. Analytics (depends on database)
     AnalyticsService.getInstance();
@@ -341,6 +355,7 @@ class MainWindowService {
       "https://docs.google.com/spreadsheets/d/1PmGES_e1on6K7O5ghHuoorEjruAVb7dQ5m7PGrW7t80",
       "https://poe.ninja/",
       "https://www.poewiki.net/",
+      "https://wraeclast.cards",
     ];
 
     this.mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -383,7 +398,8 @@ class MainWindowService {
     // Handler for file selection — validates and allowlists options from renderer
     ipcMain.handle(
       "select-file",
-      async (_event, options: Electron.OpenDialogOptions) => {
+      async (event, options: Electron.OpenDialogOptions) => {
+        assertTrustedSender(event, "select-file");
         const validated = validateFileDialogOptions(options, "select-file");
 
         const result = await dialog.showOpenDialog(this.mainWindow, {

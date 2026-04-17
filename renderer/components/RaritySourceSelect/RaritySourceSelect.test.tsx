@@ -172,6 +172,170 @@ describe("RaritySourceSelect", () => {
     expect(warningIcon).toBeInTheDocument();
   });
 
+  it("calls group action onClick and stops propagation when action button is clicked", async () => {
+    const actionOnClick = vi.fn();
+    const groupsWithAction = [
+      {
+        label: "League",
+        options: [{ value: "current", label: "Current League" }],
+        action: {
+          label: "Scan Now",
+          onClick: actionOnClick,
+        },
+      },
+    ];
+
+    const { user } = renderWithProviders(
+      <RaritySourceSelect
+        value="current"
+        onChange={vi.fn()}
+        groups={groupsWithAction}
+      />,
+    );
+
+    const actionButton = screen.getByText("Scan Now").closest("button")!;
+    await user.click(actionButton);
+
+    expect(actionOnClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders nothing for a group with no options and no action", () => {
+    const groupsWithEmpty = [
+      {
+        label: "Empty Group",
+        options: [],
+        // no action
+      },
+      {
+        label: "Filled",
+        options: [{ value: "a", label: "Option A" }],
+      },
+    ];
+
+    renderWithProviders(
+      <RaritySourceSelect
+        value="a"
+        onChange={vi.fn()}
+        groups={groupsWithEmpty}
+      />,
+    );
+
+    // The empty group's label should not render
+    expect(screen.queryByText("Empty Group")).not.toBeInTheDocument();
+    // The filled group should still render
+    expect(screen.getByText("Filled")).toBeInTheDocument();
+  });
+
+  it("renders a group that has no options but has an action", () => {
+    const groupsWithAction = [
+      {
+        label: "Action Only",
+        options: [],
+        action: {
+          label: "Do Something",
+          onClick: vi.fn(),
+        },
+      },
+    ];
+
+    renderWithProviders(
+      <RaritySourceSelect
+        value=""
+        onChange={vi.fn()}
+        groups={groupsWithAction}
+      />,
+    );
+
+    // Group label should render because action exists
+    expect(screen.getByText("Action Only")).toBeInTheDocument();
+    expect(screen.getByText("Do Something")).toBeInTheDocument();
+  });
+
+  it("shows spinner and loadingLabel when group action is loading", () => {
+    const groupsWithLoading = [
+      {
+        label: "League",
+        options: [{ value: "current", label: "Current League" }],
+        action: {
+          label: "Scan Now",
+          onClick: vi.fn(),
+          loading: true,
+          loadingLabel: "Scanning...",
+        },
+      },
+    ];
+
+    renderWithProviders(
+      <RaritySourceSelect
+        value="current"
+        onChange={vi.fn()}
+        groups={groupsWithLoading}
+      />,
+    );
+
+    // Loading label should be shown instead of the normal label
+    expect(screen.getByText("Scanning...")).toBeInTheDocument();
+    // Spinner element should be present
+    const spinner = document.querySelector(".loading.loading-spinner");
+    expect(spinner).toBeInTheDocument();
+    // The action button should have pointer-events-none
+    const actionButton = screen.getByText("Scanning...").closest("button")!;
+    expect(actionButton.className).toContain("pointer-events-none");
+  });
+
+  it("falls back to action label when loadingLabel is not provided during loading", () => {
+    const groupsWithLoading = [
+      {
+        label: "League",
+        options: [{ value: "current", label: "Current League" }],
+        action: {
+          label: "Scan Now",
+          onClick: vi.fn(),
+          loading: true,
+        },
+      },
+    ];
+
+    renderWithProviders(
+      <RaritySourceSelect
+        value="current"
+        onChange={vi.fn()}
+        groups={groupsWithLoading}
+      />,
+    );
+
+    // Should show the normal label as fallback
+    const actionButton = screen.getByText("Scan Now").closest("button")!;
+    expect(actionButton).toBeInTheDocument();
+    const spinner = document.querySelector(".loading.loading-spinner");
+    expect(spinner).toBeInTheDocument();
+  });
+
+  it("renders action icon when provided and not loading", () => {
+    const groupsWithIcon = [
+      {
+        label: "League",
+        options: [{ value: "current", label: "Current League" }],
+        action: {
+          label: "Scan Now",
+          onClick: vi.fn(),
+          icon: <span data-testid="action-icon">🔍</span>,
+        },
+      },
+    ];
+
+    renderWithProviders(
+      <RaritySourceSelect
+        value="current"
+        onChange={vi.fn()}
+        groups={groupsWithIcon}
+      />,
+    );
+
+    expect(screen.getByTestId("action-icon")).toBeInTheDocument();
+    expect(screen.getByText("Scan Now")).toBeInTheDocument();
+  });
+
   it("applies custom className to the outer wrapper", () => {
     const { container } = renderWithProviders(
       <RaritySourceSelect

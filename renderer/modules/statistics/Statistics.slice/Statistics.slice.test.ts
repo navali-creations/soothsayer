@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ElectronMock } from "~/renderer/__test-setup__/electron-mock";
 import {
@@ -348,6 +348,88 @@ describe("showUncollectedCards", () => {
     store.getState().statistics.toggleShowUncollectedCards();
     expect(store.getState().statistics.showUncollectedCards).toBe(false);
   });
+
+  it("calls fetchUncollectedCardNames with league when statScope is 'league'", () => {
+    store.getState().statistics.setStatScope("league");
+    store.getState().statistics.setSelectedLeague("Settlers");
+
+    store.getState().statistics.toggleShowUncollectedCards();
+
+    expect(store.getState().statistics.showUncollectedCards).toBe(true);
+    expect(electron.sessions.getUncollectedCardNames).toHaveBeenCalledWith(
+      "poe1",
+      "Settlers",
+    );
+  });
+
+  it("calls fetchUncollectedCardNames with undefined league when statScope is 'all-time'", () => {
+    store.getState().statistics.setStatScope("all-time");
+
+    store.getState().statistics.toggleShowUncollectedCards();
+
+    expect(store.getState().statistics.showUncollectedCards).toBe(true);
+    expect(electron.sessions.getUncollectedCardNames).toHaveBeenCalledWith(
+      "poe1",
+      undefined,
+    );
+  });
+
+  it("does not call fetchUncollectedCardNames when toggling off", () => {
+    store.getState().statistics.toggleShowUncollectedCards();
+    electron.sessions.getUncollectedCardNames.mockClear();
+
+    store.getState().statistics.toggleShowUncollectedCards();
+
+    expect(store.getState().statistics.showUncollectedCards).toBe(false);
+    expect(electron.sessions.getUncollectedCardNames).not.toHaveBeenCalled();
+  });
+});
+
+// ── fetchUncollectedCardNames ──────────────────────────────────────────────────
+
+describe("fetchUncollectedCardNames", () => {
+  it("builds metadata map for cards matching uncollected names", async () => {
+    electron.sessions.getUncollectedCardNames.mockResolvedValue([
+      "Rain of Chaos",
+      "The Doctor",
+    ]);
+    electron.divinationCards.getAll.mockResolvedValue([
+      { name: "Rain of Chaos", artFilename: "rain.png", stackSize: 8 },
+      { name: "The Doctor", artFilename: "doctor.png", stackSize: 8 },
+      { name: "The Nurse", artFilename: "nurse.png", stackSize: 8 },
+    ]);
+
+    await store
+      .getState()
+      .statistics.fetchUncollectedCardNames("poe1", "Settlers");
+
+    const { uncollectedCardNames, uncollectedCardMetadata } =
+      store.getState().statistics;
+
+    expect(uncollectedCardNames).toEqual(["Rain of Chaos", "The Doctor"]);
+    // Only matching cards should appear in metadata
+    expect(Object.keys(uncollectedCardMetadata)).toHaveLength(2);
+    expect(uncollectedCardMetadata["Rain of Chaos"]).toBeDefined();
+    expect(uncollectedCardMetadata["The Doctor"]).toBeDefined();
+    expect(uncollectedCardMetadata["The Nurse"]).toBeUndefined();
+  });
+
+  it("logs error when IPC call rejects", async () => {
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    electron.sessions.getUncollectedCardNames.mockRejectedValueOnce(
+      new Error("IPC failure"),
+    );
+
+    await store.getState().statistics.fetchUncollectedCardNames("poe1");
+
+    expect(consoleSpy).toHaveBeenCalledWith(
+      "Failed to fetch uncollected card names:",
+      expect.any(Error),
+    );
+
+    consoleSpy.mockRestore();
+  });
 });
 
 // ── fetchSessionHighlights ─────────────────────────────────────────────────────
@@ -550,6 +632,34 @@ describe("fetchSessionHighlights", () => {
     expect(highlights!.winRate).toBeNull();
     expect(highlights!.avgProfitPerDeck).toBeNull();
     expect(highlights!.profitPerHour).toBeNull();
+  });
+
+  it("sets stackedDeckCardCount to null when value is 0", async () => {
+    electron.sessions.getStackedDeckCardCount.mockResolvedValue(0);
+
+    await store.getState().statistics.fetchSessionHighlights("poe1");
+
+    expect(store.getState().statistics.stackedDeckCardCount).toBeNull();
+  });
+
+  it("sets stackedDeckCardCount to null when value is negative", async () => {
+    electron.sessions.getStackedDeckCardCount.mockResolvedValue(-5);
+
+    await store
+      .getState()
+      .statistics.fetchSessionHighlights("poe1", "NegativeTest");
+
+    expect(store.getState().statistics.stackedDeckCardCount).toBeNull();
+  });
+
+  it("sets stackedDeckCardCount when value is positive", async () => {
+    electron.sessions.getStackedDeckCardCount.mockResolvedValue(42);
+
+    await store
+      .getState()
+      .statistics.fetchSessionHighlights("poe1", "PositiveTest");
+
+    expect(store.getState().statistics.stackedDeckCardCount).toBe(42);
   });
 
   it("derives avgProfitPerDeck as null when totalDecksOpened is 0", async () => {

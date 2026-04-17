@@ -43,6 +43,9 @@ const {
   mockFsReadFile,
   mockFsMkdir,
   mockShellOpenPath,
+  mockAssertTrustedSender,
+  mockHandleValidationError,
+  MockIpcValidationError,
 } = vi.hoisted(() => {
   const mockClientLogReaderSetClientLogPath = vi.fn();
   const mockClientLogReaderGetInstance = vi.fn().mockResolvedValue({
@@ -124,6 +127,28 @@ const {
     mockFsReadFile: vi.fn(),
     mockFsMkdir: vi.fn(),
     mockShellOpenPath: vi.fn(),
+    mockAssertTrustedSender: vi.fn(),
+    mockHandleValidationError: vi.fn((error: unknown) => {
+      if (
+        error instanceof Error &&
+        "detail" in error &&
+        typeof (error as any).detail === "string"
+      ) {
+        return {
+          success: false,
+          error: `Invalid input: ${(error as any).detail}`,
+        };
+      }
+      throw error;
+    }),
+    MockIpcValidationError: class _MockIpcValidationError extends Error {
+      detail: string;
+      constructor(channel: string, detail: string) {
+        super(`[IPC Validation] ${channel}: ${detail}`);
+        this.name = "IpcValidationError";
+        this.detail = detail;
+      }
+    },
   };
 });
 
@@ -178,6 +203,19 @@ vi.mock("~/main/modules/database", () => ({
   },
 }));
 
+// ─── Mock IPC validation ─────────────────────────────────────────────────────
+vi.mock("~/main/utils/ipc-validation", async (importOriginal) => {
+  const real =
+    await importOriginal<typeof import("~/main/utils/ipc-validation")>();
+  return {
+    ...real,
+    assertTrustedSender: mockAssertTrustedSender,
+    registerTrustedWebContents: vi.fn(),
+    handleValidationError: mockHandleValidationError,
+    IpcValidationError: MockIpcValidationError,
+  };
+});
+
 // ─── Mock SettingsStoreRepository ────────────────────────────────────────────
 vi.mock("../SettingsStore.repository", () => ({
   SettingsStoreRepository: class MockSettingsStoreRepository {
@@ -229,6 +267,20 @@ describe("SettingsStoreService — IPC handlers", () => {
     vi.clearAllMocks();
 
     // Re-apply default implementations after clearAllMocks
+    mockAssertTrustedSender.mockImplementation(() => {});
+    mockHandleValidationError.mockImplementation((error: unknown) => {
+      if (
+        error instanceof Error &&
+        "detail" in error &&
+        typeof (error as any).detail === "string"
+      ) {
+        return {
+          success: false as const,
+          error: `Invalid input: ${(error as any).detail}`,
+        };
+      }
+      throw error;
+    });
     mockRepositoryGetPoe1ClientTxtPath.mockResolvedValue(null);
     mockRepositoryGetPoe2ClientTxtPath.mockResolvedValue(null);
     mockRepositoryGetAppExitAction.mockResolvedValue("exit");
@@ -368,7 +420,11 @@ describe("SettingsStoreService — IPC handlers", () => {
     // ── poe1ClientTxtPath ──
 
     it("should accept a valid file path for poe1ClientTxtPath", async () => {
-      await setSetting({}, "poe1ClientTxtPath", "C:\\Users\\test\\client.txt");
+      await setSetting(
+        { sender: { id: 1 } },
+        "poe1ClientTxtPath",
+        "C:\\Users\\test\\client.txt",
+      );
 
       expect(mockRepositorySet).toHaveBeenCalledWith(
         "poe1ClientTxtPath",
@@ -382,7 +438,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should accept null for poe1ClientTxtPath (clear it)", async () => {
-      await setSetting({}, "poe1ClientTxtPath", null);
+      await setSetting({ sender: { id: 1 } }, "poe1ClientTxtPath", null);
 
       expect(mockRepositorySet).toHaveBeenCalledWith("poe1ClientTxtPath", null);
       // Should NOT notify ClientLogReader when value is null
@@ -390,7 +446,11 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject non-string for poe1ClientTxtPath", async () => {
-      const result = await setSetting({}, "poe1ClientTxtPath", 123);
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "poe1ClientTxtPath",
+        123,
+      );
 
       expect(result).toEqual({
         success: false,
@@ -400,7 +460,7 @@ describe("SettingsStoreService — IPC handlers", () => {
 
     it("should reject path with null bytes for poe1ClientTxtPath", async () => {
       const result = await setSetting(
-        {},
+        { sender: { id: 1 } },
         "poe1ClientTxtPath",
         "path\0malicious",
       );
@@ -414,7 +474,11 @@ describe("SettingsStoreService — IPC handlers", () => {
     // ── poe2ClientTxtPath ──
 
     it("should accept a valid file path for poe2ClientTxtPath and notify ClientLogReader", async () => {
-      await setSetting({}, "poe2ClientTxtPath", "/home/user/poe2/client.txt");
+      await setSetting(
+        { sender: { id: 1 } },
+        "poe2ClientTxtPath",
+        "/home/user/poe2/client.txt",
+      );
 
       expect(mockRepositorySet).toHaveBeenCalledWith(
         "poe2ClientTxtPath",
@@ -428,7 +492,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should accept null for poe2ClientTxtPath", async () => {
-      await setSetting({}, "poe2ClientTxtPath", null);
+      await setSetting({ sender: { id: 1 } }, "poe2ClientTxtPath", null);
 
       expect(mockRepositorySet).toHaveBeenCalledWith("poe2ClientTxtPath", null);
     });
@@ -436,13 +500,13 @@ describe("SettingsStoreService — IPC handlers", () => {
     // ── appExitAction ──
 
     it("should accept 'exit' for appExitAction", async () => {
-      await setSetting({}, "appExitAction", "exit");
+      await setSetting({ sender: { id: 1 } }, "appExitAction", "exit");
 
       expect(mockRepositorySet).toHaveBeenCalledWith("appExitAction", "exit");
     });
 
     it("should accept 'minimize' for appExitAction", async () => {
-      await setSetting({}, "appExitAction", "minimize");
+      await setSetting({ sender: { id: 1 } }, "appExitAction", "minimize");
 
       expect(mockRepositorySet).toHaveBeenCalledWith(
         "appExitAction",
@@ -451,7 +515,11 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject invalid value for appExitAction", async () => {
-      const result = await setSetting({}, "appExitAction", "shutdown");
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "appExitAction",
+        "close",
+      );
 
       expect(result).toEqual({
         success: false,
@@ -460,7 +528,11 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject non-string for appExitAction", async () => {
-      const result = await setSetting({}, "appExitAction", true);
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "appExitAction",
+        42,
+      );
 
       expect(result).toEqual({
         success: false,
@@ -471,19 +543,23 @@ describe("SettingsStoreService — IPC handlers", () => {
     // ── Boolean settings ──
 
     it("should accept true for appOpenAtLogin", async () => {
-      await setSetting({}, "appOpenAtLogin", true);
+      await setSetting({ sender: { id: 1 } }, "appOpenAtLogin", true);
 
       expect(mockRepositorySet).toHaveBeenCalledWith("appOpenAtLogin", true);
     });
 
     it("should accept false for appOpenAtLogin", async () => {
-      await setSetting({}, "appOpenAtLogin", false);
+      await setSetting({ sender: { id: 1 } }, "appOpenAtLogin", false);
 
       expect(mockRepositorySet).toHaveBeenCalledWith("appOpenAtLogin", false);
     });
 
     it("should reject non-boolean for appOpenAtLogin", async () => {
-      const result = await setSetting({}, "appOpenAtLogin", "true");
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "appOpenAtLogin",
+        "true",
+      );
 
       expect(result).toEqual({
         success: false,
@@ -492,7 +568,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should accept boolean for appOpenAtLoginMinimized", async () => {
-      await setSetting({}, "appOpenAtLoginMinimized", true);
+      await setSetting({ sender: { id: 1 } }, "appOpenAtLoginMinimized", true);
 
       expect(mockRepositorySet).toHaveBeenCalledWith(
         "appOpenAtLoginMinimized",
@@ -501,7 +577,11 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject non-boolean for appOpenAtLoginMinimized", async () => {
-      const result = await setSetting({}, "appOpenAtLoginMinimized", 1);
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "appOpenAtLoginMinimized",
+        "yes",
+      );
 
       expect(result).toEqual({
         success: false,
@@ -510,13 +590,17 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should accept boolean for setupCompleted", async () => {
-      await setSetting({}, "setupCompleted", true);
+      await setSetting({ sender: { id: 1 } }, "setupCompleted", true);
 
       expect(mockRepositorySet).toHaveBeenCalledWith("setupCompleted", true);
     });
 
     it("should reject non-boolean for setupCompleted", async () => {
-      const result = await setSetting({}, "setupCompleted", "yes");
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "setupCompleted",
+        "done",
+      );
 
       expect(result).toEqual({
         success: false,
@@ -527,19 +611,23 @@ describe("SettingsStoreService — IPC handlers", () => {
     // ── selectedGame ──
 
     it("should accept 'poe1' for selectedGame", async () => {
-      await setSetting({}, "selectedGame", "poe1");
+      await setSetting({ sender: { id: 1 } }, "selectedGame", "poe1");
 
       expect(mockRepositorySet).toHaveBeenCalledWith("selectedGame", "poe1");
     });
 
     it("should accept 'poe2' for selectedGame", async () => {
-      await setSetting({}, "selectedGame", "poe2");
+      await setSetting({ sender: { id: 1 } }, "selectedGame", "poe2");
 
       expect(mockRepositorySet).toHaveBeenCalledWith("selectedGame", "poe2");
     });
 
     it("should reject invalid value for selectedGame", async () => {
-      const result = await setSetting({}, "selectedGame", "poe3");
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "selectedGame",
+        "poe3",
+      );
 
       expect(result).toEqual({
         success: false,
@@ -550,7 +638,10 @@ describe("SettingsStoreService — IPC handlers", () => {
     // ── installedGames ──
 
     it("should accept ['poe1', 'poe2'] for installedGames", async () => {
-      await setSetting({}, "installedGames", ["poe1", "poe2"]);
+      await setSetting({ sender: { id: 1 } }, "installedGames", [
+        "poe1",
+        "poe2",
+      ]);
 
       expect(mockRepositorySet).toHaveBeenCalledWith("installedGames", [
         "poe1",
@@ -559,7 +650,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should accept ['poe1'] for installedGames", async () => {
-      await setSetting({}, "installedGames", ["poe1"]);
+      await setSetting({ sender: { id: 1 } }, "installedGames", ["poe1"]);
 
       expect(mockRepositorySet).toHaveBeenCalledWith("installedGames", [
         "poe1",
@@ -567,13 +658,17 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should accept empty array for installedGames", async () => {
-      await setSetting({}, "installedGames", []);
+      await setSetting({ sender: { id: 1 } }, "installedGames", []);
 
       expect(mockRepositorySet).toHaveBeenCalledWith("installedGames", []);
     });
 
     it("should reject non-array for installedGames", async () => {
-      const result = await setSetting({}, "installedGames", "poe1");
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "installedGames",
+        "poe1",
+      );
 
       expect(result).toEqual({
         success: false,
@@ -582,7 +677,10 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject array with invalid game for installedGames", async () => {
-      const result = await setSetting({}, "installedGames", ["poe1", "poe3"]);
+      const result = await setSetting({ sender: { id: 1 } }, "installedGames", [
+        "poe1",
+        "poe3",
+      ]);
 
       expect(result).toEqual({
         success: false,
@@ -591,7 +689,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject array exceeding max length for installedGames", async () => {
-      const result = await setSetting({}, "installedGames", [
+      const result = await setSetting({ sender: { id: 1 } }, "installedGames", [
         "poe1",
         "poe2",
         "poe1",
@@ -606,7 +704,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     // ── league strings ──
 
     it("should accept a string for poe1SelectedLeague", async () => {
-      await setSetting({}, "poe1SelectedLeague", "Settlers");
+      await setSetting({ sender: { id: 1 } }, "poe1SelectedLeague", "Settlers");
 
       expect(mockRepositorySet).toHaveBeenCalledWith(
         "poe1SelectedLeague",
@@ -615,7 +713,11 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject non-string for poe1SelectedLeague", async () => {
-      const result = await setSetting({}, "poe1SelectedLeague", 42);
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "poe1SelectedLeague",
+        42,
+      );
 
       expect(result).toEqual({
         success: false,
@@ -624,7 +726,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should accept a string for poe2SelectedLeague", async () => {
-      await setSetting({}, "poe2SelectedLeague", "Standard");
+      await setSetting({ sender: { id: 1 } }, "poe2SelectedLeague", "Standard");
 
       expect(mockRepositorySet).toHaveBeenCalledWith(
         "poe2SelectedLeague",
@@ -635,7 +737,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     // ── price source ──
 
     it("should accept 'exchange' for poe1PriceSource", async () => {
-      await setSetting({}, "poe1PriceSource", "exchange");
+      await setSetting({ sender: { id: 1 } }, "poe1PriceSource", "exchange");
 
       expect(mockRepositorySet).toHaveBeenCalledWith(
         "poe1PriceSource",
@@ -644,7 +746,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should accept 'stash' for poe1PriceSource", async () => {
-      await setSetting({}, "poe1PriceSource", "stash");
+      await setSetting({ sender: { id: 1 } }, "poe1PriceSource", "stash");
 
       expect(mockRepositorySet).toHaveBeenCalledWith(
         "poe1PriceSource",
@@ -653,7 +755,11 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject invalid value for poe1PriceSource", async () => {
-      const result = await setSetting({}, "poe1PriceSource", "market");
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "poe1PriceSource",
+        "market",
+      );
 
       expect(result).toEqual({
         success: false,
@@ -662,7 +768,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should accept 'exchange' for poe2PriceSource", async () => {
-      await setSetting({}, "poe2PriceSource", "exchange");
+      await setSetting({ sender: { id: 1 } }, "poe2PriceSource", "exchange");
 
       expect(mockRepositorySet).toHaveBeenCalledWith(
         "poe2PriceSource",
@@ -671,7 +777,11 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject invalid value for poe2PriceSource", async () => {
-      const result = await setSetting({}, "poe2PriceSource", "invalid");
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "poe2PriceSource",
+        "auction",
+      );
 
       expect(result).toEqual({
         success: false,
@@ -682,19 +792,19 @@ describe("SettingsStoreService — IPC handlers", () => {
     // ── setupStep ──
 
     it("should accept valid setup step (0)", async () => {
-      await setSetting({}, "setupStep", 0);
+      await setSetting({ sender: { id: 1 } }, "setupStep", 0);
 
       expect(mockRepositorySet).toHaveBeenCalledWith("setupStep", 0);
     });
 
     it("should accept valid setup step (3)", async () => {
-      await setSetting({}, "setupStep", 3);
+      await setSetting({ sender: { id: 1 } }, "setupStep", 3);
 
       expect(mockRepositorySet).toHaveBeenCalledWith("setupStep", 3);
     });
 
     it("should reject invalid setup step (5)", async () => {
-      const result = await setSetting({}, "setupStep", 5);
+      const result = await setSetting({ sender: { id: 1 } }, "setupStep", 5);
 
       expect(result).toEqual({
         success: false,
@@ -703,7 +813,11 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject non-number setup step", async () => {
-      const result = await setSetting({}, "setupStep", "1");
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "setupStep",
+        "two",
+      );
 
       expect(result).toEqual({
         success: false,
@@ -714,19 +828,23 @@ describe("SettingsStoreService — IPC handlers", () => {
     // ── setupVersion ──
 
     it("should accept valid setup version", async () => {
-      await setSetting({}, "setupVersion", 1);
+      await setSetting({ sender: { id: 1 } }, "setupVersion", 1);
 
       expect(mockRepositorySet).toHaveBeenCalledWith("setupVersion", 1);
     });
 
     it("should accept setup version 0", async () => {
-      await setSetting({}, "setupVersion", 0);
+      await setSetting({ sender: { id: 1 } }, "setupVersion", 0);
 
       expect(mockRepositorySet).toHaveBeenCalledWith("setupVersion", 0);
     });
 
     it("should reject negative setup version", async () => {
-      const result = await setSetting({}, "setupVersion", -1);
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "setupVersion",
+        -1,
+      );
 
       expect(result).toEqual({
         success: false,
@@ -735,7 +853,11 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject setup version above max (1000)", async () => {
-      const result = await setSetting({}, "setupVersion", 1001);
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "setupVersion",
+        1001,
+      );
 
       expect(result).toEqual({
         success: false,
@@ -744,7 +866,11 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject non-integer setup version", async () => {
-      const result = await setSetting({}, "setupVersion", 1.5);
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "setupVersion",
+        1.5,
+      );
 
       expect(result).toEqual({
         success: false,
@@ -755,7 +881,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     // ── onboardingDismissedBeacons ──
 
     it("should accept a string array for onboardingDismissedBeacons", async () => {
-      await setSetting({}, "onboardingDismissedBeacons", [
+      await setSetting({ sender: { id: 1 } }, "onboardingDismissedBeacons", [
         "beacon1",
         "beacon2",
       ]);
@@ -767,7 +893,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should accept empty array for onboardingDismissedBeacons", async () => {
-      await setSetting({}, "onboardingDismissedBeacons", []);
+      await setSetting({ sender: { id: 1 } }, "onboardingDismissedBeacons", []);
 
       expect(mockRepositorySet).toHaveBeenCalledWith(
         "onboardingDismissedBeacons",
@@ -777,9 +903,9 @@ describe("SettingsStoreService — IPC handlers", () => {
 
     it("should reject non-array for onboardingDismissedBeacons", async () => {
       const result = await setSetting(
-        {},
+        { sender: { id: 1 } },
         "onboardingDismissedBeacons",
-        "beacon1",
+        "not-an-array",
       );
 
       expect(result).toEqual({
@@ -790,7 +916,7 @@ describe("SettingsStoreService — IPC handlers", () => {
 
     it("should reject array with non-string items for onboardingDismissedBeacons", async () => {
       const result = await setSetting(
-        {},
+        { sender: { id: 1 } },
         "onboardingDismissedBeacons",
         [123, 456],
       );
@@ -802,8 +928,12 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject array exceeding max length (100) for onboardingDismissedBeacons", async () => {
-      const items = Array.from({ length: 101 }, (_, i) => `beacon${i}`);
-      const result = await setSetting({}, "onboardingDismissedBeacons", items);
+      const items = Array.from({ length: 101 }, (_, i) => `beacon-${i}`);
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "onboardingDismissedBeacons",
+        items,
+      );
 
       expect(result).toEqual({
         success: false,
@@ -812,9 +942,11 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject items exceeding max item length (256) for onboardingDismissedBeacons", async () => {
-      const result = await setSetting({}, "onboardingDismissedBeacons", [
-        "x".repeat(257),
-      ]);
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "onboardingDismissedBeacons",
+        ["x".repeat(257)],
+      );
 
       expect(result).toEqual({
         success: false,
@@ -826,26 +958,30 @@ describe("SettingsStoreService — IPC handlers", () => {
 
     it("should accept valid overlayBounds object", async () => {
       const bounds = { x: 100, y: 200, width: 800, height: 600 };
-      await setSetting({}, "overlayBounds", bounds);
+      await setSetting({ sender: { id: 1 } }, "overlayBounds", bounds);
 
       expect(mockRepositorySet).toHaveBeenCalledWith("overlayBounds", bounds);
     });
 
     it("should accept null for overlayBounds (reset)", async () => {
-      await setSetting({}, "overlayBounds", null);
+      await setSetting({ sender: { id: 1 } }, "overlayBounds", null);
 
       expect(mockRepositorySet).toHaveBeenCalledWith("overlayBounds", null);
     });
 
     it("should accept overlayBounds with negative x and y", async () => {
-      const bounds = { x: -100, y: -200, width: 800, height: 600 };
-      await setSetting({}, "overlayBounds", bounds);
+      const bounds = { x: -50, y: -100, width: 400, height: 300 };
+      await setSetting({ sender: { id: 1 } }, "overlayBounds", bounds);
 
       expect(mockRepositorySet).toHaveBeenCalledWith("overlayBounds", bounds);
     });
 
     it("should reject non-object for overlayBounds", async () => {
-      const result = await setSetting({}, "overlayBounds", "not-an-object");
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "overlayBounds",
+        "not-an-object",
+      );
 
       expect(result).toEqual({
         success: false,
@@ -854,7 +990,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject overlayBounds with non-integer x", async () => {
-      const result = await setSetting({}, "overlayBounds", {
+      const result = await setSetting({ sender: { id: 1 } }, "overlayBounds", {
         x: 1.5,
         y: 0,
         width: 100,
@@ -868,7 +1004,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject overlayBounds with width below min (1)", async () => {
-      const result = await setSetting({}, "overlayBounds", {
+      const result = await setSetting({ sender: { id: 1 } }, "overlayBounds", {
         x: 0,
         y: 0,
         width: 0,
@@ -882,7 +1018,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject overlayBounds with height below min (1)", async () => {
-      const result = await setSetting({}, "overlayBounds", {
+      const result = await setSetting({ sender: { id: 1 } }, "overlayBounds", {
         x: 0,
         y: 0,
         width: 100,
@@ -896,7 +1032,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject overlayBounds with x exceeding max (100000)", async () => {
-      const result = await setSetting({}, "overlayBounds", {
+      const result = await setSetting({ sender: { id: 1 } }, "overlayBounds", {
         x: 100_001,
         y: 0,
         width: 100,
@@ -910,7 +1046,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject overlayBounds with x below min (-100000)", async () => {
-      const result = await setSetting({}, "overlayBounds", {
+      const result = await setSetting({ sender: { id: 1 } }, "overlayBounds", {
         x: -100_001,
         y: 0,
         width: 100,
@@ -924,7 +1060,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject overlayBounds with missing fields", async () => {
-      const result = await setSetting({}, "overlayBounds", {
+      const result = await setSetting({ sender: { id: 1 } }, "overlayBounds", {
         x: 0,
         y: 0,
         // missing width and height
@@ -939,17 +1075,21 @@ describe("SettingsStoreService — IPC handlers", () => {
     // ── audioEnabled ──
 
     it("should accept true for audioEnabled", async () => {
-      await setSetting({}, "audioEnabled", true);
+      await setSetting({ sender: { id: 1 } }, "audioEnabled", true);
       expect(mockRepositorySet).toHaveBeenCalledWith("audioEnabled", true);
     });
 
     it("should accept false for audioEnabled", async () => {
-      await setSetting({}, "audioEnabled", false);
+      await setSetting({ sender: { id: 1 } }, "audioEnabled", false);
       expect(mockRepositorySet).toHaveBeenCalledWith("audioEnabled", false);
     });
 
     it("should reject non-boolean for audioEnabled", async () => {
-      const result = await setSetting({}, "audioEnabled", "yes");
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "audioEnabled",
+        "yes",
+      );
 
       expect(result).toEqual({
         success: false,
@@ -960,22 +1100,26 @@ describe("SettingsStoreService — IPC handlers", () => {
     // ── audioVolume ──
 
     it("should accept valid audioVolume (0.5)", async () => {
-      await setSetting({}, "audioVolume", 0.5);
+      await setSetting({ sender: { id: 1 } }, "audioVolume", 0.5);
       expect(mockRepositorySet).toHaveBeenCalledWith("audioVolume", 0.5);
     });
 
     it("should accept audioVolume at boundary 0", async () => {
-      await setSetting({}, "audioVolume", 0);
+      await setSetting({ sender: { id: 1 } }, "audioVolume", 0);
       expect(mockRepositorySet).toHaveBeenCalledWith("audioVolume", 0);
     });
 
     it("should accept audioVolume at boundary 1", async () => {
-      await setSetting({}, "audioVolume", 1);
+      await setSetting({ sender: { id: 1 } }, "audioVolume", 1);
       expect(mockRepositorySet).toHaveBeenCalledWith("audioVolume", 1);
     });
 
     it("should reject audioVolume below 0", async () => {
-      const result = await setSetting({}, "audioVolume", -0.1);
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "audioVolume",
+        -0.1,
+      );
 
       expect(result).toEqual({
         success: false,
@@ -984,7 +1128,11 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject audioVolume above 1", async () => {
-      const result = await setSetting({}, "audioVolume", 1.5);
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "audioVolume",
+        1.1,
+      );
 
       expect(result).toEqual({
         success: false,
@@ -993,7 +1141,11 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject non-number for audioVolume", async () => {
-      const result = await setSetting({}, "audioVolume", "loud");
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "audioVolume",
+        "loud",
+      );
 
       expect(result).toEqual({
         success: false,
@@ -1004,7 +1156,11 @@ describe("SettingsStoreService — IPC handlers", () => {
     // ── audioRarity paths ──
 
     it("should accept valid file path for audioRarity1Path", async () => {
-      await setSetting({}, "audioRarity1Path", "/path/to/sound.mp3");
+      await setSetting(
+        { sender: { id: 1 } },
+        "audioRarity1Path",
+        "/path/to/sound.mp3",
+      );
       expect(mockRepositorySet).toHaveBeenCalledWith(
         "audioRarity1Path",
         "/path/to/sound.mp3",
@@ -1012,12 +1168,16 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should accept null for audioRarity1Path (clear it)", async () => {
-      await setSetting({}, "audioRarity1Path", null);
+      await setSetting({ sender: { id: 1 } }, "audioRarity1Path", null);
       expect(mockRepositorySet).toHaveBeenCalledWith("audioRarity1Path", null);
     });
 
     it("should accept valid file path for audioRarity2Path", async () => {
-      await setSetting({}, "audioRarity2Path", "/path/to/sound2.mp3");
+      await setSetting(
+        { sender: { id: 1 } },
+        "audioRarity2Path",
+        "/path/to/sound2.mp3",
+      );
       expect(mockRepositorySet).toHaveBeenCalledWith(
         "audioRarity2Path",
         "/path/to/sound2.mp3",
@@ -1025,12 +1185,16 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should accept null for audioRarity2Path", async () => {
-      await setSetting({}, "audioRarity2Path", null);
+      await setSetting({ sender: { id: 1 } }, "audioRarity2Path", null);
       expect(mockRepositorySet).toHaveBeenCalledWith("audioRarity2Path", null);
     });
 
     it("should accept valid file path for audioRarity3Path", async () => {
-      await setSetting({}, "audioRarity3Path", "/path/to/sound3.mp3");
+      await setSetting(
+        { sender: { id: 1 } },
+        "audioRarity3Path",
+        "/path/to/sound3.mp3",
+      );
       expect(mockRepositorySet).toHaveBeenCalledWith(
         "audioRarity3Path",
         "/path/to/sound3.mp3",
@@ -1038,12 +1202,16 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should accept null for audioRarity3Path", async () => {
-      await setSetting({}, "audioRarity3Path", null);
+      await setSetting({ sender: { id: 1 } }, "audioRarity3Path", null);
       expect(mockRepositorySet).toHaveBeenCalledWith("audioRarity3Path", null);
     });
 
     it("should reject non-string for audioRarity1Path", async () => {
-      const result = await setSetting({}, "audioRarity1Path", 123);
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "audioRarity1Path",
+        123,
+      );
 
       expect(result).toEqual({
         success: false,
@@ -1053,9 +1221,9 @@ describe("SettingsStoreService — IPC handlers", () => {
 
     it("should reject path with null bytes for audioRarity2Path", async () => {
       const result = await setSetting(
-        {},
+        { sender: { id: 1 } },
         "audioRarity2Path",
-        "/path/to\0/evil.mp3",
+        "/sounds/drop\0evil.mp3",
       );
 
       expect(result).toEqual({
@@ -1067,7 +1235,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     // ── raritySource ──
 
     it("should accept 'poe.ninja' for raritySource", async () => {
-      await setSetting({}, "raritySource", "poe.ninja");
+      await setSetting({ sender: { id: 1 } }, "raritySource", "poe.ninja");
       expect(mockRepositorySet).toHaveBeenCalledWith(
         "raritySource",
         "poe.ninja",
@@ -1075,12 +1243,16 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should accept 'filter' for raritySource", async () => {
-      await setSetting({}, "raritySource", "filter");
+      await setSetting({ sender: { id: 1 } }, "raritySource", "filter");
       expect(mockRepositorySet).toHaveBeenCalledWith("raritySource", "filter");
     });
 
     it("should accept 'prohibited-library' for raritySource", async () => {
-      await setSetting({}, "raritySource", "prohibited-library");
+      await setSetting(
+        { sender: { id: 1 } },
+        "raritySource",
+        "prohibited-library",
+      );
       expect(mockRepositorySet).toHaveBeenCalledWith(
         "raritySource",
         "prohibited-library",
@@ -1088,7 +1260,11 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject invalid value for raritySource", async () => {
-      const result = await setSetting({}, "raritySource", "invalid-source");
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "raritySource",
+        "custom",
+      );
 
       expect(result).toEqual({
         success: false,
@@ -1097,7 +1273,11 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject non-string for raritySource", async () => {
-      const result = await setSetting({}, "raritySource", 42);
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "raritySource",
+        42,
+      );
 
       expect(result).toEqual({
         success: false,
@@ -1108,21 +1288,29 @@ describe("SettingsStoreService — IPC handlers", () => {
     // ── selectedFilterId ──
 
     it("should accept a valid string for selectedFilterId", async () => {
-      await setSetting({}, "selectedFilterId", "filter_abc12345");
+      await setSetting(
+        { sender: { id: 1 } },
+        "selectedFilterId",
+        "my-filter-123",
+      );
       expect(mockRepositorySet).toHaveBeenCalledWith(
         "selectedFilterId",
-        "filter_abc12345",
+        "my-filter-123",
       );
     });
 
     it("should accept null for selectedFilterId (clear it)", async () => {
-      await setSetting({}, "selectedFilterId", null);
+      await setSetting({ sender: { id: 1 } }, "selectedFilterId", null);
       expect(mockRepositorySet).toHaveBeenCalledWith("selectedFilterId", null);
     });
 
     it("should reject selectedFilterId exceeding max length (256)", async () => {
       const longId = "x".repeat(257);
-      const result = await setSetting({}, "selectedFilterId", longId);
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "selectedFilterId",
+        longId,
+      );
 
       expect(result).toEqual({
         success: false,
@@ -1131,7 +1319,11 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject non-string for selectedFilterId", async () => {
-      const result = await setSetting({}, "selectedFilterId", 999);
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "selectedFilterId",
+        true,
+      );
 
       expect(result).toEqual({
         success: false,
@@ -1144,15 +1336,15 @@ describe("SettingsStoreService — IPC handlers", () => {
     // ── lastSeenAppVersion ──
 
     it("should accept a valid semver string for lastSeenAppVersion", async () => {
-      await setSetting({}, "lastSeenAppVersion", "0.5.0");
+      await setSetting({ sender: { id: 1 } }, "lastSeenAppVersion", "1.2.3");
       expect(mockRepositorySet).toHaveBeenCalledWith(
         "lastSeenAppVersion",
-        "0.5.0",
+        "1.2.3",
       );
     });
 
     it("should accept null for lastSeenAppVersion (clear it)", async () => {
-      await setSetting({}, "lastSeenAppVersion", null);
+      await setSetting({ sender: { id: 1 } }, "lastSeenAppVersion", null);
       expect(mockRepositorySet).toHaveBeenCalledWith(
         "lastSeenAppVersion",
         null,
@@ -1161,7 +1353,11 @@ describe("SettingsStoreService — IPC handlers", () => {
 
     it("should reject lastSeenAppVersion exceeding max length (64)", async () => {
       const longVersion = "x".repeat(65);
-      const result = await setSetting({}, "lastSeenAppVersion", longVersion);
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "lastSeenAppVersion",
+        longVersion,
+      );
 
       expect(result).toEqual({
         success: false,
@@ -1170,7 +1366,11 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject non-string for lastSeenAppVersion", async () => {
-      const result = await setSetting({}, "lastSeenAppVersion", 123);
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "lastSeenAppVersion",
+        123,
+      );
 
       expect(result).toEqual({
         success: false,
@@ -1181,17 +1381,21 @@ describe("SettingsStoreService — IPC handlers", () => {
     // ── overlayFontSize ──
 
     it("should accept overlayFontSize at lower boundary (0.5)", async () => {
-      await setSetting({}, "overlayFontSize", 0.5);
+      await setSetting({ sender: { id: 1 } }, "overlayFontSize", 0.5);
       expect(mockRepositorySet).toHaveBeenCalledWith("overlayFontSize", 0.5);
     });
 
     it("should accept overlayFontSize at upper boundary (2.0)", async () => {
-      await setSetting({}, "overlayFontSize", 2.0);
+      await setSetting({ sender: { id: 1 } }, "overlayFontSize", 2.0);
       expect(mockRepositorySet).toHaveBeenCalledWith("overlayFontSize", 2.0);
     });
 
     it("should reject overlayFontSize below 0.5", async () => {
-      const result = await setSetting({}, "overlayFontSize", 0.3);
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "overlayFontSize",
+        0.4,
+      );
 
       expect(result).toEqual({
         success: false,
@@ -1200,7 +1404,11 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject overlayFontSize above 2.0", async () => {
-      const result = await setSetting({}, "overlayFontSize", 2.5);
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "overlayFontSize",
+        2.1,
+      );
 
       expect(result).toEqual({
         success: false,
@@ -1209,7 +1417,11 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject non-number for overlayFontSize", async () => {
-      const result = await setSetting({}, "overlayFontSize", "big");
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "overlayFontSize",
+        "big",
+      );
 
       expect(result).toEqual({
         success: false,
@@ -1220,7 +1432,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     // ── overlayToolbarFontSize ──
 
     it("should accept overlayToolbarFontSize at lower boundary (0.5)", async () => {
-      await setSetting({}, "overlayToolbarFontSize", 0.5);
+      await setSetting({ sender: { id: 1 } }, "overlayToolbarFontSize", 0.5);
       expect(mockRepositorySet).toHaveBeenCalledWith(
         "overlayToolbarFontSize",
         0.5,
@@ -1228,7 +1440,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should accept overlayToolbarFontSize at upper boundary (2.0)", async () => {
-      await setSetting({}, "overlayToolbarFontSize", 2.0);
+      await setSetting({ sender: { id: 1 } }, "overlayToolbarFontSize", 2.0);
       expect(mockRepositorySet).toHaveBeenCalledWith(
         "overlayToolbarFontSize",
         2.0,
@@ -1236,7 +1448,11 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject overlayToolbarFontSize below 0.5", async () => {
-      const result = await setSetting({}, "overlayToolbarFontSize", 0.1);
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "overlayToolbarFontSize",
+        0.3,
+      );
 
       expect(result).toEqual({
         success: false,
@@ -1245,7 +1461,11 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject overlayToolbarFontSize above 2.0", async () => {
-      const result = await setSetting({}, "overlayToolbarFontSize", 3.0);
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "overlayToolbarFontSize",
+        3.0,
+      );
 
       expect(result).toEqual({
         success: false,
@@ -1254,7 +1474,11 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject non-number for overlayToolbarFontSize", async () => {
-      const result = await setSetting({}, "overlayToolbarFontSize", true);
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "overlayToolbarFontSize",
+        "small",
+      );
 
       expect(result).toEqual({
         success: false,
@@ -1266,7 +1490,7 @@ describe("SettingsStoreService — IPC handlers", () => {
 
     it("should accept valid mainWindowBounds object", async () => {
       const bounds = { x: 100, y: 200, width: 800, height: 600 };
-      await setSetting({}, "mainWindowBounds", bounds);
+      await setSetting({ sender: { id: 1 } }, "mainWindowBounds", bounds);
       expect(mockRepositorySet).toHaveBeenCalledWith(
         "mainWindowBounds",
         bounds,
@@ -1274,13 +1498,13 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should accept null for mainWindowBounds (reset)", async () => {
-      await setSetting({}, "mainWindowBounds", null);
+      await setSetting({ sender: { id: 1 } }, "mainWindowBounds", null);
       expect(mockRepositorySet).toHaveBeenCalledWith("mainWindowBounds", null);
     });
 
     it("should accept mainWindowBounds with negative x and y", async () => {
-      const bounds = { x: -500, y: -300, width: 1024, height: 768 };
-      await setSetting({}, "mainWindowBounds", bounds);
+      const bounds = { x: -50, y: -100, width: 400, height: 300 };
+      await setSetting({ sender: { id: 1 } }, "mainWindowBounds", bounds);
       expect(mockRepositorySet).toHaveBeenCalledWith(
         "mainWindowBounds",
         bounds,
@@ -1288,7 +1512,11 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject non-object for mainWindowBounds", async () => {
-      const result = await setSetting({}, "mainWindowBounds", "not-an-object");
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "mainWindowBounds",
+        "not-an-object",
+      );
 
       expect(result).toEqual({
         success: false,
@@ -1297,12 +1525,16 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject mainWindowBounds with non-integer x", async () => {
-      const result = await setSetting({}, "mainWindowBounds", {
-        x: 1.5,
-        y: 0,
-        width: 800,
-        height: 600,
-      });
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "mainWindowBounds",
+        {
+          x: 1.5,
+          y: 0,
+          width: 800,
+          height: 600,
+        },
+      );
 
       expect(result).toEqual({
         success: false,
@@ -1311,12 +1543,16 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject mainWindowBounds with width below min (1)", async () => {
-      const result = await setSetting({}, "mainWindowBounds", {
-        x: 0,
-        y: 0,
-        width: 0,
-        height: 600,
-      });
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "mainWindowBounds",
+        {
+          x: 0,
+          y: 0,
+          width: 0,
+          height: 600,
+        },
+      );
 
       expect(result).toEqual({
         success: false,
@@ -1325,12 +1561,16 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject mainWindowBounds with height below min (1)", async () => {
-      const result = await setSetting({}, "mainWindowBounds", {
-        x: 0,
-        y: 0,
-        width: 800,
-        height: 0,
-      });
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "mainWindowBounds",
+        {
+          x: 0,
+          y: 0,
+          width: 800,
+          height: 0,
+        },
+      );
 
       expect(result).toEqual({
         success: false,
@@ -1339,12 +1579,16 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject mainWindowBounds with x exceeding max (100000)", async () => {
-      const result = await setSetting({}, "mainWindowBounds", {
-        x: 100001,
-        y: 0,
-        width: 800,
-        height: 600,
-      });
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "mainWindowBounds",
+        {
+          x: 100001,
+          y: 0,
+          width: 800,
+          height: 600,
+        },
+      );
 
       expect(result).toEqual({
         success: false,
@@ -1353,12 +1597,16 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject mainWindowBounds with x below min (-100000)", async () => {
-      const result = await setSetting({}, "mainWindowBounds", {
-        x: -100001,
-        y: 0,
-        width: 800,
-        height: 600,
-      });
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "mainWindowBounds",
+        {
+          x: -100001,
+          y: 0,
+          width: 800,
+          height: 600,
+        },
+      );
 
       expect(result).toEqual({
         success: false,
@@ -1367,11 +1615,15 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject mainWindowBounds with missing fields", async () => {
-      const result = await setSetting({}, "mainWindowBounds", {
-        x: 0,
-        y: 0,
-        // missing width and height
-      });
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "mainWindowBounds",
+        {
+          x: 0,
+          y: 0,
+          // missing width and height
+        },
+      );
 
       expect(result).toEqual({
         success: false,
@@ -1382,7 +1634,11 @@ describe("SettingsStoreService — IPC handlers", () => {
     // ── undefined value ──
 
     it("should reject undefined value for any key", async () => {
-      const result = await setSetting({}, "appExitAction", undefined);
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "appExitAction",
+        undefined,
+      );
 
       expect(result).toEqual({
         success: false,
@@ -1393,7 +1649,11 @@ describe("SettingsStoreService — IPC handlers", () => {
     // ── unknown key ──
 
     it("should reject unknown setting key", async () => {
-      const result = await setSetting({}, "unknownKey", "value");
+      const result = await setSetting(
+        { sender: { id: 1 } },
+        "unknownKey",
+        "value",
+      );
 
       expect(result).toEqual({
         success: false,
@@ -1402,7 +1662,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     });
 
     it("should reject non-string key", async () => {
-      const result = await setSetting({}, 123, "value");
+      const result = await setSetting({ sender: { id: 1 } }, 123, "value");
 
       expect(result).toEqual({
         success: false,
@@ -1544,7 +1804,7 @@ describe("SettingsStoreService — IPC handlers", () => {
       await getIpcHandler(
         mockIpcHandle,
         SettingsStoreChannel.SetPoe1ClientPath,
-      )({}, "C:\\Program Files\\PoE\\client.txt");
+      )({ sender: { id: 1 } }, "C:\\Program Files\\PoE\\client.txt");
 
       expect(mockRepositorySetPoe1ClientTxtPath).toHaveBeenCalledWith(
         "C:\\Program Files\\PoE\\client.txt",
@@ -1560,7 +1820,7 @@ describe("SettingsStoreService — IPC handlers", () => {
       const result = await getIpcHandler(
         mockIpcHandle,
         SettingsStoreChannel.SetPoe1ClientPath,
-      )({}, 123);
+      )({ sender: { id: 1 } }, 123);
 
       expect(result).toEqual({
         success: false,
@@ -1572,7 +1832,7 @@ describe("SettingsStoreService — IPC handlers", () => {
       const result = await getIpcHandler(
         mockIpcHandle,
         SettingsStoreChannel.SetPoe1ClientPath,
-      )({}, "path\0injection");
+      )({ sender: { id: 1 } }, "path\0injection");
 
       expect(result).toEqual({
         success: false,
@@ -1586,7 +1846,7 @@ describe("SettingsStoreService — IPC handlers", () => {
       await getIpcHandler(
         mockIpcHandle,
         SettingsStoreChannel.SetPoe2ClientPath,
-      )({}, "/home/user/poe2/client.txt");
+      )({ sender: { id: 1 } }, "/home/user/poe2/client.txt");
 
       expect(mockRepositorySetPoe2ClientTxtPath).toHaveBeenCalledWith(
         "/home/user/poe2/client.txt",
@@ -1602,7 +1862,7 @@ describe("SettingsStoreService — IPC handlers", () => {
       const result = await getIpcHandler(
         mockIpcHandle,
         SettingsStoreChannel.SetPoe2ClientPath,
-      )({}, true);
+      )({ sender: { id: 1 } }, true);
 
       expect(result).toEqual({
         success: false,
@@ -1903,7 +2163,7 @@ describe("SettingsStoreService — IPC handlers", () => {
       const result = await getIpcHandler(
         mockIpcHandle,
         SettingsStoreChannel.ResetDatabase,
-      )({});
+      )({ sender: { id: 1 } });
 
       expect(mockDatabaseReset).toHaveBeenCalled();
       expect(result).toEqual({
@@ -1920,11 +2180,32 @@ describe("SettingsStoreService — IPC handlers", () => {
       const result = await getIpcHandler(
         mockIpcHandle,
         SettingsStoreChannel.ResetDatabase,
-      )({});
+      )({ sender: { id: 1 } });
 
       expect(result).toEqual({
         success: false,
         error: "Database file locked",
+      });
+    });
+
+    it("should reject reset-database from untrusted sender", async () => {
+      mockAssertTrustedSender.mockImplementation(() => {
+        throw new MockIpcValidationError(
+          SettingsStoreChannel.ResetDatabase,
+          "[Security] IPC call from untrusted webContents (id=999)",
+        );
+      });
+
+      const result = await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.ResetDatabase,
+      )({ sender: { id: 999 } });
+
+      expect(mockAssertTrustedSender).toHaveBeenCalled();
+      expect(mockDatabaseReset).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        success: false,
+        error: expect.stringContaining("untrusted webContents"),
       });
     });
   });
@@ -1932,11 +2213,37 @@ describe("SettingsStoreService — IPC handlers", () => {
   // ─── Security: validation prevents type confusion ─────────────────────
 
   describe("security validation", () => {
+    it("should reject settings:set from untrusted sender", async () => {
+      mockAssertTrustedSender.mockImplementation(() => {
+        throw new MockIpcValidationError(
+          SettingsStoreChannel.SetSetting,
+          "[Security] IPC call from untrusted webContents (id=999)",
+        );
+      });
+      mockHandleValidationError.mockReturnValue({
+        success: false,
+        error:
+          "Invalid input: [Security] IPC call from untrusted webContents (id=999)",
+      });
+
+      const result = await getIpcHandler(
+        mockIpcHandle,
+        SettingsStoreChannel.SetSetting,
+      )({ sender: { id: 999 } }, "appExitAction", "exit");
+
+      expect(mockAssertTrustedSender).toHaveBeenCalled();
+      expect(mockRepositorySet).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        success: false,
+        error: expect.stringContaining("untrusted webContents"),
+      });
+    });
+
     it("should not allow a boolean to be set as a string setting", async () => {
       const result = await getIpcHandler(
         mockIpcHandle,
         SettingsStoreChannel.SetSetting,
-      )({}, "poe1SelectedLeague", true);
+      )({ sender: { id: 1 } }, "poe1SelectedLeague", true);
 
       expect(result).toEqual({
         success: false,
@@ -1948,7 +2255,7 @@ describe("SettingsStoreService — IPC handlers", () => {
       const result = await getIpcHandler(
         mockIpcHandle,
         SettingsStoreChannel.SetSetting,
-      )({}, "appOpenAtLogin", "true");
+      )({ sender: { id: 1 } }, "appOpenAtLogin", "true");
 
       expect(result).toEqual({
         success: false,
@@ -1960,7 +2267,7 @@ describe("SettingsStoreService — IPC handlers", () => {
       const result = await getIpcHandler(
         mockIpcHandle,
         SettingsStoreChannel.SetSetting,
-      )({}, "selectedGame", 1);
+      )({ sender: { id: 1 } }, "selectedGame", 1);
 
       expect(result).toEqual({
         success: false,
@@ -1972,7 +2279,7 @@ describe("SettingsStoreService — IPC handlers", () => {
       const result = await getIpcHandler(
         mockIpcHandle,
         SettingsStoreChannel.SetPoe1ClientPath,
-      )({}, "safe/path\0/etc/passwd");
+      )({ sender: { id: 1 } }, "safe/path\0/etc/passwd");
 
       expect(result).toEqual({
         success: false,
@@ -1984,7 +2291,7 @@ describe("SettingsStoreService — IPC handlers", () => {
       const result = await getIpcHandler(
         mockIpcHandle,
         SettingsStoreChannel.SetPoe1ClientPath,
-      )({}, "x".repeat(4097));
+      )({ sender: { id: 1 } }, "x".repeat(4097));
 
       expect(result).toEqual({
         success: false,
@@ -1996,7 +2303,7 @@ describe("SettingsStoreService — IPC handlers", () => {
       await getIpcHandler(
         mockIpcHandle,
         SettingsStoreChannel.SetPoe1ClientPath,
-      )({}, "x".repeat(4096));
+      )({ sender: { id: 1 } }, "x".repeat(4096));
 
       expect(mockRepositorySetPoe1ClientTxtPath).toHaveBeenCalledWith(
         "x".repeat(4096),
@@ -2007,7 +2314,7 @@ describe("SettingsStoreService — IPC handlers", () => {
       const result = await getIpcHandler(
         mockIpcHandle,
         SettingsStoreChannel.SetSetting,
-      )({}, "dangerousKey", "malicious_value");
+      )({ sender: { id: 1 } }, "dangerousKey", "malicious_value");
 
       expect(result).toEqual({
         success: false,
@@ -2021,7 +2328,7 @@ describe("SettingsStoreService — IPC handlers", () => {
       // only checks type, not content (SQL injection is prevented by
       // parameterized queries in the repository)
       await getIpcHandler(mockIpcHandle, SettingsStoreChannel.SetSetting)(
-        {},
+        { sender: { id: 1 } },
         "poe1SelectedLeague",
         "'; DROP TABLE user_settings;--",
       );
@@ -2038,7 +2345,7 @@ describe("SettingsStoreService — IPC handlers", () => {
   describe("overlay settings broadcast", () => {
     it("should broadcast overlay:settings-changed when poe1PriceSource is set via generic handler", async () => {
       await getIpcHandler(mockIpcHandle, SettingsStoreChannel.SetSetting)(
-        {},
+        { sender: { id: 1 } },
         SettingsKey.Poe1PriceSource,
         "stash",
       );
@@ -2054,7 +2361,7 @@ describe("SettingsStoreService — IPC handlers", () => {
 
     it("should broadcast overlay:settings-changed when poe2PriceSource is set via generic handler", async () => {
       await getIpcHandler(mockIpcHandle, SettingsStoreChannel.SetSetting)(
-        {},
+        { sender: { id: 1 } },
         SettingsKey.Poe2PriceSource,
         "exchange",
       );
@@ -2070,7 +2377,7 @@ describe("SettingsStoreService — IPC handlers", () => {
 
     it("should broadcast overlay:settings-changed when selectedGame is set via generic handler", async () => {
       await getIpcHandler(mockIpcHandle, SettingsStoreChannel.SetSetting)(
-        {},
+        { sender: { id: 1 } },
         SettingsKey.ActiveGame,
         "poe2",
       );
@@ -2086,7 +2393,7 @@ describe("SettingsStoreService — IPC handlers", () => {
 
     it("should NOT broadcast overlay:settings-changed for unrelated settings", async () => {
       await getIpcHandler(mockIpcHandle, SettingsStoreChannel.SetSetting)(
-        {},
+        { sender: { id: 1 } },
         SettingsKey.AudioVolume,
         0.8,
       );
@@ -2102,7 +2409,7 @@ describe("SettingsStoreService — IPC handlers", () => {
 
     it("should broadcast overlay:settings-changed when overlayFontSize is set via generic handler", async () => {
       await getIpcHandler(mockIpcHandle, SettingsStoreChannel.SetSetting)(
-        {},
+        { sender: { id: 1 } },
         SettingsKey.OverlayFontSize,
         1.5,
       );
@@ -2118,7 +2425,7 @@ describe("SettingsStoreService — IPC handlers", () => {
 
     it("should broadcast overlay:settings-changed when overlayToolbarFontSize is set via generic handler", async () => {
       await getIpcHandler(mockIpcHandle, SettingsStoreChannel.SetSetting)(
-        {},
+        { sender: { id: 1 } },
         SettingsKey.OverlayToolbarFontSize,
         0.8,
       );
@@ -2178,7 +2485,7 @@ describe("SettingsStoreService — IPC handlers", () => {
       ]);
 
       await getIpcHandler(mockIpcHandle, SettingsStoreChannel.SetSetting)(
-        {},
+        { sender: { id: 1 } },
         SettingsKey.Poe1PriceSource,
         "exchange",
       );

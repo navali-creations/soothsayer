@@ -306,6 +306,28 @@ describe("Table – controlled sorting", () => {
     // Original order stays because controlled sorting is still []
     expect(getFirstColumnValues()).toEqual(["Alice", "Bob", "Charlie"]);
   });
+
+  it("resolves function updater against controlled sorting state", async () => {
+    const onSortingChange = vi.fn();
+
+    const { user } = renderWithProviders(
+      <Table
+        data={testData}
+        columns={columns}
+        sorting={[{ id: "name", desc: false }]}
+        onSortingChange={onSortingChange}
+      />,
+    );
+
+    // Click "Name" again — TanStack will pass a function updater that toggles
+    // the current sorting. The controlled path must call updater(controlledSorting).
+    await user.click(screen.getByText("Name"));
+
+    expect(onSortingChange).toHaveBeenCalledTimes(1);
+    const result = onSortingChange.mock.calls[0][0];
+    // Clicking an already-asc column toggles to desc
+    expect(result).toEqual([{ id: "name", desc: true }]);
+  });
 });
 
 // ─── 4. Sorting disabled ──────────────────────────────────────────────────
@@ -695,6 +717,32 @@ describe("Table – page-index clamping", () => {
 
 // ─── 8. Sticky header ─────────────────────────────────────────────────────
 
+describe("Table – header cell rendering", () => {
+  it("renders header text via flexRender for each column", () => {
+    renderWithProviders(
+      <Table data={testData} columns={columns} enableSorting />,
+    );
+
+    const headerCells = document.querySelectorAll("thead th");
+    expect(headerCells.length).toBe(2);
+    expect(headerCells[0].textContent).toContain("Name");
+    expect(headerCells[1].textContent).toContain("Age");
+  });
+
+  it("renders sort icons next to each sortable header", () => {
+    renderWithProviders(
+      <Table data={testData} columns={columns} enableSorting />,
+    );
+
+    // Each header should contain an inline-flex span for the sort icon
+    const headerCells = document.querySelectorAll("thead th");
+    for (const cell of headerCells) {
+      const sortSpan = cell.querySelector("span.inline-flex");
+      expect(sortSpan).not.toBeNull();
+    }
+  });
+});
+
 describe("Table – stickyHeader", () => {
   it("applies table-block-layout class to the table when stickyHeader is true", () => {
     renderWithProviders(
@@ -976,6 +1024,64 @@ describe("Table – with TableHeader in column definitions", () => {
 
 // ─── 13. Edge cases ──────────────────────────────────────────────────────
 
+describe("Table – emptyMessage", () => {
+  it("renders the empty message when data is empty and emptyMessage is provided", () => {
+    renderWithProviders(
+      <Table data={[]} columns={columns} emptyMessage="No results found" />,
+    );
+
+    expect(screen.getByText("No results found")).toBeInTheDocument();
+    const td = screen.getByText("No results found").closest("td");
+    expect(td).toHaveAttribute("colspan", String(columns.length));
+  });
+
+  it("does not render empty message when there is data", () => {
+    renderWithProviders(
+      <Table
+        data={testData}
+        columns={columns}
+        emptyMessage="No results found"
+      />,
+    );
+
+    expect(screen.queryByText("No results found")).not.toBeInTheDocument();
+  });
+
+  it("does not render empty message row when emptyMessage is not provided", () => {
+    renderWithProviders(<Table data={[]} columns={columns} />);
+
+    const tbody = document.querySelector("tbody");
+    expect(tbody!.querySelectorAll("tr")).toHaveLength(0);
+  });
+});
+
+describe("Table – pagination invisible when no rows", () => {
+  it("adds invisible class to pagination container when there are no visible rows", () => {
+    renderWithProviders(
+      <Table
+        data={[]}
+        columns={columns}
+        enablePagination
+        emptyMessage="Nothing here"
+      />,
+    );
+
+    const paginationContainer = screen.getByText(/Showing/).closest("div")!
+      .parentElement!;
+    expect(paginationContainer).toHaveClass("invisible");
+  });
+
+  it("does not add invisible class to pagination container when there are visible rows", () => {
+    renderWithProviders(
+      <Table data={testData} columns={columns} enablePagination />,
+    );
+
+    const paginationContainer = screen.getByText(/Showing/).closest("div")!
+      .parentElement!;
+    expect(paginationContainer).not.toHaveClass("invisible");
+  });
+});
+
 describe("Table – edge cases", () => {
   it("handles a single row of data", () => {
     renderWithProviders(
@@ -1013,6 +1119,57 @@ describe("Table – edge cases", () => {
     const table = document.querySelector("table");
     expect(table).toHaveClass("table");
     expect(table).toHaveClass("bg-base-100");
+  });
+
+  it("hides sort icon when column meta has hideSortIcon set to true", () => {
+    const columnsWithHiddenSort: ColumnDef<Person, any>[] = [
+      columnHelper.accessor("name", {
+        header: "Name",
+        cell: (info) => info.getValue(),
+        meta: { hideSortIcon: true },
+      }),
+      columnHelper.accessor("age", {
+        header: "Age",
+        cell: (info) => info.getValue(),
+      }),
+    ];
+
+    renderWithProviders(
+      <Table data={testData} columns={columnsWithHiddenSort} />,
+    );
+
+    const headers = document.querySelectorAll("th");
+    // Name header should have no sort icon span
+    const nameSortIcons = headers[0].querySelectorAll("span.inline-flex");
+    expect(nameSortIcons).toHaveLength(0);
+    // Age header should still have a sort icon
+    const ageSortIcons = headers[1].querySelectorAll("span.inline-flex");
+    expect(ageSortIcons).toHaveLength(1);
+  });
+
+  it("does not apply explicit width style when column uses default size (150)", () => {
+    const defaultSizeColumns: ColumnDef<Person, any>[] = [
+      columnHelper.accessor("name", {
+        header: "Name",
+        cell: (info) => info.getValue(),
+        size: 150,
+      }),
+      columnHelper.accessor("age", {
+        header: "Age",
+        cell: (info) => info.getValue(),
+        size: 80,
+      }),
+    ];
+
+    renderWithProviders(
+      <Table data={defaultSizeColumns} columns={defaultSizeColumns} />,
+    );
+
+    const headers = document.querySelectorAll("th");
+    // Name column has default size 150 → no inline width style
+    expect(headers[0].style.width).toBe("");
+    // Age column has explicit size 80 → should have inline width style
+    expect(headers[1].style.width).toBe("80px");
   });
 });
 

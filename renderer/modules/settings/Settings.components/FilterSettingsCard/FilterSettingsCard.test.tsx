@@ -348,6 +348,43 @@ describe("FilterSettingsCard", () => {
     expect(optionTexts).toContain("Local Filter A");
   });
 
+  // ── Outdated filter label ──────────────────────────────────────────────
+
+  it("renders ' (outdated)' suffix for outdated local filters", () => {
+    setupStore({
+      rarityInsights: {
+        availableFilters: [{ id: "loc1", name: "My Local Filter" }],
+        getLocalFilters: () => [
+          { id: "loc1", name: "My Local Filter", isOutdated: true },
+        ],
+      },
+    });
+
+    renderWithProviders(<FilterSettingsCard />);
+
+    const options = screen.getAllByRole("option");
+    const optionTexts = options.map((o) => o.textContent);
+    expect(optionTexts).toContain("My Local Filter (outdated)");
+  });
+
+  it("does not render ' (outdated)' suffix for up-to-date local filters", () => {
+    setupStore({
+      rarityInsights: {
+        availableFilters: [{ id: "loc1", name: "My Local Filter" }],
+        getLocalFilters: () => [
+          { id: "loc1", name: "My Local Filter", isOutdated: false },
+        ],
+      },
+    });
+
+    renderWithProviders(<FilterSettingsCard />);
+
+    const options = screen.getAllByRole("option");
+    const optionTexts = options.map((o) => o.textContent);
+    expect(optionTexts).toContain("My Local Filter");
+    expect(optionTexts).not.toContain("My Local Filter (outdated)");
+  });
+
   // ── Dropdown disabled state ────────────────────────────────────────────
 
   it("dropdown is disabled when isParsing is true", () => {

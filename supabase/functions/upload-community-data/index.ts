@@ -17,7 +17,7 @@ interface RequestBody {
   league_name?: string;
   game?: "poe1" | "poe2";
   device_id: string;
-  ggg_access_token?: string;
+  is_packaged?: boolean;
   cards: CardEntry[];
 }
 
@@ -160,6 +160,11 @@ function validateBody(
     }
   }
 
+  // is_packaged is optional; if present it must be a boolean
+  if (b.is_packaged !== undefined && typeof b.is_packaged !== "boolean") {
+    return { ok: false, error: "is_packaged must be a boolean" };
+  }
+
   return {
     ok: true,
     data: {
@@ -167,29 +172,138 @@ function validateBody(
       league_name: hasLeagueName ? (b.league_name as string) : undefined,
       game: hasGame ? (b.game as "poe1" | "poe2") : undefined,
       device_id: b.device_id as string,
-      ggg_access_token:
-        typeof b.ggg_access_token === "string" &&
-        b.ggg_access_token.length <= 4096
-          ? b.ggg_access_token
-          : undefined,
+      is_packaged:
+        typeof b.is_packaged === "boolean" ? b.is_packaged : undefined,
       cards: b.cards as CardEntry[],
     },
   };
 }
 
 // ---------------------------------------------------------------------------
-// Main handler
+// Constants
 // ---------------------------------------------------------------------------
 
 const TAG = "[upload-community-data]";
 
+// ---------------------------------------------------------------------------
+// link-ggg: retroactively link a GGG account to existing upload records
+// ---------------------------------------------------------------------------
+
+async function handleLinkGgg(
+  body: Record<string, unknown>,
+  gggAccessToken: string | null,
+): Promise<Response> {
+  const deviceId = body.device_id;
+  const isPackaged = body.is_packaged !== false;
+
+  if (
+    typeof deviceId !== "string" ||
+    !UUID_RE.test(deviceId) ||
+    typeof gggAccessToken !== "string" ||
+    !gggAccessToken
+  ) {
+    return responseJson({
+      status: 400,
+      body: {
+        error:
+          "link-ggg requires: device_id (UUID), X-GGG-Token header (string)",
+      },
+    });
+  }
+
+  // 1. Verify GGG identity
+  let gggUuid: string;
+  let gggUsername: string;
+
+  try {
+    const gggResp = await fetch("https://api.pathofexile.com/profile", {
+      headers: {
+        Authorization: `Bearer ${gggAccessToken}`,
+        "User-Agent": "OAuth soothsayer/1.0.0 (contact: eskrzy@gmail.com)",
+      },
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!gggResp.ok) {
+      console.warn(
+        `${TAG} link-ggg: GGG profile request returned ${gggResp.status}`,
+      );
+      return responseJson({
+        status: 502,
+        body: { error: "GGG profile verification failed" },
+      });
+    }
+
+    const profile = await gggResp.json();
+    if (typeof profile.uuid !== "string" || typeof profile.name !== "string") {
+      return responseJson({
+        status: 502,
+        body: { error: "GGG profile response missing uuid/name" },
+      });
+    }
+
+    gggUuid = profile.uuid;
+    gggUsername = isPackaged ? profile.name : `${profile.name} (internal)`;
+  } catch (err) {
+    console.error(`${TAG} link-ggg: GGG profile fetch error:`, err);
+    return responseJson({
+      status: 502,
+      body: { error: "GGG profile request failed" },
+    });
+  }
+
+  // 2. Update all community_uploads rows for this device_id
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    { auth: { persistSession: false, autoRefreshToken: false } },
+  );
+
+  const { data: updatedRows, error: updateErr } = await supabase
+    .from("community_uploads")
+    .update({
+      ggg_uuid: gggUuid,
+      ggg_username: gggUsername,
+      is_verified: true,
+    })
+    .eq("device_id", deviceId)
+    .select("id");
+
+  if (updateErr) {
+    console.error(`${TAG} link-ggg: update failed:`, updateErr);
+    return responseJson({
+      status: 500,
+      body: { error: "Failed to update upload records" },
+    });
+  }
+
+  const count = updatedRows?.length ?? 0;
+  console.log(
+    `${TAG} link-ggg: linked GGG account "${gggUsername}" (${gggUuid}) to ${count} upload record(s) for device ${deviceId}`,
+  );
+
+  return responseJson({
+    status: 200,
+    body: {
+      success: true,
+      ggg_username: gggUsername,
+      ggg_uuid: gggUuid,
+      updated_records: count,
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Main handler
+// ---------------------------------------------------------------------------
+
 Deno.serve(async (req: Request) => {
-  // 1. Authenticate & rate-limit (60 req / hour)
+  // 1. Authenticate & rate-limit (10 req / hour)
   const authResult = await authorize({
     req,
     endpoint: "upload-community-data",
     windowMs: 60 * 60 * 1000, // 1 hour
-    maxHits: 60,
+    maxHits: 10,
   });
 
   if (authResult instanceof Response) return authResult;
@@ -208,6 +322,23 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  const gggAccessTokenHeader = req.headers.get("x-ggg-token");
+  const gggAccessToken: string | null =
+    typeof gggAccessTokenHeader === "string" &&
+    gggAccessTokenHeader.length > 0 &&
+    gggAccessTokenHeader.length <= 4096
+      ? gggAccessTokenHeader
+      : null;
+
+  // ─── Handle link-ggg action (early return) ─────────────────────────────
+  if (
+    rawBody &&
+    typeof rawBody === "object" &&
+    (rawBody as Record<string, unknown>).action === "link-ggg"
+  ) {
+    return handleLinkGgg(rawBody as Record<string, unknown>, gggAccessToken);
+  }
+
   const validation = validateBody(rawBody);
   if (!validation.ok) {
     return responseJson({ status: 400, body: { error: validation.error } });
@@ -218,9 +349,10 @@ Deno.serve(async (req: Request) => {
     league_name: leagueName,
     game: gameParam,
     device_id: deviceId,
-    ggg_access_token,
     cards,
   } = validation.data;
+
+  const isPackaged = validation.data.is_packaged ?? true;
 
   // 3. Create service-role Supabase client
   const supabase = createClient(
@@ -258,16 +390,16 @@ Deno.serve(async (req: Request) => {
     return responseJson({ status: 404, body: { error: "League not found" } });
   }
 
-  // 5. Optional GGG account verification
+  // 5. Optional GGG account verification (token now read from header)
   let gggUuid: string | null = null;
   let gggUsername: string | null = null;
   let isVerified = false;
 
-  if (ggg_access_token) {
+  if (gggAccessToken) {
     try {
       const gggResp = await fetch("https://api.pathofexile.com/profile", {
         headers: {
-          Authorization: `Bearer ${ggg_access_token}`,
+          Authorization: `Bearer ${gggAccessToken}`,
           "User-Agent": "OAuth soothsayer/1.0.0 (contact: eskrzy@gmail.com)",
         },
       });
@@ -279,7 +411,9 @@ Deno.serve(async (req: Request) => {
           typeof profile.name === "string"
         ) {
           gggUuid = profile.uuid;
-          gggUsername = profile.name;
+          gggUsername = isPackaged
+            ? profile.name
+            : `${profile.name} (internal)`;
           isVerified = true;
           console.log(
             `${TAG} GGG verification succeeded for user "${gggUsername}"`,

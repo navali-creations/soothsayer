@@ -73,6 +73,12 @@ vi.mock("./helpers", () => ({
       volume: h.volume ?? 100,
     })),
   formatDateFull: (_iso: string) => "January 1, 2024",
+  formatRate: (value: number) => value.toFixed(1),
+  formatVolume: (value: number) => {
+    if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+    if (value >= 1_000) return `${(value / 1_000).toFixed(0)}K`;
+    return String(value);
+  },
 }));
 
 // ─── Component imports (after all mocks) ───────────────────────────────────

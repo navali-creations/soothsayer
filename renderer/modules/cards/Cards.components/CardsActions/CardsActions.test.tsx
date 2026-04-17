@@ -15,16 +15,30 @@ vi.mock("~/renderer/store", async () => {
 const mockUseBoundStore = vi.mocked(useBoundStore);
 
 vi.mock("~/renderer/components", () => ({
-  RaritySourceSelect: ({ value, onChange, disabled }: any) => (
-    <select
-      data-testid="rarity-source-select"
-      value={value}
-      onChange={(e: any) => onChange(e.target.value)}
-      disabled={disabled}
-    >
-      <option value="poe.ninja">poe.ninja</option>
-      <option value="prohibited-library">Prohibited Library</option>
-    </select>
+  RaritySourceSelect: ({ value, onChange, disabled, groups }: any) => (
+    <div data-testid="rarity-source-wrapper">
+      <select
+        data-testid="rarity-source-select"
+        value={value}
+        onChange={(e: any) => onChange(e.target.value)}
+        disabled={disabled}
+      >
+        <option value="poe.ninja">poe.ninja</option>
+        <option value="prohibited-library">Prohibited Library</option>
+      </select>
+      {/* Render menuLabel content so DatasetMenuLabel JSX is exercised */}
+      <div data-testid="menu-labels">
+        {groups?.flatMap((g: any) =>
+          g.options?.map((opt: any) =>
+            opt.menuLabel ? (
+              <span key={opt.value} data-testid={`menu-label-${opt.value}`}>
+                {opt.menuLabel}
+              </span>
+            ) : null,
+          ),
+        )}
+      </div>
+    </div>
   ),
   Search: ({ value, onChange, placeholder }: any) => (
     <input
@@ -377,6 +391,103 @@ describe("CardsActions", () => {
       await user.click(disabledCheckbox);
 
       expect(onFilterChange).toHaveBeenCalled();
+    });
+  });
+
+  describe("show all cards toggle", () => {
+    it("renders 'Show all cards' label text", () => {
+      setupStore();
+      renderWithProviders(<CardsActions />);
+
+      expect(screen.getByText("Show all cards")).toBeInTheDocument();
+    });
+
+    it("checkbox is unchecked when showAllCards is false", () => {
+      setupStore({ showAllCards: false });
+      renderWithProviders(<CardsActions />);
+
+      const showAllCheckbox = screen
+        .getByText("Show all cards")
+        .closest("label")!
+        .querySelector("input[type='checkbox']")!;
+      expect(showAllCheckbox).not.toBeChecked();
+    });
+
+    it("checkbox is checked when showAllCards is true", () => {
+      setupStore({ showAllCards: true });
+      renderWithProviders(<CardsActions />);
+
+      const showAllCheckbox = screen
+        .getByText("Show all cards")
+        .closest("label")!
+        .querySelector("input[type='checkbox']")!;
+      expect(showAllCheckbox).toBeChecked();
+    });
+
+    it("calls setShowAllCards when checkbox is toggled on", async () => {
+      setupStore({ showAllCards: false });
+      const { user } = renderWithProviders(<CardsActions />);
+
+      const showAllCheckbox = screen
+        .getByText("Show all cards")
+        .closest("label")!
+        .querySelector("input[type='checkbox']")!;
+      await user.click(showAllCheckbox);
+
+      expect(mockSetShowAllCards).toHaveBeenCalledWith(true);
+    });
+
+    it("calls onFilterChange when show all cards toggle changes", async () => {
+      setupStore({ showAllCards: false });
+      const onFilterChange = vi.fn();
+      const { user } = renderWithProviders(
+        <CardsActions onFilterChange={onFilterChange} />,
+      );
+
+      const showAllCheckbox = screen
+        .getByText("Show all cards")
+        .closest("label")!
+        .querySelector("input[type='checkbox']")!;
+      await user.click(showAllCheckbox);
+
+      expect(onFilterChange).toHaveBeenCalled();
+    });
+  });
+
+  describe("DatasetMenuLabel rendering", () => {
+    it("renders DatasetMenuLabel for poe.ninja with hint text", () => {
+      setupStore();
+      renderWithProviders(<CardsActions />);
+
+      const label = screen.getByTestId("menu-label-poe.ninja");
+      expect(label).toBeInTheDocument();
+      expect(label).toHaveTextContent("poe.ninja");
+      // The sup "?" hint should be present
+      expect(label.querySelector("sup")).toHaveTextContent("?");
+    });
+
+    it("renders DatasetMenuLabel for prohibited-library with hint text", () => {
+      setupStore();
+      renderWithProviders(<CardsActions />);
+
+      const label = screen.getByTestId("menu-label-prohibited-library");
+      expect(label).toBeInTheDocument();
+      expect(label).toHaveTextContent("Prohibited Library");
+      expect(label.querySelector("sup")).toHaveTextContent("?");
+    });
+
+    it("DatasetMenuLabel has title attribute with hint on the inner span", () => {
+      setupStore();
+      renderWithProviders(<CardsActions />);
+
+      // The DatasetMenuLabel renders a <span> with title={hint}
+      const innerSpan = screen
+        .getByTestId("menu-label-poe.ninja")
+        .querySelector("span[title]");
+      expect(innerSpan).toHaveAttribute(
+        "title",
+        "Price based rarity from poe.ninja market data",
+      );
     });
   });
 

@@ -28,6 +28,7 @@ const {
   mockDatabaseOptimize,
   mockDatabaseClose,
   mockTrayDestroyTray,
+  mockGggHandleCallback,
 } = vi.hoisted(() => ({
   mockAppOn: vi.fn(),
   mockAppQuit: vi.fn(),
@@ -49,6 +50,7 @@ const {
   mockDatabaseOptimize: vi.fn(),
   mockDatabaseClose: vi.fn(),
   mockTrayDestroyTray: vi.fn(),
+  mockGggHandleCallback: vi.fn(),
 }));
 
 // ─── Mock Electron ───────────────────────────────────────────────────────────
@@ -128,6 +130,11 @@ vi.mock("~/main/modules", () =>
     TrayService: {
       getInstance: vi.fn(() => ({
         destroyTray: mockTrayDestroyTray,
+      })),
+    },
+    GggAuthService: {
+      getInstance: vi.fn(() => ({
+        handleCallback: mockGggHandleCallback,
       })),
     },
   }),
@@ -461,7 +468,7 @@ describe("AppService", () => {
       service.emitSecondInstance(mockMainWindow as any);
 
       const handler = getAppEventHandler(AppChannel.SecondInstance);
-      handler();
+      handler({}, ["app-path"], "/working-dir");
 
       expect(mockMainWindow.show).toHaveBeenCalled();
     });
@@ -857,6 +864,193 @@ describe("AppService", () => {
   });
 
   // ─── Full lifecycle ──────────────────────────────────────────────────────
+
+  // ─── emitOpenUrl ───────────────────────────────────────────────────────
+
+  describe("emitOpenUrl", () => {
+    it("should register an open-url event handler", () => {
+      mockAppOn.mockClear();
+      service.emitOpenUrl();
+
+      expect(mockAppOn).toHaveBeenCalledWith(
+        AppChannel.OpenUrl,
+        expect.any(Function),
+      );
+    });
+
+    it("should call handleDeepLink when open-url fires with a valid URL", () => {
+      mockAppOn.mockClear();
+      service.emitOpenUrl();
+
+      const handler = getAppEventHandler(AppChannel.OpenUrl);
+      const mockEvent = { preventDefault: vi.fn() };
+
+      handler(mockEvent, "soothsayer://oauth/callback?code=abc");
+
+      expect(mockEvent.preventDefault).toHaveBeenCalled();
+      expect(mockGggHandleCallback).toHaveBeenCalledWith(
+        "soothsayer://oauth/callback?code=abc",
+      );
+    });
+  });
+
+  // ─── handleDeepLink (via emitOpenUrl) ──────────────────────────────────
+
+  describe("handleDeepLink", () => {
+    /**
+     * Helper: register emitOpenUrl, grab the handler, fire it with the
+     * given URL, and return the mock event so callers can assert on it.
+     */
+    function fireOpenUrl(url: string) {
+      mockAppOn.mockClear();
+      mockGggHandleCallback.mockClear();
+      service.emitOpenUrl();
+      const handler = getAppEventHandler(AppChannel.OpenUrl);
+      const mockEvent = { preventDefault: vi.fn() };
+      handler(mockEvent, url);
+      return mockEvent;
+    }
+
+    it("should route soothsayer://oauth/callback to GggAuthService.handleCallback", () => {
+      fireOpenUrl("soothsayer://oauth/callback");
+
+      expect(mockGggHandleCallback).toHaveBeenCalledTimes(1);
+      expect(mockGggHandleCallback).toHaveBeenCalledWith(
+        "soothsayer://oauth/callback",
+      );
+    });
+
+    it("should pass the full URL to handleCallback including query params", () => {
+      fireOpenUrl("soothsayer://oauth/callback?code=abc123&state=xyz");
+
+      expect(mockGggHandleCallback).toHaveBeenCalledWith(
+        "soothsayer://oauth/callback?code=abc123&state=xyz",
+      );
+    });
+
+    it("should ignore unrecognised deep link paths", () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      fireOpenUrl("soothsayer://unknown/path");
+
+      expect(mockGggHandleCallback).not.toHaveBeenCalled();
+      expect(warnSpy).toHaveBeenCalledWith(
+        "[App] Unrecognised deep link path:",
+        "soothsayer://unknown/path",
+      );
+
+      warnSpy.mockRestore();
+    });
+
+    it("should handle malformed URLs gracefully", () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      fireOpenUrl("not-a-valid-url");
+
+      expect(mockGggHandleCallback).not.toHaveBeenCalled();
+      expect(errorSpy).toHaveBeenCalledWith(
+        "[App] Failed to parse deep link URL:",
+        "not-a-valid-url",
+        expect.any(Error),
+      );
+
+      errorSpy.mockRestore();
+    });
+
+    it("should not call handleCallback for wrong protocol", () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      fireOpenUrl("https://oauth/callback");
+
+      expect(mockGggHandleCallback).not.toHaveBeenCalled();
+
+      warnSpy.mockRestore();
+    });
+
+    it("should not call handleCallback for wrong hostname", () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      fireOpenUrl("soothsayer://notauth/callback");
+
+      expect(mockGggHandleCallback).not.toHaveBeenCalled();
+
+      warnSpy.mockRestore();
+    });
+
+    it("should not call handleCallback for wrong pathname", () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      fireOpenUrl("soothsayer://oauth/notcallback");
+
+      expect(mockGggHandleCallback).not.toHaveBeenCalled();
+
+      warnSpy.mockRestore();
+    });
+  });
+
+  // ─── emitSecondInstance — deep link extraction ─────────────────────────
+
+  describe("emitSecondInstance — deep link extraction", () => {
+    it("should extract and handle deep link URL from command-line args", () => {
+      const mockMainWindow = { show: vi.fn() };
+
+      mockAppOn.mockClear();
+      mockGggHandleCallback.mockClear();
+      service.emitSecondInstance(mockMainWindow as any);
+
+      const handler = getAppEventHandler(AppChannel.SecondInstance);
+      handler(
+        {},
+        ["electron", ".", "soothsayer://oauth/callback?code=abc"],
+        "",
+      );
+
+      expect(mockMainWindow.show).toHaveBeenCalled();
+      expect(mockGggHandleCallback).toHaveBeenCalledWith(
+        "soothsayer://oauth/callback?code=abc",
+      );
+    });
+
+    it("should handle command-line args without deep link URL", () => {
+      const mockMainWindow = { show: vi.fn() };
+
+      mockAppOn.mockClear();
+      mockGggHandleCallback.mockClear();
+      service.emitSecondInstance(mockMainWindow as any);
+
+      const handler = getAppEventHandler(AppChannel.SecondInstance);
+      handler({}, ["electron", "."], "");
+
+      expect(mockMainWindow.show).toHaveBeenCalled();
+      expect(mockGggHandleCallback).not.toHaveBeenCalled();
+    });
+
+    it("should handle deep link URL that is not the first arg", () => {
+      const mockMainWindow = { show: vi.fn() };
+
+      mockAppOn.mockClear();
+      mockGggHandleCallback.mockClear();
+      service.emitSecondInstance(mockMainWindow as any);
+
+      const handler = getAppEventHandler(AppChannel.SecondInstance);
+      handler(
+        {},
+        [
+          "electron",
+          ".",
+          "--some-flag",
+          "soothsayer://oauth/callback?code=xyz",
+        ],
+        "",
+      );
+
+      expect(mockGggHandleCallback).toHaveBeenCalledWith(
+        "soothsayer://oauth/callback?code=xyz",
+      );
+    });
+  });
+
+  // ─── Full lifecycle ────────────────────────────────────────────────────
 
   describe("full lifecycle", () => {
     it("should handle a complete app lifecycle: start -> register hooks -> before-quit cleanup", async () => {

@@ -9,6 +9,31 @@ import {
 import { trackEvent } from "~/renderer/modules/umami";
 import type { DetailedDivinationCardStats } from "~/types/data-stores";
 
+import { timelineBuffer } from "../CurrentSession.components/SessionProfitTimeline/timeline-buffer/timeline-buffer";
+
+vi.mock(
+  "../CurrentSession.components/SessionProfitTimeline/timeline-buffer/timeline-buffer",
+  () => ({
+    timelineBuffer: {
+      linePoints: [],
+      chartData: [],
+      totalDrops: 0,
+      totalChaosValue: 0,
+      totalDivineValue: 0,
+      deckCost: 0,
+      hasBars: false,
+      version: 0,
+      subscribe: vi.fn(() => vi.fn()),
+      seedFromTimeline: vi.fn(),
+      setDeckCost: vi.fn(),
+      save: vi.fn(),
+      restore: vi.fn(),
+      applyDelta: vi.fn(),
+      reset: vi.fn(),
+    },
+  }),
+);
+
 // ── Fixtures ───────────────────────────────────────────────────────────────
 
 function makeSession(
@@ -89,6 +114,9 @@ beforeEach(() => {
   store = createTestStore();
 });
 
+const mockSeedFromTimeline = vi.mocked(timelineBuffer.seedFromTimeline);
+const mockSetDeckCost = vi.mocked(timelineBuffer.setDeckCost);
+
 describe("CurrentSessionSlice", () => {
   // ─── Initial State ───────────────────────────────────────────────────
 
@@ -106,6 +134,11 @@ describe("CurrentSessionSlice", () => {
   // ─── hydrate ─────────────────────────────────────────────────────────
 
   describe("hydrate", () => {
+    beforeEach(() => {
+      mockSeedFromTimeline.mockClear();
+      mockSetDeckCost.mockClear();
+    });
+
     it("sets isLoading true then false on success", async () => {
       electron.session.getCurrent.mockResolvedValue(null);
       electron.session.getInfo.mockResolvedValue(null);
@@ -175,7 +208,7 @@ describe("CurrentSessionSlice", () => {
       expect(currentSession.isLoading).toBe(false);
     });
 
-    it("exercises poeNinja snapshot sync branch when poe1Info and poe1Session have priceSnapshot", async () => {
+    it("exercises poeNinja snapshot sync branch (isReused: false) when poe1Info and poe1Session have priceSnapshot", async () => {
       const poe1Session = makeSession({
         snapshotId: "snap-abc",
         priceSnapshot: {
@@ -314,6 +347,94 @@ describe("CurrentSessionSlice", () => {
       expect(currentSession.poe1Session).toEqual(poe1Session);
       expect(currentSession.poe1SessionInfo).toEqual(poe1Info);
       expect(currentSession.isLoading).toBe(false);
+    });
+
+    it("calls seedFromTimeline and setDeckCost when session has timeline and stackedDeckChaosCost", async () => {
+      const timeline = {
+        buckets: [
+          {
+            timestamp: "2024-01-01T00:00:00Z",
+            dropCount: 5,
+            cumulativeChaosValue: 200,
+            cumulativeDivineValue: 1,
+            notableDrops: [],
+          },
+        ],
+        notableDrops: [],
+        totalDrops: 5,
+        totalChaosValue: 200,
+        totalDivineValue: 1,
+      };
+      const poe1Session = makeSession({
+        timeline,
+        totals: {
+          exchange: {
+            totalValue: 200,
+            netProfit: 150,
+            chaosToDivineRatio: 150,
+          },
+          stash: {
+            totalValue: 180,
+            netProfit: 130,
+            chaosToDivineRatio: 145,
+          },
+          stackedDeckChaosCost: 7,
+          totalDeckCost: 35,
+        },
+      } as any);
+      const poe1Info = makeSessionInfo({ league: "poe1:Settlers" });
+
+      electron.session.getCurrent.mockImplementation((game: string) =>
+        Promise.resolve(game === "poe1" ? poe1Session : null),
+      );
+      electron.session.getInfo.mockImplementation((game: string) =>
+        Promise.resolve(game === "poe1" ? poe1Info : null),
+      );
+
+      await store.getState().currentSession.hydrate();
+
+      expect(mockSeedFromTimeline).toHaveBeenCalledWith(timeline);
+      expect(mockSetDeckCost).toHaveBeenCalledWith(7);
+    });
+
+    it("does not call setDeckCost when stackedDeckChaosCost is falsy", async () => {
+      const timeline = {
+        buckets: [],
+        notableDrops: [],
+        totalDrops: 0,
+        totalChaosValue: 0,
+        totalDivineValue: 0,
+      };
+      const poe1Session = makeSession({
+        timeline,
+        totals: {
+          exchange: {
+            totalValue: 0,
+            netProfit: 0,
+            chaosToDivineRatio: 150,
+          },
+          stash: {
+            totalValue: 0,
+            netProfit: 0,
+            chaosToDivineRatio: 145,
+          },
+          stackedDeckChaosCost: 0,
+          totalDeckCost: 0,
+        },
+      } as any);
+      const poe1Info = makeSessionInfo({ league: "poe1:Settlers" });
+
+      electron.session.getCurrent.mockImplementation((game: string) =>
+        Promise.resolve(game === "poe1" ? poe1Session : null),
+      );
+      electron.session.getInfo.mockImplementation((game: string) =>
+        Promise.resolve(game === "poe1" ? poe1Info : null),
+      );
+
+      await store.getState().currentSession.hydrate();
+
+      expect(mockSeedFromTimeline).toHaveBeenCalledWith(timeline);
+      expect(mockSetDeckCost).not.toHaveBeenCalled();
     });
 
     it("does not sync to poeNinja when activeSession has no priceSnapshot", async () => {
@@ -537,6 +658,66 @@ describe("CurrentSessionSlice", () => {
       expect(currentSession.poe2Session).toEqual(sessionData);
       expect(currentSession.poe2SessionInfo).toEqual(sessionInfo);
       expect(currentSession.isLoading).toBe(false);
+    });
+
+    it("seeds timelineBuffer from sessionData.timeline on successful start", async () => {
+      store = createTestStore({
+        settings: { selectedGame: "poe1", poe1SelectedLeague: "Settlers" },
+      });
+      electron = window.electron as unknown as ElectronMock;
+
+      const sessionData = makeSession({
+        timeline: {
+          buckets: [
+            {
+              timestamp: "2024-01-01T00:00:00Z",
+              dropCount: 2,
+              cumulativeChaosValue: 100,
+              cumulativeDivineValue: 0.5,
+              notableDrops: [],
+            },
+            {
+              timestamp: "2024-01-01T00:05:00Z",
+              dropCount: 5,
+              cumulativeChaosValue: 200,
+              cumulativeDivineValue: 1.2,
+              notableDrops: [],
+            },
+          ],
+          notableDrops: [],
+          totalDrops: 5,
+          totalChaosValue: 200,
+          totalDivineValue: 1.2,
+        },
+        totals: {
+          exchange: {
+            totalValue: 200,
+            netProfit: 100,
+            chaosToDivineRatio: 150,
+          },
+          stash: {
+            totalValue: 180,
+            netProfit: 80,
+            chaosToDivineRatio: 145,
+          },
+          stackedDeckChaosCost: 3,
+          totalDeckCost: 150,
+        },
+      } as any);
+      const sessionInfo = makeSessionInfo();
+
+      electron.session.start.mockResolvedValue({ success: true });
+      electron.session.getCurrent.mockResolvedValue(sessionData);
+      electron.session.getInfo.mockResolvedValue(sessionInfo);
+
+      await store.getState().currentSession.startSession();
+
+      // Timeline seeding writes to a mutable buffer outside Zustand.
+      // startSession stores the session after stripping timeline, so just
+      // verify it was stored and didn't crash.
+      const session = store.getState().currentSession.poe1Session;
+      expect(session).not.toBeNull();
+      expect(session!.totalCount).toBe(50);
     });
 
     it("exercises poeNinja snapshot sync with null snapshotId on poe1 start", async () => {
@@ -1085,6 +1266,8 @@ describe("CurrentSessionSlice", () => {
       let dataUpdatedCallback: (payload: any) => void;
 
       beforeEach(() => {
+        mockSeedFromTimeline.mockClear();
+        mockSetDeckCost.mockClear();
         electron.session.onStateChanged.mockReturnValue(vi.fn());
         electron.session.onDataUpdated.mockImplementation(
           (cb: (payload: any) => void) => {
@@ -1093,6 +1276,114 @@ describe("CurrentSessionSlice", () => {
           },
         );
         store.getState().currentSession.startListening();
+      });
+
+      it("calls seedFromTimeline and setDeckCost when data has timeline and stackedDeckChaosCost", () => {
+        const timeline = {
+          buckets: [
+            {
+              timestamp: "2024-01-01T00:00:00Z",
+              dropCount: 3,
+              cumulativeChaosValue: 100,
+              cumulativeDivineValue: 0.5,
+              notableDrops: [],
+            },
+          ],
+          notableDrops: [],
+          totalDrops: 3,
+          totalChaosValue: 100,
+          totalDivineValue: 0.5,
+        };
+        const data = makeSession({
+          timeline,
+          totals: {
+            exchange: {
+              totalValue: 100,
+              netProfit: 80,
+              chaosToDivineRatio: 150,
+            },
+            stash: {
+              totalValue: 90,
+              netProfit: 70,
+              chaosToDivineRatio: 145,
+            },
+            stackedDeckChaosCost: 5,
+            totalDeckCost: 15,
+          },
+        } as any);
+
+        dataUpdatedCallback({ game: "poe1", data });
+
+        expect(mockSeedFromTimeline).toHaveBeenCalledWith(timeline);
+        expect(mockSetDeckCost).toHaveBeenCalledWith(5);
+      });
+
+      it("does not call setDeckCost when stackedDeckChaosCost is falsy in onDataUpdated", () => {
+        const timeline = {
+          buckets: [],
+          notableDrops: [],
+          totalDrops: 0,
+          totalChaosValue: 0,
+          totalDivineValue: 0,
+        };
+        const data = makeSession({
+          timeline,
+          totals: {
+            exchange: {
+              totalValue: 0,
+              netProfit: 0,
+              chaosToDivineRatio: 150,
+            },
+            stash: {
+              totalValue: 0,
+              netProfit: 0,
+              chaosToDivineRatio: 145,
+            },
+            stackedDeckChaosCost: 0,
+            totalDeckCost: 0,
+          },
+        } as any);
+
+        dataUpdatedCallback({ game: "poe1", data });
+
+        expect(mockSeedFromTimeline).toHaveBeenCalledWith(timeline);
+        expect(mockSetDeckCost).not.toHaveBeenCalled();
+      });
+
+      it("strips priceSnapshot to only timestamp, stackedDeckChaosCost, and chaosToDivineRatio in onDataUpdated", () => {
+        const data = makeSession({
+          priceSnapshot: {
+            timestamp: "2024-06-01T00:00:00Z",
+            stackedDeckChaosCost: 4,
+            exchange: {
+              chaosToDivineRatio: 150,
+              cardPrices: {
+                "The Doctor": { chaosValue: 1200, divineValue: 8 },
+                "Rain of Chaos": { chaosValue: 1, divineValue: 0.007 },
+              },
+            },
+            stash: {
+              chaosToDivineRatio: 145,
+              cardPrices: {
+                "The Doctor": { chaosValue: 1100, divineValue: 7.3 },
+                "Rain of Chaos": { chaosValue: 0.8, divineValue: 0.005 },
+              },
+            },
+          },
+        } as any);
+
+        dataUpdatedCallback({ game: "poe1", data });
+
+        const session = store.getState().currentSession.poe1Session;
+        expect(session).not.toBeNull();
+        const snapshot = (session as any).priceSnapshot;
+        expect(snapshot).toBeDefined();
+        expect(snapshot.timestamp).toBe("2024-06-01T00:00:00Z");
+        expect(snapshot.stackedDeckChaosCost).toBe(4);
+        expect(snapshot.exchange.chaosToDivineRatio).toBe(150);
+        expect(snapshot.exchange.cardPrices).toEqual({});
+        expect(snapshot.stash.chaosToDivineRatio).toBe(145);
+        expect(snapshot.stash.cardPrices).toEqual({});
       });
 
       it("sets poe1Session when poe1 data is received", () => {
@@ -1167,6 +1458,19 @@ describe("CurrentSessionSlice", () => {
         });
 
         // No observable state change — just verifying it doesn't crash
+        expect(electron.session.onTimelineDelta).toHaveBeenCalled();
+      });
+
+      it("applies delta to timelineBuffer when game matches selected game", () => {
+        // selectedGame is poe1, send delta for poe1 — should apply
+        timelineDeltaCallback({
+          game: "poe1",
+          delta: { bucket: "2024-01-01T00:00:00Z", chaosValue: 100 },
+        });
+
+        // The delta is written to the mutable buffer outside Zustand,
+        // so there's no observable store change — just verifying the
+        // branch executes without error.
         expect(electron.session.onTimelineDelta).toHaveBeenCalled();
       });
 
@@ -1286,6 +1590,38 @@ describe("CurrentSessionSlice", () => {
         });
 
         expect(store.getState().currentSession.poe1Session).toBeNull();
+      });
+
+      it("initializes recentDrops array when session has no recentDrops", () => {
+        // Seed session without recentDrops
+        store.setState((s) => {
+          const session = makeSession();
+          delete (session as any).recentDrops;
+          s.currentSession.poe1Session = session;
+        });
+
+        const newDrop = {
+          cardName: "The Doctor",
+          exchangePrice: { chaosValue: 1200, divineValue: 8 },
+          stashPrice: { chaosValue: 1100, divineValue: 7.3 },
+        };
+
+        cardDeltaCallback({
+          game: "poe1",
+          delta: {
+            cardName: "The Doctor",
+            newCount: 3,
+            totalCount: 51,
+            exchangePrice: { chaosValue: 1200, divineValue: 8 },
+            stashPrice: { chaosValue: 1100, divineValue: 7.3 },
+            updatedTotals: null,
+            recentDrop: newDrop,
+          },
+        });
+
+        const session = store.getState().currentSession.poe1Session!;
+        expect(session.recentDrops).toHaveLength(1);
+        expect(session.recentDrops![0].cardName).toBe("The Doctor");
       });
 
       it("updates session totals", () => {

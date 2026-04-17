@@ -359,4 +359,42 @@ describe("OverlayDropsList", () => {
       expect(contentColumn).toHaveAttribute("data-chaosvalue", "0");
     });
   });
+
+  // ── getFilteredDrops() returning null (L13 fallback) ─────────────────
+
+  describe("getFilteredDrops null fallback", () => {
+    it("treats null from getFilteredDrops as empty array", () => {
+      const store = createMockStore({
+        recentDrops: [],
+      });
+      // Override getFilteredDrops to return null
+      store.overlay.getFilteredDrops = vi.fn(() => null);
+      mockUseBoundStore.mockReturnValue(store);
+
+      renderWithProviders(<OverlayDropsList />);
+
+      // Should render the empty state, not crash
+      expect(screen.getByText("No cards yet")).toBeInTheDocument();
+    });
+  });
+
+  // ── isLeftHalf direction for getRarityStyles (L47) ───────────────────
+
+  describe("isLeftHalf direction mapping", () => {
+    it('passes "left" to getRarityStyles when isLeftHalf is true', () => {
+      const drops = [makeDrop({ cardName: "Test Card", rarity: 3 })];
+      setupStore({ filteredDrops: drops, isLeftHalf: true });
+      renderWithProviders(<OverlayDropsList />);
+
+      expect(vi.mocked(getRarityStyles)).toHaveBeenCalledWith(3, "left");
+    });
+
+    it('passes "right" to getRarityStyles when isLeftHalf is false', () => {
+      const drops = [makeDrop({ cardName: "Test Card", rarity: 3 })];
+      setupStore({ filteredDrops: drops, isLeftHalf: false });
+      renderWithProviders(<OverlayDropsList />);
+
+      expect(vi.mocked(getRarityStyles)).toHaveBeenCalledWith(3, "right");
+    });
+  });
 });

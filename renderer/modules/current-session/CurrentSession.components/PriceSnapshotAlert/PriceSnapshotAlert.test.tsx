@@ -490,4 +490,70 @@ describe("PriceSnapshotAlert", () => {
       ),
     ).toBeInTheDocument();
   });
+
+  // ── Snapshot timestamp fallback to currentSnapshot.fetchedAt ────────────
+
+  it("falls back to currentSnapshot.fetchedAt when session priceSnapshot has no timestamp", () => {
+    const fetchedAt = "2024-03-20T08:00:00.000Z";
+
+    setupStore({
+      session: createSession({
+        priceSnapshot: { timestamp: null },
+      }),
+      currentSnapshot: createCurrentSnapshot({ fetchedAt }),
+      sessionInfo: { league: "poe1:Settlers" },
+    });
+
+    renderWithProviders(<PriceSnapshotAlert />);
+
+    const expectedText = new Date(fetchedAt).toLocaleString();
+    expect(
+      screen.getByText(
+        new RegExp(expectedText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("falls back to current time when both session timestamp and currentSnapshot.fetchedAt are null", () => {
+    setupStore({
+      session: createSession({
+        priceSnapshot: { timestamp: null },
+      }),
+      currentSnapshot: createCurrentSnapshot({ fetchedAt: null }),
+      sessionInfo: { league: "poe1:Settlers" },
+    });
+
+    renderWithProviders(<PriceSnapshotAlert />);
+
+    // The component falls back to new Date().toISOString(), so a timestamp should still render
+    const alert = document.querySelector(".alert");
+    expect(alert).toBeInTheDocument();
+  });
+
+  // ── displaySnapshotId fallback to currentSnapshot.id ───────────────────
+
+  it("falls back to currentSnapshot.id when session has no snapshotId", () => {
+    setupStore({
+      session: createSession({ snapshotId: null }),
+      currentSnapshot: createCurrentSnapshot({ id: "fallback-abcdef123456" }),
+      sessionInfo: { league: "poe1:Settlers" },
+    });
+
+    renderWithProviders(<PriceSnapshotAlert />);
+
+    expect(screen.getByText(/Snapshot: fallback/)).toBeInTheDocument();
+  });
+
+  it("shows no snapshot ID when both session snapshotId and currentSnapshot.id are null", () => {
+    setupStore({
+      session: createSession({ snapshotId: null }),
+      currentSnapshot: createCurrentSnapshot({ id: null }),
+      sessionInfo: { league: "poe1:Settlers" },
+    });
+
+    renderWithProviders(<PriceSnapshotAlert />);
+
+    // displaySnapshotId is null, so "Snapshot:" text should not appear
+    expect(screen.queryByText(/Snapshot:/)).not.toBeInTheDocument();
+  });
 });

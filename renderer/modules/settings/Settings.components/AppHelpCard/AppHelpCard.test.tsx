@@ -42,4 +42,13 @@ describe("AppHelpCard", () => {
 
     expect(screen.getByTestId("onboarding-button")).toBeInTheDocument();
   });
+
+  it("calls window.electron.diagLog.revealLogFile when Open log file is clicked", async () => {
+    const { user } = renderWithProviders(<AppHelpCard />);
+
+    const logButton = screen.getByRole("button", { name: /Open log file/i });
+    await user.click(logButton);
+
+    expect(window.electron.diagLog.revealLogFile).toHaveBeenCalledTimes(1);
+  });
 });

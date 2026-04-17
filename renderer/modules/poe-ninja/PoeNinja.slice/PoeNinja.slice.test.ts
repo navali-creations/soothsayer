@@ -533,6 +533,52 @@ describe("startListening", () => {
     cleanup();
   });
 
+  it("calls updateSnapshotOnCreate when onSnapshotCreated fires", () => {
+    let createdCallback: ((snapshotInfo: any) => void) | undefined;
+
+    electron.snapshots.onSnapshotCreated.mockImplementation((cb: any) => {
+      createdCallback = cb;
+      return vi.fn();
+    });
+
+    const cleanup = store.getState().poeNinja.startListening();
+
+    const snapshotInfo = makeSnapshot({ id: "new-snap", isReused: false });
+    createdCallback!(snapshotInfo);
+
+    const current = store.getState().poeNinja.currentSnapshot;
+    expect(current).not.toBeNull();
+    expect(current!.id).toBe("new-snap");
+    expect(current!.isReused).toBe(false);
+
+    cleanup();
+  });
+
+  it("calls updateSnapshotOnReuse when onSnapshotReused fires", () => {
+    let reusedCallback: ((snapshotInfo: any) => void) | undefined;
+
+    electron.snapshots.onSnapshotReused.mockImplementation((cb: any) => {
+      reusedCallback = cb;
+      return vi.fn();
+    });
+
+    // Pre-set a snapshot so updateSnapshotOnReuse has something to update
+    store
+      .getState()
+      .poeNinja.setCurrentSnapshot(makeSnapshot({ id: "old-snap" }));
+
+    const cleanup = store.getState().poeNinja.startListening();
+
+    reusedCallback!({ id: "reused-snap", fetchedAt: "2024-06-01T00:00:00Z" });
+
+    const current = store.getState().poeNinja.currentSnapshot;
+    expect(current).not.toBeNull();
+    expect(current!.id).toBe("reused-snap");
+    expect(current!.isReused).toBe(true);
+
+    cleanup();
+  });
+
   it("calls setAutoRefreshInactive when onAutoRefreshStopped fires", () => {
     let stoppedCallback: ((info: any) => void) | undefined;
 

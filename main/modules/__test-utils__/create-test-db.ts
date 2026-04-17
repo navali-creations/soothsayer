@@ -288,6 +288,19 @@ function initializeSchema(db: Database.Database): void {
     `);
 
     // ═══════════════════════════════════════════════════════════════
+    // COMMUNITY UPLOAD SNAPSHOT (delta upload tracking)
+    // ═══════════════════════════════════════════════════════════════
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS community_upload_snapshot (
+        game TEXT NOT NULL,
+        scope TEXT NOT NULL,
+        card_name TEXT NOT NULL,
+        count INTEGER NOT NULL,
+        UNIQUE(game, scope, card_name)
+      )
+    `);
+
+    // ═══════════════════════════════════════════════════════════════
     // DIVINATION CARDS (static reference data)
     // ═══════════════════════════════════════════════════════════════
     db.exec(`

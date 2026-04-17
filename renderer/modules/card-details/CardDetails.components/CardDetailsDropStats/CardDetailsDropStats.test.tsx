@@ -129,4 +129,80 @@ describe("CardDetailsDropStats", () => {
     const { container } = renderWithProviders(<CardDetailsDropStats />);
     expect(container.textContent).toContain("Drop Statistics");
   });
+
+  // ── DropProbabilitySection: medium probability formatting ───────────
+
+  it("formats medium probability (0.01 ≤ percent < 1) with toFixed(4)", () => {
+    // probability = 0.005 → percent = 0.5 → hits `percent >= 0.01` branch
+    mockStore({ probability: 0.005 });
+    const { container } = renderWithProviders(<CardDetailsDropStats />);
+    expect(container.textContent).toContain("0.5000%");
+  });
+
+  it("formats high probability (percent >= 1) with toFixed(1)", () => {
+    // probability = 0.05 → percent = 5.0 → hits `percent >= 1` branch
+    mockStore({ probability: 0.05 });
+    const { container } = renderWithProviders(<CardDetailsDropStats />);
+    expect(container.textContent).toContain("5.0%");
+  });
+
+  it("formats very small probability (percent < 0.01) with toExponential", () => {
+    // probability = 0.00005 → percent = 0.005 → hits toExponential branch
+    mockStore({ probability: 0.00005 });
+    const { container } = renderWithProviders(<CardDetailsDropStats />);
+    expect(container.textContent).toContain("5.00e-3%");
+  });
+
+  // ── YourLuckSection: no matching row → null ────────────────────────
+
+  it("does not render YourLuckSection when no matching forecast row for card", () => {
+    mockStore({ hasMatchingRow: false });
+    const { container } = renderWithProviders(<CardDetailsDropStats />);
+    expect(container.textContent).not.toContain("Your Luck");
+  });
+
+  // ── YourLuckSection: matching row + luck data ──────────────────────
+
+  it("renders YourLuckSection when getLuckComparison returns luck data", () => {
+    const cardName = "Test Card";
+    const probability = 0.05;
+
+    const cardDetailsState = {
+      personalAnalytics: {
+        cardName,
+        weight: 500,
+        totalLifetimeDrops: 10,
+        totalDecksOpenedAllSessions: 200,
+      },
+      getLuckComparison: vi.fn(() => ({
+        label: "Lucky!",
+        color: "success",
+        expectedDrops: 5,
+        actualDrops: 10,
+        luckRatio: 2.0,
+        hasSufficientData: true,
+      })),
+    };
+
+    const profitForecastState = {
+      totalWeight: 10000,
+      rows: [{ cardName, probability, evContribution: 1.5, chaosValue: 100 }],
+    };
+
+    vi.mocked(useCardDetails).mockReturnValue(cardDetailsState as any);
+    vi.mocked(useProfitForecast).mockReturnValue(profitForecastState as any);
+
+    const { container } = renderWithProviders(<CardDetailsDropStats />);
+    expect(container.textContent).toContain("Your Luck");
+    expect(container.textContent).toContain("Lucky!");
+    expect(container.textContent).toContain("5.00 drops");
+    expect(container.textContent).toContain("10 drops");
+  });
+
+  it("does not render YourLuckSection when getLuckComparison returns null", () => {
+    mockStore({ totalLifetimeDrops: 10 });
+    const { container } = renderWithProviders(<CardDetailsDropStats />);
+    // getLuckComparison is mocked to return null by default in mockStore
+    expect(container.textContent).not.toContain("Your Luck");
+  });
 });

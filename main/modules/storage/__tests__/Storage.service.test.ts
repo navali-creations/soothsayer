@@ -117,11 +117,17 @@ import {
 } from "~/main/modules/__test-utils__/create-test-db";
 // ─── Import test utilities and module under test ─────────────────────────────
 import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
+import { registerTrustedWebContents } from "~/main/utils/ipc-validation";
 
 import { StorageChannel } from "../Storage.channels";
 import { StorageService } from "../Storage.service";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Mock IPC event from the trusted main window */
+const TRUSTED_EVENT = { sender: { id: 1 } } as any;
+/** Mock IPC event from an untrusted webContents */
+const UNTRUSTED_EVENT = { sender: { id: 999 } } as any;
 
 // ─── Test Suite ──────────────────────────────────────────────────────────────
 
@@ -129,6 +135,9 @@ describe("StorageService", () => {
   let testDb: TestDatabase;
 
   beforeEach(() => {
+    // Register trusted webContents so assertTrustedSender passes for id=1
+    registerTrustedWebContents({ id: 1 } as any);
+
     testDb = createTestDatabase();
     mockGetDb.mockReturnValue(testDb.db);
     mockGetPath.mockReturnValue("/mock-user-data/soothsayer.db");
@@ -471,6 +480,82 @@ describe("StorageService", () => {
       // 1 session * AVG_SESSION_ROW_BYTES (200) + 3 events * AVG_SESSION_CARD_EVENT_ROW_BYTES (80) = 440
       expect(result[0].estimatedSizeBytes).toBe(440);
     });
+
+    it("should include cards table data in size estimate", async () => {
+      await seedLeague(testDb.kysely, {
+        name: "Cards League",
+        game: "poe1",
+      });
+
+      // Insert league-scoped cards directly
+      testDb.db
+        .prepare(
+          `INSERT INTO cards (game, scope, card_name, count, last_updated)
+           VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run("poe1", "Cards League", "The Doctor", 5, "2025-01-01");
+      testDb.db
+        .prepare(
+          `INSERT INTO cards (game, scope, card_name, count, last_updated)
+           VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run("poe1", "Cards League", "Rain of Chaos", 10, "2025-01-01");
+
+      // all-time scope should NOT be counted
+      testDb.db
+        .prepare(
+          `INSERT INTO cards (game, scope, card_name, count, last_updated)
+           VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run("poe1", "all-time", "The Doctor", 5, "2025-01-01");
+
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.GetLeagueUsage,
+      );
+      const result = await handler({});
+
+      expect(result).toHaveLength(1);
+      // 2 cards * AVG_CARD_ROW_BYTES (100) = 200
+      expect(result[0].estimatedSizeBytes).toBe(200);
+    });
+
+    it("should include community_upload_snapshot data in size estimate", async () => {
+      await seedLeague(testDb.kysely, {
+        name: "Upload League",
+        game: "poe1",
+      });
+
+      // Insert community upload snapshot rows
+      testDb.db
+        .prepare(
+          `INSERT INTO community_upload_snapshot (game, scope, card_name, count)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run("poe1", "Upload League", "The Doctor", 5);
+      testDb.db
+        .prepare(
+          `INSERT INTO community_upload_snapshot (game, scope, card_name, count)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run("poe1", "Upload League", "Rain of Chaos", 10);
+      testDb.db
+        .prepare(
+          `INSERT INTO community_upload_snapshot (game, scope, card_name, count)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run("poe1", "Upload League", "The Nurse", 3);
+
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.GetLeagueUsage,
+      );
+      const result = await handler({});
+
+      expect(result).toHaveLength(1);
+      // 3 rows * AVG_COMMUNITY_UPLOAD_SNAPSHOT_ROW_BYTES (80) = 240
+      expect(result[0].estimatedSizeBytes).toBe(240);
+    });
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -478,12 +563,31 @@ describe("StorageService", () => {
   // ═══════════════════════════════════════════════════════════════════════════
 
   describe("deleteLeagueData", () => {
+    it("should reject delete from untrusted sender", async () => {
+      const leagueId = await seedLeague(testDb.kysely, {
+        name: "Test League",
+        game: "poe1",
+      });
+
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.DeleteLeagueData,
+      );
+      const result = await handler(UNTRUSTED_EVENT, leagueId);
+
+      expect(result).toMatchObject({
+        success: false,
+        freedBytes: 0,
+      });
+      expect(result.error).toContain("Invalid input");
+    });
+
     it("should return error for empty league ID", async () => {
       const handler = getIpcHandler(
         mockIpcHandle,
         StorageChannel.DeleteLeagueData,
       );
-      const result = await handler({}, "");
+      const result = await handler(TRUSTED_EVENT, "");
 
       expect(result).toMatchObject({
         success: false,
@@ -497,7 +601,7 @@ describe("StorageService", () => {
         mockIpcHandle,
         StorageChannel.DeleteLeagueData,
       );
-      const result = await handler({}, null);
+      const result = await handler(TRUSTED_EVENT, null);
 
       expect(result).toMatchObject({
         success: false,
@@ -511,7 +615,7 @@ describe("StorageService", () => {
         mockIpcHandle,
         StorageChannel.DeleteLeagueData,
       );
-      const result = await handler({}, 12345);
+      const result = await handler(TRUSTED_EVENT, 12345);
 
       expect(result).toMatchObject({
         success: false,
@@ -535,7 +639,7 @@ describe("StorageService", () => {
         mockIpcHandle,
         StorageChannel.DeleteLeagueData,
       );
-      const result = await handler({}, leagueId);
+      const result = await handler(TRUSTED_EVENT, leagueId);
 
       expect(result).toMatchObject({
         success: false,
@@ -549,7 +653,7 @@ describe("StorageService", () => {
         mockIpcHandle,
         StorageChannel.DeleteLeagueData,
       );
-      const result = await handler({}, "non-existent-league-id");
+      const result = await handler(TRUSTED_EVENT, "non-existent-league-id");
 
       expect(result).toMatchObject({
         success: false,
@@ -568,7 +672,7 @@ describe("StorageService", () => {
         mockIpcHandle,
         StorageChannel.DeleteLeagueData,
       );
-      const result = await handler({}, leagueId);
+      const result = await handler(TRUSTED_EVENT, leagueId);
 
       expect(result.success).toBe(true);
       expect(result.freedBytes).toBeGreaterThanOrEqual(0);
@@ -660,11 +764,27 @@ describe("StorageService", () => {
         },
       ]);
 
+      // Insert league-scoped cards
+      testDb.db
+        .prepare(
+          `INSERT INTO cards (game, scope, card_name, count, last_updated)
+           VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run("poe1", "Full League", "The Doctor", 5, "2025-01-01");
+
+      // Insert community upload snapshot
+      testDb.db
+        .prepare(
+          `INSERT INTO community_upload_snapshot (game, scope, card_name, count)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run("poe1", "Full League", "The Doctor", 5);
+
       const handler = getIpcHandler(
         mockIpcHandle,
         StorageChannel.DeleteLeagueData,
       );
-      const result = await handler({}, leagueId);
+      const result = await handler(TRUSTED_EVENT, leagueId);
 
       expect(result.success).toBe(true);
 
@@ -726,6 +846,18 @@ describe("StorageService", () => {
         )
         .all("poe1", "Full League");
       expect(remainingCsvSnapshots).toHaveLength(0);
+
+      const remainingCards = testDb.db
+        .prepare("SELECT * FROM cards WHERE game = ? AND scope = ?")
+        .all("poe1", "Full League");
+      expect(remainingCards).toHaveLength(0);
+
+      const remainingUploadSnapshots = testDb.db
+        .prepare(
+          "SELECT * FROM community_upload_snapshot WHERE game = ? AND scope = ?",
+        )
+        .all("poe1", "Full League");
+      expect(remainingUploadSnapshots).toHaveLength(0);
     });
 
     it("should not delete data from other leagues during cascade delete", async () => {
@@ -795,11 +927,39 @@ describe("StorageService", () => {
         },
       ]);
 
+      // Seed cards for both leagues
+      testDb.db
+        .prepare(
+          `INSERT INTO cards (game, scope, card_name, count, last_updated)
+           VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run("poe1", "Delete Me", "The Doctor", 5, "2025-01-01");
+      testDb.db
+        .prepare(
+          `INSERT INTO cards (game, scope, card_name, count, last_updated)
+           VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run("poe1", "Keep Me", "Rain of Chaos", 10, "2025-01-01");
+
+      // Seed community_upload_snapshot for both leagues
+      testDb.db
+        .prepare(
+          `INSERT INTO community_upload_snapshot (game, scope, card_name, count)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run("poe1", "Delete Me", "The Doctor", 5);
+      testDb.db
+        .prepare(
+          `INSERT INTO community_upload_snapshot (game, scope, card_name, count)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run("poe1", "Keep Me", "Rain of Chaos", 10);
+
       const handler = getIpcHandler(
         mockIpcHandle,
         StorageChannel.DeleteLeagueData,
       );
-      await handler({}, leagueToDelete);
+      await handler(TRUSTED_EVENT, leagueToDelete);
 
       // Deleted league's data should be gone
       const deletedSessions = testDb.db
@@ -820,6 +980,18 @@ describe("StorageService", () => {
         )
         .all("poe1", "Delete Me");
       expect(deletedCsvSnapshots).toHaveLength(0);
+
+      const deletedCards = testDb.db
+        .prepare("SELECT * FROM cards WHERE game = ? AND scope = ?")
+        .all("poe1", "Delete Me");
+      expect(deletedCards).toHaveLength(0);
+
+      const deletedUploadSnapshots = testDb.db
+        .prepare(
+          "SELECT * FROM community_upload_snapshot WHERE game = ? AND scope = ?",
+        )
+        .all("poe1", "Delete Me");
+      expect(deletedUploadSnapshots).toHaveLength(0);
 
       // Kept league's data should still exist
       const keptSessions = testDb.db
@@ -850,6 +1022,18 @@ describe("StorageService", () => {
         )
         .all("poe1", "Keep Me");
       expect(keptCsvSnapshots).toHaveLength(1);
+
+      const keptCardsData = testDb.db
+        .prepare("SELECT * FROM cards WHERE game = ? AND scope = ?")
+        .all("poe1", "Keep Me");
+      expect(keptCardsData).toHaveLength(1);
+
+      const keptUploadSnapshots = testDb.db
+        .prepare(
+          "SELECT * FROM community_upload_snapshot WHERE game = ? AND scope = ?",
+        )
+        .all("poe1", "Keep Me");
+      expect(keptUploadSnapshots).toHaveLength(1);
     });
 
     it("should delete csv_export_snapshots for the league scope only", async () => {
@@ -889,7 +1073,7 @@ describe("StorageService", () => {
         mockIpcHandle,
         StorageChannel.DeleteLeagueData,
       );
-      const result = await handler({}, leagueId);
+      const result = await handler(TRUSTED_EVENT, leagueId);
 
       expect(result.success).toBe(true);
 
@@ -944,7 +1128,7 @@ describe("StorageService", () => {
         mockIpcHandle,
         StorageChannel.DeleteLeagueData,
       );
-      const result = await handler({}, poe1League);
+      const result = await handler(TRUSTED_EVENT, poe1League);
 
       expect(result.success).toBe(true);
 
@@ -993,7 +1177,7 @@ describe("StorageService", () => {
         mockIpcHandle,
         StorageChannel.DeleteLeagueData,
       );
-      const result = await handler({}, leagueId);
+      const result = await handler(TRUSTED_EVENT, leagueId);
 
       expect(result.success).toBe(true);
 
@@ -1029,7 +1213,7 @@ describe("StorageService", () => {
         mockIpcHandle,
         StorageChannel.DeleteLeagueData,
       );
-      const result = await handler({}, leagueId);
+      const result = await handler(TRUSTED_EVENT, leagueId);
 
       expect(result.success).toBe(true);
     });
@@ -1053,7 +1237,7 @@ describe("StorageService", () => {
         mockIpcHandle,
         StorageChannel.DeleteLeagueData,
       );
-      const result = await handler({}, leagueId);
+      const result = await handler(TRUSTED_EVENT, leagueId);
 
       expect(result.success).toBe(false);
       expect(result.freedBytes).toBe(0);
@@ -1099,7 +1283,7 @@ describe("StorageService", () => {
         mockIpcHandle,
         StorageChannel.DeleteLeagueData,
       );
-      const result = await handler({}, leagueId);
+      const result = await handler(TRUSTED_EVENT, leagueId);
 
       expect(result.success).toBe(true);
 
@@ -1999,9 +2183,10 @@ describe("StorageService", () => {
         mockIpcHandle,
         StorageChannel.DeleteLeagueData,
       );
+      // Note: using TRUSTED_EVENT for the delete call below
 
       // Attempt to delete while session is active should fail
-      const failResult = await deleteHandler({}, leagueId);
+      const failResult = await deleteHandler(TRUSTED_EVENT, leagueId);
       expect(failResult.success).toBe(false);
       expect(failResult.error).toContain("active session");
 
@@ -2011,7 +2196,7 @@ describe("StorageService", () => {
         .run(sessionId);
 
       // Now deletion should succeed
-      const successResult = await deleteHandler({}, leagueId);
+      const successResult = await deleteHandler(TRUSTED_EVENT, leagueId);
       expect(successResult.success).toBe(true);
     });
 
@@ -2040,7 +2225,7 @@ describe("StorageService", () => {
       expect(beforeUsage).toHaveLength(1);
 
       // Delete it
-      await deleteHandler({}, leagueId);
+      await deleteHandler(TRUSTED_EVENT, leagueId);
 
       // Should no longer appear
       const afterUsage = await usageHandler({});
@@ -2074,7 +2259,7 @@ describe("StorageService", () => {
         mockIpcHandle,
         StorageChannel.DeleteLeagueData,
       );
-      const result = await deleteHandler({}, poe1League);
+      const result = await deleteHandler(TRUSTED_EVENT, poe1League);
       expect(result.success).toBe(true);
 
       // poe2 league should still exist
@@ -2127,7 +2312,7 @@ describe("StorageService", () => {
         mockIpcHandle,
         StorageChannel.DeleteLeagueData,
       );
-      const result = await handler({}, leagueId);
+      const result = await handler(TRUSTED_EVENT, leagueId);
       expect(result.success).toBe(true);
 
       // All snapshot prices should be gone

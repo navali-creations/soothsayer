@@ -254,6 +254,34 @@ describe("DeleteLeagueModal", () => {
 
   // ── handleDialogClose ──────────────────────────────────────────────────
 
+  // ── handleConfirm when snapshot is null (L38) ──────────────────────────
+
+  it("does not call onConfirm when snapshot is null (no league provided)", async () => {
+    const onConfirm = vi.fn();
+
+    renderWithProviders(
+      <DeleteLeagueModal
+        league={null}
+        onConfirm={onConfirm}
+        onClose={vi.fn()}
+      />,
+    );
+
+    // Find the Delete button and click it
+    const buttons = screen.getAllByRole("button", { hidden: true });
+    const deleteBtn = buttons.find((btn) =>
+      btn.textContent?.includes("Delete League Data"),
+    );
+    expect(deleteBtn).toBeDefined();
+
+    await act(async () => {
+      deleteBtn!.click();
+    });
+
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(HTMLDialogElement.prototype.close).not.toHaveBeenCalled();
+  });
+
   it("calls onClose immediately and clears snapshot after 200ms when dialog close event fires", () => {
     vi.useFakeTimers();
 

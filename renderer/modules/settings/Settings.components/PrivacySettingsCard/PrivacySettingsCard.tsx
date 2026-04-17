@@ -1,13 +1,32 @@
-import { FiAlertTriangle, FiShield } from "react-icons/fi";
+import { useEffect } from "react";
+import { FiAlertTriangle, FiInfo, FiShield } from "react-icons/fi";
 
 import { SettingsKey } from "~/main/modules/settings-store/SettingsStore.keys";
-import { Link } from "~/renderer/components";
+import { Button, Link } from "~/renderer/components";
 import { trackEvent } from "~/renderer/modules/umami";
-import { useSettings } from "~/renderer/store";
+import { useCommunityUpload, useSettings } from "~/renderer/store";
 
 const PrivacySettingsCard = () => {
-  const { telemetryCrashReporting, telemetryUsageAnalytics, updateSetting } =
-    useSettings();
+  const {
+    telemetryCrashReporting,
+    telemetryUsageAnalytics,
+    communityUploadsEnabled,
+    updateSetting,
+  } = useSettings();
+
+  const {
+    gggAuthenticated,
+    gggUsername,
+    isAuthenticating,
+    authError,
+    authenticate,
+    logout,
+    fetchStatus,
+  } = useCommunityUpload();
+
+  useEffect(() => {
+    fetchStatus();
+  }, [fetchStatus]);
 
   const handleCrashReportingToggle = async (enabled: boolean) => {
     await updateSetting(SettingsKey.TelemetryCrashReporting, enabled);
@@ -24,6 +43,14 @@ const PrivacySettingsCard = () => {
       value: enabled,
     });
     await updateSetting(SettingsKey.TelemetryUsageAnalytics, enabled);
+  };
+
+  const handleCommunityUploadsToggle = async (enabled: boolean) => {
+    await updateSetting(SettingsKey.CommunityUploadsEnabled, enabled);
+    trackEvent("settings-change", {
+      setting: "communityUploadsEnabled",
+      value: enabled,
+    });
   };
 
   return (
@@ -76,6 +103,66 @@ const PrivacySettingsCard = () => {
               />
             </label>
           </div>
+
+          {/* Community Drop Rates */}
+          <div className="form-control">
+            <label className="label cursor-pointer grid grid-cols-[1fr_33px] gap-4">
+              <div style={{ textWrap: "auto" }}>
+                <span className="label-text font-medium">
+                  Community Drop Rates
+                </span>
+                <p className="text-xs text-base-content/50 mt-0.5">
+                  Share your stacked deck data anonymously to help build
+                  community drop rate statistics.
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                className="toggle toggle-sm toggle-primary"
+                checked={communityUploadsEnabled}
+                onChange={(e) => handleCommunityUploadsToggle(e.target.checked)}
+              />
+            </label>
+          </div>
+
+          {/* GGG Account Link/Unlink — only shown when community uploads enabled */}
+          {communityUploadsEnabled && (
+            <div className="ml-1">
+              {gggAuthenticated ? (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-success font-medium">
+                    ✓ Verified as <strong>{gggUsername}</strong>
+                  </span>
+                  <Button variant="ghost" size="xs" onClick={logout}>
+                    Unlink
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-sm text-base-content/60">
+                      <FiInfo className="shrink-0 w-4 h-4" />
+                      <span>Uploading anonymously</span>
+                    </div>
+                    <Button
+                      variant="primary"
+                      size="xs"
+                      onClick={authenticate}
+                      disabled={isAuthenticating}
+                      loading={isAuthenticating}
+                    >
+                      Link GGG Account
+                    </Button>
+                  </div>
+                  {authError && (
+                    <div className="alert alert-soft alert-error text-xs py-1.5">
+                      {authError}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Restart notice */}
           <div className="alert alert-soft alert-warning text-sm py-2">

@@ -158,4 +158,35 @@ describe("OnboardingButton", () => {
     const button = screen.getByRole("button");
     expect(button).toHaveAttribute("title", "Reset Onboarding Tour");
   });
+
+  // ── Error handling ─────────────────────────────────────────────────────
+
+  it("logs error and re-enables button when resetAll rejects", async () => {
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const error = new Error("reset failed");
+    mockResetAll.mockRejectedValueOnce(error);
+
+    const { user } = renderWithProviders(<OnboardingButton />);
+
+    const button = screen.getByRole("button");
+    await user.click(button);
+
+    await waitFor(() => {
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "Failed to reset onboarding:",
+        error,
+      );
+    });
+
+    // Button should be re-enabled (isResetting set back to false)
+    await waitFor(() => {
+      expect(button).not.toBeDisabled();
+    });
+
+    // reload should NOT have been called
+    expect(reloadMock).not.toHaveBeenCalled();
+
+    consoleSpy.mockRestore();
+  });
 });

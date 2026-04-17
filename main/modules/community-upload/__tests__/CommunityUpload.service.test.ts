@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createDatabaseServiceMock,
   createElectronMock,
+  createGggAuthServiceMock,
   createIpcValidationMock,
   createSettingsStoreMock,
   createSupabaseClientMock,
@@ -18,12 +19,14 @@ const {
   mockSettingsSet,
   mockIsConfigured,
   mockCallEdgeFunction,
+  mockAssertTrustedSender,
   mockAssertBoolean,
   mockAssertGameType,
   mockAssertBoundedString,
   mockHandleValidationError,
   MockIpcValidationError,
   mockSentryCaptureException,
+  mockGetAccessToken,
 } = vi.hoisted(() => {
   class _MockIpcValidationError extends Error {
     detail: string;
@@ -41,6 +44,7 @@ const {
     mockSettingsSet: vi.fn(),
     mockIsConfigured: vi.fn(),
     mockCallEdgeFunction: vi.fn(),
+    mockAssertTrustedSender: vi.fn(),
     mockAssertBoolean: vi.fn(),
     mockAssertGameType: vi.fn(),
     mockAssertBoundedString: vi.fn(),
@@ -49,6 +53,7 @@ const {
     }),
     MockIpcValidationError: _MockIpcValidationError,
     mockSentryCaptureException: vi.fn(),
+    mockGetAccessToken: vi.fn(),
   };
 });
 
@@ -74,8 +79,13 @@ vi.mock("~/main/modules/supabase", () =>
   }),
 );
 
+vi.mock("~/main/modules/ggg-auth", () =>
+  createGggAuthServiceMock({ mockGetAccessToken }),
+);
+
 vi.mock("~/main/utils/ipc-validation", () =>
   createIpcValidationMock({
+    mockAssertTrustedSender,
     mockAssertBoolean,
     mockAssertGameType,
     mockAssertBoundedString,
@@ -183,7 +193,9 @@ describe("CommunityUploadService", () => {
     });
 
     it("should return enabled status, device ID, and last upload time", async () => {
-      // Set up Kysely to return different results for different queries
+      // isEnabled() only checks settingsStore — no Kysely call.
+      // getDeviceId() queries for device_id (call #1),
+      // then last upload time (call #2).
       const deviceIdChain = createKyselyChain({ value: "test-device-uuid" });
       const lastUploadChain = createKyselyChain({
         value: "2025-01-15T10:00:00Z",
@@ -193,8 +205,8 @@ describe("CommunityUploadService", () => {
       const kyselyMock = {
         selectFrom: vi.fn(() => {
           selectFromCallCount++;
-          // First call: device_id, second: last upload, third: device_id again etc.
-          if (selectFromCallCount % 2 === 1) return deviceIdChain;
+          // 1st call: device_id, 2nd+: last upload
+          if (selectFromCallCount === 1) return deviceIdChain;
           return lastUploadChain;
         }),
         insertInto: vi.fn().mockReturnValue(createKyselyChain()),
@@ -225,7 +237,8 @@ describe("CommunityUploadService", () => {
       const kyselyMock = {
         selectFrom: vi.fn(() => {
           selectFromCallCount++;
-          if (selectFromCallCount % 2 === 1) return deviceIdChain;
+          // 1st call: device_id, 2nd+: last upload
+          if (selectFromCallCount === 1) return deviceIdChain;
           return noResultChain;
         }),
         insertInto: vi.fn().mockReturnValue(createKyselyChain()),
@@ -317,6 +330,38 @@ describe("CommunityUploadService", () => {
       expect(mockHandleValidationError).toHaveBeenCalled();
       expect(result).toEqual({ success: false, error: "Invalid input" });
     });
+
+    it("should reject set-enabled from untrusted sender", async () => {
+      const kyselyMock = createKyselyChain();
+      mockGetKysely.mockReturnValue(kyselyMock);
+
+      mockAssertTrustedSender.mockImplementation(() => {
+        throw new MockIpcValidationError(
+          CommunityUploadChannel.SetUploadsEnabled,
+          "[Security] IPC call from untrusted webContents (id=999)",
+        );
+      });
+      mockHandleValidationError.mockReturnValue({
+        success: false,
+        error:
+          "Invalid input: [Security] IPC call from untrusted webContents (id=999)",
+      });
+
+      service = CommunityUploadService.getInstance();
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        CommunityUploadChannel.SetUploadsEnabled,
+      );
+
+      const result = await handler({ sender: { id: 999 } }, true);
+
+      expect(mockAssertTrustedSender).toHaveBeenCalled();
+      expect(mockSettingsSet).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        success: false,
+        error: expect.stringContaining("untrusted webContents"),
+      });
+    });
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -334,7 +379,8 @@ describe("CommunityUploadService", () => {
       const kyselyMock = {
         selectFrom: vi.fn(() => {
           selectFromCallCount++;
-          if (selectFromCallCount % 2 === 1) return countChain;
+          // 1st: upload count, 2nd: last upload time
+          if (selectFromCallCount === 1) return countChain;
           return lastUploadChain;
         }),
         insertInto: vi.fn().mockReturnValue(createKyselyChain()),
@@ -416,20 +462,25 @@ describe("CommunityUploadService", () => {
 
       const deviceIdChain = createKyselyChain({ value: deviceId });
       const cardsChain = createKyselyChain(cards);
+      // Empty snapshot so all cards are treated as new (delta logic)
+      const snapshotChain = createKyselyChain([]);
       const insertChain = createKyselyChain();
 
       let selectFromCallCount = 0;
       const kyselyMock = {
         selectFrom: vi.fn(() => {
           selectFromCallCount++;
-          // First selectFrom call = device_id lookup (from getDeviceId)
+          // 1st call: device_id lookup (from getDeviceId)
           if (selectFromCallCount === 1) return deviceIdChain;
-          // Second selectFrom call = cards query
-          return cardsChain;
+          // 2nd call: cards query
+          if (selectFromCallCount === 2) return cardsChain;
+          // 3rd call: snapshot query
+          return snapshotChain;
         }),
         insertInto: vi.fn().mockReturnValue(insertChain),
       };
       mockGetKysely.mockReturnValue(kyselyMock);
+      mockGetAccessToken.mockResolvedValue(null);
       return kyselyMock;
     }
 
@@ -450,7 +501,9 @@ describe("CommunityUploadService", () => {
             { card_name: "The Doctor", count: 3 },
             { card_name: "House of Mirrors", count: 1 },
           ],
+          is_packaged: false,
         },
+        {},
       );
     });
 
@@ -490,13 +543,14 @@ describe("CommunityUploadService", () => {
       service = CommunityUploadService.getInstance();
       await service.uploadOnSessionEnd("poe2", "Settlers");
 
-      // insertInto is called for storing last upload time and upload count
+      // insertInto is called for snapshot persistence, last upload time, and upload count
       expect(kyselyMock.insertInto).toHaveBeenCalled();
       const insertCalls = kyselyMock.insertInto.mock.calls;
-      // All inserts go to app_metadata
-      for (const call of insertCalls) {
-        expect(call[0]).toBe("app_metadata");
-      }
+      const metadataInserts = insertCalls.filter(
+        (call: string[]) => call[0] === "app_metadata",
+      );
+      // At least the last_upload_at and upload_count inserts go to app_metadata
+      expect(metadataInserts.length).toBeGreaterThanOrEqual(2);
     });
 
     it("should not throw on edge function failure (fire-and-forget)", async () => {
@@ -556,6 +610,7 @@ describe("CommunityUploadService", () => {
           game: "poe1",
           league_name: "Standard",
         }),
+        {},
       );
     });
   });
@@ -636,6 +691,475 @@ describe("CommunityUploadService", () => {
       await expect(service.getDeviceId()).rejects.toThrow(
         "device_id not found in app_metadata",
       );
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // linkGggAccount
+  // ─────────────────────────────────────────────────────────────────────────
+
+  describe("linkGggAccount", () => {
+    it("should skip when Supabase is not configured", async () => {
+      const kyselyMock = createKyselyChain({ value: "device-uuid" });
+      mockGetKysely.mockReturnValue(kyselyMock);
+      mockIsConfigured.mockReturnValue(false);
+
+      service = CommunityUploadService.getInstance();
+      await service.linkGggAccount();
+
+      expect(mockCallEdgeFunction).not.toHaveBeenCalled();
+    });
+
+    it("should skip when uploads are disabled", async () => {
+      const kyselyMock = createKyselyChain({ value: "device-uuid" });
+      mockGetKysely.mockReturnValue(kyselyMock);
+      mockSettingsGet.mockResolvedValue(false);
+
+      service = CommunityUploadService.getInstance();
+      await service.linkGggAccount();
+
+      expect(mockCallEdgeFunction).not.toHaveBeenCalled();
+    });
+
+    it("should skip when getAccessToken throws", async () => {
+      const kyselyMock = createKyselyChain({ value: "device-uuid" });
+      mockGetKysely.mockReturnValue(kyselyMock);
+      mockGetAccessToken.mockRejectedValue(new Error("Auth failure"));
+
+      service = CommunityUploadService.getInstance();
+      await service.linkGggAccount();
+
+      expect(mockCallEdgeFunction).not.toHaveBeenCalled();
+    });
+
+    it("should skip when no GGG access token is available", async () => {
+      const kyselyMock = createKyselyChain({ value: "device-uuid" });
+      mockGetKysely.mockReturnValue(kyselyMock);
+      mockGetAccessToken.mockResolvedValue(null);
+
+      service = CommunityUploadService.getInstance();
+      await service.linkGggAccount();
+
+      expect(mockCallEdgeFunction).not.toHaveBeenCalled();
+    });
+
+    it("should call edge function with correct link-ggg payload", async () => {
+      const kyselyMock = createKyselyChain({ value: "device-uuid" });
+      mockGetKysely.mockReturnValue(kyselyMock);
+      mockGetAccessToken.mockResolvedValue("ggg-token-abc");
+      mockCallEdgeFunction.mockResolvedValue({
+        success: true,
+        ggg_username: "player1",
+        ggg_uuid: "ggg-uuid-123",
+        updated_records: 3,
+      });
+
+      service = CommunityUploadService.getInstance();
+      await service.linkGggAccount();
+
+      expect(mockCallEdgeFunction).toHaveBeenCalledWith(
+        "upload-community-data",
+        {
+          action: "link-ggg",
+          device_id: "device-uuid",
+          is_packaged: false,
+        },
+        { "X-GGG-Token": "ggg-token-abc" },
+      );
+    });
+
+    it("should not throw on edge function failure (fire-and-forget)", async () => {
+      const kyselyMock = createKyselyChain({ value: "device-uuid" });
+      mockGetKysely.mockReturnValue(kyselyMock);
+      mockGetAccessToken.mockResolvedValue("ggg-token-abc");
+      mockCallEdgeFunction.mockRejectedValue(new Error("Edge fn 500"));
+
+      service = CommunityUploadService.getInstance();
+
+      await expect(service.linkGggAccount()).resolves.toBeUndefined();
+    });
+
+    it("should report edge function errors to Sentry", async () => {
+      const kyselyMock = createKyselyChain({ value: "device-uuid" });
+      mockGetKysely.mockReturnValue(kyselyMock);
+      mockGetAccessToken.mockResolvedValue("ggg-token-abc");
+      const edgeError = new Error("Edge fn 500");
+      mockCallEdgeFunction.mockRejectedValue(edgeError);
+
+      service = CommunityUploadService.getInstance();
+      await service.linkGggAccount();
+
+      expect(mockSentryCaptureException).toHaveBeenCalledWith(
+        edgeError,
+        expect.objectContaining({
+          tags: {
+            module: "community-upload",
+            operation: "link-ggg",
+          },
+        }),
+      );
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // uploadOnSessionEnd — delta logic
+  // ─────────────────────────────────────────────────────────────────────────
+
+  describe("uploadOnSessionEnd — delta logic", () => {
+    const MOCK_DEVICE_ID = "aaaaaaaa-bbbb-4ccc-9ddd-eeeeeeeeeeee";
+    const MOCK_EDGE_RESPONSE = {
+      success: true,
+      upload_id: "upload-uuid-123",
+      total_cards: 4,
+      unique_cards: 2,
+      upload_count: 1,
+      is_verified: false,
+    };
+
+    function setupKyselyForDelta(options: {
+      cards: { card_name: string; count: number }[];
+      snapshot: { card_name: string; count: number }[];
+      deviceId?: string;
+    }) {
+      const deviceId = options.deviceId ?? MOCK_DEVICE_ID;
+
+      const deviceIdChain = createKyselyChain({ value: deviceId });
+      const cardsChain = createKyselyChain(options.cards);
+      const snapshotChain = createKyselyChain(options.snapshot);
+      const insertChain = createKyselyChain();
+
+      let selectFromCallCount = 0;
+      const kyselyMock = {
+        selectFrom: vi.fn(() => {
+          selectFromCallCount++;
+          // 1st call: device_id (getDeviceId)
+          if (selectFromCallCount === 1) return deviceIdChain;
+          // 2nd call: cards query
+          if (selectFromCallCount === 2) return cardsChain;
+          // 3rd call: snapshot query
+          return snapshotChain;
+        }),
+        insertInto: vi.fn().mockReturnValue(insertChain),
+      };
+      mockGetKysely.mockReturnValue(kyselyMock);
+      return kyselyMock;
+    }
+
+    it("should skip upload when all cards match snapshot (no changes)", async () => {
+      setupKyselyForDelta({
+        cards: [{ card_name: "The Doctor", count: 5 }],
+        snapshot: [{ card_name: "The Doctor", count: 5 }],
+      });
+      mockGetAccessToken.mockResolvedValue(null);
+      mockCallEdgeFunction.mockResolvedValue(MOCK_EDGE_RESPONSE);
+
+      service = CommunityUploadService.getInstance();
+      await service.uploadOnSessionEnd("poe2", "Settlers");
+
+      expect(mockCallEdgeFunction).not.toHaveBeenCalled();
+    });
+
+    it("should only upload cards with increased counts", async () => {
+      setupKyselyForDelta({
+        cards: [
+          { card_name: "The Doctor", count: 10 },
+          { card_name: "House of Mirrors", count: 5 },
+        ],
+        snapshot: [
+          { card_name: "The Doctor", count: 10 },
+          { card_name: "House of Mirrors", count: 3 },
+        ],
+      });
+      mockGetAccessToken.mockResolvedValue(null);
+      mockCallEdgeFunction.mockResolvedValue(MOCK_EDGE_RESPONSE);
+
+      service = CommunityUploadService.getInstance();
+      await service.uploadOnSessionEnd("poe2", "Settlers");
+
+      expect(mockCallEdgeFunction).toHaveBeenCalledWith(
+        "upload-community-data",
+        expect.objectContaining({
+          cards: [{ card_name: "House of Mirrors", count: 5 }],
+        }),
+        {},
+      );
+    });
+
+    it("should upload all cards when no snapshot exists", async () => {
+      setupKyselyForDelta({
+        cards: [
+          { card_name: "The Doctor", count: 3 },
+          { card_name: "House of Mirrors", count: 1 },
+        ],
+        snapshot: [],
+      });
+      mockGetAccessToken.mockResolvedValue(null);
+      mockCallEdgeFunction.mockResolvedValue(MOCK_EDGE_RESPONSE);
+
+      service = CommunityUploadService.getInstance();
+      await service.uploadOnSessionEnd("poe2", "Settlers");
+
+      expect(mockCallEdgeFunction).toHaveBeenCalledWith(
+        "upload-community-data",
+        expect.objectContaining({
+          cards: [
+            { card_name: "The Doctor", count: 3 },
+            { card_name: "House of Mirrors", count: 1 },
+          ],
+        }),
+        {},
+      );
+    });
+
+    it("should include new cards not in snapshot", async () => {
+      setupKyselyForDelta({
+        cards: [
+          { card_name: "The Doctor", count: 3 },
+          { card_name: "Rain of Chaos", count: 2 },
+        ],
+        snapshot: [{ card_name: "The Doctor", count: 3 }],
+      });
+      mockGetAccessToken.mockResolvedValue(null);
+      mockCallEdgeFunction.mockResolvedValue(MOCK_EDGE_RESPONSE);
+
+      service = CommunityUploadService.getInstance();
+      await service.uploadOnSessionEnd("poe2", "Settlers");
+
+      expect(mockCallEdgeFunction).toHaveBeenCalledWith(
+        "upload-community-data",
+        expect.objectContaining({
+          cards: [{ card_name: "Rain of Chaos", count: 2 }],
+        }),
+        {},
+      );
+    });
+
+    it("should exclude cards with decreased counts", async () => {
+      setupKyselyForDelta({
+        cards: [
+          { card_name: "The Doctor", count: 2 },
+          { card_name: "House of Mirrors", count: 5 },
+        ],
+        snapshot: [
+          { card_name: "The Doctor", count: 5 },
+          { card_name: "House of Mirrors", count: 3 },
+        ],
+      });
+      mockGetAccessToken.mockResolvedValue(null);
+      mockCallEdgeFunction.mockResolvedValue(MOCK_EDGE_RESPONSE);
+
+      service = CommunityUploadService.getInstance();
+      await service.uploadOnSessionEnd("poe2", "Settlers");
+
+      // The Doctor decreased (2 < 5) so it should be excluded
+      // House of Mirrors increased (5 > 3) so only it should be sent
+      expect(mockCallEdgeFunction).toHaveBeenCalledWith(
+        "upload-community-data",
+        expect.objectContaining({
+          cards: [{ card_name: "House of Mirrors", count: 5 }],
+        }),
+        {},
+      );
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // uploadOnSessionEnd — verified upload
+  // ─────────────────────────────────────────────────────────────────────────
+
+  describe("uploadOnSessionEnd — verified upload", () => {
+    const MOCK_DEVICE_ID = "aaaaaaaa-bbbb-4ccc-9ddd-eeeeeeeeeeee";
+    const MOCK_CARDS = [
+      { card_name: "The Doctor", count: 3 },
+      { card_name: "House of Mirrors", count: 1 },
+    ];
+    const MOCK_EDGE_RESPONSE = {
+      success: true,
+      upload_id: "upload-uuid-123",
+      total_cards: 4,
+      unique_cards: 2,
+      upload_count: 1,
+      is_verified: true,
+    };
+
+    function setupKyselyForVerifiedUpload(options?: {
+      cards?: { card_name: string; count: number }[];
+      deviceId?: string;
+    }) {
+      const cards = options?.cards ?? MOCK_CARDS;
+      const deviceId = options?.deviceId ?? MOCK_DEVICE_ID;
+
+      const deviceIdChain = createKyselyChain({ value: deviceId });
+      const cardsChain = createKyselyChain(cards);
+      // Empty snapshot so all cards are treated as changed
+      const snapshotChain = createKyselyChain([]);
+      const insertChain = createKyselyChain();
+
+      let selectFromCallCount = 0;
+      const kyselyMock = {
+        selectFrom: vi.fn(() => {
+          selectFromCallCount++;
+          // 1st call: device_id lookup (from getDeviceId)
+          if (selectFromCallCount === 1) return deviceIdChain;
+          // 2nd call: cards query
+          if (selectFromCallCount === 2) return cardsChain;
+          // 3rd call: snapshot query
+          return snapshotChain;
+        }),
+        insertInto: vi.fn().mockReturnValue(insertChain),
+      };
+      mockGetKysely.mockReturnValue(kyselyMock);
+      return kyselyMock;
+    }
+
+    it("should include X-GGG-Token header when available", async () => {
+      setupKyselyForVerifiedUpload();
+      mockGetAccessToken.mockResolvedValue("ggg-verified-token");
+      mockCallEdgeFunction.mockResolvedValue(MOCK_EDGE_RESPONSE);
+
+      service = CommunityUploadService.getInstance();
+      await service.uploadOnSessionEnd("poe2", "Settlers");
+
+      expect(mockCallEdgeFunction).toHaveBeenCalledWith(
+        "upload-community-data",
+        expect.objectContaining({
+          device_id: MOCK_DEVICE_ID,
+          cards: [
+            { card_name: "The Doctor", count: 3 },
+            { card_name: "House of Mirrors", count: 1 },
+          ],
+        }),
+        { "X-GGG-Token": "ggg-verified-token" },
+      );
+      // Body should NOT contain ggg_access_token
+      expect(mockCallEdgeFunction).toHaveBeenCalledWith(
+        "upload-community-data",
+        expect.not.objectContaining({
+          ggg_access_token: expect.anything(),
+        }),
+        expect.anything(),
+      );
+    });
+
+    it("should upload anonymously when getAccessToken fails", async () => {
+      setupKyselyForVerifiedUpload();
+      mockGetAccessToken.mockRejectedValue(new Error("Token expired"));
+      mockCallEdgeFunction.mockResolvedValue({
+        ...MOCK_EDGE_RESPONSE,
+        is_verified: false,
+      });
+
+      service = CommunityUploadService.getInstance();
+      await service.uploadOnSessionEnd("poe2", "Settlers");
+
+      // Extra headers should be empty (no X-GGG-Token)
+      expect(mockCallEdgeFunction).toHaveBeenCalledWith(
+        "upload-community-data",
+        expect.objectContaining({
+          device_id: MOCK_DEVICE_ID,
+          cards: expect.any(Array),
+        }),
+        {},
+      );
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // uploadOnSessionEnd — snapshot persistence
+  // ─────────────────────────────────────────────────────────────────────────
+
+  describe("uploadOnSessionEnd — snapshot persistence", () => {
+    const MOCK_DEVICE_ID = "aaaaaaaa-bbbb-4ccc-9ddd-eeeeeeeeeeee";
+    const MOCK_EDGE_RESPONSE = {
+      success: true,
+      upload_id: "upload-uuid-123",
+      total_cards: 4,
+      unique_cards: 2,
+      upload_count: 3,
+      is_verified: false,
+    };
+
+    function setupKyselyForPersistence(options: {
+      cards: { card_name: string; count: number }[];
+      snapshot?: { card_name: string; count: number }[];
+    }) {
+      const deviceIdChain = createKyselyChain({ value: MOCK_DEVICE_ID });
+      const cardsChain = createKyselyChain(options.cards);
+      const snapshotChain = createKyselyChain(options.snapshot ?? []);
+      const insertChain = createKyselyChain();
+
+      let selectFromCallCount = 0;
+      const kyselyMock = {
+        selectFrom: vi.fn(() => {
+          selectFromCallCount++;
+          // 1st call: device_id (getDeviceId)
+          if (selectFromCallCount === 1) return deviceIdChain;
+          // 2nd call: cards query
+          if (selectFromCallCount === 2) return cardsChain;
+          // 3rd call: snapshot query
+          return snapshotChain;
+        }),
+        insertInto: vi.fn().mockReturnValue(insertChain),
+      };
+      mockGetKysely.mockReturnValue(kyselyMock);
+      return kyselyMock;
+    }
+
+    it("should persist snapshot after successful upload", async () => {
+      const kyselyMock = setupKyselyForPersistence({
+        cards: [
+          { card_name: "The Doctor", count: 3 },
+          { card_name: "House of Mirrors", count: 1 },
+        ],
+      });
+      mockGetAccessToken.mockResolvedValue(null);
+      mockCallEdgeFunction.mockResolvedValue(MOCK_EDGE_RESPONSE);
+
+      service = CommunityUploadService.getInstance();
+      await service.uploadOnSessionEnd("poe2", "Settlers");
+
+      // insertInto calls: snapshot for each changed card + last_upload_at + upload_count
+      const insertCalls = kyselyMock.insertInto.mock.calls;
+      const snapshotInserts = insertCalls.filter(
+        (call: string[]) => call[0] === "community_upload_snapshot",
+      );
+      expect(snapshotInserts).toHaveLength(2);
+    });
+
+    it("should persist last upload time after successful upload", async () => {
+      const kyselyMock = setupKyselyForPersistence({
+        cards: [{ card_name: "The Doctor", count: 3 }],
+      });
+      mockGetAccessToken.mockResolvedValue(null);
+      mockCallEdgeFunction.mockResolvedValue(MOCK_EDGE_RESPONSE);
+
+      service = CommunityUploadService.getInstance();
+      await service.uploadOnSessionEnd("poe2", "Settlers");
+
+      const insertCalls = kyselyMock.insertInto.mock.calls;
+      const metadataInserts = insertCalls.filter(
+        (call: string[]) => call[0] === "app_metadata",
+      );
+      // At least one app_metadata insert for community_last_upload_at
+      expect(metadataInserts.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("should persist upload count after successful upload", async () => {
+      const kyselyMock = setupKyselyForPersistence({
+        cards: [{ card_name: "The Doctor", count: 3 }],
+      });
+      mockGetAccessToken.mockResolvedValue(null);
+      mockCallEdgeFunction.mockResolvedValue(MOCK_EDGE_RESPONSE);
+
+      service = CommunityUploadService.getInstance();
+      await service.uploadOnSessionEnd("poe2", "Settlers");
+
+      const insertCalls = kyselyMock.insertInto.mock.calls;
+      const metadataInserts = insertCalls.filter(
+        (call: string[]) => call[0] === "app_metadata",
+      );
+      // Two app_metadata inserts: community_last_upload_at + upload count
+      expect(metadataInserts).toHaveLength(2);
     });
   });
 });

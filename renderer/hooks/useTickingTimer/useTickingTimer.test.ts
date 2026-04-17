@@ -161,6 +161,27 @@ describe("useTickingTimer", () => {
     clearIntervalSpy.mockRestore();
   });
 
+  it("clears interval when enabled changes from true to false", () => {
+    const clearIntervalSpy = vi.spyOn(globalThis, "clearInterval");
+    const now = Date.now();
+    const referenceTime = new Date(now - 10_000).toISOString();
+
+    const { rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) =>
+        useTickingTimer({ referenceTime, direction: "up", enabled }),
+      { initialProps: { enabled: true } },
+    );
+
+    // An interval should be running now
+    clearIntervalSpy.mockClear();
+
+    rerender({ enabled: false });
+
+    // The effect cleanup should have called clearInterval and set intervalRef to undefined
+    expect(clearIntervalSpy).toHaveBeenCalled();
+    clearIntervalSpy.mockRestore();
+  });
+
   it("resets to ZERO when enabled changes from true to false", () => {
     const now = Date.now();
     const referenceTime = new Date(now - 30_000).toISOString();
@@ -177,6 +198,63 @@ describe("useTickingTimer", () => {
     rerender({ enabled: false });
 
     expect(result.current).toEqual(ZERO);
+  });
+
+  it("cleans up old interval when referenceTime changes while enabled", () => {
+    const clearIntervalSpy = vi.spyOn(globalThis, "clearInterval");
+    const now = Date.now();
+    const ref1 = new Date(now - 10_000).toISOString();
+    const ref2 = new Date(now - 20_000).toISOString();
+
+    const { result, rerender } = renderHook(
+      ({ referenceTime }: { referenceTime: string }) =>
+        useTickingTimer({ referenceTime, direction: "up", enabled: true }),
+      { initialProps: { referenceTime: ref1 } },
+    );
+
+    expect(result.current.seconds).toBe(10);
+
+    clearIntervalSpy.mockClear();
+
+    // Change referenceTime while still enabled — should clear old interval
+    rerender({ referenceTime: ref2 });
+
+    expect(clearIntervalSpy).toHaveBeenCalled();
+    expect(result.current.seconds).toBe(20);
+
+    clearIntervalSpy.mockRestore();
+  });
+
+  it("cleans up old interval and creates new one when referenceTime changes (verifies ticking)", () => {
+    const now = Date.now();
+    const ref1 = new Date(now - 10_000).toISOString();
+    const ref2 = new Date(now - 20_000).toISOString();
+
+    const { result, rerender } = renderHook(
+      ({ referenceTime }: { referenceTime: string }) =>
+        useTickingTimer({ referenceTime, direction: "up", enabled: true }),
+      { initialProps: { referenceTime: ref1 } },
+    );
+
+    expect(result.current.seconds).toBe(10);
+
+    // Change referenceTime — triggers effect cleanup (lines 124-125) then re-setup
+    rerender({ referenceTime: ref2 });
+
+    expect(result.current.seconds).toBe(20);
+
+    // Verify the NEW interval is ticking correctly (old one was cleaned up)
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+
+    expect(result.current.seconds).toBe(21);
+
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+
+    expect(result.current.seconds).toBe(22);
   });
 
   it("handles Date objects as referenceTime (not just strings)", () => {

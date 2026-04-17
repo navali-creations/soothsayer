@@ -313,6 +313,26 @@ describe("AppControls", () => {
     });
   });
 
+  // ── Overlay toggle tooltip text ────────────────────────────────────────
+
+  describe("overlay toggle tooltip text", () => {
+    it('shows "Hide Overlay" tooltip when overlay is visible', () => {
+      setupStore({ overlay: { isVisible: true } });
+      renderWithProviders(<AppControls />);
+
+      const tooltip = document.querySelector('[data-tip="Hide Overlay"]');
+      expect(tooltip).toBeInTheDocument();
+    });
+
+    it('shows "Show Overlay" tooltip when overlay is hidden', () => {
+      setupStore({ overlay: { isVisible: false } });
+      renderWithProviders(<AppControls />);
+
+      const tooltip = document.querySelector('[data-tip="Show Overlay"]');
+      expect(tooltip).toBeInTheDocument();
+    });
+  });
+
   // ── WhatsNewModal ──────────────────────────────────────────────────────
 
   it("renders WhatsNewModal", () => {
