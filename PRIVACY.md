@@ -41,6 +41,7 @@ When community uploads are enabled (Settings → Privacy & Telemetry), Soothsaye
 - The GGG OAuth token is used solely to verify your identity and is **not** stored server-side
 - Uploads are **on by default** but can be disabled at any time in Settings → Privacy & Telemetry
 - GGG account linking is **entirely optional** — uploads work anonymously without it
+- **Existing data** from prior sessions is never uploaded automatically. If you have drop data that hasn't been contributed yet, the app will show a one-time banner with an opt-in checkbox — your data is only uploaded if you explicitly check the box and confirm. Dismissing the banner is **permanent** (persisted locally) — it will never reappear, even after restarting the app.
 
 ---
 
@@ -92,7 +93,7 @@ When community uploads are enabled (Settings → Privacy & Telemetry), Soothsaye
 You can disable crash reporting and/or usage analytics at any time:
 
 - **Settings → Privacy & Telemetry** — toggle each independently
-- **Setup Wizard (Step 4)** — new users choose during initial setup
+- **Setup Wizard** — new users are informed during initial setup; all telemetry options are optional
 
 The app is **fully functional** with all telemetry disabled. No features are gated behind telemetry consent.
 

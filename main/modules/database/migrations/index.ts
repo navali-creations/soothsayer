@@ -17,6 +17,7 @@ import { migration_20260408_180000_add_pl_rarity_to_card_rarities } from "./2026
 import { migration_20260408_190000_drop_prohibited_library_tables } from "./20260408_190000_drop_prohibited_library_tables";
 import { migration_20260410_010600_index_optimization_cleanup } from "./20260410_010600_index_optimization_cleanup";
 import { migration_20260412_125200_create_app_metadata } from "./20260412_125200_create_app_metadata";
+import { migration_20260418_140800_create_dismissed_banners } from "./20260418_140800_create_dismissed_banners";
 import { migration_20260420_120000_add_community_uploads_enabled } from "./20260420_120000_add_community_uploads_enabled";
 import { migration_20260622_120000_create_community_upload_snapshot } from "./20260622_120000_create_community_upload_snapshot";
 import type { Migration } from "./Migration.interface";
@@ -50,6 +51,7 @@ export const migrations: Migration[] = [
   migration_20260412_125200_create_app_metadata,
   migration_20260420_120000_add_community_uploads_enabled,
   migration_20260622_120000_create_community_upload_snapshot,
+  migration_20260418_140800_create_dismissed_banners,
 ];
 
 export type { Migration } from "./Migration.interface";

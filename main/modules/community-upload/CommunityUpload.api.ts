@@ -19,4 +19,10 @@ export const CommunityUploadAPI = {
     totalUploads: number;
     lastUploadAt: string | null;
   }> => ipcRenderer.invoke(CommunityUploadChannel.GetUploadStats, game, league),
+
+  getBackfillLeagues: (): Promise<{ game: string; league: string }[]> =>
+    ipcRenderer.invoke(CommunityUploadChannel.GetBackfillLeagues),
+
+  triggerBackfill: (): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke(CommunityUploadChannel.TriggerBackfill),
 };

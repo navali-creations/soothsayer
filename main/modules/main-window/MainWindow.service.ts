@@ -13,6 +13,7 @@ import {
 import {
   AnalyticsService,
   AppService,
+  BannersService,
   CardDetailsService,
   ClientLogReaderService,
   CommunityUploadService,
@@ -272,6 +273,10 @@ class MainWindowService {
     // 8. Community upload (depends on database + settings + supabase)
     CommunityUploadService.getInstance();
     console.log("[Init] ✓ Community Upload");
+
+    // 8a. Banners (depends on database — persistent banner dismissal)
+    BannersService.getInstance();
+    console.log("[Init] ✓ Banners");
 
     // 8b. GGG OAuth (depends on nothing — registers IPC handlers + deep link route)
     GggAuthService.getInstance();

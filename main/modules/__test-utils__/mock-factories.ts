@@ -580,9 +580,15 @@ export function createBarrelMock(
     AnalyticsService: stubService(),
     AppService: stubService(),
     AppSetupService: stubService(),
+    BannersService: stubService(),
     CardDetailsService: stubService(),
     ClientLogReaderService: stubService(),
-    CommunityUploadService: stubService(),
+    CommunityUploadService: {
+      getInstance: vi.fn(() => ({
+        backfillIfNeeded: vi.fn().mockResolvedValue(undefined),
+        getBackfillLeagues: vi.fn().mockResolvedValue([]),
+      })),
+    },
     CsvService: stubService(),
     GggAuthService: {
       getInstance: vi.fn(() => ({

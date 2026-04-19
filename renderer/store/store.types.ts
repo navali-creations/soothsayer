@@ -1,4 +1,5 @@
 import type { AppMenuSlice } from "../modules/app-menu/AppMenu.slice/AppMenu.slice";
+import type { BannersSlice } from "../modules/banners";
 import type { CardDetailsSlice } from "../modules/card-details/CardDetails.slice/CardDetails.slice";
 import type { CardsSlice } from "../modules/cards/Cards.slice/Cards.slice";
 import type { ChangelogSlice } from "../modules/changelog/Changelog.slice/Changelog.slice";
@@ -34,7 +35,8 @@ export interface RootActions {
   reset: () => void;
 }
 
-export type BoundStore = GameInfoSlice &
+export type BoundStore = BannersSlice &
+  GameInfoSlice &
   SettingsSlice &
   StorageSlice &
   SetupSlice &

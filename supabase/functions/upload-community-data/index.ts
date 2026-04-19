@@ -507,24 +507,48 @@ Deno.serve(async (req: Request) => {
     .eq("device_id", deviceId)
     .maybeSingle();
 
+  // If no row for this device, check if same GGG account already uploaded
+  // for this league from a different device (e.g., after a PC reformat).
+  // Merge onto the existing verified row to avoid double-counting.
+  let mergeTarget: typeof existingUpload = null;
+  if (!existingUpload && gggUuid) {
+    const { data: gggMatch } = await supabase
+      .from("community_uploads")
+      .select(
+        "id, ggg_uuid, ggg_username, is_verified, upload_count, device_id",
+      )
+      .eq("league_id", league.id)
+      .eq("ggg_uuid", gggUuid)
+      .limit(1)
+      .maybeSingle();
+
+    if (gggMatch) {
+      mergeTarget = gggMatch;
+      console.log(
+        `${TAG} Merging upload: same ggg_uuid=${gggUuid} found under device_id=${gggMatch.device_id}, merging onto upload_id=${gggMatch.id}`,
+      );
+    }
+  }
+
   let uploadId: string;
   let uploadCount: number;
 
-  if (existingUpload) {
+  if (existingUpload || mergeTarget) {
+    const target = existingUpload ?? mergeTarget!;
     // Update existing row with COALESCE / OR logic in TypeScript
-    uploadCount = existingUpload.upload_count + 1;
+    uploadCount = target.upload_count + 1;
 
     const { error: updateErr } = await supabase
       .from("community_uploads")
       .update({
         total_cards_uploaded: totalCards,
-        ggg_uuid: gggUuid ?? existingUpload.ggg_uuid,
-        ggg_username: gggUsername ?? existingUpload.ggg_username,
-        is_verified: isVerified || existingUpload.is_verified,
+        ggg_uuid: gggUuid ?? target.ggg_uuid,
+        ggg_username: gggUsername ?? target.ggg_username,
+        is_verified: isVerified || target.is_verified,
         last_uploaded_at: new Date().toISOString(),
         upload_count: uploadCount,
       })
-      .eq("id", existingUpload.id);
+      .eq("id", target.id);
 
     if (updateErr) {
       console.error(`${TAG} community_uploads update failed:`, updateErr);
@@ -534,9 +558,9 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    uploadId = existingUpload.id;
+    uploadId = target.id;
     // Carry forward the most accurate verification status
-    isVerified = isVerified || existingUpload.is_verified;
+    isVerified = isVerified || target.is_verified;
   } else {
     uploadCount = 1;
 

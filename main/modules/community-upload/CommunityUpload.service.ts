@@ -116,6 +116,29 @@ class CommunityUploadService {
         }
       },
     );
+    ipcMain.handle(CommunityUploadChannel.GetBackfillLeagues, async () => {
+      try {
+        return await this.getBackfillLeagues();
+      } catch (error) {
+        return handleValidationError(
+          error,
+          CommunityUploadChannel.GetBackfillLeagues,
+        );
+      }
+    });
+
+    ipcMain.handle(CommunityUploadChannel.TriggerBackfill, async (event) => {
+      try {
+        assertTrustedSender(event, CommunityUploadChannel.TriggerBackfill);
+        await this.backfillIfNeeded();
+        return { success: true };
+      } catch (error) {
+        return handleValidationError(
+          error,
+          CommunityUploadChannel.TriggerBackfill,
+        );
+      }
+    });
   }
 
   // ─── Public Methods ────────────────────────────────────────────────────
@@ -134,6 +157,40 @@ class CommunityUploadService {
       throw new Error("device_id not found in app_metadata");
     }
     return row.value;
+  }
+
+  /**
+   * Get the list of leagues that have local data but haven't been backfilled yet.
+   */
+  public async getBackfillLeagues(): Promise<
+    { game: string; league: string }[]
+  > {
+    const enabled = await this.isEnabled();
+    if (!enabled) return [];
+
+    if (!this.supabase.isConfigured()) return [];
+
+    const leagues = await this.kysely
+      .selectFrom("cards")
+      .select(["game", "scope"])
+      .where("scope", "!=", "all-time")
+      .where("count", ">", 0)
+      .groupBy(["game", "scope"])
+      .execute();
+
+    const result: { game: string; league: string }[] = [];
+    for (const { game, scope } of leagues) {
+      const backfillKey = `community_backfill_done_${game}_${scope}`;
+      const done = await this.kysely
+        .selectFrom("app_metadata")
+        .select("value")
+        .where("key", "=", backfillKey)
+        .executeTakeFirst();
+      if (!done) {
+        result.push({ game, league: scope });
+      }
+    }
+    return result;
   }
 
   /**
@@ -385,6 +442,92 @@ class CommunityUploadService {
             operation: "upload-on-session-end",
           },
           extra: { game, league },
+        },
+      );
+    }
+  }
+
+  /**
+   * Backfill community uploads for leagues that have local data but were never
+   * uploaded. Runs once per (game, scope) pair at startup. Fire-and-forget.
+   */
+  public async backfillIfNeeded(): Promise<void> {
+    try {
+      const enabled = await this.isEnabled();
+      if (!enabled) {
+        console.log("[CommunityUpload] Uploads disabled, skipping backfill");
+        return;
+      }
+
+      if (!this.supabase.isConfigured()) {
+        console.log(
+          "[CommunityUpload] Supabase not configured, skipping backfill",
+        );
+        return;
+      }
+
+      const leagues = await this.kysely
+        .selectFrom("cards")
+        .select(["game", "scope"])
+        .where("scope", "!=", "all-time")
+        .where("count", ">", 0)
+        .groupBy(["game", "scope"])
+        .execute();
+
+      for (const { game, scope } of leagues) {
+        try {
+          const backfillKey = `community_backfill_done_${game}_${scope}`;
+
+          const existing = await this.kysely
+            .selectFrom("app_metadata")
+            .select("value")
+            .where("key", "=", backfillKey)
+            .executeTakeFirst();
+
+          if (existing) {
+            console.log(
+              `[CommunityUpload] Backfill already done for ${game}/${scope}, skipping`,
+            );
+            continue;
+          }
+
+          await this.uploadOnSessionEnd(game as GameType, scope);
+
+          await this.kysely
+            .insertInto("app_metadata")
+            .values({ key: backfillKey, value: "true" })
+            .onConflict((oc) => oc.column("key").doUpdateSet({ value: "true" }))
+            .execute();
+
+          console.log(
+            `[CommunityUpload] Backfill complete for ${game}/${scope}`,
+          );
+        } catch (error) {
+          console.error(
+            `[CommunityUpload] Backfill failed for ${game}/${scope}:`,
+            error instanceof Error ? error.message : String(error),
+          );
+          Sentry.captureException(
+            error instanceof Error ? error : new Error(String(error)),
+            {
+              tags: {
+                module: "community-upload",
+                operation: "backfill",
+              },
+              extra: { game, scope },
+            },
+          );
+        }
+      }
+    } catch (error) {
+      console.error("[CommunityUpload] Backfill failed:", error);
+      Sentry.captureException(
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          tags: {
+            module: "community-upload",
+            operation: "backfill",
+          },
         },
       );
     }

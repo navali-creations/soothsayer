@@ -8,7 +8,8 @@ import {
 // import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { useEffect, useRef, useState } from "react";
 
-import { useRootActions, useSetup } from "~/renderer/store";
+import BackfillBanner from "~/renderer/modules/app-menu/AppMenu.component/BackfillBanner/BackfillBanner";
+import { useCommunityUpload, useRootActions, useSetup } from "~/renderer/store";
 import { cardNameToSlug } from "~/renderer/utils";
 
 import { AppMenu } from "../modules/app-menu";
@@ -24,6 +25,7 @@ const RootLayout = () => {
   const slowTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const { hydrate, startListeners } = useRootActions();
   const { isSetupComplete, setupState } = useSetup();
+  const { checkBackfill } = useCommunityUpload();
 
   useEffect(() => {
     // Hydrate all data on app mount
@@ -54,6 +56,13 @@ const RootLayout = () => {
     const cleanup = startListeners();
     return cleanup;
   }, [hydrate, startListeners, navigate, isSetupComplete]);
+
+  // Check for backfill leagues after hydration completes
+  useEffect(() => {
+    if (!isHydrating && setupState?.isComplete) {
+      checkBackfill();
+    }
+  }, [isHydrating, setupState?.isComplete, checkBackfill]);
 
   // Listen for deep-link navigation events from the overlay (via main process)
   useEffect(() => {
@@ -90,6 +99,7 @@ const RootLayout = () => {
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       <AppMenu />
+      {!isSetupMode && <BackfillBanner />}
       <div className="flex flex-1 overflow-hidden">
         {/* Only show sidebar when setup is complete */}
         {!isSetupMode && <Sidebar />}

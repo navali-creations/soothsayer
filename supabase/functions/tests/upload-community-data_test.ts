@@ -1061,3 +1061,276 @@ quietTest(
     fetchMock.restore();
   },
 );
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// GGG UUID Merge (reformat / re-link scenario)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Test: Merges onto existing GGG row when uploading from new device
+quietTest(
+  "upload-community-data — merges onto existing row when same ggg_uuid uploads from new device",
+  async () => {
+    const fetchMock = setupAuthorizedMocks();
+    const testToken = createTestJwt({ sub: "test-user-id-001" });
+
+    const NEW_DEVICE_ID = "aaaaaaaa-1111-2222-3333-ffffffffffff";
+    const OLD_DEVICE_ID = "bbbbbbbb-4444-5555-6666-aaaaaaaaaaaa";
+    const GGG_UUID = "ggg-uuid-merge-test";
+    const EXISTING_UPLOAD_ID = "existing-upload-from-old-device";
+
+    // League lookup
+    fetchMock.onUrlContaining("poe_leagues", () =>
+      postgrestResponse({ id: VALID_LEAGUE_ID, game: "poe2" }),
+    );
+
+    // GGG profile verification — return a valid profile so gggUuid is set
+    fetchMock.onUrlContaining(
+      "api.pathofexile.com/profile",
+      () =>
+        new Response(JSON.stringify({ uuid: GGG_UUID, name: "MergePlayer" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+    );
+
+    // Cards upsert + fetch
+    const cardNames = ["The Doctor", "Rain of Chaos"];
+    fetchMock.onUrlContaining(supabaseUrls.table("cards"), (_url, init) => {
+      if (init?.method === "POST") return postgrestResponse([]);
+      return postgrestResponse(
+        cardNames.map((name, i) => ({ id: `card-id-${i + 1}`, name })),
+      );
+    });
+
+    // community_uploads — the critical mock:
+    // GET with device_id → null (no row for new device)
+    // GET with ggg_uuid → existing row from old device
+    // PATCH → success
+    let communityUploadsGetCount = 0;
+    fetchMock.onUrlContaining("community_uploads", (_url, init) => {
+      if (init?.method === "PATCH") {
+        return postgrestResponse({ id: EXISTING_UPLOAD_ID });
+      }
+      if (init?.method === "POST") {
+        // Should NOT be called — we expect update, not insert
+        throw new Error(
+          "INSERT into community_uploads should not happen during merge",
+        );
+      }
+      // GET requests
+      communityUploadsGetCount++;
+      if (communityUploadsGetCount === 1) {
+        // First lookup by (league_id, device_id) → no match
+        return postgrestResponse(null);
+      }
+      // Second lookup by (league_id, ggg_uuid) → existing row
+      return postgrestResponse({
+        id: EXISTING_UPLOAD_ID,
+        ggg_uuid: GGG_UUID,
+        ggg_username: "MergePlayer",
+        is_verified: true,
+        upload_count: 3,
+        device_id: OLD_DEVICE_ID,
+      });
+    });
+
+    // community_card_data
+    fetchMock.onUrlContaining("community_card_data", (_url, init) => {
+      if (init?.method === "POST") return postgrestResponse([]);
+      return postgrestResponse(
+        cardNames.map((_, i) => ({ count: 5, card_id: `card-id-${i + 1}` })),
+      );
+    });
+
+    const req = createMockRequest(FUNCTION_URL, {
+      method: "POST",
+      body: validUploadBody({ device_id: NEW_DEVICE_ID }),
+      bearerToken: testToken,
+      apikey: "test-anon-key",
+      headers: { "x-ggg-token": "mock-ggg-token" },
+    });
+    const resp = await handler(req);
+
+    assertEquals(resp.status, 200);
+    const body = await responseBody<{
+      success: boolean;
+      upload_id: string;
+      upload_count: number;
+    }>(resp);
+    assertEquals(body.success, true);
+    // Should reuse the existing upload row
+    assertEquals(body.upload_id, EXISTING_UPLOAD_ID);
+    // upload_count should be incremented from 3 → 4
+    assertEquals(body.upload_count, 4);
+
+    // Verify PATCH was called on the existing row
+    const patchCalls = fetchMock.calls.filter(
+      (c) => c.url.includes("community_uploads") && c.init?.method === "PATCH",
+    );
+    assert(
+      patchCalls.length > 0,
+      "Expected PATCH to community_uploads for merge",
+    );
+    // The PATCH URL should target the existing upload ID
+    assert(
+      patchCalls.some((c) => c.url.includes(EXISTING_UPLOAD_ID)),
+      "PATCH should target the existing upload row by ID",
+    );
+
+    fetchMock.restore();
+  },
+);
+
+// Test: Creates new row when no GGG match exists
+quietTest(
+  "upload-community-data — creates new row when ggg_uuid has no prior upload for league",
+  async () => {
+    const fetchMock = setupAuthorizedMocks();
+    const testToken = createTestJwt({ sub: "test-user-id-001" });
+
+    const NEW_DEVICE_ID = "aaaaaaaa-1111-2222-3333-ffffffffffff";
+    const GGG_UUID = "ggg-uuid-no-match";
+
+    // League lookup
+    fetchMock.onUrlContaining("poe_leagues", () =>
+      postgrestResponse({ id: VALID_LEAGUE_ID, game: "poe2" }),
+    );
+
+    // GGG profile verification
+    fetchMock.onUrlContaining(
+      "api.pathofexile.com/profile",
+      () =>
+        new Response(JSON.stringify({ uuid: GGG_UUID, name: "NewPlayer" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+    );
+
+    // Cards
+    const cardNames = ["The Doctor", "Rain of Chaos"];
+    fetchMock.onUrlContaining(supabaseUrls.table("cards"), (_url, init) => {
+      if (init?.method === "POST") return postgrestResponse([]);
+      return postgrestResponse(
+        cardNames.map((name, i) => ({ id: `card-id-${i + 1}`, name })),
+      );
+    });
+
+    // community_uploads — both GETs return null, then INSERT
+    let communityUploadsGetCount = 0;
+    let insertCalled = false;
+    fetchMock.onUrlContaining("community_uploads", (_url, init) => {
+      if (init?.method === "POST") {
+        insertCalled = true;
+        return postgrestResponse({ id: "new-upload-id" });
+      }
+      if (init?.method === "PATCH") {
+        return postgrestResponse({ id: "new-upload-id" });
+      }
+      // GET — both lookups return null
+      communityUploadsGetCount++;
+      return postgrestResponse(null);
+    });
+
+    // community_card_data
+    fetchMock.onUrlContaining("community_card_data", (_url, init) => {
+      if (init?.method === "POST") return postgrestResponse([]);
+      return postgrestResponse(
+        cardNames.map((_, i) => ({ count: 5, card_id: `card-id-${i + 1}` })),
+      );
+    });
+
+    const req = createMockRequest(FUNCTION_URL, {
+      method: "POST",
+      body: validUploadBody({ device_id: NEW_DEVICE_ID }),
+      bearerToken: testToken,
+      apikey: "test-anon-key",
+      headers: { "x-ggg-token": "mock-ggg-token" },
+    });
+    const resp = await handler(req);
+
+    assertEquals(resp.status, 200);
+    const body = await responseBody<{
+      success: boolean;
+      upload_id: string;
+      upload_count: number;
+    }>(resp);
+    assertEquals(body.success, true);
+    assertEquals(body.upload_id, "new-upload-id");
+    assertEquals(body.upload_count, 1);
+    // Two GETs: one by device_id, one by ggg_uuid — both null
+    assertEquals(communityUploadsGetCount, 2);
+    assert(insertCalled, "Expected INSERT into community_uploads for new row");
+
+    fetchMock.restore();
+  },
+);
+
+// Test: Skips GGG merge lookup when upload is anonymous (no x-ggg-token)
+quietTest(
+  "upload-community-data — skips ggg_uuid merge lookup for anonymous uploads",
+  async () => {
+    const fetchMock = setupAuthorizedMocks();
+    const testToken = createTestJwt({ sub: "test-user-id-001" });
+
+    // League lookup
+    fetchMock.onUrlContaining("poe_leagues", () =>
+      postgrestResponse({ id: VALID_LEAGUE_ID, game: "poe2" }),
+    );
+
+    // No GGG profile mock — anonymous upload (no x-ggg-token header)
+
+    // Cards
+    const cardNames = ["The Doctor", "Rain of Chaos"];
+    fetchMock.onUrlContaining(supabaseUrls.table("cards"), (_url, init) => {
+      if (init?.method === "POST") return postgrestResponse([]);
+      return postgrestResponse(
+        cardNames.map((name, i) => ({ id: `card-id-${i + 1}`, name })),
+      );
+    });
+
+    // community_uploads — only ONE GET (by device_id), then INSERT
+    let communityUploadsGetCount = 0;
+    let insertCalled = false;
+    fetchMock.onUrlContaining("community_uploads", (_url, init) => {
+      if (init?.method === "POST") {
+        insertCalled = true;
+        return postgrestResponse({ id: "anon-upload-id" });
+      }
+      if (init?.method === "PATCH") {
+        return postgrestResponse({ id: "anon-upload-id" });
+      }
+      // GET
+      communityUploadsGetCount++;
+      return postgrestResponse(null);
+    });
+
+    // community_card_data
+    fetchMock.onUrlContaining("community_card_data", (_url, init) => {
+      if (init?.method === "POST") return postgrestResponse([]);
+      return postgrestResponse(
+        cardNames.map((_, i) => ({ count: 5, card_id: `card-id-${i + 1}` })),
+      );
+    });
+
+    // No x-ggg-token header — anonymous
+    const req = createAuthorizedRequest(
+      FUNCTION_URL,
+      validUploadBody(),
+      testToken,
+    );
+    const resp = await handler(req);
+
+    assertEquals(resp.status, 200);
+    const body = await responseBody<{
+      success: boolean;
+      upload_id: string;
+      upload_count: number;
+    }>(resp);
+    assertEquals(body.success, true);
+    // Only ONE GET to community_uploads (by device_id) — no ggg_uuid lookup
+    assertEquals(communityUploadsGetCount, 1);
+    assert(insertCalled, "Expected INSERT for anonymous upload");
+
+    fetchMock.restore();
+  },
+);

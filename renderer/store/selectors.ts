@@ -46,6 +46,9 @@ export const useCardDetails = () => useSlice("cardDetails");
 /** Select the `appMenu` slice. */
 export const useAppMenu = () => useSlice("appMenu");
 
+/** Select the `banners` slice. */
+export const useBanners = () => useSlice("banners");
+
 /** Select the `gameInfo` slice. */
 export const useGameInfo = () => useSlice("gameInfo");
 

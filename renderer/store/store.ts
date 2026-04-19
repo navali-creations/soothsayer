@@ -4,6 +4,7 @@ import { devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 
 import { createAppMenuSlice } from "../modules/app-menu/AppMenu.slice/AppMenu.slice";
+import { createBannersSlice } from "../modules/banners";
 import { createCardDetailsSlice } from "../modules/card-details/CardDetails.slice/CardDetails.slice";
 import { createCardsSlice } from "../modules/cards/Cards.slice/Cards.slice";
 import { createChangelogSlice } from "../modules/changelog/Changelog.slice/Changelog.slice";
@@ -35,6 +36,7 @@ const withDevtools = IS_DEV
 export const useBoundStore = create<BoundStore>()(
   withDevtools(
     immer((...a) => {
+      const bannersSlice = createBannersSlice(...a);
       const settingsSlice = createSettingsSlice(...a);
       const storageSlice = createStorageSlice(...a);
       const setupSlice = createSetupSlice(...a);
@@ -81,6 +83,7 @@ export const useBoundStore = create<BoundStore>()(
         ...rarityInsightsSlice,
         ...rarityInsightsComparisonSlice,
         ...communityUploadSlice,
+        ...bannersSlice,
 
         hydrate: async () => {
           await Promise.all([
@@ -98,6 +101,9 @@ export const useBoundStore = create<BoundStore>()(
 
           // Fetch community upload & GGG auth status (non-blocking)
           communityUploadSlice.communityUpload.fetchStatus();
+
+          // Load dismissed banner IDs from the database (non-blocking)
+          bannersSlice.banners.loadDismissed();
 
           // Scan for available loot filters once at startup (non-blocking).
           // Skipped in E2E mode — tests seed filter data directly into the DB
@@ -315,6 +321,10 @@ export const useBoundStore = create<BoundStore>()(
               state.storage.error = null;
               state.storage.isDiskLow = false;
               state.storage.deletingLeagueId = null;
+
+              // Reset banners
+              state.banners.dismissedIds = new Set();
+              state.banners.isLoaded = false;
 
               // Reset community upload
               state.communityUpload.gggAuthenticated = false;

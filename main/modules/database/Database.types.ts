@@ -313,6 +313,11 @@ export interface CommunityUploadSnapshotTable {
   count: number;
 }
 
+export interface DismissedBannersTable {
+  banner_id: string;
+  dismissed_at: ColumnType<string, string | undefined, string>;
+}
+
 export interface Database {
   app_metadata: AppMetadataTable;
   global_stats: GlobalStatsTable;
@@ -333,6 +338,7 @@ export interface Database {
   card_price_history_cache: CardPriceHistoryCacheTable;
   csv_export_snapshots: CsvExportSnapshotsTable;
   community_upload_snapshot: CommunityUploadSnapshotTable;
+  dismissed_banners: DismissedBannersTable;
   migrations: MigrationsTable;
   user_settings: UserSettingsTable;
   filter_metadata: FilterMetadataTable;

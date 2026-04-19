@@ -42,7 +42,23 @@ export function createStoreMock() {
     useProfitForecast: () => useBoundStore().profitForecast,
     useRarityInsights: () => useBoundStore().rarityInsights,
     useRarityInsightsComparison: () => useBoundStore().rarityInsightsComparison,
-    useCommunityUpload: () => useBoundStore().communityUpload,
+    useBanners: () => ({
+      dismissedIds: new Set<string>(),
+      isLoaded: true,
+      loadDismissed: vi.fn(),
+      dismiss: vi.fn(),
+      isDismissed: vi.fn().mockReturnValue(false),
+      ...useBoundStore().banners,
+    }),
+    useCommunityUpload: () => ({
+      backfillLeagues: [],
+      isBackfilling: false,
+      backfillDismissed: false,
+      checkBackfill: vi.fn(),
+      triggerBackfill: vi.fn(),
+      dismissBackfill: vi.fn(),
+      ...useBoundStore().communityUpload,
+    }),
     useRootActions: () => {
       const s = useBoundStore();
       return {

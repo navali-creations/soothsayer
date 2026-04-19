@@ -14,10 +14,18 @@ export interface CommunityUploadSlice {
     isLoadingStatus: boolean;
     authError: string | null;
 
+    // Backfill state
+    backfillLeagues: { game: string; league: string }[];
+    isBackfilling: boolean;
+    backfillDismissed: boolean;
+
     // Actions
     fetchStatus: () => Promise<void>;
     authenticate: () => Promise<void>;
     logout: () => Promise<void>;
+    checkBackfill: () => Promise<void>;
+    triggerBackfill: () => Promise<void>;
+    dismissBackfill: () => void;
   };
 }
 
@@ -37,6 +45,11 @@ export const createCommunityUploadSlice: StateCreator<
     isAuthenticating: false,
     isLoadingStatus: false,
     authError: null,
+
+    // Backfill state
+    backfillLeagues: [],
+    isBackfilling: false,
+    backfillDismissed: false,
 
     // Actions
     fetchStatus: async () => {
@@ -159,6 +172,70 @@ export const createCommunityUploadSlice: StateCreator<
       } catch (error) {
         console.error("[CommunityUploadSlice] Logout failed:", error);
       }
+    },
+
+    checkBackfill: async () => {
+      try {
+        const leagues =
+          await window.electron.communityUpload.getBackfillLeagues();
+
+        set(
+          ({ communityUpload }) => {
+            communityUpload.backfillLeagues = leagues;
+          },
+          false,
+          "communityUploadSlice/checkBackfill/success",
+        );
+      } catch (error) {
+        console.error(
+          "[CommunityUploadSlice] Failed to check backfill:",
+          error,
+        );
+      }
+    },
+
+    triggerBackfill: async () => {
+      set(
+        ({ communityUpload }) => {
+          communityUpload.isBackfilling = true;
+        },
+        false,
+        "communityUploadSlice/triggerBackfill/start",
+      );
+
+      try {
+        await window.electron.communityUpload.triggerBackfill();
+
+        set(
+          ({ communityUpload }) => {
+            communityUpload.isBackfilling = false;
+            communityUpload.backfillLeagues = [];
+            communityUpload.backfillDismissed = true;
+          },
+          false,
+          "communityUploadSlice/triggerBackfill/success",
+        );
+      } catch (error) {
+        console.error("[CommunityUploadSlice] Backfill trigger failed:", error);
+
+        set(
+          ({ communityUpload }) => {
+            communityUpload.isBackfilling = false;
+          },
+          false,
+          "communityUploadSlice/triggerBackfill/error",
+        );
+      }
+    },
+
+    dismissBackfill: () => {
+      set(
+        ({ communityUpload }) => {
+          communityUpload.backfillDismissed = true;
+        },
+        false,
+        "communityUploadSlice/dismissBackfill",
+      );
     },
   },
 });

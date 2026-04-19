@@ -260,6 +260,8 @@ globalThis.MAIN_WINDOW_VITE_DEV_SERVER_URL = "http://localhost:5173";
 // @ts-expect-error — injected by Vite at build time
 globalThis.MAIN_WINDOW_VITE_NAME = "main_window";
 
+import { CommunityUploadService } from "~/main/modules";
+
 import { MainWindowService } from "../MainWindow.service";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -566,6 +568,12 @@ describe("MainWindowService", () => {
       expect(channels).toContain("main-window:is-maximized");
       expect(channels).toContain("main-window:close");
       expect(channels).toContain("select-file");
+    });
+
+    it("should call CommunityUploadService.getInstance() during init", async () => {
+      await service.createMainWindow();
+
+      expect(CommunityUploadService.getInstance).toHaveBeenCalled();
     });
 
     it("getWindow should return the BrowserWindow after creation", async () => {

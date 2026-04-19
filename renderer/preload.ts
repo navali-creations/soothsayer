@@ -3,6 +3,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import { AnalyticsAPI } from "~/main/modules/analytics/Analytics.api";
 import { AppAPI } from "~/main/modules/app/App.api";
 import { AppSetupAPI } from "~/main/modules/app-setup/AppSetup.api";
+import { BannersAPI } from "~/main/modules/banners/Banners.api";
 import { CardDetailsAPI } from "~/main/modules/card-details/CardDetails.api";
 import { CommunityUploadAPI } from "~/main/modules/community-upload/CommunityUpload.api";
 import { CsvAPI } from "~/main/modules/csv/Csv.api";
@@ -58,6 +59,7 @@ contextBridge.exposeInMainWorld("electron", {
     },
   },
 
+  banners: BannersAPI,
   communityUpload: CommunityUploadAPI,
   gggAuth: GggAuthAPI,
   csv: CsvAPI,
