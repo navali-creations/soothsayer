@@ -82,7 +82,7 @@ jobs:
 
       - name: Setup pnpm
         if: "!startsWith(matrix.name, 'windows')"
-        uses: pnpm/action-setup@v5
+        uses: pnpm/action-setup@v6
 
       - name: Setup node.js
         if: "!startsWith(matrix.name, 'windows')"
@@ -339,7 +339,7 @@ jobs:
           merge-multiple: true
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ needs.check-version.outputs.version }}
           name: Soothsayer v${{ needs.check-version.outputs.version }}
