@@ -15,6 +15,9 @@ vi.mock("~/renderer/components", () => ({
       {children}
     </a>
   ),
+  StaticProfitSparkline: ({ linePoints }: any) => (
+    <div data-testid="sparkline">{linePoints.length}</div>
+  ),
 }));
 
 vi.mock("~/renderer/utils", () => ({
@@ -303,5 +306,37 @@ describe("SessionCard", () => {
     expect(link).toBeInTheDocument();
     // The card content should be a descendant of the link
     expect(link.querySelector(".card-body")).toBeInTheDocument();
+  });
+
+  it("renders a non-link selectable card in export mode", async () => {
+    const onToggleSelect = vi.fn();
+    const session = makeSession({ sessionId: "sess-export" });
+    const { user } = renderWithProviders(
+      <SessionCard
+        session={session}
+        isExportMode
+        isSelected
+        onToggleSelect={onToggleSelect}
+      />,
+    );
+
+    expect(screen.queryByTestId("session-link")).not.toBeInTheDocument();
+    await user.click(screen.getByText("Date:2024-01-15T10:00:00Z"));
+    expect(onToggleSelect).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders sparkline background when at least two points are provided", () => {
+    const session = makeSession();
+    renderWithProviders(
+      <SessionCard
+        session={session}
+        linePoints={[
+          { x: 0, profit: 0 },
+          { x: 1, profit: 10 },
+        ]}
+      />,
+    );
+
+    expect(screen.getByTestId("sparkline")).toHaveTextContent("2");
   });
 });

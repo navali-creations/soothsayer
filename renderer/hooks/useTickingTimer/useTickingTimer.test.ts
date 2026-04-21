@@ -1,7 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useTickingTimer } from "./useTickingTimer";
+import { formatTickingTimer, useTickingTimer } from "./useTickingTimer";
 
 const ZERO = {
   hours: 0,
@@ -18,6 +18,20 @@ describe("useTickingTimer", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  describe("formatTickingTimer", () => {
+    it("formats timers with hours", () => {
+      expect(formatTickingTimer({ hours: 5, minutes: 9, seconds: 4 })).toBe(
+        "5h 09m 04s",
+      );
+    });
+
+    it("formats timers without hours", () => {
+      expect(formatTickingTimer({ hours: 0, minutes: 12, seconds: 5 })).toBe(
+        "12m 05s",
+      );
+    });
   });
 
   it("returns ZERO when enabled is false", () => {

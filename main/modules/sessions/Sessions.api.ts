@@ -120,6 +120,27 @@ const SessionsAPI = {
     league?: string,
   ): Promise<CardPoolBreakdownDTO> =>
     ipcRenderer.invoke(SessionsChannel.GetCardPoolBreakdown, game, league),
+  getCardDropsForSessions: (
+    game: GameType,
+    sessionIds: string[],
+  ): Promise<Record<string, number>> =>
+    ipcRenderer.invoke(
+      SessionsChannel.GetCardDropsForSessions,
+      game,
+      sessionIds,
+    ),
+  getRichExportRows: (
+    game: GameType,
+    sessionIds: string[] | null,
+  ): Promise<SessionSummaryDTO[]> =>
+    ipcRenderer.invoke(SessionsChannel.GetRichExportRows, game, sessionIds),
+  getSimpleExportRows: (
+    game: GameType,
+    sessionIds: string[] | null,
+  ): Promise<Record<string, number>> =>
+    ipcRenderer.invoke(SessionsChannel.GetSimpleExportRows, game, sessionIds),
+  getAllSessionIds: (game: GameType): Promise<string[]> =>
+    ipcRenderer.invoke(SessionsChannel.GetAllSessionIds, game),
 };
 
 export type {

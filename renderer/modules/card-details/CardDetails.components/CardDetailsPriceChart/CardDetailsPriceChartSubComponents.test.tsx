@@ -356,6 +356,64 @@ describe("CardDetailsPriceChart", () => {
     expect(screen.queryByText("Cached")).not.toBeInTheDocument();
   });
 
+  it('hides "Cached" badge when cache timestamp is missing', () => {
+    renderComponent({
+      priceHistory: {
+        priceHistory: makeHistoryPoints(3),
+        isFromCache: true,
+        fetchedAt: null,
+      },
+    });
+    expect(screen.queryByText("Cached")).not.toBeInTheDocument();
+  });
+
+  it("handles a flat non-zero rate domain", () => {
+    renderComponent({
+      priceHistory: {
+        priceHistory: [
+          {
+            timestamp: "2024-01-01T00:00:00Z",
+            divineValue: 2,
+            volume: 100,
+          },
+          {
+            timestamp: "2024-01-02T00:00:00Z",
+            divineValue: 2,
+            volume: 200,
+          },
+        ],
+        isFromCache: false,
+        fetchedAt: null,
+      },
+    });
+
+    expect(screen.getByTestId("composed-chart")).toHaveAttribute(
+      "data-count",
+      "2",
+    );
+  });
+
+  it("handles all-zero rate and volume domains", () => {
+    renderComponent({
+      priceHistory: {
+        priceHistory: [
+          {
+            timestamp: "2024-01-01T00:00:00Z",
+            divineValue: 0,
+            volume: 0,
+          },
+        ],
+        isFromCache: false,
+        fetchedAt: null,
+      },
+    });
+
+    expect(screen.getByTestId("composed-chart")).toHaveAttribute(
+      "data-count",
+      "1",
+    );
+  });
+
   it("renders Brush only when data points exceed 14", () => {
     renderComponent({
       priceHistory: {

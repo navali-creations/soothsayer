@@ -158,6 +158,121 @@ export class SessionsRepository {
   }
 
   /**
+   * Get session summaries for CSV export.
+   * Pass null for sessionIds to export every session in the game.
+   */
+  async getSessionsForExport(
+    game: "poe1" | "poe2",
+    sessionIds: string[] | null,
+  ): Promise<SessionSummaryDTO[]> {
+    if (sessionIds !== null && sessionIds.length === 0) return [];
+
+    const rows = await this.kysely
+      .selectFrom("sessions as s")
+      .leftJoin("session_summaries as ss", "s.id", "ss.session_id")
+      .innerJoin("leagues as l", "s.league_id", "l.id")
+      .leftJoin("snapshots as snap", "s.snapshot_id", "snap.id")
+      .select([
+        "s.id as sessionId",
+        "s.game as game",
+        "l.name as league",
+        "s.started_at as startedAt",
+        "s.ended_at as endedAt",
+        "s.is_active as isActive",
+        sql<number>`
+          COALESCE(
+            ss.duration_minutes,
+            CASE
+              WHEN s.ended_at IS NOT NULL
+              THEN CAST((JULIANDAY(s.ended_at) - JULIANDAY(s.started_at)) * 24 * 60 AS INTEGER)
+              ELSE NULL
+            END
+          )
+        `.as("durationMinutes"),
+        sql<number>`COALESCE(ss.total_decks_opened, s.total_count)`.as(
+          "totalDecksOpened",
+        ),
+        sql<number>`
+          COALESCE(
+            ss.total_exchange_value,
+            (
+              SELECT COALESCE(SUM(sc.count * scp.chaos_value), 0)
+              FROM session_cards sc
+              LEFT JOIN snapshot_card_prices scp
+                ON scp.snapshot_id = s.snapshot_id
+                AND scp.card_name = sc.card_name
+                AND scp.price_source = 'exchange'
+              WHERE sc.session_id = s.id
+                AND sc.hide_price_exchange = 0
+            )
+          )
+        `.as("totalExchangeValue"),
+        sql<number>`
+          COALESCE(
+            ss.total_stash_value,
+            (
+              SELECT COALESCE(SUM(sc.count * scp.chaos_value), 0)
+              FROM session_cards sc
+              LEFT JOIN snapshot_card_prices scp
+                ON scp.snapshot_id = s.snapshot_id
+                AND scp.card_name = sc.card_name
+                AND scp.price_source = 'stash'
+              WHERE sc.session_id = s.id
+                AND sc.hide_price_stash = 0
+            )
+          )
+        `.as("totalStashValue"),
+        sql<number>`
+          COALESCE(
+            ss.total_exchange_net_profit,
+            (
+              SELECT COALESCE(SUM(sc.count * scp.chaos_value), 0)
+              FROM session_cards sc
+              LEFT JOIN snapshot_card_prices scp
+                ON scp.snapshot_id = s.snapshot_id
+                AND scp.card_name = sc.card_name
+                AND scp.price_source = 'exchange'
+              WHERE sc.session_id = s.id
+                AND sc.hide_price_exchange = 0
+            ) - COALESCE(snap.stacked_deck_chaos_cost, 0) * s.total_count
+          )
+        `.as("totalExchangeNetProfit"),
+        sql<number>`
+          COALESCE(
+            ss.total_stash_net_profit,
+            (
+              SELECT COALESCE(SUM(sc.count * scp.chaos_value), 0)
+              FROM session_cards sc
+              LEFT JOIN snapshot_card_prices scp
+                ON scp.snapshot_id = s.snapshot_id
+                AND scp.card_name = sc.card_name
+                AND scp.price_source = 'stash'
+              WHERE sc.session_id = s.id
+                AND sc.hide_price_stash = 0
+            ) - COALESCE(snap.stacked_deck_chaos_cost, 0) * s.total_count
+          )
+        `.as("totalStashNetProfit"),
+        sql<number>`COALESCE(ss.exchange_chaos_to_divine, snap.exchange_chaos_to_divine, 0)`.as(
+          "exchangeChaosToDivine",
+        ),
+        sql<number>`COALESCE(ss.stash_chaos_to_divine, snap.stash_chaos_to_divine, 0)`.as(
+          "stashChaosToDivine",
+        ),
+        sql<number>`COALESCE(ss.stacked_deck_chaos_cost, snap.stacked_deck_chaos_cost, 0)`.as(
+          "stackedDeckChaosCost",
+        ),
+      ])
+      .where("s.game", "=", game)
+      .$if(sessionIds !== null, (qb) =>
+        qb.where("s.id", "in", sessionIds ?? []),
+      )
+      .orderBy("s.started_at", "desc")
+      .execute();
+
+    return rows.map(SessionsMapper.toSessionSummaryDTO);
+  }
+
+  /**
    * Get session details by ID
    */
   async getSessionById(sessionId: string): Promise<SessionDetailsDTO | null> {
@@ -1344,5 +1459,59 @@ export class SessionsRepository {
     }
 
     return result;
+  }
+
+  /**
+   * Get aggregated card drops across multiple sessions.
+   * Returns a map of card_name → total count.
+   */
+  async getCardDropsForSessions(
+    game: "poe1" | "poe2",
+    sessionIds: string[],
+  ): Promise<Record<string, number>> {
+    return this.getCardDropsForExport(game, sessionIds);
+  }
+
+  /**
+   * Get aggregated card drops for CSV export.
+   * Pass null for sessionIds to aggregate every session in the game.
+   */
+  async getCardDropsForExport(
+    game: "poe1" | "poe2",
+    sessionIds: string[] | null,
+  ): Promise<Record<string, number>> {
+    if (sessionIds !== null && sessionIds.length === 0) return {};
+
+    const rows = await this.kysely
+      .selectFrom("session_cards as sc")
+      .innerJoin("sessions as s", "sc.session_id", "s.id")
+      .select(["sc.card_name", sql<number>`SUM(sc.count)`.as("total")])
+      .where("s.game", "=", game)
+      .$if(sessionIds !== null, (qb) =>
+        qb.where("sc.session_id", "in", sessionIds ?? []),
+      )
+      .groupBy("sc.card_name")
+      .orderBy("sc.card_name", "asc")
+      .execute();
+
+    const result: Record<string, number> = {};
+    for (const row of rows) {
+      result[row.card_name] = Number(row.total);
+    }
+    return result;
+  }
+
+  /**
+   * Get all session IDs for a game, ordered by started_at desc.
+   */
+  async getAllSessionIds(game: "poe1" | "poe2"): Promise<string[]> {
+    const rows = await this.kysely
+      .selectFrom("sessions")
+      .select("id")
+      .where("game", "=", game)
+      .orderBy("started_at", "desc")
+      .execute();
+
+    return rows.map((r) => r.id);
   }
 }

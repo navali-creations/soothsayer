@@ -21,6 +21,9 @@ export interface SessionsSlice {
     searchQuery: string;
     // Sparkline state
     sparklines: Record<string, { x: number; profit: number }[]>;
+    // Export mode state
+    exportType: "rich" | "simple" | null;
+    selectedSessionIds: string[];
 
     // Actions
     loadAllSessions: (page?: number) => Promise<void>;
@@ -31,6 +34,11 @@ export interface SessionsSlice {
     setSelectedLeague: (league: string) => void;
     searchSessions: (cardName: string, page?: number) => Promise<void>;
     setSearchQuery: (query: string) => void;
+    setExportType: (type: "rich" | "simple" | null) => void;
+    toggleSessionSelection: (sessionId: string) => void;
+    selectAllVisible: () => void;
+    selectAll: () => Promise<void>;
+    clearSelection: () => void;
 
     // Getters
     getAllSessions: () => SessionSummary[];
@@ -46,6 +54,11 @@ export interface SessionsSlice {
     getUniqueLeagues: () => string[];
     getFilteredSessions: () => SessionSummary[];
     getSparklines: () => Record<string, { x: number; profit: number }[]>;
+    getExportType: () => "rich" | "simple" | null;
+    getIsExportMode: () => boolean;
+    getSelectedSessionIds: () => string[];
+    getSelectedCount: () => number;
+    getIsSessionSelected: (id: string) => boolean;
   };
 }
 
@@ -68,6 +81,8 @@ export const createSessionsSlice: StateCreator<
     selectedLeague: "all",
     searchQuery: "",
     sparklines: {},
+    exportType: null,
+    selectedSessionIds: [],
 
     // Load all sessions for a game with pagination
     loadAllSessions: async (page?: number) => {
@@ -193,6 +208,54 @@ export const createSessionsSlice: StateCreator<
       });
     },
 
+    // Export mode actions
+    setExportType: (type: "rich" | "simple" | null) => {
+      set(({ sessions }) => {
+        sessions.exportType = type;
+        if (type === null) {
+          sessions.selectedSessionIds = [];
+        }
+      });
+    },
+
+    toggleSessionSelection: (sessionId: string) => {
+      set(({ sessions }) => {
+        const idx = sessions.selectedSessionIds.indexOf(sessionId);
+        if (idx >= 0) {
+          sessions.selectedSessionIds.splice(idx, 1);
+        } else {
+          sessions.selectedSessionIds.push(sessionId);
+        }
+      });
+    },
+
+    selectAllVisible: () => {
+      set(({ sessions }) => {
+        const allIds = sessions.allSessions.map((s) => s.sessionId);
+        const existing = new Set(sessions.selectedSessionIds);
+        for (const id of allIds) {
+          if (!existing.has(id)) {
+            sessions.selectedSessionIds.push(id);
+          }
+        }
+      });
+    },
+
+    selectAll: async () => {
+      const activeGame = get().settings.getSelectedGame();
+      const allIds =
+        await window.electron.sessions.getAllSessionIds(activeGame);
+      set(({ sessions }) => {
+        sessions.selectedSessionIds = allIds;
+      });
+    },
+
+    clearSelection: () => {
+      set(({ sessions }) => {
+        sessions.selectedSessionIds = [];
+      });
+    },
+
     // Getters
     getAllSessions: () => get().sessions.allSessions,
     getSessionDetail: () => get().sessions.currentSessionDetail,
@@ -205,6 +268,12 @@ export const createSessionsSlice: StateCreator<
     getSelectedLeague: () => get().sessions.selectedLeague,
     getSearchQuery: () => get().sessions.searchQuery,
     getSparklines: () => get().sessions.sparklines,
+    getExportType: () => get().sessions.exportType,
+    getIsExportMode: () => get().sessions.exportType !== null,
+    getSelectedSessionIds: () => get().sessions.selectedSessionIds,
+    getSelectedCount: () => get().sessions.selectedSessionIds.length,
+    getIsSessionSelected: (id: string) =>
+      get().sessions.selectedSessionIds.includes(id),
 
     // Get unique leagues from all sessions
     getUniqueLeagues: () => {

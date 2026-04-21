@@ -463,6 +463,96 @@ class SessionsService {
         }
       },
     );
+
+    ipcMain.handle(
+      SessionsChannel.GetCardDropsForSessions,
+      async (_event, game: unknown, sessionIds: string[]) => {
+        try {
+          assertGameType(game, SessionsChannel.GetCardDropsForSessions);
+          assertStringArray(
+            sessionIds,
+            "sessionIds",
+            SessionsChannel.GetCardDropsForSessions,
+            {
+              maxLength: 200,
+              maxItemLength: 256,
+            },
+          );
+          return this.repository.getCardDropsForSessions(game, sessionIds);
+        } catch (error) {
+          return handleValidationError(
+            error,
+            SessionsChannel.GetCardDropsForSessions,
+          );
+        }
+      },
+    );
+
+    ipcMain.handle(
+      SessionsChannel.GetRichExportRows,
+      async (_event, game: unknown, sessionIds?: unknown) => {
+        try {
+          assertGameType(game, SessionsChannel.GetRichExportRows);
+          const exportSessionIds = sessionIds ?? null;
+          if (exportSessionIds !== null) {
+            assertStringArray(
+              exportSessionIds,
+              "sessionIds",
+              SessionsChannel.GetRichExportRows,
+              {
+                maxLength: 5000,
+                maxItemLength: 256,
+              },
+            );
+          }
+          return this.repository.getSessionsForExport(game, exportSessionIds);
+        } catch (error) {
+          return handleValidationError(
+            error,
+            SessionsChannel.GetRichExportRows,
+          );
+        }
+      },
+    );
+
+    ipcMain.handle(
+      SessionsChannel.GetSimpleExportRows,
+      async (_event, game: unknown, sessionIds?: unknown) => {
+        try {
+          assertGameType(game, SessionsChannel.GetSimpleExportRows);
+          const exportSessionIds = sessionIds ?? null;
+          if (exportSessionIds !== null) {
+            assertStringArray(
+              exportSessionIds,
+              "sessionIds",
+              SessionsChannel.GetSimpleExportRows,
+              {
+                maxLength: 5000,
+                maxItemLength: 256,
+              },
+            );
+          }
+          return this.repository.getCardDropsForExport(game, exportSessionIds);
+        } catch (error) {
+          return handleValidationError(
+            error,
+            SessionsChannel.GetSimpleExportRows,
+          );
+        }
+      },
+    );
+
+    ipcMain.handle(
+      SessionsChannel.GetAllSessionIds,
+      async (_event, game: unknown) => {
+        try {
+          assertGameType(game, SessionsChannel.GetAllSessionIds);
+          return this.repository.getAllSessionIds(game);
+        } catch (error) {
+          return handleValidationError(error, SessionsChannel.GetAllSessionIds);
+        }
+      },
+    );
   }
 
   /**

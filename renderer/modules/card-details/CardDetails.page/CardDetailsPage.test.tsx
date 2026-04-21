@@ -180,6 +180,13 @@ describe("CardDetailsPage — error state", () => {
     renderPage({ cardDetails: { card: null } });
     expect(screen.getByTestId("error")).toBeInTheDocument();
   });
+
+  it("renders CardDetailsError when both cardError is set and card is null", () => {
+    renderPage({
+      cardDetails: { cardError: "Missing card", card: null },
+    });
+    expect(screen.getByTestId("error")).toHaveTextContent("Missing card");
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -245,6 +252,18 @@ describe("CardDetailsPage — normal render", () => {
       cardDetails: {
         activeTab: "your-data",
         isLoadingPersonalAnalytics: false,
+        isLeagueSwitching: true,
+      },
+    });
+    const tab = screen.getByTestId("your-data-tab");
+    expect(tab).toHaveAttribute("data-loading", "true");
+  });
+
+  it("passes isLoading=true to YourDataTabContent when both loading flags are set", () => {
+    renderPage({
+      cardDetails: {
+        activeTab: "your-data",
+        isLoadingPersonalAnalytics: true,
         isLeagueSwitching: true,
       },
     });
@@ -360,6 +379,27 @@ describe("CardDetailsPage — effects", () => {
     expect(cardDetailsMock.initializeCardDetails).toHaveBeenCalledTimes(1);
   });
 
+  it("skips initializeCardDetails when the init key is unchanged", () => {
+    const mockSlices = createMockSlices({
+      cardDetails: { selectedLeague: "all" },
+    });
+    const cardDetailsMock = { ...mockSlices.cardDetails };
+
+    vi.mocked(useSettings).mockReturnValue(mockSlices.settings as any);
+    vi.mocked(useCardDetails).mockReturnValue(cardDetailsMock as any);
+
+    const { rerender } = renderWithProviders(<CardDetailsPage />);
+
+    expect(cardDetailsMock.initializeCardDetails).toHaveBeenCalledTimes(1);
+
+    const nextInitializeCardDetails = vi.fn();
+    cardDetailsMock.initializeCardDetails = nextInitializeCardDetails;
+
+    rerender(<CardDetailsPage />);
+
+    expect(nextInitializeCardDetails).not.toHaveBeenCalled();
+  });
+
   it("does not call refreshPersonalAnalytics when league stays the same (dedup guard)", () => {
     const mockSlices = createMockSlices({
       cardDetails: { selectedLeague: "all" },
@@ -442,6 +482,20 @@ describe("CardDetailsPage — effects", () => {
     expect(mockSlices.cardDetails.fetchPriceHistory).not.toHaveBeenCalled();
   });
 
+  it("does not call fetchPriceHistory when globalLeague is empty", () => {
+    const mockSlices = createMockSlices({
+      cardDetails: { activeTab: "market" },
+      settings: { getActiveGameViewSelectedLeague: vi.fn(() => "") },
+    });
+
+    vi.mocked(useSettings).mockReturnValue(mockSlices.settings as any);
+    vi.mocked(useCardDetails).mockReturnValue(mockSlices.cardDetails as any);
+
+    renderWithProviders(<CardDetailsPage />);
+
+    expect(mockSlices.cardDetails.fetchPriceHistory).not.toHaveBeenCalled();
+  });
+
   it("does not call refreshPersonalAnalytics when re-rendered with same league (fetchKey dedup)", () => {
     const mockSlices = createMockSlices({
       cardDetails: { selectedLeague: "Settlers" },
@@ -460,6 +514,53 @@ describe("CardDetailsPage — effects", () => {
     rerender(<CardDetailsPage />);
 
     expect(cardDetailsMock.refreshPersonalAnalytics).not.toHaveBeenCalled();
+  });
+
+  it("skips refreshPersonalAnalytics when the league fetch key is unchanged", () => {
+    const mockSlices = createMockSlices({
+      cardDetails: { selectedLeague: "Settlers" },
+    });
+    const cardDetailsMock = { ...mockSlices.cardDetails };
+
+    vi.mocked(useSettings).mockReturnValue(mockSlices.settings as any);
+    vi.mocked(useCardDetails).mockReturnValue(cardDetailsMock as any);
+
+    const { rerender } = renderWithProviders(<CardDetailsPage />);
+
+    expect(cardDetailsMock.refreshPersonalAnalytics).not.toHaveBeenCalled();
+
+    const nextRefreshPersonalAnalytics = vi.fn();
+    cardDetailsMock.refreshPersonalAnalytics = nextRefreshPersonalAnalytics;
+
+    rerender(<CardDetailsPage />);
+
+    expect(nextRefreshPersonalAnalytics).not.toHaveBeenCalled();
+  });
+
+  it("skips fetchPriceHistory when the price fetch key is unchanged", () => {
+    const mockSlices = createMockSlices({
+      cardDetails: { activeTab: "your-data" },
+    });
+    const cardDetailsMock = { ...mockSlices.cardDetails };
+
+    vi.mocked(useSettings).mockReturnValue(mockSlices.settings as any);
+    vi.mocked(useCardDetails).mockReturnValue(cardDetailsMock as any);
+
+    const { rerender } = renderWithProviders(<CardDetailsPage />);
+
+    expect(cardDetailsMock.fetchPriceHistory).not.toHaveBeenCalled();
+
+    cardDetailsMock.activeTab = "market";
+    rerender(<CardDetailsPage />);
+
+    expect(cardDetailsMock.fetchPriceHistory).toHaveBeenCalledTimes(1);
+
+    const nextFetchPriceHistory = vi.fn();
+    cardDetailsMock.fetchPriceHistory = nextFetchPriceHistory;
+
+    rerender(<CardDetailsPage />);
+
+    expect(nextFetchPriceHistory).not.toHaveBeenCalled();
   });
 
   it("does not call refreshPersonalAnalytics when card is null during league change", () => {

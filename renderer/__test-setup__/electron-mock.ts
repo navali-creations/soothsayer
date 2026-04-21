@@ -131,6 +131,10 @@ export function createElectronMock() {
       getUncollectedCardNames: vi.fn().mockResolvedValue([]),
       getChartData: vi.fn().mockResolvedValue([]),
       getSparklines: vi.fn().mockResolvedValue({}),
+      getCardDropsForSessions: vi.fn().mockResolvedValue({}),
+      getRichExportRows: vi.fn().mockResolvedValue([]),
+      getSimpleExportRows: vi.fn().mockResolvedValue({}),
+      getAllSessionIds: vi.fn().mockResolvedValue([]),
     },
 
     // ── Snapshots (poe.ninja prices) ───────────────────────────────────

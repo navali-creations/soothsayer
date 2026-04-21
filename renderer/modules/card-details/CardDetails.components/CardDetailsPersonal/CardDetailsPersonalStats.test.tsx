@@ -319,6 +319,23 @@ describe("CardDetailsPersonal — Last Seen", () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("CardDetailsPersonal — Drop Rate zero branch", () => {
+  it('shows "0%" when the computed rate is exactly zero', () => {
+    const zeroLikeDropCount = {
+      valueOf: () => 0,
+      toLocaleString: () => "0",
+    };
+
+    renderComponent({
+      personalAnalytics: {
+        ...validPersonalAnalytics,
+        totalLifetimeDrops: zeroLikeDropCount,
+        totalDecksOpenedAllSessions: 100,
+      },
+    });
+
+    expect(screen.getByText("0%")).toBeInTheDocument();
+  });
+
   it('shows "0%" when drop rate computes to zero', () => {
     // To hit the `rate === 0` branch we need totalLifetimeDrops > 0
     // (to pass the early return) but the IIFE rate to be 0.

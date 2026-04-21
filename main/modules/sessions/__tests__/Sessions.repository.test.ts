@@ -2787,6 +2787,201 @@ describe("SessionsRepository", () => {
     });
   });
 
+  describe("getCardDropsForSessions", () => {
+    it("should return an empty map for an empty session ID list", async () => {
+      await expect(
+        repository.getCardDropsForSessions("poe1", []),
+      ).resolves.toEqual({});
+    });
+
+    it("should aggregate card counts across selected sessions", async () => {
+      const leagueId = await seedLeague(testDb.kysely);
+      const s1 = await seedSession(testDb.kysely, { leagueId });
+      const s2 = await seedSession(testDb.kysely, { leagueId });
+      const ignored = await seedSession(testDb.kysely, { leagueId });
+
+      await seedSessionCards(testDb.kysely, s1, [
+        { cardName: "The Doctor", count: 2 },
+        { cardName: "Abandoned Wealth", count: 1 },
+      ]);
+      await seedSessionCards(testDb.kysely, s2, [
+        { cardName: "The Doctor", count: 3 },
+        { cardName: "House of Mirrors", count: 1 },
+      ]);
+      await seedSessionCards(testDb.kysely, ignored, [
+        { cardName: "The Doctor", count: 99 },
+      ]);
+
+      const result = await repository.getCardDropsForSessions("poe1", [s1, s2]);
+
+      expect(result).toEqual({
+        "Abandoned Wealth": 1,
+        "House of Mirrors": 1,
+        "The Doctor": 5,
+      });
+    });
+
+    it("should ignore requested session IDs from another game", async () => {
+      const poe1League = await seedLeague(testDb.kysely, { game: "poe1" });
+      const poe2League = await seedLeague(testDb.kysely, { game: "poe2" });
+      const poe1Session = await seedSession(testDb.kysely, {
+        game: "poe1",
+        leagueId: poe1League,
+      });
+      const poe2Session = await seedSession(testDb.kysely, {
+        game: "poe2",
+        leagueId: poe2League,
+      });
+
+      await seedSessionCards(testDb.kysely, poe1Session, [
+        { cardName: "The Doctor", count: 2 },
+      ]);
+      await seedSessionCards(testDb.kysely, poe2Session, [
+        { cardName: "The Doctor", count: 99 },
+      ]);
+
+      const result = await repository.getCardDropsForSessions("poe1", [
+        poe1Session,
+        poe2Session,
+      ]);
+
+      expect(result).toEqual({ "The Doctor": 2 });
+    });
+  });
+
+  describe("getCardDropsForExport", () => {
+    it("should aggregate all card drops for a game when session IDs are null", async () => {
+      const poe1League = await seedLeague(testDb.kysely, { game: "poe1" });
+      const poe2League = await seedLeague(testDb.kysely, { game: "poe2" });
+      const poe1Session = await seedSession(testDb.kysely, {
+        game: "poe1",
+        leagueId: poe1League,
+      });
+      const otherPoe1Session = await seedSession(testDb.kysely, {
+        game: "poe1",
+        leagueId: poe1League,
+      });
+      const poe2Session = await seedSession(testDb.kysely, {
+        game: "poe2",
+        leagueId: poe2League,
+      });
+
+      await seedSessionCards(testDb.kysely, poe1Session, [
+        { cardName: "The Doctor", count: 2 },
+      ]);
+      await seedSessionCards(testDb.kysely, otherPoe1Session, [
+        { cardName: "The Doctor", count: 3 },
+        { cardName: "Humility", count: 5 },
+      ]);
+      await seedSessionCards(testDb.kysely, poe2Session, [
+        { cardName: "The Doctor", count: 99 },
+      ]);
+
+      const result = await repository.getCardDropsForExport("poe1", null);
+
+      expect(result).toEqual({
+        Humility: 5,
+        "The Doctor": 5,
+      });
+    });
+  });
+
+  describe("getSessionsForExport", () => {
+    it("should return selected session summaries scoped to the requested game", async () => {
+      const poe1League = await seedLeague(testDb.kysely, { game: "poe1" });
+      const poe2League = await seedLeague(testDb.kysely, { game: "poe2" });
+      const poe1Session = await seedSession(testDb.kysely, {
+        id: "poe1-export",
+        game: "poe1",
+        leagueId: poe1League,
+        startedAt: "2025-01-01T10:00:00Z",
+      });
+      const poe2Session = await seedSession(testDb.kysely, {
+        id: "poe2-export",
+        game: "poe2",
+        leagueId: poe2League,
+        startedAt: "2025-01-02T10:00:00Z",
+      });
+
+      const result = await repository.getSessionsForExport("poe1", [
+        poe1Session,
+        poe2Session,
+      ]);
+
+      expect(result.map((session) => session.sessionId)).toEqual([
+        "poe1-export",
+      ]);
+    });
+
+    it("should return all session summaries for a game when session IDs are null", async () => {
+      const poe1League = await seedLeague(testDb.kysely, { game: "poe1" });
+      const poe2League = await seedLeague(testDb.kysely, { game: "poe2" });
+      await seedSession(testDb.kysely, {
+        id: "old-export",
+        game: "poe1",
+        leagueId: poe1League,
+        startedAt: "2025-01-01T10:00:00Z",
+      });
+      await seedSession(testDb.kysely, {
+        id: "new-export",
+        game: "poe1",
+        leagueId: poe1League,
+        startedAt: "2025-01-02T10:00:00Z",
+      });
+      await seedSession(testDb.kysely, {
+        id: "ignored-export",
+        game: "poe2",
+        leagueId: poe2League,
+        startedAt: "2025-01-03T10:00:00Z",
+      });
+
+      const result = await repository.getSessionsForExport("poe1", null);
+
+      expect(result.map((session) => session.sessionId)).toEqual([
+        "new-export",
+        "old-export",
+      ]);
+    });
+  });
+
+  describe("getAllSessionIds", () => {
+    it("should return all session IDs for a game ordered by newest first", async () => {
+      const poe1League = await seedLeague(testDb.kysely, { game: "poe1" });
+      const poe2League = await seedLeague(testDb.kysely, { game: "poe2" });
+
+      await seedSession(testDb.kysely, {
+        id: "old",
+        game: "poe1",
+        leagueId: poe1League,
+        startedAt: "2025-01-01T10:00:00Z",
+      });
+      await seedSession(testDb.kysely, {
+        id: "new",
+        game: "poe1",
+        leagueId: poe1League,
+        startedAt: "2025-01-03T10:00:00Z",
+      });
+      await seedSession(testDb.kysely, {
+        id: "middle",
+        game: "poe1",
+        leagueId: poe1League,
+        startedAt: "2025-01-02T10:00:00Z",
+      });
+      await seedSession(testDb.kysely, {
+        id: "poe2-session",
+        game: "poe2",
+        leagueId: poe2League,
+        startedAt: "2025-01-04T10:00:00Z",
+      });
+
+      await expect(repository.getAllSessionIds("poe1")).resolves.toEqual([
+        "new",
+        "middle",
+        "old",
+      ]);
+    });
+  });
+
   describe("getStackedDeckCardCount", () => {
     it("should return 0 when no availability rows exist for the league", async () => {
       const count = await repository.getStackedDeckCardCount(

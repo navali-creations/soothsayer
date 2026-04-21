@@ -14,17 +14,28 @@ interface SessionCardProps {
   session: SessionsSummary;
   /** Pre-computed sparkline line points for the background. */
   linePoints?: { x: number; profit: number }[];
+  isExportMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
 }
 
-export const SessionCard = ({ session, linePoints }: SessionCardProps) => {
+export const SessionCard = ({
+  session,
+  linePoints,
+  isExportMode = false,
+  isSelected = false,
+  onToggleSelect,
+}: SessionCardProps) => {
   const hasSparkline = linePoints != null && linePoints.length >= 2;
 
-  return (
-    <Link
-      to="/sessions/$sessionId"
-      params={{ sessionId: session.sessionId }}
-      className="card bg-base-200 shadow-xl hover:shadow-2xl transition-all cursor-pointer border-2 border-transparent hover:border-primary no-underline h-full flex flex-col relative overflow-hidden"
-    >
+  const borderClass = isExportMode
+    ? isSelected
+      ? "border-solid border-2 border-primary"
+      : "border-dashed border-2 border-base-content/30"
+    : "border-2 border-transparent hover:border-primary";
+
+  const cardContent = (
+    <>
       {/* Sparkline background */}
       {hasSparkline && (
         <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none">
@@ -163,6 +174,27 @@ export const SessionCard = ({ session, linePoints }: SessionCardProps) => {
             )}
         </div>
       </div>
+    </>
+  );
+
+  if (isExportMode) {
+    return (
+      <div
+        onClick={onToggleSelect}
+        className={`card bg-base-200 shadow-xl hover:shadow-2xl transition-all cursor-pointer ${borderClass} no-underline h-full flex flex-col relative overflow-hidden`}
+      >
+        {cardContent}
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      to="/sessions/$sessionId"
+      params={{ sessionId: session.sessionId }}
+      className={`card bg-base-200 shadow-xl hover:shadow-2xl transition-all cursor-pointer ${borderClass} no-underline h-full flex flex-col relative overflow-hidden`}
+    >
+      {cardContent}
     </Link>
   );
 };

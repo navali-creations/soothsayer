@@ -18,6 +18,10 @@ enum SessionsChannel {
   GetWinRate = "sessions:get-win-rate",
   GetSparklines = "sessions:get-sparklines",
   GetCardPoolBreakdown = "sessions:get-card-pool-breakdown",
+  GetCardDropsForSessions = "sessions:get-card-drops-for-sessions",
+  GetRichExportRows = "sessions:get-rich-export-rows",
+  GetSimpleExportRows = "sessions:get-simple-export-rows",
+  GetAllSessionIds = "sessions:get-all-session-ids",
 }
 
 export { SessionsChannel };

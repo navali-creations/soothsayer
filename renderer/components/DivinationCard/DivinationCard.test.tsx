@@ -365,6 +365,30 @@ describe("DivinationCard", () => {
         "full",
       );
     });
+
+    it("defaults rarity, fromBoss, and isDisabled when metadata omits them", () => {
+      const card = makeCardEntry({
+        count: 2,
+        divinationCard: {
+          id: "poe1_partial-card",
+        } as DivinationCardMetadata,
+      });
+
+      renderWithProviders(<DivinationCard card={card} />);
+
+      expect(screen.getByTestId("rarity-effects")).toHaveAttribute(
+        "data-rarity",
+        "4",
+      );
+      expect(
+        screen.queryByTitle("Boss-exclusive card"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByTitle(
+          "This card is drop-disabled and cannot currently be obtained",
+        ),
+      ).not.toBeInTheDocument();
+    });
   });
 
   describe("CardArt props", () => {

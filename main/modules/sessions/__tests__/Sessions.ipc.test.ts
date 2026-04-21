@@ -14,6 +14,10 @@ const {
   mockRepoSearchSessionsByCard,
   mockRepoGetSparklineData,
   mockRepoGetDeckCosts,
+  mockRepoGetCardDropsForSessions,
+  mockRepoGetSessionsForExport,
+  mockRepoGetCardDropsForExport,
+  mockRepoGetAllSessionIds,
   mockSnapshotLoadSnapshot,
   mockAssertGameType,
   mockAssertSessionId,
@@ -35,6 +39,10 @@ const {
   mockRepoSearchSessionsByCard: vi.fn(),
   mockRepoGetSparklineData: vi.fn(),
   mockRepoGetDeckCosts: vi.fn(),
+  mockRepoGetCardDropsForSessions: vi.fn(),
+  mockRepoGetSessionsForExport: vi.fn(),
+  mockRepoGetCardDropsForExport: vi.fn(),
+  mockRepoGetAllSessionIds: vi.fn(),
   mockSnapshotLoadSnapshot: vi.fn(),
   mockAssertGameType: vi.fn(),
   mockAssertSessionId: vi.fn(),
@@ -117,6 +125,10 @@ vi.mock("../Sessions.repository", () => ({
     searchSessionsByCard = mockRepoSearchSessionsByCard;
     getSparklineData = mockRepoGetSparklineData;
     getDeckCosts = mockRepoGetDeckCosts;
+    getCardDropsForSessions = mockRepoGetCardDropsForSessions;
+    getSessionsForExport = mockRepoGetSessionsForExport;
+    getCardDropsForExport = mockRepoGetCardDropsForExport;
+    getAllSessionIds = mockRepoGetAllSessionIds;
   },
 }));
 
@@ -227,6 +239,10 @@ describe("SessionsService — IPC handlers", () => {
     mockRepoSearchSessionsByCard.mockResolvedValue(SAMPLE_SESSION_SUMMARIES);
     mockRepoGetSparklineData.mockResolvedValue({});
     mockRepoGetDeckCosts.mockResolvedValue(new Map());
+    mockRepoGetCardDropsForSessions.mockResolvedValue({});
+    mockRepoGetSessionsForExport.mockResolvedValue(SAMPLE_SESSION_SUMMARIES);
+    mockRepoGetCardDropsForExport.mockResolvedValue({});
+    mockRepoGetAllSessionIds.mockResolvedValue([]);
     mockSnapshotLoadSnapshot.mockResolvedValue(null);
     mockAssertStringArray.mockImplementation(() => {});
     mockAssertOptionalEnum.mockImplementation(() => {});
@@ -274,10 +290,16 @@ describe("SessionsService — IPC handlers", () => {
       expect(registeredChannels).toContain(
         SessionsChannel.GetCardPoolBreakdown,
       );
+      expect(registeredChannels).toContain(
+        SessionsChannel.GetCardDropsForSessions,
+      );
+      expect(registeredChannels).toContain(SessionsChannel.GetRichExportRows);
+      expect(registeredChannels).toContain(SessionsChannel.GetSimpleExportRows);
+      expect(registeredChannels).toContain(SessionsChannel.GetAllSessionIds);
     });
 
-    it("should register exactly 19 IPC handlers", () => {
-      expect(mockIpcHandle).toHaveBeenCalledTimes(19);
+    it("should register exactly 23 IPC handlers", () => {
+      expect(mockIpcHandle).toHaveBeenCalledTimes(23);
     });
   });
 
@@ -1152,6 +1174,219 @@ describe("SessionsService — IPC handlers", () => {
       const result = await handler({}, 12345);
 
       expect(result).toEqual(errorPayload);
+    });
+  });
+
+  // ─── Export helpers ─────────────────────────────────────────────────────
+
+  describe("GetCardDropsForSessions handler", () => {
+    it("should validate sessionIds and return aggregated card drops", async () => {
+      mockRepoGetCardDropsForSessions.mockResolvedValue({
+        "Abandoned Wealth": 3,
+        "The Doctor": 2,
+      });
+
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.GetCardDropsForSessions,
+      );
+      const result = await handler({}, "poe1", ["s1", "s2"]);
+
+      expect(mockAssertGameType).toHaveBeenCalledWith(
+        "poe1",
+        SessionsChannel.GetCardDropsForSessions,
+      );
+      expect(mockAssertStringArray).toHaveBeenCalledWith(
+        ["s1", "s2"],
+        "sessionIds",
+        SessionsChannel.GetCardDropsForSessions,
+        { maxLength: 200, maxItemLength: 256 },
+      );
+      expect(mockRepoGetCardDropsForSessions).toHaveBeenCalledWith("poe1", [
+        "s1",
+        "s2",
+      ]);
+      expect(result).toEqual({
+        "Abandoned Wealth": 3,
+        "The Doctor": 2,
+      });
+    });
+
+    it("should return validation errors for invalid sessionIds", async () => {
+      const validationError = new Error("Invalid sessionIds");
+      mockAssertStringArray.mockImplementation(() => {
+        throw validationError;
+      });
+
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.GetCardDropsForSessions,
+      );
+      const result = await handler({}, "poe1", "bad");
+
+      expect(mockHandleValidationError).toHaveBeenCalledWith(
+        validationError,
+        SessionsChannel.GetCardDropsForSessions,
+      );
+      expect(mockRepoGetCardDropsForSessions).not.toHaveBeenCalled();
+      expect(result).toEqual({ success: false, error: "Validation error" });
+    });
+
+    it("should return validation errors for invalid game", async () => {
+      const validationError = new Error("Invalid game");
+      mockAssertGameType.mockImplementation(() => {
+        throw validationError;
+      });
+
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.GetCardDropsForSessions,
+      );
+      const result = await handler({}, "poe3", ["s1"]);
+
+      expect(mockHandleValidationError).toHaveBeenCalledWith(
+        validationError,
+        SessionsChannel.GetCardDropsForSessions,
+      );
+      expect(mockAssertStringArray).not.toHaveBeenCalled();
+      expect(mockRepoGetCardDropsForSessions).not.toHaveBeenCalled();
+      expect(result).toEqual({ success: false, error: "Validation error" });
+    });
+  });
+
+  describe("GetRichExportRows handler", () => {
+    it("should validate selected session IDs and return export rows", async () => {
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.GetRichExportRows,
+      );
+      const result = await handler({}, "poe1", ["s1", "s2"]);
+
+      expect(mockAssertGameType).toHaveBeenCalledWith(
+        "poe1",
+        SessionsChannel.GetRichExportRows,
+      );
+      expect(mockAssertStringArray).toHaveBeenCalledWith(
+        ["s1", "s2"],
+        "sessionIds",
+        SessionsChannel.GetRichExportRows,
+        { maxLength: 5000, maxItemLength: 256 },
+      );
+      expect(mockRepoGetSessionsForExport).toHaveBeenCalledWith("poe1", [
+        "s1",
+        "s2",
+      ]);
+      expect(result).toEqual(SAMPLE_SESSION_SUMMARIES);
+    });
+
+    it("should pass null for all-session rich exports without array validation", async () => {
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.GetRichExportRows,
+      );
+      await handler({}, "poe1", null);
+
+      expect(mockAssertStringArray).not.toHaveBeenCalled();
+      expect(mockRepoGetSessionsForExport).toHaveBeenCalledWith("poe1", null);
+    });
+
+    it("should return validation errors for invalid selected IDs", async () => {
+      const validationError = new Error("Invalid sessionIds");
+      mockAssertStringArray.mockImplementation(() => {
+        throw validationError;
+      });
+
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.GetRichExportRows,
+      );
+      const result = await handler({}, "poe1", "bad");
+
+      expect(mockHandleValidationError).toHaveBeenCalledWith(
+        validationError,
+        SessionsChannel.GetRichExportRows,
+      );
+      expect(mockRepoGetSessionsForExport).not.toHaveBeenCalled();
+      expect(result).toEqual({ success: false, error: "Validation error" });
+    });
+  });
+
+  describe("GetSimpleExportRows handler", () => {
+    it("should validate selected session IDs and return card totals", async () => {
+      mockRepoGetCardDropsForExport.mockResolvedValue({
+        "The Doctor": 2,
+      });
+
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.GetSimpleExportRows,
+      );
+      const result = await handler({}, "poe1", ["s1"]);
+
+      expect(mockAssertGameType).toHaveBeenCalledWith(
+        "poe1",
+        SessionsChannel.GetSimpleExportRows,
+      );
+      expect(mockAssertStringArray).toHaveBeenCalledWith(
+        ["s1"],
+        "sessionIds",
+        SessionsChannel.GetSimpleExportRows,
+        { maxLength: 5000, maxItemLength: 256 },
+      );
+      expect(mockRepoGetCardDropsForExport).toHaveBeenCalledWith("poe1", [
+        "s1",
+      ]);
+      expect(result).toEqual({ "The Doctor": 2 });
+    });
+
+    it("should pass null for all-session simple exports without array validation", async () => {
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.GetSimpleExportRows,
+      );
+      await handler({}, "poe1", null);
+
+      expect(mockAssertStringArray).not.toHaveBeenCalled();
+      expect(mockRepoGetCardDropsForExport).toHaveBeenCalledWith("poe1", null);
+    });
+  });
+
+  describe("GetAllSessionIds handler", () => {
+    it("should validate game and return ordered session IDs", async () => {
+      mockRepoGetAllSessionIds.mockResolvedValue(["s3", "s2", "s1"]);
+
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.GetAllSessionIds,
+      );
+      const result = await handler({}, "poe1");
+
+      expect(mockAssertGameType).toHaveBeenCalledWith(
+        "poe1",
+        SessionsChannel.GetAllSessionIds,
+      );
+      expect(mockRepoGetAllSessionIds).toHaveBeenCalledWith("poe1");
+      expect(result).toEqual(["s3", "s2", "s1"]);
+    });
+
+    it("should not call repository when game validation fails", async () => {
+      const validationError = new Error("Invalid game");
+      mockAssertGameType.mockImplementation(() => {
+        throw validationError;
+      });
+
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.GetAllSessionIds,
+      );
+      const result = await handler({}, "poe3");
+
+      expect(mockHandleValidationError).toHaveBeenCalledWith(
+        validationError,
+        SessionsChannel.GetAllSessionIds,
+      );
+      expect(mockRepoGetAllSessionIds).not.toHaveBeenCalled();
+      expect(result).toEqual({ success: false, error: "Validation error" });
     });
   });
 

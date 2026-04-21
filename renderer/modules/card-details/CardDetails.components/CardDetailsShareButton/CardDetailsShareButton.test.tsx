@@ -1,3 +1,4 @@
+import { act, fireEvent } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -124,6 +125,7 @@ beforeEach(() => {
 // ─── Cleanup ───────────────────────────────────────────────────────────────
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -314,6 +316,26 @@ describe("CardDetailsShareButton — copy feedback", () => {
       expect(screen.getByTestId("icon-check")).toBeInTheDocument();
     });
     expect(screen.queryByTestId("icon-copy")).not.toBeInTheDocument();
+  });
+
+  it("resets copy feedback after the timeout", async () => {
+    vi.useFakeTimers();
+    renderComponent();
+
+    fireEvent.click(screen.getByRole("button"));
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText("Copied!")).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+
+    expect(screen.getByText("Copy")).toBeInTheDocument();
+    expect(screen.getByTestId("icon-copy")).toBeInTheDocument();
   });
 });
 

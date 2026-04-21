@@ -17,8 +17,25 @@ vi.mock("~/renderer/store", async () => {
 const mockUseBoundStore = vi.mocked(useBoundStore);
 
 vi.mock("../SessionsCard/SessionsCard", () => ({
-  SessionCard: ({ session }: { session: SessionsSummary }) => (
-    <div data-testid={`session-${session.sessionId}`}>{session.league}</div>
+  SessionCard: ({
+    session,
+    isExportMode,
+    isSelected,
+    onToggleSelect,
+  }: {
+    session: SessionsSummary;
+    isExportMode?: boolean;
+    isSelected?: boolean;
+    onToggleSelect?: () => void;
+  }) => (
+    <button
+      data-export-mode={String(Boolean(isExportMode))}
+      data-selected={String(Boolean(isSelected))}
+      data-testid={`session-${session.sessionId}`}
+      onClick={onToggleSelect}
+    >
+      {session.league}
+    </button>
   ),
 }));
 
@@ -27,14 +44,26 @@ vi.mock("../SessionsCard/SessionsCard", () => ({
 function setupStore(overrides: {
   filteredSessions?: SessionsSummary[];
   selectedLeague?: string;
+  sparklines?: Record<string, { x: number; profit: number }[]>;
+  isExportMode?: boolean;
+  selectedSessionIds?: string[];
+  toggleSessionSelection?: ReturnType<typeof vi.fn>;
 }) {
+  const selectedIds = new Set(overrides.selectedSessionIds ?? []);
+  const toggleSessionSelection = overrides.toggleSessionSelection ?? vi.fn();
+
   mockUseBoundStore.mockReturnValue({
     sessions: {
       getFilteredSessions: () => overrides.filteredSessions ?? [],
       getSelectedLeague: () => overrides.selectedLeague ?? "all",
-      getSparklines: () => ({}),
+      getSparklines: () => overrides.sparklines ?? {},
+      getIsExportMode: () => overrides.isExportMode ?? false,
+      getIsSessionSelected: (id: string) => selectedIds.has(id),
+      toggleSessionSelection,
     },
   } as any);
+
+  return { toggleSessionSelection };
 }
 
 // ─── Tests ─────────────────────────────────────────────────────────────────
@@ -125,6 +154,60 @@ describe("SessionsGrid", () => {
       expect(screen.getByTestId("session-sess-2")).toHaveTextContent(
         "Standard",
       );
+    });
+
+    it("does not render selection checkboxes outside export mode", () => {
+      const sessions = [makeSessionsSummary({ sessionId: "sess-1" })];
+      setupStore({ filteredSessions: sessions, isExportMode: false });
+      renderWithProviders(<SessionsGrid />);
+
+      expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+      expect(screen.getByTestId("session-sess-1")).toHaveAttribute(
+        "data-export-mode",
+        "false",
+      );
+    });
+
+    it("renders selected export state and toggles from checkbox", async () => {
+      const toggleSessionSelection = vi.fn();
+      const sessions = [
+        makeSessionsSummary({ sessionId: "sess-1" }),
+        makeSessionsSummary({ sessionId: "sess-2" }),
+      ];
+      setupStore({
+        filteredSessions: sessions,
+        isExportMode: true,
+        selectedSessionIds: ["sess-2"],
+        toggleSessionSelection,
+      });
+
+      const { user } = renderWithProviders(<SessionsGrid />);
+      const checkboxes = screen.getAllByRole("checkbox");
+
+      expect(checkboxes[0]).not.toBeChecked();
+      expect(checkboxes[1]).toBeChecked();
+      expect(screen.getByTestId("session-sess-2")).toHaveAttribute(
+        "data-selected",
+        "true",
+      );
+
+      await user.click(checkboxes[0]);
+      expect(toggleSessionSelection).toHaveBeenCalledWith("sess-1");
+    });
+
+    it("toggles selection when a card is clicked in export mode", async () => {
+      const toggleSessionSelection = vi.fn();
+      const sessions = [makeSessionsSummary({ sessionId: "sess-1" })];
+      setupStore({
+        filteredSessions: sessions,
+        isExportMode: true,
+        toggleSessionSelection,
+      });
+
+      const { user } = renderWithProviders(<SessionsGrid />);
+      await user.click(screen.getByTestId("session-sess-1"));
+
+      expect(toggleSessionSelection).toHaveBeenCalledWith("sess-1");
     });
   });
 });

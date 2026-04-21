@@ -636,4 +636,106 @@ describe("SessionsSlice", () => {
       expect(filtered[0].sessionId).toBe("s4");
     });
   });
+
+  // ─── Export Mode ─────────────────────────────────────────────────────
+
+  describe("export mode", () => {
+    it("setExportType('rich') enables export mode", () => {
+      store.getState().sessions.setExportType("rich");
+      expect(store.getState().sessions.getIsExportMode()).toBe(true);
+      expect(store.getState().sessions.getExportType()).toBe("rich");
+    });
+
+    it("setExportType('simple') enables export mode", () => {
+      store.getState().sessions.setExportType("simple");
+      expect(store.getState().sessions.getIsExportMode()).toBe(true);
+      expect(store.getState().sessions.getExportType()).toBe("simple");
+    });
+
+    it("setExportType(null) disables export mode", () => {
+      store.getState().sessions.setExportType("rich");
+      store.getState().sessions.setExportType(null);
+      expect(store.getState().sessions.getIsExportMode()).toBe(false);
+      expect(store.getState().sessions.getExportType()).toBeNull();
+    });
+
+    it("setExportType(null) clears selectedSessionIds", () => {
+      store.getState().sessions.setExportType("rich");
+      store.getState().sessions.toggleSessionSelection("s1");
+      store.getState().sessions.toggleSessionSelection("s2");
+      expect(store.getState().sessions.getSelectedCount()).toBe(2);
+
+      store.getState().sessions.setExportType(null);
+      expect(store.getState().sessions.getSelectedSessionIds()).toEqual([]);
+      expect(store.getState().sessions.getSelectedCount()).toBe(0);
+    });
+
+    it("toggleSessionSelection adds and removes IDs", () => {
+      store.getState().sessions.toggleSessionSelection("s1");
+      expect(store.getState().sessions.getIsSessionSelected("s1")).toBe(true);
+
+      store.getState().sessions.toggleSessionSelection("s1");
+      expect(store.getState().sessions.getIsSessionSelected("s1")).toBe(false);
+    });
+
+    it("clearSelection empties selection", () => {
+      store.getState().sessions.toggleSessionSelection("s1");
+      store.getState().sessions.toggleSessionSelection("s2");
+      store.getState().sessions.clearSelection();
+      expect(store.getState().sessions.getSelectedCount()).toBe(0);
+    });
+
+    it("getSelectedCount returns correct count", () => {
+      expect(store.getState().sessions.getSelectedCount()).toBe(0);
+      store.getState().sessions.toggleSessionSelection("s1");
+      expect(store.getState().sessions.getSelectedCount()).toBe(1);
+      store.getState().sessions.toggleSessionSelection("s2");
+      expect(store.getState().sessions.getSelectedCount()).toBe(2);
+    });
+
+    it("selectAllVisible selects all sessions on current page", async () => {
+      const sessions = [
+        makeSessionSummary({ sessionId: "s1" }),
+        makeSessionSummary({ sessionId: "s2" }),
+        makeSessionSummary({ sessionId: "s3" }),
+      ];
+      electron.sessions.getAll.mockResolvedValue(makePageResponse(sessions));
+      electron.sessions.getSparklines.mockResolvedValue({});
+
+      await store.getState().sessions.loadAllSessions();
+      store.getState().sessions.selectAllVisible();
+
+      expect(store.getState().sessions.getSelectedCount()).toBe(3);
+      expect(store.getState().sessions.getIsSessionSelected("s1")).toBe(true);
+      expect(store.getState().sessions.getIsSessionSelected("s2")).toBe(true);
+      expect(store.getState().sessions.getIsSessionSelected("s3")).toBe(true);
+    });
+
+    it("selectAll selects all sessions across all pages via IPC", async () => {
+      electron.sessions.getAllSessionIds.mockResolvedValue([
+        "s1",
+        "s2",
+        "s3",
+        "s4",
+        "s5",
+      ]);
+
+      await store.getState().sessions.selectAll();
+
+      expect(electron.sessions.getAllSessionIds).toHaveBeenCalledWith("poe1");
+      expect(store.getState().sessions.getSelectedCount()).toBe(5);
+      expect(store.getState().sessions.getIsSessionSelected("s1")).toBe(true);
+      expect(store.getState().sessions.getIsSessionSelected("s5")).toBe(true);
+    });
+
+    it("switching export type preserves selection", () => {
+      store.getState().sessions.setExportType("rich");
+      store.getState().sessions.toggleSessionSelection("s1");
+      store.getState().sessions.toggleSessionSelection("s2");
+
+      store.getState().sessions.setExportType("simple");
+      expect(store.getState().sessions.getSelectedCount()).toBe(2);
+      expect(store.getState().sessions.getExportType()).toBe("simple");
+    });
+  });
 });

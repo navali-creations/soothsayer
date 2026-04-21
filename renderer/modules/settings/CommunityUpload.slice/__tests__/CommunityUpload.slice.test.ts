@@ -37,6 +37,8 @@ function installGggAuthMock() {
   const mockGetAuthStatus = vi.fn();
   const mockAuthenticate = vi.fn();
   const mockLogout = vi.fn();
+  const mockGetBackfillLeagues = vi.fn();
+  const mockTriggerBackfill = vi.fn();
 
   // The setup file assigns `window.electron` in its own beforeEach which
   // runs before ours. We simply bolt gggAuth onto whatever object is there.
@@ -47,9 +49,19 @@ function installGggAuthMock() {
       authenticate: mockAuthenticate,
       logout: mockLogout,
     },
+    communityUpload: {
+      getBackfillLeagues: mockGetBackfillLeagues,
+      triggerBackfill: mockTriggerBackfill,
+    },
   };
 
-  return { mockGetAuthStatus, mockAuthenticate, mockLogout };
+  return {
+    mockGetAuthStatus,
+    mockAuthenticate,
+    mockLogout,
+    mockGetBackfillLeagues,
+    mockTriggerBackfill,
+  };
 }
 
 // ─── Tests ─────────────────────────────────────────────────────────────────
@@ -59,6 +71,8 @@ describe("CommunityUploadSlice", () => {
   let mockGetAuthStatus: ReturnType<typeof vi.fn>;
   let mockAuthenticate: ReturnType<typeof vi.fn>;
   let mockLogout: ReturnType<typeof vi.fn>;
+  let mockGetBackfillLeagues: ReturnType<typeof vi.fn>;
+  let mockTriggerBackfill: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -66,6 +80,8 @@ describe("CommunityUploadSlice", () => {
     mockGetAuthStatus = mocks.mockGetAuthStatus;
     mockAuthenticate = mocks.mockAuthenticate;
     mockLogout = mocks.mockLogout;
+    mockGetBackfillLeagues = mocks.mockGetBackfillLeagues;
+    mockTriggerBackfill = mocks.mockTriggerBackfill;
     store = createTestStore();
   });
 
@@ -96,6 +112,9 @@ describe("CommunityUploadSlice", () => {
       expect(communityUpload.isAuthenticating).toBe(false);
       expect(communityUpload.isLoadingStatus).toBe(false);
       expect(communityUpload.authError).toBeNull();
+      expect(communityUpload.backfillLeagues).toEqual([]);
+      expect(communityUpload.isBackfilling).toBe(false);
+      expect(communityUpload.backfillDismissed).toBe(false);
     });
   });
 
@@ -369,6 +388,97 @@ describe("CommunityUploadSlice", () => {
       expect(communityUpload.gggAuthenticated).toBe(true);
       expect(communityUpload.gggUsername).toBe("User");
       expect(communityUpload.gggAccountId).toBe("id-1");
+    });
+  });
+
+  describe("backfill", () => {
+    it("stores backfill leagues returned by IPC", async () => {
+      const leagues = [
+        { game: "poe1", league: "Settlers" },
+        { game: "poe2", league: "Dawn of the Hunt" },
+      ];
+      mockGetBackfillLeagues.mockResolvedValue(leagues);
+
+      await store.getState().communityUpload.checkBackfill();
+
+      expect(mockGetBackfillLeagues).toHaveBeenCalledTimes(1);
+      expect(store.getState().communityUpload.backfillLeagues).toEqual(leagues);
+    });
+
+    it("logs and preserves state when checking backfill fails", async () => {
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      const leagues = [{ game: "poe1", league: "Settlers" }];
+      const error = new Error("backfill unavailable");
+
+      mockGetBackfillLeagues.mockResolvedValueOnce(leagues);
+      await store.getState().communityUpload.checkBackfill();
+      mockGetBackfillLeagues.mockRejectedValueOnce(error);
+
+      await store.getState().communityUpload.checkBackfill();
+
+      expect(store.getState().communityUpload.backfillLeagues).toEqual(leagues);
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[CommunityUploadSlice] Failed to check backfill:",
+        error,
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it("sets isBackfilling while triggerBackfill is pending", async () => {
+      let resolve!: () => void;
+      mockTriggerBackfill.mockReturnValue(
+        new Promise<void>((r) => {
+          resolve = r;
+        }),
+      );
+
+      const promise = store.getState().communityUpload.triggerBackfill();
+
+      expect(store.getState().communityUpload.isBackfilling).toBe(true);
+
+      resolve();
+      await promise;
+    });
+
+    it("clears leagues and dismisses backfill on successful trigger", async () => {
+      const leagues = [{ game: "poe1", league: "Settlers" }];
+      mockGetBackfillLeagues.mockResolvedValue(leagues);
+      mockTriggerBackfill.mockResolvedValue(undefined);
+
+      await store.getState().communityUpload.checkBackfill();
+      await store.getState().communityUpload.triggerBackfill();
+
+      const { communityUpload } = store.getState();
+      expect(communityUpload.isBackfilling).toBe(false);
+      expect(communityUpload.backfillLeagues).toEqual([]);
+      expect(communityUpload.backfillDismissed).toBe(true);
+    });
+
+    it("resets isBackfilling and logs when triggerBackfill fails", async () => {
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      const error = new Error("trigger failed");
+      mockTriggerBackfill.mockRejectedValue(error);
+
+      await store.getState().communityUpload.triggerBackfill();
+
+      expect(store.getState().communityUpload.isBackfilling).toBe(false);
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[CommunityUploadSlice] Backfill trigger failed:",
+        error,
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it("marks the backfill prompt as dismissed", () => {
+      store.getState().communityUpload.dismissBackfill();
+
+      expect(store.getState().communityUpload.backfillDismissed).toBe(true);
     });
   });
 });

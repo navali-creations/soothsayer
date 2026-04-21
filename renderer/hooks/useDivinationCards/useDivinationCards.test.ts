@@ -251,6 +251,19 @@ describe("useDivinationCards", () => {
         (window.electron as any).dataStore.getLeagues,
       ).toHaveBeenCalledWith("poe1");
     });
+
+    it("uses an empty list when dataStore.getLeagues returns undefined", async () => {
+      (window.electron as any).session.isActive.mockResolvedValue(false);
+      (window.electron as any).dataStore.getLeagues.mockResolvedValue(
+        undefined,
+      );
+
+      const { result } = renderHook(() => useDivinationCards());
+
+      await waitFor(() => {
+        expect(result.current.availableLeagues).toEqual([]);
+      });
+    });
   });
 
   // ── 10. Available leagues error handling ──────────────────────────────
@@ -778,6 +791,134 @@ describe("useDivinationCards", () => {
       expect(doctor.stashPrice.totalValue).toBe(2700);
     });
 
+    it("keeps null stats unchanged when onCardDelta fires before stats load", async () => {
+      (window.electron as any).session.isActive.mockResolvedValue(true);
+      (window.electron as any).session.getCurrent.mockResolvedValue(null);
+
+      let deltaHandler: (data: { game: string; delta: any }) => void;
+      (window.electron as any).session.onCardDelta.mockImplementation(
+        (handler: any) => {
+          deltaHandler = handler;
+          return vi.fn();
+        },
+      );
+
+      const { result } = renderHook(() =>
+        useDivinationCards({ game: "poe1", scope: "session" }),
+      );
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      await act(async () => {
+        deltaHandler!({
+          game: "poe1",
+          delta: {
+            cardName: "The Doctor",
+            newCount: 3,
+            totalCount: 6,
+          },
+        });
+      });
+
+      expect(result.current.stats).toBeNull();
+    });
+
+    it("keeps non-detailed stats unchanged when onCardDelta receives non-array cards", async () => {
+      const simpleStats = {
+        totalCount: 5,
+        cards: {
+          "The Doctor": { count: 2 },
+        },
+      };
+      (window.electron as any).session.isActive.mockResolvedValue(true);
+      (window.electron as any).session.getCurrent.mockResolvedValue(
+        simpleStats,
+      );
+
+      let deltaHandler: (data: { game: string; delta: any }) => void;
+      (window.electron as any).session.onCardDelta.mockImplementation(
+        (handler: any) => {
+          deltaHandler = handler;
+          return vi.fn();
+        },
+      );
+
+      const { result } = renderHook(() =>
+        useDivinationCards({ game: "poe1", scope: "session" }),
+      );
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      await act(async () => {
+        deltaHandler!({
+          game: "poe1",
+          delta: {
+            cardName: "The Doctor",
+            newCount: 3,
+            totalCount: 6,
+          },
+        });
+      });
+
+      expect(result.current.stats).toEqual(simpleStats);
+    });
+
+    it("recalculates existing prices with zero when chaosValue is missing", async () => {
+      const initialStats = {
+        totalCount: 5,
+        cards: [
+          {
+            name: "The Doctor",
+            count: 2,
+            exchangePrice: { totalValue: 2000 },
+            stashPrice: { totalValue: 1800 },
+          },
+        ],
+        recentDrops: [],
+      };
+
+      (window.electron as any).session.isActive.mockResolvedValue(true);
+      (window.electron as any).session.getCurrent.mockResolvedValue(
+        initialStats,
+      );
+
+      let deltaHandler: (data: { game: string; delta: any }) => void;
+      (window.electron as any).session.onCardDelta.mockImplementation(
+        (handler: any) => {
+          deltaHandler = handler;
+          return vi.fn();
+        },
+      );
+
+      const { result } = renderHook(() =>
+        useDivinationCards({ game: "poe1", scope: "session" }),
+      );
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      await act(async () => {
+        deltaHandler!({
+          game: "poe1",
+          delta: {
+            cardName: "The Doctor",
+            newCount: 3,
+            totalCount: 6,
+          },
+        });
+      });
+
+      const stats = result.current.stats as any;
+      const doctor = stats.cards.find((c: any) => c.name === "The Doctor");
+      expect(doctor.exchangePrice.totalValue).toBe(0);
+      expect(doctor.stashPrice.totalValue).toBe(0);
+    });
+
     it("adds new card via onCardDelta", async () => {
       const initialStats = {
         totalCount: 5,
@@ -871,6 +1012,51 @@ describe("useDivinationCards", () => {
       const stats = result.current.stats as any;
       expect(stats.recentDrops[0].cardName).toBe("The Doctor");
       expect(stats.recentDrops[1].cardName).toBe("Old Drop");
+    });
+
+    it("creates recentDrops from delta when previous recentDrops is missing", async () => {
+      const initialStats = {
+        totalCount: 5,
+        cards: [{ name: "The Doctor", count: 2 }],
+      };
+
+      (window.electron as any).session.isActive.mockResolvedValue(true);
+      (window.electron as any).session.getCurrent.mockResolvedValue(
+        initialStats,
+      );
+
+      let deltaHandler: (data: { game: string; delta: any }) => void;
+      (window.electron as any).session.onCardDelta.mockImplementation(
+        (handler: any) => {
+          deltaHandler = handler;
+          return vi.fn();
+        },
+      );
+
+      const { result } = renderHook(() =>
+        useDivinationCards({ game: "poe1", scope: "session" }),
+      );
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      await act(async () => {
+        deltaHandler!({
+          game: "poe1",
+          delta: {
+            cardName: "The Doctor",
+            newCount: 3,
+            totalCount: 6,
+            recentDrop: { cardName: "The Doctor", rarity: 1 },
+          },
+        });
+      });
+
+      const stats = result.current.stats as any;
+      expect(stats.recentDrops).toEqual([
+        { cardName: "The Doctor", rarity: 1 },
+      ]);
     });
 
     it("adds new card with divinationCard metadata via onCardDelta", async () => {

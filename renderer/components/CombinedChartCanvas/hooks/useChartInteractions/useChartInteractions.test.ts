@@ -229,6 +229,18 @@ describe("useChartInteractions", () => {
 
     expect(params.hoverIndexRef.current).toBeNull();
     expect(params.draw).toHaveBeenCalled();
+
+    const updater = (params.setTooltip as ReturnType<typeof vi.fn>).mock
+      .calls[0][0];
+    const prev: TooltipState = {
+      visible: true,
+      x: 100,
+      y: 100,
+      dataPoint: makeDataPoint(0),
+    };
+    const result = updater(prev);
+    expect(result.visible).toBe(false);
+    expect(result.dataPoint).toBeNull();
   });
 
   // ── 6. Mouse leave sets tooltip to not visible ────────────────
@@ -325,6 +337,67 @@ describe("useChartInteractions", () => {
 
     // draw should NOT be called because hoverIndexRef was already null
     expect(params.draw).not.toHaveBeenCalled();
+  });
+
+  it("returns no hit when chart data is empty", () => {
+    const params = createParams({ visibleData: [] });
+    const canvas = params.canvasRef.current!;
+
+    renderHook(() => useChartInteractions(params));
+
+    act(() => {
+      fireMouseEvent(canvas, "mousemove", { clientX: 200, clientY: 150 });
+    });
+
+    expect(params.hoverIndexRef.current).toBeNull();
+    expect(params.setTooltip).not.toHaveBeenCalled();
+  });
+
+  it("cancels a pending animation frame before requesting another draw", () => {
+    const params = createParams();
+    const canvas = params.canvasRef.current!;
+
+    renderHook(() => useChartInteractions(params));
+
+    act(() => {
+      fireMouseEvent(canvas, "mousemove", { clientX: 55, clientY: 150 });
+    });
+    act(() => {
+      fireMouseEvent(canvas, "mousemove", { clientX: 95, clientY: 150 });
+    });
+
+    expect(window.cancelAnimationFrame).toHaveBeenCalledWith(1);
+  });
+
+  it("skips cursor updates when the canvas ref is cleared after coordinates are read", () => {
+    const canvas = document.createElement("canvas");
+    vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue({
+      left: 0,
+      top: 0,
+      right: 500,
+      bottom: 400,
+      width: 500,
+      height: 400,
+      x: 0,
+      y: 0,
+      toJSON: () => {},
+    });
+    let reads = 0;
+    const canvasRef = {
+      get current() {
+        reads += 1;
+        return reads >= 3 ? null : canvas;
+      },
+    };
+    const params = createParams({ canvasRef });
+
+    renderHook(() => useChartInteractions(params));
+
+    expect(() => {
+      act(() => {
+        fireMouseEvent(canvas, "mousemove", { clientX: 200, clientY: 150 });
+      });
+    }).not.toThrow();
   });
 
   // ── 10. Mouse down on chart area starts chart-pan drag ────────
@@ -700,6 +773,18 @@ describe("useChartInteractions", () => {
     // Hover should be cleared during pan
     expect(params.hoverIndexRef.current).toBeNull();
     expect(params.setTooltip).toHaveBeenCalled();
+
+    const updater = (params.setTooltip as ReturnType<typeof vi.fn>).mock
+      .calls[0][0];
+    const prev: TooltipState = {
+      visible: true,
+      x: 100,
+      y: 100,
+      dataPoint: makeDataPoint(0),
+    };
+    const result = updater(prev);
+    expect(result.visible).toBe(false);
+    expect(result.dataPoint).toBeNull();
   });
 
   // ── 21. Mouseup when no drag was happening does not change cursor ─
@@ -802,6 +887,109 @@ describe("useChartInteractions", () => {
     // Should not throw
     const { result } = renderHook(() => useChartInteractions(params));
     expect(result.current.hoverIndexRef).toBe(params.hoverIndexRef);
+  });
+
+  it("uses zero coordinates when the canvas ref is cleared before an attached handler runs", () => {
+    const canvas = document.createElement("canvas");
+    const canvasRef = { current: canvas as HTMLCanvasElement | null };
+    const params = createParams({
+      canvasRef,
+      layout: {
+        ...DEFAULT_LAYOUT,
+        chartLeft: 0,
+        chartRight: 10,
+        chartTop: 0,
+        chartBottom: 10,
+      },
+    });
+
+    renderHook(() => useChartInteractions(params));
+
+    canvasRef.current = null;
+
+    act(() => {
+      fireMouseEvent(canvas, "mousemove", { clientX: 200, clientY: 150 });
+    });
+
+    expect(params.hoverIndexRef.current).toBeNull();
+    expect(params.setTooltip).not.toHaveBeenCalled();
+  });
+
+  it("starts brush-pan without setting a cursor when the canvas ref is cleared", () => {
+    const canvas = document.createElement("canvas");
+    vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue({
+      left: 0,
+      top: 0,
+      right: 500,
+      bottom: 400,
+      width: 500,
+      height: 400,
+      x: 0,
+      y: 0,
+      toJSON: () => {},
+    });
+    let reads = 0;
+    const canvasRef = {
+      get current() {
+        reads += 1;
+        return reads >= 3 ? null : canvas;
+      },
+    };
+    const params = createParams({ canvasRef, showBrush: true });
+    const brushRange = params.brushRangeRef.current;
+    const leftX =
+      DEFAULT_LAYOUT.brushLeft +
+      (brushRange.startIndex / 99) *
+        (DEFAULT_LAYOUT.brushRight - DEFAULT_LAYOUT.brushLeft);
+    const rightX =
+      DEFAULT_LAYOUT.brushLeft +
+      (brushRange.endIndex / 99) *
+        (DEFAULT_LAYOUT.brushRight - DEFAULT_LAYOUT.brushLeft);
+    const midX = (leftX + rightX) / 2;
+    const brushMidY =
+      (DEFAULT_LAYOUT.brushTop + DEFAULT_LAYOUT.brushBottom) / 2;
+
+    renderHook(() => useChartInteractions(params));
+
+    act(() => {
+      fireMouseEvent(canvas, "mousedown", {
+        clientX: midX,
+        clientY: brushMidY,
+      });
+    });
+
+    expect(canvas.style.cursor).toBe("");
+  });
+
+  it("starts chart-pan without setting a cursor when the canvas ref is cleared", () => {
+    const canvas = document.createElement("canvas");
+    vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue({
+      left: 0,
+      top: 0,
+      right: 500,
+      bottom: 400,
+      width: 500,
+      height: 400,
+      x: 0,
+      y: 0,
+      toJSON: () => {},
+    });
+    let reads = 0;
+    const canvasRef = {
+      get current() {
+        reads += 1;
+        return reads >= 3 ? null : canvas;
+      },
+    };
+    const params = createParams({ canvasRef, showBrush: false });
+
+    renderHook(() => useChartInteractions(params));
+
+    act(() => {
+      fireMouseEvent(canvas, "mousedown", { clientX: 200, clientY: 150 });
+    });
+
+    expect(canvas.style.cursor).toBe("");
   });
 
   // ── 25. showBrush=false → hitTestBrush returns null ───────────

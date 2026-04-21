@@ -540,5 +540,30 @@ describe("CombinedChartCanvas", () => {
       expect(dc.colors.c).toEqual(defaultProps.c);
       expect(dc.layout).toBeDefined();
     });
+
+    it("uses midpoint mappers for single-point chart and brush data", () => {
+      vi.mocked(drawFunctions.drawGrid).mockClear();
+      vi.mocked(drawFunctions.drawBrush).mockClear();
+
+      renderWithProviders(
+        <CombinedChartCanvas
+          {...defaultProps}
+          showBrush={true}
+          chartData={makeChartData(1)}
+          brushRange={makeBrushRange(1)}
+        />,
+      );
+
+      const dc = vi.mocked(drawFunctions.drawGrid).mock.calls[0][0];
+      expect(dc.mapX(0)).toBe(mockLayout.chartLeft + mockLayout.chartWidth / 2);
+      expect(dc.mapX.inverse(123)).toBe(0);
+
+      const bdc = vi.mocked(drawFunctions.drawBrush).mock.calls[0][0];
+      expect(bdc.mapBrushX(0)).toBe(
+        mockLayout.brushLeft +
+          (mockLayout.brushRight - mockLayout.brushLeft) / 2,
+      );
+      expect(bdc.mapBrushX.inverse(123)).toBe(0);
+    });
   });
 });

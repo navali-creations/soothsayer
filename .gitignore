@@ -112,3 +112,6 @@ test-results/
 blob-report/
 dist
 coverage*
+
+.agents/
+skills-lock.json
