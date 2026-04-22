@@ -44,7 +44,7 @@
     "node": ">=24",
     "pnpm": ">=10"
   },
-  "packageManager": "pnpm@10.28.0",
+  "packageManager": "pnpm@10.33.1",
   "keywords": [],
   "author": {
     "name": "Sebastian Krzyżanowski",
@@ -71,7 +71,7 @@
     "@sentry/electron": "^7.11.0",
     "@sentry/vite-plugin": "^5.2.0",
     "@supabase/supabase-js": "^2.104.0",
-    "@tailwindcss/vite": "^4.2.4",
+    "@tailwindcss/vite": "^4.2.2",
     "@tanstack/react-router": "^1.168.23",
     "@tanstack/react-router-devtools": "^1.166.13",
     "@tanstack/react-table": "^8.21.3",
@@ -81,6 +81,7 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/better-sqlite3": "^7.6.13",
     "@types/electron-squirrel-startup": "^1.0.2",
+    "@types/node": "^24.12.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
