@@ -1,5 +1,6 @@
 import { makeSessionsSummary } from "~/renderer/__test-setup__/fixtures";
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
+import { useBoundStore } from "~/renderer/store";
 
 import { SessionCard } from "./SessionsCard";
 
@@ -34,6 +35,15 @@ vi.mock("../../Sessions.utils/Sessions.utils", () => ({
   formatSessionTime: (date: string) => `Time:${date}`,
 }));
 
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
+
+const mockUseBoundStore = vi.mocked(useBoundStore);
+
 // Mock react-icons to render simple spans with identifiable text
 vi.mock("react-icons/fi", () => ({
   FiClock: () => <span data-testid="icon-clock" />,
@@ -58,9 +68,36 @@ function makeSession(
   });
 }
 
+function setupStore(
+  overrides: {
+    isBulkMode?: boolean;
+    isDeleteMode?: boolean;
+    selectedSessionIds?: string[];
+    toggleSessionSelection?: ReturnType<typeof vi.fn>;
+  } = {},
+) {
+  const selectedIds = new Set(overrides.selectedSessionIds ?? []);
+  const toggleSessionSelection = overrides.toggleSessionSelection ?? vi.fn();
+
+  mockUseBoundStore.mockReturnValue({
+    sessions: {
+      getIsBulkMode: () => overrides.isBulkMode ?? false,
+      getIsDeleteMode: () => overrides.isDeleteMode ?? false,
+      getIsSessionSelected: (id: string) => selectedIds.has(id),
+      toggleSessionSelection,
+    },
+  } as any);
+
+  return { toggleSessionSelection };
+}
+
 // ─── Tests ─────────────────────────────────────────────────────────────────
 
 describe("SessionCard", () => {
+  beforeEach(() => {
+    setupStore();
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -308,21 +345,53 @@ describe("SessionCard", () => {
     expect(link.querySelector(".card-body")).toBeInTheDocument();
   });
 
-  it("renders a non-link selectable card in export mode", async () => {
-    const onToggleSelect = vi.fn();
+  it("renders a non-link selectable card in bulk mode", async () => {
+    const toggleSessionSelection = vi.fn();
     const session = makeSession({ sessionId: "sess-export" });
-    const { user } = renderWithProviders(
-      <SessionCard
-        session={session}
-        isExportMode
-        isSelected
-        onToggleSelect={onToggleSelect}
-      />,
-    );
+    setupStore({
+      isBulkMode: true,
+      selectedSessionIds: ["sess-export"],
+      toggleSessionSelection,
+    });
+    const { user } = renderWithProviders(<SessionCard session={session} />);
 
     expect(screen.queryByTestId("session-link")).not.toBeInTheDocument();
     await user.click(screen.getByText("Date:2024-01-15T10:00:00Z"));
-    expect(onToggleSelect).toHaveBeenCalledTimes(1);
+    expect(toggleSessionSelection).toHaveBeenCalledWith("sess-export");
+  });
+
+  it("uses primary border for selected export bulk cards", () => {
+    const session = makeSession({ sessionId: "sess-export" });
+    setupStore({ isBulkMode: true, selectedSessionIds: ["sess-export"] });
+    renderWithProviders(<SessionCard session={session} />);
+
+    expect(screen.getByText(/Date:/).closest(".card")).toHaveClass(
+      "border-primary",
+    );
+  });
+
+  it("uses error border for selected delete bulk cards", () => {
+    const session = makeSession({ sessionId: "sess-delete" });
+    setupStore({
+      isBulkMode: true,
+      isDeleteMode: true,
+      selectedSessionIds: ["sess-delete"],
+    });
+    renderWithProviders(<SessionCard session={session} />);
+
+    expect(screen.getByText(/Date:/).closest(".card")).toHaveClass(
+      "border-error",
+    );
+  });
+
+  it("uses neutral dashed border for unselected bulk cards", () => {
+    const session = makeSession();
+    setupStore({ isBulkMode: true });
+    renderWithProviders(<SessionCard session={session} />);
+
+    const card = screen.getByText(/Date:/).closest(".card");
+    expect(card).toHaveClass("border-dashed");
+    expect(card).toHaveClass("border-base-content/30");
   });
 
   it("renders sparkline background when at least two points are provided", () => {

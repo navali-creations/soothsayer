@@ -103,6 +103,11 @@ describe("SessionsSlice", () => {
       expect(sessions.totalSessions).toBe(0);
       expect(sessions.selectedLeague).toBe("all");
       expect(sessions.searchQuery).toBe("");
+      expect(sessions.bulkMode).toBeNull();
+      expect(sessions.selectedSessionIds).toEqual([]);
+      expect(sessions.isDeleteConfirmOpen).toBe(false);
+      expect(sessions.deleteError).toBeNull();
+      expect(sessions.isDeleting).toBe(false);
     });
   });
 
@@ -637,37 +642,97 @@ describe("SessionsSlice", () => {
     });
   });
 
-  // ─── Export Mode ─────────────────────────────────────────────────────
+  // ─── Bulk Mode ─────────────────────────────────────────────────────
 
-  describe("export mode", () => {
-    it("setExportType('rich') enables export mode", () => {
-      store.getState().sessions.setExportType("rich");
-      expect(store.getState().sessions.getIsExportMode()).toBe(true);
-      expect(store.getState().sessions.getExportType()).toBe("rich");
+  describe("bulk mode", () => {
+    it("setBulkMode('export-rich') enables bulk mode", () => {
+      store.getState().sessions.setBulkMode("export-rich");
+      expect(store.getState().sessions.getIsBulkMode()).toBe(true);
+      expect(store.getState().sessions.getBulkMode()).toBe("export-rich");
+      expect(store.getState().sessions.getIsDeleteMode()).toBe(false);
     });
 
-    it("setExportType('simple') enables export mode", () => {
-      store.getState().sessions.setExportType("simple");
-      expect(store.getState().sessions.getIsExportMode()).toBe(true);
-      expect(store.getState().sessions.getExportType()).toBe("simple");
+    it("setBulkMode('export-simple') enables bulk mode", () => {
+      store.getState().sessions.setBulkMode("export-simple");
+      expect(store.getState().sessions.getIsBulkMode()).toBe(true);
+      expect(store.getState().sessions.getBulkMode()).toBe("export-simple");
+      expect(store.getState().sessions.getIsDeleteMode()).toBe(false);
     });
 
-    it("setExportType(null) disables export mode", () => {
-      store.getState().sessions.setExportType("rich");
-      store.getState().sessions.setExportType(null);
-      expect(store.getState().sessions.getIsExportMode()).toBe(false);
-      expect(store.getState().sessions.getExportType()).toBeNull();
+    it("setBulkMode('delete') enables delete mode", () => {
+      store.getState().sessions.setBulkMode("delete");
+      expect(store.getState().sessions.getIsBulkMode()).toBe(true);
+      expect(store.getState().sessions.getBulkMode()).toBe("delete");
+      expect(store.getState().sessions.getIsDeleteMode()).toBe(true);
     });
 
-    it("setExportType(null) clears selectedSessionIds", () => {
-      store.getState().sessions.setExportType("rich");
+    it("setBulkMode(null) disables bulk mode", () => {
+      store.getState().sessions.setBulkMode("export-rich");
+      store.getState().sessions.setBulkMode(null);
+      expect(store.getState().sessions.getIsBulkMode()).toBe(false);
+      expect(store.getState().sessions.getBulkMode()).toBeNull();
+      expect(store.getState().sessions.getIsDeleteMode()).toBe(false);
+    });
+
+    it("setBulkMode(null) clears selectedSessionIds", () => {
+      store.getState().sessions.setBulkMode("export-rich");
       store.getState().sessions.toggleSessionSelection("s1");
       store.getState().sessions.toggleSessionSelection("s2");
       expect(store.getState().sessions.getSelectedCount()).toBe(2);
 
-      store.getState().sessions.setExportType(null);
+      store.getState().sessions.setBulkMode(null);
       expect(store.getState().sessions.getSelectedSessionIds()).toEqual([]);
       expect(store.getState().sessions.getSelectedCount()).toBe(0);
+    });
+
+    it("setBulkMode(null) resets delete confirmation state", () => {
+      store.getState().sessions.setBulkMode("delete");
+      store.getState().sessions.openDeleteConfirm();
+      store.getState().sessions.setDeleteError("Cannot delete active session");
+      store.getState().sessions.setIsDeleting(true);
+
+      store.getState().sessions.setBulkMode(null);
+
+      expect(store.getState().sessions.getIsDeleteConfirmOpen()).toBe(false);
+      expect(store.getState().sessions.getDeleteError()).toBeNull();
+      expect(store.getState().sessions.getIsDeleting()).toBe(false);
+    });
+
+    it("openDeleteConfirm opens the modal and clears previous delete errors", () => {
+      store.getState().sessions.setDeleteError("Previous error");
+
+      store.getState().sessions.openDeleteConfirm();
+
+      expect(store.getState().sessions.getIsDeleteConfirmOpen()).toBe(true);
+      expect(store.getState().sessions.getDeleteError()).toBeNull();
+    });
+
+    it("closeDeleteConfirm closes the modal and clears delete errors", () => {
+      store.getState().sessions.openDeleteConfirm();
+      store.getState().sessions.setDeleteError("Previous error");
+
+      store.getState().sessions.closeDeleteConfirm();
+
+      expect(store.getState().sessions.getIsDeleteConfirmOpen()).toBe(false);
+      expect(store.getState().sessions.getDeleteError()).toBeNull();
+    });
+
+    it("setIsDeleting updates delete progress state", () => {
+      store.getState().sessions.setIsDeleting(true);
+      expect(store.getState().sessions.getIsDeleting()).toBe(true);
+
+      store.getState().sessions.setIsDeleting(false);
+      expect(store.getState().sessions.getIsDeleting()).toBe(false);
+    });
+
+    it("switching between bulk modes preserves selection", () => {
+      store.getState().sessions.setBulkMode("export-rich");
+      store.getState().sessions.toggleSessionSelection("s1");
+      store.getState().sessions.toggleSessionSelection("s2");
+
+      store.getState().sessions.setBulkMode("delete");
+      expect(store.getState().sessions.getSelectedCount()).toBe(2);
+      expect(store.getState().sessions.getBulkMode()).toBe("delete");
     });
 
     it("toggleSessionSelection adds and removes IDs", () => {
@@ -728,14 +793,14 @@ describe("SessionsSlice", () => {
       expect(store.getState().sessions.getIsSessionSelected("s5")).toBe(true);
     });
 
-    it("switching export type preserves selection", () => {
-      store.getState().sessions.setExportType("rich");
+    it("switching export bulk mode preserves selection", () => {
+      store.getState().sessions.setBulkMode("export-rich");
       store.getState().sessions.toggleSessionSelection("s1");
       store.getState().sessions.toggleSessionSelection("s2");
 
-      store.getState().sessions.setExportType("simple");
+      store.getState().sessions.setBulkMode("export-simple");
       expect(store.getState().sessions.getSelectedCount()).toBe(2);
-      expect(store.getState().sessions.getExportType()).toBe("simple");
+      expect(store.getState().sessions.getBulkMode()).toBe("export-simple");
     });
   });
 });

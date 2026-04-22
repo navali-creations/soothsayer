@@ -23,6 +23,10 @@ import { SessionsChannel } from "./Sessions.channels";
 import type { SessionSummaryDTO, SessionsPageDTO } from "./Sessions.dto";
 import { SessionsRepository } from "./Sessions.repository";
 
+type DeleteSessionsResult =
+  | { success: true; deletedCount: number }
+  | { success: false; error: string };
+
 class SessionsService {
   private static _instance: SessionsService;
   private repository: SessionsRepository;
@@ -553,6 +557,49 @@ class SessionsService {
         }
       },
     );
+
+    ipcMain.handle(
+      SessionsChannel.DeleteSessions,
+      async (
+        _event,
+        game: unknown,
+        sessionIds: unknown,
+      ): Promise<DeleteSessionsResult> => {
+        try {
+          assertGameType(game, SessionsChannel.DeleteSessions);
+          assertStringArray(
+            sessionIds,
+            "sessionIds",
+            SessionsChannel.DeleteSessions,
+            {
+              maxLength: 5000,
+              maxItemLength: 256,
+            },
+          );
+          if (sessionIds.length === 0) {
+            return {
+              success: false,
+              error:
+                "Invalid input: sessionIds must contain at least one session ID",
+            };
+          }
+
+          return await this.repository.deleteSessions(game, sessionIds);
+        } catch (error) {
+          try {
+            return handleValidationError(error, SessionsChannel.DeleteSessions);
+          } catch (repositoryError) {
+            console.error("[SessionsService] Failed to delete sessions:", {
+              error: repositoryError,
+            });
+            return {
+              success: false,
+              error: "Failed to delete sessions.",
+            };
+          }
+        }
+      },
+    );
   }
 
   /**
@@ -566,7 +613,8 @@ class SessionsService {
     // Get total count
     const total = await this.repository.getSessionCount(game);
     const totalPages = Math.ceil(total / pageSize);
-    const offset = (page - 1) * pageSize;
+    const effectivePage = totalPages === 0 ? 1 : Math.min(page, totalPages);
+    const offset = (effectivePage - 1) * pageSize;
 
     // Get paginated sessions
     const sessions = await this.repository.getSessionsPage(
@@ -578,7 +626,7 @@ class SessionsService {
     return {
       sessions,
       total,
-      page,
+      page: effectivePage,
       pageSize,
       totalPages,
     };
@@ -786,7 +834,8 @@ class SessionsService {
       league,
     );
     const totalPages = Math.ceil(total / pageSize);
-    const offset = (page - 1) * pageSize;
+    const effectivePage = totalPages === 0 ? 1 : Math.min(page, totalPages);
+    const offset = (effectivePage - 1) * pageSize;
 
     // Get paginated sessions
     const sessions = await this.repository.searchSessionsByCard(
@@ -802,7 +851,7 @@ class SessionsService {
     return {
       sessions,
       total,
-      page,
+      page: effectivePage,
       pageSize,
       totalPages,
     };

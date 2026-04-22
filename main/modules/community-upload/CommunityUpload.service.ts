@@ -283,6 +283,7 @@ class CommunityUploadService {
   public async uploadOnSessionEnd(
     game: GameType,
     league: string,
+    sessionId?: string,
   ): Promise<void> {
     try {
       // Check if uploads are enabled
@@ -325,12 +326,44 @@ class CommunityUploadService {
         .execute();
 
       const snapshotMap = new Map(snapshot.map((s) => [s.card_name, s.count]));
+      const currentCountMap = new Map(cards.map((c) => [c.card_name, c.count]));
 
-      // Only upload cards that are new or have increased counts
-      const changedCards = cards.filter((c) => {
+      const sessionCards = sessionId
+        ? await this.kysely
+            .selectFrom("session_cards")
+            .select(["card_name", "count"])
+            .where("session_id", "=", sessionId)
+            .execute()
+        : [];
+
+      // Upload current local increases, plus new drops from the just-finished
+      // session even when older local sessions were deleted after upload.
+      const changedCardMap = new Map<string, number>();
+      for (const c of cards) {
         const prev = snapshotMap.get(c.card_name);
-        return prev === undefined || c.count > prev;
-      });
+        if (prev === undefined || c.count > prev) {
+          changedCardMap.set(c.card_name, c.count);
+        }
+      }
+
+      for (const card of sessionCards) {
+        const prev = snapshotMap.get(card.card_name) ?? 0;
+        const current = currentCountMap.get(card.card_name) ?? 0;
+        const previousLocalCount = Math.max(current - card.count, 0);
+        const observedCount = Math.max(prev, previousLocalCount) + card.count;
+
+        if (observedCount > prev) {
+          changedCardMap.set(
+            card.card_name,
+            Math.max(changedCardMap.get(card.card_name) ?? 0, observedCount),
+          );
+        }
+      }
+
+      const changedCards = Array.from(changedCardMap, ([card_name, count]) => ({
+        card_name,
+        count,
+      }));
 
       if (changedCards.length === 0) {
         console.log("[CommunityUpload] No changes since last upload, skipping");

@@ -1,4 +1,4 @@
-import { type Kysely, type SqlBool, sql } from "kysely";
+import { type Kysely, type SqlBool, sql, type Transaction } from "kysely";
 
 import type { Database } from "~/main/modules/database";
 
@@ -1513,5 +1513,174 @@ export class SessionsRepository {
       .execute();
 
     return rows.map((r) => r.id);
+  }
+
+  async deleteSessions(
+    game: "poe1" | "poe2",
+    sessionIds: string[],
+  ): Promise<
+    { success: true; deletedCount: number } | { success: false; error: string }
+  > {
+    const uniqueSessionIds = Array.from(new Set(sessionIds));
+
+    if (uniqueSessionIds.length === 0) {
+      return { success: false, error: "No sessions were selected." };
+    }
+
+    return this.kysely.transaction().execute(async (trx) => {
+      const selectedSessions = await trx
+        .selectFrom("sessions as s")
+        .innerJoin("leagues as l", "s.league_id", "l.id")
+        .select([
+          "s.id",
+          "s.game",
+          "s.is_active as isActive",
+          "l.name as league",
+        ])
+        .where("s.id", "in", uniqueSessionIds)
+        .execute();
+
+      if (selectedSessions.length !== uniqueSessionIds.length) {
+        return {
+          success: false,
+          error: "One or more selected sessions were not found.",
+        };
+      }
+
+      if (selectedSessions.some((session) => session.game !== game)) {
+        return {
+          success: false,
+          error:
+            "One or more selected sessions do not belong to the active game.",
+        };
+      }
+
+      if (selectedSessions.some((session) => session.isActive === 1)) {
+        return {
+          success: false,
+          error: "Active sessions cannot be deleted.",
+        };
+      }
+
+      const affectedScopes = Array.from(
+        new Set([
+          "all-time",
+          ...selectedSessions.map((session) => session.league),
+        ]),
+      );
+
+      const deleteResult = await trx
+        .deleteFrom("sessions")
+        .where("id", "in", uniqueSessionIds)
+        .executeTakeFirst();
+
+      await this.recomputeCardAggregates(trx, game, affectedScopes);
+      await this.recomputeTotalStackedDecksOpened(trx);
+
+      return {
+        success: true,
+        deletedCount: Number(deleteResult.numDeletedRows ?? 0),
+      };
+    });
+  }
+
+  private async recomputeCardAggregates(
+    db: Kysely<Database> | Transaction<Database>,
+    game: "poe1" | "poe2",
+    scopes: string[],
+  ): Promise<void> {
+    if (scopes.length === 0) return;
+
+    await db
+      .deleteFrom("cards")
+      .where("game", "=", game)
+      .where("scope", "in", scopes)
+      .execute();
+
+    const now = new Date().toISOString();
+
+    const rowsToInsert: Array<{
+      game: "poe1" | "poe2";
+      scope: string;
+      card_name: string;
+      count: number;
+      last_updated: string;
+    }> = [];
+
+    if (scopes.includes("all-time")) {
+      const allTimeRows = await db
+        .selectFrom("session_cards as sc")
+        .innerJoin("sessions as s", "sc.session_id", "s.id")
+        .select([
+          "sc.card_name as cardName",
+          sql<number>`SUM(sc.count)`.as("count"),
+        ])
+        .where("s.game", "=", game)
+        .groupBy("sc.card_name")
+        .execute();
+
+      rowsToInsert.push(
+        ...allTimeRows.map((row) => ({
+          game,
+          scope: "all-time",
+          card_name: row.cardName,
+          count: Number(row.count),
+          last_updated: now,
+        })),
+      );
+    }
+
+    const leagueScopes = scopes.filter((scope) => scope !== "all-time");
+    if (leagueScopes.length > 0) {
+      const leagueRows = await db
+        .selectFrom("session_cards as sc")
+        .innerJoin("sessions as s", "sc.session_id", "s.id")
+        .innerJoin("leagues as l", "s.league_id", "l.id")
+        .select([
+          "l.name as scope",
+          "sc.card_name as cardName",
+          sql<number>`SUM(sc.count)`.as("count"),
+        ])
+        .where("s.game", "=", game)
+        .where("l.name", "in", leagueScopes)
+        .groupBy(["l.name", "sc.card_name"])
+        .execute();
+
+      rowsToInsert.push(
+        ...leagueRows.map((row) => ({
+          game,
+          scope: row.scope,
+          card_name: row.cardName,
+          count: Number(row.count),
+          last_updated: now,
+        })),
+      );
+    }
+
+    if (rowsToInsert.length > 0) {
+      await db.insertInto("cards").values(rowsToInsert).execute();
+    }
+  }
+
+  private async recomputeTotalStackedDecksOpened(
+    db: Kysely<Database> | Transaction<Database>,
+  ): Promise<void> {
+    const row = await db
+      .selectFrom("sessions")
+      .select(sql<number>`COALESCE(SUM(total_count), 0)`.as("total"))
+      .executeTakeFirst();
+
+    await db
+      .insertInto("global_stats")
+      .values({
+        key: "totalStackedDecksOpened",
+        value: Number(row?.total ?? 0),
+      })
+      .onConflict((oc) =>
+        oc.column("key").doUpdateSet({
+          value: Number(row?.total ?? 0),
+        }),
+      )
+      .execute();
   }
 }

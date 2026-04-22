@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   createTestDatabase,
+  seedCards,
+  seedCsvExportSnapshot,
   seedDivinationCard,
+  seedDivinationCardAvailability,
   seedDivinationCardRarity,
   seedLeague,
   seedSession,
@@ -2979,6 +2982,412 @@ describe("SessionsRepository", () => {
         "middle",
         "old",
       ]);
+    });
+  });
+
+  describe("deleteSessions", () => {
+    it("should delete sessions and cascade session-owned rows while retaining shared data", async () => {
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "The Doctor",
+      });
+      await seedDivinationCardRarity(testDb.kysely, {
+        game: "poe1",
+        league: "Settlers",
+        cardName: "The Doctor",
+        rarity: 2,
+      });
+      await seedDivinationCardAvailability(testDb.kysely, {
+        game: "poe1",
+        league: "Settlers",
+        cardName: "The Doctor",
+      });
+      await seedCsvExportSnapshot(testDb.kysely, [
+        {
+          game: "poe1",
+          scope: "Settlers",
+          cardName: "The Doctor",
+          count: 1,
+          totalCount: 1,
+        },
+      ]);
+
+      const leagueId = await seedLeague(testDb.kysely, {
+        id: "delete-retained-league",
+        game: "poe1",
+        name: "Settlers",
+      });
+      const snapshotId = await seedSnapshot(testDb.kysely, {
+        id: "delete-retained-snapshot",
+        leagueId,
+        cardPrices: [
+          {
+            cardName: "The Doctor",
+            priceSource: "exchange",
+            chaosValue: 5000,
+            divineValue: 25,
+          },
+        ],
+      });
+      const sessionId = await seedSession(testDb.kysely, {
+        id: "delete-cascade-session",
+        game: "poe1",
+        leagueId,
+        snapshotId,
+        totalCount: 1,
+        isActive: false,
+        endedAt: "2025-01-01T11:00:00Z",
+      });
+
+      await seedSessionCards(testDb.kysely, sessionId, [
+        { cardName: "The Doctor", count: 1 },
+      ]);
+      await seedSessionCardEvents(testDb.kysely, sessionId, [
+        {
+          cardName: "The Doctor",
+          chaosValue: 5000,
+          divineValue: 25,
+          droppedAt: "2025-01-01T10:15:00Z",
+        },
+      ]);
+      await seedSessionSummary(testDb.kysely, {
+        sessionId,
+        game: "poe1",
+        league: "Settlers",
+        totalDecksOpened: 1,
+      });
+
+      const result = await repository.deleteSessions("poe1", [sessionId]);
+
+      expect(result).toEqual({ success: true, deletedCount: 1 });
+      await expect(
+        testDb.kysely
+          .selectFrom("sessions")
+          .select("id")
+          .where("id", "=", sessionId)
+          .executeTakeFirst(),
+      ).resolves.toBeUndefined();
+
+      const sessionCards = await testDb.kysely
+        .selectFrom("session_cards")
+        .select(({ fn }) => fn.countAll<number>().as("count"))
+        .where("session_id", "=", sessionId)
+        .executeTakeFirstOrThrow();
+      const sessionEvents = await testDb.kysely
+        .selectFrom("session_card_events")
+        .select(({ fn }) => fn.countAll<number>().as("count"))
+        .where("session_id", "=", sessionId)
+        .executeTakeFirstOrThrow();
+      const sessionSummaries = await testDb.kysely
+        .selectFrom("session_summaries")
+        .select(({ fn }) => fn.countAll<number>().as("count"))
+        .where("session_id", "=", sessionId)
+        .executeTakeFirstOrThrow();
+
+      expect(Number(sessionCards.count)).toBe(0);
+      expect(Number(sessionEvents.count)).toBe(0);
+      expect(Number(sessionSummaries.count)).toBe(0);
+
+      const retainedCounts = await Promise.all([
+        testDb.kysely
+          .selectFrom("snapshots")
+          .select(({ fn }) => fn.countAll<number>().as("count"))
+          .where("id", "=", snapshotId)
+          .executeTakeFirstOrThrow(),
+        testDb.kysely
+          .selectFrom("snapshot_card_prices")
+          .select(({ fn }) => fn.countAll<number>().as("count"))
+          .where("snapshot_id", "=", snapshotId)
+          .executeTakeFirstOrThrow(),
+        testDb.kysely
+          .selectFrom("leagues")
+          .select(({ fn }) => fn.countAll<number>().as("count"))
+          .where("id", "=", leagueId)
+          .executeTakeFirstOrThrow(),
+        testDb.kysely
+          .selectFrom("divination_card_rarities")
+          .select(({ fn }) => fn.countAll<number>().as("count"))
+          .where("game", "=", "poe1")
+          .where("league", "=", "Settlers")
+          .where("card_name", "=", "The Doctor")
+          .executeTakeFirstOrThrow(),
+        testDb.kysely
+          .selectFrom("divination_card_availability")
+          .select(({ fn }) => fn.countAll<number>().as("count"))
+          .where("game", "=", "poe1")
+          .where("league", "=", "Settlers")
+          .where("card_name", "=", "The Doctor")
+          .executeTakeFirstOrThrow(),
+        testDb.kysely
+          .selectFrom("csv_export_snapshots")
+          .select(({ fn }) => fn.countAll<number>().as("count"))
+          .where("game", "=", "poe1")
+          .where("scope", "=", "Settlers")
+          .where("card_name", "=", "The Doctor")
+          .executeTakeFirstOrThrow(),
+      ]);
+
+      expect(retainedCounts.map((row) => Number(row.count))).toEqual([
+        1, 1, 1, 1, 1, 1,
+      ]);
+    });
+
+    it("should block the whole delete when any selected session is active", async () => {
+      const leagueId = await seedLeague(testDb.kysely, { game: "poe1" });
+      await seedSession(testDb.kysely, {
+        id: "delete-active-session",
+        game: "poe1",
+        leagueId,
+        isActive: true,
+      });
+      await seedSession(testDb.kysely, {
+        id: "delete-completed-session",
+        game: "poe1",
+        leagueId,
+        isActive: false,
+        endedAt: "2025-01-01T11:00:00Z",
+      });
+
+      const result = await repository.deleteSessions("poe1", [
+        "delete-active-session",
+        "delete-completed-session",
+      ]);
+
+      expect(result).toEqual({
+        success: false,
+        error: "Active sessions cannot be deleted.",
+      });
+
+      const remaining = await testDb.kysely
+        .selectFrom("sessions")
+        .select("id")
+        .where("id", "in", [
+          "delete-active-session",
+          "delete-completed-session",
+        ])
+        .orderBy("id", "asc")
+        .execute();
+
+      expect(remaining.map((session) => session.id)).toEqual([
+        "delete-active-session",
+        "delete-completed-session",
+      ]);
+    });
+
+    it("should block the whole delete when selected sessions cross games", async () => {
+      const poe1League = await seedLeague(testDb.kysely, {
+        game: "poe1",
+        name: "Settlers",
+      });
+      const poe2League = await seedLeague(testDb.kysely, {
+        game: "poe2",
+        name: "Dawn",
+      });
+      await seedSession(testDb.kysely, {
+        id: "delete-poe1-session",
+        game: "poe1",
+        leagueId: poe1League,
+        isActive: false,
+        endedAt: "2025-01-01T11:00:00Z",
+      });
+      await seedSession(testDb.kysely, {
+        id: "delete-poe2-session",
+        game: "poe2",
+        leagueId: poe2League,
+        isActive: false,
+        endedAt: "2025-01-01T11:00:00Z",
+      });
+
+      const result = await repository.deleteSessions("poe1", [
+        "delete-poe1-session",
+        "delete-poe2-session",
+      ]);
+
+      expect(result).toEqual({
+        success: false,
+        error:
+          "One or more selected sessions do not belong to the active game.",
+      });
+
+      const remaining = await testDb.kysely
+        .selectFrom("sessions")
+        .select("id")
+        .where("id", "in", ["delete-poe1-session", "delete-poe2-session"])
+        .orderBy("id", "asc")
+        .execute();
+
+      expect(remaining.map((session) => session.id)).toEqual([
+        "delete-poe1-session",
+        "delete-poe2-session",
+      ]);
+    });
+
+    it("should recompute aggregate cards for affected scopes from remaining sessions", async () => {
+      const settlersLeague = await seedLeague(testDb.kysely, {
+        game: "poe1",
+        name: "Settlers",
+      });
+      const necropolisLeague = await seedLeague(testDb.kysely, {
+        game: "poe1",
+        name: "Necropolis",
+      });
+      const poe2League = await seedLeague(testDb.kysely, {
+        game: "poe2",
+        name: "Dawn",
+      });
+
+      const deletedSessionId = await seedSession(testDb.kysely, {
+        id: "delete-aggregate-source",
+        game: "poe1",
+        leagueId: settlersLeague,
+        isActive: false,
+        endedAt: "2025-01-01T11:00:00Z",
+      });
+      const remainingSettlersSessionId = await seedSession(testDb.kysely, {
+        id: "delete-aggregate-settlers-remaining",
+        game: "poe1",
+        leagueId: settlersLeague,
+        isActive: false,
+        endedAt: "2025-01-02T11:00:00Z",
+      });
+      const remainingNecropolisSessionId = await seedSession(testDb.kysely, {
+        id: "delete-aggregate-necropolis-remaining",
+        game: "poe1",
+        leagueId: necropolisLeague,
+        isActive: false,
+        endedAt: "2025-01-03T11:00:00Z",
+      });
+      await seedSession(testDb.kysely, {
+        id: "delete-aggregate-poe2-session",
+        game: "poe2",
+        leagueId: poe2League,
+        isActive: false,
+        endedAt: "2025-01-04T11:00:00Z",
+      });
+
+      await seedSessionCards(testDb.kysely, deletedSessionId, [
+        { cardName: "The Doctor", count: 2 },
+        { cardName: "Rain of Chaos", count: 1 },
+      ]);
+      await seedSessionCards(testDb.kysely, remainingSettlersSessionId, [
+        { cardName: "The Doctor", count: 3 },
+      ]);
+      await seedSessionCards(testDb.kysely, remainingNecropolisSessionId, [
+        { cardName: "Humility", count: 4 },
+      ]);
+      await seedCards(testDb.kysely, [
+        { game: "poe1", scope: "all-time", cardName: "The Doctor", count: 999 },
+        {
+          game: "poe1",
+          scope: "all-time",
+          cardName: "Rain of Chaos",
+          count: 999,
+        },
+        { game: "poe1", scope: "all-time", cardName: "Humility", count: 999 },
+        { game: "poe1", scope: "Settlers", cardName: "The Doctor", count: 999 },
+        {
+          game: "poe1",
+          scope: "Settlers",
+          cardName: "Rain of Chaos",
+          count: 999,
+        },
+        { game: "poe1", scope: "Necropolis", cardName: "Humility", count: 4 },
+        { game: "poe2", scope: "all-time", cardName: "The Doctor", count: 8 },
+      ]);
+
+      const result = await repository.deleteSessions("poe1", [
+        deletedSessionId,
+      ]);
+
+      expect(result).toEqual({ success: true, deletedCount: 1 });
+
+      const cards = await testDb.kysely
+        .selectFrom("cards")
+        .select(["game", "scope", "card_name as cardName", "count"])
+        .orderBy("game", "asc")
+        .orderBy("scope", "asc")
+        .orderBy("card_name", "asc")
+        .execute();
+
+      expect(cards).toEqual([
+        {
+          game: "poe1",
+          scope: "Necropolis",
+          cardName: "Humility",
+          count: 4,
+        },
+        {
+          game: "poe1",
+          scope: "Settlers",
+          cardName: "The Doctor",
+          count: 3,
+        },
+        {
+          game: "poe1",
+          scope: "all-time",
+          cardName: "Humility",
+          count: 4,
+        },
+        {
+          game: "poe1",
+          scope: "all-time",
+          cardName: "The Doctor",
+          count: 3,
+        },
+        {
+          game: "poe2",
+          scope: "all-time",
+          cardName: "The Doctor",
+          count: 8,
+        },
+      ]);
+    });
+
+    it("should recompute totalStackedDecksOpened from remaining session totals", async () => {
+      const poe1League = await seedLeague(testDb.kysely, { game: "poe1" });
+      const poe2League = await seedLeague(testDb.kysely, { game: "poe2" });
+      const deletedSessionId = await seedSession(testDb.kysely, {
+        id: "delete-global-source",
+        game: "poe1",
+        leagueId: poe1League,
+        totalCount: 5,
+        isActive: false,
+        endedAt: "2025-01-01T11:00:00Z",
+      });
+      await seedSession(testDb.kysely, {
+        id: "delete-global-poe1-remaining",
+        game: "poe1",
+        leagueId: poe1League,
+        totalCount: 7,
+        isActive: false,
+        endedAt: "2025-01-02T11:00:00Z",
+      });
+      await seedSession(testDb.kysely, {
+        id: "delete-global-poe2-remaining",
+        game: "poe2",
+        leagueId: poe2League,
+        totalCount: 11,
+        isActive: false,
+        endedAt: "2025-01-03T11:00:00Z",
+      });
+
+      await testDb.kysely
+        .updateTable("global_stats")
+        .set({ value: 999 })
+        .where("key", "=", "totalStackedDecksOpened")
+        .execute();
+
+      await expect(
+        repository.deleteSessions("poe1", [deletedSessionId]),
+      ).resolves.toEqual({ success: true, deletedCount: 1 });
+
+      const stat = await testDb.kysely
+        .selectFrom("global_stats")
+        .select("value")
+        .where("key", "=", "totalStackedDecksOpened")
+        .executeTakeFirstOrThrow();
+
+      expect(stat.value).toBe(18);
     });
   });
 

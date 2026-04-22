@@ -565,7 +565,7 @@ class CurrentSessionService {
 
     // Community upload (fire-and-forget — must not block session teardown)
     CommunityUploadService.getInstance()
-      .uploadOnSessionEnd(game, activeSession.league)
+      .uploadOnSessionEnd(game, activeSession.league, activeSession.sessionId)
       .catch(() => {}); // Error already logged inside uploadOnSessionEnd
 
     // Clear recent drops (processed_ids table) and re-sync the in-memory set

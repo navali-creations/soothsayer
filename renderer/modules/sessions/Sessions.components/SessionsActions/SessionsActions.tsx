@@ -1,5 +1,5 @@
-import { type ChangeEvent, useCallback, useEffect, useState } from "react";
-import { FiDownload, FiMoreHorizontal, FiX } from "react-icons/fi";
+import { type ChangeEvent, useCallback, useEffect } from "react";
+import { FiDownload, FiMoreHorizontal, FiTrash2, FiX } from "react-icons/fi";
 
 import { Flex, Search } from "~/renderer/components";
 import { useDebounce } from "~/renderer/hooks";
@@ -9,6 +9,7 @@ import {
   generateRichCsv,
   generateSimpleCsv,
 } from "../../Sessions.utils/Sessions.export";
+import { SessionsDeleteConfirmModal } from "../SessionsDeleteConfirmModal/SessionsDeleteConfirmModal";
 
 export const SessionsActions = () => {
   const {
@@ -16,29 +17,39 @@ export const SessionsActions = () => {
     getSelectedLeague,
     setSelectedLeague,
     getSearchQuery,
+    setSearchQuery: setStoredSearchQuery,
     loadAllSessions,
     searchSessions,
-    getIsExportMode,
-    getExportType,
-    setExportType,
+    getIsBulkMode,
+    getBulkMode,
+    setBulkMode,
     getSelectedSessionIds,
     getSelectedCount,
     selectAll,
     clearSelection,
     getTotalSessions,
+    openDeleteConfirm,
+    closeDeleteConfirm,
+    setDeleteError,
+    setIsDeleting,
+    getIsDeleteConfirmOpen,
+    getDeleteError,
+    getIsDeleting,
   } = useSessions();
   const { getSelectedGame } = useSettings();
 
   const uniqueLeagues = getUniqueLeagues();
   const selectedLeague = getSelectedLeague();
-  const storedSearchQuery = getSearchQuery();
-  const isExportMode = getIsExportMode();
-  const exportType = getExportType();
+  const searchQuery = getSearchQuery();
+  const isBulkMode = getIsBulkMode();
+  const bulkMode = getBulkMode();
+  const isDeleteMode = bulkMode === "delete";
   const selectedCount = getSelectedCount();
   const totalSessions = getTotalSessions();
   const allSelected = selectedCount > 0 && selectedCount >= totalSessions;
-
-  const [searchQuery, setSearchQuery] = useState(storedSearchQuery);
+  const isDeleteConfirmOpen = getIsDeleteConfirmOpen();
+  const deleteError = getDeleteError();
+  const isDeleting = getIsDeleting();
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
   useEffect(() => {
@@ -64,7 +75,7 @@ export const SessionsActions = () => {
     const activeGame = getSelectedGame();
     const exportSessionIds = allSelected ? null : selectedIds;
 
-    if (exportType === "rich") {
+    if (bulkMode === "export-rich") {
       const selected = await window.electron.sessions.getRichExportRows(
         activeGame,
         exportSessionIds,
@@ -87,14 +98,66 @@ export const SessionsActions = () => {
     a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
-  }, [allSelected, exportType, getSelectedSessionIds, getSelectedGame]);
+  }, [allSelected, bulkMode, getSelectedSessionIds, getSelectedGame]);
 
   const handleCancel = useCallback(() => {
-    setExportType(null);
-  }, [setExportType]);
+    setBulkMode(null);
+  }, [setBulkMode]);
+
+  const handleOpenDeleteConfirm = useCallback(() => {
+    openDeleteConfirm();
+  }, [openDeleteConfirm]);
+
+  const handleCloseDeleteConfirm = useCallback(() => {
+    closeDeleteConfirm();
+  }, [closeDeleteConfirm]);
+
+  const handleConfirmDelete = useCallback(async () => {
+    const selectedIds = getSelectedSessionIds();
+    if (selectedIds.length === 0) return;
+
+    setIsDeleting(true);
+    setDeleteError(null);
+
+    try {
+      const result = await window.electron.sessions.deleteSessions(
+        getSelectedGame(),
+        selectedIds,
+      );
+      if (!result.success) {
+        setDeleteError(result.error);
+        return;
+      }
+
+      closeDeleteConfirm();
+      clearSelection();
+      setBulkMode(null);
+      const trimmedQuery = searchQuery.trim();
+      if (trimmedQuery) {
+        await searchSessions(trimmedQuery, 1);
+      } else {
+        await loadAllSessions(1);
+      }
+    } catch (error) {
+      setDeleteError((error as Error).message);
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [
+    clearSelection,
+    closeDeleteConfirm,
+    getSelectedGame,
+    getSelectedSessionIds,
+    loadAllSessions,
+    searchQuery,
+    searchSessions,
+    setBulkMode,
+    setDeleteError,
+    setIsDeleting,
+  ]);
 
   const exportLabel =
-    exportType === "rich"
+    bulkMode === "export-rich"
       ? `Export Rich CSV (${selectedCount})`
       : `Export Simple CSV (${selectedCount})`;
 
@@ -105,7 +168,7 @@ export const SessionsActions = () => {
         className="w-[170px]"
         placeholder="Search by card name..."
         value={searchQuery}
-        onChange={setSearchQuery}
+        onChange={setStoredSearchQuery}
       />
       <select
         className="select select-sm select-bordered w-[120px]"
@@ -120,7 +183,7 @@ export const SessionsActions = () => {
       </select>
 
       <div className="ml-auto flex gap-2 items-center">
-        {isExportMode ? (
+        {isBulkMode ? (
           <>
             <button
               className="btn btn-sm btn-outline btn-error gap-1"
@@ -137,14 +200,25 @@ export const SessionsActions = () => {
               {allSelected ? "Deselect All" : "Select All"}
             </button>
 
-            <button
-              className="btn btn-sm btn-primary gap-1"
-              disabled={selectedCount === 0}
-              onClick={handleExport}
-            >
-              <FiDownload size={14} />
-              {exportLabel}
-            </button>
+            {isDeleteMode ? (
+              <button
+                className="btn btn-sm btn-error gap-1"
+                disabled={selectedCount === 0}
+                onClick={handleOpenDeleteConfirm}
+              >
+                <FiTrash2 size={14} />
+                Delete sessions ({selectedCount})
+              </button>
+            ) : (
+              <button
+                className="btn btn-sm btn-primary gap-1"
+                disabled={selectedCount === 0}
+                onClick={handleExport}
+              >
+                <FiDownload size={14} />
+                {exportLabel}
+              </button>
+            )}
           </>
         ) : (
           <div className="dropdown dropdown-end z-50">
@@ -159,7 +233,7 @@ export const SessionsActions = () => {
                 className="tooltip tooltip-left"
                 data-tip="Card name + total amount"
               >
-                <button onClick={() => setExportType("simple")}>
+                <button onClick={() => setBulkMode("export-simple")}>
                   <FiDownload size={14} />
                   Export Simple CSV
                 </button>
@@ -168,15 +242,32 @@ export const SessionsActions = () => {
                 className="tooltip tooltip-left"
                 data-tip="Full session details per row"
               >
-                <button onClick={() => setExportType("rich")}>
+                <button onClick={() => setBulkMode("export-rich")}>
                   <FiDownload size={14} />
                   Export Rich CSV
+                </button>
+              </li>
+              <li>
+                <button
+                  className="text-error"
+                  onClick={() => setBulkMode("delete")}
+                >
+                  <FiTrash2 size={14} />
+                  Delete sessions
                 </button>
               </li>
             </ul>
           </div>
         )}
       </div>
+      <SessionsDeleteConfirmModal
+        error={deleteError}
+        isDeleting={isDeleting}
+        isOpen={isDeleteConfirmOpen}
+        selectedCount={selectedCount}
+        onCancel={handleCloseDeleteConfirm}
+        onConfirm={handleConfirmDelete}
+      />
     </Flex>
   );
 };

@@ -171,6 +171,11 @@ export const useBoundStore = create<BoundStore>()(
               sessions.allSessions = [];
               sessions.currentSessionDetail = null;
               sessions.searchQuery = "";
+              sessions.bulkMode = null;
+              sessions.selectedSessionIds = [];
+              sessions.isDeleteConfirmOpen = false;
+              sessions.deleteError = null;
+              sessions.isDeleting = false;
               sessions.isLoading = false;
               sessions.error = null;
 

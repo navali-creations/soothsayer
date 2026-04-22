@@ -17,25 +17,8 @@ vi.mock("~/renderer/store", async () => {
 const mockUseBoundStore = vi.mocked(useBoundStore);
 
 vi.mock("../SessionsCard/SessionsCard", () => ({
-  SessionCard: ({
-    session,
-    isExportMode,
-    isSelected,
-    onToggleSelect,
-  }: {
-    session: SessionsSummary;
-    isExportMode?: boolean;
-    isSelected?: boolean;
-    onToggleSelect?: () => void;
-  }) => (
-    <button
-      data-export-mode={String(Boolean(isExportMode))}
-      data-selected={String(Boolean(isSelected))}
-      data-testid={`session-${session.sessionId}`}
-      onClick={onToggleSelect}
-    >
-      {session.league}
-    </button>
+  SessionCard: ({ session }: { session: SessionsSummary }) => (
+    <div data-testid={`session-${session.sessionId}`}>{session.league}</div>
   ),
 }));
 
@@ -45,7 +28,8 @@ function setupStore(overrides: {
   filteredSessions?: SessionsSummary[];
   selectedLeague?: string;
   sparklines?: Record<string, { x: number; profit: number }[]>;
-  isExportMode?: boolean;
+  isBulkMode?: boolean;
+  isDeleteMode?: boolean;
   selectedSessionIds?: string[];
   toggleSessionSelection?: ReturnType<typeof vi.fn>;
 }) {
@@ -57,7 +41,8 @@ function setupStore(overrides: {
       getFilteredSessions: () => overrides.filteredSessions ?? [],
       getSelectedLeague: () => overrides.selectedLeague ?? "all",
       getSparklines: () => overrides.sparklines ?? {},
-      getIsExportMode: () => overrides.isExportMode ?? false,
+      getIsBulkMode: () => overrides.isBulkMode ?? false,
+      getIsDeleteMode: () => overrides.isDeleteMode ?? false,
       getIsSessionSelected: (id: string) => selectedIds.has(id),
       toggleSessionSelection,
     },
@@ -156,19 +141,16 @@ describe("SessionsGrid", () => {
       );
     });
 
-    it("does not render selection checkboxes outside export mode", () => {
+    it("does not render selection checkboxes outside bulk mode", () => {
       const sessions = [makeSessionsSummary({ sessionId: "sess-1" })];
-      setupStore({ filteredSessions: sessions, isExportMode: false });
+      setupStore({ filteredSessions: sessions, isBulkMode: false });
       renderWithProviders(<SessionsGrid />);
 
       expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
-      expect(screen.getByTestId("session-sess-1")).toHaveAttribute(
-        "data-export-mode",
-        "false",
-      );
+      expect(screen.getByTestId("session-sess-1")).toBeInTheDocument();
     });
 
-    it("renders selected export state and toggles from checkbox", async () => {
+    it("renders selected bulk state and toggles from checkbox", async () => {
       const toggleSessionSelection = vi.fn();
       const sessions = [
         makeSessionsSummary({ sessionId: "sess-1" }),
@@ -176,7 +158,7 @@ describe("SessionsGrid", () => {
       ];
       setupStore({
         filteredSessions: sessions,
-        isExportMode: true,
+        isBulkMode: true,
         selectedSessionIds: ["sess-2"],
         toggleSessionSelection,
       });
@@ -185,29 +167,30 @@ describe("SessionsGrid", () => {
       const checkboxes = screen.getAllByRole("checkbox");
 
       expect(checkboxes[0]).not.toBeChecked();
+      expect(checkboxes[0]).toHaveClass("checkbox-primary");
+      expect(checkboxes[0]).toHaveClass("border-dashed");
       expect(checkboxes[1]).toBeChecked();
-      expect(screen.getByTestId("session-sess-2")).toHaveAttribute(
-        "data-selected",
-        "true",
-      );
+      expect(checkboxes[1]).toHaveClass("checkbox-primary");
+      expect(screen.getByTestId("session-sess-2")).toBeInTheDocument();
 
       await user.click(checkboxes[0]);
       expect(toggleSessionSelection).toHaveBeenCalledWith("sess-1");
     });
 
-    it("toggles selection when a card is clicked in export mode", async () => {
-      const toggleSessionSelection = vi.fn();
+    it("renders delete mode selection with error checkbox and card state", () => {
       const sessions = [makeSessionsSummary({ sessionId: "sess-1" })];
       setupStore({
         filteredSessions: sessions,
-        isExportMode: true,
-        toggleSessionSelection,
+        isBulkMode: true,
+        isDeleteMode: true,
+        selectedSessionIds: ["sess-1"],
       });
 
-      const { user } = renderWithProviders(<SessionsGrid />);
-      await user.click(screen.getByTestId("session-sess-1"));
+      renderWithProviders(<SessionsGrid />);
 
-      expect(toggleSessionSelection).toHaveBeenCalledWith("sess-1");
+      expect(screen.getByRole("checkbox")).toHaveClass("checkbox-error");
+      expect(screen.getByRole("checkbox")).toHaveClass("checked:text-white");
+      expect(screen.getByTestId("session-sess-1")).toBeInTheDocument();
     });
   });
 });

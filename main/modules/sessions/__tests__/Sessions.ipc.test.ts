@@ -18,6 +18,7 @@ const {
   mockRepoGetSessionsForExport,
   mockRepoGetCardDropsForExport,
   mockRepoGetAllSessionIds,
+  mockRepoDeleteSessions,
   mockSnapshotLoadSnapshot,
   mockAssertGameType,
   mockAssertSessionId,
@@ -43,6 +44,7 @@ const {
   mockRepoGetSessionsForExport: vi.fn(),
   mockRepoGetCardDropsForExport: vi.fn(),
   mockRepoGetAllSessionIds: vi.fn(),
+  mockRepoDeleteSessions: vi.fn(),
   mockSnapshotLoadSnapshot: vi.fn(),
   mockAssertGameType: vi.fn(),
   mockAssertSessionId: vi.fn(),
@@ -129,6 +131,7 @@ vi.mock("../Sessions.repository", () => ({
     getSessionsForExport = mockRepoGetSessionsForExport;
     getCardDropsForExport = mockRepoGetCardDropsForExport;
     getAllSessionIds = mockRepoGetAllSessionIds;
+    deleteSessions = mockRepoDeleteSessions;
   },
 }));
 
@@ -243,6 +246,10 @@ describe("SessionsService — IPC handlers", () => {
     mockRepoGetSessionsForExport.mockResolvedValue(SAMPLE_SESSION_SUMMARIES);
     mockRepoGetCardDropsForExport.mockResolvedValue({});
     mockRepoGetAllSessionIds.mockResolvedValue([]);
+    mockRepoDeleteSessions.mockResolvedValue({
+      success: true,
+      deletedCount: 1,
+    });
     mockSnapshotLoadSnapshot.mockResolvedValue(null);
     mockAssertStringArray.mockImplementation(() => {});
     mockAssertOptionalEnum.mockImplementation(() => {});
@@ -296,10 +303,11 @@ describe("SessionsService — IPC handlers", () => {
       expect(registeredChannels).toContain(SessionsChannel.GetRichExportRows);
       expect(registeredChannels).toContain(SessionsChannel.GetSimpleExportRows);
       expect(registeredChannels).toContain(SessionsChannel.GetAllSessionIds);
+      expect(registeredChannels).toContain(SessionsChannel.DeleteSessions);
     });
 
-    it("should register exactly 23 IPC handlers", () => {
-      expect(mockIpcHandle).toHaveBeenCalledTimes(23);
+    it("should register exactly 24 IPC handlers", () => {
+      expect(mockIpcHandle).toHaveBeenCalledTimes(24);
     });
   });
 
@@ -336,6 +344,16 @@ describe("SessionsService — IPC handlers", () => {
       await handler({}, "poe1", 2, 10);
 
       expect(mockRepoGetSessionsPage).toHaveBeenCalledWith("poe1", 10, 10);
+    });
+
+    it("should clamp requested page to the nearest valid page", async () => {
+      mockRepoGetSessionCount.mockResolvedValue(21);
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetAll);
+      const result = await handler({}, "poe1", 5, 10);
+
+      expect(mockRepoGetSessionsPage).toHaveBeenCalledWith("poe1", 10, 20);
+      expect(result.page).toBe(3);
+      expect(result.totalPages).toBe(3);
     });
 
     it("should calculate correct totalPages", async () => {
@@ -801,6 +819,27 @@ describe("SessionsService — IPC handlers", () => {
         undefined,
         undefined,
       );
+    });
+
+    it("should clamp requested search page to the nearest valid page", async () => {
+      mockRepoGetSessionCountByCard.mockResolvedValue(21);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.SearchByCard,
+      );
+      const result = await handler({}, "poe1", "Chaos", 5, 10);
+
+      expect(mockRepoSearchSessionsByCard).toHaveBeenCalledWith(
+        "poe1",
+        "Chaos",
+        10,
+        20,
+        undefined,
+        undefined,
+        undefined,
+      );
+      expect(result.page).toBe(3);
+      expect(result.totalPages).toBe(3);
     });
 
     it("should calculate correct totalPages for search results", async () => {
@@ -1387,6 +1426,107 @@ describe("SessionsService — IPC handlers", () => {
       );
       expect(mockRepoGetAllSessionIds).not.toHaveBeenCalled();
       expect(result).toEqual({ success: false, error: "Validation error" });
+    });
+  });
+
+  describe("DeleteSessions handler", () => {
+    it("should validate input and delegate to the repository", async () => {
+      mockRepoDeleteSessions.mockResolvedValue({
+        success: true,
+        deletedCount: 2,
+      });
+
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.DeleteSessions,
+      );
+      const result = await handler({}, "poe1", ["s1", "s2"]);
+
+      expect(mockAssertGameType).toHaveBeenCalledWith(
+        "poe1",
+        SessionsChannel.DeleteSessions,
+      );
+      expect(mockAssertStringArray).toHaveBeenCalledWith(
+        ["s1", "s2"],
+        "sessionIds",
+        SessionsChannel.DeleteSessions,
+        { maxLength: 5000, maxItemLength: 256 },
+      );
+      expect(mockRepoDeleteSessions).toHaveBeenCalledWith("poe1", ["s1", "s2"]);
+      expect(result).toEqual({ success: true, deletedCount: 2 });
+    });
+
+    it("should return validation errors for invalid game", async () => {
+      const validationError = new Error("Invalid game");
+      mockAssertGameType.mockImplementation(() => {
+        throw validationError;
+      });
+
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.DeleteSessions,
+      );
+      const result = await handler({}, "poe3", ["s1"]);
+
+      expect(mockHandleValidationError).toHaveBeenCalledWith(
+        validationError,
+        SessionsChannel.DeleteSessions,
+      );
+      expect(mockAssertStringArray).not.toHaveBeenCalled();
+      expect(mockRepoDeleteSessions).not.toHaveBeenCalled();
+      expect(result).toEqual({ success: false, error: "Validation error" });
+    });
+
+    it("should return validation errors for invalid IDs", async () => {
+      const validationError = new Error("Invalid sessionIds");
+      mockAssertStringArray.mockImplementation(() => {
+        throw validationError;
+      });
+
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.DeleteSessions,
+      );
+      const result = await handler({}, "poe1", "bad");
+
+      expect(mockHandleValidationError).toHaveBeenCalledWith(
+        validationError,
+        SessionsChannel.DeleteSessions,
+      );
+      expect(mockRepoDeleteSessions).not.toHaveBeenCalled();
+      expect(result).toEqual({ success: false, error: "Validation error" });
+    });
+
+    it("should reject empty ID arrays without calling the repository", async () => {
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.DeleteSessions,
+      );
+      const result = await handler({}, "poe1", []);
+
+      expect(mockRepoDeleteSessions).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        success: false,
+        error: "Invalid input: sessionIds must contain at least one session ID",
+      });
+    });
+
+    it("should return repository errors in the delete result shape", async () => {
+      mockRepoDeleteSessions.mockRejectedValue(new Error("Repository failed"));
+      mockHandleValidationError.mockImplementation((error: unknown) => {
+        throw error;
+      });
+
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.DeleteSessions,
+      );
+      const result = await handler({}, "poe1", ["s1"]);
+
+      expect(result).toEqual({
+        success: false,
+        error: "Failed to delete sessions.",
+      });
     });
   });
 

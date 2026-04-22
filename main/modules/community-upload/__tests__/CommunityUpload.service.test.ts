@@ -826,6 +826,7 @@ describe("CommunityUploadService", () => {
     function setupKyselyForDelta(options: {
       cards: { card_name: string; count: number }[];
       snapshot: { card_name: string; count: number }[];
+      sessionCards?: { card_name: string; count: number }[];
       deviceId?: string;
     }) {
       const deviceId = options.deviceId ?? MOCK_DEVICE_ID;
@@ -833,6 +834,7 @@ describe("CommunityUploadService", () => {
       const deviceIdChain = createKyselyChain({ value: deviceId });
       const cardsChain = createKyselyChain(options.cards);
       const snapshotChain = createKyselyChain(options.snapshot);
+      const sessionCardsChain = createKyselyChain(options.sessionCards ?? []);
       const insertChain = createKyselyChain();
 
       let selectFromCallCount = 0;
@@ -844,6 +846,9 @@ describe("CommunityUploadService", () => {
           // 2nd call: cards query
           if (selectFromCallCount === 2) return cardsChain;
           // 3rd call: snapshot query
+          if (selectFromCallCount === 3) return snapshotChain;
+          // 4th call: just-finished session cards query
+          if (selectFromCallCount === 4) return sessionCardsChain;
           return snapshotChain;
         }),
         insertInto: vi.fn().mockReturnValue(insertChain),
@@ -964,6 +969,27 @@ describe("CommunityUploadService", () => {
         "upload-community-data",
         expect.objectContaining({
           cards: [{ card_name: "House of Mirrors", count: 5 }],
+        }),
+        {},
+      );
+    });
+
+    it("should count new session drops after local deletion lowered card totals", async () => {
+      setupKyselyForDelta({
+        cards: [{ card_name: "The Doctor", count: 9 }],
+        snapshot: [{ card_name: "The Doctor", count: 10 }],
+        sessionCards: [{ card_name: "The Doctor", count: 1 }],
+      });
+      mockGetAccessToken.mockResolvedValue(null);
+      mockCallEdgeFunction.mockResolvedValue(MOCK_EDGE_RESPONSE);
+
+      service = CommunityUploadService.getInstance();
+      await service.uploadOnSessionEnd("poe2", "Settlers", "session-1");
+
+      expect(mockCallEdgeFunction).toHaveBeenCalledWith(
+        "upload-community-data",
+        expect.objectContaining({
+          cards: [{ card_name: "The Doctor", count: 11 }],
         }),
         {},
       );

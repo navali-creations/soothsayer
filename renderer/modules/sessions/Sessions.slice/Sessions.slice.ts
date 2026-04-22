@@ -4,6 +4,12 @@ import type { SessionSummary } from "~/main/modules/sessions";
 import type { BoundStore } from "~/renderer/store/store.types";
 import type { DetailedDivinationCardStats } from "~/types/data-stores";
 
+export type SessionsBulkMode =
+  | "export-rich"
+  | "export-simple"
+  | "delete"
+  | null;
+
 export interface SessionsSlice {
   sessions: {
     // State
@@ -21,9 +27,12 @@ export interface SessionsSlice {
     searchQuery: string;
     // Sparkline state
     sparklines: Record<string, { x: number; profit: number }[]>;
-    // Export mode state
-    exportType: "rich" | "simple" | null;
+    // Bulk mode state
+    bulkMode: SessionsBulkMode;
     selectedSessionIds: string[];
+    isDeleteConfirmOpen: boolean;
+    deleteError: string | null;
+    isDeleting: boolean;
 
     // Actions
     loadAllSessions: (page?: number) => Promise<void>;
@@ -34,11 +43,15 @@ export interface SessionsSlice {
     setSelectedLeague: (league: string) => void;
     searchSessions: (cardName: string, page?: number) => Promise<void>;
     setSearchQuery: (query: string) => void;
-    setExportType: (type: "rich" | "simple" | null) => void;
+    setBulkMode: (mode: SessionsBulkMode) => void;
     toggleSessionSelection: (sessionId: string) => void;
     selectAllVisible: () => void;
     selectAll: () => Promise<void>;
     clearSelection: () => void;
+    openDeleteConfirm: () => void;
+    closeDeleteConfirm: () => void;
+    setDeleteError: (error: string | null) => void;
+    setIsDeleting: (isDeleting: boolean) => void;
 
     // Getters
     getAllSessions: () => SessionSummary[];
@@ -54,11 +67,15 @@ export interface SessionsSlice {
     getUniqueLeagues: () => string[];
     getFilteredSessions: () => SessionSummary[];
     getSparklines: () => Record<string, { x: number; profit: number }[]>;
-    getExportType: () => "rich" | "simple" | null;
-    getIsExportMode: () => boolean;
+    getBulkMode: () => SessionsBulkMode;
+    getIsBulkMode: () => boolean;
+    getIsDeleteMode: () => boolean;
     getSelectedSessionIds: () => string[];
     getSelectedCount: () => number;
     getIsSessionSelected: (id: string) => boolean;
+    getIsDeleteConfirmOpen: () => boolean;
+    getDeleteError: () => string | null;
+    getIsDeleting: () => boolean;
   };
 }
 
@@ -81,8 +98,11 @@ export const createSessionsSlice: StateCreator<
     selectedLeague: "all",
     searchQuery: "",
     sparklines: {},
-    exportType: null,
+    bulkMode: null,
     selectedSessionIds: [],
+    isDeleteConfirmOpen: false,
+    deleteError: null,
+    isDeleting: false,
 
     // Load all sessions for a game with pagination
     loadAllSessions: async (page?: number) => {
@@ -208,12 +228,15 @@ export const createSessionsSlice: StateCreator<
       });
     },
 
-    // Export mode actions
-    setExportType: (type: "rich" | "simple" | null) => {
+    // Bulk mode actions
+    setBulkMode: (mode: SessionsBulkMode) => {
       set(({ sessions }) => {
-        sessions.exportType = type;
-        if (type === null) {
+        sessions.bulkMode = mode;
+        if (mode === null) {
           sessions.selectedSessionIds = [];
+          sessions.isDeleteConfirmOpen = false;
+          sessions.deleteError = null;
+          sessions.isDeleting = false;
         }
       });
     },
@@ -256,6 +279,32 @@ export const createSessionsSlice: StateCreator<
       });
     },
 
+    openDeleteConfirm: () => {
+      set(({ sessions }) => {
+        sessions.deleteError = null;
+        sessions.isDeleteConfirmOpen = true;
+      });
+    },
+
+    closeDeleteConfirm: () => {
+      set(({ sessions }) => {
+        sessions.deleteError = null;
+        sessions.isDeleteConfirmOpen = false;
+      });
+    },
+
+    setDeleteError: (error: string | null) => {
+      set(({ sessions }) => {
+        sessions.deleteError = error;
+      });
+    },
+
+    setIsDeleting: (isDeleting: boolean) => {
+      set(({ sessions }) => {
+        sessions.isDeleting = isDeleting;
+      });
+    },
+
     // Getters
     getAllSessions: () => get().sessions.allSessions,
     getSessionDetail: () => get().sessions.currentSessionDetail,
@@ -268,12 +317,16 @@ export const createSessionsSlice: StateCreator<
     getSelectedLeague: () => get().sessions.selectedLeague,
     getSearchQuery: () => get().sessions.searchQuery,
     getSparklines: () => get().sessions.sparklines,
-    getExportType: () => get().sessions.exportType,
-    getIsExportMode: () => get().sessions.exportType !== null,
+    getBulkMode: () => get().sessions.bulkMode,
+    getIsBulkMode: () => get().sessions.bulkMode !== null,
+    getIsDeleteMode: () => get().sessions.bulkMode === "delete",
     getSelectedSessionIds: () => get().sessions.selectedSessionIds,
     getSelectedCount: () => get().sessions.selectedSessionIds.length,
     getIsSessionSelected: (id: string) =>
       get().sessions.selectedSessionIds.includes(id),
+    getIsDeleteConfirmOpen: () => get().sessions.isDeleteConfirmOpen,
+    getDeleteError: () => get().sessions.deleteError,
+    getIsDeleting: () => get().sessions.isDeleting,
 
     // Get unique leagues from all sessions
     getUniqueLeagues: () => {

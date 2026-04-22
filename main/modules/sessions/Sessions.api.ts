@@ -22,6 +22,10 @@ import type {
   WinRateDTO,
 } from "./Sessions.dto";
 
+export type DeleteSessionsResult =
+  | { success: true; deletedCount: number }
+  | { success: false; error: string };
+
 const SessionsAPI = {
   getAll: (
     game: GameType,
@@ -141,6 +145,11 @@ const SessionsAPI = {
     ipcRenderer.invoke(SessionsChannel.GetSimpleExportRows, game, sessionIds),
   getAllSessionIds: (game: GameType): Promise<string[]> =>
     ipcRenderer.invoke(SessionsChannel.GetAllSessionIds, game),
+  deleteSessions: (
+    game: GameType,
+    sessionIds: string[],
+  ): Promise<DeleteSessionsResult> =>
+    ipcRenderer.invoke(SessionsChannel.DeleteSessions, game, sessionIds),
 };
 
 export type {

@@ -22,6 +22,7 @@ enum SessionsChannel {
   GetRichExportRows = "sessions:get-rich-export-rows",
   GetSimpleExportRows = "sessions:get-simple-export-rows",
   GetAllSessionIds = "sessions:get-all-session-ids",
+  DeleteSessions = "sessions:delete-sessions",
 }
 
 export { SessionsChannel };

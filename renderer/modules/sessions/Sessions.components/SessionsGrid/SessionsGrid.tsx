@@ -9,7 +9,8 @@ export const SessionsGrid = () => {
     getFilteredSessions,
     getSelectedLeague,
     getSparklines,
-    getIsExportMode,
+    getIsBulkMode,
+    getIsDeleteMode,
     getIsSessionSelected,
     toggleSessionSelection,
   } = useSessions();
@@ -17,7 +18,8 @@ export const SessionsGrid = () => {
   const filteredSessions = getFilteredSessions();
   const selectedLeague = getSelectedLeague();
   const sparklines = getSparklines();
-  const isExportMode = getIsExportMode();
+  const isBulkMode = getIsBulkMode();
+  const isDeleteMode = getIsDeleteMode();
 
   if (filteredSessions.length === 0) {
     return (
@@ -35,7 +37,7 @@ export const SessionsGrid = () => {
   return (
     <ul className="grid grid-cols-4 gap-4 mt-2">
       {filteredSessions.map((session) => {
-        const selected = isExportMode
+        const selected = isBulkMode
           ? getIsSessionSelected(session.sessionId)
           : false;
 
@@ -44,12 +46,14 @@ export const SessionsGrid = () => {
             className="animation-stagger relative"
             key={`${selectedLeague}-${session.sessionId}`}
           >
-            {isExportMode && (
+            {isBulkMode && (
               <div className="absolute -top-2.5 -right-2 z-30">
                 <input
                   type="checkbox"
                   className={clsx(
-                    "checkbox checkbox-primary checkbox-sm bg-base-200 shadow-md b border-2",
+                    "checkbox checkbox-sm bg-base-200 shadow-md b border-2",
+                    isDeleteMode ? "checkbox-error" : "checkbox-primary",
+                    isDeleteMode && "checked:text-white",
                     !selected && "border-dashed border-base-content/30",
                   )}
                   checked={selected}
@@ -60,9 +64,6 @@ export const SessionsGrid = () => {
             <SessionCard
               session={session}
               linePoints={sparklines[session.sessionId]}
-              isExportMode={isExportMode}
-              isSelected={selected}
-              onToggleSelect={() => toggleSessionSelection(session.sessionId)}
             />
           </li>
         );

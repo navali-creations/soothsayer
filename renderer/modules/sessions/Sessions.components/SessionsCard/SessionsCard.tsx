@@ -2,6 +2,7 @@ import { FiClock, FiInfo } from "react-icons/fi";
 import { GiCardExchange, GiLockedChest, GiReceiveMoney } from "react-icons/gi";
 
 import { Link, StaticProfitSparkline } from "~/renderer/components";
+import { useSessions } from "~/renderer/store";
 import { formatCurrency } from "~/renderer/utils";
 
 import type { SessionsSummary } from "../../Sessions.types";
@@ -14,23 +15,26 @@ interface SessionCardProps {
   session: SessionsSummary;
   /** Pre-computed sparkline line points for the background. */
   linePoints?: { x: number; profit: number }[];
-  isExportMode?: boolean;
-  isSelected?: boolean;
-  onToggleSelect?: () => void;
 }
 
-export const SessionCard = ({
-  session,
-  linePoints,
-  isExportMode = false,
-  isSelected = false,
-  onToggleSelect,
-}: SessionCardProps) => {
+export const SessionCard = ({ session, linePoints }: SessionCardProps) => {
+  const {
+    getIsBulkMode,
+    getIsDeleteMode,
+    getIsSessionSelected,
+    toggleSessionSelection,
+  } = useSessions();
+
+  const isBulkMode = getIsBulkMode();
+  const isDeleteMode = getIsDeleteMode();
+  const isSelected = isBulkMode
+    ? getIsSessionSelected(session.sessionId)
+    : false;
   const hasSparkline = linePoints != null && linePoints.length >= 2;
 
-  const borderClass = isExportMode
+  const borderClass = isBulkMode
     ? isSelected
-      ? "border-solid border-2 border-primary"
+      ? `border-solid border-2 ${isDeleteMode ? "border-error" : "border-primary"}`
       : "border-dashed border-2 border-base-content/30"
     : "border-2 border-transparent hover:border-primary";
 
@@ -177,10 +181,10 @@ export const SessionCard = ({
     </>
   );
 
-  if (isExportMode) {
+  if (isBulkMode) {
     return (
       <div
-        onClick={onToggleSelect}
+        onClick={() => toggleSessionSelection(session.sessionId)}
         className={`card bg-base-200 shadow-xl hover:shadow-2xl transition-all cursor-pointer ${borderClass} no-underline h-full flex flex-col relative overflow-hidden`}
       >
         {cardContent}

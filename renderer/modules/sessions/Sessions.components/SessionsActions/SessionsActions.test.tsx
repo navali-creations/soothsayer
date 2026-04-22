@@ -2,6 +2,7 @@ import {
   renderWithProviders,
   screen,
   waitFor,
+  within,
 } from "~/renderer/__test-setup__/render";
 import { useBoundStore } from "~/renderer/store";
 
@@ -53,17 +54,26 @@ function createMockSessions(overrides: any = {}) {
     getSelectedLeague: vi.fn(() => "all"),
     setSelectedLeague: vi.fn(),
     getSearchQuery: vi.fn(() => ""),
+    setSearchQuery: vi.fn(),
     loadAllSessions: vi.fn(),
     searchSessions: vi.fn(),
-    getIsExportMode: vi.fn(() => false),
-    getExportType: vi.fn(() => null),
-    setExportType: vi.fn(),
+    getIsBulkMode: vi.fn(() => false),
+    getBulkMode: vi.fn(() => null),
+    setBulkMode: vi.fn(),
     getSelectedSessionIds: vi.fn(() => []),
     getSelectedCount: vi.fn(() => 0),
     getAllSessions: vi.fn(() => []),
     selectAll: vi.fn(),
     clearSelection: vi.fn(),
     getTotalSessions: vi.fn(() => 0),
+    getCurrentPage: vi.fn(() => 1),
+    openDeleteConfirm: vi.fn(),
+    closeDeleteConfirm: vi.fn(),
+    setDeleteError: vi.fn(),
+    setIsDeleting: vi.fn(),
+    getIsDeleteConfirmOpen: vi.fn(() => false),
+    getDeleteError: vi.fn(() => null),
+    getIsDeleting: vi.fn(() => false),
     ...overrides,
   } as any;
 }
@@ -82,6 +92,12 @@ describe("SessionsActions", () => {
   beforeEach(() => {
     vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:session-export");
     vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    HTMLDialogElement.prototype.showModal = vi.fn();
+    HTMLDialogElement.prototype.close = vi.fn();
+    window.electron.sessions.deleteSessions.mockResolvedValue({
+      success: true,
+      deletedCount: 0,
+    });
   });
 
   afterEach(() => {
@@ -116,14 +132,14 @@ describe("SessionsActions", () => {
     expect(store.setSelectedLeague).toHaveBeenCalledWith("Settlers");
   });
 
-  it("typing in search input updates the value", async () => {
-    setupStore();
+  it("typing in search input updates the sessions slice query", async () => {
+    const store = setupStore();
     const { user } = renderWithProviders(<SessionsActions />);
 
     const searchInput = screen.getByTestId("search");
-    await user.type(searchInput, "The Doctor");
+    await user.type(searchInput, "T");
 
-    expect(searchInput).toHaveValue("The Doctor");
+    expect(store.setSearchQuery).toHaveBeenCalledWith("T");
   });
 
   it("empty search calls loadAllSessions", () => {
@@ -144,6 +160,17 @@ describe("SessionsActions", () => {
     expect(store.searchSessions).toHaveBeenCalledWith("Rain of Chaos", 1);
   });
 
+  it("trims the debounced search query before searching", () => {
+    const store = setupStore({
+      sessions: {
+        getSearchQuery: vi.fn(() => "  Rain of Chaos  "),
+      },
+    });
+    renderWithProviders(<SessionsActions />);
+
+    expect(store.searchSessions).toHaveBeenCalledWith("Rain of Chaos", 1);
+  });
+
   it("starts simple and rich export modes from the menu", async () => {
     const store = setupStore();
     const { user } = renderWithProviders(<SessionsActions />);
@@ -151,31 +178,42 @@ describe("SessionsActions", () => {
     await user.click(
       screen.getByRole("button", { name: /export simple csv/i }),
     );
-    expect(store.setExportType).toHaveBeenCalledWith("simple");
+    expect(store.setBulkMode).toHaveBeenCalledWith("export-simple");
 
     await user.click(screen.getByRole("button", { name: /export rich csv/i }));
-    expect(store.setExportType).toHaveBeenCalledWith("rich");
+    expect(store.setBulkMode).toHaveBeenCalledWith("export-rich");
+  });
+
+  it("starts delete mode from the menu", async () => {
+    const store = setupStore();
+    const { user } = renderWithProviders(<SessionsActions />);
+
+    await user.click(
+      screen.getByRole("button", { name: /^delete sessions$/i }),
+    );
+
+    expect(store.setBulkMode).toHaveBeenCalledWith("delete");
   });
 
   it("cancels export mode and clears type", async () => {
     const store = setupStore({
       sessions: {
-        getIsExportMode: vi.fn(() => true),
-        getExportType: vi.fn(() => "rich"),
+        getIsBulkMode: vi.fn(() => true),
+        getBulkMode: vi.fn(() => "export-rich"),
       },
     });
     const { user } = renderWithProviders(<SessionsActions />);
 
     await user.click(screen.getByRole("button", { name: /cancel/i }));
 
-    expect(store.setExportType).toHaveBeenCalledWith(null);
+    expect(store.setBulkMode).toHaveBeenCalledWith(null);
   });
 
   it("selects all when not all sessions are selected", async () => {
     const store = setupStore({
       sessions: {
-        getIsExportMode: vi.fn(() => true),
-        getExportType: vi.fn(() => "rich"),
+        getIsBulkMode: vi.fn(() => true),
+        getBulkMode: vi.fn(() => "export-rich"),
         getSelectedCount: vi.fn(() => 1),
         getTotalSessions: vi.fn(() => 3),
       },
@@ -191,8 +229,8 @@ describe("SessionsActions", () => {
   it("deselects all when all sessions are selected", async () => {
     const store = setupStore({
       sessions: {
-        getIsExportMode: vi.fn(() => true),
-        getExportType: vi.fn(() => "simple"),
+        getIsBulkMode: vi.fn(() => true),
+        getBulkMode: vi.fn(() => "export-simple"),
         getSelectedCount: vi.fn(() => 3),
         getTotalSessions: vi.fn(() => 3),
       },
@@ -208,8 +246,8 @@ describe("SessionsActions", () => {
   it("does not export when nothing is selected", async () => {
     setupStore({
       sessions: {
-        getIsExportMode: vi.fn(() => true),
-        getExportType: vi.fn(() => "simple"),
+        getIsBulkMode: vi.fn(() => true),
+        getBulkMode: vi.fn(() => "export-simple"),
       },
     });
     const { user } = renderWithProviders(<SessionsActions />);
@@ -224,6 +262,224 @@ describe("SessionsActions", () => {
     expect(window.electron.sessions.getRichExportRows).not.toHaveBeenCalled();
   });
 
+  it("renders delete mode controls with a disabled delete button when nothing is selected", () => {
+    setupStore({
+      sessions: {
+        getIsBulkMode: vi.fn(() => true),
+        getBulkMode: vi.fn(() => "delete"),
+        getSelectedCount: vi.fn(() => 0),
+        getTotalSessions: vi.fn(() => 3),
+      },
+    });
+
+    renderWithProviders(<SessionsActions />);
+
+    expect(screen.getByRole("button", { name: /cancel/i })).toHaveClass(
+      "btn-outline",
+    );
+    expect(screen.getByRole("button", { name: /select all/i })).toHaveClass(
+      "btn-outline",
+    );
+    const deleteButton = screen.getByRole("button", {
+      name: /delete sessions \(0\)/i,
+    });
+    expect(deleteButton).toHaveClass("btn-error");
+    expect(deleteButton).toBeDisabled();
+  });
+
+  it("renders enabled delete mode button with selected count", () => {
+    setupStore({
+      sessions: {
+        getIsBulkMode: vi.fn(() => true),
+        getBulkMode: vi.fn(() => "delete"),
+        getSelectedCount: vi.fn(() => 2),
+        getTotalSessions: vi.fn(() => 3),
+      },
+    });
+
+    renderWithProviders(<SessionsActions />);
+
+    expect(
+      screen.getByRole("button", { name: /delete sessions \(2\)/i }),
+    ).toBeEnabled();
+  });
+
+  it("opens the delete confirmation modal through the sessions slice", async () => {
+    const store = setupStore({
+      sessions: {
+        getIsBulkMode: vi.fn(() => true),
+        getBulkMode: vi.fn(() => "delete"),
+        getSelectedCount: vi.fn(() => 2),
+        getTotalSessions: vi.fn(() => 3),
+      },
+    });
+    const { user } = renderWithProviders(<SessionsActions />);
+
+    await user.click(
+      screen.getByRole("button", { name: /delete sessions \(2\)/i }),
+    );
+
+    expect(store.openDeleteConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders the open delete confirmation modal from the sessions slice", () => {
+    setupStore({
+      sessions: {
+        getIsBulkMode: vi.fn(() => true),
+        getBulkMode: vi.fn(() => "delete"),
+        getSelectedCount: vi.fn(() => 2),
+        getTotalSessions: vi.fn(() => 3),
+        getIsDeleteConfirmOpen: vi.fn(() => true),
+      },
+    });
+
+    renderWithProviders(<SessionsActions />);
+
+    expect(HTMLDialogElement.prototype.showModal).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByRole("heading", { name: "Delete sessions", hidden: true }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Delete 2 selected sessions/)).toBeInTheDocument();
+    expect(
+      screen.getByText("This action cannot be undone."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Aggregate card statistics and total stacked decks/),
+    ).toBeInTheDocument();
+  });
+
+  it("closes the delete confirmation modal when cancel is clicked", async () => {
+    const store = setupStore({
+      sessions: {
+        getIsBulkMode: vi.fn(() => true),
+        getBulkMode: vi.fn(() => "delete"),
+        getSelectedCount: vi.fn(() => 1),
+        getTotalSessions: vi.fn(() => 3),
+        getIsDeleteConfirmOpen: vi.fn(() => true),
+      },
+    });
+    const { user } = renderWithProviders(<SessionsActions />);
+
+    const dialog = document.querySelector("dialog") as HTMLElement;
+    await user.click(
+      within(dialog).getByRole("button", { name: /cancel/i, hidden: true }),
+    );
+
+    expect(store.closeDeleteConfirm).toHaveBeenCalledTimes(1);
+    expect(HTMLDialogElement.prototype.close).toHaveBeenCalled();
+  });
+
+  it("confirms delete success, clears selection, exits bulk mode, and reloads the first page", async () => {
+    const deleteSessions = vi
+      .fn()
+      .mockResolvedValue({ success: true, deletedCount: 2 });
+    window.electron.sessions.deleteSessions = deleteSessions;
+    const store = setupStore({
+      sessions: {
+        getIsBulkMode: vi.fn(() => true),
+        getBulkMode: vi.fn(() => "delete"),
+        getSelectedSessionIds: vi.fn(() => ["s1", "s2"]),
+        getSelectedCount: vi.fn(() => 2),
+        getTotalSessions: vi.fn(() => 3),
+        getCurrentPage: vi.fn(() => 4),
+        getIsDeleteConfirmOpen: vi.fn(() => true),
+      },
+    });
+    const { user } = renderWithProviders(<SessionsActions />);
+
+    const dialog = document.querySelector("dialog") as HTMLElement;
+    await user.click(
+      within(dialog).getByRole("button", {
+        name: /^delete sessions$/i,
+        hidden: true,
+      }),
+    );
+
+    await waitFor(() =>
+      expect(deleteSessions).toHaveBeenCalledWith("poe1", ["s1", "s2"]),
+    );
+    expect(store.setIsDeleting).toHaveBeenCalledWith(true);
+    expect(store.setDeleteError).toHaveBeenCalledWith(null);
+    expect(store.closeDeleteConfirm).toHaveBeenCalled();
+    expect(store.clearSelection).toHaveBeenCalled();
+    expect(store.setBulkMode).toHaveBeenCalledWith(null);
+    expect(store.loadAllSessions).toHaveBeenCalledWith(1);
+    expect(store.setIsDeleting).toHaveBeenLastCalledWith(false);
+  });
+
+  it("confirms delete success and reloads the first search page when searching", async () => {
+    const deleteSessions = vi
+      .fn()
+      .mockResolvedValue({ success: true, deletedCount: 1 });
+    window.electron.sessions.deleteSessions = deleteSessions;
+    const store = setupStore({
+      sessions: {
+        getSearchQuery: vi.fn(() => "The Doctor"),
+        getIsBulkMode: vi.fn(() => true),
+        getBulkMode: vi.fn(() => "delete"),
+        getSelectedSessionIds: vi.fn(() => ["s1"]),
+        getSelectedCount: vi.fn(() => 1),
+        getTotalSessions: vi.fn(() => 3),
+        getCurrentPage: vi.fn(() => 4),
+        getIsDeleteConfirmOpen: vi.fn(() => true),
+      },
+    });
+    const { user } = renderWithProviders(<SessionsActions />);
+
+    const dialog = document.querySelector("dialog") as HTMLElement;
+    await user.click(
+      within(dialog).getByRole("button", {
+        name: /^delete sessions$/i,
+        hidden: true,
+      }),
+    );
+
+    await waitFor(() =>
+      expect(deleteSessions).toHaveBeenCalledWith("poe1", ["s1"]),
+    );
+    expect(store.clearSelection).toHaveBeenCalled();
+    expect(store.setBulkMode).toHaveBeenCalledWith(null);
+    expect(store.searchSessions).toHaveBeenLastCalledWith("The Doctor", 1);
+    expect(store.loadAllSessions).not.toHaveBeenCalled();
+  });
+
+  it("keeps the delete modal open and preserves selection on delete failure", async () => {
+    const deleteSessions = vi.fn().mockResolvedValue({
+      success: false,
+      error: "Cannot delete active session",
+    });
+    window.electron.sessions.deleteSessions = deleteSessions;
+    const store = setupStore({
+      sessions: {
+        getIsBulkMode: vi.fn(() => true),
+        getBulkMode: vi.fn(() => "delete"),
+        getSelectedSessionIds: vi.fn(() => ["s1"]),
+        getSelectedCount: vi.fn(() => 1),
+        getTotalSessions: vi.fn(() => 3),
+        getIsDeleteConfirmOpen: vi.fn(() => true),
+      },
+    });
+    const { user } = renderWithProviders(<SessionsActions />);
+
+    const dialog = document.querySelector("dialog") as HTMLElement;
+    await user.click(
+      within(dialog).getByRole("button", {
+        name: /^delete sessions$/i,
+        hidden: true,
+      }),
+    );
+
+    await waitFor(() =>
+      expect(store.setDeleteError).toHaveBeenCalledWith(
+        "Cannot delete active session",
+      ),
+    );
+    expect(store.clearSelection).not.toHaveBeenCalled();
+    expect(store.setBulkMode).not.toHaveBeenCalledWith(null);
+    expect(store.closeDeleteConfirm).not.toHaveBeenCalled();
+    expect(store.setIsDeleting).toHaveBeenLastCalledWith(false);
+  });
+
   it("exports rich CSV for selected sessions", async () => {
     const clickSpy = vi
       .spyOn(HTMLAnchorElement.prototype, "click")
@@ -233,8 +489,8 @@ describe("SessionsActions", () => {
     ]);
     setupStore({
       sessions: {
-        getIsExportMode: vi.fn(() => true),
-        getExportType: vi.fn(() => "rich"),
+        getIsBulkMode: vi.fn(() => true),
+        getBulkMode: vi.fn(() => "export-rich"),
         getSelectedSessionIds: vi.fn(() => ["s1"]),
         getSelectedCount: vi.fn(() => 1),
         getTotalSessions: vi.fn(() => 2),
@@ -270,8 +526,8 @@ describe("SessionsActions", () => {
     });
     setupStore({
       sessions: {
-        getIsExportMode: vi.fn(() => true),
-        getExportType: vi.fn(() => "simple"),
+        getIsBulkMode: vi.fn(() => true),
+        getBulkMode: vi.fn(() => "export-simple"),
         getSelectedSessionIds: vi.fn(() => ["s1", "s2"]),
         getSelectedCount: vi.fn(() => 2),
         getTotalSessions: vi.fn(() => 4),
@@ -303,8 +559,8 @@ describe("SessionsActions", () => {
     });
     setupStore({
       sessions: {
-        getIsExportMode: vi.fn(() => true),
-        getExportType: vi.fn(() => "simple"),
+        getIsBulkMode: vi.fn(() => true),
+        getBulkMode: vi.fn(() => "export-simple"),
         getSelectedSessionIds: vi.fn(() =>
           Array.from({ length: 201 }, (_, i) => `s${i}`),
         ),
@@ -340,8 +596,8 @@ describe("SessionsActions", () => {
     ]);
     setupStore({
       sessions: {
-        getIsExportMode: vi.fn(() => true),
-        getExportType: vi.fn(() => "rich"),
+        getIsBulkMode: vi.fn(() => true),
+        getBulkMode: vi.fn(() => "export-rich"),
         getSelectedSessionIds: vi.fn(() => ["s1", "s2"]),
         getSelectedCount: vi.fn(() => 2),
         getTotalSessions: vi.fn(() => 2),

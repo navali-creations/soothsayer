@@ -135,6 +135,9 @@ export function createElectronMock() {
       getRichExportRows: vi.fn().mockResolvedValue([]),
       getSimpleExportRows: vi.fn().mockResolvedValue({}),
       getAllSessionIds: vi.fn().mockResolvedValue([]),
+      deleteSessions: vi
+        .fn()
+        .mockResolvedValue({ success: true, deletedCount: 0 }),
     },
 
     // ── Snapshots (poe.ninja prices) ───────────────────────────────────

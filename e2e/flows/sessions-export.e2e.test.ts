@@ -18,6 +18,7 @@ import {
   seedMultipleCompletedSessions,
   seedSessionPrerequisites,
 } from "../helpers/seed-db";
+import { resetSessionsBulkState } from "../helpers/sessions";
 
 interface CapturedDownload {
   filename?: string;
@@ -171,6 +172,7 @@ async function openMoreOptions(page: Page) {
 test.describe("Sessions multi-session export", () => {
   test.beforeEach(async ({ page }) => {
     await ensurePostSetup(page);
+    await resetSessionsBulkState(page);
     await seedExportSessions(page);
     await installDownloadCapture(page);
   });
