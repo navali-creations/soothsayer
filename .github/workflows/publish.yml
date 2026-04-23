@@ -144,14 +144,26 @@ jobs:
             $utf8NoBom
           )
 
-      # ── Linux: single step ─────────────────────────────────────────────
+      # Linux build
       - name: Make distributables (Linux)
         if: "!startsWith(matrix.name, 'windows')"
         run: pnpm make
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      - name: Verify Linux distributables
+        if: "!startsWith(matrix.name, 'windows')"
+        shell: bash
+        run: |
+          echo "Linux build artifacts:"
+          find out/make -maxdepth 4 -type f | sort
 
-      # ── Windows: package → sign app → make (skip-package) → sign installer ──
+          APPIMAGE_COUNT=$(find out/make -type f -name "*.AppImage" | wc -l)
+          if [ "$APPIMAGE_COUNT" -eq 0 ]; then
+            echo "::error::No AppImage artifact found under out/make"
+            exit 1
+          fi
+
+      # Windows: package, sign app, make installer, sign artifacts
       # Locate signtool once and store the path for later steps
 
       - name: Locate signtool.exe
@@ -178,7 +190,7 @@ jobs:
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
-      # ── Post-build assertion: verify env vars were embedded ─────────
+      # Post-build assertion: verify env vars were embedded
       # Guards against BOM corruption, missing secrets, or dotenv parse
       # failures that would silently ship a broken build.
       # See: docs/postmortems/2026-04-powershell-bom-supabase-env.md
@@ -196,7 +208,7 @@ jobs:
           check_bundle() {
             local label="$1" pattern="$2" file="$3"
             if grep -q "$pattern" "$file"; then
-              echo "✅ $label is embedded in the bundle"
+              echo "[ok] $label is embedded in the bundle"
             else
               echo "::error::$label was NOT embedded in the bundle. The .env file may be corrupted (e.g. BOM prefix) or the secret is empty."
               FAILED=1
@@ -238,7 +250,7 @@ jobs:
           $failed = 0
           function Assert-Bundle($Label, $Pattern, $Content) {
             if ($Content -match $Pattern) {
-              Write-Host "✅ $Label is embedded in the bundle"
+              Write-Host "[ok] $Label is embedded in the bundle"
             } else {
               Write-Host "::error::$Label was NOT embedded in the bundle. The .env file may be corrupted (e.g. BOM prefix) or the secret is empty."
               $script:failed = 1

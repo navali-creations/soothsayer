@@ -20,13 +20,16 @@ https://github.com/user-attachments/assets/63e95f2b-f4e1-43e2-8e26-68d357928a51
 
 [![Download Latest Release](https://img.shields.io/github/v/release/navali-creations/soothsayer?style=for-the-badge&label=Download+Latest+Release&color=purple)](https://github.com/navali-creations/soothsayer/releases/latest)
 
-| system | extension | 
+| system | extension |
 | -- | -- |
-| Windows | `Soothsayer-x.x.x.Setup.exe` | 
-| Linux | `soothsayer_x.x.x_amd64.deb` |
-| Linux | `soothsayer-x.x.x-full.nupkg` |
+| Windows | `Soothsayer-x.y.z.Setup.exe` |
+| Linux | `Soothsayer-x.y.z-x64.AppImage` |
+| Linux | `soothsayer_x.y.z_amd64.deb` |
+| Linux | `soothsayer-*.rpm` |
 
 ---
+
+Linux note: the AppImage build is the easiest portable option. On Ubuntu 22.04 install libfuse2; on Ubuntu 24.04+ install libfuse2t64 before launching it.
 
 ## Requirements
 

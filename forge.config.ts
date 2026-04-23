@@ -11,6 +11,11 @@ import { FusesPlugin } from "@electron-forge/plugin-fuses";
 import { VitePlugin } from "@electron-forge/plugin-vite";
 import type { ForgeConfig } from "@electron-forge/shared-types";
 
+const linuxIconDir = path.resolve(
+  __dirname,
+  "renderer/assets/logo/linux/icons",
+);
+
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
@@ -45,7 +50,7 @@ const config: ForgeConfig = {
       );
       const dest = path.resolve(__dirname, ".forge-staging/poe1");
       fs.cpSync(src, dest, { recursive: true, force: true });
-      console.log("[forge] Staged poe1 card data →", dest);
+      console.log("[forge] Staged poe1 card data ->", dest);
     },
   },
   makers: [
@@ -59,6 +64,16 @@ const config: ForgeConfig = {
         "https://raw.githubusercontent.com/navali-creations/soothsayer/master/renderer/assets/logo/windows/icon.ico",
     }),
     new MakerZIP({}, ["darwin"]),
+    {
+      name: "electron-forge-maker-appimage",
+      platforms: ["linux"],
+      config: {
+        linux: {
+          category: "Game",
+          icon: linuxIconDir,
+        },
+      },
+    },
     new MakerRpm({}),
     new MakerDeb({}),
   ],
