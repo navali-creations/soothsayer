@@ -1,10 +1,12 @@
-import { beforeEach, describe, expect, it } from "vitest";
+﻿import { beforeEach, describe, expect, it } from "vitest";
 
 import type { ElectronMock } from "~/renderer/__test-setup__/electron-mock";
 import {
   createTestStore,
   type TestStore,
 } from "~/renderer/__test-setup__/test-store";
+
+import { allOnboardingBeaconIds } from "../onboarding-config/onboarding-labels";
 
 let store: TestStore;
 let electron: ElectronMock;
@@ -15,8 +17,6 @@ beforeEach(() => {
 });
 
 describe("Onboarding.slice", () => {
-  // ─── Initial State ─────────────────────────────────────────────────────
-
   describe("initial state", () => {
     it("has an empty dismissedBeacons array", () => {
       expect(store.getState().onboarding.dismissedBeacons).toEqual([]);
@@ -29,9 +29,11 @@ describe("Onboarding.slice", () => {
     it("has error set to null", () => {
       expect(store.getState().onboarding.error).toBeNull();
     });
-  });
 
-  // ─── hydrate() ─────────────────────────────────────────────────────────
+    it("starts with beaconHostRefreshKey at 0", () => {
+      expect(store.getState().onboarding.beaconHostRefreshKey).toBe(0);
+    });
+  });
 
   describe("hydrate", () => {
     it("sets isLoading to true while hydrating", async () => {
@@ -53,12 +55,10 @@ describe("Onboarding.slice", () => {
     });
 
     it("clears previous error when starting hydrate", async () => {
-      // Put the store in an error state first
       electron.settings.get.mockRejectedValueOnce(new Error("first failure"));
       await store.getState().onboarding.hydrate();
       expect(store.getState().onboarding.error).toBe("first failure");
 
-      // Next hydrate should clear error at the start
       electron.settings.get.mockResolvedValueOnce([]);
       await store.getState().onboarding.hydrate();
       expect(store.getState().onboarding.error).toBeNull();
@@ -132,8 +132,6 @@ describe("Onboarding.slice", () => {
     });
   });
 
-  // ─── isDismissed() ─────────────────────────────────────────────────────
-
   describe("isDismissed", () => {
     it("returns false when no beacons have been dismissed", () => {
       expect(store.getState().onboarding.isDismissed("beacon-a")).toBe(false);
@@ -155,16 +153,15 @@ describe("Onboarding.slice", () => {
     });
 
     it("returns false without throwing when dismissedBeacons is null/undefined", () => {
-      // Force dismissedBeacons to null to exercise the `|| []` fallback in isDismissed
       store.setState((s) => {
-        (s.onboarding as any).dismissedBeacons = null;
+        (
+          s.onboarding as never as { dismissedBeacons: string[] | null }
+        ).dismissedBeacons = null;
       });
 
       expect(store.getState().onboarding.isDismissed("beacon-a")).toBe(false);
     });
   });
-
-  // ─── dismiss() ─────────────────────────────────────────────────────────
 
   describe("dismiss", () => {
     it("adds a new beacon to dismissedBeacons", async () => {
@@ -191,7 +188,6 @@ describe("Onboarding.slice", () => {
       expect(store.getState().onboarding.dismissedBeacons).toEqual([
         "beacon-a",
       ]);
-      // settings.set should only be called once since the second dismiss is skipped
       expect(electron.settings.set).toHaveBeenCalledTimes(1);
     });
 
@@ -234,7 +230,123 @@ describe("Onboarding.slice", () => {
     });
   });
 
-  // ─── reset() ───────────────────────────────────────────────────────────
+  describe("dismissAll", () => {
+    it("sets every known beacon as dismissed and persists them", async () => {
+      await store.getState().onboarding.dismissAll();
+
+      expect(store.getState().onboarding.dismissedBeacons).toEqual(
+        allOnboardingBeaconIds,
+      );
+      expect(electron.settings.set).toHaveBeenCalledWith(
+        "onboardingDismissedBeacons",
+        allOnboardingBeaconIds,
+      );
+    });
+
+    it("writes the full beacon array in a single settings.set call", async () => {
+      await store.getState().onboarding.dismissAll();
+
+      expect(electron.settings.set).toHaveBeenCalledTimes(1);
+      expect(electron.settings.set).toHaveBeenLastCalledWith(
+        "onboardingDismissedBeacons",
+        allOnboardingBeaconIds,
+      );
+    });
+
+    it("is idempotent when some beacons are already dismissed", async () => {
+      store.setState((state) => {
+        state.onboarding.dismissedBeacons = [
+          allOnboardingBeaconIds[0],
+          allOnboardingBeaconIds[0],
+          allOnboardingBeaconIds[1],
+        ];
+      });
+
+      await store.getState().onboarding.dismissAll();
+
+      expect(store.getState().onboarding.dismissedBeacons).toEqual(
+        allOnboardingBeaconIds,
+      );
+      expect(new Set(store.getState().onboarding.dismissedBeacons).size).toBe(
+        allOnboardingBeaconIds.length,
+      );
+    });
+
+    it("sets error and leaves state unchanged when persistence fails", async () => {
+      store.setState((state) => {
+        state.onboarding.dismissedBeacons = [allOnboardingBeaconIds[0]];
+      });
+      electron.settings.set.mockRejectedValueOnce(
+        new Error("DismissAll write failed"),
+      );
+
+      await store.getState().onboarding.dismissAll();
+
+      expect(store.getState().onboarding.error).toBe("DismissAll write failed");
+      expect(store.getState().onboarding.dismissedBeacons).toEqual([
+        allOnboardingBeaconIds[0],
+      ]);
+    });
+
+    it("does not persist when all beacons are already dismissed", async () => {
+      store.setState((state) => {
+        state.onboarding.dismissedBeacons = [...allOnboardingBeaconIds];
+      });
+
+      await store.getState().onboarding.dismissAll();
+
+      expect(store.getState().onboarding.dismissedBeacons).toEqual(
+        allOnboardingBeaconIds,
+      );
+      expect(electron.settings.set).not.toHaveBeenCalled();
+    });
+
+    it("serializes overlapping dismiss mutations against the latest state", async () => {
+      let resolveFirstWrite: (() => void) | undefined;
+      electron.settings.set
+        .mockImplementationOnce(
+          () =>
+            new Promise<void>((resolve) => {
+              resolveFirstWrite = resolve;
+            }),
+        )
+        .mockResolvedValueOnce(undefined);
+
+      const firstDismiss = store.getState().onboarding.dismiss("beacon-a");
+      const secondDismiss = store.getState().onboarding.dismiss("beacon-b");
+
+      await Promise.resolve();
+      expect(electron.settings.set).toHaveBeenCalledTimes(1);
+
+      resolveFirstWrite?.();
+      await Promise.all([firstDismiss, secondDismiss]);
+
+      expect(electron.settings.set).toHaveBeenNthCalledWith(
+        1,
+        "onboardingDismissedBeacons",
+        ["beacon-a"],
+      );
+      expect(electron.settings.set).toHaveBeenNthCalledWith(
+        2,
+        "onboardingDismissedBeacons",
+        ["beacon-a", "beacon-b"],
+      );
+      expect(store.getState().onboarding.dismissedBeacons).toEqual([
+        "beacon-a",
+        "beacon-b",
+      ]);
+    });
+
+    it("sets generic error for non-Error thrown values", async () => {
+      electron.settings.set.mockRejectedValueOnce("dismiss-all-failed");
+
+      await store.getState().onboarding.dismissAll();
+
+      expect(store.getState().onboarding.error).toBe(
+        "Failed to dismiss all beacons",
+      );
+    });
+  });
 
   describe("reset", () => {
     it("removes a specific beacon from dismissedBeacons", async () => {
@@ -260,20 +372,16 @@ describe("Onboarding.slice", () => {
       );
     });
 
-    it("is a no-op (but still persists) when resetting a beacon that was not dismissed", async () => {
+    it("does not persist when resetting a beacon that was not dismissed", async () => {
       await store.getState().onboarding.dismiss("beacon-a");
       electron.settings.set.mockClear();
 
       await store.getState().onboarding.reset("beacon-nonexistent");
 
-      // The array doesn't change but the operation still persists
       expect(store.getState().onboarding.dismissedBeacons).toEqual([
         "beacon-a",
       ]);
-      expect(electron.settings.set).toHaveBeenCalledWith(
-        "onboardingDismissedBeacons",
-        ["beacon-a"],
-      );
+      expect(electron.settings.set).not.toHaveBeenCalled();
     });
 
     it("sets error if persisting fails on reset", async () => {
@@ -299,7 +407,19 @@ describe("Onboarding.slice", () => {
     });
   });
 
-  // ─── resetAll() ────────────────────────────────────────────────────────
+  describe("resetOne", () => {
+    it("delegates to reset for a single beacon", async () => {
+      await store.getState().onboarding.dismiss(allOnboardingBeaconIds[0]);
+
+      await store.getState().onboarding.resetOne(allOnboardingBeaconIds[0]);
+
+      expect(store.getState().onboarding.dismissedBeacons).toEqual([]);
+      expect(electron.settings.set).toHaveBeenLastCalledWith(
+        "onboardingDismissedBeacons",
+        [],
+      );
+    });
+  });
 
   describe("resetAll", () => {
     it("clears all dismissed beacons", async () => {
@@ -323,17 +443,17 @@ describe("Onboarding.slice", () => {
       );
     });
 
-    it("works when there are no dismissed beacons", async () => {
+    it("does not persist when there are no dismissed beacons to reset", async () => {
       await store.getState().onboarding.resetAll();
 
       expect(store.getState().onboarding.dismissedBeacons).toEqual([]);
-      expect(electron.settings.set).toHaveBeenCalledWith(
-        "onboardingDismissedBeacons",
-        [],
-      );
+      expect(electron.settings.set).not.toHaveBeenCalled();
     });
 
     it("sets error if persisting fails on resetAll", async () => {
+      store.setState((state) => {
+        state.onboarding.dismissedBeacons = ["beacon-a"];
+      });
       electron.settings.set.mockRejectedValueOnce(
         new Error("ResetAll write failed"),
       );
@@ -344,6 +464,9 @@ describe("Onboarding.slice", () => {
     });
 
     it("sets generic error message for non-Error thrown values on resetAll failure", async () => {
+      store.setState((state) => {
+        state.onboarding.dismissedBeacons = ["beacon-a"];
+      });
       electron.settings.set.mockRejectedValueOnce(undefined);
 
       await store.getState().onboarding.resetAll();
@@ -354,38 +477,74 @@ describe("Onboarding.slice", () => {
     });
   });
 
-  // ─── Integration / edge cases ──────────────────────────────────────────
+  describe("refreshBeaconHost", () => {
+    it("increments beaconHostRefreshKey without changing dismissed beacons", () => {
+      store.setState((state) => {
+        state.onboarding.dismissedBeacons = ["beacon-a"];
+      });
+
+      store.getState().onboarding.refreshBeaconHost();
+
+      expect(store.getState().onboarding.beaconHostRefreshKey).toBe(1);
+      expect(store.getState().onboarding.dismissedBeacons).toEqual([
+        "beacon-a",
+      ]);
+    });
+  });
+
+  describe("getAllBeaconStates", () => {
+    it("returns correct structure with mixed dismissed and active beacons", async () => {
+      await store.getState().onboarding.dismiss(allOnboardingBeaconIds[0]);
+      await store.getState().onboarding.dismiss(allOnboardingBeaconIds[3]);
+
+      expect(store.getState().onboarding.getAllBeaconStates()).toEqual(
+        allOnboardingBeaconIds.map((id) => ({
+          id,
+          dismissed:
+            id === allOnboardingBeaconIds[0] ||
+            id === allOnboardingBeaconIds[3],
+        })),
+      );
+    });
+
+    it("returns all active when the store is fresh", () => {
+      expect(store.getState().onboarding.getAllBeaconStates()).toEqual(
+        allOnboardingBeaconIds.map((id) => ({ id, dismissed: false })),
+      );
+    });
+
+    it("returns all dismissed after dismissAll", async () => {
+      await store.getState().onboarding.dismissAll();
+
+      expect(store.getState().onboarding.getAllBeaconStates()).toEqual(
+        allOnboardingBeaconIds.map((id) => ({ id, dismissed: true })),
+      );
+    });
+  });
 
   describe("integration", () => {
-    it("hydrate → dismiss → reset → isDismissed flow works end-to-end", async () => {
-      // Hydrate with existing data
+    it("hydrate -> dismiss -> reset -> isDismissed flow works end-to-end", async () => {
       electron.settings.get.mockResolvedValueOnce(["beacon-a"]);
       await store.getState().onboarding.hydrate();
       expect(store.getState().onboarding.isDismissed("beacon-a")).toBe(true);
 
-      // Dismiss another beacon
       await store.getState().onboarding.dismiss("beacon-b");
       expect(store.getState().onboarding.isDismissed("beacon-b")).toBe(true);
 
-      // Reset the first one
       await store.getState().onboarding.reset("beacon-a");
       expect(store.getState().onboarding.isDismissed("beacon-a")).toBe(false);
       expect(store.getState().onboarding.isDismissed("beacon-b")).toBe(true);
 
-      // Reset all
       await store.getState().onboarding.resetAll();
       expect(store.getState().onboarding.isDismissed("beacon-b")).toBe(false);
       expect(store.getState().onboarding.dismissedBeacons).toEqual([]);
     });
 
     it("error from one operation does not prevent subsequent operations", async () => {
-      // First dismiss fails
       electron.settings.set.mockRejectedValueOnce(new Error("fail"));
       await store.getState().onboarding.dismiss("beacon-a");
       expect(store.getState().onboarding.error).toBe("fail");
 
-      // Next dismiss succeeds — error might still be set from before,
-      // but the operation completes and state updates
       electron.settings.set.mockResolvedValueOnce(undefined);
       await store.getState().onboarding.dismiss("beacon-b");
       expect(store.getState().onboarding.dismissedBeacons).toContain(

@@ -1,3 +1,4 @@
+export { default as BeaconHost } from "./Onboarding.components/BeaconHost";
 export {
   createOnboardingSlice,
   type OnboardingSlice,

@@ -34,6 +34,16 @@ describe("Button", () => {
     expect(button).toHaveClass(expected);
   });
 
+  it("does not apply shared ghost-specific styling", () => {
+    renderWithProviders(<Button variant="ghost">Ghost</Button>);
+    const button = screen.getByRole("button", { name: "Ghost" });
+    expect(button).not.toHaveClass(
+      "text-primary-content",
+      "bg-white/10",
+      "hover:bg-white/15",
+    );
+  });
+
   it.each([
     ["lg", "btn-lg"],
     ["sm", "btn-sm"],

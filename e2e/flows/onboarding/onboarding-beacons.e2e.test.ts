@@ -1,5 +1,5 @@
-/**
- * E2E Test: Onboarding — Current Session Page Beacons
+﻿/**
+ * E2E Test: Onboarding - Current Session Page Beacons
  *
  * Tests the onboarding beacon system for the Current Session page.
  * The onboarding uses `@repere/react` to render "beacon" triggers (pulsing
@@ -9,7 +9,7 @@
  * `onboardingDismissedBeacons`.
  *
  * Flow:
- *   1. Current Session page — verify all 5 beacons (2 global + 3 page-specific),
+ *   1. Current Session page - verify all 5 beacons (2 global + 3 page-specific),
  *      exercise close/reopen via Escape, then acknowledge each.
  *
  * Rarity Insights page beacon tests live in `onboarding-beacons-rarity.e2e.test.ts`.
@@ -40,12 +40,8 @@ import {
 } from "../../helpers/onboarding";
 import { seedSessionPrerequisites } from "../../helpers/seed-db";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-/** How long to wait for triggers to render (library uses delay: 500ms). */
 const TRIGGER_RENDER_TIMEOUT = 5_000;
 
-/** Beacons visible on the Current Session page (global + page-specific). */
 const CURRENT_SESSION_BEACONS = [
   "game-selector",
   "overlay-icon",
@@ -54,21 +50,12 @@ const CURRENT_SESSION_BEACONS = [
   "start-session",
 ] as const;
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * Clicks a beacon trigger button by its index among all visible triggers.
- */
 async function clickTrigger(page: Page, index: number) {
   const trigger = page.locator("[data-repere-trigger]").nth(index);
   await expect(trigger).toBeAttached({ timeout: TRIGGER_RENDER_TIMEOUT });
   await trigger.evaluate((el: HTMLElement) => el.click());
 }
 
-/**
- * Exercises the close-via-Escape and reopen flow on the first visible beacon
- * trigger, then acknowledges it.
- */
 async function testCloseReopenAndAcknowledge(
   page: Page,
   expectedRemainingTriggers?: number,
@@ -76,29 +63,20 @@ async function testCloseReopenAndAcknowledge(
   const trigger = page.locator("[data-repere-trigger]").first();
   await expect(trigger).toBeAttached({ timeout: TRIGGER_RENDER_TIMEOUT });
 
-  // Step 1: Open the popover
   await trigger.evaluate((el: HTMLElement) => el.click());
   await expectPopoverVisible(page);
 
-  // Step 2: Close via Escape
   await page.keyboard.press("Escape");
   await expectPopoverHidden(page);
 
-  // Step 3: Trigger should still be present (not acknowledged)
   await expect(trigger).toBeAttached({ timeout: 3_000 });
 
-  // Step 4: Reopen
   await trigger.evaluate((el: HTMLElement) => el.click());
   await expectPopoverVisible(page);
 
-  // Step 5: Acknowledge
   await acknowledgeBeacon(page, expectedRemainingTriggers);
 }
 
-/**
- * Common per-test setup: clear dismissed beacons, reload, hydrate, navigate
- * to the home page, and wait for triggers.
- */
 async function setupCurrentSessionBeacons(page: Page) {
   await setSetting(page, "onboardingDismissedBeacons", []);
   await page.reload();
@@ -112,12 +90,9 @@ async function setupCurrentSessionBeacons(page: Page) {
   await waitForTriggers(page, CURRENT_SESSION_BEACONS.length);
 }
 
-// ─── Tests ────────────────────────────────────────────────────────────────────
-
-test.describe("Onboarding — Current Session Beacons", () => {
+test.describe("Onboarding - Current Session Beacons", () => {
   test.beforeEach(async ({ page }) => {
     await ensurePostSetup(page);
-    // Seed data so pages that depend on league/snapshot data render correctly
     await seedSessionPrerequisites(page);
   });
 
@@ -134,18 +109,36 @@ test.describe("Onboarding — Current Session Beacons", () => {
   }) => {
     await setupCurrentSessionBeacons(page);
 
-    // Open the first trigger
     await clickTrigger(page, 0);
     await expectPopoverVisible(page);
 
-    // Close via Escape
     await page.keyboard.press("Escape");
     await expectPopoverHidden(page);
 
-    // The trigger should still be there (not acknowledged)
     const triggers = page.locator("[data-repere-trigger]");
     const count = await triggers.count();
     expect(count).toBe(CURRENT_SESSION_BEACONS.length);
+  });
+
+  test("should dismiss all beacons immediately from the popover", async ({
+    page,
+  }) => {
+    await setupCurrentSessionBeacons(page);
+
+    await clickTrigger(page, 0);
+    await expectPopoverVisible(page);
+
+    await page
+      .locator("[data-repere-popover]:popover-open")
+      .getByRole("button", { name: "Dismiss All" })
+      .click();
+
+    await expect(
+      page.locator("[data-repere-popover]:popover-open"),
+    ).toHaveCount(0, { timeout: 5_000 });
+    await expect(page.locator("[data-repere-trigger]")).toHaveCount(0, {
+      timeout: 5_000,
+    });
   });
 
   test("should close via Escape, reopen, and acknowledge first beacon", async ({
@@ -155,10 +148,8 @@ test.describe("Onboarding — Current Session Beacons", () => {
 
     const beforeCount = await page.locator("[data-repere-trigger]").count();
 
-    // Test close → reopen → acknowledge cycle
     await testCloseReopenAndAcknowledge(page, beforeCount - 1);
 
-    // One fewer trigger after acknowledgement
     const afterCount = await page.locator("[data-repere-trigger]").count();
     expect(afterCount).toBe(beforeCount - 1);
   });
@@ -168,14 +159,11 @@ test.describe("Onboarding — Current Session Beacons", () => {
   }) => {
     await setupCurrentSessionBeacons(page);
 
-    // Acknowledge each beacon one by one
     await acknowledgeAllBeacons(page, CURRENT_SESSION_BEACONS.length);
 
-    // All triggers should be gone
     const remaining = await page.locator("[data-repere-trigger]").count();
     expect(remaining).toBe(0);
 
-    // Verify dismissed beacons are persisted via IPC
     const dismissed = await page.evaluate(() => {
       return (window as any).electron.settings.get(
         "onboardingDismissedBeacons",

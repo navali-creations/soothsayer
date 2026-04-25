@@ -159,7 +159,9 @@ test.describe("Sessions multi-session delete", () => {
     ).toBeVisible();
     await page.getByRole("button", { name: "Delete sessions" }).click();
 
-    await expect(page.getByRole("button", { name: "Cancel" })).toBeVisible();
+    await expect(
+      page.locator("main button.btn-error", { hasText: /^Cancel$/ }),
+    ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Select All" }),
     ).toBeVisible();

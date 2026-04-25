@@ -1,10 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
 
-import AppHelpCard from "./AppHelpCard";
-
-// ─── Mocks ─────────────────────────────────────────────────────────────────
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
 vi.mock("~/renderer/modules/onboarding", () => ({
   OnboardingButton: (props: any) => (
@@ -12,9 +15,48 @@ vi.mock("~/renderer/modules/onboarding", () => ({
   ),
 }));
 
-// ─── Tests ─────────────────────────────────────────────────────────────────
+vi.mock("./BeaconManagementList", () => ({
+  default: () => <div data-testid="beacon-management-list" />,
+}));
+
+import { trackEvent } from "~/renderer/modules/umami";
+import { useBoundStore } from "~/renderer/store";
+
+import AppHelpCard from "./AppHelpCard";
+
+const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockDismissAll = vi.fn().mockResolvedValue(undefined);
+const mockDismiss = vi.fn();
+const mockResetOne = vi.fn();
+const mockRefreshBeaconHost = vi.fn();
+
+function setupStore() {
+  mockUseBoundStore.mockImplementation((selector?: any) => {
+    const state = {
+      onboarding: {
+        dismissAll: mockDismissAll,
+        dismiss: mockDismiss,
+        resetOne: mockResetOne,
+        refreshBeaconHost: mockRefreshBeaconHost,
+        dismissedBeacons: ["overlay-icon"],
+      },
+    } as any;
+
+    return selector ? selector(state) : state;
+  });
+  mockUseBoundStore.getState = vi.fn(() => ({
+    onboarding: {
+      dismissedBeacons: ["overlay-icon"],
+    },
+  })) as any;
+}
 
 describe("AppHelpCard", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupStore();
+  });
+
   it('renders "App Help" title', () => {
     renderWithProviders(<AppHelpCard />);
 
@@ -38,6 +80,61 @@ describe("AppHelpCard", () => {
   });
 
   it("renders OnboardingButton", () => {
+    renderWithProviders(<AppHelpCard />);
+
+    expect(screen.getByTestId("onboarding-button")).toBeInTheDocument();
+  });
+
+  it('renders "Dismiss All Beacons" button', () => {
+    renderWithProviders(<AppHelpCard />);
+
+    expect(
+      screen.getByRole("button", { name: /Dismiss All Beacons/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("calls onboarding.dismissAll when Dismiss All Beacons is clicked", async () => {
+    mockUseBoundStore.getState = vi
+      .fn()
+      .mockReturnValueOnce({
+        onboarding: {
+          dismissedBeacons: ["overlay-icon"],
+        },
+      })
+      .mockReturnValueOnce({
+        onboarding: {
+          dismissedBeacons: ["overlay-icon", "game-selector"],
+        },
+      }) as any;
+
+    const { user } = renderWithProviders(<AppHelpCard />);
+
+    await user.click(
+      screen.getByRole("button", { name: /Dismiss All Beacons/i }),
+    );
+
+    expect(mockDismissAll).toHaveBeenCalledTimes(1);
+    expect(mockRefreshBeaconHost).toHaveBeenCalledTimes(1);
+    expect(trackEvent).toHaveBeenCalledWith("onboarding-all-dismissed", {
+      source: "settings",
+    });
+  });
+
+  it("renders BeaconManagementList", () => {
+    renderWithProviders(<AppHelpCard />);
+
+    expect(screen.getByTestId("beacon-management-list")).toBeInTheDocument();
+  });
+
+  it("explains what the beacon toggles do", () => {
+    renderWithProviders(<AppHelpCard />);
+
+    expect(
+      screen.getByText(/Toggle on keeps a beacon visible in the tour/i),
+    ).toBeInTheDocument();
+  });
+
+  it('renders existing "Reset Tour" button', () => {
     renderWithProviders(<AppHelpCard />);
 
     expect(screen.getByTestId("onboarding-button")).toBeInTheDocument();

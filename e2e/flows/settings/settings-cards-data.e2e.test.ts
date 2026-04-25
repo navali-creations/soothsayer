@@ -36,6 +36,12 @@ async function goToSettings(page: Page) {
     .waitFor({ state: "visible", timeout: 10_000 });
 }
 
+function getRaritySourceCard(page: Page) {
+  return page.locator(".card").filter({
+    has: page.getByRole("heading", { name: "Rarity Source", exact: true }),
+  });
+}
+
 test.describe("Settings – Cards (Data)", () => {
   // ─── Rarity Source / Filter Card ──────────────────────────────────────────────
 
@@ -48,7 +54,7 @@ test.describe("Settings – Cards (Data)", () => {
     test("should render the rarity source select with dataset options", async ({
       page,
     }) => {
-      const card = page.locator(".card", { hasText: "Rarity Source" });
+      const card = getRaritySourceCard(page);
       await expect(card).toBeVisible();
 
       await expect(
@@ -67,7 +73,7 @@ test.describe("Settings – Cards (Data)", () => {
     test("should render the Rescan button and be able to click it", async ({
       page,
     }) => {
-      const card = page.locator(".card", { hasText: "Rarity Source" });
+      const card = getRaritySourceCard(page);
 
       const rescanButton = card
         .locator("button", { hasText: /rescan/i })
@@ -88,7 +94,7 @@ test.describe("Settings – Cards (Data)", () => {
     test("should switch rarity source via select and persist via IPC", async ({
       page,
     }) => {
-      const card = page.locator(".card", { hasText: "Rarity Source" });
+      const card = getRaritySourceCard(page);
       const select = card.locator("select").first();
 
       const originalValue = await select.inputValue();
@@ -120,7 +126,7 @@ test.describe("Settings – Cards (Data)", () => {
     test("should switch to poe.ninja and back to verify IPC round-trip", async ({
       page,
     }) => {
-      const card = page.locator(".card", { hasText: "Rarity Source" });
+      const card = getRaritySourceCard(page);
       const select = card.locator("select").first();
 
       // Switch to poe.ninja
@@ -147,7 +153,7 @@ test.describe("Settings – Cards (Data)", () => {
     test("should show filter count after rescan when filters are available", async ({
       page,
     }) => {
-      const card = page.locator(".card", { hasText: "Rarity Source" });
+      const card = getRaritySourceCard(page);
 
       const rescanButton = card
         .locator("button", { hasText: /rescan/i })
@@ -170,7 +176,7 @@ test.describe("Settings – Cards (Data)", () => {
     test("full flow: render → switch source → rescan → restore", async ({
       page,
     }) => {
-      const card = page.locator(".card", { hasText: "Rarity Source" });
+      const card = getRaritySourceCard(page);
       const select = card.locator("select").first();
       const rescanButton = card
         .locator("button", { hasText: /rescan/i })

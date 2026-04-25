@@ -195,7 +195,9 @@ test.describe("Sessions multi-session export", () => {
     ).toBeVisible();
 
     await page.getByRole("button", { name: "Export Simple CSV" }).click();
-    await expect(page.getByRole("button", { name: "Cancel" })).toBeVisible();
+    await expect(
+      page.locator("main button.btn-error", { hasText: /^Cancel$/ }),
+    ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Select All" }),
     ).toBeVisible();
@@ -236,7 +238,9 @@ test.describe("Sessions multi-session export", () => {
     expect(simpleDownload.text).toContain("The Doctor,2");
     expect(simpleDownload.text).toContain("The Nurse,1");
 
-    await page.getByRole("button", { name: "Cancel" }).click();
+    await page
+      .locator("main button.btn-error", { hasText: /^Cancel$/ })
+      .click();
     await expect(page.locator("main input[type='checkbox']")).toHaveCount(0);
 
     await openMoreOptions(page);

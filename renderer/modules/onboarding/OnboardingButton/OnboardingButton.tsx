@@ -3,7 +3,7 @@ import { useState } from "react";
 import { FaRedo } from "react-icons/fa";
 
 import Button from "~/renderer/components/Button/Button";
-import { useBoundStore } from "~/renderer/store";
+import { useOnboardingActions } from "~/renderer/store";
 
 interface OnboardingButtonProps {
   variant?: "icon" | "button";
@@ -17,7 +17,7 @@ export const OnboardingButton: React.FC<OnboardingButtonProps> = ({
   className = "",
 }) => {
   const [isResetting, setIsResetting] = useState(false);
-  const resetAll = useBoundStore((state) => state.onboarding.resetAll);
+  const { resetAll } = useOnboardingActions();
 
   const handleReset = async () => {
     setIsResetting(true);

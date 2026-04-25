@@ -38,6 +38,29 @@ export function createStoreMock() {
     useChangelog: () => useBoundStore().changelog,
     useStatistics: () => useBoundStore().statistics,
     useOnboarding: () => useBoundStore().onboarding,
+    useOnboardingState: () => {
+      const onboarding = useBoundStore().onboarding;
+      return {
+        dismissedBeacons: onboarding.dismissedBeacons,
+        isLoading: onboarding.isLoading,
+        error: onboarding.error,
+        beaconHostRefreshKey: onboarding.beaconHostRefreshKey,
+      };
+    },
+    useOnboardingActions: () => {
+      const onboarding = useBoundStore().onboarding;
+      return {
+        hydrate: onboarding.hydrate,
+        isDismissed: onboarding.isDismissed,
+        dismiss: onboarding.dismiss,
+        dismissAll: onboarding.dismissAll,
+        reset: onboarding.reset,
+        resetOne: onboarding.resetOne,
+        resetAll: onboarding.resetAll,
+        refreshBeaconHost: onboarding.refreshBeaconHost,
+        getAllBeaconStates: onboarding.getAllBeaconStates,
+      };
+    },
     useUpdater: () => useBoundStore().updater,
     useProfitForecast: () => useBoundStore().profitForecast,
     useRarityInsights: () => useBoundStore().rarityInsights,

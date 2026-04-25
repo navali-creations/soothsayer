@@ -1,8 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
+﻿import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
 
-// ─── Mocks ─────────────────────────────────────────────────────────────────
+vi.mock("~/renderer/store", async () => {
+  const { createStoreMock } = await import(
+    "~/renderer/__test-setup__/store-mock"
+  );
+  return createStoreMock();
+});
 
 vi.mock("@repere/react", () => ({
   ReperePopover: Object.assign(
@@ -51,14 +56,15 @@ vi.mock("react-icons/ti", () => ({
   ),
 }));
 
-// ─── Imports (after mocks) ─────────────────────────────────────────────────
-
 import { trackEvent } from "~/renderer/modules/umami";
+import { useBoundStore } from "~/renderer/store";
 
 import Popover from "./Popover";
 import Trigger from "./Trigger";
 
-// ─── Helpers ───────────────────────────────────────────────────────────────
+const mockUseBoundStore = vi.mocked(useBoundStore);
+const mockDismissAll = vi.fn().mockResolvedValue(undefined);
+const mockRefreshBeaconHost = vi.fn();
 
 const defaultPopoverProps = {
   beaconId: "test-beacon",
@@ -76,9 +82,30 @@ const defaultPopoverProps = {
   onClose: vi.fn(),
 };
 
-// ─── Popover Tests ─────────────────────────────────────────────────────────
+function setupStore() {
+  mockUseBoundStore.mockImplementation((selector?: any) => {
+    const state = {
+      onboarding: {
+        dismissAll: mockDismissAll,
+        refreshBeaconHost: mockRefreshBeaconHost,
+      },
+    } as any;
+
+    return selector ? selector(state) : state;
+  });
+  mockUseBoundStore.getState = vi.fn(() => ({
+    onboarding: {
+      dismissedBeacons: ["overlay-icon"],
+    },
+  })) as any;
+}
 
 describe("Popover", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupStore();
+  });
+
   it("renders popover with title", () => {
     renderWithProviders(
       <Popover {...defaultPopoverProps} title="Test Title">
@@ -140,6 +167,32 @@ describe("Popover", () => {
     expect(btn).toHaveTextContent("Got it");
   });
 
+  it('renders "Dismiss All" button', () => {
+    renderWithProviders(
+      <Popover {...defaultPopoverProps} title="Title">
+        <p>Content</p>
+      </Popover>,
+    );
+
+    expect(
+      screen.getByRole("button", { name: /Dismiss All/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("applies popover-specific styling only to the dismiss-all button", () => {
+    renderWithProviders(
+      <Popover {...defaultPopoverProps} title="Title">
+        <p>Content</p>
+      </Popover>,
+    );
+
+    expect(screen.getByRole("button", { name: /Dismiss All/i })).toHaveClass(
+      "bg-white/10",
+      "text-primary-content",
+      "hover:bg-white/15",
+    );
+  });
+
   it("clicking acknowledge button calls trackEvent with beaconId", async () => {
     const { user } = renderWithProviders(
       <Popover {...defaultPopoverProps} title="Title">
@@ -151,6 +204,36 @@ describe("Popover", () => {
     await user.click(btn);
 
     expect(trackEvent).toHaveBeenCalledWith("onboarding-step-acknowledged", {
+      beaconId: "test-beacon",
+    });
+  });
+
+  it("clicking dismiss all refreshes the beacon host and tracks the event", async () => {
+    mockUseBoundStore.getState = vi
+      .fn()
+      .mockReturnValueOnce({
+        onboarding: {
+          dismissedBeacons: ["overlay-icon"],
+        },
+      })
+      .mockReturnValueOnce({
+        onboarding: {
+          dismissedBeacons: ["overlay-icon", "game-selector"],
+        },
+      }) as any;
+
+    const { user } = renderWithProviders(
+      <Popover {...defaultPopoverProps} title="Title">
+        <p>Content</p>
+      </Popover>,
+    );
+
+    await user.click(screen.getByRole("button", { name: /Dismiss All/i }));
+
+    expect(mockDismissAll).toHaveBeenCalledTimes(1);
+    expect(mockRefreshBeaconHost).toHaveBeenCalledTimes(1);
+    expect(trackEvent).toHaveBeenCalledWith("onboarding-all-dismissed", {
+      source: "popover",
       beaconId: "test-beacon",
     });
   });
@@ -177,8 +260,6 @@ describe("Popover", () => {
     expect(popover).toHaveAttribute("beaconid", "test-beacon");
   });
 });
-
-// ─── Trigger Tests ─────────────────────────────────────────────────────────
 
 describe("Trigger", () => {
   it("renders RepereTrigger", () => {

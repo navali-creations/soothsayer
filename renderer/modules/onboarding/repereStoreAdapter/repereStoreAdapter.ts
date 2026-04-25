@@ -19,12 +19,20 @@ export const repereStoreAdapter: BeaconStore = {
   },
 
   resetAll: (): void => {
-    useBoundStore.getState().onboarding.resetAll?.();
+    useBoundStore.getState().onboarding.resetAll();
   },
 
   getAll: (): BeaconState[] => {
-    const dismissedBeacons =
-      useBoundStore.getState().onboarding.dismissedBeacons || [];
+    const { onboarding } = useBoundStore.getState();
+
+    if (typeof onboarding.getAllBeaconStates === "function") {
+      return onboarding.getAllBeaconStates().map(({ id, dismissed }) => ({
+        id,
+        isDismissed: dismissed,
+      }));
+    }
+
+    const dismissedBeacons = onboarding.dismissedBeacons || [];
     return dismissedBeacons.map((id: string) => ({
       id,
       isDismissed: true,

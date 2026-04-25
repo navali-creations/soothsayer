@@ -1,7 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// ─── Mocks ─────────────────────────────────────────────────────────────────
-
 vi.mock("~/renderer/store", async () => {
   const { createStoreMock } = await import(
     "~/renderer/__test-setup__/store-mock"
@@ -15,8 +13,6 @@ import { useBoundStore } from "~/renderer/store";
 
 import { repereStoreAdapter } from "./repereStoreAdapter";
 
-// ─── Helpers ───────────────────────────────────────────────────────────────
-
 const mockGetState = vi.mocked(useBoundStore.getState);
 
 function setupState(overrides: Record<string, any> = {}) {
@@ -25,6 +21,7 @@ function setupState(overrides: Record<string, any> = {}) {
     dismiss: vi.fn(),
     reset: vi.fn(),
     resetAll: vi.fn(),
+    getAllBeaconStates: vi.fn().mockReturnValue([]),
     dismissedBeacons: [],
     ...overrides,
   };
@@ -34,14 +31,10 @@ function setupState(overrides: Record<string, any> = {}) {
   return onboarding;
 }
 
-// ─── Tests ─────────────────────────────────────────────────────────────────
-
 describe("repereStoreAdapter", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
-
-  // ── isDismissed ────────────────────────────────────────────────────────
 
   describe("isDismissed", () => {
     it("delegates to onboarding.isDismissed", () => {
@@ -65,8 +58,6 @@ describe("repereStoreAdapter", () => {
     });
   });
 
-  // ── dismiss ────────────────────────────────────────────────────────────
-
   describe("dismiss", () => {
     it("delegates to onboarding.dismiss", () => {
       const onboarding = setupState();
@@ -76,8 +67,6 @@ describe("repereStoreAdapter", () => {
       expect(onboarding.dismiss).toHaveBeenCalledWith("beacon-1");
     });
   });
-
-  // ── reset ──────────────────────────────────────────────────────────────
 
   describe("reset", () => {
     it("delegates to onboarding.reset", () => {
@@ -89,8 +78,6 @@ describe("repereStoreAdapter", () => {
     });
   });
 
-  // ── resetAll ───────────────────────────────────────────────────────────
-
   describe("resetAll", () => {
     it("delegates to onboarding.resetAll", () => {
       const onboarding = setupState();
@@ -101,12 +88,28 @@ describe("repereStoreAdapter", () => {
     });
   });
 
-  // ── getAll ─────────────────────────────────────────────────────────────
-
   describe("getAll", () => {
-    it("returns dismissed beacons as BeaconState[] objects", () => {
+    it("returns all known beacon states when getAllBeaconStates is available", () => {
+      const onboarding = setupState({
+        getAllBeaconStates: vi.fn().mockReturnValue([
+          { id: "beacon-a", dismissed: true },
+          { id: "beacon-b", dismissed: false },
+        ]),
+      });
+
+      const result = repereStoreAdapter.getAll();
+
+      expect(onboarding.getAllBeaconStates).toHaveBeenCalled();
+      expect(result).toEqual([
+        { id: "beacon-a", isDismissed: true },
+        { id: "beacon-b", isDismissed: false },
+      ]);
+    });
+
+    it("falls back to dismissedBeacons when getAllBeaconStates is missing", () => {
       setupState({
-        dismissedBeacons: ["beacon-a", "beacon-b", "beacon-c"],
+        getAllBeaconStates: undefined,
+        dismissedBeacons: ["beacon-a", "beacon-b"],
       });
 
       const result = repereStoreAdapter.getAll();
@@ -114,41 +117,29 @@ describe("repereStoreAdapter", () => {
       expect(result).toEqual([
         { id: "beacon-a", isDismissed: true },
         { id: "beacon-b", isDismissed: true },
-        { id: "beacon-c", isDismissed: true },
       ]);
     });
 
-    it("returns an empty array when no beacons are dismissed", () => {
-      setupState({ dismissedBeacons: [] });
+    it("returns empty array when no beacons are dismissed in the fallback path", () => {
+      setupState({
+        getAllBeaconStates: undefined,
+        dismissedBeacons: [],
+      });
 
       const result = repereStoreAdapter.getAll();
 
       expect(result).toEqual([]);
     });
 
-    it("returns empty array when dismissedBeacons is undefined (fallback)", () => {
-      setupState({ dismissedBeacons: undefined });
+    it("returns empty array when dismissedBeacons is undefined in the fallback path", () => {
+      setupState({
+        getAllBeaconStates: undefined,
+        dismissedBeacons: undefined,
+      });
 
       const result = repereStoreAdapter.getAll();
 
       expect(result).toEqual([]);
-    });
-
-    it("returns empty array when dismissedBeacons is null (fallback)", () => {
-      setupState({ dismissedBeacons: null });
-
-      const result = repereStoreAdapter.getAll();
-
-      expect(result).toEqual([]);
-    });
-
-    it("returns each beacon with isDismissed set to true", () => {
-      setupState({ dismissedBeacons: ["only-one"] });
-
-      const result = repereStoreAdapter.getAll();
-
-      expect(result).toHaveLength(1);
-      expect(result[0]).toEqual({ id: "only-one", isDismissed: true });
     });
   });
 });

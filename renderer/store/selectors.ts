@@ -70,6 +70,36 @@ export const useStatistics = () => useSlice("statistics");
 /** Select the `onboarding` slice. */
 export const useOnboarding = () => useSlice("onboarding");
 
+/**
+ * `useOnboarding()` is valid, but it subscribes to the whole onboarding slice.
+ * These narrower hooks are used where a component only needs a subset of state
+ * or just the actions, to avoid re-rendering on unrelated onboarding changes.
+ */
+export const useOnboardingState = () =>
+  useBoundStore(
+    useShallow((state) => ({
+      dismissedBeacons: state.onboarding.dismissedBeacons,
+      isLoading: state.onboarding.isLoading,
+      error: state.onboarding.error,
+      beaconHostRefreshKey: state.onboarding.beaconHostRefreshKey,
+    })),
+  );
+
+export const useOnboardingActions = () =>
+  useBoundStore(
+    useShallow((state) => ({
+      hydrate: state.onboarding.hydrate,
+      isDismissed: state.onboarding.isDismissed,
+      dismiss: state.onboarding.dismiss,
+      dismissAll: state.onboarding.dismissAll,
+      reset: state.onboarding.reset,
+      resetOne: state.onboarding.resetOne,
+      resetAll: state.onboarding.resetAll,
+      refreshBeaconHost: state.onboarding.refreshBeaconHost,
+      getAllBeaconStates: state.onboarding.getAllBeaconStates,
+    })),
+  );
+
 /** Select the `updater` slice. */
 export const useUpdater = () => useSlice("updater");
 

@@ -1,25 +1,18 @@
-import { Beacons } from "@repere/react";
-import {
-  createRootRoute,
-  Outlet,
-  useLocation,
-  useNavigate,
-} from "@tanstack/react-router";
+import { createRootRoute, Outlet, useNavigate } from "@tanstack/react-router";
 // import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { useEffect, useRef, useState } from "react";
 
 import BackfillBanner from "~/renderer/modules/app-menu/AppMenu.component/BackfillBanner/BackfillBanner";
+import { BeaconHost } from "~/renderer/modules/onboarding";
 import { useCommunityUpload, useRootActions, useSetup } from "~/renderer/store";
 import { cardNameToSlug } from "~/renderer/utils";
 
 import { AppMenu } from "../modules/app-menu";
-import { onboardingConfig } from "../modules/onboarding";
 import { Sidebar } from "../modules/sidebar";
 import "@repere/react/styles.css";
 
 const RootLayout = () => {
   const navigate = useNavigate();
-  const location = useLocation();
   const [isHydrating, setIsHydrating] = useState(true);
   const [isSlow, setIsSlow] = useState(false);
   const slowTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -28,18 +21,15 @@ const RootLayout = () => {
   const { checkBackfill } = useCommunityUpload();
 
   useEffect(() => {
-    // Hydrate all data on app mount
     slowTimerRef.current = setTimeout(() => setIsSlow(true), 5000);
 
     const initialize = async () => {
       try {
         await hydrate();
 
-        // Check if setup is complete after hydration
         const setupComplete = isSetupComplete();
 
         if (!setupComplete) {
-          // Redirect to setup if not complete
           await navigate({ to: "/setup" });
         }
       } catch (error) {
@@ -52,19 +42,16 @@ const RootLayout = () => {
 
     initialize();
 
-    // Start listeners for real-time updates
     const cleanup = startListeners();
     return cleanup;
   }, [hydrate, startListeners, navigate, isSetupComplete]);
 
-  // Check for backfill leagues after hydration completes
   useEffect(() => {
     if (!isHydrating && setupState?.isComplete) {
       checkBackfill();
     }
   }, [isHydrating, setupState?.isComplete, checkBackfill]);
 
-  // Listen for deep-link navigation events from the overlay (via main process)
   useEffect(() => {
     if (!window.electron?.cardDetails?.onNavigateToCard) return;
 
@@ -101,19 +88,12 @@ const RootLayout = () => {
       <AppMenu />
       {!isSetupMode && <BackfillBanner />}
       <div className="flex flex-1 overflow-hidden">
-        {/* Only show sidebar when setup is complete */}
         {!isSetupMode && <Sidebar />}
         <main className="flex-1 overflow-auto relative z-0">
           <Outlet />
         </main>
       </div>
-      {!isSetupMode && (
-        <Beacons
-          config={onboardingConfig}
-          currentPath={location.pathname}
-          enabled={!isHydrating}
-        />
-      )}
+      {!isSetupMode && <BeaconHost enabled={!isHydrating} />}
       {/*<TanStackRouterDevtools />*/}
     </div>
   );
