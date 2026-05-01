@@ -363,6 +363,28 @@ describe("StatisticsTable", () => {
     expect(store.toggleShowUncollectedCards).toHaveBeenCalled();
   });
 
+  it("renders generated uncollected rows when showUncollectedCards is enabled", () => {
+    setupStore({
+      statScope: "league",
+      showUncollectedCards: true,
+      uncollectedCardNames: ["The Doctor", "House of Mirrors"],
+      uncollectedCardMetadata: {
+        "The Doctor": { name: "The Doctor", stackSize: 8 },
+        "House of Mirrors": { name: "House of Mirrors", stackSize: 9 },
+      },
+    });
+    const cardData = createCardData([
+      { name: "Rain of Chaos", count: 10, ratio: 100 },
+    ]);
+
+    renderWithProviders(
+      <StatisticsTable cardData={cardData} currentScope="Settlers" />,
+    );
+
+    expect(screen.getByTestId("table")).toHaveAttribute("data-rows", "2");
+    expect(createCardRatioColumn).toHaveBeenCalledWith(10);
+  });
+
   // ── Loading overlay ────────────────────────────────────────────────────
 
   it("shows loading overlay when isDataLoading is true", () => {

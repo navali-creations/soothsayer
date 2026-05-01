@@ -23,18 +23,25 @@ export interface ChartDataPoint {
   isBoundary?: boolean;
 }
 
+export interface DropTimelinePointMetrics {
+  /** Expected drops for this point based on timeline baseline rate. */
+  anticipatedDrops: number;
+}
+
 export interface LeagueMarker {
   time: number;
   label: string;
   type: "start" | "end";
+  emphasis?: "highlight" | "muted";
 }
 
-export interface BarShapeProps {
-  x?: number;
-  y?: number;
-  width?: number;
-  height?: number;
-  fill?: string;
-  payload?: ChartDataPoint;
-  radius?: number;
+export type DropTimelineMetricKey =
+  | "drops-per-day"
+  | "anticipated"
+  | "decks-opened"
+  | "league-start";
+
+export interface InactivityGapRange {
+  startTime: number;
+  endTime: number;
 }

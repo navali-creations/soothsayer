@@ -2157,9 +2157,8 @@ describe("CardDetailsService", () => {
       expect(result!.timelineEndDate).toBe("2025-04-01T00:00:00Z");
     });
 
-    it("should approximate end date when league has startDate but no endDate", async () => {
+    it("should use inferred end for older leagues missing endDate", async () => {
       const repo = getRepoMock();
-      // Use a start date far enough in the past that approxEnd < now
       const pastStartDate = "2024-01-01T00:00:00Z";
       repo.getLeagueDateRanges.mockResolvedValue([
         {
@@ -2176,17 +2175,15 @@ describe("CardDetailsService", () => {
       );
 
       expect(result).not.toBeNull();
-      // The approxEnd would be startDate + ~4 months. Since that's in the past
-      // relative to Date.now(), it should use Date.now() (whichever is later).
       const timelineEnd = new Date(result!.timelineEndDate).getTime();
-      // Should be approximately "now" (within a few seconds)
-      expect(timelineEnd).toBeGreaterThan(Date.now() - 5000);
-      expect(timelineEnd).toBeLessThanOrEqual(Date.now() + 1000);
+      const expectedApproxEnd =
+        new Date(pastStartDate).getTime() + 4 * 30 * 24 * 60 * 60 * 1000;
+      expect(timelineEnd).toBe(expectedApproxEnd);
     });
 
-    it("should use approximate end when it is in the future", async () => {
+    it("should still use now when startDate is recent and endDate is missing", async () => {
       const repo = getRepoMock();
-      // Use a very recent start date so approxEnd > now
+      // Recent start date with missing endDate should still clamp to now.
       const futureLeagueStart = new Date(
         Date.now() - 7 * 24 * 60 * 60 * 1000,
       ).toISOString(); // 1 week ago
@@ -2206,11 +2203,8 @@ describe("CardDetailsService", () => {
 
       expect(result).not.toBeNull();
       const timelineEnd = new Date(result!.timelineEndDate).getTime();
-      // approxEnd = start + 4 months ≈ start + 120 days, which is in the future
-      const approxEnd =
-        new Date(futureLeagueStart).getTime() + 4 * 30 * 24 * 60 * 60 * 1000;
-      // Should use approxEnd since it's in the future
-      expect(timelineEnd).toBeCloseTo(approxEnd, -3); // within 1 second
+      expect(timelineEnd).toBeGreaterThan(Date.now() - 5000);
+      expect(timelineEnd).toBeLessThanOrEqual(Date.now() + 1000);
     });
 
     it("should fall back to now when league has no startDate or endDate", async () => {
@@ -2275,6 +2269,34 @@ describe("CardDetailsService", () => {
       expect(result).not.toBeNull();
       // Should use the last league's endDate (Keepers)
       expect(result!.timelineEndDate).toBe("2025-09-01T00:00:00Z");
+    });
+
+    it("should use selected league inferred end from next league start when selectedLeague is filtered", async () => {
+      const repo = getRepoMock();
+      repo.getLeagueDateRanges.mockResolvedValue([
+        {
+          name: "Keepers",
+          startDate: "2025-10-31T19:00:00+00:00",
+          endDate: null,
+        },
+        {
+          name: "Mirage",
+          startDate: "2026-03-06T19:00:00+00:00",
+          endDate: null,
+        },
+      ]);
+
+      const result = await service.getPersonalAnalytics(
+        "poe1",
+        "Mirage",
+        "The Doctor",
+        "Keepers",
+      );
+
+      expect(result).not.toBeNull();
+      expect(new Date(result!.timelineEndDate).getTime()).toBe(
+        new Date("2026-03-06T19:00:00+00:00").getTime(),
+      );
     });
   });
 

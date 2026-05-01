@@ -54,6 +54,7 @@ export interface BrushDrawContext extends DrawContext {
   mapBrushX: (dataIndex: number) => number;
   brushRange: BrushRange;
   hoverIndex: number | null;
+  markerIndex: number | null;
 }
 
 // ─── drawGrid ──────────────────────────────────────────────────────────────────
@@ -432,6 +433,51 @@ export function drawHoverHighlight(
   }
 }
 
+export function drawLeagueStartMarker(
+  dc: DrawContext,
+  visibleIndex: number,
+  {
+    label,
+    color,
+    lineDash = [4, 4],
+    showLabel = true,
+  }: {
+    label: string;
+    color: string;
+    lineDash?: number[];
+    showLabel?: boolean;
+  },
+): void {
+  const { ctx, layout, mapX } = dc;
+  const { chartLeft, chartRight, chartTop, chartBottom } = layout;
+  const x = mapX(visibleIndex);
+  if (!Number.isFinite(x)) return;
+  if (x < chartLeft || x > chartRight) return;
+
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1;
+  ctx.setLineDash(lineDash);
+  ctx.beginPath();
+  ctx.moveTo(x, chartTop);
+  ctx.lineTo(x, chartBottom);
+  ctx.stroke();
+
+  if (showLabel) {
+    ctx.fillStyle = color;
+    ctx.font = "700 10px system-ui";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.save();
+    ctx.translate(Math.round(x + 10), Math.round(chartTop + 6));
+    ctx.rotate(Math.PI / 2);
+    ctx.fillText(label.toUpperCase(), 0, 0);
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
 // ─── drawBrush ─────────────────────────────────────────────────────────────────
 
 /**
@@ -451,6 +497,7 @@ export function drawBrush(
     mapBrushX,
     brushRange,
     hoverIndex,
+    markerIndex,
   } = bdc;
   const {
     brushTop,
@@ -497,6 +544,25 @@ export function drawBrush(
     ctx.lineWidth = 1;
     ctx.setLineDash([]);
     ctx.stroke();
+  }
+
+  if (markerIndex !== null && markerIndex >= 0 && markerIndex < totalPoints) {
+    const markerX = mapBrushX(markerIndex);
+    if (
+      Number.isFinite(markerX) &&
+      markerX >= brushLeft &&
+      markerX <= brushRight
+    ) {
+      ctx.save();
+      ctx.strokeStyle = c.success50;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(markerX, brushTop);
+      ctx.lineTo(markerX, brushBottom);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   // ── Dim areas outside brush range ───────────────────────────

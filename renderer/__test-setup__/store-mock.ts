@@ -32,6 +32,7 @@ export function createStoreMock() {
     useSetup: () => useBoundStore().setup,
     useStorage: () => useBoundStore().storage,
     useGameInfo: () => useBoundStore().gameInfo,
+    useLeagues: () => useBoundStore().leagues,
     useCardDetails: () => useBoundStore().cardDetails,
     useCards: () => useBoundStore().cards,
     useSessions: () => useBoundStore().sessions,

@@ -46,8 +46,89 @@ function isValidCachedPriceHistory(data: unknown): data is CardPriceHistoryDTO {
   );
 }
 
-/** Approximate league duration when only start_date is known (4 months). */
+/** Approximate league duration fallback when end metadata is missing. */
 const DEFAULT_LEAGUE_DURATION_MS = 4 * 30 * 24 * 60 * 60 * 1000;
+
+function parseDateMs(value: string | null | undefined): number | undefined {
+  if (!value) return undefined;
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : undefined;
+}
+
+function resolveRangeEndDate(
+  range: LeagueDateRangeDTO,
+  allRanges: LeagueDateRangeDTO[],
+): string {
+  const explicitEndMs = parseDateMs(range.endDate);
+  if (explicitEndMs !== undefined) {
+    return range.endDate as string;
+  }
+
+  const startMs = parseDateMs(range.startDate);
+  if (startMs === undefined) {
+    return new Date().toISOString();
+  }
+
+  let nextStartMs: number | undefined;
+  for (const candidate of allRanges) {
+    const candidateStartMs = parseDateMs(candidate.startDate);
+    if (candidateStartMs === undefined || candidateStartMs <= startMs) continue;
+    nextStartMs =
+      nextStartMs === undefined
+        ? candidateStartMs
+        : Math.min(nextStartMs, candidateStartMs);
+  }
+
+  if (nextStartMs !== undefined) {
+    return new Date(nextStartMs).toISOString();
+  }
+
+  const approxEndMs = startMs + DEFAULT_LEAGUE_DURATION_MS;
+  return new Date(Math.min(Date.now(), approxEndMs)).toISOString();
+}
+
+function resolveTimelineEndDate(
+  leagueDateRanges: LeagueDateRangeDTO[],
+  leagueFilter?: string,
+): string {
+  if (leagueDateRanges.length === 0) {
+    return new Date().toISOString();
+  }
+
+  if (leagueFilter) {
+    // Standard is permanent; align its chart end with the current challenge league window.
+    if (leagueFilter.toLowerCase() === "standard") {
+      const nonStandardRanges = leagueDateRanges.filter(
+        (range) => range.name.toLowerCase() !== "standard",
+      );
+      if (nonStandardRanges.length > 0) {
+        const sorted = [...nonStandardRanges].sort(
+          (a, b) =>
+            (parseDateMs(a.startDate) ?? Number.MAX_SAFE_INTEGER) -
+            (parseDateMs(b.startDate) ?? Number.MAX_SAFE_INTEGER),
+        );
+        return resolveRangeEndDate(sorted[sorted.length - 1], leagueDateRanges);
+      }
+    }
+
+    const selectedRange = leagueDateRanges.find(
+      (range) => range.name === leagueFilter,
+    );
+    if (selectedRange) {
+      return resolveRangeEndDate(selectedRange, leagueDateRanges);
+    }
+
+    return new Date().toISOString();
+  }
+
+  // All-leagues view: bound to the most recent league in history.
+  const sorted = [...leagueDateRanges].sort(
+    (a, b) =>
+      (parseDateMs(a.startDate) ?? Number.MAX_SAFE_INTEGER) -
+      (parseDateMs(b.startDate) ?? Number.MAX_SAFE_INTEGER),
+  );
+  return resolveRangeEndDate(sorted[sorted.length - 1], leagueDateRanges);
+}
 
 /**
  * Derive the poe.ninja `detailsId` slug from a card name.
@@ -512,29 +593,11 @@ class CardDetailsService {
         }),
       );
 
-      // Compute timelineEndDate: use the most recent league's end date,
-      // or approximate end if still active, or fall back to "now".
-      let timelineEndDate: string;
-      if (leagueDateRanges.length > 0) {
-        // Leagues are ordered by start_date ASC, so last is most recent
-        const mostRecent = leagueDateRanges[leagueDateRanges.length - 1];
-        if (mostRecent.endDate) {
-          timelineEndDate = mostRecent.endDate;
-        } else if (mostRecent.startDate) {
-          // League still active — approximate end as start + 4 months
-          const approxEnd =
-            new Date(mostRecent.startDate).getTime() +
-            DEFAULT_LEAGUE_DURATION_MS;
-          // Use the approximate end or now, whichever is later
-          timelineEndDate = new Date(
-            Math.max(approxEnd, Date.now()),
-          ).toISOString();
-        } else {
-          timelineEndDate = new Date().toISOString();
-        }
-      } else {
-        timelineEndDate = new Date().toISOString();
-      }
+      // Compute timelineEndDate relative to the selected league (if filtered).
+      const timelineEndDate = resolveTimelineEndDate(
+        leagueDateRanges,
+        leagueFilter,
+      );
 
       const dto: CardPersonalAnalyticsDTO = {
         cardName,

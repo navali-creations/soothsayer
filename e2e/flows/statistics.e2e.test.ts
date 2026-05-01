@@ -36,6 +36,13 @@
 
 import type { Page } from "@playwright/test";
 
+import {
+  dragIndexBrushThumb,
+  expectCanvasChartRendered,
+  readCanvasNumberAttribute,
+  readIndexBrushSpan,
+  wheelCanvas,
+} from "../helpers/canvas";
 import { expect, test } from "../helpers/electron-test";
 import { callElectronAPI } from "../helpers/ipc-helpers";
 import {
@@ -171,43 +178,37 @@ async function ensureSessionsSeeded(page: Page) {
     });
 
     const now = Date.now();
-    await seedMultipleCompletedSessions(page, [
-      {
-        id: "e2e-chart-session-1",
-        game: "poe1",
-        leagueId: "poe1_standard",
-        startedAt: new Date(now - 6 * 60 * 60 * 1000).toISOString(),
-        endedAt: new Date(now - 5 * 60 * 60 * 1000).toISOString(),
-        cards: [
-          { cardName: "The Doctor", count: 2 },
-          { cardName: "Humility", count: 10 },
-          { cardName: "Rain of Chaos", count: 30 },
-        ],
-      },
-      {
-        id: "e2e-chart-session-2",
-        game: "poe1",
-        leagueId: "poe1_standard",
-        startedAt: new Date(now - 4 * 60 * 60 * 1000).toISOString(),
-        endedAt: new Date(now - 3 * 60 * 60 * 1000).toISOString(),
-        cards: [
-          { cardName: "Carrion Crow", count: 40 },
-          { cardName: "Rain of Chaos", count: 25 },
-          { cardName: "The Nurse", count: 1 },
-        ],
-      },
-      {
-        id: "e2e-chart-session-3",
-        game: "poe1",
-        leagueId: "poe1_standard",
-        startedAt: new Date(now - 2 * 60 * 60 * 1000).toISOString(),
-        endedAt: new Date(now - 1 * 60 * 60 * 1000).toISOString(),
-        cards: [
-          { cardName: "Humility", count: 15 },
-          { cardName: "Carrion Crow", count: 20 },
-        ],
-      },
-    ]);
+    const cardSets = [
+      [
+        { cardName: "The Doctor", count: 2 },
+        { cardName: "Humility", count: 10 },
+        { cardName: "Rain of Chaos", count: 30 },
+      ],
+      [
+        { cardName: "Carrion Crow", count: 40 },
+        { cardName: "Rain of Chaos", count: 25 },
+        { cardName: "The Nurse", count: 1 },
+      ],
+      [
+        { cardName: "Humility", count: 15 },
+        { cardName: "Carrion Crow", count: 20 },
+      ],
+    ];
+
+    await seedMultipleCompletedSessions(
+      page,
+      Array.from({ length: 36 }, (_, index) => {
+        const endedAt = now - (36 - index) * 60 * 60 * 1000;
+        return {
+          id: `e2e-chart-session-${index + 1}`,
+          game: "poe1",
+          leagueId: "poe1_standard",
+          startedAt: new Date(endedAt - 45 * 60 * 1000).toISOString(),
+          endedAt: new Date(endedAt).toISOString(),
+          cards: cardSets[index % cardSets.length],
+        };
+      }),
+    );
   } catch (e) {
     console.debug("[e2e] Session seeding skipped (may already be seeded):", e);
   }
@@ -592,6 +593,93 @@ test.describe("Statistics", () => {
       await expect(emptyMsg).toHaveCount(0);
     });
 
+    test("should resize the Session Overview brush thumb", async ({ page }) => {
+      await goToStatistics(page);
+
+      const select = getScopeSelector(page);
+      await select.selectOption({ label: "Standard" });
+      await expect(page.locator("main")).toContainText("League-specific", {
+        timeout: 10_000,
+      });
+
+      const chartArea = page.locator('[data-testid="statistics-charts"]');
+      await expect(chartArea).toContainText("Session Overview", {
+        timeout: 10_000,
+      });
+
+      const canvas = chartArea.getByTestId("combined-chart-canvas");
+      await expectCanvasChartRendered(canvas, "Session overview");
+      await expect(canvas).toHaveAttribute("data-brush-enabled", "true");
+      await expect
+        .poll(
+          () => readCanvasNumberAttribute(canvas, "data-chart-point-count"),
+          { timeout: 5_000, intervals: [100, 250, 500] },
+        )
+        .toBeGreaterThan(30);
+
+      const startBefore = await readCanvasNumberAttribute(
+        canvas,
+        "data-brush-start-index",
+      );
+
+      await dragIndexBrushThumb(page, canvas, {
+        thumb: "left",
+        deltaX: 120,
+        leftPadding: 45,
+        rightPadding: 50,
+      });
+
+      await expect
+        .poll(
+          () => readCanvasNumberAttribute(canvas, "data-brush-start-index"),
+          { timeout: 5_000, intervals: [100, 250, 500] },
+        )
+        .toBeGreaterThan(startBefore);
+
+      const route = await getCurrentRoute(page);
+      expect(route).toBe("/statistics");
+    });
+
+    test("should zoom the Session Overview brush with the mouse wheel", async ({
+      page,
+    }) => {
+      await goToStatistics(page);
+
+      const select = getScopeSelector(page);
+      await select.selectOption({ label: "Standard" });
+      await expect(page.locator("main")).toContainText("League-specific", {
+        timeout: 10_000,
+      });
+
+      const chartArea = page.locator('[data-testid="statistics-charts"]');
+      const canvas = chartArea.getByTestId("combined-chart-canvas");
+      await expectCanvasChartRendered(canvas, "Session overview");
+      await expect(canvas).toHaveAttribute("data-brush-enabled", "true");
+
+      const spanBefore = await readIndexBrushSpan(canvas);
+      await wheelCanvas(canvas, -500);
+
+      await expect
+        .poll(() => readIndexBrushSpan(canvas), {
+          timeout: 5_000,
+          intervals: [100, 250, 500],
+        })
+        .toBeLessThan(spanBefore);
+      const zoomedInSpan = await readIndexBrushSpan(canvas);
+
+      await wheelCanvas(canvas, 500);
+
+      await expect
+        .poll(() => readIndexBrushSpan(canvas), {
+          timeout: 5_000,
+          intervals: [100, 250, 500],
+        })
+        .toBeGreaterThan(zoomedInSpan);
+
+      const route = await getCurrentRoute(page);
+      expect(route).toBe("/statistics");
+    });
+
     test("should render legend buttons for chart metrics", async ({ page }) => {
       await goToStatistics(page);
 
@@ -607,8 +695,12 @@ test.describe("Statistics", () => {
       });
 
       // Legend buttons should be visible
-      const decksLegend = chartArea.getByText("Decks Opened");
-      const profitLegend = chartArea.getByText("Profit");
+      const decksLegend = chartArea
+        .locator("button", { hasText: "Decks Opened" })
+        .first();
+      const profitLegend = chartArea
+        .locator("button", { hasText: "Profit" })
+        .first();
       await expect(decksLegend).toBeVisible({ timeout: 5_000 });
       await expect(profitLegend).toBeVisible({ timeout: 5_000 });
     });

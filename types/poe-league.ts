@@ -29,3 +29,7 @@ export interface PoeLeague {
   startAt: string | null;
   endAt: string | null;
 }
+
+export interface PoeLeagueWithStatus extends PoeLeague {
+  isActive: boolean;
+}

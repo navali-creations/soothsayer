@@ -1,5 +1,7 @@
 import { type RefObject, useEffect } from "react";
 
+import { zoomIndexBrush } from "~/renderer/lib/canvas-core";
+
 import {
   MIN_ZOOM_WINDOW,
   ZOOM_STEP,
@@ -29,31 +31,20 @@ export function useScrollZoom(
 
       e.preventDefault();
 
-      const { startIndex, endIndex } = brushRangeRef.current;
-      const currentWindow = endIndex - startIndex;
-      const maxEnd = dataLen - 1;
-      const zoomingIn = dy < 0;
-
-      if (zoomingIn) {
-        if (currentWindow <= MIN_ZOOM_WINDOW) return;
-        const shrink = Math.min(
-          ZOOM_STEP,
-          Math.floor((currentWindow - MIN_ZOOM_WINDOW) / 2),
-        );
-        if (shrink <= 0) return;
-        onBrushChangeRef.current({
-          startIndex: Math.min(startIndex + shrink, maxEnd),
-          endIndex: Math.max(endIndex - shrink, 0),
-        });
-      } else {
-        const newStart = Math.max(0, startIndex - ZOOM_STEP);
-        const newEnd = Math.min(maxEnd, endIndex + ZOOM_STEP);
-        if (newStart === startIndex && newEnd === endIndex) return;
-        onBrushChangeRef.current({
-          startIndex: newStart,
-          endIndex: newEnd,
-        });
+      const nextRange = zoomIndexBrush({
+        range: brushRangeRef.current,
+        itemCount: dataLen,
+        deltaY: dy,
+        minSpan: MIN_ZOOM_WINDOW,
+        zoomStep: ZOOM_STEP,
+      });
+      if (
+        nextRange.startIndex === brushRangeRef.current.startIndex &&
+        nextRange.endIndex === brushRangeRef.current.endIndex
+      ) {
+        return;
       }
+      onBrushChangeRef.current(nextRange);
     };
 
     el.addEventListener("wheel", handler, { passive: false });

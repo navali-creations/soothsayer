@@ -54,8 +54,7 @@ test.describe("Navigation Guards", () => {
         const routeAfterReset = await getCurrentRoute(page);
         expect(routeAfterReset).toBe("/setup");
       } catch {
-        // Cannot test guard if resetSetup is unavailable
-        test.skip(true, "resetSetup IPC not available");
+        throw new Error("resetSetup IPC not available");
       }
     }
   });
@@ -70,9 +69,7 @@ test.describe("Navigation Guards", () => {
       await resetSetup(page);
       await waitForHydration(page, 30_000);
     } catch {
-      // resetSetup may be unavailable — skip if so
-      test.skip(true, "resetSetup IPC not available");
-      return;
+      throw new Error("resetSetup IPC not available");
     }
 
     const route = await getCurrentRoute(page);

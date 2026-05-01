@@ -11,7 +11,7 @@ import {
 } from "~/main/utils/ipc-validation";
 
 import type { GameType } from "../../../types/data-stores";
-import type { PoeLeague } from "../../../types/poe-league";
+import type { PoeLeague, PoeLeagueWithStatus } from "../../../types/poe-league";
 import { PoeLeaguesChannel } from "./PoeLeagues.channels";
 import type {
   SupabaseLeagueResponse,
@@ -111,6 +111,18 @@ class PoeLeaguesService {
             );
             return PoeLeaguesService.FALLBACK_LEAGUES;
           }
+        }
+      },
+    );
+
+    ipcMain.handle(
+      PoeLeaguesChannel.GetAllLeagues,
+      async (_event, game: GameType) => {
+        try {
+          assertGameType(game, PoeLeaguesChannel.GetAllLeagues);
+          return await this.getAllLeagues(game);
+        } catch (error) {
+          return handleValidationError(error, PoeLeaguesChannel.GetAllLeagues);
         }
       },
     );
@@ -415,6 +427,23 @@ class PoeLeaguesService {
    */
   public async getCachedLeaguesOnly(game: GameType): Promise<PoeLeague[]> {
     return this.getCachedLeagues(game as "poe1" | "poe2");
+  }
+
+  /**
+   * Get all cached leagues, including inactive historical entries.
+   */
+  public async getAllLeagues(game: GameType): Promise<PoeLeagueWithStatus[]> {
+    const rows = await this.repository.getLeaguesByGame(
+      game as "poe1" | "poe2",
+    );
+
+    return rows.map((league) => ({
+      id: league.leagueId,
+      name: league.name,
+      startAt: league.startAt,
+      endAt: league.endAt,
+      isActive: league.isActive,
+    }));
   }
 }
 

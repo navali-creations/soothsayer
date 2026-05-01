@@ -10,6 +10,7 @@ import { createCardsSlice } from "../modules/cards/Cards.slice/Cards.slice";
 import { createChangelogSlice } from "../modules/changelog/Changelog.slice/Changelog.slice";
 import { createSessionSlice } from "../modules/current-session/CurrentSession.slice/CurrentSession.slice";
 import { createGameInfoSlice } from "../modules/game-info/GameInfo.slice/GameInfo.slice";
+import { createLeaguesSlice } from "../modules/leagues/Leagues.slice/Leagues.slice";
 import { createOnboardingSlice } from "../modules/onboarding/Onboarding.slice/Onboarding.slice";
 import { createOverlaySlice } from "../modules/overlay/Overlay.slice/Overlay.slice";
 import { createPoeNinjaSlice } from "../modules/poe-ninja/PoeNinja.slice/PoeNinja.slice";
@@ -46,6 +47,7 @@ export const useBoundStore = create<BoundStore>()(
       const cardDetailsSlice = createCardDetailsSlice(...a);
       const appMenuSlice = createAppMenuSlice(...a);
       const gameInfoSlice = createGameInfoSlice(...a);
+      const leaguesSlice = createLeaguesSlice(...a);
       const overlaySlice = createOverlaySlice(...a);
       const changelogSlice = createChangelogSlice(...a);
       const cardsSlice = createCardsSlice(...a);
@@ -72,6 +74,7 @@ export const useBoundStore = create<BoundStore>()(
         ...appMenuSlice,
         ...changelogSlice,
         ...gameInfoSlice,
+        ...leaguesSlice,
         ...overlaySlice,
         ...cardsSlice,
         ...poeNinjaSlice,
@@ -89,12 +92,16 @@ export const useBoundStore = create<BoundStore>()(
           await Promise.all([
             settingsSlice.settings.hydrate(),
             setupSlice.setup.hydrate(),
+          ]);
+
+          await Promise.all([
             sessionSlice.currentSession.hydrate(),
             appMenuSlice.appMenu.hydrate(),
             gameInfoSlice.gameInfo.hydrate(),
             overlaySlice.overlay.hydrate(),
             onboardingSlice.onboarding.hydrate(),
           ]);
+          await leaguesSlice.leagues.hydrate();
 
           // Check disk space after hydration (non-blocking)
           storageSlice.storage.checkDiskSpace();
@@ -212,6 +219,12 @@ export const useBoundStore = create<BoundStore>()(
               gameInfo.leaguesError = null;
               gameInfo.poe1Process = { isRunning: false, processName: "" };
               gameInfo.poe2Process = { isRunning: false, processName: "" };
+
+              // Reset full leagues cache view
+              state.leagues.poe1Leagues = [];
+              state.leagues.poe2Leagues = [];
+              state.leagues.isLoading = false;
+              state.leagues.error = null;
 
               // Reset overlay
               overlay.isVisible = false;

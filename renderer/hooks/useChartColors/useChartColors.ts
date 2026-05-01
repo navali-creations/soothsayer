@@ -1,7 +1,7 @@
 import { useCallback, useLayoutEffect, useState } from "react";
 
 /**
- * Resolved theme colors for use in SVG attributes and Recharts props.
+ * Resolved theme colors for canvas and SVG chart rendering.
  *
  * SVG `fill` and `stroke` attributes cannot process CSS custom property
  * functions like `oklch(var(...))` or `color-mix(...)` — they need actual
@@ -10,7 +10,7 @@ import { useCallback, useLayoutEffect, useState } from "react";
  * converts them into usable color strings with various opacity levels.
  *
  * DaisyUI v5 stores full color values (e.g. `#e9ddf0`) rather than raw
- * oklch components, so we parse them into RGBA for SVG compatibility.
+ * oklch components, so we parse them into RGBA-compatible strings.
  *
  * Re-resolves automatically when the theme changes (observed via
  * MutationObserver on `<html>` attributes).

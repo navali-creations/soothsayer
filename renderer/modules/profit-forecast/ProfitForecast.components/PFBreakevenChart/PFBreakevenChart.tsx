@@ -1,73 +1,243 @@
 import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { useChartColors } from "~/renderer/hooks";
+import {
+  nearestPointHitTest,
+  useCanvasResize,
+} from "~/renderer/lib/canvas-core";
 import { useProfitForecast } from "~/renderer/store";
 
 import { formatDivine } from "../../ProfitForecast.utils/ProfitForecast.utils";
+import {
+  computeDomains,
+  computeLayout,
+  computeTooltipStyle,
+  drawPFBreakevenChartCanvas,
+  HOVER_THRESHOLD,
+  mapCategoryX,
+  type PnLCurvePoint,
+  TOOLTIP_HEIGHT,
+  TOOLTIP_WIDTH,
+  type TooltipState,
+} from "./PFBreakevenChart.utils";
 
-/** Custom tooltip for the breakeven chart. */
-const PFBreakevenTooltip = ({
-  active,
-  payload,
+function PFBreakevenTooltip({
+  dataPoint,
   chaosToDivineRatio,
+  optimisticColor,
+  estimatedColor,
+  dotBorderColor,
 }: {
-  active?: boolean;
-  payload?: any[];
+  dataPoint: PnLCurvePoint;
   chaosToDivineRatio: number;
-}) => {
-  if (!active || !payload?.length) return null;
-
-  const data = payload[0]?.payload as
-    | {
-        deckCount: number;
-        estimated: number;
-        optimistic: number;
-      }
-    | undefined;
-  if (!data) return null;
-
+  optimisticColor: string;
+  estimatedColor: string;
+  dotBorderColor: string;
+}) {
   return (
     <div className="bg-base-300 border border-base-content/10 rounded-lg p-2.5 shadow-lg text-xs space-y-1">
       <p className="font-medium text-base-content">
-        {data.deckCount.toLocaleString("en-US")} decks
+        {dataPoint.deckCount.toLocaleString("en-US")} decks
       </p>
-      <p className="text-primary">
-        Optimistic: {formatDivine(data.optimistic, chaosToDivineRatio)}
+      <p className="text-primary flex items-center gap-1.5">
+        <span
+          aria-hidden
+          className="inline-block shrink-0 rounded-full"
+          style={{
+            width: 8,
+            height: 8,
+            backgroundColor: optimisticColor,
+            border: `1.5px solid ${dotBorderColor}`,
+          }}
+        />
+        <span>
+          Optimistic: {formatDivine(dataPoint.optimistic, chaosToDivineRatio)}
+        </span>
       </p>
-      <p className="text-secondary">
-        Estimated: {formatDivine(data.estimated, chaosToDivineRatio)}
+      <p className="text-secondary flex items-center gap-1.5">
+        <span
+          aria-hidden
+          className="inline-block shrink-0 rounded-full"
+          style={{
+            width: 8,
+            height: 8,
+            backgroundColor: estimatedColor,
+            border: `1.5px solid ${dotBorderColor}`,
+          }}
+        />
+        <span>
+          Estimated: {formatDivine(dataPoint.estimated, chaosToDivineRatio)}
+        </span>
       </p>
     </div>
   );
-};
+}
 
 /**
  * Breakeven / P&L chart for the Profit Forecast page.
  *
  * Shows estimated and optimistic P&L curves with a break-even reference line.
- * The x-axis is capped at the user's selected batch size.
- *
- * All SVG fill/stroke colors are resolved from CSS custom properties via
- * the `useChartColors` hook, since SVG attributes cannot process
- * `oklch(var(...))` functions directly.
  */
 const PFBreakevenChart = () => {
   const c = useChartColors();
+  const hoverIndexRef = useRef<number | null>(null);
 
-  const { chaosToDivineRatio, isLoading, hasData, getPnLCurve } =
+  const { chaosToDivineRatio, isLoading, hasData, cachedPnLCurve } =
     useProfitForecast();
 
   const dataAvailable = hasData() && !isLoading;
-  const curveData = dataAvailable ? getPnLCurve() : [];
+  const curveData = dataAvailable ? cachedPnLCurve : [];
+
+  const { containerRef, containerElRef, canvasRef, canvasSize } =
+    useCanvasResize();
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
+  const [tooltipSize, setTooltipSize] = useState({
+    width: TOOLTIP_WIDTH,
+    height: TOOLTIP_HEIGHT,
+  });
+  const [tooltip, setTooltip] = useState<TooltipState>({
+    visible: false,
+    x: 0,
+    y: 0,
+    dataPoint: null,
+  });
+
+  const domains = useMemo(
+    () => (curveData.length > 0 ? computeDomains(curveData) : null),
+    [curveData],
+  );
+  const layout = useMemo(
+    () => computeLayout(canvasSize.width, canvasSize.height),
+    [canvasSize.width, canvasSize.height],
+  );
+
+  const tooltipStyle = useMemo(
+    () => computeTooltipStyle({ tooltip, tooltipSize, canvasSize }),
+    [tooltip, tooltipSize, canvasSize],
+  );
+
+  const draw = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !domains || curveData.length === 0) return;
+    drawPFBreakevenChartCanvas({
+      canvas,
+      sourceElement: containerElRef.current,
+      domains,
+      curveData,
+      layout,
+      canvasSize,
+      chaosToDivineRatio,
+      hoverIndex: hoverIndexRef.current,
+      c,
+    });
+  }, [
+    canvasRef,
+    canvasSize,
+    chaosToDivineRatio,
+    containerElRef,
+    curveData,
+    domains,
+    layout,
+    c,
+  ]);
+
+  useEffect(() => {
+    const hadHoverPoint =
+      hoverIndexRef.current !== null &&
+      curveData[hoverIndexRef.current] !== undefined;
+
+    hoverIndexRef.current = null;
+    setTooltip((current) =>
+      current.visible || hadHoverPoint
+        ? { visible: false, x: 0, y: 0, dataPoint: null }
+        : current,
+    );
+  }, [curveData]);
+
+  useLayoutEffect(() => {
+    draw();
+    const frames: number[] = [];
+    const schedule = (remaining: number) => {
+      if (remaining <= 0) return;
+      frames.push(
+        requestAnimationFrame(() => {
+          draw();
+          schedule(remaining - 1);
+        }),
+      );
+    };
+    schedule(4);
+    return () => {
+      for (const frame of frames) cancelAnimationFrame(frame);
+    };
+  }, [draw]);
+
+  useLayoutEffect(() => {
+    const node = tooltipRef.current;
+    if (!node || !tooltip.visible) return;
+
+    const rect = node.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+
+    setTooltipSize((current) =>
+      Math.abs(current.width - rect.width) < 0.5 &&
+      Math.abs(current.height - rect.height) < 0.5
+        ? current
+        : { width: rect.width, height: rect.height },
+    );
+  }, [tooltip.visible]);
+
+  const handlePointerMove = useCallback(
+    (event: React.PointerEvent<HTMLCanvasElement>) => {
+      const canvas = canvasRef.current;
+      if (!canvas || !domains || curveData.length === 0) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+
+      const hit = nearestPointHitTest(
+        x,
+        curveData,
+        (_point, index) => mapCategoryX(index, curveData.length, layout),
+        HOVER_THRESHOLD,
+      );
+
+      if (hit.index < 0) {
+        hoverIndexRef.current = null;
+        setTooltip((current) =>
+          current.visible
+            ? { visible: false, x: 0, y: 0, dataPoint: null }
+            : current,
+        );
+        draw();
+        return;
+      }
+
+      hoverIndexRef.current = hit.index;
+      setTooltip({
+        visible: true,
+        x,
+        y,
+        dataPoint: curveData[hit.index],
+      });
+      draw();
+    },
+    [canvasRef, curveData, domains, draw, layout],
+  );
+
+  const handlePointerLeave = useCallback(() => {
+    hoverIndexRef.current = null;
+    setTooltip({ visible: false, x: 0, y: 0, dataPoint: null });
+    draw();
+  }, [draw]);
 
   if (!dataAvailable || curveData.length === 0) {
     return (
@@ -81,91 +251,35 @@ const PFBreakevenChart = () => {
   }
 
   return (
-    <div className="w-full h-full" data-testid="pf-breakeven-chart">
-      <ResponsiveContainer width="100%" height="100%">
-        <AreaChart
-          data={curveData}
-          margin={{ top: 5, right: 20, bottom: 5, left: 20 }}
-        >
-          <defs>
-            <linearGradient id="pfOptimisticFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={c.primary30} stopOpacity={1} />
-              <stop offset="100%" stopColor={c.primary02} stopOpacity={1} />
-            </linearGradient>
-            <linearGradient id="pfEstimatedLine" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={c.primary} stopOpacity={1} />
-              <stop offset="100%" stopColor={c.primary30} stopOpacity={1} />
-            </linearGradient>
-          </defs>
+    <div
+      ref={containerRef}
+      className="w-full h-full relative"
+      data-testid="pf-breakeven-chart"
+    >
+      <canvas
+        ref={canvasRef}
+        data-testid="pf-breakeven-canvas"
+        onPointerLeave={handlePointerLeave}
+        onPointerMove={handlePointerMove}
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+        }}
+      />
 
-          <CartesianGrid strokeDasharray="3 3" stroke={c.bc10} />
-
-          <XAxis
-            dataKey="deckCount"
-            tickFormatter={(v: number) =>
-              v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)
-            }
-            stroke={c.bc40}
-            fontSize={11}
+      {tooltip.visible && tooltip.dataPoint && (
+        <div ref={tooltipRef} style={tooltipStyle}>
+          <PFBreakevenTooltip
+            dataPoint={tooltip.dataPoint}
+            chaosToDivineRatio={chaosToDivineRatio}
+            optimisticColor={c.primary60}
+            estimatedColor={c.primary}
+            dotBorderColor="rgba(255, 255, 255, 0.9)"
           />
-
-          <YAxis
-            tickFormatter={(v: number) => {
-              if (chaosToDivineRatio <= 0) return `${v}c`;
-              const d = v / chaosToDivineRatio;
-              if (Math.abs(d) >= 1000) return `${(d / 1000).toFixed(0)}k d`;
-              if (Math.abs(d) >= 100) return `${d.toFixed(0)} d`;
-              return `${d.toFixed(1)} d`;
-            }}
-            stroke={c.bc40}
-            fontSize={11}
-            width={60}
-          />
-
-          {/* Optimistic area — filled confidence band above estimated */}
-          <Area
-            type="monotone"
-            dataKey="optimistic"
-            stroke={c.primary60}
-            fill="url(#pfOptimisticFill)"
-            strokeWidth={1}
-            dot={false}
-            activeDot={false}
-            name="Optimistic"
-          />
-
-          {/* Estimated area — cuts out the lower portion so only the band between estimated and optimistic is filled */}
-          <Area
-            type="monotone"
-            dataKey="estimated"
-            stroke={c.primary}
-            fill={c.b2}
-            strokeWidth={2}
-            dot={false}
-            activeDot={{ r: 4, strokeWidth: 2 }}
-            name="Estimated"
-          />
-
-          {/* Break-even reference line at y=0 */}
-          <ReferenceLine
-            y={0}
-            stroke={c.bc30}
-            strokeDasharray="4 4"
-            label={{
-              value: "Break-even",
-              position: "insideTopRight",
-              fill: c.bc50,
-              fontSize: 10,
-            }}
-          />
-
-          <Tooltip
-            content={
-              <PFBreakevenTooltip chaosToDivineRatio={chaosToDivineRatio} />
-            }
-          />
-        </AreaChart>
-      </ResponsiveContainer>
+        </div>
+      )}
     </div>
   );
 };

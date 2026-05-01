@@ -9,6 +9,7 @@ import {
   computeLayout,
 } from "./canvas-chart-utils/canvas-chart-utils";
 import type {
+  ActiveLeagueStartMarker,
   BrushRange,
   ChartColors,
   ChartDataPoint,
@@ -28,6 +29,7 @@ import {
   drawDecksScatter,
   drawGrid,
   drawHoverHighlight,
+  drawLeagueStartMarker,
   drawProfitArea,
   drawXAxis,
   drawYAxisDecks,
@@ -49,6 +51,7 @@ interface CombinedChartCanvasProps {
   brushRange: BrushRange;
   onBrushChange: (range: BrushRange) => void;
   statScope?: "all-time" | "league";
+  leagueStartMarker?: ActiveLeagueStartMarker | null;
 }
 
 // ─── Canvas Chart ──────────────────────────────────────────────────────────────
@@ -62,6 +65,7 @@ export const CombinedChartCanvas = memo(
     brushRange,
     onBrushChange,
     statScope = "all-time",
+    leagueStartMarker = null,
   }: CombinedChartCanvasProps) => {
     const profitColor = c.secondary30;
     const decksColor = resolveColor(c, "secondary");
@@ -96,6 +100,57 @@ export const CombinedChartCanvas = memo(
       const end = brushRange.endIndex;
       return chartData.slice(start, end + 1);
     }, [chartData, brushRange.startIndex, brushRange.endIndex]);
+    const leagueStartMarkerIndex = useMemo(() => {
+      if (!leagueStartMarker || chartData.length < 2) return null;
+      const points = chartData
+        .map((point, index) => ({
+          index,
+          time: new Date(point.sessionDate).getTime(),
+        }))
+        .filter((point) => Number.isFinite(point.time));
+      if (points.length < 2) return null;
+
+      const first = points[0];
+      const last = points[points.length - 1];
+      if (
+        leagueStartMarker.time < first.time ||
+        leagueStartMarker.time > last.time
+      ) {
+        return null;
+      }
+
+      for (let i = 1; i < points.length; i++) {
+        if (leagueStartMarker.time > points[i].time) continue;
+
+        const prev = points[i - 1];
+        const next = points[i];
+        const span = next.time - prev.time;
+        if (span <= 0) return next.index;
+
+        const ratio = (leagueStartMarker.time - prev.time) / span;
+        return prev.index + ratio * (next.index - prev.index);
+      }
+
+      return points[points.length - 1].index;
+    }, [chartData, leagueStartMarker]);
+    const visibleLeagueStartMarker = useMemo(() => {
+      if (leagueStartMarkerIndex === null || !leagueStartMarker) return null;
+      const start = brushRange.startIndex;
+      const end = brushRange.endIndex;
+      if (leagueStartMarkerIndex < start || leagueStartMarkerIndex > end) {
+        return null;
+      }
+      return {
+        label: leagueStartMarker.label,
+        visibleIndex: leagueStartMarkerIndex - start,
+        fullIndex: leagueStartMarkerIndex,
+      };
+    }, [
+      brushRange.endIndex,
+      brushRange.startIndex,
+      leagueStartMarker,
+      leagueStartMarkerIndex,
+    ]);
 
     // ── Axis domain computation ─────────────────────────────────
 
@@ -216,6 +271,15 @@ export const CombinedChartCanvas = memo(
       );
       ctx.clip();
 
+      if (visibleLeagueStartMarker) {
+        drawLeagueStartMarker(dc, visibleLeagueStartMarker.visibleIndex, {
+          label: visibleLeagueStartMarker.label,
+          color: c.success50,
+          lineDash: [4, 4],
+          showLabel: true,
+        });
+      }
+
       drawProfitArea(dc, visibleData, chartData);
       drawDecksScatter(dc, visibleData);
       drawHoverHighlight(dc, visibleData, hoverIndexRef.current);
@@ -229,6 +293,7 @@ export const CombinedChartCanvas = memo(
           mapBrushX,
           brushRange: brushRangeRef.current,
           hoverIndex: hoverIndexRef.current,
+          markerIndex: leagueStartMarkerIndex,
         };
         drawBrush(bdc, chartData);
       }
@@ -247,6 +312,8 @@ export const CombinedChartCanvas = memo(
       mapProfitY,
       mapDecksY,
       mapBrushX,
+      leagueStartMarkerIndex,
+      visibleLeagueStartMarker,
     ]);
 
     // ── Draw on every relevant change ───────────────────────────
@@ -293,6 +360,11 @@ export const CombinedChartCanvas = memo(
       >
         <canvas
           ref={canvasRef}
+          data-brush-enabled={showBrush ? "true" : "false"}
+          data-brush-end-index={brushRange.endIndex}
+          data-brush-start-index={brushRange.startIndex}
+          data-chart-point-count={chartData.length}
+          data-testid="combined-chart-canvas"
           style={{
             position: "absolute",
             top: 0,

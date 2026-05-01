@@ -1,12 +1,7 @@
-import { formatDateFull } from "./helpers";
-import type { CustomTooltipProps } from "./types";
+import { formatDateFull } from "../helpers";
+import type { CustomTooltipProps } from "../types";
 
-/**
- * Custom Recharts tooltip for the price history chart.
- *
- * Displays the date, divine orb rate, and trade volume for the hovered
- * data point.
- */
+/** Tooltip for the price history chart hover state. */
 const ChartTooltip = ({ active, payload }: CustomTooltipProps) => {
   if (!active || !payload || payload.length === 0) return null;
 

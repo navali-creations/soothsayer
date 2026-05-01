@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_LEAGUE_DURATION_MS } from "~/renderer/modules/card-details/CardDetails.components/CardDetailsDropTimeline/constants";
 import {
   formatAxisDate,
   leagueEndTime,
@@ -20,16 +19,56 @@ describe("leagueEndTime", () => {
     expect(result).toBe(new Date(endDate).getTime());
   });
 
-  it("returns startDate + DEFAULT_LEAGUE_DURATION_MS when endDate is null but startDate exists", () => {
+  it("infers end time as next league start minus 3 days when endDate is missing", () => {
     const startDate = "2026-03-01T00:00:00Z";
-    const result = leagueEndTime({
-      name: "Settlers",
-      startDate,
-      endDate: null,
-    });
-    expect(result).toBe(
-      new Date(startDate).getTime() + DEFAULT_LEAGUE_DURATION_MS,
+    const nextStartDate = "2026-06-01T00:00:00Z";
+    const result = leagueEndTime(
+      {
+        name: "Settlers",
+        startDate,
+        endDate: null,
+      },
+      [
+        { name: "Settlers", startDate, endDate: null },
+        { name: "Mercenaries", startDate: nextStartDate, endDate: null },
+      ],
     );
+    expect(result).toBe(
+      new Date(nextStartDate).getTime() - 3 * 24 * 60 * 60 * 1000,
+    );
+  });
+
+  it("returns inferred 4-month cap when endDate is null and there is no next league", () => {
+    const startDate = "2025-03-01T00:00:00Z";
+    const result = leagueEndTime(
+      {
+        name: "Settlers",
+        startDate,
+        endDate: null,
+      },
+      [{ name: "Settlers", startDate, endDate: null }],
+    );
+    const expected =
+      new Date(startDate).getTime() + 4 * 30 * 24 * 60 * 60 * 1000;
+    expect(result).toBe(expected);
+  });
+
+  it("returns approximately Date.now() when league is recent and missing endDate", () => {
+    const startDate = new Date(
+      Date.now() - 7 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    const before = Date.now();
+    const result = leagueEndTime(
+      {
+        name: "Settlers",
+        startDate,
+        endDate: null,
+      },
+      [{ name: "Settlers", startDate, endDate: null }],
+    );
+    const after = Date.now();
+    expect(result).toBeGreaterThanOrEqual(before);
+    expect(result).toBeLessThanOrEqual(after);
   });
 
   it("returns approximately Date.now() when both startDate and endDate are null", () => {
@@ -44,16 +83,65 @@ describe("leagueEndTime", () => {
     expect(result).toBeLessThanOrEqual(after);
   });
 
-  it("prefers endDate over startDate + duration", () => {
+  it("prefers explicit endDate over inferred next-league end", () => {
     const startDate = "2026-01-01T00:00:00Z";
     const endDate = "2026-02-01T00:00:00Z";
-    const result = leagueEndTime({
-      name: "Keepers",
-      startDate,
-      endDate,
-    });
-    // endDate is before startDate + 4 months, so if endDate is preferred it should be endDate
+    const result = leagueEndTime(
+      {
+        name: "Keepers",
+        startDate,
+        endDate,
+      },
+      [
+        { name: "Keepers", startDate, endDate },
+        {
+          name: "Mercenaries",
+          startDate: "2026-03-01T00:00:00Z",
+          endDate: null,
+        },
+      ],
+    );
     expect(result).toBe(new Date(endDate).getTime());
+  });
+
+  it("falls back to start-date inference when endDate is invalid", () => {
+    const startDate = "2026-01-01T00:00:00Z";
+    const nextStartDate = "2026-02-01T00:00:00Z";
+
+    const result = leagueEndTime(
+      {
+        name: "Keepers",
+        startDate,
+        endDate: "not-a-date",
+      },
+      [
+        { name: "Keepers", startDate, endDate: "not-a-date" },
+        { name: "Mirage", startDate: nextStartDate, endDate: null },
+      ],
+    );
+
+    expect(result).toBe(
+      new Date(nextStartDate).getTime() - 3 * 24 * 60 * 60 * 1000,
+    );
+  });
+
+  it("ignores invalid current and next league start dates", () => {
+    const before = Date.now();
+    const result = leagueEndTime(
+      {
+        name: "Broken",
+        startDate: "not-a-date",
+        endDate: null,
+      },
+      [
+        { name: "Broken", startDate: "not-a-date", endDate: null },
+        { name: "AlsoBroken", startDate: "also-not-a-date", endDate: null },
+      ],
+    );
+    const after = Date.now();
+
+    expect(result).toBeGreaterThanOrEqual(before);
+    expect(result).toBeLessThanOrEqual(after);
   });
 });
 

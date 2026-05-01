@@ -74,6 +74,37 @@ export function rgbaStr(r: number, g: number, b: number, a: number): string {
   return `rgba(${r}, ${g}, ${b}, ${a})`;
 }
 
+export interface DonutIndicatorOptions {
+  fillStyle: string | CanvasGradient | CanvasPattern;
+  strokeStyle: string | CanvasGradient | CanvasPattern;
+  radius?: number;
+  strokeWidth?: number;
+}
+
+/** Draw a circular chart point with a contrasting outer ring. */
+export function drawDonutIndicator(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  {
+    fillStyle,
+    strokeStyle,
+    radius = 4,
+    strokeWidth = 2,
+  }: DonutIndicatorOptions,
+): void {
+  ctx.save();
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.fillStyle = fillStyle;
+  ctx.fill();
+  ctx.strokeStyle = strokeStyle;
+  ctx.lineWidth = strokeWidth;
+  ctx.stroke();
+  ctx.restore();
+}
+
 // ─── Monotone Cubic Spline ──────────────────────────────────────────────────
 
 /**
@@ -246,6 +277,36 @@ export function setupCanvas(
   ctx.clearRect(0, 0, w, h);
 
   return { ctx, width: w, height: h };
+}
+
+/**
+ * Ensure a canvas has a non-zero backing store before ResizeObserver has
+ * reported its first size. This lets charts draw on initial mount instead of
+ * waiting for a later pointer or resize event to force a repaint.
+ */
+export function ensureCanvasBackingStore(
+  canvas: HTMLCanvasElement,
+  sourceElement: HTMLElement | null,
+): boolean {
+  const sourceRect = sourceElement?.getBoundingClientRect();
+  const rect =
+    sourceRect && sourceRect.width > 0 && sourceRect.height > 0
+      ? sourceRect
+      : canvas.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return false;
+
+  const dpr = DPR();
+  const width = rect.width * dpr;
+  const height = rect.height * dpr;
+
+  if (canvas.width === width && canvas.height === height) return true;
+
+  canvas.width = width;
+  canvas.height = height;
+  canvas.style.width = `${rect.width}px`;
+  canvas.style.height = `${rect.height}px`;
+
+  return true;
 }
 
 // ─── Linear Mapper Factory ──────────────────────────────────────────────────

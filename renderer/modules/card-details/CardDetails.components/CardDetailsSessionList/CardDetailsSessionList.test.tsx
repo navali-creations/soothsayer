@@ -105,6 +105,21 @@ function renderComponent(overrides: Record<string, any> = {}) {
   return { ...result, mockState };
 }
 
+function renderComponentWithProps(
+  props: { cardName?: string; game?: "poe1" | "poe2" } = {},
+  overrides: Record<string, any> = {},
+) {
+  const mockState = createMockState(overrides);
+  vi.mocked(useCardDetails).mockReturnValue(mockState as any);
+  const result = renderWithProviders(
+    <CardDetailsSessionList
+      cardName={props.cardName ?? "The Doctor"}
+      game={props.game ?? "poe1"}
+    />,
+  );
+  return { ...result, mockState };
+}
+
 // ─── Cleanup ───────────────────────────────────────────────────────────────
 
 afterEach(() => {
@@ -247,6 +262,11 @@ describe("CardDetailsSessionList — effects", () => {
       5,
       "Affliction",
     );
+  });
+
+  it("does not fetch sessions when cardName is empty", () => {
+    const { mockState } = renderComponentWithProps({ cardName: "" });
+    expect(mockState.fetchSessionsForCard).not.toHaveBeenCalled();
   });
 });
 

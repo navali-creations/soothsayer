@@ -244,14 +244,26 @@ export class CardDetailsRepository {
     const rows = await this.kysely
       .selectFrom("leagues as l")
       .innerJoin("sessions as s", "s.league_id", "l.id")
+      .leftJoin("poe_leagues_cache as plc", (join) =>
+        join.onRef("plc.game", "=", "l.game").onRef("plc.name", "=", "l.name"),
+      )
       .select([
         "l.name as name",
-        "l.start_date as startDate",
-        "l.end_date as endDate",
+        sql<string | null>`COALESCE(l.start_date, plc.start_at)`.as(
+          "startDate",
+        ),
+        sql<string | null>`COALESCE(l.end_date, plc.end_at)`.as("endDate"),
       ])
       .where("l.game", "=", game)
-      .groupBy("l.id")
-      .orderBy("l.start_date", "asc")
+      .groupBy([
+        "l.id",
+        "l.name",
+        "l.start_date",
+        "l.end_date",
+        "plc.start_at",
+        "plc.end_at",
+      ])
+      .orderBy(sql`COALESCE(l.start_date, plc.start_at)`, "asc")
       .execute();
 
     return rows.map((row) => ({

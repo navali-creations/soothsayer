@@ -52,6 +52,7 @@ vi.mock("./draw-functions/draw-functions", () => ({
   drawDecksScatter: vi.fn(),
   drawGrid: vi.fn(),
   drawHoverHighlight: vi.fn(),
+  drawLeagueStartMarker: vi.fn(),
   drawProfitArea: vi.fn(),
   drawXAxis: vi.fn(),
   drawYAxisDecks: vi.fn(),
@@ -446,6 +447,39 @@ describe("CombinedChartCanvas", () => {
       );
 
       expect(drawFunctions.drawBrush).toHaveBeenCalled();
+    });
+
+    it("passes markerIndex to brush even when marker is outside visible brush window", () => {
+      vi.mocked(drawFunctions.drawBrush).mockClear();
+      const chartData = [
+        makeChartData(1)[0],
+        {
+          ...makeChartData(1)[0],
+          sessionIndex: 2,
+          sessionDate: "2024-01-02",
+        },
+        {
+          ...makeChartData(1)[0],
+          sessionIndex: 3,
+          sessionDate: "2024-01-03",
+        },
+      ];
+
+      renderWithProviders(
+        <CombinedChartCanvas
+          {...defaultProps}
+          showBrush={true}
+          chartData={chartData}
+          brushRange={{ startIndex: 2, endIndex: 2 }}
+          leagueStartMarker={{
+            time: new Date("2024-01-01T12:00:00.000Z").getTime(),
+            label: "Mirage",
+          }}
+        />,
+      );
+
+      const brushContext = vi.mocked(drawFunctions.drawBrush).mock.calls[0][0];
+      expect(brushContext.markerIndex).not.toBeNull();
     });
 
     it("does not draw brush when showBrush is false", () => {

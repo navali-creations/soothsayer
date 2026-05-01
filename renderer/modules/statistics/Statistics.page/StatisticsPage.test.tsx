@@ -349,6 +349,25 @@ describe("StatisticsPage", () => {
     expect(cardData).toEqual([]);
   });
 
+  it("falls back to empty card data when stats.cards is an array", () => {
+    setupStore({
+      divinationCardStats: createStats({
+        totalCount: 2,
+        cards: [{ name: "Session Scoped Card", count: 2 }],
+      }),
+    });
+
+    renderWithProviders(<StatisticsPage />);
+
+    const tableEl = screen.getByTestId("statistics-table");
+    const cardData = JSON.parse(tableEl.getAttribute("data-card-data")!);
+    expect(cardData).toEqual([]);
+    expect(screen.getByTestId("statistics-stats")).toHaveAttribute(
+      "data-unique-card-count",
+      "0",
+    );
+  });
+
   // ── Props passed to child components ───────────────────────────────────
 
   it("passes totalCount from stats to StatisticsStats", () => {

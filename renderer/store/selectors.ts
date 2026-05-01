@@ -52,6 +52,9 @@ export const useBanners = () => useSlice("banners");
 /** Select the `gameInfo` slice. */
 export const useGameInfo = () => useSlice("gameInfo");
 
+/** Select the `leagues` slice. */
+export const useLeagues = () => useSlice("leagues");
+
 /** Select the `overlay` slice. */
 export const useOverlay = () => useSlice("overlay");
 

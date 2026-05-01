@@ -268,6 +268,14 @@ describe("computeAll", () => {
     expect(lastPoint.deckCount).toBe(BASE_REQUEST.selectedBatch);
   });
 
+  it("should return the capped pnlCurve batch-size distribution", () => {
+    const result = computeAll(BASE_REQUEST);
+
+    expect(result.pnlCurve.map((point) => point.deckCount)).toEqual([
+      200, 400, 600, 800, 1000, 2000, 3000, 5000, 7500, 10000,
+    ]);
+  });
+
   it("should return pnlCurve points in ascending deckCount order", () => {
     const result = computeAll(BASE_REQUEST);
     for (let i = 1; i < result.pnlCurve.length; i++) {

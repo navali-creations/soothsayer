@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo } from "react";
 
 import { CombinedChartCanvas } from "~/renderer/components/CombinedChartCanvas";
+import { ChartLegend } from "~/renderer/components/CombinedChartCanvas/ChartLegend";
 import type {
   BrushRange,
   MetricKey,
@@ -10,9 +11,9 @@ import {
   resolveColor,
   transformChartData,
 } from "~/renderer/components/CombinedChartCanvas/chart-types/chart-types";
-import { LegendIcon } from "~/renderer/components/CombinedChartCanvas/LegendIcon";
 import { useChartColors } from "~/renderer/hooks";
-import { useStatistics } from "~/renderer/store";
+import { resolveActiveLeagueStartMarker } from "~/renderer/lib/league-start-marker";
+import { useLeagues, useSettings, useStatistics } from "~/renderer/store";
 
 interface StatisticsChartsProps {
   isDataLoading?: boolean;
@@ -22,6 +23,8 @@ export const StatisticsCharts = ({
   isDataLoading = false,
 }: StatisticsChartsProps) => {
   const c = useChartColors();
+  const { getLeaguesForGame } = useLeagues();
+  const { getSelectedGame, getActiveGameViewSelectedLeague } = useSettings();
 
   const {
     statScope,
@@ -34,6 +37,9 @@ export const StatisticsCharts = ({
     toggleChartMetric,
     setBrushRange,
   } = useStatistics();
+  const activeGame = getSelectedGame();
+  const activeGlobalLeague = getActiveGameViewSelectedLeague();
+  const activeGameLeagues = getLeaguesForGame(activeGame);
 
   useEffect(() => {
     const league =
@@ -44,6 +50,15 @@ export const StatisticsCharts = ({
   const chartData = useMemo(
     () => transformChartData(chartRawData),
     [chartRawData],
+  );
+  const leagueStartMarker = useMemo(
+    () =>
+      resolveActiveLeagueStartMarker({
+        leagues: activeGameLeagues,
+        activeLeague: activeGlobalLeague,
+        enabled: statScope === "all-time",
+      }),
+    [activeGameLeagues, activeGlobalLeague, statScope],
   );
 
   const showBrush = chartData.length > 10;
@@ -65,6 +80,25 @@ export const StatisticsCharts = ({
   const handleLegendClick = useCallback(
     (key: MetricKey) => toggleChartMetric(key),
     [toggleChartMetric],
+  );
+  const legendItems = useMemo(
+    () =>
+      METRICS.map((metric) => {
+        const isHidden = hiddenMetrics.has(metric.key);
+        const color =
+          metric.rawVisual === "area"
+            ? c.secondary30
+            : resolveColor(c, metric.colorVar);
+        return {
+          id: metric.key,
+          label: metric.label,
+          visual: metric.rawVisual,
+          color,
+          hidden: isHidden,
+          onClick: () => handleLegendClick(metric.key),
+        };
+      }),
+    [c, handleLegendClick, hiddenMetrics],
   );
 
   const isStale = isChartLoading || isDataLoading;
@@ -100,32 +134,7 @@ export const StatisticsCharts = ({
         <div className="card-body p-4 gap-0">
           <div className="flex items-center gap-2 mb-1">
             <h2 className="card-title text-sm shrink-0">Session Overview</h2>
-            <div className="flex items-center gap-3 ml-auto">
-              {METRICS.map((metric) => {
-                const isHidden = hiddenMetrics.has(metric.key);
-                const color =
-                  metric.rawVisual === "area"
-                    ? c.secondary30
-                    : resolveColor(c, metric.colorVar);
-
-                return (
-                  <button
-                    key={metric.key}
-                    type="button"
-                    className={`flex items-center gap-1.5 text-[11px] cursor-pointer transition-opacity ${
-                      isHidden ? "opacity-30" : "opacity-100"
-                    }`}
-                    onClick={() => handleLegendClick(metric.key)}
-                  >
-                    <LegendIcon
-                      visual={metric.rawVisual}
-                      color={isHidden ? c.bc30 : color}
-                    />
-                    <span className="text-base-content/60">{metric.label}</span>
-                  </button>
-                );
-              })}
-            </div>
+            <ChartLegend className="ml-auto" items={legendItems} />
           </div>
 
           <CombinedChartCanvas
@@ -136,6 +145,7 @@ export const StatisticsCharts = ({
             brushRange={brushRange}
             onBrushChange={handleBrushChange}
             statScope={statScope}
+            leagueStartMarker={leagueStartMarker}
           />
         </div>
       </div>

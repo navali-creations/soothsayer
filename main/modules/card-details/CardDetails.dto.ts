@@ -193,7 +193,8 @@ export interface CardPersonalAnalyticsDTO {
   /**
    * ISO timestamp for the timeline X-axis end bound.
    * This is the end date of the most recent league the user has data in,
-   * or an approximate end (start + 4 months) if the league is still active.
+   * or an inferred end bound when end metadata is missing:
+   * min("now", start + 4 months).
    * Falls back to "now" if no league info is available.
    */
   timelineEndDate: string;

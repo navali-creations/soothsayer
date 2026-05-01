@@ -29,4 +29,22 @@ describe("createCurrentSessionTotalValueColumn", () => {
     const result = cellFn(mockInfo);
     expect(result).toBeTruthy();
   });
+
+  it("sorts by stash total value when price source is stash", () => {
+    const col = createCurrentSessionTotalValueColumn("stash");
+    const sortingFn = (col as any).sortingFn;
+    const rowA = { original: { stashPrice: { totalValue: 500 } } };
+    const rowB = { original: { stashPrice: { totalValue: 300 } } };
+
+    expect(sortingFn(rowA, rowB)).toBe(200);
+  });
+
+  it("sorts by exchange total value and falls back missing prices to 0", () => {
+    const col = createCurrentSessionTotalValueColumn("exchange");
+    const sortingFn = (col as any).sortingFn;
+    const rowA = { original: { exchangePrice: undefined } };
+    const rowB = { original: { exchangePrice: { totalValue: 450 } } };
+
+    expect(sortingFn(rowA, rowB)).toBe(-450);
+  });
 });

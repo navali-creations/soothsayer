@@ -5,6 +5,7 @@ import type { CardsSlice } from "../modules/cards/Cards.slice/Cards.slice";
 import type { ChangelogSlice } from "../modules/changelog/Changelog.slice/Changelog.slice";
 import type { SessionSlice } from "../modules/current-session/CurrentSession.slice/CurrentSession.slice";
 import type { GameInfoSlice } from "../modules/game-info/GameInfo.slice/GameInfo.slice";
+import type { LeaguesSlice } from "../modules/leagues/Leagues.slice/Leagues.slice";
 import type { OnboardingSlice } from "../modules/onboarding/Onboarding.slice/Onboarding.slice";
 import type { OverlaySlice } from "../modules/overlay/Overlay.slice/Overlay.slice";
 import type { PoeNinjaSlice } from "../modules/poe-ninja/PoeNinja.slice/PoeNinja.slice";
@@ -37,6 +38,7 @@ export interface RootActions {
 
 export type BoundStore = BannersSlice &
   GameInfoSlice &
+  LeaguesSlice &
   SettingsSlice &
   StorageSlice &
   SetupSlice &

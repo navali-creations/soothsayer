@@ -183,6 +183,21 @@ describe("CardDetailsShareButton — clipboard content", () => {
     expect(text).toContain("Rare");
   });
 
+  it("uses Unknown when rarity is not mapped", async () => {
+    const { user } = renderComponent({
+      cardName: "Mystery Card",
+      rarity: 0,
+    });
+    await clickAndWaitForClipboard(user);
+
+    await waitFor(() => {
+      expect(mockWriteText).toHaveBeenCalledTimes(1);
+    });
+    const text = mockWriteText.mock.calls[0][0] as string;
+    expect(text).toContain("Mystery Card");
+    expect(text).toContain("Unknown");
+  });
+
   it('includes "(Boss-exclusive)" when fromBoss is true', async () => {
     const { user } = renderComponent({
       cardName: "The Demon",
@@ -261,6 +276,21 @@ describe("CardDetailsShareButton — clipboard content", () => {
     });
     const text = mockWriteText.mock.calls[0][0] as string;
     expect(text).not.toContain("Price:");
+  });
+
+  it("omits the entire price details line when no price or stack data exists", async () => {
+    const { user } = renderComponent({
+      cardName: "Single Line",
+      stackSize: 1,
+      priceHistory: null,
+    });
+    await clickAndWaitForClipboard(user);
+
+    await waitFor(() => {
+      expect(mockWriteText).toHaveBeenCalledTimes(1);
+    });
+    const text = mockWriteText.mock.calls[0][0] as string;
+    expect(text.split("\n")).toEqual(["Single Line — Extremely Rare"]);
   });
 
   it("includes personal stats when personalAnalytics has drops", async () => {

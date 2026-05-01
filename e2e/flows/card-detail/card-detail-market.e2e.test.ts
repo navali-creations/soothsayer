@@ -3,7 +3,7 @@
  *
  * Tests the Market Data tab on the card details page (/cards/$cardSlug):
  * 1. Switching to Market Data tab and verifying it becomes active
- * 2. Price chart rendering (Recharts) with deterministic fixture data
+ * 2. Price chart rendering (canvas) with deterministic fixture data
  * 3. Price summary and drop stats sections
  *
  * Uses a pre-built poe.ninja fixture seeded into the `card_price_history_cache`
@@ -28,6 +28,13 @@
 import type { Page } from "@playwright/test";
 
 import { HOUSE_OF_MIRRORS_PRICE_HISTORY } from "../../fixtures/poe-ninja-fixture";
+import {
+  dragIndexBrushThumb,
+  expectCanvasChartRendered,
+  readCanvasNumberAttribute,
+  readIndexBrushSpan,
+  wheelCanvas,
+} from "../../helpers/canvas";
 import { expect, test } from "../../helpers/electron-test";
 import {
   ensurePostSetup,
@@ -68,7 +75,8 @@ async function waitForMarketDataSettled(page: Page, timeout = 20_000) {
   await expect
     .poll(
       async () => {
-        const hasChart = (await page.locator(".recharts-wrapper").count()) > 0;
+        const hasChart =
+          (await page.getByTestId("price-history-canvas").count()) > 0;
         const hasEmpty = await page
           .getByText("No price history available")
           .isVisible()
@@ -136,7 +144,7 @@ async function ensureDataSeeded(page: Page) {
 
   // Seed the poe.ninja price history cache so Market Data tests never
   // hit the real poe.ninja API. The fixture contains 90 days of realistic
-  // price data which guarantees the Recharts chart will render.
+  // price data which guarantees the canvas chart will render.
   try {
     await seedPriceHistoryCache(page, HOUSE_OF_MIRRORS_PRICE_HISTORY);
   } catch {
@@ -216,8 +224,8 @@ test.describe("Card Detail Page — Market Data", () => {
       // render with the fixture's 90 days of price data.
       await waitForMarketDataSettled(page);
 
-      const chartRendered =
-        (await page.locator(".recharts-wrapper").count()) > 0;
+      const priceCanvas = page.getByTestId("price-history-canvas");
+      const chartRendered = (await priceCanvas.count()) > 0;
 
       // With seeded fixture data the chart should always render
       expect(
@@ -225,20 +233,7 @@ test.describe("Card Detail Page — Market Data", () => {
         "Price chart should render with seeded fixture data",
       ).toBe(true);
 
-      // Verify the chart contains an SVG with non-zero dimensions
-      const surface = page.locator(".recharts-wrapper svg").first();
-      await expect(surface).toBeVisible({ timeout: 5_000 });
-
-      const svgBox = await surface.boundingBox();
-      expect(svgBox, "Price chart SVG should have a bounding box").toBeTruthy();
-      expect(
-        svgBox!.width,
-        "Price chart SVG should have non-zero width",
-      ).toBeGreaterThan(0);
-      expect(
-        svgBox!.height,
-        "Price chart SVG should have non-zero height",
-      ).toBeGreaterThan(0);
+      await expectCanvasChartRendered(priceCanvas, "Price history");
     });
 
     test("should display chart and stay on card detail route", async ({
@@ -250,26 +245,14 @@ test.describe("Card Detail Page — Market Data", () => {
       await waitForMarketDataSettled(page);
 
       // With seeded fixture data the chart should always render
-      const chartRendered =
-        (await page.locator(".recharts-wrapper").count()) > 0;
+      const priceCanvas = page.getByTestId("price-history-canvas");
+      const chartRendered = (await priceCanvas.count()) > 0;
       expect(
         chartRendered,
         "Price chart should render with seeded fixture data",
       ).toBe(true);
 
-      // Verify the SVG surface
-      const surface = page
-        .locator(".recharts-wrapper svg.recharts-surface")
-        .first();
-      await expect(surface).toBeVisible({ timeout: 5_000 });
-
-      const svgBox = await surface.boundingBox();
-      expect(
-        svgBox,
-        "Recharts SVG surface should have a bounding box",
-      ).toBeTruthy();
-      expect(svgBox!.width).toBeGreaterThan(0);
-      expect(svgBox!.height).toBeGreaterThan(0);
+      await expectCanvasChartRendered(priceCanvas, "Price history");
 
       // The "Price History" heading should be visible
       const mainContent = await page.locator("main").textContent();
@@ -279,45 +262,104 @@ test.describe("Card Detail Page — Market Data", () => {
       const route = await getCurrentRoute(page);
       expect(route).toBe("/cards/house-of-mirrors");
     });
-  });
 
-  // ── Recharts Structure (Market Data tab) ──────────────────────────────────
+    test("should resize the price chart brush thumb", async ({ page }) => {
+      await goToCardDetail(page, "house-of-mirrors");
+      await switchToMarketTab(page);
+      await waitForMarketDataSettled(page);
 
-  test.describe("Recharts Structure", () => {
-    test("should render Recharts SVG surface with seeded price data", async ({
+      const priceCanvas = page.getByTestId("price-history-canvas");
+      await expectCanvasChartRendered(priceCanvas, "Price history");
+      await expect(priceCanvas).toHaveAttribute("data-brush-enabled", "true");
+      await expect
+        .poll(
+          () =>
+            readCanvasNumberAttribute(priceCanvas, "data-chart-point-count"),
+          { timeout: 5_000, intervals: [100, 250, 500] },
+        )
+        .toBeGreaterThan(5);
+
+      const startBefore = await readCanvasNumberAttribute(
+        priceCanvas,
+        "data-brush-start-index",
+      );
+
+      await dragIndexBrushThumb(page, priceCanvas, {
+        thumb: "left",
+        deltaX: 120,
+        leftPadding: 50,
+        rightPadding: 50,
+      });
+
+      await expect
+        .poll(
+          () =>
+            readCanvasNumberAttribute(priceCanvas, "data-brush-start-index"),
+          { timeout: 5_000, intervals: [100, 250, 500] },
+        )
+        .toBeGreaterThan(startBefore);
+
+      const route = await getCurrentRoute(page);
+      expect(route).toBe("/cards/house-of-mirrors");
+    });
+
+    test("should zoom the price chart brush with the mouse wheel", async ({
       page,
     }) => {
       await goToCardDetail(page, "house-of-mirrors");
       await switchToMarketTab(page);
       await waitForMarketDataSettled(page);
 
-      // Fixture data guarantees the chart renders
-      const rechartsWrappers = page.locator(".recharts-wrapper");
-      const wrapperCount = await rechartsWrappers.count();
+      const priceCanvas = page.getByTestId("price-history-canvas");
+      await expectCanvasChartRendered(priceCanvas, "Price history");
+      await expect(priceCanvas).toHaveAttribute("data-brush-enabled", "true");
+
+      const spanBefore = await readIndexBrushSpan(priceCanvas);
+      await wheelCanvas(priceCanvas, -500);
+
+      await expect
+        .poll(() => readIndexBrushSpan(priceCanvas), {
+          timeout: 5_000,
+          intervals: [100, 250, 500],
+        })
+        .toBeLessThan(spanBefore);
+      const zoomedInSpan = await readIndexBrushSpan(priceCanvas);
+
+      await wheelCanvas(priceCanvas, 500);
+
+      await expect
+        .poll(() => readIndexBrushSpan(priceCanvas), {
+          timeout: 5_000,
+          intervals: [100, 250, 500],
+        })
+        .toBeGreaterThan(zoomedInSpan);
+
+      const route = await getCurrentRoute(page);
+      expect(route).toBe("/cards/house-of-mirrors");
+    });
+  });
+
+  // ── Canvas Structure (Market Data tab) ──────────────────────────────────
+
+  test.describe("Canvas Structure", () => {
+    test("should render canvas surface with seeded price data", async ({
+      page,
+    }) => {
+      await goToCardDetail(page, "house-of-mirrors");
+      await switchToMarketTab(page);
+      await waitForMarketDataSettled(page);
+
+      const priceCanvas = page.getByTestId("price-history-canvas");
+      const canvasCount = await priceCanvas.count();
       expect(
-        wrapperCount,
-        "Recharts wrapper should be present with seeded fixture data",
+        canvasCount,
+        "Price history canvas should be present with seeded fixture data",
       ).toBeGreaterThan(0);
 
-      const surface = rechartsWrappers.first().locator("svg.recharts-surface");
-      await expect(surface).toBeVisible({ timeout: 5_000 });
-
-      const svgBox = await surface.boundingBox();
-      expect(
-        svgBox,
-        "Recharts SVG surface should have a bounding box",
-      ).toBeTruthy();
-      expect(
-        svgBox!.width,
-        "Recharts SVG should have non-zero width",
-      ).toBeGreaterThan(0);
-      expect(
-        svgBox!.height,
-        "Recharts SVG should have non-zero height",
-      ).toBeGreaterThan(0);
+      await expectCanvasChartRendered(priceCanvas, "Price history");
     });
 
-    test("should render chart axes and grid lines with seeded price data", async ({
+    test("should render chart axes and grid pixels with seeded price data", async ({
       page,
     }) => {
       await goToCardDetail(page, "house-of-mirrors");
@@ -325,58 +367,23 @@ test.describe("Card Detail Page — Market Data", () => {
       await waitForMarketDataSettled(page);
 
       // Fixture data guarantees chart renders — assert structural elements
-      const rechartsWrappers = page.locator(".recharts-wrapper");
-      await expect(rechartsWrappers.first()).toBeVisible({ timeout: 5_000 });
-
-      // Recharts renders CartesianGrid as <g class="recharts-cartesian-grid">
-      const gridLines = page.locator(".recharts-cartesian-grid");
-      const gridCount = await gridLines.count();
-
-      // Recharts renders axes as <g class="recharts-xAxis"> / <g class="recharts-yAxis">
-      const xAxis = page.locator(".recharts-xAxis");
-      const yAxis = page.locator(".recharts-yAxis");
-
-      const hasStructure =
-        gridCount > 0 || (await xAxis.count()) > 0 || (await yAxis.count()) > 0;
-
-      expect(
-        hasStructure,
-        "Price chart should render grid, X-axis, or Y-axis elements",
-      ).toBe(true);
+      await expectCanvasChartRendered(
+        page.getByTestId("price-history-canvas"),
+        "Price history",
+      );
     });
 
-    test("should render chart data elements (area and bars) with seeded price data", async ({
+    test("should render chart data pixels with seeded price data", async ({
       page,
     }) => {
       await goToCardDetail(page, "house-of-mirrors");
       await switchToMarketTab(page);
       await waitForMarketDataSettled(page);
 
-      // Fixture data guarantees chart renders
-      const rechartsSurface = page.locator(".recharts-surface");
-      const surfaceCount = await rechartsSurface.count();
-      expect(
-        surfaceCount,
-        "Recharts surface should be present with seeded fixture data",
-      ).toBeGreaterThan(0);
-
-      // The price chart uses a ComposedChart with:
-      //   - <Area> for the price rate line
-      //   - <Bar> for volume bars
-      const bars = page.locator(".recharts-bar");
-      const areas = page.locator(".recharts-area");
-      const lines = page.locator(".recharts-line");
-
-      const barCount = await bars.count();
-      const areaCount = await areas.count();
-      const lineCount = await lines.count();
-
-      const hasDataElements = barCount > 0 || areaCount > 0 || lineCount > 0;
-
-      expect(
-        hasDataElements,
-        "Price chart should render bar, area, or line data elements",
-      ).toBe(true);
+      await expectCanvasChartRendered(
+        page.getByTestId("price-history-canvas"),
+        "Price history",
+      );
     });
   });
 

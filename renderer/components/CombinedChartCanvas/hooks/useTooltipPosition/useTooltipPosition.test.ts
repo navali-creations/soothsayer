@@ -33,7 +33,6 @@ function makeFakeDataPoint() {
     sessionDate: "2024-01-01",
     league: "Settlers",
     profitDivine: 2.5,
-    profitChaos: 400,
     rawDecks: 10,
     chaosPerDivine: 160,
   };
@@ -303,5 +302,41 @@ describe("useTooltipPosition", () => {
     const style = result.current.tooltipStyle as Record<string, unknown>;
     const expectedLeft = x - TOOLTIP_WIDTH - TOOLTIP_OFFSET_X; // 765 - 220 - 12 = 533
     expect(style.left).toBe(`${expectedLeft}px`);
+  });
+
+  it("uses measured tooltip dimensions when positioning after render", () => {
+    const { result } = renderHook(() => useTooltipPosition(LARGE_CANVAS));
+
+    act(() => {
+      result.current.tooltipRef.current = {
+        getBoundingClientRect: vi.fn(() => ({
+          width: 120,
+          height: 40,
+        })),
+      } as unknown as HTMLDivElement;
+      result.current.setTooltip(makeVisibleTooltip(950, 790));
+    });
+
+    const style = result.current.tooltipStyle as Record<string, unknown>;
+    expect(style.left).toBe(`${950 - 120 - TOOLTIP_OFFSET_X}px`);
+    expect(style.top).toBe(`${790 - 40 - TOOLTIP_OFFSET_Y}px`);
+  });
+
+  it("keeps fallback dimensions when the measured tooltip rect is empty", () => {
+    const { result } = renderHook(() => useTooltipPosition(LARGE_CANVAS));
+
+    act(() => {
+      result.current.tooltipRef.current = {
+        getBoundingClientRect: vi.fn(() => ({
+          width: 0,
+          height: 0,
+        })),
+      } as unknown as HTMLDivElement;
+      result.current.setTooltip(makeVisibleTooltip(950, 790));
+    });
+
+    const style = result.current.tooltipStyle as Record<string, unknown>;
+    expect(style.left).toBe(`${950 - TOOLTIP_WIDTH - TOOLTIP_OFFSET_X}px`);
+    expect(style.top).toBe(`${790 - TOOLTIP_HEIGHT - TOOLTIP_OFFSET_Y}px`);
   });
 });

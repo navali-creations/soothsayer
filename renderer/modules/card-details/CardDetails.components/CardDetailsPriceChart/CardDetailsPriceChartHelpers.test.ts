@@ -91,7 +91,7 @@ describe("mapHistoryToChartData", () => {
     });
   });
 
-  it("transforms multiple price history points preserving order", () => {
+  it("transforms multiple price history points in chronological order", () => {
     const history: CardPriceHistoryPointDTO[] = [
       { timestamp: "2026-03-01T00:00:00Z", rate: 1.0, volume: 50 },
       { timestamp: "2026-03-02T00:00:00Z", rate: 1.2, volume: 80 },
@@ -116,6 +116,22 @@ describe("mapHistoryToChartData", () => {
     expect(result[2].dateLabel).toBe("Mar 3");
     expect(result[2].rate).toBe(0.9);
     expect(result[2].volume).toBe(30);
+  });
+
+  it("sorts newest-first price history into chronological order", () => {
+    const history: CardPriceHistoryPointDTO[] = [
+      { timestamp: "2026-03-03T00:00:00Z", rate: 0.9, volume: 30 },
+      { timestamp: "2026-03-01T00:00:00Z", rate: 1.0, volume: 50 },
+      { timestamp: "2026-03-02T00:00:00Z", rate: 1.2, volume: 80 },
+    ];
+
+    const result = mapHistoryToChartData(history);
+
+    expect(result.map((point) => point.dateLabel)).toEqual([
+      "Mar 1",
+      "Mar 2",
+      "Mar 3",
+    ]);
   });
 
   it("correctly converts timestamps to unix milliseconds", () => {

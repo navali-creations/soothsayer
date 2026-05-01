@@ -41,6 +41,7 @@ import { createCardsSlice } from "~/renderer/modules/cards/Cards.slice/Cards.sli
 import { createChangelogSlice } from "~/renderer/modules/changelog/Changelog.slice/Changelog.slice";
 import { createSessionSlice } from "~/renderer/modules/current-session/CurrentSession.slice/CurrentSession.slice";
 import { createGameInfoSlice } from "~/renderer/modules/game-info/GameInfo.slice/GameInfo.slice";
+import { createLeaguesSlice } from "~/renderer/modules/leagues/Leagues.slice/Leagues.slice";
 import { createOnboardingSlice } from "~/renderer/modules/onboarding/Onboarding.slice/Onboarding.slice";
 import { createOverlaySlice } from "~/renderer/modules/overlay/Overlay.slice/Overlay.slice";
 import { createPoeNinjaSlice } from "~/renderer/modules/poe-ninja/PoeNinja.slice/PoeNinja.slice";
@@ -127,6 +128,7 @@ export function createTestStore(overrides?: StoreOverrides) {
         const cardDetailsSlice = createCardDetailsSlice(...a);
         const appMenuSlice = createAppMenuSlice(...a);
         const gameInfoSlice = createGameInfoSlice(...a);
+        const leaguesSlice = createLeaguesSlice(...a);
         const overlaySlice = createOverlaySlice(...a);
         const changelogSlice = createChangelogSlice(...a);
         const cardsSlice = createCardsSlice(...a);
@@ -150,6 +152,7 @@ export function createTestStore(overrides?: StoreOverrides) {
           ...appMenuSlice,
           ...changelogSlice,
           ...gameInfoSlice,
+          ...leaguesSlice,
           ...overlaySlice,
           ...cardsSlice,
           ...poeNinjaSlice,

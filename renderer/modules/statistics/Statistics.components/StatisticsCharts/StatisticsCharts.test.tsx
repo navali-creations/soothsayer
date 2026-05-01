@@ -36,6 +36,7 @@ vi.mock("~/renderer/components/CombinedChartCanvas", () => ({
     <div
       data-testid="canvas-chart"
       data-stat-scope={props.statScope}
+      data-has-marker={props.leagueStartMarker ? "yes" : "no"}
       onClick={() => props.onBrushChange?.({ startIndex: 3, endIndex: 7 })}
     />
   ),
@@ -77,6 +78,20 @@ function setupStore(
   const setBrushRange = vi.fn();
 
   mockUseBoundStore.mockReturnValue({
+    settings: {
+      getSelectedGame: vi.fn(() => "poe1"),
+      getActiveGameViewSelectedLeague: vi.fn(() => "Mirage"),
+    },
+    leagues: {
+      getLeaguesForGame: vi.fn(() => [
+        {
+          id: "Mirage",
+          name: "Mirage",
+          startAt: "2024-04-17T00:00:00Z",
+          endAt: null,
+        },
+      ]),
+    },
     statistics: {
       statScope: overrides.statScope ?? "all-time",
       selectedLeague: overrides.selectedLeague ?? "",
@@ -200,6 +215,28 @@ describe("StatisticsCharts", () => {
 
       const chart = screen.getByTestId("canvas-chart");
       expect(chart).toHaveAttribute("data-stat-scope", "league");
+    });
+
+    it("passes league-start marker only in all-time scope", () => {
+      setupStore({ statScope: "all-time", chartRawData: mockRawChartData });
+      renderWithProviders(<StatisticsCharts />);
+      expect(screen.getByTestId("canvas-chart")).toHaveAttribute(
+        "data-has-marker",
+        "yes",
+      );
+    });
+
+    it("does not pass league-start marker in league scope", () => {
+      setupStore({
+        statScope: "league",
+        selectedLeague: "Mirage",
+        chartRawData: mockRawChartData,
+      });
+      renderWithProviders(<StatisticsCharts />);
+      expect(screen.getByTestId("canvas-chart")).toHaveAttribute(
+        "data-has-marker",
+        "no",
+      );
     });
   });
 

@@ -370,10 +370,10 @@ test.describe("Rarity Insights — Interactions", () => {
       // reads cached filter_card_rarities from the DB — no disk access needed.
 
       const selected = await selectFilterInDropdown(page, FILTER_1_NAME);
-      if (!selected) {
-        test.skip(true, "Filter dropdown did not open or filter not found");
-        return;
-      }
+      expect(
+        selected,
+        "Filter dropdown should open and contain the seeded filter",
+      ).toBe(true);
       await closeFiltersDropdown(page);
 
       // Wait for the comparison slice to finish parsing the selected filter.
@@ -400,11 +400,9 @@ test.describe("Rarity Insights — Interactions", () => {
           .toBe(true);
       } catch {
         await safeCleanup();
-        test.skip(
-          true,
+        throw new Error(
           "Filter never finished parsing (getAllSelectedParsed timed out)",
         );
-        return;
       }
 
       // "Show differences only" should become enabled now that a filter with
@@ -417,11 +415,9 @@ test.describe("Rarity Insights — Interactions", () => {
         await expect(diffCheckbox).toBeEnabled({ timeout: 10_000 });
       } catch {
         await safeCleanup();
-        test.skip(
-          true,
+        throw new Error(
           "Diff checkbox never became enabled after filter selection",
         );
-        return;
       }
 
       // Wait for the pagination footer to be present and stable before
@@ -443,13 +439,10 @@ test.describe("Rarity Insights — Interactions", () => {
           .toBeGreaterThan(0);
         beforeCount = await getTotalResultCount(page);
       } catch {
-        // Pagination never appeared — bail out rather than assert on stale data
         await safeCleanup();
-        test.skip(
-          true,
+        throw new Error(
           "Pagination footer never appeared with a non-zero count",
         );
-        return;
       }
 
       // ── Diagnostic: dump diff state before toggling ───────────────────
@@ -553,12 +546,11 @@ test.describe("Rarity Insights — Interactions", () => {
       if (dc !== undefined && tc !== undefined && dc >= tc - 5) {
         console.error(
           `[E2E DIAG] All ${dc}/${tc} cards are diffs — ` +
-            `seeded data is likely corrupted. Skipping assertion. ` +
+            `seeded data is likely corrupted. ` +
             `Sample diffs: ${JSON.stringify((diagBefore as any).sampleDiffs)}`,
         );
         await safeCleanup();
-        test.skip(true, `Seeded data corrupted: ${dc}/${tc} cards are diffs`);
-        return;
+        throw new Error(`Seeded data corrupted: ${dc}/${tc} cards are diffs`);
       }
 
       // Enable "Show differences only"

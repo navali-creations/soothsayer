@@ -450,6 +450,21 @@ describe("Cards.slice", () => {
       expect(names).not.toContain("Disabled Card");
     });
 
+    it("shows disabled cards when includeDisabledCards is true", () => {
+      store.setState((s) => {
+        s.cards.allCards = [
+          makeCard({ id: "1", name: "Enabled Card", isDisabled: false }),
+          makeCard({ id: "2", name: "Disabled Card", isDisabled: true }),
+        ];
+      });
+      store.getState().cards.setIncludeDisabledCards(true);
+
+      const filtered = store.getState().cards.getFilteredAndSortedCards();
+      const names = filtered.map((c) => c.name);
+      expect(names).toContain("Enabled Card");
+      expect(names).toContain("Disabled Card");
+    });
+
     it("hides out-of-pool cards by default", () => {
       // Replace allCards with a mix of inPool and not-inPool
       store.setState((s) => {

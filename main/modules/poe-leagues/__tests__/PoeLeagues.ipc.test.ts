@@ -20,6 +20,7 @@ const {
   mockSettingsSet,
   mockRepoIsCacheStale,
   mockRepoGetActiveLeaguesByGame,
+  mockRepoGetLeaguesByGame,
   mockRepoUpsertLeagues,
   mockRepoDeactivateStaleLeagues,
   mockRepoUpsertCacheMetadata,
@@ -35,6 +36,7 @@ const {
   mockSettingsSet: vi.fn(),
   mockRepoIsCacheStale: vi.fn(),
   mockRepoGetActiveLeaguesByGame: vi.fn(),
+  mockRepoGetLeaguesByGame: vi.fn(),
   mockRepoUpsertLeagues: vi.fn(),
   mockRepoDeactivateStaleLeagues: vi.fn(),
   mockRepoUpsertCacheMetadata: vi.fn(),
@@ -77,6 +79,7 @@ vi.mock("../PoeLeagues.repository", () => ({
   PoeLeaguesRepository: class MockPoeLeaguesRepository {
     isCacheStale = mockRepoIsCacheStale;
     getActiveLeaguesByGame = mockRepoGetActiveLeaguesByGame;
+    getLeaguesByGame = mockRepoGetLeaguesByGame;
     upsertLeagues = mockRepoUpsertLeagues;
     deactivateStaleLeagues = mockRepoDeactivateStaleLeagues;
     upsertCacheMetadata = mockRepoUpsertCacheMetadata;
@@ -122,6 +125,7 @@ describe("PoeLeaguesService — IPC handlers", () => {
     mockSettingsGet.mockResolvedValue("poe1");
     mockRepoIsCacheStale.mockResolvedValue(true);
     mockRepoGetActiveLeaguesByGame.mockResolvedValue([]);
+    mockRepoGetLeaguesByGame.mockResolvedValue([]);
     mockRepoUpsertLeagues.mockResolvedValue(undefined);
     mockRepoDeactivateStaleLeagues.mockResolvedValue(0);
     mockRepoUpsertCacheMetadata.mockResolvedValue(undefined);
@@ -143,12 +147,13 @@ describe("PoeLeaguesService — IPC handlers", () => {
       ).map(([ch]: [string]) => ch);
 
       expect(registeredChannels).toContain(PoeLeaguesChannel.FetchLeagues);
+      expect(registeredChannels).toContain(PoeLeaguesChannel.GetAllLeagues);
       expect(registeredChannels).toContain(PoeLeaguesChannel.GetSelectedLeague);
       expect(registeredChannels).toContain(PoeLeaguesChannel.SelectLeague);
     });
 
-    it("should register exactly 3 IPC handlers", () => {
-      expect(mockIpcHandle).toHaveBeenCalledTimes(3);
+    it("should register exactly 4 IPC handlers", () => {
+      expect(mockIpcHandle).toHaveBeenCalledTimes(4);
     });
   });
 
@@ -239,6 +244,76 @@ describe("PoeLeaguesService — IPC handlers", () => {
       const result = await handler({}, 42);
 
       expect(result).toEqual(errorPayload);
+    });
+  });
+
+  // ─── GetAllLeagues handler ────────────────────────────────────────────────
+
+  describe("GetAllLeagues handler", () => {
+    it("should validate game type and return all cached leagues", async () => {
+      mockRepoGetLeaguesByGame.mockResolvedValue([
+        {
+          leagueId: "Keepers",
+          name: "Keepers",
+          startAt: "2025-10-31T19:00:00+00:00",
+          endAt: null,
+          isActive: false,
+        },
+        {
+          leagueId: "Mirage",
+          name: "Mirage",
+          startAt: "2026-03-06T19:00:00+00:00",
+          endAt: null,
+          isActive: true,
+        },
+      ]);
+
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        PoeLeaguesChannel.GetAllLeagues,
+      );
+      const result = await handler({}, "poe1");
+
+      expect(mockAssertGameType).toHaveBeenCalledWith(
+        "poe1",
+        PoeLeaguesChannel.GetAllLeagues,
+      );
+      expect(result).toEqual([
+        {
+          id: "Keepers",
+          name: "Keepers",
+          startAt: "2025-10-31T19:00:00+00:00",
+          endAt: null,
+          isActive: false,
+        },
+        {
+          id: "Mirage",
+          name: "Mirage",
+          startAt: "2026-03-06T19:00:00+00:00",
+          endAt: null,
+          isActive: true,
+        },
+      ]);
+    });
+
+    it("should return validation error when game validation fails", async () => {
+      const validationError = new Error("Invalid game");
+      validationError.name = "IpcValidationError";
+      mockAssertGameType.mockImplementationOnce(() => {
+        throw validationError;
+      });
+
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        PoeLeaguesChannel.GetAllLeagues,
+      );
+      await handler({}, "bad-game");
+
+      expect(mockHandleValidationError).toHaveBeenCalledWith(
+        validationError,
+        PoeLeaguesChannel.GetAllLeagues,
+      );
+      expect(mockRepoGetLeaguesByGame).not.toHaveBeenCalled();
     });
   });
 

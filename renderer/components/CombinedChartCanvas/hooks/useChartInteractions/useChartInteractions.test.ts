@@ -42,7 +42,6 @@ function makeDataPoint(index: number): ChartDataPoint {
     sessionDate: `2024-01-${String(index + 1).padStart(2, "0")}`,
     league: "TestLeague",
     profitDivine: index * 1.5,
-    profitChaos: index * 100,
     rawDecks: index > 0 ? index * 10 : null,
     chaosPerDivine: 200,
   };

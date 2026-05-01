@@ -40,10 +40,12 @@ export function formatVolume(value: number): string {
 export function mapHistoryToChartData(
   history: CardPriceHistoryPointDTO[],
 ): ChartDataPoint[] {
-  return history.map((point) => ({
-    time: new Date(point.timestamp).getTime(),
-    dateLabel: formatDate(point.timestamp),
-    rate: point.rate,
-    volume: point.volume,
-  }));
+  return history
+    .map((point) => ({
+      time: new Date(point.timestamp).getTime(),
+      dateLabel: formatDate(point.timestamp),
+      rate: point.rate,
+      volume: point.volume,
+    }))
+    .sort((a, b) => a.time - b.time);
 }

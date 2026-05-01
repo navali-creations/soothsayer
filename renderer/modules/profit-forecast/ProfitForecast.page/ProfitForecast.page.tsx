@@ -225,7 +225,7 @@ const ProfitForecastPage = () => {
               </div>
 
               {/* Right column — alert + chart OR table, each gets full height */}
-              <div className="flex-1 min-h-0 min-w-0 flex flex-col gap-2">
+              <div className="flex-1 min-h-0 min-w-0 flex flex-col gap-2 overflow-y-auto">
                 {/* Large batch cost-cliff hint — only for 100k / 1M */}
                 {(selectedBatch === 100000 || selectedBatch === 1000000) &&
                   !customBaseRate && (
@@ -246,13 +246,13 @@ const ProfitForecastPage = () => {
 
                 {/* Tab content — full remaining height */}
                 {forecastView === "chart" && isSettled && (
-                  <div className="card bg-base-200 shadow-xl flex-1 min-h-0 relative">
+                  <div className="card bg-base-200 shadow-xl flex-1 min-h-72 min-w-0 flex flex-col relative">
                     {isComputing && (
                       <div className="absolute inset-0 bg-base-200/60 backdrop-blur-sm flex items-center justify-center z-20 rounded-lg">
                         <span className="loading loading-spinner loading-md text-primary" />
                       </div>
                     )}
-                    <div className="card-body p-3 h-full">
+                    <div className="card-body flex-1 min-h-0 p-3">
                       <PFBreakevenChart />
                     </div>
                   </div>

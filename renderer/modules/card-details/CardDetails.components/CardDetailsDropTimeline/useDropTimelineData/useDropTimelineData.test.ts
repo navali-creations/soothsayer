@@ -213,6 +213,33 @@ describe("useDropTimelineData — gap markers", () => {
     const { result } = renderTimelineHook({ dropTimeline: sameLeagueTimeline });
     expect(result.current.gapIndices).toEqual([]);
   });
+
+  it("inserts gap markers for large inactivity gaps within the same league", () => {
+    const sameLeagueWithLargeGap = [
+      {
+        sessionStartedAt: "2024-01-01T10:00:00Z",
+        count: 2,
+        cumulativeCount: 2,
+        totalDecksOpened: 50,
+        league: "Affliction",
+        sessionId: "s1",
+      },
+      {
+        sessionStartedAt: "2024-01-20T10:00:00Z",
+        count: 1,
+        cumulativeCount: 3,
+        totalDecksOpened: 25,
+        league: "Affliction",
+        sessionId: "s2",
+      },
+    ];
+    const { result } = renderTimelineHook({
+      dropTimeline: sameLeagueWithLargeGap,
+    });
+    expect(result.current.gapIndices.length).toBe(1);
+    const gapIndex = result.current.gapIndices[0];
+    expect(result.current.chartData[gapIndex].isGap).toBe(true);
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -220,9 +247,10 @@ describe("useDropTimelineData — gap markers", () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("useDropTimelineData — boundary sentinels", () => {
-  it("adds boundary sentinel at timeline start", () => {
+  it("adds boundary sentinel at first session start when available", () => {
     const { result } = renderTimelineHook();
-    // firstSessionStartedAt is "2024-01-10" which is before the first data point "2024-01-15"
+    // All-leagues timeline starts at the user's first recorded session,
+    // not league metadata start dates.
     const firstPoint = result.current.chartData[0];
     expect(firstPoint.isBoundary).toBe(true);
     expect(firstPoint.time).toBe(new Date("2024-01-10T00:00:00Z").getTime());
@@ -238,6 +266,51 @@ describe("useDropTimelineData — boundary sentinels", () => {
     expect(lastPoint.isBoundary).toBe(true);
     expect(lastPoint.time).toBe(new Date("2024-05-01T00:00:00Z").getTime());
     expect(lastPoint.count).toBe(0);
+  });
+
+  it("uses selected league inferred end (next league start minus 3 days) for trailing boundary in filtered mode", () => {
+    const keepersTimeline = [
+      {
+        sessionStartedAt: "2025-11-10T10:00:00Z",
+        count: 1,
+        cumulativeCount: 1,
+        totalDecksOpened: 30,
+        league: "Keepers",
+        sessionId: "k1",
+      },
+    ];
+
+    const analyticsWithWrongGlobalEnd = {
+      totalLifetimeDrops: 1,
+      firstSessionStartedAt: "2025-11-01T00:00:00Z",
+      // Simulates incorrect/global end from backend.
+      timelineEndDate: "2026-04-26T00:00:00Z",
+      leagueDateRanges: [
+        {
+          name: "Keepers",
+          startDate: "2025-10-31T19:00:00+00:00",
+          endDate: null,
+        },
+        {
+          name: "Mirage",
+          startDate: "2026-03-06T19:00:00+00:00",
+          endDate: null,
+        },
+      ],
+    };
+
+    const { result } = renderTimelineHook({
+      dropTimeline: keepersTimeline,
+      personalAnalytics: analyticsWithWrongGlobalEnd,
+      selectedLeague: "Keepers",
+    });
+
+    const lastPoint =
+      result.current.chartData[result.current.chartData.length - 1];
+    expect(lastPoint.isBoundary).toBe(true);
+    expect(lastPoint.time).toBe(
+      new Date("2026-03-03T19:00:00+00:00").getTime(),
+    );
   });
 
   it("marks boundary points with isBoundary=true", () => {
@@ -264,7 +337,7 @@ describe("useDropTimelineData — boundary sentinels", () => {
     expect(lastPoint.isBoundary).toBeFalsy();
   });
 
-  it("does not add leading boundary sentinel when firstSessionStartedAt is null", () => {
+  it("uses league start for the leading boundary when firstSessionStartedAt is null", () => {
     const analyticsNoStart = {
       ...mockAnalytics,
       firstSessionStartedAt: null,
@@ -272,9 +345,9 @@ describe("useDropTimelineData — boundary sentinels", () => {
     const { result } = renderTimelineHook({
       personalAnalytics: analyticsNoStart,
     });
-    // The first point should NOT be a boundary sentinel
     const firstPoint = result.current.chartData[0];
-    expect(firstPoint.isBoundary).toBeFalsy();
+    expect(firstPoint.isBoundary).toBe(true);
+    expect(firstPoint.time).toBe(new Date("2023-12-08T00:00:00Z").getTime());
   });
 });
 
@@ -302,24 +375,20 @@ describe("useDropTimelineData — league markers", () => {
     expect(endMarker!.time).toBe(new Date("2024-03-25").getTime());
   });
 
-  it("uses approximate end for leagues without end date", () => {
-    // Settlers has startDate but no endDate
-    // The hook adds an approximate end if it's in the past (startDate + ~4 months)
+  it("creates only a start marker for leagues without endDate", () => {
     const { result } = renderTimelineHook();
     const settlersMarkers = result.current.leagueMarkers.filter((m) =>
       m.label.includes("Settlers"),
     );
     const startMarker = settlersMarkers.find((m) => m.type === "start");
+    const endMarker = settlersMarkers.find((m) => m.type === "end");
     expect(startMarker).toBeDefined();
     expect(startMarker!.time).toBe(new Date("2024-03-29").getTime());
-    // The approximate end is startDate + DEFAULT_LEAGUE_DURATION_MS (4 * 30 days)
-    // It should only be added if it's in the past, so it may or may not exist
-    // depending on the current date. Just verify it has at least the start marker.
-    expect(settlersMarkers.length).toBeGreaterThanOrEqual(1);
+    expect(endMarker).toBeUndefined();
+    expect(settlersMarkers).toHaveLength(1);
   });
 
-  it("adds approximate end marker when league has no endDate and approxEnd is in the past", () => {
-    // Use a league with startDate far enough in the past that approxEnd < Date.now()
+  it("does not add end marker when league has no endDate (past start)", () => {
     const pastAnalytics = {
       ...mockAnalytics,
       leagueDateRanges: [
@@ -334,16 +403,10 @@ describe("useDropTimelineData — league markers", () => {
     const endMarker = oldLeagueMarkers.find((m) => m.type === "end");
     expect(startMarker).toBeDefined();
     expect(startMarker!.label).toBe("OldLeague Start");
-    expect(endMarker).toBeDefined();
-    expect(endMarker!.label).toBe("~OldLeague End");
-    // approxEnd = startDate + 4*30 days
-    const expectedApproxEnd =
-      new Date("2020-01-01").getTime() + 4 * 30 * 24 * 60 * 60 * 1000;
-    expect(endMarker!.time).toBe(expectedApproxEnd);
+    expect(endMarker).toBeUndefined();
   });
 
-  it("does not add approximate end marker when approxEnd is in the future", () => {
-    // Use a league with startDate in the near future so approxEnd > Date.now()
+  it("does not add end marker when league has no endDate (future start)", () => {
     const futureStart = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000)
       .toISOString()
       .slice(0, 10);
@@ -359,7 +422,6 @@ describe("useDropTimelineData — league markers", () => {
     const futureMarkers = result.current.leagueMarkers.filter((m) =>
       m.label.includes("FutureLeague"),
     );
-    // Should only have the start marker, no approximate end
     expect(futureMarkers.length).toBe(1);
     expect(futureMarkers[0].type).toBe("start");
   });
@@ -522,11 +584,10 @@ describe("useDropTimelineData — selectedLeague brush auto-computation", () => 
     expect(startPoint.time).toBeLessThanOrEqual(firstStandardTime + margin);
 
     // endTime = most recent non-Standard league end (Settlers endDate = 2024-07-20).
-    // The brush picks the last chartData point whose time <= endTime + margin.
-    // That is the Settlers data point at 2024-06-01 (trailing boundary at
-    // 2024-08-01 exceeds the cutoff and is skipped).
-    const lastSettlersDataTime = new Date("2024-06-01T10:00:00Z").getTime();
-    expect(endPoint.time).toBe(lastSettlersDataTime);
+    // With filtered boundary inference, chartData includes a trailing boundary
+    // at that inferred end, and brush should clamp there.
+    const inferredEndBoundaryTime = new Date("2024-07-20T00:00:00Z").getTime();
+    expect(endPoint.time).toBe(inferredEndBoundaryTime);
   });
 
   it("falls back to all Standard data points when no non-Standard leagues exist (selectedLeague = 'Standard')", () => {
@@ -624,6 +685,31 @@ describe("useDropTimelineData — selectedLeague brush auto-computation", () => 
 
     // End point time must fall within afflictionEnd + margin
     expect(endPoint.time).toBeLessThanOrEqual(afflictionEnd + margin);
+  });
+
+  it("uses next league start minus 3 days as end boundary when selected league has no endDate", () => {
+    const analyticsMissingEnd = {
+      ...mixedAnalytics,
+      leagueDateRanges: [
+        { name: "Affliction", startDate: "2023-12-08", endDate: null },
+        { name: "Settlers", startDate: "2024-03-29", endDate: "2024-07-20" },
+      ],
+    };
+
+    const { result } = renderTimelineHook({
+      dropTimeline: mixedLeagueTimeline,
+      personalAnalytics: analyticsMissingEnd,
+      selectedLeague: "Affliction",
+    });
+
+    expect(result.current.brushStartIndex).toBeDefined();
+    expect(result.current.brushEndIndex).toBeDefined();
+
+    const endPoint = result.current.chartData[result.current.brushEndIndex!];
+    const margin = 24 * 60 * 60 * 1000;
+    const inferredEnd = new Date("2024-03-26").getTime();
+
+    expect(endPoint.time).toBeLessThanOrEqual(inferredEnd + margin);
   });
 
   it("falls back to data point indices when no matching leagueDateRange exists for non-Standard league", () => {
@@ -969,7 +1055,7 @@ describe("useDropTimelineData — sentinel insertion", () => {
     const { result } = renderTimelineHook();
     const first = result.current.chartData[0];
     const last = result.current.chartData[result.current.chartData.length - 1];
-    // Leading sentinel from firstSessionStartedAt="2024-01-10T00:00:00Z"
+    // Leading sentinel comes from firstSessionStartedAt.
     expect(first.isBoundary).toBe(true);
     expect(first.time).toBe(new Date("2024-01-10T00:00:00Z").getTime());
     // Trailing sentinel from timelineEndDate="2024-05-01T00:00:00Z"
@@ -1017,9 +1103,7 @@ describe("useDropTimelineData — league markers edge cases", () => {
     expect(startMarker!.time).toBe(new Date("2024-06-01").getTime());
   });
 
-  it("creates approximate end marker for past league without endDate", () => {
-    // A league starting far in the past with no endDate triggers the
-    // `else if (lr.startDate)` branch (line 261) to add ~End marker
+  it("does not create end marker for past league without endDate", () => {
     const pastAnalytics = {
       ...mockAnalytics,
       leagueDateRanges: [
@@ -1036,15 +1120,10 @@ describe("useDropTimelineData — league markers edge cases", () => {
     const endMarker = ancientMarkers.find((m) => m.type === "end");
     expect(startMarker).toBeDefined();
     expect(startMarker!.label).toBe("AncientLeague Start");
-    expect(endMarker).toBeDefined();
-    expect(endMarker!.label).toBe("~AncientLeague End");
-    // approxEnd = startDate + DEFAULT_LEAGUE_DURATION_MS (4 * 30 days)
-    const expectedApproxEnd =
-      new Date("2019-06-01").getTime() + 4 * 30 * 24 * 60 * 60 * 1000;
-    expect(endMarker!.time).toBe(expectedApproxEnd);
+    expect(endMarker).toBeUndefined();
   });
 
-  it("does not create approximate end marker when approxEnd is in the future", () => {
+  it("does not create end marker for future league without endDate", () => {
     const futureStart = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000)
       .toISOString()
       .slice(0, 10);
@@ -1060,7 +1139,6 @@ describe("useDropTimelineData — league markers edge cases", () => {
     const upcomingMarkers = result.current.leagueMarkers.filter((m) =>
       m.label.includes("UpcomingLeague"),
     );
-    // Only start marker, no approximate end
     expect(upcomingMarkers.length).toBe(1);
     expect(upcomingMarkers[0].type).toBe("start");
     expect(upcomingMarkers[0].label).toBe("UpcomingLeague Start");

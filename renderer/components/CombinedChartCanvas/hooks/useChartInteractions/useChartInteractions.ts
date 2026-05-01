@@ -2,14 +2,19 @@ import type React from "react";
 import { type RefObject, useCallback, useEffect, useRef } from "react";
 
 import {
+  brushDeltaIndexFromPixels,
+  chartDeltaIndexFromPixels,
+  hitTestIndexBrush,
+  indexFromBrushPixel,
   type LinearMapper,
   nearestPointHitTest,
+  panIndexBrush,
+  resizeIndexBrush,
 } from "~/renderer/lib/canvas-core";
 
 import type { ChartLayout } from "../../canvas-chart-utils/canvas-chart-utils";
 import {
   BRUSH_TRAVELLER_WIDTH,
-  clamp,
   MIN_ZOOM_WINDOW,
 } from "../../canvas-chart-utils/canvas-chart-utils";
 import type { BrushRange, ChartDataPoint } from "../../chart-types/chart-types";
@@ -92,16 +97,14 @@ export function useChartInteractions({
 
       const rangeStart = brushRangeRef.current.startIndex;
       const rangeEnd = brushRangeRef.current.endIndex;
-      const bxStart = mapBrushX(rangeStart);
-      const bxEnd = mapBrushX(rangeEnd);
-
-      const tHit = BRUSH_TRAVELLER_WIDTH + 4;
-      if (Math.abs(cx - bxStart) <= tHit) return "left-traveller";
-      if (Math.abs(cx - bxEnd) <= tHit) return "right-traveller";
-
-      if (cx >= bxStart && cx <= bxEnd) return "brush-body";
-
-      return null;
+      return hitTestIndexBrush({
+        x: cx,
+        y: cy,
+        layout,
+        range: { startIndex: rangeStart, endIndex: rangeEnd },
+        mapBrushX,
+        travellerWidth: BRUSH_TRAVELLER_WIDTH,
+      });
     },
     [showBrush, layout, mapBrushX, brushRangeRef],
   );
@@ -154,29 +157,27 @@ export function useChartInteractions({
       const total = chartDataRef.current.length;
 
       if (drag.type === "brush-left") {
-        const idx = Math.round(clamp(mapBrushX.inverse(cx), 0, total - 1));
-        const maxIdx = Math.max(
-          0,
-          brushRangeRef.current.endIndex - MIN_ZOOM_WINDOW,
-        );
-        const newStart = clamp(idx, 0, maxIdx);
         onBrushChangeRef.current({
-          startIndex: newStart,
-          endIndex: brushRangeRef.current.endIndex,
+          ...resizeIndexBrush({
+            range: brushRangeRef.current,
+            pointerIndex: indexFromBrushPixel(mapBrushX, cx, total),
+            edge: "start",
+            itemCount: total,
+            minSpan: MIN_ZOOM_WINDOW,
+          }),
         });
         return;
       }
 
       if (drag.type === "brush-right") {
-        const idx = Math.round(clamp(mapBrushX.inverse(cx), 0, total - 1));
-        const minIdx = Math.min(
-          total - 1,
-          brushRangeRef.current.startIndex + MIN_ZOOM_WINDOW,
-        );
-        const newEnd = clamp(idx, minIdx, total - 1);
         onBrushChangeRef.current({
-          startIndex: brushRangeRef.current.startIndex,
-          endIndex: newEnd,
+          ...resizeIndexBrush({
+            range: brushRangeRef.current,
+            pointerIndex: indexFromBrushPixel(mapBrushX, cx, total),
+            edge: "end",
+            itemCount: total,
+            minSpan: MIN_ZOOM_WINDOW,
+          }),
         });
         return;
       }
@@ -184,36 +185,32 @@ export function useChartInteractions({
       if (drag.type === "brush-pan" || drag.type === "chart-pan") {
         const dx = cx - drag.startMouseX;
 
-        let dIdx: number;
+        let deltaIndex: number;
         if (drag.type === "chart-pan") {
           const visibleWindow =
             drag.startRange.endIndex - drag.startRange.startIndex;
           const chartPixelWidth = layout.chartRight - layout.chartLeft;
-          const idxPerPixel = visibleWindow / chartPixelWidth;
-          dIdx = Math.round(-dx * idxPerPixel);
+          deltaIndex = chartDeltaIndexFromPixels({
+            deltaX: dx,
+            visibleSpan: visibleWindow,
+            chartPixelWidth,
+          });
         } else {
           const brushPixelWidth = layout.brushRight - layout.brushLeft;
-          const idxPerPixel = (total - 1) / brushPixelWidth;
-          dIdx = Math.round(dx * idxPerPixel);
+          deltaIndex = brushDeltaIndexFromPixels({
+            deltaX: dx,
+            itemCount: total,
+            brushPixelWidth,
+          });
         }
 
-        const origWindow =
-          drag.startRange.endIndex - drag.startRange.startIndex;
-        let newStart = drag.startRange.startIndex + dIdx;
-        let newEnd = drag.startRange.endIndex + dIdx;
-
-        if (newStart < 0) {
-          newStart = 0;
-          newEnd = origWindow;
-        }
-        if (newEnd > total - 1) {
-          newEnd = total - 1;
-          newStart = newEnd - origWindow;
-        }
-        onBrushChangeRef.current({
-          startIndex: newStart,
-          endIndex: newEnd,
-        });
+        onBrushChangeRef.current(
+          panIndexBrush({
+            range: drag.startRange,
+            deltaIndex,
+            itemCount: total,
+          }),
+        );
 
         if (hoverIndexRef.current !== null) {
           hoverIndexRef.current = null;

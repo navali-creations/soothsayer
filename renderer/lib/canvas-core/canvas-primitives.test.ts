@@ -4,6 +4,7 @@ import {
   clamp,
   createLinearMapper,
   DPR,
+  drawDonutIndicator,
   drawMonotoneCurve,
   evaluateMonotoneCurveY,
   evenTicks,
@@ -26,6 +27,8 @@ function mockCtx(): CanvasRenderingContext2D {
     beginPath: vi.fn(),
     fill: vi.fn(),
     stroke: vi.fn(),
+    arc: vi.fn(),
+    setLineDash: vi.fn(),
     setTransform: vi.fn(),
     clearRect: vi.fn(),
     save: vi.fn(),
@@ -166,6 +169,25 @@ describe("rgbaStr", () => {
 
   it("handles full opacity", () => {
     expect(rgbaStr(0, 0, 0, 1)).toBe("rgba(0, 0, 0, 1)");
+  });
+});
+
+describe("drawDonutIndicator", () => {
+  it("draws a filled circle with a stroked ring", () => {
+    const ctx = mockCtx();
+
+    drawDonutIndicator(ctx, 10, 20, {
+      fillStyle: "#00ffff",
+      strokeStyle: "rgba(255, 255, 255, 0.9)",
+    });
+
+    expect(ctx.save).toHaveBeenCalled();
+    expect(ctx.setLineDash).toHaveBeenCalledWith([]);
+    expect(ctx.beginPath).toHaveBeenCalled();
+    expect(ctx.arc).toHaveBeenCalledWith(10, 20, 4, 0, Math.PI * 2);
+    expect(ctx.fill).toHaveBeenCalled();
+    expect(ctx.stroke).toHaveBeenCalled();
+    expect(ctx.restore).toHaveBeenCalled();
   });
 });
 

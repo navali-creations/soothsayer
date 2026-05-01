@@ -309,6 +309,22 @@ describe("toggleGame", () => {
       "poe2",
     ]);
   });
+
+  it("adds the first game when setupState is not hydrated yet", async () => {
+    const updatedState = makeSetupState({ selectedGames: ["poe1"] });
+    electron.appSetup.getSetupState.mockResolvedValue(updatedState);
+    electron.appSetup.validateCurrentStep.mockResolvedValue({
+      isValid: true,
+      errors: [],
+    });
+
+    await store.getState().setup.toggleGame("poe1");
+
+    expect(electron.settings.set).toHaveBeenCalledWith("installedGames", [
+      "poe1",
+    ]);
+    expect(electron.settings.set).toHaveBeenCalledWith("selectedGame", "poe1");
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -433,6 +449,25 @@ describe("selectLeague", () => {
     expect(electron.appSetup.validateCurrentStep).toHaveBeenCalledTimes(1);
     expect(store.getState().setup.setupState).toEqual(updatedState);
   });
+
+  it("tracks league selection with empty selected games when setupState is missing", async () => {
+    const updatedState = makeSetupState({ selectedGames: [] });
+    electron.appSetup.getSetupState.mockResolvedValue(updatedState);
+    electron.appSetup.validateCurrentStep.mockResolvedValue({
+      isValid: true,
+      errors: [],
+    });
+
+    await store.getState().setup.selectLeague("poe1", "Settlers");
+
+    expect(trackEvent).toHaveBeenCalledWith(
+      "setup-league-selected",
+      expect.objectContaining({
+        game: "poe1",
+        league: "Settlers",
+      }),
+    );
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -538,6 +573,25 @@ describe("selectClientPath", () => {
     expect(electron.appSetup.getSetupState).toHaveBeenCalledTimes(1);
     expect(electron.appSetup.validateCurrentStep).toHaveBeenCalledTimes(1);
   });
+
+  it("tracks client path selection with empty selected games when setupState is missing", async () => {
+    const updatedState = makeSetupState({ selectedGames: [] });
+    electron.appSetup.getSetupState.mockResolvedValue(updatedState);
+    electron.appSetup.validateCurrentStep.mockResolvedValue({
+      isValid: true,
+      errors: [],
+    });
+
+    await store.getState().setup.selectClientPath("poe1", "/path");
+
+    expect(trackEvent).toHaveBeenCalledWith(
+      "setup-client-path-selected",
+      expect.objectContaining({
+        game: "poe1",
+        has_path: true,
+      }),
+    );
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -617,6 +671,21 @@ describe("advanceStep", () => {
     await store.getState().setup.advanceStep();
 
     expect(store.getState().setup.validation).toBeNull();
+  });
+
+  it("advances with default step and selected games when setupState is missing", async () => {
+    const nextState = makeSetupState({ currentStep: 1, selectedGames: [] });
+    electron.appSetup.advanceStep.mockResolvedValue({ success: true });
+    electron.appSetup.getSetupState.mockResolvedValue(nextState);
+
+    const result = await store.getState().setup.advanceStep();
+
+    expect(result).toBe(true);
+    expect(store.getState().setup.setupState).toEqual(nextState);
+    expect(trackEvent).not.toHaveBeenCalledWith(
+      "setup-step-completed-game",
+      expect.anything(),
+    );
   });
 
   // ── Step completion tracking ─────────────────────────────────────────

@@ -133,6 +133,7 @@ vi.mock("~/renderer/components/DivinationCard", () => ({
 
 // ── Imports (after mocks) ───────────────────────────────────────────────────
 
+import { useCanvasResize } from "~/renderer/lib/canvas-core";
 import { formatCurrency } from "~/renderer/utils";
 
 vi.mocked(useBoundStore).mockReturnValue({
@@ -147,7 +148,12 @@ vi.mocked(useBoundStore).mockReturnValue({
 
 import type { AggregatedTimeline } from "~/types/data-stores";
 
+import {
+  drawHoverHighlight,
+  drawTimelineGrid,
+} from "../canvas-utils/canvas-utils";
 import { timelineBuffer } from "../timeline-buffer/timeline-buffer";
+import { useTimelineInteractions } from "../useTimelineInteractions/useTimelineInteractions";
 import SessionProfitTimeline from "./SessionProfitTimeline";
 
 // Grab typed references to the mock functions via the mocked module
@@ -333,6 +339,31 @@ describe("SessionProfitTimeline", () => {
         "[style*='height: 300px']",
       ) as HTMLElement | null;
       expect(chartContainer).not.toBeNull();
+    });
+
+    it("formats grid ticks and draws hover highlight when an item is hovered", () => {
+      const canvas = document.createElement("canvas");
+      vi.mocked(useCanvasResize).mockReturnValueOnce({
+        containerRef: vi.fn(),
+        containerElRef: { current: document.createElement("div") },
+        canvasRef: { current: canvas },
+        canvasSize: { width: 800, height: 240 },
+      } as any);
+      vi.mocked(useTimelineInteractions).mockImplementationOnce(
+        ({ hoverIndexRef }: any) => {
+          hoverIndexRef.current = 0;
+        },
+      );
+      vi.mocked(drawTimelineGrid).mockImplementationOnce(
+        (_dc: any, formatYTick: (value: number) => string) => {
+          formatYTick(100);
+        },
+      );
+
+      render(<SessionProfitTimeline chaosToDivineRatio={150} />);
+
+      expect(formatCurrency).toHaveBeenCalledWith(100, 150);
+      expect(drawHoverHighlight).toHaveBeenCalled();
     });
   });
 

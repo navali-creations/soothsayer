@@ -186,6 +186,7 @@ export function createElectronMock() {
     // ── PoE Leagues ────────────────────────────────────────────────────
     poeLeagues: {
       fetchLeagues: vi.fn().mockResolvedValue([]),
+      getAllLeagues: vi.fn().mockResolvedValue([]),
       getSelected: vi.fn().mockResolvedValue(null),
       setSelected: vi.fn().mockResolvedValue(undefined),
     },

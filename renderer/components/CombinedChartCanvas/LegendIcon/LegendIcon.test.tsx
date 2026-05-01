@@ -27,6 +27,56 @@ describe("LegendIcon", () => {
     expect(circles.length).toBe(3);
   });
 
+  it("renders bar icon with rect elements", () => {
+    const { container } = renderWithProviders(
+      <LegendIcon visual="bar" color="#00ff00" />,
+    );
+
+    const svg = container.querySelector("svg");
+    const rects = container.querySelectorAll("rect");
+
+    expect(svg).toBeInTheDocument();
+    expect(rects.length).toBe(3);
+  });
+
+  it("renders line icon with a path element", () => {
+    const { container } = renderWithProviders(
+      <LegendIcon visual="line" color="#00ff00" />,
+    );
+
+    const svg = container.querySelector("svg");
+    const path = container.querySelector("path");
+
+    expect(svg).toBeInTheDocument();
+    expect(path).toBeInTheDocument();
+  });
+
+  it("renders dashed-line icon with a line element", () => {
+    const { container } = renderWithProviders(
+      <LegendIcon visual="dashed-line" color="#00ff00" />,
+    );
+
+    const svg = container.querySelector("svg");
+    const line = container.querySelector("line");
+
+    expect(svg).toBeInTheDocument();
+    expect(line).toBeInTheDocument();
+  });
+
+  it("renders zigzag-gap icon as a rotated wave icon", () => {
+    const { container } = renderWithProviders(
+      <LegendIcon visual="zigzag-gap" color="#00ff00" />,
+    );
+
+    const wrapper = container.querySelector(
+      '[data-testid="legend-zigzag-gap-icon"]',
+    );
+    const svg = wrapper?.querySelector("svg");
+
+    expect(wrapper).toBeInTheDocument();
+    expect(svg).toBeInTheDocument();
+  });
+
   it("applies color to area icon as fill and stroke", () => {
     const color = "#ff6600";
     const { container } = renderWithProviders(
@@ -50,6 +100,39 @@ describe("LegendIcon", () => {
     for (const circle of circles) {
       expect(circle).toHaveAttribute("fill", color);
     }
+  });
+
+  it("applies color to line icon stroke", () => {
+    const color = "#6633cc";
+    const { container } = renderWithProviders(
+      <LegendIcon visual="line" color={color} />,
+    );
+
+    const path = container.querySelector("path");
+    expect(path).toHaveAttribute("stroke", color);
+  });
+
+  it("applies color to dashed-line icon stroke", () => {
+    const color = "#66cc33";
+    const { container } = renderWithProviders(
+      <LegendIcon visual="dashed-line" color={color} />,
+    );
+
+    const line = container.querySelector("line");
+    expect(line).toHaveAttribute("stroke", color);
+  });
+
+  it("applies color and rotation to zigzag-gap icon wrapper", () => {
+    const color = "#22ddaa";
+    const { container } = renderWithProviders(
+      <LegendIcon visual="zigzag-gap" color={color} />,
+    );
+
+    const wrapper = container.querySelector(
+      '[data-testid="legend-zigzag-gap-icon"]',
+    );
+    expect(wrapper).toHaveStyle({ color });
+    expect(wrapper).toHaveStyle({ transform: "rotate(90deg)" });
   });
 
   it("has correct dimensions (width=12, height=12)", () => {

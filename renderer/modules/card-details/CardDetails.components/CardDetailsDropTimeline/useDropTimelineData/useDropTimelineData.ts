@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useCardDetails } from "~/renderer/store";
 
-import { DEFAULT_LEAGUE_DURATION_MS, MIN_GAP_FOR_BREAK_MS } from "../constants";
+import { MIN_GAP_FOR_BREAK_MS } from "../constants";
 import { leagueEndTime, leagueStartTime } from "../helpers";
 import type { ChartDataPoint, LeagueMarker } from "../types";
 
@@ -16,6 +16,10 @@ interface RawTimelinePoint {
   league: string;
   sessionStartedAt: string;
   sessionId: string;
+}
+
+function normalizeLeagueName(value: string | null | undefined): string {
+  return value?.trim().toLowerCase() ?? "";
 }
 
 // ─── Return type ───────────────────────────────────────────────────────────
@@ -33,13 +37,23 @@ export interface DropTimelineData {
   brushStartIndex: number | undefined;
   /** Current brush end index (undefined = show all) */
   brushEndIndex: number | undefined;
+  /** Current brush start timestamp (undefined = show all) */
+  brushStartTime: number | undefined;
+  /** Current brush end timestamp (undefined = show all) */
+  brushEndTime: number | undefined;
   /** Handler for brush change events */
   handleBrushChange: (newState: {
     startIndex?: number;
     endIndex?: number;
+    startTime?: number;
+    endTime?: number;
   }) => void;
   /** Visible slice of chartData based on current brush position */
   visibleData: ChartDataPoint[];
+  /** Visible time-domain start used by the main chart */
+  visibleTimeMin: number;
+  /** Visible time-domain end used by the main chart */
+  visibleTimeMax: number;
   /** Global max cumulative count (across all data) */
   maxCumulative: number;
   /** Global max per-session count (across all data) */
@@ -75,6 +89,43 @@ export function useDropTimelineData(): DropTimelineData {
   const timelineEndMs = personalAnalytics?.timelineEndDate
     ? new Date(personalAnalytics.timelineEndDate).getTime()
     : undefined;
+  const normalizedSelectedLeague = normalizeLeagueName(selectedLeague);
+  const selectedLeagueTimelineEndMs = useMemo(() => {
+    if (normalizedSelectedLeague === "all") return timelineEndMs;
+    if (leagueDateRanges.length === 0) return timelineEndMs;
+
+    if (normalizedSelectedLeague === "standard") {
+      const nonStandardRanges = leagueDateRanges.filter(
+        (range) => normalizeLeagueName(range.name) !== "standard",
+      );
+      if (nonStandardRanges.length > 0) {
+        const sorted = [...nonStandardRanges].sort(
+          (a, b) => leagueStartTime(b) - leagueStartTime(a),
+        );
+        return leagueEndTime(sorted[0], leagueDateRanges);
+      }
+      return timelineEndMs;
+    }
+
+    const selectedRange = leagueDateRanges.find(
+      (range) => normalizeLeagueName(range.name) === normalizedSelectedLeague,
+    );
+    if (selectedRange) {
+      return leagueEndTime(selectedRange, leagueDateRanges);
+    }
+
+    return timelineEndMs;
+  }, [leagueDateRanges, normalizedSelectedLeague, timelineEndMs]);
+  const earliestLeagueStartMs = useMemo(() => {
+    let earliest: number | undefined;
+    for (const range of leagueDateRanges) {
+      if (!range.startDate) continue;
+      const time = new Date(range.startDate).getTime();
+      if (!Number.isFinite(time)) continue;
+      earliest = earliest === undefined ? time : Math.min(earliest, time);
+    }
+    return earliest;
+  }, [leagueDateRanges]);
 
   // ─── Brush controlled indices ──────────────────────────────────────
 
@@ -82,6 +133,12 @@ export function useDropTimelineData(): DropTimelineData {
     undefined,
   );
   const [brushEndIndex, setBrushEndIndex] = useState<number | undefined>(
+    undefined,
+  );
+  const [brushStartTime, setBrushStartTime] = useState<number | undefined>(
+    undefined,
+  );
+  const [brushEndTime, setBrushEndTime] = useState<number | undefined>(
     undefined,
   );
 
@@ -99,10 +156,12 @@ export function useDropTimelineData(): DropTimelineData {
       }
 
       // Resolve the full timeline boundaries:
-      // Start = user's very first session (across all sessions)
-      // End   = most recent league's end date (or approximate)
-      const boundaryStart = timelineStartMs;
-      const boundaryEnd = timelineEndMs;
+      // Start = user's very first session (across all sessions); only
+      // fall back to league metadata when the first-session timestamp
+      // is unavailable.
+      // End   = selected/most-recent league end date (or now when active)
+      const boundaryStart = timelineStartMs ?? earliestLeagueStartMs;
+      const boundaryEnd = selectedLeagueTimelineEndMs;
 
       // Build raw points from timeline
       const rawPoints: RawTimelinePoint[] = dropTimeline.map((p) => ({
@@ -176,8 +235,8 @@ export function useDropTimelineData(): DropTimelineData {
           const prev = aggregated[i - 1];
           const timeDiff = point.time - prev.time;
 
-          // Different leagues with a significant gap
-          if (prev.league !== point.league && timeDiff > MIN_GAP_FOR_BREAK_MS) {
+          // Significant inactivity gap between consecutive real points
+          if (timeDiff > MIN_GAP_FOR_BREAK_MS) {
             // Insert a gap marker at the midpoint
             const gapTime = prev.time + timeDiff / 2;
             const gapIdx = result.length;
@@ -258,18 +317,6 @@ export function useDropTimelineData(): DropTimelineData {
             label: `${lr.name} End`,
             type: "end",
           });
-        } else if (lr.startDate) {
-          // No end date — show approximate end
-          const approxEnd =
-            new Date(lr.startDate).getTime() + DEFAULT_LEAGUE_DURATION_MS;
-          // Only show approx end if it's in the past
-          if (approxEnd < Date.now()) {
-            markers.push({
-              time: approxEnd,
-              label: `~${lr.name} End`,
-              type: "end",
-            });
-          }
         }
       }
 
@@ -279,29 +326,37 @@ export function useDropTimelineData(): DropTimelineData {
         leagueMarkers: markers,
         uniqueLeagues: Array.from(leagues),
       };
-    }, [dropTimeline, leagueDateRanges, timelineStartMs, timelineEndMs]);
+    }, [
+      dropTimeline,
+      earliestLeagueStartMs,
+      leagueDateRanges,
+      selectedLeagueTimelineEndMs,
+      timelineStartMs,
+    ]);
 
   // ─── Auto-compute brush from selectedLeague ────────────────────────
 
   useEffect(() => {
-    if (selectedLeague === "all" || chartData.length === 0) {
+    if (normalizedSelectedLeague === "all" || chartData.length === 0) {
       setBrushStartIndex(undefined);
       setBrushEndIndex(undefined);
+      setBrushStartTime(undefined);
+      setBrushEndTime(undefined);
       return;
     }
 
     let startTime: number;
     let endTime: number;
 
-    const isStandard = selectedLeague.toLowerCase() === "standard";
+    const isStandard = normalizedSelectedLeague === "standard";
 
     if (isStandard) {
       // Standard league special handling:
       // - Start from the first Standard data point
-      // - End at the approx end date of the currently ongoing league,
-      //   or its actual end date if it has ended.
+      // - End at the current non-Standard league boundary
+      //   (league end date if ended, otherwise now).
       const standardPoints = chartData.filter(
-        (p) => p.league.toLowerCase() === "standard" && !p.isGap,
+        (p) => normalizeLeagueName(p.league) === "standard" && !p.isGap,
       );
       if (standardPoints.length === 0) return;
 
@@ -309,7 +364,7 @@ export function useDropTimelineData(): DropTimelineData {
 
       // Find the most recent non-Standard league to use as the end boundary
       const nonStandardRanges = leagueDateRanges.filter(
-        (l) => l.name.toLowerCase() !== "standard",
+        (l) => normalizeLeagueName(l.name) !== "standard",
       );
       if (nonStandardRanges.length > 0) {
         // Sort by start date descending to find the most recent league
@@ -317,22 +372,26 @@ export function useDropTimelineData(): DropTimelineData {
           (a, b) => leagueStartTime(b) - leagueStartTime(a),
         );
         const mostRecent = sorted[0];
-        endTime = leagueEndTime(mostRecent);
+        endTime = leagueEndTime(mostRecent, leagueDateRanges);
       } else {
         // No other leagues — just show all Standard data
         endTime = standardPoints[standardPoints.length - 1].time;
       }
     } else {
       // Non-Standard league: use league date range or data points
-      const lr = leagueDateRanges.find((l) => l.name === selectedLeague);
+      const lr = leagueDateRanges.find(
+        (l) => normalizeLeagueName(l.name) === normalizedSelectedLeague,
+      );
 
       if (lr) {
         startTime = leagueStartTime(lr);
-        endTime = leagueEndTime(lr);
+        endTime = leagueEndTime(lr, leagueDateRanges);
       } else {
         // Fallback: find from data points
         const leaguePoints = chartData.filter(
-          (p) => p.league === selectedLeague && !p.isGap,
+          (p) =>
+            normalizeLeagueName(p.league) === normalizedSelectedLeague &&
+            !p.isGap,
         );
         if (leaguePoints.length === 0) return;
         startTime = leaguePoints[0].time;
@@ -360,22 +419,54 @@ export function useDropTimelineData(): DropTimelineData {
       }
     }
 
+    const timelineMin = chartData[0].time;
+    const timelineMax = chartData[chartData.length - 1].time;
     setBrushStartIndex(firstIdx);
     setBrushEndIndex(lastIdx);
-  }, [selectedLeague, chartData, leagueDateRanges]);
+    setBrushStartTime(Math.max(timelineMin, startTime - margin));
+    setBrushEndTime(Math.min(timelineMax, endTime + margin));
+  }, [chartData, leagueDateRanges, normalizedSelectedLeague]);
 
   // ─── Handle brush change ───────────────────────────────────────────
 
   const handleBrushChange = useCallback(
-    (newState: { startIndex?: number; endIndex?: number }) => {
+    (newState: {
+      startIndex?: number;
+      endIndex?: number;
+      startTime?: number;
+      endTime?: number;
+    }) => {
       if (newState.startIndex !== undefined) {
         setBrushStartIndex(newState.startIndex);
+        setBrushStartTime(chartData[newState.startIndex]?.time);
       }
       if (newState.endIndex !== undefined) {
         setBrushEndIndex(newState.endIndex);
+        setBrushEndTime(chartData[newState.endIndex]?.time);
+      }
+      if (newState.startTime !== undefined) {
+        const nextStartTime = newState.startTime;
+        setBrushStartTime(nextStartTime);
+        const nextStartIndex = chartData.findIndex(
+          (point) => point.time >= nextStartTime,
+        );
+        setBrushStartIndex(
+          nextStartIndex < 0 ? chartData.length - 1 : nextStartIndex,
+        );
+      }
+      if (newState.endTime !== undefined) {
+        setBrushEndTime(newState.endTime);
+        let nextEndIndex = -1;
+        for (let i = chartData.length - 1; i >= 0; i--) {
+          if (chartData[i].time <= newState.endTime) {
+            nextEndIndex = i;
+            break;
+          }
+        }
+        setBrushEndIndex(nextEndIndex < 0 ? 0 : nextEndIndex);
       }
     },
-    [],
+    [chartData],
   );
 
   // Reset brush when data changes
@@ -385,6 +476,8 @@ export function useDropTimelineData(): DropTimelineData {
       prevDataLengthRef.current = chartData.length;
       setBrushStartIndex(undefined);
       setBrushEndIndex(undefined);
+      setBrushStartTime(undefined);
+      setBrushEndTime(undefined);
     }
   }, [chartData.length]);
 
@@ -392,14 +485,26 @@ export function useDropTimelineData(): DropTimelineData {
 
   const visibleData = useMemo(() => {
     if (
-      brushStartIndex === undefined ||
-      brushEndIndex === undefined ||
+      brushStartTime === undefined ||
+      brushEndTime === undefined ||
       chartData.length === 0
     ) {
       return chartData;
     }
-    return chartData.slice(brushStartIndex, brushEndIndex + 1);
-  }, [chartData, brushStartIndex, brushEndIndex]);
+    return chartData.filter(
+      (point) => point.time >= brushStartTime && point.time <= brushEndTime,
+    );
+  }, [chartData, brushEndTime, brushStartTime]);
+
+  const { visibleTimeMin, visibleTimeMax } = useMemo(() => {
+    if (chartData.length === 0) {
+      return { visibleTimeMin: 0, visibleTimeMax: 1 };
+    }
+    return {
+      visibleTimeMin: brushStartTime ?? chartData[0].time,
+      visibleTimeMax: brushEndTime ?? chartData[chartData.length - 1].time,
+    };
+  }, [brushEndTime, brushStartTime, chartData]);
 
   // ─── Compute Y domains (global for overview, dynamic for main) ─────
 
@@ -434,8 +539,12 @@ export function useDropTimelineData(): DropTimelineData {
     uniqueLeagues,
     brushStartIndex,
     brushEndIndex,
+    brushStartTime,
+    brushEndTime,
     handleBrushChange,
     visibleData,
+    visibleTimeMin,
+    visibleTimeMax,
     maxCumulative,
     maxPerSession,
     visibleMaxCumulative,

@@ -1,6 +1,6 @@
 import { FiAlertCircle } from "react-icons/fi";
 
-import { CHART_HEIGHT } from "./constants";
+import { CHART_HEIGHT } from "../constants";
 
 /**
  * Error state shown when price history fails to load.

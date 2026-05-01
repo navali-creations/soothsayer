@@ -5,7 +5,7 @@
  * 1. Navigation from cards grid to card detail
  * 2. Card detail content rendering (visual, header, tabs)
  * 3. Personal analytics with seeded session data (Your Data tab)
- * 4. Chart rendering (Recharts) — verifies SVG elements render
+ * 4. Chart rendering (canvas) — verifies canvas elements render
  * 5. Navigation back to cards list
  * 6. External links (poewiki.net, poe.ninja) — verifies URLs are correct
  * 7. Related / chain cards navigation (uses The Nurse for rich chain data)
@@ -25,6 +25,13 @@
 
 import type { Page } from "@playwright/test";
 
+import {
+  dragFullRangeBrushThumb,
+  expectCanvasChartRendered,
+  readCanvasNumberAttribute,
+  readTimeBrushSpan,
+  wheelCanvas,
+} from "../../helpers/canvas";
 import { expect, test } from "../../helpers/electron-test";
 import {
   clickSidebarLink,
@@ -38,6 +45,7 @@ import {
   seedCardRarities,
   seedCompletedSession,
   seedLeagueCache,
+  seedMultipleCompletedSessions,
   seedSessionPrerequisites,
 } from "../../helpers/seed-db";
 
@@ -195,6 +203,28 @@ async function ensureDataSeeded(page: Page) {
         { cardName: "Carrion Crow", count: 30 },
       ],
     });
+
+    await seedMultipleCompletedSessions(
+      page,
+      Array.from({ length: 9 }, (_, index) => {
+        const daysAgo = 12 - index;
+        const endedAt = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000);
+        const startedAt = new Date(endedAt.getTime() - 90 * 60 * 1000);
+
+        return {
+          id: `e2e-card-detail-session-${index + 4}`,
+          leagueId: "poe1_standard",
+          snapshotId: snapshotId ?? null,
+          startedAt: startedAt.toISOString(),
+          endedAt: endedAt.toISOString(),
+          cards: [
+            { cardName: "House of Mirrors", count: index % 3 === 0 ? 2 : 1 },
+            { cardName: "Humility", count: 4 + index },
+            { cardName: "Rain of Chaos", count: 10 + index },
+          ],
+        };
+      }),
+    );
   } catch {
     // Session seeding failed — tests that need seeded data will still run
     // but may assert on empty states instead.
@@ -456,25 +486,10 @@ test.describe("Card Detail Page", () => {
         const timelineHeading = page.getByText("Drop Timeline");
         await expect(timelineHeading.first()).toBeVisible({ timeout: 5_000 });
 
-        // Recharts renders a <div class="recharts-wrapper"> containing
-        // <svg class="recharts-surface">. Verify the SVG rendered.
-        const rechartsSvg = page.locator(".recharts-surface");
-        const svgCount = await rechartsSvg.count();
-
-        if (svgCount > 0) {
-          // At least one Recharts SVG surface should be visible
-          await expect(rechartsSvg.first()).toBeVisible({ timeout: 5_000 });
-
-          // The chart should contain rendered elements (bars or paths)
-          const chartPaths = page.locator(
-            ".recharts-surface path, .recharts-surface rect",
-          );
-          const pathCount = await chartPaths.count();
-          expect(
-            pathCount,
-            "Recharts chart should render SVG path or rect elements",
-          ).toBeGreaterThan(0);
-        }
+        await expectCanvasChartRendered(
+          page.getByTestId("drop-timeline-main-canvas"),
+          "Drop timeline",
+        );
       } else {
         // Timeline not visible — either single data point or no data.
         // Verify the page didn't crash by checking main content exists.
@@ -482,7 +497,7 @@ test.describe("Card Detail Page", () => {
       }
     });
 
-    test("should display footer stats in the drop timeline", async ({
+    test("should display metric legend in the drop timeline", async ({
       page,
     }) => {
       await goToCardDetail(page, "house-of-mirrors");
@@ -496,32 +511,24 @@ test.describe("Card Detail Page", () => {
 
       const mainContent = await page.locator("main").textContent();
 
-      // The drop timeline footer shows "X days across Y leagues" and "Z total drops"
       if (mainContent?.includes("Drop Timeline")) {
-        // Should show "total drop" or "total drops" in the footer
-        const hasTotalDropsFooter =
-          mainContent.includes("total drop") ||
-          mainContent.includes("total drops");
-        expect(
-          hasTotalDropsFooter,
-          "Drop timeline footer should show total drops count",
-        ).toBe(true);
-
-        // Should mention league count
-        const hasLeagueCount =
-          mainContent.includes("league") || mainContent.includes("leagues");
-        expect(
-          hasLeagueCount,
-          "Drop timeline footer should show league count",
-        ).toBe(true);
+        await expect(page.getByText("Drops / Day")).toBeVisible({
+          timeout: 5_000,
+        });
+        await expect(page.getByText("Expected to Drop")).toBeVisible({
+          timeout: 5_000,
+        });
+        await expect(page.getByText("Decks Opened")).toBeVisible({
+          timeout: 5_000,
+        });
       }
     });
   });
 
-  // ── Chart Rendering (Recharts Visual Regression — Your Data tab) ──────────
+  // ── Chart Rendering (Canvas Visual Regression — Your Data tab) ──────────
 
-  test.describe("Chart Rendering — Recharts", () => {
-    test("should render Recharts SVG surface elements when chart data exists", async ({
+  test.describe("Chart Rendering — Canvas", () => {
+    test("should render canvas surface elements when chart data exists", async ({
       page,
     }) => {
       await goToCardDetail(page, "house-of-mirrors");
@@ -533,31 +540,9 @@ test.describe("Card Detail Page", () => {
         { timeout: 10_000 },
       );
 
-      // Check for Recharts wrapper divs
-      const rechartsWrappers = page.locator(".recharts-wrapper");
-      const wrapperCount = await rechartsWrappers.count();
-
-      if (wrapperCount > 0) {
-        // Verify the wrapper contains an SVG with the recharts-surface class
-        const surface = rechartsWrappers
-          .first()
-          .locator("svg.recharts-surface");
-        await expect(surface).toBeVisible({ timeout: 5_000 });
-
-        // Verify the SVG has non-zero dimensions (actually rendered, not collapsed)
-        const svgBox = await surface.boundingBox();
-        expect(
-          svgBox,
-          "Recharts SVG surface should have a bounding box",
-        ).toBeTruthy();
-        expect(
-          svgBox!.width,
-          "Recharts SVG should have non-zero width",
-        ).toBeGreaterThan(0);
-        expect(
-          svgBox!.height,
-          "Recharts SVG should have non-zero height",
-        ).toBeGreaterThan(0);
+      const mainCanvas = page.getByTestId("drop-timeline-main-canvas");
+      if ((await mainCanvas.count()) > 0) {
+        await expectCanvasChartRendered(mainCanvas, "Drop timeline");
       } else {
         // No chart rendered — data may not have been seeded.
         // Verify the page is still functional.
@@ -576,34 +561,13 @@ test.describe("Card Detail Page", () => {
         { timeout: 10_000 },
       );
 
-      const rechartsWrappers = page.locator(".recharts-wrapper");
-      const wrapperCount = await rechartsWrappers.count();
-
-      if (wrapperCount > 0) {
-        // Recharts renders CartesianGrid as <g class="recharts-cartesian-grid">
-        const gridLines = page.locator(".recharts-cartesian-grid");
-        const gridCount = await gridLines.count();
-
-        // Recharts renders axes as <g class="recharts-xAxis"> / <g class="recharts-yAxis">
-        const xAxis = page.locator(".recharts-xAxis");
-        const yAxis = page.locator(".recharts-yAxis");
-
-        // At least some chart structural elements should be present
-        const hasStructure =
-          gridCount > 0 ||
-          (await xAxis.count()) > 0 ||
-          (await yAxis.count()) > 0;
-
-        expect(
-          hasStructure,
-          "Recharts chart should render grid, X-axis, or Y-axis elements",
-        ).toBe(true);
+      const mainCanvas = page.getByTestId("drop-timeline-main-canvas");
+      if ((await mainCanvas.count()) > 0) {
+        await expectCanvasChartRendered(mainCanvas, "Drop timeline");
       }
     });
 
-    test("should render chart data elements (bars or area paths)", async ({
-      page,
-    }) => {
+    test("should render chart data pixels", async ({ page }) => {
       await goToCardDetail(page, "house-of-mirrors");
 
       // "Your Data" is the default tab.
@@ -613,27 +577,124 @@ test.describe("Card Detail Page", () => {
         { timeout: 10_000 },
       );
 
-      const rechartsSurface = page.locator(".recharts-surface");
-      const surfaceCount = await rechartsSurface.count();
-
-      if (surfaceCount > 0) {
-        // ComposedChart renders bars as <g class="recharts-bar"> and
-        // area/line as <g class="recharts-area"> or <g class="recharts-line">
-        const bars = page.locator(".recharts-bar");
-        const areas = page.locator(".recharts-area");
-        const lines = page.locator(".recharts-line");
-
-        const barCount = await bars.count();
-        const areaCount = await areas.count();
-        const lineCount = await lines.count();
-
-        const hasDataElements = barCount > 0 || areaCount > 0 || lineCount > 0;
-
-        expect(
-          hasDataElements,
-          "Recharts chart should render bar, area, or line data elements",
-        ).toBe(true);
+      const mainCanvas = page.getByTestId("drop-timeline-main-canvas");
+      if ((await mainCanvas.count()) > 0) {
+        await expectCanvasChartRendered(mainCanvas, "Drop timeline");
       }
+    });
+
+    test("should resize the drop timeline overview brush thumb", async ({
+      page,
+    }) => {
+      await goToCardDetail(page, "house-of-mirrors");
+
+      await expect(page.locator("main")).toContainText(
+        /Total Drops|You haven't found this card yet/,
+        { timeout: 10_000 },
+      );
+
+      const overviewCanvas = page.getByTestId("drop-timeline-overview-canvas");
+      await expectCanvasChartRendered(overviewCanvas, "Drop timeline overview");
+      await expect(overviewCanvas).toHaveAttribute(
+        "data-brush-enabled",
+        "true",
+      );
+      await expect
+        .poll(
+          () =>
+            readCanvasNumberAttribute(overviewCanvas, "data-chart-point-count"),
+          { timeout: 5_000, intervals: [100, 250, 500] },
+        )
+        .toBeGreaterThan(5);
+
+      const startBefore = await readCanvasNumberAttribute(
+        overviewCanvas,
+        "data-brush-start-time",
+      );
+
+      await dragFullRangeBrushThumb(page, overviewCanvas, {
+        thumb: "left",
+        deltaX: 120,
+        leftPadding: 44,
+        rightPadding: 44,
+      });
+
+      await expect
+        .poll(
+          () =>
+            readCanvasNumberAttribute(overviewCanvas, "data-brush-start-time"),
+          { timeout: 5_000, intervals: [100, 250, 500] },
+        )
+        .toBeGreaterThan(startBefore);
+
+      await expectCanvasChartRendered(
+        page.getByTestId("drop-timeline-main-canvas"),
+        "Drop timeline",
+      );
+
+      const route = await getCurrentRoute(page);
+      expect(route).toBe("/cards/house-of-mirrors");
+    });
+
+    test("should zoom the drop timeline brush with the overview wheel", async ({
+      page,
+    }) => {
+      await navigateTo(page, "/cards");
+      await goToCardDetail(page, "house-of-mirrors");
+
+      await expect(page.locator("main")).toContainText(
+        /Total Drops|You haven't found this card yet/,
+        { timeout: 10_000 },
+      );
+
+      const overviewCanvas = page.getByTestId("drop-timeline-overview-canvas");
+      await expectCanvasChartRendered(overviewCanvas, "Drop timeline overview");
+      await expect
+        .poll(
+          () =>
+            readCanvasNumberAttribute(overviewCanvas, "data-chart-point-count"),
+          { timeout: 5_000, intervals: [100, 250, 500] },
+        )
+        .toBeGreaterThan(5);
+
+      const spanBefore = await readTimeBrushSpan(overviewCanvas);
+
+      await expect
+        .poll(
+          async () => {
+            await wheelCanvas(overviewCanvas, -500);
+            return readTimeBrushSpan(overviewCanvas);
+          },
+          {
+            timeout: 5_000,
+            intervals: [100, 250, 500],
+          },
+        )
+        .toBeLessThan(spanBefore);
+      const zoomedInSpan = await readTimeBrushSpan(overviewCanvas);
+
+      await expect
+        .poll(
+          async () => {
+            await wheelCanvas(overviewCanvas, 500);
+            return readTimeBrushSpan(overviewCanvas);
+          },
+          {
+            timeout: 5_000,
+            intervals: [100, 250, 500],
+          },
+        )
+        .toBeGreaterThan(zoomedInSpan);
+
+      await expect
+        .poll(() => readTimeBrushSpan(overviewCanvas), {
+          timeout: 5_000,
+          intervals: [100, 250, 500],
+        })
+        .toBeLessThanOrEqual(spanBefore);
+
+      const route = await getCurrentRoute(page);
+      expect(route).toBe("/cards/house-of-mirrors");
     });
   });
 
@@ -802,11 +863,10 @@ test.describe("Card Detail Page", () => {
 
       const mainContent = await page.locator("main").textContent();
 
-      if (!mainContent?.includes("Card Chain")) {
-        // Chain section did not render — skip gracefully.
-        test.skip();
-        return;
-      }
+      expect(
+        mainContent?.includes("Card Chain"),
+        "The Nurse should render the Card Chain section",
+      ).toBe(true);
 
       // The reward chain is: The Patient → The Nurse → The Doctor → Headhunter
       // When viewing The Nurse, we expect The Doctor (downstream) and/or
@@ -836,19 +896,19 @@ test.describe("Card Detail Page", () => {
         mainContent?.includes("Similar Cards") ||
         mainContent?.includes("Card Chain");
 
-      if (!hasRelated) {
-        test.skip();
-        return;
-      }
+      expect(
+        hasRelated,
+        "The Nurse should render related cards or card chain content",
+      ).toBe(true);
 
       // RelatedCardChip renders <Link to="/cards/$cardSlug"> → <a href="#/cards/...">
       const relatedLinks = page.locator('main a[href*="/cards/"]');
       const linkCount = await relatedLinks.count();
 
-      if (linkCount === 0) {
-        test.skip();
-        return;
-      }
+      expect(
+        linkCount,
+        "Related cards section should contain at least one card link",
+      ).toBeGreaterThan(0);
 
       const firstLink = relatedLinks.first();
       await expect(firstLink).toBeVisible({ timeout: 5_000 });
@@ -893,18 +953,18 @@ test.describe("Card Detail Page", () => {
         mainContent?.includes("Similar Cards") ||
         mainContent?.includes("Card Chain");
 
-      if (!hasRelated) {
-        test.skip();
-        return;
-      }
+      expect(
+        hasRelated,
+        "The Nurse should render related cards or card chain content",
+      ).toBe(true);
 
       const relatedLinks = page.locator('main a[href*="/cards/"]');
       const linkCount = await relatedLinks.count();
 
-      if (linkCount === 0) {
-        test.skip();
-        return;
-      }
+      expect(
+        linkCount,
+        "Related cards section should contain at least one card link",
+      ).toBeGreaterThan(0);
 
       // Navigate to a related card
       const firstLink = relatedLinks.first();

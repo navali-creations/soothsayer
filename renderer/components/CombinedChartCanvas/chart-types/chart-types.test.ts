@@ -1,12 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  buildXAxisProps,
   type ChartColors,
-  formatChaos,
   formatDecks,
   formatDivine,
-  gradientId,
   METRICS,
   type RawDataPoint,
   resolveColor,
@@ -44,34 +41,6 @@ describe("formatDivine", () => {
     expect(formatDivine(-1)).toBe("-1.00 div");
     expect(formatDivine(-9.5)).toBe("-9.50 div");
     expect(formatDivine(-0.123)).toBe("-0.12 div");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// formatChaos
-// ---------------------------------------------------------------------------
-describe("formatChaos", () => {
-  it("formats positive values with rounding and 'c' suffix", () => {
-    expect(formatChaos(100)).toBe("100 c");
-    expect(formatChaos(99.4)).toBe("99 c");
-    expect(formatChaos(99.5)).toBe("100 c");
-  });
-
-  it("formats zero", () => {
-    expect(formatChaos(0)).toBe("0 c");
-  });
-
-  it("formats negative values", () => {
-    expect(formatChaos(-50)).toBe("-50 c");
-    expect(formatChaos(-1.7)).toBe("-2 c");
-  });
-
-  it("formats large numbers with locale string separators", () => {
-    const result = formatChaos(1234567);
-    // toLocaleString output is locale-dependent, but the value should contain
-    // the digits and end with " c"
-    expect(result).toContain("c");
-    expect(result).toBe(`${Math.round(1234567).toLocaleString()} c`);
   });
 });
 
@@ -130,7 +99,6 @@ describe("transformChartData", () => {
       league: "Standard",
       chaosPerDivine: 250,
       profitDivine: 2, // 500 / 250
-      profitChaos: 500,
       rawDecks: 5,
     });
   });
@@ -182,7 +150,6 @@ describe("transformChartData", () => {
     const result = transformChartData(raw);
 
     expect(result[0].profitDivine).toBe(0);
-    expect(result[0].profitChaos).toBe(500);
   });
 
   it("sets rawDecks to null when totalDecksOpened is 0", () => {
@@ -240,7 +207,6 @@ describe("transformChartData", () => {
     const result = transformChartData(raw);
 
     expect(result[0].profitDivine).toBe(-2); // -400 / 200
-    expect(result[0].profitChaos).toBe(-400);
   });
 });
 
@@ -281,76 +247,6 @@ describe("resolveColor", () => {
 });
 
 // ---------------------------------------------------------------------------
-// gradientId
-// ---------------------------------------------------------------------------
-describe("gradientId", () => {
-  it("generates the expected gradient ID string", () => {
-    expect(gradientId("profit")).toBe("statChartGrad_profit");
-    expect(gradientId("decks")).toBe("statChartGrad_decks");
-    expect(gradientId("")).toBe("statChartGrad_");
-    expect(gradientId("some-key")).toBe("statChartGrad_some-key");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// buildXAxisProps
-// ---------------------------------------------------------------------------
-describe("buildXAxisProps", () => {
-  const mockColors: ChartColors = {
-    primary: "#ff0000",
-    success: "#00ff00",
-    warning: "#ffff00",
-    secondary: "#0000ff",
-    bc10: "#111111",
-    bc30: "#333333",
-  } as ChartColors;
-
-  it("returns correct dataKey", () => {
-    const props = buildXAxisProps(mockColors);
-    expect(props.dataKey).toBe("sessionIndex");
-  });
-
-  it("uses bc10 for stroke", () => {
-    const props = buildXAxisProps(mockColors);
-    expect(props.stroke).toBe("#111111");
-  });
-
-  it("sets fontSize to 10", () => {
-    const props = buildXAxisProps(mockColors);
-    expect(props.fontSize).toBe(10);
-  });
-
-  it("disables tickLine", () => {
-    const props = buildXAxisProps(mockColors);
-    expect(props.tickLine).toBe(false);
-  });
-
-  it("uses bc30 for tick fill", () => {
-    const props = buildXAxisProps(mockColors);
-    expect(props.tick).toEqual({ fill: "#333333" });
-  });
-
-  it('sets interval to "preserveStartEnd"', () => {
-    const props = buildXAxisProps(mockColors);
-    expect(props.interval).toBe("preserveStartEnd");
-  });
-
-  it("returns all expected keys", () => {
-    const props = buildXAxisProps(mockColors);
-    expect(Object.keys(props)).toEqual(
-      expect.arrayContaining([
-        "dataKey",
-        "stroke",
-        "fontSize",
-        "tickLine",
-        "tick",
-        "interval",
-      ]),
-    );
-  });
-});
-
-// ---------------------------------------------------------------------------
 // METRICS
 // ---------------------------------------------------------------------------
 describe("METRICS", () => {
@@ -361,20 +257,16 @@ describe("METRICS", () => {
   it('has a "decks" metric at index 0', () => {
     const decks = METRICS[0];
     expect(decks.key).toBe("decks");
-    expect(decks.rawDataKey).toBe("rawDecks");
     expect(decks.label).toBe("Decks Opened");
     expect(decks.colorVar).toBe("secondary");
-    expect(decks.yAxisId).toBe("decks");
     expect(decks.rawVisual).toBe("scatter");
   });
 
   it('has a "profit" metric at index 1', () => {
     const profit = METRICS[1];
     expect(profit.key).toBe("profit");
-    expect(profit.rawDataKey).toBe("profitDivine");
     expect(profit.label).toBe("Profit");
     expect(profit.colorVar).toBe("secondary");
-    expect(profit.yAxisId).toBe("profit");
     expect(profit.rawVisual).toBe("area");
   });
 

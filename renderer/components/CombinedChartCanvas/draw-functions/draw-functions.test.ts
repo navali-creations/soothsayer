@@ -13,6 +13,7 @@ import {
   drawDecksScatter,
   drawGrid,
   drawHoverHighlight,
+  drawLeagueStartMarker,
   drawProfitArea,
   drawXAxis,
   drawYAxisDecks,
@@ -61,6 +62,8 @@ function makeMockCtx() {
     fill: vi.fn(),
     stroke: vi.fn(),
     closePath: vi.fn(),
+    translate: vi.fn(),
+    rotate: vi.fn(),
     bezierCurveTo: vi.fn(),
     fillText: vi.fn(),
     setLineDash: vi.fn(),
@@ -141,6 +144,7 @@ function makeBDC(
     mapBrushX: vi.fn((i: number) => 50 + i * 4),
     brushRange: { startIndex: 0, endIndex: 9 },
     hoverIndex: null,
+    markerIndex: null,
     ...overrides,
   };
 }
@@ -160,7 +164,6 @@ function makeDataPoint(
     sessionDate: "2024-01-01",
     league: "TestLeague",
     profitDivine: 5,
-    profitChaos: 500,
     rawDecks: 10,
     chaosPerDivine: 100,
     ...overrides,
@@ -550,6 +553,58 @@ describe("drawHoverHighlight", () => {
   });
 });
 
+describe("drawLeagueStartMarker", () => {
+  let ctx: MockCtx;
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+  });
+
+  it("returns early for non-finite and offscreen marker positions", () => {
+    drawLeagueStartMarker(makeDC(ctx, { mapX: vi.fn(() => Number.NaN) }), 1, {
+      label: "Mirage",
+      color: "#0f0",
+    });
+    drawLeagueStartMarker(makeDC(ctx, { mapX: vi.fn(() => 10) }), 1, {
+      label: "Mirage",
+      color: "#0f0",
+    });
+    drawLeagueStartMarker(makeDC(ctx, { mapX: vi.fn(() => 500) }), 1, {
+      label: "Mirage",
+      color: "#0f0",
+    });
+
+    expect(ctx.save).not.toHaveBeenCalled();
+    expect(ctx.stroke).not.toHaveBeenCalled();
+  });
+
+  it("draws a dashed marker line without a label when showLabel is false", () => {
+    drawLeagueStartMarker(makeDC(ctx, { mapX: vi.fn(() => 120) }), 1, {
+      label: "Mirage",
+      color: "#0f0",
+      lineDash: [2, 2],
+      showLabel: false,
+    });
+
+    expect(ctx.setLineDash).toHaveBeenCalledWith([2, 2]);
+    expect(ctx.moveTo).toHaveBeenCalledWith(120, 10);
+    expect(ctx.lineTo).toHaveBeenCalledWith(120, 300);
+    expect(ctx.stroke).toHaveBeenCalled();
+    expect(ctx.fillText).not.toHaveBeenCalled();
+  });
+
+  it("draws an uppercase rotated marker label by default", () => {
+    drawLeagueStartMarker(makeDC(ctx, { mapX: vi.fn(() => 120) }), 1, {
+      label: "Mirage",
+      color: "#0f0",
+    });
+
+    expect(ctx.translate).toHaveBeenCalledWith(130, 16);
+    expect(ctx.rotate).toHaveBeenCalledWith(Math.PI / 2);
+    expect(ctx.fillText).toHaveBeenCalledWith("MIRAGE", 0, 0);
+  });
+});
+
 // ─── drawBrush ─────────────────────────────────────────────────────────────────
 
 describe("drawBrush", () => {
@@ -594,6 +649,23 @@ describe("drawBrush", () => {
     drawBrush(bdc, makeVisibleData(10));
     // Hover indicator draws an arc for the dot
     expect(ctx.arc).toHaveBeenCalled();
+  });
+
+  it("draws a league marker line in the brush when markerIndex is visible", () => {
+    const bdc = makeBDC(ctx, { markerIndex: 3 });
+
+    drawBrush(bdc, makeVisibleData(10));
+
+    expect(ctx.moveTo).toHaveBeenCalledWith(62, 320);
+    expect(ctx.lineTo).toHaveBeenCalledWith(62, 350);
+  });
+
+  it("skips brush marker drawing when markerIndex is out of range", () => {
+    const bdc = makeBDC(ctx, { markerIndex: 20 });
+
+    drawBrush(bdc, makeVisibleData(10));
+
+    expect(ctx.moveTo).not.toHaveBeenCalledWith(130, 320);
   });
 
   it("skips mini profit line when profit is hidden", () => {

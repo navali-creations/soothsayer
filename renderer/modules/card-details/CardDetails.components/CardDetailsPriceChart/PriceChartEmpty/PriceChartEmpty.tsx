@@ -1,4 +1,4 @@
-import { CHART_HEIGHT } from "./constants";
+import { CHART_HEIGHT } from "../constants";
 
 const PriceChartEmpty = () => {
   return (
