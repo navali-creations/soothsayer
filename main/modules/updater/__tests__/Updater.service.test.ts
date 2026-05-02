@@ -12,6 +12,7 @@ const {
   mockAutoUpdaterOn,
   mockShellOpenExternal,
   mockWebContentsSend,
+  mockExistsSync,
   mockReadFileSync,
   mockElectronApp,
   mockFetch,
@@ -23,6 +24,7 @@ const {
   mockAutoUpdaterOn: vi.fn(),
   mockShellOpenExternal: vi.fn(),
   mockWebContentsSend: vi.fn(),
+  mockExistsSync: vi.fn(),
   mockReadFileSync: vi.fn(),
   mockElectronApp: {
     isPackaged: false,
@@ -63,7 +65,7 @@ vi.mock("electron", () => ({
 // ─── Mock node:fs ────────────────────────────────────────────────────────────
 vi.mock("node:fs", () => ({
   readFileSync: mockReadFileSync,
-  existsSync: vi.fn(() => false),
+  existsSync: mockExistsSync,
   writeFileSync: vi.fn(),
 }));
 
@@ -137,6 +139,7 @@ describe("UpdaterService", () => {
     // Default: not packaged, win32
     mockElectronApp.isPackaged = false;
     mockElectronApp.getVersion.mockReturnValue("1.0.0");
+    mockExistsSync.mockReturnValue(true);
 
     Object.defineProperty(process, "platform", {
       value: "win32",
@@ -246,6 +249,33 @@ describe("UpdaterService", () => {
 
       expect(mockAutoUpdaterSetFeedURL).toHaveBeenCalledTimes(1);
       expect(mockAutoUpdaterOn).toHaveBeenCalled();
+    });
+
+    it("should skip Windows autoUpdater setup when Squirrel Update.exe is missing", () => {
+      mockElectronApp.isPackaged = true;
+      mockExistsSync.mockReturnValue(false);
+      Object.defineProperty(process, "platform", {
+        value: "win32",
+        writable: true,
+        configurable: true,
+      });
+
+      resetSingleton(UpdaterService);
+      service = UpdaterService.getInstance();
+
+      const mockWindow = createMockBrowserWindow();
+      service.initialize(mockWindow);
+
+      expect(mockAutoUpdaterSetFeedURL).not.toHaveBeenCalled();
+      expect(mockAutoUpdaterOn).not.toHaveBeenCalled();
+
+      const registeredChannels = mockIpcHandle.mock.calls.map(
+        ([ch]: [string]) => ch,
+      );
+      expect(registeredChannels).toContain(UpdaterChannel.CheckForUpdates);
+
+      vi.advanceTimersByTime(10_000);
+      expect(mockAutoUpdaterCheckForUpdates).not.toHaveBeenCalled();
     });
 
     it("should set feed URL and wire events when packaged on darwin", () => {
@@ -396,6 +426,26 @@ describe("UpdaterService", () => {
       service.checkForUpdates();
 
       expect(mockAutoUpdaterCheckForUpdates).toHaveBeenCalled();
+    });
+
+    it("should not call autoUpdater.checkForUpdates on win32 when Squirrel Update.exe is missing", () => {
+      mockElectronApp.isPackaged = true;
+      mockExistsSync.mockReturnValue(false);
+      Object.defineProperty(process, "platform", {
+        value: "win32",
+        writable: true,
+        configurable: true,
+      });
+
+      resetSingleton(UpdaterService);
+      service = UpdaterService.getInstance();
+
+      const mockWindow = createMockBrowserWindow();
+      service.initialize(mockWindow);
+
+      service.checkForUpdates();
+
+      expect(mockAutoUpdaterCheckForUpdates).not.toHaveBeenCalled();
     });
 
     it("should return null for unsupported platforms when packaged", () => {

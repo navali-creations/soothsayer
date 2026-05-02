@@ -81,8 +81,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path "C:\toolcache" | Out-Null
 
       - name: Setup pnpm
-        if: "!startsWith(matrix.name, 'windows')"
-        uses: pnpm/action-setup@v5
+        uses: pnpm/action-setup@v6
 
       - name: Setup node.js
         if: "!startsWith(matrix.name, 'windows')"
@@ -91,7 +90,7 @@ jobs:
           node-version: 24
           cache: pnpm
 
-      - name: Verify pre-installed Node (self-hosted Windows)
+      - name: Verify Node and pnpm (self-hosted Windows)
         if: startsWith(matrix.name, 'windows')
         shell: powershell
         run: |

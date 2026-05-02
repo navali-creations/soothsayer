@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 
 import { app, autoUpdater, type BrowserWindow, ipcMain, shell } from "electron";
 
@@ -50,6 +50,7 @@ class UpdaterService {
   private updateStatus: UpdateStatus = "idle";
   private updateDownloaded = false;
   private initialized = false;
+  private autoUpdaterConfigured = false;
   private isLinux = process.platform === "linux";
 
   static getInstance(): UpdaterService {
@@ -97,6 +98,11 @@ class UpdaterService {
       return;
     }
 
+    if (!this.canUseNativeAutoUpdater()) {
+      this.registerIpcHandlers();
+      return;
+    }
+
     // Configure the Squirrel update feed.
     // update.electronjs.org is the free Electron update service that proxies
     // GitHub Releases in the format Squirrel expects (RELEASES file for
@@ -107,6 +113,7 @@ class UpdaterService {
 
     console.log(`[Updater] Setting feed URL: ${feedURL}`);
     autoUpdater.setFeedURL({ url: feedURL });
+    this.autoUpdaterConfigured = true;
 
     this.wireAutoUpdaterEvents();
     this.registerIpcHandlers();
@@ -307,6 +314,13 @@ class UpdaterService {
       return null;
     }
 
+    if (!this.autoUpdaterConfigured) {
+      console.log(
+        "[Updater] Skipping check — native autoUpdater is not configured",
+      );
+      return null;
+    }
+
     try {
       autoUpdater.checkForUpdates();
     } catch (err) {
@@ -438,6 +452,30 @@ class UpdaterService {
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────────
+
+  private canUseNativeAutoUpdater(): boolean {
+    if (process.platform !== "win32") {
+      return true;
+    }
+
+    const appDir = dirname(process.execPath);
+    const squirrelUpdatePaths = [
+      join(appDir, "Update.exe"),
+      resolve(appDir, "..", "Update.exe"),
+    ];
+
+    const hasSquirrelUpdateExe = squirrelUpdatePaths.some((candidate) =>
+      existsSync(candidate),
+    );
+
+    if (!hasSquirrelUpdateExe) {
+      console.log(
+        "[Updater] Skipping Windows auto-update setup — Squirrel Update.exe not found",
+      );
+    }
+
+    return hasSquirrelUpdateExe;
+  }
 
   /**
    * Send download progress to the renderer.

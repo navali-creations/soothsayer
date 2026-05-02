@@ -3,7 +3,6 @@ import { resolve } from "node:path";
 import { readFileSync } from "node:fs";
 
 import { defineConfig } from "vite";
-import { externalizeDeps } from "vite-plugin-externalize-deps";
 
 const { version } = JSON.parse(
   readFileSync(resolve(__dirname, "package.json"), "utf-8")
@@ -26,7 +25,6 @@ export default defineConfig({
 
   build: {
     rollupOptions: {
-      plugins: [externalizeDeps()],
       external: [
         // Native modules
         "better-sqlite3",

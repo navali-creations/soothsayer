@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { FuseV1Options, FuseVersion } from "@electron/fuses";
+import { MakerBase, type MakerOptions } from "@electron-forge/maker-base";
 import { MakerDeb } from "@electron-forge/maker-deb";
 import { MakerRpm } from "@electron-forge/maker-rpm";
 import { MakerSquirrel } from "@electron-forge/maker-squirrel";
@@ -10,11 +11,72 @@ import { AutoUnpackNativesPlugin } from "@electron-forge/plugin-auto-unpack-nati
 import { FusesPlugin } from "@electron-forge/plugin-fuses";
 import { VitePlugin } from "@electron-forge/plugin-vite";
 import type { ForgeConfig } from "@electron-forge/shared-types";
+import { buildForge, type Configuration } from "app-builder-lib";
 
 const linuxIconDir = path.resolve(
   __dirname,
   "renderer/assets/logo/linux/icons",
 );
+
+class MakerAppImage extends MakerBase<Configuration> {
+  name = "appimage";
+  defaultPlatforms = ["linux"] as const;
+
+  isSupportedOnCurrentPlatform() {
+    return true;
+  }
+
+  async make({ dir, makeDir, targetArch }: MakerOptions) {
+    const { directories, ...config } = this.config;
+
+    return buildForge(
+      { dir },
+      {
+        config: {
+          ...config,
+          directories: {
+            ...directories,
+            output: makeDir,
+          },
+        },
+        linux: [`appimage:${targetArch}`],
+      },
+    );
+  }
+}
+
+const makers: NonNullable<ForgeConfig["makers"]> = [];
+
+if (process.platform === "win32") {
+  makers.push(
+    new MakerSquirrel({
+      name: "soothsayer",
+      setupIcon: path.resolve(
+        __dirname,
+        "renderer/assets/logo/windows/icon.ico",
+      ),
+      iconUrl:
+        "https://raw.githubusercontent.com/navali-creations/soothsayer/master/renderer/assets/logo/windows/icon.ico",
+    }),
+  );
+}
+
+if (process.platform === "darwin") {
+  makers.push(new MakerZIP({}, ["darwin"]));
+}
+
+if (process.platform === "linux") {
+  makers.push(
+    new MakerAppImage({
+      linux: {
+        category: "Game",
+        icon: linuxIconDir,
+      },
+    }),
+    new MakerRpm({}),
+    new MakerDeb({}),
+  );
+}
 
 const config: ForgeConfig = {
   packagerConfig: {
@@ -53,30 +115,7 @@ const config: ForgeConfig = {
       console.log("[forge] Staged poe1 card data ->", dest);
     },
   },
-  makers: [
-    new MakerSquirrel({
-      name: "soothsayer",
-      setupIcon: path.resolve(
-        __dirname,
-        "renderer/assets/logo/windows/icon.ico",
-      ),
-      iconUrl:
-        "https://raw.githubusercontent.com/navali-creations/soothsayer/master/renderer/assets/logo/windows/icon.ico",
-    }),
-    new MakerZIP({}, ["darwin"]),
-    {
-      name: "electron-forge-maker-appimage",
-      platforms: ["linux"],
-      config: {
-        linux: {
-          category: "Game",
-          icon: linuxIconDir,
-        },
-      },
-    },
-    new MakerRpm({}),
-    new MakerDeb({}),
-  ],
+  makers,
   plugins: [
     // Add AutoUnpackNativesPlugin to handle native modules like better-sqlite3
     new AutoUnpackNativesPlugin({}),

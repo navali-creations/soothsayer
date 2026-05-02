@@ -10,7 +10,7 @@ import {
   type Page,
 } from "@playwright/test";
 
-function resolveElectronPath(): string {
+export function resolveElectronPath(): string {
   try {
     const electronModule = require("electron") as string;
     if (typeof electronModule === "string" && fs.existsSync(electronModule)) {
