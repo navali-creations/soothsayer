@@ -7,6 +7,8 @@ import type {
 import { cleanWikiMarkup } from "~/main/utils/cleanWikiMarkup";
 import type { KnownRarity, Rarity } from "~/types/data-stores";
 
+import type { DropTimelineSessionRow } from "./CardDetails.utils";
+
 /**
  * Repository for the local SQLite cache of poe.ninja price history data.
  *
@@ -183,36 +185,32 @@ export class CardDetailsRepository {
   }
 
   /**
-   * Get per-session drop counts with timestamps for a given card.
+   * Get per-session deck-opening rows with the selected card count attached.
    *
-   * Returns sessions ordered chronologically (oldest first) so the
-   * caller can compute cumulative totals for timeline charting.
+   * This intentionally returns sessions where the card did not drop as
+   * zero-count rows so the main process can build a complete decks-opened
+   * timeline instead of a sparse drop-only timeline.
    */
   async getDropTimeline(
     game: string,
     cardName: string,
     league?: string,
-  ): Promise<
-    Array<{
-      sessionId: string;
-      sessionStartedAt: string;
-      count: number;
-      totalDecksOpened: number;
-      league: string;
-    }>
-  > {
+  ): Promise<DropTimelineSessionRow[]> {
     let query = this.kysely
-      .selectFrom("session_cards as sc")
-      .innerJoin("sessions as s", "s.id", "sc.session_id")
+      .selectFrom("sessions as s")
       .innerJoin("leagues as l", "s.league_id", "l.id")
+      .leftJoin("session_cards as sc", (join) =>
+        join
+          .onRef("sc.session_id", "=", "s.id")
+          .on("sc.card_name", "=", cardName),
+      )
       .select([
         "s.id as sessionId",
         "s.started_at as sessionStartedAt",
-        "sc.count as count",
+        sql<number>`COALESCE(sc.count, 0)`.as("count"),
         sql<number>`COALESCE(s.total_count, 0)`.as("totalDecksOpened"),
         "l.name as league",
       ])
-      .where("sc.card_name", "=", cardName)
       .where("s.game", "=", game);
 
     if (league) {

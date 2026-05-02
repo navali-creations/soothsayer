@@ -122,6 +122,7 @@ const PFBreakevenChart = () => {
     () => computeTooltipStyle({ tooltip, tooltipSize, canvasSize }),
     [tooltip, tooltipSize, canvasSize],
   );
+  const stabilizationKey = `${canvasSize.width}:${canvasSize.height}:${curveData.length}`;
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -147,6 +148,8 @@ const PFBreakevenChart = () => {
     layout,
     c,
   ]);
+  const drawRef = useRef(draw);
+  drawRef.current = draw;
 
   useEffect(() => {
     const hadHoverPoint =
@@ -163,12 +166,16 @@ const PFBreakevenChart = () => {
 
   useLayoutEffect(() => {
     draw();
+  }, [draw]);
+
+  useLayoutEffect(() => {
+    void stabilizationKey;
     const frames: number[] = [];
     const schedule = (remaining: number) => {
       if (remaining <= 0) return;
       frames.push(
         requestAnimationFrame(() => {
-          draw();
+          drawRef.current();
           schedule(remaining - 1);
         }),
       );
@@ -177,7 +184,7 @@ const PFBreakevenChart = () => {
     return () => {
       for (const frame of frames) cancelAnimationFrame(frame);
     };
-  }, [draw]);
+  }, [stabilizationKey]);
 
   useLayoutEffect(() => {
     const node = tooltipRef.current;
@@ -211,16 +218,18 @@ const PFBreakevenChart = () => {
       );
 
       if (hit.index < 0) {
+        const hadHover = hoverIndexRef.current !== null;
         hoverIndexRef.current = null;
         setTooltip((current) =>
           current.visible
             ? { visible: false, x: 0, y: 0, dataPoint: null }
             : current,
         );
-        draw();
+        if (hadHover) draw();
         return;
       }
 
+      const shouldRedraw = hoverIndexRef.current !== hit.index;
       hoverIndexRef.current = hit.index;
       setTooltip({
         visible: true,
@@ -228,15 +237,20 @@ const PFBreakevenChart = () => {
         y,
         dataPoint: curveData[hit.index],
       });
-      draw();
+      if (shouldRedraw) draw();
     },
     [canvasRef, curveData, domains, draw, layout],
   );
 
   const handlePointerLeave = useCallback(() => {
+    const hadHover = hoverIndexRef.current !== null;
     hoverIndexRef.current = null;
-    setTooltip({ visible: false, x: 0, y: 0, dataPoint: null });
-    draw();
+    setTooltip((current) =>
+      current.visible
+        ? { visible: false, x: 0, y: 0, dataPoint: null }
+        : current,
+    );
+    if (hadHover) draw();
   }, [draw]);
 
   if (!dataAvailable || curveData.length === 0) {

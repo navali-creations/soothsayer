@@ -271,6 +271,7 @@ export function drawProfitArea(
   dc: DrawContext,
   visibleData: ReadonlyArray<ChartDataPoint>,
   chartData: ReadonlyArray<ChartDataPoint>,
+  fullProfitSum?: number,
 ): void {
   const { ctx, layout, colors, hiddenMetrics, mapX, mapProfitY } = dc;
   const { chartTop, chartBottom } = layout;
@@ -295,9 +296,12 @@ export function drawProfitArea(
 
   // Base gradient direction on the FULL dataset average (not visible
   // slice) so it stays stable during drag/zoom and doesn't flicker.
-  let profitSum = 0;
-  for (const pt of chartData) {
-    profitSum += pt.profitDivine;
+  let profitSum = fullProfitSum;
+  if (profitSum === undefined) {
+    profitSum = 0;
+    for (const pt of chartData) {
+      profitSum += pt.profitDivine;
+    }
   }
   const mostlyNegative = profitSum < 0;
 
@@ -517,9 +521,12 @@ export function drawBrush(
   ctx.fillRect(brushLeft, brushTop, brushRight - brushLeft, brushH);
 
   // ── Mini profit line in brush (smooth) ──────────────────────
+  let bMin = Infinity;
+  let bMax = -Infinity;
+  let bRange = 1;
+  let brushLineY: ((dataIndex: number) => number) | null = null;
+
   if (!hiddenMetrics.has("profit")) {
-    let bMin = Infinity;
-    let bMax = -Infinity;
     for (const pt of chartData) {
       if (pt.profitDivine < bMin) bMin = pt.profitDivine;
       if (pt.profitDivine > bMax) bMax = pt.profitDivine;
@@ -529,12 +536,16 @@ export function drawBrush(
       bMax += 1;
     }
 
-    const bRange = bMax - bMin;
+    bRange = bMax - bMin;
+    brushLineY = (idx: number) => {
+      const frac = (chartData[idx]?.profitDivine - bMin) / bRange;
+      return brushBottom - 3 - frac * (brushH - 6);
+    };
+
     const brushPoints: SplinePoint[] = [];
     for (let i = 0; i < totalPoints; i++) {
       const x = mapBrushX(i);
-      const frac = (chartData[i].profitDivine - bMin) / bRange;
-      const y = brushBottom - 3 - frac * (brushH - 6);
+      const y = brushLineY(i);
       brushPoints.push({ x, y });
     }
 
@@ -570,26 +581,6 @@ export function drawBrush(
   const rangeEnd = brushRange.endIndex;
   const bxStart = mapBrushX(rangeStart);
   const bxEnd = mapBrushX(rangeEnd);
-
-  // Compute brush mini-line Y helper for a given data index
-  let brushLineY: ((dataIndex: number) => number) | null = null;
-  if (!hiddenMetrics.has("profit") && chartData.length > 0) {
-    let bMin = Infinity;
-    let bMax = -Infinity;
-    for (const pt of chartData) {
-      if (pt.profitDivine < bMin) bMin = pt.profitDivine;
-      if (pt.profitDivine > bMax) bMax = pt.profitDivine;
-    }
-    if (bMin === bMax) {
-      bMin -= 1;
-      bMax += 1;
-    }
-    const bRange = bMax - bMin;
-    brushLineY = (idx: number) => {
-      const frac = (chartData[idx]?.profitDivine - bMin) / bRange;
-      return brushBottom - 3 - frac * (brushH - 6);
-    };
-  }
 
   ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
   // Left dim

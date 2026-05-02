@@ -797,6 +797,46 @@ describe("CardDetailsRepository", () => {
       expect(result).toEqual([]);
     });
 
+    it("should include zero-drop sessions for decks-opened continuity", async () => {
+      const leagueId = await seedLeague(getTestDb().kysely, {
+        name: "Settlers",
+      });
+
+      const dropSessionId = await seedSession(getTestDb().kysely, {
+        game: "poe1",
+        leagueId,
+        startedAt: "2025-06-01T10:00:00Z",
+        totalCount: 100,
+      });
+      await seedSessionCards(getTestDb().kysely, dropSessionId, [
+        { cardName: "The Doctor", count: 1 },
+      ]);
+
+      const zeroDropSessionId = await seedSession(getTestDb().kysely, {
+        game: "poe1",
+        leagueId,
+        startedAt: "2025-06-02T10:00:00Z",
+        totalCount: 75,
+      });
+
+      const result = await getRepository().getDropTimeline(
+        "poe1",
+        "The Doctor",
+      );
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toMatchObject({
+        sessionId: dropSessionId,
+        count: 1,
+        totalDecksOpened: 100,
+      });
+      expect(result[1]).toMatchObject({
+        sessionId: zeroDropSessionId,
+        count: 0,
+        totalDecksOpened: 75,
+      });
+    });
+
     it("should return per-session drops ordered chronologically", async () => {
       const leagueId = await seedLeague(getTestDb().kysely, {
         name: "Settlers",

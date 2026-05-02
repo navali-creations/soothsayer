@@ -441,6 +441,53 @@ describe("CardDetailsDropTimeline — multi data point", () => {
     expect(screen.getByText("Decks Opened")).toBeInTheDocument();
   });
 
+  it("hides zero-drop sessions by default and restores them with the include-all checkbox", () => {
+    const zeroDropSession = {
+      sessionStartedAt: "2024-01-10T10:00:00Z",
+      count: 0,
+      cumulativeCount: 0,
+      totalDecksOpened: 90,
+      league: "Affliction",
+      sessionId: "zero-drop",
+    };
+    const dropSessionA = {
+      sessionStartedAt: "2024-01-15T10:00:00Z",
+      count: 3,
+      cumulativeCount: 3,
+      totalDecksOpened: 100,
+      league: "Affliction",
+      sessionId: "drop-a",
+    };
+    const dropSessionB = {
+      sessionStartedAt: "2024-01-20T10:00:00Z",
+      count: 2,
+      cumulativeCount: 5,
+      totalDecksOpened: 80,
+      league: "Affliction",
+      sessionId: "drop-b",
+    };
+
+    renderComponent({
+      dropTimeline: [zeroDropSession, dropSessionA, dropSessionB],
+    });
+
+    expect(mockUseDropTimelineData).toHaveBeenLastCalledWith([
+      dropSessionA,
+      dropSessionB,
+    ]);
+
+    const toggle = screen.getByLabelText("Include all sessions");
+    expect(toggle).not.toBeChecked();
+    fireEvent.click(toggle);
+
+    expect(toggle).toBeChecked();
+    expect(mockUseDropTimelineData).toHaveBeenLastCalledWith([
+      zeroDropSession,
+      dropSessionA,
+      dropSessionB,
+    ]);
+  });
+
   it("renders compressed gaps legend entry when inactivity gaps are present", () => {
     const pointA = {
       time: new Date("2026-01-01T00:00:00.000Z").getTime(),

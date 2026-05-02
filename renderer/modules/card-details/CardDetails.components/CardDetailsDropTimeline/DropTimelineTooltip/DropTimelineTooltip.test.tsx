@@ -120,4 +120,22 @@ describe("DropTimelineTooltip", () => {
     );
     expect(screen.getByText("Expected")).toBeInTheDocument();
   });
+
+  it("keeps dropped value neutral when both dropped and expected are zero", () => {
+    renderWithProviders(
+      <DropTimelineTooltip
+        dataPoint={makeDataPoint({ count: 0, totalDecksOpened: 0 })}
+        metrics={{ anticipatedDrops: 0 }}
+      />,
+    );
+
+    const droppedRow = screen.getByText("Dropped").closest("div");
+    expect(droppedRow).not.toBeNull();
+    expect(within(droppedRow as HTMLElement).getByText("0")).toHaveClass(
+      "text-base-content",
+    );
+    expect(within(droppedRow as HTMLElement).getByText("0")).not.toHaveClass(
+      "text-success",
+    );
+  });
 });

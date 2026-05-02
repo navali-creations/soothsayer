@@ -7,6 +7,9 @@ import {
   CLIP_BLEED,
   computeDomains,
   computeLayout,
+  resolveLeagueStartMarkerIndex,
+  resolveVisibleLeagueStartMarker,
+  sumProfitDivine,
 } from "./canvas-chart-utils/canvas-chart-utils";
 import type {
   ActiveLeagueStartMarker,
@@ -100,51 +103,22 @@ export const CombinedChartCanvas = memo(
       const end = brushRange.endIndex;
       return chartData.slice(start, end + 1);
     }, [chartData, brushRange.startIndex, brushRange.endIndex]);
+    const totalProfitSum = useMemo(
+      () => sumProfitDivine(chartData),
+      [chartData],
+    );
     const leagueStartMarkerIndex = useMemo(() => {
-      if (!leagueStartMarker || chartData.length < 2) return null;
-      const points = chartData
-        .map((point, index) => ({
-          index,
-          time: new Date(point.sessionDate).getTime(),
-        }))
-        .filter((point) => Number.isFinite(point.time));
-      if (points.length < 2) return null;
-
-      const first = points[0];
-      const last = points[points.length - 1];
-      if (
-        leagueStartMarker.time < first.time ||
-        leagueStartMarker.time > last.time
-      ) {
-        return null;
-      }
-
-      for (let i = 1; i < points.length; i++) {
-        if (leagueStartMarker.time > points[i].time) continue;
-
-        const prev = points[i - 1];
-        const next = points[i];
-        const span = next.time - prev.time;
-        if (span <= 0) return next.index;
-
-        const ratio = (leagueStartMarker.time - prev.time) / span;
-        return prev.index + ratio * (next.index - prev.index);
-      }
-
-      return points[points.length - 1].index;
+      return resolveLeagueStartMarkerIndex({ chartData, leagueStartMarker });
     }, [chartData, leagueStartMarker]);
     const visibleLeagueStartMarker = useMemo(() => {
-      if (leagueStartMarkerIndex === null || !leagueStartMarker) return null;
-      const start = brushRange.startIndex;
-      const end = brushRange.endIndex;
-      if (leagueStartMarkerIndex < start || leagueStartMarkerIndex > end) {
-        return null;
-      }
-      return {
-        label: leagueStartMarker.label,
-        visibleIndex: leagueStartMarkerIndex - start,
-        fullIndex: leagueStartMarkerIndex,
-      };
+      return resolveVisibleLeagueStartMarker({
+        brushRange: {
+          startIndex: brushRange.startIndex,
+          endIndex: brushRange.endIndex,
+        },
+        leagueStartMarker,
+        leagueStartMarkerIndex,
+      });
     }, [
       brushRange.endIndex,
       brushRange.startIndex,
@@ -280,7 +254,7 @@ export const CombinedChartCanvas = memo(
         });
       }
 
-      drawProfitArea(dc, visibleData, chartData);
+      drawProfitArea(dc, visibleData, chartData, totalProfitSum);
       drawDecksScatter(dc, visibleData);
       drawHoverHighlight(dc, visibleData, hoverIndexRef.current);
 
@@ -314,6 +288,7 @@ export const CombinedChartCanvas = memo(
       mapBrushX,
       leagueStartMarkerIndex,
       visibleLeagueStartMarker,
+      totalProfitSum,
     ]);
 
     // ── Draw on every relevant change ───────────────────────────

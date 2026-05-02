@@ -1,4 +1,9 @@
-import { createRootRoute, Outlet, useNavigate } from "@tanstack/react-router";
+import {
+  createRootRoute,
+  Outlet,
+  useNavigate,
+  useRouterState,
+} from "@tanstack/react-router";
 // import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { useEffect, useRef, useState } from "react";
 
@@ -13,6 +18,9 @@ import "@repere/react/styles.css";
 
 const RootLayout = () => {
   const navigate = useNavigate();
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  });
   const [isHydrating, setIsHydrating] = useState(true);
   const [isSlow, setIsSlow] = useState(false);
   const slowTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -51,6 +59,11 @@ const RootLayout = () => {
       checkBackfill();
     }
   }, [isHydrating, setupState?.isComplete, checkBackfill]);
+
+  useEffect(() => {
+    if (isHydrating || setupState?.isComplete || pathname === "/setup") return;
+    void navigate({ to: "/setup", replace: true });
+  }, [isHydrating, setupState?.isComplete, pathname, navigate]);
 
   useEffect(() => {
     if (!window.electron?.cardDetails?.onNavigateToCard) return;

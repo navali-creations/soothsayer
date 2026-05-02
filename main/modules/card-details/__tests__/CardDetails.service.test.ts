@@ -837,6 +837,50 @@ describe("CardDetailsService", () => {
         );
         expect(result).toBeNull();
       });
+
+      it("should return null and skip analytics queries when card is unknown", async () => {
+        const handler = getIpcHandler();
+        const repo = getRepoMock();
+
+        const result = await handler(
+          {} as Electron.IpcMainInvokeEvent,
+          "poe1",
+          "Settlers",
+          "Definitely Not A Card",
+        );
+
+        expect(result).toBeNull();
+        expect(repo.findCardByName).toHaveBeenCalledWith(
+          "poe1",
+          "Definitely Not A Card",
+        );
+        expect(repo.getDropTimeline).not.toHaveBeenCalled();
+        expect(repo.getCardPersonalStats).not.toHaveBeenCalled();
+        expect(repo.getTotalDecksOpenedAllSessions).not.toHaveBeenCalled();
+      });
+
+      it("should resolve the card before returning personal analytics", async () => {
+        const handler = getIpcHandler();
+        const repo = getRepoMock();
+        repo.findCardByName.mockResolvedValue({
+          name: "The Doctor",
+        });
+
+        const result = await handler(
+          {} as Electron.IpcMainInvokeEvent,
+          "poe1",
+          "Settlers",
+          "The Doctor",
+        );
+
+        expect(result).not.toBeNull();
+        expect(result!.cardName).toBe("The Doctor");
+        expect(repo.getDropTimeline).toHaveBeenCalledWith(
+          "poe1",
+          "The Doctor",
+          undefined,
+        );
+      });
     });
 
     // ─── Card with drops across multiple sessions ─────────────────────────
@@ -929,10 +973,13 @@ describe("CardDetailsService", () => {
           "The Doctor",
         );
 
-        expect(result!.dropTimeline).toHaveLength(3);
-        expect(result!.dropTimeline[0].cumulativeCount).toBe(1);
-        expect(result!.dropTimeline[1].cumulativeCount).toBe(3);
-        expect(result!.dropTimeline[2].cumulativeCount).toBe(6);
+        const realPoints = result!.dropTimeline.filter(
+          (point) => !point.isGap && !point.isBoundary,
+        );
+        expect(realPoints).toHaveLength(3);
+        expect(realPoints[0].cumulativeCount).toBe(1);
+        expect(realPoints[1].cumulativeCount).toBe(3);
+        expect(realPoints[2].cumulativeCount).toBe(6);
       });
     });
 
@@ -1022,8 +1069,11 @@ describe("CardDetailsService", () => {
 
         expect(result!.sessionCount).toBe(1);
         expect(result!.averageDropsPerSession).toBe(10);
-        expect(result!.dropTimeline).toHaveLength(1);
-        expect(result!.dropTimeline[0].cumulativeCount).toBe(10);
+        const realPoints = result!.dropTimeline.filter(
+          (point) => !point.isGap && !point.isBoundary,
+        );
+        expect(realPoints).toHaveLength(1);
+        expect(realPoints[0].cumulativeCount).toBe(10);
       });
     });
 
@@ -2058,6 +2108,26 @@ describe("CardDetailsService", () => {
 
         expect(result).not.toBeNull();
         expect(result!.card.name).toBe("The King's Blade");
+      });
+
+      it("should cache slug lookups per game after the first card resolution", async () => {
+        mockDivCardsGetAllByGame.mockResolvedValue([
+          { ...mockCard, name: "The Doctor" },
+          { ...mockCard, name: "House of Mirrors" },
+        ]);
+
+        const repo = getRepoMock();
+        repo.getCardRewardHtml.mockResolvedValue(null);
+
+        const first = await service.resolveCardBySlug("poe1", "the-doctor");
+        const second = await service.resolveCardBySlug(
+          "poe1",
+          "house-of-mirrors",
+        );
+
+        expect(first?.card.name).toBe("The Doctor");
+        expect(second?.card.name).toBe("House of Mirrors");
+        expect(mockDivCardsGetAllByGame).toHaveBeenCalledTimes(1);
       });
     });
   });

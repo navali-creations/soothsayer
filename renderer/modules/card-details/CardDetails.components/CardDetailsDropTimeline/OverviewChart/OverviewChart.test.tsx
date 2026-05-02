@@ -181,6 +181,7 @@ describe("OverviewChart", () => {
         chartData={visibleData}
         maxPerSession={3}
         hiddenMetrics={new Set()}
+        showExpectedBars={false}
         leagueStartTime={undefined}
         brushStartTime={visibleData[0].time}
         brushEndTime={visibleData[visibleData.length - 1].time}
@@ -223,10 +224,32 @@ describe("OverviewChart", () => {
     expect(mockSetupCanvas).not.toHaveBeenCalled();
   });
 
-  it("does not draw expected bars in the brush preview", () => {
+  it("does not draw expected bars in the brush preview by default", () => {
     renderOverviewChart();
 
     expect(mockCtx.clip).not.toHaveBeenCalled();
+  });
+
+  it("draws expected bars in the brush preview when enabled", () => {
+    renderOverviewChart({
+      showExpectedBars: true,
+      chartData: [
+        makeDataPoint({
+          time: 1704067200000,
+          count: 0,
+          totalDecksOpened: 500,
+          sessionId: "zero-drop",
+        }),
+        makeDataPoint({
+          time: 1704153600000,
+          count: 3,
+          totalDecksOpened: 500,
+          sessionId: "drop",
+        }),
+      ],
+    });
+
+    expect(mockCtx.clip).toHaveBeenCalled();
   });
 
   it("draws a brush marker line when leagueStartTime is in range", () => {

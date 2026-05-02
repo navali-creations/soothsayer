@@ -23,7 +23,7 @@
  * @module e2e/flows/card-detail
  */
 
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
 import {
   dragFullRangeBrushThumb,
@@ -106,6 +106,18 @@ async function collectOpenedUrls(page: Page): Promise<string[]> {
   return urls;
 }
 
+async function expectLegendHidden(button: Locator, hidden: boolean) {
+  await expect
+    .poll(
+      async () => {
+        const className = (await button.getAttribute("class")) ?? "";
+        return className.includes(hidden ? "opacity-30" : "opacity-100");
+      },
+      { timeout: 5_000, intervals: [100, 250, 500] },
+    )
+    .toBe(true);
+}
+
 // ─── Data Seeding ─────────────────────────────────────────────────────────────
 
 // Module-level flag so we only seed data once per worker.
@@ -160,6 +172,37 @@ async function ensureDataSeeded(page: Page) {
     const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
     const sixHoursAgo = new Date(now.getTime() - 6 * 60 * 60 * 1000);
     const tenHoursAgo = new Date(now.getTime() - 10 * 60 * 60 * 1000);
+    const eighteenDaysAgo = new Date(now.getTime() - 18 * 24 * 60 * 60_000);
+    const twentyDaysAgo = new Date(now.getTime() - 20 * 24 * 60 * 60_000);
+
+    await seedMultipleCompletedSessions(page, [
+      {
+        id: "e2e-card-detail-zero-house-session-1",
+        leagueId: "poe1_standard",
+        snapshotId: snapshotId ?? null,
+        startedAt: new Date(
+          twentyDaysAgo.getTime() - 90 * 60_000,
+        ).toISOString(),
+        endedAt: twentyDaysAgo.toISOString(),
+        cards: [
+          { cardName: "Humility", count: 9 },
+          { cardName: "Rain of Chaos", count: 14 },
+        ],
+      },
+      {
+        id: "e2e-card-detail-zero-house-session-2",
+        leagueId: "poe1_standard",
+        snapshotId: snapshotId ?? null,
+        startedAt: new Date(
+          eighteenDaysAgo.getTime() - 90 * 60_000,
+        ).toISOString(),
+        endedAt: eighteenDaysAgo.toISOString(),
+        cards: [
+          { cardName: "The Doctor", count: 1 },
+          { cardName: "Carrion Crow", count: 12 },
+        ],
+      },
+    ]);
 
     // Session 1: older session with House of Mirrors + common drops
     await seedCompletedSession(page, {
@@ -522,6 +565,86 @@ test.describe("Card Detail Page", () => {
           timeout: 5_000,
         });
       }
+    });
+
+    test("should toggle drop timeline legend metrics and include all sessions", async ({
+      page,
+    }) => {
+      await goToCardDetail(page, "house-of-mirrors");
+
+      await expect(page.locator("main")).toContainText(
+        /Total Drops|You haven't found this card yet/,
+        { timeout: 10_000 },
+      );
+
+      const mainCanvas = page.getByTestId("drop-timeline-main-canvas");
+      const overviewCanvas = page.getByTestId("drop-timeline-overview-canvas");
+
+      if ((await mainCanvas.count()) === 0) {
+        const mainContent = await page.locator("main").textContent();
+        expect(mainContent).toBeTruthy();
+        return;
+      }
+
+      await expectCanvasChartRendered(mainCanvas, "Drop timeline");
+      await expectCanvasChartRendered(overviewCanvas, "Drop timeline overview");
+
+      for (const label of ["Drops / Day", "Expected to Drop", "Decks Opened"]) {
+        const legendButton = page.getByRole("button", { name: label }).first();
+        await expect(legendButton).toBeVisible({ timeout: 5_000 });
+        await expectLegendHidden(legendButton, false);
+
+        await legendButton.click();
+        await expectLegendHidden(legendButton, true);
+        await expectCanvasChartRendered(mainCanvas, "Drop timeline");
+
+        await legendButton.click();
+        await expectLegendHidden(legendButton, false);
+        await expectCanvasChartRendered(mainCanvas, "Drop timeline");
+      }
+
+      const leagueMarkerButton = page
+        .getByRole("button", { name: /League (Start|Bounds)/ })
+        .first();
+      if ((await leagueMarkerButton.count()) > 0) {
+        await expectLegendHidden(leagueMarkerButton, false);
+        await leagueMarkerButton.click();
+        await expectLegendHidden(leagueMarkerButton, true);
+        await leagueMarkerButton.click();
+        await expectLegendHidden(leagueMarkerButton, false);
+      }
+
+      const includeAllSessions = page.getByRole("checkbox", {
+        name: "Include all sessions",
+      });
+      await expect(includeAllSessions).toBeVisible({ timeout: 5_000 });
+      await expect(includeAllSessions).not.toBeChecked();
+
+      const filteredPointCount = await readCanvasNumberAttribute(
+        overviewCanvas,
+        "data-chart-point-count",
+      );
+
+      await includeAllSessions.check();
+      await expect(includeAllSessions).toBeChecked();
+      await expect
+        .poll(
+          () =>
+            readCanvasNumberAttribute(overviewCanvas, "data-chart-point-count"),
+          { timeout: 5_000, intervals: [100, 250, 500] },
+        )
+        .toBeGreaterThan(filteredPointCount);
+      await expectCanvasChartRendered(mainCanvas, "Drop timeline");
+
+      await includeAllSessions.uncheck();
+      await expect(includeAllSessions).not.toBeChecked();
+      await expect
+        .poll(
+          () =>
+            readCanvasNumberAttribute(overviewCanvas, "data-chart-point-count"),
+          { timeout: 5_000, intervals: [100, 250, 500] },
+        )
+        .toBe(filteredPointCount);
     });
   });
 

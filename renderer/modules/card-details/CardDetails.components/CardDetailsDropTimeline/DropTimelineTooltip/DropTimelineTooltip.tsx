@@ -15,7 +15,13 @@ interface DropTimelineTooltipProps {
 function DropTimelineTooltip({ dataPoint, metrics }: DropTimelineTooltipProps) {
   if (!dataPoint || dataPoint.isGap || dataPoint.isBoundary) return null;
   const expectedDrops = metrics?.anticipatedDrops ?? 0;
-  const metExpected = dataPoint.count >= roundedExpectedDrops(expectedDrops);
+  const roundedExpected = roundedExpectedDrops(expectedDrops);
+  const droppedValueClass =
+    roundedExpected === 0 && dataPoint.count === 0
+      ? "text-base-content"
+      : dataPoint.count >= roundedExpected
+        ? "text-success"
+        : "text-error";
   const sessionLabel =
     dataPoint.sessionCount === 1
       ? "1 session"
@@ -56,11 +62,7 @@ function DropTimelineTooltip({ dataPoint, metrics }: DropTimelineTooltipProps) {
             </span>
             <span>Dropped</span>
           </span>
-          <span
-            className={`font-semibold tabular-nums ${
-              metExpected ? "text-success" : "text-error"
-            }`}
-          >
+          <span className={`font-semibold tabular-nums ${droppedValueClass}`}>
             {dataPoint.count}
           </span>
         </div>

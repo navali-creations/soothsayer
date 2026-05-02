@@ -35,6 +35,40 @@ vi.mock("./canvas-chart-utils/canvas-chart-utils", () => ({
   }),
   computeLayout: () => mockLayout,
   DPR: () => 1,
+  sumProfitDivine: (chartData: ChartDataPoint[]) =>
+    chartData.reduce((sum, point) => sum + point.profitDivine, 0),
+  resolveLeagueStartMarkerIndex: ({
+    chartData,
+    leagueStartMarker,
+  }: {
+    chartData: ChartDataPoint[];
+    leagueStartMarker: { time: number } | null;
+  }) => {
+    if (!leagueStartMarker || chartData.length < 2) return null;
+    return 1;
+  },
+  resolveVisibleLeagueStartMarker: ({
+    brushRange,
+    leagueStartMarker,
+    leagueStartMarkerIndex,
+  }: {
+    brushRange: BrushRange;
+    leagueStartMarker: { label: string } | null;
+    leagueStartMarkerIndex: number | null;
+  }) => {
+    if (leagueStartMarkerIndex === null || !leagueStartMarker) return null;
+    if (
+      leagueStartMarkerIndex < brushRange.startIndex ||
+      leagueStartMarkerIndex > brushRange.endIndex
+    ) {
+      return null;
+    }
+    return {
+      label: leagueStartMarker.label,
+      visibleIndex: leagueStartMarkerIndex - brushRange.startIndex,
+      fullIndex: leagueStartMarkerIndex,
+    };
+  },
 }));
 
 const mockCtx = {

@@ -31,6 +31,7 @@ import type {
 } from "../types";
 import {
   buildAnticipatedSeries,
+  buildDecksOpenedLineData,
   buildXAxisLabels,
   computeLayout,
   computeTimeDomain,
@@ -157,6 +158,15 @@ const MainChart = ({
     );
     return Math.ceil(maxValue * 1.1) || 1;
   }, [hiddenMetrics, visibleData]);
+  const decksOpenedLineData = useMemo(
+    () =>
+      buildDecksOpenedLineData({
+        chartData,
+        visibleTimeMin: timeDomain.min,
+        visibleTimeMax: timeDomain.max,
+      }),
+    [chartData, timeDomain.max, timeDomain.min],
+  );
 
   const tooltipStyle = useMemo(
     () => computeTooltipStyle({ tooltip, tooltipSize, canvasSize }),
@@ -243,7 +253,14 @@ const MainChart = ({
     );
     ctx.clip();
     if (!hiddenMetrics.has("decks-opened")) {
-      drawDecksOpenedLine(ctx, visibleData, effectiveLayout, mapX, mapDeckY, c);
+      drawDecksOpenedLine(
+        ctx,
+        decksOpenedLineData,
+        effectiveLayout,
+        mapX,
+        mapDeckY,
+        c,
+      );
     }
     if (!hiddenMetrics.has("anticipated")) {
       drawExpectedBars(
@@ -295,6 +312,7 @@ const MainChart = ({
     allCompressionGaps,
     countDomainMax,
     deckDomainMax,
+    decksOpenedLineData,
     inactivityGap,
     layout,
     anticipatedSeries.metricsByKey,

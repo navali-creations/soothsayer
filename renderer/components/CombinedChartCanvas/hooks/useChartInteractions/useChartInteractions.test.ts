@@ -242,9 +242,9 @@ describe("useChartInteractions", () => {
     expect(result.dataPoint).toBeNull();
   });
 
-  // ── 6. Mouse leave sets tooltip to not visible ────────────────
+  // ── 6. Mouse leave skips tooltip work when there is no hover ──
 
-  it("sets tooltip to not visible on mouseleave", () => {
+  it("does not update tooltip on mouseleave when there is no active hover", () => {
     const params = createParams();
 
     renderHook(() => useChartInteractions(params));
@@ -253,19 +253,8 @@ describe("useChartInteractions", () => {
       fireMouseEvent(params.canvasRef.current!, "mouseleave");
     });
 
-    expect(params.setTooltip).toHaveBeenCalled();
-    // setTooltip is called with an updater function; invoke it to verify behaviour
-    const updater = (params.setTooltip as ReturnType<typeof vi.fn>).mock
-      .calls[0][0];
-    const prev: TooltipState = {
-      visible: true,
-      x: 100,
-      y: 100,
-      dataPoint: makeDataPoint(0),
-    };
-    const result = updater(prev);
-    expect(result.visible).toBe(false);
-    expect(result.dataPoint).toBeNull();
+    expect(params.setTooltip).not.toHaveBeenCalled();
+    expect(params.draw).not.toHaveBeenCalled();
   });
 
   // ── 7. Mouse move over chart area sets hover index and tooltip ─

@@ -59,22 +59,31 @@ export interface CardPriceHistoryDTO {
 // ─── Personal Analytics DTOs ─────────────────────────────────────────────────
 
 /**
- * A single data point in the user's personal drop timeline.
- * Each point represents a session where this card was found.
+ * A prepared data point in the user's personal drop timeline.
+ * Real points are daily aggregates across all deck-opening sessions; synthetic
+ * gap and boundary points are inserted by the main process for charting.
  */
 export interface CardDropTimelinePointDTO {
-  /** ISO date string of session start */
+  /** Unix timestamp in ms - the X axis value */
+  time: number;
+  /** ISO date string of the first session represented by this point */
   sessionStartedAt: string;
-  /** Session ID for navigation */
+  /** Session ID, or comma-joined IDs when multiple sessions are aggregated */
   sessionId: string;
-  /** Number of this card dropped in the session */
+  /** Number of this card dropped in this daily bucket */
   count: number;
-  /** Cumulative total drops up to and including this session */
+  /** Cumulative total drops up to and including this point */
   cumulativeCount: number;
-  /** Total decks opened in this session */
+  /** Total decks opened in this daily bucket */
   totalDecksOpened: number;
   /** League name this session belongs to */
   league: string;
+  /** Number of sessions aggregated into this point */
+  sessionCount: number;
+  /** If true this is a synthetic gap marker, not a real session bucket */
+  isGap?: boolean;
+  /** If true this is an invisible boundary sentinel at the timeline edge */
+  isBoundary?: boolean;
 }
 
 /**

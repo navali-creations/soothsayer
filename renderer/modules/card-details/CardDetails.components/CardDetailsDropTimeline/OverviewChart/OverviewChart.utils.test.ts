@@ -56,6 +56,8 @@ function makeCtx() {
     save: vi.fn(),
     restore: vi.fn(),
     beginPath: vi.fn(),
+    rect: vi.fn(),
+    clip: vi.fn(),
     closePath: vi.fn(),
     moveTo: vi.fn(),
     lineTo: vi.fn(),
@@ -71,8 +73,10 @@ function makeCtx() {
 
 const colors = {
   primary: "#f00",
+  bc05: "rgba(255,255,255,0.05)",
   b2: "#222",
   bc15: "rgba(255,255,255,0.15)",
+  bc20: "rgba(255,255,255,0.2)",
   bc30: "rgba(255,255,255,0.3)",
   bc40: "rgba(255,255,255,0.4)",
   success50: "rgba(0,255,0,0.5)",
@@ -187,6 +191,7 @@ describe("OverviewChart utils", () => {
       chartData,
       maxPerSession: 6,
       hiddenMetrics: new Set(),
+      showExpectedBars: false,
       leagueStartTime: 2000,
       startTime: 1000,
       endTime: 6000,
@@ -205,6 +210,7 @@ describe("OverviewChart utils", () => {
       chartData,
       maxPerSession: 6,
       hiddenMetrics: new Set(),
+      showExpectedBars: false,
       leagueStartTime: 2000,
       startTime: 1000,
       endTime: 6000,
@@ -222,6 +228,7 @@ describe("OverviewChart utils", () => {
       chartData,
       maxPerSession: 6,
       hiddenMetrics: new Set(["league-start"]),
+      showExpectedBars: false,
       leagueStartTime: 2000,
       startTime: 1000,
       endTime: 6000,
@@ -235,5 +242,45 @@ describe("OverviewChart utils", () => {
     expect(ctx.strokeRect).toHaveBeenCalled();
     expect(ctx.setLineDash).toHaveBeenCalledWith([]);
     expect(ctx.setLineDash).not.toHaveBeenCalledWith([4, 4]);
+  });
+
+  it("draws expected bars in the brush preview when requested", () => {
+    const ctx = makeCtx();
+    const layout = computeLayout(400, 80);
+    const canvas = document.createElement("canvas");
+    const expectedData = [
+      makePoint({
+        time: 1000,
+        count: 0,
+        totalDecksOpened: 100,
+        sessionId: "zero-drop",
+      }),
+      makePoint({
+        time: 2000,
+        count: 2,
+        totalDecksOpened: 100,
+        sessionId: "drop",
+      }),
+    ];
+
+    mockEnsureCanvasBackingStore.mockReturnValue(true);
+    mockSetupCanvas.mockReturnValueOnce({ ctx, width: 400, height: 80 });
+    drawOverviewChartCanvas({
+      canvas,
+      sourceElement: null,
+      chartData: expectedData,
+      maxPerSession: 2,
+      hiddenMetrics: new Set(),
+      showExpectedBars: true,
+      leagueStartTime: undefined,
+      startTime: 1000,
+      endTime: 2000,
+      layout,
+      canvasSize: { width: 400, height: 80 },
+      timeDomain: { min: 1000, max: 2000 },
+      c: colors,
+    });
+
+    expect(ctx.clip).toHaveBeenCalled();
   });
 });

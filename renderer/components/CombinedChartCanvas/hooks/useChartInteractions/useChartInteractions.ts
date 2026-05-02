@@ -328,6 +328,7 @@ export function useChartInteractions({
   }, [canvasRef]);
 
   const handleMouseLeave = useCallback(() => {
+    if (hoverIndexRef.current === null) return;
     hoverIndexRef.current = null;
     setTooltip((prev) => ({ ...prev, visible: false, dataPoint: null }));
     requestDraw();

@@ -1,6 +1,7 @@
 import { ipcMain } from "electron";
 
 import { DatabaseService } from "~/main/modules/database";
+import type { DivinationCardDTO } from "~/main/modules/divination-cards/DivinationCards.dto";
 import { DivinationCardsService } from "~/main/modules/divination-cards/DivinationCards.service";
 import { LoggerService } from "~/main/modules/logger";
 import { MainWindowService } from "~/main/modules/main-window";
@@ -22,6 +23,7 @@ import {
   type PoeNinjaDetailsResponse,
 } from "./CardDetails.mapper";
 import { CardDetailsRepository } from "./CardDetails.repository";
+import { buildPreparedDropTimeline } from "./CardDetails.utils";
 
 /** Cache TTL: 30 minutes */
 const CACHE_TTL_MS = 30 * 60 * 1000;
@@ -154,6 +156,10 @@ class CardDetailsService {
   private static _instance: CardDetailsService;
   private readonly logger = LoggerService.createLogger("CardDetails");
   private readonly repository: CardDetailsRepository;
+  private readonly cardSlugCache = new Map<
+    GameType,
+    Map<string, DivinationCardDTO>
+  >();
 
   static getInstance(): CardDetailsService {
     if (!CardDetailsService._instance) {
@@ -226,12 +232,29 @@ class CardDetailsService {
           return null;
         }
 
-        return this.getPersonalAnalytics(
-          game,
-          league,
-          cardName,
-          selectedLeague,
-        );
+        try {
+          const card = await this.repository.findCardByName(game, cardName);
+          if (!card) {
+            this.logger.warn("GetPersonalAnalytics called with unknown card:", {
+              game,
+              cardName,
+            });
+            return null;
+          }
+
+          return this.getPersonalAnalytics(
+            game,
+            league,
+            card.name,
+            selectedLeague,
+          );
+        } catch (err) {
+          this.logger.error(
+            "Failed to validate card for personal analytics:",
+            err,
+          );
+          return null;
+        }
       },
     );
 
@@ -335,10 +358,7 @@ class CardDetailsService {
 
     try {
       // Step 1: Resolve slug → card name using the divination cards service
-      const divCardsService = DivinationCardsService.getInstance();
-      const allCards = await divCardsService.getRepository().getAllByGame(game);
-
-      const matched = allCards.find((c) => cardNameToSlug(c.name) === cardSlug);
+      const matched = await this.resolveCardFromSlugCache(game, cardSlug);
 
       if (!matched) {
         this.logger.warn(`No card found for slug "${cardSlug}" in ${game}`);
@@ -382,6 +402,30 @@ class CardDetailsService {
    * Focus the main window and send a navigation event so the main renderer
    * navigates to the card details page for the given card.
    */
+  private async resolveCardFromSlugCache(
+    game: GameType,
+    cardSlug: string,
+  ): Promise<DivinationCardDTO | null> {
+    let gameCache = this.cardSlugCache.get(game);
+
+    if (!gameCache) {
+      const divCardsService = DivinationCardsService.getInstance();
+      const allCards = await divCardsService.getRepository().getAllByGame(game);
+
+      gameCache = new Map<string, DivinationCardDTO>();
+      for (const card of allCards) {
+        const slug = cardNameToSlug(card.name);
+        if (!gameCache.has(slug)) {
+          gameCache.set(slug, card);
+        }
+      }
+
+      this.cardSlugCache.set(game, gameCache);
+    }
+
+    return gameCache.get(cardSlug) ?? null;
+  }
+
   private openCardInMainWindow(cardName: string): void {
     const mainWindowService = MainWindowService.getInstance();
     mainWindowService.show();
@@ -561,22 +605,6 @@ class CardDetailsService {
         this.repository.getFirstSessionStartDate(game, leagueFilter),
       ]);
 
-      // Build cumulative timeline
-      let cumulative = 0;
-      const dropTimeline: CardDropTimelinePointDTO[] = dropTimelineRaw.map(
-        (point) => {
-          cumulative += point.count;
-          return {
-            sessionStartedAt: point.sessionStartedAt,
-            sessionId: point.sessionId,
-            count: point.count,
-            cumulativeCount: cumulative,
-            totalDecksOpened: point.totalDecksOpened,
-            league: point.league,
-          };
-        },
-      );
-
       const averageDropsPerSession =
         personalStats.sessionCount > 0
           ? Math.round(
@@ -598,6 +626,13 @@ class CardDetailsService {
         leagueDateRanges,
         leagueFilter,
       );
+      const dropTimeline: CardDropTimelinePointDTO[] =
+        buildPreparedDropTimeline({
+          rows: dropTimelineRaw,
+          leagueDateRanges,
+          firstSessionStartedAt: firstSessionStartDate,
+          timelineEndDate,
+        });
 
       const dto: CardPersonalAnalyticsDTO = {
         cardName,

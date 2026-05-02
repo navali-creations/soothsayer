@@ -13,6 +13,7 @@ vi.mock("~/renderer/lib/canvas-core", () => ({
 import type { ChartDataPoint, LeagueMarker } from "../types";
 import {
   buildAnticipatedSeries,
+  buildDecksOpenedLineData,
   buildXAxisLabels,
   computeLayout,
   computeTimeDomain,
@@ -173,7 +174,7 @@ describe("MainChart.utils data helpers", () => {
     ).toBe(0);
   });
 
-  it("builds x-axis labels by segment and gives start markers priority", () => {
+  it("builds x-axis labels from real points and gives start markers priority", () => {
     const labels = buildXAxisLabels(
       [
         makePoint({ time: 1 }),
@@ -194,6 +195,53 @@ describe("MainChart.utils data helpers", () => {
       { time: 4 },
       { time: 5, marker: true },
     ]);
+  });
+
+  it("keeps multiple real session dates eligible for zoomed x-axis labels", () => {
+    const labels = buildXAxisLabels(
+      [
+        makePoint({ time: 10 }),
+        makePoint({ time: 20 }),
+        makePoint({ time: 30 }),
+        makePoint({ time: 40, isBoundary: true }),
+      ],
+      [],
+    );
+
+    expect(labels).toEqual([{ time: 10 }, { time: 20 }, { time: 30 }]);
+  });
+
+  it("includes nearest offscreen deck-line points around the visible window", () => {
+    const points = [
+      makePoint({ time: 10, sessionId: "before", totalDecksOpened: 10 }),
+      makePoint({ time: 20, sessionId: "first", totalDecksOpened: 20 }),
+      makePoint({ time: 30, sessionId: "second", totalDecksOpened: 30 }),
+      makePoint({ time: 40, sessionId: "after", totalDecksOpened: 40 }),
+      makePoint({ time: 50, sessionId: "later", totalDecksOpened: 50 }),
+    ];
+
+    expect(
+      buildDecksOpenedLineData({
+        chartData: points,
+        visibleTimeMin: 20,
+        visibleTimeMax: 30,
+      }).map((point) => point.sessionId),
+    ).toEqual(["before", "first", "second", "after"]);
+  });
+
+  it("connects deck-line points across an empty visible window", () => {
+    const points = [
+      makePoint({ time: 10, sessionId: "before", totalDecksOpened: 10 }),
+      makePoint({ time: 40, sessionId: "after", totalDecksOpened: 40 }),
+    ];
+
+    expect(
+      buildDecksOpenedLineData({
+        chartData: points,
+        visibleTimeMin: 20,
+        visibleTimeMax: 30,
+      }).map((point) => point.sessionId),
+    ).toEqual(["before", "after"]);
   });
 });
 

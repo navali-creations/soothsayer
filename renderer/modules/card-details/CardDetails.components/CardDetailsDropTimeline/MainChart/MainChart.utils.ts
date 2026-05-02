@@ -196,23 +196,10 @@ export function buildXAxisLabels(
   const labels: XAxisLabel[] = [];
   const sorted = [...visibleData].sort((a, b) => a.time - b.time);
 
-  let segment: ChartDataPoint[] = [];
-  const flush = () => {
-    if (segment.length === 0) return;
-    const midPoint = segment[Math.floor((segment.length - 1) / 2)];
-    labels.push({ time: midPoint.time });
-    segment = [];
-  };
-
   for (const point of sorted) {
-    if (point.isGap) {
-      flush();
-      continue;
-    }
-    if (point.isBoundary) continue;
-    segment.push(point);
+    if (point.isGap || point.isBoundary) continue;
+    labels.push({ time: point.time });
   }
-  flush();
 
   for (const marker of markerLabels) {
     if (marker.type !== "start" || !Number.isFinite(marker.time)) continue;
@@ -417,7 +404,7 @@ export function drawReferenceLines(
 export function drawDecksOpenedLine(
   ctx: CanvasRenderingContext2D,
   data: ChartDataPoint[],
-  layout: Layout,
+  _layout: Layout,
   mapX: (value: number) => number,
   mapDeckY: (value: number) => number,
   c: ChartColors,
@@ -428,13 +415,7 @@ export function drawDecksOpenedLine(
       x: mapX(point.time),
       y: mapDeckY(point.totalDecksOpened),
     }))
-    .filter(
-      (point) =>
-        Number.isFinite(point.x) &&
-        Number.isFinite(point.y) &&
-        point.x >= layout.chartLeft - 8 &&
-        point.x <= layout.chartRight + 8,
-    )
+    .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y))
     .sort((a, b) => a.x - b.x);
 
   if (points.length === 0) return;
@@ -454,6 +435,46 @@ export function drawDecksOpenedLine(
   }
   ctx.stroke();
   ctx.restore();
+}
+
+export function buildDecksOpenedLineData({
+  chartData,
+  visibleTimeMin,
+  visibleTimeMax,
+}: {
+  chartData: ChartDataPoint[];
+  visibleTimeMin: number;
+  visibleTimeMax: number;
+}) {
+  const realPoints = chartData
+    .filter((point) => isRealPoint(point) && point.totalDecksOpened > 0)
+    .sort((a, b) => a.time - b.time);
+  if (realPoints.length <= 2) return realPoints;
+
+  let precedingPoint: ChartDataPoint | null = null;
+  let trailingPoint: ChartDataPoint | null = null;
+  const visiblePoints: ChartDataPoint[] = [];
+
+  for (const point of realPoints) {
+    if (point.time < visibleTimeMin) {
+      precedingPoint = point;
+      continue;
+    }
+
+    if (point.time > visibleTimeMax) {
+      trailingPoint = point;
+      break;
+    }
+
+    visiblePoints.push(point);
+  }
+
+  const lineData: ChartDataPoint[] = [];
+  if (precedingPoint) lineData.push(precedingPoint);
+  lineData.push(...visiblePoints);
+  if (trailingPoint) lineData.push(trailingPoint);
+
+  return lineData;
 }
 
 export function drawBars(

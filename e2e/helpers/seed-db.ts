@@ -847,7 +847,7 @@ interface SeedRarityInsightsOptions {
  * If we seed here, the scan races with the inserts, causing FK violations.
  * Instead, `injectSeededFilters()` waits for the scan to finish, then seeds.
  *
- * All writes use `INSERT OR REPLACE` / `INSERT OR IGNORE` for idempotency.
+ * All writes use `INSERT OR REPLACE` / upsert for idempotency.
  *
  * @param page - Playwright Page (renderer) with access to e2e:db-exec IPC
  * @param cards - Array of `RarityInsightsCardFixture` entries
@@ -921,12 +921,15 @@ export async function seedRarityInsightsData(
   const placeholders = fixtureNames.map(() => "?").join(", ");
   await dbExec(
     page,
-    `INSERT OR IGNORE INTO divination_card_rarities
+    `INSERT INTO divination_card_rarities
        (game, league, card_name, rarity, last_updated)
      SELECT ?, ?, dc.name, 4, ?
        FROM divination_cards dc
       WHERE dc.game = ?
-        AND dc.name NOT IN (${placeholders})`,
+        AND dc.name NOT IN (${placeholders})
+     ON CONFLICT(game, league, card_name) DO UPDATE SET
+       rarity = excluded.rarity,
+       last_updated = excluded.last_updated`,
     [game, league, now, game, ...fixtureNames],
   );
 
@@ -1075,7 +1078,7 @@ export async function seedFilterData(
   // Backfill filter 1
   await dbExec(
     page,
-    `INSERT OR IGNORE INTO filter_card_rarities
+    `INSERT INTO filter_card_rarities
        (filter_id, card_name, rarity, created_at)
      SELECT ?, dc.name,
             CASE
@@ -1089,14 +1092,17 @@ export async function seedFilterData(
         AND dcr.game = 'poe1'
         AND dcr.league = 'Standard'
       WHERE dc.game = 'poe1'
-        AND dc.name NOT IN (${filterPlaceholders})`,
+        AND dc.name NOT IN (${filterPlaceholders})
+     ON CONFLICT(filter_id, card_name) DO UPDATE SET
+       rarity = excluded.rarity,
+       created_at = excluded.created_at`,
     [filter1Id, now, ...fixtureNamesForFilter],
   );
 
   // Backfill filter 2
   await dbExec(
     page,
-    `INSERT OR IGNORE INTO filter_card_rarities
+    `INSERT INTO filter_card_rarities
        (filter_id, card_name, rarity, created_at)
      SELECT ?, dc.name,
             CASE
@@ -1110,7 +1116,10 @@ export async function seedFilterData(
         AND dcr.game = 'poe1'
         AND dcr.league = 'Standard'
       WHERE dc.game = 'poe1'
-        AND dc.name NOT IN (${filterPlaceholders})`,
+        AND dc.name NOT IN (${filterPlaceholders})
+     ON CONFLICT(filter_id, card_name) DO UPDATE SET
+       rarity = excluded.rarity,
+       created_at = excluded.created_at`,
     [filter2Id, now, ...fixtureNamesForFilter],
   );
 }

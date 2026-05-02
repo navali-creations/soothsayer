@@ -1,7 +1,10 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { buildPreparedDropTimeline } from "~/main/modules/card-details/CardDetails.utils";
 import { useCardDetails } from "~/renderer/store";
+
+import { leagueEndTime, leagueStartTime } from "../helpers";
 
 // ─── Store mock ────────────────────────────────────────────────────────────
 
@@ -53,18 +56,64 @@ const mockAnalytics = {
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 function createMockState(overrides: Record<string, any> = {}) {
-  const dropTimeline = overrides.dropTimeline ?? mockTimeline;
   const personalAnalytics =
     overrides.personalAnalytics !== undefined
       ? overrides.personalAnalytics
       : mockAnalytics;
+  const rawTimeline = overrides.dropTimeline ?? mockTimeline;
   const selectedLeague = overrides.selectedLeague ?? "all";
+  const dropTimeline =
+    rawTimeline.length > 0 && typeof rawTimeline[0].time === "number"
+      ? rawTimeline
+      : buildPreparedDropTimeline({
+          rows: rawTimeline,
+          leagueDateRanges: personalAnalytics?.leagueDateRanges ?? [],
+          firstSessionStartedAt:
+            personalAnalytics?.firstSessionStartedAt ?? null,
+          timelineEndDate: resolvePreparedTimelineEndDate(
+            personalAnalytics,
+            selectedLeague,
+          ),
+        });
 
   return {
     personalAnalytics,
     getDropTimeline: vi.fn(() => dropTimeline),
     selectedLeague,
   };
+}
+
+function resolvePreparedTimelineEndDate(
+  personalAnalytics: any,
+  selectedLeague: string,
+) {
+  const ranges = personalAnalytics?.leagueDateRanges ?? [];
+  const normalizedSelectedLeague = selectedLeague.trim().toLowerCase();
+
+  if (normalizedSelectedLeague === "all" || ranges.length === 0) {
+    return personalAnalytics?.timelineEndDate ?? "";
+  }
+
+  if (normalizedSelectedLeague === "standard") {
+    const nonStandardRanges = ranges.filter(
+      (range: any) => range.name.trim().toLowerCase() !== "standard",
+    );
+    if (nonStandardRanges.length === 0) {
+      return personalAnalytics?.timelineEndDate ?? "";
+    }
+    const sorted = [...nonStandardRanges].sort(
+      (a, b) => leagueStartTime(b) - leagueStartTime(a),
+    );
+    return new Date(leagueEndTime(sorted[0], ranges)).toISOString();
+  }
+
+  const selectedRange = ranges.find(
+    (range: any) =>
+      range.name.trim().toLowerCase() === normalizedSelectedLeague,
+  );
+  if (!selectedRange) return personalAnalytics?.timelineEndDate ?? "";
+
+  return new Date(leagueEndTime(selectedRange, ranges)).toISOString();
 }
 
 function renderTimelineHook(overrides: Record<string, any> = {}) {

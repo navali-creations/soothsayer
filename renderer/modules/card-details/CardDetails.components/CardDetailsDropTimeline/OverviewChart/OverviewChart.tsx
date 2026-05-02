@@ -26,6 +26,7 @@ interface OverviewChartProps {
   chartData: ChartDataPoint[];
   maxPerSession: number;
   hiddenMetrics: ReadonlySet<DropTimelineMetricKey>;
+  showExpectedBars: boolean;
   leagueStartTime?: number;
   onWheelZoom?: (params: { deltaY: number; focusRatio: number }) => void;
   brushStartTime: number | undefined;
@@ -43,6 +44,7 @@ const OverviewChart = ({
   chartData,
   maxPerSession,
   hiddenMetrics,
+  showExpectedBars,
   leagueStartTime,
   onWheelZoom,
   brushStartTime,
@@ -71,6 +73,7 @@ const OverviewChart = ({
       chartData,
       maxPerSession,
       hiddenMetrics,
+      showExpectedBars,
       leagueStartTime,
       startTime,
       endTime,
@@ -90,6 +93,7 @@ const OverviewChart = ({
     leagueStartTime,
     layout,
     maxPerSession,
+    showExpectedBars,
     startTime,
     timeDomain,
   ]);

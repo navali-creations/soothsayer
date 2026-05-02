@@ -8,6 +8,11 @@ import {
 
 import { BAR_WIDTH, BRUSH_HEIGHT } from "../constants";
 import { formatAxisDate } from "../helpers";
+import {
+  buildAnticipatedSeries,
+  drawExpectedBars,
+  getChartPointKey,
+} from "../MainChart/MainChart.utils";
 import type { ChartDataPoint, DropTimelineMetricKey } from "../types";
 
 export interface Layout {
@@ -143,6 +148,36 @@ function drawBars(
     ctx.strokeRect(x, y, BAR_WIDTH, h);
   }
   ctx.restore();
+}
+
+function computeBrushCountDomainMax({
+  chartData,
+  maxPerSession,
+  hiddenMetrics,
+  showExpectedBars,
+}: {
+  chartData: ChartDataPoint[];
+  maxPerSession: number;
+  hiddenMetrics: ReadonlySet<DropTimelineMetricKey>;
+  showExpectedBars: boolean;
+}) {
+  const values: number[] = [];
+
+  if (!hiddenMetrics.has("drops-per-day")) {
+    values.push(maxPerSession);
+  }
+
+  if (showExpectedBars && !hiddenMetrics.has("anticipated")) {
+    const { metricsByKey } = buildAnticipatedSeries(chartData);
+    for (const point of chartData) {
+      if (!isRealPoint(point)) continue;
+      const metrics = metricsByKey.get(getChartPointKey(point));
+      if (!metrics) continue;
+      values.push(metrics.anticipatedDrops);
+    }
+  }
+
+  return Math.ceil(Math.max(1, ...values.filter(Number.isFinite)) * 1.4) || 1;
 }
 
 function drawBrushBackground(
@@ -303,6 +338,7 @@ export function drawOverviewChartCanvas({
   chartData,
   maxPerSession,
   hiddenMetrics,
+  showExpectedBars,
   leagueStartTime,
   startTime,
   endTime,
@@ -316,6 +352,7 @@ export function drawOverviewChartCanvas({
   chartData: ChartDataPoint[];
   maxPerSession: number;
   hiddenMetrics: ReadonlySet<DropTimelineMetricKey>;
+  showExpectedBars: boolean;
   leagueStartTime: number | undefined;
   startTime: number;
   endTime: number;
@@ -340,9 +377,17 @@ export function drawOverviewChartCanvas({
     effectiveLayout.chartLeft,
     effectiveLayout.chartRight,
   );
+  const anticipatedSeries = showExpectedBars
+    ? buildAnticipatedSeries(chartData)
+    : null;
   const mapCountY = createLinearMapper(
     0,
-    Math.ceil(maxPerSession * 1.4) || 1,
+    computeBrushCountDomainMax({
+      chartData,
+      maxPerSession,
+      hiddenMetrics,
+      showExpectedBars,
+    }),
     effectiveLayout.brushBottom - BRUSH_BAR_BOTTOM_PADDING,
     effectiveLayout.brushTop + BRUSH_BAR_TOP_PADDING,
   );
@@ -360,6 +405,21 @@ export function drawOverviewChartCanvas({
   };
 
   drawBrushBackground(ctx, effectiveLayout, c);
+  if (
+    showExpectedBars &&
+    anticipatedSeries &&
+    !hiddenMetrics.has("anticipated")
+  ) {
+    drawExpectedBars(
+      ctx,
+      chartData,
+      anticipatedSeries.metricsByKey,
+      brushBarsLayout,
+      mapX,
+      mapCountY,
+      c,
+    );
+  }
   if (!hiddenMetrics.has("drops-per-day")) {
     drawBars(ctx, chartData, brushBarsLayout, mapX, mapCountY, c);
   }

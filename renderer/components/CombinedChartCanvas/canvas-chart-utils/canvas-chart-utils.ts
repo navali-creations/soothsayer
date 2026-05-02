@@ -8,6 +8,12 @@ import {
   type SplinePoint,
 } from "~/renderer/lib/canvas-core";
 
+import type {
+  ActiveLeagueStartMarker,
+  BrushRange,
+  ChartDataPoint,
+} from "../chart-types/chart-types";
+
 // Re-export shared primitives so existing consumers are unaffected
 export {
   clamp,
@@ -62,6 +68,12 @@ export function formatDecksTick(value: number): string {
 export interface ChartDomains {
   profit: { min: number; max: number };
   decks: { min: number; max: number };
+}
+
+export interface VisibleLeagueStartMarker {
+  label: string;
+  visibleIndex: number;
+  fullIndex: number;
 }
 
 export function computeDomains(
@@ -152,6 +164,81 @@ export function computeDomains(
       min: Math.max(0, decksMin),
       max: decksMax + decksPadTop,
     },
+  };
+}
+
+export function sumProfitDivine(
+  chartData: ReadonlyArray<{ profitDivine: number }>,
+) {
+  let sum = 0;
+  for (const point of chartData) {
+    sum += point.profitDivine;
+  }
+  return sum;
+}
+
+export function resolveLeagueStartMarkerIndex({
+  chartData,
+  leagueStartMarker,
+}: {
+  chartData: ChartDataPoint[];
+  leagueStartMarker: ActiveLeagueStartMarker | null;
+}) {
+  if (!leagueStartMarker || chartData.length < 2) return null;
+
+  const points: Array<{ index: number; time: number }> = [];
+  for (let index = 0; index < chartData.length; index++) {
+    const time = new Date(chartData[index].sessionDate).getTime();
+    if (Number.isFinite(time)) {
+      points.push({ index, time });
+    }
+  }
+  if (points.length < 2) return null;
+
+  const first = points[0];
+  const last = points[points.length - 1];
+  if (
+    leagueStartMarker.time < first.time ||
+    leagueStartMarker.time > last.time
+  ) {
+    return null;
+  }
+
+  for (let i = 1; i < points.length; i++) {
+    if (leagueStartMarker.time > points[i].time) continue;
+
+    const prev = points[i - 1];
+    const next = points[i];
+    const span = next.time - prev.time;
+    if (span <= 0) return next.index;
+
+    const ratio = (leagueStartMarker.time - prev.time) / span;
+    return prev.index + ratio * (next.index - prev.index);
+  }
+
+  return points[points.length - 1].index;
+}
+
+export function resolveVisibleLeagueStartMarker({
+  brushRange,
+  leagueStartMarker,
+  leagueStartMarkerIndex,
+}: {
+  brushRange: BrushRange;
+  leagueStartMarker: ActiveLeagueStartMarker | null;
+  leagueStartMarkerIndex: number | null;
+}): VisibleLeagueStartMarker | null {
+  if (leagueStartMarkerIndex === null || !leagueStartMarker) return null;
+  const start = brushRange.startIndex;
+  const end = brushRange.endIndex;
+  if (leagueStartMarkerIndex < start || leagueStartMarkerIndex > end) {
+    return null;
+  }
+
+  return {
+    label: leagueStartMarker.label,
+    visibleIndex: leagueStartMarkerIndex - start,
+    fullIndex: leagueStartMarkerIndex,
   };
 }
 
