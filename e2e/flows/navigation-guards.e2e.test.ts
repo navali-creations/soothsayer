@@ -40,22 +40,13 @@ test.describe("Navigation Guards", () => {
       expect(routeAfter).toBe("/setup");
     } else {
       // Setup is already complete — reset it to test the guard
-      try {
-        await page.evaluate(async () => {
-          const electron = (window as any).electron;
-          if (electron?.appSetup?.resetSetup) {
-            await electron.appSetup.resetSetup();
-          }
-        });
+      await resetSetup(page);
+      await page.reload();
+      await waitForHydration(page, 30_000);
+      await waitForRoute(page, "/setup", 15_000);
 
-        await page.reload();
-        await waitForHydration(page, 30_000);
-
-        const routeAfterReset = await getCurrentRoute(page);
-        expect(routeAfterReset).toBe("/setup");
-      } catch {
-        throw new Error("resetSetup IPC not available");
-      }
+      const routeAfterReset = await getCurrentRoute(page);
+      expect(routeAfterReset).toBe("/setup");
     }
   });
 
@@ -65,12 +56,9 @@ test.describe("Navigation Guards", () => {
     await waitForHydration(page, 45_000);
 
     // Force setup-incomplete state so we can test both phases
-    try {
-      await resetSetup(page);
-      await waitForHydration(page, 30_000);
-    } catch {
-      throw new Error("resetSetup IPC not available");
-    }
+    await resetSetup(page);
+    await page.reload();
+    await waitForHydration(page, 30_000);
 
     const route = await getCurrentRoute(page);
     if (route !== "/setup") {
