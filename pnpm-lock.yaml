@@ -167,8 +167,8 @@ importers:
         specifier: ^11.0.2
         version: 11.0.2
       immer:
-        specifier: ^11.1.4
-        version: 11.1.4
+        specifier: ^11.1.6
+        version: 11.1.6
       jsdom:
         specifier: ^29.1.0
         version: 29.1.0
@@ -216,7 +216,7 @@ importers:
         version: 4.0.18(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(@vitest/ui@4.0.18)(jiti@2.6.1)(jsdom@29.1.0)(lightningcss@1.32.0)
       zustand:
         specifier: ^5.0.12
-        version: 5.0.12(@types/react@19.2.14)(immer@11.1.4)(react@19.2.5)(use-sync-external-store@1.6.0(react@19.2.5))
+        version: 5.0.12(@types/react@19.2.14)(immer@11.1.6)(react@19.2.5)(use-sync-external-store@1.6.0(react@19.2.5))
 
 packages:
 
@@ -3071,8 +3071,8 @@ packages:
   immediate@3.0.6:
     resolution: {integrity: sha512-XXOFtyqDjNDAQxVfYxuF7g9Il/IbWmmlQg2MYKOH8ExIT1qg6xc4zyS3HaEEATgs1btfzxq15ciUiY7gjSXRGQ==}
 
-  immer@11.1.4:
-    resolution: {integrity: sha512-XREFCPo6ksxVzP4E0ekD5aMdf8WMwmdNaz6vuvxgI40UaEiu6q3p8X52aU6GdyvLY3XXX/8R7JOTXStz/nBbRw==}
+  immer@11.1.6:
+    resolution: {integrity: sha512-uwrF08UBQfxk49i9WcUeCx045wjB1zXEHNJmbYHPVVspxmjwSeWCoKbB8DEIvs3XkBJV6lcRAyLaWJ2+u3MMCw==}
 
   import-in-the-middle@2.0.6:
     resolution: {integrity: sha512-3vZV3jX0XRFW3EJDTwzWoZa+RH1b8eTTx6YOCjglrLyPuepwoBti1k3L2dKwdCUrnVEfc5CuRuGstaC/uQJJaw==}
@@ -8094,7 +8094,7 @@ snapshots:
 
   immediate@3.0.6: {}
 
-  immer@11.1.4: {}
+  immer@11.1.6: {}
 
   import-in-the-middle@2.0.6:
     dependencies:
@@ -9936,10 +9936,10 @@ snapshots:
 
   zod@3.25.76: {}
 
-  zustand@5.0.12(@types/react@19.2.14)(immer@11.1.4)(react@19.2.5)(use-sync-external-store@1.6.0(react@19.2.5)):
+  zustand@5.0.12(@types/react@19.2.14)(immer@11.1.6)(react@19.2.5)(use-sync-external-store@1.6.0(react@19.2.5)):
     optionalDependencies:
       '@types/react': 19.2.14
-      immer: 11.1.4
+      immer: 11.1.6
       react: 19.2.5
       use-sync-external-store: 1.6.0(react@19.2.5)
 
