@@ -1,5 +1,87 @@
 # soothsayer
 
+## 0.17.0
+
+### Minor Changes
+
+- [`6a6feca`](https://github.com/navali-creations/soothsayer/commit/6a6feca184cd462ef40de773adcf4913f3122f83) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Added:** Multi-session export.
+
+  You can now export data from several sessions at once from the Sessions page.
+
+  - **Pick multiple sessions** - enter export mode, select the sessions you want, and export only those results.
+
+- [`d7125cb`](https://github.com/navali-creations/soothsayer/commit/d7125cb70291d0b2d2437219fae53598dddcce8f) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Added:** Multi-session delete.
+
+  You can now delete several past sessions at once from the Sessions page.
+
+  - **Select multiple sessions** - open the Sessions page, choose **Delete sessions** from the more-options menu, then select the sessions you want to remove.
+  - **Confirmation required** - the app shows a warning before anything is deleted, so accidental clicks do not immediately remove your history.
+  - **Protected active sessions** - currently running sessions cannot be deleted.
+  - **Stats stay accurate** - after sessions are deleted, card totals, stacked deck totals, and storage usage are recalculated automatically.
+  - **Community uploads** - deleting sessions removes them from your local history and future local totals, but it does not remove card counts that were already contributed to community data. New drops from future sessions still count toward community uploads for that specific card, even if your local total was lowered by deleting older sessions.
+
+- [`0a94a48`](https://github.com/navali-creations/soothsayer/commit/0a94a486f109901f73ac643d33be9d6825b4a386) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **New:** Community Drop Rate Uploads
+
+  Card names and drop counts are now automatically shared at the end of each session to help build community drop rate statistics on [wraeclast.cards](https://wraeclast.cards).
+
+  - **Anonymous** — uploads are fully anonymous with no link to your identity.
+  - **Opt out anytime** — go to **Settings → Community Uploads** and turn it off.
+  - **Link your GGG account (optional)** — connect your Path of Exile account to get a "verified" badge on wraeclast.cards. We **only** receive your account name and account ID (`account:profile` scope) — zero access to characters, stash tabs, or items.
+
+- [`99a5d8c`](https://github.com/navali-creations/soothsayer/commit/99a5d8c9a8696e1b7296311373233feb92813b3c) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Added:** Better app tour controls.
+
+  You can now manage onboarding beacons without hunting them down across the app.
+
+  - **Dismiss all at once** - use **Dismiss All** from an open tour popover or **Dismiss All Beacons** in **Settings' App Help**.
+  - **Manage beacons in Settings** - open **Manage Beacons** to see tour items grouped by page and turn each one on or off individually.
+
+- [`5a242bb`](https://github.com/navali-creations/soothsayer/commit/5a242bbdbf45422c03c33329f8eafb0af1081aba) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Added:** AppImage download for Linux.
+
+  Linux users can now download Soothsayer as an **AppImage** from GitHub Releases.
+
+  - **One portable file** - AppImage works as a single download, so you can run the app without installing a `.deb` or setting up distro-specific packages.
+  - **Better Linux fit** - this makes Soothsayer easier to use across more Linux distributions.
+  - **Existing Linux downloads stay available** - `.deb` and `.rpm` builds are still provided as before.
+
+### Patch Changes
+
+- [`8c28793`](https://github.com/navali-creations/soothsayer/commit/8c2879371434c442cb44cda0dc1e15f68e77a13c) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Improved:** Chart visuals, interactions and performance across Profit Forecast and card details.
+
+  The remaining chart screens now use the app's faster canvas chart system, with cleaner rendering and more consistent controls.
+
+  - **Better labels and grid lines** - chart labels, grid lines, hover lines, and filled areas now line up more consistently.
+  - **More polished tooltips** - tooltips stay closer to the hovered point when they need to flip to the left side.
+
+  **Improved:** Card detail charts now have smoother zooming, brushing, and timeline context.
+
+  - **Smoother date selection** - timeline brushes can move across the full date range instead of snapping only between days that had drops or price entries.
+  - **Better zoom behavior** - card detail charts keep a useful minimum number of visible points while zooming, hide the brush when there are too few points for it to help, and support the same scroll-to-zoom behavior as Statistics.
+  - **Matching brush controls** - card detail brushes now use the same grab cursor, draggable thumbs, grip styling, and outside labels as the Statistics page.
+  - **Clearer drop timelines** - the drop timeline now compares actual drops against expected drops with layered bars instead of a cumulative line that only ever goes up.
+  - **Deck volume context** - drop timelines now include a subtle curved line for decks opened, making it easier to see whether high or low drops came from unusually large or small opening days.
+  - **Compressed quiet periods** - long stretches without drops are visually compressed with subtle gap markers so active sessions are easier to compare.
+  - **League markers and bounds** - all-league views can show the current league start marker, while single-league views show league start and end bounds when that data is available.
+  - **Better timeline ranges** - league charts now respect known league windows, and all-league charts start from your first tracked session instead of stretching back to old permanent league dates.
+  - **Cleaner tooltips and legends** - card detail tooltips now use the same divider, badge, and icon style as Statistics, and legends can be used to hide chart layers.
+
+  **Improved:** Statistics charts now share the same chart polish.
+
+  - **League start marker** - all-league Statistics charts now show the active league start marker.
+  - **More consistent tooltip placement** - Statistics tooltips now stay closer to the hovered point when they flip to the left side.
+  - **Shared chart controls** - common legend icons, brush behavior, scroll zoom, and tooltip positioning are now reused across chart screens for a more consistent feel.
+
 ## 0.16.0
 
 ### Minor Changes
