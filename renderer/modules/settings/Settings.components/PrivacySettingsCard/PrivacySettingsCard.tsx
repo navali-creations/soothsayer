@@ -58,19 +58,19 @@ const PrivacySettingsCard = () => {
   };
 
   const handleCrashReportingChange = async (
-    event: ChangeEvent<HTMLInputElement>
+    event: ChangeEvent<HTMLInputElement>,
   ) => {
     await handleCrashReportingToggle(event.target.checked);
   };
 
   const handleUsageAnalyticsChange = async (
-    event: ChangeEvent<HTMLInputElement>
+    event: ChangeEvent<HTMLInputElement>,
   ) => {
     await handleUsageAnalyticsToggle(event.target.checked);
   };
 
   const handleCommunityUploadsChange = async (
-    event: ChangeEvent<HTMLInputElement>
+    event: ChangeEvent<HTMLInputElement>,
   ) => {
     await handleCommunityUploadsToggle(event.target.checked);
   };
