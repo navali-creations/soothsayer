@@ -36,6 +36,7 @@ import { devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 
 import { createAppMenuSlice } from "~/renderer/modules/app-menu/AppMenu.slice/AppMenu.slice";
+import { createAppPerformanceSlice } from "~/renderer/modules/app-performance/AppPerformance.slice/AppPerformance.slice";
 import { createCardDetailsSlice } from "~/renderer/modules/card-details/CardDetails.slice/CardDetails.slice";
 import { createCardsSlice } from "~/renderer/modules/cards/Cards.slice/Cards.slice";
 import { createChangelogSlice } from "~/renderer/modules/changelog/Changelog.slice/Changelog.slice";
@@ -120,6 +121,7 @@ export function createTestStore(overrides?: StoreOverrides) {
     devtools(
       immer((...a) => {
         const settingsSlice = createSettingsSlice(...a);
+        const appPerformanceSlice = createAppPerformanceSlice(...a);
         const storageSlice = createStorageSlice(...a);
         const setupSlice = createSetupSlice(...a);
         const sessionSlice = createSessionSlice(...a);
@@ -143,6 +145,7 @@ export function createTestStore(overrides?: StoreOverrides) {
 
         const baseState: BoundStore = {
           ...settingsSlice,
+          ...appPerformanceSlice,
           ...storageSlice,
           ...setupSlice,
           ...sessionSlice,

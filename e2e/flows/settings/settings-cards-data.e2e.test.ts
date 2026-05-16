@@ -15,32 +15,14 @@
  * @module e2e/flows/settings/settings-cards-data
  */
 
-import { expect, type Page, test } from "../../helpers/electron-test";
+import { expect, test } from "../../helpers/electron-test";
 import { getSetting, setSetting } from "../../helpers/ipc-helpers";
+import { ensurePostSetup } from "../../helpers/navigation";
 import {
-  ensurePostSetup,
-  navigateTo,
-  waitForRoute,
-} from "../../helpers/navigation";
-
-/**
- * Navigates to settings and waits for data to load.
- */
-async function goToSettings(page: Page) {
-  await navigateTo(page, "/settings");
-  await waitForRoute(page, "/settings", 10_000);
-  // Wait for settings cards to render (hydrated from IPC)
-  await page
-    .locator(".card")
-    .first()
-    .waitFor({ state: "visible", timeout: 10_000 });
-}
-
-function getRaritySourceCard(page: Page) {
-  return page.locator(".card").filter({
-    has: page.getByRole("heading", { name: "Rarity Source", exact: true }),
-  });
-}
+  activeSettingsPanel,
+  goToSettings,
+  openSettingsTab,
+} from "../../helpers/settings";
 
 test.describe("Settings – Cards (Data)", () => {
   // ─── Rarity Source / Filter Card ──────────────────────────────────────────────
@@ -49,16 +31,17 @@ test.describe("Settings – Cards (Data)", () => {
     test.beforeEach(async ({ page }) => {
       await ensurePostSetup(page);
       await goToSettings(page);
+      await openSettingsTab(page, "Game");
     });
 
     test("should render the rarity source select with dataset options", async ({
       page,
     }) => {
-      const card = getRaritySourceCard(page);
+      const card = activeSettingsPanel(page);
       await expect(card).toBeVisible();
 
       await expect(
-        card.getByText(/choose how divination card rarities/i),
+        card.getByText(/how divination card rarities are determined/i),
       ).toBeVisible();
 
       const select = card.locator("select").first();
@@ -73,7 +56,7 @@ test.describe("Settings – Cards (Data)", () => {
     test("should render the Rescan button and be able to click it", async ({
       page,
     }) => {
-      const card = getRaritySourceCard(page);
+      const card = activeSettingsPanel(page);
 
       const rescanButton = card
         .locator("button", { hasText: /rescan/i })
@@ -94,7 +77,7 @@ test.describe("Settings – Cards (Data)", () => {
     test("should switch rarity source via select and persist via IPC", async ({
       page,
     }) => {
-      const card = getRaritySourceCard(page);
+      const card = activeSettingsPanel(page);
       const select = card.locator("select").first();
 
       const originalValue = await select.inputValue();
@@ -126,7 +109,7 @@ test.describe("Settings – Cards (Data)", () => {
     test("should switch to poe.ninja and back to verify IPC round-trip", async ({
       page,
     }) => {
-      const card = getRaritySourceCard(page);
+      const card = activeSettingsPanel(page);
       const select = card.locator("select").first();
 
       // Switch to poe.ninja
@@ -153,7 +136,7 @@ test.describe("Settings – Cards (Data)", () => {
     test("should show filter count after rescan when filters are available", async ({
       page,
     }) => {
-      const card = getRaritySourceCard(page);
+      const card = activeSettingsPanel(page);
 
       const rescanButton = card
         .locator("button", { hasText: /rescan/i })
@@ -176,7 +159,7 @@ test.describe("Settings – Cards (Data)", () => {
     test("full flow: render → switch source → rescan → restore", async ({
       page,
     }) => {
-      const card = getRaritySourceCard(page);
+      const card = activeSettingsPanel(page);
       const select = card.locator("select").first();
       const rescanButton = card
         .locator("button", { hasText: /rescan/i })
@@ -217,14 +200,13 @@ test.describe("Settings – Cards (Data)", () => {
     test.beforeEach(async ({ page }) => {
       await ensurePostSetup(page);
       await goToSettings(page);
+      await openSettingsTab(page, "App");
     });
 
     test("should render the export folder path input and folder picker button", async ({
       page,
     }) => {
-      const card = page.locator(".card", { hasText: "Export" }).filter({
-        hasText: /configure where csv exports/i,
-      });
+      const card = activeSettingsPanel(page);
       await expect(card).toBeVisible();
 
       // Read-only text input showing the export path
@@ -253,12 +235,9 @@ test.describe("Settings – Cards (Data)", () => {
       await page.waitForLoadState("domcontentloaded");
       await ensurePostSetup(page);
       await goToSettings(page);
+      await openSettingsTab(page, "App");
 
-      const refreshedCard = page
-        .locator(".card", { hasText: "Export" })
-        .filter({
-          hasText: /configure where csv exports/i,
-        });
+      const refreshedCard = activeSettingsPanel(page);
       const pathInput = refreshedCard.locator('input[type="text"]').first();
 
       // With no custom path, the placeholder should indicate the default folder
@@ -290,12 +269,9 @@ test.describe("Settings – Cards (Data)", () => {
       await page.waitForLoadState("domcontentloaded");
       await ensurePostSetup(page);
       await goToSettings(page);
+      await openSettingsTab(page, "App");
 
-      const refreshedCard = page
-        .locator(".card", { hasText: "Export" })
-        .filter({
-          hasText: /configure where csv exports/i,
-        });
+      const refreshedCard = activeSettingsPanel(page);
 
       // The path input should show something (either masked or full path)
       const pathInput = refreshedCard.locator('input[type="text"]').first();
@@ -357,9 +333,7 @@ test.describe("Settings – Cards (Data)", () => {
     test("should have folder picker button wired to selectFile IPC", async ({
       page,
     }) => {
-      const card = page.locator(".card", { hasText: "Export" }).filter({
-        hasText: /configure where csv exports/i,
-      });
+      const card = activeSettingsPanel(page);
       await expect(card).toBeVisible();
 
       // The folder picker button should be visible and enabled

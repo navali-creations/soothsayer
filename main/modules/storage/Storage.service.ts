@@ -3,10 +3,12 @@ import path from "node:path";
 
 import { app, ipcMain } from "electron";
 
+import { estimateAppPerformanceStorageBytes } from "~/main/modules/app-performance/AppPerformance.utils";
 import { DatabaseService } from "~/main/modules/database";
 import {
   assertLeagueId,
   assertTrustedSender,
+  handleValidationError,
   IpcValidationError,
 } from "~/main/utils/ipc-validation";
 import { maskPath } from "~/main/utils/mask-path";
@@ -15,6 +17,7 @@ import { StorageChannel } from "./Storage.channels";
 import type {
   AppDataBreakdownItem,
   DeleteLeagueDataResult,
+  DiagnosticsCaptureStorageUsage,
   DiskSpaceCheck,
   LeagueStorageUsage,
   StorageInfo,
@@ -102,10 +105,19 @@ class StorageService {
 
     ipcMain.handle(
       StorageChannel.RevealPaths,
-      async (): Promise<{ appDataPath: string }> => {
-        return {
-          appDataPath: app.getPath("userData"),
-        };
+      async (
+        event,
+      ): Promise<
+        { appDataPath: string } | { success: false; error: string }
+      > => {
+        try {
+          assertTrustedSender(event, StorageChannel.RevealPaths);
+          return {
+            appDataPath: app.getPath("userData"),
+          };
+        } catch (error) {
+          return handleValidationError(error, StorageChannel.RevealPaths);
+        }
       },
     );
   }
@@ -119,13 +131,19 @@ class StorageService {
     const dbPath = this.dbService.getPath();
     const dbBaseName = path.basename(dbPath);
 
-    const [breakdown, dbSizeBytes, appDiskStats, dbDiskStats] =
-      await Promise.all([
-        this.getDirectoryBreakdown(appDataPath, dbBaseName),
-        this.getFileSize(dbPath),
-        this.getDiskStats(appDataPath),
-        this.getDiskStats(path.dirname(dbPath)),
-      ]);
+    const [
+      breakdown,
+      dbSizeBytes,
+      appDiskStats,
+      dbDiskStats,
+      diagnosticsCaptureUsage,
+    ] = await Promise.all([
+      this.getDirectoryBreakdown(appDataPath, dbBaseName),
+      this.getFileSize(dbPath),
+      this.getDiskStats(appDataPath),
+      this.getDiskStats(path.dirname(dbPath)),
+      this.getDiagnosticsCaptureUsage(),
+    ]);
 
     // Total app data is the sum of all breakdown categories
     const appDataSizeBytes = breakdown.reduce(
@@ -142,7 +160,51 @@ class StorageService {
       dbDiskTotalBytes: dbDiskStats.total,
       dbDiskFreeBytes: dbDiskStats.free,
       breakdown,
+      diagnosticsCaptureUsage,
     };
+  }
+
+  private getDiagnosticsCaptureUsage(): DiagnosticsCaptureStorageUsage {
+    const db = this.dbService.getDb();
+
+    try {
+      const captures = db
+        .prepare("SELECT COUNT(*) AS count FROM app_performance_captures")
+        .get() as { count: number };
+      const samples = db
+        .prepare("SELECT COUNT(*) AS count FROM app_performance_samples")
+        .get() as { count: number };
+      const routeMarkers = db
+        .prepare("SELECT COUNT(*) AS count FROM app_performance_route_markers")
+        .get() as { count: number };
+      const settings = db
+        .prepare(
+          "SELECT app_performance_retention AS retention FROM user_settings WHERE id = 1",
+        )
+        .get() as { retention: "24h" | "7d" | "indefinite" } | undefined;
+
+      const estimatedSizeBytes = estimateAppPerformanceStorageBytes({
+        captureCount: captures.count,
+        sampleCount: samples.count,
+        routeMarkerCount: routeMarkers.count,
+      });
+
+      return {
+        captureCount: captures.count,
+        sampleCount: samples.count,
+        routeMarkerCount: routeMarkers.count,
+        estimatedSizeBytes,
+        retentionPolicy: settings?.retention ?? "7d",
+      };
+    } catch {
+      return {
+        captureCount: 0,
+        sampleCount: 0,
+        routeMarkerCount: 0,
+        estimatedSizeBytes: 0,
+        retentionPolicy: "7d",
+      };
+    }
   }
 
   // ============================================================================

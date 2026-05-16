@@ -15,6 +15,48 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+/** Build continuous line segments, splitting whenever a point cannot be drawn. */
+export function buildPointSegments<TItem, TPoint>(
+  items: readonly TItem[],
+  resolvePoint: (item: TItem, index: number) => TPoint | null,
+): TPoint[][] {
+  const segments: TPoint[][] = [];
+  let current: TPoint[] = [];
+
+  items.forEach((item, index) => {
+    const point = resolvePoint(item, index);
+    if (point === null) {
+      if (current.length > 0) segments.push(current);
+      current = [];
+      return;
+    }
+
+    current.push(point);
+  });
+
+  if (current.length > 0) segments.push(current);
+  return segments;
+}
+
+/** Connect the end of each drawn segment to the start of the next segment. */
+export function buildSegmentGapConnectors<TPoint>(
+  segments: readonly (readonly TPoint[])[],
+): Array<[TPoint, TPoint]> {
+  const connectors: Array<[TPoint, TPoint]> = [];
+  let previousPoint: TPoint | null = null;
+
+  for (const segment of segments) {
+    const firstPoint = segment[0];
+    const lastPoint = segment[segment.length - 1];
+    if (!firstPoint || !lastPoint) continue;
+
+    if (previousPoint) connectors.push([previousPoint, firstPoint]);
+    previousPoint = lastPoint;
+  }
+
+  return connectors;
+}
+
 /**
  * Generate evenly-spaced nice tick values between `min` and `max`.
  * Intermediate ticks are rounded to a pleasant sub-step.
@@ -46,6 +88,41 @@ export function evenTicks(min: number, max: number, count: number): number[] {
   return ticks;
 }
 
+/**
+ * Resolve x/y axis ticks from data-anchored candidates when a chart needs
+ * labels and grid lines to sit on actual points instead of generated spacing.
+ */
+export function resolveVisibleTicks({
+  ticks,
+  min,
+  max,
+  fallbackCount = 4,
+}: {
+  ticks?: readonly number[];
+  min: number;
+  max: number;
+  fallbackCount?: number;
+}): number[] {
+  if (!ticks || ticks.length === 0) {
+    return evenTicks(min, max, fallbackCount);
+  }
+
+  const visibleTicks: number[] = [];
+  const seen = new Set<number>();
+
+  for (const tick of ticks) {
+    if (!Number.isFinite(tick) || tick < min || tick > max) continue;
+    if (seen.has(tick)) continue;
+
+    visibleTicks.push(tick);
+    seen.add(tick);
+  }
+
+  return visibleTicks.length > 0
+    ? visibleTicks
+    : evenTicks(min, max, fallbackCount);
+}
+
 // ─── Canvas Color Utilities ─────────────────────────────────────────────────
 
 /** Parse a CSS rgba/rgb color string into its components. */
@@ -55,7 +132,26 @@ export function parseRgba(color: string): {
   b: number;
   a: number;
 } {
-  const rgbaMatch = color.match(
+  const trimmed = color.trim();
+  const hexMatch = trimmed.match(/^#([\da-f]{3}|[\da-f]{6})$/i);
+  if (hexMatch) {
+    const hex = hexMatch[1];
+    const fullHex =
+      hex.length === 3
+        ? hex
+            .split("")
+            .map((part) => `${part}${part}`)
+            .join("")
+        : hex;
+    return {
+      r: parseInt(fullHex.slice(0, 2), 16),
+      g: parseInt(fullHex.slice(2, 4), 16),
+      b: parseInt(fullHex.slice(4, 6), 16),
+      a: 1,
+    };
+  }
+
+  const rgbaMatch = trimmed.match(
     /rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+))?\s*\)/,
   );
   if (rgbaMatch) {
@@ -72,6 +168,12 @@ export function parseRgba(color: string): {
 /** Build an rgba() CSS color string from components. */
 export function rgbaStr(r: number, g: number, b: number, a: number): string {
   return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
+
+/** Reuse a CSS color's RGB channels with a new alpha value. */
+export function colorWithAlpha(color: string, alpha: number): string {
+  const parsed = parseRgba(color);
+  return rgbaStr(parsed.r, parsed.g, parsed.b, clamp(alpha, 0, 1));
 }
 
 export interface DonutIndicatorOptions {

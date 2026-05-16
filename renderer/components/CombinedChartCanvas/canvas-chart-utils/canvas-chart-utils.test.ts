@@ -199,9 +199,9 @@ describe("parseRgba", () => {
     expect(result).toEqual({ r: 128, g: 128, b: 128, a: 1 });
   });
 
-  it("returns fallback for hex color", () => {
+  it("parses hex color", () => {
     const result = parseRgba("#ff0080");
-    expect(result).toEqual({ r: 128, g: 128, b: 128, a: 1 });
+    expect(result).toEqual({ r: 255, g: 0, b: 128, a: 1 });
   });
 
   it("returns fallback for empty string", () => {

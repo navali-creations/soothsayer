@@ -227,7 +227,7 @@ describe("Cards.slice", () => {
   // ─── loadCards dedup ────────────────────────────────────────────────
 
   describe("loadCards dedup", () => {
-    it("skips fetch when _lastCardsKey matches active game", async () => {
+    it("skips fetch when _lastCardsKey matches the active card context", async () => {
       electron.divinationCards.getAll.mockResolvedValue(makeSampleCards());
       await store.getState().cards.loadCards();
       expect(electron.divinationCards.getAll).toHaveBeenCalledTimes(1);
@@ -251,6 +251,49 @@ describe("Cards.slice", () => {
       expect(electron.divinationCards.getAll).toHaveBeenCalledTimes(2);
     });
 
+    it("fetches again after active league changes", async () => {
+      electron.divinationCards.getAll.mockResolvedValue(makeSampleCards());
+      await store.getState().cards.loadCards();
+      expect(electron.divinationCards.getAll).toHaveBeenCalledTimes(1);
+
+      store.setState((s) => {
+        s.settings.poe1SelectedLeague = "Settlers";
+      });
+
+      await store.getState().cards.loadCards();
+      expect(electron.divinationCards.getAll).toHaveBeenCalledTimes(2);
+    });
+
+    it("fetches again after rarity source changes", async () => {
+      electron.divinationCards.getAll.mockResolvedValue(makeSampleCards());
+      await store.getState().cards.loadCards();
+      expect(electron.divinationCards.getAll).toHaveBeenCalledTimes(1);
+
+      store.setState((s) => {
+        s.settings.raritySource = "prohibited-library";
+      });
+
+      await store.getState().cards.loadCards();
+      expect(electron.divinationCards.getAll).toHaveBeenCalledTimes(2);
+    });
+
+    it("fetches again after selected filter changes", async () => {
+      electron.divinationCards.getAll.mockResolvedValue(makeSampleCards());
+      store.setState((s) => {
+        s.settings.raritySource = "filter";
+        s.settings.selectedFilterId = "filter-1";
+      });
+      await store.getState().cards.loadCards();
+      expect(electron.divinationCards.getAll).toHaveBeenCalledTimes(1);
+
+      store.setState((s) => {
+        s.settings.selectedFilterId = "filter-2";
+      });
+
+      await store.getState().cards.loadCards();
+      expect(electron.divinationCards.getAll).toHaveBeenCalledTimes(2);
+    });
+
     it("fetches again after _lastCardsKey is cleared", async () => {
       electron.divinationCards.getAll.mockResolvedValue(makeSampleCards());
       await store.getState().cards.loadCards();
@@ -263,6 +306,15 @@ describe("Cards.slice", () => {
       expect(electron.divinationCards.getAll).toHaveBeenCalledTimes(2);
     });
 
+    it("force reload bypasses the last successful card context", async () => {
+      electron.divinationCards.getAll.mockResolvedValue(makeSampleCards());
+      await store.getState().cards.loadCards();
+      expect(electron.divinationCards.getAll).toHaveBeenCalledTimes(1);
+
+      await store.getState().cards.loadCards({ force: true });
+      expect(electron.divinationCards.getAll).toHaveBeenCalledTimes(2);
+    });
+
     it("does not set _lastCardsKey on failed load", async () => {
       electron.divinationCards.getAll.mockRejectedValue(new Error("fail"));
       await store.getState().cards.loadCards();
@@ -270,7 +322,7 @@ describe("Cards.slice", () => {
       expect(store.getState().cards._pendingCardsKey).toBeNull();
     });
 
-    it("skips fetch when _pendingCardsKey matches active game (in-flight dedup)", async () => {
+    it("skips fetch when _pendingCardsKey matches the active card context", async () => {
       let resolveGetAll!: (value: unknown) => void;
       electron.divinationCards.getAll.mockReturnValue(
         new Promise((resolve) => {
@@ -280,7 +332,9 @@ describe("Cards.slice", () => {
 
       // Start the first load — it will be pending
       const firstLoad = store.getState().cards.loadCards();
-      expect(store.getState().cards._pendingCardsKey).toBe("poe1");
+      expect(store.getState().cards._pendingCardsKey).toBe(
+        "poe1:Standard:poe.ninja:",
+      );
 
       // Second call while first is still in-flight should be deduped
       await store.getState().cards.loadCards();

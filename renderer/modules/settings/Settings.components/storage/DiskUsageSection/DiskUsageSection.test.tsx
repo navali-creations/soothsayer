@@ -11,30 +11,8 @@ import DiskUsageSection from "./DiskUsageSection";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
-vi.mock("~/renderer/components", () => ({
-  Accordion: ({
-    title,
-    children,
-    icon,
-    headerRight,
-  }: {
-    title: React.ReactNode;
-    children: React.ReactNode;
-    icon?: React.ReactNode;
-    headerRight?: React.ReactNode;
-  }) => (
-    <div data-testid="accordion">
-      <div data-testid="accordion-title">{title}</div>
-      {icon && <span data-testid="accordion-icon">{icon}</span>}
-      {headerRight && (
-        <span data-testid="accordion-header-right">{headerRight}</span>
-      )}
-      <div data-testid="accordion-content">{children}</div>
-    </div>
-  ),
-}));
-
 vi.mock("react-icons/fi", () => ({
+  FiActivity: (props: any) => <span data-testid="icon-activity" {...props} />,
   FiArchive: (props: any) => <span data-testid="icon-archive" {...props} />,
   FiDatabase: (props: any) => <span data-testid="icon-database" {...props} />,
   FiEye: (props: any) => <span data-testid="icon-eye" {...props} />,
@@ -58,6 +36,13 @@ function createStorageInfo(overrides: Partial<StorageInfo> = {}): StorageInfo {
     diskFreeBytes: 500_000_000_000, // 500 GB
     dbDiskTotalBytes: 1_000_000_000_000, // same drive
     dbDiskFreeBytes: 500_000_000_000, // same drive
+    diagnosticsCaptureUsage: {
+      captureCount: 0,
+      sampleCount: 0,
+      routeMarkerCount: 0,
+      estimatedSizeBytes: 0,
+      retentionPolicy: "7d",
+    },
     breakdown: [],
     ...overrides,
   };
@@ -342,9 +327,9 @@ describe("DiskUsageSection", () => {
     ).not.toBeInTheDocument();
   });
 
-  // ── Breakdown accordion ────────────────────────────────────────────────
+  // ── Breakdown panel ────────────────────────────────────────────────────
 
-  it("renders accordion when breakdown items exist", () => {
+  it("renders breakdown panel when breakdown items exist", () => {
     const info = createStorageInfo({
       breakdown: [
         {
@@ -358,21 +343,21 @@ describe("DiskUsageSection", () => {
 
     renderWithProviders(<DiskUsageSection info={info} />);
 
-    expect(screen.getByTestId("accordion")).toBeInTheDocument();
-    expect(screen.getByTestId("accordion-title")).toHaveTextContent(
+    expect(screen.getByTestId("storage-breakdown")).toBeInTheDocument();
+    expect(screen.getByTestId("storage-breakdown")).toHaveTextContent(
       "What's using space?",
     );
   });
 
-  it("hides accordion when breakdown is empty", () => {
+  it("hides breakdown panel when breakdown is empty", () => {
     const info = createStorageInfo({ breakdown: [] });
 
     renderWithProviders(<DiskUsageSection info={info} />);
 
-    expect(screen.queryByTestId("accordion")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("storage-breakdown")).not.toBeInTheDocument();
   });
 
-  it("renders accordion headerRight with formatted appDataSizeBytes", () => {
+  it("renders breakdown total with formatted appDataSizeBytes", () => {
     const info = createStorageInfo({
       appDataSizeBytes: 500_000_000,
       breakdown: [
@@ -387,7 +372,7 @@ describe("DiskUsageSection", () => {
 
     renderWithProviders(<DiskUsageSection info={info} />);
 
-    expect(screen.getByTestId("accordion-header-right")).toHaveTextContent(
+    expect(screen.getByTestId("storage-breakdown-total")).toHaveTextContent(
       "500000000 bytes",
     );
   });
@@ -442,14 +427,13 @@ describe("DiskUsageSection", () => {
 
     renderWithProviders(<DiskUsageSection info={info} />);
 
-    // The accordion content renders icons from CATEGORY_ICON_MAP
-    const accordionContent = screen.getByTestId("accordion-content");
+    const breakdownContent = screen.getByTestId("storage-breakdown-content");
     // database → FiDatabase, cache → FiArchive
     expect(
-      accordionContent.querySelectorAll('[data-testid="icon-database"]').length,
+      breakdownContent.querySelectorAll('[data-testid="icon-database"]').length,
     ).toBeGreaterThanOrEqual(1);
     expect(
-      accordionContent.querySelectorAll('[data-testid="icon-archive"]').length,
+      breakdownContent.querySelectorAll('[data-testid="icon-archive"]').length,
     ).toBeGreaterThanOrEqual(1);
   });
 
@@ -468,9 +452,9 @@ describe("DiskUsageSection", () => {
     renderWithProviders(<DiskUsageSection info={info} />);
 
     // "other" maps to FiFile in CATEGORY_ICON_MAP
-    const accordionContent = screen.getByTestId("accordion-content");
+    const breakdownContent = screen.getByTestId("storage-breakdown-content");
     expect(
-      accordionContent.querySelectorAll('[data-testid="icon-file"]').length,
+      breakdownContent.querySelectorAll('[data-testid="icon-file"]').length,
     ).toBeGreaterThanOrEqual(1);
   });
 
@@ -488,10 +472,10 @@ describe("DiskUsageSection", () => {
 
     renderWithProviders(<DiskUsageSection info={info} />);
 
-    const accordionContent = screen.getByTestId("accordion-content");
+    const breakdownContent = screen.getByTestId("storage-breakdown-content");
     // "totally_unknown" is not in the map, so the ?? fallback renders FiFile
     expect(
-      accordionContent.querySelectorAll('[data-testid="icon-file"]').length,
+      breakdownContent.querySelectorAll('[data-testid="icon-file"]').length,
     ).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Mysterious data")).toBeInTheDocument();
     expect(screen.getByText("5000 bytes")).toBeInTheDocument();
@@ -518,12 +502,11 @@ describe("DiskUsageSection", () => {
 
     renderWithProviders(<DiskUsageSection info={info} />);
 
-    // Both items should be rendered with their labels and sizes in the accordion
-    const accordionContent = screen.getByTestId("accordion-content");
-    expect(accordionContent).toHaveTextContent("Database");
-    expect(accordionContent).toHaveTextContent("500000 bytes");
-    expect(accordionContent).toHaveTextContent("Cache");
-    expect(accordionContent).toHaveTextContent("250000 bytes");
+    const breakdownContent = screen.getByTestId("storage-breakdown-content");
+    expect(breakdownContent).toHaveTextContent("Database");
+    expect(breakdownContent).toHaveTextContent("500000 bytes");
+    expect(breakdownContent).toHaveTextContent("Cache");
+    expect(breakdownContent).toHaveTextContent("250000 bytes");
   });
 
   it("handles breakdown item with zero appDataSizeBytes gracefully", () => {
@@ -544,8 +527,8 @@ describe("DiskUsageSection", () => {
 
     expect(screen.getByText("Empty DB")).toBeInTheDocument();
     // itemFraction = 0 when appDataSizeBytes is 0, pct should be 0 → bar still renders with min 0.5%
-    const accordionContent = screen.getByTestId("accordion-content");
-    expect(accordionContent).toHaveTextContent("0 bytes");
+    const breakdownContent = screen.getByTestId("storage-breakdown-content");
+    expect(breakdownContent).toHaveTextContent("0 bytes");
   });
 
   it("renders bar segments correctly when totalBytes is zero", () => {
@@ -562,6 +545,27 @@ describe("DiskUsageSection", () => {
     expect(screen.getByText(/0 bytes used of 0 bytes/)).toBeInTheDocument();
     // Multiple "0 bytes" elements exist (used, free, etc.), so check for the free text specifically
     expect(screen.getByText(/^0 bytes free$/)).toBeInTheDocument();
+  });
+
+  it("renders diagnostics capture usage when present", () => {
+    const info = createStorageInfo({
+      diagnosticsCaptureUsage: {
+        captureCount: 2,
+        sampleCount: 1_234,
+        routeMarkerCount: 7,
+        estimatedSizeBytes: 98_765,
+        retentionPolicy: "24h",
+      },
+    });
+
+    renderWithProviders(<DiskUsageSection info={info} />);
+
+    expect(screen.getByText("Performance history")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/2 saved captures, kept 24 hours/),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("98765 bytes")).toBeInTheDocument();
+    expect(screen.getByTestId("icon-activity")).toBeInTheDocument();
   });
 
   it("clamps negative otherDiskUsed to zero", () => {

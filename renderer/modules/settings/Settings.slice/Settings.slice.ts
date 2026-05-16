@@ -96,6 +96,9 @@ export const createSettingsSlice: StateCreator<
     telemetryUsageAnalytics: false,
     csvExportPath: null,
     communityUploadsEnabled: true,
+    appPerformanceMonitorEnabled: false,
+    appPerformanceAutoStartOnSession: false,
+    appPerformanceRetention: "7d",
 
     // Additional state
     isLoading: false,
@@ -162,6 +165,11 @@ export const createSettingsSlice: StateCreator<
             settings.telemetryUsageAnalytics = data.telemetryUsageAnalytics;
             settings.csvExportPath = data.csvExportPath;
             settings.communityUploadsEnabled = data.communityUploadsEnabled;
+            settings.appPerformanceMonitorEnabled =
+              data.appPerformanceMonitorEnabled;
+            settings.appPerformanceAutoStartOnSession =
+              data.appPerformanceAutoStartOnSession;
+            settings.appPerformanceRetention = data.appPerformanceRetention;
             settings.isLoading = false;
           },
           false,
@@ -310,6 +318,12 @@ export const createSettingsSlice: StateCreator<
           settings.csvExportPath = newSettings.csvExportPath;
           settings.communityUploadsEnabled =
             newSettings.communityUploadsEnabled;
+          settings.appPerformanceMonitorEnabled =
+            newSettings.appPerformanceMonitorEnabled;
+          settings.appPerformanceAutoStartOnSession =
+            newSettings.appPerformanceAutoStartOnSession;
+          settings.appPerformanceRetention =
+            newSettings.appPerformanceRetention;
         },
         false,
         "settingsSlice/setSettings",

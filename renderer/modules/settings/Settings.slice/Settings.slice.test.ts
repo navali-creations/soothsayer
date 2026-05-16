@@ -53,6 +53,10 @@ function makeFakeSettingsDTO(
     telemetryCrashReporting: true,
     telemetryUsageAnalytics: true,
     csvExportPath: "/exports",
+    communityUploadsEnabled: true,
+    appPerformanceMonitorEnabled: true,
+    appPerformanceAutoStartOnSession: true,
+    appPerformanceRetention: "24h",
     ...overrides,
   };
 }
@@ -91,6 +95,9 @@ describe("Settings slice — initial state", () => {
     expect(s.overlayToolbarFontSize).toBe(1.0);
     expect(s.telemetryCrashReporting).toBe(false);
     expect(s.telemetryUsageAnalytics).toBe(false);
+    expect(s.appPerformanceMonitorEnabled).toBe(false);
+    expect(s.appPerformanceAutoStartOnSession).toBe(false);
+    expect(s.appPerformanceRetention).toBe("7d");
   });
 
   it("has correct default transient UI state", () => {
@@ -155,6 +162,14 @@ describe("Settings slice — hydrate", () => {
     expect(s.telemetryCrashReporting).toBe(dto.telemetryCrashReporting);
     expect(s.telemetryUsageAnalytics).toBe(dto.telemetryUsageAnalytics);
     expect(s.csvExportPath).toBe(dto.csvExportPath);
+    expect(s.communityUploadsEnabled).toBe(dto.communityUploadsEnabled);
+    expect(s.appPerformanceMonitorEnabled).toBe(
+      dto.appPerformanceMonitorEnabled,
+    );
+    expect(s.appPerformanceAutoStartOnSession).toBe(
+      dto.appPerformanceAutoStartOnSession,
+    );
+    expect(s.appPerformanceRetention).toBe(dto.appPerformanceRetention);
     expect(s.isLoading).toBe(false);
     expect(s.error).toBeNull();
   });
@@ -315,6 +330,9 @@ describe("Settings slice — setSettings", () => {
     expect(s.audioEnabled).toBe(false);
     expect(s.audioVolume).toBe(0.8);
     expect(s.overlayFontSize).toBe(1.2);
+    expect(s.appPerformanceMonitorEnabled).toBe(true);
+    expect(s.appPerformanceAutoStartOnSession).toBe(true);
+    expect(s.appPerformanceRetention).toBe("24h");
   });
 
   it("does not reset transient UI state like isLoading or error", () => {

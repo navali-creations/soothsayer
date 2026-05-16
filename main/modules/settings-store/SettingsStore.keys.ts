@@ -33,6 +33,9 @@ export const SettingsKey = {
   TelemetryUsageAnalytics: "telemetryUsageAnalytics",
   CsvExportPath: "csvExportPath",
   CommunityUploadsEnabled: "communityUploadsEnabled",
+  AppPerformanceMonitorEnabled: "appPerformanceMonitorEnabled",
+  AppPerformanceAutoStartOnSession: "appPerformanceAutoStartOnSession",
+  AppPerformanceRetention: "appPerformanceRetention",
 } as const;
 
 export type SettingsKeyType = (typeof SettingsKey)[keyof typeof SettingsKey];

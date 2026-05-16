@@ -4,6 +4,8 @@
 
 import type { RaritySource } from "~/types/data-stores";
 
+export type AppPerformanceRetention = "24h" | "7d" | "indefinite";
+
 export interface UserSettingsDTO {
   appExitAction: "exit" | "minimize";
   appOpenAtLogin: boolean;
@@ -41,6 +43,9 @@ export interface UserSettingsDTO {
   telemetryUsageAnalytics: boolean;
   csvExportPath: string | null;
   communityUploadsEnabled: boolean;
+  appPerformanceMonitorEnabled: boolean;
+  appPerformanceAutoStartOnSession: boolean;
+  appPerformanceRetention: AppPerformanceRetention;
 }
 
 /**

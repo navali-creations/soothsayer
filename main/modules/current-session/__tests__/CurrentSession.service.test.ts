@@ -28,6 +28,9 @@ const {
   mockDataStoreAddCard,
   mockGetAllTimeStats,
   mockSettingsGet,
+  mockAppPerformanceStartFreshCapture,
+  mockAppPerformanceStopCapture,
+  mockAppPerformanceGetState,
 } = vi.hoisted(() => ({
   mockIpcHandle: vi.fn(),
   mockWebContentsSend: vi.fn(),
@@ -59,6 +62,24 @@ const {
   mockDataStoreAddCard: vi.fn(),
   mockGetAllTimeStats: vi.fn(),
   mockSettingsGet: vi.fn().mockResolvedValue(null),
+  mockAppPerformanceStartFreshCapture: vi.fn().mockResolvedValue({
+    capture: null,
+    isSampling: false,
+    samples: [],
+    routeMarkers: [],
+  }),
+  mockAppPerformanceStopCapture: vi.fn().mockResolvedValue({
+    capture: null,
+    isSampling: false,
+    samples: [],
+    routeMarkers: [],
+  }),
+  mockAppPerformanceGetState: vi.fn(() => ({
+    capture: null,
+    isSampling: false,
+    samples: [],
+    routeMarkers: [],
+  })),
 }));
 
 // ─── Mock Electron before any imports that use it ────────────────────────────
@@ -110,6 +131,17 @@ vi.mock("~/main/modules/data-store", () =>
     mockGetAllTimeStats,
   }),
 );
+
+// ─── Mock AppPerformanceService ─────────────────────────────────────────────
+vi.mock("~/main/modules/app-performance", () => ({
+  AppPerformanceService: {
+    getInstance: vi.fn(() => ({
+      startFreshCapture: mockAppPerformanceStartFreshCapture,
+      stopCapture: mockAppPerformanceStopCapture,
+      getState: mockAppPerformanceGetState,
+    })),
+  },
+}));
 
 // ─── Mock IPC validation utils ───────────────────────────────────────────────
 vi.mock("~/main/utils/ipc-validation", () =>
@@ -220,6 +252,24 @@ describe("CurrentSessionService", () => {
     mockDataStoreAddCard.mockReset().mockResolvedValue(undefined);
     mockGetAllTimeStats.mockReset();
     mockSettingsGet.mockReset().mockResolvedValue(null);
+    mockAppPerformanceStartFreshCapture.mockReset().mockResolvedValue({
+      capture: null,
+      isSampling: false,
+      samples: [],
+      routeMarkers: [],
+    });
+    mockAppPerformanceStopCapture.mockReset().mockResolvedValue({
+      capture: null,
+      isSampling: false,
+      samples: [],
+      routeMarkers: [],
+    });
+    mockAppPerformanceGetState.mockReset().mockReturnValue({
+      capture: null,
+      isSampling: false,
+      samples: [],
+      routeMarkers: [],
+    });
 
     // Seed base data
     leagueId = await seedLeague(testDb.kysely, {
@@ -437,6 +487,83 @@ describe("CurrentSessionService", () => {
       expect(mockStartAutoRefresh).toHaveBeenCalledWith("poe1", "Settlers");
     });
 
+    it("should start a fresh app performance capture when session auto-start is enabled", async () => {
+      mockSettingsGet.mockImplementation((key: string) => {
+        if (key === "appPerformanceMonitorEnabled") {
+          return Promise.resolve(true);
+        }
+        if (key === "appPerformanceAutoStartOnSession") {
+          return Promise.resolve(true);
+        }
+        return Promise.resolve(null);
+      });
+
+      await service.startSession("poe1", "Settlers");
+
+      expect(mockAppPerformanceStartFreshCapture).toHaveBeenCalledTimes(1);
+    });
+
+    it("should not start app performance capture when session auto-start is disabled", async () => {
+      mockSettingsGet.mockImplementation((key: string) => {
+        if (key === "appPerformanceMonitorEnabled") {
+          return Promise.resolve(true);
+        }
+        if (key === "appPerformanceAutoStartOnSession") {
+          return Promise.resolve(false);
+        }
+        return Promise.resolve(null);
+      });
+
+      await service.startSession("poe1", "Settlers");
+
+      expect(mockAppPerformanceStartFreshCapture).not.toHaveBeenCalled();
+    });
+
+    it("should not start app performance capture when the feature is hidden", async () => {
+      mockSettingsGet.mockImplementation((key: string) => {
+        if (key === "appPerformanceMonitorEnabled") {
+          return Promise.resolve(false);
+        }
+        if (key === "appPerformanceAutoStartOnSession") {
+          return Promise.resolve(true);
+        }
+        return Promise.resolve(null);
+      });
+
+      await service.startSession("poe1", "Settlers");
+
+      expect(mockAppPerformanceStartFreshCapture).not.toHaveBeenCalled();
+    });
+
+    it("should keep the session started when app performance auto-start fails", async () => {
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+
+      mockSettingsGet.mockImplementation((key: string) => {
+        if (key === "appPerformanceMonitorEnabled") {
+          return Promise.resolve(true);
+        }
+        if (key === "appPerformanceAutoStartOnSession") {
+          return Promise.resolve(true);
+        }
+        return Promise.resolve(null);
+      });
+      mockAppPerformanceStartFreshCapture.mockRejectedValueOnce(
+        new Error("diagnostics failed"),
+      );
+
+      await service.startSession("poe1", "Settlers");
+
+      expect(service.isSessionActive("poe1")).toBe(true);
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[CurrentSession] Failed to auto-start app performance diagnostics:",
+        expect.any(Error),
+      );
+
+      consoleSpy.mockRestore();
+    });
+
     it("should throw if a session is already active for the same game", async () => {
       await service.startSession("poe1", "Settlers");
 
@@ -540,6 +667,155 @@ describe("CurrentSessionService", () => {
       await service.stopSession("poe1");
 
       expect(mockStopAutoRefresh).toHaveBeenCalledWith("poe1", "Settlers");
+    });
+
+    it("should stop the session-owned app performance capture", async () => {
+      const capture = {
+        id: "session-capture-1",
+        startedAt: "2025-01-15T10:00:00Z",
+        stoppedAt: null,
+      };
+      mockSettingsGet.mockImplementation((key: string) => {
+        if (key === "appPerformanceMonitorEnabled") {
+          return Promise.resolve(true);
+        }
+        if (key === "appPerformanceAutoStartOnSession") {
+          return Promise.resolve(true);
+        }
+        return Promise.resolve(null);
+      });
+      mockAppPerformanceStartFreshCapture.mockResolvedValueOnce({
+        capture,
+        isSampling: true,
+        samples: [],
+        routeMarkers: [],
+      });
+      mockAppPerformanceGetState
+        .mockReturnValueOnce({
+          capture: null,
+          isSampling: false,
+          samples: [],
+          routeMarkers: [],
+        })
+        .mockReturnValue({
+          capture,
+          isSampling: true,
+          samples: [],
+          routeMarkers: [],
+        });
+
+      await service.startSession("poe1", "Settlers");
+      await service.stopSession("poe1");
+
+      expect(mockAppPerformanceStopCapture).toHaveBeenCalledTimes(1);
+    });
+
+    it("should not stop app performance when the session did not start the capture", async () => {
+      await service.startSession("poe1", "Settlers");
+      mockAppPerformanceGetState.mockReturnValue({
+        capture: {
+          id: "manual-capture",
+          startedAt: "2025-01-15T10:00:00Z",
+          stoppedAt: null,
+        },
+        isSampling: true,
+        samples: [],
+        routeMarkers: [],
+      });
+
+      await service.stopSession("poe1");
+
+      expect(mockAppPerformanceStopCapture).not.toHaveBeenCalled();
+    });
+
+    it("should not stop a replacement app performance capture on session end", async () => {
+      mockSettingsGet.mockImplementation((key: string) => {
+        if (key === "appPerformanceMonitorEnabled") {
+          return Promise.resolve(true);
+        }
+        if (key === "appPerformanceAutoStartOnSession") {
+          return Promise.resolve(true);
+        }
+        return Promise.resolve(null);
+      });
+      mockAppPerformanceStartFreshCapture.mockResolvedValueOnce({
+        capture: {
+          id: "session-capture-1",
+          startedAt: "2025-01-15T10:00:00Z",
+          stoppedAt: null,
+        },
+        isSampling: true,
+        samples: [],
+        routeMarkers: [],
+      });
+      mockAppPerformanceGetState.mockReturnValue({
+        capture: {
+          id: "replacement-capture",
+          startedAt: "2025-01-15T10:10:00Z",
+          stoppedAt: null,
+        },
+        isSampling: true,
+        samples: [],
+        routeMarkers: [],
+      });
+
+      await service.startSession("poe1", "Settlers");
+      await service.stopSession("poe1");
+
+      expect(mockAppPerformanceStopCapture).not.toHaveBeenCalled();
+    });
+
+    it("should keep the session stopped when app performance stop fails", async () => {
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      const capture = {
+        id: "session-capture-1",
+        startedAt: "2025-01-15T10:00:00Z",
+        stoppedAt: null,
+      };
+      mockSettingsGet.mockImplementation((key: string) => {
+        if (key === "appPerformanceMonitorEnabled") {
+          return Promise.resolve(true);
+        }
+        if (key === "appPerformanceAutoStartOnSession") {
+          return Promise.resolve(true);
+        }
+        return Promise.resolve(null);
+      });
+      mockAppPerformanceStartFreshCapture.mockResolvedValueOnce({
+        capture,
+        isSampling: true,
+        samples: [],
+        routeMarkers: [],
+      });
+      mockAppPerformanceGetState
+        .mockReturnValueOnce({
+          capture: null,
+          isSampling: false,
+          samples: [],
+          routeMarkers: [],
+        })
+        .mockReturnValue({
+          capture,
+          isSampling: true,
+          samples: [],
+          routeMarkers: [],
+        });
+      mockAppPerformanceStopCapture.mockRejectedValueOnce(
+        new Error("diagnostics stop failed"),
+      );
+
+      await service.startSession("poe1", "Settlers");
+      await service.stopSession("poe1");
+
+      expect(service.isSessionActive("poe1")).toBe(false);
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[CurrentSession] Failed to stop app performance diagnostics:",
+        expect.any(Error),
+      );
+
+      consoleSpy.mockRestore();
     });
 
     it("should emit session state change with isActive false", async () => {
@@ -1290,6 +1566,21 @@ describe("CurrentSessionService", () => {
         "current-session:update-card-price-visibility",
       );
     });
+
+    it("should return timeline data through the timeline IPC handler", async () => {
+      await service.startSession("poe1", "Settlers");
+      await service.addCard("poe1", "Settlers", "The Doctor", "timeline-ipc-1");
+      const sessionId = service.getActiveSessionInfo("poe1")?.sessionId;
+      const timelineHandler = mockIpcHandle.mock.calls.find(
+        ([channel]: [string]) => channel === "current-session:get-timeline",
+      )?.[1];
+
+      const timeline = await timelineHandler({}, sessionId);
+
+      expect(timeline.totalDrops).toBe(1);
+      expect(timeline.buckets).toHaveLength(1);
+      expect(timeline.buckets[0].dropCount).toBe(1);
+    });
   });
 
   // ─── Full session lifecycle ────────────────────────────────────────────
@@ -1641,6 +1932,164 @@ describe("CurrentSessionService", () => {
           sessionInfo: null,
         }),
       );
+    });
+
+    it("should auto-start and stop app performance diagnostics for poe2 sessions", async () => {
+      mockSettingsGet.mockImplementation((key: string) => {
+        if (key === "appPerformanceMonitorEnabled") {
+          return Promise.resolve(true);
+        }
+        if (key === "appPerformanceAutoStartOnSession") {
+          return Promise.resolve(true);
+        }
+        return Promise.resolve(null);
+      });
+      mockAppPerformanceStartFreshCapture.mockResolvedValue({
+        capture: {
+          id: "poe2-capture",
+          startedAt: "2024-05-04T00:00:00.000Z",
+          stoppedAt: null,
+        },
+        isSampling: true,
+        samples: [],
+        routeMarkers: [],
+      });
+      mockAppPerformanceGetState
+        .mockReturnValueOnce({
+          capture: null,
+          isSampling: false,
+          samples: [],
+          routeMarkers: [],
+        })
+        .mockReturnValue({
+          capture: {
+            id: "poe2-capture",
+            startedAt: "2024-05-04T00:00:00.000Z",
+            stoppedAt: null,
+          },
+          isSampling: true,
+          samples: [],
+          routeMarkers: [],
+        });
+
+      await service.startSession("poe2", "Dawn");
+      await service.stopSession("poe2");
+
+      expect(mockAppPerformanceStartFreshCapture).toHaveBeenCalledTimes(1);
+      expect(mockAppPerformanceStopCapture).toHaveBeenCalledTimes(1);
+    });
+
+    it("should not replace an existing session-owned diagnostics capture when another game starts", async () => {
+      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      mockSettingsGet.mockImplementation((key: string) => {
+        if (key === "appPerformanceMonitorEnabled") {
+          return Promise.resolve(true);
+        }
+        if (key === "appPerformanceAutoStartOnSession") {
+          return Promise.resolve(true);
+        }
+        return Promise.resolve(null);
+      });
+      const poe1Capture = {
+        id: "poe1-capture",
+        startedAt: "2024-05-04T00:00:00.000Z",
+        stoppedAt: null,
+      };
+      mockAppPerformanceGetState
+        .mockReturnValueOnce({
+          capture: null,
+          isSampling: false,
+          samples: [],
+          routeMarkers: [],
+        })
+        .mockReturnValue({
+          capture: poe1Capture,
+          isSampling: true,
+          samples: [],
+          routeMarkers: [],
+        });
+      mockAppPerformanceStartFreshCapture.mockResolvedValue({
+        capture: poe1Capture,
+        isSampling: true,
+        samples: [],
+        routeMarkers: [],
+      });
+
+      await service.startSession("poe1", "Settlers");
+      await service.startSession("poe2", "Dawn");
+      await service.stopSession("poe2");
+      await service.stopSession("poe1");
+
+      expect(mockAppPerformanceStartFreshCapture).toHaveBeenCalledTimes(1);
+      expect(mockAppPerformanceStopCapture).toHaveBeenCalledTimes(1);
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[CurrentSession] App performance diagnostics already running; skipping poe2 session auto-start",
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it("should clear the poe2 diagnostics capture id even when stop fails", async () => {
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      mockSettingsGet.mockImplementation((key: string) => {
+        if (key === "appPerformanceMonitorEnabled") {
+          return Promise.resolve(true);
+        }
+        if (key === "appPerformanceAutoStartOnSession") {
+          return Promise.resolve(true);
+        }
+        return Promise.resolve(null);
+      });
+      mockAppPerformanceStartFreshCapture.mockResolvedValue({
+        capture: {
+          id: "poe2-capture",
+          startedAt: "2024-05-04T00:00:00.000Z",
+          stoppedAt: null,
+        },
+        isSampling: true,
+        samples: [],
+        routeMarkers: [],
+      });
+      mockAppPerformanceGetState
+        .mockReturnValueOnce({
+          capture: null,
+          isSampling: false,
+          samples: [],
+          routeMarkers: [],
+        })
+        .mockReturnValueOnce({
+          capture: {
+            id: "poe2-capture",
+            startedAt: "2024-05-04T00:00:00.000Z",
+            stoppedAt: null,
+          },
+          isSampling: true,
+          samples: [],
+          routeMarkers: [],
+        })
+        .mockReturnValue({
+          capture: null,
+          isSampling: false,
+          samples: [],
+          routeMarkers: [],
+        });
+      mockAppPerformanceStopCapture.mockRejectedValueOnce(
+        new Error("stop failed"),
+      );
+
+      await service.startSession("poe2", "Dawn");
+      await service.stopSession("poe2");
+      await service.startSession("poe2", "Dawn");
+
+      expect(mockAppPerformanceStartFreshCapture).toHaveBeenCalledTimes(2);
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[CurrentSession] Failed to stop app performance diagnostics:",
+        expect.any(Error),
+      );
+
+      consoleSpy.mockRestore();
     });
   });
 

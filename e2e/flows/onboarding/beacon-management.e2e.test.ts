@@ -13,16 +13,13 @@ import {
   waitForRoute,
 } from "../../helpers/navigation";
 import { seedSessionPrerequisites } from "../../helpers/seed-db";
+import { openSettingsTab } from "../../helpers/settings";
 
 async function openManageBeacons(page: Page) {
-  const accordion = page.locator(".collapse").filter({
-    hasText: "Manage Beacons",
+  await openSettingsTab(page, "Help");
+  await expect(page.getByTestId("manage-beacons-section")).toBeVisible({
+    timeout: 5_000,
   });
-  const toggle = accordion.locator("input[type='checkbox']").first();
-
-  if (!(await toggle.isChecked())) {
-    await toggle.check({ force: true });
-  }
 
   await expect(page.locator("[data-beacon-id='game-selector']")).toBeVisible({
     timeout: 5_000,
@@ -43,10 +40,6 @@ test.describe("Onboarding - Beacon Management", () => {
     await navigateTo(page, "/settings");
     await waitForRoute(page, "/settings", 10_000);
     await page.locator("main").waitFor({ state: "visible", timeout: 5_000 });
-
-    await expect(
-      page.getByRole("heading", { name: /App Help/i }),
-    ).toBeVisible();
 
     await openManageBeacons(page);
 
@@ -80,7 +73,7 @@ test.describe("Onboarding - Beacon Management", () => {
     await expect(overlayIconToggle).toBeChecked();
 
     await gameSelectorToggle.uncheck({ force: true });
-    await expect(gameSelectorRow.getByText("Dismissed")).toBeVisible();
+    await expect(gameSelectorRow.getByText("Hidden")).toBeVisible();
     await expect
       .poll(async () => page.locator("[data-repere-trigger]").count(), {
         timeout: 10_000,
@@ -88,7 +81,7 @@ test.describe("Onboarding - Beacon Management", () => {
       .toBe(1);
 
     await overlayIconToggle.uncheck({ force: true });
-    await expect(overlayIconRow.getByText("Dismissed")).toBeVisible();
+    await expect(overlayIconRow.getByText("Hidden")).toBeVisible();
     await expect
       .poll(async () => page.locator("[data-repere-trigger]").count(), {
         timeout: 10_000,
@@ -98,7 +91,7 @@ test.describe("Onboarding - Beacon Management", () => {
     await gameSelectorRow
       .getByRole("checkbox", { name: /Show Game selector beacon/i })
       .check({ force: true });
-    await expect(gameSelectorRow.getByText("Visible in tour")).toBeVisible();
+    await expect(gameSelectorRow.getByText("Visible")).toBeVisible();
     await expect
       .poll(async () => page.locator("[data-repere-trigger]").count(), {
         timeout: 10_000,
@@ -108,7 +101,7 @@ test.describe("Onboarding - Beacon Management", () => {
     await overlayIconRow
       .getByRole("checkbox", { name: /Show Overlay icon beacon/i })
       .check({ force: true });
-    await expect(overlayIconRow.getByText("Visible in tour")).toBeVisible();
+    await expect(overlayIconRow.getByText("Visible")).toBeVisible();
     await expect
       .poll(async () => page.locator("[data-repere-trigger]").count(), {
         timeout: 10_000,

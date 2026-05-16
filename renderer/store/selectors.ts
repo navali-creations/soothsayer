@@ -25,6 +25,29 @@ export function useSlice<K extends keyof BoundStore>(key: K): BoundStore[K] {
 /** Select the `settings` slice. */
 export const useSettings = () => useSlice("settings");
 
+/** Select a focused value from the `settings` slice. */
+export const useSettingsSelector = <T>(
+  selector: (settings: BoundStore["settings"]) => T,
+) => useBoundStore((state) => selector(state.settings));
+
+/** Select a focused object from the `settings` slice with shallow equality. */
+export const useSettingsShallow = <T>(
+  selector: (settings: BoundStore["settings"]) => T,
+) => useBoundStore(useShallow((state) => selector(state.settings)));
+
+/** Select the `appPerformance` slice. */
+export const useAppPerformance = () => useSlice("appPerformance");
+
+/** Select a focused value from the `appPerformance` slice. */
+export const useAppPerformanceSelector = <T>(
+  selector: (appPerformance: BoundStore["appPerformance"]) => T,
+) => useBoundStore((state) => selector(state.appPerformance));
+
+/** Select a focused object from the `appPerformance` slice with shallow equality. */
+export const useAppPerformanceShallow = <T>(
+  selector: (appPerformance: BoundStore["appPerformance"]) => T,
+) => useBoundStore(useShallow((state) => selector(state.appPerformance)));
+
 /** Select the `storage` slice. */
 export const useStorage = () => useSlice("storage");
 

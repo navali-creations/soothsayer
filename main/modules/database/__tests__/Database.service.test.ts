@@ -11,6 +11,7 @@ const {
   mockDbExec,
   mockDbPrepare,
   mockDbTransaction,
+  mockIpcHandle,
   mockKyselyDestroy,
   mockKyselyTransaction,
   mockMigrationRunnerRunMigrations,
@@ -34,6 +35,7 @@ const {
     const wrappedFn = (...args: any[]) => fn.call(null, ...args);
     return wrappedFn;
   }),
+  mockIpcHandle: vi.fn(),
   mockKyselyDestroy: vi.fn(),
   mockKyselyTransaction: vi.fn(() => ({
     execute: vi.fn((cb: (trx: any) => Promise<any>) => cb({})),
@@ -91,7 +93,7 @@ vi.mock("electron", () => ({
     },
   },
   ipcMain: {
-    handle: vi.fn(),
+    handle: mockIpcHandle,
     on: vi.fn(),
     removeHandler: vi.fn(),
   },
@@ -159,6 +161,7 @@ describe("DatabaseService", () => {
     mockDbExec.mockReset();
     mockDbClose.mockReset();
     mockKyselyDestroy.mockReset();
+    mockIpcHandle.mockReset();
 
     // Default mock values
     mockAppGetPath.mockReturnValue("/mock-user-data");
@@ -298,6 +301,9 @@ describe("DatabaseService", () => {
         "poe_leagues_cache",
         "poe_leagues_cache_metadata",
         "user_settings",
+        "app_performance_captures",
+        "app_performance_samples",
+        "app_performance_route_markers",
       ];
 
       for (const table of expectedTables) {
@@ -309,6 +315,56 @@ describe("DatabaseService", () => {
         );
         expect(found).toBe(true);
       }
+    });
+
+    it("creates app performance constraints and indexes in the direct schema", () => {
+      DatabaseService.getInstance();
+
+      const execSql = mockDbExec.mock.calls
+        .map(([sql]: [string]) => sql)
+        .join("\n");
+
+      expect(execSql).toContain(
+        "CHECK(app_performance_retention IN ('24h', '7d', 'indefinite'))",
+      );
+      expect(execSql).toContain("idx_app_perf_captures_started_at");
+    });
+
+    it("registers guarded e2e IPC handlers only in non-packaged e2e runs", () => {
+      process.env.E2E_TESTING = "true";
+      mockAppIsPackaged.value = false;
+      const mockRun = vi.fn(() => ({ changes: 1, lastInsertRowid: 7 }));
+      const mockAll = vi.fn(() => [{ id: "row-1" }]);
+      mockDbPrepare.mockReturnValue({
+        get: vi.fn(() => ({ count: 1 })),
+        run: mockRun,
+        all: mockAll,
+      });
+
+      DatabaseService.getInstance();
+
+      const execHandler = mockIpcHandle.mock.calls.find(
+        ([channel]: [string]) => channel === "e2e:db-exec",
+      )?.[1];
+      const queryHandler = mockIpcHandle.mock.calls.find(
+        ([channel]: [string]) => channel === "e2e:db-query",
+      )?.[1];
+
+      expect(execHandler({}, "INSERT INTO cards VALUES (?)", ["card"])).toEqual(
+        {
+          changes: 1,
+          lastInsertRowid: 7,
+        },
+      );
+      expect(queryHandler({}, "SELECT * FROM cards")).toEqual([
+        { id: "row-1" },
+      ]);
+      expect(() => execHandler({}, "DROP TABLE cards")).toThrow(
+        "only SELECT, INSERT, UPDATE, and DELETE statements are allowed",
+      );
+      expect(() => queryHandler({}, "ALTER TABLE cards ADD COLUMN x")).toThrow(
+        "only SELECT, INSERT, UPDATE, and DELETE statements are allowed",
+      );
     });
   });
 
@@ -410,6 +466,15 @@ describe("DatabaseService", () => {
       expect(db.close).toBe(mockDbClose);
       expect(db.pragma).toBe(mockDbPragma);
     });
+
+    it("should throw after the connection is closed", () => {
+      const service = DatabaseService.getInstance();
+      service.close();
+
+      expect(() => service.getDb()).toThrow(
+        "Cannot access database - connection is closed",
+      );
+    });
   });
 
   // ─── getKysely ───────────────────────────────────────────────────────────
@@ -421,6 +486,15 @@ describe("DatabaseService", () => {
 
       expect(kysely).toBeDefined();
       expect(kysely.destroy).toBe(mockKyselyDestroy);
+    });
+
+    it("should throw after the connection is closed", () => {
+      const service = DatabaseService.getInstance();
+      service.close();
+
+      expect(() => service.getKysely()).toThrow(
+        "Cannot access database - connection is closed",
+      );
     });
   });
 
@@ -454,6 +528,15 @@ describe("DatabaseService", () => {
 
       await expect(service.transaction(callback)).rejects.toThrow(
         "Transaction failed",
+      );
+    });
+
+    it("should throw when starting a transaction after close", async () => {
+      const service = DatabaseService.getInstance();
+      service.close();
+
+      await expect(service.transaction(vi.fn())).rejects.toThrow(
+        "Cannot access database - connection is closed",
       );
     });
   });
@@ -602,6 +685,17 @@ describe("DatabaseService", () => {
       service.reset();
 
       expect(mockFsUnlinkSync).not.toHaveBeenCalled();
+    });
+
+    it("should continue reset when deleting an old database file fails", () => {
+      const service = DatabaseService.getInstance();
+      mockFsExistsSync.mockReturnValue(true);
+      mockFsUnlinkSync.mockImplementationOnce(() => {
+        throw new Error("locked");
+      });
+
+      expect(() => service.reset()).not.toThrow();
+      expect(mockDatabaseConstructor).toHaveBeenCalledTimes(2);
     });
 
     it("should reinitialize the database after deletion", () => {

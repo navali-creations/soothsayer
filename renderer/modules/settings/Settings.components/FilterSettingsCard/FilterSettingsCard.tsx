@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { type ChangeEvent, useCallback } from "react";
 import { FiAlertTriangle, FiRefreshCw } from "react-icons/fi";
 
 import { Button } from "~/renderer/components";
@@ -23,6 +23,13 @@ const FilterSettingsCard = () => {
 
   const handleDropdownChange = useRaritySourceChange();
 
+  const handleRaritySourceChange = useCallback(
+    (event: ChangeEvent<HTMLSelectElement>) => {
+      handleDropdownChange(event.target.value);
+    },
+    [handleDropdownChange],
+  );
+
   const handleScan = useCallback(async () => {
     await scanFilters();
     trackEvent("filter-scan");
@@ -31,24 +38,24 @@ const FilterSettingsCard = () => {
   const dropdownValue = encodeRaritySourceValue(raritySource, selectedFilterId);
 
   return (
-    <div className="card bg-base-100 shadow-xl">
-      <div className="card-body">
-        <h2 className="card-title">Rarity Source</h2>
-        <p className="text-sm text-base-content/60">
-          Choose how divination card rarities are determined
-        </p>
+    <section className="space-y-3">
+      <div className="space-y-3">
+        {/* Unified dropdown + rescan row */}
+        <div className="space-y-2">
+          <div>
+            <h3 className="text-sm font-medium text-base-content/70">
+              Rarity Source
+            </h3>
+            <p className="text-xs text-base-content/50">
+              How divination card rarities are determined
+            </p>
+          </div>
 
-        <div className="space-y-3 mt-4">
-          {/* Unified dropdown + rescan row */}
-          <div className="flex items-center gap-2">
-            <label className="label shrink-0">
-              <span className="label-text">Source</span>
-            </label>
-
+          <div className="join w-full">
             <select
-              className="select select-bordered select-sm flex-1 max-h-50"
+              className="select select-bordered select-sm join-item max-h-50 min-w-0 flex-1"
               value={dropdownValue}
-              onChange={(e) => handleDropdownChange(e.target.value)}
+              onChange={handleRaritySourceChange}
               disabled={isParsing}
             >
               {/* ── Dataset-driven sources ── */}
@@ -85,43 +92,43 @@ const FilterSettingsCard = () => {
             </select>
 
             <Button
-              variant="ghost"
+              variant="primary"
               size="sm"
               onClick={handleScan}
               disabled={isScanning}
               loading={isScanning}
-              className="gap-1 shrink-0"
+              className="join-item shrink-0 gap-1"
               title="Rescan filter directories"
             >
               {!isScanning && <FiRefreshCw className="w-3.5 h-3.5" />}
               Rescan
             </Button>
           </div>
-
-          {/* Scan error */}
-          {scanError && <p className="text-xs text-error">{scanError}</p>}
-
-          {/* No filters found hint */}
-          {!isScanning && availableFilters.length === 0 && (
-            <div className="flex items-center gap-2 text-warning text-xs">
-              <FiAlertTriangle className="w-3.5 h-3.5 shrink-0" />
-              <span>
-                No filters found. Click "Rescan" to search your PoE filter
-                directories.
-              </span>
-            </div>
-          )}
-
-          {/* Filter count */}
-          {availableFilters.length > 0 && (
-            <span className="text-xs text-base-content/40">
-              {availableFilters.length} filter
-              {availableFilters.length !== 1 ? "s" : ""} available
-            </span>
-          )}
         </div>
+
+        {/* Scan error */}
+        {scanError && <p className="text-xs text-error">{scanError}</p>}
+
+        {/* No filters found hint */}
+        {!isScanning && availableFilters.length === 0 && (
+          <div className="alert alert-soft alert-warning py-2 text-xs">
+            <FiAlertTriangle className="w-3.5 h-3.5 shrink-0" />
+            <span>
+              No filters found. Click "Rescan" to search your PoE filter
+              directories.
+            </span>
+          </div>
+        )}
+
+        {/* Filter count */}
+        {availableFilters.length > 0 && (
+          <span className="text-xs text-base-content/40">
+            {availableFilters.length} filter
+            {availableFilters.length !== 1 ? "s" : ""} available
+          </span>
+        )}
       </div>
-    </div>
+    </section>
   );
 };
 

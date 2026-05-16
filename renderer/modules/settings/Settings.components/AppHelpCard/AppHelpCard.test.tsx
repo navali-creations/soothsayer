@@ -15,8 +15,17 @@ vi.mock("~/renderer/modules/onboarding", () => ({
   ),
 }));
 
-vi.mock("./BeaconManagementList", () => ({
-  default: () => <div data-testid="beacon-management-list" />,
+vi.mock("./BeaconManagementList/BeaconManagementList", () => ({
+  default: ({ beaconStates, onDismiss, onReset }: any) => (
+    <div data-testid="beacon-management-list">
+      <button type="button" onClick={() => onDismiss(beaconStates[0].id)}>
+        dismiss first beacon
+      </button>
+      <button type="button" onClick={() => onReset(beaconStates[0].id)}>
+        reset first beacon
+      </button>
+    </div>
+  ),
 }));
 
 import { trackEvent } from "~/renderer/modules/umami";
@@ -40,6 +49,25 @@ function setupStore() {
         refreshBeaconHost: mockRefreshBeaconHost,
         dismissedBeacons: ["overlay-icon"],
       },
+      settings: {
+        appPerformanceMonitorEnabled: false,
+        appPerformanceRetention: "7d",
+      },
+      appPerformance: {
+        captureHistory: [],
+        captureHistoryPage: 1,
+        captureHistoryPageSize: 5,
+        captureHistoryTotal: 0,
+        captureHistoryTotalPages: 1,
+        captureId: null,
+        deletingCaptureId: null,
+        deleteCapture: vi.fn().mockResolvedValue(undefined),
+        isLoadingHistory: false,
+        isSampling: false,
+        loadCaptureHistory: vi.fn().mockResolvedValue(undefined),
+        setMonitorEnabled: vi.fn().mockResolvedValue(undefined),
+        setRetentionPolicy: vi.fn().mockResolvedValue(undefined),
+      },
     } as any;
 
     return selector ? selector(state) : state;
@@ -47,6 +75,9 @@ function setupStore() {
   mockUseBoundStore.getState = vi.fn(() => ({
     onboarding: {
       dismissedBeacons: ["overlay-icon"],
+    },
+    appPerformance: {
+      captureId: null,
     },
   })) as any;
 }
@@ -73,10 +104,16 @@ describe("AppHelpCard", () => {
     ).toBeInTheDocument();
   });
 
-  it('renders "App Tour" section heading', () => {
+  it("renders support links above beacon controls", () => {
     renderWithProviders(<AppHelpCard />);
 
-    expect(screen.getByText("App Tour")).toBeInTheDocument();
+    const discordHeading = screen.getByRole("heading", { name: "Discord" });
+    const beaconTitle = screen.getByText("Interactive beacons");
+
+    expect(discordHeading.compareDocumentPosition(beaconTitle)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(screen.getByRole("heading", { name: "GitHub" })).toBeInTheDocument();
   });
 
   it("renders OnboardingButton", () => {
@@ -140,12 +177,73 @@ describe("AppHelpCard", () => {
     expect(screen.getByTestId("onboarding-button")).toBeInTheDocument();
   });
 
-  it("calls window.electron.diagLog.revealLogFile when Open log file is clicked", async () => {
+  it("renders Discord and GitHub help links", () => {
+    renderWithProviders(<AppHelpCard />);
+
+    expect(screen.getByRole("link", { name: "Open Discord" })).toHaveAttribute(
+      "href",
+      "https://discord.gg/mrqmPYXHHT",
+    );
+    expect(screen.getByRole("link", { name: "Open GitHub" })).toHaveAttribute(
+      "href",
+      "https://github.com/navali-creations/soothsayer",
+    );
+  });
+
+  it("dismisses and resets individual beacons through the management list", async () => {
+    mockUseBoundStore.getState = vi
+      .fn()
+      .mockReturnValueOnce({
+        onboarding: {
+          dismissedBeacons: ["overlay-icon"],
+        },
+      })
+      .mockReturnValueOnce({
+        onboarding: {
+          dismissedBeacons: ["overlay-icon", "game-selector"],
+        },
+      })
+      .mockReturnValueOnce({
+        onboarding: {
+          dismissedBeacons: ["overlay-icon", "game-selector"],
+        },
+      })
+      .mockReturnValueOnce({
+        onboarding: {
+          dismissedBeacons: ["game-selector"],
+        },
+      }) as any;
+
     const { user } = renderWithProviders(<AppHelpCard />);
 
-    const logButton = screen.getByRole("button", { name: /Open log file/i });
-    await user.click(logButton);
+    await user.click(
+      screen.getByRole("button", { name: "dismiss first beacon" }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "reset first beacon" }),
+    );
 
-    expect(window.electron.diagLog.revealLogFile).toHaveBeenCalledTimes(1);
+    expect(mockDismiss).toHaveBeenCalledTimes(1);
+    expect(mockResetOne).toHaveBeenCalledTimes(1);
+    expect(mockRefreshBeaconHost).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not show the dismissed badge when all beacons were already dismissed", async () => {
+    mockUseBoundStore.getState = vi.fn(() => ({
+      onboarding: {
+        dismissedBeacons: ["overlay-icon"],
+      },
+    })) as any;
+    const { user } = renderWithProviders(<AppHelpCard />);
+
+    await user.click(
+      screen.getByRole("button", { name: /Dismiss All Beacons/i }),
+    );
+
+    expect(trackEvent).not.toHaveBeenCalledWith(
+      "onboarding-all-dismissed",
+      expect.anything(),
+    );
+    expect(screen.queryByText("All dismissed")).not.toBeInTheDocument();
   });
 });

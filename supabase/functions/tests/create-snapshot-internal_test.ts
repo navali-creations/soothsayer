@@ -18,6 +18,7 @@ import { assert, assertEquals, assertStringIncludes } from "jsr:@std/assert@1";
 import {
   createInternalRequest,
   createMockRequest,
+  createOptionsRequest,
   mockFetch,
   mockLeague,
   mockSnapshot,
@@ -151,6 +152,27 @@ function mockStashResponse(overrides: { lines?: unknown[] } = {}) {
   };
 }
 
+function rejectWhenAborted(init?: RequestInit): Promise<Response> {
+  const signal = init?.signal;
+  return new Promise((_resolve, reject) => {
+    if (!signal) {
+      reject(new Error("Expected request to include an AbortSignal"));
+      return;
+    }
+
+    if (signal.aborted) {
+      reject(new DOMException("Aborted", "AbortError"));
+      return;
+    }
+
+    signal.addEventListener(
+      "abort",
+      () => reject(new DOMException("Aborted", "AbortError")),
+      { once: true },
+    );
+  });
+}
+
 /**
  * Sets up all fetch mocks for a full successful snapshot creation flow.
  * Returns the mock so individual routes can be overridden.
@@ -159,15 +181,16 @@ function setupFullMocks(
   options: {
     league?: Record<string, unknown> | null;
     leagueError?: boolean;
-    recentSnapshot?: Record<string, unknown> | null;
     exchangeData?: unknown;
     exchangeError?: boolean;
+    exchangeTimeout?: boolean;
     currencyData?: unknown;
     currencyError?: boolean;
     stashData?: unknown;
     stashError?: boolean;
     snapshotInsertResult?: Record<string, unknown>;
     snapshotInsertError?: boolean;
+    cardIdRows?: Array<Record<string, unknown>>;
     cardPricesInsertError?: boolean;
   } = {},
 ) {
@@ -206,97 +229,6 @@ function setupFullMocks(
       const league =
         options.league ?? mockLeague({ id: "league-uuid-001", name: "Dawn" });
       return postgrestResponse(league);
-    },
-  });
-
-  // Snapshots table — GET (check for recent) and POST (insert)
-  fetchMock.addRoute({
-    match: (url, init) => {
-      const isSnapshots = url.includes(supabaseUrls.table("snapshots"));
-      const method = init?.method?.toUpperCase() ?? "GET";
-      return isSnapshots && method === "GET";
-    },
-    handler: () => {
-      if (options.recentSnapshot !== undefined) {
-        if (options.recentSnapshot === null) {
-          // No recent snapshot (PostgREST .single() with 0 rows → 406)
-          return new Response(
-            JSON.stringify({
-              message: "JSON object requested, multiple (or no) rows returned",
-              code: "PGRST116",
-              details: "The result contains 0 rows",
-              hint: null,
-            }),
-            {
-              status: 406,
-              headers: { "Content-Type": "application/json; charset=utf-8" },
-            },
-          );
-        }
-        return postgrestResponse(options.recentSnapshot);
-      }
-      // Default: no recent snapshot
-      return new Response(
-        JSON.stringify({
-          message: "JSON object requested, multiple (or no) rows returned",
-          code: "PGRST116",
-          details: "The result contains 0 rows",
-          hint: null,
-        }),
-        {
-          status: 406,
-          headers: { "Content-Type": "application/json; charset=utf-8" },
-        },
-      );
-    },
-  });
-
-  fetchMock.addRoute({
-    match: (url, init) => {
-      const isSnapshots = url.includes(supabaseUrls.table("snapshots"));
-      const method = init?.method?.toUpperCase() ?? "GET";
-      return isSnapshots && method === "POST";
-    },
-    handler: async (input, init) => {
-      let body = "";
-      if (typeof input === "object" && "body" in input) {
-        body = await (input as Request).text();
-      } else if (init?.body) {
-        body =
-          typeof init.body === "string"
-            ? init.body
-            : new TextDecoder().decode(init.body as ArrayBuffer);
-      }
-      insertedSnapshots.push({
-        url: typeof input === "string" ? input : (input as Request).url,
-        body,
-      });
-
-      if (options.snapshotInsertError) {
-        return new Response(
-          JSON.stringify({
-            message: "insert failed",
-            code: "23505",
-            details: null,
-            hint: null,
-          }),
-          {
-            status: 409,
-            headers: { "Content-Type": "application/json; charset=utf-8" },
-          },
-        );
-      }
-
-      const result = options.snapshotInsertResult ?? {
-        id: "new-snapshot-uuid-001",
-        league_id: "league-uuid-001",
-        fetched_at: new Date().toISOString(),
-        exchange_chaos_to_divine: 150,
-        stash_chaos_to_divine: 148,
-        stacked_deck_chaos_cost: 1.5,
-        created_at: new Date().toISOString(),
-      };
-      return postgrestResponse(result, 201);
     },
   });
 
@@ -342,17 +274,19 @@ function setupFullMocks(
     },
     handler: () => {
       // Return deterministic card IDs for every card name that was upserted
-      const rows = mockCardRows(upsertedCardNames);
+      const rows = options.cardIdRows ?? mockCardRows(upsertedCardNames);
       return postgrestResponse(rows);
     },
   });
 
-  // Card prices table — POST (insert)
+  // Atomic snapshot + prices RPC
   fetchMock.addRoute({
     match: (url, init) => {
-      const isCardPrices = url.includes(supabaseUrls.table("card_prices"));
+      const isSnapshotRpc = url.includes(
+        supabaseUrls.rpc("create_snapshot_with_prices"),
+      );
       const method = init?.method?.toUpperCase() ?? "GET";
-      return isCardPrices && method === "POST";
+      return isSnapshotRpc && method === "POST";
     },
     handler: async (input, init) => {
       let body = "";
@@ -364,15 +298,28 @@ function setupFullMocks(
             ? init.body
             : new TextDecoder().decode(init.body as ArrayBuffer);
       }
+
+      const payload = JSON.parse(body);
+      insertedSnapshots.push({
+        url: typeof input === "string" ? input : (input as Request).url,
+        body: JSON.stringify({
+          league_id: payload.p_league_id,
+          fetched_at: payload.p_fetched_at,
+          exchange_chaos_to_divine: payload.p_exchange_chaos_to_divine,
+          stash_chaos_to_divine: payload.p_stash_chaos_to_divine,
+          stacked_deck_chaos_cost: payload.p_stacked_deck_chaos_cost,
+          stacked_deck_max_volume_rate: payload.p_stacked_deck_max_volume_rate,
+        }),
+      });
       insertedCardPrices.push({
         url: typeof input === "string" ? input : (input as Request).url,
-        body,
+        body: JSON.stringify(payload.p_prices ?? []),
       });
 
-      if (options.cardPricesInsertError) {
+      if (options.snapshotInsertError || options.cardPricesInsertError) {
         return new Response(
           JSON.stringify({
-            message: "insert failed",
+            message: "atomic snapshot insert failed",
             code: "23505",
             details: null,
             hint: null,
@@ -383,7 +330,22 @@ function setupFullMocks(
           },
         );
       }
-      return postgrestResponse([], 201);
+
+      const defaultResult = {
+        id: "new-snapshot-uuid-001",
+        league_id: "league-uuid-001",
+        fetched_at: payload.p_fetched_at,
+        exchange_chaos_to_divine: payload.p_exchange_chaos_to_divine,
+        stash_chaos_to_divine: payload.p_stash_chaos_to_divine,
+        stacked_deck_chaos_cost: payload.p_stacked_deck_chaos_cost,
+        stacked_deck_max_volume_rate: payload.p_stacked_deck_max_volume_rate,
+        created_at: new Date().toISOString(),
+      };
+      const result = {
+        ...defaultResult,
+        ...(options.snapshotInsertResult ?? {}),
+      };
+      return postgrestResponse(result, 200);
     },
   });
 
@@ -395,7 +357,10 @@ function setupFullMocks(
       url.includes("poe.ninja") &&
       url.includes("exchange") &&
       url.includes("DivinationCard"),
-    handler: () => {
+    handler: (_input, init) => {
+      if (options.exchangeTimeout) {
+        return rejectWhenAborted(init);
+      }
       if (options.exchangeError) {
         return new Response("Service Unavailable", { status: 503 });
       }
@@ -474,6 +439,29 @@ quietTest(
 );
 
 quietTest(
+  "create-snapshot-internal — missing configured cron secret fails closed",
+  async () => {
+    const cleanupEnv = setupEnv();
+    Deno.env.delete("INTERNAL_CRON_SECRET");
+    const fetchMock = mockFetch();
+
+    const req = createMockRequest(
+      "http://localhost:54321/functions/v1/create-snapshot-internal",
+      { method: "POST", body: { game: "poe1", leagueId: "Dawn" } },
+    );
+    const resp = await handler(req);
+
+    assertEquals(resp.status, 500);
+    const body = await resp.json();
+    assertEquals(body.error, "Server misconfigured");
+
+    assertEquals(fetchMock.calls.length, 0);
+    fetchMock.restore();
+    cleanupEnv();
+  },
+);
+
+quietTest(
   "create-snapshot-internal — wrong cron secret returns 401",
   async () => {
     const cleanupEnv = setupEnv();
@@ -518,6 +506,29 @@ quietTest(
 // ═══════════════════════════════════════════════════════════════════════════════
 // HTTP Method Validation
 // ═══════════════════════════════════════════════════════════════════════════════
+
+quietTest(
+  "create-snapshot-internal — OPTIONS request returns 200",
+  async () => {
+    const cleanupEnv = setupEnv();
+    const fetchMock = mockFetch();
+
+    const req = createOptionsRequest(
+      "http://localhost:54321/functions/v1/create-snapshot-internal",
+    );
+    const resp = await handler(req);
+
+    assertEquals(resp.status, 200);
+    assertEquals(
+      resp.headers.get("Access-Control-Allow-Methods"),
+      "POST, OPTIONS",
+    );
+    assertEquals(fetchMock.calls.length, 0);
+
+    fetchMock.restore();
+    cleanupEnv();
+  },
+);
 
 quietTest("create-snapshot-internal — GET request returns 405", async () => {
   const cleanupEnv = setupEnv();
@@ -645,6 +656,79 @@ quietTest("create-snapshot-internal — empty body returns 400", async () => {
   cleanupEnv();
 });
 
+quietTest("create-snapshot-internal — malformed JSON returns 400", async () => {
+  const cleanupEnv = setupEnv();
+  const fetchMock = mockFetch();
+
+  const req = new Request(
+    "http://localhost:54321/functions/v1/create-snapshot-internal",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-cron-secret": "test-cron-secret",
+      },
+      body: "not-json",
+    },
+  );
+  const resp = await handler(req);
+
+  assertEquals(resp.status, 400);
+  const body = await resp.json();
+  assertEquals(body.error, "Invalid JSON request body");
+  assertEquals(fetchMock.calls.length, 0);
+
+  fetchMock.restore();
+  cleanupEnv();
+});
+
+quietTest("create-snapshot-internal — invalid game returns 400", async () => {
+  const cleanupEnv = setupEnv();
+  const fetchMock = mockFetch();
+
+  const req = createInternalRequest(
+    "http://localhost:54321/functions/v1/create-snapshot-internal",
+    { game: "poe3", leagueId: "Dawn" },
+    "test-cron-secret",
+  );
+  const resp = await handler(req);
+
+  assertEquals(resp.status, 400);
+  const body = await resp.json();
+  assertEquals(body.error, "Invalid game: expected poe1 or poe2");
+  assertEquals(fetchMock.calls.length, 0);
+
+  fetchMock.restore();
+  cleanupEnv();
+});
+
+quietTest("create-snapshot-internal — oversized body returns 413", async () => {
+  const cleanupEnv = setupEnv();
+  const fetchMock = mockFetch();
+
+  const req = new Request(
+    "http://localhost:54321/functions/v1/create-snapshot-internal",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": "4097",
+        "x-cron-secret": "test-cron-secret",
+      },
+      body: "{}",
+    },
+  );
+  const resp = await handler(req);
+
+  assertEquals(resp.status, 413);
+  const body = await resp.json();
+  assertEquals(body.error, "Request body too large");
+  assertEquals(fetchMock.calls.length, 0);
+
+  fetchMock.restore();
+  cleanupEnv();
+});
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // League Not Found
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -674,38 +758,9 @@ quietTest(
 // ═══════════════════════════════════════════════════════════════════════════════
 
 quietTest(
-  "create-snapshot-internal — recent snapshot (< 10 min) returns 200 with skip message",
-  async () => {
-    const recentSnapshot = mockSnapshot({
-      id: "recent-snapshot-uuid",
-      fetched_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(), // 5 min ago
-    });
-
-    const { fetchMock } = setupFullMocks({ recentSnapshot });
-
-    const req = createInternalRequest(
-      "http://localhost:54321/functions/v1/create-snapshot-internal",
-      { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
-    );
-    const resp = await handler(req);
-
-    assertEquals(resp.status, 200);
-    const body = await resp.json();
-    assertStringIncludes(body.message, "Recent snapshot exists");
-    assert(body.snapshot !== undefined, "Should return the existing snapshot");
-    assertEquals(body.snapshot.id, "recent-snapshot-uuid");
-
-    fetchMock.restore();
-  },
-);
-
-quietTest(
   "create-snapshot-internal — no recent snapshot proceeds with creation",
   async () => {
-    const { fetchMock, insertedSnapshots } = setupFullMocks({
-      recentSnapshot: null,
-    });
+    const { fetchMock, insertedSnapshots } = setupFullMocks();
 
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
@@ -728,6 +783,33 @@ quietTest(
   },
 );
 
+quietTest(
+  "create-snapshot-internal — concurrent recent snapshot from RPC returns skip message",
+  async () => {
+    const concurrentSnapshot = mockSnapshot({
+      id: "concurrent-snapshot-uuid",
+      fetched_at: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+    });
+    const { fetchMock } = setupFullMocks({
+      snapshotInsertResult: concurrentSnapshot,
+    });
+
+    const req = createInternalRequest(
+      "http://localhost:54321/functions/v1/create-snapshot-internal",
+      { game: "poe1", leagueId: "Dawn" },
+      "test-cron-secret",
+    );
+    const resp = await handler(req);
+
+    assertEquals(resp.status, 200);
+    const body = await resp.json();
+    assertStringIncludes(body.message, "Recent snapshot exists");
+    assertEquals(body.snapshot.id, "concurrent-snapshot-uuid");
+
+    fetchMock.restore();
+  },
+);
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // poe.ninja API Call Tests
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -740,7 +822,7 @@ quietTest(
       name: "Settlers of Kalguur",
     });
 
-    const { fetchMock } = setupFullMocks({ league, recentSnapshot: null });
+    const { fetchMock } = setupFullMocks({ league });
 
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
@@ -777,7 +859,7 @@ quietTest(
       name: "Dawn",
     });
 
-    const { fetchMock } = setupFullMocks({ league, recentSnapshot: null });
+    const { fetchMock } = setupFullMocks({ league });
 
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
@@ -801,7 +883,7 @@ quietTest(
 
 quietTest("create-snapshot-internal — skips stash API for poe2", async () => {
   const league = mockLeague({ game: "poe2", name: "Standard" });
-  const { fetchMock } = setupFullMocks({ league, recentSnapshot: null });
+  const { fetchMock } = setupFullMocks({ league });
 
   const req = createInternalRequest(
     "http://localhost:54321/functions/v1/create-snapshot-internal",
@@ -823,7 +905,7 @@ quietTest("create-snapshot-internal — skips stash API for poe2", async () => {
 quietTest(
   "create-snapshot-internal — calls poe.ninja currency API for stacked deck price",
   async () => {
-    const { fetchMock } = setupFullMocks({ recentSnapshot: null });
+    const { fetchMock } = setupFullMocks({});
 
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
@@ -855,7 +937,6 @@ quietTest(
   "create-snapshot-internal — poe.ninja exchange API failure returns 500",
   async () => {
     const { fetchMock } = setupFullMocks({
-      recentSnapshot: null,
       exchangeError: true,
     });
 
@@ -868,9 +949,40 @@ quietTest(
 
     assertEquals(resp.status, 500);
     const body = await resp.json();
-    assertStringIncludes(body.error, "poe.ninja exchange API failed");
+    assertEquals(body.error, "Failed to create snapshot");
 
     fetchMock.restore();
+  },
+);
+
+quietTest(
+  "create-snapshot-internal — poe.ninja exchange API timeout returns 500",
+  async () => {
+    const originalTimeout = Deno.env.get("POE_NINJA_FETCH_TIMEOUT_MS");
+    const { fetchMock } = setupFullMocks({
+      exchangeTimeout: true,
+    });
+    Deno.env.set("POE_NINJA_FETCH_TIMEOUT_MS", "1");
+
+    try {
+      const req = createInternalRequest(
+        "http://localhost:54321/functions/v1/create-snapshot-internal",
+        { game: "poe1", leagueId: "Dawn" },
+        "test-cron-secret",
+      );
+      const resp = await handler(req);
+
+      assertEquals(resp.status, 500);
+      const body = await resp.json();
+      assertEquals(body.error, "Failed to create snapshot");
+    } finally {
+      fetchMock.restore();
+      if (originalTimeout === undefined) {
+        Deno.env.delete("POE_NINJA_FETCH_TIMEOUT_MS");
+      } else {
+        Deno.env.set("POE_NINJA_FETCH_TIMEOUT_MS", originalTimeout);
+      }
+    }
   },
 );
 
@@ -878,7 +990,6 @@ quietTest(
   "create-snapshot-internal — poe.ninja stash API failure returns 500",
   async () => {
     const { fetchMock } = setupFullMocks({
-      recentSnapshot: null,
       stashError: true,
     });
 
@@ -891,7 +1002,7 @@ quietTest(
 
     assertEquals(resp.status, 500);
     const body = await resp.json();
-    assertStringIncludes(body.error, "poe.ninja stash API failed");
+    assertEquals(body.error, "Failed to create snapshot");
 
     fetchMock.restore();
   },
@@ -901,7 +1012,6 @@ quietTest(
   "create-snapshot-internal — poe.ninja currency API failure defaults stacked deck to 0",
   async () => {
     const { fetchMock } = setupFullMocks({
-      recentSnapshot: null,
       currencyError: true,
     });
 
@@ -928,9 +1038,7 @@ quietTest(
 quietTest(
   "create-snapshot-internal — inserts snapshot with correct fields",
   async () => {
-    const { fetchMock, insertedSnapshots } = setupFullMocks({
-      recentSnapshot: null,
-    });
+    const { fetchMock, insertedSnapshots } = setupFullMocks({});
 
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
@@ -966,7 +1074,6 @@ quietTest(
   "create-snapshot-internal — snapshot insert failure returns 500",
   async () => {
     const { fetchMock } = setupFullMocks({
-      recentSnapshot: null,
       snapshotInsertError: true,
     });
 
@@ -990,7 +1097,7 @@ quietTest(
 // ═══════════════════════════════════════════════════════════════════════════════
 
 quietTest(
-  "create-snapshot-internal — inserts card prices with snapshot_id",
+  "create-snapshot-internal — sends card prices to snapshot RPC without snapshot_id",
   async () => {
     const snapshotResult = {
       id: "snapshot-for-prices-test",
@@ -1003,7 +1110,6 @@ quietTest(
     };
 
     const { fetchMock, insertedCardPrices } = setupFullMocks({
-      recentSnapshot: null,
       snapshotInsertResult: snapshotResult,
     });
 
@@ -1020,12 +1126,13 @@ quietTest(
     const prices = JSON.parse(insertedCardPrices[0].body);
     assert(Array.isArray(prices), "Card prices should be an array");
 
-    // All prices should have the snapshot_id and card_id, but NOT card_name
+    // The atomic RPC attaches snapshot_id inside Postgres. The function should
+    // only send card payload fields here, with card_id resolved and no card_name.
     for (const price of prices) {
       assertEquals(
         price.snapshot_id,
-        "snapshot-for-prices-test",
-        `Card price should reference the snapshot`,
+        undefined,
+        "snapshot_id should be assigned by create_snapshot_with_prices",
       );
       assert(
         typeof price.card_id === "string" && price.card_id.length > 0,
@@ -1045,9 +1152,7 @@ quietTest(
 quietTest(
   "create-snapshot-internal — card prices include both exchange and stash sources",
   async () => {
-    const { fetchMock, insertedCardPrices } = setupFullMocks({
-      recentSnapshot: null,
-    });
+    const { fetchMock, insertedCardPrices } = setupFullMocks({});
 
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
@@ -1090,7 +1195,6 @@ quietTest(
     });
 
     const { fetchMock, insertedCardPrices } = setupFullMocks({
-      recentSnapshot: null,
       exchangeData,
     });
 
@@ -1121,11 +1225,74 @@ quietTest(
 );
 
 quietTest(
+  "create-snapshot-internal — skips invalid numeric prices instead of inserting null values",
+  async () => {
+    const exchangeData = mockExchangeResponse({
+      core: { rates: { divine: 0.005 } },
+      items: [
+        { name: "Valid Exchange", category: "Cards" },
+        { name: "Broken Exchange", category: "Cards" },
+      ],
+      lines: [{ primaryValue: 200 }, {}],
+    });
+    const stashData = mockStashResponse({
+      lines: [
+        {
+          name: "Broken Stash",
+          sparkLine: { data: [0, 1], totalChange: 1 },
+          count: 20,
+        },
+      ],
+    });
+
+    const { fetchMock, insertedCardPrices } = setupFullMocks({
+      exchangeData,
+      stashData,
+    });
+
+    const req = createInternalRequest(
+      "http://localhost:54321/functions/v1/create-snapshot-internal",
+      { game: "poe1", leagueId: "Dawn" },
+      "test-cron-secret",
+    );
+    const resp = await handler(req);
+
+    assertEquals(resp.status, 200);
+    assert(insertedCardPrices.length > 0);
+
+    const prices = JSON.parse(insertedCardPrices[0].body);
+    assert(
+      prices.some((p: any) => p.card_id === cardId("Valid Exchange")),
+      "Should keep valid prices",
+    );
+    assert(
+      !prices.some((p: any) => p.card_id === cardId("Broken Exchange")),
+      "Should skip exchange prices without primaryValue",
+    );
+    assert(
+      !prices.some((p: any) => p.card_id === cardId("Broken Stash")),
+      "Should skip stash prices without chaosValue",
+    );
+
+    for (const price of prices) {
+      assert(
+        price.chaos_value !== null && price.chaos_value !== undefined,
+        "Inserted prices must never have null chaos_value",
+      );
+      assert(
+        price.divine_value !== null && price.divine_value !== undefined,
+        "Inserted prices must never have null divine_value",
+      );
+    }
+
+    fetchMock.restore();
+  },
+);
+
+quietTest(
   "create-snapshot-internal — exchange prices always have confidence 1 (high)",
   async () => {
-    const { fetchMock, insertedCardPrices } = setupFullMocks({
-      recentSnapshot: null,
-    });
+    const { fetchMock, insertedCardPrices } = setupFullMocks({});
 
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
@@ -1160,6 +1327,59 @@ quietTest(
 );
 
 quietTest(
+  "create-snapshot-internal — derives missing stash divine_value from stash chaos ratio",
+  async () => {
+    const exchangeData = mockExchangeResponse({
+      items: [],
+      lines: [],
+    });
+    const stashData = mockStashResponse({
+      lines: [
+        {
+          name: "Ratio Anchor",
+          chaosValue: 300,
+          divineValue: 2,
+          sparkLine: { data: [0, 1], totalChange: 1 },
+          count: 20,
+        },
+        {
+          name: "Missing Divine",
+          chaosValue: 75,
+          sparkLine: { data: [0, 1], totalChange: 1 },
+          count: 20,
+        },
+      ],
+    });
+
+    const { fetchMock, insertedCardPrices } = setupFullMocks({
+      exchangeData,
+      stashData,
+    });
+
+    const req = createInternalRequest(
+      "http://localhost:54321/functions/v1/create-snapshot-internal",
+      { game: "poe1", leagueId: "Dawn" },
+      "test-cron-secret",
+    );
+    const resp = await handler(req);
+
+    assertEquals(resp.status, 200);
+    assert(insertedCardPrices.length > 0);
+
+    const prices = JSON.parse(insertedCardPrices[0].body);
+    const missingDivine = prices.find(
+      (p: any) => p.card_id === cardId("Missing Divine"),
+    );
+
+    assert(missingDivine !== undefined, "Should keep the card with chaos data");
+    assertEquals(missingDivine.chaos_value, 75);
+    assertEquals(missingDivine.divine_value, 0.5);
+
+    fetchMock.restore();
+  },
+);
+
+quietTest(
   "create-snapshot-internal — stash prices with populated sparkLine and count>=10 get confidence 1 (high)",
   async () => {
     const stashData = mockStashResponse({
@@ -1184,7 +1404,6 @@ quietTest(
     });
 
     const { fetchMock, insertedCardPrices } = setupFullMocks({
-      recentSnapshot: null,
       stashData,
     });
 
@@ -1239,7 +1458,6 @@ quietTest(
     });
 
     const { fetchMock, insertedCardPrices } = setupFullMocks({
-      recentSnapshot: null,
       stashData,
     });
 
@@ -1310,7 +1528,6 @@ quietTest(
     });
 
     const { fetchMock, insertedCardPrices } = setupFullMocks({
-      recentSnapshot: null,
       stashData,
     });
 
@@ -1367,7 +1584,6 @@ quietTest(
     });
 
     const { fetchMock, insertedCardPrices } = setupFullMocks({
-      recentSnapshot: null,
       stashData,
     });
 
@@ -1412,7 +1628,6 @@ quietTest(
     });
 
     const { fetchMock, insertedCardPrices } = setupFullMocks({
-      recentSnapshot: null,
       stashData,
     });
 
@@ -1450,7 +1665,6 @@ quietTest(
   "create-snapshot-internal — card prices insert failure returns 500",
   async () => {
     const { fetchMock } = setupFullMocks({
-      recentSnapshot: null,
       cardPricesInsertError: true,
     });
 
@@ -1463,7 +1677,7 @@ quietTest(
 
     assertEquals(resp.status, 500);
     const body = await resp.json();
-    assertStringIncludes(body.error, "Failed to insert card prices");
+    assertEquals(body.error, "Failed to create snapshot");
 
     fetchMock.restore();
   },
@@ -1476,7 +1690,7 @@ quietTest(
 quietTest(
   "create-snapshot-internal — success response has expected fields",
   async () => {
-    const { fetchMock } = setupFullMocks({ recentSnapshot: null });
+    const { fetchMock } = setupFullMocks({});
 
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
@@ -1526,15 +1740,13 @@ quietTest(
     const snapshotResult = {
       id: "camel-case-test-uuid",
       league_id: "league-uuid-001",
-      fetched_at: "2024-12-15T12:00:00Z",
       exchange_chaos_to_divine: 155,
       stash_chaos_to_divine: 152,
       stacked_deck_chaos_cost: 2.0,
       created_at: "2024-12-15T12:00:00Z",
     };
 
-    const { fetchMock } = setupFullMocks({
-      recentSnapshot: null,
+    const { fetchMock, insertedSnapshots } = setupFullMocks({
       snapshotInsertResult: snapshotResult,
     });
 
@@ -1550,7 +1762,10 @@ quietTest(
 
     assertEquals(body.snapshot.id, "camel-case-test-uuid");
     assertEquals(body.snapshot.leagueId, "league-uuid-001");
-    assertEquals(body.snapshot.fetchedAt, "2024-12-15T12:00:00Z");
+    assertEquals(
+      body.snapshot.fetchedAt,
+      JSON.parse(insertedSnapshots[0].body).fetched_at,
+    );
     assertEquals(body.snapshot.exchangeChaosToDivine, 155);
     assertEquals(body.snapshot.stashChaosToDivine, 152);
     assertEquals(body.snapshot.stackedDeckChaosCost, 2.0);
@@ -1563,7 +1778,7 @@ quietTest(
   "create-snapshot-internal — cardCount reflects total inserted prices",
   async () => {
     // 3 exchange card items + 3 stash items = 6 total
-    const { fetchMock } = setupFullMocks({ recentSnapshot: null });
+    const { fetchMock } = setupFullMocks({});
 
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
@@ -1587,7 +1802,7 @@ quietTest(
 quietTest(
   "create-snapshot-internal — response has Content-Type application/json",
   async () => {
-    const { fetchMock } = setupFullMocks({ recentSnapshot: null });
+    const { fetchMock } = setupFullMocks({});
 
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
@@ -1617,7 +1832,6 @@ quietTest(
     });
 
     const { fetchMock, insertedSnapshots } = setupFullMocks({
-      recentSnapshot: null,
       exchangeData,
     });
 
@@ -1648,7 +1862,6 @@ quietTest(
     });
 
     const { fetchMock, insertedSnapshots } = setupFullMocks({
-      recentSnapshot: null,
       exchangeData,
     });
 
@@ -1685,7 +1898,6 @@ quietTest(
     });
 
     const { fetchMock, insertedSnapshots } = setupFullMocks({
-      recentSnapshot: null,
       stashData,
     });
 
@@ -1716,7 +1928,6 @@ quietTest(
     const currencyData = mockCurrencyResponse(2.5);
 
     const { fetchMock, insertedSnapshots } = setupFullMocks({
-      recentSnapshot: null,
       currencyData,
     });
 
@@ -1749,7 +1960,6 @@ quietTest(
     };
 
     const { fetchMock, insertedSnapshots } = setupFullMocks({
-      recentSnapshot: null,
       currencyData,
     });
 
@@ -1775,18 +1985,19 @@ quietTest(
 // ═══════════════════════════════════════════════════════════════════════════════
 
 quietTest(
-  "create-snapshot-internal — empty exchange items produces zero exchange prices",
+  "create-snapshot-internal — empty exchange and stash prices fail before creating a snapshot",
   async () => {
     const exchangeData = mockExchangeResponse({
       items: [],
       lines: [],
     });
 
-    const { fetchMock } = setupFullMocks({
-      recentSnapshot: null,
-      exchangeData,
-      stashData: mockStashResponse({ lines: [] }),
-    });
+    const { fetchMock, insertedCardPrices, insertedSnapshots } = setupFullMocks(
+      {
+        exchangeData,
+        stashData: mockStashResponse({ lines: [] }),
+      },
+    );
 
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
@@ -1795,9 +2006,37 @@ quietTest(
     );
     const resp = await handler(req);
 
-    assertEquals(resp.status, 200);
+    assertEquals(resp.status, 500);
     const body = await resp.json();
-    assertEquals(body.snapshot.cardCount, 0);
+    assertEquals(body.error, "Failed to create snapshot");
+    assertEquals(insertedCardPrices.length, 0);
+    assertEquals(insertedSnapshots.length, 0);
+
+    fetchMock.restore();
+  },
+);
+
+quietTest(
+  "create-snapshot-internal — unresolved card IDs fails before creating snapshot",
+  async () => {
+    const { fetchMock, insertedCardPrices, insertedSnapshots } = setupFullMocks(
+      {
+        cardIdRows: [],
+      },
+    );
+
+    const req = createInternalRequest(
+      "http://localhost:54321/functions/v1/create-snapshot-internal",
+      { game: "poe1", leagueId: "Dawn" },
+      "test-cron-secret",
+    );
+    const resp = await handler(req);
+
+    assertEquals(resp.status, 500);
+    const body = await resp.json();
+    assertEquals(body.error, "Failed to create snapshot");
+    assertEquals(insertedCardPrices.length, 0);
+    assertEquals(insertedSnapshots.length, 0);
 
     fetchMock.restore();
   },
@@ -1809,7 +2048,6 @@ quietTest(
     const stashData = mockStashResponse({ lines: [] });
 
     const { fetchMock, insertedCardPrices } = setupFullMocks({
-      recentSnapshot: null,
       stashData,
     });
 
@@ -1846,7 +2084,6 @@ quietTest(
     });
 
     const { fetchMock, insertedCardPrices } = setupFullMocks({
-      recentSnapshot: null,
       exchangeData,
       stashData: mockStashResponse({ lines: [] }),
     });
@@ -1890,7 +2127,7 @@ quietTest(
 quietTest(
   "create-snapshot-internal — success response includes CORS headers",
   async () => {
-    const { fetchMock } = setupFullMocks({ recentSnapshot: null });
+    const { fetchMock } = setupFullMocks({});
 
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
@@ -1937,7 +2174,7 @@ quietTest(
   "create-snapshot-internal — poe1 game uses /poe1/ prefix in exchange API URL",
   async () => {
     const league = mockLeague({ game: "poe1", name: "Standard" });
-    const { fetchMock } = setupFullMocks({ league, recentSnapshot: null });
+    const { fetchMock } = setupFullMocks({ league });
 
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
@@ -1966,7 +2203,7 @@ quietTest(
   "create-snapshot-internal — poe2 game uses /poe2/ prefix in exchange API URL",
   async () => {
     const league = mockLeague({ game: "poe2", name: "Standard" });
-    const { fetchMock } = setupFullMocks({ league, recentSnapshot: null });
+    const { fetchMock } = setupFullMocks({ league });
 
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
@@ -1995,7 +2232,7 @@ quietTest(
   "create-snapshot-internal — poe1 game uses /poe1/ prefix in currency API URL",
   async () => {
     const league = mockLeague({ game: "poe1", name: "Dawn" });
-    const { fetchMock } = setupFullMocks({ league, recentSnapshot: null });
+    const { fetchMock } = setupFullMocks({ league });
 
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
@@ -2024,7 +2261,7 @@ quietTest(
   "create-snapshot-internal — poe2 game uses /poe2/ prefix in currency API URL",
   async () => {
     const league = mockLeague({ game: "poe2", name: "Standard" });
-    const { fetchMock } = setupFullMocks({ league, recentSnapshot: null });
+    const { fetchMock } = setupFullMocks({ league });
 
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
@@ -2053,7 +2290,7 @@ quietTest(
   "create-snapshot-internal — poe1 game uses /poe1/ prefix in stash API URL",
   async () => {
     const league = mockLeague({ game: "poe1", name: "Dawn" });
-    const { fetchMock } = setupFullMocks({ league, recentSnapshot: null });
+    const { fetchMock } = setupFullMocks({ league });
 
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
@@ -2079,7 +2316,7 @@ quietTest(
   "create-snapshot-internal — poe2 game does NOT call stash API at all",
   async () => {
     const league = mockLeague({ game: "poe2", name: "Standard" });
-    const { fetchMock } = setupFullMocks({ league, recentSnapshot: null });
+    const { fetchMock } = setupFullMocks({ league });
 
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
@@ -2107,7 +2344,7 @@ quietTest(
   "create-snapshot-internal — poe2 game uses correct prefix in exchange+currency and skips stash",
   async () => {
     const league = mockLeague({ game: "poe2", name: "Standard" });
-    const { fetchMock } = setupFullMocks({ league, recentSnapshot: null });
+    const { fetchMock } = setupFullMocks({ league });
 
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
@@ -2160,7 +2397,7 @@ quietTest(
   "create-snapshot-internal — poe1 game does NOT leak poe2 prefix into any URL",
   async () => {
     const league = mockLeague({ game: "poe1", name: "Settlers of Kalguur" });
-    const { fetchMock } = setupFullMocks({ league, recentSnapshot: null });
+    const { fetchMock } = setupFullMocks({ league });
 
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",

@@ -22,6 +22,12 @@ Use `pnpm` with Node `>=24` and pnpm `>=10`.
 
 Biome is the source of truth for formatting and linting. Use 2-space indentation and double quotes in JavaScript/TypeScript. Keep imports organized by the configured groups: Node, packages, `~/main`, `~/renderer`, shared `~/types`/`~/enums`, then local imports. Match existing file naming by feature, for example `Storage.service.ts`, `Storage.slice.ts`, `Cards.page.tsx`, and `*.test.ts(x)`.
 
+For any work touching React, JSX/TSX, renderer modules, renderer state, renderer tests, canvas charts, or frontend UI, invoke `$react-codex` and follow its renderer conventions.
+
+For any work touching Electron main-process code, IPC handlers or channels, preload API contracts, services, repositories, mappers, DTOs, pollers, filesystem/process integration, SQLite/Kysely/better-sqlite3 access, migrations, security-sensitive backend logic, or performance-critical business logic, invoke `$main-codex` and follow its main-process conventions.
+
+For any work touching Supabase migrations, Postgres SQL, database tests, RLS policies, schema design, indexes, query performance, or Supabase database configuration, invoke `$supabase-postgres-best-practices` and follow its guidance.
+
 ## Testing Guidelines
 
 Vitest covers main and renderer code through `vitest.main.config.mts` and `vitest.renderer.config.mts`. Prefer colocated tests beside the implementation: `main/modules/foo/__tests__/Foo.service.test.ts` or `renderer/modules/foo/Foo.slice/Foo.slice.test.ts`. Use Playwright specs under `e2e/flows/` for app-level behavior and helpers from `e2e/helpers/`. Supabase database tests use `supabase/tests/database/*.test.sql`; edge-function tests live in `supabase/functions/tests/`.

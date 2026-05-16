@@ -6,6 +6,9 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/supabase-cli.sh"
+
 echo ""
 echo "========================================"
 echo "Supabase pgTAP Database Tests"
@@ -24,7 +27,7 @@ cleanup() {
     if [ "$STARTED_BY_US" = true ]; then
         echo ""
         echo "[*] Stopping Supabase (test instance)..."
-        pnpx supabase stop --no-backup > /dev/null 2>&1 || true
+        supabase_cli stop --no-backup > /dev/null 2>&1 || true
         echo -e "${GREEN}[OK]${NC} Supabase stopped"
     fi
 }
@@ -41,15 +44,15 @@ echo -e "${GREEN}[OK]${NC} Docker is running"
 # Always clear the local Supabase Docker state first. This avoids pgTAP tests
 # inheriting cards, users, or uploads from dev/e2e runs.
 echo "[*] Resetting local Supabase Docker state..."
-pnpx supabase stop --no-backup > /dev/null 2>&1 || true
+supabase_cli stop --no-backup > /dev/null 2>&1 || true
 sleep 2
 echo -e "${GREEN}[OK]${NC} Local Supabase state cleared"
 
 echo "[*] Starting Supabase (default network)..."
-if ! pnpx supabase start; then
+if ! supabase_cli start; then
     echo ""
     echo -e "${YELLOW}[!]${NC} Start failed - cleaning up local project containers and retrying..."
-    pnpx supabase stop --no-backup > /dev/null 2>&1 || true
+    supabase_cli stop --no-backup > /dev/null 2>&1 || true
 
     CONTAINERS=$(docker ps -aq --filter "name=supabase_" --filter "name=soothsayer" 2>/dev/null)
     if [ -n "$CONTAINERS" ]; then
@@ -60,7 +63,7 @@ if ! pnpx supabase start; then
 
     sleep 2
 
-    if ! pnpx supabase start; then
+    if ! supabase_cli start; then
         echo ""
         echo -e "${RED}[ERROR]${NC} Failed to start local Supabase for tests"
         exit 1
@@ -87,7 +90,7 @@ echo "========================================"
 echo ""
 
 TEST_EXIT=0
-pnpx supabase test db || TEST_EXIT=$?
+supabase_cli test db || TEST_EXIT=$?
 
 echo ""
 if [ $TEST_EXIT -eq 0 ]; then

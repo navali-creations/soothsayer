@@ -98,11 +98,14 @@ describe("FilterSettingsCard", () => {
 
   // ── Rendering ──────────────────────────────────────────────────────────
 
-  it('renders "Rarity Source" title', () => {
+  it("renders the rarity source row label and description", () => {
     renderWithProviders(<FilterSettingsCard />);
 
     expect(
       screen.getByRole("heading", { name: /Rarity Source/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("How divination card rarities are determined"),
     ).toBeInTheDocument();
   });
 

@@ -73,6 +73,31 @@
     animation: stop-session 4s linear infinite;
   }
 
+  @keyframes app-performance-path-shimmer {
+    0% {
+      opacity: 0;
+      stroke-dashoffset: -34;
+    }
+    20%,
+    78% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+      stroke-dashoffset: 34;
+    }
+  }
+
+  .app-performance-icon-shimmer :is(path, line, polyline, circle, rect) {
+    stroke: color-mix(in oklab, currentColor 85%, white);
+    stroke-dasharray: 7 34;
+    stroke-linecap: round;
+    filter: drop-shadow(
+      0 0 4px color-mix(in oklab, currentColor 65%, transparent)
+    );
+    animation: app-performance-path-shimmer 1.7s ease-in-out infinite;
+  }
+
   .animation-fade-in {
     opacity: 1;
     transition: opacity 0.3s ease-out;

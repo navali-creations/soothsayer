@@ -92,6 +92,19 @@ export function createSeedGuard() {
   };
 }
 
+export async function restoreRarityInsightsFixture(page: Page) {
+  await resetLeagueToFixture(page, FIXTURE_LEAGUE);
+  await seedRarityInsightsData(page, RARITY_INSIGHTS_CARDS);
+  await page.evaluate(() => {
+    const store = (window as any).__zustandStore;
+    if (!store) return;
+    store.setState((s: any) => {
+      s.cards._lastCardsKey = null;
+      s.cards._pendingCardsKey = null;
+    });
+  });
+}
+
 // ─── Filter injection ─────────────────────────────────────────────────────────
 
 /**

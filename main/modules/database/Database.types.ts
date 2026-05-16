@@ -241,6 +241,11 @@ export interface UserSettingsTable {
   // Community uploads
   community_uploads_enabled: number; // SQLite boolean (0 or 1) — default 1 (enabled)
 
+  // App performance diagnostics
+  app_performance_monitor_enabled: number; // SQLite boolean (0 or 1) — default 0 (disabled)
+  app_performance_auto_start_on_session: number; // SQLite boolean (0 or 1) — default 0 (disabled)
+  app_performance_retention: string; // "24h" | "7d" | "indefinite"
+
   // Metadata
   created_at: ColumnType<string, string | undefined, never>;
   updated_at: ColumnType<string, string | undefined, string | undefined>;
@@ -318,6 +323,44 @@ export interface DismissedBannersTable {
   dismissed_at: ColumnType<string, string | undefined, string>;
 }
 
+export interface AppPerformanceCapturesTable {
+  id: string;
+  started_at: string;
+  stopped_at: string | null;
+  created_at: ColumnType<string, string | undefined, never>;
+}
+
+export interface AppPerformanceSamplesTable {
+  id: ColumnType<number, never, never>;
+  collection_id: string;
+  sampled_at: string;
+  uptime_ms: number;
+  capture_elapsed_ms: number;
+  route: string | null;
+  fps: number | null;
+  system_cpu_percent: number | null;
+  app_cpu_percent: number | null;
+  system_memory_used_percent: number | null;
+  system_memory_total_bytes: number | null;
+  system_memory_free_bytes: number | null;
+  app_memory_bytes: number | null;
+  app_memory_percent: number | null;
+  main_heap_used_bytes: number | null;
+  renderer_memory_bytes: number | null;
+  renderer_heap_used_bytes: number | null;
+  created_at: ColumnType<string, string | undefined, never>;
+}
+
+export interface AppPerformanceRouteMarkersTable {
+  id: string;
+  collection_id: string;
+  route: string;
+  label: string;
+  marked_at: string;
+  elapsed_ms: number;
+  created_at: ColumnType<string, string | undefined, never>;
+}
+
 export interface Database {
   app_metadata: AppMetadataTable;
   global_stats: GlobalStatsTable;
@@ -339,6 +382,9 @@ export interface Database {
   csv_export_snapshots: CsvExportSnapshotsTable;
   community_upload_snapshot: CommunityUploadSnapshotTable;
   dismissed_banners: DismissedBannersTable;
+  app_performance_captures: AppPerformanceCapturesTable;
+  app_performance_samples: AppPerformanceSamplesTable;
+  app_performance_route_markers: AppPerformanceRouteMarkersTable;
   migrations: MigrationsTable;
   user_settings: UserSettingsTable;
   filter_metadata: FilterMetadataTable;

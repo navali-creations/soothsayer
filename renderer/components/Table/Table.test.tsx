@@ -874,6 +874,42 @@ describe("Table – rowClassName", () => {
   });
 });
 
+describe("Table – onRowClick", () => {
+  it("calls onRowClick for pointer and keyboard row activation", async () => {
+    const onRowClick = vi.fn();
+    const { user } = renderWithProviders(
+      <Table data={testData} columns={columns} onRowClick={onRowClick} />,
+    );
+    const rows = document.querySelectorAll("tbody tr");
+
+    await user.click(rows[1]);
+    rows[1].focus();
+    await user.keyboard("{Enter}");
+
+    expect(rows[1]).toHaveAttribute("role", "button");
+    expect(onRowClick).toHaveBeenCalledTimes(2);
+    expect(onRowClick.mock.calls[0][0].original).toEqual(testData[1]);
+  });
+
+  it("does not call onRowClick when an interactive cell control is clicked", async () => {
+    const onRowClick = vi.fn();
+    const actionColumns: ColumnDef<Person, any>[] = [
+      ...columns,
+      columnHelper.display({
+        id: "actions",
+        cell: () => <button type="button">Ignore</button>,
+      }),
+    ];
+    const { user } = renderWithProviders(
+      <Table data={testData} columns={actionColumns} onRowClick={onRowClick} />,
+    );
+
+    await user.click(screen.getAllByRole("button", { name: "Ignore" })[0]);
+
+    expect(onRowClick).not.toHaveBeenCalled();
+  });
+});
+
 // ─── 10. TableHeader with tooltip ─────────────────────────────────────────
 
 describe("TableHeader – with tooltip", () => {

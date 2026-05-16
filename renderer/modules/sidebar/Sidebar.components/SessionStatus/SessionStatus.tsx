@@ -2,7 +2,7 @@ import { Countdown, Flex } from "~/renderer/components";
 import { useTickingTimer } from "~/renderer/hooks";
 import { useCurrentSession } from "~/renderer/store";
 
-const SessionStatus = () => {
+export function SessionStatus() {
   const { getIsCurrentSessionActive, getSessionInfo } = useCurrentSession();
 
   const isActive = getIsCurrentSessionActive();
@@ -35,6 +35,4 @@ const SessionStatus = () => {
       </Flex>
     </div>
   );
-};
-
-export default SessionStatus;
+}

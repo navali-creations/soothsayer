@@ -347,7 +347,7 @@ export const createPoeNinjaSlice: StateCreator<
         );
 
         // Reload cards so the table reflects updated rarities
-        await get().cards.loadCards();
+        await get().cards.loadCards({ force: true });
       } catch (error) {
         console.error("[PoeNinjaSlice] Failed to refresh prices:", error);
         set(

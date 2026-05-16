@@ -19,11 +19,15 @@ import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
 import { Route as ChangelogRouteImport } from './routes/changelog'
 import { Route as CardsRouteImport } from './routes/cards'
 import { Route as AttributionsRouteImport } from './routes/attributions'
+import { Route as AppPerformanceRouteImport } from './routes/app-performance'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SessionsIndexRouteImport } from './routes/sessions.index'
 import { Route as CardsIndexRouteImport } from './routes/cards.index'
+import { Route as AppPerformanceIndexRouteImport } from './routes/app-performance.index'
 import { Route as SessionsSessionIdRouteImport } from './routes/sessions.$sessionId'
 import { Route as CardsCardSlugRouteImport } from './routes/cards.$cardSlug'
+import { Route as AppPerformanceLiveRouteImport } from './routes/app-performance.live'
+import { Route as AppPerformanceCaptureIdRouteImport } from './routes/app-performance.$captureId'
 
 const StatisticsRoute = StatisticsRouteImport.update({
   id: '/statistics',
@@ -75,6 +79,11 @@ const AttributionsRoute = AttributionsRouteImport.update({
   path: '/attributions',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppPerformanceRoute = AppPerformanceRouteImport.update({
+  id: '/app-performance',
+  path: '/app-performance',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -90,6 +99,11 @@ const CardsIndexRoute = CardsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => CardsRoute,
 } as any)
+const AppPerformanceIndexRoute = AppPerformanceIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppPerformanceRoute,
+} as any)
 const SessionsSessionIdRoute = SessionsSessionIdRouteImport.update({
   id: '/$sessionId',
   path: '/$sessionId',
@@ -100,9 +114,20 @@ const CardsCardSlugRoute = CardsCardSlugRouteImport.update({
   path: '/$cardSlug',
   getParentRoute: () => CardsRoute,
 } as any)
+const AppPerformanceLiveRoute = AppPerformanceLiveRouteImport.update({
+  id: '/live',
+  path: '/live',
+  getParentRoute: () => AppPerformanceRoute,
+} as any)
+const AppPerformanceCaptureIdRoute = AppPerformanceCaptureIdRouteImport.update({
+  id: '/$captureId',
+  path: '/$captureId',
+  getParentRoute: () => AppPerformanceRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/app-performance': typeof AppPerformanceRouteWithChildren
   '/attributions': typeof AttributionsRoute
   '/cards': typeof CardsRouteWithChildren
   '/changelog': typeof ChangelogRoute
@@ -113,8 +138,11 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/statistics': typeof StatisticsRoute
+  '/app-performance/$captureId': typeof AppPerformanceCaptureIdRoute
+  '/app-performance/live': typeof AppPerformanceLiveRoute
   '/cards/$cardSlug': typeof CardsCardSlugRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRoute
+  '/app-performance/': typeof AppPerformanceIndexRoute
   '/cards/': typeof CardsIndexRoute
   '/sessions/': typeof SessionsIndexRoute
 }
@@ -128,14 +156,18 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/statistics': typeof StatisticsRoute
+  '/app-performance/$captureId': typeof AppPerformanceCaptureIdRoute
+  '/app-performance/live': typeof AppPerformanceLiveRoute
   '/cards/$cardSlug': typeof CardsCardSlugRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRoute
+  '/app-performance': typeof AppPerformanceIndexRoute
   '/cards': typeof CardsIndexRoute
   '/sessions': typeof SessionsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/app-performance': typeof AppPerformanceRouteWithChildren
   '/attributions': typeof AttributionsRoute
   '/cards': typeof CardsRouteWithChildren
   '/changelog': typeof ChangelogRoute
@@ -146,8 +178,11 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/statistics': typeof StatisticsRoute
+  '/app-performance/$captureId': typeof AppPerformanceCaptureIdRoute
+  '/app-performance/live': typeof AppPerformanceLiveRoute
   '/cards/$cardSlug': typeof CardsCardSlugRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRoute
+  '/app-performance/': typeof AppPerformanceIndexRoute
   '/cards/': typeof CardsIndexRoute
   '/sessions/': typeof SessionsIndexRoute
 }
@@ -155,6 +190,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/app-performance'
     | '/attributions'
     | '/cards'
     | '/changelog'
@@ -165,8 +201,11 @@ export interface FileRouteTypes {
     | '/settings'
     | '/setup'
     | '/statistics'
+    | '/app-performance/$captureId'
+    | '/app-performance/live'
     | '/cards/$cardSlug'
     | '/sessions/$sessionId'
+    | '/app-performance/'
     | '/cards/'
     | '/sessions/'
   fileRoutesByTo: FileRoutesByTo
@@ -180,13 +219,17 @@ export interface FileRouteTypes {
     | '/settings'
     | '/setup'
     | '/statistics'
+    | '/app-performance/$captureId'
+    | '/app-performance/live'
     | '/cards/$cardSlug'
     | '/sessions/$sessionId'
+    | '/app-performance'
     | '/cards'
     | '/sessions'
   id:
     | '__root__'
     | '/'
+    | '/app-performance'
     | '/attributions'
     | '/cards'
     | '/changelog'
@@ -197,14 +240,18 @@ export interface FileRouteTypes {
     | '/settings'
     | '/setup'
     | '/statistics'
+    | '/app-performance/$captureId'
+    | '/app-performance/live'
     | '/cards/$cardSlug'
     | '/sessions/$sessionId'
+    | '/app-performance/'
     | '/cards/'
     | '/sessions/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AppPerformanceRoute: typeof AppPerformanceRouteWithChildren
   AttributionsRoute: typeof AttributionsRoute
   CardsRoute: typeof CardsRouteWithChildren
   ChangelogRoute: typeof ChangelogRoute
@@ -289,6 +336,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AttributionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/app-performance': {
+      id: '/app-performance'
+      path: '/app-performance'
+      fullPath: '/app-performance'
+      preLoaderRoute: typeof AppPerformanceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -310,6 +364,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CardsIndexRouteImport
       parentRoute: typeof CardsRoute
     }
+    '/app-performance/': {
+      id: '/app-performance/'
+      path: '/'
+      fullPath: '/app-performance/'
+      preLoaderRoute: typeof AppPerformanceIndexRouteImport
+      parentRoute: typeof AppPerformanceRoute
+    }
     '/sessions/$sessionId': {
       id: '/sessions/$sessionId'
       path: '/$sessionId'
@@ -324,8 +385,38 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CardsCardSlugRouteImport
       parentRoute: typeof CardsRoute
     }
+    '/app-performance/live': {
+      id: '/app-performance/live'
+      path: '/live'
+      fullPath: '/app-performance/live'
+      preLoaderRoute: typeof AppPerformanceLiveRouteImport
+      parentRoute: typeof AppPerformanceRoute
+    }
+    '/app-performance/$captureId': {
+      id: '/app-performance/$captureId'
+      path: '/$captureId'
+      fullPath: '/app-performance/$captureId'
+      preLoaderRoute: typeof AppPerformanceCaptureIdRouteImport
+      parentRoute: typeof AppPerformanceRoute
+    }
   }
 }
+
+interface AppPerformanceRouteChildren {
+  AppPerformanceCaptureIdRoute: typeof AppPerformanceCaptureIdRoute
+  AppPerformanceLiveRoute: typeof AppPerformanceLiveRoute
+  AppPerformanceIndexRoute: typeof AppPerformanceIndexRoute
+}
+
+const AppPerformanceRouteChildren: AppPerformanceRouteChildren = {
+  AppPerformanceCaptureIdRoute: AppPerformanceCaptureIdRoute,
+  AppPerformanceLiveRoute: AppPerformanceLiveRoute,
+  AppPerformanceIndexRoute: AppPerformanceIndexRoute,
+}
+
+const AppPerformanceRouteWithChildren = AppPerformanceRoute._addFileChildren(
+  AppPerformanceRouteChildren,
+)
 
 interface CardsRouteChildren {
   CardsCardSlugRoute: typeof CardsCardSlugRoute
@@ -355,6 +446,7 @@ const SessionsRouteWithChildren = SessionsRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AppPerformanceRoute: AppPerformanceRouteWithChildren,
   AttributionsRoute: AttributionsRoute,
   CardsRoute: CardsRouteWithChildren,
   ChangelogRoute: ChangelogRoute,

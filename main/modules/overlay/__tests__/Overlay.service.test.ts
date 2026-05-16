@@ -42,6 +42,7 @@ const {
   mockNativeImageCreateFromPath,
   mockAppIsPackaged,
   mockAppGetAppPath,
+  mockVisibilityListener,
 } = vi.hoisted(() => ({
   mockIpcHandle: vi.fn(),
   mockSettingsGet: vi.fn(),
@@ -92,6 +93,7 @@ const {
   })),
   mockAppIsPackaged: { value: false },
   mockAppGetAppPath: vi.fn(() => "/mock-app-path"),
+  mockVisibilityListener: vi.fn(),
 }));
 
 // Track BrowserWindow instances and their constructor options during tests
@@ -329,6 +331,7 @@ function clearOverlayMocks() {
   mockMainWindowWebContentsSend.mockClear();
   mockBrowserWindowGetAllWindows.mockClear();
   mockSettingsSet.mockClear();
+  mockVisibilityListener.mockClear();
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -485,6 +488,14 @@ describe("OverlayService", () => {
       );
     });
 
+    it("should emit a visibility listener when shown", async () => {
+      service.onVisibilityChange(mockVisibilityListener);
+
+      await service.show();
+
+      expect(mockVisibilityListener).toHaveBeenCalledWith(true);
+    });
+
     it("should set opacity for the repaint hack when window was not visible", async () => {
       mockOverlayIsVisible.mockReturnValue(false);
       await service.show();
@@ -529,6 +540,16 @@ describe("OverlayService", () => {
         OverlayChannel.VisibilityChanged,
         false,
       );
+    });
+
+    it("should emit a visibility listener when hidden", async () => {
+      await service.show();
+      clearOverlayMocks();
+      service.onVisibilityChange(mockVisibilityListener);
+
+      await service.hide();
+
+      expect(mockVisibilityListener).toHaveBeenCalledWith(false);
     });
 
     it("should not throw when overlay window does not exist", async () => {
@@ -1468,9 +1489,9 @@ describe("OverlayService", () => {
     });
   });
 
-  // ─── notifyVisibilityChanged ─────────────────────────────────────────────
+  // ─── publishVisibilityChanged ────────────────────────────────────────────
 
-  describe("notifyVisibilityChanged", () => {
+  describe("publishVisibilityChanged", () => {
     it("should send visibility change to main window (not overlay)", async () => {
       const mainWindow = {
         isDestroyed: vi.fn(() => false),
@@ -1509,6 +1530,18 @@ describe("OverlayService", () => {
 
       // Should not throw
       await expect(service.show()).resolves.not.toThrow();
+    });
+
+    it("should allow visibility listeners to unsubscribe", async () => {
+      const unsubscribe = service.onVisibilityChange(mockVisibilityListener);
+
+      await service.show();
+      unsubscribe();
+      clearOverlayMocks();
+
+      await service.hide();
+
+      expect(mockVisibilityListener).not.toHaveBeenCalled();
     });
 
     it("should not send to destroyed windows", async () => {

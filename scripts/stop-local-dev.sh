@@ -5,6 +5,9 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/supabase-cli.sh"
+
 echo ""
 echo "========================================"
 echo "Stopping Local Development"
@@ -18,7 +21,7 @@ NC='\033[0m' # No Color
 
 # Stop Supabase (preserves data by default)
 echo "[*] Stopping Supabase..."
-if pnpx supabase stop; then
+if supabase_cli stop; then
     echo -e "${GREEN}[OK]${NC} Supabase stopped (data preserved)"
 else
     echo -e "${YELLOW}[!]${NC} Supabase stop had issues"

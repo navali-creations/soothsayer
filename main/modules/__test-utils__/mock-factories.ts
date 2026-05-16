@@ -214,6 +214,9 @@ export function createSettingsStoreMock(
       TelemetryUsageAnalytics: "telemetryUsageAnalytics",
       CsvExportPath: "csvExportPath",
       CommunityUploadsEnabled: "communityUploadsEnabled",
+      AppPerformanceMonitorEnabled: "appPerformanceMonitorEnabled",
+      AppPerformanceAutoStartOnSession: "appPerformanceAutoStartOnSession",
+      AppPerformanceRetention: "appPerformanceRetention",
       ...(overrides.settingsKeys ?? {}),
     },
   };
@@ -702,6 +705,9 @@ export function createBarrelMock(
       TelemetryUsageAnalytics: "telemetryUsageAnalytics",
       CsvExportPath: "csvExportPath",
       CommunityUploadsEnabled: "communityUploadsEnabled",
+      AppPerformanceMonitorEnabled: "appPerformanceMonitorEnabled",
+      AppPerformanceAutoStartOnSession: "appPerformanceAutoStartOnSession",
+      AppPerformanceRetention: "appPerformanceRetention",
     },
   };
 

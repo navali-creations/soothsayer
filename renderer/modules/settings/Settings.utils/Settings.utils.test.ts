@@ -50,6 +50,10 @@ function makeSettings(
     telemetryCrashReporting: true,
     telemetryUsageAnalytics: true,
     csvExportPath: null,
+    communityUploadsEnabled: true,
+    appPerformanceMonitorEnabled: false,
+    appPerformanceAutoStartOnSession: false,
+    appPerformanceRetention: "7d",
     ...overrides,
   };
 }

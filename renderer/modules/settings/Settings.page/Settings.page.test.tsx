@@ -1,8 +1,13 @@
+import { fireEvent } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
 import { useBoundStore } from "~/renderer/store";
 
+import {
+  createGamePathsCategory,
+  handleSelectFile,
+} from "../Settings.utils/Settings.utils";
 import SettingsPage from "./Settings.page";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
@@ -31,6 +36,9 @@ vi.mock("../Settings.components", () => ({
     <div data-testid="settings-category-card" data-title={category?.title} />
   ),
   StorageSettingsCard: () => <div data-testid="storage-settings-card" />,
+  TroubleshootingSettingsCard: () => (
+    <div data-testid="troubleshooting-settings-card" />
+  ),
 }));
 
 vi.mock("../Settings.utils/Settings.utils", () => ({
@@ -48,16 +56,6 @@ vi.mock("../Settings.utils/Settings.utils", () => ({
 }));
 
 vi.mock("~/renderer/components", () => ({
-  Grid: Object.assign(
-    ({ children, ...props }: any) => (
-      <div data-testid="grid" {...props}>
-        {children}
-      </div>
-    ),
-    {
-      Col: ({ children }: any) => <div data-testid="grid-col">{children}</div>,
-    },
-  ),
   PageContainer: Object.assign(
     ({ children }: any) => <div data-testid="page-container">{children}</div>,
     {
@@ -67,8 +65,10 @@ vi.mock("~/renderer/components", () => ({
           {subtitle && <span data-testid="page-subtitle">{subtitle}</span>}
         </div>
       ),
-      Content: ({ children }: any) => (
-        <div data-testid="page-content">{children}</div>
+      Content: ({ children, className }: any) => (
+        <div data-testid="page-content" className={className}>
+          {children}
+        </div>
       ),
     },
   ),
@@ -159,34 +159,37 @@ describe("SettingsPage", () => {
     expect(screen.getByTestId("page-container")).toBeInTheDocument();
   });
 
-  it("renders the Grid", () => {
+  it("renders settings tabs", () => {
     renderWithProviders(<SettingsPage />);
 
-    expect(screen.getByTestId("grid")).toBeInTheDocument();
+    expect(
+      screen.getByRole("tablist", { name: "Settings sections" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Game" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "App" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Overlay" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Audio" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("tab", { name: "Data & Storage" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Privacy" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Help" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("tab", { name: "Troubleshooting" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Advanced" })).toBeInTheDocument();
   });
 
-  // ── Settings cards ─────────────────────────────────────────────────────
+  // ── Settings tabs ──────────────────────────────────────────────────────
 
-  it("renders all 10 settings cards", () => {
+  it("renders Game tab content by default", () => {
     renderWithProviders(<SettingsPage />);
 
     expect(screen.getByTestId("file-path-card")).toBeInTheDocument();
-    expect(screen.getByTestId("settings-category-card")).toBeInTheDocument();
     expect(screen.getByTestId("filter-settings-card")).toBeInTheDocument();
-    expect(screen.getByTestId("audio-settings-card")).toBeInTheDocument();
-    expect(screen.getByTestId("export-settings-card")).toBeInTheDocument();
-    expect(screen.getByTestId("overlay-settings-card")).toBeInTheDocument();
-    expect(screen.getByTestId("app-help-card")).toBeInTheDocument();
-    expect(screen.getByTestId("storage-settings-card")).toBeInTheDocument();
-    expect(screen.getByTestId("privacy-settings-card")).toBeInTheDocument();
-    expect(screen.getByTestId("danger-zone-card")).toBeInTheDocument();
-  });
-
-  it("renders 10 grid columns for the cards", () => {
-    renderWithProviders(<SettingsPage />);
-
-    const cols = screen.getAllByTestId("grid-col");
-    expect(cols).toHaveLength(10);
+    expect(
+      screen.queryByTestId("settings-category-card"),
+    ).not.toBeInTheDocument();
   });
 
   it("passes gamePaths category to FilePathSettingCard", () => {
@@ -196,11 +199,82 @@ describe("SettingsPage", () => {
     expect(filePathCard).toHaveAttribute("data-title", "Game Configuration");
   });
 
-  it("passes appBehavior category to SettingsCategoryCard", () => {
+  it("uses the file picker callback from the game paths category", () => {
+    const settings = setupStore();
     renderWithProviders(<SettingsPage />);
+
+    const selectFile = vi.mocked(createGamePathsCategory).mock.calls[0]?.[1];
+    selectFile?.("poe1ClientTxtPath", "Path of Exile 1");
+
+    expect(handleSelectFile).toHaveBeenCalledWith(
+      "poe1ClientTxtPath",
+      "Path of Exile 1",
+      settings.updateSetting,
+    );
+  });
+
+  it("renders App tab content", () => {
+    renderWithProviders(<SettingsPage />);
+    fireEvent.click(screen.getByRole("tab", { name: "App" }));
 
     const categoryCard = screen.getByTestId("settings-category-card");
     expect(categoryCard).toHaveAttribute("data-title", "Application Behavior");
+    expect(screen.getByTestId("export-settings-card")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("overlay-settings-card"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("file-path-card")).not.toBeInTheDocument();
+  });
+
+  it("renders Overlay tab content", () => {
+    renderWithProviders(<SettingsPage />);
+    fireEvent.click(screen.getByRole("tab", { name: "Overlay" }));
+
+    expect(screen.getByTestId("overlay-settings-card")).toBeInTheDocument();
+  });
+
+  it("renders Audio tab content", () => {
+    renderWithProviders(<SettingsPage />);
+    fireEvent.click(screen.getByRole("tab", { name: "Audio" }));
+
+    expect(screen.getByTestId("audio-settings-card")).toBeInTheDocument();
+  });
+
+  it("renders Data & Storage tab content", () => {
+    renderWithProviders(<SettingsPage />);
+    fireEvent.click(screen.getByRole("tab", { name: "Data & Storage" }));
+
+    expect(screen.getByTestId("storage-settings-card")).toBeInTheDocument();
+  });
+
+  it("renders Privacy tab content", () => {
+    renderWithProviders(<SettingsPage />);
+    fireEvent.click(screen.getByRole("tab", { name: "Privacy" }));
+
+    expect(screen.getByTestId("privacy-settings-card")).toBeInTheDocument();
+  });
+
+  it("renders Help tab content", () => {
+    renderWithProviders(<SettingsPage />);
+    fireEvent.click(screen.getByRole("tab", { name: "Help" }));
+
+    expect(screen.getByTestId("app-help-card")).toBeInTheDocument();
+  });
+
+  it("renders Troubleshooting tab content", () => {
+    renderWithProviders(<SettingsPage />);
+    fireEvent.click(screen.getByRole("tab", { name: "Troubleshooting" }));
+
+    expect(
+      screen.getByTestId("troubleshooting-settings-card"),
+    ).toBeInTheDocument();
+  });
+
+  it("renders Advanced tab content", () => {
+    renderWithProviders(<SettingsPage />);
+    fireEvent.click(screen.getByRole("tab", { name: "Advanced" }));
+
+    expect(screen.getByTestId("danger-zone-card")).toBeInTheDocument();
   });
 
   // ── Loading state does not render settings ─────────────────────────────
@@ -224,6 +298,9 @@ describe("SettingsPage", () => {
       screen.queryByTestId("overlay-settings-card"),
     ).not.toBeInTheDocument();
     expect(screen.queryByTestId("app-help-card")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("troubleshooting-settings-card"),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByTestId("storage-settings-card"),
     ).not.toBeInTheDocument();

@@ -13,7 +13,7 @@
  * @module e2e/flows/settings/settings-persistence
  */
 
-import { expect, type Page, test } from "../../helpers/electron-test";
+import { expect, test } from "../../helpers/electron-test";
 import {
   getAllSettings,
   getSetting,
@@ -26,15 +26,11 @@ import {
   navigateTo,
   waitForRoute,
 } from "../../helpers/navigation";
-
-/**
- * Navigates to settings and waits for data to load.
- */
-async function goToSettings(page: Page) {
-  await navigateTo(page, "/settings");
-  await waitForRoute(page, "/settings", 10_000);
-  await page.locator("main").waitFor({ state: "visible", timeout: 5_000 });
-}
+import {
+  activeSettingsPanel,
+  goToSettings,
+  openSettingsTab,
+} from "../../helpers/settings";
 
 test.describe("Settings", () => {
   // ─── IPC Persistence ──────────────────────────────────────────────────────────
@@ -143,10 +139,9 @@ test.describe("Settings", () => {
     test("should reflect IPC-set value in the UI (audioEnabled toggle)", async ({
       page,
     }) => {
-      const card = page.locator(".card", { hasText: "Audio" }).filter({
-        hasText: "Configure sounds for rare divination card drops",
-      });
-      const toggle = card
+      await openSettingsTab(page, "Audio");
+      const panel = activeSettingsPanel(page);
+      const toggle = panel
         .locator("label", { hasText: "Enable drop sounds" })
         .locator('input[type="checkbox"]');
 
@@ -161,11 +156,10 @@ test.describe("Settings", () => {
       await page.waitForLoadState("domcontentloaded");
       await ensurePostSetup(page);
       await goToSettings(page);
+      await openSettingsTab(page, "Audio");
 
-      const card2 = page.locator(".card", { hasText: "Audio" }).filter({
-        hasText: "Configure sounds for rare divination card drops",
-      });
-      const toggle2 = card2
+      const panel2 = activeSettingsPanel(page);
+      const toggle2 = panel2
         .locator("label", { hasText: "Enable drop sounds" })
         .locator('input[type="checkbox"]');
       const newUiState = await toggle2.isChecked();
@@ -178,10 +172,9 @@ test.describe("Settings", () => {
     test("should reflect IPC-set value in the UI (appExitAction select)", async ({
       page,
     }) => {
-      const card = page.locator(".card", {
-        hasText: "Application Behavior",
-      });
-      const select = card.locator("select").first();
+      await openSettingsTab(page, "App");
+      const panel = activeSettingsPanel(page);
+      const select = panel.locator("select").first();
 
       const uiValue = await select.inputValue();
       const newValue = uiValue === "exit" ? "minimize" : "exit";
@@ -194,11 +187,10 @@ test.describe("Settings", () => {
       await page.waitForLoadState("domcontentloaded");
       await ensurePostSetup(page);
       await goToSettings(page);
+      await openSettingsTab(page, "App");
 
-      const card2 = page.locator(".card", {
-        hasText: "Application Behavior",
-      });
-      const select2 = card2.locator("select").first();
+      const panel2 = activeSettingsPanel(page);
+      const select2 = panel2.locator("select").first();
       expect(await select2.inputValue()).toBe(newValue);
 
       // Restore
@@ -218,12 +210,11 @@ test.describe("Settings", () => {
     }) => {
       // Navigate to settings
       await goToSettings(page);
+      await openSettingsTab(page, "App");
 
       // Change a setting via UI
-      const card = page.locator(".card", {
-        hasText: "Application Behavior",
-      });
-      const select = card.locator("select").first();
+      const panel = activeSettingsPanel(page);
+      const select = panel.locator("select").first();
       const originalValue = await select.inputValue();
       const newValue = originalValue === "exit" ? "minimize" : "exit";
       await select.selectOption(newValue);
@@ -239,12 +230,11 @@ test.describe("Settings", () => {
       await navigateTo(page, "/settings");
       await waitForRoute(page, "/settings", 10_000);
       await page.locator("main").waitFor({ state: "visible", timeout: 5_000 });
+      await openSettingsTab(page, "App");
 
       // Verify the setting persisted
-      const card2 = page.locator(".card", {
-        hasText: "Application Behavior",
-      });
-      const select2 = card2.locator("select").first();
+      const panel2 = activeSettingsPanel(page);
+      const select2 = panel2.locator("select").first();
       expect(await select2.inputValue()).toBe(newValue);
 
       // Restore
@@ -290,12 +280,11 @@ test.describe("Settings", () => {
       page,
     }) => {
       await goToSettings(page);
+      await openSettingsTab(page, "Privacy");
 
       // Toggle crash reporting
-      const card = page.locator(".card", {
-        hasText: "Privacy & Telemetry",
-      });
-      const toggle = card
+      const panel = activeSettingsPanel(page);
+      const toggle = panel
         .locator("label", { hasText: "Crash Reporting" })
         .locator('input[type="checkbox"]');
       const original = await toggle.isChecked();
@@ -317,12 +306,11 @@ test.describe("Settings", () => {
       await navigateTo(page, "/settings");
       await waitForRoute(page, "/settings", 10_000);
       await page.locator("main").waitFor({ state: "visible", timeout: 5_000 });
+      await openSettingsTab(page, "Privacy");
 
       // Check value persisted
-      const card2 = page.locator(".card", {
-        hasText: "Privacy & Telemetry",
-      });
-      const toggle2 = card2
+      const panel2 = activeSettingsPanel(page);
+      const toggle2 = panel2
         .locator("label", { hasText: "Crash Reporting" })
         .locator('input[type="checkbox"]');
       const afterNav = await toggle2.isChecked();

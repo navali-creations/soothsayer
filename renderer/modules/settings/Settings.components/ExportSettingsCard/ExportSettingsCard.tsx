@@ -1,14 +1,8 @@
 import { useCallback, useState } from "react";
-import {
-  FiDownload,
-  FiEye,
-  FiEyeOff,
-  FiFolder,
-  FiRotateCcw,
-} from "react-icons/fi";
+import { FiEye, FiEyeOff, FiFolder, FiRotateCcw } from "react-icons/fi";
 
 import { maskPath } from "~/main/utils/mask-path";
-import { Button, Flex } from "~/renderer/components";
+import { Button } from "~/renderer/components";
 import { trackEvent } from "~/renderer/modules/umami";
 import { useSettings } from "~/renderer/store";
 
@@ -63,34 +57,33 @@ const ExportSettingsCard = () => {
   }, []);
 
   return (
-    <div className="card bg-base-100 shadow-xl">
-      <div className="card-body">
-        <div className="flex items-center gap-2">
-          <FiDownload className="w-5 h-5" />
-          <h2 className="card-title">Export</h2>
-        </div>
-        <p className="text-sm text-base-content/60">
-          Configure where CSV exports are saved
-        </p>
-
-        <div className="space-y-4 mt-4">
-          <div className="form-control w-full">
-            <label className="label">
-              <span className="label-text">Export folder</span>
-            </label>
-            <Flex className="gap-2">
-              <input
-                type="text"
-                className="input input-bordered input-sm flex-1"
-                value={displayValue}
-                readOnly
-                placeholder="Desktop/soothsayer-exports (default)"
-              />
+    <section className="space-y-3">
+      <div className="space-y-3">
+        <div className="grid gap-3 md:grid-cols-[1fr_minmax(22rem,1.35fr)] md:items-start">
+          <div>
+            <div className="text-sm font-medium text-base-content/70">
+              Export folder
+            </div>
+            <p className="text-xs text-base-content/50">
+              Default folder for CSV save dialogs
+            </p>
+          </div>
+          <div>
+            <div className="join w-full">
+              <label className="input input-bordered input-sm join-item flex min-w-0 flex-1 items-center">
+                <input
+                  type="text"
+                  className="min-w-0 flex-1 bg-transparent outline-none"
+                  value={displayValue}
+                  readOnly
+                  placeholder="Desktop/soothsayer-exports (default)"
+                />
+              </label>
               {hasCustomPath && (
                 <button
                   type="button"
                   onClick={toggleReveal}
-                  className="btn btn-ghost btn-sm btn-square text-base-content/50 hover:text-base-content/80"
+                  className="btn btn-ghost btn-sm btn-square join-item text-base-content/50 hover:text-base-content/80"
                   title={isRevealed ? "Hide full path" : "Reveal full path"}
                 >
                   {isRevealed ? (
@@ -103,11 +96,14 @@ const ExportSettingsCard = () => {
               <Button
                 variant="primary"
                 size="sm"
+                square
+                className="join-item"
                 onClick={handleSelectDirectory}
+                title="Select export folder"
               >
                 <FiFolder />
               </Button>
-            </Flex>
+            </div>
             {hasCustomPath && (
               <div className="flex items-center mt-2">
                 <button
@@ -121,14 +117,14 @@ const ExportSettingsCard = () => {
               </div>
             )}
           </div>
-
-          <p className="text-xs text-base-content/40">
-            The save dialog will open to this folder by default. You can always
-            choose a different location when exporting.
-          </p>
         </div>
+
+        <p className="alert alert-soft py-2 text-xs text-base-content/60">
+          The save dialog will open to this folder by default. You can always
+          choose a different location when exporting.
+        </p>
       </div>
-    </div>
+    </section>
   );
 };
 

@@ -40,40 +40,30 @@ const DangerZoneCard = () => {
 
   return (
     <>
-      <div className="card bg-base-100 shadow-xl border-2 border-error">
-        <div className="card-body">
-          <h2 className="card-title text-error">
-            <FiTrash2 className="w-5 h-5" />
-            Danger Zone
-          </h2>
-          <p className="text-sm text-base-content/60">
-            Irreversible actions that affect your data
-          </p>
+      <section className="card space-y-3">
+        <p className="sr-only">Irreversible actions that affect your data</p>
 
-          <div className="divider"></div>
-
-          <div className="space-y-4">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1">
-                <h3 className="font-semibold">Reset Database</h3>
-                <p className="text-sm text-base-content/60 mt-1">
-                  Permanently delete all sessions, statistics, and price
-                  snapshots. This action cannot be undone.
-                </p>
-              </div>
-              <Button
-                variant="error"
-                size="sm"
-                onClick={openModal}
-                className="whitespace-nowrap"
-              >
-                <FiTrash2 />
-                Reset Database
-              </Button>
+        <div className="rounded border border-error/40 bg-error/5 p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <h3 className="font-semibold">Reset Database</h3>
+              <p className="mt-1 text-sm text-base-content/60">
+                Permanently delete all sessions, statistics, and price
+                snapshots. This action cannot be undone.
+              </p>
             </div>
+            <Button
+              variant="error"
+              size="sm"
+              onClick={openModal}
+              className="whitespace-nowrap"
+            >
+              <FiTrash2 />
+              Reset Database
+            </Button>
           </div>
         </div>
-      </div>
+      </section>
 
       <dialog ref={modalRef} className="modal modal-bottom sm:modal-middle">
         <div className="modal-box border border-error">

@@ -24,29 +24,18 @@ import {
 } from "../../helpers/audio-fixtures";
 import { expect, type Page, test } from "../../helpers/electron-test";
 import { getSetting } from "../../helpers/ipc-helpers";
+import { ensurePostSetup } from "../../helpers/navigation";
 import {
-  ensurePostSetup,
-  navigateTo,
-  waitForRoute,
-} from "../../helpers/navigation";
-
-/**
- * Navigates to settings and waits for data to load.
- */
-async function goToSettings(page: Page) {
-  await navigateTo(page, "/settings");
-  await waitForRoute(page, "/settings", 10_000);
-  await page.locator("main").waitFor({ state: "visible", timeout: 5_000 });
-}
+  activeSettingsPanel,
+  goToSettings,
+  openSettingsTab,
+} from "../../helpers/settings";
 
 test.describe("Settings — Audio Card", () => {
   /**
    * Helper: locate the Audio card unambiguously.
    */
-  const audioCard = (page: Page) =>
-    page.locator(".card", { hasText: "Audio" }).filter({
-      hasText: "Configure sounds for rare divination card drops",
-    });
+  const audioCard = (page: Page) => activeSettingsPanel(page);
 
   /**
    * Helper: locate the "Enable drop sounds" toggle.
@@ -75,6 +64,7 @@ test.describe("Settings — Audio Card", () => {
     await seedAudioFixtures(app);
     await ensurePostSetup(page);
     await goToSettings(page);
+    await openSettingsTab(page, "Audio");
   });
 
   test.afterAll(async ({ app }) => {

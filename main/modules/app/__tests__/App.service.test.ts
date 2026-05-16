@@ -29,6 +29,7 @@ const {
   mockDatabaseClose,
   mockTrayDestroyTray,
   mockGggHandleCallback,
+  mockAppPerformanceShutdown,
 } = vi.hoisted(() => ({
   mockAppOn: vi.fn(),
   mockAppQuit: vi.fn(),
@@ -51,6 +52,7 @@ const {
   mockDatabaseClose: vi.fn(),
   mockTrayDestroyTray: vi.fn(),
   mockGggHandleCallback: vi.fn(),
+  mockAppPerformanceShutdown: vi.fn().mockResolvedValue(undefined),
 }));
 
 // ─── Mock Electron ───────────────────────────────────────────────────────────
@@ -90,6 +92,11 @@ vi.mock("../../../package.json", () => ({
 // ─── Mock ~/main/modules barrel ──────────────────────────────────────────────
 vi.mock("~/main/modules", () =>
   createBarrelMock({
+    AppPerformanceService: {
+      getInstance: vi.fn(() => ({
+        shutdown: mockAppPerformanceShutdown,
+      })),
+    },
     CurrentSessionService: {
       getInstance: vi.fn(() => ({
         isSessionActive: mockCurrentSessionIsActive,
@@ -192,6 +199,7 @@ describe("AppService", () => {
 
     // Default: openAtLogin returns false
     mockSettingsGet.mockResolvedValue(false);
+    mockAppPerformanceShutdown.mockResolvedValue(undefined);
 
     service = new AppService();
   });
@@ -354,24 +362,26 @@ describe("AppService", () => {
       );
     });
 
-    it("should relaunch and exit when isQuitting is false", () => {
+    it("should relaunch and exit when isQuitting is false", async () => {
       service.isQuitting = false;
       service.emitRestart();
 
       const handler = getIpcHandler(mockIpcHandle, AppChannel.Restart);
-      handler();
+      await handler();
 
+      expect(mockAppPerformanceShutdown).toHaveBeenCalled();
       expect(mockAppRelaunch).toHaveBeenCalled();
       expect(mockAppExit).toHaveBeenCalledWith(0);
     });
 
-    it("should do nothing when isQuitting is true", () => {
+    it("should do nothing when isQuitting is true", async () => {
       service.isQuitting = true;
       service.emitRestart();
 
       const handler = getIpcHandler(mockIpcHandle, AppChannel.Restart);
-      handler();
+      await handler();
 
+      expect(mockAppPerformanceShutdown).not.toHaveBeenCalled();
       expect(mockAppRelaunch).not.toHaveBeenCalled();
       expect(mockAppExit).not.toHaveBeenCalled();
     });
@@ -586,6 +596,16 @@ describe("AppService", () => {
       expect(mockPoeProcessStop).toHaveBeenCalled();
     });
 
+    it("should stop app performance diagnostics on before-quit", async () => {
+      mockAppOn.mockClear();
+      service.beforeQuitCloseWindowsAndDestroyElements();
+
+      const handler = getAppEventHandler(AppChannel.BeforeQuit);
+      await handler();
+
+      expect(mockAppPerformanceShutdown).toHaveBeenCalled();
+    });
+
     it("should optimize the database on before-quit", async () => {
       mockAppOn.mockClear();
       service.beforeQuitCloseWindowsAndDestroyElements();
@@ -655,6 +675,9 @@ describe("AppService", () => {
         callOrder.push("snapshot:stopAll"),
       );
       mockPoeProcessStop.mockImplementation(() => callOrder.push("poe:stop"));
+      mockAppPerformanceShutdown.mockImplementation(async () => {
+        callOrder.push("app-performance:shutdown");
+      });
       mockDatabaseOptimize.mockImplementation(() =>
         callOrder.push("db:optimize"),
       );
@@ -670,7 +693,7 @@ describe("AppService", () => {
       const handler = getAppEventHandler(AppChannel.BeforeQuit);
       await handler();
 
-      // Verify order: overlay -> snapshots -> sessions -> poe -> db optimize -> db close -> tray
+      // Verify order: overlay -> snapshots -> sessions -> poe -> app performance -> db optimize -> db close -> tray
       expect(callOrder.indexOf("overlay:destroy")).toBeLessThan(
         callOrder.indexOf("snapshot:stopAll"),
       );
@@ -678,6 +701,9 @@ describe("AppService", () => {
         callOrder.indexOf("poe:stop"),
       );
       expect(callOrder.indexOf("poe:stop")).toBeLessThan(
+        callOrder.indexOf("app-performance:shutdown"),
+      );
+      expect(callOrder.indexOf("app-performance:shutdown")).toBeLessThan(
         callOrder.indexOf("db:optimize"),
       );
       expect(callOrder.indexOf("db:optimize")).toBeLessThan(

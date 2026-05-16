@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { FiAlertTriangle, FiHardDrive } from "react-icons/fi";
+import { FiAlertTriangle } from "react-icons/fi";
 
 import type { LeagueStorageUsage } from "~/main/modules/storage/Storage.types";
 import { Button } from "~/renderer/components";
@@ -55,52 +55,42 @@ const StorageSettingsCard = () => {
 
   return (
     <>
-      <div className="card bg-base-100 shadow-xl">
-        <div className="card-body">
-          <div className="flex items-center gap-2">
-            <FiHardDrive className="w-5 h-5" />
-            <h2 className="card-title">Storage</h2>
+      <section className="space-y-3">
+        <p className="sr-only">Disk usage for application data and database</p>
+
+        {/* Loading state */}
+        {isLoading && !info && (
+          <div className="flex items-center gap-3 mt-4 text-base-content/60">
+            <span className="loading loading-spinner loading-sm" />
+            <span className="text-sm">Analyzing storage…</span>
           </div>
-          <p className="text-sm text-base-content/60">
-            Disk usage for application data and database
-          </p>
+        )}
 
-          {/* Loading state */}
-          {isLoading && !info && (
-            <div className="flex items-center gap-3 mt-4 text-base-content/60">
-              <span className="loading loading-spinner loading-sm" />
-              <span className="text-sm">Analyzing storage…</span>
-            </div>
-          )}
+        {/* Error state */}
+        {error && (
+          <div role="alert" className="alert alert-error mt-4 text-sm">
+            <FiAlertTriangle className="w-4 h-4" />
+            <span>{error}</span>
+            <Button variant="ghost" size="sm" onClick={handleRefresh}>
+              Retry
+            </Button>
+          </div>
+        )}
 
-          {/* Error state */}
-          {error && (
-            <div role="alert" className="alert alert-error mt-4 text-sm">
-              <FiAlertTriangle className="w-4 h-4" />
-              <span>{error}</span>
-              <Button variant="ghost" size="sm" onClick={handleRefresh}>
-                Retry
-              </Button>
-            </div>
-          )}
+        {/* Storage info */}
+        {info && (
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+            <DiskUsageSection info={info} />
 
-          {/* Storage info */}
-          {info && (
-            <div className="space-y-4 mt-4">
-              <DiskUsageSection info={info} />
-
-              <div className="divider my-0" />
-
-              <LeagueDataSection
-                leagueUsage={leagueUsage}
-                isLoading={isLoading}
-                deletingLeagueId={deletingLeagueId}
-                onDeleteRequest={handleDeleteRequest}
-              />
-            </div>
-          )}
-        </div>
-      </div>
+            <LeagueDataSection
+              leagueUsage={leagueUsage}
+              isLoading={isLoading}
+              deletingLeagueId={deletingLeagueId}
+              onDeleteRequest={handleDeleteRequest}
+            />
+          </div>
+        )}
+      </section>
 
       <DeleteLeagueModal
         league={leagueToDelete}

@@ -1,4 +1,5 @@
 import type { AppMenuSlice } from "../modules/app-menu/AppMenu.slice/AppMenu.slice";
+import type { AppPerformanceSlice } from "../modules/app-performance/AppPerformance.slice/AppPerformance.slice";
 import type { BannersSlice } from "../modules/banners";
 import type { CardDetailsSlice } from "../modules/card-details/CardDetails.slice/CardDetails.slice";
 import type { CardsSlice } from "../modules/cards/Cards.slice/Cards.slice";
@@ -37,6 +38,7 @@ export interface RootActions {
 }
 
 export type BoundStore = BannersSlice &
+  AppPerformanceSlice &
   GameInfoSlice &
   LeaguesSlice &
   SettingsSlice &

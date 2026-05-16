@@ -27,6 +27,54 @@ export function createElectronMock() {
       getVersion: vi.fn().mockResolvedValue("0.0.0-test"),
     },
 
+    // ── App Performance Diagnostics ─────────────────────────────────
+    appPerformance: {
+      getState: vi.fn().mockResolvedValue({
+        capture: null,
+        isSampling: false,
+        samples: [],
+        routeMarkers: [],
+      }),
+      listCaptures: vi.fn().mockResolvedValue({
+        captures: [],
+        total: 0,
+        page: 1,
+        pageSize: 5,
+        totalPages: 1,
+      }),
+      getCaptureState: vi.fn().mockResolvedValue({
+        capture: null,
+        isSampling: false,
+        samples: [],
+        routeMarkers: [],
+      }),
+      deleteCapture: vi
+        .fn()
+        .mockResolvedValue({ success: true, deleted: true }),
+      deleteCaptures: vi
+        .fn()
+        .mockResolvedValue({ success: true, deletedCount: 0 }),
+      startCapture: vi.fn().mockResolvedValue({
+        capture: null,
+        isSampling: false,
+        samples: [],
+        routeMarkers: [],
+      }),
+      stopCapture: vi.fn().mockResolvedValue({
+        capture: null,
+        isSampling: false,
+        samples: [],
+        routeMarkers: [],
+      }),
+      recordRendererMetrics: vi.fn().mockResolvedValue({ success: true }),
+      recordRouteMarker: vi.fn().mockResolvedValue(null),
+      applyRetentionCleanup: vi.fn().mockResolvedValue(0),
+      exportReport: vi.fn().mockResolvedValue({ success: true }),
+      onStateChanged: mockListener(),
+      onSampleAdded: mockListener(),
+      onRouteMarkerAdded: mockListener(),
+    },
+
     // ── App Setup (wizard) ─────────────────────────────────────────────
     appSetup: {
       getSetupState: vi.fn().mockResolvedValue(null),

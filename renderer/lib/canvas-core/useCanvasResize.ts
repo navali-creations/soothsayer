@@ -36,47 +36,71 @@ export function useCanvasResize() {
   const cleanupRef = useRef<(() => void) | null>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
 
-  const containerRef = useCallback((node: HTMLDivElement | null) => {
-    // Cancel any pending RAF from the previous element.
-    if (rafIdRef.current !== null) {
-      cancelAnimationFrame(rafIdRef.current);
-      rafIdRef.current = null;
-    }
+  const syncSizeFromNode = useCallback((node: HTMLDivElement) => {
+    const rect = node.getBoundingClientRect();
+    setCanvasSize((previous) => {
+      if (previous.width === rect.width && previous.height === rect.height) {
+        return previous;
+      }
+      return { width: rect.width, height: rect.height };
+    });
+  }, []);
 
-    // Unsubscribe the previous element from the shared observer.
-    if (cleanupRef.current) {
-      cleanupRef.current();
-      cleanupRef.current = null;
-    }
-
-    containerElRef.current = node;
-
-    if (!node) {
-      setCanvasSize({ width: 0, height: 0 });
-      return;
-    }
-
-    // RAF-coalescing callback: batches rapid resize events into a single
-    // state update per animation frame, matching the previous behaviour.
-    const resizeCallback: ResizeCallback = (entry) => {
+  const containerRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      // Cancel any pending RAF from the previous element.
       if (rafIdRef.current !== null) {
         cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
       }
+
+      // Unsubscribe the previous element from the shared observer.
+      if (cleanupRef.current) {
+        cleanupRef.current();
+        cleanupRef.current = null;
+      }
+
+      containerElRef.current = node;
+
+      if (!node) {
+        setCanvasSize({ width: 0, height: 0 });
+        return;
+      }
+
+      // RAF-coalescing callback: batches rapid resize events into a single
+      // state update per animation frame, matching the previous behaviour.
+      const resizeCallback: ResizeCallback = (entry) => {
+        if (rafIdRef.current !== null) {
+          cancelAnimationFrame(rafIdRef.current);
+        }
+        rafIdRef.current = requestAnimationFrame(() => {
+          rafIdRef.current = null;
+          const { width, height } = entry.contentRect;
+          setCanvasSize({ width, height });
+        });
+      };
+
+      // Subscribe via the shared singleton and stash the cleanup handle.
+      cleanupRef.current = observeResize(node, resizeCallback);
+
+      // Seed the initial size immediately and again after layout settles. Some
+      // routed chart containers mount before their final height is available,
+      // and ResizeObserver can miss that first non-zero size transition.
+      syncSizeFromNode(node);
       rafIdRef.current = requestAnimationFrame(() => {
         rafIdRef.current = null;
-        const { width, height } = entry.contentRect;
-        setCanvasSize({ width, height });
+        if (containerElRef.current !== node) return;
+        syncSizeFromNode(node);
+        rafIdRef.current = requestAnimationFrame(() => {
+          rafIdRef.current = null;
+          if (containerElRef.current === node) {
+            syncSizeFromNode(node);
+          }
+        });
       });
-    };
-
-    // Subscribe via the shared singleton and stash the cleanup handle.
-    cleanupRef.current = observeResize(node, resizeCallback);
-
-    // Seed the initial size synchronously so the canvas is correctly
-    // sized before the first ResizeObserver callback fires.
-    const rect = node.getBoundingClientRect();
-    setCanvasSize({ width: rect.width, height: rect.height });
-  }, []);
+    },
+    [syncSizeFromNode],
+  );
 
   useLayoutEffect(() => {
     const canvas = canvasRef.current;

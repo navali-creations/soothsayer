@@ -1,122 +1,16 @@
-import { useCallback, useState } from "react";
-import { FiArchive, FiDatabase, FiEye, FiEyeOff, FiFile } from "react-icons/fi";
+import { type ReactNode, useCallback, useState } from "react";
+import { FiActivity, FiArchive, FiDatabase, FiFile } from "react-icons/fi";
 
 import type { StorageInfo } from "~/main/modules/storage/Storage.types";
-import { Accordion } from "~/renderer/components";
 
-import { formatBytes, formatPercentage } from "../storage.utils/storage.utils";
+import { formatBytes } from "../storage.utils/storage.utils";
+import { DiskUsageBar } from "./DiskUsageBar/DiskUsageBar";
 
-// ============================================================================
-// Breakdown icon mapping
-// ============================================================================
-
-const CATEGORY_ICON_MAP: Record<string, React.ReactNode> = {
+const CATEGORY_ICON_MAP: Record<string, ReactNode> = {
   database: <FiDatabase className="w-3.5 h-3.5" />,
   cache: <FiArchive className="w-3.5 h-3.5" />,
   other: <FiFile className="w-3.5 h-3.5" />,
 };
-
-// ============================================================================
-// Stacked disk usage bar
-// ============================================================================
-
-interface BarSegment {
-  label: string;
-  bytes: number;
-  colorClass: string;
-}
-
-const DiskUsageBar = ({
-  segments,
-  totalBytes,
-  path,
-  onRevealToggle,
-  isRevealed,
-}: {
-  segments: BarSegment[];
-  totalBytes: number;
-  path?: string;
-  onRevealToggle?: () => void;
-  isRevealed?: boolean;
-}) => {
-  const usedBytes = segments.reduce((sum, s) => sum + s.bytes, 0);
-  const fraction = totalBytes > 0 ? usedBytes / totalBytes : 0;
-  const visibleSegments = segments.filter((s) => s.bytes > 0);
-
-  return (
-    <div className="space-y-1.5">
-      {path && (
-        <div className="flex items-center gap-1.5 group">
-          <p className="text-xs font-mono text-base-content/60 truncate">
-            {path}
-          </p>
-          {onRevealToggle && (
-            <button
-              type="button"
-              onClick={onRevealToggle}
-              className="text-base-content/40 hover:text-base-content/70 transition-colors shrink-0"
-              title={isRevealed ? "Hide full path" : "Reveal full path"}
-            >
-              {isRevealed ? (
-                <FiEyeOff className="w-3 h-3" />
-              ) : (
-                <FiEye className="w-3 h-3" />
-              )}
-            </button>
-          )}
-        </div>
-      )}
-      <div className="w-full bg-base-300 rounded-full h-2.5 overflow-hidden flex">
-        {segments.map((seg) => {
-          const pct = totalBytes > 0 ? (seg.bytes / totalBytes) * 100 : 0;
-          if (pct < 0.01) return null;
-          return (
-            <div
-              key={seg.label}
-              className={`${seg.colorClass} h-2.5 transition-all duration-300 first:rounded-l-full last:rounded-r-full`}
-              style={{ width: `${Math.max(pct, 0.3)}%` }}
-              title={`${seg.label}: ${formatBytes(seg.bytes)}`}
-            />
-          );
-        })}
-      </div>
-      <div className="flex items-center justify-between text-xs text-base-content/70">
-        <span>
-          {formatBytes(usedBytes)} used of {formatBytes(totalBytes)} (
-          {formatPercentage(fraction)})
-        </span>
-        <span>{formatBytes(totalBytes - usedBytes)} free</span>
-      </div>
-      {/* Legend — labels in one row, size + percentage stacked below each */}
-      {visibleSegments.length > 1 && (
-        <div className="flex flex-wrap gap-x-5 gap-y-2 mt-0.5">
-          {visibleSegments.map((seg) => {
-            const segFraction = totalBytes > 0 ? seg.bytes / totalBytes : 0;
-            return (
-              <div key={seg.label} className="flex items-start gap-1.5">
-                <div
-                  className={`w-2 h-2 rounded-full ${seg.colorClass} mt-0.5 shrink-0`}
-                />
-                <div className="flex flex-col">
-                  <span className="text-xs text-base-content/70 leading-tight">
-                    {seg.label}
-                  </span>
-                  <span className="text-[10px] text-base-content/40 tabular-nums leading-tight">
-                    {formatBytes(seg.bytes)} ({formatPercentage(segFraction)})
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ============================================================================
-// Main section
-// ============================================================================
 
 interface DiskUsageSectionProps {
   info: StorageInfo;
@@ -199,14 +93,29 @@ const DiskUsageSection = ({ info }: DiskUsageSectionProps) => {
         </div>
       )}
 
-      {/* Breakdown accordion */}
-      {info.breakdown.length > 0 && (
-        <Accordion
-          title="What's using space?"
-          icon={<FiDatabase className="w-3.5 h-3.5" />}
-          headerRight={formatBytes(info.appDataSizeBytes)}
+      {/* Breakdown */}
+      {(info.breakdown.length > 0 ||
+        info.diagnosticsCaptureUsage.captureCount > 0) && (
+        <div
+          className="rounded-lg bg-base-100 p-3"
+          data-testid="storage-breakdown"
         >
-          <div>
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <FiDatabase className="w-3.5 h-3.5 shrink-0 text-base-content/50" />
+              <span className="truncate text-xs font-semibold text-base-content/70">
+                What's using space?
+              </span>
+            </div>
+            <span
+              className="shrink-0 text-xs tabular-nums text-base-content/50"
+              data-testid="storage-breakdown-total"
+            >
+              {formatBytes(info.appDataSizeBytes)}
+            </span>
+          </div>
+
+          <div className="space-y-1" data-testid="storage-breakdown-content">
             {info.breakdown.map((item) => {
               const itemFraction =
                 info.appDataSizeBytes > 0
@@ -245,8 +154,45 @@ const DiskUsageSection = ({ info }: DiskUsageSectionProps) => {
                 </div>
               );
             })}
+
+            {info.diagnosticsCaptureUsage.captureCount > 0 && (
+              <div className="flex items-center gap-3 py-1.5">
+                <FiActivity className="w-3.5 h-3.5 text-base-content/50 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-medium truncate">
+                      Performance history
+                    </span>
+                    <span className="text-xs tabular-nums text-base-content/50 shrink-0">
+                      {formatBytes(
+                        info.diagnosticsCaptureUsage.estimatedSizeBytes,
+                      )}
+                    </span>
+                  </div>
+                  <div className="w-full bg-base-300 rounded-full h-1 overflow-hidden mt-1">
+                    <div
+                      className="bg-primary/60 h-1 rounded-full transition-all duration-300"
+                      style={{
+                        width: `${Math.max(
+                          Math.min(
+                            info.appDataSizeBytes > 0
+                              ? (info.diagnosticsCaptureUsage
+                                  .estimatedSizeBytes /
+                                  info.appDataSizeBytes) *
+                                  100
+                              : 0,
+                            100,
+                          ),
+                          0.5,
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-        </Accordion>
+        </div>
       )}
     </div>
   );

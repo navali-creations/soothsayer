@@ -363,12 +363,9 @@ test.describe("Card Detail Page", () => {
     }) => {
       await goToCardDetail(page, "house-of-mirrors");
 
-      // The card name is rendered in an <h1> via PageContainer.Header
-      const heading = page.locator("h1");
-      await expect(heading).toBeVisible({ timeout: 10_000 });
-
-      const headingText = await heading.textContent();
-      expect(headingText).toContain("House of Mirrors");
+      await expect(
+        page.getByRole("heading", { name: "House of Mirrors", level: 1 }),
+      ).toBeVisible({ timeout: 10_000 });
     });
 
     test("should display card details content on the detail page", async ({

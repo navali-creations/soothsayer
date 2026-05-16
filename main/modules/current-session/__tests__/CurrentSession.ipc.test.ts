@@ -50,6 +50,9 @@ const {
   mockAssertSessionId,
   mockHandleValidationError,
   MockIpcValidationError,
+  mockAppPerformanceStartFreshCapture,
+  mockAppPerformanceStopCapture,
+  mockAppPerformanceGetState,
 } = vi.hoisted(() => {
   class _MockIpcValidationError extends Error {
     detail: string;
@@ -112,6 +115,24 @@ const {
     mockAssertSessionId: vi.fn(),
     mockHandleValidationError: vi.fn(),
     MockIpcValidationError: _MockIpcValidationError,
+    mockAppPerformanceStartFreshCapture: vi.fn().mockResolvedValue({
+      capture: null,
+      isSampling: false,
+      samples: [],
+      routeMarkers: [],
+    }),
+    mockAppPerformanceStopCapture: vi.fn().mockResolvedValue({
+      capture: null,
+      isSampling: false,
+      samples: [],
+      routeMarkers: [],
+    }),
+    mockAppPerformanceGetState: vi.fn(() => ({
+      capture: null,
+      isSampling: false,
+      samples: [],
+      routeMarkers: [],
+    })),
   };
 });
 
@@ -162,6 +183,17 @@ vi.mock("~/main/modules/data-store", () =>
     mockGetAllTimeStats: mockGetAllTimeStats,
   }),
 );
+
+// ─── Mock AppPerformanceService ─────────────────────────────────────────────
+vi.mock("~/main/modules/app-performance", () => ({
+  AppPerformanceService: {
+    getInstance: vi.fn(() => ({
+      startFreshCapture: mockAppPerformanceStartFreshCapture,
+      stopCapture: mockAppPerformanceStopCapture,
+      getState: mockAppPerformanceGetState,
+    })),
+  },
+}));
 
 // ─── Mock CurrentSessionRepository ───────────────────────────────────────────
 vi.mock("../CurrentSession.repository", () => ({
@@ -312,6 +344,24 @@ describe("CurrentSessionService — IPC handlers", () => {
     mockGetAllWindows.mockReturnValue([mockMainWindow]);
     mockPerfStartTimer.mockReturnValue(null);
     mockPerfStartTimers.mockReturnValue(null);
+    mockAppPerformanceStartFreshCapture.mockResolvedValue({
+      capture: null,
+      isSampling: false,
+      samples: [],
+      routeMarkers: [],
+    });
+    mockAppPerformanceStopCapture.mockResolvedValue({
+      capture: null,
+      isSampling: false,
+      samples: [],
+      routeMarkers: [],
+    });
+    mockAppPerformanceGetState.mockReturnValue({
+      capture: null,
+      isSampling: false,
+      samples: [],
+      routeMarkers: [],
+    });
 
     _service = CurrentSessionService.getInstance();
   });

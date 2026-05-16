@@ -1,7 +1,8 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, type OpenDialogOptions } from "electron";
 
 import { AnalyticsAPI } from "~/main/modules/analytics/Analytics.api";
 import { AppAPI } from "~/main/modules/app/App.api";
+import { AppPerformanceAPI } from "~/main/modules/app-performance/AppPerformance.api";
 import { AppSetupAPI } from "~/main/modules/app-setup/AppSetup.api";
 import { BannersAPI } from "~/main/modules/banners/Banners.api";
 import { CardDetailsAPI } from "~/main/modules/card-details/CardDetails.api";
@@ -25,7 +26,8 @@ import { StorageAPI } from "~/main/modules/storage/Storage.api";
 import { UpdaterAPI } from "~/main/modules/updater/Updater.api";
 
 contextBridge.exposeInMainWorld("electron", {
-  selectFile: (options: any) => ipcRenderer.invoke("select-file", options),
+  selectFile: (options: OpenDialogOptions) =>
+    ipcRenderer.invoke("select-file", options),
 
   // ── E2E-only test bridge ─────────────────────────────────────────────
   // Expose a scoped ipcRenderer.invoke for e2e test-only IPC channels,
@@ -71,6 +73,7 @@ contextBridge.exposeInMainWorld("electron", {
   snapshots: SnapshotAPI,
   mainWindow: MainWindowAPI,
   app: AppAPI,
+  appPerformance: AppPerformanceAPI,
   overlay: OverlayAPI,
   appSetup: AppSetupAPI,
   poeProcess: PoeProcessAPI,

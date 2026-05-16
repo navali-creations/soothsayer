@@ -8,9 +8,12 @@ import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
 // ─── Hoisted mock functions (available inside vi.mock factories) ─────────────
 const {
   mockIpcHandle,
+  mockAppPerformanceInitialize,
+  mockAppPerformanceRecordOverlayMarker,
   mockSettingsGet,
   mockSettingsSet,
   mockOverlayDestroy,
+  mockOverlayOnVisibilityChange,
   mockBrowserWindowMinimize,
   mockBrowserWindowMaximize,
   mockBrowserWindowUnmaximize,
@@ -56,9 +59,12 @@ const {
 
   return {
     mockIpcHandle: vi.fn(),
+    mockAppPerformanceInitialize: vi.fn().mockResolvedValue(undefined),
+    mockAppPerformanceRecordOverlayMarker: vi.fn(),
     mockSettingsGet: vi.fn(),
     mockSettingsSet: vi.fn(() => Promise.resolve()),
     mockOverlayDestroy: vi.fn(),
+    mockOverlayOnVisibilityChange: vi.fn(() => vi.fn()),
     mockBrowserWindowMinimize: vi.fn(),
     mockBrowserWindowMaximize: vi.fn(),
     mockBrowserWindowUnmaximize: vi.fn(),
@@ -183,6 +189,15 @@ vi.mock("~/main/utils/ipc-validation", () => ({
   validateFileDialogOptions: mockValidateFileDialogOptions,
 }));
 
+vi.mock("~/main/modules/app-performance", () => ({
+  AppPerformanceService: {
+    getInstance: vi.fn(() => ({
+      initialize: mockAppPerformanceInitialize,
+      recordOverlayMarker: mockAppPerformanceRecordOverlayMarker,
+    })),
+  },
+}));
+
 // ─── Mock all services from barrel ───────────────────────────────────────────
 vi.mock("~/main/modules", () =>
   createBarrelMock({
@@ -222,6 +237,7 @@ vi.mock("~/main/modules", () =>
     OverlayService: {
       getInstance: vi.fn(() => ({
         destroy: mockOverlayDestroy,
+        onVisibilityChange: mockOverlayOnVisibilityChange,
       })),
     },
     PoeProcessService: {
@@ -574,6 +590,31 @@ describe("MainWindowService", () => {
       await service.createMainWindow();
 
       expect(CommunityUploadService.getInstance).toHaveBeenCalled();
+    });
+
+    it("should route overlay visibility markers through app-performance", async () => {
+      await service.createMainWindow();
+
+      expect(mockOverlayOnVisibilityChange).toHaveBeenCalledWith(
+        expect.any(Function),
+      );
+
+      const listener = mockOverlayOnVisibilityChange.mock.calls.at(-1)?.[0] as
+        | ((isVisible: boolean) => void)
+        | undefined;
+      expect(listener).toBeDefined();
+
+      listener?.(true);
+      listener?.(false);
+
+      expect(mockAppPerformanceRecordOverlayMarker).toHaveBeenNthCalledWith(
+        1,
+        true,
+      );
+      expect(mockAppPerformanceRecordOverlayMarker).toHaveBeenNthCalledWith(
+        2,
+        false,
+      );
     });
 
     it("getWindow should return the BrowserWindow after creation", async () => {

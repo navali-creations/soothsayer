@@ -11,6 +11,10 @@ interface DivinationCardDTO extends DivinationCardRow {
   updatedAt: string;
 }
 
+interface LoadCardsOptions {
+  force?: boolean;
+}
+
 type SortField = "name" | "rarity" | "stackSize";
 type SortDirection = "asc" | "desc";
 
@@ -41,7 +45,7 @@ export interface CardsSlice {
     pageSize: number;
 
     // Actions
-    loadCards: () => Promise<void>;
+    loadCards: (options?: LoadCardsOptions) => Promise<void>;
     setSearchQuery: (query: string) => void;
     setRarityFilter: (rarity: number | "all") => void;
     setIncludeBossCards: (include: boolean) => void;
@@ -87,12 +91,18 @@ export const createCardsSlice: StateCreator<
     pageSize: 20,
 
     // Load all cards for a game
-    loadCards: async () => {
+    loadCards: async (options = {}) => {
       const activeGame = get().settings.getSelectedGame();
-      const key = activeGame;
+      const league = get().settings.getActiveGameViewSelectedLeague();
+      const raritySource = get().settings.raritySource;
+      const selectedFilterId =
+        raritySource === "filter"
+          ? (get().settings.selectedFilterId ?? "")
+          : "";
+      const key = `${activeGame}:${league}:${raritySource}:${selectedFilterId}`;
 
       // Dedup: skip if we already loaded this exact key or a load is in-flight for it
-      if (key === get().cards._lastCardsKey) return;
+      if (!options.force && key === get().cards._lastCardsKey) return;
       if (key === get().cards._pendingCardsKey) return;
 
       set(({ cards }) => {

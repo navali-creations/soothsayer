@@ -1,5 +1,8 @@
+import type { OpenDialogOptions } from "electron";
+
 import type { AnalyticsAPI } from "../main/modules/analytics/Analytics.api";
 import type { AppAPI } from "../main/modules/app/App.api";
+import type { AppPerformanceAPI } from "../main/modules/app-performance/AppPerformance.api";
 import type { AppSetupAPI } from "../main/modules/app-setup/AppSetup.api";
 import type { BannersAPI } from "../main/modules/banners/Banners.api";
 import type { CardDetailsAPI } from "../main/modules/card-details/CardDetails.api";
@@ -26,7 +29,7 @@ import type { UpdaterAPI } from "../main/modules/updater/Updater.api";
 declare global {
   interface Window {
     electron: {
-      selectFile: (options: any) => Promise<string | undefined>;
+      selectFile: (options: OpenDialogOptions) => Promise<string | undefined>;
       banners: typeof BannersAPI;
       communityUpload: typeof CommunityUploadAPI;
       gggAuth: typeof GggAuthAPI;
@@ -37,6 +40,7 @@ declare global {
       snapshots: typeof SnapshotAPI;
       mainWindow: typeof MainWindowAPI;
       app: typeof AppAPI;
+      appPerformance: typeof AppPerformanceAPI;
       overlay: typeof OverlayAPI;
       appSetup: typeof AppSetupAPI;
       diagLog: typeof DiagLogAPI;

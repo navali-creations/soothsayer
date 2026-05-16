@@ -22,6 +22,8 @@ interface OverlayBounds {
   height: number;
 }
 
+type OverlayVisibilityListener = (isVisible: boolean) => void;
+
 /**
  * Validate that at least part of the bounds overlaps with some display's workArea.
  * Returns the bounds if valid, null if off-screen (e.g. disconnected monitor).
@@ -58,6 +60,7 @@ class OverlayService {
   private debouncedSaveBoundsTimer: ReturnType<typeof setTimeout> | null = null;
   private boundsMoveListener: (() => void) | null = null;
   private boundsResizeListener: (() => void) | null = null;
+  private visibilityListeners = new Set<OverlayVisibilityListener>();
 
   private static _instance: OverlayService;
 
@@ -184,12 +187,12 @@ class OverlayService {
     });
 
     this.overlayWindow.on("closed", () => {
+      const wasVisible = this.isVisible;
       this.removeBoundsListeners();
       this.isLocked = true;
       this.overlayWindow = null;
       this.isVisible = false;
-      // Notify main window that overlay is now hidden
-      this.notifyVisibilityChanged(false);
+      this.publishVisibilityChanged(false, { notifyMainProcess: wasVisible });
     });
 
     // Load overlay HTML
@@ -536,6 +539,7 @@ class OverlayService {
   }
 
   public async show(): Promise<void> {
+    const wasVisible = this.isVisible;
     this.isVisible = true;
     this.isLocked = true;
 
@@ -565,18 +569,19 @@ class OverlayService {
       this.overlayWindow.blur();
     }
 
-    this.notifyVisibilityChanged(true);
+    this.publishVisibilityChanged(true, { notifyMainProcess: !wasVisible });
   }
 
   public async hide(): Promise<void> {
     if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
+      const wasVisible = this.isVisible;
       // If unlocked, auto-lock first to save bounds and clean up listeners
       if (!this.isLocked) {
         this.setLocked(true);
       }
       this.overlayWindow.hide();
       this.isVisible = false;
-      this.notifyVisibilityChanged(false);
+      this.publishVisibilityChanged(false, { notifyMainProcess: wasVisible });
     }
   }
 
@@ -667,10 +672,29 @@ class OverlayService {
     return this.overlayWindow;
   }
 
+  public onVisibilityChange(listener: OverlayVisibilityListener): () => void {
+    this.visibilityListeners.add(listener);
+
+    return () => {
+      this.visibilityListeners.delete(listener);
+    };
+  }
+
+  private publishVisibilityChanged(
+    isVisible: boolean,
+    options: { notifyMainProcess: boolean },
+  ): void {
+    this.notifyRendererVisibilityChanged(isVisible);
+
+    if (options.notifyMainProcess) {
+      this.notifyMainProcessVisibilityChanged(isVisible);
+    }
+  }
+
   /**
    * Notify main window of visibility changes
    */
-  private notifyVisibilityChanged(isVisible: boolean): void {
+  private notifyRendererVisibilityChanged(isVisible: boolean): void {
     const allWindows = BrowserWindow.getAllWindows();
 
     const mainWindow = allWindows.find(
@@ -683,7 +707,17 @@ class OverlayService {
       mainWindow.webContents.send(OverlayChannel.VisibilityChanged, isVisible);
     }
   }
+
+  private notifyMainProcessVisibilityChanged(isVisible: boolean): void {
+    for (const listener of this.visibilityListeners) {
+      try {
+        listener(isVisible);
+      } catch (error) {
+        console.warn("[Overlay] Visibility listener failed:", error);
+      }
+    }
+  }
 }
 
-export type { OverlayBounds };
+export type { OverlayBounds, OverlayVisibilityListener };
 export { OverlayService };

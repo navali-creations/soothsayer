@@ -1,7 +1,6 @@
 import {
   type ColumnDef,
   type FilterFn,
-  flexRender,
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
@@ -13,16 +12,10 @@ import {
 } from "@tanstack/react-table";
 import clsx from "clsx";
 import { useEffect, useState } from "react";
-import {
-  FiChevronDown,
-  FiChevronLeft,
-  FiChevronRight,
-  FiChevronsLeft,
-  FiChevronsRight,
-  FiChevronUp,
-} from "react-icons/fi";
 
-import { Button } from "..";
+import { TableBodyRows } from "./TableBodyRows/TableBodyRows";
+import { TableHeaderRows } from "./TableHeaderRows/TableHeaderRows";
+import { TablePagination } from "./TablePagination/TablePagination";
 
 interface TableProps<TData> {
   data: TData[];
@@ -46,6 +39,8 @@ interface TableProps<TData> {
   globalFilterFn?: FilterFn<TData>;
   /** Additional class name(s) applied to each `<tr>` in the body */
   rowClassName?: string | ((row: Row<TData>) => string);
+  /** Called when a non-interactive body row is clicked or keyboard-activated. */
+  onRowClick?: (row: Row<TData>) => void;
   /** Message shown when the table has no visible rows (e.g. after filtering) */
   emptyMessage?: string;
   /** When true, the table header row sticks to the top of the scroll container */
@@ -69,6 +64,7 @@ function Table<TData>({
   globalFilter,
   globalFilterFn,
   rowClassName,
+  onRowClick,
   stickyHeader = false,
   emptyMessage,
 }: TableProps<TData>) {
@@ -123,249 +119,69 @@ function Table<TData>({
 
   const hasVisibleRows = table.getFilteredRowModel().rows.length > 0;
 
-  // ── Render helpers ─────────────────────────────────────────────────
-
-  const renderSortIcon = (
-    header: ReturnType<typeof table.getHeaderGroups>[number]["headers"][number],
-  ) => {
-    if (
-      !header.column.getCanSort() ||
-      (header.column.columnDef.meta as Record<string, unknown>)?.hideSortIcon
-    ) {
-      return null;
-    }
-
-    return (
-      <span className="inline-flex shrink-0">
-        {header.column.getIsSorted() === "asc" ? (
-          <FiChevronUp className="w-4 h-4" />
-        ) : header.column.getIsSorted() === "desc" ? (
-          <FiChevronDown className="w-4 h-4" />
-        ) : (
-          <div className="w-4 h-4 opacity-50 -mt-2">
-            <FiChevronUp className="w-4 h-4 -mb-2" />
-            <FiChevronDown className="w-4 h-4" />
-          </div>
-        )}
-      </span>
-    );
-  };
-
-  /** Build an inline width style when a column defines a non-default size. */
-  const getColumnWidthStyle = (
-    columnDef: (typeof columns)[number],
-  ): React.CSSProperties | undefined => {
-    const DEFAULT_COLUMN_SIZE = 150;
-    const hasExplicitSize =
-      columnDef.size !== undefined && columnDef.size !== DEFAULT_COLUMN_SIZE;
-    if (!hasExplicitSize) return undefined;
-    return {
-      width: columnDef.size,
-      minWidth: columnDef.minSize,
-      maxWidth: columnDef.maxSize,
-    };
-  };
-
-  const renderHeaderRows = () =>
-    table.getHeaderGroups().map((headerGroup) => (
-      <tr key={headerGroup.id}>
-        {headerGroup.headers.map((header, index) => (
-          <th
-            key={header.id}
-            className={clsx({
-              "cursor-pointer select-none": header.column.getCanSort(),
-              "pl-0": index > 0,
-            })}
-            style={getColumnWidthStyle(header.column.columnDef)}
-            onClick={header.column.getToggleSortingHandler()}
-          >
-            <div
-              className={clsx("flex items-center gap-1", {
-                "justify-center":
-                  index > 0 &&
-                  !(header.column.columnDef.meta as Record<string, unknown>)
-                    ?.alignStart,
-              })}
-            >
-              {header.isPlaceholder
-                ? null
-                : flexRender(
-                    header.column.columnDef.header,
-                    header.getContext(),
-                  )}
-              {renderSortIcon(header)}
-            </div>
-          </th>
-        ))}
-      </tr>
-    ));
-
-  const renderBodyRows = () => (
-    <>
-      {table.getRowModel().rows.length === 0 && emptyMessage ? (
-        <tr>
-          <td
-            colSpan={columns.length}
-            className="text-center text-base-content/50 py-8"
-          >
-            {emptyMessage}
-          </td>
-        </tr>
-      ) : null}
-      {table.getRowModel().rows.map((row) => (
-        <tr
-          key={row.id}
-          className={clsx(
-            "group",
-            hoverable && "hover",
-            typeof rowClassName === "function"
-              ? rowClassName(row)
-              : rowClassName,
-          )}
-        >
-          {row.getVisibleCells().map((cell, index) => (
-            <td
-              key={cell.id}
-              style={getColumnWidthStyle(cell.column.columnDef)}
-              className={clsx({
-                "text-center pl-0":
-                  index > 0 &&
-                  !(cell.column.columnDef.meta as Record<string, unknown>)
-                    ?.alignStart,
-                "pl-0":
-                  index > 0 &&
-                  !!(cell.column.columnDef.meta as Record<string, unknown>)
-                    ?.alignStart,
-              })}
-            >
-              {flexRender(cell.column.columnDef.cell, cell.getContext())}
-            </td>
-          ))}
-        </tr>
-      ))}
-    </>
-  );
-
-  // ── Table classes ──────────────────────────────────────────────────
-
   const tableClasses = clsx(
     "table rounded-0 bg-base-100",
     { "table-zebra": zebraStripes, "table-xs": compact },
     className,
   );
 
-  // ── Pagination element ─────────────────────────────────────────────
-
-  const paginationElement = enablePagination ? (
-    <div
-      className={clsx(
-        "flex items-center justify-between gap-2",
-        stickyHeader
-          ? "shrink-0 bg-base-100 py-2 px-3 border-t border-base-300"
-          : "mt-4 px-3",
-        !hasVisibleRows && "invisible",
-      )}
-    >
-      <div className="text-sm text-base-content/70">
-        Showing{" "}
-        {table.getState().pagination.pageIndex *
-          table.getState().pagination.pageSize +
-          1}{" "}
-        to{" "}
-        {Math.min(
-          (table.getState().pagination.pageIndex + 1) *
-            table.getState().pagination.pageSize,
-          table.getFilteredRowModel().rows.length,
-        )}{" "}
-        of {table.getFilteredRowModel().rows.length} results
-      </div>
-
-      <div className="flex gap-1">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => table.setPageIndex(0)}
-          disabled={!table.getCanPreviousPage()}
-        >
-          <FiChevronsLeft />
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => table.previousPage()}
-          disabled={!table.getCanPreviousPage()}
-        >
-          <FiChevronLeft />
-        </Button>
-        <div className="flex items-center gap-2 px-3">
-          <span className="text-sm">
-            Page {table.getState().pagination.pageIndex + 1} of{" "}
-            {table.getPageCount()}
-          </span>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => table.nextPage()}
-          disabled={!table.getCanNextPage()}
-        >
-          <FiChevronRight />
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => table.setPageIndex(table.getPageCount() - 1)}
-          disabled={!table.getCanNextPage()}
-        >
-          <FiChevronsRight />
-        </Button>
-      </div>
-    </div>
-  ) : null;
-
-  // ══════════════════════════════════════════════════════════════════
-  // LAYOUT: stickyHeader
-  // ══════════════════════════════════════════════════════════════════
-  // Uses CSS display overrides on a single <table> so that <thead>
-  // and <tbody> become block-level elements.  <tbody> gets
-  // overflow-y:auto so the scrollbar only appears next to body rows.
-  // Each <tr> uses display:table + width:100% + table-layout:fixed
-  // so columns stay aligned between thead and tbody.
-  //
-  //   ┌──────────────┐
-  //   │  thead        │  ← block, no scroll
-  //   ├──────────────┤
-  //   │  tbody      ▲│  ← block, overflow-y: auto
-  //   │             ▼│
-  //   ├──────────────┤
-  //   │  pagination   │  ← shrink-0 footer
-  //   └──────────────┘
   if (stickyHeader) {
     return (
       <div className="w-full h-full relative">
         <div className="absolute inset-0 flex flex-col min-h-0">
           <table className={clsx(tableClasses, "table-block-layout")}>
-            <thead>{renderHeaderRows()}</thead>
-            <tbody>{renderBodyRows()}</tbody>
+            <thead>
+              <TableHeaderRows table={table} />
+            </thead>
+            <tbody>
+              <TableBodyRows
+                table={table}
+                columnsLength={columns.length}
+                hoverable={hoverable}
+                rowClassName={rowClassName}
+                onRowClick={onRowClick}
+                emptyMessage={emptyMessage}
+              />
+            </tbody>
           </table>
-          {paginationElement}
+          {enablePagination && (
+            <TablePagination
+              table={table}
+              stickyHeader={stickyHeader}
+              hasVisibleRows={hasVisibleRows}
+            />
+          )}
         </div>
       </div>
     );
   }
 
-  // ══════════════════════════════════════════════════════════════════
-  // LAYOUT: default (no stickyHeader)
-  // ══════════════════════════════════════════════════════════════════
   return (
     <div className="w-full">
       <div className="overflow-x-auto">
         <table className={tableClasses}>
-          <thead>{renderHeaderRows()}</thead>
-          <tbody>{renderBodyRows()}</tbody>
+          <thead>
+            <TableHeaderRows table={table} />
+          </thead>
+          <tbody>
+            <TableBodyRows
+              table={table}
+              columnsLength={columns.length}
+              hoverable={hoverable}
+              rowClassName={rowClassName}
+              onRowClick={onRowClick}
+              emptyMessage={emptyMessage}
+            />
+          </tbody>
         </table>
       </div>
-      {paginationElement}
+      {enablePagination && (
+        <TablePagination
+          table={table}
+          stickyHeader={stickyHeader}
+          hasVisibleRows={hasVisibleRows}
+        />
+      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 export * from "./analytics";
 export * from "./app";
+export * from "./app-performance";
 export * from "./app-setup";
 export * from "./banners";
 export * from "./card-details";

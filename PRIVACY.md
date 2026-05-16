@@ -1,7 +1,7 @@
 # Privacy Policy
 
 **Data Controller:** Soothsayer  
-**Last Updated:** April 2026
+**Last Updated:** May 2026
 
 Soothsayer is an open-source desktop application for tracking Path of Exile divination card drops. This privacy policy explains what data we collect, how we use it, and your rights.
 
@@ -43,6 +43,21 @@ When community uploads are enabled (Settings → Privacy & Telemetry), Soothsaye
 - GGG account linking is **entirely optional** — uploads work anonymously without it
 - **Existing data** from prior sessions is never uploaded automatically. If you have drop data that hasn't been contributed yet, the app will show a one-time banner with an opt-in checkbox — your data is only uploaded if you explicitly check the box and confirm. Dismissing the banner is **permanent** (persisted locally) — it will never reappear, even after restarting the app.
 
+### Local App Performance Diagnostics
+
+When app performance diagnostics are enabled, Soothsayer records local diagnostic readings to help troubleshoot performance issues. These readings are stored only on your computer in the local SQLite database unless you manually export and send a report to the maintainers.
+
+Local diagnostics may include:
+
+- **CPU usage** — Soothsayer process usage and system usage samples
+- **Memory usage** — Soothsayer process memory, renderer memory, and system memory samples
+- **Renderer FPS** — frame-rate samples while the app window is visible
+- **Route/page timeline** — labels for pages visited during the diagnostic capture, such as "Cards", "Settings", or "App Performance"
+- **Timestamps and capture duration**
+- **App/runtime metadata in exported reports** — app version, Electron version, Node version, operating system type/version, sample counts, and summary statistics
+
+Performance diagnostic reports are **not uploaded automatically**. The app only creates a `.txt` report when you choose to export one. The maintainers only receive a report if you choose to send it yourself, for example through Discord or GitHub. If you send a report through a third-party service, that message is also subject to that service's own privacy policy.
+
 ---
 
 ## What We Do NOT Collect
@@ -51,7 +66,8 @@ When community uploads are enabled (Settings → Privacy & Telemetry), Soothsaye
 - IP addresses (disabled in Sentry server settings)
 - Game data, stash contents, or trade history
 - Keystroke or input data
-- Any data when telemetry is disabled
+- App performance diagnostics unless you manually export and send a report
+- Crash reports or usage analytics when those telemetry options are disabled
 
 ---
 
@@ -61,6 +77,7 @@ When community uploads are enabled (Settings → Privacy & Telemetry), Soothsaye
 - **Usage analytics** — to understand which features matter most and prioritize development
 - **Anonymous sessions** — to provide access to shared price data and app functionality
 - **Community uploads** — to aggregate card drop statistics for community insights on [wraeclast.cards](https://wraeclast.cards)
+- **User-shared diagnostics** — to troubleshoot performance issues when you choose to send an exported diagnostics report
 
 ---
 
@@ -71,6 +88,7 @@ When community uploads are enabled (Settings → Privacy & Telemetry), Soothsaye
 | [Sentry](https://sentry.io/) | Crash reporting | EU (Frankfurt) |
 | [Umami Cloud](https://umami.is/) | Usage analytics | EU |
 | [Supabase](https://supabase.com/) | Backend services | EU (Frankfurt) |
+| Local device only | App performance diagnostics storage and export | Your computer |
 
 ---
 
@@ -82,6 +100,7 @@ When community uploads are enabled (Settings → Privacy & Telemetry), Soothsaye
 | Umami analytics | 90 days (aggregated, no personal data) |
 | Supabase `api_requests` | 24–48 hours (auto-cleaned via daily cron) |
 | Community upload data | Indefinite (pseudonymized by device UUID or GGG UUID) |
+| Local app performance diagnostics | User-selected: 24 hours, 7 days (default), or indefinite — stored only in local SQLite unless you manually export and share |
 | Local app data (SQLite) | Until you delete it — fully under your control |
 
 ---
@@ -104,9 +123,19 @@ Community drop rate uploads are enabled by default and can be toggled independen
 - **Settings → Privacy & Telemetry → Community Drop Rates** — toggle uploads on/off
 - Linking a GGG account is optional — use the "Link GGG Account" button in Settings to get a verified badge, or "Unlink" to return to anonymous uploads
 
+### App Performance Diagnostics
+
+App performance diagnostics are optional and local-first:
+
+- **Settings → App Help → Diagnostic Log → App Performance diagnostics** — toggle diagnostics on/off
+- **Keep diagnostics captures** — choose retention: 24 hours, 7 days (default), or indefinitely
+- **App Performance → Export report** — creates a local `.txt` file only when you choose to export
+- Reports are only shared with maintainers if you manually send them
+- Diagnostics storage is counted in **Settings → Storage** and can also be removed by resetting the local database
+
 ### Your Local Data
 
-All session data, card drops, settings, and snapshots are stored locally on your computer in a SQLite database. You have full control over this data:
+All session data, card drops, settings, snapshots, and optional app performance diagnostics are stored locally on your computer in a SQLite database. You have full control over this data:
 
 - Use **Settings → Storage → Delete League Data** to remove specific league data
 - Use **Settings → Danger Zone → Reset Database** to delete all local data

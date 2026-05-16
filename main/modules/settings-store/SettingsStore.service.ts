@@ -118,6 +118,8 @@ class SettingsStoreService {
             case "telemetryCrashReporting":
             case "telemetryUsageAnalytics":
             case "communityUploadsEnabled":
+            case "appPerformanceMonitorEnabled":
+            case "appPerformanceAutoStartOnSession":
               assertBoolean(value, key, ch);
               break;
             case "selectedGame":
@@ -208,6 +210,13 @@ class SettingsStoreService {
               if (value !== null) {
                 assertBoundedString(value, "lastSeenAppVersion", ch, 64);
               }
+              break;
+            case "appPerformanceRetention":
+              assertEnum(value, "appPerformanceRetention", ch, [
+                "24h",
+                "7d",
+                "indefinite",
+              ] as const);
               break;
             case "overlayFontSize":
               assertNumber(value, "overlayFontSize", ch);

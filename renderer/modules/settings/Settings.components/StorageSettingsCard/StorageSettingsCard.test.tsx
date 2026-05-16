@@ -115,11 +115,14 @@ describe("StorageSettingsCard", () => {
 
   // ── Rendering ──────────────────────────────────────────────────────────
 
-  it('renders "Storage" title', () => {
+  it("renders storage description without a section title", () => {
     renderWithProviders(<StorageSettingsCard />);
 
     expect(
-      screen.getByRole("heading", { name: /Storage/i }),
+      screen.queryByRole("heading", { name: /Storage/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Disk usage for application data and database"),
     ).toBeInTheDocument();
   });
 

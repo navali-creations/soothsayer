@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FiFileText } from "react-icons/fi";
+import { FiExternalLink, FiGithub } from "react-icons/fi";
+import { RiDiscordLine } from "react-icons/ri";
 
-import { Accordion, Badge, Button } from "~/renderer/components";
+import { Badge, Button } from "~/renderer/components";
 import { OnboardingButton } from "~/renderer/modules/onboarding";
 import { allOnboardingBeaconIds } from "~/renderer/modules/onboarding/onboarding-config/onboarding-labels";
 import { trackEvent } from "~/renderer/modules/umami";
@@ -11,15 +12,15 @@ import {
   useOnboardingState,
 } from "~/renderer/store";
 
-import BeaconManagementList from "./BeaconManagementList";
+import BeaconManagementList from "./BeaconManagementList/BeaconManagementList";
 
 const DISMISS_ALL_BADGE_DURATION_MS = 2_000;
+const DISCORD_URL = "https://discord.gg/mrqmPYXHHT";
+const REPO_URL = "https://github.com/navali-creations/soothsayer";
 
 const AppHelpCard = () => {
   const [isDismissingAll, setIsDismissingAll] = useState(false);
   const [showDismissedBadge, setShowDismissedBadge] = useState(false);
-  // Keep track of the pending auto-hide timer so repeat clicks and unmounts
-  // can cancel the previous badge dismissal cleanly.
   const dismissBadgeTimeoutRef = useRef<number | null>(null);
 
   const { dismissAll, dismiss, resetOne, refreshBeaconHost } =
@@ -34,6 +35,11 @@ const AppHelpCard = () => {
   const dismissedCount = beaconStates.filter(
     (beacon) => beacon.dismissed,
   ).length;
+  const visibleCount = allOnboardingBeaconIds.length - dismissedCount;
+  const visiblePercentage =
+    allOnboardingBeaconIds.length > 0
+      ? (visibleCount / allOnboardingBeaconIds.length) * 100
+      : 0;
   const allDismissed =
     beaconStates.length > 0 && dismissedCount === allOnboardingBeaconIds.length;
 
@@ -58,10 +64,6 @@ const AppHelpCard = () => {
     },
     [refreshBeaconHost],
   );
-
-  const handleOpenDiagLog = useCallback(async () => {
-    await window.electron.diagLog.revealLogFile();
-  }, []);
 
   const handleDismissBeacon = useCallback(
     async (key: (typeof allOnboardingBeaconIds)[number]) => {
@@ -96,7 +98,6 @@ const AppHelpCard = () => {
         window.clearTimeout(dismissBadgeTimeoutRef.current);
       }
 
-      // Show a brief confirmation badge, then hide it automatically.
       dismissBadgeTimeoutRef.current = window.setTimeout(() => {
         setShowDismissedBadge(false);
       }, DISMISS_ALL_BADGE_DURATION_MS);
@@ -110,28 +111,71 @@ const AppHelpCard = () => {
   useEffect(() => {
     return () => {
       if (dismissBadgeTimeoutRef.current !== null) {
-        // Avoid firing the delayed state update after the card unmounts.
         window.clearTimeout(dismissBadgeTimeoutRef.current);
       }
     };
   }, []);
 
   return (
-    <div className="card bg-base-100 shadow-xl">
-      <div className="card-body">
-        <h2 className="card-title">App Help</h2>
-        <p className="text-sm text-base-content/60">
-          Need help getting started or want a refresher?
-        </p>
+    <div className="space-y-8">
+      <div className="sr-only">
+        <h2>App Help</h2>
+        <p>Need help getting started or want a refresher?</p>
+      </div>
 
-        <div className="divider"></div>
+      <section className="space-y-3">
+        <div className="divide-y divide-base-content/10">
+          <div className="flex items-start justify-between gap-4 py-4">
+            <div>
+              <h3 className="font-semibold">Discord</h3>
+              <p className="mt-1 text-sm text-base-content/60">
+                Join the community for questions, feedback, and release help.
+              </p>
+            </div>
+            <a
+              href={DISCORD_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Open Discord"
+              className="btn btn-outline btn-sm"
+            >
+              <RiDiscordLine />
+              Open
+              <FiExternalLink />
+            </a>
+          </div>
 
+          <div className="flex items-start justify-between gap-4 py-4">
+            <div>
+              <h3 className="font-semibold">GitHub</h3>
+              <p className="mt-1 text-sm text-base-content/60">
+                View source, releases, issues, and project discussions.
+              </p>
+            </div>
+            <a
+              href={REPO_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Open GitHub"
+              className="btn btn-outline btn-sm"
+            >
+              <FiGithub />
+              Open
+              <FiExternalLink />
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section className="space-y-4">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
-            <h3 className="font-semibold">App Tour</h3>
+            <div className="font-semibold">Interactive beacons</div>
             <p className="mt-1 text-sm text-base-content/60">
               Interactive beacons guide you through Soothsayer's features.
-              Dismissed a beacon? Reset the tour to see them all again.
+              <span className="block">
+                Dismissed a beacon? Reset the tour to see them all again.
+              </span>
             </p>
           </div>
           <div className="flex flex-col items-end gap-2">
@@ -154,43 +198,38 @@ const AppHelpCard = () => {
           </div>
         </div>
 
-        <div className="mt-4" data-testid="manage-beacons-section">
-          <Accordion
-            title="Manage Beacons"
-            headerRight={`${dismissedCount} / ${allOnboardingBeaconIds.length} dismissed`}
-            contentClassName="pt-3"
-          >
-            <p className="mb-3 text-sm text-base-content/60">
-              Toggle on keeps a beacon visible in the tour. Toggle off dismisses
-              it until you reset it.
-            </p>
-            <BeaconManagementList
-              beaconStates={beaconStates}
-              onDismiss={handleDismissBeacon}
-              onReset={handleResetBeacon}
-            />
-          </Accordion>
-        </div>
-
-        <div className="divider"></div>
-
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1">
-            <h3 className="font-semibold">Diagnostic Log</h3>
-            <p className="mt-1 text-sm text-base-content/60">
-              View startup and authentication logs for troubleshooting. The log
-              is cleared on each app launch.
-            </p>
+        <div
+          className="border-t border-base-content/10 pt-4"
+          data-testid="manage-beacons-section"
+        >
+          <div className="mb-4 flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-sm font-semibold">Manage beacons</h3>
+              <p className="mt-1 text-sm text-base-content/60">
+                Toggle on keeps a beacon visible in the tour. Toggle off
+                dismisses it until you reset it.
+              </p>
+            </div>
+            <div className="w-36 shrink-0 text-right">
+              <div className="text-xs font-medium text-base-content/60">
+                {visibleCount} / {allOnboardingBeaconIds.length} visible
+              </div>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-base-300">
+                <div
+                  className="h-full rounded-full bg-primary"
+                  style={{ width: `${visiblePercentage}%` }}
+                />
+              </div>
+            </div>
           </div>
-          <button
-            className="btn btn-outline btn-sm"
-            onClick={handleOpenDiagLog}
-          >
-            <FiFileText />
-            Open log file
-          </button>
+
+          <BeaconManagementList
+            beaconStates={beaconStates}
+            onDismiss={handleDismissBeacon}
+            onReset={handleResetBeacon}
+          />
         </div>
-      </div>
+      </section>
     </div>
   );
 };

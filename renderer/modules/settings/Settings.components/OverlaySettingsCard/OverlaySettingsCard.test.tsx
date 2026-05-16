@@ -94,11 +94,11 @@ describe("OverlaySettingsCard", () => {
 
   // ── Rendering ──────────────────────────────────────────────────────────
 
-  it('renders "Overlay" title', () => {
+  it("renders the overlay customization description for screen readers", () => {
     renderWithProviders(<OverlaySettingsCard />);
 
     expect(
-      screen.getByRole("heading", { name: /Overlay/i }),
+      screen.getByText("Customize the overlay appearance and position"),
     ).toBeInTheDocument();
   });
 

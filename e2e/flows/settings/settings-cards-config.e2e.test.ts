@@ -17,22 +17,14 @@
  * @module e2e/flows/settings/settings-cards-config
  */
 
-import { expect, type Page, test } from "../../helpers/electron-test";
+import { expect, test } from "../../helpers/electron-test";
 import { getSetting, setSetting } from "../../helpers/ipc-helpers";
+import { ensurePostSetup } from "../../helpers/navigation";
 import {
-  ensurePostSetup,
-  navigateTo,
-  waitForRoute,
-} from "../../helpers/navigation";
-
-/**
- * Navigates to settings and waits for data to load.
- */
-async function goToSettings(page: Page) {
-  await navigateTo(page, "/settings");
-  await waitForRoute(page, "/settings", 10_000);
-  await page.locator("main").waitFor({ state: "visible", timeout: 5_000 });
-}
+  activeSettingsPanel,
+  goToSettings,
+  openSettingsTab,
+} from "../../helpers/settings";
 
 test.describe("Settings – Cards (Config)", () => {
   // ─── Game Configuration (File Paths) Card ─────────────────────────────────────
@@ -41,21 +33,20 @@ test.describe("Settings – Cards (Config)", () => {
     test.beforeEach(async ({ page }) => {
       await ensurePostSetup(page);
       await goToSettings(page);
+      await openSettingsTab(page, "Game");
     });
 
     test("should render file path inputs for PoE1 and PoE2 Client.txt", async ({
       page,
     }) => {
-      const card = page.locator(".card", {
-        hasText: "Game Configuration",
-      });
-      await expect(card).toBeVisible();
+      const panel = activeSettingsPanel(page);
+      await expect(panel).toBeVisible();
 
-      await expect(card.getByText("Path of Exile 1 Client.txt")).toBeVisible();
-      await expect(card.getByText("Path of Exile 2 Client.txt")).toBeVisible();
+      await expect(panel.getByText("Path of Exile 1 Client.txt")).toBeVisible();
+      await expect(panel.getByText("Path of Exile 2 Client.txt")).toBeVisible();
 
       // There should be 2 read-only text inputs (one per game)
-      const inputs = card.locator('input[type="text"]');
+      const inputs = panel.locator('input[type="text"]');
       await expect(inputs).toHaveCount(2, { timeout: 5_000 });
 
       // Each input should be read-only
@@ -65,12 +56,10 @@ test.describe("Settings – Cards (Config)", () => {
     });
 
     test("should have file picker buttons for each path", async ({ page }) => {
-      const card = page.locator(".card", {
-        hasText: "Game Configuration",
-      });
+      const panel = activeSettingsPanel(page);
 
       // There should be folder picker buttons (one per game path)
-      const buttons = card.locator("button");
+      const buttons = panel.locator("button[title^='Select Path of Exile']");
       await expect(buttons).toHaveCount(2, { timeout: 5_000 });
     });
 
@@ -86,18 +75,17 @@ test.describe("Settings – Cards (Config)", () => {
       await page.waitForLoadState("domcontentloaded");
       await ensurePostSetup(page);
       await goToSettings(page);
+      await openSettingsTab(page, "Game");
 
-      const refreshedCard = page.locator(".card", {
-        hasText: "Game Configuration",
-      });
+      const refreshedPanel = activeSettingsPanel(page);
 
       // The first input should now have a value (masked)
-      const firstInput = refreshedCard.locator('input[type="text"]').first();
+      const firstInput = refreshedPanel.locator('input[type="text"]').first();
       const displayValue = await firstInput.inputValue();
       expect(displayValue.length).toBeGreaterThan(0);
 
       // The reveal/hide toggle should appear for the path that has a value
-      const revealToggle = refreshedCard.locator(
+      const revealToggle = refreshedPanel.locator(
         'button[title="Reveal full path"], button[title="Hide full path"]',
       );
       await expect(revealToggle.first()).toBeVisible({ timeout: 5_000 });
@@ -105,7 +93,7 @@ test.describe("Settings – Cards (Config)", () => {
       // Click to reveal — should show the full path
       await revealToggle.first().click();
       await expect(
-        refreshedCard.locator('button[title="Hide full path"]').first(),
+        refreshedPanel.locator('button[title="Hide full path"]').first(),
       ).toBeVisible({ timeout: 5_000 });
       const revealedValue = await firstInput.inputValue();
       expect(revealedValue).toBe(testPath);
@@ -113,7 +101,7 @@ test.describe("Settings – Cards (Config)", () => {
       // Click again to hide — should mask the path
       await revealToggle.first().click();
       await expect(
-        refreshedCard.locator('button[title="Reveal full path"]').first(),
+        refreshedPanel.locator('button[title="Reveal full path"]').first(),
       ).toBeVisible({ timeout: 5_000 });
       const maskedValue = await firstInput.inputValue();
       expect(maskedValue).not.toBe(testPath);
@@ -146,31 +134,27 @@ test.describe("Settings – Cards (Config)", () => {
     test("should show correct labels and description in the card", async ({
       page,
     }) => {
-      const card = page.locator(".card", {
-        hasText: "Game Configuration",
-      });
-      await expect(card).toBeVisible();
+      const panel = activeSettingsPanel(page);
+      await expect(panel).toBeVisible();
 
       // Card description
       await expect(
-        card.getByText(/configure paths to your path of exile client logs/i),
-      ).toBeVisible();
+        panel.getByText(/configure paths to your path of exile client logs/i),
+      ).toBeAttached();
 
       // Labels for each game
-      await expect(card.getByText("Path of Exile 1 Client.txt")).toBeVisible();
-      await expect(card.getByText("Path of Exile 2 Client.txt")).toBeVisible();
+      await expect(panel.getByText("Path of Exile 1 Client.txt")).toBeVisible();
+      await expect(panel.getByText("Path of Exile 2 Client.txt")).toBeVisible();
     });
 
     test("should have file picker buttons wired to selectFile IPC", async ({
       page,
     }) => {
-      const card = page.locator(".card", {
-        hasText: "Game Configuration",
-      });
-      await expect(card).toBeVisible();
+      const panel = activeSettingsPanel(page);
+      await expect(panel).toBeVisible();
 
       // There should be at least 2 file picker buttons (one per game path)
-      const buttons = card.locator("button");
+      const buttons = panel.locator("button[title^='Select Path of Exile']");
       await expect(buttons.nth(1)).toBeVisible({ timeout: 5_000 });
 
       // Each file picker button should be visible and enabled
@@ -200,63 +184,56 @@ test.describe("Settings – Cards (Config)", () => {
     test.beforeEach(async ({ page }) => {
       await ensurePostSetup(page);
       await goToSettings(page);
+      await openSettingsTab(page, "Data & Storage");
     });
 
     test("should render the Storage card with disk usage information", async ({
       page,
     }) => {
-      const card = page.locator(".card", { hasText: "Storage" }).filter({
-        hasText: /disk usage/i,
-      });
-      await expect(card).toBeVisible();
+      const panel = activeSettingsPanel(page);
+      await expect(panel).toBeVisible();
 
       // Should display "Disk Usage" heading in the body
-      await expect(card.getByText("Disk Usage").first()).toBeVisible();
+      await expect(panel.getByText("Disk Usage").first()).toBeVisible();
     });
 
     test("should display disk usage bar with size information", async ({
       page,
     }) => {
-      const card = page.locator(".card", { hasText: "Storage" }).filter({
-        hasText: /disk usage/i,
-      });
+      const panel = activeSettingsPanel(page);
 
       // Wait for storage info to load (replaces initial loading spinner)
-      await page
-        .locator(".card", { hasText: "Storage" })
-        .filter({ hasText: /disk usage/i })
+      await panel
         .getByText(/used of/i)
         .first()
         .waitFor({ state: "visible", timeout: 10_000 });
 
       // Should show "used" and "free" byte amounts in the usage bar
-      await expect(card.getByText(/used of/i).first()).toBeVisible({
+      await expect(panel.getByText(/used of/i).first()).toBeVisible({
         timeout: 10_000,
       });
-      await expect(card.getByText(/free/i).first()).toBeVisible();
+      await expect(panel.getByText(/free/i).first()).toBeVisible();
     });
 
     test("should display the League Data section", async ({ page }) => {
-      const card = page.locator(".card", { hasText: "Storage" }).filter({
-        hasText: /disk usage/i,
-      });
+      const panel = activeSettingsPanel(page);
 
-      await card
+      await panel
         .getByText(/used of/i)
         .first()
         .waitFor({ state: "visible", timeout: 10_000 });
 
       // Should show the "League Data" section heading
-      await expect(card.getByText("League Data").first()).toBeVisible({
+      await expect(panel.getByText("League Data").first()).toBeVisible({
         timeout: 10_000,
       });
 
       // Should either show league data rows or "No league data to clean up"
-      const hasLeagueData = await card
+      const hasLeagueData = await panel
         .locator("table")
         .isVisible()
         .catch(() => false);
-      const hasNoDataMsg = await card
+      const hasNoDataMsg = await panel
         .getByText(/no league data to clean up/i)
         .isVisible()
         .catch(() => false);
@@ -266,17 +243,15 @@ test.describe("Settings – Cards (Config)", () => {
     test("should have a reveal/hide path toggle on the disk usage bar", async ({
       page,
     }) => {
-      const card = page.locator(".card", { hasText: "Storage" }).filter({
-        hasText: /disk usage/i,
-      });
+      const panel = activeSettingsPanel(page);
 
-      await card
+      await panel
         .getByText(/used of/i)
         .first()
         .waitFor({ state: "visible", timeout: 10_000 });
 
       // The disk usage section should show a path and a reveal/hide toggle
-      const revealToggle = card.locator(
+      const revealToggle = panel.locator(
         'button[title="Reveal full path"], button[title="Hide full path"]',
       );
       await expect(revealToggle.first()).toBeVisible({ timeout: 5_000 });
@@ -285,14 +260,14 @@ test.describe("Settings – Cards (Config)", () => {
       await revealToggle.first().click();
 
       // The toggle should now say "Hide full path"
-      const hideToggle = card.locator('button[title="Hide full path"]');
+      const hideToggle = panel.locator('button[title="Hide full path"]');
       await expect(hideToggle.first()).toBeVisible({ timeout: 5_000 });
 
       // Click again to hide
       await hideToggle.first().click();
 
       // Should be back to "Reveal full path"
-      const revealAgain = card.locator('button[title="Reveal full path"]');
+      const revealAgain = panel.locator('button[title="Reveal full path"]');
       await expect(revealAgain.first()).toBeVisible({ timeout: 5_000 });
     });
 
@@ -300,15 +275,13 @@ test.describe("Settings – Cards (Config)", () => {
       page,
     }) => {
       // Navigate to settings — storage card starts loading on mount
-      const card = page.locator(".card", { hasText: "Storage" }).filter({
-        hasText: /disk usage/i,
-      });
+      const panel = activeSettingsPanel(page);
 
       // The card itself should be visible immediately
-      await expect(card).toBeVisible();
+      await expect(panel).toBeVisible();
 
       // Eventually the disk usage info should appear (loaded from IPC)
-      await expect(card.getByText(/used of/i).first()).toBeVisible({
+      await expect(panel.getByText(/used of/i).first()).toBeVisible({
         timeout: 15_000,
       });
     });
@@ -320,33 +293,30 @@ test.describe("Settings – Cards (Config)", () => {
     test.beforeEach(async ({ page }) => {
       await ensurePostSetup(page);
       await goToSettings(page);
+      await openSettingsTab(page, "Advanced");
     });
 
     test("should render the Danger Zone card with destructive styling", async ({
       page,
     }) => {
-      const dangerZone = page.getByText(/danger zone/i).first();
-      await expect(dangerZone).toBeVisible({ timeout: 5_000 });
-
-      // The danger zone card has error border styling
-      const card = page.locator(".card", { hasText: "Danger Zone" });
-      await expect(card).toBeVisible();
+      const panel = activeSettingsPanel(page);
+      await expect(panel).toBeVisible();
 
       // Should show irreversible warning text
-      await expect(card.getByText(/irreversible actions/i)).toBeVisible();
+      await expect(panel.getByText(/cannot be undone/i).first()).toBeVisible();
 
       // Reset Database section heading
       await expect(
-        card.getByRole("heading", { name: "Reset Database" }),
+        panel.getByRole("heading", { name: "Reset Database" }),
       ).toBeVisible();
 
       // Description about what gets deleted
       await expect(
-        card.getByText(/permanently delete all sessions/i),
+        panel.getByText(/permanently delete all sessions/i),
       ).toBeVisible();
 
       // Should have a reset database button with error variant
-      const resetButton = card
+      const resetButton = panel
         .locator("button", { hasText: /reset database/i })
         .first();
       await expect(resetButton).toBeVisible();
@@ -356,8 +326,8 @@ test.describe("Settings – Cards (Config)", () => {
     test("should open confirmation modal when clicking Reset Database", async ({
       page,
     }) => {
-      const card = page.locator(".card", { hasText: "Danger Zone" });
-      const resetButton = card
+      const panel = activeSettingsPanel(page);
+      const resetButton = panel
         .locator("button", { hasText: /reset database/i })
         .first();
 
@@ -400,8 +370,8 @@ test.describe("Settings – Cards (Config)", () => {
     test("should close confirmation modal when clicking Cancel", async ({
       page,
     }) => {
-      const card = page.locator(".card", { hasText: "Danger Zone" });
-      const resetButton = card
+      const panel = activeSettingsPanel(page);
+      const resetButton = panel
         .locator("button", { hasText: /reset database/i })
         .first();
 
@@ -430,8 +400,8 @@ test.describe("Settings – Cards (Config)", () => {
     test("should be able to open and close the modal multiple times", async ({
       page,
     }) => {
-      const card = page.locator(".card", { hasText: "Danger Zone" });
-      const resetButton = card
+      const panel = activeSettingsPanel(page);
+      const resetButton = panel
         .locator("button", { hasText: /reset database/i })
         .first();
 
@@ -456,8 +426,8 @@ test.describe("Settings – Cards (Config)", () => {
     });
 
     test("modal should display all deletion consequences", async ({ page }) => {
-      const card = page.locator(".card", { hasText: "Danger Zone" });
-      const resetButton = card
+      const panel = activeSettingsPanel(page);
+      const resetButton = panel
         .locator("button", { hasText: /reset database/i })
         .first();
 

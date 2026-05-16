@@ -4,6 +4,7 @@ import { devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 
 import { createAppMenuSlice } from "../modules/app-menu/AppMenu.slice/AppMenu.slice";
+import { createAppPerformanceSlice } from "../modules/app-performance/AppPerformance.slice/AppPerformance.slice";
 import { createBannersSlice } from "../modules/banners";
 import { createCardDetailsSlice } from "../modules/card-details/CardDetails.slice/CardDetails.slice";
 import { createCardsSlice } from "../modules/cards/Cards.slice/Cards.slice";
@@ -26,18 +27,24 @@ import { createSetupSlice } from "../modules/setup/Setup.slice/Setup.slice";
 import { createStatisticsSlice } from "../modules/statistics/Statistics.slice/Statistics.slice";
 import { createUpdaterSlice } from "../modules/updater/Updater.slice/Updater.slice";
 import type { BoundStore } from "./store.types";
+import { sanitizeStoreForDevtools } from "./store.utils";
 
 enableMapSet();
 
 const IS_DEV = import.meta.env.DEV;
 
 const withDevtools = IS_DEV
-  ? (((fn: any) => devtools(fn, { maxAge: 25 })) as typeof devtools)
+  ? (((fn: any) =>
+      devtools(fn, {
+        maxAge: 5,
+        stateSanitizer: sanitizeStoreForDevtools,
+      })) as typeof devtools)
   : (((fn: any) => fn) as typeof devtools);
 export const useBoundStore = create<BoundStore>()(
   withDevtools(
     immer((...a) => {
       const bannersSlice = createBannersSlice(...a);
+      const appPerformanceSlice = createAppPerformanceSlice(...a);
       const settingsSlice = createSettingsSlice(...a);
       const storageSlice = createStorageSlice(...a);
       const setupSlice = createSetupSlice(...a);
@@ -65,6 +72,7 @@ export const useBoundStore = create<BoundStore>()(
 
       return {
         ...settingsSlice,
+        ...appPerformanceSlice,
         ...storageSlice,
         ...setupSlice,
         ...sessionSlice,
@@ -93,6 +101,8 @@ export const useBoundStore = create<BoundStore>()(
             settingsSlice.settings.hydrate(),
             setupSlice.setup.hydrate(),
           ]);
+
+          await appPerformanceSlice.appPerformance.hydrate();
 
           await Promise.all([
             sessionSlice.currentSession.hydrate(),
@@ -124,12 +134,15 @@ export const useBoundStore = create<BoundStore>()(
         startListeners: () => {
           const unsubscribeSession =
             sessionSlice.currentSession.startListening();
+          const unsubscribeAppPerformance =
+            appPerformanceSlice.appPerformance.startListening();
           const unsubscribeGameInfo = gameInfoSlice.gameInfo.startListening();
           const unsubscribePoeNinja = poeNinjaSlice.poeNinja.startListening();
           const unsubscribeOverlay = overlaySlice.overlay.startListening();
           const unsubscribeUpdater = updaterSlice.updater.startListening();
           return () => {
             unsubscribeSession();
+            unsubscribeAppPerformance();
             unsubscribeGameInfo();
             unsubscribePoeNinja();
             unsubscribeOverlay();
@@ -141,6 +154,7 @@ export const useBoundStore = create<BoundStore>()(
           a[0](
             ({
               appMenu,
+              appPerformance,
               settings,
               setup,
               gameInfo,
@@ -162,6 +176,34 @@ export const useBoundStore = create<BoundStore>()(
               settings.error = null;
               settings.overlayFontSize = 1.0;
               settings.overlayToolbarFontSize = 1.0;
+
+              // Reset app performance diagnostics
+              appPerformance.captureId = null;
+              appPerformance.captureStartedAt = null;
+              appPerformance.captureStoppedAt = null;
+              appPerformance.isSampling = false;
+              appPerformance.captureHistory = [];
+              appPerformance.isLoadingHistory = false;
+              appPerformance.captureHistoryPage = 1;
+              appPerformance.captureHistoryPageSize = 5;
+              appPerformance.captureHistoryTotal = 0;
+              appPerformance.captureHistoryTotalPages = 1;
+              appPerformance.isLoadingCapture = false;
+              appPerformance.deletingCaptureId = null;
+              appPerformance.samples = [];
+              appPerformance.routeMarkers = [];
+              appPerformance.focusedChart = null;
+              appPerformance.indexView = "captures";
+              appPerformance.deleteMode = false;
+              appPerformance.selectedCaptureIds = [];
+              appPerformance.isDeleteConfirmOpen = false;
+              appPerformance.deleteError = null;
+              appPerformance.isBulkDeleting = false;
+              appPerformance.isStartingCapture = false;
+              appPerformance.isExporting = false;
+              appPerformance.lastExportFileName = null;
+              appPerformance.error = null;
+              appPerformance.lastRecordedRouteKey = null;
 
               // Reset setup
               setup.setupState = null;

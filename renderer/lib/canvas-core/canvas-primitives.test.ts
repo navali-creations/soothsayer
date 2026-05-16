@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  buildPointSegments,
+  buildSegmentGapConnectors,
   clamp,
+  colorWithAlpha,
   createLinearMapper,
   DPR,
   drawDonutIndicator,
@@ -11,6 +14,7 @@ import {
   monotoneTangents,
   nearestPointHitTest,
   parseRgba,
+  resolveVisibleTicks,
   rgbaStr,
   type SplinePoint,
   setupCanvas,
@@ -97,6 +101,39 @@ describe("clamp", () => {
   });
 });
 
+describe("line segment helpers", () => {
+  it("splits drawable points around missing values", () => {
+    expect(
+      buildPointSegments([1, null, 2, 3, Number.NaN, 4], (value, index) =>
+        typeof value === "number" && Number.isFinite(value)
+          ? { x: index, y: value }
+          : null,
+      ),
+    ).toEqual([
+      [{ x: 0, y: 1 }],
+      [
+        { x: 2, y: 2 },
+        { x: 3, y: 3 },
+      ],
+      [{ x: 5, y: 4 }],
+    ]);
+  });
+
+  it("builds connectors between separated segments", () => {
+    const first = [{ x: 0, y: 1 }];
+    const second = [
+      { x: 2, y: 2 },
+      { x: 3, y: 3 },
+    ];
+    const third = [{ x: 5, y: 4 }];
+
+    expect(buildSegmentGapConnectors([first, second, third])).toEqual([
+      [first[0], second[0]],
+      [second[1], third[0]],
+    ]);
+  });
+});
+
 // ─── evenTicks ──────────────────────────────────────────────────────────────
 
 describe("evenTicks", () => {
@@ -136,6 +173,39 @@ describe("evenTicks", () => {
   });
 });
 
+describe("resolveVisibleTicks", () => {
+  it("uses data-anchored ticks inside the visible domain", () => {
+    expect(
+      resolveVisibleTicks({
+        ticks: [0, 60_000, 120_000, 180_000],
+        min: 60_000,
+        max: 120_000,
+      }),
+    ).toEqual([60_000, 120_000]);
+  });
+
+  it("deduplicates and ignores invalid ticks", () => {
+    expect(
+      resolveVisibleTicks({
+        ticks: [0, 0, Number.NaN, 60_000, Infinity, 120_000],
+        min: 0,
+        max: 60_000,
+      }),
+    ).toEqual([0, 60_000]);
+  });
+
+  it("falls back to even ticks when no data tick is visible", () => {
+    expect(
+      resolveVisibleTicks({
+        ticks: [120_000],
+        min: 0,
+        max: 60_000,
+        fallbackCount: 3,
+      }),
+    ).toEqual([0, 30_000, 60_000]);
+  });
+});
+
 // ─── parseRgba / rgbaStr ────────────────────────────────────────────────────
 
 describe("parseRgba", () => {
@@ -157,6 +227,21 @@ describe("parseRgba", () => {
     });
   });
 
+  it("parses hex colors", () => {
+    expect(parseRgba("#22c55e")).toEqual({
+      r: 34,
+      g: 197,
+      b: 94,
+      a: 1,
+    });
+    expect(parseRgba("#0cf")).toEqual({
+      r: 0,
+      g: 204,
+      b: 255,
+      a: 1,
+    });
+  });
+
   it("returns fallback for invalid string", () => {
     expect(parseRgba("not-a-color")).toEqual({ r: 128, g: 128, b: 128, a: 1 });
   });
@@ -169,6 +254,19 @@ describe("rgbaStr", () => {
 
   it("handles full opacity", () => {
     expect(rgbaStr(0, 0, 0, 1)).toBe("rgba(0, 0, 0, 1)");
+  });
+});
+
+describe("colorWithAlpha", () => {
+  it("reuses color channels with the requested alpha", () => {
+    expect(colorWithAlpha("rgb(34, 197, 94)", 0.45)).toBe(
+      "rgba(34, 197, 94, 0.45)",
+    );
+  });
+
+  it("clamps alpha values", () => {
+    expect(colorWithAlpha("#22c55e", 2)).toBe("rgba(34, 197, 94, 1)");
+    expect(colorWithAlpha("#22c55e", -1)).toBe("rgba(34, 197, 94, 0)");
   });
 });
 

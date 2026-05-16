@@ -26,6 +26,10 @@ import {
   seedSessionPrerequisites,
 } from "../helpers/seed-db";
 import { resetSessionsBulkState } from "../helpers/sessions";
+import {
+  goToSettings as goToSettingsPage,
+  openSettingsTab,
+} from "../helpers/settings";
 
 interface SessionsPageResult {
   sessions: Array<{ sessionId: string; totalDecksOpened: number }>;
@@ -57,10 +61,8 @@ async function goToSessions(page: Page) {
 }
 
 async function goToSettings(page: Page) {
-  await navigateTo(page, "/settings");
-  await page
-    .locator("main h1", { hasText: "Settings" })
-    .waitFor({ state: "visible", timeout: 10_000 });
+  await goToSettingsPage(page);
+  await openSettingsTab(page, "Data & Storage");
 }
 
 async function openMoreOptions(page: Page) {
@@ -238,7 +240,7 @@ test.describe("Sessions multi-session delete", () => {
     expect(globalStats.totalStackedDecksOpened).toBe(22);
 
     await goToSettings(page);
-    await expect(page.getByText("Storage", { exact: true })).toBeVisible();
+    await expect(page.getByText("Disk Usage", { exact: true })).toBeVisible();
     const leagueUsage = await callElectronAPI<LeagueStorageUsage[]>(
       page,
       "storage",

@@ -1,9 +1,11 @@
+import clsx from "clsx";
 import { AnimatePresence, motion } from "motion/react";
 import { useMemo } from "react";
 import { FiPlay, FiRefreshCw } from "react-icons/fi";
 import { GiCardExchange, GiLockedChest } from "react-icons/gi";
 
 import {
+  AnimatedStopIcon,
   Button,
   Flex,
   type RaritySourceGroup,
@@ -18,15 +20,9 @@ import {
 } from "~/renderer/store";
 import { encodeRaritySourceValue } from "~/renderer/utils";
 
-/**
- * Small helper that renders a dataset-driven menu label with a dotted
- * underline and a superscript "?" hint.
- */
-const DatasetMenuLabel = ({ label, hint }: { label: string; hint: string }) => (
-  <span className="border-b border-dotted border-b-current" title={hint}>
-    {label} <sup>?</sup>
-  </span>
-);
+import { DatasetMenuLabel } from "./DatasetMenuLabel/DatasetMenuLabel";
+
+const noop = () => {};
 
 const CurrentSessionActions = () => {
   const { getIsCurrentSessionActive, isLoading, startSession, stopSession } =
@@ -53,6 +49,14 @@ const CurrentSessionActions = () => {
 
   const handlePriceSourceChange = async (source: "exchange" | "stash") => {
     await setActiveGameViewPriceSource(source);
+  };
+
+  const handleExchangePriceSource = () => {
+    void handlePriceSourceChange("exchange");
+  };
+
+  const handleStashPriceSource = () => {
+    void handlePriceSourceChange("stash");
   };
 
   const dropdownValue = encodeRaritySourceValue(raritySource, selectedFilterId);
@@ -115,7 +119,7 @@ const CurrentSessionActions = () => {
         : isScanning
           ? {
               label: "Scanning...",
-              onClick: () => {},
+              onClick: noop,
               loading: true,
               loadingLabel: "Scanning...",
             }
@@ -173,25 +177,7 @@ const CurrentSessionActions = () => {
                 disabled={isLoading}
                 className="w-[137px]"
               >
-                <svg viewBox="0 0 24 24" className="w-4 h-4">
-                  <rect
-                    className="
-                      stroke-current
-                      stroke-3
-                      fill-none
-                      [stroke-linecap:butt]
-                      [stroke-dasharray:42_8]
-                      animate-stop-session
-                    "
-                    x="3"
-                    y="3"
-                    width="18"
-                    height="18"
-                    rx="2"
-                    ry="2"
-                    pathLength="100"
-                  />
-                </svg>
+                <AnimatedStopIcon />
                 Stop Session
               </Button>
             </motion.div>
@@ -223,20 +209,20 @@ const CurrentSessionActions = () => {
       >
         <button
           role="tab"
-          className={`tab flex flex-row items-center gap-1 ${
-            priceSource === "exchange" ? "tab-active" : ""
-          }`}
-          onClick={() => handlePriceSourceChange("exchange")}
+          className={clsx("tab flex flex-row items-center gap-1", {
+            "tab-active": priceSource === "exchange",
+          })}
+          onClick={handleExchangePriceSource}
         >
           <GiCardExchange />
           Exchange
         </button>
         <button
           role="tab"
-          className={`tab flex flex-row items-center gap-1 ${
-            priceSource === "stash" ? "tab-active" : ""
-          }`}
-          onClick={() => handlePriceSourceChange("stash")}
+          className={clsx("tab flex flex-row items-center gap-1", {
+            "tab-active": priceSource === "stash",
+          })}
+          onClick={handleStashPriceSource}
         >
           <GiLockedChest />
           Stash

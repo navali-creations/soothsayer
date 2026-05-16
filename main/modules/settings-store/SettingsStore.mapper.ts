@@ -61,6 +61,15 @@ export function toUserSettingsDTO(row: UserSettingsRow): UserSettingsDTO {
       : null,
     csvExportPath: row.csv_export_path ?? null,
     communityUploadsEnabled: Boolean(row.community_uploads_enabled),
+    appPerformanceMonitorEnabled: Boolean(
+      row.app_performance_monitor_enabled ?? 0,
+    ),
+    appPerformanceAutoStartOnSession: Boolean(
+      row.app_performance_auto_start_on_session ?? 0,
+    ),
+    appPerformanceRetention:
+      (row.app_performance_retention as UserSettingsDTO["appPerformanceRetention"]) ??
+      "7d",
   };
 }
 
@@ -144,6 +153,9 @@ export function toDBKey(key: keyof UserSettingsDTO): keyof UserSettingsTable {
     mainWindowBounds: "main_window_bounds",
     csvExportPath: "csv_export_path",
     communityUploadsEnabled: "community_uploads_enabled",
+    appPerformanceMonitorEnabled: "app_performance_monitor_enabled",
+    appPerformanceAutoStartOnSession: "app_performance_auto_start_on_session",
+    appPerformanceRetention: "app_performance_retention",
   };
   return mapping[key];
 }

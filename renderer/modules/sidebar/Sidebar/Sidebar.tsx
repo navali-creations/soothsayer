@@ -2,8 +2,8 @@ import { AnimatePresence, motion } from "motion/react";
 
 import { useCurrentSession } from "~/renderer/store";
 
-import Navigation from "../Sidebar.components/Nav";
-import SessionStatus from "../Sidebar.components/SessionStatus";
+import { Nav } from "../Sidebar.components/Nav/Nav";
+import { SessionStatus } from "../Sidebar.components/SessionStatus/SessionStatus";
 
 const SESSION_STATUS_HEIGHT = 133;
 
@@ -32,7 +32,7 @@ const Sidebar = () => {
         transition={{ duration: 0.3, ease: "easeInOut" }}
         className="h-full"
       >
-        <Navigation />
+        <Nav />
       </motion.div>
     </aside>
   );

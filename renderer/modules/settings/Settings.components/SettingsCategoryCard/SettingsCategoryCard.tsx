@@ -7,18 +7,15 @@ interface SettingsCategoryCardProps {
 
 const SettingsCategoryCard = ({ category }: SettingsCategoryCardProps) => {
   return (
-    <div className="card bg-base-100 shadow-xl">
-      <div className="card-body">
-        <h2 className="card-title">{category.title}</h2>
-        <p className="text-sm text-base-content/60">{category.description}</p>
+    <section className="space-y-3">
+      <p className="sr-only">{category.description}</p>
 
-        <div className="space-y-4 mt-4">
-          {category.settings.map((setting) => (
-            <SettingField key={setting.key} setting={setting} />
-          ))}
-        </div>
+      <div className="divide-y divide-base-content/10">
+        {category.settings.map((setting) => (
+          <SettingField key={setting.key} setting={setting} />
+        ))}
       </div>
-    </div>
+    </section>
   );
 };
 

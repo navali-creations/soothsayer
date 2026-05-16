@@ -9,7 +9,12 @@ import { useEffect, useRef, useState } from "react";
 
 import BackfillBanner from "~/renderer/modules/app-menu/AppMenu.component/BackfillBanner/BackfillBanner";
 import { BeaconHost } from "~/renderer/modules/onboarding";
-import { useCommunityUpload, useRootActions, useSetup } from "~/renderer/store";
+import {
+  useAppPerformanceShallow,
+  useCommunityUpload,
+  useRootActions,
+  useSetup,
+} from "~/renderer/store";
 import { cardNameToSlug } from "~/renderer/utils";
 
 import { AppMenu } from "../modules/app-menu";
@@ -27,6 +32,13 @@ const RootLayout = () => {
   const { hydrate, startListeners } = useRootActions();
   const { isSetupComplete, setupState } = useSetup();
   const { checkBackfill } = useCommunityUpload();
+  const { isSampling, recordRoute } = useAppPerformanceShallow(
+    (appPerformance) => ({
+      isSampling: appPerformance.isSampling,
+      recordRoute: appPerformance.recordRoute,
+    }),
+  );
+  const isSetupMode = !setupState?.isComplete;
 
   useEffect(() => {
     slowTimerRef.current = setTimeout(() => setIsSlow(true), 5000);
@@ -66,6 +78,11 @@ const RootLayout = () => {
   }, [isHydrating, setupState?.isComplete, pathname, navigate]);
 
   useEffect(() => {
+    if (!isSampling || isSetupMode) return;
+    void recordRoute(pathname);
+  }, [isSampling, isSetupMode, pathname, recordRoute]);
+
+  useEffect(() => {
     if (!window.electron?.cardDetails?.onNavigateToCard) return;
 
     const cleanup = window.electron.cardDetails.onNavigateToCard(
@@ -77,8 +94,6 @@ const RootLayout = () => {
 
     return cleanup;
   }, [navigate]);
-
-  const isSetupMode = !setupState?.isComplete;
 
   if (isHydrating) {
     return (

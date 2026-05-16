@@ -21,6 +21,7 @@ vi.mock("motion/react", async () => {
 });
 
 vi.mock("~/renderer/components", () => ({
+  AnimatedStopIcon: () => <span data-testid="animated-stop-icon" />,
   Button: ({ children, onClick, disabled, ...props }: any) => (
     <button onClick={onClick} disabled={disabled} {...props}>
       {children}
@@ -55,11 +56,15 @@ vi.mock("~/renderer/components", () => ({
             ) : null,
           )}
           {g.action && (
-            <span data-testid={`group-action-${gi}`}>
+            <button
+              type="button"
+              data-testid={`group-action-${gi}`}
+              onClick={g.action.onClick}
+            >
               {g.action.loading
                 ? g.action.loadingLabel || g.action.label
                 : g.action.label}
-            </span>
+            </button>
           )}
         </div>
       ))}
@@ -352,8 +357,8 @@ describe("CurrentSessionActions", () => {
 
   // ── Scanning state (L115-122) ──────────────────────────────────────────
 
-  it("shows Scanning... loading state when isScanning is true and filters exist", () => {
-    setupStore({
+  it("shows Scanning... loading state when isScanning is true and filters exist", async () => {
+    const store = setupStore({
       rarityInsights: {
         isScanning: true,
         lastScannedAt: Date.now(),
@@ -362,9 +367,13 @@ describe("CurrentSessionActions", () => {
         getOnlineFilters: vi.fn(() => []),
       },
     });
-    renderWithProviders(<CurrentSessionActions />);
+    const { user } = renderWithProviders(<CurrentSessionActions />);
 
     expect(screen.getByText("Scanning...")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("group-action-1"));
+
+    expect(store.rarityInsights.scanFilters).not.toHaveBeenCalled();
   });
 
   it("shows Scan for filters when lastScannedAt is null and not scanning", () => {

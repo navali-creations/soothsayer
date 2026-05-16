@@ -27,6 +27,7 @@ import {
   getVisibleCardNames,
   goToRarityInsights,
   openFiltersDropdown,
+  restoreRarityInsightsFixture,
   SEARCH_INPUT_SELECTOR,
   searchAndExpectAbsent,
   searchAndWaitForCard,
@@ -322,6 +323,7 @@ test.describe("Rarity Insights — Interactions", () => {
         }
       };
 
+      await restoreRarityInsightsFixture(page);
       await goToRarityInsights(page);
       await waitForPageSettled(page);
       await waitForTableRows(page);
@@ -358,7 +360,7 @@ test.describe("Rarity Insights — Interactions", () => {
         // Force a fresh loadCards() now that the DB is fully seeded
         await page.evaluate(async () => {
           const store = (window as any).__zustandStore;
-          await store?.getState()?.cards?.loadCards?.();
+          await store?.getState()?.cards?.loadCards?.({ force: true });
         });
         // Wait for the table to re-render with updated data
         await waitForTableRows(page);

@@ -94,12 +94,13 @@ describe("PrivacySettingsCard", () => {
 
   // ── Rendering ──────────────────────────────────────────────────────────
 
-  it('renders "Privacy & Telemetry" title', () => {
+  it("renders privacy controls without a section title", () => {
     renderWithProviders(<PrivacySettingsCard />);
 
     expect(
-      screen.getByRole("heading", { name: /Privacy & Telemetry/i }),
-    ).toBeInTheDocument();
+      screen.queryByRole("heading", { name: /Privacy & Telemetry/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Crash Reporting")).toBeInTheDocument();
   });
 
   it("renders Crash Reporting toggle", () => {
@@ -246,80 +247,28 @@ describe("PrivacySettingsCard", () => {
 
   // ── GGG account link/unlink ──────────────────────────────────────────
 
-  it("shows GGG authenticated state with username and Unlink button", () => {
+  it("does not show GGG relay account section while the relay website is disabled", () => {
     setupStore({
       communityUploadsEnabled: true,
       gggAuthenticated: true,
       gggUsername: "TestUser",
-    });
-    renderWithProviders(<PrivacySettingsCard />);
-
-    expect(screen.getByText("TestUser")).toBeInTheDocument();
-    expect(screen.getByText("Unlink")).toBeInTheDocument();
-  });
-
-  it("shows anonymous upload state with Link GGG Account button when not authenticated", () => {
-    setupStore({ communityUploadsEnabled: true, gggAuthenticated: false });
-    renderWithProviders(<PrivacySettingsCard />);
-
-    expect(screen.getByText("Uploading anonymously")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /Link GGG Account/i }),
-    ).toBeInTheDocument();
-  });
-
-  it("calls authenticate when Link GGG Account button is clicked", async () => {
-    setupStore({ communityUploadsEnabled: true, gggAuthenticated: false });
-    const { user } = renderWithProviders(<PrivacySettingsCard />);
-
-    await user.click(screen.getByRole("button", { name: /Link GGG Account/i }));
-
-    expect(mockAuthenticate).toHaveBeenCalled();
-  });
-
-  it("calls logout when Unlink button is clicked", async () => {
-    setupStore({
-      communityUploadsEnabled: true,
-      gggAuthenticated: true,
-      gggUsername: "TestUser",
-    });
-    const { user } = renderWithProviders(<PrivacySettingsCard />);
-
-    await user.click(screen.getByText("Unlink"));
-
-    expect(mockLogout).toHaveBeenCalled();
-  });
-
-  it("shows auth error message when authError is set", () => {
-    setupStore({
-      communityUploadsEnabled: true,
-      gggAuthenticated: false,
       authError: "Auth failed",
     });
     renderWithProviders(<PrivacySettingsCard />);
 
-    expect(screen.getByText("Auth failed")).toBeInTheDocument();
-  });
-
-  it("disables Link GGG Account button when isAuthenticating is true", () => {
-    setupStore({
-      communityUploadsEnabled: true,
-      gggAuthenticated: false,
-      isAuthenticating: true,
-    });
-    renderWithProviders(<PrivacySettingsCard />);
-
-    expect(
-      screen.getByRole("button", { name: /Link GGG Account/i }),
-    ).toBeDisabled();
-  });
-
-  it("does not show GGG section when community uploads are disabled", () => {
-    setupStore({ communityUploadsEnabled: false });
-    renderWithProviders(<PrivacySettingsCard />);
-
     expect(screen.queryByText("Uploading anonymously")).not.toBeInTheDocument();
+    expect(screen.queryByText("TestUser")).not.toBeInTheDocument();
     expect(screen.queryByText("Unlink")).not.toBeInTheDocument();
+    expect(screen.queryByText("Auth failed")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Link GGG Account/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not fetch GGG status while the relay website is disabled", () => {
+    renderWithProviders(<PrivacySettingsCard />);
+
+    expect(mockFetchStatus).not.toHaveBeenCalled();
   });
 
   it("renders Community Drop Rates toggle", () => {

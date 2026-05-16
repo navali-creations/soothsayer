@@ -15,6 +15,15 @@ export interface AppDataBreakdownItem {
   fileCount: number;
 }
 
+/** Local app-performance diagnostics capture usage estimate */
+export interface DiagnosticsCaptureStorageUsage {
+  captureCount: number;
+  sampleCount: number;
+  routeMarkerCount: number;
+  estimatedSizeBytes: number;
+  retentionPolicy: "24h" | "7d" | "indefinite";
+}
+
 /** Disk and app storage metrics */
 export interface StorageInfo {
   /** Masked path to the app's userData directory (use RevealPaths for full path) */
@@ -33,6 +42,8 @@ export interface StorageInfo {
   dbDiskFreeBytes: number;
   /** Categorized breakdown of what's inside the app data directory */
   breakdown: AppDataBreakdownItem[];
+  /** Row-count based estimate for local diagnostics captures in SQLite */
+  diagnosticsCaptureUsage: DiagnosticsCaptureStorageUsage;
 }
 
 /** Per-league storage usage estimate */

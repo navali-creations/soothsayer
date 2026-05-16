@@ -55,10 +55,10 @@ function makeCategory(
 // ─── Tests ─────────────────────────────────────────────────────────────────
 
 describe("SettingsCategoryCard", () => {
-  it("renders the category title", () => {
+  it("does not render the category title as visible copy", () => {
     renderWithProviders(<SettingsCategoryCard category={makeCategory()} />);
 
-    expect(screen.getByText("Application Behavior")).toBeInTheDocument();
+    expect(screen.queryByText("Application Behavior")).not.toBeInTheDocument();
   });
 
   it("renders the category description", () => {
@@ -89,7 +89,7 @@ describe("SettingsCategoryCard", () => {
     expect(settingFields).toHaveLength(3);
   });
 
-  it("renders with a custom title and description", () => {
+  it("renders with a custom description without showing the title", () => {
     renderWithProviders(
       <SettingsCategoryCard
         category={makeCategory({
@@ -99,7 +99,9 @@ describe("SettingsCategoryCard", () => {
       />,
     );
 
-    expect(screen.getByText("Game & League Selection")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Game & League Selection"),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByText("Choose which version of Path of Exile you're playing"),
     ).toBeInTheDocument();
@@ -110,7 +112,7 @@ describe("SettingsCategoryCard", () => {
       <SettingsCategoryCard category={makeCategory({ settings: [] })} />,
     );
 
-    expect(screen.getByText("Application Behavior")).toBeInTheDocument();
+    expect(screen.queryByText("Application Behavior")).not.toBeInTheDocument();
     expect(
       screen.getByText("Customize how the application behaves"),
     ).toBeInTheDocument();
@@ -118,12 +120,12 @@ describe("SettingsCategoryCard", () => {
     expect(screen.queryByTestId(/^setting-/)).not.toBeInTheDocument();
   });
 
-  it("renders the title inside a card-title heading", () => {
+  it("does not render the title as a section heading", () => {
     renderWithProviders(<SettingsCategoryCard category={makeCategory()} />);
 
-    const heading = screen.getByText("Application Behavior");
-    expect(heading.tagName).toBe("H2");
-    expect(heading).toHaveClass("card-title");
+    expect(
+      screen.queryByRole("heading", { name: /Application Behavior/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("passes the correct setting prop to each SettingField", () => {

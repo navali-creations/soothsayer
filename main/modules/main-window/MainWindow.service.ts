@@ -34,6 +34,7 @@ import {
   TrayService,
   UpdaterService,
 } from "~/main/modules";
+import { AppPerformanceService } from "~/main/modules/app-performance";
 import {
   assertTrustedSender,
   registerTrustedWebContents,
@@ -48,6 +49,7 @@ class MainWindowService {
   private debouncedSaveBoundsTimer: ReturnType<typeof setTimeout> | null = null;
   private boundsMovedHandler: (() => void) | null = null;
   private boundsResizedHandler: (() => void) | null = null;
+  private unsubscribeOverlayVisibility: (() => void) | null = null;
 
   private static _instance: MainWindowService;
 
@@ -180,6 +182,11 @@ class MainWindowService {
     this.boundsResizedHandler = null;
   }
 
+  private removeOverlayVisibilityListener(): void {
+    this.unsubscribeOverlayVisibility?.();
+    this.unsubscribeOverlayVisibility = null;
+  }
+
   public async createMainWindow() {
     const indexHtml = join(
       __dirname,
@@ -287,12 +294,30 @@ class MainWindowService {
     AnalyticsService.getInstance();
     console.log("[Init] ✓ Analytics");
 
+    // 9a. App Performance Diagnostics (depends on database + settings)
+    const appPerformanceService = AppPerformanceService.getInstance();
+    await appPerformanceService.initialize();
+    console.log("[Init] ✓ App Performance Diagnostics");
+
     // 9. CSV (utility)
     CsvService.getInstance();
     console.log("[Init] ✓ CSV");
 
     // 10. Overlay (UI overlay window)
-    OverlayService.getInstance();
+    const overlayService = OverlayService.getInstance();
+    this.unsubscribeOverlayVisibility?.();
+    this.unsubscribeOverlayVisibility = overlayService.onVisibilityChange(
+      (isVisible) => {
+        try {
+          appPerformanceService.recordOverlayMarker(isVisible);
+        } catch (error) {
+          console.warn(
+            "[MainWindow] Failed to record diagnostics overlay marker:",
+            error,
+          );
+        }
+      },
+    );
     console.log("[Init] ✓ Overlay");
 
     // 11. Client Log Reader (watches client.txt for divination cards)
@@ -458,6 +483,7 @@ class MainWindowService {
 
       if (shouldAppQuitBasedOnUserPreference || byDefaultQuitApp) {
         this.removeBoundsListeners();
+        this.removeOverlayVisibilityListener();
         OverlayService.getInstance().destroy();
         AppService.getInstance().isQuitting = true;
         this.mainWindow?.close?.();
@@ -489,6 +515,7 @@ class MainWindowService {
 
       if (shouldAppQuitBasedOnUserPreference || byDefaultQuitApp) {
         this.removeBoundsListeners();
+        this.removeOverlayVisibilityListener();
         OverlayService.getInstance().destroy();
         AppService.getInstance().isQuitting = true;
         this.mainWindow?.close?.();

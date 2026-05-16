@@ -5,6 +5,9 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/supabase-cli.sh"
+
 echo "🚀 Soothsayer Local Development Setup"
 echo "======================================"
 echo ""
@@ -40,13 +43,13 @@ fi
 
 # Start Supabase (preserves data via Docker volumes)
 echo "[*] Starting Supabase (this may take a minute)..."
-if ! pnpx supabase start --network-id local-network; then
+if ! supabase_cli start --network-id local-network; then
     echo ""
     echo -e "${YELLOW}[!]${NC} Failed to start - likely container conflicts"
     echo "[*] Cleaning up containers and retrying (volumes preserved)..."
 
     # Stop Supabase cleanly (does NOT remove volumes by default)
-    pnpx supabase stop > /dev/null 2>&1 || true
+    supabase_cli stop > /dev/null 2>&1 || true
 
     # Force remove any stuck containers
     CONTAINERS=$(docker ps -aq --filter "name=supabase_")
@@ -59,7 +62,7 @@ if ! pnpx supabase start --network-id local-network; then
     sleep 2
 
     # Retry start
-    if ! pnpx supabase start --network-id local-network; then
+    if ! supabase_cli start --network-id local-network; then
         echo ""
         echo -e "${RED}[ERROR]${NC} Still failed to start Supabase"
         echo "Try: pnpm supabase:start:fresh"
@@ -80,7 +83,7 @@ else
     # Get publishable key from supabase status
     # The new table format has: │ Publishable │ sb_publishable_... │
     # We need to extract the second column (the actual key)
-    PUBLISHABLE_KEY=$(pnpx supabase status | grep "Publishable" | awk -F'│' '{print $3}' | tr -d ' ')
+    PUBLISHABLE_KEY=$(supabase_cli status | grep "Publishable" | awk -F'│' '{print $3}' | tr -d ' ')
 
     if [ -z "$PUBLISHABLE_KEY" ]; then
         echo -e "${YELLOW}[!]${NC} Could not auto-detect publishable key"

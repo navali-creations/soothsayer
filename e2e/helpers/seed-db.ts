@@ -103,7 +103,7 @@ export interface InjectCardDropOptions {
  * The channel calls `db.prepare(sql).run(...params)` in the main process and
  * returns `{ changes, lastInsertRowid }`.
  */
-async function dbExec(
+export async function dbExec(
   page: Page,
   sql: string,
   params: unknown[] = [],

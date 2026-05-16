@@ -2,8 +2,8 @@ import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
 import { useTickingTimer } from "~/renderer/hooks";
 import { useBoundStore } from "~/renderer/store";
 
-import Navigation from "../Sidebar.components/Nav";
-import SessionStatus from "../Sidebar.components/SessionStatus";
+import { Nav } from "../Sidebar.components/Nav/Nav";
+import { SessionStatus } from "../Sidebar.components/SessionStatus/SessionStatus";
 import Sidebar from "./Sidebar";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
@@ -23,11 +23,17 @@ vi.mock("motion/react", async () => {
 });
 
 vi.mock("~/renderer/components", () => ({
-  Link: ({ children, to, ...props }: any) => (
-    <a href={to} {...props}>
-      {children}
-    </a>
-  ),
+  Link: ({ children, to, params, ...props }: any) => {
+    const href =
+      to === "/app-performance/$captureId" && params?.captureId
+        ? `/app-performance/${params.captureId}`
+        : to;
+    return (
+      <a href={href} {...props}>
+        {children}
+      </a>
+    );
+  },
   Flex: ({ children, ...props }: any) => <div {...props}>{children}</div>,
   Countdown: ({ timer, ...props }: any) => (
     <div data-testid="countdown" {...props} />
@@ -35,6 +41,25 @@ vi.mock("~/renderer/components", () => ({
 }));
 
 vi.mock("~/renderer/hooks", () => ({
+  formatTickingTimer: (timer: {
+    hours: number;
+    minutes: number;
+    seconds: number;
+  }) =>
+    timer.hours > 0
+      ? `${timer.hours}h ${String(timer.minutes).padStart(2, "0")}m ${String(
+          timer.seconds,
+        ).padStart(2, "0")}s`
+      : `${timer.minutes}m ${String(timer.seconds).padStart(2, "0")}s`,
+  useChartColors: () => ({
+    success: "#22c55e",
+    warning: "#f59e0b",
+    info: "#38bdf8",
+    secondary: "#a855f7",
+    primary: "#c026d3",
+    bc40: "rgba(255,255,255,0.4)",
+    bc30: "rgba(255,255,255,0.3)",
+  }),
   useTickingTimer: vi.fn(() => ({
     hours: 1,
     minutes: 30,
@@ -58,6 +83,18 @@ function createMockStore(overrides: any = {}) {
         league: "Standard",
       })),
       ...overrides.currentSession,
+    },
+    settings: {
+      appPerformanceMonitorEnabled: false,
+      ...overrides.settings,
+    },
+    appPerformance: {
+      captureHistory: [],
+      captureId: null,
+      captureStartedAt: null,
+      isSampling: false,
+      samples: [],
+      ...overrides.appPerformance,
     },
   } as any;
 }
@@ -139,14 +176,16 @@ describe("Navigation", () => {
   });
 
   it("renders a <nav> element", () => {
-    renderWithProviders(<Navigation />);
+    setupStore();
+    renderWithProviders(<Nav />);
 
     const nav = document.querySelector("nav");
     expect(nav).toBeInTheDocument();
   });
 
   it("renders all 6 navigation links", () => {
-    renderWithProviders(<Navigation />);
+    setupStore();
+    renderWithProviders(<Nav />);
 
     const links = screen.getAllByRole("link");
     expect(links).toHaveLength(6);
@@ -156,7 +195,8 @@ describe("Navigation", () => {
     to,
     text,
   }) => {
-    renderWithProviders(<Navigation />);
+    setupStore();
+    renderWithProviders(<Nav />);
 
     const link = screen.getByText(text).closest("a");
     expect(link).toBeInTheDocument();
@@ -164,10 +204,66 @@ describe("Navigation", () => {
   });
 
   it("renders links inside list items", () => {
-    renderWithProviders(<Navigation />);
+    setupStore();
+    renderWithProviders(<Nav />);
 
     const listItems = document.querySelectorAll("nav ul li");
     expect(listItems).toHaveLength(6);
+  });
+
+  it("does not render App Performance when diagnostics are disabled", () => {
+    setupStore({
+      settings: { appPerformanceMonitorEnabled: false },
+    });
+    renderWithProviders(<Nav />);
+
+    expect(screen.queryByText("App Performance")).not.toBeInTheDocument();
+    expect(screen.queryByText("App Perf...")).not.toBeInTheDocument();
+  });
+
+  it("renders App Performance when the feature is enabled but idle", () => {
+    setupStore({
+      settings: { appPerformanceMonitorEnabled: true },
+      appPerformance: {
+        captureId: null,
+        captureStartedAt: null,
+        isSampling: false,
+      },
+    });
+    renderWithProviders(<Nav />);
+
+    const link = screen.getByText("App Performance").closest("a");
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute("href", "/app-performance");
+    expect(screen.queryByText("App Perf...")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("sidebar-performance-charts"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders active App Performance capture with compact timer", () => {
+    setupStore({
+      settings: { appPerformanceMonitorEnabled: true },
+      appPerformance: {
+        captureId: "capture-1",
+        captureStartedAt: "2024-01-01T00:00:00Z",
+        isSampling: true,
+      },
+    });
+    renderWithProviders(<Nav />);
+
+    const link = screen.getByText("App Perf...").closest("a");
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute("href", "/app-performance/live");
+    expect(screen.getByText("1:30:45")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("sidebar-performance-charts"),
+    ).toBeInTheDocument();
+    expect(mockUseTickingTimer).toHaveBeenCalledWith({
+      referenceTime: "2024-01-01T00:00:00Z",
+      direction: "up",
+      enabled: true,
+    });
   });
 });
 

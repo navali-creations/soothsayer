@@ -9,3 +9,4 @@ export { default as PrivacySettingsCard } from "./PrivacySettingsCard/PrivacySet
 export { default as SettingField } from "./SettingField/SettingField";
 export { default as SettingsCategoryCard } from "./SettingsCategoryCard/SettingsCategoryCard";
 export { default as StorageSettingsCard } from "./StorageSettingsCard/StorageSettingsCard";
+export { default as TroubleshootingSettingsCard } from "./TroubleshootingSettingsCard/TroubleshootingSettingsCard";

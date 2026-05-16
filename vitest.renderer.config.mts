@@ -35,6 +35,7 @@ export default defineConfig({
         "renderer/modules/**/*.ts",
         "renderer/modules/**/*.tsx",
         "renderer/hooks/**/*.ts",
+        "renderer/lib/canvas-core/**/*.ts",
         "renderer/components/**/*.ts",
         "renderer/components/**/*.tsx",
         "renderer/utils.ts",

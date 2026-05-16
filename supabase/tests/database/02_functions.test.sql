@@ -9,7 +9,7 @@
 
 BEGIN;
 
-SELECT plan(75);
+SELECT plan(106);
 
 -- ═══════════════════════════════════════════════════════════════
 -- VERIFY FUNCTIONS EXIST
@@ -65,6 +65,68 @@ SELECT has_function(
   'public', 'populate_cards_for_game',
   ARRAY['text'],
   'populate_cards_for_game(text) should exist'
+);
+
+SELECT has_function(
+  'public', 'create_snapshot_with_prices',
+  ARRAY['uuid', 'timestamp with time zone', 'numeric', 'numeric', 'numeric', 'numeric', 'jsonb'],
+  'create_snapshot_with_prices(uuid, timestamptz, numeric, numeric, numeric, numeric, jsonb) should exist'
+);
+
+SELECT results_eq(
+  $$SELECT has_function_privilege(
+    'service_role',
+    'public.create_snapshot_with_prices(uuid,timestamp with time zone,numeric,numeric,numeric,numeric,jsonb)'::regprocedure,
+    'EXECUTE'
+  )$$,
+  ARRAY[true],
+  'create_snapshot_with_prices should grant EXECUTE to service_role'
+);
+
+SELECT results_eq(
+  $$SELECT NOT has_function_privilege(
+    'anon',
+    'public.create_snapshot_with_prices(uuid,timestamp with time zone,numeric,numeric,numeric,numeric,jsonb)'::regprocedure,
+    'EXECUTE'
+  )$$,
+  ARRAY[true],
+  'create_snapshot_with_prices should not grant EXECUTE to anon'
+);
+
+SELECT results_eq(
+  $$SELECT NOT has_function_privilege(
+    'authenticated',
+    'public.create_snapshot_with_prices(uuid,timestamp with time zone,numeric,numeric,numeric,numeric,jsonb)'::regprocedure,
+    'EXECUTE'
+  )$$,
+  ARRAY[true],
+  'create_snapshot_with_prices should not grant EXECUTE to authenticated'
+);
+
+SELECT results_eq(
+  $$SELECT prosecdef
+    FROM pg_proc
+    WHERE oid = 'public.create_snapshot_with_prices(uuid,timestamp with time zone,numeric,numeric,numeric,numeric,jsonb)'::regprocedure$$,
+  ARRAY[true],
+  'create_snapshot_with_prices should be SECURITY DEFINER'
+);
+
+SELECT results_eq(
+  $$SELECT COALESCE(proconfig, ARRAY[]::text[]) @> ARRAY['search_path=public, pg_temp']
+    FROM pg_proc
+    WHERE oid = 'public.create_snapshot_with_prices(uuid,timestamp with time zone,numeric,numeric,numeric,numeric,jsonb)'::regprocedure$$,
+  ARRAY[true],
+  'create_snapshot_with_prices should pin search_path to public, pg_temp'
+);
+
+SELECT ok(
+  (
+    SELECT obj_description(
+      'public.create_snapshot_with_prices(uuid,timestamp with time zone,numeric,numeric,numeric,numeric,jsonb)'::regprocedure,
+      'pg_proc'
+    ) COLLATE "C" = 'Atomically creates a non-empty snapshot and card_prices rows, serializing recent writes per league. SECURITY DEFINER, service_role only.'::text COLLATE "C"
+  ),
+  'create_snapshot_with_prices should document its atomic write and access model'
 );
 
 SELECT has_function(
@@ -951,6 +1013,369 @@ SELECT results_eq(
       AND is_suspicious = true$$,
   ARRAY[0],
   'No uploads should be flagged when stddev=0 and no round-number issues'
+);
+
+-- ═══════════════════════════════════════════════════════════════
+-- TEST: create_snapshot_with_prices — atomic snapshot + prices write
+-- ═══════════════════════════════════════════════════════════════
+
+INSERT INTO poe_leagues (id, game, league_id, name, is_active)
+VALUES ('fb000000-0000-0000-0000-000000000001', 'poe1', 'rpc_test_league', 'RPC Test League', true);
+
+INSERT INTO cards (id, game, name) VALUES
+  ('fb000000-0000-0000-0000-000000000101', 'poe1', 'RPC Test Card A'),
+  ('fb000000-0000-0000-0000-000000000102', 'poe1', 'RPC Test Card B'),
+  ('fb000000-0000-0000-0000-000000000103', 'poe1', 'RPC Test Card C');
+
+CREATE TEMP TABLE rpc_created_snapshot AS
+SELECT id FROM create_snapshot_with_prices(
+  'fb000000-0000-0000-0000-000000000001',
+  '2026-05-06T12:00:00Z',
+  100,
+  101,
+  2.5,
+  42,
+  '[
+    {"card_id":"fb000000-0000-0000-0000-000000000101","price_source":"exchange","chaos_value":10,"divine_value":0.1,"confidence":1},
+    {"card_id":"fb000000-0000-0000-0000-000000000102","price_source":"stash","chaos_value":20,"divine_value":0.2,"confidence":2},
+    {"card_id":"fb000000-0000-0000-0000-000000000103","price_source":"stash","chaos_value":30,"divine_value":0.3,"confidence":3}
+  ]'::jsonb
+);
+
+SELECT results_eq(
+  $$SELECT COUNT(*)::int
+    FROM card_prices
+    WHERE snapshot_id = (SELECT id FROM rpc_created_snapshot)$$,
+  ARRAY[3],
+  'create_snapshot_with_prices should create a snapshot and all price rows atomically'
+);
+
+SELECT results_eq(
+  $$SELECT COUNT(*)::int
+    FROM snapshots
+    WHERE league_id = 'fb000000-0000-0000-0000-000000000001'
+      AND fetched_at = '2026-05-06T12:00:00Z'
+      AND exchange_chaos_to_divine = 100
+      AND stash_chaos_to_divine = 101
+      AND stacked_deck_chaos_cost = 2.5
+      AND stacked_deck_max_volume_rate = 42$$,
+  ARRAY[1],
+  'create_snapshot_with_prices should persist every snapshot field from the RPC arguments'
+);
+
+SELECT results_eq(
+  $$SELECT COUNT(*)::int
+    FROM card_prices
+    WHERE snapshot_id = (
+      SELECT id
+      FROM snapshots
+      WHERE league_id = 'fb000000-0000-0000-0000-000000000001'
+        AND fetched_at = '2026-05-06T12:00:00Z'
+    )
+      AND (
+        (card_id = 'fb000000-0000-0000-0000-000000000101' AND price_source = 'exchange' AND chaos_value = 10 AND divine_value = 0.1 AND confidence = 1)
+        OR (card_id = 'fb000000-0000-0000-0000-000000000102' AND price_source = 'stash' AND chaos_value = 20 AND divine_value = 0.2 AND confidence = 2)
+        OR (card_id = 'fb000000-0000-0000-0000-000000000103' AND price_source = 'stash' AND chaos_value = 30 AND divine_value = 0.3 AND confidence = 3)
+      )$$,
+  ARRAY[3],
+  'create_snapshot_with_prices should persist every card price field from the JSON payload'
+);
+
+SELECT results_eq(
+  $$SELECT fetched_at
+    FROM create_snapshot_with_prices(
+      'fb000000-0000-0000-0000-000000000001',
+      '2026-05-06T12:05:00Z',
+      100,
+      101,
+      2.5,
+      0.75,
+      '[{"card_id":"fb000000-0000-0000-0000-000000000101","price_source":"exchange","chaos_value":10,"divine_value":0.1,"confidence":1}]'::jsonb
+    )$$,
+  ARRAY['2026-05-06T12:00:00Z'::timestamptz],
+  'create_snapshot_with_prices should return a recent snapshot instead of creating a duplicate'
+);
+
+SELECT results_eq(
+  $$SELECT COUNT(*)::int
+    FROM snapshots
+    WHERE league_id = 'fb000000-0000-0000-0000-000000000001'
+      AND fetched_at >= '2026-05-06T12:00:00Z'
+      AND fetched_at < '2026-05-06T12:10:00Z'$$,
+  ARRAY[1],
+  'create_snapshot_with_prices should keep only one snapshot in the recent window'
+);
+
+SELECT results_eq(
+  $$SELECT COUNT(*)::int
+    FROM card_prices
+    WHERE snapshot_id = (
+      SELECT id
+      FROM snapshots
+      WHERE league_id = 'fb000000-0000-0000-0000-000000000001'
+        AND fetched_at = '2026-05-06T12:00:00Z'
+    )$$,
+  ARRAY[3],
+  'create_snapshot_with_prices should not insert card_prices when returning a recent snapshot'
+);
+
+SELECT throws_ok(
+  $$SELECT create_snapshot_with_prices(
+    'fb000000-0000-0000-0000-000000000001',
+    '2026-05-06T12:20:00Z',
+    100,
+    101,
+    2.5,
+    0.75,
+    '[{"card_id":"fb000000-0000-0000-0000-000000999999","price_source":"exchange","chaos_value":10,"divine_value":0.1,"confidence":1}]'::jsonb
+  )$$,
+  '23503',
+  NULL,
+  'create_snapshot_with_prices should fail when a price row violates card_id FK'
+);
+
+SELECT results_eq(
+  $$SELECT COUNT(*)::int
+    FROM snapshots
+    WHERE league_id = 'fb000000-0000-0000-0000-000000000001'
+      AND fetched_at = '2026-05-06T12:20:00Z'$$,
+  ARRAY[0],
+  'create_snapshot_with_prices should roll back the snapshot when price insertion fails'
+);
+
+SELECT throws_ok(
+  $$SELECT create_snapshot_with_prices(
+    'fb000000-0000-0000-0000-000000000001',
+    '2026-05-06T12:30:00Z',
+    100,
+    101,
+    2.5,
+    0.75,
+    NULL::jsonb
+  )$$,
+  '22023',
+  NULL,
+  'create_snapshot_with_prices should reject null price payloads'
+);
+
+SELECT throws_ok(
+  $$SELECT create_snapshot_with_prices(
+    'fb000000-0000-0000-0000-000000000001',
+    '2026-05-06T12:31:00Z',
+    100,
+    101,
+    2.5,
+    0.75,
+    '{}'::jsonb
+  )$$,
+  '22023',
+  NULL,
+  'create_snapshot_with_prices should reject object price payloads'
+);
+
+SELECT throws_ok(
+  $$SELECT create_snapshot_with_prices(
+    'fb000000-0000-0000-0000-000000000001',
+    '2026-05-06T12:32:00Z',
+    100,
+    101,
+    2.5,
+    0.75,
+    '"not-an-array"'::jsonb
+  )$$,
+  '22023',
+  NULL,
+  'create_snapshot_with_prices should reject scalar price payloads'
+);
+
+SELECT throws_ok(
+  $$SELECT create_snapshot_with_prices(
+    'fb000000-0000-0000-0000-000000000001',
+    '2026-05-06T12:30:00Z',
+    100,
+    101,
+    2.5,
+    0.75,
+    '[]'::jsonb
+  )$$,
+  '22023',
+  NULL,
+  'create_snapshot_with_prices should reject empty price payloads'
+);
+
+SELECT throws_ok(
+  $$SELECT create_snapshot_with_prices(
+    'fb000000-0000-0000-0000-000000000001',
+    '2026-05-06T12:40:00Z',
+    100,
+    101,
+    2.5,
+    0.75,
+    '[{"price_source":"exchange","chaos_value":10,"divine_value":0.1,"confidence":1}]'::jsonb
+  )$$,
+  '22023',
+  NULL,
+  'create_snapshot_with_prices should reject price rows without card_id'
+);
+
+SELECT throws_ok(
+  $$SELECT create_snapshot_with_prices(
+    'fb000000-0000-0000-0000-000000000001',
+    '2026-05-06T12:41:00Z',
+    100,
+    101,
+    2.5,
+    0.75,
+    '[{"card_id":"fb000000-0000-0000-0000-000000000101","chaos_value":10,"divine_value":0.1,"confidence":1}]'::jsonb
+  )$$,
+  '22023',
+  NULL,
+  'create_snapshot_with_prices should reject price rows without price_source'
+);
+
+SELECT throws_ok(
+  $$SELECT create_snapshot_with_prices(
+    'fb000000-0000-0000-0000-000000000001',
+    '2026-05-06T12:42:00Z',
+    100,
+    101,
+    2.5,
+    0.75,
+    '[{"card_id":"fb000000-0000-0000-0000-000000000101","price_source":"invalid","chaos_value":10,"divine_value":0.1,"confidence":1}]'::jsonb
+  )$$,
+  '22023',
+  NULL,
+  'create_snapshot_with_prices should reject invalid price rows before insert'
+);
+
+SELECT throws_ok(
+  $$SELECT create_snapshot_with_prices(
+    'fb000000-0000-0000-0000-000000000001',
+    '2026-05-06T12:43:00Z',
+    100,
+    101,
+    2.5,
+    0.75,
+    '[{"card_id":"fb000000-0000-0000-0000-000000000101","price_source":"exchange","divine_value":0.1,"confidence":1}]'::jsonb
+  )$$,
+  '22023',
+  NULL,
+  'create_snapshot_with_prices should reject price rows without chaos_value'
+);
+
+SELECT throws_ok(
+  $$SELECT create_snapshot_with_prices(
+    'fb000000-0000-0000-0000-000000000001',
+    '2026-05-06T12:44:00Z',
+    100,
+    101,
+    2.5,
+    0.75,
+    '[{"card_id":"fb000000-0000-0000-0000-000000000101","price_source":"exchange","chaos_value":-0.01,"divine_value":0.1,"confidence":1}]'::jsonb
+  )$$,
+  '22023',
+  NULL,
+  'create_snapshot_with_prices should reject negative chaos_value'
+);
+
+SELECT throws_ok(
+  $$SELECT create_snapshot_with_prices(
+    'fb000000-0000-0000-0000-000000000001',
+    '2026-05-06T12:45:00Z',
+    100,
+    101,
+    2.5,
+    0.75,
+    '[{"card_id":"fb000000-0000-0000-0000-000000000101","price_source":"exchange","chaos_value":10,"confidence":1}]'::jsonb
+  )$$,
+  '22023',
+  NULL,
+  'create_snapshot_with_prices should reject price rows without divine_value'
+);
+
+SELECT throws_ok(
+  $$SELECT create_snapshot_with_prices(
+    'fb000000-0000-0000-0000-000000000001',
+    '2026-05-06T12:46:00Z',
+    100,
+    101,
+    2.5,
+    0.75,
+    '[{"card_id":"fb000000-0000-0000-0000-000000000101","price_source":"exchange","chaos_value":10,"divine_value":-0.01,"confidence":1}]'::jsonb
+  )$$,
+  '22023',
+  NULL,
+  'create_snapshot_with_prices should reject negative divine_value'
+);
+
+SELECT throws_ok(
+  $$SELECT create_snapshot_with_prices(
+    'fb000000-0000-0000-0000-000000000001',
+    '2026-05-06T12:47:00Z',
+    100,
+    101,
+    2.5,
+    0.75,
+    '[{"card_id":"fb000000-0000-0000-0000-000000000101","price_source":"exchange","chaos_value":10,"divine_value":0.1}]'::jsonb
+  )$$,
+  '22023',
+  NULL,
+  'create_snapshot_with_prices should reject price rows without confidence'
+);
+
+SELECT throws_ok(
+  $$SELECT create_snapshot_with_prices(
+    'fb000000-0000-0000-0000-000000000001',
+    '2026-05-06T12:48:00Z',
+    100,
+    101,
+    2.5,
+    0.75,
+    '[{"card_id":"fb000000-0000-0000-0000-000000000101","price_source":"exchange","chaos_value":10,"divine_value":0.1,"confidence":0}]'::jsonb
+  )$$,
+  '22023',
+  NULL,
+  'create_snapshot_with_prices should reject confidence below 1'
+);
+
+SELECT throws_ok(
+  $$SELECT create_snapshot_with_prices(
+    'fb000000-0000-0000-0000-000000000001',
+    '2026-05-06T12:49:00Z',
+    100,
+    101,
+    2.5,
+    0.75,
+    '[{"card_id":"fb000000-0000-0000-0000-000000000101","price_source":"exchange","chaos_value":10,"divine_value":0.1,"confidence":4}]'::jsonb
+  )$$,
+  '22023',
+  NULL,
+  'create_snapshot_with_prices should reject confidence above 3'
+);
+
+SELECT results_eq(
+  $$SELECT COUNT(*)::int
+    FROM snapshots
+    WHERE league_id = 'fb000000-0000-0000-0000-000000000001'
+      AND fetched_at >= '2026-05-06T12:30:00Z'
+      AND fetched_at < '2026-05-06T12:50:00Z'$$,
+  ARRAY[0],
+  'create_snapshot_with_prices should not create snapshots for invalid payloads'
+);
+
+SELECT results_eq(
+  $$SELECT fetched_at
+    FROM create_snapshot_with_prices(
+      'fb000000-0000-0000-0000-000000000001',
+      '2026-05-06T13:00:00Z',
+      120,
+      121,
+      3.5,
+      55,
+      '[{"card_id":"fb000000-0000-0000-0000-000000000101","price_source":"exchange","chaos_value":11,"divine_value":0.11,"confidence":1}]'::jsonb
+    )$$,
+  ARRAY['2026-05-06T13:00:00Z'::timestamptz],
+  'create_snapshot_with_prices should create a new snapshot outside the recent window'
 );
 
 -- ═══════════════════════════════════════════════════════════════

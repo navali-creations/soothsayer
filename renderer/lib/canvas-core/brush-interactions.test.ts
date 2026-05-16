@@ -2,12 +2,20 @@ import { describe, expect, it } from "vitest";
 
 import {
   brushDeltaIndexFromPixels,
+  brushDeltaValueFromPixels,
   chartDeltaIndexFromPixels,
+  collapseFullNumericBrushRange,
   hitTestIndexBrush,
+  hitTestNumericBrush,
   indexFromBrushPixel,
+  normalizeNumericBrushRange,
   panIndexBrush,
+  panNumericBrush,
   resizeIndexBrush,
+  resizeNumericBrush,
+  valueFromBrushPixel,
   zoomIndexBrush,
+  zoomNumericBrush,
 } from "./brush-interactions";
 import type { LinearMapper } from "./canvas-primitives";
 
@@ -151,5 +159,143 @@ describe("brush interactions", () => {
         zoomStep: 2,
       }),
     ).toEqual({ startIndex: 0, endIndex: 10 });
+  });
+
+  it("maps brush pixels to clamped numeric values", () => {
+    expect(
+      valueFromBrushPixel({
+        x: 50,
+        brushLeft: 10,
+        brushRight: 110,
+        domain: { min: 0, max: 1_000 },
+      }),
+    ).toBe(400);
+    expect(
+      valueFromBrushPixel({
+        x: -100,
+        brushLeft: 10,
+        brushRight: 110,
+        domain: { min: 0, max: 1_000 },
+      }),
+    ).toBe(0);
+    expect(
+      valueFromBrushPixel({
+        x: 200,
+        brushLeft: 10,
+        brushRight: 110,
+        domain: { min: 0, max: 1_000 },
+      }),
+    ).toBe(1_000);
+  });
+
+  it("hit-tests numeric brush travellers and body", () => {
+    const map = (value: number) => 10 + value / 10;
+    const layout = {
+      brushTop: 100,
+      brushBottom: 130,
+      brushLeft: 10,
+      brushRight: 110,
+    };
+    const range = { start: 200, end: 600 };
+
+    expect(
+      hitTestNumericBrush({
+        x: 31,
+        y: 110,
+        layout,
+        range,
+        mapBrushX: map,
+        travellerWidth: 8,
+      }),
+    ).toBe("left-traveller");
+    expect(
+      hitTestNumericBrush({
+        x: 69,
+        y: 110,
+        layout,
+        range,
+        mapBrushX: map,
+        travellerWidth: 8,
+      }),
+    ).toBe("right-traveller");
+    expect(
+      hitTestNumericBrush({
+        x: 50,
+        y: 110,
+        layout,
+        range,
+        mapBrushX: map,
+        travellerWidth: 8,
+      }),
+    ).toBe("brush-body");
+  });
+
+  it("resizes, pans, and zooms numeric ranges", () => {
+    const domain = { min: 0, max: 1_000 };
+
+    expect(
+      resizeNumericBrush({
+        range: { start: 100, end: 800 },
+        pointerValue: 700,
+        edge: "start",
+        domain,
+        minSpan: 400,
+      }),
+    ).toEqual({ start: 400, end: 800 });
+
+    expect(
+      panNumericBrush({
+        range: { start: 300, end: 700 },
+        delta: 500,
+        domain,
+      }),
+    ).toEqual({ start: 600, end: 1000 });
+
+    expect(
+      zoomNumericBrush({
+        range: { start: 0, end: 1_000 },
+        domain,
+        deltaY: -1,
+        minSpan: 100,
+        zoomFraction: 0.2,
+      }),
+    ).toEqual({ start: 100, end: 900 });
+  });
+
+  it("normalizes and collapses numeric brush ranges", () => {
+    const domain = { min: 0, max: 1_000 };
+
+    expect(
+      normalizeNumericBrushRange({
+        range: { start: 800, end: 100 },
+        domain,
+        minSpan: 200,
+      }),
+    ).toEqual({ start: 100, end: 800 });
+
+    expect(
+      normalizeNumericBrushRange({
+        range: { start: 100, end: 150 },
+        domain,
+        minSpan: 200,
+      }),
+    ).toBeNull();
+
+    expect(
+      collapseFullNumericBrushRange({
+        range: { start: 0, end: 1_000 },
+        domain,
+      }),
+    ).toBeNull();
+  });
+
+  it("converts brush pixel deltas to numeric deltas", () => {
+    expect(
+      brushDeltaValueFromPixels({
+        deltaX: 25,
+        brushPixelWidth: 100,
+        domain: { min: 0, max: 1_000 },
+      }),
+    ).toBe(250);
   });
 });

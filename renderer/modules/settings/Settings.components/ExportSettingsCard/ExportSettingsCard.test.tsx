@@ -66,12 +66,13 @@ describe("ExportSettingsCard", () => {
 
   // ── Rendering ──────────────────────────────────────────────────────────
 
-  it('renders "Export" title', () => {
+  it("renders export folder controls without a section title", () => {
     renderWithProviders(<ExportSettingsCard />);
 
     expect(
-      screen.getByRole("heading", { name: /Export/i }),
-    ).toBeInTheDocument();
+      screen.queryByRole("heading", { name: /Export/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Export folder")).toBeInTheDocument();
   });
 
   it("shows default placeholder when no custom path is set", () => {

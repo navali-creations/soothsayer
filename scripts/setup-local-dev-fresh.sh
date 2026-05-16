@@ -5,6 +5,9 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/supabase-cli.sh"
+
 echo "🔥 Soothsayer Fresh Start"
 echo "======================================"
 echo ""
@@ -35,7 +38,7 @@ fi
 
 # Stop and remove Supabase with --no-backup flag
 echo "[*] Stopping Supabase and removing all data..."
-pnpx supabase stop --no-backup > /dev/null 2>&1 || true
+supabase_cli stop --no-backup > /dev/null 2>&1 || true
 
 # Force remove any remaining containers
 CONTAINERS=$(docker ps -aq --filter "name=supabase_")
@@ -83,4 +86,4 @@ echo "Now starting fresh Supabase..."
 echo ""
 
 # Start fresh Supabase
-bash "$(dirname "$0")/setup-local-dev.sh"
+bash "$SCRIPT_DIR/setup-local-dev.sh"

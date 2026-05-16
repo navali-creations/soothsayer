@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { type App, app, ipcMain } from "electron";
 
 import {
+  AppPerformanceService,
   CurrentSessionService,
   DatabaseService,
   GggAuthService,
@@ -29,6 +30,8 @@ class AppService {
   private snapshotService: SnapshotService = SnapshotService.getInstance();
   private database: DatabaseService = DatabaseService.getInstance();
   private overlay: OverlayService = OverlayService.getInstance();
+  private appPerformance: AppPerformanceService =
+    AppPerformanceService.getInstance();
   private static _instance: AppService;
 
   static getInstance() {
@@ -68,8 +71,9 @@ class AppService {
   }
 
   public emitRestart() {
-    ipcMain.handle(AppChannel.Restart, () => {
+    ipcMain.handle(AppChannel.Restart, async () => {
       if (this.isQuitting) return;
+      await this.appPerformance.shutdown();
       this.app.relaunch();
       this.app.exit(0);
     });
@@ -177,6 +181,10 @@ class AppService {
       // Stop POE process monitoring
       console.log("[Shutdown] Stopping POE process monitoring...");
       PoeProcessService.getInstance().stop();
+
+      // Stop app performance diagnostics and flush pending samples.
+      console.log("[Shutdown] Stopping app performance diagnostics...");
+      await this.appPerformance.shutdown();
 
       // Optimize database before closing
       console.log("[Shutdown] Optimizing database...");

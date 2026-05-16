@@ -4,17 +4,268 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 
 /** poe.ninja price confidence: 1 = high/reliable, 2 = medium/thin sample, 3 = low/unreliable */
 type Confidence = 1 | 2 | 3;
+type SnapshotGame = "poe1" | "poe2";
+
+interface SnapshotRequestBody {
+  game: SnapshotGame;
+  leagueId: string;
+}
+
+interface SnapshotRpcResult {
+  id: string;
+  league_id: string;
+  fetched_at: string;
+  exchange_chaos_to_divine: number | null;
+  stash_chaos_to_divine: number | null;
+  stacked_deck_chaos_cost: number | null;
+  stacked_deck_max_volume_rate?: number | null;
+}
 
 import { responseJson } from "../_shared/utils.ts";
 
+const DEFAULT_CHAOS_TO_DIVINE_RATIO = 100;
+const DEFAULT_POE_NINJA_FETCH_TIMEOUT_MS = 15_000;
+const MAX_LEAGUE_ID_LENGTH = 128;
+const MAX_REQUEST_BODY_BYTES = 4_096;
+
+class RequestValidationError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "RequestValidationError";
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isNullableNumber(value: unknown): value is number | null {
+  return value === null || typeof value === "number";
+}
+
+function isSnapshotRpcResult(value: unknown): value is SnapshotRpcResult {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.id === "string" &&
+    typeof value.league_id === "string" &&
+    typeof value.fetched_at === "string" &&
+    isNullableNumber(value.exchange_chaos_to_divine) &&
+    isNullableNumber(value.stash_chaos_to_divine) &&
+    isNullableNumber(value.stacked_deck_chaos_cost) &&
+    (value.stacked_deck_max_volume_rate === undefined ||
+      isNullableNumber(value.stacked_deck_max_volume_rate))
+  );
+}
+
+async function readSnapshotRequest(req: Request): Promise<SnapshotRequestBody> {
+  const contentLength = Number(req.headers.get("content-length") ?? "0");
+  if (
+    Number.isFinite(contentLength) &&
+    contentLength > MAX_REQUEST_BODY_BYTES
+  ) {
+    throw new RequestValidationError(413, "Request body too large");
+  }
+
+  const rawBody = await req.text();
+  if (new TextEncoder().encode(rawBody).byteLength > MAX_REQUEST_BODY_BYTES) {
+    throw new RequestValidationError(413, "Request body too large");
+  }
+
+  if (!rawBody.trim()) {
+    throw new RequestValidationError(
+      400,
+      "Missing required parameters: game, leagueId",
+    );
+  }
+
+  let body: unknown;
+  try {
+    body = JSON.parse(rawBody);
+  } catch {
+    throw new RequestValidationError(400, "Invalid JSON request body");
+  }
+
+  if (!isRecord(body)) {
+    throw new RequestValidationError(400, "Invalid request body");
+  }
+
+  const { game, leagueId } = body;
+  if (typeof game !== "string" || typeof leagueId !== "string") {
+    throw new RequestValidationError(
+      400,
+      "Missing required parameters: game, leagueId",
+    );
+  }
+
+  if (game !== "poe1" && game !== "poe2") {
+    throw new RequestValidationError(
+      400,
+      "Invalid game: expected poe1 or poe2",
+    );
+  }
+
+  const trimmedLeagueId = leagueId.trim();
+  if (!trimmedLeagueId) {
+    throw new RequestValidationError(
+      400,
+      "Missing required parameters: game, leagueId",
+    );
+  }
+
+  if (trimmedLeagueId.length > MAX_LEAGUE_ID_LENGTH) {
+    throw new RequestValidationError(400, "leagueId is too long");
+  }
+
+  return { game, leagueId: trimmedLeagueId };
+}
+
+function getPoeNinjaFetchTimeoutMs(): number {
+  const configured = Number(Deno.env.get("POE_NINJA_FETCH_TIMEOUT_MS"));
+  return Number.isFinite(configured) && configured > 0
+    ? configured
+    : DEFAULT_POE_NINJA_FETCH_TIMEOUT_MS;
+}
+
+async function fetchWithTimeout(url: string): Promise<Response> {
+  const timeoutMs = getPoeNinjaFetchTimeoutMs();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`poe.ninja request timed out after ${timeoutMs}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function toFiniteNumber(value: unknown): number | null {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function roundToTwoDecimals(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function formatRawValue(value: unknown): string {
+  if (value === undefined) return "undefined";
+  if (value === null) return "null";
+  if (typeof value === "number")
+    return Number.isNaN(value) ? "NaN" : `${value}`;
+  if (typeof value === "string") return `"${value}"`;
+  if (typeof value === "boolean") return `${value}`;
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function formatErrorReason(reason: unknown): string {
+  return reason instanceof Error ? reason.message : formatRawValue(reason);
+}
+
+function logMalformedPrice(
+  tag: string,
+  {
+    source,
+    index,
+    cardName,
+    reason,
+    rawChaosValue,
+    rawDivineValue,
+    chaosToDivineRatio,
+  }: {
+    source: string;
+    index: number | null;
+    cardName: unknown;
+    reason: string;
+    rawChaosValue: unknown;
+    rawDivineValue: unknown;
+    chaosToDivineRatio?: number;
+  },
+): void {
+  console.warn(
+    `${tag} Malformed ${source} price row skipped: ` +
+      `index=${index ?? "n/a"}, ` +
+      `card=${formatRawValue(cardName)}, ` +
+      `reason=${reason}, ` +
+      `chaosValue=${formatRawValue(rawChaosValue)}, ` +
+      `divineValue=${formatRawValue(rawDivineValue)}, ` +
+      `ratio=${chaosToDivineRatio ?? "n/a"}`,
+  );
+}
+
+function deriveDivineValue(
+  chaosValue: number,
+  explicitDivineValue: unknown,
+  chaosToDivineRatio: number,
+): number | null {
+  const divineValue = toFiniteNumber(explicitDivineValue);
+  if (divineValue !== null) {
+    return roundToTwoDecimals(divineValue);
+  }
+
+  if (!Number.isFinite(chaosToDivineRatio) || chaosToDivineRatio <= 0) {
+    return null;
+  }
+
+  return roundToTwoDecimals(chaosValue / chaosToDivineRatio);
+}
+
 Deno.serve(async (req) => {
   try {
+    if (req.method === "OPTIONS") {
+      return responseJson({
+        status: 200,
+        body: null,
+        headers: {
+          "Access-Control-Allow-Methods": "POST, OPTIONS",
+        },
+      });
+    }
+
+    if (req.method !== "POST") {
+      return responseJson({
+        status: 405,
+        body: { error: "Method not allowed" },
+      });
+    }
+
     const secret = req.headers.get("x-cron-secret");
     const expectedSecret = Deno.env.get("INTERNAL_CRON_SECRET");
 
+    if (!expectedSecret) {
+      console.error("INTERNAL_CRON_SECRET is not configured");
+      return responseJson({
+        status: 500,
+        body: { error: "Server misconfigured" },
+      });
+    }
+
     const encoder = new TextEncoder();
     const secretBytes = encoder.encode(secret ?? "");
-    const expectedBytes = encoder.encode(expectedSecret ?? "");
+    const expectedBytes = encoder.encode(expectedSecret);
 
     let isValid = false;
     if (secretBytes.byteLength === expectedBytes.byteLength) {
@@ -40,22 +291,19 @@ Deno.serve(async (req) => {
       return responseJson({ status: 401, body: { error: "Unauthorized" } });
     }
 
-    // Only allow POST requests
-    if (req.method !== "POST") {
-      return responseJson({
-        status: 405,
-        body: { error: "Method not allowed" },
-      });
+    let requestBody: SnapshotRequestBody;
+    try {
+      requestBody = await readSnapshotRequest(req);
+    } catch (error) {
+      if (error instanceof RequestValidationError) {
+        return responseJson({
+          status: error.status,
+          body: { error: error.message },
+        });
+      }
+      throw error;
     }
-
-    const { game, leagueId } = await req.json();
-
-    if (!game || !leagueId) {
-      return responseJson({
-        status: 400,
-        body: { error: "Missing required parameters: game, leagueId" },
-      });
-    }
+    const { game, leagueId } = requestBody;
 
     // Build a tag for every log line so concurrent invocations are traceable
     const tag = `[${game}/${leagueId}]`;
@@ -90,37 +338,51 @@ Deno.serve(async (req) => {
       `${tag} Resolved league: id=${league.id}, name="${league.name}"`,
     );
 
-    // // 2. Check for recent snapshot (< 10 minutes) to prevent duplicates
-    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-    const { data: recentSnapshot } = await supabase
-      .from("snapshots")
-      .select("id, fetched_at")
-      .eq("league_id", league.id)
-      .gte("fetched_at", tenMinutesAgo)
-      .order("fetched_at", { ascending: false })
-      .limit(1)
-      .single();
-
-    if (recentSnapshot) {
-      console.log(
-        `${tag} Recent snapshot exists (${recentSnapshot.fetched_at}), skipping...`,
-      );
-      return responseJson({
-        status: 200,
-        body: {
-          message: "Recent snapshot exists",
-          snapshot: recentSnapshot,
-        },
-      });
-    }
-
-    // 3. Fetch from poe.ninja exchange API
+    // 2. Fetch independent poe.ninja sources in parallel.
     const gamePrefix = game === "poe2" ? "poe2" : "poe1";
     const exchangeUrl = `https://poe.ninja/${gamePrefix}/api/economy/exchange/current/overview?league=${encodeURIComponent(
       league.name,
     )}&type=DivinationCard`;
+    const currencyUrl = `https://poe.ninja/${gamePrefix}/api/economy/exchange/current/overview?league=${encodeURIComponent(
+      league.name,
+    )}&type=Currency`;
+    const stashUrl =
+      game === "poe2"
+        ? null
+        : `https://poe.ninja/poe1/api/economy/stash/current/item/overview?league=${encodeURIComponent(
+            league.name,
+          )}&type=DivinationCard`;
+
     console.log(`${tag} Fetching exchange API: ${exchangeUrl}`);
-    const exchangeResponse = await fetch(exchangeUrl);
+    console.log(`${tag} Fetching currency API: ${currencyUrl}`);
+    if (stashUrl) {
+      console.log(`${tag} Fetching stash API: ${stashUrl}`);
+    } else {
+      console.log(`${tag} Skipping stash API (not available for poe2)`);
+    }
+
+    const exchangeRequest = fetchWithTimeout(exchangeUrl);
+    const currencyRequest = fetchWithTimeout(currencyUrl);
+    const stashRequest =
+      stashUrl === null
+        ? Promise.resolve<Response | null>(null)
+        : fetchWithTimeout(stashUrl);
+    const [exchangeResult, currencyResult, stashResult] =
+      await Promise.allSettled([
+        exchangeRequest,
+        currencyRequest,
+        stashRequest,
+      ]);
+
+    if (exchangeResult.status === "rejected") {
+      throw new Error(
+        `poe.ninja exchange API failed: ${formatErrorReason(
+          exchangeResult.reason,
+        )}`,
+      );
+    }
+
+    const exchangeResponse = exchangeResult.value;
 
     if (!exchangeResponse.ok) {
       throw new Error(
@@ -131,25 +393,61 @@ Deno.serve(async (req) => {
     const exchangeData = await exchangeResponse.json();
 
     // Calculate chaos to divine ratio
-    const chaosToDivineRatio = exchangeData.core?.rates?.divine
-      ? 1 / exchangeData.core.rates.divine
-      : 100;
+    const divineRate = toFiniteNumber(exchangeData.core?.rates?.divine);
+    const chaosToDivineRatio =
+      divineRate !== null && divineRate > 0
+        ? 1 / divineRate
+        : DEFAULT_CHAOS_TO_DIVINE_RATIO;
 
     console.log(`${tag} Exchange chaos-to-divine ratio: ${chaosToDivineRatio}`);
 
     // Build exchange card prices (exchange data is always high confidence)
     const exchangeCardPrices: Array<any> = [];
     const items = exchangeData.items ?? [];
+    const lines = exchangeData.lines ?? [];
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      const line = exchangeData.lines[i];
-      if (line && item.category === "Cards") {
+      const line = lines[i];
+      if (line && item?.category === "Cards") {
+        const cardName = typeof item.name === "string" ? item.name.trim() : "";
+        const chaosValue = toFiniteNumber(line.primaryValue);
+
+        if (!cardName || chaosValue === null) {
+          logMalformedPrice(tag, {
+            source: "exchange",
+            index: i,
+            cardName: item?.name,
+            reason: !cardName ? "missing card name" : "invalid chaos value",
+            rawChaosValue: line.primaryValue,
+            rawDivineValue: null,
+            chaosToDivineRatio,
+          });
+          continue;
+        }
+
+        const divineValue = deriveDivineValue(
+          chaosValue,
+          null,
+          chaosToDivineRatio,
+        );
+        if (divineValue === null) {
+          logMalformedPrice(tag, {
+            source: "exchange",
+            index: i,
+            cardName,
+            reason: "invalid derived divine value",
+            rawChaosValue: line.primaryValue,
+            rawDivineValue: null,
+            chaosToDivineRatio,
+          });
+          continue;
+        }
+
         exchangeCardPrices.push({
-          card_name: item.name,
+          card_name: cardName,
           price_source: "exchange",
-          chaos_value: line.primaryValue,
-          divine_value:
-            Math.round((line.primaryValue / chaosToDivineRatio) * 100) / 100,
+          chaos_value: chaosValue,
+          divine_value: divineValue,
           confidence: 1,
         });
       }
@@ -157,16 +455,16 @@ Deno.serve(async (req) => {
 
     console.log(`${tag} Fetched ${exchangeCardPrices.length} exchange prices`);
 
-    // 4. Fetch Stacked Deck price from poe.ninja Currency API
+    // 3. Fetch Stacked Deck price from poe.ninja Currency API
     let stackedDeckChaosCost = 0;
     let stackedDeckMaxVolumeRate: number | null = null;
-    try {
-      const currencyUrl = `https://poe.ninja/${gamePrefix}/api/economy/exchange/current/overview?league=${encodeURIComponent(
-        league.name,
-      )}&type=Currency`;
-      console.log(`${tag} Fetching currency API: ${currencyUrl}`);
-      const currencyResponse = await fetch(currencyUrl);
-
+    if (currencyResult.status === "rejected") {
+      console.warn(
+        `${tag} Failed to fetch stacked deck price, defaulting to 0:`,
+        currencyResult.reason,
+      );
+    } else {
+      const currencyResponse = currencyResult.value;
       if (!currencyResponse.ok) {
         console.warn(
           `${tag} Currency API failed: ${currencyResponse.statusText}, defaulting stacked deck cost to 0`,
@@ -186,25 +484,25 @@ Deno.serve(async (req) => {
           } decks/divine`,
         );
       }
-    } catch (currencyError) {
-      console.warn(
-        `${tag} Failed to fetch stacked deck price, defaulting to 0:`,
-        currencyError,
-      );
     }
 
-    // 5. Fetch from poe.ninja stash API (poe1 only — no stash API for poe2)
-    let stashChaosToDivineRatio = 100;
+    // 4. Fetch from poe.ninja stash API (poe1 only — no stash API for poe2)
+    let stashChaosToDivineRatio = chaosToDivineRatio;
     const stashCardPrices: Array<any> = [];
 
-    if (game === "poe2") {
-      console.log(`${tag} Skipping stash API (not available for poe2)`);
-    } else {
-      const stashUrl = `https://poe.ninja/poe1/api/economy/stash/current/item/overview?league=${encodeURIComponent(
-        league.name,
-      )}&type=DivinationCard`;
-      console.log(`${tag} Fetching stash API: ${stashUrl}`);
-      const stashResponse = await fetch(stashUrl);
+    if (game !== "poe2") {
+      if (stashResult.status === "rejected") {
+        throw new Error(
+          `poe.ninja stash API failed: ${formatErrorReason(
+            stashResult.reason,
+          )}`,
+        );
+      }
+
+      const stashResponse = stashResult.value;
+      if (stashResponse === null) {
+        throw new Error("poe.ninja stash API failed: missing response");
+      }
 
       if (!stashResponse.ok) {
         throw new Error(
@@ -216,8 +514,15 @@ Deno.serve(async (req) => {
 
       // Calculate stash ratio
       for (const card of stashData.lines || []) {
-        if (card.divineValue > 0 && card.chaosValue > 0) {
-          stashChaosToDivineRatio = card.chaosValue / card.divineValue;
+        const chaosValue = toFiniteNumber(card.chaosValue);
+        const divineValue = toFiniteNumber(card.divineValue);
+        if (
+          divineValue !== null &&
+          divineValue > 0 &&
+          chaosValue !== null &&
+          chaosValue > 0
+        ) {
+          stashChaosToDivineRatio = chaosValue / divineValue;
           break;
         }
       }
@@ -246,16 +551,70 @@ Deno.serve(async (req) => {
 
       // Build stash card prices with confidence
       const confidenceCounts = { 1: 0, 2: 0, 3: 0 };
-      for (const card of stashData.lines ?? []) {
+      let skippedInvalidStashPrices = 0;
+      for (const [index, card] of (stashData.lines ?? []).entries()) {
+        const cardName = typeof card.name === "string" ? card.name.trim() : "";
+        const chaosValue = toFiniteNumber(card.chaosValue);
+
+        if (!cardName || chaosValue === null) {
+          skippedInvalidStashPrices++;
+          logMalformedPrice(tag, {
+            source: "stash",
+            index,
+            cardName: card.name,
+            reason: !cardName ? "missing card name" : "invalid chaos value",
+            rawChaosValue: card.chaosValue,
+            rawDivineValue: card.divineValue,
+            chaosToDivineRatio: stashChaosToDivineRatio,
+          });
+          continue;
+        }
+
+        const divineValue = deriveDivineValue(
+          chaosValue,
+          card.divineValue,
+          stashChaosToDivineRatio,
+        );
+        if (divineValue === null) {
+          skippedInvalidStashPrices++;
+          logMalformedPrice(tag, {
+            source: "stash",
+            index,
+            cardName,
+            reason: "invalid divine value and ratio fallback",
+            rawChaosValue: card.chaosValue,
+            rawDivineValue: card.divineValue,
+            chaosToDivineRatio: stashChaosToDivineRatio,
+          });
+          continue;
+        }
+
+        if (toFiniteNumber(card.divineValue) === null) {
+          console.warn(
+            `${tag} Derived missing stash divine value: ` +
+              `index=${index}, card=${formatRawValue(cardName)}, ` +
+              `chaosValue=${formatRawValue(card.chaosValue)}, ` +
+              `rawDivineValue=${formatRawValue(card.divineValue)}, ` +
+              `ratio=${stashChaosToDivineRatio}, ` +
+              `derivedDivineValue=${divineValue}`,
+          );
+        }
+
         const confidence = computeConfidence(card);
         confidenceCounts[confidence]++;
         stashCardPrices.push({
-          card_name: card.name,
+          card_name: cardName,
           price_source: "stash",
-          chaos_value: card.chaosValue,
-          divine_value: Math.round(card.divineValue * 100) / 100,
+          chaos_value: chaosValue,
+          divine_value: divineValue,
           confidence,
         });
+      }
+
+      if (skippedInvalidStashPrices > 0) {
+        console.warn(
+          `${tag} Skipped ${skippedInvalidStashPrices} stash prices due to invalid numeric data`,
+        );
       }
 
       console.log(
@@ -263,27 +622,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 6. Insert snapshot and card prices in transaction
-    const { data: snapshot, error: snapshotError } = await supabase
-      .from("snapshots")
-      .insert({
-        league_id: league.id,
-        fetched_at: new Date().toISOString(),
-        exchange_chaos_to_divine: chaosToDivineRatio,
-        stash_chaos_to_divine: stashChaosToDivineRatio,
-        stacked_deck_chaos_cost: stackedDeckChaosCost,
-        stacked_deck_max_volume_rate: stackedDeckMaxVolumeRate,
-      })
-      .select()
-      .single();
-
-    if (snapshotError || !snapshot) {
-      throw new Error(`Failed to create snapshot: ${snapshotError?.message}`);
-    }
-
-    console.log(`${tag} Created snapshot ${snapshot.id}`);
-
-    // 6b. Upsert unique card names into `cards` table
+    // 5. Upsert unique card names into `cards` table
     const uniqueCardNames = [
       ...new Set([
         ...exchangeCardPrices.map((p) => p.card_name),
@@ -311,11 +650,15 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 6c. Build card name → card_id map
-    const { data: cardIdRows, error: cardIdError } = await supabase
+    // 6. Build card name -> card_id map for only the names in this snapshot.
+    const cardIdQuery = supabase
       .from("cards")
       .select("id, name")
       .eq("game", game);
+    const { data: cardIdRows, error: cardIdError } =
+      uniqueCardNames.length > 0
+        ? await cardIdQuery.in("name", uniqueCardNames)
+        : await cardIdQuery.limit(0);
 
     const cardIdMap = new Map<string, string>();
     if (cardIdRows) {
@@ -340,9 +683,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 7. Insert all card prices (card_name is NOT stored — resolved via card_id FK)
+    // 7. Build all card prices (card_name is NOT stored — resolved via card_id FK)
     const allCardPrices: Array<{
-      snapshot_id: string;
       card_id: string;
       price_source: string;
       chaos_value: number;
@@ -358,12 +700,27 @@ Deno.serve(async (req) => {
         console.warn(`${tag} No card_id for "${p.card_name}" — skipping`);
         continue;
       }
+
+      const chaosValue = toFiniteNumber(p.chaos_value);
+      const divineValue = toFiniteNumber(p.divine_value);
+      if (chaosValue === null || divineValue === null) {
+        skippedCount++;
+        logMalformedPrice(tag, {
+          source: p.price_source ?? "unknown",
+          index: null,
+          cardName: p.card_name,
+          reason: "invalid normalized numeric price",
+          rawChaosValue: p.chaos_value,
+          rawDivineValue: p.divine_value,
+        });
+        continue;
+      }
+
       allCardPrices.push({
-        snapshot_id: snapshot.id,
         card_id: cardId,
         price_source: p.price_source,
-        chaos_value: p.chaos_value,
-        divine_value: p.divine_value,
+        chaos_value: chaosValue,
+        divine_value: divineValue,
         confidence: p.confidence,
       });
     }
@@ -374,15 +731,51 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Batch insert (Supabase handles this efficiently)
-    const { error: pricesError } = await supabase
-      .from("card_prices")
-      .insert(allCardPrices);
-
-    if (pricesError) {
-      throw new Error(`Failed to insert card prices: ${pricesError.message}`);
+    if (uniqueCardNames.length > 0 && allCardPrices.length === 0) {
+      throw new Error("Failed to resolve card IDs for snapshot prices");
     }
 
+    if (allCardPrices.length === 0) {
+      throw new Error("No valid card prices available for snapshot");
+    }
+
+    const fetchedAt = new Date().toISOString();
+    const { data: snapshotData, error: snapshotError } = await supabase
+      .rpc("create_snapshot_with_prices", {
+        p_league_id: league.id,
+        p_fetched_at: fetchedAt,
+        p_exchange_chaos_to_divine: chaosToDivineRatio,
+        p_stash_chaos_to_divine: stashChaosToDivineRatio,
+        p_stacked_deck_chaos_cost: stackedDeckChaosCost,
+        p_stacked_deck_max_volume_rate: stackedDeckMaxVolumeRate,
+        p_prices: allCardPrices,
+      })
+      .single();
+
+    if (snapshotError) {
+      throw new Error(`Failed to create snapshot: ${snapshotError.message}`);
+    }
+
+    if (!isSnapshotRpcResult(snapshotData)) {
+      throw new Error("Failed to create snapshot: invalid snapshot response");
+    }
+
+    const snapshot = snapshotData;
+
+    if (Date.parse(snapshot.fetched_at) !== Date.parse(fetchedAt)) {
+      console.log(
+        `${tag} Recent snapshot was created concurrently (${snapshot.fetched_at}), skipping...`,
+      );
+      return responseJson({
+        status: 200,
+        body: {
+          message: "Recent snapshot exists",
+          snapshot,
+        },
+      });
+    }
+
+    console.log(`${tag} Created snapshot ${snapshot.id}`);
     console.log(
       `${tag} Inserted ${allCardPrices.length} card prices (${exchangeCardPrices.length} exchange + ${stashCardPrices.length} stash)`,
     );
@@ -412,7 +805,9 @@ Deno.serve(async (req) => {
     });
   } catch (error: unknown) {
     console.error("Error in create-snapshot-internal:", error);
-    const message = error instanceof Error ? error.message : String(error);
-    return responseJson({ status: 500, body: { error: message } });
+    return responseJson({
+      status: 500,
+      body: { error: "Failed to create snapshot" },
+    });
   }
 });

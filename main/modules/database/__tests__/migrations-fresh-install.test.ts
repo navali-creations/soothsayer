@@ -131,6 +131,44 @@ describe("Migrations – Fresh Install", () => {
     }
   });
 
+  it("should add app performance diagnostics settings and tables", () => {
+    const db = getDb();
+    createBaselineSchema(db);
+    const runner = new MigrationRunner(db);
+    runner.runMigrations(migrations);
+
+    const settingsColumns = getColumnNames(db, "user_settings");
+    expect(settingsColumns).toContain("app_performance_monitor_enabled");
+    expect(settingsColumns).toContain("app_performance_auto_start_on_session");
+    expect(settingsColumns).toContain("app_performance_retention");
+
+    const tables = getTableNames(db);
+    expect(tables).toContain("app_performance_captures");
+    expect(tables).toContain("app_performance_samples");
+    expect(tables).toContain("app_performance_route_markers");
+
+    expect(getIndexNames(db, "app_performance_samples")).toContain(
+      "idx_app_perf_samples_collection",
+    );
+    expect(getIndexNames(db, "app_performance_samples")).toContain(
+      "idx_app_perf_samples_collection_elapsed",
+    );
+    expect(getIndexNames(db, "app_performance_route_markers")).toContain(
+      "idx_app_perf_markers_collection",
+    );
+    expect(getIndexNames(db, "app_performance_captures")).toContain(
+      "idx_app_perf_captures_started_at",
+    );
+
+    expect(() =>
+      db
+        .prepare(
+          "UPDATE user_settings SET app_performance_retention = 'forever' WHERE id = 1",
+        )
+        .run(),
+    ).toThrow();
+  });
+
   it("should default last_seen_app_version to NULL on fresh install", () => {
     const db = getDb();
     createBaselineSchema(db);

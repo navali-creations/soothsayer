@@ -52,6 +52,9 @@ function createSettingsRow(
     telemetry_usage_analytics: 0,
     csv_export_path: null,
     community_uploads_enabled: 0,
+    app_performance_monitor_enabled: 0,
+    app_performance_auto_start_on_session: 0,
+    app_performance_retention: "7d",
     created_at: "2025-01-01T00:00:00Z",
     updated_at: "2025-01-01T00:00:00Z",
     ...overrides,
@@ -82,6 +85,9 @@ describe("SettingsStore.mapper", () => {
       expect(dto.setupCompleted).toBe(false);
       expect(dto.setupStep).toBe(0);
       expect(dto.setupVersion).toBe(1);
+      expect(dto.appPerformanceMonitorEnabled).toBe(false);
+      expect(dto.appPerformanceAutoStartOnSession).toBe(false);
+      expect(dto.appPerformanceRetention).toBe("7d");
     });
 
     it("should convert SQLite boolean integers to real booleans", () => {
@@ -89,12 +95,16 @@ describe("SettingsStore.mapper", () => {
         app_open_at_login: 1,
         app_open_at_login_minimized: 1,
         setup_completed: 1,
+        app_performance_monitor_enabled: 1,
+        app_performance_auto_start_on_session: 1,
       });
       const dto = toUserSettingsDTO(row);
 
       expect(dto.appOpenAtLogin).toBe(true);
       expect(dto.appOpenAtLoginMinimized).toBe(true);
       expect(dto.setupCompleted).toBe(true);
+      expect(dto.appPerformanceMonitorEnabled).toBe(true);
+      expect(dto.appPerformanceAutoStartOnSession).toBe(true);
     });
 
     it("should handle falsy SQLite boolean integers as false", () => {
@@ -260,6 +270,9 @@ describe("SettingsStore.mapper", () => {
         overlay_font_size: 1.5,
         overlay_toolbar_font_size: 1.2,
         main_window_bounds: '{"x":100,"y":200,"width":1400,"height":900}',
+        app_performance_monitor_enabled: 1,
+        app_performance_auto_start_on_session: 1,
+        app_performance_retention: "24h",
       });
       const dto = toUserSettingsDTO(row);
 
@@ -295,6 +308,9 @@ describe("SettingsStore.mapper", () => {
         telemetryUsageAnalytics: false,
         csvExportPath: null,
         communityUploadsEnabled: false,
+        appPerformanceMonitorEnabled: true,
+        appPerformanceAutoStartOnSession: true,
+        appPerformanceRetention: "24h",
       });
     });
   });
@@ -546,6 +562,24 @@ describe("SettingsStore.mapper", () => {
       expect(toDBKey("setupVersion")).toBe("setup_version");
     });
 
+    it("should map appPerformanceMonitorEnabled to app_performance_monitor_enabled", () => {
+      expect(toDBKey("appPerformanceMonitorEnabled")).toBe(
+        "app_performance_monitor_enabled",
+      );
+    });
+
+    it("should map appPerformanceAutoStartOnSession to app_performance_auto_start_on_session", () => {
+      expect(toDBKey("appPerformanceAutoStartOnSession")).toBe(
+        "app_performance_auto_start_on_session",
+      );
+    });
+
+    it("should map appPerformanceRetention to app_performance_retention", () => {
+      expect(toDBKey("appPerformanceRetention")).toBe(
+        "app_performance_retention",
+      );
+    });
+
     it("should have a mapping for every key in UserSettingsDTO", () => {
       const allKeys = [
         "appExitAction",
@@ -575,7 +609,13 @@ describe("SettingsStore.mapper", () => {
         "overlayFontSize",
         "overlayToolbarFontSize",
         "mainWindowBounds",
+        "telemetryCrashReporting",
+        "telemetryUsageAnalytics",
         "csvExportPath",
+        "communityUploadsEnabled",
+        "appPerformanceMonitorEnabled",
+        "appPerformanceAutoStartOnSession",
+        "appPerformanceRetention",
       ] as const;
 
       for (const key of allKeys) {

@@ -1429,10 +1429,21 @@ describe("StorageService", () => {
       mockAppGetPath.mockReturnValue("/home/seb/.config/soothsayer");
 
       const handler = getIpcHandler(mockIpcHandle, StorageChannel.RevealPaths);
-      const result = await handler({});
+      const result = await handler(TRUSTED_EVENT);
 
       expect(result.appDataPath).toBe("/home/seb/.config/soothsayer");
       expect(result.dbPath).toBeUndefined();
+    });
+
+    it("should reject RevealPaths from untrusted sender", async () => {
+      const handler = getIpcHandler(mockIpcHandle, StorageChannel.RevealPaths);
+      const result = await handler(UNTRUSTED_EVENT);
+
+      expect(result).toEqual({
+        success: false,
+        error:
+          "Invalid input: [Security] IPC call from untrusted webContents (id=999)",
+      });
     });
 
     it("should include disk space metrics", async () => {

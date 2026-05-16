@@ -23,8 +23,15 @@ export function createStoreMock() {
 
   const storeMock = {
     useBoundStore,
+    useAppPerformance: () => useBoundStore().appPerformance,
+    useAppPerformanceSelector: (selector: any) =>
+      selector(useBoundStore().appPerformance),
+    useAppPerformanceShallow: (selector: any) =>
+      selector(useBoundStore().appPerformance),
     useCurrentSession: () => useBoundStore().currentSession,
     useSettings: () => useBoundStore().settings,
+    useSettingsSelector: (selector: any) => selector(useBoundStore().settings),
+    useSettingsShallow: (selector: any) => selector(useBoundStore().settings),
     usePoeNinja: () => useBoundStore().poeNinja,
     useSessionDetails: () => useBoundStore().sessionDetails,
     useOverlay: () => useBoundStore().overlay,

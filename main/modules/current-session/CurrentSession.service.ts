@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import type BetterSqlite3 from "better-sqlite3";
 import { BrowserWindow, ipcMain } from "electron";
 
+import { AppPerformanceService } from "~/main/modules/app-performance";
 import { CommunityUploadService } from "~/main/modules/community-upload";
 import { DatabaseService } from "~/main/modules/database";
 import { PerformanceLoggerService } from "~/main/modules/performance-logger";
@@ -61,6 +62,7 @@ class CurrentSessionService {
   private perfLogger: PerformanceLoggerService;
   private rarityInsightsService: RarityInsightsService;
   private settingsStore: SettingsStoreService;
+  private appPerformanceService: AppPerformanceService;
 
   // Active session tracking
   private poe1ActiveSession: ActiveSessionInfo | null = null;
@@ -120,6 +122,10 @@ class CurrentSessionService {
   private poe1DivinationCardCache: Map<string, any> = new Map();
   private poe2DivinationCardCache: Map<string, any> = new Map();
 
+  // App performance captures started by session auto-start (per game)
+  private poe1AppPerformanceCaptureId: string | null = null;
+  private poe2AppPerformanceCaptureId: string | null = null;
+
   static getInstance(): CurrentSessionService {
     if (!CurrentSessionService._instance) {
       CurrentSessionService._instance = new CurrentSessionService();
@@ -136,6 +142,7 @@ class CurrentSessionService {
     this.perfLogger = PerformanceLoggerService.getInstance();
     this.rarityInsightsService = RarityInsightsService.getInstance();
     this.settingsStore = SettingsStoreService.getInstance();
+    this.appPerformanceService = AppPerformanceService.getInstance();
 
     this.loadGlobalProcessedIds("poe1");
     this.loadGlobalProcessedIds("poe2");
@@ -521,6 +528,73 @@ class CurrentSessionService {
       this.poe2DivinationCardCache.clear();
     }
     this.emitSessionStateChange(game);
+    await this.startAppPerformanceDiagnosticsForSession(game);
+  }
+
+  private async startAppPerformanceDiagnosticsForSession(
+    game: GameType,
+  ): Promise<void> {
+    try {
+      const [featureEnabled, autoStartEnabled] = await Promise.all([
+        this.settingsStore.get(SettingsKey.AppPerformanceMonitorEnabled),
+        this.settingsStore.get(SettingsKey.AppPerformanceAutoStartOnSession),
+      ]);
+
+      if (!featureEnabled || !autoStartEnabled) {
+        return;
+      }
+
+      const currentState = this.appPerformanceService.getState();
+      if (currentState.isSampling && currentState.capture) {
+        console.warn(
+          `[CurrentSession] App performance diagnostics already running; skipping ${game} session auto-start`,
+        );
+        return;
+      }
+
+      const state = await this.appPerformanceService.startFreshCapture();
+      if (game === "poe1") {
+        this.poe1AppPerformanceCaptureId = state.capture?.id ?? null;
+      } else {
+        this.poe2AppPerformanceCaptureId = state.capture?.id ?? null;
+      }
+    } catch (error) {
+      console.error(
+        "[CurrentSession] Failed to auto-start app performance diagnostics:",
+        error,
+      );
+    }
+  }
+
+  private async stopAppPerformanceDiagnosticsForSession(
+    game: GameType,
+  ): Promise<void> {
+    const captureId =
+      game === "poe1"
+        ? this.poe1AppPerformanceCaptureId
+        : this.poe2AppPerformanceCaptureId;
+
+    if (!captureId) {
+      return;
+    }
+
+    try {
+      const state = this.appPerformanceService.getState();
+      if (state.isSampling && state.capture?.id === captureId) {
+        await this.appPerformanceService.stopCapture();
+      }
+    } catch (error) {
+      console.error(
+        "[CurrentSession] Failed to stop app performance diagnostics:",
+        error,
+      );
+    } finally {
+      if (game === "poe1") {
+        this.poe1AppPerformanceCaptureId = null;
+      } else {
+        this.poe2AppPerformanceCaptureId = null;
+      }
+    }
   }
 
   /**
@@ -603,6 +677,7 @@ class CurrentSessionService {
     }
 
     this.emitSessionStateChange(game);
+    await this.stopAppPerformanceDiagnosticsForSession(game);
 
     return { totalCount, durationMs, league, game };
   }

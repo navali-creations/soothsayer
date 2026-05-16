@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FiMaximize, FiMonitor, FiType } from "react-icons/fi";
+import { FiMaximize, FiType } from "react-icons/fi";
 import { LuMoveHorizontal, LuMoveVertical } from "react-icons/lu";
 
-import { Button } from "~/renderer/components";
 import { trackEvent } from "~/renderer/modules/umami";
 import { useSettings } from "~/renderer/store";
+
+import { OverlayRangeControl } from "./OverlayRangeControl/OverlayRangeControl";
+import { OverlayRestoreDefaultsRow } from "./OverlayRestoreDefaultsRow/OverlayRestoreDefaultsRow";
 
 const FONT_SIZE_MIN = 0.5;
 const FONT_SIZE_MAX = 2.0;
@@ -174,137 +176,65 @@ const OverlaySettingsCard = () => {
   }, [updateSetting]);
 
   return (
-    <div className="card bg-base-100 shadow-xl">
-      <div className="card-body">
-        <h2 className="card-title">Overlay</h2>
-        <p className="text-sm text-base-content/60">
-          Customize the overlay appearance and position
-        </p>
+    <section className="space-y-3">
+      <p className="sr-only">Customize the overlay appearance and position</p>
 
-        <div className="space-y-4 mt-4">
-          {/* Width Slider */}
-          <div className="form-control">
-            <div className="flex items-center gap-3">
-              <LuMoveHorizontal className="w-4 h-4 text-base-content/70 shrink-0" />
-              <span className="text-sm text-base-content/70 min-w-17">
-                Width
-              </span>
-              <input
-                type="range"
-                className="range range-primary range-xs flex-1"
-                min={OVERLAY_WIDTH_MIN}
-                max={OVERLAY_WIDTH_MAX}
-                step={OVERLAY_WIDTH_STEP}
-                value={overlayWidth}
-                onChange={handleWidthChange}
-              />
-              <span className="text-sm font-mono text-base-content/70 min-w-11 text-right tabular-nums">
-                {overlayWidth}px
-              </span>
-            </div>
-          </div>
+      <div className="grid gap-x-8 gap-y-5 lg:grid-cols-2">
+        <OverlayRangeControl
+          icon={
+            <LuMoveHorizontal className="w-4 h-4 text-base-content/70 shrink-0" />
+          }
+          label="Width"
+          value={overlayWidth}
+          displayValue={`${overlayWidth}px`}
+          min={OVERLAY_WIDTH_MIN}
+          max={OVERLAY_WIDTH_MAX}
+          step={OVERLAY_WIDTH_STEP}
+          onChange={handleWidthChange}
+        />
 
-          {/* Height Slider */}
-          <div className="form-control">
-            <div className="flex items-center gap-3">
-              <LuMoveVertical className="w-4 h-4 text-base-content/70 shrink-0" />
-              <span className="text-sm text-base-content/70 min-w-17">
-                Height
-              </span>
-              <input
-                type="range"
-                className="range range-primary range-xs flex-1"
-                min={OVERLAY_HEIGHT_MIN}
-                max={OVERLAY_HEIGHT_MAX}
-                step={OVERLAY_HEIGHT_STEP}
-                value={overlayHeight}
-                onChange={handleHeightChange}
-              />
-              <span className="text-sm font-mono text-base-content/70 min-w-11 text-right tabular-nums">
-                {overlayHeight}px
-              </span>
-            </div>
-          </div>
+        <OverlayRangeControl
+          icon={
+            <LuMoveVertical className="w-4 h-4 text-base-content/70 shrink-0" />
+          }
+          label="Height"
+          value={overlayHeight}
+          displayValue={`${overlayHeight}px`}
+          min={OVERLAY_HEIGHT_MIN}
+          max={OVERLAY_HEIGHT_MAX}
+          step={OVERLAY_HEIGHT_STEP}
+          onChange={handleHeightChange}
+        />
 
-          <div className="divider my-0" />
+        <OverlayRangeControl
+          icon={
+            <FiMaximize className="w-4 h-4 text-base-content/70 shrink-0" />
+          }
+          label="Drop size"
+          value={overlayFontSize}
+          displayValue={`${fontSizePercent}%`}
+          min={FONT_SIZE_MIN}
+          max={FONT_SIZE_MAX}
+          step={FONT_SIZE_STEP}
+          onChange={handleFontSizeChange}
+          description="Scales the drop row text and height (50% - 200%)"
+        />
 
-          {/* Content Font Size Slider */}
-          <div className="form-control">
-            <div className="flex items-center gap-3">
-              <FiMaximize className="w-4 h-4 text-base-content/70 shrink-0" />
-              <span className="text-sm text-base-content/70 min-w-17">
-                Drop size
-              </span>
-              <input
-                type="range"
-                className="range range-primary range-xs flex-1"
-                min={FONT_SIZE_MIN}
-                max={FONT_SIZE_MAX}
-                step={FONT_SIZE_STEP}
-                value={overlayFontSize}
-                onChange={handleFontSizeChange}
-              />
-              <span className="text-sm font-mono text-base-content/70 min-w-11 text-right tabular-nums">
-                {fontSizePercent}%
-              </span>
-            </div>
-            <p className="text-xs text-base-content/40 mt-1 ml-7">
-              Scales the drop row text and height (50% – 200%)
-            </p>
-          </div>
+        <OverlayRangeControl
+          icon={<FiType className="w-4 h-4 text-base-content/70 shrink-0" />}
+          label="Toolbar"
+          value={overlayToolbarFontSize}
+          displayValue={`${toolbarFontSizePercent}%`}
+          min={FONT_SIZE_MIN}
+          max={FONT_SIZE_MAX}
+          step={FONT_SIZE_STEP}
+          onChange={handleToolbarFontSizeChange}
+          description="Scales the tab labels, lock and close icons (50% - 200%)"
+        />
 
-          {/* Toolbar Font Size Slider */}
-          <div className="form-control">
-            <div className="flex items-center gap-3">
-              <FiType className="w-4 h-4 text-base-content/70 shrink-0" />
-              <span className="text-sm text-base-content/70 min-w-17">
-                Toolbar
-              </span>
-              <input
-                type="range"
-                className="range range-primary range-xs flex-1"
-                min={FONT_SIZE_MIN}
-                max={FONT_SIZE_MAX}
-                step={FONT_SIZE_STEP}
-                value={overlayToolbarFontSize}
-                onChange={handleToolbarFontSizeChange}
-              />
-              <span className="text-sm font-mono text-base-content/70 min-w-11 text-right tabular-nums">
-                {toolbarFontSizePercent}%
-              </span>
-            </div>
-            <p className="text-xs text-base-content/40 mt-1 ml-7">
-              Scales the tab labels, lock and close icons (50% – 200%)
-            </p>
-          </div>
-
-          <div className="divider my-0" />
-
-          {/* Restore Defaults */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <FiMonitor className="w-4 h-4 text-base-content/70 shrink-0" />
-              <div>
-                <span className="text-sm text-base-content/70">
-                  Restore defaults
-                </span>
-                <p className="text-xs text-base-content/40">
-                  Reset position, size, and font sizes to defaults
-                </p>
-              </div>
-            </div>
-            <Button
-              size="sm"
-              outline
-              onClick={handleRestoreDefaults}
-              className="gap-1.5"
-            >
-              Restore defaults
-            </Button>
-          </div>
-        </div>
+        <OverlayRestoreDefaultsRow onRestoreDefaults={handleRestoreDefaults} />
       </div>
-    </div>
+    </section>
   );
 };
 

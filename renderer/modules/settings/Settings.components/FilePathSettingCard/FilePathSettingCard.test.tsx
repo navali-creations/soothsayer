@@ -57,13 +57,13 @@ describe("FilePathSettingCard", () => {
 
   // ── Rendering ──────────────────────────────────────────────────────────
 
-  it("renders category title and description", () => {
+  it("renders category description without the visible category title", () => {
     const category = createCategory();
     renderWithProviders(<FilePathSettingCard category={category} />);
 
     expect(
-      screen.getByRole("heading", { name: /Game Configuration/i }),
-    ).toBeInTheDocument();
+      screen.queryByRole("heading", { name: /Game Configuration/i }),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByText("Configure paths to your Path of Exile client logs"),
     ).toBeInTheDocument();

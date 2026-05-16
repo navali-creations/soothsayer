@@ -83,12 +83,13 @@ function getCancelButton(): HTMLButtonElement {
 describe("DangerZoneCard", () => {
   // ── Rendering ──────────────────────────────────────────────────────────
 
-  it('renders "Danger Zone" heading', () => {
+  it("renders dangerous action without a section heading", () => {
     renderWithProviders(<DangerZoneCard />);
 
     expect(
-      screen.getByRole("heading", { name: /Danger Zone/i }),
-    ).toBeInTheDocument();
+      screen.queryByRole("heading", { name: /Danger Zone/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByText("Reset Database").length).toBeGreaterThan(0);
   });
 
   it('renders "Reset Database" button in the card', () => {

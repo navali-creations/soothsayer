@@ -16,23 +16,18 @@
 
 import type { Locator } from "@playwright/test";
 
-import { expect, type Page, test } from "../../helpers/electron-test";
+import { expect, test } from "../../helpers/electron-test";
 import { getSetting } from "../../helpers/ipc-helpers";
 import {
   ensurePostSetup,
   getCurrentRoute,
-  navigateTo,
   waitForRoute,
 } from "../../helpers/navigation";
-
-/**
- * Navigates to settings and waits for data to load.
- */
-async function goToSettings(page: Page) {
-  await navigateTo(page, "/settings");
-  await waitForRoute(page, "/settings", 10_000);
-  await page.locator("main").waitFor({ state: "visible", timeout: 5_000 });
-}
+import {
+  activeSettingsPanel,
+  goToSettings,
+  openSettingsTab,
+} from "../../helpers/settings";
 
 /** Set a range input's value via JS and dispatch change event (bypasses visibility check). */
 async function setRangeValue(locator: Locator, value: string) {
@@ -55,6 +50,7 @@ test.describe("Settings – Cards (Core)", () => {
     test.beforeEach(async ({ page }) => {
       await ensurePostSetup(page);
       await goToSettings(page);
+      await openSettingsTab(page, "App");
     });
 
     test("should display the page header", async ({ page }) => {
@@ -69,32 +65,51 @@ test.describe("Settings – Cards (Core)", () => {
     test("should render all expected settings card headings", async ({
       page,
     }) => {
-      const expectedCards = [
-        "Game Configuration",
-        "Application Behavior",
-        "Audio",
+      const expectedTabs = [
+        "Game",
+        "App",
         "Overlay",
-        "Privacy & Telemetry",
-        "Rarity Source",
-        "Export",
-        "Storage",
-        "App Help",
-        "Danger Zone",
+        "Audio",
+        "Data & Storage",
+        "Privacy",
+        "Help",
+        "Troubleshooting",
+        "Advanced",
       ];
 
-      for (const cardTitle of expectedCards) {
-        const heading = page.getByText(cardTitle, { exact: false }).first();
-        await expect(heading).toBeVisible({ timeout: 5_000 });
+      for (const tabName of expectedTabs) {
+        await expect(
+          page.getByRole("tab", { name: tabName, exact: true }),
+        ).toBeVisible();
+      }
+
+      const expectedTabContent = [
+        { tab: "Game", text: "Path of Exile 1 Client.txt" },
+        { tab: "App", text: "When closing the window" },
+        { tab: "Overlay", text: "Drop size" },
+        { tab: "Audio", text: "Enable drop sounds" },
+        { tab: "Data & Storage", text: "Disk Usage" },
+        { tab: "Privacy", text: "Crash Reporting" },
+        { tab: "Help", text: "Interactive beacons" },
+        { tab: "Troubleshooting", text: "Diagnostic Log" },
+        { tab: "Advanced", text: "Reset Database" },
+      ];
+
+      for (const { tab, text } of expectedTabContent) {
+        const panel = await openSettingsTab(page, tab);
+        await expect(panel.getByText(text).first()).toBeVisible({
+          timeout: 10_000,
+        });
       }
     });
 
     test("should have multiple interactive controls on the page", async ({
       page,
     }) => {
-      const controls = page.locator(
-        'main input, main select, main [role="switch"], main [role="checkbox"]',
+      const panel = await openSettingsTab(page, "Audio");
+      const controls = panel.locator(
+        'input, select, button, [role="switch"], [role="checkbox"]',
       );
-      // There are toggles, sliders, selects, text inputs — expect many
       await expect(controls.nth(7)).toBeVisible({ timeout: 5_000 });
     });
   });
@@ -105,6 +120,7 @@ test.describe("Settings – Cards (Core)", () => {
     test.beforeEach(async ({ page }) => {
       await ensurePostSetup(page);
       await goToSettings(page);
+      await openSettingsTab(page, "App");
     });
 
     test("should render 'When closing the window' select with correct options", async ({
@@ -113,11 +129,8 @@ test.describe("Settings – Cards (Core)", () => {
       const label = page.getByText("When closing the window");
       await expect(label).toBeVisible();
 
-      // Find the select near this label — it's inside the same card
-      const card = page.locator(".card", {
-        hasText: "Application Behavior",
-      });
-      const select = card.locator("select").first();
+      const panel = activeSettingsPanel(page);
+      const select = panel.locator("select").first();
       await expect(select).toBeVisible();
 
       // Verify both options exist
@@ -133,10 +146,8 @@ test.describe("Settings – Cards (Core)", () => {
     test("should toggle the 'When closing the window' select", async ({
       page,
     }) => {
-      const card = page.locator(".card", {
-        hasText: "Application Behavior",
-      });
-      const select = card.locator("select").first();
+      const panel = activeSettingsPanel(page);
+      const select = panel.locator("select").first();
 
       const originalValue = await select.inputValue();
       const newValue = originalValue === "exit" ? "minimize" : "exit";
@@ -154,15 +165,13 @@ test.describe("Settings – Cards (Core)", () => {
     });
 
     test("should toggle 'Launch on startup' checkbox", async ({ page }) => {
-      const card = page.locator(".card", {
-        hasText: "Application Behavior",
-      });
+      const panel = activeSettingsPanel(page);
 
       // Find the toggle next to "Launch on startup"
-      const label = card.getByText("Launch on startup");
+      const label = panel.getByText("Launch on startup");
       await expect(label).toBeVisible();
 
-      const toggle = card
+      const toggle = panel
         .locator("label", { hasText: "Launch on startup" })
         .locator('input[type="checkbox"]');
       await expect(toggle).toBeVisible();
@@ -192,11 +201,9 @@ test.describe("Settings – Cards (Core)", () => {
     });
 
     test("should toggle 'Start minimized' checkbox", async ({ page }) => {
-      const card = page.locator(".card", {
-        hasText: "Application Behavior",
-      });
+      const panel = activeSettingsPanel(page);
 
-      const toggle = card
+      const toggle = panel
         .locator("label", { hasText: "Start minimized" })
         .locator('input[type="checkbox"]');
       await expect(toggle).toBeVisible();
@@ -235,39 +242,36 @@ test.describe("Settings – Cards (Core)", () => {
     test.beforeEach(async ({ page }) => {
       await ensurePostSetup(page);
       await goToSettings(page);
+      await openSettingsTab(page, "Overlay");
     });
 
     test("should render all 4 overlay sliders", async ({ page }) => {
-      const card = page.locator(".card", { hasText: "Overlay" }).filter({
-        hasText: "Customize the overlay appearance and position",
-      });
-      await expect(card).toBeVisible();
+      const panel = activeSettingsPanel(page);
+      await expect(panel).toBeVisible();
 
       // Width slider
-      await expect(card.getByText("Width")).toBeVisible();
+      await expect(panel.getByText("Width")).toBeVisible();
       // Height slider
-      await expect(card.getByText("Height", { exact: true })).toBeVisible();
+      await expect(panel.getByText("Height", { exact: true })).toBeVisible();
       // Drop size slider
-      await expect(card.getByText("Drop size")).toBeVisible();
+      await expect(panel.getByText("Drop size")).toBeVisible();
       // Toolbar slider
-      await expect(card.getByText("Toolbar")).toBeVisible();
+      await expect(panel.getByText("Toolbar")).toBeVisible();
 
       // 4 range inputs total
-      const sliders = card.locator('input[type="range"]');
+      const sliders = panel.locator('input[type="range"]');
       await expect(sliders).toHaveCount(4, { timeout: 5_000 });
     });
 
     test("should adjust the overlay width slider", async ({ page }) => {
-      const card = page.locator(".card", { hasText: "Overlay" }).filter({
-        hasText: "Customize the overlay appearance and position",
-      });
+      const panel = activeSettingsPanel(page);
 
       // The width slider is the first range input
-      const widthSlider = card.locator('input[type="range"]').first();
+      const widthSlider = panel.locator('input[type="range"]').first();
       const originalValue = await widthSlider.inputValue();
 
       await setRangeValue(widthSlider, "350");
-      await expect(card.getByText("350px")).toBeVisible({ timeout: 5_000 });
+      await expect(panel.getByText("350px")).toBeVisible({ timeout: 5_000 });
 
       const newValue = await widthSlider.inputValue();
       expect(newValue).toBe("350");
@@ -277,16 +281,14 @@ test.describe("Settings – Cards (Core)", () => {
     });
 
     test("should adjust the overlay height slider", async ({ page }) => {
-      const card = page.locator(".card", { hasText: "Overlay" }).filter({
-        hasText: "Customize the overlay appearance and position",
-      });
+      const panel = activeSettingsPanel(page);
 
       // Height slider is the 2nd range input
-      const heightSlider = card.locator('input[type="range"]').nth(1);
+      const heightSlider = panel.locator('input[type="range"]').nth(1);
       const originalValue = await heightSlider.inputValue();
 
       await setRangeValue(heightSlider, "300");
-      await expect(card.getByText("300px")).toBeVisible({ timeout: 5_000 });
+      await expect(panel.getByText("300px")).toBeVisible({ timeout: 5_000 });
 
       expect(await heightSlider.inputValue()).toBe("300");
 
@@ -295,16 +297,14 @@ test.describe("Settings – Cards (Core)", () => {
     });
 
     test("should adjust the drop size (font size) slider", async ({ page }) => {
-      const card = page.locator(".card", { hasText: "Overlay" }).filter({
-        hasText: "Customize the overlay appearance and position",
-      });
+      const panel = activeSettingsPanel(page);
 
       // Drop size slider is the 3rd range input
-      const fontSlider = card.locator('input[type="range"]').nth(2);
+      const fontSlider = panel.locator('input[type="range"]').nth(2);
       const originalValue = await fontSlider.inputValue();
 
       await setRangeValue(fontSlider, "1.5");
-      await expect(card.getByText("150%").first()).toBeVisible({
+      await expect(panel.getByText("150%").first()).toBeVisible({
         timeout: 5_000,
       });
 
@@ -319,12 +319,10 @@ test.describe("Settings – Cards (Core)", () => {
     });
 
     test("should adjust the toolbar font size slider", async ({ page }) => {
-      const card = page.locator(".card", { hasText: "Overlay" }).filter({
-        hasText: "Customize the overlay appearance and position",
-      });
+      const panel = activeSettingsPanel(page);
 
       // Toolbar slider is the 4th range input
-      const toolbarSlider = card.locator('input[type="range"]').nth(3);
+      const toolbarSlider = panel.locator('input[type="range"]').nth(3);
       const originalValue = await toolbarSlider.inputValue();
 
       await setRangeValue(toolbarSlider, "1.2");
@@ -345,19 +343,17 @@ test.describe("Settings – Cards (Core)", () => {
     test("should render and be able to click 'Restore defaults' button", async ({
       page,
     }) => {
-      const card = page.locator(".card", { hasText: "Overlay" }).filter({
-        hasText: "Customize the overlay appearance and position",
-      });
+      const panel = activeSettingsPanel(page);
 
-      const restoreButton = card
+      const restoreButton = panel
         .locator("button", { hasText: /restore defaults/i })
         .first();
       await expect(restoreButton).toBeVisible();
 
       // Change a slider first so we can verify restore
-      const fontSlider = card.locator('input[type="range"]').nth(2);
+      const fontSlider = panel.locator('input[type="range"]').nth(2);
       await setRangeValue(fontSlider, "1.8");
-      await expect(card.getByText("180%").first()).toBeVisible({
+      await expect(panel.getByText("180%").first()).toBeVisible({
         timeout: 5_000,
       });
 
@@ -376,38 +372,35 @@ test.describe("Settings – Cards (Core)", () => {
     test.beforeEach(async ({ page }) => {
       await ensurePostSetup(page);
       await goToSettings(page);
+      await openSettingsTab(page, "Privacy");
     });
 
     test("should render both privacy toggles and the restart warning", async ({
       page,
     }) => {
-      const card = page.locator(".card", {
-        hasText: "Privacy & Telemetry",
-      });
-      await expect(card).toBeVisible();
+      const panel = activeSettingsPanel(page);
+      await expect(panel).toBeVisible();
 
-      await expect(card.getByText("Crash Reporting")).toBeVisible();
-      await expect(card.getByText("Usage Analytics")).toBeVisible();
+      await expect(panel.getByText("Crash Reporting")).toBeVisible();
+      await expect(panel.getByText("Usage Analytics")).toBeVisible();
 
       // Restart warning
       await expect(
-        card.getByText(/changes take effect after restarting/i),
+        panel.getByText(/changes take effect after restarting/i),
       ).toBeVisible();
 
       // Privacy Policy link
       await expect(
-        card.locator("a", { hasText: /view/i }).first(),
+        panel.locator("a", { hasText: /view/i }).first(),
       ).toBeVisible();
     });
 
     test("should toggle 'Crash Reporting' and persist via IPC", async ({
       page,
     }) => {
-      const card = page.locator(".card", {
-        hasText: "Privacy & Telemetry",
-      });
+      const panel = activeSettingsPanel(page);
 
-      const toggle = card
+      const toggle = panel
         .locator("label", { hasText: "Crash Reporting" })
         .locator('input[type="checkbox"]');
       await expect(toggle).toBeVisible();
@@ -441,11 +434,9 @@ test.describe("Settings – Cards (Core)", () => {
     test("should toggle 'Usage Analytics' and persist via IPC", async ({
       page,
     }) => {
-      const card = page.locator(".card", {
-        hasText: "Privacy & Telemetry",
-      });
+      const panel = activeSettingsPanel(page);
 
-      const toggle = card
+      const toggle = panel
         .locator("label", { hasText: "Usage Analytics" })
         .locator('input[type="checkbox"]');
       await expect(toggle).toBeVisible();
@@ -479,11 +470,9 @@ test.describe("Settings – Cards (Core)", () => {
     test("should navigate to Privacy Policy page via the View link", async ({
       page,
     }) => {
-      const card = page.locator(".card", {
-        hasText: "Privacy & Telemetry",
-      });
+      const panel = activeSettingsPanel(page);
 
-      const viewLink = card.locator("a", { hasText: /view/i }).first();
+      const viewLink = panel.locator("a", { hasText: /view/i }).first();
       await viewLink.click();
       await waitForRoute(page, "/privacy-policy", 10_000);
 

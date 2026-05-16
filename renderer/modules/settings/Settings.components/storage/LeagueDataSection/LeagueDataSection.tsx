@@ -1,11 +1,12 @@
 import { type ColumnDef, createColumnHelper } from "@tanstack/react-table";
+import clsx from "clsx";
 import { useEffect, useMemo, useState } from "react";
-import { FiTrash2 } from "react-icons/fi";
 
 import type { LeagueStorageUsage } from "~/main/modules/storage/Storage.types";
 import { Table } from "~/renderer/components";
 
 import { formatBytes } from "../storage.utils/storage.utils";
+import { LeagueDeleteButton } from "./LeagueDeleteButton/LeagueDeleteButton";
 
 // ============================================================================
 // League table column definitions
@@ -61,31 +62,13 @@ const createLeagueColumns = (
     id: "actions",
     header: "",
     enableSorting: false,
-    cell: (info) => {
-      const league = info.row.original;
-      const isDeleting = deletingLeagueId === league.leagueId;
-      const anyDeleting = deletingLeagueId != null;
-
-      return (
-        <button
-          type="button"
-          className="btn btn-ghost btn-xs btn-square text-error disabled:text-error/30"
-          disabled={league.hasActiveSession || anyDeleting}
-          onClick={() => onDelete(league)}
-          title={
-            league.hasActiveSession
-              ? "Cannot delete while session is active"
-              : `Delete all data for ${league.leagueName}`
-          }
-        >
-          {isDeleting ? (
-            <span className="loading loading-spinner loading-xs" />
-          ) : (
-            <FiTrash2 className="w-3.5 h-3.5" />
-          )}
-        </button>
-      );
-    },
+    cell: (info) => (
+      <LeagueDeleteButton
+        league={info.row.original}
+        deletingLeagueId={deletingLeagueId}
+        onDelete={onDelete}
+      />
+    ),
   }),
 ];
 
@@ -135,8 +118,16 @@ const LeagueDataSection = ({
     [deletingLeagueId, onDeleteRequest],
   );
 
+  const handlePoe1TabClick = () => {
+    setActiveTab("poe1");
+  };
+
+  const handlePoe2TabClick = () => {
+    setActiveTab("poe2");
+  };
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <span className="text-sm font-semibold">League Data</span>
 
       {leagueUsage.length === 0 && !isLoading && (
@@ -146,7 +137,7 @@ const LeagueDataSection = ({
       )}
 
       {leagueUsage.length > 0 && (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {/* Tabs — only show if both games have data */}
           {hasPoe1 && hasPoe2 && (
             <div
@@ -156,8 +147,10 @@ const LeagueDataSection = ({
               <button
                 type="button"
                 role="tab"
-                className={`tab ${activeTab === "poe1" ? "tab-active" : ""}`}
-                onClick={() => setActiveTab("poe1")}
+                className={clsx("tab", {
+                  "tab-active": activeTab === "poe1",
+                })}
+                onClick={handlePoe1TabClick}
               >
                 PoE1
                 <span className="badge badge-ghost badge-xs ml-1.5">
@@ -167,8 +160,10 @@ const LeagueDataSection = ({
               <button
                 type="button"
                 role="tab"
-                className={`tab ${activeTab === "poe2" ? "tab-active" : ""}`}
-                onClick={() => setActiveTab("poe2")}
+                className={clsx("tab", {
+                  "tab-active": activeTab === "poe2",
+                })}
+                onClick={handlePoe2TabClick}
               >
                 PoE2
                 <span className="badge badge-ghost badge-xs ml-1.5">
@@ -186,12 +181,14 @@ const LeagueDataSection = ({
           )}
 
           {/* League table */}
-          <Table
-            data={activeLeagues}
-            columns={leagueColumns}
-            compact
-            enableSorting
-          />
+          <div className="rounded-lg bg-base-100 p-2">
+            <Table
+              data={activeLeagues}
+              columns={leagueColumns}
+              className="[&_tbody_td]:py-1 [&_tbody_td]:text-xs"
+              enableSorting
+            />
+          </div>
         </div>
       )}
     </div>

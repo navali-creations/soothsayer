@@ -29,6 +29,7 @@ import {
   resetLeagueToFixture,
   seedSessionPrerequisites,
 } from "../../helpers/seed-db";
+import { openSettingsTab } from "../../helpers/settings";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -89,6 +90,7 @@ async function performTourReset(page: Page) {
   await navigateTo(page, "/settings");
   await waitForRoute(page, "/settings", 10_000);
   await page.locator("main").waitFor({ state: "visible", timeout: 5_000 });
+  await openSettingsTab(page, "Help");
 
   const resetTourButton = page
     .locator("button[data-onboarding='onboarding-button']")

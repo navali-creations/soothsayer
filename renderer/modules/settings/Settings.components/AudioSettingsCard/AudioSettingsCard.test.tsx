@@ -124,10 +124,13 @@ describe("AudioSettingsCard", () => {
 
   // ── Rendering ──────────────────────────────────────────────────────────
 
-  it('renders "Audio" title', () => {
+  it("renders audio controls without a section title", () => {
     renderWithProviders(<AudioSettingsCard />);
 
-    expect(screen.getByRole("heading", { name: /Audio/i })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: /Audio/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Enable drop sounds")).toBeInTheDocument();
   });
 
   it("renders audio enable toggle", () => {

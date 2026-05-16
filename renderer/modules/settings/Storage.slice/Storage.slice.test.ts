@@ -21,6 +21,13 @@ function makeStorageInfo(overrides?: Partial<StorageInfo>): StorageInfo {
     diskFreeBytes: 50_000_000_000,
     dbDiskTotalBytes: 100_000_000_000,
     dbDiskFreeBytes: 50_000_000_000,
+    diagnosticsCaptureUsage: {
+      captureCount: 0,
+      sampleCount: 0,
+      routeMarkerCount: 0,
+      estimatedSizeBytes: 0,
+      retentionPolicy: "7d",
+    },
     breakdown: [
       {
         label: "Database",
