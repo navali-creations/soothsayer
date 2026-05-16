@@ -16,6 +16,7 @@ const {
   mockFsReadFileSync,
   mockFsExistsSync,
   mockFsUnlinkSync,
+  mockFsChmodSync,
   mockRandomBytes,
   mockCreateHash,
   mockTimingSafeEqual,
@@ -46,6 +47,7 @@ const {
     mockFsReadFileSync: vi.fn(),
     mockFsExistsSync: vi.fn().mockReturnValue(false),
     mockFsUnlinkSync: vi.fn(),
+    mockFsChmodSync: vi.fn(),
     mockRandomBytes: vi.fn().mockReturnValue(Buffer.alloc(32, "a")),
     mockCreateHash: vi.fn().mockReturnValue({
       update: vi.fn().mockReturnValue({
@@ -83,11 +85,13 @@ vi.mock("node:fs", () => ({
     readFileSync: mockFsReadFileSync,
     existsSync: mockFsExistsSync,
     unlinkSync: mockFsUnlinkSync,
+    chmodSync: mockFsChmodSync,
   },
   writeFileSync: mockFsWriteFileSync,
   readFileSync: mockFsReadFileSync,
   existsSync: mockFsExistsSync,
   unlinkSync: mockFsUnlinkSync,
+  chmodSync: mockFsChmodSync,
 }));
 
 vi.mock("node:path", () => ({
@@ -215,6 +219,36 @@ function startAuthFlowAndCaptureState(service: GggAuthService): {
   };
 
   return { authPromise, getState, getCallbackUrl };
+}
+
+function isProxyUrl(url: URL): boolean {
+  return url.pathname.includes("poe-oauth-callback");
+}
+
+function parseRequestBody(body: unknown): Record<string, string> {
+  const bodyText = String(body);
+  if (bodyText.trimStart().startsWith("{")) {
+    return JSON.parse(bodyText) as Record<string, string>;
+  }
+
+  return Object.fromEntries(new URLSearchParams(bodyText).entries());
+}
+
+function expectTokenRequest(
+  fetchUrl: string,
+  fetchOptions: { method?: string; body?: unknown },
+  action: "exchange" | "refresh",
+): void {
+  const url = new URL(fetchUrl);
+
+  if (isProxyUrl(url)) {
+    expect(url.searchParams.get("action")).toBe(action);
+  } else {
+    expect(url.origin).toBe("https://www.pathofexile.com");
+    expect(url.pathname).toBe("/oauth/token");
+  }
+
+  expect(fetchOptions.method).toBe("POST");
 }
 
 // ─── Test Suite ──────────────────────────────────────────────────────────────
@@ -377,9 +411,18 @@ describe("GggAuthService", () => {
       const urlString = mockShellOpenExternal.mock.calls[0][0] as string;
       const url = new URL(urlString);
 
-      // When VITE_SUPABASE_URL is set, the proxy edge function is used
-      expect(url.pathname).toContain("poe-oauth-callback");
-      expect(url.searchParams.get("action")).toBe("authorize");
+      if (isProxyUrl(url)) {
+        expect(url.searchParams.get("action")).toBe("authorize");
+      } else {
+        expect(url.origin).toBe("https://www.pathofexile.com");
+        expect(url.pathname).toBe("/oauth/authorize");
+        expect(url.searchParams.get("client_id")).toBe("soothsayer");
+        expect(url.searchParams.get("response_type")).toBe("code");
+        expect(url.searchParams.get("redirect_uri")).toBe(
+          "soothsayer://oauth/callback",
+        );
+      }
+
       expect(url.searchParams.get("scope")).toBe("account:profile");
       expect(url.searchParams.get("state")).toBeTruthy();
       expect(url.searchParams.get("code_challenge")).toBeTruthy();
@@ -466,15 +509,11 @@ describe("GggAuthService", () => {
       await service.handleCallback(getCallbackUrl("my-auth-code"));
       await authPromise;
 
-      // Verify fetch was called with the token exchange endpoint (proxy)
       expect(mockFetch).toHaveBeenCalledTimes(1);
       const [fetchUrl, fetchOptions] = mockFetch.mock.calls[0];
-      expect(fetchUrl).toContain("poe-oauth-callback");
-      expect(fetchUrl).toContain("action=exchange");
-      expect(fetchOptions.method).toBe("POST");
+      expectTokenRequest(fetchUrl, fetchOptions, "exchange");
 
-      // Proxy uses JSON body instead of form-encoded
-      const body = JSON.parse(fetchOptions.body as string);
+      const body = parseRequestBody(fetchOptions.body);
       expect(body.code).toBe("my-auth-code");
       expect(body.code_verifier).toBeTruthy();
 
@@ -654,12 +693,9 @@ describe("GggAuthService", () => {
       expect(mockFetch).toHaveBeenCalledTimes(1);
 
       const [fetchUrl, fetchOptions] = mockFetch.mock.calls[0];
-      // Proxy-based refresh endpoint
-      expect(fetchUrl).toContain("poe-oauth-callback");
-      expect(fetchUrl).toContain("action=refresh");
+      expectTokenRequest(fetchUrl, fetchOptions, "refresh");
 
-      // Proxy uses JSON body
-      const body = JSON.parse(fetchOptions.body as string);
+      const body = parseRequestBody(fetchOptions.body);
       expect(body.refresh_token).toBe("test-refresh-token");
 
       // Verify updated session was saved
@@ -987,8 +1023,7 @@ describe("GggAuthService", () => {
       await authPromise;
 
       const [, fetchOptions] = mockFetch.mock.calls[0];
-      // Proxy uses JSON body; verify code_verifier is present
-      const body = JSON.parse(fetchOptions.body as string);
+      const body = parseRequestBody(fetchOptions.body);
       expect(body.code_verifier).toBeTruthy();
     });
   });

@@ -12,6 +12,7 @@ const {
   mockFsReadFileSync,
   mockFsExistsSync,
   mockFsUnlinkSync,
+  mockFsChmodSync,
   mockPathJoin,
   mockSignInAnonymously,
   mockSetSession,
@@ -36,6 +37,7 @@ const {
   mockFsReadFileSync: vi.fn(),
   mockFsExistsSync: vi.fn(() => false),
   mockFsUnlinkSync: vi.fn(),
+  mockFsChmodSync: vi.fn(),
   mockPathJoin: vi.fn((...parts: string[]) => parts.join("/")),
   mockSignInAnonymously: vi.fn(),
   mockSetSession: vi.fn(),
@@ -67,6 +69,7 @@ vi.mock("node:fs", () => ({
     readFileSync: mockFsReadFileSync,
     existsSync: mockFsExistsSync,
     unlinkSync: mockFsUnlinkSync,
+    chmodSync: mockFsChmodSync,
   },
 }));
 

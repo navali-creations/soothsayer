@@ -1,3 +1,5 @@
+import path from "node:path";
+
 import type Database from "better-sqlite3";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -704,10 +706,11 @@ describe("AppPerformanceService", () => {
     const service = AppPerformanceService.getInstance();
     const captureId = await makeStoppedCapture(service);
     const window = makeWindow();
+    const reportPath = path.join("tmp", "report.txt");
     mockBrowserWindowGetAllWindows.mockReturnValue([window]);
     mockDialogShowSaveDialog.mockResolvedValue({
       canceled: false,
-      filePath: "C:\\Users\\seb\\Desktop\\report.txt",
+      filePath: reportPath,
     });
 
     const result = await service.exportReport(captureId);
@@ -717,13 +720,11 @@ describe("AppPerformanceService", () => {
       fileName: "report.txt",
     });
     expect(mockFsWriteFile).toHaveBeenCalledWith(
-      "C:\\Users\\seb\\Desktop\\report.txt",
+      reportPath,
       expect.stringContaining("Soothsayer App Performance Report"),
       "utf-8",
     );
-    expect(mockShellShowItemInFolder).toHaveBeenCalledWith(
-      "C:\\Users\\seb\\Desktop\\report.txt",
-    );
+    expect(mockShellShowItemInFolder).toHaveBeenCalledWith(reportPath);
   });
 
   it("handles canceled export dialogs and missing main windows", async () => {
