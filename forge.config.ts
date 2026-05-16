@@ -32,6 +32,9 @@ class MakerAppImage extends MakerBase<Configuration> {
     return buildForge(
       { dir },
       {
+        // Forge uploads release artifacts after every maker finishes. Prevent
+        // electron-builder from auto-publishing AppImage artifacts on CI.
+        publish: "never",
         config: {
           ...config,
           directories: {
