@@ -18,6 +18,7 @@ jobs:
   check-version:
     name: Check if version changed
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       should_publish: ${{ steps.check.outputs.should_publish }}
       version: ${{ steps.check.outputs.version }}
@@ -50,6 +51,7 @@ jobs:
     name: Build (${{ matrix.name }})
     needs: check-version
     if: needs.check-version.outputs.should_publish == 'true'
+    timeout-minutes: 5
 
     env:
       RUNNER_TOOL_CACHE: "C:\\toolcache"
@@ -99,7 +101,7 @@ jobs:
 
       # Skip all lifecycle scripts during install to avoid supabase CLI download failures on Windows
       - name: Install dependencies (skip lifecycle scripts)
-        run: pnpm install --ignore-scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       # Rebuild only the packages needed for building the Electron app
       - name: Rebuild required dependencies
@@ -329,6 +331,7 @@ jobs:
     name: Create GitHub Release
     needs: [check-version, make]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Checkout code repository
         uses: actions/checkout@v6

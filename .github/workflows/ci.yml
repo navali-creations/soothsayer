@@ -37,6 +37,7 @@ jobs:
     name: Install Dependencies
     if: "!contains(github.event.head_commit.message, '[ci] release')"
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -59,13 +60,14 @@ jobs:
 
       - name: Install dependencies
         if: steps.cache-modules.outputs.cache-hit != 'true'
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
   lint:
     name: Lint
     needs: [install]
     if: "!contains(github.event.head_commit.message, '[ci] release')"
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -93,6 +95,7 @@ jobs:
     needs: [install]
     if: "!contains(github.event.head_commit.message, '[ci] release')"
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -118,6 +121,7 @@ jobs:
   changes:
     name: Detect Changes
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     if: "!contains(github.event.head_commit.message, '[ci] release')"
     outputs:
       app-code: ${{ steps.filter.outputs.app-code }}
@@ -272,6 +276,7 @@ jobs:
       needs.changes.outputs.electron-major-bump == 'true' &&
       needs.changes.outputs.sqlite3-compatible != 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Block Electron major bump without better-sqlite3
         run: |
@@ -306,6 +311,7 @@ jobs:
         needs.changes.outputs.dep-electron == 'true'
       )
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     strategy:
       fail-fast: false
       matrix:
@@ -314,9 +320,9 @@ jobs:
           - renderer
         include:
           - suite: main
-            config: vitest.main.config.mts
+            command: node scripts/vitest-electron.mjs run --config vitest.main.config.mts
           - suite: renderer
-            config: vitest.renderer.config.mts
+            command: ./node_modules/.bin/vitest run --config vitest.renderer.config.mts
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -337,7 +343,7 @@ jobs:
           fail-on-cache-miss: true
 
       - name: Run ${{ matrix.suite }} tests
-        run: pnpm vitest run --config ${{ matrix.config }}
+        run: ${{ matrix.command }}
 
   test-edge:
     name: Edge Function Tests (Deno)
@@ -352,6 +358,7 @@ jobs:
         needs.changes.outputs.dep-supabase == 'true'
       )
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -378,6 +385,7 @@ jobs:
         needs.changes.outputs.dep-supabase == 'true'
       )
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -412,6 +420,7 @@ jobs:
     needs: [install, lint, typecheck]
     if: "!contains(github.event.head_commit.message, '[ci] release')"
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -607,7 +616,7 @@ jobs:
     needs: [install, smoke-test]
     if: "!contains(github.event.head_commit.message, '[ci] release')"
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6

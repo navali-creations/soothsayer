@@ -26,7 +26,7 @@
  */
 
 import { cleanup, type RenderOptions, render } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import testingUserEvent from "@testing-library/user-event";
 import type { ReactElement, ReactNode } from "react";
 import { afterEach } from "vitest";
 
@@ -65,8 +65,10 @@ export interface RenderWithProvidersResult extends ReturnType<typeof render> {
   /** The Zustand store instance used for this render. */
   store: TestStore;
   /** A pre-configured `userEvent` instance with `advanceTimers` support. */
-  user: ReturnType<typeof userEvent.setup>;
+  user: ReturnType<typeof testingUserEvent.setup>;
 }
+
+export const userEvent = testingUserEvent;
 
 // ─── renderWithProviders ───────────────────────────────────────────────────
 
@@ -91,7 +93,7 @@ export function renderWithProviders(
 
   // Create a user-event instance. We use `advanceTimers` with vi.advanceTimersByTime
   // so that fake timers work seamlessly with user-event's internal delays.
-  const user = userEvent.setup({
+  const user = testingUserEvent.setup({
     // If fake timers are active, this makes user-event advance them automatically.
     // If real timers are active, this is a harmless no-op wrapper.
     advanceTimers: (ms) => {
@@ -132,9 +134,3 @@ export function renderWithProviders(
 }
 
 export { act, screen, waitFor, within } from "@testing-library/react";
-
-/**
- * Re-export common testing utilities for convenience so test files only
- * need a single import from this module.
- */
-export { userEvent };

@@ -28,17 +28,16 @@
     "supabase:sync": "bash scripts/sync-data.sh",
     "supabase:logs": "bash scripts/supabase-cli.sh functions serve --inspect-mode=run",
     "supabase:functions:serve": "bash scripts/supabase-cli.sh functions serve",
-    "vitest": "node scripts/vitest-electron.mjs",
-    "test": "pnpm vitest run --config vitest.main.config.mts && vitest run --config vitest.renderer.config.mts",
-    "test:main": "pnpm vitest run --config vitest.main.config.mts",
-    "test:main:coverage": "pnpm vitest run --config vitest.main.config.mts --coverage",
+    "test": "node scripts/vitest-electron.mjs run --config vitest.main.config.mts && vitest run --config vitest.renderer.config.mts",
+    "test:main": "node scripts/vitest-electron.mjs run --config vitest.main.config.mts",
+    "test:main:coverage": "node scripts/vitest-electron.mjs run --config vitest.main.config.mts --coverage",
     "test:renderer": "vitest run --config vitest.renderer.config.mts",
     "test:renderer:coverage": "vitest run --config vitest.renderer.config.mts --coverage",
     "test:e2e": "pnpm prepare-deps:electron && pnpm test:e2e:run",
     "test:e2e:run": "cross-env E2E_TESTING=true playwright test --config playwright.config.ts",
     "test:supabase:db": "bash scripts/test-db.sh",
     "test:supabase:edge": "bash scripts/test-edge.sh",
-    "test:all": "pnpm vitest run --config vitest.main.config.mts && vitest run --config vitest.renderer.config.mts && bash scripts/test-db.sh && bash scripts/test-edge.sh && pnpm test:e2e"
+    "test:all": "node scripts/vitest-electron.mjs run --config vitest.main.config.mts && vitest run --config vitest.renderer.config.mts && bash scripts/test-db.sh && bash scripts/test-edge.sh && pnpm test:e2e"
   },
   "engines": {
     "node": ">=24",
