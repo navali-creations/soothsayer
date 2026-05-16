@@ -7,6 +7,16 @@ on:
     paths:
       - "package.json"
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Expected package.json version to publish, for example 0.17.0"
+        required: false
+        type: string
+      force:
+        description: "Publish the current package.json version even if this commit did not bump it"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -30,16 +40,30 @@ jobs:
 
       - name: Check version change
         id: check
+        env:
+          FORCE_PUBLISH: ${{ github.event_name == 'workflow_dispatch' && inputs.force || false }}
+          REQUESTED_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || '' }}
         run: |
           CURRENT_VERSION=$(node -p "require('./package.json').version")
           echo "Current version: $CURRENT_VERSION"
+          echo "Force publish: $FORCE_PUBLISH"
 
           git show HEAD~1:package.json > /tmp/prev-package.json 2>/dev/null || echo '{"version":"0.0.0"}' > /tmp/prev-package.json
           PREVIOUS_VERSION=$(node -p "require('/tmp/prev-package.json').version")
           echo "Previous version: $PREVIOUS_VERSION"
 
+          if [ -n "$REQUESTED_VERSION" ] && [ "$REQUESTED_VERSION" != "$CURRENT_VERSION" ]; then
+            echo "::error::Requested version $REQUESTED_VERSION does not match package.json version $CURRENT_VERSION"
+            echo "should_publish=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
           if [ "$CURRENT_VERSION" != "$PREVIOUS_VERSION" ]; then
             echo "Version changed from $PREVIOUS_VERSION to $CURRENT_VERSION"
+            echo "should_publish=true" >> $GITHUB_OUTPUT
+            echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          elif [ "$FORCE_PUBLISH" = "true" ]; then
+            echo "Version unchanged, but force publish was requested for $CURRENT_VERSION"
             echo "should_publish=true" >> $GITHUB_OUTPUT
             echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
           else
