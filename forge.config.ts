@@ -91,6 +91,15 @@ const config: ForgeConfig = {
     ],
     ignore: (file: string) => {
       if (!file) return false;
+      // Command shims are not runtime files and can point at dev-only binaries
+      // that are absent after CI installs with skipped lifecycle scripts.
+      if (
+        file === "/node_modules/.bin" ||
+        file.startsWith("/node_modules/.bin/")
+      ) {
+        return true;
+      }
+
       const keep =
         file.startsWith("/.vite") || file.startsWith("/node_modules");
       return !keep;
