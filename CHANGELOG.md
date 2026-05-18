@@ -1,5 +1,18 @@
 # soothsayer
 
+## 0.17.1
+
+### Patch Changes
+
+- [`c5478b9`](https://github.com/navali-creations/soothsayer/commit/c5478b94add65d9b3946c935411e711a710be139) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Fixed:** Community uploads are much more reliable when sessions end, the app closes, or the computer goes to sleep.
+
+  - Uploads are now saved locally first, so a temporary network problem or app shutdown does not immediately lose community contribution data.
+  - Pending uploads are retried automatically when the app starts again or the computer wakes up.
+  - Ending a session and then closing the app no longer causes duplicate upload attempts for the same session.
+  - Community upload totals are now merged more safely on the server, so partial failures cannot leave the upload summary out of sync with the card data.
+
 ## 0.17.0
 
 ### Minor Changes
