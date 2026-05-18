@@ -28,7 +28,7 @@ jobs:
   check-version:
     name: Check if version changed
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 2
     outputs:
       should_publish: ${{ steps.check.outputs.should_publish }}
       version: ${{ steps.check.outputs.version }}
@@ -75,7 +75,7 @@ jobs:
     name: Build (${{ matrix.name }})
     needs: check-version
     if: needs.check-version.outputs.should_publish == 'true'
-    timeout-minutes: 5
+    timeout-minutes: 20
 
     env:
       RUNNER_TOOL_CACHE: "C:\\toolcache"

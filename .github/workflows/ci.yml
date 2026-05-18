@@ -67,7 +67,7 @@ jobs:
     needs: [install]
     if: "!contains(github.event.head_commit.message, '[ci] release')"
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 2
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -95,7 +95,7 @@ jobs:
     needs: [install]
     if: "!contains(github.event.head_commit.message, '[ci] release')"
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 2
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -121,7 +121,7 @@ jobs:
   changes:
     name: Detect Changes
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 2
     if: "!contains(github.event.head_commit.message, '[ci] release')"
     outputs:
       app-code: ${{ steps.filter.outputs.app-code }}
@@ -276,7 +276,7 @@ jobs:
       needs.changes.outputs.electron-major-bump == 'true' &&
       needs.changes.outputs.sqlite3-compatible != 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 2
     steps:
       - name: Block Electron major bump without better-sqlite3
         run: |
