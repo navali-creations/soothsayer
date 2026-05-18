@@ -14,6 +14,7 @@ import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
 // ─── Hoisted mock functions ──────────────────────────────────────────────────
 const {
   mockIpcHandle,
+  mockPowerMonitorOn,
   mockGetKysely,
   mockSettingsGet,
   mockSettingsSet,
@@ -39,6 +40,7 @@ const {
 
   return {
     mockIpcHandle: vi.fn(),
+    mockPowerMonitorOn: vi.fn(),
     mockGetKysely: vi.fn(),
     mockSettingsGet: vi.fn(),
     mockSettingsSet: vi.fn(),
@@ -59,7 +61,9 @@ const {
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
 
-vi.mock("electron", () => createElectronMock({ mockIpcHandle }));
+vi.mock("electron", () =>
+  createElectronMock({ mockIpcHandle, mockPowerMonitorOn }),
+);
 
 vi.mock("~/main/modules/database", () =>
   createDatabaseServiceMock({ mockGetKysely }),
@@ -110,9 +114,11 @@ function createKyselyChain(result: unknown = undefined) {
   const chain: Record<string, any> = {};
   const methods = [
     "selectFrom",
+    "deleteFrom",
     "insertInto",
     "select",
     "selectAll",
+    "updateTable",
     "where",
     "values",
     "onConflict",
@@ -514,6 +520,21 @@ describe("CommunityUploadService", () => {
       );
     });
 
+    it("should queue without flushing when requested", async () => {
+      const kyselyMock = setupKyselyForUpload();
+      mockCallEdgeFunction.mockResolvedValue(MOCK_EDGE_RESPONSE);
+
+      service = CommunityUploadService.getInstance();
+      await service.uploadOnSessionEnd("poe2", "Settlers", undefined, {
+        flush: false,
+      });
+
+      expect(mockCallEdgeFunction).not.toHaveBeenCalled();
+      expect(kyselyMock.insertInto).toHaveBeenCalledWith(
+        "community_upload_outbox",
+      );
+    });
+
     it("should skip upload when uploads are disabled", async () => {
       setupKyselyForUpload();
       mockSettingsGet.mockResolvedValue(false);
@@ -587,7 +608,7 @@ describe("CommunityUploadService", () => {
         expect.objectContaining({
           tags: {
             module: "community-upload",
-            operation: "upload-on-session-end",
+            operation: "flush-pending-upload",
           },
           extra: { game: "poe2", league: "Settlers" },
         }),
@@ -618,6 +639,83 @@ describe("CommunityUploadService", () => {
           league_name: "Standard",
         }),
         {},
+      );
+    });
+  });
+
+  describe("flushPendingUploads", () => {
+    it("should register a resume handler for pending uploads", () => {
+      const kyselyMock = createKyselyChain();
+      mockGetKysely.mockReturnValue(kyselyMock);
+
+      service = CommunityUploadService.getInstance();
+
+      expect(mockPowerMonitorOn).toHaveBeenCalledWith(
+        "resume",
+        expect.any(Function),
+      );
+    });
+
+    it("should flush a pending outbox row", async () => {
+      const pendingRow = {
+        game: "poe2",
+        scope: "Settlers",
+        cards_json: JSON.stringify([{ card_name: "The Doctor", count: 3 }]),
+        attempts: 0,
+        last_error: null,
+        next_attempt_at: null,
+      };
+      const pendingRowsChain = createKyselyChain([pendingRow]);
+      const pendingRowChain = createKyselyChain(pendingRow);
+      const latestRowChain = createKyselyChain({
+        cards_json: pendingRow.cards_json,
+      });
+      const leaguesChain = createKyselyChain([]);
+      const deviceIdChain = createKyselyChain({
+        value: "aaaaaaaa-bbbb-4ccc-9ddd-eeeeeeeeeeee",
+      });
+      const insertChain = createKyselyChain();
+      const deleteChain = createKyselyChain();
+
+      let outboxSelectCount = 0;
+      const kyselyMock = {
+        selectFrom: vi.fn((table: string) => {
+          if (table === "cards") return leaguesChain;
+          if (table === "community_upload_outbox") {
+            outboxSelectCount++;
+            if (outboxSelectCount === 1) return pendingRowsChain;
+            if (outboxSelectCount === 2) return pendingRowChain;
+            return latestRowChain;
+          }
+          return deviceIdChain;
+        }),
+        insertInto: vi.fn().mockReturnValue(insertChain),
+        deleteFrom: vi.fn().mockReturnValue(deleteChain),
+      };
+      mockGetKysely.mockReturnValue(kyselyMock);
+      mockGetAccessToken.mockResolvedValue(null);
+      mockCallEdgeFunction.mockResolvedValue({
+        success: true,
+        upload_id: "upload-uuid-123",
+        total_cards: 3,
+        unique_cards: 1,
+        upload_count: 1,
+        is_verified: false,
+      });
+
+      service = CommunityUploadService.getInstance();
+      await service.flushPendingUploads();
+
+      expect(mockCallEdgeFunction).toHaveBeenCalledWith(
+        "upload-community-data",
+        expect.objectContaining({
+          cards: [{ card_name: "The Doctor", count: 3 }],
+          device_id: "aaaaaaaa-bbbb-4ccc-9ddd-eeeeeeeeeeee",
+        }),
+        {},
+      );
+      expect(kyselyMock.deleteFrom).toHaveBeenCalledWith(
+        "community_upload_outbox",
       );
     });
   });
@@ -1279,13 +1377,13 @@ describe("CommunityUploadService", () => {
           selectFromCallCount++;
           // 1st: distinct leagues
           if (selectFromCallCount === 1) return leaguesChain;
-          // For each league: backfill marker, device_id, cards, snapshot
-          // League 1: calls 2,3,4,5
-          // League 2: calls 6,7,8,9
-          const offset = (selectFromCallCount - 2) % 4;
+          // For each league: backfill marker, device_id, cards, snapshot,
+          // outbox existing row, outbox latest row.
+          const offset = (selectFromCallCount - 2) % 6;
           if (offset === 0) return noMarkerChain;
           if (offset === 1) return deviceIdChain;
           if (offset === 2) return cardsChain;
+          if (offset === 3) return snapshotChain;
           return snapshotChain;
         }),
         insertInto: vi.fn().mockReturnValue(insertChain),
@@ -1317,10 +1415,11 @@ describe("CommunityUploadService", () => {
         selectFrom: vi.fn(() => {
           selectFromCallCount++;
           if (selectFromCallCount === 1) return leaguesChain;
-          const offset = (selectFromCallCount - 2) % 4;
+          const offset = (selectFromCallCount - 2) % 6;
           if (offset === 0) return noMarkerChain;
           if (offset === 1) return deviceIdChain;
           if (offset === 2) return cardsChain;
+          if (offset === 3) return snapshotChain;
           return snapshotChain;
         }),
         insertInto: vi.fn().mockReturnValue(insertChain),
@@ -1362,10 +1461,11 @@ describe("CommunityUploadService", () => {
         selectFrom: vi.fn(() => {
           selectFromCallCount++;
           if (selectFromCallCount === 1) return leaguesChain;
-          const offset = (selectFromCallCount - 2) % 4;
+          const offset = (selectFromCallCount - 2) % 6;
           if (offset === 0) return noMarkerChain;
           if (offset === 1) return deviceIdChain;
           if (offset === 2) return cardsChain;
+          if (offset === 3) return snapshotChain;
           return snapshotChain;
         }),
         insertInto: vi.fn().mockReturnValue(insertChain),

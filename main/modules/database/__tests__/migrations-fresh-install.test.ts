@@ -169,6 +169,32 @@ describe("Migrations – Fresh Install", () => {
     ).toThrow();
   });
 
+  it("should have community upload outbox table after migrations", () => {
+    const db = getDb();
+    createBaselineSchema(db);
+    const runner = new MigrationRunner(db);
+    runner.runMigrations(migrations);
+
+    const tables = getTableNames(db);
+    expect(tables).toContain("community_upload_outbox");
+
+    const columns = getColumnNames(db, "community_upload_outbox");
+    expect(columns).toEqual([
+      "game",
+      "scope",
+      "cards_json",
+      "attempts",
+      "last_error",
+      "next_attempt_at",
+      "created_at",
+      "updated_at",
+    ]);
+
+    expect(getIndexNames(db, "community_upload_outbox")).toContain(
+      "idx_community_upload_outbox_next_attempt",
+    );
+  });
+
   it("should default last_seen_app_version to NULL on fresh install", () => {
     const db = getDb();
     createBaselineSchema(db);

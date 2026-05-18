@@ -14,6 +14,7 @@ import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
 // ─── Hoisted mock functions (available inside vi.mock factories) ─────────────
 const {
   mockIpcHandle,
+  mockPowerMonitorOn,
   mockWebContentsSend,
   mockGetAllWindows,
   mockGetKysely,
@@ -31,8 +32,11 @@ const {
   mockAppPerformanceStartFreshCapture,
   mockAppPerformanceStopCapture,
   mockAppPerformanceGetState,
+  mockCommunityUploadOnSessionEnd,
+  mockCommunityUploadFlushPendingUploads,
 } = vi.hoisted(() => ({
   mockIpcHandle: vi.fn(),
+  mockPowerMonitorOn: vi.fn(),
   mockWebContentsSend: vi.fn(),
   mockGetAllWindows: vi.fn(),
   mockGetKysely: vi.fn(),
@@ -80,12 +84,15 @@ const {
     samples: [],
     routeMarkers: [],
   })),
+  mockCommunityUploadOnSessionEnd: vi.fn().mockResolvedValue(undefined),
+  mockCommunityUploadFlushPendingUploads: vi.fn().mockResolvedValue(undefined),
 }));
 
 // ─── Mock Electron before any imports that use it ────────────────────────────
 vi.mock("electron", () =>
   createElectronMock({
     mockIpcHandle,
+    mockPowerMonitorOn,
     mockWebContentsSend,
     mockGetAllWindows,
   }),
@@ -176,7 +183,8 @@ vi.mock("~/main/modules/settings-store", () =>
 vi.mock("~/main/modules/community-upload", () => ({
   CommunityUploadService: {
     getInstance: vi.fn(() => ({
-      uploadOnSessionEnd: vi.fn().mockResolvedValue(undefined),
+      uploadOnSessionEnd: mockCommunityUploadOnSessionEnd,
+      flushPendingUploads: mockCommunityUploadFlushPendingUploads,
     })),
   },
 }));
@@ -270,6 +278,10 @@ describe("CurrentSessionService", () => {
       samples: [],
       routeMarkers: [],
     });
+    mockCommunityUploadOnSessionEnd.mockReset().mockResolvedValue(undefined);
+    mockCommunityUploadFlushPendingUploads
+      .mockReset()
+      .mockResolvedValue(undefined);
 
     // Seed base data
     leagueId = await seedLeague(testDb.kysely, {
@@ -667,6 +679,138 @@ describe("CurrentSessionService", () => {
       await service.stopSession("poe1");
 
       expect(mockStopAutoRefresh).toHaveBeenCalledWith("poe1", "Settlers");
+    });
+
+    it("should not wait for community upload by default", async () => {
+      let resolveUpload: (() => void) | undefined;
+      mockCommunityUploadOnSessionEnd.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveUpload = resolve;
+          }),
+      );
+
+      await service.startSession("poe1", "Settlers");
+      await service.stopSession("poe1");
+
+      expect(mockStopAutoRefresh).toHaveBeenCalledWith("poe1", "Settlers");
+      resolveUpload?.();
+    });
+
+    it("should wait for community upload when requested", async () => {
+      let resolveUpload: (() => void) | undefined;
+      let markUploadStarted: (() => void) | undefined;
+      const uploadStarted = new Promise<void>((resolve) => {
+        markUploadStarted = resolve;
+      });
+      mockCommunityUploadOnSessionEnd.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            markUploadStarted?.();
+            resolveUpload = resolve;
+          }),
+      );
+
+      await service.startSession("poe1", "Settlers");
+      const stopPromise = service.stopSession("poe1", {
+        waitForCommunityUpload: true,
+      });
+
+      await Promise.race([
+        uploadStarted,
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error("community upload not started")),
+            1_000,
+          ),
+        ),
+      ]);
+
+      expect(resolveUpload).toBeDefined();
+      expect(mockStopAutoRefresh).not.toHaveBeenCalled();
+
+      resolveUpload?.();
+      await stopPromise;
+
+      expect(mockStopAutoRefresh).toHaveBeenCalledWith("poe1", "Settlers");
+    });
+
+    it("should let a concurrent stop request upgrade community upload flushing", async () => {
+      await service.startSession("poe1", "Settlers");
+
+      const suspendStyleStop = service.stopSession("poe1", {
+        flushCommunityUpload: false,
+      });
+      const normalStop = service.stopSession("poe1");
+
+      await Promise.all([suspendStyleStop, normalStop]);
+
+      expect(mockCommunityUploadOnSessionEnd).toHaveBeenCalledTimes(1);
+      expect(mockCommunityUploadOnSessionEnd).toHaveBeenCalledWith(
+        "poe1",
+        "Settlers",
+        expect.any(String),
+        { flush: true },
+      );
+      expect(mockCommunityUploadFlushPendingUploads).not.toHaveBeenCalled();
+    });
+
+    it("should let a concurrent stop request wait for community upload", async () => {
+      let resolveUpload: (() => void) | undefined;
+      let markUploadStarted: (() => void) | undefined;
+      const uploadStarted = new Promise<void>((resolve) => {
+        markUploadStarted = resolve;
+      });
+      mockCommunityUploadOnSessionEnd.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            markUploadStarted?.();
+            resolveUpload = resolve;
+          }),
+      );
+
+      await service.startSession("poe1", "Settlers");
+
+      const firstStop = service.stopSession("poe1");
+      const waitingStop = service.stopSession("poe1", {
+        waitForCommunityUpload: true,
+      });
+
+      await Promise.race([
+        uploadStarted,
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error("community upload not started")),
+            1_000,
+          ),
+        ),
+      ]);
+
+      expect(mockStopAutoRefresh).not.toHaveBeenCalled();
+
+      resolveUpload?.();
+      await Promise.all([firstStop, waitingStop]);
+
+      expect(mockStopAutoRefresh).toHaveBeenCalledWith("poe1", "Settlers");
+    });
+
+    it("should queue community upload without flushing on system suspend", async () => {
+      await service.startSession("poe1", "Settlers");
+
+      const suspendHandler = mockPowerMonitorOn.mock.calls.find(
+        ([event]: [string]) => event === "suspend",
+      )?.[1];
+      expect(suspendHandler).toEqual(expect.any(Function));
+
+      suspendHandler();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(mockCommunityUploadOnSessionEnd).toHaveBeenCalledWith(
+        "poe1",
+        "Settlers",
+        expect.any(String),
+        { flush: false },
+      );
     });
 
     it("should stop the session-owned app performance capture", async () => {

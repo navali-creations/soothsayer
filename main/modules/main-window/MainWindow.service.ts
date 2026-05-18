@@ -278,7 +278,8 @@ class MainWindowService {
     console.log("[Init] ✓ Sessions");
 
     // 8. Community upload (depends on database + settings + supabase)
-    CommunityUploadService.getInstance();
+    const communityUpload = CommunityUploadService.getInstance();
+    void communityUpload.flushPendingUploads();
     console.log("[Init] ✓ Community Upload");
 
     // 8a. Banners (depends on database — persistent banner dismissal)

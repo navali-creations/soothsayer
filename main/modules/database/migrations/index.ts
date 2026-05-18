@@ -21,6 +21,7 @@ import { migration_20260418_140800_create_dismissed_banners } from "./20260418_1
 import { migration_20260420_120000_add_community_uploads_enabled } from "./20260420_120000_add_community_uploads_enabled";
 import { migration_20260622_120000_create_community_upload_snapshot } from "./20260622_120000_create_community_upload_snapshot";
 import { migration_20260623_150000_add_app_performance_diagnostics } from "./20260623_150000_add_app_performance_diagnostics";
+import { migration_20260624_120000_create_community_upload_outbox } from "./20260624_120000_create_community_upload_outbox";
 import type { Migration } from "./Migration.interface";
 
 /**
@@ -54,6 +55,7 @@ export const migrations: Migration[] = [
   migration_20260420_120000_add_community_uploads_enabled,
   migration_20260622_120000_create_community_upload_snapshot,
   migration_20260623_150000_add_app_performance_diagnostics,
+  migration_20260624_120000_create_community_upload_outbox,
 ];
 
 export type { Migration } from "./Migration.interface";

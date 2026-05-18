@@ -75,6 +75,59 @@ function checkRoundNumbers(counts: number[]): boolean {
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// Keep these values in sync with the Postgres community_upload_limits() RPC.
+// The edge function validates early for cheap rejection; Postgres enforces the
+// same limits again inside the atomic merge transaction.
+const COMMUNITY_UPLOAD_LIMITS = {
+  // PoE has ~450 unique divination cards per game; 1000 leaves safe headroom
+  // without allowing oversized request bodies.
+  maxCards: 1000,
+  // Per-card count guardrail. This is far above realistic user data, but keeps
+  // malicious or corrupt payloads bounded.
+  maxCardCount: 10_000_000,
+  // community_uploads.total_cards_uploaded is an INT, so keep accepted payload
+  // totals within the signed 32-bit integer range.
+  maxTotalCards: 2_147_483_647,
+} as const;
+
+type MergeCommunityUploadResult = {
+  upload_id: string;
+  total_cards: number;
+  upload_count: number;
+  is_verified: boolean;
+};
+
+function parseMergeCommunityUploadResult(
+  data: unknown,
+): MergeCommunityUploadResult | null {
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    return null;
+  }
+
+  const result = data as Record<string, unknown>;
+  if (
+    typeof result.upload_id !== "string" ||
+    typeof result.total_cards !== "number" ||
+    !Number.isInteger(result.total_cards) ||
+    typeof result.upload_count !== "number" ||
+    !Number.isInteger(result.upload_count) ||
+    typeof result.is_verified !== "boolean"
+  ) {
+    return null;
+  }
+
+  if (result.total_cards < 0 || result.upload_count <= 0) {
+    return null;
+  }
+
+  return {
+    upload_id: result.upload_id,
+    total_cards: result.total_cards,
+    upload_count: result.upload_count,
+    is_verified: result.is_verified,
+  };
+}
+
 function validateBody(
   body: unknown,
 ): { ok: true; data: RequestBody } | { ok: false; error: string } {
@@ -126,10 +179,14 @@ function validateBody(
   }
 
   // PoE has ~450 unique divination cards per game — 1000 is generous headroom
-  if (b.cards.length > 1000) {
-    return { ok: false, error: "cards array exceeds maximum of 1000 entries" };
+  if (b.cards.length > COMMUNITY_UPLOAD_LIMITS.maxCards) {
+    return {
+      ok: false,
+      error: `cards array exceeds maximum of ${COMMUNITY_UPLOAD_LIMITS.maxCards} entries`,
+    };
   }
 
+  let totalCards = 0;
   for (let i = 0; i < b.cards.length; i++) {
     const c = b.cards[i];
     if (!c || typeof c !== "object") {
@@ -151,13 +208,23 @@ function validateBody(
       typeof c.count !== "number" ||
       !Number.isInteger(c.count) ||
       c.count <= 0 ||
-      c.count > 10_000_000
+      c.count > COMMUNITY_UPLOAD_LIMITS.maxCardCount
     ) {
       return {
         ok: false,
-        error: `cards[${i}].count must be a positive integer (max 10,000,000)`,
+        error: `cards[${i}].count must be a positive integer (max ${COMMUNITY_UPLOAD_LIMITS.maxCardCount.toLocaleString(
+          "en-US",
+        )})`,
       };
     }
+    totalCards += c.count;
+  }
+
+  if (totalCards > COMMUNITY_UPLOAD_LIMITS.maxTotalCards) {
+    return {
+      ok: false,
+      error: "cards total exceeds maximum supported upload size",
+    };
   }
 
   // is_packaged is optional; if present it must be a boolean
@@ -402,6 +469,7 @@ Deno.serve(async (req: Request) => {
           Authorization: `Bearer ${gggAccessToken}`,
           "User-Agent": "OAuth soothsayer/1.0.0 (contact: eskrzy@gmail.com)",
         },
+        signal: AbortSignal.timeout(10_000),
       });
 
       if (gggResp.ok) {
@@ -496,243 +564,49 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  // 7. Calculate total cards uploaded
-  const totalCards = resolvedCards.reduce((sum, c) => sum + c.count, 0);
+  // 7. Atomically create/update the upload row and merge card counts.
+  const uploadMergeStartedAt = Date.now();
+  const { data: uploadMergeData, error: uploadMergeError } = await supabase.rpc(
+    "merge_community_upload_data",
+    {
+      p_league_id: league.id,
+      p_device_id: deviceId,
+      p_ggg_uuid: gggUuid,
+      p_ggg_username: gggUsername,
+      p_is_verified: isVerified,
+      p_cards: resolvedCards.map((card) => ({
+        card_id: card.cardId,
+        count: card.count,
+      })),
+    },
+  );
 
-  // 8. Upsert community_uploads (select → insert or update)
-  const { data: existingUpload } = await supabase
-    .from("community_uploads")
-    .select("id, ggg_uuid, ggg_username, is_verified, upload_count")
-    .eq("league_id", league.id)
-    .eq("device_id", deviceId)
-    .maybeSingle();
-
-  // If no row for this device, check if same GGG account already uploaded
-  // for this league from a different device (e.g., after a PC reformat).
-  // Merge onto the existing verified row to avoid double-counting.
-  let mergeTarget: typeof existingUpload = null;
-  if (!existingUpload && gggUuid) {
-    const { data: gggMatch } = await supabase
-      .from("community_uploads")
-      .select(
-        "id, ggg_uuid, ggg_username, is_verified, upload_count, device_id",
-      )
-      .eq("league_id", league.id)
-      .eq("ggg_uuid", gggUuid)
-      .limit(1)
-      .maybeSingle();
-
-    if (gggMatch) {
-      mergeTarget = gggMatch;
-      console.log(
-        `${TAG} Merging upload: same ggg_uuid=${gggUuid} found under device_id=${gggMatch.device_id}, merging onto upload_id=${gggMatch.id}`,
-      );
-    }
-  }
-
-  let uploadId: string;
-  let uploadCount: number;
-
-  if (existingUpload || mergeTarget) {
-    const target = existingUpload ?? mergeTarget!;
-    // Update existing row with COALESCE / OR logic in TypeScript
-    uploadCount = target.upload_count + 1;
-
-    const { error: updateErr } = await supabase
-      .from("community_uploads")
-      .update({
-        total_cards_uploaded: totalCards,
-        ggg_uuid: gggUuid ?? target.ggg_uuid,
-        ggg_username: gggUsername ?? target.ggg_username,
-        is_verified: isVerified || target.is_verified,
-        last_uploaded_at: new Date().toISOString(),
-        upload_count: uploadCount,
-      })
-      .eq("id", target.id);
-
-    if (updateErr) {
-      console.error(`${TAG} community_uploads update failed:`, updateErr);
-      return responseJson({
-        status: 500,
-        body: { error: "Failed to update upload record" },
-      });
-    }
-
-    uploadId = target.id;
-    // Carry forward the most accurate verification status
-    isVerified = isVerified || target.is_verified;
-  } else {
-    uploadCount = 1;
-
-    const { data: newUpload, error: insertErr } = await supabase
-      .from("community_uploads")
-      .insert({
-        league_id: league.id,
-        device_id: deviceId,
-        total_cards_uploaded: totalCards,
-        ggg_uuid: gggUuid,
-        ggg_username: gggUsername,
-        is_verified: isVerified,
-      })
-      .select("id")
-      .single();
-
-    if (insertErr) {
-      // Handle race condition: another request inserted between our SELECT and INSERT
-      if (insertErr.code === "23505") {
-        // Unique violation — retry as update
-        const { data: raceUpload } = await supabase
-          .from("community_uploads")
-          .select("id, ggg_uuid, ggg_username, is_verified, upload_count")
-          .eq("league_id", league.id)
-          .eq("device_id", deviceId)
-          .single();
-
-        if (!raceUpload) {
-          console.error(
-            `${TAG} Race condition recovery failed — could not find upload after unique violation`,
-          );
-          return responseJson({
-            status: 500,
-            body: { error: "Failed to create upload record" },
-          });
-        }
-
-        uploadCount = raceUpload.upload_count + 1;
-        const { error: raceUpdateErr } = await supabase
-          .from("community_uploads")
-          .update({
-            total_cards_uploaded: totalCards,
-            ggg_uuid: gggUuid ?? raceUpload.ggg_uuid,
-            ggg_username: gggUsername ?? raceUpload.ggg_username,
-            is_verified: isVerified || raceUpload.is_verified,
-            last_uploaded_at: new Date().toISOString(),
-            upload_count: uploadCount,
-          })
-          .eq("id", raceUpload.id);
-
-        if (raceUpdateErr) {
-          console.error(`${TAG} Race condition update failed:`, raceUpdateErr);
-          return responseJson({
-            status: 500,
-            body: { error: "Failed to create upload record" },
-          });
-        }
-
-        uploadId = raceUpload.id;
-        isVerified = isVerified || raceUpload.is_verified;
-      } else {
-        console.error(`${TAG} community_uploads insert failed:`, insertErr);
-        return responseJson({
-          status: 500,
-          body: { error: "Failed to create upload record" },
-        });
-      }
-    } else {
-      uploadId = newUpload.id;
-    }
-  }
-
-  // 9. Upsert community_card_data with GREATEST logic
-  // Batch-fetch all existing card data rows for this upload
-  const resolvedCardIds = resolvedCards.map((c) => c.cardId);
-
-  const { data: existingCardData, error: existingCardDataError } =
-    await supabase
-      .from("community_card_data")
-      .select("id, card_id, count")
-      .eq("upload_id", uploadId)
-      .in("card_id", resolvedCardIds);
-
-  if (existingCardDataError) {
-    console.error(
-      `${TAG} community_card_data fetch failed:`,
-      existingCardDataError,
-    );
+  if (uploadMergeError) {
+    console.error(`${TAG} community upload merge failed:`, uploadMergeError);
     return responseJson({
       status: 500,
-      body: { error: "Failed to fetch existing card data" },
+      body: { error: "Failed to merge upload data" },
     });
   }
 
-  const existingByCardId = new Map<string, { id: string; count: number }>();
-  for (const row of existingCardData ?? []) {
-    existingByCardId.set(row.card_id, { id: row.id, count: row.count });
+  const uploadMergeResult = parseMergeCommunityUploadResult(uploadMergeData);
+  if (!uploadMergeResult) {
+    console.error(
+      `${TAG} community upload merge returned invalid result type=${typeof uploadMergeData}`,
+    );
+    return responseJson({
+      status: 500,
+      body: { error: "Invalid upload merge result" },
+    });
   }
 
-  const toInsert: { upload_id: string; card_id: string; count: number }[] = [];
-  const toUpdate: { id: string; count: number }[] = [];
+  const uploadId = uploadMergeResult.upload_id;
+  const effectiveTotal = uploadMergeResult.total_cards;
+  const uploadCount = uploadMergeResult.upload_count;
+  isVerified = uploadMergeResult.is_verified;
+  const uploadMergeMs = Date.now() - uploadMergeStartedAt;
 
-  for (const { cardId, count } of resolvedCards) {
-    const existing = existingByCardId.get(cardId);
-    if (!existing) {
-      toInsert.push({ upload_id: uploadId, card_id: cardId, count });
-    } else if (count > existing.count) {
-      // GREATEST — only update when the new count is larger
-      toUpdate.push({ id: existing.id, count });
-    }
-    // else: existing count >= new count, skip (GREATEST keeps higher value)
-  }
-
-  // Batch insert new card data rows
-  if (toInsert.length > 0) {
-    const { error: insertCardErr } = await supabase
-      .from("community_card_data")
-      .insert(toInsert);
-
-    if (insertCardErr) {
-      console.error(`${TAG} community_card_data insert failed:`, insertCardErr);
-      return responseJson({
-        status: 500,
-        body: { error: "Failed to insert card data" },
-      });
-    }
-  }
-
-  // Batch update existing card data rows (one by one since each has different values)
-  for (const { id, count } of toUpdate) {
-    const { error: updateCardErr } = await supabase
-      .from("community_card_data")
-      .update({ count, updated_at: new Date().toISOString() })
-      .eq("id", id);
-
-    if (updateCardErr) {
-      console.error(
-        `${TAG} community_card_data update failed for id=${id}:`,
-        updateCardErr,
-      );
-      // Non-fatal: continue with the rest
-    }
-  }
-
-  // Recompute actual total_cards_uploaded from server-side data (accounts for GREATEST logic)
-  const { data: actualTotalRow } = await supabase
-    .from("community_card_data")
-    .select("count")
-    .eq("upload_id", uploadId);
-
-  const actualTotal = (actualTotalRow ?? []).reduce(
-    (sum: number, r: { count: number }) => sum + r.count,
-    0,
-  );
-
-  if (actualTotal !== totalCards) {
-    const { error: totalUpdateErr } = await supabase
-      .from("community_uploads")
-      .update({ total_cards_uploaded: actualTotal })
-      .eq("id", uploadId);
-
-    if (totalUpdateErr) {
-      console.warn(
-        `${TAG} Failed to update actual total_cards_uploaded: ${totalUpdateErr.message}`,
-      );
-    }
-  }
-
-  // Use the accurate total for fraud detection
-  const effectiveTotal = actualTotal || totalCards;
-
-  // 10. Statistical fraud checks (Layer 1.5) — only if effectiveTotal >= 500
+  // 8. Statistical fraud checks (Layer 1.5) — only if effectiveTotal >= 500
   if (effectiveTotal >= 500) {
     const allCounts = resolvedCards.map((c) => c.count);
     const suspicionReasons: string[] = [];
@@ -782,7 +656,7 @@ Deno.serve(async (req: Request) => {
   const uniqueCards = new Set(resolvedCards.map((c) => c.cardId)).size;
 
   console.log(
-    `${TAG} Upload successful: upload_id=${uploadId}, total_cards=${effectiveTotal}, unique_cards=${uniqueCards}, upload_count=${uploadCount}, is_verified=${isVerified}`,
+    `${TAG} Upload successful: upload_id=${uploadId}, total_cards=${effectiveTotal}, unique_cards=${uniqueCards}, upload_count=${uploadCount}, is_verified=${isVerified}, upload_merge_ms=${uploadMergeMs}`,
   );
 
   return responseJson({

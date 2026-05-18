@@ -318,6 +318,17 @@ export interface CommunityUploadSnapshotTable {
   count: number;
 }
 
+export interface CommunityUploadOutboxTable {
+  game: string;
+  scope: string;
+  cards_json: string;
+  attempts: ColumnType<number, number | undefined, number>;
+  last_error: string | null;
+  next_attempt_at: string | null;
+  created_at: ColumnType<string, string | undefined, never>;
+  updated_at: ColumnType<string, string | undefined, string>;
+}
+
 export interface DismissedBannersTable {
   banner_id: string;
   dismissed_at: ColumnType<string, string | undefined, string>;
@@ -381,6 +392,7 @@ export interface Database {
   card_price_history_cache: CardPriceHistoryCacheTable;
   csv_export_snapshots: CsvExportSnapshotsTable;
   community_upload_snapshot: CommunityUploadSnapshotTable;
+  community_upload_outbox: CommunityUploadOutboxTable;
   dismissed_banners: DismissedBannersTable;
   app_performance_captures: AppPerformanceCapturesTable;
   app_performance_samples: AppPerformanceSamplesTable;

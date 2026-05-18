@@ -9,7 +9,7 @@
 
 BEGIN;
 
-SELECT plan(106);
+SELECT plan(135);
 
 -- ═══════════════════════════════════════════════════════════════
 -- VERIFY FUNCTIONS EXIST
@@ -73,6 +73,17 @@ SELECT has_function(
   'create_snapshot_with_prices(uuid, timestamptz, numeric, numeric, numeric, numeric, jsonb) should exist'
 );
 
+SELECT has_function(
+  'public', 'community_upload_limits',
+  'community_upload_limits() should exist'
+);
+
+SELECT has_function(
+  'public', 'merge_community_upload_data',
+  ARRAY['uuid', 'text', 'text', 'text', 'boolean', 'jsonb'],
+  'merge_community_upload_data(uuid, text, text, text, boolean, jsonb) should exist'
+);
+
 SELECT results_eq(
   $$SELECT has_function_privilege(
     'service_role',
@@ -127,6 +138,68 @@ SELECT ok(
     ) COLLATE "C" = 'Atomically creates a non-empty snapshot and card_prices rows, serializing recent writes per league. SECURITY DEFINER, service_role only.'::text COLLATE "C"
   ),
   'create_snapshot_with_prices should document its atomic write and access model'
+);
+
+SELECT results_eq(
+  $$SELECT has_function_privilege(
+    'service_role',
+    'public.merge_community_upload_data(uuid,text,text,text,boolean,jsonb)'::regprocedure,
+    'EXECUTE'
+  )$$,
+  ARRAY[true],
+  'merge_community_upload_data should grant EXECUTE to service_role'
+);
+
+SELECT results_eq(
+  $$SELECT NOT has_function_privilege(
+    'anon',
+    'public.merge_community_upload_data(uuid,text,text,text,boolean,jsonb)'::regprocedure,
+    'EXECUTE'
+  )$$,
+  ARRAY[true],
+  'merge_community_upload_data should not grant EXECUTE to anon'
+);
+
+SELECT results_eq(
+  $$SELECT NOT has_function_privilege(
+    'authenticated',
+    'public.merge_community_upload_data(uuid,text,text,text,boolean,jsonb)'::regprocedure,
+    'EXECUTE'
+  )$$,
+  ARRAY[true],
+  'merge_community_upload_data should not grant EXECUTE to authenticated'
+);
+
+SELECT results_eq(
+  $$SELECT prosecdef
+    FROM pg_proc
+    WHERE oid = 'public.merge_community_upload_data(uuid,text,text,text,boolean,jsonb)'::regprocedure$$,
+  ARRAY[true],
+  'merge_community_upload_data should be SECURITY DEFINER'
+);
+
+SELECT results_eq(
+  $$SELECT COALESCE(proconfig, ARRAY[]::text[]) @> ARRAY['search_path=public, pg_temp']
+    FROM pg_proc
+    WHERE oid = 'public.merge_community_upload_data(uuid,text,text,text,boolean,jsonb)'::regprocedure$$,
+  ARRAY[true],
+  'merge_community_upload_data should pin search_path to public, pg_temp'
+);
+
+SELECT ok(
+  (
+    SELECT obj_description(
+      'public.merge_community_upload_data(uuid,text,text,text,boolean,jsonb)'::regprocedure,
+      'pg_proc'
+    ) COLLATE "C" = 'Atomically creates or updates community_uploads, merges community_card_data with GREATEST semantics, and returns the server-side upload summary. SECURITY DEFINER, service_role only.'::text COLLATE "C"
+  ),
+  'merge_community_upload_data should document its atomic merge and access model'
+);
+
+SELECT results_eq(
+  $$SELECT max_cards, max_card_count, max_total_cards FROM community_upload_limits()$$,
+  $$VALUES (1000, 10000000, 2147483647)$$,
+  'community_upload_limits should match upload-community-data validation constants'
 );
 
 SELECT has_function(
@@ -814,6 +887,291 @@ SELECT results_eq(
   $$SELECT populate_cards_for_game('poe3')$$,
   ARRAY[0],
   'populate_cards_for_game should return 0 for invalid game'
+);
+
+-- ═══════════════════════════════════════════════════════════════
+-- TEST: merge_community_upload_data — atomic upload + GREATEST merge
+-- ═══════════════════════════════════════════════════════════════
+
+INSERT INTO poe_leagues (id, game, league_id, name, is_active)
+VALUES ('fd000000-0000-0000-0000-000000000001', 'poe1', 'merge_card_data_league', 'Merge Card Data League', true);
+
+INSERT INTO cards (id, game, name) VALUES
+  ('fd000000-0000-0000-0000-000000000101', 'poe1', 'Merge Test Card A'),
+  ('fd000000-0000-0000-0000-000000000102', 'poe1', 'Merge Test Card B'),
+  ('fd000000-0000-0000-0000-000000000103', 'poe1', 'Merge Test Card C'),
+  ('fd000000-0000-0000-0000-000000000104', 'poe2', 'Merge Test Other Game Card');
+
+SELECT results_eq(
+  $$SELECT (merge_community_upload_data(
+    'fd000000-0000-0000-0000-000000000001',
+    'merge-device-1',
+    NULL,
+    NULL,
+    false,
+    '[
+      {"card_id":"fd000000-0000-0000-0000-000000000101","count":10},
+      {"card_id":"fd000000-0000-0000-0000-000000000102","count":5}
+    ]'::jsonb
+  )->>'total_cards')::int$$,
+  ARRAY[15],
+  'merge_community_upload_data should insert a new upload and return the server-side total'
+);
+
+SELECT results_eq(
+  $$SELECT COUNT(*)::int FROM community_card_data
+    WHERE upload_id = (
+      SELECT id
+      FROM community_uploads
+      WHERE league_id = 'fd000000-0000-0000-0000-000000000001'
+        AND device_id = 'merge-device-1'
+    )$$,
+  ARRAY[2],
+  'merge_community_upload_data should insert one row per card'
+);
+
+SELECT results_eq(
+  $$SELECT total_cards_uploaded, upload_count
+    FROM community_uploads
+    WHERE league_id = 'fd000000-0000-0000-0000-000000000001'
+      AND device_id = 'merge-device-1'$$,
+  $$VALUES (15, 1)$$,
+  'merge_community_upload_data should keep the upload row summary in sync with card data'
+);
+
+SELECT results_eq(
+  $$SELECT (merge_community_upload_data(
+    'fd000000-0000-0000-0000-000000000001',
+    'merge-device-1',
+    NULL,
+    NULL,
+    false,
+    '[
+      {"card_id":"fd000000-0000-0000-0000-000000000101","count":7},
+      {"card_id":"fd000000-0000-0000-0000-000000000102","count":7},
+      {"card_id":"fd000000-0000-0000-0000-000000000103","count":6}
+    ]'::jsonb
+  )->>'total_cards')::int$$,
+  ARRAY[23],
+  'merge_community_upload_data should preserve larger existing counts and return the updated total'
+);
+
+SELECT results_eq(
+  $$SELECT count FROM community_card_data
+    WHERE upload_id = (
+      SELECT id
+      FROM community_uploads
+      WHERE league_id = 'fd000000-0000-0000-0000-000000000001'
+        AND device_id = 'merge-device-1'
+    )
+      AND card_id = 'fd000000-0000-0000-0000-000000000101'$$,
+  ARRAY[10],
+  'merge_community_upload_data should not lower an existing count'
+);
+
+SELECT results_eq(
+  $$SELECT count FROM community_card_data
+    WHERE upload_id = (
+      SELECT id
+      FROM community_uploads
+      WHERE league_id = 'fd000000-0000-0000-0000-000000000001'
+        AND device_id = 'merge-device-1'
+    )
+      AND card_id = 'fd000000-0000-0000-0000-000000000103'$$,
+  ARRAY[6],
+  'merge_community_upload_data should insert newly observed cards on later merges'
+);
+
+SELECT results_eq(
+  $$SELECT upload_count FROM community_uploads
+    WHERE league_id = 'fd000000-0000-0000-0000-000000000001'
+      AND device_id = 'merge-device-1'$$,
+  ARRAY[2],
+  'merge_community_upload_data should increment upload_count on repeat uploads'
+);
+
+SELECT results_eq(
+  $$SELECT (merge_community_upload_data(
+    'fd000000-0000-0000-0000-000000000001',
+    'merge-device-2',
+    'ggg-merge-uuid',
+    'Merge Player',
+    true,
+    '[{"card_id":"fd000000-0000-0000-0000-000000000101","count":11}]'::jsonb
+  )->>'upload_count')::int$$,
+  ARRAY[1],
+  'merge_community_upload_data should create a verified GGG-linked upload'
+);
+
+SELECT results_eq(
+  $$SELECT (merge_community_upload_data(
+    'fd000000-0000-0000-0000-000000000001',
+    'merge-device-3',
+    'ggg-merge-uuid',
+    'Merge Player',
+    true,
+    '[{"card_id":"fd000000-0000-0000-0000-000000000101","count":12}]'::jsonb
+  )->>'upload_count')::int$$,
+  ARRAY[2],
+  'merge_community_upload_data should merge a new device onto an existing GGG-linked upload'
+);
+
+SELECT results_eq(
+  $$SELECT device_id FROM community_uploads
+    WHERE league_id = 'fd000000-0000-0000-0000-000000000001'
+      AND ggg_uuid = 'ggg-merge-uuid'$$,
+  ARRAY['merge-device-3'],
+  'merge_community_upload_data should move a GGG-linked upload to the latest verified device'
+);
+
+SELECT throws_ok(
+  $$SELECT merge_community_upload_data(
+    'fd000000-0000-0000-0000-000000000001',
+    'merge-device-1',
+    NULL,
+    NULL,
+    false,
+    '[{"card_id":"fd000000-0000-0000-0000-000000000199","count":1}]'::jsonb
+  )$$,
+  '23503',
+  NULL,
+  'merge_community_upload_data should reject invalid card data before mutating upload summary'
+);
+
+SELECT results_eq(
+  $$SELECT upload_count FROM community_uploads
+    WHERE league_id = 'fd000000-0000-0000-0000-000000000001'
+      AND device_id = 'merge-device-1'$$,
+  ARRAY[2],
+  'merge_community_upload_data should leave upload_count unchanged after rejected card data'
+);
+
+SELECT throws_ok(
+  $$SELECT merge_community_upload_data(
+    'fd000000-0000-0000-0000-000000000001',
+    'merge-device-1',
+    NULL,
+    NULL,
+    false,
+    '[]'::jsonb
+  )$$,
+  '22023',
+  NULL,
+  'merge_community_upload_data should reject empty card payloads'
+);
+
+SELECT throws_ok(
+  $$SELECT merge_community_upload_data(
+    'fd000000-0000-0000-0000-000000000001',
+    'merge-device-1',
+    NULL,
+    NULL,
+    false,
+    '[{"card_id":"fd000000-0000-0000-0000-000000000101"}]'::jsonb
+  )$$,
+  '22023',
+  NULL,
+  'merge_community_upload_data should reject invalid card rows'
+);
+
+SELECT throws_ok(
+  $$SELECT merge_community_upload_data(
+    'fd000000-0000-0000-0000-000000000001',
+    'merge-device-1',
+    NULL,
+    NULL,
+    false,
+    '[{"card_id":"fd000000-0000-0000-0000-000000000101","count":10000001}]'::jsonb
+  )$$,
+  '22023',
+  NULL,
+  'merge_community_upload_data should reject counts above the upload limit'
+);
+
+SELECT throws_ok(
+  $$SELECT merge_community_upload_data(
+    'fd000000-0000-0000-0000-000000000001',
+    'merge-device-1',
+    NULL,
+    NULL,
+    false,
+    (
+      SELECT jsonb_agg(jsonb_build_object(
+        'card_id',
+        'fd000000-0000-0000-0000-000000000101',
+        'count',
+        1
+      ))
+      FROM generate_series(1, 1001)
+    )
+  )$$,
+  '22023',
+  NULL,
+  'merge_community_upload_data should reject payloads above 1000 rows'
+);
+
+SELECT throws_ok(
+  $$SELECT merge_community_upload_data(
+    'fd000000-0000-0000-0000-000000000001',
+    'merge-device-1',
+    NULL,
+    NULL,
+    false,
+    (
+      SELECT jsonb_agg(jsonb_build_object(
+        'card_id',
+        'fd000000-0000-0000-0000-000000000101',
+        'count',
+        10000000
+      ))
+      FROM generate_series(1, 215)
+    )
+  )$$,
+  '22023',
+  NULL,
+  'merge_community_upload_data should reject totals above integer range'
+);
+
+SELECT throws_ok(
+  $$SELECT merge_community_upload_data(
+    'fd000000-0000-0000-0000-000000000099',
+    'merge-device-1',
+    NULL,
+    NULL,
+    false,
+    '[{"card_id":"fd000000-0000-0000-0000-000000000101","count":1}]'::jsonb
+  )$$,
+  '23503',
+  NULL,
+  'merge_community_upload_data should reject missing league_id'
+);
+
+SELECT throws_ok(
+  $$SELECT merge_community_upload_data(
+    'fd000000-0000-0000-0000-000000000001',
+    'merge-device-1',
+    NULL,
+    NULL,
+    false,
+    '[{"card_id":"fd000000-0000-0000-0000-000000000199","count":1}]'::jsonb
+  )$$,
+  '23503',
+  NULL,
+  'merge_community_upload_data should reject missing card_id'
+);
+
+SELECT throws_ok(
+  $$SELECT merge_community_upload_data(
+    'fd000000-0000-0000-0000-000000000001',
+    'merge-device-1',
+    NULL,
+    NULL,
+    false,
+    '[{"card_id":"fd000000-0000-0000-0000-000000000104","count":1}]'::jsonb
+  )$$,
+  '23503',
+  NULL,
+  'merge_community_upload_data should reject card IDs from another game'
 );
 
 -- ═══════════════════════════════════════════════════════════════

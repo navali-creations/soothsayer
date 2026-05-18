@@ -4,6 +4,7 @@ import { type App, app, ipcMain } from "electron";
 
 import {
   AppPerformanceService,
+  CommunityUploadService,
   CurrentSessionService,
   DatabaseService,
   GggAuthService,
@@ -32,6 +33,8 @@ class AppService {
   private overlay: OverlayService = OverlayService.getInstance();
   private appPerformance: AppPerformanceService =
     AppPerformanceService.getInstance();
+  private shutdownCleanupComplete = false;
+  private shutdownCleanupPromise: Promise<void> | null = null;
   private static _instance: AppService;
 
   static getInstance() {
@@ -154,57 +157,128 @@ class AppService {
    * that need to be cleaned up.
    */
   public beforeQuitCloseWindowsAndDestroyElements() {
-    this.app.on(AppChannel.BeforeQuit, async () => {
-      this.isQuitting = true;
-      console.log("[Shutdown] Starting cleanup...");
+    this.app.on(AppChannel.BeforeQuit, async (event) => {
+      if (this.shutdownCleanupComplete) return;
 
-      // Close overlay window
-      console.log("[Shutdown] Closing overlay...");
+      const isCleanupOwner = !this.shutdownCleanupPromise;
+      const shouldResumeQuit =
+        isCleanupOwner && typeof event?.preventDefault === "function";
+
+      event?.preventDefault?.();
+
+      if (!this.shutdownCleanupPromise) {
+        this.shutdownCleanupPromise = this.runBeforeQuitCleanup();
+      }
+
+      try {
+        await this.shutdownCleanupPromise;
+      } catch (error) {
+        console.error("[Shutdown] Cleanup failed:", error);
+      } finally {
+        if (isCleanupOwner) {
+          this.shutdownCleanupComplete = true;
+          this.shutdownCleanupPromise = null;
+
+          if (shouldResumeQuit) {
+            this.app.quit();
+          }
+        }
+      }
+    });
+  }
+
+  private async runBeforeQuitCleanup(): Promise<void> {
+    this.isQuitting = true;
+    console.log("[Shutdown] Starting cleanup...");
+
+    // Close overlay window
+    console.log("[Shutdown] Closing overlay...");
+    try {
       this.overlay.destroy();
+    } catch (error) {
+      console.error("[Shutdown] Failed to close overlay:", error);
+    }
 
-      // Stop all snapshot auto-refresh timers
-      console.log("[Shutdown] Stopping snapshot auto-refresh...");
+    // Stop all snapshot auto-refresh timers
+    console.log("[Shutdown] Stopping snapshot auto-refresh...");
+    try {
       this.snapshotService.stopAllAutoRefresh();
+    } catch (error) {
+      console.error("[Shutdown] Failed to stop snapshot auto-refresh:", error);
+    }
 
-      // Stop active sessions (this will flush processed IDs)
-      if (this.sessionStorage.isSessionActive("poe1")) {
-        console.log("[Shutdown] Stopping POE1 session...");
+    // Stop active sessions. Community uploads are queued locally and drained below.
+    if (this.sessionStorage.isSessionActive("poe1")) {
+      console.log("[Shutdown] Stopping POE1 session...");
+      try {
         await this.sessionStorage.stopSession("poe1");
         console.log("[Shutdown] POE1 session stopped");
+      } catch (error) {
+        console.error("[Shutdown] Failed to stop POE1 session:", error);
       }
-      if (this.sessionStorage.isSessionActive("poe2")) {
-        console.log("[Shutdown] Stopping POE2 session...");
+    }
+    if (this.sessionStorage.isSessionActive("poe2")) {
+      console.log("[Shutdown] Stopping POE2 session...");
+      try {
         await this.sessionStorage.stopSession("poe2");
         console.log("[Shutdown] POE2 session stopped");
-      }
-
-      // Stop POE process monitoring
-      console.log("[Shutdown] Stopping POE process monitoring...");
-      PoeProcessService.getInstance().stop();
-
-      // Stop app performance diagnostics and flush pending samples.
-      console.log("[Shutdown] Stopping app performance diagnostics...");
-      await this.appPerformance.shutdown();
-
-      // Optimize database before closing
-      console.log("[Shutdown] Optimizing database...");
-      try {
-        this.database.optimize();
-        console.log("[Shutdown] Database optimized");
       } catch (error) {
-        console.error("[Shutdown] Database optimization failed:", error);
+        console.error("[Shutdown] Failed to stop POE2 session:", error);
       }
+    }
 
-      // Close database connection
-      console.log("[Shutdown] Closing database...");
+    console.log("[Shutdown] Draining community uploads...");
+    try {
+      await CommunityUploadService.getInstance().drainInFlightUploads();
+    } catch (error) {
+      console.error("[Shutdown] Failed to drain community uploads:", error);
+    }
+
+    // Stop POE process monitoring
+    console.log("[Shutdown] Stopping POE process monitoring...");
+    try {
+      PoeProcessService.getInstance().stop();
+    } catch (error) {
+      console.error("[Shutdown] Failed to stop POE process monitoring:", error);
+    }
+
+    // Stop app performance diagnostics and flush pending samples.
+    console.log("[Shutdown] Stopping app performance diagnostics...");
+    try {
+      await this.appPerformance.shutdown();
+    } catch (error) {
+      console.error(
+        "[Shutdown] Failed to stop app performance diagnostics:",
+        error,
+      );
+    }
+
+    // Optimize database before closing
+    console.log("[Shutdown] Optimizing database...");
+    try {
+      this.database.optimize();
+      console.log("[Shutdown] Database optimized");
+    } catch (error) {
+      console.error("[Shutdown] Database optimization failed:", error);
+    }
+
+    // Close database connection
+    console.log("[Shutdown] Closing database...");
+    try {
       this.database.close();
+    } catch (error) {
+      console.error("[Shutdown] Database close failed:", error);
+    }
 
-      // Destroy tray
-      console.log("[Shutdown] Destroying tray...");
+    // Destroy tray
+    console.log("[Shutdown] Destroying tray...");
+    try {
       TrayService.getInstance().destroyTray();
+    } catch (error) {
+      console.error("[Shutdown] Tray destroy failed:", error);
+    }
 
-      console.log("[Shutdown] Cleanup complete, quitting now...");
-    });
+    console.log("[Shutdown] Cleanup complete, quitting now...");
   }
 
   /**

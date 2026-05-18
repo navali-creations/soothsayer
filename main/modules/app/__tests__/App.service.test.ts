@@ -30,6 +30,7 @@ const {
   mockTrayDestroyTray,
   mockGggHandleCallback,
   mockAppPerformanceShutdown,
+  mockCommunityUploadDrainInFlight,
 } = vi.hoisted(() => ({
   mockAppOn: vi.fn(),
   mockAppQuit: vi.fn(),
@@ -53,6 +54,7 @@ const {
   mockTrayDestroyTray: vi.fn(),
   mockGggHandleCallback: vi.fn(),
   mockAppPerformanceShutdown: vi.fn().mockResolvedValue(undefined),
+  mockCommunityUploadDrainInFlight: vi.fn().mockResolvedValue(undefined),
 }));
 
 // ─── Mock Electron ───────────────────────────────────────────────────────────
@@ -95,6 +97,11 @@ vi.mock("~/main/modules", () =>
     AppPerformanceService: {
       getInstance: vi.fn(() => ({
         shutdown: mockAppPerformanceShutdown,
+      })),
+    },
+    CommunityUploadService: {
+      getInstance: vi.fn(() => ({
+        drainInFlightUploads: mockCommunityUploadDrainInFlight,
       })),
     },
     CurrentSessionService: {
@@ -523,6 +530,19 @@ describe("AppService", () => {
       expect(mockOverlayDestroy).toHaveBeenCalled();
     });
 
+    it("should hold quit until cleanup finishes, then resume quitting", async () => {
+      const event = { preventDefault: vi.fn() };
+
+      mockAppOn.mockClear();
+      service.beforeQuitCloseWindowsAndDestroyElements();
+
+      const handler = getAppEventHandler(AppChannel.BeforeQuit);
+      await handler(event);
+
+      expect(event.preventDefault).toHaveBeenCalled();
+      expect(mockAppQuit).toHaveBeenCalledTimes(1);
+    });
+
     it("should stop all snapshot auto-refresh on before-quit", async () => {
       mockAppOn.mockClear();
       service.beforeQuitCloseWindowsAndDestroyElements();
@@ -584,6 +604,68 @@ describe("AppService", () => {
       await handler();
 
       expect(mockCurrentSessionStopSession).not.toHaveBeenCalled();
+    });
+
+    it("should drain community uploads on before-quit", async () => {
+      mockAppOn.mockClear();
+      service.beforeQuitCloseWindowsAndDestroyElements();
+
+      const handler = getAppEventHandler(AppChannel.BeforeQuit);
+      await handler();
+
+      expect(mockCommunityUploadDrainInFlight).toHaveBeenCalled();
+    });
+
+    it("should continue cleanup when active session stop fails", async () => {
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      const stopError = new Error("session stop failed");
+      mockCurrentSessionIsActive.mockImplementation(
+        ((game: string) => game === "poe1") as any,
+      );
+      mockCurrentSessionStopSession.mockRejectedValueOnce(stopError);
+
+      mockAppOn.mockClear();
+      service.beforeQuitCloseWindowsAndDestroyElements();
+
+      const handler = getAppEventHandler(AppChannel.BeforeQuit);
+      await expect(handler()).resolves.not.toThrow();
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[Shutdown] Failed to stop POE1 session:",
+        stopError,
+      );
+      expect(mockPoeProcessStop).toHaveBeenCalled();
+      expect(mockAppPerformanceShutdown).toHaveBeenCalled();
+      expect(mockDatabaseClose).toHaveBeenCalled();
+      expect(mockTrayDestroyTray).toHaveBeenCalled();
+
+      consoleSpy.mockRestore();
+    });
+
+    it("should continue cleanup when app performance shutdown fails", async () => {
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      const performanceError = new Error("performance shutdown failed");
+      mockAppPerformanceShutdown.mockRejectedValueOnce(performanceError);
+
+      mockAppOn.mockClear();
+      service.beforeQuitCloseWindowsAndDestroyElements();
+
+      const handler = getAppEventHandler(AppChannel.BeforeQuit);
+      await expect(handler()).resolves.not.toThrow();
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[Shutdown] Failed to stop app performance diagnostics:",
+        performanceError,
+      );
+      expect(mockDatabaseOptimize).toHaveBeenCalled();
+      expect(mockDatabaseClose).toHaveBeenCalled();
+      expect(mockTrayDestroyTray).toHaveBeenCalled();
+
+      consoleSpy.mockRestore();
     });
 
     it("should stop POE process monitoring on before-quit", async () => {

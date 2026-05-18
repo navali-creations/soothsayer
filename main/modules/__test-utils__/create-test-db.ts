@@ -288,6 +288,16 @@ function initializeSchema(db: Database.Database): void {
     `);
 
     // ═══════════════════════════════════════════════════════════════
+    // APP METADATA
+    // ═══════════════════════════════════════════════════════════════
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS app_metadata (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      )
+    `);
+
+    // ═══════════════════════════════════════════════════════════════
     // COMMUNITY UPLOAD SNAPSHOT (delta upload tracking)
     // ═══════════════════════════════════════════════════════════════
     db.exec(`
@@ -298,6 +308,25 @@ function initializeSchema(db: Database.Database): void {
         count INTEGER NOT NULL,
         UNIQUE(game, scope, card_name)
       )
+    `);
+
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS community_upload_outbox (
+        game TEXT NOT NULL,
+        scope TEXT NOT NULL,
+        cards_json TEXT NOT NULL,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        last_error TEXT,
+        next_attempt_at TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (game, scope)
+      )
+    `);
+
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_community_upload_outbox_next_attempt
+      ON community_upload_outbox(next_attempt_at)
     `);
 
     // ═══════════════════════════════════════════════════════════════

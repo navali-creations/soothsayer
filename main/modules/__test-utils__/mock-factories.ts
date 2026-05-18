@@ -25,6 +25,8 @@ export interface ElectronMockOverrides {
   mockShowSaveDialog?: MockFn;
   /** shell.openPath */
   mockShellOpenPath?: MockFn;
+  /** powerMonitor.on */
+  mockPowerMonitorOn?: MockFn;
   /**
    * Override the entire `app` object.
    * When provided, this replaces the default app mock entirely.
@@ -77,6 +79,9 @@ export function createElectronMock(overrides: ElectronMockOverrides = {}) {
     },
     shell: {
       openPath: overrides.mockShellOpenPath ?? vi.fn(),
+    },
+    powerMonitor: {
+      on: overrides.mockPowerMonitorOn ?? vi.fn(),
     },
   };
 }
@@ -589,6 +594,8 @@ export function createBarrelMock(
     CommunityUploadService: {
       getInstance: vi.fn(() => ({
         backfillIfNeeded: vi.fn().mockResolvedValue(undefined),
+        drainInFlightUploads: vi.fn().mockResolvedValue(undefined),
+        flushPendingUploads: vi.fn().mockResolvedValue(undefined),
         getBackfillLeagues: vi.fn().mockResolvedValue([]),
       })),
     },

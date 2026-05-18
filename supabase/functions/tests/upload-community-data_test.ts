@@ -98,12 +98,13 @@ function setupAuthorizedMocks() {
 
 /**
  * Registers all the mocks needed for a successful upload flow beyond auth.
- * This includes league lookup, card upsert, card fetch, community_uploads upsert,
- * community_card_data fetch/insert, and total recompute.
+ * This includes league lookup, card upsert, card fetch, and the atomic upload
+ * merge RPC. community_uploads is still mocked for non-fatal suspicion updates.
  */
 function setupFullUploadMocks(
   fetchMock: ReturnType<typeof mockFetch>,
   cardNames: string[] = ["The Doctor", "Rain of Chaos"],
+  mergeResponseOverride?: unknown,
 ) {
   // League lookup by name + game
   fetchMock.onUrlContaining("poe_leagues", () =>
@@ -122,30 +123,44 @@ function setupFullUploadMocks(
     );
   });
 
-  // community_uploads lookup (existing upload check) — no existing upload
   fetchMock.onUrlContaining("community_uploads", (_url, init) => {
-    if (init?.method === "POST") {
-      // Insert new upload
-      return postgrestResponse({ id: "upload-id-001" });
-    }
     if (init?.method === "PATCH") {
-      // Update
       return postgrestResponse({ id: "upload-id-001" });
     }
-    // GET — no existing upload (maybeSingle returns null)
     return postgrestResponse(null);
   });
 
-  // community_card_data — fetch existing + insert new
-  fetchMock.onUrlContaining("community_card_data", (_url, init) => {
-    if (init?.method === "POST") {
-      return postgrestResponse([]);
-    }
-    // GET — existing card data, dynamically based on cardNames
-    return postgrestResponse(
-      cardNames.map((_, i) => ({ count: 10, card_id: `card-id-${i + 1}` })),
-    );
-  });
+  setupUploadMergeMock(fetchMock, mergeResponseOverride);
+}
+
+function setupUploadMergeMock(
+  fetchMock: ReturnType<typeof mockFetch>,
+  responseOverride?: unknown,
+) {
+  fetchMock.onUrlContaining(
+    supabaseUrls.rpc("merge_community_upload_data"),
+    (_url, init) => {
+      const body =
+        typeof init?.body === "string"
+          ? (JSON.parse(init.body) as {
+              p_is_verified?: boolean;
+              p_cards?: { count?: number }[];
+            })
+          : {};
+      const total = (body.p_cards ?? []).reduce(
+        (sum, card) => sum + (card.count ?? 0),
+        0,
+      );
+      const responseBody = responseOverride ?? {
+        upload_id: "upload-id-001",
+        total_cards: total,
+        upload_count: 1,
+        is_verified: body.p_is_verified === true,
+      };
+
+      return rpcResponse(responseBody);
+    },
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -619,6 +634,35 @@ quietTest(
   },
 );
 
+quietTest(
+  "upload-community-data — returns 400 when card total exceeds integer range",
+  async () => {
+    const fetchMock = setupAuthorizedMocks();
+    const testToken = createTestJwt({ sub: "test-user-id-001" });
+
+    const req = createAuthorizedRequest(
+      FUNCTION_URL,
+      {
+        league_name: "Dawn",
+        game: "poe2",
+        device_id: VALID_DEVICE_ID,
+        cards: Array.from({ length: 215 }, (_, i) => ({
+          card_name: `Card ${i}`,
+          count: 10_000_000,
+        })),
+      },
+      testToken,
+    );
+    const resp = await handler(req);
+
+    assertEquals(resp.status, 400);
+    const body = await responseBody<{ error: string }>(resp);
+    assert(body.error.includes("cards total"));
+
+    fetchMock.restore();
+  },
+);
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Fraud Detection (statistical helpers)
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -743,27 +787,18 @@ quietTest(
       return postgrestResponse(allCardRecords);
     });
 
-    // community_uploads — new upload
     fetchMock.onUrlContaining("community_uploads", (_url, init) => {
-      if (init?.method === "POST") {
-        return postgrestResponse({ id: "upload-id-suspicious" });
-      }
       if (init?.method === "PATCH") {
         return postgrestResponse({ id: "upload-id-suspicious" });
       }
-      // GET for maybeSingle → null (new upload)
-      // GET for suspicion_reasons → return current upload
       return postgrestResponse(null);
     });
 
-    // community_card_data
-    const cardDataRows = cards.map((c, i) => ({
-      count: c.count,
-      card_id: `card-id-${i}`,
-    }));
-    fetchMock.onUrlContaining("community_card_data", (_url, init) => {
-      if (init?.method === "POST") return postgrestResponse([]);
-      return postgrestResponse(cardDataRows);
+    setupUploadMergeMock(fetchMock, {
+      upload_id: "upload-id-suspicious",
+      total_cards: 765,
+      upload_count: 1,
+      is_verified: false,
     });
 
     const req = createAuthorizedRequest(
@@ -1018,6 +1053,55 @@ quietTest(
     assertEquals(body.upload_count, 1);
     assertEquals(body.is_verified, false);
 
+    const mergeCalls = fetchMock.calls.filter((call) =>
+      call.url.includes(supabaseUrls.rpc("merge_community_upload_data")),
+    );
+    assertEquals(mergeCalls.length, 1);
+    const mergePayload = JSON.parse(mergeCalls[0].init?.body as string) as {
+      p_league_id: string;
+      p_device_id: string;
+      p_ggg_uuid: string | null;
+      p_ggg_username: string | null;
+      p_is_verified: boolean;
+      p_cards: { card_id: string; count: number }[];
+    };
+    assertEquals(mergePayload.p_league_id, VALID_LEAGUE_ID);
+    assertEquals(mergePayload.p_device_id, VALID_DEVICE_ID);
+    assertEquals(mergePayload.p_ggg_uuid, null);
+    assertEquals(mergePayload.p_ggg_username, null);
+    assertEquals(mergePayload.p_is_verified, false);
+    assertEquals(mergePayload.p_cards, [
+      { card_id: "card-id-1", count: 3 },
+      { card_id: "card-id-2", count: 12 },
+    ]);
+
+    fetchMock.restore();
+  },
+);
+
+quietTest(
+  "upload-community-data — returns 500 when upload merge RPC returns invalid result",
+  async () => {
+    const fetchMock = setupAuthorizedMocks();
+    const testToken = createTestJwt({ sub: "test-user-id-001" });
+
+    setupFullUploadMocks(
+      fetchMock,
+      ["The Doctor", "Rain of Chaos"],
+      "not-a-number",
+    );
+
+    const req = createAuthorizedRequest(
+      FUNCTION_URL,
+      validUploadBody(),
+      testToken,
+    );
+    const resp = await handler(req);
+
+    assertEquals(resp.status, 500);
+    const body = await responseBody<{ error: string }>(resp);
+    assertEquals(body.error, "Invalid upload merge result");
+
     fetchMock.restore();
   },
 );
@@ -1074,7 +1158,6 @@ quietTest(
     const testToken = createTestJwt({ sub: "test-user-id-001" });
 
     const NEW_DEVICE_ID = "aaaaaaaa-1111-2222-3333-ffffffffffff";
-    const OLD_DEVICE_ID = "bbbbbbbb-4444-5555-6666-aaaaaaaaaaaa";
     const GGG_UUID = "ggg-uuid-merge-test";
     const EXISTING_UPLOAD_ID = "existing-upload-from-old-device";
 
@@ -1102,44 +1185,11 @@ quietTest(
       );
     });
 
-    // community_uploads — the critical mock:
-    // GET with device_id → null (no row for new device)
-    // GET with ggg_uuid → existing row from old device
-    // PATCH → success
-    let communityUploadsGetCount = 0;
-    fetchMock.onUrlContaining("community_uploads", (_url, init) => {
-      if (init?.method === "PATCH") {
-        return postgrestResponse({ id: EXISTING_UPLOAD_ID });
-      }
-      if (init?.method === "POST") {
-        // Should NOT be called — we expect update, not insert
-        throw new Error(
-          "INSERT into community_uploads should not happen during merge",
-        );
-      }
-      // GET requests
-      communityUploadsGetCount++;
-      if (communityUploadsGetCount === 1) {
-        // First lookup by (league_id, device_id) → no match
-        return postgrestResponse(null);
-      }
-      // Second lookup by (league_id, ggg_uuid) → existing row
-      return postgrestResponse({
-        id: EXISTING_UPLOAD_ID,
-        ggg_uuid: GGG_UUID,
-        ggg_username: "MergePlayer",
-        is_verified: true,
-        upload_count: 3,
-        device_id: OLD_DEVICE_ID,
-      });
-    });
-
-    // community_card_data
-    fetchMock.onUrlContaining("community_card_data", (_url, init) => {
-      if (init?.method === "POST") return postgrestResponse([]);
-      return postgrestResponse(
-        cardNames.map((_, i) => ({ count: 5, card_id: `card-id-${i + 1}` })),
-      );
+    setupUploadMergeMock(fetchMock, {
+      upload_id: EXISTING_UPLOAD_ID,
+      total_cards: 15,
+      upload_count: 4,
+      is_verified: true,
     });
 
     const req = createMockRequest(FUNCTION_URL, {
@@ -1163,19 +1213,20 @@ quietTest(
     // upload_count should be incremented from 3 → 4
     assertEquals(body.upload_count, 4);
 
-    // Verify PATCH was called on the existing row
-    const patchCalls = fetchMock.calls.filter(
-      (c) => c.url.includes("community_uploads") && c.init?.method === "PATCH",
+    const mergeCalls = fetchMock.calls.filter((call) =>
+      call.url.includes(supabaseUrls.rpc("merge_community_upload_data")),
     );
-    assert(
-      patchCalls.length > 0,
-      "Expected PATCH to community_uploads for merge",
-    );
-    // The PATCH URL should target the existing upload ID
-    assert(
-      patchCalls.some((c) => c.url.includes(EXISTING_UPLOAD_ID)),
-      "PATCH should target the existing upload row by ID",
-    );
+    assertEquals(mergeCalls.length, 1);
+    const mergePayload = JSON.parse(mergeCalls[0].init?.body as string) as {
+      p_device_id: string;
+      p_ggg_uuid: string | null;
+      p_ggg_username: string | null;
+      p_is_verified: boolean;
+    };
+    assertEquals(mergePayload.p_device_id, NEW_DEVICE_ID);
+    assertEquals(mergePayload.p_ggg_uuid, GGG_UUID);
+    assertEquals(mergePayload.p_ggg_username, "MergePlayer");
+    assertEquals(mergePayload.p_is_verified, true);
 
     fetchMock.restore();
   },
@@ -1215,28 +1266,11 @@ quietTest(
       );
     });
 
-    // community_uploads — both GETs return null, then INSERT
-    let communityUploadsGetCount = 0;
-    let insertCalled = false;
-    fetchMock.onUrlContaining("community_uploads", (_url, init) => {
-      if (init?.method === "POST") {
-        insertCalled = true;
-        return postgrestResponse({ id: "new-upload-id" });
-      }
-      if (init?.method === "PATCH") {
-        return postgrestResponse({ id: "new-upload-id" });
-      }
-      // GET — both lookups return null
-      communityUploadsGetCount++;
-      return postgrestResponse(null);
-    });
-
-    // community_card_data
-    fetchMock.onUrlContaining("community_card_data", (_url, init) => {
-      if (init?.method === "POST") return postgrestResponse([]);
-      return postgrestResponse(
-        cardNames.map((_, i) => ({ count: 5, card_id: `card-id-${i + 1}` })),
-      );
+    setupUploadMergeMock(fetchMock, {
+      upload_id: "new-upload-id",
+      total_cards: 15,
+      upload_count: 1,
+      is_verified: true,
     });
 
     const req = createMockRequest(FUNCTION_URL, {
@@ -1257,9 +1291,21 @@ quietTest(
     assertEquals(body.success, true);
     assertEquals(body.upload_id, "new-upload-id");
     assertEquals(body.upload_count, 1);
-    // Two GETs: one by device_id, one by ggg_uuid — both null
-    assertEquals(communityUploadsGetCount, 2);
-    assert(insertCalled, "Expected INSERT into community_uploads for new row");
+
+    const mergeCalls = fetchMock.calls.filter((call) =>
+      call.url.includes(supabaseUrls.rpc("merge_community_upload_data")),
+    );
+    assertEquals(mergeCalls.length, 1);
+    const mergePayload = JSON.parse(mergeCalls[0].init?.body as string) as {
+      p_device_id: string;
+      p_ggg_uuid: string | null;
+      p_ggg_username: string | null;
+      p_is_verified: boolean;
+    };
+    assertEquals(mergePayload.p_device_id, NEW_DEVICE_ID);
+    assertEquals(mergePayload.p_ggg_uuid, GGG_UUID);
+    assertEquals(mergePayload.p_ggg_username, "NewPlayer");
+    assertEquals(mergePayload.p_is_verified, true);
 
     fetchMock.restore();
   },
@@ -1288,28 +1334,11 @@ quietTest(
       );
     });
 
-    // community_uploads — only ONE GET (by device_id), then INSERT
-    let communityUploadsGetCount = 0;
-    let insertCalled = false;
-    fetchMock.onUrlContaining("community_uploads", (_url, init) => {
-      if (init?.method === "POST") {
-        insertCalled = true;
-        return postgrestResponse({ id: "anon-upload-id" });
-      }
-      if (init?.method === "PATCH") {
-        return postgrestResponse({ id: "anon-upload-id" });
-      }
-      // GET
-      communityUploadsGetCount++;
-      return postgrestResponse(null);
-    });
-
-    // community_card_data
-    fetchMock.onUrlContaining("community_card_data", (_url, init) => {
-      if (init?.method === "POST") return postgrestResponse([]);
-      return postgrestResponse(
-        cardNames.map((_, i) => ({ count: 5, card_id: `card-id-${i + 1}` })),
-      );
+    setupUploadMergeMock(fetchMock, {
+      upload_id: "anon-upload-id",
+      total_cards: 15,
+      upload_count: 1,
+      is_verified: false,
     });
 
     // No x-ggg-token header — anonymous
@@ -1327,9 +1356,21 @@ quietTest(
       upload_count: number;
     }>(resp);
     assertEquals(body.success, true);
-    // Only ONE GET to community_uploads (by device_id) — no ggg_uuid lookup
-    assertEquals(communityUploadsGetCount, 1);
-    assert(insertCalled, "Expected INSERT for anonymous upload");
+
+    const mergeCalls = fetchMock.calls.filter((call) =>
+      call.url.includes(supabaseUrls.rpc("merge_community_upload_data")),
+    );
+    assertEquals(mergeCalls.length, 1);
+    const mergePayload = JSON.parse(mergeCalls[0].init?.body as string) as {
+      p_device_id: string;
+      p_ggg_uuid: string | null;
+      p_ggg_username: string | null;
+      p_is_verified: boolean;
+    };
+    assertEquals(mergePayload.p_device_id, VALID_DEVICE_ID);
+    assertEquals(mergePayload.p_ggg_uuid, null);
+    assertEquals(mergePayload.p_ggg_username, null);
+    assertEquals(mergePayload.p_is_verified, false);
 
     fetchMock.restore();
   },

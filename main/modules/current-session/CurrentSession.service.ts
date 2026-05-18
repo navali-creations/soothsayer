@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 
 import type BetterSqlite3 from "better-sqlite3";
-import { BrowserWindow, ipcMain } from "electron";
+import { BrowserWindow, ipcMain, powerMonitor } from "electron";
 
 import { AppPerformanceService } from "~/main/modules/app-performance";
 import { CommunityUploadService } from "~/main/modules/community-upload";
@@ -46,6 +46,40 @@ interface ActiveSessionInfo {
   sessionId: string;
   league: string;
   startedAt: string;
+}
+
+interface StopSessionOptions {
+  /**
+   * Wait for the community upload queue/send step before finishing session
+   * teardown. Used by suspend/shutdown paths that need deterministic ordering.
+   */
+  waitForCommunityUpload?: boolean;
+  /**
+   * After the session snapshot is queued, immediately try to process pending
+   * community uploads. This does not delete queued data. Set false for
+   * suspend/hibernate because network may vanish before the request completes.
+   */
+  flushCommunityUpload?: boolean;
+}
+
+type StopSessionResult = {
+  totalCount: number;
+  durationMs: number;
+  league: string;
+  game: GameType;
+};
+
+interface ResolvedStopSessionOptions {
+  waitForCommunityUpload: boolean;
+  flushCommunityUpload: boolean;
+}
+
+interface StopSessionJob {
+  promise: Promise<StopSessionResult>;
+  options: ResolvedStopSessionOptions;
+  communityUploadPromise: Promise<void> | null;
+  uploadFlushRequested: boolean | null;
+  postFlushPromise: Promise<void> | null;
 }
 
 /**
@@ -125,6 +159,7 @@ class CurrentSessionService {
   // App performance captures started by session auto-start (per game)
   private poe1AppPerformanceCaptureId: string | null = null;
   private poe2AppPerformanceCaptureId: string | null = null;
+  private stopSessionPromises = new Map<GameType, StopSessionJob>();
 
   static getInstance(): CurrentSessionService {
     if (!CurrentSessionService._instance) {
@@ -147,6 +182,48 @@ class CurrentSessionService {
     this.loadGlobalProcessedIds("poe1");
     this.loadGlobalProcessedIds("poe2");
     this.setupHandlers();
+    this.setupPowerMonitor();
+  }
+
+  private setupPowerMonitor(): void {
+    powerMonitor.on("suspend", () => {
+      console.log(
+        "[CurrentSession] System suspending, stopping active sessions",
+      );
+      void this.stopActiveSessionsForSuspend();
+    });
+  }
+
+  private async stopActiveSessionsForSuspend(): Promise<void> {
+    const stops: Promise<unknown>[] = [];
+
+    if (this.isSessionActive("poe1")) {
+      stops.push(
+        this.stopSession("poe1", {
+          waitForCommunityUpload: true,
+          flushCommunityUpload: false,
+        }),
+      );
+    }
+
+    if (this.isSessionActive("poe2")) {
+      stops.push(
+        this.stopSession("poe2", {
+          waitForCommunityUpload: true,
+          flushCommunityUpload: false,
+        }),
+      );
+    }
+
+    const results = await Promise.allSettled(stops);
+    for (const result of results) {
+      if (result.status === "rejected") {
+        console.error(
+          "[CurrentSession] Failed to stop session on suspend:",
+          result.reason,
+        );
+      }
+    }
   }
 
   /**
@@ -600,12 +677,85 @@ class CurrentSessionService {
   /**
    * Stop the active session
    */
-  public async stopSession(game: GameType): Promise<{
-    totalCount: number;
-    durationMs: number;
-    league: string;
-    game: GameType;
-  }> {
+  public async stopSession(
+    game: GameType,
+    options: StopSessionOptions = {},
+  ): Promise<StopSessionResult> {
+    const resolvedOptions = this.resolveStopSessionOptions(options);
+    const existingJob = this.stopSessionPromises.get(game);
+    if (existingJob) {
+      this.mergeStopSessionOptions(existingJob.options, resolvedOptions);
+      return this.waitForStopSessionJob(existingJob, resolvedOptions);
+    }
+
+    const stopJob: StopSessionJob = {
+      promise: Promise.resolve(null as never),
+      options: resolvedOptions,
+      communityUploadPromise: null,
+      uploadFlushRequested: null,
+      postFlushPromise: null,
+    };
+
+    const stopPromise = this.stopSessionInternal(game, stopJob).finally(() => {
+      if (this.stopSessionPromises.get(game) === stopJob) {
+        this.stopSessionPromises.delete(game);
+      }
+    });
+
+    stopJob.promise = stopPromise;
+    this.stopSessionPromises.set(game, stopJob);
+    return this.waitForStopSessionJob(stopJob, resolvedOptions);
+  }
+
+  private resolveStopSessionOptions(
+    options: StopSessionOptions,
+  ): ResolvedStopSessionOptions {
+    return {
+      waitForCommunityUpload: options.waitForCommunityUpload === true,
+      flushCommunityUpload: options.flushCommunityUpload !== false,
+    };
+  }
+
+  private mergeStopSessionOptions(
+    target: ResolvedStopSessionOptions,
+    incoming: ResolvedStopSessionOptions,
+  ): void {
+    target.waitForCommunityUpload ||= incoming.waitForCommunityUpload;
+    target.flushCommunityUpload ||= incoming.flushCommunityUpload;
+  }
+
+  private async waitForStopSessionJob(
+    stopJob: StopSessionJob,
+    callerOptions: ResolvedStopSessionOptions,
+  ): Promise<StopSessionResult> {
+    const result = await stopJob.promise;
+
+    if (
+      callerOptions.flushCommunityUpload &&
+      stopJob.uploadFlushRequested === false
+    ) {
+      stopJob.postFlushPromise ??= CommunityUploadService.getInstance()
+        .flushPendingUploads()
+        .catch(() => {});
+      await stopJob.postFlushPromise;
+    }
+
+    if (callerOptions.waitForCommunityUpload) {
+      if (stopJob.communityUploadPromise) {
+        await stopJob.communityUploadPromise;
+      }
+      if (stopJob.postFlushPromise) {
+        await stopJob.postFlushPromise;
+      }
+    }
+
+    return result;
+  }
+
+  private async stopSessionInternal(
+    game: GameType,
+    stopJob: StopSessionJob,
+  ): Promise<StopSessionResult> {
     const activeSession =
       game === "poe1" ? this.poe1ActiveSession : this.poe2ActiveSession;
 
@@ -637,10 +787,18 @@ class CurrentSessionService {
       endedAt,
     );
 
-    // Community upload (fire-and-forget — must not block session teardown)
-    CommunityUploadService.getInstance()
-      .uploadOnSessionEnd(game, activeSession.league, activeSession.sessionId)
+    const flushCommunityUpload = stopJob.options.flushCommunityUpload;
+    stopJob.uploadFlushRequested = flushCommunityUpload;
+    const communityUploadPromise = CommunityUploadService.getInstance()
+      .uploadOnSessionEnd(game, activeSession.league, activeSession.sessionId, {
+        flush: flushCommunityUpload,
+      })
       .catch(() => {}); // Error already logged inside uploadOnSessionEnd
+    stopJob.communityUploadPromise = communityUploadPromise;
+
+    if (stopJob.options.waitForCommunityUpload) {
+      await communityUploadPromise;
+    }
 
     // Clear recent drops (processed_ids table) and re-sync the in-memory set
     // so it matches the pruned DB (otherwise it grows unboundedly across sessions)
