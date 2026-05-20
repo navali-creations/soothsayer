@@ -5,7 +5,7 @@ import {
   createCardNameColumn,
   Table,
 } from "~/renderer/components";
-import { useCurrentSession, useSettings } from "~/renderer/store";
+import { useCurrentSession } from "~/renderer/store";
 
 import {
   createCurrentSessionChaosValueColumn,
@@ -16,10 +16,8 @@ import {
 
 const CurrentSessionTable = () => {
   const { getIsCurrentSessionActive, getSession } = useCurrentSession();
-  const { getActiveGameViewPriceSource } = useSettings();
   const isCurrentSessionActive = getIsCurrentSessionActive();
   const sessionData = getSession();
-  const priceSource = getActiveGameViewPriceSource();
   const cardData = useMemo(
     () => sessionData?.cards || [],
     [sessionData?.cards],
@@ -31,10 +29,10 @@ const CurrentSessionTable = () => {
       createCardNameColumn(),
       createCardCountColumn(),
       createCurrentSessionRatioColumn(),
-      createCurrentSessionChaosValueColumn(priceSource),
-      createCurrentSessionTotalValueColumn(priceSource),
+      createCurrentSessionChaosValueColumn(),
+      createCurrentSessionTotalValueColumn(),
     ],
-    [priceSource],
+    [],
   );
 
   return (

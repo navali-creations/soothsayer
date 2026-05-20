@@ -71,6 +71,16 @@ async function openMoreOptions(page: Page) {
   await moreOptions.click();
 }
 
+async function clickDeleteSessionsMenuItem(page: Page) {
+  const deleteSessionsMenuItem = page
+    .locator("main .dropdown")
+    .last()
+    .getByRole("button", { name: /^Delete sessions$/ });
+
+  await expect(deleteSessionsMenuItem).toBeVisible({ timeout: 5_000 });
+  await deleteSessionsMenuItem.click();
+}
+
 async function getAllSessions(page: Page): Promise<SessionsPageResult> {
   return callElectronAPI<SessionsPageResult>(
     page,
@@ -156,10 +166,7 @@ test.describe("Sessions multi-session delete", () => {
     await expect(page.locator("main input[type='checkbox']")).toHaveCount(0);
 
     await openMoreOptions(page);
-    await expect(
-      page.getByRole("button", { name: "Delete sessions" }),
-    ).toBeVisible();
-    await page.getByRole("button", { name: "Delete sessions" }).click();
+    await clickDeleteSessionsMenuItem(page);
 
     await expect(
       page.locator("main button.btn-error", { hasText: /^Cancel$/ }),
@@ -252,6 +259,54 @@ test.describe("Sessions multi-session delete", () => {
     expect(standardUsage?.sessionCount).toBe(1);
   });
 
+  test("select all in search mode only deletes matching sessions", async ({
+    page,
+  }) => {
+    await seedDeleteSessions(page);
+
+    await goToSessions(page);
+
+    const cards = page.locator("main ul li .card");
+    await expect(cards).toHaveCount(3, { timeout: 10_000 });
+
+    const searchInput = page
+      .locator(
+        'input[type="search"], input[type="text"][placeholder*="earch"], input[placeholder*="card"]',
+      )
+      .first();
+    await searchInput.fill("The Doctor");
+    await expect(cards).toHaveCount(1, { timeout: 10_000 });
+
+    await openMoreOptions(page);
+    await clickDeleteSessionsMenuItem(page);
+    await page.getByRole("button", { name: "Select All" }).click();
+
+    await expect(
+      page.getByRole("button", { name: "Delete sessions (1)" }),
+    ).toBeEnabled();
+    await page.getByRole("button", { name: "Delete sessions (1)" }).click();
+
+    const dialog = page.locator("dialog");
+    await dialog.getByRole("button", { name: /^Delete sessions$/ }).click();
+
+    await expect(cards).toHaveCount(0, { timeout: 10_000 });
+
+    const sessions = await getAllSessions(page);
+    expect(sessions.total).toBe(2);
+    expect(
+      sessions.sessions.map((session) => session.sessionId).sort(),
+    ).toEqual(["e2e-delete-session-b", "e2e-delete-session-c"]);
+    await expect(
+      callElectronAPI(page, "sessions", "getById", "e2e-delete-session-a"),
+    ).resolves.toBeNull();
+    await expect(
+      callElectronAPI(page, "sessions", "getById", "e2e-delete-session-b"),
+    ).resolves.not.toBeNull();
+    await expect(
+      callElectronAPI(page, "sessions", "getById", "e2e-delete-session-c"),
+    ).resolves.not.toBeNull();
+  });
+
   test("blocks deletion when an active session is selected", async ({
     page,
   }) => {
@@ -284,7 +339,7 @@ test.describe("Sessions multi-session delete", () => {
 
       await goToSessions(page);
       await openMoreOptions(page);
-      await page.getByRole("button", { name: "Delete sessions" }).click();
+      await clickDeleteSessionsMenuItem(page);
       await page.getByRole("button", { name: "Select All" }).click();
       await page
         .getByRole("button", { name: /Delete sessions \(\d+\)/ })

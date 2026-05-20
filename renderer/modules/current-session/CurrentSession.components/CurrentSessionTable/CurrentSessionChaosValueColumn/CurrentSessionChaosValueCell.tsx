@@ -1,6 +1,6 @@
 import type { CellContext } from "@tanstack/react-table";
 
-import { useCurrentSession, useSettings } from "~/renderer/store";
+import { useCurrentSession } from "~/renderer/store";
 import { formatCurrency } from "~/renderer/utils";
 import type { CardEntry } from "~/types/data-stores";
 
@@ -8,14 +8,9 @@ const CurrentSessionChaosValueCell = (
   cellProps: CellContext<CardEntry, number>,
 ) => {
   const { getChaosToDivineRatio } = useCurrentSession();
-  const { getActiveGameViewPriceSource } = useSettings();
   const chaosToDivineRatio = getChaosToDivineRatio();
-  const priceSource = getActiveGameViewPriceSource();
 
-  const priceInfo =
-    priceSource === "stash"
-      ? cellProps.row.original.stashPrice
-      : cellProps.row.original.exchangePrice;
+  const priceInfo = cellProps.row.original.price;
   const value = priceInfo?.chaosValue ?? 0;
   const hidePrice = priceInfo?.hidePrice || false;
 

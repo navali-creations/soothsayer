@@ -22,7 +22,6 @@ const {
   mockAssertGameType,
   mockAssertBoundedString,
   mockAssertLimit,
-  mockAssertPriceSource,
   mockAssertCardName,
   mockAssertSessionId,
   mockHandleValidationError,
@@ -39,7 +38,6 @@ const {
   mockAssertGameType: vi.fn(),
   mockAssertBoundedString: vi.fn(),
   mockAssertLimit: vi.fn(),
-  mockAssertPriceSource: vi.fn(),
   mockAssertCardName: vi.fn(),
   mockAssertSessionId: vi.fn(),
   mockHandleValidationError: vi.fn(),
@@ -72,7 +70,6 @@ vi.mock("~/main/utils/ipc-validation", () =>
     mockAssertGameType,
     mockAssertBoundedString,
     mockAssertLimit,
-    mockAssertPriceSource,
     mockAssertCardName,
     mockAssertSessionId,
     mockHandleValidationError,
@@ -137,7 +134,6 @@ describe("AnalyticsService — IPC handlers", () => {
     mockAssertGameType.mockImplementation(() => {});
     mockAssertBoundedString.mockImplementation(() => {});
     mockAssertLimit.mockImplementation(() => 10);
-    mockAssertPriceSource.mockImplementation(() => {});
     mockAssertCardName.mockImplementation(() => {});
     mockAssertSessionId.mockImplementation(() => {});
     mockHandleValidationError.mockImplementation(() => ({
@@ -299,7 +295,7 @@ describe("AnalyticsService — IPC handlers", () => {
         mockIpcHandle,
         AnalyticsChannel.GetHighestValueCards,
       );
-      const result = await handler(null, "poe1", "Settlers", "exchange", 10);
+      const result = await handler(null, "poe1", "Settlers", 10);
 
       expect(mockAssertGameType).toHaveBeenCalledWith(
         "poe1",
@@ -311,10 +307,6 @@ describe("AnalyticsService — IPC handlers", () => {
         AnalyticsChannel.GetHighestValueCards,
         256,
       );
-      expect(mockAssertPriceSource).toHaveBeenCalledWith(
-        "exchange",
-        AnalyticsChannel.GetHighestValueCards,
-      );
       expect(mockAssertLimit).toHaveBeenCalledWith(
         10,
         AnalyticsChannel.GetHighestValueCards,
@@ -322,24 +314,9 @@ describe("AnalyticsService — IPC handlers", () => {
       expect(mockRepoGetHighestValueCards).toHaveBeenCalledWith(
         "poe1",
         "Settlers",
-        "exchange",
         10,
       );
       expect(result).toEqual(SAMPLE_PRICE_PEAKS);
-    });
-
-    it("should pass stash price source correctly", async () => {
-      const handler = getIpcHandler(
-        mockIpcHandle,
-        AnalyticsChannel.GetHighestValueCards,
-      );
-      await handler(null, "poe2", "Standard", "stash", 5);
-
-      mockAssertLimit.mockReturnValue(5);
-      expect(mockAssertPriceSource).toHaveBeenCalledWith(
-        "stash",
-        AnalyticsChannel.GetHighestValueCards,
-      );
     });
 
     it("should handle validation errors for invalid game type", async () => {
@@ -352,26 +329,7 @@ describe("AnalyticsService — IPC handlers", () => {
         mockIpcHandle,
         AnalyticsChannel.GetHighestValueCards,
       );
-      await handler(null, "bad", "Settlers", "exchange", 10);
-
-      expect(mockHandleValidationError).toHaveBeenCalledWith(
-        validationError,
-        AnalyticsChannel.GetHighestValueCards,
-      );
-      expect(mockRepoGetHighestValueCards).not.toHaveBeenCalled();
-    });
-
-    it("should handle validation errors for invalid price source", async () => {
-      const validationError = new Error("Invalid price source");
-      mockAssertPriceSource.mockImplementation(() => {
-        throw validationError;
-      });
-
-      const handler = getIpcHandler(
-        mockIpcHandle,
-        AnalyticsChannel.GetHighestValueCards,
-      );
-      await handler(null, "poe1", "Settlers", "bogus", 10);
+      await handler(null, "bad", "Settlers", 10);
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
         validationError,
@@ -390,7 +348,7 @@ describe("AnalyticsService — IPC handlers", () => {
         mockIpcHandle,
         AnalyticsChannel.GetHighestValueCards,
       );
-      await handler(null, "poe1", null, "exchange", 10);
+      await handler(null, "poe1", null, 10);
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
         validationError,
@@ -409,7 +367,7 @@ describe("AnalyticsService — IPC handlers", () => {
         mockIpcHandle,
         AnalyticsChannel.GetHighestValueCards,
       );
-      await handler(null, "poe1", "Settlers", "exchange", "not-a-number");
+      await handler(null, "poe1", "Settlers", "not-a-number");
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
         validationError,
@@ -427,13 +385,7 @@ describe("AnalyticsService — IPC handlers", () => {
         mockIpcHandle,
         AnalyticsChannel.GetCardPriceHistory,
       );
-      const result = await handler(
-        null,
-        "poe1",
-        "Settlers",
-        "The Doctor",
-        "exchange",
-      );
+      const result = await handler(null, "poe1", "Settlers", "The Doctor");
 
       expect(mockAssertGameType).toHaveBeenCalledWith(
         "poe1",
@@ -449,15 +401,10 @@ describe("AnalyticsService — IPC handlers", () => {
         "The Doctor",
         AnalyticsChannel.GetCardPriceHistory,
       );
-      expect(mockAssertPriceSource).toHaveBeenCalledWith(
-        "exchange",
-        AnalyticsChannel.GetCardPriceHistory,
-      );
       expect(mockRepoGetCardPriceHistory).toHaveBeenCalledWith(
         "poe1",
         "Settlers",
         "The Doctor",
-        "exchange",
       );
       expect(result).toEqual(SAMPLE_PRICE_HISTORY);
     });
@@ -472,7 +419,7 @@ describe("AnalyticsService — IPC handlers", () => {
         mockIpcHandle,
         AnalyticsChannel.GetCardPriceHistory,
       );
-      await handler(null, 999, "Settlers", "The Doctor", "exchange");
+      await handler(null, 999, "Settlers", "The Doctor");
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
         validationError,
@@ -491,26 +438,7 @@ describe("AnalyticsService — IPC handlers", () => {
         mockIpcHandle,
         AnalyticsChannel.GetCardPriceHistory,
       );
-      await handler(null, "poe1", "Settlers", 42, "exchange");
-
-      expect(mockHandleValidationError).toHaveBeenCalledWith(
-        validationError,
-        AnalyticsChannel.GetCardPriceHistory,
-      );
-      expect(mockRepoGetCardPriceHistory).not.toHaveBeenCalled();
-    });
-
-    it("should handle validation errors for invalid price source", async () => {
-      const validationError = new Error("Invalid price source");
-      mockAssertPriceSource.mockImplementation(() => {
-        throw validationError;
-      });
-
-      const handler = getIpcHandler(
-        mockIpcHandle,
-        AnalyticsChannel.GetCardPriceHistory,
-      );
-      await handler(null, "poe1", "Settlers", "The Doctor", "wrong");
+      await handler(null, "poe1", "Settlers", 42);
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
         validationError,
@@ -529,7 +457,7 @@ describe("AnalyticsService — IPC handlers", () => {
         mockIpcHandle,
         AnalyticsChannel.GetCardPriceHistory,
       );
-      await handler(null, "poe1", undefined, "The Doctor", "exchange");
+      await handler(null, "poe1", undefined, "The Doctor");
 
       expect(mockHandleValidationError).toHaveBeenCalledWith(
         validationError,
@@ -865,8 +793,8 @@ describe("AnalyticsService — IPC handlers", () => {
       });
 
       await getMostCommon(null, "bad", "L", 1);
-      await getHighestValue(null, "bad", "L", "exchange", 1);
-      await getPriceHistory(null, "bad", "L", "C", "exchange");
+      await getHighestValue(null, "bad", "L", 1);
+      await getPriceHistory(null, "bad", "L", "C");
       await getLeague(null, "bad", "L");
       await compare(null, "bad-id", "bad-id-2");
       await getOccurrence(null, "bad", "L");

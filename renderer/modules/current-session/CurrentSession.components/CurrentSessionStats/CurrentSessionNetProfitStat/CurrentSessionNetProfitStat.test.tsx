@@ -3,8 +3,6 @@ import { useBoundStore } from "~/renderer/store";
 
 import CurrentSessionNetProfitStat from "./CurrentSessionNetProfitStat";
 
-// ─── Mocks ─────────────────────────────────────────────────────────────────
-
 const timelineBufferMock = vi.hoisted(() => ({
   totalDrops: 0,
   chartData: [] as any[],
@@ -53,14 +51,14 @@ vi.mock("~/renderer/components", () => ({
   ),
 }));
 
-vi.mock("react-icons/fi", () => ({
-  FiInfo: () => <span />,
-  FiMaximize2: () => <span />,
-  FiMinimize2: () => <span />,
-}));
-
 vi.mock("react-icons/gi", () => ({
   GiReceiveMoney: (_props: any) => <span data-testid="icon-receive-money" />,
+}));
+
+vi.mock("react-icons/fi", () => ({
+  FiInfo: () => <span />,
+  FiMaximize2: () => <span data-testid="expand-icon" />,
+  FiMinimize2: () => <span data-testid="collapse-icon" />,
 }));
 
 vi.mock(
@@ -76,8 +74,6 @@ vi.mock("../../SessionProfitTimeline/timeline-buffer/timeline-buffer", () => ({
 
 const mockUseBoundStore = vi.mocked(useBoundStore);
 
-// ─── Helpers ───────────────────────────────────────────────────────────────
-
 function setupStore(overrides: any = {}) {
   const store = {
     currentSession: {
@@ -86,9 +82,6 @@ function setupStore(overrides: any = {}) {
       ...overrides.currentSession,
     },
     settings: {
-      getActiveGameViewPriceSource: vi.fn(
-        () => overrides.priceSource ?? "exchange",
-      ),
       ...overrides.settings,
     },
   } as any;
@@ -98,428 +91,229 @@ function setupStore(overrides: any = {}) {
 
 function createSession(overrides: any = {}) {
   return {
-    totalCount: overrides.totalCount ?? 10,
-    cards: overrides.cards ?? [],
-    priceSnapshot: overrides.priceSnapshot ?? {
+    priceSnapshot: {
       timestamp: "2024-06-15T12:00:00.000Z",
-      stash: { chaosToDivineRatio: 200 },
-      exchange: { chaosToDivineRatio: 220 },
+      chaosToDivineRatio: 200,
+      cardPrices: {},
     },
-    totals: overrides.totals ?? {
-      exchange: {
-        chaosToDivineRatio: 220,
-        totalValue: 500,
-        netProfit: 300,
-      },
-      stash: {
-        chaosToDivineRatio: 200,
-        totalValue: 480,
-        netProfit: 280,
-      },
+    totals: {
+      chaosToDivineRatio: 200,
+      totalValue: 500,
+      netProfit: 300,
       totalDeckCost: 200,
+      stackedDeckChaosCost: 3,
     },
     ...overrides,
   };
 }
 
-// ─── Tests ─────────────────────────────────────────────────────────────────
-
 describe("CurrentSessionNetProfitStat", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    timelineBufferMock.totalDrops = 0;
+    timelineBufferMock.chartData = [];
+    timelineBufferMock.linePoints = [];
   });
 
-  it('renders "Net Profit" title', () => {
-    setupStore({ session: null });
+  it("shows net profit in divines when value exceeds the divine ratio", () => {
+    setupStore({ session: createSession() });
+
     renderWithProviders(<CurrentSessionNetProfitStat />);
 
     expect(screen.getByText("Net Profit")).toBeInTheDocument();
+    expect(screen.getByText("1.50d")).toBeInTheDocument();
+    expect(screen.getByText(/decks/)).toBeInTheDocument();
   });
 
-  it('shows "N/A" when session has no priceSnapshot', () => {
-    setupStore({
-      session: createSession({ priceSnapshot: null }),
-    });
+  it("shows unavailable pricing when there is no current session", () => {
+    setupStore({ session: null });
+
     renderWithProviders(<CurrentSessionNetProfitStat />);
 
-    const value = screen.getByTestId("stat-value");
-    expect(value).toHaveTextContent("N/A");
-  });
-
-  it('shows "No pricing data" description when no priceSnapshot', () => {
-    setupStore({
-      session: createSession({ priceSnapshot: null }),
-    });
-    renderWithProviders(<CurrentSessionNetProfitStat />);
-
+    expect(screen.getByText("Net Profit")).toBeInTheDocument();
+    expect(screen.getByText("N/A")).toBeInTheDocument();
     expect(screen.getByText("No pricing data")).toBeInTheDocument();
   });
 
-  it('shows "N/A" when session is null', () => {
-    setupStore({ session: null });
-    renderWithProviders(<CurrentSessionNetProfitStat />);
-
-    const value = screen.getByTestId("stat-value");
-    expect(value).toHaveTextContent("N/A");
-  });
-
-  it("shows net profit in divines when |netProfit| >= chaosToDivineRatio", () => {
+  it("shows net profit in chaos when the value is below the divine ratio", () => {
     setupStore({
       session: createSession({
         totals: {
-          exchange: { chaosToDivineRatio: 220, netProfit: 500 },
-          stash: { chaosToDivineRatio: 200, netProfit: 480 },
-          totalDeckCost: 200,
+          chaosToDivineRatio: 200,
+          totalValue: 100,
+          netProfit: 50,
+          totalDeckCost: 50,
+          stackedDeckChaosCost: 3,
         },
       }),
-      priceSource: "exchange",
     });
+
     renderWithProviders(<CurrentSessionNetProfitStat />);
 
-    const numbers = screen.getAllByTestId("animated-number");
-    const divineValue = numbers.find(
-      (el) =>
-        el.textContent?.includes("d") &&
-        el.closest('[data-testid="stat-value"]'),
-    );
-    expect(divineValue).toBeDefined();
+    expect(screen.getByText("50.00c")).toBeInTheDocument();
+    expect(screen.getByText("0.25 divine")).toBeInTheDocument();
   });
 
-  it("shows net profit in chaos when |netProfit| < chaosToDivineRatio", () => {
+  it("marks negative net profit as an error value", () => {
     setupStore({
       session: createSession({
         totals: {
-          exchange: { chaosToDivineRatio: 220, netProfit: 50 },
-          stash: { chaosToDivineRatio: 200, netProfit: 40 },
-          totalDeckCost: 100,
+          chaosToDivineRatio: 200,
+          totalValue: 100,
+          netProfit: -50,
+          totalDeckCost: 150,
+          stackedDeckChaosCost: 3,
         },
       }),
-      priceSource: "exchange",
     });
+
     renderWithProviders(<CurrentSessionNetProfitStat />);
 
-    const numbers = screen.getAllByTestId("animated-number");
-    const chaosValue = numbers.find(
-      (el) =>
-        el.textContent?.includes("c") &&
-        el.closest('[data-testid="stat-value"]'),
-    );
-    expect(chaosValue).toBeDefined();
+    expect(screen.getByText("-50.00c")).toHaveClass("text-error");
   });
 
-  it("applies text-error class when netProfit is negative (divine display)", () => {
+  it("marks negative divine net profit as an error value", () => {
     setupStore({
       session: createSession({
         totals: {
-          exchange: { chaosToDivineRatio: 220, netProfit: -500 },
-          stash: { chaosToDivineRatio: 200, netProfit: -400 },
-          totalDeckCost: 700,
+          chaosToDivineRatio: 200,
+          totalValue: 0,
+          netProfit: -300,
+          totalDeckCost: 300,
+          stackedDeckChaosCost: 3,
         },
       }),
-      priceSource: "exchange",
     });
+
     renderWithProviders(<CurrentSessionNetProfitStat />);
 
-    const numbers = screen.getAllByTestId("animated-number");
-    const errorValue = numbers.find((el) =>
-      el.className?.includes("text-error"),
-    );
-    expect(errorValue).toBeDefined();
+    expect(screen.getByText("-1.50d")).toHaveClass("text-error");
   });
 
-  it("applies text-error class when netProfit is negative (chaos display)", () => {
-    setupStore({
-      session: createSession({
-        totals: {
-          exchange: { chaosToDivineRatio: 220, netProfit: -50 },
-          stash: { chaosToDivineRatio: 200, netProfit: -30 },
-          totalDeckCost: 100,
-        },
-      }),
-      priceSource: "exchange",
-    });
+  it("does not mark positive net profit as an error value", () => {
+    setupStore({ session: createSession() });
+
     renderWithProviders(<CurrentSessionNetProfitStat />);
 
-    const numbers = screen.getAllByTestId("animated-number");
-    const errorValue = numbers.find((el) =>
-      el.className?.includes("text-error"),
-    );
-    expect(errorValue).toBeDefined();
+    expect(screen.getByText("1.50d")).not.toHaveClass("text-error");
   });
 
-  it("does not apply text-error class when netProfit is positive", () => {
-    setupStore({
+  it("shows missing deck-cost and divine-rate descriptions", () => {
+    const store = setupStore({
       session: createSession({
         totals: {
-          exchange: { chaosToDivineRatio: 220, netProfit: 50 },
-          stash: { chaosToDivineRatio: 200, netProfit: 40 },
-          totalDeckCost: 100,
-        },
-      }),
-      priceSource: "exchange",
-    });
-    renderWithProviders(<CurrentSessionNetProfitStat />);
-
-    const numbers = screen.getAllByTestId("animated-number");
-    const valueNumbers = numbers.filter((el) =>
-      el.closest('[data-testid="stat-value"]'),
-    );
-    for (const n of valueNumbers) {
-      expect(n.className).not.toContain("text-error");
-    }
-  });
-
-  it('shows "No deck cost data" when totalDeckCost is 0', () => {
-    setupStore({
-      session: createSession({
-        totals: {
-          exchange: { chaosToDivineRatio: 220, netProfit: 50 },
-          stash: { chaosToDivineRatio: 200, netProfit: 40 },
+          chaosToDivineRatio: 200,
+          totalValue: 100,
+          netProfit: 100,
           totalDeckCost: 0,
+          stackedDeckChaosCost: 0,
         },
       }),
-      priceSource: "exchange",
     });
-    renderWithProviders(<CurrentSessionNetProfitStat />);
 
+    const { rerender } = renderWithProviders(<CurrentSessionNetProfitStat />);
     expect(screen.getByText("No deck cost data")).toBeInTheDocument();
-  });
 
-  it("shows deck cost in description when totalDeckCost > 0 and showing divine", () => {
-    setupStore({
-      session: createSession({
+    store.currentSession.getSession.mockReturnValue(
+      createSession({
         totals: {
-          exchange: { chaosToDivineRatio: 220, netProfit: 500 },
-          stash: { chaosToDivineRatio: 200, netProfit: 400 },
-          totalDeckCost: 200,
+          chaosToDivineRatio: 0,
+          totalValue: 100,
+          netProfit: 100,
+          totalDeckCost: 50,
+          stackedDeckChaosCost: 3,
         },
       }),
-      priceSource: "exchange",
-    });
-    renderWithProviders(<CurrentSessionNetProfitStat />);
+    );
 
-    const desc = screen.getByTestId("stat-desc");
-    expect(desc).toHaveTextContent(/≈/);
-    expect(desc).toHaveTextContent(/chaos/);
-    expect(desc).toHaveTextContent(/decks/);
+    rerender(<CurrentSessionNetProfitStat />);
+    expect(screen.getByText("Divine rate unavailable")).toBeInTheDocument();
   });
 
-  it("shows deck cost in description when totalDeckCost > 0 and showing chaos", () => {
-    setupStore({
-      session: createSession({
-        totals: {
-          exchange: { chaosToDivineRatio: 220, netProfit: 50 },
-          stash: { chaosToDivineRatio: 200, netProfit: 40 },
-          totalDeckCost: 100,
-        },
-      }),
-      priceSource: "exchange",
-    });
+  it("shows unavailable pricing without a snapshot", () => {
+    setupStore({ session: createSession({ priceSnapshot: null }) });
+
     renderWithProviders(<CurrentSessionNetProfitStat />);
 
-    const desc = screen.getByTestId("stat-desc");
-    expect(desc).toHaveTextContent(/≈/);
-    expect(desc).toHaveTextContent(/divine/);
-    expect(desc).toHaveTextContent(/decks/);
+    expect(screen.getByText("N/A")).toBeInTheDocument();
+    expect(screen.getByText("No pricing data")).toBeInTheDocument();
   });
 
-  it("renders GiReceiveMoney icon", () => {
-    setupStore({
-      session: createSession(),
-    });
-    renderWithProviders(<CurrentSessionNetProfitStat />);
+  it("renders timeline controls when timeline expansion is available", () => {
+    const onToggleExpanded = vi.fn();
+    setupStore({ session: createSession(), isActive: true });
 
-    expect(screen.getByTestId("icon-receive-money")).toBeInTheDocument();
-  });
+    renderWithProviders(
+      <CurrentSessionNetProfitStat
+        hasTimeline
+        onToggleExpanded={onToggleExpanded}
+      />,
+    );
 
-  it("renders mini sparkline when session is active", () => {
-    setupStore({
-      session: createSession(),
-      isActive: true,
-    });
-    renderWithProviders(<CurrentSessionNetProfitStat />);
-
+    expect(screen.getByTestId("expand-icon")).toBeInTheDocument();
     expect(screen.getByTestId("mini-profit-sparkline")).toBeInTheDocument();
   });
 
-  it("does not render mini sparkline when session is inactive", () => {
-    setupStore({
-      session: createSession(),
-      isActive: false,
-    });
-    renderWithProviders(<CurrentSessionNetProfitStat />);
+  it("calls the timeline toggle when the expand button is clicked", async () => {
+    const onToggleExpanded = vi.fn();
+    setupStore({ session: createSession(), isActive: true });
+
+    const { user } = renderWithProviders(
+      <CurrentSessionNetProfitStat
+        hasTimeline
+        onToggleExpanded={onToggleExpanded}
+      />,
+    );
+
+    await user.click(screen.getAllByRole("button")[1]);
+
+    expect(onToggleExpanded).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders the collapse icon when expanded", () => {
+    setupStore({ session: createSession(), isActive: true });
+
+    renderWithProviders(
+      <CurrentSessionNetProfitStat
+        expanded
+        hasTimeline
+        onToggleExpanded={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("collapse-icon")).toBeInTheDocument();
+    expect(screen.queryByTestId("expand-icon")).not.toBeInTheDocument();
+  });
+
+  it("does not render timeline controls when the timeline cannot expand", () => {
+    setupStore({ session: createSession(), isActive: true });
+
+    renderWithProviders(<CurrentSessionNetProfitStat hasTimeline={false} />);
+
+    expect(screen.queryByTestId("expand-icon")).not.toBeInTheDocument();
+    expect(screen.getByTestId("mini-profit-sparkline")).toBeInTheDocument();
+  });
+
+  it("does not render the sparkline when the session is inactive", () => {
+    setupStore({ session: createSession(), isActive: false });
+
+    renderWithProviders(
+      <CurrentSessionNetProfitStat hasTimeline onToggleExpanded={vi.fn()} />,
+    );
 
     expect(
       screen.queryByTestId("mini-profit-sparkline"),
     ).not.toBeInTheDocument();
   });
 
-  it("renders both icon and sparkline when active", () => {
-    setupStore({
-      session: createSession(),
-      isActive: true,
-    });
-    renderWithProviders(<CurrentSessionNetProfitStat />);
-
-    expect(screen.getByTestId("icon-receive-money")).toBeInTheDocument();
-    expect(screen.getByTestId("mini-profit-sparkline")).toBeInTheDocument();
-  });
-
-  it("uses stash totals when priceSource is stash", () => {
-    setupStore({
-      session: createSession({
-        totals: {
-          exchange: { chaosToDivineRatio: 220, netProfit: 9999 },
-          stash: { chaosToDivineRatio: 200, netProfit: 50 },
-          totalDeckCost: 100,
-        },
-      }),
-      priceSource: "stash",
-    });
-    renderWithProviders(<CurrentSessionNetProfitStat />);
-
-    // netProfit (50) < chaosToDivineRatio (200) → displayed in chaos
-    const numbers = screen.getAllByTestId("animated-number");
-    const chaosInValue = numbers.find(
-      (el) =>
-        el.textContent?.includes("c") &&
-        el.closest('[data-testid="stat-value"]'),
-    );
-    expect(chaosInValue).toBeDefined();
-  });
-
-  // ── Sparkline opacity sync via timelineBuffer subscription ─────────
-
-  it("sets sparkline wrapper opacity to '1' when buffer has data", () => {
-    let subscribedCb: (() => void) | undefined;
-    timelineBufferMock.subscribe.mockImplementation((cb: any) => {
-      subscribedCb = cb;
-      return () => {};
-    });
-    timelineBufferMock.totalDrops = 5;
-    timelineBufferMock.chartData = [1, 2, 3];
-
-    setupStore({ session: createSession(), isActive: true });
-    renderWithProviders(<CurrentSessionNetProfitStat />);
-
-    // The initial syncOpacity call inside useEffect should have set opacity
-    const sparklineWrapper = screen.getByTestId("mini-profit-sparkline")
-      .parentElement!;
-    expect(sparklineWrapper.style.opacity).toBe("1");
-
-    // Also invoke the subscribed callback to cover the subscribe path
-    subscribedCb?.();
-    expect(sparklineWrapper.style.opacity).toBe("1");
-
-    // Reset
-    timelineBufferMock.totalDrops = 0;
-    timelineBufferMock.chartData = [];
-  });
-
-  it("sets sparkline wrapper opacity to '0' when buffer has no data", () => {
-    timelineBufferMock.subscribe.mockImplementation((_cb: any) => {
-      return () => {};
-    });
-    timelineBufferMock.totalDrops = 0;
-    timelineBufferMock.chartData = [];
-
-    setupStore({ session: createSession(), isActive: true });
-    renderWithProviders(<CurrentSessionNetProfitStat />);
-
-    const sparklineWrapper = screen.getByTestId("mini-profit-sparkline")
-      .parentElement!;
-    expect(sparklineWrapper.style.opacity).toBe("0");
-  });
-
-  // ── Expand / Collapse button ───────────────────────────────────────
-
-  it("renders expand button when hasTimeline and onToggleExpanded are provided", () => {
-    setupStore({ session: createSession(), isActive: true });
-    const onToggle = vi.fn();
-    renderWithProviders(
-      <CurrentSessionNetProfitStat hasTimeline onToggleExpanded={onToggle} />,
-    );
-
-    // The expand button should be present (FiMaximize2 is rendered as <span />)
-    const buttons = screen.getAllByRole("button");
-    // There should be 2 buttons: info + expand
-    expect(buttons.length).toBeGreaterThanOrEqual(2);
-  });
-
-  it("calls onToggleExpanded when expand button is clicked", async () => {
-    setupStore({ session: createSession(), isActive: true });
-    const onToggle = vi.fn();
-    const { user } = renderWithProviders(
-      <CurrentSessionNetProfitStat hasTimeline onToggleExpanded={onToggle} />,
-    );
-
-    const buttons = screen.getAllByRole("button");
-    // The second button is the expand/collapse one
-    const expandBtn = buttons[1];
-    await user.click(expandBtn);
-
-    expect(onToggle).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not render expand button when hasTimeline is false", () => {
-    setupStore({ session: createSession(), isActive: true });
-    const onToggle = vi.fn();
-    renderWithProviders(
-      <CurrentSessionNetProfitStat
-        hasTimeline={false}
-        onToggleExpanded={onToggle}
-      />,
-    );
-
-    // Only the info button should be present
-    const buttons = screen.getAllByRole("button");
-    expect(buttons).toHaveLength(1);
-  });
-
-  it("does not render expand button when onToggleExpanded is not provided", () => {
-    setupStore({ session: createSession(), isActive: true });
-    renderWithProviders(<CurrentSessionNetProfitStat hasTimeline />);
-
-    const buttons = screen.getAllByRole("button");
-    expect(buttons).toHaveLength(1);
-  });
-
-  it("shows collapse tooltip when expanded is true", () => {
-    setupStore({ session: createSession(), isActive: true });
-    renderWithProviders(
-      <CurrentSessionNetProfitStat
-        hasTimeline
-        expanded
-        onToggleExpanded={() => {}}
-      />,
-    );
-
-    const tooltip = document.querySelector('[data-tip="Collapse timeline"]');
-    expect(tooltip).toBeInTheDocument();
-  });
-
-  it("shows expand tooltip when expanded is false", () => {
-    setupStore({ session: createSession(), isActive: true });
-    renderWithProviders(
-      <CurrentSessionNetProfitStat
-        hasTimeline
-        expanded={false}
-        onToggleExpanded={() => {}}
-      />,
-    );
-
-    const tooltip = document.querySelector('[data-tip="Expand timeline"]');
-    expect(tooltip).toBeInTheDocument();
-  });
-
-  it("renders tooltip title on Net Profit text", () => {
+  it("renders the explanatory tooltip title on the stat label", () => {
     setupStore({ session: createSession() });
+
     renderWithProviders(<CurrentSessionNetProfitStat />);
 
-    const profitLabel = screen.getByText("Net Profit");
-    expect(profitLabel).toHaveAttribute(
+    expect(screen.getByText("Net Profit")).toHaveAttribute(
       "title",
-      expect.stringContaining("Total Value minus the cost"),
+      "Total Value minus the cost of Stacked Decks opened. Represents actual profit if you purchased the decks.",
     );
   });
 });

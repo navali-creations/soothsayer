@@ -71,16 +71,11 @@ const SessionCardNameCell = ({
 const columnHelper = createColumnHelper<CardEntry>();
 
 const SessionDetailsTable = () => {
-  const {
-    getCardData,
-    getPriceData,
-    getPriceSource,
-    toggleCardPriceVisibility,
-  } = useSessionDetails();
+  const { getCardData, getPriceData, toggleCardPriceVisibility } =
+    useSessionDetails();
 
   const cardData = getCardData();
   const { chaosToDivineRatio } = getPriceData();
-  const priceSource = getPriceSource();
 
   const columns = useMemo(
     () => [
@@ -102,7 +97,7 @@ const SessionDetailsTable = () => {
           return (
             <button
               className="btn btn-ghost btn-xs"
-              onClick={() => toggleCardPriceVisibility(row.name, priceSource)}
+              onClick={() => toggleCardPriceVisibility(row.name)}
               title={
                 isHidden
                   ? "Click to include in totals"
@@ -188,7 +183,7 @@ const SessionDetailsTable = () => {
         },
       }),
     ],
-    [chaosToDivineRatio, priceSource, toggleCardPriceVisibility],
+    [chaosToDivineRatio, toggleCardPriceVisibility],
   );
 
   if (cardData.length === 0) {
@@ -209,8 +204,7 @@ const SessionDetailsTable = () => {
         <div>
           <h2 className="card-title">Cards Obtained</h2>
           <p className="text-sm text-base-content/60">
-            Viewing {priceSource === "exchange" ? "Exchange" : "Stash"} prices
-            (Snapshot)
+            Viewing poe.ninja exchange snapshot prices
           </p>
         </div>
 

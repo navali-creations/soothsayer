@@ -743,8 +743,7 @@ describe("useDivinationCards", () => {
           {
             name: "The Doctor",
             count: 2,
-            exchangePrice: { chaosValue: 1000, totalValue: 2000 },
-            stashPrice: { chaosValue: 900, totalValue: 1800 },
+            price: { chaosValue: 1000, totalValue: 2000 },
           },
         ],
         recentDrops: [],
@@ -787,8 +786,7 @@ describe("useDivinationCards", () => {
       const doctor = stats.cards.find((c: any) => c.name === "The Doctor");
       expect(doctor.count).toBe(3);
       // totalValue should be recalculated: chaosValue * newCount
-      expect(doctor.exchangePrice.totalValue).toBe(3000);
-      expect(doctor.stashPrice.totalValue).toBe(2700);
+      expect(doctor.price.totalValue).toBe(3000);
     });
 
     it("keeps null stats unchanged when onCardDelta fires before stats load", async () => {
@@ -874,8 +872,7 @@ describe("useDivinationCards", () => {
           {
             name: "The Doctor",
             count: 2,
-            exchangePrice: { totalValue: 2000 },
-            stashPrice: { totalValue: 1800 },
+            price: { totalValue: 2000 },
           },
         ],
         recentDrops: [],
@@ -915,8 +912,7 @@ describe("useDivinationCards", () => {
 
       const stats = result.current.stats as any;
       const doctor = stats.cards.find((c: any) => c.name === "The Doctor");
-      expect(doctor.exchangePrice.totalValue).toBe(0);
-      expect(doctor.stashPrice.totalValue).toBe(0);
+      expect(doctor.price.totalValue).toBe(0);
     });
 
     it("adds new card via onCardDelta", async () => {
@@ -954,8 +950,7 @@ describe("useDivinationCards", () => {
             cardName: "Rain of Chaos",
             newCount: 1,
             totalCount: 6,
-            exchangePrice: { chaosValue: 2, divineValue: 0.01 },
-            stashPrice: { chaosValue: 1.5, divineValue: 0.008 },
+            price: { chaosValue: 2, divineValue: 0.01 },
           },
         });
       });
@@ -966,7 +961,7 @@ describe("useDivinationCards", () => {
       const rain = stats.cards.find((c: any) => c.name === "Rain of Chaos");
       expect(rain).toBeDefined();
       expect(rain.count).toBe(1);
-      expect(rain.exchangePrice.chaosValue).toBe(2);
+      expect(rain.price.chaosValue).toBe(2);
     });
 
     it("prepends recent drop from delta", async () => {
@@ -1145,19 +1140,18 @@ describe("useDivinationCards", () => {
       expect(stats.totalCount).toBe(5);
     });
 
-    it("updates existing card with exchangePrice only (no stashPrice) via onCardDelta", async () => {
+    it("updates an existing card with a price via onCardDelta", async () => {
       const initialStats = {
         totalCount: 5,
         cards: [
           {
             name: "The Doctor",
             count: 2,
-            exchangePrice: {
+            price: {
               chaosValue: 1000,
               divineValue: 5,
               totalValue: 2000,
             },
-            // no stashPrice
           },
         ],
         recentDrops: [],
@@ -1198,19 +1192,16 @@ describe("useDivinationCards", () => {
       const stats = result.current.stats as any;
       const doctor = stats.cards.find((c: any) => c.name === "The Doctor");
       expect(doctor.count).toBe(4);
-      expect(doctor.exchangePrice.totalValue).toBe(4000);
-      expect(doctor.stashPrice).toBeUndefined();
+      expect(doctor.price.totalValue).toBe(4000);
     });
 
-    it("updates existing card with stashPrice only (no exchangePrice) via onCardDelta", async () => {
+    it("keeps an unpriced existing card unpriced via onCardDelta", async () => {
       const initialStats = {
         totalCount: 5,
         cards: [
           {
             name: "The Doctor",
             count: 2,
-            stashPrice: { chaosValue: 900, divineValue: 4.5, totalValue: 1800 },
-            // no exchangePrice
           },
         ],
         recentDrops: [],
@@ -1251,8 +1242,7 @@ describe("useDivinationCards", () => {
       const stats = result.current.stats as any;
       const doctor = stats.cards.find((c: any) => c.name === "The Doctor");
       expect(doctor.count).toBe(4);
-      expect(doctor.exchangePrice).toBeUndefined();
-      expect(doctor.stashPrice.totalValue).toBe(3600);
+      expect(doctor.price).toBeUndefined();
     });
 
     it("updates existing card and builds recentDrops from delta.recentDrop", async () => {
@@ -1262,8 +1252,7 @@ describe("useDivinationCards", () => {
           {
             name: "The Doctor",
             count: 2,
-            exchangePrice: { chaosValue: 1000, totalValue: 2000 },
-            stashPrice: { chaosValue: 900, totalValue: 1800 },
+            price: { chaosValue: 1000, totalValue: 2000 },
           },
         ],
         recentDrops: [{ cardName: "Old Card", rarity: 4 }],
@@ -1306,8 +1295,7 @@ describe("useDivinationCards", () => {
       expect(stats.totalCount).toBe(6);
       const doctor = stats.cards.find((c: any) => c.name === "The Doctor");
       expect(doctor.count).toBe(3);
-      expect(doctor.exchangePrice.totalValue).toBe(3000);
-      expect(doctor.stashPrice.totalValue).toBe(2700);
+      expect(doctor.price.totalValue).toBe(3000);
       expect(stats.recentDrops).toHaveLength(2);
       expect(stats.recentDrops[0].cardName).toBe("The Doctor");
       expect(stats.recentDrops[1].cardName).toBe("Old Card");

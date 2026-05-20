@@ -182,8 +182,6 @@ vi.mock("~/main/modules/settings-store", () => ({
     AppExitAction: "appExitAction",
     AppOpenAtLogin: "appOpenAtLogin",
     AppOpenAtLoginMinimized: "appOpenAtLoginMinimized",
-    Poe1PriceSource: "poe1PriceSource",
-    Poe2PriceSource: "poe2PriceSource",
   },
 }));
 
@@ -1189,18 +1187,12 @@ describe("OverlayService", () => {
   // ─── getSessionData ──────────────────────────────────────────────────────
 
   describe("getSessionData (via IPC handler)", () => {
-    /**
-     * Helper: mock settingsStore.get to return different values per key.
-     * Defaults: activeGame = "poe1", poe1PriceSource = "exchange", poe2PriceSource = "exchange"
-     */
     function mockSettingsForGame(
       activeGame: "poe1" | "poe2" = "poe1",
       overrides: Record<string, string> = {},
     ) {
       const defaults: Record<string, string> = {
         selectedGame: activeGame,
-        poe1PriceSource: "exchange",
-        poe2PriceSource: "exchange",
         ...overrides,
       };
       // Reset first to clear any mockResolvedValue set in beforeEach
@@ -1225,7 +1217,6 @@ describe("OverlayService", () => {
         totalCount: 0,
         totalProfit: 0,
         chaosToDivineRatio: 0,
-        priceSource: "exchange",
         cards: [],
         recentDrops: [],
       });
@@ -1247,7 +1238,6 @@ describe("OverlayService", () => {
         totalCount: 0,
         totalProfit: 0,
         chaosToDivineRatio: 0,
-        priceSource: "exchange",
         cards: [],
         recentDrops: [],
       });
@@ -1259,10 +1249,8 @@ describe("OverlayService", () => {
       mockCurrentSessionGetCurrentSession.mockResolvedValue({
         totalCount: 42,
         totals: {
-          exchange: {
-            totalValue: 1500,
-            chaosToDivineRatio: 200,
-          },
+          totalValue: 1500,
+          chaosToDivineRatio: 200,
         },
         cards: [
           { name: "The Doctor", count: 3 },
@@ -1281,7 +1269,6 @@ describe("OverlayService", () => {
         totalCount: 42,
         totalProfit: 1500,
         chaosToDivineRatio: 200,
-        priceSource: "exchange",
         cards: [
           { cardName: "The Doctor", count: 3 },
           { cardName: "The Nurse", count: 7 },
@@ -1296,10 +1283,8 @@ describe("OverlayService", () => {
       mockCurrentSessionGetCurrentSession.mockResolvedValue({
         totalCount: 10,
         totals: {
-          exchange: {
-            totalValue: 500,
-            chaosToDivineRatio: 150,
-          },
+          totalValue: 500,
+          chaosToDivineRatio: 150,
         },
         cards: null,
       });
@@ -1343,10 +1328,8 @@ describe("OverlayService", () => {
       mockCurrentSessionGetCurrentSession.mockResolvedValue({
         totalCount: 0,
         totals: {
-          exchange: {
-            totalValue: 0,
-            chaosToDivineRatio: 0,
-          },
+          totalValue: 0,
+          chaosToDivineRatio: 0,
         },
         cards: [],
       });
@@ -1362,17 +1345,12 @@ describe("OverlayService", () => {
       expect(result.totalProfit).toBe(0);
     });
 
-    it("should handle session with missing exchange price source", async () => {
+    it("should handle session with missing totals values", async () => {
       mockSettingsForGame("poe1");
       mockCurrentSessionIsActive.mockReturnValue(true);
       mockCurrentSessionGetCurrentSession.mockResolvedValue({
         totalCount: 15,
-        totals: {
-          stash: {
-            totalValue: 800,
-            chaosToDivineRatio: 180,
-          },
-        },
+        totals: {},
         cards: [{ name: "House of Mirrors", count: 1 }],
       });
 
@@ -1382,31 +1360,26 @@ describe("OverlayService", () => {
       );
       const result = await handler({});
 
-      // exchange key doesn't exist in totals, so totalProfit and ratio should be 0
       expect(result.isActive).toBe(true);
       expect(result.totalProfit).toBe(0);
       expect(result.chaosToDivineRatio).toBe(0);
-      expect(result.priceSource).toBe("exchange");
     });
 
-    it("should use stash price source for poe2 when explicitly configured", async () => {
-      mockSettingsForGame("poe2", { poe2PriceSource: "stash" });
+    it("should use exchange-only session totals for poe2", async () => {
+      mockSettingsForGame("poe2");
       mockCurrentSessionIsActive.mockReturnValue(true);
       mockCurrentSessionGetCurrentSession.mockResolvedValue({
         totalCount: 5,
         totals: {
-          stash: {
-            totalValue: 300,
-            chaosToDivineRatio: 150,
-          },
+          totalValue: 300,
+          chaosToDivineRatio: 150,
         },
         cards: [{ name: "The Survivalist", count: 1 }],
         recentDrops: [
           {
             cardName: "The Survivalist",
             rarity: 0,
-            exchangePrice: { chaosValue: 0, divineValue: 0 },
-            stashPrice: { chaosValue: 1, divineValue: 0.01 },
+            price: { chaosValue: 1, divineValue: 0.01 },
           },
         ],
       });
@@ -1417,29 +1390,25 @@ describe("OverlayService", () => {
       );
       const result = await handler({});
 
-      expect(result.priceSource).toBe("stash");
       expect(result.totalProfit).toBe(300);
       expect(result.chaosToDivineRatio).toBe(150);
       expect(result.recentDrops).toEqual([
         {
           cardName: "The Survivalist",
           rarity: 0,
-          exchangePrice: { chaosValue: 0, divineValue: 0 },
-          stashPrice: { chaosValue: 1, divineValue: 0.01 },
+          price: { chaosValue: 1, divineValue: 0.01 },
         },
       ]);
     });
 
-    it("should default to exchange price source for poe2", async () => {
+    it("should handle poe2 session data", async () => {
       mockSettingsForGame("poe2");
       mockCurrentSessionIsActive.mockReturnValue(true);
       mockCurrentSessionGetCurrentSession.mockResolvedValue({
         totalCount: 3,
         totals: {
-          exchange: {
-            totalValue: 200,
-            chaosToDivineRatio: 180,
-          },
+          totalValue: 200,
+          chaosToDivineRatio: 180,
         },
         cards: [{ name: "Rain of Chaos", count: 3 }],
         recentDrops: [],
@@ -1451,7 +1420,6 @@ describe("OverlayService", () => {
       );
       const result = await handler({});
 
-      expect(result.priceSource).toBe("exchange");
       expect(result.totalProfit).toBe(200);
       expect(result.chaosToDivineRatio).toBe(180);
     });
@@ -1462,17 +1430,14 @@ describe("OverlayService", () => {
       mockCurrentSessionGetCurrentSession.mockResolvedValue({
         totalCount: 2,
         totals: {
-          exchange: {
-            totalValue: 100,
-            chaosToDivineRatio: 200,
-          },
+          totalValue: 100,
+          chaosToDivineRatio: 200,
         },
         cards: [{ name: "Rain of Chaos", count: 2 }],
         recentDrops: [
           {
             cardName: "Rain of Chaos",
-            exchangePrice: { chaosValue: 0.5, divineValue: 0 },
-            stashPrice: { chaosValue: 0.5, divineValue: 0 },
+            price: { chaosValue: 0.5, divineValue: 0 },
           },
         ],
       });

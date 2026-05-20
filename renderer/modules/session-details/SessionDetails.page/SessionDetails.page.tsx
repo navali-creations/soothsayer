@@ -30,6 +30,10 @@ const SessionDetailsPage = () => {
   const timeline = getTimeline();
   const hasTimeline = getHasTimeline();
   const { chaosToDivineRatio } = getPriceData();
+  const stackedDeckChaosCost =
+    session?.totals?.stackedDeckChaosCost ??
+    session?.priceSnapshot?.stackedDeckChaosCost ??
+    0;
 
   const [expanded, setExpanded] = useState(false);
   const toggleExpanded = useCallback(() => setExpanded((prev) => !prev), []);
@@ -132,9 +136,7 @@ const SessionDetailsPage = () => {
                   <SessionProfitTimeline
                     timeline={timeline}
                     chaosToDivineRatio={chaosToDivineRatio}
-                    stackedDeckChaosCost={
-                      session?.priceSnapshot?.stackedDeckChaosCost ?? 0
-                    }
+                    stackedDeckChaosCost={stackedDeckChaosCost}
                   />
                 </div>
               </div>

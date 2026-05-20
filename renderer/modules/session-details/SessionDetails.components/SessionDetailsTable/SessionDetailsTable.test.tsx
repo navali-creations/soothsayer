@@ -144,7 +144,6 @@ function createMockSessionDetails(overrides: any = {}) {
     getPriceData: vi
       .fn()
       .mockReturnValue({ chaosToDivineRatio: 150, cardPrices: {} }),
-    getPriceSource: vi.fn().mockReturnValue("exchange" as const),
     ...overrides,
   } as any;
 }
@@ -194,25 +193,12 @@ describe("SessionDetailsTable", () => {
       expect(screen.getByText("Cards Obtained")).toBeInTheDocument();
     });
 
-    it('shows "Viewing Exchange prices (Snapshot)" when priceSource is exchange', () => {
-      setupStore({
-        getPriceSource: vi.fn().mockReturnValue("exchange" as const),
-      });
+    it("shows exchange snapshot pricing copy", () => {
+      setupStore();
       renderWithProviders(<SessionDetailsTable />);
 
       expect(
-        screen.getByText("Viewing Exchange prices (Snapshot)"),
-      ).toBeInTheDocument();
-    });
-
-    it('shows "Viewing Stash prices (Snapshot)" when priceSource is stash', () => {
-      setupStore({
-        getPriceSource: vi.fn().mockReturnValue("stash" as const),
-      });
-      renderWithProviders(<SessionDetailsTable />);
-
-      expect(
-        screen.getByText("Viewing Stash prices (Snapshot)"),
+        screen.getByText("Viewing poe.ninja exchange snapshot prices"),
       ).toBeInTheDocument();
     });
   });
@@ -289,14 +275,13 @@ describe("SessionDetailsTable", () => {
       expect(screen.getByTestId("icon-eye-off")).toBeInTheDocument();
     });
 
-    it("calls toggleCardPriceVisibility with card name and priceSource on click", async () => {
+    it("calls toggleCardPriceVisibility with the card name on click", async () => {
       setupStore({
         getCardData: vi
           .fn()
           .mockReturnValue([
             makeCardEntry({ name: "The Doctor", hidePrice: false }),
           ]),
-        getPriceSource: vi.fn().mockReturnValue("exchange" as const),
       });
       const { user } = renderWithProviders(<SessionDetailsTable />);
 
@@ -310,36 +295,7 @@ describe("SessionDetailsTable", () => {
       expect(toggleButton).toBeDefined();
       await user.click(toggleButton!);
 
-      expect(mockToggleCardPriceVisibility).toHaveBeenCalledWith(
-        "The Doctor",
-        "exchange",
-      );
-    });
-
-    it("calls toggleCardPriceVisibility with stash priceSource", async () => {
-      setupStore({
-        getCardData: vi
-          .fn()
-          .mockReturnValue([
-            makeCardEntry({ name: "Rain of Chaos", hidePrice: false }),
-          ]),
-        getPriceSource: vi.fn().mockReturnValue("stash" as const),
-      });
-      const { user } = renderWithProviders(<SessionDetailsTable />);
-
-      const toggleButtons = screen.getAllByRole("button");
-      const toggleButton = toggleButtons.find(
-        (btn) =>
-          btn.title === "Click to exclude from totals" ||
-          btn.title === "Click to include in totals",
-      );
-      expect(toggleButton).toBeDefined();
-      await user.click(toggleButton!);
-
-      expect(mockToggleCardPriceVisibility).toHaveBeenCalledWith(
-        "Rain of Chaos",
-        "stash",
-      );
+      expect(mockToggleCardPriceVisibility).toHaveBeenCalledWith("The Doctor");
     });
 
     it('toggle button has "Click to exclude from totals" title when visible', () => {

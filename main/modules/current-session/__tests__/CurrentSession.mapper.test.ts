@@ -225,8 +225,7 @@ describe("CurrentSessionMapper", () => {
         count: 3,
         firstSeenAt: "2025-01-15T10:05:00Z",
         lastSeenAt: "2025-01-15T10:30:00Z",
-        hidePriceExchange: 0,
-        hidePriceStash: 0,
+        hidePrice: 0,
         divinationCardId: null,
       };
 
@@ -237,8 +236,7 @@ describe("CurrentSessionMapper", () => {
         count: 3,
         firstSeenAt: "2025-01-15T10:05:00Z",
         lastSeenAt: "2025-01-15T10:30:00Z",
-        hidePriceExchange: false,
-        hidePriceStash: false,
+        hidePrice: false,
       });
       expect(result.divinationCard).toBeUndefined();
     });
@@ -249,8 +247,7 @@ describe("CurrentSessionMapper", () => {
         count: 1,
         firstSeenAt: "2025-01-15T10:05:00Z",
         lastSeenAt: "2025-01-15T10:05:00Z",
-        hidePriceExchange: 0,
-        hidePriceStash: 0,
+        hidePrice: 0,
         divinationCardId: "poe1_the-doctor",
         stackSize: 8,
         description: "A powerful card",
@@ -280,8 +277,7 @@ describe("CurrentSessionMapper", () => {
         count: 1,
         firstSeenAt: "2025-01-15T10:05:00Z",
         lastSeenAt: "2025-01-15T10:05:00Z",
-        hidePriceExchange: 0,
-        hidePriceStash: 0,
+        hidePrice: 0,
         divinationCardId: "poe1_the-doctor",
         stackSize: 8,
         description: "A powerful card",
@@ -306,8 +302,7 @@ describe("CurrentSessionMapper", () => {
           count: 1,
           firstSeenAt: "2025-01-15T10:00:00Z",
           lastSeenAt: "2025-01-15T10:00:00Z",
-          hidePriceExchange: 0,
-          hidePriceStash: 0,
+          hidePrice: 0,
           divinationCardId: `poe1_card-filter-${filterRarity}`,
           stackSize: 1,
           description: "Test",
@@ -324,52 +319,18 @@ describe("CurrentSessionMapper", () => {
       }
     });
 
-    it("should convert hidePriceExchange = 1 to true", () => {
+    it("should convert hidePrice = 1 to true", () => {
       const row: SessionCardJoinedRow = {
         cardName: "Rain of Chaos",
         count: 10,
         firstSeenAt: "2025-01-15T10:00:00Z",
         lastSeenAt: "2025-01-15T10:30:00Z",
-        hidePriceExchange: 1,
-        hidePriceStash: 0,
+        hidePrice: 1,
       };
 
       const result = CurrentSessionMapper.toSessionCardDTO(row);
 
-      expect(result.hidePriceExchange).toBe(true);
-      expect(result.hidePriceStash).toBe(false);
-    });
-
-    it("should convert hidePriceStash = 1 to true", () => {
-      const row: SessionCardJoinedRow = {
-        cardName: "Rain of Chaos",
-        count: 5,
-        firstSeenAt: "2025-01-15T10:00:00Z",
-        lastSeenAt: "2025-01-15T10:15:00Z",
-        hidePriceExchange: 0,
-        hidePriceStash: 1,
-      };
-
-      const result = CurrentSessionMapper.toSessionCardDTO(row);
-
-      expect(result.hidePriceExchange).toBe(false);
-      expect(result.hidePriceStash).toBe(true);
-    });
-
-    it("should convert both hide price flags when both are 1", () => {
-      const row: SessionCardJoinedRow = {
-        cardName: "The Fiend",
-        count: 1,
-        firstSeenAt: "2025-01-15T10:00:00Z",
-        lastSeenAt: "2025-01-15T10:00:00Z",
-        hidePriceExchange: 1,
-        hidePriceStash: 1,
-      };
-
-      const result = CurrentSessionMapper.toSessionCardDTO(row);
-
-      expect(result.hidePriceExchange).toBe(true);
-      expect(result.hidePriceStash).toBe(true);
+      expect(result.hidePrice).toBe(true);
     });
 
     it("should not include divinationCard when divinationCardId is undefined", () => {
@@ -378,8 +339,7 @@ describe("CurrentSessionMapper", () => {
         count: 1,
         firstSeenAt: "2025-01-15T10:00:00Z",
         lastSeenAt: "2025-01-15T10:00:00Z",
-        hidePriceExchange: 0,
-        hidePriceStash: 0,
+        hidePrice: 0,
       };
 
       const result = CurrentSessionMapper.toSessionCardDTO(row);
@@ -393,8 +353,7 @@ describe("CurrentSessionMapper", () => {
         count: 1,
         firstSeenAt: "2025-01-15T10:00:00Z",
         lastSeenAt: "2025-01-15T10:00:00Z",
-        hidePriceExchange: 0,
-        hidePriceStash: 0,
+        hidePrice: 0,
         divinationCardId: "poe1_the-doctor",
         stackSize: 8,
         description: "Test",
@@ -417,8 +376,7 @@ describe("CurrentSessionMapper", () => {
         count: 1,
         firstSeenAt: "2025-01-15T10:00:00Z",
         lastSeenAt: "2025-01-15T10:00:00Z",
-        hidePriceExchange: 0,
-        hidePriceStash: 0,
+        hidePrice: 0,
         divinationCardId: "poe1_simple-card",
         stackSize: 5,
         description: "Simple",
@@ -441,8 +399,7 @@ describe("CurrentSessionMapper", () => {
         count: 1,
         firstSeenAt: "2025-01-15T10:00:00Z",
         lastSeenAt: "2025-01-15T10:00:00Z",
-        hidePriceExchange: 0,
-        hidePriceStash: 0,
+        hidePrice: 0,
         divinationCardId: "poe1_common-card",
         stackSize: 3,
         description: "Common",
@@ -466,8 +423,7 @@ describe("CurrentSessionMapper", () => {
           count: 1,
           firstSeenAt: "2025-01-15T10:00:00Z",
           lastSeenAt: "2025-01-15T10:00:00Z",
-          hidePriceExchange: 0,
-          hidePriceStash: 0,
+          hidePrice: 0,
           divinationCardId: `poe1_card-rarity-${rarity}`,
           stackSize: 1,
           description: "Test",
@@ -489,8 +445,7 @@ describe("CurrentSessionMapper", () => {
         count: 1,
         firstSeenAt: "2025-01-15T10:00:00Z",
         lastSeenAt: "2025-01-15T10:00:00Z",
-        hidePriceExchange: 0,
-        hidePriceStash: 0,
+        hidePrice: 0,
         divinationCardId: "poe1_no-stack",
         stackSize: null,
         description: "Test",
@@ -518,12 +473,9 @@ describe("CurrentSessionMapper", () => {
         ended_at: "2025-01-15T11:30:00Z",
         duration_minutes: 90,
         total_decks_opened: 150,
-        total_exchange_value: 1200.5,
-        total_stash_value: 1150.75,
-        total_exchange_net_profit: 750.5,
-        total_stash_net_profit: 700.75,
-        exchange_chaos_to_divine: 200,
-        stash_chaos_to_divine: 195,
+        total_value: 1200.5,
+        net_profit: 750.5,
+        chaos_to_divine_ratio: 200,
         stacked_deck_chaos_cost: 3,
         created_at: "2025-01-15T11:30:00Z",
       };
@@ -538,12 +490,9 @@ describe("CurrentSessionMapper", () => {
         endedAt: "2025-01-15T11:30:00Z",
         durationMinutes: 90,
         totalDecksOpened: 150,
-        totalExchangeValue: 1200.5,
-        totalStashValue: 1150.75,
-        totalExchangeNetProfit: 750.5,
-        totalStashNetProfit: 700.75,
-        exchangeChaosToDivine: 200,
-        stashChaosToDivine: 195,
+        totalValue: 1200.5,
+        netProfit: 750.5,
+        chaosToDivineRatio: 200,
         stackedDeckChaosCost: 3,
       });
     });
@@ -557,20 +506,16 @@ describe("CurrentSessionMapper", () => {
         ended_at: "2025-01-01T01:00:00Z",
         duration_minutes: 60,
         total_decks_opened: 50,
-        total_exchange_value: 200,
-        total_stash_value: 180,
-        total_exchange_net_profit: null,
-        total_stash_net_profit: null,
-        exchange_chaos_to_divine: 200,
-        stash_chaos_to_divine: 195,
+        total_value: 200,
+        net_profit: null,
+        chaos_to_divine_ratio: 200,
         stacked_deck_chaos_cost: 0,
         created_at: "2025-01-01T01:00:00Z",
       };
 
       const result = CurrentSessionMapper.toSessionSummaryDTO(row);
 
-      expect(result.totalExchangeNetProfit).toBeNull();
-      expect(result.totalStashNetProfit).toBeNull();
+      expect(result.netProfit).toBeNull();
     });
 
     it("should handle zero values", () => {
@@ -582,12 +527,9 @@ describe("CurrentSessionMapper", () => {
         ended_at: "2025-01-01T00:00:00Z",
         duration_minutes: 0,
         total_decks_opened: 0,
-        total_exchange_value: 0,
-        total_stash_value: 0,
-        total_exchange_net_profit: 0,
-        total_stash_net_profit: 0,
-        exchange_chaos_to_divine: 0,
-        stash_chaos_to_divine: 0,
+        total_value: 0,
+        net_profit: 0,
+        chaos_to_divine_ratio: 0,
         stacked_deck_chaos_cost: 0,
         created_at: "2025-01-01T00:00:00Z",
       };
@@ -596,8 +538,7 @@ describe("CurrentSessionMapper", () => {
 
       expect(result.durationMinutes).toBe(0);
       expect(result.totalDecksOpened).toBe(0);
-      expect(result.totalExchangeValue).toBe(0);
-      expect(result.totalStashValue).toBe(0);
+      expect(result.totalValue).toBe(0);
       expect(result.stackedDeckChaosCost).toBe(0);
     });
 
@@ -610,12 +551,9 @@ describe("CurrentSessionMapper", () => {
         ended_at: "2025-01-01T01:00:00Z",
         duration_minutes: 60,
         total_decks_opened: 100,
-        total_exchange_value: 500,
-        total_stash_value: 480,
-        total_exchange_net_profit: 200,
-        total_stash_net_profit: 180,
-        exchange_chaos_to_divine: 200,
-        stash_chaos_to_divine: 195,
+        total_value: 500,
+        net_profit: 200,
+        chaos_to_divine_ratio: 200,
         stacked_deck_chaos_cost: 3,
         created_at: "2025-01-01T01:00:00Z",
       };
@@ -627,12 +565,9 @@ describe("CurrentSessionMapper", () => {
       expect(result).toHaveProperty("endedAt");
       expect(result).toHaveProperty("durationMinutes");
       expect(result).toHaveProperty("totalDecksOpened");
-      expect(result).toHaveProperty("totalExchangeValue");
-      expect(result).toHaveProperty("totalStashValue");
-      expect(result).toHaveProperty("totalExchangeNetProfit");
-      expect(result).toHaveProperty("totalStashNetProfit");
-      expect(result).toHaveProperty("exchangeChaosToDivine");
-      expect(result).toHaveProperty("stashChaosToDivine");
+      expect(result).toHaveProperty("totalValue");
+      expect(result).toHaveProperty("netProfit");
+      expect(result).toHaveProperty("chaosToDivineRatio");
       expect(result).toHaveProperty("stackedDeckChaosCost");
       // Should not have snake_case properties
       expect(result).not.toHaveProperty("session_id");
@@ -649,20 +584,16 @@ describe("CurrentSessionMapper", () => {
         ended_at: "2025-01-01T01:00:00Z",
         duration_minutes: 60,
         total_decks_opened: 200,
-        total_exchange_value: 300,
-        total_stash_value: 280,
-        total_exchange_net_profit: -300,
-        total_stash_net_profit: -320,
-        exchange_chaos_to_divine: 200,
-        stash_chaos_to_divine: 195,
+        total_value: 300,
+        net_profit: -300,
+        chaos_to_divine_ratio: 200,
         stacked_deck_chaos_cost: 3,
         created_at: "2025-01-01T01:00:00Z",
       };
 
       const result = CurrentSessionMapper.toSessionSummaryDTO(row);
 
-      expect(result.totalExchangeNetProfit).toBe(-300);
-      expect(result.totalStashNetProfit).toBe(-320);
+      expect(result.netProfit).toBe(-300);
     });
 
     it("should handle short duration sessions", () => {
@@ -674,12 +605,9 @@ describe("CurrentSessionMapper", () => {
         ended_at: "2025-01-01T00:05:00Z",
         duration_minutes: 5,
         total_decks_opened: 10,
-        total_exchange_value: 50,
-        total_stash_value: 45,
-        total_exchange_net_profit: 20,
-        total_stash_net_profit: 15,
-        exchange_chaos_to_divine: 95,
-        stash_chaos_to_divine: 95,
+        total_value: 50,
+        net_profit: 20,
+        chaos_to_divine_ratio: 95,
         stacked_deck_chaos_cost: 3,
         created_at: "2025-01-01T01:00:00Z",
       };
@@ -699,22 +627,17 @@ describe("CurrentSessionMapper", () => {
         ended_at: "2025-01-01T01:00:00Z",
         duration_minutes: 60,
         total_decks_opened: 100,
-        total_exchange_value: 456.789,
-        total_stash_value: 432.123,
-        total_exchange_net_profit: 156.789,
-        total_stash_net_profit: 132.123,
-        exchange_chaos_to_divine: 198.5,
-        stash_chaos_to_divine: 193.25,
+        total_value: 456.789,
+        net_profit: 156.789,
+        chaos_to_divine_ratio: 198.5,
         stacked_deck_chaos_cost: 2.75,
         created_at: "2025-01-01T01:00:00Z",
       };
 
       const result = CurrentSessionMapper.toSessionSummaryDTO(row);
 
-      expect(result.totalExchangeValue).toBe(456.789);
-      expect(result.totalStashValue).toBe(432.123);
-      expect(result.exchangeChaosToDivine).toBe(198.5);
-      expect(result.stashChaosToDivine).toBe(193.25);
+      expect(result.totalValue).toBe(456.789);
+      expect(result.chaosToDivineRatio).toBe(198.5);
       expect(result.stackedDeckChaosCost).toBe(2.75);
     });
 
@@ -727,12 +650,9 @@ describe("CurrentSessionMapper", () => {
         ended_at: "2025-01-01T01:00:00Z",
         duration_minutes: 60,
         total_decks_opened: 50,
-        total_exchange_value: 200,
-        total_stash_value: 180,
-        total_exchange_net_profit: 50,
-        total_stash_net_profit: 30,
-        exchange_chaos_to_divine: 100,
-        stash_chaos_to_divine: 95,
+        total_value: 200,
+        net_profit: 50,
+        chaos_to_divine_ratio: 100,
         stacked_deck_chaos_cost: 3,
         created_at: "2025-01-01T01:00:00Z",
       };

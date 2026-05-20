@@ -1,3 +1,5 @@
+import { cleanup } from "@testing-library/react";
+
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
 import { useBoundStore } from "~/renderer/store";
 
@@ -6,8 +8,6 @@ import CurrentSessionNetProfitStat from "../CurrentSessionNetProfitStat/CurrentS
 import CurrentSessionOpenedDecksStat from "../CurrentSessionOpenedDecksStat/CurrentSessionOpenedDecksStat";
 import CurrentSessionTotalValueStat from "../CurrentSessionTotalValueStat/CurrentSessionTotalValueStat";
 import CurrentSessionUniqueCardsStat from "../CurrentSessionUniqueCardsStat/CurrentSessionUniqueCardsStat";
-
-// ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", async () => {
   const { createStoreMock } = await import(
@@ -62,6 +62,12 @@ vi.mock("react-icons/gi", () => ({
   GiReceiveMoney: (_props: any) => <span data-testid="icon-receive-money" />,
 }));
 
+vi.mock("react-icons/fi", () => ({
+  FiInfo: () => <span />,
+  FiMaximize2: () => <span />,
+  FiMinimize2: () => <span />,
+}));
+
 vi.mock(
   "../../SessionProfitTimeline/MiniProfitSparkline/MiniProfitSparkline",
   () => ({
@@ -80,162 +86,128 @@ vi.mock("../../SessionProfitTimeline/timeline-buffer/timeline-buffer", () => ({
 
 const mockUseBoundStore = vi.mocked(useBoundStore);
 
-// ─── Helpers ───────────────────────────────────────────────────────────────
+function createCard(overrides: any = {}) {
+  return {
+    name: overrides.name ?? "The Doctor",
+    count: overrides.count ?? 1,
+    price: {
+      chaosValue: overrides.chaosValue ?? 100,
+      totalValue: overrides.totalValue ?? overrides.chaosValue ?? 100,
+      hidePrice: overrides.hidePrice ?? false,
+      ...overrides.price,
+    },
+    ...overrides,
+  };
+}
 
-/**
- * Setup store for components that destructure useBoundStore() directly
- * (OpenedDecks, UniqueCards, TotalValue, NetProfit).
- */
-function setupDestructuredStore(overrides: any = {}) {
-  const store = {
+function createSession(overrides: any = {}) {
+  return {
+    totalCount: overrides.totalCount ?? 10,
+    cards: overrides.cards ?? [
+      createCard({
+        name: "The Doctor",
+        count: 1,
+        price: { chaosValue: 500, totalValue: 500, hidePrice: false },
+      }),
+      createCard({
+        name: "Rain of Chaos",
+        count: 3,
+        price: { chaosValue: 2, totalValue: 6, hidePrice: false },
+      }),
+    ],
+    priceSnapshot: overrides.priceSnapshot ?? {
+      timestamp: "2024-06-15T12:00:00.000Z",
+      chaosToDivineRatio: 200,
+      cardPrices: {},
+      stackedDeckChaosCost: 3,
+    },
+    totals: overrides.totals ?? {
+      chaosToDivineRatio: 200,
+      totalValue: 506,
+      netProfit: 306,
+      totalDeckCost: 200,
+      stackedDeckChaosCost: 3,
+    },
+    ...overrides,
+  };
+}
+
+function setupStore(overrides: any = {}) {
+  const state = {
     currentSession: {
       getSession: vi.fn(() => overrides.session ?? null),
       getIsCurrentSessionActive: vi.fn(() => overrides.isActive ?? false),
       ...overrides.currentSession,
     },
     settings: {
-      getActiveGameViewPriceSource: vi.fn(
-        () => overrides.priceSource ?? "exchange",
-      ),
       ...overrides.settings,
     },
   } as any;
-  mockUseBoundStore.mockReturnValue(store);
-  return store;
-}
-
-/**
- * Setup store for MostValuableStat which uses selector-based useBoundStore(selector).
- */
-function setupSelectorStore(overrides: any = {}) {
-  const state = {
-    currentSession: {
-      getSession: () => overrides.session ?? null,
-    },
-    settings: {
-      getActiveGameViewPriceSource: () => overrides.priceSource ?? "exchange",
-    },
-  } as any;
-
-  mockUseBoundStore.mockImplementation((selector?: any) => {
-    return selector ? selector(state) : state;
-  });
-
+  mockUseBoundStore.mockImplementation((selector?: any) =>
+    selector ? selector(state) : state,
+  );
   return state;
 }
-
-function createSession(overrides: any = {}) {
-  return {
-    totalCount: overrides.totalCount ?? 10,
-    cards: overrides.cards ?? [],
-    priceSnapshot: overrides.priceSnapshot ?? {
-      timestamp: "2024-06-15T12:00:00.000Z",
-      stash: { chaosToDivineRatio: 200 },
-      exchange: { chaosToDivineRatio: 220 },
-    },
-    totals: overrides.totals ?? {
-      exchange: {
-        chaosToDivineRatio: 220,
-        totalValue: 500,
-        netProfit: 300,
-      },
-      stash: {
-        chaosToDivineRatio: 200,
-        totalValue: 480,
-        netProfit: 280,
-      },
-      totalDeckCost: 200,
-    },
-    ...overrides,
-  };
-}
-
-function createCard(overrides: any = {}) {
-  return {
-    name: overrides.name ?? "The Doctor",
-    count: overrides.count ?? 1,
-    stashPrice: {
-      chaosValue: overrides.stashChaos ?? 100,
-      hidePrice: overrides.stashHide ?? false,
-    },
-    exchangePrice: {
-      chaosValue: overrides.exchangeChaos ?? 120,
-      hidePrice: overrides.exchangeHide ?? false,
-    },
-    ...overrides,
-  };
-}
-
-// ─── Tests ─────────────────────────────────────────────────────────────────
-
-// ============================================================================
-// CurrentSessionOpenedDecksStat
-// ============================================================================
 
 describe("CurrentSessionOpenedDecksStat", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    cleanup();
   });
 
   it('renders "Stacked Decks Opened" title', () => {
-    setupDestructuredStore({ session: null });
+    setupStore({ session: null });
     renderWithProviders(<CurrentSessionOpenedDecksStat />);
 
     expect(screen.getByText("Stacked Decks Opened")).toBeInTheDocument();
   });
 
   it("renders 0 when session is null", () => {
-    setupDestructuredStore({ session: null });
+    setupStore({ session: null });
     renderWithProviders(<CurrentSessionOpenedDecksStat />);
 
-    const value = screen.getByTestId("stat-value");
-    expect(value).toHaveTextContent("0");
+    expect(screen.getByTestId("stat-value")).toHaveTextContent("0");
   });
 
   it("renders totalCount from session data", () => {
-    setupDestructuredStore({
+    setupStore({
       session: createSession({ totalCount: 42 }),
     });
     renderWithProviders(<CurrentSessionOpenedDecksStat />);
 
-    const value = screen.getByTestId("stat-value");
-    expect(value).toHaveTextContent("42");
+    expect(screen.getByTestId("stat-value")).toHaveTextContent("42");
   });
 
   it('renders "This session" description', () => {
-    setupDestructuredStore({ session: null });
+    setupStore({ session: null });
     renderWithProviders(<CurrentSessionOpenedDecksStat />);
 
     expect(screen.getByText("This session")).toBeInTheDocument();
   });
 });
 
-// ============================================================================
-// CurrentSessionUniqueCardsStat
-// ============================================================================
-
 describe("CurrentSessionUniqueCardsStat", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    cleanup();
   });
 
   it('renders "Unique Cards" title', () => {
-    setupDestructuredStore({ session: null });
+    setupStore({ session: null });
     renderWithProviders(<CurrentSessionUniqueCardsStat />);
 
     expect(screen.getByText("Unique Cards")).toBeInTheDocument();
   });
 
   it("renders 0 when session is null", () => {
-    setupDestructuredStore({ session: null });
+    setupStore({ session: null });
     renderWithProviders(<CurrentSessionUniqueCardsStat />);
 
-    const value = screen.getByTestId("stat-value");
-    expect(value).toHaveTextContent("0");
+    expect(screen.getByTestId("stat-value")).toHaveTextContent("0");
   });
 
-  it("renders the count of unique cards (cards.length)", () => {
-    setupDestructuredStore({
+  it("renders the count of unique cards", () => {
+    setupStore({
       session: createSession({
         cards: [
           createCard({ name: "The Doctor" }),
@@ -246,55 +218,49 @@ describe("CurrentSessionUniqueCardsStat", () => {
     });
     renderWithProviders(<CurrentSessionUniqueCardsStat />);
 
-    const value = screen.getByTestId("stat-value");
-    expect(value).toHaveTextContent("3");
+    expect(screen.getByTestId("stat-value")).toHaveTextContent("3");
   });
 
   it("renders 0 when session has empty cards array", () => {
-    setupDestructuredStore({
+    setupStore({
       session: createSession({ cards: [] }),
     });
     renderWithProviders(<CurrentSessionUniqueCardsStat />);
 
-    const value = screen.getByTestId("stat-value");
-    expect(value).toHaveTextContent("0");
+    expect(screen.getByTestId("stat-value")).toHaveTextContent("0");
   });
 
   it('renders "Different cards found" description', () => {
-    setupDestructuredStore({ session: null });
+    setupStore({ session: null });
     renderWithProviders(<CurrentSessionUniqueCardsStat />);
 
     expect(screen.getByText("Different cards found")).toBeInTheDocument();
   });
 });
 
-// ============================================================================
-// CurrentSessionMostValuableStat
-// ============================================================================
-
 describe("CurrentSessionMostValuableStat", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    cleanup();
   });
 
   it('renders "Most Valuable" title', () => {
-    setupSelectorStore({ session: null });
+    setupStore({ session: null });
     renderWithProviders(<CurrentSessionMostValuableStat />);
 
     expect(screen.getByText("Most Valuable")).toBeInTheDocument();
   });
 
   it('shows "—" when session is null', () => {
-    setupSelectorStore({ session: null });
+    setupStore({ session: null });
     renderWithProviders(<CurrentSessionMostValuableStat />);
 
-    const value = screen.getByTestId("stat-value");
-    expect(value).toHaveTextContent("—");
+    expect(screen.getByTestId("stat-value")).toHaveTextContent("—");
   });
 
   it('shows "No pricing data" when session has no priceSnapshot', () => {
-    setupSelectorStore({
-      session: createSession({ priceSnapshot: null, cards: [] }),
+    setupStore({
+      session: createSession({ priceSnapshot: null }),
     });
     renderWithProviders(<CurrentSessionMostValuableStat />);
 
@@ -302,193 +268,139 @@ describe("CurrentSessionMostValuableStat", () => {
   });
 
   it('shows "—" value when there are no cards even with snapshot', () => {
-    setupSelectorStore({
+    setupStore({
       session: createSession({ cards: [] }),
     });
     renderWithProviders(<CurrentSessionMostValuableStat />);
 
-    const value = screen.getByTestId("stat-value");
-    expect(value).toHaveTextContent("—");
+    expect(screen.getAllByText("—")).toHaveLength(2);
   });
 
-  it("finds the most valuable card by chaosValue (exchange)", () => {
-    setupSelectorStore({
+  it("finds the most valuable visible card by chaosValue", () => {
+    setupStore({
       session: createSession({
         cards: [
-          createCard({ name: "Rain of Chaos", exchangeChaos: 5 }),
-          createCard({ name: "The Doctor", exchangeChaos: 5000 }),
-          createCard({ name: "Humility", exchangeChaos: 10 }),
+          createCard({
+            name: "Rain of Chaos",
+            price: { chaosValue: 2, hidePrice: false },
+          }),
+          createCard({
+            name: "The Doctor",
+            price: { chaosValue: 500, hidePrice: false },
+          }),
+          createCard({
+            name: "The Fiend",
+            price: { chaosValue: 300, hidePrice: false },
+          }),
         ],
       }),
-      priceSource: "exchange",
     });
     renderWithProviders(<CurrentSessionMostValuableStat />);
 
+    expect(screen.getByText("2.50d")).toBeInTheDocument();
     expect(screen.getByTestId("card-name-link")).toHaveTextContent(
       "The Doctor",
     );
   });
 
-  it("finds the most valuable card by chaosValue (stash)", () => {
-    setupSelectorStore({
-      session: createSession({
-        cards: [
-          createCard({ name: "Rain of Chaos", stashChaos: 3 }),
-          createCard({ name: "House of Mirrors", stashChaos: 8000 }),
-          createCard({ name: "The Doctor", stashChaos: 4500 }),
-        ],
-      }),
-      priceSource: "stash",
-    });
-    renderWithProviders(<CurrentSessionMostValuableStat />);
-
-    expect(screen.getByTestId("card-name-link")).toHaveTextContent(
-      "House of Mirrors",
-    );
-  });
-
-  it("filters out cards with hidePrice flag (exchange)", () => {
-    setupSelectorStore({
+  it("filters out cards with hidePrice flag", () => {
+    setupStore({
       session: createSession({
         cards: [
           createCard({
-            name: "Hidden Expensive Card",
-            exchangeChaos: 9999,
-            exchangeHide: true,
+            name: "Hidden Doctor",
+            price: { chaosValue: 5000, hidePrice: true },
           }),
           createCard({
-            name: "Visible Card",
-            exchangeChaos: 50,
-            exchangeHide: false,
+            name: "Visible Rain",
+            price: { chaosValue: 25, hidePrice: false },
           }),
         ],
       }),
-      priceSource: "exchange",
     });
     renderWithProviders(<CurrentSessionMostValuableStat />);
 
+    expect(screen.getByText("25.00c")).toBeInTheDocument();
     expect(screen.getByTestId("card-name-link")).toHaveTextContent(
-      "Visible Card",
-    );
-  });
-
-  it("filters out cards with hidePrice flag (stash)", () => {
-    setupSelectorStore({
-      session: createSession({
-        cards: [
-          createCard({
-            name: "Hidden Stash Card",
-            stashChaos: 9999,
-            stashHide: true,
-          }),
-          createCard({
-            name: "Visible Stash Card",
-            stashChaos: 30,
-            stashHide: false,
-          }),
-        ],
-      }),
-      priceSource: "stash",
-    });
-    renderWithProviders(<CurrentSessionMostValuableStat />);
-
-    expect(screen.getByTestId("card-name-link")).toHaveTextContent(
-      "Visible Stash Card",
+      "Visible Rain",
     );
   });
 
   it('shows "—" when all cards are hidden', () => {
-    setupSelectorStore({
+    setupStore({
       session: createSession({
         cards: [
           createCard({
-            name: "Hidden1",
-            exchangeChaos: 100,
-            exchangeHide: true,
-          }),
-          createCard({
-            name: "Hidden2",
-            exchangeChaos: 200,
-            exchangeHide: true,
+            name: "Hidden Doctor",
+            price: { chaosValue: 5000, hidePrice: true },
           }),
         ],
       }),
-      priceSource: "exchange",
     });
     renderWithProviders(<CurrentSessionMostValuableStat />);
 
-    const value = screen.getByTestId("stat-value");
-    expect(value).toHaveTextContent("—");
+    expect(screen.getAllByText("—")).toHaveLength(2);
   });
 
   it("displays value in divines when chaosValue >= chaosToDivineRatio", () => {
-    setupSelectorStore({
+    setupStore({
       session: createSession({
-        cards: [createCard({ name: "Expensive", exchangeChaos: 500 })],
-        priceSnapshot: {
-          timestamp: "2024-06-15T12:00:00.000Z",
-          stash: { chaosToDivineRatio: 200 },
-          exchange: { chaosToDivineRatio: 220 },
-        },
+        priceSnapshot: { chaosToDivineRatio: 200 },
+        cards: [
+          createCard({
+            name: "The Doctor",
+            price: { chaosValue: 500, hidePrice: false },
+          }),
+        ],
       }),
-      priceSource: "exchange",
     });
     renderWithProviders(<CurrentSessionMostValuableStat />);
 
-    const numbers = screen.getAllByTestId("animated-number");
-    // 500 / 220 ≈ 2.27 → displayed with "d" suffix
-    const divineValue = numbers.find((el) => el.textContent?.includes("d"));
-    expect(divineValue).toBeDefined();
+    expect(screen.getByText("2.50d")).toBeInTheDocument();
   });
 
   it("displays value in chaos when chaosValue < chaosToDivineRatio", () => {
-    setupSelectorStore({
+    setupStore({
       session: createSession({
-        cards: [createCard({ name: "Cheap", exchangeChaos: 50 })],
-        priceSnapshot: {
-          timestamp: "2024-06-15T12:00:00.000Z",
-          stash: { chaosToDivineRatio: 200 },
-          exchange: { chaosToDivineRatio: 220 },
-        },
+        priceSnapshot: { chaosToDivineRatio: 200 },
+        cards: [
+          createCard({
+            name: "Small Card",
+            price: { chaosValue: 50, hidePrice: false },
+          }),
+        ],
       }),
-      priceSource: "exchange",
     });
     renderWithProviders(<CurrentSessionMostValuableStat />);
 
-    const numbers = screen.getAllByTestId("animated-number");
-    const chaosValue = numbers.find((el) => el.textContent?.includes("c"));
-    expect(chaosValue).toBeDefined();
+    expect(screen.getByText("50.00c")).toBeInTheDocument();
   });
 });
-
-// ============================================================================
-// CurrentSessionTotalValueStat
-// ============================================================================
 
 describe("CurrentSessionTotalValueStat", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    cleanup();
   });
 
   it('renders "Total Value" title', () => {
-    setupDestructuredStore({ session: null });
+    setupStore({ session: null });
     renderWithProviders(<CurrentSessionTotalValueStat />);
 
     expect(screen.getByText("Total Value")).toBeInTheDocument();
   });
 
   it('shows "N/A" when session has no priceSnapshot', () => {
-    setupDestructuredStore({
+    setupStore({
       session: createSession({ priceSnapshot: null }),
     });
     renderWithProviders(<CurrentSessionTotalValueStat />);
 
-    const value = screen.getByTestId("stat-value");
-    expect(value).toHaveTextContent("N/A");
+    expect(screen.getByTestId("stat-value")).toHaveTextContent("N/A");
   });
 
   it('shows "No pricing data" description when no priceSnapshot', () => {
-    setupDestructuredStore({
+    setupStore({
       session: createSession({ priceSnapshot: null }),
     });
     renderWithProviders(<CurrentSessionTotalValueStat />);
@@ -497,158 +409,132 @@ describe("CurrentSessionTotalValueStat", () => {
   });
 
   it('shows "N/A" when session is null', () => {
-    setupDestructuredStore({ session: null });
+    setupStore({ session: null });
     renderWithProviders(<CurrentSessionTotalValueStat />);
 
-    const value = screen.getByTestId("stat-value");
-    expect(value).toHaveTextContent("N/A");
+    expect(screen.getByTestId("stat-value")).toHaveTextContent("N/A");
   });
 
-  it("shows total value in divines when totalValue >= chaosToDivineRatio (exchange)", () => {
-    setupDestructuredStore({
+  it("shows total value in divines when totalValue >= chaosToDivineRatio", () => {
+    setupStore({
       session: createSession({
         totals: {
-          exchange: { chaosToDivineRatio: 220, totalValue: 500 },
-          stash: { chaosToDivineRatio: 200, totalValue: 480 },
+          chaosToDivineRatio: 200,
+          totalValue: 500,
+          netProfit: 300,
           totalDeckCost: 200,
+          stackedDeckChaosCost: 3,
         },
       }),
-      priceSource: "exchange",
     });
     renderWithProviders(<CurrentSessionTotalValueStat />);
 
-    const numbers = screen.getAllByTestId("animated-number");
-    // 500 / 220 ≈ 2.27d in stat-value
-    const divineValue = numbers.find((el) => el.textContent?.includes("d"));
-    expect(divineValue).toBeDefined();
+    expect(screen.getByTestId("stat-value")).toHaveTextContent("2.50d");
   });
 
   it("shows total value in chaos when totalValue < chaosToDivineRatio", () => {
-    setupDestructuredStore({
+    setupStore({
       session: createSession({
         totals: {
-          exchange: { chaosToDivineRatio: 220, totalValue: 100 },
-          stash: { chaosToDivineRatio: 200, totalValue: 80 },
+          chaosToDivineRatio: 200,
+          totalValue: 100,
+          netProfit: 50,
           totalDeckCost: 50,
+          stackedDeckChaosCost: 3,
         },
       }),
-      priceSource: "exchange",
     });
     renderWithProviders(<CurrentSessionTotalValueStat />);
 
-    const numbers = screen.getAllByTestId("animated-number");
-    const chaosValue = numbers.find((el) => el.textContent?.includes("c"));
-    expect(chaosValue).toBeDefined();
+    expect(screen.getByTestId("stat-value")).toHaveTextContent("100.00c");
   });
 
   it("shows approximate chaos in description when value displayed in divines", () => {
-    setupDestructuredStore({
+    setupStore({
       session: createSession({
         totals: {
-          exchange: { chaosToDivineRatio: 220, totalValue: 500 },
-          stash: { chaosToDivineRatio: 200, totalValue: 480 },
+          chaosToDivineRatio: 200,
+          totalValue: 500,
+          netProfit: 300,
           totalDeckCost: 200,
+          stackedDeckChaosCost: 3,
         },
       }),
-      priceSource: "exchange",
     });
     renderWithProviders(<CurrentSessionTotalValueStat />);
 
-    const desc = screen.getByTestId("stat-desc");
-    expect(desc).toHaveTextContent(/≈/);
-    expect(desc).toHaveTextContent(/chaos/);
+    expect(screen.getByTestId("stat-desc")).toHaveTextContent(/≈/);
+    expect(screen.getByTestId("stat-desc")).toHaveTextContent(/500 chaos/);
   });
 
   it("shows approximate divine in description when value displayed in chaos", () => {
-    setupDestructuredStore({
+    setupStore({
       session: createSession({
         totals: {
-          exchange: { chaosToDivineRatio: 220, totalValue: 100 },
-          stash: { chaosToDivineRatio: 200, totalValue: 80 },
+          chaosToDivineRatio: 200,
+          totalValue: 100,
+          netProfit: 50,
           totalDeckCost: 50,
+          stackedDeckChaosCost: 3,
         },
       }),
-      priceSource: "exchange",
     });
     renderWithProviders(<CurrentSessionTotalValueStat />);
 
-    const desc = screen.getByTestId("stat-desc");
-    expect(desc).toHaveTextContent(/≈/);
-    expect(desc).toHaveTextContent(/divine/);
+    expect(screen.getByTestId("stat-desc")).toHaveTextContent(/≈/);
+    expect(screen.getByTestId("stat-desc")).toHaveTextContent(/0.50 divine/);
   });
 
-  it("renders exchange icon when price source is exchange", () => {
-    setupDestructuredStore({
-      session: createSession(),
-      priceSource: "exchange",
+  it("shows divine-rate unavailable when chaosToDivineRatio is zero", () => {
+    setupStore({
+      session: createSession({
+        totals: {
+          chaosToDivineRatio: 0,
+          totalValue: 100,
+          netProfit: 100,
+          totalDeckCost: 50,
+          stackedDeckChaosCost: 3,
+        },
+      }),
     });
+    renderWithProviders(<CurrentSessionTotalValueStat />);
+
+    expect(screen.getByText("100.00c")).toBeInTheDocument();
+    expect(screen.getByText("Divine rate unavailable")).toBeInTheDocument();
+  });
+
+  it("renders exchange icon for the single price source", () => {
+    setupStore({ session: createSession() });
     renderWithProviders(<CurrentSessionTotalValueStat />);
 
     expect(screen.getByTestId("icon-card-exchange")).toBeInTheDocument();
   });
-
-  it("renders stash icon when price source is stash", () => {
-    setupDestructuredStore({
-      session: createSession(),
-      priceSource: "stash",
-    });
-    renderWithProviders(<CurrentSessionTotalValueStat />);
-
-    expect(screen.getByTestId("icon-locked-chest")).toBeInTheDocument();
-  });
-
-  it("uses stash totals when priceSource is stash", () => {
-    setupDestructuredStore({
-      session: createSession({
-        totals: {
-          exchange: { chaosToDivineRatio: 220, totalValue: 9999 },
-          stash: { chaosToDivineRatio: 200, totalValue: 50 },
-          totalDeckCost: 200,
-        },
-      }),
-      priceSource: "stash",
-    });
-    renderWithProviders(<CurrentSessionTotalValueStat />);
-
-    // totalValue (50) < chaosToDivineRatio (200) → should display in chaos
-    const numbers = screen.getAllByTestId("animated-number");
-    const chaosInValue = numbers.find(
-      (el) =>
-        el.textContent?.includes("c") &&
-        el.closest('[data-testid="stat-value"]'),
-    );
-    expect(chaosInValue).toBeDefined();
-  });
 });
-
-// ============================================================================
-// CurrentSessionNetProfitStat
-// ============================================================================
 
 describe("CurrentSessionNetProfitStat", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    cleanup();
   });
 
   it('renders "Net Profit" title', () => {
-    setupDestructuredStore({ session: null });
+    setupStore({ session: null });
     renderWithProviders(<CurrentSessionNetProfitStat />);
 
     expect(screen.getByText("Net Profit")).toBeInTheDocument();
   });
 
   it('shows "N/A" when session has no priceSnapshot', () => {
-    setupDestructuredStore({
+    setupStore({
       session: createSession({ priceSnapshot: null }),
     });
     renderWithProviders(<CurrentSessionNetProfitStat />);
 
-    const value = screen.getByTestId("stat-value");
-    expect(value).toHaveTextContent("N/A");
+    expect(screen.getByTestId("stat-value")).toHaveTextContent("N/A");
   });
 
   it('shows "No pricing data" description when no priceSnapshot', () => {
-    setupDestructuredStore({
+    setupStore({
       session: createSession({ priceSnapshot: null }),
     });
     renderWithProviders(<CurrentSessionNetProfitStat />);
@@ -657,197 +543,185 @@ describe("CurrentSessionNetProfitStat", () => {
   });
 
   it('shows "N/A" when session is null', () => {
-    setupDestructuredStore({ session: null });
+    setupStore({ session: null });
     renderWithProviders(<CurrentSessionNetProfitStat />);
 
-    const value = screen.getByTestId("stat-value");
-    expect(value).toHaveTextContent("N/A");
+    expect(screen.getByTestId("stat-value")).toHaveTextContent("N/A");
   });
 
   it("shows net profit in divines when |netProfit| >= chaosToDivineRatio", () => {
-    setupDestructuredStore({
+    setupStore({
       session: createSession({
         totals: {
-          exchange: { chaosToDivineRatio: 220, netProfit: 500 },
-          stash: { chaosToDivineRatio: 200, netProfit: 480 },
+          chaosToDivineRatio: 200,
+          totalValue: 500,
+          netProfit: 500,
           totalDeckCost: 200,
+          stackedDeckChaosCost: 3,
         },
       }),
-      priceSource: "exchange",
     });
     renderWithProviders(<CurrentSessionNetProfitStat />);
 
-    const numbers = screen.getAllByTestId("animated-number");
-    const divineValue = numbers.find(
-      (el) =>
-        el.textContent?.includes("d") &&
-        el.closest('[data-testid="stat-value"]'),
-    );
-    expect(divineValue).toBeDefined();
+    expect(screen.getByTestId("stat-value")).toHaveTextContent("2.50d");
   });
 
   it("shows net profit in chaos when |netProfit| < chaosToDivineRatio", () => {
-    setupDestructuredStore({
+    setupStore({
       session: createSession({
         totals: {
-          exchange: { chaosToDivineRatio: 220, netProfit: 50 },
-          stash: { chaosToDivineRatio: 200, netProfit: 40 },
-          totalDeckCost: 100,
+          chaosToDivineRatio: 200,
+          totalValue: 100,
+          netProfit: 50,
+          totalDeckCost: 50,
+          stackedDeckChaosCost: 3,
         },
       }),
-      priceSource: "exchange",
     });
     renderWithProviders(<CurrentSessionNetProfitStat />);
 
-    const numbers = screen.getAllByTestId("animated-number");
-    const chaosValue = numbers.find(
-      (el) =>
-        el.textContent?.includes("c") &&
-        el.closest('[data-testid="stat-value"]'),
-    );
-    expect(chaosValue).toBeDefined();
+    expect(screen.getByTestId("stat-value")).toHaveTextContent("50.00c");
   });
 
-  it("applies text-error class when netProfit is negative (divine display)", () => {
-    setupDestructuredStore({
+  it("applies text-error class when netProfit is negative in divine display", () => {
+    setupStore({
       session: createSession({
         totals: {
-          exchange: { chaosToDivineRatio: 220, netProfit: -500 },
-          stash: { chaosToDivineRatio: 200, netProfit: -400 },
-          totalDeckCost: 700,
+          chaosToDivineRatio: 200,
+          totalValue: 0,
+          netProfit: -500,
+          totalDeckCost: 500,
+          stackedDeckChaosCost: 3,
         },
       }),
-      priceSource: "exchange",
     });
     renderWithProviders(<CurrentSessionNetProfitStat />);
 
-    const numbers = screen.getAllByTestId("animated-number");
-    const errorValue = numbers.find((el) =>
-      el.className?.includes("text-error"),
-    );
-    expect(errorValue).toBeDefined();
+    expect(screen.getByText("-2.50d")).toHaveClass("text-error");
   });
 
-  it("applies text-error class when netProfit is negative (chaos display)", () => {
-    setupDestructuredStore({
+  it("applies text-error class when netProfit is negative in chaos display", () => {
+    setupStore({
       session: createSession({
         totals: {
-          exchange: { chaosToDivineRatio: 220, netProfit: -50 },
-          stash: { chaosToDivineRatio: 200, netProfit: -30 },
-          totalDeckCost: 100,
+          chaosToDivineRatio: 200,
+          totalValue: 0,
+          netProfit: -50,
+          totalDeckCost: 50,
+          stackedDeckChaosCost: 3,
         },
       }),
-      priceSource: "exchange",
     });
     renderWithProviders(<CurrentSessionNetProfitStat />);
 
-    const numbers = screen.getAllByTestId("animated-number");
-    const errorValue = numbers.find((el) =>
-      el.className?.includes("text-error"),
-    );
-    expect(errorValue).toBeDefined();
+    expect(screen.getByText("-50.00c")).toHaveClass("text-error");
   });
 
   it("does not apply text-error class when netProfit is positive", () => {
-    setupDestructuredStore({
+    setupStore({
       session: createSession({
         totals: {
-          exchange: { chaosToDivineRatio: 220, netProfit: 50 },
-          stash: { chaosToDivineRatio: 200, netProfit: 40 },
-          totalDeckCost: 100,
+          chaosToDivineRatio: 200,
+          totalValue: 100,
+          netProfit: 50,
+          totalDeckCost: 50,
+          stackedDeckChaosCost: 3,
         },
       }),
-      priceSource: "exchange",
     });
     renderWithProviders(<CurrentSessionNetProfitStat />);
 
-    const numbers = screen.getAllByTestId("animated-number");
-    const valueNumbers = numbers.filter((el) =>
-      el.closest('[data-testid="stat-value"]'),
-    );
-    for (const n of valueNumbers) {
-      expect(n.className).not.toContain("text-error");
-    }
+    expect(screen.getByText("50.00c")).not.toHaveClass("text-error");
   });
 
   it('shows "No deck cost data" when totalDeckCost is 0', () => {
-    setupDestructuredStore({
+    setupStore({
       session: createSession({
         totals: {
-          exchange: { chaosToDivineRatio: 220, netProfit: 50 },
-          stash: { chaosToDivineRatio: 200, netProfit: 40 },
+          chaosToDivineRatio: 200,
+          totalValue: 100,
+          netProfit: 100,
           totalDeckCost: 0,
+          stackedDeckChaosCost: 0,
         },
       }),
-      priceSource: "exchange",
     });
     renderWithProviders(<CurrentSessionNetProfitStat />);
 
     expect(screen.getByText("No deck cost data")).toBeInTheDocument();
   });
 
-  it("shows deck cost in description when totalDeckCost > 0 and showing divine", () => {
-    setupDestructuredStore({
+  it("shows divine-rate unavailable when chaosToDivineRatio is zero", () => {
+    setupStore({
       session: createSession({
         totals: {
-          exchange: { chaosToDivineRatio: 220, netProfit: 500 },
-          stash: { chaosToDivineRatio: 200, netProfit: 400 },
-          totalDeckCost: 200,
+          chaosToDivineRatio: 0,
+          totalValue: 100,
+          netProfit: 100,
+          totalDeckCost: 50,
+          stackedDeckChaosCost: 3,
         },
       }),
-      priceSource: "exchange",
     });
     renderWithProviders(<CurrentSessionNetProfitStat />);
 
-    const desc = screen.getByTestId("stat-desc");
-    expect(desc).toHaveTextContent(/≈/);
-    expect(desc).toHaveTextContent(/chaos/);
-    expect(desc).toHaveTextContent(/decks/);
+    expect(screen.getByText("Divine rate unavailable")).toBeInTheDocument();
+  });
+
+  it("shows deck cost in description when totalDeckCost > 0 and showing divine", () => {
+    setupStore({
+      session: createSession({
+        totals: {
+          chaosToDivineRatio: 200,
+          totalValue: 500,
+          netProfit: 500,
+          totalDeckCost: 200,
+          stackedDeckChaosCost: 3,
+        },
+      }),
+    });
+    renderWithProviders(<CurrentSessionNetProfitStat />);
+
+    expect(screen.getByTestId("stat-desc")).toHaveTextContent(/500 chaos/);
+    expect(screen.getByTestId("stat-desc")).toHaveTextContent(/200c/);
+    expect(screen.getByTestId("stat-desc")).toHaveTextContent(/decks/);
   });
 
   it("shows deck cost in description when totalDeckCost > 0 and showing chaos", () => {
-    setupDestructuredStore({
+    setupStore({
       session: createSession({
         totals: {
-          exchange: { chaosToDivineRatio: 220, netProfit: 50 },
-          stash: { chaosToDivineRatio: 200, netProfit: 40 },
-          totalDeckCost: 100,
+          chaosToDivineRatio: 200,
+          totalValue: 100,
+          netProfit: 50,
+          totalDeckCost: 12,
+          stackedDeckChaosCost: 3,
         },
       }),
-      priceSource: "exchange",
     });
     renderWithProviders(<CurrentSessionNetProfitStat />);
 
-    const desc = screen.getByTestId("stat-desc");
-    expect(desc).toHaveTextContent(/≈/);
-    expect(desc).toHaveTextContent(/divine/);
-    expect(desc).toHaveTextContent(/decks/);
+    expect(screen.getByTestId("stat-desc")).toHaveTextContent(/0.25 divine/);
+    expect(screen.getByTestId("stat-desc")).toHaveTextContent(/12c/);
+    expect(screen.getByTestId("stat-desc")).toHaveTextContent(/decks/);
   });
 
   it("renders GiReceiveMoney icon", () => {
-    setupDestructuredStore({
-      session: createSession(),
-    });
+    setupStore({ session: createSession() });
     renderWithProviders(<CurrentSessionNetProfitStat />);
 
     expect(screen.getByTestId("icon-receive-money")).toBeInTheDocument();
   });
 
   it("renders mini sparkline when session is active", () => {
-    setupDestructuredStore({
-      session: createSession(),
-      isActive: true,
-    });
+    setupStore({ session: createSession(), isActive: true });
     renderWithProviders(<CurrentSessionNetProfitStat />);
 
     expect(screen.getByTestId("mini-profit-sparkline")).toBeInTheDocument();
   });
 
   it("does not render mini sparkline when session is inactive", () => {
-    setupDestructuredStore({
-      session: createSession(),
-      isActive: false,
-    });
+    setupStore({ session: createSession(), isActive: false });
     renderWithProviders(<CurrentSessionNetProfitStat />);
 
     expect(
@@ -856,47 +730,20 @@ describe("CurrentSessionNetProfitStat", () => {
   });
 
   it("renders both icon and sparkline when active", () => {
-    setupDestructuredStore({
-      session: createSession(),
-      isActive: true,
-    });
+    setupStore({ session: createSession(), isActive: true });
     renderWithProviders(<CurrentSessionNetProfitStat />);
 
     expect(screen.getByTestId("icon-receive-money")).toBeInTheDocument();
     expect(screen.getByTestId("mini-profit-sparkline")).toBeInTheDocument();
   });
 
-  it("uses stash totals when priceSource is stash", () => {
-    setupDestructuredStore({
-      session: createSession({
-        totals: {
-          exchange: { chaosToDivineRatio: 220, netProfit: 9999 },
-          stash: { chaosToDivineRatio: 200, netProfit: 50 },
-          totalDeckCost: 100,
-        },
-      }),
-      priceSource: "stash",
-    });
-    renderWithProviders(<CurrentSessionNetProfitStat />);
-
-    // netProfit (50) < chaosToDivineRatio (200) → displayed in chaos
-    const numbers = screen.getAllByTestId("animated-number");
-    const chaosInValue = numbers.find(
-      (el) =>
-        el.textContent?.includes("c") &&
-        el.closest('[data-testid="stat-value"]'),
-    );
-    expect(chaosInValue).toBeDefined();
-  });
-
   it("renders tooltip title on Net Profit text", () => {
-    setupDestructuredStore({ session: createSession() });
+    setupStore({ session: createSession() });
     renderWithProviders(<CurrentSessionNetProfitStat />);
 
-    const profitLabel = screen.getByText("Net Profit");
-    expect(profitLabel).toHaveAttribute(
+    expect(screen.getByText("Net Profit")).toHaveAttribute(
       "title",
-      expect.stringContaining("Total Value minus the cost"),
+      "Total Value minus the cost of Stacked Decks opened. Represents actual profit if you purchased the decks.",
     );
   });
 });

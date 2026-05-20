@@ -3,8 +3,6 @@ import { useBoundStore } from "~/renderer/store";
 
 import PriceSnapshotAlert from "./PriceSnapshotAlert";
 
-// ─── Mocks ─────────────────────────────────────────────────────────────────
-
 vi.mock("~/renderer/store", async () => {
   const { createStoreMock } = await import(
     "~/renderer/__test-setup__/store-mock"
@@ -24,62 +22,25 @@ vi.mock("~/renderer/components", () => ({
 
 const mockUseBoundStore = vi.mocked(useBoundStore);
 
-// ─── Helpers ───────────────────────────────────────────────────────────────
-
-interface StoreOverrides {
-  session?: any;
-  sessionInfo?: any;
-  priceSource?: "exchange" | "stash";
-  currentSnapshot?: any;
-  isAutoRefreshActive?: boolean;
-  timeUntilNextRefresh?: number | null;
-}
-
-function createMockStore(overrides: StoreOverrides = {}) {
-  return {
-    currentSession: {
-      getSession: vi.fn(() => overrides.session ?? null),
-      getSessionInfo: vi.fn(() => overrides.sessionInfo ?? null),
-    },
-    settings: {
-      getActiveGameViewPriceSource: vi.fn(
-        () => overrides.priceSource ?? "exchange",
-      ),
-    },
-    poeNinja: {
-      currentSnapshot: overrides.currentSnapshot ?? null,
-      isAutoRefreshActive: vi.fn(() => overrides.isAutoRefreshActive ?? false),
-      getTimeUntilNextRefresh: vi.fn(
-        () => overrides.timeUntilNextRefresh ?? null,
-      ),
-    },
-  } as any;
-}
-
-function setupStore(overrides: StoreOverrides = {}) {
-  const store = createMockStore(overrides);
-  mockUseBoundStore.mockReturnValue(store);
-  return store;
-}
-
-// ─── Snapshot / session factories ──────────────────────────────────────────
-
 const FIXED_TIMESTAMP = "2024-06-15T12:00:00.000Z";
 
 function createSession(overrides: any = {}) {
   return {
     priceSnapshot: {
       timestamp: FIXED_TIMESTAMP,
-      stash: { chaosToDivineRatio: 200 },
-      exchange: { chaosToDivineRatio: 220 },
+      chaosToDivineRatio: 220,
+      cardPrices: {},
+      stackedDeckChaosCost: 2,
       ...overrides.priceSnapshot,
     },
     snapshotId: overrides.snapshotId ?? "snap-abcdef1234567890",
     totalCount: overrides.totalCount ?? 10,
     cards: overrides.cards ?? [],
     totals: {
-      exchange: { chaosToDivineRatio: 220, totalValue: 500, netProfit: 300 },
-      stash: { chaosToDivineRatio: 200, totalValue: 480, netProfit: 280 },
+      chaosToDivineRatio: 220,
+      totalValue: 500,
+      netProfit: 300,
+      stackedDeckChaosCost: 2,
       totalDeckCost: 200,
       ...overrides.totals,
     },
@@ -91,26 +52,40 @@ function createCurrentSnapshot(overrides: any = {}) {
   return {
     id: overrides.id ?? "live-snap-999",
     fetchedAt: overrides.fetchedAt ?? FIXED_TIMESTAMP,
-    exchangeChaosToDivine: overrides.exchangeChaosToDivine ?? 220,
-    stashChaosToDivine: overrides.stashChaosToDivine ?? 200,
+    chaosToDivineRatio: overrides.chaosToDivineRatio ?? 220,
     ...overrides,
   };
 }
 
-// ─── Tests ─────────────────────────────────────────────────────────────────
+function setupStore(overrides: any = {}) {
+  const currentSession = {
+    getSession: vi.fn(() => overrides.session ?? null),
+    getSessionInfo: vi.fn(() => overrides.sessionInfo ?? null),
+  };
+  const poeNinja = {
+    currentSnapshot: overrides.currentSnapshot ?? null,
+    isAutoRefreshActive: vi.fn(() => overrides.isAutoRefreshActive ?? false),
+    getTimeUntilNextRefresh: vi.fn(
+      () => overrides.timeUntilNextRefresh ?? null,
+    ),
+  };
+
+  mockUseBoundStore.mockReturnValue({
+    currentSession,
+    poeNinja,
+  } as any);
+
+  return { currentSession, poeNinja };
+}
 
 describe("PriceSnapshotAlert", () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
-  // ── Null rendering ─────────────────────────────────────────────────────
-
-  it("returns null when there is no snapshot data at all", () => {
-    setupStore({
-      session: null,
-      currentSnapshot: null,
-    });
+  it("returns null when there is no snapshot data", () => {
+    setupStore();
 
     const { container } = renderWithProviders(<PriceSnapshotAlert />);
 
@@ -119,7 +94,11 @@ describe("PriceSnapshotAlert", () => {
 
   it("returns null when session has no priceSnapshot and currentSnapshot is null", () => {
     setupStore({
-      session: { priceSnapshot: null, totals: null },
+      session: createSession({
+        priceSnapshot: null,
+        totals: null,
+        snapshotId: null,
+      }),
       currentSnapshot: null,
     });
 
@@ -127,8 +106,6 @@ describe("PriceSnapshotAlert", () => {
 
     expect(container.innerHTML).toBe("");
   });
-
-  // ── Alert rendering with session snapshot ──────────────────────────────
 
   it("renders a success alert when session has a price snapshot", () => {
     setupStore({
@@ -143,9 +120,8 @@ describe("PriceSnapshotAlert", () => {
     expect(alert).toHaveClass("alert-success");
   });
 
-  it("renders a success alert when only currentSnapshot exists (no session snapshot)", () => {
+  it("renders a success alert when only currentSnapshot exists", () => {
     setupStore({
-      session: null,
       currentSnapshot: createCurrentSnapshot(),
     });
 
@@ -156,90 +132,47 @@ describe("PriceSnapshotAlert", () => {
     expect(alert).toHaveClass("alert-success");
   });
 
-  // ── Price source label ─────────────────────────────────────────────────
-
-  it('shows "exchange" pricing label when price source is exchange', () => {
+  it("renders exchange snapshot copy with the session divine ratio", () => {
     setupStore({
       session: createSession(),
       sessionInfo: { league: "poe1:Settlers" },
-      priceSource: "exchange",
     });
 
     renderWithProviders(<PriceSnapshotAlert />);
 
     expect(
-      screen.getByText(/Using exchange pricing snapshot/),
+      screen.getByText(/Using poe\.ninja exchange pricing snapshot/),
     ).toBeInTheDocument();
-  });
-
-  it('shows "stash" pricing label when price source is stash', () => {
-    setupStore({
-      session: createSession(),
-      sessionInfo: { league: "poe1:Settlers" },
-      priceSource: "stash",
-    });
-
-    renderWithProviders(<PriceSnapshotAlert />);
-
-    expect(
-      screen.getByText(/Using stash pricing snapshot/),
-    ).toBeInTheDocument();
-  });
-
-  // ── Divine ratio display ───────────────────────────────────────────────
-
-  it("displays chaos-to-divine ratio from session totals (exchange)", () => {
-    setupStore({
-      session: createSession({
-        totals: {
-          exchange: {
-            chaosToDivineRatio: 220,
-            totalValue: 500,
-            netProfit: 300,
-          },
-          stash: { chaosToDivineRatio: 200, totalValue: 480, netProfit: 280 },
-          totalDeckCost: 200,
-        },
-      }),
-      sessionInfo: { league: "poe1:Settlers" },
-      priceSource: "exchange",
-    });
-
-    renderWithProviders(<PriceSnapshotAlert />);
-
     expect(screen.getByText(/Divine = 220\.00c/)).toBeInTheDocument();
+    expect(screen.getByText(/Snapshot: snap-abc\.\.\./)).toBeInTheDocument();
+    expect(
+      screen.getByText("Use checkboxes to hide anomalous prices"),
+    ).toBeInTheDocument();
   });
 
-  it("displays chaos-to-divine ratio from session totals (stash)", () => {
+  it("falls back to the current snapshot when the session has no snapshot", () => {
     setupStore({
-      session: createSession({
-        totals: {
-          exchange: {
-            chaosToDivineRatio: 220,
-            totalValue: 500,
-            netProfit: 300,
-          },
-          stash: { chaosToDivineRatio: 200, totalValue: 480, netProfit: 280 },
-          totalDeckCost: 200,
-        },
+      currentSnapshot: createCurrentSnapshot({
+        id: "fallback-abcdef123456",
+        chaosToDivineRatio: 215,
       }),
-      sessionInfo: { league: "poe1:Settlers" },
-      priceSource: "stash",
     });
 
     renderWithProviders(<PriceSnapshotAlert />);
 
-    expect(screen.getByText(/Divine = 200\.00c/)).toBeInTheDocument();
+    expect(screen.getByText(/Divine = 215\.00c/)).toBeInTheDocument();
+    expect(screen.getByText(/Snapshot: fallback/)).toBeInTheDocument();
   });
 
-  it("falls back to currentSnapshot for divine ratio when session totals are missing (exchange)", () => {
+  it("falls back to currentSnapshot for divine ratio when session totals are missing", () => {
     setupStore({
-      session: null,
-      currentSnapshot: createCurrentSnapshot({
-        exchangeChaosToDivine: 215,
-        stashChaosToDivine: 195,
+      session: createSession({
+        totals: null,
       }),
-      priceSource: "exchange",
+      currentSnapshot: createCurrentSnapshot({
+        chaosToDivineRatio: 215,
+      }),
+      sessionInfo: { league: "poe1:Settlers" },
     });
 
     renderWithProviders(<PriceSnapshotAlert />);
@@ -247,41 +180,48 @@ describe("PriceSnapshotAlert", () => {
     expect(screen.getByText(/Divine = 215\.00c/)).toBeInTheDocument();
   });
 
-  it("falls back to currentSnapshot for divine ratio when session totals are missing (stash)", () => {
+  it("uses the current snapshot only when the session has no price snapshot", () => {
     setupStore({
-      session: null,
-      currentSnapshot: createCurrentSnapshot({
-        exchangeChaosToDivine: 215,
-        stashChaosToDivine: 195,
+      session: createSession({
+        priceSnapshot: null,
+        snapshotId: null,
+        totals: { chaosToDivineRatio: 0 },
       }),
-      priceSource: "stash",
+      currentSnapshot: createCurrentSnapshot({
+        id: "live-abcdef123456",
+        fetchedAt: "2024-06-15T12:30:00.000Z",
+        chaosToDivineRatio: 205,
+      }),
     });
 
     renderWithProviders(<PriceSnapshotAlert />);
 
-    expect(screen.getByText(/Divine = 195\.00c/)).toBeInTheDocument();
+    expect(screen.getByText(/Divine = 205\.00c/)).toBeInTheDocument();
+    expect(screen.getByText(/Snapshot: live-abc/)).toBeInTheDocument();
   });
 
-  it("does not show divine ratio text when ratio is 0", () => {
+  it("omits snapshot id text when neither snapshot has an id", () => {
+    setupStore({
+      session: createSession({ snapshotId: null }),
+      currentSnapshot: createCurrentSnapshot({ id: null }),
+    });
+
+    renderWithProviders(<PriceSnapshotAlert />);
+
+    expect(screen.queryByText(/Snapshot:/)).not.toBeInTheDocument();
+  });
+
+  it("does not show divine ratio text when the ratio is zero", () => {
     setupStore({
       session: createSession({
-        totals: {
-          exchange: { chaosToDivineRatio: 0, totalValue: 0, netProfit: 0 },
-          stash: { chaosToDivineRatio: 0, totalValue: 0, netProfit: 0 },
-          totalDeckCost: 0,
-        },
+        totals: { chaosToDivineRatio: 0 },
       }),
-      currentSnapshot: null,
-      sessionInfo: { league: "poe1:Settlers" },
-      priceSource: "exchange",
     });
 
     renderWithProviders(<PriceSnapshotAlert />);
 
     expect(screen.queryByText(/Divine =/)).not.toBeInTheDocument();
   });
-
-  // ── Snapshot ID display ────────────────────────────────────────────────
 
   it("shows truncated snapshot ID from session", () => {
     setupStore({
@@ -294,29 +234,11 @@ describe("PriceSnapshotAlert", () => {
     expect(screen.getByText(/Snapshot: abcdef12\.\.\./)).toBeInTheDocument();
   });
 
-  // ── Checkbox hint ──────────────────────────────────────────────────────
-
-  it("shows hint about hiding anomalous prices via checkboxes", () => {
-    setupStore({
-      session: createSession(),
-      sessionInfo: { league: "poe1:Settlers" },
-    });
-
-    renderWithProviders(<PriceSnapshotAlert />);
-
-    expect(
-      screen.getByText("Use checkboxes to hide anomalous prices"),
-    ).toBeInTheDocument();
-  });
-
-  // ── Countdown rendering ────────────────────────────────────────────────
-
-  it("shows countdown when auto-refresh is active and time remaining > 0", () => {
+  it("shows countdown when auto-refresh is active", () => {
     setupStore({
       session: createSession(),
       sessionInfo: { league: "poe1:Settlers" },
       isAutoRefreshActive: true,
-      // 1h 23m 45s in ms
       timeUntilNextRefresh: (1 * 3600 + 23 * 60 + 45) * 1000,
     });
 
@@ -326,7 +248,7 @@ describe("PriceSnapshotAlert", () => {
     expect(screen.getByTestId("countdown")).toBeInTheDocument();
   });
 
-  it('shows "Refreshing soon..." when auto-refresh active but countdown is 0', () => {
+  it("shows refreshing text when auto-refresh is active without remaining time", () => {
     setupStore({
       session: createSession(),
       sessionInfo: { league: "poe1:Settlers" },
@@ -339,7 +261,7 @@ describe("PriceSnapshotAlert", () => {
     expect(screen.getByText(/Refreshing soon\.\.\./)).toBeInTheDocument();
   });
 
-  it('shows "Refreshing soon..." when auto-refresh active and timeUntilNextRefresh is null', () => {
+  it("shows refreshing text when auto-refresh is active and remaining time is null", () => {
     setupStore({
       session: createSession(),
       sessionInfo: { league: "poe1:Settlers" },
@@ -352,11 +274,12 @@ describe("PriceSnapshotAlert", () => {
     expect(screen.getByText(/Refreshing soon\.\.\./)).toBeInTheDocument();
   });
 
-  it("does not show countdown or refreshing text when auto-refresh is not active", () => {
+  it("does not show refresh text when auto-refresh is inactive", () => {
     setupStore({
       session: createSession(),
       sessionInfo: { league: "poe1:Settlers" },
       isAutoRefreshActive: false,
+      timeUntilNextRefresh: 60_000,
     });
 
     renderWithProviders(<PriceSnapshotAlert />);
@@ -365,17 +288,14 @@ describe("PriceSnapshotAlert", () => {
     expect(screen.queryByText(/Refreshing soon/)).not.toBeInTheDocument();
   });
 
-  // ── Stale snapshot detection ───────────────────────────────────────────
-
-  it("shows rarities-updated notice when currentSnapshot is >60s newer than session snapshot", () => {
-    const sessionTime = "2024-06-15T12:00:00.000Z";
-    const liveTime = "2024-06-15T12:05:00.000Z"; // 5 minutes later
-
+  it("shows rarities-updated notice when the live snapshot is newer", () => {
     setupStore({
       session: createSession({
-        priceSnapshot: { timestamp: sessionTime },
+        priceSnapshot: { timestamp: "2024-06-15T12:00:00.000Z" },
       }),
-      currentSnapshot: createCurrentSnapshot({ fetchedAt: liveTime }),
+      currentSnapshot: createCurrentSnapshot({
+        fetchedAt: "2024-06-15T12:05:00.000Z",
+      }),
       sessionInfo: { league: "poe1:Settlers" },
     });
 
@@ -384,15 +304,14 @@ describe("PriceSnapshotAlert", () => {
     expect(screen.getByText(/Rarities updated/)).toBeInTheDocument();
   });
 
-  it("does not show rarities-updated notice when timestamps are within 60s", () => {
-    const sessionTime = "2024-06-15T12:00:00.000Z";
-    const liveTime = "2024-06-15T12:00:30.000Z"; // 30 seconds later
-
+  it("does not show rarities-updated notice for same-minute snapshots", () => {
     setupStore({
       session: createSession({
-        priceSnapshot: { timestamp: sessionTime },
+        priceSnapshot: { timestamp: "2024-06-15T12:00:00.000Z" },
       }),
-      currentSnapshot: createCurrentSnapshot({ fetchedAt: liveTime }),
+      currentSnapshot: createCurrentSnapshot({
+        fetchedAt: "2024-06-15T12:00:30.000Z",
+      }),
       sessionInfo: { league: "poe1:Settlers" },
     });
 
@@ -413,62 +332,36 @@ describe("PriceSnapshotAlert", () => {
     expect(screen.queryByText(/Rarities updated/)).not.toBeInTheDocument();
   });
 
-  // ── League parsing ─────────────────────────────────────────────────────
-
-  it("parses game and league from sessionInfo.league format 'poe1:LeagueName'", () => {
-    const mockIsAutoRefreshActive = vi.fn(() => true);
-
-    const store = {
-      currentSession: {
-        getSession: vi.fn(() => createSession()),
-        getSessionInfo: vi.fn(() => ({ league: "poe2:Dawn" })),
-      },
-      settings: {
-        getActiveGameViewPriceSource: vi.fn(() => "exchange"),
-      },
-      poeNinja: {
-        currentSnapshot: null,
-        isAutoRefreshActive: mockIsAutoRefreshActive,
-        getTimeUntilNextRefresh: vi.fn(() => 60000),
-      },
-    } as any;
-
-    mockUseBoundStore.mockReturnValue(store);
+  it("passes parsed game and league to auto-refresh lookup", () => {
+    const { poeNinja } = setupStore({
+      session: createSession(),
+      sessionInfo: { league: "poe2:Dawn" },
+      isAutoRefreshActive: true,
+      timeUntilNextRefresh: 60_000,
+    });
 
     renderWithProviders(<PriceSnapshotAlert />);
 
-    expect(mockIsAutoRefreshActive).toHaveBeenCalledWith("poe2", "Dawn");
+    expect(poeNinja.isAutoRefreshActive).toHaveBeenCalledWith("poe2", "Dawn");
+    expect(poeNinja.getTimeUntilNextRefresh).toHaveBeenCalledWith(
+      "poe2",
+      "Dawn",
+    );
   });
 
-  it("handles missing sessionInfo.league gracefully (no auto-refresh calls)", () => {
-    const mockIsAutoRefreshActive = vi.fn(() => false);
-
-    const store = {
-      currentSession: {
-        getSession: vi.fn(() => createSession()),
-        getSessionInfo: vi.fn(() => null),
-      },
-      settings: {
-        getActiveGameViewPriceSource: vi.fn(() => "exchange"),
-      },
-      poeNinja: {
-        currentSnapshot: null,
-        isAutoRefreshActive: mockIsAutoRefreshActive,
-        getTimeUntilNextRefresh: vi.fn(() => null),
-      },
-    } as any;
-
-    mockUseBoundStore.mockReturnValue(store);
+  it("does not query auto-refresh state when the session league is missing", () => {
+    const { poeNinja } = setupStore({
+      session: createSession(),
+      sessionInfo: {},
+      isAutoRefreshActive: true,
+      timeUntilNextRefresh: 60_000,
+    });
 
     renderWithProviders(<PriceSnapshotAlert />);
 
-    // isAutoRefreshActive should not be called with valid game/league
-    // since sessionInfo is null, game and league are undefined
-    // The component checks `game && league ? isAutoRefreshActive(game, league) : false`
-    expect(mockIsAutoRefreshActive).not.toHaveBeenCalled();
+    expect(poeNinja.isAutoRefreshActive).not.toHaveBeenCalled();
+    expect(poeNinja.getTimeUntilNextRefresh).not.toHaveBeenCalled();
   });
-
-  // ── Snapshot timestamp display ─────────────────────────────────────────
 
   it("displays the session snapshot timestamp in the alert", () => {
     const timestamp = "2024-01-15T10:30:00.000Z";
@@ -482,7 +375,6 @@ describe("PriceSnapshotAlert", () => {
 
     renderWithProviders(<PriceSnapshotAlert />);
 
-    // The timestamp is rendered via new Date(timestamp).toLocaleString()
     const expectedText = new Date(timestamp).toLocaleString();
     expect(
       screen.getByText(
@@ -490,8 +382,6 @@ describe("PriceSnapshotAlert", () => {
       ),
     ).toBeInTheDocument();
   });
-
-  // ── Snapshot timestamp fallback to currentSnapshot.fetchedAt ────────────
 
   it("falls back to currentSnapshot.fetchedAt when session priceSnapshot has no timestamp", () => {
     const fetchedAt = "2024-03-20T08:00:00.000Z";
@@ -514,7 +404,11 @@ describe("PriceSnapshotAlert", () => {
     ).toBeInTheDocument();
   });
 
-  it("falls back to current time when both session timestamp and currentSnapshot.fetchedAt are null", () => {
+  it("falls back to current time when both snapshot timestamps are missing", () => {
+    const now = new Date("2024-05-01T09:15:00.000Z");
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+
     setupStore({
       session: createSession({
         priceSnapshot: { timestamp: null },
@@ -525,12 +419,13 @@ describe("PriceSnapshotAlert", () => {
 
     renderWithProviders(<PriceSnapshotAlert />);
 
-    // The component falls back to new Date().toISOString(), so a timestamp should still render
-    const alert = document.querySelector(".alert");
-    expect(alert).toBeInTheDocument();
+    const expectedText = now.toLocaleString();
+    expect(
+      screen.getByText(
+        new RegExp(expectedText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+      ),
+    ).toBeInTheDocument();
   });
-
-  // ── displaySnapshotId fallback to currentSnapshot.id ───────────────────
 
   it("falls back to currentSnapshot.id when session has no snapshotId", () => {
     setupStore({
@@ -542,18 +437,5 @@ describe("PriceSnapshotAlert", () => {
     renderWithProviders(<PriceSnapshotAlert />);
 
     expect(screen.getByText(/Snapshot: fallback/)).toBeInTheDocument();
-  });
-
-  it("shows no snapshot ID when both session snapshotId and currentSnapshot.id are null", () => {
-    setupStore({
-      session: createSession({ snapshotId: null }),
-      currentSnapshot: createCurrentSnapshot({ id: null }),
-      sessionInfo: { league: "poe1:Settlers" },
-    });
-
-    renderWithProviders(<PriceSnapshotAlert />);
-
-    // displaySnapshotId is null, so "Snapshot:" text should not appear
-    expect(screen.queryByText(/Snapshot:/)).not.toBeInTheDocument();
   });
 });

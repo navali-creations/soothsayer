@@ -154,11 +154,7 @@ describe("AnalyticsService", () => {
   describe("getHighestValueCards", () => {
     it("should return an empty array when no snapshots exist", async () => {
       await seedLeague(testDb.kysely, { game: "poe1", name: "Settlers" });
-      const result = await service.getHighestValueCards(
-        "poe1",
-        "Settlers",
-        "exchange",
-      );
+      const result = await service.getHighestValueCards("poe1", "Settlers");
       expect(result).toEqual([]);
     });
 
@@ -173,31 +169,23 @@ describe("AnalyticsService", () => {
         cardPrices: [
           {
             cardName: "The Doctor",
-            priceSource: "exchange",
             chaosValue: 5000,
             divineValue: 30,
           },
           {
             cardName: "Rain of Chaos",
-            priceSource: "exchange",
             chaosValue: 1,
             divineValue: 0.006,
           },
           {
             cardName: "The Apothecary",
-            priceSource: "exchange",
             chaosValue: 10000,
             divineValue: 60,
           },
         ],
       });
 
-      const result = await service.getHighestValueCards(
-        "poe1",
-        "Settlers",
-        "exchange",
-        10,
-      );
+      const result = await service.getHighestValueCards("poe1", "Settlers", 10);
 
       expect(result.length).toBeGreaterThanOrEqual(3);
       expect(result[0].cardName).toBe("The Apothecary");
@@ -219,74 +207,25 @@ describe("AnalyticsService", () => {
         cardPrices: [
           {
             cardName: "Card A",
-            priceSource: "exchange",
             chaosValue: 100,
             divineValue: 1,
           },
           {
             cardName: "Card B",
-            priceSource: "exchange",
             chaosValue: 50,
             divineValue: 0.5,
           },
           {
             cardName: "Card C",
-            priceSource: "exchange",
             chaosValue: 10,
             divineValue: 0.1,
           },
         ],
       });
 
-      const result = await service.getHighestValueCards(
-        "poe1",
-        "Settlers",
-        "exchange",
-        1,
-      );
+      const result = await service.getHighestValueCards("poe1", "Settlers", 1);
       expect(result).toHaveLength(1);
       expect(result[0].cardName).toBe("Card A");
-    });
-
-    it("should filter by price source", async () => {
-      const leagueId = await seedLeague(testDb.kysely, {
-        game: "poe1",
-        name: "Settlers",
-      });
-
-      await seedSnapshot(testDb.kysely, {
-        leagueId,
-        cardPrices: [
-          {
-            cardName: "The Doctor",
-            priceSource: "exchange",
-            chaosValue: 5000,
-            divineValue: 30,
-          },
-          {
-            cardName: "The Doctor",
-            priceSource: "stash",
-            chaosValue: 4500,
-            divineValue: 27,
-          },
-        ],
-      });
-
-      const exchangeResult = await service.getHighestValueCards(
-        "poe1",
-        "Settlers",
-        "exchange",
-        10,
-      );
-      const stashResult = await service.getHighestValueCards(
-        "poe1",
-        "Settlers",
-        "stash",
-        10,
-      );
-
-      expect(exchangeResult[0].maxChaosValue).toBe(5000);
-      expect(stashResult[0].maxChaosValue).toBe(4500);
     });
 
     it("should not mix cards from different leagues", async () => {
@@ -304,7 +243,6 @@ describe("AnalyticsService", () => {
         cardPrices: [
           {
             cardName: "The Doctor",
-            priceSource: "exchange",
             chaosValue: 5000,
             divineValue: 30,
           },
@@ -315,7 +253,6 @@ describe("AnalyticsService", () => {
         cardPrices: [
           {
             cardName: "The Doctor",
-            priceSource: "exchange",
             chaosValue: 8000,
             divineValue: 50,
           },
@@ -325,7 +262,6 @@ describe("AnalyticsService", () => {
       const settlersResult = await service.getHighestValueCards(
         "poe1",
         "Settlers",
-        "exchange",
         10,
       );
       expect(settlersResult).toHaveLength(1);
@@ -342,7 +278,6 @@ describe("AnalyticsService", () => {
         "poe1",
         "Settlers",
         "The Doctor",
-        "exchange",
       );
       expect(result).toEqual([]);
     });
@@ -360,7 +295,6 @@ describe("AnalyticsService", () => {
         cardPrices: [
           {
             cardName: "The Doctor",
-            priceSource: "exchange",
             chaosValue: 4000,
             divineValue: 25,
           },
@@ -372,7 +306,6 @@ describe("AnalyticsService", () => {
         cardPrices: [
           {
             cardName: "The Doctor",
-            priceSource: "exchange",
             chaosValue: 5000,
             divineValue: 30,
           },
@@ -383,7 +316,6 @@ describe("AnalyticsService", () => {
         "poe1",
         "Settlers",
         "The Doctor",
-        "exchange",
       );
 
       expect(result).toHaveLength(2);
@@ -396,49 +328,6 @@ describe("AnalyticsService", () => {
       // Ordered by fetched_at ascending
       expect(result[0].chaosValue).toBe(4000);
       expect(result[1].chaosValue).toBe(5000);
-    });
-
-    it("should only return history for the requested price source", async () => {
-      const leagueId = await seedLeague(testDb.kysely, {
-        game: "poe1",
-        name: "Settlers",
-      });
-
-      await seedSnapshot(testDb.kysely, {
-        leagueId,
-        cardPrices: [
-          {
-            cardName: "The Doctor",
-            priceSource: "exchange",
-            chaosValue: 5000,
-            divineValue: 30,
-          },
-          {
-            cardName: "The Doctor",
-            priceSource: "stash",
-            chaosValue: 4500,
-            divineValue: 27,
-          },
-        ],
-      });
-
-      const exchangeHistory = await service.getCardPriceHistory(
-        "poe1",
-        "Settlers",
-        "The Doctor",
-        "exchange",
-      );
-      const stashHistory = await service.getCardPriceHistory(
-        "poe1",
-        "Settlers",
-        "The Doctor",
-        "stash",
-      );
-
-      expect(exchangeHistory).toHaveLength(1);
-      expect(stashHistory).toHaveLength(1);
-      expect(exchangeHistory[0].chaosValue).toBe(5000);
-      expect(stashHistory[0].chaosValue).toBe(4500);
     });
   });
 
@@ -485,13 +374,11 @@ describe("AnalyticsService", () => {
         cardPrices: [
           {
             cardName: "The Doctor",
-            priceSource: "exchange",
             chaosValue: 5000,
             divineValue: 30,
           },
           {
             cardName: "Rain of Chaos",
-            priceSource: "exchange",
             chaosValue: 1,
             divineValue: 0.006,
           },
@@ -627,19 +514,16 @@ describe("AnalyticsService", () => {
         cardPrices: [
           {
             cardName: "The Doctor",
-            priceSource: "exchange",
             chaosValue: 5000,
             divineValue: 30,
           },
           {
             cardName: "Rain of Chaos",
-            priceSource: "exchange",
             chaosValue: 1,
             divineValue: 0.006,
           },
           {
             cardName: "The Apothecary",
-            priceSource: "exchange",
             chaosValue: 10000,
             divineValue: 60,
           },
@@ -883,7 +767,6 @@ describe("AnalyticsService", () => {
         cardPrices: [
           {
             cardName: "The Doctor",
-            priceSource: "exchange",
             chaosValue: 5000,
             divineValue: 30,
           },
@@ -894,7 +777,6 @@ describe("AnalyticsService", () => {
         cardPrices: [
           {
             cardName: "The Apothecary",
-            priceSource: "exchange",
             chaosValue: 10000,
             divineValue: 60,
           },

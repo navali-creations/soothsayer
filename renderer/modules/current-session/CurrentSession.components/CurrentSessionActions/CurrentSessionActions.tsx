@@ -1,8 +1,6 @@
-import clsx from "clsx";
 import { AnimatePresence, motion } from "motion/react";
 import { useMemo } from "react";
 import { FiPlay, FiRefreshCw } from "react-icons/fi";
-import { GiCardExchange, GiLockedChest } from "react-icons/gi";
 
 import {
   AnimatedStopIcon,
@@ -27,12 +25,7 @@ const noop = () => {};
 const CurrentSessionActions = () => {
   const { getIsCurrentSessionActive, isLoading, startSession, stopSession } =
     useCurrentSession();
-  const {
-    raritySource,
-    selectedFilterId,
-    getActiveGameViewPriceSource,
-    setActiveGameViewPriceSource,
-  } = useSettings();
+  const { raritySource, selectedFilterId } = useSettings();
   const {
     isScanning,
     lastScannedAt,
@@ -43,21 +36,8 @@ const CurrentSessionActions = () => {
   const handleDropdownChange = useRaritySourceChange();
 
   const isActive = getIsCurrentSessionActive();
-  const priceSource = getActiveGameViewPriceSource();
   const localFilters = getLocalFilters();
   const onlineFilters = getOnlineFilters();
-
-  const handlePriceSourceChange = async (source: "exchange" | "stash") => {
-    await setActiveGameViewPriceSource(source);
-  };
-
-  const handleExchangePriceSource = () => {
-    void handlePriceSourceChange("exchange");
-  };
-
-  const handleStashPriceSource = () => {
-    void handlePriceSourceChange("stash");
-  };
 
   const dropdownValue = encodeRaritySourceValue(raritySource, selectedFilterId);
 
@@ -200,33 +180,6 @@ const CurrentSessionActions = () => {
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
-      {/* Price Source Toggle */}
-      <div
-        role="tablist"
-        className="tabs tabs-border"
-        data-onboarding="current-session-pricing"
-      >
-        <button
-          role="tab"
-          className={clsx("tab flex flex-row items-center gap-1", {
-            "tab-active": priceSource === "exchange",
-          })}
-          onClick={handleExchangePriceSource}
-        >
-          <GiCardExchange />
-          Exchange
-        </button>
-        <button
-          role="tab"
-          className={clsx("tab flex flex-row items-center gap-1", {
-            "tab-active": priceSource === "stash",
-          })}
-          onClick={handleStashPriceSource}
-        >
-          <GiLockedChest />
-          Stash
-        </button>
       </div>
     </Flex>
   );

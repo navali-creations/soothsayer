@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ElectronMock } from "~/renderer/__test-setup__/electron-mock";
 import {
@@ -10,8 +10,6 @@ import type {
   DetailedDivinationCardStats,
 } from "~/types/data-stores";
 
-// ── Fixtures ───────────────────────────────────────────────────────────────
-
 function makeSessionDetail(
   overrides: Partial<DetailedDivinationCardStats> = {},
 ): DetailedDivinationCardStats {
@@ -22,49 +20,31 @@ function makeSessionDetail(
       {
         name: "The Doctor",
         count: 2,
-        exchangePrice: {
+        price: {
           chaosValue: 1200,
           divineValue: 8,
           totalValue: 2400,
-          hidePrice: false,
-        },
-        stashPrice: {
-          chaosValue: 1100,
-          divineValue: 7.3,
-          totalValue: 2200,
           hidePrice: false,
         },
       },
       {
         name: "Rain of Chaos",
         count: 30,
-        exchangePrice: {
+        price: {
           chaosValue: 1,
           divineValue: 0.007,
           totalValue: 30,
-          hidePrice: false,
-        },
-        stashPrice: {
-          chaosValue: 0.8,
-          divineValue: 0.005,
-          totalValue: 24,
           hidePrice: false,
         },
       },
       {
         name: "The Nurse",
         count: 1,
-        exchangePrice: {
+        price: {
           chaosValue: 600,
           divineValue: 4,
           totalValue: 600,
           hidePrice: true,
-        },
-        stashPrice: {
-          chaosValue: 580,
-          divineValue: 3.9,
-          totalValue: 580,
-          hidePrice: false,
         },
       },
     ],
@@ -88,25 +68,15 @@ function makeTimeline(
         topCard: "The Doctor",
         topCardChaosValue: 1200,
       },
-      {
-        timestamp: "2024-01-01T00:01:00Z",
-        dropCount: 20,
-        cumulativeChaosValue: 1200,
-        cumulativeDivineValue: 8,
-        topCard: "Rain of Chaos",
-        topCardChaosValue: 1,
-      },
     ],
     liveEdge: [],
-    totalChaosValue: 1200,
-    totalDivineValue: 8,
-    totalDrops: 30,
+    totalChaosValue: 500,
+    totalDivineValue: 3.5,
+    totalDrops: 10,
     notableDrops: [],
     ...overrides,
   };
 }
-
-// ── Tests ──────────────────────────────────────────────────────────────────
 
 let store: TestStore;
 let electron: ElectronMock;
@@ -117,64 +87,70 @@ beforeEach(() => {
 });
 
 describe("SessionDetailsSlice", () => {
-  // ─── Initial State ───────────────────────────────────────────────────
+  it("starts with empty session details state", () => {
+    const { sessionDetails } = store.getState();
 
-  describe("initial state", () => {
-    it("has correct default values", () => {
-      const { sessionDetails } = store.getState();
-      expect(sessionDetails.session).toBeNull();
-      expect(sessionDetails.isLoading).toBe(false);
-      expect(sessionDetails.error).toBeNull();
-      expect(sessionDetails.priceSource).toBe("exchange");
-    });
+    expect(sessionDetails.session).toBeNull();
+    expect(sessionDetails.timeline).toBeNull();
+    expect(sessionDetails.isLoading).toBe(false);
+    expect(sessionDetails.error).toBeNull();
   });
-
-  // ─── loadSession ─────────────────────────────────────────────────────
 
   describe("loadSession", () => {
     it("sets isLoading true then false on success", async () => {
-      const detail = makeSessionDetail();
-      electron.sessions.getById.mockResolvedValue(detail);
+      electron.sessions.getById.mockResolvedValue(makeSessionDetail());
+      electron.session.getTimeline.mockResolvedValue(null);
 
       const promise = store.getState().sessionDetails.loadSession("sess-1");
       expect(store.getState().sessionDetails.isLoading).toBe(true);
 
       await promise;
+
       expect(store.getState().sessionDetails.isLoading).toBe(false);
     });
 
     it("populates session on success", async () => {
       const detail = makeSessionDetail({ totalCount: 99 });
       electron.sessions.getById.mockResolvedValue(detail);
+      electron.session.getTimeline.mockResolvedValue(null);
 
       await store.getState().sessionDetails.loadSession("sess-1");
 
-      const session = store.getState().sessionDetails.session;
-      expect(session).not.toBeNull();
-      expect(session!.totalCount).toBe(99);
+      expect(store.getState().sessionDetails.session).toBe(detail);
+      expect(store.getState().sessionDetails.session?.totalCount).toBe(99);
     });
 
-    it("passes sessionId to IPC", async () => {
-      electron.sessions.getById.mockResolvedValue(null);
+    it("passes the session id to both IPC requests", async () => {
+      electron.sessions.getById.mockResolvedValue(makeSessionDetail());
+      electron.session.getTimeline.mockResolvedValue(makeTimeline());
 
-      await store.getState().sessionDetails.loadSession("my-session-id");
+      await store.getState().sessionDetails.loadSession("sess-abc");
 
-      expect(electron.sessions.getById).toHaveBeenCalledWith("my-session-id");
+      expect(electron.sessions.getById).toHaveBeenCalledWith("sess-abc");
+      expect(electron.session.getTimeline).toHaveBeenCalledWith("sess-abc");
     });
 
-    it("clears error before loading", async () => {
-      // First: fail
-      electron.sessions.getById.mockRejectedValueOnce(new Error("Fail"));
-      await store.getState().sessionDetails.loadSession("bad");
-      expect(store.getState().sessionDetails.error).toBe("Fail");
+    it("loads the session and timeline", async () => {
+      const detail = makeSessionDetail({ totalCount: 99 });
+      const timeline = makeTimeline();
+      electron.sessions.getById.mockResolvedValue(detail);
+      electron.session.getTimeline.mockResolvedValue(timeline);
 
-      // Second: succeed
-      electron.sessions.getById.mockResolvedValueOnce(makeSessionDetail());
-      await store.getState().sessionDetails.loadSession("good");
+      const promise = store.getState().sessionDetails.loadSession("sess-1");
+      expect(store.getState().sessionDetails.isLoading).toBe(true);
+
+      await promise;
+
+      expect(electron.sessions.getById).toHaveBeenCalledWith("sess-1");
+      expect(electron.session.getTimeline).toHaveBeenCalledWith("sess-1");
+      expect(store.getState().sessionDetails.session?.totalCount).toBe(99);
+      expect(store.getState().sessionDetails.timeline).toBe(timeline);
+      expect(store.getState().sessionDetails.isLoading).toBe(false);
       expect(store.getState().sessionDetails.error).toBeNull();
     });
 
-    it("sets error on failure", async () => {
+    it("sets an error and stops loading when the session request fails", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
       electron.sessions.getById.mockRejectedValue(
         new Error("Session not found"),
       );
@@ -185,24 +161,56 @@ describe("SessionDetailsSlice", () => {
       expect(sessionDetails.error).toBe("Session not found");
       expect(sessionDetails.isLoading).toBe(false);
       expect(sessionDetails.session).toBeNull();
+      expect(sessionDetails.timeline).toBeNull();
     });
 
-    it("sets isLoading false on failure", async () => {
-      electron.sessions.getById.mockRejectedValue(new Error("Boom"));
+    it("sets isLoading false when the session request fails", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      electron.sessions.getById.mockRejectedValue(new Error("Session failed"));
 
-      await store.getState().sessionDetails.loadSession("bad");
+      const promise = store.getState().sessionDetails.loadSession("bad-id");
+      expect(store.getState().sessionDetails.isLoading).toBe(true);
+
+      await promise;
 
       expect(store.getState().sessionDetails.isLoading).toBe(false);
     });
+
+    it("clears a previous error before a successful load", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      electron.sessions.getById.mockRejectedValueOnce(new Error("Fail"));
+      await store.getState().sessionDetails.loadSession("bad");
+      expect(store.getState().sessionDetails.error).toBe("Fail");
+
+      electron.sessions.getById.mockResolvedValueOnce(makeSessionDetail());
+      electron.session.getTimeline.mockResolvedValueOnce(null);
+      await store.getState().sessionDetails.loadSession("good");
+
+      expect(store.getState().sessionDetails.error).toBeNull();
+    });
   });
 
-  // ─── clearSession ────────────────────────────────────────────────────
-
   describe("clearSession", () => {
+    it("clears session, timeline, and error", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      electron.sessions.getById.mockResolvedValue(makeSessionDetail());
+      electron.session.getTimeline.mockResolvedValue(makeTimeline());
+      await store.getState().sessionDetails.loadSession("sess-1");
+
+      electron.sessions.getById.mockRejectedValueOnce(new Error("Err"));
+      await store.getState().sessionDetails.loadSession("bad");
+
+      store.getState().sessionDetails.clearSession();
+
+      expect(store.getState().sessionDetails.session).toBeNull();
+      expect(store.getState().sessionDetails.timeline).toBeNull();
+      expect(store.getState().sessionDetails.error).toBeNull();
+    });
+
     it("sets session to null", async () => {
       electron.sessions.getById.mockResolvedValue(makeSessionDetail());
+      electron.session.getTimeline.mockResolvedValue(null);
       await store.getState().sessionDetails.loadSession("sess-1");
-      expect(store.getState().sessionDetails.session).not.toBeNull();
 
       store.getState().sessionDetails.clearSession();
 
@@ -210,133 +218,121 @@ describe("SessionDetailsSlice", () => {
     });
 
     it("sets error to null", async () => {
-      electron.sessions.getById.mockRejectedValue(new Error("Oops"));
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      electron.sessions.getById.mockRejectedValueOnce(new Error("Err"));
       await store.getState().sessionDetails.loadSession("bad");
-      expect(store.getState().sessionDetails.error).toBe("Oops");
+      expect(store.getState().sessionDetails.error).toBe("Err");
 
       store.getState().sessionDetails.clearSession();
 
       expect(store.getState().sessionDetails.error).toBeNull();
     });
 
-    it("clears both session and error simultaneously", async () => {
-      // Load a session first
+    it("clears session, timeline, and error simultaneously", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
       electron.sessions.getById.mockResolvedValue(makeSessionDetail());
+      electron.session.getTimeline.mockResolvedValue(makeTimeline());
       await store.getState().sessionDetails.loadSession("sess-1");
 
-      // Manually trigger an error state too (via a failed second load)
       electron.sessions.getById.mockRejectedValueOnce(new Error("Err"));
       await store.getState().sessionDetails.loadSession("bad");
 
       store.getState().sessionDetails.clearSession();
 
       expect(store.getState().sessionDetails.session).toBeNull();
+      expect(store.getState().sessionDetails.timeline).toBeNull();
       expect(store.getState().sessionDetails.error).toBeNull();
     });
   });
-
-  // ─── setPriceSource ──────────────────────────────────────────────────
-
-  describe("setPriceSource", () => {
-    it("sets priceSource to stash", () => {
-      store.getState().sessionDetails.setPriceSource("stash");
-
-      expect(store.getState().sessionDetails.priceSource).toBe("stash");
-    });
-
-    it("sets priceSource to exchange", () => {
-      store.getState().sessionDetails.setPriceSource("stash");
-      store.getState().sessionDetails.setPriceSource("exchange");
-
-      expect(store.getState().sessionDetails.priceSource).toBe("exchange");
-    });
-
-    it("does not affect other state", () => {
-      store.getState().sessionDetails.setPriceSource("stash");
-
-      expect(store.getState().sessionDetails.session).toBeNull();
-      expect(store.getState().sessionDetails.isLoading).toBe(false);
-      expect(store.getState().sessionDetails.error).toBeNull();
-    });
-  });
-
-  // ─── toggleCardPriceVisibility ────────────────────────────────────────
 
   describe("toggleCardPriceVisibility", () => {
     beforeEach(async () => {
       electron.sessions.getById.mockResolvedValue(makeSessionDetail());
+      electron.session.getTimeline.mockResolvedValue(null);
       await store.getState().sessionDetails.loadSession("sess-1");
     });
 
-    it("optimistically toggles exchangePrice.hidePrice from false to true", async () => {
+    it("optimistically toggles the single price hide flag", async () => {
       electron.session.updateCardPriceVisibility.mockResolvedValue({
         success: true,
       });
 
       await store
         .getState()
-        .sessionDetails.toggleCardPriceVisibility("The Doctor", "exchange");
+        .sessionDetails.toggleCardPriceVisibility("The Doctor");
 
       const card = store
         .getState()
-        .sessionDetails.session!.cards.find((c) => c.name === "The Doctor");
-      expect(card!.exchangePrice!.hidePrice).toBe(true);
+        .sessionDetails.session?.cards.find(
+          (entry) => entry.name === "The Doctor",
+        );
+
+      expect(card?.price?.hidePrice).toBe(true);
+      expect(electron.session.updateCardPriceVisibility).toHaveBeenCalledWith(
+        "poe1",
+        "test-session-id",
+        "The Doctor",
+        true,
+      );
     });
 
-    it("optimistically toggles stashPrice.hidePrice from false to true", async () => {
+    it("toggles a hidden card back into totals", async () => {
       electron.session.updateCardPriceVisibility.mockResolvedValue({
         success: true,
       });
 
       await store
         .getState()
-        .sessionDetails.toggleCardPriceVisibility("Rain of Chaos", "stash");
+        .sessionDetails.toggleCardPriceVisibility("The Nurse");
 
       const card = store
         .getState()
-        .sessionDetails.session!.cards.find((c) => c.name === "Rain of Chaos");
-      expect(card!.stashPrice!.hidePrice).toBe(true);
+        .sessionDetails.session?.cards.find(
+          (entry) => entry.name === "The Nurse",
+        );
+      expect(card?.price?.hidePrice).toBe(false);
     });
 
-    it("toggles exchangePrice.hidePrice from true to false", async () => {
-      electron.session.updateCardPriceVisibility.mockResolvedValue({
-        success: true,
-      });
-
-      // The Nurse starts with exchangePrice.hidePrice = true
-      await store
-        .getState()
-        .sessionDetails.toggleCardPriceVisibility("The Nurse", "exchange");
-
-      const card = store
-        .getState()
-        .sessionDetails.session!.cards.find((c) => c.name === "The Nurse");
-      expect(card!.exchangePrice!.hidePrice).toBe(false);
-    });
-
-    it("reverts optimistic update on backend error", async () => {
+    it("reverts the optimistic update when persistence fails", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
       electron.session.updateCardPriceVisibility.mockRejectedValue(
         new Error("Backend failure"),
       );
 
       await store
         .getState()
-        .sessionDetails.toggleCardPriceVisibility("The Doctor", "exchange");
+        .sessionDetails.toggleCardPriceVisibility("The Doctor");
 
       const card = store
         .getState()
-        .sessionDetails.session!.cards.find((c) => c.name === "The Doctor");
-      // Should revert back to false
-      expect(card!.exchangePrice!.hidePrice).toBe(false);
+        .sessionDetails.session?.cards.find(
+          (entry) => entry.name === "The Doctor",
+        );
+      expect(card?.price?.hidePrice).toBe(false);
+    });
+
+    it("does not call the backend when there is no loaded session or matching card", async () => {
+      store.getState().sessionDetails.clearSession();
+      await store
+        .getState()
+        .sessionDetails.toggleCardPriceVisibility("The Doctor");
+
+      electron.sessions.getById.mockResolvedValue(makeSessionDetail());
+      electron.session.getTimeline.mockResolvedValue(null);
+      await store.getState().sessionDetails.loadSession("sess-1");
+      await store
+        .getState()
+        .sessionDetails.toggleCardPriceVisibility("Missing Card");
+
+      expect(electron.session.updateCardPriceVisibility).not.toHaveBeenCalled();
     });
 
     it("does nothing when session is null", async () => {
       store.getState().sessionDetails.clearSession();
 
-      // Should not throw
       await store
         .getState()
-        .sessionDetails.toggleCardPriceVisibility("The Doctor", "exchange");
+        .sessionDetails.toggleCardPriceVisibility("The Doctor");
 
       expect(electron.session.updateCardPriceVisibility).not.toHaveBeenCalled();
     });
@@ -344,10 +340,7 @@ describe("SessionDetailsSlice", () => {
     it("does nothing when card is not found in session", async () => {
       await store
         .getState()
-        .sessionDetails.toggleCardPriceVisibility(
-          "Nonexistent Card",
-          "exchange",
-        );
+        .sessionDetails.toggleCardPriceVisibility("Missing Card");
 
       expect(electron.session.updateCardPriceVisibility).not.toHaveBeenCalled();
     });
@@ -359,63 +352,18 @@ describe("SessionDetailsSlice", () => {
 
       await store
         .getState()
-        .sessionDetails.toggleCardPriceVisibility("The Doctor", "exchange");
+        .sessionDetails.toggleCardPriceVisibility("The Doctor");
 
       expect(electron.session.updateCardPriceVisibility).toHaveBeenCalledWith(
-        "poe1", // activeGame from settings
-        "test-session-id", // session id
-        "exchange",
+        "poe1",
+        "test-session-id",
         "The Doctor",
-        true, // toggled from false -> true
+        true,
       );
     });
   });
 
-  // ─── Getters (basic) ─────────────────────────────────────────────────
-
   describe("getters", () => {
-    it("getSession returns null when no session loaded", () => {
-      expect(store.getState().sessionDetails.getSession()).toBeNull();
-    });
-
-    it("getSession returns loaded session", async () => {
-      const detail = makeSessionDetail({ totalCount: 77 });
-      electron.sessions.getById.mockResolvedValue(detail);
-      await store.getState().sessionDetails.loadSession("sess-1");
-
-      const session = store.getState().sessionDetails.getSession();
-      expect(session).not.toBeNull();
-      expect(session!.totalCount).toBe(77);
-    });
-
-    it("getIsLoading returns current loading state", () => {
-      expect(store.getState().sessionDetails.getIsLoading()).toBe(false);
-    });
-
-    it("getError returns null when no error", () => {
-      expect(store.getState().sessionDetails.getError()).toBeNull();
-    });
-
-    it("getError returns error message after failure", async () => {
-      electron.sessions.getById.mockRejectedValue(new Error("Bad"));
-      await store.getState().sessionDetails.loadSession("x");
-
-      expect(store.getState().sessionDetails.getError()).toBe("Bad");
-    });
-
-    it("getPriceSource returns current price source", () => {
-      expect(store.getState().sessionDetails.getPriceSource()).toBe("exchange");
-
-      store.getState().sessionDetails.setPriceSource("stash");
-
-      expect(store.getState().sessionDetails.getPriceSource()).toBe("stash");
-    });
-  });
-
-  // ─── Derived Getters ─────────────────────────────────────────────────
-
-  describe("derived getters", () => {
-    // Helper to load a session with optional timeline
     async function loadSession(
       sessionOverrides: Partial<DetailedDivinationCardStats> = {},
       timeline: AggregatedTimeline | null = null,
@@ -427,342 +375,402 @@ describe("SessionDetailsSlice", () => {
       await store.getState().sessionDetails.loadSession("sess-1");
     }
 
-    // ─── getCardData ─────────────────────────────────────────────────
+    it("getSession returns null when no session is loaded", () => {
+      expect(store.getState().sessionDetails.getSession()).toBeNull();
+    });
 
-    describe("getCardData", () => {
-      it("returns empty array when session is null", () => {
-        const result = store.getState().sessionDetails.getCardData();
-        expect(result).toEqual([]);
+    it("getSession returns the loaded session", async () => {
+      await loadSession({ totalCount: 77 });
+
+      expect(store.getState().sessionDetails.getSession()?.totalCount).toBe(77);
+    });
+
+    it("getTimeline returns the loaded timeline", async () => {
+      await loadSession({}, makeTimeline());
+
+      expect(
+        store.getState().sessionDetails.getTimeline()?.buckets,
+      ).toHaveLength(1);
+    });
+
+    it("getIsLoading returns the current loading state", async () => {
+      electron.sessions.getById.mockResolvedValue(makeSessionDetail());
+      electron.session.getTimeline.mockResolvedValue(null);
+
+      const promise = store.getState().sessionDetails.loadSession("sess-1");
+      expect(store.getState().sessionDetails.getIsLoading()).toBe(true);
+
+      await promise;
+
+      expect(store.getState().sessionDetails.getIsLoading()).toBe(false);
+    });
+
+    it("getError returns null when there is no error", () => {
+      expect(store.getState().sessionDetails.getError()).toBeNull();
+    });
+
+    it("getError returns the error message after failure", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      electron.sessions.getById.mockRejectedValue(new Error("Load failed"));
+
+      await store.getState().sessionDetails.loadSession("bad");
+
+      expect(store.getState().sessionDetails.getError()).toBe("Load failed");
+    });
+
+    it("returns basic state through getter methods", async () => {
+      await loadSession({ totalCount: 77 }, makeTimeline());
+
+      expect(store.getState().sessionDetails.getSession()?.totalCount).toBe(77);
+      expect(
+        store.getState().sessionDetails.getTimeline()?.buckets,
+      ).toHaveLength(1);
+      expect(store.getState().sessionDetails.getIsLoading()).toBe(false);
+      expect(store.getState().sessionDetails.getError()).toBeNull();
+    });
+
+    it("returns empty card data when no session is loaded", () => {
+      expect(store.getState().sessionDetails.getCardData()).toEqual([]);
+    });
+
+    it("maps flat card prices and sorts cards by count", async () => {
+      await loadSession();
+
+      const cards = store.getState().sessionDetails.getCardData();
+
+      expect(cards.map((card) => card.name)).toEqual([
+        "Rain of Chaos",
+        "The Doctor",
+        "The Nurse",
+      ]);
+      expect(cards.find((card) => card.name === "The Doctor")).toMatchObject({
+        chaosValue: 1200,
+        totalValue: 2400,
+        hidePrice: false,
+        ratio: 4,
+      });
+      expect(cards.find((card) => card.name === "Rain of Chaos")?.ratio).toBe(
+        60,
+      );
+    });
+
+    it("sorts cards by count descending", async () => {
+      await loadSession();
+
+      expect(
+        store
+          .getState()
+          .sessionDetails.getCardData()
+          .map((card) => card.name),
+      ).toEqual(["Rain of Chaos", "The Doctor", "The Nurse"]);
+    });
+
+    it("calculates card ratios from the loaded session total", async () => {
+      await loadSession();
+
+      const cards = store.getState().sessionDetails.getCardData();
+
+      expect(cards.find((card) => card.name === "The Doctor")?.ratio).toBe(4);
+      expect(cards.find((card) => card.name === "Rain of Chaos")?.ratio).toBe(
+        60,
+      );
+    });
+
+    it("preserves divination card metadata in card data", async () => {
+      await loadSession({
+        cards: [
+          {
+            name: "The Doctor",
+            count: 1,
+            divinationCard: {
+              id: "poe1_the-doctor",
+              stackSize: 8,
+              description: "A powerful card",
+              rewardHtml: "Headhunter",
+              artSrc: "doctor.png",
+              flavourHtml: "A taste of power",
+              rarity: 1,
+              filterRarity: 2,
+            },
+          } as any,
+        ],
       });
 
-      it("returns cards with exchange prices when priceSource is exchange", async () => {
-        await loadSession();
-
-        const cards = store.getState().sessionDetails.getCardData();
-        const doctor = cards.find((c) => c.name === "The Doctor");
-
-        expect(doctor).toBeDefined();
-        expect(doctor!.chaosValue).toBe(1200);
-        expect(doctor!.totalValue).toBe(2400);
-        expect(doctor!.hidePrice).toBe(false);
-      });
-
-      it("returns cards with stash prices when priceSource is stash", async () => {
-        await loadSession();
-        store.getState().sessionDetails.setPriceSource("stash");
-
-        const cards = store.getState().sessionDetails.getCardData();
-        const doctor = cards.find((c) => c.name === "The Doctor");
-
-        expect(doctor).toBeDefined();
-        expect(doctor!.chaosValue).toBe(1100);
-        expect(doctor!.totalValue).toBe(2200);
-        expect(doctor!.hidePrice).toBe(false);
-      });
-
-      it("sorts cards by count descending", async () => {
-        await loadSession();
-
-        const cards = store.getState().sessionDetails.getCardData();
-
-        expect(cards[0].name).toBe("Rain of Chaos");
-        expect(cards[0].count).toBe(30);
-        expect(cards[1].name).toBe("The Doctor");
-        expect(cards[1].count).toBe(2);
-        expect(cards[2].name).toBe("The Nurse");
-        expect(cards[2].count).toBe(1);
-      });
-
-      it("calculates ratio correctly", async () => {
-        await loadSession();
-
-        const cards = store.getState().sessionDetails.getCardData();
-
-        // Rain of Chaos: 30/50 * 100 = 60
-        const rain = cards.find((c) => c.name === "Rain of Chaos");
-        expect(rain!.ratio).toBe(60);
-
-        // The Doctor: 2/50 * 100 = 4
-        const doctor = cards.find((c) => c.name === "The Doctor");
-        expect(doctor!.ratio).toBe(4);
-
-        // The Nurse: 1/50 * 100 = 2
-        const nurse = cards.find((c) => c.name === "The Nurse");
-        expect(nurse!.ratio).toBe(2);
+      expect(store.getState().sessionDetails.getCardData()[0]).toMatchObject({
+        name: "The Doctor",
+        divinationCard: {
+          id: "poe1_the-doctor",
+          stackSize: 8,
+          rarity: 1,
+          filterRarity: 2,
+        },
       });
     });
 
-    // ─── getPriceData ────────────────────────────────────────────────
+    it("preserves hidden price flags in card data", async () => {
+      await loadSession();
 
-    describe("getPriceData", () => {
-      it("returns zeros when session has no priceSnapshot", async () => {
-        await loadSession(); // default fixture has no priceSnapshot
+      expect(
+        store
+          .getState()
+          .sessionDetails.getCardData()
+          .find((card) => card.name === "The Nurse")?.hidePrice,
+      ).toBe(true);
+    });
 
-        const result = store.getState().sessionDetails.getPriceData();
-
-        expect(result.chaosToDivineRatio).toBe(0);
-        expect(result.cardPrices).toEqual({});
+    it("maps unpriced cards to zero values without marking them hidden", async () => {
+      await loadSession({
+        cards: [
+          {
+            name: "Unknown Card",
+            count: 5,
+          } as any,
+        ],
       });
 
-      it("returns exchange data when priceSource is exchange", async () => {
-        await loadSession({
-          priceSnapshot: {
-            timestamp: "2024-01-01T00:00:00Z",
-            stackedDeckChaosCost: 5,
-            exchange: {
-              chaosToDivineRatio: 150,
-              cardPrices: {
-                "The Doctor": {
-                  chaosValue: 1200,
-                  divineValue: 8,
-                },
-              },
-            },
-            stash: {
-              chaosToDivineRatio: 145,
-              cardPrices: {
-                "The Doctor": {
-                  chaosValue: 1100,
-                  divineValue: 7.3,
-                },
-              },
+      expect(store.getState().sessionDetails.getCardData()).toEqual([
+        expect.objectContaining({
+          name: "Unknown Card",
+          chaosValue: 0,
+          totalValue: 0,
+          hidePrice: false,
+          ratio: 10,
+        }),
+      ]);
+    });
+
+    it("returns flat price snapshot data", async () => {
+      await loadSession({
+        priceSnapshot: {
+          timestamp: "2024-01-01T00:00:00Z",
+          stackedDeckChaosCost: 5,
+          chaosToDivineRatio: 150,
+          cardPrices: {
+            "The Doctor": {
+              chaosValue: 1200,
+              divineValue: 8,
             },
           },
-        });
-
-        const result = store.getState().sessionDetails.getPriceData();
-
-        expect(result.chaosToDivineRatio).toBe(150);
-        expect(result.cardPrices["The Doctor"].chaosValue).toBe(1200);
+        },
       });
 
-      it("returns stash data when priceSource is stash", async () => {
-        await loadSession({
-          priceSnapshot: {
-            timestamp: "2024-01-01T00:00:00Z",
-            stackedDeckChaosCost: 5,
-            exchange: {
-              chaosToDivineRatio: 150,
-              cardPrices: {
-                "The Doctor": {
-                  chaosValue: 1200,
-                  divineValue: 8,
-                },
-              },
-            },
-            stash: {
-              chaosToDivineRatio: 145,
-              cardPrices: {
-                "The Doctor": {
-                  chaosValue: 1100,
-                  divineValue: 7.3,
-                },
-              },
+      const result = store.getState().sessionDetails.getPriceData();
+
+      expect(result.chaosToDivineRatio).toBe(150);
+      expect(result.cardPrices["The Doctor"].chaosValue).toBe(1200);
+    });
+
+    it("returns empty price data when no session is loaded", () => {
+      expect(store.getState().sessionDetails.getPriceData()).toEqual({
+        chaosToDivineRatio: 0,
+        cardPrices: {},
+      });
+    });
+
+    it("returns empty price data when no price snapshot exists", async () => {
+      await loadSession();
+
+      expect(store.getState().sessionDetails.getPriceData()).toEqual({
+        chaosToDivineRatio: 0,
+        cardPrices: {},
+      });
+    });
+
+    it("uses persisted totals ratio when snapshot prices are unavailable", async () => {
+      await loadSession({
+        priceSnapshot: undefined,
+        totals: {
+          totalValue: 18.47,
+          netProfit: -187.53,
+          chaosToDivineRatio: 479.16,
+          stackedDeckChaosCost: 5.15,
+          totalDeckCost: 206,
+        },
+      });
+
+      expect(store.getState().sessionDetails.getPriceData()).toEqual({
+        chaosToDivineRatio: 479.16,
+        cardPrices: {},
+      });
+    });
+
+    it("sums visible card totals only", async () => {
+      await loadSession();
+
+      expect(store.getState().sessionDetails.getTotalProfit()).toBe(2430);
+    });
+
+    it("excludes hidden cards from total profit", async () => {
+      await loadSession({
+        cards: [
+          {
+            name: "Visible",
+            count: 1,
+            price: {
+              chaosValue: 100,
+              divineValue: 0.5,
+              totalValue: 100,
+              hidePrice: false,
             },
           },
-        });
-        store.getState().sessionDetails.setPriceSource("stash");
-
-        const result = store.getState().sessionDetails.getPriceData();
-
-        expect(result.chaosToDivineRatio).toBe(145);
-        expect(result.cardPrices["The Doctor"].chaosValue).toBe(1100);
-      });
-    });
-
-    // ─── getTotalProfit ──────────────────────────────────────────────
-
-    describe("getTotalProfit", () => {
-      it("returns 0 when no session", () => {
-        const result = store.getState().sessionDetails.getTotalProfit();
-        expect(result).toBe(0);
-      });
-
-      it("sums totalValue of all visible cards", async () => {
-        // Load session where all cards are visible (no hidePrice)
-        await loadSession({
-          totalCount: 3,
-          cards: [
-            {
-              name: "Card A",
-              count: 1,
-              exchangePrice: {
-                chaosValue: 100,
-                divineValue: 0.5,
-                totalValue: 100,
-                hidePrice: false,
-              },
-              stashPrice: {
-                chaosValue: 90,
-                divineValue: 0.45,
-                totalValue: 90,
-                hidePrice: false,
-              },
-            },
-            {
-              name: "Card B",
-              count: 2,
-              exchangePrice: {
-                chaosValue: 50,
-                divineValue: 0.25,
-                totalValue: 100,
-                hidePrice: false,
-              },
-              stashPrice: {
-                chaosValue: 45,
-                divineValue: 0.2,
-                totalValue: 90,
-                hidePrice: false,
-              },
-            },
-          ],
-        });
-
-        const result = store.getState().sessionDetails.getTotalProfit();
-
-        // 100 + 100 = 200 (exchange prices)
-        expect(result).toBe(200);
-      });
-
-      it("excludes hidden cards from total", async () => {
-        await loadSession();
-
-        // Default fixture: The Nurse has exchangePrice.hidePrice = true (totalValue 600)
-        // Visible: The Doctor (2400) + Rain of Chaos (30) = 2430
-        const result = store.getState().sessionDetails.getTotalProfit();
-
-        expect(result).toBe(2430);
-      });
-    });
-
-    // ─── getNetProfit ────────────────────────────────────────────────
-
-    describe("getNetProfit", () => {
-      it("returns zero deck cost when no priceSnapshot", async () => {
-        await loadSession();
-
-        const result = store.getState().sessionDetails.getNetProfit();
-
-        expect(result.totalDeckCost).toBe(0);
-        // Net profit equals total profit when deck cost is 0
-        expect(result.netProfit).toBe(
-          store.getState().sessionDetails.getTotalProfit(),
-        );
-      });
-
-      it("calculates net profit as totalProfit minus deck cost", async () => {
-        await loadSession({
-          totalCount: 3,
-          cards: [
-            {
-              name: "Card A",
-              count: 1,
-              exchangePrice: {
-                chaosValue: 100,
-                divineValue: 0.5,
-                totalValue: 100,
-                hidePrice: false,
-              },
-              stashPrice: {
-                chaosValue: 90,
-                divineValue: 0.45,
-                totalValue: 90,
-                hidePrice: false,
-              },
-            },
-            {
-              name: "Card B",
-              count: 2,
-              exchangePrice: {
-                chaosValue: 50,
-                divineValue: 0.25,
-                totalValue: 100,
-                hidePrice: false,
-              },
-              stashPrice: {
-                chaosValue: 45,
-                divineValue: 0.2,
-                totalValue: 90,
-                hidePrice: false,
-              },
-            },
-          ],
-          priceSnapshot: {
-            timestamp: "2024-01-01T00:00:00Z",
-            stackedDeckChaosCost: 10,
-            exchange: {
-              chaosToDivineRatio: 150,
-              cardPrices: {},
-            },
-            stash: {
-              chaosToDivineRatio: 145,
-              cardPrices: {},
+          {
+            name: "Hidden",
+            count: 1,
+            price: {
+              chaosValue: 1000,
+              divineValue: 5,
+              totalValue: 1000,
+              hidePrice: true,
             },
           },
-        });
+        ],
+      });
 
-        const result = store.getState().sessionDetails.getNetProfit();
+      expect(store.getState().sessionDetails.getTotalProfit()).toBe(100);
+    });
 
-        // totalProfit = 100 + 100 = 200
-        // totalDeckCost = 10 * 3 = 30
-        // netProfit = 200 - 30 = 170
-        expect(result.totalDeckCost).toBe(30);
-        expect(result.netProfit).toBe(170);
+    it("returns zero total profit when no session is loaded", () => {
+      expect(store.getState().sessionDetails.getTotalProfit()).toBe(0);
+    });
+
+    it("uses persisted total value when snapshot prices are unavailable", async () => {
+      await loadSession({
+        priceSnapshot: undefined,
+        cards: [
+          {
+            name: "The Metalsmith's Gift",
+            count: 3,
+          } as any,
+        ],
+        totals: {
+          totalValue: 18.47,
+          netProfit: -187.53,
+          chaosToDivineRatio: 479.16,
+          stackedDeckChaosCost: 5.15,
+          totalDeckCost: 206,
+        },
+      });
+
+      expect(store.getState().sessionDetails.getTotalProfit()).toBe(18.47);
+    });
+
+    it("calculates net profit from the single stacked deck cost", async () => {
+      await loadSession({
+        totalCount: 3,
+        cards: [
+          {
+            name: "Card A",
+            count: 1,
+            price: {
+              chaosValue: 100,
+              divineValue: 0.5,
+              totalValue: 100,
+              hidePrice: false,
+            },
+          },
+          {
+            name: "Card B",
+            count: 2,
+            price: {
+              chaosValue: 50,
+              divineValue: 0.25,
+              totalValue: 100,
+              hidePrice: false,
+            },
+          },
+        ],
+        priceSnapshot: {
+          timestamp: "2024-01-01T00:00:00Z",
+          stackedDeckChaosCost: 10,
+          chaosToDivineRatio: 150,
+          cardPrices: {},
+        },
+      });
+
+      const result = store.getState().sessionDetails.getNetProfit();
+
+      expect(result.totalDeckCost).toBe(30);
+      expect(result.netProfit).toBe(170);
+    });
+
+    it("returns zero deck cost when no session is loaded", () => {
+      expect(store.getState().sessionDetails.getNetProfit()).toEqual({
+        netProfit: 0,
+        totalDeckCost: 0,
       });
     });
 
-    // ─── getDuration ─────────────────────────────────────────────────
-
-    describe("getDuration", () => {
-      it("returns pre-computed duration from session", async () => {
-        await loadSession({ duration: "2h 30m" });
-
-        const result = store.getState().sessionDetails.getDuration();
-
-        expect(result).toBe("2h 30m");
+    it("uses persisted net profit when snapshot prices are unavailable", async () => {
+      await loadSession({
+        priceSnapshot: undefined,
+        totals: {
+          totalValue: 18.47,
+          netProfit: -187.53,
+          chaosToDivineRatio: 479.16,
+          stackedDeckChaosCost: 5.15,
+          totalDeckCost: 206,
+        },
       });
 
-      it("returns dash when session is null", () => {
-        const result = store.getState().sessionDetails.getDuration();
-
-        expect(result).toBe("—");
-      });
-
-      it("returns dash when session has no duration", async () => {
-        await loadSession({ duration: undefined });
-
-        const result = store.getState().sessionDetails.getDuration();
-
-        expect(result).toBe("—");
+      expect(store.getState().sessionDetails.getNetProfit()).toEqual({
+        netProfit: -187.53,
+        totalDeckCost: 206,
       });
     });
 
-    // ─── getHasTimeline ──────────────────────────────────────────────
-
-    describe("getHasTimeline", () => {
-      it("returns false when timeline is null", async () => {
-        await loadSession({}, null);
-
-        const result = store.getState().sessionDetails.getHasTimeline();
-
-        expect(result).toBe(false);
+    it("uses zero deck cost when there is no price snapshot", async () => {
+      await loadSession({
+        priceSnapshot: undefined,
+        cards: [
+          {
+            name: "Card A",
+            count: 1,
+            price: {
+              chaosValue: 100,
+              divineValue: 0.5,
+              totalValue: 100,
+              hidePrice: false,
+            },
+          },
+        ],
       });
 
-      it("returns false when timeline has empty buckets", async () => {
-        await loadSession({}, makeTimeline({ buckets: [] }));
-
-        const result = store.getState().sessionDetails.getHasTimeline();
-
-        expect(result).toBe(false);
+      expect(store.getState().sessionDetails.getNetProfit()).toEqual({
+        netProfit: 100,
+        totalDeckCost: 0,
       });
+    });
 
-      it("returns true when timeline has buckets", async () => {
-        await loadSession({}, makeTimeline());
+    it("returns the pre-computed duration from the session", async () => {
+      await loadSession({ duration: "2h 30m" });
 
-        const result = store.getState().sessionDetails.getHasTimeline();
+      expect(store.getState().sessionDetails.getDuration()).toBe("2h 30m");
+    });
 
-        expect(result).toBe(true);
-      });
+    it("returns dash when no session is loaded", () => {
+      expect(store.getState().sessionDetails.getDuration()).toBe("—");
+    });
+
+    it("returns dash when the loaded session has no duration", async () => {
+      await loadSession({ duration: undefined });
+
+      expect(store.getState().sessionDetails.getDuration()).toBe("—");
+    });
+
+    it("returns false when timeline is null", () => {
+      expect(store.getState().sessionDetails.getHasTimeline()).toBe(false);
+    });
+
+    it("returns false when timeline has no buckets", async () => {
+      await loadSession({}, makeTimeline({ buckets: [] }));
+
+      expect(store.getState().sessionDetails.getHasTimeline()).toBe(false);
+    });
+
+    it("returns true when timeline has buckets", async () => {
+      await loadSession({}, makeTimeline());
+
+      expect(store.getState().sessionDetails.getHasTimeline()).toBe(true);
     });
   });
 });

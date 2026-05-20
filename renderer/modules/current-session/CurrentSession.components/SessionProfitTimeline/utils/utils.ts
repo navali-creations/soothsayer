@@ -14,7 +14,8 @@ import type { LinePoint } from "../types/types";
  * spike points to the line, keeping the profit curve smooth.
  *
  * @param timeline - The aggregated timeline from the backend
- * @param deckCost - Cost per stacked deck in chaos (0 = show net profit)
+ * @param deckCost - Cost per stacked deck in chaos; 0 means no deck-cost
+ * adjustment is available.
  */
 export function buildLinePoints(
   timeline: AggregatedTimeline,

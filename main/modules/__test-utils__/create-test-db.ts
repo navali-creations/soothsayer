@@ -71,8 +71,7 @@ function initializeSchema(db: Database.Database): void {
         id TEXT PRIMARY KEY,
         league_id TEXT NOT NULL,
         fetched_at TEXT NOT NULL,
-        exchange_chaos_to_divine REAL NOT NULL,
-        stash_chaos_to_divine REAL NOT NULL,
+        chaos_to_divine_ratio REAL NOT NULL,
         stacked_deck_chaos_cost REAL NOT NULL DEFAULT 0,
         stacked_deck_max_volume_rate REAL DEFAULT NULL,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -93,12 +92,11 @@ function initializeSchema(db: Database.Database): void {
         id INTEGER PRIMARY KEY,
         snapshot_id TEXT NOT NULL,
         card_name TEXT NOT NULL,
-        price_source TEXT NOT NULL CHECK(price_source IN ('exchange', 'stash')),
         chaos_value REAL NOT NULL,
         divine_value REAL NOT NULL,
         confidence INTEGER NOT NULL DEFAULT 1 CHECK(confidence IN (1, 2, 3)),
         FOREIGN KEY (snapshot_id) REFERENCES snapshots(id) ON DELETE CASCADE,
-        UNIQUE(snapshot_id, card_name, price_source)
+        UNIQUE(snapshot_id, card_name)
       )
     `);
 
@@ -109,7 +107,7 @@ function initializeSchema(db: Database.Database): void {
 
     db.exec(`
       CREATE INDEX IF NOT EXISTS idx_snapshot_prices_card
-      ON snapshot_card_prices(card_name, price_source)
+      ON snapshot_card_prices(card_name)
     `);
 
     // ═══════════════════════════════════════════════════════════════
@@ -165,8 +163,7 @@ function initializeSchema(db: Database.Database): void {
         session_id TEXT NOT NULL,
         card_name TEXT NOT NULL,
         count INTEGER NOT NULL DEFAULT 0,
-        hide_price_exchange INTEGER NOT NULL DEFAULT 0,
-        hide_price_stash INTEGER NOT NULL DEFAULT 0,
+        hide_price INTEGER NOT NULL DEFAULT 0,
         first_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
         last_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
         FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
@@ -216,13 +213,10 @@ function initializeSchema(db: Database.Database): void {
         ended_at TEXT NOT NULL,
         duration_minutes INTEGER NOT NULL,
         total_decks_opened INTEGER NOT NULL,
-        total_exchange_value REAL NOT NULL,
-        total_stash_value REAL NOT NULL,
-        exchange_chaos_to_divine REAL NOT NULL,
-        stash_chaos_to_divine REAL NOT NULL,
+        total_value REAL NOT NULL,
+        chaos_to_divine_ratio REAL NOT NULL,
         stacked_deck_chaos_cost REAL NOT NULL DEFAULT 0,
-        total_exchange_net_profit REAL,
-        total_stash_net_profit REAL,
+        net_profit REAL,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
       )
@@ -521,12 +515,10 @@ function initializeSchema(db: Database.Database): void {
         -- PoE1 settings
         poe1_client_txt_path TEXT,
         poe1_selected_league TEXT NOT NULL DEFAULT 'Standard',
-        poe1_price_source TEXT NOT NULL DEFAULT 'exchange' CHECK(poe1_price_source IN ('exchange', 'stash')),
 
         -- PoE2 settings
         poe2_client_txt_path TEXT,
         poe2_selected_league TEXT NOT NULL DEFAULT 'Standard',
-        poe2_price_source TEXT NOT NULL DEFAULT 'exchange' CHECK(poe2_price_source IN ('exchange', 'stash')),
 
         -- Game selection
         selected_game TEXT NOT NULL DEFAULT 'poe1' CHECK(selected_game IN ('poe1', 'poe2')),
@@ -806,12 +798,10 @@ export async function seedSnapshot(
     id?: string;
     leagueId: string;
     fetchedAt?: string;
-    exchangeChaosToDivine?: number;
-    stashChaosToDivine?: number;
+    chaosToDivineRatio?: number;
     stackedDeckChaosCost?: number;
     cardPrices?: Array<{
       cardName: string;
-      priceSource: "exchange" | "stash";
       chaosValue: number;
       divineValue: number;
       confidence?: Confidence;
@@ -826,20 +816,27 @@ export async function seedSnapshot(
       id,
       league_id: options.leagueId,
       fetched_at: options.fetchedAt ?? new Date().toISOString(),
-      exchange_chaos_to_divine: options.exchangeChaosToDivine ?? 200,
-      stash_chaos_to_divine: options.stashChaosToDivine ?? 195,
+      chaos_to_divine_ratio: options.chaosToDivineRatio ?? 200,
       stacked_deck_chaos_cost: options.stackedDeckChaosCost ?? 3,
     })
     .execute();
 
   if (options.cardPrices && options.cardPrices.length > 0) {
+    const seenCardNames = new Set<string>();
+    const uniqueCardPrices = options.cardPrices.filter((price) => {
+      if (seenCardNames.has(price.cardName)) {
+        return false;
+      }
+      seenCardNames.add(price.cardName);
+      return true;
+    });
+
     await kysely
       .insertInto("snapshot_card_prices")
       .values(
-        options.cardPrices.map((cp) => ({
+        uniqueCardPrices.map((cp) => ({
           snapshot_id: id,
           card_name: cp.cardName,
-          price_source: cp.priceSource,
           chaos_value: cp.chaosValue,
           divine_value: cp.divineValue,
           confidence: cp.confidence ?? 1,
@@ -895,8 +892,7 @@ export async function seedSessionCards(
   cards: Array<{
     cardName: string;
     count: number;
-    hidePriceExchange?: boolean;
-    hidePriceStash?: boolean;
+    hidePrice?: boolean;
   }>,
 ): Promise<void> {
   if (cards.length === 0) return;
@@ -910,8 +906,7 @@ export async function seedSessionCards(
         session_id: sessionId,
         card_name: card.cardName,
         count: card.count,
-        hide_price_exchange: card.hidePriceExchange ? 1 : 0,
-        hide_price_stash: card.hidePriceStash ? 1 : 0,
+        hide_price: card.hidePrice ? 1 : 0,
         first_seen_at: now,
         last_seen_at: now,
       })),
@@ -1092,12 +1087,9 @@ export async function seedSessionSummary(
     endedAt?: string;
     durationMinutes?: number;
     totalDecksOpened?: number;
-    totalExchangeValue?: number;
-    totalStashValue?: number;
-    totalExchangeNetProfit?: number | null;
-    totalStashNetProfit?: number | null;
-    exchangeChaosToDivine?: number;
-    stashChaosToDivine?: number;
+    totalValue?: number;
+    netProfit?: number | null;
+    chaosToDivineRatio?: number;
     stackedDeckChaosCost?: number;
   },
 ): Promise<void> {
@@ -1111,12 +1103,9 @@ export async function seedSessionSummary(
       ended_at: options.endedAt ?? "2025-01-01T11:00:00Z",
       duration_minutes: options.durationMinutes ?? 60,
       total_decks_opened: options.totalDecksOpened ?? 100,
-      total_exchange_value: options.totalExchangeValue ?? 500,
-      total_stash_value: options.totalStashValue ?? 480,
-      total_exchange_net_profit: options.totalExchangeNetProfit ?? 200,
-      total_stash_net_profit: options.totalStashNetProfit ?? 180,
-      exchange_chaos_to_divine: options.exchangeChaosToDivine ?? 200,
-      stash_chaos_to_divine: options.stashChaosToDivine ?? 195,
+      total_value: options.totalValue ?? 500,
+      net_profit: options.netProfit ?? 200,
+      chaos_to_divine_ratio: options.chaosToDivineRatio ?? 200,
       stacked_deck_chaos_cost: options.stackedDeckChaosCost ?? 3,
     })
     .execute();

@@ -62,7 +62,6 @@ export class AnalyticsRepository {
   async getHighestValueCards(
     game: string,
     leagueName: string,
-    priceSource: "exchange" | "stash",
     limit: number,
   ): Promise<CardPricePeakDTO[]> {
     const results = await this.kysely
@@ -80,7 +79,6 @@ export class AnalyticsRepository {
       ])
       .where("l.game", "=", game)
       .where("l.name", "=", leagueName)
-      .where("scp.price_source", "=", priceSource)
       .groupBy("scp.card_name")
       .orderBy("maxChaosValue", "desc")
       .limit(limit)
@@ -96,7 +94,6 @@ export class AnalyticsRepository {
     game: string,
     leagueName: string,
     cardName: string,
-    priceSource: "exchange" | "stash",
   ): Promise<CardPriceHistoryDTO[]> {
     const results = await this.kysely
       .selectFrom("snapshot_card_prices as scp")
@@ -114,7 +111,6 @@ export class AnalyticsRepository {
       .where("l.game", "=", game)
       .where("l.name", "=", leagueName)
       .where("scp.card_name", "=", cardName)
-      .where("scp.price_source", "=", priceSource)
       .orderBy("s.fetched_at", "asc")
       .execute();
 

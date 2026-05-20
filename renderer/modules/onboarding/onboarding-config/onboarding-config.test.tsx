@@ -144,11 +144,11 @@ describe("onboardingConfig", () => {
     expect(page.beacons).toHaveLength(2);
   });
 
-  it('current-session-page has path "/" and 3 beacons', () => {
+  it('current-session-page has path "/" and 2 beacons', () => {
     const page = findPage("current-session-page");
     expect(page).toBeDefined();
     expect(page.path).toBe("/");
-    expect(page.beacons).toHaveLength(3);
+    expect(page.beacons).toHaveLength(2);
   });
 
   it('rarity-insights-page has path "/rarity-insights" and 5 beacons', () => {

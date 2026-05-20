@@ -619,13 +619,11 @@ describe("CurrentSessionRepository — getSessionCards with filterId", () => {
           cardName: "The Doctor",
           chaosValue: 50000,
           divineValue: 250,
-          priceSource: "exchange",
         },
         {
           cardName: "Rain of Chaos",
           chaosValue: 1,
           divineValue: 0.005,
-          priceSource: "exchange",
         },
       ],
     });

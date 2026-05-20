@@ -35,40 +35,6 @@ export interface PoeNinjaExchangeResponse {
   lines: PoeNinjaExchangeLine[];
 }
 
-// Stash API types
-export interface PoeNinjaStashCard {
-  id: number;
-  name: string;
-  icon: string;
-  baseType: string;
-  stackSize: number;
-  artFilename: string;
-  itemClass: number;
-  sparkLine: {
-    data: number[];
-    totalChange: number;
-  };
-  lowConfidenceSparkLine: {
-    data: number[];
-    totalChange: number;
-  };
-  implicitModifiers: any[];
-  explicitModifiers: any[];
-  mutatedModifiers: any[];
-  flavourText: string;
-  chaosValue: number;
-  exaltedValue: number;
-  divineValue: number;
-  count: number;
-  detailsId: string;
-  tradeInfo: any[];
-  listingCount: number;
-}
-
-export interface PoeNinjaStashResponse {
-  lines: PoeNinjaStashCard[];
-}
-
 export interface DivinationCardPrice {
   id: string | number;
   name: string;

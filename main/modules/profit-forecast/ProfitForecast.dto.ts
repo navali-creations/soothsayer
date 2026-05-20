@@ -16,14 +16,12 @@
 
 /**
  * A single card's price data from the most recent snapshot.
- * Exchange prices are preferred; stash fills gaps for cards missing from exchange.
  *
- * @internal Used by the service during price merging — not exported to the renderer.
+ * @internal Used by the service during row building — not exported to the renderer.
  */
 export interface ProfitForecastCardPriceDTO {
   chaosValue: number;
   divineValue: number;
-  source: "exchange" | "stash";
   /** poe.ninja confidence tier: 1 = high, 2 = medium, 3 = low */
   confidence: 1 | 2 | 3;
   /** true when the price appears statistically inflated relative to similar-weight cards */
@@ -32,7 +30,7 @@ export interface ProfitForecastCardPriceDTO {
 
 /**
  * Snapshot subset relevant to profit forecasting.
- * Contains exchange rates, stacked deck cost, and merged card prices.
+ * Contains exchange rates, stacked deck cost, and card prices.
  *
  * @internal Used by the service to structure snapshot data before extracting fields — not exported to the renderer.
  */

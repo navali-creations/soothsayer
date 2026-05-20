@@ -3,8 +3,6 @@ import { useBoundStore } from "~/renderer/store";
 
 import CurrentSessionOpenedDecksStat from "./CurrentSessionOpenedDecksStat";
 
-// ─── Mocks ─────────────────────────────────────────────────────────────────
-
 vi.mock("~/renderer/store", async () => {
   const { createStoreMock } = await import(
     "~/renderer/__test-setup__/store-mock"
@@ -48,83 +46,36 @@ vi.mock("~/renderer/components", () => ({
 
 const mockUseBoundStore = vi.mocked(useBoundStore);
 
-// ─── Helpers ───────────────────────────────────────────────────────────────
-
 function setupStore(overrides: any = {}) {
   const store = {
     currentSession: {
       getSession: vi.fn(() => overrides.session ?? null),
-    },
-    settings: {
-      getActiveGameViewPriceSource: vi.fn(() => "exchange"),
     },
   } as any;
   mockUseBoundStore.mockReturnValue(store);
   return store;
 }
 
-function createSession(overrides: any = {}) {
-  return {
-    totalCount: overrides.totalCount ?? 10,
-    cards: overrides.cards ?? [],
-    priceSnapshot: overrides.priceSnapshot ?? {
-      timestamp: "2024-06-15T12:00:00.000Z",
-      stash: { chaosToDivineRatio: 200 },
-      exchange: { chaosToDivineRatio: 220 },
-    },
-    totals: overrides.totals ?? {
-      exchange: {
-        chaosToDivineRatio: 220,
-        totalValue: 500,
-        netProfit: 300,
-      },
-      stash: {
-        chaosToDivineRatio: 200,
-        totalValue: 480,
-        netProfit: 280,
-      },
-      totalDeckCost: 200,
-    },
-    ...overrides,
-  };
-}
-
-// ─── Tests ─────────────────────────────────────────────────────────────────
-
 describe("CurrentSessionOpenedDecksStat", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it('renders "Stacked Decks Opened" title', () => {
+  it("renders zero when there is no session", () => {
     setupStore({ session: null });
+
     renderWithProviders(<CurrentSessionOpenedDecksStat />);
 
     expect(screen.getByText("Stacked Decks Opened")).toBeInTheDocument();
-  });
-
-  it("renders 0 when session is null", () => {
-    setupStore({ session: null });
-    renderWithProviders(<CurrentSessionOpenedDecksStat />);
-
-    const value = screen.getByTestId("stat-value");
-    expect(value).toHaveTextContent("0");
-  });
-
-  it("renders totalCount from session data", () => {
-    setupStore({
-      session: createSession({ totalCount: 42 }),
-    });
-    renderWithProviders(<CurrentSessionOpenedDecksStat />);
-
-    const value = screen.getByTestId("stat-value");
-    expect(value).toHaveTextContent("42");
-  });
-
-  it('renders "This session" description', () => {
-    setupStore({ session: null });
-    renderWithProviders(<CurrentSessionOpenedDecksStat />);
-
+    expect(screen.getByTestId("stat-value")).toHaveTextContent("0");
     expect(screen.getByText("This session")).toBeInTheDocument();
+  });
+
+  it("renders the session total count", () => {
+    setupStore({ session: { totalCount: 42 } });
+
+    renderWithProviders(<CurrentSessionOpenedDecksStat />);
+
+    expect(screen.getByTestId("stat-value")).toHaveTextContent("42");
   });
 });

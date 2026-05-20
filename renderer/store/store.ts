@@ -232,7 +232,6 @@ export const useBoundStore = create<BoundStore>()(
               sessionDetails.session = null;
               sessionDetails.isLoading = false;
               sessionDetails.error = null;
-              sessionDetails.priceSource = "exchange";
 
               // Reset card details
               state.cardDetails.priceHistory = null;
@@ -290,10 +289,6 @@ export const useBoundStore = create<BoundStore>()(
               poeNinja.currentSnapshot = null;
               poeNinja.autoRefreshes = new Map();
               poeNinja.exchangeCacheStatus = {
-                isCached: false,
-                lastFetchTime: null,
-              };
-              poeNinja.stashCacheStatus = {
                 isCached: false,
                 lastFetchTime: null,
               };

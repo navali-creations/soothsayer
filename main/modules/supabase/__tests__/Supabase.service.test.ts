@@ -140,16 +140,11 @@ function makeSnapshotResponse() {
       leagueId: "league-1",
       fetchedAt: "2025-01-01T00:00:00Z",
       exchangeChaosToDivine: 150,
-      stashChaosToDivine: 148,
       stackedDeckChaosCost: 1.5,
+      stackedDeckMaxVolumeRate: 64.93,
     },
     cardPrices: {
-      exchange: {
-        "The Doctor": { chaosValue: 900, divineValue: 6.0 },
-      },
-      stash: {
-        "The Doctor": { chaosValue: 880, divineValue: 5.9 },
-      },
+      "The Doctor": { chaosValue: 900, divineValue: 6.0 },
     },
   };
 }
@@ -755,17 +750,10 @@ describe("SupabaseClientService", () => {
       expect(result).toEqual({
         timestamp: "2025-01-01T00:00:00Z",
         stackedDeckChaosCost: 1.5,
-        exchange: {
-          chaosToDivineRatio: 150,
-          cardPrices: {
-            "The Doctor": { chaosValue: 900, divineValue: 6.0 },
-          },
-        },
-        stash: {
-          chaosToDivineRatio: 148,
-          cardPrices: {
-            "The Doctor": { chaosValue: 880, divineValue: 5.9 },
-          },
+        stackedDeckMaxVolumeRate: 64.93,
+        chaosToDivineRatio: 150,
+        cardPrices: {
+          "The Doctor": { chaosValue: 900, divineValue: 6.0 },
         },
       });
     });
@@ -1642,8 +1630,8 @@ describe("SupabaseClientService — full lifecycle", () => {
     });
 
     const snapshot = await service.getLatestSnapshot("poe1", "Settlers");
-    expect(snapshot.exchange.chaosToDivineRatio).toBe(150);
-    expect(snapshot.stash.cardPrices["The Doctor"].chaosValue).toBe(880);
+    expect(snapshot.chaosToDivineRatio).toBe(150);
+    expect(snapshot.cardPrices["The Doctor"].chaosValue).toBe(900);
 
     // 6. Second call uses cache
     const snapshot2 = await service.getLatestSnapshot("poe1", "Settlers");

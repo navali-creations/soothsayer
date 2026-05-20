@@ -30,10 +30,8 @@ function makeFakeSettingsDTO(
     overlayBounds: { x: 10, y: 20, width: 800, height: 600 },
     poe1ClientTxtPath: "C:/poe1/Client.txt",
     poe1SelectedLeague: "Settlers",
-    poe1PriceSource: "stash",
     poe2ClientTxtPath: "C:/poe2/Client.txt",
     poe2SelectedLeague: "Dawn",
-    poe2PriceSource: "stash",
     selectedGame: "poe2",
     installedGames: ["poe1", "poe2"],
     setupCompleted: true,
@@ -80,10 +78,8 @@ describe("Settings slice — initial state", () => {
     const s = store.getState().settings;
     expect(s.poe1ClientTxtPath).toBeNull();
     expect(s.poe1SelectedLeague).toBe("Standard");
-    expect(s.poe1PriceSource).toBe("exchange");
     expect(s.poe2ClientTxtPath).toBeNull();
     expect(s.poe2SelectedLeague).toBe("Standard");
-    expect(s.poe2PriceSource).toBe("exchange");
   });
 
   it("has correct default audio, overlay, and telemetry settings", () => {
@@ -147,10 +143,8 @@ describe("Settings slice — hydrate", () => {
     expect(s.appOpenAtLoginMinimized).toBe(dto.appOpenAtLoginMinimized);
     expect(s.poe1ClientTxtPath).toBe(dto.poe1ClientTxtPath);
     expect(s.poe1SelectedLeague).toBe(dto.poe1SelectedLeague);
-    expect(s.poe1PriceSource).toBe(dto.poe1PriceSource);
     expect(s.poe2ClientTxtPath).toBe(dto.poe2ClientTxtPath);
     expect(s.poe2SelectedLeague).toBe(dto.poe2SelectedLeague);
-    expect(s.poe2PriceSource).toBe(dto.poe2PriceSource);
     expect(s.selectedGame).toBe(dto.selectedGame);
     expect(s.installedGames).toEqual(dto.installedGames);
     expect(s.setupCompleted).toBe(dto.setupCompleted);
@@ -563,87 +557,6 @@ describe("Settings slice — getters (game and league)", () => {
     store.getState().settings.setSetting("selectedGame", "poe2");
     expect(store.getState().settings.getActiveGameViewSelectedLeague()).toBe(
       "Early Access",
-    );
-  });
-});
-
-// ===========================================================================
-// Getters — Price sources
-// ===========================================================================
-
-describe("Settings slice — getters (price source)", () => {
-  it("getActiveGameViewPriceSource returns poe1PriceSource when selectedGame is poe1", () => {
-    store.getState().settings.setSetting("selectedGame", "poe1");
-    store.getState().settings.setSetting("poe1PriceSource", "stash");
-    store.getState().settings.setSetting("poe2PriceSource", "exchange");
-
-    expect(store.getState().settings.getActiveGameViewPriceSource()).toBe(
-      "stash",
-    );
-  });
-
-  it("getActiveGameViewPriceSource returns poe2PriceSource when selectedGame is poe2", () => {
-    store.getState().settings.setSetting("selectedGame", "poe2");
-    store.getState().settings.setSetting("poe1PriceSource", "stash");
-    store.getState().settings.setSetting("poe2PriceSource", "exchange");
-
-    expect(store.getState().settings.getActiveGameViewPriceSource()).toBe(
-      "exchange",
-    );
-  });
-
-  it("setActiveGameViewPriceSource updates poe1PriceSource when selectedGame is poe1", async () => {
-    electron.settings.set.mockResolvedValue(undefined);
-
-    store.getState().settings.setSetting("selectedGame", "poe1");
-    await store.getState().settings.setActiveGameViewPriceSource("stash");
-
-    expect(store.getState().settings.poe1PriceSource).toBe("stash");
-    expect(electron.settings.set).toHaveBeenCalledWith(
-      "poe1PriceSource",
-      "stash",
-    );
-  });
-
-  it("setActiveGameViewPriceSource updates poe2PriceSource when selectedGame is poe2", async () => {
-    electron.settings.set.mockResolvedValue(undefined);
-
-    store.getState().settings.setSetting("selectedGame", "poe2");
-    await store.getState().settings.setActiveGameViewPriceSource("stash");
-
-    expect(store.getState().settings.poe2PriceSource).toBe("stash");
-    expect(electron.settings.set).toHaveBeenCalledWith(
-      "poe2PriceSource",
-      "stash",
-    );
-  });
-
-  it("setActiveGameViewPriceSource does not affect the other game's price source", async () => {
-    electron.settings.set.mockResolvedValue(undefined);
-
-    store.getState().settings.setSetting("selectedGame", "poe1");
-    store.getState().settings.setSetting("poe2PriceSource", "exchange");
-
-    await store.getState().settings.setActiveGameViewPriceSource("stash");
-
-    // poe1 changed
-    expect(store.getState().settings.poe1PriceSource).toBe("stash");
-    // poe2 unchanged
-    expect(store.getState().settings.poe2PriceSource).toBe("exchange");
-  });
-
-  it("getActiveGameViewPriceSource reflects changes after switching games", () => {
-    store.getState().settings.setSetting("poe1PriceSource", "stash");
-    store.getState().settings.setSetting("poe2PriceSource", "exchange");
-
-    store.getState().settings.setSetting("selectedGame", "poe1");
-    expect(store.getState().settings.getActiveGameViewPriceSource()).toBe(
-      "stash",
-    );
-
-    store.getState().settings.setSetting("selectedGame", "poe2");
-    expect(store.getState().settings.getActiveGameViewPriceSource()).toBe(
-      "exchange",
     );
   });
 });

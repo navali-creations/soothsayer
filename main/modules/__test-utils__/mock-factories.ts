@@ -195,10 +195,8 @@ export function createSettingsStoreMock(
       OverlayBounds: "overlayBounds",
       Poe1ClientTxtPath: "poe1ClientTxtPath",
       SelectedPoe1League: "poe1SelectedLeague",
-      Poe1PriceSource: "poe1PriceSource",
       Poe2ClientTxtPath: "poe2ClientTxtPath",
       SelectedPoe2League: "poe2SelectedLeague",
-      Poe2PriceSource: "poe2PriceSource",
       ActiveGame: "selectedGame",
       InstalledGames: "installedGames",
       SetupCompleted: "setupCompleted",
@@ -317,7 +315,6 @@ export interface IpcValidationMockOverrides {
   mockAssertLimit?: MockFn;
   mockAssertPage?: MockFn;
   mockAssertPageSize?: MockFn;
-  mockAssertPriceSource?: MockFn;
   mockAssertCardName?: MockFn;
   mockAssertSessionId?: MockFn;
   mockAssertLeagueId?: MockFn;
@@ -375,7 +372,6 @@ export function createIpcValidationMock(
     assertLimit: overrides.mockAssertLimit ?? vi.fn(),
     assertPage: overrides.mockAssertPage ?? vi.fn(),
     assertPageSize: overrides.mockAssertPageSize ?? vi.fn(),
-    assertPriceSource: overrides.mockAssertPriceSource ?? vi.fn(),
     assertCardName: overrides.mockAssertCardName ?? vi.fn(),
     assertSessionId: overrides.mockAssertSessionId ?? vi.fn(),
     assertLeagueId: overrides.mockAssertLeagueId ?? vi.fn(),
@@ -688,10 +684,8 @@ export function createBarrelMock(
       OverlayBounds: "overlayBounds",
       Poe1ClientTxtPath: "poe1ClientTxtPath",
       SelectedPoe1League: "poe1SelectedLeague",
-      Poe1PriceSource: "poe1PriceSource",
       Poe2ClientTxtPath: "poe2ClientTxtPath",
       SelectedPoe2League: "poe2SelectedLeague",
-      Poe2PriceSource: "poe2PriceSource",
       ActiveGame: "selectedGame",
       InstalledGames: "installedGames",
       SetupCompleted: "setupCompleted",

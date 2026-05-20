@@ -19,7 +19,6 @@ import {
   assertBoundedString,
   assertCardName,
   assertGameType,
-  assertPriceSource,
   assertSessionId,
   handleValidationError,
   IpcValidationError,
@@ -132,25 +131,13 @@ class CurrentSessionService {
   private poe1CardCounts: Map<string, number> = new Map();
   private poe2CardCounts: Map<string, number> = new Map();
 
-  // Running totals cache (stash/exchange total values, updated incrementally)
-  private poe1RunningTotals: { stashTotal: number; exchangeTotal: number } = {
-    stashTotal: 0,
-    exchangeTotal: 0,
-  };
-  private poe2RunningTotals: { stashTotal: number; exchangeTotal: number } = {
-    stashTotal: 0,
-    exchangeTotal: 0,
-  };
+  // Running total cache, updated incrementally.
+  private poe1RunningTotal = 0;
+  private poe2RunningTotal = 0;
 
-  // Per-card hidePrice flags cache (cardName → { exchange: boolean, stash: boolean })
-  private poe1HidePriceFlags: Map<
-    string,
-    { exchange: boolean; stash: boolean }
-  > = new Map();
-  private poe2HidePriceFlags: Map<
-    string,
-    { exchange: boolean; stash: boolean }
-  > = new Map();
+  // Per-card hidePrice flags cache.
+  private poe1HidePriceFlags: Map<string, boolean> = new Map();
+  private poe2HidePriceFlags: Map<string, boolean> = new Map();
 
   // Per-card divination card metadata cache (for new card deltas)
   private poe1DivinationCardCache: Map<string, any> = new Map();
@@ -378,7 +365,6 @@ class CurrentSessionService {
         _event,
         game: GameType,
         sessionId: string,
-        priceSource: "exchange" | "stash",
         cardName: string,
         hidePrice: boolean,
       ) => {
@@ -386,10 +372,6 @@ class CurrentSessionService {
           assertGameType(game, CurrentSessionChannel.UpdateCardPriceVisibility);
           assertSessionId(
             sessionId,
-            CurrentSessionChannel.UpdateCardPriceVisibility,
-          );
-          assertPriceSource(
-            priceSource,
             CurrentSessionChannel.UpdateCardPriceVisibility,
           );
           assertCardName(
@@ -404,7 +386,6 @@ class CurrentSessionService {
           await this.updateCardPriceVisibility(
             game,
             sessionId,
-            priceSource,
             cardName,
             hidePrice,
           );
@@ -442,10 +423,7 @@ class CurrentSessionService {
 
           // Build cards object for rarity map
           const cardsObject: Record<string, CardEntry> = {};
-          const timelineHidePriceFlags = new Map<
-            string,
-            { exchange: boolean; stash: boolean }
-          >();
+          const timelineHidePriceFlags = new Map<string, boolean>();
           for (const card of cards) {
             cardsObject[card.cardName] = {
               name: card.cardName,
@@ -459,10 +437,7 @@ class CurrentSessionService {
                   }
                 : undefined,
             };
-            timelineHidePriceFlags.set(card.cardName, {
-              exchange: card.hidePriceExchange,
-              stash: card.hidePriceStash,
-            });
+            timelineHidePriceFlags.set(card.cardName, card.hidePrice);
           }
 
           const cardRarities = this.buildCardRaritiesMap(
@@ -470,22 +445,11 @@ class CurrentSessionService {
             raritySource as string,
           );
 
-          // Determine price source from session's game
-          const session = await this.repository.getSessionById(sessionId);
-          const timelinePriceSource: "exchange" | "stash" = session
-            ? (((await this.settingsStore.get(
-                session.game === "poe1"
-                  ? SettingsKey.Poe1PriceSource
-                  : SettingsKey.Poe2PriceSource,
-              )) ?? "exchange") as "exchange" | "stash")
-            : "exchange";
-
           const allEvents = await this.repository.getAllCardEvents(sessionId);
           return this.buildTimelineFromEvents(
             allEvents,
             cardRarities,
             timelineHidePriceFlags,
-            timelinePriceSource,
           );
         } catch (error) {
           if (error instanceof IpcValidationError) {
@@ -590,7 +554,7 @@ class CurrentSessionService {
       this.poe1CardRarities = null;
       this.poe1SnapshotCache = null;
       this.poe1CardCounts.clear();
-      this.poe1RunningTotals = { stashTotal: 0, exchangeTotal: 0 };
+      this.poe1RunningTotal = 0;
       this.poe1HidePriceFlags.clear();
       this.poe1DivinationCardCache.clear();
     } else {
@@ -600,7 +564,7 @@ class CurrentSessionService {
       this.poe2CardRarities = null;
       this.poe2SnapshotCache = null;
       this.poe2CardCounts.clear();
-      this.poe2RunningTotals = { stashTotal: 0, exchangeTotal: 0 };
+      this.poe2RunningTotal = 0;
       this.poe2HidePriceFlags.clear();
       this.poe2DivinationCardCache.clear();
     }
@@ -819,7 +783,7 @@ class CurrentSessionService {
       this.poe1CardRarities = null;
       this.poe1SnapshotCache = null;
       this.poe1CardCounts.clear();
-      this.poe1RunningTotals = { stashTotal: 0, exchangeTotal: 0 };
+      this.poe1RunningTotal = 0;
       this.poe1HidePriceFlags.clear();
       this.poe1DivinationCardCache.clear();
     } else {
@@ -829,7 +793,7 @@ class CurrentSessionService {
       this.poe2CardRarities = null;
       this.poe2SnapshotCache = null;
       this.poe2CardCounts.clear();
-      this.poe2RunningTotals = { stashTotal: 0, exchangeTotal: 0 };
+      this.poe2RunningTotal = 0;
       this.poe2HidePriceFlags.clear();
       this.poe2DivinationCardCache.clear();
     }
@@ -865,26 +829,20 @@ class CurrentSessionService {
     if (!priceSnapshot) return;
 
     // Calculate totals
-    let exchangeTotal = 0;
-    let stashTotal = 0;
+    let totalValue = 0;
 
     for (const card of cards) {
-      const exchangePrice = priceSnapshot.exchange.cardPrices[card.cardName];
-      const stashPrice = priceSnapshot.stash.cardPrices[card.cardName];
+      const price = priceSnapshot.cardPrices[card.cardName];
 
-      if (exchangePrice && !card.hidePriceExchange) {
-        exchangeTotal += exchangePrice.chaosValue * card.count;
-      }
-      if (stashPrice && !card.hidePriceStash) {
-        stashTotal += stashPrice.chaosValue * card.count;
+      if (price && !card.hidePrice) {
+        totalValue += price.chaosValue * card.count;
       }
     }
 
     // Calculate net profit (subtract stacked deck investment)
     const deckCost = priceSnapshot.stackedDeckChaosCost ?? 0;
     const totalDeckCost = deckCost * session.totalCount;
-    const exchangeNetProfit = exchangeTotal - totalDeckCost;
-    const stashNetProfit = stashTotal - totalDeckCost;
+    const netProfit = totalValue - totalDeckCost;
 
     // Calculate duration
     const start = new Date(session.startedAt).getTime();
@@ -900,12 +858,9 @@ class CurrentSessionService {
       endedAt,
       durationMinutes,
       totalDecksOpened: session.totalCount,
-      totalExchangeValue: exchangeTotal,
-      totalStashValue: stashTotal,
-      totalExchangeNetProfit: exchangeNetProfit,
-      totalStashNetProfit: stashNetProfit,
-      exchangeChaosToDivine: priceSnapshot.exchange.chaosToDivineRatio,
-      stashChaosToDivine: priceSnapshot.stash.chaosToDivineRatio,
+      totalValue: totalValue,
+      netProfit: netProfit,
+      chaosToDivineRatio: priceSnapshot.chaosToDivineRatio,
       stackedDeckChaosCost: deckCost,
     });
   }
@@ -966,14 +921,7 @@ class CurrentSessionService {
     const snapshotCache =
       game === "poe1" ? this.poe1SnapshotCache : this.poe2SnapshotCache;
     if (snapshotCache) {
-      const priceSource =
-        game === "poe1"
-          ? await this.settingsStore.get(SettingsKey.Poe1PriceSource)
-          : await this.settingsStore.get(SettingsKey.Poe2PriceSource);
-      const prices =
-        priceSource === "stash"
-          ? snapshotCache.snapshot.stash.cardPrices[cardName]
-          : snapshotCache.snapshot.exchange.cardPrices[cardName];
+      const prices = snapshotCache.snapshot.cardPrices[cardName];
       chaosValue = prices?.chaosValue ?? null;
       divineValue = prices?.divineValue ?? null;
     }
@@ -998,20 +946,12 @@ class CurrentSessionService {
     await this.ensureCardInRarityMap(game, activeSession.league, cardName);
 
     // Append to timeline cache (O(1) incremental update)
-    const priceSourceForTimeline =
-      game === "poe1"
-        ? await this.settingsStore.get(SettingsKey.Poe1PriceSource)
-        : await this.settingsStore.get(SettingsKey.Poe2PriceSource);
-    const timelineDelta = this.appendToTimelineCache(
-      game,
-      {
-        cardName,
-        chaosValue,
-        divineValue,
-        droppedAt: now,
-      },
-      (priceSourceForTimeline ?? "exchange") as "exchange" | "stash",
-    );
+    const timelineDelta = this.appendToTimelineCache(game, {
+      cardName,
+      chaosValue,
+      divineValue,
+      droppedAt: now,
+    });
 
     // Emit timeline delta separately (lightweight, bypasses full session rebuild)
     if (timelineDelta) {
@@ -1163,37 +1103,20 @@ class CurrentSessionService {
 
       // Add price data if snapshot exists
       if (priceSnapshot) {
-        const exchangeData = priceSnapshot.exchange.cardPrices[card.cardName];
-        const stashData = priceSnapshot.stash.cardPrices[card.cardName];
+        const priceData = priceSnapshot.cardPrices[card.cardName];
 
-        // Always add exchangePrice (even if no data) so hidePrice flag is available
-        cardEntry.exchangePrice = exchangeData
+        cardEntry.price = priceData
           ? {
-              chaosValue: exchangeData.chaosValue,
-              divineValue: exchangeData.divineValue,
-              totalValue: exchangeData.chaosValue * card.count,
-              hidePrice: card.hidePriceExchange,
+              chaosValue: priceData.chaosValue,
+              divineValue: priceData.divineValue,
+              totalValue: priceData.chaosValue * card.count,
+              hidePrice: card.hidePrice,
             }
           : {
               chaosValue: 0,
               divineValue: 0,
               totalValue: 0,
-              hidePrice: card.hidePriceExchange,
-            };
-
-        // Always add stashPrice (even if no data) so hidePrice flag is available
-        cardEntry.stashPrice = stashData
-          ? {
-              chaosValue: stashData.chaosValue,
-              divineValue: stashData.divineValue,
-              totalValue: stashData.chaosValue * card.count,
-              hidePrice: card.hidePriceStash,
-            }
-          : {
-              chaosValue: 0,
-              divineValue: 0,
-              totalValue: 0,
-              hidePrice: card.hidePriceStash,
+              hidePrice: card.hidePrice,
             };
       }
 
@@ -1208,8 +1131,9 @@ class CurrentSessionService {
           session.totalCount,
         )
       : {
-          exchange: { totalValue: 0, netProfit: 0, chaosToDivineRatio: 0 },
-          stash: { totalValue: 0, netProfit: 0, chaosToDivineRatio: 0 },
+          totalValue: 0,
+          netProfit: 0,
+          chaosToDivineRatio: 0,
           stackedDeckChaosCost: 0,
           totalDeckCost: 0,
         };
@@ -1233,27 +1157,19 @@ class CurrentSessionService {
           ? filterRarity
           : priceRarity;
 
-      // Check if the card is marked as hidden for either price source
-      // Hidden cards are typically those with unreliable pricing due to market manipulation
-      const isHiddenExchange = cardData?.exchangePrice?.hidePrice || false;
-      const isHiddenStash = cardData?.stashPrice?.hidePrice || false;
+      const isHidden = cardData?.price?.hidePrice || false;
 
-      // If the card is hidden for either source, treat it as common (rarity 4)
-      // This prevents showing inflated rarity for poorly-priced cards
-      const displayRarity =
-        isHiddenExchange || isHiddenStash ? 4 : actualRarity;
+      const displayRarity = isHidden ? 4 : actualRarity;
 
       return {
         cardName,
         rarity: displayRarity,
-        exchangePrice: {
-          chaosValue: cardData?.exchangePrice?.chaosValue || 0,
-          divineValue: cardData?.exchangePrice?.divineValue || 0,
-        },
-        stashPrice: {
-          chaosValue: cardData?.stashPrice?.chaosValue || 0,
-          divineValue: cardData?.stashPrice?.divineValue || 0,
-        },
+        price: cardData?.price
+          ? {
+              chaosValue: cardData.price.chaosValue,
+              divineValue: cardData.price.divineValue,
+            }
+          : null,
       };
     });
 
@@ -1267,8 +1183,6 @@ class CurrentSessionService {
     // This ensures buildCardDelta() has warm caches after hydration / session resume.
     const cardCounts =
       game === "poe1" ? this.poe1CardCounts : this.poe2CardCounts;
-    const runningTotals =
-      game === "poe1" ? this.poe1RunningTotals : this.poe2RunningTotals;
     const hidePriceFlags =
       game === "poe1" ? this.poe1HidePriceFlags : this.poe2HidePriceFlags;
     const divinationCardCache =
@@ -1277,27 +1191,23 @@ class CurrentSessionService {
         : this.poe2DivinationCardCache;
 
     cardCounts.clear();
-    let seedStashTotal = 0;
-    let seedExchangeTotal = 0;
+    let seedTotal = 0;
 
     for (const [name, entry] of Object.entries(cardsObject)) {
       cardCounts.set(name, entry.count);
-      hidePriceFlags.set(name, {
-        exchange: entry.exchangePrice?.hidePrice ?? false,
-        stash: entry.stashPrice?.hidePrice ?? false,
-      });
-      if (entry.exchangePrice && !entry.exchangePrice.hidePrice) {
-        seedExchangeTotal += entry.exchangePrice.totalValue;
-      }
-      if (entry.stashPrice && !entry.stashPrice.hidePrice) {
-        seedStashTotal += entry.stashPrice.totalValue;
+      hidePriceFlags.set(name, entry.price?.hidePrice ?? false);
+      if (entry.price && !entry.price.hidePrice) {
+        seedTotal += entry.price.totalValue;
       }
       if (entry.divinationCard) {
         divinationCardCache.set(name, entry.divinationCard);
       }
     }
-    runningTotals.stashTotal = seedStashTotal;
-    runningTotals.exchangeTotal = seedExchangeTotal;
+    if (game === "poe1") {
+      this.poe1RunningTotal = seedTotal;
+    } else {
+      this.poe2RunningTotal = seedTotal;
+    }
 
     // Build or return cached timeline
     let timelineCache =
@@ -1312,16 +1222,10 @@ class CurrentSessionService {
         cardsObject,
         raritySource as string,
       );
-      const timelinePriceSource =
-        (game === "poe1"
-          ? await this.settingsStore.get(SettingsKey.Poe1PriceSource)
-          : await this.settingsStore.get(SettingsKey.Poe2PriceSource)) ??
-        "exchange";
       timelineCache = this.buildTimelineFromEvents(
         allEvents,
         cardRarities,
         hidePriceFlags,
-        timelinePriceSource as "exchange" | "stash",
       );
       if (game === "poe1") {
         this.poe1TimelineCache = timelineCache;
@@ -1356,15 +1260,11 @@ class CurrentSessionService {
     priceSnapshot: SessionPriceSnapshot,
     totalDecksOpened: number,
   ): SessionTotals {
-    let stashTotal = 0;
-    let exchangeTotal = 0;
+    let totalValue = 0;
 
     for (const [_cardName, entry] of Object.entries(cards)) {
-      if (entry.stashPrice && !entry.stashPrice.hidePrice) {
-        stashTotal += entry.stashPrice.totalValue;
-      }
-      if (entry.exchangePrice && !entry.exchangePrice.hidePrice) {
-        exchangeTotal += entry.exchangePrice.totalValue;
+      if (entry.price && !entry.price.hidePrice) {
+        totalValue += entry.price.totalValue;
       }
     }
 
@@ -1372,16 +1272,9 @@ class CurrentSessionService {
     const totalDeckCost = deckCost * totalDecksOpened;
 
     return {
-      stash: {
-        totalValue: stashTotal,
-        netProfit: stashTotal - totalDeckCost,
-        chaosToDivineRatio: priceSnapshot.stash.chaosToDivineRatio,
-      },
-      exchange: {
-        totalValue: exchangeTotal,
-        netProfit: exchangeTotal - totalDeckCost,
-        chaosToDivineRatio: priceSnapshot.exchange.chaosToDivineRatio,
-      },
+      totalValue,
+      netProfit: totalValue - totalDeckCost,
+      chaosToDivineRatio: priceSnapshot.chaosToDivineRatio,
       stackedDeckChaosCost: deckCost,
       totalDeckCost,
     };
@@ -1393,7 +1286,6 @@ class CurrentSessionService {
   public async updateCardPriceVisibility(
     game: GameType,
     sessionId: string,
-    priceSource: "exchange" | "stash",
     cardName: string,
     hidePrice: boolean,
   ): Promise<void> {
@@ -1413,7 +1305,6 @@ class CurrentSessionService {
     await this.repository.updateCardPriceVisibility(
       actualSessionId,
       cardName,
-      priceSource,
       hidePrice,
     );
 
@@ -1421,19 +1312,7 @@ class CurrentSessionService {
     if (sessionId === "current") {
       const hidePriceFlags =
         game === "poe1" ? this.poe1HidePriceFlags : this.poe2HidePriceFlags;
-      const existing = hidePriceFlags.get(cardName);
-      if (existing) {
-        if (priceSource === "exchange") {
-          existing.exchange = hidePrice;
-        } else {
-          existing.stash = hidePrice;
-        }
-      } else {
-        hidePriceFlags.set(cardName, {
-          exchange: priceSource === "exchange" ? hidePrice : false,
-          stash: priceSource === "stash" ? hidePrice : false,
-        });
-      }
+      hidePriceFlags.set(cardName, hidePrice);
 
       // Invalidate timeline cache so it rebuilds with updated hidePrice flags
       if (game === "poe1") {
@@ -1524,8 +1403,7 @@ class CurrentSessionService {
   private buildTimelineFromEvents(
     events: SessionCardEventDTO[],
     cardRarities: Map<string, number>,
-    hidePriceFlags?: Map<string, { exchange: boolean; stash: boolean }>,
-    priceSource?: "exchange" | "stash",
+    hidePriceFlags?: Map<string, boolean>,
   ): AggregatedTimeline {
     if (events.length === 0) {
       return {
@@ -1560,12 +1438,7 @@ class CurrentSessionService {
       const rawChaos = event.chaosValue ?? 0;
       const rawDivine = event.divineValue ?? 0;
 
-      // If this card is hidden for the active price source, zero out its value
-      const isHidden = hidePriceFlags
-        ? ((priceSource === "stash"
-            ? hidePriceFlags.get(event.cardName)?.stash
-            : hidePriceFlags.get(event.cardName)?.exchange) ?? false)
-        : false;
+      const isHidden = hidePriceFlags?.get(event.cardName) ?? false;
       const chaos = isHidden ? 0 : rawChaos;
       const divine = isHidden ? 0 : rawDivine;
 
@@ -1640,7 +1513,6 @@ class CurrentSessionService {
       divineValue: number | null;
       droppedAt: string;
     },
-    priceSource: "exchange" | "stash",
   ): TimelineDelta | null {
     const cache =
       game === "poe1" ? this.poe1TimelineCache : this.poe2TimelineCache;
@@ -1648,10 +1520,7 @@ class CurrentSessionService {
 
     const hidePriceFlags =
       game === "poe1" ? this.poe1HidePriceFlags : this.poe2HidePriceFlags;
-    const isHidden =
-      priceSource === "stash"
-        ? (hidePriceFlags.get(drop.cardName)?.stash ?? false)
-        : (hidePriceFlags.get(drop.cardName)?.exchange ?? false);
+    const isHidden = hidePriceFlags.get(drop.cardName) ?? false;
 
     const chaos = isHidden ? 0 : (drop.chaosValue ?? 0);
     const divine = isHidden ? 0 : (drop.divineValue ?? 0);
@@ -1774,8 +1643,6 @@ class CurrentSessionService {
       game === "poe1" ? this.poe1SnapshotCache : this.poe2SnapshotCache;
     const cardCounts =
       game === "poe1" ? this.poe1CardCounts : this.poe2CardCounts;
-    const runningTotals =
-      game === "poe1" ? this.poe1RunningTotals : this.poe2RunningTotals;
     const hidePriceFlags =
       game === "poe1" ? this.poe1HidePriceFlags : this.poe2HidePriceFlags;
     const divinationCardCache =
@@ -1792,30 +1659,27 @@ class CurrentSessionService {
 
     // Get prices from snapshot cache
     const snapshot = snapshotCache?.snapshot ?? null;
-    const exchangeData = snapshot?.exchange.cardPrices[cardName] ?? null;
-    const stashData = snapshot?.stash.cardPrices[cardName] ?? null;
+    const priceData = snapshot?.cardPrices[cardName] ?? null;
 
-    const exchangeChaos = exchangeData?.chaosValue ?? 0;
-    const exchangeDivine = exchangeData?.divineValue ?? 0;
-    const stashChaos = stashData?.chaosValue ?? 0;
-    const stashDivine = stashData?.divineValue ?? 0;
+    const chaosValue = priceData?.chaosValue ?? 0;
+    const divineValue = priceData?.divineValue ?? 0;
 
     // Get hidePrice flags (default to not hidden for new cards)
     if (!hidePriceFlags.has(cardName)) {
-      hidePriceFlags.set(cardName, {
-        exchange: exchangeData?.hidePrice ?? false,
-        stash: stashData?.hidePrice ?? false,
-      });
+      hidePriceFlags.set(cardName, priceData?.hidePrice ?? false);
     }
-    const flags = hidePriceFlags.get(cardName)!;
+    const hidePrice = hidePriceFlags.get(cardName)!;
 
     // Update running totals incrementally (add the value of this single new card)
-    if (!flags.exchange) {
-      runningTotals.exchangeTotal += exchangeChaos;
+    if (!hidePrice) {
+      if (game === "poe1") {
+        this.poe1RunningTotal += chaosValue;
+      } else {
+        this.poe2RunningTotal += chaosValue;
+      }
     }
-    if (!flags.stash) {
-      runningTotals.stashTotal += stashChaos;
-    }
+    const runningTotal =
+      game === "poe1" ? this.poe1RunningTotal : this.poe2RunningTotal;
 
     // Compute total count from all cards
     let totalCount = 0;
@@ -1828,16 +1692,9 @@ class CurrentSessionService {
     const totalDeckCost = deckCost * totalCount;
 
     const updatedTotals: SessionTotals = {
-      stash: {
-        totalValue: runningTotals.stashTotal,
-        netProfit: runningTotals.stashTotal - totalDeckCost,
-        chaosToDivineRatio: snapshot?.stash.chaosToDivineRatio ?? 0,
-      },
-      exchange: {
-        totalValue: runningTotals.exchangeTotal,
-        netProfit: runningTotals.exchangeTotal - totalDeckCost,
-        chaosToDivineRatio: snapshot?.exchange.chaosToDivineRatio ?? 0,
-      },
+      totalValue: runningTotal,
+      netProfit: runningTotal - totalDeckCost,
+      chaosToDivineRatio: snapshot?.chaosToDivineRatio ?? 0,
       stackedDeckChaosCost: deckCost,
       totalDeckCost,
     };
@@ -1847,8 +1704,7 @@ class CurrentSessionService {
     const recentDrop: RecentDrop = {
       cardName,
       rarity,
-      exchangePrice: { chaosValue: exchangeChaos, divineValue: exchangeDivine },
-      stashPrice: { chaosValue: stashChaos, divineValue: stashDivine },
+      price: priceData ? { chaosValue, divineValue } : null,
     };
 
     // Get or cache divination card metadata (only sent for brand-new cards)
@@ -1870,17 +1726,11 @@ class CurrentSessionService {
       cardName,
       newCount,
       totalCount,
-      exchangePrice: exchangeData
-        ? { chaosValue: exchangeChaos, divineValue: exchangeDivine }
-        : null,
-      stashPrice: stashData
-        ? { chaosValue: stashChaos, divineValue: stashDivine }
-        : null,
+      price: priceData ? { chaosValue, divineValue } : null,
       updatedTotals,
       recentDrop,
       divinationCard: isNewCard ? divinationCard : undefined,
-      hidePriceExchange: flags.exchange,
-      hidePriceStash: flags.stash,
+      hidePrice,
     };
   }
 

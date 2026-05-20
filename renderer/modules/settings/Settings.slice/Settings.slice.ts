@@ -48,12 +48,6 @@ export interface SettingsSlice {
     getActiveGameViewSelectedLeague: () => string;
     getSelectedPoe1League: () => string;
     getSelectedPoe2League: () => string;
-
-    // Getters - Price sources
-    getActiveGameViewPriceSource: () => "exchange" | "stash";
-    setActiveGameViewPriceSource: (
-      source: "exchange" | "stash",
-    ) => Promise<void>;
   };
 }
 
@@ -72,10 +66,8 @@ export const createSettingsSlice: StateCreator<
     overlayBounds: null,
     poe1ClientTxtPath: null,
     poe1SelectedLeague: "Standard",
-    poe1PriceSource: "exchange",
     poe2ClientTxtPath: null,
     poe2SelectedLeague: "Standard",
-    poe2PriceSource: "exchange",
     selectedGame: "poe1",
     installedGames: ["poe1"],
     setupCompleted: false,
@@ -142,10 +134,8 @@ export const createSettingsSlice: StateCreator<
             settings.appOpenAtLoginMinimized = data.appOpenAtLoginMinimized;
             settings.poe1ClientTxtPath = data.poe1ClientTxtPath;
             settings.poe1SelectedLeague = data.poe1SelectedLeague;
-            settings.poe1PriceSource = data.poe1PriceSource;
             settings.poe2ClientTxtPath = data.poe2ClientTxtPath;
             settings.poe2SelectedLeague = data.poe2SelectedLeague;
-            settings.poe2PriceSource = data.poe2PriceSource;
             settings.selectedGame = data.selectedGame;
             settings.installedGames = data.installedGames;
             settings.setupCompleted = data.setupCompleted;
@@ -296,10 +286,8 @@ export const createSettingsSlice: StateCreator<
             newSettings.appOpenAtLoginMinimized;
           settings.poe1ClientTxtPath = newSettings.poe1ClientTxtPath;
           settings.poe1SelectedLeague = newSettings.poe1SelectedLeague;
-          settings.poe1PriceSource = newSettings.poe1PriceSource;
           settings.poe2ClientTxtPath = newSettings.poe2ClientTxtPath;
           settings.poe2SelectedLeague = newSettings.poe2SelectedLeague;
-          settings.poe2PriceSource = newSettings.poe2PriceSource;
           settings.selectedGame = newSettings.selectedGame;
           settings.installedGames = newSettings.installedGames;
           settings.setupCompleted = newSettings.setupCompleted;
@@ -390,22 +378,6 @@ export const createSettingsSlice: StateCreator<
     getSelectedPoe2League: () => {
       const { settings } = get();
       return settings.poe2SelectedLeague;
-    },
-
-    // Getters - Price sources
-    getActiveGameViewPriceSource: () => {
-      const { settings } = get();
-      const activeGame = settings.selectedGame;
-      return activeGame === "poe1"
-        ? settings.poe1PriceSource
-        : settings.poe2PriceSource;
-    },
-
-    setActiveGameViewPriceSource: async (source: "exchange" | "stash") => {
-      const { settings } = get();
-      const activeGame = settings.selectedGame;
-      const key = activeGame === "poe1" ? "poe1PriceSource" : "poe2PriceSource";
-      await settings.updateSetting(key, source);
     },
   },
 });

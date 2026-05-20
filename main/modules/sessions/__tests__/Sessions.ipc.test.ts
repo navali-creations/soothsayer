@@ -1,4 +1,4 @@
-﻿import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getIpcHandler } from "~/main/modules/__test-utils__/mock-factories";
 
@@ -7,6 +7,7 @@ const {
   mockIpcHandle,
   mockGetKysely,
   mockRepoGetSessionCount,
+  mockRepoGetSessionLeagues,
   mockRepoGetSessionsPage,
   mockRepoGetSessionById,
   mockRepoGetSessionCards,
@@ -33,6 +34,7 @@ const {
   mockIpcHandle: vi.fn(),
   mockGetKysely: vi.fn(),
   mockRepoGetSessionCount: vi.fn(),
+  mockRepoGetSessionLeagues: vi.fn(),
   mockRepoGetSessionsPage: vi.fn(),
   mockRepoGetSessionById: vi.fn(),
   mockRepoGetSessionCards: vi.fn(),
@@ -120,6 +122,7 @@ vi.mock("~/main/utils/cleanWikiMarkup", () => ({
 vi.mock("../Sessions.repository", () => ({
   SessionsRepository: class MockSessionsRepository {
     getSessionCount = mockRepoGetSessionCount;
+    getSessionLeagues = mockRepoGetSessionLeagues;
     getSessionsPage = mockRepoGetSessionsPage;
     getSessionById = mockRepoGetSessionById;
     getSessionCards = mockRepoGetSessionCards;
@@ -167,12 +170,9 @@ const SAMPLE_SESSION_SUMMARIES = [
     endedAt: "2025-01-15T12:00:00Z",
     durationMinutes: 120,
     totalDecksOpened: 50,
-    totalExchangeValue: 1500,
-    totalStashValue: 1400,
-    totalExchangeNetProfit: 1000,
-    totalStashNetProfit: 900,
-    exchangeChaosToDivine: 200,
-    stashChaosToDivine: 195,
+    totalValue: 1500,
+    netProfit: 1000,
+    chaosToDivineRatio: 200,
     stackedDeckChaosCost: 10,
     isActive: false,
   },
@@ -194,15 +194,13 @@ const SAMPLE_SESSION_CARDS = [
   {
     cardName: "The Doctor",
     count: 2,
-    hidePriceExchange: false,
-    hidePriceStash: false,
+    hidePrice: false,
     divinationCard: undefined,
   },
   {
     cardName: "Rain of Chaos",
     count: 15,
-    hidePriceExchange: false,
-    hidePriceStash: false,
+    hidePrice: false,
     divinationCard: undefined,
   },
 ];
@@ -235,6 +233,7 @@ describe("SessionsService — IPC handlers", () => {
 
     // Default mock return values
     mockRepoGetSessionCount.mockResolvedValue(1);
+    mockRepoGetSessionLeagues.mockResolvedValue(["Settlers", "Standard"]);
     mockRepoGetSessionsPage.mockResolvedValue(SAMPLE_SESSION_SUMMARIES);
     mockRepoGetSessionById.mockResolvedValue(SAMPLE_SESSION_DETAILS);
     mockRepoGetSessionCards.mockResolvedValue(SAMPLE_SESSION_CARDS);
@@ -271,6 +270,7 @@ describe("SessionsService — IPC handlers", () => {
       );
 
       expect(registeredChannels).toContain(SessionsChannel.GetAll);
+      expect(registeredChannels).toContain(SessionsChannel.GetLeagues);
       expect(registeredChannels).toContain(SessionsChannel.GetById);
       expect(registeredChannels).toContain(SessionsChannel.SearchByCard);
       expect(registeredChannels).toContain(SessionsChannel.GetMostProfitable);
@@ -306,8 +306,8 @@ describe("SessionsService — IPC handlers", () => {
       expect(registeredChannels).toContain(SessionsChannel.DeleteSessions);
     });
 
-    it("should register exactly 24 IPC handlers", () => {
-      expect(mockIpcHandle).toHaveBeenCalledTimes(24);
+    it("should register exactly 25 IPC handlers", () => {
+      expect(mockIpcHandle).toHaveBeenCalledTimes(25);
     });
   });
 
@@ -327,8 +327,19 @@ describe("SessionsService — IPC handlers", () => {
         20,
         SessionsChannel.GetAll,
       );
-      expect(mockRepoGetSessionCount).toHaveBeenCalledWith("poe1");
-      expect(mockRepoGetSessionsPage).toHaveBeenCalledWith("poe1", 20, 0);
+      expect(mockAssertOptionalString).toHaveBeenCalledWith(
+        undefined,
+        "league",
+        SessionsChannel.GetAll,
+        256,
+      );
+      expect(mockRepoGetSessionCount).toHaveBeenCalledWith("poe1", undefined);
+      expect(mockRepoGetSessionsPage).toHaveBeenCalledWith(
+        "poe1",
+        20,
+        0,
+        undefined,
+      );
       expect(result).toEqual({
         sessions: SAMPLE_SESSION_SUMMARIES,
         total: 1,
@@ -343,7 +354,12 @@ describe("SessionsService — IPC handlers", () => {
       const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetAll);
       await handler({}, "poe1", 2, 10);
 
-      expect(mockRepoGetSessionsPage).toHaveBeenCalledWith("poe1", 10, 10);
+      expect(mockRepoGetSessionsPage).toHaveBeenCalledWith(
+        "poe1",
+        10,
+        10,
+        undefined,
+      );
     });
 
     it("should clamp requested page to the nearest valid page", async () => {
@@ -351,7 +367,12 @@ describe("SessionsService — IPC handlers", () => {
       const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetAll);
       const result = await handler({}, "poe1", 5, 10);
 
-      expect(mockRepoGetSessionsPage).toHaveBeenCalledWith("poe1", 10, 20);
+      expect(mockRepoGetSessionsPage).toHaveBeenCalledWith(
+        "poe1",
+        10,
+        20,
+        undefined,
+      );
       expect(result.page).toBe(3);
       expect(result.totalPages).toBe(3);
     });
@@ -376,7 +397,12 @@ describe("SessionsService — IPC handlers", () => {
         20,
         SessionsChannel.GetAll,
       );
-      expect(mockRepoGetSessionsPage).toHaveBeenCalledWith("poe1", 20, 0);
+      expect(mockRepoGetSessionsPage).toHaveBeenCalledWith(
+        "poe1",
+        20,
+        0,
+        undefined,
+      );
     });
 
     it("should handle validation errors for invalid game type", async () => {
@@ -470,8 +496,77 @@ describe("SessionsService — IPC handlers", () => {
         "poe2",
         SessionsChannel.GetAll,
       );
-      expect(mockRepoGetSessionCount).toHaveBeenCalledWith("poe2");
-      expect(mockRepoGetSessionsPage).toHaveBeenCalledWith("poe2", 10, 0);
+      expect(mockRepoGetSessionCount).toHaveBeenCalledWith("poe2", undefined);
+      expect(mockRepoGetSessionsPage).toHaveBeenCalledWith(
+        "poe2",
+        10,
+        0,
+        undefined,
+      );
+    });
+
+    it("should pass league filter to count and page queries", async () => {
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetAll);
+      await handler({}, "poe1", 1, 20, "Mirage");
+
+      expect(mockAssertOptionalString).toHaveBeenCalledWith(
+        "Mirage",
+        "league",
+        SessionsChannel.GetAll,
+        256,
+      );
+      expect(mockRepoGetSessionCount).toHaveBeenCalledWith("poe1", "Mirage");
+      expect(mockRepoGetSessionsPage).toHaveBeenCalledWith(
+        "poe1",
+        20,
+        0,
+        "Mirage",
+      );
+    });
+
+    it("should treat all as no league filter", async () => {
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetAll);
+      await handler({}, "poe1", 1, 20, "all");
+
+      expect(mockRepoGetSessionCount).toHaveBeenCalledWith("poe1", undefined);
+      expect(mockRepoGetSessionsPage).toHaveBeenCalledWith(
+        "poe1",
+        20,
+        0,
+        undefined,
+      );
+    });
+  });
+
+  // ─── GetLeagues handler ────────────────────────────────────────────────
+
+  describe("GetLeagues handler", () => {
+    it("should validate game type and return session leagues", async () => {
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetLeagues);
+      const result = await handler({}, "poe1");
+
+      expect(mockAssertGameType).toHaveBeenCalledWith(
+        "poe1",
+        SessionsChannel.GetLeagues,
+      );
+      expect(mockRepoGetSessionLeagues).toHaveBeenCalledWith("poe1");
+      expect(result).toEqual(["Settlers", "Standard"]);
+    });
+
+    it("should not query repository when validation fails", async () => {
+      const validationError = new Error("Invalid game");
+      mockAssertGameType.mockImplementation(() => {
+        throw validationError;
+      });
+
+      const handler = getIpcHandler(mockIpcHandle, SessionsChannel.GetLeagues);
+      await handler({}, "bad-game");
+
+      expect(mockHandleValidationError).toHaveBeenCalledWith(
+        validationError,
+        SessionsChannel.GetLeagues,
+      );
+      expect(mockRepoGetSessionLeagues).not.toHaveBeenCalled();
     });
   });
 
@@ -638,17 +733,9 @@ describe("SessionsService — IPC handlers", () => {
       mockSnapshotLoadSnapshot.mockResolvedValue({
         timestamp: "2025-01-15T09:00:00Z",
         stackedDeckChaosCost: 10,
-        exchange: {
-          chaosToDivineRatio: 200,
-          cardPrices: {
-            "The Doctor": { chaosValue: 5000, divineValue: 25 },
-          },
-        },
-        stash: {
-          chaosToDivineRatio: 195,
-          cardPrices: {
-            "The Doctor": { chaosValue: 4800, divineValue: 24 },
-          },
+        chaosToDivineRatio: 200,
+        cardPrices: {
+          "The Doctor": { chaosValue: 5000, divineValue: 25 },
         },
       });
 
@@ -659,10 +746,8 @@ describe("SessionsService — IPC handlers", () => {
       expect(result.priceSnapshot).toBeDefined();
 
       const doctor = result.cards.find((c: any) => c.name === "The Doctor");
-      expect(doctor.exchangePrice).toBeDefined();
-      expect(doctor.exchangePrice.chaosValue).toBe(5000);
-      expect(doctor.stashPrice).toBeDefined();
-      expect(doctor.stashPrice.chaosValue).toBe(4800);
+      expect(doctor.price).toBeDefined();
+      expect(doctor.price.chaosValue).toBe(5000);
     });
 
     it("should handle loadSnapshot returning null gracefully", async () => {
@@ -685,8 +770,7 @@ describe("SessionsService — IPC handlers", () => {
         {
           cardName: "The Doctor",
           count: 2,
-          hidePriceExchange: false,
-          hidePriceStash: false,
+          hidePrice: false,
           divinationCard: {
             id: "dc-1",
             stackSize: 8,
@@ -717,25 +801,16 @@ describe("SessionsService — IPC handlers", () => {
         {
           cardName: "Hidden Card",
           count: 5,
-          hidePriceExchange: true,
-          hidePriceStash: false,
+          hidePrice: true,
           divinationCard: undefined,
         },
       ]);
       mockSnapshotLoadSnapshot.mockResolvedValue({
         timestamp: "2025-01-15T09:00:00Z",
         stackedDeckChaosCost: 10,
-        exchange: {
-          chaosToDivineRatio: 200,
-          cardPrices: {
-            "Hidden Card": { chaosValue: 100, divineValue: 0.5 },
-          },
-        },
-        stash: {
-          chaosToDivineRatio: 195,
-          cardPrices: {
-            "Hidden Card": { chaosValue: 90, divineValue: 0.45 },
-          },
+        chaosToDivineRatio: 200,
+        cardPrices: {
+          "Hidden Card": { chaosValue: 100, divineValue: 0.5 },
         },
       });
 
@@ -743,13 +818,10 @@ describe("SessionsService — IPC handlers", () => {
       const result = await handler({}, "session-1");
 
       const card = result.cards.find((c: any) => c.name === "Hidden Card");
-      expect(card.exchangePrice.hidePrice).toBe(true);
-      expect(card.stashPrice.hidePrice).toBe(false);
+      expect(card.price.hidePrice).toBe(true);
 
-      // Exchange total should be 0 because the card is hidden from exchange
-      expect(result.totals.exchange.totalValue).toBe(0);
-      // Stash total should include the card value (90 * 5 = 450)
-      expect(result.totals.stash.totalValue).toBe(450);
+      // Total should be 0 because the card is hidden.
+      expect(result.totals.totalValue).toBe(0);
     });
   });
 
@@ -1404,8 +1476,70 @@ describe("SessionsService — IPC handlers", () => {
         "poe1",
         SessionsChannel.GetAllSessionIds,
       );
-      expect(mockRepoGetAllSessionIds).toHaveBeenCalledWith("poe1");
+      expect(mockAssertOptionalString).toHaveBeenCalledWith(
+        undefined,
+        "league",
+        SessionsChannel.GetAllSessionIds,
+        256,
+      );
+      expect(mockAssertOptionalString).toHaveBeenCalledWith(
+        undefined,
+        "cardName",
+        SessionsChannel.GetAllSessionIds,
+        256,
+      );
+      expect(mockRepoGetAllSessionIds).toHaveBeenCalledWith(
+        "poe1",
+        undefined,
+        undefined,
+      );
       expect(result).toEqual(["s3", "s2", "s1"]);
+    });
+
+    it("should pass a league filter to the repository", async () => {
+      mockRepoGetAllSessionIds.mockResolvedValue(["s2", "s1"]);
+
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.GetAllSessionIds,
+      );
+      const result = await handler({}, "poe1", "Mirage");
+
+      expect(mockAssertOptionalString).toHaveBeenCalledWith(
+        "Mirage",
+        "league",
+        SessionsChannel.GetAllSessionIds,
+        256,
+      );
+      expect(mockRepoGetAllSessionIds).toHaveBeenCalledWith(
+        "poe1",
+        "Mirage",
+        undefined,
+      );
+      expect(result).toEqual(["s2", "s1"]);
+    });
+
+    it("should pass a trimmed card search filter to the repository", async () => {
+      mockRepoGetAllSessionIds.mockResolvedValue(["s1"]);
+
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        SessionsChannel.GetAllSessionIds,
+      );
+      const result = await handler({}, "poe1", undefined, " The Doctor ");
+
+      expect(mockAssertOptionalString).toHaveBeenCalledWith(
+        " The Doctor ",
+        "cardName",
+        SessionsChannel.GetAllSessionIds,
+        256,
+      );
+      expect(mockRepoGetAllSessionIds).toHaveBeenCalledWith(
+        "poe1",
+        undefined,
+        "The Doctor",
+      );
+      expect(result).toEqual(["s1"]);
     });
 
     it("should not call repository when game validation fails", async () => {

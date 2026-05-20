@@ -1,5 +1,5 @@
 import { FiClock, FiInfo } from "react-icons/fi";
-import { GiCardExchange, GiLockedChest, GiReceiveMoney } from "react-icons/gi";
+import { GiCardExchange, GiReceiveMoney } from "react-icons/gi";
 
 import { Link, StaticProfitSparkline } from "~/renderer/components";
 import { useSessions } from "~/renderer/store";
@@ -106,76 +106,50 @@ export const SessionCard = ({ session, linePoints }: SessionCardProps) => {
             </span>
           </div>
 
-          {/* Total Value - Exchange */}
+          {/* Total Value */}
           <div className="flex items-center gap-2 text-sm">
             <GiCardExchange className="text-base-content/50" />
-            <span className="text-base-content/70">Exchange:</span>
-            {session.totalExchangeValue == null ||
-            session.exchangeChaosToDivine == null ? (
+            <span className="text-base-content/70">Value:</span>
+            {session.totalValue == null ||
+            session.chaosToDivineRatio == null ? (
               <span className="text-base-content/50">N/A</span>
             ) : (
               <span className="font-semibold tabular-nums text-success">
-                {formatCurrency(
-                  session.totalExchangeValue,
-                  session.exchangeChaosToDivine,
-                )}
-              </span>
-            )}
-          </div>
-
-          {/* Total Value - Stash */}
-          <div className="flex items-center gap-2 text-sm">
-            <GiLockedChest className="text-base-content/50" />
-            <span className="text-base-content/70">Stash:</span>
-            {session.totalStashValue == null ||
-            session.stashChaosToDivine == null ? (
-              <span className="text-base-content/50">N/A</span>
-            ) : (
-              <span className="font-semibold tabular-nums text-success">
-                {formatCurrency(
-                  session.totalStashValue,
-                  session.stashChaosToDivine,
-                )}
+                {formatCurrency(session.totalValue, session.chaosToDivineRatio)}
               </span>
             )}
           </div>
 
           {/* Net Profit */}
-          {session.totalExchangeNetProfit != null &&
-            session.exchangeChaosToDivine != null && (
-              <div className="flex items-center gap-2 text-sm">
-                <GiReceiveMoney className="text-base-content/50" />
-                <span className="flex items-center gap-1 text-base-content/70">
-                  <span
-                    className="underline decoration-dotted cursor-help"
-                    title="Total Value minus the cost of Stacked Decks opened"
-                  >
-                    Net Profit:
-                  </span>
-                  <div
-                    className="tooltip tooltip-right tooltip-primary"
-                    data-tip="Total value of cards minus the cost of Stacked Decks opened. Expand this session for the full profit timeline."
-                  >
-                    <FiInfo
-                      size={11}
-                      className="opacity-40 hover:opacity-100 transition-opacity"
-                    />
-                  </div>
-                </span>
+          {session.netProfit != null && session.chaosToDivineRatio != null && (
+            <div className="flex items-center gap-2 text-sm">
+              <GiReceiveMoney className="text-base-content/50" />
+              <span className="flex items-center gap-1 text-base-content/70">
                 <span
-                  className={`font-semibold tabular-nums ${
-                    session.totalExchangeNetProfit < 0
-                      ? "text-error"
-                      : "text-success"
-                  }`}
+                  className="underline decoration-dotted cursor-help"
+                  title="Total Value minus the cost of Stacked Decks opened"
                 >
-                  {formatCurrency(
-                    session.totalExchangeNetProfit,
-                    session.exchangeChaosToDivine,
-                  )}
+                  Net Profit:
                 </span>
-              </div>
-            )}
+                <div
+                  className="tooltip tooltip-right tooltip-primary"
+                  data-tip="Total value of cards minus the cost of Stacked Decks opened. Expand this session for the full profit timeline."
+                >
+                  <FiInfo
+                    size={11}
+                    className="opacity-40 hover:opacity-100 transition-opacity"
+                  />
+                </div>
+              </span>
+              <span
+                className={`font-semibold tabular-nums ${
+                  session.netProfit < 0 ? "text-error" : "text-success"
+                }`}
+              >
+                {formatCurrency(session.netProfit, session.chaosToDivineRatio)}
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </>

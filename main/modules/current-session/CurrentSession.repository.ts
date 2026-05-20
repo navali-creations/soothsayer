@@ -66,8 +66,8 @@ export class CurrentSessionRepository {
 
     // 1. INSERT OR UPDATE session_cards (increment count)
     const upsertSessionCard = db.prepare(`
-      INSERT INTO session_cards (session_id, card_name, count, first_seen_at, last_seen_at, hide_price_exchange, hide_price_stash)
-      VALUES (@sessionId, @cardName, 1, @timestamp, @timestamp, 0, 0)
+      INSERT INTO session_cards (session_id, card_name, count, first_seen_at, last_seen_at, hide_price)
+      VALUES (@sessionId, @cardName, 1, @timestamp, @timestamp, 0)
       ON CONFLICT (session_id, card_name) DO UPDATE SET
         count = count + 1,
         last_seen_at = @timestamp
@@ -288,8 +288,7 @@ export class CurrentSessionRepository {
         "sc.count",
         "sc.first_seen_at as firstSeenAt",
         "sc.last_seen_at as lastSeenAt",
-        "sc.hide_price_exchange as hidePriceExchange",
-        "sc.hide_price_stash as hidePriceStash",
+        "sc.hide_price as hidePrice",
         // Divination card metadata (may be null if card not in reference data)
         "dc.id as divinationCardId",
         "dc.stack_size as stackSize",
@@ -322,15 +321,11 @@ export class CurrentSessionRepository {
   async updateCardPriceVisibility(
     sessionId: string,
     cardName: string,
-    priceSource: "exchange" | "stash",
     hidePrice: boolean,
   ): Promise<void> {
-    const column =
-      priceSource === "exchange" ? "hide_price_exchange" : "hide_price_stash";
-
     await this.kysely
       .updateTable("session_cards")
-      .set({ [column]: hidePrice ? 1 : 0 })
+      .set({ hide_price: hidePrice ? 1 : 0 })
       .where("session_id", "=", sessionId)
       .where("card_name", "=", cardName)
       .execute();
@@ -562,12 +557,9 @@ export class CurrentSessionRepository {
         ended_at: data.endedAt,
         duration_minutes: data.durationMinutes,
         total_decks_opened: data.totalDecksOpened,
-        total_exchange_value: data.totalExchangeValue,
-        total_stash_value: data.totalStashValue,
-        total_exchange_net_profit: data.totalExchangeNetProfit,
-        total_stash_net_profit: data.totalStashNetProfit,
-        exchange_chaos_to_divine: data.exchangeChaosToDivine,
-        stash_chaos_to_divine: data.stashChaosToDivine,
+        total_value: data.totalValue,
+        net_profit: data.netProfit,
+        chaos_to_divine_ratio: data.chaosToDivineRatio,
         stacked_deck_chaos_cost: data.stackedDeckChaosCost,
       })
       .execute();

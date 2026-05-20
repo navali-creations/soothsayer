@@ -11,32 +11,20 @@ const AnalyticsAPI = {
       limit,
     ),
 
-  getHighestValueCards: (
-    game: string,
-    league: string,
-    priceSource: "exchange" | "stash" = "exchange",
-    limit = 10,
-  ) =>
+  getHighestValueCards: (game: string, league: string, limit = 10) =>
     ipcRenderer.invoke(
       AnalyticsChannel.GetHighestValueCards,
       game,
       league,
-      priceSource,
       limit,
     ),
 
-  getCardPriceHistory: (
-    game: string,
-    league: string,
-    cardName: string,
-    priceSource: "exchange" | "stash" = "exchange",
-  ) =>
+  getCardPriceHistory: (game: string, league: string, cardName: string) =>
     ipcRenderer.invoke(
       AnalyticsChannel.GetCardPriceHistory,
       game,
       league,
       cardName,
-      priceSource,
     ),
 
   getLeagueAnalytics: (game: string, league: string) =>

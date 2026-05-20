@@ -5,6 +5,40 @@ import { authorize, responseJson } from "../_shared/utils.ts";
 
 type Body = { game?: "poe1" | "poe2"; league?: string };
 
+const FLAT_RESPONSE_MIN_APP_VERSION = "0.17.1";
+
+type CardPricePayload = {
+  chaosValue: number;
+  divineValue: number;
+  confidence: number;
+};
+
+type LegacyStashPricePayload = CardPricePayload & {
+  rarity: 0;
+};
+
+function parseVersion(version: string | null): [number, number, number] | null {
+  if (!version) return null;
+
+  const match = version.match(/^(\d+)\.(\d+)\.(\d+)/);
+  if (!match) return null;
+
+  return [Number(match[1]), Number(match[2]), Number(match[3])];
+}
+
+function isAtLeastVersion(version: string | null, minimum: string): boolean {
+  const parsed = parseVersion(version);
+  const minimumParsed = parseVersion(minimum);
+  if (!parsed || !minimumParsed) return false;
+
+  for (let i = 0; i < parsed.length; i++) {
+    if (parsed[i] > minimumParsed[i]) return true;
+    if (parsed[i] < minimumParsed[i]) return false;
+  }
+
+  return true;
+}
+
 Deno.serve(async (req: Request) => {
   const authResult = await authorize({
     req,
@@ -56,7 +90,7 @@ Deno.serve(async (req: Request) => {
   const { data: snapshot, error: snapshotError } = await supabase
     .from("snapshots")
     .select(
-      "id, league_id, fetched_at, exchange_chaos_to_divine, stash_chaos_to_divine, stacked_deck_chaos_cost, stacked_deck_max_volume_rate",
+      "id, league_id, fetched_at, exchange_chaos_to_divine, stacked_deck_chaos_cost, stacked_deck_max_volume_rate",
     )
     .eq("league_id", league.id)
     .order("fetched_at", { ascending: false })
@@ -71,16 +105,18 @@ Deno.serve(async (req: Request) => {
 
   const { data: cardPrices, error: pricesError } = await supabase
     .from("card_prices")
-    .select(
-      "card_id, cards(name), price_source, chaos_value, divine_value, confidence",
-    )
+    .select("card_id, cards(name), chaos_value, divine_value, confidence")
     .eq("snapshot_id", snapshot.id);
 
-  if (pricesError)
-    return responseJson({ status: 500, body: { error: pricesError.message } });
+  if (pricesError) {
+    console.error("Failed to fetch snapshot card prices", pricesError);
+    return responseJson({
+      status: 500,
+      body: { error: "Failed to fetch snapshot card prices" },
+    });
+  }
 
-  const exchangePrices: Record<string, any> = {};
-  const stashPrices: Record<string, any> = {};
+  const prices: Record<string, CardPricePayload> = {};
 
   for (const price of cardPrices ?? []) {
     const cardName = (price as any).cards?.name;
@@ -91,23 +127,58 @@ Deno.serve(async (req: Request) => {
       divineValue: price.divine_value,
       confidence: price.confidence ?? 1,
     };
-    if (price.price_source === "exchange") exchangePrices[cardName] = priceData;
-    else stashPrices[cardName] = priceData;
+    prices[cardName] = priceData;
+  }
+
+  const responseSnapshot = {
+    id: snapshot.id,
+    leagueId: snapshot.league_id,
+    fetchedAt: snapshot.fetched_at,
+    exchangeChaosToDivine: snapshot.exchange_chaos_to_divine,
+    stackedDeckChaosCost: snapshot.stacked_deck_chaos_cost ?? 0,
+    stackedDeckMaxVolumeRate: snapshot.stacked_deck_max_volume_rate ?? null,
+  };
+
+  const appVersion = req.headers.get("x-app-version");
+  const shouldReturnFlatResponse = isAtLeastVersion(
+    appVersion,
+    FLAT_RESPONSE_MIN_APP_VERSION,
+  );
+
+  if (!shouldReturnFlatResponse) {
+    const legacyStashPrices: Record<string, LegacyStashPricePayload> = {};
+
+    for (const [cardName, price] of Object.entries(prices)) {
+      legacyStashPrices[cardName] = {
+        ...price,
+        // Older clients derive rarity 0 from confidence=3; keep an explicit
+        // rarity field for compatibility with any direct response consumers.
+        confidence: 3,
+        rarity: 0,
+      };
+    }
+
+    return responseJson({
+      status: 200,
+      body: {
+        snapshot: {
+          ...responseSnapshot,
+          stashChaosToDivine: snapshot.exchange_chaos_to_divine,
+        },
+        cardPrices: {
+          exchange: prices,
+          stash: legacyStashPrices,
+        },
+      },
+      headers: { "Cache-Control": "private, max-age=14400" }, // 4 hours cache
+    });
   }
 
   return responseJson({
     status: 200,
     body: {
-      snapshot: {
-        id: snapshot.id,
-        leagueId: snapshot.league_id,
-        fetchedAt: snapshot.fetched_at,
-        exchangeChaosToDivine: snapshot.exchange_chaos_to_divine,
-        stashChaosToDivine: snapshot.stash_chaos_to_divine,
-        stackedDeckChaosCost: snapshot.stacked_deck_chaos_cost ?? 0,
-        stackedDeckMaxVolumeRate: snapshot.stacked_deck_max_volume_rate ?? null,
-      },
-      cardPrices: { exchange: exchangePrices, stash: stashPrices },
+      snapshot: responseSnapshot,
+      cardPrices: prices,
     },
     headers: { "Cache-Control": "private, max-age=14400" }, // 4 hours cache
   });

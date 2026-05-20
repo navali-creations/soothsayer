@@ -47,9 +47,7 @@ interface SeedSnapshotOptions {
   /** ISO timestamp of when the snapshot was fetched. Defaults to now. */
   fetchedAt?: string;
   /** Chaos-to-divine exchange ratio. Defaults to `150`. */
-  exchangeChaosToDivine?: number;
-  /** Stash chaos-to-divine ratio. Defaults to `150`. */
-  stashChaosToDivine?: number;
+  chaosToDivineRatio?: number;
   /** Stacked deck chaos cost. Defaults to `1`. */
   stackedDeckChaosCost?: number;
 }
@@ -70,7 +68,6 @@ export interface SeedCardRarityOptions {
 interface SeedSnapshotCardPriceOptions {
   snapshotId: string;
   cardName: string;
-  priceSource?: "exchange" | "stash";
   chaosValue?: number;
   divineValue?: number;
   confidence?: number;
@@ -254,8 +251,7 @@ export async function seedSnapshot(
     id = "e2e-snapshot-001",
     leagueId = "poe1_standard",
     fetchedAt = new Date().toISOString(),
-    exchangeChaosToDivine = 150,
-    stashChaosToDivine = 150,
+    chaosToDivineRatio = 150,
     stackedDeckChaosCost = 1,
   } = options;
 
@@ -286,18 +282,11 @@ export async function seedSnapshot(
   await dbExec(
     page,
     `INSERT OR IGNORE INTO snapshots
-       (id, league_id, fetched_at, exchange_chaos_to_divine,
-        stash_chaos_to_divine, stacked_deck_chaos_cost,
+       (id, league_id, fetched_at, chaos_to_divine_ratio,
+        stacked_deck_chaos_cost,
         stacked_deck_max_volume_rate)
-     VALUES (?, ?, ?, ?, ?, ?, NULL)`,
-    [
-      id,
-      leagueId,
-      fetchedAt,
-      exchangeChaosToDivine,
-      stashChaosToDivine,
-      stackedDeckChaosCost,
-    ],
+     VALUES (?, ?, ?, ?, ?, NULL)`,
+    [id, leagueId, fetchedAt, chaosToDivineRatio, stackedDeckChaosCost],
   );
 
   return id;
@@ -316,12 +305,11 @@ export async function seedSnapshotCardPrices(
     await dbExec(
       page,
       `INSERT OR IGNORE INTO snapshot_card_prices
-         (snapshot_id, card_name, price_source, chaos_value, divine_value, confidence)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+         (snapshot_id, card_name, chaos_value, divine_value, confidence)
+       VALUES (?, ?, ?, ?, ?)`,
       [
         p.snapshotId,
         p.cardName,
-        p.priceSource ?? "exchange",
         p.chaosValue ?? 10,
         p.divineValue ?? 0.07,
         p.confidence ?? 1,
@@ -435,7 +423,7 @@ export async function seedSessionPrerequisites(
       chaosValue: 0.2,
       divineValue: 0.001,
     },
-    // Low confidence cards (confidence=3) — stash-only pricing, no exchange data.
+    // Low confidence exchange-priced cards (confidence=3).
     // These ensure the "Hide low confidence prices" checkbox renders in the UI.
     {
       snapshotId,
@@ -596,8 +584,8 @@ async function injectCardDrop(
   // 1. Upsert into session_cards (mirrors CurrentSessionRepository.incrementCardCount)
   await dbExec(
     page,
-    `INSERT INTO session_cards (session_id, card_name, count, first_seen_at, last_seen_at, hide_price_exchange, hide_price_stash)
-     VALUES (?, ?, 1, ?, ?, 0, 0)
+    `INSERT INTO session_cards (session_id, card_name, count, first_seen_at, last_seen_at)
+     VALUES (?, ?, 1, ?, ?)
      ON CONFLICT(session_id, card_name) DO UPDATE SET
        count = count + 1,
        last_seen_at = ?`,

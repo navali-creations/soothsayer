@@ -49,7 +49,6 @@ export const createOverlaySlice: StateCreator<
       totalCount: 0,
       totalProfit: 0,
       chaosToDivineRatio: 0,
-      priceSource: "exchange",
       cards: [],
       recentDrops: [],
       isActive: false,

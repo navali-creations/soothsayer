@@ -257,7 +257,6 @@ describe("StorageService", () => {
         cardPrices: [
           {
             cardName: "The Doctor",
-            priceSource: "exchange",
             chaosValue: 1200,
             divineValue: 6,
           },
@@ -694,13 +693,11 @@ describe("StorageService", () => {
         cardPrices: [
           {
             cardName: "The Doctor",
-            priceSource: "exchange",
             chaosValue: 1200,
             divineValue: 6,
           },
           {
             cardName: "Rain of Chaos",
-            priceSource: "stash",
             chaosValue: 2,
             divineValue: 0.01,
           },
@@ -1249,11 +1246,10 @@ describe("StorageService", () => {
         CREATE TABLE snapshot_card_prices (
           snapshot_id TEXT NOT NULL,
           card_name TEXT NOT NULL,
-          price_source TEXT NOT NULL CHECK (price_source IN ('exchange', 'stash')),
           chaos_value REAL NOT NULL,
           divine_value REAL NOT NULL,
           confidence INTEGER NOT NULL DEFAULT 1,
-          PRIMARY KEY (snapshot_id, card_name, price_source)
+          PRIMARY KEY (snapshot_id, card_name)
         )
       `);
     });
@@ -2295,13 +2291,11 @@ describe("StorageService", () => {
         cardPrices: [
           {
             cardName: "The Doctor",
-            priceSource: "exchange",
             chaosValue: 1200,
             divineValue: 6,
           },
           {
             cardName: "Rain of Chaos",
-            priceSource: "exchange",
             chaosValue: 2,
             divineValue: 0.01,
           },
@@ -2312,7 +2306,6 @@ describe("StorageService", () => {
         cardPrices: [
           {
             cardName: "The Doctor",
-            priceSource: "stash",
             chaosValue: 1100,
             divineValue: 5.5,
           },

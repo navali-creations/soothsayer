@@ -14,10 +14,8 @@ export interface UserSettingsDTO {
   overlayBounds: { x: number; y: number; width: number; height: number } | null;
   poe1ClientTxtPath: string | null;
   poe1SelectedLeague: string;
-  poe1PriceSource: "exchange" | "stash";
   poe2ClientTxtPath: string | null;
   poe2SelectedLeague: string;
-  poe2PriceSource: "exchange" | "stash";
   selectedGame: "poe1" | "poe2";
   installedGames: ("poe1" | "poe2")[];
   setupCompleted: boolean;
@@ -68,7 +66,6 @@ export interface AppSettingsDTO {
 export interface Poe1SettingsDTO {
   clientTxtPath: string | null;
   selectedLeague: string;
-  priceSource: "exchange" | "stash";
 }
 
 /**
@@ -77,7 +74,6 @@ export interface Poe1SettingsDTO {
 export interface Poe2SettingsDTO {
   clientTxtPath: string | null;
   selectedLeague: string;
-  priceSource: "exchange" | "stash";
 }
 
 /**

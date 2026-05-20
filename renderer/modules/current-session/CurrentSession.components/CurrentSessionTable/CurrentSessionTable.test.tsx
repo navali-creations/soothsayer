@@ -40,10 +40,7 @@ function createMockStore(overrides: any = {}) {
       getSession: vi.fn(() => ({ cards: [] })),
       ...overrides.currentSession,
     },
-    settings: {
-      getActiveGameViewPriceSource: vi.fn(() => "exchange"),
-      ...overrides.settings,
-    },
+    settings: { ...overrides.settings },
   } as any;
 }
 

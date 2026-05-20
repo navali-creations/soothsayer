@@ -1,4 +1,4 @@
-import { vi } from "vitest";
+import { beforeEach, vi } from "vitest";
 
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
 import { useBoundStore } from "~/renderer/store";
@@ -37,13 +37,13 @@ vi.mock("~/renderer/hooks/usePopover/usePopover", async () => {
   return createPopoverMock();
 });
 
-// ─── Mocked store setup ───────────────────────────────────────────────────
-
-const mockUseBoundStore = vi.mocked(useBoundStore);
-
 // ─── Import component after mocks ─────────────────────────────────────────
 
 import CardNameCell from "./CardNameCell";
+
+// ─── Mocked store setup ───────────────────────────────────────────────────
+
+const mockUseBoundStore = vi.mocked(useBoundStore);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -58,19 +58,15 @@ function createCellContext(original: Record<string, any>, value?: any) {
   } as any;
 }
 
-function setupStore(priceSource: "exchange" | "stash" = "exchange") {
-  mockUseBoundStore.mockReturnValue({
-    settings: {
-      getActiveGameViewPriceSource: () => priceSource,
-    },
-  } as any);
+function setupStore() {
+  mockUseBoundStore.mockReturnValue({} as any);
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────
 
 describe("CardNameCell", () => {
   beforeEach(() => {
-    setupStore("exchange");
+    setupStore();
   });
 
   it("renders CardNameLink with card name", () => {
@@ -112,30 +108,11 @@ describe("CardNameCell", () => {
     expect(span).toHaveClass("cursor-help");
   });
 
-  it("exchange price source (default): reads hidePrice from exchangePrice", () => {
-    setupStore("exchange");
-
+  it("reads hidePrice from card price", () => {
     const ctx = createCellContext({
       name: "The Doctor",
       count: 1,
-      exchangePrice: { hidePrice: true, chaosValue: 100 },
-      stashPrice: { hidePrice: false, chaosValue: 50 },
-    });
-
-    renderWithProviders(<CardNameCell {...ctx} />);
-
-    const link = screen.getByTestId("card-name-link");
-    expect(link).toHaveClass("opacity-50", "line-through");
-  });
-
-  it("stash price source: reads hidePrice from stashPrice", () => {
-    setupStore("stash");
-
-    const ctx = createCellContext({
-      name: "The Doctor",
-      count: 1,
-      exchangePrice: { hidePrice: false, chaosValue: 100 },
-      stashPrice: { hidePrice: true, chaosValue: 50 },
+      price: { hidePrice: true, chaosValue: 100 },
     });
 
     renderWithProviders(<CardNameCell {...ctx} />);
@@ -148,7 +125,7 @@ describe("CardNameCell", () => {
     const ctx = createCellContext({
       name: "The Wretched",
       count: 2,
-      exchangePrice: { hidePrice: true, chaosValue: 10 },
+      price: { hidePrice: true, chaosValue: 10 },
     });
 
     renderWithProviders(<CardNameCell {...ctx} />);
@@ -162,7 +139,7 @@ describe("CardNameCell", () => {
     const ctx = createCellContext({
       name: "House of Mirrors",
       count: 1,
-      exchangePrice: { hidePrice: false, chaosValue: 500 },
+      price: { hidePrice: false, chaosValue: 500 },
     });
 
     renderWithProviders(<CardNameCell {...ctx} />);
@@ -177,7 +154,6 @@ describe("CardNameCell", () => {
     const ctx = createCellContext({
       name: "The Nurse",
       count: 1,
-      // No exchangePrice or stashPrice
     });
 
     renderWithProviders(<CardNameCell {...ctx} />);

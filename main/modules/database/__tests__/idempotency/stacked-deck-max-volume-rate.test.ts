@@ -58,8 +58,8 @@ describe("stacked_deck_max_volume_rate migration idempotency", () => {
     );
 
     db.prepare(
-      "INSERT INTO snapshots (id, league_id, fetched_at, exchange_chaos_to_divine, stash_chaos_to_divine, stacked_deck_chaos_cost, stacked_deck_max_volume_rate) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    ).run("snap-1", "league-1", "2026-01-01T00:00:00Z", 150, 145, 3.5, 42);
+      "INSERT INTO snapshots (id, league_id, fetched_at, chaos_to_divine_ratio, stacked_deck_chaos_cost, stacked_deck_max_volume_rate) VALUES (?, ?, ?, ?, ?, ?)",
+    ).run("snap-1", "league-1", "2026-01-01T00:00:00Z", 150, 3.5, 42);
 
     migration_20260227_182400_add_stacked_deck_max_volume_rate.down(db);
 

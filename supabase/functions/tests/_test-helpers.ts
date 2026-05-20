@@ -524,7 +524,6 @@ export function mockSnapshot(overrides: Record<string, unknown> = {}) {
     league_id: "league-uuid-001",
     fetched_at: "2024-12-15T12:00:00Z",
     exchange_chaos_to_divine: 150,
-    stash_chaos_to_divine: 148,
     stacked_deck_chaos_cost: 1.5,
     created_at: "2024-12-15T12:00:00Z",
     ...overrides,
@@ -540,7 +539,6 @@ export function mockCardPrices(
   return [
     {
       cards: { name: "The Doctor" },
-      price_source: "exchange",
       chaos_value: 1200,
       divine_value: 8.0,
       confidence: 1,
@@ -548,26 +546,9 @@ export function mockCardPrices(
     },
     {
       cards: { name: "House of Mirrors" },
-      price_source: "exchange",
       chaos_value: 3000,
       divine_value: 20.0,
       confidence: 1,
-      snapshot_id: snapshotId,
-    },
-    {
-      cards: { name: "The Doctor" },
-      price_source: "stash",
-      chaos_value: 1180,
-      divine_value: 7.9,
-      confidence: 2,
-      snapshot_id: snapshotId,
-    },
-    {
-      cards: { name: "Rain of Chaos" },
-      price_source: "stash",
-      chaos_value: 0.5,
-      divine_value: 0.0,
-      confidence: 3,
       snapshot_id: snapshotId,
     },
   ];

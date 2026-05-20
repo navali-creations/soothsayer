@@ -3,8 +3,6 @@ import { useBoundStore } from "~/renderer/store";
 
 import CurrentSessionMostValuableStat from "./CurrentSessionMostValueableCardStat";
 
-// ─── Mocks ─────────────────────────────────────────────────────────────────
-
 vi.mock("~/renderer/store", async () => {
   const { createStoreMock } = await import(
     "~/renderer/__test-setup__/store-mock"
@@ -54,340 +52,159 @@ vi.mock("~/renderer/components/CardNameLink/CardNameLink", () => ({
 
 const mockUseBoundStore = vi.mocked(useBoundStore);
 
-// ─── Helpers ───────────────────────────────────────────────────────────────
-
-function setupSelectorStore(overrides: any = {}) {
+function setupStore(overrides: any = {}) {
   const state = {
     currentSession: {
-      getSession: () => overrides.session ?? null,
+      getSession: vi.fn(() => overrides.session ?? null),
     },
     settings: {
-      getActiveGameViewPriceSource: () => overrides.priceSource ?? "exchange",
+      ...overrides.settings,
     },
   } as any;
-
-  mockUseBoundStore.mockImplementation((selector?: any) => {
-    return selector ? selector(state) : state;
-  });
-
+  mockUseBoundStore.mockImplementation((selector?: any) =>
+    selector ? selector(state) : state,
+  );
   return state;
 }
 
 function createSession(overrides: any = {}) {
   return {
-    totalCount: overrides.totalCount ?? 10,
-    cards: overrides.cards ?? [],
-    priceSnapshot: overrides.priceSnapshot ?? {
+    cards: [
+      {
+        name: "Rain of Chaos",
+        count: 3,
+        price: { chaosValue: 2, hidePrice: false },
+      },
+      {
+        name: "The Doctor",
+        count: 1,
+        price: { chaosValue: 500, hidePrice: false },
+      },
+    ],
+    priceSnapshot: {
       timestamp: "2024-06-15T12:00:00.000Z",
-      stash: { chaosToDivineRatio: 200 },
-      exchange: { chaosToDivineRatio: 220 },
-    },
-    totals: overrides.totals ?? {
-      exchange: {
-        chaosToDivineRatio: 220,
-        totalValue: 500,
-        netProfit: 300,
-      },
-      stash: {
-        chaosToDivineRatio: 200,
-        totalValue: 480,
-        netProfit: 280,
-      },
-      totalDeckCost: 200,
+      chaosToDivineRatio: 200,
+      cardPrices: {},
     },
     ...overrides,
   };
 }
-
-function createCard(overrides: any = {}) {
-  return {
-    name: overrides.name ?? "The Doctor",
-    count: overrides.count ?? 1,
-    stashPrice: {
-      chaosValue: overrides.stashChaos ?? 100,
-      hidePrice: overrides.stashHide ?? false,
-    },
-    exchangePrice: {
-      chaosValue: overrides.exchangeChaos ?? 120,
-      hidePrice: overrides.exchangeHide ?? false,
-    },
-    ...overrides,
-  };
-}
-
-// ─── Tests ─────────────────────────────────────────────────────────────────
 
 describe("CurrentSessionMostValuableStat", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it('renders "Most Valuable" title', () => {
-    setupSelectorStore({ session: null });
+  it("shows the highest visible single-card price", () => {
+    setupStore({ session: createSession() });
+
     renderWithProviders(<CurrentSessionMostValuableStat />);
 
     expect(screen.getByText("Most Valuable")).toBeInTheDocument();
+    expect(screen.getByText("2.50d")).toBeInTheDocument();
+    expect(screen.getByText("The Doctor")).toBeInTheDocument();
   });
 
-  it('shows "—" when session is null', () => {
-    setupSelectorStore({ session: null });
+  it("shows dash values when there is no current session", () => {
+    setupStore({ session: null });
+
     renderWithProviders(<CurrentSessionMostValuableStat />);
 
-    const value = screen.getByTestId("stat-value");
-    expect(value).toHaveTextContent("—");
-  });
-
-  it('shows "No pricing data" when session has no priceSnapshot', () => {
-    setupSelectorStore({
-      session: createSession({ priceSnapshot: null, cards: [] }),
-    });
-    renderWithProviders(<CurrentSessionMostValuableStat />);
-
+    expect(screen.getByText("Most Valuable")).toBeInTheDocument();
+    expect(screen.getByText("—")).toBeInTheDocument();
     expect(screen.getByText("No pricing data")).toBeInTheDocument();
   });
 
-  it('shows "—" value when there are no cards even with snapshot', () => {
-    setupSelectorStore({
-      session: createSession({ cards: [] }),
-    });
+  it("shows dash values when the session has no cards", () => {
+    setupStore({ session: createSession({ cards: [] }) });
+
     renderWithProviders(<CurrentSessionMostValuableStat />);
 
-    const value = screen.getByTestId("stat-value");
-    expect(value).toHaveTextContent("—");
+    expect(screen.getAllByText("—")).toHaveLength(2);
   });
 
-  it("finds the most valuable card by chaosValue (exchange)", () => {
-    setupSelectorStore({
+  it("ignores hidden card prices", () => {
+    setupStore({
       session: createSession({
         cards: [
-          createCard({ name: "Rain of Chaos", exchangeChaos: 5 }),
-          createCard({ name: "The Doctor", exchangeChaos: 5000 }),
-          createCard({ name: "Humility", exchangeChaos: 10 }),
-        ],
-      }),
-      priceSource: "exchange",
-    });
-    renderWithProviders(<CurrentSessionMostValuableStat />);
-
-    expect(screen.getByTestId("card-name-link")).toHaveTextContent(
-      "The Doctor",
-    );
-  });
-
-  it("finds the most valuable card by chaosValue (stash)", () => {
-    setupSelectorStore({
-      session: createSession({
-        cards: [
-          createCard({ name: "Rain of Chaos", stashChaos: 3 }),
-          createCard({ name: "House of Mirrors", stashChaos: 8000 }),
-          createCard({ name: "The Doctor", stashChaos: 4500 }),
-        ],
-      }),
-      priceSource: "stash",
-    });
-    renderWithProviders(<CurrentSessionMostValuableStat />);
-
-    expect(screen.getByTestId("card-name-link")).toHaveTextContent(
-      "House of Mirrors",
-    );
-  });
-
-  it("filters out cards with hidePrice flag (exchange)", () => {
-    setupSelectorStore({
-      session: createSession({
-        cards: [
-          createCard({
-            name: "Hidden Expensive Card",
-            exchangeChaos: 9999,
-            exchangeHide: true,
-          }),
-          createCard({
+          {
+            name: "Hidden Card",
+            count: 1,
+            price: { chaosValue: 5000, hidePrice: true },
+          },
+          {
             name: "Visible Card",
-            exchangeChaos: 50,
-            exchangeHide: false,
-          }),
-        ],
-      }),
-      priceSource: "exchange",
-    });
-    renderWithProviders(<CurrentSessionMostValuableStat />);
-
-    expect(screen.getByTestId("card-name-link")).toHaveTextContent(
-      "Visible Card",
-    );
-  });
-
-  it("filters out cards with hidePrice flag (stash)", () => {
-    setupSelectorStore({
-      session: createSession({
-        cards: [
-          createCard({
-            name: "Hidden Stash Card",
-            stashChaos: 9999,
-            stashHide: true,
-          }),
-          createCard({
-            name: "Visible Stash Card",
-            stashChaos: 30,
-            stashHide: false,
-          }),
-        ],
-      }),
-      priceSource: "stash",
-    });
-    renderWithProviders(<CurrentSessionMostValuableStat />);
-
-    expect(screen.getByTestId("card-name-link")).toHaveTextContent(
-      "Visible Stash Card",
-    );
-  });
-
-  it('shows "—" when all cards are hidden', () => {
-    setupSelectorStore({
-      session: createSession({
-        cards: [
-          createCard({
-            name: "Hidden1",
-            exchangeChaos: 100,
-            exchangeHide: true,
-          }),
-          createCard({
-            name: "Hidden2",
-            exchangeChaos: 200,
-            exchangeHide: true,
-          }),
-        ],
-      }),
-      priceSource: "exchange",
-    });
-    renderWithProviders(<CurrentSessionMostValuableStat />);
-
-    const value = screen.getByTestId("stat-value");
-    expect(value).toHaveTextContent("—");
-  });
-
-  it("displays value in divines when chaosValue >= chaosToDivineRatio", () => {
-    setupSelectorStore({
-      session: createSession({
-        cards: [createCard({ name: "Expensive", exchangeChaos: 500 })],
-        priceSnapshot: {
-          timestamp: "2024-06-15T12:00:00.000Z",
-          stash: { chaosToDivineRatio: 200 },
-          exchange: { chaosToDivineRatio: 220 },
-        },
-      }),
-      priceSource: "exchange",
-    });
-    renderWithProviders(<CurrentSessionMostValuableStat />);
-
-    const numbers = screen.getAllByTestId("animated-number");
-    // 500 / 220 ≈ 2.27 → displayed with "d" suffix
-    const divineValue = numbers.find((el) => el.textContent?.includes("d"));
-    expect(divineValue).toBeDefined();
-  });
-
-  it("displays value in chaos when chaosValue < chaosToDivineRatio", () => {
-    setupSelectorStore({
-      session: createSession({
-        cards: [createCard({ name: "Cheap", exchangeChaos: 50 })],
-        priceSnapshot: {
-          timestamp: "2024-06-15T12:00:00.000Z",
-          stash: { chaosToDivineRatio: 200 },
-          exchange: { chaosToDivineRatio: 220 },
-        },
-      }),
-      priceSource: "exchange",
-    });
-    renderWithProviders(<CurrentSessionMostValuableStat />);
-
-    const numbers = screen.getAllByTestId("animated-number");
-    const chaosValue = numbers.find((el) => el.textContent?.includes("c"));
-    expect(chaosValue).toBeDefined();
-  });
-
-  // ── Price extraction fallback (L41-42) ─────────────────────────────────
-
-  it("defaults currentPrice to 0 when priceInfo is undefined (exchange)", () => {
-    setupSelectorStore({
-      session: createSession({
-        cards: [
-          {
-            name: "No Price Card",
             count: 1,
-            stashPrice: undefined,
-            exchangePrice: undefined,
+            price: { chaosValue: 30, hidePrice: false },
           },
         ],
       }),
-      priceSource: "exchange",
     });
+
     renderWithProviders(<CurrentSessionMostValuableStat />);
 
-    // Card passes filter (hidePrice is undefined → !undefined is true),
-    // so mostValuableCard is set with chaosValue defaulting to 0 → renders "0.00c"
-    const value = screen.getByTestId("stat-value");
-    expect(value).toHaveTextContent("0.00c");
+    expect(screen.getByText("30.00c")).toBeInTheDocument();
+    expect(screen.getByText("Visible Card")).toBeInTheDocument();
   });
 
-  it("defaults currentPrice to 0 when chaosValue is missing from priceInfo", () => {
-    setupSelectorStore({
+  it("shows dash values when every card price is hidden", () => {
+    setupStore({
       session: createSession({
         cards: [
           {
-            name: "Partial Price Card",
+            name: "Hidden Card",
             count: 1,
-            stashPrice: { chaosValue: undefined, hidePrice: false },
-            exchangePrice: { chaosValue: undefined, hidePrice: false },
+            price: { chaosValue: 5000, hidePrice: true },
           },
         ],
       }),
-      priceSource: "exchange",
     });
+
     renderWithProviders(<CurrentSessionMostValuableStat />);
 
-    // Card passes filter with chaosValue defaulting to 0 → renders "0.00c"
-    const value = screen.getByTestId("stat-value");
-    expect(value).toHaveTextContent("0.00c");
+    expect(screen.getAllByText("—")).toHaveLength(2);
   });
 
-  // ── Stash chaosToDivineRatio fallback (L57) ────────────────────────────
-
-  it("defaults chaosToDivineRatio to 0 when stash snapshot is missing", () => {
-    setupSelectorStore({
+  it("displays chaos when the most valuable card is below the divine ratio", () => {
+    setupStore({
       session: createSession({
-        cards: [createCard({ name: "The Doctor", stashChaos: 500 })],
-        priceSnapshot: {
-          timestamp: "2024-06-15T12:00:00.000Z",
-          stash: undefined,
-          exchange: { chaosToDivineRatio: 220 },
-        },
+        cards: [
+          {
+            name: "Small Card",
+            count: 1,
+            price: { chaosValue: 50, hidePrice: false },
+          },
+        ],
       }),
-      priceSource: "stash",
     });
+
     renderWithProviders(<CurrentSessionMostValuableStat />);
 
-    // With chaosToDivineRatio defaulting to 0, chaosValue (500) >= 0,
-    // so it should display in divines path
-    const numbers = screen.getAllByTestId("animated-number");
-    expect(numbers.length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("50.00c")).toBeInTheDocument();
+    expect(screen.getByText("Small Card")).toBeInTheDocument();
   });
 
-  it("defaults chaosToDivineRatio to 0 when priceSnapshot is present but ratio is null", () => {
-    setupSelectorStore({
+  it("falls back to chaos display when the divine ratio is unavailable", () => {
+    setupStore({
       session: createSession({
-        cards: [createCard({ name: "The Doctor", exchangeChaos: 500 })],
         priceSnapshot: {
           timestamp: "2024-06-15T12:00:00.000Z",
-          stash: { chaosToDivineRatio: 200 },
-          exchange: { chaosToDivineRatio: null },
+          chaosToDivineRatio: 0,
+          cardPrices: {},
         },
       }),
-      priceSource: "exchange",
     });
+
     renderWithProviders(<CurrentSessionMostValuableStat />);
 
-    // chaosToDivineRatio falls back to 0, so 500 >= 0 → divines display
-    const numbers = screen.getAllByTestId("animated-number");
-    expect(numbers.length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("500.00c")).toBeInTheDocument();
+  });
+
+  it("shows no pricing data without a snapshot", () => {
+    setupStore({ session: createSession({ priceSnapshot: null }) });
+
+    renderWithProviders(<CurrentSessionMostValuableStat />);
+
+    expect(screen.getByText("No pricing data")).toBeInTheDocument();
   });
 });

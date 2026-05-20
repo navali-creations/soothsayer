@@ -32,10 +32,6 @@ const {
   mockRepositorySetPoe1SelectedLeague,
   mockRepositoryGetPoe2SelectedLeague,
   mockRepositorySetPoe2SelectedLeague,
-  mockRepositoryGetPoe1PriceSource,
-  mockRepositorySetPoe1PriceSource,
-  mockRepositoryGetPoe2PriceSource,
-  mockRepositorySetPoe2PriceSource,
   mockRepositoryGet,
   mockRepositorySet,
   mockRepositoryGetAll,
@@ -88,10 +84,6 @@ const {
     mockRepositorySetPoe1SelectedLeague: vi.fn().mockResolvedValue(undefined),
     mockRepositoryGetPoe2SelectedLeague: vi.fn().mockResolvedValue(""),
     mockRepositorySetPoe2SelectedLeague: vi.fn().mockResolvedValue(undefined),
-    mockRepositoryGetPoe1PriceSource: vi.fn().mockResolvedValue("exchange"),
-    mockRepositorySetPoe1PriceSource: vi.fn().mockResolvedValue(undefined),
-    mockRepositoryGetPoe2PriceSource: vi.fn().mockResolvedValue("exchange"),
-    mockRepositorySetPoe2PriceSource: vi.fn().mockResolvedValue(undefined),
     mockRepositoryGet: vi.fn().mockResolvedValue(null),
     mockRepositorySet: vi.fn().mockResolvedValue(undefined),
     mockRepositoryGetAll: vi.fn().mockResolvedValue({
@@ -102,10 +94,8 @@ const {
       overlayBounds: null,
       poe1ClientTxtPath: null,
       poe1SelectedLeague: "",
-      poe1PriceSource: "exchange",
       poe2ClientTxtPath: null,
       poe2SelectedLeague: "",
-      poe2PriceSource: "exchange",
       selectedGame: "poe1",
       installedGames: ["poe1"],
       setupCompleted: false,
@@ -240,10 +230,6 @@ vi.mock("../SettingsStore.repository", () => ({
     setPoe1SelectedLeague = mockRepositorySetPoe1SelectedLeague;
     getPoe2SelectedLeague = mockRepositoryGetPoe2SelectedLeague;
     setPoe2SelectedLeague = mockRepositorySetPoe2SelectedLeague;
-    getPoe1PriceSource = mockRepositoryGetPoe1PriceSource;
-    setPoe1PriceSource = mockRepositorySetPoe1PriceSource;
-    getPoe2PriceSource = mockRepositoryGetPoe2PriceSource;
-    setPoe2PriceSource = mockRepositorySetPoe2PriceSource;
   },
 }));
 
@@ -290,8 +276,6 @@ describe("SettingsStoreService — IPC handlers", () => {
     mockRepositoryGetInstalledGames.mockResolvedValue(["poe1"]);
     mockRepositoryGetPoe1SelectedLeague.mockResolvedValue("");
     mockRepositoryGetPoe2SelectedLeague.mockResolvedValue("");
-    mockRepositoryGetPoe1PriceSource.mockResolvedValue("exchange");
-    mockRepositoryGetPoe2PriceSource.mockResolvedValue("exchange");
     mockRepositoryGet.mockResolvedValue(null);
     mockRepositorySet.mockResolvedValue(undefined);
     mockGetFocusedWindow.mockReturnValue(null);
@@ -341,10 +325,6 @@ describe("SettingsStoreService — IPC handlers", () => {
         SettingsStoreChannel.SetSelectedPoe1League,
         SettingsStoreChannel.GetSelectedPoe2League,
         SettingsStoreChannel.SetSelectedPoe2League,
-        SettingsStoreChannel.GetSelectedPoe1PriceSource,
-        SettingsStoreChannel.SetSelectedPoe1PriceSource,
-        SettingsStoreChannel.GetSelectedPoe2PriceSource,
-        SettingsStoreChannel.SetSelectedPoe2PriceSource,
         SettingsStoreChannel.ScanCustomSounds,
         SettingsStoreChannel.GetCustomSoundData,
         SettingsStoreChannel.OpenCustomSoundsFolder,
@@ -732,61 +712,6 @@ describe("SettingsStoreService — IPC handlers", () => {
         "poe2SelectedLeague",
         "Standard",
       );
-    });
-
-    // ── price source ──
-
-    it("should accept 'exchange' for poe1PriceSource", async () => {
-      await setSetting({ sender: { id: 1 } }, "poe1PriceSource", "exchange");
-
-      expect(mockRepositorySet).toHaveBeenCalledWith(
-        "poe1PriceSource",
-        "exchange",
-      );
-    });
-
-    it("should accept 'stash' for poe1PriceSource", async () => {
-      await setSetting({ sender: { id: 1 } }, "poe1PriceSource", "stash");
-
-      expect(mockRepositorySet).toHaveBeenCalledWith(
-        "poe1PriceSource",
-        "stash",
-      );
-    });
-
-    it("should reject invalid value for poe1PriceSource", async () => {
-      const result = await setSetting(
-        { sender: { id: 1 } },
-        "poe1PriceSource",
-        "market",
-      );
-
-      expect(result).toEqual({
-        success: false,
-        error: expect.stringContaining("Invalid input"),
-      });
-    });
-
-    it("should accept 'exchange' for poe2PriceSource", async () => {
-      await setSetting({ sender: { id: 1 } }, "poe2PriceSource", "exchange");
-
-      expect(mockRepositorySet).toHaveBeenCalledWith(
-        "poe2PriceSource",
-        "exchange",
-      );
-    });
-
-    it("should reject invalid value for poe2PriceSource", async () => {
-      const result = await setSetting(
-        { sender: { id: 1 } },
-        "poe2PriceSource",
-        "auction",
-      );
-
-      expect(result).toEqual({
-        success: false,
-        error: expect.stringContaining("Invalid input"),
-      });
     });
 
     // ── setupStep ──
@@ -1773,26 +1698,6 @@ describe("SettingsStoreService — IPC handlers", () => {
 
       expect(result).toBe("Standard");
     });
-
-    it("GetSelectedPoe1PriceSource should return the source", async () => {
-      mockRepositoryGetPoe1PriceSource.mockResolvedValue("stash");
-      const result = await getIpcHandler(
-        mockIpcHandle,
-        SettingsStoreChannel.GetSelectedPoe1PriceSource,
-      )({});
-
-      expect(result).toBe("stash");
-    });
-
-    it("GetSelectedPoe2PriceSource should return the source", async () => {
-      mockRepositoryGetPoe2PriceSource.mockResolvedValue("exchange");
-      const result = await getIpcHandler(
-        mockIpcHandle,
-        SettingsStoreChannel.GetSelectedPoe2PriceSource,
-      )({});
-
-      expect(result).toBe("exchange");
-    });
   });
 
   // ─── Individual typed setter handlers ─────────────────────────────────
@@ -2090,70 +1995,6 @@ describe("SettingsStoreService — IPC handlers", () => {
         error: expect.stringContaining("Invalid input"),
       });
     });
-
-    // ── SetSelectedPoe1PriceSource ──
-
-    it("should set poe1 price source to 'exchange'", async () => {
-      await getIpcHandler(
-        mockIpcHandle,
-        SettingsStoreChannel.SetSelectedPoe1PriceSource,
-      )({}, "exchange");
-
-      expect(mockRepositorySetPoe1PriceSource).toHaveBeenCalledWith("exchange");
-    });
-
-    it("should set poe1 price source to 'stash'", async () => {
-      await getIpcHandler(
-        mockIpcHandle,
-        SettingsStoreChannel.SetSelectedPoe1PriceSource,
-      )({}, "stash");
-
-      expect(mockRepositorySetPoe1PriceSource).toHaveBeenCalledWith("stash");
-    });
-
-    it("should reject invalid poe1 price source", async () => {
-      const result = await getIpcHandler(
-        mockIpcHandle,
-        SettingsStoreChannel.SetSelectedPoe1PriceSource,
-      )({}, "market");
-
-      expect(result).toEqual({
-        success: false,
-        error: expect.stringContaining("Invalid input"),
-      });
-    });
-
-    // ── SetSelectedPoe2PriceSource ──
-
-    it("should set poe2 price source to 'exchange'", async () => {
-      await getIpcHandler(
-        mockIpcHandle,
-        SettingsStoreChannel.SetSelectedPoe2PriceSource,
-      )({}, "exchange");
-
-      expect(mockRepositorySetPoe2PriceSource).toHaveBeenCalledWith("exchange");
-    });
-
-    it("should set poe2 price source to 'stash'", async () => {
-      await getIpcHandler(
-        mockIpcHandle,
-        SettingsStoreChannel.SetSelectedPoe2PriceSource,
-      )({}, "stash");
-
-      expect(mockRepositorySetPoe2PriceSource).toHaveBeenCalledWith("stash");
-    });
-
-    it("should reject invalid poe2 price source", async () => {
-      const result = await getIpcHandler(
-        mockIpcHandle,
-        SettingsStoreChannel.SetSelectedPoe2PriceSource,
-      )({}, "auction");
-
-      expect(result).toEqual({
-        success: false,
-        error: expect.stringContaining("Invalid input"),
-      });
-    });
   });
 
   // ─── ResetDatabase handler ────────────────────────────────────────────
@@ -2343,38 +2184,6 @@ describe("SettingsStoreService — IPC handlers", () => {
   // ─── Overlay settings broadcast ───────────────────────────────────────
 
   describe("overlay settings broadcast", () => {
-    it("should broadcast overlay:settings-changed when poe1PriceSource is set via generic handler", async () => {
-      await getIpcHandler(mockIpcHandle, SettingsStoreChannel.SetSetting)(
-        { sender: { id: 1 } },
-        SettingsKey.Poe1PriceSource,
-        "stash",
-      );
-
-      expect(mockRepositorySet).toHaveBeenCalledWith(
-        SettingsKey.Poe1PriceSource,
-        "stash",
-      );
-      expect(mockWebContentsSend).toHaveBeenCalledWith(
-        OverlayChannel.SettingsChanged,
-      );
-    });
-
-    it("should broadcast overlay:settings-changed when poe2PriceSource is set via generic handler", async () => {
-      await getIpcHandler(mockIpcHandle, SettingsStoreChannel.SetSetting)(
-        { sender: { id: 1 } },
-        SettingsKey.Poe2PriceSource,
-        "exchange",
-      );
-
-      expect(mockRepositorySet).toHaveBeenCalledWith(
-        SettingsKey.Poe2PriceSource,
-        "exchange",
-      );
-      expect(mockWebContentsSend).toHaveBeenCalledWith(
-        OverlayChannel.SettingsChanged,
-      );
-    });
-
     it("should broadcast overlay:settings-changed when selectedGame is set via generic handler", async () => {
       await getIpcHandler(mockIpcHandle, SettingsStoreChannel.SetSetting)(
         { sender: { id: 1 } },
@@ -2439,42 +2248,6 @@ describe("SettingsStoreService — IPC handlers", () => {
       );
     });
 
-    it("should broadcast overlay:settings-changed when poe1 price source is set via typed handler", async () => {
-      await getIpcHandler(
-        mockIpcHandle,
-        SettingsStoreChannel.SetSelectedPoe1PriceSource,
-      )({}, "stash");
-
-      expect(mockRepositorySetPoe1PriceSource).toHaveBeenCalledWith("stash");
-      expect(mockWebContentsSend).toHaveBeenCalledWith(
-        OverlayChannel.SettingsChanged,
-      );
-    });
-
-    it("should broadcast overlay:settings-changed when poe2 price source is set via typed handler", async () => {
-      await getIpcHandler(
-        mockIpcHandle,
-        SettingsStoreChannel.SetSelectedPoe2PriceSource,
-      )({}, "stash");
-
-      expect(mockRepositorySetPoe2PriceSource).toHaveBeenCalledWith("stash");
-      expect(mockWebContentsSend).toHaveBeenCalledWith(
-        OverlayChannel.SettingsChanged,
-      );
-    });
-
-    it("should NOT broadcast when typed price source handler rejects invalid input", async () => {
-      await getIpcHandler(
-        mockIpcHandle,
-        SettingsStoreChannel.SetSelectedPoe1PriceSource,
-      )({}, "invalid-source");
-
-      expect(mockRepositorySetPoe1PriceSource).not.toHaveBeenCalled();
-      expect(mockWebContentsSend).not.toHaveBeenCalledWith(
-        OverlayChannel.SettingsChanged,
-      );
-    });
-
     it("should broadcast to all non-destroyed windows", async () => {
       const send1 = vi.fn();
       const send2 = vi.fn();
@@ -2486,8 +2259,8 @@ describe("SettingsStoreService — IPC handlers", () => {
 
       await getIpcHandler(mockIpcHandle, SettingsStoreChannel.SetSetting)(
         { sender: { id: 1 } },
-        SettingsKey.Poe1PriceSource,
-        "exchange",
+        SettingsKey.ActiveGame,
+        "poe2",
       );
 
       expect(send1).toHaveBeenCalledWith(OverlayChannel.SettingsChanged);

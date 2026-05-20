@@ -6,7 +6,6 @@ import {
   assertCardName,
   assertGameType,
   assertLimit,
-  assertPriceSource,
   assertSessionId,
   handleValidationError,
 } from "~/main/utils/ipc-validation";
@@ -71,13 +70,7 @@ class AnalyticsService {
 
     ipcMain.handle(
       AnalyticsChannel.GetHighestValueCards,
-      async (
-        _event,
-        game: string,
-        league: string,
-        priceSource: string,
-        limit: number,
-      ) => {
+      async (_event, game: string, league: string, limit: number) => {
         try {
           assertGameType(game, AnalyticsChannel.GetHighestValueCards);
           assertBoundedString(
@@ -86,17 +79,11 @@ class AnalyticsService {
             AnalyticsChannel.GetHighestValueCards,
             256,
           );
-          assertPriceSource(priceSource, AnalyticsChannel.GetHighestValueCards);
           const validLimit = assertLimit(
             limit,
             AnalyticsChannel.GetHighestValueCards,
           );
-          return this.getHighestValueCards(
-            game,
-            league,
-            priceSource,
-            validLimit,
-          );
+          return this.getHighestValueCards(game, league, validLimit);
         } catch (error) {
           return handleValidationError(
             error,
@@ -108,13 +95,7 @@ class AnalyticsService {
 
     ipcMain.handle(
       AnalyticsChannel.GetCardPriceHistory,
-      async (
-        _event,
-        game: string,
-        league: string,
-        cardName: string,
-        priceSource: string,
-      ) => {
+      async (_event, game: string, league: string, cardName: string) => {
         try {
           assertGameType(game, AnalyticsChannel.GetCardPriceHistory);
           assertBoundedString(
@@ -124,8 +105,7 @@ class AnalyticsService {
             256,
           );
           assertCardName(cardName, AnalyticsChannel.GetCardPriceHistory);
-          assertPriceSource(priceSource, AnalyticsChannel.GetCardPriceHistory);
-          return this.getCardPriceHistory(game, league, cardName, priceSource);
+          return this.getCardPriceHistory(game, league, cardName);
         } catch (error) {
           return handleValidationError(
             error,
@@ -208,15 +188,9 @@ class AnalyticsService {
   public async getHighestValueCards(
     game: string,
     leagueName: string,
-    priceSource: "exchange" | "stash" = "exchange",
     limit = 10,
   ): Promise<CardPricePeak[]> {
-    return this.repository.getHighestValueCards(
-      game,
-      leagueName,
-      priceSource,
-      limit,
-    );
+    return this.repository.getHighestValueCards(game, leagueName, limit);
   }
 
   /**
@@ -226,14 +200,8 @@ class AnalyticsService {
     game: string,
     leagueName: string,
     cardName: string,
-    priceSource: "exchange" | "stash" = "exchange",
   ): Promise<CardPriceHistory[]> {
-    return this.repository.getCardPriceHistory(
-      game,
-      leagueName,
-      cardName,
-      priceSource,
-    );
+    return this.repository.getCardPriceHistory(game, leagueName, cardName);
   }
 
   /**
@@ -254,12 +222,7 @@ class AnalyticsService {
       totalCards: stats?.totalCards || 0,
       uniqueCards: stats?.uniqueCards || 0,
       mostCommon: await this.getMostCommonCards(game, leagueName, 10),
-      highestValue: await this.getHighestValueCards(
-        game,
-        leagueName,
-        "exchange",
-        10,
-      ),
+      highestValue: await this.getHighestValueCards(game, leagueName, 10),
       sessionCount,
     };
   }

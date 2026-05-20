@@ -25,7 +25,6 @@ function defaultOverlayState(overrides: Record<string, unknown> = {}) {
         totalCount: 0,
         totalProfit: 0,
         chaosToDivineRatio: 0,
-        priceSource: "exchange" as const,
         cards: [],
       },
       setSessionData: mockSetSessionData,
@@ -166,8 +165,6 @@ function mockSettings(overrides: Record<string, unknown> = {}) {
     audioRarity2Path: null,
     audioRarity3Path: null,
     selectedGame: "poe1",
-    poe1PriceSource: "exchange",
-    poe2PriceSource: "exchange",
     overlayFontSize: 1.0,
     overlayToolbarFontSize: 1.0,
     telemetryCrashReporting: false,
@@ -317,7 +314,6 @@ describe("OverlayApp", () => {
         totalCount: 5,
         totalProfit: 100,
         chaosToDivineRatio: 200,
-        priceSource: "exchange",
         cards: [],
         recentDrops: [],
       };
@@ -372,31 +368,6 @@ describe("OverlayApp", () => {
       expect(root.style.getPropertyValue("--overlay-toolbar-font-size")).toBe(
         "1",
       );
-    });
-
-    it("reads poe1PriceSource when selectedGame is poe1", async () => {
-      mockSettings({
-        selectedGame: "poe1",
-        poe1PriceSource: "stash",
-        poe2PriceSource: "exchange",
-      });
-
-      await renderAndSettle();
-
-      // Price source is stored in a ref, so we verify it indirectly through
-      // onDataUpdated processing. We just verify settings were loaded.
-      expect(getElectron().settings.getAll).toHaveBeenCalled();
-    });
-
-    it("reads poe2PriceSource when selectedGame is poe2", async () => {
-      mockSettings({
-        selectedGame: "poe2",
-        poe2PriceSource: "stash",
-      });
-
-      await renderAndSettle();
-
-      expect(getElectron().settings.getAll).toHaveBeenCalled();
     });
 
     it("loads custom sound data when audioRarityPaths are set", async () => {
@@ -546,7 +517,6 @@ describe("OverlayApp", () => {
         totalCount: 10,
         totalProfit: 500,
         chaosToDivineRatio: 200,
-        priceSource: "exchange",
         cards: [],
         recentDrops: [],
       };
@@ -595,7 +565,6 @@ describe("OverlayApp", () => {
         totalCount: 0,
         totalProfit: 0,
         chaosToDivineRatio: 0,
-        priceSource: "exchange",
         cards: [],
         recentDrops: [],
       });
@@ -631,7 +600,8 @@ describe("OverlayApp", () => {
             newCount: 2,
             totalCount: 5,
             updatedTotals: {
-              exchange: { totalValue: 999, chaosToDivineRatio: 200 },
+              totalValue: 999,
+              chaosToDivineRatio: 200,
             },
             recentDrop: null,
           },
@@ -669,7 +639,8 @@ describe("OverlayApp", () => {
             newCount: 1,
             totalCount: 1,
             updatedTotals: {
-              exchange: { totalValue: 500, chaosToDivineRatio: 150 },
+              totalValue: 500,
+              chaosToDivineRatio: 150,
             },
             recentDrop: null,
           },
@@ -702,13 +673,13 @@ describe("OverlayApp", () => {
             newCount: 1,
             totalCount: 1,
             updatedTotals: {
-              exchange: { totalValue: 100, chaosToDivineRatio: 200 },
+              totalValue: 100,
+              chaosToDivineRatio: 200,
             },
             recentDrop: {
               cardName: "The Doctor",
               rarity: 1,
-              exchangePrice: { chaosValue: 500, divineValue: 2.5 },
-              stashPrice: { chaosValue: 500, divineValue: 2.5 },
+              price: { chaosValue: 500, divineValue: 2.5 },
             },
           },
         });
@@ -738,13 +709,13 @@ describe("OverlayApp", () => {
             newCount: 1,
             totalCount: 1,
             updatedTotals: {
-              exchange: { totalValue: 1, chaosToDivineRatio: 200 },
+              totalValue: 1,
+              chaosToDivineRatio: 200,
             },
             recentDrop: {
               cardName: "Rain of Chaos",
               // no rarity field
-              exchangePrice: { chaosValue: 1, divineValue: 0 },
-              stashPrice: { chaosValue: 1, divineValue: 0 },
+              price: { chaosValue: 1, divineValue: 0 },
             },
           },
         });
@@ -772,60 +743,6 @@ describe("OverlayApp", () => {
 
       expect(mockSetSessionData).not.toHaveBeenCalled();
     });
-
-    it("uses stash priceSource when settings select stash, updating existing card and totals", async () => {
-      let cardDeltaCb: (update: any) => void = () => {};
-      getElectron().session.onCardDelta.mockImplementation((cb: any) => {
-        cardDeltaCb = cb;
-        return vi.fn();
-      });
-
-      // Configure stash as the price source
-      mockSettings({
-        selectedGame: "poe1",
-        poe1PriceSource: "stash",
-      });
-
-      // Set up store state with an existing card
-      const stateWithCard = defaultOverlayState();
-      (stateWithCard.overlay.sessionData as any).cards = [
-        { cardName: "The Doctor", count: 1 },
-      ];
-      (stateWithCard.overlay.sessionData as any).isActive = true;
-      mockUseBoundStore.mockReturnValue(stateWithCard);
-
-      await renderAndSettle();
-      mockSetSessionData.mockClear();
-
-      // Simulate card delta with stash totals (and exchange totals too, to ensure stash is picked)
-      await act(async () => {
-        cardDeltaCb({
-          delta: {
-            cardName: "The Doctor",
-            newCount: 3,
-            totalCount: 10,
-            updatedTotals: {
-              exchange: { totalValue: 500, chaosToDivineRatio: 100 },
-              stash: { totalValue: 777, chaosToDivineRatio: 140 },
-            },
-            recentDrop: null,
-          },
-        });
-      });
-
-      expect(mockSetSessionData).toHaveBeenCalledTimes(1);
-      const call = mockSetSessionData.mock.calls[0][0];
-      // Should use stash totalValue, not exchange
-      expect(call.totalProfit).toBe(777);
-      expect(call.chaosToDivineRatio).toBe(140);
-      expect(call.totalCount).toBe(10);
-      // Existing card should be updated
-      const doctorCards = call.cards.filter(
-        (c: any) => c.cardName === "The Doctor",
-      );
-      expect(doctorCards).toHaveLength(1);
-      expect(doctorCards[0].count).toBe(3);
-    });
   });
 
   // ── onSettingsChanged handler ─────────────────────────────────────────────
@@ -843,7 +760,6 @@ describe("OverlayApp", () => {
         totalCount: 20,
         totalProfit: 1000,
         chaosToDivineRatio: 200,
-        priceSource: "exchange",
         cards: [],
         recentDrops: [],
       };
@@ -909,15 +825,13 @@ describe("OverlayApp", () => {
             {
               cardName,
               rarity,
-              exchangePrice: { chaosValue: 100, divineValue: 1 },
-              stashPrice: { chaosValue: 90, divineValue: 0.9 },
+              price: { chaosValue: 100, divineValue: 1 },
             },
           ],
           isActive: true,
           totalCount: 1,
           totalProfit: 100,
           chaosToDivineRatio: 200,
-          priceSource: "exchange" as const,
           cards: [{ cardName, count: 1 }],
         },
       });
@@ -986,8 +900,7 @@ describe("OverlayApp", () => {
       const drop = {
         cardName: "The Doctor",
         rarity: 1,
-        exchangePrice: { chaosValue: 100, divineValue: 1 },
-        stashPrice: { chaosValue: 90, divineValue: 0.9 },
+        price: { chaosValue: 100, divineValue: 1 },
       };
 
       const stateWithDrop = defaultOverlayState({
@@ -997,7 +910,6 @@ describe("OverlayApp", () => {
           totalCount: 1,
           totalProfit: 100,
           chaosToDivineRatio: 200,
-          priceSource: "exchange" as const,
           cards: [{ cardName: "The Doctor", count: 1 }],
         },
       });
@@ -1029,8 +941,7 @@ describe("OverlayApp", () => {
       const firstDrop = {
         cardName: "The Doctor",
         rarity: 1,
-        exchangePrice: { chaosValue: 100, divineValue: 1 },
-        stashPrice: { chaosValue: 90, divineValue: 0.9 },
+        price: { chaosValue: 100, divineValue: 1 },
       };
 
       const stateFirst = defaultOverlayState({
@@ -1040,7 +951,6 @@ describe("OverlayApp", () => {
           totalCount: 1,
           totalProfit: 100,
           chaosToDivineRatio: 200,
-          priceSource: "exchange" as const,
           cards: [{ cardName: "The Doctor", count: 1 }],
         },
       });
@@ -1061,8 +971,7 @@ describe("OverlayApp", () => {
       const secondDrop = {
         cardName: "The Nurse",
         rarity: 2,
-        exchangePrice: { chaosValue: 50, divineValue: 0.3 },
-        stashPrice: { chaosValue: 45, divineValue: 0.28 },
+        price: { chaosValue: 50, divineValue: 0.3 },
       };
 
       const stateSecond = defaultOverlayState({
@@ -1072,7 +981,6 @@ describe("OverlayApp", () => {
           totalCount: 2,
           totalProfit: 200,
           chaosToDivineRatio: 200,
-          priceSource: "exchange" as const,
           cards: [
             { cardName: "The Doctor", count: 1 },
             { cardName: "The Nurse", count: 1 },
@@ -1096,8 +1004,7 @@ describe("OverlayApp", () => {
       const drop = {
         cardName: "The Doctor",
         rarity: 1,
-        exchangePrice: { chaosValue: 100, divineValue: 1 },
-        stashPrice: { chaosValue: 90, divineValue: 0.9 },
+        price: { chaosValue: 100, divineValue: 1 },
       };
 
       const stateWithDrop = defaultOverlayState({
@@ -1107,7 +1014,6 @@ describe("OverlayApp", () => {
           totalCount: 1,
           totalProfit: 100,
           chaosToDivineRatio: 200,
-          priceSource: "exchange" as const,
           cards: [{ cardName: "The Doctor", count: 1 }],
         },
       });
@@ -1196,15 +1102,13 @@ describe("OverlayApp", () => {
             {
               cardName: "The Doctor",
               rarity: 1,
-              exchangePrice: { chaosValue: 800, divineValue: 5 },
-              stashPrice: { chaosValue: 750, divineValue: 4.7 },
+              price: { chaosValue: 800, divineValue: 5 },
             },
           ],
           isActive: true,
           totalCount: 1,
           totalProfit: 800,
           chaosToDivineRatio: 200,
-          priceSource: "exchange" as const,
           cards: [{ cardName: "The Doctor", count: 1 }],
         },
       });

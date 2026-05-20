@@ -101,12 +101,9 @@ export function makeSessionsSummary(
     isActive: false,
     durationMinutes: 60,
     totalDecksOpened: 100,
-    totalExchangeValue: 500,
-    totalStashValue: 600,
-    totalExchangeNetProfit: 200,
-    totalStashNetProfit: 250,
-    exchangeChaosToDivine: 150,
-    stashChaosToDivine: 150,
+    totalValue: 500,
+    netProfit: 200,
+    chaosToDivineRatio: 150,
     stackedDeckChaosCost: 3,
     ...overrides,
   };
@@ -127,13 +124,7 @@ export function makeCardEntry(overrides: Partial<CardEntry> = {}): CardEntry {
   return {
     name: "The Doctor",
     count: 5,
-    stashPrice: {
-      chaosValue: 1000,
-      divineValue: 5,
-      totalValue: 5000,
-      hidePrice: false,
-    },
-    exchangePrice: {
+    price: {
       chaosValue: 950,
       divineValue: 4.75,
       totalValue: 4750,
@@ -163,29 +154,19 @@ export function makeDetailedSession(
       {
         name: "The Doctor",
         count: 2,
-        exchangePrice: {
+        price: {
           chaosValue: 1200,
           divineValue: 8,
           totalValue: 2400,
-        },
-        stashPrice: {
-          chaosValue: 1100,
-          divineValue: 7.3,
-          totalValue: 2200,
         },
       },
       {
         name: "Rain of Chaos",
         count: 30,
-        exchangePrice: {
+        price: {
           chaosValue: 1,
           divineValue: 0.007,
           totalValue: 30,
-        },
-        stashPrice: {
-          chaosValue: 0.8,
-          divineValue: 0.005,
-          totalValue: 24,
         },
       },
     ],

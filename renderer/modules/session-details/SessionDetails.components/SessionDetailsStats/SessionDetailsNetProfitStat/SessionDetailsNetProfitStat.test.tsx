@@ -1,4 +1,5 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
+import { buildLinePoints } from "~/renderer/modules/current-session/CurrentSession.components/SessionProfitTimeline/utils/utils";
 import { useBoundStore } from "~/renderer/store";
 
 import { SessionDetailsNetProfitStat } from "./SessionDetailsNetProfitStat";
@@ -364,5 +365,45 @@ describe("SessionDetailsNetProfitStat", () => {
       '[data-tip*="Collapse timeline"]',
     );
     expect(collapseTooltip).not.toBeNull();
+  });
+
+  it("uses persisted deck cost for timeline points when snapshot prices are unavailable", () => {
+    const timeline = {
+      buckets: [
+        {
+          timestamp: "2024-01-01T00:00:00Z",
+          dropCount: 40,
+          cumulativeChaosValue: 18.47,
+          cumulativeDivineValue: 0,
+          topCard: null,
+          topCardChaosValue: 0,
+        },
+      ],
+      liveEdge: [],
+      totalChaosValue: 18.47,
+      totalDivineValue: 0,
+      totalDrops: 40,
+      notableDrops: [],
+    };
+    const buildLinePointsMock = vi.mocked(buildLinePoints);
+    buildLinePointsMock.mockClear();
+
+    setupStore({
+      getNetProfit: vi
+        .fn()
+        .mockReturnValue({ netProfit: -187.53, totalDeckCost: 206 }),
+      getHasTimeline: vi.fn().mockReturnValue(true),
+      getTimeline: vi.fn().mockReturnValue(timeline),
+      getSession: vi.fn().mockReturnValue({
+        priceSnapshot: undefined,
+        totals: {
+          stackedDeckChaosCost: 5.15,
+        },
+      }),
+    });
+
+    renderWithProviders(<SessionDetailsNetProfitStat />);
+
+    expect(buildLinePointsMock).toHaveBeenCalledWith(timeline, 5.15);
   });
 });

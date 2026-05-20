@@ -67,17 +67,6 @@ const SettingsStoreAPI = {
   setSelectedPoe2League: (leagueId: string): Promise<void> =>
     ipcRenderer.invoke(SettingsStoreChannel.SetSelectedPoe2League, leagueId),
 
-  // Price source selection
-  getSelectedPoe1PriceSource: (): Promise<"exchange" | "stash"> =>
-    ipcRenderer.invoke(SettingsStoreChannel.GetSelectedPoe1PriceSource),
-  setSelectedPoe1PriceSource: (source: "exchange" | "stash"): Promise<void> =>
-    ipcRenderer.invoke(SettingsStoreChannel.SetSelectedPoe1PriceSource, source),
-
-  getSelectedPoe2PriceSource: (): Promise<"exchange" | "stash"> =>
-    ipcRenderer.invoke(SettingsStoreChannel.GetSelectedPoe2PriceSource),
-  setSelectedPoe2PriceSource: (source: "exchange" | "stash"): Promise<void> =>
-    ipcRenderer.invoke(SettingsStoreChannel.SetSelectedPoe2PriceSource, source),
-
   // Audio
   scanCustomSounds: (): Promise<CustomSoundFile[]> =>
     ipcRenderer.invoke(SettingsStoreChannel.ScanCustomSounds),

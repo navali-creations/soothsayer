@@ -22,7 +22,6 @@ import {
   assertInstalledGames,
   assertInteger,
   assertNumber,
-  assertPriceSource,
   assertSetupStep,
   assertString,
   assertStringArray,
@@ -131,10 +130,6 @@ class SettingsStoreService {
             case "poe1SelectedLeague":
             case "poe2SelectedLeague":
               assertString(value, key, ch);
-              break;
-            case "poe1PriceSource":
-            case "poe2PriceSource":
-              assertPriceSource(value, ch);
               break;
             case "setupStep":
               assertSetupStep(value, ch);
@@ -275,10 +270,8 @@ class SettingsStoreService {
           }
           await this.set(key, value);
 
-          // Notify overlay when price source, active game, or overlay font size changes
+          // Notify overlay when active game or overlay font size changes
           if (
-            key === SettingsKey.Poe1PriceSource ||
-            key === SettingsKey.Poe2PriceSource ||
             key === SettingsKey.ActiveGame ||
             key === SettingsKey.OverlayFontSize ||
             key === SettingsKey.OverlayToolbarFontSize
@@ -501,60 +494,6 @@ class SettingsStoreService {
           return handleValidationError(
             error,
             SettingsStoreChannel.SetSelectedPoe2League,
-          );
-        }
-      },
-    );
-
-    // Selected PoE1 price source
-    ipcMain.handle(
-      SettingsStoreChannel.GetSelectedPoe1PriceSource,
-      async () => {
-        return this.repository.getPoe1PriceSource();
-      },
-    );
-
-    ipcMain.handle(
-      SettingsStoreChannel.SetSelectedPoe1PriceSource,
-      async (_event, source: "exchange" | "stash") => {
-        try {
-          assertPriceSource(
-            source,
-            SettingsStoreChannel.SetSelectedPoe1PriceSource,
-          );
-          await this.repository.setPoe1PriceSource(source);
-          this.broadcastSettingsChanged();
-        } catch (error) {
-          return handleValidationError(
-            error,
-            SettingsStoreChannel.SetSelectedPoe1PriceSource,
-          );
-        }
-      },
-    );
-
-    // Selected PoE2 price source
-    ipcMain.handle(
-      SettingsStoreChannel.GetSelectedPoe2PriceSource,
-      async () => {
-        return this.repository.getPoe2PriceSource();
-      },
-    );
-
-    ipcMain.handle(
-      SettingsStoreChannel.SetSelectedPoe2PriceSource,
-      async (_event, source: "exchange" | "stash") => {
-        try {
-          assertPriceSource(
-            source,
-            SettingsStoreChannel.SetSelectedPoe2PriceSource,
-          );
-          await this.repository.setPoe2PriceSource(source);
-          this.broadcastSettingsChanged();
-        } catch (error) {
-          return handleValidationError(
-            error,
-            SettingsStoreChannel.SetSelectedPoe2PriceSource,
           );
         }
       },

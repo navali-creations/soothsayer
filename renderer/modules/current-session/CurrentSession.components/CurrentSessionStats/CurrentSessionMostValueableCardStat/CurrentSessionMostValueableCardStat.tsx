@@ -8,9 +8,6 @@ const CurrentSessionMostValuableStat = () => {
   const sessionData = useBoundStore((state) =>
     state.currentSession.getSession(),
   );
-  const priceSource = useBoundStore((state) =>
-    state.settings.getActiveGameViewPriceSource(),
-  );
 
   const cardData = sessionData?.cards || [];
   const hasSnapshot = !!sessionData?.priceSnapshot;
@@ -20,11 +17,8 @@ const CurrentSessionMostValuableStat = () => {
       return null;
     }
 
-    // Filter out cards with hidePrice flag for the active price source
-    const visibleCards = cardData.filter((card) =>
-      priceSource === "stash"
-        ? !card.stashPrice?.hidePrice
-        : !card.exchangePrice?.hidePrice,
+    const visibleCards = cardData.filter(
+      (card) => card.price && !card.price.hidePrice,
     );
 
     if (visibleCards.length === 0) {
@@ -33,36 +27,25 @@ const CurrentSessionMostValuableStat = () => {
 
     // Find card with highest SINGLE card price (not total value)
     return visibleCards.reduce((max, card) => {
-      const currentPriceInfo =
-        priceSource === "stash" ? card.stashPrice : card.exchangePrice;
-      const maxPriceInfo =
-        priceSource === "stash" ? max.stashPrice : max.exchangePrice;
-
-      const currentPrice = currentPriceInfo?.chaosValue || 0;
-      const maxPrice = maxPriceInfo?.chaosValue || 0;
+      const currentPrice = card.price?.chaosValue || 0;
+      const maxPrice = max.price?.chaosValue || 0;
 
       return currentPrice > maxPrice ? card : max;
     });
-  }, [cardData, priceSource, hasSnapshot]);
+  }, [cardData, hasSnapshot]);
 
-  const priceInfo =
-    priceSource === "stash"
-      ? mostValuableCard?.stashPrice
-      : mostValuableCard?.exchangePrice;
-  const cardPrice = priceInfo?.chaosValue || 0;
+  const cardPrice = mostValuableCard?.price?.chaosValue || 0;
   const cardName = mostValuableCard?.name || "—";
 
   const chaosToDivineRatio =
-    priceSource === "stash"
-      ? sessionData?.priceSnapshot?.stash?.chaosToDivineRatio || 0
-      : sessionData?.priceSnapshot?.exchange?.chaosToDivineRatio || 0;
+    sessionData?.priceSnapshot?.chaosToDivineRatio || 0;
 
   return (
     <Stat className="overflow-hidden min-w-0">
       <Stat.Title>Most Valuable</Stat.Title>
       <Stat.Value>
         {hasSnapshot && mostValuableCard ? (
-          cardPrice >= chaosToDivineRatio ? (
+          chaosToDivineRatio > 0 && cardPrice >= chaosToDivineRatio ? (
             <AnimatedNumber
               value={cardPrice / chaosToDivineRatio}
               decimals={2}

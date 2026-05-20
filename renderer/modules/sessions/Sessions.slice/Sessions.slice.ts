@@ -23,6 +23,7 @@ export interface SessionsSlice {
     totalPages: number;
     totalSessions: number;
     // Filter state
+    availableLeagues: string[];
     selectedLeague: string;
     searchQuery: string;
     // Sparkline state
@@ -63,6 +64,7 @@ export interface SessionsSlice {
     getTotalPages: () => number;
     getTotalSessions: () => number;
     getSelectedLeague: () => string;
+    getAvailableLeagues: () => string[];
     getSearchQuery: () => string;
     getUniqueLeagues: () => string[];
     getFilteredSessions: () => SessionSummary[];
@@ -95,6 +97,7 @@ export const createSessionsSlice: StateCreator<
     pageSize: 20,
     totalPages: 0,
     totalSessions: 0,
+    availableLeagues: [],
     selectedLeague: "all",
     searchQuery: "",
     sparklines: {},
@@ -115,15 +118,23 @@ export const createSessionsSlice: StateCreator<
         const activeGame = get().settings.getSelectedGame();
         const currentPage = page ?? get().sessions.currentPage;
         const pageSize = get().sessions.pageSize;
+        const selectedLeague = get().sessions.selectedLeague;
+        const leagueFilter =
+          selectedLeague === "all" ? undefined : selectedLeague;
 
-        const response = await window.electron.sessions.getAll(
-          activeGame,
-          currentPage,
-          pageSize,
-        );
+        const [response, availableLeagues] = await Promise.all([
+          window.electron.sessions.getAll(
+            activeGame,
+            currentPage,
+            pageSize,
+            leagueFilter,
+          ),
+          window.electron.sessions.getLeagues(activeGame),
+        ]);
 
         set(({ sessions: sessionsState }) => {
           sessionsState.allSessions = response.sessions;
+          sessionsState.availableLeagues = availableLeagues;
           sessionsState.currentPage = response.page;
           sessionsState.pageSize = response.pageSize;
           sessionsState.totalPages = response.totalPages;
@@ -266,8 +277,15 @@ export const createSessionsSlice: StateCreator<
 
     selectAll: async () => {
       const activeGame = get().settings.getSelectedGame();
-      const allIds =
-        await window.electron.sessions.getAllSessionIds(activeGame);
+      const selectedLeague = get().sessions.selectedLeague;
+      const searchQuery = get().sessions.searchQuery.trim();
+      const leagueFilter =
+        selectedLeague === "all" ? undefined : selectedLeague;
+      const allIds = await window.electron.sessions.getAllSessionIds(
+        activeGame,
+        leagueFilter,
+        searchQuery || undefined,
+      );
       set(({ sessions }) => {
         sessions.selectedSessionIds = allIds;
       });
@@ -315,6 +333,7 @@ export const createSessionsSlice: StateCreator<
     getTotalPages: () => get().sessions.totalPages,
     getTotalSessions: () => get().sessions.totalSessions,
     getSelectedLeague: () => get().sessions.selectedLeague,
+    getAvailableLeagues: () => get().sessions.availableLeagues,
     getSearchQuery: () => get().sessions.searchQuery,
     getSparklines: () => get().sessions.sparklines,
     getBulkMode: () => get().sessions.bulkMode,
@@ -328,11 +347,14 @@ export const createSessionsSlice: StateCreator<
     getDeleteError: () => get().sessions.deleteError,
     getIsDeleting: () => get().sessions.isDeleting,
 
-    // Get unique leagues from all sessions
+    // Get league options from the full session history, not the current page.
     getUniqueLeagues: () => {
-      const allSessions = get().sessions.allSessions;
-      const uniqueLeagues = new Set(allSessions.map((s) => s.league));
-      return ["all", ...Array.from(uniqueLeagues)];
+      const { availableLeagues, selectedLeague } = get().sessions;
+      const leagues = [...availableLeagues];
+      if (selectedLeague !== "all" && !leagues.includes(selectedLeague)) {
+        leagues.push(selectedLeague);
+      }
+      return ["all", ...leagues];
     },
 
     // Get filtered sessions based on selected league
@@ -357,16 +379,24 @@ export const createSessionsSlice: StateCreator<
         const activeGame = get().settings.getSelectedGame();
         const currentPage = page ?? get().sessions.currentPage;
         const pageSize = get().sessions.pageSize;
+        const selectedLeague = get().sessions.selectedLeague;
+        const leagueFilter =
+          selectedLeague === "all" ? undefined : selectedLeague;
 
-        const response = await window.electron.sessions.searchByCard(
-          activeGame,
-          cardName,
-          currentPage,
-          pageSize,
-        );
+        const [response, availableLeagues] = await Promise.all([
+          window.electron.sessions.searchByCard(
+            activeGame,
+            cardName,
+            currentPage,
+            pageSize,
+            leagueFilter,
+          ),
+          window.electron.sessions.getLeagues(activeGame),
+        ]);
 
         set(({ sessions: sessionsState }) => {
           sessionsState.allSessions = response.sessions;
+          sessionsState.availableLeagues = availableLeagues;
           sessionsState.currentPage = response.page;
           sessionsState.pageSize = response.pageSize;
           sessionsState.totalPages = response.totalPages;

@@ -325,10 +325,10 @@ export const DEFAULT_SETTINGS: Record<string, TestSettings> = {
     label: "Enable Overlay",
     category: "Overlay",
   },
-  priceSource: {
-    key: "prices.source",
+  priceProvider: {
+    key: "prices.provider",
     value: "poe-ninja",
-    label: "Price Source",
+    label: "Price Provider",
     category: "Prices",
   },
   telemetryCrashReporting: {

@@ -719,16 +719,16 @@ class DivinationCardsService {
   public async updateRaritiesFromPrices(
     game: "poe1" | "poe2",
     league: string,
-    exchangeChaosToDivine: number,
+    chaosToDivineRatio: number,
     cardPrices: Record<string, { chaosValue: number; confidence?: Confidence }>,
   ): Promise<void> {
     // Coerce exchange rate to a number — Supabase PostgREST may return
     // NUMERIC columns as strings to preserve precision.
-    const exchangeRate = Number(exchangeChaosToDivine);
+    const exchangeRate = Number(chaosToDivineRatio);
 
     this.logger.log(
       `updateRaritiesFromPrices called: game=${game}, league="${league}", ` +
-        `exchangeChaosToDivine=${exchangeChaosToDivine} (type=${typeof exchangeChaosToDivine}), ` +
+        `chaosToDivineRatio=${chaosToDivineRatio} (type=${typeof chaosToDivineRatio}), ` +
         `coerced exchangeRate=${exchangeRate}, pricedCards=${
           Object.keys(cardPrices).length
         }`,
@@ -742,7 +742,7 @@ class DivinationCardsService {
 
     if (!Number.isFinite(exchangeRate) || exchangeRate <= 0) {
       this.logger.error(
-        `Invalid exchangeChaosToDivine: ${exchangeChaosToDivine} — skipping rarity update`,
+        `Invalid chaosToDivineRatio: ${chaosToDivineRatio} — skipping rarity update`,
       );
       return;
     }

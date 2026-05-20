@@ -23,8 +23,7 @@ interface SessionCardJoinedRow {
   count: number;
   firstSeenAt: string;
   lastSeenAt: string;
-  hidePriceExchange: number;
-  hidePriceStash: number;
+  hidePrice: number;
   divinationCardId?: string | null;
   stackSize?: number | null;
   description?: string | null;
@@ -68,8 +67,7 @@ export class CurrentSessionMapper {
       count: row.count,
       firstSeenAt: row.firstSeenAt,
       lastSeenAt: row.lastSeenAt,
-      hidePriceExchange: row.hidePriceExchange === 1,
-      hidePriceStash: row.hidePriceStash === 1,
+      hidePrice: row.hidePrice === 1,
     };
 
     // Add divination card metadata if it exists (was joined)
@@ -103,12 +101,9 @@ export class CurrentSessionMapper {
       endedAt: row.ended_at,
       durationMinutes: row.duration_minutes,
       totalDecksOpened: row.total_decks_opened,
-      totalExchangeValue: row.total_exchange_value,
-      totalStashValue: row.total_stash_value,
-      totalExchangeNetProfit: row.total_exchange_net_profit,
-      totalStashNetProfit: row.total_stash_net_profit,
-      exchangeChaosToDivine: row.exchange_chaos_to_divine,
-      stashChaosToDivine: row.stash_chaos_to_divine,
+      totalValue: row.total_value,
+      netProfit: row.net_profit,
+      chaosToDivineRatio: row.chaos_to_divine_ratio,
       stackedDeckChaosCost: row.stacked_deck_chaos_cost,
     };
   }

@@ -17,8 +17,7 @@ function makeSnapshot(overrides?: Partial<SnapshotInfo>): SnapshotInfo {
     league: "Settlers",
     game: "poe1",
     fetchedAt: "2025-01-15T12:00:00.000Z",
-    exchangeChaosToDivine: 200,
-    stashChaosToDivine: 195,
+    chaosToDivineRatio: 200,
     isReused: false,
     ...overrides,
   };
@@ -47,13 +46,6 @@ describe("initial state", () => {
 
   it("has uncached exchangeCacheStatus", () => {
     expect(store.getState().poeNinja.exchangeCacheStatus).toEqual({
-      isCached: false,
-      lastFetchTime: null,
-    });
-  });
-
-  it("has uncached stashCacheStatus", () => {
-    expect(store.getState().poeNinja.stashCacheStatus).toEqual({
       isCached: false,
       lastFetchTime: null,
     });
@@ -117,7 +109,7 @@ describe("snapshot operations", () => {
       const snapshot = makeSnapshot({
         league: "Settlers",
         game: "poe1",
-        exchangeChaosToDivine: 200,
+        chaosToDivineRatio: 200,
       });
       store.getState().poeNinja.setCurrentSnapshot(snapshot);
 
@@ -128,7 +120,7 @@ describe("snapshot operations", () => {
       const updated = store.getState().poeNinja.currentSnapshot!;
       expect(updated.league).toBe("Settlers");
       expect(updated.game).toBe("poe1");
-      expect(updated.exchangeChaosToDivine).toBe(200);
+      expect(updated.chaosToDivineRatio).toBe(200);
     });
 
     it("does nothing when currentSnapshot is null", () => {
@@ -284,28 +276,13 @@ describe("cache operations", () => {
     });
   });
 
-  describe("markStashCached", () => {
-    it("sets isCached to true and records lastFetchTime", () => {
-      store.getState().poeNinja.markStashCached();
-
-      const status = store.getState().poeNinja.stashCacheStatus;
-      expect(status.isCached).toBe(true);
-      expect(status.lastFetchTime).not.toBeNull();
-    });
-  });
-
   describe("clearCacheStatus", () => {
-    it("resets both exchange and stash cache status", () => {
+    it("resets exchange cache status", () => {
       store.getState().poeNinja.markExchangeCached();
-      store.getState().poeNinja.markStashCached();
 
       store.getState().poeNinja.clearCacheStatus();
 
       expect(store.getState().poeNinja.exchangeCacheStatus).toEqual({
-        isCached: false,
-        lastFetchTime: null,
-      });
-      expect(store.getState().poeNinja.stashCacheStatus).toEqual({
         isCached: false,
         lastFetchTime: null,
       });
@@ -317,7 +294,6 @@ describe("cache operations", () => {
       expect(store.getState().poeNinja.exchangeCacheStatus.isCached).toBe(
         false,
       );
-      expect(store.getState().poeNinja.stashCacheStatus.isCached).toBe(false);
     });
   });
 });

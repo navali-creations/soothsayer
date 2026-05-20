@@ -27,12 +27,15 @@ export const SessionDetailsNetProfitStat = ({
   const hasTimeline = getHasTimeline();
   const timeline = getTimeline();
   const session = getSession();
+  const stackedDeckChaosCost =
+    session?.totals?.stackedDeckChaosCost ??
+    session?.priceSnapshot?.stackedDeckChaosCost ??
+    0;
 
   const linePoints = useMemo(() => {
     if (!hasTimeline || !timeline) return undefined;
-    const deckCost = session?.priceSnapshot?.stackedDeckChaosCost ?? 0;
-    return buildLinePoints(timeline, deckCost);
-  }, [timeline, hasTimeline, session?.priceSnapshot?.stackedDeckChaosCost]);
+    return buildLinePoints(timeline, stackedDeckChaosCost);
+  }, [timeline, hasTimeline, stackedDeckChaosCost]);
 
   const hasDeckCost = totalDeckCost > 0;
   const hasSparkline = linePoints != null && linePoints.length >= 2;

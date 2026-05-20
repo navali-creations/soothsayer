@@ -33,10 +33,8 @@ describe("SettingsStoreRepository", () => {
       expect(settings.overlayBounds).toBeNull();
       expect(settings.poe1ClientTxtPath).toBeNull();
       expect(settings.poe1SelectedLeague).toBe("Standard");
-      expect(settings.poe1PriceSource).toBe("exchange");
       expect(settings.poe2ClientTxtPath).toBeNull();
       expect(settings.poe2SelectedLeague).toBe("Standard");
-      expect(settings.poe2PriceSource).toBe("exchange");
       expect(settings.selectedGame).toBe("poe1");
       expect(settings.installedGames).toEqual(["poe1"]);
       expect(settings.setupCompleted).toBe(false);
@@ -168,18 +166,6 @@ describe("SettingsStoreRepository", () => {
       const value = await repository.get("poe2SelectedLeague");
       expect(value).toBe("Dawn");
     });
-
-    it("should update the poe1 price source", async () => {
-      await repository.set("poe1PriceSource", "stash");
-      const value = await repository.get("poe1PriceSource");
-      expect(value).toBe("stash");
-    });
-
-    it("should update the poe2 price source", async () => {
-      await repository.set("poe2PriceSource", "exchange");
-      const value = await repository.get("poe2PriceSource");
-      expect(value).toBe("exchange");
-    });
   });
 
   // ─── JSON Serialization ────────────────────────────────────────────────
@@ -300,13 +286,11 @@ describe("SettingsStoreRepository", () => {
     it("should update game-specific settings together", async () => {
       await repository.setMultiple({
         poe1SelectedLeague: "Settlers",
-        poe1PriceSource: "stash",
         poe1ClientTxtPath: "C:\\PoE\\Client.txt",
       });
 
       const settings = await repository.getAll();
       expect(settings.poe1SelectedLeague).toBe("Settlers");
-      expect(settings.poe1PriceSource).toBe("stash");
       expect(settings.poe1ClientTxtPath).toBe("C:\\PoE\\Client.txt");
     });
 
@@ -478,39 +462,6 @@ describe("SettingsStoreRepository", () => {
       expect(value).toBe("Dawn");
     });
 
-    // ─── PoE1 Price Source ───────────────────────────────────────────
-
-    it("should get default poe1 price source as exchange", async () => {
-      const value = await repository.getPoe1PriceSource();
-      expect(value).toBe("exchange");
-    });
-
-    it("should set poe1 price source to stash", async () => {
-      await repository.setPoe1PriceSource("stash");
-      const value = await repository.getPoe1PriceSource();
-      expect(value).toBe("stash");
-    });
-
-    it("should set poe1 price source back to exchange", async () => {
-      await repository.setPoe1PriceSource("stash");
-      await repository.setPoe1PriceSource("exchange");
-      const value = await repository.getPoe1PriceSource();
-      expect(value).toBe("exchange");
-    });
-
-    // ─── PoE2 Price Source ───────────────────────────────────────────
-
-    it("should get default poe2 price source as exchange", async () => {
-      const value = await repository.getPoe2PriceSource();
-      expect(value).toBe("exchange");
-    });
-
-    it("should set poe2 price source to exchange", async () => {
-      await repository.setPoe2PriceSource("exchange");
-      const value = await repository.getPoe2PriceSource();
-      expect(value).toBe("exchange");
-    });
-
     // ─── Setup Completed ─────────────────────────────────────────────
 
     it("should get default setup completed as false", async () => {
@@ -674,9 +625,8 @@ describe("SettingsStoreRepository", () => {
       });
       await repository.set("installedGames", ["poe1", "poe2"]);
 
-      // 4. Select league and price source
+      // 4. Select league
       await repository.setPoe1SelectedLeague("Settlers");
-      await repository.setPoe1PriceSource("stash");
 
       // 5. Complete setup
       await repository.setMultiple({
@@ -702,7 +652,6 @@ describe("SettingsStoreRepository", () => {
       expect(settings.poe2ClientTxtPath).toBe("D:\\PoE2\\Client.txt");
       expect(settings.installedGames).toEqual(["poe1", "poe2"]);
       expect(settings.poe1SelectedLeague).toBe("Settlers");
-      expect(settings.poe1PriceSource).toBe("stash");
       expect(settings.appExitAction).toBe("minimize");
       expect(settings.appOpenAtLogin).toBe(true);
       expect(settings.overlayBounds).toEqual({
@@ -713,7 +662,6 @@ describe("SettingsStoreRepository", () => {
       });
       // Defaults unchanged
       expect(settings.poe2SelectedLeague).toBe("Standard");
-      expect(settings.poe2PriceSource).toBe("exchange");
       expect(settings.selectedGame).toBe("poe1");
     });
   });

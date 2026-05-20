@@ -41,7 +41,6 @@ const CURRENT_SESSION_BEACONS = [
   "game-selector",
   "overlay-icon",
   "current-session-rarity-source",
-  "stash-prices",
   "start-session",
 ] as const;
 
@@ -183,7 +182,7 @@ test.describe("Onboarding — Tour Reset", () => {
     // Perform the reset
     await performTourReset(page);
 
-    // Check home page: 2 global + 3 page-specific = 5
+    // Check home page: 2 global + 2 page-specific = 4
     await navigateTo(page, "/");
     await waitForRoute(page, "/", 10_000);
     await page.locator("main").waitFor({ state: "visible", timeout: 5_000 });

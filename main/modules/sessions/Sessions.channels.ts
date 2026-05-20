@@ -1,5 +1,6 @@
 enum SessionsChannel {
   GetAll = "sessions:get-all",
+  GetLeagues = "sessions:get-leagues",
   GetById = "sessions:get-by-id",
   SearchByCard = "sessions:search-by-card",
   GetMostProfitable = "sessions:get-most-profitable",

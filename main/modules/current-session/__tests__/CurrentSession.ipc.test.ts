@@ -46,7 +46,6 @@ const {
   mockAssertBoundedString,
   mockAssertBoolean,
   mockAssertCardName,
-  mockAssertPriceSource,
   mockAssertSessionId,
   mockHandleValidationError,
   MockIpcValidationError,
@@ -111,7 +110,6 @@ const {
     mockAssertBoundedString: vi.fn(),
     mockAssertBoolean: vi.fn(),
     mockAssertCardName: vi.fn(),
-    mockAssertPriceSource: vi.fn(),
     mockAssertSessionId: vi.fn(),
     mockHandleValidationError: vi.fn(),
     MockIpcValidationError: _MockIpcValidationError,
@@ -250,7 +248,6 @@ vi.mock("~/main/utils/ipc-validation", () =>
     mockAssertBoundedString,
     mockAssertBoolean,
     mockAssertCardName,
-    mockAssertPriceSource,
     mockAssertSessionId,
     mockHandleValidationError,
     MockIpcValidationError,
@@ -268,17 +265,9 @@ const MOCK_SNAPSHOT = {
   data: {
     timestamp: "2025-01-15T10:00:00Z",
     stackedDeckChaosCost: 3,
-    exchange: {
-      chaosToDivineRatio: 200,
-      cardPrices: {
-        "The Doctor": { chaosValue: 1200, divineValue: 6.0 },
-      },
-    },
-    stash: {
-      chaosToDivineRatio: 195,
-      cardPrices: {
-        "The Doctor": { chaosValue: 1100, divineValue: 5.64 },
-      },
+    chaosToDivineRatio: 200,
+    cardPrices: {
+      "The Doctor": { chaosValue: 1200, divineValue: 6.0 },
     },
   },
 };
@@ -307,7 +296,6 @@ describe("CurrentSessionService — IPC handlers", () => {
     mockAssertBoundedString.mockImplementation(() => {});
     mockAssertBoolean.mockImplementation(() => {});
     mockAssertCardName.mockImplementation(() => {});
-    mockAssertPriceSource.mockImplementation(() => {});
     mockAssertSessionId.mockImplementation(() => {});
     mockHandleValidationError.mockImplementation(() => ({
       success: false,
@@ -778,21 +766,14 @@ describe("CurrentSessionService — IPC handlers", () => {
       await startHandler(null, "poe1", "Settlers");
     }
 
-    it("should validate all 5 inputs and return success", async () => {
+    it("should validate all inputs and return success", async () => {
       await startASession();
 
       const handler = getIpcHandler(
         mockIpcHandle,
         CurrentSessionChannel.UpdateCardPriceVisibility,
       );
-      const result = await handler(
-        null,
-        "poe1",
-        "current",
-        "exchange",
-        "The Doctor",
-        true,
-      );
+      const result = await handler(null, "poe1", "current", "The Doctor", true);
 
       expect(mockAssertGameType).toHaveBeenCalledWith(
         "poe1",
@@ -800,10 +781,6 @@ describe("CurrentSessionService — IPC handlers", () => {
       );
       expect(mockAssertSessionId).toHaveBeenCalledWith(
         "current",
-        CurrentSessionChannel.UpdateCardPriceVisibility,
-      );
-      expect(mockAssertPriceSource).toHaveBeenCalledWith(
-        "exchange",
         CurrentSessionChannel.UpdateCardPriceVisibility,
       );
       expect(mockAssertCardName).toHaveBeenCalledWith(
@@ -825,7 +802,7 @@ describe("CurrentSessionService — IPC handlers", () => {
         mockIpcHandle,
         CurrentSessionChannel.UpdateCardPriceVisibility,
       );
-      await handler(null, "poe1", "current", "exchange", "The Doctor", true);
+      await handler(null, "poe1", "current", "The Doctor", true);
 
       expect(mockRepoUpdateCardPriceVisibility).toHaveBeenCalled();
     });
@@ -842,14 +819,7 @@ describe("CurrentSessionService — IPC handlers", () => {
         mockIpcHandle,
         CurrentSessionChannel.UpdateCardPriceVisibility,
       );
-      const result = await handler(
-        null,
-        "bad",
-        "session-1",
-        "exchange",
-        "Card",
-        true,
-      );
+      const result = await handler(null, "bad", "session-1", "Card", true);
 
       expect(result).toEqual({
         success: false,
@@ -869,34 +839,7 @@ describe("CurrentSessionService — IPC handlers", () => {
         mockIpcHandle,
         CurrentSessionChannel.UpdateCardPriceVisibility,
       );
-      const result = await handler(null, "poe1", 123, "exchange", "Card", true);
-
-      expect(result).toEqual({
-        success: false,
-        error: expect.stringContaining("Invalid input:"),
-      });
-    });
-
-    it("should return error with detail when IpcValidationError is thrown for priceSource", async () => {
-      mockAssertPriceSource.mockImplementation(() => {
-        throw new MockIpcValidationError(
-          CurrentSessionChannel.UpdateCardPriceVisibility,
-          "bad price source",
-        );
-      });
-
-      const handler = getIpcHandler(
-        mockIpcHandle,
-        CurrentSessionChannel.UpdateCardPriceVisibility,
-      );
-      const result = await handler(
-        null,
-        "poe1",
-        "session-1",
-        "wrong",
-        "Card",
-        true,
-      );
+      const result = await handler(null, "poe1", 123, "Card", true);
 
       expect(result).toEqual({
         success: false,
@@ -916,14 +859,7 @@ describe("CurrentSessionService — IPC handlers", () => {
         mockIpcHandle,
         CurrentSessionChannel.UpdateCardPriceVisibility,
       );
-      const result = await handler(
-        null,
-        "poe1",
-        "session-1",
-        "exchange",
-        999,
-        true,
-      );
+      const result = await handler(null, "poe1", "session-1", 999, true);
 
       expect(result).toEqual({
         success: false,
@@ -947,7 +883,6 @@ describe("CurrentSessionService — IPC handlers", () => {
         null,
         "poe1",
         "session-1",
-        "exchange",
         "Card",
         "not-a-bool",
       );
@@ -964,14 +899,7 @@ describe("CurrentSessionService — IPC handlers", () => {
         mockIpcHandle,
         CurrentSessionChannel.UpdateCardPriceVisibility,
       );
-      const result = await handler(
-        null,
-        "poe1",
-        "current",
-        "exchange",
-        "The Doctor",
-        true,
-      );
+      const result = await handler(null, "poe1", "current", "The Doctor", true);
 
       expect(result).toEqual({
         success: false,
@@ -988,14 +916,7 @@ describe("CurrentSessionService — IPC handlers", () => {
         mockIpcHandle,
         CurrentSessionChannel.UpdateCardPriceVisibility,
       );
-      const result = await handler(
-        null,
-        "poe1",
-        "current",
-        "exchange",
-        "The Doctor",
-        true,
-      );
+      const result = await handler(null, "poe1", "current", "The Doctor", true);
 
       expect(result).toEqual({
         success: false,
@@ -1015,7 +936,7 @@ describe("CurrentSessionService — IPC handlers", () => {
         mockIpcHandle,
         CurrentSessionChannel.UpdateCardPriceVisibility,
       );
-      await handler(null, "bad", "s", "exchange", "Card", true);
+      await handler(null, "bad", "s", "Card", true);
 
       expect(mockHandleValidationError).not.toHaveBeenCalled();
     });

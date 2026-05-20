@@ -13,8 +13,7 @@ export interface SnapshotDTO {
   fetchedAt: string;
   /** When this snapshot was stored locally (ISO timestamp). */
   createdAt: string;
-  exchangeChaosToDivine: number;
-  stashChaosToDivine: number;
+  chaosToDivineRatio: number;
   stackedDeckChaosCost: number;
   /** Bulk exchange rate (decks/divine) from poe.ninja maxVolumeRate. NULL for older snapshots. */
   stackedDeckMaxVolumeRate: number | null;
@@ -22,7 +21,6 @@ export interface SnapshotDTO {
 
 export interface SnapshotCardPriceDTO {
   cardName: string;
-  priceSource: "exchange" | "stash";
   chaosValue: number;
   divineValue: number;
   confidence: Confidence;

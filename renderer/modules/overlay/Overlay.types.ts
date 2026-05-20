@@ -8,21 +8,16 @@ export interface CardEntry {
 export interface RecentDrop {
   cardName: string;
   rarity: Rarity;
-  exchangePrice: {
+  price: {
     chaosValue: number;
     divineValue: number;
-  };
-  stashPrice: {
-    chaosValue: number;
-    divineValue: number;
-  };
+  } | null;
 }
 
 export interface SessionData {
   totalCount: number;
   totalProfit: number;
   chaosToDivineRatio: number;
-  priceSource: "exchange" | "stash";
   cards: CardEntry[];
   recentDrops: RecentDrop[];
   isActive: boolean;

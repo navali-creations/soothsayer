@@ -112,8 +112,6 @@ function createMockStore(overrides: any = {}) {
       raritySource: "poe.ninja",
       selectedFilterId: null,
       updateSetting: vi.fn(),
-      getActiveGameViewPriceSource: vi.fn(() => "exchange"),
-      setActiveGameViewPriceSource: vi.fn(),
       ...overrides.settings,
     },
     rarityInsights: {
@@ -198,36 +196,6 @@ describe("CurrentSessionActions", () => {
     expect(store.currentSession.stopSession).toHaveBeenCalled();
   });
 
-  // ── Price Source Tabs ──────────────────────────────────────────────────
-
-  it("renders Exchange and Stash price source tabs", () => {
-    setupStore();
-    renderWithProviders(<CurrentSessionActions />);
-
-    expect(screen.getByText("Exchange")).toBeInTheDocument();
-    expect(screen.getByText("Stash")).toBeInTheDocument();
-  });
-
-  it("Exchange tab is active by default", () => {
-    setupStore();
-    renderWithProviders(<CurrentSessionActions />);
-
-    const exchangeTab = screen.getByText("Exchange").closest("button")!;
-    expect(exchangeTab).toHaveClass("tab-active");
-  });
-
-  it('clicking Stash tab calls setActiveGameViewPriceSource("stash")', async () => {
-    const store = setupStore();
-    const { user } = renderWithProviders(<CurrentSessionActions />);
-
-    const stashTab = screen.getByText("Stash").closest("button")!;
-    await user.click(stashTab);
-
-    expect(store.settings.setActiveGameViewPriceSource).toHaveBeenCalledWith(
-      "stash",
-    );
-  });
-
   // ── RaritySourceSelect ─────────────────────────────────────────────────
 
   it("RaritySourceSelect is disabled when session is active", () => {
@@ -258,7 +226,7 @@ describe("CurrentSessionActions", () => {
     ).toBeInTheDocument();
     expect(
       document.querySelector('[data-onboarding="current-session-pricing"]'),
-    ).toBeInTheDocument();
+    ).not.toBeInTheDocument();
   });
 
   // ── Filter selection branch ────────────────────────────────────────────
@@ -353,8 +321,6 @@ describe("CurrentSessionActions", () => {
     );
   });
 
-  // ── Exchange tab click ─────────────────────────────────────────────────
-
   // ── Scanning state (L115-122) ──────────────────────────────────────────
 
   it("shows Scanning... loading state when isScanning is true and filters exist", async () => {
@@ -404,21 +370,5 @@ describe("CurrentSessionActions", () => {
     renderWithProviders(<CurrentSessionActions />);
 
     expect(screen.getByText("Rescan filters")).toBeInTheDocument();
-  });
-
-  it('clicking Exchange tab calls setActiveGameViewPriceSource("exchange")', async () => {
-    const store = setupStore({
-      settings: {
-        getActiveGameViewPriceSource: vi.fn(() => "stash"),
-      },
-    });
-    const { user } = renderWithProviders(<CurrentSessionActions />);
-
-    const exchangeTab = screen.getByText("Exchange").closest("button")!;
-    await user.click(exchangeTab);
-
-    expect(store.settings.setActiveGameViewPriceSource).toHaveBeenCalledWith(
-      "exchange",
-    );
   });
 });

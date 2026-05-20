@@ -1,17 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { Countdown } from "~/renderer/components";
-import { useCurrentSession, usePoeNinja, useSettings } from "~/renderer/store";
+import { useCurrentSession, usePoeNinja } from "~/renderer/store";
 
 const PriceSnapshotAlert = () => {
   const { getSession, getSessionInfo } = useCurrentSession();
-  const { getActiveGameViewPriceSource } = useSettings();
   const { currentSnapshot, isAutoRefreshActive, getTimeUntilNextRefresh } =
     usePoeNinja();
 
   const sessionData = getSession();
   const sessionInfo = getSessionInfo();
-  const priceSource = getActiveGameViewPriceSource();
 
   const [hours, setHours] = useState(0);
   const [minutes, setMinutes] = useState(0);
@@ -88,12 +86,9 @@ const PriceSnapshotAlert = () => {
   // actually prices every card in the table.  Fall back to currentSnapshot
   // only when the session has no snapshot at all (edge-case at startup).
   const chaosToDivineRatio =
-    sessionData?.totals?.[priceSource]?.chaosToDivineRatio ||
-    (currentSnapshot
-      ? priceSource === "exchange"
-        ? currentSnapshot.exchangeChaosToDivine
-        : currentSnapshot.stashChaosToDivine
-      : 0);
+    sessionData?.totals?.chaosToDivineRatio ||
+    currentSnapshot?.chaosToDivineRatio ||
+    0;
 
   if (hasSnapshot) {
     // Always prefer the session's own snapshot timestamp so the alert
@@ -124,7 +119,7 @@ const PriceSnapshotAlert = () => {
         <div className="flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <span>
-              Using {priceSource} pricing snapshot
+              Using poe.ninja exchange pricing snapshot
               {" from "}
               {new Date(snapshotTimestamp).toLocaleString()}
               {chaosToDivineRatio > 0 && (

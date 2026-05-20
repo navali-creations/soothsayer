@@ -6,11 +6,8 @@ export interface SessionsSummary {
   isActive: boolean;
   durationMinutes: number | null;
   totalDecksOpened: number;
-  totalExchangeValue: number | null;
-  totalStashValue: number | null;
-  totalExchangeNetProfit: number | null;
-  totalStashNetProfit: number | null;
-  exchangeChaosToDivine: number | null;
-  stashChaosToDivine: number | null;
+  totalValue: number | null;
+  netProfit: number | null;
+  chaosToDivineRatio: number | null;
   stackedDeckChaosCost: number | null;
 }

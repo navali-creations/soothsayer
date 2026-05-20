@@ -30,10 +30,8 @@ export function toUserSettingsDTO(row: UserSettingsRow): UserSettingsDTO {
     overlayBounds: row.overlay_bounds ? JSON.parse(row.overlay_bounds) : null,
     poe1ClientTxtPath: row.poe1_client_txt_path,
     poe1SelectedLeague: row.poe1_selected_league,
-    poe1PriceSource: row.poe1_price_source as "exchange" | "stash",
     poe2ClientTxtPath: row.poe2_client_txt_path,
     poe2SelectedLeague: row.poe2_selected_league,
-    poe2PriceSource: row.poe2_price_source as "exchange" | "stash",
     selectedGame: row.selected_game as "poe1" | "poe2",
     installedGames: row.installed_games
       ? JSON.parse(row.installed_games)
@@ -91,7 +89,6 @@ export function toPoe1SettingsDTO(row: UserSettingsRow): Poe1SettingsDTO {
   return {
     clientTxtPath: row.poe1_client_txt_path,
     selectedLeague: row.poe1_selected_league,
-    priceSource: row.poe1_price_source as "exchange" | "stash",
   };
 }
 
@@ -102,7 +99,6 @@ export function toPoe2SettingsDTO(row: UserSettingsRow): Poe2SettingsDTO {
   return {
     clientTxtPath: row.poe2_client_txt_path,
     selectedLeague: row.poe2_selected_league,
-    priceSource: row.poe2_price_source as "exchange" | "stash",
   };
 }
 
@@ -129,10 +125,8 @@ export function toDBKey(key: keyof UserSettingsDTO): keyof UserSettingsTable {
     overlayBounds: "overlay_bounds",
     poe1ClientTxtPath: "poe1_client_txt_path",
     poe1SelectedLeague: "poe1_selected_league",
-    poe1PriceSource: "poe1_price_source",
     poe2ClientTxtPath: "poe2_client_txt_path",
     poe2SelectedLeague: "poe2_selected_league",
-    poe2PriceSource: "poe2_price_source",
     selectedGame: "selected_game",
     installedGames: "installed_games",
     setupCompleted: "setup_completed",

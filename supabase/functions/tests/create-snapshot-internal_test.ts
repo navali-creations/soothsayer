@@ -6,7 +6,7 @@
  *   - HTTP method validation
  *   - Input validation (game, leagueId params)
  *   - Duplicate snapshot prevention (< 10 minutes)
- *   - poe.ninja API calls (exchange, currency, stash)
+ *   - poe.ninja API calls (exchange, currency)
  *   - Database insert chain: league lookup → snapshot insert → card_prices insert
  *   - Error handling for each stage
  *
@@ -96,62 +96,6 @@ function mockCurrencyResponse(stackedDeckPrice = 1.5) {
   };
 }
 
-/** Creates a mock poe.ninja stash (item overview) API response */
-function mockStashResponse(overrides: { lines?: unknown[] } = {}) {
-  return {
-    lines: overrides.lines ?? [
-      {
-        name: "The Doctor",
-        chaosValue: 1180,
-        divineValue: 7.9,
-        stackSize: 8,
-        sparkLine: {
-          data: [0, -1.2, 3.5, 2.1, -0.8, 1.3, 0.5],
-          totalChange: 0.5,
-        },
-        lowConfidenceSparkLine: {
-          data: [0, -1.2, 3.5, 2.1, -0.8, 1.3, 0.5],
-          totalChange: 0.5,
-        },
-        count: 15,
-        listingCount: 45,
-      },
-      {
-        name: "Rain of Chaos",
-        chaosValue: 0.4,
-        divineValue: 0.003,
-        stackSize: 8,
-        sparkLine: {
-          data: [0, 0.1, -0.2, 0.3, 0.1, -0.1, 0.2],
-          totalChange: 0.2,
-        },
-        lowConfidenceSparkLine: {
-          data: [0, 0.1, -0.2, 0.3, 0.1, -0.1, 0.2],
-          totalChange: 0.2,
-        },
-        count: 50,
-        listingCount: 200,
-      },
-      {
-        name: "House of Mirrors",
-        chaosValue: 2950,
-        divineValue: 19.7,
-        stackSize: 2,
-        sparkLine: {
-          data: [0, -3.5, -1.9, 2.1, 5.5, 3.6, 4.9],
-          totalChange: 4.9,
-        },
-        lowConfidenceSparkLine: {
-          data: [0, -3.5, -1.9, 2.1, 5.5, 3.6, 4.9],
-          totalChange: 4.9,
-        },
-        count: 24,
-        listingCount: 66,
-      },
-    ],
-  };
-}
-
 function rejectWhenAborted(init?: RequestInit): Promise<Response> {
   const signal = init?.signal;
   return new Promise((_resolve, reject) => {
@@ -186,8 +130,6 @@ function setupFullMocks(
     exchangeTimeout?: boolean;
     currencyData?: unknown;
     currencyError?: boolean;
-    stashData?: unknown;
-    stashError?: boolean;
     snapshotInsertResult?: Record<string, unknown>;
     snapshotInsertError?: boolean;
     cardIdRows?: Array<Record<string, unknown>>;
@@ -306,7 +248,6 @@ function setupFullMocks(
           league_id: payload.p_league_id,
           fetched_at: payload.p_fetched_at,
           exchange_chaos_to_divine: payload.p_exchange_chaos_to_divine,
-          stash_chaos_to_divine: payload.p_stash_chaos_to_divine,
           stacked_deck_chaos_cost: payload.p_stacked_deck_chaos_cost,
           stacked_deck_max_volume_rate: payload.p_stacked_deck_max_volume_rate,
         }),
@@ -336,7 +277,6 @@ function setupFullMocks(
         league_id: "league-uuid-001",
         fetched_at: payload.p_fetched_at,
         exchange_chaos_to_divine: payload.p_exchange_chaos_to_divine,
-        stash_chaos_to_divine: payload.p_stash_chaos_to_divine,
         stacked_deck_chaos_cost: payload.p_stacked_deck_chaos_cost,
         stacked_deck_max_volume_rate: payload.p_stacked_deck_max_volume_rate,
         created_at: new Date().toISOString(),
@@ -383,21 +323,6 @@ function setupFullMocks(
       }
       return new Response(
         JSON.stringify(options.currencyData ?? mockCurrencyResponse()),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
-    },
-  });
-
-  // Stash API (poe1 only — uses /poe1/api/economy/stash/current/item/overview)
-  fetchMock.addRoute({
-    match: (url) =>
-      url.includes("poe.ninja") && url.includes("stash/current/item/overview"),
-    handler: () => {
-      if (options.stashError) {
-        return new Response("Service Unavailable", { status: 503 });
-      }
-      return new Response(
-        JSON.stringify(options.stashData ?? mockStashResponse()),
         { status: 200, headers: { "Content-Type": "application/json" } },
       );
     },
@@ -851,58 +776,6 @@ quietTest(
 );
 
 quietTest(
-  "create-snapshot-internal — calls poe.ninja stash API with correct league name (poe1)",
-  async () => {
-    const league = mockLeague({
-      id: "league-uuid-001",
-      game: "poe1",
-      name: "Dawn",
-    });
-
-    const { fetchMock } = setupFullMocks({ league });
-
-    const req = createInternalRequest(
-      "http://localhost:54321/functions/v1/create-snapshot-internal",
-      { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
-    );
-    await handler(req);
-
-    const stashCall = fetchMock.calls.find(
-      (c) =>
-        c.url.includes("poe.ninja") &&
-        c.url.includes("stash/current/item/overview"),
-    );
-    assert(stashCall !== undefined, "Should have called poe.ninja stash API");
-    assertStringIncludes(stashCall!.url, "Dawn");
-    assertStringIncludes(stashCall!.url, "/poe1/");
-
-    fetchMock.restore();
-  },
-);
-
-quietTest("create-snapshot-internal — skips stash API for poe2", async () => {
-  const league = mockLeague({ game: "poe2", name: "Standard" });
-  const { fetchMock } = setupFullMocks({ league });
-
-  const req = createInternalRequest(
-    "http://localhost:54321/functions/v1/create-snapshot-internal",
-    { game: "poe2", leagueId: "Standard" },
-    "test-cron-secret",
-  );
-  await handler(req);
-
-  const stashCall = fetchMock.calls.find(
-    (c) =>
-      c.url.includes("poe.ninja") &&
-      c.url.includes("stash/current/item/overview"),
-  );
-  assertEquals(stashCall, undefined, "Should NOT call stash API for poe2");
-
-  fetchMock.restore();
-});
-
-quietTest(
   "create-snapshot-internal — calls poe.ninja currency API for stacked deck price",
   async () => {
     const { fetchMock } = setupFullMocks({});
@@ -987,28 +860,6 @@ quietTest(
 );
 
 quietTest(
-  "create-snapshot-internal — poe.ninja stash API failure returns 500",
-  async () => {
-    const { fetchMock } = setupFullMocks({
-      stashError: true,
-    });
-
-    const req = createInternalRequest(
-      "http://localhost:54321/functions/v1/create-snapshot-internal",
-      { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
-    );
-    const resp = await handler(req);
-
-    assertEquals(resp.status, 500);
-    const body = await resp.json();
-    assertEquals(body.error, "Failed to create snapshot");
-
-    fetchMock.restore();
-  },
-);
-
-quietTest(
   "create-snapshot-internal — poe.ninja currency API failure defaults stacked deck to 0",
   async () => {
     const { fetchMock } = setupFullMocks({
@@ -1058,10 +909,6 @@ quietTest(
       "Should have exchange ratio",
     );
     assert(
-      typeof inserted.stash_chaos_to_divine === "number",
-      "Should have stash ratio",
-    );
-    assert(
       typeof inserted.stacked_deck_chaos_cost === "number",
       "Should have stacked deck cost",
     );
@@ -1104,7 +951,6 @@ quietTest(
       league_id: "league-uuid-001",
       fetched_at: new Date().toISOString(),
       exchange_chaos_to_divine: 150,
-      stash_chaos_to_divine: 148,
       stacked_deck_chaos_cost: 1.5,
       created_at: new Date().toISOString(),
     };
@@ -1150,35 +996,6 @@ quietTest(
 );
 
 quietTest(
-  "create-snapshot-internal — card prices include both exchange and stash sources",
-  async () => {
-    const { fetchMock, insertedCardPrices } = setupFullMocks({});
-
-    const req = createInternalRequest(
-      "http://localhost:54321/functions/v1/create-snapshot-internal",
-      { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
-    );
-    const resp = await handler(req);
-
-    assertEquals(resp.status, 200);
-    assert(insertedCardPrices.length > 0);
-
-    const prices = JSON.parse(insertedCardPrices[0].body);
-
-    const exchangePrices = prices.filter(
-      (p: any) => p.price_source === "exchange",
-    );
-    const stashPrices = prices.filter((p: any) => p.price_source === "stash");
-
-    assert(exchangePrices.length > 0, "Should have exchange prices");
-    assert(stashPrices.length > 0, "Should have stash prices");
-
-    fetchMock.restore();
-  },
-);
-
-quietTest(
   "create-snapshot-internal — only Cards category items become exchange prices",
   async () => {
     const exchangeData = mockExchangeResponse({
@@ -1208,14 +1025,11 @@ quietTest(
     assertEquals(resp.status, 200);
     const prices = JSON.parse(insertedCardPrices[0].body);
 
-    const exchangePrices = prices.filter(
-      (p: any) => p.price_source === "exchange",
-    );
     // Only "The Doctor" should be included (Cards category)
-    assertEquals(exchangePrices.length, 1);
-    assertEquals(exchangePrices[0].card_id, cardId("The Doctor"));
+    assertEquals(prices.length, 1);
+    assertEquals(prices[0].card_id, cardId("The Doctor"));
     assertEquals(
-      (exchangePrices[0] as any).card_name,
+      (prices[0] as any).card_name,
       undefined,
       "card_name should not be in insert payload",
     );
@@ -1235,19 +1049,8 @@ quietTest(
       ],
       lines: [{ primaryValue: 200 }, {}],
     });
-    const stashData = mockStashResponse({
-      lines: [
-        {
-          name: "Broken Stash",
-          sparkLine: { data: [0, 1], totalChange: 1 },
-          count: 20,
-        },
-      ],
-    });
-
     const { fetchMock, insertedCardPrices } = setupFullMocks({
       exchangeData,
-      stashData,
     });
 
     const req = createInternalRequest(
@@ -1268,10 +1071,6 @@ quietTest(
     assert(
       !prices.some((p: any) => p.card_id === cardId("Broken Exchange")),
       "Should skip exchange prices without primaryValue",
-    );
-    assert(
-      !prices.some((p: any) => p.card_id === cardId("Broken Stash")),
-      "Should skip stash prices without chaosValue",
     );
 
     for (const price of prices) {
@@ -1305,15 +1104,11 @@ quietTest(
     assert(insertedCardPrices.length > 0);
 
     const prices = JSON.parse(insertedCardPrices[0].body);
-    const exchangePrices = prices.filter(
-      (p: any) => p.price_source === "exchange",
-    );
-
-    for (const price of exchangePrices) {
+    for (const price of prices) {
       assertEquals(
         price.confidence,
         1,
-        `Exchange price for card_id=${price.card_id} should always be high confidence (1)`,
+        `Price for card_id=${price.card_id} should always be high confidence (1)`,
       );
       assertEquals(
         (price as any).card_name,
@@ -1321,341 +1116,6 @@ quietTest(
         "card_name should not be in insert payload",
       );
     }
-
-    fetchMock.restore();
-  },
-);
-
-quietTest(
-  "create-snapshot-internal — derives missing stash divine_value from stash chaos ratio",
-  async () => {
-    const exchangeData = mockExchangeResponse({
-      items: [],
-      lines: [],
-    });
-    const stashData = mockStashResponse({
-      lines: [
-        {
-          name: "Ratio Anchor",
-          chaosValue: 300,
-          divineValue: 2,
-          sparkLine: { data: [0, 1], totalChange: 1 },
-          count: 20,
-        },
-        {
-          name: "Missing Divine",
-          chaosValue: 75,
-          sparkLine: { data: [0, 1], totalChange: 1 },
-          count: 20,
-        },
-      ],
-    });
-
-    const { fetchMock, insertedCardPrices } = setupFullMocks({
-      exchangeData,
-      stashData,
-    });
-
-    const req = createInternalRequest(
-      "http://localhost:54321/functions/v1/create-snapshot-internal",
-      { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
-    );
-    const resp = await handler(req);
-
-    assertEquals(resp.status, 200);
-    assert(insertedCardPrices.length > 0);
-
-    const prices = JSON.parse(insertedCardPrices[0].body);
-    const missingDivine = prices.find(
-      (p: any) => p.card_id === cardId("Missing Divine"),
-    );
-
-    assert(missingDivine !== undefined, "Should keep the card with chaos data");
-    assertEquals(missingDivine.chaos_value, 75);
-    assertEquals(missingDivine.divine_value, 0.5);
-
-    fetchMock.restore();
-  },
-);
-
-quietTest(
-  "create-snapshot-internal — stash prices with populated sparkLine and count>=10 get confidence 1 (high)",
-  async () => {
-    const stashData = mockStashResponse({
-      lines: [
-        {
-          name: "House of Mirrors",
-          chaosValue: 21814,
-          divineValue: 123.8,
-          stackSize: 9,
-          sparkLine: {
-            data: [0, -3.53, -1.88, -3.63, 5.51, 3.65, 4.91],
-            totalChange: 4.91,
-          },
-          lowConfidenceSparkLine: {
-            data: [0, -3.53, -1.88, -3.63, 5.51, 3.65, 4.91],
-            totalChange: 4.91,
-          },
-          count: 24,
-          listingCount: 66,
-        },
-      ],
-    });
-
-    const { fetchMock, insertedCardPrices } = setupFullMocks({
-      stashData,
-    });
-
-    const req = createInternalRequest(
-      "http://localhost:54321/functions/v1/create-snapshot-internal",
-      { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
-    );
-    const resp = await handler(req);
-
-    assertEquals(resp.status, 200);
-    const prices = JSON.parse(insertedCardPrices[0].body);
-    const stashPrices = prices.filter((p: any) => p.price_source === "stash");
-
-    const hom = stashPrices.find(
-      (p: any) => p.card_id === cardId("House of Mirrors"),
-    );
-    assert(hom !== undefined, "Should have House of Mirrors");
-    assertEquals(hom.confidence, 1);
-    assertEquals(
-      (hom as any).card_name,
-      undefined,
-      "card_name should not be in insert payload",
-    );
-
-    fetchMock.restore();
-  },
-);
-
-quietTest(
-  "create-snapshot-internal — stash prices with populated sparkLine but count<10 get confidence 2 (medium)",
-  async () => {
-    const stashData = mockStashResponse({
-      lines: [
-        {
-          name: "Unrequited Love",
-          chaosValue: 10872,
-          divineValue: 61.7,
-          stackSize: 16,
-          sparkLine: {
-            data: [0, -0.94, -5.9, -2.97, -11.45, -11.12, -18.74],
-            totalChange: -18.74,
-          },
-          lowConfidenceSparkLine: {
-            data: [0, -0.94, -5.9, -2.97, -11.45, -11.12, -18.74],
-            totalChange: -18.74,
-          },
-          count: 8,
-          listingCount: 40,
-        },
-      ],
-    });
-
-    const { fetchMock, insertedCardPrices } = setupFullMocks({
-      stashData,
-    });
-
-    const req = createInternalRequest(
-      "http://localhost:54321/functions/v1/create-snapshot-internal",
-      { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
-    );
-    const resp = await handler(req);
-
-    assertEquals(resp.status, 200);
-    const prices = JSON.parse(insertedCardPrices[0].body);
-    const stashPrices = prices.filter((p: any) => p.price_source === "stash");
-
-    const ul = stashPrices.find(
-      (p: any) => p.card_id === cardId("Unrequited Love"),
-    );
-    assert(ul !== undefined, "Should have Unrequited Love");
-    assertEquals(ul.confidence, 2);
-    assertEquals(
-      (ul as any).card_name,
-      undefined,
-      "card_name should not be in insert payload",
-    );
-
-    fetchMock.restore();
-  },
-);
-
-quietTest(
-  "create-snapshot-internal — stash prices with empty sparkLine get confidence 3 (low)",
-  async () => {
-    const stashData = mockStashResponse({
-      lines: [
-        {
-          name: "Nook's Crown",
-          chaosValue: 176.2,
-          divineValue: 1,
-          stackSize: 4,
-          sparkLine: {
-            data: [],
-            totalChange: 0,
-          },
-          lowConfidenceSparkLine: {
-            data: [0, -50.26, -50.11, -50.25, -2.66, -2.6, -2.44],
-            totalChange: -2.44,
-          },
-          count: 1,
-          listingCount: 21,
-        },
-        {
-          name: "History",
-          chaosValue: 17444,
-          divineValue: 99,
-          stackSize: 5,
-          sparkLine: {
-            data: [],
-            totalChange: 0,
-          },
-          lowConfidenceSparkLine: {
-            data: [0, 0.7, 2.22, 22.35, 21.35, 34.91, 35.14],
-            totalChange: 35.14,
-          },
-          count: 1,
-          listingCount: 21,
-        },
-      ],
-    });
-
-    const { fetchMock, insertedCardPrices } = setupFullMocks({
-      stashData,
-    });
-
-    const req = createInternalRequest(
-      "http://localhost:54321/functions/v1/create-snapshot-internal",
-      { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
-    );
-    const resp = await handler(req);
-
-    assertEquals(resp.status, 200);
-    const prices = JSON.parse(insertedCardPrices[0].body);
-    const stashPrices = prices.filter((p: any) => p.price_source === "stash");
-
-    const nooks = stashPrices.find(
-      (p: any) => p.card_id === cardId("Nook's Crown"),
-    );
-    assert(nooks !== undefined, "Should have Nook's Crown");
-    assertEquals(nooks.confidence, 3);
-    assertEquals(
-      (nooks as any).card_name,
-      undefined,
-      "card_name should not be in insert payload",
-    );
-
-    const history = stashPrices.find(
-      (p: any) => p.card_id === cardId("History"),
-    );
-    assert(history !== undefined, "Should have History");
-    assertEquals(history.confidence, 3);
-    assertEquals(
-      (history as any).card_name,
-      undefined,
-      "card_name should not be in insert payload",
-    );
-
-    fetchMock.restore();
-  },
-);
-
-quietTest(
-  "create-snapshot-internal — stash cards without sparkLine field default to confidence 3 (low)",
-  async () => {
-    const stashData = mockStashResponse({
-      lines: [
-        {
-          name: "No Sparkline Card",
-          chaosValue: 50,
-          divineValue: 0.3,
-          stackSize: 4,
-          // No sparkLine or lowConfidenceSparkLine fields at all
-        },
-      ],
-    });
-
-    const { fetchMock, insertedCardPrices } = setupFullMocks({
-      stashData,
-    });
-
-    const req = createInternalRequest(
-      "http://localhost:54321/functions/v1/create-snapshot-internal",
-      { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
-    );
-    const resp = await handler(req);
-
-    assertEquals(resp.status, 200);
-    const prices = JSON.parse(insertedCardPrices[0].body);
-    const stashPrices = prices.filter((p: any) => p.price_source === "stash");
-
-    const card = stashPrices.find(
-      (p: any) => p.card_id === cardId("No Sparkline Card"),
-    );
-    assert(card !== undefined, "Should have No Sparkline Card");
-    assertEquals(card.confidence, 3);
-    assertEquals(
-      (card as any).card_name,
-      undefined,
-      "card_name should not be in insert payload",
-    );
-
-    fetchMock.restore();
-  },
-);
-
-quietTest(
-  "create-snapshot-internal — stash prices do not include stack_size",
-  async () => {
-    const stashData = mockStashResponse({
-      lines: [
-        {
-          name: "The Wretched",
-          chaosValue: 5,
-          divineValue: 0.03,
-          stackSize: 6,
-        },
-      ],
-    });
-
-    const { fetchMock, insertedCardPrices } = setupFullMocks({
-      stashData,
-    });
-
-    const req = createInternalRequest(
-      "http://localhost:54321/functions/v1/create-snapshot-internal",
-      { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
-    );
-    const resp = await handler(req);
-
-    assertEquals(resp.status, 200);
-    const prices = JSON.parse(insertedCardPrices[0].body);
-
-    const stashPrices = prices.filter((p: any) => p.price_source === "stash");
-    const wretched = stashPrices.find(
-      (p: any) => p.card_id === cardId("The Wretched"),
-    );
-    assert(wretched !== undefined, "Should have The Wretched in stash prices");
-    assertEquals(
-      (wretched as any).card_name,
-      undefined,
-      "card_name should not be in insert payload",
-    );
-    assertEquals(
-      wretched.stack_size,
-      undefined,
-      "stack_size should not be present",
-    );
 
     fetchMock.restore();
   },
@@ -1718,10 +1178,6 @@ quietTest(
       "Snapshot should have exchangeChaosToDivine",
     );
     assert(
-      body.snapshot.stashChaosToDivine !== undefined,
-      "Snapshot should have stashChaosToDivine",
-    );
-    assert(
       body.snapshot.stackedDeckChaosCost !== undefined,
       "Snapshot should have stackedDeckChaosCost",
     );
@@ -1741,7 +1197,6 @@ quietTest(
       id: "camel-case-test-uuid",
       league_id: "league-uuid-001",
       exchange_chaos_to_divine: 155,
-      stash_chaos_to_divine: 152,
       stacked_deck_chaos_cost: 2.0,
       created_at: "2024-12-15T12:00:00Z",
     };
@@ -1767,7 +1222,6 @@ quietTest(
       JSON.parse(insertedSnapshots[0].body).fetched_at,
     );
     assertEquals(body.snapshot.exchangeChaosToDivine, 155);
-    assertEquals(body.snapshot.stashChaosToDivine, 152);
     assertEquals(body.snapshot.stackedDeckChaosCost, 2.0);
 
     fetchMock.restore();
@@ -1777,7 +1231,6 @@ quietTest(
 quietTest(
   "create-snapshot-internal — cardCount reflects total inserted prices",
   async () => {
-    // 3 exchange card items + 3 stash items = 6 total
     const { fetchMock } = setupFullMocks({});
 
     const req = createInternalRequest(
@@ -1790,10 +1243,8 @@ quietTest(
     assertEquals(resp.status, 200);
     const body = await resp.json();
 
-    // Default mock: 3 Cards in exchange (The Doctor, House of Mirrors, Rain of Chaos)
-    // + 3 stash lines (The Doctor, Rain of Chaos, House of Mirrors)
-    // = 6 total
-    assert(body.snapshot.cardCount > 0, "cardCount should be greater than 0");
+    // Default mock: 3 Cards in exchange (The Doctor, House of Mirrors, Rain of Chaos).
+    assertEquals(body.snapshot.cardCount, 3);
 
     fetchMock.restore();
   },
@@ -1882,42 +1333,6 @@ quietTest(
   },
 );
 
-quietTest(
-  "create-snapshot-internal — calculates stash chaos-to-divine ratio from first card with both values",
-  async () => {
-    const stashData = mockStashResponse({
-      lines: [
-        { name: "Zero Divine", chaosValue: 50, divineValue: 0, stackSize: 1 }, // divineValue = 0, skip
-        {
-          name: "Good Card",
-          chaosValue: 300,
-          divineValue: 2,
-          stackSize: 8,
-        }, // ratio = 300/2 = 150
-      ],
-    });
-
-    const { fetchMock, insertedSnapshots } = setupFullMocks({
-      stashData,
-    });
-
-    const req = createInternalRequest(
-      "http://localhost:54321/functions/v1/create-snapshot-internal",
-      { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
-    );
-    const resp = await handler(req);
-
-    assertEquals(resp.status, 200);
-    assert(insertedSnapshots.length > 0);
-
-    const inserted = JSON.parse(insertedSnapshots[0].body);
-    assertEquals(inserted.stash_chaos_to_divine, 150); // 300/2
-
-    fetchMock.restore();
-  },
-);
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // Stacked Deck Price Tests
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1985,23 +1400,63 @@ quietTest(
 // ═══════════════════════════════════════════════════════════════════════════════
 
 quietTest(
-  "create-snapshot-internal — empty exchange and stash prices fail before creating a snapshot",
+  "create-snapshot-internal — poe2 with no divination card prices skips without error",
   async () => {
+    const league = mockLeague({ game: "poe2", name: "Standard" });
     const exchangeData = mockExchangeResponse({
       items: [],
       lines: [],
+      core: { rates: { divine: null } },
     });
-
     const { fetchMock, insertedCardPrices, insertedSnapshots } = setupFullMocks(
       {
+        league,
         exchangeData,
-        stashData: mockStashResponse({ lines: [] }),
+        currencyData: mockCurrencyResponse(0),
       },
     );
 
     const req = createInternalRequest(
       "http://localhost:54321/functions/v1/create-snapshot-internal",
-      { game: "poe1", leagueId: "Dawn" },
+      { game: "poe2", leagueId: "Standard" },
+      "test-cron-secret",
+    );
+    const resp = await handler(req);
+
+    assertEquals(resp.status, 200);
+    const body = await resp.json();
+    assertEquals(body.success, true);
+    assertEquals(body.skipped, true);
+    assertEquals(body.reason, "no_divination_card_prices");
+    assertEquals(body.game, "poe2");
+    assertEquals(body.leagueName, "Standard");
+    assertEquals(body.cardCount, 0);
+    assertEquals(insertedCardPrices.length, 0);
+    assertEquals(insertedSnapshots.length, 0);
+
+    fetchMock.restore();
+  },
+);
+
+quietTest(
+  "create-snapshot-internal — poe1 with no divination card prices still fails",
+  async () => {
+    const league = mockLeague({ game: "poe1", name: "Standard" });
+    const exchangeData = mockExchangeResponse({
+      items: [],
+      lines: [],
+      core: { rates: { divine: null } },
+    });
+    const { fetchMock, insertedCardPrices, insertedSnapshots } = setupFullMocks(
+      {
+        league,
+        exchangeData,
+      },
+    );
+
+    const req = createInternalRequest(
+      "http://localhost:54321/functions/v1/create-snapshot-internal",
+      { game: "poe1", leagueId: "Standard" },
       "test-cron-secret",
     );
     const resp = await handler(req);
@@ -2042,34 +1497,6 @@ quietTest(
   },
 );
 
-quietTest(
-  "create-snapshot-internal — empty stash lines produces zero stash prices",
-  async () => {
-    const stashData = mockStashResponse({ lines: [] });
-
-    const { fetchMock, insertedCardPrices } = setupFullMocks({
-      stashData,
-    });
-
-    const req = createInternalRequest(
-      "http://localhost:54321/functions/v1/create-snapshot-internal",
-      { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
-    );
-    const resp = await handler(req);
-
-    assertEquals(resp.status, 200);
-
-    if (insertedCardPrices.length > 0) {
-      const prices = JSON.parse(insertedCardPrices[0].body);
-      const stashPrices = prices.filter((p: any) => p.price_source === "stash");
-      assertEquals(stashPrices.length, 0);
-    }
-
-    fetchMock.restore();
-  },
-);
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // Exchange Price Calculation Tests
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -2085,7 +1512,6 @@ quietTest(
 
     const { fetchMock, insertedCardPrices } = setupFullMocks({
       exchangeData,
-      stashData: mockStashResponse({ lines: [] }),
     });
 
     const req = createInternalRequest(
@@ -2099,14 +1525,9 @@ quietTest(
     assert(insertedCardPrices.length > 0);
 
     const prices = JSON.parse(insertedCardPrices[0].body);
-    const exchangePrices = prices.filter(
-      (p: any) => p.price_source === "exchange",
-    );
 
-    assert(exchangePrices.length >= 1);
-    const testCard = exchangePrices.find(
-      (p: any) => p.card_id === cardId("Test Card"),
-    );
+    assert(prices.length >= 1);
+    const testCard = prices.find((p: any) => p.card_id === cardId("Test Card"));
     assert(testCard !== undefined, "Should have Test Card");
     assertEquals(testCard.chaos_value, 400);
     assertEquals(testCard.divine_value, 2.0); // 400 / 200, rounded to 2 decimals
@@ -2287,113 +1708,6 @@ quietTest(
 );
 
 quietTest(
-  "create-snapshot-internal — poe1 game uses /poe1/ prefix in stash API URL",
-  async () => {
-    const league = mockLeague({ game: "poe1", name: "Dawn" });
-    const { fetchMock } = setupFullMocks({ league });
-
-    const req = createInternalRequest(
-      "http://localhost:54321/functions/v1/create-snapshot-internal",
-      { game: "poe1", leagueId: "Dawn" },
-      "test-cron-secret",
-    );
-    await handler(req);
-
-    const stashCall = fetchMock.calls.find(
-      (c) =>
-        c.url.includes("poe.ninja") &&
-        c.url.includes("stash/current/item/overview"),
-    );
-    assert(stashCall !== undefined, "Should have called stash API for poe1");
-    assertStringIncludes(stashCall!.url, "/poe1/");
-    assertStringIncludes(stashCall!.url, "DivinationCard");
-
-    fetchMock.restore();
-  },
-);
-
-quietTest(
-  "create-snapshot-internal — poe2 game does NOT call stash API at all",
-  async () => {
-    const league = mockLeague({ game: "poe2", name: "Standard" });
-    const { fetchMock } = setupFullMocks({ league });
-
-    const req = createInternalRequest(
-      "http://localhost:54321/functions/v1/create-snapshot-internal",
-      { game: "poe2", leagueId: "Standard" },
-      "test-cron-secret",
-    );
-    await handler(req);
-
-    const stashCall = fetchMock.calls.find(
-      (c) =>
-        c.url.includes("poe.ninja") &&
-        c.url.includes("stash/current/item/overview"),
-    );
-    assertEquals(
-      stashCall,
-      undefined,
-      "Should NOT have called stash API for poe2",
-    );
-
-    fetchMock.restore();
-  },
-);
-
-quietTest(
-  "create-snapshot-internal — poe2 game uses correct prefix in exchange+currency and skips stash",
-  async () => {
-    const league = mockLeague({ game: "poe2", name: "Standard" });
-    const { fetchMock } = setupFullMocks({ league });
-
-    const req = createInternalRequest(
-      "http://localhost:54321/functions/v1/create-snapshot-internal",
-      { game: "poe2", leagueId: "Standard" },
-      "test-cron-secret",
-    );
-    await handler(req);
-
-    // Exchange API: should use /poe2/ path prefix
-    const exchangeCall = fetchMock.calls.find(
-      (c) =>
-        c.url.includes("poe.ninja") &&
-        c.url.includes("exchange") &&
-        c.url.includes("DivinationCard"),
-    );
-    assert(exchangeCall !== undefined, "Should have called exchange API");
-    assertStringIncludes(exchangeCall!.url, "/poe2/");
-    assert(
-      !exchangeCall!.url.includes("/poe1/"),
-      "Exchange URL should NOT contain /poe1/ when game is poe2",
-    );
-
-    // Currency API: should use /poe2/ path prefix
-    const currencyCall = fetchMock.calls.find(
-      (c) =>
-        c.url.includes("poe.ninja") &&
-        c.url.includes("exchange") &&
-        c.url.includes("Currency"),
-    );
-    assert(currencyCall !== undefined, "Should have called currency API");
-    assertStringIncludes(currencyCall!.url, "/poe2/");
-    assert(
-      !currencyCall!.url.includes("/poe1/"),
-      "Currency URL should NOT contain /poe1/ when game is poe2",
-    );
-
-    // Stash API: should NOT be called for poe2
-    const stashCall = fetchMock.calls.find(
-      (c) =>
-        c.url.includes("poe.ninja") &&
-        c.url.includes("stash/current/item/overview"),
-    );
-    assertEquals(stashCall, undefined, "Should NOT call stash API for poe2");
-
-    fetchMock.restore();
-  },
-);
-
-quietTest(
   "create-snapshot-internal — poe1 game does NOT leak poe2 prefix into any URL",
   async () => {
     const league = mockLeague({ game: "poe1", name: "Settlers of Kalguur" });
@@ -2411,8 +1725,8 @@ quietTest(
       .map((c) => c.url);
 
     assert(
-      ninjaUrls.length >= 3,
-      "Should have made at least 3 poe.ninja calls (exchange, currency, stash)",
+      ninjaUrls.length >= 2,
+      "Should have made poe.ninja calls for exchange and currency",
     );
 
     for (const url of ninjaUrls) {
@@ -2435,12 +1749,7 @@ quietTest(
     assert(currencyCall !== undefined, "Should have currency call");
     assertStringIncludes(currencyCall!, "/poe1/");
 
-    // Verify stash uses /poe1/ prefix and correct path
-    const stashCall = ninjaUrls.find((u) =>
-      u.includes("stash/current/item/overview"),
-    );
-    assert(stashCall !== undefined, "Should have stash call");
-    assertStringIncludes(stashCall!, "/poe1/");
+    assertEquals(ninjaUrls.length, 2);
 
     fetchMock.restore();
   },

@@ -22,28 +22,17 @@ interface SupabaseSnapshotResponse {
     leagueId: string;
     fetchedAt: string;
     exchangeChaosToDivine: number;
-    stashChaosToDivine: number;
     stackedDeckChaosCost: number;
     stackedDeckMaxVolumeRate?: number | null;
   };
-  cardPrices: {
-    exchange: Record<
-      string,
-      {
-        chaosValue: number;
-        divineValue: number;
-        confidence?: Confidence;
-      }
-    >;
-    stash: Record<
-      string,
-      {
-        chaosValue: number;
-        divineValue: number;
-        confidence?: Confidence;
-      }
-    >;
-  };
+  cardPrices: Record<
+    string,
+    {
+      chaosValue: number;
+      divineValue: number;
+      confidence?: Confidence;
+    }
+  >;
 }
 
 /**
@@ -594,14 +583,8 @@ class SupabaseClientService {
         stackedDeckChaosCost: responseData.snapshot.stackedDeckChaosCost ?? 0,
         stackedDeckMaxVolumeRate:
           responseData.snapshot.stackedDeckMaxVolumeRate ?? undefined,
-        exchange: {
-          chaosToDivineRatio: responseData.snapshot.exchangeChaosToDivine,
-          cardPrices: responseData.cardPrices.exchange,
-        },
-        stash: {
-          chaosToDivineRatio: responseData.snapshot.stashChaosToDivine,
-          cardPrices: responseData.cardPrices.stash,
-        },
+        chaosToDivineRatio: responseData.snapshot.exchangeChaosToDivine,
+        cardPrices: responseData.cardPrices,
       };
 
       // Cache the result

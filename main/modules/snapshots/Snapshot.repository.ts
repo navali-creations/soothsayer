@@ -88,9 +88,7 @@ export class SnapshotRepository {
           id: data.id,
           league_id: data.leagueId,
           fetched_at: data.snapshotData.timestamp,
-          exchange_chaos_to_divine:
-            data.snapshotData.exchange.chaosToDivineRatio,
-          stash_chaos_to_divine: data.snapshotData.stash.chaosToDivineRatio,
+          chaos_to_divine_ratio: data.snapshotData.chaosToDivineRatio,
           stacked_deck_chaos_cost: data.snapshotData.stackedDeckChaosCost ?? 0,
           stacked_deck_max_volume_rate:
             data.snapshotData.stackedDeckMaxVolumeRate ?? null,
@@ -101,34 +99,17 @@ export class SnapshotRepository {
       const cardPrices: Array<{
         snapshot_id: string;
         card_name: string;
-        price_source: "exchange" | "stash";
         chaos_value: number;
         divine_value: number;
         confidence: Confidence;
       }> = [];
 
-      // Add exchange prices
       for (const [cardName, priceData] of Object.entries(
-        data.snapshotData.exchange.cardPrices,
+        data.snapshotData.cardPrices,
       )) {
         cardPrices.push({
           snapshot_id: data.id,
           card_name: cardName,
-          price_source: "exchange",
-          chaos_value: priceData.chaosValue,
-          divine_value: priceData.divineValue,
-          confidence: priceData.confidence ?? 1,
-        });
-      }
-
-      // Add stash prices
-      for (const [cardName, priceData] of Object.entries(
-        data.snapshotData.stash.cardPrices,
-      )) {
-        cardPrices.push({
-          snapshot_id: data.id,
-          card_name: cardName,
-          price_source: "stash",
           chaos_value: priceData.chaosValue,
           divine_value: priceData.divineValue,
           confidence: priceData.confidence ?? 1,

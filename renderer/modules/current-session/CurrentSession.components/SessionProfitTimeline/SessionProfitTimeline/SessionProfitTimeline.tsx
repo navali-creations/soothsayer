@@ -56,6 +56,11 @@ const SessionProfitTimeline = memo(
     const session = getSession();
     const chaosToDivineRatio = ratioProp ?? getChaosToDivineRatio();
     const deckCost = costProp ?? session?.totals?.stackedDeckChaosCost ?? 0;
+    const displayedNetProfit =
+      timelineBuffer.linePoints.at(-1)?.profit ??
+      (deckCost > 0
+        ? timelineBuffer.totalChaosValue - timelineBuffer.totalDrops * deckCost
+        : timelineBuffer.totalChaosValue);
 
     // ── Buffer lifecycle (seeding, deck cost, version tracking) ─────────
     const bufferVersion = useTimelineBuffer({
@@ -247,8 +252,7 @@ const SessionProfitTimeline = memo(
           </h3>
           <span className="text-[10px] text-base-content/30 tabular-nums">
             {timelineBuffer.totalDrops.toLocaleString()} drops ·{" "}
-            {formatCurrency(timelineBuffer.totalChaosValue, chaosToDivineRatio)}{" "}
-            total
+            {formatCurrency(displayedNetProfit, chaosToDivineRatio)} net
           </span>
         </div>
 

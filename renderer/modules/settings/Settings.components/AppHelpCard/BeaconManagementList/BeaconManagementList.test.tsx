@@ -136,8 +136,16 @@ describe("BeaconManagementList", () => {
       />,
     );
 
-    expect(screen.getByText("1 / 2 dismissed")).toBeInTheDocument();
-    expect(screen.getByText("2 / 3 dismissed")).toBeInTheDocument();
+    for (const group of onboardingBeaconGroups) {
+      const dismissedCount = group.beacons.filter((beacon) =>
+        beaconStates.some((state) => state.id === beacon.id && state.dismissed),
+      ).length;
+      expect(
+        screen.getByTestId(`beacon-group-${group.pageId}`),
+      ).toHaveTextContent(
+        `${dismissedCount} / ${group.beacons.length} dismissed`,
+      );
+    }
   });
 
   it("does not render the raw beacon id under the user-facing label", () => {

@@ -3,8 +3,6 @@ import { useBoundStore } from "~/renderer/store";
 
 import CurrentSessionUniqueCardsStat from "./CurrentSessionUniqueCardsStat";
 
-// ─── Mocks ─────────────────────────────────────────────────────────────────
-
 vi.mock("~/renderer/store", async () => {
   const { createStoreMock } = await import(
     "~/renderer/__test-setup__/store-mock"
@@ -48,15 +46,10 @@ vi.mock("~/renderer/components", () => ({
 
 const mockUseBoundStore = vi.mocked(useBoundStore);
 
-// ─── Helpers ───────────────────────────────────────────────────────────────
-
 function setupStore(overrides: any = {}) {
   const store = {
     currentSession: {
       getSession: vi.fn(() => overrides.session ?? null),
-    },
-    settings: {
-      getActiveGameViewPriceSource: vi.fn(() => "exchange"),
     },
   } as any;
   mockUseBoundStore.mockReturnValue(store);
@@ -69,20 +62,13 @@ function createSession(overrides: any = {}) {
     cards: overrides.cards ?? [],
     priceSnapshot: overrides.priceSnapshot ?? {
       timestamp: "2024-06-15T12:00:00.000Z",
-      stash: { chaosToDivineRatio: 200 },
-      exchange: { chaosToDivineRatio: 220 },
+      chaosToDivineRatio: 200,
+      cardPrices: {},
     },
     totals: overrides.totals ?? {
-      exchange: {
-        chaosToDivineRatio: 220,
-        totalValue: 500,
-        netProfit: 300,
-      },
-      stash: {
-        chaosToDivineRatio: 200,
-        totalValue: 480,
-        netProfit: 280,
-      },
+      chaosToDivineRatio: 200,
+      totalValue: 500,
+      netProfit: 300,
       totalDeckCost: 200,
     },
     ...overrides,
@@ -93,19 +79,15 @@ function createCard(overrides: any = {}) {
   return {
     name: overrides.name ?? "The Doctor",
     count: overrides.count ?? 1,
-    stashPrice: {
-      chaosValue: overrides.stashChaos ?? 100,
-      hidePrice: overrides.stashHide ?? false,
-    },
-    exchangePrice: {
-      chaosValue: overrides.exchangeChaos ?? 120,
-      hidePrice: overrides.exchangeHide ?? false,
+    price: {
+      chaosValue: overrides.chaosValue ?? 100,
+      totalValue: overrides.totalValue ?? overrides.chaosValue ?? 100,
+      hidePrice: overrides.hidePrice ?? false,
+      ...overrides.price,
     },
     ...overrides,
   };
 }
-
-// ─── Tests ─────────────────────────────────────────────────────────────────
 
 describe("CurrentSessionUniqueCardsStat", () => {
   afterEach(() => {
@@ -114,6 +96,7 @@ describe("CurrentSessionUniqueCardsStat", () => {
 
   it('renders "Unique Cards" title', () => {
     setupStore({ session: null });
+
     renderWithProviders(<CurrentSessionUniqueCardsStat />);
 
     expect(screen.getByText("Unique Cards")).toBeInTheDocument();
@@ -121,13 +104,13 @@ describe("CurrentSessionUniqueCardsStat", () => {
 
   it("renders 0 when session is null", () => {
     setupStore({ session: null });
+
     renderWithProviders(<CurrentSessionUniqueCardsStat />);
 
-    const value = screen.getByTestId("stat-value");
-    expect(value).toHaveTextContent("0");
+    expect(screen.getByTestId("stat-value")).toHaveTextContent("0");
   });
 
-  it("renders the count of unique cards (cards.length)", () => {
+  it("renders the count of unique cards", () => {
     setupStore({
       session: createSession({
         cards: [
@@ -137,24 +120,23 @@ describe("CurrentSessionUniqueCardsStat", () => {
         ],
       }),
     });
+
     renderWithProviders(<CurrentSessionUniqueCardsStat />);
 
-    const value = screen.getByTestId("stat-value");
-    expect(value).toHaveTextContent("3");
+    expect(screen.getByTestId("stat-value")).toHaveTextContent("3");
   });
 
-  it("renders 0 when session has empty cards array", () => {
-    setupStore({
-      session: createSession({ cards: [] }),
-    });
+  it("renders zero when the session has no cards", () => {
+    setupStore({ session: createSession({ cards: [] }) });
+
     renderWithProviders(<CurrentSessionUniqueCardsStat />);
 
-    const value = screen.getByTestId("stat-value");
-    expect(value).toHaveTextContent("0");
+    expect(screen.getByTestId("stat-value")).toHaveTextContent("0");
   });
 
   it('renders "Different cards found" description', () => {
     setupStore({ session: null });
+
     renderWithProviders(<CurrentSessionUniqueCardsStat />);
 
     expect(screen.getByText("Different cards found")).toBeInTheDocument();

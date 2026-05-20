@@ -4,12 +4,12 @@ import type { SessionSummary } from "~/main/modules/sessions";
  * Generate a rich CSV with full session metadata.
  *
  * Columns: Session Date, League, Duration (min), Decks Opened,
- *          Exchange Value (chaos), Stash Value (chaos),
+ *          Value (chaos),
  *          Net Profit (chaos), Chaos/Divine Ratio, Stacked Deck Cost (chaos)
  */
 export function generateRichCsv(sessions: SessionSummary[]): string {
   const header =
-    "Session Date,League,Duration (min),Decks Opened,Exchange Value (chaos),Stash Value (chaos),Net Profit (chaos),Chaos/Divine Ratio,Stacked Deck Cost (chaos)\n";
+    "Session Date,League,Duration (min),Decks Opened,Value (chaos),Net Profit (chaos),Chaos/Divine Ratio,Stacked Deck Cost (chaos)\n";
 
   const rows = sessions
     .map((s) => {
@@ -17,13 +17,12 @@ export function generateRichCsv(sessions: SessionSummary[]): string {
       const league = escapeCsvField(s.league ?? "");
       const duration = s.durationMinutes ?? "N/A";
       const decks = s.totalDecksOpened ?? 0;
-      const exchangeValue = formatNum(s.totalExchangeValue);
-      const stashValue = formatNum(s.totalStashValue);
-      const netProfit = formatNum(s.totalExchangeNetProfit);
-      const chaosRatio = formatNum(s.exchangeChaosToDivine);
+      const exchangeValue = formatNum(s.totalValue);
+      const netProfit = formatNum(s.netProfit);
+      const chaosRatio = formatNum(s.chaosToDivineRatio);
       const deckCost = formatNum(s.stackedDeckChaosCost);
 
-      return `${date},${league},${duration},${decks},${exchangeValue},${stashValue},${netProfit},${chaosRatio},${deckCost}`;
+      return `${date},${league},${duration},${decks},${exchangeValue},${netProfit},${chaosRatio},${deckCost}`;
     })
     .join("\n");
 

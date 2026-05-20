@@ -10,21 +10,16 @@ interface CardEntry {
 interface RecentDrop {
   cardName: string;
   rarity: Rarity;
-  exchangePrice: {
+  price: {
     chaosValue: number;
     divineValue: number;
-  };
-  stashPrice: {
-    chaosValue: number;
-    divineValue: number;
-  };
+  } | null;
 }
 
 interface SessionData {
   totalCount: number;
   totalProfit: number;
   chaosToDivineRatio: number;
-  priceSource: "exchange" | "stash";
   cards: CardEntry[];
   recentDrops: RecentDrop[];
   isActive: boolean;
@@ -41,7 +36,6 @@ export const useOverlayStore = create<OverlayStore>((set) => ({
     totalCount: 0,
     totalProfit: 0,
     chaosToDivineRatio: 0,
-    priceSource: "exchange",
     cards: [],
     recentDrops: [],
     isActive: false,

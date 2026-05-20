@@ -9,6 +9,15 @@ export async function resetSessionsBulkState(page: Page): Promise<void> {
       );
     }
 
-    store.getState().sessions.setBulkMode(null);
+    store.setState((state: any) => {
+      state.sessions.bulkMode = null;
+      state.sessions.selectedSessionIds = [];
+      state.sessions.isDeleteConfirmOpen = false;
+      state.sessions.deleteError = null;
+      state.sessions.isDeleting = false;
+      state.sessions.searchQuery = "";
+      state.sessions.selectedLeague = "all";
+      state.sessions.currentPage = 1;
+    });
   });
 }

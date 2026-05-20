@@ -1,30 +1,21 @@
 import { createColumnHelper } from "@tanstack/react-table";
 
 import { TableHeader } from "~/renderer/components";
-import type { CardEntry, PriceSource } from "~/types/data-stores";
+import type { CardEntry } from "~/types/data-stores";
 
 import CurrentSessionTotalValueCell from "./CurrentSessionTotalValueCell";
 
 const columnHelper = createColumnHelper<CardEntry>();
 
-export const createCurrentSessionTotalValueColumn = (
-  priceSource: PriceSource,
-) => {
+export const createCurrentSessionTotalValueColumn = () => {
   return columnHelper.accessor("count", {
     id: "totalValue",
     header: () => <TableHeader>Total Value</TableHeader>,
     cell: (info) => <CurrentSessionTotalValueCell {...info} />,
     enableSorting: true,
     sortingFn: (rowA, rowB) => {
-      // Use the priceSource from the closure
-      const valueA =
-        priceSource === "stash"
-          ? (rowA.original.stashPrice?.totalValue ?? 0)
-          : (rowA.original.exchangePrice?.totalValue ?? 0);
-      const valueB =
-        priceSource === "stash"
-          ? (rowB.original.stashPrice?.totalValue ?? 0)
-          : (rowB.original.exchangePrice?.totalValue ?? 0);
+      const valueA = rowA.original.price?.totalValue ?? 0;
+      const valueB = rowB.original.price?.totalValue ?? 0;
       return valueA - valueB;
     },
   });

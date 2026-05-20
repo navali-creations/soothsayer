@@ -66,13 +66,9 @@ function makeDrop(overrides: any = {}) {
   return {
     cardName: overrides.cardName ?? "The Doctor",
     rarity: overrides.rarity ?? 1,
-    exchangePrice: overrides.exchangePrice ?? {
+    price: overrides.price ?? {
       chaosValue: 1000,
       divineValue: 5,
-    },
-    stashPrice: overrides.stashPrice ?? {
-      chaosValue: 950,
-      divineValue: 4.75,
     },
   };
 }
@@ -86,7 +82,6 @@ function createMockStore(overrides: any = {}) {
         totalCount: 10,
         totalProfit: 500,
         chaosToDivineRatio: 200,
-        priceSource: "exchange" as const,
         cards: [{ cardName: "The Doctor", count: 1 }],
         recentDrops: overrides.recentDrops ?? [
           makeDrop({ cardName: "The Doctor", rarity: 1 }),
@@ -224,42 +219,19 @@ describe("OverlayDropsList", () => {
       expect(beamColumns).toHaveLength(10);
     });
 
-    it("uses exchange price source from sessionData", () => {
+    it("uses the single drop price", () => {
       const drops = [
         makeDrop({
           cardName: "The Doctor",
           rarity: 1,
-          exchangePrice: { chaosValue: 1000, divineValue: 5 },
-          stashPrice: { chaosValue: 800, divineValue: 4 },
+          price: { chaosValue: 1000, divineValue: 5 },
         }),
       ];
-      setupStore({
-        filteredDrops: drops,
-        sessionData: { priceSource: "exchange" as const },
-      });
+      setupStore({ filteredDrops: drops });
       renderWithProviders(<OverlayDropsList />);
 
       const contentColumn = screen.getByTestId("content-column");
       expect(contentColumn).toHaveAttribute("data-chaosvalue", "1000");
-    });
-
-    it("uses stash price source when sessionData says stash", () => {
-      const drops = [
-        makeDrop({
-          cardName: "The Doctor",
-          rarity: 1,
-          exchangePrice: { chaosValue: 1000, divineValue: 5 },
-          stashPrice: { chaosValue: 800, divineValue: 4 },
-        }),
-      ];
-      setupStore({
-        filteredDrops: drops,
-        sessionData: { priceSource: "stash" as const },
-      });
-      renderWithProviders(<OverlayDropsList />);
-
-      const contentColumn = screen.getByTestId("content-column");
-      expect(contentColumn).toHaveAttribute("data-chaosvalue", "800");
     });
   });
 
@@ -348,8 +320,7 @@ describe("OverlayDropsList", () => {
         {
           cardName: "Missing Price Card",
           rarity: 1,
-          exchangePrice: undefined,
-          stashPrice: undefined,
+          price: undefined,
         },
       ];
       setupStore({ filteredDrops: drops });

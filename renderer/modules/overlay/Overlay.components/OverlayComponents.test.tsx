@@ -83,14 +83,12 @@ function createMockStore(overrides: any = {}) {
         totalCount: 10,
         totalProfit: 500,
         chaosToDivineRatio: 200,
-        priceSource: "exchange" as const,
         cards: [{ cardName: "The Doctor", count: 1 }],
         recentDrops: [
           {
             cardName: "The Doctor",
             rarity: 1,
-            exchangePrice: { chaosValue: 1000, divineValue: 5 },
-            stashPrice: { chaosValue: 950, divineValue: 4.75 },
+            price: { chaosValue: 1000, divineValue: 5 },
           },
         ],
         ...overrides.sessionData,
@@ -112,7 +110,6 @@ function createMockStore(overrides: any = {}) {
               totalCount: 10,
               totalProfit: 500,
               chaosToDivineRatio: 200,
-              priceSource: "exchange" as const,
               cards: [{ cardName: "The Doctor", count: 1 }],
               recentDrops: [],
               ...overrides.sessionData,

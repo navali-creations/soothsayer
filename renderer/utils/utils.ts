@@ -54,6 +54,14 @@ export function formatCurrency(
   chaosValue: number,
   chaosToDivineRatio: number,
 ): string {
+  if (!Number.isFinite(chaosValue)) {
+    return "n/a";
+  }
+
+  if (!Number.isFinite(chaosToDivineRatio) || chaosToDivineRatio <= 0) {
+    return `${chaosValue.toFixed(2)}c`;
+  }
+
   if (Math.abs(chaosValue) >= chaosToDivineRatio) {
     const divineValue = chaosValue / chaosToDivineRatio;
     return `${divineValue.toFixed(2)}d`;

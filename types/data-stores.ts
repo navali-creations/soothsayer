@@ -1,9 +1,6 @@
 // Game type
 export type GameType = "poe1" | "poe2";
 
-// Price source type
-export type PriceSource = "exchange" | "stash";
-
 /**
  * Rarity source determines which dataset drives card rarity tiers.
  * - `poe.ninja`: Price-based rarity from poe.ninja market data
@@ -43,14 +40,13 @@ export interface DivinationCardMetadata {
   filterRarity?: KnownRarity | null;
 }
 
-// Card entry for UI display (already flattened with both prices)
+// Card entry for UI display (flattened with exchange price when available)
 export interface CardEntry {
   name: string;
   count: number;
   ratio?: number; // Percentage of total cards (optional, calculated at display time)
   processedIds?: string[];
-  stashPrice?: CardPriceInfo;
-  exchangePrice?: CardPriceInfo;
+  price?: CardPriceInfo;
   divinationCard?: DivinationCardMetadata; // Joined from divination_cards table
 }
 
@@ -68,28 +64,15 @@ export interface SessionPriceSnapshot {
   stackedDeckChaosCost: number;
   /** Bulk exchange rate (decks/divine) from poe.ninja maxVolumeRate. Undefined for older snapshots. */
   stackedDeckMaxVolumeRate?: number;
-  exchange: {
-    chaosToDivineRatio: number;
-    cardPrices: Record<string, CardPriceSnapshot>;
-  };
-  stash: {
-    chaosToDivineRatio: number;
-    cardPrices: Record<string, CardPriceSnapshot>;
-  };
+  chaosToDivineRatio: number;
+  cardPrices: Record<string, CardPriceSnapshot>;
 }
 
 // Aggregate totals for quick access
 export interface SessionTotals {
-  stash: {
-    totalValue: number;
-    netProfit: number;
-    chaosToDivineRatio: number;
-  };
-  exchange: {
-    totalValue: number;
-    netProfit: number;
-    chaosToDivineRatio: number;
-  };
+  totalValue: number;
+  netProfit: number;
+  chaosToDivineRatio: number;
   stackedDeckChaosCost: number;
   totalDeckCost: number;
 }
@@ -97,14 +80,10 @@ export interface SessionTotals {
 export interface RecentDrop {
   cardName: string;
   rarity?: Rarity;
-  exchangePrice: {
+  price: {
     chaosValue: number;
     divineValue: number;
-  };
-  stashPrice: {
-    chaosValue: number;
-    divineValue: number;
-  };
+  } | null;
 }
 
 // Simple card entry (for league and all-time aggregate stats)
@@ -182,20 +161,16 @@ export interface SessionCardDelta {
   newCount: number;
   /** Updated session-wide total count. */
   totalCount: number;
-  /** Exchange price info for this card (null if no snapshot). */
-  exchangePrice: { chaosValue: number; divineValue: number } | null;
-  /** Stash price info for this card (null if no snapshot). */
-  stashPrice: { chaosValue: number; divineValue: number } | null;
+  /** Exchange price info for this card (null if unavailable). */
+  price: { chaosValue: number; divineValue: number } | null;
   /** Updated session totals (recalculated incrementally). */
   updatedTotals: SessionTotals;
   /** The new recent drop entry to prepend to recentDrops. */
   recentDrop: RecentDrop;
   /** Divination card metadata (for new cards not yet in the cards array). */
   divinationCard?: DivinationCardMetadata;
-  /** Whether exchange price is hidden for this card. */
-  hidePriceExchange?: boolean;
-  /** Whether stash price is hidden for this card. */
-  hidePriceStash?: boolean;
+  /** Whether the card price is hidden. */
+  hidePrice?: boolean;
 }
 
 export interface DetailedDivinationCardStats {

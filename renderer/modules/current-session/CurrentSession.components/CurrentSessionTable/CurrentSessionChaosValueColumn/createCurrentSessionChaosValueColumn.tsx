@@ -1,29 +1,21 @@
 import { createColumnHelper } from "@tanstack/react-table";
 
 import { TableHeader } from "~/renderer/components";
-import type { CardEntry, PriceSource } from "~/types/data-stores";
+import type { CardEntry } from "~/types/data-stores";
 
 import CurrentSessionChaosValueCell from "./CurrentSessionChaosValueCell";
 
 const columnHelper = createColumnHelper<CardEntry>();
 
-export const createCurrentSessionChaosValueColumn = (
-  priceSource: PriceSource,
-) => {
+export const createCurrentSessionChaosValueColumn = () => {
   return columnHelper.accessor("count", {
     id: "chaosValue",
     header: () => <TableHeader>Value (Each)</TableHeader>,
     cell: (info) => <CurrentSessionChaosValueCell {...info} />,
     enableSorting: true,
     sortingFn: (rowA, rowB) => {
-      const valueA =
-        priceSource === "stash"
-          ? (rowA.original.stashPrice?.chaosValue ?? 0)
-          : (rowA.original.exchangePrice?.chaosValue ?? 0);
-      const valueB =
-        priceSource === "stash"
-          ? (rowB.original.stashPrice?.chaosValue ?? 0)
-          : (rowB.original.exchangePrice?.chaosValue ?? 0);
+      const valueA = rowA.original.price?.chaosValue ?? 0;
+      const valueB = rowB.original.price?.chaosValue ?? 0;
       return valueA - valueB;
     },
   });

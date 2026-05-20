@@ -25,6 +25,7 @@ import {
   waitForRoute,
 } from "../helpers/navigation";
 import {
+  dbExec,
   seedCompletedSession,
   seedMultipleCompletedSessions,
   seedSessionPrerequisites,
@@ -41,6 +42,14 @@ async function goToSessions(page: Page) {
     .getByText("Sessions", { exact: false })
     .first()
     .waitFor({ state: "visible", timeout: 10_000 });
+}
+
+async function clearSessionHistory(page: Page) {
+  await dbExec(page, "DELETE FROM session_card_events");
+  await dbExec(page, "DELETE FROM session_cards");
+  await dbExec(page, "DELETE FROM session_summaries");
+  await dbExec(page, "DELETE FROM sessions");
+  await dbExec(page, "DELETE FROM processed_ids");
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -285,6 +294,80 @@ test.describe("Sessions", () => {
       // If no sessions exist, actions might still render
       expect(selectCount).toBeGreaterThanOrEqual(0);
     });
+
+    test("should list session leagues from all pages, not only the current page", async ({
+      page,
+    }) => {
+      await navigateTo(page, "/");
+      await clearSessionHistory(page);
+
+      const mirage = await seedSessionPrerequisites(page, {
+        leagueName: "Mirage",
+        leagueId: "poe1_mirage",
+        snapshotId: "e2e-snapshot-mirage",
+      });
+      const keepers = await seedSessionPrerequisites(page, {
+        leagueName: "Keepers",
+        leagueId: "poe1_keepers",
+        snapshotId: "e2e-snapshot-keepers",
+      });
+
+      const baseTime = Date.now();
+      const sessions = [];
+      for (let i = 0; i < 20; i++) {
+        const startedAt = new Date(baseTime - i * 60_000).toISOString();
+        const endedAt = new Date(baseTime - i * 60_000 + 30_000).toISOString();
+        sessions.push({
+          id: `e2e-mirage-page1-${i}`,
+          game: "poe1",
+          leagueId: mirage.leagueId,
+          snapshotId: mirage.snapshotId,
+          startedAt,
+          endedAt,
+          cards: [{ cardName: "Humility", count: 1 }],
+        });
+      }
+      sessions.push({
+        id: "e2e-keepers-page2",
+        game: "poe1",
+        leagueId: keepers.leagueId,
+        snapshotId: keepers.snapshotId,
+        startedAt: new Date(baseTime - 24 * 60 * 60 * 1000).toISOString(),
+        endedAt: new Date(
+          baseTime - 24 * 60 * 60 * 1000 + 30_000,
+        ).toISOString(),
+        cards: [{ cardName: "The Doctor", count: 1 }],
+      });
+      await seedMultipleCompletedSessions(page, sessions);
+
+      await goToSessions(page);
+      const leagueSelect = page.locator("main select").first();
+      await expect(leagueSelect).toBeVisible({ timeout: 10_000 });
+
+      await expect
+        .poll(
+          async () =>
+            leagueSelect
+              .locator("option")
+              .evaluateAll((options) =>
+                options.map((option) => option.textContent?.trim() ?? ""),
+              ),
+          { timeout: 10_000, intervals: [100, 200, 500] },
+        )
+        .toEqual(expect.arrayContaining(["All Leagues", "Keepers", "Mirage"]));
+
+      await leagueSelect.selectOption("Keepers");
+
+      await expect
+        .poll(async () => (await page.locator("main").textContent()) ?? "", {
+          timeout: 10_000,
+          intervals: [100, 200, 500],
+        })
+        .toContain("Showing 1 to 1 of 1 sessions");
+      await expect(
+        page.locator("main .badge").filter({ hasText: "Keepers" }).first(),
+      ).toBeVisible();
+    });
   });
 
   // ── Session Details — Navigation ────────────────────────────────────────
@@ -483,6 +566,71 @@ test.describe("Sessions", () => {
         content!.length > 50;
 
       expect(hasStats).toBe(true);
+    });
+
+    test("should use persisted summary pricing without rendering NaN when no snapshot is available", async ({
+      page,
+    }) => {
+      await navigateTo(page, "/");
+      await clearSessionHistory(page);
+
+      const { leagueId } = await seedSessionPrerequisites(page, {
+        leagueName: "Mirage",
+        leagueId: "poe1_nan_regression_mirage",
+      });
+      const startedAt = new Date(Date.now() - 60_000).toISOString();
+      const endedAt = new Date(Date.now() - 30_000).toISOString();
+      const sessionId = await seedCompletedSession(page, {
+        id: "e2e-session-summary-no-snapshot",
+        game: "poe1",
+        leagueId,
+        snapshotId: null,
+        startedAt,
+        endedAt,
+        cards: [
+          { cardName: "The Metalsmith's Gift", count: 3 },
+          { cardName: "The Web", count: 2 },
+        ],
+      });
+
+      await dbExec(
+        page,
+        `INSERT OR REPLACE INTO session_summaries
+           (session_id, game, league, started_at, ended_at, duration_minutes,
+            total_decks_opened, total_value, chaos_to_divine_ratio,
+            stacked_deck_chaos_cost, net_profit)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          sessionId,
+          "poe1",
+          "Mirage",
+          startedAt,
+          endedAt,
+          0,
+          5,
+          18.47,
+          479.16,
+          5.15,
+          -7.28,
+        ],
+      );
+
+      await navigateTo(page, `/sessions/${sessionId}`);
+      const main = page.locator("main");
+      await expect(main).toContainText("Session Details", {
+        timeout: 10_000,
+      });
+
+      await expect
+        .poll(async () => (await main.textContent()) ?? "", {
+          timeout: 10_000,
+          intervals: [100, 200, 500],
+        })
+        .not.toContain("NaN");
+
+      const content = (await main.textContent()) ?? "";
+      expect(content).toContain("18.47c");
+      expect(content).toContain("-7.28c");
     });
   });
 });

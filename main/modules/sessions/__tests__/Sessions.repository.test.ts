@@ -49,6 +49,37 @@ describe("SessionsRepository", () => {
       expect(count).toBe(3);
     });
 
+    it("should filter the session count by league when provided", async () => {
+      const mirageLeague = await seedLeague(testDb.kysely, {
+        game: "poe1",
+        name: "Mirage",
+      });
+      const keepersLeague = await seedLeague(testDb.kysely, {
+        game: "poe1",
+        name: "Keepers",
+      });
+
+      await seedSession(testDb.kysely, {
+        game: "poe1",
+        leagueId: mirageLeague,
+      });
+      await seedSession(testDb.kysely, {
+        game: "poe1",
+        leagueId: mirageLeague,
+      });
+      await seedSession(testDb.kysely, {
+        game: "poe1",
+        leagueId: keepersLeague,
+      });
+
+      await expect(repository.getSessionCount("poe1", "Mirage")).resolves.toBe(
+        2,
+      );
+      await expect(repository.getSessionCount("poe1", "Keepers")).resolves.toBe(
+        1,
+      );
+    });
+
     it("should only count sessions for the specified game", async () => {
       const poe1League = await seedLeague(testDb.kysely, {
         game: "poe1",
@@ -86,6 +117,51 @@ describe("SessionsRepository", () => {
 
       const count = await repository.getSessionCount("poe1");
       expect(count).toBe(2);
+    });
+  });
+
+  // ─── getSessionLeagues ───────────────────────────────────────────────
+
+  describe("getSessionLeagues", () => {
+    it("should return empty array when no sessions exist", async () => {
+      await expect(repository.getSessionLeagues("poe1")).resolves.toEqual([]);
+    });
+
+    it("should return distinct leagues that have sessions for a game", async () => {
+      const mirageLeague = await seedLeague(testDb.kysely, {
+        game: "poe1",
+        name: "Mirage",
+      });
+      const keepersLeague = await seedLeague(testDb.kysely, {
+        game: "poe1",
+        name: "Keepers",
+      });
+      const poe2League = await seedLeague(testDb.kysely, {
+        game: "poe2",
+        name: "Dawn",
+      });
+
+      await seedSession(testDb.kysely, {
+        game: "poe1",
+        leagueId: mirageLeague,
+      });
+      await seedSession(testDb.kysely, {
+        game: "poe1",
+        leagueId: mirageLeague,
+      });
+      await seedSession(testDb.kysely, {
+        game: "poe1",
+        leagueId: keepersLeague,
+      });
+      await seedSession(testDb.kysely, {
+        game: "poe2",
+        leagueId: poe2League,
+      });
+
+      await expect(repository.getSessionLeagues("poe1")).resolves.toEqual([
+        "Keepers",
+        "Mirage",
+      ]);
     });
   });
 
@@ -130,6 +206,37 @@ describe("SessionsRepository", () => {
       expect(result!.endedAt).toBe("2025-01-15T11:30:00Z");
       expect(result!.totalCount).toBe(150);
       expect(result!.isActive).toBe(false);
+    });
+
+    it("should include persisted summary pricing totals when present", async () => {
+      const leagueId = await seedLeague(testDb.kysely, {
+        game: "poe1",
+        name: "Settlers",
+      });
+      const sessionId = await seedSession(testDb.kysely, {
+        game: "poe1",
+        leagueId,
+        totalCount: 40,
+      });
+      await seedSessionSummary(testDb.kysely, {
+        sessionId,
+        totalDecksOpened: 40,
+        totalValue: 18.47,
+        netProfit: -187.53,
+        chaosToDivineRatio: 479.16,
+        stackedDeckChaosCost: 5.15,
+      });
+
+      const result = await repository.getSessionById(sessionId);
+
+      expect(result).not.toBeNull();
+      expect(result!.persistedTotals).toEqual({
+        totalValue: 18.47,
+        netProfit: -187.53,
+        chaosToDivineRatio: 479.16,
+        stackedDeckChaosCost: 5.15,
+        totalDeckCost: 206,
+      });
     });
 
     it("should convert isActive from integer to boolean (active)", async () => {
@@ -231,6 +338,51 @@ describe("SessionsRepository", () => {
       expect(poe2Sessions).toHaveLength(1);
       expect(poe1Sessions[0].game).toBe("poe1");
       expect(poe2Sessions[0].game).toBe("poe2");
+    });
+
+    it("should filter sessions by league when provided", async () => {
+      const mirageLeague = await seedLeague(testDb.kysely, {
+        game: "poe1",
+        name: "Mirage",
+      });
+      const keepersLeague = await seedLeague(testDb.kysely, {
+        game: "poe1",
+        name: "Keepers",
+      });
+
+      await seedSession(testDb.kysely, {
+        id: "mirage-new",
+        game: "poe1",
+        leagueId: mirageLeague,
+        startedAt: "2025-01-03T10:00:00Z",
+      });
+      await seedSession(testDb.kysely, {
+        id: "keepers-session",
+        game: "poe1",
+        leagueId: keepersLeague,
+        startedAt: "2025-01-04T10:00:00Z",
+      });
+      await seedSession(testDb.kysely, {
+        id: "mirage-old",
+        game: "poe1",
+        leagueId: mirageLeague,
+        startedAt: "2025-01-01T10:00:00Z",
+      });
+
+      const sessions = await repository.getSessionsPage(
+        "poe1",
+        10,
+        0,
+        "Mirage",
+      );
+
+      expect(sessions.map((session) => session.sessionId)).toEqual([
+        "mirage-new",
+        "mirage-old",
+      ]);
+      expect(sessions.every((session) => session.league === "Mirage")).toBe(
+        true,
+      );
     });
 
     it("should order sessions by started_at descending", async () => {
@@ -369,8 +521,7 @@ describe("SessionsRepository", () => {
         });
         const snapshotId = await seedSnapshot(testDb.kysely, {
           leagueId,
-          exchangeChaosToDivine: 180,
-          stashChaosToDivine: 170,
+          chaosToDivineRatio: 180,
           stackedDeckChaosCost: 2,
         });
 
@@ -393,12 +544,9 @@ describe("SessionsRepository", () => {
           endedAt: "2025-01-15T11:00:00Z",
           durationMinutes: 60,
           totalDecksOpened: 100,
-          totalExchangeValue: 5000,
-          totalStashValue: 4800,
-          totalExchangeNetProfit: 4700,
-          totalStashNetProfit: 4500,
-          exchangeChaosToDivine: 200,
-          stashChaosToDivine: 195,
+          totalValue: 5000,
+          netProfit: 4700,
+          chaosToDivineRatio: 200,
           stackedDeckChaosCost: 3,
         });
 
@@ -409,13 +557,10 @@ describe("SessionsRepository", () => {
 
         expect(s.durationMinutes).toBe(60);
         expect(s.totalDecksOpened).toBe(100);
-        expect(s.totalExchangeValue).toBe(5000);
-        expect(s.totalStashValue).toBe(4800);
-        expect(s.totalExchangeNetProfit).toBe(4700);
-        expect(s.totalStashNetProfit).toBe(4500);
+        expect(s.totalValue).toBe(5000);
+        expect(s.netProfit).toBe(4700);
         // Summary chaos-to-divine should take priority over snapshot
-        expect(s.exchangeChaosToDivine).toBe(200);
-        expect(s.stashChaosToDivine).toBe(195);
+        expect(s.chaosToDivineRatio).toBe(200);
         expect(s.stackedDeckChaosCost).toBe(3);
       });
 
@@ -434,16 +579,14 @@ describe("SessionsRepository", () => {
 
         await seedSessionSummary(testDb.kysely, {
           sessionId,
-          totalExchangeNetProfit: null,
-          totalStashNetProfit: null,
+          netProfit: null,
         });
 
         const sessions = await repository.getSessionsPage("poe1", 10, 0);
         expect(sessions).toHaveLength(1);
         // When summary has null, COALESCE falls through to computed value
         // Since no snapshot/session_cards, computed value will be 0 - 0 = 0
-        expect(sessions[0].totalExchangeNetProfit).not.toBeUndefined();
-        expect(sessions[0].totalStashNetProfit).not.toBeUndefined();
+        expect(sessions[0].netProfit).not.toBeUndefined();
       });
     });
 
@@ -507,13 +650,11 @@ describe("SessionsRepository", () => {
           cardPrices: [
             {
               cardName: "The Doctor",
-              priceSource: "exchange",
               chaosValue: 5000,
               divineValue: 25,
             },
             {
               cardName: "Rain of Chaos",
-              priceSource: "exchange",
               chaosValue: 2,
               divineValue: 0.01,
             },
@@ -539,52 +680,7 @@ describe("SessionsRepository", () => {
 
         expect(sessions).toHaveLength(1);
         // Exchange value = (2 * 5000) + (10 * 2) = 10020
-        expect(sessions[0].totalExchangeValue).toBe(10020);
-      });
-
-      it("should compute stash value from session_cards and snapshot_card_prices", async () => {
-        const leagueId = await seedLeague(testDb.kysely, {
-          game: "poe1",
-          name: "Settlers",
-        });
-        const snapshotId = await seedSnapshot(testDb.kysely, {
-          leagueId,
-          cardPrices: [
-            {
-              cardName: "The Doctor",
-              priceSource: "stash",
-              chaosValue: 4800,
-              divineValue: 24,
-            },
-            {
-              cardName: "Rain of Chaos",
-              priceSource: "stash",
-              chaosValue: 1.5,
-              divineValue: 0.0075,
-            },
-          ],
-        });
-
-        const sessionId = await seedSession(testDb.kysely, {
-          game: "poe1",
-          leagueId,
-          snapshotId,
-          totalCount: 50,
-          isActive: false,
-          startedAt: "2025-01-15T10:00:00Z",
-          endedAt: "2025-01-15T11:00:00Z",
-        });
-
-        await seedSessionCards(testDb.kysely, sessionId, [
-          { cardName: "The Doctor", count: 2 },
-          { cardName: "Rain of Chaos", count: 10 },
-        ]);
-
-        const sessions = await repository.getSessionsPage("poe1", 10, 0);
-
-        expect(sessions).toHaveLength(1);
-        // Stash value = (2 * 4800) + (10 * 1.5) = 9615
-        expect(sessions[0].totalStashValue).toBe(9615);
+        expect(sessions[0].totalValue).toBe(10020);
       });
 
       it("should exclude hidden exchange-priced cards from exchange value", async () => {
@@ -594,13 +690,11 @@ describe("SessionsRepository", () => {
           cardPrices: [
             {
               cardName: "The Doctor",
-              priceSource: "exchange",
               chaosValue: 5000,
               divineValue: 25,
             },
             {
               cardName: "Rain of Chaos",
-              priceSource: "exchange",
               chaosValue: 2,
               divineValue: 0.01,
             },
@@ -618,7 +712,7 @@ describe("SessionsRepository", () => {
         });
 
         await seedSessionCards(testDb.kysely, sessionId, [
-          { cardName: "The Doctor", count: 2, hidePriceExchange: true },
+          { cardName: "The Doctor", count: 2, hidePrice: true },
           { cardName: "Rain of Chaos", count: 10 },
         ]);
 
@@ -626,49 +720,7 @@ describe("SessionsRepository", () => {
 
         expect(sessions).toHaveLength(1);
         // Only Rain of Chaos counted: 10 * 2 = 20
-        expect(sessions[0].totalExchangeValue).toBe(20);
-      });
-
-      it("should exclude hidden stash-priced cards from stash value", async () => {
-        const leagueId = await seedLeague(testDb.kysely);
-        const snapshotId = await seedSnapshot(testDb.kysely, {
-          leagueId,
-          cardPrices: [
-            {
-              cardName: "The Doctor",
-              priceSource: "stash",
-              chaosValue: 4800,
-              divineValue: 24,
-            },
-            {
-              cardName: "Rain of Chaos",
-              priceSource: "stash",
-              chaosValue: 1.5,
-              divineValue: 0.0075,
-            },
-          ],
-        });
-
-        const sessionId = await seedSession(testDb.kysely, {
-          game: "poe1",
-          leagueId,
-          snapshotId,
-          totalCount: 50,
-          isActive: false,
-          startedAt: "2025-01-15T10:00:00Z",
-          endedAt: "2025-01-15T11:00:00Z",
-        });
-
-        await seedSessionCards(testDb.kysely, sessionId, [
-          { cardName: "The Doctor", count: 2, hidePriceStash: true },
-          { cardName: "Rain of Chaos", count: 10 },
-        ]);
-
-        const sessions = await repository.getSessionsPage("poe1", 10, 0);
-
-        expect(sessions).toHaveLength(1);
-        // Only Rain of Chaos counted: 10 * 1.5 = 15
-        expect(sessions[0].totalStashValue).toBe(15);
+        expect(sessions[0].totalValue).toBe(20);
       });
 
       it("should compute net profit as value minus deck cost", async () => {
@@ -679,13 +731,11 @@ describe("SessionsRepository", () => {
           cardPrices: [
             {
               cardName: "The Doctor",
-              priceSource: "exchange",
               chaosValue: 5000,
               divineValue: 25,
             },
             {
               cardName: "The Doctor",
-              priceSource: "stash",
               chaosValue: 4800,
               divineValue: 24,
             },
@@ -710,17 +760,14 @@ describe("SessionsRepository", () => {
 
         expect(sessions).toHaveLength(1);
         // Exchange net profit = 5000 - (3 * 100) = 4700
-        expect(sessions[0].totalExchangeNetProfit).toBe(4700);
-        // Stash net profit = 4800 - (3 * 100) = 4500
-        expect(sessions[0].totalStashNetProfit).toBe(4500);
+        expect(sessions[0].netProfit).toBe(4700);
       });
 
       it("should use snapshot chaos-to-divine ratios when no summary exists", async () => {
         const leagueId = await seedLeague(testDb.kysely);
         const snapshotId = await seedSnapshot(testDb.kysely, {
           leagueId,
-          exchangeChaosToDivine: 210,
-          stashChaosToDivine: 205,
+          chaosToDivineRatio: 210,
           stackedDeckChaosCost: 4,
         });
 
@@ -737,8 +784,7 @@ describe("SessionsRepository", () => {
         const sessions = await repository.getSessionsPage("poe1", 10, 0);
 
         expect(sessions).toHaveLength(1);
-        expect(sessions[0].exchangeChaosToDivine).toBe(210);
-        expect(sessions[0].stashChaosToDivine).toBe(205);
+        expect(sessions[0].chaosToDivineRatio).toBe(210);
         expect(sessions[0].stackedDeckChaosCost).toBe(4);
       });
 
@@ -756,8 +802,7 @@ describe("SessionsRepository", () => {
         const sessions = await repository.getSessionsPage("poe1", 10, 0);
 
         expect(sessions).toHaveLength(1);
-        expect(sessions[0].exchangeChaosToDivine).toBe(0);
-        expect(sessions[0].stashChaosToDivine).toBe(0);
+        expect(sessions[0].chaosToDivineRatio).toBe(0);
         expect(sessions[0].stackedDeckChaosCost).toBe(0);
       });
 
@@ -775,8 +820,7 @@ describe("SessionsRepository", () => {
         const sessions = await repository.getSessionsPage("poe1", 10, 0);
 
         expect(sessions).toHaveLength(1);
-        expect(sessions[0].totalExchangeValue).toBe(0);
-        expect(sessions[0].totalStashValue).toBe(0);
+        expect(sessions[0].totalValue).toBe(0);
       });
     });
 
@@ -807,12 +851,9 @@ describe("SessionsRepository", () => {
           "endedAt",
           "durationMinutes",
           "totalDecksOpened",
-          "totalExchangeValue",
-          "totalStashValue",
-          "totalExchangeNetProfit",
-          "totalStashNetProfit",
-          "exchangeChaosToDivine",
-          "stashChaosToDivine",
+          "totalValue",
+          "netProfit",
+          "chaosToDivineRatio",
           "stackedDeckChaosCost",
           "isActive",
         ];
@@ -864,42 +905,6 @@ describe("SessionsRepository", () => {
       expect(doctor!.count).toBe(3);
       expect(rain).toBeDefined();
       expect(rain!.count).toBe(15);
-    });
-
-    it("should convert hidePriceExchange and hidePriceStash to booleans", async () => {
-      const leagueId = await seedLeague(testDb.kysely, { name: "Settlers" });
-      const sessionId = await seedSession(testDb.kysely, {
-        game: "poe1",
-        leagueId,
-      });
-
-      await seedSessionCards(testDb.kysely, sessionId, [
-        {
-          cardName: "The Doctor",
-          count: 1,
-          hidePriceExchange: true,
-          hidePriceStash: false,
-        },
-        {
-          cardName: "Rain of Chaos",
-          count: 5,
-          hidePriceExchange: false,
-          hidePriceStash: true,
-        },
-      ]);
-
-      const cards = await repository.getSessionCards(sessionId);
-
-      const doctor = cards.find((c) => c.cardName === "The Doctor");
-      const rain = cards.find((c) => c.cardName === "Rain of Chaos");
-
-      expect(doctor!.hidePriceExchange).toBe(true);
-      expect(doctor!.hidePriceStash).toBe(false);
-      expect(typeof doctor!.hidePriceExchange).toBe("boolean");
-      expect(typeof doctor!.hidePriceStash).toBe("boolean");
-
-      expect(rain!.hidePriceExchange).toBe(false);
-      expect(rain!.hidePriceStash).toBe(true);
     });
 
     it("should include divination card metadata when available", async () => {
@@ -1370,8 +1375,7 @@ describe("SessionsRepository", () => {
       });
       const snapshotId = await seedSnapshot(testDb.kysely, {
         leagueId,
-        exchangeChaosToDivine: 200,
-        stashChaosToDivine: 195,
+        chaosToDivineRatio: 200,
         stackedDeckChaosCost: 3,
       });
 
@@ -1407,12 +1411,9 @@ describe("SessionsRepository", () => {
         "endedAt",
         "durationMinutes",
         "totalDecksOpened",
-        "totalExchangeValue",
-        "totalStashValue",
-        "totalExchangeNetProfit",
-        "totalStashNetProfit",
-        "exchangeChaosToDivine",
-        "stashChaosToDivine",
+        "totalValue",
+        "netProfit",
+        "chaosToDivineRatio",
         "stackedDeckChaosCost",
         "isActive",
         "cardCount",
@@ -1805,31 +1806,26 @@ describe("SessionsRepository", () => {
       });
       const snapshotId = await seedSnapshot(testDb.kysely, {
         leagueId,
-        exchangeChaosToDivine: 200,
-        stashChaosToDivine: 195,
+        chaosToDivineRatio: 200,
         stackedDeckChaosCost: 3,
         cardPrices: [
           {
             cardName: "The Doctor",
-            priceSource: "exchange",
             chaosValue: 5000,
             divineValue: 25,
           },
           {
             cardName: "The Doctor",
-            priceSource: "stash",
             chaosValue: 4800,
             divineValue: 24,
           },
           {
             cardName: "Rain of Chaos",
-            priceSource: "exchange",
             chaosValue: 2,
             divineValue: 0.01,
           },
           {
             cardName: "Rain of Chaos",
-            priceSource: "stash",
             chaosValue: 1.5,
             divineValue: 0.0075,
           },
@@ -1867,17 +1863,12 @@ describe("SessionsRepository", () => {
       expect(s.isActive).toBe(false);
 
       // Exchange value: (1 * 5000) + (50 * 2) = 5100
-      expect(s.totalExchangeValue).toBe(5100);
-      // Stash value: (1 * 4800) + (50 * 1.5) = 4875
-      expect(s.totalStashValue).toBe(4875);
+      expect(s.totalValue).toBe(5100);
 
       // Exchange net profit: 5100 - (3 * 200) = 4500
-      expect(s.totalExchangeNetProfit).toBe(4500);
-      // Stash net profit: 4875 - (3 * 200) = 4275
-      expect(s.totalStashNetProfit).toBe(4275);
+      expect(s.netProfit).toBe(4500);
 
-      expect(s.exchangeChaosToDivine).toBe(200);
-      expect(s.stashChaosToDivine).toBe(195);
+      expect(s.chaosToDivineRatio).toBe(200);
       expect(s.stackedDeckChaosCost).toBe(3);
     });
 
@@ -1892,13 +1883,11 @@ describe("SessionsRepository", () => {
         cardPrices: [
           {
             cardName: "Rain of Chaos",
-            priceSource: "exchange",
             chaosValue: 2,
             divineValue: 0.01,
           },
           {
             cardName: "Rain of Chaos",
-            priceSource: "stash",
             chaosValue: 1.5,
             divineValue: 0.0075,
           },
@@ -1924,13 +1913,8 @@ describe("SessionsRepository", () => {
       expect(sessions).toHaveLength(1);
       // Exchange value: 80 * 2 = 160
       // Exchange net profit: 160 - (5 * 100) = -340
-      expect(sessions[0].totalExchangeValue).toBe(160);
-      expect(sessions[0].totalExchangeNetProfit).toBe(-340);
-
-      // Stash value: 80 * 1.5 = 120
-      // Stash net profit: 120 - (5 * 100) = -380
-      expect(sessions[0].totalStashValue).toBe(120);
-      expect(sessions[0].totalStashNetProfit).toBe(-380);
+      expect(sessions[0].totalValue).toBe(160);
+      expect(sessions[0].netProfit).toBe(-340);
     });
 
     it("should handle multiple sessions across different leagues", async () => {
@@ -2149,43 +2133,36 @@ describe("SessionsRepository", () => {
       // Create a snapshot with prices from Settlers
       const settlersSnapshotId = await seedSnapshot(testDb.kysely, {
         leagueId: settlersLeagueId,
-        exchangeChaosToDivine: 200,
-        stashChaosToDivine: 195,
+        chaosToDivineRatio: 200,
         stackedDeckChaosCost: 3,
         cardPrices: [
           {
             cardName: "The Doctor",
-            priceSource: "exchange",
             chaosValue: 5000,
             divineValue: 25,
           },
           {
             cardName: "The Doctor",
-            priceSource: "stash",
             chaosValue: 4800,
             divineValue: 24,
           },
           {
             cardName: "Rain of Chaos",
-            priceSource: "exchange",
             chaosValue: 2,
             divineValue: 0.01,
           },
           {
             cardName: "Rain of Chaos",
-            priceSource: "stash",
             chaosValue: 1.5,
             divineValue: 0.0075,
           },
           {
             cardName: "A Chilling Wind",
-            priceSource: "exchange",
             chaosValue: 100,
             divineValue: 0.5,
           },
           {
             cardName: "A Chilling Wind",
-            priceSource: "stash",
             chaosValue: 90,
             divineValue: 0.45,
           },
@@ -2306,31 +2283,26 @@ describe("SessionsRepository", () => {
 
       const snapshotId = await seedSnapshot(testDb.kysely, {
         leagueId,
-        exchangeChaosToDivine: 200,
-        stashChaosToDivine: 195,
+        chaosToDivineRatio: 200,
         stackedDeckChaosCost: 3,
         cardPrices: [
           {
             cardName: "The Doctor",
-            priceSource: "exchange",
             chaosValue: 5000,
             divineValue: 25,
           },
           {
             cardName: "The Doctor",
-            priceSource: "stash",
             chaosValue: 4800,
             divineValue: 24,
           },
           {
             cardName: "Retired Card",
-            priceSource: "exchange",
             chaosValue: 300,
             divineValue: 1.5,
           },
           {
             cardName: "Retired Card",
-            priceSource: "stash",
             chaosValue: 280,
             divineValue: 1.4,
           },
@@ -2361,13 +2333,9 @@ describe("SessionsRepository", () => {
 
       const s = sessions[0];
       // Exchange value: (1 * 5000) + (5 * 300) = 6500
-      expect(s.totalExchangeValue).toBe(6500);
-      // Stash value: (1 * 4800) + (5 * 280) = 6200
-      expect(s.totalStashValue).toBe(6200);
+      expect(s.totalValue).toBe(6500);
       // Net profit: 6500 - (3 * 100) = 6200
-      expect(s.totalExchangeNetProfit).toBe(6200);
-      // Stash net profit: 6200 - (3 * 100) = 5900
-      expect(s.totalStashNetProfit).toBe(5900);
+      expect(s.netProfit).toBe(6200);
     });
 
     it("should gracefully handle session cards whose divination card row was deleted", async () => {
@@ -2549,19 +2517,16 @@ describe("SessionsRepository", () => {
 
       const snapshotId = await seedSnapshot(testDb.kysely, {
         leagueId,
-        exchangeChaosToDivine: 200,
-        stashChaosToDivine: 195,
+        chaosToDivineRatio: 200,
         stackedDeckChaosCost: 3,
         cardPrices: [
           {
             cardName: "The Doctor",
-            priceSource: "exchange",
             chaosValue: 5000,
             divineValue: 25,
           },
           {
             cardName: "The Doctor",
-            priceSource: "stash",
             chaosValue: 4800,
             divineValue: 24,
           },
@@ -2587,9 +2552,9 @@ describe("SessionsRepository", () => {
       let sessions = await repository.getSessionsPage("poe1", 10, 0);
       expect(sessions).toHaveLength(1);
       // Exchange value: 2 * 5000 = 10000
-      expect(sessions[0].totalExchangeValue).toBe(10000);
+      expect(sessions[0].totalValue).toBe(10000);
       // Exchange net: 10000 - (3 * 50) = 9850
-      expect(sessions[0].totalExchangeNetProfit).toBe(9850);
+      expect(sessions[0].netProfit).toBe(9850);
 
       // Simulate syncCards updating the card's metadata (description change, etc.)
       // This does NOT affect snapshot_card_prices
@@ -2607,8 +2572,67 @@ describe("SessionsRepository", () => {
       // Values should be identical — they come from snapshot, not divination_cards
       sessions = await repository.getSessionsPage("poe1", 10, 0);
       expect(sessions).toHaveLength(1);
-      expect(sessions[0].totalExchangeValue).toBe(10000);
-      expect(sessions[0].totalExchangeNetProfit).toBe(9850);
+      expect(sessions[0].totalValue).toBe(10000);
+      expect(sessions[0].netProfit).toBe(9850);
+    });
+  });
+
+  // ─── getDeckCosts ──────────────────────────────────────────────────────
+
+  describe("getDeckCosts", () => {
+    it("should return an empty map for empty sessionIds", async () => {
+      const result = await repository.getDeckCosts([]);
+
+      expect(result.size).toBe(0);
+    });
+
+    it("should read deck cost from the snapshot when no summary exists", async () => {
+      const leagueId = await seedLeague(testDb.kysely);
+      const snapshotId = await seedSnapshot(testDb.kysely, {
+        leagueId,
+        stackedDeckChaosCost: 4.25,
+      });
+      const sessionId = await seedSession(testDb.kysely, {
+        leagueId,
+        snapshotId,
+      });
+
+      const result = await repository.getDeckCosts([sessionId]);
+
+      expect(result.get(sessionId)).toBe(4.25);
+    });
+
+    it("should prefer persisted summary deck cost over snapshot deck cost", async () => {
+      const leagueId = await seedLeague(testDb.kysely);
+      const snapshotId = await seedSnapshot(testDb.kysely, {
+        leagueId,
+        stackedDeckChaosCost: 3,
+      });
+      const sessionId = await seedSession(testDb.kysely, {
+        leagueId,
+        snapshotId,
+      });
+      await seedSessionSummary(testDb.kysely, {
+        sessionId,
+        stackedDeckChaosCost: 5.15,
+      });
+
+      const result = await repository.getDeckCosts([sessionId]);
+
+      expect(result.get(sessionId)).toBe(5.15);
+    });
+
+    it("should use persisted summary deck cost when snapshot is unavailable", async () => {
+      const leagueId = await seedLeague(testDb.kysely);
+      const sessionId = await seedSession(testDb.kysely, { leagueId });
+      await seedSessionSummary(testDb.kysely, {
+        sessionId,
+        stackedDeckChaosCost: 5.15,
+      });
+
+      const result = await repository.getDeckCosts([sessionId]);
+
+      expect(result.get(sessionId)).toBe(5.15);
     });
   });
 
@@ -2983,6 +3007,90 @@ describe("SessionsRepository", () => {
         "old",
       ]);
     });
+
+    it("should filter session IDs by league when provided", async () => {
+      const mirageLeague = await seedLeague(testDb.kysely, {
+        game: "poe1",
+        name: "Mirage",
+      });
+      const keepersLeague = await seedLeague(testDb.kysely, {
+        game: "poe1",
+        name: "Keepers",
+      });
+
+      await seedSession(testDb.kysely, {
+        id: "mirage-old",
+        game: "poe1",
+        leagueId: mirageLeague,
+        startedAt: "2025-01-01T10:00:00Z",
+      });
+      await seedSession(testDb.kysely, {
+        id: "keepers",
+        game: "poe1",
+        leagueId: keepersLeague,
+        startedAt: "2025-01-03T10:00:00Z",
+      });
+      await seedSession(testDb.kysely, {
+        id: "mirage-new",
+        game: "poe1",
+        leagueId: mirageLeague,
+        startedAt: "2025-01-04T10:00:00Z",
+      });
+
+      await expect(
+        repository.getAllSessionIds("poe1", "Mirage"),
+      ).resolves.toEqual(["mirage-new", "mirage-old"]);
+    });
+
+    it("should filter session IDs by card search when provided", async () => {
+      const poe1League = await seedLeague(testDb.kysely, { game: "poe1" });
+
+      await seedSession(testDb.kysely, {
+        id: "doctor-session",
+        game: "poe1",
+        leagueId: poe1League,
+        totalCount: 3,
+        startedAt: "2025-01-03T10:00:00Z",
+      });
+      await seedSessionCards(testDb.kysely, "doctor-session", [
+        { cardName: "The Doctor", count: 1 },
+        { cardName: "Humility", count: 2 },
+      ]);
+
+      await seedSession(testDb.kysely, {
+        id: "nurse-session",
+        game: "poe1",
+        leagueId: poe1League,
+        totalCount: 1,
+        startedAt: "2025-01-02T10:00:00Z",
+      });
+      await seedSessionCards(testDb.kysely, "nurse-session", [
+        { cardName: "The Nurse", count: 1 },
+      ]);
+
+      await expect(
+        repository.getAllSessionIds("poe1", undefined, "Doctor"),
+      ).resolves.toEqual(["doctor-session"]);
+    });
+
+    it("should de-duplicate session IDs when a search matches multiple cards in the same session", async () => {
+      const poe1League = await seedLeague(testDb.kysely, { game: "poe1" });
+
+      await seedSession(testDb.kysely, {
+        id: "rain-session",
+        game: "poe1",
+        leagueId: poe1League,
+        totalCount: 2,
+      });
+      await seedSessionCards(testDb.kysely, "rain-session", [
+        { cardName: "Rain of Chaos", count: 1 },
+        { cardName: "Raining Cats", count: 1 },
+      ]);
+
+      await expect(
+        repository.getAllSessionIds("poe1", undefined, "Rain"),
+      ).resolves.toEqual(["rain-session"]);
+    });
   });
 
   describe("deleteSessions", () => {
@@ -3023,7 +3131,6 @@ describe("SessionsRepository", () => {
         cardPrices: [
           {
             cardName: "The Doctor",
-            priceSource: "exchange",
             chaosValue: 5000,
             divineValue: 25,
           },

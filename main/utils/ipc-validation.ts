@@ -290,7 +290,6 @@ export function assertOptionalInteger(
 // ─── Domain-Specific Validators ──────────────────────────────────────────────
 
 const VALID_GAMES = ["poe1", "poe2"] as const;
-const VALID_PRICE_SOURCES = ["exchange", "stash"] as const;
 const VALID_EXIT_BEHAVIORS = ["exit", "minimize"] as const;
 const VALID_SETUP_STEPS = [0, 1, 2, 3, 4] as const;
 
@@ -299,13 +298,6 @@ export function assertGameType(
   channel: string,
 ): asserts value is "poe1" | "poe2" {
   assertEnum(value, "game", channel, VALID_GAMES);
-}
-
-export function assertPriceSource(
-  value: unknown,
-  channel: string,
-): asserts value is "exchange" | "stash" {
-  assertEnum(value, "priceSource", channel, VALID_PRICE_SOURCES);
 }
 
 export function assertExitBehavior(

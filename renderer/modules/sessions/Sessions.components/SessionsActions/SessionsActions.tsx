@@ -73,7 +73,9 @@ export const SessionsActions = () => {
     let filename: string;
     const dateSuffix = new Date().toISOString().split("T")[0];
     const activeGame = getSelectedGame();
-    const exportSessionIds = allSelected ? null : selectedIds;
+    const exportAllSessions =
+      allSelected && selectedLeague === "all" && searchQuery.trim() === "";
+    const exportSessionIds = exportAllSessions ? null : selectedIds;
 
     if (bulkMode === "export-rich") {
       const selected = await window.electron.sessions.getRichExportRows(
@@ -98,7 +100,14 @@ export const SessionsActions = () => {
     a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
-  }, [allSelected, bulkMode, getSelectedSessionIds, getSelectedGame]);
+  }, [
+    allSelected,
+    bulkMode,
+    getSelectedSessionIds,
+    getSelectedGame,
+    searchQuery,
+    selectedLeague,
+  ]);
 
   const handleCancel = useCallback(() => {
     setBulkMode(null);

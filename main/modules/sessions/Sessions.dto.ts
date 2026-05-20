@@ -2,6 +2,8 @@
  * Data Transfer Objects for Sessions module
  */
 
+import type { SessionTotals } from "../../../types/data-stores";
+
 export interface SessionSummaryDTO {
   sessionId: string;
   game: string;
@@ -10,12 +12,9 @@ export interface SessionSummaryDTO {
   endedAt: string;
   durationMinutes: number;
   totalDecksOpened: number;
-  totalExchangeValue: number;
-  totalStashValue: number;
-  totalExchangeNetProfit: number | null;
-  totalStashNetProfit: number | null;
-  exchangeChaosToDivine: number;
-  stashChaosToDivine: number;
+  totalValue: number;
+  netProfit: number | null;
+  chaosToDivineRatio: number;
   stackedDeckChaosCost: number;
   isActive: boolean;
   /** Number of this specific card found in the session (only set by searchByCard) */
@@ -40,13 +39,13 @@ export interface SessionDetailsDTO {
   endedAt: string | null;
   totalCount: number;
   isActive: boolean;
+  persistedTotals?: SessionTotals;
 }
 
 export interface SessionCardDetailsDTO {
   cardName: string;
   count: number;
-  hidePriceExchange: boolean;
-  hidePriceStash: boolean;
+  hidePrice: boolean;
   divinationCard?: {
     id: string;
     stackSize?: number | null;

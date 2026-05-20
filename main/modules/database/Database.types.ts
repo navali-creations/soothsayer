@@ -29,8 +29,7 @@ export interface SnapshotsTable {
   id: string;
   league_id: string;
   fetched_at: string;
-  exchange_chaos_to_divine: number;
-  stash_chaos_to_divine: number;
+  chaos_to_divine_ratio: number;
   stacked_deck_chaos_cost: number;
   stacked_deck_max_volume_rate: number | null;
   created_at: ColumnType<string, string | undefined, never>;
@@ -40,7 +39,6 @@ export interface SnapshotCardPricesTable {
   id: ColumnType<number, never, never>; // Auto-increment, can't be inserted/updated
   snapshot_id: string;
   card_name: string;
-  price_source: "exchange" | "stash";
   chaos_value: number;
   divine_value: number;
   confidence: ColumnType<Confidence, Confidence | undefined, Confidence>;
@@ -63,8 +61,7 @@ export interface SessionCardsTable {
   session_id: string;
   card_name: string;
   count: number;
-  hide_price_exchange: number; // SQLite boolean
-  hide_price_stash: number; // SQLite boolean
+  hide_price: number; // SQLite boolean
   first_seen_at: ColumnType<string, string | undefined, string | undefined>;
   last_seen_at: ColumnType<string, string | undefined, string>;
 }
@@ -86,12 +83,9 @@ export interface SessionSummariesTable {
   ended_at: string;
   duration_minutes: number;
   total_decks_opened: number;
-  total_exchange_value: number;
-  total_stash_value: number;
-  total_exchange_net_profit: number | null;
-  total_stash_net_profit: number | null;
-  exchange_chaos_to_divine: number;
-  stash_chaos_to_divine: number;
+  total_value: number;
+  net_profit: number | null;
+  chaos_to_divine_ratio: number;
   stacked_deck_chaos_cost: number;
   created_at: ColumnType<string, string | undefined, never>;
 }
@@ -194,12 +188,10 @@ export interface UserSettingsTable {
   // PoE1 settings
   poe1_client_txt_path: string | null;
   poe1_selected_league: string;
-  poe1_price_source: string; // "exchange" | "stash"
 
   // PoE2 settings
   poe2_client_txt_path: string | null;
   poe2_selected_league: string;
-  poe2_price_source: string; // "exchange" | "stash"
 
   // Game selection
   selected_game: string; // "poe1" | "poe2"

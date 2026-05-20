@@ -149,20 +149,6 @@ describe("SettingsStoreService", () => {
       expect(value).toBe("Standard");
     });
 
-    // ─── Price source settings ─────────────────────────────────────────
-
-    it("should set and get poe1PriceSource", async () => {
-      await service.set("poe1PriceSource", "stash");
-      const value = await service.get("poe1PriceSource");
-      expect(value).toBe("stash");
-    });
-
-    it("should set and get poe2PriceSource", async () => {
-      await service.set("poe2PriceSource", "exchange");
-      const value = await service.get("poe2PriceSource");
-      expect(value).toBe("exchange");
-    });
-
     // ─── File path settings (nullable) ─────────────────────────────────
 
     it("should set and get poe1ClientTxtPath", async () => {
@@ -337,8 +323,6 @@ describe("SettingsStoreService", () => {
       expect(settings).toHaveProperty("installedGames");
       expect(settings).toHaveProperty("poe1SelectedLeague");
       expect(settings).toHaveProperty("poe2SelectedLeague");
-      expect(settings).toHaveProperty("poe1PriceSource");
-      expect(settings).toHaveProperty("poe2PriceSource");
       expect(settings).toHaveProperty("poe1ClientTxtPath");
       expect(settings).toHaveProperty("poe2ClientTxtPath");
       expect(settings).toHaveProperty("setupCompleted");
@@ -382,8 +366,6 @@ describe("SettingsStoreService", () => {
       await service.set("installedGames", ["poe1", "poe2"]);
       await service.set("poe1SelectedLeague", "Settlers");
       await service.set("poe2SelectedLeague", "Standard");
-      await service.set("poe1PriceSource", "exchange");
-      await service.set("poe2PriceSource", "stash");
       await service.set("setupCompleted", true);
       await service.set("setupStep", 2);
       await service.set("setupVersion", 1);
@@ -406,8 +388,6 @@ describe("SettingsStoreService", () => {
       expect(Array.isArray(settings.installedGames)).toBe(true);
       expect(typeof settings.poe1SelectedLeague).toBe("string");
       expect(typeof settings.poe2SelectedLeague).toBe("string");
-      expect(typeof settings.poe1PriceSource).toBe("string");
-      expect(typeof settings.poe2PriceSource).toBe("string");
       expect(typeof settings.setupCompleted).toBe("boolean");
       expect(typeof settings.setupStep).toBe("number");
       expect(typeof settings.setupVersion).toBe("number");
@@ -439,15 +419,11 @@ describe("SettingsStoreService", () => {
     it("should maintain poe1 and poe2 settings independently", async () => {
       await service.set("poe1SelectedLeague", "Settlers");
       await service.set("poe2SelectedLeague", "Standard");
-      await service.set("poe1PriceSource", "exchange");
-      await service.set("poe2PriceSource", "stash");
       await service.set("poe1ClientTxtPath", "/path/to/poe1");
       await service.set("poe2ClientTxtPath", "/path/to/poe2");
 
       expect(await service.get("poe1SelectedLeague")).toBe("Settlers");
       expect(await service.get("poe2SelectedLeague")).toBe("Standard");
-      expect(await service.get("poe1PriceSource")).toBe("exchange");
-      expect(await service.get("poe2PriceSource")).toBe("stash");
       expect(await service.get("poe1ClientTxtPath")).toBe("/path/to/poe1");
       expect(await service.get("poe2ClientTxtPath")).toBe("/path/to/poe2");
     });

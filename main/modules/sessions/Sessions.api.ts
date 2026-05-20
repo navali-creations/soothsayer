@@ -31,8 +31,11 @@ const SessionsAPI = {
     game: GameType,
     page?: number,
     pageSize?: number,
+    league?: string,
   ): Promise<SessionsPageDTO> =>
-    ipcRenderer.invoke(SessionsChannel.GetAll, game, page, pageSize),
+    ipcRenderer.invoke(SessionsChannel.GetAll, game, page, pageSize, league),
+  getLeagues: (game: GameType): Promise<string[]> =>
+    ipcRenderer.invoke(SessionsChannel.GetLeagues, game),
   getById: (sessionId: string): Promise<DetailedDivinationCardStats | null> =>
     ipcRenderer.invoke(SessionsChannel.GetById, sessionId),
   searchByCard: (
@@ -143,8 +146,17 @@ const SessionsAPI = {
     sessionIds: string[] | null,
   ): Promise<Record<string, number>> =>
     ipcRenderer.invoke(SessionsChannel.GetSimpleExportRows, game, sessionIds),
-  getAllSessionIds: (game: GameType): Promise<string[]> =>
-    ipcRenderer.invoke(SessionsChannel.GetAllSessionIds, game),
+  getAllSessionIds: (
+    game: GameType,
+    league?: string,
+    cardName?: string,
+  ): Promise<string[]> =>
+    ipcRenderer.invoke(
+      SessionsChannel.GetAllSessionIds,
+      game,
+      league,
+      cardName,
+    ),
   deleteSessions: (
     game: GameType,
     sessionIds: string[],

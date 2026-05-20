@@ -42,8 +42,7 @@ export const OverlayDropsList = () => {
     <AnimatePresence initial={false} mode="popLayout">
       {filteredDrops.slice(0, 10).map((drop, index) => {
         const isNew = index === 0;
-        const price = drop[`${sessionData.priceSource}Price`];
-        const chaosValue = price?.chaosValue || 0;
+        const chaosValue = drop.price?.chaosValue || 0;
         const rarity = drop.rarity ?? 0;
         const rarityStyles = getRarityStyles(
           rarity,

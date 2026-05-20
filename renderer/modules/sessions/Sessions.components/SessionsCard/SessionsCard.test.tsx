@@ -206,12 +206,12 @@ describe("SessionCard", () => {
     expect(screen.getByText("250")).toBeInTheDocument();
   });
 
-  // ── Exchange value ─────────────────────────────────────────────────────
+  // ── Value ──────────────────────────────────────────────────────────────
 
-  it("shows exchange value with formatCurrency", () => {
+  it("shows value with formatCurrency", () => {
     const session = makeSession({
-      totalExchangeValue: 500,
-      exchangeChaosToDivine: 150,
+      totalValue: 500,
+      chaosToDivineRatio: 150,
     });
     renderWithProviders(<SessionCard session={session} />);
 
@@ -219,22 +219,10 @@ describe("SessionCard", () => {
     expect(screen.getByText("3.33d")).toBeInTheDocument();
   });
 
-  it('shows "N/A" when exchange value is null', () => {
+  it('shows "N/A" when value is null', () => {
     const session = makeSession({
-      totalExchangeValue: null,
-      exchangeChaosToDivine: 150,
-    });
-    renderWithProviders(<SessionCard session={session} />);
-
-    // There may be multiple N/A elements (exchange + stash); find by context
-    const naElements = screen.getAllByText("N/A");
-    expect(naElements.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('shows "N/A" when exchangeChaosToDivine is null', () => {
-    const session = makeSession({
-      totalExchangeValue: 500,
-      exchangeChaosToDivine: null,
+      totalValue: null,
+      chaosToDivineRatio: 150,
     });
     renderWithProviders(<SessionCard session={session} />);
 
@@ -242,34 +230,10 @@ describe("SessionCard", () => {
     expect(naElements.length).toBeGreaterThanOrEqual(1);
   });
 
-  // ── Stash value ────────────────────────────────────────────────────────
-
-  it("shows stash value with formatCurrency", () => {
+  it('shows "N/A" when chaosToDivineRatio is null', () => {
     const session = makeSession({
-      totalStashValue: 600,
-      stashChaosToDivine: 150,
-    });
-    renderWithProviders(<SessionCard session={session} />);
-
-    // 600 / 150 = 4.00d
-    expect(screen.getByText("4.00d")).toBeInTheDocument();
-  });
-
-  it('shows "N/A" when stash value is null', () => {
-    const session = makeSession({
-      totalStashValue: null,
-      stashChaosToDivine: 150,
-    });
-    renderWithProviders(<SessionCard session={session} />);
-
-    const naElements = screen.getAllByText("N/A");
-    expect(naElements.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('shows "N/A" when stashChaosToDivine is null', () => {
-    const session = makeSession({
-      totalStashValue: 600,
-      stashChaosToDivine: null,
+      totalValue: 500,
+      chaosToDivineRatio: null,
     });
     renderWithProviders(<SessionCard session={session} />);
 
@@ -281,8 +245,8 @@ describe("SessionCard", () => {
 
   it("shows net profit with success color for positive values", () => {
     const session = makeSession({
-      totalExchangeNetProfit: 200,
-      exchangeChaosToDivine: 150,
+      netProfit: 200,
+      chaosToDivineRatio: 150,
     });
     renderWithProviders(<SessionCard session={session} />);
 
@@ -294,8 +258,8 @@ describe("SessionCard", () => {
 
   it("shows net profit with error color for negative values", () => {
     const session = makeSession({
-      totalExchangeNetProfit: -300,
-      exchangeChaosToDivine: 150,
+      netProfit: -300,
+      chaosToDivineRatio: 150,
     });
     renderWithProviders(<SessionCard session={session} />);
 
@@ -305,20 +269,20 @@ describe("SessionCard", () => {
     expect(profitElement).toHaveClass("text-error");
   });
 
-  it("does not render net profit when totalExchangeNetProfit is null", () => {
+  it("does not render net profit when netProfit is null", () => {
     const session = makeSession({
-      totalExchangeNetProfit: null,
-      exchangeChaosToDivine: 150,
+      netProfit: null,
+      chaosToDivineRatio: 150,
     });
     renderWithProviders(<SessionCard session={session} />);
 
     expect(screen.queryByText("Net Profit:")).not.toBeInTheDocument();
   });
 
-  it("does not render net profit when exchangeChaosToDivine is null", () => {
+  it("does not render net profit when chaosToDivineRatio is null", () => {
     const session = makeSession({
-      totalExchangeNetProfit: 200,
-      exchangeChaosToDivine: null,
+      netProfit: 200,
+      chaosToDivineRatio: null,
     });
     renderWithProviders(<SessionCard session={session} />);
 

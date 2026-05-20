@@ -241,26 +241,11 @@ class OverlayService {
   }
 
   /**
-   * Resolve the user's price source setting for the given game.
-   */
-  private async getPriceSourceForGame(
-    activeGame: string,
-  ): Promise<"exchange" | "stash"> {
-    const key =
-      activeGame === "poe1"
-        ? SettingsKey.Poe1PriceSource
-        : SettingsKey.Poe2PriceSource;
-    const value = await this.settingsStore.get(key);
-    return value === "exchange" || value === "stash" ? value : "exchange";
-  }
-
-  /**
    * Get current session data formatted for overlay
    */
   private async getSessionData() {
     const activeGame = await this.settingsStore.get(SettingsKey.ActiveGame);
     const isActive = this.currentSessionService.isSessionActive(activeGame);
-    const priceSource = await this.getPriceSourceForGame(activeGame);
 
     if (!isActive) {
       return {
@@ -268,7 +253,6 @@ class OverlayService {
         totalCount: 0,
         totalProfit: 0,
         chaosToDivineRatio: 0,
-        priceSource,
         cards: [],
         recentDrops: [],
       };
@@ -283,20 +267,16 @@ class OverlayService {
         totalCount: 0,
         totalProfit: 0,
         chaosToDivineRatio: 0,
-        priceSource,
         cards: [],
         recentDrops: [],
       };
     }
 
-    const totals = session.totals?.[priceSource];
-
     return {
       isActive: true,
       totalCount: session.totalCount || 0,
-      totalProfit: totals?.totalValue || 0,
-      chaosToDivineRatio: totals?.chaosToDivineRatio || 0,
-      priceSource,
+      totalProfit: session.totals?.totalValue || 0,
+      chaosToDivineRatio: session.totals?.chaosToDivineRatio || 0,
       cards: session.cards
         ? session.cards.map((card: { name: string; count: number }) => ({
             cardName: card.name,
@@ -307,8 +287,7 @@ class OverlayService {
         (drop: {
           cardName: string;
           rarity?: number;
-          exchangePrice: { chaosValue: number; divineValue: number };
-          stashPrice: { chaosValue: number; divineValue: number };
+          price: { chaosValue: number; divineValue: number } | null;
         }) => ({
           ...drop,
           rarity: drop.rarity ?? 4,

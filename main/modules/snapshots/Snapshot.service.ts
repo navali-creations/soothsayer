@@ -11,10 +11,7 @@ import {
   handleValidationError,
 } from "~/main/utils/ipc-validation";
 
-import type {
-  Confidence,
-  SessionPriceSnapshot,
-} from "../../../types/data-stores";
+import type { SessionPriceSnapshot } from "../../../types/data-stores";
 import { SnapshotChannel } from "./Snapshot.channels";
 import { SnapshotRepository } from "./Snapshot.repository";
 
@@ -217,38 +214,26 @@ class SnapshotService {
       return null;
     }
 
-    const { snapshot, cardPrices } = result;
+    const { snapshot, cardPrices: rows } = result;
 
-    // Separate exchange and stash prices
-    const exchangePrices: SessionPriceSnapshot["exchange"]["cardPrices"] = {};
-    const stashPrices: SessionPriceSnapshot["stash"]["cardPrices"] = {};
+    const cardPrices: SessionPriceSnapshot["cardPrices"] = {};
 
-    for (const price of cardPrices) {
+    for (const price of rows) {
       const priceData = {
         chaosValue: price.chaosValue,
         divineValue: price.divineValue,
         confidence: price.confidence ?? 1,
       };
 
-      if (price.priceSource === "exchange") {
-        exchangePrices[price.cardName] = priceData;
-      } else {
-        stashPrices[price.cardName] = priceData;
-      }
+      cardPrices[price.cardName] = priceData;
     }
 
     return {
       timestamp: snapshot.fetchedAt,
       stackedDeckChaosCost: snapshot.stackedDeckChaosCost ?? 0,
       stackedDeckMaxVolumeRate: snapshot.stackedDeckMaxVolumeRate ?? undefined,
-      exchange: {
-        chaosToDivineRatio: snapshot.exchangeChaosToDivine,
-        cardPrices: exchangePrices,
-      },
-      stash: {
-        chaosToDivineRatio: snapshot.stashChaosToDivine,
-        cardPrices: stashPrices,
-      },
+      chaosToDivineRatio: snapshot.chaosToDivineRatio,
+      cardPrices,
     };
   }
 
@@ -345,8 +330,7 @@ class SnapshotService {
           league: leagueName,
           game,
           fetchedAt: recentSnapshot.fetchedAt,
-          exchangeChaosToDivine: recentSnapshot.exchangeChaosToDivine,
-          stashChaosToDivine: recentSnapshot.stashChaosToDivine,
+          chaosToDivineRatio: recentSnapshot.chaosToDivineRatio,
         });
 
         return { snapshotId: recentSnapshot.id, data };
@@ -378,8 +362,7 @@ class SnapshotService {
 
     console.log(
       `[SnapshotService] Stored snapshot ${snapshotId} for league ${leagueId} with ${
-        Object.keys(snapshotData.exchange.cardPrices).length +
-        Object.keys(snapshotData.stash.cardPrices).length
+        Object.keys(snapshotData.cardPrices).length
       } card prices`,
     );
 
@@ -390,8 +373,7 @@ class SnapshotService {
       league: leagueName,
       game,
       fetchedAt: snapshotData.timestamp,
-      exchangeChaosToDivine: snapshotData.exchange.chaosToDivineRatio,
-      stashChaosToDivine: snapshotData.stash.chaosToDivineRatio,
+      chaosToDivineRatio: snapshotData.chaosToDivineRatio,
     });
 
     return { snapshotId, data: snapshotData };
@@ -447,8 +429,7 @@ class SnapshotService {
           league: leagueName,
           game,
           fetchedAt: snapshotData.timestamp,
-          exchangeChaosToDivine: snapshotData.exchange.chaosToDivineRatio,
-          stashChaosToDivine: snapshotData.stash.chaosToDivineRatio,
+          chaosToDivineRatio: snapshotData.chaosToDivineRatio,
         });
       } catch (error) {
         console.error(
@@ -509,79 +490,22 @@ class SnapshotService {
     leagueName: string,
     snapshotData: SessionPriceSnapshot,
   ): Promise<void> {
-    const mergedPrices = this.mergeCardPrices(snapshotData);
+    const prices = Object.fromEntries(
+      Object.entries(snapshotData.cardPrices).map(([name, data]) => [
+        name,
+        {
+          chaosValue: data.chaosValue,
+          confidence: data.confidence ?? 1,
+        },
+      ]),
+    );
+
     await this.divinationCards.updateRaritiesFromPrices(
       gameType,
       leagueName,
-      snapshotData.exchange.chaosToDivineRatio,
-      mergedPrices,
+      snapshotData.chaosToDivineRatio,
+      prices,
     );
-  }
-
-  /**
-   * Merge exchange and stash card prices into a single map.
-   *
-   * Exchange prices are preferred where available (they're based on actual
-   * trade volume and are generally more reliable for high-value cards).
-   * Stash prices are included for value tracking, but stash-only cards
-   * (those with NO exchange data) are downgraded to confidence 3 (low)
-   * so that `updateRaritiesFromPrices` assigns them rarity 0 (Unknown).
-   *
-   * Stash-only prices are unreliable for rarity classification — they can
-   * be heavily inflated by price fixers (e.g. a worthless card listed at
-   * 300c on the stash API). By marking them low-confidence, we keep the
-   * price data available for display while preventing bogus rarities.
-   */
-  private mergeCardPrices(
-    snapshot: SessionPriceSnapshot,
-  ): Record<string, { chaosValue: number; confidence: Confidence }> {
-    const merged: Record<
-      string,
-      { chaosValue: number; confidence: Confidence }
-    > = {};
-
-    const exchangeNames = new Set(Object.keys(snapshot.exchange.cardPrices));
-
-    // Start with stash prices (lower priority).
-    // Cards that exist ONLY in stash (no exchange counterpart) are
-    // downgraded to confidence 3 (low) → rarity 0 (Unknown).
-    for (const [name, data] of Object.entries(snapshot.stash.cardPrices)) {
-      const isStashOnly = !exchangeNames.has(name);
-      merged[name] = {
-        chaosValue: data.chaosValue,
-        confidence: isStashOnly ? 3 : (data.confidence ?? 1),
-      };
-    }
-
-    // Override with exchange prices where available (higher priority)
-    // Exchange prices are always high confidence (from actual trades)
-    for (const [name, data] of Object.entries(snapshot.exchange.cardPrices)) {
-      merged[name] = {
-        chaosValue: data.chaosValue,
-        confidence: 1,
-      };
-    }
-
-    const exchangeCount = exchangeNames.size;
-    const stashCount = Object.keys(snapshot.stash.cardPrices).length;
-    const mergedCount = Object.keys(merged).length;
-    const stashOnlyCount = mergedCount - exchangeCount;
-
-    // Count confidence distribution
-    let lowCount = 0;
-    let mediumCount = 0;
-    let highCount = 0;
-    for (const data of Object.values(merged)) {
-      if (data.confidence === 3) lowCount++;
-      else if (data.confidence === 2) mediumCount++;
-      else highCount++;
-    }
-
-    console.log(
-      `[SnapshotService] Merged card prices: ${exchangeCount} exchange + ${stashCount} stash = ${mergedCount} unique cards (${stashOnlyCount} stash-only, downgraded to low confidence). Confidence: ${highCount} high, ${mediumCount} medium, ${lowCount} low`,
-    );
-
-    return merged;
   }
 
   /**

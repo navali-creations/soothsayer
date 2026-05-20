@@ -9,8 +9,6 @@ import type {
 
 import type { CardEntry } from "../SessionDetails.types";
 
-export type PriceSource = "exchange" | "stash";
-
 export interface SessionDetailsSlice {
   sessionDetails: {
     // State
@@ -18,23 +16,17 @@ export interface SessionDetailsSlice {
     timeline: AggregatedTimeline | null;
     isLoading: boolean;
     error: string | null;
-    priceSource: PriceSource;
 
     // Actions
     loadSession: (sessionId: string) => Promise<void>;
     clearSession: () => void;
-    setPriceSource: (source: PriceSource) => void;
-    toggleCardPriceVisibility: (
-      cardName: string,
-      priceSource: PriceSource,
-    ) => Promise<void>;
+    toggleCardPriceVisibility: (cardName: string) => Promise<void>;
 
     // Getters
     getSession: () => DetailedDivinationCardStats | null;
     getTimeline: () => AggregatedTimeline | null;
     getIsLoading: () => boolean;
     getError: () => string | null;
-    getPriceSource: () => PriceSource;
     getCardData: () => CardEntry[];
     getPriceData: () => {
       chaosToDivineRatio: number;
@@ -59,7 +51,6 @@ export const createSessionDetailsSlice: StateCreator<
     timeline: null,
     isLoading: false,
     error: null,
-    priceSource: "exchange",
 
     // Load session by ID
     loadSession: async (sessionId: string) => {
@@ -95,18 +86,8 @@ export const createSessionDetailsSlice: StateCreator<
       });
     },
 
-    // Set price source (exchange/stash)
-    setPriceSource: (source: PriceSource) => {
-      set(({ sessionDetails }) => {
-        sessionDetails.priceSource = source;
-      });
-    },
-
     // Toggle card price visibility
-    toggleCardPriceVisibility: async (
-      cardName: string,
-      priceSource: PriceSource,
-    ) => {
+    toggleCardPriceVisibility: async (cardName: string) => {
       const { sessionDetails, settings } = get();
       const session = sessionDetails.session;
 
@@ -115,17 +96,15 @@ export const createSessionDetailsSlice: StateCreator<
       const card = session.cards.find((c) => c.name === cardName);
       if (!card) return;
 
-      const priceKey =
-        priceSource === "exchange" ? "exchangePrice" : "stashPrice";
-      const currentHidePrice = card[priceKey]?.hidePrice || false;
+      const currentHidePrice = card.price?.hidePrice || false;
 
       // Optimistically update UI
       set(({ sessionDetails }) => {
         const card = sessionDetails.session?.cards?.find(
           (c) => c.name === cardName,
         );
-        if (card?.[priceKey]) {
-          card[priceKey]!.hidePrice = !currentHidePrice;
+        if (card?.price) {
+          card.price.hidePrice = !currentHidePrice;
         }
       });
 
@@ -137,7 +116,6 @@ export const createSessionDetailsSlice: StateCreator<
           await window.electron.session.updateCardPriceVisibility(
             activeGame as any,
             sessionId,
-            priceSource,
             cardName,
             !currentHidePrice,
           );
@@ -148,8 +126,8 @@ export const createSessionDetailsSlice: StateCreator<
             const card = sessionDetails.session?.cards?.find(
               (c) => c.name === cardName,
             );
-            if (card?.[priceKey]) {
-              card[priceKey]!.hidePrice = currentHidePrice;
+            if (card?.price) {
+              card.price.hidePrice = currentHidePrice;
             }
           });
         }
@@ -161,20 +139,16 @@ export const createSessionDetailsSlice: StateCreator<
     getTimeline: () => get().sessionDetails.timeline,
     getIsLoading: () => get().sessionDetails.isLoading,
     getError: () => get().sessionDetails.error,
-    getPriceSource: () => get().sessionDetails.priceSource,
 
     getCardData: () => {
-      const { session, priceSource } = get().sessionDetails;
+      const { session } = get().sessionDetails;
       if (!session?.cards) return [];
 
       return session.cards
         .map((entry) => {
-          const priceInfo =
-            priceSource === "exchange" ? entry.exchangePrice : entry.stashPrice;
-
-          const chaosValue = priceInfo?.chaosValue || 0;
-          const totalValue = priceInfo?.totalValue || 0;
-          const hidePrice = priceInfo?.hidePrice || false;
+          const chaosValue = entry.price?.chaosValue || 0;
+          const totalValue = entry.price?.totalValue || 0;
+          const hidePrice = entry.price?.hidePrice || false;
 
           return {
             name: entry.name,
@@ -190,21 +164,26 @@ export const createSessionDetailsSlice: StateCreator<
     },
 
     getPriceData: () => {
-      const { session, priceSource } = get().sessionDetails;
+      const { session } = get().sessionDetails;
       if (!session?.priceSnapshot) {
-        return { chaosToDivineRatio: 0, cardPrices: {} };
+        return {
+          chaosToDivineRatio: session?.totals?.chaosToDivineRatio ?? 0,
+          cardPrices: {},
+        };
       }
-      const source =
-        priceSource === "stash"
-          ? session.priceSnapshot.stash
-          : session.priceSnapshot.exchange;
       return {
-        chaosToDivineRatio: source.chaosToDivineRatio,
-        cardPrices: source.cardPrices,
+        chaosToDivineRatio: session.priceSnapshot.chaosToDivineRatio,
+        cardPrices: session.priceSnapshot.cardPrices,
       };
     },
 
     getTotalProfit: () => {
+      const { session } = get().sessionDetails;
+      if (!session) return 0;
+      if (!session.priceSnapshot && session.totals) {
+        return session.totals.totalValue;
+      }
+
       const cardData = get().sessionDetails.getCardData();
       return cardData.reduce((sum, card) => {
         if (card.hidePrice) return sum;
@@ -214,6 +193,19 @@ export const createSessionDetailsSlice: StateCreator<
 
     getNetProfit: () => {
       const { session } = get().sessionDetails;
+      if (!session) {
+        return {
+          netProfit: 0,
+          totalDeckCost: 0,
+        };
+      }
+      if (!session.priceSnapshot && session.totals) {
+        return {
+          netProfit: session.totals.netProfit,
+          totalDeckCost: session.totals.totalDeckCost,
+        };
+      }
+
       const totalProfit = get().sessionDetails.getTotalProfit();
       const deckCost = session?.priceSnapshot?.stackedDeckChaosCost ?? 0;
       const deckCount = session?.totalCount ?? 0;

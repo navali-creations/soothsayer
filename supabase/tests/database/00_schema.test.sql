@@ -50,13 +50,13 @@ SELECT has_column('public', 'snapshots', 'id', 'snapshots should have id column'
 SELECT has_column('public', 'snapshots', 'league_id', 'snapshots should have league_id column');
 SELECT has_column('public', 'snapshots', 'fetched_at', 'snapshots should have fetched_at column');
 SELECT has_column('public', 'snapshots', 'exchange_chaos_to_divine', 'snapshots should have exchange_chaos_to_divine column');
-SELECT has_column('public', 'snapshots', 'stash_chaos_to_divine', 'snapshots should have stash_chaos_to_divine column');
+SELECT hasnt_column('public', 'snapshots', 'stash_chaos_to_divine', 'snapshots should not have stash_chaos_to_divine column');
 SELECT has_column('public', 'snapshots', 'stacked_deck_chaos_cost', 'snapshots should have stacked_deck_chaos_cost column');
 
 SELECT col_is_pk('public', 'snapshots', 'id', 'snapshots.id should be primary key');
 SELECT col_not_null('public', 'snapshots', 'league_id', 'snapshots.league_id should be NOT NULL');
 SELECT col_not_null('public', 'snapshots', 'exchange_chaos_to_divine', 'snapshots.exchange_chaos_to_divine should be NOT NULL');
-SELECT col_not_null('public', 'snapshots', 'stash_chaos_to_divine', 'snapshots.stash_chaos_to_divine should be NOT NULL');
+SELECT hasnt_column('public', 'snapshots', 'stash_chaos_to_divine', 'snapshots.stash_chaos_to_divine should be removed');
 
 SELECT col_is_fk('public', 'snapshots', 'league_id', 'snapshots.league_id should be a foreign key');
 
@@ -67,7 +67,7 @@ SELECT col_is_fk('public', 'snapshots', 'league_id', 'snapshots.league_id should
 SELECT has_column('public', 'card_prices', 'id', 'card_prices should have id column');
 SELECT has_column('public', 'card_prices', 'snapshot_id', 'card_prices should have snapshot_id column');
 SELECT has_column('public', 'card_prices', 'card_id', 'card_prices should have card_id column');
-SELECT has_column('public', 'card_prices', 'price_source', 'card_prices should have price_source column');
+SELECT hasnt_column('public', 'card_prices', 'price_source', 'card_prices should not have price_source column');
 SELECT has_column('public', 'card_prices', 'chaos_value', 'card_prices should have chaos_value column');
 SELECT has_column('public', 'card_prices', 'divine_value', 'card_prices should have divine_value column');
 SELECT has_column('public', 'card_prices', 'confidence', 'card_prices should have confidence column');
@@ -75,7 +75,7 @@ SELECT has_column('public', 'card_prices', 'confidence', 'card_prices should hav
 SELECT col_is_pk('public', 'card_prices', 'id', 'card_prices.id should be primary key');
 SELECT col_not_null('public', 'card_prices', 'snapshot_id', 'card_prices.snapshot_id should be NOT NULL');
 SELECT col_not_null('public', 'card_prices', 'card_id', 'card_prices.card_id should be NOT NULL');
-SELECT col_not_null('public', 'card_prices', 'price_source', 'card_prices.price_source should be NOT NULL');
+SELECT hasnt_column('public', 'card_prices', 'price_source', 'card_prices.price_source should be removed');
 
 SELECT col_is_fk('public', 'card_prices', 'snapshot_id', 'card_prices.snapshot_id should be a foreign key');
 SELECT col_is_fk('public', 'card_prices', 'card_id', 'card_prices.card_id should be a foreign key');
@@ -162,7 +162,16 @@ SELECT has_index('public', 'poe_leagues', 'idx_poe_leagues_updated', 'poe_league
 SELECT has_index('public', 'snapshots', 'idx_snapshots_league_fetched', 'snapshots should have league+fetched index');
 SELECT has_index('public', 'snapshots', 'idx_snapshots_created', 'snapshots should have created_at index');
 SELECT has_index('public', 'card_prices', 'idx_card_prices_snapshot', 'card_prices should have snapshot_id index');
-SELECT has_index('public', 'card_prices', 'idx_card_prices_snapshot_source', 'card_prices should have snapshot+source index');
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM pg_indexes
+    WHERE schemaname = 'public'
+      AND tablename = 'card_prices'
+      AND indexname = 'idx_card_prices_snapshot_source'
+  ),
+  'card_prices should not have snapshot+source index'
+);
 SELECT has_index('public', 'card_prices', 'idx_card_prices_card_id', 'card_prices should have card_id index');
 SELECT has_index('public', 'cards', 'idx_cards_game', 'cards should have game index');
 SELECT has_index('public', 'community_uploads', 'idx_community_uploads_league', 'community_uploads should have league index');

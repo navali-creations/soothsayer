@@ -21,8 +21,7 @@ export class SnapshotMapper {
       leagueId: row.league_id,
       fetchedAt: row.fetched_at,
       createdAt: row.created_at,
-      exchangeChaosToDivine: row.exchange_chaos_to_divine,
-      stashChaosToDivine: row.stash_chaos_to_divine,
+      chaosToDivineRatio: row.chaos_to_divine_ratio,
       stackedDeckChaosCost: row.stacked_deck_chaos_cost,
       stackedDeckMaxVolumeRate: row.stacked_deck_max_volume_rate,
     };
@@ -33,7 +32,6 @@ export class SnapshotMapper {
   ): SnapshotCardPriceDTO {
     return {
       cardName: row.card_name,
-      priceSource: row.price_source as "exchange" | "stash",
       chaosValue: row.chaos_value,
       divineValue: row.divine_value,
       confidence: (row.confidence as Confidence) ?? 1,

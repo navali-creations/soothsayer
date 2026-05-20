@@ -69,8 +69,8 @@ SELECT has_function(
 
 SELECT has_function(
   'public', 'create_snapshot_with_prices',
-  ARRAY['uuid', 'timestamp with time zone', 'numeric', 'numeric', 'numeric', 'numeric', 'jsonb'],
-  'create_snapshot_with_prices(uuid, timestamptz, numeric, numeric, numeric, numeric, jsonb) should exist'
+  ARRAY['uuid', 'timestamp with time zone', 'numeric', 'numeric', 'numeric', 'jsonb'],
+  'create_snapshot_with_prices(uuid, timestamptz, numeric, numeric, numeric, jsonb) should exist'
 );
 
 SELECT has_function(
@@ -87,7 +87,7 @@ SELECT has_function(
 SELECT results_eq(
   $$SELECT has_function_privilege(
     'service_role',
-    'public.create_snapshot_with_prices(uuid,timestamp with time zone,numeric,numeric,numeric,numeric,jsonb)'::regprocedure,
+    'public.create_snapshot_with_prices(uuid,timestamp with time zone,numeric,numeric,numeric,jsonb)'::regprocedure,
     'EXECUTE'
   )$$,
   ARRAY[true],
@@ -97,7 +97,7 @@ SELECT results_eq(
 SELECT results_eq(
   $$SELECT NOT has_function_privilege(
     'anon',
-    'public.create_snapshot_with_prices(uuid,timestamp with time zone,numeric,numeric,numeric,numeric,jsonb)'::regprocedure,
+    'public.create_snapshot_with_prices(uuid,timestamp with time zone,numeric,numeric,numeric,jsonb)'::regprocedure,
     'EXECUTE'
   )$$,
   ARRAY[true],
@@ -107,7 +107,7 @@ SELECT results_eq(
 SELECT results_eq(
   $$SELECT NOT has_function_privilege(
     'authenticated',
-    'public.create_snapshot_with_prices(uuid,timestamp with time zone,numeric,numeric,numeric,numeric,jsonb)'::regprocedure,
+    'public.create_snapshot_with_prices(uuid,timestamp with time zone,numeric,numeric,numeric,jsonb)'::regprocedure,
     'EXECUTE'
   )$$,
   ARRAY[true],
@@ -117,7 +117,7 @@ SELECT results_eq(
 SELECT results_eq(
   $$SELECT prosecdef
     FROM pg_proc
-    WHERE oid = 'public.create_snapshot_with_prices(uuid,timestamp with time zone,numeric,numeric,numeric,numeric,jsonb)'::regprocedure$$,
+    WHERE oid = 'public.create_snapshot_with_prices(uuid,timestamp with time zone,numeric,numeric,numeric,jsonb)'::regprocedure$$,
   ARRAY[true],
   'create_snapshot_with_prices should be SECURITY DEFINER'
 );
@@ -125,7 +125,7 @@ SELECT results_eq(
 SELECT results_eq(
   $$SELECT COALESCE(proconfig, ARRAY[]::text[]) @> ARRAY['search_path=public, pg_temp']
     FROM pg_proc
-    WHERE oid = 'public.create_snapshot_with_prices(uuid,timestamp with time zone,numeric,numeric,numeric,numeric,jsonb)'::regprocedure$$,
+    WHERE oid = 'public.create_snapshot_with_prices(uuid,timestamp with time zone,numeric,numeric,numeric,jsonb)'::regprocedure$$,
   ARRAY[true],
   'create_snapshot_with_prices should pin search_path to public, pg_temp'
 );
@@ -133,9 +133,9 @@ SELECT results_eq(
 SELECT ok(
   (
     SELECT obj_description(
-      'public.create_snapshot_with_prices(uuid,timestamp with time zone,numeric,numeric,numeric,numeric,jsonb)'::regprocedure,
+      'public.create_snapshot_with_prices(uuid,timestamp with time zone,numeric,numeric,numeric,jsonb)'::regprocedure,
       'pg_proc'
-    ) COLLATE "C" = 'Atomically creates a non-empty snapshot and card_prices rows, serializing recent writes per league. SECURITY DEFINER, service_role only.'::text COLLATE "C"
+    ) COLLATE "C" = 'Atomically creates a non-empty exchange-only snapshot and card_prices rows, serializing recent writes per league. SECURITY DEFINER, service_role only.'::text COLLATE "C"
   ),
   'create_snapshot_with_prices should document its atomic write and access model'
 );
@@ -254,16 +254,16 @@ VALUES (
 INSERT INTO poe_leagues (id, game, league_id, name, is_active)
 VALUES ('dddd4444-dddd-dddd-dddd-dddddddddddd', 'poe1', 'fn_test_league', 'Function Test League', true);
 
-INSERT INTO snapshots (id, league_id, fetched_at, exchange_chaos_to_divine, stash_chaos_to_divine, stacked_deck_chaos_cost)
-VALUES ('eeee5555-eeee-eeee-eeee-eeeeeeeeeeee', 'dddd4444-dddd-dddd-dddd-dddddddddddd', NOW() - INTERVAL '2 hours', 140.00, 138.00, 1.2);
+INSERT INTO snapshots (id, league_id, fetched_at, exchange_chaos_to_divine, stacked_deck_chaos_cost)
+VALUES ('eeee5555-eeee-eeee-eeee-eeeeeeeeeeee', 'dddd4444-dddd-dddd-dddd-dddddddddddd', NOW() - INTERVAL '2 hours', 140.00, 1.2);
 
-INSERT INTO snapshots (id, league_id, fetched_at, exchange_chaos_to_divine, stash_chaos_to_divine, stacked_deck_chaos_cost)
-VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'dddd4444-dddd-dddd-dddd-dddddddddddd', NOW(), 150.00, 148.00, 1.5);
+INSERT INTO snapshots (id, league_id, fetched_at, exchange_chaos_to_divine, stacked_deck_chaos_cost)
+VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'dddd4444-dddd-dddd-dddd-dddddddddddd', NOW(), 150.00, 1.5);
 
 -- Insert test cards for card_prices tests (Phase B: card_id is NOT NULL)
 INSERT INTO cards (id, game, name) VALUES
   ('cc000001-0000-0000-0000-000000000001', 'poe1', 'Test Exchange'),
-  ('cc000001-0000-0000-0000-000000000002', 'poe1', 'Test Stash'),
+  ('cc000001-0000-0000-0000-000000000002', 'poe1', 'Test Price'),
   ('cc000001-0000-0000-0000-000000000003', 'poe1', 'Test Bad'),
   ('cc000001-0000-0000-0000-000000000004', 'poe1', 'Confidence Default'),
   ('cc000001-0000-0000-0000-000000000005', 'poe1', 'Confidence 1'),
@@ -602,27 +602,30 @@ SELECT results_eq(
 );
 
 -- ═══════════════════════════════════════════════════════════════
--- TEST: card_prices price_source CHECK constraint
+-- TEST: card_prices exchange-only shape
 -- ═══════════════════════════════════════════════════════════════
 
 SELECT lives_ok(
-  $$INSERT INTO card_prices (snapshot_id, card_id, price_source, chaos_value, divine_value)
-    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'cc000001-0000-0000-0000-000000000001', 'exchange', 10.00, 0.0667)$$,
-  'card_prices should accept price_source = exchange'
+  $$INSERT INTO card_prices (snapshot_id, card_id, chaos_value, divine_value)
+    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'cc000001-0000-0000-0000-000000000001', 10.00, 0.0667)$$,
+  'card_prices should accept exchange-only price rows'
 );
 
 SELECT lives_ok(
-  $$INSERT INTO card_prices (snapshot_id, card_id, price_source, chaos_value, divine_value)
-    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'cc000001-0000-0000-0000-000000000002', 'stash', 10.00, 0.0667)$$,
-  'card_prices should accept price_source = stash'
+  $$INSERT INTO card_prices (snapshot_id, card_id, chaos_value, divine_value)
+    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'cc000001-0000-0000-0000-000000000002', 11.00, 0.0733)$$,
+  'card_prices should accept a second exchange-only price row'
 );
 
-SELECT throws_ok(
-  $$INSERT INTO card_prices (snapshot_id, card_id, price_source, chaos_value, divine_value)
-    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'cc000001-0000-0000-0000-000000000003', 'invalid_source', 10.00, 0.0667)$$,
-  '23514', -- check_violation
-  NULL,
-  'card_prices should reject invalid price_source (CHECK constraint)'
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'card_prices'
+      AND column_name = 'price_source'
+  ),
+  'card_prices should not expose a price source column'
 );
 
 -- ═══════════════════════════════════════════════════════════════
@@ -631,8 +634,8 @@ SELECT throws_ok(
 
 -- Default value: inserting without confidence should default to 1
 SELECT results_eq(
-  $$INSERT INTO card_prices (snapshot_id, card_id, price_source, chaos_value, divine_value)
-    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'cc000001-0000-0000-0000-000000000004', 'exchange', 5.00, 0.03)
+  $$INSERT INTO card_prices (snapshot_id, card_id, chaos_value, divine_value)
+    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'cc000001-0000-0000-0000-000000000004', 5.00, 0.03)
     RETURNING confidence::int$$,
   ARRAY[1],
   'card_prices.confidence should default to 1 when not specified'
@@ -640,35 +643,35 @@ SELECT results_eq(
 
 -- Accepts valid confidence values: 1, 2, 3
 SELECT lives_ok(
-  $$INSERT INTO card_prices (snapshot_id, card_id, price_source, chaos_value, divine_value, confidence)
-    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'cc000001-0000-0000-0000-000000000005', 'stash', 5.00, 0.03, 1)$$,
+  $$INSERT INTO card_prices (snapshot_id, card_id, chaos_value, divine_value, confidence)
+    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'cc000001-0000-0000-0000-000000000005', 5.00, 0.03, 1)$$,
   'card_prices should accept confidence = 1'
 );
 
 SELECT lives_ok(
-  $$INSERT INTO card_prices (snapshot_id, card_id, price_source, chaos_value, divine_value, confidence)
-    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'cc000001-0000-0000-0000-000000000006', 'stash', 5.00, 0.03, 2)$$,
+  $$INSERT INTO card_prices (snapshot_id, card_id, chaos_value, divine_value, confidence)
+    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'cc000001-0000-0000-0000-000000000006', 5.00, 0.03, 2)$$,
   'card_prices should accept confidence = 2'
 );
 
 SELECT lives_ok(
-  $$INSERT INTO card_prices (snapshot_id, card_id, price_source, chaos_value, divine_value, confidence)
-    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'cc000001-0000-0000-0000-000000000007', 'stash', 5.00, 0.03, 3)$$,
+  $$INSERT INTO card_prices (snapshot_id, card_id, chaos_value, divine_value, confidence)
+    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'cc000001-0000-0000-0000-000000000007', 5.00, 0.03, 3)$$,
   'card_prices should accept confidence = 3'
 );
 
 -- Rejects invalid confidence values
 SELECT throws_ok(
-  $$INSERT INTO card_prices (snapshot_id, card_id, price_source, chaos_value, divine_value, confidence)
-    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'cc000001-0000-0000-0000-000000000008', 'stash', 5.00, 0.03, 0)$$,
+  $$INSERT INTO card_prices (snapshot_id, card_id, chaos_value, divine_value, confidence)
+    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'cc000001-0000-0000-0000-000000000008', 5.00, 0.03, 0)$$,
   '23514', -- check_violation
   NULL,
   'card_prices should reject confidence = 0 (CHECK constraint)'
 );
 
 SELECT throws_ok(
-  $$INSERT INTO card_prices (snapshot_id, card_id, price_source, chaos_value, divine_value, confidence)
-    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'cc000001-0000-0000-0000-000000000009', 'stash', 5.00, 0.03, 4)$$,
+  $$INSERT INTO card_prices (snapshot_id, card_id, chaos_value, divine_value, confidence)
+    VALUES ('ffff6666-ffff-ffff-ffff-ffffffffffff', 'cc000001-0000-0000-0000-000000000009', 5.00, 0.03, 4)$$,
   '23514', -- check_violation
   NULL,
   'card_prices should reject confidence = 4 (CHECK constraint)'
@@ -1390,13 +1393,12 @@ SELECT id FROM create_snapshot_with_prices(
   'fb000000-0000-0000-0000-000000000001',
   '2026-05-06T12:00:00Z',
   100,
-  101,
   2.5,
   42,
   '[
-    {"card_id":"fb000000-0000-0000-0000-000000000101","price_source":"exchange","chaos_value":10,"divine_value":0.1,"confidence":1},
-    {"card_id":"fb000000-0000-0000-0000-000000000102","price_source":"stash","chaos_value":20,"divine_value":0.2,"confidence":2},
-    {"card_id":"fb000000-0000-0000-0000-000000000103","price_source":"stash","chaos_value":30,"divine_value":0.3,"confidence":3}
+    {"card_id":"fb000000-0000-0000-0000-000000000101","chaos_value":10,"divine_value":0.1,"confidence":1},
+    {"card_id":"fb000000-0000-0000-0000-000000000102","chaos_value":20,"divine_value":0.2,"confidence":2},
+    {"card_id":"fb000000-0000-0000-0000-000000000103","chaos_value":30,"divine_value":0.3,"confidence":3}
   ]'::jsonb
 );
 
@@ -1414,7 +1416,6 @@ SELECT results_eq(
     WHERE league_id = 'fb000000-0000-0000-0000-000000000001'
       AND fetched_at = '2026-05-06T12:00:00Z'
       AND exchange_chaos_to_divine = 100
-      AND stash_chaos_to_divine = 101
       AND stacked_deck_chaos_cost = 2.5
       AND stacked_deck_max_volume_rate = 42$$,
   ARRAY[1],
@@ -1431,9 +1432,9 @@ SELECT results_eq(
         AND fetched_at = '2026-05-06T12:00:00Z'
     )
       AND (
-        (card_id = 'fb000000-0000-0000-0000-000000000101' AND price_source = 'exchange' AND chaos_value = 10 AND divine_value = 0.1 AND confidence = 1)
-        OR (card_id = 'fb000000-0000-0000-0000-000000000102' AND price_source = 'stash' AND chaos_value = 20 AND divine_value = 0.2 AND confidence = 2)
-        OR (card_id = 'fb000000-0000-0000-0000-000000000103' AND price_source = 'stash' AND chaos_value = 30 AND divine_value = 0.3 AND confidence = 3)
+        (card_id = 'fb000000-0000-0000-0000-000000000101' AND chaos_value = 10 AND divine_value = 0.1 AND confidence = 1)
+        OR (card_id = 'fb000000-0000-0000-0000-000000000102' AND chaos_value = 20 AND divine_value = 0.2 AND confidence = 2)
+        OR (card_id = 'fb000000-0000-0000-0000-000000000103' AND chaos_value = 30 AND divine_value = 0.3 AND confidence = 3)
       )$$,
   ARRAY[3],
   'create_snapshot_with_prices should persist every card price field from the JSON payload'
@@ -1445,10 +1446,9 @@ SELECT results_eq(
       'fb000000-0000-0000-0000-000000000001',
       '2026-05-06T12:05:00Z',
       100,
-      101,
       2.5,
       0.75,
-      '[{"card_id":"fb000000-0000-0000-0000-000000000101","price_source":"exchange","chaos_value":10,"divine_value":0.1,"confidence":1}]'::jsonb
+      '[{"card_id":"fb000000-0000-0000-0000-000000000101","chaos_value":10,"divine_value":0.1,"confidence":1}]'::jsonb
     )$$,
   ARRAY['2026-05-06T12:00:00Z'::timestamptz],
   'create_snapshot_with_prices should return a recent snapshot instead of creating a duplicate'
@@ -1482,10 +1482,9 @@ SELECT throws_ok(
     'fb000000-0000-0000-0000-000000000001',
     '2026-05-06T12:20:00Z',
     100,
-    101,
     2.5,
     0.75,
-    '[{"card_id":"fb000000-0000-0000-0000-000000999999","price_source":"exchange","chaos_value":10,"divine_value":0.1,"confidence":1}]'::jsonb
+    '[{"card_id":"fb000000-0000-0000-0000-000000999999","chaos_value":10,"divine_value":0.1,"confidence":1}]'::jsonb
   )$$,
   '23503',
   NULL,
@@ -1506,7 +1505,6 @@ SELECT throws_ok(
     'fb000000-0000-0000-0000-000000000001',
     '2026-05-06T12:30:00Z',
     100,
-    101,
     2.5,
     0.75,
     NULL::jsonb
@@ -1521,7 +1519,6 @@ SELECT throws_ok(
     'fb000000-0000-0000-0000-000000000001',
     '2026-05-06T12:31:00Z',
     100,
-    101,
     2.5,
     0.75,
     '{}'::jsonb
@@ -1536,7 +1533,6 @@ SELECT throws_ok(
     'fb000000-0000-0000-0000-000000000001',
     '2026-05-06T12:32:00Z',
     100,
-    101,
     2.5,
     0.75,
     '"not-an-array"'::jsonb
@@ -1551,7 +1547,6 @@ SELECT throws_ok(
     'fb000000-0000-0000-0000-000000000001',
     '2026-05-06T12:30:00Z',
     100,
-    101,
     2.5,
     0.75,
     '[]'::jsonb
@@ -1566,10 +1561,9 @@ SELECT throws_ok(
     'fb000000-0000-0000-0000-000000000001',
     '2026-05-06T12:40:00Z',
     100,
-    101,
     2.5,
     0.75,
-    '[{"price_source":"exchange","chaos_value":10,"divine_value":0.1,"confidence":1}]'::jsonb
+    '[{"chaos_value":10,"divine_value":0.1,"confidence":1}]'::jsonb
   )$$,
   '22023',
   NULL,
@@ -1581,14 +1575,13 @@ SELECT throws_ok(
     'fb000000-0000-0000-0000-000000000001',
     '2026-05-06T12:41:00Z',
     100,
-    101,
     2.5,
     0.75,
-    '[{"card_id":"fb000000-0000-0000-0000-000000000101","chaos_value":10,"divine_value":0.1,"confidence":1}]'::jsonb
+    '[{"card_id":null,"chaos_value":10,"divine_value":0.1,"confidence":1}]'::jsonb
   )$$,
   '22023',
   NULL,
-  'create_snapshot_with_prices should reject price rows without price_source'
+  'create_snapshot_with_prices should reject price rows with null card_id'
 );
 
 SELECT throws_ok(
@@ -1596,14 +1589,13 @@ SELECT throws_ok(
     'fb000000-0000-0000-0000-000000000001',
     '2026-05-06T12:42:00Z',
     100,
-    101,
     2.5,
     0.75,
-    '[{"card_id":"fb000000-0000-0000-0000-000000000101","price_source":"invalid","chaos_value":10,"divine_value":0.1,"confidence":1}]'::jsonb
+    '[{"card_id":"fb000000-0000-0000-0000-000000000101","chaos_value":null,"divine_value":0.1,"confidence":1}]'::jsonb
   )$$,
   '22023',
   NULL,
-  'create_snapshot_with_prices should reject invalid price rows before insert'
+  'create_snapshot_with_prices should reject price rows with null chaos_value'
 );
 
 SELECT throws_ok(
@@ -1611,10 +1603,9 @@ SELECT throws_ok(
     'fb000000-0000-0000-0000-000000000001',
     '2026-05-06T12:43:00Z',
     100,
-    101,
     2.5,
     0.75,
-    '[{"card_id":"fb000000-0000-0000-0000-000000000101","price_source":"exchange","divine_value":0.1,"confidence":1}]'::jsonb
+    '[{"card_id":"fb000000-0000-0000-0000-000000000101","divine_value":0.1,"confidence":1}]'::jsonb
   )$$,
   '22023',
   NULL,
@@ -1626,10 +1617,9 @@ SELECT throws_ok(
     'fb000000-0000-0000-0000-000000000001',
     '2026-05-06T12:44:00Z',
     100,
-    101,
     2.5,
     0.75,
-    '[{"card_id":"fb000000-0000-0000-0000-000000000101","price_source":"exchange","chaos_value":-0.01,"divine_value":0.1,"confidence":1}]'::jsonb
+    '[{"card_id":"fb000000-0000-0000-0000-000000000101","chaos_value":-0.01,"divine_value":0.1,"confidence":1}]'::jsonb
   )$$,
   '22023',
   NULL,
@@ -1641,10 +1631,9 @@ SELECT throws_ok(
     'fb000000-0000-0000-0000-000000000001',
     '2026-05-06T12:45:00Z',
     100,
-    101,
     2.5,
     0.75,
-    '[{"card_id":"fb000000-0000-0000-0000-000000000101","price_source":"exchange","chaos_value":10,"confidence":1}]'::jsonb
+    '[{"card_id":"fb000000-0000-0000-0000-000000000101","chaos_value":10,"confidence":1}]'::jsonb
   )$$,
   '22023',
   NULL,
@@ -1656,10 +1645,9 @@ SELECT throws_ok(
     'fb000000-0000-0000-0000-000000000001',
     '2026-05-06T12:46:00Z',
     100,
-    101,
     2.5,
     0.75,
-    '[{"card_id":"fb000000-0000-0000-0000-000000000101","price_source":"exchange","chaos_value":10,"divine_value":-0.01,"confidence":1}]'::jsonb
+    '[{"card_id":"fb000000-0000-0000-0000-000000000101","chaos_value":10,"divine_value":-0.01,"confidence":1}]'::jsonb
   )$$,
   '22023',
   NULL,
@@ -1671,10 +1659,9 @@ SELECT throws_ok(
     'fb000000-0000-0000-0000-000000000001',
     '2026-05-06T12:47:00Z',
     100,
-    101,
     2.5,
     0.75,
-    '[{"card_id":"fb000000-0000-0000-0000-000000000101","price_source":"exchange","chaos_value":10,"divine_value":0.1}]'::jsonb
+    '[{"card_id":"fb000000-0000-0000-0000-000000000101","chaos_value":10,"divine_value":0.1}]'::jsonb
   )$$,
   '22023',
   NULL,
@@ -1686,10 +1673,9 @@ SELECT throws_ok(
     'fb000000-0000-0000-0000-000000000001',
     '2026-05-06T12:48:00Z',
     100,
-    101,
     2.5,
     0.75,
-    '[{"card_id":"fb000000-0000-0000-0000-000000000101","price_source":"exchange","chaos_value":10,"divine_value":0.1,"confidence":0}]'::jsonb
+    '[{"card_id":"fb000000-0000-0000-0000-000000000101","chaos_value":10,"divine_value":0.1,"confidence":0}]'::jsonb
   )$$,
   '22023',
   NULL,
@@ -1701,10 +1687,9 @@ SELECT throws_ok(
     'fb000000-0000-0000-0000-000000000001',
     '2026-05-06T12:49:00Z',
     100,
-    101,
     2.5,
     0.75,
-    '[{"card_id":"fb000000-0000-0000-0000-000000000101","price_source":"exchange","chaos_value":10,"divine_value":0.1,"confidence":4}]'::jsonb
+    '[{"card_id":"fb000000-0000-0000-0000-000000000101","chaos_value":10,"divine_value":0.1,"confidence":4}]'::jsonb
   )$$,
   '22023',
   NULL,
@@ -1727,10 +1712,9 @@ SELECT results_eq(
       'fb000000-0000-0000-0000-000000000001',
       '2026-05-06T13:00:00Z',
       120,
-      121,
       3.5,
       55,
-      '[{"card_id":"fb000000-0000-0000-0000-000000000101","price_source":"exchange","chaos_value":11,"divine_value":0.11,"confidence":1}]'::jsonb
+      '[{"card_id":"fb000000-0000-0000-0000-000000000101","chaos_value":11,"divine_value":0.11,"confidence":1}]'::jsonb
     )$$,
   ARRAY['2026-05-06T13:00:00Z'::timestamptz],
   'create_snapshot_with_prices should create a new snapshot outside the recent window'

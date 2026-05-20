@@ -216,6 +216,17 @@ describe("formatCurrency", () => {
     expect(formatCurrency(100, 100)).toBe("1.00d");
     expect(formatCurrency(99, 100)).toBe("99.00c");
   });
+
+  it("formats as chaos when the divine ratio is unavailable", () => {
+    expect(formatCurrency(0, 0)).toBe("0.00c");
+    expect(formatCurrency(18.47, 0)).toBe("18.47c");
+    expect(formatCurrency(18.47, Number.NaN)).toBe("18.47c");
+  });
+
+  it("returns n/a for non-finite chaos values", () => {
+    expect(formatCurrency(Number.NaN, DIVINE_RATIO)).toBe("n/a");
+    expect(formatCurrency(Number.POSITIVE_INFINITY, DIVINE_RATIO)).toBe("n/a");
+  });
 });
 
 // ─── RARITY_LABELS ─────────────────────────────────────────────────────────

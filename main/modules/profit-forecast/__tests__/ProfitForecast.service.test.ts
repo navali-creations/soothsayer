@@ -112,8 +112,7 @@ const MOCK_SNAPSHOT_ROW = {
   id: "snapshot-uuid-1",
   league_id: "league-uuid-1",
   fetched_at: "2025-06-15T12:00:00Z",
-  exchange_chaos_to_divine: 200,
-  stash_chaos_to_divine: 195,
+  chaos_to_divine_ratio: 200,
   stacked_deck_chaos_cost: 2.22,
   stacked_deck_max_volume_rate: 64.93,
 };
@@ -122,8 +121,7 @@ const MOCK_POE2_SNAPSHOT_ROW = {
   id: "snapshot-uuid-poe2",
   league_id: "league-uuid-poe2",
   fetched_at: "2025-07-01T08:00:00Z",
-  exchange_chaos_to_divine: 150,
-  stash_chaos_to_divine: 145,
+  chaos_to_divine_ratio: 150,
   stacked_deck_chaos_cost: 3.5,
   stacked_deck_max_volume_rate: 40.0,
 };
@@ -132,7 +130,6 @@ const MOCK_CARD_PRICE_ROWS_EXCHANGE = [
   {
     snapshot_id: "snapshot-uuid-1",
     card_name: "The Doctor",
-    price_source: "exchange",
     chaos_value: 1200,
     divine_value: 6.0,
     confidence: 1,
@@ -140,7 +137,6 @@ const MOCK_CARD_PRICE_ROWS_EXCHANGE = [
   {
     snapshot_id: "snapshot-uuid-1",
     card_name: "Rain of Chaos",
-    price_source: "exchange",
     chaos_value: 0.5,
     divine_value: 0.0025,
     confidence: 1,
@@ -151,23 +147,13 @@ const MOCK_POE2_CARD_PRICE_ROWS = [
   {
     snapshot_id: "snapshot-uuid-poe2",
     card_name: "The Doctor",
-    price_source: "exchange",
     chaos_value: 800,
     divine_value: 5.33,
     confidence: 1,
   },
   {
     snapshot_id: "snapshot-uuid-poe2",
-    card_name: "Rain of Chaos",
-    price_source: "stash",
-    chaos_value: 0.3,
-    divine_value: 0.002,
-    confidence: 2,
-  },
-  {
-    snapshot_id: "snapshot-uuid-poe2",
     card_name: "The Nurse",
-    price_source: "exchange",
     chaos_value: 200,
     divine_value: 1.33,
     confidence: 3,
@@ -178,7 +164,6 @@ const MOCK_CARD_PRICE_ROWS_MIXED_CONFIDENCE = [
   {
     snapshot_id: "snapshot-uuid-1",
     card_name: "The Doctor",
-    price_source: "exchange",
     chaos_value: 1200,
     divine_value: 6.0,
     confidence: 1,
@@ -186,7 +171,6 @@ const MOCK_CARD_PRICE_ROWS_MIXED_CONFIDENCE = [
   {
     snapshot_id: "snapshot-uuid-1",
     card_name: "Rain of Chaos",
-    price_source: "exchange",
     chaos_value: 0.5,
     divine_value: 0.0025,
     confidence: 2,
@@ -194,17 +178,8 @@ const MOCK_CARD_PRICE_ROWS_MIXED_CONFIDENCE = [
   {
     snapshot_id: "snapshot-uuid-1",
     card_name: "The Nurse",
-    price_source: "exchange",
     chaos_value: 400,
     divine_value: 2.0,
-    confidence: 3,
-  },
-  {
-    snapshot_id: "snapshot-uuid-1",
-    card_name: "House of Mirrors",
-    price_source: "stash",
-    chaos_value: 5000,
-    divine_value: 25.0,
     confidence: 3,
   },
 ];
@@ -213,25 +188,8 @@ const MOCK_CARD_PRICE_ROWS_MIXED = [
   {
     snapshot_id: "snapshot-uuid-1",
     card_name: "The Doctor",
-    price_source: "exchange",
     chaos_value: 1200,
     divine_value: 6.0,
-    confidence: 1,
-  },
-  {
-    snapshot_id: "snapshot-uuid-1",
-    card_name: "The Doctor",
-    price_source: "stash",
-    chaos_value: 1100,
-    divine_value: 5.5,
-    confidence: 1,
-  },
-  {
-    snapshot_id: "snapshot-uuid-1",
-    card_name: "Rain of Chaos",
-    price_source: "stash",
-    chaos_value: 0.5,
-    divine_value: 0.0025,
     confidence: 1,
   },
 ];
@@ -473,9 +431,9 @@ describe("ProfitForecastService", () => {
       expect(result.rows).toHaveLength(3);
     });
 
-    // ─── Exchange + stash price merge ─────────────────────────────────────
+    // ─── Exchange-only price handling ────────────────────────────────────
 
-    it("should prefer exchange prices over stash prices", async () => {
+    it("should use exchange prices when available", async () => {
       chains.priceChain.execute.mockResolvedValue(MOCK_CARD_PRICE_ROWS_MIXED);
 
       const result = await service.getData("poe1", "Keepers");
@@ -488,26 +446,24 @@ describe("ProfitForecastService", () => {
       expect(doctor.hasPrice).toBe(true);
     });
 
-    it("should use stash prices to fill gaps when exchange price is missing", async () => {
+    it("should leave cards unpriced when exchange price is missing", async () => {
       chains.priceChain.execute.mockResolvedValue(MOCK_CARD_PRICE_ROWS_MIXED);
 
       const result = await service.getData("poe1", "Keepers");
 
-      // Rain of Chaos only has stash pricing
       const rain = result.rows.find((r) => r.cardName === "Rain of Chaos")!;
-      expect(rain.chaosValue).toBe(0.5);
-      expect(rain.divineValue).toBe(0.0025);
-      expect(rain.confidence).toBe(1);
+      expect(rain.chaosValue).toBe(0);
+      expect(rain.divineValue).toBe(0);
+      expect(rain.confidence).toBeNull();
       expect(rain.isAnomalous).toBe(false);
-      expect(rain.hasPrice).toBe(true);
+      expect(rain.hasPrice).toBe(false);
     });
 
-    it("should not include stash prices when exchange price already exists for the same card", async () => {
+    it("should not add fallback prices when an exchange price already exists", async () => {
       chains.priceChain.execute.mockResolvedValue(MOCK_CARD_PRICE_ROWS_MIXED);
 
       const result = await service.getData("poe1", "Keepers");
 
-      // The Doctor has both exchange and stash — exchange should win
       const doctor = result.rows.find((r) => r.cardName === "The Doctor")!;
       expect(doctor.chaosValue).toBe(1200);
     });
@@ -524,26 +480,17 @@ describe("ProfitForecastService", () => {
       }
     });
 
-    it("should handle stash-only card prices", async () => {
-      chains.priceChain.execute.mockResolvedValue([
-        {
-          snapshot_id: "snapshot-uuid-1",
-          card_name: "The Nurse",
-          price_source: "stash",
-          chaos_value: 300,
-          divine_value: 1.5,
-          confidence: 1,
-        },
-      ]);
+    it("should handle cards with no exchange price", async () => {
+      chains.priceChain.execute.mockResolvedValue([]);
 
       const result = await service.getData("poe1", "Keepers");
 
       const nurse = result.rows.find((r) => r.cardName === "The Nurse")!;
-      expect(nurse.chaosValue).toBe(300);
-      expect(nurse.divineValue).toBe(1.5);
-      expect(nurse.confidence).toBe(1);
+      expect(nurse.chaosValue).toBe(0);
+      expect(nurse.divineValue).toBe(0);
+      expect(nurse.confidence).toBeNull();
       expect(nurse.isAnomalous).toBe(false);
-      expect(nurse.hasPrice).toBe(true);
+      expect(nurse.hasPrice).toBe(false);
     });
 
     it("should default confidence to 1 when confidence is null", async () => {
@@ -551,17 +498,8 @@ describe("ProfitForecastService", () => {
         {
           snapshot_id: "snapshot-uuid-1",
           card_name: "The Doctor",
-          price_source: "exchange",
           chaos_value: 1200,
           divine_value: 6.0,
-          confidence: null,
-        },
-        {
-          snapshot_id: "snapshot-uuid-1",
-          card_name: "Rain of Chaos",
-          price_source: "stash",
-          chaos_value: 0.5,
-          divine_value: 0.0025,
           confidence: null,
         },
       ]);
@@ -571,9 +509,9 @@ describe("ProfitForecastService", () => {
       // Exchange price with null confidence should default to 1
       const doctor = result.rows.find((r) => r.cardName === "The Doctor")!;
       expect(doctor.confidence).toBe(1);
-      // Stash price with null confidence should also default to 1
+
       const rain = result.rows.find((r) => r.cardName === "Rain of Chaos")!;
-      expect(rain.confidence).toBe(1);
+      expect(rain.confidence).toBeNull();
     });
 
     it("should handle multiple cards with only exchange prices", async () => {
@@ -581,7 +519,6 @@ describe("ProfitForecastService", () => {
         {
           snapshot_id: "snapshot-uuid-1",
           card_name: "The Doctor",
-          price_source: "exchange",
           chaos_value: 1200,
           divine_value: 6.0,
           confidence: 1,
@@ -589,7 +526,6 @@ describe("ProfitForecastService", () => {
         {
           snapshot_id: "snapshot-uuid-1",
           card_name: "The Nurse",
-          price_source: "exchange",
           chaos_value: 400,
           divine_value: 2.0,
           confidence: 1,
@@ -647,7 +583,6 @@ describe("ProfitForecastService", () => {
         {
           snapshot_id: "snapshot-uuid-1",
           card_name: "Rain of Chaos",
-          price_source: "exchange",
           chaos_value: 0.5,
           divine_value: 0.0025,
           confidence: 2,
@@ -666,7 +601,6 @@ describe("ProfitForecastService", () => {
         {
           snapshot_id: "snapshot-uuid-1",
           card_name: "House of Mirrors",
-          price_source: "exchange",
           chaos_value: 5000,
           divine_value: 25.0,
           confidence: 3,
@@ -682,12 +616,11 @@ describe("ProfitForecastService", () => {
       expect(nurse.hasPrice).toBe(false); // Nurse not in this price set
     });
 
-    it("should preserve confidence level 2 on stash fallback prices", async () => {
+    it("should preserve confidence level 2 on exchange prices", async () => {
       chains.priceChain.execute.mockResolvedValue([
         {
           snapshot_id: "snapshot-uuid-1",
           card_name: "The Nurse",
-          price_source: "stash",
           chaos_value: 300,
           divine_value: 1.5,
           confidence: 2,
@@ -701,12 +634,11 @@ describe("ProfitForecastService", () => {
       expect(nurse.hasPrice).toBe(true);
     });
 
-    it("should preserve confidence level 3 on stash fallback prices", async () => {
+    it("should preserve confidence level 3 on exchange prices", async () => {
       chains.priceChain.execute.mockResolvedValue([
         {
           snapshot_id: "snapshot-uuid-1",
           card_name: "The Nurse",
-          price_source: "stash",
           chaos_value: 300,
           divine_value: 1.5,
           confidence: 3,
@@ -732,33 +664,22 @@ describe("ProfitForecastService", () => {
       expect(rain.confidence).toBe(2);
       const nurse = result.rows.find((r) => r.cardName === "The Nurse")!;
       expect(nurse.confidence).toBe(3);
-      // House of Mirrors is stash-only with confidence 3 but not in availability rows,
-      // so it won't appear in rows. We can't check it here.
+      // House of Mirrors is not in availability rows, so it will not appear here.
     });
 
-    it("should use exchange confidence when both exchange and stash exist with different confidence", async () => {
+    it("should use exchange confidence", async () => {
       chains.priceChain.execute.mockResolvedValue([
         {
           snapshot_id: "snapshot-uuid-1",
           card_name: "The Doctor",
-          price_source: "exchange",
           chaos_value: 1200,
           divine_value: 6.0,
           confidence: 2,
-        },
-        {
-          snapshot_id: "snapshot-uuid-1",
-          card_name: "The Doctor",
-          price_source: "stash",
-          chaos_value: 1100,
-          divine_value: 5.5,
-          confidence: 1,
         },
       ]);
 
       const result = await service.getData("poe1", "Keepers");
 
-      // Exchange wins — its confidence (2) should be used, not stash's (1)
       const doctor = result.rows.find((r) => r.cardName === "The Doctor")!;
       expect(doctor.confidence).toBe(2);
       expect(doctor.chaosValue).toBe(1200);
@@ -832,7 +753,7 @@ describe("ProfitForecastService", () => {
       );
     });
 
-    it("should merge poe2 exchange and stash prices correctly", async () => {
+    it("should price poe2 rows from exchange data only", async () => {
       const result = await service.getData("poe2", "Dawn");
 
       // The Doctor: exchange price
@@ -843,13 +764,12 @@ describe("ProfitForecastService", () => {
       expect(doctor.isAnomalous).toBe(false);
       expect(doctor.hasPrice).toBe(true);
 
-      // Rain of Chaos: stash fallback (no exchange)
       const rain = result.rows.find((r) => r.cardName === "Rain of Chaos")!;
-      expect(rain.chaosValue).toBe(0.3);
-      expect(rain.divineValue).toBe(0.002);
-      expect(rain.confidence).toBe(2);
+      expect(rain.chaosValue).toBe(0);
+      expect(rain.divineValue).toBe(0);
+      expect(rain.confidence).toBeNull();
       expect(rain.isAnomalous).toBe(false);
-      expect(rain.hasPrice).toBe(true);
+      expect(rain.hasPrice).toBe(false);
 
       // The Nurse: exchange with low confidence
       const nurse = result.rows.find((r) => r.cardName === "The Nurse")!;
@@ -940,8 +860,8 @@ describe("ProfitForecastService", () => {
       const rain = result.rows.find(
         (r: any) => r.cardName === "Rain of Chaos",
       )!;
-      expect(rain.confidence).toBe(2);
-      expect(rain.hasPrice).toBe(true);
+      expect(rain.confidence).toBeNull();
+      expect(rain.hasPrice).toBe(false);
       const nurse = result.rows.find((r: any) => r.cardName === "The Nurse")!;
       expect(nurse.confidence).toBe(3);
       expect(result.rows).toHaveLength(3);
@@ -1288,11 +1208,10 @@ describe("ProfitForecastService", () => {
       expect(Array.isArray(result.rows)).toBe(true);
     });
 
-    it("should use exchange chaos to divine ratio (not stash)", async () => {
+    it("should use the exchange chaos to divine ratio", async () => {
       chains.snapshotChain.executeTakeFirst.mockResolvedValue({
         ...MOCK_SNAPSHOT_ROW,
-        exchange_chaos_to_divine: 200,
-        stash_chaos_to_divine: 180,
+        chaos_to_divine_ratio: 200,
       });
       chains.priceChain.execute.mockResolvedValue([]);
 
@@ -1364,7 +1283,7 @@ describe("ProfitForecastService", () => {
       chains.snapshotChain.executeTakeFirst.mockResolvedValue({
         ...MOCK_SNAPSHOT_ROW,
         stacked_deck_max_volume_rate: null,
-        exchange_chaos_to_divine: 10,
+        chaos_to_divine_ratio: 10,
         stacked_deck_chaos_cost: 5,
       });
       chains.priceChain.execute.mockResolvedValue([]);
@@ -1522,7 +1441,7 @@ describe("ProfitForecastService", () => {
     it("should handle snapshot with very high chaos-to-divine ratio", async () => {
       chains.snapshotChain.executeTakeFirst.mockResolvedValue({
         ...MOCK_SNAPSHOT_ROW,
-        exchange_chaos_to_divine: 999999,
+        chaos_to_divine_ratio: 999999,
       });
       chains.priceChain.execute.mockResolvedValue([]);
 
@@ -1547,7 +1466,6 @@ describe("ProfitForecastService", () => {
       const manyPrices = Array.from({ length: 500 }, (_, i) => ({
         snapshot_id: "snapshot-uuid-1",
         card_name: `Card ${i}`,
-        price_source: "exchange" as const,
         chaos_value: i * 10,
         divine_value: (i * 10) / 200,
         confidence: 1,
@@ -1573,7 +1491,6 @@ describe("ProfitForecastService", () => {
         {
           snapshot_id: "snapshot-uuid-1",
           card_name: "A Mother's Parting Gift",
-          price_source: "exchange",
           chaos_value: 5,
           divine_value: 0.025,
           confidence: 1,
@@ -1628,7 +1545,6 @@ describe("ProfitForecastService", () => {
       const priceRows = entries.map((e) => ({
         snapshot_id: "snapshot-uuid-1",
         card_name: e.name,
-        price_source: "exchange" as const,
         chaos_value: e.chaos,
         divine_value: e.chaos / 200,
         confidence: e.confidence ?? 1,
@@ -1902,7 +1818,6 @@ describe("ProfitForecastService", () => {
         {
           snapshot_id: "snapshot-uuid-1",
           card_name: "No Weight Card",
-          price_source: "exchange" as const,
           chaos_value: 9999,
           divine_value: 49.995,
           confidence: 1,
@@ -2146,7 +2061,6 @@ describe("ProfitForecastService", () => {
         {
           snapshot_id: "snapshot-uuid-1",
           card_name: "Some Card",
-          price_source: "exchange",
           chaos_value: 100,
           divine_value: 0.5,
           confidence: 1,

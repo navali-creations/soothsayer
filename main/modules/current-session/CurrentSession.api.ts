@@ -131,7 +131,6 @@ export const CurrentSessionAPI = {
   updateCardPriceVisibility: (
     game: "poe1" | "poe2",
     sessionId: string,
-    priceSource: "exchange" | "stash",
     cardName: string,
     hidePrice: boolean,
   ): Promise<{ success: boolean; error?: string }> =>
@@ -139,7 +138,6 @@ export const CurrentSessionAPI = {
       CurrentSessionChannel.UpdateCardPriceVisibility,
       game,
       sessionId,
-      priceSource,
       cardName,
       hidePrice,
     ),

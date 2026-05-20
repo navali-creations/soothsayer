@@ -64,6 +64,7 @@ import {
   seedLeague,
   seedSession,
   seedSessionCards,
+  seedSessionSummary,
   seedSnapshot,
   type TestDatabase,
 } from "~/main/modules/__test-utils__/create-test-db";
@@ -76,29 +77,15 @@ function buildPriceSnapshot(
   overrides: {
     timestamp?: string;
     stackedDeckChaosCost?: number;
-    exchangeChaosToDivine?: number;
-    stashChaosToDivine?: number;
-    exchangeCardPrices?: Record<
-      string,
-      { chaosValue: number; divineValue: number }
-    >;
-    stashCardPrices?: Record<
-      string,
-      { chaosValue: number; divineValue: number }
-    >;
+    chaosToDivineRatio?: number;
+    cardPrices?: Record<string, { chaosValue: number; divineValue: number }>;
   } = {},
 ): SessionPriceSnapshot {
   return {
     timestamp: overrides.timestamp ?? "2025-01-15T12:00:00Z",
     stackedDeckChaosCost: overrides.stackedDeckChaosCost ?? 5,
-    exchange: {
-      chaosToDivineRatio: overrides.exchangeChaosToDivine ?? 150,
-      cardPrices: overrides.exchangeCardPrices ?? {},
-    },
-    stash: {
-      chaosToDivineRatio: overrides.stashChaosToDivine ?? 145,
-      cardPrices: overrides.stashCardPrices ?? {},
-    },
+    chaosToDivineRatio: overrides.chaosToDivineRatio ?? 150,
+    cardPrices: overrides.cardPrices ?? {},
   };
 }
 
@@ -186,13 +173,11 @@ describe("SessionsService", () => {
         cardPrices: [
           {
             cardName: "The Doctor",
-            priceSource: "exchange",
             chaosValue: 5000,
             divineValue: 30,
           },
           {
             cardName: "The Doctor",
-            priceSource: "stash",
             chaosValue: 4800,
             divineValue: 29,
           },
@@ -211,13 +196,9 @@ describe("SessionsService", () => {
 
       const priceSnapshot = buildPriceSnapshot({
         stackedDeckChaosCost: 5,
-        exchangeChaosToDivine: 150,
-        stashChaosToDivine: 145,
-        exchangeCardPrices: {
+        chaosToDivineRatio: 150,
+        cardPrices: {
           "The Doctor": { chaosValue: 5000, divineValue: 30 },
-        },
-        stashCardPrices: {
-          "The Doctor": { chaosValue: 4800, divineValue: 29 },
         },
       });
       mockLoadSnapshot.mockResolvedValue(priceSnapshot);
@@ -230,12 +211,9 @@ describe("SessionsService", () => {
 
       const doctor = result!.cards.find((c) => c.name === "The Doctor");
       expect(doctor).toBeDefined();
-      expect(doctor!.exchangePrice).toBeDefined();
-      expect(doctor!.exchangePrice!.chaosValue).toBe(5000);
-      expect(doctor!.exchangePrice!.totalValue).toBe(15000); // 5000 * 3
-      expect(doctor!.stashPrice).toBeDefined();
-      expect(doctor!.stashPrice!.chaosValue).toBe(4800);
-      expect(doctor!.stashPrice!.totalValue).toBe(14400); // 4800 * 3
+      expect(doctor!.price).toBeDefined();
+      expect(doctor!.price!.chaosValue).toBe(5000);
+      expect(doctor!.price!.totalValue).toBe(15000); // 5000 * 3
     });
 
     it("should calculate correct exchange totals", async () => {
@@ -258,15 +236,10 @@ describe("SessionsService", () => {
 
       const priceSnapshot = buildPriceSnapshot({
         stackedDeckChaosCost: 5,
-        exchangeChaosToDivine: 150,
-        stashChaosToDivine: 145,
-        exchangeCardPrices: {
+        chaosToDivineRatio: 150,
+        cardPrices: {
           "The Doctor": { chaosValue: 5000, divineValue: 30 },
           "Rain of Chaos": { chaosValue: 1, divineValue: 0.006 },
-        },
-        stashCardPrices: {
-          "The Doctor": { chaosValue: 4800, divineValue: 29 },
-          "Rain of Chaos": { chaosValue: 0.8, divineValue: 0.005 },
         },
       });
       mockLoadSnapshot.mockResolvedValue(priceSnapshot);
@@ -277,18 +250,14 @@ describe("SessionsService", () => {
       expect(result!.totals).toBeDefined();
 
       // Exchange total = (5000 * 2) + (1 * 3) = 10003
-      expect(result!.totals!.exchange.totalValue).toBe(10003);
-
-      // Stash total = (4800 * 2) + (0.8 * 3) = 9602.4
-      expect(result!.totals!.stash.totalValue).toBeCloseTo(9602.4, 1);
+      expect(result!.totals!.totalValue).toBe(10003);
 
       // Deck cost = 5 * 5 = 25
       expect(result!.totals!.totalDeckCost).toBe(25);
       expect(result!.totals!.stackedDeckChaosCost).toBe(5);
 
       // Net profit = total - deckCost
-      expect(result!.totals!.exchange.netProfit).toBe(10003 - 25);
-      expect(result!.totals!.stash.netProfit).toBeCloseTo(9602.4 - 25, 1);
+      expect(result!.totals!.netProfit).toBe(10003 - 25);
     });
 
     it("should handle cards with no prices in snapshot", async () => {
@@ -309,8 +278,7 @@ describe("SessionsService", () => {
       ]);
 
       const priceSnapshot = buildPriceSnapshot({
-        exchangeCardPrices: {},
-        stashCardPrices: {},
+        cardPrices: {},
       });
       mockLoadSnapshot.mockResolvedValue(priceSnapshot);
 
@@ -321,12 +289,9 @@ describe("SessionsService", () => {
       expect(card).toBeDefined();
 
       // Should have zero-value price entries
-      expect(card!.exchangePrice).toBeDefined();
-      expect(card!.exchangePrice!.chaosValue).toBe(0);
-      expect(card!.exchangePrice!.totalValue).toBe(0);
-      expect(card!.stashPrice).toBeDefined();
-      expect(card!.stashPrice!.chaosValue).toBe(0);
-      expect(card!.stashPrice!.totalValue).toBe(0);
+      expect(card!.price).toBeDefined();
+      expect(card!.price!.chaosValue).toBe(0);
+      expect(card!.price!.totalValue).toBe(0);
     });
 
     it("should not include totals when no snapshot is available", async () => {
@@ -436,18 +401,14 @@ describe("SessionsService", () => {
         {
           cardName: "Hidden Card",
           count: 5,
-          hidePriceExchange: true,
-          hidePriceStash: false,
+          hidePrice: true,
         },
       ]);
 
       const priceSnapshot = buildPriceSnapshot({
         stackedDeckChaosCost: 5,
-        exchangeCardPrices: {
+        cardPrices: {
           "Hidden Card": { chaosValue: 1000, divineValue: 6 },
-        },
-        stashCardPrices: {
-          "Hidden Card": { chaosValue: 900, divineValue: 5.5 },
         },
       });
       mockLoadSnapshot.mockResolvedValue(priceSnapshot);
@@ -458,13 +419,10 @@ describe("SessionsService", () => {
 
       const card = result!.cards.find((c) => c.name === "Hidden Card");
       expect(card).toBeDefined();
-      expect(card!.exchangePrice!.hidePrice).toBe(true);
-      expect(card!.stashPrice!.hidePrice).toBe(false);
+      expect(card!.price!.hidePrice).toBe(true);
 
       // Exchange total should exclude hidden card
-      // The hidden card's exchange value (5000) is excluded, only stash is counted
-      expect(result!.totals!.exchange.totalValue).toBe(0);
-      expect(result!.totals!.stash.totalValue).toBe(4500); // 900 * 5
+      expect(result!.totals!.totalValue).toBe(0);
     });
 
     it("should handle multiple cards with mixed hide states for totals", async () => {
@@ -484,26 +442,20 @@ describe("SessionsService", () => {
         {
           cardName: "Visible Card",
           count: 2,
-          hidePriceExchange: false,
-          hidePriceStash: false,
+          hidePrice: false,
         },
         {
           cardName: "Hidden Exchange",
           count: 2,
-          hidePriceExchange: true,
-          hidePriceStash: false,
+          hidePrice: true,
         },
       ]);
 
       const priceSnapshot = buildPriceSnapshot({
         stackedDeckChaosCost: 5,
-        exchangeCardPrices: {
+        cardPrices: {
           "Visible Card": { chaosValue: 100, divineValue: 0.6 },
           "Hidden Exchange": { chaosValue: 2000, divineValue: 12 },
-        },
-        stashCardPrices: {
-          "Visible Card": { chaosValue: 90, divineValue: 0.55 },
-          "Hidden Exchange": { chaosValue: 1800, divineValue: 11 },
         },
       });
       mockLoadSnapshot.mockResolvedValue(priceSnapshot);
@@ -512,9 +464,7 @@ describe("SessionsService", () => {
 
       expect(result).not.toBeNull();
       // Exchange total should only include Visible Card: 100 * 2 = 200
-      expect(result!.totals!.exchange.totalValue).toBe(200);
-      // Stash total should include both: (90 * 2) + (1800 * 2) = 180 + 3600 = 3780
-      expect(result!.totals!.stash.totalValue).toBe(3780);
+      expect(result!.totals!.totalValue).toBe(200);
     });
 
     it("should handle session with zero totalCount", async () => {
@@ -540,8 +490,7 @@ describe("SessionsService", () => {
       expect(result!.cards).toHaveLength(0);
       expect(result!.totals).toBeDefined();
       expect(result!.totals!.totalDeckCost).toBe(0);
-      expect(result!.totals!.exchange.totalValue).toBe(0);
-      expect(result!.totals!.stash.totalValue).toBe(0);
+      expect(result!.totals!.totalValue).toBe(0);
     });
 
     it("should clean wiki markup from divination card metadata", async () => {
@@ -603,13 +552,9 @@ describe("SessionsService", () => {
       ]);
 
       const priceSnapshot = buildPriceSnapshot({
-        exchangeChaosToDivine: 155,
-        stashChaosToDivine: 148,
-        exchangeCardPrices: {
+        chaosToDivineRatio: 155,
+        cardPrices: {
           "The Doctor": { chaosValue: 5000, divineValue: 30 },
-        },
-        stashCardPrices: {
-          "The Doctor": { chaosValue: 4800, divineValue: 29 },
         },
       });
       mockLoadSnapshot.mockResolvedValue(priceSnapshot);
@@ -617,8 +562,7 @@ describe("SessionsService", () => {
       const result = await service.getSessionById(sessionId);
 
       expect(result).not.toBeNull();
-      expect(result!.totals!.exchange.chaosToDivineRatio).toBe(155);
-      expect(result!.totals!.stash.chaosToDivineRatio).toBe(148);
+      expect(result!.totals!.chaosToDivineRatio).toBe(155);
     });
 
     it("should handle snapshot loadSnapshot returning null gracefully", async () => {
@@ -646,6 +590,45 @@ describe("SessionsService", () => {
       expect(result).not.toBeNull();
       expect(result!.priceSnapshot).toBeUndefined();
       expect(result!.totals).toBeUndefined();
+    });
+
+    it("should use persisted session summary totals when snapshot prices are unavailable", async () => {
+      const leagueId = await seedLeague(testDb.kysely, {
+        game: "poe1",
+        name: "Settlers",
+      });
+      const sessionId = await seedSession(testDb.kysely, {
+        game: "poe1",
+        leagueId,
+        snapshotId: undefined,
+        totalCount: 40,
+      });
+
+      await seedSessionCards(testDb.kysely, sessionId, [
+        { cardName: "The Metalsmith's Gift", count: 3 },
+      ]);
+      await seedSessionSummary(testDb.kysely, {
+        sessionId,
+        totalDecksOpened: 40,
+        totalValue: 18.47,
+        netProfit: -187.53,
+        chaosToDivineRatio: 479.16,
+        stackedDeckChaosCost: 5.15,
+      });
+
+      mockLoadSnapshot.mockResolvedValue(undefined);
+
+      const result = await service.getSessionById(sessionId);
+
+      expect(result).not.toBeNull();
+      expect(result!.priceSnapshot).toBeUndefined();
+      expect(result!.totals).toEqual({
+        totalValue: 18.47,
+        netProfit: -187.53,
+        chaosToDivineRatio: 479.16,
+        stackedDeckChaosCost: 5.15,
+        totalDeckCost: 206,
+      });
     });
 
     it("should handle many cards in a single session", async () => {
@@ -695,11 +678,8 @@ describe("SessionsService", () => {
       const deckCost = 8;
       const priceSnapshot = buildPriceSnapshot({
         stackedDeckChaosCost: deckCost,
-        exchangeCardPrices: {
+        cardPrices: {
           "Rain of Chaos": { chaosValue: 1, divineValue: 0.006 },
-        },
-        stashCardPrices: {
-          "Rain of Chaos": { chaosValue: 0.8, divineValue: 0.005 },
         },
       });
       mockLoadSnapshot.mockResolvedValue(priceSnapshot);
@@ -709,13 +689,9 @@ describe("SessionsService", () => {
       expect(result).not.toBeNull();
 
       // Exchange: totalValue = 1 * 10 = 10, deckCost = 8 * 10 = 80, net = 10 - 80 = -70
-      expect(result!.totals!.exchange.totalValue).toBe(10);
+      expect(result!.totals!.totalValue).toBe(10);
       expect(result!.totals!.totalDeckCost).toBe(80);
-      expect(result!.totals!.exchange.netProfit).toBe(-70);
-
-      // Stash: totalValue = 0.8 * 10 = 8, deckCost = 80, net = 8 - 80 = -72
-      expect(result!.totals!.stash.totalValue).toBeCloseTo(8, 1);
-      expect(result!.totals!.stash.netProfit).toBeCloseTo(-72, 1);
+      expect(result!.totals!.netProfit).toBe(-70);
     });
   });
 
@@ -744,6 +720,7 @@ describe("SessionsService", () => {
         .mock.calls.map(([channel]) => channel);
 
       expect(registeredChannels).toContain("sessions:get-all");
+      expect(registeredChannels).toContain("sessions:get-leagues");
       expect(registeredChannels).toContain("sessions:get-by-id");
       expect(registeredChannels).toContain("sessions:search-by-card");
       expect(registeredChannels).toContain("sessions:get-total-time-spent");
@@ -799,16 +776,11 @@ describe("SessionsService", () => {
 
       const priceSnapshot = buildPriceSnapshot({
         stackedDeckChaosCost: 5,
-        exchangeChaosToDivine: 150,
-        stashChaosToDivine: 145,
-        exchangeCardPrices: {
+        chaosToDivineRatio: 150,
+        cardPrices: {
           "The Doctor": { chaosValue: 5000, divineValue: 33.3 },
           "Rain of Chaos": { chaosValue: 1, divineValue: 0.007 },
           // "Rare Unknown" has no price
-        },
-        stashCardPrices: {
-          "The Doctor": { chaosValue: 4800, divineValue: 33.1 },
-          "Rain of Chaos": { chaosValue: 0.9, divineValue: 0.006 },
         },
       });
       mockLoadSnapshot.mockResolvedValue(priceSnapshot);
@@ -828,33 +800,30 @@ describe("SessionsService", () => {
       expect(doctor!.count).toBe(2);
       expect(doctor!.divinationCard).toBeDefined();
       expect(doctor!.divinationCard!.stackSize).toBe(8);
-      expect(doctor!.exchangePrice!.chaosValue).toBe(5000);
-      expect(doctor!.exchangePrice!.totalValue).toBe(10000);
+      expect(doctor!.price!.chaosValue).toBe(5000);
+      expect(doctor!.price!.totalValue).toBe(10000);
 
       // Verify Rain of Chaos
       const rain = result!.cards.find((c) => c.name === "Rain of Chaos");
       expect(rain).toBeDefined();
       expect(rain!.count).toBe(10);
       expect(rain!.divinationCard).toBeDefined();
-      expect(rain!.exchangePrice!.totalValue).toBe(10);
+      expect(rain!.price!.totalValue).toBe(10);
 
       // Verify Rare Unknown (no divination card metadata, zero prices)
       const unknown = result!.cards.find((c) => c.name === "Rare Unknown");
       expect(unknown).toBeDefined();
       expect(unknown!.count).toBe(3);
-      expect(unknown!.exchangePrice!.chaosValue).toBe(0);
-      expect(unknown!.exchangePrice!.totalValue).toBe(0);
+      expect(unknown!.price!.chaosValue).toBe(0);
+      expect(unknown!.price!.totalValue).toBe(0);
 
       // Verify totals
       // Exchange: (5000*2) + (1*10) + (0*3) = 10010
-      expect(result!.totals!.exchange.totalValue).toBe(10010);
-
-      // Stash: (4800*2) + (0.9*10) + (0*3) = 9609
-      expect(result!.totals!.stash.totalValue).toBeCloseTo(9609, 0);
+      expect(result!.totals!.totalValue).toBe(10010);
 
       // Deck cost: 5 * 15 = 75
       expect(result!.totals!.totalDeckCost).toBe(75);
-      expect(result!.totals!.exchange.netProfit).toBe(10010 - 75);
+      expect(result!.totals!.netProfit).toBe(10010 - 75);
     });
 
     it("should handle poe2 sessions the same as poe1", async () => {
@@ -875,11 +844,8 @@ describe("SessionsService", () => {
       ]);
 
       const priceSnapshot = buildPriceSnapshot({
-        exchangeCardPrices: {
+        cardPrices: {
           "Some PoE2 Card": { chaosValue: 100, divineValue: 0.5 },
-        },
-        stashCardPrices: {
-          "Some PoE2 Card": { chaosValue: 95, divineValue: 0.48 },
         },
       });
       mockLoadSnapshot.mockResolvedValue(priceSnapshot);
@@ -889,7 +855,7 @@ describe("SessionsService", () => {
       expect(result).not.toBeNull();
       expect(result!.league).toBe("Early Access");
       expect(result!.cards).toHaveLength(1);
-      expect(result!.cards[0].exchangePrice!.totalValue).toBe(300);
+      expect(result!.cards[0].price!.totalValue).toBe(300);
     });
 
     it("should correctly handle a session with all cards hidden from exchange", async () => {
@@ -909,26 +875,20 @@ describe("SessionsService", () => {
         {
           cardName: "Card A",
           count: 3,
-          hidePriceExchange: true,
-          hidePriceStash: true,
+          hidePrice: true,
         },
         {
           cardName: "Card B",
           count: 2,
-          hidePriceExchange: true,
-          hidePriceStash: true,
+          hidePrice: true,
         },
       ]);
 
       const priceSnapshot = buildPriceSnapshot({
         stackedDeckChaosCost: 5,
-        exchangeCardPrices: {
+        cardPrices: {
           "Card A": { chaosValue: 1000, divineValue: 6 },
           "Card B": { chaosValue: 500, divineValue: 3 },
-        },
-        stashCardPrices: {
-          "Card A": { chaosValue: 900, divineValue: 5.5 },
-          "Card B": { chaosValue: 450, divineValue: 2.8 },
         },
       });
       mockLoadSnapshot.mockResolvedValue(priceSnapshot);
@@ -936,12 +896,9 @@ describe("SessionsService", () => {
       const result = await service.getSessionById(sessionId);
 
       expect(result).not.toBeNull();
-      // All cards hidden from both exchange and stash
-      expect(result!.totals!.exchange.totalValue).toBe(0);
-      expect(result!.totals!.stash.totalValue).toBe(0);
+      expect(result!.totals!.totalValue).toBe(0);
       // Net profit should be negative (only deck cost)
-      expect(result!.totals!.exchange.netProfit).toBe(-25);
-      expect(result!.totals!.stash.netProfit).toBe(-25);
+      expect(result!.totals!.netProfit).toBe(-25);
     });
 
     it("should return correct data for a session with a single card", async () => {
@@ -963,11 +920,8 @@ describe("SessionsService", () => {
 
       const priceSnapshot = buildPriceSnapshot({
         stackedDeckChaosCost: 5,
-        exchangeCardPrices: {
+        cardPrices: {
           "The Doctor": { chaosValue: 5000, divineValue: 30 },
-        },
-        stashCardPrices: {
-          "The Doctor": { chaosValue: 4800, divineValue: 29 },
         },
       });
       mockLoadSnapshot.mockResolvedValue(priceSnapshot);
@@ -978,8 +932,8 @@ describe("SessionsService", () => {
       expect(result!.totalCount).toBe(1);
       expect(result!.cards).toHaveLength(1);
       expect(result!.cards[0].name).toBe("The Doctor");
-      expect(result!.totals!.exchange.totalValue).toBe(5000);
-      expect(result!.totals!.exchange.netProfit).toBe(4995); // 5000 - 5
+      expect(result!.totals!.totalValue).toBe(5000);
+      expect(result!.totals!.netProfit).toBe(4995); // 5000 - 5
     });
 
     it("should handle zero stacked deck cost", async () => {
@@ -1001,11 +955,8 @@ describe("SessionsService", () => {
 
       const priceSnapshot = buildPriceSnapshot({
         stackedDeckChaosCost: 0,
-        exchangeCardPrices: {
+        cardPrices: {
           "Rain of Chaos": { chaosValue: 1, divineValue: 0.006 },
-        },
-        stashCardPrices: {
-          "Rain of Chaos": { chaosValue: 0.8, divineValue: 0.005 },
         },
       });
       mockLoadSnapshot.mockResolvedValue(priceSnapshot);
@@ -1016,7 +967,7 @@ describe("SessionsService", () => {
       expect(result!.totals!.stackedDeckChaosCost).toBe(0);
       expect(result!.totals!.totalDeckCost).toBe(0);
       // Net profit = totalValue (no deck cost deducted)
-      expect(result!.totals!.exchange.netProfit).toBe(5);
+      expect(result!.totals!.netProfit).toBe(5);
     });
   });
 

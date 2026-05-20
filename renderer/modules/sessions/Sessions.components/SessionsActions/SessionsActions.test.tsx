@@ -40,10 +40,9 @@ function createSession(id: string, league = "Settlers") {
     league,
     durationMinutes: 30,
     totalDecksOpened: 10,
-    totalExchangeValue: 100,
-    totalStashValue: 90,
-    totalExchangeNetProfit: 70,
-    exchangeChaosToDivine: 200,
+    totalValue: 100,
+    netProfit: 70,
+    chaosToDivineRatio: 200,
     stackedDeckChaosCost: 3,
   };
 }
@@ -582,6 +581,39 @@ describe("SessionsActions", () => {
     );
     expect(window.electron.sessions.getSimpleExportRows).toHaveBeenCalledTimes(
       1,
+    );
+    expect(clickSpy).toHaveBeenCalled();
+  });
+
+  it("keeps selected IDs when exporting all selected rows under a league filter", async () => {
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => {});
+    window.electron.sessions.getSimpleExportRows.mockResolvedValue({
+      "The Doctor": 5,
+    });
+    const selectedIds = ["s1", "s2", "s3"];
+    setupStore({
+      sessions: {
+        getIsBulkMode: vi.fn(() => true),
+        getBulkMode: vi.fn(() => "export-simple"),
+        getSelectedLeague: vi.fn(() => "Mirage"),
+        getSelectedSessionIds: vi.fn(() => selectedIds),
+        getSelectedCount: vi.fn(() => 3),
+        getTotalSessions: vi.fn(() => 3),
+      },
+    });
+    const { user } = renderWithProviders(<SessionsActions />);
+
+    await user.click(
+      screen.getByRole("button", { name: /export simple csv \(3\)/i }),
+    );
+
+    await waitFor(() =>
+      expect(window.electron.sessions.getSimpleExportRows).toHaveBeenCalledWith(
+        "poe1",
+        selectedIds,
+      ),
     );
     expect(clickSpy).toHaveBeenCalled();
   });

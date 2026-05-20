@@ -3,7 +3,7 @@ import { FiInfo, FiMaximize2, FiMinimize2 } from "react-icons/fi";
 import { GiReceiveMoney } from "react-icons/gi";
 
 import { AnimatedNumber, Stat } from "~/renderer/components";
-import { useCurrentSession, useSettings } from "~/renderer/store";
+import { useCurrentSession } from "~/renderer/store";
 
 import MiniProfitSparkline from "../../SessionProfitTimeline/MiniProfitSparkline/MiniProfitSparkline";
 import { timelineBuffer } from "../../SessionProfitTimeline/timeline-buffer/timeline-buffer";
@@ -20,10 +20,8 @@ const CurrentSessionNetProfitStat = ({
   hasTimeline = false,
 }: CurrentSessionNetProfitStatProps) => {
   const { getSession, getIsCurrentSessionActive } = useCurrentSession();
-  const { getActiveGameViewPriceSource } = useSettings();
 
   const sessionData = getSession();
-  const priceSource = getActiveGameViewPriceSource();
   const isActive = getIsCurrentSessionActive();
 
   // Track whether the sparkline has data via a ref + imperative subscription
@@ -54,15 +52,17 @@ const CurrentSessionNetProfitStat = ({
       return { chaosToDivineRatio: 0, netProfit: 0, totalDeckCost: 0 };
     }
     return {
-      chaosToDivineRatio: sessionData.totals[priceSource].chaosToDivineRatio,
-      netProfit: sessionData.totals[priceSource].netProfit,
+      chaosToDivineRatio: sessionData.totals.chaosToDivineRatio,
+      netProfit: sessionData.totals.netProfit,
       totalDeckCost: sessionData.totals.totalDeckCost,
     };
-  }, [sessionData?.totals, priceSource]);
+  }, [sessionData?.totals]);
 
   const hasSnapshot = !!sessionData?.priceSnapshot;
   const hasDeckCost = totalDeckCost > 0;
-  const showAsDivine = Math.abs(netProfit) >= chaosToDivineRatio;
+  const hasDivineRatio = chaosToDivineRatio > 0;
+  const showAsDivine =
+    hasDivineRatio && Math.abs(netProfit) >= chaosToDivineRatio;
 
   return (
     <Stat className="bg-gradient-to-tl from-success/20 to-secondary/0 relative overflow-hidden">
@@ -144,6 +144,10 @@ const CurrentSessionNetProfitStat = ({
             <span className="text-base-content/50">No pricing data</span>
           ) : !hasDeckCost ? (
             <span className="text-base-content/50">No deck cost data</span>
+          ) : !hasDivineRatio ? (
+            <span className="text-base-content/50">
+              Divine rate unavailable
+            </span>
           ) : showAsDivine ? (
             <span className="flex gap-1">
               <span className="-mt-0.5">≈</span>{" "}

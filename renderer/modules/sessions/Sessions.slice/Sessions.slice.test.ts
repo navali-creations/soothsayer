@@ -21,12 +21,9 @@ function makeSessionSummary(
     endedAt: "2024-01-01T01:00:00Z",
     durationMinutes: 60,
     totalDecksOpened: 100,
-    totalExchangeValue: 500,
-    totalStashValue: 480,
-    totalExchangeNetProfit: 200,
-    totalStashNetProfit: 180,
-    exchangeChaosToDivine: 150,
-    stashChaosToDivine: 145,
+    totalValue: 500,
+    netProfit: 200,
+    chaosToDivineRatio: 150,
     stackedDeckChaosCost: 3,
     isActive: false,
     ...overrides,
@@ -42,14 +39,12 @@ function makeSessionDetail(
       {
         name: "The Doctor",
         count: 2,
-        exchangePrice: { chaosValue: 1200, divineValue: 8, totalValue: 2400 },
-        stashPrice: { chaosValue: 1100, divineValue: 7.3, totalValue: 2200 },
+        price: { chaosValue: 1200, divineValue: 8, totalValue: 2400 },
       },
       {
         name: "Rain of Chaos",
         count: 30,
-        exchangePrice: { chaosValue: 1, divineValue: 0.007, totalValue: 30 },
-        stashPrice: { chaosValue: 0.8, divineValue: 0.005, totalValue: 24 },
+        price: { chaosValue: 1, divineValue: 0.007, totalValue: 30 },
       },
     ],
     startedAt: "2024-01-01T00:00:00Z",
@@ -101,6 +96,7 @@ describe("SessionsSlice", () => {
       expect(sessions.pageSize).toBe(20);
       expect(sessions.totalPages).toBe(0);
       expect(sessions.totalSessions).toBe(0);
+      expect(sessions.availableLeagues).toEqual([]);
       expect(sessions.selectedLeague).toBe("all");
       expect(sessions.searchQuery).toBe("");
       expect(sessions.bulkMode).toBeNull();
@@ -167,7 +163,12 @@ describe("SessionsSlice", () => {
 
       await store.getState().sessions.loadAllSessions(3);
 
-      expect(electron.sessions.getAll).toHaveBeenCalledWith("poe2", 3, 20);
+      expect(electron.sessions.getAll).toHaveBeenCalledWith(
+        "poe2",
+        3,
+        20,
+        undefined,
+      );
     });
 
     it("uses currentPage when page argument is omitted", async () => {
@@ -181,7 +182,51 @@ describe("SessionsSlice", () => {
 
       await store.getState().sessions.loadAllSessions();
 
-      expect(electron.sessions.getAll).toHaveBeenCalledWith("poe1", 5, 20);
+      expect(electron.sessions.getAll).toHaveBeenCalledWith(
+        "poe1",
+        5,
+        20,
+        undefined,
+      );
+    });
+
+    it("loads available leagues independently from the current page", async () => {
+      electron.sessions.getAll.mockResolvedValue(
+        makePageResponse([
+          makeSessionSummary({ sessionId: "s1", league: "Mirage" }),
+        ]),
+      );
+      electron.sessions.getLeagues.mockResolvedValue(["Keepers", "Mirage"]);
+
+      await store.getState().sessions.loadAllSessions();
+
+      expect(electron.sessions.getLeagues).toHaveBeenCalledWith("poe1");
+      expect(store.getState().sessions.getAvailableLeagues()).toEqual([
+        "Keepers",
+        "Mirage",
+      ]);
+      expect(store.getState().sessions.getUniqueLeagues()).toEqual([
+        "all",
+        "Keepers",
+        "Mirage",
+      ]);
+    });
+
+    it("passes selected league to paginated sessions IPC", async () => {
+      electron.sessions.getAll.mockResolvedValue(makePageResponse([]));
+
+      store = createTestStore({
+        sessions: { selectedLeague: "Keepers" },
+      });
+
+      await store.getState().sessions.loadAllSessions();
+
+      expect(electron.sessions.getAll).toHaveBeenCalledWith(
+        "poe1",
+        1,
+        20,
+        "Keepers",
+      );
     });
 
     it("sets error on failure", async () => {
@@ -356,7 +401,12 @@ describe("SessionsSlice", () => {
       store.getState().sessions.setPage(3);
 
       expect(store.getState().sessions.currentPage).toBe(3);
-      expect(electron.sessions.getAll).toHaveBeenCalledWith("poe1", 3, 20);
+      expect(electron.sessions.getAll).toHaveBeenCalledWith(
+        "poe1",
+        3,
+        20,
+        undefined,
+      );
     });
   });
 
@@ -375,7 +425,12 @@ describe("SessionsSlice", () => {
 
       expect(store.getState().sessions.pageSize).toBe(50);
       expect(store.getState().sessions.currentPage).toBe(1);
-      expect(electron.sessions.getAll).toHaveBeenCalledWith("poe1", 1, 50);
+      expect(electron.sessions.getAll).toHaveBeenCalledWith(
+        "poe1",
+        1,
+        50,
+        undefined,
+      );
     });
   });
 
@@ -393,7 +448,12 @@ describe("SessionsSlice", () => {
 
       expect(store.getState().sessions.selectedLeague).toBe("Necropolis");
       expect(store.getState().sessions.currentPage).toBe(1);
-      expect(electron.sessions.getAll).toHaveBeenCalledWith("poe1", 1, 20);
+      expect(electron.sessions.getAll).toHaveBeenCalledWith(
+        "poe1",
+        1,
+        20,
+        "Necropolis",
+      );
     });
   });
 
@@ -463,6 +523,7 @@ describe("SessionsSlice", () => {
         "Rain of Chaos",
         2,
         10,
+        undefined,
       );
     });
 
@@ -480,6 +541,25 @@ describe("SessionsSlice", () => {
         "The Nurse",
         4,
         20,
+        undefined,
+      );
+    });
+
+    it("passes selected league to search IPC", async () => {
+      electron.sessions.searchByCard.mockResolvedValue(makePageResponse([]));
+
+      store = createTestStore({
+        sessions: { selectedLeague: "Mirage" },
+      });
+
+      await store.getState().sessions.searchSessions("The Doctor", 1);
+
+      expect(electron.sessions.searchByCard).toHaveBeenCalledWith(
+        "poe1",
+        "The Doctor",
+        1,
+        20,
+        "Mirage",
       );
     });
 
@@ -564,26 +644,30 @@ describe("SessionsSlice", () => {
       expect(store.getState().sessions.getUniqueLeagues()).toEqual(["all"]);
     });
 
-    it("returns unique leagues prefixed with 'all'", async () => {
-      const sessionsList = [
-        makeSessionSummary({ sessionId: "s1", league: "Settlers" }),
-        makeSessionSummary({ sessionId: "s2", league: "Necropolis" }),
-        makeSessionSummary({ sessionId: "s3", league: "Settlers" }),
-        makeSessionSummary({ sessionId: "s4", league: "Standard" }),
-      ];
-      electron.sessions.getAll.mockResolvedValue(
-        makePageResponse(sessionsList),
-      );
+    it("returns persisted league options prefixed with 'all'", async () => {
+      electron.sessions.getAll.mockResolvedValue(makePageResponse([]));
+      electron.sessions.getLeagues.mockResolvedValue([
+        "Necropolis",
+        "Settlers",
+        "Standard",
+      ]);
 
       await store.getState().sessions.loadAllSessions();
 
       const leagues = store.getState().sessions.getUniqueLeagues();
-      expect(leagues[0]).toBe("all");
-      expect(leagues).toContain("Settlers");
-      expect(leagues).toContain("Necropolis");
-      expect(leagues).toContain("Standard");
-      // "Settlers" should appear only once (deduped)
-      expect(leagues.filter((l) => l === "Settlers")).toHaveLength(1);
+      expect(leagues).toEqual(["all", "Necropolis", "Settlers", "Standard"]);
+    });
+
+    it("keeps the selected league option if it disappears after reload", async () => {
+      store = createTestStore({
+        sessions: { selectedLeague: "Mirage", availableLeagues: ["Keepers"] },
+      });
+
+      expect(store.getState().sessions.getUniqueLeagues()).toEqual([
+        "all",
+        "Keepers",
+        "Mirage",
+      ]);
     });
   });
 
@@ -787,10 +871,47 @@ describe("SessionsSlice", () => {
 
       await store.getState().sessions.selectAll();
 
-      expect(electron.sessions.getAllSessionIds).toHaveBeenCalledWith("poe1");
+      expect(electron.sessions.getAllSessionIds).toHaveBeenCalledWith(
+        "poe1",
+        undefined,
+        undefined,
+      );
       expect(store.getState().sessions.getSelectedCount()).toBe(5);
       expect(store.getState().sessions.getIsSessionSelected("s1")).toBe(true);
       expect(store.getState().sessions.getIsSessionSelected("s5")).toBe(true);
+    });
+
+    it("selectAll passes the selected league to the all-ids IPC", async () => {
+      store = createTestStore({
+        sessions: { selectedLeague: "Mirage" },
+      });
+      electron.sessions.getAllSessionIds.mockResolvedValue(["s1", "s2"]);
+
+      await store.getState().sessions.selectAll();
+
+      expect(electron.sessions.getAllSessionIds).toHaveBeenCalledWith(
+        "poe1",
+        "Mirage",
+        undefined,
+      );
+      expect(store.getState().sessions.getSelectedSessionIds()).toEqual([
+        "s1",
+        "s2",
+      ]);
+    });
+
+    it("selectAll passes the current search query to the all-ids IPC", async () => {
+      store.getState().sessions.setSearchQuery(" The Doctor ");
+      electron.sessions.getAllSessionIds.mockResolvedValue(["s1"]);
+
+      await store.getState().sessions.selectAll();
+
+      expect(electron.sessions.getAllSessionIds).toHaveBeenCalledWith(
+        "poe1",
+        undefined,
+        "The Doctor",
+      );
+      expect(store.getState().sessions.getSelectedSessionIds()).toEqual(["s1"]);
     });
 
     it("switching export bulk mode preserves selection", () => {

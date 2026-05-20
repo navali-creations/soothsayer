@@ -4,19 +4,12 @@ import { useId } from "react";
 import CardNameLink from "~/renderer/components/CardNameLink/CardNameLink";
 import DivinationCard from "~/renderer/components/DivinationCard/DivinationCard";
 import { usePopover } from "~/renderer/hooks/usePopover/usePopover";
-import { useSettings } from "~/renderer/store";
 import type { CardEntry } from "~/types/data-stores";
 
 const CardNameCell = (cellProps: CellContext<CardEntry, string>) => {
-  const { getActiveGameViewPriceSource } = useSettings();
-  const priceSource = getActiveGameViewPriceSource();
   const popoverId = useId();
 
-  const priceInfo =
-    priceSource === "stash"
-      ? cellProps.row.original.stashPrice
-      : cellProps.row.original.exchangePrice;
-  const hidePrice = priceInfo?.hidePrice || false;
+  const hidePrice = cellProps.row.original.price?.hidePrice || false;
 
   const { triggerRef, popoverRef } = usePopover({
     placement: "right",

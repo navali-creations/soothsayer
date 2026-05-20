@@ -3,8 +3,6 @@ import { useBoundStore } from "~/renderer/store";
 
 import CurrentSessionTotalValueStat from "./CurrentSessionTotalValueStat";
 
-// ─── Mocks ─────────────────────────────────────────────────────────────────
-
 vi.mock("~/renderer/store", async () => {
   const { createStoreMock } = await import(
     "~/renderer/__test-setup__/store-mock"
@@ -53,8 +51,6 @@ vi.mock("react-icons/gi", () => ({
 
 const mockUseBoundStore = vi.mocked(useBoundStore);
 
-// ─── Helpers ───────────────────────────────────────────────────────────────
-
 function setupStore(overrides: any = {}) {
   const store = {
     currentSession: {
@@ -63,9 +59,6 @@ function setupStore(overrides: any = {}) {
       ...overrides.currentSession,
     },
     settings: {
-      getActiveGameViewPriceSource: vi.fn(
-        () => overrides.priceSource ?? "exchange",
-      ),
       ...overrides.settings,
     },
   } as any;
@@ -75,184 +68,104 @@ function setupStore(overrides: any = {}) {
 
 function createSession(overrides: any = {}) {
   return {
-    totalCount: overrides.totalCount ?? 10,
-    cards: overrides.cards ?? [],
-    priceSnapshot: overrides.priceSnapshot ?? {
+    priceSnapshot: {
       timestamp: "2024-06-15T12:00:00.000Z",
-      stash: { chaosToDivineRatio: 200 },
-      exchange: { chaosToDivineRatio: 220 },
+      chaosToDivineRatio: 200,
+      cardPrices: {},
     },
-    totals: overrides.totals ?? {
-      exchange: {
-        chaosToDivineRatio: 220,
-        totalValue: 500,
-        netProfit: 300,
-      },
-      stash: {
-        chaosToDivineRatio: 200,
-        totalValue: 480,
-        netProfit: 280,
-      },
+    totals: {
+      chaosToDivineRatio: 200,
+      totalValue: 500,
+      netProfit: 300,
       totalDeckCost: 200,
+      stackedDeckChaosCost: 3,
     },
     ...overrides,
   };
 }
-
-// ─── Tests ─────────────────────────────────────────────────────────────────
 
 describe("CurrentSessionTotalValueStat", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it('renders "Total Value" title', () => {
-    setupStore({ session: null });
+  it("shows total value in divines when value exceeds the divine ratio", () => {
+    setupStore({ session: createSession() });
+
     renderWithProviders(<CurrentSessionTotalValueStat />);
 
     expect(screen.getByText("Total Value")).toBeInTheDocument();
+    expect(screen.getByText("2.50d")).toBeInTheDocument();
+    expect(screen.getByText("500", { exact: false })).toBeInTheDocument();
   });
 
-  it('shows "N/A" when session has no priceSnapshot', () => {
-    setupStore({
-      session: createSession({ priceSnapshot: null }),
-    });
+  it("shows unavailable pricing when there is no current session", () => {
+    setupStore({ session: null });
+
     renderWithProviders(<CurrentSessionTotalValueStat />);
 
-    const value = screen.getByTestId("stat-value");
-    expect(value).toHaveTextContent("N/A");
-  });
-
-  it('shows "No pricing data" description when no priceSnapshot', () => {
-    setupStore({
-      session: createSession({ priceSnapshot: null }),
-    });
-    renderWithProviders(<CurrentSessionTotalValueStat />);
-
+    expect(screen.getByText("Total Value")).toBeInTheDocument();
+    expect(screen.getByText("N/A")).toBeInTheDocument();
     expect(screen.getByText("No pricing data")).toBeInTheDocument();
   });
 
-  it('shows "N/A" when session is null', () => {
-    setupStore({ session: null });
-    renderWithProviders(<CurrentSessionTotalValueStat />);
-
-    const value = screen.getByTestId("stat-value");
-    expect(value).toHaveTextContent("N/A");
-  });
-
-  it("shows total value in divines when totalValue >= chaosToDivineRatio (exchange)", () => {
+  it("shows total value in chaos when below the divine ratio", () => {
     setupStore({
       session: createSession({
         totals: {
-          exchange: { chaosToDivineRatio: 220, totalValue: 500 },
-          stash: { chaosToDivineRatio: 200, totalValue: 480 },
-          totalDeckCost: 200,
+          chaosToDivineRatio: 200,
+          totalValue: 50,
+          netProfit: 0,
+          totalDeckCost: 0,
+          stackedDeckChaosCost: 3,
         },
       }),
-      priceSource: "exchange",
     });
+
     renderWithProviders(<CurrentSessionTotalValueStat />);
 
-    const numbers = screen.getAllByTestId("animated-number");
-    // 500 / 220 ≈ 2.27d in stat-value
-    const divineValue = numbers.find((el) => el.textContent?.includes("d"));
-    expect(divineValue).toBeDefined();
+    expect(screen.getByText("50.00c")).toBeInTheDocument();
+    expect(screen.getByText("0.25 divine")).toBeInTheDocument();
   });
 
-  it("shows total value in chaos when totalValue < chaosToDivineRatio", () => {
+  it("shows divine-rate unavailable when the snapshot has no usable ratio", () => {
     setupStore({
       session: createSession({
+        priceSnapshot: {
+          timestamp: "2024-06-15T12:00:00.000Z",
+          chaosToDivineRatio: 0,
+          cardPrices: {},
+        },
         totals: {
-          exchange: { chaosToDivineRatio: 220, totalValue: 100 },
-          stash: { chaosToDivineRatio: 200, totalValue: 80 },
-          totalDeckCost: 50,
+          chaosToDivineRatio: 0,
+          totalValue: 50,
+          netProfit: 0,
+          totalDeckCost: 0,
+          stackedDeckChaosCost: 3,
         },
       }),
-      priceSource: "exchange",
     });
+
     renderWithProviders(<CurrentSessionTotalValueStat />);
 
-    const numbers = screen.getAllByTestId("animated-number");
-    const chaosValue = numbers.find((el) => el.textContent?.includes("c"));
-    expect(chaosValue).toBeDefined();
+    expect(screen.getByText("50.00c")).toBeInTheDocument();
+    expect(screen.getByText("Divine rate unavailable")).toBeInTheDocument();
   });
 
-  it("shows approximate chaos in description when value displayed in divines", () => {
-    setupStore({
-      session: createSession({
-        totals: {
-          exchange: { chaosToDivineRatio: 220, totalValue: 500 },
-          stash: { chaosToDivineRatio: 200, totalValue: 480 },
-          totalDeckCost: 200,
-        },
-      }),
-      priceSource: "exchange",
-    });
+  it("shows unavailable pricing without a snapshot", () => {
+    setupStore({ session: createSession({ priceSnapshot: null }) });
+
     renderWithProviders(<CurrentSessionTotalValueStat />);
 
-    const desc = screen.getByTestId("stat-desc");
-    expect(desc).toHaveTextContent(/≈/);
-    expect(desc).toHaveTextContent(/chaos/);
+    expect(screen.getByText("N/A")).toBeInTheDocument();
+    expect(screen.getByText("No pricing data")).toBeInTheDocument();
   });
 
-  it("shows approximate divine in description when value displayed in chaos", () => {
-    setupStore({
-      session: createSession({
-        totals: {
-          exchange: { chaosToDivineRatio: 220, totalValue: 100 },
-          stash: { chaosToDivineRatio: 200, totalValue: 80 },
-          totalDeckCost: 50,
-        },
-      }),
-      priceSource: "exchange",
-    });
-    renderWithProviders(<CurrentSessionTotalValueStat />);
+  it("renders exchange icon for the single price source", () => {
+    setupStore({ session: createSession() });
 
-    const desc = screen.getByTestId("stat-desc");
-    expect(desc).toHaveTextContent(/≈/);
-    expect(desc).toHaveTextContent(/divine/);
-  });
-
-  it("renders exchange icon when price source is exchange", () => {
-    setupStore({
-      session: createSession(),
-      priceSource: "exchange",
-    });
     renderWithProviders(<CurrentSessionTotalValueStat />);
 
     expect(screen.getByTestId("icon-card-exchange")).toBeInTheDocument();
-  });
-
-  it("renders stash icon when price source is stash", () => {
-    setupStore({
-      session: createSession(),
-      priceSource: "stash",
-    });
-    renderWithProviders(<CurrentSessionTotalValueStat />);
-
-    expect(screen.getByTestId("icon-locked-chest")).toBeInTheDocument();
-  });
-
-  it("uses stash totals when priceSource is stash", () => {
-    setupStore({
-      session: createSession({
-        totals: {
-          exchange: { chaosToDivineRatio: 220, totalValue: 9999 },
-          stash: { chaosToDivineRatio: 200, totalValue: 50 },
-          totalDeckCost: 200,
-        },
-      }),
-      priceSource: "stash",
-    });
-    renderWithProviders(<CurrentSessionTotalValueStat />);
-
-    // totalValue (50) < chaosToDivineRatio (200) → should display in chaos
-    const numbers = screen.getAllByTestId("animated-number");
-    const chaosInValue = numbers.find(
-      (el) =>
-        el.textContent?.includes("c") &&
-        el.closest('[data-testid="stat-value"]'),
-    );
-    expect(chaosInValue).toBeDefined();
   });
 });

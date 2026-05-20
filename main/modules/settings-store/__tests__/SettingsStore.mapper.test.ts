@@ -28,10 +28,8 @@ function createSettingsRow(
     overlay_bounds: null,
     poe1_client_txt_path: null,
     poe1_selected_league: "Standard",
-    poe1_price_source: "exchange",
     poe2_client_txt_path: null,
     poe2_selected_league: "Standard",
-    poe2_price_source: "exchange",
     selected_game: "poe1",
     installed_games: '["poe1"]',
     setup_completed: 0,
@@ -76,10 +74,8 @@ describe("SettingsStore.mapper", () => {
       expect(dto.overlayBounds).toBeNull();
       expect(dto.poe1ClientTxtPath).toBeNull();
       expect(dto.poe1SelectedLeague).toBe("Standard");
-      expect(dto.poe1PriceSource).toBe("exchange");
       expect(dto.poe2ClientTxtPath).toBeNull();
       expect(dto.poe2SelectedLeague).toBe("Standard");
-      expect(dto.poe2PriceSource).toBe("exchange");
       expect(dto.selectedGame).toBe("poe1");
       expect(dto.installedGames).toEqual(["poe1"]);
       expect(dto.setupCompleted).toBe(false);
@@ -230,20 +226,6 @@ describe("SettingsStore.mapper", () => {
       expect(dto.poe2SelectedLeague).toBe("Dawn");
     });
 
-    it("should map stash price source for poe1", () => {
-      const row = createSettingsRow({ poe1_price_source: "stash" });
-      const dto = toUserSettingsDTO(row);
-
-      expect(dto.poe1PriceSource).toBe("stash");
-    });
-
-    it("should map exchange price source for poe2", () => {
-      const row = createSettingsRow({ poe2_price_source: "exchange" });
-      const dto = toUserSettingsDTO(row);
-
-      expect(dto.poe2PriceSource).toBe("exchange");
-    });
-
     it("should map a fully populated row", () => {
       const row = createSettingsRow({
         app_exit_action: "minimize",
@@ -253,10 +235,8 @@ describe("SettingsStore.mapper", () => {
         overlay_bounds: '{"x":50,"y":50,"width":1200,"height":900}',
         poe1_client_txt_path: "C:\\PoE\\Client.txt",
         poe1_selected_league: "Settlers",
-        poe1_price_source: "stash",
         poe2_client_txt_path: "D:\\PoE2\\Client.txt",
         poe2_selected_league: "Dawn",
-        poe2_price_source: "exchange",
         selected_game: "poe2",
         installed_games: '["poe1","poe2"]',
         setup_completed: 1,
@@ -284,10 +264,8 @@ describe("SettingsStore.mapper", () => {
         overlayBounds: { x: 50, y: 50, width: 1200, height: 900 },
         poe1ClientTxtPath: "C:\\PoE\\Client.txt",
         poe1SelectedLeague: "Settlers",
-        poe1PriceSource: "stash",
         poe2ClientTxtPath: "D:\\PoE2\\Client.txt",
         poe2SelectedLeague: "Dawn",
-        poe2PriceSource: "exchange",
         selectedGame: "poe2",
         installedGames: ["poe1", "poe2"],
         setupCompleted: true,
@@ -370,7 +348,6 @@ describe("SettingsStore.mapper", () => {
       expect(dto).toEqual({
         clientTxtPath: null,
         selectedLeague: "Standard",
-        priceSource: "exchange",
       });
     });
 
@@ -378,14 +355,12 @@ describe("SettingsStore.mapper", () => {
       const row = createSettingsRow({
         poe1_client_txt_path: "C:\\Games\\PoE\\logs\\Client.txt",
         poe1_selected_league: "Settlers",
-        poe1_price_source: "stash",
       });
       const dto = toPoe1SettingsDTO(row);
 
       expect(dto).toEqual({
         clientTxtPath: "C:\\Games\\PoE\\logs\\Client.txt",
         selectedLeague: "Settlers",
-        priceSource: "stash",
       });
     });
 
@@ -393,11 +368,7 @@ describe("SettingsStore.mapper", () => {
       const row = createSettingsRow();
       const dto = toPoe1SettingsDTO(row);
 
-      expect(Object.keys(dto)).toEqual([
-        "clientTxtPath",
-        "selectedLeague",
-        "priceSource",
-      ]);
+      expect(Object.keys(dto)).toEqual(["clientTxtPath", "selectedLeague"]);
     });
   });
 
@@ -411,7 +382,6 @@ describe("SettingsStore.mapper", () => {
       expect(dto).toEqual({
         clientTxtPath: null,
         selectedLeague: "Standard",
-        priceSource: "exchange",
       });
     });
 
@@ -419,14 +389,12 @@ describe("SettingsStore.mapper", () => {
       const row = createSettingsRow({
         poe2_client_txt_path: "D:\\PoE2\\logs\\Client.txt",
         poe2_selected_league: "Dawn",
-        poe2_price_source: "exchange",
       });
       const dto = toPoe2SettingsDTO(row);
 
       expect(dto).toEqual({
         clientTxtPath: "D:\\PoE2\\logs\\Client.txt",
         selectedLeague: "Dawn",
-        priceSource: "exchange",
       });
     });
 
@@ -434,11 +402,7 @@ describe("SettingsStore.mapper", () => {
       const row = createSettingsRow();
       const dto = toPoe2SettingsDTO(row);
 
-      expect(Object.keys(dto)).toEqual([
-        "clientTxtPath",
-        "selectedLeague",
-        "priceSource",
-      ]);
+      expect(Object.keys(dto)).toEqual(["clientTxtPath", "selectedLeague"]);
     });
   });
 
@@ -526,20 +490,12 @@ describe("SettingsStore.mapper", () => {
       expect(toDBKey("poe1SelectedLeague")).toBe("poe1_selected_league");
     });
 
-    it("should map poe1PriceSource to poe1_price_source", () => {
-      expect(toDBKey("poe1PriceSource")).toBe("poe1_price_source");
-    });
-
     it("should map poe2ClientTxtPath to poe2_client_txt_path", () => {
       expect(toDBKey("poe2ClientTxtPath")).toBe("poe2_client_txt_path");
     });
 
     it("should map poe2SelectedLeague to poe2_selected_league", () => {
       expect(toDBKey("poe2SelectedLeague")).toBe("poe2_selected_league");
-    });
-
-    it("should map poe2PriceSource to poe2_price_source", () => {
-      expect(toDBKey("poe2PriceSource")).toBe("poe2_price_source");
     });
 
     it("should map selectedGame to selected_game", () => {
@@ -589,10 +545,8 @@ describe("SettingsStore.mapper", () => {
         "overlayBounds",
         "poe1ClientTxtPath",
         "poe1SelectedLeague",
-        "poe1PriceSource",
         "poe2ClientTxtPath",
         "poe2SelectedLeague",
-        "poe2PriceSource",
         "selectedGame",
         "installedGames",
         "setupCompleted",

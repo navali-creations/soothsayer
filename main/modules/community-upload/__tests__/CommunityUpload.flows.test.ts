@@ -156,19 +156,10 @@ function createPriceSnapshot() {
   return {
     timestamp: "2026-05-17T10:00:00.000Z",
     stackedDeckChaosCost: 3,
-    exchange: {
-      chaosToDivineRatio: 200,
-      cardPrices: {
-        "The Doctor": { chaosValue: 1200, divineValue: 6 },
-        "Rain of Chaos": { chaosValue: 2, divineValue: 0.01 },
-      },
-    },
-    stash: {
-      chaosToDivineRatio: 195,
-      cardPrices: {
-        "The Doctor": { chaosValue: 1100, divineValue: 5.64 },
-        "Rain of Chaos": { chaosValue: 1.5, divineValue: 0.008 },
-      },
+    chaosToDivineRatio: 200,
+    cardPrices: {
+      "The Doctor": { chaosValue: 1200, divineValue: 6 },
+      "Rain of Chaos": { chaosValue: 2, divineValue: 0.01 },
     },
   };
 }
@@ -241,9 +232,6 @@ describe("community upload main-process flows", () => {
       if (key === "appPerformanceMonitorEnabled") return Promise.resolve(false);
       if (key === "appPerformanceAutoStartOnSession") {
         return Promise.resolve(false);
-      }
-      if (key === "poe1PriceSource" || key === "poe2PriceSource") {
-        return Promise.resolve("exchange");
       }
       if (key === "raritySource") return Promise.resolve("poe.ninja");
       return Promise.resolve(null);

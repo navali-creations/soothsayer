@@ -127,19 +127,11 @@ export const useDivinationCards = (options: UseDivinationCardsOptions = {}) => {
             updatedCards[existingIdx] = {
               ...updatedCards[existingIdx],
               count: delta.newCount,
-              exchangePrice: updatedCards[existingIdx].exchangePrice
+              price: updatedCards[existingIdx].price
                 ? {
-                    ...updatedCards[existingIdx].exchangePrice!,
+                    ...updatedCards[existingIdx].price!,
                     totalValue:
-                      (updatedCards[existingIdx].exchangePrice!.chaosValue ??
-                        0) * delta.newCount,
-                  }
-                : undefined,
-              stashPrice: updatedCards[existingIdx].stashPrice
-                ? {
-                    ...updatedCards[existingIdx].stashPrice!,
-                    totalValue:
-                      (updatedCards[existingIdx].stashPrice!.chaosValue ?? 0) *
+                      (updatedCards[existingIdx].price!.chaosValue ?? 0) *
                       delta.newCount,
                   }
                 : undefined,
@@ -149,20 +141,12 @@ export const useDivinationCards = (options: UseDivinationCardsOptions = {}) => {
               name: delta.cardName,
               count: delta.newCount,
             };
-            if (delta.exchangePrice) {
-              newCard.exchangePrice = {
-                chaosValue: delta.exchangePrice.chaosValue,
-                divineValue: delta.exchangePrice.divineValue,
-                totalValue: delta.exchangePrice.chaosValue * delta.newCount,
-                hidePrice: delta.hidePriceExchange ?? false,
-              };
-            }
-            if (delta.stashPrice) {
-              newCard.stashPrice = {
-                chaosValue: delta.stashPrice.chaosValue,
-                divineValue: delta.stashPrice.divineValue,
-                totalValue: delta.stashPrice.chaosValue * delta.newCount,
-                hidePrice: delta.hidePriceStash ?? false,
+            if (delta.price) {
+              newCard.price = {
+                chaosValue: delta.price.chaosValue,
+                divineValue: delta.price.divineValue,
+                totalValue: delta.price.chaosValue * delta.newCount,
+                hidePrice: delta.hidePrice ?? false,
               };
             }
             if (delta.divinationCard) {

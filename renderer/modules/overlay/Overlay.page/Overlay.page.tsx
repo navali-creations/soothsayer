@@ -52,7 +52,6 @@ const OverlayApp = () => {
   const [isElectronReady, setIsElectronReady] = useState(
     () => !!window.electron?.overlay && !!window.electron?.session,
   );
-  const priceSourceRef = useRef<"exchange" | "stash">("exchange");
   const audioSettingsRef = useRef<AudioSettings>({
     enabled: true,
     volume: 0.5,
@@ -61,18 +60,11 @@ const OverlayApp = () => {
   const [fontSize, setFontSize] = useState(1.0);
   const [toolbarFontSize, setToolbarFontSize] = useState(1.0);
 
-  // Load audio settings, price source, and overlay font size from main process
+  // Load audio settings and overlay font size from main process
   const loadAudioSettings = useCallback(async () => {
     try {
       const settings = await window.electron.settings.getAll();
       const customSounds: Record<number, string> = {};
-
-      // Resolve the user's price source for the active game
-      const activeGame = settings.selectedGame || "poe1";
-      priceSourceRef.current =
-        activeGame === "poe1"
-          ? settings.poe1PriceSource || "exchange"
-          : settings.poe2PriceSource || "exchange";
 
       // Read overlay font sizes
       setFontSize(settings.overlayFontSize ?? 1.0);
@@ -160,7 +152,6 @@ const OverlayApp = () => {
             totalCount: 0,
             totalProfit: 0,
             chaosToDivineRatio: 0,
-            priceSource: "exchange",
             cards: [],
             recentDrops: [],
           });
@@ -172,9 +163,8 @@ const OverlayApp = () => {
     const unsubscribeCardDelta = window.electron.session.onCardDelta(
       (update) => {
         if (!update.delta) return;
-        const priceSource = priceSourceRef.current;
         const prev = useBoundStore.getState().overlay.sessionData;
-        const totals = update.delta.updatedTotals?.[priceSource];
+        const totals = update.delta.updatedTotals;
 
         // Update or add card entry
         const existingIdx = prev.cards.findIndex(
@@ -217,12 +207,12 @@ const OverlayApp = () => {
       },
     );
 
-    // Listen for settings changes (e.g. price source or font size changed mid-session)
+    // Listen for settings changes (e.g. font size changed mid-session)
     const unsubscribeSettingsChanged =
       window.electron.overlay.onSettingsChanged(() => {
-        // Re-read price source, font size, and audio settings
+        // Re-read font size and audio settings
         loadAudioSettings().then(() => {
-          // Re-fetch session data with the updated price source
+          // Re-fetch session data with the updated overlay settings
           window.electron?.overlay.getSessionData().then((data) => {
             if (data) {
               setSessionData(data);

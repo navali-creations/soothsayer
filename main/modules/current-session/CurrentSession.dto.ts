@@ -21,8 +21,7 @@ export interface SessionCardDTO {
   count: number;
   firstSeenAt: string;
   lastSeenAt: string;
-  hidePriceExchange: boolean;
-  hidePriceStash: boolean;
+  hidePrice: boolean;
   divinationCard?: {
     id?: string | null;
     stackSize?: number | null;
@@ -61,12 +60,9 @@ export interface SessionSummaryDTO {
   endedAt: string;
   durationMinutes: number;
   totalDecksOpened: number;
-  totalExchangeValue: number;
-  totalStashValue: number;
-  totalExchangeNetProfit: number | null;
-  totalStashNetProfit: number | null;
-  exchangeChaosToDivine: number;
-  stashChaosToDivine: number;
+  totalValue: number;
+  netProfit: number | null;
+  chaosToDivineRatio: number;
   stackedDeckChaosCost: number;
 }
 

@@ -26,7 +26,6 @@ function makeSessionData(overrides: Partial<SessionData> = {}): SessionData {
     totalCount: 0,
     totalProfit: 0,
     chaosToDivineRatio: 0,
-    priceSource: "exchange",
     cards: [],
     recentDrops: [],
     isActive: false,
@@ -43,8 +42,7 @@ function makeDrop(
   return {
     cardName: overrides.cardName,
     rarity: overrides.rarity,
-    exchangePrice: overrides.exchangePrice ?? { chaosValue: 0, divineValue: 0 },
-    stashPrice: overrides.stashPrice ?? { chaosValue: 0, divineValue: 0 },
+    price: overrides.price ?? { chaosValue: 0, divineValue: 0 },
   };
 }
 
@@ -69,7 +67,6 @@ describe("OverlaySlice", () => {
         totalCount: 0,
         totalProfit: 0,
         chaosToDivineRatio: 0,
-        priceSource: "exchange",
         cards: [],
         recentDrops: [],
         isActive: false,

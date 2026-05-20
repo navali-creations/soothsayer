@@ -204,8 +204,7 @@ describe("SnapshotRepository", () => {
           id: "snap-001",
           league_id: leagueId,
           fetched_at: "2025-01-15T10:00:00Z",
-          exchange_chaos_to_divine: 200,
-          stash_chaos_to_divine: 195,
+          chaos_to_divine_ratio: 200,
           stacked_deck_chaos_cost: 3.5,
         })
         .execute();
@@ -216,8 +215,7 @@ describe("SnapshotRepository", () => {
       expect(snapshot!.leagueId).toBe(leagueId);
       expect(snapshot!.fetchedAt).toBe("2025-01-15T10:00:00Z");
       expect(snapshot!.createdAt).toEqual(expect.any(String));
-      expect(snapshot!.exchangeChaosToDivine).toBe(200);
-      expect(snapshot!.stashChaosToDivine).toBe(195);
+      expect(snapshot!.chaosToDivineRatio).toBe(200);
       expect(snapshot!.stackedDeckChaosCost).toBe(3.5);
     });
 
@@ -230,8 +228,7 @@ describe("SnapshotRepository", () => {
           id: "snap-check",
           league_id: leagueId,
           fetched_at: "2025-01-15T10:00:00Z",
-          exchange_chaos_to_divine: 200,
-          stash_chaos_to_divine: 195,
+          chaos_to_divine_ratio: 200,
           stacked_deck_chaos_cost: 3,
         })
         .execute();
@@ -239,14 +236,13 @@ describe("SnapshotRepository", () => {
       const snapshot = await repository.getSnapshotById("snap-check");
       expect(snapshot).not.toBeNull();
       expect(Object.keys(snapshot!).sort()).toEqual([
+        "chaosToDivineRatio",
         "createdAt",
-        "exchangeChaosToDivine",
         "fetchedAt",
         "id",
         "leagueId",
         "stackedDeckChaosCost",
         "stackedDeckMaxVolumeRate",
-        "stashChaosToDivine",
       ]);
     });
   });
@@ -261,26 +257,15 @@ describe("SnapshotRepository", () => {
         snapshotData: {
           timestamp: "2025-01-15T10:00:00Z",
           stackedDeckChaosCost: 3.5,
-          exchange: {
-            chaosToDivineRatio: 200,
-            cardPrices: {
-              "The Doctor": {
-                chaosValue: 1200,
-                divineValue: 6.0,
-              },
-              "Rain of Chaos": {
-                chaosValue: 0.5,
-                divineValue: 0.0025,
-              },
+          chaosToDivineRatio: 200,
+          cardPrices: {
+            "The Doctor": {
+              chaosValue: 1200,
+              divineValue: 6.0,
             },
-          },
-          stash: {
-            chaosToDivineRatio: 195,
-            cardPrices: {
-              "The Doctor": {
-                chaosValue: 1100,
-                divineValue: 5.64,
-              },
+            "Rain of Chaos": {
+              chaosValue: 0.5,
+              divineValue: 0.0025,
             },
           },
         },
@@ -292,8 +277,7 @@ describe("SnapshotRepository", () => {
       expect(snapshot!.leagueId).toBe(leagueId);
       expect(snapshot!.fetchedAt).toBe("2025-01-15T10:00:00Z");
       expect(snapshot!.createdAt).toEqual(expect.any(String));
-      expect(snapshot!.exchangeChaosToDivine).toBe(200);
-      expect(snapshot!.stashChaosToDivine).toBe(195);
+      expect(snapshot!.chaosToDivineRatio).toBe(200);
       expect(snapshot!.stackedDeckChaosCost).toBe(3.5);
     });
 
@@ -306,18 +290,12 @@ describe("SnapshotRepository", () => {
         snapshotData: {
           timestamp: "2025-01-15T10:00:00Z",
           stackedDeckChaosCost: 3,
-          exchange: {
-            chaosToDivineRatio: 200,
-            cardPrices: {
-              "The Doctor": {
-                chaosValue: 1200,
-                divineValue: 6.0,
-              },
+          chaosToDivineRatio: 200,
+          cardPrices: {
+            "The Doctor": {
+              chaosValue: 1200,
+              divineValue: 6.0,
             },
-          },
-          stash: {
-            chaosToDivineRatio: 195,
-            cardPrices: {},
           },
         },
       });
@@ -326,92 +304,8 @@ describe("SnapshotRepository", () => {
         await repository.getSnapshotCardPrices("snap-exchange");
       expect(cardPrices).toHaveLength(1);
       expect(cardPrices[0].cardName).toBe("The Doctor");
-      expect(cardPrices[0].priceSource).toBe("exchange");
       expect(cardPrices[0].chaosValue).toBe(1200);
       expect(cardPrices[0].divineValue).toBe(6.0);
-    });
-
-    it("should store stash card prices", async () => {
-      const leagueId = await seedLeague(testDb.kysely);
-
-      await repository.createSnapshot({
-        id: "snap-stash",
-        leagueId,
-        snapshotData: {
-          timestamp: "2025-01-15T10:00:00Z",
-          stackedDeckChaosCost: 3,
-          exchange: {
-            chaosToDivineRatio: 200,
-            cardPrices: {},
-          },
-          stash: {
-            chaosToDivineRatio: 195,
-            cardPrices: {
-              "Rain of Chaos": {
-                chaosValue: 0.5,
-                divineValue: 0.0025,
-              },
-            },
-          },
-        },
-      });
-
-      const cardPrices = await repository.getSnapshotCardPrices("snap-stash");
-      expect(cardPrices).toHaveLength(1);
-      expect(cardPrices[0].cardName).toBe("Rain of Chaos");
-      expect(cardPrices[0].priceSource).toBe("stash");
-      expect(cardPrices[0].chaosValue).toBe(0.5);
-      expect(cardPrices[0].divineValue).toBe(0.0025);
-    });
-
-    it("should store both exchange and stash prices in one snapshot", async () => {
-      const leagueId = await seedLeague(testDb.kysely);
-
-      await repository.createSnapshot({
-        id: "snap-both",
-        leagueId,
-        snapshotData: {
-          timestamp: "2025-01-15T10:00:00Z",
-          stackedDeckChaosCost: 3,
-          exchange: {
-            chaosToDivineRatio: 200,
-            cardPrices: {
-              "The Doctor": {
-                chaosValue: 1200,
-                divineValue: 6.0,
-              },
-              "Rain of Chaos": {
-                chaosValue: 0.5,
-                divineValue: 0.0025,
-              },
-            },
-          },
-          stash: {
-            chaosToDivineRatio: 195,
-            cardPrices: {
-              "The Doctor": {
-                chaosValue: 1100,
-                divineValue: 5.64,
-              },
-              "The Fiend": {
-                chaosValue: 5000,
-                divineValue: 25.0,
-              },
-            },
-          },
-        },
-      });
-
-      const cardPrices = await repository.getSnapshotCardPrices("snap-both");
-      expect(cardPrices).toHaveLength(4);
-
-      const exchangePrices = cardPrices.filter(
-        (p) => p.priceSource === "exchange",
-      );
-      const stashPrices = cardPrices.filter((p) => p.priceSource === "stash");
-
-      expect(exchangePrices).toHaveLength(2);
-      expect(stashPrices).toHaveLength(2);
     });
 
     it("should create a snapshot with no card prices", async () => {
@@ -423,14 +317,8 @@ describe("SnapshotRepository", () => {
         snapshotData: {
           timestamp: "2025-01-15T10:00:00Z",
           stackedDeckChaosCost: 3,
-          exchange: {
-            chaosToDivineRatio: 200,
-            cardPrices: {},
-          },
-          stash: {
-            chaosToDivineRatio: 195,
-            cardPrices: {},
-          },
+          chaosToDivineRatio: 200,
+          cardPrices: {},
         },
       });
 
@@ -450,18 +338,12 @@ describe("SnapshotRepository", () => {
         snapshotData: {
           timestamp: "2025-01-15T10:00:00Z",
           stackedDeckChaosCost: 3,
-          exchange: {
-            chaosToDivineRatio: 200,
-            cardPrices: {
-              "Unknown Card": {
-                chaosValue: 10,
-                divineValue: 0.05,
-              },
+          chaosToDivineRatio: 200,
+          cardPrices: {
+            "Unknown Card": {
+              chaosValue: 10,
+              divineValue: 0.05,
             },
-          },
-          stash: {
-            chaosToDivineRatio: 195,
-            cardPrices: {},
           },
         },
       });
@@ -481,14 +363,8 @@ describe("SnapshotRepository", () => {
         snapshotData: {
           timestamp: "2025-01-15T10:00:00Z",
           stackedDeckChaosCost: 0,
-          exchange: {
-            chaosToDivineRatio: 200,
-            cardPrices: {},
-          },
-          stash: {
-            chaosToDivineRatio: 195,
-            cardPrices: {},
-          },
+          chaosToDivineRatio: 200,
+          cardPrices: {},
         },
       });
 
@@ -516,8 +392,7 @@ describe("SnapshotRepository", () => {
           id: "snap-no-prices",
           league_id: leagueId,
           fetched_at: "2025-01-15T10:00:00Z",
-          exchange_chaos_to_divine: 200,
-          stash_chaos_to_divine: 195,
+          chaos_to_divine_ratio: 200,
           stacked_deck_chaos_cost: 3,
         })
         .execute();
@@ -535,8 +410,7 @@ describe("SnapshotRepository", () => {
           id: "snap-prices",
           league_id: leagueId,
           fetched_at: "2025-01-15T10:00:00Z",
-          exchange_chaos_to_divine: 200,
-          stash_chaos_to_divine: 195,
+          chaos_to_divine_ratio: 200,
           stacked_deck_chaos_cost: 3,
         })
         .execute();
@@ -547,14 +421,12 @@ describe("SnapshotRepository", () => {
           {
             snapshot_id: "snap-prices",
             card_name: "The Doctor",
-            price_source: "exchange",
             chaos_value: 1200,
             divine_value: 6.0,
           },
           {
             snapshot_id: "snap-prices",
             card_name: "Rain of Chaos",
-            price_source: "stash",
             chaos_value: 0.5,
             divine_value: 0.0025,
           },
@@ -568,12 +440,10 @@ describe("SnapshotRepository", () => {
       const rain = prices.find((p) => p.cardName === "Rain of Chaos");
 
       expect(doctor).toBeDefined();
-      expect(doctor!.priceSource).toBe("exchange");
       expect(doctor!.chaosValue).toBe(1200);
       expect(doctor!.divineValue).toBe(6.0);
 
       expect(rain).toBeDefined();
-      expect(rain!.priceSource).toBe("stash");
       expect(rain!.chaosValue).toBe(0.5);
       expect(rain!.divineValue).toBe(0.0025);
     });
@@ -588,16 +458,14 @@ describe("SnapshotRepository", () => {
             id: "snap-a",
             league_id: leagueId,
             fetched_at: "2025-01-15T10:00:00Z",
-            exchange_chaos_to_divine: 200,
-            stash_chaos_to_divine: 195,
+            chaos_to_divine_ratio: 200,
             stacked_deck_chaos_cost: 3,
           },
           {
             id: "snap-b",
             league_id: leagueId,
             fetched_at: "2025-01-15T11:00:00Z",
-            exchange_chaos_to_divine: 201,
-            stash_chaos_to_divine: 196,
+            chaos_to_divine_ratio: 201,
             stacked_deck_chaos_cost: 3,
           },
         ])
@@ -609,14 +477,12 @@ describe("SnapshotRepository", () => {
           {
             snapshot_id: "snap-a",
             card_name: "The Doctor",
-            price_source: "exchange",
             chaos_value: 1200,
             divine_value: 6.0,
           },
           {
             snapshot_id: "snap-b",
             card_name: "Rain of Chaos",
-            price_source: "exchange",
             chaos_value: 0.5,
             divine_value: 0.0025,
           },
@@ -653,8 +519,7 @@ describe("SnapshotRepository", () => {
           id: "snap-old",
           league_id: leagueId,
           fetched_at: "2020-01-01T00:00:00Z",
-          exchange_chaos_to_divine: 200,
-          stash_chaos_to_divine: 195,
+          chaos_to_divine_ratio: 200,
           stacked_deck_chaos_cost: 3,
           created_at: "2020-01-01T00:00:00Z",
         })
@@ -675,8 +540,7 @@ describe("SnapshotRepository", () => {
           id: "snap-recent",
           league_id: leagueId,
           fetched_at: now,
-          exchange_chaos_to_divine: 200,
-          stash_chaos_to_divine: 195,
+          chaos_to_divine_ratio: 200,
           stacked_deck_chaos_cost: 3,
         })
         .execute();
@@ -706,8 +570,7 @@ describe("SnapshotRepository", () => {
             id: "snap-older",
             league_id: leagueId,
             fetched_at: tenMinutesAgo,
-            exchange_chaos_to_divine: 200,
-            stash_chaos_to_divine: 195,
+            chaos_to_divine_ratio: 200,
             stacked_deck_chaos_cost: 3,
             created_at: tenMinutesAgo,
           },
@@ -715,8 +578,7 @@ describe("SnapshotRepository", () => {
             id: "snap-newer",
             league_id: leagueId,
             fetched_at: fiveMinutesAgo,
-            exchange_chaos_to_divine: 201,
-            stash_chaos_to_divine: 196,
+            chaos_to_divine_ratio: 201,
             stacked_deck_chaos_cost: 3.5,
             created_at: fiveMinutesAgo,
           },
@@ -745,8 +607,7 @@ describe("SnapshotRepository", () => {
           id: "snap-league-a",
           league_id: leagueA,
           fetched_at: now,
-          exchange_chaos_to_divine: 200,
-          stash_chaos_to_divine: 195,
+          chaos_to_divine_ratio: 200,
           stacked_deck_chaos_cost: 3,
         })
         .execute();
@@ -773,22 +634,15 @@ describe("SnapshotRepository", () => {
         snapshotData: {
           timestamp: "2025-01-15T10:00:00Z",
           stackedDeckChaosCost: 3,
-          exchange: {
-            chaosToDivineRatio: 200,
-            cardPrices: {
-              "The Doctor": {
-                chaosValue: 1200,
-                divineValue: 6.0,
-              },
+          chaosToDivineRatio: 200,
+          cardPrices: {
+            "The Doctor": {
+              chaosValue: 1200,
+              divineValue: 6.0,
             },
-          },
-          stash: {
-            chaosToDivineRatio: 195,
-            cardPrices: {
-              "Rain of Chaos": {
-                chaosValue: 0.5,
-                divineValue: 0.0025,
-              },
+            "Rain of Chaos": {
+              chaosValue: 0.5,
+              divineValue: 0.0025,
             },
           },
         },
@@ -799,8 +653,7 @@ describe("SnapshotRepository", () => {
       expect(result!.snapshot.id).toBe("snap-load");
       expect(result!.snapshot.leagueId).toBe(leagueId);
       expect(result!.snapshot.createdAt).toEqual(expect.any(String));
-      expect(result!.snapshot.exchangeChaosToDivine).toBe(200);
-      expect(result!.snapshot.stashChaosToDivine).toBe(195);
+      expect(result!.snapshot.chaosToDivineRatio).toBe(200);
       expect(result!.snapshot.stackedDeckChaosCost).toBe(3);
 
       expect(result!.cardPrices).toHaveLength(2);
@@ -813,11 +666,9 @@ describe("SnapshotRepository", () => {
       );
 
       expect(doctorPrice).toBeDefined();
-      expect(doctorPrice!.priceSource).toBe("exchange");
       expect(doctorPrice!.chaosValue).toBe(1200);
 
       expect(rainPrice).toBeDefined();
-      expect(rainPrice!.priceSource).toBe("stash");
       expect(rainPrice!.chaosValue).toBe(0.5);
     });
 
@@ -830,14 +681,8 @@ describe("SnapshotRepository", () => {
         snapshotData: {
           timestamp: "2025-01-15T10:00:00Z",
           stackedDeckChaosCost: 3,
-          exchange: {
-            chaosToDivineRatio: 200,
-            cardPrices: {},
-          },
-          stash: {
-            chaosToDivineRatio: 195,
-            cardPrices: {},
-          },
+          chaosToDivineRatio: 200,
+          cardPrices: {},
         },
       });
 
@@ -850,12 +695,12 @@ describe("SnapshotRepository", () => {
     it("should load a snapshot with many card prices", async () => {
       const leagueId = await seedLeague(testDb.kysely);
 
-      const exchangePrices: Record<
+      const prices: Record<
         string,
         { chaosValue: number; divineValue: number }
       > = {};
       for (let i = 0; i < 50; i++) {
-        exchangePrices[`Card ${i}`] = {
+        prices[`Card ${i}`] = {
           chaosValue: i * 10,
           divineValue: i * 0.05,
         };
@@ -867,21 +712,14 @@ describe("SnapshotRepository", () => {
         snapshotData: {
           timestamp: "2025-01-15T10:00:00Z",
           stackedDeckChaosCost: 3,
-          exchange: {
-            chaosToDivineRatio: 200,
-            cardPrices: exchangePrices,
-          },
-          stash: {
-            chaosToDivineRatio: 195,
-            cardPrices: exchangePrices,
-          },
+          chaosToDivineRatio: 200,
+          cardPrices: prices,
         },
       });
 
       const result = await repository.loadSnapshot("snap-many");
       expect(result).not.toBeNull();
-      // 50 exchange + 50 stash = 100
-      expect(result!.cardPrices).toHaveLength(100);
+      expect(result!.cardPrices).toHaveLength(50);
     });
   });
 
@@ -909,26 +747,15 @@ describe("SnapshotRepository", () => {
         snapshotData: {
           timestamp: "2025-01-15T10:00:00Z",
           stackedDeckChaosCost: 3.5,
-          exchange: {
-            chaosToDivineRatio: 200,
-            cardPrices: {
-              "The Doctor": {
-                chaosValue: 1200,
-                divineValue: 6.0,
-              },
-              "Rain of Chaos": {
-                chaosValue: 0.5,
-                divineValue: 0.0025,
-              },
+          chaosToDivineRatio: 200,
+          cardPrices: {
+            "The Doctor": {
+              chaosValue: 1200,
+              divineValue: 6.0,
             },
-          },
-          stash: {
-            chaosToDivineRatio: 195,
-            cardPrices: {
-              "The Doctor": {
-                chaosValue: 1100,
-                divineValue: 5.64,
-              },
+            "Rain of Chaos": {
+              chaosValue: 0.5,
+              divineValue: 0.0025,
             },
           },
         },
@@ -939,7 +766,7 @@ describe("SnapshotRepository", () => {
       expect(result).not.toBeNull();
       expect(result!.snapshot.leagueId).toBe("league-full");
       expect(result!.snapshot.stackedDeckChaosCost).toBe(3.5);
-      expect(result!.cardPrices).toHaveLength(3);
+      expect(result!.cardPrices).toHaveLength(2);
 
       // 5. Verify the snapshot is also findable by ID
       const byId = await repository.getSnapshotById("snap-full");
@@ -959,18 +786,12 @@ describe("SnapshotRepository", () => {
           snapshotData: {
             timestamp: `2025-01-1${5 + i}T10:00:00Z`,
             stackedDeckChaosCost: 3 + i * 0.5,
-            exchange: {
-              chaosToDivineRatio: 200 + i,
-              cardPrices: {
-                "The Doctor": {
-                  chaosValue: 1200 + i * 10,
-                  divineValue: 6.0 + i * 0.05,
-                },
+            chaosToDivineRatio: 200 + i,
+            cardPrices: {
+              "The Doctor": {
+                chaosValue: 1200 + i * 10,
+                divineValue: 6.0 + i * 0.05,
               },
-            },
-            stash: {
-              chaosToDivineRatio: 195 + i,
-              cardPrices: {},
             },
           },
         });
@@ -980,7 +801,7 @@ describe("SnapshotRepository", () => {
       for (let i = 0; i < 3; i++) {
         const result = await repository.loadSnapshot(`snap-${i}`);
         expect(result).not.toBeNull();
-        expect(result!.snapshot.exchangeChaosToDivine).toBe(200 + i);
+        expect(result!.snapshot.chaosToDivineRatio).toBe(200 + i);
         expect(result!.cardPrices).toHaveLength(1);
         expect(result!.cardPrices[0].chaosValue).toBe(1200 + i * 10);
       }
@@ -995,18 +816,12 @@ describe("SnapshotRepository", () => {
         snapshotData: {
           timestamp: "2025-01-15T10:00:00Z",
           stackedDeckChaosCost: 3,
-          exchange: {
-            chaosToDivineRatio: 200,
-            cardPrices: {
-              "The Doctor": {
-                chaosValue: 1200,
-                divineValue: 6.0,
-              },
+          chaosToDivineRatio: 200,
+          cardPrices: {
+            "The Doctor": {
+              chaosValue: 1200,
+              divineValue: 6.0,
             },
-          },
-          stash: {
-            chaosToDivineRatio: 195,
-            cardPrices: {},
           },
         },
       });
@@ -1035,22 +850,16 @@ describe("SnapshotRepository", () => {
         snapshotData: {
           timestamp: "2025-01-15T10:00:00Z",
           stackedDeckChaosCost: 3,
-          exchange: {
-            chaosToDivineRatio: 200,
-            cardPrices: {
-              "The King's Heart": {
-                chaosValue: 500,
-                divineValue: 2.5,
-              },
-              "Brother's Stash": {
-                chaosValue: 2000,
-                divineValue: 10.0,
-              },
+          chaosToDivineRatio: 200,
+          cardPrices: {
+            "The King's Heart": {
+              chaosValue: 500,
+              divineValue: 2.5,
             },
-          },
-          stash: {
-            chaosToDivineRatio: 195,
-            cardPrices: {},
+            "Brother's Stash": {
+              chaosValue: 2000,
+              divineValue: 10.0,
+            },
           },
         },
       });

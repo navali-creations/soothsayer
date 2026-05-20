@@ -2,8 +2,6 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
-/** poe.ninja price confidence: 1 = high/reliable, 2 = medium/thin sample, 3 = low/unreliable */
-type Confidence = 1 | 2 | 3;
 type SnapshotGame = "poe1" | "poe2";
 
 interface SnapshotRequestBody {
@@ -16,7 +14,6 @@ interface SnapshotRpcResult {
   league_id: string;
   fetched_at: string;
   exchange_chaos_to_divine: number | null;
-  stash_chaos_to_divine: number | null;
   stacked_deck_chaos_cost: number | null;
   stacked_deck_max_volume_rate?: number | null;
 }
@@ -56,7 +53,6 @@ function isSnapshotRpcResult(value: unknown): value is SnapshotRpcResult {
     typeof value.league_id === "string" &&
     typeof value.fetched_at === "string" &&
     isNullableNumber(value.exchange_chaos_to_divine) &&
-    isNullableNumber(value.stash_chaos_to_divine) &&
     isNullableNumber(value.stacked_deck_chaos_cost) &&
     (value.stacked_deck_max_volume_rate === undefined ||
       isNullableNumber(value.stacked_deck_max_volume_rate))
@@ -346,33 +342,16 @@ Deno.serve(async (req) => {
     const currencyUrl = `https://poe.ninja/${gamePrefix}/api/economy/exchange/current/overview?league=${encodeURIComponent(
       league.name,
     )}&type=Currency`;
-    const stashUrl =
-      game === "poe2"
-        ? null
-        : `https://poe.ninja/poe1/api/economy/stash/current/item/overview?league=${encodeURIComponent(
-            league.name,
-          )}&type=DivinationCard`;
 
     console.log(`${tag} Fetching exchange API: ${exchangeUrl}`);
     console.log(`${tag} Fetching currency API: ${currencyUrl}`);
-    if (stashUrl) {
-      console.log(`${tag} Fetching stash API: ${stashUrl}`);
-    } else {
-      console.log(`${tag} Skipping stash API (not available for poe2)`);
-    }
 
     const exchangeRequest = fetchWithTimeout(exchangeUrl);
     const currencyRequest = fetchWithTimeout(currencyUrl);
-    const stashRequest =
-      stashUrl === null
-        ? Promise.resolve<Response | null>(null)
-        : fetchWithTimeout(stashUrl);
-    const [exchangeResult, currencyResult, stashResult] =
-      await Promise.allSettled([
-        exchangeRequest,
-        currencyRequest,
-        stashRequest,
-      ]);
+    const [exchangeResult, currencyResult] = await Promise.allSettled([
+      exchangeRequest,
+      currencyRequest,
+    ]);
 
     if (exchangeResult.status === "rejected") {
       throw new Error(
@@ -445,7 +424,6 @@ Deno.serve(async (req) => {
 
         exchangeCardPrices.push({
           card_name: cardName,
-          price_source: "exchange",
           chaos_value: chaosValue,
           divine_value: divineValue,
           confidence: 1,
@@ -486,148 +464,33 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 4. Fetch from poe.ninja stash API (poe1 only — no stash API for poe2)
-    let stashChaosToDivineRatio = chaosToDivineRatio;
-    const stashCardPrices: Array<any> = [];
-
-    if (game !== "poe2") {
-      if (stashResult.status === "rejected") {
-        throw new Error(
-          `poe.ninja stash API failed: ${formatErrorReason(
-            stashResult.reason,
-          )}`,
-        );
-      }
-
-      const stashResponse = stashResult.value;
-      if (stashResponse === null) {
-        throw new Error("poe.ninja stash API failed: missing response");
-      }
-
-      if (!stashResponse.ok) {
-        throw new Error(
-          `poe.ninja stash API failed: ${stashResponse.statusText}`,
-        );
-      }
-
-      const stashData = await stashResponse.json();
-
-      // Calculate stash ratio
-      for (const card of stashData.lines || []) {
-        const chaosValue = toFiniteNumber(card.chaosValue);
-        const divineValue = toFiniteNumber(card.divineValue);
-        if (
-          divineValue !== null &&
-          divineValue > 0 &&
-          chaosValue !== null &&
-          chaosValue > 0
-        ) {
-          stashChaosToDivineRatio = chaosValue / divineValue;
-          break;
-        }
-      }
-
+    if (game === "poe2" && exchangeCardPrices.length === 0) {
       console.log(
-        `${tag} Stash chaos-to-divine ratio: ${stashChaosToDivineRatio}`,
+        `${tag} No poe.ninja divination card prices available for poe2; skipping snapshot creation`,
       );
 
-      // Compute confidence level from poe.ninja stash data.
-      //
-      // poe.ninja signals its own confidence via sparkLine vs lowConfidenceSparkLine:
-      //   - sparkLine.data is empty → poe.ninja considers data low confidence
-      //   - sparkLine.data is populated → poe.ninja considers data reliable
-      // We combine this with the sample count for a three-tier classification:
-      //   - 3 (low):    sparkLine empty (regardless of count)
-      //   - 2 (medium): sparkLine populated but count < 10
-      //   - 1 (high):   sparkLine populated and count >= 10
-      function computeConfidence(card: any): Confidence {
-        const hasSparkLine =
-          Array.isArray(card.sparkLine?.data) && card.sparkLine.data.length > 0;
-
-        if (!hasSparkLine) return 3;
-        if ((card.count ?? 0) >= 10) return 1;
-        return 2;
-      }
-
-      // Build stash card prices with confidence
-      const confidenceCounts = { 1: 0, 2: 0, 3: 0 };
-      let skippedInvalidStashPrices = 0;
-      for (const [index, card] of (stashData.lines ?? []).entries()) {
-        const cardName = typeof card.name === "string" ? card.name.trim() : "";
-        const chaosValue = toFiniteNumber(card.chaosValue);
-
-        if (!cardName || chaosValue === null) {
-          skippedInvalidStashPrices++;
-          logMalformedPrice(tag, {
-            source: "stash",
-            index,
-            cardName: card.name,
-            reason: !cardName ? "missing card name" : "invalid chaos value",
-            rawChaosValue: card.chaosValue,
-            rawDivineValue: card.divineValue,
-            chaosToDivineRatio: stashChaosToDivineRatio,
-          });
-          continue;
-        }
-
-        const divineValue = deriveDivineValue(
-          chaosValue,
-          card.divineValue,
-          stashChaosToDivineRatio,
-        );
-        if (divineValue === null) {
-          skippedInvalidStashPrices++;
-          logMalformedPrice(tag, {
-            source: "stash",
-            index,
-            cardName,
-            reason: "invalid divine value and ratio fallback",
-            rawChaosValue: card.chaosValue,
-            rawDivineValue: card.divineValue,
-            chaosToDivineRatio: stashChaosToDivineRatio,
-          });
-          continue;
-        }
-
-        if (toFiniteNumber(card.divineValue) === null) {
-          console.warn(
-            `${tag} Derived missing stash divine value: ` +
-              `index=${index}, card=${formatRawValue(cardName)}, ` +
-              `chaosValue=${formatRawValue(card.chaosValue)}, ` +
-              `rawDivineValue=${formatRawValue(card.divineValue)}, ` +
-              `ratio=${stashChaosToDivineRatio}, ` +
-              `derivedDivineValue=${divineValue}`,
-          );
-        }
-
-        const confidence = computeConfidence(card);
-        confidenceCounts[confidence]++;
-        stashCardPrices.push({
-          card_name: cardName,
-          price_source: "stash",
-          chaos_value: chaosValue,
-          divine_value: divineValue,
-          confidence,
-        });
-      }
-
-      if (skippedInvalidStashPrices > 0) {
-        console.warn(
-          `${tag} Skipped ${skippedInvalidStashPrices} stash prices due to invalid numeric data`,
-        );
-      }
-
-      console.log(
-        `${tag} Fetched ${stashCardPrices.length} stash prices — confidence: ${confidenceCounts[1]} high, ${confidenceCounts[2]} medium, ${confidenceCounts[3]} low`,
-      );
+      return responseJson({
+        status: 200,
+        body: {
+          success: true,
+          skipped: true,
+          reason: "no_divination_card_prices",
+          message:
+            "No poe.ninja divination card prices available for poe2; snapshot skipped",
+          game,
+          leagueId: league.id,
+          leagueName: league.name,
+          exchangeChaosToDivine: chaosToDivineRatio,
+          stackedDeckChaosCost,
+          stackedDeckMaxVolumeRate,
+          cardCount: 0,
+        },
+      });
     }
 
-    // 5. Upsert unique card names into `cards` table
+    // 4. Upsert unique card names into `cards` table
     const uniqueCardNames = [
-      ...new Set([
-        ...exchangeCardPrices.map((p) => p.card_name),
-        ...stashCardPrices.map((p) => p.card_name),
-      ]),
+      ...new Set(exchangeCardPrices.map((p) => p.card_name)),
     ];
 
     if (uniqueCardNames.length > 0) {
@@ -650,7 +513,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 6. Build card name -> card_id map for only the names in this snapshot.
+    // 5. Build card name -> card_id map for only the names in this snapshot.
     const cardIdQuery = supabase
       .from("cards")
       .select("id, name")
@@ -683,17 +546,16 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 7. Build all card prices (card_name is NOT stored — resolved via card_id FK)
+    // 6. Build all card prices (card_name is NOT stored — resolved via card_id FK)
     const allCardPrices: Array<{
       card_id: string;
-      price_source: string;
       chaos_value: number;
       divine_value: number;
       confidence: number;
     }> = [];
 
     let skippedCount = 0;
-    for (const p of [...exchangeCardPrices, ...stashCardPrices]) {
+    for (const p of exchangeCardPrices) {
       const cardId = cardIdMap.get(p.card_name);
       if (!cardId) {
         skippedCount++;
@@ -706,7 +568,7 @@ Deno.serve(async (req) => {
       if (chaosValue === null || divineValue === null) {
         skippedCount++;
         logMalformedPrice(tag, {
-          source: p.price_source ?? "unknown",
+          source: "exchange",
           index: null,
           cardName: p.card_name,
           reason: "invalid normalized numeric price",
@@ -718,7 +580,6 @@ Deno.serve(async (req) => {
 
       allCardPrices.push({
         card_id: cardId,
-        price_source: p.price_source,
         chaos_value: chaosValue,
         divine_value: divineValue,
         confidence: p.confidence,
@@ -745,7 +606,6 @@ Deno.serve(async (req) => {
         p_league_id: league.id,
         p_fetched_at: fetchedAt,
         p_exchange_chaos_to_divine: chaosToDivineRatio,
-        p_stash_chaos_to_divine: stashChaosToDivineRatio,
         p_stacked_deck_chaos_cost: stackedDeckChaosCost,
         p_stacked_deck_max_volume_rate: stackedDeckMaxVolumeRate,
         p_prices: allCardPrices,
@@ -776,9 +636,7 @@ Deno.serve(async (req) => {
     }
 
     console.log(`${tag} Created snapshot ${snapshot.id}`);
-    console.log(
-      `${tag} Inserted ${allCardPrices.length} card prices (${exchangeCardPrices.length} exchange + ${stashCardPrices.length} stash)`,
-    );
+    console.log(`${tag} Inserted ${allCardPrices.length} card prices`);
 
     console.log(
       `${tag} ✅ Snapshot complete: id=${snapshot.id}, cards=${
@@ -795,7 +653,6 @@ Deno.serve(async (req) => {
           leagueId: league.id,
           fetchedAt: snapshot.fetched_at,
           exchangeChaosToDivine: snapshot.exchange_chaos_to_divine,
-          stashChaosToDivine: snapshot.stash_chaos_to_divine,
           stackedDeckChaosCost: snapshot.stacked_deck_chaos_cost,
           stackedDeckMaxVolumeRate:
             snapshot.stacked_deck_max_volume_rate ?? null,

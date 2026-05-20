@@ -207,19 +207,10 @@ function createMockPriceSnapshot(overrides: Record<string, any> = {}) {
   return {
     timestamp: "2025-01-15T10:00:00Z",
     stackedDeckChaosCost: 3,
-    exchange: {
-      chaosToDivineRatio: 200,
-      cardPrices: {
-        "The Doctor": { chaosValue: 1200, divineValue: 6.0 },
-        "Rain of Chaos": { chaosValue: 1.5, divineValue: 0.0075 },
-      },
-    },
-    stash: {
-      chaosToDivineRatio: 195,
-      cardPrices: {
-        "The Doctor": { chaosValue: 1100, divineValue: 5.64 },
-        "Rain of Chaos": { chaosValue: 1.2, divineValue: 0.006 },
-      },
+    chaosToDivineRatio: 200,
+    cardPrices: {
+      "The Doctor": { chaosValue: 1200, divineValue: 6.0 },
+      "Rain of Chaos": { chaosValue: 1.5, divineValue: 0.0075 },
     },
     ...overrides,
   };
@@ -291,33 +282,18 @@ describe("CurrentSessionService", () => {
 
     snapshotId = await seedSnapshot(testDb.kysely, {
       leagueId,
-      exchangeChaosToDivine: 200,
-      stashChaosToDivine: 195,
+      chaosToDivineRatio: 200,
       stackedDeckChaosCost: 3,
       cardPrices: [
         {
           cardName: "The Doctor",
-          priceSource: "exchange",
           chaosValue: 1200,
           divineValue: 6.0,
         },
         {
-          cardName: "The Doctor",
-          priceSource: "stash",
-          chaosValue: 1100,
-          divineValue: 5.64,
-        },
-        {
           cardName: "Rain of Chaos",
-          priceSource: "exchange",
           chaosValue: 1.5,
           divineValue: 0.0075,
-        },
-        {
-          cardName: "Rain of Chaos",
-          priceSource: "stash",
-          chaosValue: 1.2,
-          divineValue: 0.006,
         },
       ],
     });
@@ -1216,10 +1192,8 @@ describe("CurrentSessionService", () => {
 
       const doctorCard = result.cards.find((c: any) => c.name === "The Doctor");
       expect(doctorCard).toBeDefined();
-      expect(doctorCard.exchangePrice).toBeDefined();
-      expect(doctorCard.exchangePrice.chaosValue).toBe(1200);
-      expect(doctorCard.stashPrice).toBeDefined();
-      expect(doctorCard.stashPrice.chaosValue).toBe(1100);
+      expect(doctorCard.price).toBeDefined();
+      expect(doctorCard.price.chaosValue).toBe(1200);
     });
 
     it("should calculate totalValue as chaosValue * count", async () => {
@@ -1231,21 +1205,17 @@ describe("CurrentSessionService", () => {
 
       const doctorCard = result.cards.find((c: any) => c.name === "The Doctor");
       expect(doctorCard.count).toBe(2);
-      expect(doctorCard.exchangePrice.totalValue).toBe(1200 * 2);
-      expect(doctorCard.stashPrice.totalValue).toBe(1100 * 2);
+      expect(doctorCard.price.totalValue).toBe(1200 * 2);
     });
 
-    it("should include totals with exchange and stash values", async () => {
+    it("should include exchange-only totals", async () => {
       await service.startSession("poe1", "Settlers");
       await service.addCard("poe1", "Settlers", "The Doctor", "totals-1");
 
       const result = await service.getCurrentSession("poe1");
 
       expect(result.totals).toBeDefined();
-      expect(result.totals.exchange).toBeDefined();
-      expect(result.totals.stash).toBeDefined();
-      expect(result.totals.exchange.totalValue).toBeGreaterThan(0);
-      expect(result.totals.stash.totalValue).toBeGreaterThan(0);
+      expect(result.totals.totalValue).toBeGreaterThan(0);
     });
 
     it("should calculate net profit (total value - deck cost)", async () => {
@@ -1255,11 +1225,8 @@ describe("CurrentSessionService", () => {
       const result = await service.getCurrentSession("poe1");
 
       const expectedDeckCost = 3 * 1; // stackedDeckChaosCost * totalDecksOpened
-      expect(result.totals.exchange.netProfit).toBe(
-        result.totals.exchange.totalValue - expectedDeckCost,
-      );
-      expect(result.totals.stash.netProfit).toBe(
-        result.totals.stash.totalValue - expectedDeckCost,
+      expect(result.totals.netProfit).toBe(
+        result.totals.totalValue - expectedDeckCost,
       );
       expect(result.totals.stackedDeckChaosCost).toBe(3);
       expect(result.totals.totalDeckCost).toBe(expectedDeckCost);
@@ -1271,7 +1238,7 @@ describe("CurrentSessionService", () => {
       const result = await service.getCurrentSession("poe1");
 
       expect(result.priceSnapshot).toBeDefined();
-      expect(result.priceSnapshot.exchange.chaosToDivineRatio).toBe(200);
+      expect(result.priceSnapshot.chaosToDivineRatio).toBe(200);
     });
 
     it("should include snapshotId in result", async () => {
@@ -1332,8 +1299,7 @@ describe("CurrentSessionService", () => {
       const result = await service.getCurrentSession("poe1");
 
       expect(result).not.toBeNull();
-      expect(result.totals.exchange.totalValue).toBe(0);
-      expect(result.totals.stash.totalValue).toBe(0);
+      expect(result.totals.totalValue).toBe(0);
     });
 
     it("should include recent drops in order", async () => {
@@ -1348,8 +1314,7 @@ describe("CurrentSessionService", () => {
       // Each recent drop should have card name and price info
       for (const drop of result.recentDrops) {
         expect(drop.cardName).toBeDefined();
-        expect(drop.exchangePrice).toBeDefined();
-        expect(drop.stashPrice).toBeDefined();
+        expect(drop.price).toBeDefined();
         expect(drop.rarity).toBeDefined();
       }
     });
@@ -1358,14 +1323,8 @@ describe("CurrentSessionService", () => {
       mockLoadSnapshot.mockResolvedValue({
         timestamp: "2025-01-15T10:00:00Z",
         stackedDeckChaosCost: 3,
-        exchange: {
-          chaosToDivineRatio: 200,
-          cardPrices: {},
-        },
-        stash: {
-          chaosToDivineRatio: 195,
-          cardPrices: {},
-        },
+        chaosToDivineRatio: 200,
+        cardPrices: {},
       });
 
       await service.startSession("poe1", "Settlers");
@@ -1376,17 +1335,15 @@ describe("CurrentSessionService", () => {
         (c: any) => c.name === "Unknown Card",
       );
 
-      expect(unknownCard.exchangePrice.chaosValue).toBe(0);
-      expect(unknownCard.exchangePrice.divineValue).toBe(0);
-      expect(unknownCard.stashPrice.chaosValue).toBe(0);
-      expect(unknownCard.stashPrice.divineValue).toBe(0);
+      expect(unknownCard.price.chaosValue).toBe(0);
+      expect(unknownCard.price.divineValue).toBe(0);
     });
   });
 
   // ─── updateCardPriceVisibility ─────────────────────────────────────────
 
   describe("updateCardPriceVisibility", () => {
-    it("should update exchange price visibility for a card", async () => {
+    it("should update price visibility for a card", async () => {
       await service.startSession("poe1", "Settlers");
       await service.addCard("poe1", "Settlers", "The Doctor", "vis-1");
 
@@ -1395,41 +1352,17 @@ describe("CurrentSessionService", () => {
       await service.updateCardPriceVisibility(
         "poe1",
         info!.sessionId,
-        "exchange",
         "The Doctor",
         true,
       );
 
       const card = await testDb.kysely
         .selectFrom("session_cards")
-        .select("hide_price_exchange")
+        .select("hide_price")
         .where("card_name", "=", "The Doctor")
         .executeTakeFirst();
 
-      expect(card?.hide_price_exchange).toBe(1);
-    });
-
-    it("should update stash price visibility for a card", async () => {
-      await service.startSession("poe1", "Settlers");
-      await service.addCard("poe1", "Settlers", "Rain of Chaos", "vis-2");
-
-      const info = service.getActiveSessionInfo("poe1");
-
-      await service.updateCardPriceVisibility(
-        "poe1",
-        info!.sessionId,
-        "stash",
-        "Rain of Chaos",
-        true,
-      );
-
-      const card = await testDb.kysely
-        .selectFrom("session_cards")
-        .select("hide_price_stash")
-        .where("card_name", "=", "Rain of Chaos")
-        .executeTakeFirst();
-
-      expect(card?.hide_price_stash).toBe(1);
+      expect(card?.hide_price).toBe(1);
     });
 
     it('should resolve "current" to the active session ID', async () => {
@@ -1440,18 +1373,17 @@ describe("CurrentSessionService", () => {
       await service.updateCardPriceVisibility(
         "poe1",
         "current",
-        "exchange",
         "The Doctor",
         true,
       );
 
       const card = await testDb.kysely
         .selectFrom("session_cards")
-        .select("hide_price_exchange")
+        .select("hide_price")
         .where("card_name", "=", "The Doctor")
         .executeTakeFirst();
 
-      expect(card?.hide_price_exchange).toBe(1);
+      expect(card?.hide_price).toBe(1);
     });
 
     it('should throw when using "current" with no active session', async () => {
@@ -1459,7 +1391,6 @@ describe("CurrentSessionService", () => {
         service.updateCardPriceVisibility(
           "poe1",
           "current",
-          "exchange",
           "The Doctor",
           true,
         ),
@@ -1475,7 +1406,6 @@ describe("CurrentSessionService", () => {
       await service.updateCardPriceVisibility(
         "poe1",
         "current",
-        "exchange",
         "The Doctor",
         true,
       );
@@ -1498,7 +1428,6 @@ describe("CurrentSessionService", () => {
       await service.updateCardPriceVisibility(
         "poe1",
         info!.sessionId,
-        "exchange",
         "The Doctor",
         true,
       );
@@ -1507,18 +1436,17 @@ describe("CurrentSessionService", () => {
       await service.updateCardPriceVisibility(
         "poe1",
         info!.sessionId,
-        "exchange",
         "The Doctor",
         false,
       );
 
       const card = await testDb.kysely
         .selectFrom("session_cards")
-        .select("hide_price_exchange")
+        .select("hide_price")
         .where("card_name", "=", "The Doctor")
         .executeTakeFirst();
 
-      expect(card?.hide_price_exchange).toBe(0);
+      expect(card?.hide_price).toBe(0);
     });
 
     it("should affect session totals when card is hidden", async () => {
@@ -1527,19 +1455,18 @@ describe("CurrentSessionService", () => {
 
       // Get totals before hiding
       const beforeResult = await service.getCurrentSession("poe1");
-      const totalBefore = beforeResult.totals.exchange.totalValue;
+      const totalBefore = beforeResult.totals.totalValue;
 
-      // Hide The Doctor from exchange
+      // Hide The Doctor from totals
       await service.updateCardPriceVisibility(
         "poe1",
         "current",
-        "exchange",
         "The Doctor",
         true,
       );
 
       const afterResult = await service.getCurrentSession("poe1");
-      const totalAfter = afterResult.totals.exchange.totalValue;
+      const totalAfter = afterResult.totals.totalValue;
 
       // Total should be less after hiding an expensive card
       expect(totalAfter).toBeLessThan(totalBefore);
@@ -1549,7 +1476,7 @@ describe("CurrentSessionService", () => {
   // ─── Session summary creation ──────────────────────────────────────────
 
   describe("session summary", () => {
-    it("should calculate exchange and stash totals correctly", async () => {
+    it("should calculate exchange totals correctly", async () => {
       await service.startSession("poe1", "Settlers");
       await service.addCard("poe1", "Settlers", "The Doctor", "summary-1");
       await service.addCard("poe1", "Settlers", "The Doctor", "summary-2");
@@ -1566,10 +1493,7 @@ describe("CurrentSessionService", () => {
       expect(summary!.total_decks_opened).toBe(3);
 
       // Exchange: Doctor (1200 * 2) + Rain (1.5 * 1) = 2401.5
-      expect(summary!.total_exchange_value).toBeCloseTo(2401.5, 1);
-
-      // Stash: Doctor (1100 * 2) + Rain (1.2 * 1) = 2201.2
-      expect(summary!.total_stash_value).toBeCloseTo(2201.2, 1);
+      expect(summary!.total_value).toBeCloseTo(2401.5, 1);
     });
 
     it("should calculate net profit as value minus deck cost", async () => {
@@ -1589,10 +1513,7 @@ describe("CurrentSessionService", () => {
       const totalDeckCost = deckCost * 2; // 2 decks opened
 
       // Exchange net profit: (1.5 * 2) - 6 = -3
-      expect(summary!.total_exchange_net_profit).toBeCloseTo(
-        1.5 * 2 - totalDeckCost,
-        1,
-      );
+      expect(summary!.net_profit).toBeCloseTo(1.5 * 2 - totalDeckCost, 1);
     });
 
     it("should include chaos-to-divine ratios from the snapshot", async () => {
@@ -1605,8 +1526,7 @@ describe("CurrentSessionService", () => {
         .selectAll()
         .executeTakeFirst();
 
-      expect(summary!.exchange_chaos_to_divine).toBe(200);
-      expect(summary!.stash_chaos_to_divine).toBe(195);
+      expect(summary!.chaos_to_divine_ratio).toBe(200);
       expect(summary!.stacked_deck_chaos_cost).toBe(3);
     });
 
@@ -1635,11 +1555,10 @@ describe("CurrentSessionService", () => {
         "hidden-sum-2",
       );
 
-      // Hide The Doctor from exchange
+      // Hide The Doctor from totals
       await service.updateCardPriceVisibility(
         "poe1",
         "current",
-        "exchange",
         "The Doctor",
         true,
       );
@@ -1652,9 +1571,7 @@ describe("CurrentSessionService", () => {
         .executeTakeFirst();
 
       // Exchange should only include Rain of Chaos (Doctor is hidden)
-      expect(summary!.total_exchange_value).toBeCloseTo(1.5, 1);
-      // Stash should include both (Doctor is only hidden for exchange)
-      expect(summary!.total_stash_value).toBeCloseTo(1100 + 1.2, 1);
+      expect(summary!.total_value).toBeCloseTo(1.5, 1);
     });
   });
 
@@ -1758,23 +1675,21 @@ describe("CurrentSessionService", () => {
       expect(rainCard.count).toBe(3);
 
       // 4. Verify totals
-      expect(session.totals.exchange.totalValue).toBeGreaterThan(0);
-      expect(session.totals.stash.totalValue).toBeGreaterThan(0);
+      expect(session.totals.totalValue).toBeGreaterThan(0);
       expect(session.totals.totalDeckCost).toBe(3 * 5); // 3 chaos * 5 decks
 
       // 5. Hide a card
       await service.updateCardPriceVisibility(
         "poe1",
         "current",
-        "exchange",
         "The Doctor",
         true,
       );
 
       // 6. Verify totals changed
       const updatedSession = await service.getCurrentSession("poe1");
-      expect(updatedSession.totals.exchange.totalValue).toBeLessThan(
-        session.totals.exchange.totalValue,
+      expect(updatedSession.totals.totalValue).toBeLessThan(
+        session.totals.totalValue,
       );
 
       // 7. Stop session
@@ -1909,8 +1824,8 @@ describe("CurrentSessionService", () => {
     });
 
     it("should preserve rarity 0 (Unknown) and not coerce it to rarity 4 (regression)", async () => {
-      // Seed a divination card with rarity 0 — this happens when a card
-      // has only stash data (no exchange data) or low-confidence pricing.
+      // Seed a divination card with rarity 0 — this happens when exchange
+      // pricing is missing or low-confidence.
       // Previously, `|| 4` treated 0 as falsy and silently promoted it to 4.
       await seedDivinationCard(testDb.kysely, {
         game: "poe1",
@@ -1970,7 +1885,6 @@ describe("CurrentSessionService", () => {
       await service.updateCardPriceVisibility(
         "poe1",
         "current",
-        "exchange",
         "The Doctor",
         true,
       );
@@ -1998,21 +1912,13 @@ describe("CurrentSessionService", () => {
 
       poe2SnapshotId = await seedSnapshot(testDb.kysely, {
         leagueId: poe2LeagueId,
-        exchangeChaosToDivine: 180,
-        stashChaosToDivine: 175,
+        chaosToDivineRatio: 180,
         stackedDeckChaosCost: 2,
         cardPrices: [
           {
             cardName: "Rain of Chaos",
-            priceSource: "exchange",
             chaosValue: 1.5,
             divineValue: 0.008,
-          },
-          {
-            cardName: "Rain of Chaos",
-            priceSource: "stash",
-            chaosValue: 1.2,
-            divineValue: 0.007,
           },
         ],
       });

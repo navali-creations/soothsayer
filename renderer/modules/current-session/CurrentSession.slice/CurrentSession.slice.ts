@@ -21,10 +21,7 @@ export interface SessionSlice {
     startListening: () => () => void;
     startSession: () => Promise<void>;
     stopSession: () => Promise<void>;
-    toggleCardPriceVisibility: (
-      cardName: string,
-      priceSource: "exchange" | "stash",
-    ) => Promise<void>;
+    toggleCardPriceVisibility: (cardName: string) => Promise<void>;
 
     // Getters
     getSession: () => DetailedDivinationCardStats | null;
@@ -88,17 +85,15 @@ export const createSessionSlice: StateCreator<
               league: league || activeInfo.league,
               game: game || "poe1",
               fetchedAt: activeSession.priceSnapshot.timestamp,
-              exchangeChaosToDivine:
-                activeSession.priceSnapshot.exchange.chaosToDivineRatio,
-              stashChaosToDivine:
-                activeSession.priceSnapshot.stash.chaosToDivineRatio,
+              chaosToDivineRatio:
+                activeSession.priceSnapshot.chaosToDivineRatio,
               isReused: false,
             });
           }
 
           // Strip large immutable blobs from session data before storing.
           // The full priceSnapshot contains cardPrices records (hundreds of
-          // entries × 2 sources) that never change during a session, but get
+          // entries) that never change during a session, but get
           // structurally cloned by Immer on every set() and snapshotted by
           // devtools — causing massive memory growth.
           //
@@ -111,14 +106,10 @@ export const createSessionSlice: StateCreator<
               (rest as any).priceSnapshot = {
                 timestamp: priceSnapshot.timestamp,
                 stackedDeckChaosCost: priceSnapshot.stackedDeckChaosCost,
-                exchange: {
-                  chaosToDivineRatio: priceSnapshot.exchange.chaosToDivineRatio,
-                  cardPrices: {},
-                },
-                stash: {
-                  chaosToDivineRatio: priceSnapshot.stash.chaosToDivineRatio,
-                  cardPrices: {},
-                },
+                stackedDeckMaxVolumeRate:
+                  priceSnapshot.stackedDeckMaxVolumeRate,
+                chaosToDivineRatio: priceSnapshot.chaosToDivineRatio,
+                cardPrices: {},
               };
             }
             return rest as typeof s;
@@ -198,15 +189,10 @@ export const createSessionSlice: StateCreator<
                 (rest as any).priceSnapshot = {
                   timestamp: priceSnapshot.timestamp,
                   stackedDeckChaosCost: priceSnapshot.stackedDeckChaosCost,
-                  exchange: {
-                    chaosToDivineRatio:
-                      priceSnapshot.exchange.chaosToDivineRatio,
-                    cardPrices: {},
-                  },
-                  stash: {
-                    chaosToDivineRatio: priceSnapshot.stash.chaosToDivineRatio,
-                    cardPrices: {},
-                  },
+                  stackedDeckMaxVolumeRate:
+                    priceSnapshot.stackedDeckMaxVolumeRate,
+                  chaosToDivineRatio: priceSnapshot.chaosToDivineRatio,
+                  cardPrices: {},
                 };
               }
               const stripped = rest as typeof payload.data;
@@ -269,14 +255,9 @@ export const createSessionSlice: StateCreator<
               const card = session.cards[existingCardIndex];
               card.count = payload.delta.newCount;
               // Update total values (price * count)
-              if (card.exchangePrice && payload.delta.exchangePrice) {
-                card.exchangePrice.totalValue =
-                  payload.delta.exchangePrice.chaosValue *
-                  payload.delta.newCount;
-              }
-              if (card.stashPrice && payload.delta.stashPrice) {
-                card.stashPrice.totalValue =
-                  payload.delta.stashPrice.chaosValue * payload.delta.newCount;
+              if (card.price && payload.delta.price) {
+                card.price.totalValue =
+                  payload.delta.price.chaosValue * payload.delta.newCount;
               }
             } else {
               // New card — add to the array
@@ -284,24 +265,13 @@ export const createSessionSlice: StateCreator<
                 name: payload.delta.cardName,
                 count: payload.delta.newCount,
               };
-              if (payload.delta.exchangePrice) {
-                newCard.exchangePrice = {
-                  chaosValue: payload.delta.exchangePrice.chaosValue,
-                  divineValue: payload.delta.exchangePrice.divineValue,
+              if (payload.delta.price) {
+                newCard.price = {
+                  chaosValue: payload.delta.price.chaosValue,
+                  divineValue: payload.delta.price.divineValue,
                   totalValue:
-                    payload.delta.exchangePrice.chaosValue *
-                    payload.delta.newCount,
-                  hidePrice: payload.delta.hidePriceExchange ?? false,
-                };
-              }
-              if (payload.delta.stashPrice) {
-                newCard.stashPrice = {
-                  chaosValue: payload.delta.stashPrice.chaosValue,
-                  divineValue: payload.delta.stashPrice.divineValue,
-                  totalValue:
-                    payload.delta.stashPrice.chaosValue *
-                    payload.delta.newCount,
-                  hidePrice: payload.delta.hidePriceStash ?? false,
+                    payload.delta.price.chaosValue * payload.delta.newCount,
+                  hidePrice: payload.delta.hidePrice ?? false,
                 };
               }
               if (payload.delta.divinationCard) {
@@ -396,10 +366,8 @@ export const createSessionSlice: StateCreator<
                 league: league || sessionInfo.league,
                 game: game || activeGameView,
                 fetchedAt: sessionData.priceSnapshot.timestamp,
-                exchangeChaosToDivine:
-                  sessionData.priceSnapshot.exchange.chaosToDivineRatio,
-                stashChaosToDivine:
-                  sessionData.priceSnapshot.stash.chaosToDivineRatio,
+                chaosToDivineRatio:
+                  sessionData.priceSnapshot.chaosToDivineRatio,
                 isReused: false,
               });
             }
@@ -414,15 +382,10 @@ export const createSessionSlice: StateCreator<
                 (rest as any).priceSnapshot = {
                   timestamp: priceSnapshot.timestamp,
                   stackedDeckChaosCost: priceSnapshot.stackedDeckChaosCost,
-                  exchange: {
-                    chaosToDivineRatio:
-                      priceSnapshot.exchange.chaosToDivineRatio,
-                    cardPrices: {},
-                  },
-                  stash: {
-                    chaosToDivineRatio: priceSnapshot.stash.chaosToDivineRatio,
-                    cardPrices: {},
-                  },
+                  stackedDeckMaxVolumeRate:
+                    priceSnapshot.stackedDeckMaxVolumeRate,
+                  chaosToDivineRatio: priceSnapshot.chaosToDivineRatio,
+                  cardPrices: {},
                 };
               }
               stripped = rest as typeof sessionData;
@@ -505,18 +468,14 @@ export const createSessionSlice: StateCreator<
     },
 
     getChaosToDivineRatio: () => {
-      const { currentSession, settings } = get();
+      const { currentSession } = get();
       const session = currentSession.getSession();
-      const priceSource = settings.getActiveGameViewPriceSource();
 
       if (!session?.totals) return 0;
-      return session.totals[priceSource].chaosToDivineRatio;
+      return session.totals.chaosToDivineRatio;
     },
 
-    toggleCardPriceVisibility: async (
-      cardName: string,
-      priceSource: "exchange" | "stash",
-    ) => {
+    toggleCardPriceVisibility: async (cardName: string) => {
       const {
         settings: { getSelectedGame },
         currentSession: { getSession },
@@ -531,16 +490,12 @@ export const createSessionSlice: StateCreator<
       const card = session.cards.find((c) => c.name === cardName);
       if (!card) return;
 
-      const currentHidePrice =
-        priceSource === "stash"
-          ? card.stashPrice?.hidePrice || false
-          : card.exchangePrice?.hidePrice || false;
+      const currentHidePrice = card.price?.hidePrice || false;
 
       // Call backend to update
       await window.electron.session.updateCardPriceVisibility(
         activeGameView,
         "current",
-        priceSource,
         cardName,
         !currentHidePrice,
       );

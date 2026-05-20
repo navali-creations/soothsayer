@@ -74,9 +74,9 @@ describe("DivinationCardsService — updateRaritiesFromPrices", () => {
 
   function classifyRarity(
     chaosValue: number,
-    exchangeChaosToDivine: number,
+    chaosToDivineRatio: number,
   ): number {
-    const divineValue = chaosValue / exchangeChaosToDivine;
+    const divineValue = chaosValue / chaosToDivineRatio;
     const percentOfDivine = divineValue * 100;
 
     if (percentOfDivine >= 70) return 1;
@@ -251,7 +251,7 @@ describe("DivinationCardsService — updateRaritiesFromPrices", () => {
     async function updateRaritiesFromPrices(
       game: "poe1" | "poe2",
       league: string,
-      exchangeChaosToDivine: number,
+      chaosToDivineRatio: number,
       cardPrices: Record<string, { chaosValue: number }>,
     ): Promise<void> {
       const updates: Array<{ name: string; rarity: Rarity }> = [];
@@ -260,7 +260,7 @@ describe("DivinationCardsService — updateRaritiesFromPrices", () => {
 
       for (const [cardName, priceData] of Object.entries(cardPrices)) {
         const chaosValue = priceData.chaosValue;
-        const divineValue = chaosValue / exchangeChaosToDivine;
+        const divineValue = chaosValue / chaosToDivineRatio;
         const percentOfDivine = divineValue * 100;
 
         let rarity: Rarity;

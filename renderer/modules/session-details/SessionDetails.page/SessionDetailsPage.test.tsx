@@ -14,8 +14,9 @@ vi.mock("~/renderer/store", () => ({
   useSessionDetails: vi.fn(),
 }));
 
-const { mockHistoryBack } = vi.hoisted(() => ({
+const { mockHistoryBack, mockSessionProfitTimeline } = vi.hoisted(() => ({
   mockHistoryBack: vi.fn(),
+  mockSessionProfitTimeline: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", async () => {
@@ -43,10 +44,36 @@ vi.mock("../SessionDetails.components", () => ({
       data-testid="session-details-stats"
       data-expanded={expanded}
       data-has-toggle={!!onToggleExpanded}
-    />
+    >
+      {onToggleExpanded && (
+        <button
+          type="button"
+          data-testid="toggle-timeline"
+          onClick={onToggleExpanded}
+        >
+          Toggle timeline
+        </button>
+      )}
+    </div>
   ),
   SessionDetailsTable: () => <div data-testid="session-details-table" />,
 }));
+
+vi.mock(
+  "~/renderer/modules/current-session/CurrentSession.components/SessionProfitTimeline",
+  () => ({
+    default: (props: any) => {
+      mockSessionProfitTimeline(props);
+      return (
+        <div
+          data-testid="session-profit-timeline"
+          data-deck-cost={props.stackedDeckChaosCost}
+          data-ratio={props.chaosToDivineRatio}
+        />
+      );
+    },
+  }),
+);
 
 vi.mock("~/renderer/components", () => ({
   PageContainer: Object.assign(
@@ -98,7 +125,6 @@ function createMockSessionDetails(overrides: any = {}) {
     getPriceData: vi
       .fn()
       .mockReturnValue({ chaosToDivineRatio: 150, cardPrices: {} }),
-    setPriceSource: vi.fn(),
     toggleCardPriceVisibility: vi.fn(),
     ...overrides.sessionDetails,
   } as any;
@@ -118,49 +144,53 @@ function makeSession(overrides: any = {}) {
       {
         name: "The Doctor",
         count: 2,
-        exchangePrice: {
+        price: {
           chaosValue: 1200,
           divineValue: 8,
           totalValue: 2400,
-          hidePrice: false,
-        },
-        stashPrice: {
-          chaosValue: 1100,
-          divineValue: 7.3,
-          totalValue: 2200,
           hidePrice: false,
         },
       },
       {
         name: "Rain of Chaos",
         count: 30,
-        exchangePrice: {
+        price: {
           chaosValue: 1,
           divineValue: 0.007,
           totalValue: 30,
           hidePrice: false,
         },
-        stashPrice: {
-          chaosValue: 0.8,
-          divineValue: 0.005,
-          totalValue: 24,
-          hidePrice: false,
-        },
       },
     ],
     priceSnapshot: {
-      exchange: {
-        chaosToDivineRatio: 150,
-        cardPrices: {},
-      },
-      stash: {
-        chaosToDivineRatio: 145,
-        cardPrices: {},
-      },
+      timestamp: "2024-01-15T10:00:00Z",
+      chaosToDivineRatio: 150,
+      cardPrices: {},
       stackedDeckChaosCost: 2,
     },
     ...overrides,
   } as any);
+}
+
+function makeTimeline(overrides: any = {}) {
+  return {
+    buckets: [
+      {
+        timestamp: "2024-01-15T10:00:00Z",
+        dropCount: 40,
+        cumulativeChaosValue: 18.47,
+        cumulativeDivineValue: 0,
+        topCard: null,
+        topCardChaosValue: 0,
+      },
+    ],
+    liveEdge: [],
+    totalChaosValue: 18.47,
+    totalDivineValue: 0,
+    totalDrops: 40,
+    notableDrops: [],
+    ...overrides,
+  };
 }
 
 // ─── Tests ─────────────────────────────────────────────────────────────────
@@ -168,6 +198,7 @@ function makeSession(overrides: any = {}) {
 describe("SessionDetailsPage", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    mockSessionProfitTimeline.mockClear();
   });
 
   // ── Loading state ──────────────────────────────────────────────────────
@@ -679,6 +710,48 @@ describe("SessionDetailsPage", () => {
       renderWithProviders(<SessionDetailsPage />);
 
       expect(screen.getByTestId("session-details-stats")).toBeInTheDocument();
+    });
+
+    it("passes persisted deck cost to the expanded profit timeline when snapshot prices are unavailable", async () => {
+      const timeline = makeTimeline();
+      const session = makeSession({
+        priceSnapshot: undefined,
+        totals: {
+          chaosToDivineRatio: 215,
+          totalValue: 18.47,
+          netProfit: -187.53,
+          totalDeckCost: 206,
+          stackedDeckChaosCost: 5.15,
+        },
+      });
+      setupStore({
+        sessionDetails: {
+          loadSession: vi.fn(),
+          clearSession: vi.fn(),
+          getSession: vi.fn(() => session),
+          getIsLoading: vi.fn(() => false),
+          getTimeline: vi.fn(() => timeline),
+          getHasTimeline: vi.fn(() => true),
+          getPriceData: vi
+            .fn()
+            .mockReturnValue({ chaosToDivineRatio: 215, cardPrices: {} }),
+        },
+      });
+
+      const { user } = renderWithProviders(<SessionDetailsPage />);
+      await user.click(screen.getByTestId("toggle-timeline"));
+
+      expect(screen.getByTestId("session-profit-timeline")).toHaveAttribute(
+        "data-deck-cost",
+        "5.15",
+      );
+      expect(mockSessionProfitTimeline).toHaveBeenCalledWith(
+        expect.objectContaining({
+          timeline,
+          chaosToDivineRatio: 215,
+          stackedDeckChaosCost: 5.15,
+        }),
+      );
     });
   });
 });

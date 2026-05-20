@@ -189,22 +189,6 @@ export class SettingsStoreRepository {
     return this.set("poe2SelectedLeague", value);
   }
 
-  async getPoe1PriceSource(): Promise<"exchange" | "stash"> {
-    return this.get("poe1PriceSource");
-  }
-
-  async setPoe1PriceSource(value: "exchange" | "stash"): Promise<void> {
-    return this.set("poe1PriceSource", value);
-  }
-
-  async getPoe2PriceSource(): Promise<"exchange" | "stash"> {
-    return this.get("poe2PriceSource");
-  }
-
-  async setPoe2PriceSource(value: "exchange" | "stash"): Promise<void> {
-    return this.set("poe2PriceSource", value);
-  }
-
   async getSetupCompleted(): Promise<boolean> {
     return this.get("setupCompleted");
   }

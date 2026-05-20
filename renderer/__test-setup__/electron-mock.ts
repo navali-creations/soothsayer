@@ -112,10 +112,6 @@ export function createElectronMock() {
       setSelectedPoe1League: vi.fn().mockResolvedValue(undefined),
       getSelectedPoe2League: vi.fn().mockResolvedValue(""),
       setSelectedPoe2League: vi.fn().mockResolvedValue(undefined),
-      getSelectedPoe1PriceSource: vi.fn().mockResolvedValue("exchange"),
-      setSelectedPoe1PriceSource: vi.fn().mockResolvedValue(undefined),
-      getSelectedPoe2PriceSource: vi.fn().mockResolvedValue("exchange"),
-      setSelectedPoe2PriceSource: vi.fn().mockResolvedValue(undefined),
       scanCustomSounds: vi.fn().mockResolvedValue([]),
       getCustomSoundData: vi.fn().mockResolvedValue(null),
       openCustomSoundsFolder: vi
@@ -150,6 +146,7 @@ export function createElectronMock() {
         pageSize: 10,
         totalPages: 0,
       }),
+      getLeagues: vi.fn().mockResolvedValue([]),
       getById: vi.fn().mockResolvedValue(null),
       searchByCard: vi.fn().mockResolvedValue({
         sessions: [],

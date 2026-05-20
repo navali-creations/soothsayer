@@ -9,7 +9,6 @@ export const onboardingBeaconLabels = {
   "game-selector": "Game selector",
   "overlay-icon": "Overlay icon",
   "current-session-rarity-source": "Rarity source",
-  "stash-prices": "Stash prices",
   "start-session": "Start session",
   "rarity-insights-poe-ninja": "poe.ninja prices",
   "rarity-insights-prohibited-library": "Prohibited Library prices",
@@ -64,10 +63,6 @@ export const onboardingBeaconGroups: OnboardingBeaconGroup[] = [
       {
         id: "current-session-rarity-source",
         label: onboardingBeaconLabels["current-session-rarity-source"],
-      },
-      {
-        id: "stash-prices",
-        label: onboardingBeaconLabels["stash-prices"],
       },
       {
         id: "start-session",

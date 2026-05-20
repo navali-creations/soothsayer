@@ -8,8 +8,7 @@ export interface SnapshotInfo {
   league: string;
   game: string;
   fetchedAt: string;
-  exchangeChaosToDivine: number;
-  stashChaosToDivine: number;
+  chaosToDivineRatio: number;
   isReused: boolean;
 }
 
@@ -31,10 +30,6 @@ export interface PoeNinjaSlice {
 
     // State - Cache status
     exchangeCacheStatus: {
-      isCached: boolean;
-      lastFetchTime: string | null;
-    };
-    stashCacheStatus: {
       isCached: boolean;
       lastFetchTime: string | null;
     };
@@ -68,7 +63,6 @@ export interface PoeNinjaSlice {
 
     // Actions - Cache
     markExchangeCached: () => void;
-    markStashCached: () => void;
     clearCacheStatus: () => void;
 
     // Actions - Price refresh
@@ -116,10 +110,6 @@ export const createPoeNinjaSlice: StateCreator<
     currentSnapshot: null,
     autoRefreshes: new Map(),
     exchangeCacheStatus: {
-      isCached: false,
-      lastFetchTime: null,
-    },
-    stashCacheStatus: {
       isCached: false,
       lastFetchTime: null,
     },
@@ -288,27 +278,10 @@ export const createPoeNinjaSlice: StateCreator<
       );
     },
 
-    markStashCached: () => {
-      set(
-        ({ poeNinja }) => {
-          poeNinja.stashCacheStatus = {
-            isCached: true,
-            lastFetchTime: new Date().toISOString(),
-          };
-        },
-        false,
-        "poeNinjaSlice/markStashCached",
-      );
-    },
-
     clearCacheStatus: () => {
       set(
         ({ poeNinja }) => {
           poeNinja.exchangeCacheStatus = {
-            isCached: false,
-            lastFetchTime: null,
-          };
-          poeNinja.stashCacheStatus = {
             isCached: false,
             lastFetchTime: null,
           };

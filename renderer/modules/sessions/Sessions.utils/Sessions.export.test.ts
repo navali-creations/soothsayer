@@ -5,7 +5,7 @@ import type { SessionSummary } from "~/main/modules/sessions";
 import { generateRichCsv, generateSimpleCsv } from "./Sessions.export";
 
 const RICH_HEADER =
-  "Session Date,League,Duration (min),Decks Opened,Exchange Value (chaos),Stash Value (chaos),Net Profit (chaos),Chaos/Divine Ratio,Stacked Deck Cost (chaos)\n";
+  "Session Date,League,Duration (min),Decks Opened,Value (chaos),Net Profit (chaos),Chaos/Divine Ratio,Stacked Deck Cost (chaos)\n";
 
 describe("generateRichCsv", () => {
   it("produces correct header row", () => {
@@ -25,10 +25,9 @@ describe("generateRichCsv", () => {
       league: "Affliction",
       durationMinutes: 45,
       totalDecksOpened: 100,
-      totalExchangeValue: 1234.567,
-      totalStashValue: 500.123,
-      totalExchangeNetProfit: 734.444,
-      exchangeChaosToDivine: 180.5,
+      totalValue: 1234.567,
+      netProfit: 734.444,
+      chaosToDivineRatio: 180.5,
       stackedDeckChaosCost: 3.25,
     } as SessionSummary;
 
@@ -37,7 +36,7 @@ describe("generateRichCsv", () => {
 
     expect(lines[0]).toBe(RICH_HEADER.trimEnd());
     expect(lines[1]).toBe(
-      "2024-01-15T10:00:00Z,Affliction,45,100,1234.57,500.12,734.44,180.5,3.25",
+      "2024-01-15T10:00:00Z,Affliction,45,100,1234.57,734.44,180.5,3.25",
     );
   });
 
@@ -47,17 +46,16 @@ describe("generateRichCsv", () => {
       league: null,
       durationMinutes: null,
       totalDecksOpened: null,
-      totalExchangeValue: null,
-      totalStashValue: null,
-      totalExchangeNetProfit: null,
-      exchangeChaosToDivine: null,
+      totalValue: null,
+      netProfit: null,
+      chaosToDivineRatio: null,
       stackedDeckChaosCost: null,
     } as unknown as SessionSummary;
 
     const result = generateRichCsv([session]);
     const lines = result.split("\n");
 
-    expect(lines[1]).toBe(",,N/A,0,N/A,N/A,N/A,N/A,N/A");
+    expect(lines[1]).toBe(",,N/A,0,N/A,N/A,N/A,N/A");
   });
 
   it("multiple sessions produce multiple rows", () => {
@@ -67,10 +65,9 @@ describe("generateRichCsv", () => {
         league: "League1",
         durationMinutes: 10,
         totalDecksOpened: 5,
-        totalExchangeValue: 100,
-        totalStashValue: 50,
-        totalExchangeNetProfit: 50,
-        exchangeChaosToDivine: 180,
+        totalValue: 100,
+        netProfit: 50,
+        chaosToDivineRatio: 180,
         stackedDeckChaosCost: 2,
       } as SessionSummary,
       {
@@ -78,10 +75,9 @@ describe("generateRichCsv", () => {
         league: "League2",
         durationMinutes: 20,
         totalDecksOpened: 10,
-        totalExchangeValue: 200,
-        totalStashValue: 100,
-        totalExchangeNetProfit: 100,
-        exchangeChaosToDivine: 190,
+        totalValue: 200,
+        netProfit: 100,
+        chaosToDivineRatio: 190,
         stackedDeckChaosCost: 3,
       } as SessionSummary,
     ];
@@ -158,10 +154,9 @@ describe("CSV formula neutralization", () => {
       league: "@League",
       durationMinutes: 10,
       totalDecksOpened: 5,
-      totalExchangeValue: 100,
-      totalStashValue: 50,
-      totalExchangeNetProfit: 50,
-      exchangeChaosToDivine: 180,
+      totalValue: 100,
+      netProfit: 50,
+      chaosToDivineRatio: 180,
       stackedDeckChaosCost: 2,
     } as SessionSummary;
 

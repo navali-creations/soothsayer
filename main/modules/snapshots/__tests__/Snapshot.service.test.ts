@@ -229,25 +229,21 @@ describe("SnapshotService", () => {
       const snapshotId = await seedSnapshot(testDb.kysely, {
         leagueId,
         fetchedAt: "2025-01-15T12:00:00Z",
-        exchangeChaosToDivine: 200,
-        stashChaosToDivine: 195,
+        chaosToDivineRatio: 200,
         stackedDeckChaosCost: 3,
         cardPrices: [
           {
             cardName: "The Doctor",
-            priceSource: "exchange",
             chaosValue: 800,
             divineValue: 4.0,
           },
           {
             cardName: "The Doctor",
-            priceSource: "stash",
             chaosValue: 780,
             divineValue: 3.9,
           },
           {
             cardName: "Rain of Chaos",
-            priceSource: "exchange",
             chaosValue: 1,
             divineValue: 0.005,
           },
@@ -261,73 +257,17 @@ describe("SnapshotService", () => {
       expect(result!.stackedDeckChaosCost).toBe(3);
 
       // Exchange prices
-      expect(result!.exchange.chaosToDivineRatio).toBe(200);
-      expect(result!.exchange.cardPrices["The Doctor"]).toEqual({
+      expect(result!.chaosToDivineRatio).toBe(200);
+      expect(result!.cardPrices["The Doctor"]).toEqual({
         chaosValue: 800,
         divineValue: 4.0,
         confidence: 1,
       });
-      expect(result!.exchange.cardPrices["Rain of Chaos"]).toEqual({
+      expect(result!.cardPrices["Rain of Chaos"]).toEqual({
         chaosValue: 1,
         divineValue: 0.005,
         confidence: 1,
       });
-
-      // Stash prices
-      expect(result!.stash.chaosToDivineRatio).toBe(195);
-      expect(result!.stash.cardPrices["The Doctor"]).toEqual({
-        chaosValue: 780,
-        divineValue: 3.9,
-        confidence: 1,
-      });
-    });
-
-    it("should separate exchange and stash prices correctly", async () => {
-      const leagueId = await seedLeague(testDb.kysely);
-
-      const snapshotId = await seedSnapshot(testDb.kysely, {
-        leagueId,
-        cardPrices: [
-          {
-            cardName: "Card A",
-            priceSource: "exchange",
-            chaosValue: 100,
-            divineValue: 0.5,
-          },
-          {
-            cardName: "Card B",
-            priceSource: "stash",
-            chaosValue: 50,
-            divineValue: 0.25,
-          },
-          {
-            cardName: "Card C",
-            priceSource: "exchange",
-            chaosValue: 200,
-            divineValue: 1.0,
-          },
-          {
-            cardName: "Card C",
-            priceSource: "stash",
-            chaosValue: 190,
-            divineValue: 0.95,
-          },
-        ],
-      });
-
-      const result = await service.loadSnapshot(snapshotId);
-
-      // Exchange should have Card A and Card C
-      expect(Object.keys(result!.exchange.cardPrices)).toHaveLength(2);
-      expect(result!.exchange.cardPrices["Card A"]).toBeDefined();
-      expect(result!.exchange.cardPrices["Card C"]).toBeDefined();
-      expect(result!.exchange.cardPrices["Card B"]).toBeUndefined();
-
-      // Stash should have Card B and Card C
-      expect(Object.keys(result!.stash.cardPrices)).toHaveLength(2);
-      expect(result!.stash.cardPrices["Card B"]).toBeDefined();
-      expect(result!.stash.cardPrices["Card C"]).toBeDefined();
-      expect(result!.stash.cardPrices["Card A"]).toBeUndefined();
     });
 
     it("should handle a snapshot with no card prices", async () => {
@@ -335,8 +275,7 @@ describe("SnapshotService", () => {
 
       const snapshotId = await seedSnapshot(testDb.kysely, {
         leagueId,
-        exchangeChaosToDivine: 200,
-        stashChaosToDivine: 195,
+        chaosToDivineRatio: 200,
         stackedDeckChaosCost: 5,
         cardPrices: [],
       });
@@ -344,11 +283,9 @@ describe("SnapshotService", () => {
       const result = await service.loadSnapshot(snapshotId);
 
       expect(result).not.toBeNull();
-      expect(result!.exchange.chaosToDivineRatio).toBe(200);
-      expect(result!.stash.chaosToDivineRatio).toBe(195);
+      expect(result!.chaosToDivineRatio).toBe(200);
       expect(result!.stackedDeckChaosCost).toBe(5);
-      expect(Object.keys(result!.exchange.cardPrices)).toHaveLength(0);
-      expect(Object.keys(result!.stash.cardPrices)).toHaveLength(0);
+      expect(Object.keys(result!.cardPrices)).toHaveLength(0);
     });
 
     it("should return stackedDeckChaosCost as 0 when null in DB", async () => {
@@ -380,12 +317,10 @@ describe("SnapshotService", () => {
       const snapshotId = await seedSnapshot(testDb.kysely, {
         leagueId,
         fetchedAt: new Date().toISOString(),
-        exchangeChaosToDivine: 200,
-        stashChaosToDivine: 195,
+        chaosToDivineRatio: 200,
         cardPrices: [
           {
             cardName: "The Doctor",
-            priceSource: "exchange",
             chaosValue: 800,
             divineValue: 4.0,
           },
@@ -396,7 +331,7 @@ describe("SnapshotService", () => {
 
       expect(result.snapshotId).toBe(snapshotId);
       expect(result.data).toBeDefined();
-      expect(result.data.exchange.cardPrices["The Doctor"]).toBeDefined();
+      expect(result.data.cardPrices["The Doctor"]).toBeDefined();
 
       // Supabase should NOT have been called since we reused
       expect(mockGetLatestSnapshot).not.toHaveBeenCalled();
@@ -411,12 +346,10 @@ describe("SnapshotService", () => {
       await seedSnapshot(testDb.kysely, {
         leagueId,
         fetchedAt: new Date().toISOString(),
-        exchangeChaosToDivine: 200,
-        stashChaosToDivine: 195,
+        chaosToDivineRatio: 200,
         cardPrices: [
           {
             cardName: "The Doctor",
-            priceSource: "exchange",
             chaosValue: 800,
             divineValue: 4.0,
           },
@@ -437,15 +370,9 @@ describe("SnapshotService", () => {
       const mockSnapshotData = {
         timestamp: new Date().toISOString(),
         stackedDeckChaosCost: 3,
-        exchange: {
-          chaosToDivineRatio: 200,
-          cardPrices: {
-            "The Doctor": { chaosValue: 800, divineValue: 4.0 },
-          },
-        },
-        stash: {
-          chaosToDivineRatio: 195,
-          cardPrices: {},
+        chaosToDivineRatio: 200,
+        cardPrices: {
+          "The Doctor": { chaosValue: 800, divineValue: 4.0 },
         },
       };
 
@@ -466,12 +393,10 @@ describe("SnapshotService", () => {
       await seedSnapshot(testDb.kysely, {
         leagueId,
         fetchedAt: new Date().toISOString(),
-        exchangeChaosToDivine: 200,
-        stashChaosToDivine: 195,
+        chaosToDivineRatio: 200,
         cardPrices: [
           {
             cardName: "The Doctor",
-            priceSource: "exchange",
             chaosValue: 800,
             divineValue: 4.0,
           },
@@ -494,17 +419,9 @@ describe("SnapshotService", () => {
       const mockSnapshotData = {
         timestamp: new Date().toISOString(),
         stackedDeckChaosCost: 3,
-        exchange: {
-          chaosToDivineRatio: 200,
-          cardPrices: {
-            "The Doctor": { chaosValue: 800, divineValue: 4.0 },
-          },
-        },
-        stash: {
-          chaosToDivineRatio: 195,
-          cardPrices: {
-            "The Doctor": { chaosValue: 780, divineValue: 3.9 },
-          },
+        chaosToDivineRatio: 200,
+        cardPrices: {
+          "The Doctor": { chaosValue: 800, divineValue: 4.0 },
         },
       };
 
@@ -521,15 +438,9 @@ describe("SnapshotService", () => {
       const mockSnapshotData = {
         timestamp: "2025-01-20T12:00:00Z",
         stackedDeckChaosCost: 3,
-        exchange: {
-          chaosToDivineRatio: 200,
-          cardPrices: {
-            "The Doctor": { chaosValue: 800, divineValue: 4.0 },
-          },
-        },
-        stash: {
-          chaosToDivineRatio: 195,
-          cardPrices: {},
+        chaosToDivineRatio: 200,
+        cardPrices: {
+          "The Doctor": { chaosValue: 800, divineValue: 4.0 },
         },
       };
 
@@ -545,23 +456,16 @@ describe("SnapshotService", () => {
         .executeTakeFirst();
 
       expect(storedSnapshot).toBeDefined();
-      expect(storedSnapshot!.exchange_chaos_to_divine).toBe(200);
-      expect(storedSnapshot!.stash_chaos_to_divine).toBe(195);
+      expect(storedSnapshot!.chaos_to_divine_ratio).toBe(200);
     });
 
     it("should call updateRaritiesFromPrices when fetching a new snapshot", async () => {
       const mockSnapshotData = {
         timestamp: new Date().toISOString(),
         stackedDeckChaosCost: 3,
-        exchange: {
-          chaosToDivineRatio: 200,
-          cardPrices: {
-            "The Doctor": { chaosValue: 800, divineValue: 4.0 },
-          },
-        },
-        stash: {
-          chaosToDivineRatio: 195,
-          cardPrices: {},
+        chaosToDivineRatio: 200,
+        cardPrices: {
+          "The Doctor": { chaosValue: 800, divineValue: 4.0 },
         },
       };
 
@@ -574,55 +478,6 @@ describe("SnapshotService", () => {
         "Settlers",
         200,
         { "The Doctor": { chaosValue: 800, confidence: 1 } },
-      );
-    });
-
-    it("should merge exchange and stash prices for rarity calculation, preferring exchange", async () => {
-      const mockSnapshotData = {
-        timestamp: new Date().toISOString(),
-        stackedDeckChaosCost: 3,
-        exchange: {
-          chaosToDivineRatio: 200,
-          cardPrices: {
-            // "The Doctor" exists in both exchange and stash — exchange should win
-            "The Doctor": { chaosValue: 800, divineValue: 4.0 },
-          },
-        },
-        stash: {
-          chaosToDivineRatio: 195,
-          cardPrices: {
-            // "The Doctor" also in stash with different price — should be overridden by exchange
-            "The Doctor": { chaosValue: 750, divineValue: 3.8 },
-            // "Fire Of Unknown Origin" only in stash — downgraded to low confidence
-            // so it gets rarity 0 (Unknown) instead of a potentially inflated rarity
-            "Fire Of Unknown Origin": {
-              chaosValue: 50,
-              divineValue: 0.25,
-            },
-            // Another stash-only card
-            "Brother's Gift": {
-              chaosValue: 30,
-              divineValue: 0.15,
-            },
-          },
-        },
-      };
-
-      mockGetLatestSnapshot.mockResolvedValue(mockSnapshotData);
-
-      await service.getSnapshotForSession("poe1", "Settlers");
-
-      expect(mockUpdateRaritiesFromPrices).toHaveBeenCalledWith(
-        "poe1",
-        "Settlers",
-        200,
-        {
-          // Exchange price wins for The Doctor (800, not 750)
-          "The Doctor": { chaosValue: 800, confidence: 1 },
-          // Stash-only cards are included but downgraded to low confidence → rarity 0 (Unknown)
-          "Fire Of Unknown Origin": { chaosValue: 50, confidence: 3 },
-          "Brother's Gift": { chaosValue: 30, confidence: 3 },
-        },
       );
     });
 
@@ -641,12 +496,10 @@ describe("SnapshotService", () => {
       await seedSnapshot(testDb.kysely, {
         leagueId,
         fetchedAt: fiveHoursAgo,
-        exchangeChaosToDivine: 180,
-        stashChaosToDivine: 175,
+        chaosToDivineRatio: 180,
         cardPrices: [
           {
             cardName: "Rain of Chaos",
-            priceSource: "exchange",
             chaosValue: 1,
             divineValue: 0.005,
           },
@@ -660,8 +513,8 @@ describe("SnapshotService", () => {
 
       // Should have used the local fallback
       expect(result.data).toBeDefined();
-      expect(result.data.exchange.chaosToDivineRatio).toBe(180);
-      expect(result.data.exchange.cardPrices["Rain of Chaos"]).toBeDefined();
+      expect(result.data.chaosToDivineRatio).toBe(180);
+      expect(result.data.cardPrices["Rain of Chaos"]).toBeDefined();
     });
 
     it("should throw when Supabase fails and no local snapshot exists", async () => {
@@ -687,15 +540,14 @@ describe("SnapshotService", () => {
       await seedSnapshot(testDb.kysely, {
         leagueId,
         fetchedAt: twoHoursAgo,
-        exchangeChaosToDivine: 190,
-        stashChaosToDivine: 185,
+        chaosToDivineRatio: 190,
         cardPrices: [],
       });
 
       const result = await service.getSnapshotForSession("poe1", "Settlers");
 
       expect(result.data).toBeDefined();
-      expect(result.data.exchange.chaosToDivineRatio).toBe(190);
+      expect(result.data.chaosToDivineRatio).toBe(190);
       expect(mockGetLatestSnapshot).not.toHaveBeenCalled();
     });
 
@@ -717,8 +569,7 @@ describe("SnapshotService", () => {
       await seedSnapshot(testDb.kysely, {
         leagueId,
         fetchedAt: fiveHoursAgo,
-        exchangeChaosToDivine: 180,
-        stashChaosToDivine: 175,
+        chaosToDivineRatio: 180,
         cardPrices: [],
       });
 
@@ -726,7 +577,7 @@ describe("SnapshotService", () => {
 
       // Should have used the local fallback (old snapshot)
       expect(result.data).toBeDefined();
-      expect(result.data.exchange.chaosToDivineRatio).toBe(180);
+      expect(result.data.chaosToDivineRatio).toBe(180);
       expect(mockGetLatestSnapshot).not.toHaveBeenCalled();
     });
 
@@ -734,14 +585,8 @@ describe("SnapshotService", () => {
       const mockSnapshotData = {
         timestamp: new Date().toISOString(),
         stackedDeckChaosCost: 3,
-        exchange: {
-          chaosToDivineRatio: 200,
-          cardPrices: {},
-        },
-        stash: {
-          chaosToDivineRatio: 195,
-          cardPrices: {},
-        },
+        chaosToDivineRatio: 200,
+        cardPrices: {},
       };
 
       mockGetLatestSnapshot.mockResolvedValue(mockSnapshotData);
@@ -876,14 +721,8 @@ describe("SnapshotService", () => {
       const mockSnapshotData = {
         timestamp: new Date().toISOString(),
         stackedDeckChaosCost: 5,
-        exchange: {
-          chaosToDivineRatio: 200,
-          cardPrices: {},
-        },
-        stash: {
-          chaosToDivineRatio: 195,
-          cardPrices: {},
-        },
+        chaosToDivineRatio: 200,
+        cardPrices: {},
       };
       mockGetLatestSnapshot.mockResolvedValue(mockSnapshotData);
 
@@ -914,8 +753,8 @@ describe("SnapshotService", () => {
       const mockSnapshotData = {
         timestamp: new Date().toISOString(),
         stackedDeckChaosCost: 5,
-        exchange: { chaosToDivineRatio: 200, cardPrices: {} },
-        stash: { chaosToDivineRatio: 195, cardPrices: {} },
+        chaosToDivineRatio: 200,
+        cardPrices: {},
       };
       mockGetLatestSnapshot.mockResolvedValue(mockSnapshotData);
 
@@ -937,8 +776,8 @@ describe("SnapshotService", () => {
       const mockSnapshotData = {
         timestamp: new Date().toISOString(),
         stackedDeckChaosCost: 5,
-        exchange: { chaosToDivineRatio: 200, cardPrices: {} },
-        stash: { chaosToDivineRatio: 195, cardPrices: {} },
+        chaosToDivineRatio: 200,
+        cardPrices: {},
       };
       mockGetLatestSnapshot.mockResolvedValue(mockSnapshotData);
 
@@ -956,8 +795,8 @@ describe("SnapshotService", () => {
       const mockSnapshotData = {
         timestamp: new Date().toISOString(),
         stackedDeckChaosCost: 5,
-        exchange: { chaosToDivineRatio: 200, cardPrices: {} },
-        stash: { chaosToDivineRatio: 195, cardPrices: {} },
+        chaosToDivineRatio: 200,
+        cardPrices: {},
       };
       mockGetLatestSnapshot.mockResolvedValue(mockSnapshotData);
 
@@ -976,8 +815,8 @@ describe("SnapshotService", () => {
       const mockSnapshotData = {
         timestamp: new Date().toISOString(),
         stackedDeckChaosCost: 5,
-        exchange: { chaosToDivineRatio: 200, cardPrices: {} },
-        stash: { chaosToDivineRatio: 195, cardPrices: {} },
+        chaosToDivineRatio: 200,
+        cardPrices: {},
       };
       mockGetLatestSnapshot.mockResolvedValue(mockSnapshotData);
 
@@ -1010,12 +849,10 @@ describe("SnapshotService", () => {
       await seedSnapshot(testDb.kysely, {
         leagueId,
         fetchedAt: recentTime,
-        exchangeChaosToDivine: 200,
-        stashChaosToDivine: 195,
+        chaosToDivineRatio: 200,
         cardPrices: [
           {
             cardName: "Rain of Chaos",
-            priceSource: "exchange",
             chaosValue: 1,
             divineValue: 0.005,
           },
@@ -1049,15 +886,9 @@ describe("SnapshotService", () => {
         const mockSnapshotData = {
           timestamp: new Date().toISOString(),
           stackedDeckChaosCost: 5,
-          exchange: {
-            chaosToDivineRatio: 210,
-            cardPrices: {
-              "The Doctor": { chaosValue: 5000, divineValue: 23.8 },
-            },
-          },
-          stash: {
-            chaosToDivineRatio: 205,
-            cardPrices: {},
+          chaosToDivineRatio: 210,
+          cardPrices: {
+            "The Doctor": { chaosValue: 5000, divineValue: 23.8 },
           },
         };
         mockGetLatestSnapshot.mockResolvedValue(mockSnapshotData);
@@ -1089,17 +920,9 @@ describe("SnapshotService", () => {
         const mockSnapshotData = {
           timestamp: new Date().toISOString(),
           stackedDeckChaosCost: 5,
-          exchange: {
-            chaosToDivineRatio: 210,
-            cardPrices: {
-              "The Doctor": { chaosValue: 5000, divineValue: 23.8 },
-            },
-          },
-          stash: {
-            chaosToDivineRatio: 205,
-            cardPrices: {
-              "The Doctor": { chaosValue: 4800, divineValue: 23.4 },
-            },
+          chaosToDivineRatio: 210,
+          cardPrices: {
+            "The Doctor": { chaosValue: 5000, divineValue: 23.8 },
           },
         };
         mockGetLatestSnapshot.mockResolvedValue(mockSnapshotData);
@@ -1154,8 +977,8 @@ describe("SnapshotService", () => {
         const mockSnapshotData = {
           timestamp: new Date().toISOString(),
           stackedDeckChaosCost: 5,
-          exchange: { chaosToDivineRatio: 200, cardPrices: {} },
-          stash: { chaosToDivineRatio: 195, cardPrices: {} },
+          chaosToDivineRatio: 200,
+          cardPrices: {},
         };
         mockGetLatestSnapshot.mockResolvedValue(mockSnapshotData);
 
@@ -1235,8 +1058,8 @@ describe("SnapshotService", () => {
         const mockSnapshotData = {
           timestamp: new Date().toISOString(),
           stackedDeckChaosCost: 3,
-          exchange: { chaosToDivineRatio: 150, cardPrices: {} },
-          stash: { chaosToDivineRatio: 145, cardPrices: {} },
+          chaosToDivineRatio: 150,
+          cardPrices: {},
         };
         mockGetLatestSnapshot.mockResolvedValue(mockSnapshotData);
 
@@ -1293,15 +1116,9 @@ describe("SnapshotService", () => {
       const mockSnapshotData = {
         timestamp: new Date().toISOString(),
         stackedDeckChaosCost: 0,
-        exchange: {
-          chaosToDivineRatio: 200,
-          cardPrices: {
-            "The Doctor": { chaosValue: 800, divineValue: 4 },
-          },
-        },
-        stash: {
-          chaosToDivineRatio: 200,
-          cardPrices: {},
+        chaosToDivineRatio: 200,
+        cardPrices: {
+          "The Doctor": { chaosValue: 800, divineValue: 4 },
         },
       };
 
@@ -1326,15 +1143,9 @@ describe("SnapshotService", () => {
       const mockSnapshotData = {
         timestamp: new Date().toISOString(),
         stackedDeckChaosCost: 0,
-        exchange: {
-          chaosToDivineRatio: 200,
-          cardPrices: {
-            "The Doctor": { chaosValue: 800, divineValue: 4 },
-          },
-        },
-        stash: {
-          chaosToDivineRatio: 200,
-          cardPrices: {},
+        chaosToDivineRatio: 200,
+        cardPrices: {
+          "The Doctor": { chaosValue: 800, divineValue: 4 },
         },
       };
 
@@ -1363,15 +1174,9 @@ describe("SnapshotService", () => {
       const mockSnapshotData = {
         timestamp: new Date().toISOString(),
         stackedDeckChaosCost: 0,
-        exchange: {
-          chaosToDivineRatio: 200,
-          cardPrices: {
-            "The Doctor": { chaosValue: 800, divineValue: 4 },
-          },
-        },
-        stash: {
-          chaosToDivineRatio: 200,
-          cardPrices: {},
+        chaosToDivineRatio: 200,
+        cardPrices: {
+          "The Doctor": { chaosValue: 800, divineValue: 4 },
         },
       };
 
@@ -1399,15 +1204,9 @@ describe("SnapshotService", () => {
       const mockSnapshotData = {
         timestamp: new Date().toISOString(),
         stackedDeckChaosCost: 0,
-        exchange: {
-          chaosToDivineRatio: 150,
-          cardPrices: {
-            "Rain of Chaos": { chaosValue: 1, divineValue: 0.007 },
-          },
-        },
-        stash: {
-          chaosToDivineRatio: 150,
-          cardPrices: {},
+        chaosToDivineRatio: 150,
+        cardPrices: {
+          "Rain of Chaos": { chaosValue: 1, divineValue: 0.007 },
         },
       };
 
@@ -1435,12 +1234,10 @@ describe("SnapshotService", () => {
       await seedSnapshot(testDb.kysely, {
         leagueId,
         fetchedAt: recentTime,
-        exchangeChaosToDivine: 200,
-        stashChaosToDivine: 200,
+        chaosToDivineRatio: 200,
         cardPrices: [
           {
             cardName: "The Doctor",
-            priceSource: "exchange",
             chaosValue: 800,
             divineValue: 4,
           },
@@ -1474,15 +1271,9 @@ describe("SnapshotService", () => {
         const mockSnapshotData = {
           timestamp: new Date().toISOString(),
           stackedDeckChaosCost: 0,
-          exchange: {
-            chaosToDivineRatio: 200,
-            cardPrices: {
-              "The Doctor": { chaosValue: 800, divineValue: 4 },
-            },
-          },
-          stash: {
-            chaosToDivineRatio: 200,
-            cardPrices: {},
+          chaosToDivineRatio: 200,
+          cardPrices: {
+            "The Doctor": { chaosValue: 800, divineValue: 4 },
           },
         };
 

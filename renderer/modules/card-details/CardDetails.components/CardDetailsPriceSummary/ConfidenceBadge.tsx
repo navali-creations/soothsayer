@@ -20,7 +20,7 @@ const CONFIDENCE_CONFIG: Record<
     label: "Low",
     emoji: "🔴",
     color: "text-error",
-    tooltip: "Stash-only price or very low volume — treat with caution",
+    tooltip: "Very low volume — treat with caution",
   },
 };
 

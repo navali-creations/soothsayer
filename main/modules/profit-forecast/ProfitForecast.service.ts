@@ -172,7 +172,7 @@ export class ProfitForecastService {
    *
    * 1. Look up the league ID (read-only — returns null if league doesn't exist)
    * 2. Query the most recent snapshot for that league (no time restriction)
-   * 3. If snapshot found, merge exchange + stash card prices (exchange preferred)
+   * 3. If snapshot found, load exchange card prices
    * 4. Query card availability weights (weight > 0)
    * 5. Build pre-computed rows, EV per deck, and base rate
    * 6. Return combined DTO
@@ -222,33 +222,15 @@ export class ProfitForecastService {
       .where("snapshot_id", "=", snapshotRow.id)
       .execute();
 
-    // Merge exchange + stash prices (exchange preferred, stash fills gaps)
     const cardPrices: Record<string, ProfitForecastCardPriceDTO> = {};
 
-    // First pass: exchange prices
     for (const row of priceRows) {
-      if (row.price_source === "exchange") {
-        cardPrices[row.card_name] = {
-          chaosValue: row.chaos_value,
-          divineValue: row.divine_value,
-          source: "exchange",
-          confidence: (row.confidence ?? 1) as 1 | 2 | 3,
-          isAnomalous: false,
-        };
-      }
-    }
-
-    // Second pass: stash prices fill gaps
-    for (const row of priceRows) {
-      if (row.price_source === "stash" && !(row.card_name in cardPrices)) {
-        cardPrices[row.card_name] = {
-          chaosValue: row.chaos_value,
-          divineValue: row.divine_value,
-          source: "stash",
-          confidence: (row.confidence ?? 1) as 1 | 2 | 3,
-          isAnomalous: false,
-        };
-      }
+      cardPrices[row.card_name] = {
+        chaosValue: row.chaos_value,
+        divineValue: row.divine_value,
+        confidence: (row.confidence ?? 1) as 1 | 2 | 3,
+        isAnomalous: false,
+      };
     }
 
     // Detect anomalous prices among common cards
@@ -257,7 +239,7 @@ export class ProfitForecastService {
     const snapshot: ProfitForecastSnapshotDTO = {
       id: snapshotRow.id,
       fetchedAt: snapshotRow.fetched_at,
-      chaosToDivineRatio: snapshotRow.exchange_chaos_to_divine,
+      chaosToDivineRatio: snapshotRow.chaos_to_divine_ratio,
       stackedDeckChaosCost: snapshotRow.stacked_deck_chaos_cost,
       stackedDeckMaxVolumeRate:
         snapshotRow.stacked_deck_max_volume_rate ?? null,

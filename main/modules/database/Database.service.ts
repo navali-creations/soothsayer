@@ -211,8 +211,7 @@ class DatabaseService {
           id TEXT PRIMARY KEY,
           league_id TEXT NOT NULL,
           fetched_at TEXT NOT NULL,
-          exchange_chaos_to_divine REAL NOT NULL,
-          stash_chaos_to_divine REAL NOT NULL,
+          chaos_to_divine_ratio REAL NOT NULL,
           stacked_deck_chaos_cost REAL NOT NULL DEFAULT 0,
           stacked_deck_max_volume_rate REAL DEFAULT NULL,
           created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -233,12 +232,11 @@ class DatabaseService {
           id INTEGER PRIMARY KEY,
           snapshot_id TEXT NOT NULL,
           card_name TEXT NOT NULL,
-          price_source TEXT NOT NULL CHECK(price_source IN ('exchange', 'stash')),
           chaos_value REAL NOT NULL,
           divine_value REAL NOT NULL,
           confidence INTEGER NOT NULL DEFAULT 1 CHECK(confidence IN (1, 2, 3)),
           FOREIGN KEY (snapshot_id) REFERENCES snapshots(id) ON DELETE CASCADE,
-          UNIQUE(snapshot_id, card_name, price_source)
+          UNIQUE(snapshot_id, card_name)
         )
       `);
 
@@ -249,7 +247,7 @@ class DatabaseService {
 
       this.db.exec(`
         CREATE INDEX IF NOT EXISTS idx_snapshot_prices_card
-        ON snapshot_card_prices(card_name, price_source)
+        ON snapshot_card_prices(card_name)
       `);
 
       // ═══════════════════════════════════════════════════════════════
@@ -305,8 +303,7 @@ class DatabaseService {
           session_id TEXT NOT NULL,
           card_name TEXT NOT NULL,
           count INTEGER NOT NULL DEFAULT 0,
-          hide_price_exchange INTEGER NOT NULL DEFAULT 0,
-          hide_price_stash INTEGER NOT NULL DEFAULT 0,
+          hide_price INTEGER NOT NULL DEFAULT 0,
           first_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
           last_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
           FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
@@ -356,13 +353,10 @@ class DatabaseService {
           ended_at TEXT NOT NULL,
           duration_minutes INTEGER NOT NULL,
           total_decks_opened INTEGER NOT NULL,
-          total_exchange_value REAL NOT NULL,
-          total_stash_value REAL NOT NULL,
-          exchange_chaos_to_divine REAL NOT NULL,
-          stash_chaos_to_divine REAL NOT NULL,
+          total_value REAL NOT NULL,
+          chaos_to_divine_ratio REAL NOT NULL,
           stacked_deck_chaos_cost REAL NOT NULL DEFAULT 0,
-          total_exchange_net_profit REAL,
-          total_stash_net_profit REAL,
+          net_profit REAL,
           created_at TEXT NOT NULL DEFAULT (datetime('now')),
           FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
         )
@@ -637,12 +631,10 @@ class DatabaseService {
           -- PoE1 settings
           poe1_client_txt_path TEXT,
           poe1_selected_league TEXT NOT NULL DEFAULT 'Standard',
-          poe1_price_source TEXT NOT NULL DEFAULT 'exchange' CHECK(poe1_price_source IN ('exchange', 'stash')),
 
           -- PoE2 settings
           poe2_client_txt_path TEXT,
           poe2_selected_league TEXT NOT NULL DEFAULT 'Standard',
-          poe2_price_source TEXT NOT NULL DEFAULT 'exchange' CHECK(poe2_price_source IN ('exchange', 'stash')),
 
           -- Game selection
           selected_game TEXT NOT NULL DEFAULT 'poe1' CHECK(selected_game IN ('poe1', 'poe2')),

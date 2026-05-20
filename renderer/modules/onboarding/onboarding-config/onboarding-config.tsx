@@ -10,7 +10,6 @@ import { TiInfoLargeOutline } from "react-icons/ti";
 
 import { Button } from "~/renderer/components";
 
-import CurrentSessionPricingBeacon from "../../current-session/CurrentSession.beacons/CurrentSessionPricingBeacon";
 import CurrentSessionRaritySourceBeacon from "../../current-session/CurrentSession.beacons/CurrentSessionRaritySourceBeacon";
 import CurrentSessionStartSessionBeacon from "../../current-session/CurrentSession.beacons/CurrentSessionStartSessionBeacon";
 import GameInfoBeacon from "../../game-info/GameInfo.beacon";
@@ -122,24 +121,6 @@ export const onboardingConfig: RepereReactConfig = {
           popover: {
             component: CurrentSessionRaritySourceBeacon as ComponentType<any>,
             anchorPoint: AnchorPoint.BottomCenter,
-            offset: {
-              y: 10,
-            },
-          },
-        },
-        {
-          id: "stash-prices",
-          selector: "[data-onboarding='current-session-pricing']",
-          trigger: {
-            component: createTrackedTrigger("stash-prices"),
-            anchorPoint: AnchorPoint.BottomCenter,
-            offset: {
-              y: 15,
-            },
-          },
-          popover: {
-            component: CurrentSessionPricingBeacon as ComponentType<any>,
-            anchorPoint: AnchorPoint.BottomRight,
             offset: {
               y: 10,
             },

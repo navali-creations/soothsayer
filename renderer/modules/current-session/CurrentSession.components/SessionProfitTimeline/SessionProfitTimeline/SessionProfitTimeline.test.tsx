@@ -295,10 +295,22 @@ describe("SessionProfitTimeline", () => {
       expect(screen.getByText(/5 drops/)).toBeInTheDocument();
     });
 
-    it("should display the total value in the header", () => {
+    it("should display net profit from the line points in the header", () => {
       render(<SessionProfitTimeline />);
-      // formatCurrency mock returns "100.00c"
-      expect(screen.getByText(/100\.00c/)).toBeInTheDocument();
+      // Default linePoints end at profit=20, while totalChaosValue is 100.
+      expect(screen.getByText(/20\.00c net/)).toBeInTheDocument();
+    });
+
+    it("should fall back to deck-cost-adjusted totals when line points are unavailable", () => {
+      populateBuffer({
+        totalDrops: 5,
+        totalChaosValue: 100,
+        linePoints: [],
+      });
+
+      render(<SessionProfitTimeline stackedDeckChaosCost={10} />);
+
+      expect(screen.getByText(/50\.00c net/)).toBeInTheDocument();
     });
 
     it("should render the Notable Drops legend when chartData has bar values", () => {

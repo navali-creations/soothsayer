@@ -17,8 +17,7 @@ function createSnapshotRow(
     id: "snap-001",
     league_id: "league-001",
     fetched_at: "2025-01-15T10:00:00Z",
-    exchange_chaos_to_divine: 200,
-    stash_chaos_to_divine: 195,
+    chaos_to_divine_ratio: 200,
     stacked_deck_chaos_cost: 3.5,
     stacked_deck_max_volume_rate: null,
     created_at: "2025-01-15T10:00:00Z",
@@ -33,7 +32,6 @@ function createSnapshotCardPriceRow(
     id: 1,
     snapshot_id: "snap-001",
     card_name: "The Doctor",
-    price_source: "exchange" as const,
     chaos_value: 1200.5,
     divine_value: 6.0,
     confidence: 1 as const,
@@ -67,8 +65,7 @@ describe("Snapshot.mapper", () => {
       expect(dto.leagueId).toBe("league-001");
       expect(dto.fetchedAt).toBe("2025-01-15T10:00:00Z");
       expect(dto.createdAt).toBe("2025-01-15T10:00:00Z");
-      expect(dto.exchangeChaosToDivine).toBe(200);
-      expect(dto.stashChaosToDivine).toBe(195);
+      expect(dto.chaosToDivineRatio).toBe(200);
       expect(dto.stackedDeckChaosCost).toBe(3.5);
     });
 
@@ -77,8 +74,7 @@ describe("Snapshot.mapper", () => {
         league_id: "league-abc",
         fetched_at: "2025-06-01T12:00:00Z",
         created_at: "2025-06-01T11:59:00Z",
-        exchange_chaos_to_divine: 180,
-        stash_chaos_to_divine: 175,
+        chaos_to_divine_ratio: 180,
         stacked_deck_chaos_cost: 4.0,
       });
       const dto = SnapshotMapper.toSnapshotDTO(row);
@@ -86,8 +82,7 @@ describe("Snapshot.mapper", () => {
       expect(dto.leagueId).toBe("league-abc");
       expect(dto.fetchedAt).toBe("2025-06-01T12:00:00Z");
       expect(dto.createdAt).toBe("2025-06-01T11:59:00Z");
-      expect(dto.exchangeChaosToDivine).toBe(180);
-      expect(dto.stashChaosToDivine).toBe(175);
+      expect(dto.chaosToDivineRatio).toBe(180);
       expect(dto.stackedDeckChaosCost).toBe(4.0);
     });
 
@@ -105,51 +100,44 @@ describe("Snapshot.mapper", () => {
       const dto = SnapshotMapper.toSnapshotDTO(row);
 
       expect(Object.keys(dto).sort()).toEqual([
+        "chaosToDivineRatio",
         "createdAt",
-        "exchangeChaosToDivine",
         "fetchedAt",
         "id",
         "leagueId",
         "stackedDeckChaosCost",
         "stackedDeckMaxVolumeRate",
-        "stashChaosToDivine",
       ]);
     });
 
     it("should handle zero values for cost fields", () => {
       const row = createSnapshotRow({
-        exchange_chaos_to_divine: 0,
-        stash_chaos_to_divine: 0,
+        chaos_to_divine_ratio: 0,
         stacked_deck_chaos_cost: 0,
       });
       const dto = SnapshotMapper.toSnapshotDTO(row);
 
-      expect(dto.exchangeChaosToDivine).toBe(0);
-      expect(dto.stashChaosToDivine).toBe(0);
+      expect(dto.chaosToDivineRatio).toBe(0);
       expect(dto.stackedDeckChaosCost).toBe(0);
     });
 
     it("should handle fractional chaos-to-divine ratios", () => {
       const row = createSnapshotRow({
-        exchange_chaos_to_divine: 199.75,
-        stash_chaos_to_divine: 194.25,
+        chaos_to_divine_ratio: 199.75,
       });
       const dto = SnapshotMapper.toSnapshotDTO(row);
 
-      expect(dto.exchangeChaosToDivine).toBe(199.75);
-      expect(dto.stashChaosToDivine).toBe(194.25);
+      expect(dto.chaosToDivineRatio).toBe(199.75);
     });
 
     it("should handle large ratio values", () => {
       const row = createSnapshotRow({
-        exchange_chaos_to_divine: 500,
-        stash_chaos_to_divine: 490,
+        chaos_to_divine_ratio: 500,
         stacked_deck_chaos_cost: 10,
       });
       const dto = SnapshotMapper.toSnapshotDTO(row);
 
-      expect(dto.exchangeChaosToDivine).toBe(500);
-      expect(dto.stashChaosToDivine).toBe(490);
+      expect(dto.chaosToDivineRatio).toBe(500);
       expect(dto.stackedDeckChaosCost).toBe(10);
     });
   });
@@ -162,7 +150,6 @@ describe("Snapshot.mapper", () => {
       const dto = SnapshotMapper.toSnapshotCardPriceDTO(row);
 
       expect(dto.cardName).toBe("The Doctor");
-      expect(dto.priceSource).toBe("exchange");
       expect(dto.chaosValue).toBe(1200.5);
       expect(dto.divineValue).toBe(6.0);
       expect(dto.confidence).toBe(1);
@@ -171,30 +158,14 @@ describe("Snapshot.mapper", () => {
     it("should map snake_case fields to camelCase", () => {
       const row = createSnapshotCardPriceRow({
         card_name: "Rain of Chaos",
-        price_source: "stash",
         chaos_value: 0.5,
         divine_value: 0.0025,
       });
       const dto = SnapshotMapper.toSnapshotCardPriceDTO(row);
 
       expect(dto.cardName).toBe("Rain of Chaos");
-      expect(dto.priceSource).toBe("stash");
       expect(dto.chaosValue).toBe(0.5);
       expect(dto.divineValue).toBe(0.0025);
-    });
-
-    it("should handle exchange price source", () => {
-      const row = createSnapshotCardPriceRow({ price_source: "exchange" });
-      const dto = SnapshotMapper.toSnapshotCardPriceDTO(row);
-
-      expect(dto.priceSource).toBe("exchange");
-    });
-
-    it("should handle stash price source", () => {
-      const row = createSnapshotCardPriceRow({ price_source: "stash" });
-      const dto = SnapshotMapper.toSnapshotCardPriceDTO(row);
-
-      expect(dto.priceSource).toBe("stash");
     });
 
     it("should map confidence 1 (high)", () => {
@@ -236,7 +207,6 @@ describe("Snapshot.mapper", () => {
         "chaosValue",
         "confidence",
         "divineValue",
-        "priceSource",
       ]);
     });
 

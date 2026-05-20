@@ -440,14 +440,12 @@ describe("CurrentSessionRepository", () => {
         {
           cardName: "The Doctor",
           count: 1,
-          hidePriceExchange: true,
-          hidePriceStash: false,
+          hidePrice: true,
         },
         {
           cardName: "Rain of Chaos",
           count: 5,
-          hidePriceExchange: false,
-          hidePriceStash: true,
+          hidePrice: false,
         },
       ]);
 
@@ -457,10 +455,8 @@ describe("CurrentSessionRepository", () => {
       const doctor = cards.find((c) => c.cardName === "The Doctor");
       const rain = cards.find((c) => c.cardName === "Rain of Chaos");
 
-      expect(doctor!.hidePriceExchange).toBe(true);
-      expect(doctor!.hidePriceStash).toBe(false);
-      expect(rain!.hidePriceExchange).toBe(false);
-      expect(rain!.hidePriceStash).toBe(true);
+      expect(doctor!.hidePrice).toBe(true);
+      expect(rain!.hidePrice).toBe(false);
     });
 
     it("should join divination card metadata when available", async () => {
@@ -570,35 +566,11 @@ describe("CurrentSessionRepository", () => {
       await getRepository().updateCardPriceVisibility(
         "session-vis",
         "The Doctor",
-        "exchange",
         true,
       );
 
       const cards = await getRepository().getSessionCards("session-vis");
-      expect(cards[0].hidePriceExchange).toBe(true);
-      expect(cards[0].hidePriceStash).toBe(false);
-    });
-
-    it("should update stash price visibility", async () => {
-      const leagueId = await seedLeague(getTestDb().kysely);
-      await seedSession(getTestDb().kysely, {
-        id: "session-vis-stash",
-        leagueId,
-      });
-      await seedSessionCards(getTestDb().kysely, "session-vis-stash", [
-        { cardName: "The Doctor", count: 1 },
-      ]);
-
-      await getRepository().updateCardPriceVisibility(
-        "session-vis-stash",
-        "The Doctor",
-        "stash",
-        true,
-      );
-
-      const cards = await getRepository().getSessionCards("session-vis-stash");
-      expect(cards[0].hidePriceExchange).toBe(false);
-      expect(cards[0].hidePriceStash).toBe(true);
+      expect(cards[0].hidePrice).toBe(true);
     });
 
     it("should toggle visibility back to false", async () => {
@@ -608,18 +580,17 @@ describe("CurrentSessionRepository", () => {
         leagueId,
       });
       await seedSessionCards(getTestDb().kysely, "session-vis-toggle", [
-        { cardName: "The Doctor", count: 1, hidePriceExchange: true },
+        { cardName: "The Doctor", count: 1, hidePrice: true },
       ]);
 
       await getRepository().updateCardPriceVisibility(
         "session-vis-toggle",
         "The Doctor",
-        "exchange",
         false,
       );
 
       const cards = await getRepository().getSessionCards("session-vis-toggle");
-      expect(cards[0].hidePriceExchange).toBe(false);
+      expect(cards[0].hidePrice).toBe(false);
     });
 
     it("should only affect the specified card", async () => {
@@ -636,7 +607,6 @@ describe("CurrentSessionRepository", () => {
       await getRepository().updateCardPriceVisibility(
         "session-vis-targeted",
         "The Doctor",
-        "exchange",
         true,
       );
 
@@ -646,8 +616,8 @@ describe("CurrentSessionRepository", () => {
       const doctor = cards.find((c) => c.cardName === "The Doctor");
       const rain = cards.find((c) => c.cardName === "Rain of Chaos");
 
-      expect(doctor!.hidePriceExchange).toBe(true);
-      expect(rain!.hidePriceExchange).toBe(false);
+      expect(doctor!.hidePrice).toBe(true);
+      expect(rain!.hidePrice).toBe(false);
     });
   });
 
@@ -1021,12 +991,9 @@ describe("CurrentSessionRepository", () => {
         endedAt: "2025-01-15T11:30:00Z",
         durationMinutes: 90,
         totalDecksOpened: 150,
-        totalExchangeValue: 1200,
-        totalStashValue: 1100,
-        totalExchangeNetProfit: 750,
-        totalStashNetProfit: 650,
-        exchangeChaosToDivine: 200,
-        stashChaosToDivine: 195,
+        totalValue: 1200,
+        netProfit: 750,
+        chaosToDivineRatio: 200,
         stackedDeckChaosCost: 3,
       });
 
@@ -1043,12 +1010,9 @@ describe("CurrentSessionRepository", () => {
       expect(row!.league).toBe("Settlers");
       expect(row!.duration_minutes).toBe(90);
       expect(row!.total_decks_opened).toBe(150);
-      expect(row!.total_exchange_value).toBe(1200);
-      expect(row!.total_stash_value).toBe(1100);
-      expect(row!.total_exchange_net_profit).toBe(750);
-      expect(row!.total_stash_net_profit).toBe(650);
-      expect(row!.exchange_chaos_to_divine).toBe(200);
-      expect(row!.stash_chaos_to_divine).toBe(195);
+      expect(row!.total_value).toBe(1200);
+      expect(row!.net_profit).toBe(750);
+      expect(row!.chaos_to_divine_ratio).toBe(200);
       expect(row!.stacked_deck_chaos_cost).toBe(3);
     });
 
@@ -1067,12 +1031,9 @@ describe("CurrentSessionRepository", () => {
         endedAt: "2025-01-15T11:00:00Z",
         durationMinutes: 60,
         totalDecksOpened: 50,
-        totalExchangeValue: 200,
-        totalStashValue: 180,
-        totalExchangeNetProfit: null,
-        totalStashNetProfit: null,
-        exchangeChaosToDivine: 200,
-        stashChaosToDivine: 195,
+        totalValue: 200,
+        netProfit: null,
+        chaosToDivineRatio: 200,
         stackedDeckChaosCost: 0,
       });
 
@@ -1083,8 +1044,7 @@ describe("CurrentSessionRepository", () => {
         .executeTakeFirst();
 
       expect(row).toBeDefined();
-      expect(row!.total_exchange_net_profit).toBeNull();
-      expect(row!.total_stash_net_profit).toBeNull();
+      expect(row!.net_profit).toBeNull();
     });
 
     it("should handle zero values", async () => {
@@ -1102,12 +1062,9 @@ describe("CurrentSessionRepository", () => {
         endedAt: "2025-01-15T10:00:00Z",
         durationMinutes: 0,
         totalDecksOpened: 0,
-        totalExchangeValue: 0,
-        totalStashValue: 0,
-        totalExchangeNetProfit: 0,
-        totalStashNetProfit: 0,
-        exchangeChaosToDivine: 0,
-        stashChaosToDivine: 0,
+        totalValue: 0,
+        netProfit: 0,
+        chaosToDivineRatio: 0,
         stackedDeckChaosCost: 0,
       });
 
@@ -1120,7 +1077,7 @@ describe("CurrentSessionRepository", () => {
       expect(row).toBeDefined();
       expect(row!.duration_minutes).toBe(0);
       expect(row!.total_decks_opened).toBe(0);
-      expect(row!.total_exchange_value).toBe(0);
+      expect(row!.total_value).toBe(0);
     });
   });
 
@@ -1189,12 +1146,9 @@ describe("CurrentSessionRepository", () => {
         endedAt: "2025-01-15T11:30:00Z",
         durationMinutes: 90,
         totalDecksOpened: 4,
-        totalExchangeValue: 800,
-        totalStashValue: 750,
-        totalExchangeNetProfit: 788,
-        totalStashNetProfit: 738,
-        exchangeChaosToDivine: 200,
-        stashChaosToDivine: 195,
+        totalValue: 800,
+        netProfit: 788,
+        chaosToDivineRatio: 200,
         stackedDeckChaosCost: 3,
       });
 
@@ -1206,7 +1160,7 @@ describe("CurrentSessionRepository", () => {
 
       expect(summary).toBeDefined();
       expect(summary!.total_decks_opened).toBe(4);
-      expect(summary!.total_exchange_value).toBe(800);
+      expect(summary!.total_value).toBe(800);
     });
 
     it("should support saving processed IDs alongside session cards", async () => {

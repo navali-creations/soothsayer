@@ -9,7 +9,7 @@
  * `onboardingDismissedBeacons`.
  *
  * Flow:
- *   1. Current Session page - verify all 5 beacons (2 global + 3 page-specific),
+ *   1. Current Session page - verify all 4 beacons (2 global + 2 page-specific),
  *      exercise close/reopen via Escape, then acknowledge each.
  *
  * Rarity Insights page beacon tests live in `onboarding-beacons-rarity.e2e.test.ts`.
@@ -46,7 +46,6 @@ const CURRENT_SESSION_BEACONS = [
   "game-selector",
   "overlay-icon",
   "current-session-rarity-source",
-  "stash-prices",
   "start-session",
 ] as const;
 

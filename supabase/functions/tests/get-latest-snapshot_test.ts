@@ -5,7 +5,8 @@
  *   - Authorization gate (delegates to authorize())
  *   - Input validation (game, league params)
  *   - Multi-table query chain: poe_leagues → snapshots → card_prices
- *   - Card price formatting (exchange vs stash, camelCase mapping)
+ *   - Card price formatting (camelCase mapping)
+ *   - Legacy response compatibility for pre-flat-snapshot app versions
  *   - Error handling for each query stage
  *
  * Run with:
@@ -44,12 +45,15 @@ assert(handler !== null, "Handler should have been captured from Deno.serve");
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+const CURRENT_APP_VERSION = "0.17.1";
+
 function createFunctionRequest(
   options: {
     method?: string;
     body?: unknown;
     bearerToken?: string;
     apikey?: string;
+    appVersion?: string | null;
   } = {},
 ): Request {
   return createMockRequest(
@@ -59,6 +63,9 @@ function createFunctionRequest(
       body: options.body,
       bearerToken: options.bearerToken,
       apikey: options.apikey,
+      ...(options.appVersion === null
+        ? {}
+        : { appVersion: options.appVersion ?? CURRENT_APP_VERSION }),
     },
   );
 }
@@ -612,7 +619,7 @@ quietTest(
 
     assertEquals(resp.status, 500);
     const body = await resp.json();
-    assert(body.error !== undefined, "Should have an error field");
+    assertEquals(body.error, "Failed to fetch snapshot card prices");
 
     fetchMock.restore();
   },
@@ -635,37 +642,20 @@ quietTest(
       league_id: "league-uuid-001",
       fetched_at: "2024-12-15T12:00:00Z",
       exchange_chaos_to_divine: 150,
-      stash_chaos_to_divine: 148,
       stacked_deck_chaos_cost: 1.5,
     });
     const cardPrices = [
       {
         cards: { name: "The Doctor" },
-        price_source: "exchange",
         chaos_value: 1200,
         divine_value: 8.0,
         confidence: 1,
       },
       {
         cards: { name: "House of Mirrors" },
-        price_source: "exchange",
         chaos_value: 3000,
         divine_value: 20.0,
         confidence: 1,
-      },
-      {
-        cards: { name: "The Doctor" },
-        price_source: "stash",
-        chaos_value: 1180,
-        divine_value: 7.9,
-        confidence: 2,
-      },
-      {
-        cards: { name: "Rain of Chaos" },
-        price_source: "stash",
-        chaos_value: 0.5,
-        divine_value: 0.0,
-        confidence: 3,
       },
     ];
 
@@ -693,34 +683,122 @@ quietTest(
     assertEquals(body.snapshot.leagueId, "league-uuid-001");
     assertEquals(body.snapshot.fetchedAt, "2024-12-15T12:00:00Z");
     assertEquals(body.snapshot.exchangeChaosToDivine, 150);
-    assertEquals(body.snapshot.stashChaosToDivine, 148);
     assertEquals(body.snapshot.stackedDeckChaosCost, 1.5);
 
     // Verify card prices structure
     assert(body.cardPrices !== undefined, "Response should have cardPrices");
-    assert(
-      body.cardPrices.exchange !== undefined,
-      "Should have exchange prices",
-    );
-    assert(body.cardPrices.stash !== undefined, "Should have stash prices");
+    assertEquals(body.cardPrices["The Doctor"].chaosValue, 1200);
+    assertEquals(body.cardPrices["The Doctor"].divineValue, 8.0);
+    assertEquals(body.cardPrices["The Doctor"].confidence, 1);
+    assertEquals(body.cardPrices["House of Mirrors"].chaosValue, 3000);
+    assertEquals(body.cardPrices["House of Mirrors"].divineValue, 20.0);
+    assertEquals(body.cardPrices["House of Mirrors"].confidence, 1);
 
-    // Exchange prices keyed by card_name
+    fetchMock.restore();
+  },
+);
+
+quietTest(
+  "get-latest-snapshot — returns legacy exchange/stash shape for older app versions",
+  async () => {
+    const fetchMock = setupAuthorizedMocks();
+
+    const testToken = createTestJwt({ sub: "test-user-id-001" });
+
+    const snapshot = mockSnapshot({
+      id: "snapshot-uuid-legacy",
+      exchange_chaos_to_divine: 150,
+    });
+    const cardPrices = [
+      {
+        cards: { name: "The Doctor" },
+        chaos_value: 1200,
+        divine_value: 8.0,
+        confidence: 1,
+      },
+      {
+        cards: { name: "The Nurse" },
+        chaos_value: 200,
+        divine_value: 1.33,
+        confidence: 2,
+      },
+    ];
+
+    setupFullQueryChain(fetchMock, { snapshot, cardPrices });
+
+    const req = createFunctionRequest({
+      apikey: "test-anon-key",
+      bearerToken: testToken,
+      appVersion: "0.17.0",
+      body: { game: "poe2", league: "Dawn" },
+    });
+    const resp = await handler(req);
+
+    if (resp.status === 401) {
+      console.log("[INFO] Skipping: getClaims could not decode test JWT");
+      fetchMock.restore();
+      return;
+    }
+
+    assertEquals(resp.status, 200);
+    const body = await resp.json();
+
+    assertEquals(body.snapshot.exchangeChaosToDivine, 150);
+    assertEquals(body.snapshot.stashChaosToDivine, 150);
+
     assertEquals(body.cardPrices.exchange["The Doctor"].chaosValue, 1200);
-    assertEquals(body.cardPrices.exchange["The Doctor"].divineValue, 8.0);
-    assertEquals(body.cardPrices.exchange["The Doctor"].confidence, 1);
-    assertEquals(body.cardPrices.exchange["House of Mirrors"].chaosValue, 3000);
-    assertEquals(
-      body.cardPrices.exchange["House of Mirrors"].divineValue,
-      20.0,
-    );
-    assertEquals(body.cardPrices.exchange["House of Mirrors"].confidence, 1);
+    assertEquals(body.cardPrices.exchange["The Nurse"].confidence, 2);
+    assertEquals(body.cardPrices.stash["The Doctor"].chaosValue, 1200);
+    assertEquals(body.cardPrices.stash["The Doctor"].divineValue, 8.0);
+    assertEquals(body.cardPrices.stash["The Doctor"].confidence, 3);
+    assertEquals(body.cardPrices.stash["The Doctor"].rarity, 0);
+    assertEquals(body.cardPrices.stash["The Nurse"].confidence, 3);
+    assertEquals(body.cardPrices.stash["The Nurse"].rarity, 0);
+    assertEquals(body.cardPrices["The Doctor"], undefined);
 
-    // Stash prices keyed by card_name
-    assertEquals(body.cardPrices.stash["The Doctor"].chaosValue, 1180);
-    assertEquals(body.cardPrices.stash["The Doctor"].divineValue, 7.9);
-    assertEquals(body.cardPrices.stash["The Doctor"].confidence, 2);
-    assertEquals(body.cardPrices.stash["Rain of Chaos"].chaosValue, 0.5);
-    assertEquals(body.cardPrices.stash["Rain of Chaos"].confidence, 3);
+    fetchMock.restore();
+  },
+);
+
+quietTest(
+  "get-latest-snapshot — missing app version defaults to legacy compatibility shape",
+  async () => {
+    const fetchMock = setupAuthorizedMocks();
+
+    const testToken = createTestJwt({ sub: "test-user-id-001" });
+
+    setupFullQueryChain(fetchMock, {
+      cardPrices: [
+        {
+          cards: { name: "The Doctor" },
+          chaos_value: 1200,
+          divine_value: 8.0,
+          confidence: 1,
+        },
+      ],
+    });
+
+    const req = createFunctionRequest({
+      apikey: "test-anon-key",
+      bearerToken: testToken,
+      appVersion: null,
+      body: { game: "poe2", league: "Dawn" },
+    });
+    const resp = await handler(req);
+
+    if (resp.status === 401) {
+      console.log("[INFO] Skipping: getClaims could not decode test JWT");
+      fetchMock.restore();
+      return;
+    }
+
+    assertEquals(resp.status, 200);
+    const body = await resp.json();
+
+    assert(body.cardPrices.exchange !== undefined);
+    assert(body.cardPrices.stash !== undefined);
+    assertEquals(body.cardPrices.stash["The Doctor"].confidence, 3);
+    assertEquals(body.cardPrices.stash["The Doctor"].rarity, 0);
 
     fetchMock.restore();
   },
@@ -737,16 +815,8 @@ quietTest(
     const cardPrices = [
       {
         cards: { name: "The Nurse" },
-        price_source: "exchange",
         chaos_value: 200,
         divine_value: 1.3,
-        // no confidence field
-      },
-      {
-        cards: { name: "The Nurse" },
-        price_source: "stash",
-        chaos_value: 195,
-        divine_value: 1.28,
         // no confidence field
       },
     ];
@@ -771,14 +841,9 @@ quietTest(
 
     // When confidence is missing/undefined, the edge function defaults to 1
     assertEquals(
-      body.cardPrices.exchange["The Nurse"].confidence,
+      body.cardPrices["The Nurse"].confidence,
       1,
-      "Exchange confidence should default to 1 when missing",
-    );
-    assertEquals(
-      body.cardPrices.stash["The Nurse"].confidence,
-      1,
-      "Stash confidence should default to 1 when missing",
+      "Confidence should default to 1 when missing",
     );
 
     fetchMock.restore();
@@ -795,21 +860,18 @@ quietTest(
     const cardPrices = [
       {
         cards: { name: "High Confidence Card" },
-        price_source: "stash",
         chaos_value: 500,
         divine_value: 3.3,
         confidence: 1,
       },
       {
         cards: { name: "Medium Confidence Card" },
-        price_source: "stash",
         chaos_value: 100,
         divine_value: 0.67,
         confidence: 2,
       },
       {
         cards: { name: "Low Confidence Card" },
-        price_source: "stash",
         chaos_value: 10,
         divine_value: 0.07,
         confidence: 3,
@@ -834,9 +896,9 @@ quietTest(
     assertEquals(resp.status, 200);
     const body = await resp.json();
 
-    assertEquals(body.cardPrices.stash["High Confidence Card"].confidence, 1);
-    assertEquals(body.cardPrices.stash["Medium Confidence Card"].confidence, 2);
-    assertEquals(body.cardPrices.stash["Low Confidence Card"].confidence, 3);
+    assertEquals(body.cardPrices["High Confidence Card"].confidence, 1);
+    assertEquals(body.cardPrices["Medium Confidence Card"].confidence, 2);
+    assertEquals(body.cardPrices["Low Confidence Card"].confidence, 3);
 
     fetchMock.restore();
   },
@@ -852,7 +914,6 @@ quietTest(
     const cardPrices = [
       {
         cards: { name: "The Nurse" },
-        price_source: "exchange",
         chaos_value: 200,
         divine_value: 1.3,
       },
@@ -876,42 +937,10 @@ quietTest(
     assertEquals(resp.status, 200);
     const body = await resp.json();
 
-    const nurseExchange = body.cardPrices.exchange["The Nurse"];
-    assert(nurseExchange !== undefined, "Should have The Nurse in exchange");
+    const nursePrice = body.cardPrices["The Nurse"];
+    assert(nursePrice !== undefined, "Should have The Nurse price");
     // stack_size column removed — should not be present in response
-    assertEquals(nurseExchange.stackSize, undefined);
-
-    fetchMock.restore();
-  },
-);
-
-quietTest(
-  "get-latest-snapshot — empty card prices returns empty exchange/stash",
-  async () => {
-    const fetchMock = setupAuthorizedMocks();
-
-    const testToken = createTestJwt({ sub: "test-user-id-001" });
-
-    setupFullQueryChain(fetchMock, { cardPrices: [] });
-
-    const req = createFunctionRequest({
-      apikey: "test-anon-key",
-      bearerToken: testToken,
-      body: { game: "poe2", league: "Dawn" },
-    });
-    const resp = await handler(req);
-
-    if (resp.status === 401) {
-      console.log("[INFO] Skipping: getClaims could not decode test JWT");
-      fetchMock.restore();
-      return;
-    }
-
-    assertEquals(resp.status, 200);
-    const body = await resp.json();
-
-    assertEquals(Object.keys(body.cardPrices.exchange).length, 0);
-    assertEquals(Object.keys(body.cardPrices.stash).length, 0);
+    assertEquals(nursePrice.stackSize, undefined);
 
     fetchMock.restore();
   },
@@ -1052,17 +1081,15 @@ quietTest(
 
     const testToken = createTestJwt({ sub: "test-user-id-001" });
 
-    // Two rows for the same card name in exchange (shouldn't normally happen, but tests handler behavior)
+    // Two rows for the same card name should not normally happen, but this tests handler behavior.
     const cardPrices = [
       {
         cards: { name: "The Doctor" },
-        price_source: "exchange",
         chaos_value: 1200,
         divine_value: 8.0,
       },
       {
         cards: { name: "The Doctor" },
-        price_source: "exchange",
         chaos_value: 1300,
         divine_value: 8.7,
       },
@@ -1087,58 +1114,8 @@ quietTest(
     const body = await resp.json();
 
     // Last one wins because the loop overwrites by card_name key
-    assertEquals(body.cardPrices.exchange["The Doctor"].chaosValue, 1300);
-    assertEquals(body.cardPrices.exchange["The Doctor"].divineValue, 8.7);
-
-    fetchMock.restore();
-  },
-);
-
-quietTest(
-  "get-latest-snapshot — same card in both exchange and stash appears in both",
-  async () => {
-    const fetchMock = setupAuthorizedMocks();
-
-    const testToken = createTestJwt({ sub: "test-user-id-001" });
-
-    const cardPrices = [
-      {
-        cards: { name: "The Doctor" },
-        price_source: "exchange",
-        chaos_value: 1200,
-        divine_value: 8.0,
-      },
-      {
-        cards: { name: "The Doctor" },
-        price_source: "stash",
-        chaos_value: 1180,
-        divine_value: 7.9,
-      },
-    ];
-
-    setupFullQueryChain(fetchMock, { cardPrices });
-
-    const req = createFunctionRequest({
-      apikey: "test-anon-key",
-      bearerToken: testToken,
-      body: { game: "poe2", league: "Dawn" },
-    });
-    const resp = await handler(req);
-
-    if (resp.status === 401) {
-      console.log("[INFO] Skipping: getClaims could not decode test JWT");
-      fetchMock.restore();
-      return;
-    }
-
-    assertEquals(resp.status, 200);
-    const body = await resp.json();
-
-    // Should appear in both sources independently
-    assert(body.cardPrices.exchange["The Doctor"] !== undefined);
-    assert(body.cardPrices.stash["The Doctor"] !== undefined);
-    assertEquals(body.cardPrices.exchange["The Doctor"].chaosValue, 1200);
-    assertEquals(body.cardPrices.stash["The Doctor"].chaosValue, 1180);
+    assertEquals(body.cardPrices["The Doctor"].chaosValue, 1300);
+    assertEquals(body.cardPrices["The Doctor"].divineValue, 8.7);
 
     fetchMock.restore();
   },
@@ -1257,20 +1234,13 @@ quietTest(
 
     const testToken = createTestJwt({ sub: "test-user-id-001" });
 
-    // Generate 200 exchange + 200 stash card prices
+    // Generate 200 card prices.
     const cardPrices: Array<Record<string, unknown>> = [];
     for (let i = 0; i < 200; i++) {
       cardPrices.push({
         cards: { name: `Card ${i}` },
-        price_source: "exchange",
         chaos_value: i * 10,
         divine_value: i * 0.07,
-      });
-      cardPrices.push({
-        cards: { name: `Card ${i}` },
-        price_source: "stash",
-        chaos_value: i * 9.8,
-        divine_value: i * 0.065,
       });
     }
 
@@ -1292,12 +1262,11 @@ quietTest(
     assertEquals(resp.status, 200);
     const body = await resp.json();
 
-    assertEquals(Object.keys(body.cardPrices.exchange).length, 200);
-    assertEquals(Object.keys(body.cardPrices.stash).length, 200);
+    assertEquals(Object.keys(body.cardPrices).length, 200);
 
     // Spot-check a specific card
-    assertEquals(body.cardPrices.exchange["Card 50"].chaosValue, 500);
-    assertEquals(body.cardPrices.stash["Card 99"].chaosValue, 99 * 9.8);
+    assertEquals(body.cardPrices["Card 50"].chaosValue, 500);
+    assertEquals(body.cardPrices["Card 99"].chaosValue, 990);
 
     fetchMock.restore();
   },

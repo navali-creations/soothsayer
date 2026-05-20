@@ -54,17 +54,37 @@ class SessionsService {
         game: "poe1" | "poe2",
         page: number = 1,
         pageSize: number = 20,
+        league?: string,
       ): Promise<SessionsPageDTO | { success: false; error: string }> => {
         try {
           assertGameType(game, SessionsChannel.GetAll);
+          assertOptionalString(league, "league", SessionsChannel.GetAll, 256);
           const validatedPage = assertPage(page, SessionsChannel.GetAll);
           const validatedPageSize = assertPageSize(
             pageSize,
             SessionsChannel.GetAll,
           );
-          return this.getAllSessions(game, validatedPage, validatedPageSize);
+          const leagueFilter = league && league !== "all" ? league : undefined;
+          return this.getAllSessions(
+            game,
+            validatedPage,
+            validatedPageSize,
+            leagueFilter,
+          );
         } catch (error) {
           return handleValidationError(error, SessionsChannel.GetAll);
+        }
+      },
+    );
+
+    ipcMain.handle(
+      SessionsChannel.GetLeagues,
+      async (_event, game: "poe1" | "poe2") => {
+        try {
+          assertGameType(game, SessionsChannel.GetLeagues);
+          return this.repository.getSessionLeagues(game);
+        } catch (error) {
+          return handleValidationError(error, SessionsChannel.GetLeagues);
         }
       },
     );
@@ -548,10 +568,28 @@ class SessionsService {
 
     ipcMain.handle(
       SessionsChannel.GetAllSessionIds,
-      async (_event, game: unknown) => {
+      async (_event, game: unknown, league?: string, cardName?: string) => {
         try {
           assertGameType(game, SessionsChannel.GetAllSessionIds);
-          return this.repository.getAllSessionIds(game);
+          assertOptionalString(
+            league,
+            "league",
+            SessionsChannel.GetAllSessionIds,
+            256,
+          );
+          assertOptionalString(
+            cardName,
+            "cardName",
+            SessionsChannel.GetAllSessionIds,
+            256,
+          );
+          const leagueFilter = league && league !== "all" ? league : undefined;
+          const cardNameFilter = cardName?.trim() ? cardName.trim() : undefined;
+          return this.repository.getAllSessionIds(
+            game,
+            leagueFilter,
+            cardNameFilter,
+          );
         } catch (error) {
           return handleValidationError(error, SessionsChannel.GetAllSessionIds);
         }
@@ -609,9 +647,10 @@ class SessionsService {
     game: "poe1" | "poe2",
     page: number = 1,
     pageSize: number = 20,
+    league?: string,
   ): Promise<SessionsPageDTO> {
     // Get total count
-    const total = await this.repository.getSessionCount(game);
+    const total = await this.repository.getSessionCount(game, league);
     const totalPages = Math.ceil(total / pageSize);
     const effectivePage = totalPages === 0 ? 1 : Math.min(page, totalPages);
     const offset = (effectivePage - 1) * pageSize;
@@ -621,6 +660,7 @@ class SessionsService {
       game,
       pageSize,
       offset,
+      league,
     );
 
     return {
@@ -675,36 +715,20 @@ class SessionsService {
 
       // Add prices if snapshot available
       if (priceSnapshot) {
-        const exchangeData = priceSnapshot.exchange.cardPrices[card.cardName];
-        const stashData = priceSnapshot.stash.cardPrices[card.cardName];
+        const priceData = priceSnapshot.cardPrices[card.cardName];
 
-        // Always add price objects (even if no data) so hidePrice flag is available
-        cardEntry.exchangePrice = exchangeData
+        cardEntry.price = priceData
           ? {
-              chaosValue: exchangeData.chaosValue,
-              divineValue: exchangeData.divineValue,
-              totalValue: exchangeData.chaosValue * card.count,
-              hidePrice: card.hidePriceExchange,
+              chaosValue: priceData.chaosValue,
+              divineValue: priceData.divineValue,
+              totalValue: priceData.chaosValue * card.count,
+              hidePrice: card.hidePrice,
             }
           : {
               chaosValue: 0,
               divineValue: 0,
               totalValue: 0,
-              hidePrice: card.hidePriceExchange,
-            };
-
-        cardEntry.stashPrice = stashData
-          ? {
-              chaosValue: stashData.chaosValue,
-              divineValue: stashData.divineValue,
-              totalValue: stashData.chaosValue * card.count,
-              hidePrice: card.hidePriceStash,
-            }
-          : {
-              chaosValue: 0,
-              divineValue: 0,
-              totalValue: 0,
-              hidePrice: card.hidePriceStash,
+              hidePrice: card.hidePrice,
             };
       }
 
@@ -712,15 +736,11 @@ class SessionsService {
     }
 
     // Calculate totals
-    let stashTotal = 0;
-    let exchangeTotal = 0;
+    let totalValue = 0;
 
     for (const cardData of Object.values(cardsObject)) {
-      if (cardData.stashPrice && !cardData.stashPrice.hidePrice) {
-        stashTotal += cardData.stashPrice.totalValue;
-      }
-      if (cardData.exchangePrice && !cardData.exchangePrice.hidePrice) {
-        exchangeTotal += cardData.exchangePrice.totalValue;
+      if (cardData.price && !cardData.price.hidePrice) {
+        totalValue += cardData.price.totalValue;
       }
     }
 
@@ -729,20 +749,13 @@ class SessionsService {
 
     const totals = priceSnapshot
       ? {
-          stash: {
-            totalValue: stashTotal,
-            netProfit: stashTotal - totalDeckCost,
-            chaosToDivineRatio: priceSnapshot.stash.chaosToDivineRatio,
-          },
-          exchange: {
-            totalValue: exchangeTotal,
-            netProfit: exchangeTotal - totalDeckCost,
-            chaosToDivineRatio: priceSnapshot.exchange.chaosToDivineRatio,
-          },
+          totalValue,
+          netProfit: totalValue - totalDeckCost,
+          chaosToDivineRatio: priceSnapshot.chaosToDivineRatio,
           stackedDeckChaosCost: deckCost,
           totalDeckCost,
         }
-      : undefined;
+      : session.persistedTotals;
 
     // Convert cards object to array
     // Type assertion: SessionCardData omits `fromBoss` on divinationCard (not
@@ -778,6 +791,7 @@ class SessionsService {
       endedAt: session.endedAt,
       duration: computeDuration(),
       league: session.league,
+      snapshotId: session.snapshotId,
       priceSnapshot,
       totals,
     };

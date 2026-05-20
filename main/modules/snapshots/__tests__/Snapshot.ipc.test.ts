@@ -1,4 +1,4 @@
-﻿import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getIpcHandler } from "~/main/modules/__test-utils__/mock-factories";
 
@@ -133,8 +133,7 @@ const SAMPLE_RECENT_SNAPSHOT = {
   leagueId: "league-1",
   fetchedAt: "2025-01-15T10:00:00Z",
   createdAt: "2025-01-15T12:00:00Z",
-  exchangeChaosToDivine: 200,
-  stashChaosToDivine: 195,
+  chaosToDivineRatio: 200,
   stackedDeckChaosCost: 10,
 };
 

@@ -21,7 +21,6 @@ import {
   assertOptionalString,
   assertPage,
   assertPageSize,
-  assertPriceSource,
   assertSessionId,
   assertSetupStep,
   assertString,
@@ -722,34 +721,6 @@ describe("IPC Validation Utilities", () => {
         IpcValidationError,
       );
       expect(() => assertGameType("Poe1", TEST_CHANNEL)).toThrow(
-        IpcValidationError,
-      );
-    });
-  });
-
-  describe("assertPriceSource", () => {
-    it("should pass for 'exchange'", () => {
-      expect(() => assertPriceSource("exchange", TEST_CHANNEL)).not.toThrow();
-    });
-
-    it("should pass for 'stash'", () => {
-      expect(() => assertPriceSource("stash", TEST_CHANNEL)).not.toThrow();
-    });
-
-    it("should throw for invalid price source", () => {
-      expect(() => assertPriceSource("market", TEST_CHANNEL)).toThrow(
-        IpcValidationError,
-      );
-    });
-
-    it("should throw for null", () => {
-      expect(() => assertPriceSource(null, TEST_CHANNEL)).toThrow(
-        IpcValidationError,
-      );
-    });
-
-    it("should throw for a number", () => {
-      expect(() => assertPriceSource(1, TEST_CHANNEL)).toThrow(
         IpcValidationError,
       );
     });

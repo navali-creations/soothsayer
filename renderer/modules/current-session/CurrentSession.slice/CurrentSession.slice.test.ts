@@ -44,32 +44,20 @@ function makeSession(
       {
         name: "The Doctor",
         count: 2,
-        exchangePrice: {
+        price: {
           chaosValue: 1200,
           divineValue: 8,
           totalValue: 2400,
-          hidePrice: false,
-        },
-        stashPrice: {
-          chaosValue: 1100,
-          divineValue: 7.3,
-          totalValue: 2200,
           hidePrice: false,
         },
       },
       {
         name: "Rain of Chaos",
         count: 30,
-        exchangePrice: {
+        price: {
           chaosValue: 1,
           divineValue: 0.007,
           totalValue: 30,
-          hidePrice: false,
-        },
-        stashPrice: {
-          chaosValue: 0.8,
-          divineValue: 0.005,
-          totalValue: 24,
           hidePrice: false,
         },
       },
@@ -77,16 +65,9 @@ function makeSession(
     startedAt: "2024-01-01T00:00:00Z",
     endedAt: null,
     totals: {
-      exchange: {
-        totalValue: 2430,
-        netProfit: 2130,
-        chaosToDivineRatio: 150,
-      },
-      stash: {
-        totalValue: 2224,
-        netProfit: 1924,
-        chaosToDivineRatio: 145,
-      },
+      totalValue: 2430,
+      netProfit: 2130,
+      chaosToDivineRatio: 150,
       stackedDeckChaosCost: 3,
       totalDeckCost: 150,
     },
@@ -214,14 +195,8 @@ describe("CurrentSessionSlice", () => {
         priceSnapshot: {
           timestamp: "2024-01-01T12:00:00Z",
           stackedDeckChaosCost: 3,
-          exchange: {
-            chaosToDivineRatio: 150,
-            cardPrices: {},
-          },
-          stash: {
-            chaosToDivineRatio: 145,
-            cardPrices: {},
-          },
+          chaosToDivineRatio: 150,
+          cardPrices: {},
         },
       });
       const poe1Info = makeSessionInfo({ league: "poe1:Standard" });
@@ -250,14 +225,8 @@ describe("CurrentSessionSlice", () => {
         priceSnapshot: {
           timestamp: "2024-02-01T12:00:00Z",
           stackedDeckChaosCost: 5,
-          exchange: {
-            chaosToDivineRatio: 200,
-            cardPrices: {},
-          },
-          stash: {
-            chaosToDivineRatio: 190,
-            cardPrices: {},
-          },
+          chaosToDivineRatio: 200,
+          cardPrices: {},
         },
       });
       const poe2Info = makeSessionInfo({ league: "poe2:Standard" });
@@ -286,14 +255,8 @@ describe("CurrentSessionSlice", () => {
         priceSnapshot: {
           timestamp: "2024-01-01T12:00:00Z",
           stackedDeckChaosCost: 3,
-          exchange: {
-            chaosToDivineRatio: 150,
-            cardPrices: {},
-          },
-          stash: {
-            chaosToDivineRatio: 145,
-            cardPrices: {},
-          },
+          chaosToDivineRatio: 150,
+          cardPrices: {},
         },
       });
       const poe1Info = makeSessionInfo({ league: "poe1:Settlers" });
@@ -320,14 +283,8 @@ describe("CurrentSessionSlice", () => {
         priceSnapshot: {
           timestamp: "2024-01-01T12:00:00Z",
           stackedDeckChaosCost: 3,
-          exchange: {
-            chaosToDivineRatio: 150,
-            cardPrices: {},
-          },
-          stash: {
-            chaosToDivineRatio: 145,
-            cardPrices: {},
-          },
+          chaosToDivineRatio: 150,
+          cardPrices: {},
         },
       });
       // ":" splits to ["", ""] so game="" and league="" — both || fallbacks hit
@@ -368,16 +325,9 @@ describe("CurrentSessionSlice", () => {
       const poe1Session = makeSession({
         timeline,
         totals: {
-          exchange: {
-            totalValue: 200,
-            netProfit: 150,
-            chaosToDivineRatio: 150,
-          },
-          stash: {
-            totalValue: 180,
-            netProfit: 130,
-            chaosToDivineRatio: 145,
-          },
+          totalValue: 200,
+          netProfit: 150,
+          chaosToDivineRatio: 150,
           stackedDeckChaosCost: 7,
           totalDeckCost: 35,
         },
@@ -408,16 +358,9 @@ describe("CurrentSessionSlice", () => {
       const poe1Session = makeSession({
         timeline,
         totals: {
-          exchange: {
-            totalValue: 0,
-            netProfit: 0,
-            chaosToDivineRatio: 150,
-          },
-          stash: {
-            totalValue: 0,
-            netProfit: 0,
-            chaosToDivineRatio: 145,
-          },
+          totalValue: 0,
+          netProfit: 0,
+          chaosToDivineRatio: 150,
           stackedDeckChaosCost: 0,
           totalDeckCost: 0,
         },
@@ -458,8 +401,8 @@ describe("CurrentSessionSlice", () => {
         priceSnapshot: {
           timestamp: "2024-01-01T12:00:00Z",
           stackedDeckChaosCost: 3,
-          exchange: { chaosToDivineRatio: 150, cardPrices: {} },
-          stash: { chaosToDivineRatio: 145, cardPrices: {} },
+          chaosToDivineRatio: 150,
+          cardPrices: {},
         },
       });
 
@@ -634,14 +577,8 @@ describe("CurrentSessionSlice", () => {
         priceSnapshot: {
           timestamp: "2024-03-01T10:00:00Z",
           stackedDeckChaosCost: 4,
-          exchange: {
-            chaosToDivineRatio: 0.001,
-            cardPrices: {},
-          },
-          stash: {
-            chaosToDivineRatio: 0.0009,
-            cardPrices: {},
-          },
+          chaosToDivineRatio: 0.001,
+          cardPrices: {},
         },
       });
       const sessionInfo = makeSessionInfo({ league: "poe2:Standard" });
@@ -690,16 +627,9 @@ describe("CurrentSessionSlice", () => {
           totalDivineValue: 1.2,
         },
         totals: {
-          exchange: {
-            totalValue: 200,
-            netProfit: 100,
-            chaosToDivineRatio: 150,
-          },
-          stash: {
-            totalValue: 180,
-            netProfit: 80,
-            chaosToDivineRatio: 145,
-          },
+          totalValue: 200,
+          netProfit: 100,
+          chaosToDivineRatio: 150,
           stackedDeckChaosCost: 3,
           totalDeckCost: 150,
         },
@@ -731,14 +661,8 @@ describe("CurrentSessionSlice", () => {
         priceSnapshot: {
           timestamp: "2024-03-01T10:00:00Z",
           stackedDeckChaosCost: 3,
-          exchange: {
-            chaosToDivineRatio: 150,
-            cardPrices: {},
-          },
-          stash: {
-            chaosToDivineRatio: 145,
-            cardPrices: {},
-          },
+          chaosToDivineRatio: 150,
+          cardPrices: {},
         },
       });
       const sessionInfo = makeSessionInfo({ league: "poe1:Settlers" });
@@ -767,14 +691,8 @@ describe("CurrentSessionSlice", () => {
         priceSnapshot: {
           timestamp: "2024-01-01T12:00:00Z",
           stackedDeckChaosCost: 3,
-          exchange: {
-            chaosToDivineRatio: 150,
-            cardPrices: {},
-          },
-          stash: {
-            chaosToDivineRatio: 145,
-            cardPrices: {},
-          },
+          chaosToDivineRatio: 150,
+          cardPrices: {},
         },
       });
       // ":" splits to ["", ""] so game="" and league="" — both || fallbacks hit
@@ -821,8 +739,8 @@ describe("CurrentSessionSlice", () => {
         priceSnapshot: {
           timestamp: "2024-01-01T00:00:00Z",
           stackedDeckChaosCost: 3,
-          exchange: { chaosToDivineRatio: 150, cardPrices: {} },
-          stash: { chaosToDivineRatio: 145, cardPrices: {} },
+          chaosToDivineRatio: 150,
+          cardPrices: {},
         },
       });
 
@@ -980,12 +898,11 @@ describe("CurrentSessionSlice", () => {
 
       await store
         .getState()
-        .currentSession.toggleCardPriceVisibility("The Doctor", "exchange");
+        .currentSession.toggleCardPriceVisibility("The Doctor");
 
       expect(electron.session.updateCardPriceVisibility).toHaveBeenCalledWith(
         "poe1",
         "current",
-        "exchange",
         "The Doctor",
         true,
       );
@@ -994,7 +911,7 @@ describe("CurrentSessionSlice", () => {
     it("does nothing when session is null", async () => {
       await store
         .getState()
-        .currentSession.toggleCardPriceVisibility("The Doctor", "exchange");
+        .currentSession.toggleCardPriceVisibility("The Doctor");
 
       expect(electron.session.updateCardPriceVisibility).not.toHaveBeenCalled();
     });
@@ -1012,21 +929,19 @@ describe("CurrentSessionSlice", () => {
 
       await store
         .getState()
-        .currentSession.toggleCardPriceVisibility(
-          "Nonexistent Card",
-          "exchange",
-        );
+        .currentSession.toggleCardPriceVisibility("Nonexistent Card");
 
       expect(electron.session.updateCardPriceVisibility).not.toHaveBeenCalled();
     });
 
-    it("toggles stash price visibility", async () => {
+    it("toggles price visibility when hidePrice is already true", async () => {
       store = createTestStore({
         settings: { selectedGame: "poe1" },
       });
       electron = window.electron as unknown as ElectronMock;
 
       const session = makeSession();
+      session.cards[0].price!.hidePrice = true;
       store.setState((s) => {
         s.currentSession.poe1Session = session;
       });
@@ -1037,71 +952,11 @@ describe("CurrentSessionSlice", () => {
 
       await store
         .getState()
-        .currentSession.toggleCardPriceVisibility("The Doctor", "stash");
+        .currentSession.toggleCardPriceVisibility("The Doctor");
 
       expect(electron.session.updateCardPriceVisibility).toHaveBeenCalledWith(
         "poe1",
         "current",
-        "stash",
-        "The Doctor",
-        true,
-      );
-    });
-
-    it("toggles stash price visibility when hidePrice is already true", async () => {
-      store = createTestStore({
-        settings: { selectedGame: "poe1" },
-      });
-      electron = window.electron as unknown as ElectronMock;
-
-      const session = makeSession();
-      // Set stashPrice.hidePrice to true on The Doctor
-      session.cards[0].stashPrice!.hidePrice = true;
-      store.setState((s) => {
-        s.currentSession.poe1Session = session;
-      });
-
-      electron.session.updateCardPriceVisibility.mockResolvedValue({
-        success: true,
-      });
-
-      await store
-        .getState()
-        .currentSession.toggleCardPriceVisibility("The Doctor", "stash");
-
-      expect(electron.session.updateCardPriceVisibility).toHaveBeenCalledWith(
-        "poe1",
-        "current",
-        "stash",
-        "The Doctor",
-        false,
-      );
-    });
-
-    it("toggles exchange price visibility when hidePrice is already true", async () => {
-      store = createTestStore({
-        settings: { selectedGame: "poe1" },
-      });
-      electron = window.electron as unknown as ElectronMock;
-
-      const session = makeSession();
-      session.cards[0].exchangePrice!.hidePrice = true;
-      store.setState((s) => {
-        s.currentSession.poe1Session = session;
-      });
-
-      electron.session.updateCardPriceVisibility.mockResolvedValue({
-        success: true,
-      });
-
-      await store
-        .getState()
-        .currentSession.toggleCardPriceVisibility("The Doctor", "exchange");
-
-      expect(electron.session.updateCardPriceVisibility).toHaveBeenCalledWith(
-        "poe1",
-        "current",
-        "exchange",
         "The Doctor",
         false,
       );
@@ -1297,16 +1152,9 @@ describe("CurrentSessionSlice", () => {
         const data = makeSession({
           timeline,
           totals: {
-            exchange: {
-              totalValue: 100,
-              netProfit: 80,
-              chaosToDivineRatio: 150,
-            },
-            stash: {
-              totalValue: 90,
-              netProfit: 70,
-              chaosToDivineRatio: 145,
-            },
+            totalValue: 100,
+            netProfit: 80,
+            chaosToDivineRatio: 150,
             stackedDeckChaosCost: 5,
             totalDeckCost: 15,
           },
@@ -1329,16 +1177,9 @@ describe("CurrentSessionSlice", () => {
         const data = makeSession({
           timeline,
           totals: {
-            exchange: {
-              totalValue: 0,
-              netProfit: 0,
-              chaosToDivineRatio: 150,
-            },
-            stash: {
-              totalValue: 0,
-              netProfit: 0,
-              chaosToDivineRatio: 145,
-            },
+            totalValue: 0,
+            netProfit: 0,
+            chaosToDivineRatio: 150,
             stackedDeckChaosCost: 0,
             totalDeckCost: 0,
           },
@@ -1355,19 +1196,10 @@ describe("CurrentSessionSlice", () => {
           priceSnapshot: {
             timestamp: "2024-06-01T00:00:00Z",
             stackedDeckChaosCost: 4,
-            exchange: {
-              chaosToDivineRatio: 150,
-              cardPrices: {
-                "The Doctor": { chaosValue: 1200, divineValue: 8 },
-                "Rain of Chaos": { chaosValue: 1, divineValue: 0.007 },
-              },
-            },
-            stash: {
-              chaosToDivineRatio: 145,
-              cardPrices: {
-                "The Doctor": { chaosValue: 1100, divineValue: 7.3 },
-                "Rain of Chaos": { chaosValue: 0.8, divineValue: 0.005 },
-              },
+            chaosToDivineRatio: 150,
+            cardPrices: {
+              "The Doctor": { chaosValue: 1200, divineValue: 8 },
+              "Rain of Chaos": { chaosValue: 1, divineValue: 0.007 },
             },
           },
         } as any);
@@ -1380,10 +1212,8 @@ describe("CurrentSessionSlice", () => {
         expect(snapshot).toBeDefined();
         expect(snapshot.timestamp).toBe("2024-06-01T00:00:00Z");
         expect(snapshot.stackedDeckChaosCost).toBe(4);
-        expect(snapshot.exchange.chaosToDivineRatio).toBe(150);
-        expect(snapshot.exchange.cardPrices).toEqual({});
-        expect(snapshot.stash.chaosToDivineRatio).toBe(145);
-        expect(snapshot.stash.cardPrices).toEqual({});
+        expect(snapshot.chaosToDivineRatio).toBe(150);
+        expect(snapshot.cardPrices).toEqual({});
       });
 
       it("sets poe1Session when poe1 data is received", () => {
@@ -1513,8 +1343,7 @@ describe("CurrentSessionSlice", () => {
             cardName: "The Doctor",
             newCount: 5,
             totalCount: 53,
-            exchangePrice: { chaosValue: 1200, divineValue: 8 },
-            stashPrice: { chaosValue: 1100, divineValue: 7.3 },
+            price: { chaosValue: 1200, divineValue: 8 },
             updatedTotals: null,
             recentDrop: null,
           },
@@ -1536,8 +1365,7 @@ describe("CurrentSessionSlice", () => {
             cardName: "House of Mirrors",
             newCount: 1,
             totalCount: 51,
-            exchangePrice: { chaosValue: 5000, divineValue: 33 },
-            stashPrice: { chaosValue: 4800, divineValue: 32 },
+            price: { chaosValue: 5000, divineValue: 33 },
             updatedTotals: null,
             recentDrop: null,
           },
@@ -1547,8 +1375,7 @@ describe("CurrentSessionSlice", () => {
         const mirror = session.cards.find((c) => c.name === "House of Mirrors");
         expect(mirror).toBeDefined();
         expect(mirror!.count).toBe(1);
-        expect(mirror!.exchangePrice).toBeDefined();
-        expect(mirror!.stashPrice).toBeDefined();
+        expect(mirror!.price).toBeDefined();
       });
 
       it("ignores delta for non-selected game", () => {
@@ -1562,8 +1389,7 @@ describe("CurrentSessionSlice", () => {
             cardName: "The Doctor",
             newCount: 99,
             totalCount: 999,
-            exchangePrice: { chaosValue: 1200, divineValue: 8 },
-            stashPrice: null,
+            price: { chaosValue: 1200, divineValue: 8 },
             updatedTotals: null,
             recentDrop: null,
           },
@@ -1582,8 +1408,7 @@ describe("CurrentSessionSlice", () => {
             cardName: "The Doctor",
             newCount: 5,
             totalCount: 53,
-            exchangePrice: null,
-            stashPrice: null,
+            price: null,
             updatedTotals: null,
             recentDrop: null,
           },
@@ -1602,8 +1427,7 @@ describe("CurrentSessionSlice", () => {
 
         const newDrop = {
           cardName: "The Doctor",
-          exchangePrice: { chaosValue: 1200, divineValue: 8 },
-          stashPrice: { chaosValue: 1100, divineValue: 7.3 },
+          price: { chaosValue: 1200, divineValue: 8 },
         };
 
         cardDeltaCallback({
@@ -1612,8 +1436,7 @@ describe("CurrentSessionSlice", () => {
             cardName: "The Doctor",
             newCount: 3,
             totalCount: 51,
-            exchangePrice: { chaosValue: 1200, divineValue: 8 },
-            stashPrice: { chaosValue: 1100, divineValue: 7.3 },
+            price: { chaosValue: 1200, divineValue: 8 },
             updatedTotals: null,
             recentDrop: newDrop,
           },
@@ -1630,16 +1453,9 @@ describe("CurrentSessionSlice", () => {
         });
 
         const newTotals = {
-          exchange: {
-            totalValue: 9999,
-            netProfit: 8888,
-            chaosToDivineRatio: 160,
-          },
-          stash: {
-            totalValue: 7777,
-            netProfit: 6666,
-            chaosToDivineRatio: 155,
-          },
+          totalValue: 9999,
+          netProfit: 8888,
+          chaosToDivineRatio: 160,
           stackedDeckChaosCost: 4,
           totalDeckCost: 200,
         };
@@ -1650,8 +1466,7 @@ describe("CurrentSessionSlice", () => {
             cardName: "The Doctor",
             newCount: 3,
             totalCount: 51,
-            exchangePrice: { chaosValue: 1200, divineValue: 8 },
-            stashPrice: { chaosValue: 1100, divineValue: 7.3 },
+            price: { chaosValue: 1200, divineValue: 8 },
             updatedTotals: newTotals,
             recentDrop: null,
           },
@@ -1672,8 +1487,7 @@ describe("CurrentSessionSlice", () => {
             cardName: "The Doctor",
             newCount: 3,
             totalCount: 123,
-            exchangePrice: { chaosValue: 1200, divineValue: 8 },
-            stashPrice: null,
+            price: { chaosValue: 1200, divineValue: 8 },
             updatedTotals: null,
             recentDrop: null,
           },
@@ -1687,8 +1501,7 @@ describe("CurrentSessionSlice", () => {
         // Seed session with 20 existing recent drops
         const existingDrops = Array.from({ length: 20 }, (_, i) => ({
           cardName: `Card ${i}`,
-          exchangePrice: { chaosValue: 1, divineValue: 0.01 },
-          stashPrice: { chaosValue: 1, divineValue: 0.01 },
+          price: { chaosValue: 1, divineValue: 0.01 },
         }));
         store.setState((s) => {
           s.currentSession.poe1Session = makeSession({
@@ -1698,8 +1511,7 @@ describe("CurrentSessionSlice", () => {
 
         const newDrop = {
           cardName: "The Doctor",
-          exchangePrice: { chaosValue: 1200, divineValue: 8 },
-          stashPrice: { chaosValue: 1100, divineValue: 7.3 },
+          price: { chaosValue: 1200, divineValue: 8 },
         };
 
         cardDeltaCallback({
@@ -1708,8 +1520,7 @@ describe("CurrentSessionSlice", () => {
             cardName: "The Doctor",
             newCount: 3,
             totalCount: 51,
-            exchangePrice: { chaosValue: 1200, divineValue: 8 },
-            stashPrice: { chaosValue: 1100, divineValue: 7.3 },
+            price: { chaosValue: 1200, divineValue: 8 },
             updatedTotals: null,
             recentDrop: newDrop,
           },
@@ -1735,8 +1546,7 @@ describe("CurrentSessionSlice", () => {
             cardName: "The Doctor",
             newCount: 5,
             totalCount: 53,
-            exchangePrice: { chaosValue: 1200, divineValue: 8 },
-            stashPrice: null,
+            price: { chaosValue: 1200, divineValue: 8 },
             updatedTotals: null,
             recentDrop: null,
           },
@@ -1745,34 +1555,10 @@ describe("CurrentSessionSlice", () => {
         const session = store.getState().currentSession.poe1Session!;
         const doctor = session.cards.find((c) => c.name === "The Doctor")!;
         // totalValue = chaosValue * newCount = 1200 * 5
-        expect(doctor.exchangePrice!.totalValue).toBe(6000);
+        expect(doctor.price!.totalValue).toBe(6000);
       });
 
-      it("updates stash price totalValue for existing card", () => {
-        store.setState((s) => {
-          s.currentSession.poe1Session = makeSession();
-        });
-
-        cardDeltaCallback({
-          game: "poe1",
-          delta: {
-            cardName: "The Doctor",
-            newCount: 5,
-            totalCount: 53,
-            exchangePrice: null,
-            stashPrice: { chaosValue: 1100, divineValue: 7.3 },
-            updatedTotals: null,
-            recentDrop: null,
-          },
-        });
-
-        const session = store.getState().currentSession.poe1Session!;
-        const doctor = session.cards.find((c) => c.name === "The Doctor")!;
-        // totalValue = chaosValue * newCount = 1100 * 5
-        expect(doctor.stashPrice!.totalValue).toBe(5500);
-      });
-
-      it("adds card with exchangePrice and stashPrice", () => {
+      it("adds card with price", () => {
         store.setState((s) => {
           s.currentSession.poe1Session = makeSession();
         });
@@ -1783,8 +1569,7 @@ describe("CurrentSessionSlice", () => {
             cardName: "House of Mirrors",
             newCount: 1,
             totalCount: 51,
-            exchangePrice: { chaosValue: 5000, divineValue: 33 },
-            stashPrice: { chaosValue: 4800, divineValue: 32 },
+            price: { chaosValue: 5000, divineValue: 33 },
             updatedTotals: null,
             recentDrop: null,
           },
@@ -1794,16 +1579,10 @@ describe("CurrentSessionSlice", () => {
         const mirror = session.cards.find(
           (c) => c.name === "House of Mirrors",
         )!;
-        expect(mirror.exchangePrice).toEqual({
+        expect(mirror.price).toEqual({
           chaosValue: 5000,
           divineValue: 33,
           totalValue: 5000,
-          hidePrice: false,
-        });
-        expect(mirror.stashPrice).toEqual({
-          chaosValue: 4800,
-          divineValue: 32,
-          totalValue: 4800,
           hidePrice: false,
         });
       });
@@ -1828,8 +1607,7 @@ describe("CurrentSessionSlice", () => {
             cardName: "House of Mirrors",
             newCount: 1,
             totalCount: 51,
-            exchangePrice: { chaosValue: 5000, divineValue: 33 },
-            stashPrice: null,
+            price: { chaosValue: 5000, divineValue: 33 },
             updatedTotals: null,
             recentDrop: null,
             divinationCard: divCard,
@@ -1854,12 +1632,10 @@ describe("CurrentSessionSlice", () => {
             cardName: "House of Mirrors",
             newCount: 1,
             totalCount: 51,
-            exchangePrice: { chaosValue: 5000, divineValue: 33 },
-            stashPrice: { chaosValue: 4800, divineValue: 32 },
+            price: { chaosValue: 5000, divineValue: 33 },
             updatedTotals: null,
             recentDrop: null,
-            hidePriceExchange: true,
-            hidePriceStash: true,
+            hidePrice: true,
           },
         });
 
@@ -1867,8 +1643,7 @@ describe("CurrentSessionSlice", () => {
         const mirror = session.cards.find(
           (c) => c.name === "House of Mirrors",
         )!;
-        expect(mirror.exchangePrice!.hidePrice).toBe(true);
-        expect(mirror.stashPrice!.hidePrice).toBe(true);
+        expect(mirror.price!.hidePrice).toBe(true);
       });
     });
   });
@@ -1973,9 +1748,9 @@ describe("CurrentSessionSlice", () => {
     });
 
     describe("getChaosToDivineRatio", () => {
-      it("returns the ratio from session totals for exchange price source", () => {
+      it("returns the ratio from session totals", () => {
         store = createTestStore({
-          settings: { selectedGame: "poe1", poe1PriceSource: "exchange" },
+          settings: { selectedGame: "poe1" },
         });
 
         store.setState((s) => {
@@ -1984,19 +1759,6 @@ describe("CurrentSessionSlice", () => {
 
         const ratio = store.getState().currentSession.getChaosToDivineRatio();
         expect(ratio).toBe(150);
-      });
-
-      it("returns the ratio from session totals for stash price source", () => {
-        store = createTestStore({
-          settings: { selectedGame: "poe1", poe1PriceSource: "stash" },
-        });
-
-        store.setState((s) => {
-          s.currentSession.poe1Session = makeSession();
-        });
-
-        const ratio = store.getState().currentSession.getChaosToDivineRatio();
-        expect(ratio).toBe(145);
       });
 
       it("returns 0 when no session exists", () => {
