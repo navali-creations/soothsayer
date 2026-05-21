@@ -1111,7 +1111,7 @@ describe("CardDetailsRepository", () => {
 
   describe("integration: cache lifecycle", () => {
     it("should insert, verify fresh, then verify stale after TTL", async () => {
-      const fetchedAt = new Date().toISOString();
+      const fetchedAt = new Date(Date.now() - 1000).toISOString();
 
       await getRepository().upsertPriceHistory(
         "poe1",
@@ -1136,8 +1136,7 @@ describe("CardDetailsRepository", () => {
       expect(cached).not.toBeNull();
       expect(cached!.fetched_at).toBe(fetchedAt);
 
-      // Simulate staleness with a very short TTL (1ms — enough time has passed)
-      await new Promise((r) => setTimeout(r, 2));
+      // The timestamp is already old enough to be stale for a very short TTL.
       expect(getRepository().isCacheStale(fetchedAt, 1)).toBe(true);
     });
 
