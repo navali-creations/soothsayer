@@ -401,5 +401,8 @@ verify_jwt = false
 [functions.upload-community-data]
 verify_jwt = false
 
+[functions.poe-oauth-callback]
+verify_jwt = false
+
 [functions.get-community-drop-rates]
 verify_jwt = false

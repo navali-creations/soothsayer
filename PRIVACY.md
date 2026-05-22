@@ -31,6 +31,15 @@ Usage analytics do **not** include any personal identifiers. We see aggregated c
 
 The app creates an anonymous session with our backend (Supabase) to access shared data like price snapshots. This session uses a random UUID and is not linked to any personal identity.
 
+### Security and Abuse Prevention
+
+When the app contacts backend endpoints, Soothsayer may create a short-lived pseudonymous security identifier for rate limiting and abuse prevention. This identifier is derived from your network address using HMAC-SHA-256 with a server-side secret.
+
+- Your raw IP address is **not stored** in the database
+- The identifier cannot be decoded back into your IP address without the server-side secret
+- The identifier is used only for rate limiting, abuse detection, and protecting backend services
+- These request records are retained for 24-48 hours and then automatically cleaned up
+
 ### Community Drop Rate Uploads
 
 When community uploads are enabled (Settings → Privacy & Telemetry), Soothsayer automatically shares your stacked deck drop data at the end of each session to help build community drop rate statistics.
@@ -63,7 +72,7 @@ Performance diagnostic reports are **not uploaded automatically**. The app only 
 ## What We Do NOT Collect
 
 - Usernames or file paths (scrubbed before sending)
-- IP addresses (disabled in Sentry server settings)
+- Raw IP addresses in telemetry or backend request logs
 - Game data, stash contents, or trade history
 - Keystroke or input data
 - App performance diagnostics unless you manually export and send a report
@@ -76,6 +85,7 @@ Performance diagnostic reports are **not uploaded automatically**. The app only 
 - **Crash reports** — to fix bugs and edge cases across different systems
 - **Usage analytics** — to understand which features matter most and prioritize development
 - **Anonymous sessions** — to provide access to shared price data and app functionality
+- **Security identifiers** — to rate-limit backend requests, detect abuse, and protect shared services
 - **Community uploads** — to aggregate card drop statistics for community insights on [wraeclast.cards](https://wraeclast.cards)
 - **User-shared diagnostics** — to troubleshoot performance issues when you choose to send an exported diagnostics report
 
@@ -98,7 +108,7 @@ Performance diagnostic reports are **not uploaded automatically**. The app only 
 |---|---|
 | Sentry crash reports | 30 days (auto-deleted) |
 | Umami analytics | 90 days (aggregated, no personal data) |
-| Supabase `api_requests` | 24–48 hours (auto-cleaned via daily cron) |
+| Supabase `api_requests` and pseudonymous security identifiers | 24–48 hours (auto-cleaned via daily cron) |
 | Community upload data | Indefinite (pseudonymized by device UUID or GGG UUID) |
 | Local app performance diagnostics | User-selected: 24 hours, 7 days (default), or indefinite — stored only in local SQLite unless you manually export and share |
 | Local app data (SQLite) | Until you delete it — fully under your control |
@@ -163,7 +173,7 @@ Requests are processed within **30 days**.
 
 - **Without GGG account linked:** We hold no data that can identify you. Your device UUID is a random identifier with no link to your personal identity.
 - **With GGG account linked:** Your GGG username becomes the lookup key. You can request export or deletion of all associated data.
-- **Ban retention:** Under GDPR Article 17(3)(e), if your account has been flagged for abuse of community features, we may retain a pseudonymous abuse prevention record (containing no personally identifiable information) after processing a deletion request. This is necessary to protect the integrity of community-contributed data.
+- **Ban retention:** Under GDPR Article 17(3)(e), if your account or pseudonymous security identifier has been flagged for abuse of community features, we may retain an abuse prevention record after processing a deletion request. This record does not include raw IP addresses, GGG OAuth tokens, stash contents, local file paths, or app performance diagnostics. This is necessary to protect the integrity of community-contributed data.
 
 ---
 

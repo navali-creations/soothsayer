@@ -60,6 +60,7 @@ assert(handler !== null, "Handler should have been captured from Deno.serve");
 const BASE_URL = "http://localhost:54321/functions/v1/poe-oauth-callback";
 const AUTH_RELAY_BASE = "https://wraeclast.cards/soothsayer/auth";
 const FUNCTION_URL = "http://localhost:54321/functions/v1/poe-oauth-callback";
+const ABUSE_IDENTIFIER_SECRET = "test-abuse-identifier-secret";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -123,6 +124,25 @@ function withRateLimit(fm: ReturnType<typeof mockFetch>) {
     rpcResponse({ allowed: true }),
   );
   return fm;
+}
+
+async function hmacSha256Hex(secret: string, message: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(message),
+  );
+
+  return [...new Uint8Array(signature)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -436,6 +456,95 @@ quietTest("POST: returns 429 when rate limited", async () => {
   fm.restore();
   cleanupEnv();
 });
+
+quietTest(
+  "POST exchange: returns 429 when daily login limit is exceeded",
+  async () => {
+    const cleanupEnv = setupEnv();
+    const fm = mockFetch();
+    let tokenExchangeCalled = false;
+
+    fm.onUrlContaining(
+      supabaseUrls.rpc("check_and_log_request"),
+      (_input, init) => {
+        const body = JSON.parse(String(init?.body ?? "{}"));
+        if (body.p_endpoint === "poe-oauth-callback:exchange") {
+          return rpcResponse({ allowed: false, reason: "rate_limited" });
+        }
+
+        return rpcResponse({ allowed: true });
+      },
+    );
+
+    fm.onUrlContaining("pathofexile.com/oauth/token", () => {
+      tokenExchangeCalled = true;
+      return new Response("{}", { status: 200 });
+    });
+
+    const req = createMockRequest(`${BASE_URL}?action=exchange`, {
+      method: "POST",
+      body: { code: "test", code_verifier: "test" },
+      apikey: "test-anon-key",
+    });
+    const resp = await handler(req);
+
+    assertEquals(resp.status, 429);
+    const body = await responseBody<{ error: string }>(resp);
+    assert(body.error.includes("Rate limit"));
+    assertEquals(tokenExchangeCalled, false);
+    fm.restore();
+    cleanupEnv();
+  },
+);
+
+quietTest(
+  "POST exchange: rate limit identifier is an HMAC of the Cloudflare client IP",
+  async () => {
+    const cleanupEnv = setupEnv();
+    const fm = mockFetch();
+    const capturedIdentifiers: string[] = [];
+
+    fm.onUrlContaining(
+      supabaseUrls.rpc("check_and_log_request"),
+      (_input, init) => {
+        const body = JSON.parse(String(init?.body ?? "{}"));
+        capturedIdentifiers.push(body.p_identifier);
+
+        return rpcResponse({ allowed: true });
+      },
+    );
+
+    fm.onUrlContaining("pathofexile.com/oauth/token", () => {
+      return new Response(JSON.stringify({ access_token: "tok" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+
+    const req = createMockRequest(`${BASE_URL}?action=exchange`, {
+      method: "POST",
+      headers: {
+        "cf-connecting-ip": "203.0.113.10",
+        "x-forwarded-for": "198.51.100.20",
+      },
+      body: { code: "test", code_verifier: "test" },
+      apikey: "test-anon-key",
+    });
+    const resp = await handler(req);
+
+    const expectedHash = await hmacSha256Hex(
+      ABUSE_IDENTIFIER_SECRET,
+      "203.0.113.10",
+    );
+    const expectedIdentifier = `oauth-proxy:v2:${expectedHash}`;
+
+    assertEquals(resp.status, 200);
+    assertEquals(capturedIdentifiers, [expectedIdentifier, expectedIdentifier]);
+    assert(!expectedIdentifier.includes("203.0.113.10"));
+    fm.restore();
+    cleanupEnv();
+  },
+);
 
 quietTest("POST: returns 403 when banned", async () => {
   const cleanupEnv = setupEnv();

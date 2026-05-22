@@ -150,6 +150,7 @@ const DEFAULT_TEST_ENV: Record<string, string> = {
   SUPABASE_URL: "http://localhost:54321",
   SUPABASE_ANON_KEY: "test-anon-key",
   SUPABASE_SERVICE_ROLE_KEY: "test-service-role-key",
+  ABUSE_IDENTIFIER_SECRET: "test-abuse-identifier-secret",
   INTERNAL_CRON_SECRET: "test-cron-secret",
 };
 

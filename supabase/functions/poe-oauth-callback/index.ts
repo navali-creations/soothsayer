@@ -25,7 +25,12 @@ const GGG_OAUTH_BASE = "https://www.pathofexile.com/oauth";
 const AUTH_RELAY_BASE = "https://wraeclast.cards/soothsayer/auth";
 const GGG_CLIENT_ID = Deno.env.get("GGG_OAUTH_CLIENT_ID") || "";
 const GGG_CLIENT_SECRET = Deno.env.get("GGG_OAUTH_CLIENT_SECRET") || "";
+const ABUSE_IDENTIFIER_SECRET = Deno.env.get("ABUSE_IDENTIFIER_SECRET") || "";
 const FUNCTION_TIMEOUT_MS = 10_000;
+const POST_RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000;
+const POST_RATE_LIMIT_MAX_HITS = 10;
+const EXCHANGE_DAILY_RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000;
+const EXCHANGE_DAILY_RATE_LIMIT_MAX_HITS = 3;
 
 // The public-facing URL of this edge function, used as the OAuth redirect_uri.
 // Deno.env.get("SUPABASE_URL") is auto-set by Supabase to the project's public URL.
@@ -38,6 +43,61 @@ function jsonResponse(body: Record<string, unknown>, status = 200): Response {
     status,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+function toHex(bytes: Uint8Array): string {
+  return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function getClientIp(req: Request): string {
+  return (
+    req.headers.get("cf-connecting-ip")?.trim() ||
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    "unknown"
+  );
+}
+
+async function createRateLimitIdentifier(req: Request): Promise<string> {
+  if (!ABUSE_IDENTIFIER_SECRET) {
+    throw new Error("ABUSE_IDENTIFIER_SECRET not configured");
+  }
+
+  const hmacKey = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(ABUSE_IDENTIFIER_SECRET),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const clientIp = getClientIp(req);
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    hmacKey,
+    new TextEncoder().encode(clientIp),
+  );
+
+  return `oauth-proxy:v2:${toHex(new Uint8Array(signature))}`;
+}
+
+async function enforceOAuthRateLimits(
+  identifier: string,
+  action: string | null,
+): Promise<void> {
+  await enforceRateLimitByIdentifier({
+    identifier,
+    endpoint: "poe-oauth-callback",
+    windowMs: POST_RATE_LIMIT_WINDOW_MS,
+    maxHits: POST_RATE_LIMIT_MAX_HITS,
+  });
+
+  if (action === "exchange") {
+    await enforceRateLimitByIdentifier({
+      identifier,
+      endpoint: "poe-oauth-callback:exchange",
+      windowMs: EXCHANGE_DAILY_RATE_LIMIT_WINDOW_MS,
+      maxHits: EXCHANGE_DAILY_RATE_LIMIT_MAX_HITS,
+    });
+  }
 }
 
 // ─── GET handlers ────────────────────────────────────────────────────────────
@@ -267,35 +327,26 @@ Deno.serve(async (req: Request) => {
 
   // ─── POST: token exchange or refresh (called by the Electron app) ──────────
   if (req.method === "POST") {
+    const action = url.searchParams.get("action");
+
     // M1: Require apikey header on POST endpoints
     const apiKey = req.headers.get("apikey");
     if (!apiKey) {
       return jsonResponse({ error: "Missing apikey header" }, 401);
     }
 
-    // M1: IP-based rate limiting for POST endpoints (10 req / 5 min / IP)
-    // Privacy-first: hash the IP with SHA-256 so the raw address is never stored.
-    // Same IP always produces the same hash, so rate limiting works identically.
-    const clientIp =
-      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-      req.headers.get("cf-connecting-ip") ||
-      "unknown";
-    const ipHashBuffer = await crypto.subtle.digest(
-      "SHA-256",
-      new TextEncoder().encode(clientIp),
-    );
-    const ipHash = [...new Uint8Array(ipHashBuffer)]
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
-    const identifier = `oauth-proxy:${ipHash}`;
+    // Rate-limit by a keyed, pseudonymous network identifier.
+    // Raw IP addresses are never stored, and the HMAC secret is not public.
+    let identifier: string;
+    try {
+      identifier = await createRateLimitIdentifier(req);
+    } catch (error) {
+      console.error("[poe-oauth-callback] Identifier setup failed:", error);
+      return jsonResponse({ error: "Internal server error" }, 500);
+    }
 
     try {
-      await enforceRateLimitByIdentifier({
-        identifier,
-        endpoint: "poe-oauth-callback",
-        windowMs: 5 * 60 * 1000, // 5-minute window
-        maxHits: 10, // 10 requests per 5 minutes per IP
-      });
+      await enforceOAuthRateLimits(identifier, action);
     } catch (error) {
       const status = (error as any).status;
       if (status === 429) {
@@ -320,8 +371,6 @@ Deno.serve(async (req: Request) => {
     } catch {
       return jsonResponse({ error: "Invalid JSON body" }, 400);
     }
-
-    const action = url.searchParams.get("action");
 
     if (action === "exchange") {
       return handleTokenExchange(body);

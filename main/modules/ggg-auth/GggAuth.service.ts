@@ -21,14 +21,6 @@ const AUTH_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 const TOKEN_EXPIRY_BUFFER_S = 300; // 5 minutes before expiry
 const FETCH_TIMEOUT_MS = 10_000; // 10 seconds
 
-const GGG_OAUTH_PROXY = import.meta.env.VITE_SUPABASE_URL
-  ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/poe-oauth-callback`
-  : null;
-
-// When using the proxy, the redirect_uri is the proxy URL itself (without query params).
-// When not using the proxy, fall back to the custom protocol.
-const GGG_REDIRECT_URI = GGG_OAUTH_PROXY || "soothsayer://oauth/callback";
-
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface GggSession {
@@ -47,6 +39,23 @@ interface GggTokenResponse {
   username: string;
   sub: string;
   refresh_token: string;
+}
+
+function getSupabaseAnonKey(): string {
+  return import.meta.env.VITE_SUPABASE_ANON_KEY || "";
+}
+
+function getGggOAuthProxy(): string | null {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = getSupabaseAnonKey();
+
+  return supabaseUrl && supabaseAnonKey
+    ? `${supabaseUrl}/functions/v1/poe-oauth-callback`
+    : null;
+}
+
+function getGggRedirectUri(): string {
+  return getGggOAuthProxy() || "soothsayer://oauth/callback";
 }
 
 // ─── Secure Session Storage ──────────────────────────────────────────────────
@@ -195,7 +204,7 @@ class GggAuthService {
     this.setupHandlers();
 
     // L10: Warn when running in production without the OAuth server-side proxy
-    if (app.isPackaged && !GGG_OAUTH_PROXY) {
+    if (app.isPackaged && !getGggOAuthProxy()) {
       console.error(
         "[GggAuth] WARNING: Running in production without OAuth proxy. " +
           "VITE_SUPABASE_URL is not configured. GGG OAuth will use direct PKCE flow " +
@@ -327,7 +336,9 @@ class GggAuthService {
 
     let authorizeUrl: string;
 
-    if (GGG_OAUTH_PROXY) {
+    const gggOAuthProxy = getGggOAuthProxy();
+
+    if (gggOAuthProxy) {
       // Use the edge function proxy — it adds client_id, redirect_uri, etc.
       const params = new URLSearchParams({
         action: "authorize",
@@ -336,7 +347,7 @@ class GggAuthService {
         state,
         scope: "account:profile",
       });
-      authorizeUrl = `${GGG_OAUTH_PROXY}?${params.toString()}`;
+      authorizeUrl = `${gggOAuthProxy}?${params.toString()}`;
     } else {
       // Direct flow (fallback when Supabase not configured)
       const params = new URLSearchParams({
@@ -344,7 +355,7 @@ class GggAuthService {
         response_type: "code",
         scope: "account:profile",
         state,
-        redirect_uri: GGG_REDIRECT_URI,
+        redirect_uri: getGggRedirectUri(),
         code_challenge: codeChallenge,
         code_challenge_method: "S256",
       });
@@ -482,12 +493,15 @@ class GggAuthService {
     code: string,
     codeVerifier: string,
   ): Promise<GggTokenResponse> {
-    if (GGG_OAUTH_PROXY) {
+    const gggOAuthProxy = getGggOAuthProxy();
+
+    if (gggOAuthProxy) {
       // Use the edge function proxy for token exchange
-      const response = await fetch(`${GGG_OAUTH_PROXY}?action=exchange`, {
+      const response = await fetch(`${gggOAuthProxy}?action=exchange`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          apikey: getSupabaseAnonKey(),
           "User-Agent": `OAuth soothsayer/${pkgJson.version} (contact: soothsayer.app)`,
         },
         body: JSON.stringify({ code, code_verifier: codeVerifier }),
@@ -515,7 +529,7 @@ class GggAuthService {
       client_id: GGG_CLIENT_ID,
       grant_type: "authorization_code",
       code,
-      redirect_uri: GGG_REDIRECT_URI,
+      redirect_uri: getGggRedirectUri(),
       scope: "account:profile",
       code_verifier: codeVerifier,
     });
@@ -606,12 +620,15 @@ class GggAuthService {
   private async refreshAccessToken(
     refreshToken: string,
   ): Promise<GggTokenResponse> {
-    if (GGG_OAUTH_PROXY) {
+    const gggOAuthProxy = getGggOAuthProxy();
+
+    if (gggOAuthProxy) {
       // Use the edge function proxy for token refresh
-      const response = await fetch(`${GGG_OAUTH_PROXY}?action=refresh`, {
+      const response = await fetch(`${gggOAuthProxy}?action=refresh`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          apikey: getSupabaseAnonKey(),
           "User-Agent": `OAuth soothsayer/${pkgJson.version} (contact: soothsayer.app)`,
         },
         body: JSON.stringify({ refresh_token: refreshToken }),

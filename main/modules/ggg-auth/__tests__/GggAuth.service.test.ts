@@ -149,6 +149,38 @@ const MOCK_EXPIRED_SESSION = {
   expires_at: Math.floor(Date.now() / 1000) - 600, // expired 10 minutes ago
 };
 
+const mutableImportMetaEnv = import.meta.env as unknown as Record<
+  string,
+  string | undefined
+>;
+const originalSupabaseUrl = mutableImportMetaEnv.VITE_SUPABASE_URL;
+const originalSupabaseAnonKey = mutableImportMetaEnv.VITE_SUPABASE_ANON_KEY;
+
+function setImportMetaEnvValue(key: string, value: string | undefined): void {
+  if (value === undefined) {
+    delete mutableImportMetaEnv[key];
+    return;
+  }
+
+  mutableImportMetaEnv[key] = value;
+}
+
+function restoreGggAuthEnv(): void {
+  setImportMetaEnvValue("VITE_SUPABASE_URL", originalSupabaseUrl);
+  setImportMetaEnvValue("VITE_SUPABASE_ANON_KEY", originalSupabaseAnonKey);
+}
+
+function useProxyEnv(overrides: Record<string, string | undefined> = {}): void {
+  setImportMetaEnvValue(
+    "VITE_SUPABASE_URL",
+    overrides.VITE_SUPABASE_URL ?? "https://test-project.supabase.co",
+  );
+  setImportMetaEnvValue(
+    "VITE_SUPABASE_ANON_KEY",
+    overrides.VITE_SUPABASE_ANON_KEY ?? "test-anon-key",
+  );
+}
+
 function createSuccessTokenResponse(overrides: Record<string, unknown> = {}) {
   return {
     ok: true,
@@ -236,13 +268,19 @@ function parseRequestBody(body: unknown): Record<string, string> {
 
 function expectTokenRequest(
   fetchUrl: string,
-  fetchOptions: { method?: string; body?: unknown },
+  fetchOptions: {
+    method?: string;
+    body?: unknown;
+    headers?: Record<string, string>;
+  },
   action: "exchange" | "refresh",
 ): void {
   const url = new URL(fetchUrl);
 
   if (isProxyUrl(url)) {
     expect(url.searchParams.get("action")).toBe(action);
+    expect(fetchOptions.headers?.apikey).toBeTruthy();
+    expect(fetchOptions.headers?.Authorization).toBeUndefined();
   } else {
     expect(url.origin).toBe("https://www.pathofexile.com");
     expect(url.pathname).toBe("/oauth/token");
@@ -257,6 +295,7 @@ describe("GggAuthService", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.useRealTimers();
+    restoreGggAuthEnv();
 
     // Reset defaults
     mockGetPath.mockReturnValue("/fake/userData");
@@ -278,6 +317,7 @@ describe("GggAuthService", () => {
 
   afterEach(() => {
     resetSingleton(GggAuthService);
+    restoreGggAuthEnv();
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -429,6 +469,40 @@ describe("GggAuthService", () => {
       expect(url.searchParams.get("code_challenge_method")).toBe("S256");
     });
 
+    it("should use the OAuth proxy authorize URL when Supabase credentials are configured", () => {
+      useProxyEnv();
+      const service = GggAuthService.getInstance();
+
+      service.authenticate();
+
+      const urlString = mockShellOpenExternal.mock.calls[0][0] as string;
+      const url = new URL(urlString);
+
+      expect(url.origin).toBe("https://test-project.supabase.co");
+      expect(url.pathname).toBe("/functions/v1/poe-oauth-callback");
+      expect(url.searchParams.get("action")).toBe("authorize");
+      expect(url.searchParams.get("scope")).toBe("account:profile");
+      expect(url.searchParams.get("code_challenge")).toBeTruthy();
+      expect(url.searchParams.get("code_challenge_method")).toBe("S256");
+    });
+
+    it("should fall back to direct OAuth when the Supabase anon key is missing", () => {
+      useProxyEnv({ VITE_SUPABASE_ANON_KEY: "" });
+      const service = GggAuthService.getInstance();
+
+      service.authenticate();
+
+      const urlString = mockShellOpenExternal.mock.calls[0][0] as string;
+      const url = new URL(urlString);
+
+      expect(url.origin).toBe("https://www.pathofexile.com");
+      expect(url.pathname).toBe("/oauth/authorize");
+      expect(url.searchParams.get("redirect_uri")).toBe(
+        "soothsayer://oauth/callback",
+      );
+      expect(url.searchParams.get("action")).toBeNull();
+    });
+
     it("should return success after handleCallback resolves with valid tokens", async () => {
       const service = GggAuthService.getInstance();
 
@@ -520,6 +594,36 @@ describe("GggAuthService", () => {
       // Verify session was saved (encrypted)
       expect(mockSafeStorageEncrypt).toHaveBeenCalled();
       expect(mockFsWriteFileSync).toHaveBeenCalled();
+    });
+
+    it("should send the Supabase apikey header when exchanging through the OAuth proxy", async () => {
+      useProxyEnv();
+      const service = GggAuthService.getInstance();
+
+      mockFetch.mockResolvedValueOnce(createSuccessTokenResponse());
+
+      const { authPromise, getCallbackUrl } =
+        startAuthFlowAndCaptureState(service);
+
+      await service.handleCallback(getCallbackUrl("proxy-auth-code"));
+      await authPromise;
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const [fetchUrl, fetchOptions] = mockFetch.mock.calls[0];
+      const url = new URL(fetchUrl as string);
+
+      expect(url.origin).toBe("https://test-project.supabase.co");
+      expect(url.pathname).toBe("/functions/v1/poe-oauth-callback");
+      expect(url.searchParams.get("action")).toBe("exchange");
+      expect(fetchOptions.headers).toMatchObject({
+        "Content-Type": "application/json",
+        apikey: "test-anon-key",
+      });
+      expect(fetchOptions.headers.Authorization).toBeUndefined();
+
+      const body = parseRequestBody(fetchOptions.body);
+      expect(body.code).toBe("proxy-auth-code");
+      expect(body.code_verifier).toBeTruthy();
     });
 
     it("should reject when state does not match pending state", async () => {
@@ -701,6 +805,39 @@ describe("GggAuthService", () => {
       // Verify updated session was saved
       expect(mockSafeStorageEncrypt).toHaveBeenCalled();
       expect(mockFsWriteFileSync).toHaveBeenCalled();
+    });
+
+    it("should send the Supabase apikey header when refreshing through the OAuth proxy", async () => {
+      useProxyEnv();
+      mockStoredSession(MOCK_EXPIRED_SESSION);
+
+      mockFetch.mockResolvedValueOnce(
+        createSuccessTokenResponse({
+          access_token: "proxy-refreshed-access-token",
+          refresh_token: "proxy-refreshed-refresh-token",
+        }),
+      );
+
+      const service = GggAuthService.getInstance();
+      const result = await service.getAccessToken();
+
+      expect(result).toBe("proxy-refreshed-access-token");
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      const [fetchUrl, fetchOptions] = mockFetch.mock.calls[0];
+      const url = new URL(fetchUrl as string);
+
+      expect(url.origin).toBe("https://test-project.supabase.co");
+      expect(url.pathname).toBe("/functions/v1/poe-oauth-callback");
+      expect(url.searchParams.get("action")).toBe("refresh");
+      expect(fetchOptions.headers).toMatchObject({
+        "Content-Type": "application/json",
+        apikey: "test-anon-key",
+      });
+      expect(fetchOptions.headers.Authorization).toBeUndefined();
+
+      const body = parseRequestBody(fetchOptions.body);
+      expect(body.refresh_token).toBe("test-refresh-token");
     });
 
     it("should return null and delete session when refresh fails", async () => {

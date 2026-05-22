@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   renderWithProviders,
@@ -39,8 +39,9 @@ vi.mock("~/renderer/modules/umami", () => ({
 
 vi.mock("react-icons/fi", () => ({
   FiAlertTriangle: () => <span data-testid="icon-alert-triangle" />,
-  FiInfo: () => <span data-testid="icon-info" />,
+  FiExternalLink: () => <span data-testid="icon-external-link" />,
   FiShield: () => <span data-testid="icon-shield" />,
+  FiX: () => <span data-testid="icon-x" />,
 }));
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -87,6 +88,19 @@ function setupStore(
 // ─── Tests ─────────────────────────────────────────────────────────────────
 
 describe("PrivacySettingsCard", () => {
+  beforeAll(() => {
+    HTMLDialogElement.prototype.showModal = vi.fn(function (
+      this: HTMLDialogElement,
+    ) {
+      this.setAttribute("open", "");
+    });
+    HTMLDialogElement.prototype.close = vi.fn(function (
+      this: HTMLDialogElement,
+    ) {
+      this.removeAttribute("open");
+    });
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     setupStore();
@@ -247,7 +261,7 @@ describe("PrivacySettingsCard", () => {
 
   // ── GGG account link/unlink ──────────────────────────────────────────
 
-  it("does not show GGG relay account section while the relay website is disabled", () => {
+  it("shows linked GGG account section when community uploads are enabled", () => {
     setupStore({
       communityUploadsEnabled: true,
       gggAuthenticated: true,
@@ -256,19 +270,86 @@ describe("PrivacySettingsCard", () => {
     });
     renderWithProviders(<PrivacySettingsCard />);
 
-    expect(screen.queryByText("Uploading anonymously")).not.toBeInTheDocument();
-    expect(screen.queryByText("TestUser")).not.toBeInTheDocument();
-    expect(screen.queryByText("Unlink")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Uploading without a linked account"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("TestUser")).toBeInTheDocument();
+    expect(screen.getByText("Unlink")).toBeInTheDocument();
     expect(screen.queryByText("Auth failed")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /Link GGG Account/i }),
     ).not.toBeInTheDocument();
   });
 
-  it("does not fetch GGG status while the relay website is disabled", () => {
+  it("shows reassuring GGG account link copy when account is not linked", () => {
+    setupStore({
+      communityUploadsEnabled: true,
+      gggAuthenticated: false,
+    });
     renderWithProviders(<PrivacySettingsCard />);
 
-    expect(mockFetchStatus).not.toHaveBeenCalled();
+    expect(
+      screen.getByText("Uploading without a linked account"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /link your Path of Exile account to show your community drop data as verified/i,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Soothsayer can only see your account name and account ID/i,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/No character, stash, item, trade, password, or email/i),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("icon-external-link")).toBeInTheDocument();
+  });
+
+  it("opens a confirmation modal before starting GGG account linking", async () => {
+    const { user } = renderWithProviders(<PrivacySettingsCard />);
+
+    await user.click(screen.getByRole("button", { name: /Link GGG Account/i }));
+
+    expect(mockAuthenticate).not.toHaveBeenCalled();
+    expect(
+      screen.getByText("This opens the official Path of Exile website."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Your account name")).toBeInTheDocument();
+    expect(screen.getByText("Your account ID")).toBeInTheDocument();
+    expect(screen.getByText("Your stash tabs or items")).toBeInTheDocument();
+  });
+
+  it("starts GGG account linking after confirmation", async () => {
+    const { user } = renderWithProviders(<PrivacySettingsCard />);
+
+    await user.click(screen.getByRole("button", { name: /Link GGG Account/i }));
+    await user.click(
+      screen.getByRole("button", { name: /Continue to Path of Exile/i }),
+    );
+
+    expect(mockAuthenticate).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels GGG account linking from the confirmation modal", async () => {
+    const { user } = renderWithProviders(<PrivacySettingsCard />);
+
+    await user.click(screen.getByRole("button", { name: /Link GGG Account/i }));
+    await user.click(screen.getByRole("button", { name: /Cancel/i }));
+
+    expect(mockAuthenticate).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(
+        screen.queryByText("This opens the official Path of Exile website."),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("fetches GGG status by default", () => {
+    renderWithProviders(<PrivacySettingsCard />);
+
+    expect(mockFetchStatus).toHaveBeenCalledTimes(1);
   });
 
   it("renders Community Drop Rates toggle", () => {
