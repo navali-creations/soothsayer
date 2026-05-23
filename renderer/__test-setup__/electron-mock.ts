@@ -314,6 +314,7 @@ export function createElectronMock() {
       getAll: vi.fn().mockResolvedValue([]),
       get: vi.fn().mockResolvedValue(null),
       parse: vi.fn().mockResolvedValue({ cards: [], totalCards: 0 }),
+      getFilterTheme: vi.fn().mockResolvedValue([]),
       select: vi.fn().mockResolvedValue(undefined),
       getSelected: vi.fn().mockResolvedValue(null),
       getRaritySource: vi.fn().mockResolvedValue("poe.ninja"),

@@ -13,6 +13,8 @@ import {
 
 const mockDetectZone = vi.fn();
 const mockSetSessionData = vi.fn();
+const mockLoadFilterTheme = vi.fn().mockResolvedValue(undefined);
+const mockClearFilterTheme = vi.fn();
 
 // ─── Default store state ───────────────────────────────────────────────────
 
@@ -32,6 +34,10 @@ function defaultOverlayState(overrides: Record<string, unknown> = {}) {
       isLeftHalf: true,
       detectZone: mockDetectZone,
       ...overrides,
+    },
+    rarityInsights: {
+      loadFilterTheme: mockLoadFilterTheme,
+      clearFilterTheme: mockClearFilterTheme,
     },
   };
 }
@@ -165,6 +171,8 @@ function mockSettings(overrides: Record<string, unknown> = {}) {
     audioRarity2Path: null,
     audioRarity3Path: null,
     selectedGame: "poe1",
+    raritySource: "poe.ninja",
+    selectedFilterId: null,
     overlayFontSize: 1.0,
     overlayToolbarFontSize: 1.0,
     telemetryCrashReporting: false,
@@ -198,6 +206,9 @@ beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
   mockDetectZone.mockReset();
   mockSetSessionData.mockReset();
+  mockLoadFilterTheme.mockReset();
+  mockLoadFilterTheme.mockResolvedValue(undefined);
+  mockClearFilterTheme.mockReset();
   mockUseBoundStore.mockReturnValue(defaultOverlayState());
   mockSettings();
   installAudioMock();
@@ -368,6 +379,18 @@ describe("OverlayApp", () => {
       expect(root.style.getPropertyValue("--overlay-toolbar-font-size")).toBe(
         "1",
       );
+    });
+
+    it("loads the selected filter theme for filter rarity source", async () => {
+      mockSettings({
+        raritySource: "filter",
+        selectedFilterId: "filter-neversink",
+      });
+
+      await renderAndSettle();
+
+      expect(mockLoadFilterTheme).toHaveBeenCalledWith("filter-neversink");
+      expect(mockClearFilterTheme).not.toHaveBeenCalled();
     });
 
     it("loads custom sound data when audioRarityPaths are set", async () => {

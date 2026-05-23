@@ -262,6 +262,25 @@ export interface FilterCardRaritiesTable {
   created_at: ColumnType<string, string | undefined, never>;
 }
 
+export interface FilterTierStylesTable {
+  filter_id: string;
+  rarity: KnownRarity;
+  bg_r: number | null;
+  bg_g: number | null;
+  bg_b: number | null;
+  bg_a: number | null;
+  text_r: number | null;
+  text_g: number | null;
+  text_b: number | null;
+  text_a: number | null;
+  border_r: number | null;
+  border_g: number | null;
+  border_b: number | null;
+  border_a: number | null;
+  created_at: ColumnType<string, string | undefined, never>;
+  updated_at: ColumnType<string, string | undefined, string | undefined>;
+}
+
 export interface UserPreferencesTable {
   id: number;
   theme: string;
@@ -393,6 +412,7 @@ export interface Database {
   user_settings: UserSettingsTable;
   filter_metadata: FilterMetadataTable;
   filter_card_rarities: FilterCardRaritiesTable;
+  filter_tier_styles: FilterTierStylesTable;
 }
 
 /**
@@ -412,5 +432,6 @@ export type PoeLeaguesCacheMetadataRow =
   Selectable<PoeLeaguesCacheMetadataTable>;
 export type FilterMetadataRow = Selectable<FilterMetadataTable>;
 export type FilterCardRaritiesRow = Selectable<FilterCardRaritiesTable>;
+export type FilterTierStylesRow = Selectable<FilterTierStylesTable>;
 export type CardPriceHistoryCacheRow = Selectable<CardPriceHistoryCacheTable>;
 export type CsvExportSnapshotsRow = Selectable<CsvExportSnapshotsTable>;

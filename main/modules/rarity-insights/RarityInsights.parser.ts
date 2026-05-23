@@ -10,10 +10,25 @@ import type { KnownRarity } from "~/types/data-stores";
 export interface RarityInsightsParseResult {
   /** Map of card name → rarity (1-4) */
   cardRarities: Map<string, KnownRarity>;
+  /** Map of app rarity → parsed filter colour styling */
+  tierStyles: Map<KnownRarity, FilterTierStyle>;
   /** Whether a divination card section was found in the filter */
   hasDivinationSection: boolean;
   /** Total number of unique cards found */
   totalCards: number;
+}
+
+export interface FilterRgbaColor {
+  r: number;
+  g: number;
+  b: number;
+  a: number;
+}
+
+export interface FilterTierStyle {
+  bgColor: FilterRgbaColor | null;
+  textColor: FilterRgbaColor | null;
+  borderColor: FilterRgbaColor | null;
 }
 
 /**
@@ -26,6 +41,8 @@ export interface TierBlock {
   rarity: KnownRarity | null;
   /** Card names found in this tier block's BaseType line(s) */
   cardNames: string[];
+  /** Visual style directives found in this tier block */
+  style?: FilterTierStyle;
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -61,6 +78,18 @@ const TIER_TO_RARITY: Record<string, KnownRarity | null> = {
   restex: 4, // Common (remainder)
 };
 
+const TIER_STYLE_PRIORITY: Record<string, number> = {
+  t1: 10,
+  t2: 20,
+  t3: 30,
+  tnew: 40,
+  t4c: 50,
+  t5c: 60,
+  t4: 70,
+  t5: 80,
+  restex: 90,
+};
+
 /**
  * Regex to match the TOC entry for the Divination Cards section.
  * Captures the section ID inside double brackets.
@@ -82,13 +111,12 @@ function makeSectionHeaderRegex(sectionId: string): RegExp {
 }
 
 /**
- * Regex to match tier block headers within the divination card section.
- * Captures the tier name from `$tier->{name}`.
- *
- * Example: `Show # $type->divination $tier->t1`
+ * Regex to detect a filter block header.
  */
-const TIER_BLOCK_HEADER_REGEX =
-  /^Show\s+#\s+\$type->divination\s+\$tier->(\S+)\s*$/i;
+const BLOCK_HEADER_REGEX = /^(Show|Hide)\b/i;
+
+const TIER_TOKEN_REGEX = /\$tier->([A-Za-z0-9_-]+)\b/i;
+const DIVINATION_TYPE_TOKEN_REGEX = /\$type->divination\b/i;
 
 /**
  * Regex to match the start of a BaseType line.
@@ -99,6 +127,17 @@ const TIER_BLOCK_HEADER_REGEX =
  * - `BaseType "Card Name 1" "Card Name 2"`
  */
 const BASETYPE_LINE_REGEX = /^\s*BaseType\s*(?:==)?\s*/i;
+
+const COLOR_DIRECTIVE_REGEX =
+  /^\s*Set(Background|Text|Border)Color\s+(\d+)\s+(\d+)\s+(\d+)(?:\s+(\d+))?(?:\s+#.*)?\s*$/i;
+
+const CLASS_LINE_REGEX = /^\s*Class\s*(?:==)?\s*(.+)\s*$/i;
+const DIVINATION_CLASS_REGEX = /"?Divination Cards?"?/i;
+const FONT_SIZE_REGEX = /^\s*SetFontSize\s+(\d+)\b/i;
+const ALERT_SOUND_REGEX =
+  /^\s*PlayAlertSound(?:Positional)?\s+(\S+)(?:\s+\d+)?/i;
+const MINIMAP_DISABLED_REGEX = /^\s*MinimapIcon\s+-1\b/i;
+const PLAY_EFFECT_NONE_REGEX = /^\s*PlayEffect\s+None\b/i;
 
 /**
  * Regex to extract quoted strings from a BaseType line.
@@ -112,7 +151,10 @@ const QUOTED_STRING_REGEX = /"([^"]+)"/g;
  *
  * Example: `# [[4300]] Unique Maps`
  */
-const SECTION_HEADER_REGEX = /^#\s*\[\[\d+\]\]/;
+const SECTION_HEADER_REGEX = /^(?:#\s*\[\[\d+\]\]|#{2,}\s+\S)/;
+
+const DIVINATION_SECTION_HEADER_REGEX =
+  /^#+\s*(?:\[\[\d+\]\]\s*)?Divination\s+Cards\s*$/i;
 
 /**
  * Regex to detect a new Show/Hide block (marks the end of the current block).
@@ -123,6 +165,19 @@ const SHOW_HIDE_BLOCK_REGEX = /^(Show|Hide)\s/i;
  * Marker for the start of the Table of Contents area.
  */
 const TOC_START_MARKER = "TABLE OF CONTENTS";
+
+interface GenericDivinationBlock {
+  action: "Show" | "Hide";
+  header: string;
+  cardNames: string[];
+  style: FilterTierStyle;
+  isDivinationBlock: boolean;
+  fontSize: number | null;
+  alertSound: string | null;
+  hasDisabledMinimap: boolean;
+  hasNoPlayEffect: boolean;
+  order: number;
+}
 
 // ─── Parser ──────────────────────────────────────────────────────────────────
 
@@ -164,6 +219,7 @@ export class RarityInsightsParser {
       );
       return {
         cardRarities: new Map(),
+        tierStyles: new Map(),
         hasDivinationSection: false,
         totalCards: 0,
       };
@@ -186,29 +242,20 @@ export class RarityInsightsParser {
     // Step 1: Find divination cards section ID from TOC
     const sectionId = RarityInsightsParser.findDivinationSectionId(lines);
 
-    if (sectionId === null) {
-      console.log(
-        "[RarityInsightsParser] No Divination Cards section found in TOC — falling back",
-      );
-      return {
-        cardRarities: new Map(),
-        hasDivinationSection: false,
-        totalCards: 0,
-      };
-    }
-
-    // Step 2: Navigate to divination cards section
-    const sectionStartIndex = RarityInsightsParser.findSectionStart(
-      lines,
-      sectionId,
-    );
+    const sectionStartIndex =
+      sectionId === null
+        ? RarityInsightsParser.findDivinationSectionStart(lines)
+        : RarityInsightsParser.findSectionStart(lines, sectionId);
 
     if (sectionStartIndex === -1) {
       console.log(
-        `[RarityInsightsParser] Divination Cards section header [[${sectionId}]] not found in body`,
+        sectionId === null
+          ? "[RarityInsightsParser] No Divination Cards section found"
+          : `[RarityInsightsParser] Divination Cards section header [[${sectionId}]] not found in body`,
       );
       return {
         cardRarities: new Map(),
+        tierStyles: new Map(),
         hasDivinationSection: false,
         totalCards: 0,
       };
@@ -225,9 +272,11 @@ export class RarityInsightsParser {
 
     // Step 5: Build rarity map from tier blocks
     const cardRarities = RarityInsightsParser.buildRarityMap(tierBlocks);
+    const tierStyles = RarityInsightsParser.buildTierStyles(tierBlocks);
 
     return {
       cardRarities,
+      tierStyles,
       hasDivinationSection: true,
       totalCards: cardRarities.size,
     };
@@ -306,6 +355,18 @@ export class RarityInsightsParser {
     return lastMatchIndex;
   }
 
+  static findDivinationSectionStart(lines: string[]): number {
+    let lastMatchIndex = -1;
+
+    for (let i = 0; i < lines.length; i++) {
+      if (DIVINATION_SECTION_HEADER_REGEX.test(lines[i].trim())) {
+        lastMatchIndex = i;
+      }
+    }
+
+    return lastMatchIndex;
+  }
+
   // ─── Section Extraction ────────────────────────────────────────────────
 
   /**
@@ -354,74 +415,12 @@ export class RarityInsightsParser {
    * @returns Array of parsed tier blocks
    */
   static parseTierBlocks(sectionLines: string[]): TierBlock[] {
-    const blocks: TierBlock[] = [];
-    let currentBlock: TierBlock | null = null;
-    let collectingBaseType = false;
-
-    for (const line of sectionLines) {
-      const trimmed = line.trim();
-
-      // Check for a new tier block header
-      const tierMatch = trimmed.match(TIER_BLOCK_HEADER_REGEX);
-      if (tierMatch) {
-        // Save previous block if it exists
-        if (currentBlock) {
-          blocks.push(currentBlock);
-        }
-
-        const tierName = tierMatch[1].toLowerCase();
-        currentBlock = {
-          tierName,
-          rarity: RarityInsightsParser.mapTierToRarity(tierName),
-          cardNames: [],
-        };
-        collectingBaseType = false;
-        continue;
-      }
-
-      // Check if a new Show/Hide block starts that isn't a tier block
-      // (this ends the current tier block)
-      if (SHOW_HIDE_BLOCK_REGEX.test(trimmed) && currentBlock) {
-        blocks.push(currentBlock);
-        currentBlock = null;
-        collectingBaseType = false;
-        continue;
-      }
-
-      // Skip if we're not inside a tier block
-      if (!currentBlock) {
-        continue;
-      }
-
-      // Check for BaseType line
-      if (BASETYPE_LINE_REGEX.test(trimmed)) {
-        collectingBaseType = true;
-        const names = RarityInsightsParser.extractCardNames(trimmed);
-        currentBlock.cardNames.push(...names);
-        continue;
-      }
-
-      // Handle multi-line BaseType continuations.
-      // A continuation line contains only quoted strings (possibly with whitespace).
-      // It must NOT start with a known keyword.
-      if (collectingBaseType && trimmed.startsWith('"')) {
-        const names = RarityInsightsParser.extractCardNames(trimmed);
-        currentBlock.cardNames.push(...names);
-        continue;
-      }
-
-      // Any other non-empty, non-comment line ends BaseType collection
-      if (collectingBaseType && trimmed !== "" && !trimmed.startsWith("#")) {
-        collectingBaseType = false;
-      }
+    const explicitTierBlocks = parseExplicitTierBlocks(sectionLines);
+    if (explicitTierBlocks.length > 0) {
+      return explicitTierBlocks;
     }
 
-    // Don't forget the last block
-    if (currentBlock) {
-      blocks.push(currentBlock);
-    }
-
-    return blocks;
+    return parseGenericDivinationBlocks(sectionLines);
   }
 
   // ─── Card Name Extraction ──────────────────────────────────────────────
@@ -456,6 +455,47 @@ export class RarityInsightsParser {
     }
 
     return names;
+  }
+
+  static parseColorDirective(line: string): {
+    styleKey: keyof FilterTierStyle;
+    color: FilterRgbaColor;
+  } | null {
+    const match = line.match(COLOR_DIRECTIVE_REGEX);
+    if (!match) {
+      return null;
+    }
+
+    const channelValues = [match[2], match[3], match[4], match[5] ?? "255"].map(
+      (value) => Number(value),
+    );
+
+    if (channelValues.some((value) => !Number.isInteger(value))) {
+      return null;
+    }
+
+    const [r, g, b, a] = channelValues;
+    if (
+      !isValidColorChannel(r) ||
+      !isValidColorChannel(g) ||
+      !isValidColorChannel(b) ||
+      !isValidColorChannel(a)
+    ) {
+      return null;
+    }
+
+    const directive = match[1].toLowerCase();
+    const styleKey =
+      directive === "background"
+        ? "bgColor"
+        : directive === "text"
+          ? "textColor"
+          : "borderColor";
+
+    return {
+      styleKey,
+      color: { r, g, b, a },
+    };
   }
 
   // ─── Tier-to-Rarity Mapping ────────────────────────────────────────────
@@ -514,6 +554,331 @@ export class RarityInsightsParser {
 
     return rarityMap;
   }
+
+  /**
+   * Build a rarity → tier style map from parsed tier blocks.
+   *
+   * Conflict resolution follows NeverSink tier priority rather than whichever
+   * duplicate rarity block happens to appear last in the file.
+   */
+  static buildTierStyles(
+    tierBlocks: TierBlock[],
+  ): Map<KnownRarity, FilterTierStyle> {
+    const tierStyleMap = new Map<KnownRarity, FilterTierStyle>();
+    const selectedPriority = new Map<KnownRarity, number>();
+
+    for (const block of tierBlocks) {
+      const style = block.style ?? createEmptyTierStyle();
+      if (block.rarity === null || !hasTierStyle(style)) {
+        continue;
+      }
+
+      const priority =
+        TIER_STYLE_PRIORITY[block.tierName] ?? Number.MAX_SAFE_INTEGER;
+      const existingPriority = selectedPriority.get(block.rarity);
+
+      if (existingPriority === undefined || priority < existingPriority) {
+        tierStyleMap.set(block.rarity, cloneTierStyle(style));
+        selectedPriority.set(block.rarity, priority);
+      }
+    }
+
+    return tierStyleMap;
+  }
+}
+
+function parseExplicitTierBlocks(sectionLines: string[]): TierBlock[] {
+  const blocks: TierBlock[] = [];
+  let currentBlock: TierBlock | null = null;
+  let collectingBaseType = false;
+
+  for (const line of sectionLines) {
+    const trimmed = line.trim();
+    const tierName = parseExplicitDivinationTierName(trimmed);
+
+    if (BLOCK_HEADER_REGEX.test(trimmed)) {
+      if (currentBlock) {
+        blocks.push(currentBlock);
+      }
+
+      currentBlock =
+        tierName === null
+          ? null
+          : {
+              tierName,
+              rarity: RarityInsightsParser.mapTierToRarity(tierName),
+              cardNames: [],
+              style: createEmptyTierStyle(),
+            };
+      collectingBaseType = false;
+      continue;
+    }
+
+    if (!currentBlock) {
+      continue;
+    }
+
+    const colorDirective = RarityInsightsParser.parseColorDirective(trimmed);
+    if (colorDirective) {
+      currentBlock.style ??= createEmptyTierStyle();
+      currentBlock.style[colorDirective.styleKey] = colorDirective.color;
+      collectingBaseType = false;
+      continue;
+    }
+
+    if (BASETYPE_LINE_REGEX.test(trimmed)) {
+      collectingBaseType = true;
+      const names = RarityInsightsParser.extractCardNames(trimmed);
+      currentBlock.cardNames.push(...names);
+      continue;
+    }
+
+    if (collectingBaseType && trimmed.startsWith('"')) {
+      const names = RarityInsightsParser.extractCardNames(trimmed);
+      currentBlock.cardNames.push(...names);
+      continue;
+    }
+
+    if (collectingBaseType && trimmed !== "" && !trimmed.startsWith("#")) {
+      collectingBaseType = false;
+    }
+  }
+
+  if (currentBlock) {
+    blocks.push(currentBlock);
+  }
+
+  return blocks;
+}
+
+function parseGenericDivinationBlocks(sectionLines: string[]): TierBlock[] {
+  const rawBlocks: GenericDivinationBlock[] = [];
+  let currentBlock: GenericDivinationBlock | null = null;
+  let collectingBaseType = false;
+  let blockOrder = 0;
+
+  for (const line of sectionLines) {
+    const trimmed = line.trim();
+    const headerMatch = trimmed.match(BLOCK_HEADER_REGEX);
+
+    if (headerMatch) {
+      if (currentBlock?.isDivinationBlock) {
+        rawBlocks.push(currentBlock);
+      }
+
+      currentBlock = {
+        action: headerMatch[1].toLowerCase() === "hide" ? "Hide" : "Show",
+        header: trimmed,
+        cardNames: [],
+        style: createEmptyTierStyle(),
+        isDivinationBlock: hasDivinationHint(trimmed),
+        fontSize: null,
+        alertSound: null,
+        hasDisabledMinimap: false,
+        hasNoPlayEffect: false,
+        order: blockOrder,
+      };
+      blockOrder += 1;
+      collectingBaseType = false;
+      continue;
+    }
+
+    if (!currentBlock) {
+      continue;
+    }
+
+    const classMatch = trimmed.match(CLASS_LINE_REGEX);
+    if (classMatch && DIVINATION_CLASS_REGEX.test(classMatch[1])) {
+      currentBlock.isDivinationBlock = true;
+      collectingBaseType = false;
+      continue;
+    }
+
+    const colorDirective = RarityInsightsParser.parseColorDirective(trimmed);
+    if (colorDirective) {
+      currentBlock.style[colorDirective.styleKey] = colorDirective.color;
+      collectingBaseType = false;
+      continue;
+    }
+
+    const fontSizeMatch = trimmed.match(FONT_SIZE_REGEX);
+    if (fontSizeMatch) {
+      currentBlock.fontSize = Number(fontSizeMatch[1]);
+      collectingBaseType = false;
+      continue;
+    }
+
+    const alertSoundMatch = trimmed.match(ALERT_SOUND_REGEX);
+    if (alertSoundMatch) {
+      currentBlock.alertSound = alertSoundMatch[1].toLowerCase();
+      collectingBaseType = false;
+      continue;
+    }
+
+    if (MINIMAP_DISABLED_REGEX.test(trimmed)) {
+      currentBlock.hasDisabledMinimap = true;
+      collectingBaseType = false;
+      continue;
+    }
+
+    if (PLAY_EFFECT_NONE_REGEX.test(trimmed)) {
+      currentBlock.hasNoPlayEffect = true;
+      collectingBaseType = false;
+      continue;
+    }
+
+    if (BASETYPE_LINE_REGEX.test(trimmed)) {
+      collectingBaseType = true;
+      const names = RarityInsightsParser.extractCardNames(trimmed);
+      currentBlock.cardNames.push(...names);
+      continue;
+    }
+
+    if (collectingBaseType && trimmed.startsWith('"')) {
+      const names = RarityInsightsParser.extractCardNames(trimmed);
+      currentBlock.cardNames.push(...names);
+      continue;
+    }
+
+    if (collectingBaseType && trimmed !== "" && !trimmed.startsWith("#")) {
+      collectingBaseType = false;
+    }
+  }
+
+  if (currentBlock?.isDivinationBlock) {
+    rawBlocks.push(currentBlock);
+  }
+
+  const baseStyle = rawBlocks.find(
+    (block) => block.cardNames.length === 0 && hasTierStyle(block.style),
+  )?.style;
+  const cardBlocks = rawBlocks.filter((block) => block.cardNames.length > 0);
+
+  if (cardBlocks.length === 0 && baseStyle) {
+    return [
+      {
+        tierName: "generic-common",
+        rarity: 4,
+        cardNames: [],
+        style: cloneTierStyle(baseStyle),
+      },
+    ];
+  }
+
+  return cardBlocks
+    .map((block) => ({
+      block,
+      score: scoreGenericDivinationBlock(block),
+    }))
+    .sort((a, b) => b.score - a.score || a.block.order - b.block.order)
+    .map(({ block }, index, rankedBlocks) => {
+      const rarity = inferGenericRarity(index, rankedBlocks.length);
+      return {
+        tierName: `generic-${index + 1}`,
+        rarity,
+        cardNames: block.cardNames,
+        style: mergeTierStyles(baseStyle ?? null, block.style),
+      };
+    });
+}
+
+function parseExplicitDivinationTierName(line: string): string | null {
+  if (!BLOCK_HEADER_REGEX.test(line)) {
+    return null;
+  }
+
+  if (!DIVINATION_TYPE_TOKEN_REGEX.test(line)) {
+    return null;
+  }
+
+  const tierMatch = line.match(TIER_TOKEN_REGEX);
+  return tierMatch?.[1].toLowerCase() ?? null;
+}
+
+function hasDivinationHint(line: string): boolean {
+  return (
+    DIVINATION_TYPE_TOKEN_REGEX.test(line) || DIVINATION_CLASS_REGEX.test(line)
+  );
+}
+
+function scoreGenericDivinationBlock(block: GenericDivinationBlock): number {
+  let score = 0;
+  const header = block.header.toLowerCase();
+
+  if (
+    /kidding|mirror|jackpot|top|valuable|expensive|insane|best/.test(header)
+  ) {
+    score += 5;
+  }
+  if (/absolutely|great|good/.test(header)) {
+    score += 1;
+  }
+  if (/don't care|dont care|miss|low|cheap|bad|trash|hide/.test(header)) {
+    score -= 5;
+  }
+
+  if (block.action === "Hide") {
+    score -= 2;
+  }
+
+  if (block.fontSize !== null) {
+    if (block.fontSize >= 45) {
+      score += 4;
+    } else if (block.fontSize >= 40) {
+      score += 2;
+    } else if (block.fontSize <= 25) {
+      score -= 3;
+    } else if (block.fontSize <= 30) {
+      score -= 1;
+    }
+  }
+
+  if (block.alertSound === "none") {
+    score -= 3;
+  } else if (block.alertSound !== null) {
+    score += ["1", "2", "6"].includes(block.alertSound) ? 2 : 1;
+  }
+
+  if (block.hasDisabledMinimap) {
+    score -= 2;
+  }
+  if (block.hasNoPlayEffect) {
+    score -= 2;
+  }
+
+  const bgColor = block.style.bgColor;
+  if (bgColor) {
+    const brightness = (bgColor.r + bgColor.g + bgColor.b) / 3;
+    if (brightness > 220) {
+      score += 3;
+    } else if (brightness > 80) {
+      score += 1;
+    } else if (brightness < 20) {
+      score -= 1;
+    }
+  }
+
+  return score;
+}
+
+function inferGenericRarity(index: number, total: number): KnownRarity {
+  if (total <= 1) {
+    return 4;
+  }
+
+  if (index === 0) {
+    return 1;
+  }
+
+  if (index === total - 1) {
+    return 4;
+  }
+
+  if (total >= 4 && index === 1) {
+    return 2;
+  }
+
+  return 3;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -523,4 +888,55 @@ export class RarityInsightsParser {
  */
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function createEmptyTierStyle(): FilterTierStyle {
+  return {
+    bgColor: null,
+    textColor: null,
+    borderColor: null,
+  };
+}
+
+function cloneTierStyle(style: FilterTierStyle): FilterTierStyle {
+  return {
+    bgColor: style.bgColor ? { ...style.bgColor } : null,
+    textColor: style.textColor ? { ...style.textColor } : null,
+    borderColor: style.borderColor ? { ...style.borderColor } : null,
+  };
+}
+
+function mergeTierStyles(
+  baseStyle: FilterTierStyle | null,
+  overrideStyle: FilterTierStyle,
+): FilterTierStyle {
+  return {
+    bgColor: overrideStyle.bgColor
+      ? { ...overrideStyle.bgColor }
+      : baseStyle?.bgColor
+        ? { ...baseStyle.bgColor }
+        : null,
+    textColor: overrideStyle.textColor
+      ? { ...overrideStyle.textColor }
+      : baseStyle?.textColor
+        ? { ...baseStyle.textColor }
+        : null,
+    borderColor: overrideStyle.borderColor
+      ? { ...overrideStyle.borderColor }
+      : baseStyle?.borderColor
+        ? { ...baseStyle.borderColor }
+        : null,
+  };
+}
+
+function hasTierStyle(style: FilterTierStyle): boolean {
+  return (
+    style.bgColor !== null ||
+    style.textColor !== null ||
+    style.borderColor !== null
+  );
+}
+
+function isValidColorChannel(value: number): boolean {
+  return value >= 0 && value <= 255;
 }

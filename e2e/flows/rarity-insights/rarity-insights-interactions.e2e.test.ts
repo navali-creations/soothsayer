@@ -522,11 +522,6 @@ test.describe("Rarity Insights — Interactions", () => {
           league: state.settings?.poe1SelectedLeague ?? "unknown",
         };
       });
-      console.log(
-        "[E2E DIAG] Diff state before toggle:",
-        JSON.stringify(diagBefore, null, 2),
-      );
-
       // Fail-fast: if every card is a "diff", the seeded data is corrupted
       // (most likely divination_card_rarities has rarity 0 for non-fixture
       // cards while filter_card_rarities has rarity 4 — the backfill race).

@@ -32,6 +32,7 @@ interface SessionCardJoinedRow {
   flavourHtml?: string | null;
   rarity?: Rarity;
   filterRarity?: KnownRarity | null;
+  prohibitedLibraryRarity?: Rarity | null;
 }
 
 export type { SessionCardJoinedRow };
@@ -81,6 +82,7 @@ export class CurrentSessionMapper {
         flavourHtml: cleanWikiMarkup(row.flavourHtml),
         rarity: row.rarity,
         filterRarity: row.filterRarity ?? null,
+        prohibitedLibraryRarity: row.prohibitedLibraryRarity ?? null,
       };
     }
 

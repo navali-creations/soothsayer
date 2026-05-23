@@ -1,4 +1,5 @@
 import { Flex } from "~/renderer/components";
+import { useBoundStore } from "~/renderer/store";
 import { getRarityStyles, RARITY_LABELS } from "~/renderer/utils";
 import type { Rarity } from "~/types/data-stores";
 
@@ -15,7 +16,10 @@ const HeaderSubtitle = ({
   isDisabled,
   inPool,
 }: HeaderSubtitleProps) => {
-  const styles = getRarityStyles(rarity);
+  const activeFilterTheme = useBoundStore(
+    (state) => state.rarityInsights.activeFilterTheme,
+  );
+  const styles = getRarityStyles(rarity, undefined, activeFilterTheme);
   const rarityLabel = RARITY_LABELS[rarity] ?? "Unknown";
 
   return (

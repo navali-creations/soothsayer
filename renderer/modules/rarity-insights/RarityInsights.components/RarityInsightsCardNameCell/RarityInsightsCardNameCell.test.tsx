@@ -131,6 +131,7 @@ describe("RarityInsightsCardNameCell", () => {
       artSrc: "https://example.com/hom.png",
       flavourHtml: "<p>Reflections</p>",
       rarity: 2,
+      prohibitedLibraryRarity: null,
       fromBoss: false,
     });
   });

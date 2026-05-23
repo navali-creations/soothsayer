@@ -13,6 +13,7 @@ import {
   EXPECTED_FILTER_METADATA_COLUMNS,
   EXPECTED_FILTER_SETTINGS_COLUMNS,
   EXPECTED_FILTER_TABLES,
+  EXPECTED_FILTER_TIER_STYLES_COLUMNS,
   getColumnNames,
   getTableNames,
   setupMigrationDb,
@@ -202,6 +203,25 @@ describe("Migrations – Upgrade Paths", () => {
       const columns = getColumnNames(db, "filter_card_rarities");
       expect(columns.sort()).toEqual(
         EXPECTED_FILTER_CARD_RARITIES_COLUMNS.sort(),
+      );
+    });
+
+    it("should create filter_tier_styles table", () => {
+      const db = getDb();
+      createPreFilterSchema(db);
+
+      const beforeTables = getTableNames(db);
+      expect(beforeTables).not.toContain("filter_tier_styles");
+
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      const afterTables = getTableNames(db);
+      expect(afterTables).toContain("filter_tier_styles");
+
+      const columns = getColumnNames(db, "filter_tier_styles");
+      expect(columns.sort()).toEqual(
+        EXPECTED_FILTER_TIER_STYLES_COLUMNS.sort(),
       );
     });
 
@@ -423,6 +443,38 @@ describe("Migrations – Upgrade Paths", () => {
       expect(after.count).toBe(0);
     });
 
+    it("should cascade delete filter_tier_styles when filter_metadata is deleted", () => {
+      const db = getDb();
+      createPreFilterSchema(db);
+      const runner = new MigrationRunner(db);
+      runner.runMigrations(migrations);
+
+      db.prepare(
+        "INSERT INTO filter_metadata (id, filter_type, file_path, filter_name) VALUES ('f1', 'local', '/path/filter.filter', 'Test')",
+      ).run();
+      db.prepare(
+        `INSERT INTO filter_tier_styles
+          (filter_id, rarity, bg_r, bg_g, bg_b, bg_a)
+         VALUES ('f1', 1, 255, 255, 255, 255)`,
+      ).run();
+
+      const before = db
+        .prepare(
+          "SELECT COUNT(*) as count FROM filter_tier_styles WHERE filter_id = 'f1'",
+        )
+        .get() as { count: number };
+      expect(before.count).toBe(1);
+
+      db.prepare("DELETE FROM filter_metadata WHERE id = 'f1'").run();
+
+      const after = db
+        .prepare(
+          "SELECT COUNT(*) as count FROM filter_tier_styles WHERE filter_id = 'f1'",
+        )
+        .get() as { count: number };
+      expect(after.count).toBe(0);
+    });
+
     it("should set selected_filter_id to NULL when referenced filter is deleted", () => {
       const db = getDb();
       createPreFilterSchema(db);
@@ -547,9 +599,11 @@ describe("Migrations – Upgrade Paths", () => {
       const runner = new MigrationRunner(db);
       runner.runMigrations(migrations);
 
+      const baseFilterTables = ["filter_metadata", "filter_card_rarities"];
+
       // Verify tables exist after migration
       const beforeTables = getTableNames(db);
-      for (const table of EXPECTED_FILTER_TABLES) {
+      for (const table of baseFilterTables) {
         expect(beforeTables).toContain(table);
       }
 
@@ -562,7 +616,7 @@ describe("Migrations – Upgrade Paths", () => {
 
       // Filter tables should be gone
       const afterTables = getTableNames(db);
-      for (const table of EXPECTED_FILTER_TABLES) {
+      for (const table of baseFilterTables) {
         expect(afterTables).not.toContain(table);
       }
 
@@ -980,6 +1034,29 @@ describe("Migrations – Upgrade Paths", () => {
       const upgradeColumns = getColumnNames(
         upgradeDb,
         "filter_card_rarities",
+      ).sort();
+      upgradeDb.close();
+
+      expect(freshColumns).toEqual(upgradeColumns);
+    });
+
+    it("should produce the same filter_tier_styles columns whether fresh install or pre-filter upgrade", () => {
+      const freshDb = new Database(":memory:");
+      freshDb.pragma("foreign_keys = ON");
+      createBaselineSchema(freshDb);
+      const freshRunner = new MigrationRunner(freshDb);
+      freshRunner.runMigrations(migrations);
+      const freshColumns = getColumnNames(freshDb, "filter_tier_styles").sort();
+      freshDb.close();
+
+      const upgradeDb = new Database(":memory:");
+      upgradeDb.pragma("foreign_keys = ON");
+      createPreFilterSchema(upgradeDb);
+      const upgradeRunner = new MigrationRunner(upgradeDb);
+      upgradeRunner.runMigrations(migrations);
+      const upgradeColumns = getColumnNames(
+        upgradeDb,
+        "filter_tier_styles",
       ).sort();
       upgradeDb.close();
 

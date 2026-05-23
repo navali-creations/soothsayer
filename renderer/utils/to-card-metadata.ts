@@ -15,6 +15,7 @@ interface CardLike {
   fromBoss: boolean;
   isDisabled?: boolean;
   filterRarity?: KnownRarity | null;
+  prohibitedLibraryRarity?: Rarity | null;
 }
 
 /**
@@ -26,7 +27,11 @@ interface CardLike {
  */
 export function toCardMetadata(
   card: CardLike,
-  overrides?: { rarity?: Rarity; filterRarity?: KnownRarity | null },
+  overrides?: {
+    rarity?: Rarity;
+    filterRarity?: KnownRarity | null;
+    prohibitedLibraryRarity?: Rarity | null;
+  },
 ): DivinationCardMetadata {
   return {
     id: card.id,
@@ -42,5 +47,9 @@ export function toCardMetadata(
       overrides?.filterRarity !== undefined
         ? overrides.filterRarity
         : card.filterRarity,
+    prohibitedLibraryRarity:
+      overrides?.prohibitedLibraryRarity !== undefined
+        ? overrides.prohibitedLibraryRarity
+        : card.prohibitedLibraryRarity,
   };
 }

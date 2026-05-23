@@ -1,5 +1,6 @@
 import { memo, useMemo, useRef } from "react";
 
+import { useBoundStore } from "~/renderer/store";
 import { getRarityStyles } from "~/renderer/utils";
 
 import { CardFrame } from "./components/CardFrame";
@@ -22,6 +23,9 @@ const DivinationCard = memo(function DivinationCard({
   const cardRef = useRef<HTMLDivElement>(null);
   const { mousePos, isHovered, rotateX, rotateY } =
     useCardMouseEffects(cardRef);
+  const activeFilterTheme = useBoundStore(
+    (state) => state.rarityInsights.activeFilterTheme,
+  );
 
   const processedRewardHtml = useMemo(
     () =>
@@ -35,7 +39,7 @@ const DivinationCard = memo(function DivinationCard({
     // Render a placeholder card frame when metadata is not yet available
     // (e.g. league-start before images are scraped). This keeps the layout
     // intact so charts and stats below the visual still render normally.
-    const { glowRgb } = getRarityStyles(4);
+    const { glowRgb } = getRarityStyles(4, undefined, activeFilterTheme);
 
     return (
       <div
@@ -71,7 +75,7 @@ const DivinationCard = memo(function DivinationCard({
   const rarity = card.divinationCard.rarity ?? 4;
   const fromBoss = card.divinationCard.fromBoss ?? false;
   const isDisabled = card.divinationCard.isDisabled ?? false;
-  const { glowRgb } = getRarityStyles(rarity);
+  const { glowRgb } = getRarityStyles(rarity, undefined, activeFilterTheme);
 
   const posX = mousePos.x;
   const posY = mousePos.y;

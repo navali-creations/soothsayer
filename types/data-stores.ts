@@ -38,6 +38,7 @@ export interface DivinationCardMetadata {
   artSrc?: string | null;
   flavourHtml?: string | null;
   filterRarity?: KnownRarity | null;
+  prohibitedLibraryRarity?: Rarity | null;
 }
 
 // Card entry for UI display (flattened with exchange price when available)

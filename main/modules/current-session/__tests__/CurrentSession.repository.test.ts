@@ -498,6 +498,41 @@ describe("CurrentSessionRepository", () => {
       expect(cards[0].divinationCard!.rarity).toBe(1);
     });
 
+    it("should include prohibited library rarity when available", async () => {
+      const leagueId = await seedLeague(getTestDb().kysely, {
+        name: "Settlers",
+      });
+      await seedSession(getTestDb().kysely, {
+        id: "session-pl-rarity",
+        game: "poe1",
+        leagueId,
+      });
+
+      await seedDivinationCard(getTestDb().kysely, {
+        game: "poe1",
+        name: "The Fortunate",
+        stackSize: 12,
+      });
+
+      await seedDivinationCardRarity(getTestDb().kysely, {
+        game: "poe1",
+        league: "Settlers",
+        cardName: "The Fortunate",
+        rarity: 3,
+        prohibitedLibraryRarity: 1,
+      });
+
+      await seedSessionCards(getTestDb().kysely, "session-pl-rarity", [
+        { cardName: "The Fortunate", count: 1 },
+      ]);
+
+      const cards = await getRepository().getSessionCards("session-pl-rarity");
+
+      expect(cards).toHaveLength(1);
+      expect(cards[0].divinationCard!.rarity).toBe(3);
+      expect(cards[0].divinationCard!.prohibitedLibraryRarity).toBe(1);
+    });
+
     it("should default rarity to 4 when no rarity data exists", async () => {
       const leagueId = await seedLeague(getTestDb().kysely, {
         name: "Settlers",

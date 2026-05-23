@@ -15,8 +15,12 @@ import {
  */
 export function useRaritySourceChange() {
   const { selectedFilterId, updateSetting } = useSettings();
-  const { availableFilters, selectFilter, clearSelectedFilter } =
-    useRarityInsights();
+  const {
+    availableFilters,
+    selectFilter,
+    clearSelectedFilter,
+    clearFilterTheme,
+  } = useRarityInsights();
 
   const handleRaritySourceChange = useCallback(
     async (value: string) => {
@@ -40,6 +44,8 @@ export function useRaritySourceChange() {
         if (selectedFilterId) {
           await clearSelectedFilter();
           await updateSetting("selectedFilterId", null);
+        } else {
+          clearFilterTheme();
         }
       }
     },
@@ -47,6 +53,7 @@ export function useRaritySourceChange() {
       updateSetting,
       selectFilter,
       clearSelectedFilter,
+      clearFilterTheme,
       selectedFilterId,
       availableFilters,
     ],

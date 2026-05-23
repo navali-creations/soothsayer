@@ -4,6 +4,7 @@ import type { Database } from "~/main/modules/database";
 import type { KnownRarity } from "~/types/data-stores";
 
 import type {
+  FilterTierStyleDTO,
   RarityInsightsCardRarityDTO,
   RarityInsightsFilterType,
   RarityInsightsMetadataDTO,
@@ -187,22 +188,22 @@ export class RarityInsightsRepository {
 
   /**
    * Delete filter metadata records whose file paths are NOT in the provided list.
-   * This is used to clean up stale entries after a scan (filters that no longer
-   * exist on disk). Returns the number of deleted rows.
+   * Retained filter IDs are kept even when their paths are missing from the
+   * latest scan, so selected filter labels stay available across transient scan
+   * misses. Returns the number of deleted rows.
    */
-  async deleteNotInFilePaths(filePaths: string[]): Promise<number> {
-    if (filePaths.length === 0) {
-      // If no file paths provided, delete all filter metadata
-      const result = await this.kysely
-        .deleteFrom("filter_metadata")
-        .executeTakeFirst();
-
-      return Number(result.numDeletedRows || 0);
-    }
-
+  async deleteNotInFilePaths(
+    filePaths: string[],
+    retainFilterIds: string[] = [],
+  ): Promise<number> {
     const result = await this.kysely
       .deleteFrom("filter_metadata")
-      .where("file_path", "not in", filePaths)
+      .$if(filePaths.length > 0, (qb) =>
+        qb.where("file_path", "not in", filePaths),
+      )
+      .$if(retainFilterIds.length > 0, (qb) =>
+        qb.where("id", "not in", retainFilterIds),
+      )
       .executeTakeFirst();
 
     return Number(result.numDeletedRows || 0);
@@ -283,6 +284,66 @@ export class RarityInsightsRepository {
     });
   }
 
+  async replaceParsedFilterData(
+    filterId: string,
+    rarities: Array<{ cardName: string; rarity: KnownRarity }>,
+    tierStyles: Array<Omit<FilterTierStyleDTO, "filterId">>,
+  ): Promise<void> {
+    const now = new Date().toISOString();
+
+    await this.kysely.transaction().execute(async (trx) => {
+      await trx
+        .deleteFrom("filter_card_rarities")
+        .where("filter_id", "=", filterId)
+        .execute();
+
+      await trx
+        .deleteFrom("filter_tier_styles")
+        .where("filter_id", "=", filterId)
+        .execute();
+
+      if (rarities.length > 0) {
+        const BATCH_SIZE = 500;
+        for (let i = 0; i < rarities.length; i += BATCH_SIZE) {
+          const batch = rarities.slice(i, i + BATCH_SIZE);
+          await trx
+            .insertInto("filter_card_rarities")
+            .values(
+              batch.map((r) => ({
+                filter_id: filterId,
+                card_name: r.cardName,
+                rarity: r.rarity,
+              })),
+            )
+            .execute();
+        }
+      }
+
+      if (tierStyles.length > 0) {
+        await trx
+          .insertInto("filter_tier_styles")
+          .values(
+            tierStyles.map((style) => ({
+              filter_id: filterId,
+              rarity: style.rarity,
+              ...toFilterTierStyleColumns(style),
+            })),
+          )
+          .execute();
+      }
+
+      await trx
+        .updateTable("filter_metadata")
+        .set({
+          is_fully_parsed: 1,
+          parsed_at: now,
+          updated_at: sql`datetime('now')`,
+        })
+        .where("id", "=", filterId)
+        .execute();
+    });
+  }
+
   /**
    * Update (upsert) the rarity for a single card within a specific filter.
    * Inserts if the card doesn't exist in the filter yet, updates if it does.
@@ -329,4 +390,69 @@ export class RarityInsightsRepository {
 
     return result.count;
   }
+
+  async getTierStyles(filterId: string): Promise<FilterTierStyleDTO[]> {
+    const rows = await this.kysely
+      .selectFrom("filter_tier_styles")
+      .selectAll()
+      .where("filter_id", "=", filterId)
+      .orderBy("rarity", "asc")
+      .execute();
+
+    return rows.map(RarityInsightsMapper.toFilterTierStyleDTO);
+  }
+
+  async replaceTierStyles(
+    filterId: string,
+    tierStyles: Array<Omit<FilterTierStyleDTO, "filterId">>,
+  ): Promise<void> {
+    await this.kysely.transaction().execute(async (trx) => {
+      await trx
+        .deleteFrom("filter_tier_styles")
+        .where("filter_id", "=", filterId)
+        .execute();
+
+      if (tierStyles.length === 0) {
+        return;
+      }
+
+      await trx
+        .insertInto("filter_tier_styles")
+        .values(
+          tierStyles.map((style) => ({
+            filter_id: filterId,
+            rarity: style.rarity,
+            ...toFilterTierStyleColumns(style),
+          })),
+        )
+        .execute();
+    });
+  }
+
+  async getTierStyleCount(filterId: string): Promise<number> {
+    const result = await this.kysely
+      .selectFrom("filter_tier_styles")
+      .select((eb) => eb.fn.countAll<number>().as("count"))
+      .where("filter_id", "=", filterId)
+      .executeTakeFirstOrThrow();
+
+    return result.count;
+  }
+}
+
+function toFilterTierStyleColumns(style: Omit<FilterTierStyleDTO, "filterId">) {
+  return {
+    bg_r: style.bgColor?.r ?? null,
+    bg_g: style.bgColor?.g ?? null,
+    bg_b: style.bgColor?.b ?? null,
+    bg_a: style.bgColor?.a ?? null,
+    text_r: style.textColor?.r ?? null,
+    text_g: style.textColor?.g ?? null,
+    text_b: style.textColor?.b ?? null,
+    text_a: style.textColor?.a ?? null,
+    border_r: style.borderColor?.r ?? null,
+    border_g: style.borderColor?.g ?? null,
+    border_b: style.borderColor?.b ?? null,
+    border_a: style.borderColor?.a ?? null,
+  };
 }

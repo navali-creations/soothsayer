@@ -4,7 +4,10 @@ import type { StateCreator } from "zustand";
 import type { DiscoveredRarityInsightsDTO } from "~/main/modules/rarity-insights/RarityInsights.dto";
 import { trackEvent } from "~/renderer/modules/umami";
 import type { BoundStore } from "~/renderer/store/store.types";
+import type { FilterTheme } from "~/renderer/utils";
 import type { KnownRarity, Rarity } from "~/types/data-stores";
+
+import { toFilterTheme } from "../RarityInsights.utils/RarityInsights.utils";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -47,6 +50,7 @@ export interface RarityInsightsComparisonSlice {
     // State
     selectedFilters: string[];
     parsedResults: Map<string, ParsedRarityInsightsRarities>;
+    filterThemes: Map<string, FilterTheme | null>;
     parsingFilterId: string | null;
     parseErrors: Map<string, string>;
     showDiffsOnly: boolean;
@@ -106,6 +110,7 @@ export const createRarityInsightsComparisonSlice: StateCreator<
     // Initial state
     selectedFilters: [],
     parsedResults: new Map(),
+    filterThemes: new Map(),
     parsingFilterId: null,
     parseErrors: new Map(),
     showDiffsOnly: false,
@@ -161,7 +166,19 @@ export const createRarityInsightsComparisonSlice: StateCreator<
 
     parseFilter: async (filterId: string) => {
       const { rarityInsightsComparison } = get();
-      if (rarityInsightsComparison.parsedResults.has(filterId)) return;
+      if (rarityInsightsComparison.parsedResults.has(filterId)) {
+        if (!rarityInsightsComparison.filterThemes.has(filterId)) {
+          const filterTheme = await loadComparisonFilterTheme(filterId);
+          set(
+            ({ rarityInsightsComparison }) => {
+              rarityInsightsComparison.filterThemes.set(filterId, filterTheme);
+            },
+            false,
+            "rarityInsightsComparison/parseFilter/themeOnly",
+          );
+        }
+        return;
+      }
       // Allow the call if parsingFilterId was eagerly set to this filter
       // by toggleFilter; block only if a *different* filter is parsing.
       if (
@@ -188,6 +205,7 @@ export const createRarityInsightsComparisonSlice: StateCreator<
         for (const r of result.rarities) {
           rarityMap.set(r.cardName, r.rarity);
         }
+        const filterTheme = await loadComparisonFilterTheme(filterId);
 
         set(
           ({ rarityInsightsComparison }) => {
@@ -197,6 +215,7 @@ export const createRarityInsightsComparisonSlice: StateCreator<
               rarities: rarityMap,
               totalCards: result.totalCards,
             });
+            rarityInsightsComparison.filterThemes.set(filterId, filterTheme);
             rarityInsightsComparison.parsingFilterId = null;
           },
           false,
@@ -243,6 +262,7 @@ export const createRarityInsightsComparisonSlice: StateCreator<
           rarityInsightsComparison.parseErrors = new Map();
           rarityInsightsComparison.selectedFilters = [];
           rarityInsightsComparison.parsedResults = new Map();
+          rarityInsightsComparison.filterThemes = new Map();
           rarityInsightsComparison.parsingFilterId = null;
           rarityInsightsComparison.parseErrors = new Map();
           rarityInsightsComparison.showDiffsOnly = false;
@@ -404,6 +424,7 @@ export const createRarityInsightsComparisonSlice: StateCreator<
         ({ rarityInsightsComparison }) => {
           rarityInsightsComparison.selectedFilters = [];
           rarityInsightsComparison.parsedResults = new Map();
+          rarityInsightsComparison.filterThemes = new Map();
           rarityInsightsComparison.parsingFilterId = null;
           rarityInsightsComparison.parseErrors = new Map();
           rarityInsightsComparison.showDiffsOnly = false;
@@ -496,3 +517,16 @@ export const createRarityInsightsComparisonSlice: StateCreator<
     },
   },
 });
+
+async function loadComparisonFilterTheme(
+  filterId: string,
+): Promise<FilterTheme | null> {
+  try {
+    const themeRows =
+      await window.electron.rarityInsights.getFilterTheme(filterId);
+    return toFilterTheme(themeRows);
+  } catch (error) {
+    console.error("Failed to load comparison filter theme:", error);
+    return null;
+  }
+}

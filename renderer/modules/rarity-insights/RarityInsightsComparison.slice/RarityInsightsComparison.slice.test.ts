@@ -98,6 +98,7 @@ describe("RarityInsightsComparison.slice", () => {
       const s = slice();
       expect(s.selectedFilters).toEqual([]);
       expect(s.parsedResults).toEqual(new Map());
+      expect(s.filterThemes).toEqual(new Map());
       expect(s.parsingFilterId).toBeNull();
       expect(s.parseErrors).toEqual(new Map());
       expect(s.showDiffsOnly).toBe(false);
@@ -231,6 +232,38 @@ describe("RarityInsightsComparison.slice", () => {
       expect(parsed!.rarities.get("The Doctor")).toBe(1);
       expect(parsed!.rarities.get("House of Mirrors")).toBe(3);
       expect(slice().parsingFilterId).toBeNull();
+    });
+
+    it("stores the parsed filter theme by filter id", async () => {
+      electron.rarityInsights.parse.mockResolvedValue({
+        filterId: "filter-1",
+        filterName: "My Filter",
+        totalCards: 0,
+        rarities: [],
+        hasDivinationSection: true,
+      });
+      electron.rarityInsights.getFilterTheme.mockResolvedValue([
+        {
+          filterId: "filter-1",
+          rarity: 2,
+          bgColor: { r: 20, g: 30, b: 40, a: 255 },
+          textColor: { r: 240, g: 240, b: 240, a: 255 },
+          borderColor: null,
+        },
+      ]);
+
+      await slice().parseFilter("filter-1");
+
+      expect(electron.rarityInsights.getFilterTheme).toHaveBeenCalledWith(
+        "filter-1",
+      );
+      expect(slice().filterThemes.get("filter-1")).toEqual({
+        2: {
+          bgColor: { r: 20, g: 30, b: 40, a: 255 },
+          textColor: { r: 240, g: 240, b: 240, a: 255 },
+          borderColor: null,
+        },
+      });
     });
 
     // ─── 5. parseFilter error ───────────────────────────────────────────
@@ -622,6 +655,7 @@ describe("RarityInsightsComparison.slice", () => {
 
       expect(slice().selectedFilters).toEqual([]);
       expect(slice().parsedResults.size).toBe(0);
+      expect(slice().filterThemes.size).toBe(0);
       expect(slice().parsingFilterId).toBeNull();
       expect(slice().parseErrors.size).toBe(0);
       expect(slice().showDiffsOnly).toBe(false);

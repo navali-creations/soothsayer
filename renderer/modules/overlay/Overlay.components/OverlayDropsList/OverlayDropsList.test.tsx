@@ -76,6 +76,9 @@ function makeDrop(overrides: any = {}) {
 function createMockStore(overrides: any = {}) {
   const drops = overrides.filteredDrops ?? [];
   return {
+    rarityInsights: {
+      activeFilterTheme: overrides.activeFilterTheme ?? null,
+    },
     overlay: {
       sessionData: {
         isActive: true,
@@ -103,7 +106,9 @@ function createMockStore(overrides: any = {}) {
 
 function setupStore(overrides: any = {}) {
   const store = createMockStore(overrides);
-  mockUseBoundStore.mockReturnValue(store);
+  mockUseBoundStore.mockImplementation((selector?: any) =>
+    selector ? selector(store) : store,
+  );
   return store;
 }
 
@@ -243,7 +248,7 @@ describe("OverlayDropsList", () => {
       setupStore({ filteredDrops: drops, isLeftHalf: false });
       renderWithProviders(<OverlayDropsList />);
 
-      expect(vi.mocked(getRarityStyles)).toHaveBeenCalledWith(2, "right");
+      expect(vi.mocked(getRarityStyles)).toHaveBeenCalledWith(2, "right", null);
     });
 
     it('passes "left" direction to getRarityStyles when isLeftHalf', () => {
@@ -251,7 +256,7 @@ describe("OverlayDropsList", () => {
       setupStore({ filteredDrops: drops, isLeftHalf: true });
       renderWithProviders(<OverlayDropsList />);
 
-      expect(vi.mocked(getRarityStyles)).toHaveBeenCalledWith(1, "left");
+      expect(vi.mocked(getRarityStyles)).toHaveBeenCalledWith(1, "left", null);
     });
 
     it("passes showBeam from rarityStyles to DropBeamColumn", () => {
@@ -340,7 +345,9 @@ describe("OverlayDropsList", () => {
       });
       // Override getFilteredDrops to return null
       store.overlay.getFilteredDrops = vi.fn(() => null);
-      mockUseBoundStore.mockReturnValue(store);
+      mockUseBoundStore.mockImplementation((selector?: any) =>
+        selector ? selector(store) : store,
+      );
 
       renderWithProviders(<OverlayDropsList />);
 
@@ -357,7 +364,7 @@ describe("OverlayDropsList", () => {
       setupStore({ filteredDrops: drops, isLeftHalf: true });
       renderWithProviders(<OverlayDropsList />);
 
-      expect(vi.mocked(getRarityStyles)).toHaveBeenCalledWith(3, "left");
+      expect(vi.mocked(getRarityStyles)).toHaveBeenCalledWith(3, "left", null);
     });
 
     it('passes "right" to getRarityStyles when isLeftHalf is false', () => {
@@ -365,7 +372,7 @@ describe("OverlayDropsList", () => {
       setupStore({ filteredDrops: drops, isLeftHalf: false });
       renderWithProviders(<OverlayDropsList />);
 
-      expect(vi.mocked(getRarityStyles)).toHaveBeenCalledWith(3, "right");
+      expect(vi.mocked(getRarityStyles)).toHaveBeenCalledWith(3, "right", null);
     });
   });
 });

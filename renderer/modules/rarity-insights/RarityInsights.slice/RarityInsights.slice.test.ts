@@ -22,6 +22,27 @@ function makeFilter(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function makeMetadata(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "filter-1",
+    filterType: "local" as const,
+    filePath: "/path/to/filter.filter",
+    filterName: "My Filter",
+    lastUpdate: null,
+    isFullyParsed: false,
+    parsedAt: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function selectFilterThemeSource(filterId: string) {
+  store.getState().settings.setSetting("raritySource", "filter");
+  store.getState().settings.setSetting("selectedFilterId", filterId);
+  store.getState().rarityInsights.setSelectedFilterId(filterId);
+}
+
 // ─── Tests ─────────────────────────────────────────────────────────────────
 
 let store: TestStore;
@@ -52,6 +73,14 @@ describe("RarityInsightsSlice", () => {
       expect(store.getState().rarityInsights.isParsing).toBe(false);
     });
 
+    it("has null activeFilterTheme", () => {
+      expect(store.getState().rarityInsights.activeFilterTheme).toBeNull();
+    });
+
+    it("has isThemeLoading false", () => {
+      expect(store.getState().rarityInsights.isThemeLoading).toBe(false);
+    });
+
     it("has null scanError", () => {
       expect(store.getState().rarityInsights.scanError).toBeNull();
     });
@@ -60,8 +89,56 @@ describe("RarityInsightsSlice", () => {
       expect(store.getState().rarityInsights.parseError).toBeNull();
     });
 
+    it("has null themeError", () => {
+      expect(store.getState().rarityInsights.themeError).toBeNull();
+    });
+
     it("has null lastScannedAt", () => {
       expect(store.getState().rarityInsights.lastScannedAt).toBeNull();
+    });
+  });
+
+  // ── loadStoredFilters ─────────────────────────────────────────────────
+
+  describe("loadStoredFilters", () => {
+    it("loads cached filter metadata for immediate labels", async () => {
+      electron.rarityInsights.getAll.mockResolvedValue([
+        makeMetadata({
+          id: "filter_7ffa42d8",
+          filterType: "online",
+          filePath:
+            "C:\\Users\\seb\\Documents\\My Games\\Path of Exile\\OnlineFilters\\9RYoqxfO",
+          filterName: "NeverSink Mirage",
+          isFullyParsed: true,
+        }),
+      ]);
+
+      await store.getState().rarityInsights.loadStoredFilters();
+
+      expect(electron.rarityInsights.getAll).toHaveBeenCalled();
+      expect(store.getState().rarityInsights.availableFilters).toEqual([
+        {
+          id: "filter_7ffa42d8",
+          type: "online",
+          filePath:
+            "C:\\Users\\seb\\Documents\\My Games\\Path of Exile\\OnlineFilters\\9RYoqxfO",
+          fileName: "9RYoqxfO",
+          name: "NeverSink Mirage",
+          lastUpdate: null,
+          isFullyParsed: true,
+          isOutdated: false,
+        },
+      ]);
+    });
+
+    it("sets scanError when cached filter loading fails", async () => {
+      electron.rarityInsights.getAll.mockRejectedValue(
+        new Error("DB unavailable"),
+      );
+
+      await store.getState().rarityInsights.loadStoredFilters();
+
+      expect(store.getState().rarityInsights.scanError).toBe("DB unavailable");
     });
   });
 
@@ -119,6 +196,28 @@ describe("RarityInsightsSlice", () => {
       expect(store.getState().rarityInsights.availableFilters[1].id).toBe("f2");
     });
 
+    it("keeps cached selected filter metadata when scan omits it", async () => {
+      const cachedSelected = makeFilter({
+        id: "filter-selected",
+        name: "Cached Selected Filter",
+        type: "online",
+      });
+      store.getState().rarityInsights.setAvailableFilters([cachedSelected]);
+      selectFilterThemeSource("filter-selected");
+      electron.rarityInsights.scan.mockResolvedValue({
+        filters: [makeFilter({ id: "f1", name: "Filter A" })],
+        localCount: 1,
+        onlineCount: 0,
+      });
+
+      await store.getState().rarityInsights.scanFilters();
+
+      expect(store.getState().rarityInsights.availableFilters).toEqual([
+        makeFilter({ id: "f1", name: "Filter A" }),
+        cachedSelected,
+      ]);
+    });
+
     it("sets lastScannedAt on success", async () => {
       electron.rarityInsights.scan.mockResolvedValue({
         filters: [],
@@ -173,6 +272,16 @@ describe("RarityInsightsSlice", () => {
       expect(electron.rarityInsights.select).toHaveBeenCalledWith("filter-abc");
     });
 
+    it("loads the filter theme after selecting a filter", async () => {
+      store.getState().settings.setSetting("raritySource", "filter");
+
+      await store.getState().rarityInsights.selectFilter("filter-abc");
+
+      expect(electron.rarityInsights.getFilterTheme).toHaveBeenCalledWith(
+        "filter-abc",
+      );
+    });
+
     it("clears parseError when selecting a filter", async () => {
       store.getState().rarityInsights.setParseError("old parse error");
 
@@ -210,6 +319,25 @@ describe("RarityInsightsSlice", () => {
       await store.getState().rarityInsights.clearSelectedFilter();
 
       expect(electron.rarityInsights.select).toHaveBeenCalledWith(null);
+    });
+
+    it("clears the active filter theme", async () => {
+      selectFilterThemeSource("filter-abc");
+      electron.rarityInsights.getFilterTheme.mockResolvedValue([
+        {
+          filterId: "filter-abc",
+          rarity: 1,
+          bgColor: { r: 10, g: 20, b: 30, a: 255 },
+          textColor: null,
+          borderColor: null,
+        },
+      ]);
+      await store.getState().rarityInsights.loadFilterTheme("filter-abc");
+
+      await store.getState().rarityInsights.clearSelectedFilter();
+
+      expect(store.getState().rarityInsights.activeFilterTheme).toBeNull();
+      expect(store.getState().rarityInsights.themeError).toBeNull();
     });
 
     it("does not throw if electron.select rejects", async () => {
@@ -265,6 +393,20 @@ describe("RarityInsightsSlice", () => {
       await store.getState().rarityInsights.parseFilter("filter-1");
 
       expect(electron.rarityInsights.parse).toHaveBeenCalledWith("filter-1");
+    });
+
+    it("loads the filter theme after parsing", async () => {
+      selectFilterThemeSource("filter-1");
+      electron.rarityInsights.parse.mockResolvedValue({
+        cards: [],
+        totalCards: 0,
+      });
+
+      await store.getState().rarityInsights.parseFilter("filter-1");
+
+      expect(electron.rarityInsights.getFilterTheme).toHaveBeenCalledWith(
+        "filter-1",
+      );
     });
 
     it("marks the matching filter as isFullyParsed on success", async () => {
@@ -324,6 +466,174 @@ describe("RarityInsightsSlice", () => {
 
       expect(store.getState().rarityInsights.isParsing).toBe(false);
       expect(store.getState().rarityInsights.parseError).toBeNull();
+    });
+  });
+
+  // ── loadFilterTheme ────────────────────────────────────────────────────
+
+  describe("loadFilterTheme", () => {
+    it("sets isThemeLoading while loading", async () => {
+      selectFilterThemeSource("filter-1");
+      let resolveTheme!: (v: unknown) => void;
+      electron.rarityInsights.getFilterTheme.mockReturnValue(
+        new Promise((r) => {
+          resolveTheme = r;
+        }),
+      );
+
+      const promise = store
+        .getState()
+        .rarityInsights.loadFilterTheme("filter-1");
+      expect(store.getState().rarityInsights.isThemeLoading).toBe(true);
+
+      resolveTheme([]);
+      await promise;
+
+      expect(store.getState().rarityInsights.isThemeLoading).toBe(false);
+    });
+
+    it("stores theme rows keyed by rarity", async () => {
+      selectFilterThemeSource("filter-1");
+      electron.rarityInsights.getFilterTheme.mockResolvedValue([
+        {
+          filterId: "filter-1",
+          rarity: 1,
+          bgColor: { r: 10, g: 20, b: 30, a: 255 },
+          textColor: { r: 240, g: 240, b: 240, a: 255 },
+          borderColor: null,
+        },
+      ]);
+
+      await store.getState().rarityInsights.loadFilterTheme("filter-1");
+
+      expect(store.getState().rarityInsights.activeFilterTheme).toEqual({
+        1: {
+          bgColor: { r: 10, g: 20, b: 30, a: 255 },
+          textColor: { r: 240, g: 240, b: 240, a: 255 },
+          borderColor: null,
+        },
+      });
+    });
+
+    it("clears activeFilterTheme when no theme rows are returned", async () => {
+      selectFilterThemeSource("filter-1");
+      electron.rarityInsights.getFilterTheme.mockResolvedValue([]);
+
+      await store.getState().rarityInsights.loadFilterTheme("filter-1");
+
+      expect(store.getState().rarityInsights.activeFilterTheme).toBeNull();
+    });
+
+    it("clears activeFilterTheme when called without a filterId", async () => {
+      selectFilterThemeSource("filter-1");
+      electron.rarityInsights.getFilterTheme.mockResolvedValue([
+        {
+          filterId: "filter-1",
+          rarity: 1,
+          bgColor: { r: 10, g: 20, b: 30, a: 255 },
+          textColor: null,
+          borderColor: null,
+        },
+      ]);
+      await store.getState().rarityInsights.loadFilterTheme("filter-1");
+
+      await store.getState().rarityInsights.loadFilterTheme(null);
+
+      expect(store.getState().rarityInsights.activeFilterTheme).toBeNull();
+      expect(electron.rarityInsights.getFilterTheme).toHaveBeenCalledTimes(1);
+    });
+
+    it("sets themeError on failure", async () => {
+      selectFilterThemeSource("filter-1");
+      electron.rarityInsights.getFilterTheme.mockRejectedValue(
+        new Error("Theme failed"),
+      );
+
+      await store.getState().rarityInsights.loadFilterTheme("filter-1");
+
+      expect(store.getState().rarityInsights.activeFilterTheme).toBeNull();
+      expect(store.getState().rarityInsights.isThemeLoading).toBe(false);
+      expect(store.getState().rarityInsights.themeError).toBe("Theme failed");
+    });
+
+    it("ignores stale theme responses after the selected filter changes", async () => {
+      selectFilterThemeSource("filter-1");
+
+      let resolveFirst!: (v: unknown) => void;
+      let resolveSecond!: (v: unknown) => void;
+      electron.rarityInsights.getFilterTheme
+        .mockReturnValueOnce(
+          new Promise((resolve) => {
+            resolveFirst = resolve;
+          }),
+        )
+        .mockReturnValueOnce(
+          new Promise((resolve) => {
+            resolveSecond = resolve;
+          }),
+        );
+
+      const firstLoad = store
+        .getState()
+        .rarityInsights.loadFilterTheme("filter-1");
+      selectFilterThemeSource("filter-2");
+      const secondLoad = store
+        .getState()
+        .rarityInsights.loadFilterTheme("filter-2");
+
+      resolveSecond([
+        {
+          filterId: "filter-2",
+          rarity: 2,
+          bgColor: { r: 20, g: 30, b: 40, a: 255 },
+          textColor: null,
+          borderColor: null,
+        },
+      ]);
+      await secondLoad;
+
+      resolveFirst([
+        {
+          filterId: "filter-1",
+          rarity: 1,
+          bgColor: { r: 10, g: 20, b: 30, a: 255 },
+          textColor: null,
+          borderColor: null,
+        },
+      ]);
+      await firstLoad;
+
+      expect(store.getState().rarityInsights.activeFilterTheme).toEqual({
+        2: {
+          bgColor: { r: 20, g: 30, b: 40, a: 255 },
+          textColor: null,
+          borderColor: null,
+        },
+      });
+    });
+
+    it("ignores stale theme errors after switching away from filter source", async () => {
+      selectFilterThemeSource("filter-1");
+
+      let rejectTheme!: (reason?: unknown) => void;
+      electron.rarityInsights.getFilterTheme.mockReturnValue(
+        new Promise((_resolve, reject) => {
+          rejectTheme = reject;
+        }),
+      );
+
+      const load = store.getState().rarityInsights.loadFilterTheme("filter-1");
+      store.getState().settings.setSetting("raritySource", "poe.ninja");
+      store.getState().settings.setSetting("selectedFilterId", null);
+      store.getState().rarityInsights.setSelectedFilterId(null);
+      store.getState().rarityInsights.clearFilterTheme();
+
+      rejectTheme(new Error("Old theme failed"));
+      await load;
+
+      expect(store.getState().rarityInsights.activeFilterTheme).toBeNull();
+      expect(store.getState().rarityInsights.isThemeLoading).toBe(false);
+      expect(store.getState().rarityInsights.themeError).toBeNull();
     });
   });
 

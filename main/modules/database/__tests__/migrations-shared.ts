@@ -265,6 +265,29 @@ export function createBaselineSchema(db: Database.Database): void {
   `);
 
   db.exec(`
+    CREATE TABLE IF NOT EXISTS filter_tier_styles (
+      filter_id TEXT NOT NULL,
+      rarity INTEGER NOT NULL CHECK(rarity >= 1 AND rarity <= 4),
+      bg_r INTEGER,
+      bg_g INTEGER,
+      bg_b INTEGER,
+      bg_a INTEGER,
+      text_r INTEGER,
+      text_g INTEGER,
+      text_b INTEGER,
+      text_a INTEGER,
+      border_r INTEGER,
+      border_g INTEGER,
+      border_b INTEGER,
+      border_a INTEGER,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (filter_id, rarity),
+      FOREIGN KEY (filter_id) REFERENCES filter_metadata(id) ON DELETE CASCADE
+    )
+  `);
+
+  db.exec(`
     CREATE TABLE IF NOT EXISTS user_settings (
       id INTEGER PRIMARY KEY CHECK(id = 1),
       app_exit_action TEXT NOT NULL DEFAULT 'exit' CHECK(app_exit_action IN ('exit', 'minimize')),
@@ -336,6 +359,7 @@ export function createPreAudioSchema(db: Database.Database): void {
   db.exec(`INSERT OR IGNORE INTO user_settings (id) VALUES (1)`);
 
   // Also drop filter tables since they didn't exist before either
+  db.exec(`DROP TABLE IF EXISTS filter_tier_styles`);
   db.exec(`DROP TABLE IF EXISTS filter_card_rarities`);
   db.exec(`DROP TABLE IF EXISTS filter_metadata`);
 }
@@ -349,6 +373,7 @@ export function createPreFilterSchema(db: Database.Database): void {
   createBaselineSchema(db);
 
   // Drop filter tables to simulate a user who doesn't have them yet
+  db.exec(`DROP TABLE IF EXISTS filter_tier_styles`);
   db.exec(`DROP TABLE IF EXISTS filter_card_rarities`);
   db.exec(`DROP TABLE IF EXISTS filter_metadata`);
 
@@ -403,6 +428,7 @@ export const EXPECTED_FILTER_SETTINGS_COLUMNS = [
 export const EXPECTED_FILTER_TABLES = [
   "filter_metadata",
   "filter_card_rarities",
+  "filter_tier_styles",
 ];
 
 export const EXPECTED_LAST_SEEN_APP_VERSION_COLUMNS = ["last_seen_app_version"];
@@ -435,6 +461,25 @@ export const EXPECTED_FILTER_CARD_RARITIES_COLUMNS = [
   "card_name",
   "rarity",
   "created_at",
+];
+
+export const EXPECTED_FILTER_TIER_STYLES_COLUMNS = [
+  "filter_id",
+  "rarity",
+  "bg_r",
+  "bg_g",
+  "bg_b",
+  "bg_a",
+  "text_r",
+  "text_g",
+  "text_b",
+  "text_a",
+  "border_r",
+  "border_g",
+  "border_b",
+  "border_a",
+  "created_at",
+  "updated_at",
 ];
 
 export const EXPECTED_SESSION_CARD_EVENTS_COLUMNS = [

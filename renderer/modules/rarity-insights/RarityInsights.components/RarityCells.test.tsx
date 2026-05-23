@@ -286,6 +286,18 @@ describe("PoeNinjaRarityCell", () => {
       });
     });
   });
+
+  describe("memoization", () => {
+    it("keeps the same rendered badge when rarity and card name do not change", () => {
+      const { rerender } = renderWithProviders(
+        <PoeNinjaRarityCell rarity={2} cardName="The Nurse" />,
+      );
+
+      rerender(<PoeNinjaRarityCell rarity={2} cardName="The Nurse" />);
+
+      expect(screen.getByText("Rare")).toBeInTheDocument();
+    });
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -537,6 +549,18 @@ describe("ProhibitedLibraryRarityCell", () => {
 
       const tooltip = container.querySelector("[data-tip]");
       expect(tooltip).not.toBeInTheDocument();
+    });
+  });
+
+  describe("memoization", () => {
+    it("keeps the same rendered badge when rarity does not change", () => {
+      const { rerender } = renderWithProviders(
+        <ProhibitedLibraryRarityCell rarity={2} />,
+      );
+
+      rerender(<ProhibitedLibraryRarityCell rarity={2} />);
+
+      expect(screen.getByText("Rare")).toBeInTheDocument();
     });
   });
 });

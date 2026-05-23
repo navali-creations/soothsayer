@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type {
   FilterCardRaritiesRow,
   FilterMetadataRow,
+  FilterTierStylesRow,
 } from "~/main/modules/database";
 
 import { RarityInsightsMapper } from "../RarityInsights.mapper";
@@ -35,6 +36,30 @@ function makeFilterCardRaritiesRow(
     card_name: "The Doctor",
     rarity: 1,
     created_at: "2025-07-01T10:00:00Z",
+    ...overrides,
+  };
+}
+
+function makeFilterTierStylesRow(
+  overrides: Partial<FilterTierStylesRow> = {},
+): FilterTierStylesRow {
+  return {
+    filter_id: "filter_abc12345",
+    rarity: 1,
+    bg_r: 10,
+    bg_g: 20,
+    bg_b: 30,
+    bg_a: 255,
+    text_r: 240,
+    text_g: 240,
+    text_b: 240,
+    text_a: 255,
+    border_r: null,
+    border_g: null,
+    border_b: null,
+    border_a: null,
+    created_at: "2025-07-01T10:00:00Z",
+    updated_at: "2025-07-01T10:00:00Z",
     ...overrides,
   };
 }
@@ -453,6 +478,38 @@ describe("RarityInsightsMapper", () => {
       const result = RarityInsightsMapper.toRarityInsightsCardRarityDTO(row);
 
       expect(result.filterId).toBe("filter_custom123");
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // toFilterTierStyleDTO
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe("toFilterTierStyleDTO", () => {
+    it("should convert a database row to a FilterTierStyleDTO", () => {
+      const row = makeFilterTierStylesRow();
+
+      const result = RarityInsightsMapper.toFilterTierStyleDTO(row);
+
+      expect(result).toEqual({
+        filterId: "filter_abc12345",
+        rarity: 1,
+        bgColor: { r: 10, g: 20, b: 30, a: 255 },
+        textColor: { r: 240, g: 240, b: 240, a: 255 },
+        borderColor: null,
+      });
+    });
+
+    it("should return null for partially missing color channels", () => {
+      const row = makeFilterTierStylesRow({
+        bg_a: null,
+        text_r: null,
+      });
+
+      const result = RarityInsightsMapper.toFilterTierStyleDTO(row);
+
+      expect(result.bgColor).toBeNull();
+      expect(result.textColor).toBeNull();
     });
   });
 

@@ -138,6 +138,13 @@ describe("RarityInsightsParser", () => {
       // T5 → rarity 4
       expect(result.cardRarities.get("The Carrion Crow")).toBe(4);
       expect(result.cardRarities.get("The Hermit")).toBe(4);
+
+      expect(result.tierStyles.get(1)?.borderColor).toEqual({
+        r: 255,
+        g: 0,
+        b: 0,
+        a: 255,
+      });
     });
 
     it("should return hasDivinationSection=false when no divination TOC entry exists", () => {
@@ -147,6 +154,7 @@ describe("RarityInsightsParser", () => {
       expect(result.hasDivinationSection).toBe(false);
       expect(result.totalCards).toBe(0);
       expect(result.cardRarities.size).toBe(0);
+      expect(result.tierStyles.size).toBe(0);
     });
 
     it("should return hasDivinationSection=true with 0 cards when TOC entry exists but section body has no tier blocks", () => {
@@ -159,6 +167,7 @@ describe("RarityInsightsParser", () => {
       expect(result.hasDivinationSection).toBe(true);
       expect(result.totalCards).toBe(0);
       expect(result.cardRarities.size).toBe(0);
+      expect(result.tierStyles.size).toBe(0);
     });
 
     it("should handle empty content", () => {
@@ -167,6 +176,7 @@ describe("RarityInsightsParser", () => {
       expect(result.hasDivinationSection).toBe(false);
       expect(result.totalCards).toBe(0);
       expect(result.cardRarities.size).toBe(0);
+      expect(result.tierStyles.size).toBe(0);
     });
 
     it("should stop extracting cards when the next section starts", () => {
@@ -181,6 +191,74 @@ describe("RarityInsightsParser", () => {
       expect(result.cardRarities.get("The Doctor")).toBe(1);
       // Cards from the next section should NOT be included
       expect(result.cardRarities.has("Maze of the Minotaur")).toBe(false);
+    });
+
+    it("should parse a non-TOC custom divination section with generic card blocks", () => {
+      const content = [
+        "### Currency",
+        "Show",
+        'Class "Currency"',
+        'BaseType "Chaos Orb"',
+        "",
+        "### Divination Cards",
+        "Show # All Div. Cards",
+        'Class "Divination Card"',
+        "SetBackgroundColor 0 0 0 # Black",
+        "SetTextColor 123 123 123 # Grey",
+        "SetFontSize 30",
+        "Continue",
+        "",
+        'Show # "Don\'t Care if I Miss Them" Div Cards',
+        'Class "Divination Card"',
+        'BaseType == "Rain of Chaos"',
+        "SetFontSize 25",
+        "PlayAlertSound None",
+        "MinimapIcon -1",
+        "PlayEffect None",
+        "Continue",
+        "",
+        'Show # "Absolutely!" Div Cards',
+        'Class "Divination Card"',
+        'BaseType == "Sambodhi\'s Wisdom"',
+        "SetBorderColor 123 123 123 # Grey",
+        "SetBackgroundColor 0 0 0 # Black",
+        "SetTextColor 123 123 123 # Grey",
+        "SetFontSize 40",
+        "PlayAlertSound 12 300",
+        "Continue",
+        "",
+        'Show # "You\'ve Got to be Kidding ME!!!" Div Cards',
+        'Class "Divination Card"',
+        'BaseType == "The Doctor"',
+        "SetBorderColor 123 123 123 # Grey",
+        "SetBackgroundColor 255 255 255 # White",
+        "SetFontSize 45",
+        "PlayAlertSound 1 300",
+        "Continue",
+        "",
+        "### Quest",
+        "Show",
+        'Class "Divination Card"',
+        'BaseType == "Should Not Be Parsed"',
+      ].join("\n");
+
+      const result = RarityInsightsParser.parseFilterContent(content);
+
+      expect(result.hasDivinationSection).toBe(true);
+      expect(result.cardRarities.get("The Doctor")).toBe(1);
+      expect(result.cardRarities.get("Sambodhi's Wisdom")).toBe(3);
+      expect(result.cardRarities.get("Rain of Chaos")).toBe(4);
+      expect(result.cardRarities.has("Should Not Be Parsed")).toBe(false);
+      expect(result.tierStyles.get(1)).toEqual({
+        bgColor: { r: 255, g: 255, b: 255, a: 255 },
+        textColor: { r: 123, g: 123, b: 123, a: 255 },
+        borderColor: { r: 123, g: 123, b: 123, a: 255 },
+      });
+      expect(result.tierStyles.get(4)).toEqual({
+        bgColor: { r: 0, g: 0, b: 0, a: 255 },
+        textColor: { r: 123, g: 123, b: 123, a: 255 },
+        borderColor: null,
+      });
     });
 
     it("should handle all tier types with correct rarity mapping", () => {
@@ -494,6 +572,73 @@ describe("RarityInsightsParser", () => {
       expect(result[0].cardNames).toEqual(["The Doctor", "House of Mirrors"]);
     });
 
+    it("should parse colour directives into tier style", () => {
+      const lines = [
+        "Show # $type->divination $tier->t1",
+        "    SetBackgroundColor 255 255 255 255",
+        "    SetTextColor 0 0 255 255",
+        "    SetBorderColor 10 20 30 200",
+        '    BaseType == "The Doctor"',
+      ];
+
+      const result = RarityInsightsParser.parseTierBlocks(lines);
+
+      expect(result[0].style).toEqual({
+        bgColor: { r: 255, g: 255, b: 255, a: 255 },
+        textColor: { r: 0, g: 0, b: 255, a: 255 },
+        borderColor: { r: 10, g: 20, b: 30, a: 200 },
+      });
+    });
+
+    it("should default missing colour alpha to 255", () => {
+      const lines = [
+        "Show # $type->divination $tier->t1",
+        "    SetBorderColor 10 20 30",
+      ];
+
+      const result = RarityInsightsParser.parseTierBlocks(lines);
+
+      expect(result[0].style?.borderColor).toEqual({
+        r: 10,
+        g: 20,
+        b: 30,
+        a: 255,
+      });
+    });
+
+    it("should parse colour directives with inline comments", () => {
+      const lines = [
+        "Show # $type->divination $tier->t1",
+        "    SetBackgroundColor 0 0 0 # Black",
+        "    SetTextColor 123 123 123 # Grey",
+      ];
+
+      const result = RarityInsightsParser.parseTierBlocks(lines);
+
+      expect(result[0].style).toEqual({
+        bgColor: { r: 0, g: 0, b: 0, a: 255 },
+        textColor: { r: 123, g: 123, b: 123, a: 255 },
+        borderColor: null,
+      });
+    });
+
+    it("should ignore commented-out and invalid colour directives", () => {
+      const lines = [
+        "Show # $type->divination $tier->t1",
+        "    # SetBackgroundColor 255 255 255 255",
+        "    SetTextColor 300 0 0 255",
+        "    SetBorderColor 10 20 30 255",
+      ];
+
+      const result = RarityInsightsParser.parseTierBlocks(lines);
+
+      expect(result[0].style).toEqual({
+        bgColor: null,
+        textColor: null,
+        borderColor: { r: 10, g: 20, b: 30, a: 255 },
+      });
+    });
+
     it("should parse multiple tier blocks", () => {
       const lines = [
         "Show # $type->divination $tier->t1",
@@ -543,6 +688,65 @@ describe("RarityInsightsParser", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].cardNames).toEqual(["The Doctor", "The Nurse"]);
+    });
+
+    it("should parse NeverSink tier headers with style tags and Hide actions", () => {
+      const lines = [
+        "Show # %H8 $type->divination $tier->t2",
+        '    BaseType == "The Nurse"',
+        "    SetBackgroundColor 0 20 180 255",
+        "",
+        "Show # %HS4 $type->divination $tier->t4c",
+        '    BaseType == "Rain of Chaos"',
+        "    SetBackgroundColor 39 141 192 255",
+        "",
+        "Hide # %H0 $type->divination $tier->t5",
+        '    BaseType == "Sambodhi\'s Wisdom"',
+        "    SetTextColor 39 141 192 255",
+        "    SetBorderColor 39 141 192 255",
+        "    SetBackgroundColor 20 20 0 255",
+      ];
+
+      const result = RarityInsightsParser.parseTierBlocks(lines);
+
+      expect(result).toHaveLength(3);
+      expect(result[0].tierName).toBe("t2");
+      expect(result[0].cardNames).toEqual(["The Nurse"]);
+      expect(result[1].tierName).toBe("t4c");
+      expect(result[1].style?.bgColor).toEqual({
+        r: 39,
+        g: 141,
+        b: 192,
+        a: 255,
+      });
+      expect(result[2].tierName).toBe("t5");
+      expect(result[2].cardNames).toEqual(["Sambodhi's Wisdom"]);
+      expect(result[2].style?.bgColor).toEqual({
+        r: 20,
+        g: 20,
+        b: 0,
+        a: 255,
+      });
+    });
+
+    it("should parse explicit divination tier headers when tokens are reordered", () => {
+      const lines = [
+        "Show # %H8 $tier->t2 $type->divination",
+        '    BaseType == "The Nurse"',
+        "    SetBackgroundColor 0 20 180 255",
+      ];
+
+      const result = RarityInsightsParser.parseTierBlocks(lines);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].tierName).toBe("t2");
+      expect(result[0].cardNames).toEqual(["The Nurse"]);
+      expect(result[0].style?.bgColor).toEqual({
+        r: 0,
+        g: 20,
+        b: 180,
+        a: 255,
+      });
     });
 
     it("should return empty array for empty input", () => {
@@ -960,6 +1164,92 @@ describe("RarityInsightsParser", () => {
   });
 
   // ============================================================================
+  // buildTierStyles
+  // ============================================================================
+
+  describe("buildTierStyles", () => {
+    it("should build a rarity style map from tier blocks", () => {
+      const result = RarityInsightsParser.buildTierStyles([
+        {
+          tierName: "t1",
+          rarity: 1,
+          cardNames: [],
+          style: {
+            bgColor: { r: 255, g: 255, b: 255, a: 255 },
+            textColor: { r: 0, g: 0, b: 255, a: 255 },
+            borderColor: null,
+          },
+        },
+      ]);
+
+      expect(result.get(1)).toEqual({
+        bgColor: { r: 255, g: 255, b: 255, a: 255 },
+        textColor: { r: 0, g: 0, b: 255, a: 255 },
+        borderColor: null,
+      });
+    });
+
+    it("should prefer the highest-priority tier when multiple tiers map to one rarity", () => {
+      const result = RarityInsightsParser.buildTierStyles([
+        {
+          tierName: "t3",
+          rarity: 2,
+          cardNames: [],
+          style: {
+            bgColor: { r: 30, g: 30, b: 30, a: 255 },
+            textColor: null,
+            borderColor: null,
+          },
+        },
+        {
+          tierName: "t2",
+          rarity: 2,
+          cardNames: [],
+          style: {
+            bgColor: { r: 20, g: 20, b: 20, a: 255 },
+            textColor: null,
+            borderColor: null,
+          },
+        },
+      ]);
+
+      expect(result.get(2)?.bgColor).toEqual({
+        r: 20,
+        g: 20,
+        b: 20,
+        a: 255,
+      });
+    });
+
+    it("should skip ignored tiers and empty styles", () => {
+      const result = RarityInsightsParser.buildTierStyles([
+        {
+          tierName: "exstack",
+          rarity: null,
+          cardNames: [],
+          style: {
+            bgColor: { r: 255, g: 0, b: 0, a: 255 },
+            textColor: null,
+            borderColor: null,
+          },
+        },
+        {
+          tierName: "t1",
+          rarity: 1,
+          cardNames: [],
+          style: {
+            bgColor: null,
+            textColor: null,
+            borderColor: null,
+          },
+        },
+      ]);
+
+      expect(result.size).toBe(0);
+    });
+  });
+
+  // ============================================================================
   // getTierMapping
   // ============================================================================
 
@@ -1019,6 +1309,7 @@ describe("RarityInsightsParser", () => {
       expect(result.hasDivinationSection).toBe(false);
       expect(result.totalCards).toBe(0);
       expect(result.cardRarities.size).toBe(0);
+      expect(result.tierStyles.size).toBe(0);
     });
 
     it("should read and parse a valid filter file from disk", async () => {
@@ -1285,10 +1576,38 @@ describe("RarityInsightsParser", () => {
 
       const result = RarityInsightsParser.parseFilterContent(content);
 
-      // The Hide block ends the t1 block but is not itself a tier block
-      // The t3 block should still be parsed
       expect(result.cardRarities.get("The Doctor")).toBe(1);
+      expect(result.cardRarities.get("Hidden Card")).toBe(4);
       expect(result.cardRarities.get("Another Card")).toBe(2);
+    });
+
+    it("should prefer a specific common tier style over restex when headers contain NeverSink markers", () => {
+      const content = [
+        "# WELCOME] TABLE OF CONTENTS",
+        "# [[4200]] Divination Cards",
+        "",
+        "# [[4200]] Divination Cards",
+        "",
+        "Hide # %H0 $type->divination $tier->t5",
+        'BaseType == "Sambodhi\'s Wisdom"',
+        "SetTextColor 39 141 192 255",
+        "SetBorderColor 39 141 192 255",
+        "SetBackgroundColor 20 20 0 255",
+        "",
+        "Show # $type->divination $tier->restex",
+        "SetTextColor 255 0 255 255",
+        "SetBorderColor 255 0 255 255",
+        "SetBackgroundColor 100 0 100 255",
+      ].join("\n");
+
+      const result = RarityInsightsParser.parseFilterContent(content);
+
+      expect(result.cardRarities.get("Sambodhi's Wisdom")).toBe(4);
+      expect(result.tierStyles.get(4)).toEqual({
+        bgColor: { r: 20, g: 20, b: 0, a: 255 },
+        textColor: { r: 39, g: 141, b: 192, a: 255 },
+        borderColor: { r: 39, g: 141, b: 192, a: 255 },
+      });
     });
 
     it("should resolve rarity conflict in favor of more rare when same card in t1 and t5", () => {

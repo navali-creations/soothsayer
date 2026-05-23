@@ -59,6 +59,23 @@ describe("RarityInsightsRepository", () => {
     await repository.replaceCardRarities(filterId, rarities);
   }
 
+  async function insertTierStyles(filterId: string) {
+    await repository.replaceTierStyles(filterId, [
+      {
+        rarity: 1,
+        bgColor: { r: 10, g: 20, b: 30, a: 255 },
+        textColor: { r: 240, g: 240, b: 240, a: 255 },
+        borderColor: null,
+      },
+      {
+        rarity: 2,
+        bgColor: { r: 40, g: 50, b: 60, a: 200 },
+        textColor: null,
+        borderColor: { r: 70, g: 80, b: 90, a: 255 },
+      },
+    ]);
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // Filter Metadata Operations
   // ═══════════════════════════════════════════════════════════════════════════
@@ -538,6 +555,17 @@ describe("RarityInsightsRepository", () => {
       const afterDelete = await repository.getCardRarities("cascade-test");
       expect(afterDelete).toEqual([]);
     });
+
+    it("should cascade delete associated tier styles", async () => {
+      await insertFilter({ id: "cascade-theme" });
+      await insertTierStyles("cascade-theme");
+
+      expect(await repository.getTierStyleCount("cascade-theme")).toBe(2);
+
+      await repository.deleteById("cascade-theme");
+
+      expect(await repository.getTierStyles("cascade-theme")).toEqual([]);
+    });
   });
 
   // ─── deleteNotInFilePaths ────────────────────────────────────────────────
@@ -589,6 +617,30 @@ describe("RarityInsightsRepository", () => {
       expect(deletedCount).toBe(2);
       const remaining = await repository.getAll();
       expect(remaining).toEqual([]);
+    });
+
+    it("should retain selected filters when their paths are missing", async () => {
+      await insertFilter({
+        id: "selected",
+        filePath: "C:\\missing\\selected.filter",
+        filterName: "Selected Filter",
+      });
+      await insertFilter({
+        id: "stale",
+        filePath: "C:\\missing\\stale.filter",
+        filterName: "Stale Filter",
+      });
+
+      const deletedCount = await repository.deleteNotInFilePaths(
+        [],
+        ["selected"],
+      );
+
+      expect(deletedCount).toBe(1);
+      const remaining = await repository.getAll();
+      expect(remaining).toHaveLength(1);
+      expect(remaining[0].id).toBe("selected");
+      expect(remaining[0].filterName).toBe("Selected Filter");
     });
 
     it("should return 0 when no filters are deleted", async () => {
@@ -987,6 +1039,112 @@ describe("RarityInsightsRepository", () => {
       const kept = await repository.getCardRarities("del-keep");
       expect(kept).toHaveLength(1);
       expect(kept[0].cardName).toBe("Rain of Chaos");
+    });
+  });
+
+  // ─── filter_tier_styles ────────────────────────────────────────────────
+
+  describe("filter tier styles", () => {
+    it("should replace and return tier styles sorted by rarity", async () => {
+      await insertFilter({ id: "theme-filter" });
+
+      await repository.replaceTierStyles("theme-filter", [
+        {
+          rarity: 2,
+          bgColor: { r: 40, g: 50, b: 60, a: 200 },
+          textColor: null,
+          borderColor: { r: 70, g: 80, b: 90, a: 255 },
+        },
+        {
+          rarity: 1,
+          bgColor: { r: 10, g: 20, b: 30, a: 255 },
+          textColor: { r: 240, g: 240, b: 240, a: 255 },
+          borderColor: null,
+        },
+      ]);
+
+      const styles = await repository.getTierStyles("theme-filter");
+
+      expect(styles).toEqual([
+        {
+          filterId: "theme-filter",
+          rarity: 1,
+          bgColor: { r: 10, g: 20, b: 30, a: 255 },
+          textColor: { r: 240, g: 240, b: 240, a: 255 },
+          borderColor: null,
+        },
+        {
+          filterId: "theme-filter",
+          rarity: 2,
+          bgColor: { r: 40, g: 50, b: 60, a: 200 },
+          textColor: null,
+          borderColor: { r: 70, g: 80, b: 90, a: 255 },
+        },
+      ]);
+    });
+
+    it("should clear previous tier styles when replaced with an empty array", async () => {
+      await insertFilter({ id: "clear-theme-filter" });
+      await insertTierStyles("clear-theme-filter");
+
+      await repository.replaceTierStyles("clear-theme-filter", []);
+
+      expect(await repository.getTierStyles("clear-theme-filter")).toEqual([]);
+    });
+
+    it("should clear tier styles without touching card rarities", async () => {
+      await insertFilter({ id: "delete-theme-filter" });
+      await insertCardRarities("delete-theme-filter", [
+        { cardName: "The Doctor", rarity: 1 },
+      ]);
+      await insertTierStyles("delete-theme-filter");
+
+      await repository.replaceTierStyles("delete-theme-filter", []);
+
+      expect(await repository.getTierStyles("delete-theme-filter")).toEqual([]);
+      expect(
+        await repository.getCardRarities("delete-theme-filter"),
+      ).toHaveLength(1);
+    });
+
+    it("should replace parsed rarities and tier styles atomically", async () => {
+      await insertFilter({ id: "parsed-data-filter" });
+      await insertCardRarities("parsed-data-filter", [
+        { cardName: "Old Card", rarity: 4 },
+      ]);
+      await insertTierStyles("parsed-data-filter");
+
+      await repository.replaceParsedFilterData(
+        "parsed-data-filter",
+        [{ cardName: "New Card", rarity: 2 }],
+        [
+          {
+            rarity: 3,
+            bgColor: { r: 1, g: 2, b: 3, a: 255 },
+            textColor: null,
+            borderColor: null,
+          },
+        ],
+      );
+
+      const filter = await repository.getById("parsed-data-filter");
+      const rarities = await repository.getCardRarities("parsed-data-filter");
+      const styles = await repository.getTierStyles("parsed-data-filter");
+
+      expect(filter!.isFullyParsed).toBe(true);
+      expect(filter!.parsedAt).not.toBeNull();
+      expect(rarities).toEqual([
+        { filterId: "parsed-data-filter", cardName: "New Card", rarity: 2 },
+      ]);
+      expect(styles).toEqual([
+        {
+          filterId: "parsed-data-filter",
+          rarity: 3,
+          bgColor: { r: 1, g: 2, b: 3, a: 255 },
+          textColor: null,
+          borderColor: null,
+        },
+      ]);
     });
   });
 

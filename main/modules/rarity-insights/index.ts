@@ -3,6 +3,8 @@ export { RarityInsightsChannel } from "./RarityInsights.channels";
 export * from "./RarityInsights.dto";
 export { RarityInsightsMapper } from "./RarityInsights.mapper";
 export type {
+  FilterRgbaColor,
+  FilterTierStyle,
   RarityInsightsParseResult,
   TierBlock,
 } from "./RarityInsights.parser";

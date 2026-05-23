@@ -1,16 +1,8 @@
 import { memo, useCallback } from "react";
 
-import { getRarityStyles } from "~/renderer/utils";
 import type { KnownRarity } from "~/types/data-stores";
 
-const KNOWN_RARITY_LEVELS: KnownRarity[] = [1, 2, 3, 4];
-
-const SHORT_LABELS: Record<KnownRarity, string> = {
-  1: "R1",
-  2: "R2",
-  3: "R3",
-  4: "R4",
-};
+import RarityChips from "./RarityChips/RarityChips";
 
 interface ProhibitedLibraryColumnHeaderProps {
   /** The currently selected rarity for priority sorting, or null if default */
@@ -36,8 +28,7 @@ interface ProhibitedLibraryColumnHeaderProps {
 const ProhibitedLibraryColumnHeader = memo(
   ({ activeRarity, onRarityClick }: ProhibitedLibraryColumnHeaderProps) => {
     const handleBadgeClick = useCallback(
-      (e: React.MouseEvent, rarity: KnownRarity) => {
-        e.stopPropagation();
+      (_event: React.MouseEvent<HTMLButtonElement>, rarity: KnownRarity) => {
         onRarityClick(rarity);
       },
       [onRarityClick],
@@ -49,32 +40,10 @@ const ProhibitedLibraryColumnHeader = memo(
         data-onboarding="rarity-insights-prohibited-library"
       >
         <span className="text-xs font-semibold">Prohibited Library</span>
-        <div className="flex items-center gap-0.5">
-          {KNOWN_RARITY_LEVELS.map((rarity) => {
-            const styles = getRarityStyles(rarity);
-            const isActive = activeRarity === rarity;
-
-            return (
-              <button
-                key={rarity}
-                type="button"
-                className="badge badge-xs cursor-pointer transition-opacity"
-                style={{
-                  backgroundColor: styles.badgeBg,
-                  color: styles.badgeText,
-                  borderColor: styles.badgeBorder,
-                  borderWidth: "1px",
-                  borderStyle: "solid",
-                  opacity: isActive ? 1 : 0.5,
-                }}
-                onClick={(e) => handleBadgeClick(e, rarity)}
-                title={`Sort by ${SHORT_LABELS[rarity]}`}
-              >
-                {SHORT_LABELS[rarity]}
-              </button>
-            );
-          })}
-        </div>
+        <RarityChips
+          activeRarity={activeRarity}
+          onRarityClick={handleBadgeClick}
+        />
       </div>
     );
   },

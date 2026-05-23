@@ -49,6 +49,19 @@ describe("RaritySourceSelect", () => {
     expect(screen.getByText("nonexistent-source")).toBeInTheDocument();
   });
 
+  it("shows a readable filter fallback when the selected filter is missing from groups", () => {
+    renderWithProviders(
+      <RaritySourceSelect
+        value="filter:filter_f6017d7"
+        onChange={vi.fn()}
+        groups={sampleGroups}
+      />,
+    );
+
+    expect(screen.getByText("Filter: filter_f6017d7")).toBeInTheDocument();
+    expect(screen.queryByText("filter:filter_f6017d7")).not.toBeInTheDocument();
+  });
+
   it("renders group labels", () => {
     renderWithProviders(
       <RaritySourceSelect

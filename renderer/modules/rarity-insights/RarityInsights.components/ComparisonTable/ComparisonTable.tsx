@@ -1,11 +1,10 @@
 import { createColumnHelper, type SortingFn } from "@tanstack/react-table";
-import { memo, useDeferredValue, useMemo } from "react";
+import { useDeferredValue, useMemo } from "react";
 import { FiRefreshCw } from "react-icons/fi";
 import { GiCrownedSkull } from "react-icons/gi";
 
 import { Table } from "~/renderer/components";
 import { useBoundStore } from "~/renderer/store";
-import { getRarityStyles } from "~/renderer/utils";
 import type { KnownRarity } from "~/types/data-stores";
 
 import type {
@@ -17,66 +16,12 @@ import PoeNinjaRarityCell from "../PoeNinjaRarityCell";
 import ProhibitedLibraryColumnHeader from "../ProhibitedLibraryColumnHeader";
 import ProhibitedLibraryRarityCell from "../ProhibitedLibraryRarityCell";
 import RarityBadgeDropdown from "../RarityBadgeDropdown/RarityBadgeDropdown";
+import RarityChips from "../RarityChips/RarityChips";
 import RarityInsightsCardNameCell from "../RarityInsightsCardNameCell/RarityInsightsCardNameCell";
 
 const columnHelper = createColumnHelper<ComparisonRow>();
 
 const PLACEHOLDER_FILTER_NAMES = ["Filter 1", "Filter 2", "Filter 3"];
-
-const KNOWN_RARITIES: KnownRarity[] = [1, 2, 3, 4];
-const SHORT_LABELS: Record<KnownRarity, string> = {
-  1: "R1",
-  2: "R2",
-  3: "R3",
-  4: "R4",
-};
-
-/**
- * Compact R1–R4 badge row used in filter and placeholder column headers.
- * Supports an optional `disabled` prop to render inert badges for placeholders.
- */
-const RarityChips = memo(
-  ({
-    activeRarity,
-    onRarityClick,
-    disabled = false,
-  }: {
-    activeRarity: KnownRarity | null;
-    onRarityClick?: (e: React.MouseEvent, rarity: KnownRarity) => void;
-    disabled?: boolean;
-  }) => (
-    <div className="flex items-center gap-0.5">
-      {KNOWN_RARITIES.map((rarity) => {
-        const styles = getRarityStyles(rarity);
-        const isActive = activeRarity === rarity;
-
-        return (
-          <button
-            key={rarity}
-            type="button"
-            className="badge badge-xs transition-opacity"
-            style={{
-              backgroundColor: styles.badgeBg,
-              color: styles.badgeText,
-              borderColor: styles.badgeBorder,
-              borderWidth: "1px",
-              borderStyle: "solid",
-              opacity: isActive ? 1 : 0.5,
-              filter: disabled ? "sepia(1)" : undefined,
-              cursor: disabled ? "default" : "pointer",
-            }}
-            disabled={disabled}
-            onClick={disabled ? undefined : (e) => onRarityClick?.(e, rarity)}
-            title={disabled ? undefined : `Sort by ${SHORT_LABELS[rarity]}`}
-          >
-            {SHORT_LABELS[rarity]}
-          </button>
-        );
-      })}
-    </div>
-  ),
-);
-RarityChips.displayName = "RarityChips";
 
 interface ComparisonTableProps {
   globalFilter?: string;
@@ -156,6 +101,9 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
   );
   const storeParsedResults = useBoundStore(
     (s) => s.rarityInsightsComparison.parsedResults,
+  );
+  const filterThemes = useBoundStore(
+    (s) => s.rarityInsightsComparison.filterThemes,
   );
   const showDiffsOnly = useBoundStore(
     (s) => s.rarityInsightsComparison.showDiffsOnly,
@@ -353,6 +301,7 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
           !storeParsedResults.has(filterId);
 
         const filterPriority = priorityFilterRarities[filterId] ?? null;
+        const filterTheme = filterThemes.get(filterId) ?? null;
 
         const filterSortFn: SortingFn<ComparisonRow> = (rowA, rowB) => {
           const a = rowA.original.filterRarities[filterId];
@@ -397,6 +346,7 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
                 )}
                 <RarityChips
                   activeRarity={filterPriority}
+                  filterTheme={filterTheme}
                   onRarityClick={(e, rarity) => {
                     e.stopPropagation();
                     handleFilterRarityClick(filterId, rarity);
@@ -423,6 +373,7 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
                     )
                   }
                   outline={filterRarity !== row.rarity}
+                  filterTheme={filterTheme}
                 />
               );
             },
@@ -465,6 +416,7 @@ const ComparisonTable = ({ globalFilter }: ComparisonTableProps) => {
     updateFilterCardRarity,
     storeParsingFilterId,
     storeParsedResults,
+    filterThemes,
     priorityRarity,
     handleRarityClick,
     raritySortFn,

@@ -7,6 +7,10 @@ import { useCardDetails, useSettings } from "~/renderer/store";
 // ─── Store mock ────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
+  useBoundStore: vi.fn((selector?: any) => {
+    const state = { rarityInsights: { activeFilterTheme: null } };
+    return selector ? selector(state) : state;
+  }),
   useCardDetails: vi.fn(),
   useSettings: vi.fn(),
 }));

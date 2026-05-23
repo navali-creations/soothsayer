@@ -163,7 +163,7 @@ const RarityInsightsDropdown = () => {
           className={clsx(
             "absolute right-0 top-full mt-2 z-50",
             "bg-base-100 border border-base-300 rounded-xl shadow-xl",
-            "p-4",
+            "min-w-72 max-w-[calc(100vw-2rem)] p-4",
           )}
         >
           {/* ─── Scan Section ──────────────────────────────────────── */}
@@ -177,8 +177,8 @@ const RarityInsightsDropdown = () => {
                 <span>Scanning...</span>
               </div>
             ) : hasFilters ? (
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-base-content/50">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs text-base-content/50 whitespace-nowrap">
                   Select up to {MAX_SELECTED_FILTERS} filters
                 </span>
                 <Button
@@ -186,7 +186,7 @@ const RarityInsightsDropdown = () => {
                   variant="ghost"
                   size="xs"
                   onClick={handleScan}
-                  className="gap-1"
+                  className="gap-1 shrink-0"
                 >
                   <FiRefreshCw className="w-3 h-3" />
                   Rescan

@@ -256,6 +256,7 @@ describe("CurrentSessionMapper", () => {
         flavourHtml: "<i>A taste of power</i>",
         rarity: 1,
         filterRarity: 2,
+        prohibitedLibraryRarity: 3,
       };
 
       const result = CurrentSessionMapper.toSessionCardDTO(row);
@@ -269,6 +270,7 @@ describe("CurrentSessionMapper", () => {
       );
       expect(result.divinationCard!.rarity).toBe(1);
       expect(result.divinationCard!.filterRarity).toBe(2);
+      expect(result.divinationCard!.prohibitedLibraryRarity).toBe(3);
     });
 
     it("should default filterRarity to null when not provided", () => {
@@ -291,6 +293,28 @@ describe("CurrentSessionMapper", () => {
 
       expect(result.divinationCard).toBeDefined();
       expect(result.divinationCard!.filterRarity).toBeNull();
+    });
+
+    it("should default prohibitedLibraryRarity to null when not provided", () => {
+      const row: SessionCardJoinedRow = {
+        cardName: "The Doctor",
+        count: 1,
+        firstSeenAt: "2025-01-15T10:05:00Z",
+        lastSeenAt: "2025-01-15T10:05:00Z",
+        hidePrice: 0,
+        divinationCardId: "poe1_the-doctor",
+        stackSize: 8,
+        description: "A powerful card",
+        rewardHtml: "<span>Headhunter</span>",
+        artSrc: "https://example.com/doctor.png",
+        flavourHtml: "<i>A taste of power</i>",
+        rarity: 1,
+      };
+
+      const result = CurrentSessionMapper.toSessionCardDTO(row);
+
+      expect(result.divinationCard).toBeDefined();
+      expect(result.divinationCard!.prohibitedLibraryRarity).toBeNull();
     });
 
     it("should preserve all filterRarity levels (1-4)", () => {

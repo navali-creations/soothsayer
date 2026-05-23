@@ -5,6 +5,7 @@ import DivinationCard from "~/renderer/components/DivinationCard/DivinationCard"
 import Link from "~/renderer/components/Link/Link";
 import { useCardImage } from "~/renderer/hooks/useCardImage";
 import { usePopover } from "~/renderer/hooks/usePopover/usePopover";
+import { useBoundStore } from "~/renderer/store";
 import {
   cardNameToSlug,
   getRarityStyles,
@@ -17,7 +18,10 @@ import { getDisplayRarity, toCardEntry } from "./helpers";
 
 function RelatedCardChip({ card }: { card: RelatedCardDTO }) {
   const displayRarity = getDisplayRarity(card);
-  const styles = getRarityStyles(displayRarity);
+  const activeFilterTheme = useBoundStore(
+    (state) => state.rarityInsights.activeFilterTheme,
+  );
+  const styles = getRarityStyles(displayRarity, undefined, activeFilterTheme);
   const rarityLabel = RARITY_LABELS[displayRarity] ?? "Unknown";
   const popoverId = useId();
 

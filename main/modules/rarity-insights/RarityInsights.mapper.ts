@@ -1,10 +1,13 @@
 import type {
   FilterCardRaritiesRow,
   FilterMetadataRow,
+  FilterTierStylesRow,
 } from "~/main/modules/database";
 
 import type {
   DiscoveredRarityInsightsDTO,
+  FilterRgbaColorDTO,
+  FilterTierStyleDTO,
   RarityInsightsCardRarityDTO,
   RarityInsightsMetadataDTO,
 } from "./RarityInsights.dto";
@@ -72,6 +75,44 @@ export class RarityInsightsMapper {
       cardName: row.card_name,
       rarity: row.rarity,
     };
+  }
+
+  static toFilterTierStyleDTO(row: FilterTierStylesRow): FilterTierStyleDTO {
+    return {
+      filterId: row.filter_id,
+      rarity: row.rarity,
+      bgColor: RarityInsightsMapper.toColorDTO(
+        row.bg_r,
+        row.bg_g,
+        row.bg_b,
+        row.bg_a,
+      ),
+      textColor: RarityInsightsMapper.toColorDTO(
+        row.text_r,
+        row.text_g,
+        row.text_b,
+        row.text_a,
+      ),
+      borderColor: RarityInsightsMapper.toColorDTO(
+        row.border_r,
+        row.border_g,
+        row.border_b,
+        row.border_a,
+      ),
+    };
+  }
+
+  private static toColorDTO(
+    r: number | null,
+    g: number | null,
+    b: number | null,
+    a: number | null,
+  ): FilterRgbaColorDTO | null {
+    if (r === null || g === null || b === null || a === null) {
+      return null;
+    }
+
+    return { r, g, b, a };
   }
 
   /**

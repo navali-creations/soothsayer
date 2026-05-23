@@ -4,6 +4,7 @@ import type { KnownRarity } from "~/types/data-stores";
 
 import { RarityInsightsChannel } from "./RarityInsights.channels";
 import type {
+  FilterThemeDTO,
   RarityInsightsMetadataDTO,
   RarityInsightsParseResultDTO,
   RarityInsightsScanResultDTO,
@@ -43,6 +44,10 @@ export const RarityInsightsAPI = {
       RarityInsightsChannel.ParseRarityInsights,
       filterId,
     );
+  },
+
+  getFilterTheme: (filterId: string): Promise<FilterThemeDTO> => {
+    return ipcRenderer.invoke(RarityInsightsChannel.GetFilterTheme, filterId);
   },
 
   /**

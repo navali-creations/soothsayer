@@ -34,42 +34,54 @@ vi.mock("~/renderer/components", () => ({
     disabled,
     groups,
     ...props
-  }: any) => (
-    <div data-testid="rarity-source-select-wrapper">
-      <select
-        data-testid="rarity-source-select"
-        value={value}
-        onChange={(e: any) => onChange(e.target.value)}
-        disabled={disabled}
-        {...props}
-      >
-        <option value="poe.ninja">poe.ninja</option>
-      </select>
-      {/* Render menuLabels so DatasetMenuLabel JSX is exercised */}
-      {groups?.map((g: any, gi: number) => (
-        <div key={gi}>
-          {g.options?.map((opt: any) =>
-            opt.menuLabel ? (
-              <span key={opt.value} data-testid={`menu-label-${opt.value}`}>
-                {opt.menuLabel}
-              </span>
-            ) : null,
-          )}
-          {g.action && (
-            <button
-              type="button"
-              data-testid={`group-action-${gi}`}
-              onClick={g.action.onClick}
-            >
-              {g.action.loading
-                ? g.action.loadingLabel || g.action.label
-                : g.action.label}
-            </button>
-          )}
-        </div>
-      ))}
-    </div>
-  ),
+  }: any) => {
+    const options = groups?.flatMap((g: any) => g.options ?? []) ?? [];
+    const selectedOption = options.find((opt: any) => opt.value === value);
+
+    return (
+      <div data-testid="rarity-source-select-wrapper">
+        <span data-testid="rarity-source-trigger-label">
+          {selectedOption?.label ?? value}
+        </span>
+        <select
+          data-testid="rarity-source-select"
+          value={value}
+          onChange={(e: any) => onChange(e.target.value)}
+          disabled={disabled}
+          {...props}
+        >
+          {options.map((opt: any) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+        {/* Render menuLabels so DatasetMenuLabel JSX is exercised */}
+        {groups?.map((g: any, gi: number) => (
+          <div key={gi}>
+            {g.options?.map((opt: any) =>
+              opt.menuLabel ? (
+                <span key={opt.value} data-testid={`menu-label-${opt.value}`}>
+                  {opt.menuLabel}
+                </span>
+              ) : null,
+            )}
+            {g.action && (
+              <button
+                type="button"
+                data-testid={`group-action-${gi}`}
+                onClick={g.action.onClick}
+              >
+                {g.action.loading
+                  ? g.action.loadingLabel || g.action.label
+                  : g.action.label}
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  },
 }));
 
 vi.mock("~/renderer/utils", () => ({
@@ -288,6 +300,28 @@ describe("CurrentSessionActions", () => {
     renderWithProviders(<CurrentSessionActions />);
 
     expect(screen.getByTestId("rarity-source-select")).toBeInTheDocument();
+  });
+
+  it("labels the selected loot filter in the trigger", () => {
+    setupStore({
+      settings: {
+        raritySource: "filter",
+        selectedFilterId: "online1",
+      },
+      rarityInsights: {
+        getLocalFilters: vi.fn(() => []),
+        getOnlineFilters: vi.fn(() => [
+          { id: "online1", name: "NeverSink Mirage", isOutdated: false },
+        ]),
+        lastScannedAt: Date.now(),
+      },
+    });
+    renderWithProviders(<CurrentSessionActions />);
+
+    expect(screen.getByTestId("rarity-source-trigger-label")).toHaveTextContent(
+      "Filter: NeverSink Mirage",
+    );
+    expect(screen.queryByText("filter:online1")).not.toBeInTheDocument();
   });
 
   // ── DatasetMenuLabel rendering ─────────────────────────────────────────

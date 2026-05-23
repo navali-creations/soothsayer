@@ -2,9 +2,16 @@ import type { StateCreator } from "zustand";
 
 import type {
   DiscoveredRarityInsightsDTO,
+  FilterThemeDTO,
+  RarityInsightsMetadataDTO,
   RarityInsightsScanResultDTO,
 } from "~/main/modules/rarity-insights/RarityInsights.dto";
 import type { BoundStore } from "~/renderer/store/store.types";
+import type { FilterTheme } from "~/renderer/utils";
+
+import { toFilterTheme } from "../RarityInsights.utils/RarityInsights.utils";
+
+let filterThemeRequestSequence = 0;
 
 export interface RarityInsightsSlice {
   rarityInsights: {
@@ -13,15 +20,21 @@ export interface RarityInsightsSlice {
     selectedFilterId: string | null;
     isScanning: boolean;
     isParsing: boolean;
+    activeFilterTheme: FilterTheme | null;
+    isThemeLoading: boolean;
     scanError: string | null;
     parseError: string | null;
+    themeError: string | null;
     lastScannedAt: string | null;
 
     // Actions
+    loadStoredFilters: () => Promise<void>;
     scanFilters: () => Promise<void>;
     selectFilter: (filterId: string) => Promise<void>;
     clearSelectedFilter: () => Promise<void>;
     parseFilter: (filterId: string) => Promise<void>;
+    loadFilterTheme: (filterId: string | null) => Promise<void>;
+    clearFilterTheme: () => void;
     setAvailableFilters: (filters: DiscoveredRarityInsightsDTO[]) => void;
     setSelectedFilterId: (filterId: string | null) => void;
     setScanError: (error: string | null) => void;
@@ -46,9 +59,37 @@ export const createRarityInsightsSlice: StateCreator<
     selectedFilterId: null,
     isScanning: false,
     isParsing: false,
+    activeFilterTheme: null,
+    isThemeLoading: false,
     scanError: null,
     parseError: null,
+    themeError: null,
     lastScannedAt: null,
+
+    loadStoredFilters: async () => {
+      try {
+        const filters = await window.electron.rarityInsights.getAll();
+        set(
+          ({ rarityInsights }) => {
+            rarityInsights.availableFilters = filters.map(toDiscoveredFilter);
+          },
+          false,
+          "rarityInsightsSlice/loadStoredFilters/success",
+        );
+      } catch (error) {
+        console.error("Failed to load stored filters:", error);
+        set(
+          ({ rarityInsights }) => {
+            rarityInsights.scanError =
+              error instanceof Error
+                ? error.message
+                : "Failed to load stored filters";
+          },
+          false,
+          "rarityInsightsSlice/loadStoredFilters/error",
+        );
+      }
+    },
 
     // Scan filter directories for available filters (metadata only)
     scanFilters: async () => {
@@ -64,9 +105,16 @@ export const createRarityInsightsSlice: StateCreator<
       try {
         const result: RarityInsightsScanResultDTO =
           await window.electron.rarityInsights.scan();
+        const selectedFilterId =
+          get().rarityInsights.selectedFilterId ??
+          get().settings.selectedFilterId;
         set(
           ({ rarityInsights }) => {
-            rarityInsights.availableFilters = result.filters;
+            rarityInsights.availableFilters = mergeWithCachedSelectedFilter(
+              result.filters,
+              rarityInsights.availableFilters,
+              selectedFilterId,
+            );
             rarityInsights.isScanning = false;
             rarityInsights.lastScannedAt = new Date().toISOString();
           },
@@ -100,6 +148,7 @@ export const createRarityInsightsSlice: StateCreator<
 
       try {
         await window.electron.rarityInsights.select(filterId);
+        await get().rarityInsights.loadFilterTheme(filterId);
       } catch (error) {
         console.error("Failed to select filter:", error);
         set(
@@ -120,6 +169,8 @@ export const createRarityInsightsSlice: StateCreator<
       set(
         ({ rarityInsights }) => {
           rarityInsights.selectedFilterId = null;
+          rarityInsights.activeFilterTheme = null;
+          rarityInsights.themeError = null;
         },
         false,
         "rarityInsightsSlice/clearSelectedFilter",
@@ -145,6 +196,7 @@ export const createRarityInsightsSlice: StateCreator<
 
       try {
         await window.electron.rarityInsights.parse(filterId);
+        await get().rarityInsights.loadFilterTheme(filterId);
 
         // Update the filter in the list to mark as fully parsed
         set(
@@ -172,6 +224,103 @@ export const createRarityInsightsSlice: StateCreator<
           "rarityInsightsSlice/parseFilter/error",
         );
       }
+    },
+
+    loadFilterTheme: async (filterId: string | null) => {
+      if (!filterId) {
+        get().rarityInsights.clearFilterTheme();
+        return;
+      }
+
+      if (!isCurrentFilterThemeRequest(get(), filterId)) {
+        return;
+      }
+
+      const requestId = ++filterThemeRequestSequence;
+
+      set(
+        ({ rarityInsights }) => {
+          rarityInsights.isThemeLoading = true;
+          rarityInsights.themeError = null;
+        },
+        false,
+        "rarityInsightsSlice/loadFilterTheme/start",
+      );
+
+      try {
+        const themeRows: FilterThemeDTO =
+          await window.electron.rarityInsights.getFilterTheme(filterId);
+
+        const currentState = get();
+        if (
+          requestId !== filterThemeRequestSequence ||
+          !isCurrentFilterThemeRequest(currentState, filterId)
+        ) {
+          if (requestId === filterThemeRequestSequence) {
+            set(
+              ({ rarityInsights }) => {
+                rarityInsights.isThemeLoading = false;
+              },
+              false,
+              "rarityInsightsSlice/loadFilterTheme/ignored",
+            );
+          }
+          return;
+        }
+
+        set(
+          ({ rarityInsights }) => {
+            rarityInsights.activeFilterTheme = toFilterTheme(themeRows);
+            rarityInsights.isThemeLoading = false;
+          },
+          false,
+          "rarityInsightsSlice/loadFilterTheme/success",
+        );
+      } catch (error) {
+        const currentState = get();
+        if (
+          requestId !== filterThemeRequestSequence ||
+          !isCurrentFilterThemeRequest(currentState, filterId)
+        ) {
+          if (requestId === filterThemeRequestSequence) {
+            set(
+              ({ rarityInsights }) => {
+                rarityInsights.isThemeLoading = false;
+              },
+              false,
+              "rarityInsightsSlice/loadFilterTheme/ignored-error",
+            );
+          }
+          return;
+        }
+
+        console.error("Failed to load filter theme:", error);
+        set(
+          ({ rarityInsights }) => {
+            rarityInsights.activeFilterTheme = null;
+            rarityInsights.isThemeLoading = false;
+            rarityInsights.themeError =
+              error instanceof Error
+                ? error.message
+                : "Failed to load filter theme";
+          },
+          false,
+          "rarityInsightsSlice/loadFilterTheme/error",
+        );
+      }
+    },
+
+    clearFilterTheme: () => {
+      filterThemeRequestSequence += 1;
+      set(
+        ({ rarityInsights }) => {
+          rarityInsights.activeFilterTheme = null;
+          rarityInsights.isThemeLoading = false;
+          rarityInsights.themeError = null;
+        },
+        false,
+        "rarityInsightsSlice/clearFilterTheme",
+      );
     },
 
     // Direct setters (for IPC listeners or external updates)
@@ -237,3 +386,57 @@ export const createRarityInsightsSlice: StateCreator<
     },
   },
 });
+
+function isCurrentFilterThemeRequest(
+  state: BoundStore,
+  filterId: string,
+): boolean {
+  if (state.settings.raritySource !== "filter") {
+    return false;
+  }
+
+  return (
+    state.settings.selectedFilterId === filterId ||
+    state.rarityInsights.selectedFilterId === filterId
+  );
+}
+
+function mergeWithCachedSelectedFilter(
+  scannedFilters: DiscoveredRarityInsightsDTO[],
+  cachedFilters: DiscoveredRarityInsightsDTO[],
+  selectedFilterId: string | null,
+): DiscoveredRarityInsightsDTO[] {
+  if (
+    !selectedFilterId ||
+    scannedFilters.some((filter) => filter.id === selectedFilterId)
+  ) {
+    return scannedFilters;
+  }
+
+  const cachedSelectedFilter = cachedFilters.find(
+    (filter) => filter.id === selectedFilterId,
+  );
+
+  return cachedSelectedFilter
+    ? [...scannedFilters, cachedSelectedFilter]
+    : scannedFilters;
+}
+
+function toDiscoveredFilter(
+  metadata: RarityInsightsMetadataDTO,
+): DiscoveredRarityInsightsDTO {
+  return {
+    id: metadata.id,
+    type: metadata.filterType,
+    filePath: metadata.filePath,
+    fileName: getFileName(metadata.filePath),
+    name: metadata.filterName,
+    lastUpdate: metadata.lastUpdate,
+    isFullyParsed: metadata.isFullyParsed,
+    isOutdated: false,
+  };
+}
+
+function getFileName(filePath: string): string {
+  return filePath.split(/[\\/]/).at(-1) ?? filePath;
+}

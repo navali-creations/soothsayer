@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { GiCardExchange } from "react-icons/gi";
 
-import { useOverlay } from "~/renderer/store";
+import { useBoundStore, useOverlay } from "~/renderer/store";
 import { getRarityStyles } from "~/renderer/utils";
 
 import { DropBeamColumn } from "../DropBeamColumn";
@@ -9,6 +9,9 @@ import { DropContentColumn } from "../DropContentColumn";
 
 export const OverlayDropsList = () => {
   const { sessionData, getFilteredDrops, activeTab, isLeftHalf } = useOverlay();
+  const activeFilterTheme = useBoundStore(
+    (state) => state.rarityInsights.activeFilterTheme,
+  );
 
   const filteredDrops = getFilteredDrops() || [];
 
@@ -47,6 +50,7 @@ export const OverlayDropsList = () => {
         const rarityStyles = getRarityStyles(
           rarity,
           isLeftHalf ? "left" : "right",
+          activeFilterTheme,
         );
         const isUnknownRarity = rarity === 0;
 

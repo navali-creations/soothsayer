@@ -31,6 +31,7 @@ export interface SessionCardDTO {
     flavourHtml?: string | null;
     rarity?: Rarity;
     filterRarity?: KnownRarity | null;
+    prohibitedLibraryRarity?: Rarity | null;
   };
 }
 

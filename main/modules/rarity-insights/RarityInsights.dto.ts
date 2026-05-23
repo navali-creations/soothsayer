@@ -55,6 +55,23 @@ export interface RarityInsightsCardRarityDTO {
   rarity: KnownRarity; // 1=extremely rare, 2=rare, 3=less common, 4=common (no unknown — filters always assign a tier)
 }
 
+export interface FilterRgbaColorDTO {
+  r: number;
+  g: number;
+  b: number;
+  a: number;
+}
+
+export interface FilterTierStyleDTO {
+  filterId: string;
+  rarity: KnownRarity;
+  bgColor: FilterRgbaColorDTO | null;
+  textColor: FilterRgbaColorDTO | null;
+  borderColor: FilterRgbaColorDTO | null;
+}
+
+export type FilterThemeDTO = FilterTierStyleDTO[];
+
 /**
  * Result of a full filter parse operation.
  */

@@ -9,6 +9,7 @@ import {
   EXPECTED_FILTER_METADATA_COLUMNS,
   EXPECTED_FILTER_SETTINGS_COLUMNS,
   EXPECTED_FILTER_TABLES,
+  EXPECTED_FILTER_TIER_STYLES_COLUMNS,
   EXPECTED_LAST_SEEN_APP_VERSION_COLUMNS,
   EXPECTED_SESSION_CARD_EVENTS_COLUMNS,
   EXPECTED_SESSION_CARD_EVENTS_INDEXES,
@@ -85,6 +86,16 @@ describe("Migrations – Fresh Install", () => {
     expect(columns.sort()).toEqual(
       EXPECTED_FILTER_CARD_RARITIES_COLUMNS.sort(),
     );
+  });
+
+  it("should have correct columns in filter_tier_styles table", () => {
+    const db = getDb();
+    createBaselineSchema(db);
+    const runner = new MigrationRunner(db);
+    runner.runMigrations(migrations);
+
+    const columns = getColumnNames(db, "filter_tier_styles");
+    expect(columns.sort()).toEqual(EXPECTED_FILTER_TIER_STYLES_COLUMNS.sort());
   });
 
   it("should have divination_card_availability table after migrations", () => {

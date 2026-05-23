@@ -20,6 +20,9 @@ const {
   mockRepoDeleteById,
   mockRepoGetCardRarities,
   mockRepoReplaceCardRarities,
+  mockRepoReplaceParsedFilterData,
+  mockRepoGetTierStyles,
+  mockRepoReplaceTierStyles,
   mockRepoUpdateCardRarity,
   mockDivinationUpdateRaritiesFromFilter,
   mockBrowserWindowGetAllWindows,
@@ -41,6 +44,9 @@ const {
   mockRepoDeleteById: vi.fn(),
   mockRepoGetCardRarities: vi.fn(),
   mockRepoReplaceCardRarities: vi.fn(),
+  mockRepoReplaceParsedFilterData: vi.fn(),
+  mockRepoGetTierStyles: vi.fn(),
+  mockRepoReplaceTierStyles: vi.fn(),
   mockRepoUpdateCardRarity: vi.fn(),
   mockDivinationUpdateRaritiesFromFilter: vi.fn(),
   mockBrowserWindowGetAllWindows: vi.fn(() => []),
@@ -104,6 +110,9 @@ vi.mock("../RarityInsights.repository", () => {
       deleteById = mockRepoDeleteById;
       getCardRarities = mockRepoGetCardRarities;
       replaceCardRarities = mockRepoReplaceCardRarities;
+      replaceParsedFilterData = mockRepoReplaceParsedFilterData;
+      getTierStyles = mockRepoGetTierStyles;
+      replaceTierStyles = mockRepoReplaceTierStyles;
       updateCardRarity = mockRepoUpdateCardRarity;
     },
   };
@@ -158,10 +167,12 @@ import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
 import { RarityInsightsChannel } from "../RarityInsights.channels";
 import type {
   DiscoveredRarityInsightsDTO,
+  FilterThemeDTO,
   RarityInsightsMetadataDTO,
   RarityInsightsScanResultDTO,
   RaritySource,
 } from "../RarityInsights.dto";
+import { RarityInsightsParser } from "../RarityInsights.parser";
 import { RarityInsightsService } from "../RarityInsights.service";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -232,6 +243,9 @@ describe("RarityInsightsService", () => {
     mockRepoUpdateCardRarity.mockResolvedValue(undefined);
     mockRepoGetCardRarities.mockResolvedValue([]);
     mockRepoReplaceCardRarities.mockResolvedValue(undefined);
+    mockRepoReplaceParsedFilterData.mockResolvedValue(undefined);
+    mockRepoGetTierStyles.mockResolvedValue([]);
+    mockRepoReplaceTierStyles.mockResolvedValue(undefined);
     mockDivinationUpdateRaritiesFromFilter.mockResolvedValue(undefined);
     mockBrowserWindowGetAllWindows.mockReturnValue([]);
     mockWebContentsSend.mockReturnValue(undefined);
@@ -276,14 +290,15 @@ describe("RarityInsightsService", () => {
       expect(channels).toContain(
         RarityInsightsChannel.UpdateRarityInsightsCardRarity,
       );
+      expect(channels).toContain(RarityInsightsChannel.GetFilterTheme);
       expect(channels).toContain(
         RarityInsightsChannel.ApplyRarityInsightsRarities,
       );
     });
 
-    it("should register exactly 10 IPC handlers", () => {
+    it("should register exactly 11 IPC handlers", () => {
       // One for each channel defined in RarityInsightsChannel (excluding event-only channels)
-      expect(mockIpcHandle).toHaveBeenCalledTimes(10);
+      expect(mockIpcHandle).toHaveBeenCalledTimes(11);
     });
   });
 
@@ -376,9 +391,47 @@ describe("RarityInsightsService", () => {
 
       await service.scanFilters();
 
-      expect(mockRepoDeleteNotInFilePaths).toHaveBeenCalledWith([
-        "C:\\path\\StillExists.filter",
+      expect(mockRepoDeleteNotInFilePaths).toHaveBeenCalledWith(
+        ["C:\\path\\StillExists.filter"],
+        [],
+      );
+    });
+
+    it("should retain selected filter metadata during stale cleanup", async () => {
+      const scannedFilters = [
+        makeScannedFilter({
+          filePath: "C:\\path\\StillExists.filter",
+        }),
+      ];
+      mockSettingsGet.mockImplementation(async (key: string) => {
+        const defaults: Record<string, any> = {
+          selectedGame: "poe1",
+          selectedFilterId: "filter_selected",
+        };
+        return defaults[key] ?? null;
+      });
+      mockScanAll.mockResolvedValue(scannedFilters);
+      mockRepoDeleteNotInFilePaths.mockResolvedValue(0);
+      mockRepoGetAll.mockResolvedValue([
+        makeRarityInsightsMetadataDTO({
+          id: "filter_selected",
+          filePath: "C:\\missing\\Selected.filter",
+          filterName: "Cached Selected Filter",
+        }),
       ]);
+
+      const result = await service.scanFilters();
+
+      expect(mockRepoDeleteNotInFilePaths).toHaveBeenCalledWith(
+        ["C:\\path\\StillExists.filter"],
+        ["filter_selected"],
+      );
+      expect(result.filters[0]).toEqual(
+        expect.objectContaining({
+          id: "filter_selected",
+          name: "Cached Selected Filter",
+        }),
+      );
     });
 
     it("should return DiscoveredRarityInsightsDTOs with correct types", async () => {
@@ -523,6 +576,11 @@ describe("RarityInsightsService", () => {
         rarities: [],
         hasDivinationSection: false,
       });
+      expect(mockRepoReplaceParsedFilterData).toHaveBeenCalledWith(
+        "filter_abc12345",
+        [],
+        [],
+      );
     });
 
     it("should throw for non-existent filter", async () => {
@@ -545,6 +603,98 @@ describe("RarityInsightsService", () => {
 
       expect(result.filterId).toBe("filter_abc12345");
       expect(result.hasDivinationSection).toBe(false);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // getFilterTheme
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe("getFilterTheme", () => {
+    it("should refresh filter tier styles without replacing card rarities", async () => {
+      const metadata = makeRarityInsightsMetadataDTO({
+        id: "filter_theme",
+        filePath: "C:\\path\\to\\NeverSink.filter",
+      });
+      const refreshedTheme: FilterThemeDTO = [
+        {
+          filterId: "filter_theme",
+          rarity: 4,
+          bgColor: { r: 20, g: 20, b: 0, a: 255 },
+          textColor: { r: 39, g: 141, b: 192, a: 255 },
+          borderColor: { r: 39, g: 141, b: 192, a: 255 },
+        },
+      ];
+      vi.spyOn(RarityInsightsParser, "parseFilterFile").mockResolvedValue({
+        cardRarities: new Map([["Sambodhi's Wisdom", 4 as const]]),
+        tierStyles: new Map([
+          [
+            4 as const,
+            {
+              bgColor: { r: 20, g: 20, b: 0, a: 255 },
+              textColor: { r: 39, g: 141, b: 192, a: 255 },
+              borderColor: { r: 39, g: 141, b: 192, a: 255 },
+            },
+          ],
+        ]),
+        hasDivinationSection: true,
+        totalCards: 1,
+      });
+      mockRepoGetById.mockResolvedValue(metadata);
+      mockRepoGetTierStyles.mockResolvedValue(refreshedTheme);
+
+      const result = await service.getFilterTheme("filter_theme");
+
+      expect(RarityInsightsParser.parseFilterFile).toHaveBeenCalledWith(
+        "C:\\path\\to\\NeverSink.filter",
+      );
+      expect(mockRepoReplaceTierStyles).toHaveBeenCalledWith("filter_theme", [
+        {
+          rarity: 4,
+          bgColor: { r: 20, g: 20, b: 0, a: 255 },
+          textColor: { r: 39, g: 141, b: 192, a: 255 },
+          borderColor: { r: 39, g: 141, b: 192, a: 255 },
+        },
+      ]);
+      expect(mockRepoReplaceParsedFilterData).not.toHaveBeenCalled();
+      expect(mockRepoGetTierStyles).toHaveBeenCalledWith("filter_theme");
+      expect(result).toEqual(refreshedTheme);
+    });
+
+    it("should clear cached theme rows when the filter has no divination section", async () => {
+      const metadata = makeRarityInsightsMetadataDTO({
+        id: "filter_theme",
+        filePath: "C:\\path\\to\\empty.filter",
+      });
+      vi.spyOn(RarityInsightsParser, "parseFilterFile").mockResolvedValue({
+        cardRarities: new Map(),
+        tierStyles: new Map(),
+        hasDivinationSection: false,
+        totalCards: 0,
+      });
+      mockRepoGetById.mockResolvedValue(metadata);
+
+      const result = await service.getFilterTheme("filter_theme");
+
+      expect(RarityInsightsParser.parseFilterFile).toHaveBeenCalledWith(
+        "C:\\path\\to\\empty.filter",
+      );
+      expect(mockRepoReplaceTierStyles).toHaveBeenCalledWith(
+        "filter_theme",
+        [],
+      );
+      expect(mockRepoReplaceParsedFilterData).not.toHaveBeenCalled();
+      expect(mockRepoGetTierStyles).not.toHaveBeenCalled();
+      expect(result).toEqual([]);
+    });
+
+    it("should return an empty theme when the filter does not exist", async () => {
+      mockRepoGetById.mockResolvedValue(null);
+
+      const result = await service.getFilterTheme("filter_missing");
+
+      expect(result).toEqual([]);
+      expect(mockRepoGetTierStyles).not.toHaveBeenCalled();
     });
   });
 
@@ -850,7 +1000,7 @@ describe("RarityInsightsService", () => {
       const result = await service.scanFilters();
 
       expect(result.filters).toEqual([]);
-      expect(mockRepoDeleteNotInFilePaths).toHaveBeenCalledWith([]);
+      expect(mockRepoDeleteNotInFilePaths).toHaveBeenCalledWith([], []);
     });
 
     it("should handle scanner throwing an error gracefully via IPC", async () => {

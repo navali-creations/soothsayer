@@ -102,6 +102,20 @@ export const useBoundStore = create<BoundStore>()(
             setupSlice.setup.hydrate(),
           ]);
 
+          const hydratedSettings = a[1]().settings;
+          await rarityInsightsSlice.rarityInsights.loadStoredFilters();
+          rarityInsightsSlice.rarityInsights.setSelectedFilterId(
+            hydratedSettings.selectedFilterId,
+          );
+
+          if (hydratedSettings.raritySource === "filter") {
+            await rarityInsightsSlice.rarityInsights.loadFilterTheme(
+              hydratedSettings.selectedFilterId,
+            );
+          } else {
+            rarityInsightsSlice.rarityInsights.clearFilterTheme();
+          }
+
           await appPerformanceSlice.appPerformance.hydrate();
 
           await Promise.all([
@@ -337,8 +351,11 @@ export const useBoundStore = create<BoundStore>()(
               rarityInsights.selectedFilterId = null;
               rarityInsights.isScanning = false;
               rarityInsights.isParsing = false;
+              rarityInsights.activeFilterTheme = null;
+              rarityInsights.isThemeLoading = false;
               rarityInsights.scanError = null;
               rarityInsights.parseError = null;
+              rarityInsights.themeError = null;
               rarityInsights.lastScannedAt = null;
 
               // Reset profit forecast

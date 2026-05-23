@@ -297,6 +297,9 @@ export class CurrentSessionRepository {
         "dc.art_src as artSrc",
         "dc.flavour_html as flavourHtml",
         sql<Rarity>`COALESCE(dcr.override_rarity, dcr.rarity, 0)`.as("rarity"), // Default to 0 (Unknown) if no rarity data
+        sql<Rarity | null>`dcr.prohibited_library_rarity`.as(
+          "prohibitedLibraryRarity",
+        ),
       ])
       .where("sc.session_id", "=", sessionId);
 
@@ -475,6 +478,26 @@ export class CurrentSessionRepository {
       .select(
         sql<number>`COALESCE(dcr.override_rarity, dcr.rarity, 0)`.as("rarity"),
       )
+      .where("dcr.card_name", "=", cardName)
+      .where("dcr.game", "=", game)
+      .where("dcr.league", "=", leagueName)
+      .executeTakeFirst();
+
+    return row?.rarity ?? null;
+  }
+
+  /**
+   * Look up a single card's Prohibited Library weight-based rarity.
+   * Returns the rarity number, including 0 (unknown), or null if not found.
+   */
+  async getCardProhibitedLibraryRarity(
+    game: GameType,
+    leagueName: string,
+    cardName: string,
+  ): Promise<number | null> {
+    const row = await this.kysely
+      .selectFrom("divination_card_rarities as dcr")
+      .select("dcr.prohibited_library_rarity as rarity")
       .where("dcr.card_name", "=", cardName)
       .where("dcr.game", "=", game)
       .where("dcr.league", "=", leagueName)

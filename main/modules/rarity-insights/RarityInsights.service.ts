@@ -20,6 +20,8 @@ import type { KnownRarity } from "~/types/data-stores";
 import { RarityInsightsChannel } from "./RarityInsights.channels";
 import type {
   DiscoveredRarityInsightsDTO,
+  FilterThemeDTO,
+  FilterTierStyleDTO,
   RarityInsightsMetadataDTO,
   RarityInsightsParseResultDTO,
   RarityInsightsScanResultDTO,
@@ -124,6 +126,27 @@ class RarityInsightsService {
           return handleValidationError(
             error,
             RarityInsightsChannel.ParseRarityInsights,
+          );
+        }
+      },
+    );
+
+    // Get parsed visual theme for a selected loot filter
+    ipcMain.handle(
+      RarityInsightsChannel.GetFilterTheme,
+      async (_event, filterId: string) => {
+        try {
+          assertBoundedString(
+            filterId,
+            "filterId",
+            RarityInsightsChannel.GetFilterTheme,
+            256,
+          );
+          return await this.getFilterTheme(filterId);
+        } catch (error) {
+          return handleValidationError(
+            error,
+            RarityInsightsChannel.GetFilterTheme,
           );
         }
       },
@@ -310,8 +333,15 @@ class RarityInsightsService {
 
     // Phase 3: Clean up stale entries (filters no longer on disk)
     const activePaths = scannedFilters.map((f) => f.filePath);
-    const deletedCount =
-      await this.repository.deleteNotInFilePaths(activePaths);
+    const selectedFilterId =
+      ((await this.settingsStore.get(SettingsKey.SelectedFilterId)) as
+        | string
+        | null) ?? null;
+    const retainedFilterIds = selectedFilterId ? [selectedFilterId] : [];
+    const deletedCount = await this.repository.deleteNotInFilePaths(
+      activePaths,
+      retainedFilterIds,
+    );
 
     if (deletedCount > 0) {
       console.log(
@@ -408,6 +438,7 @@ class RarityInsightsService {
       console.log(
         `[RarityInsightsService] Filter "${metadata.filterName}" has no divination card section — falling back to poe.ninja`,
       );
+      await this.repository.replaceParsedFilterData(filterId, [], []);
       return {
         filterId,
         filterName: metadata.filterName,
@@ -425,15 +456,14 @@ class RarityInsightsService {
         rarity,
       }),
     );
+    const tierStyles = this.toTierStyleRows(parseResult.tierStyles);
 
-    // Store card rarities in the database (replace existing)
-    await this.repository.replaceCardRarities(
+    // Store card rarities and tier styles in the database (replace existing)
+    await this.repository.replaceParsedFilterData(
       filterId,
       rarities.map((r) => ({ cardName: r.cardName, rarity: r.rarity })),
+      tierStyles,
     );
-
-    // Mark the filter as fully parsed
-    await this.repository.markAsParsed(filterId);
 
     console.log(
       `[RarityInsightsService] Successfully parsed "${metadata.filterName}": ${parseResult.totalCards} cards mapped`,
@@ -547,6 +577,36 @@ class RarityInsightsService {
 
     // Not yet parsed — trigger a full parse
     return await this.parseFilter(filterId);
+  }
+
+  public async getFilterTheme(filterId: string): Promise<FilterThemeDTO> {
+    const tierStyles = await this.ensureFilterThemeParsed(filterId);
+    return tierStyles ?? [];
+  }
+
+  public async ensureFilterThemeParsed(
+    filterId: string,
+  ): Promise<FilterThemeDTO | null> {
+    const metadata = await this.repository.getById(filterId);
+
+    if (!metadata) {
+      return null;
+    }
+
+    const parseResult = await RarityInsightsParser.parseFilterFile(
+      metadata.filePath,
+    );
+
+    if (!parseResult.hasDivinationSection) {
+      await this.repository.replaceTierStyles(filterId, []);
+      return [];
+    }
+
+    const tierStyles = this.toTierStyleRows(parseResult.tierStyles);
+
+    await this.repository.replaceTierStyles(filterId, tierStyles);
+
+    return await this.repository.getTierStyles(filterId);
   }
 
   // ─── Filter Selection ──────────────────────────────────────────────────
@@ -711,6 +771,20 @@ class RarityInsightsService {
    */
   public getScanner(): RarityInsightsScanner {
     return this.scanner;
+  }
+
+  private toTierStyleRows(
+    tierStyles: Map<
+      KnownRarity,
+      Pick<FilterTierStyleDTO, "bgColor" | "textColor" | "borderColor">
+    >,
+  ): Array<Omit<FilterTierStyleDTO, "filterId">> {
+    return Array.from(tierStyles.entries()).map(([rarity, style]) => ({
+      rarity,
+      bgColor: style.bgColor,
+      textColor: style.textColor,
+      borderColor: style.borderColor,
+    }));
   }
 }
 

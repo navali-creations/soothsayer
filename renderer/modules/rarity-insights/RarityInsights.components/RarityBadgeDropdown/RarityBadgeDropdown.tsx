@@ -1,7 +1,11 @@
 import { memo, useCallback, useRef, useState } from "react";
 import { FiEdit2 } from "react-icons/fi";
 
-import { getRarityStyles, RARITY_LABELS } from "~/renderer/utils";
+import {
+  type FilterTheme,
+  getRarityStyles,
+  RARITY_LABELS,
+} from "~/renderer/utils";
 import type { Rarity } from "~/types/data-stores";
 
 interface RarityBadgeDropdownProps {
@@ -10,6 +14,7 @@ interface RarityBadgeDropdownProps {
   disabled?: boolean;
   /** Whether to show an outline style (e.g. when it differs from another column) */
   outline?: boolean;
+  filterTheme?: FilterTheme | null;
 }
 
 /**
@@ -27,6 +32,7 @@ const RarityBadgeDropdown = memo(
     onRarityChange,
     disabled = false,
     outline = false,
+    filterTheme = null,
   }: RarityBadgeDropdownProps) => {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -53,7 +59,7 @@ const RarityBadgeDropdown = memo(
       }
     }, []);
 
-    const styles = getRarityStyles(rarity);
+    const styles = getRarityStyles(rarity, undefined, filterTheme);
     const label = RARITY_LABELS[rarity] ?? `R${rarity}`;
 
     const badgeStyle: React.CSSProperties = {
@@ -106,7 +112,7 @@ const RarityBadgeDropdown = memo(
           <div className="absolute z-50 top-full mt-1 left-1/2 -translate-x-1/2 bg-base-200 border border-base-300 rounded-lg shadow-lg py-1 min-w-35">
             {([0, 1, 2, 3, 4] as Rarity[]).map((r) => {
               const isSelected = r === rarity;
-              const itemStyles = getRarityStyles(r);
+              const itemStyles = getRarityStyles(r, undefined, filterTheme);
               const itemLabel = RARITY_LABELS[r] ?? `R${r}`;
 
               return (
@@ -144,7 +150,8 @@ const RarityBadgeDropdown = memo(
   (prev, next) =>
     prev.rarity === next.rarity &&
     prev.outline === next.outline &&
-    prev.disabled === next.disabled,
+    prev.disabled === next.disabled &&
+    prev.filterTheme === next.filterTheme,
 );
 
 RarityBadgeDropdown.displayName = "RarityBadgeDropdown";

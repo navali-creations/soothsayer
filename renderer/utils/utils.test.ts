@@ -7,6 +7,7 @@ import {
   cn,
   decodeRaritySourceValue,
   encodeRaritySourceValue,
+  type FilterTheme,
   formatCurrency,
   formatRelativeTime,
   getAnalyticsRaritySource,
@@ -393,6 +394,61 @@ describe("getRarityStyles", () => {
       (r) => getRarityStyles(r, "right").showBeam,
     );
     expect(beamResults).toEqual([false, true, true, false, false]);
+  });
+
+  describe("filter theme overrides", () => {
+    const theme: FilterTheme = {
+      1: {
+        bgColor: { r: 11, g: 22, b: 33, a: 180 },
+        textColor: { r: 240, g: 241, b: 242, a: 255 },
+        borderColor: { r: 55, g: 66, b: 77, a: 255 },
+      },
+      2: {
+        bgColor: { r: 90, g: 80, b: 70, a: 255 },
+        textColor: null,
+        borderColor: null,
+      },
+    };
+
+    it("uses filter colours for gradients, badges, text, border, and glow", () => {
+      const styles = getRarityStyles(1, "left", theme);
+
+      expect(styles.bgGradient).toBe(
+        "linear-gradient(to left, rgb(11, 22, 33) 50%, transparent)",
+      );
+      expect(styles.text).toBe("rgb(240, 241, 242)");
+      expect(styles.border).toBe("rgb(55, 66, 77)");
+      expect(styles.badgeBg).toBe("rgb(11, 22, 33)");
+      expect(styles.badgeText).toBe("rgb(240, 241, 242)");
+      expect(styles.badgeBorder).toBe("rgb(55, 66, 77)");
+      expect(styles.glowRgb).toBe("55, 66, 77");
+    });
+
+    it("falls back per-field when a theme omits optional colours", () => {
+      const defaults = getRarityStyles(2, "right");
+      const styles = getRarityStyles(2, "right", theme);
+
+      expect(styles.bgGradient).toContain("rgb(90, 80, 70)");
+      expect(styles.text).toBe(defaults.text);
+      expect(styles.border).toBe(defaults.border);
+      expect(styles.badgeText).toBe(defaults.badgeText);
+      expect(styles.badgeBorder).toBe(defaults.badgeBorder);
+      expect(styles.glowRgb).toBe("90, 80, 70");
+    });
+
+    it("keeps beam behavior from the default rarity palette", () => {
+      const styles = getRarityStyles(1, "right", theme);
+
+      expect(styles.beam).toBe("orangered");
+      expect(styles.showBeam).toBe(true);
+    });
+
+    it("ignores filter theme for unknown rarity", () => {
+      const styles = getRarityStyles(0, "right", theme);
+
+      expect(styles.badgeBg).toContain("245, 158, 11");
+      expect(styles.glowRgb).toBe("20, 9, 26");
+    });
   });
 });
 

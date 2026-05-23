@@ -70,6 +70,13 @@ const OverlayApp = () => {
       setFontSize(settings.overlayFontSize ?? 1.0);
       setToolbarFontSize(settings.overlayToolbarFontSize ?? 1.0);
 
+      const { rarityInsights } = useBoundStore.getState();
+      if (settings.raritySource === "filter") {
+        await rarityInsights.loadFilterTheme(settings.selectedFilterId);
+      } else {
+        rarityInsights.clearFilterTheme();
+      }
+
       // Load custom sound data for each rarity if paths are set
       const paths = [
         settings.audioRarity1Path,

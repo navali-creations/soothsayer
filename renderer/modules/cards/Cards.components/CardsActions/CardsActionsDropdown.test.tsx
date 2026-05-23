@@ -80,6 +80,7 @@ const mockLoadCards = vi.fn().mockResolvedValue(undefined);
 const mockScanFilters = vi.fn().mockResolvedValue(undefined);
 const mockSelectFilter = vi.fn().mockResolvedValue(undefined);
 const mockClearSelectedFilter = vi.fn().mockResolvedValue(undefined);
+const mockClearFilterTheme = vi.fn();
 const mockUpdateSetting = vi.fn().mockResolvedValue(undefined);
 
 function setupStore(
@@ -121,6 +122,7 @@ function setupStore(
       scanFilters: mockScanFilters,
       selectFilter: mockSelectFilter,
       clearSelectedFilter: mockClearSelectedFilter,
+      clearFilterTheme: mockClearFilterTheme,
       getLocalFilters: () => overrides.localFilters ?? [],
       getOnlineFilters: () => overrides.onlineFilters ?? [],
     },
@@ -135,6 +137,7 @@ function clearMocks() {
   mockScanFilters.mockClear();
   mockSelectFilter.mockClear();
   mockClearSelectedFilter.mockClear();
+  mockClearFilterTheme.mockClear();
   mockUpdateSetting.mockClear();
   mockTrackEvent.mockClear();
 }

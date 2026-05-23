@@ -8,9 +8,10 @@ export { cardNameToSlug } from "~/types/card-slug";
 
 import type {
   DiscoveredRarityInsightsDTO,
+  FilterTierStyleDTO,
   RaritySource,
 } from "~/main/modules/rarity-insights/RarityInsights.dto";
-import type { Rarity } from "~/types/data-stores";
+import type { KnownRarity, Rarity } from "~/types/data-stores";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -100,6 +101,13 @@ export interface RarityStyles {
   badgeBorder: string;
 }
 
+export type FilterTheme = Partial<
+  Record<
+    KnownRarity,
+    Pick<FilterTierStyleDTO, "bgColor" | "textColor" | "borderColor">
+  >
+>;
+
 /**
  * Unified rarity colour palette.
  *
@@ -110,7 +118,46 @@ export interface RarityStyles {
 export function getRarityStyles(
   rarity: Rarity,
   gradientDir?: "left" | "right",
+  filterTheme?: FilterTheme | null,
 ): RarityStyles {
+  const defaultStyles = getDefaultRarityStyles(rarity, gradientDir);
+  if (rarity === 0) {
+    return defaultStyles;
+  }
+
+  const themeStyle = filterTheme?.[rarity as KnownRarity];
+  if (!themeStyle) {
+    return defaultStyles;
+  }
+
+  const bgColor = themeStyle.bgColor;
+  const textColor = themeStyle.textColor;
+  const borderColor = themeStyle.borderColor;
+  const bgRgb = bgColor ? colorToRgb(bgColor) : null;
+  const textRgb = textColor ? colorToRgb(textColor) : null;
+  const borderRgb = borderColor ? colorToRgb(borderColor) : null;
+  const glowColor = borderColor ?? bgColor;
+
+  return {
+    ...defaultStyles,
+    bgGradient: bgRgb
+      ? `linear-gradient(to ${gradientDir ?? "right"}, ${bgRgb} 50%, transparent)`
+      : defaultStyles.bgGradient,
+    text: textRgb ?? defaultStyles.text,
+    border: borderRgb ?? defaultStyles.border,
+    glowRgb: glowColor ? colorToRgbTriplet(glowColor) : defaultStyles.glowRgb,
+    badgeBg: bgRgb ?? defaultStyles.badgeBg,
+    badgeText: textRgb ?? defaultStyles.badgeText,
+    badgeBorder: borderRgb ?? defaultStyles.badgeBorder,
+  };
+}
+
+function getDefaultRarityStyles(
+  rarity: Rarity,
+  gradientDir?: "left" | "right",
+): RarityStyles {
+  const direction = gradientDir ?? "right";
+
   switch (rarity) {
     case 0: // Unknown — no data or low-confidence pricing
       return {
@@ -126,7 +173,7 @@ export function getRarityStyles(
       };
     case 1: // Extremely Rare
       return {
-        bgGradient: `linear-gradient(to ${gradientDir}, rgb(255, 255, 255) 50%, transparent)`,
+        bgGradient: `linear-gradient(to ${direction}, rgb(255, 255, 255) 50%, transparent)`,
         text: "rgb(0, 0, 255)",
         border: "rgb(0, 0, 255)",
         beam: "orangered",
@@ -138,7 +185,7 @@ export function getRarityStyles(
       };
     case 2: // Rare
       return {
-        bgGradient: `linear-gradient(to ${gradientDir}, rgb(0, 20, 180) 50%, transparent)`,
+        bgGradient: `linear-gradient(to ${direction}, rgb(0, 20, 180) 50%, transparent)`,
         text: "rgb(255, 255, 255)",
         border: "rgb(255, 255, 255)",
         beam: "yellow",
@@ -150,7 +197,7 @@ export function getRarityStyles(
       };
     case 3: // Less Common
       return {
-        bgGradient: `linear-gradient(to ${gradientDir}, rgb(0, 220, 240) 50%, transparent)`,
+        bgGradient: `linear-gradient(to ${direction}, rgb(0, 220, 240) 50%, transparent)`,
         text: "rgb(0, 0, 0)",
         border: "rgb(0, 0, 0)",
         beam: "",
@@ -173,6 +220,14 @@ export function getRarityStyles(
         badgeBorder: "rgba(160, 160, 170, 0.20)",
       };
   }
+}
+
+function colorToRgb(color: { r: number; g: number; b: number }): string {
+  return `rgb(${color.r}, ${color.g}, ${color.b})`;
+}
+
+function colorToRgbTriplet(color: { r: number; g: number; b: number }): string {
+  return `${color.r}, ${color.g}, ${color.b}`;
 }
 
 // ─── Rarity Source Dropdown Helpers ─────────────────────────────────────────

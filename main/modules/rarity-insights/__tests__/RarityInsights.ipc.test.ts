@@ -21,16 +21,21 @@ const {
   mockRepoDeleteById,
   mockRepoGetCardRarities,
   mockRepoReplaceCardRarities,
+  mockRepoReplaceParsedFilterData,
   mockRepoGetCardRarityCount,
   mockRepoGetCardRarity,
+  mockRepoGetTierStyles,
+  mockRepoReplaceTierStyles,
   mockDivinationUpdateRaritiesFromFilter,
   mockDivinationUpdateRaritiesFromPrices,
   mockDivinationGetSelectedFilterId,
   mockDivinationGetRepository,
   mockParseFilterFile,
   mockAssertBoundedString,
+  mockAssertCardName,
   mockAssertEnum,
   mockAssertGameType,
+  mockAssertInteger,
   mockAssertOptionalString,
   mockHandleValidationError,
 } = vi.hoisted(() => ({
@@ -50,16 +55,21 @@ const {
   mockRepoDeleteById: vi.fn(),
   mockRepoGetCardRarities: vi.fn(),
   mockRepoReplaceCardRarities: vi.fn(),
+  mockRepoReplaceParsedFilterData: vi.fn(),
   mockRepoGetCardRarityCount: vi.fn(),
   mockRepoGetCardRarity: vi.fn(),
+  mockRepoGetTierStyles: vi.fn(),
+  mockRepoReplaceTierStyles: vi.fn(),
   mockDivinationUpdateRaritiesFromFilter: vi.fn(),
   mockDivinationUpdateRaritiesFromPrices: vi.fn(),
   mockDivinationGetSelectedFilterId: vi.fn(),
   mockDivinationGetRepository: vi.fn(),
   mockParseFilterFile: vi.fn(),
   mockAssertBoundedString: vi.fn(),
+  mockAssertCardName: vi.fn(),
   mockAssertEnum: vi.fn(),
   mockAssertGameType: vi.fn(),
+  mockAssertInteger: vi.fn(),
   mockAssertOptionalString: vi.fn(),
   mockHandleValidationError: vi.fn(),
 }));
@@ -138,8 +148,11 @@ vi.mock("../RarityInsights.repository", () => ({
     deleteById = mockRepoDeleteById;
     getCardRarities = mockRepoGetCardRarities;
     replaceCardRarities = mockRepoReplaceCardRarities;
+    replaceParsedFilterData = mockRepoReplaceParsedFilterData;
     getCardRarityCount = mockRepoGetCardRarityCount;
     getCardRarity = mockRepoGetCardRarity;
+    getTierStyles = mockRepoGetTierStyles;
+    replaceTierStyles = mockRepoReplaceTierStyles;
   },
 }));
 
@@ -183,8 +196,10 @@ vi.mock("../RarityInsights.parser", () => ({
 // ─── Mock IPC validation utils ───────────────────────────────────────────────
 vi.mock("~/main/utils/ipc-validation", () => ({
   assertBoundedString: mockAssertBoundedString,
+  assertCardName: mockAssertCardName,
   assertEnum: mockAssertEnum,
   assertGameType: mockAssertGameType,
+  assertInteger: mockAssertInteger,
   assertOptionalString: mockAssertOptionalString,
   handleValidationError: mockHandleValidationError,
 }));
@@ -228,8 +243,10 @@ describe("RarityInsightsService — IPC handlers and input validation", () => {
 
     // Reset validation mocks to no-op implementations
     mockAssertBoundedString.mockImplementation(() => {});
+    mockAssertCardName.mockImplementation(() => {});
     mockAssertEnum.mockImplementation(() => {});
     mockAssertGameType.mockImplementation(() => {});
+    mockAssertInteger.mockImplementation(() => {});
     mockAssertOptionalString.mockImplementation(() => {});
     mockHandleValidationError.mockImplementation(() => ({
       success: false,
@@ -247,7 +264,10 @@ describe("RarityInsightsService — IPC handlers and input validation", () => {
     mockRepoMarkAsParsed.mockResolvedValue(undefined);
     mockRepoGetCardRarities.mockResolvedValue(SAMPLE_CARD_RARITIES);
     mockRepoReplaceCardRarities.mockResolvedValue(undefined);
+    mockRepoReplaceParsedFilterData.mockResolvedValue(undefined);
     mockRepoGetCardRarityCount.mockResolvedValue(3);
+    mockRepoGetTierStyles.mockResolvedValue([]);
+    mockRepoReplaceTierStyles.mockResolvedValue(undefined);
     mockParseFilterFile.mockResolvedValue({
       hasDivinationSection: true,
       totalCards: 3,
@@ -256,6 +276,7 @@ describe("RarityInsightsService — IPC handlers and input validation", () => {
         ["Rain of Chaos", 4],
         ["The Nurse", 1],
       ]),
+      tierStyles: new Map(),
     });
     mockDivinationUpdateRaritiesFromFilter.mockResolvedValue(undefined);
 
@@ -288,6 +309,9 @@ describe("RarityInsightsService — IPC handlers and input validation", () => {
         RarityInsightsChannel.ParseRarityInsights,
       );
       expect(registeredChannels).toContain(
+        RarityInsightsChannel.GetFilterTheme,
+      );
+      expect(registeredChannels).toContain(
         RarityInsightsChannel.SelectRarityInsights,
       );
       expect(registeredChannels).toContain(
@@ -307,8 +331,8 @@ describe("RarityInsightsService — IPC handlers and input validation", () => {
       );
     });
 
-    it("should register exactly 10 IPC handlers", () => {
-      expect(mockIpcHandle).toHaveBeenCalledTimes(10);
+    it("should register exactly 11 IPC handlers", () => {
+      expect(mockIpcHandle).toHaveBeenCalledTimes(11);
     });
 
     it("should register each channel only once", () => {
@@ -490,6 +514,66 @@ describe("RarityInsightsService — IPC handlers and input validation", () => {
         RarityInsightsChannel.GetRarityInsights,
       );
       expect(mockRepoGetById).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─── GetFilterTheme handler ──────────────────────────────────────────
+
+  describe("GetFilterTheme handler", () => {
+    it("should validate filterId as a bounded string", async () => {
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        RarityInsightsChannel.GetFilterTheme,
+      );
+      await handler({}, "filter_abc12345");
+
+      expect(mockAssertBoundedString).toHaveBeenCalledWith(
+        "filter_abc12345",
+        "filterId",
+        RarityInsightsChannel.GetFilterTheme,
+        256,
+      );
+    });
+
+    it("should return filter tier styles on valid input", async () => {
+      const theme = [
+        {
+          filterId: "filter_abc12345",
+          rarity: 1,
+          bgColor: { r: 10, g: 20, b: 30, a: 255 },
+          textColor: null,
+          borderColor: null,
+        },
+      ];
+      mockRepoGetTierStyles.mockResolvedValue(theme);
+
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        RarityInsightsChannel.GetFilterTheme,
+      );
+      const result = await handler({}, "filter_abc12345");
+
+      expect(result).toEqual(theme);
+      expect(mockRepoGetTierStyles).toHaveBeenCalledWith("filter_abc12345");
+    });
+
+    it("should handle validation error for non-string filterId", async () => {
+      const validationError = new Error("Invalid filterId");
+      mockAssertBoundedString.mockImplementation(() => {
+        throw validationError;
+      });
+
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        RarityInsightsChannel.GetFilterTheme,
+      );
+      await handler({}, 42);
+
+      expect(mockHandleValidationError).toHaveBeenCalledWith(
+        validationError,
+        RarityInsightsChannel.GetFilterTheme,
+      );
+      expect(mockRepoGetTierStyles).not.toHaveBeenCalled();
     });
   });
 
@@ -1369,6 +1453,12 @@ describe("RarityInsightsService — IPC handlers and input validation", () => {
     it("should use correct channel string for ParseFilter", () => {
       expect(RarityInsightsChannel.ParseRarityInsights).toBe(
         "rarity-insights:parse",
+      );
+    });
+
+    it("should use correct channel string for GetFilterTheme", () => {
+      expect(RarityInsightsChannel.GetFilterTheme).toBe(
+        "rarity-insights:get-filter-theme",
       );
     });
 

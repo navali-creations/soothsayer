@@ -6,8 +6,14 @@ import RarityBadgeDropdown from "./RarityBadgeDropdown";
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/utils", () => ({
-  getRarityStyles: (rarity: Rarity) => ({
-    badgeBg: `rgb(${rarity}, 0, 0)`,
+  getRarityStyles: (
+    rarity: Rarity,
+    _gradientDir?: unknown,
+    filterTheme?: any,
+  ) => ({
+    badgeBg: filterTheme?.[rarity]?.bgColor
+      ? `rgb(${filterTheme[rarity].bgColor.r}, 0, 0)`
+      : `rgb(${rarity}, 0, 0)`,
     badgeText: `rgb(0, ${rarity}, 0)`,
     badgeBorder: `rgb(0, 0, ${rarity})`,
   }),
@@ -71,6 +77,27 @@ describe("RarityBadgeDropdown", () => {
       expect(badge).toHaveStyle({
         backgroundColor: "rgb(3, 0, 0)",
         color: "rgb(0, 3, 0)",
+      });
+    });
+
+    it("applies inline styles from the provided filter theme", () => {
+      renderWithProviders(
+        <RarityBadgeDropdown
+          rarity={3}
+          onRarityChange={vi.fn()}
+          filterTheme={{
+            3: {
+              bgColor: { r: 42, g: 0, b: 0, a: 255 },
+              textColor: null,
+              borderColor: null,
+            },
+          }}
+        />,
+      );
+
+      const badge = screen.getByText("Less Common");
+      expect(badge).toHaveStyle({
+        backgroundColor: "rgb(42, 0, 0)",
       });
     });
 

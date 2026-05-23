@@ -32,11 +32,12 @@ vi.mock("../ProhibitedLibraryRarityCell", () => ({
 }));
 
 vi.mock("../RarityBadgeDropdown/RarityBadgeDropdown", () => ({
-  default: ({ rarity, outline, onRarityChange }: any) => (
+  default: ({ rarity, outline, onRarityChange, filterTheme }: any) => (
     <div
       data-testid="badge-dropdown"
       data-rarity={rarity}
       data-outline={outline}
+      data-has-theme={filterTheme ? "true" : "false"}
       onClick={() => onRarityChange?.(2)}
     />
   ),
@@ -148,6 +149,7 @@ function createMockStoreState(overrides: Record<string, any> = {}) {
           },
         ],
       ]),
+      filterThemes: new Map(),
       showDiffsOnly: false,
       includeBossCards: true,
       updateFilterCardRarity: vi.fn(),
@@ -158,6 +160,7 @@ function createMockStoreState(overrides: Record<string, any> = {}) {
       ...overrides.cards,
     },
     rarityInsights: {
+      activeFilterTheme: null,
       availableFilters: [makeFilter()],
       ...overrides.rarityInsights,
     },
@@ -792,6 +795,51 @@ describe("ComparisonTable", () => {
       expect(badge).toHaveAttribute("data-rarity", "2");
       // rarity 2 !== ninja rarity 3 → outline should be true
       expect(badge).toHaveAttribute("data-outline", "true");
+    });
+
+    it("passes the matching loaded filter theme to filter rarity cells", () => {
+      setupStore({
+        rarityInsightsComparison: {
+          selectedFilters: ["f1"],
+          parsingFilterId: null,
+          filterThemes: new Map([
+            [
+              "f1",
+              {
+                2: {
+                  bgColor: { r: 20, g: 30, b: 40, a: 255 },
+                  textColor: null,
+                  borderColor: null,
+                },
+              },
+            ],
+          ]),
+          parsedResults: new Map([
+            [
+              "f1",
+              {
+                filterId: "f1",
+                filterName: "Filter1",
+                rarities: new Map([["Test Card", 2]]),
+                totalCards: 1,
+              },
+            ],
+          ]),
+        },
+      });
+      renderWithProviders(<ComparisonTable />);
+
+      const filterCol = getFilterColumn("f1");
+      expect(filterCol).toBeDefined();
+
+      const cellFn = filterCol.columnDef?.cell ?? filterCol.cell;
+      const ctx = makeCellContext({ f1: 2 }, 3);
+      const { container } = render(
+        typeof cellFn === "function" ? cellFn(ctx) : cellFn,
+      );
+
+      const badge = container.querySelector("[data-testid='badge-dropdown']");
+      expect(badge).toHaveAttribute("data-has-theme", "true");
     });
 
     it("renders RarityBadgeDropdown without outline when rarity matches ninja", () => {

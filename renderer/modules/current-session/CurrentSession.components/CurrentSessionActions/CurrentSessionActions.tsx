@@ -74,12 +74,14 @@ const CurrentSessionActions = () => {
     const filterOptions: RaritySourceOption[] = [
       ...onlineFilters.map((filter) => ({
         value: `filter:${filter.id}`,
-        label: filter.name,
+        label: `Filter: ${filter.name}`,
+        menuLabel: filter.name,
         outdated: filter.isOutdated,
       })),
       ...localFilters.map((filter) => ({
         value: `filter:${filter.id}`,
-        label: filter.name,
+        label: `Filter: ${filter.name}`,
+        menuLabel: filter.name,
         outdated: filter.isOutdated,
       })),
     ];

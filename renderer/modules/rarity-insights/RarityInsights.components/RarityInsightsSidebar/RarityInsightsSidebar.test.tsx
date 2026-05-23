@@ -378,6 +378,25 @@ describe("RarityInsightsDropdown", () => {
         expect(screen.getByTestId("rescan-button")).toBeInTheDocument();
       });
 
+      it("keeps the filter helper row from wrapping into the Rescan action", async () => {
+        setupStore({
+          availableFilters: [makeFilter()],
+          isScanning: false,
+        });
+        const { user } = renderWithProviders(<RarityInsightsDropdown />);
+
+        await user.click(screen.getByText("Filters").closest("button")!);
+
+        const helperLabel = screen.getByText(/Select up to 3 filters/);
+        const helperRow = helperLabel.closest("div");
+        const panel = screen.getByTestId("scan-section").parentElement;
+
+        expect(panel).toHaveClass("min-w-72");
+        expect(helperRow).toHaveClass("gap-3");
+        expect(helperLabel).toHaveClass("whitespace-nowrap");
+        expect(screen.getByTestId("rescan-button")).toHaveClass("shrink-0");
+      });
+
       it("calls rescan when Rescan is clicked", async () => {
         setupStore({
           availableFilters: [makeFilter()],

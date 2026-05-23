@@ -6,6 +6,7 @@ enum RarityInsightsChannel {
 
   // Rarity insights parsing
   ParseRarityInsights = "rarity-insights:parse",
+  GetFilterTheme = "rarity-insights:get-filter-theme",
 
   // Rarity insights selection
   SelectRarityInsights = "rarity-insights:select",

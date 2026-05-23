@@ -61,7 +61,7 @@ const RaritySourceSelect = ({
   const selectedOption = groups
     .flatMap((g) => g.options)
     .find((o) => o.value === value);
-  const triggerLabel = selectedOption?.label ?? value;
+  const triggerLabel = selectedOption?.label ?? getFallbackTriggerLabel(value);
 
   const handleSelect = useCallback(
     (optionValue: string) => {
@@ -207,5 +207,13 @@ const RaritySourceSelect = ({
     </div>
   );
 };
+
+function getFallbackTriggerLabel(value: string): string {
+  if (value.startsWith("filter:")) {
+    return `Filter: ${value.slice("filter:".length)}`;
+  }
+
+  return value;
+}
 
 export default RaritySourceSelect;

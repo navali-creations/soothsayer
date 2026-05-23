@@ -1147,15 +1147,10 @@ class CurrentSessionService {
     const recentDrops = recentDropsRaw.map((cardName) => {
       const cardData = cardsObject[cardName];
 
-      // Get the actual rarity from divination card metadata.
-      // If rarity source is "filter" and filter rarity is available, use it.
-      // Otherwise fall back to poe.ninja price-based rarity.
-      const filterRarity = cardData?.divinationCard?.filterRarity;
-      const priceRarity = cardData?.divinationCard?.rarity ?? 4;
-      const actualRarity =
-        raritySource === "filter" && filterRarity != null
-          ? filterRarity
-          : priceRarity;
+      const actualRarity = this.getEffectiveCardRarity(
+        cardData?.divinationCard,
+        raritySource as string,
+      );
 
       const isHidden = cardData?.price?.hidePrice || false;
 
@@ -1376,7 +1371,7 @@ class CurrentSessionService {
 
   /**
    * Build a card-name → rarity map from the cards object used by getCurrentSession.
-   * Uses filter rarity if rarity source is "filter", otherwise price-based rarity.
+   * Uses the selected rarity source when that source has data, otherwise price rarity.
    */
   private buildCardRaritiesMap(
     cardsObject: Record<string, CardEntry>,
@@ -1384,15 +1379,33 @@ class CurrentSessionService {
   ): Map<string, number> {
     const rarities = new Map<string, number>();
     for (const [name, entry] of Object.entries(cardsObject)) {
-      const filterRarity = entry.divinationCard?.filterRarity;
-      const priceRarity = entry.divinationCard?.rarity ?? 4;
-      const rarity =
-        raritySource === "filter" && filterRarity != null
-          ? filterRarity
-          : priceRarity;
+      const rarity = this.getEffectiveCardRarity(
+        entry.divinationCard,
+        raritySource,
+      );
       rarities.set(name, rarity);
     }
     return rarities;
+  }
+
+  private getEffectiveCardRarity(
+    divinationCard: CardEntry["divinationCard"] | undefined,
+    raritySource: string,
+  ): Rarity {
+    const priceRarity = divinationCard?.rarity ?? 4;
+
+    if (raritySource === "filter" && divinationCard?.filterRarity != null) {
+      return divinationCard.filterRarity;
+    }
+
+    if (
+      raritySource === "prohibited-library" &&
+      divinationCard?.prohibitedLibraryRarity != null
+    ) {
+      return divinationCard.prohibitedLibraryRarity;
+    }
+
+    return priceRarity;
   }
 
   /**
@@ -1598,11 +1611,55 @@ class CurrentSessionService {
     league: string,
     cardName: string,
   ): Promise<void> {
-    const rarities =
+    let rarities =
       game === "poe1" ? this.poe1CardRarities : this.poe2CardRarities;
-    if (!rarities || rarities.has(cardName)) return;
 
-    // Try to look up the rarity from the DB (price-based rarity)
+    if (!rarities) {
+      rarities = new Map<string, number>();
+      if (game === "poe1") {
+        this.poe1CardRarities = rarities;
+      } else {
+        this.poe2CardRarities = rarities;
+      }
+    }
+
+    if (rarities.has(cardName)) return;
+
+    let raritySource: string | null = null;
+    try {
+      raritySource = await this.settingsStore.get(SettingsKey.RaritySource);
+    } catch {
+      raritySource = null;
+    }
+
+    if (raritySource === "filter") {
+      const filterId = await this.getActiveFilterId();
+      if (filterId) {
+        const filterRarity = await this.repository.getCardFilterRarity(
+          filterId,
+          cardName,
+        );
+        if (filterRarity != null) {
+          rarities.set(cardName, filterRarity);
+          return;
+        }
+      }
+    }
+
+    if (raritySource === "prohibited-library") {
+      const prohibitedLibraryRarity =
+        await this.repository.getCardProhibitedLibraryRarity(
+          game,
+          league,
+          cardName,
+        );
+      if (prohibitedLibraryRarity != null) {
+        rarities.set(cardName, prohibitedLibraryRarity);
+        return;
+      }
+    }
+
+    // Fall back to the DB price-based rarity.
     const priceRarity = await this.repository.getCardPriceRarity(
       game,
       league,
@@ -1611,19 +1668,6 @@ class CurrentSessionService {
     if (priceRarity != null) {
       rarities.set(cardName, priceRarity);
       return;
-    }
-
-    // If rarity source is "filter", try filter-based rarity
-    const filterId = await this.getActiveFilterId();
-    if (filterId) {
-      const filterRarity = await this.repository.getCardFilterRarity(
-        filterId,
-        cardName,
-      );
-      if (filterRarity != null) {
-        rarities.set(cardName, filterRarity);
-        return;
-      }
     }
 
     // Default to common (rarity 4) if no rarity data found

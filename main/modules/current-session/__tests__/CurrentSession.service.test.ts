@@ -193,12 +193,15 @@ import {
   createTestDatabase,
   seedDivinationCard,
   seedDivinationCardRarity,
+  seedFilterCardRarity,
+  seedFilterMetadata,
   seedLeague,
   seedSession,
   seedSnapshot,
   type TestDatabase,
 } from "~/main/modules/__test-utils__/create-test-db";
 
+import { CurrentSessionChannel } from "../CurrentSession.channels";
 import { CurrentSessionService } from "../CurrentSession.service";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -1110,6 +1113,121 @@ describe("CurrentSessionService", () => {
       );
     });
 
+    it("should prefer selected filter rarity for newly seen card deltas", async () => {
+      mockSettingsGet.mockImplementation(async (key: string) => {
+        if (key === "raritySource") return "filter";
+        if (key === "selectedFilterId") return "filter-neversink";
+        return null;
+      });
+
+      await seedDivinationCard(testDb.kysely, {
+        name: "The Fortunate",
+        stackSize: 12,
+      });
+      await seedDivinationCardRarity(testDb.kysely, {
+        league: "Settlers",
+        cardName: "The Fortunate",
+        rarity: 3,
+      });
+      await seedFilterMetadata(testDb.kysely, {
+        id: "filter-neversink",
+        filterType: "online",
+        filePath: "C:\\path\\to\\NeverSink.filter",
+        filterName: "NeverSink",
+        isFullyParsed: true,
+      });
+      await seedFilterCardRarity(testDb.kysely, {
+        filterId: "filter-neversink",
+        cardName: "The Fortunate",
+        rarity: 2,
+      });
+
+      mockWebContentsSend.mockReset();
+
+      await service.addCard(
+        "poe1",
+        "Settlers",
+        "The Fortunate",
+        "filter-rarity-delta-1",
+      );
+
+      const cardDeltaCall = mockWebContentsSend.mock.calls.find(
+        ([channel]) => channel === CurrentSessionChannel.CardDelta,
+      );
+
+      expect(cardDeltaCall?.[1]).toMatchObject({
+        game: "poe1",
+        delta: {
+          cardName: "The Fortunate",
+          recentDrop: {
+            cardName: "The Fortunate",
+            rarity: 2,
+          },
+          divinationCard: {
+            rarity: 2,
+          },
+        },
+      });
+    });
+
+    it("should prefer prohibited library rarity for newly seen card deltas", async () => {
+      mockSettingsGet.mockImplementation(async (key: string) => {
+        if (key === "raritySource") return "prohibited-library";
+        if (key === "selectedFilterId") return "filter-neversink";
+        return null;
+      });
+
+      await seedDivinationCard(testDb.kysely, {
+        name: "The Fortunate",
+        stackSize: 12,
+      });
+      await seedDivinationCardRarity(testDb.kysely, {
+        league: "Settlers",
+        cardName: "The Fortunate",
+        rarity: 3,
+        prohibitedLibraryRarity: 1,
+      });
+      await seedFilterMetadata(testDb.kysely, {
+        id: "filter-neversink",
+        filterType: "online",
+        filePath: "C:\\path\\to\\NeverSink.filter",
+        filterName: "NeverSink",
+        isFullyParsed: true,
+      });
+      await seedFilterCardRarity(testDb.kysely, {
+        filterId: "filter-neversink",
+        cardName: "The Fortunate",
+        rarity: 4,
+      });
+
+      mockWebContentsSend.mockReset();
+
+      await service.addCard(
+        "poe1",
+        "Settlers",
+        "The Fortunate",
+        "pl-rarity-delta-1",
+      );
+
+      const cardDeltaCall = mockWebContentsSend.mock.calls.find(
+        ([channel]) => channel === CurrentSessionChannel.CardDelta,
+      );
+
+      expect(cardDeltaCall?.[1]).toMatchObject({
+        game: "poe1",
+        delta: {
+          cardName: "The Fortunate",
+          recentDrop: {
+            cardName: "The Fortunate",
+            rarity: 1,
+          },
+          divinationCard: {
+            rarity: 1,
+          },
+        },
+      });
+    });
+
     it("should update the session total count in the database", async () => {
       await service.addCard("poe1", "Settlers", "The Doctor", "total-1");
       await service.addCard("poe1", "Settlers", "Rain of Chaos", "total-2");
@@ -1182,6 +1300,58 @@ describe("CurrentSessionService", () => {
       expect(result.cards).toHaveLength(2);
       expect(result.league).toBe("Settlers");
       expect(result.startedAt).toBeDefined();
+    });
+
+    it("should use prohibited library rarity for session hydration", async () => {
+      mockSettingsGet.mockImplementation(async (key: string) => {
+        if (key === "raritySource") return "prohibited-library";
+        if (key === "selectedFilterId") return "filter-neversink";
+        return null;
+      });
+
+      await seedDivinationCard(testDb.kysely, {
+        name: "The Fortunate",
+        stackSize: 12,
+      });
+      await seedDivinationCardRarity(testDb.kysely, {
+        league: "Settlers",
+        cardName: "The Fortunate",
+        rarity: 3,
+        prohibitedLibraryRarity: 1,
+      });
+      await seedFilterMetadata(testDb.kysely, {
+        id: "filter-neversink",
+        filterType: "online",
+        filePath: "C:\\path\\to\\NeverSink.filter",
+        filterName: "NeverSink",
+        isFullyParsed: true,
+      });
+      await seedFilterCardRarity(testDb.kysely, {
+        filterId: "filter-neversink",
+        cardName: "The Fortunate",
+        rarity: 4,
+      });
+
+      await service.startSession("poe1", "Settlers");
+      await service.addCard(
+        "poe1",
+        "Settlers",
+        "The Fortunate",
+        "pl-hydrate-1",
+      );
+
+      const result = await service.getCurrentSession("poe1");
+
+      const fortunateCard = result.cards.find(
+        (c: any) => c.name === "The Fortunate",
+      );
+      expect(fortunateCard.divinationCard.rarity).toBe(3);
+      expect(fortunateCard.divinationCard.prohibitedLibraryRarity).toBe(1);
+      expect(result.recentDrops[0].rarity).toBe(1);
+      expect(result.timeline.notableDrops[0]).toMatchObject({
+        cardName: "The Fortunate",
+        rarity: 1,
+      });
     });
 
     it("should include price data from snapshot in card entries", async () => {
