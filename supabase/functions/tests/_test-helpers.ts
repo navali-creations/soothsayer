@@ -307,11 +307,10 @@ type ServeHandler = (req: Request) => Response | Promise<Response>;
  */
 export function stubDenoServe() {
   let capturedHandler: ServeHandler | null = null;
-  const originalServe = Deno.serve;
+  const originalDescriptor = Object.getOwnPropertyDescriptor(Deno, "serve");
 
   // Deno.serve can be called with (handler) or (options, handler)
-  // deno-lint-ignore no-explicit-any
-  (Deno as any).serve = (
+  const mockServe = (
     handlerOrOptions: ServeHandler | Record<string, unknown>,
     maybeHandler?: ServeHandler,
   ) => {
@@ -333,14 +332,21 @@ export function stubDenoServe() {
     };
   };
 
+  Object.defineProperty(Deno, "serve", {
+    configurable: true,
+    value: mockServe,
+    writable: true,
+  });
+
   return {
     get handler(): ServeHandler | null {
       return capturedHandler;
     },
 
     restore() {
-      // deno-lint-ignore no-explicit-any
-      (Deno as any).serve = originalServe;
+      if (originalDescriptor) {
+        Object.defineProperty(Deno, "serve", originalDescriptor);
+      }
     },
   };
 }
