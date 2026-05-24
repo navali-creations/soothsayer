@@ -1,5 +1,50 @@
 # soothsayer
 
+## 0.18.0
+
+### Minor Changes
+
+- [`ee9ba44`](https://github.com/navali-creations/soothsayer/commit/ee9ba44c252adbf4d6ba15285b9686d2ef9f5fcd) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Added:** GGG account linking is now available for Community Drop Rates.
+
+  You can now link your Path of Exile account from **Settings -> Privacy & Telemetry** when Community Drop Rates are enabled. Linked accounts can be shown as verified on community drop rate data, while uploads still work without linking.
+
+  - **Privacy & Telemetry**: the **Link GGG Account** and **Unlink** controls are now shown when Community Drop Rates are enabled.
+  - **GGG account linking is optional**: Community uploads still work without linking.
+  - **Limited access only**: Soothsayer only asks GGG for your account name and account ID. It cannot access characters, stash tabs, items, trades, your password, or your email.
+  - **Unlink anytime**: you can remove the linked account from **Settings -> Privacy & Telemetry**.
+  - **Privacy policy**: the policy now explains the short-lived pseudonymous security identifiers used for rate limiting and confirms that raw IP addresses are not stored in backend request logs.
+
+- [`84b6474`](https://github.com/navali-creations/soothsayer/commit/84b6474674f40c09dd8d25928d76a155177e258d) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Added:** Loaded loot filters now bring their rarity colors into Soothsayer.
+
+  When you use a filter as the rarity source, Soothsayer now reads that filter's card styling so in-app rarity displays reflects your filter theme.
+
+  - **Rarity displays:** Card lists, card details, Current Session, and Overlay now use the loaded filter's text, background, and border colors when filter rarity is selected.
+  - **Rarity Insights:** selected filter columns can use each filter's own colors, while **poe.ninja** and **Prohibited Library** stay on the default theme.
+  - **Custom sounds:** loot filter sounds are not imported; set custom drop sounds separately in **Audio Settings**.
+
+- [`420c976`](https://github.com/navali-creations/soothsayer/commit/420c9761d11aa28eb434022a4cba64eaaf2e5850) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Removed:** Soothsayer no longer uses the poe.ninja stash API as a secondary and fallback price source.
+
+  poe.ninja has removed divination card stash pricing, and it is not coming back, so Soothsayer has been updated accordingly across its features.
+
+  - **Current Session, Settings & Session Details**: the exchange/stash tab selector has been removed.
+  - **Sessions & Session Details**: stash value has been removed, and `exchange` is now `value`.
+  - **Rarity**: Soothsayer app versions below 0.18.0 now show stash price confidence as `unknown` wherever the stash API was present.
+  - **Current Session**: the price source beacon has been removed.
+
+### Patch Changes
+
+- [`e4d6714`](https://github.com/navali-creations/soothsayer/commit/e4d6714fabaaae5799068662294fafbd12093de2) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Fixed:** Community Drop Rates uploads are more reliable for very large card histories.
+
+  Soothsayer now sends community card counts in a more compact way, so large local histories are less likely to time out when a session ends.
+
 ## 0.17.1
 
 ### Patch Changes
