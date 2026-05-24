@@ -63,10 +63,19 @@ vi.mock("~/renderer/components", () => ({
   }),
 }));
 
-vi.mock("~/renderer/modules/changelog/Changelog.utils/Changelog.utils", () => ({
-  CORE_MAINTAINERS: new Set(["coremaintainer"]),
-  changeTypeColor: (type: string) => type,
-}));
+vi.mock(
+  "~/renderer/modules/changelog/Changelog.utils/Changelog.utils",
+  async () => {
+    const actual = await vi.importActual<
+      typeof import("~/renderer/modules/changelog/Changelog.utils/Changelog.utils")
+    >("~/renderer/modules/changelog/Changelog.utils/Changelog.utils");
+
+    return {
+      ...actual,
+      CORE_MAINTAINERS: new Set(["coremaintainer"]),
+    };
+  },
+);
 
 const mockUseBoundStore = vi.mocked(useBoundStore);
 
@@ -77,9 +86,12 @@ function createMockStore(overrides: any = {}) {
     appMenu: {
       isWhatsNewOpen: false,
       whatsNewRelease: null,
+      whatsNewReleases: [],
+      whatsNewSelectedVersion: null,
       whatsNewIsLoading: false,
       whatsNewError: null,
       closeWhatsNew: vi.fn(),
+      selectWhatsNewRelease: vi.fn(),
       ...overrides.appMenu,
     },
   } as any;
@@ -92,6 +104,7 @@ function setupStore(overrides: any = {}) {
 }
 
 const RELEASE_WITH_BODY = {
+  version: "2.0.0",
   name: "v2.0.0",
   body: "## Changes\n- Lots of stuff",
   changeType: "minor",

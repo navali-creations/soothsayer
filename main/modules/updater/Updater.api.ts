@@ -44,8 +44,8 @@ const UpdaterAPI = {
     ipcRenderer.invoke(UpdaterChannel.DownloadUpdate),
   installUpdate: (): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke(UpdaterChannel.InstallUpdate),
-  getLatestRelease: (): Promise<LatestReleaseInfo | null> =>
-    ipcRenderer.invoke(UpdaterChannel.GetLatestRelease),
+  getRecentReleases: (): Promise<LatestReleaseInfo[]> =>
+    ipcRenderer.invoke(UpdaterChannel.GetRecentReleases),
   getChangelog: (): Promise<ChangelogResult> =>
     ipcRenderer.invoke(UpdaterChannel.GetChangelog),
   onUpdateAvailable: (callback: (updateInfo: UpdateInfo) => void) => {

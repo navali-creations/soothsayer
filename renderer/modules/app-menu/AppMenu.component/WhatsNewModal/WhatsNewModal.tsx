@@ -8,14 +8,25 @@ import {
   Modal,
   type ModalHandle,
 } from "~/renderer/components";
-import {
-  CORE_MAINTAINERS,
-  changeTypeColor,
-} from "~/renderer/modules/changelog/Changelog.utils/Changelog.utils";
+import { CORE_MAINTAINERS } from "~/renderer/modules/changelog/Changelog.utils/Changelog.utils";
 import { useAppMenu } from "~/renderer/store";
+
+import { WhatsNewReleaseTabs } from "./WhatsNewReleaseTabs/WhatsNewReleaseTabs";
 
 const COMMIT_URL_PATTERN = /\/commit\//;
 const GITHUB_USER_PATTERN = /^@/;
+
+function formatReleaseDate(publishedAt: string | null | undefined): string {
+  if (!publishedAt) {
+    return "";
+  }
+
+  return new Date(publishedAt).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
 
 const whatsNewComponents = {
   a: ({ node, children, href, ...props }: any) => {
@@ -102,19 +113,16 @@ const WhatsNewModal = () => {
 
   return (
     <Modal ref={modalRef} size="lg" onClose={closeWhatsNew}>
-      <div className="flex items-center gap-3 mb-4">
-        <MdOutlineNewReleases className="w-6 h-6 text-primary shrink-0" />
-        <h3 className="font-bold text-lg">
-          {whatsNewRelease ? whatsNewRelease.name : "What's New"}
-        </h3>
-        {whatsNewRelease && (
-          <Badge
-            variant={changeTypeColor(whatsNewRelease.changeType)}
-            size="sm"
-            outline
-          >
-            {whatsNewRelease.changeType}
-          </Badge>
+      <div className="mb-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <MdOutlineNewReleases className="h-6 w-6 shrink-0 text-primary" />
+          <h3 className="shrink-0 font-bold text-lg">Soothsayer</h3>
+          <WhatsNewReleaseTabs />
+        </div>
+        {whatsNewRelease?.publishedAt && (
+          <div className="mt-2 pl-9 text-xs text-base-content/50">
+            Released {formatReleaseDate(whatsNewRelease.publishedAt)}
+          </div>
         )}
       </div>
 
@@ -131,30 +139,17 @@ const WhatsNewModal = () => {
       )}
 
       {whatsNewRelease && !whatsNewIsLoading && (
-        <>
-          <div className="text-xs text-base-content/50 mb-4">
-            {whatsNewRelease.publishedAt &&
-              `Released ${new Date(
-                whatsNewRelease.publishedAt,
-              ).toLocaleDateString(undefined, {
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })}`}
-          </div>
-
-          <div className="overflow-y-auto overflow-x-hidden max-h-[60vh] pr-2">
-            {whatsNewRelease.body ? (
-              <MarkdownRenderer componentOverrides={whatsNewComponents}>
-                {whatsNewRelease.body}
-              </MarkdownRenderer>
-            ) : (
-              <p className="text-sm text-base-content/60">
-                No detailed changes available for this release.
-              </p>
-            )}
-          </div>
-        </>
+        <div className="max-h-[60vh] overflow-y-auto overflow-x-hidden pr-2">
+          {whatsNewRelease.body ? (
+            <MarkdownRenderer componentOverrides={whatsNewComponents}>
+              {whatsNewRelease.body}
+            </MarkdownRenderer>
+          ) : (
+            <p className="text-sm text-base-content/60">
+              No detailed changes available for this release.
+            </p>
+          )}
+        </div>
       )}
 
       <div className="modal-action">

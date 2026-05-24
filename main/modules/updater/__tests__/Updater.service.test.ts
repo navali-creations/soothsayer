@@ -199,7 +199,7 @@ describe("UpdaterService", () => {
       expect(registeredChannels).toContain(UpdaterChannel.GetUpdateInfo);
       expect(registeredChannels).toContain(UpdaterChannel.DownloadUpdate);
       expect(registeredChannels).toContain(UpdaterChannel.InstallUpdate);
-      expect(registeredChannels).toContain(UpdaterChannel.GetLatestRelease);
+      expect(registeredChannels).toContain(UpdaterChannel.GetRecentReleases);
       expect(registeredChannels).toContain(UpdaterChannel.GetChangelog);
     });
 
@@ -344,7 +344,7 @@ describe("UpdaterService", () => {
         UpdaterChannel.GetUpdateInfo,
         UpdaterChannel.DownloadUpdate,
         UpdaterChannel.InstallUpdate,
-        UpdaterChannel.GetLatestRelease,
+        UpdaterChannel.GetRecentReleases,
         UpdaterChannel.GetChangelog,
       ];
 
@@ -718,107 +718,106 @@ describe("UpdaterService", () => {
       });
     });
 
-    describe("GetLatestRelease handler", () => {
-      it("should fetch and return parsed release info", async () => {
+    describe("GetRecentReleases handler", () => {
+      it("should fetch and return parsed recent releases", async () => {
         mockFetch.mockResolvedValueOnce({
           ok: true,
-          json: vi.fn().mockResolvedValue(SAMPLE_GITHUB_RELEASE),
+          json: vi.fn().mockResolvedValue([
+            SAMPLE_GITHUB_RELEASE,
+            {
+              ...SAMPLE_GITHUB_RELEASE,
+              tag_name: "v1.9.0",
+              name: "Soothsayer v1.9.0",
+              body: "### Minor Changes\n\n- Added a feature",
+              html_url:
+                "https://github.com/navali-creations/soothsayer/releases/tag/v1.9.0",
+            },
+          ]),
         });
 
         const handler = getIpcHandler(
           mockIpcHandle,
-          UpdaterChannel.GetLatestRelease,
+          UpdaterChannel.GetRecentReleases,
         );
         const result = await handler();
 
-        expect(result).not.toBeNull();
-        expect(result.version).toBe("2.0.0");
-        expect(result.name).toBe("Soothsayer v2.0.0");
-        expect(result.publishedAt).toBe("2025-01-15T00:00:00Z");
-        expect(result.url).toBe(
-          "https://github.com/navali-creations/soothsayer/releases/tag/v2.0.0",
+        expect(result).toHaveLength(2);
+        expect(result[0].version).toBe("2.0.0");
+        expect(result[0].changeType).toBe("Patch Changes");
+        expect(result[1].version).toBe("1.9.0");
+        expect(result[1].changeType).toBe("Minor Changes");
+        expect(mockFetch).toHaveBeenCalledWith(
+          expect.stringContaining("per_page=5"),
+          expect.objectContaining({
+            signal: expect.any(AbortSignal),
+          }),
         );
-        expect(result.body).toBe(SAMPLE_GITHUB_RELEASE.body);
-        expect(result.entries).toBeInstanceOf(Array);
-        expect(result.entries.length).toBeGreaterThan(0);
       });
 
-      it("should return null when fetch fails", async () => {
+      it("should filter draft and prerelease entries", async () => {
+        mockFetch.mockResolvedValueOnce({
+          ok: true,
+          json: vi.fn().mockResolvedValue([
+            SAMPLE_GITHUB_RELEASE,
+            { ...SAMPLE_GITHUB_RELEASE, tag_name: "v1.9.0", draft: true },
+            {
+              ...SAMPLE_GITHUB_RELEASE,
+              tag_name: "v1.8.0",
+              prerelease: true,
+            },
+          ]),
+        });
+
+        const handler = getIpcHandler(
+          mockIpcHandle,
+          UpdaterChannel.GetRecentReleases,
+        );
+        const result = await handler();
+
+        expect(result).toHaveLength(1);
+        expect(result[0].version).toBe("2.0.0");
+      });
+
+      it("should return an empty array when fetch fails", async () => {
         mockFetch.mockResolvedValueOnce({
           ok: false,
-          status: 404,
-          statusText: "Not Found",
+          status: 500,
+          statusText: "Server Error",
         });
 
         const handler = getIpcHandler(
           mockIpcHandle,
-          UpdaterChannel.GetLatestRelease,
+          UpdaterChannel.GetRecentReleases,
         );
         const result = await handler();
 
-        expect(result).toBeNull();
+        expect(result).toEqual([]);
       });
 
-      it("should return null when fetch throws", async () => {
+      it("should return an empty array when fetch throws", async () => {
         mockFetch.mockRejectedValueOnce(new Error("Network error"));
 
         const handler = getIpcHandler(
           mockIpcHandle,
-          UpdaterChannel.GetLatestRelease,
+          UpdaterChannel.GetRecentReleases,
         );
         const result = await handler();
 
-        expect(result).toBeNull();
+        expect(result).toEqual([]);
       });
 
-      it("should return null when release has no body", async () => {
-        const releaseNoBody = { ...SAMPLE_GITHUB_RELEASE, body: "" };
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: vi.fn().mockResolvedValue(releaseNoBody),
-        });
+      it("should return an empty array when the request is aborted", async () => {
+        mockFetch.mockRejectedValueOnce(
+          new DOMException("Timed out", "AbortError"),
+        );
 
         const handler = getIpcHandler(
           mockIpcHandle,
-          UpdaterChannel.GetLatestRelease,
+          UpdaterChannel.GetRecentReleases,
         );
         const result = await handler();
 
-        expect(result).not.toBeNull();
-        expect(result.body).toBe("");
-        expect(result.changeType).toBeDefined();
-      });
-
-      it("should strip 'v' prefix from tag_name for version", async () => {
-        const release = { ...SAMPLE_GITHUB_RELEASE, tag_name: "v3.2.1" };
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: vi.fn().mockResolvedValue(release),
-        });
-
-        const handler = getIpcHandler(
-          mockIpcHandle,
-          UpdaterChannel.GetLatestRelease,
-        );
-        const result = await handler();
-
-        expect(result.version).toBe("3.2.1");
-      });
-
-      it("should use tag_name as name when name is missing", async () => {
-        const release = { ...SAMPLE_GITHUB_RELEASE, name: "" };
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: vi.fn().mockResolvedValue(release),
-        });
-
-        const handler = getIpcHandler(
-          mockIpcHandle,
-          UpdaterChannel.GetLatestRelease,
-        );
-        const result = await handler();
-
-        expect(result.name).toBe(release.tag_name);
+        expect(result).toEqual([]);
       });
     });
 
@@ -1544,6 +1543,7 @@ describe("UpdaterService", () => {
           headers: expect.objectContaining({
             Accept: "application/vnd.github.v3+json",
           }),
+          signal: expect.any(AbortSignal),
         }),
       );
     });
@@ -1985,46 +1985,6 @@ describe("UpdaterService", () => {
   // ─── Edge cases & integration ──────────────────────────────────────────
 
   describe("edge cases", () => {
-    it("should handle release with null body in GetLatestRelease", async () => {
-      const mockWindow = createMockBrowserWindow();
-      service.initialize(mockWindow);
-
-      const releaseNullBody = { ...SAMPLE_GITHUB_RELEASE, body: null };
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue(releaseNullBody),
-      });
-
-      const handler = getIpcHandler(
-        mockIpcHandle,
-        UpdaterChannel.GetLatestRelease,
-      );
-      const result = await handler();
-
-      expect(result).not.toBeNull();
-      expect(result.body).toBe("");
-    });
-
-    it("should handle release with null name in GetLatestRelease", async () => {
-      const mockWindow = createMockBrowserWindow();
-      service.initialize(mockWindow);
-
-      const releaseNullName = { ...SAMPLE_GITHUB_RELEASE, name: null };
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue(releaseNullName),
-      });
-
-      const handler = getIpcHandler(
-        mockIpcHandle,
-        UpdaterChannel.GetLatestRelease,
-      );
-      const result = await handler();
-
-      expect(result).not.toBeNull();
-      expect(result.name).toBe(SAMPLE_GITHUB_RELEASE.tag_name);
-    });
-
     it("should parse changelog with only whitespace lines between entries", () => {
       const md = `## 1.0.0\n\n### Patch Changes\n\n- Entry one\n\n\n- Entry two\n`;
       // @ts-expect-error — accessing private method for testing

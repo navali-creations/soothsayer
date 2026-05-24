@@ -300,7 +300,7 @@ export function createElectronMock() {
       getUpdateInfo: vi.fn().mockResolvedValue(null),
       downloadUpdate: vi.fn().mockResolvedValue({ success: true }),
       installUpdate: vi.fn().mockResolvedValue({ success: true }),
-      getLatestRelease: vi.fn().mockResolvedValue(null),
+      getRecentReleases: vi.fn().mockResolvedValue([]),
       getChangelog: vi.fn().mockResolvedValue({ success: true, releases: [] }),
       onUpdateAvailable: mockListener(),
       onDownloadProgress: mockListener(),

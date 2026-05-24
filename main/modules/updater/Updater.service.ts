@@ -5,7 +5,11 @@ import { app, autoUpdater, type BrowserWindow, ipcMain, shell } from "electron";
 
 import { resolveDevFile } from "~/main/utils/resolve-dev-path";
 
-import type { ChangelogEntry, ChangelogRelease } from "./Updater.api";
+import type {
+  ChangelogEntry,
+  ChangelogRelease,
+  LatestReleaseInfo,
+} from "./Updater.api";
 import { UpdaterChannel } from "./Updater.channels";
 
 interface GitHubRelease {
@@ -14,6 +18,8 @@ interface GitHubRelease {
   name: string;
   body: string;
   published_at: string;
+  draft?: boolean;
+  prerelease?: boolean;
 }
 
 interface UpdateInfo {
@@ -41,6 +47,8 @@ const GITHUB_OWNER = "navali-creations";
 const GITHUB_REPO = "soothsayer";
 const CHECK_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 const INITIAL_CHECK_DELAY_MS = 10_000; // 10 seconds after startup
+const RECENT_RELEASES_LIMIT = 5;
+const GITHUB_FETCH_TIMEOUT_MS = 10_000;
 
 class UpdaterService {
   private static _instance: UpdaterService;
@@ -244,27 +252,14 @@ class UpdaterService {
       return this.installUpdate();
     });
 
-    // Fetch the latest GitHub release (for "What's New" modal)
-    ipcMain.handle(UpdaterChannel.GetLatestRelease, async () => {
+    // Fetch recent GitHub releases (for the "What's New" modal tabs)
+    ipcMain.handle(UpdaterChannel.GetRecentReleases, async () => {
       try {
-        const release = await this.fetchLatestRelease();
-        if (!release) return null;
-
-        const body = release.body || "";
-        const parsed = this.parseReleaseBody(body);
-
-        return {
-          version: release.tag_name.replace(/^v/, ""),
-          name: release.name || release.tag_name,
-          body,
-          publishedAt: release.published_at,
-          url: release.html_url,
-          changeType: parsed.changeType,
-          entries: parsed.entries,
-        };
+        const releases = await this.fetchRecentReleases();
+        return releases.map((release) => this.toLatestReleaseInfo(release));
       } catch (error) {
-        console.error("[Updater] Failed to fetch latest release:", error);
-        return null;
+        console.error("[Updater] Failed to fetch recent releases:", error);
+        return [];
       }
     });
 
@@ -426,6 +421,7 @@ class UpdaterService {
         Accept: "application/vnd.github.v3+json",
         "User-Agent": `Soothsayer/${app.getVersion()}`,
       },
+      signal: AbortSignal.timeout(GITHUB_FETCH_TIMEOUT_MS),
     });
 
     if (!response.ok) {
@@ -436,6 +432,31 @@ class UpdaterService {
     }
 
     return (await response.json()) as GitHubRelease;
+  }
+
+  /**
+   * Fetch a bounded list of recent non-draft, non-prerelease GitHub releases.
+   */
+  private async fetchRecentReleases(): Promise<GitHubRelease[]> {
+    const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases?per_page=${RECENT_RELEASES_LIMIT}`;
+
+    const response = await fetch(url, {
+      headers: {
+        Accept: "application/vnd.github.v3+json",
+        "User-Agent": `Soothsayer/${app.getVersion()}`,
+      },
+      signal: AbortSignal.timeout(GITHUB_FETCH_TIMEOUT_MS),
+    });
+
+    if (!response.ok) {
+      console.warn(
+        `[Updater] GitHub API responded with ${response.status}: ${response.statusText}`,
+      );
+      return [];
+    }
+
+    const releases = (await response.json()) as GitHubRelease[];
+    return releases.filter((release) => !release.draft && !release.prerelease);
   }
 
   /**
@@ -496,6 +517,21 @@ class UpdaterService {
 
     const match = releaseName.match(/(\d+\.\d+\.\d+)/);
     return match ? match[1] : releaseName;
+  }
+
+  private toLatestReleaseInfo(release: GitHubRelease): LatestReleaseInfo {
+    const body = release.body || "";
+    const parsed = this.parseReleaseBody(body);
+
+    return {
+      version: release.tag_name.replace(/^v/, ""),
+      name: release.name || release.tag_name,
+      body,
+      publishedAt: release.published_at,
+      url: release.html_url,
+      changeType: parsed.changeType,
+      entries: parsed.entries,
+    };
   }
 
   // ─── Release body parsing ─────────────────────────────────────────────

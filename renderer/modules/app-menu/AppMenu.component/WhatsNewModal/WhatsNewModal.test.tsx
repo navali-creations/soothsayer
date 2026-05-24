@@ -29,10 +29,19 @@ vi.mock("~/renderer/components", () => ({
   }),
 }));
 
-vi.mock("~/renderer/modules/changelog/Changelog.utils/Changelog.utils", () => ({
-  CORE_MAINTAINERS: new Set(),
-  changeTypeColor: (type: string) => type,
-}));
+vi.mock(
+  "~/renderer/modules/changelog/Changelog.utils/Changelog.utils",
+  async () => {
+    const actual = await vi.importActual<
+      typeof import("~/renderer/modules/changelog/Changelog.utils/Changelog.utils")
+    >("~/renderer/modules/changelog/Changelog.utils/Changelog.utils");
+
+    return {
+      ...actual,
+      CORE_MAINTAINERS: new Set(),
+    };
+  },
+);
 
 const mockUseBoundStore = vi.mocked(useBoundStore);
 
@@ -45,9 +54,12 @@ function createMockStore(overrides: any = {}) {
     appMenu: {
       isWhatsNewOpen: false,
       whatsNewRelease: null,
+      whatsNewReleases: [],
+      whatsNewSelectedVersion: null,
       whatsNewIsLoading: false,
       whatsNewError: null,
       closeWhatsNew: vi.fn(),
+      selectWhatsNewRelease: vi.fn(),
       ...overrides.appMenu,
     },
   } as any;
@@ -66,17 +78,18 @@ describe("WhatsNewModal", () => {
     vi.restoreAllMocks();
   });
 
-  it('shows "What\'s New" title when no release', () => {
+  it('shows "Soothsayer" title when no release', () => {
     setupStore();
     renderWithProviders(<WhatsNewModal />);
 
-    expect(screen.getByText("What's New")).toBeInTheDocument();
+    expect(screen.getByText("Soothsayer")).toBeInTheDocument();
   });
 
-  it("shows release name when whatsNewRelease exists", () => {
+  it("keeps the title compact when whatsNewRelease exists", () => {
     setupStore({
       appMenu: {
         whatsNewRelease: {
+          version: "1.5.0",
           name: "v1.5.0",
           body: "Some changes",
           changeType: "minor",
@@ -86,8 +99,10 @@ describe("WhatsNewModal", () => {
     });
     renderWithProviders(<WhatsNewModal />);
 
-    expect(screen.getByText("v1.5.0")).toBeInTheDocument();
-    expect(screen.queryByText("What's New")).not.toBeInTheDocument();
+    expect(screen.getByText("Soothsayer")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "v1.5.0" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows loading spinner when whatsNewIsLoading is true", () => {
@@ -134,6 +149,7 @@ describe("WhatsNewModal", () => {
     setupStore({
       appMenu: {
         whatsNewRelease: {
+          version: "1.5.0",
           name: "v1.5.0",
           body: "## Changes\n- Feature A",
           changeType: "minor",
@@ -153,6 +169,7 @@ describe("WhatsNewModal", () => {
     setupStore({
       appMenu: {
         whatsNewRelease: {
+          version: "1.5.0",
           name: "v1.5.0",
           body: "",
           changeType: "minor",
@@ -171,6 +188,7 @@ describe("WhatsNewModal", () => {
     setupStore({
       appMenu: {
         whatsNewRelease: {
+          version: "1.5.0",
           name: "v1.5.0",
           body: "Changes",
           changeType: "minor",
@@ -191,6 +209,7 @@ describe("WhatsNewModal", () => {
     setupStore({
       appMenu: {
         whatsNewRelease: {
+          version: "1.5.0",
           name: "v1.5.0",
           body: "Changes",
           changeType: "minor",
@@ -215,10 +234,11 @@ describe("WhatsNewModal", () => {
     expect(store.appMenu.closeWhatsNew).toHaveBeenCalledTimes(1);
   });
 
-  it("shows change type badge when release exists", () => {
+  it("does not show change type badge in the header", () => {
     setupStore({
       appMenu: {
         whatsNewRelease: {
+          version: "1.5.0",
           name: "v1.5.0",
           body: "Changes",
           changeType: "minor",
@@ -228,9 +248,7 @@ describe("WhatsNewModal", () => {
     });
     renderWithProviders(<WhatsNewModal />);
 
-    const badge = screen.getByTestId("badge");
-    expect(badge).toBeInTheDocument();
-    expect(badge).toHaveTextContent("minor");
+    expect(screen.queryByTestId("badge")).not.toBeInTheDocument();
   });
 
   it("does not show change type badge when no release", () => {
@@ -245,5 +263,108 @@ describe("WhatsNewModal", () => {
     renderWithProviders(<WhatsNewModal />);
 
     expect(screen.getByTestId("modal")).toBeInTheDocument();
+  });
+
+  it("shows release version tabs when multiple releases are available", () => {
+    setupStore({
+      appMenu: {
+        whatsNewRelease: {
+          version: "1.5.0",
+          name: "v1.5.0",
+          body: "Minor changes",
+          changeType: "minor",
+          publishedAt: "2024-06-15T00:00:00Z",
+        },
+        whatsNewReleases: [
+          {
+            version: "1.5.0",
+            name: "v1.5.0",
+            body: "Minor changes",
+            changeType: "minor",
+            publishedAt: "2024-06-15T00:00:00Z",
+          },
+          {
+            version: "1.5.1",
+            name: "v1.5.1",
+            body: "Patch changes",
+            changeType: "patch",
+            publishedAt: "2024-06-16T00:00:00Z",
+          },
+        ],
+        whatsNewSelectedVersion: "1.5.0",
+      },
+    });
+    renderWithProviders(<WhatsNewModal />);
+
+    expect(screen.getByRole("tab", { name: "v1.5.0" })).toHaveClass(
+      "bg-success/15",
+      "text-success",
+    );
+    expect(screen.getByRole("tab", { name: "v1.5.1" })).toHaveClass(
+      "text-info/70",
+    );
+  });
+
+  it("shows the release version tab when only one release is available", () => {
+    setupStore({
+      appMenu: {
+        whatsNewRelease: {
+          version: "1.5.0",
+          name: "v1.5.0",
+          body: "Minor changes",
+          changeType: "minor",
+          publishedAt: "2024-06-15T00:00:00Z",
+        },
+        whatsNewReleases: [
+          {
+            version: "1.5.0",
+            name: "v1.5.0",
+            body: "Minor changes",
+            changeType: "minor",
+            publishedAt: "2024-06-15T00:00:00Z",
+          },
+        ],
+        whatsNewSelectedVersion: "1.5.0",
+      },
+    });
+    renderWithProviders(<WhatsNewModal />);
+
+    expect(screen.getByRole("tab", { name: "v1.5.0" })).toBeInTheDocument();
+  });
+
+  it("selects a release when a version tab is clicked", async () => {
+    const store = setupStore({
+      appMenu: {
+        whatsNewRelease: {
+          version: "1.5.0",
+          name: "v1.5.0",
+          body: "Minor changes",
+          changeType: "minor",
+          publishedAt: "2024-06-15T00:00:00Z",
+        },
+        whatsNewReleases: [
+          {
+            version: "1.5.0",
+            name: "v1.5.0",
+            body: "Minor changes",
+            changeType: "minor",
+            publishedAt: "2024-06-15T00:00:00Z",
+          },
+          {
+            version: "1.5.1",
+            name: "v1.5.1",
+            body: "Patch changes",
+            changeType: "patch",
+            publishedAt: "2024-06-16T00:00:00Z",
+          },
+        ],
+        whatsNewSelectedVersion: "1.5.0",
+      },
+    });
+    const { user } = renderWithProviders(<WhatsNewModal />);
+
+    await user.click(screen.getByRole("tab", { name: "v1.5.1" }));
+
+    expect(store.appMenu.selectWhatsNewRelease).toHaveBeenCalledWith("1.5.1");
   });
 });

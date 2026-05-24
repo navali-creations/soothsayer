@@ -13,7 +13,7 @@
  * @module e2e/flows/app-menu
  */
 
-import type { Page } from "@playwright/test";
+import type { ElectronApplication, Page } from "@playwright/test";
 
 import { expect, test } from "../helpers/electron-test";
 import {
@@ -92,6 +92,66 @@ async function openMoreOptionsDropdown(page: Page) {
   await page.locator("[popover]:popover-open").first().waitFor({
     state: "visible",
     timeout: 5_000,
+  });
+}
+
+const MOCK_WHATS_NEW_RELEASES = [
+  {
+    tag_name: "v99.18.1",
+    html_url: "https://example.com/v99.18.1",
+    name: "Soothsayer v99.18.1",
+    body: "### Patch Changes\n\n- Patch release body",
+    published_at: "2026-05-25T00:00:00Z",
+  },
+  {
+    tag_name: "v99.18.0",
+    html_url: "https://example.com/v99.18.0",
+    name: "Soothsayer v99.18.0",
+    body: "### Minor Changes\n\n- Minor release body",
+    published_at: "2026-05-24T00:00:00Z",
+  },
+];
+
+async function mockRecentReleaseFetch(app: ElectronApplication) {
+  await app.evaluate(async (_electron, releases) => {
+    const globalWithMock = globalThis as typeof globalThis & {
+      __soothsayerOriginalFetch?: typeof fetch;
+    };
+
+    if (!globalWithMock.__soothsayerOriginalFetch) {
+      globalWithMock.__soothsayerOriginalFetch = globalThis.fetch;
+    }
+
+    globalThis.fetch = async (input, init) => {
+      const url = String(input);
+      if (
+        url.includes(
+          "api.github.com/repos/navali-creations/soothsayer/releases?per_page=",
+        )
+      ) {
+        return new Response(JSON.stringify(releases), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+
+      return globalWithMock.__soothsayerOriginalFetch!(input, init);
+    };
+  }, MOCK_WHATS_NEW_RELEASES);
+}
+
+async function restoreRecentReleaseFetch(app: ElectronApplication) {
+  await app.evaluate(async () => {
+    const globalWithMock = globalThis as typeof globalThis & {
+      __soothsayerOriginalFetch?: typeof fetch;
+    };
+
+    if (!globalWithMock.__soothsayerOriginalFetch) {
+      return;
+    }
+
+    globalThis.fetch = globalWithMock.__soothsayerOriginalFetch;
+    delete globalWithMock.__soothsayerOriginalFetch;
   });
 }
 
@@ -519,81 +579,110 @@ test.describe("AppMenu", () => {
       expect(currentRoute).toBe("/changelog");
     });
 
-    test("should open the What's New modal when clicking What's New", async ({
+    test("should open the What's New modal with release tabs and backdrop blur", async ({
+      app,
       page,
     }) => {
+      await mockRecentReleaseFetch(app);
       const dialog = page.locator("dialog.modal");
+      const modalBox = dialog.locator(".modal-box");
+      const scrim = page.locator('[data-testid="modal-scrim"]');
 
-      // The popover uses native light-dismiss (`popover="auto"`) which can
-      // auto-close before the modal becomes visible.  Retry the full
-      // open-dropdown → click sequence up to 3 times to handle that race.
-      for (let attempt = 0; attempt < 3; attempt++) {
-        await openMoreOptionsDropdown(page);
+      try {
+        // The popover uses native light-dismiss (`popover="auto"`) which can
+        // auto-close before the modal becomes visible. Retry the full
+        // open-dropdown -> click sequence up to 3 times to handle that race.
+        for (let attempt = 0; attempt < 3; attempt++) {
+          await openMoreOptionsDropdown(page);
 
-        const whatsNewItem = page
-          .locator("[popover] li")
-          .getByText("What's New");
-        const itemVisible = await whatsNewItem
-          .waitFor({ state: "visible", timeout: 3_000 })
-          .then(() => true)
-          .catch(() => false);
+          const whatsNewItem = page
+            .locator("[popover] li")
+            .getByText("What's New");
+          const itemVisible = await whatsNewItem
+            .waitFor({ state: "visible", timeout: 3_000 })
+            .then(() => true)
+            .catch(() => false);
 
-        if (!itemVisible) {
+          if (!itemVisible) {
+            await page.waitForTimeout(300);
+            continue;
+          }
+
+          await whatsNewItem.click();
+
+          const opened = await dialog
+            .waitFor({ state: "visible", timeout: 5_000 })
+            .then(() => true)
+            .catch(() => false);
+
+          if (opened) break;
           await page.waitForTimeout(300);
-          continue;
         }
 
-        await whatsNewItem.click();
+        await expect(dialog).toBeVisible({ timeout: 10_000 });
+        await expect(modalBox).toBeVisible({ timeout: 5_000 });
+        await expect(scrim).toBeVisible({ timeout: 5_000 });
 
-        // Wait for the dialog to appear — the click triggers an async
-        // store action that calls showModal() on the <dialog>.
-        const opened = await dialog
-          .waitFor({ state: "visible", timeout: 5_000 })
-          .then(() => true)
-          .catch(() => false);
+        const minorTab = dialog.getByRole("tab", { name: "v99.18.0" });
+        const patchTab = dialog.getByRole("tab", { name: "v99.18.1" });
+        await expect(minorTab).toBeVisible({ timeout: 5_000 });
+        await expect(patchTab).toBeVisible({ timeout: 5_000 });
+        await expect(patchTab).toHaveAttribute("aria-selected", "true");
+        await expect(modalBox).toContainText("Patch release body");
 
-        if (opened) break;
-        await page.waitForTimeout(300);
+        await minorTab.click();
+        await expect(minorTab).toHaveAttribute("aria-selected", "true");
+        await expect(modalBox).toContainText("Minor release body");
+
+        const scrimState = await page.evaluate(() => {
+          const scrimElement = document.querySelector(
+            '[data-testid="modal-scrim"]',
+          );
+          const sidebar = document.querySelector("aside");
+
+          if (!scrimElement || !sidebar) {
+            return { coversSidebar: false, backdropFilter: "" };
+          }
+
+          const scrimRect = scrimElement.getBoundingClientRect();
+          const sidebarRect = sidebar.getBoundingClientRect();
+          const visibleSidebarTop = Math.max(sidebarRect.top, 0);
+          const visibleSidebarBottom = Math.min(
+            sidebarRect.bottom,
+            window.innerHeight,
+          );
+          const style = window.getComputedStyle(scrimElement);
+
+          return {
+            coversSidebar:
+              scrimRect.left <= sidebarRect.left &&
+              scrimRect.right >= sidebarRect.right &&
+              scrimRect.top <= visibleSidebarTop &&
+              scrimRect.bottom >= visibleSidebarBottom,
+            backdropFilter:
+              style.backdropFilter ||
+              style.getPropertyValue("-webkit-backdrop-filter"),
+          };
+        });
+        expect(scrimState.coversSidebar).toBe(true);
+        expect(scrimState.backdropFilter).toContain("blur");
+
+        const closeButton = dialog
+          .locator("button.btn-primary")
+          .getByText("Close");
+        await expect(closeButton).toBeVisible({ timeout: 5_000 });
+
+        await closeButton.click();
+
+        await expect(scrim).toHaveClass(/opacity-0/, { timeout: 1_000 });
+        await expect(page.locator("dialog[open]")).toHaveCount(0, {
+          timeout: 5_000,
+        });
+        await expect(dialog).not.toBeVisible({ timeout: 5_000 });
+        await expect(scrim).toHaveCount(0, { timeout: 1_000 });
+      } finally {
+        await restoreRecentReleaseFetch(app);
       }
-
-      // The WhatsNewModal renders inside a <dialog> element via the Modal component.
-      // After clicking, the dialog should become visible (showModal is called).
-      await expect(dialog).toBeVisible({ timeout: 10_000 });
-
-      // The modal heading shows the release name (e.g. "v1.5.0") when the
-      // GitHub fetch succeeds, or the fallback text "What's New" when the
-      // fetch fails or is still loading.  Accept either — the important
-      // assertion is that the modal rendered meaningful content.
-      const modalBox = dialog.locator(".modal-box");
-      await expect(modalBox).toBeVisible({ timeout: 5_000 });
-
-      const modalContent = await modalBox.textContent();
-      const hasExpectedContent =
-        modalContent!.includes("What's New") ||
-        modalContent!.includes("Close") ||
-        // Release name / version / date shown when data loaded
-        modalContent!.includes("Release") ||
-        modalContent!.includes("release") ||
-        modalContent!.length > 20;
-      expect(hasExpectedContent).toBe(true);
-
-      // The modal should have a Close button (target the visible primary button,
-      // not the hidden <button type="submit">close</button> used by daisyUI's backdrop)
-      const closeButton = dialog
-        .locator("button.btn-primary")
-        .getByText("Close");
-      await expect(closeButton).toBeVisible({ timeout: 5_000 });
-
-      // Close the modal
-      await closeButton.click();
-
-      // Wait for the dialog to fully close
-      await expect(page.locator("dialog[open]")).toHaveCount(0, {
-        timeout: 5_000,
-      });
-
-      // The dialog should no longer be visible
-      await expect(dialog).not.toBeVisible({ timeout: 5_000 });
     });
 
     test("should have View Source link pointing to the GitHub repository", async ({

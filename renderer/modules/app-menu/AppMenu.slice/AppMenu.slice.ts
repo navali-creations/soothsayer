@@ -3,15 +3,28 @@ import type { StateCreator } from "zustand";
 import type { LatestReleaseInfo } from "~/main/modules/updater/Updater.api";
 import type { BoundStore } from "~/renderer/store/store.types";
 
+import {
+  getWhatsNewReleasesForView,
+  selectInitialWhatsNewRelease,
+} from "../AppMenu.utils/AppMenu.utils";
+
+async function persistLastSeenAppVersion(version: string): Promise<void> {
+  await window.electron?.settings.set("lastSeenAppVersion", version);
+}
+
 export interface AppMenuSlice {
   appMenu: {
     // State
     isMaximized: boolean;
     isWhatsNewOpen: boolean;
     whatsNewRelease: LatestReleaseInfo | null;
+    whatsNewReleases: LatestReleaseInfo[];
+    whatsNewSelectedVersion: string | null;
     whatsNewIsLoading: boolean;
     whatsNewError: string | null;
     whatsNewHasFetched: boolean;
+    whatsNewFromVersion: string | null;
+    whatsNewCurrentVersion: string | null;
 
     // Actions
     hydrate: () => Promise<void>;
@@ -22,6 +35,7 @@ export interface AppMenuSlice {
     setIsMaximized: (isMaximized: boolean) => void;
     openWhatsNew: () => Promise<void>;
     closeWhatsNew: () => void;
+    selectWhatsNewRelease: (version: string) => void;
   };
 }
 
@@ -36,9 +50,13 @@ export const createAppMenuSlice: StateCreator<
     isMaximized: false,
     isWhatsNewOpen: false,
     whatsNewRelease: null,
+    whatsNewReleases: [],
+    whatsNewSelectedVersion: null,
     whatsNewIsLoading: false,
     whatsNewError: null,
     whatsNewHasFetched: false,
+    whatsNewFromVersion: null,
+    whatsNewCurrentVersion: null,
 
     // Hydrate initial maximized state from Electron
     hydrate: async () => {
@@ -71,16 +89,24 @@ export const createAppMenuSlice: StateCreator<
             await window.electron?.settings.get("lastSeenAppVersion");
 
           if (lastSeenVersion && lastSeenVersion !== currentVersion) {
+            set(
+              ({ appMenu }) => {
+                appMenu.whatsNewFromVersion = lastSeenVersion;
+                appMenu.whatsNewCurrentVersion = currentVersion;
+              },
+              false,
+              "appMenuSlice/hydrate/whatsNewVersions",
+            );
+
             // User just updated — show What's New after a short delay
             setTimeout(() => {
               get().appMenu.openWhatsNew();
             }, 3000);
+
+            return;
           }
 
-          await window.electron?.settings.set(
-            "lastSeenAppVersion",
-            currentVersion,
-          );
+          await persistLastSeenAppVersion(currentVersion);
         }
       } catch (_error) {
         // Silently handle — version check is non-critical
@@ -141,7 +167,11 @@ export const createAppMenuSlice: StateCreator<
       );
 
       // Skip fetch if we already have the release info
-      if (get().appMenu.whatsNewHasFetched && get().appMenu.whatsNewRelease) {
+      if (
+        get().appMenu.whatsNewHasFetched &&
+        get().appMenu.whatsNewRelease &&
+        get().appMenu.whatsNewReleases.length > 0
+      ) {
         return;
       }
 
@@ -155,12 +185,25 @@ export const createAppMenuSlice: StateCreator<
       );
 
       try {
-        const result = await window.electron.updater.getLatestRelease();
+        const recentReleases =
+          await window.electron.updater.getRecentReleases();
+        const { whatsNewFromVersion, whatsNewCurrentVersion } = get().appMenu;
+        const releases = getWhatsNewReleasesForView(
+          recentReleases,
+          whatsNewFromVersion,
+          whatsNewCurrentVersion,
+        );
+        const result = selectInitialWhatsNewRelease(
+          releases,
+          !!whatsNewFromVersion,
+        );
 
         if (result) {
           set(
             ({ appMenu }) => {
               appMenu.whatsNewRelease = result;
+              appMenu.whatsNewReleases = releases;
+              appMenu.whatsNewSelectedVersion = result.version;
               appMenu.whatsNewIsLoading = false;
               appMenu.whatsNewHasFetched = true;
             },
@@ -171,6 +214,8 @@ export const createAppMenuSlice: StateCreator<
           set(
             ({ appMenu }) => {
               appMenu.whatsNewError = "Could not fetch release information.";
+              appMenu.whatsNewReleases = [];
+              appMenu.whatsNewSelectedVersion = null;
               appMenu.whatsNewIsLoading = false;
               appMenu.whatsNewHasFetched = true;
             },
@@ -182,6 +227,8 @@ export const createAppMenuSlice: StateCreator<
         set(
           ({ appMenu }) => {
             appMenu.whatsNewError = (err as Error).message;
+            appMenu.whatsNewReleases = [];
+            appMenu.whatsNewSelectedVersion = null;
             appMenu.whatsNewIsLoading = false;
             appMenu.whatsNewHasFetched = true;
           },
@@ -192,12 +239,50 @@ export const createAppMenuSlice: StateCreator<
     },
 
     closeWhatsNew: () => {
+      const { whatsNewCurrentVersion, whatsNewReleases } = get().appMenu;
+      const versionToMarkSeen =
+        whatsNewCurrentVersion && whatsNewReleases.length > 0
+          ? whatsNewCurrentVersion
+          : null;
+
       set(
         ({ appMenu }) => {
+          const latestRelease = appMenu.whatsNewReleases.at(-1);
+          if (latestRelease) {
+            appMenu.whatsNewRelease = latestRelease;
+            appMenu.whatsNewSelectedVersion = latestRelease.version;
+          }
+          appMenu.whatsNewFromVersion = null;
+          appMenu.whatsNewCurrentVersion = null;
           appMenu.isWhatsNewOpen = false;
         },
         false,
         "appMenuSlice/closeWhatsNew",
+      );
+
+      if (versionToMarkSeen) {
+        void persistLastSeenAppVersion(versionToMarkSeen).catch(
+          () => undefined,
+        );
+      }
+    },
+
+    selectWhatsNewRelease: (version: string) => {
+      set(
+        ({ appMenu }) => {
+          const release = appMenu.whatsNewReleases.find(
+            (candidate) => candidate.version === version,
+          );
+
+          if (!release) {
+            return;
+          }
+
+          appMenu.whatsNewRelease = release;
+          appMenu.whatsNewSelectedVersion = release.version;
+        },
+        false,
+        "appMenuSlice/selectWhatsNewRelease",
       );
     },
   },

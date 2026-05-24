@@ -263,9 +263,13 @@ export const useBoundStore = create<BoundStore>()(
               appMenu.isMaximized = false;
               appMenu.isWhatsNewOpen = false;
               appMenu.whatsNewRelease = null;
+              appMenu.whatsNewReleases = [];
+              appMenu.whatsNewSelectedVersion = null;
               appMenu.whatsNewIsLoading = false;
               appMenu.whatsNewError = null;
               appMenu.whatsNewHasFetched = false;
+              appMenu.whatsNewFromVersion = null;
+              appMenu.whatsNewCurrentVersion = null;
 
               // Reset game info
               gameInfo.poe1Leagues = [];

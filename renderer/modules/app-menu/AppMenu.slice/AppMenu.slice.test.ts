@@ -14,6 +14,18 @@ beforeEach(() => {
   store = createTestStore();
 });
 
+function makeRelease(version: string, changeType = "Patch Changes") {
+  return {
+    version,
+    name: `v${version}`,
+    body: `${changeType} for ${version}`,
+    publishedAt: "2024-01-01",
+    url: `https://example.com/v${version}`,
+    changeType,
+    entries: [],
+  };
+}
+
 describe("AppMenuSlice", () => {
   // ── Initial State ────────────────────────────────────────────────────────
 
@@ -30,6 +42,14 @@ describe("AppMenuSlice", () => {
       expect(store.getState().appMenu.whatsNewRelease).toBeNull();
     });
 
+    it("has whatsNewReleases set to an empty array", () => {
+      expect(store.getState().appMenu.whatsNewReleases).toEqual([]);
+    });
+
+    it("has whatsNewSelectedVersion set to null", () => {
+      expect(store.getState().appMenu.whatsNewSelectedVersion).toBeNull();
+    });
+
     it("has whatsNewIsLoading set to false", () => {
       expect(store.getState().appMenu.whatsNewIsLoading).toBe(false);
     });
@@ -40,6 +60,11 @@ describe("AppMenuSlice", () => {
 
     it("has whatsNewHasFetched set to false", () => {
       expect(store.getState().appMenu.whatsNewHasFetched).toBe(false);
+    });
+
+    it("has whatsNew version range set to null", () => {
+      expect(store.getState().appMenu.whatsNewFromVersion).toBeNull();
+      expect(store.getState().appMenu.whatsNewCurrentVersion).toBeNull();
     });
   });
 
@@ -98,27 +123,38 @@ describe("AppMenuSlice", () => {
       vi.useFakeTimers();
 
       electron.mainWindow.isMaximized.mockResolvedValue(false);
-      electron.app.getVersion.mockResolvedValue("2.0.0");
-      electron.settings.get.mockResolvedValue("1.9.0");
-      electron.updater.getLatestRelease.mockResolvedValue({
-        version: "2.0.0",
-        name: "v2.0.0",
-        body: "Release notes",
-        publishedAt: "2024-01-01",
-        url: "https://example.com",
-        changeType: "minor",
-        entries: [],
-      });
+      electron.app.getVersion.mockResolvedValue("0.18.2");
+      electron.settings.get.mockResolvedValue("0.17.1");
+      electron.updater.getRecentReleases.mockResolvedValue([
+        makeRelease("0.18.2"),
+        makeRelease("0.18.1"),
+        makeRelease("0.18.0", "Minor Changes"),
+        makeRelease("0.17.1"),
+      ]);
 
       await store.getState().appMenu.hydrate();
 
       // Before timeout fires, isWhatsNewOpen should still be false
       expect(store.getState().appMenu.isWhatsNewOpen).toBe(false);
+      expect(electron.settings.set).not.toHaveBeenCalledWith(
+        "lastSeenAppVersion",
+        "0.18.2",
+      );
 
       // Advance timers to trigger the deferred openWhatsNew
       await vi.advanceTimersByTimeAsync(3000);
 
       expect(store.getState().appMenu.isWhatsNewOpen).toBe(true);
+      expect(store.getState().appMenu.whatsNewRelease?.version).toBe("0.18.0");
+      expect(
+        store
+          .getState()
+          .appMenu.whatsNewReleases.map((release) => release.version),
+      ).toEqual(["0.18.0", "0.18.1", "0.18.2"]);
+      expect(electron.settings.set).not.toHaveBeenCalledWith(
+        "lastSeenAppVersion",
+        "0.18.2",
+      );
 
       vi.useRealTimers();
     });
@@ -244,7 +280,7 @@ describe("AppMenuSlice", () => {
 
   describe("openWhatsNew", () => {
     it("sets isWhatsNewOpen to true immediately", async () => {
-      electron.updater.getLatestRelease.mockResolvedValue(null);
+      electron.updater.getRecentReleases.mockResolvedValue([]);
 
       const promise = store.getState().appMenu.openWhatsNew();
 
@@ -256,7 +292,7 @@ describe("AppMenuSlice", () => {
 
     it("sets whatsNewIsLoading while fetching", async () => {
       let resolvePromise!: (value: unknown) => void;
-      electron.updater.getLatestRelease.mockReturnValue(
+      electron.updater.getRecentReleases.mockReturnValue(
         new Promise((resolve) => {
           resolvePromise = resolve;
         }),
@@ -266,46 +302,30 @@ describe("AppMenuSlice", () => {
 
       expect(store.getState().appMenu.whatsNewIsLoading).toBe(true);
 
-      resolvePromise({
-        version: "1.0.0",
-        name: "v1.0.0",
-        body: "Notes",
-        publishedAt: "2024-01-01",
-        url: "https://example.com",
-        changeType: "major",
-        entries: [],
-      });
+      resolvePromise([makeRelease("1.0.0", "Major Changes")]);
       await promise;
 
       expect(store.getState().appMenu.whatsNewIsLoading).toBe(false);
     });
 
     it("fetches and stores release info on success", async () => {
-      const releaseInfo = {
-        version: "2.1.0",
-        name: "v2.1.0",
-        body: "## What's new\n- Feature A",
-        publishedAt: "2024-06-15T00:00:00Z",
-        url: "https://github.com/repo/releases/tag/v2.1.0",
-        changeType: "minor",
-        entries: [
-          { title: "Feature A", description: "A description", content: "" },
-        ],
-      };
+      const releaseInfo = makeRelease("2.1.0", "Minor Changes");
 
-      electron.updater.getLatestRelease.mockResolvedValue(releaseInfo);
+      electron.updater.getRecentReleases.mockResolvedValue([releaseInfo]);
 
       await store.getState().appMenu.openWhatsNew();
 
       const state = store.getState().appMenu;
       expect(state.whatsNewRelease).toEqual(releaseInfo);
+      expect(state.whatsNewReleases).toEqual([releaseInfo]);
+      expect(state.whatsNewSelectedVersion).toBe("2.1.0");
       expect(state.whatsNewIsLoading).toBe(false);
       expect(state.whatsNewHasFetched).toBe(true);
       expect(state.whatsNewError).toBeNull();
     });
 
-    it("sets error when getLatestRelease returns null", async () => {
-      electron.updater.getLatestRelease.mockResolvedValue(null);
+    it("sets error when getRecentReleases returns no releases", async () => {
+      electron.updater.getRecentReleases.mockResolvedValue([]);
 
       await store.getState().appMenu.openWhatsNew();
 
@@ -316,8 +336,8 @@ describe("AppMenuSlice", () => {
       expect(state.whatsNewHasFetched).toBe(true);
     });
 
-    it("sets error when getLatestRelease throws", async () => {
-      electron.updater.getLatestRelease.mockRejectedValue(
+    it("sets error when getRecentReleases throws", async () => {
+      electron.updater.getRecentReleases.mockRejectedValue(
         new Error("Rate limited"),
       );
 
@@ -331,21 +351,13 @@ describe("AppMenuSlice", () => {
     });
 
     it("skips fetch if already fetched with a release", async () => {
-      const releaseInfo = {
-        version: "1.0.0",
-        name: "v1.0.0",
-        body: "Notes",
-        publishedAt: "2024-01-01",
-        url: "https://example.com",
-        changeType: "major",
-        entries: [],
-      };
+      const releaseInfo = makeRelease("1.0.0", "Major Changes");
 
-      electron.updater.getLatestRelease.mockResolvedValue(releaseInfo);
+      electron.updater.getRecentReleases.mockResolvedValue([releaseInfo]);
 
       // First call — fetches
       await store.getState().appMenu.openWhatsNew();
-      expect(electron.updater.getLatestRelease).toHaveBeenCalledTimes(1);
+      expect(electron.updater.getRecentReleases).toHaveBeenCalledTimes(1);
       expect(store.getState().appMenu.whatsNewRelease).toEqual(releaseInfo);
 
       // Close and re-open
@@ -353,59 +365,74 @@ describe("AppMenuSlice", () => {
       await store.getState().appMenu.openWhatsNew();
 
       // Should NOT have fetched again
-      expect(electron.updater.getLatestRelease).toHaveBeenCalledTimes(1);
+      expect(electron.updater.getRecentReleases).toHaveBeenCalledTimes(1);
       expect(store.getState().appMenu.isWhatsNewOpen).toBe(true);
     });
 
     it("re-fetches if previous fetch returned null (hasFetched true but release is null)", async () => {
       // First call — null result
-      electron.updater.getLatestRelease.mockResolvedValue(null);
+      electron.updater.getRecentReleases.mockResolvedValue([]);
       await store.getState().appMenu.openWhatsNew();
       expect(store.getState().appMenu.whatsNewHasFetched).toBe(true);
       expect(store.getState().appMenu.whatsNewRelease).toBeNull();
-      expect(electron.updater.getLatestRelease).toHaveBeenCalledTimes(1);
+      expect(electron.updater.getRecentReleases).toHaveBeenCalledTimes(1);
 
       // Close and re-open — should fetch again because release is null
       store.getState().appMenu.closeWhatsNew();
 
-      const releaseInfo = {
-        version: "1.0.0",
-        name: "v1.0.0",
-        body: "Notes",
-        publishedAt: "2024-01-01",
-        url: "https://example.com",
-        changeType: "major",
-        entries: [],
-      };
-      electron.updater.getLatestRelease.mockResolvedValue(releaseInfo);
+      const releaseInfo = makeRelease("1.0.0", "Major Changes");
+      electron.updater.getRecentReleases.mockResolvedValue([releaseInfo]);
 
       await store.getState().appMenu.openWhatsNew();
-      expect(electron.updater.getLatestRelease).toHaveBeenCalledTimes(2);
+      expect(electron.updater.getRecentReleases).toHaveBeenCalledTimes(2);
       expect(store.getState().appMenu.whatsNewRelease).toEqual(releaseInfo);
     });
 
     it("clears previous error before a new fetch attempt", async () => {
       // First call — error
-      electron.updater.getLatestRelease.mockRejectedValue(new Error("Timeout"));
+      electron.updater.getRecentReleases.mockRejectedValue(
+        new Error("Timeout"),
+      );
       await store.getState().appMenu.openWhatsNew();
       expect(store.getState().appMenu.whatsNewError).toBe("Timeout");
 
       // Close and re-open — error should be cleared during fetch start
       store.getState().appMenu.closeWhatsNew();
 
-      const releaseInfo = {
-        version: "1.0.0",
-        name: "v1.0.0",
-        body: "Notes",
-        publishedAt: "2024-01-01",
-        url: "https://example.com",
-        changeType: "major",
-        entries: [],
-      };
-      electron.updater.getLatestRelease.mockResolvedValue(releaseInfo);
+      const releaseInfo = makeRelease("1.0.0", "Major Changes");
+      electron.updater.getRecentReleases.mockResolvedValue([releaseInfo]);
 
       await store.getState().appMenu.openWhatsNew();
       expect(store.getState().appMenu.whatsNewError).toBeNull();
+    });
+
+    it("selects the latest patch release on manual open", async () => {
+      electron.updater.getRecentReleases.mockResolvedValue([
+        makeRelease("0.18.2"),
+        makeRelease("0.18.1"),
+        makeRelease("0.18.0", "Minor Changes"),
+      ]);
+
+      await store.getState().appMenu.openWhatsNew();
+
+      expect(store.getState().appMenu.whatsNewRelease?.version).toBe("0.18.2");
+      expect(
+        store
+          .getState()
+          .appMenu.whatsNewReleases.map((release) => release.version),
+      ).toEqual(["0.18.0", "0.18.1", "0.18.2"]);
+    });
+
+    it("selects the requested release version", async () => {
+      const minor = makeRelease("0.18.0", "Minor Changes");
+      const patch = makeRelease("0.18.1");
+      electron.updater.getRecentReleases.mockResolvedValue([patch, minor]);
+
+      await store.getState().appMenu.openWhatsNew();
+      store.getState().appMenu.selectWhatsNewRelease("0.18.0");
+
+      expect(store.getState().appMenu.whatsNewRelease).toEqual(minor);
+      expect(store.getState().appMenu.whatsNewSelectedVersion).toBe("0.18.0");
     });
   });
 
@@ -413,7 +440,7 @@ describe("AppMenuSlice", () => {
 
   describe("closeWhatsNew", () => {
     it("sets isWhatsNewOpen to false", async () => {
-      electron.updater.getLatestRelease.mockResolvedValue(null);
+      electron.updater.getRecentReleases.mockResolvedValue([]);
 
       await store.getState().appMenu.openWhatsNew();
       expect(store.getState().appMenu.isWhatsNewOpen).toBe(true);
@@ -424,23 +451,51 @@ describe("AppMenuSlice", () => {
     });
 
     it("does not clear whatsNewRelease when closing", async () => {
-      const releaseInfo = {
-        version: "1.0.0",
-        name: "v1.0.0",
-        body: "Notes",
-        publishedAt: "2024-01-01",
-        url: "https://example.com",
-        changeType: "major",
-        entries: [],
-      };
+      const releaseInfo = makeRelease("1.0.0", "Major Changes");
 
-      electron.updater.getLatestRelease.mockResolvedValue(releaseInfo);
+      electron.updater.getRecentReleases.mockResolvedValue([releaseInfo]);
 
       await store.getState().appMenu.openWhatsNew();
       store.getState().appMenu.closeWhatsNew();
 
       expect(store.getState().appMenu.isWhatsNewOpen).toBe(false);
       expect(store.getState().appMenu.whatsNewRelease).toEqual(releaseInfo);
+    });
+
+    it("resets the selected tab to the latest release after closing", async () => {
+      electron.updater.getRecentReleases.mockResolvedValue([
+        makeRelease("0.18.2"),
+        makeRelease("0.18.1"),
+        makeRelease("0.18.0", "Minor Changes"),
+      ]);
+
+      store.getState().appMenu.whatsNewFromVersion = "0.17.1";
+      store.getState().appMenu.whatsNewCurrentVersion = "0.18.2";
+      await store.getState().appMenu.openWhatsNew();
+      expect(store.getState().appMenu.whatsNewSelectedVersion).toBe("0.18.0");
+
+      store.getState().appMenu.closeWhatsNew();
+
+      expect(store.getState().appMenu.whatsNewSelectedVersion).toBe("0.18.2");
+      expect(store.getState().appMenu.whatsNewFromVersion).toBeNull();
+      expect(store.getState().appMenu.whatsNewCurrentVersion).toBeNull();
+      expect(electron.settings.set).toHaveBeenCalledWith(
+        "lastSeenAppVersion",
+        "0.18.2",
+      );
+    });
+
+    it("does not persist the current version when no release loaded", async () => {
+      electron.updater.getRecentReleases.mockResolvedValue([]);
+
+      store.getState().appMenu.whatsNewCurrentVersion = "0.18.2";
+      await store.getState().appMenu.openWhatsNew();
+      store.getState().appMenu.closeWhatsNew();
+
+      expect(electron.settings.set).not.toHaveBeenCalledWith(
+        "lastSeenAppVersion",
+        "0.18.2",
+      );
     });
   });
 });

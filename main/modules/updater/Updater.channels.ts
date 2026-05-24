@@ -5,7 +5,7 @@ enum UpdaterChannel {
   InstallUpdate = "updater:install-update",
   OnUpdateAvailable = "updater:on-update-available",
   OnDownloadProgress = "updater:on-download-progress",
-  GetLatestRelease = "updater:get-latest-release",
+  GetRecentReleases = "updater:get-recent-releases",
   GetChangelog = "updater:get-changelog",
 }
 

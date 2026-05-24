@@ -17,6 +17,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -65,6 +66,39 @@ describe("Modal", () => {
     });
 
     expect(HTMLDialogElement.prototype.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the visual scrim mounted briefly when closing", () => {
+    vi.useFakeTimers();
+    const ref = React.createRef<ModalHandle>();
+
+    renderWithProviders(
+      <Modal ref={ref}>
+        <p>Scrim content</p>
+      </Modal>,
+    );
+
+    act(() => {
+      ref.current!.open();
+    });
+
+    const visibleScrim = screen.getByTestId("modal-scrim");
+    expect(visibleScrim).toHaveClass("fixed");
+    expect(visibleScrim).toHaveClass("z-40");
+    expect(visibleScrim).toHaveClass("backdrop-blur-sm");
+    expect(visibleScrim).toHaveClass("opacity-100");
+
+    act(() => {
+      ref.current!.close();
+    });
+
+    expect(screen.getByTestId("modal-scrim")).toHaveClass("opacity-0");
+
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(screen.queryByTestId("modal-scrim")).not.toBeInTheDocument();
   });
 
   // ── 3. Size variants ──────────────────────────────────────────────────
@@ -143,10 +177,17 @@ describe("Modal", () => {
 
     const form = container.querySelector('form[method="dialog"]');
     expect(form).toBeInTheDocument();
-    expect(form).toHaveClass("modal-backdrop");
+    expect(form).not.toHaveClass("modal-backdrop");
+    expect(form).toHaveClass("col-start-1");
+    expect(form).toHaveClass("row-start-1");
+    expect(form).toHaveClass("grid");
+    expect(form).toHaveClass("place-self-stretch");
+    expect(form).not.toHaveClass("bg-base-300/45");
+    expect(form).not.toHaveClass("backdrop-blur-sm");
 
     const submitButton = form!.querySelector('button[type="submit"]');
     expect(submitButton).toBeInTheDocument();
+    expect(submitButton).toHaveClass("cursor-pointer");
   });
 
   it("renders the backdrop form when closeOnBackdrop is explicitly true", () => {
@@ -224,7 +265,7 @@ describe("Modal", () => {
     expect(dialog).toHaveClass("modal");
     expect(dialog).toHaveClass("modal-bottom");
     expect(dialog).toHaveClass("sm:modal-middle");
-    expect(dialog).toHaveClass("backdrop-blur-xs");
+    expect(dialog).toHaveClass("!bg-transparent");
   });
 
   // ── 10. Modal-box base classes ────────────────────────────────────────
@@ -241,5 +282,8 @@ describe("Modal", () => {
     expect(modalBox).toHaveClass("border");
     expect(modalBox).toHaveClass("border-base-300");
     expect(modalBox).toHaveClass("bg-base-300");
+    expect(modalBox).toHaveClass(
+      "shadow-[0px_0px_18px_0px_var(--tw-shadow-color,_rgba(0,0,0,0.50))]",
+    );
   });
 });
