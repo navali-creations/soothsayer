@@ -1,6 +1,8 @@
-import { cleanup } from "@testing-library/react";
-
-import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
+import {
+  cleanup,
+  renderWithProviders,
+  screen,
+} from "~/renderer/__test-setup__/render";
 import { useBoundStore } from "~/renderer/store";
 
 import CurrentSessionMostValuableStat from "../CurrentSessionMostValueableCardStat/CurrentSessionMostValueableCardStat";

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
 
 // ─── Mocks (must be declared before imports) ───────────────────────────────
 
@@ -93,7 +93,7 @@ describe("createPFExcludeColumn", () => {
   it("renders header with eye icon and tooltip", () => {
     const column = createPFExcludeColumn();
     const HeaderComponent = column.header as any;
-    render(<HeaderComponent />);
+    renderWithProviders(<HeaderComponent />);
     expect(screen.getByTestId("table-header")).toHaveAttribute(
       "data-tooltip",
       "Include/exclude card from EV calculations",
@@ -104,7 +104,7 @@ describe("createPFExcludeColumn", () => {
   it("renders header with correct className", () => {
     const column = createPFExcludeColumn();
     const HeaderComponent = column.header as any;
-    render(<HeaderComponent />);
+    renderWithProviders(<HeaderComponent />);
     expect(screen.getByTestId("table-header")).toHaveAttribute(
       "class",
       "flex w-full justify-center pl-1",
@@ -274,7 +274,7 @@ describe("createPFPlCardOnlyColumn", () => {
   it("renders header with correct text", () => {
     const column = createPFPlCardOnlyColumn();
     const HeaderComponent = column.header as any;
-    render(<HeaderComponent />);
+    renderWithProviders(<HeaderComponent />);
     const span = screen.getByText("P&L (card only)");
     expect(span).toBeInTheDocument();
   });
@@ -282,7 +282,7 @@ describe("createPFPlCardOnlyColumn", () => {
   it("has onboarding data attribute on header", () => {
     const column = createPFPlCardOnlyColumn();
     const HeaderComponent = column.header as any;
-    render(<HeaderComponent />);
+    renderWithProviders(<HeaderComponent />);
     const span = screen.getByText("P&L (card only)");
     expect(span).toHaveAttribute("data-onboarding", "pf-pl-card-only");
   });
@@ -316,7 +316,7 @@ describe("createPFPlAllDropsColumn", () => {
   it("renders header with correct text", () => {
     const column = createPFPlAllDropsColumn();
     const HeaderComponent = column.header as any;
-    render(<HeaderComponent />);
+    renderWithProviders(<HeaderComponent />);
     const span = screen.getByText("P&L (all drops)");
     expect(span).toBeInTheDocument();
   });
@@ -324,7 +324,7 @@ describe("createPFPlAllDropsColumn", () => {
   it("has onboarding data attribute on header", () => {
     const column = createPFPlAllDropsColumn();
     const HeaderComponent = column.header as any;
-    render(<HeaderComponent />);
+    renderWithProviders(<HeaderComponent />);
     const span = screen.getByText("P&L (all drops)");
     expect(span).toHaveAttribute("data-onboarding", "pf-pl-all-drops");
   });

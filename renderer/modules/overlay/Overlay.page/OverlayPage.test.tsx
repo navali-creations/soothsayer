@@ -1,4 +1,3 @@
-import { act, cleanup, render, screen } from "@testing-library/react";
 import {
   afterEach,
   beforeEach,
@@ -8,6 +7,13 @@ import {
   type MockInstance,
   vi,
 } from "vitest";
+
+import {
+  act,
+  cleanup,
+  renderWithProviders,
+  screen,
+} from "~/renderer/__test-setup__/render";
 
 // ─── Top-level mock fns (referenced inside vi.mock factories) ──────────────
 
@@ -156,7 +162,7 @@ function removeAudioMock() {
  */
 function renderWithState(overrides: Record<string, unknown> = {}) {
   mockUseBoundStore.mockReturnValue(defaultOverlayState(overrides));
-  return render(<OverlayApp />);
+  return renderWithProviders(<OverlayApp />);
 }
 
 /**
@@ -195,7 +201,7 @@ async function renderAndSettle(overrides: Record<string, unknown> = {}) {
 
   let result: ReturnType<typeof render>;
   await act(async () => {
-    result = render(<OverlayApp />);
+    result = renderWithProviders(<OverlayApp />);
   });
 
   // Flush any remaining micro-tasks from IPC calls
@@ -482,7 +488,7 @@ describe("OverlayApp", () => {
       const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
       await act(async () => {
-        render(<OverlayApp />);
+        renderWithProviders(<OverlayApp />);
       });
 
       // Should warn that electron is not ready (single string argument)
@@ -857,7 +863,7 @@ describe("OverlayApp", () => {
       mockUseBoundStore.mockReturnValue(state);
 
       const { rerender } = await act(async () => {
-        return render(<OverlayApp />);
+        return renderWithProviders(<OverlayApp />);
       });
 
       await act(async () => {
@@ -966,7 +972,7 @@ describe("OverlayApp", () => {
       mockUseBoundStore.mockReturnValue(stateWithDrop);
 
       const { rerender } = await act(async () => {
-        return render(<OverlayApp />);
+        return renderWithProviders(<OverlayApp />);
       });
 
       await act(async () => {
@@ -1007,7 +1013,7 @@ describe("OverlayApp", () => {
       mockUseBoundStore.mockReturnValue(stateFirst);
 
       const { rerender } = await act(async () => {
-        return render(<OverlayApp />);
+        return renderWithProviders(<OverlayApp />);
       });
 
       await act(async () => {
@@ -1070,7 +1076,7 @@ describe("OverlayApp", () => {
       mockUseBoundStore.mockReturnValue(stateWithDrop);
 
       const { rerender } = await act(async () => {
-        return render(<OverlayApp />);
+        return renderWithProviders(<OverlayApp />);
       });
 
       await act(async () => {
@@ -1135,7 +1141,7 @@ describe("OverlayApp", () => {
       mockUseBoundStore.mockReturnValue(state);
 
       const { rerender } = await act(async () => {
-        return render(<OverlayApp />);
+        return renderWithProviders(<OverlayApp />);
       });
 
       await act(async () => {

@@ -1,7 +1,8 @@
-import { act, fireEvent } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  act,
+  fireEvent,
   renderWithProviders,
   screen,
   waitFor,
@@ -352,6 +353,7 @@ describe("CardDetailsShareButton — copy feedback", () => {
     vi.useFakeTimers();
     renderComponent();
 
+    // fireEvent avoids user-event fake-timer deadlock in this timeout assertion.
     fireEvent.click(screen.getByRole("button"));
 
     await act(async () => {

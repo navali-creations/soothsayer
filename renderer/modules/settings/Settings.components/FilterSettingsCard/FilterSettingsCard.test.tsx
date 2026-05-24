@@ -1,4 +1,3 @@
-import { fireEvent } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -225,10 +224,10 @@ describe("FilterSettingsCard", () => {
         },
       });
 
-      renderWithProviders(<FilterSettingsCard />);
+      const { user } = renderWithProviders(<FilterSettingsCard />);
 
       const select = screen.getByRole("combobox");
-      fireEvent.change(select, { target: { value: "poe.ninja" } });
+      await user.selectOptions(select, "poe.ninja");
 
       await waitFor(() => {
         expect(store.settings.updateSetting).toHaveBeenCalledWith(
@@ -249,10 +248,10 @@ describe("FilterSettingsCard", () => {
         },
       });
 
-      renderWithProviders(<FilterSettingsCard />);
+      const { user } = renderWithProviders(<FilterSettingsCard />);
 
       const select = screen.getByRole("combobox");
-      fireEvent.change(select, { target: { value: "filter:f1" } });
+      await user.selectOptions(select, "filter:f1");
 
       await waitFor(() => {
         expect(store.settings.updateSetting).toHaveBeenCalledWith(
@@ -278,10 +277,10 @@ describe("FilterSettingsCard", () => {
         },
       });
 
-      renderWithProviders(<FilterSettingsCard />);
+      const { user } = renderWithProviders(<FilterSettingsCard />);
 
       const select = screen.getByRole("combobox");
-      fireEvent.change(select, { target: { value: "poe.ninja" } });
+      await user.selectOptions(select, "poe.ninja");
 
       await waitFor(() => {
         expect(store.rarityInsights.clearSelectedFilter).toHaveBeenCalledTimes(

@@ -1,6 +1,11 @@
-import { act, cleanup, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
 
+import {
+  act,
+  cleanup,
+  renderWithProviders,
+  screen,
+} from "~/renderer/__test-setup__/render";
 import { useBoundStore } from "~/renderer/store";
 
 // ── Mocks (must be declared before component import) ────────────────────────
@@ -255,7 +260,7 @@ describe("SessionProfitTimeline", () => {
 
   describe("when bufferVersion is 0", () => {
     it("should render shell when both totalDrops and chartData are empty", () => {
-      const { container } = render(<SessionProfitTimeline />);
+      const { container } = renderWithProviders(<SessionProfitTimeline />);
       expect(screen.getByText("Profit Timeline")).toBeInTheDocument();
       expect(container.querySelector("canvas")).toBeInTheDocument();
     });
@@ -263,7 +268,7 @@ describe("SessionProfitTimeline", () => {
     it("should render shell when totalDrops is 0 and chartData length is 0", () => {
       mockBuffer.totalDrops = 0;
       mockBuffer.chartData = [];
-      const { container } = render(<SessionProfitTimeline />);
+      const { container } = renderWithProviders(<SessionProfitTimeline />);
       expect(screen.getByText("Profit Timeline")).toBeInTheDocument();
       expect(container.querySelector("canvas")).toBeInTheDocument();
     });
@@ -279,24 +284,24 @@ describe("SessionProfitTimeline", () => {
     });
 
     it("should render the Profit Timeline heading", () => {
-      render(<SessionProfitTimeline />);
+      renderWithProviders(<SessionProfitTimeline />);
       expect(screen.getByText("Profit Timeline")).toBeInTheDocument();
     });
 
     it("should render a canvas element", () => {
-      const { container } = render(<SessionProfitTimeline />);
+      const { container } = renderWithProviders(<SessionProfitTimeline />);
       const canvas = container.querySelector("canvas");
       expect(canvas).toBeInTheDocument();
     });
 
     it("should display the drop count in the header", () => {
-      render(<SessionProfitTimeline />);
+      renderWithProviders(<SessionProfitTimeline />);
       // totalDrops is 5 — toLocaleString() produces "5"
       expect(screen.getByText(/5 drops/)).toBeInTheDocument();
     });
 
     it("should display net profit from the line points in the header", () => {
-      render(<SessionProfitTimeline />);
+      renderWithProviders(<SessionProfitTimeline />);
       // Default linePoints end at profit=20, while totalChaosValue is 100.
       expect(screen.getByText(/20\.00c net/)).toBeInTheDocument();
     });
@@ -308,13 +313,13 @@ describe("SessionProfitTimeline", () => {
         linePoints: [],
       });
 
-      render(<SessionProfitTimeline stackedDeckChaosCost={10} />);
+      renderWithProviders(<SessionProfitTimeline stackedDeckChaosCost={10} />);
 
       expect(screen.getByText(/50\.00c net/)).toBeInTheDocument();
     });
 
     it("should render the Notable Drops legend when chartData has bar values", () => {
-      render(<SessionProfitTimeline />);
+      renderWithProviders(<SessionProfitTimeline />);
       expect(screen.getByText("Notable Drops")).toBeInTheDocument();
     });
 
@@ -330,12 +335,12 @@ describe("SessionProfitTimeline", () => {
           },
         ],
       });
-      render(<SessionProfitTimeline />);
+      renderWithProviders(<SessionProfitTimeline />);
       expect(screen.queryByText("Notable Drops")).not.toBeInTheDocument();
     });
 
     it("should apply the default chart height of 240px", () => {
-      const { container } = render(<SessionProfitTimeline />);
+      const { container } = renderWithProviders(<SessionProfitTimeline />);
       // The chart container div has inline style height
       const chartContainer = container.querySelector(
         "[style*='height']",
@@ -346,7 +351,9 @@ describe("SessionProfitTimeline", () => {
     });
 
     it("should apply a custom height when height prop is provided", () => {
-      const { container } = render(<SessionProfitTimeline height={300} />);
+      const { container } = renderWithProviders(
+        <SessionProfitTimeline height={300} />,
+      );
       const chartContainer = container.querySelector(
         "[style*='height: 300px']",
       ) as HTMLElement | null;
@@ -372,7 +379,7 @@ describe("SessionProfitTimeline", () => {
         },
       );
 
-      render(<SessionProfitTimeline chaosToDivineRatio={150} />);
+      renderWithProviders(<SessionProfitTimeline chaosToDivineRatio={150} />);
 
       expect(formatCurrency).toHaveBeenCalledWith(100, 150);
       expect(drawHoverHighlight).toHaveBeenCalled();
@@ -389,7 +396,7 @@ describe("SessionProfitTimeline", () => {
     });
 
     it("should subscribe to timelineBuffer on mount", () => {
-      render(<SessionProfitTimeline />);
+      renderWithProviders(<SessionProfitTimeline />);
       // useSyncExternalStore subscribes, plus the draw effect subscribes
       expect(mockSubscribe).toHaveBeenCalled();
     });
@@ -398,7 +405,7 @@ describe("SessionProfitTimeline", () => {
       const unsubscribe = vi.fn();
       mockSubscribe.mockReturnValue(unsubscribe);
 
-      const { unmount } = render(<SessionProfitTimeline />);
+      const { unmount } = renderWithProviders(<SessionProfitTimeline />);
       unmount();
 
       expect(unsubscribe).toHaveBeenCalled();
@@ -416,23 +423,23 @@ describe("SessionProfitTimeline", () => {
 
     it("should call setDeckCost with the session deck cost on mount", () => {
       // mockGetSession returns { totals: { stackedDeckChaosCost: 5 } }
-      render(<SessionProfitTimeline />);
+      renderWithProviders(<SessionProfitTimeline />);
       expect(mockSetDeckCost).toHaveBeenCalledWith(5);
     });
 
     it("should call setDeckCost with stackedDeckChaosCost prop when provided", () => {
-      render(<SessionProfitTimeline stackedDeckChaosCost={42} />);
+      renderWithProviders(<SessionProfitTimeline stackedDeckChaosCost={42} />);
       expect(mockSetDeckCost).toHaveBeenCalledWith(42);
     });
 
     it("should call setDeckCost with 0 when session has no totals", () => {
       mockGetSession.mockReturnValue(null);
-      render(<SessionProfitTimeline />);
+      renderWithProviders(<SessionProfitTimeline />);
       expect(mockSetDeckCost).toHaveBeenCalledWith(0);
     });
 
     it("should update setDeckCost when stackedDeckChaosCost prop changes", () => {
-      const { rerender } = render(
+      const { rerender } = renderWithProviders(
         <SessionProfitTimeline stackedDeckChaosCost={10} />,
       );
       expect(mockSetDeckCost).toHaveBeenCalledWith(10);
@@ -456,7 +463,7 @@ describe("SessionProfitTimeline", () => {
     });
 
     it("should save the live buffer before seeding from timeline", () => {
-      render(<SessionProfitTimeline timeline={fakeTimeline} />);
+      renderWithProviders(<SessionProfitTimeline timeline={fakeTimeline} />);
 
       expect(mockSave).toHaveBeenCalledTimes(1);
       expect(mockSeedFromTimeline).toHaveBeenCalledTimes(1);
@@ -469,7 +476,7 @@ describe("SessionProfitTimeline", () => {
     });
 
     it("should restore the live buffer on unmount", () => {
-      const { unmount } = render(
+      const { unmount } = renderWithProviders(
         <SessionProfitTimeline timeline={fakeTimeline} />,
       );
 
@@ -481,19 +488,19 @@ describe("SessionProfitTimeline", () => {
     });
 
     it("should not save/seed when timeline prop is null", () => {
-      render(<SessionProfitTimeline timeline={null} />);
+      renderWithProviders(<SessionProfitTimeline timeline={null} />);
       expect(mockSave).not.toHaveBeenCalled();
       expect(mockSeedFromTimeline).not.toHaveBeenCalled();
     });
 
     it("should not save/seed when timeline prop is undefined", () => {
-      render(<SessionProfitTimeline />);
+      renderWithProviders(<SessionProfitTimeline />);
       expect(mockSave).not.toHaveBeenCalled();
       expect(mockSeedFromTimeline).not.toHaveBeenCalled();
     });
 
     it("should not restore on unmount when no timeline was provided", () => {
-      const { unmount } = render(<SessionProfitTimeline />);
+      const { unmount } = renderWithProviders(<SessionProfitTimeline />);
       unmount();
       expect(mockRestore).not.toHaveBeenCalled();
     });
@@ -502,7 +509,7 @@ describe("SessionProfitTimeline", () => {
       const timeline1 = createFakeTimeline({ totalDrops: 5 });
       const timeline2 = createFakeTimeline({ totalDrops: 10 });
 
-      const { rerender } = render(
+      const { rerender } = renderWithProviders(
         <SessionProfitTimeline timeline={timeline1} />,
       );
 
@@ -524,7 +531,7 @@ describe("SessionProfitTimeline", () => {
     it("should not re-seed when the same timeline reference is re-rendered", () => {
       const timeline = createFakeTimeline();
 
-      const { rerender } = render(
+      const { rerender } = renderWithProviders(
         <SessionProfitTimeline timeline={timeline} />,
       );
       expect(mockSeedFromTimeline).toHaveBeenCalledTimes(1);
@@ -537,7 +544,7 @@ describe("SessionProfitTimeline", () => {
     });
 
     it("should use chaosToDivineRatio prop over store value for historical view", () => {
-      render(
+      renderWithProviders(
         <SessionProfitTimeline
           timeline={fakeTimeline}
           chaosToDivineRatio={150}
@@ -567,7 +574,7 @@ describe("SessionProfitTimeline", () => {
         return unsub;
       });
 
-      const { unmount } = render(<SessionProfitTimeline />);
+      const { unmount } = renderWithProviders(<SessionProfitTimeline />);
       // There should be subscriptions (useSyncExternalStore + draw effect)
       expect(unsubFns.length).toBeGreaterThan(0);
 
@@ -590,7 +597,7 @@ describe("SessionProfitTimeline", () => {
         return unsub;
       });
 
-      const { unmount } = render(
+      const { unmount } = renderWithProviders(
         <SessionProfitTimeline timeline={fakeTimeline} />,
       );
       unmount();
@@ -616,7 +623,7 @@ describe("SessionProfitTimeline", () => {
       });
 
       // Start with empty buffer → shell still renders
-      const { container } = render(<SessionProfitTimeline />);
+      const { container } = renderWithProviders(<SessionProfitTimeline />);
       expect(screen.getByText("Profit Timeline")).toBeInTheDocument();
       expect(container.querySelector("canvas")).toBeInTheDocument();
 
@@ -653,7 +660,9 @@ describe("SessionProfitTimeline", () => {
         ],
       });
 
-      expect(() => render(<SessionProfitTimeline />)).not.toThrow();
+      expect(() =>
+        renderWithProviders(<SessionProfitTimeline />),
+      ).not.toThrow();
       expect(screen.getByText("Profit Timeline")).toBeInTheDocument();
       // No "Notable Drops" legend since no bars have values
       expect(screen.queryByText("Notable Drops")).not.toBeInTheDocument();
@@ -663,7 +672,9 @@ describe("SessionProfitTimeline", () => {
       populateBuffer();
       mockGetSession.mockReturnValue({ totals: undefined });
 
-      expect(() => render(<SessionProfitTimeline />)).not.toThrow();
+      expect(() =>
+        renderWithProviders(<SessionProfitTimeline />),
+      ).not.toThrow();
       expect(mockSetDeckCost).toHaveBeenCalledWith(0);
     });
 
@@ -671,13 +682,15 @@ describe("SessionProfitTimeline", () => {
       populateBuffer();
       mockGetSession.mockReturnValue(null);
 
-      expect(() => render(<SessionProfitTimeline />)).not.toThrow();
+      expect(() =>
+        renderWithProviders(<SessionProfitTimeline />),
+      ).not.toThrow();
       expect(mockSetDeckCost).toHaveBeenCalledWith(0);
     });
 
     it("should render when totalDrops > 0 but chartData is empty", () => {
       populateBuffer({ totalDrops: 3, chartData: [] });
-      render(<SessionProfitTimeline />);
+      renderWithProviders(<SessionProfitTimeline />);
       // bufferVersion = totalDrops + chartData.length = 3 + 0 = 3, so it renders
       expect(screen.getByText("Profit Timeline")).toBeInTheDocument();
     });
@@ -695,7 +708,7 @@ describe("SessionProfitTimeline", () => {
           },
         ],
       });
-      render(<SessionProfitTimeline />);
+      renderWithProviders(<SessionProfitTimeline />);
       // bufferVersion = 0 + 1 = 1, so it renders
       expect(screen.getByText("Profit Timeline")).toBeInTheDocument();
     });

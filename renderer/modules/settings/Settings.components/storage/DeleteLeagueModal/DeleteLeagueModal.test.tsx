@@ -1,9 +1,9 @@
-import { fireEvent } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LeagueStorageUsage } from "~/main/modules/storage/Storage.types";
 import {
   act,
+  fireEvent,
   renderWithProviders,
   screen,
 } from "~/renderer/__test-setup__/render";
@@ -267,7 +267,7 @@ describe("DeleteLeagueModal", () => {
       />,
     );
 
-    // Find the Delete button and click it
+    // Directly invoke the hidden dialog button to cover the null-snapshot guard.
     const buttons = screen.getAllByRole("button", { hidden: true });
     const deleteBtn = buttons.find((btn) =>
       btn.textContent?.includes("Delete League Data"),

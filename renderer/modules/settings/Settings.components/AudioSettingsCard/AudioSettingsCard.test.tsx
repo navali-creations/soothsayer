@@ -1,11 +1,10 @@
-import { fireEvent } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   act,
+  fireEvent,
   renderWithProviders,
   screen,
-  userEvent,
   waitFor,
 } from "~/renderer/__test-setup__/render";
 import { trackEvent } from "~/renderer/modules/umami";
@@ -330,10 +329,10 @@ describe("AudioSettingsCard", () => {
   // ── handleOpenFolder ─────────────────────────────────────────────────
 
   it('"Find sounds" button calls openCustomSoundsFolder and tracks event', async () => {
-    renderWithProviders(<AudioSettingsCard />);
+    const { user } = renderWithProviders(<AudioSettingsCard />);
 
     const findButton = screen.getByRole("button", { name: /Find sounds/i });
-    await userEvent.setup().click(findButton);
+    await user.click(findButton);
 
     await waitFor(() => {
       expect(
@@ -372,11 +371,11 @@ describe("AudioSettingsCard", () => {
         ],
       },
     });
-    renderWithProviders(<AudioSettingsCard />);
+    const { user } = renderWithProviders(<AudioSettingsCard />);
 
     const selects = screen.getAllByRole("combobox");
     // Change the first rarity dropdown to the custom sound
-    fireEvent.change(selects[0], { target: { value: "/sounds/boom.mp3" } });
+    await user.selectOptions(selects[0], "/sounds/boom.mp3");
 
     await waitFor(() => {
       expect(store.settings.updateSetting).toHaveBeenCalledWith(
@@ -401,11 +400,11 @@ describe("AudioSettingsCard", () => {
         audioRarity1Path: "/sounds/boom.mp3",
       },
     });
-    renderWithProviders(<AudioSettingsCard />);
+    const { user } = renderWithProviders(<AudioSettingsCard />);
 
     const selects = screen.getAllByRole("combobox");
     // Change back to default (empty string value)
-    fireEvent.change(selects[0], { target: { value: "" } });
+    await user.selectOptions(selects[0], "");
 
     await waitFor(() => {
       expect(store.settings.updateSetting).toHaveBeenCalledWith(
@@ -455,10 +454,10 @@ describe("AudioSettingsCard", () => {
         ],
       },
     });
-    renderWithProviders(<AudioSettingsCard />);
+    const { user } = renderWithProviders(<AudioSettingsCard />);
 
     const resetButton = screen.getAllByTitle("Reset to default")[0];
-    await userEvent.setup().click(resetButton);
+    await user.click(resetButton);
 
     await waitFor(() => {
       expect(store.settings.updateSetting).toHaveBeenCalledWith(
@@ -477,10 +476,10 @@ describe("AudioSettingsCard", () => {
         audioRarity1Path: null,
       },
     });
-    renderWithProviders(<AudioSettingsCard />);
+    const { user } = renderWithProviders(<AudioSettingsCard />);
 
     const previewButtons = screen.getAllByTitle("Preview");
-    await userEvent.setup().click(previewButtons[0]);
+    await user.click(previewButtons[0]);
 
     await waitFor(() => {
       expect(mockAudioInstances).toHaveLength(1);
@@ -514,10 +513,10 @@ describe("AudioSettingsCard", () => {
     (
       window.electron.settings.getCustomSoundData as ReturnType<typeof vi.fn>
     ).mockResolvedValue("data:audio/mp3;base64,abc123");
-    renderWithProviders(<AudioSettingsCard />);
+    const { user } = renderWithProviders(<AudioSettingsCard />);
 
     const previewButtons = screen.getAllByTitle("Preview");
-    await userEvent.setup().click(previewButtons[0]);
+    await user.click(previewButtons[0]);
 
     await waitFor(() => {
       expect(window.electron.settings.getCustomSoundData).toHaveBeenCalledWith(
@@ -555,10 +554,10 @@ describe("AudioSettingsCard", () => {
     (
       window.electron.settings.getCustomSoundData as ReturnType<typeof vi.fn>
     ).mockResolvedValue(null);
-    renderWithProviders(<AudioSettingsCard />);
+    const { user } = renderWithProviders(<AudioSettingsCard />);
 
     const previewButtons = screen.getAllByTitle("Preview");
-    await userEvent.setup().click(previewButtons[0]);
+    await user.click(previewButtons[0]);
 
     await waitFor(() => {
       expect(window.electron.settings.getCustomSoundData).toHaveBeenCalledWith(
@@ -581,10 +580,10 @@ describe("AudioSettingsCard", () => {
         audioPreviewingFile: "rarity1.mp3",
       },
     });
-    renderWithProviders(<AudioSettingsCard />);
+    const { user } = renderWithProviders(<AudioSettingsCard />);
 
     const previewButtons = screen.getAllByTitle("Preview");
-    await userEvent.setup().click(previewButtons[0]);
+    await user.click(previewButtons[0]);
 
     await waitFor(() => {
       expect(store.settings.setAudioPreviewingFile).toHaveBeenCalledWith(null);
@@ -603,10 +602,10 @@ describe("AudioSettingsCard", () => {
         audioRarity1Path: null,
       },
     });
-    renderWithProviders(<AudioSettingsCard />);
+    const { user } = renderWithProviders(<AudioSettingsCard />);
 
     const previewButtons = screen.getAllByTitle("Preview");
-    await userEvent.setup().click(previewButtons[0]);
+    await user.click(previewButtons[0]);
 
     await waitFor(() => {
       expect(mockAudioInstances).toHaveLength(1);
@@ -635,7 +634,7 @@ describe("AudioSettingsCard", () => {
       },
     });
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    renderWithProviders(<AudioSettingsCard />);
+    const { user } = renderWithProviders(<AudioSettingsCard />);
 
     // Make the next Audio instance's play() reject
     (window as any).Audio = vi.fn(function (this: any, src?: string) {
@@ -648,7 +647,7 @@ describe("AudioSettingsCard", () => {
     });
 
     const previewButtons = screen.getAllByTitle("Preview");
-    await userEvent.setup().click(previewButtons[0]);
+    await user.click(previewButtons[0]);
 
     await waitFor(() => {
       expect(consoleSpy).toHaveBeenCalledWith(
@@ -671,12 +670,12 @@ describe("AudioSettingsCard", () => {
         audioRarity2Path: null,
       },
     });
-    renderWithProviders(<AudioSettingsCard />);
+    const { user } = renderWithProviders(<AudioSettingsCard />);
 
     const previewButtons = screen.getAllByTitle("Preview");
 
     // Click preview for rarity 1
-    await userEvent.setup().click(previewButtons[0]);
+    await user.click(previewButtons[0]);
 
     await waitFor(() => {
       expect(mockAudioInstances).toHaveLength(1);
@@ -686,7 +685,7 @@ describe("AudioSettingsCard", () => {
     expect(firstAudio.pause).not.toHaveBeenCalled();
 
     // Click preview for rarity 2 — should pause the first audio
-    await userEvent.setup().click(previewButtons[1]);
+    await user.click(previewButtons[1]);
 
     await waitFor(() => {
       expect(firstAudio.pause).toHaveBeenCalledTimes(1);
@@ -702,10 +701,10 @@ describe("AudioSettingsCard", () => {
         audioRarity1Path: null,
       },
     });
-    const { unmount } = renderWithProviders(<AudioSettingsCard />);
+    const { unmount, user } = renderWithProviders(<AudioSettingsCard />);
 
     const previewButtons = screen.getAllByTitle("Preview");
-    await userEvent.setup().click(previewButtons[0]);
+    await user.click(previewButtons[0]);
 
     await waitFor(() => {
       expect(mockAudioInstances).toHaveLength(1);
@@ -735,11 +734,11 @@ describe("AudioSettingsCard", () => {
     (
       window.electron.settings.getCustomSoundData as ReturnType<typeof vi.fn>
     ).mockResolvedValue("data:audio/mp3;base64,rare");
-    renderWithProviders(<AudioSettingsCard />);
+    const { user } = renderWithProviders(<AudioSettingsCard />);
 
     const previewButtons = screen.getAllByTitle("Preview");
     // Click the 3rd preview button (Rare)
-    await userEvent.setup().click(previewButtons[2]);
+    await user.click(previewButtons[2]);
 
     await waitFor(() => {
       expect(trackEvent).toHaveBeenCalledWith("audio-preview-rarity", {

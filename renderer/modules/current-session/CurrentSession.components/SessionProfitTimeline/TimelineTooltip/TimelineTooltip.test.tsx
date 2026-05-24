@@ -1,8 +1,9 @@
 // ─── Tests for computePortalTooltipStyle, TooltipInlineCard, TimelineTooltipContent ─
 
-import { render, screen } from "@testing-library/react";
 import type React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
 
 // ─── Hoisted mock variables (available to vi.mock factories) ────────────────
 
@@ -266,7 +267,9 @@ describe("TooltipInlineCard", () => {
   });
 
   it("returns null when both sessions return null", () => {
-    const { container } = render(<TooltipInlineCard cardName="The Doctor" />);
+    const { container } = renderWithProviders(
+      <TooltipInlineCard cardName="The Doctor" />,
+    );
     expect(container.innerHTML).toBe("");
   });
 
@@ -278,7 +281,9 @@ describe("TooltipInlineCard", () => {
       cards: [makeCardEntry("The Fiend", true)],
     });
 
-    const { container } = render(<TooltipInlineCard cardName="The Doctor" />);
+    const { container } = renderWithProviders(
+      <TooltipInlineCard cardName="The Doctor" />,
+    );
     expect(container.innerHTML).toBe("");
   });
 
@@ -287,7 +292,9 @@ describe("TooltipInlineCard", () => {
       cards: [makeCardEntry("The Doctor", false)],
     });
 
-    const { container } = render(<TooltipInlineCard cardName="The Doctor" />);
+    const { container } = renderWithProviders(
+      <TooltipInlineCard cardName="The Doctor" />,
+    );
     expect(container.innerHTML).toBe("");
   });
 
@@ -296,7 +303,9 @@ describe("TooltipInlineCard", () => {
       cards: [makeCardEntry("The Doctor", true)],
     });
 
-    const { container } = render(<TooltipInlineCard cardName="The Doctor" />);
+    const { container } = renderWithProviders(
+      <TooltipInlineCard cardName="The Doctor" />,
+    );
 
     // The outer wrapper div should have the correct dimensions
     const outerDiv = container.firstChild as HTMLElement;
@@ -323,7 +332,7 @@ describe("TooltipInlineCard", () => {
     mockCurrentGetSession.mockReturnValue({ cards: [currentCard] });
     mockDetailsGetSession.mockReturnValue({ cards: [detailsCard] });
 
-    render(<TooltipInlineCard cardName="The Doctor" />);
+    renderWithProviders(<TooltipInlineCard cardName="The Doctor" />);
 
     // DivinationCard should have been called with the current session's card
     expect(DivinationCardMock).toHaveBeenCalledWith(
@@ -340,7 +349,7 @@ describe("TooltipInlineCard", () => {
     });
     mockDetailsGetSession.mockReturnValue({ cards: [detailsCard] });
 
-    render(<TooltipInlineCard cardName="The Doctor" />);
+    renderWithProviders(<TooltipInlineCard cardName="The Doctor" />);
 
     expect(DivinationCardMock).toHaveBeenCalledWith(
       expect.objectContaining({ card: detailsCard }),
@@ -354,7 +363,7 @@ describe("TooltipInlineCard", () => {
     mockCurrentGetSession.mockReturnValue(null);
     mockDetailsGetSession.mockReturnValue({ cards: [detailsCard] });
 
-    render(<TooltipInlineCard cardName="The Doctor" />);
+    renderWithProviders(<TooltipInlineCard cardName="The Doctor" />);
 
     expect(DivinationCardMock).toHaveBeenCalledWith(
       expect.objectContaining({ card: detailsCard }),
@@ -385,7 +394,7 @@ describe("TimelineTooltipContent", () => {
   it("renders card value text using formatCurrency", () => {
     const point = makePoint({ barValue: 42, profit: 10 });
 
-    render(
+    renderWithProviders(
       <TimelineTooltipContent
         tooltipStyle={defaultTooltipStyle}
         point={point}
@@ -400,7 +409,7 @@ describe("TimelineTooltipContent", () => {
   it("renders net profit with '+' prefix for positive profit", () => {
     const point = makePoint({ profit: 150 });
 
-    const { container } = render(
+    const { container } = renderWithProviders(
       <TimelineTooltipContent
         tooltipStyle={defaultTooltipStyle}
         point={point}
@@ -420,7 +429,7 @@ describe("TimelineTooltipContent", () => {
   it("renders net profit without '+' prefix for negative profit", () => {
     const point = makePoint({ profit: -75 });
 
-    const { container } = render(
+    const { container } = renderWithProviders(
       <TimelineTooltipContent
         tooltipStyle={defaultTooltipStyle}
         point={point}
@@ -440,7 +449,7 @@ describe("TimelineTooltipContent", () => {
   it("applies text-success class for positive profit", () => {
     const point = makePoint({ profit: 100 });
 
-    const { container } = render(
+    const { container } = renderWithProviders(
       <TimelineTooltipContent
         tooltipStyle={defaultTooltipStyle}
         point={point}
@@ -459,7 +468,7 @@ describe("TimelineTooltipContent", () => {
   it("applies text-error class for negative profit", () => {
     const point = makePoint({ profit: -50 });
 
-    const { container } = render(
+    const { container } = renderWithProviders(
       <TimelineTooltipContent
         tooltipStyle={defaultTooltipStyle}
         point={point}
@@ -478,7 +487,7 @@ describe("TimelineTooltipContent", () => {
   it("applies text-success class when profit is zero", () => {
     const point = makePoint({ profit: 0 });
 
-    const { container } = render(
+    const { container } = renderWithProviders(
       <TimelineTooltipContent
         tooltipStyle={defaultTooltipStyle}
         point={point}
@@ -497,7 +506,7 @@ describe("TimelineTooltipContent", () => {
   it("renders card number with '#' prefix and toLocaleString formatting", () => {
     const point = makePoint({ x: 1234 });
 
-    render(
+    renderWithProviders(
       <TimelineTooltipContent
         tooltipStyle={defaultTooltipStyle}
         point={point}
@@ -513,7 +522,7 @@ describe("TimelineTooltipContent", () => {
   it("renders 'Card Value' and 'Net Profit' labels", () => {
     const point = makePoint();
 
-    render(
+    renderWithProviders(
       <TimelineTooltipContent
         tooltipStyle={defaultTooltipStyle}
         point={point}
@@ -528,7 +537,7 @@ describe("TimelineTooltipContent", () => {
   it("renders 'Card' label next to the card number", () => {
     const point = makePoint({ x: 7 });
 
-    render(
+    renderWithProviders(
       <TimelineTooltipContent
         tooltipStyle={defaultTooltipStyle}
         point={point}
@@ -551,7 +560,7 @@ describe("TimelineTooltipContent", () => {
 
     const point = makePoint();
 
-    const { container } = render(
+    const { container } = renderWithProviders(
       <TimelineTooltipContent
         tooltipStyle={customStyle}
         point={point}
@@ -570,7 +579,7 @@ describe("TimelineTooltipContent", () => {
   it("renders barValue of 0 when barValue is null", () => {
     const point = makePoint({ barValue: null as unknown as number });
 
-    render(
+    renderWithProviders(
       <TimelineTooltipContent
         tooltipStyle={defaultTooltipStyle}
         point={point}
@@ -589,7 +598,7 @@ describe("TimelineTooltipContent", () => {
   it("applies BAR_COLOR to the card value text", () => {
     const point = makePoint({ barValue: 55 });
 
-    const { container } = render(
+    const { container } = renderWithProviders(
       <TimelineTooltipContent
         tooltipStyle={defaultTooltipStyle}
         point={point}

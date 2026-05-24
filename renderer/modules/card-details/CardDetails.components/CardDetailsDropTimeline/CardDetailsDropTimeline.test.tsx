@@ -1,4 +1,3 @@
-import { fireEvent } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
@@ -441,7 +440,7 @@ describe("CardDetailsDropTimeline — multi data point", () => {
     expect(screen.getByText("Decks Opened")).toBeInTheDocument();
   });
 
-  it("hides zero-drop sessions by default and restores them with the include-all checkbox", () => {
+  it("hides zero-drop sessions by default and restores them with the include-all checkbox", async () => {
     const zeroDropSession = {
       sessionStartedAt: "2024-01-10T10:00:00Z",
       count: 0,
@@ -467,7 +466,7 @@ describe("CardDetailsDropTimeline — multi data point", () => {
       sessionId: "drop-b",
     };
 
-    renderComponent({
+    const { user } = renderComponent({
       dropTimeline: [zeroDropSession, dropSessionA, dropSessionB],
     });
 
@@ -478,7 +477,7 @@ describe("CardDetailsDropTimeline — multi data point", () => {
 
     const toggle = screen.getByLabelText("Include all sessions");
     expect(toggle).not.toBeChecked();
-    fireEvent.click(toggle);
+    await user.click(toggle);
 
     expect(toggle).toBeChecked();
     expect(mockUseDropTimelineData).toHaveBeenLastCalledWith([
@@ -902,24 +901,24 @@ describe("CardDetailsDropTimeline — multi data point", () => {
     expect(mainChartProps.renderedCompressedGaps).toEqual([]);
   });
 
-  it("toggles legend items and passes hidden metrics to main chart", () => {
-    renderComponent();
+  it("toggles legend items and passes hidden metrics to main chart", async () => {
+    const { user } = renderComponent();
 
     const dropsButton = screen.getByText("Drops / Day").closest("button");
     expect(dropsButton).toBeInTheDocument();
-    fireEvent.click(dropsButton!);
+    await user.click(dropsButton!);
 
     const mainChartProps = mockMainChart.mock.calls.at(-1)?.[0];
     expect(mainChartProps.hiddenMetrics).toBeInstanceOf(Set);
     expect(mainChartProps.hiddenMetrics.has("drops-per-day")).toBe(true);
   });
 
-  it("toggles deck volume line from the legend", () => {
-    renderComponent();
+  it("toggles deck volume line from the legend", async () => {
+    const { user } = renderComponent();
 
     const decksButton = screen.getByText("Decks Opened").closest("button");
     expect(decksButton).toBeInTheDocument();
-    fireEvent.click(decksButton!);
+    await user.click(decksButton!);
 
     const mainChartProps = mockMainChart.mock.calls.at(-1)?.[0];
     expect(mainChartProps.hiddenMetrics).toBeInstanceOf(Set);

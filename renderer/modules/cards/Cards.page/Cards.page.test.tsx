@@ -212,14 +212,14 @@ describe("CardsPage", () => {
     expect(screen.getByTestId("page-content")).toBeInTheDocument();
   });
 
-  it("calls scrollTo when scrollToTop is triggered via onFilterChange", () => {
+  it("calls scrollTo when scrollToTop is triggered via onFilterChange", async () => {
     const scrollToSpy = vi.fn();
     Element.prototype.scrollTo = scrollToSpy;
 
     setupStore();
-    renderWithProviders(<CardsPage />);
+    const { user } = renderWithProviders(<CardsPage />);
 
-    screen.getByTestId("cards-actions").click();
+    await user.click(screen.getByTestId("cards-actions"));
 
     expect(scrollToSpy).toHaveBeenCalled();
   });

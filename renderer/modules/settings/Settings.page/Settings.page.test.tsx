@@ -1,4 +1,3 @@
-import { fireEvent } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
@@ -213,9 +212,9 @@ describe("SettingsPage", () => {
     );
   });
 
-  it("renders App tab content", () => {
-    renderWithProviders(<SettingsPage />);
-    fireEvent.click(screen.getByRole("tab", { name: "App" }));
+  it("renders App tab content", async () => {
+    const { user } = renderWithProviders(<SettingsPage />);
+    await user.click(screen.getByRole("tab", { name: "App" }));
 
     const categoryCard = screen.getByTestId("settings-category-card");
     expect(categoryCard).toHaveAttribute("data-title", "Application Behavior");
@@ -226,53 +225,53 @@ describe("SettingsPage", () => {
     expect(screen.queryByTestId("file-path-card")).not.toBeInTheDocument();
   });
 
-  it("renders Overlay tab content", () => {
-    renderWithProviders(<SettingsPage />);
-    fireEvent.click(screen.getByRole("tab", { name: "Overlay" }));
+  it("renders Overlay tab content", async () => {
+    const { user } = renderWithProviders(<SettingsPage />);
+    await user.click(screen.getByRole("tab", { name: "Overlay" }));
 
     expect(screen.getByTestId("overlay-settings-card")).toBeInTheDocument();
   });
 
-  it("renders Audio tab content", () => {
-    renderWithProviders(<SettingsPage />);
-    fireEvent.click(screen.getByRole("tab", { name: "Audio" }));
+  it("renders Audio tab content", async () => {
+    const { user } = renderWithProviders(<SettingsPage />);
+    await user.click(screen.getByRole("tab", { name: "Audio" }));
 
     expect(screen.getByTestId("audio-settings-card")).toBeInTheDocument();
   });
 
-  it("renders Data & Storage tab content", () => {
-    renderWithProviders(<SettingsPage />);
-    fireEvent.click(screen.getByRole("tab", { name: "Data & Storage" }));
+  it("renders Data & Storage tab content", async () => {
+    const { user } = renderWithProviders(<SettingsPage />);
+    await user.click(screen.getByRole("tab", { name: "Data & Storage" }));
 
     expect(screen.getByTestId("storage-settings-card")).toBeInTheDocument();
   });
 
-  it("renders Privacy tab content", () => {
-    renderWithProviders(<SettingsPage />);
-    fireEvent.click(screen.getByRole("tab", { name: "Privacy" }));
+  it("renders Privacy tab content", async () => {
+    const { user } = renderWithProviders(<SettingsPage />);
+    await user.click(screen.getByRole("tab", { name: "Privacy" }));
 
     expect(screen.getByTestId("privacy-settings-card")).toBeInTheDocument();
   });
 
-  it("renders Help tab content", () => {
-    renderWithProviders(<SettingsPage />);
-    fireEvent.click(screen.getByRole("tab", { name: "Help" }));
+  it("renders Help tab content", async () => {
+    const { user } = renderWithProviders(<SettingsPage />);
+    await user.click(screen.getByRole("tab", { name: "Help" }));
 
     expect(screen.getByTestId("app-help-card")).toBeInTheDocument();
   });
 
-  it("renders Troubleshooting tab content", () => {
-    renderWithProviders(<SettingsPage />);
-    fireEvent.click(screen.getByRole("tab", { name: "Troubleshooting" }));
+  it("renders Troubleshooting tab content", async () => {
+    const { user } = renderWithProviders(<SettingsPage />);
+    await user.click(screen.getByRole("tab", { name: "Troubleshooting" }));
 
     expect(
       screen.getByTestId("troubleshooting-settings-card"),
     ).toBeInTheDocument();
   });
 
-  it("renders Advanced tab content", () => {
-    renderWithProviders(<SettingsPage />);
-    fireEvent.click(screen.getByRole("tab", { name: "Advanced" }));
+  it("renders Advanced tab content", async () => {
+    const { user } = renderWithProviders(<SettingsPage />);
+    await user.click(screen.getByRole("tab", { name: "Advanced" }));
 
     expect(screen.getByTestId("danger-zone-card")).toBeInTheDocument();
   });

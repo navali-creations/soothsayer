@@ -1,4 +1,8 @@
-import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
+import {
+  act,
+  renderWithProviders,
+  screen,
+} from "~/renderer/__test-setup__/render";
 import { useBoundStore } from "~/renderer/store";
 
 import CurrentSessionPage from "./CurrentSession.page";
@@ -187,8 +191,7 @@ describe("CurrentSessionPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows SessionProfitTimeline when expanded and active", async () => {
-    const { act } = await import("@testing-library/react");
+  it("shows SessionProfitTimeline when expanded and active", () => {
     setupStore({ isLoading: false, isActive: true });
     renderWithProviders(<CurrentSessionPage />);
 
@@ -206,8 +209,7 @@ describe("CurrentSessionPage", () => {
     expect(screen.getByTestId("session-profit-timeline")).toBeInTheDocument();
   });
 
-  it("does not show SessionProfitTimeline when expanded but not active", async () => {
-    const { act } = await import("@testing-library/react");
+  it("does not show SessionProfitTimeline when expanded but not active", () => {
     setupStore({ isLoading: false, isActive: false });
     renderWithProviders(<CurrentSessionPage />);
 

@@ -1,7 +1,10 @@
-import { cleanup, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  cleanup,
+  renderWithProviders,
+  screen,
+} from "~/renderer/__test-setup__/render";
 import { useBoundStore } from "~/renderer/store";
 
 vi.mock("~/renderer/store", async () => {
@@ -112,7 +115,7 @@ describe("CurrentSessionChaosValueColumn", () => {
     it("renders a TableHeader with 'Value (Each)' text", () => {
       const column = createCurrentSessionChaosValueColumn();
 
-      render((column as any).header({}));
+      renderWithProviders((column as any).header({}));
 
       expect(screen.getByTestId("table-header")).toHaveTextContent(
         "Value (Each)",
@@ -158,7 +161,7 @@ describe("CurrentSessionChaosValueColumn", () => {
 
   describe("CurrentSessionChaosValueCell", () => {
     it("renders formatted divine currency for large values", () => {
-      render(
+      renderWithProviders(
         <CurrentSessionChaosValueCell
           {...createCellContext(makeCardEntry({ price: { chaosValue: 950 } }))}
         />,
@@ -168,7 +171,7 @@ describe("CurrentSessionChaosValueColumn", () => {
     });
 
     it("renders chaos format for small values", () => {
-      render(
+      renderWithProviders(
         <CurrentSessionChaosValueCell
           {...createCellContext(makeCardEntry({ price: { chaosValue: 50 } }))}
         />,
@@ -178,7 +181,7 @@ describe("CurrentSessionChaosValueColumn", () => {
     });
 
     it("renders N/A when chaosValue is 0", () => {
-      render(
+      renderWithProviders(
         <CurrentSessionChaosValueCell
           {...createCellContext(makeCardEntry({ price: { chaosValue: 0 } }))}
         />,
@@ -188,7 +191,7 @@ describe("CurrentSessionChaosValueColumn", () => {
     });
 
     it("renders N/A when price is undefined", () => {
-      render(
+      renderWithProviders(
         <CurrentSessionChaosValueCell
           {...createCellContext(makeCardEntry({ price: undefined }))}
         />,
@@ -198,7 +201,7 @@ describe("CurrentSessionChaosValueColumn", () => {
     });
 
     it("applies opacity-50 class when hidePrice is true", () => {
-      render(
+      renderWithProviders(
         <CurrentSessionChaosValueCell
           {...createCellContext(
             makeCardEntry({ price: { chaosValue: 500, hidePrice: true } }),
@@ -210,7 +213,7 @@ describe("CurrentSessionChaosValueColumn", () => {
     });
 
     it("does not apply opacity-50 class when hidePrice is false", () => {
-      render(
+      renderWithProviders(
         <CurrentSessionChaosValueCell
           {...createCellContext(
             makeCardEntry({ price: { chaosValue: 500, hidePrice: false } }),
@@ -255,7 +258,7 @@ describe("CurrentSessionHidePriceColumn", () => {
     it("renders header with eye icon and tooltip", () => {
       const column = createCurrentSessionHidePriceColumn();
 
-      render((column as any).header({}));
+      renderWithProviders((column as any).header({}));
 
       expect(screen.getByTestId("fi-eye")).toBeInTheDocument();
       expect(screen.getByTestId("table-header")).toHaveAttribute(
@@ -273,7 +276,7 @@ describe("CurrentSessionHidePriceColumn", () => {
 
   describe("CurrentSessionHidePriceCell", () => {
     it("renders a checkbox that is checked when hidePrice is false", () => {
-      render(
+      renderWithProviders(
         <CurrentSessionHidePriceCell
           {...createCellContext(
             makeCardEntry({ price: { chaosValue: 100, hidePrice: false } }),
@@ -285,7 +288,7 @@ describe("CurrentSessionHidePriceColumn", () => {
     });
 
     it("renders a checkbox that is unchecked when hidePrice is true", () => {
-      render(
+      renderWithProviders(
         <CurrentSessionHidePriceCell
           {...createCellContext(
             makeCardEntry({ price: { chaosValue: 100, hidePrice: true } }),
@@ -298,9 +301,8 @@ describe("CurrentSessionHidePriceColumn", () => {
 
     it("calls toggleCardPriceVisibility on change", async () => {
       const store = setupStore();
-      const user = userEvent.setup();
 
-      render(
+      const { user } = renderWithProviders(
         <CurrentSessionHidePriceCell
           {...createCellContext(
             makeCardEntry({ price: { chaosValue: 100, hidePrice: false } }),
@@ -323,7 +325,7 @@ describe("CurrentSessionHidePriceColumn", () => {
         },
       });
 
-      render(
+      renderWithProviders(
         <CurrentSessionHidePriceCell
           {...createCellContext(
             makeCardEntry({ price: { chaosValue: 100, hidePrice: false } }),
@@ -335,7 +337,7 @@ describe("CurrentSessionHidePriceColumn", () => {
     });
 
     it("disables checkbox when price is undefined", () => {
-      render(
+      renderWithProviders(
         <CurrentSessionHidePriceCell
           {...createCellContext(makeCardEntry({ price: undefined }))}
         />,
@@ -345,7 +347,7 @@ describe("CurrentSessionHidePriceColumn", () => {
     });
 
     it("enables checkbox when session has a snapshot and price", () => {
-      render(
+      renderWithProviders(
         <CurrentSessionHidePriceCell
           {...createCellContext(
             makeCardEntry({ price: { chaosValue: 100, hidePrice: false } }),
@@ -363,7 +365,7 @@ describe("CurrentSessionHidePriceColumn", () => {
         },
       });
 
-      render(
+      renderWithProviders(
         <CurrentSessionHidePriceCell
           {...createCellContext(makeCardEntry({ price: undefined }))}
         />,
@@ -376,7 +378,7 @@ describe("CurrentSessionHidePriceColumn", () => {
     });
 
     it("shows 'Price included' title when not hidden and has snapshot", () => {
-      render(
+      renderWithProviders(
         <CurrentSessionHidePriceCell
           {...createCellContext(
             makeCardEntry({ price: { chaosValue: 100, hidePrice: false } }),
@@ -391,7 +393,7 @@ describe("CurrentSessionHidePriceColumn", () => {
     });
 
     it("shows 'Price hidden' title when hidden and has snapshot", () => {
-      render(
+      renderWithProviders(
         <CurrentSessionHidePriceCell
           {...createCellContext(
             makeCardEntry({ price: { chaosValue: 100, hidePrice: true } }),
@@ -406,7 +408,7 @@ describe("CurrentSessionHidePriceColumn", () => {
     });
 
     it("defaults hidePrice to false when price has no hidePrice field", () => {
-      render(
+      renderWithProviders(
         <CurrentSessionHidePriceCell
           {...createCellContext(makeCardEntry({ price: { chaosValue: 100 } }))}
         />,
@@ -437,7 +439,7 @@ describe("CurrentSessionRatioColumn", () => {
     it("renders a TableHeader with tooltip and 'Ratio' text", () => {
       const column = createCurrentSessionRatioColumn();
 
-      render((column as any).header({}));
+      renderWithProviders((column as any).header({}));
 
       expect(screen.getByTestId("table-header")).toHaveTextContent("Ratio");
       expect(screen.getByTestId("table-header")).toHaveAttribute(
@@ -449,7 +451,7 @@ describe("CurrentSessionRatioColumn", () => {
 
   describe("CurrentSessionRatioCell", () => {
     it("renders the ratio percentage based on count and totalCount", () => {
-      render(
+      renderWithProviders(
         <CurrentSessionRatioCell {...createCellContext(makeCardEntry())} />,
       );
 
@@ -466,7 +468,7 @@ describe("CurrentSessionRatioColumn", () => {
         },
       });
 
-      render(
+      renderWithProviders(
         <CurrentSessionRatioCell
           {...createCellContext(makeCardEntry({ count: 1 }))}
         />,
@@ -485,7 +487,7 @@ describe("CurrentSessionRatioColumn", () => {
         },
       });
 
-      render(
+      renderWithProviders(
         <CurrentSessionRatioCell
           {...createCellContext(makeCardEntry({ count: 0 }))}
         />,
@@ -501,7 +503,7 @@ describe("CurrentSessionRatioColumn", () => {
         },
       });
 
-      render(
+      renderWithProviders(
         <CurrentSessionRatioCell
           {...createCellContext(makeCardEntry({ count: 1 }))}
         />,
@@ -511,7 +513,7 @@ describe("CurrentSessionRatioColumn", () => {
     });
 
     it("renders in a badge", () => {
-      render(
+      renderWithProviders(
         <CurrentSessionRatioCell {...createCellContext(makeCardEntry())} />,
       );
 
@@ -519,7 +521,7 @@ describe("CurrentSessionRatioColumn", () => {
     });
 
     it("handles count of 0 as 0.00%", () => {
-      render(
+      renderWithProviders(
         <CurrentSessionRatioCell
           {...createCellContext(makeCardEntry({ count: 0 }))}
         />,
@@ -556,7 +558,7 @@ describe("CurrentSessionTotalValueColumn", () => {
     it("renders a TableHeader with 'Total Value' text", () => {
       const column = createCurrentSessionTotalValueColumn();
 
-      render((column as any).header({}));
+      renderWithProviders((column as any).header({}));
 
       expect(screen.getByTestId("table-header")).toHaveTextContent(
         "Total Value",
@@ -602,7 +604,7 @@ describe("CurrentSessionTotalValueColumn", () => {
 
   describe("CurrentSessionTotalValueCell", () => {
     it("renders formatted divine currency for total value", () => {
-      render(
+      renderWithProviders(
         <CurrentSessionTotalValueCell
           {...createCellContext(
             makeCardEntry({ price: { totalValue: 4750, hidePrice: false } }),
@@ -614,7 +616,7 @@ describe("CurrentSessionTotalValueColumn", () => {
     });
 
     it("renders formatted chaos currency for small total values", () => {
-      render(
+      renderWithProviders(
         <CurrentSessionTotalValueCell
           {...createCellContext(
             makeCardEntry({ price: { totalValue: 50, hidePrice: false } }),
@@ -626,7 +628,7 @@ describe("CurrentSessionTotalValueColumn", () => {
     });
 
     it("renders N/A when totalValue is 0", () => {
-      render(
+      renderWithProviders(
         <CurrentSessionTotalValueCell
           {...createCellContext(
             makeCardEntry({ price: { totalValue: 0, hidePrice: false } }),
@@ -638,7 +640,7 @@ describe("CurrentSessionTotalValueColumn", () => {
     });
 
     it("renders N/A when price is undefined", () => {
-      render(
+      renderWithProviders(
         <CurrentSessionTotalValueCell
           {...createCellContext(makeCardEntry({ price: undefined }))}
         />,
@@ -648,7 +650,7 @@ describe("CurrentSessionTotalValueColumn", () => {
     });
 
     it("applies badge-success class when not hidden", () => {
-      render(
+      renderWithProviders(
         <CurrentSessionTotalValueCell
           {...createCellContext(
             makeCardEntry({ price: { totalValue: 1000, hidePrice: false } }),
@@ -660,7 +662,7 @@ describe("CurrentSessionTotalValueColumn", () => {
     });
 
     it("applies badge-warning and opacity-50 class when hidden", () => {
-      render(
+      renderWithProviders(
         <CurrentSessionTotalValueCell
           {...createCellContext(
             makeCardEntry({ price: { totalValue: 1000, hidePrice: true } }),
@@ -675,7 +677,7 @@ describe("CurrentSessionTotalValueColumn", () => {
     });
 
     it("appends ' (hidden)' text when hidePrice is true", () => {
-      render(
+      renderWithProviders(
         <CurrentSessionTotalValueCell
           {...createCellContext(
             makeCardEntry({ price: { totalValue: 1000, hidePrice: true } }),
@@ -687,7 +689,7 @@ describe("CurrentSessionTotalValueColumn", () => {
     });
 
     it("does not append ' (hidden)' text when hidePrice is false", () => {
-      render(
+      renderWithProviders(
         <CurrentSessionTotalValueCell
           {...createCellContext(
             makeCardEntry({ price: { totalValue: 1000, hidePrice: false } }),
@@ -700,7 +702,7 @@ describe("CurrentSessionTotalValueColumn", () => {
     });
 
     it("defaults hidePrice to false when price has no hidePrice field", () => {
-      render(
+      renderWithProviders(
         <CurrentSessionTotalValueCell
           {...createCellContext(
             makeCardEntry({ price: { totalValue: 400, chaosValue: 80 } }),

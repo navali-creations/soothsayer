@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+
+import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
@@ -183,14 +183,12 @@ describe("onboardingConfig", () => {
   });
 
   it("createTrackedTrigger renders a trigger that calls trackEvent on click", async () => {
-    const user = userEvent.setup();
-
     // Grab the first beacon's trigger component (game-selector)
     const allPagesPage = findPage("all-pages");
     const firstBeacon = allPagesPage.beacons[0];
     const TriggerComponent = firstBeacon.trigger.component;
 
-    render(<TriggerComponent />);
+    const { user } = renderWithProviders(<TriggerComponent />);
 
     const triggerButton = screen.getByTestId("repere-trigger");
     expect(triggerButton).toBeInTheDocument();

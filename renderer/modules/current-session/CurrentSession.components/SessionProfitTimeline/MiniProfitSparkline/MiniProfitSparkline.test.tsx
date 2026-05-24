@@ -1,5 +1,6 @@
-import { cleanup, render } from "@testing-library/react";
 import { type Mock, vi } from "vitest";
+
+import { cleanup, renderWithProviders } from "~/renderer/__test-setup__/render";
 
 // ── Mocks (must be declared before component import) ────────────────────────
 
@@ -43,13 +44,13 @@ afterEach(() => {
 
 describe("MiniProfitSparkline", () => {
   it("should render a canvas element", () => {
-    render(<MiniProfitSparkline />);
+    renderWithProviders(<MiniProfitSparkline />);
     const canvas = document.querySelector("canvas");
     expect(canvas).toBeInTheDocument();
   });
 
   it("should subscribe to timelineBuffer on mount", () => {
-    render(<MiniProfitSparkline />);
+    renderWithProviders(<MiniProfitSparkline />);
     expect(mockBuffer.subscribe).toHaveBeenCalledTimes(1);
     expect(mockBuffer.subscribe).toHaveBeenCalledWith(expect.any(Function));
   });
@@ -58,7 +59,7 @@ describe("MiniProfitSparkline", () => {
     const unsubscribe = vi.fn();
     (mockBuffer.subscribe as Mock).mockReturnValue(unsubscribe);
 
-    const { unmount } = render(<MiniProfitSparkline />);
+    const { unmount } = renderWithProviders(<MiniProfitSparkline />);
     expect(unsubscribe).not.toHaveBeenCalled();
 
     unmount();
@@ -67,7 +68,7 @@ describe("MiniProfitSparkline", () => {
 
   it("should render without errors when buffer has no data", () => {
     mockBuffer.linePoints = [];
-    expect(() => render(<MiniProfitSparkline />)).not.toThrow();
+    expect(() => renderWithProviders(<MiniProfitSparkline />)).not.toThrow();
 
     const canvas = document.querySelector("canvas");
     expect(canvas).toBeInTheDocument();
@@ -80,14 +81,14 @@ describe("MiniProfitSparkline", () => {
       { x: 2, profit: -5 },
       { x: 3, profit: 20 },
     ];
-    expect(() => render(<MiniProfitSparkline />)).not.toThrow();
+    expect(() => renderWithProviders(<MiniProfitSparkline />)).not.toThrow();
 
     const canvas = document.querySelector("canvas");
     expect(canvas).toBeInTheDocument();
   });
 
   it("should apply provided className", () => {
-    const { container } = render(
+    const { container } = renderWithProviders(
       <MiniProfitSparkline className="my-sparkline" />,
     );
     // The className is applied to the outer container div
@@ -96,26 +97,28 @@ describe("MiniProfitSparkline", () => {
   });
 
   it("should apply default height of 100% when height prop is not specified", () => {
-    const { container } = render(<MiniProfitSparkline />);
+    const { container } = renderWithProviders(<MiniProfitSparkline />);
     const wrapper = container.firstElementChild as HTMLElement;
     expect(wrapper.style.height).toBe("100%");
   });
 
   it("should apply explicit height when height prop is provided", () => {
-    const { container } = render(<MiniProfitSparkline height={60} />);
+    const { container } = renderWithProviders(
+      <MiniProfitSparkline height={60} />,
+    );
     const wrapper = container.firstElementChild as HTMLElement;
     expect(wrapper.style.height).toBe("60px");
   });
 
   it("should have correct inline styles on the container div", () => {
-    const { container } = render(<MiniProfitSparkline />);
+    const { container } = renderWithProviders(<MiniProfitSparkline />);
     const wrapper = container.firstElementChild as HTMLElement;
     expect(wrapper.style.position).toBe("relative");
     expect(wrapper.style.overflow).toBe("hidden");
   });
 
   it("should have correct inline styles on the canvas element", () => {
-    const { container } = render(<MiniProfitSparkline />);
+    const { container } = renderWithProviders(<MiniProfitSparkline />);
     const canvasEl = container.querySelector("canvas");
     expect(canvasEl).toBeInTheDocument();
     if (canvasEl) {

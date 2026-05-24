@@ -1,11 +1,10 @@
-import { fireEvent } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ChangelogRelease } from "~/main/modules/updater/Updater.api";
 import {
+  fireEvent,
   renderWithProviders,
   screen,
-  userEvent,
 } from "~/renderer/__test-setup__/render";
 
 import ReleaseTimelineItem from "./ReleaseTimelineItem";
@@ -93,7 +92,7 @@ describe("ReleaseTimelineItem", () => {
   it("renders version badge as a link to the release URL", () => {
     renderItem();
 
-    const versionLink = screen.getByText("v1.2.3").closest("a");
+    const versionLink = screen.getByRole("link", { name: "v1.2.3" });
     expect(versionLink).toHaveAttribute(
       "href",
       "https://github.com/navali-creations/soothsayer/releases/tag/v1.2.3",
@@ -177,10 +176,7 @@ describe("ReleaseTimelineItem", () => {
   it("clicking card opens window with release URL", async () => {
     const { user } = renderItem();
 
-    // There are two elements with role="link": the <a> wrapping the version badge
-    // and the <div role="link"> card. We want the div.
-    const links = screen.getAllByRole("link");
-    const card = links.find((el) => el.tagName === "DIV")!;
+    const card = screen.getByRole("link", { name: "Fixed a bug" });
     await user.click(card);
 
     expect(windowOpenSpy).toHaveBeenCalledWith(
@@ -196,7 +192,7 @@ describe("ReleaseTimelineItem", () => {
       entries: [{ description: "Fix" }],
     };
 
-    renderWithProviders(
+    const { user } = renderWithProviders(
       <ReleaseTimelineItem
         release={release}
         isLast={false}
@@ -204,9 +200,7 @@ describe("ReleaseTimelineItem", () => {
       />,
     );
 
-    // Find the card div (role="link" with tagName DIV)
-    const links = screen.getAllByRole("link");
-    const card = links.find((el) => el.tagName === "DIV")!;
+    const card = screen.getByRole("link", { name: "Fix" });
 
     // Insert an anchor inside the card to simulate an inner link being clicked
     const innerLink = document.createElement("a");
@@ -215,7 +209,7 @@ describe("ReleaseTimelineItem", () => {
     card.querySelector(".card-body")?.appendChild(innerLink);
 
     // Click the inner link
-    await userEvent.click(innerLink);
+    await user.click(innerLink);
 
     // The card's click handler should detect e.target.closest("a") and bail out
     expect(windowOpenSpy).not.toHaveBeenCalled();
@@ -224,8 +218,7 @@ describe("ReleaseTimelineItem", () => {
   it("keyboard Enter on card opens the release URL and calls preventDefault", () => {
     renderItem();
 
-    const links = screen.getAllByRole("link");
-    const card = links.find((el) => el.tagName === "DIV")!;
+    const card = screen.getByRole("link", { name: "Fixed a bug" });
 
     const prevented = fireEvent.keyDown(card, { key: "Enter" });
 
@@ -240,8 +233,7 @@ describe("ReleaseTimelineItem", () => {
   it("keyboard Space on card opens the release URL and calls preventDefault", () => {
     renderItem();
 
-    const links = screen.getAllByRole("link");
-    const card = links.find((el) => el.tagName === "DIV")!;
+    const card = screen.getByRole("link", { name: "Fixed a bug" });
 
     const prevented = fireEvent.keyDown(card, { key: " " });
 
@@ -255,8 +247,7 @@ describe("ReleaseTimelineItem", () => {
   it("keyboard other keys do not open the release URL", () => {
     renderItem();
 
-    const links = screen.getAllByRole("link");
-    const card = links.find((el) => el.tagName === "DIV")!;
+    const card = screen.getByRole("link", { name: "Fixed a bug" });
 
     fireEvent.keyDown(card, { key: "Tab" });
 
@@ -274,8 +265,7 @@ describe("ReleaseTimelineItem", () => {
   it("card has role=link and is focusable", () => {
     renderItem();
 
-    const links = screen.getAllByRole("link");
-    const card = links.find((el) => el.tagName === "DIV")!;
+    const card = screen.getByRole("link", { name: "Fixed a bug" });
     expect(card).toHaveAttribute("tabindex", "0");
   });
 });

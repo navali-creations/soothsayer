@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
 
 import RarityInsightsCardNameCell from "./RarityInsightsCardNameCell";
 
@@ -61,7 +61,7 @@ describe("RarityInsightsCardNameCell", () => {
 
   it("renders CardNameLink with the card name", () => {
     const card = makeComparisonRow();
-    render(<RarityInsightsCardNameCell card={card} />);
+    renderWithProviders(<RarityInsightsCardNameCell card={card} />);
 
     const link = screen.getByTestId("card-name-link");
     expect(link).toBeInTheDocument();
@@ -70,7 +70,7 @@ describe("RarityInsightsCardNameCell", () => {
 
   it("renders DivinationCard inside popover", () => {
     const card = makeComparisonRow();
-    render(<RarityInsightsCardNameCell card={card} />);
+    renderWithProviders(<RarityInsightsCardNameCell card={card} />);
 
     const divCard = screen.getByTestId("divination-card");
     expect(divCard).toBeInTheDocument();
@@ -79,7 +79,7 @@ describe("RarityInsightsCardNameCell", () => {
 
   it("has cursor-help class on trigger span", () => {
     const card = makeComparisonRow();
-    render(<RarityInsightsCardNameCell card={card} />);
+    renderWithProviders(<RarityInsightsCardNameCell card={card} />);
 
     const link = screen.getByTestId("card-name-link");
     const triggerSpan = link.closest("span.cursor-help");
@@ -88,7 +88,7 @@ describe("RarityInsightsCardNameCell", () => {
 
   it("has font-fontin class on trigger span", () => {
     const card = makeComparisonRow();
-    render(<RarityInsightsCardNameCell card={card} />);
+    renderWithProviders(<RarityInsightsCardNameCell card={card} />);
 
     const link = screen.getByTestId("card-name-link");
     const triggerSpan = link.closest("span.font-fontin");
@@ -97,7 +97,7 @@ describe("RarityInsightsCardNameCell", () => {
 
   it('popover has popover="manual" attribute', () => {
     const card = makeComparisonRow();
-    render(<RarityInsightsCardNameCell card={card} />);
+    renderWithProviders(<RarityInsightsCardNameCell card={card} />);
 
     const divCard = screen.getByTestId("divination-card");
     const popoverDiv = divCard.closest("div[popover]");
@@ -116,7 +116,7 @@ describe("RarityInsightsCardNameCell", () => {
       flavourHtml: "<p>Reflections</p>",
       rarity: 2,
     });
-    render(<RarityInsightsCardNameCell card={card} />);
+    renderWithProviders(<RarityInsightsCardNameCell card={card} />);
 
     const divCard = screen.getByTestId("divination-card");
     const cardData = JSON.parse(divCard.getAttribute("data-card")!);
@@ -138,7 +138,7 @@ describe("RarityInsightsCardNameCell", () => {
 
   it("renders with different card names", () => {
     const card = makeComparisonRow({ name: "The Fiend" });
-    render(<RarityInsightsCardNameCell card={card} />);
+    renderWithProviders(<RarityInsightsCardNameCell card={card} />);
 
     expect(screen.getByTestId("card-name-link")).toHaveTextContent("The Fiend");
     expect(screen.getByTestId("divination-card")).toHaveTextContent(
@@ -155,7 +155,9 @@ describe("RarityInsightsCardNameCell", () => {
   describe("memo comparator", () => {
     it("does NOT re-render when only non-tracked fields change (e.g. description)", () => {
       const card = makeComparisonRow();
-      const { rerender } = render(<RarityInsightsCardNameCell card={card} />);
+      const { rerender } = renderWithProviders(
+        <RarityInsightsCardNameCell card={card} />,
+      );
 
       rerender(
         <RarityInsightsCardNameCell
@@ -170,7 +172,9 @@ describe("RarityInsightsCardNameCell", () => {
 
     it("re-renders when name changes", () => {
       const card = makeComparisonRow({ name: "The Doctor" });
-      const { rerender } = render(<RarityInsightsCardNameCell card={card} />);
+      const { rerender } = renderWithProviders(
+        <RarityInsightsCardNameCell card={card} />,
+      );
 
       rerender(
         <RarityInsightsCardNameCell
@@ -185,7 +189,9 @@ describe("RarityInsightsCardNameCell", () => {
 
     it("re-renders when rarity changes", () => {
       const card = makeComparisonRow({ rarity: 1 });
-      const { rerender } = render(<RarityInsightsCardNameCell card={card} />);
+      const { rerender } = renderWithProviders(
+        <RarityInsightsCardNameCell card={card} />,
+      );
 
       rerender(
         <RarityInsightsCardNameCell card={makeComparisonRow({ rarity: 5 })} />,
@@ -198,7 +204,9 @@ describe("RarityInsightsCardNameCell", () => {
 
     it("re-renders when artSrc changes", () => {
       const card = makeComparisonRow({ artSrc: "old.png" });
-      const { rerender } = render(<RarityInsightsCardNameCell card={card} />);
+      const { rerender } = renderWithProviders(
+        <RarityInsightsCardNameCell card={card} />,
+      );
 
       rerender(
         <RarityInsightsCardNameCell

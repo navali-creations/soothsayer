@@ -1,5 +1,4 @@
-import { render, screen } from "@testing-library/react";
-
+import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
 import type { LinePoint } from "~/renderer/modules/current-session/CurrentSession.components/SessionProfitTimeline/types/types";
 
 import StaticProfitSparkline from "./StaticProfitSparkline";
@@ -34,14 +33,16 @@ describe("StaticProfitSparkline", () => {
   ];
 
   it("should render a canvas element", () => {
-    render(<StaticProfitSparkline linePoints={multipleLinePoints} />);
+    renderWithProviders(
+      <StaticProfitSparkline linePoints={multipleLinePoints} />,
+    );
     const canvas = screen.getByTestId("static-profit-sparkline");
     expect(canvas).toBeInTheDocument();
     expect(canvas.tagName).toBe("CANVAS");
   });
 
   it("should apply provided className", () => {
-    const { container } = render(
+    const { container } = renderWithProviders(
       <StaticProfitSparkline
         linePoints={multipleLinePoints}
         className="my-sparkline-class"
@@ -53,7 +54,7 @@ describe("StaticProfitSparkline", () => {
   });
 
   it("should apply default height when not specified", () => {
-    const { container } = render(
+    const { container } = renderWithProviders(
       <StaticProfitSparkline linePoints={multipleLinePoints} />,
     );
     const wrapper = container.firstElementChild as HTMLElement;
@@ -62,7 +63,7 @@ describe("StaticProfitSparkline", () => {
   });
 
   it("should apply custom height prop", () => {
-    const { container } = render(
+    const { container } = renderWithProviders(
       <StaticProfitSparkline linePoints={multipleLinePoints} height={60} />,
     );
     const wrapper = container.firstElementChild as HTMLElement;
@@ -70,19 +71,21 @@ describe("StaticProfitSparkline", () => {
   });
 
   it("should render with empty linePoints", () => {
-    render(<StaticProfitSparkline linePoints={emptyLinePoints} />);
+    renderWithProviders(<StaticProfitSparkline linePoints={emptyLinePoints} />);
     const canvas = screen.getByTestId("static-profit-sparkline");
     expect(canvas).toBeInTheDocument();
   });
 
   it("should render with single linePoint", () => {
-    render(<StaticProfitSparkline linePoints={singleLinePoint} />);
+    renderWithProviders(<StaticProfitSparkline linePoints={singleLinePoint} />);
     const canvas = screen.getByTestId("static-profit-sparkline");
     expect(canvas).toBeInTheDocument();
   });
 
   it("should render with multiple linePoints", () => {
-    render(<StaticProfitSparkline linePoints={multipleLinePoints} />);
+    renderWithProviders(
+      <StaticProfitSparkline linePoints={multipleLinePoints} />,
+    );
     const canvas = screen.getByTestId("static-profit-sparkline");
     expect(canvas).toBeInTheDocument();
   });
@@ -91,7 +94,7 @@ describe("StaticProfitSparkline", () => {
     // Verify the component renders without errors when a custom lineColor is passed.
     // The actual canvas drawing won't happen in jsdom (getContext returns null),
     // but the component should not throw.
-    render(
+    renderWithProviders(
       <StaticProfitSparkline
         linePoints={multipleLinePoints}
         lineColor="rgba(255, 0, 0, 0.8)"
@@ -102,7 +105,7 @@ describe("StaticProfitSparkline", () => {
   });
 
   it("should set positioning styles on the container", () => {
-    const { container } = render(
+    const { container } = renderWithProviders(
       <StaticProfitSparkline linePoints={multipleLinePoints} />,
     );
     const wrapper = container.firstElementChild as HTMLElement;
@@ -111,7 +114,9 @@ describe("StaticProfitSparkline", () => {
   });
 
   it("should set positioning styles on the canvas", () => {
-    render(<StaticProfitSparkline linePoints={multipleLinePoints} />);
+    renderWithProviders(
+      <StaticProfitSparkline linePoints={multipleLinePoints} />,
+    );
     const canvas = screen.getByTestId(
       "static-profit-sparkline",
     ) as HTMLCanvasElement;

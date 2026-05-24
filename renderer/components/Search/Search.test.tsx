@@ -1,7 +1,6 @@
-import { fireEvent } from "@testing-library/react";
-
 import {
   act,
+  fireEvent,
   renderWithProviders,
   screen,
 } from "~/renderer/__test-setup__/render";
@@ -17,12 +16,15 @@ describe("Search", () => {
     vi.useRealTimers();
   });
 
+  // `fireEvent.change` keeps debounce and controlled-value assertions
+  // synchronous while fake timers are active.
+
   // ─── 1. Renders with defaults ──────────────────────────────────────────────
 
   it("renders with default placeholder, search icon, input type, and size class", () => {
     renderWithProviders(<Search />);
 
-    const input = screen.getByPlaceholderText("Search...");
+    const input = screen.getByRole("searchbox");
     expect(input).toBeInTheDocument();
     expect(input).toHaveAttribute("type", "search");
 
@@ -54,7 +56,7 @@ describe("Search", () => {
   ] as const)('applies DaisyUI class "%s" → "%s"', (size, expectedClass) => {
     renderWithProviders(<Search size={size} />);
 
-    const input = screen.getByPlaceholderText("Search...");
+    const input = screen.getByRole("searchbox");
     const label = input.closest("label")!;
     expect(label).toHaveClass(expectedClass);
   });
@@ -64,7 +66,7 @@ describe("Search", () => {
   it("merges custom className with base classes", () => {
     renderWithProviders(<Search className="my-custom-class" />);
 
-    const input = screen.getByPlaceholderText("Search...");
+    const input = screen.getByRole("searchbox");
     const label = input.closest("label")!;
     expect(label).toHaveClass("my-custom-class");
     // Base classes should still be present
@@ -81,7 +83,7 @@ describe("Search", () => {
       <Search value="hello" onChange={handleChange} />,
     );
 
-    const input = screen.getByPlaceholderText("Search...");
+    const input = screen.getByRole("searchbox");
     expect(input).toHaveValue("hello");
 
     // Simulate a change event — onChange should fire synchronously
@@ -100,7 +102,7 @@ describe("Search", () => {
   it("controlled mode: typing without onChange does not crash", () => {
     renderWithProviders(<Search value="test" />);
 
-    const input = screen.getByPlaceholderText("Search...");
+    const input = screen.getByRole("searchbox");
 
     // Should not throw
     fireEvent.change(input, { target: { value: "testabc" } });
@@ -114,7 +116,7 @@ describe("Search", () => {
 
     renderWithProviders(<Search debounceMs={300} onChange={handleChange} />);
 
-    const input = screen.getByPlaceholderText("Search...");
+    const input = screen.getByRole("searchbox");
     expect(input).toHaveValue("");
 
     // Simulate typing multiple characters
@@ -136,7 +138,7 @@ describe("Search", () => {
 
     renderWithProviders(<Search debounceMs={300} onChange={handleChange} />);
 
-    const input = screen.getByPlaceholderText("Search...");
+    const input = screen.getByRole("searchbox");
     fireEvent.change(input, { target: { value: "a" } });
 
     // onChange should NOT have been called yet
@@ -164,7 +166,7 @@ describe("Search", () => {
 
     renderWithProviders(<Search debounceMs={300} onChange={handleChange} />);
 
-    const input = screen.getByPlaceholderText("Search...");
+    const input = screen.getByRole("searchbox");
 
     // Type multiple characters rapidly (each keystroke resets the debounce timer)
     fireEvent.change(input, { target: { value: "a" } });
@@ -203,7 +205,7 @@ describe("Search", () => {
       <Search debounceMs={500} onChange={handleChange} />,
     );
 
-    const input = screen.getByPlaceholderText("Search...");
+    const input = screen.getByRole("searchbox");
     fireEvent.change(input, { target: { value: "hello" } });
 
     // Unmount before the debounce fires
@@ -225,7 +227,7 @@ describe("Search", () => {
 
     renderWithProviders(<Search debounceMs={0} onChange={handleChange} />);
 
-    const input = screen.getByPlaceholderText("Search...");
+    const input = screen.getByRole("searchbox");
 
     fireEvent.change(input, { target: { value: "x" } });
 
@@ -256,7 +258,7 @@ describe("Search", () => {
       />,
     );
 
-    const input = screen.getByTestId("my-search");
+    const input = screen.getByRole("searchbox", { name: "Search items" });
     expect(input).toHaveAttribute("aria-label", "Search items");
     expect(input).toHaveAttribute("name", "search-field");
     expect(input).toHaveAttribute("autoComplete", "off");

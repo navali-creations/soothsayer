@@ -1,7 +1,10 @@
-import { fireEvent } from "@testing-library/react";
 import type { ComponentProps } from "react";
 
-import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
+import {
+  fireEvent,
+  renderWithProviders,
+  screen,
+} from "~/renderer/__test-setup__/render";
 
 import type {
   AppPerformanceRouteMarkerDTO,

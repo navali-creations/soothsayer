@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   act,
+  fireEvent,
   renderWithProviders,
   screen,
   waitFor,
@@ -189,8 +190,7 @@ describe("OverlaySettingsCard", () => {
     const sliders = screen.getAllByRole("slider");
     const fontSizeSlider = sliders[2]; // Drop size is third
 
-    // fireEvent.change is more reliable for range inputs
-    const { fireEvent } = await import("@testing-library/react");
+    // fireEvent.change is more reliable for range inputs.
     fireEvent.change(fontSizeSlider, { target: { value: "1.5" } });
 
     await waitFor(() => {
@@ -204,7 +204,6 @@ describe("OverlaySettingsCard", () => {
     const sliders = screen.getAllByRole("slider");
     const toolbarSlider = sliders[3]; // Toolbar is fourth
 
-    const { fireEvent } = await import("@testing-library/react");
     fireEvent.change(toolbarSlider, { target: { value: "0.8" } });
 
     await waitFor(() => {
@@ -338,7 +337,6 @@ describe("OverlaySettingsCard", () => {
     const sliders = screen.getAllByRole("slider");
     const widthSlider = sliders[0];
 
-    const { fireEvent } = await import("@testing-library/react");
     fireEvent.change(widthSlider, { target: { value: "350" } });
 
     await waitFor(() => {
@@ -354,7 +352,6 @@ describe("OverlaySettingsCard", () => {
     const sliders = screen.getAllByRole("slider");
     const heightSlider = sliders[1];
 
-    const { fireEvent } = await import("@testing-library/react");
     fireEvent.change(heightSlider, { target: { value: "220" } });
 
     await waitFor(() => {
@@ -392,7 +389,6 @@ describe("OverlaySettingsCard", () => {
       const sliders = screen.getAllByRole("slider");
       const widthSlider = sliders[0];
 
-      const { fireEvent } = await import("@testing-library/react");
       fireEvent.change(widthSlider, { target: { value: "320" } });
 
       // Flush the rejected-promise .catch() so setTimeout is scheduled
@@ -423,7 +419,6 @@ describe("OverlaySettingsCard", () => {
       const sliders = screen.getAllByRole("slider");
       const heightSlider = sliders[1];
 
-      const { fireEvent } = await import("@testing-library/react");
       fireEvent.change(heightSlider, { target: { value: "200" } });
 
       // Flush the rejected-promise .catch() so setTimeout is scheduled
@@ -452,8 +447,6 @@ describe("OverlaySettingsCard", () => {
 
       const sliders = screen.getAllByRole("slider");
       const widthSlider = sliders[0];
-
-      const { fireEvent } = await import("@testing-library/react");
 
       // First change
       fireEvent.change(widthSlider, { target: { value: "300" } });
@@ -497,7 +490,6 @@ describe("OverlaySettingsCard", () => {
       const sliders = screen.getAllByRole("slider");
       const widthSlider = sliders[0];
 
-      const { fireEvent } = await import("@testing-library/react");
       fireEvent.change(widthSlider, { target: { value: "310" } });
 
       // Flush the rejected-promise .catch() so setTimeout is scheduled
@@ -534,7 +526,6 @@ describe("OverlaySettingsCard", () => {
     const sliders = screen.getAllByRole("slider");
     const widthSlider = sliders[0];
 
-    const { fireEvent } = await import("@testing-library/react");
     fireEvent.change(widthSlider, { target: { value: "320" } });
 
     // Flush the rejected-promise .catch() so setTimeout is scheduled
@@ -569,7 +560,6 @@ describe("OverlaySettingsCard", () => {
     const sliders = screen.getAllByRole("slider");
     const widthSlider = sliders[0];
 
-    const { fireEvent } = await import("@testing-library/react");
     fireEvent.change(widthSlider, { target: { value: "320" } });
 
     // Flush the rejected-promise .catch() so the fallback setTimeout is scheduled

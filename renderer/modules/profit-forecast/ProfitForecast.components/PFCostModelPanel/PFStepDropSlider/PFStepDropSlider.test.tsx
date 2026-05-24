@@ -1,6 +1,8 @@
-import { fireEvent } from "@testing-library/react";
-
-import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
+import {
+  fireEvent,
+  renderWithProviders,
+  screen,
+} from "~/renderer/__test-setup__/render";
 import { useBoundStore } from "~/renderer/store";
 
 import PFStepDropSlider from "./PFStepDropSlider";

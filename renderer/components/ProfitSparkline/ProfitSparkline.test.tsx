@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
 import type { LinePoint } from "~/renderer/modules/current-session/CurrentSession.components/SessionProfitTimeline/types/types";
 
 import ProfitSparkline, { type SparklineDataSource } from "./ProfitSparkline";
@@ -53,7 +53,7 @@ describe("ProfitSparkline", () => {
   ];
 
   it("should render a canvas element with the provided testId", () => {
-    render(
+    renderWithProviders(
       <ProfitSparkline linePoints={multipleLinePoints} testId={TEST_ID} />,
     );
     const canvas = screen.getByTestId(TEST_ID);
@@ -62,7 +62,7 @@ describe("ProfitSparkline", () => {
   });
 
   it("should apply provided className to the container div", () => {
-    const { container } = render(
+    const { container } = renderWithProviders(
       <ProfitSparkline
         linePoints={multipleLinePoints}
         testId={TEST_ID}
@@ -74,7 +74,7 @@ describe("ProfitSparkline", () => {
   });
 
   it("should use 100% height when height prop is not provided", () => {
-    const { container } = render(
+    const { container } = renderWithProviders(
       <ProfitSparkline linePoints={multipleLinePoints} testId={TEST_ID} />,
     );
     const wrapper = container.firstElementChild as HTMLElement;
@@ -82,7 +82,7 @@ describe("ProfitSparkline", () => {
   });
 
   it("should use pixel height when height prop is provided", () => {
-    const { container } = render(
+    const { container } = renderWithProviders(
       <ProfitSparkline
         linePoints={multipleLinePoints}
         testId={TEST_ID}
@@ -94,13 +94,15 @@ describe("ProfitSparkline", () => {
   });
 
   it("should render with empty linePoints without crashing", () => {
-    render(<ProfitSparkline linePoints={emptyLinePoints} testId={TEST_ID} />);
+    renderWithProviders(
+      <ProfitSparkline linePoints={emptyLinePoints} testId={TEST_ID} />,
+    );
     const canvas = screen.getByTestId(TEST_ID);
     expect(canvas).toBeInTheDocument();
   });
 
   it("should render with multiple linePoints without crashing", () => {
-    render(
+    renderWithProviders(
       <ProfitSparkline linePoints={multipleLinePoints} testId={TEST_ID} />,
     );
     const canvas = screen.getByTestId(TEST_ID);
@@ -108,7 +110,7 @@ describe("ProfitSparkline", () => {
   });
 
   it("should set positioning styles on the container", () => {
-    const { container } = render(
+    const { container } = renderWithProviders(
       <ProfitSparkline linePoints={multipleLinePoints} testId={TEST_ID} />,
     );
     const wrapper = container.firstElementChild as HTMLElement;
@@ -117,7 +119,7 @@ describe("ProfitSparkline", () => {
   });
 
   it("should set positioning styles on the canvas", () => {
-    render(
+    renderWithProviders(
       <ProfitSparkline linePoints={multipleLinePoints} testId={TEST_ID} />,
     );
     const canvas = screen.getByTestId(TEST_ID) as HTMLCanvasElement;
@@ -132,7 +134,9 @@ describe("ProfitSparkline", () => {
   describe("live mode (dataSource)", () => {
     it("should subscribe to the data source", () => {
       const mockDataSource = createMockDataSource();
-      render(<ProfitSparkline dataSource={mockDataSource} testId={TEST_ID} />);
+      renderWithProviders(
+        <ProfitSparkline dataSource={mockDataSource} testId={TEST_ID} />,
+      );
       expect(mockDataSource.subscribe).toHaveBeenCalledTimes(1);
       expect(mockDataSource.subscribe).toHaveBeenCalledWith(
         expect.any(Function),
@@ -141,7 +145,9 @@ describe("ProfitSparkline", () => {
 
     it("should unsubscribe on unmount", () => {
       const mockDataSource = createMockDataSource();
-      render(<ProfitSparkline dataSource={mockDataSource} testId={TEST_ID} />);
+      renderWithProviders(
+        <ProfitSparkline dataSource={mockDataSource} testId={TEST_ID} />,
+      );
 
       // Grab the unsubscribe function returned by subscribe
       const unsubscribe = mockDataSource.subscribe.mock.results[0].value;
@@ -156,7 +162,7 @@ describe("ProfitSparkline", () => {
         }),
       };
 
-      const { unmount: unmount2 } = render(
+      const { unmount: unmount2 } = renderWithProviders(
         <ProfitSparkline dataSource={spiedDataSource} testId={TEST_ID} />,
       );
 
@@ -167,7 +173,7 @@ describe("ProfitSparkline", () => {
   });
 
   it("should accept custom lineColor without throwing", () => {
-    render(
+    renderWithProviders(
       <ProfitSparkline
         linePoints={multipleLinePoints}
         testId={TEST_ID}

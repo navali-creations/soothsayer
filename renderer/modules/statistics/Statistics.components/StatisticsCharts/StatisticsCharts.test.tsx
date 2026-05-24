@@ -1,5 +1,3 @@
-import { fireEvent } from "@testing-library/react";
-
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
 import { useBoundStore } from "~/renderer/store";
 
@@ -250,15 +248,15 @@ describe("StatisticsCharts", () => {
       expect(screen.getByText("Profit")).toBeInTheDocument();
     });
 
-    it("calls toggleChartMetric when legend button is clicked", () => {
+    it("calls toggleChartMetric when legend button is clicked", async () => {
       const { toggleChartMetric } = setupStore({
         chartRawData: mockRawChartData,
       });
 
-      renderWithProviders(<StatisticsCharts />);
+      const { user } = renderWithProviders(<StatisticsCharts />);
 
       const decksButton = screen.getByText("Decks Opened").closest("button")!;
-      fireEvent.click(decksButton);
+      await user.click(decksButton);
 
       expect(toggleChartMetric).toHaveBeenCalledWith("decks");
     });
@@ -334,15 +332,15 @@ describe("StatisticsCharts", () => {
       });
     });
 
-    it("calls setBrushRange when onBrushChange is invoked from chart", () => {
+    it("calls setBrushRange when onBrushChange is invoked from chart", async () => {
       const { setBrushRange } = setupStore({
         chartRawData: mockRawChartData,
       });
 
-      renderWithProviders(<StatisticsCharts />);
+      const { user } = renderWithProviders(<StatisticsCharts />);
 
       const chart = screen.getByTestId("canvas-chart");
-      fireEvent.click(chart);
+      await user.click(chart);
 
       expect(setBrushRange).toHaveBeenCalledWith({
         startIndex: 3,

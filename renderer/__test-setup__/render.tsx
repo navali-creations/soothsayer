@@ -7,16 +7,19 @@
  *
  * Usage:
  *
- *   import { renderWithProviders } from '~/renderer/__test-setup__/render';
+ *   import {
+ *     renderWithProviders,
+ *     screen,
+ *   } from '~/renderer/__test-setup__/render';
  *
  *   it('renders a greeting', () => {
- *     const { getByText } = renderWithProviders(<MyComponent />);
- *     expect(getByText('Hello')).toBeInTheDocument();
+ *     renderWithProviders(<MyComponent />);
+ *     expect(screen.getByText('Hello')).toBeInTheDocument();
  *   });
  *
  * With store overrides:
  *
- *   const { getByText } = renderWithProviders(<MyComponent />, {
+ *   renderWithProviders(<MyComponent />, {
  *     storeOverrides: {
  *       setup: {
  *         setupState: { currentStep: 2, isComplete: false, selectedGames: ['poe1'] },
@@ -133,4 +136,11 @@ export function renderWithProviders(
   };
 }
 
-export { act, screen, waitFor, within } from "@testing-library/react";
+export {
+  act,
+  cleanup,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";

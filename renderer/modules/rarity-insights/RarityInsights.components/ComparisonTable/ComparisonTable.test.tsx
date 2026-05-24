@@ -1,5 +1,3 @@
-import { render } from "@testing-library/react";
-
 import { makeDivinationCardDTO } from "~/renderer/__test-setup__/fixtures";
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
 import { useBoundStore } from "~/renderer/store";
@@ -577,7 +575,7 @@ describe("ComparisonTable", () => {
       expect(filterCol).toBeDefined();
 
       const headerFn = filterCol.columnDef?.header ?? filterCol.header;
-      const { container } = render(
+      const { container } = renderWithProviders(
         typeof headerFn === "function" ? headerFn() : headerFn,
       );
 
@@ -616,7 +614,7 @@ describe("ComparisonTable", () => {
       expect(filterCol).toBeDefined();
 
       const headerFn = filterCol.columnDef?.header ?? filterCol.header;
-      const { container } = render(
+      const { container } = renderWithProviders(
         typeof headerFn === "function" ? headerFn() : headerFn,
       );
 
@@ -656,7 +654,7 @@ describe("ComparisonTable", () => {
       expect(filterCol).toBeDefined();
 
       const headerFn = filterCol.columnDef?.header ?? filterCol.header;
-      const { container } = render(
+      const { container } = renderWithProviders(
         typeof headerFn === "function" ? headerFn() : headerFn,
       );
 
@@ -722,7 +720,7 @@ describe("ComparisonTable", () => {
 
       const cellFn = filterCol.columnDef?.cell ?? filterCol.cell;
       const ctx = makeCellContext({ f1: null });
-      const { container } = render(
+      const { container } = renderWithProviders(
         typeof cellFn === "function" ? cellFn(ctx) : cellFn,
       );
 
@@ -754,7 +752,7 @@ describe("ComparisonTable", () => {
 
       const cellFn = filterCol.columnDef?.cell ?? filterCol.cell;
       const ctx = makeCellContext({});
-      const { container } = render(
+      const { container } = renderWithProviders(
         typeof cellFn === "function" ? cellFn(ctx) : cellFn,
       );
 
@@ -786,7 +784,7 @@ describe("ComparisonTable", () => {
 
       const cellFn = filterCol.columnDef?.cell ?? filterCol.cell;
       const ctx = makeCellContext({ f1: 2 }, 3);
-      const { container } = render(
+      const { container } = renderWithProviders(
         typeof cellFn === "function" ? cellFn(ctx) : cellFn,
       );
 
@@ -834,7 +832,7 @@ describe("ComparisonTable", () => {
 
       const cellFn = filterCol.columnDef?.cell ?? filterCol.cell;
       const ctx = makeCellContext({ f1: 2 }, 3);
-      const { container } = render(
+      const { container } = renderWithProviders(
         typeof cellFn === "function" ? cellFn(ctx) : cellFn,
       );
 
@@ -867,7 +865,7 @@ describe("ComparisonTable", () => {
 
       const cellFn = filterCol.columnDef?.cell ?? filterCol.cell;
       const ctx = makeCellContext({ f1: 3 }, 3);
-      const { container } = render(
+      const { container } = renderWithProviders(
         typeof cellFn === "function" ? cellFn(ctx) : cellFn,
       );
 
@@ -904,7 +902,7 @@ describe("ComparisonTable", () => {
       // Render the first placeholder header
       const headerFn =
         placeholders[0].columnDef?.header ?? placeholders[0].header;
-      const { container } = render(
+      const { container } = renderWithProviders(
         typeof headerFn === "function" ? headerFn() : headerFn,
       );
 
@@ -934,7 +932,7 @@ describe("ComparisonTable", () => {
 
       // Render the first placeholder cell
       const cellFn = placeholders[0].columnDef?.cell ?? placeholders[0].cell;
-      const { container } = render(
+      const { container } = renderWithProviders(
         typeof cellFn === "function" ? cellFn() : cellFn,
       );
 
@@ -956,7 +954,7 @@ describe("ComparisonTable", () => {
 
       placeholders.forEach((placeholder: any, i: number) => {
         const headerFn = placeholder.columnDef?.header ?? placeholder.header;
-        const { container } = render(
+        const { container } = renderWithProviders(
           typeof headerFn === "function" ? headerFn() : headerFn,
         );
         expect(container.textContent).toContain(expectedNames[i]);
@@ -990,7 +988,7 @@ describe("ComparisonTable", () => {
       // First placeholder should be "Filter 2" (index 1)
       const headerFn =
         placeholders[0].columnDef?.header ?? placeholders[0].header;
-      const { container } = render(
+      const { container } = renderWithProviders(
         typeof headerFn === "function" ? headerFn() : headerFn,
       );
       expect(container.textContent).toContain("Filter 2");
@@ -1160,7 +1158,7 @@ describe("ComparisonTable", () => {
   // ── RarityChips onClick ────────────────────────────────────────────────
 
   describe("RarityChips onClick in filter header", () => {
-    it("calls handleFilterRarityClick when a rarity chip is clicked", () => {
+    it("calls handleFilterRarityClick when a rarity chip is clicked", async () => {
       const mockState = setupStore({
         rarityInsightsComparison: {
           selectedFilters: ["f1"],
@@ -1184,14 +1182,14 @@ describe("ComparisonTable", () => {
         (c: any) => c.id === "filter_f1",
       );
       const headerFn = filterCol.columnDef?.header ?? filterCol.header;
-      const { container } = render(
+      const { container, user } = renderWithProviders(
         typeof headerFn === "function" ? headerFn() : headerFn,
       );
 
       // Find enabled rarity chip buttons and click the first one (R1)
       const buttons = container.querySelectorAll("button:not([disabled])");
       expect(buttons.length).toBe(4);
-      buttons[0].click();
+      await user.click(buttons[0]);
 
       expect(
         mockState.rarityInsightsComparison.handleFilterRarityClick,
@@ -1202,7 +1200,7 @@ describe("ComparisonTable", () => {
   // ── RarityBadgeDropdown onRarityChange ─────────────────────────────────
 
   describe("RarityBadgeDropdown onRarityChange", () => {
-    it("calls updateFilterCardRarity when rarity is changed", () => {
+    it("calls updateFilterCardRarity when rarity is changed", async () => {
       const mockState = setupStore({
         rarityInsightsComparison: {
           selectedFilters: ["f1"],
@@ -1240,14 +1238,14 @@ describe("ComparisonTable", () => {
         getValue: () => 3,
       };
 
-      const { container } = render(
+      const { container, user } = renderWithProviders(
         typeof cellFn === "function" ? cellFn(ctx) : cellFn,
       );
 
       const badge = container.querySelector("[data-testid='badge-dropdown']");
       expect(badge).toBeInTheDocument();
       // Click triggers the mock's onRarityChange(2)
-      badge!.click();
+      await user.click(badge!);
 
       expect(
         mockState.rarityInsightsComparison.updateFilterCardRarity,
@@ -1359,7 +1357,7 @@ describe("ComparisonTable", () => {
       // Verify all placeholder names are correct
       const names = placeholders.map((p: any) => {
         const headerFn = p.columnDef?.header ?? p.header;
-        const { container } = render(
+        const { container } = renderWithProviders(
           typeof headerFn === "function" ? headerFn() : headerFn,
         );
         return container.textContent;
