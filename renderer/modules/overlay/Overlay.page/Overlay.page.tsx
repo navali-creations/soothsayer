@@ -70,7 +70,12 @@ const OverlayApp = () => {
       setFontSize(settings.overlayFontSize ?? 1.0);
       setToolbarFontSize(settings.overlayToolbarFontSize ?? 1.0);
 
-      const { rarityInsights } = useBoundStore.getState();
+      const { rarityInsights, settings: settingsSlice } =
+        useBoundStore.getState();
+      settingsSlice.setSetting("raritySource", settings.raritySource);
+      settingsSlice.setSetting("selectedFilterId", settings.selectedFilterId);
+      rarityInsights.setSelectedFilterId(settings.selectedFilterId);
+
       if (settings.raritySource === "filter") {
         await rarityInsights.loadFilterTheme(settings.selectedFilterId);
       } else {

@@ -259,6 +259,25 @@ describe("OverlayDropsList", () => {
       expect(vi.mocked(getRarityStyles)).toHaveBeenCalledWith(1, "left", null);
     });
 
+    it("passes active filter theme to getRarityStyles", () => {
+      const activeFilterTheme = {
+        1: {
+          bgColor: { r: 10, g: 20, b: 30, a: 255 },
+          textColor: { r: 240, g: 240, b: 240, a: 255 },
+          borderColor: null,
+        },
+      };
+      const drops = [makeDrop({ cardName: "The Doctor", rarity: 1 })];
+      setupStore({ filteredDrops: drops, activeFilterTheme });
+      renderWithProviders(<OverlayDropsList />);
+
+      expect(vi.mocked(getRarityStyles)).toHaveBeenCalledWith(
+        1,
+        "right",
+        activeFilterTheme,
+      );
+    });
+
     it("passes showBeam from rarityStyles to DropBeamColumn", () => {
       vi.mocked(getRarityStyles).mockReturnValue({
         bgGradient: "",

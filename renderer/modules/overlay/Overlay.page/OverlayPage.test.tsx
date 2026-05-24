@@ -13,8 +13,10 @@ import {
 
 const mockDetectZone = vi.fn();
 const mockSetSessionData = vi.fn();
+const mockSetSetting = vi.fn();
 const mockLoadFilterTheme = vi.fn().mockResolvedValue(undefined);
 const mockClearFilterTheme = vi.fn();
+const mockSetSelectedFilterId = vi.fn();
 
 // ─── Default store state ───────────────────────────────────────────────────
 
@@ -35,9 +37,13 @@ function defaultOverlayState(overrides: Record<string, unknown> = {}) {
       detectZone: mockDetectZone,
       ...overrides,
     },
+    settings: {
+      setSetting: mockSetSetting,
+    },
     rarityInsights: {
       loadFilterTheme: mockLoadFilterTheme,
       clearFilterTheme: mockClearFilterTheme,
+      setSelectedFilterId: mockSetSelectedFilterId,
     },
   };
 }
@@ -206,9 +212,11 @@ beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
   mockDetectZone.mockReset();
   mockSetSessionData.mockReset();
+  mockSetSetting.mockReset();
   mockLoadFilterTheme.mockReset();
   mockLoadFilterTheme.mockResolvedValue(undefined);
   mockClearFilterTheme.mockReset();
+  mockSetSelectedFilterId.mockReset();
   mockUseBoundStore.mockReturnValue(defaultOverlayState());
   mockSettings();
   installAudioMock();
@@ -391,6 +399,25 @@ describe("OverlayApp", () => {
 
       expect(mockLoadFilterTheme).toHaveBeenCalledWith("filter-neversink");
       expect(mockClearFilterTheme).not.toHaveBeenCalled();
+    });
+
+    it("syncs filter source settings before loading the selected filter theme", async () => {
+      mockSettings({
+        raritySource: "filter",
+        selectedFilterId: "filter-neversink",
+      });
+
+      await renderAndSettle();
+
+      expect(mockSetSetting).toHaveBeenCalledWith("raritySource", "filter");
+      expect(mockSetSetting).toHaveBeenCalledWith(
+        "selectedFilterId",
+        "filter-neversink",
+      );
+      expect(mockSetSelectedFilterId).toHaveBeenCalledWith("filter-neversink");
+      expect(mockSetSetting.mock.invocationCallOrder[0]).toBeLessThan(
+        mockLoadFilterTheme.mock.invocationCallOrder[0],
+      );
     });
 
     it("loads custom sound data when audioRarityPaths are set", async () => {
