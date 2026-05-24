@@ -103,25 +103,12 @@ function setupAuthorizedMocks() {
  */
 function setupFullUploadMocks(
   fetchMock: ReturnType<typeof mockFetch>,
-  cardNames: string[] = ["The Doctor", "Rain of Chaos"],
   mergeResponseOverride?: unknown,
 ) {
   // League lookup by name + game
   fetchMock.onUrlContaining("poe_leagues", () =>
     postgrestResponse({ id: VALID_LEAGUE_ID, game: "poe2" }),
   );
-
-  // Card upsert (POST to cards table) — ignoreDuplicates
-  fetchMock.onUrlContaining(supabaseUrls.table("cards"), (_url, init) => {
-    if (init?.method === "POST") {
-      // Upsert returns empty on ignoreDuplicates
-      return postgrestResponse([]);
-    }
-    // GET — fetch card records by game + name
-    return postgrestResponse(
-      cardNames.map((name, i) => ({ id: `card-id-${i + 1}`, name })),
-    );
-  });
 
   fetchMock.onUrlContaining("community_uploads", (_url, init) => {
     if (init?.method === "PATCH") {
@@ -686,10 +673,7 @@ quietTest(
       count: 10,
     }));
 
-    setupFullUploadMocks(
-      fetchMock,
-      cards.map((c) => c.card_name),
-    );
+    setupFullUploadMocks(fetchMock);
 
     const req = createAuthorizedRequest(
       FUNCTION_URL,
@@ -726,10 +710,7 @@ quietTest(
       { card_name: "Card2", count: 30 },
     ];
 
-    setupFullUploadMocks(
-      fetchMock,
-      cards.map((c) => c.card_name),
-    );
+    setupFullUploadMocks(fetchMock);
 
     const req = createAuthorizedRequest(
       FUNCTION_URL,
@@ -775,17 +756,6 @@ quietTest(
     fetchMock.onUrlContaining("poe_leagues", () =>
       postgrestResponse({ id: VALID_LEAGUE_ID, game: "poe2" }),
     );
-
-    // Card names for all 20 cards
-    const allCardRecords = cards.map((c, i) => ({
-      id: `card-id-${i}`,
-      name: c.card_name,
-    }));
-
-    fetchMock.onUrlContaining(supabaseUrls.table("cards"), (_url, init) => {
-      if (init?.method === "POST") return postgrestResponse([]);
-      return postgrestResponse(allCardRecords);
-    });
 
     fetchMock.onUrlContaining("community_uploads", (_url, init) => {
       if (init?.method === "PATCH") {
@@ -1063,7 +1033,7 @@ quietTest(
       p_ggg_uuid: string | null;
       p_ggg_username: string | null;
       p_is_verified: boolean;
-      p_cards: { card_id: string; count: number }[];
+      p_cards: { card_name: string; count: number }[];
     };
     assertEquals(mergePayload.p_league_id, VALID_LEAGUE_ID);
     assertEquals(mergePayload.p_device_id, VALID_DEVICE_ID);
@@ -1071,8 +1041,66 @@ quietTest(
     assertEquals(mergePayload.p_ggg_username, null);
     assertEquals(mergePayload.p_is_verified, false);
     assertEquals(mergePayload.p_cards, [
-      { card_id: "card-id-1", count: 3 },
-      { card_id: "card-id-2", count: 12 },
+      { card_name: "The Doctor", count: 3 },
+      { card_name: "Rain of Chaos", count: 12 },
+    ]);
+
+    const cardTableCalls = fetchMock.calls.filter((call) =>
+      call.url.includes(supabaseUrls.table("cards")),
+    );
+    assertEquals(cardTableCalls.length, 0);
+
+    fetchMock.restore();
+  },
+);
+
+quietTest(
+  "upload-community-data — trims and dedupes card names before merge",
+  async () => {
+    const fetchMock = setupAuthorizedMocks();
+    const testToken = createTestJwt({ sub: "test-user-id-001" });
+
+    setupFullUploadMocks(fetchMock, {
+      upload_id: "upload-id-001",
+      total_cards: 17,
+      upload_count: 1,
+      is_verified: false,
+    });
+
+    const req = createAuthorizedRequest(
+      FUNCTION_URL,
+      validUploadBody({
+        cards: [
+          { card_name: " The Doctor ", count: 3 },
+          { card_name: "The Doctor", count: 5 },
+          { card_name: "Rain of Chaos", count: 12 },
+        ],
+      }),
+      testToken,
+    );
+    const resp = await handler(req);
+
+    assertEquals(resp.status, 200);
+    const body = await responseBody<{
+      success: boolean;
+      total_cards: number;
+      unique_cards: number;
+    }>(resp);
+
+    assertEquals(body.success, true);
+    assertEquals(body.total_cards, 17);
+    assertEquals(body.unique_cards, 2);
+
+    const mergeCalls = fetchMock.calls.filter((call) =>
+      call.url.includes(supabaseUrls.rpc("merge_community_upload_data")),
+    );
+    assertEquals(mergeCalls.length, 1);
+    const mergePayload = JSON.parse(mergeCalls[0].init?.body as string) as {
+      p_cards: { card_name: string; count: number }[];
+    };
+    assertEquals(mergePayload.p_cards, [
+      { card_name: "The Doctor", count: 5 },
+      { card_name: "Rain of Chaos", count: 12 },
     ]);
 
     fetchMock.restore();
@@ -1085,11 +1113,7 @@ quietTest(
     const fetchMock = setupAuthorizedMocks();
     const testToken = createTestJwt({ sub: "test-user-id-001" });
 
-    setupFullUploadMocks(
-      fetchMock,
-      ["The Doctor", "Rain of Chaos"],
-      "not-a-number",
-    );
+    setupFullUploadMocks(fetchMock, "not-a-number");
 
     const req = createAuthorizedRequest(
       FUNCTION_URL,
@@ -1176,15 +1200,6 @@ quietTest(
         }),
     );
 
-    // Cards upsert + fetch
-    const cardNames = ["The Doctor", "Rain of Chaos"];
-    fetchMock.onUrlContaining(supabaseUrls.table("cards"), (_url, init) => {
-      if (init?.method === "POST") return postgrestResponse([]);
-      return postgrestResponse(
-        cardNames.map((name, i) => ({ id: `card-id-${i + 1}`, name })),
-      );
-    });
-
     setupUploadMergeMock(fetchMock, {
       upload_id: EXISTING_UPLOAD_ID,
       total_cards: 15,
@@ -1257,15 +1272,6 @@ quietTest(
         }),
     );
 
-    // Cards
-    const cardNames = ["The Doctor", "Rain of Chaos"];
-    fetchMock.onUrlContaining(supabaseUrls.table("cards"), (_url, init) => {
-      if (init?.method === "POST") return postgrestResponse([]);
-      return postgrestResponse(
-        cardNames.map((name, i) => ({ id: `card-id-${i + 1}`, name })),
-      );
-    });
-
     setupUploadMergeMock(fetchMock, {
       upload_id: "new-upload-id",
       total_cards: 15,
@@ -1324,15 +1330,6 @@ quietTest(
     );
 
     // No GGG profile mock — anonymous upload (no x-ggg-token header)
-
-    // Cards
-    const cardNames = ["The Doctor", "Rain of Chaos"];
-    fetchMock.onUrlContaining(supabaseUrls.table("cards"), (_url, init) => {
-      if (init?.method === "POST") return postgrestResponse([]);
-      return postgrestResponse(
-        cardNames.map((name, i) => ({ id: `card-id-${i + 1}`, name })),
-      );
-    });
 
     setupUploadMergeMock(fetchMock, {
       upload_id: "anon-upload-id",

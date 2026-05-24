@@ -758,6 +758,38 @@ describe("SupabaseClientService", () => {
       });
     });
 
+    it("should normalize legacy exchange/stash snapshot responses", async () => {
+      const service = await configureService();
+      const snapshotResponse = {
+        ...makeSnapshotResponse(),
+        cardPrices: {
+          exchange: {
+            "The Doctor": { chaosValue: "900", divineValue: "6.0" },
+          },
+          stash: {
+            "The Doctor": {
+              chaosValue: 900,
+              divineValue: 6.0,
+              confidence: 3,
+              rarity: 0,
+            },
+          },
+        },
+      };
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve(JSON.stringify(snapshotResponse)),
+      });
+
+      const result = await service.getLatestSnapshot("poe1", "Settlers");
+
+      expect(result.cardPrices).toEqual({
+        "The Doctor": { chaosValue: 900, divineValue: 6 },
+      });
+    });
+
     it("should return cached snapshot when within cache duration", async () => {
       const service = await configureService();
       const snapshotResponse = makeSnapshotResponse();

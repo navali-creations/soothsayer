@@ -9,7 +9,7 @@
 
 BEGIN;
 
-SELECT plan(135);
+SELECT plan(139);
 
 -- ═══════════════════════════════════════════════════════════════
 -- VERIFY FUNCTIONS EXIST
@@ -191,7 +191,7 @@ SELECT ok(
     SELECT obj_description(
       'public.merge_community_upload_data(uuid,text,text,text,boolean,jsonb)'::regprocedure,
       'pg_proc'
-    ) COLLATE "C" = 'Atomically creates or updates community_uploads, merges community_card_data with GREATEST semantics, and returns the server-side upload summary. SECURITY DEFINER, service_role only.'::text COLLATE "C"
+    ) COLLATE "C" = 'Atomically resolves card names, creates or updates community_uploads, merges community_card_data with GREATEST semantics, and returns the server-side upload summary. SECURITY DEFINER, service_role only.'::text COLLATE "C"
   ),
   'merge_community_upload_data should document its atomic merge and access model'
 );
@@ -1025,6 +1025,64 @@ SELECT results_eq(
       AND ggg_uuid = 'ggg-merge-uuid'$$,
   ARRAY['merge-device-3'],
   'merge_community_upload_data should move a GGG-linked upload to the latest verified device'
+);
+
+SELECT results_eq(
+  $$SELECT (merge_community_upload_data(
+    'fd000000-0000-0000-0000-000000000001',
+    'merge-device-name',
+    NULL,
+    NULL,
+    false,
+    '[
+      {"card_name":"Merge Name Card A","count":4},
+      {"card_name":"Merge Name Card B","count":6},
+      {"card_name":"Merge Name Card A","count":5}
+    ]'::jsonb
+  )->>'total_cards')::int$$,
+  ARRAY[11],
+  'merge_community_upload_data should resolve card names and dedupe repeated names by max count'
+);
+
+SELECT results_eq(
+  $$SELECT COUNT(*)::int
+    FROM cards
+    WHERE game = 'poe1'
+      AND name IN ('Merge Name Card A', 'Merge Name Card B')$$,
+  ARRAY[2],
+  'merge_community_upload_data should create missing card rows for name-based uploads'
+);
+
+SELECT results_eq(
+  $$SELECT c.name, ccd.count
+    FROM community_card_data ccd
+    JOIN cards c ON c.id = ccd.card_id
+    WHERE ccd.upload_id = (
+      SELECT id
+      FROM community_uploads
+      WHERE league_id = 'fd000000-0000-0000-0000-000000000001'
+        AND device_id = 'merge-device-name'
+    )
+    ORDER BY c.name$$,
+  $$VALUES ('Merge Name Card A'::text, 5), ('Merge Name Card B'::text, 6)$$,
+  'merge_community_upload_data should persist resolved name-based card counts'
+);
+
+SELECT results_eq(
+  $$SELECT total_cards, upload_count
+    FROM jsonb_to_record(merge_community_upload_data(
+        'fd000000-0000-0000-0000-000000000001',
+        'merge-device-name',
+        NULL,
+        NULL,
+        false,
+        '[
+          {"card_name":"Merge Name Card A","count":3},
+          {"card_name":"Merge Name Card B","count":12}
+        ]'::jsonb
+      )) AS result(total_cards int, upload_count int)$$,
+  $$VALUES (17, 2)$$,
+  'merge_community_upload_data should preserve larger name-based counts and increment upload_count'
 );
 
 SELECT throws_ok(

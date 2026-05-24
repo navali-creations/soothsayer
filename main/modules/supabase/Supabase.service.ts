@@ -25,14 +25,139 @@ interface SupabaseSnapshotResponse {
     stackedDeckChaosCost: number;
     stackedDeckMaxVolumeRate?: number | null;
   };
-  cardPrices: Record<
-    string,
-    {
-      chaosValue: number;
-      divineValue: number;
-      confidence?: Confidence;
+  cardPrices:
+    | SupabaseCardPriceMap
+    | {
+        exchange?: SupabaseCardPriceMap;
+        stash?: Record<string, unknown>;
+      };
+}
+
+type SupabaseCardPriceMap = Record<
+  string,
+  {
+    chaosValue: number;
+    divineValue: number;
+    confidence?: Confidence;
+  }
+>;
+
+interface NormalizedSupabaseSnapshotResponse {
+  snapshot: SupabaseSnapshotResponse["snapshot"];
+  cardPrices: SupabaseCardPriceMap;
+}
+
+type UnknownRecord = Record<string, unknown>;
+
+function isRecord(value: unknown): value is UnknownRecord {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function isCardPricePayload(value: unknown): value is {
+  chaosValue: unknown;
+  divineValue: unknown;
+  confidence?: unknown;
+} {
+  return isRecord(value) && "chaosValue" in value && "divineValue" in value;
+}
+
+function normalizeCardPrices(cardPrices: unknown): SupabaseCardPriceMap {
+  if (!isRecord(cardPrices)) {
+    throw new Error("Invalid response structure from Supabase");
+  }
+
+  // Older edge responses returned { exchange, stash }. Prefer exchange prices
+  // when that wrapper is present, but do not mistake a card literally named
+  // "exchange" for the legacy wrapper.
+  const candidate =
+    isRecord(cardPrices.exchange) && !isCardPricePayload(cardPrices.exchange)
+      ? cardPrices.exchange
+      : cardPrices;
+
+  const normalized: SupabaseCardPriceMap = {};
+
+  for (const [cardName, price] of Object.entries(candidate)) {
+    if (!isCardPricePayload(price)) {
+      throw new Error("Invalid response structure from Supabase");
     }
-  >;
+
+    const chaosValue = Number(price.chaosValue);
+    const divineValue = Number(price.divineValue);
+    if (!Number.isFinite(chaosValue) || !Number.isFinite(divineValue)) {
+      throw new Error("Invalid response structure from Supabase");
+    }
+
+    const normalizedPrice: SupabaseCardPriceMap[string] = {
+      chaosValue,
+      divineValue,
+    };
+
+    if (price.confidence !== undefined) {
+      const confidence = Number(price.confidence);
+      if (confidence !== 1 && confidence !== 2 && confidence !== 3) {
+        throw new Error("Invalid response structure from Supabase");
+      }
+      normalizedPrice.confidence = confidence as Confidence;
+    }
+
+    normalized[cardName] = normalizedPrice;
+  }
+
+  return normalized;
+}
+
+function normalizeSnapshotResponse(
+  data: unknown,
+): NormalizedSupabaseSnapshotResponse {
+  if (!isRecord(data) || !isRecord(data.snapshot)) {
+    throw new Error("Invalid response structure from Supabase");
+  }
+
+  const rawSnapshot = data.snapshot;
+  const exchangeChaosToDivine = Number(rawSnapshot.exchangeChaosToDivine);
+  if (
+    typeof rawSnapshot.id !== "string" ||
+    typeof rawSnapshot.leagueId !== "string" ||
+    typeof rawSnapshot.fetchedAt !== "string" ||
+    !Number.isFinite(exchangeChaosToDivine)
+  ) {
+    throw new Error("Invalid response structure from Supabase");
+  }
+
+  const stackedDeckChaosCost =
+    rawSnapshot.stackedDeckChaosCost === null ||
+    rawSnapshot.stackedDeckChaosCost === undefined
+      ? 0
+      : Number(rawSnapshot.stackedDeckChaosCost);
+
+  if (!Number.isFinite(stackedDeckChaosCost)) {
+    throw new Error("Invalid response structure from Supabase");
+  }
+
+  const stackedDeckMaxVolumeRate =
+    rawSnapshot.stackedDeckMaxVolumeRate === null ||
+    rawSnapshot.stackedDeckMaxVolumeRate === undefined
+      ? null
+      : Number(rawSnapshot.stackedDeckMaxVolumeRate);
+
+  if (
+    stackedDeckMaxVolumeRate !== null &&
+    !Number.isFinite(stackedDeckMaxVolumeRate)
+  ) {
+    throw new Error("Invalid response structure from Supabase");
+  }
+
+  return {
+    snapshot: {
+      id: rawSnapshot.id,
+      leagueId: rawSnapshot.leagueId,
+      fetchedAt: rawSnapshot.fetchedAt,
+      exchangeChaosToDivine,
+      stackedDeckChaosCost,
+      stackedDeckMaxVolumeRate,
+    },
+    cardPrices: normalizeCardPrices(data.cardPrices),
+  };
 }
 
 /**
@@ -562,25 +687,20 @@ class SupabaseClientService {
         );
       }
 
-      const data = JSON.parse(responseText) as SupabaseSnapshotResponse;
+      const data = JSON.parse(responseText) as unknown;
 
       if (!data) {
         console.error("[SupabaseClient] No data returned from Edge Function");
         throw new Error("No data returned from Supabase");
       }
 
-      const responseData = data as SupabaseSnapshotResponse;
-
-      // Validate response structure
-      if (!responseData.snapshot || !responseData.cardPrices) {
-        throw new Error("Invalid response structure from Supabase");
-      }
+      const responseData = normalizeSnapshotResponse(data);
 
       // Convert to SessionPriceSnapshot format
       // Confidence is passed through from the edge function response
       const snapshot: SessionPriceSnapshot = {
         timestamp: responseData.snapshot.fetchedAt,
-        stackedDeckChaosCost: responseData.snapshot.stackedDeckChaosCost ?? 0,
+        stackedDeckChaosCost: responseData.snapshot.stackedDeckChaosCost,
         stackedDeckMaxVolumeRate:
           responseData.snapshot.stackedDeckMaxVolumeRate ?? undefined,
         chaosToDivineRatio: responseData.snapshot.exchangeChaosToDivine,
@@ -746,5 +866,5 @@ class SupabaseClientService {
   }
 }
 
-export type { SupabaseLeague, SupabaseSnapshotResponse };
+export type { SupabaseLeague };
 export { SupabaseClientService };

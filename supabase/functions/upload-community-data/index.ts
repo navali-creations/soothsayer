@@ -187,18 +187,27 @@ function validateBody(
   }
 
   let totalCards = 0;
+  const cards: CardEntry[] = [];
   for (let i = 0; i < b.cards.length; i++) {
     const c = b.cards[i];
     if (!c || typeof c !== "object") {
       return { ok: false, error: `cards[${i}] is invalid` };
     }
-    if (typeof c.card_name !== "string" || c.card_name.length === 0) {
+    if (typeof c.card_name !== "string") {
       return {
         ok: false,
         error: `cards[${i}].card_name must be a non-empty string`,
       };
     }
-    if (c.card_name.length > 200) {
+
+    const cardName = c.card_name.trim();
+    if (cardName.length === 0) {
+      return {
+        ok: false,
+        error: `cards[${i}].card_name must be a non-empty string`,
+      };
+    }
+    if (cardName.length > 200) {
       return {
         ok: false,
         error: `cards[${i}].card_name exceeds maximum length of 200 characters`,
@@ -218,6 +227,7 @@ function validateBody(
       };
     }
     totalCards += c.count;
+    cards.push({ card_name: cardName, count: c.count });
   }
 
   if (totalCards > COMMUNITY_UPLOAD_LIMITS.maxTotalCards) {
@@ -241,7 +251,7 @@ function validateBody(
       device_id: b.device_id as string,
       is_packaged:
         typeof b.is_packaged === "boolean" ? b.is_packaged : undefined,
-      cards: b.cards as CardEntry[],
+      cards,
     },
   };
 }
@@ -429,14 +439,14 @@ Deno.serve(async (req: Request) => {
   );
 
   // 4. Verify league exists
-  let league: { id: string; game: string } | null = null;
+  let league: { id: string } | null = null;
   let leagueError: unknown = null;
 
   if (leagueId) {
     // Lookup by UUID
     const result = await supabase
       .from("poe_leagues")
-      .select("id, game")
+      .select("id")
       .eq("id", leagueId)
       .single();
     league = result.data;
@@ -445,7 +455,7 @@ Deno.serve(async (req: Request) => {
     // Lookup by GGG league name + game
     const result = await supabase
       .from("poe_leagues")
-      .select("id, game")
+      .select("id")
       .eq("league_id", leagueName)
       .eq("game", gameParam)
       .single();
@@ -505,66 +515,24 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  // 6. Resolve card names → card IDs
-  const uniqueNames = [...new Set(cards.map((c) => c.card_name))];
-
-  // Upsert new card names into the cards table
-  const cardRows = uniqueNames.map((name) => ({
-    game: league.game,
-    name,
-  }));
-
-  const { error: upsertCardsError } = await supabase
-    .from("cards")
-    .upsert(cardRows, { onConflict: "game,name", ignoreDuplicates: true });
-
-  if (upsertCardsError) {
-    console.error(`${TAG} Card upsert failed:`, upsertCardsError);
-    return responseJson({
-      status: 500,
-      body: { error: "Failed to resolve card names" },
-    });
+  const dedupedInputCounts = new Map<string, number>();
+  for (const card of cards) {
+    dedupedInputCounts.set(
+      card.card_name,
+      Math.max(dedupedInputCounts.get(card.card_name) ?? 0, card.count),
+    );
   }
+  const canonicalCards = Array.from(
+    dedupedInputCounts,
+    ([card_name, count]) => ({
+      card_name,
+      count,
+    }),
+  );
 
-  // Fetch all card IDs for this league that we care about
-  const { data: cardRecords, error: cardFetchError } = await supabase
-    .from("cards")
-    .select("id, name")
-    .eq("game", league.game)
-    .in("name", uniqueNames);
-
-  if (cardFetchError || !cardRecords) {
-    console.error(`${TAG} Card fetch failed:`, cardFetchError);
-    return responseJson({
-      status: 500,
-      body: { error: "Failed to resolve card names" },
-    });
-  }
-
-  const cardNameToId = new Map<string, string>();
-  for (const rec of cardRecords) {
-    cardNameToId.set(rec.name, rec.id);
-  }
-
-  // Build resolved cards list (skip any that couldn't be resolved, defensively)
-  const resolvedCards: { cardId: string; count: number }[] = [];
-  for (const c of cards) {
-    const cardId = cardNameToId.get(c.card_name);
-    if (cardId) {
-      resolvedCards.push({ cardId, count: c.count });
-    } else {
-      console.warn(`${TAG} Could not resolve card "${c.card_name}" — skipping`);
-    }
-  }
-
-  if (resolvedCards.length === 0) {
-    return responseJson({
-      status: 400,
-      body: { error: "No valid cards could be resolved" },
-    });
-  }
-
-  // 7. Atomically create/update the upload row and merge card counts.
+  // 6. Atomically resolve card names, create/update the upload row, and merge
+  // card counts. Keep card resolution in Postgres so large uploads don't need a
+  // large PostgREST `.in(name, ...)` lookup before the merge.
   const uploadMergeStartedAt = Date.now();
   const { data: uploadMergeData, error: uploadMergeError } = await supabase.rpc(
     "merge_community_upload_data",
@@ -574,8 +542,8 @@ Deno.serve(async (req: Request) => {
       p_ggg_uuid: gggUuid,
       p_ggg_username: gggUsername,
       p_is_verified: isVerified,
-      p_cards: resolvedCards.map((card) => ({
-        card_id: card.cardId,
+      p_cards: canonicalCards.map((card) => ({
+        card_name: card.card_name,
         count: card.count,
       })),
     },
@@ -606,9 +574,9 @@ Deno.serve(async (req: Request) => {
   isVerified = uploadMergeResult.is_verified;
   const uploadMergeMs = Date.now() - uploadMergeStartedAt;
 
-  // 8. Statistical fraud checks (Layer 1.5) — only if effectiveTotal >= 500
+  // 7. Statistical fraud checks (Layer 1.5) — only if effectiveTotal >= 500
   if (effectiveTotal >= 500) {
-    const allCounts = resolvedCards.map((c) => c.count);
+    const allCounts = canonicalCards.map((card) => card.count);
     const suspicionReasons: string[] = [];
 
     if (!checkBenfordsLaw(allCounts)) {
@@ -652,8 +620,8 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  // 11. Return success
-  const uniqueCards = new Set(resolvedCards.map((c) => c.cardId)).size;
+  // 8. Return success
+  const uniqueCards = dedupedInputCounts.size;
 
   console.log(
     `${TAG} Upload successful: upload_id=${uploadId}, total_cards=${effectiveTotal}, unique_cards=${uniqueCards}, upload_count=${uploadCount}, is_verified=${isVerified}, upload_merge_ms=${uploadMergeMs}`,

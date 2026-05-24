@@ -45,7 +45,7 @@ assert(handler !== null, "Handler should have been captured from Deno.serve");
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const CURRENT_APP_VERSION = "0.17.1";
+const CURRENT_APP_VERSION = "0.18.0";
 
 function createFunctionRequest(
   options: {
@@ -729,7 +729,7 @@ quietTest(
     const req = createFunctionRequest({
       apikey: "test-anon-key",
       bearerToken: testToken,
-      appVersion: "0.17.0",
+      appVersion: "0.17.1",
       body: { game: "poe2", league: "Dawn" },
     });
     const resp = await handler(req);

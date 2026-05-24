@@ -5,7 +5,10 @@ import { authorize, responseJson } from "../_shared/utils.ts";
 
 type Body = { game?: "poe1" | "poe2"; league?: string };
 
-const FLAT_RESPONSE_MIN_APP_VERSION = "0.17.1";
+// 0.17.x clients in the wild still contain the old exchange/stash merge path.
+// Keep returning the legacy shape to those clients and only switch 0.18.0+
+// builds to the flat exchange-only payload.
+const FLAT_RESPONSE_MIN_APP_VERSION = "0.18.0";
 
 type CardPricePayload = {
   chaosValue: number;
