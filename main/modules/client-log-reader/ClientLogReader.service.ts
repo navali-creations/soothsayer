@@ -1,14 +1,15 @@
 import EventEmitter from "node:events";
 import fs from "node:fs";
 
-import type { GameType } from "../../../types/data-stores";
+import { CurrentSessionService } from "~/main/modules/current-session";
+import type { MainWindowServiceType } from "~/main/modules/main-window";
+import { PerformanceLoggerService } from "~/main/modules/performance-logger";
 import {
-  CurrentSessionService,
-  type MainWindowServiceType,
-  PerformanceLoggerService,
   SettingsKey,
   SettingsStoreService,
-} from "../../modules";
+} from "~/main/modules/settings-store";
+
+import type { GameType } from "../../../types/data-stores";
 import { parseCards } from "./utils";
 
 /**

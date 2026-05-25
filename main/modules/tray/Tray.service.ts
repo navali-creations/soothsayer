@@ -2,11 +2,11 @@ import path from "node:path";
 
 import { app, Menu, nativeImage, shell, Tray } from "electron";
 
+import { AppService } from "~/main/modules/app";
 import {
-  AppService,
   MainWindowService,
   type MainWindowServiceType,
-} from "~/main/modules";
+} from "~/main/modules/main-window";
 
 class TrayService {
   private tray: Tray | null = null;

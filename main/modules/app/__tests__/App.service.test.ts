@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  createBarrelMock,
-  getIpcHandler,
-} from "~/main/modules/__test-utils__/mock-factories";
+import { getIpcHandler } from "~/main/modules/__test-utils__/mock-factories";
 import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
 
 // ─── Hoisted mock functions (available inside vi.mock factories) ─────────────
@@ -91,68 +88,90 @@ vi.mock("../../../package.json", () => ({
   default: { version: "0.12.0" },
 }));
 
-// ─── Mock ~/main/modules barrel ──────────────────────────────────────────────
-vi.mock("~/main/modules", () =>
-  createBarrelMock({
-    AppPerformanceService: {
-      getInstance: vi.fn(() => ({
-        shutdown: mockAppPerformanceShutdown,
-      })),
-    },
-    CommunityUploadService: {
-      getInstance: vi.fn(() => ({
-        drainInFlightUploads: mockCommunityUploadDrainInFlight,
-      })),
-    },
-    CurrentSessionService: {
-      getInstance: vi.fn(() => ({
-        isSessionActive: mockCurrentSessionIsActive,
-        stopSession: mockCurrentSessionStopSession,
-      })),
-    },
-    DatabaseService: {
-      getInstance: vi.fn(() => ({
-        optimize: mockDatabaseOptimize,
-        close: mockDatabaseClose,
-      })),
-    },
-    MainWindowService: {
-      getInstance: vi.fn(() => ({
-        show: vi.fn(),
-      })),
-    },
-    OverlayService: {
-      getInstance: vi.fn(() => ({
-        destroy: mockOverlayDestroy,
-      })),
-    },
-    PoeProcessService: {
-      getInstance: vi.fn(() => ({
-        stop: mockPoeProcessStop,
-      })),
-    },
-    SettingsStoreService: {
-      getInstance: vi.fn(() => ({
-        get: mockSettingsGet,
-      })),
-    },
-    SnapshotService: {
-      getInstance: vi.fn(() => ({
-        stopAllAutoRefresh: mockSnapshotStopAllAutoRefresh,
-      })),
-    },
-    TrayService: {
-      getInstance: vi.fn(() => ({
-        destroyTray: mockTrayDestroyTray,
-      })),
-    },
-    GggAuthService: {
-      getInstance: vi.fn(() => ({
-        handleCallback: mockGggHandleCallback,
-      })),
-    },
-  }),
-);
+vi.mock("~/main/modules/app-performance", () => ({
+  AppPerformanceService: {
+    getInstance: vi.fn(() => ({
+      shutdown: mockAppPerformanceShutdown,
+    })),
+  },
+}));
+
+vi.mock("~/main/modules/community-upload", () => ({
+  CommunityUploadService: {
+    getInstance: vi.fn(() => ({
+      drainInFlightUploads: mockCommunityUploadDrainInFlight,
+    })),
+  },
+}));
+
+vi.mock("~/main/modules/current-session", () => ({
+  CurrentSessionService: {
+    getInstance: vi.fn(() => ({
+      isSessionActive: mockCurrentSessionIsActive,
+      stopSession: mockCurrentSessionStopSession,
+    })),
+  },
+}));
+
+vi.mock("~/main/modules/database", () => ({
+  DatabaseService: {
+    getInstance: vi.fn(() => ({
+      optimize: mockDatabaseOptimize,
+      close: mockDatabaseClose,
+    })),
+  },
+}));
+
+vi.mock("~/main/modules/ggg-auth", () => ({
+  GggAuthService: {
+    getInstance: vi.fn(() => ({
+      handleCallback: mockGggHandleCallback,
+    })),
+  },
+}));
+
+vi.mock("~/main/modules/overlay", () => ({
+  OverlayService: {
+    getInstance: vi.fn(() => ({
+      destroy: mockOverlayDestroy,
+    })),
+  },
+}));
+
+vi.mock("~/main/modules/poe-process", () => ({
+  PoeProcessService: {
+    getInstance: vi.fn(() => ({
+      stop: mockPoeProcessStop,
+    })),
+  },
+}));
+
+vi.mock("~/main/modules/settings-store", () => ({
+  SettingsKey: {
+    AppOpenAtLogin: "appOpenAtLogin",
+  },
+  SettingsStoreService: {
+    getInstance: vi.fn(() => ({
+      get: mockSettingsGet,
+    })),
+  },
+}));
+
+vi.mock("~/main/modules/snapshots", () => ({
+  SnapshotService: {
+    getInstance: vi.fn(() => ({
+      stopAllAutoRefresh: mockSnapshotStopAllAutoRefresh,
+    })),
+  },
+}));
+
+vi.mock("~/main/modules/tray", () => ({
+  TrayService: {
+    getInstance: vi.fn(() => ({
+      destroyTray: mockTrayDestroyTray,
+    })),
+  },
+}));
 
 import { AppChannel } from "../App.channels";
 // ─── Import under test (after mocks) ────────────────────────────────────────

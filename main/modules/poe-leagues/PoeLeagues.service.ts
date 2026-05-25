@@ -1,8 +1,14 @@
-import * as Sentry from "@sentry/electron/main";
 import { ipcMain } from "electron";
 
-import { SettingsKey, SettingsStoreService } from "~/main/modules";
 import { DatabaseService } from "~/main/modules/database";
+import {
+  captureSentryException,
+  captureSentryMessage,
+} from "~/main/modules/sentry/Sentry.reporter";
+import {
+  SettingsKey,
+  SettingsStoreService,
+} from "~/main/modules/settings-store";
 import { SupabaseClientService } from "~/main/modules/supabase";
 import {
   assertBoundedString,
@@ -102,7 +108,7 @@ class PoeLeaguesService {
               `[PoeLeaguesService] Failed to fetch leagues:`,
               error,
             );
-            Sentry.captureException(
+            captureSentryException(
               error instanceof Error ? error : new Error(String(error)),
               {
                 tags: { module: "poe-leagues", operation: "fetch-leagues-ipc" },
@@ -212,7 +218,7 @@ class PoeLeaguesService {
         `[PoeLeaguesService] Failed to fetch from Supabase:`,
         error,
       );
-      Sentry.captureException(
+      captureSentryException(
         error instanceof Error ? error : new Error(String(error)),
         {
           tags: { module: "poe-leagues", operation: "fetch-from-supabase" },
@@ -237,7 +243,7 @@ class PoeLeaguesService {
       console.warn(
         `[PoeLeaguesService] No cached leagues available for ${gameKey} and Supabase fetch failed. Caching Standard fallback with ${PoeLeaguesService.FALLBACK_COOLDOWN_MINUTES}min cooldown.`,
       );
-      Sentry.captureMessage(
+      captureSentryMessage(
         `No cached leagues available for ${gameKey} — using Standard fallback`,
         {
           level: "warning",

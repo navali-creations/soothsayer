@@ -2,20 +2,20 @@ import { resolve } from "node:path";
 
 import { type App, app, ipcMain } from "electron";
 
+import { AppPerformanceService } from "~/main/modules/app-performance";
+import { CommunityUploadService } from "~/main/modules/community-upload";
+import { CurrentSessionService } from "~/main/modules/current-session";
+import { DatabaseService } from "~/main/modules/database";
+import { GggAuthService } from "~/main/modules/ggg-auth";
+import type { MainWindowServiceType } from "~/main/modules/main-window";
+import { OverlayService } from "~/main/modules/overlay";
+import { PoeProcessService } from "~/main/modules/poe-process";
 import {
-  AppPerformanceService,
-  CommunityUploadService,
-  CurrentSessionService,
-  DatabaseService,
-  GggAuthService,
-  type MainWindowServiceType,
-  OverlayService,
-  PoeProcessService,
   SettingsKey,
   SettingsStoreService,
-  SnapshotService,
-  TrayService,
-} from "~/main/modules";
+} from "~/main/modules/settings-store";
+import { SnapshotService } from "~/main/modules/snapshots";
+import { TrayService } from "~/main/modules/tray";
 
 import { System } from "../../../enums";
 import pkgJson from "../../../package.json" with { type: "json" };

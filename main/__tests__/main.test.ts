@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createBarrelMock } from "~/main/modules/__test-utils__/mock-factories";
-
 // ─── Hoisted mock functions (available inside vi.mock factories) ─────────────
 const {
   mockSquirrelStartup,
   mockSentryInitialize,
+  mockSentryDisable,
   mockSentryGetInstance,
+  mockSentryCaptureException,
   mockAppGetInstance,
   mockAppQuit,
   mockAppEmitSecondInstance,
@@ -25,6 +25,7 @@ const {
   mockStorageServiceGetInstance,
   mockSupabaseGetInstance,
   mockSupabaseConfigure,
+  mockSettingsGet,
   mockRequestSingleInstanceLock,
   mockWhenReady,
   mockIsPackaged,
@@ -32,8 +33,10 @@ const {
   mockREDUX_DEVTOOLS,
 } = vi.hoisted(() => ({
   mockSquirrelStartup: { value: false },
-  mockSentryInitialize: vi.fn(),
+  mockSentryInitialize: vi.fn().mockResolvedValue(undefined),
+  mockSentryDisable: vi.fn().mockResolvedValue(undefined),
   mockSentryGetInstance: vi.fn(),
+  mockSentryCaptureException: vi.fn(),
   mockAppGetInstance: vi.fn(),
   mockAppQuit: vi.fn(),
   mockAppEmitSecondInstance: vi.fn(),
@@ -52,6 +55,7 @@ const {
   mockStorageServiceGetInstance: vi.fn(),
   mockSupabaseGetInstance: vi.fn(),
   mockSupabaseConfigure: vi.fn(),
+  mockSettingsGet: vi.fn().mockResolvedValue(true),
   mockRequestSingleInstanceLock: vi.fn(() => true),
   mockWhenReady: vi.fn(() => Promise.resolve()),
   mockIsPackaged: { value: false },
@@ -77,6 +81,7 @@ vi.mock("electron-squirrel-startup", () => ({
 vi.mock("~/main/modules/sentry", () => {
   const sentryInstance = {
     initialize: mockSentryInitialize,
+    disable: mockSentryDisable,
   };
   mockSentryGetInstance.mockReturnValue(sentryInstance);
   return {
@@ -85,6 +90,10 @@ vi.mock("~/main/modules/sentry", () => {
     },
   };
 });
+
+vi.mock("~/main/modules/sentry/Sentry.reporter", () => ({
+  captureSentryException: mockSentryCaptureException,
+}));
 
 // ─── Mock Electron ───────────────────────────────────────────────────────────
 vi.mock("electron", () => ({
@@ -103,29 +112,7 @@ vi.mock("electron-devtools-installer", () => ({
   REDUX_DEVTOOLS: mockREDUX_DEVTOOLS,
 }));
 
-// ─── Mock ~/main/modules barrel ──────────────────────────────────────────────
-vi.mock("~/main/modules", () => {
-  const mockMainWindowInstance = {
-    createMainWindow: mockMainWindowCreateMainWindow,
-  };
-  mockMainWindowGetInstance.mockReturnValue(mockMainWindowInstance);
-
-  const mockOverlayInstance = {};
-  mockOverlayGetInstance.mockReturnValue(mockOverlayInstance);
-
-  const mockAppSetupInstance = {};
-  mockAppSetupGetInstance.mockReturnValue(mockAppSetupInstance);
-
-  const mockRarityInsightsServiceInstance = {};
-  mockRarityInsightsServiceGetInstance.mockReturnValue(
-    mockRarityInsightsServiceInstance,
-  );
-
-  const mockSupabaseInstance = {
-    configure: mockSupabaseConfigure,
-  };
-  mockSupabaseGetInstance.mockReturnValue(mockSupabaseInstance);
-
+vi.mock("~/main/modules/app", () => {
   const mockAppInstance = {
     quit: mockAppQuit,
     emitSecondInstance: mockAppEmitSecondInstance,
@@ -141,20 +128,86 @@ vi.mock("~/main/modules", () => {
   };
   mockAppGetInstance.mockReturnValue(mockAppInstance);
 
-  return createBarrelMock({
+  return {
     AppService: { getInstance: mockAppGetInstance },
-    DiagLogService: { getInstance: vi.fn(() => ({})) },
+  };
+});
+
+vi.mock("~/main/modules/main-window", () => {
+  const mockMainWindowInstance = {
+    createMainWindow: mockMainWindowCreateMainWindow,
+  };
+  mockMainWindowGetInstance.mockReturnValue(mockMainWindowInstance);
+
+  return {
     MainWindowService: { getInstance: mockMainWindowGetInstance },
+  };
+});
+
+vi.mock("~/main/modules/overlay", () => {
+  const mockOverlayInstance = {};
+  mockOverlayGetInstance.mockReturnValue(mockOverlayInstance);
+
+  return {
     OverlayService: { getInstance: mockOverlayGetInstance },
+  };
+});
+
+vi.mock("~/main/modules/app-setup", () => {
+  const mockAppSetupInstance = {};
+  mockAppSetupGetInstance.mockReturnValue(mockAppSetupInstance);
+
+  return {
     AppSetupService: { getInstance: mockAppSetupGetInstance },
+  };
+});
+
+vi.mock("~/main/modules/rarity-insights", () => {
+  const mockRarityInsightsServiceInstance = {};
+  mockRarityInsightsServiceGetInstance.mockReturnValue(
+    mockRarityInsightsServiceInstance,
+  );
+
+  return {
     RarityInsightsService: {
       getInstance: mockRarityInsightsServiceGetInstance,
     },
-    ProfitForecastService: { getInstance: mockProfitForecastGetInstance },
-    StorageService: { getInstance: mockStorageServiceGetInstance },
-    SupabaseClientService: { getInstance: mockSupabaseGetInstance },
-  });
+  };
 });
+
+vi.mock("~/main/modules/supabase", () => {
+  const mockSupabaseInstance = {
+    configure: mockSupabaseConfigure,
+  };
+  mockSupabaseGetInstance.mockReturnValue(mockSupabaseInstance);
+
+  return {
+    SupabaseClientService: { getInstance: mockSupabaseGetInstance },
+  };
+});
+
+vi.mock("~/main/modules/diag-log", () => ({
+  DiagLogService: { getInstance: vi.fn(() => ({})) },
+}));
+
+vi.mock("~/main/modules/profit-forecast", () => ({
+  ProfitForecastService: { getInstance: mockProfitForecastGetInstance },
+}));
+
+vi.mock("~/main/modules/settings-store", () => ({
+  SettingsKey: {
+    TelemetryCrashReporting: "telemetryCrashReporting",
+  },
+  SettingsStoreService: {
+    getInstance: vi.fn(() => ({
+      get: mockSettingsGet,
+    })),
+  },
+}));
+
+vi.mock("~/main/modules/storage", () => ({
+  StorageService: { getInstance: mockStorageServiceGetInstance },
+}));
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -214,6 +267,9 @@ describe("main.ts", () => {
 
     // Default: createMainWindow resolves
     mockMainWindowCreateMainWindow.mockResolvedValue(undefined);
+    mockSentryInitialize.mockResolvedValue(undefined);
+    mockSentryDisable.mockResolvedValue(undefined);
+    mockSettingsGet.mockResolvedValue(true);
   });
 
   afterEach(() => {

@@ -1,10 +1,10 @@
-import * as Sentry from "@sentry/electron/main";
 import { app, ipcMain, powerMonitor } from "electron";
 import type { Kysely } from "kysely";
 
 import { DatabaseService } from "~/main/modules/database";
 import type { Database } from "~/main/modules/database/Database.types";
 import { GggAuthService } from "~/main/modules/ggg-auth";
+import { captureSentryException } from "~/main/modules/sentry/Sentry.reporter";
 import {
   SettingsKey,
   SettingsStoreService,
@@ -285,7 +285,7 @@ class CommunityUploadService {
     } catch (error) {
       // Fire-and-forget — don't break the auth flow
       console.error("[CommunityUpload] Failed to link GGG account:", error);
-      Sentry.captureException(
+      captureSentryException(
         error instanceof Error ? error : new Error(String(error)),
         {
           tags: { module: "community-upload", operation: "link-ggg" },
@@ -400,7 +400,7 @@ class CommunityUploadService {
         "[CommunityUpload] Failed to flush pending uploads:",
         error instanceof Error ? error.message : String(error),
       );
-      Sentry.captureException(
+      captureSentryException(
         error instanceof Error ? error : new Error(String(error)),
         {
           tags: {
@@ -477,7 +477,7 @@ class CommunityUploadService {
         "[CommunityUpload] Upload failed:",
         error instanceof Error ? error.message : String(error),
       );
-      Sentry.captureException(
+      captureSentryException(
         error instanceof Error ? error : new Error(String(error)),
         {
           tags: {
@@ -579,7 +579,7 @@ class CommunityUploadService {
         error instanceof Error ? error.message : String(error),
       );
       await this.recordPendingUploadFailure(row, error);
-      Sentry.captureException(
+      captureSentryException(
         error instanceof Error ? error : new Error(String(error)),
         {
           tags: {
@@ -645,7 +645,7 @@ class CommunityUploadService {
         "[CommunityUpload] Pending upload failed:",
         error instanceof Error ? error.message : String(error),
       );
-      Sentry.captureException(
+      captureSentryException(
         error instanceof Error ? error : new Error(String(error)),
         {
           tags: {
@@ -718,7 +718,7 @@ class CommunityUploadService {
             `[CommunityUpload] Backfill failed for ${game}/${scope}:`,
             error instanceof Error ? error.message : String(error),
           );
-          Sentry.captureException(
+          captureSentryException(
             error instanceof Error ? error : new Error(String(error)),
             {
               tags: {
@@ -732,7 +732,7 @@ class CommunityUploadService {
       }
     } catch (error) {
       console.error("[CommunityUpload] Backfill failed:", error);
-      Sentry.captureException(
+      captureSentryException(
         error instanceof Error ? error : new Error(String(error)),
         {
           tags: {

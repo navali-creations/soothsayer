@@ -2,9 +2,9 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-import * as Sentry from "@sentry/electron/main";
 import { app, ipcMain, safeStorage, shell } from "electron";
 
+import { captureSentryException } from "~/main/modules/sentry/Sentry.reporter";
 import {
   assertTrustedSender,
   handleValidationError,
@@ -233,7 +233,7 @@ class GggAuthService {
         };
       } catch (error) {
         console.error("[GggAuth] Failed to get auth status:", error);
-        Sentry.captureException(
+        captureSentryException(
           error instanceof Error ? error : new Error(String(error)),
           {
             tags: { module: "ggg-auth", operation: "get-auth-status" },
@@ -253,7 +253,7 @@ class GggAuthService {
         return await this.authenticate();
       } catch (error) {
         console.error("[GggAuth] Authentication failed:", error);
-        Sentry.captureException(
+        captureSentryException(
           error instanceof Error ? error : new Error(String(error)),
           {
             tags: { module: "ggg-auth", operation: "authenticate" },
@@ -278,7 +278,7 @@ class GggAuthService {
         return { success: true };
       } catch (error) {
         console.error("[GggAuth] Logout failed:", error);
-        Sentry.captureException(
+        captureSentryException(
           error instanceof Error ? error : new Error(String(error)),
           {
             tags: { module: "ggg-auth", operation: "logout" },
@@ -470,7 +470,7 @@ class GggAuthService {
       });
     } catch (error) {
       console.error("[GggAuth] Token exchange failed:", error);
-      Sentry.captureException(
+      captureSentryException(
         error instanceof Error ? error : new Error(String(error)),
         {
           tags: { module: "ggg-auth", operation: "token-exchange" },
@@ -600,7 +600,7 @@ class GggAuthService {
     } catch (error) {
       // Refresh failed (e.g., refresh token expired after 7 days)
       console.error("[GggAuth] Token refresh failed:", error);
-      Sentry.captureException(
+      captureSentryException(
         error instanceof Error ? error : new Error(String(error)),
         {
           tags: { module: "ggg-auth", operation: "token-refresh" },

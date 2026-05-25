@@ -7,16 +7,16 @@ const {
   mockAppGetVersion,
   mockAppIsPackaged,
 } = vi.hoisted(() => ({
-  mockSentryInit: vi.fn(),
+  mockSentryInit: vi.fn().mockResolvedValue(undefined),
   mockSentryClose: vi.fn().mockResolvedValue(undefined),
   mockAppGetVersion: vi.fn().mockReturnValue("0.6.0"),
   mockAppIsPackaged: { value: false },
 }));
 
-// ─── Mock @sentry/electron/main ─────────────────────────────────────────────
-vi.mock("@sentry/electron/main", () => ({
-  init: mockSentryInit,
-  close: mockSentryClose,
+// ─── Mock Sentry reporter ───────────────────────────────────────────────────
+vi.mock("~/main/modules/sentry/Sentry.reporter", () => ({
+  initSentry: mockSentryInit,
+  closeSentry: mockSentryClose,
 }));
 
 // ─── Mock electron ──────────────────────────────────────────────────────────
@@ -87,9 +87,9 @@ describe("SentryService", () => {
       expect(service.isInitialized()).toBe(false);
     });
 
-    it("should return true after initialize is called", () => {
+    it("should return true after initialize resolves", async () => {
       service = SentryService.getInstance();
-      service.initialize();
+      await service.initialize();
       expect(service.isInitialized()).toBe(true);
     });
   });
@@ -101,8 +101,8 @@ describe("SentryService", () => {
       service = SentryService.getInstance();
     });
 
-    it("should call Sentry.init with DSN, release, environment, and PII scrubbing callbacks", () => {
-      service.initialize();
+    it("should call Sentry.init with DSN, release, environment, and PII scrubbing callbacks", async () => {
+      await service.initialize();
 
       expect(mockSentryInit).toHaveBeenCalledTimes(1);
       expect(mockSentryInit).toHaveBeenCalledWith(
@@ -117,10 +117,10 @@ describe("SentryService", () => {
       );
     });
 
-    it("should set environment to 'production' when app is packaged", () => {
+    it("should set environment to 'production' when app is packaged", async () => {
       mockAppIsPackaged.value = true;
 
-      service.initialize();
+      await service.initialize();
 
       expect(mockSentryInit).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -129,10 +129,10 @@ describe("SentryService", () => {
       );
     });
 
-    it("should set environment to 'development' when app is not packaged", () => {
+    it("should set environment to 'development' when app is not packaged", async () => {
       mockAppIsPackaged.value = false;
 
-      service.initialize();
+      await service.initialize();
 
       expect(mockSentryInit).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -141,8 +141,8 @@ describe("SentryService", () => {
       );
     });
 
-    it("should use the version from package.json in the release", () => {
-      service.initialize();
+    it("should use the version from package.json in the release", async () => {
+      await service.initialize();
 
       expect(mockSentryInit).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -151,24 +151,39 @@ describe("SentryService", () => {
       );
     });
 
-    it("should only call Sentry.init once even if initialize is called multiple times", () => {
-      service.initialize();
-      service.initialize();
-      service.initialize();
+    it("should only call Sentry.init once even if initialize is called multiple times", async () => {
+      await Promise.all([
+        service.initialize(),
+        service.initialize(),
+        service.initialize(),
+      ]);
 
       expect(mockSentryInit).toHaveBeenCalledTimes(1);
     });
 
-    it("should set isInitialized to true after first call", () => {
+    it("should set isInitialized to true after first call", async () => {
       expect(service.isInitialized()).toBe(false);
-      service.initialize();
+      await service.initialize();
       expect(service.isInitialized()).toBe(true);
     });
 
-    it("should remain initialized after multiple calls", () => {
-      service.initialize();
-      service.initialize();
+    it("should remain initialized after multiple calls", async () => {
+      await service.initialize();
+      await service.initialize();
       expect(service.isInitialized()).toBe(true);
+    });
+
+    it("should stay uninitialized when reporter initialization fails", async () => {
+      mockSentryInit.mockRejectedValueOnce(new Error("SDK unavailable"));
+      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      await service.initialize();
+
+      expect(service.isInitialized()).toBe(false);
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[SentryService] Failed to initialize crash reporting:",
+        "SDK unavailable",
+      );
     });
   });
 
@@ -180,7 +195,7 @@ describe("SentryService", () => {
     });
 
     it("should call Sentry.close and set disabled to true when initialized", async () => {
-      service.initialize();
+      await service.initialize();
       expect(service.isDisabled()).toBe(false);
 
       await service.disable();
@@ -197,7 +212,7 @@ describe("SentryService", () => {
     });
 
     it("should not call Sentry.close if already disabled", async () => {
-      service.initialize();
+      await service.initialize();
       await service.disable();
       vi.clearAllMocks();
 
@@ -207,7 +222,7 @@ describe("SentryService", () => {
     });
 
     it("should remain initialized after disable (only disabled flag changes)", async () => {
-      service.initialize();
+      await service.initialize();
       await service.disable();
 
       expect(service.isInitialized()).toBe(true);
@@ -218,10 +233,10 @@ describe("SentryService", () => {
   // ─── Fresh instance after singleton reset ────────────────────────────────
 
   describe("fresh instance behavior", () => {
-    it("should start uninitialized after singleton reset", () => {
+    it("should start uninitialized after singleton reset", async () => {
       // Initialize first instance
       const first = SentryService.getInstance();
-      first.initialize();
+      await first.initialize();
       expect(first.isInitialized()).toBe(true);
 
       // Reset singleton
@@ -233,9 +248,9 @@ describe("SentryService", () => {
       expect(second).not.toBe(first);
     });
 
-    it("should allow re-initialization on a new instance after singleton reset", () => {
+    it("should allow re-initialization on a new instance after singleton reset", async () => {
       const first = SentryService.getInstance();
-      first.initialize();
+      await first.initialize();
 
       resetSingleton(SentryService);
       vi.clearAllMocks();
@@ -243,7 +258,7 @@ describe("SentryService", () => {
       const second = SentryService.getInstance();
       expect(second.isInitialized()).toBe(false);
 
-      second.initialize();
+      await second.initialize();
       expect(second.isInitialized()).toBe(true);
       expect(mockSentryInit).toHaveBeenCalledTimes(1);
     });
@@ -367,12 +382,12 @@ describe("Sentry callbacks (beforeSend / beforeBreadcrumb)", () => {
   let beforeSend: (event: any) => any;
   let beforeBreadcrumb: (breadcrumb: any) => any;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
     resetSingleton(SentryService);
 
     const service = SentryService.getInstance();
-    service.initialize();
+    await service.initialize();
 
     const initCall = mockSentryInit.mock.calls[0][0];
     beforeSend = initCall.beforeSend;

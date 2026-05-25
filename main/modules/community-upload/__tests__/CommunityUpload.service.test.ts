@@ -98,13 +98,9 @@ vi.mock("~/main/utils/ipc-validation", () =>
   }),
 );
 
-vi.mock("@sentry/electron/main", () => ({
-  captureException: mockSentryCaptureException,
-  captureMessage: vi.fn(),
-  init: vi.fn(),
-  setTag: vi.fn(),
-  setUser: vi.fn(),
-  addBreadcrumb: vi.fn(),
+vi.mock("~/main/modules/sentry/Sentry.reporter", () => ({
+  captureSentryException: mockSentryCaptureException,
+  captureSentryMessage: vi.fn(),
 }));
 
 // ─── Kysely mock builder ────────────────────────────────────────────────────

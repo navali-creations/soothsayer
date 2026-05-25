@@ -1,8 +1,9 @@
 import { ipcMain, powerMonitor } from "electron";
 
-import { type MainWindowService, PoeProcessChannel } from "~/main/modules";
+import type { MainWindowService } from "~/main/modules/main-window";
 
 import { PoeProcessPoller } from "../../pollers/PoeProcessPoller";
+import { PoeProcessChannel } from "./PoeProcess.channels";
 
 /**
  * Service responsible for monitoring the Path of Exile process

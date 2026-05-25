@@ -10,36 +10,37 @@ import {
   shell,
 } from "electron";
 
+import { AnalyticsService } from "~/main/modules/analytics";
+import { AppService } from "~/main/modules/app";
+import { AppPerformanceService } from "~/main/modules/app-performance";
+import { BannersService } from "~/main/modules/banners";
+import { CardDetailsService } from "~/main/modules/card-details";
+import { ClientLogReaderService } from "~/main/modules/client-log-reader";
+import { CommunityUploadService } from "~/main/modules/community-upload";
+import { CsvService } from "~/main/modules/csv";
+import { CurrentSessionService } from "~/main/modules/current-session";
+import { DatabaseService } from "~/main/modules/database";
+import { DivinationCardsService } from "~/main/modules/divination-cards";
+import { GggAuthService } from "~/main/modules/ggg-auth";
+import { OverlayService } from "~/main/modules/overlay";
+import { PoeLeaguesService } from "~/main/modules/poe-leagues";
+import { PoeProcessService } from "~/main/modules/poe-process";
+import { SessionsService } from "~/main/modules/sessions";
 import {
-  AnalyticsService,
-  AppService,
-  BannersService,
-  CardDetailsService,
-  ClientLogReaderService,
-  CommunityUploadService,
-  CsvService,
-  CurrentSessionService,
-  DatabaseService,
-  DivinationCardsService,
-  GggAuthService,
-  MainWindowChannel,
-  OverlayService,
-  PoeLeaguesService,
-  PoeProcessService,
-  SessionsService,
   SettingsKey,
   SettingsStoreService,
-  SnapshotService,
-  SupabaseClientService,
-  TrayService,
-  UpdaterService,
-} from "~/main/modules";
-import { AppPerformanceService } from "~/main/modules/app-performance";
+} from "~/main/modules/settings-store";
+import { SnapshotService } from "~/main/modules/snapshots";
+import { SupabaseClientService } from "~/main/modules/supabase";
+import { TrayService } from "~/main/modules/tray";
+import { UpdaterService } from "~/main/modules/updater";
 import {
   assertTrustedSender,
   registerTrustedWebContents,
   validateFileDialogOptions,
 } from "~/main/utils/ipc-validation";
+
+import { MainWindowChannel } from "./MainWindow.channels";
 
 class MainWindowService {
   private mainWindow!: BrowserWindow;

@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  createBarrelMock,
   createDatabaseServiceMock,
   createElectronMock,
   createPerformanceLoggerMock,
@@ -108,35 +107,6 @@ vi.mock("~/main/modules/settings-store", () =>
   createSettingsStoreMock({
     mockGet: mockSettingsGet,
     mockSet: mockSettingsSet,
-  }),
-);
-
-// Also mock the barrel import path used by the service
-vi.mock("~/main/modules", () =>
-  createBarrelMock({
-    CurrentSessionService: {
-      getInstance: vi.fn(() => ({
-        isSessionActive: mockIsSessionActive,
-        getActiveSessionInfo: mockGetActiveSessionInfo,
-        getAllProcessedIds: mockGetAllProcessedIds,
-        addCard: mockAddCard,
-      })),
-    },
-    PerformanceLoggerService: {
-      getInstance: vi.fn(() => ({
-        log: mockPerfLog,
-        startTimer: mockPerfStartTimer,
-        startTimers: mockPerfStartTimers,
-        time: vi.fn(),
-      })),
-    },
-    SettingsStoreService: {
-      getInstance: vi.fn(() => ({
-        get: mockSettingsGet,
-        set: mockSettingsSet,
-        getAllSettings: vi.fn(),
-      })),
-    },
   }),
 );
 

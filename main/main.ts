@@ -1,27 +1,24 @@
-import * as Sentry from "@sentry/electron/main";
-
 import { SentryService } from "./modules/sentry";
+import { captureSentryException } from "./modules/sentry/Sentry.reporter";
 
 if (process.env.E2E_TESTING !== "true") {
-  SentryService.getInstance().initialize();
+  await SentryService.getInstance().initialize();
 }
 
 import { app as electronApp } from "electron";
 import { installExtension, REDUX_DEVTOOLS } from "electron-devtools-installer";
 import started from "electron-squirrel-startup";
 
-import {
-  AppService,
-  AppSetupService,
-  DiagLogService,
-  MainWindowService,
-  OverlayService,
-  ProfitForecastService,
-  RarityInsightsService,
-  StorageService,
-  SupabaseClientService,
-} from "./modules";
+import { AppService } from "./modules/app";
+import { AppSetupService } from "./modules/app-setup";
+import { DiagLogService } from "./modules/diag-log";
+import { MainWindowService } from "./modules/main-window";
+import { OverlayService } from "./modules/overlay";
+import { ProfitForecastService } from "./modules/profit-forecast";
+import { RarityInsightsService } from "./modules/rarity-insights";
 import { SettingsKey, SettingsStoreService } from "./modules/settings-store";
+import { StorageService } from "./modules/storage";
+import { SupabaseClientService } from "./modules/supabase";
 
 // Handle Squirrel.Windows installer events (creates/removes shortcuts, etc.)
 // This must be called early — if it returns true, the app is being run by the
@@ -71,7 +68,7 @@ async function initializeSupabase() {
         "[Main] Supabase authentication failed after retries:",
         error,
       );
-      Sentry.captureException(
+      captureSentryException(
         error instanceof Error ? error : new Error(String(error)),
         {
           tags: { module: "main", operation: "supabase-init" },

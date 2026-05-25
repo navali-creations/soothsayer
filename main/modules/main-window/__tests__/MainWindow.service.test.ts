@@ -2,7 +2,6 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createBarrelMock } from "~/main/modules/__test-utils__/mock-factories";
 import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
 
 // ─── Hoisted mock functions (available inside vi.mock factories) ─────────────
@@ -198,77 +197,166 @@ vi.mock("~/main/modules/app-performance", () => ({
   },
 }));
 
-// ─── Mock all services from barrel ───────────────────────────────────────────
-vi.mock("~/main/modules", () =>
-  createBarrelMock({
-    AppService: {
-      getInstance: vi.fn(() => ({
-        get isQuitting() {
-          return mockAppServiceIsQuitting.value;
-        },
-        set isQuitting(val: boolean) {
-          mockAppServiceIsQuitting.value = val;
-        },
-        emitOpenUrl: vi.fn(),
-      })),
-    },
-    ClientLogReaderService: {
-      getInstance: vi.fn(() =>
-        Promise.resolve({
-          on: vi.fn().mockReturnThis(),
-        }),
-      ),
-    },
-    CurrentSessionService: {
-      getInstance: vi.fn(() => ({
-        initialize: vi.fn().mockResolvedValue(undefined),
-      })),
-    },
-    DatabaseService: {
-      getInstance: vi.fn(() => ({
-        getPath: vi.fn(() => "/mock/db/path"),
-      })),
-    },
-    DivinationCardsService: {
-      getInstance: vi.fn(() => ({
-        initialize: vi.fn().mockResolvedValue(undefined),
-      })),
-    },
-    OverlayService: {
-      getInstance: vi.fn(() => ({
-        destroy: mockOverlayDestroy,
-        onVisibilityChange: mockOverlayOnVisibilityChange,
-      })),
-    },
-    PoeProcessService: {
-      getInstance: vi.fn(() => ({
-        initialize: vi.fn(),
-      })),
-    },
-    SettingsStoreService: {
-      getInstance: vi.fn(() => ({
-        get: mockSettingsGet,
-        set: mockSettingsSet,
-      })),
-    },
-    SupabaseClientService: {
-      getInstance: vi.fn(() => ({
-        isConfigured: mockSupabaseIsConfigured,
-      })),
-    },
-    TrayService: {
-      getInstance: vi.fn(() => ({
-        createTray: vi.fn(),
-      })),
-    },
-    UpdaterService: {
-      getInstance: vi.fn(() => ({
-        initialize: vi.fn(),
-        destroy: vi.fn(),
-      })),
-    },
-  }),
-);
+vi.mock("~/main/modules/analytics", () => ({
+  AnalyticsService: {
+    getInstance: vi.fn(() => ({})),
+  },
+}));
+
+vi.mock("~/main/modules/app", () => ({
+  AppService: {
+    getInstance: vi.fn(() => ({
+      get isQuitting() {
+        return mockAppServiceIsQuitting.value;
+      },
+      set isQuitting(val: boolean) {
+        mockAppServiceIsQuitting.value = val;
+      },
+      emitOpenUrl: vi.fn(),
+    })),
+  },
+}));
+
+vi.mock("~/main/modules/banners", () => ({
+  BannersService: {
+    getInstance: vi.fn(() => ({})),
+  },
+}));
+
+vi.mock("~/main/modules/card-details", () => ({
+  CardDetailsService: {
+    getInstance: vi.fn(() => ({})),
+  },
+}));
+
+vi.mock("~/main/modules/client-log-reader", () => ({
+  ClientLogReaderService: {
+    getInstance: vi.fn(() =>
+      Promise.resolve({
+        on: vi.fn().mockReturnThis(),
+      }),
+    ),
+  },
+}));
+
+vi.mock("~/main/modules/community-upload", () => ({
+  CommunityUploadService: {
+    getInstance: vi.fn(() => ({
+      flushPendingUploads: vi.fn().mockResolvedValue(undefined),
+    })),
+  },
+}));
+
+vi.mock("~/main/modules/csv", () => ({
+  CsvService: {
+    getInstance: vi.fn(() => ({})),
+  },
+}));
+
+vi.mock("~/main/modules/current-session", () => ({
+  CurrentSessionService: {
+    getInstance: vi.fn(() => ({
+      initialize: vi.fn().mockResolvedValue(undefined),
+    })),
+  },
+}));
+
+vi.mock("~/main/modules/database", () => ({
+  DatabaseService: {
+    getInstance: vi.fn(() => ({
+      getPath: vi.fn(() => "/mock/db/path"),
+    })),
+  },
+}));
+
+vi.mock("~/main/modules/divination-cards", () => ({
+  DivinationCardsService: {
+    getInstance: vi.fn(() => ({
+      initialize: vi.fn().mockResolvedValue(undefined),
+    })),
+  },
+}));
+
+vi.mock("~/main/modules/ggg-auth", () => ({
+  GggAuthService: {
+    getInstance: vi.fn(() => ({})),
+  },
+}));
+
+vi.mock("~/main/modules/overlay", () => ({
+  OverlayService: {
+    getInstance: vi.fn(() => ({
+      destroy: mockOverlayDestroy,
+      onVisibilityChange: mockOverlayOnVisibilityChange,
+    })),
+  },
+}));
+
+vi.mock("~/main/modules/poe-leagues", () => ({
+  PoeLeaguesService: {
+    getInstance: vi.fn(() => ({})),
+  },
+}));
+
+vi.mock("~/main/modules/poe-process", () => ({
+  PoeProcessService: {
+    getInstance: vi.fn(() => ({
+      initialize: vi.fn(),
+    })),
+  },
+}));
+
+vi.mock("~/main/modules/sessions", () => ({
+  SessionsService: {
+    getInstance: vi.fn(() => ({})),
+  },
+}));
+
+vi.mock("~/main/modules/settings-store", () => ({
+  SettingsKey: {
+    AppExitAction: "appExitAction",
+    AppOpenAtLogin: "appOpenAtLogin",
+    AppOpenAtLoginMinimized: "appOpenAtLoginMinimized",
+    MainWindowBounds: "mainWindowBounds",
+  },
+  SettingsStoreService: {
+    getInstance: vi.fn(() => ({
+      get: mockSettingsGet,
+      set: mockSettingsSet,
+    })),
+  },
+}));
+
+vi.mock("~/main/modules/snapshots", () => ({
+  SnapshotService: {
+    getInstance: vi.fn(() => ({})),
+  },
+}));
+
+vi.mock("~/main/modules/supabase", () => ({
+  SupabaseClientService: {
+    getInstance: vi.fn(() => ({
+      isConfigured: mockSupabaseIsConfigured,
+    })),
+  },
+}));
+
+vi.mock("~/main/modules/tray", () => ({
+  TrayService: {
+    getInstance: vi.fn(() => ({
+      createTray: vi.fn(),
+    })),
+  },
+}));
+
+vi.mock("~/main/modules/updater", () => ({
+  UpdaterService: {
+    getInstance: vi.fn(() => ({
+      initialize: vi.fn(),
+      destroy: vi.fn(),
+    })),
+  },
+}));
 
 // ─── Global constants injected by Vite at build time ─────────────────────────
 // @ts-expect-error — injected by Vite at build time
@@ -276,7 +364,7 @@ globalThis.MAIN_WINDOW_VITE_DEV_SERVER_URL = "http://localhost:5173";
 // @ts-expect-error — injected by Vite at build time
 globalThis.MAIN_WINDOW_VITE_NAME = "main_window";
 
-import { CommunityUploadService } from "~/main/modules";
+import { CommunityUploadService } from "~/main/modules/community-upload";
 
 import { MainWindowService } from "../MainWindow.service";
 

@@ -1,6 +1,6 @@
-import * as Sentry from "@sentry/electron/main";
 import { app } from "electron";
 
+import { closeSentry, initSentry } from "~/main/modules/sentry/Sentry.reporter";
 import { maskPath } from "~/main/utils/mask-path";
 
 import pkgJson from "../../../package.json" with { type: "json" };
@@ -61,6 +61,7 @@ function scrubBreadcrumbData(
 class SentryService {
   private static _instance: SentryService;
   private initialized = false;
+  private initializationPromise: Promise<void> | null = null;
   private disabled = false;
 
   static getInstance() {
@@ -71,12 +72,17 @@ class SentryService {
     return SentryService._instance;
   }
 
-  public initialize() {
+  public async initialize(): Promise<void> {
     if (this.initialized) {
       return;
     }
 
-    Sentry.init({
+    if (this.initializationPromise) {
+      await this.initializationPromise;
+      return;
+    }
+
+    this.initializationPromise = initSentry({
       dsn: import.meta.env.VITE_SENTRY_DSN,
       release: `soothsayer@${pkgJson.version}`,
       environment: app.isPackaged ? "production" : "development",
@@ -125,9 +131,21 @@ class SentryService {
         }
         return breadcrumb;
       },
-    });
+    })
+      .then(() => {
+        this.initialized = true;
+      })
+      .catch((error) => {
+        console.warn(
+          "[SentryService] Failed to initialize crash reporting:",
+          error instanceof Error ? error.message : String(error),
+        );
+      })
+      .finally(() => {
+        this.initializationPromise = null;
+      });
 
-    this.initialized = true;
+    await this.initializationPromise;
   }
 
   public isInitialized(): boolean {
@@ -144,11 +162,22 @@ class SentryService {
    * Full teardown happens via Sentry.close(); a restart is needed to re-enable.
    */
   public async disable(): Promise<void> {
+    if (this.initializationPromise) {
+      await this.initializationPromise;
+    }
+
     if (!this.initialized || this.disabled) {
       return;
     }
 
-    await Sentry.close(2000);
+    try {
+      await closeSentry(2000);
+    } catch (error) {
+      console.warn(
+        "[SentryService] Failed to close crash reporting:",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
     this.disabled = true;
     console.log("[SentryService] Crash reporting disabled by user preference");
   }

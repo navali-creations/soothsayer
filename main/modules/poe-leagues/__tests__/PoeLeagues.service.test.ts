@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createBarrelMock } from "~/main/modules/__test-utils__/mock-factories";
 import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
 
 // ─── Mock Electron before any imports that use it ────────────────────────────
@@ -51,19 +50,6 @@ vi.mock("~/main/modules/supabase", () => ({
 // ─── Mock SettingsStoreService ───────────────────────────────────────────────
 const mockSettingsGet = vi.fn();
 const mockSettingsSet = vi.fn();
-vi.mock("~/main/modules", () =>
-  createBarrelMock({
-    SettingsStoreService: {
-      getInstance: vi.fn(() => ({
-        get: mockSettingsGet,
-        set: mockSettingsSet,
-        getAllSettings: vi.fn(),
-      })),
-    },
-  }),
-);
-
-// Also mock the direct import path used by PoeLeagues.service.ts
 vi.mock("~/main/modules/settings-store", () => ({
   SettingsStoreService: {
     getInstance: vi.fn(() => ({

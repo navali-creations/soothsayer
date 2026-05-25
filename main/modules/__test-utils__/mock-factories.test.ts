@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  createBarrelMock,
   createDatabaseServiceMock,
   createDataStoreServiceMock,
   createElectronMock,
@@ -136,45 +135,17 @@ describe("mock factories", () => {
     expect(error.detail).toBe("bad input");
   });
 
-  it("creates logger and barrel mocks for common module imports", async () => {
+  it("creates logger mocks for common module imports", () => {
     const logger = (
       createLoggerServiceMock() as any
     ).LoggerService.createLogger();
+
     logger.info("hello");
     logger.debug("debug");
 
-    const customSettings = { getInstance: vi.fn(() => ({ get: vi.fn() })) };
-    const barrel = createBarrelMock({
-      SettingsStoreService: customSettings,
-    }) as Record<string, any>;
-
-    expect(barrel.SettingsStoreService).toBe(customSettings);
-    expect(barrel.MainWindowChannel.Close).toBe("main-window:close");
-    expect(barrel.SettingsKey.AppPerformanceRetention).toBe(
-      "appPerformanceRetention",
-    );
-    expect(barrel.AnalyticsService.getInstance()).toEqual({});
-    await expect(
-      barrel.CommunityUploadService.getInstance().getBackfillLeagues(),
-    ).resolves.toEqual([]);
-    await expect(
-      barrel.GggAuthService.getInstance().getAccessToken(),
-    ).resolves.toBe(null);
-    expect(barrel.LoggerService.createLogger().warn).toBeTypeOf("function");
-    expect(
-      barrel.PerformanceLoggerService.getInstance().startTimer(),
-    ).toBeNull();
-    expect(barrel.SupabaseClientService.getInstance().configure).toBeTypeOf(
-      "function",
-    );
-
-    const defaultBarrel = createBarrelMock() as Record<string, any>;
-    expect(
-      defaultBarrel.PerformanceLoggerService.getInstance().startTimers(),
-    ).toBeNull();
-    expect(defaultBarrel.SettingsStoreService.getInstance().get).toBeTypeOf(
-      "function",
-    );
+    expect(logger.info).toHaveBeenCalledWith("hello");
+    expect(logger.debug).toHaveBeenCalledWith("debug");
+    expect(logger.warn).toBeTypeOf("function");
   });
 
   it("returns IPC handlers and reports registered channels on misses", () => {

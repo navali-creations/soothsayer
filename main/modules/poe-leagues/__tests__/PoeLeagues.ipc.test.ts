@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  createBarrelMock,
   createDatabaseServiceMock,
   createElectronMock,
   createIpcValidationMock,
@@ -62,17 +61,20 @@ vi.mock("~/main/modules/supabase", () =>
 );
 
 // ─── Mock SettingsStoreService ───────────────────────────────────────────────
-vi.mock("~/main/modules", () =>
-  createBarrelMock({
-    SettingsStoreService: {
-      getInstance: vi.fn(() => ({
-        get: mockSettingsGet,
-        set: mockSettingsSet,
-        getAllSettings: vi.fn(),
-      })),
-    },
-  }),
-);
+vi.mock("~/main/modules/settings-store", () => ({
+  SettingsStoreService: {
+    getInstance: vi.fn(() => ({
+      get: mockSettingsGet,
+      set: mockSettingsSet,
+      getAllSettings: vi.fn(),
+    })),
+  },
+  SettingsKey: {
+    ActiveGame: "selectedGame",
+    SelectedPoe1League: "poe1SelectedLeague",
+    SelectedPoe2League: "poe2SelectedLeague",
+  },
+}));
 
 // ─── Mock PoeLeaguesRepository ───────────────────────────────────────────────
 vi.mock("../PoeLeagues.repository", () => ({
