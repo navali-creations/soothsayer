@@ -216,7 +216,8 @@ vi.mock("~/main/modules/storage", () => ({
  * we need to re-import it fresh for each test (after resetting module registry).
  */
 async function importMain() {
-  await import("../main");
+  const mainModule = await import("../main");
+  await mainModule.mainReady;
 }
 
 /**
