@@ -265,6 +265,18 @@ describe("WhatsNewModal", () => {
     expect(screen.getByTestId("modal")).toBeInTheDocument();
   });
 
+  it("keeps the modal at a fixed scrollable height", () => {
+    setupStore();
+    renderWithProviders(<WhatsNewModal />);
+
+    expect(screen.getByTestId("modal")).toHaveClass(
+      "flex",
+      "h-[628px]",
+      "max-h-[calc(100vh-4rem)]",
+      "flex-col",
+    );
+  });
+
   it("shows release version tabs when multiple releases are available", () => {
     setupStore({
       appMenu: {

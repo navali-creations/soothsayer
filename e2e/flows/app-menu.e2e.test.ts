@@ -13,7 +13,7 @@
  * @module e2e/flows/app-menu
  */
 
-import type { ElectronApplication, Page } from "@playwright/test";
+import type { ElectronApplication, Locator, Page } from "@playwright/test";
 
 import { expect, test } from "../helpers/electron-test";
 import {
@@ -112,7 +112,24 @@ const MOCK_WHATS_NEW_RELEASES = [
   },
 ];
 
-async function mockRecentReleaseFetch(app: ElectronApplication) {
+const WHATS_NEW_MODAL_HEIGHT_PX = 628;
+
+async function expectWhatsNewModalFixedHeight(modalBox: Locator) {
+  await expect
+    .poll(
+      async () =>
+        modalBox.evaluate((element) =>
+          Math.round(element.getBoundingClientRect().height),
+        ),
+      { timeout: 5_000 },
+    )
+    .toBe(WHATS_NEW_MODAL_HEIGHT_PX);
+}
+
+async function mockRecentReleaseFetch(
+  app: ElectronApplication,
+  releases = MOCK_WHATS_NEW_RELEASES,
+) {
   await app.evaluate(async (_electron, releases) => {
     const globalWithMock = globalThis as typeof globalThis & {
       __soothsayerOriginalFetch?: typeof fetch;
@@ -137,7 +154,7 @@ async function mockRecentReleaseFetch(app: ElectronApplication) {
 
       return globalWithMock.__soothsayerOriginalFetch!(input, init);
     };
-  }, MOCK_WHATS_NEW_RELEASES);
+  }, releases);
 }
 
 async function restoreRecentReleaseFetch(app: ElectronApplication) {
@@ -152,6 +169,38 @@ async function restoreRecentReleaseFetch(app: ElectronApplication) {
 
     globalThis.fetch = globalWithMock.__soothsayerOriginalFetch;
     delete globalWithMock.__soothsayerOriginalFetch;
+  });
+}
+
+async function mockAppVersion(app: ElectronApplication, version: string) {
+  await app.evaluate(({ app: electronApp }, version) => {
+    const appWithMock = electronApp as typeof electronApp & {
+      __soothsayerOriginalGetVersion?: () => string;
+      getVersion: () => string;
+    };
+
+    if (!appWithMock.__soothsayerOriginalGetVersion) {
+      appWithMock.__soothsayerOriginalGetVersion =
+        appWithMock.getVersion.bind(electronApp);
+    }
+
+    appWithMock.getVersion = () => version;
+  }, version);
+}
+
+async function restoreAppVersion(app: ElectronApplication) {
+  await app.evaluate(({ app: electronApp }) => {
+    const appWithMock = electronApp as typeof electronApp & {
+      __soothsayerOriginalGetVersion?: () => string;
+      getVersion: () => string;
+    };
+
+    if (!appWithMock.__soothsayerOriginalGetVersion) {
+      return;
+    }
+
+    appWithMock.getVersion = appWithMock.__soothsayerOriginalGetVersion;
+    delete appWithMock.__soothsayerOriginalGetVersion;
   });
 }
 
@@ -629,10 +678,35 @@ test.describe("AppMenu", () => {
         await expect(patchTab).toBeVisible({ timeout: 5_000 });
         await expect(patchTab).toHaveAttribute("aria-selected", "true");
         await expect(modalBox).toContainText("Patch release body");
+        await expectWhatsNewModalFixedHeight(modalBox);
+
+        await page.keyboard.press("Tab");
+        const focusedTarget = await page.evaluate(() => {
+          const active = document.activeElement as HTMLElement | null;
+          const rect = active?.getBoundingClientRect();
+
+          return {
+            isBackdropTarget: Boolean(active?.closest('form[method="dialog"]')),
+            isVisible: Boolean(
+              rect &&
+                rect.width > 0 &&
+                rect.height > 0 &&
+                rect.bottom >= 0 &&
+                rect.right >= 0 &&
+                rect.top <= window.innerHeight &&
+                rect.left <= window.innerWidth,
+            ),
+            tagName: active?.tagName ?? "",
+          };
+        });
+        expect(focusedTarget.isBackdropTarget).toBe(false);
+        expect(focusedTarget.isVisible).toBe(true);
+        expect(focusedTarget.tagName).toBe("BUTTON");
 
         await minorTab.click();
         await expect(minorTab).toHaveAttribute("aria-selected", "true");
         await expect(modalBox).toContainText("Minor release body");
+        await expectWhatsNewModalFixedHeight(modalBox);
 
         const scrimState = await page.evaluate(() => {
           const scrimElement = document.querySelector(
@@ -682,6 +756,63 @@ test.describe("AppMenu", () => {
         await expect(scrim).toHaveCount(0, { timeout: 1_000 });
       } finally {
         await restoreRecentReleaseFetch(app);
+      }
+    });
+
+    test("should auto-open What's New with the main release beside a patch update", async ({
+      app,
+      page,
+    }) => {
+      await ensurePostSetup(page);
+      const actualVersion = await callElectronAPI<string>(
+        page,
+        "app",
+        "getVersion",
+      );
+      const dialog = page.locator("dialog.modal");
+      const modalBox = dialog.locator(".modal-box");
+
+      try {
+        await mockAppVersion(app, "99.18.1");
+        await mockRecentReleaseFetch(app);
+        await setSetting(page, "lastSeenAppVersion", "99.18.0");
+
+        await page.reload();
+        await page.waitForLoadState("domcontentloaded");
+        await ensurePostSetup(page);
+
+        await expect(dialog).toBeVisible({ timeout: 12_000 });
+        await expect(modalBox).toBeVisible({ timeout: 5_000 });
+
+        const minorTab = dialog.getByRole("tab", { name: "v99.18.0" });
+        const patchTab = dialog.getByRole("tab", { name: "v99.18.1" });
+        await expect(minorTab).toBeVisible({ timeout: 5_000 });
+        await expect(patchTab).toBeVisible({ timeout: 5_000 });
+        await expect(minorTab).toHaveAttribute("aria-selected", "true");
+        await expect(patchTab).toHaveAttribute("aria-selected", "false");
+        await expect(modalBox).toContainText("Minor release body");
+        await expectWhatsNewModalFixedHeight(modalBox);
+
+        await patchTab.click();
+        await expect(patchTab).toHaveAttribute("aria-selected", "true");
+        await expect(modalBox).toContainText("Patch release body");
+        await expectWhatsNewModalFixedHeight(modalBox);
+      } finally {
+        await page
+          .evaluate(() => {
+            document.querySelectorAll("dialog[open]").forEach((dialog) => {
+              (dialog as HTMLDialogElement).close();
+            });
+          })
+          .catch(() => undefined);
+        await restoreRecentReleaseFetch(app).catch(() => undefined);
+        await restoreAppVersion(app).catch(() => undefined);
+        await setSetting(page, "lastSeenAppVersion", actualVersion).catch(
+          () => undefined,
+        );
+        await page.reload().catch(() => undefined);
+        await page.waitForLoadState("domcontentloaded").catch(() => undefined);
+        await ensurePostSetup(page).catch(() => undefined);
       }
     });
 

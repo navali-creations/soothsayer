@@ -25,14 +25,21 @@ export function getWhatsNewReleasesForView(
   );
 
   if (fromVersion && currentVersion) {
-    const unseen = ordered.filter(
-      (release) =>
-        compareReleaseVersions(release.version, fromVersion) > 0 &&
-        compareReleaseVersions(release.version, currentVersion) <= 0,
+    const releasesUpToCurrentVersion = ordered.filter(
+      (release) => compareReleaseVersions(release.version, currentVersion) <= 0,
+    );
+    const changedSeries = new Set(
+      releasesUpToCurrentVersion
+        .filter(
+          (release) => compareReleaseVersions(release.version, fromVersion) > 0,
+        )
+        .map((release) => getMinorSeries(release.version)),
     );
 
-    if (unseen.length > 0) {
-      return unseen;
+    if (changedSeries.size > 0) {
+      return releasesUpToCurrentVersion.filter((release) =>
+        changedSeries.has(getMinorSeries(release.version)),
+      );
     }
   }
 

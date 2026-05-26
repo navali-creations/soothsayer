@@ -41,12 +41,20 @@ describe("AppMenu.utils", () => {
       makeRelease("0.17.1", "Patch Changes"),
     ];
 
-    it("returns unseen releases between last seen and current version", () => {
+    it("returns release series containing versions between last seen and current version", () => {
       expect(
         getWhatsNewReleasesForView(releases, "0.17.1", "0.18.2").map(
           (release) => release.version,
         ),
       ).toEqual(["0.18.0", "0.18.1", "0.18.2"]);
+    });
+
+    it("keeps already-seen series context for patch updates", () => {
+      expect(
+        getWhatsNewReleasesForView(releases, "0.18.0", "0.18.1").map(
+          (release) => release.version,
+        ),
+      ).toEqual(["0.18.0", "0.18.1"]);
     });
 
     it("falls back to the latest minor series for manual opens", () => {

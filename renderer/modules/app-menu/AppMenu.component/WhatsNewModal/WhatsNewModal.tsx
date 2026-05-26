@@ -112,7 +112,12 @@ const WhatsNewModal = () => {
   }, [isWhatsNewOpen]);
 
   return (
-    <Modal ref={modalRef} size="lg" onClose={closeWhatsNew}>
+    <Modal
+      ref={modalRef}
+      size="lg"
+      className="flex h-[628px] max-h-[calc(100vh-4rem)] flex-col"
+      onClose={closeWhatsNew}
+    >
       <div className="mb-4">
         <div className="flex min-w-0 items-center gap-3">
           <MdOutlineNewReleases className="h-6 w-6 shrink-0 text-primary" />
@@ -126,21 +131,22 @@ const WhatsNewModal = () => {
         )}
       </div>
 
-      {whatsNewIsLoading && (
-        <div className="flex items-center justify-center py-12">
-          <span className="loading loading-spinner loading-lg text-primary" />
-        </div>
-      )}
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pr-2">
+        {whatsNewIsLoading && (
+          <div className="flex min-h-full items-center justify-center py-12">
+            <span className="loading loading-spinner loading-lg text-primary" />
+          </div>
+        )}
 
-      {whatsNewError && !whatsNewIsLoading && (
-        <div className="alert alert-error text-sm">
-          <span>{whatsNewError}</span>
-        </div>
-      )}
+        {whatsNewError && !whatsNewIsLoading && (
+          <div className="alert alert-error text-sm">
+            <span>{whatsNewError}</span>
+          </div>
+        )}
 
-      {whatsNewRelease && !whatsNewIsLoading && (
-        <div className="max-h-[60vh] overflow-y-auto overflow-x-hidden pr-2">
-          {whatsNewRelease.body ? (
+        {whatsNewRelease &&
+          !whatsNewIsLoading &&
+          (whatsNewRelease.body ? (
             <MarkdownRenderer componentOverrides={whatsNewComponents}>
               {whatsNewRelease.body}
             </MarkdownRenderer>
@@ -148,9 +154,8 @@ const WhatsNewModal = () => {
             <p className="text-sm text-base-content/60">
               No detailed changes available for this release.
             </p>
-          )}
-        </div>
-      )}
+          ))}
+      </div>
 
       <div className="modal-action">
         <button

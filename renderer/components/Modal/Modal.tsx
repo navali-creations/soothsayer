@@ -111,7 +111,7 @@ const Modal = forwardRef<ModalHandle, ModalProps>(
         {scrim}
         <dialog
           ref={dialogRef}
-          className="modal modal-bottom !bg-transparent sm:modal-middle"
+          className="modal modal-bottom !bg-transparent outline-none focus:outline-none focus-visible:outline-none sm:modal-middle"
           onClose={handleClose}
         >
           {closeOnBackdrop && (
@@ -119,14 +119,18 @@ const Modal = forwardRef<ModalHandle, ModalProps>(
               method="dialog"
               className="col-start-1 row-start-1 grid place-self-stretch text-transparent"
             >
-              <button type="submit" className="cursor-pointer">
+              <button
+                type="submit"
+                className="cursor-pointer outline-none focus:outline-none focus-visible:outline-none"
+                tabIndex={-1}
+              >
                 close
               </button>
             </form>
           )}
           <div
             className={clsx(
-              "modal-box border border-base-300 bg-base-300 shadow-[0px_0px_18px_0px_var(--tw-shadow-color,_rgba(0,0,0,0.50))]",
+              "modal-box border border-black bg-base-300 shadow-[0px_0px_18px_0px_rgba(0,0,0,0.5)]",
               sizeClasses[size],
               className,
             )}

@@ -423,6 +423,25 @@ describe("AppMenuSlice", () => {
       ).toEqual(["0.18.0", "0.18.1", "0.18.2"]);
     });
 
+    it("keeps the current minor series when a patch update follows a seen minor release", async () => {
+      electron.updater.getRecentReleases.mockResolvedValue([
+        makeRelease("0.18.2"),
+        makeRelease("0.18.1"),
+        makeRelease("0.18.0", "Minor Changes"),
+      ]);
+      store.getState().appMenu.whatsNewFromVersion = "0.18.0";
+      store.getState().appMenu.whatsNewCurrentVersion = "0.18.1";
+
+      await store.getState().appMenu.openWhatsNew();
+
+      expect(store.getState().appMenu.whatsNewRelease?.version).toBe("0.18.0");
+      expect(
+        store
+          .getState()
+          .appMenu.whatsNewReleases.map((release) => release.version),
+      ).toEqual(["0.18.0", "0.18.1"]);
+    });
+
     it("selects the requested release version", async () => {
       const minor = makeRelease("0.18.0", "Minor Changes");
       const patch = makeRelease("0.18.1");

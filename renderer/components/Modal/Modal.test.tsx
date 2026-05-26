@@ -161,7 +161,7 @@ describe("Modal", () => {
     const modalBox = screen.getByText("Custom").closest(".modal-box");
     expect(modalBox).toHaveClass("modal-box");
     expect(modalBox).toHaveClass("border");
-    expect(modalBox).toHaveClass("border-base-300");
+    expect(modalBox).toHaveClass("border-black");
     expect(modalBox).toHaveClass("bg-base-300");
     expect(modalBox).toHaveClass("my-custom-class");
   });
@@ -188,6 +188,10 @@ describe("Modal", () => {
     const submitButton = form!.querySelector('button[type="submit"]');
     expect(submitButton).toBeInTheDocument();
     expect(submitButton).toHaveClass("cursor-pointer");
+    expect(submitButton).toHaveClass("outline-none");
+    expect(submitButton).toHaveClass("focus:outline-none");
+    expect(submitButton).toHaveClass("focus-visible:outline-none");
+    expect(submitButton).toHaveAttribute("tabindex", "-1");
   });
 
   it("renders the backdrop form when closeOnBackdrop is explicitly true", () => {
@@ -266,6 +270,9 @@ describe("Modal", () => {
     expect(dialog).toHaveClass("modal-bottom");
     expect(dialog).toHaveClass("sm:modal-middle");
     expect(dialog).toHaveClass("!bg-transparent");
+    expect(dialog).toHaveClass("outline-none");
+    expect(dialog).toHaveClass("focus:outline-none");
+    expect(dialog).toHaveClass("focus-visible:outline-none");
   });
 
   // ── 10. Modal-box base classes ────────────────────────────────────────
@@ -280,10 +287,8 @@ describe("Modal", () => {
     const modalBox = screen.getByText("Box classes").closest("div");
     expect(modalBox).toHaveClass("modal-box");
     expect(modalBox).toHaveClass("border");
-    expect(modalBox).toHaveClass("border-base-300");
+    expect(modalBox).toHaveClass("border-black");
     expect(modalBox).toHaveClass("bg-base-300");
-    expect(modalBox).toHaveClass(
-      "shadow-[0px_0px_18px_0px_var(--tw-shadow-color,_rgba(0,0,0,0.50))]",
-    );
+    expect(modalBox).toHaveClass("shadow-[0px_0px_18px_0px_rgba(0,0,0,0.5)]");
   });
 });
