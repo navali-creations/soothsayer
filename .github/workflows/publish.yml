@@ -77,10 +77,6 @@ jobs:
     if: needs.check-version.outputs.should_publish == 'true'
     timeout-minutes: 20
 
-    env:
-      RUNNER_TOOL_CACHE: "C:\\toolcache"
-      AGENT_TOOLSDIRECTORY: "C:\\toolcache"
-
     strategy:
       fail-fast: true
       matrix:
@@ -100,14 +96,11 @@ jobs:
       - name: Checkout code repository
         uses: actions/checkout@v6
 
-      - name: Prepare writable directories (Windows)
-        if: startsWith(matrix.name, 'windows')
-        shell: powershell
-        run: |
-          New-Item -ItemType Directory -Force -Path "C:\toolcache" | Out-Null
-
       - name: Setup pnpm
+        if: "!startsWith(matrix.name, 'windows')"
         uses: pnpm/action-setup@v6
+        with:
+          dest: ${{ runner.temp }}/setup-pnpm
 
       - name: Setup node.js
         if: "!startsWith(matrix.name, 'windows')"
@@ -120,8 +113,21 @@ jobs:
         if: startsWith(matrix.name, 'windows')
         shell: powershell
         run: |
-          Write-Host "node: $(node --version)"
-          Write-Host "pnpm: $(pnpm --version)"
+          $nodeVersion = node --version
+          $pnpmVersion = pnpm --version
+          $packageJson = Get-Content package.json -Raw | ConvertFrom-Json
+          $expectedPnpmVersion = ([string]$packageJson.packageManager).Substring("pnpm@".Length)
+
+          Write-Host "node: $nodeVersion"
+          Write-Host "pnpm: $pnpmVersion"
+
+          if (-not $nodeVersion.StartsWith("v24.")) {
+            throw "Expected Node 24 on the self-hosted Windows runner, got: $nodeVersion"
+          }
+
+          if ($pnpmVersion -ne $expectedPnpmVersion) {
+            throw "Expected pnpm $expectedPnpmVersion on the self-hosted Windows runner, got: $pnpmVersion"
+          }
 
       # Skip all lifecycle scripts during install to avoid supabase CLI download failures on Windows
       - name: Install dependencies (skip lifecycle scripts)
