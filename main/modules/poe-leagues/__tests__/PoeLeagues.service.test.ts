@@ -355,7 +355,7 @@ describe("PoeLeaguesService", () => {
       const leagues = await service.fetchLeagues("poe1");
 
       expect(leagues).toHaveLength(2);
-      expect(mockCallEdgeFunction).toHaveBeenCalledWith("get-leagues", {
+      expect(mockCallEdgeFunction).toHaveBeenCalledWith("v2-get-leagues", {
         game: "poe1",
       });
 

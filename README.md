@@ -110,6 +110,8 @@ Your `.env` file contains production Supabase credentials:
 
 ```env
 VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key_here
+# Legacy fallback while older local/prod config is being migrated.
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key_here
 VITE_UMAMI_ID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 SENTRY_AUTH_TOKEN=
@@ -131,6 +133,28 @@ pnpx supabase db push
 
 # Deploy Edge Functions
 pnpx supabase functions deploy
+```
+
+For the v2 Supabase hardening release, deploy the named v2 data functions plus
+the hardened OAuth callback, then delete unsupported legacy app-facing data
+functions after the release cutoff:
+
+```bash
+pnpx supabase functions deploy v2-get-leagues
+pnpx supabase functions deploy v2-get-latest-snapshot
+pnpx supabase functions deploy v2-upload-community-data
+pnpx supabase functions deploy poe-oauth-callback
+
+pnpx supabase functions delete get-leagues
+pnpx supabase functions delete get-leagues-legacy
+pnpx supabase functions delete get-latest-snapshot
+pnpx supabase functions delete upload-community-data
+```
+
+The production GGG OAuth app must keep allowing the registered callback URL:
+
+```text
+https://<project-ref>.supabase.co/functions/v1/poe-oauth-callback
 ```
 
 ## Troubleshooting

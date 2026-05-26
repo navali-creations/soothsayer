@@ -9,7 +9,10 @@ import {
   SettingsKey,
   SettingsStoreService,
 } from "~/main/modules/settings-store";
-import { SupabaseClientService } from "~/main/modules/supabase";
+import {
+  SupabaseClientService,
+  type SupabaseLeagueResponse,
+} from "~/main/modules/supabase";
 import {
   assertBoundedString,
   assertGameType,
@@ -19,16 +22,13 @@ import {
 import type { GameType } from "../../../types/data-stores";
 import type { PoeLeague, PoeLeagueWithStatus } from "../../../types/poe-league";
 import { PoeLeaguesChannel } from "./PoeLeagues.channels";
-import type {
-  SupabaseLeagueResponse,
-  UpsertPoeLeagueCacheDTO,
-} from "./PoeLeagues.dto";
+import type { UpsertPoeLeagueCacheDTO } from "./PoeLeagues.dto";
 import { PoeLeaguesRepository } from "./PoeLeagues.repository";
 
 /**
  * Service for managing PoE Leagues
  *
- * Fetches leagues from Supabase get-leagues edge function and caches
+ * Fetches leagues from Supabase v2-get-leagues edge function and caches
  * them locally in SQLite. Due to Supabase's rate limit (4 requests per
  * 24h per user), we use aggressive local caching and only refresh when
  * the cache is stale.
@@ -257,7 +257,7 @@ class PoeLeaguesService {
   }
 
   /**
-   * Fetch leagues from Supabase get-leagues edge function
+   * Fetch leagues from Supabase v2-get-leagues edge function
    */
   private async fetchFromSupabase(game: "poe1" | "poe2"): Promise<PoeLeague[]> {
     if (!this.supabase.isConfigured()) {
@@ -267,7 +267,7 @@ class PoeLeaguesService {
     // Call the edge function using the SupabaseClientService
     const response =
       await this.supabase.callEdgeFunction<SupabaseLeagueResponse>(
-        "get-leagues",
+        "v2-get-leagues",
         { game },
       );
 

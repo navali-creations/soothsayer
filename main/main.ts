@@ -32,18 +32,20 @@ async function initializeSupabase(
   }
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const supabasePublicApiKey =
+    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    import.meta.env.VITE_SUPABASE_ANON_KEY;
 
   console.log(
-    `[Main] initializeSupabase — URL present: ${!!supabaseUrl}, ANON_KEY present: ${!!supabaseAnonKey}, isPackaged: ${
+    `[Main] initializeSupabase — URL present: ${!!supabaseUrl}, PUBLIC_API_KEY present: ${!!supabasePublicApiKey}, isPackaged: ${
       electronApp.isPackaged
     }`,
   );
 
-  if (supabaseUrl && supabaseAnonKey) {
+  if (supabaseUrl && supabasePublicApiKey) {
     console.log("[Main] Configuring Supabase from environment variables");
     try {
-      await supabase.configure(supabaseUrl, supabaseAnonKey);
+      await supabase.configure(supabaseUrl, supabasePublicApiKey);
       console.log("[Main] Supabase configured successfully");
     } catch (error) {
       console.error(
@@ -61,8 +63,8 @@ async function initializeSupabase(
   } else {
     console.warn(
       "[Main] Supabase credentials not found in environment. " +
-        "Set SUPABASE_URL and SUPABASE_ANON_KEY, or configure via settings. " +
-        "The build likely did not embed VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY.",
+        "Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY, or the legacy VITE_SUPABASE_ANON_KEY fallback. " +
+        "The build likely did not embed Supabase public configuration.",
     );
   }
 }

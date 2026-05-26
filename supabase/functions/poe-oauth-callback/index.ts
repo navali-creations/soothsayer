@@ -1,6 +1,9 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
-import { enforceRateLimitByIdentifier } from "../_shared/utils.ts";
+import {
+  enforceRateLimitByIdentifier,
+  isAllowedPublicApiKey,
+} from "../_shared/utils.ts";
 
 /**
  * GGG OAuth Confidential Client Proxy
@@ -330,9 +333,12 @@ Deno.serve(async (req: Request) => {
     const action = url.searchParams.get("action");
 
     // M1: Require apikey header on POST endpoints
-    const apiKey = req.headers.get("apikey");
+    const apiKey = req.headers.get("apikey") ?? "";
     if (!apiKey) {
       return jsonResponse({ error: "Missing apikey header" }, 401);
+    }
+    if (!isAllowedPublicApiKey(apiKey)) {
+      return jsonResponse({ error: "Invalid apikey header" }, 401);
     }
 
     // Rate-limit by a keyed, pseudonymous network identifier.

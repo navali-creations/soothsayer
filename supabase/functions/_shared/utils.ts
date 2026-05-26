@@ -17,12 +17,38 @@ type IdentifierRateLimitContext = {
   maxHits: number;
 };
 
-function createAdminClient(): SupabaseClient {
+export function createAdminClient(): SupabaseClient {
   return createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     { auth: { persistSession: false, autoRefreshToken: false } },
   );
+}
+
+function getConfiguredPublicApiKeys(): string[] {
+  const keys = [
+    ...(Deno.env.get("SOOTHSAYER_PUBLISHABLE_KEYS") ?? "")
+      .split(",")
+      .map((key) => key.trim()),
+    Deno.env.get("SOOTHSAYER_PUBLISHABLE_KEY") ?? "",
+    Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+  ];
+
+  return [...new Set(keys.filter(Boolean))];
+}
+
+function createPublicClient(publicApiKey: string): SupabaseClient {
+  if (!publicApiKey) {
+    throw new Error("Supabase public API key is not configured");
+  }
+
+  return createClient(Deno.env.get("SUPABASE_URL")!, publicApiKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
+export function isAllowedPublicApiKey(apikey: string): boolean {
+  return getConfiguredPublicApiKeys().includes(apikey);
 }
 
 /**
@@ -186,6 +212,10 @@ type Authorize = {
   req: Request;
 } & Pick<RateLimitContext, "endpoint" | "windowMs" | "maxHits">;
 
+type AuthorizeV2Success = {
+  userId: string;
+};
+
 export async function authorize({
   req,
   endpoint,
@@ -271,4 +301,100 @@ export async function authorize({
   }
 
   return token;
+}
+
+export async function authorizeV2({
+  req,
+  endpoint,
+  windowMs,
+  maxHits,
+}: Authorize): Promise<AuthorizeV2Success | Response> {
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type, x-ggg-token",
+  };
+
+  if (req.method === "OPTIONS")
+    return responseJson({ status: 200, headers: corsHeaders });
+  if (req.method !== "POST")
+    return responseJson({ status: 405, body: { error: "Method not allowed" } });
+
+  const authHeader = req.headers.get("authorization") ?? "";
+  const apikey = req.headers.get("apikey") ?? "";
+
+  if (!apikey) {
+    return responseJson({
+      status: 401,
+      headers: corsHeaders,
+      body: { error: "Missing apikey header" },
+    });
+  }
+
+  if (!isAllowedPublicApiKey(apikey)) {
+    return responseJson({
+      status: 401,
+      headers: corsHeaders,
+      body: { error: "Invalid apikey header" },
+    });
+  }
+
+  if (!authHeader.startsWith("Bearer ")) {
+    return responseJson({
+      status: 401,
+      body: { error: "Missing Authorization header" },
+    });
+  }
+
+  const token = authHeader.slice("Bearer ".length);
+  const pub = createPublicClient(apikey);
+  const { data: userData, error: userError } = await pub.auth.getUser(token);
+  const user = userData?.user;
+
+  if (userError || !user?.id) {
+    return responseJson({ status: 401, body: { error: "Invalid JWT" } });
+  }
+
+  if ((user as { is_anonymous?: boolean }).is_anonymous !== true) {
+    return responseJson({
+      status: 403,
+      body: { error: "Anonymous user required" },
+    });
+  }
+
+  const appVersion = req.headers.get("x-app-version") ?? null;
+
+  try {
+    await enforceRateLimit({
+      userId: user.id,
+      endpoint,
+      windowMs,
+      maxHits,
+      appVersion,
+    });
+  } catch (error) {
+    const status = (error as any).status;
+
+    if (status === 403) {
+      return responseJson({
+        status: 403,
+        body: { error: (error as Error).message || "Forbidden" },
+      });
+    }
+
+    if (status === 429) {
+      return responseJson({
+        status: 429,
+        body: { error: "Rate limit exceeded. Try again later." },
+      });
+    }
+
+    console.error("[RateLimit] Unexpected error:", error);
+    return responseJson({
+      status: 500,
+      body: { error: "Internal server error" },
+    });
+  }
+
+  return { userId: user.id };
 }

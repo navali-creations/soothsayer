@@ -3,7 +3,6 @@ export { PoeLeaguesChannel } from "./PoeLeagues.channels";
 export type {
   PoeLeagueCacheDTO,
   PoeLeaguesCacheMetadataDTO,
-  SupabaseLeagueResponse,
   UpsertPoeLeagueCacheDTO,
 } from "./PoeLeagues.dto";
 export { PoeLeaguesMapper } from "./PoeLeagues.mapper";

@@ -41,18 +41,3 @@ export interface UpsertPoeLeagueCacheDTO {
   updatedAt: string | null;
   fetchedAt: string;
 }
-
-/**
- * Response from the Supabase get-leagues edge function
- */
-export interface SupabaseLeagueResponse {
-  leagues: Array<{
-    id: string;
-    leagueId: string;
-    name: string;
-    startAt: string | null;
-    endAt: string | null;
-    isActive: boolean;
-    updatedAt: string | null;
-  }>;
-}

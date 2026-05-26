@@ -68,6 +68,7 @@ const {
 // ─── Hoisted env vars holder ─────────────────────────────────────────────────
 const mockEnv = vi.hoisted(() => ({
   VITE_SUPABASE_URL: "https://test.supabase.co",
+  VITE_SUPABASE_PUBLISHABLE_KEY: "test-publishable-key",
   VITE_SUPABASE_ANON_KEY: "test-anon-key",
   VITE_SENTRY_DSN: "https://sentry.example.com/123",
 }));
@@ -250,6 +251,17 @@ function setupWhenReadyCapture(): { invoke: () => Promise<void> } {
 // Mutable reference to import.meta.env for test mutations
 const env = import.meta.env as unknown as Record<string, string | undefined>;
 
+function setMainEnvValue(key: string, value: string | undefined): void {
+  if (value === undefined) {
+    delete env[key];
+    delete process.env[key];
+    return;
+  }
+
+  env[key] = value;
+  vi.stubEnv(key, value);
+}
+
 describe("main.ts", () => {
   const originalEnv = { ...import.meta.env };
 
@@ -259,9 +271,12 @@ describe("main.ts", () => {
     vi.resetModules();
 
     // Default env with Supabase credentials present
-    env.VITE_SUPABASE_URL = mockEnv.VITE_SUPABASE_URL;
-    env.VITE_SUPABASE_ANON_KEY = mockEnv.VITE_SUPABASE_ANON_KEY;
-
+    setMainEnvValue("VITE_SUPABASE_URL", mockEnv.VITE_SUPABASE_URL);
+    setMainEnvValue(
+      "VITE_SUPABASE_PUBLISHABLE_KEY",
+      mockEnv.VITE_SUPABASE_PUBLISHABLE_KEY,
+    );
+    setMainEnvValue("VITE_SUPABASE_ANON_KEY", mockEnv.VITE_SUPABASE_ANON_KEY);
     // Default: single instance lock acquired, not packaged
     mockRequestSingleInstanceLock.mockReturnValue(true);
     mockIsPackaged.value = false;
@@ -274,9 +289,12 @@ describe("main.ts", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
     // Restore env
     env.VITE_SUPABASE_URL = originalEnv.VITE_SUPABASE_URL;
+    env.VITE_SUPABASE_PUBLISHABLE_KEY =
+      originalEnv.VITE_SUPABASE_PUBLISHABLE_KEY;
     env.VITE_SUPABASE_ANON_KEY = originalEnv.VITE_SUPABASE_ANON_KEY;
   });
 
@@ -425,12 +443,26 @@ describe("main.ts", () => {
       expect(mockSupabaseConfigure).toHaveBeenCalledTimes(1);
       expect(mockSupabaseConfigure).toHaveBeenCalledWith(
         mockEnv.VITE_SUPABASE_URL,
+        mockEnv.VITE_SUPABASE_PUBLISHABLE_KEY,
+      );
+    });
+
+    it("should fall back to the legacy anon key when the publishable key is missing", async () => {
+      setMainEnvValue("VITE_SUPABASE_PUBLISHABLE_KEY", "");
+
+      const capture = setupWhenReadyCapture();
+      await importMain();
+      await capture.invoke();
+
+      expect(mockSupabaseConfigure).toHaveBeenCalledTimes(1);
+      expect(mockSupabaseConfigure).toHaveBeenCalledWith(
+        mockEnv.VITE_SUPABASE_URL,
         mockEnv.VITE_SUPABASE_ANON_KEY,
       );
     });
 
     it("should NOT configure Supabase when VITE_SUPABASE_URL is missing", async () => {
-      env.VITE_SUPABASE_URL = "";
+      setMainEnvValue("VITE_SUPABASE_URL", "");
 
       const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
@@ -444,8 +476,9 @@ describe("main.ts", () => {
       );
     });
 
-    it("should NOT configure Supabase when VITE_SUPABASE_ANON_KEY is missing", async () => {
-      env.VITE_SUPABASE_ANON_KEY = "";
+    it("should NOT configure Supabase when both public API keys are missing", async () => {
+      setMainEnvValue("VITE_SUPABASE_PUBLISHABLE_KEY", "");
+      setMainEnvValue("VITE_SUPABASE_ANON_KEY", "");
 
       const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
@@ -460,8 +493,9 @@ describe("main.ts", () => {
     });
 
     it("should NOT configure Supabase when both env vars are missing", async () => {
-      env.VITE_SUPABASE_URL = "";
-      env.VITE_SUPABASE_ANON_KEY = "";
+      setMainEnvValue("VITE_SUPABASE_URL", "");
+      setMainEnvValue("VITE_SUPABASE_PUBLISHABLE_KEY", "");
+      setMainEnvValue("VITE_SUPABASE_ANON_KEY", "");
 
       const _consoleSpy = vi
         .spyOn(console, "warn")
@@ -475,8 +509,9 @@ describe("main.ts", () => {
     });
 
     it("should NOT configure Supabase when env vars are deleted", async () => {
-      delete env.VITE_SUPABASE_URL;
-      delete env.VITE_SUPABASE_ANON_KEY;
+      setMainEnvValue("VITE_SUPABASE_URL", undefined);
+      setMainEnvValue("VITE_SUPABASE_PUBLISHABLE_KEY", undefined);
+      setMainEnvValue("VITE_SUPABASE_ANON_KEY", undefined);
 
       const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
@@ -835,8 +870,9 @@ describe("main.ts", () => {
     });
 
     it("should handle missing Supabase env vars gracefully during full startup", async () => {
-      env.VITE_SUPABASE_URL = "";
-      env.VITE_SUPABASE_ANON_KEY = "";
+      setMainEnvValue("VITE_SUPABASE_URL", "");
+      setMainEnvValue("VITE_SUPABASE_PUBLISHABLE_KEY", "");
+      setMainEnvValue("VITE_SUPABASE_ANON_KEY", "");
 
       const _consoleSpy = vi
         .spyOn(console, "warn")

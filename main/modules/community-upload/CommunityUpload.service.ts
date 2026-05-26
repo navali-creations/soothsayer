@@ -270,7 +270,7 @@ class CommunityUploadService {
         ggg_uuid: string;
         updated_records: number;
       }>(
-        "upload-community-data",
+        "v2-upload-community-data",
         {
           action: "link-ggg",
           device_id: deviceId,
@@ -786,7 +786,7 @@ class CommunityUploadService {
       unique_cards: number;
       upload_count: number;
       is_verified: boolean;
-    }>("upload-community-data", payload, extraHeaders);
+    }>("v2-upload-community-data", payload, extraHeaders);
 
     console.log(
       `[CommunityUpload] Upload successful: ${result.unique_cards} unique cards (${cardEntries.length} changed), upload #${result.upload_count}`,

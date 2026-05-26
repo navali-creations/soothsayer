@@ -631,14 +631,10 @@ describe("SupabaseClientService", () => {
       await service.configure(SUPABASE_URL, SUPABASE_ANON_KEY);
 
       // Force another ensureAuthenticated via getLeagues
-      mockFrom.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              order: vi.fn().mockResolvedValue({ data: [], error: null }),
-            }),
-          }),
-        }),
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve(JSON.stringify({ leagues: [] })),
       });
       await service.getLeagues("poe1");
 
@@ -734,7 +730,7 @@ describe("SupabaseClientService", () => {
       const result = await service.getLatestSnapshot("poe1", "Settlers");
 
       expect(mockFetch).toHaveBeenCalledWith(
-        `${SUPABASE_URL}/functions/v1/get-latest-snapshot`,
+        `${SUPABASE_URL}/functions/v1/v2-get-latest-snapshot`,
         expect.objectContaining({
           method: "POST",
           headers: {
@@ -758,7 +754,7 @@ describe("SupabaseClientService", () => {
       });
     });
 
-    it("should normalize legacy exchange/stash snapshot responses", async () => {
+    it("should reject legacy exchange/stash snapshot responses", async () => {
       const service = await configureService();
       const snapshotResponse = {
         ...makeSnapshotResponse(),
@@ -783,11 +779,9 @@ describe("SupabaseClientService", () => {
         text: () => Promise.resolve(JSON.stringify(snapshotResponse)),
       });
 
-      const result = await service.getLatestSnapshot("poe1", "Settlers");
-
-      expect(result.cardPrices).toEqual({
-        "The Doctor": { chaosValue: 900, divineValue: 6 },
-      });
+      await expect(
+        service.getLatestSnapshot("poe1", "Settlers"),
+      ).rejects.toThrow("Invalid response structure from Supabase");
     });
 
     it("should return cached snapshot when within cache duration", async () => {
@@ -864,7 +858,9 @@ describe("SupabaseClientService", () => {
 
       await expect(
         service.getLatestSnapshot("poe1", "Settlers"),
-      ).rejects.toThrow("Edge Function failed (500): Internal Server Error");
+      ).rejects.toThrow(
+        "Edge Function v2-get-latest-snapshot failed (500): Internal Server Error",
+      );
     });
 
     it("should throw when response has invalid structure", async () => {
@@ -984,60 +980,79 @@ describe("SupabaseClientService", () => {
       );
     });
 
-    it("should query leagues filtered by game and active status", async () => {
+    it("should fetch leagues via the v2 edge function", async () => {
       const service = await configureService();
 
-      const mockOrder = vi.fn().mockResolvedValue({
-        data: [{ id: "1", game: "poe1", name: "Settlers", is_active: true }],
-        error: null,
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              leagues: [
+                {
+                  id: "1",
+                  leagueId: "Settlers",
+                  name: "Settlers",
+                  startAt: "2025-01-01T00:00:00Z",
+                  endAt: null,
+                  isActive: true,
+                  updatedAt: null,
+                },
+              ],
+            }),
+          ),
       });
-      const mockEqActive = vi.fn().mockReturnValue({ order: mockOrder });
-      const mockEqGame = vi.fn().mockReturnValue({ eq: mockEqActive });
-      const mockSelect = vi.fn().mockReturnValue({ eq: mockEqGame });
-      mockFrom.mockReturnValue({ select: mockSelect });
 
       const result = await service.getLeagues("poe1");
 
-      expect(mockFrom).toHaveBeenCalledWith("poe_leagues");
-      expect(mockSelect).toHaveBeenCalledWith("*");
-      expect(mockEqGame).toHaveBeenCalledWith("game", "poe1");
-      expect(mockEqActive).toHaveBeenCalledWith("is_active", true);
-      expect(mockOrder).toHaveBeenCalledWith("start_at", {
-        ascending: false,
-      });
+      expect(mockFrom).not.toHaveBeenCalled();
+      expect(mockFetch).toHaveBeenCalledWith(
+        `${SUPABASE_URL}/functions/v1/v2-get-leagues`,
+        expect.objectContaining({
+          method: "POST",
+          headers: expect.objectContaining({
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: "Bearer mock-access-token",
+          }),
+          body: JSON.stringify({ game: "poe1" }),
+        }),
+      );
       expect(result).toEqual([
-        { id: "1", game: "poe1", name: "Settlers", is_active: true },
+        {
+          id: "1",
+          game: "poe1",
+          league_id: "Settlers",
+          name: "Settlers",
+          start_at: "2025-01-01T00:00:00Z",
+          end_at: null,
+          is_active: true,
+        },
       ]);
     });
 
-    it("should throw when Supabase returns an error", async () => {
+    it("should throw when the edge function returns an error", async () => {
       const service = await configureService();
 
-      const mockOrder = vi.fn().mockResolvedValue({
-        data: null,
-        error: { message: "relation does not exist" },
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        text: () => Promise.resolve('{"error":"Failed to fetch leagues"}'),
       });
-      const mockEqActive = vi.fn().mockReturnValue({ order: mockOrder });
-      const mockEqGame = vi.fn().mockReturnValue({ eq: mockEqActive });
-      const mockSelect = vi.fn().mockReturnValue({ eq: mockEqGame });
-      mockFrom.mockReturnValue({ select: mockSelect });
 
       await expect(service.getLeagues("poe1")).rejects.toThrow(
-        "Failed to fetch leagues: relation does not exist",
+        'Edge Function v2-get-leagues failed (500): {"error":"Failed to fetch leagues"}',
       );
     });
 
-    it("should return empty array when data is null", async () => {
+    it("should return empty array when no leagues are returned", async () => {
       const service = await configureService();
 
-      const mockOrder = vi.fn().mockResolvedValue({
-        data: null,
-        error: null,
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve(JSON.stringify({ leagues: [] })),
       });
-      const mockEqActive = vi.fn().mockReturnValue({ order: mockOrder });
-      const mockEqGame = vi.fn().mockReturnValue({ eq: mockEqActive });
-      const mockSelect = vi.fn().mockReturnValue({ eq: mockEqGame });
-      mockFrom.mockReturnValue({ select: mockSelect });
 
       const result = await service.getLeagues("poe1");
       expect(result).toEqual([]);

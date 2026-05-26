@@ -16,35 +16,11 @@ import type {
   Confidence,
   SessionPriceSnapshot,
 } from "../../../types/data-stores";
-
-/**
- * Response from Supabase get-latest-snapshot Edge Function
- */
-interface SupabaseSnapshotResponse {
-  snapshot: {
-    id: string;
-    leagueId: string;
-    fetchedAt: string;
-    exchangeChaosToDivine: number;
-    stackedDeckChaosCost: number;
-    stackedDeckMaxVolumeRate?: number | null;
-  };
-  cardPrices:
-    | SupabaseCardPriceMap
-    | {
-        exchange?: SupabaseCardPriceMap;
-        stash?: Record<string, unknown>;
-      };
-}
-
-type SupabaseCardPriceMap = Record<
-  string,
-  {
-    chaosValue: number;
-    divineValue: number;
-    confidence?: Confidence;
-  }
->;
+import type {
+  SupabaseCardPriceMap,
+  SupabaseLeagueResponse,
+  SupabaseSnapshotResponse,
+} from "./Supabase.dto";
 
 interface NormalizedSupabaseSnapshotResponse {
   snapshot: SupabaseSnapshotResponse["snapshot"];
@@ -70,17 +46,9 @@ function normalizeCardPrices(cardPrices: unknown): SupabaseCardPriceMap {
     throw new Error("Invalid response structure from Supabase");
   }
 
-  // Older edge responses returned { exchange, stash }. Prefer exchange prices
-  // when that wrapper is present, but do not mistake a card literally named
-  // "exchange" for the legacy wrapper.
-  const candidate =
-    isRecord(cardPrices.exchange) && !isCardPricePayload(cardPrices.exchange)
-      ? cardPrices.exchange
-      : cardPrices;
-
   const normalized: SupabaseCardPriceMap = {};
 
-  for (const [cardName, price] of Object.entries(candidate)) {
+  for (const [cardName, price] of Object.entries(cardPrices)) {
     if (!isCardPricePayload(price)) {
       throw new Error("Invalid response structure from Supabase");
     }
@@ -334,7 +302,7 @@ class SupabaseClientService {
   } | null = null;
   // Store these for later use
   private supabaseUrl: string | null = null;
-  private supabaseAnonKey: string | null = null;
+  private supabasePublicApiKey: string | null = null;
 
   static getInstance(): SupabaseClientService {
     if (!SupabaseClientService._instance) {
@@ -352,21 +320,21 @@ class SupabaseClientService {
    * Configure Supabase client with credentials and authenticate
    * Should be called at app startup
    */
-  public async configure(url: string, anonKey: string): Promise<void> {
+  public async configure(url: string, publicApiKey: string): Promise<void> {
     console.log(
-      `[SupabaseClient] configure() called — URL present: ${!!url}, ANON_KEY present: ${!!anonKey}`,
+      `[SupabaseClient] configure() called — URL present: ${!!url}, PUBLIC_API_KEY present: ${!!publicApiKey}`,
     );
 
-    if (!url || !anonKey) {
+    if (!url || !publicApiKey) {
       console.error("[SupabaseClient] Missing Supabase credentials");
       return;
     }
 
     // Store for later use
     this.supabaseUrl = url;
-    this.supabaseAnonKey = anonKey;
+    this.supabasePublicApiKey = publicApiKey;
 
-    this.client = createClient(url, anonKey, {
+    this.client = createClient(url, publicApiKey, {
       auth: {
         autoRefreshToken: true,
         persistSession: false, // We handle persistence manually
@@ -653,42 +621,10 @@ class SupabaseClientService {
       `[SupabaseClient] Fetching snapshot from Supabase for ${game}/${leagueId}...`,
     );
     try {
-      // Get the current session token
-      const { data: sessionData } = await this.client.auth.getSession();
-      if (!sessionData.session) {
-        throw new Error("No session available");
-      }
-
-      const accessToken = sessionData.session.access_token;
-
-      if (!this.supabaseUrl || !this.supabaseAnonKey) {
-        throw new Error("Supabase credentials not available");
-      }
-
-      // Use raw fetch to ensure all headers are sent correctly
-      const response = await fetch(
-        `${this.supabaseUrl}/functions/v1/get-latest-snapshot`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            apikey: this.supabaseAnonKey,
-            Authorization: `Bearer ${accessToken}`,
-            "x-app-version": app.getVersion(),
-          },
-          body: JSON.stringify({ game, league: leagueId }),
-        },
+      const data = await this.callEdgeFunction<unknown>(
+        "v2-get-latest-snapshot",
+        { game, league: leagueId },
       );
-
-      const responseText = await response.text();
-
-      if (!response.ok) {
-        throw new Error(
-          `Edge Function failed (${response.status}): ${responseText}`,
-        );
-      }
-
-      const data = JSON.parse(responseText) as unknown;
 
       if (!data) {
         console.error("[SupabaseClient] No data returned from Edge Function");
@@ -726,21 +662,24 @@ class SupabaseClientService {
       throw new Error("Supabase client not configured");
     }
 
-    // Ensure we're authenticated
-    await this.ensureAuthenticated();
+    const response = await this.callEdgeFunction<SupabaseLeagueResponse>(
+      "v2-get-leagues",
+      { game },
+    );
 
-    const { data, error } = await this.client
-      .from("poe_leagues")
-      .select("*")
-      .eq("game", game)
-      .eq("is_active", true)
-      .order("start_at", { ascending: false });
-
-    if (error) {
-      throw new Error(`Failed to fetch leagues: ${error.message}`);
+    if (!Array.isArray(response.leagues)) {
+      throw new Error("Invalid response structure from Supabase");
     }
 
-    return data || [];
+    return response.leagues.map((league) => ({
+      id: league.id,
+      game,
+      league_id: league.leagueId,
+      name: league.name,
+      start_at: league.startAt,
+      end_at: league.endAt,
+      is_active: league.isActive,
+    }));
   }
 
   /**
@@ -766,7 +705,7 @@ class SupabaseClientService {
       throw new Error("No active session");
     }
 
-    if (!this.supabaseUrl || !this.supabaseAnonKey) {
+    if (!this.supabaseUrl || !this.supabasePublicApiKey) {
       throw new Error("Supabase credentials not available");
     }
 
@@ -787,7 +726,7 @@ class SupabaseClientService {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            apikey: this.supabaseAnonKey,
+            apikey: this.supabasePublicApiKey,
             Authorization: `Bearer ${accessToken}`,
             "x-app-version": app.getVersion(),
             ...extraHeaders,

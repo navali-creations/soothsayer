@@ -437,6 +437,25 @@ quietTest("POST: returns 401 when apikey header is missing", async () => {
   cleanupEnv();
 });
 
+quietTest("POST: returns 401 when apikey is not allowlisted", async () => {
+  const cleanupEnv = setupEnv();
+  const fm = mockFetch();
+  withRateLimit(fm);
+  const req = createMockRequest(`${BASE_URL}?action=exchange`, {
+    method: "POST",
+    body: { code: "test", code_verifier: "test" },
+    apikey: "wrong-key",
+  });
+  const resp = await handler(req);
+
+  assertEquals(resp.status, 401);
+  const body = await responseBody<{ error: string }>(resp);
+  assertEquals(body.error, "Invalid apikey header");
+  assertEquals(fm.calls.length, 0);
+  fm.restore();
+  cleanupEnv();
+});
+
 quietTest("POST: returns 429 when rate limited", async () => {
   const cleanupEnv = setupEnv();
   const fm = mockFetch();

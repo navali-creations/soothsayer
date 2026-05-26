@@ -150,19 +150,27 @@ const mutableImportMetaEnv = import.meta.env as unknown as Record<
   string | undefined
 >;
 const originalSupabaseUrl = mutableImportMetaEnv.VITE_SUPABASE_URL;
+const originalSupabasePublishableKey =
+  mutableImportMetaEnv.VITE_SUPABASE_PUBLISHABLE_KEY;
 const originalSupabaseAnonKey = mutableImportMetaEnv.VITE_SUPABASE_ANON_KEY;
 
 function setImportMetaEnvValue(key: string, value: string | undefined): void {
   if (value === undefined) {
     delete mutableImportMetaEnv[key];
+    delete process.env[key];
     return;
   }
 
   mutableImportMetaEnv[key] = value;
+  vi.stubEnv(key, value);
 }
 
 function restoreGggAuthEnv(): void {
   setImportMetaEnvValue("VITE_SUPABASE_URL", originalSupabaseUrl);
+  setImportMetaEnvValue(
+    "VITE_SUPABASE_PUBLISHABLE_KEY",
+    originalSupabasePublishableKey,
+  );
   setImportMetaEnvValue("VITE_SUPABASE_ANON_KEY", originalSupabaseAnonKey);
 }
 
@@ -170,6 +178,10 @@ function useProxyEnv(overrides: Record<string, string | undefined> = {}): void {
   setImportMetaEnvValue(
     "VITE_SUPABASE_URL",
     overrides.VITE_SUPABASE_URL ?? "https://test-project.supabase.co",
+  );
+  setImportMetaEnvValue(
+    "VITE_SUPABASE_PUBLISHABLE_KEY",
+    overrides.VITE_SUPABASE_PUBLISHABLE_KEY ?? "test-publishable-key",
   );
   setImportMetaEnvValue(
     "VITE_SUPABASE_ANON_KEY",
@@ -314,6 +326,7 @@ describe("GggAuthService", () => {
   afterEach(() => {
     resetSingleton(GggAuthService);
     restoreGggAuthEnv();
+    vi.unstubAllEnvs();
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -482,8 +495,11 @@ describe("GggAuthService", () => {
       expect(url.searchParams.get("code_challenge_method")).toBe("S256");
     });
 
-    it("should fall back to direct OAuth when the Supabase anon key is missing", () => {
-      useProxyEnv({ VITE_SUPABASE_ANON_KEY: "" });
+    it("should fall back to direct OAuth when both Supabase public keys are missing", () => {
+      useProxyEnv({
+        VITE_SUPABASE_PUBLISHABLE_KEY: "",
+        VITE_SUPABASE_ANON_KEY: "",
+      });
       const service = GggAuthService.getInstance();
 
       service.authenticate();
@@ -613,7 +629,7 @@ describe("GggAuthService", () => {
       expect(url.searchParams.get("action")).toBe("exchange");
       expect(fetchOptions.headers).toMatchObject({
         "Content-Type": "application/json",
-        apikey: "test-anon-key",
+        apikey: "test-publishable-key",
       });
       expect(fetchOptions.headers.Authorization).toBeUndefined();
 
@@ -828,7 +844,7 @@ describe("GggAuthService", () => {
       expect(url.searchParams.get("action")).toBe("refresh");
       expect(fetchOptions.headers).toMatchObject({
         "Content-Type": "application/json",
-        apikey: "test-anon-key",
+        apikey: "test-publishable-key",
       });
       expect(fetchOptions.headers.Authorization).toBeUndefined();
 

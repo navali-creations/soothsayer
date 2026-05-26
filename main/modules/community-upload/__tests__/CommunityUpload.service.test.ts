@@ -501,7 +501,7 @@ describe("CommunityUploadService", () => {
       await service.uploadOnSessionEnd("poe2", "Settlers");
 
       expect(mockCallEdgeFunction).toHaveBeenCalledWith(
-        "upload-community-data",
+        "v2-upload-community-data",
         {
           league_name: "Settlers",
           game: "poe2",
@@ -580,7 +580,7 @@ describe("CommunityUploadService", () => {
     it("should not throw on edge function failure (fire-and-forget)", async () => {
       setupKyselyForUpload();
       mockCallEdgeFunction.mockRejectedValue(
-        new Error("Edge Function upload-community-data failed (500)"),
+        new Error("Edge Function v2-upload-community-data failed (500)"),
       );
 
       service = CommunityUploadService.getInstance();
@@ -629,7 +629,7 @@ describe("CommunityUploadService", () => {
       await service.uploadOnSessionEnd("poe1", "Standard");
 
       expect(mockCallEdgeFunction).toHaveBeenCalledWith(
-        "upload-community-data",
+        "v2-upload-community-data",
         expect.objectContaining({
           game: "poe1",
           league_name: "Standard",
@@ -703,7 +703,7 @@ describe("CommunityUploadService", () => {
       await service.flushPendingUploads();
 
       expect(mockCallEdgeFunction).toHaveBeenCalledWith(
-        "upload-community-data",
+        "v2-upload-community-data",
         expect.objectContaining({
           cards: [{ card_name: "The Doctor", count: 3 }],
           device_id: "aaaaaaaa-bbbb-4ccc-9ddd-eeeeeeeeeeee",
@@ -859,7 +859,7 @@ describe("CommunityUploadService", () => {
       await service.linkGggAccount();
 
       expect(mockCallEdgeFunction).toHaveBeenCalledWith(
-        "upload-community-data",
+        "v2-upload-community-data",
         {
           action: "link-ggg",
           device_id: "device-uuid",
@@ -983,7 +983,7 @@ describe("CommunityUploadService", () => {
       await service.uploadOnSessionEnd("poe2", "Settlers");
 
       expect(mockCallEdgeFunction).toHaveBeenCalledWith(
-        "upload-community-data",
+        "v2-upload-community-data",
         expect.objectContaining({
           cards: [{ card_name: "House of Mirrors", count: 5 }],
         }),
@@ -1006,7 +1006,7 @@ describe("CommunityUploadService", () => {
       await service.uploadOnSessionEnd("poe2", "Settlers");
 
       expect(mockCallEdgeFunction).toHaveBeenCalledWith(
-        "upload-community-data",
+        "v2-upload-community-data",
         expect.objectContaining({
           cards: [
             { card_name: "The Doctor", count: 3 },
@@ -1032,7 +1032,7 @@ describe("CommunityUploadService", () => {
       await service.uploadOnSessionEnd("poe2", "Settlers");
 
       expect(mockCallEdgeFunction).toHaveBeenCalledWith(
-        "upload-community-data",
+        "v2-upload-community-data",
         expect.objectContaining({
           cards: [{ card_name: "Rain of Chaos", count: 2 }],
         }),
@@ -1060,7 +1060,7 @@ describe("CommunityUploadService", () => {
       // The Doctor decreased (2 < 5) so it should be excluded
       // House of Mirrors increased (5 > 3) so only it should be sent
       expect(mockCallEdgeFunction).toHaveBeenCalledWith(
-        "upload-community-data",
+        "v2-upload-community-data",
         expect.objectContaining({
           cards: [{ card_name: "House of Mirrors", count: 5 }],
         }),
@@ -1081,7 +1081,7 @@ describe("CommunityUploadService", () => {
       await service.uploadOnSessionEnd("poe2", "Settlers", "session-1");
 
       expect(mockCallEdgeFunction).toHaveBeenCalledWith(
-        "upload-community-data",
+        "v2-upload-community-data",
         expect.objectContaining({
           cards: [{ card_name: "The Doctor", count: 11 }],
         }),
@@ -1148,7 +1148,7 @@ describe("CommunityUploadService", () => {
       await service.uploadOnSessionEnd("poe2", "Settlers");
 
       expect(mockCallEdgeFunction).toHaveBeenCalledWith(
-        "upload-community-data",
+        "v2-upload-community-data",
         expect.objectContaining({
           device_id: MOCK_DEVICE_ID,
           cards: [
@@ -1160,7 +1160,7 @@ describe("CommunityUploadService", () => {
       );
       // Body should NOT contain ggg_access_token
       expect(mockCallEdgeFunction).toHaveBeenCalledWith(
-        "upload-community-data",
+        "v2-upload-community-data",
         expect.not.objectContaining({
           ggg_access_token: expect.anything(),
         }),
@@ -1181,7 +1181,7 @@ describe("CommunityUploadService", () => {
 
       // Extra headers should be empty (no X-GGG-Token)
       expect(mockCallEdgeFunction).toHaveBeenCalledWith(
-        "upload-community-data",
+        "v2-upload-community-data",
         expect.objectContaining({
           device_id: MOCK_DEVICE_ID,
           cards: expect.any(Array),

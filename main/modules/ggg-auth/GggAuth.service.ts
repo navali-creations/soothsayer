@@ -41,15 +41,19 @@ interface GggTokenResponse {
   refresh_token: string;
 }
 
-function getSupabaseAnonKey(): string {
-  return import.meta.env.VITE_SUPABASE_ANON_KEY || "";
+function getSupabasePublicApiKey(): string {
+  return (
+    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    import.meta.env.VITE_SUPABASE_ANON_KEY ||
+    ""
+  );
 }
 
 function getGggOAuthProxy(): string | null {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabaseAnonKey = getSupabaseAnonKey();
+  const supabasePublicApiKey = getSupabasePublicApiKey();
 
-  return supabaseUrl && supabaseAnonKey
+  return supabaseUrl && supabasePublicApiKey
     ? `${supabaseUrl}/functions/v1/poe-oauth-callback`
     : null;
 }
@@ -501,7 +505,7 @@ class GggAuthService {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          apikey: getSupabaseAnonKey(),
+          apikey: getSupabasePublicApiKey(),
           "User-Agent": `OAuth soothsayer/${pkgJson.version} (contact: soothsayer.app)`,
         },
         body: JSON.stringify({ code, code_verifier: codeVerifier }),
@@ -628,7 +632,7 @@ class GggAuthService {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          apikey: getSupabaseAnonKey(),
+          apikey: getSupabasePublicApiKey(),
           "User-Agent": `OAuth soothsayer/${pkgJson.version} (contact: soothsayer.app)`,
         },
         body: JSON.stringify({ refresh_token: refreshToken }),
