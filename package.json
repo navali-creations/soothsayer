@@ -20,7 +20,7 @@
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "migration:create": "node main/modules/database/migrations/create-migration.ts",
-    "prepare-deps:electron": "electron-rebuild -f -w better-sqlite3",
+    "prepare-deps:electron": "pnpm rebuild electron && electron-rebuild -f -w better-sqlite3",
     "postinstall": "pnpm prepare-deps:electron",
     "supabase:start": "bash scripts/setup-local-dev.sh",
     "supabase:start:fresh": "bash scripts/setup-local-dev-fresh.sh",
