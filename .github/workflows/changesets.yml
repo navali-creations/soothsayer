@@ -13,6 +13,7 @@ permissions:
 
 env:
   CI: true
+  NODE_VERSION: 24.15.0
 
 jobs:
   release:
@@ -34,7 +35,7 @@ jobs:
       - name: Setup node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: ${{ env.NODE_VERSION }}
           cache: "pnpm"
 
       - name: Install dependencies

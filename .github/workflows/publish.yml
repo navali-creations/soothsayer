@@ -23,6 +23,9 @@ permissions:
 
 env:
   CI: true
+  # Electron Forge currently fails to complete packaging on Node 24.16+.
+  # Keep hosted Linux packaging pinned until https://github.com/electron/forge/issues/4277 is fixed.
+  NODE_VERSION: 24.15.0
 
 jobs:
   check-version:
@@ -106,7 +109,7 @@ jobs:
         if: "!startsWith(matrix.name, 'windows')"
         uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
 
       - name: Verify Node and pnpm (self-hosted Windows)

@@ -30,7 +30,9 @@ permissions:
 
 env:
   CI: true
-  NODE_VERSION: 24
+  # Electron Forge currently fails to complete packaging on Node 24.16+.
+  # Keep hosted CI pinned until https://github.com/electron/forge/issues/4277 is fixed.
+  NODE_VERSION: 24.15.0
 
 jobs:
   install:
