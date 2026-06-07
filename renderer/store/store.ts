@@ -377,6 +377,8 @@ export const useBoundStore = create<BoundStore>()(
               state.profitForecast.minPriceThreshold = 5;
               state.profitForecast.stepDrop = 2;
               state.profitForecast.subBatchSize = 5000;
+              state.profitForecast.customBaseRate = null;
+              state.profitForecast.customTotalCost = null;
 
               // Reset rarity insights comparison
               state.rarityInsightsComparison.selectedFilters = [];

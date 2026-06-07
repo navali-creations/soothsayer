@@ -20,6 +20,7 @@ function createMockProfitForecast(overrides: any = {}) {
   return {
     subBatchSize: 5000,
     customBaseRate: null as number | null,
+    customTotalCost: null as number | null,
     stackedDeckChaosCost: 5,
     setSubBatchSize: vi.fn(),
     setIsComputing: vi.fn(),
@@ -93,13 +94,18 @@ describe("PFSubBatchSlider", () => {
     expect(screen.getByRole("slider")).toBeDisabled();
   });
 
+  it("slider disabled when custom total cost is active", () => {
+    renderSlider({ profitForecast: { customTotalCost: 16000 } });
+    expect(screen.getByRole("slider")).toBeDisabled();
+  });
+
   it("shows info tooltip when disabled due to custom rate", () => {
     const { container } = renderSlider({
       profitForecast: { customBaseRate: 50 },
     });
     expect(
       container.querySelector(
-        "[data-tip*='custom rate uses the selected deck count']",
+        "[data-tip*='custom pricing uses the selected deck count']",
       ),
     ).toBeInTheDocument();
   });
@@ -110,7 +116,7 @@ describe("PFSubBatchSlider", () => {
     });
     expect(
       container.querySelector(
-        "[data-tip*='custom rate uses the selected deck count']",
+        "[data-tip*='custom pricing uses the selected deck count']",
       ),
     ).not.toBeInTheDocument();
   });

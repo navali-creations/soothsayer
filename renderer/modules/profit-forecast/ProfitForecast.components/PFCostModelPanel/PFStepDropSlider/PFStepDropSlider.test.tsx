@@ -21,6 +21,7 @@ function createMockProfitForecast(overrides: any = {}) {
     stepDrop: 2,
     selectedBatch: 10000,
     customBaseRate: null as number | null,
+    customTotalCost: null as number | null,
     stackedDeckChaosCost: 5,
     setStepDrop: vi.fn(),
     setIsComputing: vi.fn(),
@@ -96,6 +97,11 @@ describe("PFStepDropSlider", () => {
 
   it("slider disabled when custom base rate is active", () => {
     renderSlider({ profitForecast: { customBaseRate: 50 } });
+    expect(screen.getByRole("slider")).toBeDisabled();
+  });
+
+  it("slider disabled when custom total cost is active", () => {
+    renderSlider({ profitForecast: { customTotalCost: 16000 } });
     expect(screen.getByRole("slider")).toBeDisabled();
   });
 

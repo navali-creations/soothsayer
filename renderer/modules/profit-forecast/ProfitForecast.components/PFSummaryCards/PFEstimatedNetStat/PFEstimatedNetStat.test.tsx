@@ -44,15 +44,7 @@ function createMockState(overrides: any = {}) {
   return {
     isLoading: false,
     chaosToDivineRatio: 200,
-    getBatchPnL: vi.fn(() => ({
-      revenue: 20000,
-      cost: 16500,
-      netPnL: 3500,
-      confidence: {
-        estimated: 3500,
-        optimistic: 12000,
-      },
-    })),
+    getNetPnL: vi.fn(() => 3500),
     hasData: vi.fn(() => true),
     ...overrides.profitForecast,
   } as any;
@@ -96,15 +88,7 @@ describe("PFEstimatedNetStat", () => {
     renderStat({
       profitForecast: {
         chaosToDivineRatio: 200,
-        getBatchPnL: vi.fn(() => ({
-          revenue: 20000,
-          cost: 16500,
-          netPnL: 3500,
-          confidence: {
-            estimated: -2000,
-            optimistic: 5000,
-          },
-        })),
+        getNetPnL: vi.fn(() => -2000),
       },
     });
     const statValue = screen.getByTestId("stat-value");
@@ -115,15 +99,7 @@ describe("PFEstimatedNetStat", () => {
     renderStat({
       profitForecast: {
         chaosToDivineRatio: 200,
-        getBatchPnL: vi.fn(() => ({
-          revenue: 20000,
-          cost: 16500,
-          netPnL: 3500,
-          confidence: {
-            estimated: -2000,
-            optimistic: 5000,
-          },
-        })),
+        getNetPnL: vi.fn(() => -2000),
       },
     });
     const expected = `\u221210.00 d`;
@@ -142,5 +118,18 @@ describe("PFEstimatedNetStat", () => {
       profitForecast: { isLoading: true },
     });
     expect(screen.getByTestId("stat-value")).toHaveTextContent("—");
+  });
+
+  it("uses the current net P&L getter", () => {
+    const getNetPnL = vi.fn(() => 1200);
+    renderStat({
+      profitForecast: {
+        chaosToDivineRatio: 200,
+        getNetPnL,
+      },
+    });
+
+    expect(getNetPnL).toHaveBeenCalled();
+    expect(screen.getByText("+6.00 d")).toBeInTheDocument();
   });
 });

@@ -5,6 +5,11 @@ import { FiEdit2, FiX } from "react-icons/fi";
 import { Stat } from "~/renderer/components";
 import { useProfitForecast } from "~/renderer/store";
 
+function formatBaseRate(value: number): string {
+  const rounded = Math.round(value * 100) / 100;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2);
+}
+
 const PFBaseRateStat = () => {
   const {
     isLoading,
@@ -32,7 +37,7 @@ const PFBaseRateStat = () => {
 
   const handleStartEditing = useCallback(() => {
     if (isEditingRate) return;
-    setEditValue(String(effectiveBaseRate));
+    setEditValue(formatBaseRate(effectiveBaseRate));
     setIsEditingRate(true);
   }, [effectiveBaseRate, isEditingRate]);
 
@@ -47,8 +52,10 @@ const PFBaseRateStat = () => {
     if (!isEditingRate) return;
     setIsEditingRate(false);
 
-    const parsed = Math.floor(Number(editValue));
+    const parsed = Number(editValue);
     if (Number.isNaN(parsed) || parsed <= 0) return;
+
+    if (parsed === customBaseRate) return;
 
     if (parsed === baseRate) {
       if (hasCustomRate) {
@@ -57,8 +64,6 @@ const PFBaseRateStat = () => {
       }
       return;
     }
-
-    if (parsed === customBaseRate) return;
 
     setCustomBaseRate(parsed);
     setIsComputing(true);
@@ -100,7 +105,7 @@ const PFBaseRateStat = () => {
   // ─── Derived values ────────────────────────────────────────────────────
 
   const inputMin = breakEvenRate > 0 ? Math.ceil(breakEvenRate) : 1;
-  const inputMax = 110;
+  const inputMax = 1000;
 
   const formattedSnapshotDate = (() => {
     if (!snapshotFetchedAt) return null;
@@ -140,7 +145,7 @@ const PFBaseRateStat = () => {
               type="number"
               min={inputMin}
               max={inputMax}
-              step={1}
+              step={0.01}
               value={editValue}
               onChange={(e) => setEditValue(e.target.value)}
               onBlur={handleCommitRate}
@@ -152,7 +157,7 @@ const PFBaseRateStat = () => {
         ) : dataAvailable && effectiveBaseRate > 0 ? (
           <span className="inline-flex items-center gap-1.5">
             <span className={clsx(hasCustomRate && "text-info")}>
-              {effectiveBaseRate} decks/div
+              {formatBaseRate(effectiveBaseRate)} decks/div
             </span>
             <button
               type="button"
@@ -180,7 +185,7 @@ const PFBaseRateStat = () => {
         ) : hasCustomRate && dataAvailable ? (
           <span className="inline-flex items-center gap-1.5">
             <span className="text-base-content/40 text-[11px]">
-              market: {baseRate} decks/div
+              market: {formatBaseRate(baseRate)} decks/div
             </span>
             <button
               type="button"

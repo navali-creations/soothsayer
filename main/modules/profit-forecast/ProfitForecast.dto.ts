@@ -120,6 +120,8 @@ export interface ProfitForecastComputeRequest {
   subBatchSize: number;
   /** User-specified base rate override (null = use server rate). */
   customBaseRate: number | null;
+  /** User-specified total spend in chaos for the selected batch (null = model cost). */
+  customTotalCost: number | null;
   /** Chaos orbs per divine orb. */
   chaosToDivineRatio: number;
   /** Expected value per deck. */

@@ -44,9 +44,12 @@ function createMockState(overrides: any = {}) {
   return {
     isLoading: false,
     chaosToDivineRatio: 200,
+    customTotalCost: null as number | null,
     getTotalCost: vi.fn(() => 16000),
     getAvgCostPerDeck: vi.fn(() => 2.5),
     hasData: vi.fn(() => true),
+    setCustomTotalCost: vi.fn(),
+    setIsComputing: vi.fn(),
     ...overrides.profitForecast,
   } as any;
 }
@@ -113,5 +116,100 @@ describe("PFYouSpendStat", () => {
       profitForecast: { chaosToDivineRatio: 0 },
     });
     expect(screen.getByText("You Spend")).toBeInTheDocument();
+  });
+
+  it("renders edit button with tooltip when data is available", () => {
+    renderStat();
+    const editButton = screen
+      .getAllByRole("button")
+      .find(
+        (btn: HTMLElement) =>
+          btn.getAttribute("data-tip") === "Set custom spend",
+      );
+    expect(editButton).toBeDefined();
+  });
+
+  it("enters edit mode with current total spend in divines", async () => {
+    const { user } = renderStat({
+      profitForecast: {
+        getTotalCost: vi.fn(() => 16000),
+        chaosToDivineRatio: 200,
+      },
+    });
+
+    const editButton = screen
+      .getAllByRole("button")
+      .find(
+        (btn: HTMLElement) =>
+          btn.getAttribute("data-tip") === "Set custom spend",
+      )!;
+
+    await user.click(editButton);
+
+    expect(screen.getByRole("spinbutton")).toHaveValue(80);
+  });
+
+  it("commits custom spend in chaos on Enter", async () => {
+    const { state, user } = renderStat({
+      profitForecast: {
+        getTotalCost: vi.fn(() => 16000),
+        chaosToDivineRatio: 200,
+      },
+    });
+
+    const editButton = screen
+      .getAllByRole("button")
+      .find(
+        (btn: HTMLElement) =>
+          btn.getAttribute("data-tip") === "Set custom spend",
+      )!;
+
+    await user.click(editButton);
+
+    const input = screen.getByRole("spinbutton");
+    await user.clear(input);
+    await user.type(input, "75");
+    await user.keyboard("{Enter}");
+
+    expect(state.setCustomTotalCost).toHaveBeenCalledWith(15000);
+    expect(state.setIsComputing).toHaveBeenCalledWith(true);
+  });
+
+  it("cancels editing on Escape without committing", async () => {
+    const { state, user } = renderStat();
+
+    const editButton = screen
+      .getAllByRole("button")
+      .find(
+        (btn: HTMLElement) =>
+          btn.getAttribute("data-tip") === "Set custom spend",
+      )!;
+
+    await user.click(editButton);
+    await user.keyboard("{Escape}");
+
+    expect(state.setCustomTotalCost).not.toHaveBeenCalled();
+    expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument();
+  });
+
+  it("shows custom badge and reset button when custom spend is active", () => {
+    renderStat({
+      profitForecast: { customTotalCost: 15000 },
+    });
+
+    expect(screen.getByText("custom")).toBeInTheDocument();
+    expect(screen.getByText("Reset")).toBeInTheDocument();
+  });
+
+  it("calls setCustomTotalCost(null) and setIsComputing(true) when reset is clicked", async () => {
+    const { state, user } = renderStat({
+      profitForecast: { customTotalCost: 15000 },
+    });
+
+    const resetButton = screen.getByText("Reset").closest("button")!;
+    await user.click(resetButton);
+
+    expect(state.setCustomTotalCost).toHaveBeenCalledWith(null);
+    expect(state.setIsComputing).toHaveBeenCalledWith(true);
   });
 });

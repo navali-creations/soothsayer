@@ -4,13 +4,11 @@ import { useProfitForecast } from "~/renderer/store";
 import { formatDivine } from "../../../ProfitForecast.utils/ProfitForecast.utils";
 
 const PFEstimatedNetStat = () => {
-  const { isLoading, chaosToDivineRatio, getBatchPnL, hasData } =
+  const { isLoading, chaosToDivineRatio, getNetPnL, hasData } =
     useProfitForecast();
 
   const dataAvailable = hasData() && !isLoading;
-  const batchPnL = dataAvailable ? getBatchPnL() : null;
-
-  const estimatedNet = batchPnL?.confidence.estimated ?? 0;
+  const estimatedNet = dataAvailable ? getNetPnL() : 0;
   const estimatedNetPositive = estimatedNet >= 0;
 
   return (
@@ -18,14 +16,14 @@ const PFEstimatedNetStat = () => {
       <Stat.Title>Estimated Net</Stat.Title>
       <Stat.Value
         className={`text-lg ${
-          dataAvailable && batchPnL
+          dataAvailable
             ? estimatedNetPositive
               ? "text-success"
               : "text-error"
             : ""
         }`}
       >
-        {dataAvailable && batchPnL
+        {dataAvailable
           ? `${estimatedNet >= 0 ? "+" : "\u2212"}${formatDivine(
               Math.abs(estimatedNet),
               chaosToDivineRatio,

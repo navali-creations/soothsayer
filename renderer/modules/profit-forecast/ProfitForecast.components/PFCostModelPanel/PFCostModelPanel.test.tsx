@@ -25,6 +25,7 @@ function createMockProfitForecast(overrides: any = {}) {
     subBatchSize: 5000,
     minPriceThreshold: 10,
     customBaseRate: null as number | null,
+    customTotalCost: null as number | null,
     stackedDeckChaosCost: 5,
     isLoading: false,
     setSelectedBatch: vi.fn(),
@@ -148,6 +149,19 @@ describe("PFCostModelPanel", () => {
       renderPanel({
         profitForecast: {
           customBaseRate: 50,
+          getEffectiveBaseRate: vi.fn(() => RATE_FLOOR),
+        },
+      });
+
+      expect(
+        screen.queryByText(/Rate clamped to minimum/i),
+      ).not.toBeInTheDocument();
+    });
+
+    it("does not show rate clamped when custom spend is active (even if effectiveRate equals RATE_FLOOR)", () => {
+      renderPanel({
+        profitForecast: {
+          customTotalCost: 16000,
           getEffectiveBaseRate: vi.fn(() => RATE_FLOOR),
         },
       });

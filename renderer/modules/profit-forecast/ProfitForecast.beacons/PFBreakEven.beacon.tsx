@@ -26,8 +26,8 @@ const PFBreakEvenBeacon = (props: PopoverComponentProps) => {
         <div className="alert alert-soft alert-info bg-info/10">
           <FiInfo size={20} />
           <span>
-            Batch-independent — only depends on the current expected value per
-            deck and the chaos-to-divine ratio.
+            Batch-independent. Custom Base Rate and You Spend are compared
+            against this threshold without changing it.
           </span>
         </div>
       </div>

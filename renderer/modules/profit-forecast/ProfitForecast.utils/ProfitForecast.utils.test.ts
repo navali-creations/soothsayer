@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  computeBatchEv,
   computeCardCertainty,
   computeConfidenceInterval,
   computePnLCurve,
@@ -256,37 +255,6 @@ describe("computeCardCertainty", () => {
 
   it("handles negative probability by returning 0", () => {
     expect(computeCardCertainty(-0.5, 1000)).toBe(0);
-  });
-});
-
-// ── computeBatchEv ─────────────────────────────────────────────────────────────
-
-describe("computeBatchEv", () => {
-  it("returns correct revenue, cost, and netPnL for known inputs", () => {
-    // evPerDeck=10, batch=1000, baseRate=90, stepDrop=2, subBatchSize=5000, chaosRatio=200
-    const result = computeBatchEv(10, 1000, 90, 2, 5000, 200);
-    expect(result.revenue).toBe(10000); // 10 * 1000
-    expect(result.cost).toBeGreaterThan(0);
-    expect(result.netPnL).toBeCloseTo(result.revenue - result.cost, 6);
-  });
-
-  it("with zero decks returns all zeros", () => {
-    const result = computeBatchEv(10, 0, 90, 2, 5000, 200);
-    expect(result.revenue).toBe(0);
-    expect(result.cost).toBe(0);
-    expect(result.netPnL).toBe(0);
-  });
-
-  it("revenue scales linearly with batch size", () => {
-    const r1 = computeBatchEv(10, 1000, 90, 2, 5000, 200);
-    const r2 = computeBatchEv(10, 2000, 90, 2, 5000, 200);
-    expect(r2.revenue).toBe(r1.revenue * 2);
-  });
-
-  it("netPnL can be negative when cost exceeds revenue", () => {
-    // Very high cost scenario: low baseRate means expensive decks
-    const result = computeBatchEv(0.5, 10000, 25, 2, 5000, 200);
-    expect(result.netPnL).toBeLessThan(0);
   });
 });
 

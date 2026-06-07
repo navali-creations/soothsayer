@@ -63,6 +63,7 @@ vi.mock("~/main/modules/logger", () => ({
 // ─── Import service under test ───────────────────────────────────────────────
 
 import { ProfitForecastChannel } from "../ProfitForecast.channels";
+import { MAX_CUSTOM_TOTAL_COST_CHAOS } from "../ProfitForecast.compute";
 import { ProfitForecastService } from "../ProfitForecast.service";
 
 // ─── Kysely chain builder helper ─────────────────────────────────────────────
@@ -2104,6 +2105,7 @@ describe("ProfitForecastService", () => {
       stepDrop: 2,
       subBatchSize: 5000,
       customBaseRate: null,
+      customTotalCost: null,
       chaosToDivineRatio: 200,
       evPerDeck: 100,
     };
@@ -2261,6 +2263,41 @@ describe("ProfitForecastService", () => {
       });
     });
 
+    it("should return validation error when customTotalCost is not positive", () => {
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        ProfitForecastChannel.Compute,
+      );
+
+      const result = handler(
+        {},
+        { ...VALID_COMPUTE_REQUEST, customTotalCost: 0 },
+      );
+      expect(result).toEqual({
+        success: false,
+        error: expect.stringContaining("customTotalCost"),
+      });
+    });
+
+    it("should return validation error when customTotalCost exceeds the maximum", () => {
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        ProfitForecastChannel.Compute,
+      );
+
+      const result = handler(
+        {},
+        {
+          ...VALID_COMPUTE_REQUEST,
+          customTotalCost: MAX_CUSTOM_TOTAL_COST_CHAOS + 1,
+        },
+      );
+      expect(result).toEqual({
+        success: false,
+        error: expect.stringContaining("customTotalCost"),
+      });
+    });
+
     // ─── Custom Base Rate ──────────────────────────────────────────────────
 
     it("should apply custom base rate with stepDrop=0 when customBaseRate is set", () => {
@@ -2292,6 +2329,22 @@ describe("ProfitForecastService", () => {
       // Custom rate of 50 means each deck costs chaosToDivineRatio/50 = 4 chaos
       // With stepDrop=0 the rate stays fixed, so totalCost = 10000 * 4 = 40000
       expect(resultCustom.totalCost).toBe(10000 * (200 / 50));
+    });
+
+    it("should apply custom total cost as fixed spend when provided", () => {
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        ProfitForecastChannel.Compute,
+      );
+
+      const result = handler(
+        {},
+        { ...VALID_COMPUTE_REQUEST, customTotalCost: 16000 },
+      );
+
+      expect(result).toHaveProperty("rowFields");
+      expect(result.totalCost).toBeCloseTo(16000, 10);
+      expect(result.batchPnL.cost).toBeCloseTo(16000, 10);
     });
   });
 });

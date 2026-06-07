@@ -14,7 +14,10 @@ import {
 } from "~/main/utils/ipc-validation";
 
 import { ProfitForecastChannel } from "./ProfitForecast.channels";
-import { computeAll } from "./ProfitForecast.compute";
+import {
+  computeAll,
+  MAX_CUSTOM_TOTAL_COST_CHAOS,
+} from "./ProfitForecast.compute";
 import type {
   BaseRateSource,
   ProfitForecastCardPriceDTO,
@@ -152,6 +155,25 @@ export class ProfitForecastService {
             max: 1_000_000,
           });
           assertOptionalNumber(req.customBaseRate, "customBaseRate", ch);
+          assertOptionalNumber(req.customTotalCost, "customTotalCost", ch);
+          if (
+            typeof req.customTotalCost === "number" &&
+            req.customTotalCost <= 0
+          ) {
+            throw new IpcValidationError(
+              ch,
+              "customTotalCost must be greater than 0 when provided",
+            );
+          }
+          if (
+            typeof req.customTotalCost === "number" &&
+            req.customTotalCost > MAX_CUSTOM_TOTAL_COST_CHAOS
+          ) {
+            throw new IpcValidationError(
+              ch,
+              `customTotalCost must be at most ${MAX_CUSTOM_TOTAL_COST_CHAOS}`,
+            );
+          }
           assertNumber(req.chaosToDivineRatio, "chaosToDivineRatio", ch);
           assertNumber(req.evPerDeck, "evPerDeck", ch);
 

@@ -20,6 +20,7 @@ import {
   computeRateForBatch,
   computeTotalChaosCost,
   isAutoExcluded,
+  MAX_CUSTOM_TOTAL_COST_CHAOS,
   RATE_FLOOR,
   recomputeDynamicFields,
 } from "./ProfitForecast.slice";
@@ -817,6 +818,8 @@ describe("ProfitForecastSlice (Zustand)", () => {
       expect(state.minPriceThreshold).toBe(5);
       expect(state.stepDrop).toBe(2);
       expect(state.subBatchSize).toBe(5000);
+      expect(state.customBaseRate).toBeNull();
+      expect(state.customTotalCost).toBeNull();
     });
   });
 
@@ -846,6 +849,71 @@ describe("ProfitForecastSlice (Zustand)", () => {
       expect(store.getState().profitForecast.isComputing).toBe(true);
       store.getState().profitForecast.setIsComputing(false);
       expect(store.getState().profitForecast.isComputing).toBe(false);
+    });
+
+    it("setCustomTotalCost stores spend without changing customBaseRate", async () => {
+      electron.profitForecast.getData.mockResolvedValue(makeDTO());
+      await store.getState().profitForecast.fetchData("poe1", "Settlers");
+
+      store.getState().profitForecast.setCustomBaseRate(80);
+      store.getState().profitForecast.setCustomTotalCost(16000);
+
+      expect(store.getState().profitForecast.customTotalCost).toBe(16000);
+      expect(store.getState().profitForecast.customBaseRate).toBe(80);
+    });
+
+    it("setCustomTotalCost clamps spend to the IPC-safe maximum", async () => {
+      electron.profitForecast.getData.mockResolvedValue(makeDTO());
+      await store.getState().profitForecast.fetchData("poe1", "Settlers");
+
+      store
+        .getState()
+        .profitForecast.setCustomTotalCost(MAX_CUSTOM_TOTAL_COST_CHAOS + 1);
+
+      expect(store.getState().profitForecast.customTotalCost).toBe(
+        MAX_CUSTOM_TOTAL_COST_CHAOS,
+      );
+    });
+
+    it("setCustomBaseRate stores rate without changing customTotalCost", async () => {
+      electron.profitForecast.getData.mockResolvedValue(makeDTO());
+      await store.getState().profitForecast.fetchData("poe1", "Settlers");
+
+      store.getState().profitForecast.setCustomTotalCost(16000);
+      store.getState().profitForecast.setCustomBaseRate(80);
+
+      expect(store.getState().profitForecast.customBaseRate).toBe(80);
+      expect(store.getState().profitForecast.customTotalCost).toBe(16000);
+    });
+
+    it("clearing either fixed pricing override leaves the other override intact", async () => {
+      electron.profitForecast.getData.mockResolvedValue(makeDTO());
+      await store.getState().profitForecast.fetchData("poe1", "Settlers");
+
+      store.getState().profitForecast.setCustomBaseRate(80);
+      store.getState().profitForecast.setCustomTotalCost(16000);
+      store.getState().profitForecast.setCustomTotalCost(null);
+
+      expect(store.getState().profitForecast.customBaseRate).toBe(80);
+      expect(store.getState().profitForecast.customTotalCost).toBeNull();
+
+      store.getState().profitForecast.setCustomTotalCost(16000);
+      store.getState().profitForecast.setCustomBaseRate(null);
+
+      expect(store.getState().profitForecast.customBaseRate).toBeNull();
+      expect(store.getState().profitForecast.customTotalCost).toBe(16000);
+    });
+
+    it("setSelectedBatch preserves custom spend basis without changing custom base rate", async () => {
+      electron.profitForecast.getData.mockResolvedValue(makeDTO());
+      await store.getState().profitForecast.fetchData("poe1", "Settlers");
+
+      store.getState().profitForecast.setCustomBaseRate(80);
+      store.getState().profitForecast.setCustomTotalCost(16000);
+      store.getState().profitForecast.setSelectedBatch(100000);
+
+      expect(store.getState().profitForecast.customBaseRate).toBe(80);
+      expect(store.getState().profitForecast.customTotalCost).toBe(160000);
     });
   });
 
@@ -1119,6 +1187,30 @@ describe("ProfitForecastSlice (Zustand)", () => {
       expect(costSmallBatch).toBeGreaterThan(costLargeBatch);
     });
 
+    it("keeps row costs based on base rate when customTotalCost is active", async () => {
+      await setupWithData();
+
+      store.getState().profitForecast.setCustomTotalCost(16000);
+      store.getState().profitForecast.recomputeRows();
+
+      const { baseRate, selectedBatch, chaosToDivineRatio } =
+        store.getState().profitForecast;
+      const doctor = store
+        .getState()
+        .profitForecast.rows.find((r) => r.cardName === "The Doctor")!;
+
+      expect(doctor.costToPull).toBeCloseTo(
+        computeTotalChaosCost(
+          doctor.expectedDecks,
+          baseRate,
+          0,
+          selectedBatch,
+          chaosToDivineRatio,
+        ),
+        4,
+      );
+    });
+
     it("preserves row order after recompute", async () => {
       await setupWithData();
 
@@ -1304,6 +1396,14 @@ describe("ProfitForecastSlice (Zustand)", () => {
 
       it("returns 0 when no data loaded", () => {
         expect(store.getState().profitForecast.getTotalCost()).toBe(0);
+      });
+
+      it("returns customTotalCost when fixed spend is active", async () => {
+        await setupWithData();
+
+        store.getState().profitForecast.setCustomTotalCost(16000);
+
+        expect(store.getState().profitForecast.getTotalCost()).toBe(16000);
       });
     });
 
@@ -1508,6 +1608,19 @@ describe("ProfitForecastSlice (Zustand)", () => {
         expect(result.revenue).toBe(0);
         expect(result.cost).toBe(0);
         expect(result.netPnL).toBe(0);
+      });
+
+      it("reflects custom total cost before async recompute completes", async () => {
+        await setupWithData();
+
+        store.getState().profitForecast.setCustomTotalCost(12345);
+
+        const result = store.getState().profitForecast.getBatchPnL();
+        const revenue = store.getState().profitForecast.getTotalRevenue();
+
+        expect(result.cost).toBe(12345);
+        expect(result.netPnL).toBeCloseTo(revenue - 12345, 4);
+        expect(result.confidence.estimated).toBeCloseTo(revenue - 12345, 4);
       });
 
       it("changes when selectedBatch changes", async () => {

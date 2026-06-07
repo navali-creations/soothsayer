@@ -11,11 +11,14 @@ import PFSubBatchSlider from "./PFSubBatchSlider/PFSubBatchSlider";
 import PFViewToggle from "./PFViewToggle/PFViewToggle";
 
 const PFCostModelPanel = () => {
-  const { customBaseRate, getEffectiveBaseRate } = useProfitForecast();
+  const { customBaseRate, customTotalCost, getEffectiveBaseRate } =
+    useProfitForecast();
 
   const effectiveRate = getEffectiveBaseRate();
-  const hasCustomRate = customBaseRate !== null;
-  const isRateClamped = effectiveRate > 0 && effectiveRate === RATE_FLOOR;
+  const hasFixedCostOverride =
+    customBaseRate !== null || customTotalCost !== null;
+  const isRateClamped =
+    effectiveRate > 0 && effectiveRate === RATE_FLOOR && !hasFixedCostOverride;
 
   return (
     <div className="flex flex-col gap-2">
@@ -25,7 +28,7 @@ const PFCostModelPanel = () => {
       >
         <div className="card-body p-3 flex flex-col gap-2.5 text-sm">
           {/* Rate clamped note */}
-          {isRateClamped && !hasCustomRate && (
+          {isRateClamped && (
             <div className="flex items-start gap-1.5 text-xs text-info">
               <FiInfo className="shrink-0 w-3.5 h-3.5 mt-0.5" />
               <span>Rate clamped to minimum ({RATE_FLOOR} decks/div).</span>

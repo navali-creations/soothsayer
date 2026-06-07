@@ -99,6 +99,8 @@ function createMockProfitForecast(overrides: any = {}) {
     forecastView: "chart",
     stepDrop: 2,
     subBatchSize: 5000,
+    customBaseRate: null,
+    customTotalCost: null,
     setSelectedBatch: vi.fn(),
     setForecastView: vi.fn(),
     setStepDrop: vi.fn(),

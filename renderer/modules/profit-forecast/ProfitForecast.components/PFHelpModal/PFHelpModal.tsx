@@ -144,7 +144,8 @@ const PFHelpModal = ({ isOpen, onClose }: PFHelpModalProps) => {
                     <td className="font-medium">Break-Even Rate</td>
                     <td className="text-error">No</td>
                     <td>
-                      Depends only on card prices and deck cost, not volume
+                      The threshold depends on EV and divine price; custom
+                      pricing only changes the comparison context
                     </td>
                   </tr>
                 </tbody>
@@ -166,7 +167,9 @@ const PFHelpModal = ({ isOpen, onClose }: PFHelpModalProps) => {
             <p className="mt-2">
               This number is <strong>batch-independent</strong> — it only
               depends on the current EV per deck and the chaos-to-divine ratio.
-              Changing the batch size or cost model sliders does not affect it.
+              Custom <strong>Base Rate</strong> and <strong>You Spend</strong>{" "}
+              values are compared against this threshold, but they do not change
+              the threshold itself.
             </p>
             <p className="mt-1 text-base-content/60">
               Formula:{" "}

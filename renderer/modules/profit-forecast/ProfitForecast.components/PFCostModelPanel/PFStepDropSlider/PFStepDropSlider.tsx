@@ -7,6 +7,7 @@ const PFStepDropSlider = () => {
     stepDrop,
     selectedBatch,
     customBaseRate,
+    customTotalCost,
     stackedDeckChaosCost,
     setStepDrop,
     setIsComputing,
@@ -15,7 +16,8 @@ const PFStepDropSlider = () => {
   const { isRefreshing } = usePoeNinja();
 
   const controlsDisabled = isRefreshing || isLoading;
-  const hasCustomRate = customBaseRate !== null;
+  const hasFixedCostOverride =
+    customBaseRate !== null || customTotalCost !== null;
   const hasStackedDeckPrice = stackedDeckChaosCost > 0;
 
   const handleStepDropChange = (value: number) => {
@@ -29,15 +31,15 @@ const PFStepDropSlider = () => {
         <span className="text-xs text-base-content/50 font-medium">
           Price increase per batch
         </span>
-        {hasCustomRate && (
+        {hasFixedCostOverride && (
           <span
             className="tooltip tooltip-right"
-            data-tip="Locked at 0 — custom rate means you pay a fixed price per deck."
+            data-tip="Locked at 0 — custom pricing means you pay a fixed price per deck."
           >
             <FiInfo className="w-3 h-3 text-info" />
           </span>
         )}
-        {!hasCustomRate && selectedBatch <= 1000 && (
+        {!hasFixedCostOverride && selectedBatch <= 1000 && (
           <span
             className="tooltip tooltip-right"
             data-tip="Disabled — only one batch at 1k decks, so the rate never drops."
@@ -58,7 +60,7 @@ const PFStepDropSlider = () => {
           controlsDisabled ||
           !hasStackedDeckPrice ||
           selectedBatch <= 1000 ||
-          hasCustomRate
+          hasFixedCostOverride
         }
       />
       <div className="flex justify-between text-xs text-base-content/40">

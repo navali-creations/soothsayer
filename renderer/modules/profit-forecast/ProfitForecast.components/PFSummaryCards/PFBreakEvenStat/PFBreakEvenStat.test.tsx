@@ -42,6 +42,9 @@ const mockUseBoundStore = vi.mocked(useBoundStore);
 function createMockProfitForecast(overrides: any = {}) {
   return {
     isLoading: false,
+    customTotalCost: null as number | null,
+    selectedBatch: 10000,
+    chaosToDivineRatio: 200,
     getBreakEvenRate: vi.fn(() => 20),
     getEffectiveBaseRate: vi.fn(() => 80),
     hasData: vi.fn(() => true),
@@ -100,6 +103,24 @@ describe("PFBreakEvenStat", () => {
     });
     const statValue = screen.getByTestId("stat-value");
     expect(statValue).toHaveClass("text-error");
+  });
+
+  it("keeps break-even rate as the threshold and compares custom spend basis", () => {
+    renderStat({
+      profitForecast: {
+        customTotalCost: 200000,
+        selectedBatch: 10000,
+        chaosToDivineRatio: 200,
+        getEffectiveBaseRate: vi.fn(() => 80),
+        getBreakEvenRate: vi.fn(() => 20),
+      },
+    });
+    const statValue = screen.getByTestId("stat-value");
+    expect(statValue).toHaveTextContent("20 decks/div");
+    expect(statValue).toHaveClass("text-error");
+    expect(
+      screen.queryByText(/base 80 · spend 10 decks\/div/),
+    ).not.toBeInTheDocument();
   });
 
   it("shows dash when breakEvenRate is 0", () => {

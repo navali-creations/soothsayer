@@ -33,6 +33,7 @@ const ProfitForecastPage = () => {
     stepDrop,
     subBatchSize,
     customBaseRate,
+    customTotalCost,
     fetchData,
     recomputeRows,
     hasData,
@@ -89,7 +90,7 @@ const ProfitForecastPage = () => {
   // ─── Debounce recomputeRows when cost model or batch changes ───────────
 
   const debouncedRecompute = useDebounce(
-    `${stepDrop}:${subBatchSize}:${selectedBatch}:${customBaseRate}`,
+    `${stepDrop}:${subBatchSize}:${selectedBatch}:${customBaseRate}:${customTotalCost}`,
     300,
   );
 
@@ -228,7 +229,8 @@ const ProfitForecastPage = () => {
               <div className="flex-1 min-h-0 min-w-0 flex flex-col gap-2 overflow-y-auto">
                 {/* Large batch cost-cliff hint — only for 100k / 1M */}
                 {(selectedBatch === 100000 || selectedBatch === 1000000) &&
-                  !customBaseRate && (
+                  !customBaseRate &&
+                  !customTotalCost && (
                     <div className="alert alert-soft alert-info py-2 px-3 text-xs shrink-0">
                       <FiInfo className="shrink-0 w-4 h-4" />
                       <span>

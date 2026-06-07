@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   computeAll,
   computeRowDynamicFields,
+  getCostFromTotalCostBasis,
   getEffectiveCostParams,
+  getEffectiveCostRate,
 } from "../ProfitForecast.compute";
 import type { ProfitForecastRowDTO } from "../ProfitForecast.dto";
 
@@ -48,6 +50,7 @@ const BASE_REQUEST = {
   stepDrop: 2,
   subBatchSize: 5000,
   customBaseRate: null as number | null,
+  customTotalCost: null as number | null,
   chaosToDivineRatio: 200,
   evPerDeck: ROWS.reduce((sum, r) => sum + r.evContribution, 0),
 };
@@ -77,6 +80,38 @@ describe("getEffectiveCostParams", () => {
       effectiveStepDrop: 0,
       effectiveSubBatchSize: 8000,
     });
+  });
+
+  it("should return stepDrop=0 and subBatchSize=selectedBatch when customTotalCost is set", () => {
+    const result = getEffectiveCostParams(null, 2, 5000, 10000, 16000);
+    expect(result).toEqual({
+      effectiveStepDrop: 0,
+      effectiveSubBatchSize: 10000,
+    });
+  });
+});
+
+// ── getEffectiveCostRate ───────────────────────────────────────────────────────
+
+describe("getEffectiveCostRate", () => {
+  it("should return custom base rate when set", () => {
+    expect(getEffectiveCostRate(90, 75)).toBe(75);
+  });
+
+  it("should return server base rate when no custom base rate is set", () => {
+    expect(getEffectiveCostRate(90, null)).toBe(90);
+  });
+});
+
+// ── getCostFromTotalCostBasis ──────────────────────────────────────────────────
+
+describe("getCostFromTotalCostBasis", () => {
+  it("should scale custom total cost to the requested batch size", () => {
+    expect(getCostFromTotalCostBasis(5000, 10000, 16000)).toBe(8000);
+  });
+
+  it("should return null for missing custom total cost", () => {
+    expect(getCostFromTotalCostBasis(5000, 10000, null)).toBeNull();
   });
 });
 
@@ -336,6 +371,62 @@ describe("computeAll", () => {
     // So cost should reflect the custom rate (80) rather than the server rate (90)
     expect(withCustomRate.totalCost).toBeGreaterThan(
       withoutCustomRate.totalCost,
+    );
+  });
+
+  it("should use customTotalCost as the selected batch cost", () => {
+    const result = computeAll({
+      ...BASE_REQUEST,
+      customTotalCost: 16000,
+    });
+
+    expect(result.totalCost).toBeCloseTo(16000, 10);
+    expect(result.batchPnL.cost).toBeCloseTo(16000, 10);
+    expect(result.batchPnL.netPnL).toBeCloseTo(
+      result.batchPnL.revenue - 16000,
+      10,
+    );
+  });
+
+  it("should make selected-batch curve point match custom spend batch P&L", () => {
+    const result = computeAll({
+      ...BASE_REQUEST,
+      customTotalCost: 200000,
+    });
+
+    const selectedBatchPoint = result.pnlCurve.find(
+      (point) => point.deckCount === BASE_REQUEST.selectedBatch,
+    );
+
+    expect(selectedBatchPoint).toBeDefined();
+    expect(selectedBatchPoint?.estimated).toBeCloseTo(
+      result.batchPnL.confidence.estimated,
+      10,
+    );
+    expect(selectedBatchPoint?.optimistic).toBeCloseTo(
+      result.batchPnL.confidence.optimistic,
+      10,
+    );
+  });
+
+  it("should keep row costs based on base rate when customTotalCost is set", () => {
+    const result = computeAll({
+      ...BASE_REQUEST,
+      customTotalCost: 16000,
+    });
+
+    const expectedDoctorCost = computeRowDynamicFields(
+      [ROWS[0]],
+      BASE_REQUEST.selectedBatch,
+      BASE_REQUEST.baseRate,
+      0,
+      BASE_REQUEST.selectedBatch,
+      BASE_REQUEST.chaosToDivineRatio,
+      BASE_REQUEST.evPerDeck,
+    )["The Doctor"].costToPull;
+    expect(result.rowFields["The Doctor"].costToPull).toBeCloseTo(
+      expectedDoctorCost,
+      10,
     );
   });
 

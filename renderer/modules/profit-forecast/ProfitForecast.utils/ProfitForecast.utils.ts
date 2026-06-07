@@ -131,42 +131,6 @@ export function formatPnLDivine(chaosValue: number, ratio: number): string {
   return `+${formatted} d`;
 }
 
-// ── Computation Helpers ───────────────────────────────────────────────────────
-
-/**
- * Compute batch-level P&L (revenue, cost, net).
- *
- * - revenue = evPerDeck × batchSize
- * - cost    = total chaos cost for the batch (delegated to slice helper)
- * - netPnL  = revenue − cost
- *
- * @param evPerDeck          Expected chaos value earned per single deck
- * @param batchSize           Number of decks in the batch
- * @param baseRate            Starting divine-per-deck rate
- * @param stepDrop            Rate decrease after each sub-batch
- * @param subBatchSize        Number of decks per sub-batch before the rate drops
- * @param chaosToDivineRatio  Chaos orbs per divine orb
- */
-export function computeBatchEv(
-  evPerDeck: number,
-  batchSize: number,
-  baseRate: number,
-  stepDrop: number,
-  subBatchSize: number,
-  chaosToDivineRatio: number,
-): { revenue: number; cost: number; netPnL: number } {
-  const revenue = evPerDeck * batchSize;
-  const cost = computeTotalChaosCost(
-    batchSize,
-    baseRate,
-    stepDrop,
-    subBatchSize,
-    chaosToDivineRatio,
-  );
-  const netPnL = revenue - cost;
-  return { revenue, cost, netPnL };
-}
-
 /**
  * Compute estimated / optimistic revenue for a batch using
  * sigma-based (Poisson-style) scaling around the estimated value.

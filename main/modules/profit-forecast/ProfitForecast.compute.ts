@@ -26,6 +26,13 @@ import type {
 export const RATE_FLOOR = 20;
 
 /**
+ * Hard upper bound for renderer-provided custom spend.
+ * This is intentionally generous for very large batches while preventing
+ * unbounded finite values from entering IPC responses and UI math.
+ */
+export const MAX_CUSTOM_TOTAL_COST_CHAOS = 1_000_000_000;
+
+/**
  * Batch sizes used for the P&L curve chart.
  */
 const PNL_CURVE_BATCH_SIZES = [
@@ -42,9 +49,9 @@ const MAX_COST_ITERATIONS = 10_000;
 // ── Effective Cost Params ──────────────────────────────────────────────────────
 
 /**
- * When a custom base rate is active the user has locked in a fixed price,
- * so the sliding-rate model must NOT degrade the rate across sub-batches.
- * We achieve this by setting stepDrop=0 (no degradation) and
+ * When a custom base rate or fixed spend is active the user has locked in a
+ * fixed price, so the sliding-rate model must NOT degrade the rate across
+ * sub-batches. We achieve this by setting stepDrop=0 (no degradation) and
  * subBatchSize=selectedBatch (single batch — no splitting).
  */
 export function getEffectiveCostParams(
@@ -52,11 +59,45 @@ export function getEffectiveCostParams(
   stepDrop: number,
   subBatchSize: number,
   selectedBatch: number,
+  customTotalCost: number | null = null,
 ): { effectiveStepDrop: number; effectiveSubBatchSize: number } {
-  if (customBaseRate !== null) {
+  if (
+    customBaseRate !== null ||
+    (customTotalCost !== null && customTotalCost > 0)
+  ) {
     return { effectiveStepDrop: 0, effectiveSubBatchSize: selectedBatch };
   }
   return { effectiveStepDrop: stepDrop, effectiveSubBatchSize: subBatchSize };
+}
+
+/**
+ * Resolve the effective decks-per-divine rate used by the cost model.
+ *
+ * User-entered spend is an aggregate batch cost. It does not rewrite the
+ * base-rate model used for row-level costs.
+ */
+export function getEffectiveCostRate(
+  baseRate: number,
+  customBaseRate: number | null,
+): number {
+  return customBaseRate ?? baseRate;
+}
+
+export function getCostFromTotalCostBasis(
+  batchSize: number,
+  selectedBatch: number,
+  totalCost: number | null,
+): number | null {
+  if (
+    totalCost === null ||
+    totalCost <= 0 ||
+    selectedBatch <= 0 ||
+    batchSize <= 0
+  ) {
+    return null;
+  }
+
+  return (totalCost / selectedBatch) * batchSize;
 }
 
 // ── Rate Model ─────────────────────────────────────────────────────────────────
@@ -166,50 +207,38 @@ export function computePnLCurve(
   stepDrop: number,
   subBatchSize: number,
   chaosToDivineRatio: number,
+  fixedSpendBasis?: {
+    selectedBatch: number;
+    totalCost: number | null;
+  },
 ): PnLCurvePointDTO[] {
   return batchSizes.map((batchSize) => {
     const { estimated, optimistic } = computeConfidenceInterval(
       rows,
       batchSize,
     );
-    const cost = computeTotalChaosCost(
-      batchSize,
-      baseRate,
-      stepDrop,
-      subBatchSize,
-      chaosToDivineRatio,
-    );
+    const fixedSpendCost = fixedSpendBasis
+      ? getCostFromTotalCostBasis(
+          batchSize,
+          fixedSpendBasis.selectedBatch,
+          fixedSpendBasis.totalCost,
+        )
+      : null;
+    const cost =
+      fixedSpendCost ??
+      computeTotalChaosCost(
+        batchSize,
+        baseRate,
+        stepDrop,
+        subBatchSize,
+        chaosToDivineRatio,
+      );
     return {
       deckCount: batchSize,
       estimated: estimated - cost,
       optimistic: optimistic - cost,
     };
   });
-}
-
-// ── Batch EV ───────────────────────────────────────────────────────────────────
-
-/**
- * Compute batch-level P&L (revenue, cost, net).
- */
-export function computeBatchEv(
-  evPerDeck: number,
-  batchSize: number,
-  baseRate: number,
-  stepDrop: number,
-  subBatchSize: number,
-  chaosToDivineRatio: number,
-): { revenue: number; cost: number; netPnL: number } {
-  const revenue = evPerDeck * batchSize;
-  const cost = computeTotalChaosCost(
-    batchSize,
-    baseRate,
-    stepDrop,
-    subBatchSize,
-    chaosToDivineRatio,
-  );
-  const netPnL = revenue - cost;
-  return { revenue, cost, netPnL };
 }
 
 // ── Dynamic Row Fields ─────────────────────────────────────────────────────────
@@ -312,17 +341,19 @@ export function computeAll(
     stepDrop,
     subBatchSize,
     customBaseRate,
+    customTotalCost,
     chaosToDivineRatio,
     evPerDeck,
   } = request;
 
-  // Apply effective cost params (custom rate disables sliding model)
-  const effectiveRate = customBaseRate ?? baseRate;
+  // Apply effective cost params (custom overrides disable sliding model)
+  const effectiveRate = getEffectiveCostRate(baseRate, customBaseRate);
   const { effectiveStepDrop, effectiveSubBatchSize } = getEffectiveCostParams(
     customBaseRate,
     stepDrop,
     subBatchSize,
     selectedBatch,
+    customTotalCost,
   );
 
   // Build rows with exclusion flags applied from user overrides
@@ -351,14 +382,18 @@ export function computeAll(
     evPerDeck,
   );
 
-  // 2. Compute total cost
-  const totalCost = computeTotalChaosCost(
-    selectedBatch,
-    effectiveRate,
-    effectiveStepDrop,
-    effectiveSubBatchSize,
-    chaosToDivineRatio,
-  );
+  // 2. Compute total cost. Custom spend is independent from base rate and
+  // only overrides the aggregate selected-batch cost.
+  const totalCost =
+    customTotalCost !== null && customTotalCost > 0
+      ? customTotalCost
+      : computeTotalChaosCost(
+          selectedBatch,
+          effectiveRate,
+          effectiveStepDrop,
+          effectiveSubBatchSize,
+          chaosToDivineRatio,
+        );
 
   // 3. Compute PnL curve
   const capped = PNL_CURVE_BATCH_SIZES.filter((s) => s <= selectedBatch);
@@ -374,20 +409,16 @@ export function computeAll(
     effectiveStepDrop,
     effectiveSubBatchSize,
     chaosToDivineRatio,
+    { selectedBatch, totalCost: customTotalCost },
   );
 
   // 4. Compute confidence interval
   const confidenceInterval = computeConfidenceInterval(rows, selectedBatch);
 
   // 5. Compute batch PnL
-  const { revenue, cost, netPnL } = computeBatchEv(
-    evPerDeck,
-    selectedBatch,
-    effectiveRate,
-    effectiveStepDrop,
-    effectiveSubBatchSize,
-    chaosToDivineRatio,
-  );
+  const revenue = evPerDeck * selectedBatch;
+  const cost = totalCost;
+  const netPnL = revenue - cost;
 
   const batchPnL = {
     revenue,

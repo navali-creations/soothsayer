@@ -6,6 +6,7 @@ const PFSubBatchSlider = () => {
   const {
     subBatchSize,
     customBaseRate,
+    customTotalCost,
     stackedDeckChaosCost,
     setSubBatchSize,
     setIsComputing,
@@ -14,7 +15,8 @@ const PFSubBatchSlider = () => {
   const { isRefreshing } = usePoeNinja();
 
   const controlsDisabled = isRefreshing || isLoading;
-  const hasCustomRate = customBaseRate !== null;
+  const hasFixedCostOverride =
+    customBaseRate !== null || customTotalCost !== null;
   const hasStackedDeckPrice = stackedDeckChaosCost > 0;
 
   const handleSubBatchSizeChange = (value: number) => {
@@ -28,10 +30,10 @@ const PFSubBatchSlider = () => {
         <span className="text-xs text-base-content/50 font-medium">
           Batch size
         </span>
-        {hasCustomRate && (
+        {hasFixedCostOverride && (
           <span
             className="tooltip tooltip-right"
-            data-tip="Locked — custom rate uses the selected deck count as a single batch."
+            data-tip="Locked — custom pricing uses the selected deck count as a single batch."
           >
             <FiInfo className="w-3 h-3 text-info" />
           </span>
@@ -45,7 +47,9 @@ const PFSubBatchSlider = () => {
         value={subBatchSize}
         onChange={(e) => handleSubBatchSizeChange(Number(e.target.value))}
         className="range range-xs range-primary w-full"
-        disabled={controlsDisabled || !hasStackedDeckPrice || hasCustomRate}
+        disabled={
+          controlsDisabled || !hasStackedDeckPrice || hasFixedCostOverride
+        }
       />
       <div className="flex justify-between text-xs text-base-content/40">
         <span>1k</span>

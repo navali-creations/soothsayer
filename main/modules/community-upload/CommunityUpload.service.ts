@@ -451,7 +451,9 @@ class CommunityUploadService {
       const changedCards = await this.getChangedCards(game, league, sessionId);
 
       if (changedCards.length === 0) {
-        console.log("[CommunityUpload] No changes since last upload, skipping");
+        console.log(
+          `[CommunityUpload] No changes since last upload for ${game}/${league}, skipping`,
+        );
         return;
       }
 

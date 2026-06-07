@@ -14,7 +14,6 @@ export {
   recomputeDynamicFields,
 } from "./ProfitForecast.slice/ProfitForecast.slice";
 export {
-  computeBatchEv,
   computeCardCertainty,
   computeConfidenceInterval,
   computePnLCurve,

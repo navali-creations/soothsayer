@@ -429,6 +429,65 @@ test.describe("Profit Forecast – Interactions", () => {
 
   // ── Cost Model Panel – Decks & Sliders ──────────────────────────────────
 
+  test.describe("Custom Spend", () => {
+    test("editing You Spend updates Estimated Net and can be reset", async ({
+      page,
+    }) => {
+      await seedAndNavigate(page);
+
+      const spendBefore = await getStatValue(page, "You Spend");
+      const netBefore = await getStatValue(page, "Estimated Net");
+
+      if (!isRenderedValue(spendBefore) || !isRenderedValue(netBefore)) {
+        const main = page.locator("main");
+        await expect(main).toBeVisible();
+        return;
+      }
+
+      const spendStat = page
+        .locator(".stat")
+        .filter({ has: page.locator(".stat-title", { hasText: "You Spend" }) })
+        .first();
+      const pencilButton = spendStat.locator(
+        "button[data-tip='Set custom spend']",
+      );
+      const isPencilVisible = await pencilButton
+        .isVisible({ timeout: 3_000 })
+        .catch(() => false);
+
+      if (!isPencilVisible) {
+        const main = page.locator("main");
+        await expect(main).toBeVisible();
+        return;
+      }
+
+      await pencilButton.click();
+
+      const spendInput = spendStat.locator("input[type='number']");
+      await expect(spendInput).toBeVisible({ timeout: 3_000 });
+      await spendInput.fill("999");
+      await spendInput.press("Enter");
+
+      await waitForRecompute(page);
+
+      const customBadge = spendStat.getByText("custom", { exact: true });
+      await expect(customBadge).toBeVisible({ timeout: 3_000 });
+
+      const spendAfter = await getStatValue(page, "You Spend");
+      const netAfter = await getStatValue(page, "Estimated Net");
+
+      expect(spendAfter).not.toBe(spendBefore);
+      expect(netAfter).not.toBe(netBefore);
+
+      const resetButton = spendStat.getByText("Reset", { exact: true });
+      await expect(resetButton).toBeVisible({ timeout: 3_000 });
+      await resetButton.click();
+      await waitForRecompute(page);
+
+      await expect(customBadge).not.toBeVisible({ timeout: 3_000 });
+    });
+  });
+
   test.describe("Cost Model Panel – Decks & Sliders", () => {
     test("selecting different batch size chips updates the summary numbers", async ({
       page,

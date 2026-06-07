@@ -1,5 +1,13 @@
 import type { StateCreator } from "zustand";
 
+import {
+  computeRateForBatch,
+  computeTotalChaosCost,
+  getEffectiveCostParams,
+  getEffectiveCostRate,
+  MAX_CUSTOM_TOTAL_COST_CHAOS,
+  RATE_FLOOR,
+} from "~/main/modules/profit-forecast/ProfitForecast.compute";
 import type {
   BaseRateSource,
   ProfitForecastComputeRequest,
@@ -9,14 +17,14 @@ import type {
 } from "~/main/modules/profit-forecast/ProfitForecast.dto";
 import type { BoundStore } from "~/renderer/store/store.types";
 
-// ── Constants ──────────────────────────────────────────────────────────────────
-
-/**
- * Hard minimum for the sliding exchange rate model.
- * At league start/end, rates can dip well below typical mid-league values,
- * so 20 provides a safe floor without clipping legitimate low-rate scenarios.
- */
-export const RATE_FLOOR = 20;
+export {
+  computeRateForBatch,
+  computeTotalChaosCost,
+  getEffectiveCostParams,
+  getEffectiveCostRate,
+  MAX_CUSTOM_TOTAL_COST_CHAOS,
+  RATE_FLOOR,
+};
 
 // ── Row Shape ──────────────────────────────────────────────────────────────────
 
@@ -89,6 +97,7 @@ export interface ProfitForecastSlice {
     stepDrop: number; // default 2, range 1–5
     subBatchSize: number; // default 5000, range 1000–10000
     customBaseRate: number | null; // user-specified base rate override (decks/div), null = use server rate
+    customTotalCost: number | null; // user-specified spend in chaos for selectedBatch, scaled when selectedBatch changes
 
     // ── Cached compute results (from main-process IPC) ────────────────────
     cachedTotalCost: number;
@@ -111,6 +120,7 @@ export interface ProfitForecastSlice {
     setStepDrop: (value: number) => void;
     setSubBatchSize: (value: number) => void;
     setCustomBaseRate: (value: number | null) => void;
+    setCustomTotalCost: (value: number | null) => void;
     setIsComputing: (value: boolean) => void;
 
     // ── Getters ───────────────────────────────────────────────────────────
@@ -142,73 +152,8 @@ export interface ProfitForecastSlice {
 
 // ── Helpers (pure, exported for testing) ───────────────────────────────────────
 
-/**
- * When a custom base rate is active the user has locked in a fixed price,
- * so the sliding-rate model must NOT degrade the rate across sub-batches.
- * We achieve this by setting stepDrop=0 (no degradation) and
- * subBatchSize=selectedBatch (single batch — no splitting).
- */
-export function getEffectiveCostParams(
-  customBaseRate: number | null,
-  stepDrop: number,
-  subBatchSize: number,
-  selectedBatch: number,
-): { effectiveStepDrop: number; effectiveSubBatchSize: number } {
-  if (customBaseRate !== null) {
-    return { effectiveStepDrop: 0, effectiveSubBatchSize: selectedBatch };
-  }
-  return { effectiveStepDrop: stepDrop, effectiveSubBatchSize: subBatchSize };
-}
-
-/**
- * Compute the sliding exchange rate for a given sub-batch index.
- */
-export function computeRateForBatch(
-  baseRate: number,
-  batchIndex: number,
-  stepDrop: number,
-): number {
-  // Use the higher of the absolute floor (RATE_FLOOR) and a dynamic floor
-  // at 80% of the base rate.  This prevents the cost model from degrading
-  // the rate unrealistically for large batches — in practice, buyers spread
-  // purchases across time / sellers so the effective rate never drops as
-  // far as the linear model would predict.
-  const dynamicFloor = Math.ceil(baseRate * 0.8);
-  return Math.max(RATE_FLOOR, dynamicFloor, baseRate - batchIndex * stepDrop);
-}
-
-/**
- * Compute the total chaos cost of opening `deckCount` decks using the sliding
- * exchange-rate model.
- *
- * Iterates sub-batches of `subBatchSize`, applying `getRateForBatch` for each,
- * computing the chaos cost as `actual_sub_batch_size × (chaosToDivineRatio / rate)`.
- */
-export function computeTotalChaosCost(
-  deckCount: number,
-  baseRate: number,
-  stepDrop: number,
-  subBatchSize: number,
-  chaosToDivineRatio: number,
-): number {
-  if (deckCount <= 0 || chaosToDivineRatio <= 0 || baseRate <= 0) {
-    return 0;
-  }
-
-  let totalCost = 0;
-  let remaining = deckCount;
-  let batchIndex = 0;
-
-  while (remaining > 0) {
-    const rate = computeRateForBatch(baseRate, batchIndex, stepDrop);
-    const actualSubBatchSize = Math.min(remaining, subBatchSize);
-    const costPerDeck = chaosToDivineRatio / rate;
-    totalCost += actualSubBatchSize * costPerDeck;
-    remaining -= actualSubBatchSize;
-    batchIndex++;
-  }
-
-  return totalCost;
+function normalizeCustomBaseRate(value: number): number {
+  return Math.max(1, Math.min(1000, Math.round(value * 100) / 100));
 }
 
 // ── Exclusion Logic ────────────────────────────────────────────────────────────
@@ -367,6 +312,7 @@ function buildComputeRequest(
     stepDrop: pf.stepDrop,
     subBatchSize: pf.subBatchSize,
     customBaseRate: pf.customBaseRate,
+    customTotalCost: pf.customTotalCost,
     chaosToDivineRatio: pf.chaosToDivineRatio,
     evPerDeck: pf.evPerDeck,
   };
@@ -437,6 +383,7 @@ export const createProfitForecastSlice: StateCreator<
     stepDrop: 2,
     subBatchSize: 5000,
     customBaseRate: null,
+    customTotalCost: null,
 
     // ── Cached compute results ────────────────────────────────────────────
     cachedTotalCost: 0,
@@ -467,15 +414,24 @@ export const createProfitForecastSlice: StateCreator<
         const rows = result.rows.map(augmentRow);
 
         // Fill in dynamic fields synchronously for immediate rendering
-        const { selectedBatch, stepDrop, subBatchSize, customBaseRate } =
-          get().profitForecast;
-        const effectiveRate = customBaseRate ?? result.baseRate;
+        const {
+          selectedBatch,
+          stepDrop,
+          subBatchSize,
+          customBaseRate,
+          customTotalCost,
+        } = get().profitForecast;
+        const effectiveRate = getEffectiveCostRate(
+          result.baseRate,
+          customBaseRate,
+        );
         const { effectiveStepDrop, effectiveSubBatchSize } =
           getEffectiveCostParams(
             customBaseRate,
             stepDrop,
             subBatchSize,
             selectedBatch,
+            customTotalCost,
           );
 
         recomputeDynamicFields(
@@ -559,6 +515,7 @@ export const createProfitForecastSlice: StateCreator<
         rows,
         baseRate,
         customBaseRate,
+        customTotalCost,
         stepDrop,
         subBatchSize,
         chaosToDivineRatio,
@@ -568,13 +525,14 @@ export const createProfitForecastSlice: StateCreator<
 
       if (rows.length === 0) return;
 
-      const effectiveRate = customBaseRate ?? baseRate;
+      const effectiveRate = getEffectiveCostRate(baseRate, customBaseRate);
       const { effectiveStepDrop, effectiveSubBatchSize } =
         getEffectiveCostParams(
           customBaseRate,
           stepDrop,
           subBatchSize,
           selectedBatch,
+          customTotalCost,
         );
 
       // Deep-copy rows so Immer sees a fresh array — fill dynamic fields inline
@@ -630,6 +588,7 @@ export const createProfitForecastSlice: StateCreator<
         rows,
         baseRate,
         customBaseRate,
+        customTotalCost,
         stepDrop,
         subBatchSize,
         chaosToDivineRatio,
@@ -650,13 +609,14 @@ export const createProfitForecastSlice: StateCreator<
 
       // Recompute EV since exclusion set changed
       const newEvPerDeck = computeEvPerDeck(updatedRows);
-      const effectiveRate = customBaseRate ?? baseRate;
+      const effectiveRate = getEffectiveCostRate(baseRate, customBaseRate);
       const { effectiveStepDrop, effectiveSubBatchSize } =
         getEffectiveCostParams(
           customBaseRate,
           stepDrop,
           subBatchSize,
           selectedBatch,
+          customTotalCost,
         );
 
       recomputeDynamicFields(
@@ -707,6 +667,15 @@ export const createProfitForecastSlice: StateCreator<
     setSelectedBatch: (batch: BatchSize) => {
       set(
         ({ profitForecast }) => {
+          const previousBatch = profitForecast.selectedBatch;
+          if (
+            profitForecast.customTotalCost !== null &&
+            previousBatch > 0 &&
+            batch > 0
+          ) {
+            const costPerDeck = profitForecast.customTotalCost / previousBatch;
+            profitForecast.customTotalCost = costPerDeck * batch;
+          }
           profitForecast.selectedBatch = batch;
         },
         false,
@@ -763,13 +732,35 @@ export const createProfitForecastSlice: StateCreator<
     setCustomBaseRate: (value: number | null) => {
       set(
         ({ profitForecast }) => {
-          profitForecast.customBaseRate =
-            value === null
-              ? null
-              : Math.max(1, Math.min(1000, Math.floor(value)));
+          if (value === null || !Number.isFinite(value)) {
+            profitForecast.customBaseRate = null;
+            return;
+          }
+
+          const customBaseRate = normalizeCustomBaseRate(value);
+          profitForecast.customBaseRate = customBaseRate;
         },
         false,
         "profitForecastSlice/setCustomBaseRate",
+      );
+    },
+
+    setCustomTotalCost: (value: number | null) => {
+      set(
+        ({ profitForecast }) => {
+          if (value === null || !Number.isFinite(value)) {
+            profitForecast.customTotalCost = null;
+            return;
+          }
+
+          const customTotalCost = Math.min(
+            MAX_CUSTOM_TOTAL_COST_CHAOS,
+            Math.max(0.01, value),
+          );
+          profitForecast.customTotalCost = customTotalCost;
+        },
+        false,
+        "profitForecastSlice/setCustomTotalCost",
       );
     },
 
@@ -821,25 +812,32 @@ export const createProfitForecastSlice: StateCreator<
         selectedBatch,
         baseRate,
         customBaseRate,
+        customTotalCost,
         stepDrop,
         subBatchSize,
         chaosToDivineRatio,
       } = get().profitForecast;
 
+      if (customTotalCost !== null && customTotalCost > 0) {
+        return customTotalCost;
+      }
+
       // Always compute inline — single-batch cost is cheap (one loop).
       // The expensive operations (PnL curve, per-row costs) are offloaded
       // to the main process via IPC and cached in state.
+      const effectiveRate = getEffectiveCostRate(baseRate, customBaseRate);
       const { effectiveStepDrop, effectiveSubBatchSize } =
         getEffectiveCostParams(
           customBaseRate,
           stepDrop,
           subBatchSize,
           selectedBatch,
+          customTotalCost,
         );
 
       return computeTotalChaosCost(
         selectedBatch,
-        customBaseRate ?? baseRate,
+        effectiveRate,
         effectiveStepDrop,
         effectiveSubBatchSize,
         chaosToDivineRatio,
@@ -878,21 +876,20 @@ export const createProfitForecastSlice: StateCreator<
       const {
         baseRate,
         customBaseRate,
+        customTotalCost,
         stepDrop,
         subBatchSize,
         selectedBatch,
       } = get().profitForecast;
+      const effectiveRate = getEffectiveCostRate(baseRate, customBaseRate);
       const { effectiveStepDrop } = getEffectiveCostParams(
         customBaseRate,
         stepDrop,
         subBatchSize,
         selectedBatch,
+        customTotalCost,
       );
-      return computeRateForBatch(
-        customBaseRate ?? baseRate,
-        batchIndex,
-        effectiveStepDrop,
-      );
+      return computeRateForBatch(effectiveRate, batchIndex, effectiveStepDrop);
     },
 
     getConfidenceInterval: () => {
@@ -906,8 +903,33 @@ export const createProfitForecastSlice: StateCreator<
     },
 
     getBatchPnL: () => {
-      const { cachedBatchPnL } = get().profitForecast;
-      return cachedBatchPnL;
+      const { profitForecast } = get();
+      const { cachedBatchPnL, cachedConfidenceInterval } = profitForecast;
+
+      if (!profitForecast.hasData()) return cachedBatchPnL;
+
+      const revenue = profitForecast.getTotalRevenue();
+      const cost = profitForecast.getTotalCost();
+      const cachedRevenueIsCurrent =
+        Math.abs(cachedBatchPnL.revenue - revenue) < 0.0001;
+      const estimatedRevenue =
+        cachedRevenueIsCurrent && cachedConfidenceInterval.estimated > 0
+          ? cachedConfidenceInterval.estimated
+          : revenue;
+      const optimisticRevenue =
+        cachedRevenueIsCurrent && cachedConfidenceInterval.optimistic > 0
+          ? cachedConfidenceInterval.optimistic
+          : estimatedRevenue;
+
+      return {
+        revenue,
+        cost,
+        netPnL: revenue - cost,
+        confidence: {
+          estimated: estimatedRevenue - cost,
+          optimistic: optimisticRevenue - cost,
+        },
+      };
     },
 
     hasData: () => {
