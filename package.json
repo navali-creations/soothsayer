@@ -89,7 +89,7 @@
     "@vitejs/plugin-react": "^6.0.2",
     "@vitest/coverage-v8": "^4.1.8",
     "@vitest/ui": "^4.1.8",
-    "app-builder-lib": "26.8.1",
+    "app-builder-lib": "26.15.2",
     "clsx": "^2.1.1",
     "cross-env": "^10.1.0",
     "daisyui": "^5.5.20",
