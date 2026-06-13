@@ -113,7 +113,7 @@
     "typescript": "^6.0.3",
     "vite": "^8.0.16",
     "vitest": "^4.1.8",
-    "zustand": "^5.0.13"
+    "zustand": "^5.0.14"
   },
   "dependencies": {
     "@navali/poe1-divination-cards": "^3.28.2",
