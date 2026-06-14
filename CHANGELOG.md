@@ -1,5 +1,25 @@
 # soothsayer
 
+## 0.19.0
+
+### Minor Changes
+
+- [`a7a34b9`](https://github.com/navali-creations/soothsayer/commit/a7a34b9b17f564288c3267f1b69a3f864c9b3647) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Added:** Profit Forecast now lets you edit You Spend directly.
+
+  You can set a custom spend amount from the **Profit Forecast** summary, and the forecast updates the estimated net result from that exact spend instead of continuing to use the modeled deck cost.
+
+  - **You Spend:** use the edit control to enter your actual total spend in divines, see when a custom spend is active, and reset back to the modeled spend when needed.
+
+### Patch Changes
+
+- [`e571d39`](https://github.com/navali-creations/soothsayer/commit/e571d3951f4a0786989c1ef34de9d5dbc4c75f86) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Fixed:** What's New shows the intended release context after patch updates.
+
+  This fixes the What's New behavior from the current release: if you had already seen the main release, a later patch update could show only the patch notes even though the main release was meant to stay available beside them.
+
 ## 0.18.1
 
 ### Patch Changes
