@@ -250,9 +250,11 @@ SELECT isnt_empty(
   'anon should be able to read cards'
 );
 
-SELECT is_empty(
+SELECT throws_ok(
   $$SELECT * FROM community_card_data WHERE id = '66666666-6666-6666-6666-666666666666'$$,
-  'anon should NOT be able to read community_card_data (service-role only)'
+  '42501',
+  NULL,
+  'anon should NOT be able to read community_card_data (permission denied)'
 );
 
 -- ═══════════════════════════════════════════════════════════════
@@ -280,10 +282,11 @@ SELECT throws_ok(
   'anon should NOT be able to insert into poe_leagues'
 );
 
--- DELETE with RLS doesn't throw — it silently returns 0 rows when no policy matches
-SELECT is_empty(
+SELECT throws_ok(
   $$DELETE FROM poe_leagues WHERE league_id = 'rls_test_league' RETURNING *$$,
-  'anon DELETE from poe_leagues should affect 0 rows (silently filtered by RLS)'
+  '42501',
+  NULL,
+  'anon should NOT be able to delete from poe_leagues (permission denied)'
 );
 
 SELECT throws_ok(
@@ -301,22 +304,28 @@ SELECT throws_ok(
 );
 
 -- ═══════════════════════════════════════════════════════════════
--- ANON ROLE: RESTRICTED TABLES SHOULD RETURN EMPTY
+-- ANON ROLE: RESTRICTED TABLES SHOULD BE DENIED
 -- ═══════════════════════════════════════════════════════════════
 
-SELECT is_empty(
+SELECT throws_ok(
   $$SELECT * FROM api_requests$$,
-  'anon should see no rows in api_requests'
+  '42501',
+  NULL,
+  'anon should NOT be able to query api_requests (permission denied)'
 );
 
-SELECT is_empty(
+SELECT throws_ok(
   $$SELECT * FROM banned_users$$,
-  'anon should see no rows in banned_users'
+  '42501',
+  NULL,
+  'anon should NOT be able to query banned_users (permission denied)'
 );
 
-SELECT is_empty(
+SELECT throws_ok(
   $$SELECT * FROM community_uploads$$,
-  'anon should see no rows in community_uploads'
+  '42501',
+  NULL,
+  'anon should NOT be able to query community_uploads (permission denied)'
 );
 
 -- local_config has table-level privileges revoked for anon (REVOKE ALL),
@@ -359,9 +368,11 @@ SELECT isnt_empty(
   'authenticated user should be able to read cards'
 );
 
-SELECT is_empty(
+SELECT throws_ok(
   $$SELECT * FROM community_card_data WHERE id = '66666666-6666-6666-6666-666666666666'$$,
-  'authenticated user should NOT be able to read community_card_data (service-role only)'
+  '42501',
+  NULL,
+  'authenticated user should NOT be able to read community_card_data (permission denied)'
 );
 
 -- User 1 should see only their own api_requests
@@ -381,14 +392,18 @@ SELECT results_eq(
 -- AUTHENTICATED ROLE (User 1): RESTRICTED TABLES
 -- ═══════════════════════════════════════════════════════════════
 
-SELECT is_empty(
+SELECT throws_ok(
   $$SELECT * FROM banned_users$$,
-  'authenticated user should see no rows in banned_users'
+  '42501',
+  NULL,
+  'authenticated user should NOT be able to query banned_users (permission denied)'
 );
 
-SELECT is_empty(
+SELECT throws_ok(
   $$SELECT * FROM community_uploads$$,
-  'authenticated user should see no rows in community_uploads'
+  '42501',
+  NULL,
+  'authenticated user should NOT be able to query community_uploads (permission denied)'
 );
 
 -- local_config has table-level privileges revoked for authenticated (REVOKE ALL),

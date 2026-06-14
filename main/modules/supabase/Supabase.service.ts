@@ -41,6 +41,26 @@ function isCardPricePayload(value: unknown): value is {
   return isRecord(value) && "chaosValue" in value && "divineValue" in value;
 }
 
+function normalizeSupabaseConfigValue(value: string): string {
+  return value.trim();
+}
+
+function isInvalidApiKeyResponse(
+  response: Response,
+  responseText: string,
+): boolean {
+  if (response.status !== 401) {
+    return false;
+  }
+
+  try {
+    const body = JSON.parse(responseText) as unknown;
+    return isRecord(body) && body.error === "Invalid apikey header";
+  } catch {
+    return responseText.includes("Invalid apikey header");
+  }
+}
+
 function normalizeCardPrices(cardPrices: unknown): SupabaseCardPriceMap {
   if (!isRecord(cardPrices)) {
     throw new Error("Invalid response structure from Supabase");
@@ -303,6 +323,7 @@ class SupabaseClientService {
   // Store these for later use
   private supabaseUrl: string | null = null;
   private supabasePublicApiKey: string | null = null;
+  private supabaseFallbackPublicApiKey: string | null = null;
 
   static getInstance(): SupabaseClientService {
     if (!SupabaseClientService._instance) {
@@ -320,21 +341,39 @@ class SupabaseClientService {
    * Configure Supabase client with credentials and authenticate
    * Should be called at app startup
    */
-  public async configure(url: string, publicApiKey: string): Promise<void> {
+  public async configure(
+    url: string,
+    publicApiKey: string,
+    fallbackPublicApiKey?: string,
+  ): Promise<void> {
+    const normalizedUrl = normalizeSupabaseConfigValue(url);
+    const normalizedPublicApiKey = normalizeSupabaseConfigValue(publicApiKey);
+    const normalizedFallbackPublicApiKey = fallbackPublicApiKey
+      ? normalizeSupabaseConfigValue(fallbackPublicApiKey)
+      : "";
+
     console.log(
-      `[SupabaseClient] configure() called — URL present: ${!!url}, PUBLIC_API_KEY present: ${!!publicApiKey}`,
+      `[SupabaseClient] configure() called — URL present: ${!!normalizedUrl}, PUBLIC_API_KEY present: ${!!normalizedPublicApiKey}, FALLBACK_PUBLIC_API_KEY present: ${
+        !!normalizedFallbackPublicApiKey &&
+        normalizedFallbackPublicApiKey !== normalizedPublicApiKey
+      }`,
     );
 
-    if (!url || !publicApiKey) {
+    if (!normalizedUrl || !normalizedPublicApiKey) {
       console.error("[SupabaseClient] Missing Supabase credentials");
       return;
     }
 
     // Store for later use
-    this.supabaseUrl = url;
-    this.supabasePublicApiKey = publicApiKey;
+    this.supabaseUrl = normalizedUrl;
+    this.supabasePublicApiKey = normalizedPublicApiKey;
+    this.supabaseFallbackPublicApiKey =
+      normalizedFallbackPublicApiKey &&
+      normalizedFallbackPublicApiKey !== normalizedPublicApiKey
+        ? normalizedFallbackPublicApiKey
+        : null;
 
-    this.client = createClient(url, publicApiKey, {
+    this.client = createClient(normalizedUrl, normalizedPublicApiKey, {
       auth: {
         autoRefreshToken: true,
         persistSession: false, // We handle persistence manually
@@ -688,53 +727,36 @@ class SupabaseClientService {
    */
   private static readonly EDGE_FUNCTION_TIMEOUT_MS = 30_000; // 30 seconds
 
-  public async callEdgeFunction<T = unknown>(
+  private async fetchEdgeFunction(
     functionName: string,
-    body: Record<string, unknown>,
+    bodyJson: string,
+    accessToken: string,
+    publicApiKey: string,
     extraHeaders?: Record<string, string>,
-  ): Promise<T> {
-    if (!this.client) {
-      throw new Error("Supabase client not configured");
-    }
-
-    // Ensure we're authenticated before making the request
-    await this.ensureAuthenticated();
-
-    const { data: sessionData } = await this.client.auth.getSession();
-    if (!sessionData.session) {
-      throw new Error("No active session");
-    }
-
-    if (!this.supabaseUrl || !this.supabasePublicApiKey) {
+  ): Promise<Response> {
+    if (!this.supabaseUrl) {
       throw new Error("Supabase credentials not available");
     }
 
-    const accessToken = sessionData.session.access_token;
-
-    // Abort the request if it takes too long (e.g. cold-start, 502 stalls)
     const controller = new AbortController();
     const timeoutId = setTimeout(
       () => controller.abort(),
       SupabaseClientService.EDGE_FUNCTION_TIMEOUT_MS,
     );
 
-    let response: Response;
     try {
-      response = await fetch(
-        `${this.supabaseUrl}/functions/v1/${functionName}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            apikey: this.supabasePublicApiKey,
-            Authorization: `Bearer ${accessToken}`,
-            "x-app-version": app.getVersion(),
-            ...extraHeaders,
-          },
-          body: JSON.stringify(body),
-          signal: controller.signal,
+      return await fetch(`${this.supabaseUrl}/functions/v1/${functionName}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: publicApiKey,
+          Authorization: `Bearer ${accessToken}`,
+          "x-app-version": app.getVersion(),
+          ...extraHeaders,
         },
-      );
+        body: bodyJson,
+        signal: controller.signal,
+      });
     } catch (error: unknown) {
       if (error instanceof Error && error.name === "AbortError") {
         captureSentryMessage(
@@ -760,8 +782,60 @@ class SupabaseClientService {
     } finally {
       clearTimeout(timeoutId);
     }
+  }
 
-    const responseText = await response.text();
+  public async callEdgeFunction<T = unknown>(
+    functionName: string,
+    body: Record<string, unknown>,
+    extraHeaders?: Record<string, string>,
+  ): Promise<T> {
+    if (!this.client) {
+      throw new Error("Supabase client not configured");
+    }
+
+    // Ensure we're authenticated before making the request
+    await this.ensureAuthenticated();
+
+    const { data: sessionData } = await this.client.auth.getSession();
+    if (!sessionData.session) {
+      throw new Error("No active session");
+    }
+
+    if (!this.supabaseUrl || !this.supabasePublicApiKey) {
+      throw new Error("Supabase credentials not available");
+    }
+
+    const accessToken = sessionData.session.access_token;
+    const bodyJson = JSON.stringify(body);
+
+    let retriedWithFallbackApiKey = false;
+    let response = await this.fetchEdgeFunction(
+      functionName,
+      bodyJson,
+      accessToken,
+      this.supabasePublicApiKey,
+      extraHeaders,
+    );
+    let responseText = await response.text();
+
+    if (
+      !response.ok &&
+      this.supabaseFallbackPublicApiKey &&
+      isInvalidApiKeyResponse(response, responseText)
+    ) {
+      retriedWithFallbackApiKey = true;
+      console.warn(
+        `[SupabaseClient] Edge Function ${functionName} rejected the primary public API key; retrying with fallback public API key.`,
+      );
+      response = await this.fetchEdgeFunction(
+        functionName,
+        bodyJson,
+        accessToken,
+        this.supabaseFallbackPublicApiKey,
+        extraHeaders,
+      );
+      responseText = await response.text();
+    }
 
     if (!response.ok) {
       captureSentryException(
@@ -777,6 +851,7 @@ class SupabaseClientService {
           extra: {
             status: response.status,
             responseText: responseText.slice(0, 500),
+            retriedWithFallbackApiKey,
           },
         },
       );

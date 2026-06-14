@@ -444,6 +444,7 @@ describe("main.ts", () => {
       expect(mockSupabaseConfigure).toHaveBeenCalledWith(
         mockEnv.VITE_SUPABASE_URL,
         mockEnv.VITE_SUPABASE_PUBLISHABLE_KEY,
+        mockEnv.VITE_SUPABASE_ANON_KEY,
       );
     });
 
@@ -457,6 +458,7 @@ describe("main.ts", () => {
       expect(mockSupabaseConfigure).toHaveBeenCalledTimes(1);
       expect(mockSupabaseConfigure).toHaveBeenCalledWith(
         mockEnv.VITE_SUPABASE_URL,
+        mockEnv.VITE_SUPABASE_ANON_KEY,
         mockEnv.VITE_SUPABASE_ANON_KEY,
       );
     });

@@ -32,9 +32,9 @@ async function initializeSupabase(
   }
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabasePublicApiKey =
-    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-    import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const supabasePublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  const supabaseLegacyAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const supabasePublicApiKey = supabasePublishableKey || supabaseLegacyAnonKey;
 
   console.log(
     `[Main] initializeSupabase — URL present: ${!!supabaseUrl}, PUBLIC_API_KEY present: ${!!supabasePublicApiKey}, isPackaged: ${
@@ -45,7 +45,11 @@ async function initializeSupabase(
   if (supabaseUrl && supabasePublicApiKey) {
     console.log("[Main] Configuring Supabase from environment variables");
     try {
-      await supabase.configure(supabaseUrl, supabasePublicApiKey);
+      await supabase.configure(
+        supabaseUrl,
+        supabasePublicApiKey,
+        supabaseLegacyAnonKey,
+      );
       console.log("[Main] Supabase configured successfully");
     } catch (error) {
       console.error(

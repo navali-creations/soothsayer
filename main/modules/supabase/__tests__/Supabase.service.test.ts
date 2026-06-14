@@ -131,6 +131,7 @@ function makeStoredSession(overrides: Record<string, unknown> = {}) {
 }
 
 const SUPABASE_URL = "https://test.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "test-publishable-key";
 const SUPABASE_ANON_KEY = "test-anon-key";
 
 function makeSnapshotResponse() {
@@ -1118,6 +1119,55 @@ describe("SupabaseClientService", () => {
         }),
       );
 
+      expect(result).toEqual(responseData);
+    });
+
+    it("should retry with the fallback public API key when the primary key is rejected", async () => {
+      createMockSupabaseClient();
+      const service = SupabaseClientService.getInstance();
+      await service.configure(
+        SUPABASE_URL,
+        SUPABASE_PUBLISHABLE_KEY,
+        SUPABASE_ANON_KEY,
+      );
+
+      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const responseData = { result: "success" };
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 401,
+          text: () =>
+            Promise.resolve(JSON.stringify({ error: "Invalid apikey header" })),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          text: () => Promise.resolve(JSON.stringify(responseData)),
+        });
+
+      const result = await service.callEdgeFunction("my-function", {
+        game: "poe1",
+      });
+
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(mockFetch.mock.calls[0][1]).toEqual(
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            apikey: SUPABASE_PUBLISHABLE_KEY,
+          }),
+        }),
+      );
+      expect(mockFetch.mock.calls[1][1]).toEqual(
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            apikey: SUPABASE_ANON_KEY,
+          }),
+        }),
+      );
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining("retrying with fallback public API key"),
+      );
       expect(result).toEqual(responseData);
     });
 
