@@ -18,11 +18,37 @@ const CORS_HEADERS = {
  * Public API for wraeclast.cards — returns aggregated community drop-rate data
  * for every card in the requested game, broken down by league.
  *
- * Auth: x-api-key header validated against Supabase Vault secret `wraeclast_cards_api_key`.
+ * Auth: x-api-key header validated against the `WRAECLAST_CARDS_API_KEY`
+ * Supabase Edge Function secret.
  */
 // Rate limit: 100 requests per hour per API key, enforced atomically via DB
 const RATE_LIMIT_MAX = 100;
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+
+function getConfiguredApiKey(): string | null {
+  return (
+    Deno.env.get("WRAECLAST_CARDS_API_KEY") ??
+    Deno.env.get("wraeclast_cards_api_key") ??
+    null
+  );
+}
+
+function timingSafeEqualStrings(a: string, b: string): boolean {
+  const encoder = new TextEncoder();
+  const aBytes = encoder.encode(a);
+  const bBytes = encoder.encode(b);
+
+  if (aBytes.byteLength !== bBytes.byteLength) {
+    return false;
+  }
+
+  let diff = 0;
+  for (let i = 0; i < aBytes.byteLength; i++) {
+    diff |= aBytes[i] ^ bBytes[i];
+  }
+
+  return diff === 0;
+}
 
 Deno.serve(async (req: Request) => {
   // ── CORS preflight ──────────────────────────────────────────────────
@@ -38,14 +64,6 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  // ── Build service-role client ───────────────────────────────────────
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-
   // ── Validate API key ────────────────────────────────────────────────
   const apiKey = req.headers.get("x-api-key");
 
@@ -57,17 +75,11 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  const { data: secret, error: vaultError } = await supabase
-    .from("decrypted_secrets")
-    .select("decrypted_secret")
-    .eq("name", "wraeclast_cards_api_key")
-    .schema("vault")
-    .single();
+  const configuredApiKey = getConfiguredApiKey();
 
-  if (vaultError || !secret?.decrypted_secret) {
+  if (!configuredApiKey) {
     console.error(
-      "[get-community-drop-rates] Vault lookup failed:",
-      vaultError,
+      "[get-community-drop-rates] WRAECLAST_CARDS_API_KEY is not configured",
     );
     return responseJson({
       status: 500,
@@ -76,22 +88,21 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  // Constant-time comparison to prevent timing attacks
-  const encoder = new TextEncoder();
-  const apiKeyBytes = encoder.encode(apiKey);
-  const secretBytes = encoder.encode(secret.decrypted_secret);
-
-  const keyValid =
-    apiKeyBytes.byteLength === secretBytes.byteLength &&
-    crypto.subtle.timingSafeEqual(apiKeyBytes, secretBytes);
-
-  if (!keyValid) {
+  if (!timingSafeEqualStrings(apiKey, configuredApiKey)) {
     return responseJson({
       status: 401,
       body: { error: "Invalid API key" },
       headers: CORS_HEADERS,
     });
   }
+
+  // ── Build service-role client ───────────────────────────────────────
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 
   // Rate limit by API key — atomic DB-backed enforcement via check_and_log_request
   // Uses a stable identifier derived from the API key (not the raw key itself)
@@ -141,6 +152,9 @@ Deno.serve(async (req: Request) => {
   // ── Parse & validate query params ───────────────────────────────────
   const url = new URL(req.url);
   const game = url.searchParams.get("game");
+  const includeInactive =
+    url.searchParams.get("include_inactive") === "true" ||
+    url.searchParams.get("include_inactive") === "1";
 
   if (!game || !["poe1", "poe2"].includes(game)) {
     return responseJson({
@@ -153,11 +167,16 @@ Deno.serve(async (req: Request) => {
   }
 
   // ── Fetch leagues for this game ─────────────────────────────────────
-  const { data: leagues, error: leaguesError } = await supabase
+  let leaguesQuery = supabase
     .from("poe_leagues")
     .select("id, name")
-    .eq("game", game)
-    .eq("is_active", true);
+    .eq("game", game);
+
+  if (!includeInactive) {
+    leaguesQuery = leaguesQuery.eq("is_active", true);
+  }
+
+  const { data: leagues, error: leaguesError } = await leaguesQuery;
 
   if (leaguesError) {
     console.error(
@@ -172,9 +191,7 @@ Deno.serve(async (req: Request) => {
   }
 
   if (!leagues || leagues.length === 0) {
-    console.log(
-      `[get-community-drop-rates] No active leagues found for game=${game}`,
-    );
+    console.log(`[get-community-drop-rates] No leagues found for game=${game}`);
     return responseJson({
       status: 200,
       body: { game, leagues: [], cards: [] },
