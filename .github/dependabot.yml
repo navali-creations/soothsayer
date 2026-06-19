@@ -6,10 +6,8 @@ updates:
     rebase-strategy: "disabled"
     schedule:
       interval: "weekly"
-      day: "monday"
+      day: sunday
     open-pull-requests-limit: 10
-    reviewers:
-      - "navali-creations"
     labels:
       - "dependencies"
     groups:
@@ -54,7 +52,7 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "monday"
+      day: "sunday"
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
