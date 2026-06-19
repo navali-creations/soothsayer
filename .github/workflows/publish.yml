@@ -37,7 +37,7 @@ jobs:
       version: ${{ steps.check.outputs.version }}
     steps:
       - name: Checkout code repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 2
 
@@ -97,7 +97,7 @@ jobs:
 
     steps:
       - name: Checkout code repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
         if: "!startsWith(matrix.name, 'windows')"
@@ -367,7 +367,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout code repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Extract release notes from CHANGELOG.md
         id: changelog
