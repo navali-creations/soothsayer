@@ -24,7 +24,7 @@ permissions:
 env:
   CI: true
   # Electron Forge currently fails to complete packaging on Node 24.16+.
-  # Keep hosted Linux packaging pinned until https://github.com/electron/forge/issues/4277 is fixed.
+  # Keep hosted packaging pinned until https://github.com/electron/forge/issues/4277 is fixed.
   NODE_VERSION: 24.15.0
 
 jobs:
@@ -86,8 +86,8 @@ jobs:
         include:
           - name: ubuntu
             runs_on: ubuntu-latest
-          - name: windows-signed
-            runs_on: [self-hosted, windows, x64]
+          - name: windows
+            runs_on: windows-latest
 
     runs-on: ${{ matrix.runs_on }}
 
@@ -100,37 +100,15 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Setup pnpm
-        if: "!startsWith(matrix.name, 'windows')"
         uses: pnpm/action-setup@v6
         with:
           dest: ${{ runner.temp }}/setup-pnpm
 
       - name: Setup node.js
-        if: "!startsWith(matrix.name, 'windows')"
         uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
-
-      - name: Verify Node and pnpm (self-hosted Windows)
-        if: startsWith(matrix.name, 'windows')
-        shell: powershell
-        run: |
-          $nodeVersion = node --version
-          $pnpmVersion = pnpm --version
-          $packageJson = Get-Content package.json -Raw | ConvertFrom-Json
-          $expectedPnpmVersion = ([string]$packageJson.packageManager).Substring("pnpm@".Length)
-
-          Write-Host "node: $nodeVersion"
-          Write-Host "pnpm: $pnpmVersion"
-
-          if (-not $nodeVersion.StartsWith("v24.")) {
-            throw "Expected Node 24 on the self-hosted Windows runner, got: $nodeVersion"
-          }
-
-          if ($pnpmVersion -ne $expectedPnpmVersion) {
-            throw "Expected pnpm $expectedPnpmVersion on the self-hosted Windows runner, got: $pnpmVersion"
-          }
 
       # Skip all lifecycle scripts during install to avoid supabase CLI download failures on Windows
       - name: Install dependencies (skip lifecycle scripts)
@@ -197,30 +175,10 @@ jobs:
             exit 1
           fi
 
-      # Windows: package, sign app, make installer, sign artifacts
-      # Locate signtool once and store the path for later steps
-
-      - name: Locate signtool.exe
+      # Windows build
+      - name: Make distributables (Windows)
         if: startsWith(matrix.name, 'windows')
-        id: signtool
-        shell: powershell
-        run: |
-          $kitsRoot = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\bin"
-          if (!(Test-Path $kitsRoot)) { throw "Windows Kits not found at: $kitsRoot" }
-
-          $signtool = Get-ChildItem $kitsRoot -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
-            Where-Object { $_.FullName -match "\\x64\\signtool\.exe$" -or $_.FullName -match "\\x86\\signtool\.exe$" } |
-            Sort-Object FullName -Descending |
-            Select-Object -First 1 -ExpandProperty FullName
-
-          if (-not $signtool) { throw "signtool.exe not found under: $kitsRoot" }
-          Write-Host "Using signtool: $signtool"
-          echo "path=$signtool" >> $env:GITHUB_OUTPUT
-
-      # 1. Package the app (creates out/Soothsayer-win32-x64/)
-      - name: Package application (Windows)
-        if: startsWith(matrix.name, 'windows')
-        run: pnpm package
+        run: pnpm make
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
@@ -308,49 +266,6 @@ jobs:
 
           if ($failed -ne 0) {
             exit 1
-          }
-
-      # 2. Sign the packaged app so the installed soothsayer.exe is signed
-      - name: Sign packaged application (Windows)
-        if: startsWith(matrix.name, 'windows')
-        shell: powershell
-        run: |
-          $signtool = "${{ steps.signtool.outputs.path }}"
-          $appDir = "out\Soothsayer-win32-x64"
-          if (!(Test-Path $appDir)) { throw "Packaged app dir not found: $appDir" }
-
-          $targets = Get-ChildItem $appDir -Recurse -File |
-            Where-Object { $_.Extension -in ".exe",".dll" }
-
-          foreach ($t in $targets) {
-            Write-Host "Signing: $($t.FullName)"
-            & $signtool sign /fd sha256 /td sha256 /tr http://time.certum.pl /a $t.FullName
-            if ($LASTEXITCODE -ne 0) { throw "Signing failed: $($t.FullName)" }
-          }
-
-      # 3. Build the installer from the already-signed app
-      - name: Make distributables (Windows)
-        if: startsWith(matrix.name, 'windows')
-        run: pnpm make -- --skip-package
-        env:
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-
-      # 4. Sign the installer outputs (Setup.exe, Update.exe, etc.)
-      - name: Sign installer artifacts (Windows)
-        if: startsWith(matrix.name, 'windows')
-        shell: powershell
-        run: |
-          $signtool = "${{ steps.signtool.outputs.path }}"
-
-          $targets = Get-ChildItem ".\out\make" -Recurse -File |
-            Where-Object { $_.Extension -in ".exe",".msi",".msix",".dll" }
-
-          if (-not $targets) { throw "No signable files found under .\out\make" }
-
-          foreach ($t in $targets) {
-            Write-Host "Signing: $($t.FullName)"
-            & $signtool sign /fd sha256 /td sha256 /tr http://time.certum.pl /a $t.FullName
-            if ($LASTEXITCODE -ne 0) { throw "Signing failed: $($t.FullName)" }
           }
 
       - name: Upload artifacts
