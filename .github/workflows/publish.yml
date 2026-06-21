@@ -130,24 +130,61 @@ jobs:
       - name: Create .env file (Linux)
         if: "!startsWith(matrix.name, 'windows')"
         shell: bash
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_UMAMI_ID: ${{ secrets.VITE_UMAMI_ID }}
+          VITE_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
-          echo "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" > .env
-          echo "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}" >> .env
-          echo "VITE_UMAMI_ID=${{ secrets.VITE_UMAMI_ID }}" >> .env
-          echo "VITE_SENTRY_DSN=${{ secrets.SENTRY_DSN }}" >> .env
+          if [ -z "$VITE_SUPABASE_PUBLISHABLE_KEY" ]; then
+            echo "::error::VITE_SUPABASE_PUBLISHABLE_KEY secret is required for v2 Edge Functions"
+            exit 1
+          fi
+
+          case "$VITE_SUPABASE_PUBLISHABLE_KEY" in
+            sb_publishable_*) ;;
+            *)
+              echo "::error::VITE_SUPABASE_PUBLISHABLE_KEY must be a Supabase publishable key (sb_publishable_...)"
+              exit 1
+              ;;
+          esac
+
+          echo "VITE_SUPABASE_URL=$VITE_SUPABASE_URL" > .env
+          echo "VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY" >> .env
+          echo "VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY" >> .env
+          echo "VITE_UMAMI_ID=$VITE_UMAMI_ID" >> .env
+          echo "VITE_SENTRY_DSN=$VITE_SENTRY_DSN" >> .env
 
       - name: Create .env file (Windows)
         if: startsWith(matrix.name, 'windows')
         shell: powershell
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_UMAMI_ID: ${{ secrets.VITE_UMAMI_ID }}
+          VITE_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
+          if (-not $env:VITE_SUPABASE_PUBLISHABLE_KEY) {
+            Write-Host "::error::VITE_SUPABASE_PUBLISHABLE_KEY secret is required for v2 Edge Functions"
+            exit 1
+          }
+
+          if (-not $env:VITE_SUPABASE_PUBLISHABLE_KEY.StartsWith("sb_publishable_")) {
+            Write-Host "::error::VITE_SUPABASE_PUBLISHABLE_KEY must be a Supabase publishable key (sb_publishable_...)"
+            exit 1
+          }
+
           # PowerShell 5.x -Encoding utf8 writes a BOM (EF BB BF) which
           # corrupts the first env-var name for Vite/dotenv.
           # Use .NET API to write BOM-free UTF-8.
           $lines = @(
-            "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}"
-            "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}"
-            "VITE_UMAMI_ID=${{ secrets.VITE_UMAMI_ID }}"
-            "VITE_SENTRY_DSN=${{ secrets.SENTRY_DSN }}"
+            "VITE_SUPABASE_URL=$env:VITE_SUPABASE_URL"
+            "VITE_SUPABASE_PUBLISHABLE_KEY=$env:VITE_SUPABASE_PUBLISHABLE_KEY"
+            "VITE_SUPABASE_ANON_KEY=$env:VITE_SUPABASE_ANON_KEY"
+            "VITE_UMAMI_ID=$env:VITE_UMAMI_ID"
+            "VITE_SENTRY_DSN=$env:VITE_SENTRY_DSN"
           )
           $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
           [System.IO.File]::WriteAllLines(
@@ -208,7 +245,7 @@ jobs:
           }
 
           check_bundle "VITE_SUPABASE_URL"      "supabase\.co"  "$BUNDLE"
-          check_bundle "VITE_SUPABASE_ANON_KEY"  "eyJ"           "$BUNDLE"
+          check_bundle "VITE_SUPABASE_PUBLISHABLE_KEY" "sb_publishable_" "$BUNDLE"
           check_bundle "VITE_SENTRY_DSN"         "sentry\.io"    "$BUNDLE"
 
           RENDERER_DIR=".vite/renderer/main_window"
@@ -250,7 +287,7 @@ jobs:
           }
 
           Assert-Bundle "VITE_SUPABASE_URL"     "supabase\.co" $content
-          Assert-Bundle "VITE_SUPABASE_ANON_KEY" "eyJ"          $content
+          Assert-Bundle "VITE_SUPABASE_PUBLISHABLE_KEY" "sb_publishable_" $content
           Assert-Bundle "VITE_SENTRY_DSN"        "sentry\.io"   $content
 
           $rendererDir = ".vite\renderer\main_window"
