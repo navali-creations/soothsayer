@@ -1,5 +1,15 @@
 # soothsayer
 
+## 0.19.1
+
+### Patch Changes
+
+- [`fb822c5`](https://github.com/navali-creations/soothsayer/commit/fb822c5d506837e1339402acc2147701bf572e69) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Fixed:** Published builds can connect to Soothsayer online services correctly.
+
+  This fixes release builds so online league data, price snapshots, and Community Drop Rates use the correct public connection key.
+
 ## 0.19.0
 
 ### Minor Changes
