@@ -20,6 +20,9 @@ Path of Exile 2 support is ready and waiting for when stacked decks become avail
 | Linux | `soothsayer_x.y.z_amd64.deb` |
 | Linux | `soothsayer-*.rpm` |
 
+> [!NOTE]
+> For Linux users: the AppImage build is the easiest portable option. On Ubuntu 22.04 install libfuse2; on Ubuntu 24.04+ install libfuse2t64 before launching it.
+
 ---
 
 
@@ -32,8 +35,6 @@ https://github.com/user-attachments/assets/511e9467-5d9e-4296-ad89-9ed7ade7aa06
 https://github.com/user-attachments/assets/5b6c501a-7c90-435c-957d-77df0e7e3ecd
 
 https://github.com/user-attachments/assets/63e95f2b-f4e1-43e2-8e26-68d357928a51
-
-Linux note: the AppImage build is the easiest portable option. On Ubuntu 22.04 install libfuse2; on Ubuntu 24.04+ install libfuse2t64 before launching it.
 
 ## Requirements
 
