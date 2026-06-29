@@ -333,10 +333,20 @@ Deno.serve(async (req: Request) => {
     verified_contributors: Set<string>;
   };
 
+  type LeagueCardStats = {
+    count: number;
+    ratio: number;
+    contributors: number;
+    verified_count: number;
+    verified_ratio: number;
+    verified_contributors: number;
+  };
+
   const aggMap = new Map<string, Map<string, LeagueAgg>>();
 
   // Also track total drops per league for ratio calculation
   const leagueTotalDrops = new Map<string, number>();
+  const leagueVerifiedDrops = new Map<string, number>();
 
   for (const row of allCardData) {
     const card = cardById.get(row.card_id);
@@ -367,6 +377,10 @@ Deno.serve(async (req: Request) => {
 
     if (upload.is_verified) {
       agg.verified_count += row.count;
+      leagueVerifiedDrops.set(
+        leagueId,
+        (leagueVerifiedDrops.get(leagueId) ?? 0) + row.count,
+      );
       if (upload.ggg_uuid) {
         agg.verified_contributors.add(upload.ggg_uuid);
       }
@@ -394,16 +408,7 @@ Deno.serve(async (req: Request) => {
 
   const responseCards: Array<{
     name: string;
-    leagues: Record<
-      string,
-      {
-        count: number;
-        ratio: number;
-        contributors: number;
-        verified_count: number;
-        verified_contributors: number;
-      }
-    >;
+    leagues: Record<string, LeagueCardStats>;
   }> = [];
 
   // Sort cards alphabetically for stable output
@@ -411,19 +416,11 @@ Deno.serve(async (req: Request) => {
 
   for (const cardName of sortedCardNames) {
     const leagueMap = aggMap.get(cardName)!;
-    const leaguesObj: Record<
-      string,
-      {
-        count: number;
-        ratio: number;
-        contributors: number;
-        verified_count: number;
-        verified_contributors: number;
-      }
-    > = {};
+    const leaguesObj: Record<string, LeagueCardStats> = {};
 
     for (const [leagueId, agg] of leagueMap) {
       const totalDropsInLeague = leagueTotalDrops.get(leagueId) ?? 1;
+      const verifiedDropsInLeague = leagueVerifiedDrops.get(leagueId) ?? 0;
       leaguesObj[leagueId] = {
         count: agg.total_count,
         ratio:
@@ -432,6 +429,12 @@ Deno.serve(async (req: Request) => {
             : 0,
         contributors: agg.contributors.size,
         verified_count: agg.verified_count,
+        verified_ratio:
+          verifiedDropsInLeague > 0
+            ? parseFloat(
+                (agg.verified_count / verifiedDropsInLeague).toFixed(6),
+              )
+            : 0,
         verified_contributors: agg.verified_contributors.size,
       };
     }

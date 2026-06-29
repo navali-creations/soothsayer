@@ -2,6 +2,6 @@
   "compilerOptions": {
     "lib": ["deno.window"]
   },
-  "nodeModulesDir": "none",
+  "nodeModulesDir": "auto",
   "lock": false
 }
