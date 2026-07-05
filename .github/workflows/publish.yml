@@ -337,6 +337,31 @@ jobs:
           path: artifacts
           merge-multiple: true
 
+      - name: Add stable download aliases
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          copy_alias() {
+            local pattern="$1"
+            local alias="$2"
+            local source
+
+            source=$(find artifacts -type f -iname "$pattern" -print -quit)
+            if [ -z "$source" ]; then
+              echo "::error::Could not find release asset matching $pattern"
+              echo "Available artifacts:"
+              find artifacts -type f | sort
+              exit 1
+            fi
+
+            cp "$source" "artifacts/$alias"
+            echo "Created stable alias $alias from $source"
+          }
+
+          copy_alias "Soothsayer-*Setup.exe" "Soothsayer.Setup.exe"
+          copy_alias "Soothsayer-*.AppImage" "Soothsayer.AppImage"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
