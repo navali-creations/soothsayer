@@ -6,16 +6,6 @@ Additionally `soothayer` calculates live profit based on current market prices, 
 
 Path of Exile 2 support is ready and waiting for when stacked decks become available.
 
-https://github.com/user-attachments/assets/16f87f46-d861-40b8-aa04-df641ea95fb2 
-
-https://github.com/user-attachments/assets/526310a9-f9db-46a6-b244-97e6b3472e89
-
-https://github.com/user-attachments/assets/511e9467-5d9e-4296-ad89-9ed7ade7aa06
-
-https://github.com/user-attachments/assets/5b6c501a-7c90-435c-957d-77df0e7e3ecd
-
-https://github.com/user-attachments/assets/63e95f2b-f4e1-43e2-8e26-68d357928a51
-
 ---
 
 [![Download Latest Release](https://img.shields.io/github/v/release/navali-creations/soothsayer?style=for-the-badge&label=Download+Latest+Release&color=purple)](https://github.com/navali-creations/soothsayer/releases/latest)
@@ -27,9 +17,21 @@ https://github.com/user-attachments/assets/63e95f2b-f4e1-43e2-8e26-68d357928a51
 | Linux | `soothsayer_x.y.z_amd64.deb` |
 | Linux | `soothsayer-*.rpm` |
 
+> [!NOTE]
+> For Linux users: the AppImage build is the easiest portable option. On Ubuntu 22.04 install libfuse2; on Ubuntu 24.04+ install libfuse2t64 before launching it.
+
 ---
 
-Linux note: the AppImage build is the easiest portable option. On Ubuntu 22.04 install libfuse2; on Ubuntu 24.04+ install libfuse2t64 before launching it.
+
+https://github.com/user-attachments/assets/16f87f46-d861-40b8-aa04-df641ea95fb2 
+
+https://github.com/user-attachments/assets/526310a9-f9db-46a6-b244-97e6b3472e89
+
+https://github.com/user-attachments/assets/511e9467-5d9e-4296-ad89-9ed7ade7aa06
+
+https://github.com/user-attachments/assets/5b6c501a-7c90-435c-957d-77df0e7e3ecd
+
+https://github.com/user-attachments/assets/63e95f2b-f4e1-43e2-8e26-68d357928a51
 
 ## Requirements
 
