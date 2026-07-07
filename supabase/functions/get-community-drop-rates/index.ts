@@ -155,6 +155,9 @@ Deno.serve(async (req: Request) => {
   const includeInactive =
     url.searchParams.get("include_inactive") === "true" ||
     url.searchParams.get("include_inactive") === "1";
+  const excludeSuspicious =
+    url.searchParams.get("exclude_suspicious") === "true" ||
+    url.searchParams.get("exclude_suspicious") === "1";
 
   if (!game || !["poe1", "poe2"].includes(game)) {
     return responseJson({
@@ -201,11 +204,12 @@ Deno.serve(async (req: Request) => {
 
   const leagueIds = leagues.map((l) => l.id);
 
-  // ── Fetch non-suspicious uploads for these leagues ──────────────────
+  // ── Fetch uploads for these leagues ─────────────────────────────────
   const { data: uploads, error: uploadsError } = await supabase
     .from("community_uploads")
-    .select("id, league_id, device_id, ggg_uuid, is_verified")
-    .eq("is_suspicious", false)
+    .select(
+      "id, league_id, device_id, ggg_uuid, is_verified, is_suspicious, total_cards_uploaded",
+    )
     .in("league_id", leagueIds)
     .limit(10000);
 
@@ -229,17 +233,130 @@ Deno.serve(async (req: Request) => {
       status: 200,
       body: {
         game,
-        leagues: leagues.map((l) => ({ id: l.id, name: l.name })),
+        leagues: leagues.map((l) => ({
+          id: l.id,
+          name: l.name,
+          upload_count: 0,
+          observed_total: 0,
+          card_observed_total: 0,
+          contributors: 0,
+          verified_observed_total: 0,
+          verified_card_observed_total: 0,
+          verified_contributors: 0,
+          excluded_suspicious_upload_count: 0,
+          excluded_suspicious_observed_total: 0,
+          unresolved_card_row_count: 0,
+          unresolved_card_observed_total: 0,
+        })),
         cards: [],
       },
       headers: { ...CORS_HEADERS, "Cache-Control": "public, max-age=300" },
     });
   }
 
-  const uploadIds = uploads.map((u) => u.id);
+  const includedUploads = excludeSuspicious
+    ? uploads.filter((u) => !u.is_suspicious)
+    : uploads;
+
+  type LeagueUploadStats = {
+    upload_count: number;
+    observed_total: number;
+    card_observed_total: number;
+    contributors: Set<string>;
+    verified_observed_total: number;
+    verified_card_observed_total: number;
+    verified_contributors: Set<string>;
+    excluded_suspicious_upload_count: number;
+    excluded_suspicious_observed_total: number;
+    unresolved_card_row_count: number;
+    unresolved_card_observed_total: number;
+  };
+
+  const leagueUploadStats = new Map<string, LeagueUploadStats>();
+
+  function getLeagueUploadStats(leagueId: string): LeagueUploadStats {
+    let stats = leagueUploadStats.get(leagueId);
+    if (!stats) {
+      stats = {
+        upload_count: 0,
+        observed_total: 0,
+        card_observed_total: 0,
+        contributors: new Set(),
+        verified_observed_total: 0,
+        verified_card_observed_total: 0,
+        verified_contributors: new Set(),
+        excluded_suspicious_upload_count: 0,
+        excluded_suspicious_observed_total: 0,
+        unresolved_card_row_count: 0,
+        unresolved_card_observed_total: 0,
+      };
+      leagueUploadStats.set(leagueId, stats);
+    }
+
+    return stats;
+  }
+
+  for (const upload of uploads) {
+    const stats = getLeagueUploadStats(upload.league_id);
+    const totalCardsUploaded = upload.total_cards_uploaded ?? 0;
+
+    if (upload.is_suspicious && excludeSuspicious) {
+      stats.excluded_suspicious_upload_count++;
+      stats.excluded_suspicious_observed_total += totalCardsUploaded;
+      continue;
+    }
+
+    stats.upload_count++;
+    stats.observed_total += totalCardsUploaded;
+    stats.contributors.add(upload.device_id);
+
+    if (upload.is_verified) {
+      stats.verified_observed_total += totalCardsUploaded;
+      if (upload.ggg_uuid) {
+        stats.verified_contributors.add(upload.ggg_uuid);
+      }
+    }
+  }
+
+  if (includedUploads.length === 0) {
+    console.log(
+      `[get-community-drop-rates] No included community uploads for game=${game}`,
+    );
+    return responseJson({
+      status: 200,
+      body: {
+        game,
+        leagues: leagues.map((l) => {
+          const stats = getLeagueUploadStats(l.id);
+          return {
+            id: l.id,
+            name: l.name,
+            upload_count: stats.upload_count,
+            observed_total: stats.observed_total,
+            card_observed_total: stats.card_observed_total,
+            contributors: stats.contributors.size,
+            verified_observed_total: stats.verified_observed_total,
+            verified_card_observed_total: stats.verified_card_observed_total,
+            verified_contributors: stats.verified_contributors.size,
+            excluded_suspicious_upload_count:
+              stats.excluded_suspicious_upload_count,
+            excluded_suspicious_observed_total:
+              stats.excluded_suspicious_observed_total,
+            unresolved_card_row_count: stats.unresolved_card_row_count,
+            unresolved_card_observed_total:
+              stats.unresolved_card_observed_total,
+          };
+        }),
+        cards: [],
+      },
+      headers: { ...CORS_HEADERS, "Cache-Control": "public, max-age=300" },
+    });
+  }
+
+  const uploadIds = includedUploads.map((u) => u.id);
 
   // Build lookup maps for uploads
-  const uploadById = new Map(uploads.map((u) => [u.id, u]));
+  const uploadById = new Map(includedUploads.map((u) => [u.id, u]));
 
   // ── Fetch card data for these uploads (paginated) ───────────────────
   const allCardData: Array<{
@@ -247,17 +364,13 @@ Deno.serve(async (req: Request) => {
     card_id: string;
     count: number;
   }> = [];
-  const PAGE_SIZE = 10000;
-  const MAX_PAGES = 50; // Safety cap: 50 pages × 10,000 = 500K max rows
+  // Supabase projects commonly cap PostgREST responses at 1,000 rows. Keep the
+  // requested page size at that cap so a full page reliably means "fetch more".
+  const PAGE_SIZE = 1000;
   let offset = 0;
   let hasMore = true;
-  let pageCount = 0;
 
   while (hasMore) {
-    if (pageCount >= MAX_PAGES) {
-      console.warn("[get-community-drop-rates] Hit pagination safety cap");
-      break;
-    }
     const { data: page, error: pageError } = await supabase
       .from("community_card_data")
       .select("upload_id, card_id, count")
@@ -283,7 +396,6 @@ Deno.serve(async (req: Request) => {
       hasMore = page.length === PAGE_SIZE;
       offset += PAGE_SIZE;
     }
-    pageCount++;
   }
 
   if (allCardData.length === 0) {
@@ -292,33 +404,61 @@ Deno.serve(async (req: Request) => {
       status: 200,
       body: {
         game,
-        leagues: leagues.map((l) => ({ id: l.id, name: l.name })),
+        leagues: leagues.map((l) => {
+          const stats = getLeagueUploadStats(l.id);
+          return {
+            id: l.id,
+            name: l.name,
+            upload_count: stats.upload_count,
+            observed_total: stats.observed_total,
+            card_observed_total: stats.card_observed_total,
+            contributors: stats.contributors.size,
+            verified_observed_total: stats.verified_observed_total,
+            verified_card_observed_total: stats.verified_card_observed_total,
+            verified_contributors: stats.verified_contributors.size,
+            excluded_suspicious_upload_count:
+              stats.excluded_suspicious_upload_count,
+            excluded_suspicious_observed_total:
+              stats.excluded_suspicious_observed_total,
+            unresolved_card_row_count: stats.unresolved_card_row_count,
+            unresolved_card_observed_total:
+              stats.unresolved_card_observed_total,
+          };
+        }),
         cards: [],
       },
       headers: { ...CORS_HEADERS, "Cache-Control": "public, max-age=300" },
     });
   }
 
-  // ── Fetch cards for this game ───────────────────────────────────────
-  const { data: cards, error: cardsError } = await supabase
-    .from("cards")
-    .select("id, name")
-    .eq("game", game)
-    .limit(10000);
+  // ── Fetch referenced cards ──────────────────────────────────────────
+  const cardIds = [...new Set(allCardData.map((row) => row.card_id))];
+  const cards: Array<{ id: string; name: string }> = [];
+  const CARD_LOOKUP_PAGE_SIZE = 500;
 
-  if (cardsError) {
-    console.error(
-      "[get-community-drop-rates] Failed to fetch cards:",
-      cardsError,
-    );
-    return responseJson({
-      status: 500,
-      body: { error: "Failed to fetch cards" },
-      headers: CORS_HEADERS,
-    });
+  for (let start = 0; start < cardIds.length; start += CARD_LOOKUP_PAGE_SIZE) {
+    const cardIdPage = cardIds.slice(start, start + CARD_LOOKUP_PAGE_SIZE);
+    const { data: cardPage, error: cardsError } = await supabase
+      .from("cards")
+      .select("id, name")
+      .in("id", cardIdPage);
+
+    if (cardsError) {
+      console.error(
+        "[get-community-drop-rates] Failed to fetch cards:",
+        cardsError,
+      );
+      return responseJson({
+        status: 500,
+        body: { error: "Failed to fetch cards" },
+        headers: CORS_HEADERS,
+      });
+    }
+
+    cards.push(...(cardPage ?? []));
   }
 
-  const cardById = new Map((cards ?? []).map((c) => [c.id, c]));
+  const cardById = new Map(cards.map((c) => [c.id, c]));
 
   // ── Aggregate data ──────────────────────────────────────────────────
   //
@@ -344,17 +484,26 @@ Deno.serve(async (req: Request) => {
 
   const aggMap = new Map<string, Map<string, LeagueAgg>>();
 
-  // Also track total drops per league for ratio calculation
-  const leagueTotalDrops = new Map<string, number>();
-  const leagueVerifiedDrops = new Map<string, number>();
-
   for (const row of allCardData) {
-    const card = cardById.get(row.card_id);
     const upload = uploadById.get(row.upload_id);
-    if (!card || !upload) continue;
+    if (!upload) continue;
+
+    const leagueId = upload.league_id;
+    const leagueStats = getLeagueUploadStats(leagueId);
+    leagueStats.card_observed_total += row.count;
+
+    if (upload.is_verified) {
+      leagueStats.verified_card_observed_total += row.count;
+    }
+
+    const card = cardById.get(row.card_id);
+    if (!card) {
+      leagueStats.unresolved_card_row_count++;
+      leagueStats.unresolved_card_observed_total += row.count;
+      continue;
+    }
 
     const cardName = card.name;
-    const leagueId = upload.league_id;
 
     // Initialise card → league map
     if (!aggMap.has(cardName)) {
@@ -377,20 +526,10 @@ Deno.serve(async (req: Request) => {
 
     if (upload.is_verified) {
       agg.verified_count += row.count;
-      leagueVerifiedDrops.set(
-        leagueId,
-        (leagueVerifiedDrops.get(leagueId) ?? 0) + row.count,
-      );
       if (upload.ggg_uuid) {
         agg.verified_contributors.add(upload.ggg_uuid);
       }
     }
-
-    // Accumulate league totals
-    leagueTotalDrops.set(
-      leagueId,
-      (leagueTotalDrops.get(leagueId) ?? 0) + row.count,
-    );
   }
 
   // ── Build response ──────────────────────────────────────────────────
@@ -403,8 +542,31 @@ Deno.serve(async (req: Request) => {
   }
 
   const responseLeagues = leagues
-    .filter((l) => leaguesWithData.has(l.id))
-    .map((l) => ({ id: l.id, name: l.name }));
+    .filter(
+      (l) =>
+        leaguesWithData.has(l.id) ||
+        (leagueUploadStats.get(l.id)?.upload_count ?? 0) > 0,
+    )
+    .map((l) => {
+      const stats = getLeagueUploadStats(l.id);
+      return {
+        id: l.id,
+        name: l.name,
+        upload_count: stats.upload_count,
+        observed_total: stats.observed_total,
+        card_observed_total: stats.card_observed_total,
+        contributors: stats.contributors.size,
+        verified_observed_total: stats.verified_observed_total,
+        verified_card_observed_total: stats.verified_card_observed_total,
+        verified_contributors: stats.verified_contributors.size,
+        excluded_suspicious_upload_count:
+          stats.excluded_suspicious_upload_count,
+        excluded_suspicious_observed_total:
+          stats.excluded_suspicious_observed_total,
+        unresolved_card_row_count: stats.unresolved_card_row_count,
+        unresolved_card_observed_total: stats.unresolved_card_observed_total,
+      };
+    });
 
   const responseCards: Array<{
     name: string;
@@ -419,8 +581,9 @@ Deno.serve(async (req: Request) => {
     const leaguesObj: Record<string, LeagueCardStats> = {};
 
     for (const [leagueId, agg] of leagueMap) {
-      const totalDropsInLeague = leagueTotalDrops.get(leagueId) ?? 1;
-      const verifiedDropsInLeague = leagueVerifiedDrops.get(leagueId) ?? 0;
+      const stats = getLeagueUploadStats(leagueId);
+      const totalDropsInLeague = stats.card_observed_total;
+      const verifiedDropsInLeague = stats.verified_card_observed_total;
       leaguesObj[leagueId] = {
         count: agg.total_count,
         ratio:
