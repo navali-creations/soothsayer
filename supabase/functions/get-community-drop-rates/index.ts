@@ -431,17 +431,18 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  // ── Fetch referenced cards ──────────────────────────────────────────
-  const cardIds = [...new Set(allCardData.map((row) => row.card_id))];
+  // ── Fetch cards for this game ───────────────────────────────────────
   const cards: Array<{ id: string; name: string }> = [];
-  const CARD_LOOKUP_PAGE_SIZE = 500;
+  const CARD_PAGE_SIZE = 1000;
+  let cardOffset = 0;
+  let hasMoreCards = true;
 
-  for (let start = 0; start < cardIds.length; start += CARD_LOOKUP_PAGE_SIZE) {
-    const cardIdPage = cardIds.slice(start, start + CARD_LOOKUP_PAGE_SIZE);
+  while (hasMoreCards) {
     const { data: cardPage, error: cardsError } = await supabase
       .from("cards")
       .select("id, name")
-      .in("id", cardIdPage);
+      .eq("game", game)
+      .range(cardOffset, cardOffset + CARD_PAGE_SIZE - 1);
 
     if (cardsError) {
       console.error(
@@ -455,7 +456,13 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    cards.push(...(cardPage ?? []));
+    if (!cardPage || cardPage.length === 0) {
+      hasMoreCards = false;
+    } else {
+      cards.push(...cardPage);
+      hasMoreCards = cardPage.length === CARD_PAGE_SIZE;
+      cardOffset += CARD_PAGE_SIZE;
+    }
   }
 
   const cardById = new Map(cards.map((c) => [c.id, c]));

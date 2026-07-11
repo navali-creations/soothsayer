@@ -152,9 +152,15 @@ function setupDropRateMocks(
     },
   );
 
-  fetchMock.onUrlContaining(supabaseUrls.table("cards"), () =>
-    postgrestResponse(cards),
-  );
+  fetchMock.onUrlContaining(supabaseUrls.table("cards"), (input, init) => {
+    const [start, end] = getRangeBounds(input, init, cards.length - 1);
+    const page = cards.slice(start, end + 1);
+    const pageEnd = page.length > 0 ? start + page.length - 1 : start;
+
+    return postgrestResponse(page, 200, {
+      "Content-Range": `${start}-${pageEnd}/${cards.length}`,
+    });
+  });
 }
 
 quietTest(
@@ -254,8 +260,8 @@ quietTest(
       const cardsRequest = fetchMock.calls.find(({ url }) =>
         url.includes(supabaseUrls.table("cards")),
       );
-      assert(cardsRequest?.url.includes("id=in."));
-      assert(!cardsRequest?.url.includes("game=eq."));
+      assert(cardsRequest?.url.includes("game=eq.poe1"));
+      assert(!cardsRequest?.url.includes("id=in."));
     } finally {
       fetchMock.restore();
       cleanupEnv();
@@ -424,6 +430,62 @@ quietTest(
         url.includes(supabaseUrls.table("community_card_data")),
       );
       assertEquals(cardDataRequests.length, 2);
+    } finally {
+      fetchMock.restore();
+      cleanupEnv();
+    }
+  },
+);
+
+quietTest(
+  "get-community-drop-rates — paginates game card lookups without id filters",
+  async () => {
+    const cleanupEnv = setupEnv({
+      WRAECLAST_CARDS_API_KEY: "test-wraeclast-key",
+    });
+    const fetchMock = mockFetch();
+    const cards = Array.from({ length: 1001 }, (_, index) => ({
+      id: `card-${index.toString().padStart(3, "0")}`,
+      name: `Card ${index.toString().padStart(3, "0")}`,
+    }));
+
+    setupDropRateMocks(fetchMock, {
+      uploads: [
+        {
+          id: "upload-many-cards",
+          league_id: "league-1",
+          device_id: "device-a",
+          ggg_uuid: null,
+          is_verified: false,
+          is_suspicious: false,
+          total_cards_uploaded: cards.length,
+        },
+      ],
+      cardData: cards.map((card) => ({
+        upload_id: "upload-many-cards",
+        card_id: card.id,
+        count: 1,
+      })),
+      cards,
+    });
+
+    try {
+      const resp = await handler(createFunctionRequest());
+      const body = await resp.json();
+
+      assertEquals(resp.status, 200);
+      assertEquals(body.leagues[0].card_observed_total, 1001);
+      assertEquals(body.cards.length, 1001);
+
+      const cardRequests = fetchMock.calls.filter(({ url }) =>
+        url.includes(supabaseUrls.table("cards")),
+      );
+      assertEquals(cardRequests.length, 2);
+      assert(
+        cardRequests.every(
+          ({ url }) => url.includes("game=eq.poe1") && !url.includes("id=in."),
+        ),
+      );
     } finally {
       fetchMock.restore();
       cleanupEnv();
