@@ -9,7 +9,7 @@
 
 BEGIN;
 
-SELECT plan(139);
+SELECT plan(146);
 
 -- ═══════════════════════════════════════════════════════════════
 -- VERIFY FUNCTIONS EXIST
@@ -82,6 +82,12 @@ SELECT has_function(
   'public', 'merge_community_upload_data',
   ARRAY['uuid', 'text', 'text', 'text', 'boolean', 'jsonb'],
   'merge_community_upload_data(uuid, text, text, text, boolean, jsonb) should exist'
+);
+
+SELECT has_function(
+  'public', 'refresh_community_league_card_estimates',
+  ARRAY['uuid'],
+  'refresh_community_league_card_estimates(uuid) should exist'
 );
 
 SELECT results_eq(
@@ -191,9 +197,45 @@ SELECT ok(
     SELECT obj_description(
       'public.merge_community_upload_data(uuid,text,text,text,boolean,jsonb)'::regprocedure,
       'pg_proc'
-    ) COLLATE "C" = 'Atomically resolves card names, creates or updates community_uploads, merges community_card_data with GREATEST semantics, and returns the server-side upload summary. SECURITY DEFINER, service_role only.'::text COLLATE "C"
+    ) COLLATE "C" = 'Atomically resolves card names, creates or updates community_uploads, merges community_card_data with GREATEST semantics, refreshes persisted community league/card aggregates, and returns the server-side upload summary. SECURITY DEFINER, service_role only.'::text COLLATE "C"
   ),
   'merge_community_upload_data should document its atomic merge and access model'
+);
+
+SELECT results_eq(
+  $$SELECT has_function_privilege(
+    'service_role',
+    'public.refresh_community_league_card_estimates(uuid)'::regprocedure,
+    'EXECUTE'
+  )$$,
+  ARRAY[true],
+  'refresh_community_league_card_estimates should grant EXECUTE to service_role'
+);
+
+SELECT results_eq(
+  $$SELECT NOT has_function_privilege(
+    'anon',
+    'public.refresh_community_league_card_estimates(uuid)'::regprocedure,
+    'EXECUTE'
+  )$$,
+  ARRAY[true],
+  'refresh_community_league_card_estimates should not grant EXECUTE to anon'
+);
+
+SELECT results_eq(
+  $$SELECT prosecdef
+    FROM pg_proc
+    WHERE oid = 'public.refresh_community_league_card_estimates(uuid)'::regprocedure$$,
+  ARRAY[true],
+  'refresh_community_league_card_estimates should be SECURITY DEFINER'
+);
+
+SELECT results_eq(
+  $$SELECT COALESCE(proconfig, ARRAY[]::text[]) @> ARRAY['search_path=public, pg_temp']
+    FROM pg_proc
+    WHERE oid = 'public.refresh_community_league_card_estimates(uuid)'::regprocedure$$,
+  ARRAY[true],
+  'refresh_community_league_card_estimates should pin search_path to public, pg_temp'
 );
 
 SELECT results_eq(
@@ -1083,6 +1125,25 @@ SELECT results_eq(
       )) AS result(total_cards int, upload_count int)$$,
   $$VALUES (17, 2)$$,
   'merge_community_upload_data should preserve larger name-based counts and increment upload_count'
+);
+
+SELECT results_eq(
+  $$SELECT upload_count, card_observed_total
+    FROM community_league_estimates
+    WHERE league_id = 'fd000000-0000-0000-0000-000000000001'
+      AND aggregate_scope = 'all'$$,
+  $$VALUES (3, 52::bigint)$$,
+  'merge_community_upload_data should refresh persisted league aggregates after upload'
+);
+
+SELECT results_eq(
+  $$SELECT count, contributors
+    FROM community_league_card_estimates
+    WHERE league_id = 'fd000000-0000-0000-0000-000000000001'
+      AND aggregate_scope = 'all'
+      AND card_id = 'fd000000-0000-0000-0000-000000000101'$$,
+  $$VALUES (22::bigint, 2)$$,
+  'merge_community_upload_data should refresh persisted league/card aggregates after upload'
 );
 
 SELECT throws_ok(

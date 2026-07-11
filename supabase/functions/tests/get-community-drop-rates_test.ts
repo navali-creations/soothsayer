@@ -62,6 +62,52 @@ type DropRateCard = {
   name: string;
 };
 
+type DropRateLeagueEstimate = {
+  league_id: string;
+  aggregate_scope: "all" | "non_suspicious";
+  upload_count: number;
+  observed_total: number;
+  card_observed_total: number;
+  contributors: number;
+  verified_observed_total: number;
+  verified_card_observed_total: number;
+  verified_contributors: number;
+  excluded_suspicious_upload_count: number;
+  excluded_suspicious_observed_total: number;
+  unresolved_card_row_count: number;
+  unresolved_card_observed_total: number;
+};
+
+type DropRateCardEstimate = {
+  league_id: string;
+  aggregate_scope: "all" | "non_suspicious";
+  card_id: string;
+  count: number;
+  ratio: number;
+  contributors: number;
+  verified_count: number;
+  verified_ratio: number;
+  verified_contributors: number;
+  community_estimated_weight: number | null;
+  community_estimated_chance: number | null;
+  seen_vs_community_estimate: number | null;
+  verified_community_estimated_weight: number | null;
+  verified_community_estimated_chance: number | null;
+  verified_seen_vs_community_estimate: number | null;
+};
+
+type DropRateResponseCardStats = Record<string, unknown>;
+
+type DropRateResponseCard = {
+  leagues: Record<string, DropRateResponseCardStats>;
+  [key: string]: unknown;
+};
+
+type DropRateResponseBody = {
+  cards: DropRateResponseCard[];
+  [key: string]: unknown;
+};
+
 function getRequestHeader(init: RequestInit | undefined, name: string) {
   const headers = init?.headers;
   if (!headers) return null;
@@ -115,6 +161,222 @@ function getRangeBounds(
   return [0, fallbackEnd] as const;
 }
 
+function roundRatio(value: number | null): number | null {
+  if (value === null || !Number.isFinite(value)) return null;
+  return Number(value.toFixed(12));
+}
+
+function roundWeight(value: number | null): number | null {
+  if (value === null || !Number.isFinite(value)) return null;
+  return Number(value.toFixed(3));
+}
+
+function getAggregateScope(input: string | URL | Request) {
+  const url = new URL(getRequestUrl(input));
+  const scope = url.searchParams.get("aggregate_scope");
+  return scope === "eq.non_suspicious" ? "non_suspicious" : "all";
+}
+
+function buildPersistedAggregateMocks({
+  uploads,
+  cardData,
+  cards,
+}: {
+  uploads: DropRateUpload[];
+  cardData: DropRateCardData[];
+  cards: DropRateCard[];
+}): {
+  leagueEstimates: DropRateLeagueEstimate[];
+  cardEstimates: DropRateCardEstimate[];
+} {
+  const scopes = ["all", "non_suspicious"] as const;
+  const cardById = new Map(cards.map((card) => [card.id, card]));
+  const leagueEstimates: DropRateLeagueEstimate[] = [];
+  const cardEstimates: DropRateCardEstimate[] = [];
+
+  for (const aggregate_scope of scopes) {
+    const includedUploads = aggregate_scope === "non_suspicious"
+      ? uploads.filter((upload) => !upload.is_suspicious)
+      : uploads;
+    const uploadById = new Map(includedUploads.map((upload) => [
+      upload.id,
+      upload,
+    ]));
+    const includedCardData = cardData.filter((row) =>
+      uploadById.has(row.upload_id)
+    );
+    const contributors = new Set(
+      includedUploads.map((upload) => upload.device_id),
+    );
+    const verifiedContributors = new Set(
+      includedUploads
+        .filter((upload) => upload.is_verified && upload.ggg_uuid)
+        .map((upload) => upload.ggg_uuid as string),
+    );
+    const suspiciousUploads = uploads.filter((upload) => upload.is_suspicious);
+    const cardObservedTotal = includedCardData.reduce(
+      (sum, row) => sum + row.count,
+      0,
+    );
+    const verifiedCardObservedTotal = includedCardData.reduce((sum, row) => {
+      const upload = uploadById.get(row.upload_id);
+      return sum + (upload?.is_verified ? row.count : 0);
+    }, 0);
+
+    leagueEstimates.push({
+      league_id: "league-1",
+      aggregate_scope,
+      upload_count: includedUploads.length,
+      observed_total: includedUploads.reduce(
+        (sum, upload) => sum + upload.total_cards_uploaded,
+        0,
+      ),
+      card_observed_total: cardObservedTotal,
+      contributors: contributors.size,
+      verified_observed_total: includedUploads.reduce(
+        (sum, upload) =>
+          sum + (upload.is_verified ? upload.total_cards_uploaded : 0),
+        0,
+      ),
+      verified_card_observed_total: verifiedCardObservedTotal,
+      verified_contributors: verifiedContributors.size,
+      excluded_suspicious_upload_count: aggregate_scope === "non_suspicious"
+        ? suspiciousUploads.length
+        : 0,
+      excluded_suspicious_observed_total: aggregate_scope === "non_suspicious"
+        ? suspiciousUploads.reduce(
+          (sum, upload) => sum + upload.total_cards_uploaded,
+          0,
+        )
+        : 0,
+      unresolved_card_row_count: 0,
+      unresolved_card_observed_total: 0,
+    });
+
+    const grouped = new Map<
+      string,
+      {
+        count: number;
+        contributors: Set<string>;
+        verified_count: number;
+        verified_contributors: Set<string>;
+      }
+    >();
+
+    for (const row of includedCardData) {
+      const upload = uploadById.get(row.upload_id);
+      if (!upload) continue;
+
+      if (!grouped.has(row.card_id)) {
+        grouped.set(row.card_id, {
+          count: 0,
+          contributors: new Set(),
+          verified_count: 0,
+          verified_contributors: new Set(),
+        });
+      }
+
+      const stats = grouped.get(row.card_id)!;
+      stats.count += row.count;
+      stats.contributors.add(upload.device_id);
+
+      if (upload.is_verified) {
+        stats.verified_count += row.count;
+        if (upload.ggg_uuid) {
+          stats.verified_contributors.add(upload.ggg_uuid);
+        }
+      }
+    }
+
+    const anchor = [...grouped.entries()].find(([cardId]) =>
+      cardById.get(cardId)?.name === "Rain of Chaos"
+    )?.[1];
+    const scale = anchor && anchor.count > 0
+      ? anchor.count ** 1.5 / 121400
+      : null;
+    const verifiedScale = anchor && anchor.verified_count > 0
+      ? anchor.verified_count ** 1.5 / 121400
+      : null;
+
+    const weighted = [...grouped.entries()].map(([card_id, stats]) => {
+      const community_estimated_weight = scale
+        ? roundWeight(stats.count ** 1.5 / scale)
+        : null;
+      const verified_community_estimated_weight =
+        verifiedScale && stats.verified_count > 0
+          ? roundWeight(stats.verified_count ** 1.5 / verifiedScale)
+          : null;
+
+      return {
+        card_id,
+        stats,
+        community_estimated_weight,
+        verified_community_estimated_weight,
+      };
+    });
+
+    const weightTotal = weighted.reduce(
+      (sum, row) => sum + (row.community_estimated_weight ?? 0),
+      0,
+    );
+    const verifiedWeightTotal = weighted.reduce(
+      (sum, row) => sum + (row.verified_community_estimated_weight ?? 0),
+      0,
+    );
+
+    for (const row of weighted) {
+      const ratio = cardObservedTotal > 0
+        ? Number((row.stats.count / cardObservedTotal).toFixed(6))
+        : 0;
+      const verified_ratio = verifiedCardObservedTotal > 0
+        ? Number(
+          (row.stats.verified_count / verifiedCardObservedTotal).toFixed(6),
+        )
+        : 0;
+      const community_estimated_chance =
+        row.community_estimated_weight !== null && weightTotal > 0
+          ? roundRatio(row.community_estimated_weight / weightTotal)
+          : null;
+      const verified_community_estimated_chance =
+        row.verified_community_estimated_weight !== null &&
+          verifiedWeightTotal > 0
+          ? roundRatio(
+            row.verified_community_estimated_weight / verifiedWeightTotal,
+          )
+          : null;
+
+      cardEstimates.push({
+        league_id: "league-1",
+        aggregate_scope,
+        card_id: row.card_id,
+        count: row.stats.count,
+        ratio,
+        contributors: row.stats.contributors.size,
+        verified_count: row.stats.verified_count,
+        verified_ratio,
+        verified_contributors: row.stats.verified_contributors.size,
+        community_estimated_weight: row.community_estimated_weight,
+        community_estimated_chance,
+        seen_vs_community_estimate:
+          community_estimated_chance !== null && community_estimated_chance > 0
+            ? roundRatio(ratio / community_estimated_chance)
+            : null,
+        verified_community_estimated_weight:
+          row.verified_community_estimated_weight,
+        verified_community_estimated_chance,
+        verified_seen_vs_community_estimate:
+          verified_community_estimated_chance !== null &&
+            verified_community_estimated_chance > 0 &&
+            row.stats.verified_count > 0
+            ? roundRatio(verified_ratio / verified_community_estimated_chance)
+            : null,
+      });
+    }
+  }
+
+  return { leagueEstimates, cardEstimates };
+}
+
 function setupDropRateMocks(
   fetchMock: ReturnType<typeof mockFetch>,
   {
@@ -127,16 +389,52 @@ function setupDropRateMocks(
     cards: DropRateCard[];
   },
 ): void {
-  fetchMock.onUrlContaining(supabaseUrls.rpc("check_and_log_request"), () =>
-    rpcResponse({ allowed: true }),
+  fetchMock.onUrlContaining(
+    supabaseUrls.rpc("check_and_log_request"),
+    () => rpcResponse({ allowed: true }),
   );
 
-  fetchMock.onUrlContaining(supabaseUrls.table("poe_leagues"), () =>
-    postgrestResponse([{ id: "league-1", name: "Mirage" }]),
+  fetchMock.onUrlContaining(
+    supabaseUrls.table("poe_leagues"),
+    () => postgrestResponse([{ id: "league-1", name: "Mirage" }]),
   );
 
-  fetchMock.onUrlContaining(supabaseUrls.table("community_uploads"), () =>
-    postgrestResponse(uploads),
+  const { leagueEstimates, cardEstimates } = buildPersistedAggregateMocks({
+    uploads,
+    cardData,
+    cards,
+  });
+
+  fetchMock.onUrlContaining(
+    supabaseUrls.table("community_league_estimates"),
+    (input) => {
+      const scope = getAggregateScope(input);
+      return postgrestResponse(
+        leagueEstimates.filter((row) => row.aggregate_scope === scope),
+      );
+    },
+  );
+
+  fetchMock.onUrlContaining(
+    supabaseUrls.table("community_league_card_estimates"),
+    (input, init) => {
+      const scope = getAggregateScope(input);
+      const scopedRows = cardEstimates.filter((row) =>
+        row.aggregate_scope === scope
+      );
+      const [start, end] = getRangeBounds(input, init, scopedRows.length - 1);
+      const page = scopedRows.slice(start, end + 1);
+      const pageEnd = page.length > 0 ? start + page.length - 1 : start;
+
+      return postgrestResponse(page, 200, {
+        "Content-Range": `${start}-${pageEnd}/${scopedRows.length}`,
+      });
+    },
+  );
+
+  fetchMock.onUrlContaining(
+    supabaseUrls.table("community_uploads"),
+    () => postgrestResponse(uploads),
   );
 
   fetchMock.onUrlContaining(
@@ -161,6 +459,32 @@ function setupDropRateMocks(
       "Content-Range": `${start}-${pageEnd}/${cards.length}`,
     });
   });
+}
+
+function stripCommunityEstimateFields(body: DropRateResponseBody): unknown {
+  return {
+    ...body,
+    cards: body.cards.map((card) => ({
+      ...card,
+      leagues: Object.fromEntries(
+        Object.entries(card.leagues).map(([leagueId, stats]) => {
+          const {
+            community_estimated_weight: _communityEstimatedWeight,
+            community_estimated_chance: _communityEstimatedChance,
+            seen_vs_community_estimate: _seenVsCommunityEstimate,
+            verified_community_estimated_weight:
+              _verifiedCommunityEstimatedWeight,
+            verified_community_estimated_chance:
+              _verifiedCommunityEstimatedChance,
+            verified_seen_vs_community_estimate:
+              _verifiedSeenVsCommunityEstimate,
+            ...rest
+          } = stats as Record<string, unknown>;
+          return [leagueId, rest];
+        }),
+      ),
+    })),
+  };
 }
 
 quietTest(
@@ -208,7 +532,7 @@ quietTest(
       const resp = await handler(createFunctionRequest());
 
       assertEquals(resp.status, 200);
-      assertEquals(await resp.json(), {
+      assertEquals(stripCommunityEstimateFields(await resp.json()), {
         game: "poe1",
         leagues: [
           {
@@ -258,7 +582,7 @@ quietTest(
       });
 
       const cardsRequest = fetchMock.calls.find(({ url }) =>
-        url.includes(supabaseUrls.table("cards")),
+        url.includes(supabaseUrls.table("cards"))
       );
       assert(cardsRequest?.url.includes("game=eq.poe1"));
       assert(!cardsRequest?.url.includes("id=in."));
@@ -303,7 +627,7 @@ quietTest(
       const resp = await handler(createFunctionRequest());
 
       assertEquals(resp.status, 200);
-      assertEquals(await resp.json(), {
+      assertEquals(stripCommunityEstimateFields(await resp.json()), {
         game: "poe1",
         leagues: [
           {
@@ -359,12 +683,98 @@ quietTest(
 );
 
 quietTest(
-  "get-community-drop-rates — paginates community card data at Supabase row cap",
+  "get-community-drop-rates — includes Rain-anchored community estimates per league card",
   async () => {
     const cleanupEnv = setupEnv({
       WRAECLAST_CARDS_API_KEY: "test-wraeclast-key",
     });
     const fetchMock = mockFetch();
+
+    setupDropRateMocks(fetchMock, {
+      uploads: [
+        {
+          id: "upload-verified",
+          league_id: "league-1",
+          device_id: "device-a",
+          ggg_uuid: "ggg-a",
+          is_verified: true,
+          is_suspicious: false,
+          total_cards_uploaded: 125,
+        },
+      ],
+      cardData: [
+        { upload_id: "upload-verified", card_id: "card-rain", count: 100 },
+        { upload_id: "upload-verified", card_id: "card-doctor", count: 25 },
+      ],
+      cards: [
+        { id: "card-doctor", name: "The Doctor" },
+        { id: "card-rain", name: "Rain of Chaos" },
+      ],
+    });
+
+    try {
+      const resp = await handler(createFunctionRequest());
+      const body = await resp.json();
+
+      assertEquals(resp.status, 200);
+      assertEquals(body.cards, [
+        {
+          name: "Rain of Chaos",
+          leagues: {
+            "league-1": {
+              count: 100,
+              ratio: 0.8,
+              contributors: 1,
+              verified_count: 100,
+              verified_ratio: 0.8,
+              verified_contributors: 1,
+              community_estimated_weight: 121400,
+              community_estimated_chance: 0.888888888889,
+              seen_vs_community_estimate: 0.9,
+              verified_community_estimated_weight: 121400,
+              verified_community_estimated_chance: 0.888888888889,
+              verified_seen_vs_community_estimate: 0.9,
+            },
+          },
+        },
+        {
+          name: "The Doctor",
+          leagues: {
+            "league-1": {
+              count: 25,
+              ratio: 0.2,
+              contributors: 1,
+              verified_count: 25,
+              verified_ratio: 0.2,
+              verified_contributors: 1,
+              community_estimated_weight: 15175,
+              community_estimated_chance: 0.111111111111,
+              seen_vs_community_estimate: 1.800000000002,
+              verified_community_estimated_weight: 15175,
+              verified_community_estimated_chance: 0.111111111111,
+              verified_seen_vs_community_estimate: 1.800000000002,
+            },
+          },
+        },
+      ]);
+    } finally {
+      fetchMock.restore();
+      cleanupEnv();
+    }
+  },
+);
+
+quietTest(
+  "get-community-drop-rates — paginates persisted community card aggregates at Supabase row cap",
+  async () => {
+    const cleanupEnv = setupEnv({
+      WRAECLAST_CARDS_API_KEY: "test-wraeclast-key",
+    });
+    const fetchMock = mockFetch();
+    const cards = Array.from({ length: 1001 }, (_, index) => ({
+      id: `card-large-${index.toString().padStart(4, "0")}`,
+      name: `Large Card ${index.toString().padStart(4, "0")}`,
+    }));
 
     setupDropRateMocks(fetchMock, {
       uploads: [
@@ -378,58 +788,32 @@ quietTest(
           total_cards_uploaded: 1001,
         },
       ],
-      cardData: Array.from({ length: 1001 }, () => ({
+      cardData: cards.map((card) => ({
         upload_id: "upload-large",
-        card_id: "card-doctor",
+        card_id: card.id,
         count: 1,
       })),
-      cards: [{ id: "card-doctor", name: "The Doctor" }],
+      cards,
     });
 
     try {
       const resp = await handler(createFunctionRequest());
+      const body = await resp.json();
 
       assertEquals(resp.status, 200);
-      assertEquals(await resp.json(), {
-        game: "poe1",
-        leagues: [
-          {
-            id: "league-1",
-            name: "Mirage",
-            upload_count: 1,
-            observed_total: 1001,
-            card_observed_total: 1001,
-            contributors: 1,
-            verified_observed_total: 0,
-            verified_card_observed_total: 0,
-            verified_contributors: 0,
-            excluded_suspicious_upload_count: 0,
-            excluded_suspicious_observed_total: 0,
-            unresolved_card_row_count: 0,
-            unresolved_card_observed_total: 0,
-          },
-        ],
-        cards: [
-          {
-            name: "The Doctor",
-            leagues: {
-              "league-1": {
-                count: 1001,
-                ratio: 1,
-                contributors: 1,
-                verified_count: 0,
-                verified_ratio: 0,
-                verified_contributors: 0,
-              },
-            },
-          },
-        ],
-      });
+      assertEquals(body.leagues[0].card_observed_total, 1001);
+      assertEquals(body.cards.length, 1001);
 
-      const cardDataRequests = fetchMock.calls.filter(({ url }) =>
-        url.includes(supabaseUrls.table("community_card_data")),
+      const cardAggregateRequests = fetchMock.calls.filter(({ url }) =>
+        url.includes(supabaseUrls.table("community_league_card_estimates"))
       );
-      assertEquals(cardDataRequests.length, 2);
+      assertEquals(cardAggregateRequests.length, 2);
+      assertEquals(
+        fetchMock.calls.filter(({ url }) =>
+          url.includes(supabaseUrls.table("community_card_data"))
+        ).length,
+        0,
+      );
     } finally {
       fetchMock.restore();
       cleanupEnv();
@@ -478,7 +862,7 @@ quietTest(
       assertEquals(body.cards.length, 1001);
 
       const cardRequests = fetchMock.calls.filter(({ url }) =>
-        url.includes(supabaseUrls.table("cards")),
+        url.includes(supabaseUrls.table("cards"))
       );
       assertEquals(cardRequests.length, 2);
       assert(
@@ -538,7 +922,7 @@ quietTest(
       const defaultResp = await handler(createFunctionRequest());
 
       assertEquals(defaultResp.status, 200);
-      assertEquals(await defaultResp.json(), {
+      assertEquals(stripCommunityEstimateFields(await defaultResp.json()), {
         game: "poe1",
         leagues: [
           {
@@ -592,54 +976,57 @@ quietTest(
       );
 
       assertEquals(excludeSuspiciousResp.status, 200);
-      assertEquals(await excludeSuspiciousResp.json(), {
-        game: "poe1",
-        leagues: [
-          {
-            id: "league-1",
-            name: "Mirage",
-            upload_count: 1,
-            observed_total: 100,
-            card_observed_total: 100,
-            contributors: 1,
-            verified_observed_total: 0,
-            verified_card_observed_total: 0,
-            verified_contributors: 0,
-            excluded_suspicious_upload_count: 1,
-            excluded_suspicious_observed_total: 900,
-            unresolved_card_row_count: 0,
-            unresolved_card_observed_total: 0,
-          },
-        ],
-        cards: [
-          {
-            name: "Rain of Chaos",
-            leagues: {
-              "league-1": {
-                count: 60,
-                ratio: 0.6,
-                contributors: 1,
-                verified_count: 0,
-                verified_ratio: 0,
-                verified_contributors: 0,
+      assertEquals(
+        stripCommunityEstimateFields(await excludeSuspiciousResp.json()),
+        {
+          game: "poe1",
+          leagues: [
+            {
+              id: "league-1",
+              name: "Mirage",
+              upload_count: 1,
+              observed_total: 100,
+              card_observed_total: 100,
+              contributors: 1,
+              verified_observed_total: 0,
+              verified_card_observed_total: 0,
+              verified_contributors: 0,
+              excluded_suspicious_upload_count: 1,
+              excluded_suspicious_observed_total: 900,
+              unresolved_card_row_count: 0,
+              unresolved_card_observed_total: 0,
+            },
+          ],
+          cards: [
+            {
+              name: "Rain of Chaos",
+              leagues: {
+                "league-1": {
+                  count: 60,
+                  ratio: 0.6,
+                  contributors: 1,
+                  verified_count: 0,
+                  verified_ratio: 0,
+                  verified_contributors: 0,
+                },
               },
             },
-          },
-          {
-            name: "The Doctor",
-            leagues: {
-              "league-1": {
-                count: 40,
-                ratio: 0.4,
-                contributors: 1,
-                verified_count: 0,
-                verified_ratio: 0,
-                verified_contributors: 0,
+            {
+              name: "The Doctor",
+              leagues: {
+                "league-1": {
+                  count: 40,
+                  ratio: 0.4,
+                  contributors: 1,
+                  verified_count: 0,
+                  verified_ratio: 0,
+                  verified_contributors: 0,
+                },
               },
             },
-          },
-        ],
-      });
+          ],
+        },
+      );
     } finally {
       fetchMock.restore();
       cleanupEnv();
@@ -690,7 +1077,7 @@ quietTest(
       const resp = await handler(createFunctionRequest());
 
       assertEquals(resp.status, 200);
-      assertEquals(await resp.json(), {
+      assertEquals(stripCommunityEstimateFields(await resp.json()), {
         game: "poe1",
         leagues: [
           {
@@ -705,8 +1092,8 @@ quietTest(
             verified_contributors: 1,
             excluded_suspicious_upload_count: 0,
             excluded_suspicious_observed_total: 0,
-            unresolved_card_row_count: 1,
-            unresolved_card_observed_total: 50,
+            unresolved_card_row_count: 0,
+            unresolved_card_observed_total: 0,
           },
         ],
         cards: [
