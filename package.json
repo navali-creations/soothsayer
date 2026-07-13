@@ -100,7 +100,7 @@
     "electron-squirrel-startup": "^1.0.1",
     "immer": "^11.1.11",
     "jsdom": "^29.1.1",
-    "kysely": "^0.29.2",
+    "kysely": "^0.29.3",
     "motion": "^12.42.2",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
