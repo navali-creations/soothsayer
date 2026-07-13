@@ -65,8 +65,10 @@ jobs:
         if: steps.cache-modules.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
 
-      - name: Rebuild Electron binary
-        run: pnpm rebuild electron
+      - name: Ensure Electron binary
+        run: |
+          node node_modules/electron/install.js
+          test -x node_modules/electron/dist/electron
 
   lint:
     name: Lint
@@ -646,8 +648,10 @@ jobs:
           key: node-modules-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ env.NODE_MODULES_CACHE_VERSION }}-${{ hashFiles('pnpm-lock.yaml') }}
           fail-on-cache-miss: true
 
-      - name: Rebuild Electron binary
-        run: pnpm rebuild electron
+      - name: Ensure Electron binary
+        run: |
+          node node_modules/electron/install.js
+          test -x node_modules/electron/dist/electron
 
       - name: Install system dependencies for Electron
         run: |

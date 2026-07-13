@@ -11,15 +11,6 @@ import {
 } from "@playwright/test";
 
 export function resolveElectronPath(): string {
-  try {
-    const electronModule = require("electron") as string;
-    if (typeof electronModule === "string" && fs.existsSync(electronModule)) {
-      return electronModule;
-    }
-  } catch {
-    // Fall through to manual resolution
-  }
-
   const projectRoot = path.resolve(__dirname, "../..");
   const platform = process.platform;
   const binaryName: Record<string, string> = {
@@ -31,6 +22,17 @@ export function resolveElectronPath(): string {
   const bin = binaryName[platform];
   if (!bin) {
     throw new Error(`Unsupported platform: "${platform}"`);
+  }
+
+  try {
+    const packageJsonPath = require.resolve("electron/package.json");
+    const packagePath = path.dirname(packageJsonPath);
+    const packageDistPath = path.join(packagePath, "dist", bin);
+    if (fs.existsSync(packageDistPath)) {
+      return packageDistPath;
+    }
+  } catch {
+    // Fall through to manual resolution
   }
 
   // Flat node_modules
@@ -66,7 +68,8 @@ export function resolveElectronPath(): string {
   }
 
   throw new Error(
-    `Could not resolve Electron binary for platform "${platform}". Ensure electron is installed.`,
+    `Could not resolve Electron binary for platform "${platform}". ` +
+      "Run `node node_modules/electron/install.js` before starting E2E tests.",
   );
 }
 
