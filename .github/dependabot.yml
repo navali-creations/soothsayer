@@ -5,9 +5,9 @@ updates:
     directory: "/"
     rebase-strategy: "disabled"
     schedule:
-      interval: "weekly"
-      day: sunday
-    open-pull-requests-limit: 10
+      interval: monthly
+      day: saturday
+    open-pull-requests-limit: 15
     labels:
       - "dependencies"
     groups:
