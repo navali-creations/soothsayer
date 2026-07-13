@@ -69,8 +69,8 @@ function getErrorStatus(error: unknown): number | undefined {
 function getConfiguredApiKey(): string | null {
   return (
     Deno.env.get("WRAECLAST_CARDS_API_KEY") ??
-      Deno.env.get("wraeclast_cards_api_key") ??
-      null
+    Deno.env.get("wraeclast_cards_api_key") ??
+    null
   );
 }
 
@@ -151,11 +151,9 @@ Deno.serve(async (req: Request) => {
     "SHA-256",
     new TextEncoder().encode(apiKey),
   );
-  const identifier = `apikey:${
-    Array.from(new Uint8Array(identifierHash))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("")
-  }`;
+  const identifier = `apikey:${Array.from(new Uint8Array(identifierHash))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")}`;
 
   try {
     await enforceRateLimitByIdentifier({
@@ -195,7 +193,8 @@ Deno.serve(async (req: Request) => {
   // ── Parse & validate query params ───────────────────────────────────
   const url = new URL(req.url);
   const game = url.searchParams.get("game");
-  const includeInactive = url.searchParams.get("include_inactive") === "true" ||
+  const includeInactive =
+    url.searchParams.get("include_inactive") === "true" ||
     url.searchParams.get("include_inactive") === "1";
   const excludeSuspicious =
     url.searchParams.get("exclude_suspicious") === "true" ||
@@ -382,12 +381,9 @@ Deno.serve(async (req: Request) => {
     }
 
     const persistedLeagueById = new Map(
-      ((persistedLeagues ?? []) as unknown as PersistedLeagueStats[]).map((
-        row,
-      ) => [
-        row.league_id,
-        row,
-      ]),
+      ((persistedLeagues ?? []) as unknown as PersistedLeagueStats[]).map(
+        (row) => [row.league_id, row],
+      ),
     );
 
     function zeroLeagueStats(leagueId: string): PersistedLeagueStats {
@@ -410,20 +406,22 @@ Deno.serve(async (req: Request) => {
     const leaguesWithCardData = new Set(
       persistedCardRows.map((row) => row.league_id),
     );
-    const hasAnyCommunityData = persistedCardRows.length > 0 ||
-      [...persistedLeagueById.values()].some((row) =>
-        toNumber(row.upload_count) > 0
+    const hasAnyCommunityData =
+      persistedCardRows.length > 0 ||
+      [...persistedLeagueById.values()].some(
+        (row) => toNumber(row.upload_count) > 0,
       );
 
     const responseLeagues = leagueRows
-      .filter((league) =>
-        !hasAnyCommunityData ||
-        leaguesWithCardData.has(league.id) ||
-        toNumber(persistedLeagueById.get(league.id)?.upload_count) > 0
+      .filter(
+        (league) =>
+          !hasAnyCommunityData ||
+          leaguesWithCardData.has(league.id) ||
+          toNumber(persistedLeagueById.get(league.id)?.upload_count) > 0,
       )
       .map((league) => {
-        const stats = persistedLeagueById.get(league.id) ??
-          zeroLeagueStats(league.id);
+        const stats =
+          persistedLeagueById.get(league.id) ?? zeroLeagueStats(league.id);
 
         return {
           id: league.id,
@@ -513,15 +511,18 @@ Deno.serve(async (req: Request) => {
         verified_count: toNumber(row.verified_count),
         verified_ratio: toNumber(row.verified_ratio),
         verified_contributors: toNumber(row.verified_contributors),
-        community_estimated_weight: row.community_estimated_weight === null
-          ? null
-          : toNumber(row.community_estimated_weight),
-        community_estimated_chance: row.community_estimated_chance === null
-          ? null
-          : toNumber(row.community_estimated_chance),
-        seen_vs_community_estimate: row.seen_vs_community_estimate === null
-          ? null
-          : toNumber(row.seen_vs_community_estimate),
+        community_estimated_weight:
+          row.community_estimated_weight === null
+            ? null
+            : toNumber(row.community_estimated_weight),
+        community_estimated_chance:
+          row.community_estimated_chance === null
+            ? null
+            : toNumber(row.community_estimated_chance),
+        seen_vs_community_estimate:
+          row.seen_vs_community_estimate === null
+            ? null
+            : toNumber(row.seen_vs_community_estimate),
         verified_community_estimated_weight:
           row.verified_community_estimated_weight === null
             ? null
@@ -941,19 +942,14 @@ Deno.serve(async (req: Request) => {
     verified_chance: number | null;
   };
 
-  const communityEstimates = new Map<
-    string,
-    Map<string, CommunityEstimate>
-  >();
+  const communityEstimates = new Map<string, Map<string, CommunityEstimate>>();
   const anchorLeagueMap = aggMap.get(COMMUNITY_WEIGHT_ANCHOR_CARD);
 
   for (const league of responseLeagues) {
     const leagueId = league.id;
     const anchorAgg = anchorLeagueMap?.get(leagueId);
     const scale = communityWeightScale(anchorAgg?.total_count ?? 0);
-    const verifiedScale = communityWeightScale(
-      anchorAgg?.verified_count ?? 0,
-    );
+    const verifiedScale = communityWeightScale(anchorAgg?.verified_count ?? 0);
     const leagueEstimates = new Map<string, CommunityEstimate>();
     let weightTotal = 0;
     let verifiedWeightTotal = 0;
@@ -985,9 +981,10 @@ Deno.serve(async (req: Request) => {
     }
 
     for (const estimate of leagueEstimates.values()) {
-      estimate.chance = estimate.weight !== null && weightTotal > 0
-        ? roundRatio(estimate.weight / weightTotal)
-        : null;
+      estimate.chance =
+        estimate.weight !== null && weightTotal > 0
+          ? roundRatio(estimate.weight / weightTotal)
+          : null;
       estimate.verified_chance =
         estimate.verified_weight !== null && verifiedWeightTotal > 0
           ? roundRatio(estimate.verified_weight / verifiedWeightTotal)
@@ -1008,19 +1005,19 @@ Deno.serve(async (req: Request) => {
       const stats = getLeagueUploadStats(leagueId);
       const totalDropsInLeague = stats.card_observed_total;
       const verifiedDropsInLeague = stats.verified_card_observed_total;
-      const ratio = totalDropsInLeague > 0
-        ? parseFloat((agg.total_count / totalDropsInLeague).toFixed(6))
-        : 0;
-      const verifiedRatio = verifiedDropsInLeague > 0
-        ? parseFloat(
-          (agg.verified_count / verifiedDropsInLeague).toFixed(6),
-        )
-        : 0;
+      const ratio =
+        totalDropsInLeague > 0
+          ? parseFloat((agg.total_count / totalDropsInLeague).toFixed(6))
+          : 0;
+      const verifiedRatio =
+        verifiedDropsInLeague > 0
+          ? parseFloat((agg.verified_count / verifiedDropsInLeague).toFixed(6))
+          : 0;
       const communityEstimate =
         communityEstimates.get(leagueId)?.get(cardName) ?? null;
       const communityChance = communityEstimate?.chance ?? null;
-      const verifiedCommunityChance = communityEstimate?.verified_chance ??
-        null;
+      const verifiedCommunityChance =
+        communityEstimate?.verified_chance ?? null;
 
       leaguesObj[leagueId] = {
         count: agg.total_count,
@@ -1038,11 +1035,12 @@ Deno.serve(async (req: Request) => {
         verified_community_estimated_weight:
           communityEstimate?.verified_weight ?? null,
         verified_community_estimated_chance: verifiedCommunityChance,
-        verified_seen_vs_community_estimate: verifiedCommunityChance !== null &&
-            verifiedCommunityChance > 0 &&
-            agg.verified_count > 0
-          ? roundRatio(verifiedRatio / verifiedCommunityChance)
-          : null,
+        verified_seen_vs_community_estimate:
+          verifiedCommunityChance !== null &&
+          verifiedCommunityChance > 0 &&
+          agg.verified_count > 0
+            ? roundRatio(verifiedRatio / verifiedCommunityChance)
+            : null,
       };
     }
 

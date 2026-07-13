@@ -19,6 +19,7 @@
     "typecheck": "tsc --noEmit",
     "check": "biome check .",
     "check:fix": "biome check --write .",
+    "migration:biome": "biome migrate --write",
     "migration:create": "node main/modules/database/migrations/create-migration.ts",
     "prepare-deps:electron": "pnpm rebuild electron && electron-rebuild -f -w better-sqlite3",
     "postinstall": "pnpm prepare-deps:electron",

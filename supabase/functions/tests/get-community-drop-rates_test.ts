@@ -195,15 +195,15 @@ function buildPersistedAggregateMocks({
   const cardEstimates: DropRateCardEstimate[] = [];
 
   for (const aggregate_scope of scopes) {
-    const includedUploads = aggregate_scope === "non_suspicious"
-      ? uploads.filter((upload) => !upload.is_suspicious)
-      : uploads;
-    const uploadById = new Map(includedUploads.map((upload) => [
-      upload.id,
-      upload,
-    ]));
+    const includedUploads =
+      aggregate_scope === "non_suspicious"
+        ? uploads.filter((upload) => !upload.is_suspicious)
+        : uploads;
+    const uploadById = new Map(
+      includedUploads.map((upload) => [upload.id, upload]),
+    );
     const includedCardData = cardData.filter((row) =>
-      uploadById.has(row.upload_id)
+      uploadById.has(row.upload_id),
     );
     const contributors = new Set(
       includedUploads.map((upload) => upload.device_id),
@@ -240,15 +240,15 @@ function buildPersistedAggregateMocks({
       ),
       verified_card_observed_total: verifiedCardObservedTotal,
       verified_contributors: verifiedContributors.size,
-      excluded_suspicious_upload_count: aggregate_scope === "non_suspicious"
-        ? suspiciousUploads.length
-        : 0,
-      excluded_suspicious_observed_total: aggregate_scope === "non_suspicious"
-        ? suspiciousUploads.reduce(
-          (sum, upload) => sum + upload.total_cards_uploaded,
-          0,
-        )
-        : 0,
+      excluded_suspicious_upload_count:
+        aggregate_scope === "non_suspicious" ? suspiciousUploads.length : 0,
+      excluded_suspicious_observed_total:
+        aggregate_scope === "non_suspicious"
+          ? suspiciousUploads.reduce(
+              (sum, upload) => sum + upload.total_cards_uploaded,
+              0,
+            )
+          : 0,
       unresolved_card_row_count: 0,
       unresolved_card_observed_total: 0,
     });
@@ -288,15 +288,15 @@ function buildPersistedAggregateMocks({
       }
     }
 
-    const anchor = [...grouped.entries()].find(([cardId]) =>
-      cardById.get(cardId)?.name === "Rain of Chaos"
+    const anchor = [...grouped.entries()].find(
+      ([cardId]) => cardById.get(cardId)?.name === "Rain of Chaos",
     )?.[1];
-    const scale = anchor && anchor.count > 0
-      ? anchor.count ** 1.5 / 121400
-      : null;
-    const verifiedScale = anchor && anchor.verified_count > 0
-      ? anchor.verified_count ** 1.5 / 121400
-      : null;
+    const scale =
+      anchor && anchor.count > 0 ? anchor.count ** 1.5 / 121400 : null;
+    const verifiedScale =
+      anchor && anchor.verified_count > 0
+        ? anchor.verified_count ** 1.5 / 121400
+        : null;
 
     const weighted = [...grouped.entries()].map(([card_id, stats]) => {
       const community_estimated_weight = scale
@@ -325,24 +325,26 @@ function buildPersistedAggregateMocks({
     );
 
     for (const row of weighted) {
-      const ratio = cardObservedTotal > 0
-        ? Number((row.stats.count / cardObservedTotal).toFixed(6))
-        : 0;
-      const verified_ratio = verifiedCardObservedTotal > 0
-        ? Number(
-          (row.stats.verified_count / verifiedCardObservedTotal).toFixed(6),
-        )
-        : 0;
+      const ratio =
+        cardObservedTotal > 0
+          ? Number((row.stats.count / cardObservedTotal).toFixed(6))
+          : 0;
+      const verified_ratio =
+        verifiedCardObservedTotal > 0
+          ? Number(
+              (row.stats.verified_count / verifiedCardObservedTotal).toFixed(6),
+            )
+          : 0;
       const community_estimated_chance =
         row.community_estimated_weight !== null && weightTotal > 0
           ? roundRatio(row.community_estimated_weight / weightTotal)
           : null;
       const verified_community_estimated_chance =
         row.verified_community_estimated_weight !== null &&
-          verifiedWeightTotal > 0
+        verifiedWeightTotal > 0
           ? roundRatio(
-            row.verified_community_estimated_weight / verifiedWeightTotal,
-          )
+              row.verified_community_estimated_weight / verifiedWeightTotal,
+            )
           : null;
 
       cardEstimates.push({
@@ -366,8 +368,8 @@ function buildPersistedAggregateMocks({
         verified_community_estimated_chance,
         verified_seen_vs_community_estimate:
           verified_community_estimated_chance !== null &&
-            verified_community_estimated_chance > 0 &&
-            row.stats.verified_count > 0
+          verified_community_estimated_chance > 0 &&
+          row.stats.verified_count > 0
             ? roundRatio(verified_ratio / verified_community_estimated_chance)
             : null,
       });
@@ -389,14 +391,12 @@ function setupDropRateMocks(
     cards: DropRateCard[];
   },
 ): void {
-  fetchMock.onUrlContaining(
-    supabaseUrls.rpc("check_and_log_request"),
-    () => rpcResponse({ allowed: true }),
+  fetchMock.onUrlContaining(supabaseUrls.rpc("check_and_log_request"), () =>
+    rpcResponse({ allowed: true }),
   );
 
-  fetchMock.onUrlContaining(
-    supabaseUrls.table("poe_leagues"),
-    () => postgrestResponse([{ id: "league-1", name: "Mirage" }]),
+  fetchMock.onUrlContaining(supabaseUrls.table("poe_leagues"), () =>
+    postgrestResponse([{ id: "league-1", name: "Mirage" }]),
   );
 
   const { leagueEstimates, cardEstimates } = buildPersistedAggregateMocks({
@@ -419,8 +419,8 @@ function setupDropRateMocks(
     supabaseUrls.table("community_league_card_estimates"),
     (input, init) => {
       const scope = getAggregateScope(input);
-      const scopedRows = cardEstimates.filter((row) =>
-        row.aggregate_scope === scope
+      const scopedRows = cardEstimates.filter(
+        (row) => row.aggregate_scope === scope,
       );
       const [start, end] = getRangeBounds(input, init, scopedRows.length - 1);
       const page = scopedRows.slice(start, end + 1);
@@ -432,9 +432,8 @@ function setupDropRateMocks(
     },
   );
 
-  fetchMock.onUrlContaining(
-    supabaseUrls.table("community_uploads"),
-    () => postgrestResponse(uploads),
+  fetchMock.onUrlContaining(supabaseUrls.table("community_uploads"), () =>
+    postgrestResponse(uploads),
   );
 
   fetchMock.onUrlContaining(
@@ -582,7 +581,7 @@ quietTest(
       });
 
       const cardsRequest = fetchMock.calls.find(({ url }) =>
-        url.includes(supabaseUrls.table("cards"))
+        url.includes(supabaseUrls.table("cards")),
       );
       assert(cardsRequest?.url.includes("game=eq.poe1"));
       assert(!cardsRequest?.url.includes("id=in."));
@@ -805,12 +804,12 @@ quietTest(
       assertEquals(body.cards.length, 1001);
 
       const cardAggregateRequests = fetchMock.calls.filter(({ url }) =>
-        url.includes(supabaseUrls.table("community_league_card_estimates"))
+        url.includes(supabaseUrls.table("community_league_card_estimates")),
       );
       assertEquals(cardAggregateRequests.length, 2);
       assertEquals(
         fetchMock.calls.filter(({ url }) =>
-          url.includes(supabaseUrls.table("community_card_data"))
+          url.includes(supabaseUrls.table("community_card_data")),
         ).length,
         0,
       );
@@ -862,7 +861,7 @@ quietTest(
       assertEquals(body.cards.length, 1001);
 
       const cardRequests = fetchMock.calls.filter(({ url }) =>
-        url.includes(supabaseUrls.table("cards"))
+        url.includes(supabaseUrls.table("cards")),
       );
       assertEquals(cardRequests.length, 2);
       assert(
