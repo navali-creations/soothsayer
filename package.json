@@ -11,8 +11,8 @@
     "url": "git+https://github.com/navali-creations/soothsayer.git"
   },
   "scripts": {
-    "dev": "pnpm supabase:start && pnpm start",
-    "start": "electron-forge start",
+    "dev": "pnpm supabase:start && cross-env SOOTHSAYER_SUPABASE_TARGET=local electron-forge start",
+    "start": "cross-env SOOTHSAYER_SUPABASE_TARGET=production electron-forge start",
     "package": "electron-forge package",
     "make": "electron-forge make",
     "publish": "electron-forge publish",

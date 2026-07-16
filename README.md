@@ -89,10 +89,10 @@ pnpx supabase stop --no-backup
 - `pnpm supabase:start:fresh` wipes everything for a clean slate
 
 **Local vs Production mode:**
-- When Supabase is running locally, the app uses `.env.local` (local dev credentials)
-- When you run `pnpm supabase:stop`, `.env.local` is removed automatically
-- After stopping, `pnpm start` will use production credentials from `.env`
-- This allows seamless switching between local development and production testing
+- `pnpm dev` starts local Supabase and injects `.env.supabase.local`
+- `pnpm start` always injects production credentials from `.env`
+- `pnpm supabase:stop` stops local services but preserves local credentials
+- Local and production Supabase sessions are stored independently
 
 **SQLite databases:**
 
@@ -121,8 +121,8 @@ VITE_SENTRY_DSN="https://<dsn>.ingest.de.sentry.io/<projectId>"
 
 ```
 
-- With Supabase stopped, `pnpm start` uses these production credentials
-- With Supabase running, `pnpm start` uses local dev (`.env.local` overrides `.env`)
+- `pnpm start` uses these production credentials regardless of local Supabase state
+- `pnpm dev` uses `.env.supabase.local` for local development
 
 ## Deploy to Production
 

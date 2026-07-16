@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -43,6 +44,48 @@ function isCardPricePayload(value: unknown): value is {
 
 function normalizeSupabaseConfigValue(value: string): string {
   return value.trim();
+}
+
+function getSupabaseOrigin(value: string): string {
+  return new URL(value).origin;
+}
+
+function createSessionFileName(supabaseUrl: string): string {
+  const scope = createHash("sha256")
+    .update(getSupabaseOrigin(supabaseUrl))
+    .digest("hex")
+    .slice(0, 16);
+  return `supabase-session-${scope}.enc`;
+}
+
+function getJwtIssuerOrigin(accessToken: string): string | null {
+  try {
+    const payloadSegment = accessToken.split(".")[1];
+    if (!payloadSegment) return null;
+
+    const payload = JSON.parse(
+      Buffer.from(payloadSegment, "base64url").toString("utf8"),
+    ) as unknown;
+    if (!isRecord(payload) || typeof payload.iss !== "string") return null;
+
+    return getSupabaseOrigin(payload.iss);
+  } catch {
+    return null;
+  }
+}
+
+function sessionMatchesSupabaseUrl(
+  session: AuthSessionStore,
+  supabaseUrl: string,
+): boolean {
+  return (
+    getJwtIssuerOrigin(session.access_token) === getSupabaseOrigin(supabaseUrl)
+  );
+}
+
+function isRejectedAuthSessionError(error: unknown): boolean {
+  if (!isRecord(error) || typeof error.status !== "number") return false;
+  return error.status === 400 || error.status === 401 || error.status === 403;
 }
 
 function isInvalidApiKeyResponse(
@@ -183,11 +226,24 @@ interface AuthSessionStore {
  * - Linux: Secret Service API/libsecret
  */
 class SecureSessionStorage {
+  private readonly legacySessionPath: string;
   private sessionPath: string;
+  private supabaseUrl: string | null = null;
+  private loadedLegacySession = false;
 
   constructor() {
     const userDataPath = app.getPath("userData");
-    this.sessionPath = path.join(userDataPath, "supabase-session.enc");
+    this.legacySessionPath = path.join(userDataPath, "supabase-session.enc");
+    this.sessionPath = this.legacySessionPath;
+  }
+
+  configure(supabaseUrl: string): void {
+    this.supabaseUrl = supabaseUrl;
+    this.loadedLegacySession = false;
+    this.sessionPath = path.join(
+      app.getPath("userData"),
+      createSessionFileName(supabaseUrl),
+    );
   }
 
   /**
@@ -206,6 +262,7 @@ class SecureSessionStorage {
           fs.chmodSync(this.sessionPath, 0o600);
         }
         console.log("[SecureSessionStorage] Session encrypted and saved");
+        this.deleteMigratedLegacySession();
         return;
       } catch (error) {
         console.error("[SecureSessionStorage] Failed to save session:", error);
@@ -223,6 +280,7 @@ class SecureSessionStorage {
       if (process.platform !== "win32") {
         fs.chmodSync(this.sessionPath, 0o600);
       }
+      this.deleteMigratedLegacySession();
       return;
     }
 
@@ -235,13 +293,35 @@ class SecureSessionStorage {
    * Load and decrypt session data
    */
   load(): AuthSessionStore | null {
-    if (!fs.existsSync(this.sessionPath)) {
-      return null;
+    if (fs.existsSync(this.sessionPath)) {
+      return this.loadFromPath(this.sessionPath);
     }
 
+    if (
+      this.sessionPath !== this.legacySessionPath &&
+      fs.existsSync(this.legacySessionPath)
+    ) {
+      const legacySession = this.loadFromPath(this.legacySessionPath);
+      if (
+        legacySession &&
+        this.supabaseUrl &&
+        sessionMatchesSupabaseUrl(legacySession, this.supabaseUrl)
+      ) {
+        this.loadedLegacySession = true;
+        console.log(
+          "[SecureSessionStorage] Matching legacy session found; migration pending",
+        );
+        return legacySession;
+      }
+    }
+
+    return null;
+  }
+
+  private loadFromPath(sessionPath: string): AuthSessionStore | null {
     try {
       // Read as binary buffer - returns Buffer by default
-      const data = fs.readFileSync(this.sessionPath);
+      const data = fs.readFileSync(sessionPath);
 
       let sessionJson: string;
 
@@ -280,7 +360,7 @@ class SecureSessionStorage {
     } catch (error) {
       console.error("[SecureSessionStorage] Failed to load session:", error);
       // Clean up corrupted session file
-      this.delete();
+      this.deletePath(sessionPath);
       return null;
     }
   }
@@ -289,16 +369,28 @@ class SecureSessionStorage {
    * Delete stored session
    */
   delete(): void {
-    if (fs.existsSync(this.sessionPath)) {
-      try {
-        fs.unlinkSync(this.sessionPath);
-        console.log("[SecureSessionStorage] Session deleted");
-      } catch (error) {
-        console.error(
-          "[SecureSessionStorage] Failed to delete session:",
-          error,
-        );
-      }
+    this.deletePath(this.sessionPath);
+    if (this.loadedLegacySession) {
+      this.deletePath(this.legacySessionPath);
+      this.loadedLegacySession = false;
+    }
+  }
+
+  private deleteMigratedLegacySession(): void {
+    if (!this.loadedLegacySession) return;
+
+    this.deletePath(this.legacySessionPath);
+    this.loadedLegacySession = false;
+  }
+
+  private deletePath(sessionPath: string): void {
+    if (!fs.existsSync(sessionPath)) return;
+
+    try {
+      fs.unlinkSync(sessionPath);
+      console.log("[SecureSessionStorage] Session deleted");
+    } catch (error) {
+      console.error("[SecureSessionStorage] Failed to delete session:", error);
     }
   }
 }
@@ -372,6 +464,7 @@ class SupabaseClientService {
       normalizedFallbackPublicApiKey !== normalizedPublicApiKey
         ? normalizedFallbackPublicApiKey
         : null;
+    this.sessionStorage.configure(normalizedUrl);
 
     this.client = createClient(normalizedUrl, normalizedPublicApiKey, {
       auth: {
@@ -425,12 +518,23 @@ class SupabaseClientService {
           return;
         }
 
-        // Session restoration failed — the stored JWT is likely signed with
-        // a rotated key (unrecognized kid) or the refresh token has been
-        // revoked. Delete the corrupted session file so subsequent launches
-        // don't repeat this failed attempt and instead go straight to a
-        // fresh anonymous sign-in.
         const restoreErr = error?.message ?? "unknown";
+        if (!isRejectedAuthSessionError(error)) {
+          console.warn(
+            `[SupabaseClient] Session restoration unavailable (${restoreErr}); preserving stored session.`,
+          );
+          captureSentryMessage("Session restoration temporarily unavailable", {
+            level: "warning",
+            tags: { module: "supabase", operation: "session-restore" },
+            extra: {
+              errorMessage: error?.message,
+              errorStatus: error?.status,
+              userId: storedSession.user_id,
+            },
+          });
+          throw new Error(`Failed to restore session: ${restoreErr}`);
+        }
+
         console.warn(
           `[SupabaseClient] Failed to restore session (${restoreErr}), deleting stored session and creating new one.`,
         );
@@ -628,6 +732,12 @@ class SupabaseClientService {
 
     if (userError || !userData.user) {
       console.error("[SupabaseClient] Token validation failed:", userError);
+      if (userError && !isRejectedAuthSessionError(userError)) {
+        throw new Error(
+          `Token validation temporarily unavailable: ${userError.message}`,
+        );
+      }
+
       // Try to re-authenticate
       console.log("[SupabaseClient] Attempting to re-authenticate...");
       this.sessionStorage.delete();

@@ -130,6 +130,16 @@ function makeStoredSession(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function makeAccessToken(issuer: string): string {
+  const header = Buffer.from(
+    JSON.stringify({ alg: "HS256", typ: "JWT" }),
+  ).toString("base64url");
+  const payload = Buffer.from(JSON.stringify({ iss: issuer })).toString(
+    "base64url",
+  );
+  return `${header}.${payload}.signature`;
+}
+
 const SUPABASE_URL = "https://test.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "test-publishable-key";
 const SUPABASE_ANON_KEY = "test-anon-key";
@@ -157,6 +167,7 @@ describe("SupabaseClientService", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAppGetPath.mockReturnValue("/mock-user-data");
 
     // Reset singleton between tests
     resetSingleton(SupabaseClientService);
@@ -323,13 +334,35 @@ describe("SupabaseClientService", () => {
       // Session restore fails
       mockSetSession.mockResolvedValue({
         data: { session: null },
-        error: { message: "Token expired" },
+        error: { message: "Token expired", status: 400 },
       });
 
       const service = SupabaseClientService.getInstance();
       await service.configure(SUPABASE_URL, SUPABASE_ANON_KEY);
 
       expect(mockSignInAnonymously).toHaveBeenCalledOnce();
+    });
+
+    it("should preserve the stored session when restoration is temporarily unavailable", async () => {
+      createMockSupabaseClient();
+
+      const storedSession = makeStoredSession();
+      mockFsExistsSync.mockReturnValue(true);
+      mockFsReadFileSync.mockReturnValue(
+        Buffer.from(`encrypted:${JSON.stringify(storedSession)}`),
+      );
+      mockSetSession.mockResolvedValue({
+        data: { session: null },
+        error: { message: "fetch failed", status: 0 },
+      });
+
+      const service = SupabaseClientService.getInstance();
+
+      await expect(
+        service.configure(SUPABASE_URL, SUPABASE_ANON_KEY),
+      ).rejects.toThrow("Failed to restore session: fetch failed");
+      expect(mockFsUnlinkSync).not.toHaveBeenCalled();
+      expect(mockSignInAnonymously).not.toHaveBeenCalled();
     });
 
     it("should store the session after successful anonymous sign-in", async () => {
@@ -591,7 +624,6 @@ describe("SupabaseClientService", () => {
   describe("auth state listener", () => {
     it("should delete stored session on SIGNED_OUT event", async () => {
       createMockSupabaseClient();
-      mockFsExistsSync.mockReturnValue(true);
 
       const service = SupabaseClientService.getInstance();
       await service.configure(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -600,6 +632,7 @@ describe("SupabaseClientService", () => {
       const listenerCallback = mockOnAuthStateChange.mock.calls[0][0];
 
       // Simulate SIGNED_OUT
+      mockFsExistsSync.mockReturnValue(true);
       listenerCallback("SIGNED_OUT", null);
 
       expect(mockFsUnlinkSync).toHaveBeenCalled();
@@ -892,7 +925,7 @@ describe("SupabaseClientService", () => {
       mockGetUser
         .mockResolvedValueOnce({
           data: { user: null },
-          error: { message: "Invalid token" },
+          error: { message: "Invalid token", status: 401 },
         }) // 1. token validation fails
         .mockResolvedValueOnce({
           data: { user: { id: "re-authed-user" } },
@@ -928,7 +961,7 @@ describe("SupabaseClientService", () => {
       mockGetUser
         .mockResolvedValueOnce({
           data: { user: null },
-          error: { message: "Invalid token" },
+          error: { message: "Invalid token", status: 401 },
         }) // 1. token validation fails
         .mockResolvedValueOnce({
           data: { user: null },
@@ -943,6 +976,22 @@ describe("SupabaseClientService", () => {
       await expect(
         service.getLatestSnapshot("poe1", "Settlers"),
       ).rejects.toThrow("Authentication failed after retry");
+    });
+
+    it("should preserve the session when token validation is temporarily unavailable", async () => {
+      const service = await configureService();
+
+      mockGetUser.mockResolvedValue({
+        data: { user: null },
+        error: { message: "fetch failed", status: 0 },
+      });
+
+      await expect(
+        service.getLatestSnapshot("poe1", "Settlers"),
+      ).rejects.toThrow(
+        "Token validation temporarily unavailable: fetch failed",
+      );
+      expect(mockFsUnlinkSync).not.toHaveBeenCalled();
     });
 
     it("should handle stackedDeckChaosCost being null in response", async () => {
@@ -1266,8 +1315,18 @@ describe("SecureSessionStorage (via SupabaseClientService)", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAppGetPath.mockReturnValue("/mock-user-data");
     resetSingleton(SupabaseClientService);
     mockSafeStorageIsEncryptionAvailable.mockReturnValue(true);
+    mockSafeStorageEncryptString.mockImplementation((str: string) =>
+      Buffer.from(`encrypted:${str}`),
+    );
+    mockSafeStorageDecryptString.mockImplementation((buf: Buffer) => {
+      const str = buf.toString();
+      return str.startsWith("encrypted:")
+        ? str.slice("encrypted:".length)
+        : str;
+    });
     mockFsExistsSync.mockReturnValue(false);
     mockOnAuthStateChange.mockReturnValue({
       data: { subscription: { unsubscribe: vi.fn() } },
@@ -1295,6 +1354,19 @@ describe("SecureSessionStorage (via SupabaseClientService)", () => {
       expect(mockPathJoin).toHaveBeenCalledWith(
         "/home/user/.config/soothsayer",
         "supabase-session.enc",
+      );
+    });
+
+    it("should scope the session file path to the Supabase project", async () => {
+      mockAppGetPath.mockReturnValue("/home/user/.config/soothsayer");
+      createMockSupabaseClient();
+
+      const service = SupabaseClientService.getInstance();
+      await service.configure(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+      expect(mockPathJoin).toHaveBeenCalledWith(
+        "/home/user/.config/soothsayer",
+        expect.stringMatching(/^supabase-session-[a-f0-9]{16}\.enc$/),
       );
     });
   });
@@ -1447,6 +1519,58 @@ describe("SecureSessionStorage (via SupabaseClientService)", () => {
         access_token: storedSession.access_token,
         refresh_token: storedSession.refresh_token,
       });
+    });
+
+    it("should migrate a matching legacy session to the project-scoped path", async () => {
+      createMockSupabaseClient();
+      const legacyPath = "/mock-user-data/supabase-session.enc";
+      const storedSession = makeStoredSession({
+        access_token: makeAccessToken(`${SUPABASE_URL}/auth/v1`),
+      });
+      const restoredSession = makeSession();
+
+      mockFsExistsSync.mockImplementation((filePath: string) => {
+        return filePath === legacyPath;
+      });
+      mockFsReadFileSync.mockReturnValue(
+        Buffer.from(`encrypted:${JSON.stringify(storedSession)}`),
+      );
+      mockSetSession.mockResolvedValue({
+        data: { session: restoredSession },
+        error: null,
+      });
+
+      const service = SupabaseClientService.getInstance();
+      await service.configure(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+      expect(mockSetSession).toHaveBeenCalledOnce();
+      expect(mockFsWriteFileSync).toHaveBeenCalledWith(
+        expect.stringMatching(/supabase-session-[a-f0-9]{16}\.enc$/),
+        expect.any(Buffer),
+      );
+      expect(mockFsUnlinkSync).toHaveBeenCalledWith(legacyPath);
+    });
+
+    it("should ignore a legacy session issued by another Supabase project", async () => {
+      createMockSupabaseClient();
+      const legacyPath = "/mock-user-data/supabase-session.enc";
+      const storedSession = makeStoredSession({
+        access_token: makeAccessToken("http://127.0.0.1:54321/auth/v1"),
+      });
+
+      mockFsExistsSync.mockImplementation((filePath: string) => {
+        return filePath === legacyPath;
+      });
+      mockFsReadFileSync.mockReturnValue(
+        Buffer.from(`encrypted:${JSON.stringify(storedSession)}`),
+      );
+
+      const service = SupabaseClientService.getInstance();
+      await service.configure(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+      expect(mockSetSession).not.toHaveBeenCalled();
+      expect(mockSignInAnonymously).toHaveBeenCalledOnce();
+      expect(mockFsUnlinkSync).not.toHaveBeenCalledWith(legacyPath);
     });
 
     it("should return null when session file does not exist", async () => {
@@ -1647,6 +1771,7 @@ describe("SecureSessionStorage (via SupabaseClientService)", () => {
 describe("SupabaseClientService — full lifecycle", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAppGetPath.mockReturnValue("/mock-user-data");
     resetSingleton(SupabaseClientService);
     mockFsExistsSync.mockReturnValue(false);
     mockSafeStorageIsEncryptionAvailable.mockReturnValue(true);
@@ -1798,7 +1923,7 @@ describe("SupabaseClientService — full lifecycle", () => {
     // Restore fails — token expired
     mockSetSession.mockResolvedValue({
       data: { session: null },
-      error: { message: "Refresh token expired" },
+      error: { message: "Refresh token expired", status: 400 },
     });
 
     // Anonymous sign-in succeeds
