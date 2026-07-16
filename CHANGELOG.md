@@ -1,5 +1,15 @@
 # soothsayer
 
+## 0.19.2
+
+### Patch Changes
+
+- [`d14f21b`](https://github.com/navali-creations/soothsayer/commit/d14f21ba721af3caa6c2890ac74cbdf0b30e2f05) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Changed:** Routine maintenance and dependency updates before new league.
+
+  This release keeps Soothsayer's underlying components current, with no new features or workflow changes.
+
 ## 0.19.1
 
 ### Patch Changes
