@@ -1,5 +1,15 @@
 # soothsayer
 
+## 0.20.0
+
+### Minor Changes
+
+- [`fe80f7f`](https://github.com/navali-creations/soothsayer/commit/fe80f7f306758b5edacc7e77dd315490d1cc14a4) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Added:** Compare your card results with community drop data.
+
+  Card details now show the community drop chance alongside your personal results, use the selected league's rarity data, and include direct links to PoEDB and wraeclast.cards.
+
 ## 0.19.2
 
 ### Patch Changes
