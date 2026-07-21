@@ -39,12 +39,52 @@ import {
   registerTrustedWebContents,
   validateFileDialogOptions,
 } from "~/main/utils/ipc-validation";
+import { CARD_REFERENCE_ALLOWED_ORIGINS } from "~/types/card-reference-links";
 
 import { MainWindowChannel } from "./MainWindow.channels";
 
+const ALLOWED_EXTERNAL_URLS = [
+  "https://www.pathofexile.com/oauth/authorize",
+  "https://github.com/navali-creations",
+  "https://github.com/orgs/navali-creations",
+  "https://discord.gg/mrqmPYXHHT",
+  "https://docs.google.com/spreadsheets/d/1PmGES_e1on6K7O5ghHuoorEjruAVb7dQ5m7PGrW7t80",
+].map((url) => new URL(url));
+
+function isAllowedExternalUrl(rawUrl: string): boolean {
+  let candidate: URL;
+  try {
+    candidate = new URL(rawUrl);
+  } catch {
+    return false;
+  }
+
+  if (
+    CARD_REFERENCE_ALLOWED_ORIGINS.some(
+      (allowedOrigin) => allowedOrigin === candidate.origin,
+    )
+  ) {
+    return true;
+  }
+
+  return ALLOWED_EXTERNAL_URLS.some((allowed) => {
+    if (candidate.origin !== allowed.origin) return false;
+
+    const allowedPath = allowed.pathname.replace(/\/+$/, "");
+    return (
+      candidate.pathname === allowedPath ||
+      candidate.pathname.startsWith(`${allowedPath}/`)
+    );
+  });
+}
+
 class MainWindowService {
   private mainWindow!: BrowserWindow;
-  private url: string = MAIN_WINDOW_VITE_DEV_SERVER_URL;
+  private url: string =
+    process.env.E2E_TESTING === "true"
+      ? (process.env.SOOTHSAYER_E2E_RENDERER_URL ??
+        MAIN_WINDOW_VITE_DEV_SERVER_URL)
+      : MAIN_WINDOW_VITE_DEV_SERVER_URL;
   private settingsStore: SettingsStoreService | null = null;
   private database: DatabaseService | null = null;
   private debouncedSaveBoundsTimer: ReturnType<typeof setTimeout> | null = null;
@@ -379,19 +419,8 @@ class MainWindowService {
     });
 
     // Security: Only allow opening URLs from a strict allowlist in the OS browser
-    const allowedExternalUrls = [
-      "https://www.pathofexile.com/oauth/authorize",
-      "https://github.com/navali-creations",
-      "https://github.com/orgs/navali-creations",
-      "https://discord.gg/mrqmPYXHHT",
-      "https://docs.google.com/spreadsheets/d/1PmGES_e1on6K7O5ghHuoorEjruAVb7dQ5m7PGrW7t80",
-      "https://poe.ninja/",
-      "https://www.poewiki.net/",
-      "https://wraeclast.cards",
-    ];
-
     this.mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-      if (allowedExternalUrls.some((allowed) => url.startsWith(allowed))) {
+      if (isAllowedExternalUrl(url)) {
         shell.openExternal(url);
       } else {
         console.warn(

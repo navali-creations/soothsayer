@@ -18,6 +18,7 @@ import {
 
 const _initCleanup = setupEnv({
   WRAECLAST_CARDS_API_KEY: "test-wraeclast-key",
+  WRAECLAST_CARDS_CALLER_TOKEN: "test-caller-token",
 });
 const serveStub = stubDenoServe();
 
@@ -28,7 +29,11 @@ serveStub.restore();
 
 assert(handler !== null, "Handler should have been captured from Deno.serve");
 
-function createFunctionRequest(game = "poe1", extraSearch = ""): Request {
+function createFunctionRequest(
+  game = "poe1",
+  extraSearch = "",
+  extraHeaders: Record<string, string> = {},
+): Request {
   const suffix = extraSearch ? `&${extraSearch}` : "";
   return new Request(
     `http://localhost:54321/functions/v1/get-community-drop-rates?game=${game}${suffix}`,
@@ -36,6 +41,7 @@ function createFunctionRequest(game = "poe1", extraSearch = ""): Request {
       method: "GET",
       headers: {
         "x-api-key": "test-wraeclast-key",
+        ...extraHeaders,
       },
     },
   );
@@ -83,17 +89,13 @@ type DropRateCardEstimate = {
   aggregate_scope: "all" | "non_suspicious";
   card_id: string;
   count: number;
-  ratio: number;
   contributors: number;
   verified_count: number;
-  verified_ratio: number;
   verified_contributors: number;
   community_estimated_weight: number | null;
   community_estimated_chance: number | null;
-  seen_vs_community_estimate: number | null;
   verified_community_estimated_weight: number | null;
   verified_community_estimated_chance: number | null;
-  verified_seen_vs_community_estimate: number | null;
 };
 
 type DropRateResponseCardStats = Record<string, unknown>;
@@ -175,6 +177,18 @@ function getAggregateScope(input: string | URL | Request) {
   const url = new URL(getRequestUrl(input));
   const scope = url.searchParams.get("aggregate_scope");
   return scope === "eq.non_suspicious" ? "non_suspicious" : "all";
+}
+
+function getInFilterValues(
+  input: string | URL | Request,
+  column: string,
+): string[] | null {
+  const raw = new URL(getRequestUrl(input)).searchParams.get(column);
+  if (!raw?.startsWith("in.(") || !raw.endsWith(")")) return null;
+  return raw
+    .slice(4, -1)
+    .split(",")
+    .map((value) => value.replace(/^"|"$/g, ""));
 }
 
 function buildPersistedAggregateMocks({
@@ -325,16 +339,6 @@ function buildPersistedAggregateMocks({
     );
 
     for (const row of weighted) {
-      const ratio =
-        cardObservedTotal > 0
-          ? Number((row.stats.count / cardObservedTotal).toFixed(6))
-          : 0;
-      const verified_ratio =
-        verifiedCardObservedTotal > 0
-          ? Number(
-              (row.stats.verified_count / verifiedCardObservedTotal).toFixed(6),
-            )
-          : 0;
       const community_estimated_chance =
         row.community_estimated_weight !== null && weightTotal > 0
           ? roundRatio(row.community_estimated_weight / weightTotal)
@@ -352,26 +356,14 @@ function buildPersistedAggregateMocks({
         aggregate_scope,
         card_id: row.card_id,
         count: row.stats.count,
-        ratio,
         contributors: row.stats.contributors.size,
         verified_count: row.stats.verified_count,
-        verified_ratio,
         verified_contributors: row.stats.verified_contributors.size,
         community_estimated_weight: row.community_estimated_weight,
         community_estimated_chance,
-        seen_vs_community_estimate:
-          community_estimated_chance !== null && community_estimated_chance > 0
-            ? roundRatio(ratio / community_estimated_chance)
-            : null,
         verified_community_estimated_weight:
           row.verified_community_estimated_weight,
         verified_community_estimated_chance,
-        verified_seen_vs_community_estimate:
-          verified_community_estimated_chance !== null &&
-          verified_community_estimated_chance > 0 &&
-          row.stats.verified_count > 0
-            ? roundRatio(verified_ratio / verified_community_estimated_chance)
-            : null,
       });
     }
   }
@@ -385,10 +377,12 @@ function setupDropRateMocks(
     uploads,
     cardData,
     cards,
+    usePersistedAggregates = true,
   }: {
     uploads: DropRateUpload[];
     cardData: DropRateCardData[];
     cards: DropRateCard[];
+    usePersistedAggregates?: boolean;
   },
 ): void {
   fetchMock.onUrlContaining(supabaseUrls.rpc("check_and_log_request"), () =>
@@ -410,7 +404,9 @@ function setupDropRateMocks(
     (input) => {
       const scope = getAggregateScope(input);
       return postgrestResponse(
-        leagueEstimates.filter((row) => row.aggregate_scope === scope),
+        usePersistedAggregates
+          ? leagueEstimates.filter((row) => row.aggregate_scope === scope)
+          : [],
       );
     },
   );
@@ -419,9 +415,9 @@ function setupDropRateMocks(
     supabaseUrls.table("community_league_card_estimates"),
     (input, init) => {
       const scope = getAggregateScope(input);
-      const scopedRows = cardEstimates.filter(
-        (row) => row.aggregate_scope === scope,
-      );
+      const scopedRows = usePersistedAggregates
+        ? cardEstimates.filter((row) => row.aggregate_scope === scope)
+        : [];
       const [start, end] = getRangeBounds(input, init, scopedRows.length - 1);
       const page = scopedRows.slice(start, end + 1);
       const pageEnd = page.length > 0 ? start + page.length - 1 : start;
@@ -432,19 +428,36 @@ function setupDropRateMocks(
     },
   );
 
-  fetchMock.onUrlContaining(supabaseUrls.table("community_uploads"), () =>
-    postgrestResponse(uploads),
+  fetchMock.onUrlContaining(
+    supabaseUrls.table("community_uploads"),
+    (input, init) => {
+      const [start, end] = getRangeBounds(input, init, uploads.length - 1);
+      const page = uploads.slice(start, end + 1);
+      const pageEnd = page.length > 0 ? start + page.length - 1 : start;
+
+      return postgrestResponse(page, 200, {
+        "Content-Range": `${start}-${pageEnd}/${uploads.length}`,
+      });
+    },
   );
 
   fetchMock.onUrlContaining(
     supabaseUrls.table("community_card_data"),
     (input, init) => {
-      const [start, end] = getRangeBounds(input, init, cardData.length - 1);
-      const page = cardData.slice(start, end + 1);
+      const uploadIds = getInFilterValues(input, "upload_id");
+      const filteredCardData = uploadIds
+        ? cardData.filter((row) => uploadIds.includes(row.upload_id))
+        : cardData;
+      const [start, end] = getRangeBounds(
+        input,
+        init,
+        filteredCardData.length - 1,
+      );
+      const page = filteredCardData.slice(start, end + 1);
       const pageEnd = page.length > 0 ? start + page.length - 1 : start;
 
       return postgrestResponse(page, 200, {
-        "Content-Range": `${start}-${pageEnd}/${cardData.length}`,
+        "Content-Range": `${start}-${pageEnd}/${filteredCardData.length}`,
       });
     },
   );
@@ -485,6 +498,125 @@ function stripCommunityEstimateFields(body: DropRateResponseBody): unknown {
     })),
   };
 }
+
+quietTest(
+  "get-community-drop-rates — enforces the HTTP and API-key boundary",
+  async () => {
+    const preflightResponse = await handler(
+      new Request(
+        "http://localhost:54321/functions/v1/get-community-drop-rates",
+        { method: "OPTIONS" },
+      ),
+    );
+
+    assertEquals(preflightResponse.status, 200);
+    assert(
+      preflightResponse.headers
+        .get("Access-Control-Allow-Headers")
+        ?.includes("x-caller-token"),
+    );
+
+    const unsupportedMethodResponse = await handler(
+      new Request(
+        "http://localhost:54321/functions/v1/get-community-drop-rates",
+        { method: "POST" },
+      ),
+    );
+    assertEquals(unsupportedMethodResponse.status, 405);
+
+    const missingApiKeyResponse = await handler(
+      new Request(
+        "http://localhost:54321/functions/v1/get-community-drop-rates?game=poe1",
+      ),
+    );
+    assertEquals(missingApiKeyResponse.status, 401);
+
+    const invalidApiKeyResponse = await handler(
+      createFunctionRequest("poe1", "", { "x-api-key": "invalid" }),
+    );
+    assertEquals(invalidApiKeyResponse.status, 401);
+  },
+);
+
+quietTest(
+  "get-community-drop-rates — records only validated caller identity",
+  async () => {
+    const fetchMock = mockFetch();
+    const rateLimitBodies: Array<Record<string, unknown>> = [];
+
+    fetchMock.onUrlContaining(
+      supabaseUrls.rpc("check_and_log_request"),
+      (_input, init) => {
+        rateLimitBodies.push(JSON.parse(String(init?.body)));
+        return rpcResponse({ allowed: true });
+      },
+    );
+
+    try {
+      const requests = [
+        createFunctionRequest("invalid", "", {
+          "x-app-version": "spoofed",
+          "x-caller-token": "test-caller-token",
+        }),
+        createFunctionRequest("invalid", "", {
+          "x-app-version": "spoofed",
+          "x-caller-token": "invalid-caller-token",
+        }),
+        createFunctionRequest("invalid", "", {
+          "x-app-version": "spoofed",
+        }),
+      ];
+
+      for (const request of requests) {
+        const response = await handler(request);
+        assertEquals(response.status, 400);
+      }
+
+      assertEquals(
+        rateLimitBodies.map((body) => body.p_app_version),
+        ["gha:wraeclast-cards", null, null],
+      );
+    } finally {
+      fetchMock.restore();
+    }
+  },
+);
+
+quietTest(
+  "get-community-drop-rates — does not trust caller identity without a configured secret",
+  async () => {
+    const fetchMock = mockFetch();
+    let rateLimitBody: Record<string, unknown> | undefined;
+    const configuredCallerToken = Deno.env.get("WRAECLAST_CARDS_CALLER_TOKEN");
+
+    fetchMock.onUrlContaining(
+      supabaseUrls.rpc("check_and_log_request"),
+      (_input, init) => {
+        rateLimitBody = JSON.parse(String(init?.body));
+        return rpcResponse({ allowed: true });
+      },
+    );
+    Deno.env.delete("WRAECLAST_CARDS_CALLER_TOKEN");
+
+    try {
+      const response = await handler(
+        createFunctionRequest("invalid", "", {
+          "x-caller-token": "test-caller-token",
+        }),
+      );
+
+      assertEquals(response.status, 400);
+      assertEquals(rateLimitBody?.p_app_version, null);
+    } finally {
+      if (configuredCallerToken === undefined) {
+        Deno.env.delete("WRAECLAST_CARDS_CALLER_TOKEN");
+      } else {
+        Deno.env.set("WRAECLAST_CARDS_CALLER_TOKEN", configuredCallerToken);
+      }
+      fetchMock.restore();
+    }
+  },
+);
 
 quietTest(
   "get-community-drop-rates — includes verified_ratio per league card",
@@ -807,6 +939,13 @@ quietTest(
         url.includes(supabaseUrls.table("community_league_card_estimates")),
       );
       assertEquals(cardAggregateRequests.length, 2);
+      assert(
+        cardAggregateRequests.every(
+          ({ url }) =>
+            new URL(url).searchParams.get("order") ===
+            "league_id.asc,card_id.asc",
+        ),
+      );
       assertEquals(
         fetchMock.calls.filter(({ url }) =>
           url.includes(supabaseUrls.table("community_card_data")),
@@ -866,8 +1005,82 @@ quietTest(
       assertEquals(cardRequests.length, 2);
       assert(
         cardRequests.every(
-          ({ url }) => url.includes("game=eq.poe1") && !url.includes("id=in."),
+          ({ url }) =>
+            url.includes("game=eq.poe1") &&
+            !url.includes("id=in.") &&
+            new URL(url).searchParams.get("order") === "id.asc",
         ),
+      );
+    } finally {
+      fetchMock.restore();
+      cleanupEnv();
+    }
+  },
+);
+
+quietTest(
+  "get-community-drop-rates — falls back to paginated raw uploads with stable ordering",
+  async () => {
+    const cleanupEnv = setupEnv({
+      WRAECLAST_CARDS_API_KEY: "test-wraeclast-key",
+    });
+    const fetchMock = mockFetch();
+    const uploads = Array.from({ length: 1001 }, (_, index) => ({
+      id: `${index.toString(16).padStart(8, "0")}-0000-4000-8000-${index.toString(16).padStart(12, "0")}`,
+      league_id: "league-1",
+      device_id: `device-${index.toString().padStart(4, "0")}`,
+      ggg_uuid: null,
+      is_verified: false,
+      is_suspicious: false,
+      total_cards_uploaded: 1,
+    }));
+
+    setupDropRateMocks(fetchMock, {
+      uploads,
+      cardData: [
+        {
+          upload_id: uploads[0].id,
+          card_id: "card-rain",
+          count: 1,
+        },
+      ],
+      cards: [{ id: "card-rain", name: "Rain of Chaos" }],
+      usePersistedAggregates: false,
+    });
+
+    try {
+      const response = await handler(createFunctionRequest());
+      const body = await response.json();
+
+      assertEquals(response.status, 200);
+      assertEquals(body.leagues[0].upload_count, 1001);
+
+      const uploadRequests = fetchMock.calls.filter(({ url }) =>
+        url.includes(supabaseUrls.table("community_uploads")),
+      );
+      assertEquals(uploadRequests.length, 2);
+      assert(
+        uploadRequests.every(
+          ({ url }) => new URL(url).searchParams.get("order") === "id.asc",
+        ),
+      );
+
+      const cardDataRequests = fetchMock.calls.filter(({ url }) =>
+        url.includes(supabaseUrls.table("community_card_data")),
+      );
+      assertEquals(cardDataRequests.length, 11);
+      assert(
+        cardDataRequests.every(
+          ({ url }) =>
+            new URL(url).searchParams.get("order") ===
+            "upload_id.asc,card_id.asc",
+        ),
+      );
+      assert(
+        cardDataRequests.every(({ url }) => {
+          const ids = getInFilterValues(url, "upload_id");
+          return ids !== null && ids.length <= 100 && url.length < 8192;
+        }),
       );
     } finally {
       fetchMock.restore();
@@ -1034,6 +1247,64 @@ quietTest(
 );
 
 quietTest(
+  "get-community-drop-rates — derives precise ratios from persisted counts",
+  async () => {
+    const cleanupEnv = setupEnv({
+      WRAECLAST_CARDS_API_KEY: "test-wraeclast-key",
+    });
+    const fetchMock = mockFetch();
+
+    setupDropRateMocks(fetchMock, {
+      uploads: [
+        {
+          id: "upload-precision",
+          league_id: "league-1",
+          device_id: "device-a",
+          ggg_uuid: "ggg-a",
+          is_verified: true,
+          is_suspicious: false,
+          total_cards_uploaded: 4_207_137,
+        },
+      ],
+      cardData: [
+        {
+          upload_id: "upload-precision",
+          card_id: "card-apothecary",
+          count: 271,
+        },
+        {
+          upload_id: "upload-precision",
+          card_id: "card-rain",
+          count: 4_206_866,
+        },
+      ],
+      cards: [
+        { id: "card-apothecary", name: "The Apothecary" },
+        { id: "card-rain", name: "Rain of Chaos" },
+      ],
+    });
+
+    try {
+      const response = await handler(createFunctionRequest());
+      const body = await response.json();
+      const apothecary = body.cards.find(
+        (card: { name: string }) => card.name === "The Apothecary",
+      );
+
+      assertEquals(response.status, 200);
+      assertEquals(apothecary.leagues["league-1"].ratio, 0.000064414351);
+      assertEquals(
+        apothecary.leagues["league-1"].verified_ratio,
+        0.000064414351,
+      );
+    } finally {
+      fetchMock.restore();
+      cleanupEnv();
+    }
+  },
+);
+
+quietTest(
   "get-community-drop-rates — exposes upload and card-observed totals separately",
   async () => {
     const cleanupEnv = setupEnv({
@@ -1114,10 +1385,10 @@ quietTest(
             leagues: {
               "league-1": {
                 count: 40,
-                ratio: 0.266667,
+                ratio: 0.266666666667,
                 contributors: 1,
                 verified_count: 40,
-                verified_ratio: 0.266667,
+                verified_ratio: 0.266666666667,
                 verified_contributors: 1,
               },
             },

@@ -8,7 +8,7 @@ import {
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "x-api-key, content-type",
+  "Access-Control-Allow-Headers": "x-api-key, x-caller-token, content-type",
   "Access-Control-Allow-Methods": "GET, OPTIONS",
 };
 
@@ -19,11 +19,13 @@ const CORS_HEADERS = {
  * for every card in the requested game, broken down by league.
  *
  * Auth: x-api-key header validated against the `WRAECLAST_CARDS_API_KEY`
- * Supabase Edge Function secret.
+ * Supabase Edge Function secret. Trusted publishing calls may also provide an
+ * x-caller-token matching `WRAECLAST_CARDS_CALLER_TOKEN`.
  */
 // Rate limit: 100 requests per hour per API key, enforced atomically via DB
 const RATE_LIMIT_MAX = 100;
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const TRUSTED_CALLER_APP_VERSION = "gha:wraeclast-cards";
 const COMMUNITY_WEIGHT_ANCHOR_CARD = "Rain of Chaos";
 const COMMUNITY_WEIGHT_ANCHOR_WEIGHT = 121400;
 
@@ -31,6 +33,14 @@ function roundRatio(value: number | null): number | null {
   if (value === null) return null;
   if (!Number.isFinite(value)) return null;
   return Number(value.toFixed(12));
+}
+
+function ratioFromCounts(count: number, total: number): number {
+  if (!Number.isFinite(count) || !Number.isFinite(total) || total <= 0) {
+    return 0;
+  }
+
+  return roundRatio(count / total) ?? 0;
 }
 
 function roundWeight(value: number | null): number | null {
@@ -74,14 +84,18 @@ function getConfiguredApiKey(): string | null {
   );
 }
 
-function timingSafeEqualStrings(a: string, b: string): boolean {
-  const encoder = new TextEncoder();
-  const aBytes = encoder.encode(a);
-  const bBytes = encoder.encode(b);
+function getConfiguredCallerToken(): string | null {
+  return Deno.env.get("WRAECLAST_CARDS_CALLER_TOKEN") ?? null;
+}
 
-  if (aBytes.byteLength !== bBytes.byteLength) {
-    return false;
-  }
+async function timingSafeEqualStrings(a: string, b: string): Promise<boolean> {
+  const encoder = new TextEncoder();
+  const [aDigest, bDigest] = await Promise.all([
+    crypto.subtle.digest("SHA-256", encoder.encode(a)),
+    crypto.subtle.digest("SHA-256", encoder.encode(b)),
+  ]);
+  const aBytes = new Uint8Array(aDigest);
+  const bBytes = new Uint8Array(bDigest);
 
   let diff = 0;
   for (let i = 0; i < aBytes.byteLength; i++) {
@@ -129,12 +143,24 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  if (!timingSafeEqualStrings(apiKey, configuredApiKey)) {
+  if (!(await timingSafeEqualStrings(apiKey, configuredApiKey))) {
     return responseJson({
       status: 401,
       body: { error: "Invalid API key" },
       headers: CORS_HEADERS,
     });
+  }
+
+  const configuredCallerToken = getConfiguredCallerToken();
+  const callerToken = req.headers.get("x-caller-token");
+  let appVersion: string | null = null;
+
+  if (
+    configuredCallerToken &&
+    callerToken &&
+    (await timingSafeEqualStrings(callerToken, configuredCallerToken))
+  ) {
+    appVersion = TRUSTED_CALLER_APP_VERSION;
   }
 
   // ── Build service-role client ───────────────────────────────────────
@@ -162,6 +188,7 @@ Deno.serve(async (req: Request) => {
       endpoint: "get-community-drop-rates",
       windowMs: RATE_LIMIT_WINDOW_MS,
       maxHits: RATE_LIMIT_MAX,
+      appVersion,
     });
   } catch (error) {
     const status = getErrorStatus(error);
@@ -266,17 +293,13 @@ Deno.serve(async (req: Request) => {
     league_id: string;
     card_id: string;
     count: number | string;
-    ratio: number | string;
     contributors: number | string;
     verified_count: number | string;
-    verified_ratio: number | string;
     verified_contributors: number | string;
     community_estimated_weight: number | string | null;
     community_estimated_chance: number | string | null;
-    seen_vs_community_estimate: number | string | null;
     verified_community_estimated_weight: number | string | null;
     verified_community_estimated_chance: number | string | null;
-    verified_seen_vs_community_estimate: number | string | null;
   };
 
   type LeagueCardStats = {
@@ -342,21 +365,19 @@ Deno.serve(async (req: Request) => {
             "league_id",
             "card_id",
             "count",
-            "ratio",
             "contributors",
             "verified_count",
-            "verified_ratio",
             "verified_contributors",
             "community_estimated_weight",
             "community_estimated_chance",
-            "seen_vs_community_estimate",
             "verified_community_estimated_weight",
             "verified_community_estimated_chance",
-            "verified_seen_vs_community_estimate",
           ].join(", "),
         )
         .eq("aggregate_scope", aggregateScope)
         .in("league_id", leagueIds)
+        .order("league_id", { ascending: true })
+        .order("card_id", { ascending: true })
         .range(offset, offset + PAGE_SIZE - 1);
 
       if (pageError) {
@@ -411,6 +432,8 @@ Deno.serve(async (req: Request) => {
       [...persistedLeagueById.values()].some(
         (row) => toNumber(row.upload_count) > 0,
       );
+
+    if (!hasAnyCommunityData) return null;
 
     const responseLeagues = leagueRows
       .filter(
@@ -470,6 +493,7 @@ Deno.serve(async (req: Request) => {
         .from("cards")
         .select("id, name")
         .eq("game", game)
+        .order("id", { ascending: true })
         .range(cardOffset, cardOffset + CARD_PAGE_SIZE - 1);
 
       if (cardsError) {
@@ -494,47 +518,63 @@ Deno.serve(async (req: Request) => {
     }
 
     const cardById = new Map(cards.map((card) => [card.id, card]));
+    const responseLeagueById = new Map(
+      responseLeagues.map((league) => [league.id, league]),
+    );
     const cardMap = new Map<string, Map<string, LeagueCardStats>>();
 
     for (const row of persistedCardRows) {
       const card = cardById.get(row.card_id);
       if (!card) continue;
 
+      const league = responseLeagueById.get(row.league_id);
+      const count = toNumber(row.count);
+      const verifiedCount = toNumber(row.verified_count);
+      const ratio = ratioFromCounts(count, league?.card_observed_total ?? 0);
+      const verifiedRatio = ratioFromCounts(
+        verifiedCount,
+        league?.verified_card_observed_total ?? 0,
+      );
+      const communityChance =
+        row.community_estimated_chance === null
+          ? null
+          : toNumber(row.community_estimated_chance);
+      const verifiedCommunityChance =
+        row.verified_community_estimated_chance === null
+          ? null
+          : toNumber(row.verified_community_estimated_chance);
+
       if (!cardMap.has(card.name)) {
         cardMap.set(card.name, new Map());
       }
 
       cardMap.get(card.name)!.set(row.league_id, {
-        count: toNumber(row.count),
-        ratio: toNumber(row.ratio),
+        count,
+        ratio,
         contributors: toNumber(row.contributors),
-        verified_count: toNumber(row.verified_count),
-        verified_ratio: toNumber(row.verified_ratio),
+        verified_count: verifiedCount,
+        verified_ratio: verifiedRatio,
         verified_contributors: toNumber(row.verified_contributors),
         community_estimated_weight:
           row.community_estimated_weight === null
             ? null
             : toNumber(row.community_estimated_weight),
-        community_estimated_chance:
-          row.community_estimated_chance === null
-            ? null
-            : toNumber(row.community_estimated_chance),
+        community_estimated_chance: communityChance,
         seen_vs_community_estimate:
-          row.seen_vs_community_estimate === null
-            ? null
-            : toNumber(row.seen_vs_community_estimate),
+          communityChance !== null && communityChance > 0
+            ? roundRatio(ratio / communityChance)
+            : null,
         verified_community_estimated_weight:
           row.verified_community_estimated_weight === null
             ? null
             : toNumber(row.verified_community_estimated_weight),
-        verified_community_estimated_chance:
-          row.verified_community_estimated_chance === null
-            ? null
-            : toNumber(row.verified_community_estimated_chance),
+        verified_community_estimated_chance: verifiedCommunityChance,
         verified_seen_vs_community_estimate:
-          row.verified_seen_vs_community_estimate === null
-            ? null
-            : toNumber(row.verified_seen_vs_community_estimate),
+          verifiedCommunityChance !== null &&
+          verifiedCommunityChance > 0 &&
+          verifiedCount > 0
+            ? roundRatio(verifiedRatio / verifiedCommunityChance)
+            : null,
       });
     }
 
@@ -569,27 +609,51 @@ Deno.serve(async (req: Request) => {
   }
 
   // ── Fetch uploads for these leagues ─────────────────────────────────
-  const { data: uploads, error: uploadsError } = await supabase
-    .from("community_uploads")
-    .select(
-      "id, league_id, device_id, ggg_uuid, is_verified, is_suspicious, total_cards_uploaded",
-    )
-    .in("league_id", leagueIds)
-    .limit(10000);
+  const uploads: Array<{
+    id: string;
+    league_id: string;
+    device_id: string;
+    ggg_uuid: string | null;
+    is_verified: boolean;
+    is_suspicious: boolean;
+    total_cards_uploaded: number | null;
+  }> = [];
+  const UPLOAD_PAGE_SIZE = 1000;
+  let uploadOffset = 0;
+  let hasMoreUploads = true;
 
-  if (uploadsError) {
-    console.error(
-      "[get-community-drop-rates] Failed to fetch uploads:",
-      uploadsError,
-    );
-    return responseJson({
-      status: 500,
-      body: { error: "Failed to fetch community uploads" },
-      headers: CORS_HEADERS,
-    });
+  while (hasMoreUploads) {
+    const { data: uploadPage, error: uploadsError } = await supabase
+      .from("community_uploads")
+      .select(
+        "id, league_id, device_id, ggg_uuid, is_verified, is_suspicious, total_cards_uploaded",
+      )
+      .in("league_id", leagueIds)
+      .order("id", { ascending: true })
+      .range(uploadOffset, uploadOffset + UPLOAD_PAGE_SIZE - 1);
+
+    if (uploadsError) {
+      console.error(
+        "[get-community-drop-rates] Failed to fetch uploads:",
+        uploadsError,
+      );
+      return responseJson({
+        status: 500,
+        body: { error: "Failed to fetch community uploads" },
+        headers: CORS_HEADERS,
+      });
+    }
+
+    if (!uploadPage || uploadPage.length === 0) {
+      hasMoreUploads = false;
+    } else {
+      uploads.push(...uploadPage);
+      hasMoreUploads = uploadPage.length === UPLOAD_PAGE_SIZE;
+      uploadOffset += UPLOAD_PAGE_SIZE;
+    }
   }
 
-  if (!uploads || uploads.length === 0) {
+  if (uploads.length === 0) {
     console.log(
       `[get-community-drop-rates] No community uploads for game=${game}`,
     );
@@ -722,47 +786,103 @@ Deno.serve(async (req: Request) => {
   // Build lookup maps for uploads
   const uploadById = new Map(includedUploads.map((u) => [u.id, u]));
 
-  // ── Fetch card data for these uploads (paginated) ───────────────────
-  const allCardData: Array<{
-    upload_id: string;
-    card_id: string;
-    count: number;
-  }> = [];
+  // ── Fetch and aggregate card data for these uploads ─────────────────
+  type LeagueAgg = {
+    total_count: number;
+    row_count: number;
+    contributors: Set<string>;
+    verified_count: number;
+    verified_contributors: Set<string>;
+  };
+
+  const rawAggMap = new Map<string, Map<string, LeagueAgg>>();
+  let hasCardData = false;
   // Supabase projects commonly cap PostgREST responses at 1,000 rows. Keep the
   // requested page size at that cap so a full page reliably means "fetch more".
   const PAGE_SIZE = 1000;
-  let offset = 0;
-  let hasMore = true;
+  // Keep the encoded PostgREST `in.(...)` filter comfortably below common
+  // proxy URL limits even when upload IDs are UUIDs.
+  const UPLOAD_ID_BATCH_SIZE = 100;
 
-  while (hasMore) {
-    const { data: page, error: pageError } = await supabase
-      .from("community_card_data")
-      .select("upload_id, card_id, count")
-      .in("upload_id", uploadIds)
-      .range(offset, offset + PAGE_SIZE - 1);
+  for (
+    let batchStart = 0;
+    batchStart < uploadIds.length;
+    batchStart += UPLOAD_ID_BATCH_SIZE
+  ) {
+    const uploadIdBatch = uploadIds.slice(
+      batchStart,
+      batchStart + UPLOAD_ID_BATCH_SIZE,
+    );
+    let offset = 0;
+    let hasMore = true;
 
-    if (pageError) {
-      console.error(
-        "[get-community-drop-rates] Failed to fetch card data page:",
-        pageError,
-      );
-      return responseJson({
-        status: 500,
-        body: { error: "Failed to fetch community card data" },
-        headers: CORS_HEADERS,
-      });
-    }
+    while (hasMore) {
+      const { data: page, error: pageError } = await supabase
+        .from("community_card_data")
+        .select("upload_id, card_id, count")
+        .in("upload_id", uploadIdBatch)
+        .order("upload_id", { ascending: true })
+        .order("card_id", { ascending: true })
+        .range(offset, offset + PAGE_SIZE - 1);
 
-    if (!page || page.length === 0) {
-      hasMore = false;
-    } else {
-      allCardData.push(...page);
+      if (pageError) {
+        console.error(
+          "[get-community-drop-rates] Failed to fetch card data page:",
+          pageError,
+        );
+        return responseJson({
+          status: 500,
+          body: { error: "Failed to fetch community card data" },
+          headers: CORS_HEADERS,
+        });
+      }
+
+      if (!page || page.length === 0) break;
+      hasCardData = true;
+
+      for (const row of page) {
+        const upload = uploadById.get(row.upload_id);
+        if (!upload) continue;
+
+        const leagueId = upload.league_id;
+        const leagueStats = getLeagueUploadStats(leagueId);
+        leagueStats.card_observed_total += row.count;
+        if (upload.is_verified) {
+          leagueStats.verified_card_observed_total += row.count;
+        }
+
+        if (!rawAggMap.has(row.card_id)) {
+          rawAggMap.set(row.card_id, new Map());
+        }
+        const leagueMap = rawAggMap.get(row.card_id)!;
+        if (!leagueMap.has(leagueId)) {
+          leagueMap.set(leagueId, {
+            total_count: 0,
+            row_count: 0,
+            contributors: new Set(),
+            verified_count: 0,
+            verified_contributors: new Set(),
+          });
+        }
+
+        const agg = leagueMap.get(leagueId)!;
+        agg.total_count += row.count;
+        agg.row_count++;
+        agg.contributors.add(upload.device_id);
+        if (upload.is_verified) {
+          agg.verified_count += row.count;
+          if (upload.ggg_uuid) {
+            agg.verified_contributors.add(upload.ggg_uuid);
+          }
+        }
+      }
+
       hasMore = page.length === PAGE_SIZE;
       offset += PAGE_SIZE;
     }
   }
 
-  if (allCardData.length === 0) {
+  if (!hasCardData) {
     console.log(`[get-community-drop-rates] No card data for game=${game}`);
     return responseJson({
       status: 200,
@@ -806,6 +926,7 @@ Deno.serve(async (req: Request) => {
       .from("cards")
       .select("id, name")
       .eq("game", game)
+      .order("id", { ascending: true })
       .range(cardOffset, cardOffset + CARD_PAGE_SIZE - 1);
 
     if (cardsError) {
@@ -831,67 +952,19 @@ Deno.serve(async (req: Request) => {
 
   const cardById = new Map(cards.map((c) => [c.id, c]));
 
-  // ── Aggregate data ──────────────────────────────────────────────────
-  //
-  // Shape: cardName → leagueId → {
-  //   total_count, contributors (Set<device_id>),
-  //   verified_count, verified_contributors (Set<ggg_uuid>)
-  // }
-  type LeagueAgg = {
-    total_count: number;
-    contributors: Set<string>;
-    verified_count: number;
-    verified_contributors: Set<string>;
-  };
-
+  // Resolve card IDs after aggregation so raw rows are never retained in memory.
   const aggMap = new Map<string, Map<string, LeagueAgg>>();
-
-  for (const row of allCardData) {
-    const upload = uploadById.get(row.upload_id);
-    if (!upload) continue;
-
-    const leagueId = upload.league_id;
-    const leagueStats = getLeagueUploadStats(leagueId);
-    leagueStats.card_observed_total += row.count;
-
-    if (upload.is_verified) {
-      leagueStats.verified_card_observed_total += row.count;
-    }
-
-    const card = cardById.get(row.card_id);
+  for (const [cardId, leagueMap] of rawAggMap) {
+    const card = cardById.get(cardId);
     if (!card) {
-      leagueStats.unresolved_card_row_count++;
-      leagueStats.unresolved_card_observed_total += row.count;
+      for (const [leagueId, agg] of leagueMap) {
+        const leagueStats = getLeagueUploadStats(leagueId);
+        leagueStats.unresolved_card_row_count += agg.row_count;
+        leagueStats.unresolved_card_observed_total += agg.total_count;
+      }
       continue;
     }
-
-    const cardName = card.name;
-
-    // Initialise card → league map
-    if (!aggMap.has(cardName)) {
-      aggMap.set(cardName, new Map());
-    }
-    const leagueMap = aggMap.get(cardName)!;
-
-    if (!leagueMap.has(leagueId)) {
-      leagueMap.set(leagueId, {
-        total_count: 0,
-        contributors: new Set(),
-        verified_count: 0,
-        verified_contributors: new Set(),
-      });
-    }
-    const agg = leagueMap.get(leagueId)!;
-
-    agg.total_count += row.count;
-    agg.contributors.add(upload.device_id);
-
-    if (upload.is_verified) {
-      agg.verified_count += row.count;
-      if (upload.ggg_uuid) {
-        agg.verified_contributors.add(upload.ggg_uuid);
-      }
-    }
+    aggMap.set(card.name, leagueMap);
   }
 
   // ── Build response ──────────────────────────────────────────────────
@@ -1005,14 +1078,11 @@ Deno.serve(async (req: Request) => {
       const stats = getLeagueUploadStats(leagueId);
       const totalDropsInLeague = stats.card_observed_total;
       const verifiedDropsInLeague = stats.verified_card_observed_total;
-      const ratio =
-        totalDropsInLeague > 0
-          ? parseFloat((agg.total_count / totalDropsInLeague).toFixed(6))
-          : 0;
-      const verifiedRatio =
-        verifiedDropsInLeague > 0
-          ? parseFloat((agg.verified_count / verifiedDropsInLeague).toFixed(6))
-          : 0;
+      const ratio = ratioFromCounts(agg.total_count, totalDropsInLeague);
+      const verifiedRatio = ratioFromCounts(
+        agg.verified_count,
+        verifiedDropsInLeague,
+      );
       const communityEstimate =
         communityEstimates.get(leagueId)?.get(cardName) ?? null;
       const communityChance = communityEstimate?.chance ?? null;

@@ -7,7 +7,7 @@
  * 3. Personal analytics with seeded session data (Your Data tab)
  * 4. Chart rendering (canvas) — verifies canvas elements render
  * 5. Navigation back to cards list
- * 6. External links (poewiki.net, poe.ninja) — verifies URLs are correct
+ * 6. External links (wiki, market, database, community) — verifies URLs are correct
  * 7. Related / chain cards navigation (uses The Nurse for rich chain data)
  * 8. Tab switching between Your Data and Market Data
  *
@@ -23,7 +23,7 @@
  * @module e2e/flows/card-detail
  */
 
-import type { Locator, Page } from "@playwright/test";
+import type { ElectronApplication, Locator, Page } from "@playwright/test";
 
 import {
   dragFullRangeBrushThumb,
@@ -104,6 +104,55 @@ async function collectOpenedUrls(page: Page): Promise<string[]> {
     delete (window as any).__e2eOriginalOpen;
   });
   return urls;
+}
+
+async function installCommunityDropRateFixture(app: ElectronApplication) {
+  await app.evaluate(() => {
+    const state = globalThis as typeof globalThis & {
+      __e2eOriginalFetch?: typeof fetch;
+    };
+    if (state.__e2eOriginalFetch) return;
+
+    state.__e2eOriginalFetch = globalThis.fetch;
+    globalThis.fetch = async (input, init) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url;
+
+      if (url.endsWith("/data/drop-rates/poe1/index.json")) {
+        return new Response(
+          JSON.stringify({ leagues: [{ id: "standard", name: "Standard" }] }),
+          { headers: { "content-type": "application/json" } },
+        );
+      }
+      if (url.endsWith("/data/drop-rates/poe1/standard.json")) {
+        return new Response(
+          JSON.stringify({
+            league: { name: "Standard", observed_total: 1_000_000 },
+            cards: [{ name: "House of Mirrors", count: 25 }],
+          }),
+          { headers: { "content-type": "application/json" } },
+        );
+      }
+
+      return state.__e2eOriginalFetch!(input, init);
+    };
+  });
+}
+
+async function removeCommunityDropRateFixture(app: ElectronApplication) {
+  await app.evaluate(() => {
+    const state = globalThis as typeof globalThis & {
+      __e2eOriginalFetch?: typeof fetch;
+    };
+    if (!state.__e2eOriginalFetch) return;
+
+    globalThis.fetch = state.__e2eOriginalFetch;
+    delete state.__e2eOriginalFetch;
+  });
 }
 
 async function expectLegendHidden(button: Locator, hidden: boolean) {
@@ -279,9 +328,14 @@ async function ensureDataSeeded(page: Page) {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 test.describe("Card Detail Page", () => {
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ app, page }) => {
+    await installCommunityDropRateFixture(app);
     await ensurePostSetup(page);
     await ensureDataSeeded(page);
+  });
+
+  test.afterAll(async ({ app }) => {
+    await removeCommunityDropRateFixture(app);
   });
 
   // ── Navigation ────────────────────────────────────────────────────────────
@@ -450,8 +504,7 @@ test.describe("Card Detail Page", () => {
 
       // "Your Data" is the default active tab, so no need to click it.
       // Wait for the personal analytics section to render.
-      // With seeded data, CardDetailsPersonal should show stats like
-      // "Total Drops", "Drop Rate", "First Found", "Last Seen".
+      // With seeded data, CardDetailsPersonal shows community and personal stats.
       // If no data was seeded, it shows "You haven't found this card yet".
       await expect(page.locator("main")).toContainText(
         /Total Drops|You haven't found this card yet/,
@@ -463,7 +516,8 @@ test.describe("Card Detail Page", () => {
 
       // Either we see real stats (data was seeded) or the empty state
       const hasStats =
-        content?.includes("Total Drops") || content?.includes("Drop Rate");
+        content?.includes("Total Drops") ||
+        content?.includes("Community Drop Chance");
       const hasEmptyState = content?.includes(
         "You haven't found this card yet",
       );
@@ -472,6 +526,17 @@ test.describe("Card Detail Page", () => {
         hasStats || hasEmptyState,
         "Should display either personal stats or empty state message",
       ).toBe(true);
+    });
+
+    test("should display deterministic community drop chance data", async ({
+      page,
+    }) => {
+      await goToCardDetail(page, "house-of-mirrors");
+
+      await expect(page.getByText("Community Drop Chance")).toBeVisible();
+      await expect(page.getByText("0.002500%")).toBeVisible();
+      await expect(page.getByText("25 in 1,000,000 cards")).toBeVisible();
+      await expect(page.getByText("First Found")).toHaveCount(0);
     });
 
     test("should show total drops count when session data is seeded", async ({
@@ -826,17 +891,20 @@ test.describe("Card Detail Page", () => {
   // component passed to `window.open`.
 
   test.describe("External Links", () => {
-    test("should have poewiki.net and poe.ninja external link buttons", async ({
-      page,
-    }) => {
+    test("should show all card reference links", async ({ page }) => {
       await goToCardDetail(page, "house-of-mirrors");
 
-      // CardDetailsExternalLinks renders two ghost buttons
       const wikiButton = page.locator("button", { hasText: "poewiki.net" });
       const ninjaButton = page.locator("button", { hasText: "poe.ninja" });
+      const poedbButton = page.locator("button", { hasText: "PoEDB" });
+      const communityButton = page.locator("button", {
+        hasText: "wraeclast.cards",
+      });
 
       await expect(wikiButton).toBeVisible({ timeout: 10_000 });
       await expect(ninjaButton).toBeVisible({ timeout: 10_000 });
+      await expect(poedbButton).toBeVisible({ timeout: 10_000 });
+      await expect(communityButton).toBeVisible({ timeout: 10_000 });
     });
 
     test("should register the correct poewiki.net URL on click", async ({
@@ -882,6 +950,30 @@ test.describe("Card Detail Page", () => {
       expect(ninjaUrl).toContain("house-of-mirrors");
     });
 
+    test("should register the correct PoEDB URL on click", async ({ page }) => {
+      await goToCardDetail(page, "house-of-mirrors");
+      await installWindowOpenSpy(page);
+
+      await page.locator("button", { hasText: "PoEDB" }).click();
+      const [poedbUrl] = await collectOpenedUrls(page);
+
+      expect(poedbUrl).toBe("https://poedb.tw/us/House_of_Mirrors");
+    });
+
+    test("should register the correct wraeclast.cards URL on click", async ({
+      page,
+    }) => {
+      await goToCardDetail(page, "house-of-mirrors");
+      await installWindowOpenSpy(page);
+
+      await page.locator("button", { hasText: "wraeclast.cards" }).click();
+      const [communityUrl] = await collectOpenedUrls(page);
+
+      expect(communityUrl).toBe(
+        "https://wraeclast.cards/path-of-exile/standard/cards/house-of-mirrors",
+      );
+    });
+
     test("should not create new Electron windows when clicking external links", async ({
       app,
       page,
@@ -902,6 +994,12 @@ test.describe("Card Detail Page", () => {
 
       const ninjaButton = page.locator("button", { hasText: "poe.ninja" });
       await ninjaButton.click();
+      const poedbButton = page.locator("button", { hasText: "PoEDB" });
+      await poedbButton.click();
+      const communityButton = page.locator("button", {
+        hasText: "wraeclast.cards",
+      });
+      await communityButton.click();
       await page.waitForTimeout(300);
 
       await collectOpenedUrls(page); // cleanup spy

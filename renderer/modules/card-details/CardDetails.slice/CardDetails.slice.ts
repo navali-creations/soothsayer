@@ -1,6 +1,7 @@
 import type { StateCreator } from "zustand";
 
 import type {
+  CardCommunityDropRateDTO,
   CardDropTimelinePointDTO,
   CardPersonalAnalyticsDTO,
   CardPriceHistoryDTO,
@@ -29,6 +30,7 @@ export interface CardDetailsSlice {
     isLoadingCard: boolean;
     /** Error message if card resolution failed. */
     cardError: string | null;
+    cardDetailsRequestId: number;
 
     // ─── Price History State ────────────────────────────────────────────
     priceHistory: CardPriceHistoryDTO | null;
@@ -39,6 +41,11 @@ export interface CardDetailsSlice {
     personalAnalytics: CardPersonalAnalyticsDTO | null;
     isLoadingPersonalAnalytics: boolean;
     personalAnalyticsError: string | null;
+
+    // ─── Community Drop Rate State ─────────────────────────────────────
+    communityDropRate: CardCommunityDropRateDTO | null;
+    isLoadingCommunityDropRate: boolean;
+    communityDropRateRequestId: number;
 
     // ─── Sessions List State ───────────────────────────────────────────
     sessions: SessionsPage | null;
@@ -55,8 +62,6 @@ export interface CardDetailsSlice {
     /** The currently selected league filter on the card details page.
      *  "all" means no filtering (aggregate across all leagues). */
     selectedLeague: string;
-    /** Whether a league switch is in progress (for loading overlays). */
-    isLeagueSwitching: boolean;
     /** The active tab on the card details page. */
     activeTab: CardDetailsTab;
 
@@ -67,23 +72,20 @@ export interface CardDetailsSlice {
      * personal analytics + related cards in a single IPC round-trip.
      *
      * Called once when the card details page mounts (or when game/slug changes).
-     * Replaces the previous pattern of separate `resolveCard` + `fetchPersonalAnalytics`
-     * + `fetchRelatedCards` effects.
+     * Replaces the previous pattern of separate card, analytics, and related-card
+     * requests.
      */
     initializeCardDetails: (
       game: GameType,
       cardSlug: string,
       selectedLeague: string,
+      defaultLeague?: string,
     ) => Promise<void>;
 
-    /**
-     * Re-fetch only personal analytics (e.g. on league switch).
-     * Lighter than full init — card & related cards are unchanged.
-     */
-    refreshPersonalAnalytics: (
+    fetchCommunityDropRate: (
       game: GameType,
+      league: string,
       cardName: string,
-      selectedLeague: string,
     ) => Promise<void>;
 
     /** Update the selected league filter. Resets to "all" on clear. */
@@ -94,12 +96,6 @@ export interface CardDetailsSlice {
       game: GameType,
       league: string,
       cardName: string,
-    ) => Promise<void>;
-    fetchPersonalAnalytics: (
-      game: GameType,
-      league: string,
-      cardName: string,
-      selectedLeague?: string,
     ) => Promise<void>;
     fetchSessionsForCard: (
       game: GameType,
@@ -167,6 +163,7 @@ export const createCardDetailsSlice: StateCreator<
     card: null,
     isLoadingCard: false,
     cardError: null,
+    cardDetailsRequestId: 0,
 
     priceHistory: null,
     isLoadingPriceHistory: false,
@@ -175,6 +172,10 @@ export const createCardDetailsSlice: StateCreator<
     personalAnalytics: null,
     isLoadingPersonalAnalytics: false,
     personalAnalyticsError: null,
+
+    communityDropRate: null,
+    isLoadingCommunityDropRate: false,
+    communityDropRateRequestId: 0,
 
     sessions: null,
     isLoadingSessions: false,
@@ -186,7 +187,6 @@ export const createCardDetailsSlice: StateCreator<
     isLoadingRelatedCards: false,
 
     selectedLeague: "all",
-    isLeagueSwitching: false,
     activeTab: "your-data",
 
     // ─── Unified Initializer ─────────────────────────────────────────────
@@ -195,14 +195,20 @@ export const createCardDetailsSlice: StateCreator<
       game: GameType,
       cardSlug: string,
       selectedLeague: string,
+      defaultLeague?: string,
     ) => {
+      let requestId = 0;
       set(
         ({ cardDetails }) => {
+          requestId = ++cardDetails.cardDetailsRequestId;
           cardDetails.card = null;
           cardDetails.isLoadingCard = true;
           cardDetails.cardError = null;
           cardDetails.personalAnalytics = null;
           cardDetails.isLoadingPersonalAnalytics = true;
+          cardDetails.communityDropRate = null;
+          cardDetails.isLoadingCommunityDropRate = false;
+          cardDetails.communityDropRateRequestId++;
           cardDetails.relatedCards = null;
           cardDetails.isLoadingRelatedCards = true;
         },
@@ -216,11 +222,13 @@ export const createCardDetailsSlice: StateCreator<
           game,
           cardSlug,
           leagueArg,
+          selectedLeague === "all" ? defaultLeague : selectedLeague,
         );
 
         if (!result) {
           set(
             ({ cardDetails }) => {
+              if (cardDetails.cardDetailsRequestId !== requestId) return;
               cardDetails.card = null;
               cardDetails.isLoadingCard = false;
               cardDetails.cardError = "Card not found";
@@ -235,6 +243,7 @@ export const createCardDetailsSlice: StateCreator<
 
         set(
           ({ cardDetails }) => {
+            if (cardDetails.cardDetailsRequestId !== requestId) return;
             cardDetails.card = result.card;
             cardDetails.isLoadingCard = false;
             cardDetails.cardError = null;
@@ -253,6 +262,7 @@ export const createCardDetailsSlice: StateCreator<
         );
         set(
           ({ cardDetails }) => {
+            if (cardDetails.cardDetailsRequestId !== requestId) return;
             cardDetails.card = null;
             cardDetails.isLoadingCard = false;
             cardDetails.cardError =
@@ -268,57 +278,51 @@ export const createCardDetailsSlice: StateCreator<
       }
     },
 
-    // ─── Refresh Personal Analytics (league switch) ──────────────────────
-
-    refreshPersonalAnalytics: async (
+    fetchCommunityDropRate: async (
       game: GameType,
+      league: string,
       cardName: string,
-      selectedLeague: string,
     ) => {
+      let requestId = 0;
       set(
         ({ cardDetails }) => {
-          cardDetails.isLoadingPersonalAnalytics = true;
-          cardDetails.isLeagueSwitching = true;
-          cardDetails.personalAnalyticsError = null;
+          requestId = ++cardDetails.communityDropRateRequestId;
+          cardDetails.communityDropRate = null;
+          cardDetails.isLoadingCommunityDropRate = true;
         },
         false,
-        "cardDetailsSlice/refreshPersonalAnalytics/start",
+        "cardDetailsSlice/fetchCommunityDropRate/start",
       );
 
       try {
-        const leagueArg = selectedLeague === "all" ? undefined : selectedLeague;
-        const data = await window.electron.cardDetails.getPersonalAnalytics(
+        const data = await window.electron.cardDetails.getCommunityDropRate(
           game,
-          selectedLeague ?? "all",
+          league,
           cardName,
-          leagueArg,
         );
 
         set(
           ({ cardDetails }) => {
-            cardDetails.personalAnalytics = data;
-            cardDetails.isLoadingPersonalAnalytics = false;
-            cardDetails.isLeagueSwitching = false;
+            if (cardDetails.communityDropRateRequestId !== requestId) return;
+            cardDetails.communityDropRate = data;
+            cardDetails.isLoadingCommunityDropRate = false;
           },
           false,
-          "cardDetailsSlice/refreshPersonalAnalytics/success",
+          "cardDetailsSlice/fetchCommunityDropRate/success",
         );
       } catch (error) {
-        console.error(
-          "[CardDetailsSlice] Failed to refresh personal analytics:",
+        console.warn(
+          "[CardDetailsSlice] Community drop rate unavailable:",
           error,
         );
         set(
           ({ cardDetails }) => {
-            cardDetails.personalAnalyticsError =
-              error instanceof Error
-                ? error.message
-                : "Failed to load personal analytics";
-            cardDetails.isLoadingPersonalAnalytics = false;
-            cardDetails.isLeagueSwitching = false;
+            if (cardDetails.communityDropRateRequestId !== requestId) return;
+            cardDetails.communityDropRate = null;
+            cardDetails.isLoadingCommunityDropRate = false;
           },
           false,
-          "cardDetailsSlice/refreshPersonalAnalytics/error",
+          "cardDetailsSlice/fetchCommunityDropRate/error",
         );
       }
     },
@@ -391,61 +395,6 @@ export const createCardDetailsSlice: StateCreator<
           },
           false,
           "cardDetailsSlice/fetchPriceHistory/error",
-        );
-      }
-    },
-
-    // ─── Fetch Personal Analytics (Milestone 3) ─────────────────────────
-
-    fetchPersonalAnalytics: async (
-      game: GameType,
-      league: string,
-      cardName: string,
-      selectedLeague?: string,
-    ) => {
-      set(
-        ({ cardDetails }) => {
-          cardDetails.isLoadingPersonalAnalytics = true;
-          cardDetails.isLeagueSwitching = true;
-          cardDetails.personalAnalyticsError = null;
-        },
-        false,
-        "cardDetailsSlice/fetchPersonalAnalytics/start",
-      );
-
-      try {
-        const data = await window.electron.cardDetails.getPersonalAnalytics(
-          game,
-          league,
-          cardName,
-          selectedLeague,
-        );
-
-        set(
-          ({ cardDetails }) => {
-            cardDetails.personalAnalytics = data;
-            cardDetails.isLoadingPersonalAnalytics = false;
-            cardDetails.isLeagueSwitching = false;
-          },
-          false,
-          "cardDetailsSlice/fetchPersonalAnalytics/success",
-        );
-      } catch (error) {
-        console.error(
-          "[CardDetailsSlice] Failed to fetch personal analytics:",
-          error,
-        );
-        set(
-          ({ cardDetails }) => {
-            cardDetails.personalAnalyticsError =
-              error instanceof Error
-                ? error.message
-                : "Failed to load personal analytics";
-            cardDetails.isLoadingPersonalAnalytics = false;
-            cardDetails.isLeagueSwitching = false;
-          },
-          false,
-          "cardDetailsSlice/fetchPersonalAnalytics/error",
         );
       }
     },
@@ -597,6 +546,7 @@ export const createCardDetailsSlice: StateCreator<
           cardDetails.card = null;
           cardDetails.isLoadingCard = false;
           cardDetails.cardError = null;
+          cardDetails.cardDetailsRequestId++;
 
           // Price history
           cardDetails.priceHistory = null;
@@ -607,6 +557,11 @@ export const createCardDetailsSlice: StateCreator<
           cardDetails.personalAnalytics = null;
           cardDetails.isLoadingPersonalAnalytics = false;
           cardDetails.personalAnalyticsError = null;
+
+          // Community drop rate
+          cardDetails.communityDropRate = null;
+          cardDetails.isLoadingCommunityDropRate = false;
+          cardDetails.communityDropRateRequestId++;
 
           // Sessions
           cardDetails.sessions = null;
@@ -621,7 +576,6 @@ export const createCardDetailsSlice: StateCreator<
 
           // UI state
           cardDetails.selectedLeague = "all";
-          cardDetails.isLeagueSwitching = false;
           cardDetails.activeTab = "your-data";
         },
         false,
@@ -635,8 +589,15 @@ export const createCardDetailsSlice: StateCreator<
 
     getDisplayRarity: () => {
       const { card } = get().cardDetails;
-      // PL rarity from card DTO → poe.ninja rarity → fallback 4
-      return (card?.prohibitedLibraryRarity ?? card?.rarity ?? 4) as Rarity;
+      const prohibitedLibraryRarity = card?.prohibitedLibraryRarity;
+
+      // Rarity 0 means the PL dataset has no classification for this card.
+      // Fall back to poe.ninja instead of displaying every such card as Unknown.
+      return (
+        prohibitedLibraryRarity && prohibitedLibraryRarity > 0
+          ? prohibitedLibraryRarity
+          : (card?.rarity ?? 4)
+      ) as Rarity;
     },
 
     // ─── Price Getters ───────────────────────────────────────────────────

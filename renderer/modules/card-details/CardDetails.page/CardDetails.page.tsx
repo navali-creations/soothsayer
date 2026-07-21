@@ -25,19 +25,20 @@ const CardDetailsPage = () => {
     isLoadingCard,
     cardError,
     initializeCardDetails,
-    refreshPersonalAnalytics,
     fetchPriceHistory,
     clearCardDetails,
     isLoadingPersonalAnalytics,
-    isLeagueSwitching,
     selectedLeague,
     setSelectedLeague,
     activeTab,
     getDisplayRarity,
+    fetchCommunityDropRate,
   } = useCardDetails();
 
   const game = getSelectedGame();
   const globalLeague = getActiveGameViewSelectedLeague();
+  const communityLeague =
+    selectedLeague === "all" ? globalLeague : selectedLeague;
 
   // ─── Reset league on card navigation ───────────────────────────────────
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — reset on card navigation
@@ -49,51 +50,22 @@ const CardDetailsPage = () => {
   //
   // A single effect that resolves the card by slug and fetches personal
   // analytics + related cards in one IPC round-trip. Replaces the previous
-  // chain of separate resolveCard / fetchPersonalAnalytics / fetchRelatedCards
-  // effects.
+  // chain of separate card, analytics, and related-card effects.
   //
   // Re-runs when game, slug, or selectedLeague changes.
 
   const hasInitializedRef = useRef<string | null>(null);
 
   useEffect(() => {
-    const initKey = `${game}:${cardSlug}:${selectedLeague}`;
+    const initKey = `${game}:${cardSlug}:${selectedLeague}:${communityLeague}`;
     if (hasInitializedRef.current === initKey) return;
     hasInitializedRef.current = initKey;
 
-    initializeCardDetails(game, cardSlug, selectedLeague);
+    initializeCardDetails(game, cardSlug, selectedLeague, communityLeague);
 
     // Track card detail view
     trackEvent("card-details:view", { cardSlug });
-  }, [game, cardSlug, selectedLeague, initializeCardDetails]);
-
-  // ─── League switch → refresh personal analytics only ───────────────────
-  //
-  // When the user changes the league filter, we only need to re-fetch
-  // personal analytics (stats, timeline, sessions are league-scoped).
-  // The card itself and related cards don't change.
-  //
-  // We track the last-fetched key so the initial load (handled above)
-  // doesn't trigger a redundant fetch here.
-
-  const lastLeagueFetchRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (!card) return;
-
-    const fetchKey = `${game}:${card.name}:${selectedLeague}`;
-
-    // Skip if this is the first render (init already fetched analytics)
-    // or if nothing actually changed.
-    if (lastLeagueFetchRef.current === null) {
-      lastLeagueFetchRef.current = fetchKey;
-      return;
-    }
-    if (lastLeagueFetchRef.current === fetchKey) return;
-    lastLeagueFetchRef.current = fetchKey;
-
-    refreshPersonalAnalytics(game, card.name, selectedLeague);
-  }, [game, selectedLeague, card, refreshPersonalAnalytics]);
+  }, [game, cardSlug, selectedLeague, communityLeague, initializeCardDetails]);
 
   // ─── Cleanup on unmount / card change ──────────────────────────────────
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — clear on card/game change
@@ -101,7 +73,6 @@ const CardDetailsPage = () => {
     return () => {
       clearCardDetails();
       hasInitializedRef.current = null;
-      lastLeagueFetchRef.current = null;
     };
   }, [game, cardSlug, clearCardDetails]);
 
@@ -120,6 +91,11 @@ const CardDetailsPage = () => {
 
     fetchPriceHistory(game, globalLeague, card.name);
   }, [activeTab, game, globalLeague, card, fetchPriceHistory]);
+
+  useEffect(() => {
+    if (!card || !communityLeague) return;
+    fetchCommunityDropRate(game, communityLeague, card.name);
+  }, [card, communityLeague, fetchCommunityDropRate, game]);
 
   // Reset price-fetched tracker when card/game/league changes
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — reset tracker
@@ -152,7 +128,7 @@ const CardDetailsPage = () => {
     }),
   };
 
-  const isYourDataLoading = isLoadingPersonalAnalytics || isLeagueSwitching;
+  const isYourDataLoading = isLoadingPersonalAnalytics;
 
   return (
     <PageContainer>
@@ -168,7 +144,11 @@ const CardDetailsPage = () => {
           {/* Left column: Card visual + external links + related cards */}
           <div className="space-y-3">
             <CardDetailsVisual card={displayCard} />
-            <CardDetailsExternalLinks cardName={card.name} game={game} />
+            <CardDetailsExternalLinks
+              cardName={card.name}
+              game={game}
+              league={communityLeague}
+            />
             <CardDetailsRelatedCards />
           </div>
 

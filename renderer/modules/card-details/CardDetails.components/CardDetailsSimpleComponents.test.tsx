@@ -328,14 +328,13 @@ describe("PersonalStatsPlaceholder", () => {
   it("renders placeholder dashes for all stat values", () => {
     renderWithProviders(<PersonalStatsPlaceholder />);
     const dashes = screen.getAllByText("—");
-    expect(dashes.length).toBe(4);
+    expect(dashes.length).toBe(3);
   });
 
   it("renders stat titles", () => {
     renderWithProviders(<PersonalStatsPlaceholder />);
+    expect(screen.getByText("Your Drop Chance")).toBeInTheDocument();
     expect(screen.getByText("Total Drops")).toBeInTheDocument();
-    expect(screen.getByText("Drop Rate")).toBeInTheDocument();
-    expect(screen.getByText("First Found")).toBeInTheDocument();
     expect(screen.getByText("Last Seen")).toBeInTheDocument();
   });
 

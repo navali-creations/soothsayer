@@ -34,14 +34,15 @@ export default defineConfig({
     video: "off",
   },
 
-  // The compiled .vite/build/main.js has MAIN_WINDOW_VITE_DEV_SERVER_URL
-  // hardcoded to http://localhost:5173. Without this server running the
-  // Electron window loads a blank page. If already running it gets reused.
+  // Electron receives the matching URL through SOOTHSAYER_E2E_RENDERER_URL.
+  // A strict, dedicated server prevents stale Forge builds or another Vite
+  // app on this port from producing an empty or unrelated renderer.
   webServer: {
-    command: "pnpm exec vite --config vite.renderer.config.mts --port 5173",
+    command:
+      "pnpm exec vite --config vite.renderer.config.mts --port 5173 --strictPort",
     port: 5173,
     timeout: 30_000,
-    reuseExistingServer: true,
+    reuseExistingServer: false,
     stdout: "pipe",
     stderr: "pipe",
   },

@@ -367,6 +367,7 @@ export function createElectronMock() {
     cardDetails: {
       getPriceHistory: vi.fn().mockResolvedValue(null),
       getPersonalAnalytics: vi.fn().mockResolvedValue(null),
+      getCommunityDropRate: vi.fn().mockResolvedValue(null),
       getRelatedCards: vi
         .fn()
         .mockResolvedValue({ relatedCards: [], total: 0 }),

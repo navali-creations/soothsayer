@@ -210,8 +210,14 @@ class OverlayService {
     });
 
     try {
-      if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-        const overlayUrl = `${MAIN_WINDOW_VITE_DEV_SERVER_URL}/overlay.html`;
+      const rendererDevServerUrl =
+        process.env.E2E_TESTING === "true"
+          ? (process.env.SOOTHSAYER_E2E_RENDERER_URL ??
+            MAIN_WINDOW_VITE_DEV_SERVER_URL)
+          : MAIN_WINDOW_VITE_DEV_SERVER_URL;
+
+      if (rendererDevServerUrl) {
+        const overlayUrl = `${rendererDevServerUrl}/overlay.html`;
         await this.overlayWindow.loadURL(overlayUrl);
       } else {
         // In production, overlay.html is built alongside index.html

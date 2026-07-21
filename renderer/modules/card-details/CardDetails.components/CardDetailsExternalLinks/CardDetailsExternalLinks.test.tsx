@@ -21,13 +21,15 @@ afterEach(() => {
 // ─── Tests ─────────────────────────────────────────────────────────────────
 
 describe("CardDetailsExternalLinks", () => {
-  it("renders wiki and poe.ninja buttons", () => {
+  it("renders all external resource buttons", () => {
     renderWithProviders(
       <CardDetailsExternalLinks cardName="The Doctor" game="poe1" />,
     );
 
     expect(screen.getByText("poewiki.net")).toBeInTheDocument();
     expect(screen.getByText("poe.ninja")).toBeInTheDocument();
+    expect(screen.getByText("PoEDB")).toBeInTheDocument();
+    expect(screen.getByText("wraeclast.cards")).toBeInTheDocument();
   });
 
   it("opens poewiki.net with encoded card name on click", async () => {
@@ -105,6 +107,82 @@ describe("CardDetailsExternalLinks", () => {
     // cardNameToSlug: lowercase, replace non-alnum with -, strip leading/trailing -
     expect(openSpy).toHaveBeenCalledWith(
       "https://poe.ninja/poe1/economy/divination-cards/the-king-s-heart",
+      "_blank",
+    );
+  });
+
+  it("opens the PoEDB card page", async () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+
+    const { user } = renderWithProviders(
+      <CardDetailsExternalLinks
+        cardName="A Chilling Wind"
+        game="poe1"
+        league="Mirage"
+      />,
+    );
+
+    await user.click(screen.getByText("PoEDB"));
+
+    expect(openSpy).toHaveBeenCalledWith(
+      "https://poedb.tw/us/A_Chilling_Wind",
+      "_blank",
+    );
+  });
+
+  it("uses the PoE2 database for PoE2 cards", async () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+
+    const { user } = renderWithProviders(
+      <CardDetailsExternalLinks
+        cardName="The Doctor"
+        game="poe2"
+        league="Standard"
+      />,
+    );
+
+    await user.click(screen.getByText("PoEDB"));
+
+    expect(openSpy).toHaveBeenCalledWith(
+      "https://poe2db.tw/us/The_Doctor",
+      "_blank",
+    );
+  });
+
+  it("opens the league-specific wraeclast.cards page", async () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+
+    const { user } = renderWithProviders(
+      <CardDetailsExternalLinks
+        cardName="A Chilling Wind"
+        game="poe1"
+        league="Mirage"
+      />,
+    );
+
+    await user.click(screen.getByText("wraeclast.cards"));
+
+    expect(openSpy).toHaveBeenCalledWith(
+      "https://wraeclast.cards/path-of-exile/mirage/cards/a-chilling-wind",
+      "_blank",
+    );
+  });
+
+  it("uses the canonical wraeclast.cards slug for apostrophes", async () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+
+    const { user } = renderWithProviders(
+      <CardDetailsExternalLinks
+        cardName="The King's Heart"
+        game="poe1"
+        league="Standard"
+      />,
+    );
+
+    await user.click(screen.getByText("wraeclast.cards"));
+
+    expect(openSpy).toHaveBeenCalledWith(
+      "https://wraeclast.cards/path-of-exile/standard/cards/the-kings-heart",
       "_blank",
     );
   });

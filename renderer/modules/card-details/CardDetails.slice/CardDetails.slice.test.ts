@@ -48,6 +48,15 @@ function makePriceHistory(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function makeCommunityDropRate(overrides: Record<string, unknown> = {}) {
+  return {
+    league: "Mirage",
+    dropCount: 2475,
+    sampleSize: 4_207_137,
+    ...overrides,
+  };
+}
+
 function makeRelatedCards(overrides: Record<string, unknown> = {}) {
   return {
     relatedCards: [{ name: "The Nurse", stackSize: 4, rarity: 2 }],
@@ -128,6 +137,13 @@ describe("CardDetails.slice", () => {
       expect(store.getState().cardDetails.personalAnalyticsError).toBeNull();
     });
 
+    it("has no community drop rate request in progress", () => {
+      const state = store.getState().cardDetails;
+      expect(state.communityDropRate).toBeNull();
+      expect(state.isLoadingCommunityDropRate).toBe(false);
+      expect(state.communityDropRateRequestId).toBe(0);
+    });
+
     it("has sessions null", () => {
       expect(store.getState().cardDetails.sessions).toBeNull();
     });
@@ -163,12 +179,138 @@ describe("CardDetails.slice", () => {
       expect(store.getState().cardDetails.selectedLeague).toBe("all");
     });
 
-    it("has isLeagueSwitching false", () => {
-      expect(store.getState().cardDetails.isLeagueSwitching).toBe(false);
-    });
-
     it('has activeTab "your-data"', () => {
       expect(store.getState().cardDetails.activeTab).toBe("your-data");
+    });
+  });
+
+  describe("fetchCommunityDropRate", () => {
+    it("stores the community rate returned by IPC", async () => {
+      const rate = makeCommunityDropRate();
+      electron.cardDetails.getCommunityDropRate.mockResolvedValue(rate);
+
+      await store
+        .getState()
+        .cardDetails.fetchCommunityDropRate(
+          "poe1",
+          "Mirage",
+          "A Chilling Wind",
+        );
+
+      expect(electron.cardDetails.getCommunityDropRate).toHaveBeenCalledWith(
+        "poe1",
+        "Mirage",
+        "A Chilling Wind",
+      );
+      expect(store.getState().cardDetails.communityDropRate).toEqual(rate);
+      expect(store.getState().cardDetails.isLoadingCommunityDropRate).toBe(
+        false,
+      );
+    });
+
+    it("clears the loading state when IPC fails", async () => {
+      electron.cardDetails.getCommunityDropRate.mockRejectedValue(
+        new Error("offline"),
+      );
+
+      await store
+        .getState()
+        .cardDetails.fetchCommunityDropRate(
+          "poe1",
+          "Mirage",
+          "A Chilling Wind",
+        );
+
+      expect(store.getState().cardDetails.communityDropRate).toBeNull();
+      expect(store.getState().cardDetails.isLoadingCommunityDropRate).toBe(
+        false,
+      );
+    });
+
+    it("does not let an older league response replace a newer one", async () => {
+      let resolveMirage!: (
+        value: ReturnType<typeof makeCommunityDropRate>,
+      ) => void;
+      let resolveStandard!: (
+        value: ReturnType<typeof makeCommunityDropRate>,
+      ) => void;
+      electron.cardDetails.getCommunityDropRate
+        .mockReturnValueOnce(
+          new Promise((resolve) => {
+            resolveMirage = resolve;
+          }),
+        )
+        .mockReturnValueOnce(
+          new Promise((resolve) => {
+            resolveStandard = resolve;
+          }),
+        );
+
+      const mirageRequest = store
+        .getState()
+        .cardDetails.fetchCommunityDropRate(
+          "poe1",
+          "Mirage",
+          "A Chilling Wind",
+        );
+      const standardRequest = store
+        .getState()
+        .cardDetails.fetchCommunityDropRate(
+          "poe1",
+          "Standard",
+          "A Chilling Wind",
+        );
+
+      const standardRate = makeCommunityDropRate({ league: "Standard" });
+      resolveStandard(standardRate);
+      await standardRequest;
+      resolveMirage(makeCommunityDropRate());
+      await mirageRequest;
+
+      expect(store.getState().cardDetails.communityDropRate).toEqual(
+        standardRate,
+      );
+    });
+
+    it("does not let an older same-key failure clear a newer success", async () => {
+      let rejectOlder!: (reason: Error) => void;
+      let resolveNewer!: (
+        value: ReturnType<typeof makeCommunityDropRate>,
+      ) => void;
+      electron.cardDetails.getCommunityDropRate
+        .mockReturnValueOnce(
+          new Promise((_resolve, reject) => {
+            rejectOlder = reject;
+          }),
+        )
+        .mockReturnValueOnce(
+          new Promise((resolve) => {
+            resolveNewer = resolve;
+          }),
+        );
+
+      const olderRequest = store
+        .getState()
+        .cardDetails.fetchCommunityDropRate(
+          "poe1",
+          "Mirage",
+          "A Chilling Wind",
+        );
+      const newerRequest = store
+        .getState()
+        .cardDetails.fetchCommunityDropRate(
+          "poe1",
+          "Mirage",
+          "A Chilling Wind",
+        );
+      const newerRate = makeCommunityDropRate();
+
+      resolveNewer(newerRate);
+      await newerRequest;
+      rejectOlder(new Error("older request failed"));
+      await olderRequest;
+
+      expect(store.getState().cardDetails.communityDropRate).toEqual(newerRate);
     });
   });
 
@@ -250,12 +392,18 @@ describe("CardDetails.slice", () => {
 
       await store
         .getState()
-        .cardDetails.initializeCardDetails("poe1", "the-doctor", "all");
+        .cardDetails.initializeCardDetails(
+          "poe1",
+          "the-doctor",
+          "all",
+          "Settlers",
+        );
 
       expect(electron.cardDetails.resolveCardBySlug).toHaveBeenCalledWith(
         "poe1",
         "the-doctor",
         undefined,
+        "Settlers",
       );
     });
 
@@ -271,6 +419,7 @@ describe("CardDetails.slice", () => {
       expect(electron.cardDetails.resolveCardBySlug).toHaveBeenCalledWith(
         "poe1",
         "the-doctor",
+        "Necropolis",
         "Necropolis",
       );
     });
@@ -338,130 +487,58 @@ describe("CardDetails.slice", () => {
         .cardDetails.initializeCardDetails("poe1", "the-doctor", "all");
       expect(store.getState().cardDetails.cardError).toBeNull();
     });
-  });
 
-  // ─── refreshPersonalAnalytics ──────────────────────────────────────
+    it("does not let an older initialization replace a newer card", async () => {
+      let resolveOlder!: (value: ReturnType<typeof makeResolveResult>) => void;
+      let resolveNewer!: (value: ReturnType<typeof makeResolveResult>) => void;
+      electron.cardDetails.resolveCardBySlug
+        .mockReturnValueOnce(
+          new Promise((resolve) => {
+            resolveOlder = resolve;
+          }),
+        )
+        .mockReturnValueOnce(
+          new Promise((resolve) => {
+            resolveNewer = resolve;
+          }),
+        );
 
-  describe("refreshPersonalAnalytics", () => {
-    it("sets loading and leagueSwitching flags on start", async () => {
-      let resolveIpc!: (value: unknown) => void;
-      electron.cardDetails.getPersonalAnalytics.mockReturnValue(
+      const olderRequest = store
+        .getState()
+        .cardDetails.initializeCardDetails("poe1", "card-a", "all");
+      const newerRequest = store
+        .getState()
+        .cardDetails.initializeCardDetails("poe1", "card-b", "all");
+      const newerResult = makeResolveResult({
+        card: makeCard({ name: "Card B" }),
+      });
+
+      resolveNewer(newerResult);
+      await newerRequest;
+      resolveOlder(makeResolveResult({ card: makeCard({ name: "Card A" }) }));
+      await olderRequest;
+
+      expect(store.getState().cardDetails.card?.name).toBe("Card B");
+    });
+
+    it("invalidates an in-flight initialization when state is cleared", async () => {
+      let resolveRequest!: (
+        value: ReturnType<typeof makeResolveResult>,
+      ) => void;
+      electron.cardDetails.resolveCardBySlug.mockReturnValue(
         new Promise((resolve) => {
-          resolveIpc = resolve;
+          resolveRequest = resolve;
         }),
       );
 
-      const promise = store
+      const request = store
         .getState()
-        .cardDetails.refreshPersonalAnalytics("poe1", "The Doctor", "all");
+        .cardDetails.initializeCardDetails("poe1", "the-doctor", "all");
+      store.getState().cardDetails.clearCardDetails();
+      resolveRequest(makeResolveResult());
+      await request;
 
-      expect(store.getState().cardDetails.isLoadingPersonalAnalytics).toBe(
-        true,
-      );
-      expect(store.getState().cardDetails.isLeagueSwitching).toBe(true);
-
-      resolveIpc(makePersonalAnalytics());
-      await promise;
-    });
-
-    it("populates personalAnalytics on success", async () => {
-      const analytics = makePersonalAnalytics({ totalLifetimeDrops: 10 });
-      electron.cardDetails.getPersonalAnalytics.mockResolvedValue(analytics);
-
-      await store
-        .getState()
-        .cardDetails.refreshPersonalAnalytics("poe1", "The Doctor", "all");
-
-      const state = store.getState().cardDetails;
-      expect(state.personalAnalytics).toEqual(analytics);
-      expect(state.isLoadingPersonalAnalytics).toBe(false);
-      expect(state.isLeagueSwitching).toBe(false);
-    });
-
-    it("passes leagueArg as undefined when selectedLeague is 'all'", async () => {
-      electron.cardDetails.getPersonalAnalytics.mockResolvedValue(
-        makePersonalAnalytics(),
-      );
-
-      await store
-        .getState()
-        .cardDetails.refreshPersonalAnalytics("poe1", "The Doctor", "all");
-
-      expect(electron.cardDetails.getPersonalAnalytics).toHaveBeenCalledWith(
-        "poe1",
-        "all",
-        "The Doctor",
-        undefined,
-      );
-    });
-
-    it("passes specific league when selectedLeague is not 'all'", async () => {
-      electron.cardDetails.getPersonalAnalytics.mockResolvedValue(
-        makePersonalAnalytics(),
-      );
-
-      await store
-        .getState()
-        .cardDetails.refreshPersonalAnalytics(
-          "poe1",
-          "The Doctor",
-          "Necropolis",
-        );
-
-      expect(electron.cardDetails.getPersonalAnalytics).toHaveBeenCalledWith(
-        "poe1",
-        "Necropolis",
-        "The Doctor",
-        "Necropolis",
-      );
-    });
-
-    it("sets error on failure", async () => {
-      electron.cardDetails.getPersonalAnalytics.mockRejectedValue(
-        new Error("analytics error"),
-      );
-
-      await store
-        .getState()
-        .cardDetails.refreshPersonalAnalytics("poe1", "The Doctor", "all");
-
-      const state = store.getState().cardDetails;
-      expect(state.personalAnalyticsError).toBe("analytics error");
-      expect(state.isLoadingPersonalAnalytics).toBe(false);
-      expect(state.isLeagueSwitching).toBe(false);
-    });
-
-    it("uses fallback error message for non-Error throws", async () => {
-      electron.cardDetails.getPersonalAnalytics.mockRejectedValue(42);
-
-      await store
-        .getState()
-        .cardDetails.refreshPersonalAnalytics("poe1", "The Doctor", "all");
-
-      expect(store.getState().cardDetails.personalAnalyticsError).toBe(
-        "Failed to load personal analytics",
-      );
-    });
-
-    it("falls back to 'all' when selectedLeague is null", async () => {
-      electron.cardDetails.getPersonalAnalytics.mockResolvedValue(
-        makePersonalAnalytics(),
-      );
-
-      await store
-        .getState()
-        .cardDetails.refreshPersonalAnalytics(
-          "poe1",
-          "The Doctor",
-          null as unknown as string,
-        );
-
-      expect(electron.cardDetails.getPersonalAnalytics).toHaveBeenCalledWith(
-        "poe1",
-        "all",
-        "The Doctor",
-        null,
-      );
+      expect(store.getState().cardDetails.card).toBeNull();
     });
   });
 
@@ -586,100 +663,6 @@ describe("CardDetails.slice", () => {
         .getState()
         .cardDetails.fetchPriceHistory("poe1", "Settlers", "The Doctor");
       expect(store.getState().cardDetails.priceHistoryError).toBeNull();
-    });
-  });
-
-  // ─── fetchPersonalAnalytics ────────────────────────────────────────
-
-  describe("fetchPersonalAnalytics", () => {
-    it("sets loading and leagueSwitching flags", async () => {
-      let resolveIpc!: (value: unknown) => void;
-      electron.cardDetails.getPersonalAnalytics.mockReturnValue(
-        new Promise((resolve) => {
-          resolveIpc = resolve;
-        }),
-      );
-
-      const promise = store
-        .getState()
-        .cardDetails.fetchPersonalAnalytics("poe1", "Settlers", "The Doctor");
-
-      expect(store.getState().cardDetails.isLoadingPersonalAnalytics).toBe(
-        true,
-      );
-      expect(store.getState().cardDetails.isLeagueSwitching).toBe(true);
-
-      resolveIpc(makePersonalAnalytics());
-      await promise;
-    });
-
-    it("populates personalAnalytics on success", async () => {
-      const analytics = makePersonalAnalytics({ totalLifetimeDrops: 42 });
-      electron.cardDetails.getPersonalAnalytics.mockResolvedValue(analytics);
-
-      await store
-        .getState()
-        .cardDetails.fetchPersonalAnalytics(
-          "poe1",
-          "Settlers",
-          "The Doctor",
-          "Necropolis",
-        );
-
-      expect(store.getState().cardDetails.personalAnalytics).toEqual(analytics);
-      expect(store.getState().cardDetails.isLoadingPersonalAnalytics).toBe(
-        false,
-      );
-      expect(store.getState().cardDetails.isLeagueSwitching).toBe(false);
-    });
-
-    it("passes selectedLeague to IPC", async () => {
-      electron.cardDetails.getPersonalAnalytics.mockResolvedValue(
-        makePersonalAnalytics(),
-      );
-
-      await store
-        .getState()
-        .cardDetails.fetchPersonalAnalytics(
-          "poe1",
-          "Settlers",
-          "The Doctor",
-          "Necropolis",
-        );
-
-      expect(electron.cardDetails.getPersonalAnalytics).toHaveBeenCalledWith(
-        "poe1",
-        "Settlers",
-        "The Doctor",
-        "Necropolis",
-      );
-    });
-
-    it("sets error on failure", async () => {
-      electron.cardDetails.getPersonalAnalytics.mockRejectedValue(
-        new Error("analytics fail"),
-      );
-
-      await store
-        .getState()
-        .cardDetails.fetchPersonalAnalytics("poe1", "Settlers", "The Doctor");
-
-      expect(store.getState().cardDetails.personalAnalyticsError).toBe(
-        "analytics fail",
-      );
-      expect(store.getState().cardDetails.isLeagueSwitching).toBe(false);
-    });
-
-    it("uses fallback error message for non-Error throws", async () => {
-      electron.cardDetails.getPersonalAnalytics.mockRejectedValue("unknown");
-
-      await store
-        .getState()
-        .cardDetails.fetchPersonalAnalytics("poe1", "Settlers", "The Doctor");
-
-      expect(store.getState().cardDetails.personalAnalyticsError).toBe(
-        "Failed to load personal analytics",
-      );
     });
   });
 
@@ -988,6 +971,9 @@ describe("CardDetails.slice", () => {
       expect(state.personalAnalytics).toBeNull();
       expect(state.isLoadingPersonalAnalytics).toBe(false);
       expect(state.personalAnalyticsError).toBeNull();
+      expect(state.communityDropRate).toBeNull();
+      expect(state.isLoadingCommunityDropRate).toBe(false);
+      expect(state.communityDropRateRequestId).toBeGreaterThan(0);
       expect(state.sessions).toBeNull();
       expect(state.isLoadingSessions).toBe(false);
       expect(state.sessionsError).toBeNull();
@@ -999,7 +985,6 @@ describe("CardDetails.slice", () => {
       expect(state.relatedCards).toBeNull();
       expect(state.isLoadingRelatedCards).toBe(false);
       expect(state.selectedLeague).toBe("all");
-      expect(state.isLeagueSwitching).toBe(false);
       expect(state.activeTab).toBe("your-data");
     });
 
@@ -1078,6 +1063,16 @@ describe("CardDetails.slice", () => {
           }) as any;
         });
         expect(store.getState().cardDetails.getDisplayRarity()).toBe(1);
+      });
+
+      it("falls through to card rarity when PL rarity is unclassified", () => {
+        store.setState((s) => {
+          s.cardDetails.card = makeCard({
+            rarity: 3,
+            prohibitedLibraryRarity: 0,
+          }) as any;
+        });
+        expect(store.getState().cardDetails.getDisplayRarity()).toBe(3);
       });
 
       it("uses card PL rarity when available", () => {
@@ -1636,18 +1631,16 @@ describe("CardDetails.slice", () => {
       store.getState().cardDetails.setSelectedLeague("Necropolis");
       expect(store.getState().cardDetails.selectedLeague).toBe("Necropolis");
 
-      // 4. Refresh analytics for new league
+      // 4. Reinitialize for the new league
       const newAnalytics = makePersonalAnalytics({
         totalLifetimeDrops: 99,
       });
-      electron.cardDetails.getPersonalAnalytics.mockResolvedValue(newAnalytics);
+      electron.cardDetails.resolveCardBySlug.mockResolvedValue(
+        makeResolveResult({ personalAnalytics: newAnalytics }),
+      );
       await store
         .getState()
-        .cardDetails.refreshPersonalAnalytics(
-          "poe1",
-          "The Doctor",
-          "Necropolis",
-        );
+        .cardDetails.initializeCardDetails("poe1", "the-doctor", "Necropolis");
       expect(store.getState().cardDetails.personalAnalytics).toEqual(
         newAnalytics,
       );
@@ -1680,7 +1673,6 @@ describe("CardDetails.slice", () => {
       expect(state.isLoadingPersonalAnalytics).toBe(false);
       expect(state.isLoadingSessions).toBe(false);
       expect(state.isLoadingRelatedCards).toBe(false);
-      expect(state.isLeagueSwitching).toBe(false);
     });
   });
 });

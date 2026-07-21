@@ -5,11 +5,18 @@ import type { DivinationCardDTO } from "~/main/modules/divination-cards/Divinati
 import { DivinationCardsService } from "~/main/modules/divination-cards/DivinationCards.service";
 import { LoggerService } from "~/main/modules/logger";
 import { MainWindowService } from "~/main/modules/main-window";
+import {
+  assertBoundedString,
+  assertGameType,
+  assertTrustedSender,
+  handleValidationError,
+} from "~/main/utils/ipc-validation";
 import { cardNameToSlug } from "~/types/card-slug";
 import type { GameType } from "~/types/data-stores";
 
 import { CardDetailsChannel } from "./CardDetails.channels";
 import type {
+  CardCommunityDropRateDTO,
   CardDetailsInitDTO,
   CardDropTimelinePointDTO,
   CardPersonalAnalyticsDTO,
@@ -24,6 +31,7 @@ import {
 } from "./CardDetails.mapper";
 import { CardDetailsRepository } from "./CardDetails.repository";
 import { buildPreparedDropTimeline } from "./CardDetails.utils";
+import { CommunityDropRatesService } from "./CommunityDropRates.service";
 
 /** Cache TTL: 30 minutes */
 const CACHE_TTL_MS = 30 * 60 * 1000;
@@ -156,10 +164,8 @@ class CardDetailsService {
   private static _instance: CardDetailsService;
   private readonly logger = LoggerService.createLogger("CardDetails");
   private readonly repository: CardDetailsRepository;
-  private readonly cardSlugCache = new Map<
-    GameType,
-    Map<string, DivinationCardDTO>
-  >();
+  private readonly cardSlugCache = new Map<GameType, Map<string, string>>();
+  private readonly communityDropRates = new CommunityDropRatesService();
 
   static getInstance(): CardDetailsService {
     if (!CardDetailsService._instance) {
@@ -288,14 +294,67 @@ class CardDetailsService {
     );
 
     ipcMain.handle(
+      CardDetailsChannel.GetCommunityDropRate,
+      async (
+        event: Electron.IpcMainInvokeEvent,
+        game: GameType,
+        league: string,
+        cardName: string,
+      ): Promise<CardCommunityDropRateDTO | null> => {
+        try {
+          assertTrustedSender(event, CardDetailsChannel.GetCommunityDropRate);
+          assertGameType(game, CardDetailsChannel.GetCommunityDropRate);
+          assertBoundedString(
+            league,
+            "league",
+            CardDetailsChannel.GetCommunityDropRate,
+            100,
+          );
+          assertBoundedString(
+            cardName,
+            "cardName",
+            CardDetailsChannel.GetCommunityDropRate,
+            256,
+          );
+        } catch (error) {
+          handleValidationError(error, CardDetailsChannel.GetCommunityDropRate);
+          return null;
+        }
+
+        if (league.length === 0 || cardName.length === 0) {
+          this.logger.warn(
+            "GetCommunityDropRate called with invalid parameters",
+          );
+          return null;
+        }
+
+        return this.communityDropRates.getCardRate(game, league, cardName);
+      },
+    );
+
+    ipcMain.handle(
       CardDetailsChannel.ResolveCardBySlug,
       async (
         _event: Electron.IpcMainInvokeEvent,
         game: GameType,
         cardSlug: string,
         selectedLeague?: string,
+        rarityLeague?: string,
       ): Promise<CardDetailsInitDTO | null> => {
-        if (!game || !cardSlug) {
+        if (
+          (game !== "poe1" && game !== "poe2") ||
+          typeof cardSlug !== "string" ||
+          cardSlug.length === 0 ||
+          cardSlug.length > 256 ||
+          (selectedLeague !== undefined &&
+            (typeof selectedLeague !== "string" ||
+              selectedLeague.length === 0 ||
+              selectedLeague.length > 100)) ||
+          (rarityLeague !== undefined &&
+            (typeof rarityLeague !== "string" ||
+              rarityLeague.length === 0 ||
+              rarityLeague.length > 100))
+        ) {
           this.logger.warn(
             "ResolveCardBySlug called with missing parameters:",
             { game, cardSlug },
@@ -303,12 +362,12 @@ class CardDetailsService {
           return null;
         }
 
-        if (game !== "poe1" && game !== "poe2") {
-          this.logger.warn("ResolveCardBySlug called with invalid game:", game);
-          return null;
-        }
-
-        return this.resolveCardBySlug(game, cardSlug, selectedLeague);
+        return this.resolveCardBySlug(
+          game,
+          cardSlug,
+          selectedLeague,
+          rarityLeague,
+        );
       },
     );
 
@@ -350,6 +409,7 @@ class CardDetailsService {
     game: GameType,
     cardSlug: string,
     selectedLeague?: string,
+    rarityLeague?: string,
   ): Promise<CardDetailsInitDTO | null> {
     this.logger.log(
       `Resolving card by slug "${cardSlug}" for ${game}` +
@@ -358,7 +418,11 @@ class CardDetailsService {
 
     try {
       // Step 1: Resolve slug → card name using the divination cards service
-      const matched = await this.resolveCardFromSlugCache(game, cardSlug);
+      const matched = await this.resolveCardFromSlugCache(
+        game,
+        cardSlug,
+        rarityLeague ?? selectedLeague,
+      );
 
       if (!matched) {
         this.logger.warn(`No card found for slug "${cardSlug}" in ${game}`);
@@ -405,6 +469,7 @@ class CardDetailsService {
   private async resolveCardFromSlugCache(
     game: GameType,
     cardSlug: string,
+    league?: string,
   ): Promise<DivinationCardDTO | null> {
     let gameCache = this.cardSlugCache.get(game);
 
@@ -412,18 +477,23 @@ class CardDetailsService {
       const divCardsService = DivinationCardsService.getInstance();
       const allCards = await divCardsService.getRepository().getAllByGame(game);
 
-      gameCache = new Map<string, DivinationCardDTO>();
+      gameCache = new Map<string, string>();
       for (const card of allCards) {
         const slug = cardNameToSlug(card.name);
         if (!gameCache.has(slug)) {
-          gameCache.set(slug, card);
+          gameCache.set(slug, card.id);
         }
       }
 
       this.cardSlugCache.set(game, gameCache);
     }
 
-    return gameCache.get(cardSlug) ?? null;
+    const cardId = gameCache.get(cardSlug);
+    if (!cardId) return null;
+
+    return DivinationCardsService.getInstance()
+      .getRepository()
+      .getById(cardId, league);
   }
 
   private openCardInMainWindow(cardName: string): void {

@@ -117,11 +117,10 @@ function createMockSlices(overrides: Record<string, any> = {}) {
     isLoadingCard: false,
     cardError: null,
     initializeCardDetails: vi.fn(),
-    refreshPersonalAnalytics: vi.fn(),
+    fetchCommunityDropRate: vi.fn(),
     fetchPriceHistory: vi.fn(),
     clearCardDetails: vi.fn(),
     isLoadingPersonalAnalytics: false,
-    isLeagueSwitching: false,
     selectedLeague: "all",
     setSelectedLeague: vi.fn(),
     activeTab: "market",
@@ -240,43 +239,17 @@ describe("CardDetailsPage — normal render", () => {
       cardDetails: {
         activeTab: "your-data",
         isLoadingPersonalAnalytics: true,
-        isLeagueSwitching: false,
       },
     });
     const tab = screen.getByTestId("your-data-tab");
     expect(tab).toHaveAttribute("data-loading", "true");
   });
 
-  it("passes isLoading=true to YourDataTabContent when league is switching", () => {
+  it("passes isLoading=false to YourDataTabContent when analytics are ready", () => {
     renderPage({
       cardDetails: {
         activeTab: "your-data",
         isLoadingPersonalAnalytics: false,
-        isLeagueSwitching: true,
-      },
-    });
-    const tab = screen.getByTestId("your-data-tab");
-    expect(tab).toHaveAttribute("data-loading", "true");
-  });
-
-  it("passes isLoading=true to YourDataTabContent when both loading flags are set", () => {
-    renderPage({
-      cardDetails: {
-        activeTab: "your-data",
-        isLoadingPersonalAnalytics: true,
-        isLeagueSwitching: true,
-      },
-    });
-    const tab = screen.getByTestId("your-data-tab");
-    expect(tab).toHaveAttribute("data-loading", "true");
-  });
-
-  it("passes isLoading=false to YourDataTabContent when neither loading nor switching", () => {
-    renderPage({
-      cardDetails: {
-        activeTab: "your-data",
-        isLoadingPersonalAnalytics: false,
-        isLeagueSwitching: false,
       },
     });
     const tab = screen.getByTestId("your-data-tab");
@@ -298,6 +271,7 @@ describe("CardDetailsPage — effects", () => {
       "poe1",
       "test-card",
       "all",
+      "Settlers",
     );
   });
 
@@ -324,6 +298,30 @@ describe("CardDetailsPage — effects", () => {
     );
   });
 
+  it("loads the community drop rate for the global league", () => {
+    const { mockSlices } = renderPage({
+      cardDetails: { selectedLeague: "all" },
+    });
+
+    expect(mockSlices.cardDetails.fetchCommunityDropRate).toHaveBeenCalledWith(
+      "poe1",
+      "Settlers",
+      "Test Card",
+    );
+  });
+
+  it("loads the community drop rate for a selected league", () => {
+    const { mockSlices } = renderPage({
+      cardDetails: { selectedLeague: "Standard" },
+    });
+
+    expect(mockSlices.cardDetails.fetchCommunityDropRate).toHaveBeenCalledWith(
+      "poe1",
+      "Standard",
+      "Test Card",
+    );
+  });
+
   it("does not call fetchPriceHistory when activeTab is your-data", () => {
     const { mockSlices } = renderPage({
       cardDetails: { activeTab: "your-data" },
@@ -331,9 +329,7 @@ describe("CardDetailsPage — effects", () => {
     expect(mockSlices.cardDetails.fetchPriceHistory).not.toHaveBeenCalled();
   });
 
-  it("calls refreshPersonalAnalytics when league changes after initial render", () => {
-    // Use a single mock object so the same refreshPersonalAnalytics fn is
-    // captured across renders (refs persist, but hook return is re-read).
+  it("reinitializes once when the selected league changes", () => {
     const mockSlices = createMockSlices({
       cardDetails: { selectedLeague: "all" },
     });
@@ -344,19 +340,20 @@ describe("CardDetailsPage — effects", () => {
 
     const { rerender } = renderWithProviders(<CardDetailsPage />);
 
-    // First render — lastLeagueFetchRef was null, so it just sets the ref
-    expect(cardDetailsMock.refreshPersonalAnalytics).not.toHaveBeenCalled();
+    expect(cardDetailsMock.initializeCardDetails).toHaveBeenCalledTimes(1);
 
     // Mutate the returned league so the next render sees a different fetchKey
     cardDetailsMock.selectedLeague = "Settlers";
 
     rerender(<CardDetailsPage />);
 
-    expect(cardDetailsMock.refreshPersonalAnalytics).toHaveBeenCalledWith(
+    expect(cardDetailsMock.initializeCardDetails).toHaveBeenLastCalledWith(
       "poe1",
-      "Test Card",
+      "test-card",
+      "Settlers",
       "Settlers",
     );
+    expect(cardDetailsMock.initializeCardDetails).toHaveBeenCalledTimes(2);
   });
 
   it("does not call initializeCardDetails again when re-rendered with same params (dedup guard)", () => {
@@ -398,23 +395,6 @@ describe("CardDetailsPage — effects", () => {
     rerender(<CardDetailsPage />);
 
     expect(nextInitializeCardDetails).not.toHaveBeenCalled();
-  });
-
-  it("does not call refreshPersonalAnalytics when league stays the same (dedup guard)", () => {
-    const mockSlices = createMockSlices({
-      cardDetails: { selectedLeague: "all" },
-    });
-    const cardDetailsMock = { ...mockSlices.cardDetails };
-
-    vi.mocked(useSettings).mockReturnValue(mockSlices.settings as any);
-    vi.mocked(useCardDetails).mockReturnValue(cardDetailsMock as any);
-
-    const { rerender } = renderWithProviders(<CardDetailsPage />);
-
-    // Re-render without changing league — should not trigger refresh
-    rerender(<CardDetailsPage />);
-
-    expect(cardDetailsMock.refreshPersonalAnalytics).not.toHaveBeenCalled();
   });
 
   it("does not call fetchPriceHistory again on re-render with same card/league/tab (dedup guard)", () => {
@@ -496,9 +476,13 @@ describe("CardDetailsPage — effects", () => {
     expect(mockSlices.cardDetails.fetchPriceHistory).not.toHaveBeenCalled();
   });
 
-  it("does not call refreshPersonalAnalytics when re-rendered with same league (fetchKey dedup)", () => {
+  it("does not reinitialize an explicitly selected league when the global league changes", () => {
+    let globalLeague = "Settlers";
     const mockSlices = createMockSlices({
-      cardDetails: { selectedLeague: "Settlers" },
+      cardDetails: { selectedLeague: "Standard" },
+      settings: {
+        getActiveGameViewSelectedLeague: vi.fn(() => globalLeague),
+      },
     });
     const cardDetailsMock = { ...mockSlices.cardDetails };
 
@@ -506,35 +490,12 @@ describe("CardDetailsPage — effects", () => {
     vi.mocked(useCardDetails).mockReturnValue(cardDetailsMock as any);
 
     const { rerender } = renderWithProviders(<CardDetailsPage />);
+    expect(cardDetailsMock.initializeCardDetails).toHaveBeenCalledTimes(1);
 
-    // First render sets lastLeagueFetchRef — no refresh call yet
-    expect(cardDetailsMock.refreshPersonalAnalytics).not.toHaveBeenCalled();
-
-    // Re-render with the exact same league — fetchKey matches ref, so guard returns early
+    globalLeague = "Mirage";
     rerender(<CardDetailsPage />);
 
-    expect(cardDetailsMock.refreshPersonalAnalytics).not.toHaveBeenCalled();
-  });
-
-  it("skips refreshPersonalAnalytics when the league fetch key is unchanged", () => {
-    const mockSlices = createMockSlices({
-      cardDetails: { selectedLeague: "Settlers" },
-    });
-    const cardDetailsMock = { ...mockSlices.cardDetails };
-
-    vi.mocked(useSettings).mockReturnValue(mockSlices.settings as any);
-    vi.mocked(useCardDetails).mockReturnValue(cardDetailsMock as any);
-
-    const { rerender } = renderWithProviders(<CardDetailsPage />);
-
-    expect(cardDetailsMock.refreshPersonalAnalytics).not.toHaveBeenCalled();
-
-    const nextRefreshPersonalAnalytics = vi.fn();
-    cardDetailsMock.refreshPersonalAnalytics = nextRefreshPersonalAnalytics;
-
-    rerender(<CardDetailsPage />);
-
-    expect(nextRefreshPersonalAnalytics).not.toHaveBeenCalled();
+    expect(cardDetailsMock.initializeCardDetails).toHaveBeenCalledTimes(1);
   });
 
   it("skips fetchPriceHistory when the price fetch key is unchanged", () => {
@@ -561,25 +522,5 @@ describe("CardDetailsPage — effects", () => {
     rerender(<CardDetailsPage />);
 
     expect(nextFetchPriceHistory).not.toHaveBeenCalled();
-  });
-
-  it("does not call refreshPersonalAnalytics when card is null during league change", () => {
-    const mockSlices = createMockSlices({
-      cardDetails: { card: null, selectedLeague: "all" },
-    });
-    const cardDetailsMock = { ...mockSlices.cardDetails };
-
-    vi.mocked(useSettings).mockReturnValue(mockSlices.settings as any);
-    vi.mocked(useCardDetails).mockReturnValue(cardDetailsMock as any);
-
-    const { rerender } = renderWithProviders(<CardDetailsPage />);
-
-    // Change league while card is still null — the early return guard at L92
-    // should prevent refreshPersonalAnalytics from being called.
-    cardDetailsMock.selectedLeague = "Settlers";
-
-    rerender(<CardDetailsPage />);
-
-    expect(cardDetailsMock.refreshPersonalAnalytics).not.toHaveBeenCalled();
   });
 });

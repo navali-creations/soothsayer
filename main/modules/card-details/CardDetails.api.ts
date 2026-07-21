@@ -4,6 +4,7 @@ import type { GameType } from "~/types/data-stores";
 
 import { CardDetailsChannel } from "./CardDetails.channels";
 import type {
+  CardCommunityDropRateDTO,
   CardDetailsInitDTO,
   CardPersonalAnalyticsDTO,
   CardPriceHistoryDTO,
@@ -59,6 +60,20 @@ export const CardDetailsAPI = {
     );
   },
 
+  /** Get the community-observed drop rate for a card in one league. */
+  getCommunityDropRate: (
+    game: GameType,
+    league: string,
+    cardName: string,
+  ): Promise<CardCommunityDropRateDTO | null> => {
+    return ipcRenderer.invoke(
+      CardDetailsChannel.GetCommunityDropRate,
+      game,
+      league,
+      cardName,
+    );
+  },
+
   /**
    * Get related cards that share a similar reward item.
    *
@@ -91,18 +106,21 @@ export const CardDetailsAPI = {
    * @param game - The game type ("poe1" or "poe2")
    * @param cardSlug - The URL slug (e.g. "house-of-mirrors")
    * @param selectedLeague - Optional league filter for personal analytics
+   * @param rarityLeague - League used to resolve card rarity metadata
    * @returns Unified init DTO, or null if the slug doesn't match any card
    */
   resolveCardBySlug: (
     game: GameType,
     cardSlug: string,
     selectedLeague?: string,
+    rarityLeague?: string,
   ): Promise<CardDetailsInitDTO | null> => {
     return ipcRenderer.invoke(
       CardDetailsChannel.ResolveCardBySlug,
       game,
       cardSlug,
       selectedLeague,
+      rarityLeague,
     );
   },
 

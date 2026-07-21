@@ -66,6 +66,12 @@ export const useSessionDetails = () => useSlice("sessionDetails");
 /** Select the `cardDetails` slice. */
 export const useCardDetails = () => useSlice("cardDetails");
 
+export const useCommunityDropRate = () =>
+  useBoundStore((state) => state.cardDetails.communityDropRate);
+
+export const useIsLoadingCommunityDropRate = () =>
+  useBoundStore((state) => state.cardDetails.isLoadingCommunityDropRate);
+
 /** Select the `appMenu` slice. */
 export const useAppMenu = () => useSlice("appMenu");
 

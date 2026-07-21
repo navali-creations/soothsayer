@@ -1018,6 +1018,45 @@ describe("MainWindowService", () => {
       expect(result).toEqual({ action: "deny" });
     });
 
+    it("should allow opening PoEDB URLs externally", () => {
+      const openHandler =
+        mockBrowserWindowWebContentsSetWindowOpenHandler.mock.calls[0][0];
+      const url = "https://poedb.tw/us/A_Chilling_Wind";
+
+      const result = openHandler({ url });
+
+      expect(mockShellOpenExternal).toHaveBeenCalledWith(url);
+      expect(result).toEqual({ action: "deny" });
+    });
+
+    it("should allow opening PoE2DB URLs externally", () => {
+      const openHandler =
+        mockBrowserWindowWebContentsSetWindowOpenHandler.mock.calls[0][0];
+      const url = "https://poe2db.tw/us/The_Doctor";
+
+      const result = openHandler({ url });
+
+      expect(mockShellOpenExternal).toHaveBeenCalledWith(url);
+      expect(result).toEqual({ action: "deny" });
+    });
+
+    it.each([
+      "https://poedb.tw.evil.example/us/A_Chilling_Wind",
+      "https://wraeclast.cards.evil.example/path-of-exile",
+      "https://github.com/navali-creations.evil.example/soothsayer",
+      "https://github.com/orgs/navali-creations.evil.example/discussions",
+      "https://www.pathofexile.com/oauth/authorize.evil",
+      "not a valid url",
+    ])("should deny allowlist lookalikes and malformed URLs", (url) => {
+      const openHandler =
+        mockBrowserWindowWebContentsSetWindowOpenHandler.mock.calls[0][0];
+
+      const result = openHandler({ url });
+
+      expect(mockShellOpenExternal).not.toHaveBeenCalled();
+      expect(result).toEqual({ action: "deny" });
+    });
+
     it("should block and log non-allowlisted URLs", () => {
       const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 

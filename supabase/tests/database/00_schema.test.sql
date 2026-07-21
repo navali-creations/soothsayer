@@ -7,7 +7,7 @@
 
 BEGIN;
 
-SELECT plan(112);
+SELECT plan(118);
 
 -- ═══════════════════════════════════════════════════════════════
 -- TABLE EXISTENCE
@@ -22,6 +22,13 @@ SELECT has_table('public', 'local_config', 'local_config table should exist');
 SELECT has_table('public', 'cards', 'cards table should exist');
 SELECT has_table('public', 'community_uploads', 'community_uploads table should exist');
 SELECT has_table('public', 'community_card_data', 'community_card_data table should exist');
+SELECT has_table('public', 'community_league_estimates', 'community_league_estimates table should exist');
+SELECT has_table('public', 'community_league_card_estimates', 'community_league_card_estimates table should exist');
+
+SELECT hasnt_column('public', 'community_league_card_estimates', 'ratio', 'community card ratios should be derived from counts');
+SELECT hasnt_column('public', 'community_league_card_estimates', 'verified_ratio', 'verified community card ratios should be derived from counts');
+SELECT hasnt_column('public', 'community_league_card_estimates', 'seen_vs_community_estimate', 'community comparison ratios should be derived by consumers');
+SELECT hasnt_column('public', 'community_league_card_estimates', 'verified_seen_vs_community_estimate', 'verified community comparison ratios should be derived by consumers');
 
 -- ═══════════════════════════════════════════════════════════════
 -- poe_leagues COLUMNS

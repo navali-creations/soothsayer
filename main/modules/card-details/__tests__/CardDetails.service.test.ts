@@ -5,6 +5,7 @@ import {
   createElectronMock,
 } from "~/main/modules/__test-utils__/mock-factories";
 import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
+import { registerTrustedWebContents } from "~/main/utils/ipc-validation";
 
 import type { CardDetailsInitDTO } from "../CardDetails.dto";
 import { cardNameToDetailsId } from "../CardDetails.service";
@@ -79,10 +80,14 @@ const {
   mockMainWindowGetWebContents,
   mockMainWindowWebContentsSend,
   mockDivCardsGetAllByGame,
+  mockDivCardsGetById,
+  mockDivCardsById,
 } = vi.hoisted(() => {
   const mockMainWindowWebContentsSend = vi.fn();
   const mockMainWindowWebContentsIsDestroyed = vi.fn().mockReturnValue(false);
   const mockDivCardsGetAllByGame = vi.fn().mockResolvedValue([]);
+  const mockDivCardsGetById = vi.fn();
+  const mockDivCardsById = new Map<string, Record<string, unknown>>();
 
   const mockRepositoryHolder: {
     instance: {
@@ -120,6 +125,8 @@ const {
     mockMainWindowWebContentsSend,
     mockMainWindowWebContentsIsDestroyed,
     mockDivCardsGetAllByGame,
+    mockDivCardsGetById,
+    mockDivCardsById,
   };
 });
 
@@ -156,7 +163,22 @@ vi.mock("~/main/modules/divination-cards/DivinationCards.service", () => ({
   DivinationCardsService: {
     getInstance: vi.fn(() => ({
       getRepository: vi.fn(() => ({
-        getAllByGame: mockDivCardsGetAllByGame,
+        getAllByGame: async (...args: unknown[]) => {
+          const cards = await mockDivCardsGetAllByGame(...args);
+          mockDivCardsById.clear();
+          return cards.map((card: Record<string, unknown>) => {
+            const id =
+              typeof card.id === "string"
+                ? card.id
+                : `test-${String(card.name)
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, "-")}`;
+            const normalizedCard = { ...card, id };
+            mockDivCardsById.set(id, normalizedCard);
+            return normalizedCard;
+          });
+        },
+        getById: mockDivCardsGetById,
       })),
     })),
   },
@@ -285,6 +307,11 @@ describe("CardDetailsService", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    registerTrustedWebContents({ id: 1 } as Electron.WebContents);
+    mockDivCardsById.clear();
+    mockDivCardsGetById.mockImplementation(async (cardId: string) => {
+      return mockDivCardsById.get(cardId) ?? null;
+    });
 
     // Reset singleton
     resetSingleton(CardDetailsService);
@@ -343,6 +370,70 @@ describe("CardDetailsService", () => {
         "card-details:get-related-cards",
         expect.any(Function),
       );
+    });
+
+    it("should register the GetCommunityDropRate channel handler", () => {
+      expect(mockIpcMainHandle).toHaveBeenCalledWith(
+        "card-details:get-community-drop-rate",
+        expect.any(Function),
+      );
+    });
+  });
+
+  describe("community drop-rate IPC", () => {
+    it("rejects invalid parameters before fetching", async () => {
+      const call = mockIpcMainHandle.mock.calls.find(
+        ([channel]: [string]) =>
+          channel === "card-details:get-community-drop-rate",
+      );
+      if (!call) throw new Error("Community drop rate handler not registered");
+
+      const result = await call[1](
+        { sender: { id: 1 } } as Electron.IpcMainInvokeEvent,
+        "poe3",
+        "Mirage",
+        "A Chilling Wind",
+      );
+
+      expect(result).toBeNull();
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["poe1", "", "A Chilling Wind"],
+      ["poe1", "Mirage", ""],
+      ["poe1", "x".repeat(101), "A Chilling Wind"],
+      ["poe1", "Mirage", "x".repeat(257)],
+      ["poe1", 42, "A Chilling Wind"],
+    ])("rejects malformed values", async (game, league, cardName) => {
+      const call = mockIpcMainHandle.mock.calls.find(
+        ([channel]: [string]) =>
+          channel === "card-details:get-community-drop-rate",
+      );
+      if (!call) throw new Error("Community drop rate handler not registered");
+
+      expect(
+        await call[1]({ sender: { id: 1 } }, game, league, cardName),
+      ).toBeNull();
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("rejects calls from an untrusted renderer", async () => {
+      const call = mockIpcMainHandle.mock.calls.find(
+        ([channel]: [string]) =>
+          channel === "card-details:get-community-drop-rate",
+      );
+      if (!call) throw new Error("Community drop rate handler not registered");
+
+      const result = await call[1](
+        { sender: { id: 999 } },
+        "poe1",
+        "Mirage",
+        "A Chilling Wind",
+      );
+
+      expect(result).toBeNull();
+      expect(mockFetch).not.toHaveBeenCalled();
     });
   });
 
@@ -1988,6 +2079,28 @@ describe("CardDetailsService", () => {
         expect(result).toBeNull();
       });
 
+      it.each([
+        ["non-string slug", 42, undefined, undefined],
+        ["oversized slug", "x".repeat(257), undefined, undefined],
+        ["empty selected league", "the-doctor", "", undefined],
+        ["oversized selected league", "the-doctor", "x".repeat(101), undefined],
+        ["non-string rarity league", "the-doctor", undefined, 42],
+        ["empty rarity league", "the-doctor", undefined, ""],
+        ["oversized rarity league", "the-doctor", undefined, "x".repeat(101)],
+      ])("rejects %s", async (_name, cardSlug, selectedLeague, rarityLeague) => {
+        const handler = getIpcHandler();
+        const result = await handler(
+          {} as Electron.IpcMainInvokeEvent,
+          "poe1",
+          cardSlug,
+          selectedLeague,
+          rarityLeague,
+        );
+
+        expect(result).toBeNull();
+        expect(mockDivCardsGetAllByGame).not.toHaveBeenCalled();
+      });
+
       it("should delegate to resolveCardBySlug on valid input", async () => {
         mockDivCardsGetAllByGame.mockResolvedValue([
           { ...mockCard, name: "The Doctor" },
@@ -2040,7 +2153,7 @@ describe("CardDetailsService", () => {
         expect(result).toBeNull();
       });
 
-      it("should pass selectedLeague to getAllByGame and getPersonalAnalytics", async () => {
+      it("should load the static slug index once and query current league rarity", async () => {
         mockDivCardsGetAllByGame.mockResolvedValue([
           { ...mockCard, name: "The Doctor" },
         ]);
@@ -2051,6 +2164,10 @@ describe("CardDetailsService", () => {
         await service.resolveCardBySlug("poe1", "the-doctor", "Keepers");
 
         expect(mockDivCardsGetAllByGame).toHaveBeenCalledWith("poe1");
+        expect(mockDivCardsGetById).toHaveBeenCalledWith(
+          expect.any(String),
+          "Keepers",
+        );
 
         // selectedLeague "Keepers" should be passed through to getPersonalAnalytics
         // which translates it to leagueFilter for repo calls
@@ -2058,6 +2175,33 @@ describe("CardDetailsService", () => {
           "poe1",
           "The Doctor",
           "Keepers",
+        );
+      });
+
+      it("should resolve rarity from a separate league for all-league analytics", async () => {
+        mockDivCardsGetAllByGame.mockResolvedValue([
+          { ...mockCard, name: "The Doctor" },
+        ]);
+
+        const repo = getRepoMock();
+        repo.getCardRewardHtml.mockResolvedValue(null);
+
+        await service.resolveCardBySlug(
+          "poe1",
+          "the-doctor",
+          undefined,
+          "Mirage",
+        );
+
+        expect(mockDivCardsGetAllByGame).toHaveBeenCalledWith("poe1");
+        expect(mockDivCardsGetById).toHaveBeenCalledWith(
+          expect.any(String),
+          "Mirage",
+        );
+        expect(repo.getCardPersonalStats).toHaveBeenCalledWith(
+          "poe1",
+          "The Doctor",
+          undefined,
         );
       });
 

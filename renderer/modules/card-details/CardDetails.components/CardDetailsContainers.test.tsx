@@ -24,29 +24,6 @@ vi.mock("./CardDetailsDropStats/YourLuckSection", () => ({
   default: () => <div data-testid="your-luck" />,
 }));
 
-// ─── CardDetailsPersonal sub-component stubs ───────────────────────────────
-
-vi.mock("./CardDetailsPersonal/PersonalStatsError", () => ({
-  default: ({ message }: { message: string }) => (
-    <div data-testid="stats-error">{message}</div>
-  ),
-}));
-
-vi.mock("./CardDetailsPersonal/PersonalStatsNeverFound", () => ({
-  default: () => <div data-testid="never-found" />,
-}));
-
-vi.mock("./CardDetailsPersonal/PersonalStatsPlaceholder", () => ({
-  default: () => <div data-testid="placeholder" />,
-}));
-
-vi.mock("../helpers", () => ({
-  formatRelativeDate: vi.fn(() => ({
-    relative: "2 days ago",
-    absolute: "Jan 15, 2024",
-  })),
-}));
-
 vi.mock("~/renderer/components", () => ({
   GroupedStats: ({ children, ...props }: any) => (
     <div data-testid="grouped-stats" {...props}>
@@ -93,7 +70,6 @@ vi.mock("react-icons/fi", () => ({
 // ─── Component imports (after all mocks) ───────────────────────────────────
 
 import CardDetailsDropStats from "./CardDetailsDropStats/CardDetailsDropStats";
-import CardDetailsPersonal from "./CardDetailsPersonal/CardDetailsPersonal";
 import CardDetailsRelatedCards from "./CardDetailsRelatedCards/CardDetailsRelatedCards";
 
 // ─── Cleanup ───────────────────────────────────────────────────────────────
@@ -117,124 +93,6 @@ describe("CardDetailsDropStats", () => {
     } as any);
     const { container } = renderWithProviders(<CardDetailsDropStats />);
     expect(container.innerHTML).toBe("");
-  });
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-//  CardDetailsPersonal
-// ═══════════════════════════════════════════════════════════════════════════
-
-describe("CardDetailsPersonal", () => {
-  const validPersonalAnalytics = {
-    cardName: "The Doctor",
-    totalLifetimeDrops: 42,
-    firstDiscoveredAt: "2024-01-10T00:00:00Z",
-    lastSeenAt: "2024-06-15T00:00:00Z",
-    sessionCount: 8,
-    averageDropsPerSession: 5.25,
-    fromBoss: false,
-    totalDecksOpenedAllSessions: 10000,
-    dropTimeline: [],
-    leagueDateRanges: [],
-    firstSessionStartedAt: "2024-01-01T00:00:00Z",
-    timelineEndDate: "2024-07-01T00:00:00Z",
-  };
-
-  function renderPersonal(overrides: Record<string, any> = {}) {
-    vi.mocked(useCardDetails).mockReturnValue({
-      personalAnalytics: null,
-      personalAnalyticsError: null,
-      ...overrides,
-    } as any);
-    return renderWithProviders(<CardDetailsPersonal />);
-  }
-
-  // ── Error state ──────────────────────────────────────────────────────────
-
-  it("renders error state with message", () => {
-    renderPersonal({ personalAnalyticsError: "Failed to load analytics" });
-    expect(screen.getByTestId("stats-error")).toBeInTheDocument();
-    expect(screen.getByText("Failed to load analytics")).toBeInTheDocument();
-  });
-
-  // ── Placeholder state ────────────────────────────────────────────────────
-
-  it("renders placeholder when no personalAnalytics", () => {
-    renderPersonal({ personalAnalytics: null });
-    expect(screen.getByTestId("placeholder")).toBeInTheDocument();
-  });
-
-  // ── Never-found state ────────────────────────────────────────────────────
-
-  it("renders never-found when totalLifetimeDrops is 0", () => {
-    renderPersonal({
-      personalAnalytics: {
-        ...validPersonalAnalytics,
-        totalLifetimeDrops: 0,
-      },
-    });
-    expect(screen.getByTestId("never-found")).toBeInTheDocument();
-  });
-
-  // ── Normal render — stat labels ──────────────────────────────────────────
-
-  it("renders Total Drops stat text", () => {
-    renderPersonal({ personalAnalytics: validPersonalAnalytics });
-    expect(screen.getByText("Total Drops")).toBeInTheDocument();
-    expect(screen.getByText("42")).toBeInTheDocument();
-  });
-
-  it("renders Drop Rate when totalDecksOpenedAllSessions > 0", () => {
-    renderPersonal({ personalAnalytics: validPersonalAnalytics });
-    expect(screen.getByText("Drop Rate")).toBeInTheDocument();
-    // 42 / 10000 * 100 = 0.42% → rate < 1, leadingZeros = 0, toFixed(2)
-    expect(screen.getByText("0.42%")).toBeInTheDocument();
-  });
-
-  it('shows "—" for Drop Rate when 0 decks opened', () => {
-    renderPersonal({
-      personalAnalytics: {
-        ...validPersonalAnalytics,
-        totalDecksOpenedAllSessions: 0,
-      },
-    });
-    expect(screen.getByText("Drop Rate")).toBeInTheDocument();
-    const statValues = screen.getAllByTestId("stat-value");
-    // Second stat is Drop Rate (index 1)
-    const dropRateValue = statValues[1];
-    expect(dropRateValue).toHaveTextContent("—");
-  });
-
-  it("renders First Found when firstDiscoveredAt exists", () => {
-    renderPersonal({ personalAnalytics: validPersonalAnalytics });
-    expect(screen.getByText("First Found")).toBeInTheDocument();
-    // Both First Found and Last Seen share the same mocked relative date
-    expect(screen.getAllByText("2 days ago").length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("hides First Found when firstDiscoveredAt is null", () => {
-    renderPersonal({
-      personalAnalytics: {
-        ...validPersonalAnalytics,
-        firstDiscoveredAt: null,
-      },
-    });
-    expect(screen.queryByText("First Found")).not.toBeInTheDocument();
-  });
-
-  it("renders Last Seen when lastSeenAt exists", () => {
-    renderPersonal({ personalAnalytics: validPersonalAnalytics });
-    expect(screen.getByText("Last Seen")).toBeInTheDocument();
-  });
-
-  it("hides Last Seen when lastSeenAt is null", () => {
-    renderPersonal({
-      personalAnalytics: {
-        ...validPersonalAnalytics,
-        lastSeenAt: null,
-      },
-    });
-    expect(screen.queryByText("Last Seen")).not.toBeInTheDocument();
   });
 });
 

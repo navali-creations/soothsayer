@@ -226,6 +226,7 @@ export const test = base.extend<
           ...process.env,
           NODE_ENV: "test",
           E2E_TESTING: "true",
+          SOOTHSAYER_E2E_RENDERER_URL: "http://localhost:5173",
           ELECTRON_DISABLE_GPU: "true",
           ...electronEnv,
         },

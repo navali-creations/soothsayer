@@ -166,6 +166,16 @@ export interface CardDetailsInitDTO {
   relatedCards: RelatedCardsResultDTO | null;
 }
 
+/** Community-observed drop rate for one card in one league. */
+export interface CardCommunityDropRateDTO {
+  /** League represented by this community sample. */
+  league: string;
+  /** Number of observed drops for this card. */
+  dropCount: number;
+  /** Total cards in the community sample. */
+  sampleSize: number;
+}
+
 /**
  * Personal analytics response for a divination card.
  * Returned by the `card-details:get-personal-analytics` IPC channel.

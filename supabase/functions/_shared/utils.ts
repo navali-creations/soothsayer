@@ -15,6 +15,7 @@ type IdentifierRateLimitContext = {
   endpoint: string;
   windowMs: number;
   maxHits: number;
+  appVersion?: string | null;
 };
 
 export function createAdminClient(): SupabaseClient {
@@ -129,6 +130,7 @@ export async function enforceRateLimitByIdentifier({
   endpoint,
   windowMs,
   maxHits,
+  appVersion = null,
 }: IdentifierRateLimitContext): Promise<void> {
   const windowMinutes = Math.ceil(windowMs / 60_000);
 
@@ -137,7 +139,7 @@ export async function enforceRateLimitByIdentifier({
     p_endpoint: endpoint,
     p_window_minutes: windowMinutes,
     p_max_hits: maxHits,
-    p_app_version: null,
+    p_app_version: appVersion,
     p_identifier: identifier,
   });
 
