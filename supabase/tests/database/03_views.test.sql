@@ -14,7 +14,7 @@
 
 BEGIN;
 
-SELECT plan(26);
+SELECT plan(28);
 
 -- ═══════════════════════════════════════════════════════════════
 -- VIEW EXISTENCE & COLUMNS
@@ -32,6 +32,7 @@ SELECT has_column('public', 'abuse_monitor', 'last_24h', 'abuse_monitor should h
 SELECT has_column('public', 'abuse_monitor', 'is_banned', 'abuse_monitor should have is_banned column');
 SELECT has_column('public', 'abuse_monitor', 'identifier', 'abuse_monitor should have identifier column');
 SELECT has_column('public', 'abuse_monitor', 'identity', 'abuse_monitor should have identity column');
+SELECT has_column('public', 'abuse_monitor', 'app_version', 'abuse_monitor should have app_version column');
 
 -- ═══════════════════════════════════════════════════════════════
 -- SEED TEST DATA
@@ -69,11 +70,11 @@ VALUES
   );
 
 -- User 1: 3 recent requests to endpoint-a, 1 to endpoint-b
-INSERT INTO api_requests (user_id, endpoint, created_at) VALUES
-  ('c1c1c1c1-c1c1-c1c1-c1c1-c1c1c1c1c1c1', 'endpoint-a', NOW() - INTERVAL '10 minutes'),
-  ('c1c1c1c1-c1c1-c1c1-c1c1-c1c1c1c1c1c1', 'endpoint-a', NOW() - INTERVAL '20 minutes'),
-  ('c1c1c1c1-c1c1-c1c1-c1c1-c1c1c1c1c1c1', 'endpoint-a', NOW() - INTERVAL '30 minutes'),
-  ('c1c1c1c1-c1c1-c1c1-c1c1-c1c1c1c1c1c1', 'endpoint-b', NOW() - INTERVAL '5 minutes');
+INSERT INTO api_requests (user_id, endpoint, app_version, created_at) VALUES
+  ('c1c1c1c1-c1c1-c1c1-c1c1-c1c1c1c1c1c1', 'endpoint-a', '0.20.0', NOW() - INTERVAL '10 minutes'),
+  ('c1c1c1c1-c1c1-c1c1-c1c1-c1c1c1c1c1c1', 'endpoint-a', '0.19.2', NOW() - INTERVAL '20 minutes'),
+  ('c1c1c1c1-c1c1-c1c1-c1c1-c1c1c1c1c1c1', 'endpoint-a', '0.19.2', NOW() - INTERVAL '30 minutes'),
+  ('c1c1c1c1-c1c1-c1c1-c1c1-c1c1c1c1c1c1', 'endpoint-b', '0.20.0', NOW() - INTERVAL '5 minutes');
 
 -- User 1: 2 old requests to endpoint-a (outside 1h but within 24h)
 INSERT INTO api_requests (user_id, endpoint, created_at) VALUES
@@ -124,6 +125,14 @@ SELECT results_eq(
       AND endpoint = 'endpoint-a'$$,
   ARRAY[5],
   'abuse_monitor last_24h should count all requests within 24 hours (5)'
+);
+
+SELECT results_eq(
+  $$SELECT app_version FROM abuse_monitor
+    WHERE user_id = 'c1c1c1c1-c1c1-c1c1-c1c1-c1c1c1c1c1c1'
+      AND endpoint = 'endpoint-a'$$,
+  ARRAY['0.20.0'::text],
+  'abuse_monitor should show the latest known app version'
 );
 
 -- User 1, endpoint-b should have 1 total

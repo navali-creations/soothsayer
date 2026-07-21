@@ -53,7 +53,11 @@ VALUES (
   1.2
 );
 
-\ir .remove_derived_community_card_metrics.sql.inc
+ALTER TABLE community_league_card_estimates
+  DROP COLUMN IF EXISTS ratio,
+  DROP COLUMN IF EXISTS verified_ratio,
+  DROP COLUMN IF EXISTS seen_vs_community_estimate,
+  DROP COLUMN IF EXISTS verified_seen_vs_community_estimate;
 
 SELECT hasnt_column(
   'public',
@@ -97,7 +101,11 @@ SELECT has_function(
   'upgrade should preserve the aggregate refresh function'
 );
 
-\ir .remove_derived_community_card_metrics.sql.inc
+ALTER TABLE community_league_card_estimates
+  DROP COLUMN IF EXISTS ratio,
+  DROP COLUMN IF EXISTS verified_ratio,
+  DROP COLUMN IF EXISTS seen_vs_community_estimate,
+  DROP COLUMN IF EXISTS verified_seen_vs_community_estimate;
 
 SELECT pass('migration should be safe to apply more than once');
 

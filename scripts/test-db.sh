@@ -22,11 +22,8 @@ NC='\033[0m'
 
 LOCAL_DB_CONTAINER="supabase_db_soothsayer"
 STARTED_BY_US=false
-MIGRATION_FIXTURE="$SCRIPT_DIR/../supabase/tests/database/.remove_derived_community_card_metrics.sql.inc"
 
 cleanup() {
-    rm -f "$MIGRATION_FIXTURE"
-
     if [ "$STARTED_BY_US" = true ]; then
         echo ""
         echo "[*] Stopping Supabase (test instance)..."
@@ -91,10 +88,6 @@ echo "========================================"
 echo "Running pgTAP tests..."
 echo "========================================"
 echo ""
-
-cp \
-    "$SCRIPT_DIR/../supabase/migrations/20260721_120000_remove_derived_community_card_metrics.sql" \
-    "$MIGRATION_FIXTURE"
 
 TEST_EXIT=0
 supabase_cli test db || TEST_EXIT=$?
