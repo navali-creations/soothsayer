@@ -1,5 +1,26 @@
 # soothsayer
 
+## 0.20.1
+
+### Patch Changes
+
+- [`3711c02`](https://github.com/navali-creations/soothsayer/commit/3711c02238a02f1e54939c902c48850523d655ad) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Fixed:** Cards hidden from pricing during **Current Session** now appear as low confidence in the **Overlay**.
+
+  The Overlay refreshes immediately when card visibility changes, keeping recent drops consistent with Current Session.
+
+  - **Path of Exile 1 card data:** Refreshed divination card metadata for the latest league. (no images for new cards yet, these will come next patch)
+
+- [`36ac986`](https://github.com/navali-creations/soothsayer/commit/36ac986d6596671d5a90ed70067f33795bb7aad9) Thanks [@sbsrnt](https://github.com/sbsrnt)!
+
+  **Fixed:** The Community Drop Rates contribution banner no longer flashes after being dismissed or comes back after app update.
+
+  The app waits for your saved banner preference before showing the prompt, so an already-dismissed banner does not briefly return after an update or reload.
+
+  - **Reliable contribution:** the banner closes only after existing drop data has been queued successfully.
+  - **Atomic preferences:** successful backfills and the saved dismissal now commit together, while partial failures keep the prompt available for retry.
+
 ## 0.20.0
 
 ### Minor Changes
