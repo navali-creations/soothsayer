@@ -1,3 +1,5 @@
+import { join, resolve } from "node:path";
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockAppendFileSync, mockMkdirSync, mockWriteFileSync, mockGetPath } =
@@ -5,8 +7,11 @@ const { mockAppendFileSync, mockMkdirSync, mockWriteFileSync, mockGetPath } =
     mockAppendFileSync: vi.fn(),
     mockMkdirSync: vi.fn(),
     mockWriteFileSync: vi.fn(),
-    mockGetPath: vi.fn(() => "C:\\mock-user-data"),
+    mockGetPath: vi.fn(),
   }));
+
+const mockUserDataPath = resolve("mock-user-data");
+const mockLogPath = join(mockUserDataPath, "diag.log");
 
 vi.mock("node:fs", () => ({
   appendFileSync: mockAppendFileSync,
@@ -28,13 +33,14 @@ async function loadDiagLog() {
 describe("diagnostic log utilities", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetPath.mockReturnValue(mockUserDataPath);
   });
 
   it("creates and caches the diagnostic log path", async () => {
     const { getLogPath } = await loadDiagLog();
 
-    expect(getLogPath()).toBe("C:\\mock-user-data\\diag.log");
-    expect(getLogPath()).toBe("C:\\mock-user-data\\diag.log");
+    expect(getLogPath()).toBe(mockLogPath);
+    expect(getLogPath()).toBe(mockLogPath);
     expect(mockGetPath).toHaveBeenCalledOnce();
     expect(mockMkdirSync).toHaveBeenCalledOnce();
   });
@@ -43,11 +49,7 @@ describe("diagnostic log utilities", () => {
     const { clearDiagLog } = await loadDiagLog();
 
     clearDiagLog();
-    expect(mockWriteFileSync).toHaveBeenCalledWith(
-      "C:\\mock-user-data\\diag.log",
-      "",
-      "utf-8",
-    );
+    expect(mockWriteFileSync).toHaveBeenCalledWith(mockLogPath, "", "utf-8");
 
     mockWriteFileSync.mockImplementationOnce(() => {
       throw new Error("disk unavailable");
@@ -60,7 +62,7 @@ describe("diagnostic log utilities", () => {
 
     diagLog("session started");
     expect(mockAppendFileSync).toHaveBeenCalledWith(
-      "C:\\mock-user-data\\diag.log",
+      mockLogPath,
       expect.stringMatching(/^\[\d{4}-\d{2}-\d{2}T.*Z\] session started\n$/),
       "utf-8",
     );
