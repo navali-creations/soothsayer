@@ -29,7 +29,7 @@ const SetupTelemetryStep = () => {
       </h2>
 
       <p className="text-sm text-base-content/60 mb-4">
-        Soothsayer collects anonymous data to help us improve the app. Here's
+        Soothsayer can share limited data to help improve the app. Here&apos;s
         what we use and why:
       </p>
 
@@ -95,8 +95,9 @@ const SetupTelemetryStep = () => {
                 Community Drop Rates
               </h3>
               <p className="text-xs text-base-content/60 mt-1">
-                Card names and drop counts are shared anonymously at the end of
-                each session to help build community drop rate statistics on{" "}
+                Card names and drop counts are shared with a random installation
+                ID at the end of each session to help build community drop rate
+                statistics on{" "}
                 <a
                   href="https://wraeclast.cards"
                   target="_blank"
@@ -105,7 +106,8 @@ const SetupTelemetryStep = () => {
                 >
                   wraeclast.cards <FiExternalLink className="w-3 h-3" />
                 </a>
-                . You can disable this in Settings at any time.
+                . A linked Path of Exile account can associate uploads with that
+                account. You can disable this in Settings at any time.
               </p>
             </div>
           </div>

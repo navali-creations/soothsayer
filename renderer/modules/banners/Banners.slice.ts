@@ -1,23 +1,33 @@
 import type { StateCreator } from "zustand";
 
+import type { BannerId } from "~/main/modules/banners/Banners.types";
 import type { BoundStore } from "~/renderer/store/store.types";
+
+type BannersLoadStatus = "idle" | "loading" | "ready" | "error";
+
+const LOAD_RETRY_DELAYS_MS = [100, 500];
+
+const wait = (delayMs: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, delayMs);
+  });
 
 export interface BannersSlice {
   banners: {
     /** Set of banner IDs that have been permanently dismissed. */
-    dismissedIds: Set<string>;
+    dismissedIds: Set<BannerId>;
 
-    /** Whether the initial load from the DB has completed. */
-    isLoaded: boolean;
+    /** State of the persisted-dismissal hydration. */
+    loadStatus: BannersLoadStatus;
 
     /** Load all dismissed banner IDs from the database. */
     loadDismissed: () => Promise<void>;
 
     /** Permanently dismiss a banner (persists to DB). */
-    dismiss: (bannerId: string) => Promise<void>;
+    dismiss: (bannerId: BannerId) => Promise<boolean>;
 
-    /** Check if a specific banner has been dismissed. */
-    isDismissed: (bannerId: string) => boolean;
+    /** Reflect a dismissal already committed atomically by another main workflow. */
+    markDismissed: (bannerId: BannerId) => void;
   };
 }
 
@@ -28,36 +38,58 @@ export const createBannersSlice: StateCreator<
   BannersSlice
 > = (set, get) => ({
   banners: {
-    dismissedIds: new Set<string>(),
-    isLoaded: false,
+    dismissedIds: new Set<BannerId>(),
+    loadStatus: "idle",
 
     loadDismissed: async () => {
-      try {
-        const ids = await window.electron.banners.getAllDismissed();
-        set(
-          ({ banners }) => {
-            banners.dismissedIds = new Set(ids);
-            banners.isLoaded = true;
-          },
-          false,
-          "bannersSlice/loadDismissed/success",
-        );
-      } catch (error) {
-        console.error(
-          "[BannersSlice] Failed to load dismissed banners:",
-          error,
-        );
-        set(
-          ({ banners }) => {
-            banners.isLoaded = true;
-          },
-          false,
-          "bannersSlice/loadDismissed/error",
-        );
+      set(
+        ({ banners }) => {
+          banners.loadStatus = "loading";
+        },
+        false,
+        "bannersSlice/loadDismissed/start",
+      );
+
+      for (
+        let attempt = 0;
+        attempt <= LOAD_RETRY_DELAYS_MS.length;
+        attempt += 1
+      ) {
+        if (attempt > 0) {
+          await wait(LOAD_RETRY_DELAYS_MS[attempt - 1]);
+        }
+
+        try {
+          const result = await window.electron.banners.getAllDismissed();
+          if (!result.success) {
+            throw new Error(result.error);
+          }
+
+          set(
+            ({ banners }) => {
+              banners.dismissedIds = new Set(result.bannerIds);
+              banners.loadStatus = "ready";
+            },
+            false,
+            "bannersSlice/loadDismissed/success",
+          );
+          return;
+        } catch {}
       }
+
+      console.error("[BannersSlice] Failed to load dismissed banners.");
+      set(
+        ({ banners }) => {
+          banners.loadStatus = "error";
+        },
+        false,
+        "bannersSlice/loadDismissed/error",
+      );
     },
 
-    dismiss: async (bannerId: string) => {
+    dismiss: async (bannerId: BannerId) => {
+      const wasDismissed = get().banners.dismissedIds.has(bannerId);
+
       // Optimistically update the UI
       set(
         ({ banners }) => {
@@ -68,24 +100,37 @@ export const createBannersSlice: StateCreator<
       );
 
       try {
-        await window.electron.banners.dismiss(bannerId);
-      } catch (error) {
-        console.error("[BannersSlice] Failed to dismiss banner:", error);
+        const result = await window.electron.banners.dismiss(bannerId);
+        if (!result.success) {
+          throw new Error(result.error);
+        }
+        return true;
+      } catch {
+        console.error("[BannersSlice] Failed to dismiss banner.");
         // Revert on failure
-        set(
-          ({ banners }) => {
-            const next = new Set(banners.dismissedIds);
-            next.delete(bannerId);
-            banners.dismissedIds = next;
-          },
-          false,
-          "bannersSlice/dismiss/revert",
-        );
+        if (!wasDismissed) {
+          set(
+            ({ banners }) => {
+              const next = new Set(banners.dismissedIds);
+              next.delete(bannerId);
+              banners.dismissedIds = next;
+            },
+            false,
+            "bannersSlice/dismiss/revert",
+          );
+        }
+        return false;
       }
     },
 
-    isDismissed: (bannerId: string) => {
-      return get().banners.dismissedIds.has(bannerId);
+    markDismissed: (bannerId: BannerId) => {
+      set(
+        ({ banners }) => {
+          banners.dismissedIds = new Set([...banners.dismissedIds, bannerId]);
+        },
+        false,
+        "bannersSlice/markDismissed",
+      );
     },
   },
 });

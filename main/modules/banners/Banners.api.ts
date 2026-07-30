@@ -1,14 +1,16 @@
 import { ipcRenderer } from "electron";
 
 import { BannersChannel } from "./Banners.channels";
+import type {
+  BannerDismissalsResult,
+  BannerDismissResult,
+  BannerId,
+} from "./Banners.types";
 
 export const BannersAPI = {
-  isDismissed: (bannerId: string): Promise<boolean> =>
-    ipcRenderer.invoke(BannersChannel.IsDismissed, bannerId),
-
-  dismiss: (bannerId: string): Promise<void> =>
+  dismiss: (bannerId: BannerId): Promise<BannerDismissResult> =>
     ipcRenderer.invoke(BannersChannel.Dismiss, bannerId),
 
-  getAllDismissed: (): Promise<string[]> =>
+  getAllDismissed: (): Promise<BannerDismissalsResult> =>
     ipcRenderer.invoke(BannersChannel.GetAllDismissed),
 };

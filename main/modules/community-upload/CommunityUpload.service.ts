@@ -11,15 +11,18 @@ import {
 } from "~/main/modules/settings-store";
 import { SupabaseClientService } from "~/main/modules/supabase";
 import {
-  assertBoolean,
-  assertBoundedString,
-  assertGameType,
   assertTrustedSender,
   handleValidationError,
 } from "~/main/utils/ipc-validation";
 
 import type { GameType } from "../../../types/data-stores";
 import { CommunityUploadChannel } from "./CommunityUpload.channels";
+import type {
+  CommunityBackfillLeague,
+  CommunityBackfillLeaguesResult,
+  CommunityBackfillResult,
+} from "./CommunityUpload.dto";
+import { CommunityUploadRepository } from "./CommunityUpload.repository";
 
 interface CommunityUploadCard {
   card_name: string;
@@ -33,6 +36,13 @@ interface UploadOnSessionEndOptions {
    * such as startup/resume. "Flush" never deletes pending data.
    */
   flush?: boolean;
+
+  /**
+   * Re-throw preparation failures after logging them. Interactive backfill
+   * uses this to avoid marking a league complete when no durable outbox row
+   * was created; background session uploads retain fire-and-forget behavior.
+   */
+  throwOnFailure?: boolean;
 }
 
 interface PendingUploadRow {
@@ -49,14 +59,31 @@ interface PreparedPendingUpload {
   deviceId: string;
 }
 
+type UploadQueueResult = { success: true } | { success: false; error: Error };
+
 const RETRY_DELAYS_MS = [60_000, 5 * 60_000, 15 * 60_000, 60 * 60_000];
+const COMMUNITY_BACKFILL_ERROR =
+  "Community data could not be queued. Please try again.";
+
+function toSafeIpcFailure(
+  error: unknown,
+  channel: CommunityUploadChannel,
+): { success: false; error: string } {
+  try {
+    return handleValidationError(error, channel);
+  } catch (unexpectedError) {
+    console.error(`[CommunityUpload] ${channel} failed:`, unexpectedError);
+    return { success: false, error: COMMUNITY_BACKFILL_ERROR };
+  }
+}
 
 class CommunityUploadService {
   private static _instance: CommunityUploadService;
   private kysely: Kysely<Database>;
   private settingsStore: SettingsStoreService;
   private supabase: SupabaseClientService;
-  private sessionUploadJobs = new Map<string, Promise<void>>();
+  private repository: CommunityUploadRepository;
+  private sessionUploadJobs = new Map<string, Promise<UploadQueueResult>>();
   private flushJobs = new Map<string, Promise<void>>();
 
   static getInstance(): CommunityUploadService {
@@ -69,6 +96,7 @@ class CommunityUploadService {
   constructor() {
     const db = DatabaseService.getInstance();
     this.kysely = db.getKysely();
+    this.repository = new CommunityUploadRepository(this.kysely);
     this.settingsStore = SettingsStoreService.getInstance();
     this.supabase = SupabaseClientService.getInstance();
     this.setupHandlers();
@@ -78,82 +106,15 @@ class CommunityUploadService {
   // ─── IPC Handlers ──────────────────────────────────────────────────────
 
   private setupHandlers(): void {
-    ipcMain.handle(CommunityUploadChannel.GetUploadStatus, async () => {
+    ipcMain.handle(CommunityUploadChannel.GetBackfillLeagues, async (event) => {
       try {
-        const enabled = await this.isEnabled();
-        const deviceId = await this.getDeviceId();
-
-        const lastUploadRow = await this.kysely
-          .selectFrom("app_metadata")
-          .select("value")
-          .where("key", "=", "community_last_upload_at")
-          .executeTakeFirst();
-
+        assertTrustedSender(event, CommunityUploadChannel.GetBackfillLeagues);
         return {
-          enabled,
-          deviceId,
-          lastUploadAt: lastUploadRow?.value ?? null,
-        };
+          success: true,
+          leagues: await this.getBackfillLeagues(),
+        } satisfies CommunityBackfillLeaguesResult;
       } catch (error) {
-        return handleValidationError(
-          error,
-          CommunityUploadChannel.GetUploadStatus,
-        );
-      }
-    });
-
-    ipcMain.handle(
-      CommunityUploadChannel.SetUploadsEnabled,
-      async (event, enabled: unknown) => {
-        try {
-          assertTrustedSender(event, CommunityUploadChannel.SetUploadsEnabled);
-          assertBoolean(
-            enabled,
-            "enabled",
-            CommunityUploadChannel.SetUploadsEnabled,
-          );
-
-          await this.settingsStore.set(
-            SettingsKey.CommunityUploadsEnabled,
-            enabled,
-          );
-
-          return { success: true };
-        } catch (error) {
-          return handleValidationError(
-            error,
-            CommunityUploadChannel.SetUploadsEnabled,
-          );
-        }
-      },
-    );
-
-    ipcMain.handle(
-      CommunityUploadChannel.GetUploadStats,
-      async (_event, game: unknown, league: unknown) => {
-        try {
-          assertGameType(game, CommunityUploadChannel.GetUploadStats);
-          assertBoundedString(
-            league,
-            "league",
-            CommunityUploadChannel.GetUploadStats,
-            256,
-          );
-
-          return await this.getUploadStats(game, league);
-        } catch (error) {
-          return handleValidationError(
-            error,
-            CommunityUploadChannel.GetUploadStats,
-          );
-        }
-      },
-    );
-    ipcMain.handle(CommunityUploadChannel.GetBackfillLeagues, async () => {
-      try {
-        return await this.getBackfillLeagues();
-      } catch (error) {
-        return handleValidationError(
+        return toSafeIpcFailure(
           error,
           CommunityUploadChannel.GetBackfillLeagues,
         );
@@ -163,13 +124,9 @@ class CommunityUploadService {
     ipcMain.handle(CommunityUploadChannel.TriggerBackfill, async (event) => {
       try {
         assertTrustedSender(event, CommunityUploadChannel.TriggerBackfill);
-        await this.backfillIfNeeded();
-        return { success: true };
+        return await this.backfillIfNeeded();
       } catch (error) {
-        return handleValidationError(
-          error,
-          CommunityUploadChannel.TriggerBackfill,
-        );
+        return toSafeIpcFailure(error, CommunityUploadChannel.TriggerBackfill);
       }
     });
   }
@@ -195,35 +152,13 @@ class CommunityUploadService {
   /**
    * Get the list of leagues that have local data but haven't been backfilled yet.
    */
-  public async getBackfillLeagues(): Promise<
-    { game: string; league: string }[]
-  > {
+  public async getBackfillLeagues(): Promise<CommunityBackfillLeague[]> {
     const enabled = await this.isEnabled();
     if (!enabled) return [];
 
     if (!this.supabase.isConfigured()) return [];
 
-    const leagues = await this.kysely
-      .selectFrom("cards")
-      .select(["game", "scope"])
-      .where("scope", "!=", "all-time")
-      .where("count", ">", 0)
-      .groupBy(["game", "scope"])
-      .execute();
-
-    const result: { game: string; league: string }[] = [];
-    for (const { game, scope } of leagues) {
-      const backfillKey = `community_backfill_done_${game}_${scope}`;
-      const done = await this.kysely
-        .selectFrom("app_metadata")
-        .select("value")
-        .where("key", "=", backfillKey)
-        .executeTakeFirst();
-      if (!done) {
-        result.push({ game, league: scope });
-      }
-    }
-    return result;
+    return this.repository.getBackfillLeagues();
   }
 
   /**
@@ -325,11 +260,31 @@ class CommunityUploadService {
     sessionId?: string,
     options: UploadOnSessionEndOptions = {},
   ): Promise<void> {
+    return this.queueSessionUpload(game, league, sessionId, options).then(
+      (result) => {
+        if (!result.success && options.throwOnFailure) {
+          throw result.error;
+        }
+      },
+    );
+  }
+
+  private queueSessionUpload(
+    game: GameType,
+    league: string,
+    sessionId?: string,
+    options: UploadOnSessionEndOptions = {},
+  ): Promise<UploadQueueResult> {
     const key = this.uploadKey(game, league);
-    const previousJob = this.sessionUploadJobs.get(key) ?? Promise.resolve();
+    const previousJob =
+      this.sessionUploadJobs.get(key) ??
+      Promise.resolve<UploadQueueResult>({ success: true });
 
     const job = previousJob
-      .catch(() => {})
+      .catch((error: unknown) => ({
+        success: false as const,
+        error: error instanceof Error ? error : new Error(String(error)),
+      }))
       .then(() =>
         this.uploadOnSessionEndInternal(game, league, sessionId, options),
       )
@@ -432,19 +387,25 @@ class CommunityUploadService {
     league: string,
     sessionId: string | undefined,
     options: UploadOnSessionEndOptions,
-  ): Promise<void> {
+  ): Promise<UploadQueueResult> {
     try {
       const enabled = await this.isEnabled();
       if (!enabled) {
         console.log("[CommunityUpload] Uploads disabled, skipping");
-        return;
+        return {
+          success: false,
+          error: new Error("Community uploads are disabled"),
+        };
       }
 
       if (!this.supabase.isConfigured()) {
         console.log(
           "[CommunityUpload] Supabase not configured, skipping upload",
         );
-        return;
+        return {
+          success: false,
+          error: new Error("Community uploads are unavailable"),
+        };
       }
 
       const deviceId = await this.getDeviceId();
@@ -454,7 +415,7 @@ class CommunityUploadService {
         console.log(
           `[CommunityUpload] No changes since last upload for ${game}/${league}, skipping`,
         );
-        return;
+        return { success: true };
       }
 
       const queuedCards = await this.enqueuePendingUpload(
@@ -467,28 +428,26 @@ class CommunityUploadService {
         console.log(
           `[CommunityUpload] Queued ${changedCards.length} card(s) for ${game}/${league}; flush deferred`,
         );
-        return;
+        return { success: true };
       }
 
       await this.flushPendingUpload(game, league, {
         cards: queuedCards,
         deviceId,
       });
+      return { success: true };
     } catch (error) {
-      console.error(
-        "[CommunityUpload] Upload failed:",
-        error instanceof Error ? error.message : String(error),
-      );
-      captureSentryException(
-        error instanceof Error ? error : new Error(String(error)),
-        {
-          tags: {
-            module: "community-upload",
-            operation: "upload-on-session-end",
-          },
-          extra: { game, league },
+      const uploadError =
+        error instanceof Error ? error : new Error(String(error));
+      console.error("[CommunityUpload] Upload failed:", uploadError.message);
+      captureSentryException(uploadError, {
+        tags: {
+          module: "community-upload",
+          operation: "upload-on-session-end",
         },
-      );
+        extra: { game, league },
+      });
+      return { success: false, error: uploadError };
     }
   }
 
@@ -662,62 +621,50 @@ class CommunityUploadService {
 
   /**
    * Backfill community uploads for leagues that have local data but were never
-   * uploaded. Runs once per (game, scope) pair at startup. Fire-and-forget.
+   * uploaded. A league is marked complete only after its snapshot is durably
+   * queued (or no changes remain). Failures are returned so interactive
+   * callers can keep the banner available for retry.
    */
-  public async backfillIfNeeded(): Promise<void> {
+  public async backfillIfNeeded(): Promise<CommunityBackfillResult> {
     try {
       const enabled = await this.isEnabled();
       if (!enabled) {
         console.log("[CommunityUpload] Uploads disabled, skipping backfill");
-        return;
+        return {
+          success: false,
+          error: "Community uploads are disabled.",
+        };
       }
 
       if (!this.supabase.isConfigured()) {
         console.log(
           "[CommunityUpload] Supabase not configured, skipping backfill",
         );
-        return;
+        return {
+          success: false,
+          error: "Community uploads are currently unavailable.",
+        };
       }
 
-      const leagues = await this.kysely
-        .selectFrom("cards")
-        .select(["game", "scope"])
-        .where("scope", "!=", "all-time")
-        .where("count", ">", 0)
-        .groupBy(["game", "scope"])
-        .execute();
+      const leagues = await this.getBackfillLeagues();
+      const completedLeagues: CommunityBackfillLeague[] = [];
+      let hasFailures = false;
 
-      for (const { game, scope } of leagues) {
+      for (const backfillLeague of leagues) {
+        const { game, league } = backfillLeague;
         try {
-          const backfillKey = `community_backfill_done_${game}_${scope}`;
-
-          const existing = await this.kysely
-            .selectFrom("app_metadata")
-            .select("value")
-            .where("key", "=", backfillKey)
-            .executeTakeFirst();
-
-          if (existing) {
-            console.log(
-              `[CommunityUpload] Backfill already done for ${game}/${scope}, skipping`,
-            );
-            continue;
-          }
-
-          await this.uploadOnSessionEnd(game as GameType, scope);
-
-          await this.kysely
-            .insertInto("app_metadata")
-            .values({ key: backfillKey, value: "true" })
-            .onConflict((oc) => oc.column("key").doUpdateSet({ value: "true" }))
-            .execute();
+          await this.uploadOnSessionEnd(game, league, undefined, {
+            throwOnFailure: true,
+          });
 
           console.log(
-            `[CommunityUpload] Backfill complete for ${game}/${scope}`,
+            `[CommunityUpload] Backfill complete for ${game}/${league}`,
           );
+          completedLeagues.push(backfillLeague);
         } catch (error) {
+          hasFailures = true;
           console.error(
-            `[CommunityUpload] Backfill failed for ${game}/${scope}:`,
+            `[CommunityUpload] Backfill failed for ${game}/${league}:`,
             error instanceof Error ? error.message : String(error),
           );
           captureSentryException(
@@ -727,11 +674,22 @@ class CommunityUploadService {
                 module: "community-upload",
                 operation: "backfill",
               },
-              extra: { game, scope },
+              extra: { game, league },
             },
           );
         }
       }
+
+      await this.repository.commitBackfill(completedLeagues, !hasFailures);
+
+      if (hasFailures) {
+        return {
+          success: false,
+          error: "Some community data could not be queued. Please try again.",
+        };
+      }
+
+      return { success: true };
     } catch (error) {
       console.error("[CommunityUpload] Backfill failed:", error);
       captureSentryException(
@@ -743,6 +701,10 @@ class CommunityUploadService {
           },
         },
       );
+      return {
+        success: false,
+        error: COMMUNITY_BACKFILL_ERROR,
+      };
     }
   }
 
@@ -759,13 +721,13 @@ class CommunityUploadService {
       gggAccessToken = await GggAuthService.getInstance().getAccessToken();
     } catch (_error) {
       console.log(
-        "[CommunityUpload] GGG token unavailable, uploading anonymously",
+        "[CommunityUpload] GGG token unavailable, uploading without linked account",
       );
     }
 
     console.log(
       `[CommunityUpload] Uploading ${cardEntries.length} unique cards for ${game}/${league}` +
-        (gggAccessToken ? " (verified)" : " (anonymous)"),
+        (gggAccessToken ? " (verified)" : " (unlinked)"),
     );
 
     const payload: Record<string, unknown> = {
@@ -1043,31 +1005,6 @@ class CommunityUploadService {
       .where("game", "=", game)
       .where("scope", "=", league)
       .execute();
-  }
-
-  private async getUploadStats(
-    game: GameType,
-    league: string,
-  ): Promise<{ totalUploads: number; lastUploadAt: string | null }> {
-    const leagueKey = `community_upload_count_${game}_${league}`;
-
-    const [countRow, lastUploadRow] = await Promise.all([
-      this.kysely
-        .selectFrom("app_metadata")
-        .select("value")
-        .where("key", "=", leagueKey)
-        .executeTakeFirst(),
-      this.kysely
-        .selectFrom("app_metadata")
-        .select("value")
-        .where("key", "=", "community_last_upload_at")
-        .executeTakeFirst(),
-    ]);
-
-    return {
-      totalUploads: countRow ? parseInt(countRow.value, 10) : 0,
-      lastUploadAt: lastUploadRow?.value ?? null,
-    };
   }
 }
 

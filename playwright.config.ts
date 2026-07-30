@@ -1,5 +1,9 @@
 import { defineConfig } from "@playwright/test";
 
+import { getE2ERendererPort } from "./e2e/helpers/e2e-config";
+
+const rendererPort = getE2ERendererPort();
+
 export default defineConfig({
   testDir: "./e2e",
   testMatch: "**/*.e2e.test.ts",
@@ -38,9 +42,8 @@ export default defineConfig({
   // A strict, dedicated server prevents stale Forge builds or another Vite
   // app on this port from producing an empty or unrelated renderer.
   webServer: {
-    command:
-      "pnpm exec vite --config vite.renderer.config.mts --port 5173 --strictPort",
-    port: 5173,
+    command: `pnpm exec vite --config vite.renderer.config.mts --port ${rendererPort} --strictPort`,
+    port: rendererPort,
     timeout: 30_000,
     reuseExistingServer: false,
     stdout: "pipe",

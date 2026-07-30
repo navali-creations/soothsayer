@@ -1,5 +1,7 @@
 import type { StateCreator } from "zustand";
 
+import { BANNER_IDS } from "~/main/modules/banners/Banners.types";
+import type { CommunityBackfillLeague } from "~/main/modules/community-upload/CommunityUpload.dto";
 import type { BoundStore } from "~/renderer/store/store.types";
 
 export interface CommunityUploadSlice {
@@ -15,17 +17,17 @@ export interface CommunityUploadSlice {
     authError: string | null;
 
     // Backfill state
-    backfillLeagues: { game: string; league: string }[];
+    backfillLeagues: CommunityBackfillLeague[];
     isBackfilling: boolean;
-    backfillDismissed: boolean;
+    backfillError: string | null;
 
     // Actions
     fetchStatus: () => Promise<void>;
     authenticate: () => Promise<void>;
     logout: () => Promise<void>;
     checkBackfill: () => Promise<void>;
-    triggerBackfill: () => Promise<void>;
-    dismissBackfill: () => void;
+    triggerBackfill: () => Promise<boolean>;
+    dismissBackfillBanner: () => Promise<boolean>;
   };
 }
 
@@ -34,7 +36,7 @@ export const createCommunityUploadSlice: StateCreator<
   [["zustand/devtools", never], ["zustand/immer", never]],
   [],
   CommunityUploadSlice
-> = (set, _get) => ({
+> = (set, get) => ({
   communityUpload: {
     // GGG auth status
     gggAuthenticated: false,
@@ -49,7 +51,7 @@ export const createCommunityUploadSlice: StateCreator<
     // Backfill state
     backfillLeagues: [],
     isBackfilling: false,
-    backfillDismissed: false,
+    backfillError: null,
 
     // Actions
     fetchStatus: async () => {
@@ -176,20 +178,26 @@ export const createCommunityUploadSlice: StateCreator<
 
     checkBackfill: async () => {
       try {
-        const leagues =
+        const result =
           await window.electron.communityUpload.getBackfillLeagues();
+        if (!result.success) {
+          console.error(
+            "[CommunityUploadSlice] Failed to check backfill eligibility.",
+          );
+          return;
+        }
 
         set(
           ({ communityUpload }) => {
-            communityUpload.backfillLeagues = leagues;
+            communityUpload.backfillLeagues = result.leagues;
+            communityUpload.backfillError = null;
           },
           false,
           "communityUploadSlice/checkBackfill/success",
         );
-      } catch (error) {
+      } catch {
         console.error(
-          "[CommunityUploadSlice] Failed to check backfill:",
-          error,
+          "[CommunityUploadSlice] Failed to check backfill eligibility.",
         );
       }
     },
@@ -198,44 +206,71 @@ export const createCommunityUploadSlice: StateCreator<
       set(
         ({ communityUpload }) => {
           communityUpload.isBackfilling = true;
+          communityUpload.backfillError = null;
         },
         false,
         "communityUploadSlice/triggerBackfill/start",
       );
 
       try {
-        await window.electron.communityUpload.triggerBackfill();
+        const result = await window.electron.communityUpload.triggerBackfill();
+        if (!result.success) {
+          console.error("[CommunityUploadSlice] Backfill trigger failed.");
+          set(
+            ({ communityUpload }) => {
+              communityUpload.isBackfilling = false;
+              communityUpload.backfillError = result.error;
+            },
+            false,
+            "communityUploadSlice/triggerBackfill/failure",
+          );
+          return false;
+        }
+
+        get().banners.markDismissed(BANNER_IDS.COMMUNITY_BACKFILL);
 
         set(
           ({ communityUpload }) => {
             communityUpload.isBackfilling = false;
             communityUpload.backfillLeagues = [];
-            communityUpload.backfillDismissed = true;
+            communityUpload.backfillError = null;
           },
           false,
           "communityUploadSlice/triggerBackfill/success",
         );
-      } catch (error) {
-        console.error("[CommunityUploadSlice] Backfill trigger failed:", error);
+        return true;
+      } catch {
+        console.error("[CommunityUploadSlice] Backfill trigger failed.");
 
         set(
           ({ communityUpload }) => {
             communityUpload.isBackfilling = false;
+            communityUpload.backfillError =
+              "Community data could not be queued. Please try again.";
           },
           false,
           "communityUploadSlice/triggerBackfill/error",
         );
+        return false;
       }
     },
 
-    dismissBackfill: () => {
+    dismissBackfillBanner: async () => {
+      const dismissed = await get().banners.dismiss(
+        BANNER_IDS.COMMUNITY_BACKFILL,
+      );
       set(
         ({ communityUpload }) => {
-          communityUpload.backfillDismissed = true;
+          communityUpload.backfillError = dismissed
+            ? null
+            : "The banner preference could not be saved. Please try again.";
         },
         false,
-        "communityUploadSlice/dismissBackfill",
+        dismissed
+          ? "communityUploadSlice/dismissBackfillBanner/success"
+          : "communityUploadSlice/dismissBackfillBanner/error",
       );
+      return dismissed;
     },
   },
 });

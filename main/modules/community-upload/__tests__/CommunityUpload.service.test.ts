@@ -17,13 +17,9 @@ const {
   mockPowerMonitorOn,
   mockGetKysely,
   mockSettingsGet,
-  mockSettingsSet,
   mockIsConfigured,
   mockCallEdgeFunction,
   mockAssertTrustedSender,
-  mockAssertBoolean,
-  mockAssertGameType,
-  mockAssertBoundedString,
   mockHandleValidationError,
   MockIpcValidationError,
   mockSentryCaptureException,
@@ -43,13 +39,9 @@ const {
     mockPowerMonitorOn: vi.fn(),
     mockGetKysely: vi.fn(),
     mockSettingsGet: vi.fn(),
-    mockSettingsSet: vi.fn(),
     mockIsConfigured: vi.fn(),
     mockCallEdgeFunction: vi.fn(),
     mockAssertTrustedSender: vi.fn(),
-    mockAssertBoolean: vi.fn(),
-    mockAssertGameType: vi.fn(),
-    mockAssertBoundedString: vi.fn(),
     mockHandleValidationError: vi.fn((error: unknown) => {
       throw error;
     }),
@@ -72,7 +64,6 @@ vi.mock("~/main/modules/database", () =>
 vi.mock("~/main/modules/settings-store", () =>
   createSettingsStoreMock({
     mockGet: mockSettingsGet,
-    mockSet: mockSettingsSet,
   }),
 );
 
@@ -90,9 +81,6 @@ vi.mock("~/main/modules/ggg-auth", () =>
 vi.mock("~/main/utils/ipc-validation", () =>
   createIpcValidationMock({
     mockAssertTrustedSender,
-    mockAssertBoolean,
-    mockAssertGameType,
-    mockAssertBoundedString,
     mockHandleValidationError,
     MockIpcValidationError,
   }),
@@ -138,7 +126,15 @@ function createKyselyChain(result: unknown = undefined) {
 
 import { CommunityUploadChannel } from "../CommunityUpload.channels";
 // ─── Import SUT (after mocks) ────────────────────────────────────────────────
+import type { CommunityUploadRepository } from "../CommunityUpload.repository";
 import { CommunityUploadService } from "../CommunityUpload.service";
+
+function getRepository(
+  service: CommunityUploadService,
+): CommunityUploadRepository {
+  return (service as unknown as { repository: CommunityUploadRepository })
+    .repository;
+}
 
 // ─── Test Suite ──────────────────────────────────────────────────────────────
 
@@ -171,276 +167,17 @@ describe("CommunityUploadService", () => {
     });
   });
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // IPC: GetUploadStatus
-  // ─────────────────────────────────────────────────────────────────────────
+  it("registers only the backfill IPC handlers", () => {
+    mockGetKysely.mockReturnValue(createKyselyChain());
 
-  describe("IPC: GetUploadStatus", () => {
-    it("should register all IPC handlers", () => {
-      const kyselyMock = createKyselyChain();
-      mockGetKysely.mockReturnValue(kyselyMock);
-      service = CommunityUploadService.getInstance();
+    service = CommunityUploadService.getInstance();
 
-      const registeredChannels = mockIpcHandle.mock.calls.map(
-        ([ch]: [string]) => ch,
-      );
-      expect(registeredChannels).toContain(
-        CommunityUploadChannel.GetUploadStatus,
-      );
-      expect(registeredChannels).toContain(
-        CommunityUploadChannel.SetUploadsEnabled,
-      );
-      expect(registeredChannels).toContain(
-        CommunityUploadChannel.GetUploadStats,
-      );
-      expect(registeredChannels).toContain(
-        CommunityUploadChannel.GetBackfillLeagues,
-      );
-      expect(registeredChannels).toContain(
-        CommunityUploadChannel.TriggerBackfill,
-      );
-    });
-
-    it("should return enabled status, device ID, and last upload time", async () => {
-      // isEnabled() only checks settingsStore — no Kysely call.
-      // getDeviceId() queries for device_id (call #1),
-      // then last upload time (call #2).
-      const deviceIdChain = createKyselyChain({ value: "test-device-uuid" });
-      const lastUploadChain = createKyselyChain({
-        value: "2025-01-15T10:00:00Z",
-      });
-
-      let selectFromCallCount = 0;
-      const kyselyMock = {
-        selectFrom: vi.fn(() => {
-          selectFromCallCount++;
-          // 1st call: device_id, 2nd+: last upload
-          if (selectFromCallCount === 1) return deviceIdChain;
-          return lastUploadChain;
-        }),
-        insertInto: vi.fn().mockReturnValue(createKyselyChain()),
-      };
-      mockGetKysely.mockReturnValue(kyselyMock);
-      mockSettingsGet.mockResolvedValue(true);
-
-      service = CommunityUploadService.getInstance();
-      const handler = getIpcHandler(
-        mockIpcHandle,
-        CommunityUploadChannel.GetUploadStatus,
-      );
-
-      const result = await handler({});
-
-      expect(result).toEqual({
-        enabled: true,
-        deviceId: "test-device-uuid",
-        lastUploadAt: "2025-01-15T10:00:00Z",
-      });
-    });
-
-    it("should return null lastUploadAt when no upload has occurred", async () => {
-      const deviceIdChain = createKyselyChain({ value: "test-device-uuid" });
-      const noResultChain = createKyselyChain(undefined);
-
-      let selectFromCallCount = 0;
-      const kyselyMock = {
-        selectFrom: vi.fn(() => {
-          selectFromCallCount++;
-          // 1st call: device_id, 2nd+: last upload
-          if (selectFromCallCount === 1) return deviceIdChain;
-          return noResultChain;
-        }),
-        insertInto: vi.fn().mockReturnValue(createKyselyChain()),
-      };
-      mockGetKysely.mockReturnValue(kyselyMock);
-
-      service = CommunityUploadService.getInstance();
-      const handler = getIpcHandler(
-        mockIpcHandle,
-        CommunityUploadChannel.GetUploadStatus,
-      );
-
-      const result = await handler({});
-
-      expect(result.lastUploadAt).toBeNull();
-    });
-  });
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // IPC: SetUploadsEnabled
-  // ─────────────────────────────────────────────────────────────────────────
-
-  describe("IPC: SetUploadsEnabled", () => {
-    it("should call settingsStore.set with the correct key", async () => {
-      const kyselyMock = createKyselyChain();
-      mockGetKysely.mockReturnValue(kyselyMock);
-
-      service = CommunityUploadService.getInstance();
-      const handler = getIpcHandler(
-        mockIpcHandle,
-        CommunityUploadChannel.SetUploadsEnabled,
-      );
-
-      const result = await handler({}, true);
-
-      expect(mockAssertBoolean).toHaveBeenCalledWith(
-        true,
-        "enabled",
-        CommunityUploadChannel.SetUploadsEnabled,
-      );
-      expect(mockSettingsSet).toHaveBeenCalledWith(
-        "communityUploadsEnabled",
-        true,
-      );
-      expect(result).toEqual({ success: true });
-    });
-
-    it("should call settingsStore.set with false", async () => {
-      const kyselyMock = createKyselyChain();
-      mockGetKysely.mockReturnValue(kyselyMock);
-
-      service = CommunityUploadService.getInstance();
-      const handler = getIpcHandler(
-        mockIpcHandle,
-        CommunityUploadChannel.SetUploadsEnabled,
-      );
-
-      await handler({}, false);
-
-      expect(mockSettingsSet).toHaveBeenCalledWith(
-        "communityUploadsEnabled",
-        false,
-      );
-    });
-
-    it("should validate the enabled parameter", async () => {
-      const kyselyMock = createKyselyChain();
-      mockGetKysely.mockReturnValue(kyselyMock);
-
-      mockAssertBoolean.mockImplementation(() => {
-        throw new MockIpcValidationError(
-          CommunityUploadChannel.SetUploadsEnabled,
-          "Expected boolean",
-        );
-      });
-      mockHandleValidationError.mockReturnValue({
-        success: false,
-        error: "Invalid input",
-      });
-
-      service = CommunityUploadService.getInstance();
-      const handler = getIpcHandler(
-        mockIpcHandle,
-        CommunityUploadChannel.SetUploadsEnabled,
-      );
-
-      const result = await handler({}, "not-a-boolean");
-
-      expect(mockHandleValidationError).toHaveBeenCalled();
-      expect(result).toEqual({ success: false, error: "Invalid input" });
-    });
-
-    it("should reject set-enabled from untrusted sender", async () => {
-      const kyselyMock = createKyselyChain();
-      mockGetKysely.mockReturnValue(kyselyMock);
-
-      mockAssertTrustedSender.mockImplementation(() => {
-        throw new MockIpcValidationError(
-          CommunityUploadChannel.SetUploadsEnabled,
-          "[Security] IPC call from untrusted webContents (id=999)",
-        );
-      });
-      mockHandleValidationError.mockReturnValue({
-        success: false,
-        error:
-          "Invalid input: [Security] IPC call from untrusted webContents (id=999)",
-      });
-
-      service = CommunityUploadService.getInstance();
-      const handler = getIpcHandler(
-        mockIpcHandle,
-        CommunityUploadChannel.SetUploadsEnabled,
-      );
-
-      const result = await handler({ sender: { id: 999 } }, true);
-
-      expect(mockAssertTrustedSender).toHaveBeenCalled();
-      expect(mockSettingsSet).not.toHaveBeenCalled();
-      expect(result).toEqual({
-        success: false,
-        error: expect.stringContaining("untrusted webContents"),
-      });
-    });
-  });
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // IPC: GetUploadStats
-  // ─────────────────────────────────────────────────────────────────────────
-
-  describe("IPC: GetUploadStats", () => {
-    it("should return upload count and last upload time", async () => {
-      const countChain = createKyselyChain({ value: "5" });
-      const lastUploadChain = createKyselyChain({
-        value: "2025-01-15T10:00:00Z",
-      });
-
-      let selectFromCallCount = 0;
-      const kyselyMock = {
-        selectFrom: vi.fn(() => {
-          selectFromCallCount++;
-          // 1st: upload count, 2nd: last upload time
-          if (selectFromCallCount === 1) return countChain;
-          return lastUploadChain;
-        }),
-        insertInto: vi.fn().mockReturnValue(createKyselyChain()),
-      };
-      mockGetKysely.mockReturnValue(kyselyMock);
-
-      service = CommunityUploadService.getInstance();
-      const handler = getIpcHandler(
-        mockIpcHandle,
-        CommunityUploadChannel.GetUploadStats,
-      );
-
-      const result = await handler({}, "poe2", "Settlers");
-
-      expect(mockAssertGameType).toHaveBeenCalledWith(
-        "poe2",
-        CommunityUploadChannel.GetUploadStats,
-      );
-      expect(mockAssertBoundedString).toHaveBeenCalledWith(
-        "Settlers",
-        "league",
-        CommunityUploadChannel.GetUploadStats,
-        256,
-      );
-      expect(result).toEqual({
-        totalUploads: 5,
-        lastUploadAt: "2025-01-15T10:00:00Z",
-      });
-    });
-
-    it("should return zero uploads when no data exists", async () => {
-      const noResultChain = createKyselyChain(undefined);
-      const kyselyMock = {
-        selectFrom: vi.fn(() => noResultChain),
-        insertInto: vi.fn().mockReturnValue(createKyselyChain()),
-      };
-      mockGetKysely.mockReturnValue(kyselyMock);
-
-      service = CommunityUploadService.getInstance();
-      const handler = getIpcHandler(
-        mockIpcHandle,
-        CommunityUploadChannel.GetUploadStats,
-      );
-
-      const result = await handler({}, "poe1", "Standard");
-
-      expect(result).toEqual({
-        totalUploads: 0,
-        lastUploadAt: null,
-      });
-    });
+    expect(
+      mockIpcHandle.mock.calls.map(([channel]: [string]) => channel),
+    ).toEqual([
+      CommunityUploadChannel.GetBackfillLeagues,
+      CommunityUploadChannel.TriggerBackfill,
+    ]);
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1168,7 +905,7 @@ describe("CommunityUploadService", () => {
       );
     });
 
-    it("should upload anonymously when getAccessToken fails", async () => {
+    it("should upload without an account link when getAccessToken fails", async () => {
       setupKyselyForVerifiedUpload();
       mockGetAccessToken.mockRejectedValue(new Error("Token expired"));
       mockCallEdgeFunction.mockResolvedValue({
@@ -1295,204 +1032,141 @@ describe("CommunityUploadService", () => {
   // ─────────────────────────────────────────────────────────────────────────
 
   describe("backfillIfNeeded", () => {
-    const MOCK_DEVICE_ID = "aaaaaaaa-bbbb-4ccc-9ddd-eeeeeeeeeeee";
     const MOCK_LEAGUES = [
-      { game: "poe2", scope: "Settlers" },
-      { game: "poe1", scope: "Necropolis" },
+      { game: "poe2" as const, league: "Settlers" },
+      { game: "poe1" as const, league: "Necropolis" },
     ];
-    const MOCK_EDGE_RESPONSE = {
-      success: true,
-      upload_id: "upload-uuid-123",
-      total_cards: 4,
-      unique_cards: 2,
-      upload_count: 1,
-      is_verified: false,
-    };
 
-    it("skips when uploads are disabled", async () => {
+    it("reports disabled uploads instead of pretending the backfill succeeded", async () => {
       const kyselyMock = createKyselyChain();
       mockGetKysely.mockReturnValue(kyselyMock);
       mockSettingsGet.mockResolvedValue(false);
 
       service = CommunityUploadService.getInstance();
-      await service.backfillIfNeeded();
+      const result = await service.backfillIfNeeded();
 
+      expect(result).toEqual({
+        success: false,
+        error: "Community uploads are disabled.",
+      });
       expect(mockCallEdgeFunction).not.toHaveBeenCalled();
     });
 
-    it("skips when Supabase not configured", async () => {
+    it("reports unavailable Supabase instead of pretending success", async () => {
       const kyselyMock = createKyselyChain();
       mockGetKysely.mockReturnValue(kyselyMock);
       mockIsConfigured.mockReturnValue(false);
 
       service = CommunityUploadService.getInstance();
-      await service.backfillIfNeeded();
+      const result = await service.backfillIfNeeded();
 
+      expect(result.success).toBe(false);
       expect(mockCallEdgeFunction).not.toHaveBeenCalled();
     });
 
-    it("skips leagues already backfilled", async () => {
-      const leaguesChain = createKyselyChain([
-        { game: "poe2", scope: "Settlers" },
-      ]);
-      const backfillMarkerChain = createKyselyChain({ value: "true" });
-      const insertChain = createKyselyChain();
-
-      let selectFromCallCount = 0;
-      const kyselyMock = {
-        selectFrom: vi.fn(() => {
-          selectFromCallCount++;
-          // 1st call: distinct leagues from cards
-          if (selectFromCallCount === 1) return leaguesChain;
-          // 2nd call: backfill marker check
-          return backfillMarkerChain;
-        }),
-        insertInto: vi.fn().mockReturnValue(insertChain),
-      };
-      mockGetKysely.mockReturnValue(kyselyMock);
+    it("returns success when no leagues still need backfill", async () => {
+      mockGetKysely.mockReturnValue(createKyselyChain());
 
       service = CommunityUploadService.getInstance();
-      await service.backfillIfNeeded();
+      vi.spyOn(service, "getBackfillLeagues").mockResolvedValue([]);
+      const commitSpy = vi
+        .spyOn(getRepository(service), "commitBackfill")
+        .mockResolvedValue(undefined);
+      const uploadSpy = vi.spyOn(service, "uploadOnSessionEnd");
 
-      expect(mockCallEdgeFunction).not.toHaveBeenCalled();
-    });
-
-    it("uploads for leagues not yet backfilled", async () => {
-      const leaguesChain = createKyselyChain(MOCK_LEAGUES);
-      const noMarkerChain = createKyselyChain(undefined);
-      const deviceIdChain = createKyselyChain({ value: MOCK_DEVICE_ID });
-      const cardsChain = createKyselyChain([
-        { card_name: "The Doctor", count: 3 },
-      ]);
-      const snapshotChain = createKyselyChain([]);
-      const insertChain = createKyselyChain();
-
-      let selectFromCallCount = 0;
-      const kyselyMock = {
-        selectFrom: vi.fn(() => {
-          selectFromCallCount++;
-          // 1st: distinct leagues
-          if (selectFromCallCount === 1) return leaguesChain;
-          // For each league: backfill marker, device_id, cards, snapshot,
-          // outbox existing row, outbox latest row.
-          const offset = (selectFromCallCount - 2) % 6;
-          if (offset === 0) return noMarkerChain;
-          if (offset === 1) return deviceIdChain;
-          if (offset === 2) return cardsChain;
-          if (offset === 3) return snapshotChain;
-          return snapshotChain;
-        }),
-        insertInto: vi.fn().mockReturnValue(insertChain),
-      };
-      mockGetKysely.mockReturnValue(kyselyMock);
-      mockCallEdgeFunction.mockResolvedValue(MOCK_EDGE_RESPONSE);
-      mockGetAccessToken.mockResolvedValue(null);
-
-      service = CommunityUploadService.getInstance();
-      await service.backfillIfNeeded();
-
-      expect(mockCallEdgeFunction).toHaveBeenCalledTimes(2);
-    });
-
-    it("marks backfill done after successful upload", async () => {
-      const leaguesChain = createKyselyChain([
-        { game: "poe2", scope: "Settlers" },
-      ]);
-      const noMarkerChain = createKyselyChain(undefined);
-      const deviceIdChain = createKyselyChain({ value: MOCK_DEVICE_ID });
-      const cardsChain = createKyselyChain([
-        { card_name: "The Doctor", count: 3 },
-      ]);
-      const snapshotChain = createKyselyChain([]);
-      const insertChain = createKyselyChain();
-
-      let selectFromCallCount = 0;
-      const kyselyMock = {
-        selectFrom: vi.fn(() => {
-          selectFromCallCount++;
-          if (selectFromCallCount === 1) return leaguesChain;
-          const offset = (selectFromCallCount - 2) % 6;
-          if (offset === 0) return noMarkerChain;
-          if (offset === 1) return deviceIdChain;
-          if (offset === 2) return cardsChain;
-          if (offset === 3) return snapshotChain;
-          return snapshotChain;
-        }),
-        insertInto: vi.fn().mockReturnValue(insertChain),
-      };
-      mockGetKysely.mockReturnValue(kyselyMock);
-      mockCallEdgeFunction.mockResolvedValue(MOCK_EDGE_RESPONSE);
-      mockGetAccessToken.mockResolvedValue(null);
-
-      service = CommunityUploadService.getInstance();
-      await service.backfillIfNeeded();
-
-      const insertCalls = kyselyMock.insertInto.mock.calls;
-      const metadataInserts = insertCalls.filter(
-        (call: string[]) => call[0] === "app_metadata",
-      );
-      // Should include backfill marker insert
-      const backfillInsert = metadataInserts.some(() => {
-        return insertChain.values.mock.calls.some(
-          (c: Array<{ key: string; value: string }>) =>
-            c[0]?.key === "community_backfill_done_poe2_Settlers" &&
-            c[0]?.value === "true",
-        );
+      await expect(service.backfillIfNeeded()).resolves.toEqual({
+        success: true,
       });
-      expect(backfillInsert).toBe(true);
+      expect(uploadSpy).not.toHaveBeenCalled();
+      expect(commitSpy).toHaveBeenCalledWith([], true);
     });
 
-    it("continues with other leagues if one fails", async () => {
-      const leaguesChain = createKyselyChain(MOCK_LEAGUES);
-      const noMarkerChain = createKyselyChain(undefined);
-      const deviceIdChain = createKyselyChain({ value: MOCK_DEVICE_ID });
-      const cardsChain = createKyselyChain([
-        { card_name: "The Doctor", count: 3 },
-      ]);
-      const snapshotChain = createKyselyChain([]);
-      const insertChain = createKyselyChain();
-
-      let selectFromCallCount = 0;
-      const kyselyMock = {
-        selectFrom: vi.fn(() => {
-          selectFromCallCount++;
-          if (selectFromCallCount === 1) return leaguesChain;
-          const offset = (selectFromCallCount - 2) % 6;
-          if (offset === 0) return noMarkerChain;
-          if (offset === 1) return deviceIdChain;
-          if (offset === 2) return cardsChain;
-          if (offset === 3) return snapshotChain;
-          return snapshotChain;
-        }),
-        insertInto: vi.fn().mockReturnValue(insertChain),
-      };
-      mockGetKysely.mockReturnValue(kyselyMock);
-      mockGetAccessToken.mockResolvedValue(null);
-
-      // First league upload fails, second succeeds
-      mockCallEdgeFunction
-        .mockRejectedValueOnce(new Error("network error"))
-        .mockResolvedValueOnce(MOCK_EDGE_RESPONSE);
+    it("marks every durably queued league complete", async () => {
+      mockGetKysely.mockReturnValue(createKyselyChain());
 
       service = CommunityUploadService.getInstance();
-      await service.backfillIfNeeded();
+      vi.spyOn(service, "getBackfillLeagues").mockResolvedValue(MOCK_LEAGUES);
+      const commitSpy = vi
+        .spyOn(getRepository(service), "commitBackfill")
+        .mockResolvedValue(undefined);
+      const uploadSpy = vi
+        .spyOn(service, "uploadOnSessionEnd")
+        .mockResolvedValue(undefined);
 
-      // Second league should still be attempted
-      expect(mockCallEdgeFunction).toHaveBeenCalledTimes(2);
+      const result = await service.backfillIfNeeded();
+
+      expect(result).toEqual({ success: true });
+      expect(uploadSpy).toHaveBeenCalledTimes(2);
+      expect(uploadSpy).toHaveBeenCalledWith("poe2", "Settlers", undefined, {
+        throwOnFailure: true,
+      });
+      expect(commitSpy).toHaveBeenCalledWith(MOCK_LEAGUES, true);
     });
 
-    it("does not throw on error (fire-and-forget)", async () => {
+    it("returns a partial failure and leaves the failed league unmarked", async () => {
+      mockGetKysely.mockReturnValue(createKyselyChain());
+
+      service = CommunityUploadService.getInstance();
+      vi.spyOn(service, "getBackfillLeagues").mockResolvedValue(MOCK_LEAGUES);
+      const commitSpy = vi
+        .spyOn(getRepository(service), "commitBackfill")
+        .mockResolvedValue(undefined);
+      vi.spyOn(service, "uploadOnSessionEnd")
+        .mockRejectedValueOnce(new Error("sqlite unavailable"))
+        .mockResolvedValueOnce(undefined);
+
+      const result = await service.backfillIfNeeded();
+
+      expect(result).toEqual({
+        success: false,
+        error: "Some community data could not be queued. Please try again.",
+      });
+      expect(commitSpy).toHaveBeenCalledWith([MOCK_LEAGUES[1]], false);
+    });
+
+    it("returns an outer failure without throwing", async () => {
       const kyselyMock = createKyselyChain();
       mockGetKysely.mockReturnValue(kyselyMock);
-
-      // Make isEnabled throw
       mockSettingsGet.mockRejectedValue(new Error("db exploded"));
 
       service = CommunityUploadService.getInstance();
 
-      // Should resolve without throwing
-      await expect(service.backfillIfNeeded()).resolves.toBeUndefined();
+      await expect(service.backfillIfNeeded()).resolves.toEqual({
+        success: false,
+        error: "Community data could not be queued. Please try again.",
+      });
       expect(mockSentryCaptureException).toHaveBeenCalled();
+    });
+
+    it("does not report success when the atomic completion commit fails", async () => {
+      mockGetKysely.mockReturnValue(createKyselyChain());
+      service = CommunityUploadService.getInstance();
+      vi.spyOn(service, "getBackfillLeagues").mockResolvedValue(MOCK_LEAGUES);
+      vi.spyOn(service, "uploadOnSessionEnd").mockResolvedValue(undefined);
+      vi.spyOn(getRepository(service), "commitBackfill").mockRejectedValue(
+        new Error("database unavailable"),
+      );
+
+      await expect(service.backfillIfNeeded()).resolves.toEqual({
+        success: false,
+        error: "Community data could not be queued. Please try again.",
+      });
+    });
+
+    it("re-throws preparation failures for interactive backfill callers", async () => {
+      const kyselyMock = {
+        selectFrom: vi.fn(() => {
+          throw new Error("sqlite unavailable");
+        }),
+      };
+      mockGetKysely.mockReturnValue(kyselyMock);
+      service = CommunityUploadService.getInstance();
+
+      await expect(
+        service.uploadOnSessionEnd("poe1", "Settlers", undefined, {
+          throwOnFailure: true,
+        }),
+      ).rejects.toThrow("sqlite unavailable");
     });
   });
 
@@ -1524,6 +1198,7 @@ describe("CommunityUploadService", () => {
     it("should return leagues that have not been backfilled", async () => {
       const leaguesChain = createKyselyChain([
         { game: "poe2", scope: "Dawn of the Hunt" },
+        { game: "poe1", scope: "Settlers" },
       ]);
       const noMarkerChain = createKyselyChain(undefined);
 
@@ -1543,14 +1218,20 @@ describe("CommunityUploadService", () => {
       service = CommunityUploadService.getInstance();
       const result = await service.getBackfillLeagues();
 
-      expect(result).toEqual([{ game: "poe2", league: "Dawn of the Hunt" }]);
+      expect(result).toEqual([
+        { game: "poe2", league: "Dawn of the Hunt" },
+        { game: "poe1", league: "Settlers" },
+      ]);
+      expect(kyselyMock.selectFrom).toHaveBeenCalledTimes(2);
     });
 
     it("should exclude already-backfilled leagues", async () => {
       const leaguesChain = createKyselyChain([
         { game: "poe2", scope: "Dawn of the Hunt" },
       ]);
-      const backfillMarkerChain = createKyselyChain({ value: "true" });
+      const backfillMarkerChain = createKyselyChain({
+        key: "community_backfill_done_poe2_Dawn of the Hunt",
+      });
 
       let selectFromCallCount = 0;
       const kyselyMock = {
@@ -1575,6 +1256,15 @@ describe("CommunityUploadService", () => {
   // ─────────────────────────────────────────────────────────────────────────
 
   describe("IPC: GetBackfillLeagues", () => {
+    beforeEach(() => {
+      mockAssertTrustedSender.mockReset();
+      mockHandleValidationError
+        .mockReset()
+        .mockImplementation((error: unknown) => {
+          throw error;
+        });
+    });
+
     it("should return leagues needing backfill", async () => {
       const leaguesChain = createKyselyChain([
         { game: "poe2", scope: "Dawn of the Hunt" },
@@ -1598,8 +1288,11 @@ describe("CommunityUploadService", () => {
         CommunityUploadChannel.GetBackfillLeagues,
       );
 
-      const result = await handler();
-      expect(result).toEqual([{ game: "poe2", league: "Dawn of the Hunt" }]);
+      const result = await handler({ sender: { id: 1 } });
+      expect(result).toEqual({
+        success: true,
+        leagues: [{ game: "poe2", league: "Dawn of the Hunt" }],
+      });
     });
 
     it("should return empty when uploads are disabled", async () => {
@@ -1613,15 +1306,17 @@ describe("CommunityUploadService", () => {
         CommunityUploadChannel.GetBackfillLeagues,
       );
 
-      const result = await handler();
-      expect(result).toEqual([]);
+      const result = await handler({ sender: { id: 1 } });
+      expect(result).toEqual({ success: true, leagues: [] });
     });
 
     it("should return empty when all leagues are backfilled", async () => {
       const leaguesChain = createKyselyChain([
         { game: "poe2", scope: "Dawn of the Hunt" },
       ]);
-      const backfillMarkerChain = createKyselyChain({ value: "true" });
+      const backfillMarkerChain = createKyselyChain({
+        key: "community_backfill_done_poe2_Dawn of the Hunt",
+      });
 
       let selectFromCallCount = 0;
       const kyselyMock = {
@@ -1640,8 +1335,8 @@ describe("CommunityUploadService", () => {
         CommunityUploadChannel.GetBackfillLeagues,
       );
 
-      const result = await handler();
-      expect(result).toEqual([]);
+      const result = await handler({ sender: { id: 1 } });
+      expect(result).toEqual({ success: true, leagues: [] });
     });
   });
 
@@ -1659,12 +1354,13 @@ describe("CommunityUploadService", () => {
           throw error;
         });
 
-      // Uploads disabled so backfillIfNeeded returns early without needing complex Kysely setup
       const kyselyMock = createKyselyChain();
       mockGetKysely.mockReturnValue(kyselyMock);
-      mockSettingsGet.mockResolvedValue(false);
 
       service = CommunityUploadService.getInstance();
+      vi.spyOn(service, "backfillIfNeeded").mockResolvedValue({
+        success: true,
+      });
       const handler = getIpcHandler(
         mockIpcHandle,
         CommunityUploadChannel.TriggerBackfill,
@@ -1674,6 +1370,26 @@ describe("CommunityUploadService", () => {
 
       expect(mockAssertTrustedSender).toHaveBeenCalled();
       expect(result).toEqual({ success: true });
+    });
+
+    it("returns the real backfill failure so the renderer can retry", async () => {
+      mockAssertTrustedSender.mockReset();
+      const kyselyMock = createKyselyChain();
+      mockGetKysely.mockReturnValue(kyselyMock);
+      service = CommunityUploadService.getInstance();
+      vi.spyOn(service, "backfillIfNeeded").mockResolvedValue({
+        success: false,
+        error: "Some community data could not be queued. Please try again.",
+      });
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        CommunityUploadChannel.TriggerBackfill,
+      );
+
+      await expect(handler({ sender: { id: 1 } })).resolves.toEqual({
+        success: false,
+        error: "Some community data could not be queued. Please try again.",
+      });
     });
 
     it("should validate trusted sender", async () => {
@@ -1714,40 +1430,28 @@ describe("CommunityUploadService", () => {
       return CommunityUploadService.getInstance();
     }
 
-    it("routes read-only IPC failures through validation handling", async () => {
+    it("returns a safe error for unexpected read-only IPC failures", async () => {
       const kysely = {
         selectFrom: vi.fn(() => {
           throw new Error("query failed");
         }),
       };
-      mockHandleValidationError.mockImplementation((_error, channel) => ({
-        channel,
-        success: false,
-      }));
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      mockHandleValidationError.mockImplementation((error) => {
+        throw error;
+      });
       mockSettingsGet.mockRejectedValue(new Error("settings failed"));
       service = createService(kysely);
-
-      await expect(
-        getIpcHandler(mockIpcHandle, CommunityUploadChannel.GetUploadStatus)(),
-      ).resolves.toMatchObject({ success: false });
-
-      mockAssertGameType.mockImplementationOnce(() => {
-        throw new Error("invalid game");
-      });
-      await expect(
-        getIpcHandler(mockIpcHandle, CommunityUploadChannel.GetUploadStats)(
-          {},
-          "bad",
-          "League",
-        ),
-      ).resolves.toMatchObject({ success: false });
 
       await expect(
         getIpcHandler(
           mockIpcHandle,
           CommunityUploadChannel.GetBackfillLeagues,
         )(),
-      ).resolves.toMatchObject({ success: false });
+      ).resolves.toEqual({
+        success: false,
+        error: "Community data could not be queued. Please try again.",
+      });
     });
 
     it("skips a global flush when disabled or unconfigured", async () => {
@@ -2008,24 +1712,24 @@ describe("CommunityUploadService", () => {
       await service.uploadOnSessionEnd("poe1", "Standard");
     });
 
-    it("handles per-league and outer backfill failures and executes conflict setup", async () => {
+    it("handles per-league and outer backfill failures", async () => {
       const leagues = createKyselyChain([{ game: "poe1", scope: "Standard" }]);
       const missingMarker = createKyselyChain(undefined);
-      const insert = createKyselyChain();
-      insert.onConflict.mockImplementation((callback) => {
-        callback(insert);
-        return insert;
-      });
       let selectCount = 0;
       service = createService({
-        insertInto: vi.fn(() => insert),
         selectFrom: vi.fn(() =>
           selectCount++ === 0 ? leagues : missingMarker,
         ),
       });
+      const commitSpy = vi
+        .spyOn(getRepository(service), "commitBackfill")
+        .mockResolvedValue(undefined);
       vi.spyOn(service, "uploadOnSessionEnd").mockResolvedValue(undefined);
       await service.backfillIfNeeded();
-      expect(insert.onConflict).toHaveBeenCalled();
+      expect(commitSpy).toHaveBeenCalledWith(
+        [{ game: "poe1", league: "Standard" }],
+        true,
+      );
 
       resetSingleton(CommunityUploadService);
       service = createService({
@@ -2039,6 +1743,9 @@ describe("CommunityUploadService", () => {
       service = createService({
         selectFrom: vi.fn(() => leagues),
       });
+      vi.spyOn(getRepository(service), "commitBackfill").mockResolvedValue(
+        undefined,
+      );
       vi.spyOn(service, "uploadOnSessionEnd").mockRejectedValue(
         "league failure",
       );

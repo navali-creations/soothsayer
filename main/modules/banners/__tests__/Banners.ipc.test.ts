@@ -5,13 +5,11 @@ import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
 
 const {
   mockIpcHandle,
-  mockIsDismissed,
   mockDismiss,
   mockGetAllDismissed,
   mockAssertTrustedSender,
 } = vi.hoisted(() => ({
   mockIpcHandle: vi.fn(),
-  mockIsDismissed: vi.fn(),
   mockDismiss: vi.fn(),
   mockGetAllDismissed: vi.fn(),
   mockAssertTrustedSender: vi.fn(),
@@ -33,9 +31,8 @@ vi.mock("~/main/modules/database", () => ({
 
 vi.mock("../Banners.repository", () => ({
   BannersRepository: class {
-    isDismissed = mockIsDismissed;
     dismiss = mockDismiss;
-    getAllDismissed = mockGetAllDismissed;
+    getDismissed = mockGetAllDismissed;
   },
 }));
 
@@ -56,7 +53,6 @@ describe("BannersService IPC", () => {
   beforeEach(() => {
     resetSingleton(BannersService);
     vi.clearAllMocks();
-    mockIsDismissed.mockResolvedValue(true);
     mockDismiss.mockResolvedValue(undefined);
     mockGetAllDismissed.mockResolvedValue(["community-backfill"]);
     BannersService.getInstance();
@@ -66,47 +62,60 @@ describe("BannersService IPC", () => {
     expect(BANNER_IDS.COMMUNITY_BACKFILL).toBe("community-backfill");
   });
 
-  it("queries a bounded banner identifier", async () => {
-    const handler = getIpcHandler(mockIpcHandle, BannersChannel.IsDismissed);
-
-    await expect(handler({}, "community-backfill")).resolves.toBe(true);
-    expect(mockIsDismissed).toHaveBeenCalledWith("community-backfill");
-
-    await expect(handler({}, "x".repeat(101))).resolves.toMatchObject({
-      success: false,
-    });
-  });
-
-  it("validates the sender and dismisses a bounded banner identifier", async () => {
+  it("validates the sender and dismisses an allowlisted banner identifier", async () => {
     const handler = getIpcHandler(mockIpcHandle, BannersChannel.Dismiss);
     const event = {};
 
-    await expect(handler(event, "community-backfill")).resolves.toBeUndefined();
+    await expect(handler(event, "community-backfill")).resolves.toEqual({
+      success: true,
+    });
     expect(mockAssertTrustedSender).toHaveBeenCalledWith(
       event,
       BannersChannel.Dismiss,
     );
     expect(mockDismiss).toHaveBeenCalledWith("community-backfill");
 
-    mockAssertTrustedSender.mockImplementationOnce(() => {
-      throw new Error("untrusted");
+    await expect(handler(event, "unknown-banner")).resolves.toMatchObject({
+      success: false,
     });
-    await expect(handler(event, "community-backfill")).rejects.toThrow(
-      "untrusted",
-    );
   });
 
-  it("returns dismissed banners and sanitizes repository failures", async () => {
+  it("returns only allowlisted dismissed banners", async () => {
     const handler = getIpcHandler(
       mockIpcHandle,
       BannersChannel.GetAllDismissed,
     );
 
-    await expect(handler({})).resolves.toEqual(["community-backfill"]);
+    mockGetAllDismissed.mockResolvedValueOnce(["community-backfill"]);
+    const event = {};
 
+    await expect(handler(event)).resolves.toEqual({
+      success: true,
+      bannerIds: ["community-backfill"],
+    });
+    expect(mockAssertTrustedSender).toHaveBeenCalledWith(
+      event,
+      BannersChannel.GetAllDismissed,
+    );
+    expect(mockGetAllDismissed).toHaveBeenCalledWith(["community-backfill"]);
+  });
+
+  it("returns a safe failure when the repository is unavailable", async () => {
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    const handler = getIpcHandler(
+      mockIpcHandle,
+      BannersChannel.GetAllDismissed,
+    );
     mockGetAllDismissed.mockRejectedValueOnce(
       new Error("database unavailable"),
     );
-    await expect(handler({})).rejects.toThrow("database unavailable");
+
+    await expect(handler({})).resolves.toEqual({
+      success: false,
+      error: "Banner preferences are temporarily unavailable.",
+    });
+    expect(consoleErrorSpy).toHaveBeenCalled();
   });
 });

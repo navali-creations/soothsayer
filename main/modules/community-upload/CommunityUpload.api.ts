@@ -1,28 +1,15 @@
 import { ipcRenderer } from "electron";
 
 import { CommunityUploadChannel } from "./CommunityUpload.channels";
+import type {
+  CommunityBackfillLeaguesResult,
+  CommunityBackfillResult,
+} from "./CommunityUpload.dto";
 
 export const CommunityUploadAPI = {
-  getUploadStatus: (): Promise<{
-    enabled: boolean;
-    deviceId: string;
-    lastUploadAt: string | null;
-  }> => ipcRenderer.invoke(CommunityUploadChannel.GetUploadStatus),
-
-  setUploadsEnabled: (enabled: boolean): Promise<{ success: boolean }> =>
-    ipcRenderer.invoke(CommunityUploadChannel.SetUploadsEnabled, enabled),
-
-  getUploadStats: (
-    game: "poe1" | "poe2",
-    league: string,
-  ): Promise<{
-    totalUploads: number;
-    lastUploadAt: string | null;
-  }> => ipcRenderer.invoke(CommunityUploadChannel.GetUploadStats, game, league),
-
-  getBackfillLeagues: (): Promise<{ game: string; league: string }[]> =>
+  getBackfillLeagues: (): Promise<CommunityBackfillLeaguesResult> =>
     ipcRenderer.invoke(CommunityUploadChannel.GetBackfillLeagues),
 
-  triggerBackfill: (): Promise<{ success: boolean }> =>
+  triggerBackfill: (): Promise<CommunityBackfillResult> =>
     ipcRenderer.invoke(CommunityUploadChannel.TriggerBackfill),
 };

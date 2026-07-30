@@ -3,26 +3,50 @@ import { useState } from "react";
 import { FiExternalLink, FiUploadCloud } from "react-icons/fi";
 
 import { BANNER_IDS } from "~/main/modules/banners/Banners.types";
-import { useBanners, useCommunityUpload } from "~/renderer/store";
+import { useBannersShallow, useCommunityUploadShallow } from "~/renderer/store";
+
+const BACKFILL_BANNER_ID = BANNER_IDS.COMMUNITY_BACKFILL;
 
 const BackfillBanner = () => {
-  const { backfillLeagues, isBackfilling, triggerBackfill, dismissBackfill } =
-    useCommunityUpload();
+  const {
+    backfillLeagues,
+    isBackfilling,
+    backfillError,
+    triggerBackfill,
+    dismissBackfillBanner,
+  } = useCommunityUploadShallow((communityUpload) => ({
+    backfillLeagues: communityUpload.backfillLeagues,
+    isBackfilling: communityUpload.isBackfilling,
+    backfillError: communityUpload.backfillError,
+    triggerBackfill: communityUpload.triggerBackfill,
+    dismissBackfillBanner: communityUpload.dismissBackfillBanner,
+  }));
 
-  const { isDismissed, dismiss, isLoaded } = useBanners();
+  const { permanentlyDismissed, loadStatus } = useBannersShallow((banners) => ({
+    permanentlyDismissed: banners.dismissedIds.has(BACKFILL_BANNER_ID),
+    loadStatus: banners.loadStatus,
+  }));
 
   const [optedIn, setOptedIn] = useState(false);
 
-  const bannerId = BANNER_IDS.COMMUNITY_BACKFILL;
-  const permanentlyDismissed = isLoaded && isDismissed(bannerId);
+  if (
+    loadStatus !== "ready" ||
+    permanentlyDismissed ||
+    backfillLeagues.length === 0
+  ) {
+    return null;
+  }
 
-  if (permanentlyDismissed || backfillLeagues.length === 0) return null;
+  const handleOptInChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setOptedIn(event.target.checked);
+  };
+
+  const handleContribute = async () => {
+    await triggerBackfill();
+  };
 
   const handleDismiss = async () => {
-    // Persist dismissal to the database so the banner never comes back
-    await dismiss(bannerId);
-    // Also update the community upload slice for immediate UI feedback
-    dismissBackfill();
+    await dismissBackfillBanner();
   };
 
   return (
@@ -30,22 +54,29 @@ const BackfillBanner = () => {
       <FiUploadCloud className="w-4 h-4 text-success shrink-0" />
 
       <span className="flex-1 text-base-content/70">
-        Anonymously contribute your existing and future drop data to community
-        statistics on{" "}
-        <a
-          href="https://wraeclast.cards"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="link link-success"
-        >
-          wraeclast.cards
-          <FiExternalLink className="inline ml-0.5 w-3 h-3 opacity-50" />
-        </a>
-        .{" "}
-        <Link to="/privacy-policy" className="link link-success/50">
-          Privacy Policy
-          <FiExternalLink className="inline ml-0.5 w-3 h-3 opacity-50" />
-        </Link>
+        <span>
+          Contribute your existing and future drop data to community statistics
+          on{" "}
+          <a
+            href="https://wraeclast.cards"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="link link-success"
+          >
+            wraeclast.cards
+            <FiExternalLink className="inline ml-0.5 w-3 h-3 opacity-50" />
+          </a>
+          .{" "}
+          <Link to="/privacy-policy" className="link link-success/50">
+            Privacy Policy
+            <FiExternalLink className="inline ml-0.5 w-3 h-3 opacity-50" />
+          </Link>
+        </span>
+        {backfillError && (
+          <span className="block mt-0.5 text-error" role="alert">
+            {backfillError}
+          </span>
+        )}
       </span>
 
       <label className="flex items-center gap-1.5 cursor-pointer select-none shrink-0">
@@ -53,7 +84,7 @@ const BackfillBanner = () => {
           type="checkbox"
           className="checkbox checkbox-xs [--size:0.875rem] checkbox-success"
           checked={optedIn}
-          onChange={(e) => setOptedIn(e.target.checked)}
+          onChange={handleOptInChange}
           disabled={isBackfilling}
         />
         <span className="text-base-content/50">I agree</span>
@@ -63,7 +94,7 @@ const BackfillBanner = () => {
         type="button"
         className="btn btn-xs btn-success"
         disabled={!optedIn || isBackfilling}
-        onClick={triggerBackfill}
+        onClick={handleContribute}
       >
         {isBackfilling ? (
           <>

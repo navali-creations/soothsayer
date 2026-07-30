@@ -78,6 +78,11 @@ export const useAppMenu = () => useSlice("appMenu");
 /** Select the `banners` slice. */
 export const useBanners = () => useSlice("banners");
 
+/** Select a focused object from the `banners` slice with shallow equality. */
+export const useBannersShallow = <T>(
+  selector: (banners: BoundStore["banners"]) => T,
+) => useBoundStore(useShallow((state) => selector(state.banners)));
+
 /** Select the `gameInfo` slice. */
 export const useGameInfo = () => useSlice("gameInfo");
 
@@ -147,6 +152,11 @@ export const useRarityInsightsComparison = () =>
 
 /** Select the `communityUpload` slice. */
 export const useCommunityUpload = () => useSlice("communityUpload");
+
+/** Select a focused object from `communityUpload` with shallow equality. */
+export const useCommunityUploadShallow = <T>(
+  selector: (communityUpload: BoundStore["communityUpload"]) => T,
+) => useBoundStore(useShallow((state) => selector(state.communityUpload)));
 
 // ── Root actions ─────────────────────────────────────────────────────────────
 

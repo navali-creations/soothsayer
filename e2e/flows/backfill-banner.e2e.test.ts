@@ -7,24 +7,21 @@
  * The banner's visibility is controlled by two Zustand slices:
  *   - `communityUpload.backfillLeagues`: non-empty array → banner visible
  *   - `communityUpload.backfillLeagues`: empty array → banner hidden
- *   - `banners.isDismissed("community-backfill")`: true → banner hidden permanently
+ *   - `banners.loadStatus`: only "ready" allows the banner to render
+ *   - `banners.dismissedIds.has("community-backfill")`: true → banner hidden permanently
  *
- * Dismissal is now **persistent** — clicking "Dismiss" writes to the
- * `dismissed_banners` SQLite table via the `banners` IPC module, so the
- * banner never reappears even after app restart.
+ * Dismissal is **persistent** — clicking "Dismiss" or completing "Contribute"
+ * writes to the `dismissed_banners` SQLite table, so the banner remains hidden
+ * after the renderer reloads and hydrates its saved state.
  *
- * These tests manipulate the store directly via `window.__zustandStore`
- * (exposed only in E2E mode) to verify rendering behaviour without
- * needing real IPC round-trips.
- *
- * Note: The "Contribute" button's `triggerBackfill` action is tested
- * thoroughly in unit tests (BackfillBanner.test.tsx). E2E tests here
- * focus on visibility, content, loading states, and dismiss persistence
- * — things that benefit from a real Electron environment.
+ * Eligibility is injected through the E2E-only Zustand hook. The direct
+ * dismiss action still uses the real preload, IPC, and SQLite path, including
+ * a renderer reload that verifies the persisted state is hydrated again.
  *
  * @module e2e/flows/backfill-banner
  */
 
+import type { CommunityBackfillLeague } from "../../main/modules/community-upload/CommunityUpload.dto";
 import { expect, test } from "../helpers/electron-test";
 import { ensurePostSetup } from "../helpers/navigation";
 
@@ -36,9 +33,7 @@ import { ensurePostSetup } from "../helpers/navigation";
  */
 async function injectBackfillLeagues(
   page: import("@playwright/test").Page,
-  leagues: { game: string; league: string }[] = [
-    { game: "poe1", league: "Settlers" },
-  ],
+  leagues: CommunityBackfillLeague[] = [{ game: "poe1", league: "Settlers" }],
 ) {
   await page.evaluate((leagues) => {
     const store = (window as any).__zustandStore;
@@ -46,11 +41,25 @@ async function injectBackfillLeagues(
     store.setState((s: any) => {
       s.communityUpload.backfillLeagues = leagues;
       s.communityUpload.isBackfilling = false;
+      s.communityUpload.backfillError = null;
       // Ensure the banner is not dismissed in the banners slice
       const ids = new Set(s.banners.dismissedIds);
       ids.delete("community-backfill");
       s.banners.dismissedIds = ids;
-      s.banners.isLoaded = true;
+      s.banners.loadStatus = "ready";
+    });
+  }, leagues);
+}
+
+async function setBackfillLeaguesOnly(
+  page: import("@playwright/test").Page,
+  leagues: CommunityBackfillLeague[],
+) {
+  await page.evaluate((leagues) => {
+    const store = (window as any).__zustandStore;
+    if (!store) throw new Error("__zustandStore not available");
+    store.setState((s: any) => {
+      s.communityUpload.backfillLeagues = leagues;
     });
   }, leagues);
 }
@@ -131,6 +140,34 @@ test.describe("BackfillBanner", () => {
       await expect(bannerText).toBeVisible({ timeout: 5_000 });
     });
 
+    test("should wait for persisted dismissals to load before rendering", async ({
+      page,
+    }) => {
+      await page.evaluate(() => {
+        const store = (window as any).__zustandStore;
+        if (!store) throw new Error("__zustandStore not available");
+        store.setState((s: any) => {
+          s.communityUpload.backfillLeagues = [
+            { game: "poe1", league: "Settlers" },
+          ];
+          s.banners.dismissedIds = new Set();
+          s.banners.loadStatus = "loading";
+        });
+      });
+
+      const bannerText = page.getByText("existing and future drop data");
+      await expect(bannerText).not.toBeVisible({ timeout: 3_000 });
+
+      await page.evaluate(() => {
+        const store = (window as any).__zustandStore;
+        store.setState((s: any) => {
+          s.banners.loadStatus = "ready";
+        });
+      });
+
+      await expect(bannerText).toBeVisible({ timeout: 5_000 });
+    });
+
     test("should render the wraeclast.cards external link", async ({
       page,
     }) => {
@@ -154,7 +191,9 @@ test.describe("BackfillBanner", () => {
       await injectBackfillLeagues(page);
       // Verify it's visible first
       await expect(page.getByText("existing and future drop data")).toBeVisible(
-        { timeout: 5_000 },
+        {
+          timeout: 5_000,
+        },
       );
 
       // Simulate persistent dismissal via banners slice
@@ -170,7 +209,9 @@ test.describe("BackfillBanner", () => {
     }) => {
       await injectBackfillLeagues(page);
       await expect(page.getByText("existing and future drop data")).toBeVisible(
-        { timeout: 5_000 },
+        {
+          timeout: 5_000,
+        },
       );
 
       await clearBackfillLeagues(page);
@@ -184,7 +225,9 @@ test.describe("BackfillBanner", () => {
       await injectBackfillLeagues(page, [{ game: "poe2", league: "Dawn" }]);
 
       await expect(page.getByText("existing and future drop data")).toBeVisible(
-        { timeout: 5_000 },
+        {
+          timeout: 5_000,
+        },
       );
     });
   });
@@ -196,7 +239,9 @@ test.describe("BackfillBanner", () => {
       await injectBackfillLeagues(page);
       // Wait for the banner to appear
       await expect(page.getByText("existing and future drop data")).toBeVisible(
-        { timeout: 5_000 },
+        {
+          timeout: 5_000,
+        },
       );
     });
 
@@ -243,7 +288,9 @@ test.describe("BackfillBanner", () => {
     }) => {
       await injectBackfillLeagues(page);
       await expect(page.getByText("existing and future drop data")).toBeVisible(
-        { timeout: 5_000 },
+        {
+          timeout: 5_000,
+        },
       );
 
       await setBackfillingState(page, true);
@@ -262,7 +309,9 @@ test.describe("BackfillBanner", () => {
     test("should disable checkbox during backfill", async ({ page }) => {
       await injectBackfillLeagues(page);
       await expect(page.getByText("existing and future drop data")).toBeVisible(
-        { timeout: 5_000 },
+        {
+          timeout: 5_000,
+        },
       );
 
       await setBackfillingState(page, true);
@@ -274,7 +323,9 @@ test.describe("BackfillBanner", () => {
     test("should disable dismiss button during backfill", async ({ page }) => {
       await injectBackfillLeagues(page);
       await expect(page.getByText("existing and future drop data")).toBeVisible(
-        { timeout: 5_000 },
+        {
+          timeout: 5_000,
+        },
       );
 
       await setBackfillingState(page, true);
@@ -292,7 +343,9 @@ test.describe("BackfillBanner", () => {
     }) => {
       await injectBackfillLeagues(page);
       await expect(page.getByText("existing and future drop data")).toBeVisible(
-        { timeout: 5_000 },
+        {
+          timeout: 5_000,
+        },
       );
 
       // The dismiss button should show "Dismiss" text (not just an X icon)
@@ -314,13 +367,15 @@ test.describe("BackfillBanner", () => {
       expect(bannerDismissed).toBe(true);
     });
 
-    test("banner should stay hidden after re-injecting leagues when permanently dismissed", async ({
+    test("banner should stay hidden after persisted dismissals hydrate on reload", async ({
       page,
     }) => {
       // First dismiss the banner
       await injectBackfillLeagues(page);
       await expect(page.getByText("existing and future drop data")).toBeVisible(
-        { timeout: 5_000 },
+        {
+          timeout: 5_000,
+        },
       );
 
       const dismissBtn = page.getByRole("button", { name: "Dismiss" });
@@ -330,20 +385,15 @@ test.describe("BackfillBanner", () => {
         page.getByText("existing and future drop data"),
       ).not.toBeVisible({ timeout: 5_000 });
 
-      // Now inject new leagues — banner should NOT reappear because it's
-      // permanently dismissed in the banners slice
-      await page.evaluate(() => {
+      await page.reload();
+      await page.waitForLoadState("domcontentloaded");
+      await ensurePostSetup(page);
+      await page.waitForFunction(() => {
         const store = (window as any).__zustandStore;
-        if (!store) throw new Error("__zustandStore not available");
-        store.setState((s: any) => {
-          s.communityUpload.backfillLeagues = [
-            { game: "poe2", league: "Dawn" },
-          ];
-        });
+        return store?.getState()?.banners?.loadStatus === "ready";
       });
 
-      // Give React a tick to re-render
-      await page.waitForTimeout(500);
+      await setBackfillLeaguesOnly(page, [{ game: "poe2", league: "Dawn" }]);
 
       await expect(
         page.getByText("existing and future drop data"),

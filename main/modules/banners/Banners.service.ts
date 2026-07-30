@@ -2,13 +2,32 @@ import { ipcMain } from "electron";
 
 import { DatabaseService } from "~/main/modules/database";
 import {
-  assertBoundedString,
+  assertEnum,
   assertTrustedSender,
   handleValidationError,
 } from "~/main/utils/ipc-validation";
 
 import { BannersChannel } from "./Banners.channels";
 import { BannersRepository } from "./Banners.repository";
+import type {
+  BannerDismissalsResult,
+  BannerDismissResult,
+} from "./Banners.types";
+import { BANNER_ID_VALUES } from "./Banners.types";
+
+const BANNERS_ERROR = "Banner preferences are temporarily unavailable.";
+
+function toSafeFailure(
+  error: unknown,
+  channel: BannersChannel,
+): { success: false; error: string } {
+  try {
+    return handleValidationError(error, channel);
+  } catch (unexpectedError) {
+    console.error(`[Banners] ${channel} failed:`, unexpectedError);
+    return { success: false, error: BANNERS_ERROR };
+  }
+}
 
 export class BannersService {
   private static _instance: BannersService;
@@ -28,52 +47,33 @@ export class BannersService {
   }
 
   private setupHandlers(): void {
-    ipcMain.handle(
-      BannersChannel.IsDismissed,
-      async (_event, bannerId: unknown) => {
-        try {
-          assertBoundedString(
-            bannerId,
-            "bannerId",
-            BannersChannel.IsDismissed,
-            100,
-          );
-          return await this.repository.isDismissed(bannerId);
-        } catch (error) {
-          return handleValidationError(error, BannersChannel.IsDismissed);
-        }
-      },
-    );
-
     ipcMain.handle(BannersChannel.Dismiss, async (event, bannerId: unknown) => {
       try {
         assertTrustedSender(event, BannersChannel.Dismiss);
-        assertBoundedString(bannerId, "bannerId", BannersChannel.Dismiss, 100);
+        assertEnum(
+          bannerId,
+          "bannerId",
+          BannersChannel.Dismiss,
+          BANNER_ID_VALUES,
+        );
         await this.repository.dismiss(bannerId);
+        return { success: true } satisfies BannerDismissResult;
       } catch (error) {
-        return handleValidationError(error, BannersChannel.Dismiss);
+        return toSafeFailure(error, BannersChannel.Dismiss);
       }
     });
 
-    ipcMain.handle(BannersChannel.GetAllDismissed, async () => {
+    ipcMain.handle(BannersChannel.GetAllDismissed, async (event) => {
       try {
-        return await this.repository.getAllDismissed();
+        assertTrustedSender(event, BannersChannel.GetAllDismissed);
+        const bannerIds = await this.repository.getDismissed(BANNER_ID_VALUES);
+        return {
+          success: true,
+          bannerIds,
+        } satisfies BannerDismissalsResult;
       } catch (error) {
-        return handleValidationError(error, BannersChannel.GetAllDismissed);
+        return toSafeFailure(error, BannersChannel.GetAllDismissed);
       }
     });
-  }
-
-  // Public methods for use by other main-process modules
-  async isDismissed(bannerId: string): Promise<boolean> {
-    return this.repository.isDismissed(bannerId);
-  }
-
-  async dismiss(bannerId: string): Promise<void> {
-    return this.repository.dismiss(bannerId);
-  }
-
-  async getAllDismissed(): Promise<string[]> {
-    return this.repository.getAllDismissed();
   }
 }

@@ -2,19 +2,12 @@ import type { Kysely } from "kysely";
 
 import type { Database } from "~/main/modules/database/Database.types";
 
+import type { BannerId } from "./Banners.types";
+
 export class BannersRepository {
   constructor(private kysely: Kysely<Database>) {}
 
-  async isDismissed(bannerId: string): Promise<boolean> {
-    const row = await this.kysely
-      .selectFrom("dismissed_banners")
-      .select("banner_id")
-      .where("banner_id", "=", bannerId)
-      .executeTakeFirst();
-    return !!row;
-  }
-
-  async dismiss(bannerId: string): Promise<void> {
+  async dismiss(bannerId: BannerId): Promise<void> {
     await this.kysely
       .insertInto("dismissed_banners")
       .values({ banner_id: bannerId })
@@ -22,11 +15,14 @@ export class BannersRepository {
       .execute();
   }
 
-  async getAllDismissed(): Promise<string[]> {
+  async getDismissed(bannerIds: readonly BannerId[]): Promise<BannerId[]> {
+    if (bannerIds.length === 0) return [];
+
     const rows = await this.kysely
       .selectFrom("dismissed_banners")
       .select("banner_id")
+      .where("banner_id", "in", [...bannerIds])
       .execute();
-    return rows.map((r) => r.banner_id);
+    return rows.map(({ banner_id }) => banner_id as BannerId);
   }
 }

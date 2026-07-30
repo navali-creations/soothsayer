@@ -20,6 +20,23 @@ import { vi } from "vitest";
  */
 export function createStoreMock() {
   const useBoundStore = vi.fn();
+  const createBannersMock = () => ({
+    dismissedIds: new Set<string>(),
+    loadStatus: "ready",
+    loadDismissed: vi.fn(),
+    dismiss: vi.fn(),
+    markDismissed: vi.fn(),
+    ...useBoundStore().banners,
+  });
+  const createCommunityUploadMock = () => ({
+    backfillLeagues: [],
+    isBackfilling: false,
+    backfillError: null,
+    checkBackfill: vi.fn(),
+    triggerBackfill: vi.fn(),
+    dismissBackfillBanner: vi.fn(),
+    ...useBoundStore().communityUpload,
+  });
 
   const storeMock = {
     useBoundStore,
@@ -73,23 +90,11 @@ export function createStoreMock() {
     useProfitForecast: () => useBoundStore().profitForecast,
     useRarityInsights: () => useBoundStore().rarityInsights,
     useRarityInsightsComparison: () => useBoundStore().rarityInsightsComparison,
-    useBanners: () => ({
-      dismissedIds: new Set<string>(),
-      isLoaded: true,
-      loadDismissed: vi.fn(),
-      dismiss: vi.fn(),
-      isDismissed: vi.fn().mockReturnValue(false),
-      ...useBoundStore().banners,
-    }),
-    useCommunityUpload: () => ({
-      backfillLeagues: [],
-      isBackfilling: false,
-      backfillDismissed: false,
-      checkBackfill: vi.fn(),
-      triggerBackfill: vi.fn(),
-      dismissBackfill: vi.fn(),
-      ...useBoundStore().communityUpload,
-    }),
+    useBanners: createBannersMock,
+    useBannersShallow: (selector: any) => selector(createBannersMock()),
+    useCommunityUpload: createCommunityUploadMock,
+    useCommunityUploadShallow: (selector: any) =>
+      selector(createCommunityUploadMock()),
     useRootActions: () => {
       const s = useBoundStore();
       return {

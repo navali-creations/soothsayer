@@ -47,12 +47,12 @@ describe("SetupTelemetryStep", () => {
       expect(screen.getByText("Privacy & Telemetry")).toBeInTheDocument();
     });
 
-    it("renders the description about anonymous data collection", () => {
+    it("renders the description about limited data sharing", () => {
       renderWithProviders(<SetupTelemetryStep />);
 
       expect(
         screen.getByText(
-          /Soothsayer collects anonymous data to help us improve the app/,
+          /Soothsayer can share limited data to help improve the app/,
         ),
       ).toBeInTheDocument();
     });
@@ -159,6 +159,19 @@ describe("SetupTelemetryStep", () => {
       renderWithProviders(<SetupTelemetryStep />);
 
       expect(screen.getByText("Community Drop Rates")).toBeInTheDocument();
+    });
+
+    it("discloses the installation identifier and optional account link", () => {
+      renderWithProviders(<SetupTelemetryStep />);
+
+      expect(
+        screen.getByText(/shared with a random installation ID/),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          /A linked Path of Exile account can associate uploads/,
+        ),
+      ).toBeInTheDocument();
     });
 
     it("shows a link to wraeclast.cards", () => {

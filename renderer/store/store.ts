@@ -402,7 +402,7 @@ export const useBoundStore = create<BoundStore>()(
 
               // Reset banners
               state.banners.dismissedIds = new Set();
-              state.banners.isLoaded = false;
+              state.banners.loadStatus = "idle";
 
               // Reset community upload
               state.communityUpload.gggAuthenticated = false;
@@ -411,6 +411,9 @@ export const useBoundStore = create<BoundStore>()(
               state.communityUpload.isAuthenticating = false;
               state.communityUpload.isLoadingStatus = false;
               state.communityUpload.authError = null;
+              state.communityUpload.backfillLeagues = [];
+              state.communityUpload.isBackfilling = false;
+              state.communityUpload.backfillError = null;
             },
           );
         },

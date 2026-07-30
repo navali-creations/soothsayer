@@ -23,7 +23,6 @@ vi.mock("react-icons/fi", () => ({
   FiUploadCloud: (props: any) => (
     <svg data-testid="upload-cloud-icon" {...props} />
   ),
-  FiX: (props: any) => <svg data-testid="x-icon" {...props} />,
   FiExternalLink: (props: any) => (
     <svg data-testid="external-link-icon" {...props} />
   ),
@@ -44,17 +43,18 @@ function createMockStore(overrides: any = {}) {
     communityUpload: {
       backfillLeagues: [],
       isBackfilling: false,
+      backfillError: null,
       checkBackfill: vi.fn(),
       triggerBackfill: vi.fn(),
-      dismissBackfill: vi.fn(),
+      dismissBackfillBanner: vi.fn(),
       ...overrides.communityUpload,
     },
     banners: {
       dismissedIds: new Set<string>(),
-      isLoaded: true,
+      loadStatus: "ready",
       loadDismissed: vi.fn(),
       dismiss: vi.fn(),
-      isDismissed: vi.fn().mockReturnValue(false),
+      markDismissed: vi.fn(),
       ...overrides.banners,
     },
   } as any;
@@ -89,8 +89,8 @@ describe("BackfillBanner", () => {
         backfillLeagues: [{ game: "poe2", league: "Dawn" }],
       },
       banners: {
-        isDismissed: vi.fn().mockReturnValue(true),
-        isLoaded: true,
+        dismissedIds: new Set(["community-backfill"]),
+        loadStatus: "ready",
       },
     });
 
@@ -99,22 +99,19 @@ describe("BackfillBanner", () => {
     expect(container.innerHTML).toBe("");
   });
 
-  it("renders when banners are not yet loaded (isLoaded false) and leagues exist", () => {
+  it("does not render until persisted banner dismissals are loaded", () => {
     setupStore({
       communityUpload: {
         backfillLeagues: [{ game: "poe1", league: "Settlers" }],
       },
       banners: {
-        isDismissed: vi.fn().mockReturnValue(false),
-        isLoaded: false,
+        loadStatus: "loading",
       },
     });
 
-    renderWithProviders(<BackfillBanner />);
+    const { container } = renderWithProviders(<BackfillBanner />);
 
-    expect(
-      screen.getByText(/existing and future drop data/),
-    ).toBeInTheDocument();
+    expect(container.innerHTML).toBe("");
   });
 
   // ── Content ──────────────────────────────────────────────────────────
@@ -160,7 +157,7 @@ describe("BackfillBanner", () => {
     expect(link).toHaveAttribute("to", "/privacy-policy");
   });
 
-  it("mentions 'existing and future' drop data", () => {
+  it("mentions existing and future drop data without claiming anonymity", () => {
     setupStore({
       communityUpload: {
         backfillLeagues: [{ game: "poe1", league: "Settlers" }],
@@ -170,8 +167,11 @@ describe("BackfillBanner", () => {
     renderWithProviders(<BackfillBanner />);
 
     expect(
-      screen.getByText(/existing and future drop data/),
+      screen.getByText(/Contribute your existing and future drop data/),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Anonymously contribute/),
+    ).not.toBeInTheDocument();
   });
 
   // ── Checkbox opt-in ──────────────────────────────────────────────────
@@ -185,7 +185,7 @@ describe("BackfillBanner", () => {
 
     renderWithProviders(<BackfillBanner />);
 
-    const checkbox = screen.getByRole("checkbox");
+    const checkbox = screen.getByRole("checkbox", { name: "I agree" });
     expect(checkbox).not.toBeChecked();
   });
 
@@ -219,8 +219,8 @@ describe("BackfillBanner", () => {
 
   // ── Contribute action ────────────────────────────────────────────────
 
-  it("calls triggerBackfill when Contribute is clicked after opting in", async () => {
-    const triggerBackfill = vi.fn();
+  it("delegates a confirmed contribution to the slice workflow", async () => {
+    const triggerBackfill = vi.fn().mockResolvedValue(true);
     setupStore({
       communityUpload: {
         backfillLeagues: [{ game: "poe1", league: "Settlers" }],
@@ -234,6 +234,39 @@ describe("BackfillBanner", () => {
     await user.click(screen.getByRole("button", { name: "Contribute" }));
 
     expect(triggerBackfill).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the banner available when contribution fails", async () => {
+    const triggerBackfill = vi.fn().mockResolvedValue(false);
+    setupStore({
+      communityUpload: {
+        backfillLeagues: [{ game: "poe1", league: "Settlers" }],
+        triggerBackfill,
+      },
+    });
+
+    const { user } = renderWithProviders(<BackfillBanner />);
+
+    await user.click(screen.getByRole("checkbox"));
+    await user.click(screen.getByRole("button", { name: "Contribute" }));
+
+    expect(triggerBackfill).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Contribute" })).toBeVisible();
+  });
+
+  it("shows a user-visible contribution error", () => {
+    setupStore({
+      communityUpload: {
+        backfillLeagues: [{ game: "poe1", league: "Settlers" }],
+        backfillError: "Community data could not be queued. Please try again.",
+      },
+    });
+
+    renderWithProviders(<BackfillBanner />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Community data could not be queued. Please try again.",
+    );
   });
 
   it("does not call triggerBackfill when checkbox is unchecked", () => {
@@ -325,18 +358,15 @@ describe("BackfillBanner", () => {
 
   // ── Dismiss (persistent) ─────────────────────────────────────────────
 
-  it("calls banners.dismiss and communityUpload.dismissBackfill when dismiss button is clicked", async () => {
-    const dismissBackfill = vi.fn();
-    const dismiss = vi.fn();
+  it("delegates persistent dismissal to the slice workflow", async () => {
+    const dismissBackfillBanner = vi.fn().mockResolvedValue(true);
     setupStore({
       communityUpload: {
         backfillLeagues: [{ game: "poe1", league: "Settlers" }],
-        dismissBackfill,
+        dismissBackfillBanner,
       },
       banners: {
-        dismiss,
-        isDismissed: vi.fn().mockReturnValue(false),
-        isLoaded: true,
+        loadStatus: "ready",
       },
     });
 
@@ -344,22 +374,17 @@ describe("BackfillBanner", () => {
 
     await user.click(screen.getByRole("button", { name: "Dismiss" }));
 
-    // Should call the banners slice dismiss with the correct banner ID
-    expect(dismiss).toHaveBeenCalledTimes(1);
-    expect(dismiss).toHaveBeenCalledWith("community-backfill");
-
-    // Should also call the community upload slice dismissBackfill for immediate UI feedback
-    expect(dismissBackfill).toHaveBeenCalledTimes(1);
+    expect(dismissBackfillBanner).toHaveBeenCalledTimes(1);
   });
 
-  it("does not show banner when isDismissed returns true for community-backfill", () => {
+  it("does not show a banner whose ID is in the dismissed set", () => {
     setupStore({
       communityUpload: {
         backfillLeagues: [{ game: "poe1", league: "Settlers" }],
       },
       banners: {
-        isDismissed: vi.fn((id: string) => id === "community-backfill"),
-        isLoaded: true,
+        dismissedIds: new Set(["community-backfill"]),
+        loadStatus: "ready",
       },
     });
 

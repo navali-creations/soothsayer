@@ -10,6 +10,8 @@ import {
   type Page,
 } from "@playwright/test";
 
+import { getE2ERendererPort } from "./e2e-config";
+
 export function resolveElectronPath(): string {
   const projectRoot = path.resolve(__dirname, "../..");
   const platform = process.platform;
@@ -226,7 +228,7 @@ export const test = base.extend<
           ...process.env,
           NODE_ENV: "test",
           E2E_TESTING: "true",
-          SOOTHSAYER_E2E_RENDERER_URL: "http://localhost:5173",
+          SOOTHSAYER_E2E_RENDERER_URL: `http://localhost:${getE2ERendererPort()}`,
           ELECTRON_DISABLE_GPU: "true",
           ...electronEnv,
         },
