@@ -189,6 +189,14 @@ describe("Snapshot.mapper", () => {
       expect(dto.confidence).toBe(3);
     });
 
+    it("should default a legacy null confidence to high", () => {
+      const row = createSnapshotCardPriceRow({
+        confidence: null as never,
+      });
+
+      expect(SnapshotMapper.toSnapshotCardPriceDTO(row).confidence).toBe(1);
+    });
+
     it("should not include snapshot_id or id in the DTO", () => {
       const row = createSnapshotCardPriceRow();
       const dto = SnapshotMapper.toSnapshotCardPriceDTO(row);

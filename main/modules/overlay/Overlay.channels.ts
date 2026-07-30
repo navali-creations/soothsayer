@@ -22,6 +22,7 @@ enum OverlayChannel {
 
   // Data
   GetSessionData = "overlay:get-session-data",
+  GetActiveGame = "overlay:get-active-game",
 
   // Settings sync
   SettingsChanged = "overlay:settings-changed",

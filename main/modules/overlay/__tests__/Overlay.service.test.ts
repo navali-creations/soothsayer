@@ -428,10 +428,11 @@ describe("OverlayService", () => {
       expect(channels).toContain(OverlayChannel.SetLocked);
       expect(channels).toContain(OverlayChannel.RestoreDefaults);
       expect(channels).toContain(OverlayChannel.GetSessionData);
+      expect(channels).toContain(OverlayChannel.GetActiveGame);
     });
 
-    it("should register exactly 10 IPC handlers", () => {
-      expect(ipcHandlerCalls.length).toBe(10);
+    it("should register exactly 11 IPC handlers", () => {
+      expect(ipcHandlerCalls.length).toBe(11);
     });
   });
 
@@ -1185,6 +1186,19 @@ describe("OverlayService", () => {
   });
 
   // ─── getSessionData ──────────────────────────────────────────────────────
+
+  describe("getActiveGame (via IPC handler)", () => {
+    it("should return the game selected for the overlay", async () => {
+      mockSettingsGet.mockResolvedValue("poe2");
+
+      const handler = getIpcHandler(
+        OverlayChannel.GetActiveGame,
+        ipcHandlerCalls,
+      );
+
+      await expect(handler({})).resolves.toBe("poe2");
+    });
+  });
 
   describe("getSessionData (via IPC handler)", () => {
     function mockSettingsForGame(

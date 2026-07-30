@@ -1655,5 +1655,106 @@ describe("RarityInsightsParser", () => {
       expect(result.cardRarities.has("Card B")).toBe(true);
       expect(result.cardRarities.has("Card C")).toBe(true);
     });
+
+    it("should safely parse a lone matching section header", () => {
+      const result = RarityInsightsParser.parseFilterContent(
+        "# [[4200]] Divination Cards",
+      );
+
+      expect(result.hasDivinationSection).toBe(true);
+      expect(result.totalCards).toBe(0);
+    });
+
+    it("should retain a generic base style when there are no named cards", () => {
+      const result = RarityInsightsParser.parseFilterContent(
+        [
+          "### Divination Cards",
+          "Show # All Divination Cards",
+          'Class "Divination Card"',
+          "SetTextColor 10 20 30",
+        ].join("\n"),
+      );
+
+      expect(result.totalCards).toBe(0);
+      expect(result.tierStyles.get(4)?.textColor).toEqual({
+        r: 10,
+        g: 20,
+        b: 30,
+        a: 255,
+      });
+    });
+
+    it("should infer all generic rarity bands and multiline card names", () => {
+      const result = RarityInsightsParser.parseFilterContent(
+        [
+          "### Divination Cards",
+          "Show # All Divination Cards",
+          'Class "Divination Card"',
+          "SetTextColor 10 20 30",
+          "",
+          "Show # Best jackpot divination cards",
+          'Class "Divination Card"',
+          'BaseType "Top Card"',
+          '"Top Card Continuation"',
+          "SetFontSize 45",
+          "SetBackgroundColor 255 255 255",
+          "",
+          "Show # Great divination cards",
+          'Class "Divination Card"',
+          'BaseType "Rare Card"',
+          "SetFontSize 29",
+          "SetBackgroundColor 100 100 100",
+          "PlayAlertSound 7 300",
+          "",
+          "Show # Ordinary divination cards",
+          'Class "Divination Card"',
+          'BaseType "Middle Card"',
+          "SetFontSize 35",
+          "",
+          "Hide # Trash divination cards",
+          'Class "Divination Card"',
+          'BaseType "Common Card"',
+          "SetFontSize 20",
+        ].join("\n"),
+      );
+
+      expect(result.cardRarities).toEqual(
+        new Map([
+          ["Top Card", 1],
+          ["Top Card Continuation", 1],
+          ["Rare Card", 2],
+          ["Middle Card", 3],
+          ["Common Card", 4],
+        ]),
+      );
+      expect(result.tierStyles.get(2)?.textColor).toEqual({
+        r: 10,
+        g: 20,
+        b: 30,
+        a: 255,
+      });
+    });
+
+    it("should infer a single generic named block as common", () => {
+      const result = RarityInsightsParser.parseFilterContent(
+        [
+          "### Divination Cards",
+          "Show # Divination Cards",
+          'Class "Divination Card"',
+          'BaseType "Only Card"',
+        ].join("\n"),
+      );
+
+      expect(result.cardRarities.get("Only Card")).toBe(4);
+    });
+
+    it.each([
+      "SetBackgroundColor 256 0 0",
+      "SetBackgroundColor 0 256 0",
+      "SetBackgroundColor 0 0 256",
+      "SetBackgroundColor 0 0 0 256",
+    ])("should reject an out-of-range color directive: %s", (line) => {
+      expect(RarityInsightsParser.parseColorDirective(line)).toBeNull();
+    });
   });
 });

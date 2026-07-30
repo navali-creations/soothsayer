@@ -17,6 +17,4 @@ overrides:
   tmp@<=0.2.3: ">=0.2.4"
 
 minimumReleaseAgeExclude:
-  - '@vitest/coverage-v8@4.1.7'
-  - '@vitest/pretty-format@4.1.7'
-  - '@vitest/utils@4.1.7'
+  - '@navali/poe1-divination-cards@3.29.0'

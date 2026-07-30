@@ -1,6 +1,9 @@
 import { ipcRenderer } from "electron";
 
+import type { GameType } from "~/types/data-stores";
+
 import { OverlayChannel } from "./Overlay.channels";
+import type { OverlaySessionDataDTO } from "./Overlay.dto";
 import type { OverlayBounds } from "./Overlay.service";
 
 const OverlayAPI = {
@@ -18,7 +21,10 @@ const OverlayAPI = {
   getBounds: (): Promise<OverlayBounds | null> =>
     ipcRenderer.invoke(OverlayChannel.GetBounds),
   restoreDefaults: () => ipcRenderer.invoke(OverlayChannel.RestoreDefaults),
-  getSessionData: () => ipcRenderer.invoke("overlay:get-session-data"),
+  getSessionData: (): Promise<OverlaySessionDataDTO> =>
+    ipcRenderer.invoke(OverlayChannel.GetSessionData),
+  getActiveGame: (): Promise<GameType> =>
+    ipcRenderer.invoke(OverlayChannel.GetActiveGame),
   onVisibilityChanged: (callback: (isVisible: boolean) => void) => {
     const listener = (
       _event: Electron.IpcRendererEvent,

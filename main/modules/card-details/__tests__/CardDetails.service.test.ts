@@ -2634,4 +2634,281 @@ describe("CardDetailsService", () => {
       expect(result!.dropTimeline[1].league).toBe("Keepers");
     });
   });
+
+  describe("remaining branch coverage", () => {
+    function ipcHandler(channel: string) {
+      const registration = mockIpcMainHandle.mock.calls.find(
+        ([registered]: [string]) => registered === channel,
+      );
+      if (!registration) throw new Error(`Missing handler ${channel}`);
+      return registration[1] as (...args: unknown[]) => Promise<unknown>;
+    }
+
+    it("executes valid IPC validation branches and backend failure handling", async () => {
+      await expect(
+        ipcHandler("card-details:get-price-history")(
+          {},
+          "poe3",
+          "League",
+          "Card",
+        ),
+      ).resolves.toBeNull();
+      await expect(
+        ipcHandler("card-details:get-related-cards")({}, "poe3", "Card"),
+      ).resolves.toEqual({ chainCards: [], similarCards: [] });
+      getRepoMock().getCachedPriceHistory.mockResolvedValue(null);
+      mockFetch.mockResolvedValue({
+        json: () => Promise.resolve(makePoeNinjaApiResponse()),
+        ok: true,
+      });
+      await expect(
+        ipcHandler("card-details:get-price-history")(
+          {},
+          "poe1",
+          "League",
+          "Card",
+        ),
+      ).resolves.not.toBeNull();
+      getRepoMock().getCardRewardHtml.mockResolvedValue(null);
+      await expect(
+        ipcHandler("card-details:get-related-cards")({}, "poe1", "Card"),
+      ).resolves.toEqual({ chainCards: [], similarCards: [] });
+
+      getRepoMock().findCardByName.mockRejectedValueOnce(
+        new Error("db failed"),
+      );
+      await expect(
+        ipcHandler("card-details:get-personal-analytics")(
+          {},
+          "poe1",
+          "League",
+          "Card",
+        ),
+      ).resolves.toBeNull();
+
+      const sender = { id: 99 } as Electron.WebContents;
+      registerTrustedWebContents(sender);
+      await expect(
+        ipcHandler("card-details:get-community-drop-rate")(
+          { sender },
+          "poe1",
+          "",
+          "Card",
+        ),
+      ).resolves.toBeNull();
+      const dropRateService = (
+        service as unknown as {
+          communityDropRates: {
+            getCardRate: ReturnType<typeof vi.fn>;
+          };
+        }
+      ).communityDropRates;
+      dropRateService.getCardRate = vi.fn().mockResolvedValue(null);
+      await expect(
+        ipcHandler("card-details:get-community-drop-rate")(
+          { sender },
+          "poe1",
+          "League",
+          "Card",
+        ),
+      ).resolves.toBeNull();
+      await expect(
+        ipcHandler("card-details:get-community-drop-rate")(
+          { sender },
+          "poe1",
+          "League",
+          "",
+        ),
+      ).resolves.toBeNull();
+    });
+
+    it("rejects every malformed cached DTO field before refetching", async () => {
+      const valid = JSON.parse(makeCachedRow().response_data);
+      const malformed = [
+        null,
+        { ...valid, cardName: 1 },
+        { ...valid, detailsId: 1 },
+        { ...valid, game: 1 },
+        { ...valid, league: 1 },
+        { ...valid, priceHistory: {} },
+        { ...valid, fetchedAt: 1 },
+      ];
+      const repo = getRepoMock();
+      repo.isCacheStale.mockReturnValue(false);
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        statusText: "failed",
+      });
+
+      for (const response of malformed) {
+        repo.getCachedPriceHistory.mockResolvedValueOnce(
+          makeCachedRow({ response_data: JSON.stringify(response) }),
+        );
+        await expect(
+          service.getPriceHistory("poe1", "Settlers", "The Doctor"),
+        ).resolves.toBeNull();
+      }
+
+      expect(mockLoggerWarn).toHaveBeenCalledWith(
+        expect.stringContaining("failed shape validation"),
+      );
+    });
+
+    it("warns when stale fallback JSON has a valid parse but invalid shape", async () => {
+      const repo = getRepoMock();
+      repo.getCachedPriceHistory.mockResolvedValue(
+        makeCachedRow({ response_data: "{}" }),
+      );
+      repo.isCacheStale.mockReturnValue(true);
+      mockFetch.mockRejectedValue(new Error("offline"));
+
+      await expect(
+        service.getPriceHistory("poe1", "Settlers", "The Doctor"),
+      ).resolves.toBeNull();
+
+      expect(mockLoggerWarn).toHaveBeenCalledWith(
+        expect.stringContaining("Stale cached data"),
+      );
+    });
+
+    it("resolves Standard and unknown league timeline end dates", async () => {
+      const repo = getRepoMock();
+      repo.getLeagueDateRanges.mockResolvedValue([
+        { name: "Standard", startDate: null, endDate: null },
+        {
+          name: "Old",
+          startDate: "invalid",
+          endDate: "2024-01-01T00:00:00Z",
+        },
+        {
+          name: "Current",
+          startDate: "2025-01-01T00:00:00Z",
+          endDate: "2025-04-01T00:00:00Z",
+        },
+      ]);
+
+      const standard = await service.getPersonalAnalytics(
+        "poe1",
+        "Standard",
+        "Card",
+        "Standard",
+      );
+      expect(standard?.timelineEndDate).toBe("2024-01-01T00:00:00Z");
+
+      const unknown = await service.getPersonalAnalytics(
+        "poe1",
+        "Unknown",
+        "Card",
+        "Unknown",
+      );
+      expect(new Date(unknown!.timelineEndDate).getTime()).toBeGreaterThan(
+        Date.now() - 5_000,
+      );
+    });
+
+    it("falls through Standard selection when no challenge league exists", async () => {
+      getRepoMock().getLeagueDateRanges.mockResolvedValue([
+        {
+          name: "Standard",
+          startDate: null,
+          endDate: "2025-01-01T00:00:00Z",
+        },
+      ]);
+
+      const result = await service.getPersonalAnalytics(
+        "poe1",
+        "Standard",
+        "Card",
+        "Standard",
+      );
+
+      expect(result?.timelineEndDate).toBe("2025-01-01T00:00:00Z");
+    });
+
+    it("handles reward extraction skips, cycles, and missing chain rows", async () => {
+      const internals = service as unknown as {
+        extractRewardItemName: (html: string) => string | null;
+        resolveRewardChain: (
+          game: "poe1",
+          html: string,
+          start: string,
+          visited?: Set<string>,
+        ) => Promise<{ chainCards: string[]; terminalReward: string | null }>;
+      };
+
+      expect(internals.extractRewardItemName("")).toBeNull();
+      expect(
+        internals.extractRewardItemName(
+          "[[File: icon.png|Icon]][[Corrupted]][[Headhunter]]",
+        ),
+      ).toBe("Headhunter");
+      expect(
+        internals.extractRewardItemName(
+          '<span class="tc -unique"> </span><span class="tc -normal">42</span>',
+        ),
+      ).toBeNull();
+
+      const cycle = await internals.resolveRewardChain(
+        "poe1",
+        '<span class="tc -divination">[[The Doctor]]</span>',
+        "The Nurse",
+        new Set(["The Doctor"]),
+      );
+      expect(cycle.chainCards).toEqual([]);
+
+      getRepoMock().getCardRewardHtml.mockResolvedValueOnce(null);
+      const missing = await internals.resolveRewardChain(
+        "poe1",
+        '<span class="tc -divination">[[The Doctor]]</span>',
+        "The Nurse",
+      );
+      expect(missing.chainCards).toEqual(["The Doctor"]);
+    });
+
+    it("keeps the first card for duplicate slugs and tolerates related-card failure", async () => {
+      mockDivCardsGetAllByGame.mockResolvedValue([
+        { id: "first", name: "A Card" },
+        { id: "second", name: "A---Card" },
+      ]);
+      const relatedSpy = vi
+        .spyOn(service, "getRelatedCards")
+        .mockRejectedValueOnce(new Error("related failed"));
+
+      const result = await service.resolveCardBySlug("poe1", "a-card");
+
+      expect(result?.card.id).toBe("first");
+      expect(result?.relatedCards).toBeNull();
+      expect(relatedSpy).toHaveBeenCalled();
+    });
+
+    it("deduplicates current and repeated cards across chain and similar results", async () => {
+      const repo = getRepoMock();
+      repo.getCardRewardHtml.mockResolvedValue(
+        '<span class="tc -divination">[[Next Card]]</span>',
+      );
+      const card = (name: string) => ({
+        artSrc: "",
+        description: "",
+        filterRarity: null,
+        flavourHtml: "",
+        fromBoss: false,
+        name,
+        prohibitedLibraryRarity: null,
+        rarity: 2,
+        rewardHtml: "",
+        stackSize: 1,
+      });
+      repo.findCardByName.mockResolvedValue(card("Next Card"));
+      repo.findCardsByRewardMatch
+        .mockResolvedValueOnce([card("Next Card"), card("Current")])
+        .mockResolvedValueOnce([card("Next Card"), card("Current")])
+        .mockResolvedValueOnce([card("Next Card"), card("Current")]);
+
+      const result = await service.getRelatedCards("poe1", "Current");
+
+      expect(result.chainCards.map(({ name }) => name)).toEqual(["Next Card"]);
+      expect(result.similarCards).toEqual([]);
+    });
+  });
 });

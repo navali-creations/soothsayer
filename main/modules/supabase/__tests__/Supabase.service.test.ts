@@ -1954,3 +1954,363 @@ describe("SupabaseClientService — full lifecycle", () => {
     expect(mockFsWriteFileSync).toHaveBeenCalled();
   });
 });
+
+describe("SupabaseClientService — remaining branch coverage", () => {
+  const originalEnv = process.env.NODE_ENV;
+  const originalPlatform = process.platform;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetSingleton(SupabaseClientService);
+    mockAppGetPath.mockReturnValue("/mock-user-data");
+    mockFsExistsSync.mockReturnValue(false);
+    mockSafeStorageIsEncryptionAvailable.mockReturnValue(true);
+    mockSafeStorageEncryptString.mockImplementation((value: string) =>
+      Buffer.from(`encrypted:${value}`),
+    );
+    mockSafeStorageDecryptString.mockImplementation((value: Buffer) =>
+      value.toString().replace(/^encrypted:/, ""),
+    );
+    mockSignInAnonymously.mockResolvedValue({
+      data: { session: makeSession() },
+      error: null,
+    });
+    mockGetSession.mockResolvedValue({
+      data: { session: makeSession() },
+    });
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: "mock-user-id" } },
+      error: null,
+    });
+    mockOnAuthStateChange.mockReturnValue({
+      data: { subscription: { unsubscribe: vi.fn() } },
+    });
+    globalThis.fetch = mockFetch;
+  });
+
+  afterEach(() => {
+    process.env.NODE_ENV = originalEnv;
+    Object.defineProperty(process, "platform", {
+      configurable: true,
+      value: originalPlatform,
+    });
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  async function configureService() {
+    createMockSupabaseClient();
+    const service = SupabaseClientService.getInstance();
+    await service.configure(SUPABASE_URL, SUPABASE_ANON_KEY);
+    return service;
+  }
+
+  it("rejects each malformed snapshot field and accepts normalized confidence", async () => {
+    const invalidResponses: unknown[] = [
+      null,
+      { ...makeSnapshotResponse(), cardPrices: null },
+      { ...makeSnapshotResponse(), cardPrices: { Card: 1 } },
+      {
+        ...makeSnapshotResponse(),
+        cardPrices: { Card: { chaosValue: "bad", divineValue: 1 } },
+      },
+      {
+        ...makeSnapshotResponse(),
+        cardPrices: { Card: { chaosValue: 1, divineValue: "bad" } },
+      },
+      {
+        ...makeSnapshotResponse(),
+        cardPrices: {
+          Card: { chaosValue: 1, divineValue: 1, confidence: 0 },
+        },
+      },
+      {
+        ...makeSnapshotResponse(),
+        cardPrices: {
+          Card: { chaosValue: 1, divineValue: 1, confidence: 4 },
+        },
+      },
+      {
+        ...makeSnapshotResponse(),
+        snapshot: { ...makeSnapshotResponse().snapshot, id: 1 },
+      },
+      {
+        ...makeSnapshotResponse(),
+        snapshot: { ...makeSnapshotResponse().snapshot, leagueId: 1 },
+      },
+      {
+        ...makeSnapshotResponse(),
+        snapshot: { ...makeSnapshotResponse().snapshot, fetchedAt: 1 },
+      },
+      {
+        ...makeSnapshotResponse(),
+        snapshot: {
+          ...makeSnapshotResponse().snapshot,
+          exchangeChaosToDivine: "bad",
+        },
+      },
+      {
+        ...makeSnapshotResponse(),
+        snapshot: {
+          ...makeSnapshotResponse().snapshot,
+          stackedDeckChaosCost: "bad",
+        },
+      },
+      {
+        ...makeSnapshotResponse(),
+        snapshot: {
+          ...makeSnapshotResponse().snapshot,
+          stackedDeckMaxVolumeRate: "bad",
+        },
+      },
+    ];
+
+    for (const response of invalidResponses) {
+      resetSingleton(SupabaseClientService);
+      const service = await configureService();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve(JSON.stringify(response)),
+      });
+      await expect(
+        service.getLatestSnapshot("poe1", "Malformed"),
+      ).rejects.toThrow();
+    }
+
+    resetSingleton(SupabaseClientService);
+    const service = await configureService();
+    const valid = makeSnapshotResponse();
+    valid.snapshot.stackedDeckMaxVolumeRate = undefined as never;
+    valid.cardPrices = {
+      "The Doctor": {
+        chaosValue: "900" as never,
+        confidence: "2" as never,
+        divineValue: "6" as never,
+      },
+    };
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: () => Promise.resolve(JSON.stringify(valid)),
+    });
+
+    await expect(
+      service.getLatestSnapshot("poe1", "Normalized"),
+    ).resolves.toMatchObject({
+      cardPrices: {
+        "The Doctor": { chaosValue: 900, confidence: 2, divineValue: 6 },
+      },
+      stackedDeckMaxVolumeRate: undefined,
+    });
+  });
+
+  it("rejects missing snapshot data and malformed league lists", async () => {
+    const service = await configureService();
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: () => Promise.resolve("null"),
+    });
+    await expect(service.getLatestSnapshot("poe1", "No data")).rejects.toThrow(
+      "No data returned from Supabase",
+    );
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: () => Promise.resolve('{"leagues":{}}'),
+    });
+    await expect(service.getLeagues("poe1")).rejects.toThrow(
+      "Invalid response structure",
+    );
+  });
+
+  it("does not retry non-401 failures and recognizes plaintext invalid-key errors", async () => {
+    createMockSupabaseClient();
+    const service = SupabaseClientService.getInstance();
+    await service.configure(
+      SUPABASE_URL,
+      SUPABASE_PUBLISHABLE_KEY,
+      SUPABASE_ANON_KEY,
+    );
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      text: () => Promise.resolve("failure"),
+    });
+    await expect(service.callEdgeFunction("test", {})).rejects.toThrow(
+      "failed (500)",
+    );
+
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        text: () => Promise.resolve("Invalid apikey header"),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve('{"ok":true}'),
+      });
+    await expect(service.callEdgeFunction("test", {})).resolves.toEqual({
+      ok: true,
+    });
+  });
+
+  it("guards private authentication and request helpers when unconfigured", async () => {
+    const service = SupabaseClientService.getInstance() as unknown as {
+      authStateListener: unknown;
+      client: unknown;
+      ensureAuthenticated: () => Promise<void>;
+      fetchEdgeFunction: (
+        name: string,
+        body: string,
+        token: string,
+        key: string,
+      ) => Promise<Response>;
+      setupSessionListener: () => void;
+      signInAnonymously: () => Promise<void>;
+    };
+
+    await expect(service.ensureAuthenticated()).rejects.toThrow(
+      "client not configured",
+    );
+    await expect(service.signInAnonymously()).rejects.toThrow(
+      "client not configured",
+    );
+    service.setupSessionListener();
+    await expect(
+      service.fetchEdgeFunction("test", "{}", "token", "key"),
+    ).rejects.toThrow("credentials not available");
+
+    const configured = await configureService();
+    const configuredInternals = configured as unknown as {
+      authStateListener: unknown;
+      setupSessionListener: () => void;
+      supabasePublicApiKey: string | null;
+      supabaseUrl: string | null;
+    };
+    configuredInternals.setupSessionListener();
+    configuredInternals.authStateListener = null;
+    await configured.signOut();
+
+    resetSingleton(SupabaseClientService);
+    const missingCredentials = await configureService();
+    (
+      missingCredentials as unknown as {
+        supabaseUrl: string | null;
+      }
+    ).supabaseUrl = null;
+    await expect(
+      missingCredentials.callEdgeFunction("test", {}),
+    ).rejects.toThrow("credentials not available");
+  });
+
+  it("aborts a hanging edge function request at the configured timeout", async () => {
+    vi.useFakeTimers();
+    const service = await configureService();
+    mockFetch.mockImplementation(
+      (_url: string, options: { signal: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          options.signal.addEventListener("abort", () => {
+            reject(new DOMException("aborted", "AbortError"));
+          });
+        }),
+    );
+
+    const request = service.callEdgeFunction("slow", {});
+    const rejection = expect(request).rejects.toThrow("timed out after 30s");
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    await rejection;
+  });
+
+  it("covers Unix permissions and plaintext storage loading", async () => {
+    Object.defineProperty(process, "platform", {
+      configurable: true,
+      value: "linux",
+    });
+    const service = SupabaseClientService.getInstance() as unknown as {
+      sessionStorage: {
+        configure: (url: string) => void;
+        load: () => unknown;
+        save: (session: ReturnType<typeof makeStoredSession>) => void;
+      };
+    };
+    service.sessionStorage.configure(SUPABASE_URL);
+    service.sessionStorage.save(makeStoredSession());
+    expect(mockFsChmodSync).toHaveBeenCalledWith(expect.any(String), 0o600);
+
+    mockFsChmodSync.mockClear();
+    process.env.NODE_ENV = "development";
+    mockSafeStorageIsEncryptionAvailable.mockReturnValue(false);
+    service.sessionStorage.save(makeStoredSession());
+    expect(mockFsChmodSync).toHaveBeenCalledWith(expect.any(String), 0o600);
+
+    mockFsExistsSync.mockReturnValue(true);
+    mockFsReadFileSync.mockReturnValue(
+      Buffer.from(JSON.stringify(makeStoredSession())),
+    );
+    expect(service.sessionStorage.load()).toMatchObject({
+      user_id: "stored-user-id",
+    });
+  });
+
+  it("cleans up a production session that cannot be decrypted", () => {
+    process.env.NODE_ENV = "production";
+    mockFsExistsSync.mockReturnValue(true);
+    mockFsReadFileSync.mockReturnValue(Buffer.from("corrupt"));
+    mockSafeStorageDecryptString.mockImplementation(() => {
+      throw new Error("decrypt failed");
+    });
+    const service = SupabaseClientService.getInstance() as unknown as {
+      sessionStorage: {
+        configure: (url: string) => void;
+        load: () => unknown;
+      };
+    };
+    service.sessionStorage.configure(SUPABASE_URL);
+
+    expect(service.sessionStorage.load()).toBeNull();
+    expect(mockFsUnlinkSync).toHaveBeenCalled();
+  });
+
+  it("deletes both scoped and loaded legacy session paths", () => {
+    mockFsExistsSync.mockReturnValue(true);
+    const service = SupabaseClientService.getInstance() as unknown as {
+      sessionStorage: {
+        configure: (url: string) => void;
+        delete: () => void;
+        loadedLegacySession: boolean;
+      };
+    };
+    service.sessionStorage.configure(SUPABASE_URL);
+    service.sessionStorage.loadedLegacySession = true;
+
+    service.sessionStorage.delete();
+
+    expect(mockFsUnlinkSync).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    "not-a-jwt",
+    `header.${Buffer.from("[]").toString("base64url")}.signature`,
+    "header.invalid-json.signature",
+  ])("ignores a malformed legacy token: %s", async (accessToken) => {
+    const legacyPath = "/mock-user-data/supabase-session.enc";
+    mockFsExistsSync.mockImplementation((path: string) => path === legacyPath);
+    mockFsReadFileSync.mockReturnValue(
+      Buffer.from(
+        `encrypted:${JSON.stringify(
+          makeStoredSession({ access_token: accessToken }),
+        )}`,
+      ),
+    );
+    await configureService();
+
+    expect(mockSetSession).not.toHaveBeenCalled();
+    expect(mockSignInAnonymously).toHaveBeenCalled();
+  });
+});

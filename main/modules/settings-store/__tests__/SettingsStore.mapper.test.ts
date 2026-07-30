@@ -86,6 +86,32 @@ describe("SettingsStore.mapper", () => {
       expect(dto.appPerformanceRetention).toBe("7d");
     });
 
+    it("should apply defaults for nullable settings added after initial schema", () => {
+      const dto = toUserSettingsDTO(
+        createSettingsRow({
+          app_performance_auto_start_on_session: null as never,
+          app_performance_monitor_enabled: null as never,
+          app_performance_retention: null as never,
+          last_seen_app_version: null,
+          main_window_bounds: '{"x":1,"y":2,"width":3,"height":4}',
+          overlay_font_size: null as never,
+          overlay_toolbar_font_size: null as never,
+        }),
+      );
+
+      expect(dto).toEqual(
+        expect.objectContaining({
+          appPerformanceAutoStartOnSession: false,
+          appPerformanceMonitorEnabled: false,
+          appPerformanceRetention: "7d",
+          lastSeenAppVersion: null,
+          mainWindowBounds: { x: 1, y: 2, width: 3, height: 4 },
+          overlayFontSize: 1,
+          overlayToolbarFontSize: 1,
+        }),
+      );
+    });
+
     it("should convert SQLite boolean integers to real booleans", () => {
       const row = createSettingsRow({
         app_open_at_login: 1,

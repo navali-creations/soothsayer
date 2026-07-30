@@ -92,6 +92,20 @@ export const CurrentSessionAPI = {
       ipcRenderer.removeListener(CurrentSessionChannel.DataUpdated, listener);
   },
 
+  // Listen for a lightweight signal that prepared session data should be refetched
+  onDataInvalidated: (callback: (data: { game: "poe1" | "poe2" }) => void) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      data: { game: "poe1" | "poe2" },
+    ) => callback(data);
+    ipcRenderer.on(CurrentSessionChannel.DataInvalidated, listener);
+    return () =>
+      ipcRenderer.removeListener(
+        CurrentSessionChannel.DataInvalidated,
+        listener,
+      );
+  },
+
   // Listen for incremental timeline updates (one per card drop)
   onTimelineDelta: (
     callback: (data: { game: "poe1" | "poe2"; delta: TimelineDelta }) => void,

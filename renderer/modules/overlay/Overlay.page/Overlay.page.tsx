@@ -14,6 +14,8 @@ import {
   OverlaySidebar,
   OverlayTabs,
 } from "../Overlay.components";
+import type { RecentDrop } from "../Overlay.types";
+import { useOverlaySessionSync } from "./useOverlaySessionSync/useOverlaySessionSync";
 
 import "../../../index.css";
 
@@ -46,9 +48,8 @@ interface AudioSettings {
 }
 
 const OverlayApp = () => {
-  const { sessionData, setSessionData, isLocked, isLeftHalf, detectZone } =
-    useOverlay();
-  const previousDropsRef = useRef<any[]>([]);
+  const { sessionData, isLocked, isLeftHalf } = useOverlay();
+  const previousDropsRef = useRef<RecentDrop[]>([]);
   const [isElectronReady, setIsElectronReady] = useState(
     () => !!window.electron?.overlay && !!window.electron?.session,
   );
@@ -60,8 +61,8 @@ const OverlayApp = () => {
   const [fontSize, setFontSize] = useState(1.0);
   const [toolbarFontSize, setToolbarFontSize] = useState(1.0);
 
-  // Load audio settings and overlay font size from main process
-  const loadAudioSettings = useCallback(async () => {
+  // Load overlay presentation and audio settings from main process
+  const loadOverlaySettings = useCallback(async () => {
     try {
       const settings = await window.electron.settings.getAll();
       const customSounds: Record<number, string> = {};
@@ -129,116 +130,10 @@ const OverlayApp = () => {
     checkElectron();
   }, [isElectronReady]);
 
-  useEffect(() => {
-    // Guard against window.electron not being ready yet
-    if (!isElectronReady) return;
-
-    // Detect which half of the screen the overlay is on
-    detectZone();
-
-    // Load audio settings
-    loadAudioSettings();
-
-    // Fetch initial session data
-    window.electron.overlay.getSessionData().then((data) => {
-      if (data) {
-        setSessionData(data);
-      }
-    });
-
-    // Listen for session STATE changes (start/stop)
-    const unsubscribeStateChange = window.electron.session.onStateChanged(
-      (update) => {
-        if (update.isActive) {
-          // Session started - fetch the full data and refresh audio settings
-          loadAudioSettings();
-          window.electron?.overlay.getSessionData().then((data) => {
-            if (data) {
-              setSessionData(data);
-            }
-          });
-        } else {
-          // Session stopped
-          setSessionData({
-            isActive: false,
-            totalCount: 0,
-            totalProfit: 0,
-            chaosToDivineRatio: 0,
-            cards: [],
-            recentDrops: [],
-          });
-        }
-      },
-    );
-
-    // Listen for incremental card deltas (one per card drop)
-    const unsubscribeCardDelta = window.electron.session.onCardDelta(
-      (update) => {
-        if (!update.delta) return;
-        const prev = useBoundStore.getState().overlay.sessionData;
-        const totals = update.delta.updatedTotals;
-
-        // Update or add card entry
-        const existingIdx = prev.cards.findIndex(
-          (c) => c.cardName === update.delta.cardName,
-        );
-        const updatedCards = [...prev.cards];
-        if (existingIdx >= 0) {
-          updatedCards[existingIdx] = {
-            ...updatedCards[existingIdx],
-            count: update.delta.newCount,
-          };
-        } else {
-          updatedCards.push({
-            cardName: update.delta.cardName,
-            count: update.delta.newCount,
-          });
-        }
-
-        // Prepend new recent drop and cap at 20
-        const updatedRecentDrops = update.delta.recentDrop
-          ? [
-              {
-                ...update.delta.recentDrop,
-                rarity: update.delta.recentDrop.rarity ?? (4 as any),
-              },
-              ...prev.recentDrops,
-            ].slice(0, 20)
-          : prev.recentDrops;
-
-        setSessionData({
-          ...prev,
-          isActive: true,
-          totalCount: update.delta.totalCount,
-          totalProfit: totals?.totalValue || prev.totalProfit,
-          chaosToDivineRatio:
-            totals?.chaosToDivineRatio || prev.chaosToDivineRatio,
-          cards: updatedCards,
-          recentDrops: updatedRecentDrops,
-        });
-      },
-    );
-
-    // Listen for settings changes (e.g. font size changed mid-session)
-    const unsubscribeSettingsChanged =
-      window.electron.overlay.onSettingsChanged(() => {
-        // Re-read font size and audio settings
-        loadAudioSettings().then(() => {
-          // Re-fetch session data with the updated overlay settings
-          window.electron?.overlay.getSessionData().then((data) => {
-            if (data) {
-              setSessionData(data);
-            }
-          });
-        });
-      });
-
-    return () => {
-      unsubscribeStateChange?.();
-      unsubscribeCardDelta();
-      unsubscribeSettingsChanged();
-    };
-  }, [isElectronReady, setSessionData, loadAudioSettings, detectZone]);
+  useOverlaySessionSync({
+    enabled: isElectronReady,
+    refreshOverlaySettings: loadOverlaySettings,
+  });
 
   // Play sound for rare drops
   useEffect(() => {

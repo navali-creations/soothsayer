@@ -23,10 +23,12 @@ import {
   handleValidationError,
   IpcValidationError,
 } from "~/main/utils/ipc-validation";
+import { isOverlayWindow } from "~/main/utils/is-overlay-window";
 
 import type {
   AggregatedTimeline,
   CardEntry,
+  DetailedDivinationCardStats,
   GameType,
   NotableDrop,
   Rarity,
@@ -1038,7 +1040,9 @@ class CurrentSessionService {
   /**
    * Get current session with full details
    */
-  public async getCurrentSession(game: GameType): Promise<any> {
+  public async getCurrentSession(
+    game: GameType,
+  ): Promise<DetailedDivinationCardStats | null> {
     const activeSession =
       game === "poe1" ? this.poe1ActiveSession : this.poe2ActiveSession;
 
@@ -1154,7 +1158,7 @@ class CurrentSessionService {
 
       const isHidden = cardData?.price?.hidePrice || false;
 
-      const displayRarity = isHidden ? 4 : actualRarity;
+      const displayRarity = isHidden ? 0 : actualRarity;
 
       return {
         cardName,
@@ -1745,9 +1749,10 @@ class CurrentSessionService {
 
     // Build recent drop entry
     const rarity = (rarities?.get(cardName) ?? 4) as Rarity;
+    const displayRarity: Rarity = hidePrice ? 0 : rarity;
     const recentDrop: RecentDrop = {
       cardName,
-      rarity,
+      rarity: displayRarity,
       price: priceData ? { chaosValue, divineValue } : null,
     };
 
@@ -1782,6 +1787,14 @@ class CurrentSessionService {
     const sessionData = await this.getCurrentSession(game);
     const windows = BrowserWindow.getAllWindows();
     for (const window of windows) {
+      const invalidation = { game };
+      window.webContents.send(
+        CurrentSessionChannel.DataInvalidated,
+        invalidation,
+      );
+
+      if (isOverlayWindow(window)) continue;
+
       window.webContents.send(CurrentSessionChannel.DataUpdated, {
         game,
         data: sessionData,

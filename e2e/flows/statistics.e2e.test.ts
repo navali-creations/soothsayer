@@ -154,8 +154,8 @@ async function ensureDataSeeded(page: Page) {
     console.debug("[e2e] Data seeding skipped (may already be seeded):", e);
   }
 
-  // Reload so the renderer's useDivinationCards hook re-fetches from the
-  // now-seeded `cards` table. Without this, the hook may have already
+  // Reload so the renderer's Statistics slice re-fetches from the now-seeded
+  // `cards` table. Without this, the initial load may have already
   // resolved with empty data before the SQLite writes above completed.
   await page.reload();
   await waitForHydration(page, 30_000);

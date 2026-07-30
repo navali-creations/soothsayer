@@ -12,8 +12,12 @@ import {
   assertInteger,
   handleValidationError,
 } from "~/main/utils/ipc-validation";
+import { isOverlayWindow } from "~/main/utils/is-overlay-window";
+import type { GameType } from "~/types/data-stores";
 
 import { OverlayChannel } from "./Overlay.channels";
+import type { OverlaySessionDataDTO } from "./Overlay.dto";
+import { toOverlaySessionData } from "./Overlay.mapper";
 
 interface OverlayBounds {
   x: number;
@@ -249,57 +253,17 @@ class OverlayService {
   /**
    * Get current session data formatted for overlay
    */
-  private async getSessionData() {
-    const activeGame = await this.settingsStore.get(SettingsKey.ActiveGame);
-    const isActive = this.currentSessionService.isSessionActive(activeGame);
+  private async getActiveGame(): Promise<GameType> {
+    return this.settingsStore.get(SettingsKey.ActiveGame);
+  }
 
-    if (!isActive) {
-      return {
-        isActive: false,
-        totalCount: 0,
-        totalProfit: 0,
-        chaosToDivineRatio: 0,
-        cards: [],
-        recentDrops: [],
-      };
-    }
+  private async getSessionData(): Promise<OverlaySessionDataDTO> {
+    const activeGame = await this.getActiveGame();
+    const session = this.currentSessionService.isSessionActive(activeGame)
+      ? await this.currentSessionService.getCurrentSession(activeGame)
+      : null;
 
-    const session =
-      await this.currentSessionService.getCurrentSession(activeGame);
-
-    if (!session) {
-      return {
-        isActive: false,
-        totalCount: 0,
-        totalProfit: 0,
-        chaosToDivineRatio: 0,
-        cards: [],
-        recentDrops: [],
-      };
-    }
-
-    return {
-      isActive: true,
-      totalCount: session.totalCount || 0,
-      totalProfit: session.totals?.totalValue || 0,
-      chaosToDivineRatio: session.totals?.chaosToDivineRatio || 0,
-      cards: session.cards
-        ? session.cards.map((card: { name: string; count: number }) => ({
-            cardName: card.name,
-            count: card.count,
-          }))
-        : [],
-      recentDrops: (session.recentDrops || []).map(
-        (drop: {
-          cardName: string;
-          rarity?: number;
-          price: { chaosValue: number; divineValue: number } | null;
-        }) => ({
-          ...drop,
-          rarity: drop.rarity ?? 4,
-        }),
-      ),
-    };
+    return toOverlaySessionData(session);
   }
 
   /**
@@ -380,8 +344,12 @@ class OverlayService {
       return this.restoreDefaults();
     });
 
-    ipcMain.handle("overlay:get-session-data", async () => {
+    ipcMain.handle(OverlayChannel.GetSessionData, async () => {
       return this.getSessionData();
+    });
+
+    ipcMain.handle(OverlayChannel.GetActiveGame, async () => {
+      return this.getActiveGame();
     });
   }
 
@@ -683,9 +651,7 @@ class OverlayService {
     const allWindows = BrowserWindow.getAllWindows();
 
     const mainWindow = allWindows.find(
-      (win) =>
-        !win.isDestroyed() &&
-        !win.webContents.getURL().includes("overlay.html"),
+      (window) => !window.isDestroyed() && !isOverlayWindow(window),
     );
 
     if (mainWindow) {

@@ -531,6 +531,13 @@ describe("OverlayApp", () => {
       );
     });
 
+    it("subscribes to session.onDataInvalidated on mount", async () => {
+      await renderAndSettle();
+      expect(getElectron().session.onDataInvalidated).toHaveBeenCalledWith(
+        expect.any(Function),
+      );
+    });
+
     it("subscribes to overlay.onSettingsChanged on mount", async () => {
       await renderAndSettle();
       expect(getElectron().overlay.onSettingsChanged).toHaveBeenCalledWith(
@@ -541,10 +548,14 @@ describe("OverlayApp", () => {
     it("calls unsubscribe functions on unmount", async () => {
       const unsubState = vi.fn();
       const unsubCardDelta = vi.fn();
+      const unsubDataInvalidated = vi.fn();
       const unsubSettings = vi.fn();
 
       getElectron().session.onStateChanged.mockReturnValue(unsubState);
       getElectron().session.onCardDelta.mockReturnValue(unsubCardDelta);
+      getElectron().session.onDataInvalidated.mockReturnValue(
+        unsubDataInvalidated,
+      );
       getElectron().overlay.onSettingsChanged.mockReturnValue(unsubSettings);
 
       await renderAndSettle();
@@ -554,6 +565,7 @@ describe("OverlayApp", () => {
 
       expect(unsubState).toHaveBeenCalled();
       expect(unsubCardDelta).toHaveBeenCalled();
+      expect(unsubDataInvalidated).toHaveBeenCalled();
       expect(unsubSettings).toHaveBeenCalled();
     });
   });
@@ -562,7 +574,10 @@ describe("OverlayApp", () => {
 
   describe("onStateChanged handler", () => {
     it("fetches fresh session data and reloads audio settings when session starts", async () => {
-      let stateChangedCb: (update: { isActive: boolean }) => void = () => {};
+      let stateChangedCb: (update: {
+        game: "poe1" | "poe2";
+        isActive: boolean;
+      }) => void = () => {};
       getElectron().session.onStateChanged.mockImplementation((cb: any) => {
         stateChangedCb = cb;
         return vi.fn();
@@ -587,7 +602,7 @@ describe("OverlayApp", () => {
 
       // Simulate session start
       await act(async () => {
-        stateChangedCb({ isActive: true });
+        stateChangedCb({ game: "poe1", isActive: true });
       });
 
       await act(async () => {
@@ -600,8 +615,11 @@ describe("OverlayApp", () => {
       expect(getElectron().overlay.getSessionData).toHaveBeenCalled();
     });
 
-    it("sets empty session data when session stops", async () => {
-      let stateChangedCb: (update: { isActive: boolean }) => void = () => {};
+    it("fetches inactive session data when session stops", async () => {
+      let stateChangedCb: (update: {
+        game: "poe1" | "poe2";
+        isActive: boolean;
+      }) => void = () => {};
       getElectron().session.onStateChanged.mockImplementation((cb: any) => {
         stateChangedCb = cb;
         return vi.fn();
@@ -609,21 +627,87 @@ describe("OverlayApp", () => {
 
       await renderAndSettle();
 
-      mockSetSessionData.mockClear();
-
-      // Simulate session stop
-      await act(async () => {
-        stateChangedCb({ isActive: false });
-      });
-
-      expect(mockSetSessionData).toHaveBeenCalledWith({
+      const inactiveSession = {
         isActive: false,
         totalCount: 0,
         totalProfit: 0,
         chaosToDivineRatio: 0,
         cards: [],
         recentDrops: [],
+      };
+      getElectron().overlay.getSessionData.mockResolvedValue(inactiveSession);
+      getElectron().overlay.getSessionData.mockClear();
+      mockSetSessionData.mockClear();
+
+      // Simulate session stop
+      await act(async () => {
+        stateChangedCb({ game: "poe1", isActive: false });
+        await vi.runAllTimersAsync();
       });
+
+      expect(getElectron().overlay.getSessionData).toHaveBeenCalled();
+      expect(mockSetSessionData).toHaveBeenCalledWith(inactiveSession);
+    });
+  });
+
+  // ── onDataInvalidated handler ─────────────────────────────────────────
+
+  describe("onDataInvalidated handler", () => {
+    it("fetches hidden-card overlay rarity updates", async () => {
+      let dataInvalidatedCb: (update: { game: "poe1" | "poe2" }) => void =
+        () => {};
+      getElectron().session.onDataInvalidated.mockImplementation((cb: any) => {
+        dataInvalidatedCb = cb;
+        return vi.fn();
+      });
+
+      await renderAndSettle();
+      const hiddenCardData = {
+        isActive: true,
+        totalCount: 1,
+        totalProfit: 0,
+        chaosToDivineRatio: 200,
+        cards: [{ cardName: "The Doctor", count: 1 }],
+        recentDrops: [
+          {
+            cardName: "The Doctor",
+            rarity: 0,
+            price: { chaosValue: 500, divineValue: 2.5 },
+          },
+        ],
+      };
+      getElectron().overlay.getSessionData.mockResolvedValue(hiddenCardData);
+      getElectron().overlay.getSessionData.mockClear();
+      mockSetSessionData.mockClear();
+
+      await act(async () => {
+        dataInvalidatedCb({ game: "poe1" });
+        await vi.runAllTimersAsync();
+      });
+
+      expect(getElectron().overlay.getSessionData).toHaveBeenCalled();
+      expect(mockSetSessionData).toHaveBeenCalledWith(hiddenCardData);
+    });
+
+    it("ignores updates for the game not shown in the overlay", async () => {
+      let dataInvalidatedCb: (update: { game: "poe1" | "poe2" }) => void =
+        () => {};
+      getElectron().session.onDataInvalidated.mockImplementation((cb: any) => {
+        dataInvalidatedCb = cb;
+        return vi.fn();
+      });
+
+      await renderAndSettle();
+      getElectron().overlay.getSessionData.mockClear();
+      mockSetSessionData.mockClear();
+
+      await act(async () => {
+        dataInvalidatedCb({ game: "poe2" });
+        await vi.runAllTimersAsync();
+      });
+
+      expect(getElectron().overlay.getSessionData).not.toHaveBeenCalled();
+      expect(mockSetSessionData).not.toHaveBeenCalled();
     });
   });
 
@@ -651,6 +735,7 @@ describe("OverlayApp", () => {
       // Simulate card delta for existing card
       await act(async () => {
         cardDeltaCb({
+          game: "poe1",
           delta: {
             cardName: "The Doctor",
             newCount: 2,
@@ -690,6 +775,7 @@ describe("OverlayApp", () => {
       // Simulate card delta for a brand-new card
       await act(async () => {
         cardDeltaCb({
+          game: "poe1",
           delta: {
             cardName: "House of Mirrors",
             newCount: 1,
@@ -724,6 +810,7 @@ describe("OverlayApp", () => {
 
       await act(async () => {
         cardDeltaCb({
+          game: "poe1",
           delta: {
             cardName: "The Doctor",
             newCount: 1,
@@ -760,6 +847,7 @@ describe("OverlayApp", () => {
 
       await act(async () => {
         cardDeltaCb({
+          game: "poe1",
           delta: {
             cardName: "Rain of Chaos",
             newCount: 1,
@@ -793,6 +881,7 @@ describe("OverlayApp", () => {
 
       await act(async () => {
         cardDeltaCb({
+          game: "poe1",
           delta: null,
         });
       });

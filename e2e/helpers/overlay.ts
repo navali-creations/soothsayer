@@ -6,9 +6,28 @@
  * @module e2e/helpers/overlay
  */
 
-import type { Page } from "@playwright/test";
+import type { ElectronApplication, Page } from "@playwright/test";
 
 import { callElectronAPI } from "./ipc-helpers";
+
+/**
+ * Returns the overlay BrowserWindow page after it has been created.
+ */
+export async function getOverlayPage(
+  app: ElectronApplication,
+  timeout = 5_000,
+): Promise<Page> {
+  const start = Date.now();
+  while (Date.now() - start < timeout) {
+    const overlayPage = app
+      .windows()
+      .find((window) => window.url().includes("overlay.html"));
+    if (overlayPage) return overlayPage;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+
+  throw new Error(`Overlay window was not created within ${timeout}ms`);
+}
 
 /**
  * Polls `overlay.isVisible` until it matches the expected state, or throws

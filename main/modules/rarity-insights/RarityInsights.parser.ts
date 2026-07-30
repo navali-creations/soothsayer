@@ -248,11 +248,7 @@ export class RarityInsightsParser {
         : RarityInsightsParser.findSectionStart(lines, sectionId);
 
     if (sectionStartIndex === -1) {
-      console.log(
-        sectionId === null
-          ? "[RarityInsightsParser] No Divination Cards section found"
-          : `[RarityInsightsParser] Divination Cards section header [[${sectionId}]] not found in body`,
-      );
+      console.log("[RarityInsightsParser] No Divination Cards section found");
       return {
         cardRarities: new Map(),
         tierStyles: new Map(),
@@ -469,10 +465,6 @@ export class RarityInsightsParser {
     const channelValues = [match[2], match[3], match[4], match[5] ?? "255"].map(
       (value) => Number(value),
     );
-
-    if (channelValues.some((value) => !Number.isInteger(value))) {
-      return null;
-    }
 
     const [r, g, b, a] = channelValues;
     if (

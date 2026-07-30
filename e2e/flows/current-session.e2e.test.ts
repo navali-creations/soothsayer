@@ -30,7 +30,11 @@ import {
   waitForHydration,
   waitForRoute,
 } from "../helpers/navigation";
-import { ensureOverlayHidden, waitForOverlayState } from "../helpers/overlay";
+import {
+  ensureOverlayHidden,
+  getOverlayPage,
+  waitForOverlayState,
+} from "../helpers/overlay";
 import {
   injectCardDrops,
   seedLeagueCache,
@@ -513,6 +517,40 @@ test.describe("Current Session", () => {
         expect(drop.rarity).toBeGreaterThanOrEqual(1);
         expect(drop.rarity).toBeLessThanOrEqual(5);
       }
+    });
+
+    test("should show hidden session cards as low confidence in the overlay", async ({
+      app,
+      page,
+    }) => {
+      const sessionId = await startTestSession(page);
+      await injectCardDrops(page, sessionId, ["The Doctor"], { app });
+      await verifyCardsInTable(page, ["The Doctor"]);
+
+      const overlayButton = page.locator('[data-onboarding="overlay-icon"]');
+      await overlayButton.click();
+      await waitForOverlayState(page, true);
+
+      const overlayPage = await getOverlayPage(app);
+      await expect(overlayPage.getByText("The Doctor")).toBeVisible({
+        timeout: 10_000,
+      });
+
+      const doctorRow = page
+        .locator("table tbody tr")
+        .filter({ hasText: "The Doctor" });
+      const priceVisibility = doctorRow.locator('input[type="checkbox"]');
+      await expect(priceVisibility).toBeChecked();
+
+      await priceVisibility.uncheck();
+      await expect(
+        overlayPage.locator('[data-tip="Low confidence price"]'),
+      ).toBeVisible({ timeout: 10_000 });
+
+      await priceVisibility.check();
+      await expect(
+        overlayPage.locator('[data-tip="Low confidence price"]'),
+      ).toHaveCount(0);
     });
 
     test("should show overlay data during session then empty after stop", async ({

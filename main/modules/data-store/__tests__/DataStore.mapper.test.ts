@@ -322,6 +322,35 @@ describe("DataStoreMapper", () => {
       }
     });
 
+    it.each([-1, 5])("should normalize invalid rarity %s to 4", (dc_rarity) => {
+      const result = DataStoreMapper.toCardDTO({
+        card_name: "Invalid rarity",
+        count: 1,
+        last_updated: null,
+        dc_id: "invalid-rarity",
+        dc_stack_size: null,
+        dc_description: null,
+        dc_reward_html: null,
+        dc_art_src: null,
+        dc_flavour_html: null,
+        dc_from_boss: null,
+        dc_is_disabled: 1,
+        dc_rarity,
+      });
+
+      expect(result.divinationCard).toEqual({
+        id: "invalid-rarity",
+        stackSize: null,
+        description: null,
+        rewardHtml: "",
+        artSrc: null,
+        flavourHtml: "",
+        rarity: 4,
+        fromBoss: false,
+        isDisabled: true,
+      });
+    });
+
     it("should not include divinationCard when dc_id is null even if other dc_ fields have values", () => {
       // This simulates a scenario where LEFT JOIN returns partial data
       // (shouldn't happen in practice, but testing defensive behavior)

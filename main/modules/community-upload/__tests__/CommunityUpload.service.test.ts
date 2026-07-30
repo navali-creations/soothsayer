@@ -1707,4 +1707,343 @@ describe("CommunityUploadService", () => {
       });
     });
   });
+
+  describe("remaining branch coverage", () => {
+    function createService(kysely: unknown = createKyselyChain()) {
+      mockGetKysely.mockReturnValue(kysely);
+      return CommunityUploadService.getInstance();
+    }
+
+    it("routes read-only IPC failures through validation handling", async () => {
+      const kysely = {
+        selectFrom: vi.fn(() => {
+          throw new Error("query failed");
+        }),
+      };
+      mockHandleValidationError.mockImplementation((_error, channel) => ({
+        channel,
+        success: false,
+      }));
+      mockSettingsGet.mockRejectedValue(new Error("settings failed"));
+      service = createService(kysely);
+
+      await expect(
+        getIpcHandler(mockIpcHandle, CommunityUploadChannel.GetUploadStatus)(),
+      ).resolves.toMatchObject({ success: false });
+
+      mockAssertGameType.mockImplementationOnce(() => {
+        throw new Error("invalid game");
+      });
+      await expect(
+        getIpcHandler(mockIpcHandle, CommunityUploadChannel.GetUploadStats)(
+          {},
+          "bad",
+          "League",
+        ),
+      ).resolves.toMatchObject({ success: false });
+
+      await expect(
+        getIpcHandler(
+          mockIpcHandle,
+          CommunityUploadChannel.GetBackfillLeagues,
+        )(),
+      ).resolves.toMatchObject({ success: false });
+    });
+
+    it("skips a global flush when disabled or unconfigured", async () => {
+      service = createService();
+      mockSettingsGet.mockResolvedValueOnce(false);
+      await service.flushPendingUploads();
+
+      mockSettingsGet.mockResolvedValueOnce(true);
+      mockIsConfigured.mockReturnValueOnce(false);
+      await service.flushPendingUploads();
+
+      expect(mockCallEdgeFunction).not.toHaveBeenCalled();
+    });
+
+    it("skips future rows and records invalid outbox games", async () => {
+      const rows = createKyselyChain([
+        {
+          attempts: 0,
+          cards_json: "[]",
+          game: "poe1",
+          last_error: null,
+          next_attempt_at: new Date(Date.now() + 60_000).toISOString(),
+          scope: "Future",
+        },
+        {
+          attempts: 0,
+          cards_json: "[]",
+          game: "invalid",
+          last_error: null,
+          next_attempt_at: null,
+          scope: "Broken",
+        },
+      ]);
+      const update = createKyselyChain();
+      service = createService({
+        selectFrom: vi.fn(() => rows),
+        updateTable: vi.fn(() => update),
+      });
+
+      await service.flushPendingUploads();
+
+      expect(update.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          last_error: 'Invalid outbox game "invalid"',
+        }),
+      );
+    });
+
+    it("reports non-Error failures from linking and session uploads", async () => {
+      mockIsConfigured.mockImplementationOnce(() => {
+        throw "link failure";
+      });
+      service = createService();
+      await service.linkGggAccount();
+
+      mockSettingsGet.mockRejectedValueOnce("upload failure");
+      await service.uploadOnSessionEnd("poe1", "Standard");
+
+      expect(mockSentryCaptureException).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "link failure" }),
+        expect.any(Object),
+      );
+      expect(mockSentryCaptureException).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "upload failure" }),
+        expect.any(Object),
+      );
+    });
+
+    it("validates every outbox card field", () => {
+      service = createService();
+      const parse = (
+        service as unknown as {
+          parseOutboxCards: (row: {
+            attempts: number;
+            cards_json: string;
+            game: string;
+            last_error: null;
+            next_attempt_at: null;
+            scope: string;
+          }) => unknown;
+        }
+      ).parseOutboxCards.bind(service);
+      const row = (value: unknown) => ({
+        attempts: 0,
+        cards_json: JSON.stringify(value),
+        game: "poe1",
+        last_error: null,
+        next_attempt_at: null,
+        scope: "Standard",
+      });
+
+      expect(() => parse(row({}))).toThrow("must be an array");
+      for (const invalid of [
+        null,
+        "card",
+        {},
+        { card_name: 1, count: 1 },
+        { card_name: "Card", count: "1" },
+        { card_name: "Card", count: 1.5 },
+        { card_name: "Card", count: 0 },
+      ]) {
+        expect(() => parse(row([invalid]))).toThrow("index 0 is invalid");
+      }
+      expect(parse(row([{ card_name: "Card", count: 1 }]))).toEqual([
+        { card_name: "Card", count: 1 },
+      ]);
+    });
+
+    it("covers missing, retry, empty, and changed pending-upload states", async () => {
+      const missing = createKyselyChain(undefined);
+      service = createService({ selectFrom: vi.fn(() => missing) });
+      const getOnce = () =>
+        (
+          service as unknown as {
+            flushPendingUploadOnce: (
+              game: "poe1",
+              league: string,
+            ) => Promise<string>;
+          }
+        ).flushPendingUploadOnce("poe1", "Standard");
+      await expect(getOnce()).resolves.toBe("missing");
+
+      const retry = createKyselyChain({
+        attempts: 0,
+        cards_json: "[]",
+        game: "poe1",
+        last_error: null,
+        next_attempt_at: new Date(Date.now() + 60_000).toISOString(),
+        scope: "Standard",
+      });
+      (
+        service as unknown as {
+          kysely: unknown;
+        }
+      ).kysely = { selectFrom: vi.fn(() => retry) };
+      await expect(getOnce()).resolves.toBe("retry-later");
+
+      const empty = createKyselyChain({
+        attempts: 0,
+        cards_json: "[]",
+        game: "poe1",
+        last_error: null,
+        next_attempt_at: null,
+        scope: "Standard",
+      });
+      const deletion = createKyselyChain();
+      (
+        service as unknown as {
+          kysely: unknown;
+        }
+      ).kysely = {
+        deleteFrom: vi.fn(() => deletion),
+        selectFrom: vi.fn(() => empty),
+      };
+      await expect(getOnce()).resolves.toBe("done");
+
+      const original = JSON.stringify([{ card_name: "Card", count: 1 }]);
+      const changed = JSON.stringify([{ card_name: "Card", count: 2 }]);
+      const first = createKyselyChain({
+        attempts: 0,
+        cards_json: original,
+        game: "poe1",
+        last_error: null,
+        next_attempt_at: null,
+        scope: "Standard",
+      });
+      const latest = createKyselyChain({ cards_json: changed });
+      const device = createKyselyChain({ value: "device-id" });
+      const insertion = createKyselyChain();
+      let selectCount = 0;
+      (
+        service as unknown as {
+          kysely: unknown;
+        }
+      ).kysely = {
+        insertInto: vi.fn(() => insertion),
+        selectFrom: vi.fn((table: string) => {
+          if (table === "community_upload_outbox") {
+            selectCount++;
+            return selectCount === 1 ? first : latest;
+          }
+          return device;
+        }),
+      };
+      mockGetAccessToken.mockResolvedValue(null);
+      mockCallEdgeFunction.mockResolvedValue({
+        unique_cards: 1,
+        upload_count: 1,
+      });
+      await expect(getOnce()).resolves.toBe("changed");
+    });
+
+    it("merges session-only card increases with current and snapshot counts", async () => {
+      const cards = createKyselyChain([
+        { card_name: "Current", count: 2 },
+        { card_name: "Session", count: 1 },
+      ]);
+      const snapshot = createKyselyChain([
+        { card_name: "Current", count: 2 },
+        { card_name: "Session", count: 5 },
+      ]);
+      const session = createKyselyChain([
+        { card_name: "Current", count: 1 },
+        { card_name: "Session", count: 2 },
+      ]);
+      let call = 0;
+      service = createService({
+        selectFrom: vi.fn(() => [cards, snapshot, session][call++]),
+      });
+
+      const result = await (
+        service as unknown as {
+          getChangedCards: (
+            game: "poe1",
+            league: string,
+            sessionId: string,
+          ) => Promise<Array<{ card_name: string; count: number }>>;
+        }
+      ).getChangedCards("poe1", "Standard", "session");
+
+      expect(result).toEqual([
+        { card_name: "Current", count: 3 },
+        { card_name: "Session", count: 7 },
+      ]);
+    });
+
+    it("ignores invalid game rows while enqueueing all changed leagues", async () => {
+      const leagues = createKyselyChain([
+        { game: "invalid", scope: "Broken" },
+        { game: "poe1", scope: "Standard" },
+      ]);
+      service = createService({ selectFrom: vi.fn(() => leagues) });
+      const uploadSpy = vi
+        .spyOn(service, "uploadOnSessionEnd")
+        .mockResolvedValue(undefined);
+
+      await (
+        service as unknown as {
+          enqueueChangedUploadsForAllLeagues: () => Promise<void>;
+        }
+      ).enqueueChangedUploadsForAllLeagues();
+
+      expect(uploadSpy).toHaveBeenCalledOnce();
+      expect(uploadSpy).toHaveBeenCalledWith("poe1", "Standard", undefined, {
+        flush: false,
+      });
+    });
+
+    it("recovers from a rejected prior session job", async () => {
+      service = createService();
+      (
+        service as unknown as {
+          sessionUploadJobs: Map<string, Promise<void>>;
+        }
+      ).sessionUploadJobs.set("poe1:Standard", Promise.reject("previous"));
+      mockSettingsGet.mockResolvedValue(false);
+
+      await service.uploadOnSessionEnd("poe1", "Standard");
+    });
+
+    it("handles per-league and outer backfill failures and executes conflict setup", async () => {
+      const leagues = createKyselyChain([{ game: "poe1", scope: "Standard" }]);
+      const missingMarker = createKyselyChain(undefined);
+      const insert = createKyselyChain();
+      insert.onConflict.mockImplementation((callback) => {
+        callback(insert);
+        return insert;
+      });
+      let selectCount = 0;
+      service = createService({
+        insertInto: vi.fn(() => insert),
+        selectFrom: vi.fn(() =>
+          selectCount++ === 0 ? leagues : missingMarker,
+        ),
+      });
+      vi.spyOn(service, "uploadOnSessionEnd").mockResolvedValue(undefined);
+      await service.backfillIfNeeded();
+      expect(insert.onConflict).toHaveBeenCalled();
+
+      resetSingleton(CommunityUploadService);
+      service = createService({
+        selectFrom: vi.fn(() => {
+          throw "outer failure";
+        }),
+      });
+      await service.backfillIfNeeded();
+
+      resetSingleton(CommunityUploadService);
+      service = createService({
+        selectFrom: vi.fn(() => leagues),
+      });
+      vi.spyOn(service, "uploadOnSessionEnd").mockRejectedValue(
+        "league failure",
+      );
+      await service.backfillIfNeeded();
+      expect(mockSentryCaptureException).toHaveBeenCalled();
+    });
+  });
 });

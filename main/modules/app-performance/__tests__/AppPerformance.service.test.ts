@@ -470,14 +470,16 @@ describe("AppPerformanceService", () => {
   it("keeps live samples beyond the previous one-hour window", async () => {
     const service = AppPerformanceService.getInstance();
     const internals = service as unknown as {
-      sampleNow: () => void;
+      pendingSamples: AppPerformanceSampleDTO[];
+      samples: AppPerformanceSampleDTO[];
     };
 
     const captureId = service.startCapture().capture!.id;
-
-    for (let index = 0; index < 3_605; index += 1) {
-      internals.sampleNow();
-    }
+    const samples = Array.from({ length: 3_606 }, (_, index) =>
+      appPerformanceSample(index),
+    );
+    internals.samples = samples;
+    internals.pendingSamples = samples;
 
     expect(service.getState().samples).toHaveLength(3_606);
 

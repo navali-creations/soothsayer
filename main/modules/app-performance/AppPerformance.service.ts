@@ -25,6 +25,7 @@ import {
   handleValidationError,
   IpcValidationError,
 } from "~/main/utils/ipc-validation";
+import { isOverlayWindow } from "~/main/utils/is-overlay-window";
 
 import { AppPerformanceChannel } from "./AppPerformance.channels";
 import type {
@@ -1110,14 +1111,6 @@ function toBytesFromElectronMemory(value: number): number {
 function clampInteger(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return min;
   return Math.max(min, Math.min(max, Math.floor(value)));
-}
-
-function isOverlayWindow(win: BrowserWindow): boolean {
-  try {
-    return win.webContents.getURL().includes("overlay.html");
-  } catch {
-    return false;
-  }
 }
 
 export { AppPerformanceService };

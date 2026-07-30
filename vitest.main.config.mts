@@ -32,6 +32,11 @@ export default defineConfig({
       provider: "v8",
       include: ["main/modules/**/*.ts", "main/utils/**/*.ts"],
       exclude: [
+        "main/modules/__test-utils__/**",
+        // Migrations are exercised through fresh-install, upgrade-path, and
+        // idempotency database tests. Instrumenting their immutable SQL
+        // builders produces misleading branch gaps from Kysely callbacks.
+        "main/modules/database/migrations/**",
         "main/modules/**/__tests__/**",
         "main/modules/**/index.ts",
         "main/modules/**/*.api.ts",

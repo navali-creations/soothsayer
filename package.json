@@ -117,7 +117,7 @@
     "zustand": "^5.0.14"
   },
   "dependencies": {
-    "@navali/poe1-divination-cards": "^3.28.2",
+    "@navali/poe1-divination-cards": "^3.29.0",
     "better-sqlite3": "^12.11.1",
     "tslib": "^2.8.1"
   }

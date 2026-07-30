@@ -220,7 +220,10 @@ function createMockPriceSnapshot(overrides: Record<string, any> = {}) {
 }
 
 const mockMainWindow = {
-  webContents: { send: mockWebContentsSend },
+  webContents: {
+    send: mockWebContentsSend,
+    getURL: vi.fn(() => "http://localhost:5173"),
+  },
   isDestroyed: vi.fn(() => false),
 };
 
@@ -1588,6 +1591,43 @@ describe("CurrentSessionService", () => {
       );
     });
 
+    it("should invalidate overlay data without sending the full session payload", async () => {
+      const mockOverlaySend = vi.fn();
+      const mockOverlayWindow = {
+        webContents: {
+          send: mockOverlaySend,
+          getURL: vi.fn(() => "file:///app/overlay.html"),
+        },
+        isDestroyed: vi.fn(() => false),
+      };
+      mockGetAllWindows.mockReturnValue([mockMainWindow, mockOverlayWindow]);
+
+      await service.startSession("poe1", "Settlers");
+      await service.addCard("poe1", "Settlers", "The Doctor", "overlay-vis-1");
+      mockWebContentsSend.mockClear();
+      mockOverlaySend.mockClear();
+
+      await service.updateCardPriceVisibility(
+        "poe1",
+        "current",
+        "The Doctor",
+        true,
+      );
+
+      expect(mockOverlaySend).toHaveBeenCalledWith(
+        CurrentSessionChannel.DataInvalidated,
+        { game: "poe1" },
+      );
+      expect(mockOverlaySend).not.toHaveBeenCalledWith(
+        CurrentSessionChannel.DataUpdated,
+        expect.anything(),
+      );
+      expect(mockWebContentsSend).toHaveBeenCalledWith(
+        CurrentSessionChannel.DataUpdated,
+        expect.objectContaining({ game: "poe1" }),
+      );
+    });
+
     it("should toggle visibility back to false", async () => {
       await service.startSession("poe1", "Settlers");
       await service.addCard("poe1", "Settlers", "The Doctor", "toggle-1");
@@ -2029,7 +2069,7 @@ describe("CurrentSessionService", () => {
       expect(drop.rarity).toBe(0);
     });
 
-    it("should display rarity 4 for hidden cards regardless of actual rarity", async () => {
+    it("should display hidden cards as low confidence regardless of actual rarity", async () => {
       await seedDivinationCard(testDb.kysely, {
         game: "poe1",
         name: "The Doctor",
@@ -2063,8 +2103,51 @@ describe("CurrentSessionService", () => {
       const doctorDrop = result.recentDrops.find(
         (d: any) => d.cardName === "The Doctor",
       );
-      // Hidden cards should show rarity 4 (common)
-      expect(doctorDrop.rarity).toBe(4);
+      // Rarity 0 drives the overlay's low-confidence warning style.
+      expect(doctorDrop.rarity).toBe(0);
+    });
+
+    it("should emit subsequent hidden card drops as low confidence", async () => {
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe1",
+        name: "The Doctor",
+        stackSize: 8,
+      });
+
+      await seedDivinationCardRarity(testDb.kysely, {
+        game: "poe1",
+        league: "Settlers",
+        cardName: "The Doctor",
+        rarity: 1,
+      });
+
+      await service.startSession("poe1", "Settlers");
+      await service.addCard("poe1", "Settlers", "The Doctor", "hidden-delta-1");
+      await service.updateCardPriceVisibility(
+        "poe1",
+        "current",
+        "The Doctor",
+        true,
+      );
+
+      mockWebContentsSend.mockClear();
+      await service.addCard("poe1", "Settlers", "The Doctor", "hidden-delta-2");
+
+      const cardDeltaCall = mockWebContentsSend.mock.calls.find(
+        ([channel]) => channel === CurrentSessionChannel.CardDelta,
+      );
+
+      expect(cardDeltaCall?.[1]).toMatchObject({
+        game: "poe1",
+        delta: {
+          cardName: "The Doctor",
+          hidePrice: true,
+          recentDrop: {
+            cardName: "The Doctor",
+            rarity: 0,
+          },
+        },
+      });
     });
   });
 
@@ -2436,6 +2519,375 @@ describe("CurrentSessionService", () => {
 
       // Clean up singleton reference
       resetSingleton(CurrentSessionService);
+    });
+  });
+
+  describe("remaining branch coverage", () => {
+    it("stops both games on suspend and logs an individual stop rejection", async () => {
+      const internals = service as unknown as {
+        poe1ActiveSession: object | null;
+        poe2ActiveSession: object | null;
+        stopActiveSessionsForSuspend: () => Promise<void>;
+      };
+      internals.poe1ActiveSession = {};
+      internals.poe2ActiveSession = {};
+      const stopSpy = vi
+        .spyOn(service, "stopSession")
+        .mockImplementation(async (game) => {
+          if (game === "poe2") {
+            throw new Error("poe2 stop failed");
+          }
+          return {
+            durationMs: 0,
+            game,
+            league: "Settlers",
+            totalCount: 0,
+          };
+        });
+
+      await internals.stopActiveSessionsForSuspend();
+
+      expect(stopSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it.each([
+      [null, "missing"],
+      [
+        {
+          filterName: "No cards",
+          hasDivinationSection: false,
+          totalCards: 0,
+        },
+        "empty",
+      ],
+      [
+        {
+          filterName: "Ready",
+          hasDivinationSection: true,
+          totalCards: 12,
+        },
+        "ready",
+      ],
+    ])("handles a %s selected-filter parse result", async (parseResult) => {
+      const internals = service as unknown as {
+        rarityInsightsService: {
+          ensureFilterParsed: ReturnType<typeof vi.fn>;
+        };
+      };
+      internals.rarityInsightsService.ensureFilterParsed = vi
+        .fn()
+        .mockResolvedValue(parseResult);
+      mockSettingsGet.mockImplementation(async (key: string) => {
+        if (key === "raritySource") return "filter";
+        if (key === "selectedFilterId") return "filter-1";
+        return null;
+      });
+
+      await service.startSession("poe1", "Settlers");
+      expect(
+        internals.rarityInsightsService.ensureFilterParsed,
+      ).toHaveBeenCalledWith("filter-1");
+      await service.stopSession("poe1");
+    });
+
+    it("builds PoE2 state and invalidates its timeline after hiding a card", async () => {
+      const poe2LeagueId = await seedLeague(testDb.kysely, {
+        game: "poe2",
+        name: "Dawn",
+      });
+      const poe2SnapshotId = await seedSnapshot(testDb.kysely, {
+        leagueId: poe2LeagueId,
+        cardPrices: [
+          {
+            cardName: "Rain of Chaos",
+            chaosValue: 1,
+            divineValue: 0.01,
+          },
+        ],
+      });
+      mockGetSnapshotForSession.mockResolvedValue({
+        data: createMockPriceSnapshot({
+          cardPrices: {
+            "Rain of Chaos": { chaosValue: 1, divineValue: 0.01 },
+          },
+        }),
+        snapshotId: poe2SnapshotId,
+      });
+      mockLoadSnapshot.mockResolvedValue(
+        createMockPriceSnapshot({
+          cardPrices: {
+            "Rain of Chaos": { chaosValue: 1, divineValue: 0.01 },
+          },
+        }),
+      );
+
+      await service.startSession("poe2", "Dawn");
+      await service.addCard("poe2", "Dawn", "Rain of Chaos", "poe2-state");
+      const current = await service.getCurrentSession("poe2");
+      expect(current?.cards).toHaveLength(1);
+
+      await service.updateCardPriceVisibility(
+        "poe2",
+        "current",
+        "Rain of Chaos",
+        true,
+      );
+      expect(
+        (
+          service as unknown as {
+            poe2TimelineCache: unknown;
+          }
+        ).poe2TimelineCache,
+      ).not.toBeNull();
+      await service.stopSession("poe2");
+    });
+
+    it("updates existing and new PoE2 timeline buckets for visible and hidden drops", () => {
+      const timestamp = "2025-01-01T00:00:01.000Z";
+      const internals = service as unknown as {
+        appendToTimelineCache: (
+          game: "poe2",
+          drop: {
+            cardName: string;
+            chaosValue: number | null;
+            divineValue: number | null;
+            droppedAt: string;
+          },
+        ) => {
+          notableDrop: unknown;
+          totalChaosValue: number;
+        };
+        poe2CardRarities: Map<string, number>;
+        poe2HidePriceFlags: Map<string, boolean>;
+        poe2TimelineCache: {
+          buckets: Array<{
+            timestamp: string;
+            dropCount: number;
+            cumulativeChaosValue: number;
+            cumulativeDivineValue: number;
+            topCard: string | null;
+            topCardChaosValue: number;
+          }>;
+          liveEdge: never[];
+          notableDrops: unknown[];
+          totalChaosValue: number;
+          totalDivineValue: number;
+          totalDrops: number;
+        };
+      };
+      internals.poe2TimelineCache = {
+        buckets: [
+          {
+            timestamp: "2025-01-01T00:00:00.000Z",
+            dropCount: 1,
+            cumulativeChaosValue: 1,
+            cumulativeDivineValue: 0.01,
+            topCard: null,
+            topCardChaosValue: 0,
+          },
+        ],
+        liveEdge: [],
+        notableDrops: [],
+        totalChaosValue: 1,
+        totalDivineValue: 0.01,
+        totalDrops: 1,
+      };
+      internals.poe2CardRarities = new Map([["Visible", 2]]);
+      internals.poe2HidePriceFlags = new Map([["Hidden", true]]);
+
+      const visible = internals.appendToTimelineCache("poe2", {
+        cardName: "Visible",
+        chaosValue: 10,
+        divineValue: 1,
+        droppedAt: timestamp,
+      });
+      const hidden = internals.appendToTimelineCache("poe2", {
+        cardName: "Hidden",
+        chaosValue: null,
+        divineValue: null,
+        droppedAt: "2025-01-01T00:00:11.000Z",
+      });
+
+      expect(visible.notableDrop).toMatchObject({ cardName: "Visible" });
+      expect(hidden.notableDrop).toBeNull();
+      expect(hidden.totalChaosValue).toBe(11);
+      expect(internals.poe2TimelineCache.buckets).toHaveLength(2);
+    });
+
+    it("uses filter and prohibited-library rarities when present", () => {
+      const internals = service as unknown as {
+        getEffectiveCardRarity: (
+          card: {
+            rarity: 4;
+            filterRarity?: 2;
+            prohibitedLibraryRarity?: 3;
+          },
+          source: string,
+        ) => number;
+      };
+
+      expect(
+        internals.getEffectiveCardRarity(
+          { rarity: 4, filterRarity: 2 },
+          "filter",
+        ),
+      ).toBe(2);
+      expect(
+        internals.getEffectiveCardRarity(
+          { rarity: 4, prohibitedLibraryRarity: 3 },
+          "prohibited-library",
+        ),
+      ).toBe(3);
+    });
+
+    it("falls back to price rarity if reading the rarity source fails", async () => {
+      const internals = service as unknown as {
+        ensureCardInRarityMap: (
+          game: "poe2",
+          league: string,
+          cardName: string,
+        ) => Promise<void>;
+        poe2CardRarities: Map<string, number> | null;
+        repository: {
+          getCardPriceRarity: ReturnType<typeof vi.fn>;
+        };
+      };
+      internals.poe2CardRarities = null;
+      mockSettingsGet.mockRejectedValueOnce(new Error("settings unavailable"));
+      internals.repository.getCardPriceRarity = vi.fn().mockResolvedValue(3);
+
+      await internals.ensureCardInRarityMap("poe2", "Dawn", "Fallback");
+
+      expect(internals.poe2CardRarities?.get("Fallback")).toBe(3);
+    });
+
+    it("waits for a post-stop flush requested by a concurrent caller", async () => {
+      const postFlush = Promise.resolve();
+      const internals = service as unknown as {
+        waitForStopSessionJob: (
+          job: object,
+          options: object,
+        ) => Promise<unknown>;
+      };
+      const job = {
+        promise: Promise.resolve({
+          durationMs: 0,
+          game: "poe1",
+          league: "Settlers",
+          totalCount: 0,
+        }),
+        options: {
+          flushCommunityUpload: false,
+          waitForCommunityUpload: false,
+        },
+        communityUploadPromise: Promise.resolve(),
+        uploadFlushRequested: false,
+        postFlushPromise: postFlush,
+      };
+
+      await internals.waitForStopSessionJob(job, {
+        flushCommunityUpload: true,
+        waitForCommunityUpload: true,
+      });
+
+      expect(mockCommunityUploadFlushPendingUploads).not.toHaveBeenCalled();
+    });
+
+    it("swallows a failed post-stop flush and failed queued upload", async () => {
+      mockCommunityUploadFlushPendingUploads.mockRejectedValueOnce(
+        new Error("flush failed"),
+      );
+      const internals = service as unknown as {
+        waitForStopSessionJob: (
+          job: object,
+          options: object,
+        ) => Promise<unknown>;
+      };
+      await internals.waitForStopSessionJob(
+        {
+          promise: Promise.resolve({
+            durationMs: 0,
+            game: "poe1",
+            league: "Settlers",
+            totalCount: 0,
+          }),
+          options: {
+            flushCommunityUpload: false,
+            waitForCommunityUpload: false,
+          },
+          communityUploadPromise: null,
+          uploadFlushRequested: false,
+          postFlushPromise: null,
+        },
+        {
+          flushCommunityUpload: true,
+          waitForCommunityUpload: true,
+        },
+      );
+
+      mockCommunityUploadOnSessionEnd.mockRejectedValueOnce(
+        new Error("upload failed"),
+      );
+      await service.startSession("poe1", "Settlers");
+      await service.stopSession("poe1", {
+        waitForCommunityUpload: true,
+      });
+    });
+
+    it("returns null from timeline IPC failures and sorts visible timeline buckets", async () => {
+      const handler = mockIpcHandle.mock.calls.find(
+        ([channel]: [string]) => channel === "current-session:get-timeline",
+      )?.[1];
+      const repository = (
+        service as unknown as {
+          repository: {
+            getSessionCards: ReturnType<typeof vi.fn>;
+          };
+        }
+      ).repository;
+      repository.getSessionCards = vi.fn().mockRejectedValue(new Error("db"));
+      await expect(handler({}, "session")).resolves.toBeNull();
+
+      const timeline = (
+        service as unknown as {
+          buildTimelineFromEvents: (
+            events: Array<{
+              cardName: string;
+              chaosValue: number;
+              divineValue: number;
+              droppedAt: string;
+            }>,
+            rarities: Map<string, number>,
+            hidden: Map<string, boolean>,
+          ) => {
+            buckets: Array<{ topCard: string | null }>;
+          };
+        }
+      ).buildTimelineFromEvents(
+        [
+          {
+            cardName: "Later",
+            chaosValue: 2,
+            divineValue: 0.02,
+            droppedAt: "2025-01-01T00:00:11Z",
+          },
+          {
+            cardName: "Earlier",
+            chaosValue: 3,
+            divineValue: 0.03,
+            droppedAt: "2025-01-01T00:00:01Z",
+          },
+        ],
+        new Map([
+          ["Later", 4],
+          ["Earlier", 1],
+        ]),
+        new Map(),
+      );
+      expect(timeline.buckets.map(({ topCard }) => topCard)).toEqual([
+        "Earlier",
+        "Later",
+      ]);
     });
   });
 });

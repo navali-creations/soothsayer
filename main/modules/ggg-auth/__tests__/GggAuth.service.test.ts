@@ -26,6 +26,8 @@ const {
   MockIpcValidationError,
   mockSentryCaptureException,
   mockPathJoin,
+  mockAppIsPackaged,
+  mockLinkGggAccount,
 } = vi.hoisted(() => {
   class _MockIpcValidationError extends Error {
     detail: string;
@@ -63,13 +65,20 @@ const {
     MockIpcValidationError: _MockIpcValidationError,
     mockSentryCaptureException: vi.fn(),
     mockPathJoin: vi.fn((...args: string[]) => args.join("/")),
+    mockAppIsPackaged: vi.fn(() => false),
+    mockLinkGggAccount: vi.fn().mockResolvedValue(undefined),
   };
 });
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
 
 vi.mock("electron", () => ({
-  app: { getPath: mockGetPath },
+  app: {
+    getPath: mockGetPath,
+    get isPackaged() {
+      return mockAppIsPackaged();
+    },
+  },
   ipcMain: { handle: mockIpcHandle },
   safeStorage: {
     isEncryptionAvailable: mockSafeStorageIsAvailable,
@@ -113,6 +122,14 @@ vi.mock("node:crypto", () => ({
 vi.mock("~/main/modules/sentry/Sentry.reporter", () => ({
   captureSentryException: mockSentryCaptureException,
   captureSentryMessage: vi.fn(),
+}));
+
+vi.mock("~/main/modules/community-upload/CommunityUpload.service", () => ({
+  CommunityUploadService: {
+    getInstance: () => ({
+      linkGggAccount: mockLinkGggAccount,
+    }),
+  },
 }));
 
 vi.mock("~/main/utils/ipc-validation", () => ({
@@ -187,6 +204,12 @@ function useProxyEnv(overrides: Record<string, string | undefined> = {}): void {
     "VITE_SUPABASE_ANON_KEY",
     overrides.VITE_SUPABASE_ANON_KEY ?? "test-anon-key",
   );
+}
+
+function useDirectEnv(): void {
+  setImportMetaEnvValue("VITE_SUPABASE_URL", undefined);
+  setImportMetaEnvValue("VITE_SUPABASE_PUBLISHABLE_KEY", undefined);
+  setImportMetaEnvValue("VITE_SUPABASE_ANON_KEY", undefined);
 }
 
 function createSuccessTokenResponse(overrides: Record<string, unknown> = {}) {
@@ -318,6 +341,8 @@ describe("GggAuthService", () => {
       }),
     });
     mockTimingSafeEqual.mockReturnValue(true);
+    mockAppIsPackaged.mockReturnValue(false);
+    mockLinkGggAccount.mockResolvedValue(undefined);
     mockHandleValidationError.mockImplementation((error: unknown) => {
       throw error;
     });
@@ -1200,6 +1225,313 @@ describe("GggAuthService", () => {
 
       // shell.openExternal should have been called twice
       expect(mockShellOpenExternal).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe("direct OAuth fallback coverage", () => {
+    beforeEach(() => {
+      useDirectEnv();
+    });
+
+    it("exchanges an authorization code directly and links the GGG account", async () => {
+      const service = GggAuthService.getInstance();
+      mockFetch.mockResolvedValueOnce(createSuccessTokenResponse());
+      const { authPromise, getCallbackUrl } =
+        startAuthFlowAndCaptureState(service);
+
+      await service.handleCallback(getCallbackUrl("direct-code"));
+      await expect(authPromise).resolves.toMatchObject({ success: true });
+
+      const [url, options] = mockFetch.mock.calls[0];
+      expect(String(url)).toBe("https://www.pathofexile.com/oauth/token");
+      expect(parseRequestBody(options.body)).toMatchObject({
+        code: "direct-code",
+        grant_type: "authorization_code",
+      });
+      await vi.waitFor(() => expect(mockLinkGggAccount).toHaveBeenCalled());
+    });
+
+    it("does not fail authentication when background account linking fails", async () => {
+      const consoleError = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      mockLinkGggAccount.mockRejectedValueOnce(new Error("link failed"));
+      mockFetch.mockResolvedValueOnce(createSuccessTokenResponse());
+      const { authPromise, getCallbackUrl } = startAuthFlowAndCaptureState(
+        GggAuthService.getInstance(),
+      );
+
+      await GggAuthService.getInstance().handleCallback(getCallbackUrl());
+      await expect(authPromise).resolves.toMatchObject({ success: true });
+      await vi.waitFor(() => {
+        expect(consoleError).toHaveBeenCalledWith(
+          "[GggAuth] Failed to trigger GGG account link:",
+          expect.any(Error),
+        );
+      });
+      consoleError.mockRestore();
+    });
+
+    it("uses an unknown proxy error body when exchange and refresh bodies reject", async () => {
+      mutableImportMetaEnv.VITE_SUPABASE_URL = "https://example.supabase.co";
+      mutableImportMetaEnv.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY = "public-key";
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        text: () => Promise.reject(new Error("unreadable")),
+      });
+      const { authPromise, getCallbackUrl } = startAuthFlowAndCaptureState(
+        GggAuthService.getInstance(),
+      );
+
+      await GggAuthService.getInstance().handleCallback(getCallbackUrl());
+      await expect(authPromise).rejects.toThrow(
+        "Token endpoint returned 500: unknown",
+      );
+
+      resetSingleton(GggAuthService);
+      mockStoredSession(MOCK_EXPIRED_SESSION);
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        text: () => Promise.reject(new Error("unreadable")),
+      });
+      await expect(
+        GggAuthService.getInstance().getAccessToken(),
+      ).resolves.toBeNull();
+    });
+
+    it("reports direct exchange HTTP failures even when the body cannot be read", async () => {
+      const service = GggAuthService.getInstance();
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        text: () => Promise.reject(new Error("body unavailable")),
+      });
+      const { authPromise, getCallbackUrl } =
+        startAuthFlowAndCaptureState(service);
+
+      await service.handleCallback(getCallbackUrl());
+      await expect(authPromise).rejects.toThrow(
+        "Token endpoint returned 503: unknown",
+      );
+    });
+
+    it("rejects incomplete direct exchange responses", async () => {
+      const service = GggAuthService.getInstance();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ access_token: "only-access" }),
+      });
+      const { authPromise, getCallbackUrl } =
+        startAuthFlowAndCaptureState(service);
+
+      await service.handleCallback(getCallbackUrl());
+      await expect(authPromise).rejects.toThrow(
+        "Token response missing required fields",
+      );
+    });
+
+    it("refreshes a token directly", async () => {
+      mockStoredSession(MOCK_EXPIRED_SESSION);
+      mockFetch.mockResolvedValueOnce(
+        createSuccessTokenResponse({ access_token: "direct-refresh" }),
+      );
+
+      await expect(GggAuthService.getInstance().getAccessToken()).resolves.toBe(
+        "direct-refresh",
+      );
+      const [url, options] = mockFetch.mock.calls[0];
+      expect(String(url)).toBe("https://www.pathofexile.com/oauth/token");
+      expect(parseRequestBody(options.body)).toMatchObject({
+        grant_type: "refresh_token",
+        refresh_token: "test-refresh-token",
+      });
+    });
+
+    it("handles direct refresh HTTP and payload failures", async () => {
+      mockStoredSession(MOCK_EXPIRED_SESSION);
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 502,
+        text: () => Promise.reject(new Error("body unavailable")),
+      });
+
+      await expect(
+        GggAuthService.getInstance().getAccessToken(),
+      ).resolves.toBeNull();
+      expect(mockFsUnlinkSync).toHaveBeenCalled();
+
+      resetSingleton(GggAuthService);
+      vi.clearAllMocks();
+      useDirectEnv();
+      mockSafeStorageIsAvailable.mockReturnValue(true);
+      mockStoredSession(MOCK_EXPIRED_SESSION);
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ refresh_token: "only-refresh" }),
+      });
+
+      await expect(
+        GggAuthService.getInstance().getAccessToken(),
+      ).resolves.toBeNull();
+      expect(mockFsUnlinkSync).toHaveBeenCalled();
+    });
+  });
+
+  describe("session storage fallback coverage", () => {
+    it("restricts encrypted session files on Unix", async () => {
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, "platform", {
+        configurable: true,
+        value: "linux",
+      });
+      try {
+        const service = GggAuthService.getInstance();
+        mockFetch.mockResolvedValueOnce(createSuccessTokenResponse());
+        const { authPromise, getCallbackUrl } =
+          startAuthFlowAndCaptureState(service);
+
+        await service.handleCallback(getCallbackUrl());
+        await authPromise;
+        expect(mockFsChmodSync).toHaveBeenCalledWith(
+          "/fake/userData/ggg-session.enc",
+          0o600,
+        );
+      } finally {
+        Object.defineProperty(process, "platform", {
+          configurable: true,
+          value: originalPlatform,
+        });
+      }
+    });
+
+    it("stores plaintext only in development when encryption is unavailable", async () => {
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, "platform", {
+        configurable: true,
+        value: "linux",
+      });
+      vi.stubEnv("NODE_ENV", "development");
+      mockSafeStorageIsAvailable.mockReturnValue(false);
+      try {
+        const service = GggAuthService.getInstance();
+        mockFetch.mockResolvedValueOnce(createSuccessTokenResponse());
+        const { authPromise, getCallbackUrl } =
+          startAuthFlowAndCaptureState(service);
+
+        await service.handleCallback(getCallbackUrl());
+        await authPromise;
+
+        expect(mockFsWriteFileSync).toHaveBeenCalledWith(
+          "/fake/userData/ggg-session.enc",
+          expect.stringContaining('"access_token":"test-access-token"'),
+          "utf8",
+        );
+        expect(mockFsChmodSync).toHaveBeenCalled();
+      } finally {
+        Object.defineProperty(process, "platform", {
+          configurable: true,
+          value: originalPlatform,
+        });
+      }
+    });
+
+    it("does not persist plaintext sessions outside development", async () => {
+      vi.stubEnv("NODE_ENV", "production");
+      mockSafeStorageIsAvailable.mockReturnValue(false);
+      const service = GggAuthService.getInstance();
+      mockFetch.mockResolvedValueOnce(createSuccessTokenResponse());
+      const { authPromise, getCallbackUrl } =
+        startAuthFlowAndCaptureState(service);
+
+      await service.handleCallback(getCallbackUrl());
+      await authPromise;
+      expect(mockFsWriteFileSync).not.toHaveBeenCalled();
+    });
+
+    it("falls back to plaintext loading in development", async () => {
+      vi.stubEnv("NODE_ENV", "development");
+      mockFsExistsSync.mockReturnValue(true);
+      mockFsReadFileSync.mockReturnValue(
+        Buffer.from(JSON.stringify(MOCK_SESSION)),
+      );
+      mockSafeStorageIsAvailable.mockReturnValue(false);
+
+      const service = GggAuthService.getInstance();
+      await expect(service.getAccessToken()).resolves.toBe("test-access-token");
+
+      resetSingleton(GggAuthService);
+      mockSafeStorageIsAvailable.mockReturnValue(true);
+      mockSafeStorageDecrypt.mockImplementation(() => {
+        throw new Error("plaintext legacy file");
+      });
+      await expect(GggAuthService.getInstance().getAccessToken()).resolves.toBe(
+        "test-access-token",
+      );
+    });
+
+    it("refuses plaintext loading outside development", async () => {
+      vi.stubEnv("NODE_ENV", "production");
+      mockFsExistsSync.mockReturnValue(true);
+      mockFsReadFileSync.mockReturnValue(
+        Buffer.from(JSON.stringify(MOCK_SESSION)),
+      );
+      mockSafeStorageIsAvailable.mockReturnValue(false);
+
+      await expect(
+        GggAuthService.getInstance().getAccessToken(),
+      ).resolves.toBeNull();
+    });
+
+    it("swallows encryption and deletion failures", async () => {
+      const service = GggAuthService.getInstance();
+      mockSafeStorageEncrypt.mockImplementation(() => {
+        throw new Error("encryption unavailable");
+      });
+      mockFetch.mockResolvedValueOnce(createSuccessTokenResponse());
+      const { authPromise, getCallbackUrl } =
+        startAuthFlowAndCaptureState(service);
+
+      await service.handleCallback(getCallbackUrl());
+      await expect(authPromise).resolves.toMatchObject({ success: true });
+
+      mockFsExistsSync.mockReturnValue(true);
+      mockFsUnlinkSync.mockImplementation(() => {
+        throw new Error("permission denied");
+      });
+      expect(() => service.logout()).not.toThrow();
+    });
+
+    it("handles unexpected auth-status failures and warns without a production proxy", async () => {
+      useDirectEnv();
+      mockAppIsPackaged.mockReturnValue(true);
+      const consoleError = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      const service = GggAuthService.getInstance();
+      expect(consoleError).toHaveBeenCalledWith(
+        expect.stringContaining("Running in production without OAuth proxy"),
+      );
+
+      (
+        service as unknown as {
+          sessionStorage: { load: () => never };
+        }
+      ).sessionStorage.load = () => {
+        throw "unexpected";
+      };
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        GggAuthChannel.GetAuthStatus,
+      );
+      await expect(handler({})).resolves.toEqual({
+        authenticated: false,
+        username: null,
+        accountId: null,
+      });
+      expect(mockSentryCaptureException).toHaveBeenCalled();
+      consoleError.mockRestore();
     });
   });
 });

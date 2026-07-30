@@ -1,26 +1,11 @@
-import type { Rarity } from "~/types/data-stores";
+import type {
+  OverlayRecentDropDTO,
+  OverlaySessionCardDTO,
+  OverlaySessionDataDTO,
+} from "~/main/modules/overlay/Overlay.dto";
 
-export interface CardEntry {
-  cardName: string;
-  count: number;
-}
-
-export interface RecentDrop {
-  cardName: string;
-  rarity: Rarity;
-  price: {
-    chaosValue: number;
-    divineValue: number;
-  } | null;
-}
-
-export interface SessionData {
-  totalCount: number;
-  totalProfit: number;
-  chaosToDivineRatio: number;
-  cards: CardEntry[];
-  recentDrops: RecentDrop[];
-  isActive: boolean;
-}
+export type CardEntry = OverlaySessionCardDTO;
+export type RecentDrop = OverlayRecentDropDTO;
+export type SessionData = OverlaySessionDataDTO;
 
 export type OverlayTab = "all" | "valuable";

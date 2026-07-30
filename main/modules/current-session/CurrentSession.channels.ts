@@ -13,6 +13,7 @@ enum CurrentSessionChannel {
   TimelineDelta = "current-session:timeline-delta",
   CardDelta = "current-session:card-delta",
   DataUpdated = "session:data-updated",
+  DataInvalidated = "session:data-invalidated",
 }
 
 export { CurrentSessionChannel };
