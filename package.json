@@ -93,7 +93,7 @@
     "app-builder-lib": "26.15.3",
     "clsx": "^2.1.1",
     "cross-env": "^10.1.0",
-    "daisyui": "^5.7.14",
+    "daisyui": "^5.7.25",
     "dompurify": "^3.4.13",
     "electron": "43.2.0",
     "electron-devtools-installer": "^4.0.0",
