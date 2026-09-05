@@ -53,7 +53,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.5.3",
     "@changesets/changelog-github": "^1.0.0",
-    "@changesets/cli": "^2.31.1",
+    "@changesets/cli": "^3.0.1",
     "@electron-forge/cli": "8.0.0-alpha.10",
     "@electron-forge/maker-base": "8.0.0-alpha.10",
     "@electron-forge/maker-deb": "8.0.0-alpha.10",
