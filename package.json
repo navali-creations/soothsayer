@@ -51,7 +51,7 @@
     "email": "eskrzy@gmail.com"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.3",
+    "@biomejs/biome": "2.5.14",
     "@changesets/changelog-github": "^1.0.0",
     "@changesets/cli": "^3.0.1",
     "@electron-forge/cli": "8.0.0-alpha.10",
