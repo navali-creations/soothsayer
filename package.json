@@ -98,7 +98,7 @@
     "electron": "43.2.0",
     "electron-devtools-installer": "^4.0.0",
     "electron-squirrel-startup": "^1.0.1",
-    "immer": "^11.1.15",
+    "immer": "^11.1.18",
     "jsdom": "^30.0.1",
     "kysely": "^0.29.5",
     "motion": "^12.43.0",
