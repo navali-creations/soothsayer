@@ -655,10 +655,7 @@ export const createAppPerformanceSlice: StateCreator<
           appPerformance.captureStartedAt = state.capture?.startedAt ?? null;
           appPerformance.captureStoppedAt = state.capture?.stoppedAt ?? null;
           appPerformance.isSampling = state.isSampling;
-          appPerformance.samples = takeLatestItems(
-            state.samples,
-            MAX_RENDERER_SAMPLE_POINTS,
-          );
+          appPerformance.samples = takeLatestSamples(state.samples);
           appPerformance.metricStats = createMetricStatsByChart(
             appPerformance.samples,
           );
@@ -776,10 +773,11 @@ function readRendererHeapUsedBytes(): number | null {
   return typeof used === "number" && Number.isFinite(used) ? used : null;
 }
 
-function takeLatestItems<T>(items: T[], maxItems: number): T[] {
-  if (maxItems <= 0) return [];
-  if (items.length <= maxItems) return [...items];
-  return items.slice(-maxItems);
+function takeLatestSamples(
+  samples: AppPerformanceSampleDTO[],
+): AppPerformanceSampleDTO[] {
+  if (samples.length <= MAX_RENDERER_SAMPLE_POINTS) return [...samples];
+  return samples.slice(-MAX_RENDERER_SAMPLE_POINTS);
 }
 
 function trimSampleBuffer(samples: AppPerformanceSampleDTO[]): boolean {

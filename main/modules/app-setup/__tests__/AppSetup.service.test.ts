@@ -442,7 +442,7 @@ describe("AppSetupService", () => {
         const result = await service.validateCurrentStep();
         expect(result.isValid).toBe(false);
         expect(result.errors).toContain(
-          "Please select Path of Exile 1 Client.txt path",
+          "Please select the Path of Exile 1 client log",
         );
       });
 
@@ -459,7 +459,9 @@ describe("AppSetupService", () => {
 
         const result = await service.validateCurrentStep();
         expect(result.isValid).toBe(false);
-        expect(result.errors[0]).toContain("invalid or file does not exist");
+        expect(result.errors[0]).toContain(
+          "must be an existing Client.txt or KakaoClient.txt file",
+        );
       });
 
       it("should return invalid when path points to a directory", async () => {
@@ -478,7 +480,7 @@ describe("AppSetupService", () => {
         expect(result.isValid).toBe(false);
       });
 
-      it("should return invalid when filename is not Client.txt", async () => {
+      it("should return invalid when filename is not a supported client log", async () => {
         mockSettingsGet.mockImplementation(async (key: string) => {
           if (key === SettingsKey.SetupStep) return 3;
           if (key === SettingsKey.InstalledGames) return ["poe1"];
@@ -510,6 +512,40 @@ describe("AppSetupService", () => {
         expect(result.isValid).toBe(true);
       });
 
+      it("should accept KakaoClient.txt for Path of Exile 1", async () => {
+        mockSettingsGet.mockImplementation(async (key: string) => {
+          if (key === SettingsKey.SetupStep) return 3;
+          if (key === SettingsKey.InstalledGames) return ["poe1"];
+          if (key === SettingsKey.Poe1ClientTxtPath)
+            return "C:\\Games\\PoE\\logs\\KakaoClient.txt";
+          if (key === SettingsKey.Poe2ClientTxtPath) return null;
+          return undefined;
+        });
+        mockExistsSync.mockReturnValue(true);
+        mockStatSync.mockReturnValue({ isFile: () => true });
+
+        const result = await service.validateCurrentStep();
+
+        expect(result).toEqual({ isValid: true, errors: [] });
+      });
+
+      it("should accept KakaoClient.txt case-insensitively for Path of Exile 2", async () => {
+        mockSettingsGet.mockImplementation(async (key: string) => {
+          if (key === SettingsKey.SetupStep) return 3;
+          if (key === SettingsKey.InstalledGames) return ["poe2"];
+          if (key === SettingsKey.Poe1ClientTxtPath) return null;
+          if (key === SettingsKey.Poe2ClientTxtPath)
+            return "C:\\Games\\PoE2\\logs\\KAKAOCLIENT.TXT";
+          return undefined;
+        });
+        mockExistsSync.mockReturnValue(true);
+        mockStatSync.mockReturnValue({ isFile: () => true });
+
+        const result = await service.validateCurrentStep();
+
+        expect(result).toEqual({ isValid: true, errors: [] });
+      });
+
       it("should validate both poe1 and poe2 paths when both games installed", async () => {
         mockSettingsGet.mockImplementation(async (key: string) => {
           if (key === SettingsKey.SetupStep) return 3;
@@ -524,6 +560,28 @@ describe("AppSetupService", () => {
         expect(result.errors).toHaveLength(2);
         expect(result.errors[0]).toContain("Path of Exile 1");
         expect(result.errors[1]).toContain("Path of Exile 2");
+      });
+
+      it("should reject an invalid poe2 client path", async () => {
+        mockSettingsGet.mockImplementation(async (key: string) => {
+          if (key === SettingsKey.SetupStep) return 3;
+          if (key === SettingsKey.InstalledGames) return ["poe2"];
+          if (key === SettingsKey.Poe1ClientTxtPath) return null;
+          if (key === SettingsKey.Poe2ClientTxtPath)
+            return "C:\\Games\\PoE2\\logs\\not-client.txt";
+          return undefined;
+        });
+        mockExistsSync.mockReturnValue(true);
+        mockStatSync.mockReturnValue({ isFile: () => true });
+
+        const result = await service.validateCurrentStep();
+
+        expect(result).toEqual({
+          isValid: false,
+          errors: [
+            "Path of Exile 2 client log must be an existing Client.txt or KakaoClient.txt file",
+          ],
+        });
       });
 
       it("should handle fs.existsSync throwing an error gracefully", async () => {
@@ -812,6 +870,34 @@ describe("AppSetupService", () => {
       expect(result.error).toContain("Setup incomplete");
     });
 
+    it("should fail if installed games are cleared during final validation", async () => {
+      let installedGamesReadCount = 0;
+      mockSettingsGet.mockImplementation(async (key: string) => {
+        if (key === SettingsKey.InstalledGames) {
+          installedGamesReadCount += 1;
+          return installedGamesReadCount < 4 ? ["poe1"] : [];
+        }
+        if (key === SettingsKey.SelectedPoe1League) return "Settlers";
+        if (key === SettingsKey.SelectedPoe2League) return "";
+        if (key === SettingsKey.Poe1ClientTxtPath) {
+          return "C:\\Games\\PoE\\logs\\Client.txt";
+        }
+        if (key === SettingsKey.Poe2ClientTxtPath) return null;
+        return undefined;
+      });
+      mockExistsSync.mockReturnValue(true);
+      mockStatSync.mockReturnValue({ isFile: () => true });
+
+      await expect(service.completeSetup()).resolves.toEqual({
+        success: false,
+        error: "Setup incomplete: Please select at least one game",
+      });
+      expect(mockSettingsSet).not.toHaveBeenCalledWith(
+        SettingsKey.SetupCompleted,
+        true,
+      );
+    });
+
     it("should aggregate errors from all validation steps", async () => {
       mockSettingsGet.mockImplementation(async (key: string) => {
         if (key === SettingsKey.InstalledGames) return ["poe1", "poe2"];
@@ -827,8 +913,8 @@ describe("AppSetupService", () => {
       // Should contain league errors + path errors
       expect(result.error).toContain("Path of Exile 1 league");
       expect(result.error).toContain("Path of Exile 2 league");
-      expect(result.error).toContain("Path of Exile 1 Client.txt");
-      expect(result.error).toContain("Path of Exile 2 Client.txt");
+      expect(result.error).toContain("Path of Exile 1 client log");
+      expect(result.error).toContain("Path of Exile 2 client log");
     });
 
     it("should work through the IPC handler", async () => {

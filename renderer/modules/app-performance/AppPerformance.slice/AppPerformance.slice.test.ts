@@ -173,6 +173,22 @@ describe("AppPerformanceSlice", () => {
     expect(store.getState().appPerformance.error).toBe("IPC offline");
   });
 
+  it("hydrates an inactive capture without starting the FPS loop", async () => {
+    const store = createTestStore();
+    window.electron.appPerformance.getState.mockResolvedValue({
+      capture: null,
+      isSampling: false,
+      samples: [],
+      routeMarkers: [],
+    });
+    window.electron.appPerformance.listCaptures.mockResolvedValue(history());
+
+    await store.getState().appPerformance.hydrate();
+
+    expect(store.getState().appPerformance.isSampling).toBe(false);
+    expect(requestAnimationFrameSpy).not.toHaveBeenCalled();
+  });
+
   it("listens for state, sample, and route-marker events and cleans them up", async () => {
     const store = createTestStore();
     const cleanupState = vi.fn();
@@ -304,6 +320,23 @@ describe("AppPerformanceSlice", () => {
     expect(store.getState().appPerformance.error).toBe("history failed");
   });
 
+  it("removes selected capture ids that are no longer on the page", async () => {
+    const store = createTestStore();
+    store.setState((state) => ({
+      appPerformance: {
+        ...state.appPerformance,
+        selectedCaptureIds: ["capture-1", "stale-capture"],
+      },
+    }));
+    window.electron.appPerformance.listCaptures.mockResolvedValue(history());
+
+    await store.getState().appPerformance.loadCaptureHistory();
+
+    expect(store.getState().appPerformance.selectedCaptureIds).toEqual([
+      "capture-1",
+    ]);
+  });
+
   it("loads a capture and clears loading state", async () => {
     const store = createTestStore();
     window.electron.appPerformance.getCaptureState.mockResolvedValue(
@@ -396,6 +429,45 @@ describe("AppPerformanceSlice", () => {
     expect(store.getState().appPerformance.error).toBe("active capture");
   });
 
+  it("uses the delete fallback error when IPC omits one", async () => {
+    const store = createTestStore();
+    window.electron.appPerformance.deleteCapture.mockResolvedValue({
+      success: false,
+    });
+
+    await store.getState().appPerformance.deleteCapture("capture-1");
+
+    expect(store.getState().appPerformance.error).toBe(
+      "Failed to delete capture",
+    );
+  });
+
+  it("keeps the selected capture and current page when nothing was deleted", async () => {
+    const store = createTestStore();
+    store.getState().appPerformance.applyState(activeState());
+    store.setState((state) => ({
+      appPerformance: {
+        ...state.appPerformance,
+        captureHistory: [captureSummary(), captureSummary({ id: "capture-2" })],
+        captureHistoryPage: 2,
+      },
+    }));
+    window.electron.appPerformance.deleteCapture.mockResolvedValue({
+      success: true,
+      deleted: false,
+    });
+    window.electron.appPerformance.listCaptures.mockResolvedValue(history());
+
+    await store.getState().appPerformance.deleteCapture("capture-2");
+
+    expect(store.getState().appPerformance.captureId).toBe("capture-active");
+    expect(window.electron.appPerformance.listCaptures).toHaveBeenCalledWith({
+      page: 2,
+      pageSize: 5,
+    });
+    store.getState().appPerformance.startListening()();
+  });
+
   it("bulk deletes selected captures through one IPC call", async () => {
     const store = createTestStore();
     store.setState((state) => ({
@@ -430,6 +502,32 @@ describe("AppPerformanceSlice", () => {
     expect(window.electron.storage.getInfo).toHaveBeenCalled();
   });
 
+  it("moves to the previous page after deleting every visible capture", async () => {
+    const store = createTestStore();
+    store.setState((state) => ({
+      appPerformance: {
+        ...state.appPerformance,
+        captureHistory: [captureSummary()],
+        captureHistoryPage: 2,
+        deleteMode: true,
+        isDeleteConfirmOpen: true,
+        selectedCaptureIds: ["capture-1"],
+      },
+    }));
+    window.electron.appPerformance.deleteCaptures.mockResolvedValue({
+      success: true,
+      deletedCount: 1,
+    });
+    window.electron.appPerformance.listCaptures.mockResolvedValue(history([]));
+
+    await store.getState().appPerformance.confirmBulkDelete();
+
+    expect(window.electron.appPerformance.listCaptures).toHaveBeenCalledWith({
+      page: 1,
+      pageSize: 5,
+    });
+  });
+
   it("keeps bulk delete selection when main rejects the batch", async () => {
     const store = createTestStore();
     store.setState((state) => ({
@@ -458,6 +556,32 @@ describe("AppPerformanceSlice", () => {
       "Stop diagnostics before deleting selected captures.",
     );
     expect(store.getState().appPerformance.isBulkDeleting).toBe(false);
+  });
+
+  it("uses the bulk-delete fallback for missing and non-Error failures", async () => {
+    const store = createTestStore();
+    store.setState((state) => ({
+      appPerformance: {
+        ...state.appPerformance,
+        selectedCaptureIds: ["capture-1"],
+      },
+    }));
+    window.electron.appPerformance.deleteCaptures.mockResolvedValueOnce({
+      success: false,
+    });
+
+    await store.getState().appPerformance.confirmBulkDelete();
+    expect(store.getState().appPerformance.deleteError).toBe(
+      "Failed to delete captures",
+    );
+
+    window.electron.appPerformance.deleteCaptures.mockRejectedValueOnce(
+      "offline",
+    );
+    await store.getState().appPerformance.confirmBulkDelete();
+    expect(store.getState().appPerformance.deleteError).toBe(
+      "Failed to delete captures",
+    );
   });
 
   it("handles delete mode selection guards and empty bulk deletes", async () => {
@@ -516,6 +640,50 @@ describe("AppPerformanceSlice", () => {
     expect(
       window.electron.appPerformance.deleteCaptures,
     ).not.toHaveBeenCalled();
+  });
+
+  it("enters, configures, and cancels delete mode", () => {
+    const store = createTestStore();
+
+    store.getState().appPerformance.setIndexView("trends");
+    store.getState().appPerformance.startDeleteMode();
+    store.getState().appPerformance.openDeleteConfirm();
+    store.getState().appPerformance.setStartingCapture(true);
+
+    expect(store.getState().appPerformance.indexView).toBe("captures");
+    expect(store.getState().appPerformance.deleteMode).toBe(true);
+    expect(store.getState().appPerformance.isDeleteConfirmOpen).toBe(true);
+    expect(store.getState().appPerformance.isStartingCapture).toBe(true);
+
+    store.getState().appPerformance.cancelDeleteMode();
+
+    expect(store.getState().appPerformance.deleteMode).toBe(false);
+    expect(store.getState().appPerformance.isDeleteConfirmOpen).toBe(false);
+    expect(store.getState().appPerformance.selectedCaptureIds).toEqual([]);
+  });
+
+  it("ignores select-all outside delete mode and selects all visible captures inside it", () => {
+    const store = createTestStore();
+    store.setState((state) => ({
+      appPerformance: {
+        ...state.appPerformance,
+        captureHistory: [
+          captureSummary({ id: "capture-1" }),
+          captureSummary({ id: "capture-2" }),
+          captureSummary({ id: "active", stoppedAt: null }),
+        ],
+      },
+    }));
+
+    store.getState().appPerformance.toggleAllVisibleCaptureSelection();
+    expect(store.getState().appPerformance.selectedCaptureIds).toEqual([]);
+
+    store.getState().appPerformance.startDeleteMode();
+    store.getState().appPerformance.toggleAllVisibleCaptureSelection();
+    expect(store.getState().appPerformance.selectedCaptureIds).toEqual([
+      "capture-1",
+      "capture-2",
+    ]);
   });
 
   it("records route markers only while sampling and de-dupes identical routes", async () => {
@@ -596,6 +764,66 @@ describe("AppPerformanceSlice", () => {
     await store.getState().appPerformance.exportReport();
 
     expect(store.getState().appPerformance.error).toBe("export failed");
+  });
+
+  it("exports the current report and applies fallback errors", async () => {
+    const store = createTestStore();
+    window.electron.appPerformance.exportReport.mockResolvedValueOnce({
+      success: false,
+      canceled: false,
+    });
+
+    await store.getState().appPerformance.exportReport();
+
+    expect(window.electron.appPerformance.exportReport).toHaveBeenCalledWith(
+      undefined,
+    );
+    expect(store.getState().appPerformance.error).toBe("Export failed");
+
+    window.electron.appPerformance.exportReport.mockRejectedValueOnce(
+      "export unavailable",
+    );
+    await store.getState().appPerformance.exportReport();
+    expect(store.getState().appPerformance.error).toBe("Export failed");
+  });
+
+  it("uses fallback messages for non-Error operation failures", async () => {
+    const store = createTestStore();
+    window.electron.appPerformance.getState.mockRejectedValueOnce("offline");
+    await store.getState().appPerformance.hydrate();
+    expect(store.getState().appPerformance.error).toBe("Hydration failed");
+
+    window.electron.appPerformance.startCapture.mockRejectedValueOnce(
+      "offline",
+    );
+    await store.getState().appPerformance.startCapture();
+    expect(store.getState().appPerformance.error).toBe("Failed to start");
+
+    window.electron.appPerformance.stopCapture.mockRejectedValueOnce("offline");
+    await store.getState().appPerformance.stopCapture();
+    expect(store.getState().appPerformance.error).toBe("Failed to stop");
+
+    window.electron.appPerformance.listCaptures.mockRejectedValueOnce(
+      "offline",
+    );
+    await store.getState().appPerformance.loadCaptureHistory();
+    expect(store.getState().appPerformance.error).toBe(
+      "Failed to load history",
+    );
+
+    window.electron.appPerformance.getCaptureState.mockRejectedValueOnce(
+      "offline",
+    );
+    await store.getState().appPerformance.loadCapture("capture-1");
+    expect(store.getState().appPerformance.error).toBe(
+      "Failed to load capture",
+    );
+
+    window.electron.appPerformance.deleteCapture.mockRejectedValueOnce(
+      "offline",
+    );
+    await store.getState().appPerformance.deleteCapture("capture-1");
+    expect(store.getState().appPerformance.error).toBe("Failed to delete");
   });
 
   it("updates feature visibility and retention settings", async () => {
@@ -682,6 +910,84 @@ describe("AppPerformanceSlice", () => {
     expect(store.getState().appPerformance.lastRecordedRouteKey).toBeNull();
   });
 
+  it("ignores live updates outside sampling and trims oversized marker buffers", () => {
+    const store = createTestStore();
+    store.getState().appPerformance.addSample(sample({ sampledAt: "ignored" }));
+    store.getState().appPerformance.addRouteMarker({
+      id: "ignored",
+      route: "/settings",
+      label: "/settings",
+      markedAt: "2024-05-04T00:00:00.000Z",
+      elapsedMs: 0,
+    });
+
+    expect(store.getState().appPerformance.samples).toEqual([]);
+    expect(store.getState().appPerformance.routeMarkers).toEqual([]);
+
+    const routeMarkers = Array.from({ length: 1_000 }, (_, index) => ({
+      id: `marker-${index}`,
+      route: "/settings",
+      label: "/settings",
+      markedAt: "2024-05-04T00:00:00.000Z",
+      elapsedMs: index,
+    }));
+    store
+      .getState()
+      .appPerformance.applyState(activeState({ samples: [], routeMarkers }));
+    store.getState().appPerformance.addRouteMarker({
+      id: "marker-new",
+      route: "/cards",
+      label: "/cards",
+      markedAt: "2024-05-04T00:00:01.000Z",
+      elapsedMs: 1_001,
+    });
+
+    expect(store.getState().appPerformance.routeMarkers).toHaveLength(1_000);
+    expect(store.getState().appPerformance.routeMarkers[0].id).toBe("marker-1");
+    expect(store.getState().appPerformance.routeMarkers.at(-1)?.id).toBe(
+      "marker-new",
+    );
+  });
+
+  it("ignores non-finite metrics when updating rolling statistics", () => {
+    const store = createTestStore();
+    store
+      .getState()
+      .appPerformance.applyState(
+        activeState({ samples: [], routeMarkers: [] }),
+      );
+
+    store.getState().appPerformance.addSample(
+      sample({
+        fps: null,
+        appCpuPercent: Number.NaN,
+        appMemoryBytes: Infinity,
+      }),
+    );
+
+    expect(store.getState().appPerformance.metricStats.fps.count).toBe(0);
+    expect(store.getState().appPerformance.metricStats.cpu.count).toBe(0);
+    expect(store.getState().appPerformance.metricStats.memory.count).toBe(0);
+    store.getState().appPerformance.startListening()();
+  });
+
+  it("keeps only the latest samples when applying an oversized state", () => {
+    const store = createTestStore();
+    const samples = Array.from({ length: 86_401 }, (_, index) =>
+      sample({ sampledAt: `sample-${index}`, captureElapsedMs: index }),
+    );
+
+    store
+      .getState()
+      .appPerformance.applyState(activeState({ samples, routeMarkers: [] }));
+
+    expect(store.getState().appPerformance.samples).toHaveLength(86_400);
+    expect(store.getState().appPerformance.samples[0].sampledAt).toBe(
+      "sample-1",
+    );
+    store.getState().appPerformance.startListening()();
+  });
+
   it("keeps all capture samples in renderer state", () => {
     const store = createTestStore();
     const samples = Array.from({ length: 3_605 }, (_, index) =>
@@ -759,6 +1065,19 @@ describe("AppPerformanceSlice", () => {
       rendererHeapUsedBytes: 123_456,
     });
 
+    cleanup();
+  });
+
+  it("waits for a full frame window before recording renderer metrics", () => {
+    const store = createTestStore();
+    store.getState().appPerformance.applyState(activeState());
+    const cleanup = store.getState().appPerformance.startListening();
+
+    rafCallbacks[0]?.(performance.now() + 500);
+
+    expect(
+      window.electron.appPerformance.recordRendererMetrics,
+    ).not.toHaveBeenCalled();
     cleanup();
   });
 

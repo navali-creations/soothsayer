@@ -1076,5 +1076,77 @@ describe("SessionsService", () => {
 
       expect(mockLoadSnapshot).toHaveBeenCalledWith(snapshotId);
     });
+
+    it("should format sub-hour session durations in minutes", async () => {
+      const leagueId = await seedLeague(testDb.kysely, {
+        game: "poe1",
+        name: "Short League",
+      });
+      const sessionId = await seedSession(testDb.kysely, {
+        game: "poe1",
+        leagueId,
+        startedAt: "2025-01-15T10:00:00Z",
+        endedAt: "2025-01-15T10:42:00Z",
+      });
+
+      const result = await service.getSessionById(sessionId);
+
+      expect(result?.duration).toBe("42m");
+    });
+  });
+
+  describe("IPC validation", () => {
+    it.each([
+      ["Settlers", "Settlers"],
+      ["all", undefined],
+      ["", undefined],
+    ])("normalizes the search league %j", async (league, expected) => {
+      const { ipcMain } = await import("electron");
+      const search = vi
+        .spyOn(service, "searchSessionsByCard")
+        .mockResolvedValue({ sessions: [], total: 0, totalPages: 0 });
+      const handler = vi
+        .mocked(ipcMain.handle)
+        .mock.calls.find(
+          ([channel]) => channel === "sessions:search-by-card",
+        )?.[1] as (...args: unknown[]) => Promise<unknown>;
+
+      await handler({}, "poe1", "The Doctor", 1, 20, league);
+
+      expect(search).toHaveBeenCalledWith(
+        "poe1",
+        "The Doctor",
+        1,
+        20,
+        expected,
+        undefined,
+        undefined,
+      );
+    });
+
+    it("uses zero deck cost when sparkline cost metadata is absent", async () => {
+      const repository = (service as any).repository;
+      repository.getSparklineData = vi.fn().mockResolvedValue({
+        session: [{ x: 1, profit: 10 }],
+      });
+      repository.getDeckCosts = vi.fn().mockResolvedValue(new Map());
+
+      await expect(
+        (service as any).getSparklines(["session"]),
+      ).resolves.toEqual({ session: [{ x: 1, profit: 10 }] });
+    });
+
+    it("rejects invalid simple-export session selections", async () => {
+      const { ipcMain } = await import("electron");
+      const handler = vi
+        .mocked(ipcMain.handle)
+        .mock.calls.find(
+          ([channel]) => channel === "sessions:get-simple-export-rows",
+        )?.[1] as (...args: unknown[]) => Promise<unknown>;
+
+      await expect(handler({}, "poe1", "invalid")).resolves.toEqual(
+        expect.objectContaining({ success: false, error: expect.any(String) }),
+      );
+    });
   });
 });

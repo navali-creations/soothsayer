@@ -438,5 +438,5 @@ function toDiscoveredFilter(
 }
 
 function getFileName(filePath: string): string {
-  return filePath.split(/[\\/]/).at(-1) ?? filePath;
+  return filePath.replace(/^.*[\\/]/, "");
 }

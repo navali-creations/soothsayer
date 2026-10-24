@@ -35,9 +35,12 @@ https://github.com/user-attachments/assets/63e95f2b-f4e1-43e2-8e26-68d357928a51
 
 ## Requirements
 
+- Windows or Linux
 - Node.js >= 24
-- pnpm >= 10
+- pnpm >= 11
 - docker
+- [Rustup](https://rustup.rs/) (the repository pins the Rust toolchain)
+- Windows only: Visual Studio Build Tools with the **Desktop development with C++** workload
 
 ## Development
 
@@ -51,7 +54,9 @@ pnpm install
 pnpm dev
 ```
 
-That's it! 
+The first `pnpm start`, `pnpm dev`, `pnpm package`, or `pnpm make` invocation
+builds the native Path of Exile process watcher with Cargo. Subsequent builds are
+incremental.
 
 **Note:** First run may take a few minutes as it:
 - Downloads Supabase Docker images (one-time setup)
@@ -104,7 +109,7 @@ The app uses separate SQLite databases to keep data isolated between environment
 | `soothsayer.db` | Remote Supabase URL + app not packaged | `pnpm start` with production `.env` |
 | `soothsayer.prod.db` | Remote Supabase URL + packaged app | Installed release build |
 
-All databases are stored in `%AppData%\Soothsayer\` (Windows) or `~/Library/Application Support/Soothsayer/` (macOS).
+Databases are stored in Electron's platform-specific Soothsayer user-data directory.
 
 **Production credentials:** 
 

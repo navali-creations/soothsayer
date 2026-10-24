@@ -115,7 +115,7 @@ describe("Settings.utils", () => {
       const category = createGamePathsCategory(settings, onSelectFile);
       const poe1 = category.settings[0];
 
-      expect(poe1.label).toBe("Path of Exile 1 Client.txt");
+      expect(poe1.label).toBe("Path of Exile 1 client log");
       expect(poe1.value).toBe("/custom/path/poe1/Client.txt");
       expect(poe1.placeholder).toBe("No file selected");
     });
@@ -129,7 +129,7 @@ describe("Settings.utils", () => {
       const category = createGamePathsCategory(settings, onSelectFile);
       const poe2 = category.settings[1];
 
-      expect(poe2.label).toBe("Path of Exile 2 Client.txt");
+      expect(poe2.label).toBe("Path of Exile 2 client log");
       expect(poe2.value).toBe("/custom/path/poe2/Client.txt");
       expect(poe2.placeholder).toBe("No file selected");
     });
@@ -143,7 +143,7 @@ describe("Settings.utils", () => {
 
       expect(onSelectFile).toHaveBeenCalledWith(
         "poe1ClientTxtPath",
-        "Select Path of Exile 1 Client.txt",
+        "Select Path of Exile 1 client log",
       );
     });
 
@@ -156,7 +156,7 @@ describe("Settings.utils", () => {
 
       expect(onSelectFile).toHaveBeenCalledWith(
         "poe2ClientTxtPath",
-        "Select Path of Exile 2 Client.txt",
+        "Select Path of Exile 2 client log",
       );
     });
 

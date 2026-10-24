@@ -288,25 +288,57 @@ describe("SnapshotService", () => {
       expect(Object.keys(result!.cardPrices)).toHaveLength(0);
     });
 
-    it("should return stackedDeckChaosCost as 0 when null in DB", async () => {
-      const leagueId = await seedLeague(testDb.kysely);
-
-      // Seed snapshot with stackedDeckChaosCost explicitly 0
-      const snapshotId = await seedSnapshot(testDb.kysely, {
-        leagueId,
-        stackedDeckChaosCost: 0,
-        cardPrices: [],
+    it("should default nullable legacy snapshot values", async () => {
+      vi.spyOn((service as any).repository, "loadSnapshot").mockResolvedValue({
+        snapshot: {
+          id: "legacy-snapshot",
+          leagueId: "league-1",
+          fetchedAt: "2026-01-01T00:00:00.000Z",
+          chaosToDivineRatio: 200,
+          stackedDeckChaosCost: null,
+          stackedDeckMaxVolumeRate: null,
+        },
+        cardPrices: [
+          {
+            snapshotId: "legacy-snapshot",
+            cardName: "The Doctor",
+            chaosValue: 10,
+            divineValue: 0.05,
+            confidence: null,
+          },
+        ],
       });
 
-      const result = await service.loadSnapshot(snapshotId);
+      const result = await service.loadSnapshot("legacy-snapshot");
 
       expect(result!.stackedDeckChaosCost).toBe(0);
+      expect(result!.cardPrices["The Doctor"].confidence).toBe(1);
     });
   });
 
   // ─── getSnapshotForSession ─────────────────────────────────────────────
 
   describe("getSnapshotForSession", () => {
+    it("fetches and then reuses a Path of Exile 2 snapshot", async () => {
+      mockGetLatestSnapshot.mockResolvedValue({
+        timestamp: new Date().toISOString(),
+        stackedDeckChaosCost: 4,
+        chaosToDivineRatio: 180,
+        cardPrices: {},
+      });
+
+      const created = await service.getSnapshotForSession("poe2", "Dawn");
+      const reused = await service.getSnapshotForSession("poe2", "Dawn");
+
+      expect(reused.snapshotId).toBe(created.snapshotId);
+      expect(mockUpdateRaritiesFromPrices).toHaveBeenCalledWith(
+        "poe2",
+        "Dawn",
+        180,
+        {},
+      );
+    });
+
     it("should reuse a recent snapshot when one exists", async () => {
       const leagueId = await seedLeague(testDb.kysely, {
         game: "poe1",
@@ -431,6 +463,31 @@ describe("SnapshotService", () => {
 
       expect(result.snapshotId).toBeDefined();
       expect(result.data).toBeDefined();
+      expect(mockGetLatestSnapshot).toHaveBeenCalledWith("poe1", "Settlers");
+    });
+
+    it("should fetch a replacement when a recent snapshot cannot be loaded", async () => {
+      const mockSnapshotData = {
+        timestamp: new Date().toISOString(),
+        stackedDeckChaosCost: 3,
+        chaosToDivineRatio: 200,
+        cardPrices: {},
+      };
+      vi.spyOn(
+        (service as any).repository,
+        "getRecentSnapshot",
+      ).mockResolvedValue({
+        id: "missing-recent-snapshot",
+        leagueId: "league-id",
+        fetchedAt: new Date().toISOString(),
+        chaosToDivineRatio: 200,
+      });
+      vi.spyOn(service, "loadSnapshot").mockResolvedValue(null);
+      mockGetLatestSnapshot.mockResolvedValue(mockSnapshotData);
+
+      const result = await service.getSnapshotForSession("poe1", "Settlers");
+
+      expect(result.snapshotId).not.toBe("missing-recent-snapshot");
       expect(mockGetLatestSnapshot).toHaveBeenCalledWith("poe1", "Settlers");
     });
 
@@ -831,6 +888,28 @@ describe("SnapshotService", () => {
       expect(goodWin.webContents!.send).toHaveBeenCalled();
 
       warnSpy.mockRestore();
+    });
+
+    it("should stringify a non-Error thrown while emitting an event", async () => {
+      const throwingWin = createMockWindow();
+      throwingWin.webContents!.send.mockImplementation(() => {
+        throw "renderer unavailable";
+      });
+      mockGetAllWindows.mockReturnValue([throwingWin]);
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      mockGetLatestSnapshot.mockResolvedValue({
+        timestamp: new Date().toISOString(),
+        stackedDeckChaosCost: 5,
+        chaosToDivineRatio: 200,
+        cardPrices: {},
+      });
+
+      await service.getSnapshotForSession("poe1", "Settlers");
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Failed to emit event"),
+        "renderer unavailable",
+      );
     });
 
     it("should emit OnSnapshotReused when reusing a recent snapshot", async () => {
@@ -1297,6 +1376,56 @@ describe("SnapshotService", () => {
         service.stopAllAutoRefresh();
         vi.useRealTimers();
       }
+    });
+  });
+
+  describe("local fallback loading", () => {
+    it("loads a stale local snapshot when Supabase is unavailable", async () => {
+      mockIsConfigured.mockReturnValue(false);
+      vi.spyOn(
+        (service as any).repository,
+        "getRecentSnapshot",
+      ).mockResolvedValue({
+        id: "fallback-snapshot",
+        leagueId: "league-id",
+        fetchedAt: "2025-01-01T00:00:00Z",
+      });
+      const data = {
+        timestamp: "2025-01-01T00:00:00Z",
+        stackedDeckChaosCost: 1,
+        chaosToDivineRatio: 150,
+        cardPrices: {},
+      };
+      vi.spyOn(service, "loadSnapshot").mockResolvedValue(data);
+
+      await expect(
+        (service as any).fetchSnapshotWithFallback(
+          "poe1",
+          "Settlers",
+          "league-id",
+        ),
+      ).resolves.toBe(data);
+    });
+
+    it("throws when a stale local snapshot cannot be loaded", async () => {
+      mockIsConfigured.mockReturnValue(false);
+      vi.spyOn(
+        (service as any).repository,
+        "getRecentSnapshot",
+      ).mockResolvedValue({
+        id: "broken-snapshot",
+        leagueId: "league-id",
+        fetchedAt: "2025-01-01T00:00:00Z",
+      });
+      vi.spyOn(service, "loadSnapshot").mockResolvedValue(null);
+
+      await expect(
+        (service as any).fetchSnapshotWithFallback(
+          "poe1",
+          "Settlers",
+          "league-id",
+        ),
+      ).rejects.toThrow("No snapshot available");
     });
   });
 });

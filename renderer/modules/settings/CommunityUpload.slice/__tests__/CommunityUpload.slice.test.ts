@@ -447,6 +447,23 @@ describe("CommunityUploadSlice", () => {
       consoleSpy.mockRestore();
     });
 
+    it("logs and preserves state when backfill eligibility is rejected", async () => {
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      mockGetBackfillLeagues.mockResolvedValue({
+        success: false,
+        error: "not available",
+      });
+
+      await store.getState().communityUpload.checkBackfill();
+
+      expect(store.getState().communityUpload.backfillLeagues).toEqual([]);
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[CommunityUploadSlice] Failed to check backfill eligibility.",
+      );
+    });
+
     it("sets isBackfilling while triggerBackfill is pending", async () => {
       let resolve!: (result: { success: true }) => void;
       mockTriggerBackfill.mockReturnValue(
@@ -544,6 +561,19 @@ describe("CommunityUploadSlice", () => {
       expect(result).toBe(true);
       expect(mockDismissBanner).toHaveBeenCalledWith("community-backfill");
       expect(store.getState().communityUpload.backfillError).toBeNull();
+    });
+
+    it("reports an explicit dismissal failure", async () => {
+      mockDismissBanner.mockResolvedValue(false);
+
+      const result = await store
+        .getState()
+        .communityUpload.dismissBackfillBanner();
+
+      expect(result).toBe(false);
+      expect(store.getState().communityUpload.backfillError).toBe(
+        "The banner preference could not be saved. Please try again.",
+      );
     });
   });
 });

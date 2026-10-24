@@ -50,7 +50,7 @@ describe("parseCards", () => {
       expect(result.cards["Rain of Chaos"].processedIds).toHaveLength(3);
     });
 
-    it("should use the third column as the unique ID", () => {
+    it("should extract the numeric event ID from the validated log prefix", () => {
       const logText =
         "2025/12/01 02:07:01 205270890 cff945bb [INFO Client 2588] : Card drawn from the deck: <divination>{Emperor's Luck}";
 
@@ -322,28 +322,44 @@ describe("parseCards", () => {
       expect(Object.keys(result.cards)).toHaveLength(0);
     });
 
-    it("should skip lines with too few space-separated parts to extract an ID", () => {
+    it("should skip a marker embedded in text without a client-log prefix", () => {
       const logText =
         "short line Card drawn from the deck: <divination>{The Doctor}";
 
-      // This line has "short" at index 0, "line" at index 1, and "Card" at index 2
-      // So it will try to use "Card" as the unique ID — it will actually parse
       const result = parseCards(logText);
 
-      // It will parse because there are enough parts and it has the marker + braces
-      // The ID will be "Card" which is unusual but the function doesn't validate IDs
-      expect(result.totalCount).toBe(1);
+      expect(result.totalCount).toBe(0);
+      expect(result.cards).toEqual({});
     });
 
-    it("should skip lines with fewer than 3 space-separated parts", () => {
-      const logText = "ab Card drawn from the deck: <divination>{The Doctor}";
+    it("should skip lines with a non-numeric event ID", () => {
+      const logText =
+        "2025/12/01 02:07:01 event-id abc [INFO Client 2588] : Card drawn from the deck: <divination>{The Doctor}";
 
-      // parts: ["ab", "Card", "drawn", ...] — parts[2] would be "drawn"
-      // This has enough parts to extract an ID
       const result = parseCards(logText);
 
-      // The function only requires parts.length >= 3
-      expect(result.totalCount).toBe(1);
+      expect(result.totalCount).toBe(0);
+      expect(result.cards).toEqual({});
+    });
+
+    it("should skip lines with an invalid timestamp prefix", () => {
+      const logText =
+        "2025-12-01 02:07:01 100000001 abc [INFO Client 2588] : Card drawn from the deck: <divination>{The Doctor}";
+
+      const result = parseCards(logText);
+
+      expect(result.totalCount).toBe(0);
+      expect(result.cards).toEqual({});
+    });
+
+    it("should skip lines without the client context", () => {
+      const logText =
+        "2025/12/01 02:07:01 100000001 abc Card drawn from the deck: <divination>{The Doctor}";
+
+      const result = parseCards(logText);
+
+      expect(result.totalCount).toBe(0);
+      expect(result.cards).toEqual({});
     });
 
     it("should skip lines with empty curly braces", () => {

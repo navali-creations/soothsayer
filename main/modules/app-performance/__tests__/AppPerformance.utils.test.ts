@@ -153,6 +153,10 @@ describe("AppPerformance.utils", () => {
       expect(formatCsvSample(sample)).toBe(
         '2026-01-01T00:00:05.000Z,0m 05s,"/cards,""quoted""",59.5,8.4,22.2,512.00,64.00,48.00,256.00,65.1',
       );
+
+      expect(formatCsvSample({ ...sample, mainHeapUsedBytes: null })).toContain(
+        ",512.00,,48.00,256.00,",
+      );
     });
   });
 });

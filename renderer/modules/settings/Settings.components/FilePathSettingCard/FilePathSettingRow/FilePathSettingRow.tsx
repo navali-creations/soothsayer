@@ -34,7 +34,9 @@ export function FilePathSettingRow({
         <h3 className="text-sm font-semibold text-base-content/80">
           {setting.label}
         </h3>
-        <p className="text-xs text-base-content/50">Client.txt location</p>
+        <p className="text-xs text-base-content/50">
+          Client.txt or KakaoClient.txt location
+        </p>
       </div>
       <div className="join w-full">
         <label className="input input-bordered input-sm join-item flex min-w-0 flex-1 items-center">

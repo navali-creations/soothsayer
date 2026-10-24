@@ -304,6 +304,36 @@ describe("ClientLogReaderService", () => {
       // watchFile should only be called once (from initialize), not three times
       expect(mockWatchFile).toHaveBeenCalledTimes(1);
     });
+
+    it("returns immediately when initialize is invoked after startup", async () => {
+      const service = await ClientLogReaderService.getInstance(
+        mockMainWindow as any,
+      );
+      mockSettingsGet.mockClear();
+
+      await (service as any).initialize();
+
+      expect(mockSettingsGet).not.toHaveBeenCalled();
+    });
+
+    it("keeps watching when the client log cannot initially be opened", async () => {
+      mockSettingsGet.mockImplementation(async (key: string) => {
+        if (key === "selectedGame") return "poe1";
+        if (key === "poe1ClientTxtPath") return "/game/client.txt";
+        return null;
+      });
+      mockOpenSync.mockImplementationOnce(() => {
+        throw new Error("missing");
+      });
+
+      const service = await ClientLogReaderService.getInstance(
+        mockMainWindow as any,
+      );
+
+      expect((service as any).fd).toBeNull();
+      expect((service as any).lastKnownSize).toBe(0);
+      expect(mockWatchFile).toHaveBeenCalledOnce();
+    });
   });
 
   // ─── watchFile behavior ─────────────────────────────────────────────────
@@ -372,6 +402,66 @@ describe("ClientLogReaderService", () => {
       await callback(makeStats(0), makeStats(0));
 
       expect(mockParseCards).not.toHaveBeenCalled();
+    });
+
+    it("returns if the active game disappears after the watcher starts", async () => {
+      const callback = getWatchCallback();
+      (_service as any).game = null;
+
+      await callback(makeStats(10), makeStats(0));
+
+      expect(mockReadSync).not.toHaveBeenCalled();
+    });
+
+    it("reopens a log that was truncated or rotated", async () => {
+      (_service as any).lastKnownSize = 20;
+      mockOpenSync.mockClear();
+      mockFstatSync.mockReturnValue({ size: 5 });
+      const callback = getWatchCallback();
+
+      await callback(makeStats(5), makeStats(20));
+
+      expect(mockOpenSync).toHaveBeenCalledWith("/game/client.txt", "r");
+      expect((_service as any).lastKnownSize).toBe(5);
+    });
+
+    it("reopens a descriptor that becomes available after startup", async () => {
+      (_service as any).fd = null;
+      mockOpenSync.mockClear();
+      mockFstatSync.mockReturnValue({ size: 10 });
+      mockIsSessionActive.mockReturnValue(true);
+      mockGetActiveSessionInfo.mockReturnValue({
+        sessionId: "session-1",
+        league: "Settlers",
+        startedAt: "2025-01-01T10:00:00Z",
+      });
+      const callback = getWatchCallback();
+
+      await callback(makeStats(10), makeStats(0));
+
+      expect(mockOpenSync).toHaveBeenCalledWith("/game/client.txt", "r");
+      expect(mockReadSync).not.toHaveBeenCalled();
+    });
+
+    it("parses complete lines and buffers a trailing partial line", async () => {
+      mockIsSessionActive.mockReturnValue(true);
+      mockGetActiveSessionInfo.mockReturnValue({
+        sessionId: "session-1",
+        league: "Settlers",
+        startedAt: "2025-01-01T10:00:00Z",
+      });
+      const newData = "complete line\npartial line";
+      mockReadSyncWith(newData);
+      mockParseCards.mockReturnValue({ totalCount: 0, cards: {} });
+      const callback = getWatchCallback();
+
+      await callback(makeStats(newData.length), makeStats(0));
+
+      expect(mockParseCards).toHaveBeenCalledWith(
+        "complete line\n",
+        expect.any(Set),
+      );
+      expect((_service as any).partialLine).toBe("partial line");
     });
 
     it("should skip processing when there is no active session", async () => {

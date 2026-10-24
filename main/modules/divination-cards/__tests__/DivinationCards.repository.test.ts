@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   createTestDatabase,
+  seedDivinationCardAvailability,
   seedDivinationCardRarity,
   seedFilterCardRarity,
   seedFilterMetadata,
@@ -22,6 +23,47 @@ describe("DivinationCardsRepository", () => {
 
   afterEach(async () => {
     await testDb.close();
+  });
+
+  describe("getAllCardHashes", () => {
+    it("returns only populated hashes for the requested game", async () => {
+      await insertCard("poe1", "Has Hash", { dataHash: "hash-1" });
+      await insertCard("poe1", "No Hash", { dataHash: "" });
+      await insertCard("poe2", "Other Game", { dataHash: "hash-2" });
+
+      await expect(repository.getAllCardHashes("poe1")).resolves.toEqual(
+        new Map([["Has Hash", "hash-1"]]),
+      );
+    });
+  });
+
+  describe("updateRarity", () => {
+    it("clears an existing override when requested", async () => {
+      await seedDivinationCardRarity(testDb.kysely, {
+        game: "poe1",
+        league: "Settlers",
+        cardName: "The Doctor",
+        rarity: 4,
+      });
+      await testDb.kysely
+        .updateTable("divination_card_rarities")
+        .set({ override_rarity: 1 })
+        .where("game", "=", "poe1")
+        .where("league", "=", "Settlers")
+        .where("card_name", "=", "The Doctor")
+        .execute();
+
+      await repository.updateRarity("poe1", "Settlers", "The Doctor", 2, true);
+
+      const row = await testDb.kysely
+        .selectFrom("divination_card_rarities")
+        .select(["rarity", "override_rarity"])
+        .where("game", "=", "poe1")
+        .where("league", "=", "Settlers")
+        .where("card_name", "=", "The Doctor")
+        .executeTakeFirstOrThrow();
+      expect(row).toMatchObject({ rarity: 2, override_rarity: null });
+    });
   });
 
   // ─── Helper ──────────────────────────────────────────────────────────────
@@ -263,6 +305,24 @@ describe("DivinationCardsRepository", () => {
   // ─── getAllByGame ─────────────────────────────────────────────────────────
 
   describe("getAllByGame", () => {
+    it("should restrict league results to cards in the availability pool", async () => {
+      await insertCard("poe1", "In Pool");
+      await insertCard("poe1", "Not In Pool");
+      await seedDivinationCardAvailability(testDb.kysely, {
+        league: "Settlers",
+        cardName: "In Pool",
+      });
+
+      const cards = await repository.getAllByGame(
+        "poe1",
+        "Settlers",
+        null,
+        true,
+      );
+
+      expect(cards.map(({ name }) => name)).toEqual(["In Pool"]);
+    });
+
     it("should return empty array when no cards exist", async () => {
       const cards = await repository.getAllByGame("poe1");
       expect(cards).toEqual([]);

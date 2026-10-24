@@ -767,7 +767,6 @@ class SessionsService {
 
     // Compute human-readable duration
     const computeDuration = (): string => {
-      if (!session.startedAt) return "—";
       if (!session.endedAt) return "Unknown (Corrupted)";
 
       const start = new Date(session.startedAt);

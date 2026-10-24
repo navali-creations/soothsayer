@@ -7,7 +7,7 @@ interface SetupProgressBarProps {
 const steps = [
   { step: SETUP_STEPS.SELECT_GAME, label: "Select Game" },
   { step: SETUP_STEPS.SELECT_LEAGUE, label: "Select League" },
-  { step: SETUP_STEPS.SELECT_CLIENT_PATH, label: "Client.txt Path" },
+  { step: SETUP_STEPS.SELECT_CLIENT_PATH, label: "Client Log" },
   { step: SETUP_STEPS.TELEMETRY_CONSENT, label: "Privacy & Telemetry" },
 ];
 

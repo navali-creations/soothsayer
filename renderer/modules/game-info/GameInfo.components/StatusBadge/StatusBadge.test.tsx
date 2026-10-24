@@ -20,6 +20,7 @@ function createMockStore(overrides: any = {}) {
   return {
     gameInfo: {
       isGameOnline: vi.fn(() => false),
+      isProcessWatcherAvailable: vi.fn(() => true),
       ...overrides.gameInfo,
     },
   } as any;
@@ -71,5 +72,22 @@ describe("StatusBadge", () => {
     renderWithProviders(<StatusBadge game="poe2" />);
 
     expect(isGameOnlineMock).toHaveBeenCalledWith("poe2");
+  });
+
+  it('shows "Unavailable" when native process detection is unavailable', () => {
+    setupStore({
+      gameInfo: {
+        isGameOnline: vi.fn(() => true),
+        isProcessWatcherAvailable: vi.fn(() => false),
+      },
+    });
+
+    renderWithProviders(<StatusBadge game="poe1" />);
+
+    const badge = screen.getByText("Unavailable").closest(".badge");
+    expect(badge).toHaveClass("badge-warning");
+    expect(badge).not.toHaveClass("badge-success");
+    expect(screen.queryByText("Running")).not.toBeInTheDocument();
+    expect(screen.queryByText("Offline")).not.toBeInTheDocument();
   });
 });

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { readLastLines } from "../utils/read-last-lines";
 
@@ -222,6 +222,23 @@ describe("readLastLines", () => {
     it("should throw when the file does not exist", async () => {
       const badPath = path.join(tmpDir, "nonexistent.txt");
       await expect(readLastLines(badPath, 5)).rejects.toThrow();
+    });
+
+    it("should reject partial reads and still close the file handle", async () => {
+      const close = vi.fn();
+      vi.spyOn(fs.promises, "open").mockResolvedValueOnce({
+        stat: vi.fn().mockResolvedValue({ size: 4 }),
+        read: vi.fn().mockResolvedValue({
+          bytesRead: 3,
+          buffer: Buffer.from("test"),
+        }),
+        close,
+      } as unknown as fs.promises.FileHandle);
+
+      await expect(readLastLines("partial.txt", 1)).rejects.toThrow(
+        "read size mismatch",
+      );
+      expect(close).toHaveBeenCalledOnce();
     });
   });
 

@@ -149,6 +149,7 @@ vi.mock("~/main/modules/sessions", () => ({
 }));
 
 import { CsvChannel } from "../Csv.channels";
+import { CsvExportType, CsvIntegrityStatus } from "../Csv.dto";
 import { CsvService } from "../Csv.service";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -510,6 +511,19 @@ describe("CsvService", () => {
   // ─── ExportAll — error handling ─────────────────────────────────────────
 
   describe("ExportAll handler — error cases", () => {
+    it("should return validation error for invalid scope", async () => {
+      const result = await exportAllHandler({}, null);
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: false,
+          error: expect.stringContaining("scope"),
+        }),
+      );
+      expect(mockGetAllTimeStats).not.toHaveBeenCalled();
+      expect(mockWriteFile).not.toHaveBeenCalled();
+    });
+
     it("should return error when no main window is available", async () => {
       mockGetAllWindows.mockReturnValue([]);
 
@@ -1389,6 +1403,59 @@ describe("CsvService", () => {
       });
     });
 
+    it("should compute only positive deltas against prior snapshot rows", async () => {
+      const kyselyMock = createMockKysely({
+        selectResult: {
+          total_count: 42,
+          exported_at: "2025-06-15T12:00:00.000Z",
+        },
+      });
+      const { service } = recreateServiceWithKysely(kyselyMock, {
+        mockMainWindow,
+      });
+      vi.spyOn((service as any).repository, "getSnapshot").mockResolvedValue([
+        { cardName: "The Doctor", count: 2 },
+        { cardName: "The Nurse", count: 7 },
+      ]);
+      metaHandler = getSnapshotMetaHandler();
+
+      const result = await metaHandler({}, "all-time");
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          exists: true,
+          newCardCount: 2,
+          newTotalDrops: 6,
+        }),
+      );
+    });
+
+    it("should return metadata without deltas when snapshot loading fails", async () => {
+      const kyselyMock = createMockKysely({
+        selectResult: {
+          total_count: 42,
+          exported_at: "2025-06-15T12:00:00.000Z",
+        },
+      });
+      const { service } = recreateServiceWithKysely(kyselyMock, {
+        mockMainWindow,
+      });
+      vi.spyOn((service as any).repository, "getSnapshot").mockRejectedValue(
+        new Error("snapshot unavailable"),
+      );
+      metaHandler = getSnapshotMetaHandler();
+
+      const result = await metaHandler({}, "all-time");
+
+      expect(result).toEqual({
+        exists: true,
+        exportedAt: "2025-06-15T12:00:00.000Z",
+        totalCount: 42,
+        newCardCount: 0,
+        newTotalDrops: 0,
+      });
+    });
+
     it("should pass the correct scope to the repository for league scope", async () => {
       const kyselyMock = createMockKysely();
       recreateServiceWithKysely(kyselyMock, { mockMainWindow });
@@ -1427,6 +1494,42 @@ describe("CsvService", () => {
   // ─── Integration-style ─────────────────────────────────────────────────
 
   describe("end-to-end export flow", () => {
+    it("should persist a warning snapshot when integrity checks fail", async () => {
+      vi.spyOn(
+        (_service as any).integrityChecker,
+        "runChecks",
+      ).mockRejectedValue(new Error("integrity unavailable"));
+      const saveSnapshot = vi.spyOn(
+        (_service as any).repository,
+        "saveSnapshot",
+      );
+
+      const result = await exportAllHandler({}, "all-time");
+
+      expect(result.success).toBe(true);
+      expect(saveSnapshot).toHaveBeenCalledWith(
+        "poe1",
+        "all-time",
+        expect.any(Array),
+        CsvIntegrityStatus.Warn,
+        expect.stringContaining("integrity unavailable"),
+      );
+    });
+
+    it("should use the defensive title fallback when game is absent", async () => {
+      await (_service as any).promptAndWriteCsv(
+        "name,amount\n",
+        null,
+        "all-time",
+        CsvExportType.All,
+      );
+
+      expect(mockShowSaveDialog).toHaveBeenCalledWith(
+        mockMainWindow,
+        expect.objectContaining({ title: "Export POE Divination Cards" }),
+      );
+    });
+
     it("should complete the full ExportAll pipeline correctly", async () => {
       // Setup: poe1 game with specific cards
       mockSettingsGet.mockImplementation((key: string) => {

@@ -1571,6 +1571,29 @@ describe("SettingsStoreService — IPC handlers", () => {
       });
     });
 
+    it("should accept app performance retention policies", async () => {
+      await expect(
+        setSetting(
+          { sender: { id: 1 } },
+          "appPerformanceRetention",
+          "indefinite",
+        ),
+      ).resolves.toBeUndefined();
+      expect(mockRepositorySet).toHaveBeenCalledWith(
+        "appPerformanceRetention",
+        "indefinite",
+      );
+    });
+
+    it("should validate nullable CSV export paths", async () => {
+      await expect(
+        setSetting({ sender: { id: 1 } }, "csvExportPath", "C:\\Exports"),
+      ).resolves.toBeUndefined();
+      await expect(
+        setSetting({ sender: { id: 1 } }, "csvExportPath", null),
+      ).resolves.toBeUndefined();
+    });
+
     // ── unknown key ──
 
     it("should reject unknown setting key", async () => {
@@ -2351,6 +2374,7 @@ describe("SettingsStoreService — IPC handlers", () => {
     it("should return base64 data URL for a valid mp3 file within PoE directory", async () => {
       const audioBuffer = Buffer.from("fake-mp3-data");
       mockFsReadFile.mockResolvedValue(audioBuffer);
+      vi.mocked(app.getPath).mockReturnValueOnce("C:\\mock-path");
 
       const getCustomSoundData = getIpcHandler(
         mockIpcHandle,
@@ -2363,27 +2387,18 @@ describe("SettingsStoreService — IPC handlers", () => {
       // Use path.resolve on the soundsDir to build a filePath that survives
       // the resolve → startsWith round-trip on every platform.
       const nodePath = require("node:path");
-      const soundsDir = nodePath.resolve(
-        nodePath.join("/mock-path", "My Games", "Path of Exile"),
+      const soundsDir = nodePath.join(
+        "C:\\mock-path",
+        "My Games",
+        "Path of Exile",
       );
       const filePath = nodePath.join(soundsDir, "alert.mp3");
 
       const result = await getCustomSoundData({}, filePath);
 
-      // On Windows the resolved path diverges from the un-resolved soundsDir
-      // used inside the service, so the startsWith guard rejects it → null.
-      // We therefore only assert deterministically: if the service accepted the
-      // path we get the base64 data URL; otherwise we get null (security guard).
-      if (result !== null) {
-        expect(result).toBe(
-          `data:audio/mpeg;base64,${audioBuffer.toString("base64")}`,
-        );
-      } else {
-        // The path was rejected by the security check (expected on Windows
-        // with the "/mock-path" mock). Verify the guard works by checking
-        // that readFile was NOT called (i.e. the guard prevented file access).
-        expect(mockFsReadFile).not.toHaveBeenCalled();
-      }
+      expect(result).toBe(
+        `data:audio/mpeg;base64,${audioBuffer.toString("base64")}`,
+      );
     });
 
     it("should reject file path outside PoE directory", async () => {
@@ -2398,10 +2413,13 @@ describe("SettingsStoreService — IPC handlers", () => {
 
     it("should return null when file read fails", async () => {
       mockFsReadFile.mockRejectedValue(new Error("ENOENT: file not found"));
+      vi.mocked(app.getPath).mockReturnValueOnce("C:\\mock-path");
 
       const nodePath = require("node:path");
-      const soundsDir = nodePath.resolve(
-        nodePath.join("/mock-path", "My Games", "Path of Exile"),
+      const soundsDir = nodePath.join(
+        "C:\\mock-path",
+        "My Games",
+        "Path of Exile",
       );
       const filePath = nodePath.join(soundsDir, "missing.mp3");
 
@@ -2491,6 +2509,26 @@ describe("SettingsStoreService — IPC handlers", () => {
       expect(result).toBeNull();
       // Verify readFile was actually called (i.e., we passed the startsWith guard)
       expect(mockFsReadFile).toHaveBeenCalled();
+    });
+  });
+
+  describe("closed database guards", () => {
+    it("makes reads and writes harmless after database shutdown", async () => {
+      const internals = _service as unknown as {
+        database: { isClosed: boolean };
+      };
+      internals.database.isClosed = true;
+
+      await expect(
+        _service.get(SettingsKey.ActiveGame),
+      ).resolves.toBeUndefined();
+      await expect(
+        _service.set(SettingsKey.ActiveGame, "poe2"),
+      ).resolves.toBeUndefined();
+      await expect(_service.getAllSettings()).resolves.toEqual({});
+      expect(mockRepositoryGet).not.toHaveBeenCalled();
+      expect(mockRepositorySet).not.toHaveBeenCalled();
+      expect(mockRepositoryGetAll).not.toHaveBeenCalled();
     });
   });
 

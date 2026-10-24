@@ -50,7 +50,7 @@ export class RarityInsightsMapper {
 
     // Extract filename from file path
     const pathParts = metadata.filePath.replace(/\\/g, "/").split("/");
-    const fileName = pathParts[pathParts.length - 1] ?? metadata.filterName;
+    const fileName = pathParts.at(-1)!;
 
     return {
       id: metadata.id,
@@ -141,24 +141,20 @@ export class RarityInsightsMapper {
       return false;
     }
 
-    try {
-      const filterDate = new Date(filterLastUpdate);
-      const leagueDate = new Date(leagueStartDate);
+    const filterDate = new Date(filterLastUpdate);
+    const leagueDate = new Date(leagueStartDate);
 
-      // If either date is invalid, don't mark as outdated
-      if (
-        Number.isNaN(filterDate.getTime()) ||
-        Number.isNaN(leagueDate.getTime())
-      ) {
-        return false;
-      }
-
-      // Only outdated if the filter was updated more than 3 days before league start
-      const graceThreshold =
-        leagueDate.getTime() - RarityInsightsMapper.OUTDATED_GRACE_PERIOD_MS;
-      return filterDate.getTime() < graceThreshold;
-    } catch {
+    // If either date is invalid, don't mark as outdated
+    if (
+      Number.isNaN(filterDate.getTime()) ||
+      Number.isNaN(leagueDate.getTime())
+    ) {
       return false;
     }
+
+    // Only outdated if the filter was updated more than 3 days before league start
+    const graceThreshold =
+      leagueDate.getTime() - RarityInsightsMapper.OUTDATED_GRACE_PERIOD_MS;
+    return filterDate.getTime() < graceThreshold;
   }
 }

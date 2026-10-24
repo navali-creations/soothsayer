@@ -453,6 +453,17 @@ describe("AppMenuSlice", () => {
       expect(store.getState().appMenu.whatsNewRelease).toEqual(minor);
       expect(store.getState().appMenu.whatsNewSelectedVersion).toBe("0.18.0");
     });
+
+    it("ignores an unknown release version", async () => {
+      const release = makeRelease("0.18.1");
+      electron.updater.getRecentReleases.mockResolvedValue([release]);
+
+      await store.getState().appMenu.openWhatsNew();
+      store.getState().appMenu.selectWhatsNewRelease("0.17.0");
+
+      expect(store.getState().appMenu.whatsNewRelease).toEqual(release);
+      expect(store.getState().appMenu.whatsNewSelectedVersion).toBe("0.18.1");
+    });
   });
 
   // ── closeWhatsNew ────────────────────────────────────────────────────────
@@ -515,6 +526,20 @@ describe("AppMenuSlice", () => {
         "lastSeenAppVersion",
         "0.18.2",
       );
+    });
+
+    it("keeps closing when persisting the seen version fails", async () => {
+      electron.updater.getRecentReleases.mockResolvedValue([
+        makeRelease("0.18.2"),
+      ]);
+      electron.settings.set.mockRejectedValue(new Error("write failed"));
+      store.getState().appMenu.whatsNewCurrentVersion = "0.18.2";
+
+      await store.getState().appMenu.openWhatsNew();
+      store.getState().appMenu.closeWhatsNew();
+      await Promise.resolve();
+
+      expect(store.getState().appMenu.isWhatsNewOpen).toBe(false);
     });
   });
 });

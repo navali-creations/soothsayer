@@ -6,7 +6,7 @@
  *
  *   Step 1: SELECT_GAME        — Choose between PoE 1 and PoE 2
  *   Step 2: SELECT_LEAGUE      — Pick the active league
- *   Step 3: SELECT_CLIENT_PATH — Locate the PoE Client.txt log file
+ *   Step 3: SELECT_CLIENT_PATH — Locate the PoE client log file
  *   Step 4: TELEMETRY_CONSENT  — Review privacy & telemetry info
  *
  * After completing all steps and clicking "Finish", the app redirects to the
@@ -14,7 +14,7 @@
  *
  * These tests interact with the wizard the same way a real user would:
  * clicking game cards, selecting leagues from dropdowns, using Next/Back
- * buttons, and clicking Finish. The only exception is the Client.txt file
+ * buttons, and clicking Finish. The only exception is the client log file
  * path which is set via IPC (since Electron's native file dialog can't be
  * automated by Playwright).
  *
@@ -272,7 +272,7 @@ test.describe("Setup Wizard", () => {
       // ── Step 3: Client Path ────────────────────────────────────────────
 
       await page
-        .getByText("Select Client.txt location")
+        .getByText("Select client log location")
         .waitFor({ state: "visible", timeout: 10_000 });
 
       // Verify Browse button visible
@@ -407,7 +407,7 @@ test.describe("Setup Wizard", () => {
 
       // Step 2 → Step 3
       await getNextButton(page).click();
-      await expect(page.getByText("Select Client.txt location")).toBeVisible({
+      await expect(page.getByText("Select client log location")).toBeVisible({
         timeout: 10_000,
       });
 
@@ -447,7 +447,7 @@ test.describe("Setup Wizard", () => {
       // All step labels should be visible in the progress bar
       await expect(page.getByText("Select Game")).toBeVisible();
       await expect(page.getByText("Select League")).toBeVisible();
-      await expect(page.getByText("Client.txt Path")).toBeVisible();
+      await expect(page.getByText("Client Log")).toBeVisible();
       await expect(page.getByText("Privacy & Telemetry")).toBeVisible();
 
       // On step 1, "Select Game" should have the active/primary styling

@@ -305,6 +305,40 @@ describe("RarityInsightsComparison.slice", () => {
       await slice().parseFilter("filter-1");
       expect(electron.rarityInsights.parse).not.toHaveBeenCalled();
     });
+
+    it("loads a missing theme for an already parsed filter", async () => {
+      electron.rarityInsights.parse.mockResolvedValue({
+        filterId: "filter-1",
+        filterName: "My Filter",
+        totalCards: 0,
+        rarities: [],
+        hasDivinationSection: true,
+      });
+      await slice().parseFilter("filter-1");
+
+      store.setState((state) => {
+        state.rarityInsightsComparison.filterThemes.delete("filter-1");
+      });
+      electron.rarityInsights.parse.mockClear();
+      electron.rarityInsights.getFilterTheme.mockRejectedValueOnce(
+        new Error("Theme unavailable"),
+      );
+
+      await slice().parseFilter("filter-1");
+
+      expect(electron.rarityInsights.parse).not.toHaveBeenCalled();
+      expect(slice().filterThemes.get("filter-1")).toBeNull();
+    });
+
+    it("does not start while another filter is parsing", async () => {
+      store.setState((state) => {
+        state.rarityInsightsComparison.parsingFilterId = "filter-2";
+      });
+
+      await slice().parseFilter("filter-1");
+
+      expect(electron.rarityInsights.parse).not.toHaveBeenCalled();
+    });
   });
 
   // ─── 6. parseNextUnparsedFilter ───────────────────────────────────────
@@ -342,6 +376,44 @@ describe("RarityInsightsComparison.slice", () => {
       // Both should now be parsed
       expect(slice().parsedResults.has("filter-1")).toBe(true);
       expect(slice().parsedResults.has("filter-2")).toBe(true);
+    });
+
+    it("skips parsed and failed filters before parsing the next candidate", async () => {
+      electron.rarityInsights.parse.mockResolvedValue({
+        filterId: "filter-3",
+        filterName: "Third Filter",
+        totalCards: 0,
+        rarities: [],
+        hasDivinationSection: true,
+      });
+      store.setState((state) => {
+        const comparison = state.rarityInsightsComparison;
+        comparison.selectedFilters = ["filter-1", "filter-2", "filter-3"];
+        comparison.parsedResults.set("filter-1", {
+          filterId: "filter-1",
+          filterName: "My Filter",
+          totalCards: 0,
+          rarities: new Map(),
+        });
+        comparison.parseErrors.set("filter-2", "Failed previously");
+      });
+
+      await slice().parseNextUnparsedFilter();
+
+      expect(electron.rarityInsights.parse).toHaveBeenCalledOnce();
+      expect(electron.rarityInsights.parse).toHaveBeenCalledWith("filter-3");
+      expect(slice().parsedResults.has("filter-3")).toBe(true);
+    });
+
+    it("does not parse a candidate while another filter is parsing", async () => {
+      store.setState((state) => {
+        state.rarityInsightsComparison.selectedFilters = ["filter-1"];
+        state.rarityInsightsComparison.parsingFilterId = "filter-2";
+      });
+
+      await slice().parseNextUnparsedFilter();
+
+      expect(electron.rarityInsights.parse).not.toHaveBeenCalled();
     });
   });
 
@@ -537,6 +609,22 @@ describe("RarityInsightsComparison.slice", () => {
       expect(slice().priorityPoeNinjaRarity).toBe(2);
     });
 
+    it("keeps prohibited-library and filter priorities for sorted columns", () => {
+      store.setState((state) => {
+        const comparison = state.rarityInsightsComparison;
+        comparison.priorityPlRarity = 2;
+        comparison.priorityFilterRarities = { "filter-1": 3 };
+      });
+
+      slice().handleTableSortingChange([
+        { id: "prohibitedLibraryRarity", desc: false },
+        { id: "filter_filter-1", desc: true },
+      ]);
+
+      expect(slice().priorityPlRarity).toBe(2);
+      expect(slice().priorityFilterRarities).toEqual({ "filter-1": 3 });
+    });
+
     it("deletes priorityFilterRarities entry when its column is no longer sorted", () => {
       // Set a filter priority via handleFilterRarityClick
       slice().handleFilterRarityClick("someFilterId", 2);
@@ -606,6 +694,16 @@ describe("RarityInsightsComparison.slice", () => {
       expect(
         slice().parsedResults.get("filter-1")!.rarities.get("The Doctor"),
       ).toBe(1);
+    });
+
+    it("does not create parsed results after a successful update", async () => {
+      electron.rarityInsights.updateCardRarity.mockResolvedValue({
+        success: true,
+      });
+
+      await slice().updateFilterCardRarity("filter-1", "The Doctor", 3);
+
+      expect(slice().parsedResults.has("filter-1")).toBe(false);
     });
 
     it("does not update local state when IPC returns success: false", async () => {
@@ -794,6 +892,17 @@ describe("RarityInsightsComparison.slice", () => {
     it("returns empty set when no filters are parsed", () => {
       store = makeStoreWithCards();
       const diffs = store.getState().rarityInsightsComparison.getDifferences();
+      expect(diffs.size).toBe(0);
+    });
+
+    it("returns an empty set when a selected filter is not parsed", () => {
+      store = makeStoreWithCards();
+      store.setState((state) => {
+        state.rarityInsightsComparison.selectedFilters = ["filter-1"];
+      });
+
+      const diffs = store.getState().rarityInsightsComparison.getDifferences();
+
       expect(diffs.size).toBe(0);
     });
 

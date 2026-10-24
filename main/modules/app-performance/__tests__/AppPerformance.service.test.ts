@@ -193,6 +193,60 @@ describe("AppPerformanceService", () => {
     };
   }
 
+  it("reuses the singleton instance", () => {
+    const first = AppPerformanceService.getInstance();
+    expect(AppPerformanceService.getInstance()).toBe(first);
+  });
+
+  it("handles no-op bulk deletion and fresh capture starts", async () => {
+    const service = AppPerformanceService.getInstance();
+
+    expect(service.deleteCaptures(["missing"])).toEqual({
+      success: true,
+      deletedCount: 0,
+    });
+    await expect(service.startFreshCapture()).resolves.toMatchObject({
+      isSampling: true,
+    });
+  });
+
+  it("uses default cleanup retention after capture stop", async () => {
+    mockSettingsGet.mockResolvedValue(null);
+    const service = AppPerformanceService.getInstance();
+    service.startCapture();
+
+    await service.stopCapture();
+
+    expect(service.getState().isSampling).toBe(false);
+  });
+
+  it("calculates app memory percentage and skips destroyed windows", () => {
+    const service = AppPerformanceService.getInstance();
+    vi.spyOn(service as any, "getElectronMetrics").mockReturnValue({
+      appCpuPercent: 1,
+      rendererMemoryBytes: 1_000,
+    });
+    vi.spyOn(service as any, "getFreshRendererMetrics").mockReturnValue({
+      fps: 60,
+      rendererHeapUsedBytes: 2_000,
+      receivedAt: Date.now(),
+    });
+    vi.spyOn(service as any, "getSystemMemory").mockReturnValue({
+      totalBytes: 1_000_000_000,
+      freeBytes: 500_000_000,
+    });
+    mockBrowserWindowGetAllWindows.mockReturnValue([
+      {
+        isDestroyed: vi.fn(() => true),
+        webContents: { send: vi.fn() },
+      },
+    ]);
+
+    service.startCapture();
+
+    expect(service.getState().samples[0].appMemoryPercent).not.toBeNull();
+  });
+
   it("initializes by closing open captures and applying retention cleanup", async () => {
     const service = AppPerformanceService.getInstance();
     db.prepare(
@@ -208,6 +262,21 @@ describe("AppPerformanceService", () => {
 
     expect(row?.stopped_at).not.toBeNull();
     expect(service.listCaptures().total).toBe(0);
+  });
+
+  it("uses the default retention when settings have no saved value", async () => {
+    mockSettingsGet.mockResolvedValue(null);
+    const service = AppPerformanceService.getInstance();
+    const internals = service as unknown as {
+      repository: { cleanup: ReturnType<typeof vi.fn> };
+    };
+    internals.repository.cleanup = vi.fn();
+
+    await service.initialize();
+    await service.applyRetentionCleanup();
+
+    expect(internals.repository.cleanup).toHaveBeenNthCalledWith(1, "7d");
+    expect(internals.repository.cleanup).toHaveBeenNthCalledWith(2, "7d");
   });
 
   it("returns an empty state when there are no captures", () => {
@@ -510,6 +579,54 @@ describe("AppPerformanceService", () => {
     await service.stopCapture();
   });
 
+  it("slices oversized state payloads even before the trim batch threshold", () => {
+    const service = AppPerformanceService.getInstance();
+    const internals = service as unknown as {
+      samples: AppPerformanceSampleDTO[];
+    };
+    service.startCapture();
+    internals.samples = Array.from({ length: 86_401 }, (_, index) =>
+      appPerformanceSample(index),
+    );
+
+    expect(service.getState().samples).toHaveLength(86_400);
+    expect(service.getState().samples[0]?.sampledAt).toBe("sample-1");
+  });
+
+  it("handles defensive private sampling and flush guards", async () => {
+    const service = AppPerformanceService.getInstance();
+    const sample = appPerformanceSample(1);
+    const internals = service as unknown as {
+      capture: unknown;
+      pendingSamples: AppPerformanceSampleDTO[];
+      deferredSampleFlushes: Array<{
+        captureId: string;
+        samples: AppPerformanceSampleDTO[];
+      }>;
+      sampleNow: () => void;
+      flushPendingSamples: (captureId?: string | null) => boolean;
+      deferPendingSamples: (captureId: string) => void;
+      flushDeferredSamples: () => void;
+      performStopCapture: (options: object) => Promise<unknown>;
+    };
+
+    internals.sampleNow();
+    internals.pendingSamples = [sample];
+    expect(internals.flushPendingSamples(null)).toBe(false);
+    internals.pendingSamples = [];
+    internals.deferPendingSamples("capture-id");
+    expect(internals.deferredSampleFlushes).toEqual([]);
+
+    internals.deferredSampleFlushes = [
+      { captureId: "missing", samples: [sample] },
+    ];
+    internals.flushDeferredSamples();
+    expect(internals.deferredSampleFlushes).toEqual([]);
+    await expect(internals.performStopCapture({})).resolves.toMatchObject({
+      isSampling: false,
+    });
+  });
+
   it("keeps pending samples when persistence fails", () => {
     const service = AppPerformanceService.getInstance();
     service.startCapture();
@@ -649,6 +766,92 @@ describe("AppPerformanceService", () => {
     }
   });
 
+  it("accepts Electron memory values that are already expressed in bytes", () => {
+    const original = (
+      process as NodeJS.Process & {
+        getSystemMemoryInfo?: () => { total: number; free: number };
+      }
+    ).getSystemMemoryInfo;
+    (
+      process as NodeJS.Process & {
+        getSystemMemoryInfo?: () => { total: number; free: number };
+      }
+    ).getSystemMemoryInfo = () => ({
+      total: 2_000_000_000,
+      free: 1_000_000_000,
+    });
+    const service = AppPerformanceService.getInstance();
+
+    try {
+      service.startCapture();
+      const latest = service.getState().samples.at(-1);
+      expect(latest?.systemMemoryTotalBytes).toBe(2_000_000_000);
+      expect(latest?.systemMemoryFreeBytes).toBe(1_000_000_000);
+    } finally {
+      (
+        process as NodeJS.Process & {
+          getSystemMemoryInfo?: () => { total: number; free: number };
+        }
+      ).getSystemMemoryInfo = original;
+    }
+  });
+
+  it("handles missing system totals and stale renderer metrics", () => {
+    const service = AppPerformanceService.getInstance();
+    service.startCapture();
+    const internals = service as unknown as {
+      latestRendererMetrics: {
+        fps: number;
+        rendererHeapUsedBytes: number;
+        receivedAt: number;
+      } | null;
+      getSystemMemory: () => { totalBytes: null; freeBytes: null };
+      getFreshRendererMetrics: () => unknown;
+      sampleNow: () => void;
+    };
+    internals.latestRendererMetrics = {
+      fps: 60,
+      rendererHeapUsedBytes: 1,
+      receivedAt: Date.now() - 60_000,
+    };
+    expect(internals.getFreshRendererMetrics()).toBeNull();
+    vi.spyOn(internals, "getSystemMemory").mockReturnValue({
+      totalBytes: null,
+      freeBytes: null,
+    });
+
+    internals.sampleNow();
+
+    const latest = service.getState().samples.at(-1);
+    expect(latest?.systemMemoryUsedPercent).toBeNull();
+    expect(latest?.appMemoryPercent).toBeNull();
+  });
+
+  it("ignores destroyed windows and handles Electron window enumeration errors", () => {
+    const destroyed = makeWindow(20);
+    destroyed.isDestroyed.mockReturnValue(true);
+    mockBrowserWindowGetAllWindows.mockReturnValue([destroyed]);
+    const service = AppPerformanceService.getInstance();
+    const internals = service as unknown as {
+      getRendererProcesses: () => {
+        primaryRendererPid: number | null;
+        rendererPids: number[];
+      };
+    };
+
+    expect(internals.getRendererProcesses()).toEqual({
+      primaryRendererPid: null,
+      rendererPids: [],
+    });
+    mockBrowserWindowGetAllWindows.mockImplementation(() => {
+      throw new Error("window list unavailable");
+    });
+    expect(internals.getRendererProcesses()).toEqual({
+      primaryRendererPid: null,
+      rendererPids: [],
+    });
+  });
+
   it("limits in-memory route markers to the configured maximum", () => {
     const service = AppPerformanceService.getInstance();
     service.startCapture();
@@ -774,6 +977,12 @@ describe("AppPerformanceService", () => {
       error: expect.stringContaining("untrusted webContents"),
     });
     expect(
+      getHandler(AppPerformanceChannel.StartCapture)({ sender: { id: 99 } }),
+    ).toMatchObject({ success: false });
+    await expect(
+      getHandler(AppPerformanceChannel.StopCapture)({ sender: { id: 99 } }),
+    ).resolves.toMatchObject({ success: false });
+    expect(
       getHandler(AppPerformanceChannel.ListCaptures)(event, { page: 0 }),
     ).toEqual({
       success: false,
@@ -869,6 +1078,43 @@ describe("AppPerformanceService", () => {
       success: false,
       error: 'Invalid input: Expected "captureId" to be a string, got number',
     });
+    expect(getHandler(AppPerformanceChannel.ListCaptures)(event)).toMatchObject(
+      {
+        page: 1,
+      },
+    );
+    expect(
+      getHandler(AppPerformanceChannel.ListCaptures)(event, {
+        page: 1,
+        pageSize: 20,
+      }),
+    ).toMatchObject({ page: 1, pageSize: 20 });
+    expect(
+      getHandler(AppPerformanceChannel.ListCaptures)(event, {}),
+    ).toMatchObject({ page: 1 });
+    expect(
+      getHandler(AppPerformanceChannel.RecordRendererMetrics)(event, {
+        fps: null,
+        rendererHeapUsedBytes: null,
+      }),
+    ).toEqual({ success: true });
+    await expect(
+      getHandler(AppPerformanceChannel.ApplyRetentionCleanup)(event),
+    ).resolves.toBeTypeOf("number");
+    await expect(
+      getHandler(AppPerformanceChannel.ApplyRetentionCleanup)(event, "7d"),
+    ).resolves.toBeTypeOf("number");
+    await expect(
+      getHandler(AppPerformanceChannel.ExportReport)(event),
+    ).resolves.toMatchObject({ success: false });
+  });
+
+  it("clamps non-finite direct pagination values", () => {
+    const service = AppPerformanceService.getInstance();
+
+    expect(
+      service.listCaptures({ page: Number.NaN, pageSize: Number.NaN }),
+    ).toMatchObject({ page: 1, pageSize: 1 });
   });
 
   it("returns IPC handler results for valid inputs", async () => {

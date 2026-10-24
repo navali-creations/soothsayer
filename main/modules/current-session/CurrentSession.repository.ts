@@ -561,11 +561,11 @@ export class CurrentSessionRepository {
 
     return {
       id: row.id,
-      stackSize: row.stackSize ?? null,
-      description: row.description ?? null,
-      rewardHtml: row.rewardHtml ?? null,
-      artSrc: row.artSrc ?? null,
-      flavourHtml: row.flavourHtml ?? null,
+      stackSize: row.stackSize,
+      description: row.description,
+      rewardHtml: row.rewardHtml,
+      artSrc: row.artSrc,
+      flavourHtml: row.flavourHtml,
     };
   }
 

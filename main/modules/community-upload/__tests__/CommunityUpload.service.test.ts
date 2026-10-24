@@ -1652,10 +1652,12 @@ describe("CommunityUploadService", () => {
       const snapshot = createKyselyChain([
         { card_name: "Current", count: 2 },
         { card_name: "Session", count: 5 },
+        { card_name: "No Increase", count: 5 },
       ]);
       const session = createKyselyChain([
         { card_name: "Current", count: 1 },
         { card_name: "Session", count: 2 },
+        { card_name: "Session Only", count: 2 },
       ]);
       let call = 0;
       service = createService({
@@ -1675,6 +1677,7 @@ describe("CommunityUploadService", () => {
       expect(result).toEqual([
         { card_name: "Current", count: 3 },
         { card_name: "Session", count: 7 },
+        { card_name: "Session Only", count: 2 },
       ]);
     });
 
@@ -1710,6 +1713,186 @@ describe("CommunityUploadService", () => {
       mockSettingsGet.mockResolvedValue(false);
 
       await service.uploadOnSessionEnd("poe1", "Standard");
+    });
+
+    it("recovers from an Error in a prior session job", async () => {
+      service = createService();
+      (service as any).sessionUploadJobs.set(
+        "poe1:Standard",
+        Promise.reject(new Error("previous")),
+      );
+      mockSettingsGet.mockResolvedValue(false);
+
+      await service.uploadOnSessionEnd("poe1", "Standard");
+    });
+
+    it("keeps a replacement session job registered during cleanup", async () => {
+      service = createService();
+      mockSettingsGet.mockResolvedValue(false);
+      const queued = (service as any).queueSessionUpload("poe1", "Standard");
+      const replacement = Promise.resolve({ success: true });
+      (service as any).sessionUploadJobs.set("poe1:Standard", replacement);
+
+      await queued;
+
+      expect((service as any).sessionUploadJobs.get("poe1:Standard")).toBe(
+        replacement,
+      );
+    });
+
+    it("reports non-Error failures from the global flush", async () => {
+      service = createService({
+        selectFrom: vi.fn(() => {
+          throw "flush failed";
+        }),
+      });
+
+      await service.flushPendingUploads();
+
+      expect(mockSentryCaptureException).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "flush failed" }),
+        expect.any(Object),
+      );
+    });
+
+    it("reports Error failures from the global flush", async () => {
+      const failure = new Error("flush failed");
+      service = createService({
+        selectFrom: vi.fn(() => {
+          throw failure;
+        }),
+      });
+
+      await service.flushPendingUploads();
+
+      expect(mockSentryCaptureException).toHaveBeenCalledWith(
+        failure,
+        expect.any(Object),
+      );
+    });
+
+    it("records and reports a failed pending row", async () => {
+      const row = {
+        attempts: 0,
+        cards_json: "invalid",
+        game: "poe1",
+        last_error: null,
+        next_attempt_at: null,
+        scope: "Standard",
+      };
+      const selection = createKyselyChain(row);
+      const update = createKyselyChain();
+      service = createService({
+        selectFrom: vi.fn(() => selection),
+        updateTable: vi.fn(() => update),
+      });
+      vi.spyOn(service as any, "parseOutboxCards").mockImplementation(() => {
+        throw "invalid cards";
+      });
+
+      await expect(
+        (service as any).flushPendingUploadOnce("poe1", "Standard"),
+      ).resolves.toBe("retry-later");
+
+      expect(update.set).toHaveBeenCalledWith(
+        expect.objectContaining({ last_error: "invalid cards" }),
+      );
+      expect(mockSentryCaptureException).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "invalid cards" }),
+        expect.any(Object),
+      );
+    });
+
+    it("records and reports an Error from a pending row", async () => {
+      const row = {
+        attempts: 0,
+        cards_json: "invalid",
+        game: "poe1",
+        last_error: null,
+        next_attempt_at: null,
+        scope: "Standard",
+      };
+      const selection = createKyselyChain(row);
+      const update = createKyselyChain();
+      const failure = new Error("invalid cards");
+      service = createService({
+        selectFrom: vi.fn(() => selection),
+        updateTable: vi.fn(() => update),
+      });
+      vi.spyOn(service as any, "parseOutboxCards").mockImplementation(() => {
+        throw failure;
+      });
+
+      await expect(
+        (service as any).flushPendingUploadOnce("poe1", "Standard"),
+      ).resolves.toBe("retry-later");
+      expect(mockSentryCaptureException).toHaveBeenCalledWith(
+        failure,
+        expect.any(Object),
+      );
+    });
+
+    it("records a failed prepared upload and reuses an in-flight flush", async () => {
+      const row = {
+        attempts: 1,
+        cards_json: "[]",
+        game: "poe1",
+        last_error: null,
+        next_attempt_at: null,
+        scope: "Standard",
+      };
+      const selection = createKyselyChain(row);
+      const update = createKyselyChain();
+      service = createService({
+        selectFrom: vi.fn(() => selection),
+        updateTable: vi.fn(() => update),
+      });
+      vi.spyOn(service as any, "sendPendingUpload").mockRejectedValue(
+        "network failed",
+      );
+
+      await (service as any).flushPreparedPendingUpload("poe1", "Standard", {
+        cards: [{ card_name: "Card", count: 1 }],
+        deviceId: "device",
+      });
+
+      const existing = Promise.resolve();
+      (service as any).flushJobs.set("poe1:Standard", existing);
+      await expect(
+        (service as any).flushPendingUpload("poe1", "Standard"),
+      ).resolves.toBeUndefined();
+      expect(update.set).toHaveBeenCalledWith(
+        expect.objectContaining({ last_error: "network failed" }),
+      );
+    });
+
+    it("keeps a replacement flush job registered during cleanup", async () => {
+      service = createService();
+      let finish!: () => void;
+      vi.spyOn(service as any, "flushPendingUploadLoop").mockReturnValue(
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+      );
+      const queued = (service as any).flushPendingUpload("poe1", "Standard");
+      const replacement = Promise.resolve();
+      (service as any).flushJobs.set("poe1:Standard", replacement);
+      finish();
+
+      await queued;
+
+      expect((service as any).flushJobs.get("poe1:Standard")).toBe(replacement);
+    });
+
+    it("retries changed rows for all three flush passes", async () => {
+      service = createService();
+      const once = vi
+        .spyOn(service as any, "flushPendingUploadOnce")
+        .mockResolvedValue("changed");
+
+      await (service as any).flushPendingUploadLoop("poe1", "Standard");
+
+      expect(once).toHaveBeenCalledTimes(3);
     });
 
     it("handles per-league and outer backfill failures", async () => {

@@ -18,6 +18,28 @@ describe("CardDetailsRepository", () => {
     CardDetailsRepository,
   );
 
+  it("defaults nullable card detail fields from database rows", () => {
+    const repository = getRepository() as unknown as {
+      mapCardDetailsRow: (row: Record<string, unknown>) => {
+        description: string;
+        rarity: number;
+      };
+    };
+
+    expect(
+      repository.mapCardDetailsRow({
+        name: "Card",
+        artSrc: "",
+        stackSize: 1,
+        description: null,
+        rewardHtml: "",
+        flavourHtml: "",
+        rarity: null,
+        prohibited_library_rarity: null,
+      }),
+    ).toMatchObject({ description: "", rarity: 0 });
+  });
+
   // ─── getCachedPriceHistory ───────────────────────────────────────────────
 
   describe("getCachedPriceHistory", () => {

@@ -294,6 +294,20 @@ describe("Cards.slice", () => {
       expect(electron.divinationCards.getAll).toHaveBeenCalledTimes(2);
     });
 
+    it("uses an empty cache-key segment when no filter is selected", async () => {
+      electron.divinationCards.getAll.mockResolvedValue([]);
+      store.setState((s) => {
+        s.settings.raritySource = "filter";
+        s.settings.selectedFilterId = null;
+      });
+
+      await store.getState().cards.loadCards();
+
+      expect(store.getState().cards._lastCardsKey).toBe(
+        "poe1:Standard:filter:",
+      );
+    });
+
     it("fetches again after _lastCardsKey is cleared", async () => {
       electron.divinationCards.getAll.mockResolvedValue(makeSampleCards());
       await store.getState().cards.loadCards();

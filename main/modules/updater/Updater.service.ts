@@ -546,16 +546,12 @@ class UpdaterService {
   } {
     // Wrap body in a synthetic version header so parseChangelog can handle it
     const wrapped = `## 0.0.0\n\n${body}`;
-    const releases = this.parseChangelog(wrapped);
+    const release = this.parseChangelog(wrapped)[0];
 
-    if (releases.length > 0) {
-      return {
-        changeType: releases[0].changeType,
-        entries: releases[0].entries,
-      };
-    }
-
-    return { changeType: "Changes", entries: [] };
+    return {
+      changeType: release.changeType,
+      entries: release.entries,
+    };
   }
 
   // ─── Changelog parsing ────────────────────────────────────────────────

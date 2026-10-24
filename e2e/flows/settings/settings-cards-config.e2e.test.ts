@@ -36,14 +36,14 @@ test.describe("Settings – Cards (Config)", () => {
       await openSettingsTab(page, "Game");
     });
 
-    test("should render file path inputs for PoE1 and PoE2 Client.txt", async ({
+    test("should render client log inputs for PoE1 and PoE2", async ({
       page,
     }) => {
       const panel = activeSettingsPanel(page);
       await expect(panel).toBeVisible();
 
-      await expect(panel.getByText("Path of Exile 1 Client.txt")).toBeVisible();
-      await expect(panel.getByText("Path of Exile 2 Client.txt")).toBeVisible();
+      await expect(panel.getByText("Path of Exile 1 client log")).toBeVisible();
+      await expect(panel.getByText("Path of Exile 2 client log")).toBeVisible();
 
       // There should be 2 read-only text inputs (one per game)
       const inputs = panel.locator('input[type="text"]');
@@ -143,8 +143,8 @@ test.describe("Settings – Cards (Config)", () => {
       ).toBeAttached();
 
       // Labels for each game
-      await expect(panel.getByText("Path of Exile 1 Client.txt")).toBeVisible();
-      await expect(panel.getByText("Path of Exile 2 Client.txt")).toBeVisible();
+      await expect(panel.getByText("Path of Exile 1 client log")).toBeVisible();
+      await expect(panel.getByText("Path of Exile 2 client log")).toBeVisible();
     });
 
     test("should have file picker buttons wired to selectFile IPC", async ({

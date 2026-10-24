@@ -62,6 +62,10 @@ describe("BannersService IPC", () => {
     expect(BANNER_IDS.COMMUNITY_BACKFILL).toBe("community-backfill");
   });
 
+  it("reuses the singleton instance", () => {
+    expect(BannersService.getInstance()).toBe(BannersService.getInstance());
+  });
+
   it("validates the sender and dismisses an allowlisted banner identifier", async () => {
     const handler = getIpcHandler(mockIpcHandle, BannersChannel.Dismiss);
     const event = {};

@@ -549,6 +549,34 @@ describe("SnapshotService — IPC handlers", () => {
   // ─── RefreshPrices handler ─────────────────────────────────────────────
 
   describe("RefreshPrices handler", () => {
+    it("returns refresh metadata after a successful manual refresh", async () => {
+      vi.useFakeTimers();
+      try {
+        vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
+        vi.spyOn(service, "getSnapshotForSession").mockResolvedValue({
+          snapshotId: "snapshot-1",
+          data: {
+            timestamp: "2025-12-31T23:00:00.000Z",
+            stackedDeckChaosCost: 2,
+            chaosToDivineRatio: 200,
+            cardPrices: {},
+          },
+        });
+        const handler = getIpcHandler(
+          mockIpcHandle,
+          SnapshotChannel.RefreshPrices,
+        );
+
+        await expect(handler({}, "poe1", "Keepers")).resolves.toEqual({
+          snapshotId: "snapshot-1",
+          fetchedAt: "2025-12-31T23:00:00.000Z",
+          refreshableAt: "2026-01-01T04:00:00.000Z",
+        });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it("should validate game type and league", async () => {
       // getSnapshotForSession calls ensureLeague → getLeagueByName internally,
       // then repository methods. We need the full chain to resolve so mock

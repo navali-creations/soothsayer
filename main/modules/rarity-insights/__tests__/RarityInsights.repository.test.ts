@@ -1083,6 +1083,31 @@ describe("RarityInsightsRepository", () => {
       ]);
     });
 
+    it("should persist a tier style without a background color", async () => {
+      await insertFilter({ id: "no-background-theme" });
+
+      await repository.replaceTierStyles("no-background-theme", [
+        {
+          rarity: 1,
+          bgColor: null,
+          textColor: { r: 240, g: 240, b: 240, a: 255 },
+          borderColor: null,
+        },
+      ]);
+
+      await expect(
+        repository.getTierStyles("no-background-theme"),
+      ).resolves.toEqual([
+        {
+          filterId: "no-background-theme",
+          rarity: 1,
+          bgColor: null,
+          textColor: { r: 240, g: 240, b: 240, a: 255 },
+          borderColor: null,
+        },
+      ]);
+    });
+
     it("should clear previous tier styles when replaced with an empty array", async () => {
       await insertFilter({ id: "clear-theme-filter" });
       await insertTierStyles("clear-theme-filter");
@@ -1145,6 +1170,27 @@ describe("RarityInsightsRepository", () => {
           borderColor: null,
         },
       ]);
+    });
+
+    it("should atomically clear parsed rarities and tier styles", async () => {
+      await insertFilter({ id: "clear-parsed-data-filter" });
+      await insertCardRarities("clear-parsed-data-filter", [
+        { cardName: "Old Card", rarity: 4 },
+      ]);
+      await insertTierStyles("clear-parsed-data-filter");
+
+      await repository.replaceParsedFilterData(
+        "clear-parsed-data-filter",
+        [],
+        [],
+      );
+
+      await expect(
+        repository.getCardRarities("clear-parsed-data-filter"),
+      ).resolves.toEqual([]);
+      await expect(
+        repository.getTierStyles("clear-parsed-data-filter"),
+      ).resolves.toEqual([]);
     });
   });
 

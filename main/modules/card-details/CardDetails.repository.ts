@@ -149,13 +149,13 @@ export class CardDetailsRepository {
       query = query.where("l.name", "=", league);
     }
 
-    const result = await query.executeTakeFirst();
+    const result = await query.executeTakeFirstOrThrow();
 
     return {
-      totalDrops: result?.totalDrops ?? 0,
-      firstDiscoveredAt: result?.firstDiscoveredAt ?? null,
-      lastSeenAt: result?.lastSeenAt ?? null,
-      sessionCount: result?.sessionCount ?? 0,
+      totalDrops: result.totalDrops,
+      firstDiscoveredAt: result.firstDiscoveredAt,
+      lastSeenAt: result.lastSeenAt,
+      sessionCount: result.sessionCount,
     };
   }
 
@@ -266,8 +266,8 @@ export class CardDetailsRepository {
 
     return rows.map((row) => ({
       name: row.name,
-      startDate: row.startDate ?? null,
-      endDate: row.endDate ?? null,
+      startDate: row.startDate,
+      endDate: row.endDate,
     }));
   }
 
@@ -290,9 +290,9 @@ export class CardDetailsRepository {
       query = query.where("l.name", "=", league);
     }
 
-    const result = await query.executeTakeFirst();
+    const result = await query.executeTakeFirstOrThrow();
 
-    return result?.totalDecks ?? 0;
+    return result.totalDecks;
   }
 
   /**

@@ -1,0 +1,23 @@
+[package]
+name = "soothsayer-poe-process-helper"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.96.1"
+build = "build.rs"
+
+[build-dependencies]
+winresource = "0.1.31"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+x11rb = { version = "0.13.2", default-features = false }
+
+[package.metadata.winresource]
+FileDescription = "Soothsayer PoE Process Watcher"
+ProductName = "Soothsayer"
+OriginalFilename = "soothsayer-poe-process-helper.exe"
+
+[profile.release]
+codegen-units = 1
+lto = true
+panic = "abort"
+strip = true

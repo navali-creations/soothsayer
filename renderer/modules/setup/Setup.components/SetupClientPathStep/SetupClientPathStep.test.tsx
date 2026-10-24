@@ -51,16 +51,16 @@ describe("SetupClientPathStep", () => {
       renderWithProviders(<SetupClientPathStep />);
 
       expect(
-        screen.getByText("Select Client.txt location"),
+        screen.getByText("Select client log location"),
       ).toBeInTheDocument();
     });
 
-    it("renders description text about Client.txt", () => {
+    it("explains the supported client log files", () => {
       renderWithProviders(<SetupClientPathStep />);
 
       expect(
         screen.getByText(
-          "This file is used to track your divination card drops.",
+          "Select Client.txt, or KakaoClient.txt if you use Kakao Games. Soothsayer uses the client log to track your divination card drops.",
         ),
       ).toBeInTheDocument();
     });
@@ -83,10 +83,10 @@ describe("SetupClientPathStep", () => {
       renderWithProviders(<SetupClientPathStep />);
 
       expect(
-        screen.getByText("Path of Exile 1 Client.txt"),
+        screen.getByText("Path of Exile 1 client log"),
       ).toBeInTheDocument();
       expect(
-        screen.queryByText("Path of Exile 2 Client.txt"),
+        screen.queryByText("Path of Exile 2 client log"),
       ).not.toBeInTheDocument();
     });
 
@@ -104,10 +104,10 @@ describe("SetupClientPathStep", () => {
       renderWithProviders(<SetupClientPathStep />);
 
       expect(
-        screen.getByText("Path of Exile 2 Client.txt"),
+        screen.getByText("Path of Exile 2 client log"),
       ).toBeInTheDocument();
       expect(
-        screen.queryByText("Path of Exile 1 Client.txt"),
+        screen.queryByText("Path of Exile 1 client log"),
       ).not.toBeInTheDocument();
     });
 
@@ -125,10 +125,10 @@ describe("SetupClientPathStep", () => {
       renderWithProviders(<SetupClientPathStep />);
 
       expect(
-        screen.getByText("Path of Exile 1 Client.txt"),
+        screen.getByText("Path of Exile 1 client log"),
       ).toBeInTheDocument();
       expect(
-        screen.getByText("Path of Exile 2 Client.txt"),
+        screen.getByText("Path of Exile 2 client log"),
       ).toBeInTheDocument();
     });
   });
@@ -190,7 +190,7 @@ describe("SetupClientPathStep", () => {
       await user.click(browseButton);
 
       expect(window.electron.selectFile).toHaveBeenCalledWith({
-        title: "Select Path of Exile 1 Client.txt",
+        title: "Select Path of Exile 1 client log",
         filters: [{ name: "Text Files", extensions: ["txt"] }],
         properties: ["openFile"],
       });
@@ -298,7 +298,7 @@ describe("SetupClientPathStep", () => {
       await user.click(browseButton);
 
       expect(window.electron.selectFile).toHaveBeenCalledWith({
-        title: "Select Path of Exile 2 Client.txt",
+        title: "Select Path of Exile 2 client log",
         filters: [{ name: "Text Files", extensions: ["txt"] }],
         properties: ["openFile"],
       });
@@ -314,6 +314,8 @@ describe("SetupClientPathStep", () => {
       expect(screen.getByText("Typical locations:")).toBeInTheDocument();
       expect(screen.getByText("Steam:")).toBeInTheDocument();
       expect(screen.getByText("Standalone:")).toBeInTheDocument();
+      expect(screen.getByText("Kakao Games:")).toBeInTheDocument();
+      expect(screen.getByText(/\\logs\\KakaoClient\.txt$/)).toBeInTheDocument();
     });
 
     it("shows (2) hints when both games are selected", () => {

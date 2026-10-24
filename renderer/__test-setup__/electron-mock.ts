@@ -247,11 +247,8 @@ export function createElectronMock() {
 
     // ── PoE Process ────────────────────────────────────────────────────
     poeProcess: {
-      getState: vi.fn().mockResolvedValue(null),
-      onStart: mockListener(),
-      onStop: mockListener(),
-      onState: mockListener(),
-      onError: mockListener(),
+      getSnapshot: vi.fn().mockResolvedValue(null),
+      onSnapshot: mockListener(),
     },
 
     // ── Data Store ─────────────────────────────────────────────────────

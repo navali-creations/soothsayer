@@ -31,6 +31,36 @@ describe("SessionsRepository", () => {
     await testDb.close();
   });
 
+  describe("empty-input fast paths", () => {
+    it("returns no export sessions for an empty selection", async () => {
+      await expect(
+        repository.getSessionsForExport("poe1", []),
+      ).resolves.toEqual([]);
+    });
+
+    it("skips aggregate recomputation when no scopes are affected", async () => {
+      await expect(
+        (repository as any).recomputeCardAggregates(testDb.kysely, "poe1", []),
+      ).resolves.toBeUndefined();
+    });
+
+    it("recomputes a league scope without the all-time scope", async () => {
+      await expect(
+        (repository as any).recomputeCardAggregates(testDb.kysely, "poe1", [
+          "Settlers",
+        ]),
+      ).resolves.toBeUndefined();
+    });
+
+    it("recomputes the all-time scope without league scopes", async () => {
+      await expect(
+        (repository as any).recomputeCardAggregates(testDb.kysely, "poe1", [
+          "all-time",
+        ]),
+      ).resolves.toBeUndefined();
+    });
+  });
+
   // ─── getSessionCount ─────────────────────────────────────────────────
 
   describe("getSessionCount", () => {
@@ -237,6 +267,30 @@ describe("SessionsRepository", () => {
         stackedDeckChaosCost: 5.15,
         totalDeckCost: 206,
       });
+    });
+
+    it("should derive persisted net profit when a legacy summary omits it", async () => {
+      const leagueId = await seedLeague(testDb.kysely);
+      const sessionId = await seedSession(testDb.kysely, {
+        leagueId,
+        totalCount: 10,
+      });
+      await seedSessionSummary(testDb.kysely, {
+        sessionId,
+        totalDecksOpened: 10,
+        totalValue: 100,
+        netProfit: null,
+        stackedDeckChaosCost: 2,
+      });
+      await testDb.kysely
+        .updateTable("session_summaries")
+        .set({ net_profit: null })
+        .where("session_id", "=", sessionId)
+        .execute();
+
+      const result = await repository.getSessionById(sessionId);
+
+      expect(result?.persistedTotals?.netProfit).toBe(80);
     });
 
     it("should convert isActive from integer to boolean (active)", async () => {

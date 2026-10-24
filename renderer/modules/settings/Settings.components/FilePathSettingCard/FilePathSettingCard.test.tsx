@@ -67,6 +67,9 @@ describe("FilePathSettingCard", () => {
     expect(
       screen.getByText("Configure paths to your Path of Exile client logs"),
     ).toBeInTheDocument();
+    expect(
+      screen.getAllByText("Client.txt or KakaoClient.txt location"),
+    ).toHaveLength(2);
   });
 
   it("renders all settings from the category", () => {

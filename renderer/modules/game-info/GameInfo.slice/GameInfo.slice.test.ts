@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { PoeProcessSnapshot } from "~/main/modules/poe-process";
 import type { ElectronMock } from "~/renderer/__test-setup__/electron-mock";
 import {
   createTestStore,
@@ -22,6 +23,19 @@ function makePoeLeague(overrides: { id: string; name: string }) {
     name: overrides.name,
     startAt: "2024-01-01T00:00:00Z",
     endAt: "2024-04-01T00:00:00Z",
+  };
+}
+
+function makeProcessSnapshot(
+  runningGame?: "poe1" | "poe2",
+  status: PoeProcessSnapshot["status"] = "watching",
+): PoeProcessSnapshot {
+  return {
+    status,
+    states: {
+      poe1: { isRunning: runningGame === "poe1" },
+      poe2: { isRunning: runningGame === "poe2" },
+    },
   };
 }
 
@@ -64,59 +78,57 @@ describe("GameInfoSlice", () => {
     it("has poe1Process default state", () => {
       expect(store.getState().gameInfo.poe1Process).toEqual({
         isRunning: false,
-        processName: "",
       });
     });
 
     it("has poe2Process default state", () => {
       expect(store.getState().gameInfo.poe2Process).toEqual({
         isRunning: false,
-        processName: "",
       });
+    });
+
+    it("has the watcher stopped by default", () => {
+      expect(store.getState().gameInfo.processWatcherStatus).toBe("stopped");
     });
   });
 
   // ── hydrate ──────────────────────────────────────────────────────────────
 
   describe("hydrate", () => {
-    it("calls poeProcess.getState", async () => {
-      electron.poeProcess.getState.mockResolvedValue(null);
+    it("calls poeProcess.getSnapshot", async () => {
+      electron.poeProcess.getSnapshot.mockResolvedValue(null);
 
       await store.getState().gameInfo.hydrate();
 
-      expect(electron.poeProcess.getState).toHaveBeenCalledTimes(1);
+      expect(electron.poeProcess.getSnapshot).toHaveBeenCalledTimes(1);
     });
 
     it("sets poe1 process state when a PoE 1 process is running", async () => {
-      electron.poeProcess.getState.mockResolvedValue({
-        isRunning: true,
-        processName: "PathOfExile.exe",
-      });
+      electron.poeProcess.getSnapshot.mockResolvedValue(
+        makeProcessSnapshot("poe1"),
+      );
 
       await store.getState().gameInfo.hydrate();
 
       expect(store.getState().gameInfo.poe1Process).toEqual({
         isRunning: true,
-        processName: "PathOfExile.exe",
       });
     });
 
     it("sets poe2 process state when a PoE 2 process is running", async () => {
-      electron.poeProcess.getState.mockResolvedValue({
-        isRunning: true,
-        processName: "PathOfExile2.exe",
-      });
+      electron.poeProcess.getSnapshot.mockResolvedValue(
+        makeProcessSnapshot("poe2"),
+      );
 
       await store.getState().gameInfo.hydrate();
 
       expect(store.getState().gameInfo.poe2Process).toEqual({
         isRunning: true,
-        processName: "PathOfExile2.exe",
       });
     });
 
-    it("does not set process state when getState returns null", async () => {
-      electron.poeProcess.getState.mockResolvedValue(null);
+    it("does not set process state when getSnapshot returns null", async () => {
+      electron.poeProcess.getSnapshot.mockResolvedValue(null);
 
       await store.getState().gameInfo.hydrate();
 
@@ -124,8 +136,8 @@ describe("GameInfoSlice", () => {
       expect(store.getState().gameInfo.poe2Process.isRunning).toBe(false);
     });
 
-    it("handles poeProcess.getState rejection gracefully", async () => {
-      electron.poeProcess.getState.mockRejectedValue(
+    it("handles poeProcess.getSnapshot rejection gracefully", async () => {
+      electron.poeProcess.getSnapshot.mockRejectedValue(
         new Error("IPC not ready"),
       );
 
@@ -137,7 +149,7 @@ describe("GameInfoSlice", () => {
     });
 
     it("fires off fetchLeagues for both poe1 and poe2 in the background", async () => {
-      electron.poeProcess.getState.mockResolvedValue(null);
+      electron.poeProcess.getSnapshot.mockResolvedValue(null);
       electron.poeLeagues.fetchLeagues.mockResolvedValue([]);
 
       // League fetches only fire when setup is already complete
@@ -153,7 +165,7 @@ describe("GameInfoSlice", () => {
     });
 
     it("does NOT fetch leagues when setup is not complete", async () => {
-      electron.poeProcess.getState.mockResolvedValue(null);
+      electron.poeProcess.getSnapshot.mockResolvedValue(null);
       electron.poeLeagues.fetchLeagues.mockResolvedValue([]);
 
       // Default test store has setup not complete
@@ -166,7 +178,7 @@ describe("GameInfoSlice", () => {
     });
 
     it("only fetches leagues for installed games when setup is complete", async () => {
-      electron.poeProcess.getState.mockResolvedValue(null);
+      electron.poeProcess.getSnapshot.mockResolvedValue(null);
       electron.poeLeagues.fetchLeagues.mockResolvedValue([]);
 
       // Set up the store with setup complete and only poe1 installed
@@ -296,74 +308,34 @@ describe("GameInfoSlice", () => {
     });
   });
 
-  // ── Process State Setters ────────────────────────────────────────────────
+  // ── Process Snapshot ─────────────────────────────────────────────────────
 
-  describe("setPoe1ProcessState", () => {
-    it("updates poe1Process to running", () => {
-      store.getState().gameInfo.setPoe1ProcessState({
-        isRunning: true,
-        processName: "PathOfExile.exe",
-      });
-
-      expect(store.getState().gameInfo.poe1Process).toEqual({
-        isRunning: true,
-        processName: "PathOfExile.exe",
-      });
-    });
-
-    it("updates poe1Process to stopped", () => {
-      store.getState().gameInfo.setPoe1ProcessState({
-        isRunning: true,
-        processName: "PathOfExile.exe",
-      });
-
-      store.getState().gameInfo.setPoe1ProcessState({
-        isRunning: false,
-        processName: "",
-      });
+  describe("setProcessSnapshot", () => {
+    it("updates both game statuses and watcher availability atomically", () => {
+      store
+        .getState()
+        .gameInfo.setProcessSnapshot(makeProcessSnapshot("poe2", "watching"));
 
       expect(store.getState().gameInfo.poe1Process).toEqual({
         isRunning: false,
-        processName: "",
       });
-    });
-
-    it("does not affect poe2Process", () => {
-      store.getState().gameInfo.setPoe1ProcessState({
-        isRunning: true,
-        processName: "PathOfExile.exe",
-      });
-
-      expect(store.getState().gameInfo.poe2Process).toEqual({
-        isRunning: false,
-        processName: "",
-      });
-    });
-  });
-
-  describe("setPoe2ProcessState", () => {
-    it("updates poe2Process to running", () => {
-      store.getState().gameInfo.setPoe2ProcessState({
-        isRunning: true,
-        processName: "PathOfExile2.exe",
-      });
-
       expect(store.getState().gameInfo.poe2Process).toEqual({
         isRunning: true,
-        processName: "PathOfExile2.exe",
       });
+      expect(store.getState().gameInfo.processWatcherStatus).toBe("watching");
+      expect(store.getState().gameInfo.isProcessWatcherAvailable()).toBe(true);
     });
 
-    it("does not affect poe1Process", () => {
-      store.getState().gameInfo.setPoe2ProcessState({
-        isRunning: true,
-        processName: "PathOfExile2.exe",
-      });
+    it("reports an unavailable watcher separately from an offline game", () => {
+      store
+        .getState()
+        .gameInfo.setProcessSnapshot(
+          makeProcessSnapshot(undefined, "unavailable"),
+        );
 
-      expect(store.getState().gameInfo.poe1Process).toEqual({
-        isRunning: false,
-        processName: "",
-      });
+      expect(store.getState().gameInfo.poe1Process.isRunning).toBe(false);
+      expect(store.getState().gameInfo.poe2Process.isRunning).toBe(false);
+      expect(store.getState().gameInfo.isProcessWatcherAvailable()).toBe(false);
     });
   });
 
@@ -400,10 +372,7 @@ describe("GameInfoSlice", () => {
 
   describe("isGameOnline", () => {
     it("returns true when poe1 process is running", () => {
-      store.getState().gameInfo.setPoe1ProcessState({
-        isRunning: true,
-        processName: "PathOfExile.exe",
-      });
+      store.getState().gameInfo.setProcessSnapshot(makeProcessSnapshot("poe1"));
 
       expect(store.getState().gameInfo.isGameOnline("poe1")).toBe(true);
     });
@@ -413,10 +382,7 @@ describe("GameInfoSlice", () => {
     });
 
     it("returns true when poe2 process is running", () => {
-      store.getState().gameInfo.setPoe2ProcessState({
-        isRunning: true,
-        processName: "PathOfExile2.exe",
-      });
+      store.getState().gameInfo.setProcessSnapshot(makeProcessSnapshot("poe2"));
 
       expect(store.getState().gameInfo.isGameOnline("poe2")).toBe(true);
     });
@@ -431,10 +397,7 @@ describe("GameInfoSlice", () => {
       const leagues = [makePoeLeague({ id: "Settlers", name: "Settlers" })];
 
       // The default selected game from SettingsSlice is "poe1"
-      store.getState().gameInfo.setPoe1ProcessState({
-        isRunning: true,
-        processName: "PathOfExile.exe",
-      });
+      store.getState().gameInfo.setProcessSnapshot(makeProcessSnapshot("poe1"));
 
       // Manually set leagues via fetchLeagues
       electron.poeLeagues.fetchLeagues.mockResolvedValue(leagues);
@@ -451,10 +414,7 @@ describe("GameInfoSlice", () => {
     });
 
     it("reports isOnline correctly based on the active game's process state", () => {
-      store.getState().gameInfo.setPoe1ProcessState({
-        isRunning: true,
-        processName: "PathOfExile.exe",
-      });
+      store.getState().gameInfo.setProcessSnapshot(makeProcessSnapshot("poe1"));
 
       const status = store.getState().gameInfo.getActiveGameStatus();
 
@@ -466,20 +426,11 @@ describe("GameInfoSlice", () => {
   // ── startListening ───────────────────────────────────────────────────────
 
   describe("startListening", () => {
-    it("subscribes to poeProcess.onStart", () => {
+    it("subscribes to game-aware process snapshots", () => {
       store.getState().gameInfo.startListening();
 
-      expect(electron.poeProcess.onStart).toHaveBeenCalledTimes(1);
-      expect(electron.poeProcess.onStart).toHaveBeenCalledWith(
-        expect.any(Function),
-      );
-    });
-
-    it("subscribes to poeProcess.onStop", () => {
-      store.getState().gameInfo.startListening();
-
-      expect(electron.poeProcess.onStop).toHaveBeenCalledTimes(1);
-      expect(electron.poeProcess.onStop).toHaveBeenCalledWith(
+      expect(electron.poeProcess.onSnapshot).toHaveBeenCalledTimes(1);
+      expect(electron.poeProcess.onSnapshot).toHaveBeenCalledWith(
         expect.any(Function),
       );
     });
@@ -490,94 +441,50 @@ describe("GameInfoSlice", () => {
       expect(typeof cleanup).toBe("function");
     });
 
-    it("updates poe1Process when onStart fires with a PoE 1 process", () => {
+    it("updates both games from a snapshot", () => {
       store.getState().gameInfo.startListening();
 
-      const onStartCallback = electron.poeProcess.onStart.mock.calls[0][0];
-
-      onStartCallback({
-        isRunning: true,
-        processName: "PathOfExile.exe",
-      });
-
-      expect(store.getState().gameInfo.poe1Process).toEqual({
-        isRunning: true,
-        processName: "PathOfExile.exe",
-      });
-    });
-
-    it("updates poe2Process when onStart fires with a PoE 2 process", () => {
-      store.getState().gameInfo.startListening();
-
-      const onStartCallback = electron.poeProcess.onStart.mock.calls[0][0];
-
-      onStartCallback({
-        isRunning: true,
-        processName: "PathOfExile2.exe",
-      });
-
-      expect(store.getState().gameInfo.poe2Process).toEqual({
-        isRunning: true,
-        processName: "PathOfExile2.exe",
-      });
-    });
-
-    it("resets poe1Process when onStop fires with a PoE 1 process", () => {
-      // First, set poe1 as running
-      store.getState().gameInfo.setPoe1ProcessState({
-        isRunning: true,
-        processName: "PathOfExile.exe",
-      });
-
-      store.getState().gameInfo.startListening();
-
-      const onStopCallback = electron.poeProcess.onStop.mock.calls[0][0];
-
-      onStopCallback({
-        isRunning: false,
-        processName: "PathOfExile.exe",
-      });
+      const onSnapshot = electron.poeProcess.onSnapshot.mock.calls[0][0];
+      onSnapshot(makeProcessSnapshot("poe2"));
 
       expect(store.getState().gameInfo.poe1Process).toEqual({
         isRunning: false,
-        processName: "",
+      });
+      expect(store.getState().gameInfo.poe2Process).toEqual({
+        isRunning: true,
       });
     });
 
-    it("resets poe2Process when onStop fires with a PoE 2 process", () => {
-      // First, set poe2 as running
-      store.getState().gameInfo.setPoe2ProcessState({
-        isRunning: true,
-        processName: "PathOfExile2.exe",
+    it("clears both games from a stopped snapshot", () => {
+      store.getState().gameInfo.setProcessSnapshot({
+        status: "watching",
+        states: {
+          poe1: { isRunning: true },
+          poe2: { isRunning: true },
+        },
       });
-
       store.getState().gameInfo.startListening();
 
-      const onStopCallback = electron.poeProcess.onStop.mock.calls[0][0];
+      const onSnapshot = electron.poeProcess.onSnapshot.mock.calls[0][0];
+      onSnapshot(makeProcessSnapshot(undefined, "stopped"));
 
-      onStopCallback({
+      expect(store.getState().gameInfo.poe1Process).toEqual({
         isRunning: false,
-        processName: "PathOfExile2.exe",
       });
-
       expect(store.getState().gameInfo.poe2Process).toEqual({
         isRunning: false,
-        processName: "",
       });
+      expect(store.getState().gameInfo.processWatcherStatus).toBe("stopped");
     });
 
-    it("calls cleanup functions returned by onStart and onStop", () => {
-      const unsubStart = vi.fn();
-      const unsubStop = vi.fn();
-
-      electron.poeProcess.onStart.mockReturnValue(unsubStart);
-      electron.poeProcess.onStop.mockReturnValue(unsubStop);
+    it("calls the snapshot cleanup function", () => {
+      const unsubscribe = vi.fn();
+      electron.poeProcess.onSnapshot.mockReturnValue(unsubscribe);
 
       const cleanup = store.getState().gameInfo.startListening();
       cleanup();
 
-      expect(unsubStart).toHaveBeenCalledOnce();
-      expect(unsubStop).toHaveBeenCalledOnce();
+      expect(unsubscribe).toHaveBeenCalledOnce();
     });
   });
 
@@ -589,7 +496,7 @@ describe("GameInfoSlice", () => {
         .spyOn(console, "error")
         .mockImplementation(() => {});
 
-      electron.poeProcess.getState.mockResolvedValue(null);
+      electron.poeProcess.getSnapshot.mockResolvedValue(null);
       // Make fetchLeagues reject for both games
       electron.poeLeagues.fetchLeagues.mockRejectedValue(
         new Error("Edge function down"),
@@ -620,7 +527,7 @@ describe("GameInfoSlice", () => {
     it("does not throw when background fetchLeagues rejects", async () => {
       vi.spyOn(console, "error").mockImplementation(() => {});
 
-      electron.poeProcess.getState.mockResolvedValue(null);
+      electron.poeProcess.getSnapshot.mockResolvedValue(null);
       electron.poeLeagues.fetchLeagues.mockRejectedValue(
         new Error("Network error"),
       );
@@ -641,7 +548,7 @@ describe("GameInfoSlice", () => {
         .spyOn(console, "error")
         .mockImplementation(() => {});
 
-      electron.poeProcess.getState.mockResolvedValue(null);
+      electron.poeProcess.getSnapshot.mockResolvedValue(null);
 
       // Setup complete so hydrate will call fetchLeagues
       setupComplete(["poe1"]);

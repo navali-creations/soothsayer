@@ -365,6 +365,26 @@ describe("SupabaseClientService", () => {
       expect(mockSignInAnonymously).not.toHaveBeenCalled();
     });
 
+    it("should preserve the stored session for a malformed restoration error", async () => {
+      createMockSupabaseClient();
+      const storedSession = makeStoredSession();
+      mockFsExistsSync.mockReturnValue(true);
+      mockFsReadFileSync.mockReturnValue(
+        Buffer.from(`encrypted:${JSON.stringify(storedSession)}`),
+      );
+      mockSetSession.mockResolvedValue({
+        data: { session: null },
+        error: "malformed failure",
+      });
+
+      const service = SupabaseClientService.getInstance();
+
+      await expect(
+        service.configure(SUPABASE_URL, SUPABASE_ANON_KEY),
+      ).rejects.toThrow("Failed to restore session: unknown");
+      expect(mockFsUnlinkSync).not.toHaveBeenCalled();
+    });
+
     it("should store the session after successful anonymous sign-in", async () => {
       createMockSupabaseClient();
 
@@ -429,6 +449,8 @@ describe("SupabaseClientService", () => {
         SUPABASE_ANON_KEY,
       );
 
+      const concurrentAuthentication = (service as any).ensureAuthenticated();
+
       // Trigger a second authentication path via getLeagues
       // This internally calls ensureAuthenticated again
       // We need to resolve the sign-in first for configure to complete
@@ -438,6 +460,7 @@ describe("SupabaseClientService", () => {
       });
 
       await configurePromise;
+      await concurrentAuthentication;
 
       // signInAnonymously should only have been called once despite
       // configure calling ensureAuthenticated
@@ -509,6 +532,31 @@ describe("SupabaseClientService", () => {
 
         expect(mockSignInAnonymously).toHaveBeenCalledTimes(2);
         expect(service.isConfigured()).toBe(true);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("should normalize a non-Error sign-in rejection before retrying", async () => {
+      vi.useFakeTimers();
+      try {
+        createMockSupabaseClient();
+        mockSignInAnonymously
+          .mockRejectedValueOnce("network failure")
+          .mockResolvedValueOnce({
+            data: { session: makeSession() },
+            error: null,
+          });
+
+        const service = SupabaseClientService.getInstance();
+        const configurePromise = service.configure(
+          SUPABASE_URL,
+          SUPABASE_ANON_KEY,
+        );
+        await vi.advanceTimersByTimeAsync(1000);
+
+        await expect(configurePromise).resolves.toBeUndefined();
+        expect(mockSignInAnonymously).toHaveBeenCalledTimes(2);
       } finally {
         vi.useRealTimers();
       }
@@ -656,6 +704,19 @@ describe("SupabaseClientService", () => {
       listenerCallback("TOKEN_REFRESHED", refreshedSession);
 
       expect(mockFsWriteFileSync).toHaveBeenCalledOnce();
+    });
+
+    it("should ignore an auth event without a session", async () => {
+      createMockSupabaseClient();
+      const service = SupabaseClientService.getInstance();
+      await service.configure(SUPABASE_URL, SUPABASE_ANON_KEY);
+      mockFsWriteFileSync.mockClear();
+      const listenerCallback = mockOnAuthStateChange.mock.calls[0][0];
+
+      listenerCallback("TOKEN_REFRESHED", null);
+
+      expect(mockFsWriteFileSync).not.toHaveBeenCalled();
+      expect(mockFsUnlinkSync).not.toHaveBeenCalled();
     });
 
     it("should only register the listener once even if ensureAuthenticated is called multiple times", async () => {

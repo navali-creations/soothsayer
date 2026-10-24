@@ -145,8 +145,6 @@ export function buildPreparedDropTimeline({
   let cumulativeCount = 0;
 
   const flushGroup = () => {
-    if (currentGroup.length === 0) return;
-
     let count = 0;
     let totalDecksOpened = 0;
     const sessionIds: string[] = [];
@@ -206,9 +204,6 @@ export function buildPreparedDropTimeline({
 
     result.push(point);
   }
-
-  if (result.length === 0) return result;
-
   const firstReal = result[0];
   const lastReal = result[result.length - 1];
   const boundaryStart = getTimelineStartMs({

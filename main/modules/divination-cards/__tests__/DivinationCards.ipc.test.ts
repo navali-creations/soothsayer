@@ -2114,4 +2114,150 @@ describe("DivinationCardsService — IPC handlers and initialization", () => {
       expect(repo).toBeDefined();
     });
   });
+
+  describe("remaining sync branches", () => {
+    it("validates JSON shape and reports newly supported fields", () => {
+      const load = (service as any).loadCardsFromJson.bind(service);
+
+      mockReadFileSync.mockReturnValueOnce("{}");
+      expect(() => load("invalid-object.json")).toThrow("Expected array");
+
+      mockReadFileSync.mockReturnValueOnce("[null]");
+      expect(() => load("invalid-card.json")).toThrow(
+        "Invalid card entry at index 0",
+      );
+
+      mockReadFileSync.mockReturnValueOnce(
+        JSON.stringify([
+          {
+            art_src: "art.png",
+            from_boss: true,
+            name: "Weighted Card",
+            stack_size: 1,
+            weight: 25,
+          },
+        ]),
+      );
+      expect(load("weighted.json")).toHaveLength(1);
+    });
+
+    it("warns when a non-Standard league falls back to generic card data", async () => {
+      const syncSpy = vi
+        .spyOn(service as any, "syncCards")
+        .mockResolvedValue(undefined);
+
+      await (service as any).initializeGameCards(
+        "poe1",
+        "cards.json",
+        "Settlers",
+        false,
+      );
+
+      expect(syncSpy).toHaveBeenCalled();
+    });
+
+    it("runs availability, rarity, and stale-row synchronization callbacks", async () => {
+      const execute = vi.fn().mockResolvedValue(undefined);
+      const doUpdateSet = vi.fn().mockReturnValue({ execute });
+      const doNothing = vi.fn().mockReturnValue({ execute });
+      const columns = vi.fn().mockReturnValue({ doNothing, doUpdateSet });
+      const onConflict = vi.fn().mockImplementation((callback) => {
+        callback({ columns });
+        return { execute };
+      });
+      const values = vi.fn().mockReturnValue({ onConflict });
+      const terminalWhere = {
+        execute: vi.fn().mockResolvedValue([{ numDeletedRows: 1n }]),
+      };
+      const where3 = { where: vi.fn().mockReturnValue(terminalWhere) };
+      const where2 = { where: vi.fn().mockReturnValue(where3) };
+      const where1 = { where: vi.fn().mockReturnValue(where2) };
+      (service as any).kysely = {
+        deleteFrom: vi.fn().mockReturnValue(where1),
+        insertInto: vi.fn().mockReturnValue({ values }),
+      };
+      mockRepositoryGetAllCardHashes.mockResolvedValue(new Map());
+
+      await (service as any).syncCards(
+        "poe1",
+        [
+          {
+            art_src: "first.png",
+            description: "",
+            flavour_html: "",
+            from_boss: true,
+            is_disabled: true,
+            name: "Weighted Card",
+            reward_html: "",
+            stack_size: 1,
+            weight: 25,
+          },
+          {
+            art_src: "second.png",
+            description: "",
+            flavour_html: "",
+            name: "Unweighted Card",
+            reward_html: "",
+            stack_size: 1,
+          },
+        ],
+        "Settlers",
+        true,
+      );
+
+      await service.ensureCardsFromSnapshot(
+        "poe1",
+        ["Snapshot Card"],
+        "Settlers",
+      );
+
+      expect(doUpdateSet).toHaveBeenCalled();
+      expect(doNothing).toHaveBeenCalled();
+      expect(terminalWhere.execute).toHaveBeenCalled();
+    });
+
+    it("uses PoE2 and empty-league IPC routing fallbacks", async () => {
+      mockSettingsGet.mockResolvedValue(null);
+      const getByName = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:get-by-name",
+      );
+      const search = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:search-by-name",
+      );
+
+      await getByName({}, "poe2", "Card");
+      await search({}, "poe2", "Card");
+
+      expect(mockRepositoryGetByName).toHaveBeenCalledWith(
+        "poe2",
+        "Card",
+        undefined,
+        null,
+      );
+      expect(mockRepositorySearchByName).toHaveBeenCalledWith(
+        "poe2",
+        "Card",
+        undefined,
+        null,
+      );
+    });
+
+    it("defaults force-sync to Standard", async () => {
+      mockSettingsGet.mockResolvedValue(null);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        "divination-cards:force-sync",
+      );
+
+      await handler({}, "poe1");
+
+      expect(mockResolvePoe1CardsJsonPath).toHaveBeenCalledWith(
+        "Standard",
+        false,
+        process.resourcesPath,
+      );
+    });
+  });
 });

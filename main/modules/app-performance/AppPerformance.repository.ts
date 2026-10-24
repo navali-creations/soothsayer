@@ -460,7 +460,7 @@ export class AppPerformanceRepository {
       this.mapCaptureSummary(
         row,
         now,
-        sparklineSamplesByCaptureId.get(row.id) ?? [],
+        sparklineSamplesByCaptureId.get(row.id)!,
       ),
     );
   }

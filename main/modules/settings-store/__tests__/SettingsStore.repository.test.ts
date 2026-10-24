@@ -62,6 +62,13 @@ describe("SettingsStoreRepository", () => {
       expect(Array.isArray(settings.onboardingDismissedBeacons)).toBe(true);
       expect(Array.isArray(settings.installedGames)).toBe(true);
     });
+
+    it("should reuse the cached settings until a write invalidates it", async () => {
+      const first = await repository.getAll();
+      const second = await repository.getAll();
+
+      expect(second).toBe(first);
+    });
   });
 
   // ─── get ───────────────────────────────────────────────────────────────
@@ -190,6 +197,13 @@ describe("SettingsStoreRepository", () => {
 
       const settings = await repository.getAll();
       expect(settings.overlayBounds).toBeNull();
+    });
+
+    it("should serialize and deserialize mainWindowBounds", async () => {
+      const bounds = { x: 20, y: 40, width: 1280, height: 720 };
+      await repository.set("mainWindowBounds", bounds);
+
+      expect(await repository.get("mainWindowBounds")).toEqual(bounds);
     });
 
     it("should serialize and deserialize installedGames array", async () => {

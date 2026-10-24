@@ -969,8 +969,6 @@ class CardDetailsService {
       // These are cards in the reward path (e.g. viewing The Patient:
       //   chain = ["The Nurse", "The Doctor"], terminal = "Headhunter")
       for (const chainCardName of chainCards) {
-        if (chainCardName === cardName || chainSet.has(chainCardName)) continue;
-
         // Fetch the chain card itself by exact name so it appears in results
         const chainCard = await this.repository.findCardByName(
           game,
@@ -985,7 +983,6 @@ class CardDetailsService {
       // 4b: Find cards that reward any card in the chain (upstream cards).
       // e.g. if chain = ["The Doctor"], find "The Nurse" which rewards "The Doctor"
       for (const chainCardName of chainCards) {
-        if (chainCardName === cardName) continue;
         const matches = await this.repository.findCardsByRewardMatch(
           game,
           chainCardName,

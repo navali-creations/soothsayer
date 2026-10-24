@@ -2826,6 +2826,63 @@ describe("CardDetailsService", () => {
       expect(result?.timelineEndDate).toBe("2025-01-01T00:00:00Z");
     });
 
+    it("orders multiple later league starts and invalid all-league dates", async () => {
+      getRepoMock().getLeagueDateRanges.mockResolvedValue([
+        { name: "Invalid A", startDate: null, endDate: null },
+        {
+          name: "First",
+          startDate: "2025-01-01T00:00:00Z",
+          endDate: null,
+        },
+        {
+          name: "Second",
+          startDate: "2025-02-01T00:00:00Z",
+          endDate: null,
+        },
+        {
+          name: "Third",
+          startDate: "2025-03-01T00:00:00Z",
+          endDate: null,
+        },
+        { name: "Invalid B", startDate: "invalid", endDate: null },
+      ]);
+
+      const selected = await service.getPersonalAnalytics(
+        "poe1",
+        "First",
+        "Card",
+        "First",
+      );
+      const allLeagues = await service.getPersonalAnalytics(
+        "poe1",
+        "First",
+        "Card",
+      );
+
+      expect(selected?.timelineEndDate).toBe("2025-02-01T00:00:00.000Z");
+      expect(allLeagues?.timelineEndDate).toBeDefined();
+    });
+
+    it("sorts a Standard timeline when the later comparison has no start", async () => {
+      getRepoMock().getLeagueDateRanges.mockResolvedValue([
+        {
+          name: "Current",
+          startDate: "2025-01-01T00:00:00Z",
+          endDate: null,
+        },
+        { name: "Undated", startDate: null, endDate: null },
+      ]);
+
+      const result = await service.getPersonalAnalytics(
+        "poe1",
+        "Standard",
+        "Card",
+        "Standard",
+      );
+
+      expect(result?.timelineEndDate).toBeDefined();
+    });
+
     it("handles reward extraction skips, cycles, and missing chain rows", async () => {
       const internals = service as unknown as {
         extractRewardItemName: (html: string) => string | null;
@@ -2909,6 +2966,44 @@ describe("CardDetailsService", () => {
 
       expect(result.chainCards.map(({ name }) => name)).toEqual(["Next Card"]);
       expect(result.similarCards).toEqual([]);
+    });
+
+    it("skips missing and canonically duplicated chain-card rows", async () => {
+      const repo = getRepoMock();
+      repo.getCardRewardHtml
+        .mockResolvedValueOnce(
+          '<span class="tc -divination">[[First Alias]]</span>',
+        )
+        .mockResolvedValueOnce(
+          '<span class="tc -divination">[[Second Alias]]</span>',
+        )
+        .mockResolvedValueOnce(
+          '<span class="tc -divination">[[Missing Alias]]</span>',
+        )
+        .mockResolvedValueOnce(null);
+      const canonical = {
+        artSrc: "",
+        description: "",
+        filterRarity: null,
+        flavourHtml: "",
+        fromBoss: false,
+        name: "Canonical Card",
+        prohibitedLibraryRarity: null,
+        rarity: 2,
+        rewardHtml: "",
+        stackSize: 1,
+      };
+      repo.findCardByName
+        .mockResolvedValueOnce(canonical)
+        .mockResolvedValueOnce(canonical)
+        .mockResolvedValueOnce(null);
+      repo.findCardsByRewardMatch.mockResolvedValue([]);
+
+      const result = await service.getRelatedCards("poe1", "Current");
+
+      expect(result.chainCards).toEqual([
+        expect.objectContaining({ name: "Canonical Card" }),
+      ]);
     });
   });
 });

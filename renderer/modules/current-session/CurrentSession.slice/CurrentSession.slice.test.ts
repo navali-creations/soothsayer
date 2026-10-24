@@ -1354,6 +1354,53 @@ describe("CurrentSessionSlice", () => {
         expect(doctor.count).toBe(5);
       });
 
+      it("updates the selected poe2 session", () => {
+        store.setState((s) => {
+          s.settings.selectedGame = "poe2";
+          s.currentSession.poe2Session = makeSession();
+        });
+
+        cardDeltaCallback({
+          game: "poe2",
+          delta: {
+            cardName: "The Doctor",
+            newCount: 4,
+            totalCount: 54,
+            price: null,
+            updatedTotals: null,
+            recentDrop: null,
+          },
+        });
+
+        const session = store.getState().currentSession.poe2Session!;
+        expect(session.totalCount).toBe(54);
+        expect(session.cards[0].count).toBe(4);
+      });
+
+      it("updates an existing card without price data", () => {
+        store.setState((s) => {
+          const session = makeSession();
+          delete session.cards[0].price;
+          s.currentSession.poe1Session = session;
+        });
+
+        cardDeltaCallback({
+          game: "poe1",
+          delta: {
+            cardName: "The Doctor",
+            newCount: 5,
+            totalCount: 53,
+            price: null,
+            updatedTotals: null,
+            recentDrop: null,
+          },
+        });
+
+        expect(
+          store.getState().currentSession.poe1Session!.cards[0].count,
+        ).toBe(5);
+      });
+
       it("adds new card to session", () => {
         store.setState((s) => {
           s.currentSession.poe1Session = makeSession();
@@ -1376,6 +1423,31 @@ describe("CurrentSessionSlice", () => {
         expect(mirror).toBeDefined();
         expect(mirror!.count).toBe(1);
         expect(mirror!.price).toBeDefined();
+      });
+
+      it("adds a new card without price data", () => {
+        store.setState((s) => {
+          s.currentSession.poe1Session = makeSession();
+        });
+
+        cardDeltaCallback({
+          game: "poe1",
+          delta: {
+            cardName: "Price-less Card",
+            newCount: 1,
+            totalCount: 51,
+            price: null,
+            updatedTotals: null,
+            recentDrop: null,
+          },
+        });
+
+        const card = store
+          .getState()
+          .currentSession.poe1Session!.cards.find(
+            (entry) => entry.name === "Price-less Card",
+          );
+        expect(card?.price).toBeUndefined();
       });
 
       it("ignores delta for non-selected game", () => {

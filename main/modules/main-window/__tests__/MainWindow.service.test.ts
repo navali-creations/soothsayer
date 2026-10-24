@@ -551,6 +551,32 @@ describe("MainWindowService", () => {
       );
     });
 
+    it("should use the E2E renderer URL when configured", async () => {
+      vi.stubEnv("E2E_TESTING", "true");
+      vi.stubEnv("SOOTHSAYER_E2E_RENDERER_URL", "http://localhost:4173");
+      resetSingleton(MainWindowService);
+
+      await MainWindowService.getInstance().createMainWindow();
+
+      expect(mockBrowserWindowLoadURL).toHaveBeenCalledWith(
+        "http://localhost:4173",
+      );
+      vi.unstubAllEnvs();
+    });
+
+    it("should fall back to the dev server URL when the E2E URL is absent", async () => {
+      vi.stubEnv("E2E_TESTING", "true");
+      delete process.env.SOOTHSAYER_E2E_RENDERER_URL;
+      resetSingleton(MainWindowService);
+
+      await MainWindowService.getInstance().createMainWindow();
+
+      expect(mockBrowserWindowLoadURL).toHaveBeenCalledWith(
+        "http://localhost:5173",
+      );
+      vi.unstubAllEnvs();
+    });
+
     it("should NOT open DevTools in development mode", async () => {
       mockAppIsPackaged.value = false;
       await service.createMainWindow();
@@ -641,6 +667,17 @@ describe("MainWindowService", () => {
         "will-navigate",
         expect.any(Function),
       );
+    });
+
+    it("should allow file navigation when no renderer URL is configured", async () => {
+      (service as unknown as { url: string }).url = "";
+      await service.createMainWindow();
+      const handler = getWebContentsOnHandler("will-navigate");
+      const event = { preventDefault: vi.fn() };
+
+      handler(event, "file:///renderer/index.html");
+
+      expect(event.preventDefault).not.toHaveBeenCalled();
     });
 
     it("should register window open handler for security", async () => {
@@ -786,6 +823,16 @@ describe("MainWindowService", () => {
         const result = await handler();
 
         expect(result).toBe(true);
+      });
+
+      it("should return false when the window method is unavailable", async () => {
+        browserWindowInstances[0].isMaximized = undefined;
+        const handler = getIpcHandler(
+          "main-window:is-maximized",
+          ipcHandlerCalls,
+        );
+
+        await expect(handler()).resolves.toBe(false);
       });
     });
 
@@ -1238,6 +1285,11 @@ describe("MainWindowService", () => {
   // ─── showAppOnceReadyToShow ──────────────────────────────────────────────
 
   describe("showAppOnceReadyToShow", () => {
+    it("should ignore ready-to-show setup before a BrowserWindow exists", () => {
+      expect(() => service.showAppOnceReadyToShow()).not.toThrow();
+      expect(mockBrowserWindowOnce).not.toHaveBeenCalled();
+    });
+
     it("should show the window when not set to open minimized", async () => {
       mockSettingsGet.mockResolvedValue(false);
 
@@ -1731,6 +1783,61 @@ describe("MainWindowService", () => {
       );
 
       mockBrowserWindowIsDestroyed.mockReturnValue(false);
+    });
+
+    it("should replace and clear pending bounds timers and listeners", async () => {
+      await service.createMainWindow();
+      const movedHandler = mockBrowserWindowOn.mock.calls.find(
+        ([event]: [string]) => event === "moved",
+      )?.[1];
+
+      movedHandler();
+      movedHandler();
+      (service as any).removeBoundsListeners();
+
+      expect(mockBrowserWindowRemoveListener).toHaveBeenCalledWith(
+        "moved",
+        movedHandler,
+      );
+      expect(mockBrowserWindowRemoveListener).toHaveBeenCalledWith(
+        "resized",
+        movedHandler,
+      );
+    });
+
+    it("should clear handlers without touching a destroyed window", async () => {
+      await service.createMainWindow();
+      mockBrowserWindowIsDestroyed.mockReturnValue(true);
+
+      (service as any).removeBoundsListeners();
+
+      expect(mockBrowserWindowRemoveListener).not.toHaveBeenCalled();
+    });
+
+    it("should contain asynchronous bounds persistence failures", async () => {
+      await service.createMainWindow();
+      mockSettingsSet.mockRejectedValueOnce(new Error("settings unavailable"));
+
+      (service as any).saveBoundsImmediate();
+      await vi.waitFor(() => expect(mockSettingsSet).toHaveBeenCalled());
+    });
+  });
+
+  describe("remaining lifecycle failures", () => {
+    it("contains overlay marker failures", async () => {
+      await service.createMainWindow();
+      mockAppPerformanceRecordOverlayMarker.mockImplementationOnce(() => {
+        throw new Error("marker failed");
+      });
+      const visibilityHandler = mockOverlayOnVisibilityChange.mock.calls[0][0];
+
+      expect(() => visibilityHandler(true)).not.toThrow();
+    });
+
+    it("handles non-Error interrupted renderer loads", async () => {
+      mockBrowserWindowLoadURL.mockRejectedValueOnce("ERR_FAILED");
+
+      await expect(service.createMainWindow()).resolves.toBeUndefined();
     });
   });
 });

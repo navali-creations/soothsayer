@@ -433,8 +433,8 @@ class CurrentSessionService {
               divinationCard: card.divinationCard
                 ? {
                     ...card.divinationCard,
-                    id: card.divinationCard.id ?? "",
-                    rarity: card.divinationCard.rarity ?? 4,
+                    id: card.divinationCard.id,
+                    rarity: card.divinationCard.rarity,
                     fromBoss: false,
                   }
                 : undefined,
@@ -924,8 +924,10 @@ class CurrentSessionService {
       game === "poe1" ? this.poe1SnapshotCache : this.poe2SnapshotCache;
     if (snapshotCache) {
       const prices = snapshotCache.snapshot.cardPrices[cardName];
-      chaosValue = prices?.chaosValue ?? null;
-      divineValue = prices?.divineValue ?? null;
+      if (prices) {
+        chaosValue = prices.chaosValue;
+        divineValue = prices.divineValue;
+      }
     }
 
     // Perform all hot-path DB writes in a single synchronous better-sqlite3
@@ -995,14 +997,12 @@ class CurrentSessionService {
 
     // Build and emit a lightweight card delta instead of full session rebuild
     const cardDelta = this.buildCardDelta(game, cardName);
-    if (cardDelta) {
-      const windows = BrowserWindow.getAllWindows();
-      for (const window of windows) {
-        window.webContents.send(CurrentSessionChannel.CardDelta, {
-          game,
-          delta: cardDelta,
-        });
-      }
+    const windows = BrowserWindow.getAllWindows();
+    for (const window of windows) {
+      window.webContents.send(CurrentSessionChannel.CardDelta, {
+        game,
+        delta: cardDelta,
+      });
     }
   }
 
@@ -1098,8 +1098,8 @@ class CurrentSessionService {
         divinationCard: card.divinationCard
           ? {
               ...card.divinationCard,
-              id: card.divinationCard.id ?? "",
-              rarity: card.divinationCard.rarity ?? 4,
+              id: card.divinationCard.id,
+              rarity: card.divinationCard.rarity,
               fromBoss: false,
             }
           : undefined,
@@ -1683,10 +1683,7 @@ class CurrentSessionService {
    * This avoids the expensive getCurrentSession() DB roundtrip on every card drop.
    * All data needed is already available in-memory from the addCard() call path.
    */
-  private buildCardDelta(
-    game: GameType,
-    cardName: string,
-  ): SessionCardDelta | null {
+  private buildCardDelta(game: GameType, cardName: string): SessionCardDelta {
     const snapshotCache =
       game === "poe1" ? this.poe1SnapshotCache : this.poe2SnapshotCache;
     const cardCounts =

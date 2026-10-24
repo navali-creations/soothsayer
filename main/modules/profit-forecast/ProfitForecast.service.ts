@@ -467,7 +467,6 @@ export class ProfitForecastService {
 
     // Common cards: weight >= median weight (top half by frequency)
     const commonCards = candidates.filter((c) => c.weight >= medianWeight);
-    if (commonCards.length < 3) return; // too few to compare
 
     // Get sorted chaos values of common cards
     const commonPrices = commonCards

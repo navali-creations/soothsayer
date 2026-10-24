@@ -2523,6 +2523,14 @@ describe("CurrentSessionService", () => {
   });
 
   describe("remaining branch coverage", () => {
+    it("does nothing on suspend when neither game has an active session", async () => {
+      const stopSpy = vi.spyOn(service, "stopSession");
+
+      await (service as any).stopActiveSessionsForSuspend();
+
+      expect(stopSpy).not.toHaveBeenCalled();
+    });
+
     it("stops both games on suspend and logs an individual stop rejection", async () => {
       const internals = service as unknown as {
         poe1ActiveSession: object | null;
@@ -2707,11 +2715,68 @@ describe("CurrentSessionService", () => {
         divineValue: null,
         droppedAt: "2025-01-01T00:00:11.000Z",
       });
+      const unpriced = internals.appendToTimelineCache("poe2", {
+        cardName: "Visible",
+        chaosValue: null,
+        divineValue: null,
+        droppedAt: "2025-01-01T00:00:21.000Z",
+      });
 
       expect(visible.notableDrop).toMatchObject({ cardName: "Visible" });
       expect(hidden.notableDrop).toBeNull();
+      expect(unpriced.totalChaosValue).toBe(11);
       expect(hidden.totalChaosValue).toBe(11);
-      expect(internals.poe2TimelineCache.buckets).toHaveLength(2);
+      expect(internals.poe2TimelineCache.buckets).toHaveLength(3);
+    });
+
+    it("handles diagnostics captures that disappear or are replaced", async () => {
+      mockSettingsGet.mockResolvedValue(true);
+      mockAppPerformanceStartFreshCapture.mockResolvedValueOnce({
+        capture: null,
+        isSampling: false,
+        samples: [],
+        routeMarkers: [],
+      });
+      const internals = service as any;
+
+      await internals.startAppPerformanceDiagnosticsForSession("poe2");
+      expect(internals.poe2AppPerformanceCaptureId).toBeNull();
+
+      internals.poe2AppPerformanceCaptureId = "owned-capture";
+      mockAppPerformanceGetState.mockReturnValueOnce({
+        capture: { id: "replacement-capture" },
+        isSampling: true,
+        samples: [],
+        routeMarkers: [],
+      });
+      await internals.stopAppPerformanceDiagnosticsForSession("poe2");
+
+      expect(mockAppPerformanceStopCapture).not.toHaveBeenCalled();
+      expect(internals.poe2AppPerformanceCaptureId).toBeNull();
+    });
+
+    it("keeps a replacement stop job registered during cleanup", async () => {
+      let finish!: (value: unknown) => void;
+      vi.spyOn(service as any, "stopSessionInternal").mockReturnValue(
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+      );
+      const stopping = service.stopSession("poe1");
+      const replacement = { promise: Promise.resolve(null), options: {} };
+      (service as any).stopSessionPromises.set("poe1", replacement);
+      finish({
+        durationMs: 0,
+        game: "poe1",
+        league: "Settlers",
+        totalCount: 0,
+      });
+
+      await stopping;
+
+      expect((service as any).stopSessionPromises.get("poe1")).toBe(
+        replacement,
+      );
     });
 
     it("uses filter and prohibited-library rarities when present", () => {
@@ -2759,6 +2824,42 @@ describe("CurrentSessionService", () => {
       await internals.ensureCardInRarityMap("poe2", "Dawn", "Fallback");
 
       expect(internals.poe2CardRarities?.get("Fallback")).toBe(3);
+    });
+
+    it("defaults rarity when prohibited-library and price data are absent", async () => {
+      const internals = service as any;
+      internals.poe2CardRarities = new Map();
+      mockSettingsGet.mockResolvedValue("prohibited-library");
+      internals.repository.getCardProhibitedLibraryRarity = vi
+        .fn()
+        .mockResolvedValue(null);
+      internals.repository.getCardPriceRarity = vi.fn().mockResolvedValue(null);
+
+      await internals.ensureCardInRarityMap("poe2", "Dawn", "Unknown");
+
+      expect(internals.poe2CardRarities.get("Unknown")).toBe(4);
+    });
+
+    it("builds default totals and card deltas without a price snapshot", () => {
+      const internals = service as any;
+      const totals = internals.calculateSessionTotals(
+        {},
+        {
+          cardPrices: {},
+          chaosToDivineRatio: 0,
+          stackedDeckChaosCost: null,
+          timestamp: "2025-01-01T00:00:00Z",
+        },
+        10,
+      );
+      internals.poe1SnapshotCache = null;
+      internals.poe1CardRarities = null;
+
+      const delta = internals.buildCardDelta("poe1", "Unpriced Card");
+
+      expect(totals.stackedDeckChaosCost).toBe(0);
+      expect(delta.updatedTotals.chaosToDivineRatio).toBe(0);
+      expect(delta.recentDrop.rarity).toBe(4);
     });
 
     it("waits for a post-stop flush requested by a concurrent caller", async () => {
@@ -2877,6 +2978,12 @@ describe("CurrentSessionService", () => {
             divineValue: 0.03,
             droppedAt: "2025-01-01T00:00:01Z",
           },
+          {
+            cardName: "Unknown",
+            chaosValue: 0,
+            divineValue: 0,
+            droppedAt: "2025-01-01T00:00:21Z",
+          },
         ],
         new Map([
           ["Later", 4],
@@ -2887,7 +2994,140 @@ describe("CurrentSessionService", () => {
       expect(timeline.buckets.map(({ topCard }) => topCard)).toEqual([
         "Earlier",
         "Later",
+        null,
       ]);
+    });
+
+    it("hydrates divination-card metadata in timeline IPC", async () => {
+      const handler = mockIpcHandle.mock.calls.find(
+        ([channel]: [string]) => channel === "current-session:get-timeline",
+      )?.[1];
+      const repository = (service as any).repository;
+      repository.getSessionCards = vi.fn().mockResolvedValue([
+        {
+          cardName: "Nullable Card",
+          count: 1,
+          hidePrice: false,
+          divinationCard: { id: "nullable-card", rarity: 4 },
+        },
+      ]);
+      repository.getAllCardEvents = vi.fn().mockResolvedValue([]);
+
+      await expect(handler({}, "session-id")).resolves.toMatchObject({
+        buckets: [],
+      });
+    });
+
+    it("contains timeline IPC validation errors", async () => {
+      const handler = mockIpcHandle.mock.calls.find(
+        ([channel]: [string]) => channel === "current-session:get-timeline",
+      )?.[1];
+      const { IpcValidationError } = await import(
+        "~/main/utils/ipc-validation"
+      );
+      const repository = (service as any).repository;
+      repository.getSessionCards = vi
+        .fn()
+        .mockRejectedValue(new IpcValidationError("timeline", "invalid id"));
+
+      await expect(handler({}, "session")).resolves.toBeNull();
+    });
+
+    it("skips summary creation for missing sessions and snapshots", async () => {
+      const internals = service as unknown as {
+        createSessionSummary: (
+          sessionId: string,
+          game: "poe1",
+          league: string,
+          endedAt: string,
+        ) => Promise<void>;
+        repository: {
+          getSessionById: ReturnType<typeof vi.fn>;
+          getSessionCards: ReturnType<typeof vi.fn>;
+        };
+      };
+      internals.repository.getSessionById = vi
+        .fn()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ snapshotId: null });
+      internals.repository.getSessionCards = vi.fn().mockResolvedValue([]);
+
+      await internals.createSessionSummary(
+        "missing",
+        "poe1",
+        "Settlers",
+        "2025-01-01T01:00:00Z",
+      );
+      await internals.createSessionSummary(
+        "no-snapshot",
+        "poe1",
+        "Settlers",
+        "2025-01-01T01:00:00Z",
+      );
+
+      expect(internals.repository.getSessionCards).toHaveBeenCalledOnce();
+      expect(mockLoadSnapshot).not.toHaveBeenCalled();
+    });
+
+    it("uses zero deck cost while creating a summary from legacy snapshot data", async () => {
+      const internals = service as any;
+      internals.repository.getSessionById = vi.fn().mockResolvedValue({
+        snapshotId: "snapshot",
+        startedAt: "2025-01-01T00:00:00Z",
+        totalCount: 10,
+      });
+      internals.repository.getSessionCards = vi.fn().mockResolvedValue([]);
+      internals.repository.createSessionSummary = vi
+        .fn()
+        .mockResolvedValue(undefined);
+      mockLoadSnapshot.mockResolvedValue({
+        cardPrices: {},
+        chaosToDivineRatio: 200,
+        stackedDeckChaosCost: null,
+        timestamp: "2025-01-01T00:00:00Z",
+      });
+
+      await internals.createSessionSummary(
+        "session",
+        "poe1",
+        "Settlers",
+        "2025-01-01T01:00:00Z",
+      );
+
+      expect(internals.repository.createSessionSummary).toHaveBeenCalledWith(
+        expect.objectContaining({ stackedDeckChaosCost: 0 }),
+      );
+    });
+
+    it("adds a PoE2 card without a matching snapshot price", async () => {
+      const poe2LeagueId = await seedLeague(testDb.kysely, {
+        game: "poe2",
+        name: "Dawn",
+      });
+      const poe2SnapshotId = await seedSnapshot(testDb.kysely, {
+        leagueId: poe2LeagueId,
+        cardPrices: [],
+      });
+      await seedDivinationCard(testDb.kysely, {
+        game: "poe2",
+        name: "Unpriced Card",
+      });
+      mockGetSnapshotForSession.mockResolvedValue({
+        data: createMockPriceSnapshot({ cardPrices: {} }),
+        snapshotId: poe2SnapshotId,
+      });
+      await service.startSession("poe2", "Dawn");
+      (service as any).poe2SnapshotCache = {
+        snapshotId: poe2SnapshotId,
+        snapshot: createMockPriceSnapshot({ cardPrices: {} }),
+      };
+      vi.spyOn(service as any, "ensureCardInRarityMap").mockResolvedValue(
+        undefined,
+      );
+
+      await service.addCard("poe2", "Dawn", "Unpriced Card", "unpriced-id");
+
+      expect(await service.getCurrentSession("poe2")).not.toBeNull();
     });
   });
 });

@@ -207,8 +207,8 @@ export const createSessionDetailsSlice: StateCreator<
       }
 
       const totalProfit = get().sessionDetails.getTotalProfit();
-      const deckCost = session?.priceSnapshot?.stackedDeckChaosCost ?? 0;
-      const deckCount = session?.totalCount ?? 0;
+      const deckCost = session.priceSnapshot?.stackedDeckChaosCost ?? 0;
+      const deckCount = session.totalCount;
       const cost = deckCost * deckCount;
       return {
         netProfit: totalProfit - cost,

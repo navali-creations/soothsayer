@@ -121,8 +121,8 @@ class OverlayService {
       // Use saved position (validated to be on a visible display)
       x = validBounds.x;
       y = validBounds.y;
-      overlayWidth = validBounds.width || 250;
-      overlayHeight = validBounds.height || 145;
+      overlayWidth = validBounds.width;
+      overlayHeight = validBounds.height;
     } else {
       // Default to top-left of primary display work area with a small margin
       const primaryDisplay = screen.getPrimaryDisplay();

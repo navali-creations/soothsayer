@@ -11,11 +11,8 @@ function loadSentryModule(): Promise<SentryModule> {
   return sentryModulePromise;
 }
 
-function logSentryLoadFailure(error: unknown): void {
-  console.warn(
-    "[Sentry] SDK unavailable:",
-    error instanceof Error ? error.message : String(error),
-  );
+function logSentryLoadFailure(error: Error): void {
+  console.warn("[Sentry] SDK unavailable:", error.message);
 }
 
 function reportWithSentry(callback: (sentry: SentryModule) => void): void {

@@ -19,6 +19,8 @@ import {
   type StepValidationResult,
 } from "./AppSetup.types";
 
+const CLIENT_LOG_FILE_NAMES = new Set(["client.txt", "kakaoclient.txt"]);
+
 class AppSetupService {
   private static _instance: AppSetupService;
   private settingsStore: SettingsStoreService;
@@ -187,8 +189,8 @@ class AppSetupService {
   }
 
   /**
-   * Validate client.txt paths (Step 3)
-   * Validates that each selected game has a valid client.txt path
+   * Validate client log paths (Step 3)
+   * Validates that each selected game has a supported client log path
    */
   private async validateClientPaths(): Promise<StepValidationResult> {
     const installedGames = await this.settingsStore.get(
@@ -204,20 +206,20 @@ class AppSetupService {
 
     if (installedGames.includes("poe1")) {
       if (!poe1Path) {
-        errors.push("Please select Path of Exile 1 Client.txt path");
+        errors.push("Please select the Path of Exile 1 client log");
       } else if (!this.isValidClientPath(poe1Path)) {
         errors.push(
-          "Path of Exile 1 Client.txt path is invalid or file does not exist",
+          "Path of Exile 1 client log must be an existing Client.txt or KakaoClient.txt file",
         );
       }
     }
 
     if (installedGames.includes("poe2")) {
       if (!poe2Path) {
-        errors.push("Please select Path of Exile 2 Client.txt path");
+        errors.push("Please select the Path of Exile 2 client log");
       } else if (!this.isValidClientPath(poe2Path)) {
         errors.push(
-          "Path of Exile 2 Client.txt path is invalid or file does not exist",
+          "Path of Exile 2 client log must be an existing Client.txt or KakaoClient.txt file",
         );
       }
     }
@@ -229,7 +231,7 @@ class AppSetupService {
   }
 
   /**
-   * Check if a client.txt path is valid
+   * Check if a supported client log path is valid
    */
   private isValidClientPath(filePath: string): boolean {
     try {
@@ -244,10 +246,10 @@ class AppSetupService {
         return false;
       }
 
-      // Check if filename is Client.txt (case-insensitive)
+      // Check if the filename is a supported client log (case-insensitive)
       // Split on both \ and / to handle Windows paths on any platform
-      const fileName = filePath.split(/[\\/]/).pop() || "";
-      if (fileName.toLowerCase() !== "client.txt") {
+      const fileName = filePath.split(/[\\/]/).at(-1)!;
+      if (!CLIENT_LOG_FILE_NAMES.has(fileName.toLowerCase())) {
         return false;
       }
 
@@ -337,9 +339,13 @@ class AppSetupService {
     const installedGames = await this.settingsStore.get(
       SettingsKey.InstalledGames,
     );
-    if (installedGames.length > 0) {
-      await this.settingsStore.set(SettingsKey.ActiveGame, installedGames[0]);
+    if (installedGames.length === 0) {
+      return {
+        success: false,
+        error: "Setup incomplete: Please select at least one game",
+      };
     }
+    await this.settingsStore.set(SettingsKey.ActiveGame, installedGames[0]);
 
     // Mark setup as complete
     await this.settingsStore.set(SettingsKey.SetupCompleted, true);

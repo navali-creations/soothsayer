@@ -93,6 +93,8 @@ typings/
 # Electron-Forge
 out/
 .forge-staging/
+helpers/bin/
+helpers/poe-process-helper/target/
 
 .supabase
 

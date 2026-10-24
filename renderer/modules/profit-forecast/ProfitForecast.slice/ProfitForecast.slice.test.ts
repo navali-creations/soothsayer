@@ -851,6 +851,12 @@ describe("ProfitForecastSlice (Zustand)", () => {
       expect(store.getState().profitForecast.isComputing).toBe(false);
     });
 
+    it("setForecastView updates the active forecast view", () => {
+      store.getState().profitForecast.setForecastView("table");
+
+      expect(store.getState().profitForecast.forecastView).toBe("table");
+    });
+
     it("setCustomTotalCost stores spend without changing customBaseRate", async () => {
       electron.profitForecast.getData.mockResolvedValue(makeDTO());
       await store.getState().profitForecast.fetchData("poe1", "Settlers");
@@ -1258,6 +1264,40 @@ describe("ProfitForecastSlice (Zustand)", () => {
 
       expect(staticAfter).toEqual(staticBefore);
     });
+
+    it("keeps a row unchanged when the compute response omits it", async () => {
+      await setupWithData();
+      const doctorBefore = store
+        .getState()
+        .profitForecast.rows.find((row) => row.cardName === "The Doctor")!;
+      electron.profitForecast.compute.mockImplementation(async (request) => ({
+        ...computeAll(request),
+        totalCost: 123_456,
+        rowFields: {},
+      }));
+
+      store.getState().profitForecast.recomputeRows();
+
+      await vi.waitFor(() => {
+        expect(store.getState().profitForecast.cachedTotalCost).toBe(123_456);
+      });
+      expect(
+        store
+          .getState()
+          .profitForecast.rows.find((row) => row.cardName === "The Doctor"),
+      ).toEqual(doctorBefore);
+    });
+
+    it("keeps inline values when background compute fails", async () => {
+      await setupWithData();
+      electron.profitForecast.compute.mockRejectedValue(new Error("offline"));
+
+      store.getState().profitForecast.recomputeRows();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(store.getState().profitForecast.rows).not.toEqual([]);
+    });
   });
 
   describe("getters", () => {
@@ -1444,6 +1484,23 @@ describe("ProfitForecastSlice (Zustand)", () => {
 
       it("returns 0 when evPerDeck is 0", () => {
         expect(store.getState().profitForecast.getBreakEvenRate()).toBe(0);
+      });
+    });
+
+    describe("getEffectiveBaseRate", () => {
+      it("uses the detected base rate without an override", async () => {
+        await setupWithData();
+
+        expect(store.getState().profitForecast.getEffectiveBaseRate()).toBe(
+          store.getState().profitForecast.baseRate,
+        );
+      });
+
+      it("uses the custom base-rate override", async () => {
+        await setupWithData();
+        store.getState().profitForecast.setCustomBaseRate(75);
+
+        expect(store.getState().profitForecast.getEffectiveBaseRate()).toBe(75);
       });
     });
 
@@ -1640,6 +1697,28 @@ describe("ProfitForecastSlice (Zustand)", () => {
         const pnl2 = store.getState().profitForecast.getBatchPnL();
         expect(pnl2.revenue).toBeGreaterThan(pnl1.revenue);
         expect(pnl2.cost).toBeGreaterThan(pnl1.cost);
+      });
+
+      it("falls back to current revenue when cached confidence is stale", async () => {
+        await setupWithData();
+        store.setState((state) => ({
+          profitForecast: {
+            ...state.profitForecast,
+            cachedBatchPnL: {
+              ...state.profitForecast.cachedBatchPnL,
+              revenue: -1,
+            },
+            cachedConfidenceInterval: {
+              estimated: 999_999,
+              optimistic: 1_999_999,
+            },
+          },
+        }));
+
+        const result = store.getState().profitForecast.getBatchPnL();
+
+        expect(result.confidence.estimated).toBeCloseTo(result.netPnL, 4);
+        expect(result.confidence.optimistic).toBeCloseTo(result.netPnL, 4);
       });
     });
   });
@@ -1917,6 +1996,22 @@ describe("ProfitForecastSlice (Zustand)", () => {
       expect(store.getState().profitForecast.evPerDeck).toBe(evBefore);
     });
 
+    it("keeps inline values when background compute fails", async () => {
+      await setupWithData();
+      electron.profitForecast.compute.mockRejectedValue(new Error("offline"));
+
+      store.getState().profitForecast.toggleCardExclusion("The Doctor");
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(
+        store
+          .getState()
+          .profitForecast.rows.find((row) => row.cardName === "The Doctor")
+          ?.userOverride,
+      ).toBe(true);
+    });
+
     it("initializes userOverride to false on fetchData", async () => {
       await setupWithData();
 
@@ -2111,6 +2206,31 @@ describe("ProfitForecastSlice (Zustand)", () => {
   });
 
   describe("getExcludedCount with userOverride", () => {
+    it("does not count rows without prices", async () => {
+      electron.profitForecast.getData.mockResolvedValue(
+        makeDTO({
+          rows: [
+            makeRowDTO({
+              cardName: "Unpriced",
+              hasPrice: false,
+              chaosValue: 0,
+              divineValue: 0,
+              evContribution: 0,
+              excludeFromEv: true,
+            }),
+          ],
+        }),
+      );
+      await store.getState().profitForecast.fetchData("poe1", "Settlers");
+
+      expect(store.getState().profitForecast.getExcludedCount()).toEqual({
+        anomalous: 0,
+        lowConfidence: 0,
+        userOverridden: 0,
+        total: 0,
+      });
+    });
+
     it("counts user-overridden cards separately from anomalous and low-confidence", async () => {
       const dto = makeDTO();
       electron.profitForecast.getData.mockResolvedValue(dto);

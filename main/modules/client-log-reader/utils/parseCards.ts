@@ -8,6 +8,9 @@ export interface DivinationCardResult {
   cards: Record<string, CardEntry>;
 }
 
+const CARD_DROP_LINE_PATTERN =
+  /^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2} (\d+) \S+ \[INFO Client \d+\] : Card drawn from the deck: <divination>\{([^}\r\n]+)\}\r?$/;
+
 /**
  * Parses client log lines to extract unique divination cards
  * @param logText - The raw log text from client.txt
@@ -24,24 +27,14 @@ export function parseCards(
   const cardMap = new Map<string, Set<string>>(); // cardName -> Set of uniqueIds
 
   for (const line of lines) {
-    // Skip lines that don't contain divination cards
-    if (!line.includes("Card drawn from the deck: <divination>")) {
-      continue;
-    }
-
-    // Extract card name from between {}
-    const cardMatch = line.match(/{([^}]+)}/);
+    // Client.txt is an external boundary. Parse the complete record shape so a
+    // marker embedded in malformed text cannot supply a bogus deduplication ID.
+    const cardMatch = CARD_DROP_LINE_PATTERN.exec(line);
     if (!cardMatch) {
       continue;
     }
-    const cardName = cardMatch[1];
-
-    // Extract unique ID (third column - after date and time)
-    const parts = line.split(" ");
-    if (parts.length < 3) {
-      continue;
-    }
-    const uniqueId = parts[2]; // The unique identifier like "205270890"
+    const uniqueId = cardMatch[1];
+    const cardName = cardMatch[2];
 
     // Skip if already processed
     if (previouslyProcessedIds.has(uniqueId)) {

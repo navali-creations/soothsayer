@@ -298,6 +298,20 @@ describe("AppPerformanceRepository", () => {
     );
   });
 
+  it("treats empty writes, deletes, and zero-sized reads as no-ops", () => {
+    const capture = createCapture();
+    repository.createCapture(capture);
+
+    repository.insertSamples(capture.id, []);
+
+    expect(repository.deleteCaptures([])).toBe(0);
+    expect(repository.getSamples(capture.id, { sampleLimit: 0 })).toEqual([]);
+    expect(
+      repository.getSamples(capture.id, { sampleLimit: Number.NaN }),
+    ).toEqual([]);
+    expect(repository.getRouteMarkers(capture.id)).toEqual([]);
+  });
+
   it("lists capture summaries with sample and route marker counts", () => {
     const capture = createCapture({
       id: "summary",
@@ -373,6 +387,37 @@ describe("AppPerformanceRepository", () => {
         comparison: neutralComparison,
       },
     ]);
+  });
+
+  it("lists captures without samples and clamps non-finite pagination", () => {
+    const capture = createCapture({ id: "empty-summary" });
+    repository.createCapture(capture);
+
+    expect(
+      repository.listCaptureSummaries({
+        limit: Number.NaN,
+        offset: Number.POSITIVE_INFINITY,
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        id: capture.id,
+        sampleCount: 0,
+        sparklineSamples: [],
+      }),
+    ]);
+  });
+
+  it("normalizes an invalid persisted sparkline elapsed time", () => {
+    const capture = createCapture({ id: "invalid-elapsed" });
+    repository.createCapture(capture);
+    repository.insertSamples(capture.id, [baseSample]);
+    db.prepare(
+      "UPDATE app_performance_samples SET capture_elapsed_ms = 'invalid' WHERE collection_id = ?",
+    ).run(capture.id);
+
+    expect(
+      repository.listCaptureSummaries()[0].sparklineSamples[0].captureElapsedMs,
+    ).toBe(0);
   });
 
   it("returns bounded chronological sparkline samples for capture summaries", () => {
@@ -464,6 +509,13 @@ describe("AppPerformanceRepository", () => {
       cpu: { min: "higher", avg: "higher", max: "higher" },
       memory: { min: "higher", avg: "higher", max: "higher" },
       appMemoryBytes: { min: "higher", avg: "higher", max: "higher" },
+    });
+
+    expect(
+      repository.listCaptureSummaries({ limit: 1 })[0].comparison,
+    ).toMatchObject({
+      fps: { min: "same", avg: "same", max: "same" },
+      appMemoryBytes: { min: "same", avg: "same", max: "same" },
     });
   });
 

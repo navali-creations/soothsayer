@@ -125,6 +125,25 @@ describe("CommunityDropRatesService", () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
+  it("refreshes an expired cached league", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+      mockPublishedLeague();
+      const service = new CommunityDropRatesService();
+
+      await service.getCardRate("poe1", "Mirage", "A Chilling Wind");
+
+      vi.advanceTimersByTime(60 * 60 * 1000 + 1);
+      mockPublishedLeague();
+      await service.getCardRate("poe1", "Mirage", "A Chilling Wind");
+
+      expect(mockFetch).toHaveBeenCalledTimes(4);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it.each([
     ["fractional sample", { name: "Mirage", observed_total: 1.5 }],
     ["negative sample", { name: "Mirage", observed_total: -1 }],
@@ -249,6 +268,90 @@ describe("CommunityDropRatesService", () => {
     );
   });
 
+  it("rejects an invalid declared response size", async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response("{}", { headers: { "content-length": "invalid" } }),
+    );
+    const service = new CommunityDropRatesService();
+
+    await expect(
+      service.getCardRate("poe1", "Mirage", "A Chilling Wind"),
+    ).resolves.toBeNull();
+    expect(mockLoggerWarn).toHaveBeenCalled();
+  });
+
+  it("accepts a valid declared response size", async () => {
+    const body = JSON.stringify(makeIndexResponse());
+    mockFetch
+      .mockResolvedValueOnce(
+        new Response(body, {
+          headers: {
+            "content-length": String(new TextEncoder().encode(body).length),
+          },
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse(makeLeagueResponse()));
+    const service = new CommunityDropRatesService();
+
+    await expect(
+      service.getCardRate("poe1", "Mirage", "A Chilling Wind"),
+    ).resolves.toMatchObject({ dropCount: 2475 });
+  });
+
+  it("rejects a response without a readable body", async () => {
+    mockFetch.mockResolvedValueOnce(new Response(null));
+    const service = new CommunityDropRatesService();
+
+    await expect(
+      service.getCardRate("poe1", "Mirage", "A Chilling Wind"),
+    ).resolves.toBeNull();
+    expect(mockLoggerWarn).toHaveBeenCalled();
+  });
+
+  it("skips empty stream chunks while reading community data", async () => {
+    const bytes = new TextEncoder().encode(JSON.stringify(makeIndexResponse()));
+    const read = vi
+      .fn()
+      .mockResolvedValueOnce({ done: false, value: undefined })
+      .mockResolvedValueOnce({ done: false, value: bytes })
+      .mockResolvedValueOnce({ done: true, value: undefined });
+    mockFetch.mockResolvedValueOnce({
+      body: { getReader: () => ({ cancel: vi.fn(), read }) },
+      headers: new Headers(),
+      ok: true,
+      status: 200,
+    } as unknown as Response);
+    const service = new CommunityDropRatesService();
+
+    await expect(
+      service.getCardRate("poe1", "Standard", "A Chilling Wind"),
+    ).resolves.toBeNull();
+    expect(read).toHaveBeenCalledTimes(3);
+  });
+
+  it("cancels a streamed response that grows past its size limit", async () => {
+    const cancel = vi.fn().mockResolvedValue(undefined);
+    const read = vi
+      .fn()
+      .mockResolvedValueOnce({
+        done: false,
+        value: new Uint8Array(256 * 1024 + 1),
+      })
+      .mockResolvedValueOnce({ done: true, value: undefined });
+    mockFetch.mockResolvedValueOnce({
+      body: { getReader: () => ({ cancel, read }) },
+      headers: new Headers(),
+      ok: true,
+      status: 200,
+    } as unknown as Response);
+    const service = new CommunityDropRatesService();
+
+    await expect(
+      service.getCardRate("poe1", "Mirage", "A Chilling Wind"),
+    ).resolves.toBeNull();
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
   it("rejects an oversized index and non-OK responses", async () => {
     mockFetch.mockResolvedValueOnce(
       jsonResponse({
@@ -268,6 +371,26 @@ describe("CommunityDropRatesService", () => {
     await expect(
       unavailableService.getCardRate("poe1", "Mirage", "A Chilling Wind"),
     ).resolves.toBeNull();
+  });
+
+  it("rejects non-OK and malformed league responses", async () => {
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse(makeIndexResponse()))
+      .mockResolvedValueOnce(new Response(null, { status: 503 }));
+    const unavailableService = new CommunityDropRatesService();
+    await expect(
+      unavailableService.getCardRate("poe1", "Mirage", "A Chilling Wind"),
+    ).resolves.toBeNull();
+
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse(makeIndexResponse()))
+      .mockResolvedValueOnce(jsonResponse({ league: {}, cards: "invalid" }));
+    const malformedService = new CommunityDropRatesService();
+    await expect(
+      malformedService.getCardRate("poe1", "Mirage", "A Chilling Wind"),
+    ).resolves.toBeNull();
+
+    expect(mockLoggerWarn).toHaveBeenCalledTimes(2);
   });
 
   it("returns null when the card is absent from valid data", async () => {

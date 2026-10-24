@@ -84,7 +84,7 @@ test.describe("Settings – Cards (Core)", () => {
       }
 
       const expectedTabContent = [
-        { tab: "Game", text: "Path of Exile 1 Client.txt" },
+        { tab: "Game", text: "Path of Exile 1 client log" },
         { tab: "App", text: "When closing the window" },
         { tab: "Overlay", text: "Drop size" },
         { tab: "Audio", text: "Enable drop sounds" },

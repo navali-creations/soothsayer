@@ -30,7 +30,11 @@ export default defineConfig({
     },
     coverage: {
       provider: "v8",
-      include: ["main/modules/**/*.ts", "main/utils/**/*.ts"],
+      include: [
+        "main/modules/**/*.ts",
+        "main/pollers/**/*.ts",
+        "main/utils/**/*.ts",
+      ],
       exclude: [
         "main/modules/__test-utils__/**",
         // Migrations are exercised through fresh-install, upgrade-path, and
@@ -41,9 +45,11 @@ export default defineConfig({
         "main/modules/**/index.ts",
         "main/modules/**/*.api.ts",
         "main/modules/**/*.channels.ts",
+        "main/pollers/**/__tests__/**",
       ],
       reporter: ["text", "html", "lcov"],
       reportsDirectory: "./coverage",
+      thresholds: { 100: true },
     },
   },
 });

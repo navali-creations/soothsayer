@@ -583,6 +583,14 @@ describe("PoeLeaguesService", () => {
       ]);
     });
 
+    it("should normalize a non-Error Supabase rejection before falling back", async () => {
+      mockCallEdgeFunction.mockRejectedValue("network unavailable");
+
+      await expect(service.fetchLeagues("poe1")).resolves.toEqual([
+        { id: "Standard", name: "Standard", startAt: null, endAt: null },
+      ]);
+    });
+
     it("should not fetch from Supabase when cache is within threshold", async () => {
       // Insert cache metadata from 10 hours ago (threshold is 24)
       const tenHoursAgo = new Date(

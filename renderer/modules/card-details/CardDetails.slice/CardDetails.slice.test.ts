@@ -519,6 +519,56 @@ describe("CardDetails.slice", () => {
       expect(store.getState().cardDetails.card?.name).toBe("Card B");
     });
 
+    it("ignores an older not-found response", async () => {
+      let resolveOlder!: (value: null) => void;
+      electron.cardDetails.resolveCardBySlug
+        .mockReturnValueOnce(
+          new Promise((resolve) => {
+            resolveOlder = resolve;
+          }),
+        )
+        .mockResolvedValueOnce(
+          makeResolveResult({ card: makeCard({ name: "Card B" }) }),
+        );
+
+      const olderRequest = store
+        .getState()
+        .cardDetails.initializeCardDetails("poe1", "missing", "all");
+      await store
+        .getState()
+        .cardDetails.initializeCardDetails("poe1", "card-b", "all");
+      resolveOlder(null);
+      await olderRequest;
+
+      expect(store.getState().cardDetails.card?.name).toBe("Card B");
+      expect(store.getState().cardDetails.cardError).toBeNull();
+    });
+
+    it("ignores an older failed response", async () => {
+      let rejectOlder!: (reason: Error) => void;
+      electron.cardDetails.resolveCardBySlug
+        .mockReturnValueOnce(
+          new Promise((_resolve, reject) => {
+            rejectOlder = reject;
+          }),
+        )
+        .mockResolvedValueOnce(
+          makeResolveResult({ card: makeCard({ name: "Card B" }) }),
+        );
+
+      const olderRequest = store
+        .getState()
+        .cardDetails.initializeCardDetails("poe1", "card-a", "all");
+      await store
+        .getState()
+        .cardDetails.initializeCardDetails("poe1", "card-b", "all");
+      rejectOlder(new Error("old failure"));
+      await olderRequest;
+
+      expect(store.getState().cardDetails.card?.name).toBe("Card B");
+      expect(store.getState().cardDetails.cardError).toBeNull();
+    });
+
     it("invalidates an in-flight initialization when state is cleared", async () => {
       let resolveRequest!: (
         value: ReturnType<typeof makeResolveResult>,

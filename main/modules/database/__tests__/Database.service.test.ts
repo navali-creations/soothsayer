@@ -356,6 +356,10 @@ describe("DatabaseService", () => {
           lastInsertRowid: 7,
         },
       );
+      expect(execHandler({}, "DELETE FROM cards")).toEqual({
+        changes: 1,
+        lastInsertRowid: 7,
+      });
       expect(queryHandler({}, "SELECT * FROM cards")).toEqual([
         { id: "row-1" },
       ]);
@@ -570,6 +574,17 @@ describe("DatabaseService", () => {
 
       expect(callOrder).toEqual(["kysely:destroy", "db:close"]);
     });
+
+    it("should be idempotent and expose its closed state", () => {
+      const service = DatabaseService.getInstance();
+      expect(service.isClosed).toBe(false);
+
+      service.close();
+      service.close();
+
+      expect(service.isClosed).toBe(true);
+      expect(mockDbClose).toHaveBeenCalledOnce();
+    });
   });
 
   // ─── getPath ─────────────────────────────────────────────────────────────
@@ -607,6 +622,16 @@ describe("DatabaseService", () => {
 
       expect(mockDbPragma).toHaveBeenCalledWith("optimize");
     });
+
+    it("should not optimize a closed database", () => {
+      const service = DatabaseService.getInstance();
+      service.close();
+      mockDbPragma.mockClear();
+
+      service.optimize();
+
+      expect(mockDbPragma).not.toHaveBeenCalled();
+    });
   });
 
   // ─── getMigrationRunner ──────────────────────────────────────────────────
@@ -624,6 +649,18 @@ describe("DatabaseService", () => {
   // ─── reset ───────────────────────────────────────────────────────────────
 
   describe("reset", () => {
+    it("reinitializes safely after the database was already closed", () => {
+      const service = DatabaseService.getInstance();
+      service.close();
+      mockKyselyDestroy.mockClear();
+      mockDbClose.mockClear();
+
+      expect(() => service.reset()).not.toThrow();
+      expect(mockKyselyDestroy).not.toHaveBeenCalled();
+      expect(mockDbClose).not.toHaveBeenCalled();
+      expect(service.isClosed).toBe(false);
+    });
+
     it("should close the Kysely instance", () => {
       const service = DatabaseService.getInstance();
       mockKyselyDestroy.mockClear();

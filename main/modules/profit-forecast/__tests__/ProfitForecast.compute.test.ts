@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   computeAll,
+  computeConfidenceInterval,
+  computePnLCurve,
   computeRowDynamicFields,
+  computeTotalChaosCost,
   getCostFromTotalCostBasis,
   getEffectiveCostParams,
   getEffectiveCostRate,
@@ -54,6 +57,48 @@ const BASE_REQUEST = {
   chaosToDivineRatio: 200,
   evPerDeck: ROWS.reduce((sum, r) => sum + r.evContribution, 0),
 };
+
+describe("cost and confidence helpers", () => {
+  it.each([
+    [0, 90, 2, 5000, 200],
+    [100, 90, 2, 5000, 0],
+    [100, 0, 2, 5000, 200],
+    [100, 90, 2, 0, 200],
+  ])("returns zero for invalid cost inputs", (deckCount, baseRate, stepDrop, subBatchSize, chaosToDivineRatio) => {
+    expect(
+      computeTotalChaosCost(
+        deckCount,
+        baseRate,
+        stepDrop,
+        subBatchSize,
+        chaosToDivineRatio,
+      ),
+    ).toBe(0);
+  });
+
+  it("uses neutral calibration for a zero-value priced card", () => {
+    expect(
+      computeConfidenceInterval(
+        [
+          {
+            probability: 0.5,
+            chaosValue: 0,
+            evContribution: 0,
+            hasPrice: true,
+            excludeFromEv: false,
+          },
+        ],
+        100,
+      ),
+    ).toEqual({ estimated: 0, optimistic: 0 });
+  });
+
+  it("builds a PnL curve without a fixed-spend basis", () => {
+    expect(computePnLCurve([], [100], 100, 0, 100, 200)).toEqual([
+      { deckCount: 100, estimated: -200, optimistic: -200 },
+    ]);
+  });
+});
 
 // ── getEffectiveCostParams ─────────────────────────────────────────────────────
 

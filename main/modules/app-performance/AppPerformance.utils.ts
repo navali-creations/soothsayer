@@ -43,16 +43,9 @@ export function computeStats(
     return { current: null, min: null, avg: null, max: null };
   }
 
-  const current = [...values]
-    .reverse()
-    .find(
-      (value): value is number =>
-        typeof value === "number" && Number.isFinite(value),
-    );
-
   const sum = numeric.reduce((total, value) => total + value, 0);
   return {
-    current: current ?? null,
+    current: numeric.at(-1)!,
     min: Math.min(...numeric),
     avg: sum / numeric.length,
     max: Math.max(...numeric),

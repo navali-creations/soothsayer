@@ -447,10 +447,7 @@ class MainWindowService {
     UpdaterService.getInstance().initialize(this.mainWindow);
     console.log("[Init] ✓ Updater");
 
-    const clientLogReader = await ClientLogReaderService.getInstance(this);
-    clientLogReader
-      .on("clientlog-start", (_data) => {})
-      .on("clientlog-stop", (_data) => {});
+    await ClientLogReaderService.getInstance(this);
 
     console.log("[Init] Main window created and ready");
   }

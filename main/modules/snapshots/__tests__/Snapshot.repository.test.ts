@@ -373,6 +373,24 @@ describe("SnapshotRepository", () => {
       expect(snapshot!.createdAt).toEqual(expect.any(String));
       expect(snapshot!.stackedDeckChaosCost).toBe(0);
     });
+
+    it("should default a missing stacked deck cost to zero", async () => {
+      const leagueId = await seedLeague(testDb.kysely);
+
+      await repository.createSnapshot({
+        id: "snap-missing-cost",
+        leagueId,
+        snapshotData: {
+          timestamp: "2025-01-15T10:00:00Z",
+          stackedDeckChaosCost: null,
+          chaosToDivineRatio: 200,
+          cardPrices: {},
+        },
+      } as Parameters<typeof repository.createSnapshot>[0]);
+
+      const snapshot = await repository.getSnapshotById("snap-missing-cost");
+      expect(snapshot?.stackedDeckChaosCost).toBe(0);
+    });
   });
 
   // ─── getSnapshotCardPrices ───────────────────────────────────────────────

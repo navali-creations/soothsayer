@@ -161,7 +161,7 @@ describe("OverlayBeacon", () => {
     renderWithProviders(<OverlayBeacon {...defaultProps} />);
     expect(
       screen.getByText(
-        /Reads your Client\.txt file to detect card drops in real-time/,
+        /Reads your Path of Exile client log to detect card drops in real-time/,
       ),
     ).toBeInTheDocument();
     expect(

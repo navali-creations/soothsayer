@@ -81,6 +81,10 @@ describe("CommunityUploadRepository", () => {
     ]);
   });
 
+  it("returns no backfill leagues when there are no candidates", async () => {
+    await expect(repository.getBackfillLeagues()).resolves.toEqual([]);
+  });
+
   it("rejects an unexpectedly large candidate set", async () => {
     await testDb.kysely
       .insertInto("cards")
@@ -151,6 +155,10 @@ describe("CommunityUploadRepository", () => {
 
     expect(marker?.key).toBe("community_backfill_done_poe1_Settlers");
     expect(dismissal).toBeUndefined();
+  });
+
+  it("allows an empty backfill commit", async () => {
+    await expect(repository.commitBackfill([], false)).resolves.toBeUndefined();
   });
 
   it("rolls back completion markers when dismissal cannot be persisted", async () => {

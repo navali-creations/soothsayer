@@ -1,819 +1,279 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getIpcHandler } from "~/main/modules/__test-utils__/mock-factories";
+import {
+  createPoeProcessSnapshot,
+  createStoppedPoeProcessStates,
+  type PoeProcessSnapshot,
+} from "../PoeProcess.dto";
 
-// ─── Hoisted mock functions (available inside vi.mock factories) ─────────────
 const {
+  mockAssertTrustedSender,
   mockIpcHandle,
-  mockPollerOn,
-  mockPollerStart,
-  mockPollerStop,
   mockPowerMonitorOn,
+  mockWatcherOn,
+  mockWatcherPollSnapshot,
+  mockWatcherStart,
+  mockWatcherStop,
   mockWebContentsSend,
 } = vi.hoisted(() => ({
+  mockAssertTrustedSender: vi.fn(),
   mockIpcHandle: vi.fn(),
-  mockPollerOn: vi.fn(),
-  mockPollerStart: vi.fn(),
-  mockPollerStop: vi.fn(),
   mockPowerMonitorOn: vi.fn(),
+  mockWatcherOn: vi.fn(),
+  mockWatcherPollSnapshot: vi.fn(),
+  mockWatcherStart: vi.fn(),
+  mockWatcherStop: vi.fn(),
   mockWebContentsSend: vi.fn(),
 }));
 
-// ─── Mock Electron ───────────────────────────────────────────────────────────
 vi.mock("electron", () => ({
-  ipcMain: {
-    handle: mockIpcHandle,
-    on: vi.fn(),
-    removeHandler: vi.fn(),
-  },
-  BrowserWindow: {
-    getAllWindows: vi.fn(() => []),
-    getFocusedWindow: vi.fn(() => null),
-  },
-  app: {
-    isPackaged: false,
-    getAppPath: vi.fn(() => "/mock-app-path"),
-    getPath: vi.fn(() => "/mock-path"),
-  },
-  powerMonitor: {
-    on: mockPowerMonitorOn,
-  },
-  dialog: {
-    showMessageBox: vi.fn(),
-    showSaveDialog: vi.fn(),
+  app: { isPackaged: false },
+  ipcMain: { handle: mockIpcHandle },
+  powerMonitor: { on: mockPowerMonitorOn },
+}));
+
+vi.mock("~/main/pollers/PoeProcessWatcher", () => ({
+  PoeProcessWatcher: class MockPoeProcessWatcher {
+    on = mockWatcherOn;
+    pollSnapshot = mockWatcherPollSnapshot;
+    start = mockWatcherStart;
+    stop = mockWatcherStop;
   },
 }));
 
-// ─── Mock PoeProcessPoller ───────────────────────────────────────────────────
-// The service imports from "../../pollers/PoeProcessPoller" which resolves to
-// main/pollers/PoeProcessPoller via the ~/main alias.
-vi.mock("~/main/pollers/PoeProcessPoller", () => {
-  class MockPoeProcessPoller {
-    on = mockPollerOn;
-    start = mockPollerStart;
-    stop = mockPollerStop;
-    emit = vi.fn();
-    removeAllListeners = vi.fn();
-  }
-  return { PoeProcessPoller: MockPoeProcessPoller };
-});
+vi.mock("~/main/utils/ipc-validation", () => ({
+  assertTrustedSender: mockAssertTrustedSender,
+}));
 
 import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
+import type { MainWindowService } from "~/main/modules/main-window";
 
-// ─── Import under test (after mocks) ────────────────────────────────────────
 import { PoeProcessService } from "../PoeProcess.service";
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+function getRegisteredListener<T extends (...args: never[]) => unknown>(
+  registerMock: ReturnType<typeof vi.fn>,
+  event: string,
+): T {
+  const call = registerMock.mock.calls.find(([name]) => name === event);
+  if (!call) throw new Error(`No listener registered for ${event}`);
+  return call[1] as T;
+}
 
-/** Get the callback registered on the poller for a given event */
-function getPollerListener(event: string): (...args: any[]) => void {
-  const call = mockPollerOn.mock.calls.find(([ev]: [string]) => ev === event);
-  if (!call) {
-    throw new Error(`poller.on was not called with "${event}"`);
-  }
+function getIpcHandler(
+  channel: string,
+): (event: unknown) => Promise<PoeProcessSnapshot> {
+  const call = mockIpcHandle.mock.calls.find(([name]) => name === channel);
+  if (!call) throw new Error(`No IPC handler registered for ${channel}`);
   return call[1];
 }
 
-/** Get the callback registered on powerMonitor for a given event */
-function getPowerMonitorListener(event: string): (...args: any[]) => void {
-  const call = mockPowerMonitorOn.mock.calls.find(
-    ([ev]: [string]) => ev === event,
-  );
-  if (!call) {
-    throw new Error(`powerMonitor.on was not called with "${event}"`);
-  }
-  return call[1];
-}
-
-/** Create a mock MainWindowService */
-function createMockMainWindow(
-  overrides: Partial<{
-    isDestroyed: boolean;
-    webContentsSend: ReturnType<typeof vi.fn>;
-  }> = {},
-) {
-  const send = overrides.webContentsSend ?? mockWebContentsSend;
+function createMainWindow(): MainWindowService {
   return {
-    getWebContents: vi.fn(() => ({
-      send,
-      isDestroyed: vi.fn(() => overrides.isDestroyed ?? false),
-    })),
+    getWebContents: () => ({
+      isDestroyed: () => false,
+      send: mockWebContentsSend,
+    }),
+  } as unknown as MainWindowService;
+}
+
+function createRunningSnapshot(game: "poe1" | "poe2"): PoeProcessSnapshot {
+  const states = createStoppedPoeProcessStates();
+  states[game] = {
+    game,
+    isRunning: true,
+    pid: game === "poe1" ? 101 : 202,
+    processName: game === "poe1" ? "PathOfExile.exe" : "PathOfExile2.exe",
+    windowTitle: game === "poe1" ? "Path of Exile" : "Path of Exile 2",
   };
+  return createPoeProcessSnapshot(states, "watching");
 }
-
-// ─── Types for captured listeners ────────────────────────────────────────────
-interface PollerListeners {
-  start: (...args: any[]) => void;
-  stop: (...args: any[]) => void;
-  data: (...args: any[]) => void;
-  error: (...args: any[]) => void;
-}
-
-interface PowerListeners {
-  suspend: (...args: any[]) => void;
-  resume: (...args: any[]) => void;
-  lockScreen: (...args: any[]) => void;
-  unlockScreen: (...args: any[]) => void;
-}
-
-/**
- * Capture all poller listeners from mockPollerOn's call history.
- * Must be called BEFORE vi.clearAllMocks().
- */
-function capturePollerListeners(): PollerListeners {
-  return {
-    start: getPollerListener("start"),
-    stop: getPollerListener("stop"),
-    data: getPollerListener("data"),
-    error: getPollerListener("error"),
-  };
-}
-
-/**
- * Capture all powerMonitor listeners from mockPowerMonitorOn's call history.
- * Must be called BEFORE vi.clearAllMocks().
- */
-function capturePowerListeners(): PowerListeners {
-  return {
-    suspend: getPowerMonitorListener("suspend"),
-    resume: getPowerMonitorListener("resume"),
-    lockScreen: getPowerMonitorListener("lock-screen"),
-    unlockScreen: getPowerMonitorListener("unlock-screen"),
-  };
-}
-
-// ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe("PoeProcessService", () => {
-  let service: PoeProcessService;
-  // Captured references survive vi.clearAllMocks()
-  let pollerListeners: PollerListeners;
-  let powerListeners: PowerListeners;
-
   beforeEach(() => {
     vi.clearAllMocks();
+    mockWatcherPollSnapshot.mockReturnValue(createPoeProcessSnapshot());
+    resetSingleton(PoeProcessService);
+    PoeProcessService.getInstance();
+  });
+
+  it("registers snapshot, power, and IPC listeners", () => {
+    expect(mockWatcherOn.mock.calls.map(([event]) => event)).toEqual([
+      "data",
+      "error",
+    ]);
+    expect(mockPowerMonitorOn.mock.calls.map(([event]) => event)).toEqual([
+      "suspend",
+      "resume",
+      "lock-screen",
+      "unlock-screen",
+    ]);
+    expect(mockIpcHandle.mock.calls.map(([channel]) => channel)).toEqual([
+      "poe-process:get-snapshot",
+    ]);
+  });
+
+  it("starts and stops the native watcher with the service", () => {
+    const service = PoeProcessService.getInstance();
+    service.initialize(createMainWindow());
+    service.stop();
+    expect(mockWatcherStart).toHaveBeenCalledOnce();
+    expect(mockWatcherStop).toHaveBeenCalledOnce();
+  });
+
+  it("broadcasts only the renderer-safe process snapshot", () => {
+    const service = PoeProcessService.getInstance();
+    service.initialize(createMainWindow());
+    const snapshot = createRunningSnapshot("poe2");
+
+    getRegisteredListener<(value: PoeProcessSnapshot) => void>(
+      mockWatcherOn,
+      "data",
+    )(snapshot);
+
+    expect(mockWebContentsSend).toHaveBeenCalledOnce();
+    expect(mockWebContentsSend).toHaveBeenCalledWith(
+      "poe-process:snapshot-changed",
+      snapshot,
+    );
+    expect(snapshot).toEqual({
+      status: "watching",
+      states: {
+        poe1: { isRunning: false },
+        poe2: { isRunning: true },
+      },
+    });
+  });
+
+  it("refreshes and returns the snapshot through trusted IPC", async () => {
+    const snapshot = createRunningSnapshot("poe1");
+    mockWatcherPollSnapshot.mockReturnValue(snapshot);
+    const event = {};
+
+    await expect(
+      getIpcHandler("poe-process:get-snapshot")(event),
+    ).resolves.toEqual(snapshot);
+    expect(mockAssertTrustedSender).toHaveBeenCalledWith(
+      event,
+      "poe-process:get-snapshot",
+    );
+    expect(mockWatcherPollSnapshot).toHaveBeenCalledOnce();
+  });
+
+  it("clears and broadcasts process state while suspended", () => {
+    const service = PoeProcessService.getInstance();
+    service.initialize(createMainWindow());
+    getRegisteredListener<(value: PoeProcessSnapshot) => void>(
+      mockWatcherOn,
+      "data",
+    )(createRunningSnapshot("poe1"));
+    mockWebContentsSend.mockClear();
+
+    getRegisteredListener<() => void>(mockPowerMonitorOn, "suspend")();
+
+    expect(mockWatcherStop).toHaveBeenCalledOnce();
+    expect(mockWebContentsSend).toHaveBeenCalledOnce();
+    expect(mockWebContentsSend).toHaveBeenCalledWith(
+      "poe-process:snapshot-changed",
+      createPoeProcessSnapshot(),
+    );
+  });
+
+  it("restarts the watcher after resume when initialized", () => {
+    const service = PoeProcessService.getInstance();
+    service.initialize(createMainWindow());
+    mockWatcherStart.mockClear();
+    getRegisteredListener<() => void>(mockPowerMonitorOn, "suspend")();
+    getRegisteredListener<() => void>(mockPowerMonitorOn, "resume")();
+    expect(mockWatcherStart).toHaveBeenCalledOnce();
+  });
+
+  it("does not start while suspended or resume before initialization", () => {
+    const service = PoeProcessService.getInstance();
+    getRegisteredListener<() => void>(mockPowerMonitorOn, "suspend")();
+    service.initialize(createMainWindow());
+    expect(mockWatcherStart).not.toHaveBeenCalled();
 
     resetSingleton(PoeProcessService);
-
-    service = PoeProcessService.getInstance();
-
-    // Capture listener references immediately after construction
-    // so they survive any subsequent clearAllMocks calls in nested beforeEach
-    pollerListeners = capturePollerListeners();
-    powerListeners = capturePowerListeners();
+    vi.clearAllMocks();
+    PoeProcessService.getInstance();
+    getRegisteredListener<() => void>(mockPowerMonitorOn, "resume")();
+    expect(mockWatcherStart).not.toHaveBeenCalled();
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
+  it("logs lock and unlock notifications", () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    getRegisteredListener<() => void>(mockPowerMonitorOn, "lock-screen")();
+    getRegisteredListener<() => void>(mockPowerMonitorOn, "unlock-screen")();
+    expect(log).toHaveBeenCalledWith("[PoeProcess] Screen locked");
+    expect(log).toHaveBeenCalledWith("[PoeProcess] Screen unlocked");
   });
 
-  // ─── Singleton ───────────────────────────────────────────────────────────
+  it("logs helper errors without exposing them to the renderer", () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const service = PoeProcessService.getInstance();
+    service.initialize(createMainWindow());
+    const failure = new Error("helper failed");
 
-  describe("getInstance", () => {
-    it("should return the same instance on repeated calls", () => {
-      const a = PoeProcessService.getInstance();
-      const b = PoeProcessService.getInstance();
-      expect(a).toBe(b);
-    });
+    getRegisteredListener<(error: Error) => void>(
+      mockWatcherOn,
+      "error",
+    )(failure);
+
+    expect(consoleError).toHaveBeenCalledWith(
+      "PoE process watcher error:",
+      failure,
+    );
+    expect(mockWebContentsSend).not.toHaveBeenCalled();
   });
 
-  // ─── Constructor setup ───────────────────────────────────────────────────
+  it("skips unavailable renderer targets", () => {
+    const service = PoeProcessService.getInstance();
+    const onData = getRegisteredListener<(value: PoeProcessSnapshot) => void>(
+      mockWatcherOn,
+      "data",
+    );
+    const snapshot = createRunningSnapshot("poe1");
 
-  describe("constructor", () => {
-    it("should set up poller listeners for start, stop, data, and error", () => {
-      const registeredEvents = mockPollerOn.mock.calls.map(
-        ([ev]: [string]) => ev,
-      );
-      expect(registeredEvents).toContain("start");
-      expect(registeredEvents).toContain("stop");
-      expect(registeredEvents).toContain("data");
-      expect(registeredEvents).toContain("error");
-    });
+    onData(snapshot);
+    expect(mockWebContentsSend).not.toHaveBeenCalled();
 
-    it("should register the poe-process:is-running IPC handler", () => {
-      const channels = mockIpcHandle.mock.calls.map(([ch]: [string]) => ch);
-      expect(channels).toContain("poe-process:is-running");
-    });
+    service.initialize({
+      getWebContents: () => null,
+    } as unknown as MainWindowService);
+    onData(snapshot);
+    expect(mockWebContentsSend).not.toHaveBeenCalled();
 
-    it("should set up powerMonitor listeners for suspend and resume", () => {
-      const events = mockPowerMonitorOn.mock.calls.map(([ev]: [string]) => ev);
-      expect(events).toContain("suspend");
-      expect(events).toContain("resume");
-    });
-
-    it("should set up powerMonitor listeners for lock-screen and unlock-screen", () => {
-      const events = mockPowerMonitorOn.mock.calls.map(([ev]: [string]) => ev);
-      expect(events).toContain("lock-screen");
-      expect(events).toContain("unlock-screen");
-    });
+    service.initialize({
+      getWebContents: () => ({ isDestroyed: () => true }),
+    } as unknown as MainWindowService);
+    onData(snapshot);
+    expect(mockWebContentsSend).not.toHaveBeenCalled();
   });
 
-  // ─── IPC Handler: IsRunning ──────────────────────────────────────────────
-
-  describe("IPC: poe-process:is-running", () => {
-    it("should return default state when no events have occurred", () => {
-      const handler = getIpcHandler(mockIpcHandle, "poe-process:is-running");
-      const result = handler();
-      expect(result).toEqual({ isRunning: false, processName: "" });
-    });
-
-    it("should return current state after a start event", () => {
-      pollerListeners.start({
-        isRunning: true,
-        processName: "PathOfExile.exe",
-      });
-
-      const handler = getIpcHandler(mockIpcHandle, "poe-process:is-running");
-      const result = handler();
-      expect(result).toEqual({
-        isRunning: true,
-        processName: "PathOfExile.exe",
-      });
-    });
-
-    it("should return updated state after a stop event", () => {
-      // First start
-      pollerListeners.start({
-        isRunning: true,
-        processName: "PathOfExile.exe",
-      });
-
-      // Then stop
-      pollerListeners.stop({
-        isRunning: true,
-        processName: "PathOfExile.exe",
-      });
-
-      const handler = getIpcHandler(mockIpcHandle, "poe-process:is-running");
-      const result = handler();
-      expect(result).toEqual({ isRunning: false, processName: "" });
-    });
-
-    it("should return updated state after a data event", () => {
-      pollerListeners.data({
-        isRunning: true,
-        processName: "PathOfExileSteam.exe",
-      });
-
-      const handler = getIpcHandler(mockIpcHandle, "poe-process:is-running");
-      const result = handler();
-      expect(result).toEqual({
-        isRunning: true,
-        processName: "PathOfExileSteam.exe",
-      });
-    });
-  });
-
-  // ─── initialize ──────────────────────────────────────────────────────────
-
-  describe("initialize", () => {
-    it("should start the poller", () => {
-      vi.clearAllMocks();
-      const mainWindow = createMockMainWindow();
-      service.initialize(mainWindow as any);
-      expect(mockPollerStart).toHaveBeenCalledTimes(1);
-    });
-
-    it("should not start the poller if the system is suspended", () => {
-      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-
-      // Trigger system suspend before initializing
-      powerListeners.suspend();
-
-      vi.clearAllMocks();
-
-      const mainWindow = createMockMainWindow();
-      service.initialize(mainWindow as any);
-
-      // The poller should NOT have been started
-      expect(mockPollerStart).not.toHaveBeenCalled();
-      consoleSpy.mockRestore();
-    });
-  });
-
-  // ─── stop ────────────────────────────────────────────────────────────────
-
-  describe("stop", () => {
-    it("should stop the poller", () => {
-      vi.clearAllMocks();
-      service.stop();
-      expect(mockPollerStop).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  // ─── Poller event listeners ──────────────────────────────────────────────
-
-  describe("poller event listeners", () => {
-    let mainWindow: ReturnType<typeof createMockMainWindow>;
-
-    beforeEach(() => {
-      mainWindow = createMockMainWindow();
-      service.initialize(mainWindow as any);
-      // Only clear specific mocks — do NOT clear mockPollerOn (listeners captured above)
-      mockWebContentsSend.mockClear();
-      mockPollerStart.mockClear();
-      mockPollerStop.mockClear();
-    });
-
-    describe("start event", () => {
-      it("should update current state on start", () => {
-        pollerListeners.start({
-          isRunning: true,
-          processName: "PathOfExile.exe",
-        });
-
-        const handler = getIpcHandler(mockIpcHandle, "poe-process:is-running");
-        const result = handler();
-        expect(result.isRunning).toBe(true);
-        expect(result.processName).toBe("PathOfExile.exe");
-      });
-
-      it("should send start event to renderer", () => {
-        const state = {
-          isRunning: true,
-          processName: "PathOfExile.exe",
-        };
-        pollerListeners.start(state);
-
-        expect(mockWebContentsSend).toHaveBeenCalledWith(
-          "poe-process:start",
-          state,
-        );
-      });
-    });
-
-    describe("stop event", () => {
-      it("should reset current state on stop", () => {
-        // First set a running state
-        pollerListeners.start({
-          isRunning: true,
-          processName: "PathOfExile.exe",
-        });
-
-        // Then stop
-        pollerListeners.stop({
-          isRunning: true,
-          processName: "PathOfExile.exe",
-        });
-
-        const handler = getIpcHandler(mockIpcHandle, "poe-process:is-running");
-        const result = handler();
-        expect(result.isRunning).toBe(false);
-        expect(result.processName).toBe("");
-      });
-
-      it("should send stop event to renderer with previous state", () => {
-        const previousState = {
-          isRunning: true,
-          processName: "PathOfExile.exe",
-        };
-        pollerListeners.stop(previousState);
-
-        expect(mockWebContentsSend).toHaveBeenCalledWith(
-          "poe-process:stop",
-          previousState,
-        );
-      });
-    });
-
-    describe("data event", () => {
-      it("should update current state on data", () => {
-        pollerListeners.data({
-          isRunning: true,
-          processName: "PathOfExile2Steam.exe",
-        });
-
-        const handler = getIpcHandler(mockIpcHandle, "poe-process:is-running");
-        const result = handler();
-        expect(result.isRunning).toBe(true);
-        expect(result.processName).toBe("PathOfExile2Steam.exe");
-      });
-
-      it("should send data event to renderer", () => {
-        const state = {
-          isRunning: false,
-          processName: "PathOfExile.exe",
-        };
-        pollerListeners.data(state);
-
-        expect(mockWebContentsSend).toHaveBeenCalledWith(
-          "poe-process:get-state",
-          state,
-        );
-      });
-    });
-
-    describe("error event", () => {
-      it("should send error to renderer", () => {
-        const consoleSpy = vi
-          .spyOn(console, "error")
-          .mockImplementation(() => {});
-
-        const error = new Error("Process detection failed");
-        pollerListeners.error(error);
-
-        expect(mockWebContentsSend).toHaveBeenCalledWith(
-          "poe-process:get-error",
-          { error: "Process detection failed" },
-        );
-        consoleSpy.mockRestore();
-      });
-
-      it("should log the error to console", () => {
-        const consoleSpy = vi
-          .spyOn(console, "error")
-          .mockImplementation(() => {});
-
-        const error = new Error("Process detection failed");
-        pollerListeners.error(error);
-
-        expect(consoleSpy).toHaveBeenCalledWith(
-          "PoE process poller error:",
-          error,
-        );
-        consoleSpy.mockRestore();
-      });
-    });
-  });
-
-  // ─── sendToRenderer edge cases ───────────────────────────────────────────
-
-  describe("sendToRenderer", () => {
-    it("should not throw when mainWindow is null (not initialized)", () => {
-      // Service is not initialized — mainWindow is null
-      expect(() => {
-        pollerListeners.start({
-          isRunning: true,
-          processName: "PathOfExile.exe",
-        });
-      }).not.toThrow();
-
-      // No send should have been called
-      expect(mockWebContentsSend).not.toHaveBeenCalled();
-    });
-
-    it("should not send when webContents is destroyed", () => {
-      const mainWindow = createMockMainWindow({ isDestroyed: true });
-      service.initialize(mainWindow as any);
-      mockWebContentsSend.mockClear();
-
-      pollerListeners.start({
-        isRunning: true,
-        processName: "PathOfExile.exe",
-      });
-
-      expect(mockWebContentsSend).not.toHaveBeenCalled();
-    });
-
-    it("should not send when getWebContents returns null", () => {
-      const mainWindow = {
-        getWebContents: vi.fn(() => null),
-      };
-      service.initialize(mainWindow as any);
-      mockWebContentsSend.mockClear();
-
-      expect(() => {
-        pollerListeners.start({
-          isRunning: true,
-          processName: "PathOfExile.exe",
-        });
-      }).not.toThrow();
-
-      expect(mockWebContentsSend).not.toHaveBeenCalled();
-    });
-
-    it("should handle getWebContents throwing an error gracefully", () => {
-      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-      const mainWindow = {
-        getWebContents: vi.fn(() => {
-          throw new Error("Window was closed");
-        }),
-      };
-      service.initialize(mainWindow as any);
-      mockWebContentsSend.mockClear();
-
-      expect(() => {
-        pollerListeners.start({
-          isRunning: true,
-          processName: "PathOfExile.exe",
-        });
-      }).not.toThrow();
-
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining("[PoeProcess] Failed to send to renderer"),
-        expect.stringContaining("Window was closed"),
-      );
-      consoleSpy.mockRestore();
-    });
-
-    it("should handle non-Error exceptions in sendToRenderer", () => {
-      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-      const mainWindow = {
-        getWebContents: vi.fn(() => {
-          throw "string error";
-        }),
-      };
-      service.initialize(mainWindow as any);
-      mockWebContentsSend.mockClear();
-
-      expect(() => {
-        pollerListeners.start({
-          isRunning: true,
-          processName: "PathOfExile.exe",
-        });
-      }).not.toThrow();
-
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining("[PoeProcess] Failed to send to renderer"),
-        "string error",
-      );
-      consoleSpy.mockRestore();
-    });
-  });
-
-  // ─── Power Monitor ──────────────────────────────────────────────────────
-
-  describe("power monitor", () => {
-    describe("suspend", () => {
-      it("should stop the poller on suspend", () => {
-        const consoleSpy = vi
-          .spyOn(console, "log")
-          .mockImplementation(() => {});
-
-        const mainWindow = createMockMainWindow();
-        service.initialize(mainWindow as any);
-        mockPollerStop.mockClear();
-
-        powerListeners.suspend();
-
-        expect(mockPollerStop).toHaveBeenCalledTimes(1);
-        consoleSpy.mockRestore();
-      });
-
-      it("should mark system as suspended", () => {
-        const consoleSpy = vi
-          .spyOn(console, "log")
-          .mockImplementation(() => {});
-
-        const mainWindow = createMockMainWindow();
-        service.initialize(mainWindow as any);
-        mockPollerStart.mockClear();
-        mockPollerStop.mockClear();
-
-        powerListeners.suspend();
-
-        // After suspend, resume should restart the poller
-        // (we verify the isSystemSuspended flag indirectly via resume behavior)
-        mockPollerStart.mockClear();
-
-        powerListeners.resume();
-
-        // Since mainWindow is set, poller should restart
-        expect(mockPollerStart).toHaveBeenCalledTimes(1);
-        consoleSpy.mockRestore();
-      });
-    });
-
-    describe("resume", () => {
-      it("should restart the poller on resume if mainWindow is set", () => {
-        const consoleSpy = vi
-          .spyOn(console, "log")
-          .mockImplementation(() => {});
-
-        const mainWindow = createMockMainWindow();
-        service.initialize(mainWindow as any);
-
-        // Simulate suspend
-        powerListeners.suspend();
-        mockPollerStart.mockClear();
-
-        // Simulate resume
-        powerListeners.resume();
-
-        expect(mockPollerStart).toHaveBeenCalledTimes(1);
-        consoleSpy.mockRestore();
-      });
-
-      it("should NOT restart the poller on resume if service was never initialized", () => {
-        const consoleSpy = vi
-          .spyOn(console, "log")
-          .mockImplementation(() => {});
-
-        // Don't initialize (no mainWindow set)
-        powerListeners.suspend();
-        mockPollerStart.mockClear();
-
-        powerListeners.resume();
-
-        // poller.start should NOT have been called since mainWindow is null
-        expect(mockPollerStart).not.toHaveBeenCalled();
-        consoleSpy.mockRestore();
-      });
-
-      it("should clear the suspended flag on resume", () => {
-        const consoleSpy = vi
-          .spyOn(console, "log")
-          .mockImplementation(() => {});
-
-        // Suspend without mainWindow
-        powerListeners.suspend();
-
-        // Resume
-        powerListeners.resume();
-
-        // Now initialize — should start poller since system is no longer suspended
-        mockPollerStart.mockClear();
-        const mainWindow = createMockMainWindow();
-        service.initialize(mainWindow as any);
-        expect(mockPollerStart).toHaveBeenCalledTimes(1);
-
-        consoleSpy.mockRestore();
-      });
-    });
-
-    describe("lock-screen and unlock-screen", () => {
-      it("should handle lock-screen event without errors", () => {
-        const consoleSpy = vi
-          .spyOn(console, "log")
-          .mockImplementation(() => {});
-
-        expect(() => powerListeners.lockScreen()).not.toThrow();
-
-        expect(consoleSpy).toHaveBeenCalledWith("[PoeProcess] Screen locked");
-        consoleSpy.mockRestore();
-      });
-
-      it("should handle unlock-screen event without errors", () => {
-        const consoleSpy = vi
-          .spyOn(console, "log")
-          .mockImplementation(() => {});
-
-        expect(() => powerListeners.unlockScreen()).not.toThrow();
-
-        expect(consoleSpy).toHaveBeenCalledWith("[PoeProcess] Screen unlocked");
-        consoleSpy.mockRestore();
-      });
-    });
-  });
-
-  // ─── State transitions ──────────────────────────────────────────────────
-
-  describe("state transitions", () => {
-    beforeEach(() => {
-      const mainWindow = createMockMainWindow();
-      service.initialize(mainWindow as any);
-      mockWebContentsSend.mockClear();
-      mockPollerStart.mockClear();
-    });
-
-    it("should track state through start -> data -> stop cycle", () => {
-      const handler = getIpcHandler(mockIpcHandle, "poe-process:is-running");
-
-      // Initial state
-      expect(handler()).toEqual({ isRunning: false, processName: "" });
-
-      // Process starts
-      pollerListeners.start({
-        isRunning: true,
-        processName: "PathOfExile.exe",
-      });
-      expect(handler()).toEqual({
-        isRunning: true,
-        processName: "PathOfExile.exe",
-      });
-
-      // Data events update state
-      pollerListeners.data({
-        isRunning: true,
-        processName: "PathOfExile.exe",
-      });
-      expect(handler()).toEqual({
-        isRunning: true,
-        processName: "PathOfExile.exe",
-      });
-
-      // Process stops
-      pollerListeners.stop({
-        isRunning: true,
-        processName: "PathOfExile.exe",
-      });
-      expect(handler()).toEqual({
-        isRunning: false,
-        processName: "",
-      });
-    });
-
-    it("should handle switching between PoE1 and PoE2 processes", () => {
-      const handler = getIpcHandler(mockIpcHandle, "poe-process:is-running");
-
-      // PoE1 starts
-      pollerListeners.start({
-        isRunning: true,
-        processName: "PathOfExile.exe",
-      });
-      expect(handler().processName).toBe("PathOfExile.exe");
-
-      // PoE1 stops
-      pollerListeners.stop({
-        isRunning: true,
-        processName: "PathOfExile.exe",
-      });
-      expect(handler().isRunning).toBe(false);
-
-      // PoE2 starts
-      pollerListeners.start({
-        isRunning: true,
-        processName: "PathOfExile2Steam.exe",
-      });
-      expect(handler().processName).toBe("PathOfExile2Steam.exe");
-    });
-
-    it("should send correct channels for each event type", () => {
-      pollerListeners.start({
-        isRunning: true,
-        processName: "PathOfExile.exe",
-      });
-      expect(mockWebContentsSend).toHaveBeenCalledWith(
-        "poe-process:start",
-        expect.any(Object),
-      );
-
-      mockWebContentsSend.mockClear();
-
-      pollerListeners.data({
-        isRunning: true,
-        processName: "PathOfExile.exe",
-      });
-      expect(mockWebContentsSend).toHaveBeenCalledWith(
-        "poe-process:get-state",
-        expect.any(Object),
-      );
-
-      mockWebContentsSend.mockClear();
-
-      pollerListeners.stop({
-        isRunning: true,
-        processName: "PathOfExile.exe",
-      });
-      expect(mockWebContentsSend).toHaveBeenCalledWith(
-        "poe-process:stop",
-        expect.any(Object),
-      );
-    });
-  });
-
-  // ─── Multiple initialize/stop cycles ─────────────────────────────────────
-
-  describe("lifecycle", () => {
-    it("should allow multiple initialize calls", () => {
-      mockPollerStart.mockClear();
-
-      const mainWindow1 = createMockMainWindow();
-      const mainWindow2 = createMockMainWindow();
-
-      service.initialize(mainWindow1 as any);
-      service.initialize(mainWindow2 as any);
-
-      expect(mockPollerStart).toHaveBeenCalledTimes(2);
-    });
-
-    it("should allow stop to be called even without initialize", () => {
-      mockPollerStop.mockClear();
-      expect(() => service.stop()).not.toThrow();
-      expect(mockPollerStop).toHaveBeenCalledTimes(1);
-    });
-
-    it("should use the latest mainWindow for renderer communication", () => {
-      const send1 = vi.fn();
-      const send2 = vi.fn();
-
-      const mainWindow1 = {
-        getWebContents: vi.fn(() => ({
-          send: send1,
-          isDestroyed: vi.fn(() => false),
-        })),
-      };
-      const mainWindow2 = {
-        getWebContents: vi.fn(() => ({
-          send: send2,
-          isDestroyed: vi.fn(() => false),
-        })),
-      };
-
-      service.initialize(mainWindow1 as any);
-      service.initialize(mainWindow2 as any);
-
-      // Trigger an event
-      pollerListeners.start({
-        isRunning: true,
-        processName: "PathOfExile.exe",
-      });
-
-      // Only the second window's send should be called
-      expect(send1).not.toHaveBeenCalled();
-      expect(send2).toHaveBeenCalled();
-    });
+  it.each([
+    new Error("renderer unavailable"),
+    "renderer unavailable",
+  ])("normalizes renderer send failures", (failure) => {
+    const warning = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => undefined);
+    const service = PoeProcessService.getInstance();
+    service.initialize({
+      getWebContents: () => {
+        throw failure;
+      },
+    } as unknown as MainWindowService);
+
+    getRegisteredListener<(value: PoeProcessSnapshot) => void>(
+      mockWatcherOn,
+      "data",
+    )(createRunningSnapshot("poe1"));
+
+    expect(warning).toHaveBeenCalledWith(
+      "[PoeProcess] Failed to send to renderer (poe-process:snapshot-changed):",
+      "renderer unavailable",
+    );
   });
 });

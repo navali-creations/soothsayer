@@ -140,6 +140,16 @@ describe("RarityInsightsSlice", () => {
 
       expect(store.getState().rarityInsights.scanError).toBe("DB unavailable");
     });
+
+    it("uses a fallback error for non-Error cached-filter failures", async () => {
+      electron.rarityInsights.getAll.mockRejectedValue("offline");
+
+      await store.getState().rarityInsights.loadStoredFilters();
+
+      expect(store.getState().rarityInsights.scanError).toBe(
+        "Failed to load stored filters",
+      );
+    });
   });
 
   // ── scanFilters ────────────────────────────────────────────────────────
@@ -215,6 +225,22 @@ describe("RarityInsightsSlice", () => {
       expect(store.getState().rarityInsights.availableFilters).toEqual([
         makeFilter({ id: "f1", name: "Filter A" }),
         cachedSelected,
+      ]);
+    });
+
+    it("does not invent metadata when the selected filter is not cached", async () => {
+      selectFilterThemeSource("missing-filter");
+      const scannedFilter = makeFilter({ id: "f1", name: "Filter A" });
+      electron.rarityInsights.scan.mockResolvedValue({
+        filters: [scannedFilter],
+        localCount: 1,
+        onlineCount: 0,
+      });
+
+      await store.getState().rarityInsights.scanFilters();
+
+      expect(store.getState().rarityInsights.availableFilters).toEqual([
+        scannedFilter,
       ]);
     });
 
@@ -298,6 +324,16 @@ describe("RarityInsightsSlice", () => {
       await store.getState().rarityInsights.selectFilter("filter-abc");
 
       expect(store.getState().rarityInsights.parseError).toBe("Select failed");
+    });
+
+    it("uses a fallback parse error for non-Error selection failures", async () => {
+      electron.rarityInsights.select.mockRejectedValue("offline");
+
+      await store.getState().rarityInsights.selectFilter("filter-abc");
+
+      expect(store.getState().rarityInsights.parseError).toBe(
+        "Failed to select filter",
+      );
     });
   });
 
@@ -556,6 +592,17 @@ describe("RarityInsightsSlice", () => {
       expect(store.getState().rarityInsights.themeError).toBe("Theme failed");
     });
 
+    it("uses a fallback theme error for non-Error failures", async () => {
+      selectFilterThemeSource("filter-1");
+      electron.rarityInsights.getFilterTheme.mockRejectedValue("offline");
+
+      await store.getState().rarityInsights.loadFilterTheme("filter-1");
+
+      expect(store.getState().rarityInsights.themeError).toBe(
+        "Failed to load filter theme",
+      );
+    });
+
     it("ignores stale theme responses after the selected filter changes", async () => {
       selectFilterThemeSource("filter-1");
 
@@ -610,6 +657,42 @@ describe("RarityInsightsSlice", () => {
           borderColor: null,
         },
       });
+    });
+
+    it("clears loading when the latest response no longer matches the selected filter", async () => {
+      selectFilterThemeSource("filter-1");
+      let resolveTheme!: (value: unknown[]) => void;
+      electron.rarityInsights.getFilterTheme.mockReturnValue(
+        new Promise((resolve) => {
+          resolveTheme = resolve;
+        }),
+      );
+
+      const load = store.getState().rarityInsights.loadFilterTheme("filter-1");
+      selectFilterThemeSource("filter-2");
+      resolveTheme([]);
+      await load;
+
+      expect(store.getState().rarityInsights.isThemeLoading).toBe(false);
+      expect(store.getState().rarityInsights.activeFilterTheme).toBeNull();
+    });
+
+    it("clears loading when the latest error no longer matches the selected filter", async () => {
+      selectFilterThemeSource("filter-1");
+      let rejectTheme!: (reason: Error) => void;
+      electron.rarityInsights.getFilterTheme.mockReturnValue(
+        new Promise((_resolve, reject) => {
+          rejectTheme = reject;
+        }),
+      );
+
+      const load = store.getState().rarityInsights.loadFilterTheme("filter-1");
+      selectFilterThemeSource("filter-2");
+      rejectTheme(new Error("stale"));
+      await load;
+
+      expect(store.getState().rarityInsights.isThemeLoading).toBe(false);
+      expect(store.getState().rarityInsights.themeError).toBeNull();
     });
 
     it("ignores stale theme errors after switching away from filter source", async () => {

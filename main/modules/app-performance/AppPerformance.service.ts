@@ -487,8 +487,8 @@ class AppPerformanceService {
         metadata: {
           generatedAt: new Date().toISOString(),
           appVersion: app.getVersion(),
-          electron: process.versions.electron ?? "n/a",
-          chrome: process.versions.chrome ?? "n/a",
+          electron: process.versions.electron,
+          chrome: process.versions.chrome,
           node: process.versions.node,
           os: `${process.platform} ${os.release()} ${os.arch()}`,
         },

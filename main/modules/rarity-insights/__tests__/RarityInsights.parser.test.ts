@@ -895,6 +895,12 @@ describe("RarityInsightsParser", () => {
   // ============================================================================
 
   describe("extractCardNames", () => {
+    it("should discard quoted whitespace-only names", () => {
+      expect(RarityInsightsParser.extractCardNames('BaseType "   "')).toEqual(
+        [],
+      );
+    });
+
     it("should extract a single card name", () => {
       const result = RarityInsightsParser.extractCardNames(
         'BaseType == "The Doctor"',
@@ -1168,6 +1174,19 @@ describe("RarityInsightsParser", () => {
   // ============================================================================
 
   describe("buildTierStyles", () => {
+    it("should treat a missing tier style as empty", () => {
+      const result = RarityInsightsParser.buildTierStyles([
+        {
+          tierName: "t1",
+          rarity: 1,
+          cardNames: ["The Doctor"],
+          style: undefined,
+        },
+      ]);
+
+      expect(result.size).toBe(0);
+    });
+
     it("should build a rarity style map from tier blocks", () => {
       const result = RarityInsightsParser.buildTierStyles([
         {
@@ -1746,6 +1765,88 @@ describe("RarityInsightsParser", () => {
       );
 
       expect(result.cardRarities.get("Only Card")).toBe(4);
+    });
+
+    it("should infer and style a generic card block without a base block", () => {
+      const result = RarityInsightsParser.parseFilterContent(
+        [
+          "### Divination Cards",
+          "Show # Best jackpot divination cards",
+          'Class "Divination Card"',
+          'BaseType "Only Card"',
+          "SetBackgroundColor 0 0 0",
+          "SetBorderColor 255 0 0",
+        ].join("\n"),
+      );
+
+      expect(result.cardRarities.get("Only Card")).toBe(4);
+      expect(result.tierStyles.get(4)).toMatchObject({
+        bgColor: { r: 0, g: 0, b: 0, a: 255 },
+        borderColor: { r: 255, g: 0, b: 0, a: 255 },
+      });
+    });
+
+    it("should preserve equal-score order and inherit a base border style", () => {
+      const result = RarityInsightsParser.parseFilterContent(
+        [
+          "### Divination Cards",
+          "Show # All Divination Cards",
+          'Class "Divination Card"',
+          "SetBorderColor 1 2 3",
+          "",
+          "Show # Group A divination cards",
+          'Class "Divination Card"',
+          'BaseType "Card A"',
+          "SetBackgroundColor 30 30 30",
+          "",
+          "Show # Group B divination cards",
+          'Class "Divination Card"',
+          'BaseType "Card B"',
+          "SetBackgroundColor 30 30 30",
+        ].join("\n"),
+      );
+
+      expect(Array.from(result.cardRarities.keys())).toEqual([
+        "Card A",
+        "Card B",
+      ]);
+      expect(result.tierStyles.get(1)?.borderColor).toEqual({
+        r: 1,
+        g: 2,
+        b: 3,
+        a: 255,
+      });
+    });
+
+    it("should accept a divination block without an explicit tier token", () => {
+      const blocks = RarityInsightsParser.parseTierBlocks([
+        "Show # $type->divination",
+        'BaseType "Untiered Card"',
+      ]);
+
+      expect(blocks).toEqual([
+        expect.objectContaining({
+          tierName: "generic-1",
+          rarity: 4,
+          cardNames: ["Untiered Card"],
+        }),
+      ]);
+    });
+
+    it("should stop generic BaseType continuation on an unknown directive", () => {
+      const result = RarityInsightsParser.parseFilterContent(
+        [
+          "### Divination Cards",
+          "Show # Divination Cards",
+          'Class "Divination Card"',
+          'BaseType "Only Card"',
+          "CustomDirective enabled",
+          '"Not A Continuation"',
+        ].join("\n"),
+      );
+
+      expect(result.cardRarities.has("Only Card")).toBe(true);
+      expect(result.cardRarities.has("Not A Continuation")).toBe(false);
     });
 
     it.each([

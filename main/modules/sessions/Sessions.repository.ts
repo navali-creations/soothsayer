@@ -100,9 +100,9 @@ export class SessionsRepository {
       query = query.where("l.name", "=", league);
     }
 
-    const result = await query.executeTakeFirst();
+    const result = await query.executeTakeFirstOrThrow();
 
-    return result?.count ?? 0;
+    return result.count;
   }
 
   /**
@@ -169,7 +169,7 @@ export class SessionsRepository {
       .select(createSessionSummarySelects())
       .where("s.game", "=", game)
       .$if(sessionIds !== null, (qb) =>
-        qb.where("s.id", "in", sessionIds ?? []),
+        qb.where("s.id", "in", sessionIds as string[]),
       )
       .orderBy("s.started_at", "desc")
       .execute();
@@ -239,7 +239,7 @@ export class SessionsRepository {
             netProfit:
               row.persistedNetProfit ??
               persistedTotalValue - persistedTotalDeckCost,
-            chaosToDivineRatio: Number(row.persistedChaosToDivineRatio) || 0,
+            chaosToDivineRatio: Number(row.persistedChaosToDivineRatio),
             stackedDeckChaosCost: persistedStackedDeckChaosCost,
             totalDeckCost: persistedTotalDeckCost,
           }
@@ -669,7 +669,7 @@ export class SessionsRepository {
       sessionId: row.sessionId,
       date: row.date,
       totalDecksOpened: row.totalDecksOpened,
-      durationMinutes: row.durationMinutes ?? null,
+      durationMinutes: row.durationMinutes,
     };
   }
 
@@ -853,16 +853,14 @@ export class SessionsRepository {
       query = query.where("l.name", "=", league);
     }
 
-    const row = await query.executeTakeFirst();
-
-    if (!row) return null;
+    const row = await query.executeTakeFirstOrThrow();
 
     return {
       avgProfit: row.avgProfit ?? 0,
       avgDecksOpened: row.avgDecksOpened ?? 0,
       avgDurationMinutes: row.avgDurationMinutes ?? 0,
       avgChaosPerDivine: row.avgChaosPerDivine ?? 0,
-      sessionCount: row.sessionCount ?? 0,
+      sessionCount: row.sessionCount,
     };
   }
 
@@ -909,14 +907,14 @@ export class SessionsRepository {
       query = query.where("l.name", "=", league);
     }
 
-    const row = await query.executeTakeFirst();
+    const row = await query.executeTakeFirstOrThrow();
 
-    if (!row || row.totalProfit === null) return null;
+    if (row.totalProfit === null) return null;
 
     return {
       totalProfit: row.totalProfit,
       avgChaosPerDivine: row.avgChaosPerDivine,
-      avgDeckCost: row.avgDeckCost ?? 0,
+      avgDeckCost: row.avgDeckCost,
     };
   }
 
@@ -1021,9 +1019,9 @@ export class SessionsRepository {
       query = query.where("l.name", "=", league);
     }
 
-    const result = await query.executeTakeFirst();
+    const result = await query.executeTakeFirstOrThrow();
 
-    return result?.totalDecks ?? 0;
+    return result.totalDecks;
   }
 
   /**
@@ -1164,10 +1162,10 @@ export class SessionsRepository {
       sessionIndex: index + 1,
       sessionDate: row.sessionDate as string,
       league: row.league as string,
-      durationMinutes: Number(row.durationMinutes) || 0,
-      totalDecksOpened: Number(row.totalDecksOpened) || 0,
-      exchangeNetProfit: Number(row.exchangeNetProfit) || 0,
-      chaosPerDivine: Number(row.chaosPerDivine) || 0,
+      durationMinutes: Number(row.durationMinutes),
+      totalDecksOpened: Number(row.totalDecksOpened),
+      exchangeNetProfit: Number(row.exchangeNetProfit),
+      chaosPerDivine: Number(row.chaosPerDivine),
     }));
   }
 
@@ -1384,7 +1382,7 @@ export class SessionsRepository {
       .select(["sc.card_name", sql<number>`SUM(sc.count)`.as("total")])
       .where("s.game", "=", game)
       .$if(sessionIds !== null, (qb) =>
-        qb.where("sc.session_id", "in", sessionIds ?? []),
+        qb.where("sc.session_id", "in", sessionIds as string[]),
       )
       .groupBy("sc.card_name")
       .orderBy("sc.card_name", "asc")
@@ -1489,14 +1487,14 @@ export class SessionsRepository {
       const deleteResult = await trx
         .deleteFrom("sessions")
         .where("id", "in", uniqueSessionIds)
-        .executeTakeFirst();
+        .executeTakeFirstOrThrow();
 
       await this.recomputeCardAggregates(trx, game, affectedScopes);
       await this.recomputeTotalStackedDecksOpened(trx);
 
       return {
         success: true,
-        deletedCount: Number(deleteResult.numDeletedRows ?? 0),
+        deletedCount: Number(deleteResult.numDeletedRows),
       };
     });
   }
@@ -1585,17 +1583,17 @@ export class SessionsRepository {
     const row = await db
       .selectFrom("sessions")
       .select(sql<number>`COALESCE(SUM(total_count), 0)`.as("total"))
-      .executeTakeFirst();
+      .executeTakeFirstOrThrow();
 
     await db
       .insertInto("global_stats")
       .values({
         key: "totalStackedDecksOpened",
-        value: Number(row?.total ?? 0),
+        value: Number(row.total),
       })
       .onConflict((oc) =>
         oc.column("key").doUpdateSet({
-          value: Number(row?.total ?? 0),
+          value: Number(row.total),
         }),
       )
       .execute();

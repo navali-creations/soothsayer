@@ -27,7 +27,7 @@ describe("SetupProgressBar", () => {
 
       expect(screen.getByText("Select Game")).toBeInTheDocument();
       expect(screen.getByText("Select League")).toBeInTheDocument();
-      expect(screen.getByText("Client.txt Path")).toBeInTheDocument();
+      expect(screen.getByText("Client Log")).toBeInTheDocument();
       expect(screen.getByText("Privacy & Telemetry")).toBeInTheDocument();
     });
   });
@@ -49,10 +49,10 @@ describe("SetupProgressBar", () => {
       expect(label).toHaveClass("text-primary");
     });
 
-    it("highlights step 3 (Client.txt Path) when currentStep is 3", () => {
+    it("highlights step 3 (Client Log) when currentStep is 3", () => {
       renderWithProviders(<SetupProgressBar currentStep={3} />);
 
-      const label = screen.getByText("Client.txt Path");
+      const label = screen.getByText("Client Log");
       expect(label).toHaveClass("text-primary");
     });
 
@@ -151,7 +151,7 @@ describe("SetupProgressBar", () => {
       renderWithProviders(<SetupProgressBar currentStep={1} />);
 
       const selectLeagueLabel = screen.getByText("Select League");
-      const clientPathLabel = screen.getByText("Client.txt Path");
+      const clientPathLabel = screen.getByText("Client Log");
       const telemetryLabel = screen.getByText("Privacy & Telemetry");
 
       expect(selectLeagueLabel).toHaveClass("text-base-content/50");

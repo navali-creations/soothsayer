@@ -80,7 +80,9 @@ export class CurrentSessionMapper {
         rewardHtml: cleanWikiMarkup(row.rewardHtml),
         artSrc: row.artSrc,
         flavourHtml: cleanWikiMarkup(row.flavourHtml),
-        rarity: row.rarity,
+        // The repository query uses COALESCE(..., 0), so joined card rows
+        // always carry a concrete rarity even though the generic row type is optional.
+        rarity: row.rarity as Rarity,
         filterRarity: row.filterRarity ?? null,
         prohibitedLibraryRarity: row.prohibitedLibraryRarity ?? null,
       };

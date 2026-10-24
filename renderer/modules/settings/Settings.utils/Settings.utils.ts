@@ -15,19 +15,19 @@ export const createGamePathsCategory = (
   settings: [
     {
       key: "poe1ClientTxtPath",
-      label: "Path of Exile 1 Client.txt",
+      label: "Path of Exile 1 client log",
       value: settings.poe1ClientTxtPath,
       placeholder: "No file selected",
       onSelect: () =>
-        onSelectFile("poe1ClientTxtPath", "Select Path of Exile 1 Client.txt"),
+        onSelectFile("poe1ClientTxtPath", "Select Path of Exile 1 client log"),
     },
     {
       key: "poe2ClientTxtPath",
-      label: "Path of Exile 2 Client.txt",
+      label: "Path of Exile 2 client log",
       value: settings.poe2ClientTxtPath,
       placeholder: "No file selected",
       onSelect: () =>
-        onSelectFile("poe2ClientTxtPath", "Select Path of Exile 2 Client.txt"),
+        onSelectFile("poe2ClientTxtPath", "Select Path of Exile 2 client log"),
     },
   ],
 });

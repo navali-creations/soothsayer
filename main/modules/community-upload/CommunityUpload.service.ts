@@ -872,12 +872,10 @@ class CommunityUploadService {
       const previousLocalCount = Math.max(current - card.count, 0);
       const observedCount = Math.max(prev, previousLocalCount) + card.count;
 
-      if (observedCount > prev) {
-        changedCardMap.set(
-          card.card_name,
-          Math.max(changedCardMap.get(card.card_name) ?? 0, observedCount),
-        );
-      }
+      changedCardMap.set(
+        card.card_name,
+        Math.max(changedCardMap.get(card.card_name) ?? 0, observedCount),
+      );
     }
 
     return Array.from(changedCardMap, ([card_name, count]) => ({

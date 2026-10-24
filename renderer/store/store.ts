@@ -276,8 +276,9 @@ export const useBoundStore = create<BoundStore>()(
               gameInfo.poe2Leagues = [];
               gameInfo.isLoadingLeagues = false;
               gameInfo.leaguesError = null;
-              gameInfo.poe1Process = { isRunning: false, processName: "" };
-              gameInfo.poe2Process = { isRunning: false, processName: "" };
+              gameInfo.poe1Process = { isRunning: false };
+              gameInfo.poe2Process = { isRunning: false };
+              gameInfo.processWatcherStatus = "stopped";
 
               // Reset full leagues cache view
               state.leagues.poe1Leagues = [];

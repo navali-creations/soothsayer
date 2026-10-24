@@ -40,8 +40,8 @@ const OverlayBeacon = (props: PopoverComponentProps) => {
             <li className="flex items-start gap-2">
               <span className="text-accent mt-0.5">•</span>
               <span>
-                Reads your Client.txt file to detect card drops in real-time
-                during active sessions
+                Reads your Path of Exile client log to detect card drops in
+                real-time during active sessions
               </span>
             </li>
             <li className="flex items-start gap-2">

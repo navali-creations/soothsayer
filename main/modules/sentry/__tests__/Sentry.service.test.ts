@@ -185,6 +185,18 @@ describe("SentryService", () => {
         "SDK unavailable",
       );
     });
+
+    it("should normalize a non-Error initialization failure", async () => {
+      mockSentryInit.mockRejectedValueOnce("SDK unavailable");
+      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      await service.initialize();
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[SentryService] Failed to initialize crash reporting:",
+        "SDK unavailable",
+      );
+    });
   });
 
   // ─── disable ────────────────────────────────────────────────────────────
@@ -227,6 +239,50 @@ describe("SentryService", () => {
 
       expect(service.isInitialized()).toBe(true);
       expect(service.isDisabled()).toBe(true);
+    });
+
+    it("should wait for in-flight initialization before disabling", async () => {
+      let resolveInitialization!: () => void;
+      mockSentryInit.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveInitialization = resolve;
+          }),
+      );
+
+      const initialization = service.initialize();
+      const disabling = service.disable();
+      resolveInitialization();
+      await Promise.all([initialization, disabling]);
+
+      expect(mockSentryClose).toHaveBeenCalledWith(2000);
+      expect(service.isDisabled()).toBe(true);
+    });
+
+    it("should normalize close failures without rejecting", async () => {
+      await service.initialize();
+      mockSentryClose.mockRejectedValueOnce("close failed");
+      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      await expect(service.disable()).resolves.toBeUndefined();
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[SentryService] Failed to close crash reporting:",
+        "close failed",
+      );
+    });
+
+    it("should report Error close failures without rejecting", async () => {
+      await service.initialize();
+      mockSentryClose.mockRejectedValueOnce(new Error("close failed"));
+      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      await expect(service.disable()).resolves.toBeUndefined();
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[SentryService] Failed to close crash reporting:",
+        "close failed",
+      );
     });
   });
 
@@ -498,6 +554,22 @@ describe("Sentry callbacks (beforeSend / beforeBreadcrumb)", () => {
 
       const result = beforeSend(event);
       expect(result.exception.values[0].value).not.toContain("User\\AppData");
+    });
+
+    it("should leave absent exception and breadcrumb fields untouched", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              stacktrace: { frames: [{}] },
+            },
+          ],
+        },
+        breadcrumbs: [{ data: { count: 1 } }],
+      };
+
+      expect(beforeSend(event)).toEqual(event);
     });
   });
 

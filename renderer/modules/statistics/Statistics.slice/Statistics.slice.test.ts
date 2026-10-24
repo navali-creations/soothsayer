@@ -430,6 +430,15 @@ describe("fetchUncollectedCardNames", () => {
 
     consoleSpy.mockRestore();
   });
+
+  it("keeps metadata empty when card metadata is not an array", async () => {
+    electron.sessions.getUncollectedCardNames.mockResolvedValue(["The Doctor"]);
+    electron.divinationCards.getAll.mockResolvedValue(null as never);
+
+    await store.getState().statistics.fetchUncollectedCardNames("poe1");
+
+    expect(store.getState().statistics.uncollectedCardMetadata).toEqual({});
+  });
 });
 
 // ── fetchSessionHighlights ─────────────────────────────────────────────────────

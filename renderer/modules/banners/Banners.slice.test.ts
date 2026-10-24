@@ -129,6 +129,24 @@ describe("Banners.slice", () => {
     );
   });
 
+  it("retries unsuccessful hydration responses", async () => {
+    vi.useFakeTimers();
+    const getAllDismissed = vi.fn().mockResolvedValue({
+      success: false,
+      error: "read failed",
+    });
+    installBannersApi({ getAllDismissed });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { state } = createHarness();
+
+    const loadPromise = state.banners.loadDismissed();
+    await vi.advanceTimersByTimeAsync(600);
+    await loadPromise;
+
+    expect(getAllDismissed).toHaveBeenCalledTimes(3);
+    expect(state.banners.loadStatus).toBe("error");
+  });
+
   it("optimistically dismisses a banner and persists it", async () => {
     const api = installBannersApi({
       dismiss: vi.fn().mockResolvedValue({ success: true }),
@@ -177,6 +195,20 @@ describe("Banners.slice", () => {
 
     expect(result).toBe(false);
     expect(state.banners.dismissedIds).toEqual(new Set());
+  });
+
+  it("preserves an already-dismissed banner when persistence fails", async () => {
+    installBannersApi({
+      dismiss: vi.fn().mockRejectedValue(new Error("write failed")),
+    });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { state } = createHarness();
+    state.banners.markDismissed("community-backfill");
+
+    const result = await state.banners.dismiss("community-backfill");
+
+    expect(result).toBe(false);
+    expect(state.banners.dismissedIds).toEqual(new Set(["community-backfill"]));
   });
 
   it("reflects a dismissal already committed by a main-process workflow", () => {

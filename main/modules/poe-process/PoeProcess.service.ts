@@ -1,9 +1,14 @@
-import { ipcMain, powerMonitor } from "electron";
+import { app, ipcMain, powerMonitor } from "electron";
 
 import type { MainWindowService } from "~/main/modules/main-window";
+import { PoeProcessWatcher } from "~/main/pollers/PoeProcessWatcher";
+import { assertTrustedSender } from "~/main/utils/ipc-validation";
 
-import { PoeProcessPoller } from "../../pollers/PoeProcessPoller";
 import { PoeProcessChannel } from "./PoeProcess.channels";
+import {
+  createPoeProcessSnapshot,
+  type PoeProcessSnapshot,
+} from "./PoeProcess.dto";
 
 /**
  * Service responsible for monitoring the Path of Exile process
@@ -11,11 +16,8 @@ import { PoeProcessChannel } from "./PoeProcess.channels";
  */
 class PoeProcessService {
   private static _instance: PoeProcessService;
-  private poller: PoeProcessPoller;
-  private currentState: { isRunning: boolean; processName: string } = {
-    isRunning: false,
-    processName: "",
-  };
+  private readonly watcher: PoeProcessWatcher;
+  private currentSnapshot = createPoeProcessSnapshot();
   private mainWindow: MainWindowService | null = null;
   private isSystemSuspended = false;
 
@@ -27,8 +29,10 @@ class PoeProcessService {
   }
 
   private constructor() {
-    this.poller = new PoeProcessPoller();
-    this.setupPollerListeners();
+    this.watcher = new PoeProcessWatcher({
+      isPackaged: app.isPackaged,
+    });
+    this.setupWatcherListeners();
     this.setupIpcHandlers();
     this.setupPowerMonitor();
   }
@@ -39,9 +43,8 @@ class PoeProcessService {
    */
   public initialize(mainWindow: MainWindowService): void {
     this.mainWindow = mainWindow;
-    // Only start polling if system is not suspended
     if (!this.isSystemSuspended) {
-      this.poller.start();
+      this.watcher.start();
     }
   }
 
@@ -49,63 +52,51 @@ class PoeProcessService {
    * Stop monitoring and clean up resources.
    */
   public stop(): void {
-    this.poller.stop();
+    this.watcher.stop();
   }
 
-  private setupPollerListeners(): void {
-    // PoE process started
-    this.poller.on("start", (state) => {
-      this.currentState = state;
-      this.sendToRenderer(PoeProcessChannel.Start, state);
+  private setupWatcherListeners(): void {
+    this.watcher.on("data", (snapshot: PoeProcessSnapshot) => {
+      this.currentSnapshot = snapshot;
+      this.sendToRenderer(
+        PoeProcessChannel.SnapshotChanged,
+        this.currentSnapshot,
+      );
     });
 
-    // PoE process stopped
-    this.poller.on("stop", (previousState) => {
-      this.currentState = { isRunning: false, processName: "" };
-      this.sendToRenderer(PoeProcessChannel.Stop, previousState);
-    });
-
-    // PoE process state (emitted on every poll)
-    this.poller.on("data", (state) => {
-      this.currentState = state;
-      this.sendToRenderer(PoeProcessChannel.GetState, state);
-    });
-
-    // Handle errors
-    this.poller.on("error", (error) => {
-      console.error("PoE process poller error:", error);
-      this.sendToRenderer(PoeProcessChannel.GetError, {
-        error: error.message,
-      });
+    this.watcher.on("error", (error: Error) => {
+      console.error("PoE process watcher error:", error);
     });
   }
 
   private setupIpcHandlers(): void {
-    // Get current PoE process state
-    ipcMain.handle(PoeProcessChannel.IsRunning, () => {
-      return this.currentState;
+    ipcMain.handle(PoeProcessChannel.GetSnapshot, async (event) => {
+      assertTrustedSender(event, PoeProcessChannel.GetSnapshot);
+      this.currentSnapshot = await this.watcher.pollSnapshot();
+      return this.currentSnapshot;
     });
   }
 
   private setupPowerMonitor(): void {
-    // Stop polling when system is about to suspend/sleep
     powerMonitor.on("suspend", () => {
-      console.log("[PoeProcess] System suspending, stopping poller");
+      console.log("[PoeProcess] System suspending, stopping watcher");
       this.isSystemSuspended = true;
-      this.poller.stop();
+      this.watcher.stop();
+      this.currentSnapshot = createPoeProcessSnapshot();
+      this.sendToRenderer(
+        PoeProcessChannel.SnapshotChanged,
+        this.currentSnapshot,
+      );
     });
 
-    // Resume polling when system wakes up
     powerMonitor.on("resume", () => {
-      console.log("[PoeProcess] System resumed, starting poller");
+      console.log("[PoeProcess] System resumed, starting watcher");
       this.isSystemSuspended = false;
-      // Only restart if we have a main window (service was initialized)
       if (this.mainWindow) {
-        this.poller.start();
+        this.watcher.start();
       }
     });
 
-    // Also handle lock/unlock events on Windows
     powerMonitor.on("lock-screen", () => {
       console.log("[PoeProcess] Screen locked");
     });
@@ -115,7 +106,7 @@ class PoeProcessService {
     });
   }
 
-  private sendToRenderer(channel: string, data?: any): void {
+  private sendToRenderer(channel: PoeProcessChannel, data?: unknown): void {
     if (!this.mainWindow) return;
 
     try {

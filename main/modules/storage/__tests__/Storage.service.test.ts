@@ -562,6 +562,32 @@ describe("StorageService", () => {
   // ═══════════════════════════════════════════════════════════════════════════
 
   describe("deleteLeagueData", () => {
+    it("rethrows unexpected non-validation IPC failures", async () => {
+      const service = StorageService.getInstance();
+      const failure = new Error("unexpected failure");
+      vi.spyOn(service, "deleteLeagueData").mockRejectedValueOnce(failure);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        StorageChannel.DeleteLeagueData,
+      );
+
+      await expect(handler(TRUSTED_EVENT, "league-id")).rejects.toBe(failure);
+    });
+
+    it("uses a safe message for non-Error deletion failures", async () => {
+      vi.spyOn(testDb.db, "transaction").mockReturnValue((() => {
+        throw "transaction failed";
+      }) as any);
+
+      await expect(
+        StorageService.getInstance().deleteLeagueData("league-id"),
+      ).resolves.toEqual({
+        success: false,
+        freedBytes: 0,
+        error: "Unknown error occurred",
+      });
+    });
+
     it("should reject delete from untrusted sender", async () => {
       const leagueId = await seedLeague(testDb.kysely, {
         name: "Test League",
@@ -1793,6 +1819,34 @@ describe("StorageService", () => {
       expect(otherCategory!.label).toBe("Logs, config & other files");
     });
 
+    it("should skip symbolic links and non-file directory entries", async () => {
+      mockReaddir.mockResolvedValue([
+        {
+          name: "outside-link",
+          isDirectory: () => false,
+          isFile: () => false,
+          isSymbolicLink: () => true,
+        },
+        {
+          name: "socket",
+          isDirectory: () => false,
+          isFile: () => false,
+          isSymbolicLink: () => false,
+        },
+      ]);
+
+      const handler = getIpcHandler(mockIpcHandle, StorageChannel.GetInfo);
+      const result = await handler({});
+
+      expect(result.breakdown).toEqual([]);
+      expect(mockFspStat).not.toHaveBeenCalledWith(
+        expect.stringContaining("outside-link"),
+      );
+      expect(mockFspStat).not.toHaveBeenCalledWith(
+        expect.stringContaining("socket"),
+      );
+    });
+
     it("should handle directory read errors gracefully", async () => {
       mockReaddir.mockRejectedValue(new Error("Access denied"));
 
@@ -2147,6 +2201,16 @@ describe("StorageService", () => {
   // ═══════════════════════════════════════════════════════════════════════════
 
   describe("file system helpers", () => {
+    it("getFileSizeSync should return 0 when statSync throws", () => {
+      mockStatSync.mockImplementationOnce(() => {
+        throw new Error("ENOENT");
+      });
+
+      expect(
+        (StorageService.getInstance() as any).getFileSizeSync("missing.db"),
+      ).toBe(0);
+    });
+
     it("getFileSize should return 0 when stat throws", async () => {
       mockFspStat.mockRejectedValue(new Error("ENOENT"));
       mockReaddir.mockResolvedValue([]);
@@ -2167,6 +2231,32 @@ describe("StorageService", () => {
       expect(result.diskFreeBytes).toBe(0);
       expect(result.dbDiskTotalBytes).toBe(0);
       expect(result.dbDiskFreeBytes).toBe(0);
+    });
+  });
+
+  describe("diagnostics capture usage", () => {
+    it("uses default retention when settings are absent", () => {
+      testDb.db.prepare("DELETE FROM user_settings").run();
+
+      expect(
+        (StorageService.getInstance() as any).getDiagnosticsCaptureUsage(),
+      ).toMatchObject({ retentionPolicy: "7d" });
+    });
+
+    it("returns empty usage when diagnostics tables cannot be queried", () => {
+      vi.spyOn(testDb.db, "prepare").mockImplementationOnce(() => {
+        throw new Error("query failed");
+      });
+
+      expect(
+        (StorageService.getInstance() as any).getDiagnosticsCaptureUsage(),
+      ).toEqual({
+        captureCount: 0,
+        sampleCount: 0,
+        routeMarkerCount: 0,
+        estimatedSizeBytes: 0,
+        retentionPolicy: "7d",
+      });
     });
   });
 

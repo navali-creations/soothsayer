@@ -151,4 +151,55 @@ describe("buildPreparedDropTimeline", () => {
       isBoundary: true,
     });
   });
+
+  it("returns no points when every session timestamp is invalid", () => {
+    expect(
+      buildPreparedDropTimeline({
+        rows: [
+          {
+            sessionId: "invalid",
+            sessionStartedAt: "not-a-date",
+            count: 1,
+            totalDecksOpened: 10,
+            league: "Unknown",
+          },
+        ],
+        leagueDateRanges: [],
+        firstSessionStartedAt: null,
+        timelineEndDate: "",
+      }),
+    ).toEqual([]);
+  });
+
+  it("falls back to the earliest valid league start", () => {
+    const earliest = new Date("2025-01-01T00:00:00.000Z").getTime();
+    const result = buildPreparedDropTimeline({
+      rows: [
+        {
+          sessionId: "s1",
+          sessionStartedAt: "2025-03-01T00:00:00.000Z",
+          count: 1,
+          totalDecksOpened: 10,
+          league: "Unknown",
+        },
+      ],
+      leagueDateRanges: [
+        { name: "Invalid", startDate: "not-a-date", endDate: null },
+        {
+          name: "Later",
+          startDate: "2025-02-01T00:00:00.000Z",
+          endDate: null,
+        },
+        {
+          name: "Earlier",
+          startDate: "2025-01-01T00:00:00.000Z",
+          endDate: null,
+        },
+      ],
+      firstSessionStartedAt: null,
+      timelineEndDate: "",
+    });
+
+    expect(result[0]).toMatchObject({ isBoundary: true, time: earliest });
+  });
 });

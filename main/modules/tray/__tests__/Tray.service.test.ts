@@ -409,6 +409,16 @@ describe("TrayService", () => {
     });
   });
 
+  it("does not build a context menu before the tray exists", () => {
+    service = TrayService.getInstance();
+
+    (
+      service as unknown as { createContextMenu: () => void }
+    ).createContextMenu();
+
+    expect(mockMenuBuildFromTemplate).not.toHaveBeenCalled();
+  });
+
   // ─── Context menu ────────────────────────────────────────────────────────
 
   describe("context menu", () => {

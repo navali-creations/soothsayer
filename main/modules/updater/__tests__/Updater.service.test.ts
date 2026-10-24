@@ -1129,6 +1129,13 @@ describe("UpdaterService", () => {
       // The # line should not be treated as a continuation since it starts with #
     });
 
+    it("should ignore a header immediately after an entry description", () => {
+      const md = `## 1.0.0\n\n### Patch Changes\n\n- Entry one\n# Top level header\n`;
+      const releases = callParseChangelog(md);
+
+      expect(releases[0].entries[0].description).toBe("Entry one");
+    });
+
     it("should flush the last entry at end of input", () => {
       const md = `## 1.0.0\n\n### Patch Changes\n\n- Last entry without trailing newline`;
       const releases = callParseChangelog(md);
@@ -1383,6 +1390,14 @@ describe("UpdaterService", () => {
       expect(entry.contributorUrl).toBe("https://github.com/user");
     });
 
+    it("should parse a rich entry without an inline description", () => {
+      const line = `- [\`abc1234\`](https://github.com/org/repo/commit/abc1234) Thanks [@user](https://github.com/user)!`;
+      const entry = callParseChangelogEntry(line);
+
+      expect(entry.description).toBe("");
+      expect(entry.commitHash).toBe("abc1234");
+    });
+
     it("should parse a simple commit hash entry", () => {
       const line = `- abcdef1: Fixed something`;
       const entry = callParseChangelogEntry(line);
@@ -1608,6 +1623,16 @@ describe("UpdaterService", () => {
       service = UpdaterService.getInstance();
     });
 
+    it("routes the public update check through the GitHub implementation", () => {
+      mockElectronApp.isPackaged = true;
+      const checkViaGitHub = vi
+        .spyOn(service as any, "checkForUpdatesViaGitHub")
+        .mockResolvedValue(undefined);
+
+      expect(service.checkForUpdates()).toBeNull();
+      expect(checkViaGitHub).toHaveBeenCalledOnce();
+    });
+
     it("should set lastUpdateInfo and notify renderer when update is available", async () => {
       mockElectronApp.isPackaged = true;
       mockElectronApp.getVersion.mockReturnValue("1.0.0");
@@ -1635,6 +1660,34 @@ describe("UpdaterService", () => {
         UpdaterChannel.OnUpdateAvailable,
         expect.objectContaining({ updateAvailable: true }),
       );
+    });
+
+    it("uses release defaults when GitHub omits name and notes", async () => {
+      mockElectronApp.isPackaged = true;
+      mockElectronApp.getVersion.mockReturnValue("1.0.0");
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          ...SAMPLE_GITHUB_RELEASE,
+          body: null,
+          name: null,
+        }),
+      });
+
+      await (service as any).checkForUpdatesViaGitHub();
+
+      expect((service as any).lastUpdateInfo).toMatchObject({
+        latestVersion: "2.0.0",
+        releaseName: "v2.0.0",
+        releaseNotes: "",
+      });
+      expect(
+        (service as any).toLatestReleaseInfo({
+          ...SAMPLE_GITHUB_RELEASE,
+          body: null,
+          name: null,
+        }),
+      ).toMatchObject({ body: "", name: "v2.0.0" });
     });
 
     it("should not notify when app is up to date", async () => {
@@ -1716,6 +1769,26 @@ describe("UpdaterService", () => {
   // ─── wireAutoUpdaterEvents (win32/darwin) ──────────────────────────────
 
   describe("wireAutoUpdaterEvents", () => {
+    it("logs when the native updater starts checking", () => {
+      mockElectronApp.isPackaged = true;
+      Object.defineProperty(process, "platform", {
+        value: "win32",
+        writable: true,
+        configurable: true,
+      });
+      resetSingleton(UpdaterService);
+      service = UpdaterService.getInstance();
+      service.initialize(createMockBrowserWindow());
+      const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+      const handler = mockAutoUpdaterOn.mock.calls.find(
+        ([event]: [string]) => event === "checking-for-update",
+      )?.[1];
+
+      handler();
+
+      expect(log).toHaveBeenCalledWith("[Updater] Checking for update...");
+    });
+
     it("should wire all expected autoUpdater events when packaged on win32", () => {
       mockElectronApp.isPackaged = true;
       Object.defineProperty(process, "platform", {

@@ -2347,4 +2347,19 @@ describe("ProfitForecastService", () => {
       expect(result.batchPnL.cost).toBeCloseTo(16000, 10);
     });
   });
+
+  it("floors probabilities when a defensive response contains only zero weights", () => {
+    const result = (service as any).buildResponse(
+      [{ cardName: "Unweighted Card", fromBoss: false, weight: 0 }],
+      null,
+      null,
+    );
+
+    expect(result.rows).toEqual([
+      expect.objectContaining({
+        cardName: "Unweighted Card",
+        probability: 1,
+      }),
+    ]);
+  });
 });

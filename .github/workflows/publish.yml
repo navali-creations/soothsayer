@@ -110,6 +110,9 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@1.96.1
+
       # Skip all lifecycle scripts during install to avoid supabase CLI download failures on Windows
       - name: Install dependencies (skip lifecycle scripts)
         run: pnpm install --frozen-lockfile --ignore-scripts
@@ -212,12 +215,18 @@ jobs:
             exit 1
           fi
 
+          node scripts/assert-poe-process-helper-packaged.mjs
+
       # Windows build
       - name: Make distributables (Windows)
         if: startsWith(matrix.name, 'windows')
         run: pnpm make
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+
+      - name: Verify process helper packaged
+        if: startsWith(matrix.name, 'windows')
+        run: node scripts/assert-poe-process-helper-packaged.mjs
 
       # Post-build assertion: verify env vars were embedded
       # Guards against BOM corruption, missing secrets, or dotenv parse

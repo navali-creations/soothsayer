@@ -354,6 +354,10 @@ describe("OverlayService", () => {
     mockCurrentSessionIsActive.mockReturnValue(false);
     mockCurrentSessionGetCurrentSession.mockResolvedValue(null);
     mockOverlayIsVisible.mockReturnValue(false);
+    mockOverlayIsDestroyed.mockReturnValue(false);
+    mockSettingsSet.mockResolvedValue(undefined);
+    mockOverlayLoadURL.mockResolvedValue(undefined);
+    mockOverlayLoadFile.mockResolvedValue(undefined);
     mockOverlayGetBounds.mockReturnValue({
       x: 100,
       y: 200,
@@ -899,6 +903,28 @@ describe("OverlayService", () => {
   // ─── createOverlay ───────────────────────────────────────────────────────
 
   describe("createOverlay", () => {
+    it("returns without replacing an already-created overlay", async () => {
+      await service.createOverlay();
+      const firstWindow = service.getWindow();
+
+      await service.createOverlay();
+
+      expect(service.getWindow()).toBe(firstWindow);
+      expect(overlayWindowInstances).toHaveLength(1);
+    });
+
+    it.each([
+      ["darwin", "macos/512x512.png"],
+      ["linux", "linux/icons/512x512.png"],
+    ])("uses the platform-specific application icon", async (platform, suffix) => {
+      Object.defineProperty(process, "platform", { value: platform });
+
+      await service.createOverlay();
+
+      const iconPath = mockNativeImageCreateFromPath.mock.calls[0][0] as string;
+      expect(iconPath.replaceAll("\\", "/")).toContain(suffix);
+    });
+
     it("should use saved bounds from settings when available", async () => {
       const savedBounds = { x: 500, y: 300, width: 400, height: 200 };
       mockSettingsGet.mockImplementation(async (key: string) => {
@@ -1009,6 +1035,53 @@ describe("OverlayService", () => {
       expect(mockOverlayLoadURL).toHaveBeenCalledWith(
         "http://localhost:3000/overlay.html",
       );
+    });
+
+    it("uses the E2E renderer URL when configured", async () => {
+      vi.stubEnv("E2E_TESTING", "true");
+      vi.stubEnv("SOOTHSAYER_E2E_RENDERER_URL", "http://localhost:4173");
+
+      await service.show();
+
+      expect(mockOverlayLoadURL).toHaveBeenCalledWith(
+        "http://localhost:4173/overlay.html",
+      );
+      vi.unstubAllEnvs();
+    });
+
+    it("falls back to the Vite URL during E2E when no override is set", async () => {
+      vi.stubEnv("E2E_TESTING", "true");
+      delete process.env.SOOTHSAYER_E2E_RENDERER_URL;
+
+      await service.show();
+
+      expect(mockOverlayLoadURL).toHaveBeenCalledWith(
+        "http://localhost:3000/overlay.html",
+      );
+      vi.unstubAllEnvs();
+    });
+
+    it.each([
+      new Error("ERR_FAILED"),
+      new Error("ERR_ABORTED"),
+      "ERR_ABORTED",
+    ])("tolerates interrupted overlay loads", async (failure) => {
+      mockOverlayLoadURL.mockRejectedValueOnce(failure);
+
+      await expect(service.show()).resolves.toBeUndefined();
+    });
+
+    it("tolerates a load failure after the overlay is destroyed", async () => {
+      mockOverlayIsDestroyed.mockReturnValue(true);
+      mockOverlayLoadURL.mockRejectedValueOnce(new Error("window closed"));
+
+      await expect(service.show()).resolves.toBeUndefined();
+    });
+
+    it("propagates unexpected overlay load failures", async () => {
+      mockOverlayLoadURL.mockRejectedValueOnce(new Error("network failed"));
+
+      await expect(service.show()).rejects.toThrow("network failed");
     });
 
     it("should NOT open dev tools in development mode", async () => {
@@ -1175,6 +1248,20 @@ describe("OverlayService", () => {
       expect(mockOverlayShow).not.toHaveBeenCalled();
       expect(mockOverlayBlur).not.toHaveBeenCalled();
       expect(mockOverlaySetOpacity).not.toHaveBeenCalled();
+    });
+
+    it("cancels delayed ready-to-show work after the overlay is destroyed", async () => {
+      await service.show();
+      const readyToShowHandler = mockOverlayOnce.mock.calls.find(
+        ([event]: [string]) => event === "ready-to-show",
+      )![1];
+
+      readyToShowHandler();
+      service.destroy();
+      clearOverlayMocks();
+      vi.advanceTimersByTime(50);
+
+      expect(mockOverlayShow).not.toHaveBeenCalled();
     });
 
     it("should set skipTaskbar on Windows", async () => {
@@ -1537,6 +1624,20 @@ describe("OverlayService", () => {
 
       expect(destroyedWindow.webContents.send).not.toHaveBeenCalled();
     });
+
+    it("isolates failing visibility listeners", async () => {
+      const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+      service.onVisibilityChange(() => {
+        throw new Error("listener failed");
+      });
+
+      await service.show();
+
+      expect(warning).toHaveBeenCalledWith(
+        "[Overlay] Visibility listener failed:",
+        expect.any(Error),
+      );
+    });
   });
 
   // ─── State transitions ──────────────────────────────────────────────────
@@ -1741,6 +1842,41 @@ describe("OverlayService", () => {
       expect(mockOverlayBlur).toHaveBeenCalled();
       expect(mockOverlaySetOpacity).not.toHaveBeenCalled();
     });
+
+    it("should skip the delayed opacity reset after the overlay is destroyed", async () => {
+      vi.useFakeTimers();
+      try {
+        await service.show();
+        service.destroy();
+        clearOverlayMocks();
+
+        await vi.advanceTimersByTimeAsync(100);
+
+        expect(mockOverlaySetOpacity).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("should remove no listeners from a destroyed overlay", async () => {
+      await service.show();
+      mockOverlayIsDestroyed.mockReturnValue(true);
+
+      (service as any).removeBoundsListeners();
+
+      expect(mockOverlayRemoveListener).not.toHaveBeenCalled();
+    });
+
+    it("should release an already-destroyed overlay without closing it", async () => {
+      await service.show();
+      mockOverlayIsDestroyed.mockReturnValue(true);
+      clearOverlayMocks();
+
+      service.destroy();
+
+      expect(mockOverlayClose).not.toHaveBeenCalled();
+      expect(service.getWindow()).toBeNull();
+    });
   });
 
   // ─── setLocked ───────────────────────────────────────────────────────────
@@ -1845,6 +1981,34 @@ describe("OverlayService", () => {
   // ─── Bounds listeners ────────────────────────────────────────────────────
 
   describe("bounds listeners", () => {
+    it("ignores attach and save requests without a live overlay", () => {
+      const internals = service as unknown as {
+        attachBoundsListeners: () => void;
+        saveBoundsImmediate: () => void;
+      };
+
+      internals.attachBoundsListeners();
+      internals.saveBoundsImmediate();
+
+      expect(mockOverlayOn).not.toHaveBeenCalled();
+      expect(mockSettingsSet).not.toHaveBeenCalled();
+    });
+
+    it("logs rejected bounds persistence", async () => {
+      const consoleError = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      mockSettingsSet.mockRejectedValueOnce(new Error("write failed"));
+      await service.show();
+
+      service.setLocked(true);
+      await Promise.resolve();
+
+      expect(consoleError).toHaveBeenCalledWith(
+        "[Overlay] Failed to save bounds:",
+        expect.any(Error),
+      );
+    });
     it("should debounce-save bounds when moved event fires", async () => {
       await service.show();
       clearOverlayMocks();
@@ -2129,6 +2293,17 @@ describe("OverlayService", () => {
   // ─── restoreDefaults ───────────────────────────────────────────────────
 
   describe("restoreDefaults", () => {
+    it("should preserve an already-resizable window", async () => {
+      await service.show();
+      clearOverlayMocks();
+      mockOverlayIsResizable.mockReturnValue(true);
+
+      await service.restoreDefaults();
+
+      expect(mockOverlaySetBounds).toHaveBeenCalled();
+      expect(mockOverlaySetResizable).not.toHaveBeenCalled();
+    });
+
     it("should clear persisted bounds and move window to default position/size", async () => {
       await service.show();
       clearOverlayMocks();

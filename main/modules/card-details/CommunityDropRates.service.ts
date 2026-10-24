@@ -176,8 +176,7 @@ export class CommunityDropRatesService {
     this.cache.delete(cacheKey);
     this.cache.set(cacheKey, entry);
     while (this.cache.size > MAX_CACHE_ENTRIES) {
-      const oldestKey = this.cache.keys().next().value;
-      if (oldestKey === undefined) break;
+      const oldestKey = this.cache.keys().next().value!;
       this.cache.delete(oldestKey);
     }
   }

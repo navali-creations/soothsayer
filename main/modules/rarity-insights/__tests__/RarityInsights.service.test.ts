@@ -604,6 +604,55 @@ describe("RarityInsightsService", () => {
       expect(result.filterId).toBe("filter_abc12345");
       expect(result.hasDivinationSection).toBe(false);
     });
+
+    it("should persist parsed card rarities and tier styles", async () => {
+      mockRepoGetById.mockResolvedValue(
+        makeRarityInsightsMetadataDTO({
+          id: "filter_populated",
+          filterName: "Populated",
+        }),
+      );
+      vi.spyOn(RarityInsightsParser, "parseFilterFile").mockResolvedValue({
+        cardRarities: new Map([
+          ["The Doctor", 1],
+          ["Rain of Chaos", 4],
+        ]),
+        tierStyles: new Map(),
+        totalCards: 2,
+        hasDivinationSection: true,
+      });
+
+      const result = await service.parseFilter("filter_populated");
+
+      expect(result.rarities).toEqual([
+        { filterId: "filter_populated", cardName: "The Doctor", rarity: 1 },
+        {
+          filterId: "filter_populated",
+          cardName: "Rain of Chaos",
+          rarity: 4,
+        },
+      ]);
+      expect(mockRepoReplaceParsedFilterData).toHaveBeenCalledWith(
+        "filter_populated",
+        [
+          { cardName: "The Doctor", rarity: 1 },
+          { cardName: "Rain of Chaos", rarity: 4 },
+        ],
+        [],
+      );
+    });
+
+    it("should reject the IPC request when the requested filter is missing", async () => {
+      mockRepoGetById.mockResolvedValue(null);
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        RarityInsightsChannel.ParseRarityInsights,
+      );
+
+      await expect(handler({}, "filter_missing")).rejects.toThrow(
+        "Filter not found: filter_missing",
+      );
+    });
   });
 
   // ═══════════════════════════════════════════════════════════════════════════

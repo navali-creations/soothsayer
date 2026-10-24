@@ -228,6 +228,20 @@ describe("Onboarding.slice", () => {
         "Failed to dismiss beacon",
       );
     });
+
+    it("recovers when persisted state was unexpectedly null", async () => {
+      store.setState((state) => {
+        (
+          state.onboarding as never as { dismissedBeacons: string[] | null }
+        ).dismissedBeacons = null;
+      });
+
+      await store.getState().onboarding.dismiss("beacon-a");
+
+      expect(store.getState().onboarding.dismissedBeacons).toEqual([
+        "beacon-a",
+      ]);
+    });
   });
 
   describe("dismissAll", () => {
@@ -404,6 +418,23 @@ describe("Onboarding.slice", () => {
       await store.getState().onboarding.reset("beacon-a");
 
       expect(store.getState().onboarding.error).toBe("Failed to reset beacon");
+    });
+  });
+
+  describe("getAllBeaconStates", () => {
+    it("treats unexpectedly null dismissed state as empty", () => {
+      store.setState((state) => {
+        (
+          state.onboarding as never as { dismissedBeacons: string[] | null }
+        ).dismissedBeacons = null;
+      });
+
+      expect(
+        store
+          .getState()
+          .onboarding.getAllBeaconStates()
+          .every((beacon) => !beacon.dismissed),
+      ).toBe(true);
     });
   });
 

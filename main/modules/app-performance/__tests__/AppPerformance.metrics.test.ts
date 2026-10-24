@@ -121,6 +121,32 @@ describe("AppPerformance.metrics", () => {
     });
   });
 
+  it("normalizes missing and non-finite Electron metrics", () => {
+    const metric = makeProcessMetric(1, Number.NaN, 128, 0);
+    Reflect.deleteProperty(metric, "cpu");
+    Reflect.deleteProperty(metric, "memory");
+
+    expect(
+      aggregateElectronMetrics([metric], {
+        primaryRendererPid: 1,
+        rendererPids: [1],
+      }),
+    ).toEqual({
+      appCpuPercent: 0,
+      rendererMemoryBytes: 0,
+    });
+
+    expect(
+      aggregateElectronMetrics([makeProcessMetric(2, Number.NaN, 128, 0)], {
+        primaryRendererPid: 1,
+        rendererPids: [2],
+      }),
+    ).toEqual({
+      appCpuPercent: 0,
+      rendererMemoryBytes: 128 * 1024,
+    });
+  });
+
   it("combines renderer working set with renderer and main JS heaps", () => {
     expect(
       calculateMemoryUsageBytes({
@@ -144,6 +170,13 @@ describe("AppPerformance.metrics", () => {
         rendererMemoryBytes: 256,
         rendererHeapUsedBytes: null,
         mainHeapUsedBytes: 32,
+      }),
+    ).toBeNull();
+    expect(
+      calculateMemoryUsageBytes({
+        rendererMemoryBytes: 256,
+        rendererHeapUsedBytes: 64,
+        mainHeapUsedBytes: null,
       }),
     ).toBeNull();
   });

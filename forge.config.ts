@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -6,7 +7,6 @@ import { MakerBase, type MakerOptions } from "@electron-forge/maker-base";
 import { MakerDeb } from "@electron-forge/maker-deb";
 import { MakerRpm } from "@electron-forge/maker-rpm";
 import { MakerSquirrel } from "@electron-forge/maker-squirrel";
-import { MakerZIP } from "@electron-forge/maker-zip";
 import { AutoUnpackNativesPlugin } from "@electron-forge/plugin-auto-unpack-natives";
 import { FusesPlugin } from "@electron-forge/plugin-fuses";
 import { VitePlugin } from "@electron-forge/plugin-vite";
@@ -17,6 +17,31 @@ const linuxIconDir = path.resolve(
   __dirname,
   "renderer/assets/logo/linux/icons",
 );
+const helperManifest = JSON.parse(
+  fs.readFileSync(
+    path.resolve(__dirname, "helpers/poe-process-helper/helper-manifest.json"),
+    "utf8",
+  ),
+) as { resourceDirectory: string };
+const poeProcessHelperResource = `./helpers/bin/${helperManifest.resourceDirectory}`;
+const supportsPoeProcessHelper =
+  process.platform === "win32" || process.platform === "linux";
+
+function buildPoeProcessHelper(): void {
+  const scriptPath = path.resolve(
+    __dirname,
+    "scripts",
+    "build-poe-process-helper.mjs",
+  );
+  const result = spawnSync(process.execPath, [scriptPath], {
+    cwd: __dirname,
+    stdio: "inherit",
+  });
+
+  if (result.status !== 0) {
+    throw new Error("Failed to build PoE process helper");
+  }
+}
 
 class MakerAppImage extends MakerBase<Configuration> {
   name = "appimage";
@@ -64,10 +89,6 @@ if (process.platform === "win32") {
   );
 }
 
-if (process.platform === "darwin") {
-  makers.push(new MakerZIP({}, ["darwin"]));
-}
-
 if (process.platform === "linux") {
   makers.push(
     new MakerAppImage({
@@ -91,6 +112,7 @@ const config: ForgeConfig = {
       "./renderer/assets/logo",
       "./.forge-staging/poe1",
       "./CHANGELOG.md",
+      ...(supportsPoeProcessHelper ? [poeProcessHelperResource] : []),
     ],
     ignore: (file: string) => {
       if (!file) return false;
@@ -125,6 +147,9 @@ const config: ForgeConfig = {
       const dest = path.resolve(__dirname, ".forge-staging/poe1");
       fs.cpSync(src, dest, { recursive: true, force: true });
       console.log("[forge] Staged poe1 card data ->", dest);
+      if (supportsPoeProcessHelper) {
+        buildPoeProcessHelper();
+      }
     },
   },
   makers,

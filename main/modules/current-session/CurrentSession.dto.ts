@@ -23,13 +23,13 @@ export interface SessionCardDTO {
   lastSeenAt: string;
   hidePrice: boolean;
   divinationCard?: {
-    id?: string | null;
+    id: string;
     stackSize?: number | null;
     description?: string | null;
     rewardHtml?: string | null;
     artSrc?: string | null;
     flavourHtml?: string | null;
-    rarity?: Rarity;
+    rarity: Rarity;
     filterRarity?: KnownRarity | null;
     prohibitedLibraryRarity?: Rarity | null;
   };

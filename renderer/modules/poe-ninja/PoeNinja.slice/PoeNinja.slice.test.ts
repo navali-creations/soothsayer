@@ -722,15 +722,18 @@ describe("getters", () => {
     });
 
     it("returns positive milliseconds when refresh is in the future", () => {
-      store.getState().poeNinja.setAutoRefreshActive("poe1", "Settlers", 4);
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2025-01-15T12:00:00.000Z"));
+      try {
+        store.getState().poeNinja.setAutoRefreshActive("poe1", "Settlers", 4);
 
-      const timeMs = store
-        .getState()
-        .poeNinja.getTimeUntilNextRefresh("poe1", "Settlers");
-      expect(timeMs).not.toBeNull();
-      // Should be roughly 4 hours in ms (with some tolerance)
-      expect(timeMs!).toBeGreaterThan(3.9 * 60 * 60 * 1000);
-      expect(timeMs!).toBeLessThanOrEqual(4 * 60 * 60 * 1000);
+        const timeMs = store
+          .getState()
+          .poeNinja.getTimeUntilNextRefresh("poe1", "Settlers");
+        expect(timeMs).toBe(4 * 60 * 60 * 1000);
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it("returns null when auto-refresh is inactive", () => {

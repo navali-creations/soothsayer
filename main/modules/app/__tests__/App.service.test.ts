@@ -687,6 +687,114 @@ describe("AppService", () => {
       consoleSpy.mockRestore();
     });
 
+    it("should isolate failures from every synchronous cleanup dependency", async () => {
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      mockOverlayDestroy.mockImplementationOnce(() => {
+        throw new Error("overlay failed");
+      });
+      mockSnapshotStopAllAutoRefresh.mockImplementationOnce(() => {
+        throw new Error("snapshot failed");
+      });
+      mockCurrentSessionIsActive.mockReturnValue(true);
+      mockCurrentSessionStopSession
+        .mockRejectedValueOnce(new Error("poe1 failed"))
+        .mockRejectedValueOnce(new Error("poe2 failed"));
+      mockCommunityUploadDrainInFlight.mockRejectedValueOnce(
+        new Error("upload failed"),
+      );
+      mockPoeProcessStop.mockImplementationOnce(() => {
+        throw new Error("process watcher failed");
+      });
+      mockDatabaseClose.mockImplementationOnce(() => {
+        throw new Error("close failed");
+      });
+      mockTrayDestroyTray.mockImplementationOnce(() => {
+        throw new Error("tray failed");
+      });
+
+      mockAppOn.mockClear();
+      service.beforeQuitCloseWindowsAndDestroyElements();
+      const handler = getAppEventHandler(AppChannel.BeforeQuit);
+
+      await expect(handler()).resolves.not.toThrow();
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[Shutdown] Failed to close overlay:",
+        expect.any(Error),
+      );
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[Shutdown] Failed to stop snapshot auto-refresh:",
+        expect.any(Error),
+      );
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[Shutdown] Failed to stop POE2 session:",
+        expect.any(Error),
+      );
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[Shutdown] Failed to drain community uploads:",
+        expect.any(Error),
+      );
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[Shutdown] Failed to stop POE process monitoring:",
+        expect.any(Error),
+      );
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[Shutdown] Database close failed:",
+        expect.any(Error),
+      );
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[Shutdown] Tray destroy failed:",
+        expect.any(Error),
+      );
+    });
+
+    it("logs an unexpected top-level cleanup rejection", async () => {
+      const cleanupError = new Error("unexpected cleanup failure");
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      vi.spyOn(service as any, "runBeforeQuitCleanup").mockRejectedValueOnce(
+        cleanupError,
+      );
+
+      mockAppOn.mockClear();
+      service.beforeQuitCloseWindowsAndDestroyElements();
+      const handler = getAppEventHandler(AppChannel.BeforeQuit);
+      await handler({ preventDefault: vi.fn() });
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[Shutdown] Cleanup failed:",
+        cleanupError,
+      );
+      expect(mockAppQuit).toHaveBeenCalled();
+    });
+
+    it("shares in-flight cleanup and ignores later completed quit events", async () => {
+      let finishCleanup: (() => void) | undefined;
+      vi.spyOn(service as any, "runBeforeQuitCleanup").mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            finishCleanup = resolve;
+          }),
+      );
+      mockAppOn.mockClear();
+      service.beforeQuitCloseWindowsAndDestroyElements();
+      const handler = getAppEventHandler(AppChannel.BeforeQuit);
+      const firstEvent = { preventDefault: vi.fn() };
+      const secondEvent = { preventDefault: vi.fn() };
+
+      const first = handler(firstEvent);
+      const second = handler(secondEvent);
+      finishCleanup?.();
+      await Promise.all([first, second]);
+      await handler({ preventDefault: vi.fn() });
+
+      expect(firstEvent.preventDefault).toHaveBeenCalled();
+      expect(secondEvent.preventDefault).toHaveBeenCalled();
+      expect(mockAppQuit).toHaveBeenCalledTimes(1);
+    });
+
     it("should stop POE process monitoring on before-quit", async () => {
       mockAppOn.mockClear();
       service.beforeQuitCloseWindowsAndDestroyElements();

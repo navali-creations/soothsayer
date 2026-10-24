@@ -1,12 +1,15 @@
 import type { StateCreator } from "zustand";
 
+import type {
+  PoeProcessSnapshot,
+  PoeProcessWatcherStatus,
+} from "~/main/modules/poe-process";
 import type { BoundStore } from "~/renderer/store/store.types";
 
 import type { PoeLeague } from "../../../../types/poe-league";
 
 interface GameProcessState {
   isRunning: boolean;
-  processName: string;
 }
 
 export interface GameInfoSlice {
@@ -20,19 +23,19 @@ export interface GameInfoSlice {
     // State - Process status
     poe1Process: GameProcessState;
     poe2Process: GameProcessState;
+    processWatcherStatus: PoeProcessWatcherStatus;
 
     // Actions - Leagues
     hydrate: () => Promise<void>;
     fetchLeagues: (game: "poe1" | "poe2") => Promise<void>;
     refreshLeagues: () => Promise<void>;
 
-    // Actions - Process updates (called by IPC listeners)
-    setPoe1ProcessState: (state: GameProcessState) => void;
-    setPoe2ProcessState: (state: GameProcessState) => void;
+    setProcessSnapshot: (snapshot: PoeProcessSnapshot) => void;
 
     // Getters
     getLeaguesForGame: (game: "poe1" | "poe2") => PoeLeague[];
     isGameOnline: (game: "poe1" | "poe2") => boolean;
+    isProcessWatcherAvailable: () => boolean;
     getActiveGameStatus: () => {
       game: "poe1" | "poe2";
       isOnline: boolean;
@@ -58,12 +61,11 @@ export const createGameInfoSlice: StateCreator<
     // Initial state - Process
     poe1Process: {
       isRunning: false,
-      processName: "",
     },
     poe2Process: {
       isRunning: false,
-      processName: "",
     },
+    processWatcherStatus: "stopped",
 
     // Hydrate - fetch leagues on app start
     hydrate: async () => {
@@ -71,15 +73,9 @@ export const createGameInfoSlice: StateCreator<
 
       // Fetch initial process state
       try {
-        const processState = await window.electron.poeProcess.getState();
-
-        // Set initial state if a process is running
-        if (processState?.isRunning && processState?.processName) {
-          if (processState.processName.includes("PathOfExile2")) {
-            gameInfo.setPoe2ProcessState(processState);
-          } else {
-            gameInfo.setPoe1ProcessState(processState);
-          }
+        const processSnapshot = await window.electron.poeProcess.getSnapshot();
+        if (processSnapshot) {
+          gameInfo.setProcessSnapshot(processSnapshot);
         }
       } catch (_error) {
         // Silently handle - IPC handlers may not be ready during initial load
@@ -152,25 +148,19 @@ export const createGameInfoSlice: StateCreator<
       ]);
     },
 
-    // Update PoE 1 process state (called by IPC listener)
-    setPoe1ProcessState: (state) => {
+    setProcessSnapshot: (snapshot) => {
       set(
         ({ gameInfo }) => {
-          gameInfo.poe1Process = state;
+          gameInfo.poe1Process = {
+            isRunning: snapshot.states.poe1.isRunning,
+          };
+          gameInfo.poe2Process = {
+            isRunning: snapshot.states.poe2.isRunning,
+          };
+          gameInfo.processWatcherStatus = snapshot.status;
         },
         false,
-        "gameInfoSlice/setPoe1ProcessState",
-      );
-    },
-
-    // Update PoE 2 process state (called by IPC listener)
-    setPoe2ProcessState: (state) => {
-      set(
-        ({ gameInfo }) => {
-          gameInfo.poe2Process = state;
-        },
-        false,
-        "gameInfoSlice/setPoe2ProcessState",
+        "gameInfoSlice/setProcessSnapshot",
       );
     },
 
@@ -188,6 +178,10 @@ export const createGameInfoSlice: StateCreator<
         : gameInfo.poe2Process.isRunning;
     },
 
+    isProcessWatcherAvailable: () => {
+      return get().gameInfo.processWatcherStatus !== "unavailable";
+    },
+
     // Get active game status (combines settings + game info)
     getActiveGameStatus: () => {
       const state = get();
@@ -202,35 +196,14 @@ export const createGameInfoSlice: StateCreator<
 
     // Start listening to process events
     startListening: () => {
-      const unsubscribePoeStart = window.electron?.poeProcess?.onStart?.(
-        (state) => {
-          const { gameInfo } = get();
-
-          // Determine which game (you might need better logic here)
-          if (state.processName.includes("PathOfExile2")) {
-            gameInfo.setPoe2ProcessState(state);
-          } else {
-            gameInfo.setPoe1ProcessState(state);
-          }
+      const unsubscribePoeSnapshot = window.electron?.poeProcess?.onSnapshot?.(
+        (snapshot) => {
+          get().gameInfo.setProcessSnapshot(snapshot);
         },
       );
 
-      const unsubscribePoeStop = window.electron?.poeProcess?.onStop?.(
-        (state) => {
-          const { gameInfo } = get();
-
-          if (state.processName.includes("PathOfExile2")) {
-            gameInfo.setPoe2ProcessState({ isRunning: false, processName: "" });
-          } else {
-            gameInfo.setPoe1ProcessState({ isRunning: false, processName: "" });
-          }
-        },
-      );
-
-      // Return cleanup function
       return () => {
-        unsubscribePoeStart?.();
-        unsubscribePoeStop?.();
+        unsubscribePoeSnapshot?.();
       };
     },
   },

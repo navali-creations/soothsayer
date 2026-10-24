@@ -5,6 +5,7 @@ import {
   seedDivinationCardRarity,
   seedLeague,
   seedSession,
+  seedSessionCardEvents,
   seedSessionCards,
   seedSnapshot,
 } from "~/main/modules/__test-utils__/create-test-db";
@@ -16,6 +17,49 @@ describe("CurrentSessionRepository", () => {
   const { getRepository, getTestDb } = setupRepositoryTest(
     CurrentSessionRepository,
   );
+
+  describe("card metadata lookups", () => {
+    it("returns null when card-specific rarity rows are absent", async () => {
+      await expect(
+        getRepository().getCardProhibitedLibraryRarity(
+          "poe1",
+          "Settlers",
+          "Missing",
+        ),
+      ).resolves.toBeNull();
+      await expect(
+        getRepository().getCardFilterRarity("filter", "Missing"),
+      ).resolves.toBeNull();
+    });
+  });
+
+  describe("getRecentCardEvents", () => {
+    it("returns the newest limited events in chronological order", async () => {
+      const leagueId = await seedLeague(getTestDb().kysely);
+      await seedSession(getTestDb().kysely, {
+        id: "recent-events",
+        leagueId,
+      });
+      await seedSessionCardEvents(getTestDb().kysely, "recent-events", [
+        { cardName: "First", droppedAt: "2025-01-15T10:00:00Z" },
+        { cardName: "Second", droppedAt: "2025-01-15T10:01:00Z" },
+        { cardName: "Third", droppedAt: "2025-01-15T10:02:00Z" },
+      ]);
+
+      const limited = await getRepository().getRecentCardEvents(
+        "recent-events",
+        2,
+      );
+      const defaulted =
+        await getRepository().getRecentCardEvents("recent-events");
+
+      expect(limited.map(({ cardName }) => cardName)).toEqual([
+        "Second",
+        "Third",
+      ]);
+      expect(defaulted).toHaveLength(3);
+    });
+  });
 
   // ─── Session Operations ──────────────────────────────────────────────────
 

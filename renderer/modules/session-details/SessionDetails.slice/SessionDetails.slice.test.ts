@@ -311,6 +311,60 @@ describe("SessionDetailsSlice", () => {
       expect(card?.price?.hidePrice).toBe(false);
     });
 
+    it("leaves a card without price data unchanged", async () => {
+      store.setState((state) => {
+        const card = state.sessionDetails.session?.cards.find(
+          (entry) => entry.name === "The Doctor",
+        );
+        if (card) delete card.price;
+      });
+      electron.session.updateCardPriceVisibility.mockResolvedValue({
+        success: true,
+      });
+
+      await store
+        .getState()
+        .sessionDetails.toggleCardPriceVisibility("The Doctor");
+
+      expect(
+        store
+          .getState()
+          .sessionDetails.session?.cards.find(
+            (entry) => entry.name === "The Doctor",
+          )?.price,
+      ).toBeUndefined();
+    });
+
+    it("does not recreate price data removed while persistence is pending", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      let rejectUpdate!: (reason: Error) => void;
+      electron.session.updateCardPriceVisibility.mockReturnValue(
+        new Promise((_resolve, reject) => {
+          rejectUpdate = reject;
+        }),
+      );
+
+      const update = store
+        .getState()
+        .sessionDetails.toggleCardPriceVisibility("The Doctor");
+      store.setState((state) => {
+        const card = state.sessionDetails.session?.cards.find(
+          (entry) => entry.name === "The Doctor",
+        );
+        if (card) delete card.price;
+      });
+      rejectUpdate(new Error("Backend failure"));
+      await update;
+
+      expect(
+        store
+          .getState()
+          .sessionDetails.session?.cards.find(
+            (entry) => entry.name === "The Doctor",
+          )?.price,
+      ).toBeUndefined();
+    });
+
     it("does not call the backend when there is no loaded session or matching card", async () => {
       store.getState().sessionDetails.clearSession();
       await store

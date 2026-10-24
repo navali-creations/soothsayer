@@ -267,9 +267,9 @@ export class DivinationCardsRepository {
       .selectFrom("divination_cards")
       .select((eb) => eb.fn.countAll<number>().as("count"))
       .where("game", "=", game)
-      .executeTakeFirst();
+      .executeTakeFirstOrThrow();
 
-    return result?.count ?? 0;
+    return result.count;
   }
 
   /**

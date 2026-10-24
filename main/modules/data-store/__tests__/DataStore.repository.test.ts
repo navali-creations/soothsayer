@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { seedCards } from "~/main/modules/__test-utils__/create-test-db";
 import { setupRepositoryTest } from "~/main/modules/__test-utils__/repository-test-setup";
@@ -263,6 +263,21 @@ describe("DataStoreRepository", () => {
   });
 
   describe("getCardsByScope", () => {
+    it("rejects a query result that no longer matches the mapped row shape", async () => {
+      const query: Record<string, ReturnType<typeof vi.fn>> = {};
+      query.leftJoin = vi.fn(() => query);
+      query.select = vi.fn(() => query);
+      query.where = vi.fn(() => query);
+      query.execute = vi.fn().mockResolvedValue([{}]);
+      const repository = new DataStoreRepository({
+        selectFrom: vi.fn(() => query),
+      } as never);
+
+      await expect(
+        repository.getCardsByScope("poe1", "all-time"),
+      ).rejects.toThrow('missing key "card_name"');
+    });
+
     it("should return empty array when no cards exist for scope", async () => {
       const cards = await getRepository().getCardsByScope("poe1", "all-time");
       expect(cards).toEqual([]);

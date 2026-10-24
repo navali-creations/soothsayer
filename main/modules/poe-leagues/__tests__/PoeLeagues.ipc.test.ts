@@ -247,6 +247,48 @@ describe("PoeLeaguesService — IPC handlers", () => {
 
       expect(result).toEqual(errorPayload);
     });
+
+    it("returns fallback leagues when an unexpected non-Error escapes validation", async () => {
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => undefined);
+      mockAssertGameType.mockImplementationOnce(() => {
+        throw "unexpected failure";
+      });
+      mockHandleValidationError.mockImplementationOnce(() => {
+        throw "unexpected failure";
+      });
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        PoeLeaguesChannel.FetchLeagues,
+      );
+
+      await expect(handler({}, "poe1")).resolves.toEqual([
+        { endAt: null, id: "Standard", name: "Standard", startAt: null },
+      ]);
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[PoeLeaguesService] Failed to fetch leagues:",
+        "unexpected failure",
+      );
+    });
+
+    it("reports an unexpected Error that escapes validation", async () => {
+      const failure = new Error("unexpected failure");
+      mockAssertGameType.mockImplementationOnce(() => {
+        throw failure;
+      });
+      mockHandleValidationError.mockImplementationOnce(() => {
+        throw failure;
+      });
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        PoeLeaguesChannel.FetchLeagues,
+      );
+
+      await expect(handler({}, "poe1")).resolves.toEqual([
+        { endAt: null, id: "Standard", name: "Standard", startAt: null },
+      ]);
+    });
   });
 
   // ─── GetAllLeagues handler ────────────────────────────────────────────────

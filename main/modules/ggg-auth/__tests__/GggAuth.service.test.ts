@@ -389,6 +389,27 @@ describe("GggAuthService", () => {
   // ─────────────────────────────────────────────────────────────────────────
 
   describe("GetAuthStatus handler", () => {
+    it("normalizes Error failures raised by session storage", async () => {
+      const service = GggAuthService.getInstance();
+      (
+        service as unknown as { sessionStorage: { load: () => never } }
+      ).sessionStorage.load = () => {
+        throw new Error("storage failed");
+      };
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        GggAuthChannel.GetAuthStatus,
+      );
+
+      await expect(handler({})).resolves.toMatchObject({
+        authenticated: false,
+      });
+      expect(mockSentryCaptureException).toHaveBeenCalledWith(
+        expect.any(Error),
+        expect.any(Object),
+      );
+    });
+
     it("should return authenticated: false when no session file exists", async () => {
       mockFsExistsSync.mockReturnValue(false);
 
@@ -474,6 +495,20 @@ describe("GggAuthService", () => {
   // ─────────────────────────────────────────────────────────────────────────
 
   describe("Authenticate handler", () => {
+    it("uses the generic message for a non-Error authentication failure", async () => {
+      mockAssertTrustedSender.mockImplementation(() => {
+        throw "unexpected";
+      });
+      mockHandleValidationError.mockReturnValue(undefined);
+      GggAuthService.getInstance();
+      const handler = getIpcHandler(mockIpcHandle, GggAuthChannel.Authenticate);
+
+      await expect(handler({ sender: { id: 1 } })).resolves.toEqual({
+        success: false,
+        error: "Authentication failed. Please try again.",
+      });
+    });
+
     it("should open browser with correct authorization URL parameters", () => {
       const service = GggAuthService.getInstance();
 
@@ -578,6 +613,18 @@ describe("GggAuthService", () => {
       });
     });
 
+    it("should normalize a non-Error browser launch rejection", async () => {
+      mockShellOpenExternal.mockRejectedValueOnce("browser unavailable");
+      mockHandleValidationError.mockReturnValueOnce(undefined);
+      GggAuthService.getInstance();
+      const handler = getIpcHandler(mockIpcHandle, GggAuthChannel.Authenticate);
+
+      await expect(handler({ sender: { id: 1 } })).resolves.toEqual({
+        success: false,
+        error: "Failed to open browser: browser unavailable",
+      });
+    });
+
     it("should reject authenticate from untrusted sender", async () => {
       mockAssertTrustedSender.mockImplementation(() => {
         throw new MockIpcValidationError(
@@ -609,6 +656,12 @@ describe("GggAuthService", () => {
   // ─────────────────────────────────────────────────────────────────────────
 
   describe("handleCallback", () => {
+    it("ignores an invalid callback when no authentication is pending", async () => {
+      await expect(
+        GggAuthService.getInstance().handleCallback("not a url %%%"),
+      ).resolves.toBeUndefined();
+    });
+
     it("should exchange auth code for tokens and save session", async () => {
       const service = GggAuthService.getInstance();
 
@@ -791,6 +844,19 @@ describe("GggAuthService", () => {
         }),
       );
     });
+
+    it("normalizes a non-Error token exchange failure", async () => {
+      const service = GggAuthService.getInstance();
+      mockFetch.mockRejectedValueOnce("exchange unavailable");
+      const { authPromise, getCallbackUrl } =
+        startAuthFlowAndCaptureState(service);
+
+      await service.handleCallback(getCallbackUrl());
+
+      await expect(authPromise).rejects.toThrow(
+        "Token exchange failed: exchange unavailable",
+      );
+    });
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -904,6 +970,19 @@ describe("GggAuthService", () => {
       expect(result).toBeNull();
     });
 
+    it("normalizes a non-Error refresh failure", async () => {
+      mockStoredSession(MOCK_EXPIRED_SESSION);
+      mockFetch.mockRejectedValueOnce("refresh unavailable");
+
+      await expect(
+        GggAuthService.getInstance().getAccessToken(),
+      ).resolves.toBeNull();
+      expect(mockSentryCaptureException).toHaveBeenCalledWith(
+        expect.any(Error),
+        expect.any(Object),
+      );
+    });
+
     it("should report refresh failure to Sentry", async () => {
       mockStoredSession(MOCK_EXPIRED_SESSION);
 
@@ -993,6 +1072,22 @@ describe("GggAuthService", () => {
 
       expect(result).toEqual({ success: false });
       expect(mockSentryCaptureException).toHaveBeenCalled();
+    });
+
+    it("should normalize a non-Error logout failure", async () => {
+      mockFsExistsSync.mockImplementation(() => {
+        throw "permission denied";
+      });
+      GggAuthService.getInstance();
+      const handler = getIpcHandler(mockIpcHandle, GggAuthChannel.Logout);
+
+      await expect(handler({ sender: { id: 1 } })).resolves.toEqual({
+        success: false,
+      });
+      expect(mockSentryCaptureException).toHaveBeenCalledWith(
+        expect.any(Error),
+        expect.any(Object),
+      );
     });
 
     it("should reject logout from untrusted sender", async () => {
@@ -1273,8 +1368,10 @@ describe("GggAuthService", () => {
     });
 
     it("uses an unknown proxy error body when exchange and refresh bodies reject", async () => {
-      mutableImportMetaEnv.VITE_SUPABASE_URL = "https://example.supabase.co";
-      mutableImportMetaEnv.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY = "public-key";
+      useProxyEnv({
+        VITE_SUPABASE_URL: "https://example.supabase.co",
+        VITE_SUPABASE_PUBLISHABLE_KEY: "public-key",
+      });
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 500,
@@ -1380,6 +1477,20 @@ describe("GggAuthService", () => {
   });
 
   describe("session storage fallback coverage", () => {
+    it("does not apply Unix permissions to plaintext storage on Windows", async () => {
+      vi.stubEnv("NODE_ENV", "development");
+      mockSafeStorageIsAvailable.mockReturnValue(false);
+      const service = GggAuthService.getInstance();
+      mockFetch.mockResolvedValueOnce(createSuccessTokenResponse());
+      const { authPromise, getCallbackUrl } =
+        startAuthFlowAndCaptureState(service);
+
+      await service.handleCallback(getCallbackUrl());
+      await authPromise;
+
+      expect(mockFsChmodSync).not.toHaveBeenCalled();
+    });
+
     it("restricts encrypted session files on Unix", async () => {
       const originalPlatform = process.platform;
       Object.defineProperty(process, "platform", {

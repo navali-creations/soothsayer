@@ -1,5 +1,5 @@
 import type { Kysely } from "kysely";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   createTestDatabase,
@@ -1141,6 +1141,67 @@ describe("CsvIntegrityChecker", () => {
       );
       expect(globalCheck?.expected).toBeDefined();
       expect(globalCheck?.actual).toBeDefined();
+    });
+  });
+
+  describe("defensive repository failures", () => {
+    it("reports global-counter and snapshot query failures as warnings", async () => {
+      vi.spyOn(repository, "getGlobalTotalDecksOpened").mockRejectedValue(
+        new Error("global query failed"),
+      );
+      vi.spyOn(repository, "getSnapshot").mockRejectedValue(
+        new Error("snapshot query failed"),
+      );
+
+      const result = await checker.runChecks("poe1", "all-time", {});
+
+      expect(result.details).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            check: CsvIntegrityCheck.AllTimeVsGlobalCounter,
+            message: "Check failed: global query failed",
+            status: CsvIntegrityStatus.Warn,
+          }),
+          expect.objectContaining({
+            check: CsvIntegrityCheck.SnapshotNonDecreasing,
+            message: "Check failed: snapshot query failed",
+            status: CsvIntegrityStatus.Warn,
+          }),
+        ]),
+      );
+    });
+
+    it("summarizes more than five league and snapshot violations", async () => {
+      const counts = Object.fromEntries(
+        Array.from({ length: 6 }, (_, index) => [`Card ${index}`, 0]),
+      );
+      vi.spyOn(repository, "getAllTimeCardCounts").mockResolvedValue(counts);
+      vi.spyOn(repository, "getLeagueCardCounts").mockResolvedValue(
+        Object.fromEntries(Object.keys(counts).map((name) => [name, 2])),
+      );
+      vi.spyOn(repository, "getSnapshot").mockResolvedValue(
+        Object.keys(counts).map((cardName) => ({
+          cardName,
+          count: 1,
+          exportedAt: "2026-01-01T00:00:00.000Z",
+          game: "poe1",
+          scope: "all-time",
+          totalCount: 6,
+        })),
+      );
+
+      const result = await checker.runChecks("poe1", "all-time", counts);
+
+      expect(
+        result.details.find(
+          (detail) => detail.check === CsvIntegrityCheck.AllTimeVsLeagueSum,
+        )?.message,
+      ).toContain("(and 1 more)");
+      expect(
+        result.details.find(
+          (detail) => detail.check === CsvIntegrityCheck.SnapshotNonDecreasing,
+        )?.message,
+      ).toContain("(and 1 more)");
     });
   });
 });

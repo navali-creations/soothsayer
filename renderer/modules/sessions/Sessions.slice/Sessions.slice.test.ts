@@ -574,6 +574,24 @@ describe("SessionsSlice", () => {
       expect(sessions.error).toBe("Search failed");
       expect(sessions.isLoading).toBe(false);
     });
+
+    it("keeps search results when sparkline loading fails", async () => {
+      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      electron.sessions.searchByCard.mockResolvedValue(
+        makePageResponse([makeSessionSummary({ sessionId: "s1" })]),
+      );
+      electron.sessions.getSparklines.mockRejectedValue(
+        new Error("sparkline unavailable"),
+      );
+
+      await store.getState().sessions.searchSessions("The Doctor");
+
+      expect(store.getState().sessions.allSessions).toHaveLength(1);
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[SessionsSlice] Failed to load sparklines:",
+        expect.any(Error),
+      );
+    });
   });
 
   // ─── Getters ──────────────────────────────────────────────────────────
@@ -858,6 +876,25 @@ describe("SessionsSlice", () => {
       expect(store.getState().sessions.getIsSessionSelected("s1")).toBe(true);
       expect(store.getState().sessions.getIsSessionSelected("s2")).toBe(true);
       expect(store.getState().sessions.getIsSessionSelected("s3")).toBe(true);
+    });
+
+    it("selectAllVisible does not duplicate an existing selection", async () => {
+      electron.sessions.getAll.mockResolvedValue(
+        makePageResponse([
+          makeSessionSummary({ sessionId: "s1" }),
+          makeSessionSummary({ sessionId: "s2" }),
+        ]),
+      );
+      electron.sessions.getSparklines.mockResolvedValue({});
+      await store.getState().sessions.loadAllSessions();
+      store.getState().sessions.toggleSessionSelection("s1");
+
+      store.getState().sessions.selectAllVisible();
+
+      expect(store.getState().sessions.selectedSessionIds).toEqual([
+        "s1",
+        "s2",
+      ]);
     });
 
     it("selectAll selects all sessions across all pages via IPC", async () => {
