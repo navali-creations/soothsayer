@@ -39,7 +39,9 @@ const validPersonalAnalytics = {
 
 const validCommunityDropRate = {
   league: "Mirage",
+  referenceDropChance: 25 / 121_425,
   dropCount: 2475,
+  referenceWeight: 25,
   sampleSize: 4_207_137,
 };
 
@@ -71,18 +73,34 @@ describe("CardDetailsPersonal", () => {
     const stats = [...container.querySelectorAll(".stat")];
 
     expect(stats).toHaveLength(4);
-    expect(stats[0]).toHaveTextContent("Community Drop Chance");
+    expect(stats[0]).toHaveTextContent("Estimated Drop Chance");
+    expect(stats[0]).not.toHaveAttribute("title");
     expect(stats[1]).toHaveTextContent("Your Drop Chance");
     expect(stats[2]).toHaveTextContent("Total Drops");
     expect(stats[3]).toHaveTextContent("Last Seen");
     expect(screen.queryByText("First Found")).not.toBeInTheDocument();
   });
 
-  it("formats both drop chances to six decimal places", () => {
+  it("shows the reference-weighted estimate separately from observations", () => {
     renderComponent();
+    const observationMetric = screen.getByLabelText(
+      "2,475 community observations for Mirage",
+    );
+    const weightMetric = screen.getByLabelText(
+      "Reference weight 25 for Mirage",
+    );
 
-    expect(screen.getByText("0.058829%")).toBeInTheDocument();
-    expect(screen.getByText("2,475 in 4,207,137 cards")).toBeInTheDocument();
+    expect(screen.getByText("0.020589%")).toBeInTheDocument();
+    expect(observationMetric).toHaveAttribute(
+      "data-tip",
+      "2,475 drops of this card were reported in the 4,207,137-card Mirage community sample.",
+    );
+    expect(observationMetric.querySelector("svg")).toBeInTheDocument();
+    expect(weightMetric).toHaveAttribute(
+      "data-tip",
+      "Reference weight: 25. Higher weights mean the card is expected to appear more often.",
+    );
+    expect(weightMetric.querySelector("svg")).toBeInTheDocument();
     expect(screen.getByText("0.420000%")).toBeInTheDocument();
     expect(screen.getByText("42 in 10,000 cards")).toBeInTheDocument();
   });
@@ -90,7 +108,7 @@ describe("CardDetailsPersonal", () => {
   it("keeps community data visible while personal analytics is unavailable", () => {
     renderComponent({ personalAnalytics: null });
 
-    expect(screen.getByText("0.058829%")).toBeInTheDocument();
+    expect(screen.getByText("0.020589%")).toBeInTheDocument();
     expect(screen.getByText("Your Drop Chance")).toBeInTheDocument();
     expect(screen.getByText("Total Drops")).toBeInTheDocument();
   });
@@ -101,7 +119,7 @@ describe("CardDetailsPersonal", () => {
       personalAnalyticsError: "Failed to load analytics",
     });
 
-    expect(screen.getByText("0.058829%")).toBeInTheDocument();
+    expect(screen.getByText("0.020589%")).toBeInTheDocument();
     expect(screen.getByText("Failed to load analytics")).toBeInTheDocument();
   });
 
@@ -113,9 +131,26 @@ describe("CardDetailsPersonal", () => {
       },
     });
 
-    expect(screen.getByText("0.058829%")).toBeInTheDocument();
+    expect(screen.getByText("0.020589%")).toBeInTheDocument();
     expect(screen.getByText("0.000000%")).toBeInTheDocument();
     expect(screen.getByText("You haven't found this card yet")).toBeVisible();
+  });
+
+  it("keeps observations visible when no reference estimate exists", () => {
+    renderComponent({
+      communityDropRate: {
+        ...validCommunityDropRate,
+        referenceDropChance: null,
+        referenceWeight: null,
+      },
+    });
+
+    expect(
+      screen.getByLabelText("No reference weight for Mirage"),
+    ).toHaveAttribute(
+      "data-tip",
+      "No reference weight is available for this card in Mirage.",
+    );
   });
 
   it("renders the community loading and unavailable states", () => {

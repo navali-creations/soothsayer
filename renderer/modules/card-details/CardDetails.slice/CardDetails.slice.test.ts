@@ -51,7 +51,9 @@ function makePriceHistory(overrides: Record<string, unknown> = {}) {
 function makeCommunityDropRate(overrides: Record<string, unknown> = {}) {
   return {
     league: "Mirage",
+    referenceDropChance: 25 / 121_425,
     dropCount: 2475,
+    referenceWeight: 25,
     sampleSize: 4_207_137,
     ...overrides,
   };

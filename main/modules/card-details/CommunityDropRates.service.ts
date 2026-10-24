@@ -16,9 +16,15 @@ const MAX_CARDS = 5_000;
 const MAX_CARD_NAME_LENGTH = 256;
 
 interface CommunityLeagueRates {
-  cards: Map<string, number>;
+  cards: Map<string, CommunityCardRate>;
   league: string;
   sampleSize: number;
+}
+
+interface CommunityCardRate {
+  dropCount: number;
+  referenceDropChance: number | null;
+  referenceWeight: number | null;
 }
 
 interface CacheEntry {
@@ -32,6 +38,19 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isNonNegativeSafeInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+function isPositiveProbability(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    value > 0 &&
+    value <= 1
+  );
+}
+
+function isPositiveSafeInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 
 async function readBoundedJson(
@@ -94,12 +113,14 @@ export class CommunityDropRatesService {
     const leagueRates = await this.getLeagueRates(cacheKey, game, league);
     if (!leagueRates) return null;
 
-    const dropCount = leagueRates.cards.get(cardName.toLowerCase());
-    if (dropCount === undefined) return null;
+    const cardRate = leagueRates.cards.get(cardName.toLowerCase());
+    if (!cardRate) return null;
 
     return {
       league: leagueRates.league,
-      dropCount,
+      referenceDropChance: cardRate.referenceDropChance,
+      dropCount: cardRate.dropCount,
+      referenceWeight: cardRate.referenceWeight,
       sampleSize: leagueRates.sampleSize,
     };
   }
@@ -234,7 +255,7 @@ export class CommunityDropRatesService {
       throw new Error("Invalid community league metadata");
     }
 
-    const cards = new Map<string, number>();
+    const cards = new Map<string, CommunityCardRate>();
     for (const value of leaguePayload.cards) {
       if (
         !isRecord(value) ||
@@ -246,7 +267,23 @@ export class CommunityDropRatesService {
       ) {
         continue;
       }
-      cards.set(value.name.toLowerCase(), value.count);
+
+      const normalizedName = value.name.toLowerCase();
+      if (cards.has(normalizedName)) continue;
+
+      const referenceEstimate =
+        isPositiveSafeInteger(value.reference_weight) &&
+        isPositiveProbability(value.reference_estimated_chance)
+          ? {
+              referenceDropChance: value.reference_estimated_chance,
+              referenceWeight: value.reference_weight,
+            }
+          : { referenceDropChance: null, referenceWeight: null };
+
+      cards.set(normalizedName, {
+        dropCount: value.count,
+        ...referenceEstimate,
+      });
     }
 
     return { cards, league: leagueName, sampleSize };

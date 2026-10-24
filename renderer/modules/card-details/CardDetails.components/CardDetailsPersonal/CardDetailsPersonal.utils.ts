@@ -1,3 +1,7 @@
 export function formatDropChance(count: number, sampleSize: number): string {
-  return `${((count / sampleSize) * 100).toFixed(6)}%`;
+  return formatDropProbability(count / sampleSize);
+}
+
+export function formatDropProbability(probability: number): string {
+  return `${(probability * 100).toFixed(6)}%`;
 }

@@ -36,8 +36,20 @@ function makeLeagueResponse(overrides: Record<string, unknown> = {}) {
   return {
     league: { name: "Mirage", observed_total: 4_207_137 },
     cards: [
-      { name: "A Chilling Wind", count: 2475, ratio: "not-required" },
-      { name: "The Doctor", count: 42 },
+      {
+        name: "A Chilling Wind",
+        count: 2475,
+        ratio: 0.00058829,
+        reference_weight: 25,
+        reference_estimated_chance: 0.00020589,
+      },
+      {
+        name: "The Doctor",
+        count: 42,
+        ratio: 0.00000998,
+        reference_weight: 10_000,
+        reference_estimated_chance: 0.08235536,
+      },
     ],
     ...overrides,
   };
@@ -56,7 +68,7 @@ describe("CommunityDropRatesService", () => {
     vi.clearAllMocks();
   });
 
-  it("returns the count-based observation data", async () => {
+  it("returns the published reference-weighted drop estimate", async () => {
     mockPublishedLeague();
     const service = new CommunityDropRatesService();
 
@@ -64,7 +76,9 @@ describe("CommunityDropRatesService", () => {
       service.getCardRate("poe1", "Mirage", "A Chilling Wind"),
     ).resolves.toEqual({
       league: "Mirage",
+      referenceDropChance: 0.00020589,
       dropCount: 2475,
+      referenceWeight: 25,
       sampleSize: 4_207_137,
     });
     expect(mockFetch).toHaveBeenNthCalledWith(
@@ -91,6 +105,8 @@ describe("CommunityDropRatesService", () => {
 
     expect(first?.dropCount).toBe(2475);
     expect(second?.dropCount).toBe(42);
+    expect(first?.referenceDropChance).toBe(0.00020589);
+    expect(second?.referenceDropChance).toBe(0.08235536);
     expect(third).toBeNull();
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
@@ -131,7 +147,14 @@ describe("CommunityDropRatesService", () => {
     mockPublishedLeague(
       makeLeagueResponse({
         league: { name: "Mirage", observed_total: 100 },
-        cards: [{ name: "A Chilling Wind", count }],
+        cards: [
+          {
+            name: "A Chilling Wind",
+            count,
+            reference_weight: 25,
+            reference_estimated_chance: 0.00020589,
+          },
+        ],
       }),
     );
     const service = new CommunityDropRatesService();
@@ -139,6 +162,74 @@ describe("CommunityDropRatesService", () => {
     await expect(
       service.getCardRate("poe1", "Mirage", "A Chilling Wind"),
     ).resolves.toBeNull();
+  });
+
+  it.each([
+    ["missing weight", undefined, 0.00020589],
+    ["zero weight", 0, 0.00020589],
+    ["fractional weight", 1.5, 0.00020589],
+    ["missing chance", 25, undefined],
+    ["zero chance", 25, 0],
+    ["chance above one", 25, 1.1],
+  ])("preserves observations but omits an invalid %s reference estimate", async (_name, referenceWeight, referenceDropChance) => {
+    mockPublishedLeague(
+      makeLeagueResponse({
+        cards: [
+          {
+            name: "A Chilling Wind",
+            count: 25,
+            reference_weight: referenceWeight,
+            reference_estimated_chance: referenceDropChance,
+          },
+        ],
+      }),
+    );
+    const service = new CommunityDropRatesService();
+
+    await expect(
+      service.getCardRate("poe1", "Mirage", "A Chilling Wind"),
+    ).resolves.toEqual({
+      league: "Mirage",
+      referenceDropChance: null,
+      dropCount: 25,
+      referenceWeight: null,
+      sampleSize: 4_207_137,
+    });
+  });
+
+  it("uses only the first case-insensitive duplicate card entry", async () => {
+    mockPublishedLeague(
+      makeLeagueResponse({
+        cards: [
+          {
+            name: "A Chilling Wind",
+            count: 25,
+            reference_weight: 25,
+            reference_estimated_chance: 0.25,
+          },
+          {
+            name: "a chilling wind",
+            count: 100,
+            reference_weight: 100,
+            reference_estimated_chance: 0.5,
+          },
+          {
+            name: "The Doctor",
+            count: 1,
+            reference_weight: 75,
+            reference_estimated_chance: 0.25,
+          },
+        ],
+      }),
+    );
+    const service = new CommunityDropRatesService();
+
+    await expect(
+      service.getCardRate("poe1", "Mirage", "A Chilling Wind"),
+    ).resolves.toMatchObject({
+      referenceDropChance: 0.25,
+      referenceWeight: 25,
+    });
   });
 
   it("rejects an oversized response before parsing", async () => {
@@ -228,7 +319,14 @@ describe("CommunityDropRatesService", () => {
           name: `League ${leagueIndex}`,
           observed_total: 100,
         },
-        cards: [{ name: "A Chilling Wind", count: 1 }],
+        cards: [
+          {
+            name: "A Chilling Wind",
+            count: 1,
+            reference_weight: 25,
+            reference_estimated_chance: 0.00020589,
+          },
+        ],
       });
     });
     const service = new CommunityDropRatesService();

@@ -166,12 +166,16 @@ export interface CardDetailsInitDTO {
   relatedCards: RelatedCardsResultDTO | null;
 }
 
-/** Community-observed drop rate for one card in one league. */
+/** Community observations and reference-weighted drop estimate for one card. */
 export interface CardCommunityDropRateDTO {
   /** League represented by this community sample. */
   league: string;
+  /** Published reference-weighted probability from 0 to 1, when available. */
+  referenceDropChance: number | null;
   /** Number of observed drops for this card. */
   dropCount: number;
+  /** External reference weight used for the drop estimate, when available. */
+  referenceWeight: number | null;
   /** Total cards in the community sample. */
   sampleSize: number;
 }

@@ -132,7 +132,15 @@ async function installCommunityDropRateFixture(app: ElectronApplication) {
         return new Response(
           JSON.stringify({
             league: { name: "Standard", observed_total: 1_000_000 },
-            cards: [{ name: "House of Mirrors", count: 25 }],
+            cards: [
+              {
+                name: "House of Mirrors",
+                count: 25,
+                ratio: 0.000025,
+                reference_weight: 25,
+                reference_estimated_chance: 25 / 121_425,
+              },
+            ],
           }),
           { headers: { "content-type": "application/json" } },
         );
@@ -533,9 +541,14 @@ test.describe("Card Detail Page", () => {
     }) => {
       await goToCardDetail(page, "house-of-mirrors");
 
-      await expect(page.getByText("Community Drop Chance")).toBeVisible();
-      await expect(page.getByText("0.002500%")).toBeVisible();
-      await expect(page.getByText("25 in 1,000,000 cards")).toBeVisible();
+      await expect(page.getByText("Estimated Drop Chance")).toBeVisible();
+      await expect(page.getByText("0.020589%")).toBeVisible();
+      await expect(
+        page.getByLabel("25 community observations for Standard"),
+      ).toBeVisible();
+      await expect(
+        page.getByLabel("Reference weight 25 for Standard"),
+      ).toBeVisible();
       await expect(page.getByText("First Found")).toHaveCount(0);
     });
 
