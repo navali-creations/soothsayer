@@ -296,13 +296,13 @@ describe("useDropTimelineData — gap markers", () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("useDropTimelineData — boundary sentinels", () => {
-  it("adds boundary sentinel at first session start when available", () => {
+  it("adds boundary sentinel at the first session league start", () => {
     const { result } = renderTimelineHook();
-    // All-leagues timeline starts at the user's first recorded session,
-    // not league metadata start dates.
+    // The first recorded session belongs to Affliction, so the all-leagues
+    // timeline begins at Affliction's start rather than the session date.
     const firstPoint = result.current.chartData[0];
     expect(firstPoint.isBoundary).toBe(true);
-    expect(firstPoint.time).toBe(new Date("2024-01-10T00:00:00Z").getTime());
+    expect(firstPoint.time).toBe(new Date("2023-12-08T00:00:00Z").getTime());
     expect(firstPoint.count).toBe(0);
     expect(firstPoint.cumulativeCount).toBe(0);
   });
@@ -451,7 +451,7 @@ describe("useDropTimelineData — league markers", () => {
     const startMarker = oldLeagueMarkers.find((m) => m.type === "start");
     const endMarker = oldLeagueMarkers.find((m) => m.type === "end");
     expect(startMarker).toBeDefined();
-    expect(startMarker!.label).toBe("OldLeague Start");
+    expect(startMarker!.label).toBe("OldLeague");
     expect(endMarker).toBeUndefined();
   });
 
@@ -482,8 +482,8 @@ describe("useDropTimelineData — league markers", () => {
     );
     // Both Affliction and Settlers have startDate
     expect(startMarkers.length).toBe(2);
-    expect(startMarkers[0].label).toBe("Affliction Start");
-    expect(startMarkers[1].label).toBe("Settlers Start");
+    expect(startMarkers[0].label).toBe("Affliction");
+    expect(startMarkers[1].label).toBe("Settlers");
   });
 
   it("returns unique league names", () => {
@@ -1104,9 +1104,9 @@ describe("useDropTimelineData — sentinel insertion", () => {
     const { result } = renderTimelineHook();
     const first = result.current.chartData[0];
     const last = result.current.chartData[result.current.chartData.length - 1];
-    // Leading sentinel comes from firstSessionStartedAt.
+    // Leading sentinel comes from the first session's league start.
     expect(first.isBoundary).toBe(true);
-    expect(first.time).toBe(new Date("2024-01-10T00:00:00Z").getTime());
+    expect(first.time).toBe(new Date("2023-12-08T00:00:00Z").getTime());
     // Trailing sentinel from timelineEndDate="2024-05-01T00:00:00Z"
     expect(last.isBoundary).toBe(true);
     expect(last.time).toBe(new Date("2024-05-01T00:00:00Z").getTime());
@@ -1168,7 +1168,7 @@ describe("useDropTimelineData — league markers edge cases", () => {
     const startMarker = ancientMarkers.find((m) => m.type === "start");
     const endMarker = ancientMarkers.find((m) => m.type === "end");
     expect(startMarker).toBeDefined();
-    expect(startMarker!.label).toBe("AncientLeague Start");
+    expect(startMarker!.label).toBe("AncientLeague");
     expect(endMarker).toBeUndefined();
   });
 
@@ -1190,7 +1190,7 @@ describe("useDropTimelineData — league markers edge cases", () => {
     );
     expect(upcomingMarkers.length).toBe(1);
     expect(upcomingMarkers[0].type).toBe("start");
-    expect(upcomingMarkers[0].label).toBe("UpcomingLeague Start");
+    expect(upcomingMarkers[0].label).toBe("UpcomingLeague");
   });
 
   it("creates both start and end markers for league with both dates", () => {

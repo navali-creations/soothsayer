@@ -687,6 +687,79 @@ describe("CardDetailsDropTimeline — multi data point", () => {
     ]);
   });
 
+  it("compresses the gap from the first league start to the first drop in all-leagues mode", () => {
+    const leagueStartBoundary = {
+      time: new Date("2025-10-31T19:00:00.000Z").getTime(),
+      count: 0,
+      cumulativeCount: 0,
+      totalDecksOpened: 0,
+      league: "Keepers",
+      sessionStartedAt: "2025-10-31T19:00:00.000Z",
+      sessionId: "",
+      sessionCount: 0,
+      isBoundary: true,
+    };
+    const firstDrop = {
+      time: new Date("2025-12-17T00:00:00.000Z").getTime(),
+      count: 2,
+      cumulativeCount: 2,
+      totalDecksOpened: 60,
+      league: "Keepers",
+      sessionStartedAt: "2025-12-17T00:00:00.000Z",
+      sessionId: "k1",
+      sessionCount: 1,
+    };
+
+    renderComponent(
+      {
+        personalAnalytics: {
+          totalLifetimeDrops: 6,
+          firstSessionStartedAt: "2025-12-17T00:00:00.000Z",
+          timelineEndDate: "2026-10-24T00:00:00.000Z",
+          leagueDateRanges: [
+            {
+              name: "Keepers",
+              startDate: "2025-10-31T19:00:00.000Z",
+              endDate: "2026-03-04T00:00:00.000Z",
+            },
+          ],
+        },
+      },
+      {
+        chartData: [leagueStartBoundary, firstDrop],
+        visibleData: [leagueStartBoundary, firstDrop],
+        gapIndices: [],
+        leagueMarkers: [
+          {
+            time: leagueStartBoundary.time,
+            label: "Keepers",
+            type: "start",
+          },
+        ],
+        visibleTimeMin: leagueStartBoundary.time,
+        visibleTimeMax: firstDrop.time,
+      },
+    );
+
+    const mainChartProps = mockMainChart.mock.calls.at(-1)?.[0];
+    expect(mainChartProps.visibleMarkers).toEqual([
+      {
+        time: leagueStartBoundary.time,
+        label: "Keepers",
+        type: "start",
+      },
+    ]);
+    expect(mainChartProps.compressedGaps).toEqual([
+      {
+        startTime: leagueStartBoundary.time + 3 * 24 * 60 * 60 * 1000,
+        endTime: firstDrop.time - 2 * 24 * 60 * 60 * 1000,
+      },
+    ]);
+    expect(mainChartProps.renderedCompressedGaps).toEqual(
+      mainChartProps.compressedGaps,
+    );
+  });
+
   it("adds compressed leading gap even when selectedLeague value differs from point league label", () => {
     const leagueStartBoundary = {
       time: new Date("2026-01-01T00:00:00.000Z").getTime(),
@@ -808,7 +881,7 @@ describe("CardDetailsDropTimeline — multi data point", () => {
     ]);
   });
 
-  it("keeps boundary compression but hides league-start/end boundary zig-zag render markers", () => {
+  it("renders the selected league's leading gap but hides its trailing boundary gap", () => {
     const leagueStartBoundary = {
       time: new Date("2025-10-31T19:00:00.000Z").getTime(),
       count: 0,
@@ -898,7 +971,12 @@ describe("CardDetailsDropTimeline — multi data point", () => {
         endTime: leagueEndBoundary.time - 2 * 24 * 60 * 60 * 1000,
       },
     ]);
-    expect(mainChartProps.renderedCompressedGaps).toEqual([]);
+    expect(mainChartProps.renderedCompressedGaps).toEqual([
+      {
+        startTime: leagueStartBoundary.time + 3 * 24 * 60 * 60 * 1000,
+        endTime: firstSession.time - 2 * 24 * 60 * 60 * 1000,
+      },
+    ]);
   });
 
   it("toggles legend items and passes hidden metrics to main chart", async () => {
@@ -1301,7 +1379,54 @@ describe("CardDetailsDropTimeline — visible league markers", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe("CardDetailsDropTimeline — leagues slice league start marker", () => {
+describe("CardDetailsDropTimeline — league start markers", () => {
+  it("shows all visible league starts and highlights the active league", () => {
+    const keepersStart = new Date("2025-12-17T00:00:00Z").getTime();
+    const mirageStart = new Date("2026-03-06T00:00:00Z").getTime();
+    const allflameStart = new Date("2026-07-24T00:00:00Z").getTime();
+    const oneDay = 24 * 60 * 60 * 1000;
+
+    renderComponent(
+      {
+        settings: {
+          getActiveGameViewSelectedLeague: vi.fn(() => "Allflame"),
+        },
+        leagues: {
+          getLeaguesForGame: vi.fn(() => [
+            {
+              id: "Allflame",
+              name: "Allflame",
+              startAt: "2026-07-24T00:00:00Z",
+              endAt: null,
+            },
+          ]),
+        },
+      },
+      {
+        leagueMarkers: [
+          { time: keepersStart, label: "Keepers", type: "start" },
+          { time: mirageStart, label: "Mirage", type: "start" },
+          { time: allflameStart, label: "Allflame", type: "start" },
+        ],
+        visibleTimeMin: keepersStart,
+        visibleTimeMax: new Date("2026-10-24T00:00:00Z").getTime(),
+      },
+    );
+
+    const mainChartProps = mockMainChart.mock.calls.at(-1)?.[0];
+    expect(mainChartProps.visibleMarkers).toEqual([
+      { time: keepersStart, label: "Keepers", type: "start" },
+      { time: mirageStart, label: "Mirage", type: "start" },
+      {
+        time: allflameStart,
+        label: "Allflame",
+        type: "start",
+        emphasis: "highlight",
+      },
+    ]);
+    expect(mainChartProps.visibleTimeMin).toBe(keepersStart - oneDay);
+  });
+
   it("uses active game league start from leagues slice when selectedLeague is all", () => {
     renderComponent(
       {},

@@ -131,7 +131,7 @@ export function useDropTimelineData(
       if (range.startDate) {
         markers.push({
           time: new Date(range.startDate).getTime(),
-          label: `${range.name} Start`,
+          label: range.name,
           type: "start",
         });
       }

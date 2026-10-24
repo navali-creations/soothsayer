@@ -126,12 +126,13 @@ export function getCompressedGapRanges({
     }
   }
 
-  if (selectedLeague === "all" || chartData.length < 2) return ranges;
-
-  const selectedStartTime = getSelectedLeagueStartTime({
-    selectedLeague,
-    personalAnalytics,
-  });
+  const selectedStartTime =
+    selectedLeague === "all"
+      ? getLeadingBoundaryTime(chartData)
+      : getSelectedLeagueStartTime({
+          selectedLeague,
+          personalAnalytics,
+        });
   const firstRealPointAfterStart = getFirstRealPointAfterStart({
     chartData,
     selectedStartTime,
@@ -149,6 +150,8 @@ export function getCompressedGapRanges({
       ranges.push({ startTime: rawStart, endTime: rawEnd });
     }
   }
+
+  if (selectedLeague === "all" || chartData.length < 2) return ranges;
 
   const trailingBoundaryIndex = getTrailingBoundaryIndex(chartData);
   if (trailingBoundaryIndex <= 0) return ranges;
@@ -242,12 +245,14 @@ export function getSelectedLeagueMarkers({
 export function getVisibleMarkers({
   selectedLeague,
   activeLeagueStartMarker,
+  leagueMarkers,
   selectedLeagueMarkers,
   visibleTimeMin,
   visibleTimeMax,
 }: {
   selectedLeague: string;
   activeLeagueStartMarker: LeagueMarker | null;
+  leagueMarkers: LeagueMarker[];
   selectedLeagueMarkers: LeagueMarker[];
   visibleTimeMin: number;
   visibleTimeMax: number;
@@ -258,6 +263,12 @@ export function getVisibleMarkers({
     );
   }
 
+  const visibleLeagueStarts = leagueMarkers.filter(
+    (marker) =>
+      marker.type === "start" &&
+      isTimeInVisibleRange(marker.time, visibleTimeMin, visibleTimeMax),
+  );
+
   if (
     activeLeagueStartMarker &&
     isTimeInVisibleRange(
@@ -266,44 +277,46 @@ export function getVisibleMarkers({
       visibleTimeMax,
     )
   ) {
-    return [activeLeagueStartMarker];
+    const duplicateIndex = visibleLeagueStarts.findIndex(
+      (marker) =>
+        normalizeLeagueName(marker.label) ===
+          normalizeLeagueName(activeLeagueStartMarker.label) ||
+        marker.time === activeLeagueStartMarker.time,
+    );
+    if (duplicateIndex === -1) {
+      visibleLeagueStarts.push(activeLeagueStartMarker);
+    } else {
+      visibleLeagueStarts[duplicateIndex] = activeLeagueStartMarker;
+    }
   }
 
-  return [];
+  return visibleLeagueStarts.sort((a, b) => a.time - b.time);
 }
 
 export function getRenderedCompressedGaps({
   compressedGapRanges,
   selectedLeague,
-  activeLeagueStartMarker,
+  visibleMarkers,
   selectedLeagueMarkers,
 }: {
   compressedGapRanges: InactivityGapRange[];
   selectedLeague: string;
-  activeLeagueStartMarker: LeagueMarker | null;
+  visibleMarkers: LeagueMarker[];
   selectedLeagueMarkers: LeagueMarker[];
 }) {
-  const selectedLeagueStartMarkerTime =
-    selectedLeagueMarkers.find((marker) => marker.type === "start")?.time ??
-    null;
   const selectedLeagueEndMarkerTime =
     selectedLeagueMarkers.find((marker) => marker.type === "end")?.time ?? null;
 
   return compressedGapRanges.filter((gap) => {
     if (selectedLeague === "all") {
-      if (!activeLeagueStartMarker) return true;
-      return !(
-        activeLeagueStartMarker.time > gap.startTime &&
-        activeLeagueStartMarker.time < gap.endTime
+      return !visibleMarkers.some(
+        (marker) =>
+          marker.type === "start" &&
+          marker.time > gap.startTime &&
+          marker.time < gap.endTime,
       );
     }
 
-    const isLeadingBoundaryGap =
-      selectedLeagueStartMarkerTime !== null &&
-      Math.abs(
-        gap.startTime -
-          (selectedLeagueStartMarkerTime + LEADING_BOUNDARY_GAP_OFFSET_MS),
-      ) <= BOUNDARY_GAP_MATCH_TOLERANCE_MS;
     const isTrailingBoundaryGap =
       selectedLeagueEndMarkerTime !== null &&
       Math.abs(
@@ -311,7 +324,7 @@ export function getRenderedCompressedGaps({
           (selectedLeagueEndMarkerTime - TRAILING_BOUNDARY_GAP_OFFSET_MS),
       ) <= BOUNDARY_GAP_MATCH_TOLERANCE_MS;
 
-    return !isLeadingBoundaryGap && !isTrailingBoundaryGap;
+    return !isTrailingBoundaryGap;
   });
 }
 
@@ -346,7 +359,13 @@ export function getMainChartTimeDomain({
   return {
     min: Math.min(
       visibleTimeMin,
-      ...markerTimes.map((time) => time - markerPadding),
+      ...markerTimes.map(
+        (time) =>
+          time -
+          (selectedLeague === "all"
+            ? MIN_LEAGUE_MARKER_DOMAIN_PADDING_MS
+            : markerPadding),
+      ),
     ),
     max: Math.max(
       visibleTimeMax,
@@ -477,6 +496,15 @@ function getTrailingBoundaryIndex(chartData: ChartDataPoint[]) {
   }
 
   return -1;
+}
+
+function getLeadingBoundaryTime(chartData: ChartDataPoint[]) {
+  for (const point of chartData) {
+    if (point.isBoundary) return point.time;
+    if (!point.isGap) return undefined;
+  }
+
+  return undefined;
 }
 
 function getLastRealPointBeforeIndex(

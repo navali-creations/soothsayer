@@ -46,6 +46,7 @@ const AXIS_TOP = 8;
 const AXIS_BOTTOM = 24;
 const MARKER_LABEL_OFFSET_X = 15;
 const MARKER_LABEL_OFFSET_Y = 6;
+const MARKER_LABEL_CLIP_MARGIN = 4;
 const MARKER_LABEL_LETTER_SPACING_EM = 0.2;
 const EXPECTED_BAR_WIDTH = BAR_WIDTH;
 const EXPECTED_BAR_STRIPE_SPACING = 6;
@@ -381,7 +382,12 @@ export function drawReferenceLines(
 
     ctx.fillStyle = isMuted ? c.bc35 : isStart ? c.success50 : c.bc30;
     ctx.save();
-    const labelX = Math.round(x + MARKER_LABEL_OFFSET_X);
+    const preferredLabelX = x + MARKER_LABEL_OFFSET_X;
+    const labelX = Math.round(
+      preferredLabelX <= layout.chartRight + MARKER_LABEL_CLIP_MARGIN
+        ? preferredLabelX
+        : x - MARKER_LABEL_OFFSET_X,
+    );
     const labelY = Math.round(layout.chartTop + MARKER_LABEL_OFFSET_Y);
     ctx.translate(labelX, labelY);
     ctx.rotate(Math.PI / 2);

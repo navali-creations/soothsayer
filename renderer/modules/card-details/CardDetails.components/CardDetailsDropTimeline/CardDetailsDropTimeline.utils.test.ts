@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { getDropSessionTimeline } from "./CardDetailsDropTimeline.utils";
-import type { ChartDataPoint } from "./types";
+import {
+  getDropSessionTimeline,
+  getMainChartTimeDomain,
+  getRenderedCompressedGaps,
+  getVisibleMarkers,
+} from "./CardDetailsDropTimeline.utils";
+import type { ChartDataPoint, LeagueMarker } from "./types";
 
 function point(
   id: string,
@@ -147,5 +152,146 @@ describe("getDropSessionTimeline", () => {
     ]);
 
     expect(result).toEqual([]);
+  });
+});
+
+describe("getVisibleMarkers", () => {
+  it("shows every visible league start and highlights the active league", () => {
+    const keepersStart: LeagueMarker = {
+      time: 100,
+      label: "Keepers",
+      type: "start",
+    };
+    const mirageStart: LeagueMarker = {
+      time: 200,
+      label: "Mirage",
+      type: "start",
+    };
+    const activeMirage: LeagueMarker = {
+      ...mirageStart,
+      emphasis: "highlight",
+    };
+
+    const result = getVisibleMarkers({
+      selectedLeague: "all",
+      activeLeagueStartMarker: activeMirage,
+      leagueMarkers: [
+        keepersStart,
+        { time: 175, label: "Keepers End", type: "end" },
+        mirageStart,
+        { time: 400, label: "Future League", type: "start" },
+      ],
+      selectedLeagueMarkers: [],
+      visibleTimeMin: 50,
+      visibleTimeMax: 250,
+    });
+
+    expect(result).toEqual([keepersStart, activeMirage]);
+  });
+
+  it("adds an active league start missing from personal league ranges", () => {
+    const activeAllflame: LeagueMarker = {
+      time: 300,
+      label: "Allflame",
+      type: "start",
+      emphasis: "highlight",
+    };
+
+    const result = getVisibleMarkers({
+      selectedLeague: "all",
+      activeLeagueStartMarker: activeAllflame,
+      leagueMarkers: [{ time: 100, label: "Keepers", type: "start" }],
+      selectedLeagueMarkers: [],
+      visibleTimeMin: 50,
+      visibleTimeMax: 350,
+    });
+
+    expect(result).toEqual([
+      { time: 100, label: "Keepers", type: "start" },
+      activeAllflame,
+    ]);
+  });
+
+  it("keeps the selected league bounds in a filtered league view", () => {
+    const selectedLeagueMarkers: LeagueMarker[] = [
+      { time: 100, label: "League Start", type: "start" },
+      { time: 200, label: "League End", type: "end" },
+    ];
+
+    const result = getVisibleMarkers({
+      selectedLeague: "Keepers",
+      activeLeagueStartMarker: null,
+      leagueMarkers: [{ time: 150, label: "Mirage", type: "start" }],
+      selectedLeagueMarkers,
+      visibleTimeMin: 50,
+      visibleTimeMax: 250,
+    });
+
+    expect(result).toEqual(selectedLeagueMarkers);
+  });
+});
+
+describe("getRenderedCompressedGaps", () => {
+  it("suppresses gaps containing any visible league start", () => {
+    const result = getRenderedCompressedGaps({
+      compressedGapRanges: [
+        { startTime: 100, endTime: 200 },
+        { startTime: 300, endTime: 400 },
+      ],
+      selectedLeague: "all",
+      visibleMarkers: [
+        { time: 150, label: "Keepers", type: "start" },
+        { time: 350, label: "Keepers End", type: "end" },
+      ],
+      selectedLeagueMarkers: [],
+    });
+
+    expect(result).toEqual([{ startTime: 300, endTime: 400 }]);
+  });
+
+  it("renders a selected league's leading gap but hides its trailing boundary gap", () => {
+    const oneDay = 24 * 60 * 60 * 1000;
+    const leagueStart = new Date("2025-10-31T19:00:00.000Z").getTime();
+    const leagueEnd = new Date("2026-03-04T00:00:00.000Z").getTime();
+    const leadingGap = {
+      startTime: leagueStart + 3 * oneDay,
+      endTime: new Date("2025-12-15T00:00:00.000Z").getTime(),
+    };
+    const trailingGap = {
+      startTime: new Date("2026-02-22T00:00:00.000Z").getTime(),
+      endTime: leagueEnd - 2 * oneDay,
+    };
+
+    const result = getRenderedCompressedGaps({
+      compressedGapRanges: [leadingGap, trailingGap],
+      selectedLeague: "Keepers",
+      visibleMarkers: [],
+      selectedLeagueMarkers: [
+        { time: leagueStart, label: "League Start", type: "start" },
+        { time: leagueEnd, label: "League End", type: "end" },
+      ],
+    });
+
+    expect(result).toEqual([leadingGap]);
+  });
+});
+
+describe("getMainChartTimeDomain", () => {
+  it("adds only a fixed one-day leading pad to the all-leagues boundary", () => {
+    const oneDay = 24 * 60 * 60 * 1000;
+    const keepersStart = new Date("2025-10-31T19:00:00.000Z").getTime();
+    const visibleTimeMax = keepersStart + 100 * oneDay;
+
+    const result = getMainChartTimeDomain({
+      visibleMarkers: [{ time: keepersStart, label: "Keepers", type: "start" }],
+      visibleTimeMin: keepersStart,
+      visibleTimeMax,
+      selectedLeague: "all",
+    });
+
+    expect(result).toEqual({
+      min: keepersStart - oneDay,
+      max: visibleTimeMax,
+    });
   });
 });

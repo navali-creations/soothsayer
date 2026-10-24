@@ -320,6 +320,21 @@ describe("MainChart.utils draw helpers", () => {
     expect(ctx.letterSpacing).toBe("0px");
   });
 
+  it("moves a reference label inside the plot when its right offset would clip", () => {
+    const ctx = makeCtx();
+
+    drawReferenceLines(
+      ctx,
+      layout,
+      [{ time: 35, label: "league end", type: "end" }],
+      (value) => value * 10,
+      colors,
+    );
+
+    expect(ctx.translate).toHaveBeenCalledWith(335, 14);
+    expect(ctx.fillText).toHaveBeenCalledWith("LEAGUE END", 0, 0);
+  });
+
   it("draws deck lines as a segment for one point and a curve for many points", () => {
     const ctx = makeCtx();
 

@@ -43,6 +43,41 @@ function getEarliestLeagueStartMs(leagueDateRanges: LeagueDateRangeDTO[]) {
   return earliest;
 }
 
+function getLeagueStartMs(
+  leagueDateRanges: LeagueDateRangeDTO[],
+  leagueName: string,
+) {
+  const normalizedLeagueName = leagueName.trim().toLowerCase();
+  const range = leagueDateRanges.find(
+    (candidate) => candidate.name.trim().toLowerCase() === normalizedLeagueName,
+  );
+
+  return parseDateMs(range?.startDate);
+}
+
+function getTimelineStartMs({
+  firstSessionStartedAt,
+  firstLeagueName,
+  leagueDateRanges,
+}: {
+  firstSessionStartedAt: string | null;
+  firstLeagueName: string;
+  leagueDateRanges: LeagueDateRangeDTO[];
+}) {
+  const firstSessionStart = parseDateMs(firstSessionStartedAt);
+  const firstLeagueStart = getLeagueStartMs(leagueDateRanges, firstLeagueName);
+
+  if (firstSessionStart !== undefined && firstLeagueStart !== undefined) {
+    return Math.min(firstSessionStart, firstLeagueStart);
+  }
+
+  return (
+    firstLeagueStart ??
+    firstSessionStart ??
+    getEarliestLeagueStartMs(leagueDateRanges)
+  );
+}
+
 function createBoundaryPoint({
   time,
   cumulativeCount,
@@ -176,9 +211,11 @@ export function buildPreparedDropTimeline({
 
   const firstReal = result[0];
   const lastReal = result[result.length - 1];
-  const boundaryStart =
-    parseDateMs(firstSessionStartedAt) ??
-    getEarliestLeagueStartMs(leagueDateRanges);
+  const boundaryStart = getTimelineStartMs({
+    firstSessionStartedAt,
+    firstLeagueName: firstReal.league,
+    leagueDateRanges,
+  });
   const boundaryEnd = parseDateMs(timelineEndDate);
 
   if (boundaryStart !== undefined && boundaryStart < firstReal.time) {

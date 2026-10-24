@@ -86,4 +86,69 @@ describe("buildPreparedDropTimeline", () => {
       cumulativeCount: 1,
     });
   });
+
+  it("starts the timeline at the first session league start", () => {
+    const keepersStart = new Date("2025-10-31T19:00:00.000Z").getTime();
+    const result = buildPreparedDropTimeline({
+      rows: [
+        {
+          sessionId: "s1",
+          sessionStartedAt: "2025-12-17T10:00:00.000Z",
+          count: 1,
+          totalDecksOpened: 100,
+          league: "Keepers",
+        },
+      ],
+      leagueDateRanges: [
+        {
+          name: "Keepers",
+          startDate: "2025-10-31T19:00:00.000Z",
+          endDate: "2026-03-04T00:00:00.000Z",
+        },
+      ],
+      firstSessionStartedAt: "2025-12-17T10:00:00.000Z",
+      timelineEndDate: "2026-03-04T00:00:00.000Z",
+    });
+
+    expect(result[0]).toMatchObject({
+      time: keepersStart,
+      league: "Keepers",
+      isBoundary: true,
+    });
+  });
+
+  it("does not use an unrelated earlier league start for filtered rows", () => {
+    const allflameStart = new Date("2026-07-24T19:00:00.000Z").getTime();
+    const result = buildPreparedDropTimeline({
+      rows: [
+        {
+          sessionId: "s1",
+          sessionStartedAt: "2026-07-30T10:00:00.000Z",
+          count: 1,
+          totalDecksOpened: 100,
+          league: "Allflame",
+        },
+      ],
+      leagueDateRanges: [
+        {
+          name: "Keepers",
+          startDate: "2025-10-31T19:00:00.000Z",
+          endDate: "2026-03-04T00:00:00.000Z",
+        },
+        {
+          name: "Allflame",
+          startDate: "2026-07-24T19:00:00.000Z",
+          endDate: null,
+        },
+      ],
+      firstSessionStartedAt: "2026-07-30T10:00:00.000Z",
+      timelineEndDate: "2026-10-24T00:00:00.000Z",
+    });
+
+    expect(result[0]).toMatchObject({
+      time: allflameStart,
+      league: "Allflame",
+      isBoundary: true,
+    });
+  });
 });

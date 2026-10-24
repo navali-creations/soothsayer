@@ -67,6 +67,7 @@ const CardDetailsDropTimeline = () => {
   const {
     chartData,
     gapIndices,
+    leagueMarkers,
     brushStartIndex,
     brushEndIndex,
     brushStartTime,
@@ -208,12 +209,14 @@ const CardDetailsDropTimeline = () => {
       getVisibleMarkers({
         selectedLeague,
         activeLeagueStartMarker,
+        leagueMarkers,
         selectedLeagueMarkers,
         visibleTimeMin,
         visibleTimeMax,
       }),
     [
       activeLeagueStartMarker,
+      leagueMarkers,
       selectedLeague,
       selectedLeagueMarkers,
       visibleTimeMax,
@@ -225,14 +228,14 @@ const CardDetailsDropTimeline = () => {
       getRenderedCompressedGaps({
         compressedGapRanges,
         selectedLeague,
-        activeLeagueStartMarker,
+        visibleMarkers,
         selectedLeagueMarkers,
       }),
     [
-      activeLeagueStartMarker,
       compressedGapRanges,
       selectedLeague,
       selectedLeagueMarkers,
+      visibleMarkers,
     ],
   );
   const hasGapIndicators =
