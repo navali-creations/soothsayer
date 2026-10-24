@@ -54,10 +54,6 @@ vi.mock("../CardDetails.components/CardDetailsVisual", () => ({
   default: () => <div data-testid="visual" />,
 }));
 
-vi.mock("../CardDetails.components/MarketTabContent", () => ({
-  default: () => <div data-testid="market-tab" />,
-}));
-
 vi.mock("../CardDetails.components/YourDataTabContent", () => ({
   default: (props: any) => (
     <div
@@ -118,12 +114,10 @@ function createMockSlices(overrides: Record<string, any> = {}) {
     cardError: null,
     initializeCardDetails: vi.fn(),
     fetchCommunityDropRate: vi.fn(),
-    fetchPriceHistory: vi.fn(),
     clearCardDetails: vi.fn(),
     isLoadingPersonalAnalytics: false,
     selectedLeague: "all",
     setSelectedLeague: vi.fn(),
-    activeTab: "market",
     getDisplayRarity: vi.fn(() => 3),
     ...overrides.cardDetails,
   };
@@ -160,7 +154,7 @@ describe("CardDetailsPage — loading state", () => {
     renderPage({ cardDetails: { isLoadingCard: true } });
     expect(screen.queryByTestId("header")).not.toBeInTheDocument();
     expect(screen.queryByTestId("visual")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("market-tab")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("your-data-tab")).not.toBeInTheDocument();
   });
 });
 
@@ -214,30 +208,14 @@ describe("CardDetailsPage — normal render", () => {
     expect(screen.getByTestId("related-cards")).toBeInTheDocument();
   });
 
-  it('renders MarketTabContent when activeTab is "market"', () => {
-    renderPage({ cardDetails: { activeTab: "market" } });
-    expect(screen.getByTestId("market-tab")).toBeInTheDocument();
-  });
-
-  it('renders YourDataTabContent when activeTab is "your-data"', () => {
-    renderPage({ cardDetails: { activeTab: "your-data" } });
+  it("renders personal analytics content", () => {
+    renderPage();
     expect(screen.getByTestId("your-data-tab")).toBeInTheDocument();
-  });
-
-  it('does not render MarketTabContent when activeTab is "your-data"', () => {
-    renderPage({ cardDetails: { activeTab: "your-data" } });
-    expect(screen.queryByTestId("market-tab")).not.toBeInTheDocument();
-  });
-
-  it("does not render YourDataTabContent when activeTab is market", () => {
-    renderPage({ cardDetails: { activeTab: "market" } });
-    expect(screen.queryByTestId("your-data-tab")).not.toBeInTheDocument();
   });
 
   it("passes isLoading=true to YourDataTabContent when personalAnalytics is loading", () => {
     renderPage({
       cardDetails: {
-        activeTab: "your-data",
         isLoadingPersonalAnalytics: true,
       },
     });
@@ -248,7 +226,6 @@ describe("CardDetailsPage — normal render", () => {
   it("passes isLoading=false to YourDataTabContent when analytics are ready", () => {
     renderPage({
       cardDetails: {
-        activeTab: "your-data",
         isLoadingPersonalAnalytics: false,
       },
     });
@@ -289,15 +266,6 @@ describe("CardDetailsPage — effects", () => {
     );
   });
 
-  it("calls fetchPriceHistory when activeTab is market", () => {
-    const { mockSlices } = renderPage({ cardDetails: { activeTab: "market" } });
-    expect(mockSlices.cardDetails.fetchPriceHistory).toHaveBeenCalledWith(
-      "poe1",
-      "Settlers",
-      "Test Card",
-    );
-  });
-
   it("loads the community drop rate for the global league", () => {
     const { mockSlices } = renderPage({
       cardDetails: { selectedLeague: "all" },
@@ -320,13 +288,6 @@ describe("CardDetailsPage — effects", () => {
       "Standard",
       "Test Card",
     );
-  });
-
-  it("does not call fetchPriceHistory when activeTab is your-data", () => {
-    const { mockSlices } = renderPage({
-      cardDetails: { activeTab: "your-data" },
-    });
-    expect(mockSlices.cardDetails.fetchPriceHistory).not.toHaveBeenCalled();
   });
 
   it("reinitializes once when the selected league changes", () => {
@@ -397,85 +358,6 @@ describe("CardDetailsPage — effects", () => {
     expect(nextInitializeCardDetails).not.toHaveBeenCalled();
   });
 
-  it("does not call fetchPriceHistory again on re-render with same card/league/tab (dedup guard)", () => {
-    const mockSlices = createMockSlices({
-      cardDetails: { activeTab: "market" },
-    });
-    const cardDetailsMock = { ...mockSlices.cardDetails };
-
-    vi.mocked(useSettings).mockReturnValue(mockSlices.settings as any);
-    vi.mocked(useCardDetails).mockReturnValue(cardDetailsMock as any);
-
-    const { rerender } = renderWithProviders(<CardDetailsPage />);
-
-    expect(cardDetailsMock.fetchPriceHistory).toHaveBeenCalledTimes(1);
-
-    // Re-render with same params — priceFetchedRef dedup guard blocks second call
-    rerender(<CardDetailsPage />);
-
-    expect(cardDetailsMock.fetchPriceHistory).toHaveBeenCalledTimes(1);
-  });
-
-  it("calls fetchPriceHistory when switching to market tab", () => {
-    const mockSlices = createMockSlices({
-      cardDetails: { activeTab: "your-data" },
-    });
-    const cardDetailsMock = { ...mockSlices.cardDetails };
-
-    vi.mocked(useSettings).mockReturnValue(mockSlices.settings as any);
-    vi.mocked(useCardDetails).mockReturnValue(cardDetailsMock as any);
-
-    const { rerender } = renderWithProviders(<CardDetailsPage />);
-
-    // Not called yet because activeTab is "your-data"
-    expect(cardDetailsMock.fetchPriceHistory).not.toHaveBeenCalled();
-
-    // Switch to market tab
-    cardDetailsMock.activeTab = "market";
-    rerender(<CardDetailsPage />);
-
-    expect(cardDetailsMock.fetchPriceHistory).toHaveBeenCalledWith(
-      "poe1",
-      "Settlers",
-      "Test Card",
-    );
-  });
-
-  it("does not call fetchPriceHistory when card is null", () => {
-    const { mockSlices } = renderPage({
-      cardDetails: { activeTab: "market", card: null },
-    });
-    expect(mockSlices.cardDetails.fetchPriceHistory).not.toHaveBeenCalled();
-  });
-
-  it("does not call fetchPriceHistory when globalLeague is null", () => {
-    const mockSlices = createMockSlices({
-      cardDetails: { activeTab: "market" },
-      settings: { getActiveGameViewSelectedLeague: vi.fn(() => null) },
-    });
-
-    vi.mocked(useSettings).mockReturnValue(mockSlices.settings as any);
-    vi.mocked(useCardDetails).mockReturnValue(mockSlices.cardDetails as any);
-
-    renderWithProviders(<CardDetailsPage />);
-
-    expect(mockSlices.cardDetails.fetchPriceHistory).not.toHaveBeenCalled();
-  });
-
-  it("does not call fetchPriceHistory when globalLeague is empty", () => {
-    const mockSlices = createMockSlices({
-      cardDetails: { activeTab: "market" },
-      settings: { getActiveGameViewSelectedLeague: vi.fn(() => "") },
-    });
-
-    vi.mocked(useSettings).mockReturnValue(mockSlices.settings as any);
-    vi.mocked(useCardDetails).mockReturnValue(mockSlices.cardDetails as any);
-
-    renderWithProviders(<CardDetailsPage />);
-
-    expect(mockSlices.cardDetails.fetchPriceHistory).not.toHaveBeenCalled();
-  });
-
   it("does not reinitialize an explicitly selected league when the global league changes", () => {
     let globalLeague = "Settlers";
     const mockSlices = createMockSlices({
@@ -496,31 +378,5 @@ describe("CardDetailsPage — effects", () => {
     rerender(<CardDetailsPage />);
 
     expect(cardDetailsMock.initializeCardDetails).toHaveBeenCalledTimes(1);
-  });
-
-  it("skips fetchPriceHistory when the price fetch key is unchanged", () => {
-    const mockSlices = createMockSlices({
-      cardDetails: { activeTab: "your-data" },
-    });
-    const cardDetailsMock = { ...mockSlices.cardDetails };
-
-    vi.mocked(useSettings).mockReturnValue(mockSlices.settings as any);
-    vi.mocked(useCardDetails).mockReturnValue(cardDetailsMock as any);
-
-    const { rerender } = renderWithProviders(<CardDetailsPage />);
-
-    expect(cardDetailsMock.fetchPriceHistory).not.toHaveBeenCalled();
-
-    cardDetailsMock.activeTab = "market";
-    rerender(<CardDetailsPage />);
-
-    expect(cardDetailsMock.fetchPriceHistory).toHaveBeenCalledTimes(1);
-
-    const nextFetchPriceHistory = vi.fn();
-    cardDetailsMock.fetchPriceHistory = nextFetchPriceHistory;
-
-    rerender(<CardDetailsPage />);
-
-    expect(nextFetchPriceHistory).not.toHaveBeenCalled();
   });
 });

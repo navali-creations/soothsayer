@@ -13,7 +13,6 @@ import CardDetailsHeader from "../CardDetails.components/CardDetailsHeader";
 import CardDetailsLoading from "../CardDetails.components/CardDetailsLoading";
 import CardDetailsRelatedCards from "../CardDetails.components/CardDetailsRelatedCards";
 import CardDetailsVisual from "../CardDetails.components/CardDetailsVisual";
-import MarketTabContent from "../CardDetails.components/MarketTabContent";
 import YourDataTabContent from "../CardDetails.components/YourDataTabContent";
 
 const CardDetailsPage = () => {
@@ -25,12 +24,10 @@ const CardDetailsPage = () => {
     isLoadingCard,
     cardError,
     initializeCardDetails,
-    fetchPriceHistory,
     clearCardDetails,
     isLoadingPersonalAnalytics,
     selectedLeague,
     setSelectedLeague,
-    activeTab,
     getDisplayRarity,
     fetchCommunityDropRate,
   } = useCardDetails();
@@ -76,32 +73,10 @@ const CardDetailsPage = () => {
     };
   }, [game, cardSlug, clearCardDetails]);
 
-  // ─── Lazy price fetch on Market tab ────────────────────────────────────
-  //
-  // Price history is only fetched when the Market Data tab is activated.
-
-  const priceFetchedRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (activeTab !== "market" || !card || !globalLeague) return;
-
-    const fetchKey = `${game}:${globalLeague}:${card.name}`;
-    if (priceFetchedRef.current === fetchKey) return;
-    priceFetchedRef.current = fetchKey;
-
-    fetchPriceHistory(game, globalLeague, card.name);
-  }, [activeTab, game, globalLeague, card, fetchPriceHistory]);
-
   useEffect(() => {
     if (!card || !communityLeague) return;
     fetchCommunityDropRate(game, communityLeague, card.name);
   }, [card, communityLeague, fetchCommunityDropRate, game]);
-
-  // Reset price-fetched tracker when card/game/league changes
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — reset tracker
-  useEffect(() => {
-    priceFetchedRef.current = null;
-  }, [game, cardSlug, globalLeague]);
 
   // ─── Early returns: loading / error ────────────────────────────────────
 
@@ -152,17 +127,13 @@ const CardDetailsPage = () => {
             <CardDetailsRelatedCards />
           </div>
 
-          {/* Right columns: Tabbed content */}
+          {/* Right columns: Personal analytics */}
           <div className="col-span-3 space-y-6">
-            {activeTab === "market" && <MarketTabContent />}
-
-            {activeTab === "your-data" && (
-              <YourDataTabContent
-                cardName={card.name}
-                game={game}
-                isLoading={isYourDataLoading}
-              />
-            )}
+            <YourDataTabContent
+              cardName={card.name}
+              game={game}
+              isLoading={isYourDataLoading}
+            />
           </div>
         </div>
       </PageContainer.Content>

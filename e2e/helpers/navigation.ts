@@ -333,9 +333,7 @@ export async function goToCardDetail(page: Page, slug: string) {
   await navigateTo(page, route);
   await waitForRoute(page, route, 10_000);
   await page.locator("main").waitFor({ state: "visible", timeout: 15_000 });
-  await expect(page.getByRole("tab", { name: "Your Data" })).toBeVisible({
-    timeout: 15_000,
-  });
+  await expect(page.locator("main h1")).toBeVisible({ timeout: 15_000 });
 }
 
 /**

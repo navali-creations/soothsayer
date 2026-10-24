@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
 import { trackEvent } from "~/renderer/modules/umami";
-import { useCardDetails, useSettings } from "~/renderer/store";
+import { useCardDetails } from "~/renderer/store";
 
 // ─── Store mock ────────────────────────────────────────────────────────────
 
@@ -14,7 +14,6 @@ vi.mock("~/renderer/store", () => ({
     return selector ? selector(state) : state;
   }),
   useCardDetails: vi.fn(),
-  useSettings: vi.fn(),
 }));
 
 // ─── Router mock ───────────────────────────────────────────────────────────
@@ -73,30 +72,20 @@ function createHeaderActionsMockState(overrides: Record<string, any> = {}) {
     cardDetails: {
       selectedLeague: "all",
       setSelectedLeague: vi.fn(),
-      activeTab: "market" as "market" | "your-data",
-      setActiveTab: vi.fn(),
       getAvailableLeagues: vi.fn(() => ["Settlers", "Standard"]),
       personalAnalytics: { cardName: "The Doctor" },
-    },
-    settings: {
-      getActiveGameViewSelectedLeague: vi.fn(() => "Settlers"),
     },
   };
 
   if (overrides.cardDetails) {
     base.cardDetails = { ...base.cardDetails, ...overrides.cardDetails };
   }
-  if (overrides.settings) {
-    base.settings = { ...base.settings, ...overrides.settings };
-  }
-
   return base;
 }
 
 function renderHeaderActions(overrides: Record<string, any> = {}) {
   const mockState = createHeaderActionsMockState(overrides);
   vi.mocked(useCardDetails).mockReturnValue(mockState.cardDetails as any);
-  vi.mocked(useSettings).mockReturnValue(mockState.settings as any);
   const result = renderWithProviders(<HeaderActions />);
   return { ...result, mockState };
 }
@@ -119,7 +108,6 @@ describe("CardDetailsHeader", () => {
   ) {
     const mockState = createHeaderActionsMockState();
     vi.mocked(useCardDetails).mockReturnValue(mockState.cardDetails as any);
-    vi.mocked(useSettings).mockReturnValue(mockState.settings as any);
 
     return renderWithProviders(
       <CardDetailsHeader
@@ -261,89 +249,11 @@ describe("HeaderActions", () => {
     });
   });
 
-  // ─── Tab buttons ─────────────────────────────────────────────────────────
-
-  it("renders Market Data tab button", () => {
+  it("does not render card-detail tabs", () => {
     renderHeaderActions();
-    expect(
-      screen.getByRole("tab", { name: /market data/i }),
-    ).toBeInTheDocument();
-  });
-
-  it("renders Your Data tab button", () => {
-    renderHeaderActions();
-    expect(screen.getByRole("tab", { name: /your data/i })).toBeInTheDocument();
-  });
-
-  it('Market Data tab is active when activeTab is "market"', () => {
-    renderHeaderActions({ cardDetails: { activeTab: "market" } });
-    const tab = screen.getByRole("tab", { name: /market data/i });
-    expect(tab.className).toContain("tab-active");
-  });
-
-  it('Your Data tab is active when activeTab is "your-data"', () => {
-    renderHeaderActions({ cardDetails: { activeTab: "your-data" } });
-    const tab = screen.getByRole("tab", { name: /your data/i });
-    expect(tab.className).toContain("tab-active");
-  });
-
-  it('Market Data tab is not active when activeTab is "your-data"', () => {
-    renderHeaderActions({ cardDetails: { activeTab: "your-data" } });
-    const tab = screen.getByRole("tab", { name: /market data/i });
-    expect(tab.className).not.toContain("tab-active");
-  });
-
-  it('Your Data tab is not active when activeTab is "market"', () => {
-    renderHeaderActions({ cardDetails: { activeTab: "market" } });
-    const tab = screen.getByRole("tab", { name: /your data/i });
-    expect(tab.className).not.toContain("tab-active");
-  });
-
-  it("clicking Market Data tab calls setActiveTab with 'market'", async () => {
-    const { user, mockState } = renderHeaderActions({
-      cardDetails: { activeTab: "your-data" },
-    });
-    const tab = screen.getByRole("tab", { name: /market data/i });
-    await user.click(tab);
-    expect(mockState.cardDetails.setActiveTab).toHaveBeenCalledWith("market");
-  });
-
-  it("clicking Your Data tab calls setActiveTab with 'your-data'", async () => {
-    const { user, mockState } = renderHeaderActions({
-      cardDetails: { activeTab: "market" },
-    });
-    const tab = screen.getByRole("tab", { name: /your data/i });
-    await user.click(tab);
-    expect(mockState.cardDetails.setActiveTab).toHaveBeenCalledWith(
-      "your-data",
-    );
-  });
-
-  it("tracks event on market tab click", async () => {
-    const { user } = renderHeaderActions({
-      cardDetails: {
-        activeTab: "your-data",
-        personalAnalytics: { cardName: "The Doctor" },
-      },
-      settings: {
-        getActiveGameViewSelectedLeague: vi.fn(() => "Settlers"),
-      },
-    });
-    const tab = screen.getByRole("tab", { name: /market data/i });
-    await user.click(tab);
-    expect(mockTrackEvent).toHaveBeenCalledWith(
-      "card-details:market-data-click",
-      { cardName: "The Doctor", league: "Settlers" },
-    );
-  });
-
-  it("does not track event on your-data tab click", async () => {
-    const { user } = renderHeaderActions({
-      cardDetails: { activeTab: "market" },
-    });
-    const tab = screen.getByRole("tab", { name: /your data/i });
-    await user.click(tab);
-    expect(mockTrackEvent).not.toHaveBeenCalled();
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    expect(screen.queryByText("Market Data")).not.toBeInTheDocument();
+    expect(screen.queryByText("Your Data")).not.toBeInTheDocument();
   });
 
   it("does not track league change event when personalAnalytics is null", async () => {
@@ -361,5 +271,10 @@ describe("HeaderActions", () => {
     });
     const select = screen.getByRole("combobox") as HTMLSelectElement;
     expect(select.value).toBe("Standard");
+  });
+
+  it("matches the statistics league selector width", () => {
+    renderHeaderActions();
+    expect(screen.getByRole("combobox")).toHaveClass("w-40");
   });
 });

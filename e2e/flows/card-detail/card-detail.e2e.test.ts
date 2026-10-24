@@ -3,16 +3,12 @@
  *
  * Tests the card details page (/cards/$cardSlug) covering:
  * 1. Navigation from cards grid to card detail
- * 2. Card detail content rendering (visual, header, tabs)
- * 3. Personal analytics with seeded session data (Your Data tab)
+ * 2. Card detail content rendering (visual, header, personal analytics)
+ * 3. Personal analytics with seeded session data
  * 4. Chart rendering (canvas) — verifies canvas elements render
  * 5. Navigation back to cards list
  * 6. External links (wiki, market, database, community) — verifies URLs are correct
  * 7. Related / chain cards navigation (uses The Nurse for rich chain data)
- * 8. Tab switching between Your Data and Market Data
- *
- * Market Data tab tests (price chart, poe.ninja fetch) are in a separate file:
- *   card-detail-market.e2e.test.ts
  *
  * Prerequisites:
  * - App must be built (`.vite/build/main.js` exists)
@@ -451,66 +447,35 @@ test.describe("Card Detail Page", () => {
       await expect(cardVisual).toBeVisible({ timeout: 10_000 });
     });
 
-    test("should have Market Data and Your Data tabs", async ({ page }) => {
-      await goToCardDetail(page, "house-of-mirrors");
-
-      // There are two elements with role="tablist" on the page:
-      // 1. The game selector (data-onboarding="game-selector") with "Path of Exile" text
-      // 2. The card detail tabs with "Market Data" and "Your Data"
-      // Use a more specific locator to target only the card detail tablist.
-      const tablist = page.getByText("Market DataYour Data");
-      await expect(tablist).toBeVisible({ timeout: 10_000 });
-
-      const marketTab = page.locator('button[role="tab"]', {
-        hasText: "Market Data",
-      });
-      const yourDataTab = page.locator('button[role="tab"]', {
-        hasText: "Your Data",
-      });
-
-      await expect(marketTab).toBeVisible({ timeout: 5_000 });
-      await expect(yourDataTab).toBeVisible({ timeout: 5_000 });
-    });
-
-    test("should show the Your Data tab as active by default", async ({
+    test("should show personal analytics without card-detail tabs", async ({
       page,
     }) => {
       await goToCardDetail(page, "house-of-mirrors");
 
-      // The default active tab is "Your Data" (per CardDetails.slice.ts initial state).
-      const yourDataTab = page.locator('button[role="tab"]', {
-        hasText: "Your Data",
-      });
-      await expect(yourDataTab).toBeVisible({ timeout: 10_000 });
-
-      const isActive = await yourDataTab.evaluate((el) =>
-        el.classList.contains("tab-active"),
+      await expect(page.locator("main")).toContainText(
+        /Total Drops|You haven't found this card yet/,
+        { timeout: 10_000 },
       );
-      expect(isActive, "Your Data tab should be active by default").toBe(true);
 
-      // Market Data tab should NOT be active
-      const marketTab = page.locator('button[role="tab"]', {
-        hasText: "Market Data",
-      });
-      const isMarketActive = await marketTab.evaluate((el) =>
-        el.classList.contains("tab-active"),
-      );
-      expect(
-        isMarketActive,
-        "Market Data tab should be inactive by default",
-      ).toBe(false);
+      await expect(
+        page.locator('button[role="tab"]', {
+          hasText: "Market Data",
+        }),
+      ).toHaveCount(0);
+      await expect(
+        page.locator('button[role="tab"]', { hasText: "Your Data" }),
+      ).toHaveCount(0);
     });
   });
 
-  // ── Your Data — Personal Analytics ────────────────────────────────────────
+  // ── Personal Analytics ────────────────────────────────────────────────────
 
-  test.describe("Your Data — Personal Analytics", () => {
+  test.describe("Personal Analytics", () => {
     test("should display personal drop stats when session data exists", async ({
       page,
     }) => {
       await goToCardDetail(page, "house-of-mirrors");
 
-      // "Your Data" is the default active tab, so no need to click it.
       // Wait for the personal analytics section to render.
       // With seeded data, CardDetailsPersonal shows community and personal stats.
       // If no data was seeded, it shows "You haven't found this card yet".
@@ -557,7 +522,6 @@ test.describe("Card Detail Page", () => {
     }) => {
       await goToCardDetail(page, "house-of-mirrors");
 
-      // "Your Data" is the default active tab.
       // Wait for personal analytics to render (stats or empty state)
       await expect(page.locator("main")).toContainText(
         /Total Drops|You haven't found this card yet/,
@@ -588,7 +552,6 @@ test.describe("Card Detail Page", () => {
     }) => {
       await goToCardDetail(page, "house-of-mirrors");
 
-      // "Your Data" is the default active tab.
       // Wait for personal analytics data to load before checking timeline
       await expect(page.locator("main")).toContainText(
         /Total Drops|You haven't found this card yet/,
@@ -620,7 +583,6 @@ test.describe("Card Detail Page", () => {
     }) => {
       await goToCardDetail(page, "house-of-mirrors");
 
-      // "Your Data" is the default active tab.
       // Wait for personal analytics data to load before checking timeline
       await expect(page.locator("main")).toContainText(
         /Total Drops|You haven't found this card yet/,
@@ -723,7 +685,7 @@ test.describe("Card Detail Page", () => {
     });
   });
 
-  // ── Chart Rendering (Canvas Visual Regression — Your Data tab) ──────────
+  // ── Chart Rendering (Canvas Visual Regression) ─────────────────────────
 
   test.describe("Chart Rendering — Canvas", () => {
     test("should render canvas surface elements when chart data exists", async ({
@@ -731,7 +693,6 @@ test.describe("Card Detail Page", () => {
     }) => {
       await goToCardDetail(page, "house-of-mirrors");
 
-      // "Your Data" is the default tab — seeded data should produce charts
       // Wait for personal analytics data to load before checking charts
       await expect(page.locator("main")).toContainText(
         /Total Drops|You haven't found this card yet/,
@@ -752,7 +713,6 @@ test.describe("Card Detail Page", () => {
     test("should render chart axes and grid lines", async ({ page }) => {
       await goToCardDetail(page, "house-of-mirrors");
 
-      // "Your Data" is the default tab.
       // Wait for personal analytics data to load before checking charts
       await expect(page.locator("main")).toContainText(
         /Total Drops|You haven't found this card yet/,
@@ -768,7 +728,6 @@ test.describe("Card Detail Page", () => {
     test("should render chart data pixels", async ({ page }) => {
       await goToCardDetail(page, "house-of-mirrors");
 
-      // "Your Data" is the default tab.
       // Wait for personal analytics data to load before checking charts
       await expect(page.locator("main")).toContainText(
         /Total Drops|You haven't found this card yet/,
@@ -1246,109 +1205,6 @@ test.describe("Card Detail Page", () => {
       }
 
       expect(mainContent).toContain("The Immortal");
-    });
-  });
-
-  // ── Tab Switching ─────────────────────────────────────────────────────────
-
-  test.describe("Tab Switching", () => {
-    test("should switch from Your Data to Market Data tab", async ({
-      page,
-    }) => {
-      await goToCardDetail(page, "house-of-mirrors");
-
-      // Verify Your Data tab is active by default
-      const yourDataTab = page.locator('button[role="tab"]', {
-        hasText: "Your Data",
-      });
-      await expect(yourDataTab).toBeVisible({ timeout: 10_000 });
-
-      const isYourDataActive = await yourDataTab.evaluate((el) =>
-        el.classList.contains("tab-active"),
-      );
-      expect(
-        isYourDataActive,
-        "Your Data tab should be active by default",
-      ).toBe(true);
-
-      // Click Market Data tab
-      const marketTab = page.locator('button[role="tab"]', {
-        hasText: "Market Data",
-      });
-      await marketTab.click();
-
-      // Wait for Market Data tab to become active
-      await expect(marketTab).toHaveClass(/tab-active/, { timeout: 5_000 });
-
-      // Market Data tab should now be active
-      const isMarketActive = await marketTab.evaluate((el) =>
-        el.classList.contains("tab-active"),
-      );
-      expect(
-        isMarketActive,
-        "Market Data tab should be active after click",
-      ).toBe(true);
-
-      // Your Data tab should no longer be active
-      const isYourDataActiveAfter = await yourDataTab.evaluate((el) =>
-        el.classList.contains("tab-active"),
-      );
-      expect(isYourDataActiveAfter, "Your Data tab should be inactive").toBe(
-        false,
-      );
-    });
-
-    test("should switch back from Market Data to Your Data tab", async ({
-      page,
-    }) => {
-      await goToCardDetail(page, "house-of-mirrors");
-
-      // Switch to Market Data
-      const marketTab = page.locator('button[role="tab"]', {
-        hasText: "Market Data",
-      });
-      await marketTab.click();
-      await expect(marketTab).toHaveClass(/tab-active/, { timeout: 5_000 });
-
-      // Switch back to Your Data
-      const yourDataTab = page.locator('button[role="tab"]', {
-        hasText: "Your Data",
-      });
-      await yourDataTab.click();
-      await expect(yourDataTab).toHaveClass(/tab-active/, { timeout: 5_000 });
-
-      // Your Data tab should be active again
-      const isYourDataActive = await yourDataTab.evaluate((el) =>
-        el.classList.contains("tab-active"),
-      );
-      expect(
-        isYourDataActive,
-        "Your Data tab should be active after switching back",
-      ).toBe(true);
-    });
-
-    test("should preserve page route when switching tabs", async ({ page }) => {
-      await goToCardDetail(page, "house-of-mirrors");
-
-      // Switch tabs back and forth
-      const marketTab = page.locator('button[role="tab"]', {
-        hasText: "Market Data",
-      });
-      await marketTab.click();
-      await expect(marketTab).toHaveClass(/tab-active/, { timeout: 5_000 });
-
-      // Route should still be the same card detail page
-      let route = await getCurrentRoute(page);
-      expect(route).toBe("/cards/house-of-mirrors");
-
-      const yourDataTab = page.locator('button[role="tab"]', {
-        hasText: "Your Data",
-      });
-      await yourDataTab.click();
-      await expect(yourDataTab).toHaveClass(/tab-active/, { timeout: 5_000 });
-
-      route = await getCurrentRoute(page);
-      expect(route).toBe("/cards/house-of-mirrors");
     });
   });
 });

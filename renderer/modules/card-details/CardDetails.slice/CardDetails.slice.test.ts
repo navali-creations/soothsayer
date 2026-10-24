@@ -180,10 +180,6 @@ describe("CardDetails.slice", () => {
     it('has selectedLeague "all"', () => {
       expect(store.getState().cardDetails.selectedLeague).toBe("all");
     });
-
-    it('has activeTab "your-data"', () => {
-      expect(store.getState().cardDetails.activeTab).toBe("your-data");
-    });
   });
 
   describe("fetchCommunityDropRate", () => {
@@ -544,7 +540,7 @@ describe("CardDetails.slice", () => {
     });
   });
 
-  // ─── setSelectedLeague / setActiveTab ──────────────────────────────
+  // ─── setSelectedLeague ─────────────────────────────────────────────
 
   describe("setSelectedLeague", () => {
     it("sets the selected league", () => {
@@ -556,19 +552,6 @@ describe("CardDetails.slice", () => {
       store.getState().cardDetails.setSelectedLeague("Necropolis");
       store.getState().cardDetails.setSelectedLeague("all");
       expect(store.getState().cardDetails.selectedLeague).toBe("all");
-    });
-  });
-
-  describe("setActiveTab", () => {
-    it("sets the active tab to market", () => {
-      store.getState().cardDetails.setActiveTab("market");
-      expect(store.getState().cardDetails.activeTab).toBe("market");
-    });
-
-    it("can switch back to your-data", () => {
-      store.getState().cardDetails.setActiveTab("market");
-      store.getState().cardDetails.setActiveTab("your-data");
-      expect(store.getState().cardDetails.activeTab).toBe("your-data");
     });
   });
 
@@ -953,8 +936,6 @@ describe("CardDetails.slice", () => {
         .cardDetails.fetchSessionsForCard("poe1", "The Doctor", 2, 5);
 
       store.getState().cardDetails.setSelectedLeague("Necropolis");
-      store.getState().cardDetails.setActiveTab("market");
-
       // Verify state is populated
       expect(store.getState().cardDetails.card).not.toBeNull();
       expect(store.getState().cardDetails.priceHistory).not.toBeNull();
@@ -987,7 +968,6 @@ describe("CardDetails.slice", () => {
       expect(state.relatedCards).toBeNull();
       expect(state.isLoadingRelatedCards).toBe(false);
       expect(state.selectedLeague).toBe("all");
-      expect(state.activeTab).toBe("your-data");
     });
 
     it("resets sessionsPage that was advanced", async () => {

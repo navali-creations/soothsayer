@@ -11,7 +11,7 @@ interface LoadingOverlayProps {
  * Wraps children in a relative container and renders a translucent
  * overlay with a spinner when `isLoading` is true.
  *
- * Used in the card details "Your Data" tab to indicate that personal
+ * Used in the card details page to indicate that personal
  * analytics / timeline / sessions are being refreshed (e.g. on league switch).
  */
 const LoadingOverlay = ({ isLoading, children }: LoadingOverlayProps) => {

@@ -12,7 +12,7 @@ interface YourDataTabContentProps {
 }
 
 /**
- * Content for the "Your Data" tab on the card details page.
+ * Personal analytics content for the card details page.
  *
  * Renders personal analytics stats, drop timeline chart, and session list,
  * each wrapped in a `LoadingOverlay` that shows a translucent spinner

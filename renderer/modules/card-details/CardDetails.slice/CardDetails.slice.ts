@@ -19,8 +19,6 @@ import type {
   SessionSortState,
 } from "../CardDetails.components/CardDetailsSessionList/types";
 
-export type CardDetailsTab = "market" | "your-data";
-
 export interface CardDetailsSlice {
   cardDetails: {
     // ─── Card State (resolved from slug) ────────────────────────────────
@@ -62,8 +60,6 @@ export interface CardDetailsSlice {
     /** The currently selected league filter on the card details page.
      *  "all" means no filtering (aggregate across all leagues). */
     selectedLeague: string;
-    /** The active tab on the card details page. */
-    activeTab: CardDetailsTab;
 
     // ─── Actions ────────────────────────────────────────────────────────
 
@@ -90,8 +86,6 @@ export interface CardDetailsSlice {
 
     /** Update the selected league filter. Resets to "all" on clear. */
     setSelectedLeague: (league: string) => void;
-    /** Switch the active tab. */
-    setActiveTab: (tab: CardDetailsTab) => void;
     fetchPriceHistory: (
       game: GameType,
       league: string,
@@ -187,7 +181,6 @@ export const createCardDetailsSlice: StateCreator<
     isLoadingRelatedCards: false,
 
     selectedLeague: "all",
-    activeTab: "your-data",
 
     // ─── Unified Initializer ─────────────────────────────────────────────
 
@@ -336,16 +329,6 @@ export const createCardDetailsSlice: StateCreator<
         },
         false,
         "cardDetailsSlice/setSelectedLeague",
-      );
-    },
-
-    setActiveTab: (tab: CardDetailsTab) => {
-      set(
-        ({ cardDetails }) => {
-          cardDetails.activeTab = tab;
-        },
-        false,
-        "cardDetailsSlice/setActiveTab",
       );
     },
 
@@ -576,7 +559,6 @@ export const createCardDetailsSlice: StateCreator<
 
           // UI state
           cardDetails.selectedLeague = "all";
-          cardDetails.activeTab = "your-data";
         },
         false,
         "cardDetailsSlice/clearCardDetails",
