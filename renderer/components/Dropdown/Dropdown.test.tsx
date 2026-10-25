@@ -156,4 +156,18 @@ describe("Dropdown", () => {
     const button = screen.getByRole("button");
     expect(button).toHaveClass("no-drag");
   });
+
+  it('dropdown panel has "no-drag" class', () => {
+    renderWithProviders(
+      <Dropdown trigger={<span>Trigger</span>}>
+        <li>Content</li>
+      </Dropdown>,
+    );
+
+    const button = screen.getByRole("button");
+    const popoverTargetId = button.getAttribute("popovertarget")!;
+    const panel = document.getElementById(popoverTargetId);
+
+    expect(panel).toHaveClass("no-drag");
+  });
 });

@@ -586,6 +586,46 @@ test.describe("AppMenu", () => {
       }
     });
 
+    test("should close when its trigger is clicked again", async ({ page }) => {
+      const trigger = page.locator('[data-tip="More options"] button').first();
+
+      await page.evaluate(() => {
+        document
+          .querySelectorAll("[popover]:popover-open")
+          .forEach((element) => {
+            (element as HTMLElement).hidePopover();
+          });
+      });
+      await expect(page.locator("[popover]:popover-open")).toHaveCount(0);
+
+      await trigger.click();
+      await expect(page.locator("[popover]:popover-open")).toHaveCount(1);
+
+      const dragRegions = await page
+        .locator("[popover]:popover-open")
+        .evaluate((element) => ({
+          panel: getComputedStyle(element).getPropertyValue("app-region"),
+          webkitPanel:
+            getComputedStyle(element).getPropertyValue("-webkit-app-region"),
+          backdrop: getComputedStyle(element, "::backdrop").getPropertyValue(
+            "app-region",
+          ),
+          webkitBackdrop: getComputedStyle(
+            element,
+            "::backdrop",
+          ).getPropertyValue("-webkit-app-region"),
+        }));
+      expect(dragRegions).toEqual({
+        panel: "no-drag",
+        webkitPanel: "no-drag",
+        backdrop: "no-drag",
+        webkitBackdrop: "no-drag",
+      });
+
+      await trigger.click();
+      await expect(page.locator("[popover]:popover-open")).toHaveCount(0);
+    });
+
     test("should navigate to Settings when clicking the Settings menu item", async ({
       page,
     }) => {

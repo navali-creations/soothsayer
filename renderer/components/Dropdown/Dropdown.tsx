@@ -54,6 +54,7 @@ const Dropdown = ({
         className={clsx(
           "dropdown",
           positionClasses,
+          "no-drag",
           "menu",
           width,
           "rounded-box",

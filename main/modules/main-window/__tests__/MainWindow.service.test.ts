@@ -28,8 +28,6 @@ const {
   mockBrowserWindowOnce,
   mockBrowserWindowOn,
   mockBrowserWindowIsDestroyed,
-  mockBrowserWindowGetBounds,
-  mockBrowserWindowRemoveListener,
   mockBrowserWindowWebContentsSend,
   mockBrowserWindowWebContentsOn,
   mockBrowserWindowWebContentsSetWindowOpenHandler,
@@ -61,7 +59,7 @@ const {
     mockAppPerformanceInitialize: vi.fn().mockResolvedValue(undefined),
     mockAppPerformanceRecordOverlayMarker: vi.fn(),
     mockSettingsGet: vi.fn(),
-    mockSettingsSet: vi.fn(() => Promise.resolve()),
+    mockSettingsSet: vi.fn().mockResolvedValue(undefined),
     mockOverlayDestroy: vi.fn(),
     mockOverlayOnVisibilityChange: vi.fn(() => vi.fn()),
     mockBrowserWindowMinimize: vi.fn(),
@@ -79,13 +77,6 @@ const {
     mockBrowserWindowOnce: vi.fn(),
     mockBrowserWindowOn: vi.fn(),
     mockBrowserWindowIsDestroyed: vi.fn(() => false),
-    mockBrowserWindowGetBounds: vi.fn(() => ({
-      x: 100,
-      y: 100,
-      width: 1200,
-      height: 800,
-    })),
-    mockBrowserWindowRemoveListener: vi.fn(),
     mockBrowserWindowWebContentsSend: vi.fn(),
     mockBrowserWindowWebContentsOn: vi.fn(),
     mockBrowserWindowWebContentsSetWindowOpenHandler: vi.fn(),
@@ -117,6 +108,7 @@ const {
 
 // ─── Track BrowserWindow instances ───────────────────────────────────────────
 let browserWindowInstances: any[] = [];
+let browserWindowOptions: Electron.BrowserWindowConstructorOptions[] = [];
 
 // ─── Mock Electron ───────────────────────────────────────────────────────────
 vi.mock("electron", () => {
@@ -136,8 +128,6 @@ vi.mock("electron", () => {
     once = mockBrowserWindowOnce;
     on = mockBrowserWindowOn;
     isDestroyed = mockBrowserWindowIsDestroyed;
-    getBounds = mockBrowserWindowGetBounds;
-    removeListener = mockBrowserWindowRemoveListener;
     webContents = {
       send: mockBrowserWindowWebContentsSend,
       on: mockBrowserWindowWebContentsOn,
@@ -146,8 +136,9 @@ vi.mock("electron", () => {
       getURL: mockBrowserWindowWebContentsGetURL,
     };
 
-    constructor(_opts: any) {
+    constructor(opts: Electron.BrowserWindowConstructorOptions) {
       browserWindowInstances.push(this);
+      browserWindowOptions.push(opts);
     }
 
     static getAllWindows = vi.fn(() => []);
@@ -449,6 +440,7 @@ describe("MainWindowService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     browserWindowInstances = [];
+    browserWindowOptions = [];
 
     // Reset singleton
     resetSingleton(MainWindowService);
@@ -1632,32 +1624,36 @@ describe("MainWindowService", () => {
     });
   });
 
-  // ─── Window bounds persistence ───────────────────────────────────────────
+  // ─── Native window state persistence ─────────────────────────────────────
 
-  describe("window bounds persistence", () => {
-    it("should restore saved bounds when they overlap a display", async () => {
+  describe("native window state persistence", () => {
+    it("should enable Electron persistence with a stable window name", async () => {
+      await service.createMainWindow();
+
+      expect(browserWindowOptions[0]).toMatchObject({
+        name: "soothsayer-main",
+        windowStatePersistence: true,
+        width: 1200,
+        height: 800,
+      });
+    });
+
+    it("should use visible legacy bounds as the initial fallback", async () => {
       const savedBounds = { x: 200, y: 150, width: 1400, height: 900 };
-      // First call returns saved bounds (for MainWindowBounds), rest return defaults
-      mockSettingsGet
-        .mockResolvedValueOnce(savedBounds) // MainWindowBounds
-        .mockResolvedValue(false);
+      mockSettingsGet.mockResolvedValueOnce(savedBounds);
 
       resetSingleton(MainWindowService);
       const svc = MainWindowService.getInstance();
       await svc.createMainWindow();
 
-      // BrowserWindow constructor should have received the saved dimensions
-      const instance = browserWindowInstances[0];
-      expect(instance).toBeDefined();
+      expect(browserWindowOptions[0]).toMatchObject(savedBounds);
+      expect(mockSettingsSet).toHaveBeenCalledWith("mainWindowBounds", null);
     });
 
-    it("should fall back to defaults when saved bounds are off-screen", async () => {
+    it("should ignore off-screen legacy bounds", async () => {
       const offScreenBounds = { x: 9999, y: 9999, width: 1200, height: 800 };
-      mockSettingsGet
-        .mockResolvedValueOnce(offScreenBounds) // MainWindowBounds
-        .mockResolvedValue(false);
+      mockSettingsGet.mockResolvedValueOnce(offScreenBounds);
 
-      // Single display at 0,0 1920x1080 — bounds at 9999,9999 have no overlap
       mockScreenGetAllDisplays.mockReturnValue([
         { workArea: { x: 0, y: 0, width: 1920, height: 1080 } },
       ]);
@@ -1666,160 +1662,33 @@ describe("MainWindowService", () => {
       const svc = MainWindowService.getInstance();
       await svc.createMainWindow();
 
-      // Window should still be created (with default size)
-      expect(browserWindowInstances).toHaveLength(1);
+      expect(browserWindowOptions[0]).toMatchObject({
+        width: 1200,
+        height: 800,
+      });
+      expect(browserWindowOptions[0]).not.toHaveProperty("x");
+      expect(browserWindowOptions[0]).not.toHaveProperty("y");
+      expect(mockSettingsSet).toHaveBeenCalledWith("mainWindowBounds", null);
     });
 
-    it("should use defaults when no saved bounds exist", async () => {
-      mockSettingsGet.mockResolvedValue(null);
-
-      resetSingleton(MainWindowService);
-      const svc = MainWindowService.getInstance();
-      await svc.createMainWindow();
-
-      expect(browserWindowInstances).toHaveLength(1);
-    });
-
-    it("should save bounds on window move (debounced)", async () => {
-      await service.createMainWindow();
-
-      // Find the "moved" handler registered via window.on
-      const movedCall = mockBrowserWindowOn.mock.calls.find(
-        ([ev]: [string]) => ev === "moved",
-      );
-      expect(movedCall).toBeDefined();
-
-      // Trigger the moved handler
-      const movedHandler = movedCall![1];
-      movedHandler();
-
-      // The save is debounced (500ms), so settings.set should not be called yet
-      expect(mockSettingsSet).not.toHaveBeenCalledWith(
-        "mainWindowBounds",
-        expect.anything(),
-      );
-
-      // Fast-forward past the debounce timer
-      await vi.waitFor(
-        () => {
-          expect(mockSettingsSet).toHaveBeenCalledWith(
-            "mainWindowBounds",
-            expect.objectContaining({
-              x: expect.any(Number),
-              y: expect.any(Number),
-              width: expect.any(Number),
-              height: expect.any(Number),
-            }),
-          );
-        },
-        { timeout: 1000 },
-      );
-    });
-
-    it("should save bounds on window resize (debounced)", async () => {
-      await service.createMainWindow();
-
-      const resizedCall = mockBrowserWindowOn.mock.calls.find(
-        ([ev]: [string]) => ev === "resized",
-      );
-      expect(resizedCall).toBeDefined();
-
-      const resizedHandler = resizedCall![1];
-      resizedHandler();
-
-      await vi.waitFor(
-        () => {
-          expect(mockSettingsSet).toHaveBeenCalledWith(
-            "mainWindowBounds",
-            expect.objectContaining({
-              x: expect.any(Number),
-              y: expect.any(Number),
-              width: expect.any(Number),
-              height: expect.any(Number),
-            }),
-          );
-        },
-        { timeout: 1000 },
-      );
-    });
-
-    it("should not save bounds when window is maximized", async () => {
-      await service.createMainWindow();
-      mockBrowserWindowIsMaximized.mockReturnValue(true);
-
-      const movedCall = mockBrowserWindowOn.mock.calls.find(
-        ([ev]: [string]) => ev === "moved",
-      );
-      expect(movedCall).toBeDefined();
-
-      movedCall![1]();
-
-      // Wait longer than debounce to confirm it was NOT called with bounds
-      await new Promise((r) => setTimeout(r, 600));
-      expect(mockSettingsSet).not.toHaveBeenCalledWith(
-        "mainWindowBounds",
-        expect.anything(),
-      );
-
-      mockBrowserWindowIsMaximized.mockReturnValue(false);
-    });
-
-    it("should not save bounds when window is destroyed", async () => {
-      await service.createMainWindow();
-
-      const movedCall = mockBrowserWindowOn.mock.calls.find(
-        ([ev]: [string]) => ev === "moved",
-      );
-      expect(movedCall).toBeDefined();
-
-      // Destroy window before debounce fires
-      mockBrowserWindowIsDestroyed.mockReturnValue(true);
-      movedCall![1]();
-
-      await new Promise((r) => setTimeout(r, 600));
-      expect(mockSettingsSet).not.toHaveBeenCalledWith(
-        "mainWindowBounds",
-        expect.anything(),
-      );
-
-      mockBrowserWindowIsDestroyed.mockReturnValue(false);
-    });
-
-    it("should replace and clear pending bounds timers and listeners", async () => {
-      await service.createMainWindow();
-      const movedHandler = mockBrowserWindowOn.mock.calls.find(
-        ([event]: [string]) => event === "moved",
-      )?.[1];
-
-      movedHandler();
-      movedHandler();
-      (service as any).removeBoundsListeners();
-
-      expect(mockBrowserWindowRemoveListener).toHaveBeenCalledWith(
-        "moved",
-        movedHandler,
-      );
-      expect(mockBrowserWindowRemoveListener).toHaveBeenCalledWith(
-        "resized",
-        movedHandler,
-      );
-    });
-
-    it("should clear handlers without touching a destroyed window", async () => {
-      await service.createMainWindow();
-      mockBrowserWindowIsDestroyed.mockReturnValue(true);
-
-      (service as any).removeBoundsListeners();
-
-      expect(mockBrowserWindowRemoveListener).not.toHaveBeenCalled();
-    });
-
-    it("should contain asynchronous bounds persistence failures", async () => {
-      await service.createMainWindow();
+    it("should keep running when legacy bounds cleanup fails", async () => {
+      mockSettingsGet.mockResolvedValueOnce({
+        x: 200,
+        y: 150,
+        width: 1400,
+        height: 900,
+      });
       mockSettingsSet.mockRejectedValueOnce(new Error("settings unavailable"));
+      const consoleWarn = vi
+        .spyOn(console, "warn")
+        .mockImplementation(() => {});
 
-      (service as any).saveBoundsImmediate();
-      await vi.waitFor(() => expect(mockSettingsSet).toHaveBeenCalled());
+      await expect(service.createMainWindow()).resolves.toBeUndefined();
+
+      expect(consoleWarn).toHaveBeenCalledWith(
+        "[MainWindow] Failed to clear legacy window bounds:",
+        expect.any(Error),
+      );
     });
   });
 

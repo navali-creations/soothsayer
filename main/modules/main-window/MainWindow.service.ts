@@ -87,9 +87,6 @@ class MainWindowService {
       : MAIN_WINDOW_VITE_DEV_SERVER_URL;
   private settingsStore: SettingsStoreService | null = null;
   private database: DatabaseService | null = null;
-  private debouncedSaveBoundsTimer: ReturnType<typeof setTimeout> | null = null;
-  private boundsMovedHandler: (() => void) | null = null;
-  private boundsResizedHandler: (() => void) | null = null;
   private unsubscribeOverlayVisibility: (() => void) | null = null;
 
   private static _instance: MainWindowService;
@@ -119,16 +116,8 @@ class MainWindowService {
   }
 
   /**
-   * TODO: Replace manual bounds persistence (validateBoundsOnScreen, saveBoundsImmediate,
-   * attachBoundsListeners, removeBoundsListeners, and the restore logic in createMainWindow)
-   * with Electron's built-in `windowStatePersistence` API once it ships in a stable release.
-   * Just pass `name: 'soothsayer-main'` and `windowStatePersistence: true` to the
-   * BrowserWindow constructor. See: https://github.com/electron/rfcs/pull/16
-   */
-
-  /**
-   * Validate that at least 100px of the window overlaps with some display's workArea.
-   * Returns the bounds if valid, null if off-screen (e.g. disconnected monitor).
+   * Validate legacy bounds before handing them to Electron as the initial fallback.
+   * Electron manages display-aware persistence after the first native-state launch.
    */
   private validateBoundsOnScreen(bounds: {
     x: number;
@@ -160,69 +149,6 @@ class MainWindowService {
     return null;
   }
 
-  /**
-   * Immediately save the current window bounds to settings.
-   * Skips saving when the window is maximized to avoid storing maximized dimensions.
-   */
-  private saveBoundsImmediate(): void {
-    if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
-    if (this.mainWindow.isMaximized()) return;
-
-    const bounds = this.mainWindow.getBounds();
-    this.settingsStore
-      ?.set(SettingsKey.MainWindowBounds, bounds)
-      .catch((err) => {
-        console.warn("[MainWindow] Failed to save bounds:", err);
-      });
-  }
-
-  /**
-   * Attach move/resize listeners that debounce-save the window bounds.
-   */
-  private attachBoundsListeners(): void {
-    const debouncedSave = () => {
-      if (this.debouncedSaveBoundsTimer) {
-        clearTimeout(this.debouncedSaveBoundsTimer);
-      }
-      this.debouncedSaveBoundsTimer = setTimeout(() => {
-        this.saveBoundsImmediate();
-        this.debouncedSaveBoundsTimer = null;
-      }, 500);
-    };
-
-    this.boundsMovedHandler = debouncedSave;
-    this.boundsResizedHandler = debouncedSave;
-
-    this.mainWindow.on("moved", this.boundsMovedHandler);
-    this.mainWindow.on("resized", this.boundsResizedHandler);
-  }
-
-  /**
-   * Remove bounds listeners and clear any pending debounce timer.
-   */
-  private removeBoundsListeners(): void {
-    if (this.debouncedSaveBoundsTimer) {
-      clearTimeout(this.debouncedSaveBoundsTimer);
-      this.debouncedSaveBoundsTimer = null;
-    }
-    if (
-      this.boundsMovedHandler &&
-      this.mainWindow &&
-      !this.mainWindow.isDestroyed()
-    ) {
-      this.mainWindow.removeListener("moved", this.boundsMovedHandler);
-    }
-    this.boundsMovedHandler = null;
-    if (
-      this.boundsResizedHandler &&
-      this.mainWindow &&
-      !this.mainWindow.isDestroyed()
-    ) {
-      this.mainWindow.removeListener("resized", this.boundsResizedHandler);
-    }
-    this.boundsResizedHandler = null;
-  }
-
   private removeOverlayVisibilityListener(): void {
     this.unsubscribeOverlayVisibility?.();
     this.unsubscribeOverlayVisibility = null;
@@ -235,11 +161,12 @@ class MainWindowService {
     );
     const preload = join(__dirname, "preload.cjs");
 
-    // 1. Settings (no dependencies) — initialize early so we can load saved bounds
+    // 1. Settings (no dependencies)
     this.settingsStore = SettingsStoreService.getInstance();
     console.log("[Init] ✓ Settings");
 
-    // Load saved main window bounds
+    // Use the previous settings-backed bounds as the initial fallback while
+    // Electron transitions existing installs to its native persisted state.
     const savedBounds = await this.settingsStore.get(
       SettingsKey.MainWindowBounds,
     );
@@ -248,6 +175,8 @@ class MainWindowService {
       : null;
 
     const windowOptions: Electron.BrowserWindowConstructorOptions = {
+      name: "soothsayer-main",
+      windowStatePersistence: true,
       title: "Soothsayer",
       icon: this.getAppIcon(),
       width: validBounds?.width ?? 1200,
@@ -271,6 +200,17 @@ class MainWindowService {
     }
 
     this.mainWindow = new BrowserWindow(windowOptions);
+
+    if (savedBounds) {
+      try {
+        await this.settingsStore.set(SettingsKey.MainWindowBounds, null);
+      } catch (error) {
+        console.warn(
+          "[MainWindow] Failed to clear legacy window bounds:",
+          error,
+        );
+      }
+    }
 
     // Register the main window as the sole trusted IPC sender (L6 security hardening)
     registerTrustedWebContents(this.mainWindow.webContents);
@@ -433,9 +373,6 @@ class MainWindowService {
     // Initialize PoE Process monitoring
     PoeProcessService.getInstance().initialize(this);
 
-    // Attach bounds persistence listeners
-    this.attachBoundsListeners();
-
     // Caption events
     this.emitCaptionEvents();
     this.emitFileDialogEvents();
@@ -496,9 +433,6 @@ class MainWindowService {
      * b) quit instead of minimizing
      */
     ipcMain.handle(MainWindowChannel.Close, async () => {
-      // Save window bounds before closing/hiding
-      this.saveBoundsImmediate();
-
       const exitAction = await this.settingsStore?.get(
         SettingsKey.AppExitAction,
       );
@@ -510,7 +444,6 @@ class MainWindowService {
         !shouldAppQuitBasedOnUserPreference;
 
       if (shouldAppQuitBasedOnUserPreference || byDefaultQuitApp) {
-        this.removeBoundsListeners();
         this.removeOverlayVisibilityListener();
         OverlayService.getInstance().destroy();
         AppService.getInstance().isQuitting = true;
@@ -528,9 +461,6 @@ class MainWindowService {
       if (AppService.getInstance().isQuitting) return;
       e.preventDefault();
 
-      // Save window bounds before closing/hiding
-      this.saveBoundsImmediate();
-
       const exitAction = await this.settingsStore?.get(
         SettingsKey.AppExitAction,
       );
@@ -542,7 +472,6 @@ class MainWindowService {
         !shouldAppQuitBasedOnUserPreference;
 
       if (shouldAppQuitBasedOnUserPreference || byDefaultQuitApp) {
-        this.removeBoundsListeners();
         this.removeOverlayVisibilityListener();
         OverlayService.getInstance().destroy();
         AppService.getInstance().isQuitting = true;
