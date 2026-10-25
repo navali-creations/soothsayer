@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { type ReactNode, useId } from "react";
+import { type MouseEvent, type ReactNode, useId } from "react";
 
 type DropdownPosition =
   | "dropdown-start"
@@ -20,6 +20,8 @@ interface DropdownProps {
   width?: string;
   /** Padding class for the dropdown content (e.g. "p-2", "p-1", "p-0") */
   padding?: string;
+  /** Close the popover after any click inside the dropdown content. */
+  closeOnSelect?: boolean;
 }
 
 const Dropdown = ({
@@ -30,6 +32,7 @@ const Dropdown = ({
   contentClassName,
   width = "w-52",
   padding = "p-2",
+  closeOnSelect = false,
 }: DropdownProps) => {
   const id = useId();
   const popoverId = `dropdown-${id}`;
@@ -38,6 +41,12 @@ const Dropdown = ({
   const positionClasses = Array.isArray(position)
     ? position.join(" ")
     : position;
+
+  const handleContentClick = (event: MouseEvent<HTMLDivElement>) => {
+    if (closeOnSelect) {
+      event.currentTarget.hidePopover();
+    }
+  };
 
   return (
     <>
@@ -66,6 +75,7 @@ const Dropdown = ({
         )}
         popover="auto"
         id={popoverId}
+        onClick={handleContentClick}
         style={{ positionAnchor: anchorName } as React.CSSProperties}
       >
         {children}

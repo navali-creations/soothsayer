@@ -98,7 +98,7 @@ const Modal = forwardRef<ModalHandle, ModalProps>(
               aria-hidden="true"
               data-testid="modal-scrim"
               className={clsx(
-                "pointer-events-none fixed inset-0 z-40 bg-base-300/45 backdrop-blur-sm transition-opacity duration-300",
+                "no-drag pointer-events-none fixed inset-0 z-40 bg-base-300/45 backdrop-blur-sm transition-opacity duration-300",
                 isScrimVisible ? "opacity-100" : "opacity-0",
               )}
             />,
@@ -111,13 +111,13 @@ const Modal = forwardRef<ModalHandle, ModalProps>(
         {scrim}
         <dialog
           ref={dialogRef}
-          className="modal modal-bottom !bg-transparent outline-none focus:outline-none focus-visible:outline-none sm:modal-middle"
+          className="no-drag modal modal-bottom !bg-transparent outline-none focus:outline-none focus-visible:outline-none sm:modal-middle"
           onClose={handleClose}
         >
           {closeOnBackdrop && (
             <form
               method="dialog"
-              className="col-start-1 row-start-1 grid place-self-stretch text-transparent"
+              className="no-drag col-start-1 row-start-1 grid place-self-stretch text-transparent"
             >
               <button
                 type="submit"
@@ -130,7 +130,7 @@ const Modal = forwardRef<ModalHandle, ModalProps>(
           )}
           <div
             className={clsx(
-              "modal-box border border-black bg-base-300 shadow-[0px_0px_18px_0px_rgba(0,0,0,0.5)]",
+              "no-drag modal-box border border-black bg-base-300 shadow-[0px_0px_18px_0px_rgba(0,0,0,0.5)]",
               sizeClasses[size],
               className,
             )}

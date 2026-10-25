@@ -641,6 +641,8 @@ test.describe("AppMenu", () => {
       await expect(settingsItem).toBeVisible({ timeout: 5_000 });
       await settingsItem.click();
 
+      await expect(page.locator("[popover]:popover-open")).toHaveCount(0);
+
       // Wait for navigation to /settings
       await waitForRoute(page, "/settings", 10_000);
       const currentRoute = await getCurrentRoute(page);
@@ -661,6 +663,8 @@ test.describe("AppMenu", () => {
       const changelogItem = page.locator("[popover] li").getByText("Changelog");
       await expect(changelogItem).toBeVisible({ timeout: 5_000 });
       await changelogItem.click();
+
+      await expect(page.locator("[popover]:popover-open")).toHaveCount(0);
 
       // Wait for navigation to /changelog
       await waitForRoute(page, "/changelog", 10_000);
@@ -709,8 +713,36 @@ test.describe("AppMenu", () => {
         }
 
         await expect(dialog).toBeVisible({ timeout: 10_000 });
+        await expect(page.locator("[popover]:popover-open")).toHaveCount(0);
         await expect(modalBox).toBeVisible({ timeout: 5_000 });
         await expect(scrim).toBeVisible({ timeout: 5_000 });
+
+        const modalDragRegions = await dialog.evaluate((element) => {
+          const modalBoxElement = element.querySelector(".modal-box");
+          const backdropForm = element.querySelector('form[method="dialog"]');
+          const getAppRegions = (target: Element | null) => {
+            if (!target) {
+              return { app: "", webkit: "" };
+            }
+
+            const style = getComputedStyle(target);
+            return {
+              app: style.getPropertyValue("app-region"),
+              webkit: style.getPropertyValue("-webkit-app-region"),
+            };
+          };
+
+          return {
+            dialog: getAppRegions(element),
+            modalBox: getAppRegions(modalBoxElement),
+            backdropForm: getAppRegions(backdropForm),
+          };
+        });
+        expect(modalDragRegions).toEqual({
+          dialog: { app: "no-drag", webkit: "no-drag" },
+          modalBox: { app: "no-drag", webkit: "no-drag" },
+          backdropForm: { app: "no-drag", webkit: "no-drag" },
+        });
 
         const minorTab = dialog.getByRole("tab", { name: "v99.18.0" });
         const patchTab = dialog.getByRole("tab", { name: "v99.18.1" });

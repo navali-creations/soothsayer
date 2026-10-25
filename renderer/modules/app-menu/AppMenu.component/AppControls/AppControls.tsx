@@ -63,6 +63,7 @@ const AppControls = () => {
               className="btn btn-ghost btn-sm"
               position="dropdown-end"
               width="w-[180px]"
+              closeOnSelect
             >
               <li>
                 <Link
@@ -80,7 +81,7 @@ const AppControls = () => {
                 <button
                   type="button"
                   className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg hover:bg-base-300 transition-colors w-full text-left no-drag"
-                  onClick={() => openWhatsNew()}
+                  onClick={openWhatsNew}
                 >
                   <span className="text-sm">What&apos;s New</span>
                   <MdOutlineNewReleases

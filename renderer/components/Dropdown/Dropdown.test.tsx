@@ -1,4 +1,8 @@
-import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
+import {
+  fireEvent,
+  renderWithProviders,
+  screen,
+} from "~/renderer/__test-setup__/render";
 
 import Dropdown from "./Dropdown";
 
@@ -169,5 +173,33 @@ describe("Dropdown", () => {
     const panel = document.getElementById(popoverTargetId);
 
     expect(panel).toHaveClass("no-drag");
+  });
+
+  it("closes the popover after a content click when closeOnSelect is enabled", () => {
+    const hidePopover = vi.spyOn(HTMLElement.prototype, "hidePopover");
+    hidePopover.mockClear();
+    renderWithProviders(
+      <Dropdown trigger={<span>Trigger</span>} closeOnSelect>
+        <button type="button">Menu action</button>
+      </Dropdown>,
+    );
+
+    fireEvent.click(screen.getByText("Menu action"));
+
+    expect(hidePopover).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the popover open after a content click by default", () => {
+    const hidePopover = vi.spyOn(HTMLElement.prototype, "hidePopover");
+    hidePopover.mockClear();
+    renderWithProviders(
+      <Dropdown trigger={<span>Trigger</span>}>
+        <button type="button">Menu action</button>
+      </Dropdown>,
+    );
+
+    fireEvent.click(screen.getByText("Menu action"));
+
+    expect(hidePopover).not.toHaveBeenCalled();
   });
 });

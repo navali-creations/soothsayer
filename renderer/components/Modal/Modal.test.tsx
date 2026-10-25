@@ -85,6 +85,7 @@ describe("Modal", () => {
     const visibleScrim = screen.getByTestId("modal-scrim");
     expect(visibleScrim).toHaveClass("fixed");
     expect(visibleScrim).toHaveClass("z-40");
+    expect(visibleScrim).toHaveClass("no-drag");
     expect(visibleScrim).toHaveClass("backdrop-blur-sm");
     expect(visibleScrim).toHaveClass("opacity-100");
 
@@ -267,6 +268,7 @@ describe("Modal", () => {
 
     const dialog = container.querySelector("dialog")!;
     expect(dialog).toHaveClass("modal");
+    expect(dialog).toHaveClass("no-drag");
     expect(dialog).toHaveClass("modal-bottom");
     expect(dialog).toHaveClass("sm:modal-middle");
     expect(dialog).toHaveClass("!bg-transparent");
@@ -286,9 +288,22 @@ describe("Modal", () => {
 
     const modalBox = screen.getByText("Box classes").closest("div");
     expect(modalBox).toHaveClass("modal-box");
+    expect(modalBox).toHaveClass("no-drag");
     expect(modalBox).toHaveClass("border");
     expect(modalBox).toHaveClass("border-black");
     expect(modalBox).toHaveClass("bg-base-300");
     expect(modalBox).toHaveClass("shadow-[0px_0px_18px_0px_rgba(0,0,0,0.5)]");
+  });
+
+  it('applies "no-drag" to the backdrop interaction surface', () => {
+    const { container } = renderWithProviders(
+      <Modal>
+        <p>Backdrop no-drag</p>
+      </Modal>,
+    );
+
+    expect(container.querySelector('form[method="dialog"]')).toHaveClass(
+      "no-drag",
+    );
   });
 });
