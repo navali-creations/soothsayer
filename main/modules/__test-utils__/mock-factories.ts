@@ -214,7 +214,6 @@ export function createSettingsStoreMock(
       OverlayToolbarFontSize: "overlayToolbarFontSize",
       MainWindowBounds: "mainWindowBounds",
       TelemetryCrashReporting: "telemetryCrashReporting",
-      TelemetryUsageAnalytics: "telemetryUsageAnalytics",
       CsvExportPath: "csvExportPath",
       CommunityUploadsEnabled: "communityUploadsEnabled",
       AppPerformanceMonitorEnabled: "appPerformanceMonitorEnabled",

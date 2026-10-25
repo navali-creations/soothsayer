@@ -5,7 +5,6 @@ import {
   screen,
   waitFor,
 } from "~/renderer/__test-setup__/render";
-import { trackEvent } from "~/renderer/modules/umami";
 import { useBoundStore } from "~/renderer/store";
 
 import StorageSettingsCard from "./StorageSettingsCard";
@@ -20,8 +19,6 @@ vi.mock("~/renderer/store", async () => {
 });
 
 const mockUseBoundStore = vi.mocked(useBoundStore);
-const mockTrackEvent = vi.mocked(trackEvent);
-
 vi.mock("../storage/DeleteLeagueModal/DeleteLeagueModal", () => ({
   default: (props: any) => (
     <div data-testid="delete-modal" data-league={props.league?.leagueId || ""}>
@@ -220,9 +217,9 @@ describe("StorageSettingsCard", () => {
     expect(screen.getByTestId("delete-modal")).toBeInTheDocument();
   });
 
-  // ── handleRefresh calls trackEvent ─────────────────────────────────────
+  // ── handleRefresh ──────────────────────────────────────────────────────
 
-  it("calls trackEvent with refresh action after Retry click", async () => {
+  it("refreshes storage data after Retry click", async () => {
     mockFetchStorageInfo.mockResolvedValue(undefined);
     mockFetchLeagueUsage.mockResolvedValue(undefined);
     setupStore({ error: "Something went wrong" });
@@ -232,9 +229,8 @@ describe("StorageSettingsCard", () => {
     await user.click(retryButton);
 
     await waitFor(() => {
-      expect(mockTrackEvent).toHaveBeenCalledWith("settings-storage", {
-        action: "refresh",
-      });
+      expect(mockFetchStorageInfo).toHaveBeenCalledTimes(2);
+      expect(mockFetchLeagueUsage).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -260,7 +256,7 @@ describe("StorageSettingsCard", () => {
 
   // ── handleDeleteConfirm ────────────────────────────────────────────────
 
-  it("calls deleteLeagueData and trackEvent when confirm is clicked", async () => {
+  it("calls deleteLeagueData when confirm is clicked", async () => {
     mockDeleteLeagueData.mockResolvedValue(undefined);
     setupStore({
       info: { totalBytes: 1000, databaseBytes: 500 },
@@ -285,10 +281,6 @@ describe("StorageSettingsCard", () => {
 
     await waitFor(() => {
       expect(mockDeleteLeagueData).toHaveBeenCalledWith("test-league-123");
-      expect(mockTrackEvent).toHaveBeenCalledWith("settings-storage", {
-        action: "delete-league",
-        leagueId: "test-league-123",
-      });
     });
   });
 

@@ -1,27 +1,18 @@
 import { BackButton, Flex } from "~/renderer/components";
-import { trackEvent } from "~/renderer/modules/umami";
 import { useCardDetails } from "~/renderer/store";
 
 const HeaderActions = () => {
-  const {
-    selectedLeague,
-    setSelectedLeague,
-    getAvailableLeagues,
-    personalAnalytics,
-  } = useCardDetails();
+  const { selectedLeague, setSelectedLeague, getAvailableLeagues } =
+    useCardDetails();
 
   const availableLeagues = getAvailableLeagues();
   const leagueOptions =
     selectedLeague !== "all" && !availableLeagues.includes(selectedLeague)
       ? [selectedLeague, ...availableLeagues]
       : availableLeagues;
-  const cardName = personalAnalytics?.cardName;
 
   const handleLeagueChange = (league: string) => {
     setSelectedLeague(league);
-    if (cardName) {
-      trackEvent("card-details:league-change", { cardName, league });
-    }
   };
 
   return (

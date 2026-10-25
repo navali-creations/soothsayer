@@ -50,7 +50,6 @@ export default defineConfig({
         "renderer/renderer.tsx",
         "renderer/preload.ts",
         "renderer/sentry.ts",
-        "renderer/modules/umami/**",
         "renderer/**/*.types.ts",
         "renderer/**/types.ts",
         "renderer/**/*.beacon.tsx",

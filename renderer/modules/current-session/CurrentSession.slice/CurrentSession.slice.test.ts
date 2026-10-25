@@ -6,7 +6,6 @@ import {
   createTestStore,
   type TestStore,
 } from "~/renderer/__test-setup__/test-store";
-import { trackEvent } from "~/renderer/modules/umami";
 import type { DetailedDivinationCardStats } from "~/types/data-stores";
 
 import { timelineBuffer } from "../CurrentSession.components/SessionProfitTimeline/timeline-buffer/timeline-buffer";
@@ -438,27 +437,6 @@ describe("CurrentSessionSlice", () => {
       expect(electron.session.start).toHaveBeenCalledWith("poe1", "Settlers");
     });
 
-    it("tracks event on successful start", async () => {
-      store = createTestStore({
-        settings: { selectedGame: "poe1", poe1SelectedLeague: "Settlers" },
-      });
-      electron = window.electron as unknown as ElectronMock;
-
-      electron.session.start.mockResolvedValue({ success: true });
-      electron.session.getCurrent.mockResolvedValue(makeSession());
-      electron.session.getInfo.mockResolvedValue(makeSessionInfo());
-
-      await store.getState().currentSession.startSession();
-
-      expect(trackEvent).toHaveBeenCalledWith(
-        "current-session:start",
-        expect.objectContaining({
-          game: "poe1",
-          league: "Settlers",
-        }),
-      );
-    });
-
     it("fetches current session data after successful start", async () => {
       store = createTestStore({
         settings: { selectedGame: "poe1", poe1SelectedLeague: "Settlers" },
@@ -527,10 +505,7 @@ describe("CurrentSessionSlice", () => {
         error: "Nope",
       });
 
-      vi.mocked(trackEvent).mockClear();
       await store.getState().currentSession.startSession();
-
-      expect(trackEvent).not.toHaveBeenCalled();
     });
 
     it("aborts when selectedGame or league is missing", async () => {
@@ -799,33 +774,6 @@ describe("CurrentSessionSlice", () => {
       expect(electron.session.stop).toHaveBeenCalledWith("poe1");
     });
 
-    it("tracks event on successful stop", async () => {
-      store = createTestStore({
-        settings: { selectedGame: "poe1" },
-      });
-      electron = window.electron as unknown as ElectronMock;
-
-      electron.session.stop.mockResolvedValue({
-        success: true,
-        game: "poe1",
-        league: "Settlers",
-        durationMs: 60000,
-        totalCount: 50,
-      });
-
-      await store.getState().currentSession.stopSession();
-
-      expect(trackEvent).toHaveBeenCalledWith(
-        "current-session:stop",
-        expect.objectContaining({
-          game: "poe1",
-          league: "Settlers",
-          durationMs: 60000,
-          totalCount: 50,
-        }),
-      );
-    });
-
     it("sets isLoading true during stop and false after", async () => {
       electron.session.stop.mockResolvedValue({ success: true });
 
@@ -845,18 +793,6 @@ describe("CurrentSessionSlice", () => {
       await store.getState().currentSession.stopSession();
 
       expect(store.getState().currentSession.isLoading).toBe(false);
-    });
-
-    it("does not track event on failure", async () => {
-      electron.session.stop.mockResolvedValue({
-        success: false,
-        error: "Nope",
-      });
-
-      vi.mocked(trackEvent).mockClear();
-      await store.getState().currentSession.stopSession();
-
-      expect(trackEvent).not.toHaveBeenCalled();
     });
 
     it("uses default error message when result.error is undefined", async () => {

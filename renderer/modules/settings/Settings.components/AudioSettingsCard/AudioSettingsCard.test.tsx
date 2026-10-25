@@ -7,7 +7,6 @@ import {
   screen,
   waitFor,
 } from "~/renderer/__test-setup__/render";
-import { trackEvent } from "~/renderer/modules/umami";
 import { useBoundStore } from "~/renderer/store";
 
 import AudioSettingsCard from "./AudioSettingsCard";
@@ -339,7 +338,6 @@ describe("AudioSettingsCard", () => {
         window.electron.settings.openCustomSoundsFolder,
       ).toHaveBeenCalledTimes(1);
     });
-    expect(trackEvent).toHaveBeenCalledWith("audio-open-sounds-folder");
   });
 
   // ── Volume slider onChange ─────────────────────────────────────────────
@@ -383,10 +381,6 @@ describe("AudioSettingsCard", () => {
         "/sounds/boom.mp3",
       );
     });
-    expect(trackEvent).toHaveBeenCalledWith("audio-assign-sound", {
-      rarity: 1,
-      type: "custom",
-    });
   });
 
   // ── handleAssignSound — selecting "Default (bundled)" ──────────────────
@@ -411,10 +405,6 @@ describe("AudioSettingsCard", () => {
         "audioRarity1Path",
         null,
       );
-    });
-    expect(trackEvent).toHaveBeenCalledWith("audio-assign-sound", {
-      rarity: 1,
-      type: "default",
     });
   });
 
@@ -492,10 +482,6 @@ describe("AudioSettingsCard", () => {
     expect(store.settings.setAudioPreviewingFile).toHaveBeenCalledWith(
       "rarity1.mp3",
     );
-    expect(trackEvent).toHaveBeenCalledWith("audio-preview-rarity", {
-      rarity: 1,
-      type: "default",
-    });
   });
 
   // ── handlePreview — custom sound ──────────────────────────────────────
@@ -535,9 +521,6 @@ describe("AudioSettingsCard", () => {
     expect(store.settings.setAudioPreviewingFile).toHaveBeenCalledWith(
       "/sounds/boom.mp3",
     );
-    expect(trackEvent).toHaveBeenCalledWith("audio-preview-sound", {
-      type: "custom",
-    });
   });
 
   // ── handlePreview — getCustomSoundData returns null → early return ─────
@@ -717,34 +700,5 @@ describe("AudioSettingsCard", () => {
     unmount();
 
     expect(audio.pause).toHaveBeenCalledTimes(1);
-  });
-
-  // ── handlePreviewRarity tracks event with correct type ─────────────────
-
-  it("handlePreviewRarity tracks event with custom type when custom path set", async () => {
-    setupStore({
-      settings: {
-        audioVolume: 0.5,
-        audioRarity3Path: "/sounds/rare.mp3",
-        audioDetectedFiles: [
-          { filename: "rare.mp3", fullPath: "/sounds/rare.mp3" },
-        ],
-      },
-    });
-    (
-      window.electron.settings.getCustomSoundData as ReturnType<typeof vi.fn>
-    ).mockResolvedValue("data:audio/mp3;base64,rare");
-    const { user } = renderWithProviders(<AudioSettingsCard />);
-
-    const previewButtons = screen.getAllByTitle("Preview");
-    // Click the 3rd preview button (Rare)
-    await user.click(previewButtons[2]);
-
-    await waitFor(() => {
-      expect(trackEvent).toHaveBeenCalledWith("audio-preview-rarity", {
-        rarity: 3,
-        type: "custom",
-      });
-    });
   });
 });

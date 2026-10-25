@@ -7,8 +7,7 @@
  * 1. Register `@testing-library/jest-dom` matchers (toBeInTheDocument, etc.)
  * 2. Install a fresh `window.electron` mock (IPC bridge) per test
  * 3. Mock `@sentry/electron/renderer` to prevent real Sentry init in tests
- * 4. Mock the Umami analytics module to prevent real event tracking
- * 5. Mock `import.meta.env` values that renderer code reads at module level
+ * 4. Mock `import.meta.env` values that renderer code reads at module level
  */
 
 import "@testing-library/jest-dom/vitest";
@@ -46,16 +45,6 @@ vi.mock("@sentry/electron/renderer", () => ({
 //
 vi.mock("~/renderer/sentry", () => ({
   initSentry: vi.fn(),
-}));
-
-// ─── Mock: Umami analytics ─────────────────────────────────────────────────
-//
-// Prevent any real analytics calls; allow tests to assert on tracked events.
-//
-vi.mock("~/renderer/modules/umami", () => ({
-  initUmami: vi.fn(),
-  trackEvent: vi.fn(),
-  trackPageView: vi.fn(),
 }));
 
 // ─── Mock: electron module (bare import) ───────────────────────────────────

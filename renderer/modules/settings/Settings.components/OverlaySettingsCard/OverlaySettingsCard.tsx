@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { FiMaximize, FiType } from "react-icons/fi";
 import { LuMoveHorizontal, LuMoveVertical } from "react-icons/lu";
 
-import { trackEvent } from "~/renderer/modules/umami";
 import { useSettings } from "~/renderer/store";
 
 import { OverlayRangeControl } from "./OverlayRangeControl/OverlayRangeControl";
@@ -115,10 +114,6 @@ const OverlaySettingsCard = () => {
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const value = parseFloat(e.target.value);
       updateSetting("overlayFontSize", value);
-      trackEvent("settings-change", {
-        setting: "overlayFontSize",
-        value,
-      });
     },
     [updateSetting],
   );
@@ -127,10 +122,6 @@ const OverlaySettingsCard = () => {
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const value = parseFloat(e.target.value);
       updateSetting("overlayToolbarFontSize", value);
-      trackEvent("settings-change", {
-        setting: "overlayToolbarFontSize",
-        value,
-      });
     },
     [updateSetting],
   );
@@ -168,11 +159,6 @@ const OverlaySettingsCard = () => {
     // Reset font sizes to defaults
     await updateSetting("overlayFontSize", FONT_SIZE_DEFAULT);
     await updateSetting("overlayToolbarFontSize", TOOLBAR_FONT_SIZE_DEFAULT);
-
-    trackEvent("settings-change", {
-      setting: "overlay",
-      value: "restore-defaults",
-    });
   }, [updateSetting]);
 
   return (

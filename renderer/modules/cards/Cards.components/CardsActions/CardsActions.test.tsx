@@ -56,7 +56,6 @@ vi.mock("~/renderer/utils", () => ({
     filterId: null,
   }),
   encodeRaritySourceValue: (source: string, _filterId: string | null) => source,
-  getAnalyticsRaritySource: () => "test-source",
 }));
 
 // ─── Helpers ───────────────────────────────────────────────────────────────

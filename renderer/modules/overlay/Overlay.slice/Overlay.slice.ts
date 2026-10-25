@@ -1,7 +1,5 @@
 import type { StateCreator } from "zustand";
 
-import { OverlayChannel } from "~/main/modules/overlay/Overlay.channels";
-import { trackEvent } from "~/renderer/modules/umami";
 import type { BoundStore } from "~/renderer/store/store.types";
 
 import type { OverlayTab, SessionData } from "../Overlay.types";
@@ -85,7 +83,6 @@ export const createOverlaySlice: StateCreator<
         false,
         "overlaySlice/show",
       );
-      trackEvent(OverlayChannel.Show, { isVisible: true });
     },
 
     hide: async () => {
@@ -98,7 +95,6 @@ export const createOverlaySlice: StateCreator<
         false,
         "overlaySlice/hide",
       );
-      trackEvent(OverlayChannel.Hide, { isVisible: false });
     },
 
     toggle: async () => {
@@ -111,8 +107,6 @@ export const createOverlaySlice: StateCreator<
         false,
         "overlaySlice/toggle",
       );
-
-      trackEvent(OverlayChannel.Toggle, { isVisible });
     },
 
     setIsVisible: (isVisible) => {

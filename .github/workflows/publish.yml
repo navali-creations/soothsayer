@@ -135,7 +135,6 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          VITE_UMAMI_ID: ${{ secrets.VITE_UMAMI_ID }}
           VITE_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
           if [ -z "$VITE_SUPABASE_PUBLISHABLE_KEY" ]; then
@@ -154,7 +153,6 @@ jobs:
           echo "VITE_SUPABASE_URL=$VITE_SUPABASE_URL" > .env
           echo "VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY" >> .env
           echo "VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY" >> .env
-          echo "VITE_UMAMI_ID=$VITE_UMAMI_ID" >> .env
           echo "VITE_SENTRY_DSN=$VITE_SENTRY_DSN" >> .env
 
       - name: Create .env file (Windows)
@@ -164,7 +162,6 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          VITE_UMAMI_ID: ${{ secrets.VITE_UMAMI_ID }}
           VITE_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
           if (-not $env:VITE_SUPABASE_PUBLISHABLE_KEY) {
@@ -184,7 +181,6 @@ jobs:
             "VITE_SUPABASE_URL=$env:VITE_SUPABASE_URL"
             "VITE_SUPABASE_PUBLISHABLE_KEY=$env:VITE_SUPABASE_PUBLISHABLE_KEY"
             "VITE_SUPABASE_ANON_KEY=$env:VITE_SUPABASE_ANON_KEY"
-            "VITE_UMAMI_ID=$env:VITE_UMAMI_ID"
             "VITE_SENTRY_DSN=$env:VITE_SENTRY_DSN"
           )
           $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
@@ -264,7 +260,6 @@ jobs:
             exit 1
           fi
 
-          check_bundle "VITE_UMAMI_ID" "umami" "$RENDERER_TMP"
           rm -f "$RENDERER_TMP"
 
           if [ "$FAILED" -ne 0 ]; then
@@ -305,8 +300,6 @@ jobs:
           $rendererContent = Get-ChildItem $rendererDir -Recurse -Filter "*.js" |
             ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }
           $rendererAll = $rendererContent -join "`n"
-
-          Assert-Bundle "VITE_UMAMI_ID" "umami" $rendererAll
 
           if ($failed -ne 0) {
             exit 1

@@ -103,8 +103,6 @@ vi.mock(
 
 // ─── Imports (after mocks) ─────────────────────────────────────────────────
 
-import { trackEvent } from "~/renderer/modules/umami";
-
 import { onboardingConfig } from "./onboarding-config";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -182,21 +180,15 @@ describe("onboardingConfig", () => {
     }
   });
 
-  it("createTrackedTrigger renders a trigger that calls trackEvent on click", async () => {
+  it("renders a trigger component", () => {
     // Grab the first beacon's trigger component (game-selector)
     const allPagesPage = findPage("all-pages");
     const firstBeacon = allPagesPage.beacons[0];
     const TriggerComponent = firstBeacon.trigger.component;
 
-    const { user } = renderWithProviders(<TriggerComponent />);
+    renderWithProviders(<TriggerComponent />);
 
     const triggerButton = screen.getByTestId("repere-trigger");
     expect(triggerButton).toBeInTheDocument();
-
-    await user.click(triggerButton);
-
-    expect(trackEvent).toHaveBeenCalledWith("onboarding-trigger-clicked", {
-      beaconId: firstBeacon.id,
-    });
   });
 });

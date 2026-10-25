@@ -1,5 +1,4 @@
 import type { UserSettingsDTO } from "~/main/modules/settings-store/SettingsStore.dto";
-import { trackEvent } from "~/renderer/modules/umami";
 
 import type { FilePathCategory, SettingsCategory } from "../Settings.types";
 
@@ -53,7 +52,6 @@ export const createAppBehaviorCategory = (
       ],
       onChange: (value) => {
         updateSetting("appExitAction", value as "exit" | "minimize");
-        trackEvent("settings-change", { setting: "appExitAction", value });
       },
     },
     {
@@ -63,7 +61,6 @@ export const createAppBehaviorCategory = (
       value: settings.appOpenAtLogin,
       onChange: (value) => {
         updateSetting("appOpenAtLogin", value);
-        trackEvent("settings-change", { setting: "appOpenAtLogin", value });
       },
     },
     {
@@ -73,10 +70,6 @@ export const createAppBehaviorCategory = (
       value: settings.appOpenAtLoginMinimized,
       onChange: (value) => {
         updateSetting("appOpenAtLoginMinimized", value);
-        trackEvent("settings-change", {
-          setting: "appOpenAtLoginMinimized",
-          value,
-        });
       },
     },
   ],
@@ -99,7 +92,6 @@ export const handleSelectFile = async (
 
     if (filePath) {
       await updateSetting(key, filePath);
-      trackEvent("settings-change", { setting: key, hasPath: true });
     }
   } catch (error) {
     console.error("Error selecting file:", error);

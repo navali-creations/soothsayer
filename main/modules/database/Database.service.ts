@@ -569,24 +569,6 @@ class DatabaseService {
       `);
 
       // ═══════════════════════════════════════════════════════════════
-      // CARD PRICE HISTORY CACHE (poe.ninja exchange details cache)
-      // ═══════════════════════════════════════════════════════════════
-      this.db.exec(`
-        CREATE TABLE IF NOT EXISTS card_price_history_cache (
-          id INTEGER PRIMARY KEY,
-          game TEXT NOT NULL CHECK(game IN ('poe1', 'poe2')),
-          league TEXT NOT NULL,
-          details_id TEXT NOT NULL,
-          card_name TEXT NOT NULL,
-          response_data TEXT NOT NULL,
-          fetched_at TEXT NOT NULL,
-          created_at TEXT NOT NULL DEFAULT (datetime('now')),
-          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-          UNIQUE(game, league, details_id)
-        )
-      `);
-
-      // ═══════════════════════════════════════════════════════════════
       // FILTER CARD RARITIES (per-filter card-to-rarity mappings)
       // ═══════════════════════════════════════════════════════════════
       this.db.exec(`
@@ -682,9 +664,8 @@ class DatabaseService {
           rarity_source TEXT NOT NULL DEFAULT 'poe.ninja' CHECK(rarity_source IN ('poe.ninja', 'filter', 'prohibited-library')),
           selected_filter_id TEXT REFERENCES filter_metadata(id) ON DELETE SET NULL,
 
-          -- Telemetry settings (default 0 = disabled for existing users; new users choose in setup wizard)
+          -- Crash reporting (default 0 = disabled for existing users; new users choose in setup wizard)
           telemetry_crash_reporting INTEGER NOT NULL DEFAULT 0,
-          telemetry_usage_analytics INTEGER NOT NULL DEFAULT 0,
 
           -- Post-update detection
           last_seen_app_version TEXT,

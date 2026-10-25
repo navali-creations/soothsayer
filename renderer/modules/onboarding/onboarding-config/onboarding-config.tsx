@@ -24,29 +24,18 @@ import RarityInsightsProhibitedLibraryBeacon from "../../rarity-insights/RarityI
 import RarityInsightsRefreshBeacon from "../../rarity-insights/RarityInsights.beacons/RarityInsightsRefreshBeacon";
 import RarityInsightsScanBeacon from "../../rarity-insights/RarityInsights.beacons/RarityInsightsScanBeacon";
 import RarityInsightsToolbarBeacon from "../../rarity-insights/RarityInsights.beacons/RarityInsightsToolbarBeacon";
-import { trackEvent } from "../../umami";
 import { repereStoreAdapter } from "../repereStoreAdapter/repereStoreAdapter";
 
-// Factory function to create tracked triggers that fire on click
-const createTrackedTrigger = (beaconId: string) => {
-  return () => {
-    const handleClick = () => {
-      trackEvent("onboarding-trigger-clicked", { beaconId });
-    };
-
-    return (
-      <RepereTrigger
-        as={Button}
-        circle
-        size="xs"
-        className="bg-[color-mix(in_oklab,var(--color-accent)_70%,black)]  hover:bg-[color-mix(in_oklab,var(--color-primary)_100%,white)] hover:text-accent-content/80 animate-pulse-ring border-2 border-primary"
-        onClick={handleClick}
-      >
-        <TiInfoLargeOutline size={18} />
-      </RepereTrigger>
-    );
-  };
-};
+const createTrigger = () => () => (
+  <RepereTrigger
+    as={Button}
+    circle
+    size="xs"
+    className="bg-[color-mix(in_oklab,var(--color-accent)_70%,black)]  hover:bg-[color-mix(in_oklab,var(--color-primary)_100%,white)] hover:text-accent-content/80 animate-pulse-ring border-2 border-primary"
+  >
+    <TiInfoLargeOutline size={18} />
+  </RepereTrigger>
+);
 
 export const onboardingConfig: RepereReactConfig = {
   store: repereStoreAdapter,
@@ -74,7 +63,7 @@ export const onboardingConfig: RepereReactConfig = {
           id: "game-selector",
           selector: "[data-onboarding='game-selector']",
           trigger: {
-            component: createTrackedTrigger("game-selector"),
+            component: createTrigger(),
             anchorPoint: AnchorPoint.BottomCenter,
             offset: {
               y: 5,
@@ -91,7 +80,7 @@ export const onboardingConfig: RepereReactConfig = {
           id: "overlay-icon",
           selector: "[data-onboarding='overlay-icon']",
           trigger: {
-            component: createTrackedTrigger("overlay-icon"),
+            component: createTrigger(),
             anchorPoint: AnchorPoint.BottomCenter,
           },
           popover: {
@@ -112,7 +101,7 @@ export const onboardingConfig: RepereReactConfig = {
           id: "current-session-rarity-source",
           selector: "[data-onboarding='current-session-rarity-source']",
           trigger: {
-            component: createTrackedTrigger("current-session-rarity-source"),
+            component: createTrigger(),
             anchorPoint: AnchorPoint.LeftCenter,
             offset: {
               x: -10,
@@ -130,7 +119,7 @@ export const onboardingConfig: RepereReactConfig = {
           id: "start-session",
           selector: "[data-onboarding='start-session']",
           trigger: {
-            component: createTrackedTrigger("start-session"),
+            component: createTrigger(),
             anchorPoint: AnchorPoint.BottomCenter,
             offset: {
               y: 0,
@@ -154,7 +143,7 @@ export const onboardingConfig: RepereReactConfig = {
           id: "rarity-insights-poe-ninja",
           selector: "[data-onboarding='rarity-insights-poe-ninja']",
           trigger: {
-            component: createTrackedTrigger("rarity-insights-poe-ninja"),
+            component: createTrigger(),
             anchorPoint: AnchorPoint.TopRight,
           },
           popover: {
@@ -169,9 +158,7 @@ export const onboardingConfig: RepereReactConfig = {
           id: "rarity-insights-prohibited-library",
           selector: "[data-onboarding='rarity-insights-prohibited-library']",
           trigger: {
-            component: createTrackedTrigger(
-              "rarity-insights-prohibited-library",
-            ),
+            component: createTrigger(),
             anchorPoint: AnchorPoint.TopRight,
           },
           popover: {
@@ -187,7 +174,7 @@ export const onboardingConfig: RepereReactConfig = {
           id: "rarity-insights-refresh",
           selector: "[data-onboarding='rarity-insights-refresh']",
           trigger: {
-            component: createTrackedTrigger("rarity-insights-refresh"),
+            component: createTrigger(),
             anchorPoint: AnchorPoint.BottomCenter,
             offset: {
               y: 5,
@@ -205,7 +192,7 @@ export const onboardingConfig: RepereReactConfig = {
           id: "rarity-insights-scan",
           selector: "[data-onboarding='rarity-insights-scan']",
           trigger: {
-            component: createTrackedTrigger("rarity-insights-scan"),
+            component: createTrigger(),
             anchorPoint: AnchorPoint.BottomCenter,
             offset: {
               y: 5,
@@ -223,7 +210,7 @@ export const onboardingConfig: RepereReactConfig = {
           id: "rarity-insights-toolbar",
           selector: "[data-onboarding='rarity-insights-toolbar']",
           trigger: {
-            component: createTrackedTrigger("rarity-insights-toolbar"),
+            component: createTrigger(),
             anchorPoint: AnchorPoint.TopCenter,
             offset: {
               y: -5,
@@ -247,7 +234,7 @@ export const onboardingConfig: RepereReactConfig = {
           id: "pf-pl-card-only",
           selector: "[data-onboarding='pf-pl-card-only']",
           trigger: {
-            component: createTrackedTrigger("pf-pl-card-only"),
+            component: createTrigger(),
             anchorPoint: AnchorPoint.BottomCenter,
             offset: {
               y: 5,
@@ -265,7 +252,7 @@ export const onboardingConfig: RepereReactConfig = {
           id: "pf-pl-all-drops",
           selector: "[data-onboarding='pf-pl-all-drops']",
           trigger: {
-            component: createTrackedTrigger("pf-pl-all-drops"),
+            component: createTrigger(),
             anchorPoint: AnchorPoint.BottomCenter,
             offset: {
               y: 5,
@@ -283,7 +270,7 @@ export const onboardingConfig: RepereReactConfig = {
           id: "pf-break-even-rate",
           selector: "[data-onboarding='pf-break-even-rate']",
           trigger: {
-            component: createTrackedTrigger("pf-break-even-rate"),
+            component: createTrigger(),
             anchorPoint: AnchorPoint.TopCenter,
             offset: {
               y: 10,
@@ -301,7 +288,7 @@ export const onboardingConfig: RepereReactConfig = {
           id: "pf-cost-model",
           selector: "[data-onboarding='pf-cost-model']",
           trigger: {
-            component: createTrackedTrigger("pf-cost-model"),
+            component: createTrigger(),
             anchorPoint: AnchorPoint.BottomCenter,
             offset: {
               y: -10,
@@ -319,7 +306,7 @@ export const onboardingConfig: RepereReactConfig = {
           id: "pf-base-rate",
           selector: "[data-onboarding='pf-base-rate']",
           trigger: {
-            component: createTrackedTrigger("pf-base-rate"),
+            component: createTrigger(),
             anchorPoint: AnchorPoint.TopCenter,
             offset: {
               y: 10,

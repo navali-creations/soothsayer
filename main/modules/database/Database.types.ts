@@ -215,7 +215,6 @@ export interface UserSettingsTable {
 
   // Telemetry settings
   telemetry_crash_reporting: number; // SQLite boolean (0 or 1)
-  telemetry_usage_analytics: number; // SQLite boolean (0 or 1)
 
   // Post-update detection
   last_seen_app_version: string | null;
@@ -285,22 +284,6 @@ export interface UserPreferencesTable {
   id: number;
   theme: string;
   created_at: ColumnType<string, string | undefined, never>;
-}
-
-/**
- * Main database interface
- * Maps table names to their types
- */
-export interface CardPriceHistoryCacheTable {
-  id: ColumnType<number, never, never>; // Auto-increment
-  game: string; // "poe1" | "poe2"
-  league: string;
-  details_id: string;
-  card_name: string;
-  response_data: string; // JSON blob of CardPriceHistoryDTO
-  fetched_at: string; // ISO timestamp of original poe.ninja fetch
-  created_at: ColumnType<string, string | undefined, never>;
-  updated_at: ColumnType<string, string | undefined, string | undefined>;
 }
 
 export interface CsvExportSnapshotsTable {
@@ -383,6 +366,10 @@ export interface AppPerformanceRouteMarkersTable {
   created_at: ColumnType<string, string | undefined, never>;
 }
 
+/**
+ * Main database interface
+ * Maps table names to their types
+ */
 export interface Database {
   app_metadata: AppMetadataTable;
   global_stats: GlobalStatsTable;
@@ -400,7 +387,6 @@ export interface Database {
   divination_card_availability: DivinationCardAvailabilityTable;
   poe_leagues_cache: PoeLeaguesCacheTable;
   poe_leagues_cache_metadata: PoeLeaguesCacheMetadataTable;
-  card_price_history_cache: CardPriceHistoryCacheTable;
   csv_export_snapshots: CsvExportSnapshotsTable;
   community_upload_snapshot: CommunityUploadSnapshotTable;
   community_upload_outbox: CommunityUploadOutboxTable;
@@ -433,5 +419,4 @@ export type PoeLeaguesCacheMetadataRow =
 export type FilterMetadataRow = Selectable<FilterMetadataTable>;
 export type FilterCardRaritiesRow = Selectable<FilterCardRaritiesTable>;
 export type FilterTierStylesRow = Selectable<FilterTierStylesTable>;
-export type CardPriceHistoryCacheRow = Selectable<CardPriceHistoryCacheTable>;
 export type CsvExportSnapshotsRow = Selectable<CsvExportSnapshotsTable>;

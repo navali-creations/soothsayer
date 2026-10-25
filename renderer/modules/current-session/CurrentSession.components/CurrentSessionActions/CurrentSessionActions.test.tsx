@@ -92,7 +92,6 @@ vi.mock("~/renderer/utils", () => ({
   encodeRaritySourceValue: vi.fn((source: string, filterId: any) =>
     filterId ? `filter:${filterId}` : source,
   ),
-  getAnalyticsRaritySource: vi.fn(() => "poe.ninja"),
 }));
 
 const mockDecodeRaritySourceValue = vi.mocked(decodeRaritySourceValue);

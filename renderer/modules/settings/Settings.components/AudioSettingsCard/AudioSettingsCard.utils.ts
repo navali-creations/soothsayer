@@ -2,7 +2,6 @@ import type { CustomSoundFile } from "~/main/modules/settings-store/SettingsStor
 import rarity1Sound from "~/renderer/assets/audio/rarity1.mp3";
 import rarity2Sound from "~/renderer/assets/audio/rarity2.mp3";
 import rarity3Sound from "~/renderer/assets/audio/rarity3.mp3";
-import { trackEvent } from "~/renderer/modules/umami";
 
 export const AUDIO_RARITIES = [1, 2, 3] as const;
 
@@ -66,9 +65,6 @@ export async function playAudioPreview({
     activePreviewAudio = audio;
     setAudioPreviewingFile(source);
     await audio.play();
-    trackEvent("audio-preview-sound", {
-      type: isCustom ? "custom" : "default",
-    });
   } catch (error) {
     console.error("Failed to preview sound:", error);
     setAudioPreviewingFile(null);
@@ -89,8 +85,4 @@ export async function assignAudioRaritySound({
 }) {
   const key = AUDIO_RARITY_SETTING_KEYS[rarity - 1];
   await updateSetting(key, file?.fullPath ?? null);
-  trackEvent("audio-assign-sound", {
-    rarity,
-    type: file ? "custom" : "default",
-  });
 }

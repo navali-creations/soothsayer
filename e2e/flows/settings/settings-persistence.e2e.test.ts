@@ -75,32 +75,6 @@ test.describe("Settings", () => {
       expect(value === "poe1" || value === "poe2").toBe(true);
     });
 
-    test("should persist a setting change via IPC and read it back", async ({
-      page,
-    }) => {
-      // Read current value
-      const original = await getSetting<boolean>(
-        page,
-        "telemetryUsageAnalytics",
-      );
-      const originalBool = typeof original === "boolean" ? original : false;
-
-      // Toggle it
-      const toggled = !originalBool;
-      await setSetting(page, "telemetryUsageAnalytics", toggled);
-
-      // Read it back
-      const updated = await getSetting<boolean>(
-        page,
-        "telemetryUsageAnalytics",
-      );
-      expect(updated).toBe(toggled);
-      expect(updated).not.toBe(originalBool);
-
-      // Restore
-      await setSetting(page, "telemetryUsageAnalytics", originalBool);
-    });
-
     test("should persist a numeric setting via IPC", async ({ page }) => {
       const original = await getSetting<number>(page, "audioVolume");
       const originalNum = typeof original === "number" ? original : 0.5;

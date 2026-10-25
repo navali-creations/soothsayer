@@ -8,7 +8,6 @@ import rarity3Sound from "~/renderer/assets/audio/rarity3.mp3";
 import { initSentry } from "~/renderer/sentry";
 import { useBoundStore, useOverlay } from "~/renderer/store";
 
-import { initUmami } from "../../umami";
 import {
   OverlayContent,
   OverlaySidebar,
@@ -19,12 +18,11 @@ import { useOverlaySessionSync } from "./useOverlaySessionSync/useOverlaySession
 
 import "../../../index.css";
 
-// Read telemetry settings before initializing Sentry and Umami.
+// Read telemetry settings before initializing Sentry.
 async function initTelemetry() {
   try {
     const settings = await window.electron.settings.getAll();
     initSentry(settings.telemetryCrashReporting);
-    initUmami(settings.telemetryUsageAnalytics);
   } catch (error) {
     console.warn(
       "[Overlay] Could not load telemetry settings, skipping telemetry init:",

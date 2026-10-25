@@ -102,7 +102,6 @@ class AppSetupService {
       poe1ClientPath: settings.poe1ClientTxtPath,
       poe2ClientPath: settings.poe2ClientTxtPath,
       telemetryCrashReporting: settings.telemetryCrashReporting,
-      telemetryUsageAnalytics: settings.telemetryUsageAnalytics,
     };
   }
 
@@ -127,7 +126,7 @@ class AppSetupService {
       case SETUP_STEPS.SELECT_CLIENT_PATH:
         return await this.validateClientPaths();
       case SETUP_STEPS.TELEMETRY_CONSENT:
-        // No validation required — both toggles off is a valid choice
+        // No validation required — opting out is a valid choice
         return { isValid: true, errors: [] };
       default:
         return { isValid: true, errors: [] };
@@ -282,11 +281,9 @@ class AppSetupService {
     }
 
     // When entering the telemetry consent step for the first time,
-    // default both toggles to ON (opt-out model for new users).
-    // Existing users upgrading already have these defaulted to 0 via migration.
+    // default crash reporting to ON (opt-out model for new users).
     if (nextStep === SETUP_STEPS.TELEMETRY_CONSENT) {
       await this.settingsStore.set(SettingsKey.TelemetryCrashReporting, true);
-      await this.settingsStore.set(SettingsKey.TelemetryUsageAnalytics, true);
     }
 
     await this.settingsStore.set(SettingsKey.SetupStep, nextStep);
@@ -366,9 +363,8 @@ class AppSetupService {
    * Skip setup (for power users who want to configure manually)
    */
   public async skipSetup(): Promise<void> {
-    // When skipping, enable telemetry by default (opt-out model for new users)
+    // When skipping, enable crash reporting by default for new users.
     await this.settingsStore.set(SettingsKey.TelemetryCrashReporting, true);
-    await this.settingsStore.set(SettingsKey.TelemetryUsageAnalytics, true);
     await this.settingsStore.set(SettingsKey.SetupCompleted, true);
     await this.settingsStore.set(SettingsKey.SetupStep, 4);
   }

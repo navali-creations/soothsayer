@@ -3,19 +3,14 @@ import { FiAlertTriangle, FiExternalLink } from "react-icons/fi";
 
 import { SettingsKey } from "~/main/modules/settings-store/SettingsStore.keys";
 import { Button, Link } from "~/renderer/components";
-import { trackEvent } from "~/renderer/modules/umami";
 import { useCommunityUpload, useSettings } from "~/renderer/store";
 
 import GggAccountLinkConfirmModal from "../GggAccountLinkConfirmModal/GggAccountLinkConfirmModal";
 
 const PrivacySettingsCard = () => {
   const [isGggLinkConfirmOpen, setIsGggLinkConfirmOpen] = useState(false);
-  const {
-    telemetryCrashReporting,
-    telemetryUsageAnalytics,
-    communityUploadsEnabled,
-    updateSetting,
-  } = useSettings();
+  const { telemetryCrashReporting, communityUploadsEnabled, updateSetting } =
+    useSettings();
 
   const {
     gggAuthenticated,
@@ -32,27 +27,10 @@ const PrivacySettingsCard = () => {
 
   const handleCrashReportingToggle = async (enabled: boolean) => {
     await updateSetting(SettingsKey.TelemetryCrashReporting, enabled);
-    trackEvent("settings-change", {
-      setting: "telemetryCrashReporting",
-      value: enabled,
-    });
-  };
-
-  const handleUsageAnalyticsToggle = async (enabled: boolean) => {
-    // Track before applying, in case the user is opting out of analytics
-    trackEvent("settings-change", {
-      setting: "telemetryUsageAnalytics",
-      value: enabled,
-    });
-    await updateSetting(SettingsKey.TelemetryUsageAnalytics, enabled);
   };
 
   const handleCommunityUploadsToggle = async (enabled: boolean) => {
     await updateSetting(SettingsKey.CommunityUploadsEnabled, enabled);
-    trackEvent("settings-change", {
-      setting: "communityUploadsEnabled",
-      value: enabled,
-    });
   };
 
   const handleCrashReportingChange = async (
@@ -61,20 +39,10 @@ const PrivacySettingsCard = () => {
     await handleCrashReportingToggle(event.target.checked);
   };
 
-  const handleUsageAnalyticsChange = async (
-    event: ChangeEvent<HTMLInputElement>,
-  ) => {
-    await handleUsageAnalyticsToggle(event.target.checked);
-  };
-
   const handleCommunityUploadsChange = async (
     event: ChangeEvent<HTMLInputElement>,
   ) => {
     await handleCommunityUploadsToggle(event.target.checked);
-  };
-
-  const handlePrivacyPolicyClick = () => {
-    trackEvent("settings-privacy-policy-viewed");
   };
 
   const handleOpenGggLinkConfirm = () => {
@@ -113,25 +81,6 @@ const PrivacySettingsCard = () => {
                 className="toggle toggle-sm toggle-primary"
                 checked={telemetryCrashReporting}
                 onChange={handleCrashReportingChange}
-              />
-            </label>
-          </div>
-
-          {/* Usage Analytics */}
-          <div className="py-3">
-            <label className="grid cursor-pointer grid-cols-[1fr_33px] gap-4">
-              <div style={{ textWrap: "auto" }}>
-                <span className="text-sm font-semibold">Usage Analytics</span>
-                <p className="mt-1 text-sm text-base-content/60">
-                  Help us understand which features are used most. No personal
-                  data is collected.
-                </p>
-              </div>
-              <input
-                type="checkbox"
-                className="toggle toggle-sm toggle-primary"
-                checked={telemetryUsageAnalytics}
-                onChange={handleUsageAnalyticsChange}
               />
             </label>
           </div>
@@ -215,11 +164,7 @@ const PrivacySettingsCard = () => {
                 Privacy Policy
               </span>
             </div>
-            <Link
-              to="/privacy-policy"
-              className="btn btn-primary btn-xs gap-1"
-              onClick={handlePrivacyPolicyClick}
-            >
+            <Link to="/privacy-policy" className="btn btn-primary btn-xs gap-1">
               View
             </Link>
           </div>

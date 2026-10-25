@@ -9,7 +9,6 @@ import {
   Search,
   Table,
 } from "~/renderer/components";
-import { trackEvent } from "~/renderer/modules/umami";
 import { useStatistics } from "~/renderer/store";
 import { formatRelativeTime } from "~/renderer/utils";
 
@@ -93,27 +92,14 @@ export const StatisticsTable = ({
 
   const handleExportAll = async () => {
     const result = await exportAll(currentScope);
-    if (result.success) {
-      trackEvent("csv-export", {
-        type: "all",
-        scope: currentScope,
-        source: "statistics",
-      });
-    } else if (!result.canceled) {
+    if (!result.success && !result.canceled) {
       alert(result.error ?? "Failed to export CSV. Please try again.");
     }
   };
 
   const handleExportIncremental = async () => {
     const result = await exportIncremental(currentScope);
-    if (result.success) {
-      trackEvent("csv-export", {
-        type: "incremental",
-        scope: currentScope,
-        newDrops: newTotalDrops,
-        source: "statistics",
-      });
-    } else if (!result.canceled) {
+    if (!result.success && !result.canceled) {
       alert(result.error ?? "Failed to export CSV. Please try again.");
     }
   };

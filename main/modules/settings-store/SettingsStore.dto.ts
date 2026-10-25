@@ -38,7 +38,6 @@ export interface UserSettingsDTO {
     height: number;
   } | null;
   telemetryCrashReporting: boolean;
-  telemetryUsageAnalytics: boolean;
   csvExportPath: string | null;
   communityUploadsEnabled: boolean;
   appPerformanceMonitorEnabled: boolean;

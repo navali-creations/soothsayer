@@ -1,10 +1,5 @@
 import { useEffect } from "react";
-import {
-  FiBarChart2,
-  FiExternalLink,
-  FiShield,
-  FiUploadCloud,
-} from "react-icons/fi";
+import { FiExternalLink, FiShield, FiUploadCloud } from "react-icons/fi";
 
 import { useBoundStore } from "~/renderer/store";
 
@@ -14,10 +9,8 @@ const PRIVACY_POLICY_URL =
 const SetupTelemetryStep = () => {
   const { hydrate } = useBoundStore((s) => s.settings);
 
-  // The backend sets both telemetry flags to true when entering step 4
-  // (via advanceStep). Re-hydrate so the renderer state picks up those
-  // values — otherwise the Zustand store keeps the stale defaults from
-  // the initial hydration that happened before the flags were written.
+  // The backend enables crash reporting when entering step 4. Re-hydrate so
+  // the renderer state picks up that value after the initial hydration.
   useEffect(() => {
     hydrate();
   }, [hydrate]);
@@ -59,31 +52,6 @@ const SetupTelemetryStep = () => {
           </div>
         </div>
 
-        {/* Usage Analytics */}
-        <div className="bg-base-100 border border-base-content/10 rounded-lg p-4">
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5 text-primary">
-              <FiBarChart2 className="w-5 h-5" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-base-content">
-                Usage Analytics
-                <span className="ml-2 badge badge-sm badge-ghost font-normal">
-                  Umami
-                </span>
-              </h3>
-              <p className="text-xs text-base-content/60 mt-1">
-                Anonymous page views and feature usage help us understand which
-                parts of the app matter most, so we can focus our efforts where
-                they count.
-              </p>
-              <p className="text-xs text-base-content/50 mt-1.5 italic">
-                No personal data is collected. We see aggregated counts, not
-                individual activity.
-              </p>
-            </div>
-          </div>
-        </div>
         {/* Community Drop Rates */}
         <div className="bg-base-100 border border-base-content/10 rounded-lg p-4">
           <div className="flex items-start gap-3">
@@ -115,7 +83,7 @@ const SetupTelemetryStep = () => {
       </div>
 
       <p className="text-xs text-base-content/50 mt-4">
-        All three are enabled by default. You can opt out of any at any time in{" "}
+        Both are enabled by default. You can opt out of either at any time in{" "}
         <span className="font-semibold text-base-content/70">
           Settings → Privacy & Telemetry
         </span>

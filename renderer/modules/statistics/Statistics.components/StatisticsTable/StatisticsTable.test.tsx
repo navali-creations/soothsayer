@@ -1,6 +1,5 @@
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
 import { createCardRatioColumn } from "~/renderer/components";
-import { trackEvent } from "~/renderer/modules/umami";
 import { useBoundStore } from "~/renderer/store";
 
 import type { CardEntry } from "../../Statistics.types";
@@ -14,10 +13,6 @@ vi.mock("~/renderer/store", async () => {
   );
   return createStoreMock();
 });
-
-vi.mock("~/renderer/modules/umami", () => ({
-  trackEvent: vi.fn(),
-}));
 
 vi.mock("~/renderer/components", () => ({
   Dropdown: ({ trigger, children, ...props }: any) => (
@@ -494,7 +489,7 @@ describe("StatisticsTable", () => {
 
   // ── Export: handleExportAll ──────────────────────────────────────────
 
-  it("calls trackEvent after a successful exportAll", async () => {
+  it("exports all cards for the current scope", async () => {
     const store = setupStore();
     store.exportAll.mockResolvedValue({ success: true });
     store.snapshotMeta = {
@@ -520,16 +515,11 @@ describe("StatisticsTable", () => {
     await user.click(exportAllButton);
 
     expect(store.exportAll).toHaveBeenCalledWith("all-time");
-    expect(trackEvent).toHaveBeenCalledWith("csv-export", {
-      type: "all",
-      scope: "all-time",
-      source: "statistics",
-    });
   });
 
   // ── Export: handleExportIncremental ─────────────────────────────────
 
-  it("calls trackEvent after a successful exportIncremental", async () => {
+  it("exports cards added since the previous export", async () => {
     const store = setupStore();
     store.exportIncremental.mockResolvedValue({ success: true });
     store.snapshotMeta = {
@@ -554,12 +544,6 @@ describe("StatisticsTable", () => {
     await user.click(exportIncrementalButton);
 
     expect(store.exportIncremental).toHaveBeenCalledWith("all-time");
-    expect(trackEvent).toHaveBeenCalledWith("csv-export", {
-      type: "incremental",
-      scope: "all-time",
-      newDrops: 5,
-      source: "statistics",
-    });
   });
 
   // ── Export: failure (not canceled) ───────────────────────────────────

@@ -2,7 +2,6 @@ import type { SortingState } from "@tanstack/react-table";
 import type { StateCreator } from "zustand";
 
 import type { DiscoveredRarityInsightsDTO } from "~/main/modules/rarity-insights/RarityInsights.dto";
-import { trackEvent } from "~/renderer/modules/umami";
 import type { BoundStore } from "~/renderer/store/store.types";
 import type { FilterTheme } from "~/renderer/utils";
 import type { KnownRarity, Rarity } from "~/types/data-stores";
@@ -160,8 +159,6 @@ export const createRarityInsightsComparisonSlice: StateCreator<
         // Fire-and-forget: parseFilter will handle its own state transitions.
         get().rarityInsightsComparison.parseFilter(filterId);
       }
-
-      trackEvent("filter-comparison-toggle", { filterId });
     },
 
     parseFilter: async (filterId: string) => {
@@ -221,11 +218,6 @@ export const createRarityInsightsComparisonSlice: StateCreator<
           false,
           "rarityInsightsComparison/parseFilter/success",
         );
-
-        trackEvent("filter-comparison-parse", {
-          filterId,
-          totalCards: result.totalCards,
-        });
       } catch (error) {
         console.error("Failed to parse filter:", error);
         set(
@@ -406,11 +398,6 @@ export const createRarityInsightsComparisonSlice: StateCreator<
             "rarityInsightsComparison/updateFilterCardRarity/success",
           );
           _diffsCacheVersion++;
-          trackEvent("modify-rarity-filter", {
-            filterId,
-            cardName,
-            rarity: newRarity,
-          });
         } else {
           console.error("Failed to update filter card rarity:", result);
         }

@@ -12,25 +12,6 @@ export const SETUP_STEPS = {
 } as const;
 
 /**
- * Game selection type for analytics
- */
-export type GameSelectionType = "poe1_only" | "poe2_only" | "both";
-
-/**
- * Helper to determine game selection type from array
- */
-export function getGameSelectionType(
-  games: ("poe1" | "poe2")[],
-): GameSelectionType {
-  const hasPoe1 = games.includes("poe1");
-  const hasPoe2 = games.includes("poe2");
-
-  if (hasPoe1 && hasPoe2) return "both";
-  if (hasPoe2) return "poe2_only";
-  return "poe1_only";
-}
-
-/**
  * Setup state for tracking progress
  */
 export type SetupState = {
@@ -44,8 +25,6 @@ export type SetupState = {
   poe2ClientPath: string | null;
   /** Whether the user has opted in to crash reporting (Sentry) */
   telemetryCrashReporting: boolean;
-  /** Whether the user has opted in to usage analytics (Umami) */
-  telemetryUsageAnalytics: boolean;
 };
 
 /**

@@ -188,7 +188,6 @@ function mockSettings(overrides: Record<string, unknown> = {}) {
     overlayFontSize: 1.0,
     overlayToolbarFontSize: 1.0,
     telemetryCrashReporting: false,
-    telemetryUsageAnalytics: false,
     ...overrides,
   });
 }

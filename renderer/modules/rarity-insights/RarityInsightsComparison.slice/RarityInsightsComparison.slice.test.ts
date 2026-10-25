@@ -8,7 +8,6 @@ import {
   createTestStore,
   type TestStore,
 } from "~/renderer/__test-setup__/test-store";
-import { trackEvent } from "~/renderer/modules/umami";
 
 let store: TestStore;
 let electron: ElectronMock;
@@ -162,21 +161,6 @@ describe("RarityInsightsComparison.slice", () => {
       slice().toggleFilter("filter-4");
       expect(slice().selectedFilters).toHaveLength(3);
       expect(slice().selectedFilters).not.toContain("filter-4");
-    });
-
-    it("tracks filter-comparison-toggle event", () => {
-      electron.rarityInsights.parse.mockResolvedValue({
-        filterId: "filter-1",
-        filterName: "My Filter",
-        totalCards: 0,
-        rarities: [],
-        hasDivinationSection: true,
-      });
-
-      slice().toggleFilter("filter-1");
-      expect(trackEvent).toHaveBeenCalledWith("filter-comparison-toggle", {
-        filterId: "filter-1",
-      });
     });
   });
 
@@ -664,11 +648,6 @@ describe("RarityInsightsComparison.slice", () => {
       expect(
         slice().parsedResults.get("filter-1")!.rarities.get("The Doctor"),
       ).toBe(3);
-      expect(trackEvent).toHaveBeenCalledWith("modify-rarity-filter", {
-        filterId: "filter-1",
-        cardName: "The Doctor",
-        rarity: 3,
-      });
     });
 
     it("does not crash when IPC throws an error", async () => {

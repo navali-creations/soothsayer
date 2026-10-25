@@ -28,7 +28,6 @@ export const SettingsKey = {
   OverlayToolbarFontSize: "overlayToolbarFontSize",
   MainWindowBounds: "mainWindowBounds",
   TelemetryCrashReporting: "telemetryCrashReporting",
-  TelemetryUsageAnalytics: "telemetryUsageAnalytics",
   CsvExportPath: "csvExportPath",
   CommunityUploadsEnabled: "communityUploadsEnabled",
   AppPerformanceMonitorEnabled: "appPerformanceMonitorEnabled",

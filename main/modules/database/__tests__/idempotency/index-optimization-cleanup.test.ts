@@ -7,11 +7,23 @@ import { createBaselineSchema, setupMigrationDb } from "../migrations-shared";
 describe("index_optimization_cleanup migration idempotency", () => {
   const { getDb } = setupMigrationDb();
 
+  function runMigrationsThroughIndexOptimization(
+    runner: MigrationRunner,
+  ): void {
+    const targetIndex = migrations.findIndex(
+      ({ id }) =>
+        id === migration_20260410_010600_index_optimization_cleanup.id,
+    );
+
+    expect(targetIndex).toBeGreaterThanOrEqual(0);
+    runner.runMigrations(migrations.slice(0, targetIndex + 1));
+  }
+
   it("should handle up() when indexes already exist", () => {
     const db = getDb();
     createBaselineSchema(db);
     const runner = new MigrationRunner(db);
-    runner.runMigrations(migrations);
+    runMigrationsThroughIndexOptimization(runner);
 
     expect(() =>
       migration_20260410_010600_index_optimization_cleanup.up(db),
@@ -22,7 +34,7 @@ describe("index_optimization_cleanup migration idempotency", () => {
     const db = getDb();
     createBaselineSchema(db);
     const runner = new MigrationRunner(db);
-    runner.runMigrations(migrations);
+    runMigrationsThroughIndexOptimization(runner);
 
     // Remove the indexes this migration created, then call down() again
     // — it should not throw even though the indexes are already gone
@@ -36,7 +48,7 @@ describe("index_optimization_cleanup migration idempotency", () => {
     const db = getDb();
     createBaselineSchema(db);
     const runner = new MigrationRunner(db);
-    runner.runMigrations(migrations);
+    runMigrationsThroughIndexOptimization(runner);
 
     db.prepare(
       "INSERT INTO leagues (id, name, game) VALUES ('l1', 'Test', 'poe1')",
@@ -55,7 +67,7 @@ describe("index_optimization_cleanup migration idempotency", () => {
     const db = getDb();
     createBaselineSchema(db);
     const runner = new MigrationRunner(db);
-    runner.runMigrations(migrations);
+    runMigrationsThroughIndexOptimization(runner);
 
     migration_20260410_010600_index_optimization_cleanup.down(db);
     expect(() =>

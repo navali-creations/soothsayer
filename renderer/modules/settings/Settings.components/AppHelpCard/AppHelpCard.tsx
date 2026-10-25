@@ -5,7 +5,6 @@ import { RiDiscordLine } from "react-icons/ri";
 import { Badge, Button } from "~/renderer/components";
 import { OnboardingButton } from "~/renderer/modules/onboarding";
 import { allOnboardingBeaconIds } from "~/renderer/modules/onboarding/onboarding-config/onboarding-labels";
-import { trackEvent } from "~/renderer/modules/umami";
 import {
   useBoundStore,
   useOnboardingActions,
@@ -89,9 +88,6 @@ const AppHelpCard = () => {
         return;
       }
 
-      trackEvent("onboarding-all-dismissed", {
-        source: "settings",
-      });
       setShowDismissedBadge(true);
 
       if (dismissBadgeTimeoutRef.current !== null) {

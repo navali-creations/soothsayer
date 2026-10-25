@@ -7,7 +7,6 @@ import { twMerge } from "tailwind-merge";
 export { cardNameToSlug } from "~/types/card-slug";
 
 import type {
-  DiscoveredRarityInsightsDTO,
   FilterTierStyleDTO,
   RaritySource,
 } from "~/main/modules/rarity-insights/RarityInsights.dto";
@@ -262,47 +261,4 @@ export function decodeRaritySourceValue(value: string): {
     };
   }
   return { raritySource: value as RaritySource, filterId: null };
-}
-
-// ─── Analytics Helpers ─────────────────────────────────────────────────────
-
-/** The only rarity-source values we ever send to analytics. */
-export type AnalyticsRaritySource =
-  | "poe-ninja"
-  | "prohibited-library"
-  | "online"
-  | "local";
-
-/**
- * Maps a rarity source (+ optional filter lookup) to an analytics-safe value.
- *
- * We intentionally avoid tracking individual filter names / IDs — only the
- * *category* matters:
- *
- *  - `"poe-ninja"`          – price-based dataset
- *  - `"prohibited-library"` – community dataset
- *  - `"online"`             – an online (subscribed) loot filter
- *  - `"local"`              – a locally-stored loot filter
- */
-export function getAnalyticsRaritySource(
-  raritySource: RaritySource,
-  filterId: string | null,
-  availableFilters: DiscoveredRarityInsightsDTO[],
-): AnalyticsRaritySource {
-  switch (raritySource) {
-    case "poe.ninja":
-      return "poe-ninja";
-    case "prohibited-library":
-      return "prohibited-library";
-    case "filter": {
-      if (filterId) {
-        const filter = availableFilters.find((f) => f.id === filterId);
-        if (filter) {
-          return filter.type; // "online" | "local"
-        }
-      }
-      // Fallback – shouldn't happen, but default to "local"
-      return "local";
-    }
-  }
 }

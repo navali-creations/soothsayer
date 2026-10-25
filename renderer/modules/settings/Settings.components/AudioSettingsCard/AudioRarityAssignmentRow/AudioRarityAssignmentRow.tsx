@@ -2,7 +2,6 @@ import type { ChangeEvent } from "react";
 import { FiPlay, FiSquare, FiX } from "react-icons/fi";
 
 import { Button } from "~/renderer/components";
-import { trackEvent } from "~/renderer/modules/umami";
 import { useSettingsShallow } from "~/renderer/store";
 import { RARITY_LABELS } from "~/renderer/utils";
 
@@ -60,10 +59,6 @@ export function AudioRarityAssignmentRow({
       audioVolume,
       audioPreviewingFile,
       setAudioPreviewingFile,
-    });
-    trackEvent("audio-preview-rarity", {
-      rarity,
-      type: isCustom ? "custom" : "default",
     });
   };
 

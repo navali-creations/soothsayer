@@ -42,7 +42,6 @@ export async function launchApp(
       NODE_ENV: "test",
       E2E_TESTING: "true",
       SENTRY_DSN: "",
-      UMAMI_WEBSITE_ID: "",
       ...env,
     },
     locale,

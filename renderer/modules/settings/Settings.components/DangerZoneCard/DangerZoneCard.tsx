@@ -2,7 +2,6 @@ import { useRef, useState } from "react";
 import { FiAlertTriangle, FiTrash2 } from "react-icons/fi";
 
 import { Button } from "~/renderer/components";
-import { trackEvent } from "~/renderer/modules/umami";
 
 const DangerZoneCard = () => {
   const [isResetting, setIsResetting] = useState(false);
@@ -12,7 +11,6 @@ const DangerZoneCard = () => {
   const openModal = () => {
     setError(null);
     modalRef.current?.showModal();
-    trackEvent("settings-danger-zone", { action: "open-reset-modal" });
   };
 
   const closeModal = () => {
@@ -20,7 +18,6 @@ const DangerZoneCard = () => {
   };
 
   const handleResetDatabase = async () => {
-    trackEvent("settings-danger-zone", { action: "confirm-reset-database" });
     try {
       setIsResetting(true);
       setError(null);

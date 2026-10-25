@@ -3,7 +3,6 @@ import { FiAlertTriangle } from "react-icons/fi";
 
 import type { LeagueStorageUsage } from "~/main/modules/storage/Storage.types";
 import { Button } from "~/renderer/components";
-import { trackEvent } from "~/renderer/modules/umami";
 import { useStorage } from "~/renderer/store";
 
 import DeleteLeagueModal from "../storage/DeleteLeagueModal/DeleteLeagueModal";
@@ -33,7 +32,6 @@ const StorageSettingsCard = () => {
 
   const handleRefresh = useCallback(async () => {
     await Promise.all([fetchStorageInfo(), fetchLeagueUsage()]);
-    trackEvent("settings-storage", { action: "refresh" });
   }, [fetchStorageInfo, fetchLeagueUsage]);
 
   const handleDeleteRequest = useCallback((league: LeagueStorageUsage) => {
@@ -43,7 +41,6 @@ const StorageSettingsCard = () => {
   const handleDeleteConfirm = useCallback(
     async (leagueId: string) => {
       setLeagueToDelete(null);
-      trackEvent("settings-storage", { action: "delete-league", leagueId });
       await deleteLeagueData(leagueId);
     },
     [deleteLeagueData],

@@ -13,7 +13,7 @@ export {
 } from "./formatters";
 export { getEffectiveRarity } from "./get-effective-rarity";
 export { toCardMetadata } from "./to-card-metadata";
-export type { AnalyticsRaritySource, FilterTheme, RarityStyles } from "./utils";
+export type { FilterTheme, RarityStyles } from "./utils";
 export {
   cardNameToSlug,
   cn,
@@ -21,7 +21,6 @@ export {
   encodeRaritySourceValue,
   formatCurrency,
   formatRelativeTime,
-  getAnalyticsRaritySource,
   getRarityStyles,
   RARITY_LABELS,
 } from "./utils";

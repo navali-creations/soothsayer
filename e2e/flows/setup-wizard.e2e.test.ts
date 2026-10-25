@@ -303,8 +303,8 @@ test.describe("Setup Wizard", () => {
       // Verify telemetry content
       await expect(page.getByText("Crash Reporting")).toBeVisible();
       await expect(page.getByText("Sentry")).toBeVisible();
-      await expect(page.getByText("Usage Analytics")).toBeVisible();
-      await expect(page.getByText("Umami")).toBeVisible();
+      await expect(page.getByText("Community Drop Rates")).toBeVisible();
+      await expect(page.getByText("Usage Analytics")).toHaveCount(0);
 
       // Verify privacy policy link
       const privacyLink = page.getByRole("link", {

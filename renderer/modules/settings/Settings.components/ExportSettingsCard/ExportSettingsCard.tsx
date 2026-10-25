@@ -3,7 +3,6 @@ import { FiEye, FiEyeOff, FiFolder, FiRotateCcw } from "react-icons/fi";
 
 import { maskPath } from "~/main/utils/mask-path";
 import { Button } from "~/renderer/components";
-import { trackEvent } from "~/renderer/modules/umami";
 import { useSettings } from "~/renderer/store";
 
 /** Anchors for masking the export directory path. */
@@ -36,10 +35,6 @@ const ExportSettingsCard = () => {
 
       if (dirPath) {
         await updateSetting("csvExportPath", dirPath);
-        trackEvent("settings-change", {
-          setting: "csvExportPath",
-          hasPath: true,
-        });
       }
     } catch (error) {
       console.error("Error selecting export directory:", error);
@@ -49,7 +44,6 @@ const ExportSettingsCard = () => {
   const handleReset = useCallback(async () => {
     await updateSetting("csvExportPath", null);
     setIsRevealed(false);
-    trackEvent("settings-change", { setting: "csvExportPath", hasPath: false });
   }, [updateSetting]);
 
   const toggleReveal = useCallback(() => {

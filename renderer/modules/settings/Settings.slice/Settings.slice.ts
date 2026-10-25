@@ -85,7 +85,6 @@ export const createSettingsSlice: StateCreator<
     overlayToolbarFontSize: 1.0,
     mainWindowBounds: null,
     telemetryCrashReporting: false,
-    telemetryUsageAnalytics: false,
     csvExportPath: null,
     communityUploadsEnabled: true,
     appPerformanceMonitorEnabled: false,
@@ -152,7 +151,6 @@ export const createSettingsSlice: StateCreator<
             settings.overlayToolbarFontSize = data.overlayToolbarFontSize;
             settings.mainWindowBounds = data.mainWindowBounds;
             settings.telemetryCrashReporting = data.telemetryCrashReporting;
-            settings.telemetryUsageAnalytics = data.telemetryUsageAnalytics;
             settings.csvExportPath = data.csvExportPath;
             settings.communityUploadsEnabled = data.communityUploadsEnabled;
             settings.appPerformanceMonitorEnabled =

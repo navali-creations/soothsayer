@@ -2,7 +2,6 @@ import { type ChangeEvent, useCallback } from "react";
 import { FiFolder, FiRefreshCw } from "react-icons/fi";
 
 import { Button } from "~/renderer/components";
-import { trackEvent } from "~/renderer/modules/umami";
 import { useSettingsShallow } from "~/renderer/store";
 
 export function AudioSettingsBasicControls() {
@@ -27,10 +26,6 @@ export function AudioSettingsBasicControls() {
     (event: ChangeEvent<HTMLInputElement>) => {
       const enabled = event.target.checked;
       void updateSetting("audioEnabled", enabled);
-      trackEvent("settings-change", {
-        setting: "audioEnabled",
-        value: enabled,
-      });
     },
     [updateSetting],
   );
@@ -44,12 +39,10 @@ export function AudioSettingsBasicControls() {
 
   const handleScan = useCallback(async () => {
     await scanCustomSounds();
-    trackEvent("audio-scan-custom-sounds");
   }, [scanCustomSounds]);
 
   const handleOpenFolder = useCallback(async () => {
     await window.electron.settings.openCustomSoundsFolder();
-    trackEvent("audio-open-sounds-folder");
   }, []);
 
   return (

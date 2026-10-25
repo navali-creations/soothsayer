@@ -115,7 +115,6 @@ class SettingsStoreService {
             case "setupCompleted":
             case "audioEnabled":
             case "telemetryCrashReporting":
-            case "telemetryUsageAnalytics":
             case "communityUploadsEnabled":
             case "appPerformanceMonitorEnabled":
             case "appPerformanceAutoStartOnSession":

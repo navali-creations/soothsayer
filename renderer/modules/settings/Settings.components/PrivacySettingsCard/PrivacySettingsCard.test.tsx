@@ -32,11 +32,6 @@ vi.mock("~/renderer/components", async (importOriginal) => {
   };
 });
 
-const mockTrackEvent = vi.fn();
-vi.mock("~/renderer/modules/umami", () => ({
-  trackEvent: (...args: any[]) => mockTrackEvent(...args),
-}));
-
 vi.mock("react-icons/fi", () => ({
   FiAlertTriangle: () => <span data-testid="icon-alert-triangle" />,
   FiExternalLink: () => <span data-testid="icon-external-link" />,
@@ -55,7 +50,6 @@ const mockFetchStatus = vi.fn();
 function setupStore(
   overrides: {
     telemetryCrashReporting?: boolean;
-    telemetryUsageAnalytics?: boolean;
     communityUploadsEnabled?: boolean;
     gggAuthenticated?: boolean;
     gggUsername?: string | null;
@@ -65,7 +59,6 @@ function setupStore(
 ) {
   const settings = {
     telemetryCrashReporting: overrides.telemetryCrashReporting ?? true,
-    telemetryUsageAnalytics: overrides.telemetryUsageAnalytics ?? true,
     communityUploadsEnabled: overrides.communityUploadsEnabled ?? true,
     updateSetting: mockUpdateSetting,
   };
@@ -123,12 +116,6 @@ describe("PrivacySettingsCard", () => {
     expect(screen.getByText("Crash Reporting")).toBeInTheDocument();
   });
 
-  it("renders Usage Analytics toggle", () => {
-    renderWithProviders(<PrivacySettingsCard />);
-
-    expect(screen.getByText("Usage Analytics")).toBeInTheDocument();
-  });
-
   // ── Toggle state reflects store ────────────────────────────────────────
 
   it("crash reporting toggle is checked when store value is true", () => {
@@ -148,23 +135,6 @@ describe("PrivacySettingsCard", () => {
     expect(checkboxes[0]).not.toBeChecked();
   });
 
-  it("usage analytics toggle is checked when store value is true", () => {
-    setupStore({ telemetryUsageAnalytics: true });
-    renderWithProviders(<PrivacySettingsCard />);
-
-    const checkboxes = screen.getAllByRole("checkbox");
-    // Second checkbox is usage analytics
-    expect(checkboxes[1]).toBeChecked();
-  });
-
-  it("usage analytics toggle is unchecked when store value is false", () => {
-    setupStore({ telemetryUsageAnalytics: false });
-    renderWithProviders(<PrivacySettingsCard />);
-
-    const checkboxes = screen.getAllByRole("checkbox");
-    expect(checkboxes[1]).not.toBeChecked();
-  });
-
   // ── Toggle interactions ────────────────────────────────────────────────
 
   it('toggling crash reporting calls updateSetting with "telemetryCrashReporting"', async () => {
@@ -177,21 +147,6 @@ describe("PrivacySettingsCard", () => {
     await waitFor(() => {
       expect(mockUpdateSetting).toHaveBeenCalledWith(
         "telemetryCrashReporting",
-        false,
-      );
-    });
-  });
-
-  it('toggling usage analytics calls updateSetting with "telemetryUsageAnalytics"', async () => {
-    setupStore({ telemetryUsageAnalytics: true });
-    const { user } = renderWithProviders(<PrivacySettingsCard />);
-
-    const checkboxes = screen.getAllByRole("checkbox");
-    await user.click(checkboxes[1]);
-
-    await waitFor(() => {
-      expect(mockUpdateSetting).toHaveBeenCalledWith(
-        "telemetryUsageAnalytics",
         false,
       );
     });
@@ -212,29 +167,14 @@ describe("PrivacySettingsCard", () => {
     });
   });
 
-  it("enabling usage analytics passes true to updateSetting", async () => {
-    setupStore({ telemetryUsageAnalytics: false });
-    const { user } = renderWithProviders(<PrivacySettingsCard />);
-
-    const checkboxes = screen.getAllByRole("checkbox");
-    await user.click(checkboxes[1]);
-
-    await waitFor(() => {
-      expect(mockUpdateSetting).toHaveBeenCalledWith(
-        "telemetryUsageAnalytics",
-        true,
-      );
-    });
-  });
-
   // ── Community uploads toggle ─────────────────────────────────────────
 
-  it("toggling community uploads calls updateSetting and trackEvent", async () => {
+  it("toggling community uploads calls updateSetting", async () => {
     setupStore({ communityUploadsEnabled: true });
     const { user } = renderWithProviders(<PrivacySettingsCard />);
 
     const checkboxes = screen.getAllByRole("checkbox");
-    await user.click(checkboxes[2]);
+    await user.click(checkboxes[1]);
 
     await waitFor(() => {
       expect(mockUpdateSetting).toHaveBeenCalledWith(
@@ -249,7 +189,7 @@ describe("PrivacySettingsCard", () => {
     const { user } = renderWithProviders(<PrivacySettingsCard />);
 
     const checkboxes = screen.getAllByRole("checkbox");
-    await user.click(checkboxes[2]);
+    await user.click(checkboxes[1]);
 
     await waitFor(() => {
       expect(mockUpdateSetting).toHaveBeenCalledWith(
@@ -383,16 +323,5 @@ describe("PrivacySettingsCard", () => {
 
     const link = screen.getByTestId("privacy-link");
     expect(link).toHaveTextContent("View");
-  });
-
-  it("tracks settings-privacy-policy-viewed when privacy policy link is clicked", async () => {
-    const { user } = renderWithProviders(<PrivacySettingsCard />);
-
-    const link = screen.getByTestId("privacy-link");
-    await user.click(link);
-
-    expect(mockTrackEvent).toHaveBeenCalledWith(
-      "settings-privacy-policy-viewed",
-    );
   });
 });

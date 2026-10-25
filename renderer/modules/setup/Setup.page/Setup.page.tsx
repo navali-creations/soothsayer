@@ -14,16 +14,10 @@ import {
 } from "../Setup.components";
 
 const SetupPage = () => {
-  const { setupState, trackSetupStarted, validateCurrentStep, advanceStep } =
-    useSetup();
+  const { setupState, validateCurrentStep, advanceStep } = useSetup();
 
   // Track whether we've already auto-advanced to prevent loops
   const hasAutoAdvanced = useRef(false);
-
-  // Track setup started on mount
-  useEffect(() => {
-    trackSetupStarted();
-  }, [trackSetupStarted]);
 
   // Auto-advance from step 0 to step 1 (game selection should be first visible step)
   useEffect(() => {

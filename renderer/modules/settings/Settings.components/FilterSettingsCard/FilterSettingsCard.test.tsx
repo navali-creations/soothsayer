@@ -5,7 +5,6 @@ import {
   screen,
   waitFor,
 } from "~/renderer/__test-setup__/render";
-import { trackEvent } from "~/renderer/modules/umami";
 import { useBoundStore } from "~/renderer/store";
 
 import FilterSettingsCard from "./FilterSettingsCard";
@@ -39,10 +38,7 @@ vi.mock("~/renderer/utils", () => ({
   encodeRaritySourceValue: vi.fn((source: string, filterId: any) =>
     filterId ? `filter:${filterId}` : source,
   ),
-  getAnalyticsRaritySource: vi.fn(() => "poe.ninja"),
 }));
-
-const mockTrackEvent = vi.mocked(trackEvent);
 
 vi.mock("react-icons/fi", () => ({
   FiAlertTriangle: () => <span data-testid="icon-alert-triangle" />,
@@ -294,9 +290,7 @@ describe("FilterSettingsCard", () => {
     });
   });
 
-  // ── trackEvent ─────────────────────────────────────────────────────────
-
-  it("trackEvent is called with filter-scan when rescan is clicked", async () => {
+  it("rescans filters when rescan is clicked", async () => {
     const store = setupStore();
     const { user } = renderWithProviders(<FilterSettingsCard />);
 
@@ -305,7 +299,6 @@ describe("FilterSettingsCard", () => {
 
     await waitFor(() => {
       expect(store.rarityInsights.scanFilters).toHaveBeenCalledTimes(1);
-      expect(mockTrackEvent).toHaveBeenCalledWith("filter-scan");
     });
   });
 

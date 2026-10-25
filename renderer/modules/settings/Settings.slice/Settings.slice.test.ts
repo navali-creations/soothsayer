@@ -49,7 +49,6 @@ function makeFakeSettingsDTO(
     overlayToolbarFontSize: 1.4,
     mainWindowBounds: { x: 0, y: 0, width: 1024, height: 768 },
     telemetryCrashReporting: true,
-    telemetryUsageAnalytics: true,
     csvExportPath: "/exports",
     communityUploadsEnabled: true,
     appPerformanceMonitorEnabled: true,
@@ -90,7 +89,6 @@ describe("Settings slice — initial state", () => {
     expect(s.overlayFontSize).toBe(1.0);
     expect(s.overlayToolbarFontSize).toBe(1.0);
     expect(s.telemetryCrashReporting).toBe(false);
-    expect(s.telemetryUsageAnalytics).toBe(false);
     expect(s.appPerformanceMonitorEnabled).toBe(false);
     expect(s.appPerformanceAutoStartOnSession).toBe(false);
     expect(s.appPerformanceRetention).toBe("7d");
@@ -154,7 +152,6 @@ describe("Settings slice — hydrate", () => {
     expect(s.overlayFontSize).toBe(dto.overlayFontSize);
     expect(s.overlayToolbarFontSize).toBe(dto.overlayToolbarFontSize);
     expect(s.telemetryCrashReporting).toBe(dto.telemetryCrashReporting);
-    expect(s.telemetryUsageAnalytics).toBe(dto.telemetryUsageAnalytics);
     expect(s.csvExportPath).toBe(dto.csvExportPath);
     expect(s.communityUploadsEnabled).toBe(dto.communityUploadsEnabled);
     expect(s.appPerformanceMonitorEnabled).toBe(

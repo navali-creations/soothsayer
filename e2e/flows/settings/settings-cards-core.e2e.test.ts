@@ -375,14 +375,15 @@ test.describe("Settings – Cards (Core)", () => {
       await openSettingsTab(page, "Privacy");
     });
 
-    test("should render both privacy toggles and the restart warning", async ({
+    test("should render privacy controls and the restart warning", async ({
       page,
     }) => {
       const panel = activeSettingsPanel(page);
       await expect(panel).toBeVisible();
 
       await expect(panel.getByText("Crash Reporting")).toBeVisible();
-      await expect(panel.getByText("Usage Analytics")).toBeVisible();
+      await expect(panel.getByText("Community Drop Rates")).toBeVisible();
+      await expect(panel.getByText("Usage Analytics")).toHaveCount(0);
 
       // Restart warning
       await expect(
@@ -419,42 +420,6 @@ test.describe("Settings – Cards (Core)", () => {
       const persisted = await getSetting<boolean>(
         page,
         "telemetryCrashReporting",
-      );
-      expect(persisted).toBe(isNowChecked);
-
-      // Restore
-      await toggle.click({ force: true });
-      if (wasChecked) {
-        await expect(toggle).toBeChecked({ timeout: 5_000 });
-      } else {
-        await expect(toggle).not.toBeChecked({ timeout: 5_000 });
-      }
-    });
-
-    test("should toggle 'Usage Analytics' and persist via IPC", async ({
-      page,
-    }) => {
-      const panel = activeSettingsPanel(page);
-
-      const toggle = panel
-        .locator("label", { hasText: "Usage Analytics" })
-        .locator('input[type="checkbox"]');
-      await expect(toggle).toBeVisible();
-
-      const wasChecked = await toggle.isChecked();
-      await toggle.click({ force: true });
-      if (wasChecked) {
-        await expect(toggle).not.toBeChecked({ timeout: 5_000 });
-      } else {
-        await expect(toggle).toBeChecked({ timeout: 5_000 });
-      }
-
-      const isNowChecked = await toggle.isChecked();
-      expect(isNowChecked).not.toBe(wasChecked);
-
-      const persisted = await getSetting<boolean>(
-        page,
-        "telemetryUsageAnalytics",
       );
       expect(persisted).toBe(isNowChecked);
 

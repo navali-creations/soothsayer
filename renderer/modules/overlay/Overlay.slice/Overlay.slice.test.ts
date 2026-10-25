@@ -1,15 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import type { ElectronMock } from "~/renderer/__test-setup__/electron-mock";
 import {
   createTestStore,
   type TestStore,
 } from "~/renderer/__test-setup__/test-store";
-import { trackEvent } from "~/renderer/modules/umami";
 
 import type { RecentDrop, SessionData } from "../Overlay.types";
-
-vi.mocked(trackEvent);
 
 let store: TestStore;
 let electron: ElectronMock;
@@ -142,15 +139,6 @@ describe("OverlaySlice", () => {
 
       expect(store.getState().overlay.isVisible).toBe(true);
     });
-
-    it("tracks an analytics event", async () => {
-      await store.getState().overlay.show();
-
-      expect(trackEvent).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({ isVisible: true }),
-      );
-    });
   });
 
   // ── hide ─────────────────────────────────────────────────────────────────
@@ -182,15 +170,6 @@ describe("OverlaySlice", () => {
 
       expect(store.getState().overlay.isLocked).toBe(true);
     });
-
-    it("tracks an analytics event", async () => {
-      await store.getState().overlay.hide();
-
-      expect(trackEvent).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({ isVisible: false }),
-      );
-    });
   });
 
   // ── toggle ───────────────────────────────────────────────────────────────
@@ -212,17 +191,6 @@ describe("OverlaySlice", () => {
       await store.getState().overlay.toggle();
 
       expect(store.getState().overlay.isVisible).toBe(false);
-    });
-
-    it("tracks an analytics event with the resulting visibility", async () => {
-      electron.overlay.isVisible.mockResolvedValue(true);
-
-      await store.getState().overlay.toggle();
-
-      expect(trackEvent).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({ isVisible: true }),
-      );
     });
 
     it("defaults isVisible to false when IPC isVisible returns undefined", async () => {

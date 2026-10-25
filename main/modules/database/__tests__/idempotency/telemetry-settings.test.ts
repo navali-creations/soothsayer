@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { MigrationRunner, migrations } from "../../migrations";
 import { migration_20260302_192700_add_telemetry_settings } from "../../migrations/20260302_192700_add_telemetry_settings";
 import {
   createBaselineSchema,
@@ -14,8 +13,7 @@ describe("telemetry settings migration idempotency", () => {
   it("should skip adding columns when they already exist", () => {
     const db = getDb();
     createBaselineSchema(db);
-    const runner = new MigrationRunner(db);
-    runner.runMigrations(migrations);
+    migration_20260302_192700_add_telemetry_settings.up(db);
 
     const before = getColumnNames(db, "user_settings");
     expect(before).toContain("telemetry_crash_reporting");
@@ -54,8 +52,7 @@ describe("telemetry settings migration idempotency", () => {
   it("should preserve existing user settings data after down() removes columns", () => {
     const db = getDb();
     createBaselineSchema(db);
-    const runner = new MigrationRunner(db);
-    runner.runMigrations(migrations);
+    migration_20260302_192700_add_telemetry_settings.up(db);
 
     db.prepare(
       "UPDATE user_settings SET app_exit_action = 'minimize', telemetry_crash_reporting = 1 WHERE id = 1",
@@ -76,8 +73,7 @@ describe("telemetry settings migration idempotency", () => {
   it("should allow re-applying migration after rollback", () => {
     const db = getDb();
     createBaselineSchema(db);
-    const runner = new MigrationRunner(db);
-    runner.runMigrations(migrations);
+    migration_20260302_192700_add_telemetry_settings.up(db);
 
     migration_20260302_192700_add_telemetry_settings.down(db);
     const afterDown = getColumnNames(db, "user_settings");

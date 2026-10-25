@@ -29,7 +29,6 @@ function createMockSetup(overrides: Record<string, unknown> = {}) {
       poe1ClientPath: null,
       poe2ClientPath: null,
       telemetryCrashReporting: false,
-      telemetryUsageAnalytics: false,
     },
     toggleGame: vi.fn(),
     ...overrides,

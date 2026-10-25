@@ -30,6 +30,18 @@ describe("Migrations – Fresh Install", () => {
     expect(() => runner.runMigrations(migrations)).not.toThrow();
   });
 
+  it("should not retain retired analytics storage", () => {
+    const db = getDb();
+    createBaselineSchema(db);
+    const runner = new MigrationRunner(db);
+    runner.runMigrations(migrations);
+
+    expect(getColumnNames(db, "user_settings")).not.toContain(
+      "telemetry_usage_analytics",
+    );
+    expect(getTableNames(db)).not.toContain("card_price_history_cache");
+  });
+
   it("should have all audio columns after migrations", () => {
     const db = getDb();
     createBaselineSchema(db);

@@ -55,9 +55,7 @@ function createMockSetup(overrides: Record<string, unknown> = {}) {
       poe1ClientPath: null,
       poe2ClientPath: null,
       telemetryCrashReporting: false,
-      telemetryUsageAnalytics: false,
     },
-    trackSetupStarted: vi.fn(),
     validateCurrentStep: vi.fn(),
     advanceStep: vi.fn(),
     ...overrides,
@@ -110,15 +108,6 @@ describe("SetupPage", () => {
   // ── Lifecycle effects ──────────────────────────────────────────────────
 
   describe("lifecycle effects", () => {
-    it("calls trackSetupStarted on mount", () => {
-      const trackSetupStarted = vi.fn();
-      setupBoundStore({ trackSetupStarted });
-
-      renderWithProviders(<SetupPage />);
-
-      expect(trackSetupStarted).toHaveBeenCalledTimes(1);
-    });
-
     it("calls advanceStep when at step 0 (auto-advance)", async () => {
       const advanceStep = vi.fn();
       setupBoundStore({

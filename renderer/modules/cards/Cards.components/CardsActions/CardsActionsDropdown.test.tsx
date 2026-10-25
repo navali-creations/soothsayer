@@ -3,7 +3,6 @@ import {
   screen,
   waitFor,
 } from "~/renderer/__test-setup__/render";
-import { trackEvent } from "~/renderer/modules/umami";
 import { useBoundStore } from "~/renderer/store";
 
 import { CardsActions } from "./CardsActions";
@@ -18,8 +17,6 @@ vi.mock("~/renderer/store", async () => {
 });
 
 const mockUseBoundStore = vi.mocked(useBoundStore);
-
-const mockTrackEvent = vi.mocked(trackEvent);
 
 // Mock RaritySourceSelect so we can trigger onChange with specific values
 // and inspect the groups prop that was passed in.
@@ -68,7 +65,6 @@ vi.mock("~/renderer/utils", () => ({
   encodeRaritySourceValue: vi.fn((source: string, filterId: string | null) =>
     filterId ? `filter:${filterId}` : source,
   ),
-  getAnalyticsRaritySource: vi.fn(() => "test-analytics-source"),
 }));
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -139,7 +135,6 @@ function clearMocks() {
   mockClearSelectedFilter.mockClear();
   mockClearFilterTheme.mockClear();
   mockUpdateSetting.mockClear();
-  mockTrackEvent.mockClear();
 }
 
 // ─── Tests ─────────────────────────────────────────────────────────────────
@@ -150,7 +145,7 @@ describe("CardsActions – handleDropdownChange", () => {
     clearMocks();
   });
 
-  it("selecting poe.ninja calls updateSetting, tracks event, and calls loadCards", async () => {
+  it("selecting poe.ninja calls updateSetting and loadCards", async () => {
     setupStore({ raritySource: "prohibited-library", selectedFilterId: null });
     const { user } = renderWithProviders(<CardsActions />);
 
@@ -162,10 +157,6 @@ describe("CardsActions – handleDropdownChange", () => {
         "raritySource",
         "poe.ninja",
       );
-    });
-    expect(mockTrackEvent).toHaveBeenCalledWith("settings-change", {
-      setting: "raritySource",
-      value: "test-analytics-source",
     });
     expect(mockLoadCards).toHaveBeenCalled();
   });

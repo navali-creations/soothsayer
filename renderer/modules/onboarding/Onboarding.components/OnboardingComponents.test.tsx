@@ -56,7 +56,6 @@ vi.mock("react-icons/ti", () => ({
   ),
 }));
 
-import { trackEvent } from "~/renderer/modules/umami";
 import { useBoundStore } from "~/renderer/store";
 
 import Popover from "./Popover";
@@ -193,22 +192,7 @@ describe("Popover", () => {
     );
   });
 
-  it("clicking acknowledge button calls trackEvent with beaconId", async () => {
-    const { user } = renderWithProviders(
-      <Popover {...defaultPopoverProps} title="Title">
-        <p>Content</p>
-      </Popover>,
-    );
-
-    const btn = screen.getByTestId("acknowledge-btn");
-    await user.click(btn);
-
-    expect(trackEvent).toHaveBeenCalledWith("onboarding-step-acknowledged", {
-      beaconId: "test-beacon",
-    });
-  });
-
-  it("clicking dismiss all refreshes the beacon host and tracks the event", async () => {
+  it("clicking dismiss all refreshes the beacon host", async () => {
     mockUseBoundStore.getState = vi
       .fn()
       .mockReturnValueOnce({
@@ -232,10 +216,6 @@ describe("Popover", () => {
 
     expect(mockDismissAll).toHaveBeenCalledTimes(1);
     expect(mockRefreshBeaconHost).toHaveBeenCalledTimes(1);
-    expect(trackEvent).toHaveBeenCalledWith("onboarding-all-dismissed", {
-      source: "popover",
-      beaconId: "test-beacon",
-    });
   });
 
   it("applies custom className", () => {

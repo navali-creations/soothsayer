@@ -50,7 +50,6 @@ function setupComplete(installedGames: ("poe1" | "poe2")[] = ["poe1", "poe2"]) {
     poe1ClientPath: null,
     poe2ClientPath: null,
     telemetryCrashReporting: false,
-    telemetryUsageAnalytics: false,
   });
   store.getState().settings.setSetting("installedGames", installedGames);
 }

@@ -5,20 +5,16 @@ import {
 } from "@tanstack/react-router";
 import ReactDOM from "react-dom/client";
 
-import { initUmami, trackPageView } from "~/renderer/modules/umami";
-
 import { initSentry } from "./sentry";
 import "./index.css";
 
-// Read telemetry settings before initializing Sentry and Umami.
+// Read telemetry settings before initializing Sentry.
 // Settings are fetched via IPC from the main process (which reads from SQLite).
-// We gate both behind user preference — existing users default to disabled,
-// new users choose during setup wizard step 4.
+// Existing users default to disabled and new users choose during setup.
 async function initTelemetry() {
   try {
     const settings = await window.electron.settings.getAll();
     initSentry(settings.telemetryCrashReporting);
-    initUmami(settings.telemetryUsageAnalytics);
   } catch (error) {
     // If settings can't be loaded (e.g. DB not ready), skip telemetry.
     // PII scrubbing in beforeSend/beforeBreadcrumb protects against leaks
@@ -44,14 +40,6 @@ const router = createRouter({
   history: hashHistory,
   defaultPreload: "intent",
   defaultPreloadStaleTime: 5_000,
-});
-
-// Track page views with Umami (only when path actually changes)
-router.subscribe("onResolved", ({ toLocation, pathChanged, fromLocation }) => {
-  // Track if path changed, or if it's the initial load (no fromLocation)
-  if (pathChanged || !fromLocation) {
-    trackPageView(toLocation.pathname);
-  }
 });
 
 // Register the router instance for type safety

@@ -1,7 +1,7 @@
 # Privacy Policy
 
 **Data Controller:** Soothsayer  
-**Last Updated:** May 2026
+**Last Updated:** October 2026
 
 Soothsayer is an open-source desktop application for tracking Path of Exile divination card drops. This privacy policy explains what data we collect, how we use it, and your rights.
 
@@ -20,12 +20,6 @@ When crash reporting is enabled, anonymous error reports are sent when something
 - **Breadcrumb timeline** — a sequence of events leading up to the error (paths scrubbed)
 
 Crash reports do **not** include your username, file paths, IP address, or any game data.
-
-### Usage Analytics (Umami)
-
-When usage analytics are enabled, anonymous page views and feature usage events are tracked via [Umami Cloud](https://umami.is/), a privacy-focused analytics platform. This helps us understand which features are used most so we can prioritize development.
-
-Usage analytics do **not** include any personal identifiers. We see aggregated counts like "50 users opened the Overlay today", not who did.
 
 ### Anonymous Supabase Session
 
@@ -76,14 +70,14 @@ Performance diagnostic reports are **not uploaded automatically**. The app only 
 - Game data, stash contents, or trade history
 - Keystroke or input data
 - App performance diagnostics unless you manually export and send a report
-- Crash reports or usage analytics when those telemetry options are disabled
+- Crash reports when crash reporting is disabled
+- Usage analytics or feature interaction events
 
 ---
 
 ## How We Use Your Data
 
 - **Crash reports** — to fix bugs and edge cases across different systems
-- **Usage analytics** — to understand which features matter most and prioritize development
 - **Anonymous sessions** — to provide access to shared price data and app functionality
 - **Security identifiers** — to rate-limit backend requests, detect abuse, and protect shared services
 - **Community uploads** — to aggregate card drop statistics for community insights on [wraeclast.cards](https://wraeclast.cards)
@@ -96,7 +90,6 @@ Performance diagnostic reports are **not uploaded automatically**. The app only 
 | Service | Purpose | Region |
 |---|---|---|
 | [Sentry](https://sentry.io/) | Crash reporting | EU (Frankfurt) |
-| [Umami Cloud](https://umami.is/) | Usage analytics | EU |
 | [Supabase](https://supabase.com/) | Backend services | EU (Frankfurt) |
 | Local device only | App performance diagnostics storage and export | Your computer |
 
@@ -107,7 +100,6 @@ Performance diagnostic reports are **not uploaded automatically**. The app only 
 | Data | Retention |
 |---|---|
 | Sentry crash reports | 30 days (auto-deleted) |
-| Umami analytics | 90 days (aggregated, no personal data) |
 | Supabase `api_requests` and pseudonymous security identifiers | 24–48 hours (auto-cleaned via daily cron) |
 | Community upload data | Indefinite (pseudonymized by device UUID or GGG UUID) |
 | Local app performance diagnostics | User-selected: 24 hours, 7 days (default), or indefinite — stored only in local SQLite unless you manually export and share |
@@ -119,12 +111,12 @@ Performance diagnostic reports are **not uploaded automatically**. The app only 
 
 ### Opt Out of Telemetry
 
-You can disable crash reporting and/or usage analytics at any time:
+You can disable crash reporting at any time:
 
-- **Settings → Privacy & Telemetry** — toggle each independently
-- **Setup Wizard** — new users are informed during initial setup; all telemetry options are optional
+- **Settings → Privacy & Telemetry** — toggle crash reporting
+- **Setup Wizard** — new users are informed during initial setup; crash reporting is optional
 
-The app is **fully functional** with all telemetry disabled. No features are gated behind telemetry consent.
+The app is **fully functional** with crash reporting disabled. No features are gated behind telemetry consent.
 
 ### Community Uploads
 
@@ -182,7 +174,6 @@ Requests are processed within **30 days**.
 | Service | Provider | Purpose |
 |---|---|---|
 | Sentry | Functional Software GmbH | Crash and error reporting |
-| Umami Cloud | Umami Software Inc. | Privacy-focused usage analytics |
 | Supabase | Supabase Inc. | Backend services and database |
 | GGG / Grinding Gear Games | Grinding Gear Games Ltd. | OAuth identity verification only |
 

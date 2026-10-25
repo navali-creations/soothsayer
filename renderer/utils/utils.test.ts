@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { DiscoveredRarityInsightsDTO } from "~/main/modules/rarity-insights/RarityInsights.dto";
 import type { Rarity } from "~/types/data-stores";
 
 import {
@@ -10,7 +9,6 @@ import {
   type FilterTheme,
   formatCurrency,
   formatRelativeTime,
-  getAnalyticsRaritySource,
   getRarityStyles,
   RARITY_LABELS,
 } from "./utils";
@@ -547,69 +545,5 @@ describe("encode/decode roundtrip", () => {
     const encoded = encodeRaritySourceValue("filter", null);
     const decoded = decodeRaritySourceValue(encoded);
     expect(decoded).toEqual({ raritySource: "filter", filterId: null });
-  });
-});
-
-// ─── getAnalyticsRaritySource ──────────────────────────────────────────────
-
-describe("getAnalyticsRaritySource", () => {
-  const makeFilter = (
-    id: string,
-    type: "online" | "local",
-  ): DiscoveredRarityInsightsDTO =>
-    ({ id, type }) as DiscoveredRarityInsightsDTO;
-
-  const availableFilters = [
-    makeFilter("online-filter-1", "online"),
-    makeFilter("local-filter-1", "local"),
-    makeFilter("online-filter-2", "online"),
-  ];
-
-  it('maps "poe.ninja" to "poe-ninja"', () => {
-    expect(getAnalyticsRaritySource("poe.ninja", null, [])).toBe("poe-ninja");
-  });
-
-  it('maps "prohibited-library" to "prohibited-library"', () => {
-    expect(getAnalyticsRaritySource("prohibited-library", null, [])).toBe(
-      "prohibited-library",
-    );
-  });
-
-  it('maps "filter" with a matching online filter to "online"', () => {
-    expect(
-      getAnalyticsRaritySource("filter", "online-filter-1", availableFilters),
-    ).toBe("online");
-  });
-
-  it('maps "filter" with a matching local filter to "local"', () => {
-    expect(
-      getAnalyticsRaritySource("filter", "local-filter-1", availableFilters),
-    ).toBe("local");
-  });
-
-  it('maps "filter" with a second matching online filter to "online"', () => {
-    expect(
-      getAnalyticsRaritySource("filter", "online-filter-2", availableFilters),
-    ).toBe("online");
-  });
-
-  it('falls back to "local" when filter source has no filterId', () => {
-    expect(getAnalyticsRaritySource("filter", null, availableFilters)).toBe(
-      "local",
-    );
-  });
-
-  it('falls back to "local" when filterId does not match any available filter', () => {
-    expect(
-      getAnalyticsRaritySource(
-        "filter",
-        "nonexistent-filter",
-        availableFilters,
-      ),
-    ).toBe("local");
-  });
-
-  it('falls back to "local" when availableFilters is empty and source is filter', () => {
-    expect(getAnalyticsRaritySource("filter", "some-id", [])).toBe("local");
   });
 });

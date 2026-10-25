@@ -94,42 +94,6 @@ describe("SetupTelemetryStep", () => {
     });
   });
 
-  // ── Usage Analytics section ────────────────────────────────────────────
-
-  describe("Usage Analytics section", () => {
-    it("renders the Usage Analytics heading", () => {
-      renderWithProviders(<SetupTelemetryStep />);
-
-      expect(screen.getByText("Usage Analytics")).toBeInTheDocument();
-    });
-
-    it("shows the Umami badge", () => {
-      renderWithProviders(<SetupTelemetryStep />);
-
-      expect(screen.getByText("Umami")).toBeInTheDocument();
-    });
-
-    it("describes what usage analytics collects", () => {
-      renderWithProviders(<SetupTelemetryStep />);
-
-      expect(
-        screen.getByText(
-          /Anonymous page views and feature usage help us understand/,
-        ),
-      ).toBeInTheDocument();
-    });
-
-    it("shows privacy reassurance about no personal data", () => {
-      renderWithProviders(<SetupTelemetryStep />);
-
-      expect(
-        screen.getByText(
-          /No personal data is collected\. We see aggregated counts/,
-        ),
-      ).toBeInTheDocument();
-    });
-  });
-
   // ── Opt-out info ───────────────────────────────────────────────────────
 
   describe("opt-out info", () => {
@@ -138,7 +102,7 @@ describe("SetupTelemetryStep", () => {
 
       expect(
         screen.getByText(
-          /All three are enabled by default\. You can opt out of any at any time/,
+          /Both are enabled by default\. You can opt out of either at any time/,
         ),
       ).toBeInTheDocument();
     });

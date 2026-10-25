@@ -3,7 +3,6 @@ import { FiAlertTriangle, FiRefreshCw } from "react-icons/fi";
 
 import { Button } from "~/renderer/components";
 import { useRaritySourceChange } from "~/renderer/hooks/useRaritySourceChange/useRaritySourceChange";
-import { trackEvent } from "~/renderer/modules/umami";
 import { useRarityInsights, useSettings } from "~/renderer/store";
 import { encodeRaritySourceValue } from "~/renderer/utils";
 
@@ -32,7 +31,6 @@ const FilterSettingsCard = () => {
 
   const handleScan = useCallback(async () => {
     await scanFilters();
-    trackEvent("filter-scan");
   }, [scanFilters]);
 
   const dropdownValue = encodeRaritySourceValue(raritySource, selectedFilterId);

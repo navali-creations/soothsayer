@@ -120,7 +120,6 @@ VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key_here
 # Legacy fallback while older local/prod config is being migrated.
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key_here
-VITE_UMAMI_ID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 SENTRY_AUTH_TOKEN=
 VITE_SENTRY_DSN="https://<dsn>.ingest.de.sentry.io/<projectId>"
 

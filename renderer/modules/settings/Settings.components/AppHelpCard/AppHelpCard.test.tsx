@@ -28,7 +28,6 @@ vi.mock("./BeaconManagementList/BeaconManagementList", () => ({
   ),
 }));
 
-import { trackEvent } from "~/renderer/modules/umami";
 import { useBoundStore } from "~/renderer/store";
 
 import AppHelpCard from "./AppHelpCard";
@@ -152,9 +151,6 @@ describe("AppHelpCard", () => {
 
     expect(mockDismissAll).toHaveBeenCalledTimes(1);
     expect(mockRefreshBeaconHost).toHaveBeenCalledTimes(1);
-    expect(trackEvent).toHaveBeenCalledWith("onboarding-all-dismissed", {
-      source: "settings",
-    });
   });
 
   it("renders BeaconManagementList", () => {
@@ -240,10 +236,6 @@ describe("AppHelpCard", () => {
       screen.getByRole("button", { name: /Dismiss All Beacons/i }),
     );
 
-    expect(trackEvent).not.toHaveBeenCalledWith(
-      "onboarding-all-dismissed",
-      expect.anything(),
-    );
     expect(screen.queryByText("All dismissed")).not.toBeInTheDocument();
   });
 });

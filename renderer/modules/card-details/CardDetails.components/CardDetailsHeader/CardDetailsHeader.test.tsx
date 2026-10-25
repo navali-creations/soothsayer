@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders, screen } from "~/renderer/__test-setup__/render";
-import { trackEvent } from "~/renderer/modules/umami";
 import { useCardDetails } from "~/renderer/store";
 
 // ─── Store mock ────────────────────────────────────────────────────────────
@@ -28,10 +27,6 @@ vi.mock("@tanstack/react-router", async () => {
   );
   return createNavigateWithHistoryMock(vi.fn(), mockHistoryBack);
 });
-
-// ─── Umami (globally mocked in __test-setup__/setup.ts) ────────────────────
-
-const mockTrackEvent = vi.mocked(trackEvent);
 
 // ─── Component library mocks ──────────────────────────────────────────────
 
@@ -93,7 +88,6 @@ function renderHeaderActions(overrides: Record<string, any> = {}) {
 // ─── Cleanup ───────────────────────────────────────────────────────────────
 
 afterEach(() => {
-  mockTrackEvent.mockClear();
   mockHistoryBack.mockClear();
   vi.restoreAllMocks();
 });
@@ -270,32 +264,11 @@ describe("HeaderActions", () => {
     );
   });
 
-  it("tracks event on league change", async () => {
-    const { user } = renderHeaderActions({
-      cardDetails: { personalAnalytics: { cardName: "The Doctor" } },
-    });
-    const select = screen.getByRole("combobox");
-    await user.selectOptions(select, "Settlers");
-    expect(mockTrackEvent).toHaveBeenCalledWith("card-details:league-change", {
-      cardName: "The Doctor",
-      league: "Settlers",
-    });
-  });
-
   it("does not render card-detail tabs", () => {
     renderHeaderActions();
     expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
     expect(screen.queryByText("Market Data")).not.toBeInTheDocument();
     expect(screen.queryByText("Your Data")).not.toBeInTheDocument();
-  });
-
-  it("does not track league change event when personalAnalytics is null", async () => {
-    const { user } = renderHeaderActions({
-      cardDetails: { personalAnalytics: null },
-    });
-    const select = screen.getByRole("combobox");
-    await user.selectOptions(select, "Settlers");
-    expect(mockTrackEvent).not.toHaveBeenCalled();
   });
 
   it("reflects selectedLeague value in the select element", () => {

@@ -2,7 +2,6 @@ import { useParams } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 
 import { PageContainer } from "~/renderer/components";
-import { trackEvent } from "~/renderer/modules/umami";
 import { useCardDetails, useSettings } from "~/renderer/store";
 import { toCardMetadata } from "~/renderer/utils";
 import type { CardEntry } from "~/types/data-stores";
@@ -70,9 +69,6 @@ const CardDetailsPage = () => {
       effectiveSelectedLeague,
       communityLeague,
     );
-
-    // Track card detail view
-    trackEvent("card-details:view", { cardSlug });
   }, [
     game,
     cardSlug,

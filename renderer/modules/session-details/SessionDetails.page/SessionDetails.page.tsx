@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 
 import { BackButton, PageContainer } from "~/renderer/components";
 import SessionProfitTimeline from "~/renderer/modules/current-session/CurrentSession.components/SessionProfitTimeline";
-import { trackEvent } from "~/renderer/modules/umami";
 import { useSessionDetails } from "~/renderer/store";
 
 import {
@@ -49,20 +48,14 @@ const SessionDetailsPage = () => {
   const handleExportCsv = useCallback(async () => {
     try {
       const result = await window.electron.csv.exportSession(sessionId);
-      if (result.success) {
-        trackEvent("csv-export", {
-          type: "session",
-          league: session?.league ?? "unknown",
-          source: "session-details",
-        });
-      } else if (!result.canceled) {
+      if (!result.success && !result.canceled) {
         alert("Failed to export CSV. Please try again.");
       }
     } catch (error) {
       console.error("Error exporting session CSV:", error);
       alert("Failed to export CSV. Please try again.");
     }
-  }, [sessionId, session]);
+  }, [sessionId]);
 
   if (loading) {
     return (

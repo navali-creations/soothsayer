@@ -8,12 +8,6 @@ import {
   handleSelectFile,
 } from "./Settings.utils";
 
-// ─── Mocks ─────────────────────────────────────────────────────────────────
-
-// The global setup.ts already mocks ~/renderer/modules/umami with vi.fn() stubs,
-// so trackEvent is automatically a no-op spy. We import it here to assert on it.
-import { trackEvent } from "~/renderer/modules/umami";
-
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 function makeSettings(
@@ -46,7 +40,6 @@ function makeSettings(
     overlayToolbarFontSize: 12,
     mainWindowBounds: { x: 0, y: 0, width: 1024, height: 768 },
     telemetryCrashReporting: true,
-    telemetryUsageAnalytics: true,
     csvExportPath: null,
     communityUploadsEnabled: true,
     appPerformanceMonitorEnabled: false,
@@ -252,7 +245,7 @@ describe("Settings.utils", () => {
       expect(minimized.value).toBe(true);
     });
 
-    it("calls updateSetting and trackEvent when appExitAction onChange is invoked", () => {
+    it("calls updateSetting when appExitAction onChange is invoked", () => {
       const settings = makeSettings();
       const updateSetting = makeUpdateSetting();
 
@@ -264,13 +257,9 @@ describe("Settings.utils", () => {
       }
 
       expect(updateSetting).toHaveBeenCalledWith("appExitAction", "minimize");
-      expect(trackEvent).toHaveBeenCalledWith("settings-change", {
-        setting: "appExitAction",
-        value: "minimize",
-      });
     });
 
-    it("calls updateSetting and trackEvent when appOpenAtLogin onChange is invoked", () => {
+    it("calls updateSetting when appOpenAtLogin onChange is invoked", () => {
       const settings = makeSettings();
       const updateSetting = makeUpdateSetting();
 
@@ -282,13 +271,9 @@ describe("Settings.utils", () => {
       }
 
       expect(updateSetting).toHaveBeenCalledWith("appOpenAtLogin", true);
-      expect(trackEvent).toHaveBeenCalledWith("settings-change", {
-        setting: "appOpenAtLogin",
-        value: true,
-      });
     });
 
-    it("calls updateSetting and trackEvent when appOpenAtLoginMinimized onChange is invoked", () => {
+    it("calls updateSetting when appOpenAtLoginMinimized onChange is invoked", () => {
       const settings = makeSettings();
       const updateSetting = makeUpdateSetting();
 
@@ -303,10 +288,6 @@ describe("Settings.utils", () => {
         "appOpenAtLoginMinimized",
         true,
       );
-      expect(trackEvent).toHaveBeenCalledWith("settings-change", {
-        setting: "appOpenAtLoginMinimized",
-        value: true,
-      });
     });
   });
 
@@ -352,24 +333,6 @@ describe("Settings.utils", () => {
       );
     });
 
-    it("tracks a settings-change event after selecting a file", async () => {
-      window.electron.selectFile = vi
-        .fn()
-        .mockResolvedValue("/selected/path/Client.txt");
-      const updateSetting = makeUpdateSetting();
-
-      await handleSelectFile(
-        "poe2ClientTxtPath",
-        "Select PoE2 Client.txt",
-        updateSetting,
-      );
-
-      expect(trackEvent).toHaveBeenCalledWith("settings-change", {
-        setting: "poe2ClientTxtPath",
-        hasPath: true,
-      });
-    });
-
     it("does nothing when the file dialog is cancelled (returns undefined)", async () => {
       window.electron.selectFile = vi.fn().mockResolvedValue(undefined);
       const updateSetting = makeUpdateSetting();
@@ -381,7 +344,6 @@ describe("Settings.utils", () => {
       );
 
       expect(updateSetting).not.toHaveBeenCalled();
-      expect(trackEvent).not.toHaveBeenCalled();
     });
 
     it("does nothing when the file dialog is cancelled (returns null)", async () => {
@@ -395,7 +357,6 @@ describe("Settings.utils", () => {
       );
 
       expect(updateSetting).not.toHaveBeenCalled();
-      expect(trackEvent).not.toHaveBeenCalled();
     });
 
     it("handles errors from selectFile gracefully without throwing", async () => {

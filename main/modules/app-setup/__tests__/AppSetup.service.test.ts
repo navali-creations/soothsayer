@@ -94,7 +94,6 @@ function makeDefaultSettings(overrides: Record<string, any> = {}) {
     poe1ClientTxtPath: "C:\\Games\\PoE\\logs\\Client.txt",
     poe2ClientTxtPath: null,
     telemetryCrashReporting: false,
-    telemetryUsageAnalytics: false,
     ...overrides,
   };
 }
@@ -182,7 +181,6 @@ describe("AppSetupService", () => {
         poe1ClientPath: "C:\\Games\\PoE\\logs\\Client.txt",
         poe2ClientPath: null,
         telemetryCrashReporting: false,
-        telemetryUsageAnalytics: false,
       });
     });
 
@@ -687,13 +685,9 @@ describe("AppSetupService", () => {
 
       const result = await service.advanceStep();
       expect(result.success).toBe(true);
-      // Should set telemetry defaults to ON for new users entering step 4
+      // Should enable crash reporting for new users entering step 4
       expect(mockSettingsSet).toHaveBeenCalledWith(
         SettingsKey.TelemetryCrashReporting,
-        true,
-      );
-      expect(mockSettingsSet).toHaveBeenCalledWith(
-        SettingsKey.TelemetryUsageAnalytics,
         true,
       );
       expect(mockSettingsSet).toHaveBeenCalledWith(SettingsKey.SetupStep, 4);
@@ -975,10 +969,6 @@ describe("AppSetupService", () => {
         true,
       );
       expect(mockSettingsSet).toHaveBeenCalledWith(
-        SettingsKey.TelemetryUsageAnalytics,
-        true,
-      );
-      expect(mockSettingsSet).toHaveBeenCalledWith(
         SettingsKey.SetupCompleted,
         true,
       );
@@ -991,10 +981,6 @@ describe("AppSetupService", () => {
 
       expect(mockSettingsSet).toHaveBeenCalledWith(
         SettingsKey.TelemetryCrashReporting,
-        true,
-      );
-      expect(mockSettingsSet).toHaveBeenCalledWith(
-        SettingsKey.TelemetryUsageAnalytics,
         true,
       );
       expect(mockSettingsSet).toHaveBeenCalledWith(
@@ -1088,10 +1074,6 @@ describe("AppSetupService", () => {
       expect(currentStep).toBe(4);
       expect(mockSettingsSet).toHaveBeenCalledWith(
         SettingsKey.TelemetryCrashReporting,
-        true,
-      );
-      expect(mockSettingsSet).toHaveBeenCalledWith(
-        SettingsKey.TelemetryUsageAnalytics,
         true,
       );
 

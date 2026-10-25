@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import type { SetupState } from "~/main/modules/app-setup/AppSetup.types";
 import type { ElectronMock } from "~/renderer/__test-setup__/electron-mock";
@@ -6,7 +6,6 @@ import {
   createTestStore,
   type TestStore,
 } from "~/renderer/__test-setup__/test-store";
-import { trackEvent } from "~/renderer/modules/umami";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -20,7 +19,6 @@ function makeSetupState(overrides: Partial<SetupState> = {}): SetupState {
     poe1ClientPath: null,
     poe2ClientPath: null,
     telemetryCrashReporting: false,
-    telemetryUsageAnalytics: false,
     ...overrides,
   };
 }
@@ -31,7 +29,6 @@ let store: TestStore;
 let electron: ElectronMock;
 
 beforeEach(() => {
-  vi.mocked(trackEvent).mockClear();
   electron = window.electron as unknown as ElectronMock;
   store = createTestStore();
 });
@@ -55,10 +52,6 @@ describe("initial state", () => {
 
   it("has null error", () => {
     expect(store.getState().setup.error).toBeNull();
-  });
-
-  it("has null setupStartTime", () => {
-    expect(store.getState().setup.setupStartTime).toBeNull();
   });
 });
 
@@ -230,48 +223,6 @@ describe("toggleGame", () => {
     expect(electron.appSetup.getSetupState).not.toHaveBeenCalled();
   });
 
-  it("tracks setup-game-toggled event with action 'added'", async () => {
-    const initialState = makeSetupState({ selectedGames: ["poe1"] });
-    const updatedState = makeSetupState({ selectedGames: ["poe1", "poe2"] });
-
-    store.getState().setup.setSetupState(initialState);
-    electron.appSetup.getSetupState.mockResolvedValue(updatedState);
-    electron.appSetup.validateCurrentStep.mockResolvedValue({
-      isValid: true,
-      errors: [],
-    });
-
-    await store.getState().setup.toggleGame("poe2");
-
-    expect(trackEvent).toHaveBeenCalledWith("setup-game-toggled", {
-      game: "poe2",
-      action: "added",
-      games: ["poe1", "poe2"],
-      selection_type: "both",
-    });
-  });
-
-  it("tracks setup-game-toggled event with action 'removed'", async () => {
-    const initialState = makeSetupState({ selectedGames: ["poe1", "poe2"] });
-    const updatedState = makeSetupState({ selectedGames: ["poe2"] });
-
-    store.getState().setup.setSetupState(initialState);
-    electron.appSetup.getSetupState.mockResolvedValue(updatedState);
-    electron.appSetup.validateCurrentStep.mockResolvedValue({
-      isValid: true,
-      errors: [],
-    });
-
-    await store.getState().setup.toggleGame("poe1");
-
-    expect(trackEvent).toHaveBeenCalledWith("setup-game-toggled", {
-      game: "poe1",
-      action: "removed",
-      games: ["poe2"],
-      selection_type: "poe2_only",
-    });
-  });
-
   it("refreshes setup state and re-validates after toggle", async () => {
     const initialState = makeSetupState({ selectedGames: ["poe1"] });
     const updatedState = makeSetupState({ selectedGames: ["poe1", "poe2"] });
@@ -376,62 +327,6 @@ describe("selectLeague", () => {
     );
   });
 
-  it("tracks setup-league-selected event for poe1", async () => {
-    const initialState = makeSetupState({ selectedGames: ["poe1"] });
-
-    store.getState().setup.setSetupState(initialState);
-    electron.appSetup.getSetupState.mockResolvedValue(initialState);
-    electron.appSetup.validateCurrentStep.mockResolvedValue({
-      isValid: true,
-      errors: [],
-    });
-
-    await store.getState().setup.selectLeague("poe1", "Settlers");
-
-    expect(trackEvent).toHaveBeenCalledWith("setup-league-selected", {
-      game: "poe1",
-      league: "Settlers",
-      selection_type: "poe1_only",
-    });
-  });
-
-  it("tracks setup-league-selected for both games with selection_type 'both'", async () => {
-    const initialState = makeSetupState({ selectedGames: ["poe1", "poe2"] });
-
-    store.getState().setup.setSetupState(initialState);
-    electron.appSetup.getSetupState.mockResolvedValue(initialState);
-    electron.appSetup.validateCurrentStep.mockResolvedValue({
-      isValid: true,
-      errors: [],
-    });
-
-    await store.getState().setup.selectLeague("poe2", "Dawn");
-
-    expect(trackEvent).toHaveBeenCalledWith("setup-league-selected", {
-      game: "poe2",
-      league: "Dawn",
-      selection_type: "both",
-    });
-  });
-
-  it("does not track event when league is empty string", async () => {
-    const initialState = makeSetupState({ selectedGames: ["poe1"] });
-
-    store.getState().setup.setSetupState(initialState);
-    electron.appSetup.getSetupState.mockResolvedValue(initialState);
-    electron.appSetup.validateCurrentStep.mockResolvedValue({
-      isValid: true,
-      errors: [],
-    });
-
-    await store.getState().setup.selectLeague("poe1", "");
-
-    expect(trackEvent).not.toHaveBeenCalledWith(
-      "setup-league-selected",
-      expect.anything(),
-    );
-  });
-
   it("refreshes state and re-validates after selection", async () => {
     const initialState = makeSetupState({ selectedGames: ["poe1"] });
     const updatedState = makeSetupState({ poe1League: "Settlers" });
@@ -448,25 +343,6 @@ describe("selectLeague", () => {
     expect(electron.appSetup.getSetupState).toHaveBeenCalledTimes(1);
     expect(electron.appSetup.validateCurrentStep).toHaveBeenCalledTimes(1);
     expect(store.getState().setup.setupState).toEqual(updatedState);
-  });
-
-  it("tracks league selection with empty selected games when setupState is missing", async () => {
-    const updatedState = makeSetupState({ selectedGames: [] });
-    electron.appSetup.getSetupState.mockResolvedValue(updatedState);
-    electron.appSetup.validateCurrentStep.mockResolvedValue({
-      isValid: true,
-      errors: [],
-    });
-
-    await store.getState().setup.selectLeague("poe1", "Settlers");
-
-    expect(trackEvent).toHaveBeenCalledWith(
-      "setup-league-selected",
-      expect.objectContaining({
-        game: "poe1",
-        league: "Settlers",
-      }),
-    );
   });
 });
 
@@ -517,46 +393,6 @@ describe("selectClientPath", () => {
     );
   });
 
-  it("tracks setup-client-path-selected event for poe1", async () => {
-    const initialState = makeSetupState({ selectedGames: ["poe1"] });
-
-    store.getState().setup.setSetupState(initialState);
-    electron.appSetup.getSetupState.mockResolvedValue(initialState);
-    electron.appSetup.validateCurrentStep.mockResolvedValue({
-      isValid: true,
-      errors: [],
-    });
-
-    await store
-      .getState()
-      .setup.selectClientPath("poe1", "/path/to/client.txt");
-
-    expect(trackEvent).toHaveBeenCalledWith("setup-client-path-selected", {
-      game: "poe1",
-      has_path: true,
-      selection_type: "poe1_only",
-    });
-  });
-
-  it("tracks setup-client-path-selected for poe2 with selection_type poe2_only", async () => {
-    const initialState = makeSetupState({ selectedGames: ["poe2"] });
-
-    store.getState().setup.setSetupState(initialState);
-    electron.appSetup.getSetupState.mockResolvedValue(initialState);
-    electron.appSetup.validateCurrentStep.mockResolvedValue({
-      isValid: true,
-      errors: [],
-    });
-
-    await store.getState().setup.selectClientPath("poe2", "/path");
-
-    expect(trackEvent).toHaveBeenCalledWith("setup-client-path-selected", {
-      game: "poe2",
-      has_path: true,
-      selection_type: "poe2_only",
-    });
-  });
-
   it("refreshes state and re-validates after path selection", async () => {
     const initialState = makeSetupState({ selectedGames: ["poe1"] });
     const updatedState = makeSetupState({ poe1ClientPath: "/path" });
@@ -572,25 +408,6 @@ describe("selectClientPath", () => {
 
     expect(electron.appSetup.getSetupState).toHaveBeenCalledTimes(1);
     expect(electron.appSetup.validateCurrentStep).toHaveBeenCalledTimes(1);
-  });
-
-  it("tracks client path selection with empty selected games when setupState is missing", async () => {
-    const updatedState = makeSetupState({ selectedGames: [] });
-    electron.appSetup.getSetupState.mockResolvedValue(updatedState);
-    electron.appSetup.validateCurrentStep.mockResolvedValue({
-      isValid: true,
-      errors: [],
-    });
-
-    await store.getState().setup.selectClientPath("poe1", "/path");
-
-    expect(trackEvent).toHaveBeenCalledWith(
-      "setup-client-path-selected",
-      expect.objectContaining({
-        game: "poe1",
-        has_path: true,
-      }),
-    );
   });
 });
 
@@ -682,260 +499,6 @@ describe("advanceStep", () => {
 
     expect(result).toBe(true);
     expect(store.getState().setup.setupState).toEqual(nextState);
-    expect(trackEvent).not.toHaveBeenCalledWith(
-      "setup-step-completed-game",
-      expect.anything(),
-    );
-  });
-
-  // ── Step completion tracking ─────────────────────────────────────────
-
-  it("tracks setup-step-completed-game from step 1", async () => {
-    const currentState = makeSetupState({
-      currentStep: 1,
-      selectedGames: ["poe1"],
-    });
-    const nextState = makeSetupState({ currentStep: 2 });
-
-    store.getState().setup.setSetupState(currentState);
-    electron.appSetup.advanceStep.mockResolvedValue({ success: true });
-    electron.appSetup.getSetupState.mockResolvedValue(nextState);
-
-    await store.getState().setup.advanceStep();
-
-    expect(trackEvent).toHaveBeenCalledWith("setup-step-completed-game", {
-      step_number: 1,
-      step_name: "game",
-      selectedGames: ["poe1"],
-      selection_type: "poe1_only",
-    });
-  });
-
-  it("tracks setup-step-completed-league from step 2 with league info", async () => {
-    const currentState = makeSetupState({
-      currentStep: 2,
-      selectedGames: ["poe1", "poe2"],
-      poe1League: "Settlers",
-      poe2League: "Dawn",
-    });
-    const nextState = makeSetupState({ currentStep: 3 });
-
-    store.getState().setup.setSetupState(currentState);
-    electron.appSetup.advanceStep.mockResolvedValue({ success: true });
-    electron.appSetup.getSetupState.mockResolvedValue(nextState);
-
-    await store.getState().setup.advanceStep();
-
-    expect(trackEvent).toHaveBeenCalledWith("setup-step-completed-league", {
-      step_number: 2,
-      step_name: "league",
-      selectedGames: ["poe1", "poe2"],
-      selection_type: "both",
-      poe1League: "Settlers",
-      poe2League: "Dawn",
-    });
-  });
-
-  it("tracks setup-step-completed-league with undefined leagues for unselected games", async () => {
-    const currentState = makeSetupState({
-      currentStep: 2,
-      selectedGames: ["poe1"],
-      poe1League: "Settlers",
-      poe2League: "Dawn",
-    });
-    const nextState = makeSetupState({ currentStep: 3 });
-
-    store.getState().setup.setSetupState(currentState);
-    electron.appSetup.advanceStep.mockResolvedValue({ success: true });
-    electron.appSetup.getSetupState.mockResolvedValue(nextState);
-
-    await store.getState().setup.advanceStep();
-
-    expect(trackEvent).toHaveBeenCalledWith("setup-step-completed-league", {
-      step_number: 2,
-      step_name: "league",
-      selectedGames: ["poe1"],
-      selection_type: "poe1_only",
-      poe1League: "Settlers",
-      poe2League: undefined,
-    });
-  });
-
-  it("tracks setup-step-completed-league with poe1League undefined when only poe2 is selected", async () => {
-    const currentState = makeSetupState({
-      currentStep: 2,
-      selectedGames: ["poe2"],
-      poe1League: "Settlers",
-      poe2League: "Dawn",
-    });
-    const nextState = makeSetupState({ currentStep: 3 });
-
-    store.getState().setup.setSetupState(currentState);
-    electron.appSetup.advanceStep.mockResolvedValue({ success: true });
-    electron.appSetup.getSetupState.mockResolvedValue(nextState);
-
-    await store.getState().setup.advanceStep();
-
-    expect(trackEvent).toHaveBeenCalledWith("setup-step-completed-league", {
-      step_number: 2,
-      step_name: "league",
-      selectedGames: ["poe2"],
-      selection_type: "poe2_only",
-      poe1League: undefined,
-      poe2League: "Dawn",
-    });
-  });
-
-  it("tracks setup-step-completed-client-path from step 3", async () => {
-    const currentState = makeSetupState({
-      currentStep: 3,
-      selectedGames: ["poe2"],
-    });
-    const nextState = makeSetupState({ currentStep: 4 });
-
-    store.getState().setup.setSetupState(currentState);
-    electron.appSetup.advanceStep.mockResolvedValue({ success: true });
-    electron.appSetup.getSetupState.mockResolvedValue(nextState);
-
-    await store.getState().setup.advanceStep();
-
-    expect(trackEvent).toHaveBeenCalledWith(
-      "setup-step-completed-client-path",
-      {
-        step_number: 3,
-        step_name: "client-path",
-        selectedGames: ["poe2"],
-        selection_type: "poe2_only",
-      },
-    );
-  });
-
-  it("tracks setup-step-completed-telemetry from step 4", async () => {
-    const currentState = makeSetupState({
-      currentStep: 4,
-      selectedGames: ["poe1"],
-      telemetryCrashReporting: true,
-      telemetryUsageAnalytics: false,
-    });
-    const nextState = makeSetupState({ currentStep: 4, isComplete: true });
-
-    store.getState().setup.setSetupState(currentState);
-    electron.appSetup.advanceStep.mockResolvedValue({ success: true });
-    electron.appSetup.getSetupState.mockResolvedValue(nextState);
-
-    await store.getState().setup.advanceStep();
-
-    expect(trackEvent).toHaveBeenCalledWith("setup-step-completed-telemetry", {
-      step_number: 4,
-      step_name: "telemetry",
-      crashReportingEnabled: true,
-      usageAnalyticsEnabled: false,
-    });
-  });
-
-  // ── Step viewed tracking ─────────────────────────────────────────────
-
-  it("tracks setup-step-viewed-league when advancing to step 2", async () => {
-    const currentState = makeSetupState({
-      currentStep: 1,
-      selectedGames: ["poe1"],
-    });
-    const nextState = makeSetupState({
-      currentStep: 2,
-      selectedGames: ["poe1"],
-    });
-
-    store.getState().setup.setSetupState(currentState);
-    electron.appSetup.advanceStep.mockResolvedValue({ success: true });
-    electron.appSetup.getSetupState.mockResolvedValue(nextState);
-
-    await store.getState().setup.advanceStep();
-
-    expect(trackEvent).toHaveBeenCalledWith("setup-step-viewed-league", {
-      step_number: 2,
-      step_name: "league",
-      selectedGames: ["poe1"],
-      selection_type: "poe1_only",
-    });
-  });
-
-  it("tracks setup-step-viewed-client-path when advancing to step 3", async () => {
-    const currentState = makeSetupState({
-      currentStep: 2,
-      selectedGames: ["poe1", "poe2"],
-    });
-    const nextState = makeSetupState({
-      currentStep: 3,
-      selectedGames: ["poe1", "poe2"],
-    });
-
-    store.getState().setup.setSetupState(currentState);
-    electron.appSetup.advanceStep.mockResolvedValue({ success: true });
-    electron.appSetup.getSetupState.mockResolvedValue(nextState);
-
-    await store.getState().setup.advanceStep();
-
-    expect(trackEvent).toHaveBeenCalledWith("setup-step-viewed-client-path", {
-      step_number: 3,
-      step_name: "client-path",
-      selectedGames: ["poe1", "poe2"],
-      selection_type: "both",
-    });
-  });
-
-  it("tracks setup-step-viewed-telemetry when advancing to step 4", async () => {
-    const currentState = makeSetupState({
-      currentStep: 3,
-      selectedGames: ["poe1"],
-    });
-    const nextState = makeSetupState({
-      currentStep: 4,
-      selectedGames: ["poe1"],
-    });
-
-    store.getState().setup.setSetupState(currentState);
-    electron.appSetup.advanceStep.mockResolvedValue({ success: true });
-    electron.appSetup.getSetupState.mockResolvedValue(nextState);
-
-    await store.getState().setup.advanceStep();
-
-    expect(trackEvent).toHaveBeenCalledWith("setup-step-viewed-telemetry", {
-      step_number: 4,
-      step_name: "telemetry",
-    });
-  });
-
-  it("does not track step-viewed event when nextStep does not match any tracked step", async () => {
-    const currentState = makeSetupState({
-      currentStep: 4,
-      selectedGames: ["poe1"],
-    });
-    // After advancing from step 4, the next state has isComplete=true and currentStep resets to 0
-    const nextState = makeSetupState({
-      currentStep: 0,
-      isComplete: true,
-      selectedGames: ["poe1"],
-    });
-
-    store.getState().setup.setSetupState(currentState);
-    electron.appSetup.advanceStep.mockResolvedValue({ success: true });
-    electron.appSetup.getSetupState.mockResolvedValue(nextState);
-
-    const result = await store.getState().setup.advanceStep();
-
-    expect(result).toBe(true);
-    expect(trackEvent).not.toHaveBeenCalledWith(
-      "setup-step-viewed-league",
-      expect.anything(),
-    );
-    expect(trackEvent).not.toHaveBeenCalledWith(
-      "setup-step-viewed-client-path",
-      expect.anything(),
-    );
-    expect(trackEvent).not.toHaveBeenCalledWith(
-      "setup-step-viewed-telemetry",
-      expect.anything(),
-    );
   });
 
   it("returns false and sets 'Unknown error' when a non-Error value is thrown", async () => {
@@ -1014,22 +577,6 @@ describe("goBack", () => {
     expect(electron.appSetup.goToStep).not.toHaveBeenCalled();
   });
 
-  it("tracks setup-step-back event", async () => {
-    const currentState = makeSetupState({ currentStep: 3 });
-    const prevState = makeSetupState({ currentStep: 2 });
-
-    store.getState().setup.setSetupState(currentState);
-    electron.appSetup.goToStep.mockResolvedValue({ success: true });
-    electron.appSetup.getSetupState.mockResolvedValue(prevState);
-
-    await store.getState().setup.goBack();
-
-    expect(trackEvent).toHaveBeenCalledWith("setup-step-back", {
-      from_step: 3,
-      to_step: 2,
-    });
-  });
-
   it("sets error when goToStep returns failure", async () => {
     const currentState = makeSetupState({ currentStep: 2 });
 
@@ -1092,7 +639,6 @@ describe("completeSetup", () => {
       currentStep: 4,
       selectedGames: ["poe1"],
       telemetryCrashReporting: true,
-      telemetryUsageAnalytics: true,
     });
     const completedState = makeSetupState({ isComplete: true });
 
@@ -1105,98 +651,6 @@ describe("completeSetup", () => {
     expect(result).toBe(true);
     expect(store.getState().setup.setupState).toEqual(completedState);
     expect(store.getState().setup.isLoading).toBe(false);
-  });
-
-  it("tracks setup-step-completed-telemetry-final event", async () => {
-    const currentState = makeSetupState({
-      currentStep: 4,
-      selectedGames: ["poe1", "poe2"],
-      telemetryCrashReporting: false,
-      telemetryUsageAnalytics: true,
-    });
-
-    store.getState().setup.setSetupState(currentState);
-    electron.appSetup.completeSetup.mockResolvedValue({ success: true });
-    electron.appSetup.getSetupState.mockResolvedValue(
-      makeSetupState({ isComplete: true }),
-    );
-
-    await store.getState().setup.completeSetup();
-
-    expect(trackEvent).toHaveBeenCalledWith(
-      "setup-step-completed-telemetry-final",
-      {
-        step_number: 4,
-        step_name: "telemetry",
-        selectedGames: ["poe1", "poe2"],
-        selection_type: "both",
-        crashReportingEnabled: false,
-        usageAnalyticsEnabled: true,
-      },
-    );
-  });
-
-  it("tracks setup-completed event with timing data", async () => {
-    const currentState = makeSetupState({
-      currentStep: 4,
-      selectedGames: ["poe1"],
-      poe1League: "Settlers",
-      telemetryCrashReporting: true,
-      telemetryUsageAnalytics: false,
-    });
-
-    store.getState().setup.setSetupState(currentState);
-    // Set start time to compute timeTaken
-    store.getState().setup.trackSetupStarted();
-
-    electron.appSetup.completeSetup.mockResolvedValue({ success: true });
-    electron.appSetup.getSetupState.mockResolvedValue(
-      makeSetupState({ isComplete: true }),
-    );
-
-    await store.getState().setup.completeSetup();
-
-    expect(trackEvent).toHaveBeenCalledWith(
-      "setup-completed",
-      expect.objectContaining({
-        selectedGames: ["poe1"],
-        selection_type: "poe1_only",
-        poe1League: "Settlers",
-        poe2League: undefined,
-        totalSteps: 4,
-        completion_status: "completed",
-        crashReportingEnabled: true,
-        usageAnalyticsEnabled: false,
-      }),
-    );
-  });
-
-  it("includes timeTaken when setupStartTime is set", async () => {
-    const currentState = makeSetupState({
-      currentStep: 4,
-      selectedGames: ["poe1"],
-    });
-
-    // Set setupStartTime directly on the store so completeSetup can read it
-    store.setState((state) => {
-      state.setup.setupState = currentState;
-      state.setup.setupStartTime = Date.now() - 5000; // 5 seconds ago
-    });
-
-    electron.appSetup.completeSetup.mockResolvedValue({ success: true });
-    electron.appSetup.getSetupState.mockResolvedValue(
-      makeSetupState({ isComplete: true }),
-    );
-
-    await store.getState().setup.completeSetup();
-
-    // timeTaken should be a number (>= 5000 since we set start time 5s ago)
-    const calls = vi.mocked(trackEvent).mock.calls;
-    const completedCall = calls.find((c) => c[0] === "setup-completed");
-    expect(completedCall).toBeDefined();
-    expect(completedCall![1]).toHaveProperty("timeTaken");
-    expect(typeof completedCall![1]!.timeTaken).toBe("number");
-    expect(completedCall![1]!.timeTaken).toBeGreaterThanOrEqual(0);
   });
 
   it("returns false on IPC failure", async () => {
@@ -1264,62 +718,6 @@ describe("completeSetup", () => {
     expect(store.getState().setup.error).toBe("Unknown error");
     expect(store.getState().setup.isLoading).toBe(false);
   });
-
-  it("uses empty selectedGames fallback when setupState is null", async () => {
-    // Do NOT set setupState — it stays null so `?.selectedGames || []` hits the fallback
-    electron.appSetup.completeSetup.mockResolvedValue({ success: true });
-    electron.appSetup.getSetupState.mockResolvedValue(
-      makeSetupState({ isComplete: true }),
-    );
-
-    const result = await store.getState().setup.completeSetup();
-
-    expect(result).toBe(true);
-    expect(trackEvent).toHaveBeenCalledWith(
-      "setup-step-completed-telemetry-final",
-      expect.objectContaining({
-        selectedGames: [],
-      }),
-    );
-    expect(trackEvent).toHaveBeenCalledWith(
-      "setup-completed",
-      expect.objectContaining({
-        selectedGames: [],
-        poe1League: undefined,
-        poe2League: undefined,
-      }),
-    );
-  });
-
-  it("sets poe1League to undefined when only poe2 is selected", async () => {
-    const currentState = makeSetupState({
-      currentStep: 4,
-      selectedGames: ["poe2"],
-      poe1League: "Standard",
-      poe2League: "Dawn",
-      telemetryCrashReporting: true,
-      telemetryUsageAnalytics: false,
-    });
-
-    store.getState().setup.setSetupState(currentState);
-    electron.appSetup.completeSetup.mockResolvedValue({ success: true });
-    electron.appSetup.getSetupState.mockResolvedValue(
-      makeSetupState({ isComplete: true }),
-    );
-
-    const result = await store.getState().setup.completeSetup();
-
-    expect(result).toBe(true);
-    expect(trackEvent).toHaveBeenCalledWith(
-      "setup-completed",
-      expect.objectContaining({
-        selectedGames: ["poe2"],
-        selection_type: "poe2_only",
-        poe1League: undefined,
-        poe2League: "Dawn",
-      }),
-    );
-  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1327,81 +725,6 @@ describe("completeSetup", () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("skipSetup", () => {
-  it("tracks setup-skipped event with current step info", async () => {
-    const currentState = makeSetupState({ currentStep: 2 });
-    const skippedState = makeSetupState({ isComplete: true });
-
-    store.getState().setup.setSetupState(currentState);
-    electron.appSetup.skipSetup.mockResolvedValue(undefined);
-    electron.appSetup.getSetupState.mockResolvedValue(skippedState);
-
-    await store.getState().setup.skipSetup();
-
-    expect(trackEvent).toHaveBeenCalledWith("setup-skipped", {
-      currentStep: 2,
-      stepName: "league",
-      reason: "user_skip",
-      completion_status: "skipped",
-    });
-  });
-
-  it("tracks setup-skipped from step 1 with stepName 'game'", async () => {
-    const currentState = makeSetupState({ currentStep: 1 });
-
-    store.getState().setup.setSetupState(currentState);
-    electron.appSetup.skipSetup.mockResolvedValue(undefined);
-    electron.appSetup.getSetupState.mockResolvedValue(
-      makeSetupState({ isComplete: true }),
-    );
-
-    await store.getState().setup.skipSetup();
-
-    expect(trackEvent).toHaveBeenCalledWith("setup-skipped", {
-      currentStep: 1,
-      stepName: "game",
-      reason: "user_skip",
-      completion_status: "skipped",
-    });
-  });
-
-  it("tracks setup-skipped from step 3 with stepName 'client-path'", async () => {
-    const currentState = makeSetupState({ currentStep: 3 });
-
-    store.getState().setup.setSetupState(currentState);
-    electron.appSetup.skipSetup.mockResolvedValue(undefined);
-    electron.appSetup.getSetupState.mockResolvedValue(
-      makeSetupState({ isComplete: true }),
-    );
-
-    await store.getState().setup.skipSetup();
-
-    expect(trackEvent).toHaveBeenCalledWith("setup-skipped", {
-      currentStep: 3,
-      stepName: "client-path",
-      reason: "user_skip",
-      completion_status: "skipped",
-    });
-  });
-
-  it("uses 'unknown' stepName for unmapped steps", async () => {
-    const currentState = makeSetupState({ currentStep: 4 });
-
-    store.getState().setup.setSetupState(currentState);
-    electron.appSetup.skipSetup.mockResolvedValue(undefined);
-    electron.appSetup.getSetupState.mockResolvedValue(
-      makeSetupState({ isComplete: true }),
-    );
-
-    await store.getState().setup.skipSetup();
-
-    expect(trackEvent).toHaveBeenCalledWith("setup-skipped", {
-      currentStep: 4,
-      stepName: "unknown",
-      reason: "user_skip",
-      completion_status: "skipped",
-    });
-  });
-
   it("calls IPC skipSetup and refreshes state", async () => {
     const skippedState = makeSetupState({ isComplete: true });
 
@@ -1434,25 +757,6 @@ describe("skipSetup", () => {
     await store.getState().setup.skipSetup();
 
     expect(store.getState().setup.error).toBe("Unknown error");
-    expect(store.getState().setup.isLoading).toBe(false);
-  });
-
-  it("uses currentStep 0 fallback when setupState is null", async () => {
-    // Do NOT set setupState — it stays null so `?.currentStep ?? 0` hits the fallback
-    electron.appSetup.skipSetup.mockResolvedValue(undefined);
-    electron.appSetup.getSetupState.mockResolvedValue(
-      makeSetupState({ isComplete: true }),
-    );
-
-    await store.getState().setup.skipSetup();
-
-    expect(trackEvent).toHaveBeenCalledWith("setup-skipped", {
-      currentStep: 0,
-      stepName: "unknown",
-      reason: "user_skip",
-      completion_status: "skipped",
-    });
-    expect(electron.appSetup.skipSetup).toHaveBeenCalledTimes(1);
     expect(store.getState().setup.isLoading).toBe(false);
   });
 });
@@ -1515,39 +819,7 @@ describe("resetSetup", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 12. trackSetupStarted
-// ═══════════════════════════════════════════════════════════════════════════
-
-describe("trackSetupStarted", () => {
-  it("sets setupStartTime to a number", () => {
-    store.getState().setup.trackSetupStarted();
-
-    expect(store.getState().setup.setupStartTime).toBeTypeOf("number");
-    expect(store.getState().setup.setupStartTime).toBeGreaterThan(0);
-  });
-
-  it("tracks setup-started event with timestamp", () => {
-    store.getState().setup.trackSetupStarted();
-
-    expect(trackEvent).toHaveBeenCalledWith("setup-started", {
-      timestamp: expect.any(String),
-    });
-  });
-
-  it("overwrites previous setupStartTime on repeated calls", () => {
-    store.getState().setup.trackSetupStarted();
-    const first = store.getState().setup.setupStartTime;
-
-    store.getState().setup.trackSetupStarted();
-    const second = store.getState().setup.setupStartTime;
-
-    // Second should be >= first
-    expect(second).toBeGreaterThanOrEqual(first!);
-  });
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 13. Getters
+// 12. Getters
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("getters", () => {
