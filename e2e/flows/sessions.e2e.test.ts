@@ -25,6 +25,7 @@ import {
   waitForRoute,
 } from "../helpers/navigation";
 import {
+  clearSessionHistory,
   dbExec,
   seedCompletedSession,
   seedMultipleCompletedSessions,
@@ -42,14 +43,6 @@ async function goToSessions(page: Page) {
     .getByText("Sessions", { exact: false })
     .first()
     .waitFor({ state: "visible", timeout: 10_000 });
-}
-
-async function clearSessionHistory(page: Page) {
-  await dbExec(page, "DELETE FROM session_card_events");
-  await dbExec(page, "DELETE FROM session_cards");
-  await dbExec(page, "DELETE FROM session_summaries");
-  await dbExec(page, "DELETE FROM sessions");
-  await dbExec(page, "DELETE FROM processed_ids");
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────

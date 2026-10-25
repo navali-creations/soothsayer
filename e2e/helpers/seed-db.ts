@@ -125,6 +125,19 @@ export async function dbExec(
 }
 
 /**
+ * Remove session history left by another test sharing the same Electron worker.
+ * Child rows are deleted first so this remains safe regardless of SQLite's
+ * foreign-key configuration in the test process.
+ */
+export async function clearSessionHistory(page: Page): Promise<void> {
+  await dbExec(page, "DELETE FROM session_card_events");
+  await dbExec(page, "DELETE FROM session_cards");
+  await dbExec(page, "DELETE FROM session_summaries");
+  await dbExec(page, "DELETE FROM sessions");
+  await dbExec(page, "DELETE FROM processed_ids");
+}
+
+/**
  * Execute a read SQL statement (SELECT) via the test-only `e2e:db-query` IPC
  * channel exposed by `DatabaseService`.
  *

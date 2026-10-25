@@ -1481,17 +1481,29 @@ describe("GggAuthService", () => {
 
   describe("session storage fallback coverage", () => {
     it("does not apply Unix permissions to plaintext storage on Windows", async () => {
-      vi.stubEnv("NODE_ENV", "development");
-      mockSafeStorageIsAvailable.mockReturnValue(false);
-      const service = GggAuthService.getInstance();
-      mockFetch.mockResolvedValueOnce(createSuccessTokenResponse());
-      const { authPromise, getCallbackUrl } =
-        startAuthFlowAndCaptureState(service);
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, "platform", {
+        configurable: true,
+        value: "win32",
+      });
+      try {
+        vi.stubEnv("NODE_ENV", "development");
+        mockSafeStorageIsAvailable.mockReturnValue(false);
+        const service = GggAuthService.getInstance();
+        mockFetch.mockResolvedValueOnce(createSuccessTokenResponse());
+        const { authPromise, getCallbackUrl } =
+          startAuthFlowAndCaptureState(service);
 
-      await service.handleCallback(getCallbackUrl());
-      await authPromise;
+        await service.handleCallback(getCallbackUrl());
+        await authPromise;
 
-      expect(mockFsChmodSync).not.toHaveBeenCalled();
+        expect(mockFsChmodSync).not.toHaveBeenCalled();
+      } finally {
+        Object.defineProperty(process, "platform", {
+          configurable: true,
+          value: originalPlatform,
+        });
+      }
     });
 
     it("restricts encrypted session files on Unix", async () => {

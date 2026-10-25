@@ -21,6 +21,7 @@ import {
 } from "../helpers/ipc-helpers";
 import { ensurePostSetup, navigateTo } from "../helpers/navigation";
 import {
+  clearSessionHistory,
   seedDataStoreForStatistics,
   seedMultipleCompletedSessions,
   seedSessionPrerequisites,
@@ -90,6 +91,14 @@ async function getAllSessions(page: Page): Promise<SessionsPageResult> {
   );
 }
 
+async function resetDeleteTestState(page: Page) {
+  await navigateTo(page, "/");
+  await stopSession(page, "poe1").catch(() => undefined);
+  await stopSession(page, "poe2").catch(() => undefined);
+  await clearSessionHistory(page);
+  await resetSessionsBulkState(page);
+}
+
 async function seedDeleteSessions(page: Page) {
   const { leagueId, snapshotId } = await seedSessionPrerequisites(page);
 
@@ -151,7 +160,11 @@ async function seedDeleteSessions(page: Page) {
 test.describe("Sessions multi-session delete", () => {
   test.beforeEach(async ({ page }) => {
     await ensurePostSetup(page);
-    await resetSessionsBulkState(page);
+    await resetDeleteTestState(page);
+  });
+
+  test.afterEach(async ({ page }) => {
+    await resetDeleteTestState(page);
   });
 
   test("deletes selected completed sessions and refreshes dependent data", async ({

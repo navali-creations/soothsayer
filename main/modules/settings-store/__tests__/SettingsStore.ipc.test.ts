@@ -2374,21 +2374,16 @@ describe("SettingsStoreService — IPC handlers", () => {
     it("should return base64 data URL for a valid mp3 file within PoE directory", async () => {
       const audioBuffer = Buffer.from("fake-mp3-data");
       mockFsReadFile.mockResolvedValue(audioBuffer);
-      vi.mocked(app.getPath).mockReturnValueOnce("C:\\mock-path");
+      const nodePath = require("node:path");
+      const documentsPath = nodePath.resolve("mock-documents");
+      vi.mocked(app.getPath).mockReturnValueOnce(documentsPath);
 
       const getCustomSoundData = getIpcHandler(
         mockIpcHandle,
         SettingsStoreChannel.GetCustomSoundData,
       );
-      // The service computes soundsDir via path.join(app.getPath("documents"), ...)
-      // and then checks path.resolve(filePath).startsWith(soundsDir).
-      // On Windows, path.resolve adds a drive letter to paths like "\mock-path\..."
-      // while soundsDir stays un-resolved, causing startsWith to fail.
-      // Use path.resolve on the soundsDir to build a filePath that survives
-      // the resolve → startsWith round-trip on every platform.
-      const nodePath = require("node:path");
       const soundsDir = nodePath.join(
-        "C:\\mock-path",
+        documentsPath,
         "My Games",
         "Path of Exile",
       );
@@ -2413,11 +2408,11 @@ describe("SettingsStoreService — IPC handlers", () => {
 
     it("should return null when file read fails", async () => {
       mockFsReadFile.mockRejectedValue(new Error("ENOENT: file not found"));
-      vi.mocked(app.getPath).mockReturnValueOnce("C:\\mock-path");
-
       const nodePath = require("node:path");
+      const documentsPath = nodePath.resolve("mock-documents");
+      vi.mocked(app.getPath).mockReturnValueOnce(documentsPath);
       const soundsDir = nodePath.join(
-        "C:\\mock-path",
+        documentsPath,
         "My Games",
         "Path of Exile",
       );
@@ -2429,6 +2424,7 @@ describe("SettingsStoreService — IPC handlers", () => {
       )({}, filePath);
 
       expect(result).toBeNull();
+      expect(mockFsReadFile).toHaveBeenCalled();
     });
 
     it("should reject non-string filePath", async () => {
