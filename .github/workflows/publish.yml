@@ -113,7 +113,7 @@ jobs:
           cache: pnpm
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@1.99.1
+        uses: dtolnay/rust-toolchain@1.120.0
 
       # Skip all lifecycle scripts during install to avoid supabase CLI download failures on Windows
       - name: Install dependencies (skip lifecycle scripts)
