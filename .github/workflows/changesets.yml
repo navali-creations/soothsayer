@@ -43,8 +43,8 @@ jobs:
       - name: Create version PR
         uses: changesets/action@v2
         with:
-          commit: "[ci] release"
-          title: "[ci] release"
-          version: pnpm exec changeset version
+          commit-message: "[ci] release"
+          pr-title: "[ci] release"
+          version-script: pnpm exec changeset version
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
