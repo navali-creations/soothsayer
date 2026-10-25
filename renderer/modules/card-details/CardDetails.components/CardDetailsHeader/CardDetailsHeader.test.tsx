@@ -37,8 +37,8 @@ const mockTrackEvent = vi.mocked(trackEvent);
 
 vi.mock("~/renderer/components", () => ({
   PageContainer: Object.assign(({ children }: any) => <div>{children}</div>, {
-    Header: ({ title, subtitle, actions }: any) => (
-      <div data-testid="header">
+    Header: ({ title, subtitle, actions, animationKey }: any) => (
+      <div data-testid="header" data-animation-key={animationKey}>
         <span data-testid="header-title">{title}</span>
         <div data-testid="header-subtitle">{subtitle}</div>
         <div data-testid="header-actions">{actions}</div>
@@ -121,6 +121,37 @@ describe("CardDetailsHeader", () => {
   it("renders card name in header title", () => {
     renderHeader({ cardName: "The Doctor" });
     expect(screen.getByTestId("header-title")).toHaveTextContent("The Doctor");
+  });
+
+  it("passes the page animation key to the shared header", () => {
+    const mockState = createHeaderActionsMockState();
+    vi.mocked(useCardDetails).mockReturnValue(mockState.cardDetails as any);
+
+    renderWithProviders(
+      <CardDetailsHeader
+        cardName="The Doctor"
+        rarity={2}
+        animationKey="poe1:the-doctor:all"
+      />,
+    );
+
+    expect(screen.getByTestId("header")).toHaveAttribute(
+      "data-animation-key",
+      "poe1:the-doctor:all",
+    );
+  });
+
+  it("keeps the header mounted before the card resolves", () => {
+    const mockState = createHeaderActionsMockState();
+    vi.mocked(useCardDetails).mockReturnValue(mockState.cardDetails as any);
+
+    renderWithProviders(<CardDetailsHeader />);
+
+    expect(screen.getByTestId("header-title")).toHaveTextContent(
+      "Card Details",
+    );
+    expect(screen.getByTestId("header-subtitle")).toBeEmptyDOMElement();
+    expect(screen.getByTestId("header-actions")).not.toBeEmptyDOMElement();
   });
 
   it("passes rarity to subtitle", () => {
@@ -212,7 +243,9 @@ describe("HeaderActions", () => {
 
   it('renders league selector with "All Leagues" option', () => {
     renderHeaderActions();
-    const select = screen.getByRole("combobox");
+    const select = screen.getByRole("combobox", {
+      name: "Card details league",
+    });
     expect(select).toBeInTheDocument();
     expect(screen.getByText("All Leagues")).toBeInTheDocument();
   });
@@ -271,6 +304,22 @@ describe("HeaderActions", () => {
     });
     const select = screen.getByRole("combobox") as HTMLSelectElement;
     expect(select.value).toBe("Standard");
+  });
+
+  it("keeps the selected league visible while analytics are loading", () => {
+    renderHeaderActions({
+      cardDetails: {
+        selectedLeague: "Standard",
+        personalAnalytics: null,
+        getAvailableLeagues: vi.fn(() => []),
+      },
+    });
+
+    const select = screen.getByRole("combobox") as HTMLSelectElement;
+    expect(select.value).toBe("Standard");
+    expect(
+      screen.getByRole("option", { name: "Standard" }),
+    ).toBeInTheDocument();
   });
 
   it("matches the statistics league selector width", () => {

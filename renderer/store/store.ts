@@ -248,9 +248,11 @@ export const useBoundStore = create<BoundStore>()(
               sessionDetails.error = null;
 
               // Reset card details
-              state.cardDetails.priceHistory = null;
-              state.cardDetails.isLoadingPriceHistory = false;
-              state.cardDetails.priceHistoryError = null;
+              state.cardDetails.card = null;
+              state.cardDetails.activeCardKey = null;
+              state.cardDetails.isLoadingCard = false;
+              state.cardDetails.cardError = null;
+              state.cardDetails.cardDetailsRequestId++;
               state.cardDetails.personalAnalytics = null;
               state.cardDetails.isLoadingPersonalAnalytics = false;
               state.cardDetails.personalAnalyticsError = null;
@@ -258,6 +260,7 @@ export const useBoundStore = create<BoundStore>()(
               state.cardDetails.isLoadingSessions = false;
               state.cardDetails.sessionsError = null;
               state.cardDetails.sessionsPage = 1;
+              state.cardDetails.sessionsRequestId++;
 
               // Reset app menu
               appMenu.isMaximized = false;

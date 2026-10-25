@@ -4,16 +4,16 @@ import { useEffect, useRef } from "react";
 import { PageContainer } from "~/renderer/components";
 import { trackEvent } from "~/renderer/modules/umami";
 import { useCardDetails, useSettings } from "~/renderer/store";
-import { toCardMetadata } from "~/renderer/utils/to-card-metadata";
+import { toCardMetadata } from "~/renderer/utils";
 import type { CardEntry } from "~/types/data-stores";
 
 import CardDetailsError from "../CardDetails.components/CardDetailsError";
 import { CardDetailsExternalLinks } from "../CardDetails.components/CardDetailsExternalLinks/CardDetailsExternalLinks";
 import CardDetailsHeader from "../CardDetails.components/CardDetailsHeader";
-import CardDetailsLoading from "../CardDetails.components/CardDetailsLoading";
 import CardDetailsRelatedCards from "../CardDetails.components/CardDetailsRelatedCards";
 import CardDetailsVisual from "../CardDetails.components/CardDetailsVisual";
-import YourDataTabContent from "../CardDetails.components/YourDataTabContent";
+import YourDataTabContent from "../CardDetails.components/YourDataTabContent/YourDataTabContent";
+import { useCardDetailsPreview } from "../CardDetails.hooks/useCardDetailsPreview/useCardDetailsPreview";
 
 const CardDetailsPage = () => {
   const { cardSlug } = useParams({ from: "/cards/$cardSlug" });
@@ -27,21 +27,27 @@ const CardDetailsPage = () => {
     clearCardDetails,
     isLoadingPersonalAnalytics,
     selectedLeague,
-    setSelectedLeague,
     getDisplayRarity,
     fetchCommunityDropRate,
+    relatedCards,
+    activeCardKey,
   } = useCardDetails();
 
   const game = getSelectedGame();
   const globalLeague = getActiveGameViewSelectedLeague();
+  const cardKey = `${game}:${cardSlug}`;
+  const cardPreview = useCardDetailsPreview({ game, cardSlug, relatedCards });
+  const isNewCard = activeCardKey !== cardKey;
+  const shouldFallbackToAll =
+    !isNewCard &&
+    !isLoadingCard &&
+    selectedLeague !== "all" &&
+    card !== null &&
+    !card.inPool;
+  const effectiveSelectedLeague = shouldFallbackToAll ? "all" : selectedLeague;
   const communityLeague =
-    selectedLeague === "all" ? globalLeague : selectedLeague;
-
-  // ─── Reset league on card navigation ───────────────────────────────────
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — reset on card navigation
-  useEffect(() => {
-    setSelectedLeague("all");
-  }, [cardSlug, setSelectedLeague]);
+    effectiveSelectedLeague === "all" ? globalLeague : effectiveSelectedLeague;
+  const animationKey = `${cardKey}:${effectiveSelectedLeague}`;
 
   // ─── Unified initialization ────────────────────────────────────────────
   //
@@ -54,15 +60,27 @@ const CardDetailsPage = () => {
   const hasInitializedRef = useRef<string | null>(null);
 
   useEffect(() => {
-    const initKey = `${game}:${cardSlug}:${selectedLeague}:${communityLeague}`;
+    const initKey = `${cardKey}:${effectiveSelectedLeague}:${communityLeague}`;
     if (hasInitializedRef.current === initKey) return;
     hasInitializedRef.current = initKey;
 
-    initializeCardDetails(game, cardSlug, selectedLeague, communityLeague);
+    initializeCardDetails(
+      game,
+      cardSlug,
+      effectiveSelectedLeague,
+      communityLeague,
+    );
 
     // Track card detail view
     trackEvent("card-details:view", { cardSlug });
-  }, [game, cardSlug, selectedLeague, communityLeague, initializeCardDetails]);
+  }, [
+    game,
+    cardSlug,
+    cardKey,
+    effectiveSelectedLeague,
+    communityLeague,
+    initializeCardDetails,
+  ]);
 
   // ─── Cleanup on unmount / card change ──────────────────────────────────
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — clear on card/game change
@@ -74,63 +92,83 @@ const CardDetailsPage = () => {
   }, [game, cardSlug, clearCardDetails]);
 
   useEffect(() => {
-    if (!card || !communityLeague) return;
+    if (isNewCard || shouldFallbackToAll || !card || !communityLeague) return;
     fetchCommunityDropRate(game, communityLeague, card.name);
-  }, [card, communityLeague, fetchCommunityDropRate, game]);
+  }, [
+    card,
+    communityLeague,
+    fetchCommunityDropRate,
+    game,
+    isNewCard,
+    shouldFallbackToAll,
+  ]);
 
   // ─── Early returns: loading / error ────────────────────────────────────
 
-  if (isLoadingCard) {
-    return <CardDetailsLoading />;
-  }
-
-  if (cardError || !card) {
+  if (cardError && !isNewCard) {
     return <CardDetailsError error={cardError} />;
   }
 
   // ─── Derived display values ────────────────────────────────────────────
 
-  const displayRarity = getDisplayRarity();
+  const resolvedCard = isNewCard ? null : card;
+  const previewMetadata = cardPreview?.card.divinationCard;
+  const previewRarity =
+    previewMetadata?.prohibitedLibraryRarity &&
+    previewMetadata.prohibitedLibraryRarity > 0
+      ? previewMetadata.prohibitedLibraryRarity
+      : previewMetadata?.rarity;
+  const displayRarity = resolvedCard ? getDisplayRarity() : previewRarity;
 
   // Build a CardEntry with the resolved PL rarity for the DivinationCard
   // visual (glow colour and rarity effects).
-  const displayCard: CardEntry = {
-    name: card.name,
-    count: 0,
-    divinationCard: toCardMetadata(card, {
-      rarity: displayRarity,
-      filterRarity: card.filterRarity,
-    }),
-  };
+  const displayCard: CardEntry | null =
+    resolvedCard && displayRarity !== undefined
+      ? {
+          name: resolvedCard.name,
+          count: 0,
+          divinationCard: toCardMetadata(resolvedCard, {
+            rarity: displayRarity,
+            filterRarity: resolvedCard.filterRarity,
+          }),
+        }
+      : (cardPreview?.card ?? null);
+  const displayInPool = resolvedCard?.inPool ?? cardPreview?.inPool;
 
-  const isYourDataLoading = isLoadingPersonalAnalytics;
+  const isYourDataLoading =
+    isNewCard || isLoadingCard || isLoadingPersonalAnalytics;
 
   return (
     <PageContainer>
       <CardDetailsHeader
-        cardName={card.name}
+        animationKey={animationKey}
+        cardName={displayCard?.name}
         rarity={displayRarity}
-        fromBoss={card.fromBoss}
-        isDisabled={card.isDisabled}
-        inPool={card.inPool}
+        fromBoss={displayCard?.divinationCard?.fromBoss}
+        isDisabled={displayCard?.divinationCard?.isDisabled}
+        inPool={displayInPool}
       />
-      <PageContainer.Content>
+      <PageContainer.Content animationKey={animationKey}>
         <div className="grid grid-cols-4 gap-6">
           {/* Left column: Card visual + external links + related cards */}
           <div className="space-y-3">
-            <CardDetailsVisual card={displayCard} />
-            <CardDetailsExternalLinks
-              cardName={card.name}
-              game={game}
-              league={communityLeague}
-            />
-            <CardDetailsRelatedCards />
+            {displayCard && (
+              <>
+                <CardDetailsVisual card={displayCard} />
+                <CardDetailsExternalLinks
+                  cardName={displayCard.name}
+                  game={game}
+                  league={communityLeague}
+                />
+                <CardDetailsRelatedCards />
+              </>
+            )}
           </div>
 
           {/* Right columns: Personal analytics */}
           <div className="col-span-3 space-y-6">
             <YourDataTabContent
-              cardName={card.name}
+              cardName={displayCard?.name ?? ""}
               game={game}
               isLoading={isYourDataLoading}
             />

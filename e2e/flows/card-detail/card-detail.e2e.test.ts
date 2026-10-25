@@ -38,6 +38,7 @@ import {
   waitForRoute,
 } from "../../helpers/navigation";
 import {
+  dbExec,
   seedCardRarities,
   seedCompletedSession,
   seedLeagueCache,
@@ -198,6 +199,36 @@ async function ensureDataSeeded(page: Page) {
     snapshotId = result.snapshotId;
   } catch {
     // May already be seeded from a previous test in this worker
+  }
+
+  // A card-details-only league used to verify that the page keeps its league
+  // selection across related-card navigation and falls back only when the
+  // destination card is absent from that league's pool.
+  try {
+    const now = new Date().toISOString();
+    await dbExec(
+      page,
+      `INSERT OR REPLACE INTO leagues (id, game, name, start_date)
+       VALUES (?, ?, ?, ?)`,
+      ["poe1_e2e_card_details", "poe1", "E2E Card Details", now],
+    );
+    for (const cardName of ["The Nurse", "The Doctor"]) {
+      await dbExec(
+        page,
+        `INSERT OR REPLACE INTO divination_card_availability
+           (game, league, card_name, from_boss, is_disabled, weight, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        ["poe1", "E2E Card Details", cardName, 0, 0, 100, now],
+      );
+    }
+    await seedCompletedSession(page, {
+      id: "e2e-card-detail-league-session",
+      leagueId: "poe1_e2e_card_details",
+      cards: [{ cardName: "The Nurse", count: 1 }],
+    });
+  } catch {
+    // The focused persistence test below reports a useful assertion if the
+    // fixture cannot be created.
   }
 
   // Seed the league cache so the UI league dropdown is populated.
@@ -1006,6 +1037,36 @@ test.describe("Card Detail Page", () => {
   // chain is shorter, so The Nurse gives us richer coverage.
 
   test.describe("Related / Chain Cards", () => {
+    test("should persist a selected league across related cards and fall back when unavailable", async ({
+      page,
+    }) => {
+      await goToCardDetail(page, "the-nurse");
+      const leagueSelect = page.getByRole("combobox", {
+        name: "Card details league",
+      });
+      await expect(leagueSelect).toBeVisible({ timeout: 10_000 });
+      await leagueSelect.selectOption("E2E Card Details");
+      await expect(leagueSelect).toHaveValue("E2E Card Details");
+
+      const doctorLink = page
+        .locator('main a[href*="/cards/the-doctor"]')
+        .first();
+      await expect(doctorLink).toBeVisible({ timeout: 10_000 });
+      await doctorLink.click();
+      await waitForRoute(page, "/cards/the-doctor", 10_000);
+      await expect(leagueSelect).toHaveValue("E2E Card Details");
+
+      await goToCardDetail(page, "the-nurse");
+      await expect(leagueSelect).toHaveValue("E2E Card Details");
+      const patientLink = page
+        .locator('main a[href*="/cards/the-patient"]')
+        .first();
+      await expect(patientLink).toBeVisible({ timeout: 10_000 });
+      await patientLink.click();
+      await waitForRoute(page, "/cards/the-patient", 10_000);
+      await expect(leagueSelect).toHaveValue("all");
+    });
+
     test("should render related cards section for The Nurse", async ({
       page,
     }) => {

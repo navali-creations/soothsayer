@@ -1,6 +1,7 @@
 import { type Kysely, type SqlBool, sql, type Transaction } from "kysely";
 
 import type { Database } from "~/main/modules/database";
+import type { GameType } from "~/types/data-stores";
 
 import type {
   SessionCardDetailsDTO,
@@ -225,7 +226,7 @@ export class SessionsRepository {
 
     return {
       id: row.id,
-      game: row.game,
+      game: row.game as GameType,
       leagueId: row.leagueId,
       league: row.league,
       snapshotId: row.snapshotId,

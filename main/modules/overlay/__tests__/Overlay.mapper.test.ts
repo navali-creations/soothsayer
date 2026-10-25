@@ -7,6 +7,7 @@ import { toOverlaySessionData } from "../Overlay.mapper";
 describe("toOverlaySessionData", () => {
   it("maps a current session to renderer-ready overlay data", () => {
     const session: DetailedDivinationCardStats = {
+      game: "poe1",
       totalCount: 2,
       totals: {
         totalValue: 100,

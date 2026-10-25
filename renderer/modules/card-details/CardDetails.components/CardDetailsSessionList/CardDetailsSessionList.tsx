@@ -4,6 +4,7 @@ import { useCallback, useEffect } from "react";
 import { useCardDetails } from "~/renderer/store";
 import type { GameType } from "~/types/data-stores";
 
+import LoadingOverlay from "../LoadingOverlay/LoadingOverlay";
 import SessionListEmpty from "./SessionListEmpty";
 import SessionListError from "./SessionListError";
 import SessionListPagination from "./SessionListPagination";
@@ -87,42 +88,61 @@ const CardDetailsSessionList = ({
     return <SessionListError error={sessionsError} />;
   }
 
+  if (!cardName || !sessions) {
+    return (
+      <div className="bg-base-200 rounded-lg p-4 min-h-28 flex flex-col gap-3">
+        <h3 className="text-xs font-semibold uppercase text-base-content/50">
+          Sessions with this Card
+        </h3>
+        <div className="flex flex-1 items-center justify-center">
+          <span
+            className="loading loading-spinner loading-sm text-primary"
+            role="status"
+            aria-label="Loading card sessions"
+          />
+        </div>
+      </div>
+    );
+  }
+
   // No sessions
-  if (!sessions || sessions.total === 0) {
+  if (sessions.total === 0) {
     return <SessionListEmpty />;
   }
 
   const { total, page, totalPages } = sessions;
 
   return (
-    <div className="bg-base-200 rounded-lg p-4 space-y-3">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h3 className="text-xs font-semibold uppercase text-base-content/50">
-          Sessions with this Card
-        </h3>
-        <span className="badge badge-sm badge-ghost tabular-nums">
-          {total} session{total !== 1 ? "s" : ""}
-        </span>
+    <LoadingOverlay isLoading={isLoadingSessions}>
+      <div className="bg-base-200 rounded-lg p-4 space-y-3">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-semibold uppercase text-base-content/50">
+            Sessions with this Card
+          </h3>
+          <span className="badge badge-sm badge-ghost tabular-nums">
+            {total} session{total !== 1 ? "s" : ""}
+          </span>
+        </div>
+
+        {/* Table */}
+        <SessionListTable
+          sessions={sessions.sessions}
+          sortState={sessionsSortState}
+          showLeagueColumn={showLeagueColumn}
+          onSort={handleSort}
+          onRowClick={handleRowClick}
+        />
+
+        {/* Pagination */}
+        <SessionListPagination
+          page={page}
+          totalPages={totalPages}
+          isLoading={isLoadingSessions}
+          onPageChange={handlePageChange}
+        />
       </div>
-
-      {/* Table */}
-      <SessionListTable
-        sessions={sessions.sessions}
-        sortState={sessionsSortState}
-        showLeagueColumn={showLeagueColumn}
-        onSort={handleSort}
-        onRowClick={handleRowClick}
-      />
-
-      {/* Pagination */}
-      <SessionListPagination
-        page={page}
-        totalPages={totalPages}
-        isLoading={isLoadingSessions}
-        onPageChange={handlePageChange}
-      />
-    </div>
+    </LoadingOverlay>
   );
 };
 

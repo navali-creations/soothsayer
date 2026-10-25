@@ -1237,6 +1237,7 @@ class CurrentSessionService {
 
     const result = {
       id: activeSession.sessionId,
+      game,
       totalCount: session.totalCount,
       cards: cardsArray,
       recentDrops,

@@ -784,6 +784,7 @@ class SessionsService {
 
     return {
       id: session.id,
+      game: session.game,
       totalCount: session.totalCount,
       cards: cardsArray,
       startedAt: session.startedAt,

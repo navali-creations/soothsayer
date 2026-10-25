@@ -149,6 +149,7 @@ export function makeDetailedSession(
   overrides: Partial<DetailedDivinationCardStats> = {},
 ): DetailedDivinationCardStats {
   return {
+    game: "poe1",
     totalCount: 50,
     cards: [
       {

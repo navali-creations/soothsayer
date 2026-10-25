@@ -11,6 +11,10 @@ const HeaderActions = () => {
   } = useCardDetails();
 
   const availableLeagues = getAvailableLeagues();
+  const leagueOptions =
+    selectedLeague !== "all" && !availableLeagues.includes(selectedLeague)
+      ? [selectedLeague, ...availableLeagues]
+      : availableLeagues;
   const cardName = personalAnalytics?.cardName;
 
   const handleLeagueChange = (league: string) => {
@@ -27,12 +31,13 @@ const HeaderActions = () => {
 
       {/* League selector */}
       <select
+        aria-label="Card details league"
         className="select select-sm select-bordered w-40"
         value={selectedLeague}
         onChange={(e) => handleLeagueChange(e.target.value)}
       >
         <option value="all">All Leagues</option>
-        {availableLeagues.map((league) => (
+        {leagueOptions.map((league) => (
           <option key={league} value={league}>
             {league}
           </option>

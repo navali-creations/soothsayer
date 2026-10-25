@@ -7,32 +7,9 @@ import type {
   CardCommunityDropRateDTO,
   CardDetailsInitDTO,
   CardPersonalAnalyticsDTO,
-  CardPriceHistoryDTO,
-  RelatedCardsResultDTO,
 } from "./CardDetails.dto";
 
 export const CardDetailsAPI = {
-  /**
-   * Get price history for a divination card from poe.ninja (with SQLite caching).
-   *
-   * @param game - The game type ("poe1" or "poe2")
-   * @param league - The league name (e.g. "Settlers")
-   * @param cardName - The card's display name (e.g. "House of Mirrors")
-   * @returns Price history DTO, or null if unavailable
-   */
-  getPriceHistory: (
-    game: GameType,
-    league: string,
-    cardName: string,
-  ): Promise<CardPriceHistoryDTO | null> => {
-    return ipcRenderer.invoke(
-      CardDetailsChannel.GetPriceHistory,
-      game,
-      league,
-      cardName,
-    );
-  },
-
   /**
    * Get personal analytics for a divination card from the local SQLite database.
    *
@@ -75,33 +52,9 @@ export const CardDetailsAPI = {
   },
 
   /**
-   * Get related cards that share a similar reward item.
-   *
-   * Returns pre-split, deduplicated, and rarity-sorted results
-   * with separate arrays for "similar" and "chain" cards.
-   *
-   * @param game - The game type ("poe1" or "poe2")
-   * @param cardName - The card's display name (e.g. "House of Mirrors")
-   * @returns Related cards result with similarCards and chainCards arrays
-   */
-  getRelatedCards: (
-    game: GameType,
-    cardName: string,
-  ): Promise<RelatedCardsResultDTO> => {
-    return ipcRenderer.invoke(
-      CardDetailsChannel.GetRelatedCards,
-      game,
-      cardName,
-    );
-  },
-
-  /**
    * Resolve a divination card by its URL slug and return a unified DTO
    * containing the card, personal analytics, and related cards in a single
    * IPC round-trip.
-   *
-   * Replaces the previous pattern of three separate IPC calls
-   * (getAll + getPersonalAnalytics + getRelatedCards) from the renderer.
    *
    * @param game - The game type ("poe1" or "poe2")
    * @param cardSlug - The URL slug (e.g. "house-of-mirrors")

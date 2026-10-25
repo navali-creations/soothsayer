@@ -15,6 +15,7 @@ function makeSessionDetail(
 ): DetailedDivinationCardStats {
   return {
     id: "test-session-id",
+    game: "poe1",
     totalCount: 50,
     cards: [
       {

@@ -371,12 +371,8 @@ export function createElectronMock() {
 
     // ── Card Details ───────────────────────────────────────────────────
     cardDetails: {
-      getPriceHistory: vi.fn().mockResolvedValue(null),
       getPersonalAnalytics: vi.fn().mockResolvedValue(null),
       getCommunityDropRate: vi.fn().mockResolvedValue(null),
-      getRelatedCards: vi
-        .fn()
-        .mockResolvedValue({ relatedCards: [], total: 0 }),
       resolveCardBySlug: vi.fn().mockResolvedValue(null),
       openCardInMainWindow: vi.fn().mockResolvedValue(undefined),
       onNavigateToCard: mockListener(),

@@ -22,7 +22,6 @@
 
 import type { ElectronApplication, Page } from "@playwright/test";
 
-import type { CardPriceHistoryFixture } from "../fixtures/poe-ninja-fixture";
 import type { RarityInsightsCardFixture } from "../fixtures/rarity-insights-fixture";
 import { setSetting } from "./ipc-helpers";
 
@@ -739,56 +738,6 @@ async function emitSessionDataUpdate(
       }
     },
     { game, data: sessionData },
-  );
-}
-
-// ─── Price History Cache Seeding ──────────────────────────────────────────────
-
-/**
- * Seed the `card_price_history_cache` table with a pre-built price history
- * fixture so that `CardDetailsService.getPriceHistory()` returns cached data
- * instead of hitting poe.ninja over the network.
- *
- * The `fetched_at` timestamp is set to "now" so the 30-minute cache TTL
- * check in `CardDetailsRepository.isCacheStale()` will treat the entry as
- * fresh. The `response_data` column stores the full `CardPriceHistoryDTO`
- * JSON blob — exactly the same shape that `getPriceHistory()` would persist
- * after a real poe.ninja fetch.
- *
- * Uses `INSERT OR REPLACE` (via the UNIQUE constraint on game+league+details_id)
- * so it's safe to call multiple times.
- *
- * @param page - Playwright Page (renderer) with access to the e2e:db-exec IPC channel
- * @param fixture - A `CardPriceHistoryFixture` from `e2e/fixtures/poe-ninja-fixture.ts`
- */
-export async function seedPriceHistoryCache(
-  page: Page,
-  fixture: CardPriceHistoryFixture,
-): Promise<void> {
-  const now = new Date().toISOString();
-
-  // Override fetchedAt to "now" so the cache is considered fresh (within TTL)
-  const responseData: CardPriceHistoryFixture = {
-    ...fixture,
-    fetchedAt: now,
-    isFromCache: true,
-  };
-
-  await dbExec(
-    page,
-    `INSERT OR REPLACE INTO card_price_history_cache
-       (game, league, details_id, card_name, response_data, fetched_at, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      fixture.game,
-      fixture.league,
-      fixture.detailsId,
-      fixture.cardName,
-      JSON.stringify(responseData),
-      now,
-      now,
-      now,
-    ],
   );
 }
 

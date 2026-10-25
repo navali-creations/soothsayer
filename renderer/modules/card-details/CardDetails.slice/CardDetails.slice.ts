@@ -4,13 +4,12 @@ import type {
   CardCommunityDropRateDTO,
   CardDropTimelinePointDTO,
   CardPersonalAnalyticsDTO,
-  CardPriceHistoryDTO,
-  PriceChangeSummary,
   RelatedCardsResultDTO,
 } from "~/main/modules/card-details/CardDetails.dto";
 import type { DivinationCardDTO } from "~/main/modules/divination-cards/DivinationCards.dto";
 import type { SessionsPage } from "~/main/modules/sessions/Sessions.api";
 import type { BoundStore } from "~/renderer/store/store.types";
+import { cardNameToSlug } from "~/types/card-slug";
 import type { GameType, Rarity } from "~/types/data-stores";
 
 import type {
@@ -29,11 +28,8 @@ export interface CardDetailsSlice {
     /** Error message if card resolution failed. */
     cardError: string | null;
     cardDetailsRequestId: number;
-
-    // ─── Price History State ────────────────────────────────────────────
-    priceHistory: CardPriceHistoryDTO | null;
-    isLoadingPriceHistory: boolean;
-    priceHistoryError: string | null;
+    /** Route key currently owned by the latest initializer. */
+    activeCardKey: string | null;
 
     // ─── Personal Analytics State ──────────────────────────────────────
     personalAnalytics: CardPersonalAnalyticsDTO | null;
@@ -51,6 +47,7 @@ export interface CardDetailsSlice {
     sessionsError: string | null;
     sessionsPage: number;
     sessionsSortState: SessionSortState;
+    sessionsRequestId: number;
 
     // ─── Related Cards State ───────────────────────────────────────────
     relatedCards: RelatedCardsResultDTO | null;
@@ -84,13 +81,8 @@ export interface CardDetailsSlice {
       cardName: string,
     ) => Promise<void>;
 
-    /** Update the selected league filter. Resets to "all" on clear. */
+    /** Update the selected league filter. */
     setSelectedLeague: (league: string) => void;
-    fetchPriceHistory: (
-      game: GameType,
-      league: string,
-      cardName: string,
-    ) => Promise<void>;
     fetchSessionsForCard: (
       game: GameType,
       cardName: string,
@@ -105,20 +97,11 @@ export interface CardDetailsSlice {
       cardName: string,
       league?: string,
     ) => void;
-    fetchRelatedCards: (game: GameType, cardName: string) => Promise<void>;
     clearCardDetails: () => void;
 
     // ─── Getters (Card) ─────────────────────────────────────────────────
     /** Get the resolved display rarity (PL → DTO PL → poe.ninja → fallback 4). */
     getDisplayRarity: () => Rarity;
-
-    // ─── Getters (Price) ────────────────────────────────────────────────
-    getPriceHistory: () => CardPriceHistoryDTO | null;
-    getIsLoadingPriceHistory: () => boolean;
-    getPriceHistoryError: () => string | null;
-    getPriceChanges: () => PriceChangeSummary;
-    getFullSetValue: () => number | null;
-    getFullSetChaosValue: () => number | null;
 
     // ─── Getters (Personal Analytics) ───────────────────────────────────
     getPersonalAnalytics: () => CardPersonalAnalyticsDTO | null;
@@ -158,10 +141,7 @@ export const createCardDetailsSlice: StateCreator<
     isLoadingCard: false,
     cardError: null,
     cardDetailsRequestId: 0,
-
-    priceHistory: null,
-    isLoadingPriceHistory: false,
-    priceHistoryError: null,
+    activeCardKey: null,
 
     personalAnalytics: null,
     isLoadingPersonalAnalytics: false,
@@ -176,6 +156,7 @@ export const createCardDetailsSlice: StateCreator<
     sessionsError: null,
     sessionsPage: 1,
     sessionsSortState: { column: "date", direction: "desc" },
+    sessionsRequestId: 0,
 
     relatedCards: null,
     isLoadingRelatedCards: false,
@@ -194,7 +175,11 @@ export const createCardDetailsSlice: StateCreator<
       set(
         ({ cardDetails }) => {
           requestId = ++cardDetails.cardDetailsRequestId;
-          cardDetails.card = null;
+          cardDetails.activeCardKey = `${game}:${cardSlug}`;
+          const cardMatchesRoute =
+            cardDetails.card?.game === game &&
+            cardNameToSlug(cardDetails.card.name) === cardSlug;
+          if (!cardMatchesRoute) cardDetails.card = null;
           cardDetails.isLoadingCard = true;
           cardDetails.cardError = null;
           cardDetails.personalAnalytics = null;
@@ -204,6 +189,7 @@ export const createCardDetailsSlice: StateCreator<
           cardDetails.communityDropRateRequestId++;
           cardDetails.relatedCards = null;
           cardDetails.isLoadingRelatedCards = true;
+          cardDetails.selectedLeague = selectedLeague;
         },
         false,
         "cardDetailsSlice/initializeCardDetails/start",
@@ -332,57 +318,7 @@ export const createCardDetailsSlice: StateCreator<
       );
     },
 
-    // ─── Fetch Price History (Milestone 2) ───────────────────────────────
-
-    fetchPriceHistory: async (
-      game: GameType,
-      league: string,
-      cardName: string,
-    ) => {
-      set(
-        ({ cardDetails }) => {
-          cardDetails.isLoadingPriceHistory = true;
-          cardDetails.priceHistoryError = null;
-        },
-        false,
-        "cardDetailsSlice/fetchPriceHistory/start",
-      );
-
-      try {
-        const data = await window.electron.cardDetails.getPriceHistory(
-          game,
-          league,
-          cardName,
-        );
-
-        set(
-          ({ cardDetails }) => {
-            cardDetails.priceHistory = data;
-            cardDetails.isLoadingPriceHistory = false;
-          },
-          false,
-          "cardDetailsSlice/fetchPriceHistory/success",
-        );
-      } catch (error) {
-        console.error(
-          "[CardDetailsSlice] Failed to fetch price history:",
-          error,
-        );
-        set(
-          ({ cardDetails }) => {
-            cardDetails.priceHistoryError =
-              error instanceof Error
-                ? error.message
-                : "Failed to load price history";
-            cardDetails.isLoadingPriceHistory = false;
-          },
-          false,
-          "cardDetailsSlice/fetchPriceHistory/error",
-        );
-      }
-    },
-
-    // ─── Fetch Sessions For Card (Milestone 3) ──────────────────────────
+    // ─── Fetch Sessions For Card ────────────────────────────────────────
 
     setSessionsSort: (
       column: SessionSortColumn,
@@ -430,9 +366,11 @@ export const createCardDetailsSlice: StateCreator<
       league?: string,
     ) => {
       const { column, direction } = get().cardDetails.sessionsSortState;
+      let requestId = 0;
 
       set(
         ({ cardDetails }) => {
+          requestId = ++cardDetails.sessionsRequestId;
           cardDetails.isLoadingSessions = true;
           cardDetails.sessionsError = null;
           cardDetails.sessionsPage = page;
@@ -454,6 +392,7 @@ export const createCardDetailsSlice: StateCreator<
 
         set(
           ({ cardDetails }) => {
+            if (cardDetails.sessionsRequestId !== requestId) return;
             cardDetails.sessions = data;
             cardDetails.isLoadingSessions = false;
           },
@@ -461,6 +400,7 @@ export const createCardDetailsSlice: StateCreator<
           "cardDetailsSlice/fetchSessionsForCard/success",
         );
       } catch (error) {
+        if (get().cardDetails.sessionsRequestId !== requestId) return;
         console.error(
           "[CardDetailsSlice] Failed to fetch sessions for card:",
           error,
@@ -479,47 +419,6 @@ export const createCardDetailsSlice: StateCreator<
       }
     },
 
-    // ─── Fetch Related Cards ─────────────────────────────────────────────
-
-    fetchRelatedCards: async (game: GameType, cardName: string) => {
-      set(
-        ({ cardDetails }) => {
-          cardDetails.isLoadingRelatedCards = true;
-        },
-        false,
-        "cardDetailsSlice/fetchRelatedCards/start",
-      );
-
-      try {
-        const data = await window.electron.cardDetails.getRelatedCards(
-          game,
-          cardName,
-        );
-
-        set(
-          ({ cardDetails }) => {
-            cardDetails.relatedCards = data;
-            cardDetails.isLoadingRelatedCards = false;
-          },
-          false,
-          "cardDetailsSlice/fetchRelatedCards/success",
-        );
-      } catch (error) {
-        console.error(
-          "[CardDetailsSlice] Failed to fetch related cards:",
-          error,
-        );
-        set(
-          ({ cardDetails }) => {
-            cardDetails.relatedCards = null;
-            cardDetails.isLoadingRelatedCards = false;
-          },
-          false,
-          "cardDetailsSlice/fetchRelatedCards/error",
-        );
-      }
-    },
-
     // ─── Clear All State ─────────────────────────────────────────────────
 
     clearCardDetails: () => {
@@ -530,11 +429,7 @@ export const createCardDetailsSlice: StateCreator<
           cardDetails.isLoadingCard = false;
           cardDetails.cardError = null;
           cardDetails.cardDetailsRequestId++;
-
-          // Price history
-          cardDetails.priceHistory = null;
-          cardDetails.isLoadingPriceHistory = false;
-          cardDetails.priceHistoryError = null;
+          cardDetails.activeCardKey = null;
 
           // Personal analytics
           cardDetails.personalAnalytics = null;
@@ -552,20 +447,16 @@ export const createCardDetailsSlice: StateCreator<
           cardDetails.sessionsError = null;
           cardDetails.sessionsPage = 1;
           cardDetails.sessionsSortState = { column: "date", direction: "desc" };
+          cardDetails.sessionsRequestId++;
 
           // Related cards
           cardDetails.relatedCards = null;
           cardDetails.isLoadingRelatedCards = false;
-
-          // UI state
-          cardDetails.selectedLeague = "all";
         },
         false,
         "cardDetailsSlice/clearCardDetails",
       );
     },
-
-    // ─── Price Getters (Milestone 2) ─────────────────────────────────────
 
     // ─── Card Getters ────────────────────────────────────────────────────
 
@@ -582,55 +473,7 @@ export const createCardDetailsSlice: StateCreator<
       ) as Rarity;
     },
 
-    // ─── Price Getters ───────────────────────────────────────────────────
-
-    getPriceHistory: () => get().cardDetails.priceHistory,
-
-    getIsLoadingPriceHistory: () => get().cardDetails.isLoadingPriceHistory,
-
-    getPriceHistoryError: () => get().cardDetails.priceHistoryError,
-
-    getPriceChanges: () => {
-      const history = get().cardDetails.priceHistory;
-      return history?.priceChanges ?? {};
-    },
-
-    /**
-     * Calculate the full set value in divine orbs.
-     * Full set = stackSize × unit divine rate.
-     * Reads stackSize from the resolved card in the store.
-     */
-    getFullSetValue: () => {
-      const { card, priceHistory } = get().cardDetails;
-      if (!card || !priceHistory?.currentDivineRate) return null;
-      const stackSize = card.stackSize ?? 1;
-      return Math.round(priceHistory.currentDivineRate * stackSize * 100) / 100;
-    },
-
-    /**
-     * Calculate the full set value in chaos orbs.
-     * Full set = stackSize × unit divine rate / chaosToDivineRatio.
-     * Reads stackSize from the resolved card in the store.
-     */
-    getFullSetChaosValue: () => {
-      const { card, priceHistory } = get().cardDetails;
-      if (
-        !card ||
-        !priceHistory?.currentDivineRate ||
-        !priceHistory.chaosToDivineRatio
-      ) {
-        return null;
-      }
-      const stackSize = card.stackSize ?? 1;
-      // chaosToDivineRatio from poe.ninja is typically < 1 (e.g. 0.001235)
-      // meaning 1 chaos = 0.001235 divine, so 1 divine = 1/0.001235 chaos
-      const chaosPerDivine = 1 / priceHistory.chaosToDivineRatio;
-      const chaosValue =
-        priceHistory.currentDivineRate * stackSize * chaosPerDivine;
-      return Math.round(chaosValue);
-    },
-
-    // ─── Personal Analytics Getters (Milestone 3) ────────────────────────
+    // ─── Personal Analytics Getters ──────────────────────────────────────
 
     getPersonalAnalytics: () => get().cardDetails.personalAnalytics,
 

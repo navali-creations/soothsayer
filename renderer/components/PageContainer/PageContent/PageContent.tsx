@@ -1,9 +1,12 @@
 import { motion, type Variants } from "motion/react";
 import type { ReactNode } from "react";
 
+import { PAGE_ANIMATION_SCHEDULE } from "../PageContainer.utils";
+
 type PageContentProps = {
   children: ReactNode;
   className?: string;
+  animationKey?: string;
 };
 
 const contentVariants: Variants = {
@@ -11,14 +14,15 @@ const contentVariants: Variants = {
     opacity: 0,
     y: 20,
   },
-  visible: {
+  visible: (delay = 0) => ({
     opacity: 1,
     y: 0,
     transition: {
       duration: 0.2,
+      delay,
       ease: [0.4, 0, 0.2, 1],
     },
-  },
+  }),
   exit: {
     opacity: 0,
     y: -20,
@@ -29,11 +33,19 @@ const contentVariants: Variants = {
   },
 };
 
-const PageContent = ({ children, className = "" }: PageContentProps) => {
+const PageContent = ({
+  children,
+  className = "",
+  animationKey,
+}: PageContentProps) => {
   return (
     <motion.div
+      key={animationKey}
       className={`flex-1 overflow-y-auto space-y-6 pr-3 ${className} scroll-hint`}
       variants={contentVariants}
+      custom={animationKey ? PAGE_ANIMATION_SCHEDULE.content : undefined}
+      initial={animationKey ? "hidden" : undefined}
+      animate={animationKey ? "visible" : undefined}
     >
       {children}
     </motion.div>

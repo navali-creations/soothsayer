@@ -20,41 +20,13 @@ import type {
   CardDetailsInitDTO,
   CardDropTimelinePointDTO,
   CardPersonalAnalyticsDTO,
-  CardPriceHistoryDTO,
   LeagueDateRangeDTO,
   RelatedCardDTO,
   RelatedCardsResultDTO,
 } from "./CardDetails.dto";
-import {
-  CardDetailsMapper,
-  type PoeNinjaDetailsResponse,
-} from "./CardDetails.mapper";
 import { CardDetailsRepository } from "./CardDetails.repository";
 import { buildPreparedDropTimeline } from "./CardDetails.utils";
 import { CommunityDropRatesService } from "./CommunityDropRates.service";
-
-/** Cache TTL: 30 minutes */
-const CACHE_TTL_MS = 30 * 60 * 1000;
-
-/**
- * Lightweight runtime check for cached price history data.
- *
- * Guards against corrupt SQLite rows or schema drift between app versions.
- * We only verify the shape of the top-level fields that the renderer
- * relies on — a full Zod parse would be heavier than warranted here.
- */
-function isValidCachedPriceHistory(data: unknown): data is CardPriceHistoryDTO {
-  if (data == null || typeof data !== "object") return false;
-  const d = data as Record<string, unknown>;
-  return (
-    typeof d.cardName === "string" &&
-    typeof d.detailsId === "string" &&
-    typeof d.game === "string" &&
-    typeof d.league === "string" &&
-    Array.isArray(d.priceHistory) &&
-    typeof d.fetchedAt === "string"
-  );
-}
 
 /** Approximate league duration fallback when end metadata is missing. */
 const DEFAULT_LEAGUE_DURATION_MS = 4 * 30 * 24 * 60 * 60 * 1000;
@@ -141,24 +113,10 @@ function resolveTimelineEndDate(
 }
 
 /**
- * Derive the poe.ninja `detailsId` slug from a card name.
- *
- * This is intentionally an alias for the shared `cardNameToSlug` so that
- * call-sites in this module retain a domain-meaningful name while the
- * slug logic itself is defined in exactly one place.
- *
- * @see ~/types/card-slug — single source of truth
- */
-export const cardNameToDetailsId = cardNameToSlug;
-
-/**
  * Singleton service for the card-details module.
  *
- * Responsibilities:
- * 1. Handle IPC requests for price history data.
- * 2. Fetch card exchange details from poe.ninja.
- * 3. Cache responses in SQLite for offline support (30-min TTL).
- * 4. Serve cached data when poe.ninja is unreachable.
+ * Resolves card-detail routes and prepares personal/community analytics and
+ * related-card data for the renderer.
  */
 class CardDetailsService {
   private static _instance: CardDetailsService;
@@ -186,33 +144,6 @@ class CardDetailsService {
   // ─── IPC Handlers ────────────────────────────────────────────────────────
 
   private setupIpcHandlers(): void {
-    ipcMain.handle(
-      CardDetailsChannel.GetPriceHistory,
-      async (
-        _event: Electron.IpcMainInvokeEvent,
-        game: GameType,
-        league: string,
-        cardName: string,
-      ): Promise<CardPriceHistoryDTO | null> => {
-        // Validate inputs
-        if (!game || !league || !cardName) {
-          this.logger.warn("GetPriceHistory called with missing parameters:", {
-            game,
-            league,
-            cardName,
-          });
-          return null;
-        }
-
-        if (game !== "poe1" && game !== "poe2") {
-          this.logger.warn("GetPriceHistory called with invalid game:", game);
-          return null;
-        }
-
-        return this.getPriceHistory(game, league, cardName);
-      },
-    );
-
     ipcMain.handle(
       CardDetailsChannel.GetPersonalAnalytics,
       async (
@@ -261,35 +192,6 @@ class CardDetailsService {
           );
           return null;
         }
-      },
-    );
-
-    ipcMain.handle(
-      CardDetailsChannel.GetRelatedCards,
-      async (
-        _event: Electron.IpcMainInvokeEvent,
-        game: GameType,
-        cardName: string,
-      ): Promise<RelatedCardsResultDTO> => {
-        const empty: RelatedCardsResultDTO = {
-          similarCards: [],
-          chainCards: [],
-        };
-
-        if (!game || !cardName) {
-          this.logger.warn("GetRelatedCards called with missing parameters:", {
-            game,
-            cardName,
-          });
-          return empty;
-        }
-
-        if (game !== "poe1" && game !== "poe2") {
-          this.logger.warn("GetRelatedCards called with invalid game:", game);
-          return empty;
-        }
-
-        return this.getRelatedCards(game, cardName);
       },
     );
 
@@ -514,120 +416,6 @@ class CardDetailsService {
   }
 
   // ─── Core Logic ──────────────────────────────────────────────────────────
-
-  /**
-   * Get price history for a divination card.
-   *
-   * Flow:
-   * 1. Derive detailsId slug from cardName
-   * 2. Check SQLite cache:
-   *    a. If hit AND not stale (< 30 min) → return cached (isFromCache: true)
-   *    b. If stale or miss → continue to step 3
-   * 3. Fetch from poe.ninja directly
-   * 4. Map response via CardDetailsMapper
-   * 5. Upsert into SQLite cache
-   * 6. Return fresh data (isFromCache: false)
-   * 7. On fetch error:
-   *    a. If stale cache exists → return stale cache (isFromCache: true)
-   *    b. If no cache → return null
-   */
-  public async getPriceHistory(
-    game: GameType,
-    league: string,
-    cardName: string,
-  ): Promise<CardPriceHistoryDTO | null> {
-    const detailsId = cardNameToDetailsId(cardName);
-
-    this.logger.log(
-      `Getting price history for "${cardName}" (${detailsId}) in ${game}/${league}`,
-    );
-
-    // Step 2: Check SQLite cache
-    const cached = await this.repository.getCachedPriceHistory(
-      game,
-      league,
-      detailsId,
-    );
-
-    if (
-      cached &&
-      !this.repository.isCacheStale(cached.fetched_at, CACHE_TTL_MS)
-    ) {
-      this.logger.log(`Cache hit (fresh) for "${cardName}"`);
-      try {
-        const dto: unknown = JSON.parse(cached.response_data);
-        if (isValidCachedPriceHistory(dto)) {
-          return { ...dto, isFromCache: true };
-        }
-        this.logger.warn(
-          `Cached data for "${cardName}" failed shape validation, will re-fetch`,
-        );
-      } catch {
-        this.logger.warn(
-          `Failed to parse cached data for "${cardName}", will re-fetch`,
-        );
-      }
-    }
-
-    // Step 3–6: Fetch from poe.ninja
-    try {
-      const fetchedAt = new Date().toISOString();
-      const raw = await this.fetchFromPoeNinja(game, league, detailsId);
-
-      // Step 4: Map response
-      const dto = CardDetailsMapper.toDTO(
-        raw,
-        cardName,
-        detailsId,
-        game,
-        league,
-        fetchedAt,
-        false, // isFromCache
-      );
-
-      // Step 5: Upsert into cache
-      await this.repository.upsertPriceHistory(
-        game,
-        league,
-        detailsId,
-        cardName,
-        JSON.stringify(dto),
-        fetchedAt,
-      );
-
-      this.logger.log(`Fetched and cached price history for "${cardName}"`);
-
-      // Step 6: Return fresh data
-      return dto;
-    } catch (error) {
-      this.logger.error(
-        `Failed to fetch price history for "${cardName}":`,
-        error,
-      );
-
-      // Step 7a: If stale cache exists, return it
-      if (cached) {
-        this.logger.log(`Returning stale cache for "${cardName}"`);
-        try {
-          const dto: unknown = JSON.parse(cached.response_data);
-          if (isValidCachedPriceHistory(dto)) {
-            return { ...dto, isFromCache: true };
-          }
-          this.logger.warn(
-            `Stale cached data for "${cardName}" failed shape validation`,
-          );
-        } catch {
-          this.logger.warn(
-            `Failed to parse stale cached data for "${cardName}"`,
-          );
-        }
-      }
-
-      // Step 7b: No cache available
-      this.logger.warn(`No data available for "${cardName}"`);
-      return null;
-    }
-  }
 
   // ─── Personal Analytics ─────────────────────────────────────────────────
 
@@ -1072,46 +860,6 @@ class CardDetailsService {
       );
       return empty;
     }
-  }
-
-  // ─── poe.ninja API ──────────────────────────────────────────────────────
-
-  /**
-   * Fetch exchange details from poe.ninja for a specific divination card.
-   *
-   * URL pattern:
-   * https://poe.ninja/{game}/api/economy/exchange/current/details
-   *   ?league={league}&type=DivinationCard&id={detailsId}
-   */
-  private async fetchFromPoeNinja(
-    game: GameType,
-    league: string,
-    detailsId: string,
-  ): Promise<PoeNinjaDetailsResponse> {
-    const gamePrefix = game === "poe1" ? "poe1" : "poe2";
-    const url =
-      `https://poe.ninja/${gamePrefix}/api/economy/exchange/current/details` +
-      `?league=${encodeURIComponent(league)}` +
-      `&type=DivinationCard` +
-      `&id=${encodeURIComponent(detailsId)}`;
-
-    this.logger.log(`Fetching from poe.ninja: ${url}`);
-
-    const response = await fetch(url, {
-      headers: {
-        Accept: "application/json",
-        "User-Agent": "Soothsayer/1.0",
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(
-        `poe.ninja API returned ${response.status}: ${response.statusText}`,
-      );
-    }
-
-    const data: PoeNinjaDetailsResponse = await response.json();
-    return data;
   }
 
   // ─── Public Accessors ────────────────────────────────────────────────────

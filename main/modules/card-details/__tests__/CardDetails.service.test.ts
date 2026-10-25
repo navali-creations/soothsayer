@@ -8,63 +8,6 @@ import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
 import { registerTrustedWebContents } from "~/main/utils/ipc-validation";
 
 import type { CardDetailsInitDTO } from "../CardDetails.dto";
-import { cardNameToDetailsId } from "../CardDetails.service";
-
-// ─── cardNameToDetailsId ─────────────────────────────────────────────────────
-
-describe("cardNameToDetailsId", () => {
-  it('should convert "House of Mirrors" to "house-of-mirrors"', () => {
-    expect(cardNameToDetailsId("House of Mirrors")).toBe("house-of-mirrors");
-  });
-
-  it('should convert "The Doctor" to "the-doctor"', () => {
-    expect(cardNameToDetailsId("The Doctor")).toBe("the-doctor");
-  });
-
-  it('should convert "A Chilling Wind" to "a-chilling-wind"', () => {
-    expect(cardNameToDetailsId("A Chilling Wind")).toBe("a-chilling-wind");
-  });
-
-  it("should handle single-word names", () => {
-    expect(cardNameToDetailsId("Chaotic")).toBe("chaotic");
-  });
-
-  it("should strip leading and trailing hyphens", () => {
-    expect(cardNameToDetailsId("  The Doctor  ")).toBe("the-doctor");
-  });
-
-  it("should collapse multiple non-alphanumeric characters into a single hyphen", () => {
-    expect(cardNameToDetailsId("The - Doctor")).toBe("the-doctor");
-  });
-
-  it("should handle apostrophes and special characters", () => {
-    expect(cardNameToDetailsId("The King's Blade")).toBe("the-king-s-blade");
-  });
-
-  it("should handle names with numbers", () => {
-    expect(cardNameToDetailsId("1000 Ribbons")).toBe("1000-ribbons");
-  });
-
-  it("should handle names with colons", () => {
-    expect(cardNameToDetailsId("Rebirth: The Forgotten")).toBe(
-      "rebirth-the-forgotten",
-    );
-  });
-
-  it("should return empty string for empty input", () => {
-    expect(cardNameToDetailsId("")).toBe("");
-  });
-
-  it("should handle names that are entirely special characters", () => {
-    expect(cardNameToDetailsId("---")).toBe("");
-  });
-
-  it("should handle mixed case consistently", () => {
-    expect(cardNameToDetailsId("THE DOCTOR")).toBe("the-doctor");
-    expect(cardNameToDetailsId("the doctor")).toBe("the-doctor");
-    expect(cardNameToDetailsId("The Doctor")).toBe("the-doctor");
-  });
-});
 
 // ─── Hoisted mocks (available inside vi.mock factories) ─────────────────────
 
@@ -91,11 +34,6 @@ const {
 
   const mockRepositoryHolder: {
     instance: {
-      getCachedPriceHistory: ReturnType<typeof vi.fn>;
-      upsertPriceHistory: ReturnType<typeof vi.fn>;
-      isCacheStale: ReturnType<typeof vi.fn>;
-      deleteCacheForLeague: ReturnType<typeof vi.fn>;
-      deleteAll: ReturnType<typeof vi.fn>;
       getCardPersonalStats: ReturnType<typeof vi.fn>;
       getCardAvailability: ReturnType<typeof vi.fn>;
 
@@ -190,11 +128,6 @@ vi.mock("../CardDetails.repository", () => {
     CardDetailsRepository: class MockCardDetailsRepository {
       constructor() {
         mockRepositoryHolder.instance = {
-          getCachedPriceHistory: vi.fn().mockResolvedValue(null),
-          upsertPriceHistory: vi.fn().mockResolvedValue(undefined),
-          isCacheStale: vi.fn().mockReturnValue(true),
-          deleteCacheForLeague: vi.fn().mockResolvedValue(undefined),
-          deleteAll: vi.fn().mockResolvedValue(undefined),
           getCardPersonalStats: vi.fn().mockResolvedValue({
             totalDrops: 0,
             firstDiscoveredAt: null,
@@ -219,7 +152,7 @@ vi.mock("../CardDetails.repository", () => {
   };
 });
 
-// Mock global fetch
+// Community drop-rate requests use global fetch.
 vi.stubGlobal("fetch", mockFetch);
 
 // ─── Import under test ──────────────────────────────────────────────────────
@@ -235,70 +168,6 @@ function getRepoMock() {
 }
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
-
-function makePoeNinjaApiResponse() {
-  return {
-    item: {
-      id: "the-doctor",
-      name: "The Doctor",
-      category: "Cards",
-      detailsId: "the-doctor",
-    },
-    pairs: [
-      { id: "chaos", volumePrimaryValue: 0, history: [] },
-      {
-        id: "divine",
-        rate: 6.5,
-        volumePrimaryValue: 1200000,
-        history: [
-          {
-            timestamp: "2026-03-01T00:00:00Z",
-            rate: 6.0,
-            volumePrimaryValue: 1000000,
-          },
-          {
-            timestamp: "2026-03-05T00:00:00Z",
-            rate: 6.5,
-            volumePrimaryValue: 1200000,
-          },
-        ],
-      },
-    ],
-    core: {
-      items: [],
-      rates: { divine: 0.00125 },
-      primary: "chaos",
-      secondary: "divine",
-    },
-  };
-}
-
-function makeCachedRow(overrides: Record<string, unknown> = {}) {
-  return {
-    id: 1,
-    game: "poe1",
-    league: "Settlers",
-    details_id: "the-doctor",
-    card_name: "The Doctor",
-    response_data: JSON.stringify({
-      cardName: "The Doctor",
-      detailsId: "the-doctor",
-      game: "poe1",
-      league: "Settlers",
-      currentDivineRate: 6.0,
-      currentVolume: 1000000,
-      chaosToDivineRatio: 0.00125,
-      priceHistory: [],
-      priceChanges: {},
-      fetchedAt: "2026-03-05T12:00:00Z",
-      isFromCache: false,
-    }),
-    fetched_at: "2026-03-05T12:00:00Z",
-    created_at: "2026-03-05T12:00:00Z",
-    updated_at: "2026-03-05T12:00:00Z",
-    ...overrides,
-  };
-}
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
@@ -339,18 +208,17 @@ describe("CardDetailsService", () => {
       const instance2 = CardDetailsService.getInstance();
       expect(instance1).not.toBe(instance2);
     });
+
+    it("exposes its repository for internal module consumers", () => {
+      expect(service.getRepository().getCardPersonalStats).toBe(
+        getRepoMock().getCardPersonalStats,
+      );
+    });
   });
 
   // ─── IPC Handler Registration ────────────────────────────────────────────
 
   describe("IPC handler registration", () => {
-    it("should register the GetPriceHistory channel handler", () => {
-      expect(mockIpcMainHandle).toHaveBeenCalledWith(
-        "card-details:get-price-history",
-        expect.any(Function),
-      );
-    });
-
     it("should register the GetPersonalAnalytics channel handler", () => {
       expect(mockIpcMainHandle).toHaveBeenCalledWith(
         "card-details:get-personal-analytics",
@@ -361,13 +229,6 @@ describe("CardDetailsService", () => {
     it("should register the OpenInMainWindow channel handler", () => {
       expect(mockIpcMainHandle).toHaveBeenCalledWith(
         "card-details:open-in-main-window",
-        expect.any(Function),
-      );
-    });
-
-    it("should register the GetRelatedCards channel handler", () => {
-      expect(mockIpcMainHandle).toHaveBeenCalledWith(
-        "card-details:get-related-cards",
         expect.any(Function),
       );
     });
@@ -434,440 +295,6 @@ describe("CardDetailsService", () => {
 
       expect(result).toBeNull();
       expect(mockFetch).not.toHaveBeenCalled();
-    });
-  });
-
-  // ─── getPriceHistory ─────────────────────────────────────────────────────
-
-  describe("getPriceHistory", () => {
-    // ─── Input Validation ──────────────────────────────────────────────
-
-    describe("input validation (via IPC handler)", () => {
-      function getIpcHandler(): (...args: unknown[]) => Promise<unknown> {
-        const call = mockIpcMainHandle.mock.calls.find(
-          ([ch]: [string]) => ch === "card-details:get-price-history",
-        );
-        if (!call)
-          throw new Error("GetPriceHistory handler was not registered");
-        return call[1];
-      }
-
-      it("should return null when game is missing", async () => {
-        const handler = getIpcHandler();
-        const result = await handler(
-          {} as Electron.IpcMainInvokeEvent,
-          "",
-          "Settlers",
-          "The Doctor",
-        );
-        expect(result).toBeNull();
-      });
-
-      it("should return null when league is missing", async () => {
-        const handler = getIpcHandler();
-        const result = await handler(
-          {} as Electron.IpcMainInvokeEvent,
-          "poe1",
-          "",
-          "The Doctor",
-        );
-        expect(result).toBeNull();
-      });
-
-      it("should return null when cardName is missing", async () => {
-        const handler = getIpcHandler();
-        const result = await handler(
-          {} as Electron.IpcMainInvokeEvent,
-          "poe1",
-          "Settlers",
-          "",
-        );
-        expect(result).toBeNull();
-      });
-
-      it("should return null for invalid game type", async () => {
-        const handler = getIpcHandler();
-        const result = await handler(
-          {} as Electron.IpcMainInvokeEvent,
-          "poe3",
-          "Settlers",
-          "The Doctor",
-        );
-        expect(result).toBeNull();
-      });
-    });
-
-    // ─── Fresh Cache Hit ───────────────────────────────────────────────
-
-    describe("fresh cache hit", () => {
-      it("should return cached data without fetching from poe.ninja", async () => {
-        const repo = getRepoMock();
-        const cachedRow = makeCachedRow();
-        repo.getCachedPriceHistory.mockResolvedValue(cachedRow);
-        repo.isCacheStale.mockReturnValue(false);
-
-        const result = await service.getPriceHistory(
-          "poe1",
-          "Settlers",
-          "The Doctor",
-        );
-
-        expect(result).not.toBeNull();
-        expect(result!.isFromCache).toBe(true);
-        expect(result!.cardName).toBe("The Doctor");
-        expect(mockFetch).not.toHaveBeenCalled();
-      });
-
-      it("should not upsert the cache on a fresh hit", async () => {
-        const repo = getRepoMock();
-        const cachedRow = makeCachedRow();
-        repo.getCachedPriceHistory.mockResolvedValue(cachedRow);
-        repo.isCacheStale.mockReturnValue(false);
-
-        await service.getPriceHistory("poe1", "Settlers", "The Doctor");
-
-        expect(repo.upsertPriceHistory).not.toHaveBeenCalled();
-      });
-    });
-
-    // ─── Stale Cache → Re-fetch ────────────────────────────────────────
-
-    describe("stale cache triggers re-fetch", () => {
-      it("should fetch from poe.ninja when cache is stale", async () => {
-        const repo = getRepoMock();
-        const cachedRow = makeCachedRow();
-        repo.getCachedPriceHistory.mockResolvedValue(cachedRow);
-        repo.isCacheStale.mockReturnValue(true);
-
-        mockFetch.mockResolvedValue({
-          ok: true,
-          json: () => Promise.resolve(makePoeNinjaApiResponse()),
-        });
-
-        const result = await service.getPriceHistory(
-          "poe1",
-          "Settlers",
-          "The Doctor",
-        );
-
-        expect(result).not.toBeNull();
-        expect(result!.isFromCache).toBe(false);
-        expect(result!.currentDivineRate).toBe(6.5);
-        expect(mockFetch).toHaveBeenCalledTimes(1);
-      });
-
-      it("should upsert fresh data into the cache", async () => {
-        const repo = getRepoMock();
-        repo.getCachedPriceHistory.mockResolvedValue(null);
-        repo.isCacheStale.mockReturnValue(true);
-
-        mockFetch.mockResolvedValue({
-          ok: true,
-          json: () => Promise.resolve(makePoeNinjaApiResponse()),
-        });
-
-        await service.getPriceHistory("poe1", "Settlers", "The Doctor");
-
-        expect(repo.upsertPriceHistory).toHaveBeenCalledTimes(1);
-        expect(repo.upsertPriceHistory).toHaveBeenCalledWith(
-          "poe1",
-          "Settlers",
-          "the-doctor",
-          "The Doctor",
-          expect.any(String), // JSON stringified DTO
-          expect.any(String), // fetchedAt ISO timestamp
-        );
-      });
-    });
-
-    // ─── Cache Miss → Fetch ────────────────────────────────────────────
-
-    describe("cache miss triggers fetch", () => {
-      it("should fetch from poe.ninja when no cache exists", async () => {
-        const repo = getRepoMock();
-        repo.getCachedPriceHistory.mockResolvedValue(null);
-
-        mockFetch.mockResolvedValue({
-          ok: true,
-          json: () => Promise.resolve(makePoeNinjaApiResponse()),
-        });
-
-        const result = await service.getPriceHistory(
-          "poe1",
-          "Settlers",
-          "The Doctor",
-        );
-
-        expect(result).not.toBeNull();
-        expect(result!.isFromCache).toBe(false);
-        expect(result!.cardName).toBe("The Doctor");
-        expect(result!.detailsId).toBe("the-doctor");
-      });
-
-      it("should call poe.ninja with the correct URL", async () => {
-        const repo = getRepoMock();
-        repo.getCachedPriceHistory.mockResolvedValue(null);
-
-        mockFetch.mockResolvedValue({
-          ok: true,
-          json: () => Promise.resolve(makePoeNinjaApiResponse()),
-        });
-
-        await service.getPriceHistory("poe1", "Settlers", "The Doctor");
-
-        expect(mockFetch).toHaveBeenCalledWith(
-          expect.stringContaining(
-            "https://poe.ninja/poe1/api/economy/exchange/current/details",
-          ),
-          expect.objectContaining({
-            headers: expect.objectContaining({
-              Accept: "application/json",
-            }),
-          }),
-        );
-
-        const url = mockFetch.mock.calls[0][0] as string;
-        expect(url).toContain("league=Settlers");
-        expect(url).toContain("type=DivinationCard");
-        expect(url).toContain("id=the-doctor");
-      });
-
-      it("should use poe2 prefix for poe2 game type", async () => {
-        const repo = getRepoMock();
-        repo.getCachedPriceHistory.mockResolvedValue(null);
-
-        mockFetch.mockResolvedValue({
-          ok: true,
-          json: () => Promise.resolve(makePoeNinjaApiResponse()),
-        });
-
-        await service.getPriceHistory("poe2", "TestLeague", "The Doctor");
-
-        const url = mockFetch.mock.calls[0][0] as string;
-        expect(url).toContain("https://poe.ninja/poe2/");
-        expect(url).toContain("league=TestLeague");
-      });
-    });
-
-    // ─── Fetch Failure with Stale Cache Fallback ───────────────────────
-
-    describe("fetch failure with stale cache fallback", () => {
-      it("should return stale cache when poe.ninja is unreachable", async () => {
-        const repo = getRepoMock();
-        const cachedRow = makeCachedRow();
-        repo.getCachedPriceHistory.mockResolvedValue(cachedRow);
-        repo.isCacheStale.mockReturnValue(true);
-
-        mockFetch.mockRejectedValue(new Error("Network error"));
-
-        const result = await service.getPriceHistory(
-          "poe1",
-          "Settlers",
-          "The Doctor",
-        );
-
-        expect(result).not.toBeNull();
-        expect(result!.isFromCache).toBe(true);
-        expect(result!.cardName).toBe("The Doctor");
-      });
-
-      it("should return stale cache when poe.ninja returns non-OK status", async () => {
-        const repo = getRepoMock();
-        const cachedRow = makeCachedRow();
-        repo.getCachedPriceHistory.mockResolvedValue(cachedRow);
-        repo.isCacheStale.mockReturnValue(true);
-
-        mockFetch.mockResolvedValue({
-          ok: false,
-          status: 500,
-          statusText: "Internal Server Error",
-        });
-
-        const result = await service.getPriceHistory(
-          "poe1",
-          "Settlers",
-          "The Doctor",
-        );
-
-        expect(result).not.toBeNull();
-        expect(result!.isFromCache).toBe(true);
-      });
-
-      it("should log an error when fetch fails", async () => {
-        const repo = getRepoMock();
-        const cachedRow = makeCachedRow();
-        repo.getCachedPriceHistory.mockResolvedValue(cachedRow);
-        repo.isCacheStale.mockReturnValue(true);
-
-        mockFetch.mockRejectedValue(new Error("Connection refused"));
-
-        await service.getPriceHistory("poe1", "Settlers", "The Doctor");
-
-        expect(mockLoggerError).toHaveBeenCalledWith(
-          expect.stringContaining("Failed to fetch price history"),
-          expect.any(Error),
-        );
-      });
-    });
-
-    // ─── Fetch Failure with No Cache ───────────────────────────────────
-
-    describe("fetch failure with no cache", () => {
-      it("should return null when fetch fails and no cache exists", async () => {
-        const repo = getRepoMock();
-        repo.getCachedPriceHistory.mockResolvedValue(null);
-
-        mockFetch.mockRejectedValue(new Error("Network error"));
-
-        const result = await service.getPriceHistory(
-          "poe1",
-          "Settlers",
-          "The Doctor",
-        );
-
-        expect(result).toBeNull();
-      });
-
-      it("should log a warning when no data is available at all", async () => {
-        const repo = getRepoMock();
-        repo.getCachedPriceHistory.mockResolvedValue(null);
-
-        mockFetch.mockRejectedValue(new Error("Network error"));
-
-        await service.getPriceHistory("poe1", "Settlers", "The Doctor");
-
-        expect(mockLoggerWarn).toHaveBeenCalledWith(
-          expect.stringContaining("No data available"),
-        );
-      });
-    });
-
-    // ─── URL Encoding ──────────────────────────────────────────────────
-
-    describe("URL encoding", () => {
-      it("should encode league names with special characters", async () => {
-        const repo = getRepoMock();
-        repo.getCachedPriceHistory.mockResolvedValue(null);
-
-        mockFetch.mockResolvedValue({
-          ok: true,
-          json: () => Promise.resolve(makePoeNinjaApiResponse()),
-        });
-
-        await service.getPriceHistory(
-          "poe1",
-          "Settlers & Explorers",
-          "The Doctor",
-        );
-
-        const url = mockFetch.mock.calls[0][0] as string;
-        expect(url).toContain("league=Settlers%20%26%20Explorers");
-      });
-
-      it("should encode details IDs with special characters", async () => {
-        const repo = getRepoMock();
-        repo.getCachedPriceHistory.mockResolvedValue(null);
-
-        mockFetch.mockResolvedValue({
-          ok: true,
-          json: () => Promise.resolve(makePoeNinjaApiResponse()),
-        });
-
-        await service.getPriceHistory("poe1", "Settlers", "The King's Blade");
-
-        const url = mockFetch.mock.calls[0][0] as string;
-        expect(url).toContain("id=the-king-s-blade");
-      });
-    });
-
-    // ─── Correct Slug Derivation ───────────────────────────────────────
-
-    describe("correct slug derivation in cache lookup", () => {
-      it("should derive the correct detailsId for cache lookup", async () => {
-        const repo = getRepoMock();
-        repo.getCachedPriceHistory.mockResolvedValue(null);
-
-        mockFetch.mockResolvedValue({
-          ok: true,
-          json: () => Promise.resolve(makePoeNinjaApiResponse()),
-        });
-
-        await service.getPriceHistory("poe1", "Settlers", "House of Mirrors");
-
-        expect(repo.getCachedPriceHistory).toHaveBeenCalledWith(
-          "poe1",
-          "Settlers",
-          "house-of-mirrors",
-        );
-      });
-    });
-
-    // ─── Corrupted Cache Handling ──────────────────────────────────────
-
-    describe("corrupted cache handling", () => {
-      it("should re-fetch when cached response_data is not valid JSON", async () => {
-        const repo = getRepoMock();
-        const corruptedRow = makeCachedRow({
-          response_data: "not valid json {{{",
-        });
-        repo.getCachedPriceHistory.mockResolvedValue(corruptedRow);
-        repo.isCacheStale.mockReturnValue(false);
-
-        mockFetch.mockResolvedValue({
-          ok: true,
-          json: () => Promise.resolve(makePoeNinjaApiResponse()),
-        });
-
-        const result = await service.getPriceHistory(
-          "poe1",
-          "Settlers",
-          "The Doctor",
-        );
-
-        // Should have fallen through to fetch since JSON.parse failed
-        expect(result).not.toBeNull();
-        expect(mockFetch).toHaveBeenCalledTimes(1);
-      });
-    });
-
-    // ─── getRepository ─────────────────────────────────────────────────
-
-    describe("corrupted stale cache fallback", () => {
-      it("should return null when stale cache has corrupted JSON and fetch also fails", async () => {
-        const repo = getRepoMock();
-        const corruptedRow = makeCachedRow({
-          response_data: "NOT VALID JSON {{{{",
-        });
-        repo.getCachedPriceHistory.mockResolvedValue(corruptedRow);
-        repo.isCacheStale.mockReturnValue(true);
-
-        // Fetch also fails
-        mockFetch.mockRejectedValue(new Error("Network error"));
-
-        const result = await service.getPriceHistory(
-          "poe1",
-          "Settlers",
-          "The Doctor",
-        );
-
-        // Stale cache parse fails, no fresh data available → null
-        expect(result).toBeNull();
-        expect(mockLoggerWarn).toHaveBeenCalledWith(
-          expect.stringContaining("Failed to parse stale cached data"),
-        );
-      });
-    });
-
-    describe("getRepository", () => {
-      it("should return the repository instance", () => {
-        const repo = service.getRepository();
-        expect(repo).toBeDefined();
-        // The repository is the class instance created by the mock constructor,
-        // which has the same methods assigned via Object.assign
-        expect(typeof repo.getCachedPriceHistory).toBe("function");
-        expect(typeof repo.upsertPriceHistory).toBe("function");
-        expect(typeof repo.isCacheStale).toBe("function");
-      });
     });
   });
 
@@ -1266,52 +693,6 @@ describe("CardDetailsService", () => {
   // ─── getRelatedCards (Milestone 6) ──────────────────────────────────────
 
   describe("getRelatedCards", () => {
-    describe("input validation (via IPC handler)", () => {
-      function getIpcHandler(): (...args: unknown[]) => Promise<unknown> {
-        const call = mockIpcMainHandle.mock.calls.find(
-          ([ch]: [string]) => ch === "card-details:get-related-cards",
-        );
-        if (!call)
-          throw new Error("GetRelatedCards handler was not registered");
-        return call[1];
-      }
-
-      const emptyResult = { similarCards: [], chainCards: [] };
-
-      it("should return empty result when game is missing", async () => {
-        const handler = getIpcHandler();
-        const result = await handler(
-          {} as Electron.IpcMainInvokeEvent,
-          "",
-          "The Doctor",
-          "<span>Headhunter</span>",
-        );
-        expect(result).toEqual(emptyResult);
-      });
-
-      it("should return empty result when cardName is missing", async () => {
-        const handler = getIpcHandler();
-        const result = await handler(
-          {} as Electron.IpcMainInvokeEvent,
-          "poe1",
-          "",
-          "<span>Headhunter</span>",
-        );
-        expect(result).toEqual(emptyResult);
-      });
-
-      it("should return empty result for invalid game type", async () => {
-        const handler = getIpcHandler();
-        const result = await handler(
-          {} as Electron.IpcMainInvokeEvent,
-          "poe3",
-          "The Doctor",
-          "<span>Headhunter</span>",
-        );
-        expect(result).toEqual(emptyResult);
-      });
-    });
-
     it("should look up raw reward_html from DB and find related cards by terminal reward", async () => {
       const repo = getRepoMock();
       // The service now fetches raw reward_html from DB instead of using
@@ -2644,36 +2025,7 @@ describe("CardDetailsService", () => {
       return registration[1] as (...args: unknown[]) => Promise<unknown>;
     }
 
-    it("executes valid IPC validation branches and backend failure handling", async () => {
-      await expect(
-        ipcHandler("card-details:get-price-history")(
-          {},
-          "poe3",
-          "League",
-          "Card",
-        ),
-      ).resolves.toBeNull();
-      await expect(
-        ipcHandler("card-details:get-related-cards")({}, "poe3", "Card"),
-      ).resolves.toEqual({ chainCards: [], similarCards: [] });
-      getRepoMock().getCachedPriceHistory.mockResolvedValue(null);
-      mockFetch.mockResolvedValue({
-        json: () => Promise.resolve(makePoeNinjaApiResponse()),
-        ok: true,
-      });
-      await expect(
-        ipcHandler("card-details:get-price-history")(
-          {},
-          "poe1",
-          "League",
-          "Card",
-        ),
-      ).resolves.not.toBeNull();
-      getRepoMock().getCardRewardHtml.mockResolvedValue(null);
-      await expect(
-        ipcHandler("card-details:get-related-cards")({}, "poe1", "Card"),
-      ).resolves.toEqual({ chainCards: [], similarCards: [] });
-
+    it("executes IPC validation and backend failure handling", async () => {
       getRepoMock().findCardByName.mockRejectedValueOnce(
         new Error("db failed"),
       );
@@ -2720,56 +2072,6 @@ describe("CardDetailsService", () => {
           "",
         ),
       ).resolves.toBeNull();
-    });
-
-    it("rejects every malformed cached DTO field before refetching", async () => {
-      const valid = JSON.parse(makeCachedRow().response_data);
-      const malformed = [
-        null,
-        { ...valid, cardName: 1 },
-        { ...valid, detailsId: 1 },
-        { ...valid, game: 1 },
-        { ...valid, league: 1 },
-        { ...valid, priceHistory: {} },
-        { ...valid, fetchedAt: 1 },
-      ];
-      const repo = getRepoMock();
-      repo.isCacheStale.mockReturnValue(false);
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 500,
-        statusText: "failed",
-      });
-
-      for (const response of malformed) {
-        repo.getCachedPriceHistory.mockResolvedValueOnce(
-          makeCachedRow({ response_data: JSON.stringify(response) }),
-        );
-        await expect(
-          service.getPriceHistory("poe1", "Settlers", "The Doctor"),
-        ).resolves.toBeNull();
-      }
-
-      expect(mockLoggerWarn).toHaveBeenCalledWith(
-        expect.stringContaining("failed shape validation"),
-      );
-    });
-
-    it("warns when stale fallback JSON has a valid parse but invalid shape", async () => {
-      const repo = getRepoMock();
-      repo.getCachedPriceHistory.mockResolvedValue(
-        makeCachedRow({ response_data: "{}" }),
-      );
-      repo.isCacheStale.mockReturnValue(true);
-      mockFetch.mockRejectedValue(new Error("offline"));
-
-      await expect(
-        service.getPriceHistory("poe1", "Settlers", "The Doctor"),
-      ).resolves.toBeNull();
-
-      expect(mockLoggerWarn).toHaveBeenCalledWith(
-        expect.stringContaining("Stale cached data"),
-      );
     });
 
     it("resolves Standard and unknown league timeline end dates", async () => {

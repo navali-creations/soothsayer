@@ -2,7 +2,7 @@
  * Data Transfer Objects for Sessions module
  */
 
-import type { SessionTotals } from "../../../types/data-stores";
+import type { GameType, SessionTotals } from "../../../types/data-stores";
 
 export interface SessionSummaryDTO {
   sessionId: string;
@@ -31,7 +31,7 @@ export interface SessionsPageDTO {
 
 export interface SessionDetailsDTO {
   id: string;
-  game: string;
+  game: GameType;
   leagueId: string;
   league: string;
   snapshotId: string | null;

@@ -156,6 +156,36 @@ describe("PageContainer.Header", () => {
     const children = justifyBetween!.children;
     expect(children).toHaveLength(1);
   });
+
+  it("replays the title without remounting or blurring header actions", () => {
+    const { container, rerender } = renderWithProviders(
+      <PageContainer.Header
+        title="First"
+        actions={<button>Action</button>}
+        animationKey="first"
+      />,
+    );
+    const firstSections = [
+      ...container.querySelectorAll(".justify-between > div"),
+    ];
+    const action = screen.getByRole("button", { name: "Action" });
+    action.focus();
+
+    rerender(
+      <PageContainer.Header
+        title="Second"
+        actions={<button>Action</button>}
+        animationKey="second"
+      />,
+    );
+    const secondSections = [
+      ...container.querySelectorAll(".justify-between > div"),
+    ];
+
+    expect(secondSections[0]).not.toBe(firstSections[0]);
+    expect(secondSections[1]).toBe(firstSections[1]);
+    expect(screen.getByRole("button", { name: "Action" })).toHaveFocus();
+  });
 });
 
 // ─── 3. PageContainer.Content ─────────────────────────────────────────────
@@ -187,6 +217,23 @@ describe("PageContainer.Content", () => {
     expect(contentDiv).toHaveClass("overflow-y-auto");
     expect(contentDiv).toHaveClass("space-y-6");
     expect(contentDiv).toHaveClass("scroll-hint");
+  });
+
+  it("remounts content when the animation key changes", () => {
+    const { container, rerender } = renderWithProviders(
+      <PageContainer.Content animationKey="first">
+        <div>First content</div>
+      </PageContainer.Content>,
+    );
+    const firstContent = container.querySelector(".flex-1");
+
+    rerender(
+      <PageContainer.Content animationKey="second">
+        <div>Second content</div>
+      </PageContainer.Content>,
+    );
+
+    expect(container.querySelector(".flex-1")).not.toBe(firstContent);
   });
 });
 

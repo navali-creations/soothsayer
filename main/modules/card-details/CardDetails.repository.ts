@@ -1,115 +1,16 @@
 import { type Kysely, sql } from "kysely";
 
-import type {
-  CardPriceHistoryCacheRow,
-  Database,
-} from "~/main/modules/database";
+import type { Database } from "~/main/modules/database";
 import { cleanWikiMarkup } from "~/main/utils/cleanWikiMarkup";
 import type { KnownRarity, Rarity } from "~/types/data-stores";
 
 import type { DropTimelineSessionRow } from "./CardDetails.utils";
 
 /**
- * Repository for the local SQLite cache of poe.ninja price history data.
- *
- * Manages CRUD operations on `card_price_history_cache` to provide
- * offline support and reduce redundant API calls (30-minute TTL).
+ * Card-details queries for personal analytics and related-card discovery.
  */
 export class CardDetailsRepository {
   constructor(private readonly kysely: Kysely<Database>) {}
-
-  /**
-   * Retrieve a cached price history entry for a specific card.
-   *
-   * @returns The cached row, or `null` if no entry exists.
-   */
-  async getCachedPriceHistory(
-    game: string,
-    league: string,
-    detailsId: string,
-  ): Promise<CardPriceHistoryCacheRow | null> {
-    const row = await this.kysely
-      .selectFrom("card_price_history_cache")
-      .selectAll()
-      .where("game", "=", game)
-      .where("league", "=", league)
-      .where("details_id", "=", detailsId)
-      .executeTakeFirst();
-
-    return (row as CardPriceHistoryCacheRow | undefined) ?? null;
-  }
-
-  /**
-   * Insert or update a price history cache entry.
-   *
-   * Uses SQLite's `ON CONFLICT ... DO UPDATE` via the UNIQUE(game, league, details_id)
-   * constraint to perform an upsert.
-   */
-  async upsertPriceHistory(
-    game: string,
-    league: string,
-    detailsId: string,
-    cardName: string,
-    responseData: string,
-    fetchedAt: string,
-  ): Promise<void> {
-    const now = new Date().toISOString();
-
-    await this.kysely
-      .insertInto("card_price_history_cache")
-      .values({
-        game,
-        league,
-        details_id: detailsId,
-        card_name: cardName,
-        response_data: responseData,
-        fetched_at: fetchedAt,
-        created_at: now,
-        updated_at: now,
-      })
-      .onConflict((oc) =>
-        oc.columns(["game", "league", "details_id"]).doUpdateSet({
-          card_name: cardName,
-          response_data: responseData,
-          fetched_at: fetchedAt,
-          updated_at: now,
-        }),
-      )
-      .execute();
-  }
-
-  /**
-   * Check whether a cache entry has expired.
-   *
-   * @param fetchedAt - ISO timestamp of when the data was originally fetched.
-   * @param ttlMs - Time-to-live in milliseconds (default: 30 minutes).
-   * @returns `true` if the cache entry is stale and should be refreshed.
-   */
-  isCacheStale(fetchedAt: string, ttlMs = 30 * 60 * 1000): boolean {
-    const fetchedTime = new Date(fetchedAt).getTime();
-    const now = Date.now();
-    return now - fetchedTime > ttlMs;
-  }
-
-  /**
-   * Delete all cached price history entries for a specific league.
-   *
-   * Useful for cleanup when a league ends or data is no longer relevant.
-   */
-  async deleteCacheForLeague(game: string, league: string): Promise<void> {
-    await this.kysely
-      .deleteFrom("card_price_history_cache")
-      .where("game", "=", game)
-      .where("league", "=", league)
-      .execute();
-  }
-
-  /**
-   * Delete all cached price history entries.
-   */
-  async deleteAll(): Promise<void> {
-    await this.kysely.deleteFrom("card_price_history_cache").execute();
-  }
 
   // ─── Personal Analytics Queries ────────────────────────────────────────────
 

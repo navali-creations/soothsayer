@@ -22,7 +22,7 @@ vi.mock("./CardDetailsSessionList", () => ({
   ),
 }));
 
-vi.mock("./LoadingOverlay", () => ({
+vi.mock("./LoadingOverlay/LoadingOverlay", () => ({
   default: ({ isLoading, children }: any) => (
     <div data-testid="loading-overlay" data-is-loading={String(isLoading)}>
       {children}
@@ -32,7 +32,7 @@ vi.mock("./LoadingOverlay", () => ({
 
 // ─── Component imports (after all mocks) ───────────────────────────────────
 
-import YourDataTabContent from "./YourDataTabContent";
+import YourDataTabContent from "./YourDataTabContent/YourDataTabContent";
 
 // ─── Cleanup ───────────────────────────────────────────────────────────────
 
@@ -90,7 +90,7 @@ describe("YourDataTabContent", () => {
       />,
     );
     const overlays = screen.getAllByTestId("loading-overlay");
-    expect(overlays).toHaveLength(3);
+    expect(overlays).toHaveLength(2);
     for (const overlay of overlays) {
       expect(overlay).toHaveAttribute("data-is-loading", "false");
     }
@@ -101,7 +101,7 @@ describe("YourDataTabContent", () => {
       <YourDataTabContent cardName="The Doctor" game="poe1" isLoading={true} />,
     );
     const overlays = screen.getAllByTestId("loading-overlay");
-    expect(overlays).toHaveLength(3);
+    expect(overlays).toHaveLength(2);
     for (const overlay of overlays) {
       expect(overlay).toHaveAttribute("data-is-loading", "true");
     }
@@ -130,15 +130,16 @@ describe("YourDataTabContent", () => {
     expect(screen.getByTestId("drop-timeline")).toBeInTheDocument();
     expect(screen.getByTestId("session-list")).toBeInTheDocument();
 
-    // All three overlays are in the loading state
+    // The stats and timeline overlays are in the loading state. The session
+    // list owns its own request-specific loading state.
     const overlays = screen.getAllByTestId("loading-overlay");
-    expect(overlays).toHaveLength(3);
+    expect(overlays).toHaveLength(2);
     for (const overlay of overlays) {
       expect(overlay).toHaveAttribute("data-is-loading", "true");
     }
   });
 
-  it("wraps each section in its own LoadingOverlay", () => {
+  it("leaves the session list to own its loading state", () => {
     renderWithProviders(
       <YourDataTabContent
         cardName="The Doctor"
@@ -148,11 +149,16 @@ describe("YourDataTabContent", () => {
     );
 
     const overlays = screen.getAllByTestId("loading-overlay");
-    expect(overlays).toHaveLength(3);
+    expect(overlays).toHaveLength(2);
 
     // Each overlay wraps exactly one child component
     expect(overlays[0]).toContainElement(screen.getByTestId("personal"));
     expect(overlays[1]).toContainElement(screen.getByTestId("drop-timeline"));
-    expect(overlays[2]).toContainElement(screen.getByTestId("session-list"));
+    expect(overlays[0]).not.toContainElement(
+      screen.getByTestId("session-list"),
+    );
+    expect(overlays[1]).not.toContainElement(
+      screen.getByTestId("session-list"),
+    );
   });
 });

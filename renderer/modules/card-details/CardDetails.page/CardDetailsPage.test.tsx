@@ -6,14 +6,23 @@ import { useCardDetails, useSettings } from "~/renderer/store";
 // ─── Store mock ────────────────────────────────────────────────────────────
 
 vi.mock("~/renderer/store", () => ({
+  useBoundStore: vi.fn((selector: any) => selector(mockBoundStoreState)),
   useCardDetails: vi.fn(),
   useSettings: vi.fn(),
 }));
 
 // ─── Router mock ───────────────────────────────────────────────────────────
 
-const { mockUseParams } = vi.hoisted(() => ({
+const { mockUseParams, mockBoundStoreState } = vi.hoisted(() => ({
   mockUseParams: vi.fn(() => ({ cardSlug: "test-card" })),
+  mockBoundStoreState: {
+    cards: { allCards: [] as any[] },
+    sessionDetails: { session: null as any },
+    currentSession: {
+      poe1Session: null as any,
+      poe2Session: null as any,
+    },
+  },
 }));
 
 vi.mock("@tanstack/react-router", async () => {
@@ -39,11 +48,11 @@ vi.mock(
 );
 
 vi.mock("../CardDetails.components/CardDetailsHeader", () => ({
-  default: (props: any) => <div data-testid="header">{props.cardName}</div>,
-}));
-
-vi.mock("../CardDetails.components/CardDetailsLoading", () => ({
-  default: () => <div data-testid="loading" />,
+  default: (props: any) => (
+    <div data-testid="header" data-animation-key={props.animationKey}>
+      {props.cardName}
+    </div>
+  ),
 }));
 
 vi.mock("../CardDetails.components/CardDetailsRelatedCards", () => ({
@@ -54,16 +63,19 @@ vi.mock("../CardDetails.components/CardDetailsVisual", () => ({
   default: () => <div data-testid="visual" />,
 }));
 
-vi.mock("../CardDetails.components/YourDataTabContent", () => ({
-  default: (props: any) => (
-    <div
-      data-testid="your-data-tab"
-      data-loading={String(props.isLoading)}
-      data-card-name={props.cardName}
-      data-game={props.game}
-    />
-  ),
-}));
+vi.mock(
+  "../CardDetails.components/YourDataTabContent/YourDataTabContent",
+  () => ({
+    default: (props: any) => (
+      <div
+        data-testid="your-data-tab"
+        data-loading={String(props.isLoading)}
+        data-card-name={props.cardName}
+        data-game={props.game}
+      />
+    ),
+  }),
+);
 
 vi.mock("~/renderer/components", () => ({
   PageContainer: Object.assign(
@@ -75,8 +87,10 @@ vi.mock("~/renderer/components", () => ({
           {actions}
         </div>
       ),
-      Content: ({ children }: any) => (
-        <div data-testid="page-content">{children}</div>
+      Content: ({ children, animationKey }: any) => (
+        <div data-testid="page-content" data-animation-key={animationKey}>
+          {children}
+        </div>
       ),
     },
   ),
@@ -112,6 +126,7 @@ function createMockSlices(overrides: Record<string, any> = {}) {
     },
     isLoadingCard: false,
     cardError: null,
+    activeCardKey: "poe1:test-card",
     initializeCardDetails: vi.fn(),
     fetchCommunityDropRate: vi.fn(),
     clearCardDetails: vi.fn(),
@@ -119,8 +134,17 @@ function createMockSlices(overrides: Record<string, any> = {}) {
     selectedLeague: "all",
     setSelectedLeague: vi.fn(),
     getDisplayRarity: vi.fn(() => 3),
+    relatedCards: null,
     ...overrides.cardDetails,
   };
+
+  if (!overrides.cardDetails?.initializeCardDetails) {
+    cardDetails.initializeCardDetails.mockImplementation(
+      (_game: string, _cardSlug: string, selectedLeague: string) => {
+        cardDetails.selectedLeague = selectedLeague;
+      },
+    );
+  }
 
   return { settings, cardDetails };
 }
@@ -138,6 +162,10 @@ function renderPage(overrides: Record<string, any> = {}) {
 afterEach(() => {
   vi.restoreAllMocks();
   mockUseParams.mockReturnValue({ cardSlug: "test-card" });
+  mockBoundStoreState.cards.allCards = [];
+  mockBoundStoreState.sessionDetails.session = null;
+  mockBoundStoreState.currentSession.poe1Session = null;
+  mockBoundStoreState.currentSession.poe2Session = null;
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -145,16 +173,142 @@ afterEach(() => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("CardDetailsPage — loading state", () => {
-  it("renders CardDetailsLoading when isLoadingCard is true", () => {
+  it("keeps the page shell mounted when card details are loading", () => {
     renderPage({ cardDetails: { isLoadingCard: true } });
-    expect(screen.getByTestId("loading")).toBeInTheDocument();
+    expect(screen.getByTestId("page-container")).toBeInTheDocument();
+    expect(screen.getByTestId("header")).toBeInTheDocument();
+    expect(screen.getByTestId("your-data-tab")).toHaveAttribute(
+      "data-loading",
+      "true",
+    );
   });
 
-  it("does not render main content when loading", () => {
+  it("keeps already resolved card content visible while refreshing", () => {
     renderPage({ cardDetails: { isLoadingCard: true } });
-    expect(screen.queryByTestId("header")).not.toBeInTheDocument();
+    expect(screen.getByTestId("visual")).toBeInTheDocument();
+    expect(screen.getByTestId("external-links")).toBeInTheDocument();
+    expect(screen.getByTestId("related-cards")).toBeInTheDocument();
+  });
+
+  it("uses cached cards-page metadata while analytics load", () => {
+    mockBoundStoreState.cards.allCards = [
+      {
+        id: "poe1_test-card",
+        name: "Test Card",
+        game: "poe1",
+        stackSize: 5,
+        description: "test",
+        rewardHtml: "<p>Reward</p>",
+        artSrc: "test.png",
+        flavourHtml: "",
+        rarity: 3,
+        filterRarity: null,
+        prohibitedLibraryRarity: null,
+        fromBoss: false,
+        isDisabled: false,
+        inPool: true,
+      },
+    ];
+
+    renderPage({ cardDetails: { card: null, isLoadingCard: true } });
+
+    expect(screen.getByTestId("header")).toHaveTextContent("Test Card");
+    expect(screen.getByTestId("visual")).toBeInTheDocument();
+    expect(screen.getByTestId("external-links")).toBeInTheDocument();
+  });
+
+  it("uses cached session-details metadata while analytics load", () => {
+    mockBoundStoreState.sessionDetails.session = {
+      game: "poe1",
+      cards: [
+        {
+          name: "Test Card",
+          count: 1,
+          divinationCard: {
+            id: "poe1_test-card",
+            stackSize: 5,
+            description: "test",
+            rewardHtml: "<p>Reward</p>",
+            artSrc: "test.png",
+            flavourHtml: "",
+            rarity: 3,
+            fromBoss: false,
+          },
+        },
+      ],
+    };
+
+    const { rerender } = renderPage({
+      cardDetails: { card: null, isLoadingCard: true },
+    });
+
+    expect(screen.getByTestId("header")).toHaveTextContent("Test Card");
+    expect(screen.getByTestId("visual")).toBeInTheDocument();
+    expect(screen.getByTestId("your-data-tab")).toHaveAttribute(
+      "data-card-name",
+      "Test Card",
+    );
+
+    mockBoundStoreState.sessionDetails.session = null;
+    rerender(<CardDetailsPage />);
+
+    expect(screen.getByTestId("header")).toHaveTextContent("Test Card");
+    expect(screen.getByTestId("visual")).toBeInTheDocument();
+  });
+
+  it("does not preview session-details metadata from another game", () => {
+    mockBoundStoreState.sessionDetails.session = {
+      game: "poe2",
+      cards: [
+        {
+          name: "Test Card",
+          count: 1,
+          divinationCard: { id: "poe2_test-card", rarity: 3 },
+        },
+      ],
+    };
+
+    renderPage({ cardDetails: { card: null, isLoadingCard: true } });
+
+    expect(screen.getByTestId("header")).toHaveTextContent("");
     expect(screen.queryByTestId("visual")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("your-data-tab")).not.toBeInTheDocument();
+  });
+
+  it("uses related-card metadata immediately when navigating to a similar card", () => {
+    const { mockSlices, rerender } = renderPage({
+      cardDetails: {
+        relatedCards: {
+          chainCards: [],
+          similarCards: [
+            {
+              name: "Another Card",
+              artSrc: "another.png",
+              stackSize: 7,
+              description: "another",
+              rewardHtml: "<p>Another reward</p>",
+              flavourHtml: "",
+              rarity: 2,
+              filterRarity: null,
+              prohibitedLibraryRarity: null,
+              fromBoss: false,
+              relationship: "similar",
+            },
+          ],
+        },
+      },
+    });
+
+    mockUseParams.mockReturnValue({ cardSlug: "another-card" });
+    mockSlices.cardDetails.card = null;
+    mockSlices.cardDetails.isLoadingCard = true;
+    rerender(<CardDetailsPage />);
+
+    expect(screen.getByTestId("header")).toHaveTextContent("Another Card");
+    expect(screen.getByTestId("visual")).toBeInTheDocument();
+    expect(screen.getByTestId("your-data-tab")).toHaveAttribute(
+      "data-card-name",
+      "Another Card",
+    );
   });
 });
 
@@ -169,9 +323,16 @@ describe("CardDetailsPage — error state", () => {
     expect(screen.getByText("Something went wrong")).toBeInTheDocument();
   });
 
-  it("renders CardDetailsError when card is null", () => {
+  it("renders the page shell while a card has not initialized", () => {
     renderPage({ cardDetails: { card: null } });
-    expect(screen.getByTestId("error")).toBeInTheDocument();
+    expect(screen.getByTestId("page-container")).toBeInTheDocument();
+    expect(screen.getByTestId("header")).toBeInTheDocument();
+    expect(screen.getByTestId("your-data-tab")).toHaveAttribute(
+      "data-card-name",
+      "",
+    );
+    expect(screen.queryByTestId("visual")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("error")).not.toBeInTheDocument();
   });
 
   it("renders CardDetailsError when both cardError is set and card is null", () => {
@@ -187,6 +348,47 @@ describe("CardDetailsPage — error state", () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("CardDetailsPage — normal render", () => {
+  it("keys header and content animation to the active card and league", () => {
+    const { mockSlices, rerender } = renderPage();
+
+    expect(screen.getByTestId("header")).toHaveAttribute(
+      "data-animation-key",
+      "poe1:test-card:all",
+    );
+    expect(screen.getByTestId("page-content")).toHaveAttribute(
+      "data-animation-key",
+      "poe1:test-card:all",
+    );
+
+    mockSlices.cardDetails.selectedLeague = "Standard";
+    rerender(<CardDetailsPage />);
+
+    expect(screen.getByTestId("header")).toHaveAttribute(
+      "data-animation-key",
+      "poe1:test-card:Standard",
+    );
+    expect(screen.getByTestId("page-content")).toHaveAttribute(
+      "data-animation-key",
+      "poe1:test-card:Standard",
+    );
+  });
+
+  it("changes the animation key when navigating to another card", () => {
+    const { rerender } = renderPage();
+
+    mockUseParams.mockReturnValue({ cardSlug: "another-card" });
+    rerender(<CardDetailsPage />);
+
+    expect(screen.getByTestId("header")).toHaveAttribute(
+      "data-animation-key",
+      "poe1:another-card:all",
+    );
+    expect(screen.getByTestId("page-content")).toHaveAttribute(
+      "data-animation-key",
+      "poe1:another-card:all",
+    );
+  });
+
   it("renders CardDetailsHeader with card name", () => {
     renderPage();
     expect(screen.getByTestId("header")).toBeInTheDocument();
@@ -259,10 +461,19 @@ describe("CardDetailsPage — effects", () => {
     expect(mockSlices.cardDetails.clearCardDetails).toHaveBeenCalledTimes(1);
   });
 
-  it('calls setSelectedLeague("all") on mount (reset for card navigation)', () => {
-    const { mockSlices } = renderPage();
-    expect(mockSlices.cardDetails.setSelectedLeague).toHaveBeenCalledWith(
-      "all",
+  it("initializes a newly opened card with the current card-details league", () => {
+    const { mockSlices } = renderPage({
+      cardDetails: { selectedLeague: "Standard" },
+    });
+
+    expect(mockSlices.cardDetails.initializeCardDetails).toHaveBeenCalledTimes(
+      1,
+    );
+    expect(mockSlices.cardDetails.initializeCardDetails).toHaveBeenCalledWith(
+      "poe1",
+      "test-card",
+      "Standard",
+      "Standard",
     );
   });
 
@@ -279,14 +490,51 @@ describe("CardDetailsPage — effects", () => {
   });
 
   it("loads the community drop rate for a selected league", () => {
-    const { mockSlices } = renderPage({
-      cardDetails: { selectedLeague: "Standard" },
+    const { mockSlices, rerender } = renderPage();
+    mockSlices.cardDetails.selectedLeague = "Standard";
+    rerender(<CardDetailsPage />);
+
+    expect(
+      mockSlices.cardDetails.fetchCommunityDropRate,
+    ).toHaveBeenLastCalledWith("poe1", "Standard", "Test Card");
+  });
+
+  it("preserves the selected league when initializing a different card", () => {
+    const { mockSlices, rerender } = renderPage();
+    mockSlices.cardDetails.selectedLeague = "Standard";
+    rerender(<CardDetailsPage />);
+    mockSlices.cardDetails.initializeCardDetails.mockClear();
+
+    mockUseParams.mockReturnValue({ cardSlug: "another-card" });
+    rerender(<CardDetailsPage />);
+
+    expect(mockSlices.cardDetails.initializeCardDetails).toHaveBeenCalledOnce();
+    expect(mockSlices.cardDetails.initializeCardDetails).toHaveBeenCalledWith(
+      "poe1",
+      "another-card",
+      "Standard",
+      "Standard",
+    );
+  });
+
+  it("falls back to all leagues when the card is absent from the selected league", () => {
+    const { mockSlices, rerender } = renderPage({
+      cardDetails: {
+        selectedLeague: "Standard",
+      },
     });
 
-    expect(mockSlices.cardDetails.fetchCommunityDropRate).toHaveBeenCalledWith(
-      "poe1",
-      "Standard",
-      "Test Card",
+    mockSlices.cardDetails.card.inPool = false;
+    rerender(<CardDetailsPage />);
+
+    expect(
+      mockSlices.cardDetails.initializeCardDetails,
+    ).toHaveBeenNthCalledWith(1, "poe1", "test-card", "Standard", "Standard");
+    expect(
+      mockSlices.cardDetails.initializeCardDetails,
+    ).toHaveBeenNthCalledWith(2, "poe1", "test-card", "all", "Settlers");
+    expect(mockSlices.cardDetails.initializeCardDetails).toHaveBeenCalledTimes(
+      2,
     );
   });
 
@@ -361,7 +609,6 @@ describe("CardDetailsPage — effects", () => {
   it("does not reinitialize an explicitly selected league when the global league changes", () => {
     let globalLeague = "Settlers";
     const mockSlices = createMockSlices({
-      cardDetails: { selectedLeague: "Standard" },
       settings: {
         getActiveGameViewSelectedLeague: vi.fn(() => globalLeague),
       },
@@ -374,9 +621,13 @@ describe("CardDetailsPage — effects", () => {
     const { rerender } = renderWithProviders(<CardDetailsPage />);
     expect(cardDetailsMock.initializeCardDetails).toHaveBeenCalledTimes(1);
 
+    cardDetailsMock.selectedLeague = "Standard";
+    rerender(<CardDetailsPage />);
+    expect(cardDetailsMock.initializeCardDetails).toHaveBeenCalledTimes(2);
+
     globalLeague = "Mirage";
     rerender(<CardDetailsPage />);
 
-    expect(cardDetailsMock.initializeCardDetails).toHaveBeenCalledTimes(1);
+    expect(cardDetailsMock.initializeCardDetails).toHaveBeenCalledTimes(2);
   });
 });

@@ -3,6 +3,10 @@ import type { ReactNode } from "react";
 
 import { useSettings } from "~/renderer/store";
 
+import {
+  PAGE_ANIMATION_DELAY_SECONDS,
+  PAGE_ANIMATION_STAGGER_SECONDS,
+} from "./PageContainer.utils";
 import PageContent from "./PageContent/PageContent";
 import PageHeader from "./PageHeader/PageHeader";
 
@@ -16,8 +20,8 @@ const containerVariants = {
   visible: {
     opacity: 1,
     transition: {
-      staggerChildren: 0.1,
-      delayChildren: 0.05,
+      staggerChildren: PAGE_ANIMATION_STAGGER_SECONDS,
+      delayChildren: PAGE_ANIMATION_DELAY_SECONDS,
     },
   },
   exit: {

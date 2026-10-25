@@ -38,16 +38,6 @@ function makePersonalAnalytics(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function makePriceHistory(overrides: Record<string, unknown> = {}) {
-  return {
-    currentDivineRate: 0.5,
-    chaosToDivineRatio: 0.005,
-    priceChanges: { "1d": 0.01, "7d": -0.02 },
-    history: [],
-    ...overrides,
-  };
-}
-
 function makeCommunityDropRate(overrides: Record<string, unknown> = {}) {
   return {
     league: "Mirage",
@@ -113,16 +103,11 @@ describe("CardDetails.slice", () => {
       expect(store.getState().cardDetails.cardError).toBeNull();
     });
 
-    it("has priceHistory null", () => {
-      expect(store.getState().cardDetails.priceHistory).toBeNull();
-    });
-
-    it("has isLoadingPriceHistory false", () => {
-      expect(store.getState().cardDetails.isLoadingPriceHistory).toBe(false);
-    });
-
-    it("has priceHistoryError null", () => {
-      expect(store.getState().cardDetails.priceHistoryError).toBeNull();
+    it("has no active route or request owners", () => {
+      const state = store.getState().cardDetails;
+      expect(state.activeCardKey).toBeNull();
+      expect(state.cardDetailsRequestId).toBe(0);
+      expect(state.sessionsRequestId).toBe(0);
     });
 
     it("has personalAnalytics null", () => {
@@ -333,6 +318,28 @@ describe("CardDetails.slice", () => {
       );
       expect(store.getState().cardDetails.isLoadingRelatedCards).toBe(true);
       expect(store.getState().cardDetails.card).toBeNull();
+      expect(store.getState().cardDetails.activeCardKey).toBe(
+        "poe1:the-doctor",
+      );
+
+      resolveIpc(makeResolveResult());
+      await promise;
+    });
+
+    it("synchronizes the selected league when initialization starts", async () => {
+      store.getState().cardDetails.setSelectedLeague("Standard");
+      let resolveIpc!: (value: unknown) => void;
+      electron.cardDetails.resolveCardBySlug.mockReturnValue(
+        new Promise((resolve) => {
+          resolveIpc = resolve;
+        }),
+      );
+
+      const promise = store
+        .getState()
+        .cardDetails.initializeCardDetails("poe1", "the-doctor", "all");
+
+      expect(store.getState().cardDetails.selectedLeague).toBe("all");
 
       resolveIpc(makeResolveResult());
       await promise;
@@ -360,6 +367,55 @@ describe("CardDetails.slice", () => {
       expect(store.getState().cardDetails.card).toBeNull();
       expect(store.getState().cardDetails.personalAnalytics).toBeNull();
       expect(store.getState().cardDetails.relatedCards).toBeNull();
+
+      resolveIpc(makeResolveResult());
+      await promise;
+    });
+
+    it("keeps matching card metadata visible while analytics refresh", async () => {
+      const card = makeCard({
+        name: "The Doctor",
+        game: "poe1",
+      });
+      store.setState((state) => {
+        state.cardDetails.card = card;
+      });
+      let resolveIpc!: (value: unknown) => void;
+      electron.cardDetails.resolveCardBySlug.mockReturnValue(
+        new Promise((resolve) => {
+          resolveIpc = resolve;
+        }),
+      );
+
+      const promise = store
+        .getState()
+        .cardDetails.initializeCardDetails("poe1", "the-doctor", "all");
+
+      expect(store.getState().cardDetails.card).toEqual(card);
+
+      resolveIpc(makeResolveResult());
+      await promise;
+    });
+
+    it("does not retain matching card metadata from another game", async () => {
+      store.setState((state) => {
+        state.cardDetails.card = makeCard({
+          name: "The Doctor",
+          game: "poe2",
+        });
+      });
+      let resolveIpc!: (value: unknown) => void;
+      electron.cardDetails.resolveCardBySlug.mockReturnValue(
+        new Promise((resolve) => {
+          resolveIpc = resolve;
+        }),
+      );
+
+      const promise = store
+        .getState()
+        .cardDetails.initializeCardDetails("poe1", "the-doctor", "all");
+
+      expect(store.getState().cardDetails.card).toBeNull();
 
       resolveIpc(makeResolveResult());
       await promise;
@@ -605,102 +661,6 @@ describe("CardDetails.slice", () => {
     });
   });
 
-  // ─── fetchPriceHistory ─────────────────────────────────────────────
-
-  describe("fetchPriceHistory", () => {
-    it("sets isLoadingPriceHistory true during fetch", async () => {
-      let resolveIpc!: (value: unknown) => void;
-      electron.cardDetails.getPriceHistory.mockReturnValue(
-        new Promise((resolve) => {
-          resolveIpc = resolve;
-        }),
-      );
-
-      const promise = store
-        .getState()
-        .cardDetails.fetchPriceHistory("poe1", "Settlers", "The Doctor");
-
-      expect(store.getState().cardDetails.isLoadingPriceHistory).toBe(true);
-      expect(store.getState().cardDetails.priceHistoryError).toBeNull();
-
-      resolveIpc(makePriceHistory());
-      await promise;
-
-      expect(store.getState().cardDetails.isLoadingPriceHistory).toBe(false);
-    });
-
-    it("populates priceHistory on success", async () => {
-      const history = makePriceHistory();
-      electron.cardDetails.getPriceHistory.mockResolvedValue(history);
-
-      await store
-        .getState()
-        .cardDetails.fetchPriceHistory("poe1", "Settlers", "The Doctor");
-
-      expect(store.getState().cardDetails.priceHistory).toEqual(history);
-    });
-
-    it("calls IPC with correct arguments", async () => {
-      electron.cardDetails.getPriceHistory.mockResolvedValue(
-        makePriceHistory(),
-      );
-
-      await store
-        .getState()
-        .cardDetails.fetchPriceHistory("poe1", "Settlers", "The Doctor");
-
-      expect(electron.cardDetails.getPriceHistory).toHaveBeenCalledWith(
-        "poe1",
-        "Settlers",
-        "The Doctor",
-      );
-    });
-
-    it("sets error on failure", async () => {
-      electron.cardDetails.getPriceHistory.mockRejectedValue(
-        new Error("price fetch error"),
-      );
-
-      await store
-        .getState()
-        .cardDetails.fetchPriceHistory("poe1", "Settlers", "The Doctor");
-
-      const state = store.getState().cardDetails;
-      expect(state.priceHistoryError).toBe("price fetch error");
-      expect(state.isLoadingPriceHistory).toBe(false);
-    });
-
-    it("uses fallback error message for non-Error throws", async () => {
-      electron.cardDetails.getPriceHistory.mockRejectedValue(42);
-
-      await store
-        .getState()
-        .cardDetails.fetchPriceHistory("poe1", "Settlers", "The Doctor");
-
-      expect(store.getState().cardDetails.priceHistoryError).toBe(
-        "Failed to load price history",
-      );
-    });
-
-    it("clears previous error on new fetch", async () => {
-      electron.cardDetails.getPriceHistory.mockRejectedValueOnce(
-        new Error("old error"),
-      );
-      await store
-        .getState()
-        .cardDetails.fetchPriceHistory("poe1", "Settlers", "The Doctor");
-      expect(store.getState().cardDetails.priceHistoryError).toBe("old error");
-
-      electron.cardDetails.getPriceHistory.mockResolvedValue(
-        makePriceHistory(),
-      );
-      await store
-        .getState()
-        .cardDetails.fetchPriceHistory("poe1", "Settlers", "The Doctor");
-      expect(store.getState().cardDetails.priceHistoryError).toBeNull();
-    });
-  });
-
   // ─── fetchSessionsForCard ──────────────────────────────────────────
 
   describe("fetchSessionsForCard", () => {
@@ -802,6 +762,97 @@ describe("CardDetails.slice", () => {
         "Failed to load sessions",
       );
     });
+
+    it("does not let an older response replace a newer league", async () => {
+      let resolveOlder!: (value: ReturnType<typeof makeSessionsPage>) => void;
+      let resolveNewer!: (value: ReturnType<typeof makeSessionsPage>) => void;
+      electron.sessions.searchByCard
+        .mockReturnValueOnce(
+          new Promise((resolve) => {
+            resolveOlder = resolve;
+          }),
+        )
+        .mockReturnValueOnce(
+          new Promise((resolve) => {
+            resolveNewer = resolve;
+          }),
+        );
+
+      const olderRequest = store
+        .getState()
+        .cardDetails.fetchSessionsForCard(
+          "poe1",
+          "The Doctor",
+          1,
+          5,
+          "Standard",
+        );
+      const newerRequest = store
+        .getState()
+        .cardDetails.fetchSessionsForCard(
+          "poe1",
+          "The Doctor",
+          1,
+          5,
+          "Settlers",
+        );
+      const newerPage = makeSessionsPage({
+        sessions: [{ id: "newer", date: "2024-02-01" }],
+      });
+
+      resolveNewer(newerPage);
+      await newerRequest;
+      resolveOlder(
+        makeSessionsPage({
+          sessions: [{ id: "older", date: "2024-01-01" }],
+        }),
+      );
+      await olderRequest;
+
+      expect(store.getState().cardDetails.sessions).toEqual(newerPage);
+    });
+
+    it("does not let an older failure replace a newer response", async () => {
+      let rejectOlder!: (reason: Error) => void;
+      electron.sessions.searchByCard
+        .mockReturnValueOnce(
+          new Promise((_resolve, reject) => {
+            rejectOlder = reject;
+          }),
+        )
+        .mockResolvedValueOnce(makeSessionsPage());
+
+      const olderRequest = store
+        .getState()
+        .cardDetails.fetchSessionsForCard("poe1", "The Doctor", 1, 5);
+      await store
+        .getState()
+        .cardDetails.fetchSessionsForCard("poe1", "The Doctor", 2, 5);
+      rejectOlder(new Error("stale failure"));
+      await olderRequest;
+
+      expect(store.getState().cardDetails.sessionsError).toBeNull();
+      expect(store.getState().cardDetails.sessionsPage).toBe(2);
+    });
+
+    it("invalidates an in-flight request when card details are cleared", async () => {
+      let resolveRequest!: (value: ReturnType<typeof makeSessionsPage>) => void;
+      electron.sessions.searchByCard.mockReturnValue(
+        new Promise((resolve) => {
+          resolveRequest = resolve;
+        }),
+      );
+
+      const request = store
+        .getState()
+        .cardDetails.fetchSessionsForCard("poe1", "The Doctor");
+      store.getState().cardDetails.clearCardDetails();
+      resolveRequest(makeSessionsPage());
+      await request;
+
+      expect(store.getState().cardDetails.sessions).toBeNull();
+      expect(store.getState().cardDetails.isLoadingSessions).toBe(false);
+    });
   });
 
   // ─── setSessionsSort ───────────────────────────────────────────────
@@ -885,99 +936,16 @@ describe("CardDetails.slice", () => {
     });
   });
 
-  // ─── fetchRelatedCards ─────────────────────────────────────────────
-
-  describe("fetchRelatedCards", () => {
-    it("sets loading flag", async () => {
-      let resolveIpc!: (value: unknown) => void;
-      electron.cardDetails.getRelatedCards.mockReturnValue(
-        new Promise((resolve) => {
-          resolveIpc = resolve;
-        }),
-      );
-
-      const promise = store
-        .getState()
-        .cardDetails.fetchRelatedCards("poe1", "The Doctor");
-
-      expect(store.getState().cardDetails.isLoadingRelatedCards).toBe(true);
-
-      resolveIpc(makeRelatedCards());
-      await promise;
-    });
-
-    it("populates relatedCards on success", async () => {
-      const related = makeRelatedCards();
-      electron.cardDetails.getRelatedCards.mockResolvedValue(related);
-
-      await store
-        .getState()
-        .cardDetails.fetchRelatedCards("poe1", "The Doctor");
-
-      expect(store.getState().cardDetails.relatedCards).toEqual(related);
-      expect(store.getState().cardDetails.isLoadingRelatedCards).toBe(false);
-    });
-
-    it("passes arguments to IPC", async () => {
-      electron.cardDetails.getRelatedCards.mockResolvedValue(
-        makeRelatedCards(),
-      );
-
-      await store
-        .getState()
-        .cardDetails.fetchRelatedCards("poe1", "The Doctor");
-
-      expect(electron.cardDetails.getRelatedCards).toHaveBeenCalledWith(
-        "poe1",
-        "The Doctor",
-      );
-    });
-
-    it("sets relatedCards to null on error", async () => {
-      // Pre-populate to verify it gets cleared
-      store.setState((s) => {
-        s.cardDetails.relatedCards = makeRelatedCards() as any;
-      });
-
-      electron.cardDetails.getRelatedCards.mockRejectedValue(
-        new Error("related error"),
-      );
-
-      await store
-        .getState()
-        .cardDetails.fetchRelatedCards("poe1", "The Doctor");
-
-      expect(store.getState().cardDetails.relatedCards).toBeNull();
-      expect(store.getState().cardDetails.isLoadingRelatedCards).toBe(false);
-    });
-
-    it("clears loading flag on error", async () => {
-      electron.cardDetails.getRelatedCards.mockRejectedValue(new Error("fail"));
-
-      await store
-        .getState()
-        .cardDetails.fetchRelatedCards("poe1", "The Doctor");
-
-      expect(store.getState().cardDetails.isLoadingRelatedCards).toBe(false);
-    });
-  });
-
   // ─── clearCardDetails ──────────────────────────────────────────────
 
   describe("clearCardDetails", () => {
-    it("resets all state to initial values", async () => {
+    it("resets loaded state while preserving the selected league", async () => {
       // First populate everything
       const result = makeResolveResult();
       electron.cardDetails.resolveCardBySlug.mockResolvedValue(result);
       await store
         .getState()
         .cardDetails.initializeCardDetails("poe1", "the-doctor", "all");
-
-      const priceHistory = makePriceHistory();
-      electron.cardDetails.getPriceHistory.mockResolvedValue(priceHistory);
-      await store
-        .getState()
-        .cardDetails.fetchPriceHistory("poe1", "Settlers", "The Doctor");
 
       const sessionsPage = makeSessionsPage();
       electron.sessions.searchByCard.mockResolvedValue(sessionsPage);
@@ -988,7 +956,6 @@ describe("CardDetails.slice", () => {
       store.getState().cardDetails.setSelectedLeague("Necropolis");
       // Verify state is populated
       expect(store.getState().cardDetails.card).not.toBeNull();
-      expect(store.getState().cardDetails.priceHistory).not.toBeNull();
       expect(store.getState().cardDetails.sessions).not.toBeNull();
 
       // Clear
@@ -998,9 +965,7 @@ describe("CardDetails.slice", () => {
       expect(state.card).toBeNull();
       expect(state.isLoadingCard).toBe(false);
       expect(state.cardError).toBeNull();
-      expect(state.priceHistory).toBeNull();
-      expect(state.isLoadingPriceHistory).toBe(false);
-      expect(state.priceHistoryError).toBeNull();
+      expect(state.activeCardKey).toBeNull();
       expect(state.personalAnalytics).toBeNull();
       expect(state.isLoadingPersonalAnalytics).toBe(false);
       expect(state.personalAnalyticsError).toBeNull();
@@ -1015,9 +980,10 @@ describe("CardDetails.slice", () => {
         column: "date",
         direction: "desc",
       });
+      expect(state.sessionsRequestId).toBeGreaterThan(0);
       expect(state.relatedCards).toBeNull();
       expect(state.isLoadingRelatedCards).toBe(false);
-      expect(state.selectedLeague).toBe("all");
+      expect(state.selectedLeague).toBe("Necropolis");
     });
 
     it("resets sessionsPage that was advanced", async () => {
@@ -1127,235 +1093,6 @@ describe("CardDetails.slice", () => {
         });
         // null ?? 0 → 0
         expect(store.getState().cardDetails.getDisplayRarity()).toBe(0);
-      });
-    });
-
-    // ─── Price getters ───────────────────────────────────────────────
-
-    describe("getPriceHistory", () => {
-      it("returns null when no price history", () => {
-        expect(store.getState().cardDetails.getPriceHistory()).toBeNull();
-      });
-
-      it("returns price history when set", () => {
-        const history = makePriceHistory();
-        store.setState((s) => {
-          s.cardDetails.priceHistory = history as any;
-        });
-        expect(store.getState().cardDetails.getPriceHistory()).toEqual(history);
-      });
-    });
-
-    describe("getIsLoadingPriceHistory", () => {
-      it("returns false by default", () => {
-        expect(store.getState().cardDetails.getIsLoadingPriceHistory()).toBe(
-          false,
-        );
-      });
-    });
-
-    describe("getPriceHistoryError", () => {
-      it("returns null by default", () => {
-        expect(store.getState().cardDetails.getPriceHistoryError()).toBeNull();
-      });
-    });
-
-    describe("getPriceChanges", () => {
-      it("returns empty object when no price history", () => {
-        expect(store.getState().cardDetails.getPriceChanges()).toEqual({});
-      });
-
-      it("returns priceChanges from price history", () => {
-        store.setState((s) => {
-          s.cardDetails.priceHistory = makePriceHistory({
-            priceChanges: { "1d": 0.05, "7d": -0.1 },
-          }) as any;
-        });
-        expect(store.getState().cardDetails.getPriceChanges()).toEqual({
-          "1d": 0.05,
-          "7d": -0.1,
-        });
-      });
-
-      it("returns empty object when priceChanges is undefined", () => {
-        store.setState((s) => {
-          s.cardDetails.priceHistory = {
-            currentDivineRate: 0.5,
-            chaosToDivineRatio: 0.005,
-            history: [],
-          } as any;
-        });
-        expect(store.getState().cardDetails.getPriceChanges()).toEqual({});
-      });
-    });
-
-    // ─── getFullSetValue ─────────────────────────────────────────────
-
-    describe("getFullSetValue", () => {
-      it("returns null when no card", () => {
-        store.setState((s) => {
-          s.cardDetails.priceHistory = makePriceHistory() as any;
-        });
-        expect(store.getState().cardDetails.getFullSetValue()).toBeNull();
-      });
-
-      it("returns null when no priceHistory", () => {
-        store.setState((s) => {
-          s.cardDetails.card = makeCard() as any;
-        });
-        expect(store.getState().cardDetails.getFullSetValue()).toBeNull();
-      });
-
-      it("returns null when currentDivineRate is 0", () => {
-        store.setState((s) => {
-          s.cardDetails.card = makeCard({ stackSize: 8 }) as any;
-          s.cardDetails.priceHistory = makePriceHistory({
-            currentDivineRate: 0,
-          }) as any;
-        });
-        expect(store.getState().cardDetails.getFullSetValue()).toBeNull();
-      });
-
-      it("computes stackSize × currentDivineRate", () => {
-        store.setState((s) => {
-          s.cardDetails.card = makeCard({ stackSize: 8 }) as any;
-          s.cardDetails.priceHistory = makePriceHistory({
-            currentDivineRate: 0.5,
-          }) as any;
-        });
-        // 8 × 0.5 = 4.0
-        expect(store.getState().cardDetails.getFullSetValue()).toBe(4);
-      });
-
-      it("rounds to 2 decimal places", () => {
-        store.setState((s) => {
-          s.cardDetails.card = makeCard({ stackSize: 3 }) as any;
-          s.cardDetails.priceHistory = makePriceHistory({
-            currentDivineRate: 0.333,
-          }) as any;
-        });
-        // 3 × 0.333 = 0.999 → Math.round(0.999 * 100) / 100 = 1.0
-        expect(store.getState().cardDetails.getFullSetValue()).toBe(1);
-      });
-
-      it("handles stackSize 1", () => {
-        store.setState((s) => {
-          s.cardDetails.card = makeCard({ stackSize: 1 }) as any;
-          s.cardDetails.priceHistory = makePriceHistory({
-            currentDivineRate: 2.5,
-          }) as any;
-        });
-        expect(store.getState().cardDetails.getFullSetValue()).toBe(2.5);
-      });
-
-      it("falls back to stackSize 1 when stackSize is undefined", () => {
-        store.setState((s) => {
-          s.cardDetails.card = makeCard({ stackSize: undefined }) as any;
-          s.cardDetails.priceHistory = makePriceHistory({
-            currentDivineRate: 0.5,
-          }) as any;
-        });
-        // stackSize ?? 1 → 1, so 1 × 0.5 = 0.5
-        expect(store.getState().cardDetails.getFullSetValue()).toBe(0.5);
-      });
-
-      it("falls back to stackSize 1 when stackSize is null", () => {
-        store.setState((s) => {
-          s.cardDetails.card = makeCard({ stackSize: null }) as any;
-          s.cardDetails.priceHistory = makePriceHistory({
-            currentDivineRate: 0.5,
-          }) as any;
-        });
-        // stackSize ?? 1 → 1, so 1 × 0.5 = 0.5
-        expect(store.getState().cardDetails.getFullSetValue()).toBe(0.5);
-      });
-    });
-
-    // ─── getFullSetChaosValue ────────────────────────────────────────
-
-    describe("getFullSetChaosValue", () => {
-      it("returns null when no card", () => {
-        store.setState((s) => {
-          s.cardDetails.priceHistory = makePriceHistory() as any;
-        });
-        expect(store.getState().cardDetails.getFullSetChaosValue()).toBeNull();
-      });
-
-      it("returns null when no priceHistory", () => {
-        store.setState((s) => {
-          s.cardDetails.card = makeCard() as any;
-        });
-        expect(store.getState().cardDetails.getFullSetChaosValue()).toBeNull();
-      });
-
-      it("returns null when chaosToDivineRatio is 0", () => {
-        store.setState((s) => {
-          s.cardDetails.card = makeCard({ stackSize: 8 }) as any;
-          s.cardDetails.priceHistory = makePriceHistory({
-            currentDivineRate: 0.5,
-            chaosToDivineRatio: 0,
-          }) as any;
-        });
-        expect(store.getState().cardDetails.getFullSetChaosValue()).toBeNull();
-      });
-
-      it("returns null when currentDivineRate is 0", () => {
-        store.setState((s) => {
-          s.cardDetails.card = makeCard({ stackSize: 8 }) as any;
-          s.cardDetails.priceHistory = makePriceHistory({
-            currentDivineRate: 0,
-            chaosToDivineRatio: 0.005,
-          }) as any;
-        });
-        expect(store.getState().cardDetails.getFullSetChaosValue()).toBeNull();
-      });
-
-      it("computes stackSize × currentDivineRate × (1/chaosToDivineRatio)", () => {
-        store.setState((s) => {
-          s.cardDetails.card = makeCard({ stackSize: 8 }) as any;
-          s.cardDetails.priceHistory = makePriceHistory({
-            currentDivineRate: 0.5,
-            chaosToDivineRatio: 0.005, // 1 divine = 200 chaos
-          }) as any;
-        });
-        // 0.5 * 8 * (1/0.005) = 4 * 200 = 800
-        expect(store.getState().cardDetails.getFullSetChaosValue()).toBe(800);
-      });
-
-      it("rounds to nearest integer", () => {
-        store.setState((s) => {
-          s.cardDetails.card = makeCard({ stackSize: 3 }) as any;
-          s.cardDetails.priceHistory = makePriceHistory({
-            currentDivineRate: 0.1,
-            chaosToDivineRatio: 0.007, // 1 divine ≈ 142.86 chaos
-          }) as any;
-        });
-        // 0.1 * 3 * (1/0.007) = 0.3 * 142.857 ≈ 42.857 → round = 43
-        expect(store.getState().cardDetails.getFullSetChaosValue()).toBe(43);
-      });
-
-      it("falls back to stackSize 1 when stackSize is undefined", () => {
-        store.setState((s) => {
-          s.cardDetails.card = makeCard({ stackSize: undefined }) as any;
-          s.cardDetails.priceHistory = makePriceHistory({
-            currentDivineRate: 0.5,
-            chaosToDivineRatio: 0.005, // 1 divine = 200 chaos
-          }) as any;
-        });
-        // stackSize ?? 1 → 1, so 0.5 * 1 * (1/0.005) = 0.5 * 200 = 100
-        expect(store.getState().cardDetails.getFullSetChaosValue()).toBe(100);
-      });
-
-      it("falls back to stackSize 1 when stackSize is null", () => {
-        store.setState((s) => {
-          s.cardDetails.card = makeCard({ stackSize: null }) as any;
-          s.cardDetails.priceHistory = makePriceHistory({
-            currentDivineRate: 0.5,
-            chaosToDivineRatio: 0.005, // 1 divine = 200 chaos
-          }) as any;
-        });
-        // stackSize ?? 1 → 1, so 0.5 * 1 * (1/0.005) = 0.5 * 200 = 100
-        expect(store.getState().cardDetails.getFullSetChaosValue()).toBe(100);
       });
     });
 
@@ -1640,7 +1377,7 @@ describe("CardDetails.slice", () => {
       expect(store.getState().cardDetails.getDisplayRarity()).toBe(0);
     });
 
-    it("full workflow: init → fetch prices → switch league → clear", async () => {
+    it("full workflow: init → switch league → clear", async () => {
       // 1. Initialize
       electron.cardDetails.resolveCardBySlug.mockResolvedValue(
         makeResolveResult(),
@@ -1650,20 +1387,11 @@ describe("CardDetails.slice", () => {
         .cardDetails.initializeCardDetails("poe1", "the-doctor", "all");
       expect(store.getState().cardDetails.card).not.toBeNull();
 
-      // 2. Fetch prices
-      electron.cardDetails.getPriceHistory.mockResolvedValue(
-        makePriceHistory(),
-      );
-      await store
-        .getState()
-        .cardDetails.fetchPriceHistory("poe1", "Settlers", "The Doctor");
-      expect(store.getState().cardDetails.priceHistory).not.toBeNull();
-
-      // 3. Switch league
+      // 2. Switch league
       store.getState().cardDetails.setSelectedLeague("Necropolis");
       expect(store.getState().cardDetails.selectedLeague).toBe("Necropolis");
 
-      // 4. Reinitialize for the new league
+      // 3. Reinitialize for the new league
       const newAnalytics = makePersonalAnalytics({
         totalLifetimeDrops: 99,
       });
@@ -1677,16 +1405,10 @@ describe("CardDetails.slice", () => {
         newAnalytics,
       );
 
-      // 5. Clear everything
+      // 4. Clear loaded data while preserving the page-local filter
       store.getState().cardDetails.clearCardDetails();
       expect(store.getState().cardDetails.card).toBeNull();
-      expect(store.getState().cardDetails.priceHistory).toBeNull();
-      expect(store.getState().cardDetails.selectedLeague).toBe("all");
-    });
-
-    it("getFullSetValue and getFullSetChaosValue both return null when no data", () => {
-      expect(store.getState().cardDetails.getFullSetValue()).toBeNull();
-      expect(store.getState().cardDetails.getFullSetChaosValue()).toBeNull();
+      expect(store.getState().cardDetails.selectedLeague).toBe("Necropolis");
     });
 
     it("all loading flags are false after clear following a failed init", async () => {
@@ -1701,7 +1423,6 @@ describe("CardDetails.slice", () => {
 
       const state = store.getState().cardDetails;
       expect(state.isLoadingCard).toBe(false);
-      expect(state.isLoadingPriceHistory).toBe(false);
       expect(state.isLoadingPersonalAnalytics).toBe(false);
       expect(state.isLoadingSessions).toBe(false);
       expect(state.isLoadingRelatedCards).toBe(false);

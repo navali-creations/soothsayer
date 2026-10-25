@@ -176,6 +176,7 @@ export interface SessionCardDelta {
 
 export interface DetailedDivinationCardStats {
   id?: string;
+  game: GameType;
   totalCount: number;
   cards: CardEntry[];
   recentDrops?: RecentDrop[];

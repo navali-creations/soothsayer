@@ -24,13 +24,10 @@ vi.mock("@tanstack/react-router", async () => {
 
 import CardDetailsError from "~/renderer/modules/card-details/CardDetails.components/CardDetailsError";
 import HeaderSubtitle from "~/renderer/modules/card-details/CardDetails.components/CardDetailsHeader/HeaderSubtitle";
-import CardDetailsLoading from "~/renderer/modules/card-details/CardDetails.components/CardDetailsLoading";
 import PersonalStatsError from "~/renderer/modules/card-details/CardDetails.components/CardDetailsPersonal/PersonalStatsError";
 import PersonalStatsNeverFound from "~/renderer/modules/card-details/CardDetails.components/CardDetailsPersonal/PersonalStatsNeverFound";
 import PersonalStatsPlaceholder from "~/renderer/modules/card-details/CardDetails.components/CardDetailsPersonal/PersonalStatsPlaceholder";
-import ConfidenceBadge from "~/renderer/modules/card-details/CardDetails.components/CardDetailsPriceSummary/ConfidenceBadge";
-import PriceChangePill from "~/renderer/modules/card-details/CardDetails.components/CardDetailsPriceSummary/PriceChangePill";
-import LoadingOverlay from "~/renderer/modules/card-details/CardDetails.components/LoadingOverlay";
+import LoadingOverlay from "~/renderer/modules/card-details/CardDetails.components/LoadingOverlay/LoadingOverlay";
 
 // ─── Cleanup ───────────────────────────────────────────────────────────────
 
@@ -70,22 +67,23 @@ describe("CardDetailsError", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// CardDetailsLoading
 // ═══════════════════════════════════════════════════════════════════════════
-
-describe("CardDetailsLoading", () => {
-  it("renders a loading spinner", () => {
-    const { container } = renderWithProviders(<CardDetailsLoading />);
-    const spinner = container.querySelector(".loading.loading-spinner");
-    expect(spinner).toBeInTheDocument();
-  });
-});
 
 // ═══════════════════════════════════════════════════════════════════════════
 // LoadingOverlay
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("LoadingOverlay", () => {
+  it("applies an optional stable-size class", () => {
+    const { container } = renderWithProviders(
+      <LoadingOverlay isLoading={true} className="min-h-64">
+        <span>Child content</span>
+      </LoadingOverlay>,
+    );
+
+    expect(container.firstElementChild).toHaveClass("relative", "min-h-64");
+  });
+
   it("always renders children", () => {
     renderWithProviders(
       <LoadingOverlay isLoading={false}>
@@ -112,6 +110,12 @@ describe("LoadingOverlay", () => {
     );
     const spinner = container.querySelector(".loading.loading-spinner");
     expect(spinner).toBeInTheDocument();
+    expect(spinner).toHaveAttribute("role", "status");
+    expect(spinner).toHaveAccessibleName("Loading updated card details");
+    expect(container.firstElementChild).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByText("Child content").parentElement).toHaveAttribute(
+      "inert",
+    );
   });
 
   it("does not render overlay when isLoading is false", () => {
@@ -122,6 +126,10 @@ describe("LoadingOverlay", () => {
     );
     const spinner = container.querySelector(".loading.loading-spinner");
     expect(spinner).not.toBeInTheDocument();
+    expect(container.firstElementChild).not.toHaveAttribute("aria-busy");
+    expect(screen.getByText("Child content").parentElement).not.toHaveAttribute(
+      "inert",
+    );
   });
 });
 
@@ -167,117 +175,6 @@ describe("HeaderSubtitle", () => {
     renderWithProviders(<HeaderSubtitle rarity={1} fromBoss={false} />);
     const badge = screen.getByText("Extremely Rare");
     expect(badge).toHaveStyle({ borderWidth: "1px", borderStyle: "solid" });
-  });
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// ConfidenceBadge
-// ═══════════════════════════════════════════════════════════════════════════
-
-describe("ConfidenceBadge", () => {
-  it("renders High confidence for value 1", () => {
-    renderWithProviders(<ConfidenceBadge confidence={1} />);
-    expect(screen.getByText("High confidence")).toBeInTheDocument();
-    expect(screen.getByText("🟢")).toBeInTheDocument();
-  });
-
-  it("renders Medium confidence for value 2", () => {
-    renderWithProviders(<ConfidenceBadge confidence={2} />);
-    expect(screen.getByText("Medium confidence")).toBeInTheDocument();
-    expect(screen.getByText("🟡")).toBeInTheDocument();
-  });
-
-  it("renders Low confidence for value 3", () => {
-    renderWithProviders(<ConfidenceBadge confidence={3} />);
-    expect(screen.getByText("Low confidence")).toBeInTheDocument();
-    expect(screen.getByText("🔴")).toBeInTheDocument();
-  });
-
-  it("returns null for confidence = null", () => {
-    const { container } = renderWithProviders(
-      <ConfidenceBadge confidence={null} />,
-    );
-    expect(container.innerHTML).toBe("");
-  });
-
-  it("returns null for confidence = 0", () => {
-    const { container } = renderWithProviders(
-      <ConfidenceBadge confidence={0} />,
-    );
-    expect(container.innerHTML).toBe("");
-  });
-
-  it("returns null for an unknown confidence value", () => {
-    const { container } = renderWithProviders(
-      <ConfidenceBadge confidence={99} />,
-    );
-    expect(container.innerHTML).toBe("");
-  });
-
-  it("includes a tooltip with a description", () => {
-    renderWithProviders(<ConfidenceBadge confidence={1} />);
-    const tooltip = screen.getByText("High confidence").closest("[data-tip]");
-    expect(tooltip).toHaveAttribute(
-      "data-tip",
-      "Price from exchange API with good volume — highly reliable",
-    );
-  });
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// PriceChangePill
-// ═══════════════════════════════════════════════════════════════════════════
-
-describe("PriceChangePill", () => {
-  it("renders the label", () => {
-    renderWithProviders(<PriceChangePill label="7d" change={5.0} />);
-    expect(screen.getByText("7d")).toBeInTheDocument();
-  });
-
-  it("formats positive change with + sign and %", () => {
-    renderWithProviders(<PriceChangePill label="7d" change={12.3} />);
-    expect(screen.getByText(/\+12\.3%/)).toBeInTheDocument();
-  });
-
-  it("formats negative change with - sign and %", () => {
-    renderWithProviders(<PriceChangePill label="7d" change={-5.7} />);
-    expect(screen.getByText(/-5\.7%/)).toBeInTheDocument();
-  });
-
-  it("formats zero change", () => {
-    renderWithProviders(<PriceChangePill label="7d" change={0} />);
-    expect(screen.getByText("0.0%")).toBeInTheDocument();
-  });
-
-  it("returns null when change is undefined", () => {
-    const { container } = renderWithProviders(
-      <PriceChangePill label="7d" change={undefined} />,
-    );
-    expect(container.innerHTML).toBe("");
-  });
-
-  it("applies success color class for positive change", () => {
-    const { container } = renderWithProviders(
-      <PriceChangePill label="7d" change={5.0} />,
-    );
-    const valueSpan = container.querySelector(".text-success");
-    expect(valueSpan).toBeInTheDocument();
-  });
-
-  it("applies error color class for negative change", () => {
-    const { container } = renderWithProviders(
-      <PriceChangePill label="7d" change={-3.2} />,
-    );
-    const valueSpan = container.querySelector(".text-error");
-    expect(valueSpan).toBeInTheDocument();
-  });
-
-  it("applies muted color class for zero change", () => {
-    const { container } = renderWithProviders(
-      <PriceChangePill label="7d" change={0} />,
-    );
-    const valueSpan = container.querySelector(".text-base-content\\/60");
-    expect(valueSpan).toBeInTheDocument();
   });
 });
 

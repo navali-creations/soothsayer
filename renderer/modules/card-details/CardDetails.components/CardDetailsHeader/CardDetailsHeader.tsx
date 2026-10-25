@@ -5,11 +5,12 @@ import HeaderActions from "./HeaderActions";
 import HeaderSubtitle from "./HeaderSubtitle";
 
 interface CardDetailsHeaderProps {
-  cardName: string;
-  rarity: Rarity;
-  fromBoss: boolean;
-  isDisabled: boolean;
-  inPool: boolean;
+  cardName?: string;
+  rarity?: Rarity;
+  fromBoss?: boolean;
+  isDisabled?: boolean;
+  inPool?: boolean;
+  animationKey?: string;
 }
 
 const CardDetailsHeader = ({
@@ -18,18 +19,22 @@ const CardDetailsHeader = ({
   fromBoss,
   isDisabled,
   inPool,
+  animationKey,
 }: CardDetailsHeaderProps) => {
   return (
     <PageContainer.Header
-      title={cardName}
+      animationKey={animationKey}
+      title={cardName ?? "Card Details"}
       titleClassName="font-fontin"
       subtitle={
-        <HeaderSubtitle
-          rarity={rarity}
-          fromBoss={fromBoss}
-          isDisabled={isDisabled}
-          inPool={inPool}
-        />
+        cardName && rarity !== undefined ? (
+          <HeaderSubtitle
+            rarity={rarity}
+            fromBoss={fromBoss ?? false}
+            isDisabled={isDisabled ?? false}
+            inPool={inPool ?? true}
+          />
+        ) : undefined
       }
       actions={<HeaderActions />}
     />

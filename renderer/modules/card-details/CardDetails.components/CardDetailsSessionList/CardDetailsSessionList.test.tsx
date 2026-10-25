@@ -202,9 +202,12 @@ describe("CardDetailsSessionList — error state", () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("CardDetailsSessionList — empty state", () => {
-  it("shows empty state when sessions is null", () => {
+  it("shows a section loader while sessions have not resolved", () => {
     renderComponent({ cardDetails: { sessions: null } });
-    expect(screen.getByTestId("empty")).toBeInTheDocument();
+    expect(
+      screen.getByRole("status", { name: "Loading card sessions" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("empty")).not.toBeInTheDocument();
   });
 
   it("shows empty state when sessions.total is 0", () => {
@@ -219,6 +222,17 @@ describe("CardDetailsSessionList — empty state", () => {
   it("does not render table when sessions is null", () => {
     renderComponent({ cardDetails: { sessions: null } });
     expect(screen.queryByTestId("table")).not.toBeInTheDocument();
+  });
+});
+
+describe("CardDetailsSessionList — loading state", () => {
+  it("keeps resolved sessions visible under an overlay while refreshing", () => {
+    const { container } = renderComponent({
+      cardDetails: { isLoadingSessions: true },
+    });
+
+    expect(screen.getByTestId("table")).toBeInTheDocument();
+    expect(container.querySelector(".loading.loading-spinner")).toBeVisible();
   });
 });
 
