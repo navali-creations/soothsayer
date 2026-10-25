@@ -52,7 +52,7 @@
     "email": "eskrzy@gmail.com"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.3",
+    "@biomejs/biome": "2.6.3",
     "@changesets/changelog-github": "^1.0.0",
     "@changesets/cli": "^3.0.1",
     "@electron-forge/cli": "8.0.1",
@@ -86,9 +86,8 @@
     "@types/node": "^24.13.2",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
-    "@vitejs/plugin-react": "^6.1.1",
-    "@vitest/coverage-v8": "^4.1.10",
-    "@vitest/ui": "^4.1.10",
+    "@vitejs/plugin-react": "^6.1.2",
+    "@vitest/coverage-v8": "^5.0.5",
     "app-builder-lib": "26.15.3",
     "clsx": "^2.1.1",
     "cross-env": "^10.1.0",
@@ -97,6 +96,7 @@
     "electron": "45.0.0",
     "electron-devtools-installer": "^4.0.0",
     "electron-squirrel-startup": "^1.0.1",
+    "esbuild": "0.28.2",
     "immer": "^11.1.15",
     "jsdom": "^30.0.1",
     "kysely": "^0.29.5",
@@ -111,8 +111,8 @@
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
-    "vite": "^8.2.2",
-    "vitest": "^4.1.10",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5",
     "zustand": "^5.0.14"
   },
   "dependencies": {

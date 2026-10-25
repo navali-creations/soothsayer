@@ -10,7 +10,7 @@ import {
   type Page,
 } from "@playwright/test";
 
-import { getE2ERendererPort } from "./e2e-config";
+import { getE2ERendererUrl } from "./e2e-config";
 
 export function resolveElectronPath(): string {
   const projectRoot = path.resolve(__dirname, "../..");
@@ -228,7 +228,7 @@ export const test = base.extend<
           ...process.env,
           NODE_ENV: "test",
           E2E_TESTING: "true",
-          SOOTHSAYER_E2E_RENDERER_URL: `http://localhost:${getE2ERendererPort()}`,
+          SOOTHSAYER_E2E_RENDERER_URL: getE2ERendererUrl(),
           ELECTRON_DISABLE_GPU: "true",
           ...electronEnv,
         },
@@ -255,8 +255,20 @@ export const test = base.extend<
 
   workerPage: [
     async ({ workerApp, firstWindowTimeout }, use) => {
-      const window = await workerApp.firstWindow();
-      await window.waitForLoadState("domcontentloaded", {
+      const window = await workerApp.firstWindow({
+        timeout: firstWindowTimeout,
+      });
+      const rendererOrigin = getE2ERendererUrl();
+
+      // firstWindow() can resolve while Electron still displays about:blank.
+      // Wait for the actual renderer navigation before exposing the page to
+      // tests, otherwise cold Vite dependency optimization races app startup.
+      await window.waitForURL((url) => url.origin === rendererOrigin, {
+        timeout: firstWindowTimeout,
+        waitUntil: "domcontentloaded",
+      });
+      await window.locator("#root").waitFor({
+        state: "attached",
         timeout: firstWindowTimeout,
       });
       await use(window);

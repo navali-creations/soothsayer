@@ -129,22 +129,19 @@ describe("generateSimpleCsv", () => {
     expect(lines[1]).toBe('"Rain of Chaos, Exile",3');
   });
 
-  it.each([
-    "=cmd",
-    "+SUM(1,1)",
-    "-10",
-    "@HYPERLINK(A1)",
-    "\tTabbed",
-  ])("neutralizes spreadsheet formula prefix %s", (name) => {
-    const result = generateSimpleCsv({ [name]: 1 });
-    const lines = result.split("\n").filter((l) => l.length > 0);
-    const sanitized = `'${name}`;
-    const expected = name.includes(",")
-      ? `"${sanitized.replace(/"/g, '""')}",1`
-      : `${sanitized},1`;
+  it.each(["=cmd", "+SUM(1,1)", "-10", "@HYPERLINK(A1)", "\tTabbed"])(
+    "neutralizes spreadsheet formula prefix %s",
+    (name) => {
+      const result = generateSimpleCsv({ [name]: 1 });
+      const lines = result.split("\n").filter((l) => l.length > 0);
+      const sanitized = `'${name}`;
+      const expected = name.includes(",")
+        ? `"${sanitized.replace(/"/g, '""')}",1`
+        : `${sanitized},1`;
 
-    expect(lines[1]).toBe(expected);
-  });
+      expect(lines[1]).toBe(expected);
+    },
+  );
 });
 
 describe("CSV formula neutralization", () => {

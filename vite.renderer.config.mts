@@ -5,6 +5,8 @@ import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
+import { getRendererAliases } from "./vite.shared.config.mts";
+
 // https://vitejs.dev/config
 export default defineConfig({
   plugins: [
@@ -15,17 +17,14 @@ export default defineConfig({
       generatedRouteTree: "./renderer/routeTree.gen.ts",
     }),
     react(),
-    tailwindcss(),
+    // Tailwind and Vite normally run separate Lightning CSS optimization
+    // passes. Both must bypass Lightning CSS until it can parse the anchored
+    // fallback queries used by app tooltips. Keep this paired with
+    // build.cssMinify below.
+    tailwindcss({ optimize: false }),
   ],
   resolve: {
-    alias: {
-      "~/renderer": resolve(__dirname, "./renderer"),
-      "~/main": resolve(__dirname, "./main"),
-      "~/types": resolve(__dirname, "./types"),
-      "~/enums": resolve(__dirname, "./enums"),
-      "~types": resolve(__dirname, "./types"),
-      "~enums": resolve(__dirname, "./enums"),
-    },
+    alias: getRendererAliases(),
   },
   server: {
     watch: {
@@ -33,10 +32,13 @@ export default defineConfig({
     },
   },
   build: {
+    // Use esbuild for Vite's optimization pass while Tailwind's pass is
+    // disabled above, preserving minification without parsing those queries.
+    cssMinify: "esbuild",
     rollupOptions: {
       input: {
-        main: resolve(__dirname, "index.html"),
-        overlay: resolve(__dirname, "overlay.html"),
+        main: resolve(import.meta.dirname, "index.html"),
+        overlay: resolve(import.meta.dirname, "overlay.html"),
       },
     },
   },

@@ -5,13 +5,13 @@ import { parseEnv } from "node:util";
 import { sentryVitePlugin } from "@sentry/vite-plugin";
 import { defineConfig } from "vite";
 
+import { getMainAliases } from "./vite.shared.config.mts";
+
 const supabaseTarget =
-  process.env.SOOTHSAYER_SUPABASE_TARGET === "local"
-    ? "local"
-    : "production";
+  process.env.SOOTHSAYER_SUPABASE_TARGET === "local" ? "local" : "production";
 const supabaseEnvFile =
   supabaseTarget === "local" ? ".env.supabase.local" : ".env";
-const supabaseEnvPath = resolve(__dirname, supabaseEnvFile);
+const supabaseEnvPath = resolve(import.meta.dirname, supabaseEnvFile);
 const fileEnv = existsSync(supabaseEnvPath)
   ? parseEnv(readFileSync(supabaseEnvPath, "utf8"))
   : {};
@@ -33,7 +33,7 @@ const supabaseEnv = {
 };
 
 const { version } = JSON.parse(
-  readFileSync(resolve(__dirname, "package.json"), "utf-8")
+  readFileSync(resolve(import.meta.dirname, "package.json"), "utf-8"),
 );
 
 export default defineConfig({
@@ -44,14 +44,7 @@ export default defineConfig({
     ]),
   ),
   resolve: {
-    alias: {
-      "~/renderer": resolve(__dirname, "./renderer"),
-      "~/main": resolve(__dirname, "./main"),
-      "~/types": resolve(__dirname, "./types"),
-      "~/enums": resolve(__dirname, "./enums"),
-      "@types": resolve(__dirname, "./types"),
-      "@enums": resolve(__dirname, "./enums"),
-    },
+    alias: getMainAliases(),
     // Some libs that can run in both Web and Node.js envs
     // will export different bundles based on this
     mainFields: ["module", "jsnext:main", "jsnext"],

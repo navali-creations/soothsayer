@@ -255,7 +255,7 @@ export function useDropTimelineData(
         const nextEndTime = newState.endTime;
         const nextEndIndex = upperBoundByTime(chartData, nextEndTime) - 1;
         setBrushEndTime(nextEndTime);
-        setBrushEndIndex(nextEndIndex < 0 ? 0 : nextEndIndex);
+        setBrushEndIndex(Math.max(nextEndIndex, 0));
       }
     },
     [chartData],

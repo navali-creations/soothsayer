@@ -527,61 +527,61 @@ describe("PoeLeaguesService", () => {
       expect(newLeague!.is_active).toBe(1);
     });
 
-    it.each([
-      "poe1",
-      "poe2",
-    ] as const)("should fall back to stale cache when Supabase fails (%s)", async (game) => {
-      // Insert stale cache metadata
-      const staleDate = new Date(
-        Date.now() - 25 * 60 * 60 * 1000,
-      ).toISOString();
+    it.each(["poe1", "poe2"] as const)(
+      "should fall back to stale cache when Supabase fails (%s)",
+      async (game) => {
+        // Insert stale cache metadata
+        const staleDate = new Date(
+          Date.now() - 25 * 60 * 60 * 1000,
+        ).toISOString();
 
-      await testDb.kysely
-        .insertInto("poe_leagues_cache_metadata")
-        .values({
-          game,
-          last_fetched_at: staleDate,
-        })
-        .execute();
+        await testDb.kysely
+          .insertInto("poe_leagues_cache_metadata")
+          .values({
+            game,
+            last_fetched_at: staleDate,
+          })
+          .execute();
 
-      // Insert cached league (stale but available)
-      await testDb.kysely
-        .insertInto("poe_leagues_cache")
-        .values({
-          id: `${game}_settlers`,
-          game,
-          league_id: "settlers",
-          name: "Settlers",
-          start_at: "2025-01-01",
-          end_at: null,
-          is_active: 1,
-          updated_at: staleDate,
-          fetched_at: staleDate,
-        })
-        .execute();
+        // Insert cached league (stale but available)
+        await testDb.kysely
+          .insertInto("poe_leagues_cache")
+          .values({
+            id: `${game}_settlers`,
+            game,
+            league_id: "settlers",
+            name: "Settlers",
+            start_at: "2025-01-01",
+            end_at: null,
+            is_active: 1,
+            updated_at: staleDate,
+            fetched_at: staleDate,
+          })
+          .execute();
 
-      // Supabase fails
-      mockCallEdgeFunction.mockRejectedValue(new Error("Network error"));
+        // Supabase fails
+        mockCallEdgeFunction.mockRejectedValue(new Error("Network error"));
 
-      const leagues = await service.fetchLeagues(game);
+        const leagues = await service.fetchLeagues(game);
 
-      // Should fall back to stale cache
-      expect(leagues).toHaveLength(1);
-      expect(leagues[0].name).toBe("Settlers");
-    });
+        // Should fall back to stale cache
+        expect(leagues).toHaveLength(1);
+        expect(leagues[0].name).toBe("Settlers");
+      },
+    );
 
-    it.each([
-      "poe1",
-      "poe2",
-    ] as const)("should return Standard fallback when Supabase fails and no cache exists (%s)", async (game) => {
-      mockCallEdgeFunction.mockRejectedValue(new Error("Network error"));
+    it.each(["poe1", "poe2"] as const)(
+      "should return Standard fallback when Supabase fails and no cache exists (%s)",
+      async (game) => {
+        mockCallEdgeFunction.mockRejectedValue(new Error("Network error"));
 
-      const leagues = await service.fetchLeagues(game);
+        const leagues = await service.fetchLeagues(game);
 
-      expect(leagues).toEqual([
-        { id: "Standard", name: "Standard", startAt: null, endAt: null },
-      ]);
-    });
+        expect(leagues).toEqual([
+          { id: "Standard", name: "Standard", startAt: null, endAt: null },
+        ]);
+      },
+    );
 
     it("should normalize a non-Error Supabase rejection before falling back", async () => {
       mockCallEdgeFunction.mockRejectedValue("network unavailable");
@@ -698,64 +698,64 @@ describe("PoeLeaguesService", () => {
   // ─── fetchLeagues — Supabase not configured ───────────────────────────
 
   describe("fetchLeagues — Supabase not configured", () => {
-    it.each([
-      "poe1",
-      "poe2",
-    ] as const)("should return Standard fallback when Supabase is not configured and no cache exists (%s)", async (game) => {
-      mockIsConfigured.mockReturnValue(false);
-      mockCallEdgeFunction.mockRejectedValue(
-        new Error("Supabase client not configured"),
-      );
+    it.each(["poe1", "poe2"] as const)(
+      "should return Standard fallback when Supabase is not configured and no cache exists (%s)",
+      async (game) => {
+        mockIsConfigured.mockReturnValue(false);
+        mockCallEdgeFunction.mockRejectedValue(
+          new Error("Supabase client not configured"),
+        );
 
-      const leagues = await service.fetchLeagues(game);
+        const leagues = await service.fetchLeagues(game);
 
-      expect(leagues).toEqual([
-        { id: "Standard", name: "Standard", startAt: null, endAt: null },
-      ]);
-    });
+        expect(leagues).toEqual([
+          { id: "Standard", name: "Standard", startAt: null, endAt: null },
+        ]);
+      },
+    );
 
-    it.each([
-      "poe1",
-      "poe2",
-    ] as const)("should fall back to stale cache when Supabase is not configured (%s)", async (game) => {
-      mockIsConfigured.mockReturnValue(false);
-      mockCallEdgeFunction.mockRejectedValue(
-        new Error("Supabase client not configured"),
-      );
+    it.each(["poe1", "poe2"] as const)(
+      "should fall back to stale cache when Supabase is not configured (%s)",
+      async (game) => {
+        mockIsConfigured.mockReturnValue(false);
+        mockCallEdgeFunction.mockRejectedValue(
+          new Error("Supabase client not configured"),
+        );
 
-      // Insert stale cache
-      const staleDate = new Date(
-        Date.now() - 48 * 60 * 60 * 1000,
-      ).toISOString();
+        // Insert stale cache
+        const staleDate = new Date(
+          Date.now() - 48 * 60 * 60 * 1000,
+        ).toISOString();
 
-      await testDb.kysely
-        .insertInto("poe_leagues_cache_metadata")
-        .values({
-          game,
-          last_fetched_at: staleDate,
-        })
-        .execute();
+        await testDb.kysely
+          .insertInto("poe_leagues_cache_metadata")
+          .values({
+            game,
+            last_fetched_at: staleDate,
+          })
+          .execute();
 
-      await testDb.kysely
-        .insertInto("poe_leagues_cache")
-        .values({
-          id: `${game}_standard`,
-          game,
-          league_id: "standard",
-          name: "Standard",
-          start_at: null,
-          end_at: null,
-          is_active: 1,
-          updated_at: staleDate,
-          fetched_at: staleDate,
-        })
-        .execute();
+        await testDb.kysely
+          .insertInto("poe_leagues_cache")
+          .values({
+            id: `${game}_standard`,
+            game,
+            league_id: "standard",
+            name: "Standard",
+            start_at: null,
+            end_at: null,
+            is_active: 1,
+            updated_at: staleDate,
+            fetched_at: staleDate,
+          })
+          .execute();
 
-      const leagues = await service.fetchLeagues(game);
+        const leagues = await service.fetchLeagues(game);
 
-      expect(leagues).toHaveLength(1);
-      expect(leagues[0].name).toBe("Standard");
-    });
+        expect(leagues).toHaveLength(1);
+        expect(leagues[0].name).toBe("Standard");
+      },
+    );
   });
 
   // ─── Cache upsert behavior ─────────────────────────────────────────────

@@ -102,55 +102,55 @@ const beacons = [
   },
 ];
 
-describe.each(beacons)("$name", ({
-  Component,
-  expectedTitle,
-  titleIncludes,
-  subtitleIncludes,
-}) => {
-  it("renders without crashing", () => {
-    const { container } = renderWithProviders(<Component {...defaultProps} />);
-    expect(container).toBeTruthy();
-  });
+describe.each(beacons)(
+  "$name",
+  ({ Component, expectedTitle, titleIncludes, subtitleIncludes }) => {
+    it("renders without crashing", () => {
+      const { container } = renderWithProviders(
+        <Component {...defaultProps} />,
+      );
+      expect(container).toBeTruthy();
+    });
 
-  it("wraps content in Popover", () => {
-    renderWithProviders(<Component {...defaultProps} />);
-    expect(screen.getByTestId("popover")).toBeInTheDocument();
-  });
+    it("wraps content in Popover", () => {
+      renderWithProviders(<Component {...defaultProps} />);
+      expect(screen.getByTestId("popover")).toBeInTheDocument();
+    });
 
-  it(`passes exact title "${expectedTitle}" to Popover`, () => {
-    renderWithProviders(<Component {...defaultProps} />);
-    expect(screen.getByTestId("popover").dataset.title).toBe(expectedTitle);
-  });
+    it(`passes exact title "${expectedTitle}" to Popover`, () => {
+      renderWithProviders(<Component {...defaultProps} />);
+      expect(screen.getByTestId("popover").dataset.title).toBe(expectedTitle);
+    });
 
-  it(`title contains "${titleIncludes}"`, () => {
-    renderWithProviders(<Component {...defaultProps} />);
-    expect(screen.getByTestId("popover").dataset.title).toContain(
-      titleIncludes,
-    );
-  });
+    it(`title contains "${titleIncludes}"`, () => {
+      renderWithProviders(<Component {...defaultProps} />);
+      expect(screen.getByTestId("popover").dataset.title).toContain(
+        titleIncludes,
+      );
+    });
 
-  it("passes a subtitle to Popover", () => {
-    renderWithProviders(<Component {...defaultProps} />);
-    const subtitle = screen.getByTestId("popover").dataset.subtitle;
-    expect(subtitle).toBeDefined();
-    expect(subtitle!.length).toBeGreaterThan(0);
-  });
+    it("passes a subtitle to Popover", () => {
+      renderWithProviders(<Component {...defaultProps} />);
+      const subtitle = screen.getByTestId("popover").dataset.subtitle;
+      expect(subtitle).toBeDefined();
+      expect(subtitle!.length).toBeGreaterThan(0);
+    });
 
-  it(`subtitle contains "${subtitleIncludes}"`, () => {
-    renderWithProviders(<Component {...defaultProps} />);
-    expect(
-      screen.getByTestId("popover").dataset.subtitle!.toLowerCase(),
-    ).toContain(subtitleIncludes.toLowerCase());
-  });
+    it(`subtitle contains "${subtitleIncludes}"`, () => {
+      renderWithProviders(<Component {...defaultProps} />);
+      expect(
+        screen.getByTestId("popover").dataset.subtitle!.toLowerCase(),
+      ).toContain(subtitleIncludes.toLowerCase());
+    });
 
-  it("renders educational content inside the popover", () => {
-    renderWithProviders(<Component {...defaultProps} />);
-    const popover = screen.getByTestId("popover");
-    // Every beacon renders at least some descriptive text content
-    expect(popover.textContent!.length).toBeGreaterThan(0);
-  });
-});
+    it("renders educational content inside the popover", () => {
+      renderWithProviders(<Component {...defaultProps} />);
+      const popover = screen.getByTestId("popover");
+      // Every beacon renders at least some descriptive text content
+      expect(popover.textContent!.length).toBeGreaterThan(0);
+    });
+  },
+);
 
 // ─── Beacon-specific tests ─────────────────────────────────────────────────
 

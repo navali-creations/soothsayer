@@ -37,7 +37,7 @@ describe("DivinationCardsRepository", () => {
     });
   });
 
-  describe("updateRarity", () => {
+  describe("updateRarity override clearing", () => {
     it("clears an existing override when requested", async () => {
       await seedDivinationCardRarity(testDb.kysely, {
         game: "poe1",

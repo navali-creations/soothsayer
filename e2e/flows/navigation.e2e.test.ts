@@ -65,8 +65,7 @@ test.describe("Navigation", () => {
       // Ensure at least one active link indicator is found
       expect(activeCount).toBeGreaterThan(0);
       if (activeCount > 0) {
-        const activeText = await activeLink.first().innerText();
-        expect(activeText.toLowerCase()).toContain("cards");
+        await expect(activeLink.first()).toContainText(/cards/i);
       }
     });
 

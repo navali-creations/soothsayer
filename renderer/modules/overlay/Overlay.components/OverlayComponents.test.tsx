@@ -571,22 +571,22 @@ describe("DropBeamColumn", () => {
     expect(beamEl.style.getPropertyValue("--beam")).toBe("orangered");
   });
 
-  it.each([
-    true,
-    false,
-  ])("places the tooltip on the bottom when isLeftHalf is %s", (isLeftHalf) => {
-    setupStore({ isLeftHalf });
-    const { container } = renderWithProviders(
-      <DropBeamColumn showBeam={false} isUnknownRarity={true} />,
-    );
+  it.each([true, false])(
+    "places the tooltip on the bottom when isLeftHalf is %s",
+    (isLeftHalf) => {
+      setupStore({ isLeftHalf });
+      const { container } = renderWithProviders(
+        <DropBeamColumn showBeam={false} isUnknownRarity={true} />,
+      );
 
-    const warningTooltip = container.querySelector(
-      '[data-tip="Low confidence price"]',
-    ) as HTMLElement;
-    const content = warningTooltip.querySelector("[role='tooltip']");
-    expect(warningTooltip).toBeInTheDocument();
-    expect(content).toHaveClass("app-tooltip-bottom");
-  });
+      const warningTooltip = container.querySelector(
+        '[data-tip="Low confidence price"]',
+      ) as HTMLElement;
+      const content = warningTooltip.querySelector("[role='tooltip']");
+      expect(warningTooltip).toBeInTheDocument();
+      expect(content).toHaveClass("app-tooltip-bottom");
+    },
+  );
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

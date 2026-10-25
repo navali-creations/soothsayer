@@ -1468,19 +1468,22 @@ describe("CardDetailsService", () => {
         ["non-string rarity league", "the-doctor", undefined, 42],
         ["empty rarity league", "the-doctor", undefined, ""],
         ["oversized rarity league", "the-doctor", undefined, "x".repeat(101)],
-      ])("rejects %s", async (_name, cardSlug, selectedLeague, rarityLeague) => {
-        const handler = getIpcHandler();
-        const result = await handler(
-          {} as Electron.IpcMainInvokeEvent,
-          "poe1",
-          cardSlug,
-          selectedLeague,
-          rarityLeague,
-        );
+      ])(
+        "rejects %s",
+        async (_name, cardSlug, selectedLeague, rarityLeague) => {
+          const handler = getIpcHandler();
+          const result = await handler(
+            {} as Electron.IpcMainInvokeEvent,
+            "poe1",
+            cardSlug,
+            selectedLeague,
+            rarityLeague,
+          );
 
-        expect(result).toBeNull();
-        expect(mockDivCardsGetAllByGame).not.toHaveBeenCalled();
-      });
+          expect(result).toBeNull();
+          expect(mockDivCardsGetAllByGame).not.toHaveBeenCalled();
+        },
+      );
 
       it("should delegate to resolveCardBySlug on valid input", async () => {
         mockDivCardsGetAllByGame.mockResolvedValue([

@@ -9,74 +9,29 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as StatisticsRouteImport } from './routes/statistics'
-import { Route as SetupRouteImport } from './routes/setup'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as SessionsRouteImport } from './routes/sessions'
-import { Route as RarityInsightsRouteImport } from './routes/rarity-insights'
-import { Route as ProfitForecastRouteImport } from './routes/profit-forecast'
-import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
-import { Route as ChangelogRouteImport } from './routes/changelog'
-import { Route as CardsRouteImport } from './routes/cards'
-import { Route as AttributionsRouteImport } from './routes/attributions'
-import { Route as AppPerformanceRouteImport } from './routes/app-performance'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as SessionsIndexRouteImport } from './routes/sessions.index'
-import { Route as CardsIndexRouteImport } from './routes/cards.index'
+import { Route as AppPerformanceRouteImport } from './routes/app-performance'
+import { Route as AttributionsRouteImport } from './routes/attributions'
+import { Route as CardsRouteImport } from './routes/cards'
+import { Route as ChangelogRouteImport } from './routes/changelog'
+import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
+import { Route as ProfitForecastRouteImport } from './routes/profit-forecast'
+import { Route as RarityInsightsRouteImport } from './routes/rarity-insights'
+import { Route as SessionsRouteImport } from './routes/sessions'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SetupRouteImport } from './routes/setup'
+import { Route as StatisticsRouteImport } from './routes/statistics'
 import { Route as AppPerformanceIndexRouteImport } from './routes/app-performance.index'
-import { Route as SessionsSessionIdRouteImport } from './routes/sessions.$sessionId'
-import { Route as CardsCardSlugRouteImport } from './routes/cards.$cardSlug'
-import { Route as AppPerformanceLiveRouteImport } from './routes/app-performance.live'
 import { Route as AppPerformanceCaptureIdRouteImport } from './routes/app-performance.$captureId'
+import { Route as AppPerformanceLiveRouteImport } from './routes/app-performance.live'
+import { Route as CardsIndexRouteImport } from './routes/cards.index'
+import { Route as CardsCardSlugRouteImport } from './routes/cards.$cardSlug'
+import { Route as SessionsIndexRouteImport } from './routes/sessions.index'
+import { Route as SessionsSessionIdRouteImport } from './routes/sessions.$sessionId'
 
-const StatisticsRoute = StatisticsRouteImport.update({
-  id: '/statistics',
-  path: '/statistics',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SetupRoute = SetupRouteImport.update({
-  id: '/setup',
-  path: '/setup',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SessionsRoute = SessionsRouteImport.update({
-  id: '/sessions',
-  path: '/sessions',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RarityInsightsRoute = RarityInsightsRouteImport.update({
-  id: '/rarity-insights',
-  path: '/rarity-insights',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProfitForecastRoute = ProfitForecastRouteImport.update({
-  id: '/profit-forecast',
-  path: '/profit-forecast',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
-  id: '/privacy-policy',
-  path: '/privacy-policy',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ChangelogRoute = ChangelogRouteImport.update({
-  id: '/changelog',
-  path: '/changelog',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CardsRoute = CardsRouteImport.update({
-  id: '/cards',
-  path: '/cards',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AttributionsRoute = AttributionsRouteImport.update({
-  id: '/attributions',
-  path: '/attributions',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppPerformanceRoute = AppPerformanceRouteImport.update({
@@ -84,45 +39,90 @@ const AppPerformanceRoute = AppPerformanceRouteImport.update({
   path: '/app-performance',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const AttributionsRoute = AttributionsRouteImport.update({
+  id: '/attributions',
+  path: '/attributions',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SessionsIndexRoute = SessionsIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => SessionsRoute,
+const CardsRoute = CardsRouteImport.update({
+  id: '/cards',
+  path: '/cards',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const CardsIndexRoute = CardsIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => CardsRoute,
+const ChangelogRoute = ChangelogRouteImport.update({
+  id: '/changelog',
+  path: '/changelog',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
+  id: '/privacy-policy',
+  path: '/privacy-policy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfitForecastRoute = ProfitForecastRouteImport.update({
+  id: '/profit-forecast',
+  path: '/profit-forecast',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RarityInsightsRoute = RarityInsightsRouteImport.update({
+  id: '/rarity-insights',
+  path: '/rarity-insights',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SessionsRoute = SessionsRouteImport.update({
+  id: '/sessions',
+  path: '/sessions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SetupRoute = SetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StatisticsRoute = StatisticsRouteImport.update({
+  id: '/statistics',
+  path: '/statistics',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AppPerformanceIndexRoute = AppPerformanceIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AppPerformanceRoute,
 } as any)
-const SessionsSessionIdRoute = SessionsSessionIdRouteImport.update({
-  id: '/$sessionId',
-  path: '/$sessionId',
-  getParentRoute: () => SessionsRoute,
-} as any)
-const CardsCardSlugRoute = CardsCardSlugRouteImport.update({
-  id: '/$cardSlug',
-  path: '/$cardSlug',
-  getParentRoute: () => CardsRoute,
+const AppPerformanceCaptureIdRoute = AppPerformanceCaptureIdRouteImport.update({
+  id: '/$captureId',
+  path: '/$captureId',
+  getParentRoute: () => AppPerformanceRoute,
 } as any)
 const AppPerformanceLiveRoute = AppPerformanceLiveRouteImport.update({
   id: '/live',
   path: '/live',
   getParentRoute: () => AppPerformanceRoute,
 } as any)
-const AppPerformanceCaptureIdRoute = AppPerformanceCaptureIdRouteImport.update({
-  id: '/$captureId',
-  path: '/$captureId',
-  getParentRoute: () => AppPerformanceRoute,
+const CardsIndexRoute = CardsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => CardsRoute,
+} as any)
+const CardsCardSlugRoute = CardsCardSlugRouteImport.update({
+  id: '/$cardSlug',
+  path: '/$cardSlug',
+  getParentRoute: () => CardsRoute,
+} as any)
+const SessionsIndexRoute = SessionsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SessionsRoute,
+} as any)
+const SessionsSessionIdRoute = SessionsSessionIdRouteImport.update({
+  id: '/$sessionId',
+  path: '/$sessionId',
+  getParentRoute: () => SessionsRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -266,74 +266,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/statistics': {
-      id: '/statistics'
-      path: '/statistics'
-      fullPath: '/statistics'
-      preLoaderRoute: typeof StatisticsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/setup': {
-      id: '/setup'
-      path: '/setup'
-      fullPath: '/setup'
-      preLoaderRoute: typeof SetupRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sessions': {
-      id: '/sessions'
-      path: '/sessions'
-      fullPath: '/sessions'
-      preLoaderRoute: typeof SessionsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/rarity-insights': {
-      id: '/rarity-insights'
-      path: '/rarity-insights'
-      fullPath: '/rarity-insights'
-      preLoaderRoute: typeof RarityInsightsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/profit-forecast': {
-      id: '/profit-forecast'
-      path: '/profit-forecast'
-      fullPath: '/profit-forecast'
-      preLoaderRoute: typeof ProfitForecastRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/privacy-policy': {
-      id: '/privacy-policy'
-      path: '/privacy-policy'
-      fullPath: '/privacy-policy'
-      preLoaderRoute: typeof PrivacyPolicyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/changelog': {
-      id: '/changelog'
-      path: '/changelog'
-      fullPath: '/changelog'
-      preLoaderRoute: typeof ChangelogRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/cards': {
-      id: '/cards'
-      path: '/cards'
-      fullPath: '/cards'
-      preLoaderRoute: typeof CardsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/attributions': {
-      id: '/attributions'
-      path: '/attributions'
-      fullPath: '/attributions'
-      preLoaderRoute: typeof AttributionsRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/app-performance': {
@@ -343,26 +280,75 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPerformanceRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/attributions': {
+      id: '/attributions'
+      path: '/attributions'
+      fullPath: '/attributions'
+      preLoaderRoute: typeof AttributionsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/sessions/': {
-      id: '/sessions/'
-      path: '/'
-      fullPath: '/sessions/'
-      preLoaderRoute: typeof SessionsIndexRouteImport
-      parentRoute: typeof SessionsRoute
+    '/cards': {
+      id: '/cards'
+      path: '/cards'
+      fullPath: '/cards'
+      preLoaderRoute: typeof CardsRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/cards/': {
-      id: '/cards/'
-      path: '/'
-      fullPath: '/cards/'
-      preLoaderRoute: typeof CardsIndexRouteImport
-      parentRoute: typeof CardsRoute
+    '/changelog': {
+      id: '/changelog'
+      path: '/changelog'
+      fullPath: '/changelog'
+      preLoaderRoute: typeof ChangelogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy-policy': {
+      id: '/privacy-policy'
+      path: '/privacy-policy'
+      fullPath: '/privacy-policy'
+      preLoaderRoute: typeof PrivacyPolicyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profit-forecast': {
+      id: '/profit-forecast'
+      path: '/profit-forecast'
+      fullPath: '/profit-forecast'
+      preLoaderRoute: typeof ProfitForecastRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rarity-insights': {
+      id: '/rarity-insights'
+      path: '/rarity-insights'
+      fullPath: '/rarity-insights'
+      preLoaderRoute: typeof RarityInsightsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sessions': {
+      id: '/sessions'
+      path: '/sessions'
+      fullPath: '/sessions'
+      preLoaderRoute: typeof SessionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/setup': {
+      id: '/setup'
+      path: '/setup'
+      fullPath: '/setup'
+      preLoaderRoute: typeof SetupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/statistics': {
+      id: '/statistics'
+      path: '/statistics'
+      fullPath: '/statistics'
+      preLoaderRoute: typeof StatisticsRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/app-performance/': {
       id: '/app-performance/'
@@ -371,19 +357,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPerformanceIndexRouteImport
       parentRoute: typeof AppPerformanceRoute
     }
-    '/sessions/$sessionId': {
-      id: '/sessions/$sessionId'
-      path: '/$sessionId'
-      fullPath: '/sessions/$sessionId'
-      preLoaderRoute: typeof SessionsSessionIdRouteImport
-      parentRoute: typeof SessionsRoute
-    }
-    '/cards/$cardSlug': {
-      id: '/cards/$cardSlug'
-      path: '/$cardSlug'
-      fullPath: '/cards/$cardSlug'
-      preLoaderRoute: typeof CardsCardSlugRouteImport
-      parentRoute: typeof CardsRoute
+    '/app-performance/$captureId': {
+      id: '/app-performance/$captureId'
+      path: '/$captureId'
+      fullPath: '/app-performance/$captureId'
+      preLoaderRoute: typeof AppPerformanceCaptureIdRouteImport
+      parentRoute: typeof AppPerformanceRoute
     }
     '/app-performance/live': {
       id: '/app-performance/live'
@@ -392,12 +371,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPerformanceLiveRouteImport
       parentRoute: typeof AppPerformanceRoute
     }
-    '/app-performance/$captureId': {
-      id: '/app-performance/$captureId'
-      path: '/$captureId'
-      fullPath: '/app-performance/$captureId'
-      preLoaderRoute: typeof AppPerformanceCaptureIdRouteImport
-      parentRoute: typeof AppPerformanceRoute
+    '/cards/': {
+      id: '/cards/'
+      path: '/'
+      fullPath: '/cards/'
+      preLoaderRoute: typeof CardsIndexRouteImport
+      parentRoute: typeof CardsRoute
+    }
+    '/cards/$cardSlug': {
+      id: '/cards/$cardSlug'
+      path: '/$cardSlug'
+      fullPath: '/cards/$cardSlug'
+      preLoaderRoute: typeof CardsCardSlugRouteImport
+      parentRoute: typeof CardsRoute
+    }
+    '/sessions/': {
+      id: '/sessions/'
+      path: '/'
+      fullPath: '/sessions/'
+      preLoaderRoute: typeof SessionsIndexRouteImport
+      parentRoute: typeof SessionsRoute
+    }
+    '/sessions/$sessionId': {
+      id: '/sessions/$sessionId'
+      path: '/$sessionId'
+      fullPath: '/sessions/$sessionId'
+      preLoaderRoute: typeof SessionsSessionIdRouteImport
+      parentRoute: typeof SessionsRoute
     }
   }
 }

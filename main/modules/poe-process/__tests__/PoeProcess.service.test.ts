@@ -252,28 +252,28 @@ describe("PoeProcessService", () => {
     expect(mockWebContentsSend).not.toHaveBeenCalled();
   });
 
-  it.each([
-    new Error("renderer unavailable"),
-    "renderer unavailable",
-  ])("normalizes renderer send failures", (failure) => {
-    const warning = vi
-      .spyOn(console, "warn")
-      .mockImplementation(() => undefined);
-    const service = PoeProcessService.getInstance();
-    service.initialize({
-      getWebContents: () => {
-        throw failure;
-      },
-    } as unknown as MainWindowService);
+  it.each([new Error("renderer unavailable"), "renderer unavailable"])(
+    "normalizes renderer send failures",
+    (failure) => {
+      const warning = vi
+        .spyOn(console, "warn")
+        .mockImplementation(() => undefined);
+      const service = PoeProcessService.getInstance();
+      service.initialize({
+        getWebContents: () => {
+          throw failure;
+        },
+      } as unknown as MainWindowService);
 
-    getRegisteredListener<(value: PoeProcessSnapshot) => void>(
-      mockWatcherOn,
-      "data",
-    )(createRunningSnapshot("poe1"));
+      getRegisteredListener<(value: PoeProcessSnapshot) => void>(
+        mockWatcherOn,
+        "data",
+      )(createRunningSnapshot("poe1"));
 
-    expect(warning).toHaveBeenCalledWith(
-      "[PoeProcess] Failed to send to renderer (poe-process:snapshot-changed):",
-      "renderer unavailable",
-    );
-  });
+      expect(warning).toHaveBeenCalledWith(
+        "[PoeProcess] Failed to send to renderer (poe-process:snapshot-changed):",
+        "renderer unavailable",
+      );
+    },
+  );
 });

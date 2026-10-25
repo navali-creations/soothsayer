@@ -421,7 +421,7 @@ describe("Onboarding.slice", () => {
     });
   });
 
-  describe("getAllBeaconStates", () => {
+  describe("getAllBeaconStates invalid state", () => {
     it("treats unexpectedly null dismissed state as empty", () => {
       store.setState((state) => {
         (

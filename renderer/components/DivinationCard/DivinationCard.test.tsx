@@ -245,18 +245,19 @@ describe("DivinationCard", () => {
   });
 
   describe("rarity forwarding to RarityEffects", () => {
-    it.each([
-      0, 1, 2, 3, 4,
-    ] as const)("passes rarity %i to RarityEffects", (rarity) => {
-      const card = makeCardEntry({
-        count: 3,
-        divinationCard: makeMetadata({ rarity }),
-      });
-      renderWithProviders(<DivinationCard card={card} />);
+    it.each([0, 1, 2, 3, 4] as const)(
+      "passes rarity %i to RarityEffects",
+      (rarity) => {
+        const card = makeCardEntry({
+          count: 3,
+          divinationCard: makeMetadata({ rarity }),
+        });
+        renderWithProviders(<DivinationCard card={card} />);
 
-      const effects = screen.getByTestId("rarity-effects");
-      expect(effects).toHaveAttribute("data-rarity", String(rarity));
-    });
+        const effects = screen.getByTestId("rarity-effects");
+        expect(effects).toHaveAttribute("data-rarity", String(rarity));
+      },
+    );
 
     it("defaults rarity to 4 when not provided", () => {
       const card = makeCardEntry({ count: 3, divinationCard: makeMetadata() });

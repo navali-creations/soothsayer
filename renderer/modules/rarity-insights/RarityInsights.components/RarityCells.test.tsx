@@ -522,14 +522,14 @@ describe("ProhibitedLibraryRarityCell", () => {
       [2, "Rare"],
       [3, "Less Common"],
       [4, "Common"],
-    ] as [
-      KnownRarity,
-      string,
-    ][])("renders correct label for rarity %i", (rarity, expectedLabel) => {
-      renderWithProviders(<ProhibitedLibraryRarityCell rarity={rarity} />);
+    ] as [KnownRarity, string][])(
+      "renders correct label for rarity %i",
+      (rarity, expectedLabel) => {
+        renderWithProviders(<ProhibitedLibraryRarityCell rarity={rarity} />);
 
-      expect(screen.getByText(expectedLabel)).toBeInTheDocument();
-    });
+        expect(screen.getByText(expectedLabel)).toBeInTheDocument();
+      },
+    );
 
     it("applies the correct inline styles from getRarityStyles", () => {
       renderWithProviders(<ProhibitedLibraryRarityCell rarity={3} />);

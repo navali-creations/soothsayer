@@ -916,14 +916,18 @@ describe("OverlayService", () => {
     it.each([
       ["darwin", "macos/512x512.png"],
       ["linux", "linux/icons/512x512.png"],
-    ])("uses the platform-specific application icon", async (platform, suffix) => {
-      Object.defineProperty(process, "platform", { value: platform });
+    ])(
+      "uses the platform-specific application icon",
+      async (platform, suffix) => {
+        Object.defineProperty(process, "platform", { value: platform });
 
-      await service.createOverlay();
+        await service.createOverlay();
 
-      const iconPath = mockNativeImageCreateFromPath.mock.calls[0][0] as string;
-      expect(iconPath.replaceAll("\\", "/")).toContain(suffix);
-    });
+        const iconPath = mockNativeImageCreateFromPath.mock
+          .calls[0][0] as string;
+        expect(iconPath.replaceAll("\\", "/")).toContain(suffix);
+      },
+    );
 
     it("should use saved bounds from settings when available", async () => {
       const savedBounds = { x: 500, y: 300, width: 400, height: 200 };
@@ -1061,15 +1065,14 @@ describe("OverlayService", () => {
       vi.unstubAllEnvs();
     });
 
-    it.each([
-      new Error("ERR_FAILED"),
-      new Error("ERR_ABORTED"),
-      "ERR_ABORTED",
-    ])("tolerates interrupted overlay loads", async (failure) => {
-      mockOverlayLoadURL.mockRejectedValueOnce(failure);
+    it.each([new Error("ERR_FAILED"), new Error("ERR_ABORTED"), "ERR_ABORTED"])(
+      "tolerates interrupted overlay loads",
+      async (failure) => {
+        mockOverlayLoadURL.mockRejectedValueOnce(failure);
 
-      await expect(service.show()).resolves.toBeUndefined();
-    });
+        await expect(service.show()).resolves.toBeUndefined();
+      },
+    );
 
     it("tolerates a load failure after the overlay is destroyed", async () => {
       mockOverlayIsDestroyed.mockReturnValue(true);

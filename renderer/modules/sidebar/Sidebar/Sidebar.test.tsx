@@ -191,17 +191,17 @@ describe("Navigation", () => {
     expect(links).toHaveLength(6);
   });
 
-  it.each(expectedLinks)('renders a link to "$to" with text "$text"', ({
-    to,
-    text,
-  }) => {
-    setupStore();
-    renderWithProviders(<Nav />);
+  it.each(expectedLinks)(
+    'renders a link to "$to" with text "$text"',
+    ({ to, text }) => {
+      setupStore();
+      renderWithProviders(<Nav />);
 
-    const link = screen.getByText(text).closest("a");
-    expect(link).toBeInTheDocument();
-    expect(link).toHaveAttribute("href", to);
-  });
+      const link = screen.getByText(text).closest("a");
+      expect(link).toBeInTheDocument();
+      expect(link).toHaveAttribute("href", to);
+    },
+  );
 
   it("renders links inside list items", () => {
     setupStore();

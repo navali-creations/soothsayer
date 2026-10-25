@@ -1,14 +1,10 @@
-import { resolve } from "node:path";
-
 import { defineConfig } from "vite";
+
+import { getMainAliases } from "./vite.shared.config.mts";
 
 // https://vitejs.dev/config
 export default defineConfig({
   resolve: {
-    alias: {
-      "~/main": resolve(__dirname, "./main"),
-      "~/types": resolve(__dirname, "./types"),
-      "~/enums": resolve(__dirname, "./enums"),
-    },
+    alias: getMainAliases(),
   },
 });

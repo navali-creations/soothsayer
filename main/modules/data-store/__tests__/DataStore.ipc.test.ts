@@ -343,7 +343,7 @@ describe("DataStoreService — IPC handlers", () => {
       expect(mockRepoGetCardsByScope).not.toHaveBeenCalled();
     });
 
-    it("should not call repository when game validation fails", async () => {
+    it("should not call repository when league validation fails", async () => {
       mockAssertBoundedString.mockImplementationOnce(() => {
         throw new Error("Invalid");
       });

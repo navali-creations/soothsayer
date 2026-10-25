@@ -232,29 +232,17 @@ test.describe("Smoke Tests", () => {
     }) => {
       await waitForHydration(page);
 
-      // After hydration, one of these should be true:
-      const state = await page.evaluate(() => {
-        const hash = window.location.hash;
-        const body = document.body.innerText;
-        return {
-          hash,
-          isSetup: hash.includes("/setup"),
-          isHome: hash === "#/" || hash === "",
-          bodyLength: body.length,
-          hasNav: document.querySelector("nav") !== null,
-          hasAside: document.querySelector("aside") !== null,
-          hasMain: document.querySelector("main") !== null,
-        };
-      });
+      const isSetup = await page.evaluate(() =>
+        window.location.hash.includes("/setup"),
+      );
 
-      if (state.isSetup) {
-        // Setup wizard should have visible content
-        expect(state.bodyLength).toBeGreaterThan(0);
+      if (isSetup) {
+        await expect(
+          page.getByRole("heading", { name: "Setup", exact: true }),
+        ).toBeVisible();
       } else {
-        // Main shell should have the sidebar (aside) and content area (main)
-        expect(state.hasMain || state.hasAside || state.bodyLength > 0).toBe(
-          true,
-        );
+        await expect(page.locator("aside")).toBeVisible();
+        await expect(page.locator("main")).toBeVisible();
       }
     });
 
@@ -263,11 +251,13 @@ test.describe("Smoke Tests", () => {
     }) => {
       await waitForHydration(page);
 
-      // After hydration the app should show either the setup wizard or the
-      // main shell — either way there will be visible text content.
-      const root = page.locator("#root");
-      const text = await root.textContent();
-      expect(text?.length).toBeGreaterThan(0);
+      const visibleText = page
+        .locator(
+          "#root h1:visible, #root h2:visible, #root p:visible, #root button:visible, #root a:visible, #root label:visible",
+        )
+        .first();
+      await expect(visibleText).toBeVisible();
+      await expect(visibleText).toContainText(/\S/);
     });
   });
 });

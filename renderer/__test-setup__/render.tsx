@@ -73,6 +73,22 @@ export interface RenderWithProvidersResult extends ReturnType<typeof render> {
 
 export const userEvent = testingUserEvent;
 
+function TestWrapper({ children }: { children: ReactNode }) {
+  // Zustand v5 with vanilla `create()` doesn't require a React context
+  // provider — the store is accessed directly via the hook. For tests,
+  // the `window.electron` mock (installed in setup.ts beforeEach) and
+  // the isolated store instance give us full control.
+  //
+  // If components under test import `useBoundStore` directly, those tests
+  // should either:
+  //   a) Test the slice logic via `createTestStore()` (unit test), or
+  //   b) Use `vi.mock('~/renderer/store', ...)` to inject the test store.
+  //
+  // This wrapper is a natural extension point for when we add TanStack
+  // Router context, theme providers, or other app-level context.
+  return <>{children}</>;
+}
+
 // ─── renderWithProviders ───────────────────────────────────────────────────
 
 /**
@@ -108,24 +124,8 @@ export function renderWithProviders(
     },
   });
 
-  function Wrapper({ children }: { children: ReactNode }) {
-    // Zustand v5 with vanilla `create()` doesn't require a React context
-    // provider — the store is accessed directly via the hook. For tests,
-    // the `window.electron` mock (installed in setup.ts beforeEach) and
-    // the isolated store instance give us full control.
-    //
-    // If components under test import `useBoundStore` directly, those tests
-    // should either:
-    //   a) Test the slice logic via `createTestStore()` (unit test), or
-    //   b) Use `vi.mock('~/renderer/store', ...)` to inject the test store.
-    //
-    // This wrapper is a natural extension point for when we add TanStack
-    // Router context, theme providers, or other app-level context.
-    return <>{children}</>;
-  }
-
   const renderResult = render(ui, {
-    wrapper: Wrapper,
+    wrapper: TestWrapper,
     ...renderOptions,
   });
 

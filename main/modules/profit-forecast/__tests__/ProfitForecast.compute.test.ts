@@ -64,17 +64,20 @@ describe("cost and confidence helpers", () => {
     [100, 90, 2, 5000, 0],
     [100, 0, 2, 5000, 200],
     [100, 90, 2, 0, 200],
-  ])("returns zero for invalid cost inputs", (deckCount, baseRate, stepDrop, subBatchSize, chaosToDivineRatio) => {
-    expect(
-      computeTotalChaosCost(
-        deckCount,
-        baseRate,
-        stepDrop,
-        subBatchSize,
-        chaosToDivineRatio,
-      ),
-    ).toBe(0);
-  });
+  ])(
+    "returns zero for invalid cost inputs",
+    (deckCount, baseRate, stepDrop, subBatchSize, chaosToDivineRatio) => {
+      expect(
+        computeTotalChaosCost(
+          deckCount,
+          baseRate,
+          stepDrop,
+          subBatchSize,
+          chaosToDivineRatio,
+        ),
+      ).toBe(0);
+    },
+  );
 
   it("uses neutral calibration for a zero-value priced card", () => {
     expect(

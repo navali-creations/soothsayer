@@ -95,16 +95,14 @@ describe("CardArt", () => {
     expect(wrapper).toHaveClass("overflow-hidden");
   });
 
-  it.each([
-    "House of Mirrors",
-    "The Fiend",
-    "The Nurse",
-    "Unrequited Love",
-  ])("renders correct alt text for cardName: %s", (cardName) => {
-    renderWithProviders(<CardArt artSrc="art.png" cardName={cardName} />);
+  it.each(["House of Mirrors", "The Fiend", "The Nurse", "Unrequited Love"])(
+    "renders correct alt text for cardName: %s",
+    (cardName) => {
+      renderWithProviders(<CardArt artSrc="art.png" cardName={cardName} />);
 
-    expect(screen.getByAltText(cardName)).toBeInTheDocument();
-  });
+      expect(screen.getByAltText(cardName)).toBeInTheDocument();
+    },
+  );
 
   it("applies expected CSS classes to the img element", () => {
     renderWithProviders(<CardArt artSrc="art.png" cardName="Test" />);

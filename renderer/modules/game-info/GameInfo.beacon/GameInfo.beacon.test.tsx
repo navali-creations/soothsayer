@@ -60,7 +60,7 @@ const defaultProps = {
 
 // ─── Parameterised tests ───────────────────────────────────────────────────
 
-describe("GameInfoBeacon", () => {
+describe("GameInfoBeacon shared behavior", () => {
   it("renders without crashing", () => {
     const { container } = renderWithProviders(
       <GameInfoBeacon {...defaultProps} />,
@@ -108,7 +108,7 @@ describe("GameInfoBeacon", () => {
 
 // ─── Beacon-specific tests ─────────────────────────────────────────────────
 
-describe("GameInfoBeacon", () => {
+describe("GameInfoBeacon content", () => {
   it("renders the League Selection heading", () => {
     renderWithProviders(<GameInfoBeacon {...defaultProps} />);
     expect(screen.getByText("League Selection")).toBeInTheDocument();

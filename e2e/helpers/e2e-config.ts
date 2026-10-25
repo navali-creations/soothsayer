@@ -19,3 +19,7 @@ export function getE2ERendererPort(): number {
 
   return port;
 }
+
+export function getE2ERendererUrl(): string {
+  return `http://localhost:${getE2ERendererPort()}`;
+}

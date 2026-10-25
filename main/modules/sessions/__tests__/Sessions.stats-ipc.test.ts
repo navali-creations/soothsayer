@@ -118,42 +118,44 @@ describe("SessionsService statistics IPC", () => {
     SessionsService.getInstance();
   });
 
-  it.each(
-    normalizedLeagueCases,
-  )("%s normalizes league filters and validates the game", async (channel, repositoryMethod) => {
-    const handler = getIpcHandler(mockIpcHandle, channel);
+  it.each(normalizedLeagueCases)(
+    "%s normalizes league filters and validates the game",
+    async (channel, repositoryMethod) => {
+      const handler = getIpcHandler(mockIpcHandle, channel);
 
-    await expect(handler({}, "poe1", "Standard")).resolves.toEqual({
-      value: 1,
-    });
-    expect(repositoryMethod).toHaveBeenLastCalledWith("poe1", "Standard");
+      await expect(handler({}, "poe1", "Standard")).resolves.toEqual({
+        value: 1,
+      });
+      expect(repositoryMethod).toHaveBeenLastCalledWith("poe1", "Standard");
 
-    await handler({}, "poe1", "all");
-    expect(repositoryMethod).toHaveBeenLastCalledWith("poe1", undefined);
+      await handler({}, "poe1", "all");
+      expect(repositoryMethod).toHaveBeenLastCalledWith("poe1", undefined);
 
-    await handler({}, "poe1", undefined);
-    expect(repositoryMethod).toHaveBeenLastCalledWith("poe1", undefined);
+      await handler({}, "poe1", undefined);
+      expect(repositoryMethod).toHaveBeenLastCalledWith("poe1", undefined);
 
-    await expect(handler({}, "invalid", "Standard")).resolves.toMatchObject({
-      success: false,
-    });
-  });
+      await expect(handler({}, "invalid", "Standard")).resolves.toMatchObject({
+        success: false,
+      });
+    },
+  );
 
-  it.each(
-    directLeagueCases,
-  )("%s preserves optional league filters and validates the game", async (channel, repositoryMethod) => {
-    const handler = getIpcHandler(mockIpcHandle, channel);
+  it.each(directLeagueCases)(
+    "%s preserves optional league filters and validates the game",
+    async (channel, repositoryMethod) => {
+      const handler = getIpcHandler(mockIpcHandle, channel);
 
-    await expect(handler({}, "poe2", "Standard")).resolves.toEqual({
-      value: 1,
-    });
-    expect(repositoryMethod).toHaveBeenLastCalledWith("poe2", "Standard");
+      await expect(handler({}, "poe2", "Standard")).resolves.toEqual({
+        value: 1,
+      });
+      expect(repositoryMethod).toHaveBeenLastCalledWith("poe2", "Standard");
 
-    await handler({}, "poe2", undefined);
-    expect(repositoryMethod).toHaveBeenLastCalledWith("poe2", undefined);
+      await handler({}, "poe2", undefined);
+      expect(repositoryMethod).toHaveBeenLastCalledWith("poe2", undefined);
 
-    await expect(handler({}, null, "Standard")).resolves.toMatchObject({
-      success: false,
-    });
-  });
+      await expect(handler({}, null, "Standard")).resolves.toMatchObject({
+        success: false,
+      });
+    },
+  );
 });

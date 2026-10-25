@@ -190,31 +190,34 @@ describe("CommunityDropRatesService", () => {
     ["missing chance", 25, undefined],
     ["zero chance", 25, 0],
     ["chance above one", 25, 1.1],
-  ])("preserves observations but omits an invalid %s reference estimate", async (_name, referenceWeight, referenceDropChance) => {
-    mockPublishedLeague(
-      makeLeagueResponse({
-        cards: [
-          {
-            name: "A Chilling Wind",
-            count: 25,
-            reference_weight: referenceWeight,
-            reference_estimated_chance: referenceDropChance,
-          },
-        ],
-      }),
-    );
-    const service = new CommunityDropRatesService();
+  ])(
+    "preserves observations but omits an invalid %s reference estimate",
+    async (_name, referenceWeight, referenceDropChance) => {
+      mockPublishedLeague(
+        makeLeagueResponse({
+          cards: [
+            {
+              name: "A Chilling Wind",
+              count: 25,
+              reference_weight: referenceWeight,
+              reference_estimated_chance: referenceDropChance,
+            },
+          ],
+        }),
+      );
+      const service = new CommunityDropRatesService();
 
-    await expect(
-      service.getCardRate("poe1", "Mirage", "A Chilling Wind"),
-    ).resolves.toEqual({
-      league: "Mirage",
-      referenceDropChance: null,
-      dropCount: 25,
-      referenceWeight: null,
-      sampleSize: 4_207_137,
-    });
-  });
+      await expect(
+        service.getCardRate("poe1", "Mirage", "A Chilling Wind"),
+      ).resolves.toEqual({
+        league: "Mirage",
+        referenceDropChance: null,
+        dropCount: 25,
+        referenceWeight: null,
+        sampleSize: 4_207_137,
+      });
+    },
+  );
 
   it("uses only the first case-insensitive duplicate card entry", async () => {
     mockPublishedLeague(
