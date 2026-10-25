@@ -15,7 +15,7 @@
  * the attribute `data-onboarding="overlay-icon"`.
  *
  * Prerequisites:
- * - App must be built (`.vite/build/main.js` exists)
+ * - App must be built (`.vite/build/main.cjs` exists)
  * - No external services required
  *
  * @module e2e/flows/overlay

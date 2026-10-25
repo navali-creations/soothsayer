@@ -131,7 +131,9 @@ const config: ForgeConfig = {
     },
   },
   rebuildConfig: {
-    force: true,
+    // better-sqlite3 v13 ships an N-API prebuild that works across Node and
+    // Electron. Rebuilding it would unnecessarily require a native toolchain.
+    ignoreModules: ["better-sqlite3"],
   },
   hooks: {
     generateAssets: async () => {

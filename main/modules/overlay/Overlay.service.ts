@@ -105,7 +105,7 @@ class OverlayService {
       return;
     }
 
-    const preload = join(__dirname, "preload.js");
+    const preload = join(__dirname, "preload.cjs");
 
     const savedBounds = await this.settingsStore.get(SettingsKey.OverlayBounds);
     let x: number;

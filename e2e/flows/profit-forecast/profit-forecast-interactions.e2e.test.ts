@@ -10,7 +10,7 @@
  *   4. Pagination — table pagination controls navigate between pages
  *
  * Prerequisites:
- * - App must be built (`.vite/build/main.js` exists)
+ * - App must be built (`.vite/build/main.cjs` exists)
  * - Uses `seedSessionPrerequisites` to populate a league, snapshot, and sample
  *   card prices so the page has data to render
  * - Summary card values depend on seeded snapshot data; table population also

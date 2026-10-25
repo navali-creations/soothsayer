@@ -6,7 +6,7 @@ Soothsayer is a TypeScript Electron app for Path of Exile divination card tracki
 
 ## Build, Test, and Development Commands
 
-Use `pnpm` with Node `>=24` and pnpm `>=10`.
+Use `pnpm` with Node `24.22.1` (pinned in `.node-version`) and pnpm `>=12`.
 
 - `pnpm dev`: starts local Supabase, then launches Electron Forge.
 - `pnpm start`: launches the Electron app without starting Supabase.

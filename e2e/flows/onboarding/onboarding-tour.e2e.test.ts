@@ -14,7 +14,7 @@
  * Tour Reset tests live in `onboarding-tour-reset.e2e.test.ts`.
  *
  * Prerequisites:
- * - App must be built (`.vite/build/main.js` exists)
+ * - App must be built (`.vite/build/main.cjs` exists)
  * - No external services required
  *
  * @module e2e/flows/onboarding/onboarding-tour

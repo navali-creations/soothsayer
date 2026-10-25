@@ -11,7 +11,7 @@
  *   - CurrentSessionActions in the header
  *
  * Prerequisites:
- * - App must be built (`.vite/build/main.js` exists)
+ * - App must be built (`.vite/build/main.cjs` exists)
  * - No external services required — league and snapshot data is seeded
  *   into local SQLite via test-only IPC handlers (`E2E_TESTING=true`)
  *

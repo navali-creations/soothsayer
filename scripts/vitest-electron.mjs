@@ -4,15 +4,11 @@
  * Cross-platform helper that runs Vitest under Electron's Node.js runtime.
  *
  * Why this exists:
- *   Electron 40.8.0 ships a custom build of Node 24.14.0 with ABI (NODE_MODULE_VERSION) 143,
- *   while the system Node 24.14.0 uses ABI 137. Native modules like `better-sqlite3` are
- *   compiled for Electron's ABI by `electron-rebuild` (via `postinstall`), so they cannot be
- *   loaded by the system Node — and vice-versa.
+ *   Main-process tests run inside Electron's Node-compatible runtime using the
+ *   `ELECTRON_RUN_AS_NODE=1` flag. This keeps their runtime aligned with the packaged app.
  *
- *   Instead of flip-flopping between `pnpm rebuild better-sqlite3` (for vitest) and
- *   `electron-rebuild` (for the app / e2e tests), we run vitest itself inside Electron's
- *   Node runtime using the `ELECTRON_RUN_AS_NODE=1` flag. This way the Electron-rebuilt
- *   native modules load correctly in both the app and in tests, with zero rebuilds.
+ *   `better-sqlite3` v13 uses N-API and ships cross-runtime prebuilt binaries, so the same
+ *   addon now works in system Node and Electron without an Electron-specific rebuild.
  *
  * Usage (from package.json scripts):
  *   "test:main": "node scripts/vitest-electron.mjs run --config vitest.main.config.mts"

@@ -233,7 +233,7 @@ class MainWindowService {
       __dirname,
       `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`,
     );
-    const preload = join(__dirname, "preload.js");
+    const preload = join(__dirname, "preload.cjs");
 
     // 1. Settings (no dependencies) — initialize early so we can load saved bounds
     this.settingsStore = SettingsStoreService.getInstance();

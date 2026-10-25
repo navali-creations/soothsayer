@@ -184,7 +184,7 @@ export const test = base.extend<
   workerApp: [
     async ({ electronArgs, electronEnv }, use) => {
       const projectRoot = path.resolve(__dirname, "../..");
-      const mainEntry = path.join(projectRoot, ".vite/build/main.js");
+      const mainEntry = path.join(projectRoot, ".vite/build/main.cjs");
 
       if (!fs.existsSync(mainEntry)) {
         throw new Error(

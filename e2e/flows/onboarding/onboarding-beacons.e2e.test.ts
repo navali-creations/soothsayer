@@ -15,7 +15,7 @@
  * Rarity Insights page beacon tests live in `onboarding-beacons-rarity.e2e.test.ts`.
  *
  * Prerequisites:
- * - App must be built (`.vite/build/main.js` exists)
+ * - App must be built (`.vite/build/main.cjs` exists)
  * - No external services required
  *
  * @module e2e/flows/onboarding/onboarding-beacons

@@ -13,7 +13,7 @@
  * analytics, chart rendering) live in `card-detail.e2e.test.ts`.
  *
  * Prerequisites:
- * - App must be built (`.vite/build/main.js` exists)
+ * - App must be built (`.vite/build/main.cjs` exists)
  * - No external services required — cards load from bundled `renderer/assets/poe1/cards.json`
  *   into local SQLite at startup
  *

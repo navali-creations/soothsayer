@@ -7,7 +7,7 @@
  * stats and card data for a single session.
  *
  * Prerequisites:
- * - App must be built (`.vite/build/main.js` exists)
+ * - App must be built (`.vite/build/main.cjs` exists)
  * - No external services required — data is seeded into local SQLite
  *   via test-only IPC handlers (`E2E_TESTING=true`)
  *

@@ -30,9 +30,6 @@ permissions:
 
 env:
   CI: true
-  # Electron Forge currently fails to complete packaging on Node 24.16+.
-  # Keep hosted CI pinned until https://github.com/electron/forge/issues/4277 is fixed.
-  NODE_VERSION: 24.15.0
   NODE_MODULES_CACHE_VERSION: electron-bin-v1
 
 jobs:
@@ -51,7 +48,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .node-version
           cache: pnpm
 
       - name: Cache node_modules
@@ -59,7 +56,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ env.NODE_MODULES_CACHE_VERSION }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: node-modules-${{ runner.os }}-node-${{ hashFiles('.node-version') }}-${{ env.NODE_MODULES_CACHE_VERSION }}-${{ hashFiles('pnpm-lock.yaml') }}
 
       - name: Install dependencies
         if: steps.cache-modules.outputs.cache-hit != 'true'
@@ -86,13 +83,13 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .node-version
 
       - name: Restore node_modules cache
         uses: actions/cache/restore@v6
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ env.NODE_MODULES_CACHE_VERSION }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: node-modules-${{ runner.os }}-node-${{ hashFiles('.node-version') }}-${{ env.NODE_MODULES_CACHE_VERSION }}-${{ hashFiles('pnpm-lock.yaml') }}
           fail-on-cache-miss: true
 
       - name: Run Biome checks
@@ -114,13 +111,13 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .node-version
 
       - name: Restore node_modules cache
         uses: actions/cache/restore@v6
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ env.NODE_MODULES_CACHE_VERSION }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: node-modules-${{ runner.os }}-node-${{ hashFiles('.node-version') }}-${{ env.NODE_MODULES_CACHE_VERSION }}-${{ hashFiles('pnpm-lock.yaml') }}
           fail-on-cache-miss: true
 
       - name: Run type checks
@@ -139,8 +136,6 @@ jobs:
       dep-kysely: ${{ steps.deps.outputs.kysely }}
       dep-better-sqlite3: ${{ steps.deps.outputs.better-sqlite3 }}
       dep-electron: ${{ steps.deps.outputs.electron }}
-      electron-major-bump: ${{ steps.compat.outputs.electron-major-bump }}
-      sqlite3-compatible: ${{ steps.compat.outputs.sqlite3-compatible }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -194,114 +189,6 @@ jobs:
             echo "electron=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Detect Electron major bump & better-sqlite3 compatibility
-        id: compat
-        run: |
-          # Determine the base ref to diff against
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            BASE="${{ github.event.pull_request.base.sha }}"
-          else
-            BASE="HEAD~1"
-          fi
-
-          echo "Base ref: $BASE"
-
-          # --- Electron major bump detection ---
-          # Extract the major version number from the pinned electron dependency.
-          # Only major bumps change the Node/ABI version.
-          OLD_ELECTRON=$(git show "$BASE:package.json" | grep -oP '"electron":\s*"[\^~]?\K[0-9]+' || echo "")
-          NEW_ELECTRON=$(grep -oP '"electron":\s*"[\^~]?\K[0-9]+' package.json || echo "")
-
-          echo "Electron major: $OLD_ELECTRON → $NEW_ELECTRON"
-
-          if [ -n "$OLD_ELECTRON" ] && [ -n "$NEW_ELECTRON" ] && [ "$OLD_ELECTRON" != "$NEW_ELECTRON" ]; then
-            echo "electron-major-bump=true" >> $GITHUB_OUTPUT
-          else
-            echo "electron-major-bump=false" >> $GITHUB_OUTPUT
-          fi
-
-          # --- better-sqlite3 compatibility check ---
-          # We need to know if better-sqlite3 was bumped to a version that supports
-          # the new Electron ABI.  This can happen two ways:
-          #
-          #   A. better-sqlite3 is changed IN this PR (visible in base..HEAD diff)
-          #   B. better-sqlite3 was changed in a PRIOR merged PR and this PR was
-          #      rebased on top — so the bump is already in the base and does NOT
-          #      appear in the diff.
-          #
-          # To handle both cases we check whether the better-sqlite3 version at
-          # HEAD differs from what it was before the Electron major changed.
-          OLD_SQLITE=$(git show "$BASE:package.json" | grep -oP '"better-sqlite3":\s*"[\^~]?\K[0-9]+\.[0-9]+\.[0-9]+' || echo "")
-          NEW_SQLITE=$(grep -oP '"better-sqlite3":\s*"[\^~]?\K[0-9]+\.[0-9]+\.[0-9]+' package.json || echo "")
-
-          echo "better-sqlite3 at base: $OLD_SQLITE"
-          echo "better-sqlite3 at HEAD: $NEW_SQLITE"
-
-          COMPATIBLE="false"
-
-          # (A) Direct: better-sqlite3 changed in the PR diff
-          if [ "$OLD_SQLITE" != "$NEW_SQLITE" ]; then
-            COMPATIBLE="true"
-            echo "✅ better-sqlite3 changed in PR diff ($OLD_SQLITE → $NEW_SQLITE)"
-          fi
-
-          # (B) Indirect: after a rebase the sqlite bump may already be in the base,
-          #     so the base..HEAD diff won't show it.  Walk up to 100 ancestors of
-          #     the base looking for a commit where Electron was still at the OLD
-          #     major AND better-sqlite3 was at a DIFFERENT version than HEAD.
-          #     If such a commit exists, it proves that better-sqlite3 was bumped
-          #     between that point and HEAD — even if via a separate, already-merged PR.
-          if [ "$COMPATIBLE" = "false" ] && [ -n "$OLD_ELECTRON" ]; then
-            for SHA in $(git rev-list "$BASE" --max-count=100); do
-              E_MAJOR=$(git show "$SHA:package.json" 2>/dev/null | grep -oP '"electron":\s*"[\^~]?\K[0-9]+' || echo "")
-              if [ "$E_MAJOR" = "$OLD_ELECTRON" ]; then
-                PRIOR_SQLITE=$(git show "$SHA:package.json" 2>/dev/null | grep -oP '"better-sqlite3":\s*"[\^~]?\K[0-9]+\.[0-9]+\.[0-9]+' || echo "")
-                if [ -n "$PRIOR_SQLITE" ] && [ "$PRIOR_SQLITE" != "$NEW_SQLITE" ]; then
-                  COMPATIBLE="true"
-                  echo "Found Electron $OLD_ELECTRON at $SHA with better-sqlite3 $PRIOR_SQLITE"
-                  echo "✅ better-sqlite3 was bumped on base branch ($PRIOR_SQLITE → $NEW_SQLITE)"
-                  break
-                fi
-              fi
-            done
-          fi
-
-          if [ "$COMPATIBLE" = "true" ]; then
-            echo "sqlite3-compatible=true" >> $GITHUB_OUTPUT
-          else
-            echo "sqlite3-compatible=false" >> $GITHUB_OUTPUT
-            echo "⚠️  better-sqlite3 has NOT been updated alongside Electron"
-          fi
-
-  compat-guard:
-    name: Electron ↔ better-sqlite3 Compatibility Guard
-    needs: [changes]
-    # Only block when ALL of these are true:
-    #   1. Electron major version is changing (minor/patch don't affect ABI)
-    #   2. better-sqlite3 has NOT been updated — neither in this PR's diff
-    #      nor via a prior merge that was picked up by rebase
-    if: >-
-      needs.changes.outputs.electron-major-bump == 'true' &&
-      needs.changes.outputs.sqlite3-compatible != 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    steps:
-      - name: Block Electron major bump without better-sqlite3
-        run: |
-          echo "::error::This PR bumps Electron to a new MAJOR version without a corresponding better-sqlite3 update."
-          echo ""
-          echo "Electron major bumps change the Node/ABI version, which requires a"
-          echo "compatible better-sqlite3 build. Please ensure better-sqlite3 also"
-          echo "supports the new Electron version before merging."
-          echo ""
-          echo "Options:"
-          echo "  1. If better-sqlite3 was already bumped on the base branch, rebase"
-          echo "     this PR to pick it up — the guard will then detect the combined state."
-          echo "  2. Wait for a better-sqlite3 release that supports the new Electron ABI."
-          echo "  3. Manually create a PR that bumps both electron AND better-sqlite3 together."
-          echo "  4. Comment '@dependabot ignore electron major version' to skip this major."
-          exit 1
-
   test-unit:
     name: Unit Tests (${{ matrix.suite }})
     needs: [install, lint, typecheck, changes]
@@ -341,13 +228,13 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .node-version
 
       - name: Restore node_modules cache
         uses: actions/cache/restore@v6
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ env.NODE_MODULES_CACHE_VERSION }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: node-modules-${{ runner.os }}-node-${{ hashFiles('.node-version') }}-${{ env.NODE_MODULES_CACHE_VERSION }}-${{ hashFiles('pnpm-lock.yaml') }}
           fail-on-cache-miss: true
 
       - name: Rebuild Electron binary
@@ -408,13 +295,13 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .node-version
 
       - name: Restore node_modules cache
         uses: actions/cache/restore@v6
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ env.NODE_MODULES_CACHE_VERSION }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: node-modules-${{ runner.os }}-node-${{ hashFiles('.node-version') }}-${{ env.NODE_MODULES_CACHE_VERSION }}-${{ hashFiles('pnpm-lock.yaml') }}
           fail-on-cache-miss: true
 
       - name: Start Supabase (DB only)
@@ -443,10 +330,10 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .node-version
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@1.96.1
+        uses: dtolnay/rust-toolchain@1.99.1
         with:
           components: clippy, rustfmt
 
@@ -493,16 +380,16 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .node-version
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@1.96.1
+        uses: dtolnay/rust-toolchain@1.99.1
 
       - name: Restore node_modules cache
         uses: actions/cache/restore@v6
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ env.NODE_MODULES_CACHE_VERSION }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: node-modules-${{ runner.os }}-node-${{ hashFiles('.node-version') }}-${{ env.NODE_MODULES_CACHE_VERSION }}-${{ hashFiles('pnpm-lock.yaml') }}
           fail-on-cache-miss: true
 
       - name: Package app (dry run)
@@ -524,16 +411,16 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .node-version
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@1.96.1
+        uses: dtolnay/rust-toolchain@1.99.1
 
       - name: Restore node_modules cache
         uses: actions/cache/restore@v6
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ env.NODE_MODULES_CACHE_VERSION }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: node-modules-${{ runner.os }}-node-${{ hashFiles('.node-version') }}-${{ env.NODE_MODULES_CACHE_VERSION }}-${{ hashFiles('pnpm-lock.yaml') }}
           fail-on-cache-miss: true
 
       - name: Package app
@@ -695,13 +582,13 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .node-version
 
       - name: Restore node_modules cache
         uses: actions/cache/restore@v6
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ env.NODE_MODULES_CACHE_VERSION }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: node-modules-${{ runner.os }}-node-${{ hashFiles('.node-version') }}-${{ env.NODE_MODULES_CACHE_VERSION }}-${{ hashFiles('pnpm-lock.yaml') }}
           fail-on-cache-miss: true
 
       - name: Ensure Electron binary

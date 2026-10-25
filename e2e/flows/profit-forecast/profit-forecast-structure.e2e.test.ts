@@ -9,7 +9,7 @@
  *   4. Card Navigation — clicking a card name link navigates to /cards/$cardSlug
  *
  * Prerequisites:
- * - App must be built (`.vite/build/main.js` exists)
+ * - App must be built (`.vite/build/main.cjs` exists)
  * - Uses `seedSessionPrerequisites` + `seedLeagueCache` to populate a league,
  *   snapshot, card prices, AND the UI league dropdown so `fetchData` fires
  * - Table rows require both seeded snapshot prices AND Prohibited Library

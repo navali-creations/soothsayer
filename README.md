@@ -36,8 +36,8 @@ https://github.com/user-attachments/assets/63e95f2b-f4e1-43e2-8e26-68d357928a51
 ## Requirements
 
 - Windows or Linux
-- Node.js >= 24
-- pnpm >= 11
+- Node.js 24.22.1 (pinned in `.node-version`)
+- pnpm >= 12
 - docker
 - [Rustup](https://rustup.rs/) (the repository pins the Rust toolchain)
 - Windows only: Visual Studio Build Tools with the **Desktop development with C++** workload

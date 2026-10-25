@@ -8,7 +8,7 @@
  * Split from `onboarding-tour.e2e.test.ts` for better parallelism.
  *
  * Prerequisites:
- * - App must be built (`.vite/build/main.js` exists)
+ * - App must be built (`.vite/build/main.cjs` exists)
  * - No external services required
  *
  * @module e2e/flows/onboarding/tour-reset

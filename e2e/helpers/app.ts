@@ -32,7 +32,7 @@ export async function launchApp(
     colorScheme,
   } = options;
 
-  const mainEntry = resolve(PROJECT_ROOT, ".vite/build/main.js");
+  const mainEntry = resolve(PROJECT_ROOT, ".vite/build/main.cjs");
 
   const electronApp = await electron.launch({
     args: [mainEntry, ...args],

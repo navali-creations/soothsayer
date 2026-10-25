@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Resolve the project-local Supabase CLI without going through pnpx. pnpm 11's
-# pnpx shim can require a separate `node` binary in bash/WSL, while the
+# Resolve the project-local Supabase CLI without going through pnpx. The pnpx
+# shim can require a separate `node` binary in bash/WSL, while the
 # `supabase` npm package already installs a native CLI binary.
 
 SUPABASE_HELPER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

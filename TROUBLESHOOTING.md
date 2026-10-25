@@ -16,23 +16,22 @@ Import 'https://deno.land/std/http/status.ts' failed: Network is unreachable
 
 **Note:** `deno.land` is the official Deno runtime package registry used by Supabase Edge Functions. The threat detection is a false positive.
 
-## `better-sqlite3` ABI Mismatch
+## `better-sqlite3` installation
 
-`better-sqlite3` is a native Node.js addon. Electron 40.8.0 ships a custom build of
-Node 24.14.0 with `NODE_MODULE_VERSION 143`, while the system Node 24.14.0 uses
-`NODE_MODULE_VERSION 137`. The two ABIs are **incompatible** — a native module compiled
-for one cannot be loaded by the other.
+`better-sqlite3` v13 uses N-API and includes prebuilt binaries for Soothsayer's supported
+platforms. The same binary works with system Node and Electron, so it must not be rebuilt
+for a specific Electron ABI.
 
-The `postinstall` script runs `electron-rebuild`, which compiles `better-sqlite3` for
-Electron's ABI. This is the **only** compiled version we keep — there is no longer any
-flip-flopping between `pnpm rebuild` (for Node) and `electron-rebuild` (for Electron).
+The package still contains `binding.gyp`, which can cause package managers to invoke
+`node-gyp` unnecessarily during installation. `pnpm-workspace.yaml` disables that build
+step so pnpm uses the bundled binary directly.
 
 ### How main-process tests work
 
 Main-process Vitest tests (which use `better-sqlite3` via in-memory SQLite databases)
 run under Electron's own Node.js runtime via the `vitest` script. This uses
 the `ELECTRON_RUN_AS_NODE=1` environment variable to make the Electron binary behave as
-a plain Node.js process — so the Electron-rebuilt native module loads correctly.
+a plain Node.js process and keeps tests aligned with the packaged app runtime.
 
 ```
 pnpm test:main        # runs vitest inside Electron's Node runtime
@@ -40,21 +39,18 @@ pnpm test:renderer    # runs vitest with system Node (no native modules needed)
 pnpm test             # runs both sequentially (main first, then renderer)
 ```
 
-### If you see an ABI error
+### If the native binary cannot be loaded
 
 ```
-The module 'better_sqlite3.node' was compiled against a different Node.js version
-using NODE_MODULE_VERSION 137. This version of Node.js requires NODE_MODULE_VERSION 143.
+Could not locate the bindings file
 ```
 
-This means `better-sqlite3` was rebuilt for the system Node instead of Electron.
-Fix it by re-running the Electron rebuild:
+Restore the bundled prebuild with a clean pnpm install. Do not run
+`electron-rebuild` for `better-sqlite3`:
 
 ```bash
-pnpm prepare-deps:electron
+pnpm install --frozen-lockfile
 ```
 
-This is also what `postinstall` does, so `pnpm install` will fix it automatically.
-
-> **Note:** The helper script at `scripts/vitest-electron.mjs` contains detailed
-> comments explaining the ABI mismatch and the `ELECTRON_RUN_AS_NODE` approach.
+If the platform or architecture has no bundled prebuild, it needs a supported source-build
+environment instead.

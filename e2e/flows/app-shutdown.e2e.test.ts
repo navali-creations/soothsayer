@@ -34,7 +34,7 @@ async function launchIsolatedApp(): Promise<{
   userData: string;
 }> {
   const projectRoot = path.resolve(__dirname, "../..");
-  const mainEntry = path.join(projectRoot, ".vite/build/main.js");
+  const mainEntry = path.join(projectRoot, ".vite/build/main.cjs");
 
   if (!fs.existsSync(mainEntry)) {
     throw new Error(

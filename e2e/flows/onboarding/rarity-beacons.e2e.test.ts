@@ -14,7 +14,7 @@
  *   3. Acknowledge each beacon and verify popover content.
  *
  * Prerequisites:
- * - App must be built (`.vite/build/main.js` exists)
+ * - App must be built (`.vite/build/main.cjs` exists)
  * - No external services required
  *
  * @module e2e/flows/onboarding/rarity-beacons

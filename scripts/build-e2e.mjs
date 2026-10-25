@@ -17,7 +17,7 @@
  *   - Produces CJS output by default
  *   - Doesn't go through the broken `build.lib` CJS codepath
  *
- *   The result lands in `.vite/build/main.js` and `.vite/build/preload.js`
+ *   The result lands in `.vite/build/main.cjs` and `.vite/build/preload.cjs`
  *   — exactly where the E2E test fixture expects them.
  *
  * Usage:
@@ -57,7 +57,7 @@ await build({
     rollupOptions: {
       output: {
         format: "cjs",
-        entryFileNames: "main.js",
+        entryFileNames: "main.cjs",
       },
     },
     // Keep everything in a single chunk — Electron loads a single file.
@@ -65,7 +65,7 @@ await build({
   },
 });
 
-console.log("[build-e2e] ✓ main.js");
+console.log("[build-e2e] ✓ main.cjs");
 
 // ── Build preload ─────────────────────────────────────────────────────────────
 
@@ -82,12 +82,12 @@ await build({
     rollupOptions: {
       output: {
         format: "cjs",
-        entryFileNames: "preload.js",
+        entryFileNames: "preload.cjs",
       },
     },
     codeSplitting: false,
   },
 });
 
-console.log("[build-e2e] ✓ preload.js");
+console.log("[build-e2e] ✓ preload.cjs");
 console.log("[build-e2e] Done.");

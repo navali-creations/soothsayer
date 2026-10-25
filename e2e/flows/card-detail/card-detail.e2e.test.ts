@@ -11,7 +11,7 @@
  * 7. Related / chain cards navigation (uses The Nurse for rich chain data)
  *
  * Prerequisites:
- * - App must be built (`.vite/build/main.js` exists)
+ * - App must be built (`.vite/build/main.cjs` exists)
  * - No external services required — cards load from `@navali/poe1-divination-cards` package data
  *   into local SQLite at startup
  * - Session data is seeded via test-only IPC handlers (`E2E_TESTING=true`)

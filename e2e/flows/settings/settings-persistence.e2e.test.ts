@@ -7,7 +7,7 @@
  * 3. Verify settings persist when navigating away and back
  *
  * Prerequisites:
- * - App must be built (`.vite/build/main.js` exists)
+ * - App must be built (`.vite/build/main.cjs` exists)
  * - Setup must be complete (or completable via skipSetup)
  *
  * @module e2e/flows/settings/settings-persistence
