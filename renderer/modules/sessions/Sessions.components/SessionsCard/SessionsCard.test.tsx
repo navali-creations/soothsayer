@@ -256,6 +256,21 @@ describe("SessionCard", () => {
     expect(profitElement).toHaveClass("text-success");
   });
 
+  it("uses the net profit label as the only tooltip trigger", () => {
+    const session = makeSession({
+      netProfit: 200,
+      chaosToDivineRatio: 150,
+    });
+    renderWithProviders(<SessionCard session={session} />);
+
+    const netProfitLabel = screen.getByText("Net Profit:");
+    expect(netProfitLabel).toHaveAttribute(
+      "data-tip",
+      "Total Value minus the cost of Stacked Decks opened",
+    );
+    expect(screen.queryByTestId("icon-info")).not.toBeInTheDocument();
+  });
+
   it("shows net profit with error color for negative values", () => {
     const session = makeSession({
       netProfit: -300,

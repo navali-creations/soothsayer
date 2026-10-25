@@ -139,7 +139,9 @@ describe("UpdateIndicator", () => {
     });
     renderWithProviders(<UpdateIndicator />);
 
-    expect(screen.getByTitle("Retry update")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Retry update" }),
+    ).toBeInTheDocument();
   });
 
   it("shows error tooltip text", () => {
@@ -177,14 +179,14 @@ describe("UpdateIndicator", () => {
     });
     const { user } = renderWithProviders(<UpdateIndicator />);
 
-    await user.click(screen.getByTitle("Retry update"));
+    await user.click(screen.getByRole("button", { name: "Retry update" }));
 
     expect(store.downloadAndInstall).toHaveBeenCalledTimes(1);
   });
 
   // ── Ready state ────────────────────────────────────────────────────────
 
-  it('shows "Restart to update" tooltip when status is ready and not manual', () => {
+  it("shows the restart tooltip when an automatic update is ready", () => {
     setupStore({
       updateAvailable: true,
       updateInfo: { latestVersion: "2.0.0", manualDownload: false },
@@ -193,10 +195,13 @@ describe("UpdateIndicator", () => {
     renderWithProviders(<UpdateIndicator />);
 
     const tooltip = document.querySelector("[data-tip]");
-    expect(tooltip).toHaveAttribute("data-tip", "Restart to update");
+    expect(tooltip).toHaveAttribute(
+      "data-tip",
+      "Restart to apply Soothsayer v2.0.0",
+    );
   });
 
-  it('shows "View release" tooltip when status is ready and manual', () => {
+  it("shows the release tooltip when a manual update is ready", () => {
     setupStore({
       updateAvailable: true,
       updateInfo: { latestVersion: "2.0.0", manualDownload: true },
@@ -205,7 +210,10 @@ describe("UpdateIndicator", () => {
     renderWithProviders(<UpdateIndicator />);
 
     const tooltip = document.querySelector("[data-tip]");
-    expect(tooltip).toHaveAttribute("data-tip", "View release");
+    expect(tooltip).toHaveAttribute(
+      "data-tip",
+      "View Soothsayer v2.0.0 on GitHub",
+    );
   });
 
   // ── Default state (update available, idle) ─────────────────────────────
@@ -219,7 +227,7 @@ describe("UpdateIndicator", () => {
     renderWithProviders(<UpdateIndicator />);
 
     const tooltip = document.querySelector("[data-tip]");
-    expect(tooltip).toHaveAttribute("data-tip", "v3.1.0 available!");
+    expect(tooltip).toHaveAttribute("data-tip", "Update to Soothsayer v3.1.0");
   });
 
   it("download button calls downloadAndInstall()", async () => {

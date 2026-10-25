@@ -57,15 +57,15 @@ async function openMoreOptionsDropdown(page: Page) {
     document.querySelectorAll("dialog[open]").forEach((d) => {
       (d as HTMLDialogElement).close();
     });
-    document.querySelectorAll("[popover]:popover-open").forEach((el) => {
+    document.querySelectorAll('[popover="auto"]:popover-open').forEach((el) => {
       (el as HTMLElement).hidePopover();
     });
   });
-  await expect(page.locator("[popover]:popover-open")).toHaveCount(0, {
+  await expect(page.locator('[popover="auto"]:popover-open')).toHaveCount(0, {
     timeout: 2_000,
   });
 
-  const trigger = page.locator('[data-tip="More options"] button').first();
+  const trigger = page.getByRole("button", { name: "More options" }).first();
   await expect(trigger).toBeVisible({ timeout: 10_000 });
 
   // We may need a retry: if a React re-render or focus shift causes
@@ -75,7 +75,7 @@ async function openMoreOptionsDropdown(page: Page) {
 
     // Wait for the popover panel to reach :popover-open
     const opened = await page
-      .locator("[popover]:popover-open")
+      .locator('[popover="auto"]:popover-open')
       .first()
       .waitFor({ state: "visible", timeout: 2_000 })
       .then(() => true)
@@ -89,7 +89,7 @@ async function openMoreOptionsDropdown(page: Page) {
 
   // Final attempt — let Playwright throw on failure
   await trigger.click();
-  await page.locator("[popover]:popover-open").first().waitFor({
+  await page.locator('[popover="auto"]:popover-open').first().waitFor({
     state: "visible",
     timeout: 5_000,
   });
@@ -558,10 +558,99 @@ test.describe("AppMenu", () => {
       // The dropdown trigger is a <button> rendered by the Dropdown component
       // with the class "btn btn-ghost btn-sm" and it uses popoverTarget.
       // It wraps the <RxCaretDown /> icon and sits inside a tooltip with data-tip="More options".
-      const moreOptionsTrigger = page.locator(
-        '[data-tip="More options"] button, [data-tip="More options"] > button',
-      );
+      const moreOptionsTrigger = page.getByRole("button", {
+        name: "More options",
+      });
       await expect(moreOptionsTrigger.first()).toBeVisible({ timeout: 10_000 });
+    });
+
+    test("should keep tooltip-wrapped controls interactive", async ({
+      page,
+    }) => {
+      const tooltipTrigger = page.locator('[data-tip="More options"]');
+      const dropdownTrigger = page.getByRole("button", {
+        name: "More options",
+      });
+      const tooltip = tooltipTrigger.getByRole("tooltip");
+
+      await tooltipTrigger.hover();
+
+      await expect(tooltip).toBeVisible();
+      await expect(tooltip).toHaveAttribute("popover", "manual");
+      await expect(tooltipTrigger).toHaveCSS("-webkit-app-region", "no-drag");
+
+      const tooltipColors = await tooltip.evaluate((element) => {
+        const primaryProbe = document.createElement("span");
+        primaryProbe.style.backgroundColor = "var(--color-primary)";
+        document.body.append(primaryProbe);
+
+        const colors = {
+          primary: getComputedStyle(primaryProbe).backgroundColor,
+          shadow: getComputedStyle(element).boxShadow,
+          tooltip: getComputedStyle(element).backgroundColor,
+        };
+
+        primaryProbe.remove();
+        return colors;
+      });
+
+      expect(tooltipColors.tooltip).toBe(tooltipColors.primary);
+      expect(tooltipColors.shadow).not.toBe("none");
+
+      await tooltip.evaluate((element) => {
+        element.firstChild!.textContent =
+          "A wide tooltip that must shift inside the window without moving its caret away from the trigger.";
+      });
+
+      const tooltipId = await tooltip.getAttribute("id");
+      const persistentTooltip = page.locator(`[id="${tooltipId}"]`);
+
+      const caretGeometry = await tooltip.evaluate((element) => {
+        const trigger = element.parentElement!;
+        const tooltipRect = element.getBoundingClientRect();
+        const triggerRect = trigger.getBoundingClientRect();
+        const caret = element.querySelector<HTMLElement>(
+          ":scope > .app-tooltip-caret",
+        )!;
+        const caretStyle = getComputedStyle(caret);
+        const caretRect = caret.getBoundingClientRect();
+        const caretCenter = caretRect.left + caretRect.width / 2;
+        const triggerCenter = triggerRect.left + triggerRect.width / 2;
+
+        return {
+          attachmentError: Math.abs(caretRect.bottom - tooltipRect.top),
+          caretCenter,
+          caretLeft: caretStyle.left,
+          error: Math.abs(caretCenter - triggerCenter),
+          tooltipLeft: tooltipRect.left,
+          tooltipRight: tooltipRect.right,
+          tooltipWidth: tooltipRect.width,
+          triggerCenter,
+          triggerLeft: triggerRect.left,
+          triggerRight: triggerRect.right,
+          triggerWidth: triggerRect.width,
+        };
+      });
+
+      expect(caretGeometry.error, JSON.stringify(caretGeometry)).toBeLessThan(
+        2,
+      );
+      expect(
+        caretGeometry.attachmentError,
+        JSON.stringify(caretGeometry),
+      ).toBeLessThan(2);
+
+      await dropdownTrigger.click();
+
+      await expect(persistentTooltip).not.toBeVisible();
+      await expect(
+        page.locator("[popover] li").getByText("Settings"),
+      ).toBeVisible();
+
+      await dropdownTrigger.click();
+      await expect(page.locator('[popover="auto"]:popover-open')).toHaveCount(
+        0,
+      );
     });
 
     test("should show dropdown menu items when opened", async ({ page }) => {
@@ -587,22 +676,28 @@ test.describe("AppMenu", () => {
     });
 
     test("should close when its trigger is clicked again", async ({ page }) => {
-      const trigger = page.locator('[data-tip="More options"] button').first();
+      const trigger = page
+        .getByRole("button", { name: "More options" })
+        .first();
 
       await page.evaluate(() => {
         document
-          .querySelectorAll("[popover]:popover-open")
+          .querySelectorAll('[popover="auto"]:popover-open')
           .forEach((element) => {
             (element as HTMLElement).hidePopover();
           });
       });
-      await expect(page.locator("[popover]:popover-open")).toHaveCount(0);
+      await expect(page.locator('[popover="auto"]:popover-open')).toHaveCount(
+        0,
+      );
 
       await trigger.click();
-      await expect(page.locator("[popover]:popover-open")).toHaveCount(1);
+      await expect(page.locator('[popover="auto"]:popover-open')).toHaveCount(
+        1,
+      );
 
       const dragRegions = await page
-        .locator("[popover]:popover-open")
+        .locator('[popover="auto"]:popover-open')
         .evaluate((element) => ({
           panel: getComputedStyle(element).getPropertyValue("app-region"),
           webkitPanel:
@@ -623,7 +718,9 @@ test.describe("AppMenu", () => {
       });
 
       await trigger.click();
-      await expect(page.locator("[popover]:popover-open")).toHaveCount(0);
+      await expect(page.locator('[popover="auto"]:popover-open')).toHaveCount(
+        0,
+      );
     });
 
     test("should navigate to Settings when clicking the Settings menu item", async ({
@@ -641,7 +738,9 @@ test.describe("AppMenu", () => {
       await expect(settingsItem).toBeVisible({ timeout: 5_000 });
       await settingsItem.click();
 
-      await expect(page.locator("[popover]:popover-open")).toHaveCount(0);
+      await expect(page.locator('[popover="auto"]:popover-open')).toHaveCount(
+        0,
+      );
 
       // Wait for navigation to /settings
       await waitForRoute(page, "/settings", 10_000);
@@ -664,7 +763,9 @@ test.describe("AppMenu", () => {
       await expect(changelogItem).toBeVisible({ timeout: 5_000 });
       await changelogItem.click();
 
-      await expect(page.locator("[popover]:popover-open")).toHaveCount(0);
+      await expect(page.locator('[popover="auto"]:popover-open')).toHaveCount(
+        0,
+      );
 
       // Wait for navigation to /changelog
       await waitForRoute(page, "/changelog", 10_000);
@@ -713,7 +814,9 @@ test.describe("AppMenu", () => {
         }
 
         await expect(dialog).toBeVisible({ timeout: 10_000 });
-        await expect(page.locator("[popover]:popover-open")).toHaveCount(0);
+        await expect(page.locator('[popover="auto"]:popover-open')).toHaveCount(
+          0,
+        );
         await expect(modalBox).toBeVisible({ timeout: 5_000 });
         await expect(scrim).toBeVisible({ timeout: 5_000 });
 

@@ -341,7 +341,7 @@ describe("CurrentSessionActions", () => {
     expect(prohibitedLabel).toHaveTextContent("?");
   });
 
-  it("DatasetMenuLabel has dotted border and title hint", () => {
+  it("DatasetMenuLabel has a dotted border and custom tooltip hint", () => {
     setupStore();
     renderWithProviders(<CurrentSessionActions />);
 
@@ -349,7 +349,7 @@ describe("CurrentSessionActions", () => {
     const innerSpan = ninjaLabel.querySelector("span.border-b");
     expect(innerSpan).toBeInTheDocument();
     expect(innerSpan).toHaveAttribute(
-      "title",
+      "data-tip",
       "Price based rarity from poe.ninja market data",
     );
   });

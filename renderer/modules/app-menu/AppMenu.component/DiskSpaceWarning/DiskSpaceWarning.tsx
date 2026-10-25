@@ -2,6 +2,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { TbDatabaseExclamation } from "react-icons/tb";
 
 import { Button } from "~/renderer/components";
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 import { formatBytes } from "~/renderer/modules/settings/Settings.components/storage/storage.utils/storage.utils";
 import { useStorage } from "~/renderer/store";
 
@@ -17,7 +18,7 @@ const DiskSpaceWarning = () => {
   const tooltip = `Low disk space — ${formatBytes(freeBytes)} free`;
 
   return (
-    <div className="tooltip tooltip-bottom tooltip-warning" data-tip={tooltip}>
+    <Tooltip as="div" content={tooltip} describeChild>
       <Button
         onClick={() => navigate({ to: "/settings" })}
         variant="ghost"
@@ -26,7 +27,7 @@ const DiskSpaceWarning = () => {
       >
         <TbDatabaseExclamation size={16} />
       </Button>
-    </div>
+    </Tooltip>
   );
 };
 

@@ -93,7 +93,8 @@ export function AudioRarityAssignmentRow({
           variant="ghost"
           size="sm"
           square
-          title="Preview"
+          aria-label="Preview"
+          tooltip="Preview"
           disabled={!audioEnabled}
           onClick={handlePreview}
         >
@@ -108,7 +109,8 @@ export function AudioRarityAssignmentRow({
             variant="ghost"
             size="sm"
             square
-            title="Reset to default"
+            aria-label="Reset to default"
+            tooltip="Reset to default"
             disabled={!audioEnabled}
             onClick={handleReset}
           >

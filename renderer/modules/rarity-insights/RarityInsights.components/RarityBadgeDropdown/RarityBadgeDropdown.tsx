@@ -1,6 +1,7 @@
 import { memo, useCallback, useRef, useState } from "react";
 import { FiEdit2 } from "react-icons/fi";
 
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 import {
   type FilterTheme,
   getRarityStyles,
@@ -76,11 +77,10 @@ const RarityBadgeDropdown = memo(
         className="relative inline-flex items-center gap-1.5 group/cell"
         onBlur={handleBlur}
       >
-        <div
-          className={`tooltip tooltip-bottom ${
-            disabled ? "tooltip-error" : "tooltip-primary"
-          }`}
-          data-tip={disabled ? "Cannot edit rarity" : "Click to change rarity"}
+        <Tooltip
+          as="div"
+          content={disabled ? "Cannot edit rarity" : "Click to change rarity"}
+          describeChild
         >
           <button
             type="button"
@@ -95,17 +95,19 @@ const RarityBadgeDropdown = memo(
           >
             {label}
           </button>
-        </div>
+        </Tooltip>
 
         {!disabled && (
-          <button
+          <Tooltip
+            as="button"
+            aria-label="Edit rarity"
             type="button"
             onClick={handleToggle}
             className="inline-flex opacity-0 group-hover:opacity-50 group-hover/cell:opacity-100 transition-opacity text-base-content/70 hover:text-base-content cursor-pointer"
-            title="Edit rarity"
+            content="Edit rarity"
           >
             <FiEdit2 className="w-3 h-3" />
-          </button>
+          </Tooltip>
         )}
 
         {isOpen && (

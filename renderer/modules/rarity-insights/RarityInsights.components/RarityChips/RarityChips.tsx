@@ -1,5 +1,6 @@
 import { memo, useCallback } from "react";
 
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 import { type FilterTheme, getRarityStyles } from "~/renderer/utils";
 import type { KnownRarity, Rarity } from "~/types/data-stores";
 
@@ -47,29 +48,35 @@ const RarityChips = memo(
         {KNOWN_RARITIES.map((rarity) => {
           const styles = getRarityStyles(rarity, undefined, filterTheme);
           const isActive = activeRarity === rarity;
+          const tooltip = `Sort by ${SHORT_LABELS[rarity]}`;
 
           return (
-            <button
+            <Tooltip
               key={rarity}
-              type="button"
-              className="badge badge-xs transition-opacity"
-              style={{
-                backgroundColor: styles.badgeBg,
-                color: styles.badgeText,
-                borderColor: styles.badgeBorder,
-                borderWidth: "1px",
-                borderStyle: "solid",
-                opacity: isActive ? 1 : 0.5,
-                filter: disabled ? "sepia(1)" : undefined,
-                cursor: disabled ? "default" : "pointer",
-              }}
-              data-rarity={rarity}
-              disabled={disabled}
-              onClick={disabled ? undefined : handleRarityClick}
-              title={disabled ? undefined : `Sort by ${SHORT_LABELS[rarity]}`}
+              content={tooltip}
+              describeChild
+              disableTooltip={disabled}
             >
-              {SHORT_LABELS[rarity]}
-            </button>
+              <button
+                type="button"
+                className="badge badge-xs transition-opacity"
+                style={{
+                  backgroundColor: styles.badgeBg,
+                  color: styles.badgeText,
+                  borderColor: styles.badgeBorder,
+                  borderWidth: "1px",
+                  borderStyle: "solid",
+                  opacity: isActive ? 1 : 0.5,
+                  filter: disabled ? "sepia(1)" : undefined,
+                  cursor: disabled ? "default" : "pointer",
+                }}
+                data-rarity={rarity}
+                disabled={disabled}
+                onClick={disabled ? undefined : handleRarityClick}
+              >
+                {SHORT_LABELS[rarity]}
+              </button>
+            </Tooltip>
           );
         })}
       </div>

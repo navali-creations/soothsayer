@@ -4,6 +4,7 @@ import { FiMaximize2, FiMinimize2 } from "react-icons/fi";
 
 import { Button } from "~/renderer/components";
 import { ChartLegend } from "~/renderer/components/CombinedChartCanvas";
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 import type { useChartColors } from "~/renderer/hooks";
 import { useAppPerformanceSelector } from "~/renderer/store";
 
@@ -112,16 +113,22 @@ export function TrendCard({
         <span className="shrink-0 text-[10px] tabular-nums text-base-content/35">
           {latest ? formatReportDate(latest.capture.startedAt) : "n/a"}
         </span>
-        <Button
-          type="button"
-          variant="ghost"
-          size="xs"
-          square
-          title={focused ? "Collapse chart" : "Focus chart"}
-          onClick={handleFocusToggle}
+        <Tooltip
+          as="div"
+          content={focused ? "Collapse chart" : "Focus chart"}
+          describeChild
         >
-          {focused ? <FiMinimize2 /> : <FiMaximize2 />}
-        </Button>
+          <Button
+            aria-label={focused ? "Collapse chart" : "Focus chart"}
+            type="button"
+            variant="ghost"
+            size="xs"
+            square
+            onClick={handleFocusToggle}
+          >
+            {focused ? <FiMinimize2 /> : <FiMaximize2 />}
+          </Button>
+        </Tooltip>
       </div>
       <div className="mt-2 grid grid-cols-3 divide-x divide-base-content/8 overflow-hidden rounded-md border border-base-content/8 bg-base-300/30">
         {SUMMARY_KEYS.map((item) => (

@@ -18,8 +18,14 @@ vi.mock("~/renderer/components", () => ({
       {children}
     </button>
   ),
-  Dropdown: ({ children, trigger, ...props }: any) => (
-    <div data-testid="dropdown" {...props}>
+  Dropdown: ({
+    ariaLabel,
+    children,
+    trigger,
+    onOpenChange: _onOpenChange,
+    ...props
+  }: any) => (
+    <div aria-label={ariaLabel} data-testid="dropdown" {...props}>
       {trigger}
       {children}
     </div>

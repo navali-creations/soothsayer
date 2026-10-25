@@ -2,6 +2,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { FiInfo } from "react-icons/fi";
 
 import { Stat } from "~/renderer/components";
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 
 import type { LuckyBreakHighlight } from "../../../Statistics.types";
 
@@ -51,12 +52,13 @@ export const StatsLuckyBreak = ({ data }: StatsLuckyBreakProps) => {
           Click to view details
         </span>
       )}
-      <div
-        className="absolute top-1.5 right-2 tooltip tooltip-left tooltip-primary z-10"
-        data-tip="The session where you opened the fewest decks but made the most profit"
+      <Tooltip
+        as="div"
+        className="absolute top-1.5 right-2 z-10"
+        content="The session where you opened the fewest decks but made the most profit"
       >
         <FiInfo className="w-3 h-3 text-base-content/25 hover:text-base-content/50 transition-colors cursor-help" />
-      </div>
+      </Tooltip>
       <Stat.Title>Lucky Break</Stat.Title>
       <Stat.Value className="text-lg tabular-nums">
         {formattedProfit}

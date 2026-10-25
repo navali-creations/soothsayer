@@ -67,7 +67,9 @@ async function goToSettings(page: Page) {
 }
 
 async function openMoreOptions(page: Page) {
-  const moreOptions = page.locator("main .dropdown label.btn-square").last();
+  const moreOptions = page
+    .getByRole("button", { name: "More session options" })
+    .last();
   await expect(moreOptions).toBeVisible({ timeout: 5_000 });
   await moreOptions.click();
 }

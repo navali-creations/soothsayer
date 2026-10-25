@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { FiAlertTriangle } from "react-icons/fi";
 
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 import { getRarityStyles, RARITY_LABELS } from "~/renderer/utils";
 import type { Rarity } from "~/types/data-stores";
 
@@ -26,12 +27,12 @@ const PoeNinjaRarityCell = memo(
     return (
       <span className="inline-flex items-center gap-1">
         {rarity === 0 && (
-          <div
-            className="tooltip tooltip-bottom tooltip-warning"
-            data-tip="Low confidence or no pricing data from poe.ninja"
+          <Tooltip
+            as="div"
+            content="Low confidence or no pricing data from poe.ninja"
           >
             <FiAlertTriangle className="w-3.5 h-3.5 text-warning" />
-          </div>
+          </Tooltip>
         )}
         <span
           className="badge badge-sm whitespace-nowrap"

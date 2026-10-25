@@ -48,6 +48,9 @@ function createStorageInfo(overrides: Partial<StorageInfo> = {}): StorageInfo {
   };
 }
 
+const queryTooltipTrigger = (content: string) =>
+  document.querySelector(`[data-tip="${content}"]`);
+
 // ─── Tests ─────────────────────────────────────────────────────────────────
 
 describe("DiskUsageSection", () => {
@@ -87,14 +90,14 @@ describe("DiskUsageSection", () => {
 
     // Other disk usage = total - free - appData = 1M - 400K - 200K = 400K
     expect(
-      screen.getByTitle("Other disk usage: 400000 bytes"),
+      queryTooltipTrigger("Other disk usage: 400000 bytes"),
     ).toBeInTheDocument();
     // Soothsayer size = appData - db = 200K - 100K = 100K
     expect(
-      screen.getByTitle("Soothsayer size: 100000 bytes"),
+      queryTooltipTrigger("Soothsayer size: 100000 bytes"),
     ).toBeInTheDocument();
     // Database = 100K
-    expect(screen.getByTitle("Database: 100000 bytes")).toBeInTheDocument();
+    expect(queryTooltipTrigger("Database: 100000 bytes")).toBeInTheDocument();
   });
 
   it('shows "used of" and "free" text with correct values', () => {
@@ -161,7 +164,9 @@ describe("DiskUsageSection", () => {
     renderWithProviders(<DiskUsageSection info={info} />);
 
     // Database segment (0 bytes) should not render a bar
-    expect(screen.queryByTitle(/Database:/)).not.toBeInTheDocument();
+    expect(
+      document.querySelector('[data-tip^="Database:"]'),
+    ).not.toBeInTheDocument();
   });
 
   // ── Path reveal toggle ─────────────────────────────────────────────────
@@ -181,7 +186,7 @@ describe("DiskUsageSection", () => {
     expect(screen.getByText("C:\\Users\\***\\hidden")).toBeInTheDocument();
 
     // Click the reveal button
-    const revealBtn = screen.getByTitle("Reveal full path");
+    const revealBtn = screen.getByRole("button", { name: "Reveal full path" });
     await user.click(revealBtn);
 
     await waitFor(() => {
@@ -207,7 +212,7 @@ describe("DiskUsageSection", () => {
     const { user } = renderWithProviders(<DiskUsageSection info={info} />);
 
     // First click → reveal
-    const revealBtn = screen.getByTitle("Reveal full path");
+    const revealBtn = screen.getByRole("button", { name: "Reveal full path" });
     await user.click(revealBtn);
 
     await waitFor(() => {
@@ -217,7 +222,7 @@ describe("DiskUsageSection", () => {
     });
 
     // Second click → hide
-    const hideBtn = screen.getByTitle("Hide full path");
+    const hideBtn = screen.getByRole("button", { name: "Hide full path" });
     await user.click(hideBtn);
 
     await waitFor(() => {
@@ -242,7 +247,7 @@ describe("DiskUsageSection", () => {
     const { user } = renderWithProviders(<DiskUsageSection info={info} />);
 
     // First click → reveal (fetches paths)
-    await user.click(screen.getByTitle("Reveal full path"));
+    await user.click(screen.getByRole("button", { name: "Reveal full path" }));
     await waitFor(() => {
       expect(
         screen.getByText("C:\\Users\\realuser\\full-path"),
@@ -250,13 +255,13 @@ describe("DiskUsageSection", () => {
     });
 
     // Second click → hide
-    await user.click(screen.getByTitle("Hide full path"));
+    await user.click(screen.getByRole("button", { name: "Hide full path" }));
     await waitFor(() => {
       expect(screen.getByText("C:\\Users\\***\\hidden")).toBeInTheDocument();
     });
 
     // Third click → reveal again using cached value
-    await user.click(screen.getByTitle("Reveal full path"));
+    await user.click(screen.getByRole("button", { name: "Reveal full path" }));
     await waitFor(() => {
       expect(
         screen.getByText("C:\\Users\\realuser\\full-path"),
@@ -280,7 +285,7 @@ describe("DiskUsageSection", () => {
 
     const { user } = renderWithProviders(<DiskUsageSection info={info} />);
 
-    await user.click(screen.getByTitle("Reveal full path"));
+    await user.click(screen.getByRole("button", { name: "Reveal full path" }));
 
     // Wait a tick for the async rejection to settle
     await waitFor(() => {
@@ -288,7 +293,9 @@ describe("DiskUsageSection", () => {
     });
 
     // Button should still say "Reveal full path" (not toggled)
-    expect(screen.getByTitle("Reveal full path")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Reveal full path" }),
+    ).toBeInTheDocument();
   });
 
   // ── Different drive notice ─────────────────────────────────────────────
@@ -582,7 +589,7 @@ describe("DiskUsageSection", () => {
     // otherDiskUsed = max(0, 100K - 90K - 50K) = max(0, -40K) = 0
     // So "Other disk usage" segment should not appear as a titled bar element
     expect(
-      screen.queryByTitle("Other disk usage: 0 bytes"),
+      queryTooltipTrigger("Other disk usage: 0 bytes"),
     ).not.toBeInTheDocument();
   });
 });

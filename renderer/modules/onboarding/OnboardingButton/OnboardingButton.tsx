@@ -3,6 +3,7 @@ import { useState } from "react";
 import { FaRedo } from "react-icons/fa";
 
 import Button from "~/renderer/components/Button/Button";
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 import { useOnboardingActions } from "~/renderer/store";
 
 interface OnboardingButtonProps {
@@ -33,18 +34,20 @@ export const OnboardingButton: React.FC<OnboardingButtonProps> = ({
 
   if (variant === "icon") {
     return (
-      <Button
-        onClick={handleReset}
-        variant="ghost"
-        size={size}
-        circle
-        className={className}
-        title="Reset Onboarding Tour"
-        disabled={isResetting}
-        data-onboarding="onboarding-button"
-      >
-        <FaRedo className="w-5 h-5" />
-      </Button>
+      <Tooltip as="div" content="Reset Onboarding Tour" describeChild>
+        <Button
+          aria-label="Reset Onboarding Tour"
+          onClick={handleReset}
+          variant="ghost"
+          size={size}
+          circle
+          className={className}
+          disabled={isResetting}
+          data-onboarding="onboarding-button"
+        >
+          <FaRedo className="w-5 h-5" />
+        </Button>
+      </Tooltip>
     );
   }
 

@@ -1,3 +1,5 @@
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
+
 interface DatasetMenuLabelProps {
   label: string;
   hint: string;
@@ -5,8 +7,8 @@ interface DatasetMenuLabelProps {
 
 export function DatasetMenuLabel({ label, hint }: DatasetMenuLabelProps) {
   return (
-    <span className="border-b border-dotted border-b-current" title={hint}>
+    <Tooltip className="border-b border-dotted border-b-current" content={hint}>
       {label} <sup>?</sup>
-    </span>
+    </Tooltip>
   );
 }

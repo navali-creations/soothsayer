@@ -1,5 +1,6 @@
 import { FiInfo } from "react-icons/fi";
 
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 import { usePoeNinja, useProfitForecast } from "~/renderer/store";
 
 const PFSubBatchSlider = () => {
@@ -31,12 +32,9 @@ const PFSubBatchSlider = () => {
           Batch size
         </span>
         {hasFixedCostOverride && (
-          <span
-            className="tooltip tooltip-right"
-            data-tip="Locked — custom pricing uses the selected deck count as a single batch."
-          >
+          <Tooltip content="Locked — custom pricing uses the selected deck count as a single batch.">
             <FiInfo className="w-3 h-3 text-info" />
-          </span>
+          </Tooltip>
         )}
       </div>
       <input

@@ -354,7 +354,9 @@ test.describe("Profit Forecast – Interactions", () => {
       expect(customValue).toContain("90");
 
       // Verify the "Reset" button is visible
-      const resetButton = baseRateStat.getByText("Reset", { exact: true });
+      const resetButton = baseRateStat.getByRole("button", {
+        name: "Reset",
+      });
       await expect(resetButton).toBeVisible({ timeout: 3_000 });
 
       // Click Reset to restore market rate
@@ -479,7 +481,7 @@ test.describe("Profit Forecast – Interactions", () => {
       expect(spendAfter).not.toBe(spendBefore);
       expect(netAfter).not.toBe(netBefore);
 
-      const resetButton = spendStat.getByText("Reset", { exact: true });
+      const resetButton = spendStat.getByRole("button", { name: "Reset" });
       await expect(resetButton).toBeVisible({ timeout: 3_000 });
       await resetButton.click();
       await waitForRecompute(page);

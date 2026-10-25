@@ -285,20 +285,14 @@ describe("SessionDetailsTable", () => {
       });
       const { user } = renderWithProviders(<SessionDetailsTable />);
 
-      // Find the toggle button in the row (not the header)
-      const toggleButtons = screen.getAllByRole("button");
-      const toggleButton = toggleButtons.find(
-        (btn) =>
-          btn.title === "Click to exclude from totals" ||
-          btn.title === "Click to include in totals",
+      await user.click(
+        screen.getByRole("button", { name: "Click to exclude from totals" }),
       );
-      expect(toggleButton).toBeDefined();
-      await user.click(toggleButton!);
 
       expect(mockToggleCardPriceVisibility).toHaveBeenCalledWith("The Doctor");
     });
 
-    it('toggle button has "Click to exclude from totals" title when visible', () => {
+    it('shows "Click to exclude from totals" when visible', () => {
       setupStore({
         getCardData: vi
           .fn()
@@ -309,11 +303,11 @@ describe("SessionDetailsTable", () => {
       renderWithProviders(<SessionDetailsTable />);
 
       expect(
-        screen.getByTitle("Click to exclude from totals"),
+        screen.getByRole("button", { name: "Click to exclude from totals" }),
       ).toBeInTheDocument();
     });
 
-    it('toggle button has "Click to include in totals" title when hidden', () => {
+    it('shows "Click to include in totals" when hidden', () => {
       setupStore({
         getCardData: vi
           .fn()
@@ -324,7 +318,7 @@ describe("SessionDetailsTable", () => {
       renderWithProviders(<SessionDetailsTable />);
 
       expect(
-        screen.getByTitle("Click to include in totals"),
+        screen.getByRole("button", { name: "Click to include in totals" }),
       ).toBeInTheDocument();
     });
   });

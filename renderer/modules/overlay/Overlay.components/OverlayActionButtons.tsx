@@ -1,29 +1,26 @@
 import { FiLock, FiUnlock, FiX } from "react-icons/fi";
 
 import { Button } from "~/renderer/components";
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 import { useOverlay } from "~/renderer/store";
 
 export const OverlayActionButtons = () => {
   const { isLocked, setLocked, hide, isLeftHalf } = useOverlay();
-
-  const tooltipDirection = isLeftHalf ? "tooltip-right" : "tooltip-left";
 
   return (
     <div
       className={`flex gap-1 ${isLeftHalf ? "flex-row" : "flex-row-reverse"}`}
       style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
     >
-      <div
-        className={`tooltip ${tooltipDirection} tooltip-primary`}
-        data-tip="Close Overlay"
-      >
+      <Tooltip as="div" content="Close Overlay" describeChild>
         <Button variant="ghost" size="xs" square onClick={hide}>
           <FiX />
         </Button>
-      </div>
-      <div
-        className={`tooltip ${tooltipDirection} tooltip-primary`}
-        data-tip={isLocked ? "Unlock Overlay" : "Lock Overlay"}
+      </Tooltip>
+      <Tooltip
+        as="div"
+        content={isLocked ? "Unlock Overlay" : "Lock Overlay"}
+        describeChild
       >
         <Button
           variant="ghost"
@@ -33,7 +30,7 @@ export const OverlayActionButtons = () => {
         >
           {isLocked ? <FiLock /> : <FiUnlock />}
         </Button>
-      </div>
+      </Tooltip>
     </div>
   );
 };

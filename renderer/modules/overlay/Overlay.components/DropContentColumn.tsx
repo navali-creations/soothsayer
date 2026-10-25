@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 import { useOverlay } from "~/renderer/store";
 import { formatCurrency, type getRarityStyles } from "~/renderer/utils";
 
@@ -37,7 +38,7 @@ export const DropContentColumn = ({
         borderColor: rarityStyles.border || "transparent",
       }}
     >
-      <span
+      <Tooltip
         className={`${
           isLeftHalf ? "text-right" : ""
         } truncate flex-1 min-w-0 cursor-pointer hover:underline hover:brightness-125 transition-all`}
@@ -45,10 +46,10 @@ export const DropContentColumn = ({
           color: rarityStyles.text || "inherit",
         }}
         onClick={handleCardClick}
-        title={`View ${cardName} details`}
+        content={`View ${cardName} details`}
       >
         {cardName}
-      </span>
+      </Tooltip>
       <span className="text-amber-300 shrink-0">
         {chaosValue > 0 ? formatCurrency(chaosValue, chaosToDivineRatio) : "—"}
       </span>

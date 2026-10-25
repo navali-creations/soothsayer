@@ -192,5 +192,11 @@ describe("CardDetailsPersonal", () => {
 
     expect(lastSeen).toHaveTextContent("Last Seen");
     expect(lastSeen).toHaveTextContent("—");
+    expect(lastSeen.querySelector(".app-tooltip-trigger")).not.toHaveAttribute(
+      "aria-describedby",
+    );
+    expect(lastSeen.querySelector(".app-tooltip-trigger")).not.toHaveAttribute(
+      "data-tip",
+    );
   });
 });

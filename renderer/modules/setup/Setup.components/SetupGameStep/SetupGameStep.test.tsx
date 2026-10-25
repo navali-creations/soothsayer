@@ -232,7 +232,7 @@ describe("SetupGameStep", () => {
       expect(poe2Button).not.toBeDisabled();
     });
 
-    it("shows tooltip title on the disabled button", () => {
+    it("shows a custom tooltip on the disabled button", () => {
       setupStore({
         setupState: {
           currentStep: 1,
@@ -244,10 +244,12 @@ describe("SetupGameStep", () => {
       renderWithProviders(<SetupGameStep />);
 
       const poe2Button = screen.getByText("Path of Exile 2").closest("button");
-      expect(poe2Button).toHaveAttribute(
-        "title",
-        "At least one game must be selected",
-      );
+      expect(poe2Button).not.toHaveAttribute("title");
+      expect(
+        document.querySelector(
+          '[data-tip="At least one game must be selected"]',
+        ),
+      ).toBeInTheDocument();
     });
 
     it("does not disable either game when both are selected", () => {

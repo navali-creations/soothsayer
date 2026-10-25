@@ -147,11 +147,15 @@ test.describe("App Performance", () => {
     await expect(charts).toHaveCount(3);
     await expectCanvasChartRendered(charts.first(), "live FPS chart");
 
-    await page.getByTitle("Focus chart").first().click();
-    await expect(page.getByTitle("Collapse chart")).toBeVisible();
+    await page.getByRole("button", { name: "Focus chart" }).first().click();
+    await expect(
+      page.getByRole("button", { name: "Collapse chart" }),
+    ).toBeVisible();
     await expectCanvasChartRendered(charts.first(), "focused chart");
-    await page.getByTitle("Collapse chart").click();
-    await expect(page.getByTitle("Focus chart").first()).toBeVisible();
+    await page.getByRole("button", { name: "Collapse chart" }).click();
+    await expect(
+      page.getByRole("button", { name: "Focus chart" }).first(),
+    ).toBeVisible();
 
     await expect
       .poll(

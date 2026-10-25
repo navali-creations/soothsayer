@@ -1,7 +1,7 @@
-import clsx from "clsx";
 import type { ReactNode } from "react";
 
 import Flex from "../Flex/Flex";
+import Tooltip from "../Tooltip/Tooltip";
 
 type TableHeaderProps = {
   children: ReactNode;
@@ -12,14 +12,11 @@ type TableHeaderProps = {
 const TableHeader = ({ children, tooltip, className }: TableHeaderProps) => {
   if (tooltip) {
     return (
-      <div
-        className={clsx("tooltip tooltip-left tooltip-primary", className)}
-        data-tip={tooltip}
-      >
+      <Tooltip as="div" className={className} content={tooltip}>
         <Flex className="gap-1 items-center border-b border-dotted">
           {children} <sup>?</sup>
         </Flex>
-      </div>
+      </Tooltip>
     );
   }
 

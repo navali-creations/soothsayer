@@ -1,5 +1,5 @@
 import { type ChangeEvent, useCallback, useEffect } from "react";
-import { FiDownload, FiMoreHorizontal, FiTrash2, FiX } from "react-icons/fi";
+import { FiDownload, FiTrash2, FiX } from "react-icons/fi";
 
 import { Flex, Search } from "~/renderer/components";
 import { useDebounce } from "~/renderer/hooks";
@@ -10,6 +10,7 @@ import {
   generateSimpleCsv,
 } from "../../Sessions.utils/Sessions.export";
 import { SessionsDeleteConfirmModal } from "../SessionsDeleteConfirmModal/SessionsDeleteConfirmModal";
+import { SessionsBulkMenu } from "./SessionsBulkMenu/SessionsBulkMenu";
 
 export const SessionsActions = () => {
   const {
@@ -230,43 +231,7 @@ export const SessionsActions = () => {
             )}
           </>
         ) : (
-          <div className="dropdown dropdown-end z-50">
-            <label tabIndex={0} className="btn btn-sm btn-primary btn-square">
-              <FiMoreHorizontal size={16} />
-            </label>
-            <ul
-              tabIndex={0}
-              className="dropdown-content menu p-2 shadow-lg bg-base-200 rounded-box w-48"
-            >
-              <li
-                className="tooltip tooltip-left"
-                data-tip="Card name + total amount"
-              >
-                <button onClick={() => setBulkMode("export-simple")}>
-                  <FiDownload size={14} />
-                  Export Simple CSV
-                </button>
-              </li>
-              <li
-                className="tooltip tooltip-left"
-                data-tip="Full session details per row"
-              >
-                <button onClick={() => setBulkMode("export-rich")}>
-                  <FiDownload size={14} />
-                  Export Rich CSV
-                </button>
-              </li>
-              <li>
-                <button
-                  className="text-error"
-                  onClick={() => setBulkMode("delete")}
-                >
-                  <FiTrash2 size={14} />
-                  Delete sessions
-                </button>
-              </li>
-            </ul>
-          </div>
+          <SessionsBulkMenu />
         )}
       </div>
       <SessionsDeleteConfirmModal

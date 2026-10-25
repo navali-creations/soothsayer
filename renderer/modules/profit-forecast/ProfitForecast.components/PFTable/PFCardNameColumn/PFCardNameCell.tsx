@@ -1,10 +1,11 @@
 import { memo, useId, useMemo } from "react";
-import { FiEyeOff } from "react-icons/fi";
 
 import CardNameLink from "~/renderer/components/CardNameLink/CardNameLink";
 import DivinationCard from "~/renderer/components/DivinationCard/DivinationCard";
 import { usePopover } from "~/renderer/hooks/usePopover/usePopover";
 import type { DivinationCardMetadata } from "~/types/data-stores";
+
+import BelowMinPriceBadge from "./BelowMinPriceBadge/BelowMinPriceBadge";
 
 interface PFCardNameCellProps {
   cardName: string;
@@ -68,16 +69,5 @@ const PFCardNameCell = memo(
 );
 
 PFCardNameCell.displayName = "PFCardNameCell";
-
-/** Small badge indicating the card is normally hidden by the min price filter. */
-const BelowMinPriceBadge = () => (
-  <span
-    className="inline-flex items-center gap-0.5 shrink-0 rounded px-1 py-0.5 text-[10px] leading-none font-medium bg-base-content/10 text-base-content/50"
-    title="This card is hidden by the min price filter"
-  >
-    <FiEyeOff className="w-2.5 h-2.5" />
-    <span>filtered</span>
-  </span>
-);
 
 export default PFCardNameCell;

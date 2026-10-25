@@ -180,9 +180,8 @@ describe("RaritySourceSelect", () => {
       />,
     );
 
-    // The outdated option ("Previous League") should have a warning icon with title "Outdated"
-    const warningIcon = screen.getByTitle("Outdated");
-    expect(warningIcon).toBeInTheDocument();
+    // The outdated option ("Previous League") should expose its custom tooltip.
+    expect(document.querySelector('[data-tip="Outdated"]')).toBeInTheDocument();
   });
 
   it("calls group action onClick and stops propagation when action button is clicked", async () => {

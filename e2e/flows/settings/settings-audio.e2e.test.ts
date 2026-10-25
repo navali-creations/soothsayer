@@ -137,7 +137,8 @@ test.describe("Settings — Audio Card", () => {
     ).toBeDisabled();
 
     // Preview buttons
-    const previewButtons = card.locator('button[title="Preview"]');
+    const previewButtons = card.getByRole("button", { name: "Preview" });
+    await expect(previewButtons).toHaveCount(3);
     for (let i = 0; i < (await previewButtons.count()); i++) {
       await expect(previewButtons.nth(i)).toBeDisabled();
     }
@@ -178,7 +179,8 @@ test.describe("Settings — Audio Card", () => {
     }
 
     // Preview buttons
-    const previewButtons = card.locator('button[title="Preview"]');
+    const previewButtons = card.getByRole("button", { name: "Preview" });
+    await expect(previewButtons).toHaveCount(3);
     for (let i = 0; i < (await previewButtons.count()); i++) {
       await expect(previewButtons.nth(i)).not.toBeDisabled();
     }
@@ -306,7 +308,7 @@ test.describe("Settings — Audio Card", () => {
 
     // A "Reset to default" (✕) button should now be visible for this rarity
     const resetButton = card
-      .locator('button[title="Reset to default"]')
+      .getByRole("button", { name: "Reset to default" })
       .first();
     await expect(resetButton).toBeVisible({ timeout: 3_000 });
 
@@ -373,7 +375,7 @@ test.describe("Settings — Audio Card", () => {
     const card = audioCard(page);
     await ensureAudioEnabled(page);
 
-    const previewButtons = card.locator('button[title="Preview"]');
+    const previewButtons = card.getByRole("button", { name: "Preview" });
     await expect(previewButtons).toHaveCount(3, { timeout: 5_000 });
 
     for (let i = 0; i < 3; i++) {
@@ -416,7 +418,9 @@ test.describe("Settings — Audio Card", () => {
       await expect(firstSelect).toHaveValue(customValue, { timeout: 5_000 });
 
       // Click the first preview button — should play the custom sound
-      const firstPreview = card.locator('button[title="Preview"]').first();
+      const firstPreview = card
+        .getByRole("button", { name: "Preview" })
+        .first();
       await firstPreview.click();
       await page.waitForTimeout(100);
 
@@ -494,7 +498,7 @@ test.describe("Settings — Audio Card", () => {
     }
 
     // 5. Preview the first rarity's assigned sound
-    const firstPreview = card.locator('button[title="Preview"]').first();
+    const firstPreview = card.getByRole("button", { name: "Preview" }).first();
     await firstPreview.click();
     await page.waitForTimeout(100);
     await firstPreview.click(); // stop
@@ -502,11 +506,15 @@ test.describe("Settings — Audio Card", () => {
 
     // 6. Reset each rarity back to "Default (bundled)" via the ✕ button
     // Reset buttons appear for each rarity that has a custom assignment
-    let resetButton = card.locator('button[title="Reset to default"]').first();
+    let resetButton = card
+      .getByRole("button", { name: "Reset to default" })
+      .first();
     while (await resetButton.isVisible().catch(() => false)) {
       await resetButton.click();
       await page.waitForTimeout(100);
-      resetButton = card.locator('button[title="Reset to default"]').first();
+      resetButton = card
+        .getByRole("button", { name: "Reset to default" })
+        .first();
     }
 
     // All selects should be back on default

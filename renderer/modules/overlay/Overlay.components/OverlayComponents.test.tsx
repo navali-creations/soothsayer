@@ -571,8 +571,11 @@ describe("DropBeamColumn", () => {
     expect(beamEl.style.getPropertyValue("--beam")).toBe("orangered");
   });
 
-  it("applies tooltip-left class when isLeftHalf is true", () => {
-    setupStore({ isLeftHalf: true });
+  it.each([
+    true,
+    false,
+  ])("places the tooltip on the bottom when isLeftHalf is %s", (isLeftHalf) => {
+    setupStore({ isLeftHalf });
     const { container } = renderWithProviders(
       <DropBeamColumn showBeam={false} isUnknownRarity={true} />,
     );
@@ -580,23 +583,9 @@ describe("DropBeamColumn", () => {
     const warningTooltip = container.querySelector(
       '[data-tip="Low confidence price"]',
     ) as HTMLElement;
+    const content = warningTooltip.querySelector("[role='tooltip']");
     expect(warningTooltip).toBeInTheDocument();
-    expect(warningTooltip.className).toContain("tooltip-left");
-    expect(warningTooltip.className).not.toContain("tooltip-right");
-  });
-
-  it("applies tooltip-right class when isLeftHalf is false", () => {
-    setupStore({ isLeftHalf: false });
-    const { container } = renderWithProviders(
-      <DropBeamColumn showBeam={false} isUnknownRarity={true} />,
-    );
-
-    const warningTooltip = container.querySelector(
-      '[data-tip="Low confidence price"]',
-    ) as HTMLElement;
-    expect(warningTooltip).toBeInTheDocument();
-    expect(warningTooltip.className).toContain("tooltip-right");
-    expect(warningTooltip.className).not.toContain("tooltip-left");
+    expect(content).toHaveClass("app-tooltip-bottom");
   });
 });
 

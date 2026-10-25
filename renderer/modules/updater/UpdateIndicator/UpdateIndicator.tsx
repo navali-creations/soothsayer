@@ -1,6 +1,7 @@
 import { FiDownload, FiExternalLink, FiRefreshCw } from "react-icons/fi";
 
 import { Button } from "~/renderer/components";
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 import { useUpdater } from "~/renderer/store";
 
 const UpdateIndicator = () => {
@@ -52,71 +53,58 @@ const UpdateIndicator = () => {
   // Error: show retry option
   if (status === "error") {
     return (
-      <div
-        className="tooltip tooltip-open tooltip-bottom tooltip-error"
-        data-tip={error ?? "Update failed"}
-      >
+      <Tooltip as="div" content={error ?? "Update failed"} describeChild open>
         <Button
+          aria-label="Retry update"
           onClick={downloadAndInstall}
           variant="ghost"
           size="sm"
           className="text-error"
-          title="Retry update"
         >
           <FiRefreshCw size={16} />
         </Button>
-      </div>
+      </Tooltip>
     );
   }
 
   // Ready: update downloaded (win/mac) or new version detected (linux)
   if (status === "ready") {
-    const tooltip = isManual ? "View release" : "Restart to update";
-    const title = isManual
+    const tooltip = isManual
       ? `View Soothsayer v${updateInfo.latestVersion} on GitHub`
       : `Restart to apply Soothsayer v${updateInfo.latestVersion}`;
 
     return (
-      <div
-        className="tooltip tooltip-open tooltip-bottom tooltip-success"
-        data-tip={tooltip}
-      >
+      <Tooltip as="div" content={tooltip} describeChild open>
         <Button
+          aria-label={tooltip}
           onClick={downloadAndInstall}
           variant="ghost"
           size="sm"
           className="text-success animate-pulse"
-          title={title}
         >
           <Icon size={16} />
         </Button>
-      </div>
+      </Tooltip>
     );
   }
 
   // Default: update available — prompt to install or view
   const tooltip = isManual
-    ? `v${updateInfo.latestVersion} available!`
-    : `v${updateInfo.latestVersion} available!`;
-  const title = isManual
     ? `View Soothsayer v${updateInfo.latestVersion} on GitHub`
     : `Update to Soothsayer v${updateInfo.latestVersion}`;
 
   return (
-    <div
-      className="tooltip tooltip-open tooltip-bottom tooltip-success"
-      data-tip={tooltip}
-    >
+    <Tooltip as="div" content={tooltip} describeChild open>
       <Button
+        aria-label={tooltip}
         onClick={downloadAndInstall}
         variant="ghost"
         size="sm"
         className="text-success animate-pulse"
-        title={title}
       >
         <Icon size={16} />
       </Button>
-    </div>
+    </Tooltip>
   );
 };
 

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { FiHelpCircle, FiLock, FiRefreshCw } from "react-icons/fi";
 
 import { Button, Countdown, Search } from "~/renderer/components";
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 import { formatTickingTimer, useTickingTimer } from "~/renderer/hooks";
 import { usePoeNinja, useProfitForecast, useSettings } from "~/renderer/store";
 
@@ -69,13 +70,11 @@ const PFHeaderActions = ({ onGlobalFilterChange }: PFHeaderActionsProps) => {
       />
 
       {/* Refresh poe.ninja prices button */}
-      <div
+      <Tooltip
+        as="div"
+        describeChild
         data-onboarding="profit-forecast-refresh"
-        className={clsx(
-          "tooltip tooltip-left",
-          isOnCooldown ? "tooltip-warning" : "tooltip-primary",
-        )}
-        data-tip={
+        content={
           isOnCooldown
             ? `Available ${formatTickingTimer(cooldownTimer)}`
             : isRefreshing
@@ -113,7 +112,7 @@ const PFHeaderActions = ({ onGlobalFilterChange }: PFHeaderActionsProps) => {
             "Refresh poe.ninja"
           )}
         </Button>
-      </div>
+      </Tooltip>
     </div>
   );
 };

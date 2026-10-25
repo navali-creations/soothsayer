@@ -7,6 +7,7 @@ import {
   ChartLegend,
   type ChartLegendItem,
 } from "~/renderer/components/CombinedChartCanvas/ChartLegend";
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 import { useAppPerformanceShallow } from "~/renderer/store";
 
 import type { AppPerformanceChartKey } from "../../AppPerformance.types";
@@ -132,16 +133,22 @@ export function PerformanceChartCard({
           <p className="min-w-0 truncate text-xs text-base-content/45">
             {subtitle}
           </p>
-          <Button
-            type="button"
-            variant="ghost"
-            size="xs"
-            square
-            title={focused ? "Collapse chart" : "Focus chart"}
-            onClick={handleFocusToggle}
+          <Tooltip
+            as="div"
+            content={focused ? "Collapse chart" : "Focus chart"}
+            describeChild
           >
-            {focused ? <FiMinimize2 /> : <FiMaximize2 />}
-          </Button>
+            <Button
+              aria-label={focused ? "Collapse chart" : "Focus chart"}
+              type="button"
+              variant="ghost"
+              size="xs"
+              square
+              onClick={handleFocusToggle}
+            >
+              {focused ? <FiMinimize2 /> : <FiMaximize2 />}
+            </Button>
+          </Tooltip>
         </div>
 
         <div className="grid grid-cols-4 divide-x divide-base-content/8 overflow-hidden rounded-lg border border-base-content/8 bg-base-300/30">

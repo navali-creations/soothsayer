@@ -2,6 +2,7 @@ import { LuWeight } from "react-icons/lu";
 import { TbEyeSearch } from "react-icons/tb";
 
 import { Stat } from "~/renderer/components";
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 import {
   useCommunityDropRate,
   useIsLoadingCommunityDropRate,
@@ -41,28 +42,28 @@ const CommunityDropChanceStat = () => {
       <Stat.Desc className="flex items-center gap-3">
         {communityDropRate ? (
           <>
-            <span
+            <Tooltip
               aria-label={`${communityDropRate.dropCount.toLocaleString()} community observations for ${communityDropRate.league}`}
-              className="tooltip tooltip-top tooltip-primary inline-flex items-center gap-1"
-              data-tip={observationTooltip}
+              className="inline-flex items-center gap-1"
+              content={observationTooltip}
             >
               <TbEyeSearch aria-hidden="true" />
               <span>{communityDropRate.dropCount.toLocaleString()}</span>
-            </span>
-            <span
+            </Tooltip>
+            <Tooltip
               aria-label={
                 communityDropRate.referenceWeight === null
                   ? `No reference weight for ${communityDropRate.league}`
                   : `Reference weight ${communityDropRate.referenceWeight.toLocaleString()} for ${communityDropRate.league}`
               }
-              className="tooltip tooltip-top tooltip-primary inline-flex items-center gap-1"
-              data-tip={referenceWeightTooltip}
+              className="inline-flex items-center gap-1"
+              content={referenceWeightTooltip}
             >
               <LuWeight aria-hidden="true" />
               <span>
                 {communityDropRate.referenceWeight?.toLocaleString() ?? "—"}
               </span>
-            </span>
+            </Tooltip>
           </>
         ) : (
           "No community data"

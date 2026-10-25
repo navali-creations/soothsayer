@@ -51,6 +51,35 @@ describe("StatsUniqueCardsCollected", () => {
     expect(screen.getByText("Unique Cards Collected")).toBeInTheDocument();
   });
 
+  it("matches the shared statistics info icon styling", () => {
+    renderWithProviders(
+      <StatsUniqueCardsCollected
+        collectedCount={100}
+        totalAvailable={null}
+        breakdown={{
+          total: 120,
+          bossOnly: 10,
+          disabled: 5,
+          droppable: 105,
+        }}
+      />,
+    );
+
+    const tooltip = screen.getByRole("tooltip", { hidden: true });
+    const trigger = tooltip.parentElement;
+    const icon = trigger?.querySelector("svg");
+
+    expect(trigger).toHaveClass("absolute", "top-1.5", "right-2", "z-10");
+    expect(trigger).not.toHaveClass("btn", "btn-circle", "opacity-40");
+    expect(icon).toHaveClass(
+      "w-3",
+      "h-3",
+      "text-base-content/25",
+      "hover:text-base-content/50",
+      "cursor-help",
+    );
+  });
+
   it("shows collected count and muted total when totalAvailable is provided", () => {
     renderWithProviders(
       <StatsUniqueCardsCollected collectedCount={375} totalAvailable={388} />,

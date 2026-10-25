@@ -18,6 +18,7 @@ import {
   test,
 } from "@playwright/test";
 
+import { getE2ERendererPort } from "../helpers/e2e-config";
 import { resolveElectronPath } from "../helpers/electron-test";
 import { waitForHydration } from "../helpers/navigation";
 import {
@@ -60,6 +61,7 @@ async function launchIsolatedApp(): Promise<{
       ...process.env,
       NODE_ENV: "test",
       E2E_TESTING: "true",
+      SOOTHSAYER_E2E_RENDERER_URL: `http://localhost:${getE2ERendererPort()}`,
       ELECTRON_DISABLE_GPU: "true",
     },
     timeout: 30_000,

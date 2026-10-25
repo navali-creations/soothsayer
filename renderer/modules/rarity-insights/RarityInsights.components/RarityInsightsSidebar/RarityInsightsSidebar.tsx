@@ -10,6 +10,7 @@ import {
 
 import type { DiscoveredRarityInsightsDTO } from "~/main/modules/rarity-insights/RarityInsights.dto";
 import { Button } from "~/renderer/components";
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 import {
   useRarityInsights,
   useRarityInsightsComparison,
@@ -82,9 +83,9 @@ const RarityInsightsSelectorGroup = ({
                 <FiCheck className="w-3.5 h-3.5 text-success shrink-0" />
               )}
               {error && !isCurrentlyParsing && (
-                <div className="tooltip tooltip-left shrink-0" data-tip={error}>
+                <Tooltip as="div" className="shrink-0" content={error}>
                   <FiAlertTriangle className="w-3.5 h-3.5 text-error" />
-                </div>
+                </Tooltip>
               )}
             </button>
           );

@@ -164,7 +164,9 @@ async function getCapturedDownload(
 }
 
 async function openMoreOptions(page: Page) {
-  const moreOptions = page.locator("main .dropdown label.btn-square").last();
+  const moreOptions = page
+    .getByRole("button", { name: "More session options" })
+    .last();
   await expect(moreOptions).toBeVisible({ timeout: 5_000 });
   await moreOptions.click();
 }
@@ -193,6 +195,19 @@ test.describe("Sessions multi-session export", () => {
     await expect(
       page.getByRole("button", { name: "Export Rich CSV" }),
     ).toBeVisible();
+    await expect(page.getByText("Card name + total amount")).toBeVisible();
+    await expect(page.getByText("Full session details per row")).toBeVisible();
+    await expect(
+      page.getByText("Choose which sessions to delete"),
+    ).toBeVisible();
+
+    const bulkMenu = page.locator("main .dropdown-content");
+    await expect(bulkMenu.getByRole("separator")).toBeVisible();
+    await expect(bulkMenu.getByRole("tooltip")).toHaveCount(0);
+    const bulkMenuShadow = await bulkMenu.evaluate(
+      (element) => getComputedStyle(element).boxShadow,
+    );
+    expect(bulkMenuShadow).not.toBe("none");
 
     await page.getByRole("button", { name: "Export Simple CSV" }).click();
     await expect(

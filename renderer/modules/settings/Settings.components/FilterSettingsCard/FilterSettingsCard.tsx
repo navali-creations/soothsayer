@@ -96,7 +96,7 @@ const FilterSettingsCard = () => {
               disabled={isScanning}
               loading={isScanning}
               className="join-item shrink-0 gap-1"
-              title="Rescan filter directories"
+              tooltip="Rescan filter directories"
             >
               {!isScanning && <FiRefreshCw className="w-3.5 h-3.5" />}
               Rescan

@@ -1,6 +1,7 @@
 import { FiExternalLink } from "react-icons/fi";
 
 import type { SessionSummary } from "~/main/modules/sessions/Sessions.api";
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 
 import { formatDate, formatDuration } from "./helpers";
 import SortIndicator from "./SortIndicator";
@@ -92,10 +93,11 @@ const SessionListTable = ({
               key={session.sessionId}
               className="cursor-pointer hover:bg-base-300/50 transition-colors"
               onClick={() => onRowClick(session.sessionId)}
-              title="View session details"
             >
               <td className="text-sm tabular-nums">
-                {formatDate(session.startedAt)}
+                <Tooltip content="View session details">
+                  {formatDate(session.startedAt)}
+                </Tooltip>
               </td>
               {showLeagueColumn && (
                 <td className="text-sm">{session.league}</td>

@@ -1,7 +1,8 @@
-import { FiClock, FiInfo } from "react-icons/fi";
+import { FiClock } from "react-icons/fi";
 import { GiCardExchange, GiReceiveMoney } from "react-icons/gi";
 
 import { Link, StaticProfitSparkline } from "~/renderer/components";
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 import { useSessions } from "~/renderer/store";
 import { formatCurrency } from "~/renderer/utils";
 
@@ -70,12 +71,13 @@ export const SessionCard = ({ session, linePoints }: SessionCardProps) => {
               <div className="badge badge-success badge-sm">Active</div>
             )}
             {!session.isActive && !session.endedAt && (
-              <div
-                className="badge badge-error badge-sm gap-1 tooltip tooltip-right"
-                data-tip="Session ended abruptly due to app crash or force close"
+              <Tooltip
+                as="div"
+                className="badge badge-error badge-sm gap-1"
+                content="Session ended abruptly due to app crash or force close"
               >
                 Corrupted{" "}
-              </div>
+              </Tooltip>
             )}
           </div>
         </div>
@@ -124,23 +126,12 @@ export const SessionCard = ({ session, linePoints }: SessionCardProps) => {
           {session.netProfit != null && session.chaosToDivineRatio != null && (
             <div className="flex items-center gap-2 text-sm">
               <GiReceiveMoney className="text-base-content/50" />
-              <span className="flex items-center gap-1 text-base-content/70">
-                <span
-                  className="underline decoration-dotted cursor-help"
-                  title="Total Value minus the cost of Stacked Decks opened"
-                >
-                  Net Profit:
-                </span>
-                <div
-                  className="tooltip tooltip-right tooltip-primary"
-                  data-tip="Total value of cards minus the cost of Stacked Decks opened. Expand this session for the full profit timeline."
-                >
-                  <FiInfo
-                    size={11}
-                    className="opacity-40 hover:opacity-100 transition-opacity"
-                  />
-                </div>
-              </span>
+              <Tooltip
+                className="text-base-content/70 underline decoration-dotted cursor-help"
+                content="Total Value minus the cost of Stacked Decks opened"
+              >
+                Net Profit:
+              </Tooltip>
               <span
                 className={`font-semibold tabular-nums ${
                   session.netProfit < 0 ? "text-error" : "text-success"

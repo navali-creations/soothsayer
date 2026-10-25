@@ -122,15 +122,15 @@ describe("DiskSpaceWarning", () => {
     expect(button.className).toContain("text-warning");
   });
 
-  it("applies tooltip-warning class to the tooltip container", () => {
+  it("applies the warning variant to the tooltip", () => {
     setupStore({
       storage: { isDiskLow: true, info: { diskFreeBytes: 100_000_000 } },
     });
 
     renderWithProviders(<DiskSpaceWarning />);
 
-    const tooltip = document.querySelector(".tooltip");
-    expect(tooltip).toBeInTheDocument();
-    expect(tooltip?.classList.contains("tooltip-warning")).toBe(true);
+    const trigger = document.querySelector("[data-tip]");
+    const tooltip = trigger?.querySelector("[role='tooltip']");
+    expect(tooltip).toHaveClass("app-tooltip");
   });
 });

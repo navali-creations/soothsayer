@@ -1,3 +1,4 @@
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 import { useSetup } from "~/renderer/store";
 import type { GameType } from "~/types/data-stores";
 
@@ -41,53 +42,56 @@ const SetupGameStep = () => {
           const isOnlySelected = selected && selectedGames.length === 1;
 
           return (
-            <button
+            <Tooltip
               key={game.value}
-              onClick={() => handleToggle(game.value)}
-              disabled={isOnlySelected}
-              className={`p-4 rounded-lg border-2 transition-all text-left relative ${
-                selected
-                  ? "border-primary bg-primary/10"
-                  : "border-base-100 hover:border-base-content/30"
-              } ${isOnlySelected ? "cursor-not-allowed" : "cursor-pointer"}`}
-              title={
-                isOnlySelected
-                  ? "At least one game must be selected"
-                  : undefined
-              }
+              as="div"
+              className="block"
+              content="At least one game must be selected"
+              describeChild
+              disableTooltip={!isOnlySelected}
             >
-              {/* Checkbox indicator */}
-              <div
-                className={`absolute top-3 right-3 w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
+              <button
+                onClick={() => handleToggle(game.value)}
+                disabled={isOnlySelected}
+                className={`w-full h-full p-4 rounded-lg border-2 transition-all text-left relative ${
                   selected
-                    ? "border-primary bg-primary"
-                    : "border-base-content/30 bg-base-100"
-                }`}
+                    ? "border-primary bg-primary/10"
+                    : "border-base-100 hover:border-base-content/30"
+                } ${isOnlySelected ? "cursor-not-allowed" : "cursor-pointer"}`}
               >
-                {selected && (
-                  <svg
-                    className="w-3 h-3 text-primary-content"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={3}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                )}
-              </div>
+                {/* Checkbox indicator */}
+                <div
+                  className={`absolute top-3 right-3 w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
+                    selected
+                      ? "border-primary bg-primary"
+                      : "border-base-content/30 bg-base-100"
+                  }`}
+                >
+                  {selected && (
+                    <svg
+                      className="w-3 h-3 text-primary-content"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={3}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                  )}
+                </div>
 
-              <div className="text-base-content font-semibold pr-6">
-                {game.label}
-              </div>
-              <div className="text-base-content/60 text-xs mt-0.5">
-                {game.description}
-              </div>
-            </button>
+                <div className="text-base-content font-semibold pr-6">
+                  {game.label}
+                </div>
+                <div className="text-base-content/60 text-xs mt-0.5">
+                  {game.description}
+                </div>
+              </button>
+            </Tooltip>
           );
         })}
       </div>

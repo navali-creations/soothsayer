@@ -1,6 +1,7 @@
 import clsx from "clsx";
 
 import { Button } from "~/renderer/components";
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 import { useOverlay } from "~/renderer/store";
 
 export const OverlayTabBar = () => {
@@ -19,9 +20,10 @@ export const OverlayTabBar = () => {
       }`}
       style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
     >
-      <div
-        className="tooltip tooltip-bottom tooltip-primary"
-        data-tip={
+      <Tooltip
+        as="div"
+        describeChild
+        content={
           !isSessionActive ? "Disabled until active session" : "Show all drops"
         }
       >
@@ -35,10 +37,11 @@ export const OverlayTabBar = () => {
         >
           All
         </Button>
-      </div>
-      <div
-        className="tooltip tooltip-bottom tooltip-primary"
-        data-tip={
+      </Tooltip>
+      <Tooltip
+        as="div"
+        describeChild
+        content={
           !isSessionActive
             ? "Disabled until active session"
             : "Show valuable drops only"
@@ -54,7 +57,7 @@ export const OverlayTabBar = () => {
         >
           Valuable
         </Button>
-      </div>
+      </Tooltip>
     </div>
   );
 };

@@ -2,6 +2,7 @@ import { FiInfo } from "react-icons/fi";
 
 import type { CardPoolBreakdownDTO as CardPoolBreakdown } from "~/main/modules/sessions/Sessions.dto";
 import { Stat } from "~/renderer/components";
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 
 export type { CardPoolBreakdownDTO as CardPoolBreakdown } from "~/main/modules/sessions/Sessions.dto";
 
@@ -28,19 +29,13 @@ export const StatsUniqueCardsCollected = ({
   return (
     <Stat className="flex-1 basis-1/4 min-w-0 relative">
       {tooltipText && (
-        <div className="absolute top-1.5 right-1.5 z-10">
-          <div
-            className="tooltip tooltip-left tooltip-primary"
-            data-tip={tooltipText}
-          >
-            <button
-              type="button"
-              className="btn btn-ghost btn-xs btn-circle opacity-40 hover:opacity-80"
-            >
-              <FiInfo size={12} />
-            </button>
-          </div>
-        </div>
+        <Tooltip
+          as="div"
+          className="absolute top-1.5 right-2 z-10"
+          content={tooltipText}
+        >
+          <FiInfo className="w-3 h-3 text-base-content/25 hover:text-base-content/50 transition-colors cursor-help" />
+        </Tooltip>
       )}
       <Stat.Title>Unique Cards Collected</Stat.Title>
       <Stat.Value className="text-lg tabular-nums">

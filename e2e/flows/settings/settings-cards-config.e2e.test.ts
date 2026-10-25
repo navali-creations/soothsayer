@@ -42,8 +42,12 @@ test.describe("Settings – Cards (Config)", () => {
       const panel = activeSettingsPanel(page);
       await expect(panel).toBeVisible();
 
-      await expect(panel.getByText("Path of Exile 1 client log")).toBeVisible();
-      await expect(panel.getByText("Path of Exile 2 client log")).toBeVisible();
+      await expect(
+        panel.getByRole("heading", { name: "Path of Exile 1 client log" }),
+      ).toBeVisible();
+      await expect(
+        panel.getByRole("heading", { name: "Path of Exile 2 client log" }),
+      ).toBeVisible();
 
       // There should be 2 read-only text inputs (one per game)
       const inputs = panel.locator('input[type="text"]');
@@ -59,7 +63,9 @@ test.describe("Settings – Cards (Config)", () => {
       const panel = activeSettingsPanel(page);
 
       // There should be folder picker buttons (one per game path)
-      const buttons = panel.locator("button[title^='Select Path of Exile']");
+      const buttons = panel.getByRole("button", {
+        name: /^Select Path of Exile [12] client log$/,
+      });
       await expect(buttons).toHaveCount(2, { timeout: 5_000 });
     });
 
@@ -85,15 +91,15 @@ test.describe("Settings – Cards (Config)", () => {
       expect(displayValue.length).toBeGreaterThan(0);
 
       // The reveal/hide toggle should appear for the path that has a value
-      const revealToggle = refreshedPanel.locator(
-        'button[title="Reveal full path"], button[title="Hide full path"]',
-      );
+      const revealToggle = refreshedPanel.getByRole("button", {
+        name: /^(Reveal|Hide) full path$/,
+      });
       await expect(revealToggle.first()).toBeVisible({ timeout: 5_000 });
 
       // Click to reveal — should show the full path
       await revealToggle.first().click();
       await expect(
-        refreshedPanel.locator('button[title="Hide full path"]').first(),
+        refreshedPanel.getByRole("button", { name: "Hide full path" }).first(),
       ).toBeVisible({ timeout: 5_000 });
       const revealedValue = await firstInput.inputValue();
       expect(revealedValue).toBe(testPath);
@@ -101,7 +107,9 @@ test.describe("Settings – Cards (Config)", () => {
       // Click again to hide — should mask the path
       await revealToggle.first().click();
       await expect(
-        refreshedPanel.locator('button[title="Reveal full path"]').first(),
+        refreshedPanel
+          .getByRole("button", { name: "Reveal full path" })
+          .first(),
       ).toBeVisible({ timeout: 5_000 });
       const maskedValue = await firstInput.inputValue();
       expect(maskedValue).not.toBe(testPath);
@@ -143,8 +151,12 @@ test.describe("Settings – Cards (Config)", () => {
       ).toBeAttached();
 
       // Labels for each game
-      await expect(panel.getByText("Path of Exile 1 client log")).toBeVisible();
-      await expect(panel.getByText("Path of Exile 2 client log")).toBeVisible();
+      await expect(
+        panel.getByRole("heading", { name: "Path of Exile 1 client log" }),
+      ).toBeVisible();
+      await expect(
+        panel.getByRole("heading", { name: "Path of Exile 2 client log" }),
+      ).toBeVisible();
     });
 
     test("should have file picker buttons wired to selectFile IPC", async ({
@@ -154,7 +166,9 @@ test.describe("Settings – Cards (Config)", () => {
       await expect(panel).toBeVisible();
 
       // There should be at least 2 file picker buttons (one per game path)
-      const buttons = panel.locator("button[title^='Select Path of Exile']");
+      const buttons = panel.getByRole("button", {
+        name: /^Select Path of Exile [12] client log$/,
+      });
       await expect(buttons.nth(1)).toBeVisible({ timeout: 5_000 });
 
       // Each file picker button should be visible and enabled
@@ -251,23 +265,27 @@ test.describe("Settings – Cards (Config)", () => {
         .waitFor({ state: "visible", timeout: 10_000 });
 
       // The disk usage section should show a path and a reveal/hide toggle
-      const revealToggle = panel.locator(
-        'button[title="Reveal full path"], button[title="Hide full path"]',
-      );
+      const revealToggle = panel.getByRole("button", {
+        name: /^(Reveal|Hide) full path$/,
+      });
       await expect(revealToggle.first()).toBeVisible({ timeout: 5_000 });
 
       // Click to reveal full path
       await revealToggle.first().click();
 
       // The toggle should now say "Hide full path"
-      const hideToggle = panel.locator('button[title="Hide full path"]');
+      const hideToggle = panel.getByRole("button", {
+        name: "Hide full path",
+      });
       await expect(hideToggle.first()).toBeVisible({ timeout: 5_000 });
 
       // Click again to hide
       await hideToggle.first().click();
 
       // Should be back to "Reveal full path"
-      const revealAgain = panel.locator('button[title="Reveal full path"]');
+      const revealAgain = panel.getByRole("button", {
+        name: "Reveal full path",
+      });
       await expect(revealAgain.first()).toBeVisible({ timeout: 5_000 });
     });
 

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   FiCopy,
   FiGithub,
@@ -17,6 +18,7 @@ import {
 import { RxCaretDown } from "react-icons/rx";
 
 import { Button, Dropdown, Flex, Link } from "~/renderer/components";
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 import UpdateIndicator from "~/renderer/modules/updater/UpdateIndicator/UpdateIndicator";
 import { useAppMenu, useOverlay, useSetup } from "~/renderer/store";
 
@@ -31,8 +33,13 @@ const AppControls = () => {
     useAppMenu();
   const { toggle: toggleOverlay, isVisible: isOverlayVisible } = useOverlay();
   const { setupState } = useSetup();
+  const [isMoreOptionsOpen, setIsMoreOptionsOpen] = useState(false);
 
   const isSetupMode = !setupState?.isComplete;
+
+  const handleMoreOptionsOpenChange = (open: boolean) => {
+    setIsMoreOptionsOpen(open);
+  };
 
   return (
     <Flex className="gap-0">
@@ -40,9 +47,10 @@ const AppControls = () => {
         <>
           <UpdateIndicator />
           <DiskSpaceWarning />
-          <div
-            className="tooltip tooltip-bottom"
-            data-tip={isOverlayVisible ? "Hide Overlay" : "Show Overlay"}
+          <Tooltip
+            as="div"
+            content={isOverlayVisible ? "Hide Overlay" : "Show Overlay"}
+            describeChild
           >
             <Button
               onClick={toggleOverlay}
@@ -56,14 +64,20 @@ const AppControls = () => {
                 <RiPictureInPictureLine size={16} />
               )}
             </Button>
-          </div>
-          <div className="tooltip tooltip-bottom" data-tip="More options">
+          </Tooltip>
+          <Tooltip
+            as="div"
+            content="More options"
+            disableTooltip={isMoreOptionsOpen}
+          >
             <Dropdown
+              ariaLabel="More options"
               trigger={<RxCaretDown size={18} />}
               className="btn btn-ghost btn-sm"
               position="dropdown-end"
               width="w-[180px]"
               closeOnSelect
+              onOpenChange={handleMoreOptionsOpenChange}
             >
               <li>
                 <Link
@@ -140,7 +154,7 @@ const AppControls = () => {
                 </Link>
               </li>
             </Dropdown>
-          </div>
+          </Tooltip>
         </>
       )}
       <Button onClick={minimize} variant="ghost" size="sm">

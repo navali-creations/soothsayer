@@ -1,5 +1,6 @@
 import { memo } from "react";
 
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 import { getRarityStyles, RARITY_LABELS } from "~/renderer/utils";
 import type { Rarity } from "~/types/data-stores";
 
@@ -23,12 +24,12 @@ const ProhibitedLibraryRarityCell = memo(
     // Card is absent from the PL dataset entirely (LEFT JOIN miss)
     if (rarity == null) {
       return (
-        <div
-          className="tooltip tooltip-bottom"
-          data-tip="Card not found in Prohibited Library dataset"
+        <Tooltip
+          as="div"
+          content="Card not found in Prohibited Library dataset"
         >
           <span className="text-base-content/30">—</span>
-        </div>
+        </Tooltip>
       );
     }
 

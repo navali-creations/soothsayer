@@ -156,7 +156,8 @@ describe("OnboardingButton", () => {
     renderWithProviders(<OnboardingButton variant="icon" />);
 
     const button = screen.getByRole("button");
-    expect(button).toHaveAttribute("title", "Reset Onboarding Tour");
+    expect(button).toHaveAccessibleName("Reset Onboarding Tour");
+    expect(button).not.toHaveAttribute("title");
   });
 
   // ── Error handling ─────────────────────────────────────────────────────

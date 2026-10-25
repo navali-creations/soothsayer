@@ -1,5 +1,6 @@
 import type { CellContext } from "@tanstack/react-table";
 
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 import { useCurrentSession } from "~/renderer/store";
 import type { CardEntry } from "~/types/data-stores";
 
@@ -14,23 +15,24 @@ const CurrentSessionHidePriceCell = (
 
   const priceInfo = cellProps.row.original.price;
   const hidePrice = priceInfo?.hidePrice || false;
+  const tooltip = !hasSnapshot
+    ? "Price visibility can only be changed when using snapshot prices"
+    : hidePrice
+      ? "Price hidden from calculations"
+      : "Price included in calculations";
 
   return (
     <div className="flex justify-center">
-      <input
-        type="checkbox"
-        className="checkbox checkbox-sm"
-        checked={!hidePrice}
-        onChange={() => toggleCardPriceVisibility(cardName)}
-        disabled={!hasSnapshot || !priceInfo}
-        title={
-          !hasSnapshot
-            ? "Price visibility can only be changed when using snapshot prices"
-            : hidePrice
-              ? "Price hidden from calculations"
-              : "Price included in calculations"
-        }
-      />
+      <Tooltip as="div" content={tooltip} describeChild>
+        <input
+          aria-label={tooltip}
+          type="checkbox"
+          className="checkbox checkbox-sm"
+          checked={!hidePrice}
+          onChange={() => toggleCardPriceVisibility(cardName)}
+          disabled={!hasSnapshot || !priceInfo}
+        />
+      </Tooltip>
     </div>
   );
 };

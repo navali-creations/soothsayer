@@ -20,6 +20,9 @@ const segments: BarSegment[] = [
   { label: "Database", bytes: 100, colorClass: "bg-warning" },
 ];
 
+const queryTooltipTrigger = (content: string) =>
+  document.querySelector(`[data-tip="${content}"]`);
+
 describe("DiskUsageBar", () => {
   it("renders the path and reveal button in masked mode", async () => {
     const handleRevealToggle = vi.fn();
@@ -35,10 +38,12 @@ describe("DiskUsageBar", () => {
     );
 
     expect(screen.getByText(maskedPath)).toBeInTheDocument();
-    expect(screen.getByTitle("Reveal full path")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Reveal full path" }),
+    ).toBeInTheDocument();
     expect(screen.getByTestId("eye-icon")).toBeInTheDocument();
 
-    await user.click(screen.getByTitle("Reveal full path"));
+    await user.click(screen.getByRole("button", { name: "Reveal full path" }));
 
     expect(handleRevealToggle).toHaveBeenCalledTimes(1);
   });
@@ -54,16 +59,18 @@ describe("DiskUsageBar", () => {
       />,
     );
 
-    expect(screen.getByTitle("Hide full path")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Hide full path" }),
+    ).toBeInTheDocument();
     expect(screen.getByTestId("eye-off-icon")).toBeInTheDocument();
   });
 
   it("renders segment titles, total usage, free space, and legend", () => {
     renderWithProviders(<DiskUsageBar segments={segments} totalBytes={1000} />);
 
-    expect(screen.getByTitle("Other disk usage: 400 B")).toBeInTheDocument();
-    expect(screen.getByTitle("Soothsayer size: 100 B")).toBeInTheDocument();
-    expect(screen.getByTitle("Database: 100 B")).toBeInTheDocument();
+    expect(queryTooltipTrigger("Other disk usage: 400 B")).toBeInTheDocument();
+    expect(queryTooltipTrigger("Soothsayer size: 100 B")).toBeInTheDocument();
+    expect(queryTooltipTrigger("Database: 100 B")).toBeInTheDocument();
     expect(screen.getByText(/600 B used of 1000 B/)).toBeInTheDocument();
     expect(screen.getByText("400 B free")).toBeInTheDocument();
     expect(screen.getByText("Other disk usage")).toBeInTheDocument();
@@ -82,8 +89,8 @@ describe("DiskUsageBar", () => {
       />,
     );
 
-    expect(screen.queryByTitle("Tiny: 0 B")).not.toBeInTheDocument();
-    expect(screen.getByTitle("Database: 100 B")).toBeInTheDocument();
+    expect(queryTooltipTrigger("Tiny: 0 B")).not.toBeInTheDocument();
+    expect(queryTooltipTrigger("Database: 100 B")).toBeInTheDocument();
     expect(screen.queryByText("Tiny")).not.toBeInTheDocument();
   });
 
@@ -95,7 +102,7 @@ describe("DiskUsageBar", () => {
       />,
     );
 
-    expect(screen.queryByTitle("Database: 0 B")).not.toBeInTheDocument();
+    expect(queryTooltipTrigger("Database: 0 B")).not.toBeInTheDocument();
     expect(screen.getByText(/0 B used of 0 B/)).toBeInTheDocument();
     expect(screen.getByText("0 B free")).toBeInTheDocument();
   });

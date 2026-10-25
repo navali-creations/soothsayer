@@ -123,7 +123,7 @@ describe("SessionListTable — row click", () => {
     const { user, props } = renderTable({
       sessions: [makeSession("sess-42")],
     });
-    const row = screen.getByTitle("View session details");
+    const row = screen.getAllByRole("row")[1];
     await user.click(row);
     expect(props.onRowClick).toHaveBeenCalledWith("sess-42");
   });
@@ -142,7 +142,7 @@ describe("SessionListTable — session data rendering", () => {
         makeSession("sess-3"),
       ],
     });
-    const rows = screen.getAllByTitle("View session details");
+    const rows = screen.getAllByRole("row").slice(1);
     expect(rows).toHaveLength(3);
   });
 

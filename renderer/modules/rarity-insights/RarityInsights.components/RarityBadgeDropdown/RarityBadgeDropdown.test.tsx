@@ -106,7 +106,9 @@ describe("RarityBadgeDropdown", () => {
         <RarityBadgeDropdown rarity={2} onRarityChange={vi.fn()} />,
       );
 
-      expect(screen.getByTitle("Edit rarity")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Edit rarity" }),
+      ).toBeInTheDocument();
     });
 
     it("does not render the edit icon button when disabled", () => {
@@ -114,7 +116,9 @@ describe("RarityBadgeDropdown", () => {
         <RarityBadgeDropdown rarity={2} onRarityChange={vi.fn()} disabled />,
       );
 
-      expect(screen.queryByTitle("Edit rarity")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Edit rarity" }),
+      ).not.toBeInTheDocument();
     });
 
     it("does not render the dropdown by default", () => {
@@ -199,7 +203,7 @@ describe("RarityBadgeDropdown", () => {
         <RarityBadgeDropdown rarity={2} onRarityChange={vi.fn()} />,
       );
 
-      await user.click(screen.getByTitle("Edit rarity"));
+      await user.click(screen.getByRole("button", { name: "Edit rarity" }));
 
       expect(screen.getByText("Unknown")).toBeInTheDocument();
       expect(screen.getByText("Common")).toBeInTheDocument();
@@ -215,7 +219,7 @@ describe("RarityBadgeDropdown", () => {
       expect(screen.getByText("Unknown")).toBeInTheDocument();
 
       // Close via edit icon
-      await user.click(screen.getByTitle("Edit rarity"));
+      await user.click(screen.getByRole("button", { name: "Edit rarity" }));
       expect(screen.queryByText("Unknown")).not.toBeInTheDocument();
     });
   });
@@ -392,24 +396,28 @@ describe("RarityBadgeDropdown", () => {
       expect(badge).not.toHaveClass("cursor-not-allowed");
     });
 
-    it("shows error tooltip when disabled", () => {
+    it("shows the shared tooltip when disabled", () => {
       const { container } = renderWithProviders(
         <RarityBadgeDropdown rarity={2} onRarityChange={vi.fn()} disabled />,
       );
 
-      const tooltip = container.querySelector(".tooltip-error");
-      expect(tooltip).toBeInTheDocument();
-      expect(tooltip).toHaveAttribute("data-tip", "Cannot edit rarity");
+      const trigger = container.querySelector(
+        '[data-tip="Cannot edit rarity"]',
+      );
+      const tooltip = trigger?.querySelector("[role='tooltip']");
+      expect(tooltip).toHaveClass("app-tooltip");
     });
 
-    it("shows primary tooltip when not disabled", () => {
+    it("shows the shared tooltip when not disabled", () => {
       const { container } = renderWithProviders(
         <RarityBadgeDropdown rarity={2} onRarityChange={vi.fn()} />,
       );
 
-      const tooltip = container.querySelector(".tooltip-primary");
-      expect(tooltip).toBeInTheDocument();
-      expect(tooltip).toHaveAttribute("data-tip", "Click to change rarity");
+      const trigger = container.querySelector(
+        '[data-tip="Click to change rarity"]',
+      );
+      const tooltip = trigger?.querySelector("[role='tooltip']");
+      expect(tooltip).toHaveClass("app-tooltip");
     });
 
     it("sets the badge button as disabled", () => {

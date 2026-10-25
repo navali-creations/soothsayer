@@ -1,6 +1,7 @@
 import { FiInfo } from "react-icons/fi";
 
 import { Stat } from "~/renderer/components";
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 
 import type { TotalNetProfitHighlight } from "../../../Statistics.types";
 
@@ -24,12 +25,13 @@ export const StatsTotalNetProfit = ({ data }: StatsTotalNetProfitProps) => {
 
   return (
     <Stat className="flex-1 basis-1/4 min-w-0 relative">
-      <div
-        className="absolute top-1.5 right-2 tooltip tooltip-left tooltip-primary z-10"
-        data-tip="Uses the chaos:divine ratio from each session's time, not today's market value"
+      <Tooltip
+        as="div"
+        className="absolute top-1.5 right-2 z-10"
+        content="Uses the chaos:divine ratio from each session's time, not today's market value"
       >
         <FiInfo className="w-3 h-3 text-base-content/25 hover:text-base-content/50 transition-colors cursor-help" />
-      </div>
+      </Tooltip>
       <Stat.Title>Total Net Profit</Stat.Title>
       <Stat.Value className="text-lg tabular-nums">
         {formattedProfit}

@@ -151,18 +151,22 @@ describe("PoeNinjaColumnHeader", () => {
     });
   });
 
-  // ── Title attributes ──────────────────────────────────────────────────
+  // ── Sort tooltips ─────────────────────────────────────────────────────
 
-  describe("title attributes", () => {
-    it("has correct sort title on each badge", () => {
+  describe("sort tooltips", () => {
+    it("has the correct accessible name on each badge", () => {
       renderWithProviders(
         <PoeNinjaColumnHeader activeRarity={null} onRarityClick={vi.fn()} />,
       );
 
-      expect(screen.getByTitle("Sort by R1")).toBeInTheDocument();
-      expect(screen.getByTitle("Sort by R2")).toBeInTheDocument();
-      expect(screen.getByTitle("Sort by R3")).toBeInTheDocument();
-      expect(screen.getByTitle("Sort by R4")).toBeInTheDocument();
+      for (const rarity of [1, 2, 3, 4]) {
+        expect(
+          screen.getByRole("button", { name: `R${rarity}` }),
+        ).toBeInTheDocument();
+        expect(
+          document.querySelector(`[data-tip="Sort by R${rarity}"]`),
+        ).toBeInTheDocument();
+      }
     });
   });
 });
@@ -238,7 +242,7 @@ describe("PoeNinjaRarityCell", () => {
         <PoeNinjaRarityCell rarity={1} cardName="The Doctor" />,
       );
 
-      const tooltip = container.querySelector(".tooltip-warning");
+      const tooltip = container.querySelector("[data-tip]");
       expect(tooltip).not.toBeInTheDocument();
     });
 
@@ -247,7 +251,7 @@ describe("PoeNinjaRarityCell", () => {
         <PoeNinjaRarityCell rarity={2} cardName="The Nurse" />,
       );
 
-      const tooltip = container.querySelector(".tooltip-warning");
+      const tooltip = container.querySelector("[data-tip]");
       expect(tooltip).not.toBeInTheDocument();
     });
 
@@ -256,7 +260,7 @@ describe("PoeNinjaRarityCell", () => {
         <PoeNinjaRarityCell rarity={3} cardName="Some Card" />,
       );
 
-      const tooltip = container.querySelector(".tooltip-warning");
+      const tooltip = container.querySelector("[data-tip]");
       expect(tooltip).not.toBeInTheDocument();
     });
 
@@ -265,7 +269,7 @@ describe("PoeNinjaRarityCell", () => {
         <PoeNinjaRarityCell rarity={4} cardName="Some Card" />,
       );
 
-      const tooltip = container.querySelector(".tooltip-warning");
+      const tooltip = container.querySelector("[data-tip]");
       expect(tooltip).not.toBeInTheDocument();
     });
   });
@@ -430,8 +434,8 @@ describe("ProhibitedLibraryColumnHeader", () => {
     });
   });
 
-  describe("title attributes", () => {
-    it("has correct sort title on each badge", () => {
+  describe("sort tooltips", () => {
+    it("has the correct accessible name on each badge", () => {
       renderWithProviders(
         <ProhibitedLibraryColumnHeader
           activeRarity={null}
@@ -439,10 +443,14 @@ describe("ProhibitedLibraryColumnHeader", () => {
         />,
       );
 
-      expect(screen.getByTitle("Sort by R1")).toBeInTheDocument();
-      expect(screen.getByTitle("Sort by R2")).toBeInTheDocument();
-      expect(screen.getByTitle("Sort by R3")).toBeInTheDocument();
-      expect(screen.getByTitle("Sort by R4")).toBeInTheDocument();
+      for (const rarity of [1, 2, 3, 4]) {
+        expect(
+          screen.getByRole("button", { name: `R${rarity}` }),
+        ).toBeInTheDocument();
+        expect(
+          document.querySelector(`[data-tip="Sort by R${rarity}"]`),
+        ).toBeInTheDocument();
+      }
     });
   });
 });

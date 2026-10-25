@@ -39,7 +39,10 @@ describe("LeagueDeleteButton", () => {
     const button = screen.getByRole("button", {
       name: "Delete all data for Settlers",
     });
-    expect(button).toHaveAttribute("title", "Delete all data for Settlers");
+    expect(button).not.toHaveAttribute("title");
+    expect(
+      document.querySelector('[data-tip="Delete all data for Settlers"]'),
+    ).toBeInTheDocument();
     expect(button).not.toBeDisabled();
     expect(screen.getByTestId("trash-icon")).toBeInTheDocument();
 
@@ -58,13 +61,17 @@ describe("LeagueDeleteButton", () => {
       />,
     );
 
-    const button = screen.getByRole("button");
+    const button = screen.getByRole("button", {
+      name: "Cannot delete while session is active",
+    });
 
     expect(button).toBeDisabled();
-    expect(button).toHaveAttribute(
-      "title",
-      "Cannot delete while session is active",
-    );
+    expect(button).not.toHaveAttribute("title");
+    expect(
+      document.querySelector(
+        '[data-tip="Cannot delete while session is active"]',
+      ),
+    ).toBeInTheDocument();
 
     await user.click(button);
 

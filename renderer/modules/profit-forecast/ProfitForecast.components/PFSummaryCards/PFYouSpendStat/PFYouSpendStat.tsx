@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { FiEdit2, FiX } from "react-icons/fi";
 
 import { Stat } from "~/renderer/components";
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 import { useProfitForecast } from "~/renderer/store";
 
 import { formatDivine } from "../../../ProfitForecast.utils/ProfitForecast.utils";
@@ -131,18 +132,19 @@ const PFYouSpendStat = () => {
               {displayValue}
             </span>
             {canEdit && (
-              <button
+              <Tooltip
+                as="button"
                 type="button"
                 onClick={handleStartEditing}
                 className={clsx(
-                  "tooltip tooltip-bottom inline-flex items-center cursor-pointer",
+                  "inline-flex items-center cursor-pointer",
                   "rounded p-0.5 transition-colors",
                   "hover:bg-base-300/80",
                 )}
-                data-tip="Set custom spend"
+                content="Set custom spend"
               >
                 <FiEdit2 className="w-3.5 h-3.5 text-base-content/50 hover:text-base-content/80 transition-colors" />
-              </button>
+              </Tooltip>
             )}
           </span>
         ) : (
@@ -159,15 +161,16 @@ const PFYouSpendStat = () => {
             <span className="text-base-content/40 text-[11px]">
               avg {avgCostPerDeck.toFixed(2)}c / deck
             </span>
-            <button
+            <Tooltip
+              as="button"
               type="button"
               onClick={handleResetSpend}
               className="badge badge-xs badge-soft badge-info gap-0.5 cursor-pointer select-none hover:brightness-110 transition-all"
-              title="Reset to modeled spend"
+              content="Reset to modeled spend"
             >
               <FiX className="w-2.5 h-2.5" />
               Reset
-            </button>
+            </Tooltip>
           </span>
         ) : dataAvailable ? (
           `avg ${avgCostPerDeck.toFixed(2)}c / deck`

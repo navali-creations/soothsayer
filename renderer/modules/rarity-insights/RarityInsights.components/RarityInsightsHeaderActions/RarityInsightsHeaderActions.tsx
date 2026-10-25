@@ -2,6 +2,7 @@ import clsx from "clsx";
 import { FiLock, FiRefreshCw } from "react-icons/fi";
 
 import { Button, Countdown, Search } from "~/renderer/components";
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 import { formatTickingTimer, useTickingTimer } from "~/renderer/hooks";
 import { usePoeNinja, useSettings } from "~/renderer/store";
 
@@ -51,13 +52,11 @@ const RarityInsightsHeaderActions = ({
       />
 
       {/* Refresh poe.ninja prices button */}
-      <div
+      <Tooltip
+        as="div"
+        describeChild
         data-onboarding="rarity-insights-refresh"
-        className={clsx(
-          "tooltip tooltip-bottom",
-          isOnCooldown ? "tooltip-warning" : "tooltip-primary",
-        )}
-        data-tip={
+        content={
           isOnCooldown
             ? `Available in ${formatTickingTimer(cooldownTimer)}`
             : isRefreshing
@@ -89,7 +88,7 @@ const RarityInsightsHeaderActions = ({
             "Refresh poe.ninja"
           )}
         </Button>
-      </div>
+      </Tooltip>
 
       <RarityInsightsDropdown />
     </div>

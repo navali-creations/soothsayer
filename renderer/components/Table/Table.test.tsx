@@ -913,16 +913,17 @@ describe("Table – onRowClick", () => {
 // ─── 10. TableHeader with tooltip ─────────────────────────────────────────
 
 describe("TableHeader – with tooltip", () => {
-  it("renders tooltip wrapper with DaisyUI tooltip classes", () => {
+  it("renders the shared tooltip below the header", () => {
     renderWithProviders(
       <TableHeader tooltip="Some help text">Column Name</TableHeader>,
     );
 
-    const wrapper = screen.getByText("Column Name").closest(".tooltip");
+    const wrapper = screen
+      .getByText("Column Name")
+      .closest(".app-tooltip-trigger");
+    const tooltip = wrapper?.querySelector("[role='tooltip']");
     expect(wrapper).toBeInTheDocument();
-    expect(wrapper).toHaveClass("tooltip");
-    expect(wrapper).toHaveClass("tooltip-left");
-    expect(wrapper).toHaveClass("tooltip-primary");
+    expect(tooltip).toHaveClass("app-tooltip", "app-tooltip-bottom");
   });
 
   it("sets data-tip attribute to the tooltip value", () => {
@@ -958,7 +959,7 @@ describe("TableHeader – with tooltip", () => {
       </TableHeader>,
     );
 
-    const wrapper = screen.getByText("Header").closest(".tooltip");
+    const wrapper = screen.getByText("Header").closest(".app-tooltip-trigger");
     expect(wrapper).toHaveClass("extra-class");
   });
 
@@ -986,14 +987,13 @@ describe("TableHeader – with tooltip", () => {
 // ─── 11. TableHeader without tooltip ──────────────────────────────────────
 
 describe("TableHeader – without tooltip", () => {
-  it("renders a plain div wrapper without tooltip classes", () => {
+  it("renders a plain div wrapper without the shared tooltip", () => {
     renderWithProviders(<TableHeader>Plain Header</TableHeader>);
 
     const element = screen.getByText("Plain Header");
     expect(element.tagName).toBe("DIV");
-    expect(element).not.toHaveClass("tooltip");
-    expect(element).not.toHaveClass("tooltip-left");
-    expect(element).not.toHaveClass("tooltip-primary");
+    expect(element).not.toHaveClass("app-tooltip-trigger");
+    expect(document.querySelector("[role='tooltip']")).not.toBeInTheDocument();
   });
 
   it("does not render a <sup>?</sup> indicator", () => {

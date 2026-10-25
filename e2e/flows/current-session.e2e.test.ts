@@ -532,9 +532,9 @@ test.describe("Current Session", () => {
       await waitForOverlayState(page, true);
 
       const overlayPage = await getOverlayPage(app);
-      await expect(overlayPage.getByText("The Doctor")).toBeVisible({
-        timeout: 10_000,
-      });
+      await expect(
+        overlayPage.locator('[data-tip="View The Doctor details"]'),
+      ).toContainText("The Doctor", { timeout: 10_000 });
 
       const doctorRow = page
         .locator("table tbody tr")

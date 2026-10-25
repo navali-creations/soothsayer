@@ -271,7 +271,7 @@ describe("AudioSettingsCard", () => {
     expect(selects).toHaveLength(3);
 
     // 3 preview buttons (one per rarity)
-    const previewButtons = screen.getAllByTitle("Preview");
+    const previewButtons = screen.getAllByRole("button", { name: "Preview" });
     expect(previewButtons).toHaveLength(3);
   });
 
@@ -418,7 +418,9 @@ describe("AudioSettingsCard", () => {
     });
     renderWithProviders(<AudioSettingsCard />);
 
-    const resetButtons = screen.getAllByTitle("Reset to default");
+    const resetButtons = screen.getAllByRole("button", {
+      name: "Reset to default",
+    });
     expect(resetButtons.length).toBeGreaterThanOrEqual(1);
   });
 
@@ -432,7 +434,9 @@ describe("AudioSettingsCard", () => {
     });
     renderWithProviders(<AudioSettingsCard />);
 
-    expect(screen.queryAllByTitle("Reset to default")).toHaveLength(0);
+    expect(
+      screen.queryAllByRole("button", { name: "Reset to default" }),
+    ).toHaveLength(0);
   });
 
   it("clicking reset button calls updateSetting with null for that rarity", async () => {
@@ -446,7 +450,9 @@ describe("AudioSettingsCard", () => {
     });
     const { user } = renderWithProviders(<AudioSettingsCard />);
 
-    const resetButton = screen.getAllByTitle("Reset to default")[0];
+    const resetButton = screen.getAllByRole("button", {
+      name: "Reset to default",
+    })[0];
     await user.click(resetButton);
 
     await waitFor(() => {
@@ -468,7 +474,7 @@ describe("AudioSettingsCard", () => {
     });
     const { user } = renderWithProviders(<AudioSettingsCard />);
 
-    const previewButtons = screen.getAllByTitle("Preview");
+    const previewButtons = screen.getAllByRole("button", { name: "Preview" });
     await user.click(previewButtons[0]);
 
     await waitFor(() => {
@@ -501,7 +507,7 @@ describe("AudioSettingsCard", () => {
     ).mockResolvedValue("data:audio/mp3;base64,abc123");
     const { user } = renderWithProviders(<AudioSettingsCard />);
 
-    const previewButtons = screen.getAllByTitle("Preview");
+    const previewButtons = screen.getAllByRole("button", { name: "Preview" });
     await user.click(previewButtons[0]);
 
     await waitFor(() => {
@@ -539,7 +545,7 @@ describe("AudioSettingsCard", () => {
     ).mockResolvedValue(null);
     const { user } = renderWithProviders(<AudioSettingsCard />);
 
-    const previewButtons = screen.getAllByTitle("Preview");
+    const previewButtons = screen.getAllByRole("button", { name: "Preview" });
     await user.click(previewButtons[0]);
 
     await waitFor(() => {
@@ -565,7 +571,7 @@ describe("AudioSettingsCard", () => {
     });
     const { user } = renderWithProviders(<AudioSettingsCard />);
 
-    const previewButtons = screen.getAllByTitle("Preview");
+    const previewButtons = screen.getAllByRole("button", { name: "Preview" });
     await user.click(previewButtons[0]);
 
     await waitFor(() => {
@@ -587,7 +593,7 @@ describe("AudioSettingsCard", () => {
     });
     const { user } = renderWithProviders(<AudioSettingsCard />);
 
-    const previewButtons = screen.getAllByTitle("Preview");
+    const previewButtons = screen.getAllByRole("button", { name: "Preview" });
     await user.click(previewButtons[0]);
 
     await waitFor(() => {
@@ -629,7 +635,7 @@ describe("AudioSettingsCard", () => {
       mockAudioInstances.push(this);
     });
 
-    const previewButtons = screen.getAllByTitle("Preview");
+    const previewButtons = screen.getAllByRole("button", { name: "Preview" });
     await user.click(previewButtons[0]);
 
     await waitFor(() => {
@@ -655,7 +661,7 @@ describe("AudioSettingsCard", () => {
     });
     const { user } = renderWithProviders(<AudioSettingsCard />);
 
-    const previewButtons = screen.getAllByTitle("Preview");
+    const previewButtons = screen.getAllByRole("button", { name: "Preview" });
 
     // Click preview for rarity 1
     await user.click(previewButtons[0]);
@@ -686,7 +692,7 @@ describe("AudioSettingsCard", () => {
     });
     const { unmount, user } = renderWithProviders(<AudioSettingsCard />);
 
-    const previewButtons = screen.getAllByTitle("Preview");
+    const previewButtons = screen.getAllByRole("button", { name: "Preview" });
     await user.click(previewButtons[0]);
 
     await waitFor(() => {

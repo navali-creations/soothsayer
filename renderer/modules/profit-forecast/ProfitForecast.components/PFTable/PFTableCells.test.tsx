@@ -178,29 +178,27 @@ describe("PFExcludeCell", () => {
     expect(screen.getByRole("checkbox")).not.toHaveClass("checkbox-info");
   });
 
-  it("title: manually included when userOverride + autoExcluded (anomalous)", () => {
+  it("describes manually included anomalous cards", () => {
     setupStore();
     const row = makeRow({ userOverride: true, isAnomalous: true });
     renderWithProviders(<PFExcludeCell {...makeCellContext(row)} />);
 
-    expect(screen.getByRole("checkbox")).toHaveAttribute(
-      "title",
+    expect(screen.getByRole("checkbox")).toHaveAccessibleName(
       "Manually included — auto-detection would exclude this card. Click to revert",
     );
   });
 
-  it("title: manually excluded when userOverride + low confidence (confidence no longer auto-excludes)", () => {
+  it("describes manually excluded low-confidence cards", () => {
     setupStore();
     const row = makeRow({ userOverride: true, confidence: 3 });
     renderWithProviders(<PFExcludeCell {...makeCellContext(row)} />);
 
-    expect(screen.getByRole("checkbox")).toHaveAttribute(
-      "title",
+    expect(screen.getByRole("checkbox")).toHaveAccessibleName(
       "Manually excluded from EV calculations. Click to revert",
     );
   });
 
-  it("title: manually excluded when userOverride + normal card", () => {
+  it("describes manually excluded normal cards", () => {
     setupStore();
     const row = makeRow({
       userOverride: true,
@@ -209,13 +207,12 @@ describe("PFExcludeCell", () => {
     });
     renderWithProviders(<PFExcludeCell {...makeCellContext(row)} />);
 
-    expect(screen.getByRole("checkbox")).toHaveAttribute(
-      "title",
+    expect(screen.getByRole("checkbox")).toHaveAccessibleName(
       "Manually excluded from EV calculations. Click to revert",
     );
   });
 
-  it("title: auto-excluded when not userOverride and autoExcluded", () => {
+  it("describes automatically excluded cards", () => {
     setupStore();
     const row = makeRow({
       userOverride: false,
@@ -223,13 +220,12 @@ describe("PFExcludeCell", () => {
     });
     renderWithProviders(<PFExcludeCell {...makeCellContext(row)} />);
 
-    expect(screen.getByRole("checkbox")).toHaveAttribute(
-      "title",
+    expect(screen.getByRole("checkbox")).toHaveAccessibleName(
       "Auto-excluded — click to override and include in EV calculations",
     );
   });
 
-  it("title: included when not userOverride and not autoExcluded", () => {
+  it("describes included cards", () => {
     setupStore();
     const row = makeRow({
       userOverride: false,
@@ -238,8 +234,7 @@ describe("PFExcludeCell", () => {
     });
     renderWithProviders(<PFExcludeCell {...makeCellContext(row)} />);
 
-    expect(screen.getByRole("checkbox")).toHaveAttribute(
-      "title",
+    expect(screen.getByRole("checkbox")).toHaveAccessibleName(
       "Included in EV calculations — click to exclude",
     );
   });
@@ -258,12 +253,12 @@ describe("PFStatusCell", () => {
       <PFStatusCell {...makeCellContext(row)} />,
     );
 
-    // FiCheckCircle renders as an SVG; tooltip has tooltip-info class
-    const tooltip = container.querySelector(".tooltip-info");
+    const tooltip = container.querySelector(
+      '[data-tip="Manually included — auto-detection flagged anomalous price"]',
+    );
     expect(tooltip).toBeInTheDocument();
-    expect(tooltip).toHaveAttribute(
-      "data-tip",
-      "Manually included — auto-detection flagged anomalous price",
+    expect(tooltip?.querySelector("[role='tooltip']")).toHaveClass(
+      "app-tooltip",
     );
   });
 
@@ -273,7 +268,7 @@ describe("PFStatusCell", () => {
       <PFStatusCell {...makeCellContext(row)} />,
     );
 
-    const tooltip = container.querySelector(".tooltip");
+    const tooltip = container.querySelector("[data-tip]");
     expect(tooltip).toBeInTheDocument();
     expect(tooltip).toHaveAttribute(
       "data-tip",
@@ -291,7 +286,7 @@ describe("PFStatusCell", () => {
       <PFStatusCell {...makeCellContext(row)} />,
     );
 
-    const tooltip = container.querySelector(".tooltip");
+    const tooltip = container.querySelector("[data-tip]");
     expect(tooltip).toBeInTheDocument();
     expect(tooltip).toHaveAttribute(
       "data-tip",
@@ -305,7 +300,7 @@ describe("PFStatusCell", () => {
       <PFStatusCell {...makeCellContext(row)} />,
     );
 
-    const tooltip = container.querySelector(".tooltip-error");
+    const tooltip = container.querySelector("[data-tip]");
     expect(tooltip).toBeInTheDocument();
     expect(tooltip).toHaveAttribute(
       "data-tip",
@@ -323,7 +318,7 @@ describe("PFStatusCell", () => {
       <PFStatusCell {...makeCellContext(row)} />,
     );
 
-    const tooltip = container.querySelector(".tooltip-warning");
+    const tooltip = container.querySelector("[data-tip]");
     expect(tooltip).toBeInTheDocument();
     expect(tooltip).toHaveAttribute(
       "data-tip",

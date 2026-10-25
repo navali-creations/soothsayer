@@ -1,5 +1,6 @@
 import { FiInfo } from "react-icons/fi";
 
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 import { usePoeNinja, useProfitForecast } from "~/renderer/store";
 
 const PFStepDropSlider = () => {
@@ -32,20 +33,14 @@ const PFStepDropSlider = () => {
           Price increase per batch
         </span>
         {hasFixedCostOverride && (
-          <span
-            className="tooltip tooltip-right"
-            data-tip="Locked at 0 — custom pricing means you pay a fixed price per deck."
-          >
+          <Tooltip content="Locked at 0 — custom pricing means you pay a fixed price per deck.">
             <FiInfo className="w-3 h-3 text-info" />
-          </span>
+          </Tooltip>
         )}
         {!hasFixedCostOverride && selectedBatch <= 1000 && (
-          <span
-            className="tooltip tooltip-right"
-            data-tip="Disabled — only one batch at 1k decks, so the rate never drops."
-          >
+          <Tooltip content="Disabled — only one batch at 1k decks, so the rate never drops.">
             <FiInfo className="w-3 h-3 text-info" />
-          </span>
+          </Tooltip>
         )}
       </div>
       <input

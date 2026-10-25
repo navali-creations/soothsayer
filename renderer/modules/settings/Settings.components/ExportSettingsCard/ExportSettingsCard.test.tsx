@@ -102,7 +102,9 @@ describe("ExportSettingsCard", () => {
     const { user } = renderWithProviders(<ExportSettingsCard />);
 
     // Click the reveal button
-    const revealButton = screen.getByTitle("Reveal full path");
+    const revealButton = screen.getByRole("button", {
+      name: "Reveal full path",
+    });
     await user.click(revealButton);
 
     const input = screen.getByRole("textbox");
@@ -114,14 +116,16 @@ describe("ExportSettingsCard", () => {
     const { user } = renderWithProviders(<ExportSettingsCard />);
 
     // Click reveal
-    const revealButton = screen.getByTitle("Reveal full path");
+    const revealButton = screen.getByRole("button", {
+      name: "Reveal full path",
+    });
     await user.click(revealButton);
 
     // Verify full path is shown
     expect(screen.getByRole("textbox")).toHaveValue("/home/user/my-exports");
 
     // Click hide
-    const hideButton = screen.getByTitle("Hide full path");
+    const hideButton = screen.getByRole("button", { name: "Hide full path" });
     await user.click(hideButton);
 
     // Verify masked path is shown again

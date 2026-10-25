@@ -31,21 +31,23 @@ describe("TrackingInfoAlert", () => {
     expect(kbd).toHaveClass("kbd");
   });
 
-  it('includes a tooltip with "Right click" data-tip attribute', () => {
+  it('includes a tooltip with "Right mouse button" data-tip attribute', () => {
     renderWithProviders(<TrackingInfoAlert />);
 
     const rightClickTooltip = document.querySelector(
-      '[data-tip="Right click"]',
+      '[data-tip="Right mouse button"]',
     );
     expect(rightClickTooltip).toBeInTheDocument();
-    expect(rightClickTooltip).toHaveClass("tooltip");
+    expect(rightClickTooltip).toHaveClass("app-tooltip-trigger");
   });
 
-  it('includes a tooltip with "Left click" data-tip attribute', () => {
+  it('includes a tooltip with "Left mouse button" data-tip attribute', () => {
     renderWithProviders(<TrackingInfoAlert />);
 
-    const leftClickTooltip = document.querySelector('[data-tip="Left click"]');
+    const leftClickTooltip = document.querySelector(
+      '[data-tip="Left mouse button"]',
+    );
     expect(leftClickTooltip).toBeInTheDocument();
-    expect(leftClickTooltip).toHaveClass("tooltip");
+    expect(leftClickTooltip).toHaveClass("app-tooltip-trigger");
   });
 });

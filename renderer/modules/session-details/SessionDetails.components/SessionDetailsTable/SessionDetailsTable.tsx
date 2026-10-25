@@ -5,6 +5,7 @@ import { FiEye, FiEyeOff } from "react-icons/fi";
 
 import { DivinationCard, Table } from "~/renderer/components";
 import CardNameLink from "~/renderer/components/CardNameLink/CardNameLink";
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 import { usePopover } from "~/renderer/hooks/usePopover/usePopover";
 import { useSessionDetails } from "~/renderer/store";
 import { formatCurrency } from "~/renderer/utils";
@@ -83,33 +84,31 @@ const SessionDetailsTable = () => {
       columnHelper.display({
         id: "visibility",
         header: () => (
-          <div
-            className="tooltip tooltip-right"
-            data-tip="Toggle price visibility (affects totals)"
-          >
+          <Tooltip as="div" content="Toggle price visibility (affects totals)">
             <FiEye className="opacity-50" />
-          </div>
+          </Tooltip>
         ),
         cell: (info) => {
           const row = info.row.original;
           const isHidden = row.hidePrice || false;
+          const tooltip = isHidden
+            ? "Click to include in totals"
+            : "Click to exclude from totals";
 
           return (
-            <button
-              className="btn btn-ghost btn-xs"
-              onClick={() => toggleCardPriceVisibility(row.name)}
-              title={
-                isHidden
-                  ? "Click to include in totals"
-                  : "Click to exclude from totals"
-              }
-            >
-              {isHidden ? (
-                <FiEyeOff className="text-error" />
-              ) : (
-                <FiEye className="text-success" />
-              )}
-            </button>
+            <Tooltip as="div" content={tooltip} describeChild>
+              <button
+                aria-label={tooltip}
+                className="btn btn-ghost btn-xs"
+                onClick={() => toggleCardPriceVisibility(row.name)}
+              >
+                {isHidden ? (
+                  <FiEyeOff className="text-error" />
+                ) : (
+                  <FiEye className="text-success" />
+                )}
+              </button>
+            </Tooltip>
           );
         },
       }),
@@ -131,12 +130,12 @@ const SessionDetailsTable = () => {
       }),
       columnHelper.accessor("ratio", {
         header: () => (
-          <div
-            className="tooltip tooltip-right tooltip-primary"
-            data-tip="How often this card appeared compared to all other cards"
+          <Tooltip
+            as="div"
+            content="How often this card appeared compared to all other cards"
           >
             Ratio
-          </div>
+          </Tooltip>
         ),
         cell: (info) => {
           const row = info.row.original;

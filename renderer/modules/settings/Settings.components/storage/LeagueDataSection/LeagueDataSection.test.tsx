@@ -409,7 +409,7 @@ describe("LeagueDataSection", () => {
     expect(onDeleteRequest).toHaveBeenCalledWith(league);
   });
 
-  it('shows "Cannot delete" title on button when hasActiveSession', () => {
+  it('shows a "Cannot delete" tooltip when hasActiveSession', () => {
     const leagues = [
       createLeague({
         hasActiveSession: true,
@@ -421,19 +421,19 @@ describe("LeagueDataSection", () => {
       <LeagueDataSection {...defaultProps} leagueUsage={leagues} />,
     );
 
-    const buttons = screen.getAllByRole("button");
-    const deleteBtn = buttons.find(
-      (btn) =>
-        btn.querySelector('[data-testid="icon-trash"]') !== null ||
-        btn.querySelector(".loading-spinner") !== null,
-    );
-    expect(deleteBtn).toHaveAttribute(
-      "title",
-      "Cannot delete while session is active",
-    );
+    expect(
+      screen.getByRole("button", {
+        name: "Cannot delete while session is active",
+      }),
+    ).not.toHaveAttribute("title");
+    expect(
+      document.querySelector(
+        '[data-tip="Cannot delete while session is active"]',
+      ),
+    ).toBeInTheDocument();
   });
 
-  it("shows delete title with league name when no active session", () => {
+  it("shows a delete tooltip with the league name when no session is active", () => {
     const leagues = [
       createLeague({
         hasActiveSession: false,
@@ -445,11 +445,12 @@ describe("LeagueDataSection", () => {
       <LeagueDataSection {...defaultProps} leagueUsage={leagues} />,
     );
 
-    const buttons = screen.getAllByRole("button");
-    const deleteBtn = buttons.find(
-      (btn) => btn.querySelector('[data-testid="icon-trash"]') !== null,
-    );
-    expect(deleteBtn).toHaveAttribute("title", "Delete all data for Settlers");
+    expect(
+      screen.getByRole("button", { name: "Delete all data for Settlers" }),
+    ).not.toHaveAttribute("title");
+    expect(
+      document.querySelector('[data-tip="Delete all data for Settlers"]'),
+    ).toBeInTheDocument();
   });
 
   // ── Multiple leagues in single game ────────────────────────────────────

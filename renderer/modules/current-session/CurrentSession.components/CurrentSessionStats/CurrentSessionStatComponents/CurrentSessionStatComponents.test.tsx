@@ -739,13 +739,12 @@ describe("CurrentSessionNetProfitStat", () => {
     expect(screen.getByTestId("mini-profit-sparkline")).toBeInTheDocument();
   });
 
-  it("renders tooltip title on Net Profit text", () => {
+  it("renders a tooltip on Net Profit text", () => {
     setupStore({ session: createSession() });
     renderWithProviders(<CurrentSessionNetProfitStat />);
 
-    expect(screen.getByText("Net Profit")).toHaveAttribute(
-      "title",
-      "Total Value minus the cost of Stacked Decks opened. Represents actual profit if you purchased the decks.",
-    );
+    expect(
+      document.querySelector('[data-tip*="Total Value minus the cost"]'),
+    ).toBeInTheDocument();
   });
 });

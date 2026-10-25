@@ -583,12 +583,12 @@ describe("SessionDetailsNetProfitStat", () => {
     expect(screen.getByText("-50.00c")).toBeInTheDocument();
   });
 
-  it("has a tooltip title explaining net profit", () => {
+  it("has a tooltip explaining net profit", () => {
     renderWithProviders(<SessionDetailsNetProfitStat />);
 
-    const titleSpan = screen.getByText("Net Profit");
-    expect(titleSpan).toHaveAttribute("title");
-    expect(titleSpan.getAttribute("title")).toContain("Stacked Decks");
+    expect(
+      document.querySelector('[data-tip*="Total Value minus the cost"]'),
+    ).toBeInTheDocument();
   });
 
   it("renders info icon button", () => {

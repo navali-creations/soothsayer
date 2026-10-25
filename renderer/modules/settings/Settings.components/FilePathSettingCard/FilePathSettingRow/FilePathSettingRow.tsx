@@ -2,6 +2,7 @@ import { FiEye, FiEyeOff, FiFolder } from "react-icons/fi";
 
 import { maskPath } from "~/main/utils/mask-path";
 import { Button } from "~/renderer/components";
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 
 import type { FilePathSetting } from "../../../Settings.types";
 
@@ -49,18 +50,20 @@ export function FilePathSettingRow({
           />
         </label>
         {hasPath && (
-          <button
+          <Tooltip
+            as="button"
             type="button"
+            aria-label={isRevealed ? "Hide full path" : "Reveal full path"}
             onClick={handleRevealToggle}
             className="btn btn-ghost btn-sm btn-square join-item text-base-content/50 hover:text-base-content/80"
-            title={isRevealed ? "Hide full path" : "Reveal full path"}
+            content={isRevealed ? "Hide full path" : "Reveal full path"}
           >
             {isRevealed ? (
               <FiEyeOff className="w-4 h-4" />
             ) : (
               <FiEye className="w-4 h-4" />
             )}
-          </button>
+          </Tooltip>
         )}
         <Button
           variant="primary"
@@ -68,7 +71,8 @@ export function FilePathSettingRow({
           square
           className="join-item"
           onClick={setting.onSelect}
-          title={`Select ${setting.label}`}
+          aria-label={`Select ${setting.label}`}
+          tooltip={`Select ${setting.label}`}
         >
           <FiFolder />
         </Button>

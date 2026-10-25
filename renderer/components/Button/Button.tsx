@@ -1,6 +1,8 @@
 import clsx from "clsx";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
+
 type ButtonVariant =
   | "primary"
   | "secondary"
@@ -29,6 +31,8 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   active?: boolean;
   soft?: boolean;
   className?: string;
+  tooltip?: ReactNode;
+  tooltipPlacement?: "top" | "bottom" | "left" | "right";
 }
 
 const Button = ({
@@ -46,28 +50,47 @@ const Button = ({
   active = false,
   soft = false,
   className,
+  tooltip,
+  tooltipPlacement = "bottom",
   ...props
 }: ButtonProps) => {
+  const buttonClassName = clsx(
+    "no-drag",
+    "btn",
+    variant && `btn-${variant}`,
+    size && `btn-${size}`,
+    {
+      "btn-outline": outline,
+      "btn-soft": soft,
+      "btn-wide": wide,
+      "btn-block": block,
+      "btn-circle": circle,
+      "btn-square": square,
+      glass: glass,
+      loading: loading,
+      "btn-active": active,
+    },
+    className,
+  );
+
+  if (tooltip) {
+    return (
+      <Tooltip
+        as="button"
+        className={buttonClassName}
+        content={tooltip}
+        disabled={disabled || loading}
+        placement={tooltipPlacement}
+        {...props}
+      >
+        {children}
+      </Tooltip>
+    );
+  }
+
   return (
     <button
-      className={clsx(
-        "no-drag",
-        "btn",
-        variant && `btn-${variant}`,
-        size && `btn-${size}`,
-        {
-          "btn-outline": outline,
-          "btn-soft": soft,
-          "btn-wide": wide,
-          "btn-block": block,
-          "btn-circle": circle,
-          "btn-square": square,
-          glass: glass,
-          loading: loading,
-          "btn-active": active,
-        },
-        className,
-      )}
+      className={buttonClassName}
       disabled={disabled || loading}
       {...props}
     >

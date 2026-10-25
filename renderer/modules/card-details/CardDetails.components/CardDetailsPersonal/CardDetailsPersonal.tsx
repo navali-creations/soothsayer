@@ -1,4 +1,5 @@
 import { GroupedStats, Stat } from "~/renderer/components";
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 import { useCardDetails } from "~/renderer/store";
 
 import { formatRelativeDate } from "../../helpers";
@@ -53,13 +54,15 @@ const CardDetailsPersonal = () => {
               <Stat.Desc>Across all sessions</Stat.Desc>
             </Stat>
 
-            <Stat
-              className="flex-1 basis-1/4"
-              title={personalAnalytics.lastSeenAt ?? undefined}
-            >
+            <Stat className="flex-1 basis-1/4">
               <Stat.Title>Last Seen</Stat.Title>
               <Stat.Value className="text-lg">
-                {lastSeen?.relative ?? "—"}
+                <Tooltip
+                  content={personalAnalytics.lastSeenAt ?? ""}
+                  disableTooltip={!personalAnalytics.lastSeenAt}
+                >
+                  {lastSeen?.relative ?? "—"}
+                </Tooltip>
               </Stat.Value>
               <Stat.Desc>{lastSeen?.absolute ?? "\u00a0"}</Stat.Desc>
             </Stat>

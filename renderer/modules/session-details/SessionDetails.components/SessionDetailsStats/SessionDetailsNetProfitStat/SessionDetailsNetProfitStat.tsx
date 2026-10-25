@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { FiInfo, FiMaximize2, FiMinimize2 } from "react-icons/fi";
 
 import { Stat, StaticProfitSparkline } from "~/renderer/components";
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 import { buildLinePoints } from "~/renderer/modules/current-session/CurrentSession.components/SessionProfitTimeline/utils/utils";
 import { useSessionDetails } from "~/renderer/store";
 import { formatCurrency } from "~/renderer/utils";
@@ -55,9 +56,10 @@ export const SessionDetailsNetProfitStat = ({
 
       {/* Info & Enlarge icons — top-right corner */}
       <div className="absolute top-1.5 right-1.5 z-20 flex items-center gap-0.5">
-        <div
-          className="tooltip tooltip-bottom tooltip-primary"
-          data-tip="The sparkline shows your net profit over time. Notable card drops appear as vertical bars on the expanded timeline."
+        <Tooltip
+          as="div"
+          content="The sparkline shows your net profit over time. Notable card drops appear as vertical bars on the expanded timeline."
+          describeChild
         >
           <button
             type="button"
@@ -65,11 +67,12 @@ export const SessionDetailsNetProfitStat = ({
           >
             <FiInfo size={12} />
           </button>
-        </div>
+        </Tooltip>
         {hasTimeline && onToggleExpanded && (
-          <div
-            className="tooltip tooltip-bottom tooltip-primary"
-            data-tip={expanded ? "Collapse timeline" : "Expand timeline"}
+          <Tooltip
+            as="div"
+            content={expanded ? "Collapse timeline" : "Expand timeline"}
+            describeChild
           >
             <button
               type="button"
@@ -78,18 +81,18 @@ export const SessionDetailsNetProfitStat = ({
             >
               {expanded ? <FiMinimize2 size={12} /> : <FiMaximize2 size={12} />}
             </button>
-          </div>
+          </Tooltip>
         )}
       </div>
 
       <div className="relative z-10">
         <Stat.Title>
-          <span
+          <Tooltip
             className="underline decoration-dotted cursor-help"
-            title="Total Value minus the cost of Stacked Decks opened. Represents actual profit if you purchased the decks."
+            content="Total Value minus the cost of Stacked Decks opened. Represents actual profit if you purchased the decks."
           >
             Net Profit
-          </span>
+          </Tooltip>
         </Stat.Title>
         <Stat.Value
           className={`tabular-nums ${

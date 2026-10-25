@@ -4,6 +4,9 @@ import type { DivinationCardMetadata } from "~/types/data-stores";
 
 import DivinationCard from "./DivinationCard";
 
+const queryTooltipTrigger = (content: string) =>
+  document.querySelector(`[data-tip="${content}"]`);
+
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 const mockMouseEffects = {
@@ -118,7 +121,7 @@ describe("DivinationCard", () => {
       renderWithProviders(<DivinationCard card={card} />);
 
       expect(
-        screen.queryByTitle("Boss-exclusive card"),
+        queryTooltipTrigger("Boss-exclusive card"),
       ).not.toBeInTheDocument();
     });
 
@@ -188,7 +191,7 @@ describe("DivinationCard", () => {
       });
       renderWithProviders(<DivinationCard card={card} />);
 
-      expect(screen.getByTitle("Boss-exclusive card")).toBeInTheDocument();
+      expect(queryTooltipTrigger("Boss-exclusive card")).toBeInTheDocument();
     });
 
     it("hides BossIndicator when fromBoss is false", () => {
@@ -199,7 +202,7 @@ describe("DivinationCard", () => {
       renderWithProviders(<DivinationCard card={card} />);
 
       expect(
-        screen.queryByTitle("Boss-exclusive card"),
+        queryTooltipTrigger("Boss-exclusive card"),
       ).not.toBeInTheDocument();
     });
 
@@ -208,7 +211,7 @@ describe("DivinationCard", () => {
       renderWithProviders(<DivinationCard card={card} />);
 
       expect(
-        screen.queryByTitle("Boss-exclusive card"),
+        queryTooltipTrigger("Boss-exclusive card"),
       ).not.toBeInTheDocument();
     });
 
@@ -220,7 +223,7 @@ describe("DivinationCard", () => {
       renderWithProviders(<DivinationCard card={card} />);
 
       expect(
-        screen.getByTitle(
+        queryTooltipTrigger(
           "This card is drop-disabled and cannot currently be obtained",
         ),
       ).toBeInTheDocument();
@@ -234,7 +237,7 @@ describe("DivinationCard", () => {
       renderWithProviders(<DivinationCard card={card} />);
 
       expect(
-        screen.queryByTitle(
+        queryTooltipTrigger(
           "This card is drop-disabled and cannot currently be obtained",
         ),
       ).not.toBeInTheDocument();
@@ -381,10 +384,10 @@ describe("DivinationCard", () => {
         "4",
       );
       expect(
-        screen.queryByTitle("Boss-exclusive card"),
+        queryTooltipTrigger("Boss-exclusive card"),
       ).not.toBeInTheDocument();
       expect(
-        screen.queryByTitle(
+        queryTooltipTrigger(
           "This card is drop-disabled and cannot currently be obtained",
         ),
       ).not.toBeInTheDocument();

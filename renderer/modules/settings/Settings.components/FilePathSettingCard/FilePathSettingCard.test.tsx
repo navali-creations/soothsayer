@@ -136,7 +136,9 @@ describe("FilePathSettingCard", () => {
     expect(input).toHaveValue("***masked***");
 
     // Click reveal button
-    const revealButton = screen.getByTitle("Reveal full path");
+    const revealButton = screen.getByRole("button", {
+      name: "Reveal full path",
+    });
     await user.click(revealButton);
 
     expect(input).toHaveValue(fullPath);
@@ -161,13 +163,15 @@ describe("FilePathSettingCard", () => {
     );
 
     // Click reveal
-    const revealButton = screen.getByTitle("Reveal full path");
+    const revealButton = screen.getByRole("button", {
+      name: "Reveal full path",
+    });
     await user.click(revealButton);
 
     expect(screen.getByRole("textbox")).toHaveValue(fullPath);
 
     // Click hide
-    const hideButton = screen.getByTitle("Hide full path");
+    const hideButton = screen.getByRole("button", { name: "Hide full path" });
     await user.click(hideButton);
 
     expect(screen.getByRole("textbox")).toHaveValue("***masked***");
@@ -188,8 +192,12 @@ describe("FilePathSettingCard", () => {
 
     renderWithProviders(<FilePathSettingCard category={category} />);
 
-    expect(screen.queryByTitle("Reveal full path")).not.toBeInTheDocument();
-    expect(screen.queryByTitle("Hide full path")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Reveal full path" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Hide full path" }),
+    ).not.toBeInTheDocument();
   });
 
   // ── Browse button ─────────────────────────────────────────────────────
@@ -246,7 +254,9 @@ describe("FilePathSettingCard", () => {
     );
 
     const inputs = screen.getAllByRole("textbox");
-    const revealButtons = screen.getAllByTitle("Reveal full path");
+    const revealButtons = screen.getAllByRole("button", {
+      name: "Reveal full path",
+    });
 
     // Both initially masked
     expect(inputs[0]).toHaveValue("***masked***");

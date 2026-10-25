@@ -279,9 +279,9 @@ test.describe("Settings – Cards (Data)", () => {
       expect(displayValue.length).toBeGreaterThan(0);
 
       // Look for a button with the reveal/hide title specifically
-      const revealToggle = refreshedCard.locator(
-        'button[title="Reveal full path"], button[title="Hide full path"]',
-      );
+      const revealToggle = refreshedCard.getByRole("button", {
+        name: /^(Reveal|Hide) full path$/,
+      });
       await expect(revealToggle.first()).toBeVisible({ timeout: 5_000 });
 
       // Click the reveal toggle to show the full path

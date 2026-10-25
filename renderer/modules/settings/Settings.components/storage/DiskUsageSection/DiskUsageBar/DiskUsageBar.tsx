@@ -1,6 +1,8 @@
 import clsx from "clsx";
 import { FiEye, FiEyeOff } from "react-icons/fi";
 
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
+
 import {
   formatBytes,
   formatPercentage,
@@ -39,18 +41,20 @@ export function DiskUsageBar({
             {path}
           </p>
           {onRevealToggle && (
-            <button
+            <Tooltip
+              as="button"
               type="button"
+              aria-label={isRevealed ? "Hide full path" : "Reveal full path"}
               onClick={onRevealToggle}
               className="shrink-0 text-base-content/40 transition-colors hover:text-base-content/70"
-              title={isRevealed ? "Hide full path" : "Reveal full path"}
+              content={isRevealed ? "Hide full path" : "Reveal full path"}
             >
               {isRevealed ? (
                 <FiEyeOff className="h-3 w-3" />
               ) : (
                 <FiEye className="h-3 w-3" />
               )}
-            </button>
+            </Tooltip>
           )}
         </div>
       )}
@@ -59,15 +63,19 @@ export function DiskUsageBar({
           const pct = totalBytes > 0 ? (segment.bytes / totalBytes) * 100 : 0;
           if (pct < 0.01) return null;
           return (
-            <div
+            <Tooltip
+              as="div"
               key={segment.label}
               className={clsx(
                 segment.colorClass,
                 "h-2.5 transition-all duration-300 first:rounded-l-full last:rounded-r-full",
               )}
               style={{ width: `${Math.max(pct, 0.3)}%` }}
-              title={`${segment.label}: ${formatBytes(segment.bytes)}`}
-            />
+              aria-label={`${segment.label}: ${formatBytes(segment.bytes)}`}
+              content={`${segment.label}: ${formatBytes(segment.bytes)}`}
+            >
+              {null}
+            </Tooltip>
           );
         })}
       </div>

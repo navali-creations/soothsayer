@@ -198,9 +198,9 @@ describe("RarityInsightsHeaderActions", () => {
         <RarityInsightsHeaderActions onGlobalFilterChange={vi.fn()} />,
       );
 
-      const refreshingButton = screen
-        .getByText("Refreshing...")
-        .closest("button");
+      const refreshingButton = screen.getByRole("button", {
+        name: "Refreshing...",
+      });
       expect(refreshingButton).toBeDisabled();
     });
 
@@ -210,7 +210,9 @@ describe("RarityInsightsHeaderActions", () => {
         <RarityInsightsHeaderActions onGlobalFilterChange={vi.fn()} />,
       );
 
-      expect(screen.getByText("Refreshing...")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Refreshing..." }),
+      ).toBeInTheDocument();
     });
 
     it("calls refreshPrices when clicked", async () => {
@@ -232,9 +234,9 @@ describe("RarityInsightsHeaderActions", () => {
         <RarityInsightsHeaderActions onGlobalFilterChange={vi.fn()} />,
       );
 
-      const refreshingButton = screen
-        .getByText("Refreshing...")
-        .closest("button");
+      const refreshingButton = screen.getByRole("button", {
+        name: "Refreshing...",
+      });
       expect(refreshingButton).toBeDisabled();
     });
 

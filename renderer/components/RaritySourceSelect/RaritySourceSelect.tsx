@@ -2,6 +2,8 @@ import clsx from "clsx";
 import { useCallback, useId, useRef } from "react";
 import { FiAlertTriangle, FiChevronDown } from "react-icons/fi";
 
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface RaritySourceOption {
@@ -151,10 +153,9 @@ const RaritySourceSelect = ({
 
                     {/* Outdated warning icon */}
                     {option.outdated && (
-                      <FiAlertTriangle
-                        className="w-3.5 h-3.5 shrink-0 text-warning"
-                        title="Outdated"
-                      />
+                      <Tooltip content="Outdated">
+                        <FiAlertTriangle className="w-3.5 h-3.5 shrink-0 text-warning" />
+                      </Tooltip>
                     )}
 
                     {/* Label */}

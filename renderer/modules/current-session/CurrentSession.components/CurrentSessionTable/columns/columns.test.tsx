@@ -358,7 +358,7 @@ describe("CurrentSessionHidePriceColumn", () => {
       expect(screen.getByRole("checkbox")).toBeEnabled();
     });
 
-    it("shows correct title when no snapshot disables price visibility", () => {
+    it("describes disabled price visibility when there is no snapshot", () => {
       setupStore({
         currentSession: {
           getSession: vi.fn(() => ({ priceSnapshot: null })),
@@ -371,13 +371,12 @@ describe("CurrentSessionHidePriceColumn", () => {
         />,
       );
 
-      expect(screen.getByRole("checkbox")).toHaveAttribute(
-        "title",
+      expect(screen.getByRole("checkbox")).toHaveAccessibleName(
         "Price visibility can only be changed when using snapshot prices",
       );
     });
 
-    it("shows 'Price included' title when not hidden and has snapshot", () => {
+    it("describes included prices when there is a snapshot", () => {
       renderWithProviders(
         <CurrentSessionHidePriceCell
           {...createCellContext(
@@ -386,13 +385,12 @@ describe("CurrentSessionHidePriceColumn", () => {
         />,
       );
 
-      expect(screen.getByRole("checkbox")).toHaveAttribute(
-        "title",
+      expect(screen.getByRole("checkbox")).toHaveAccessibleName(
         "Price included in calculations",
       );
     });
 
-    it("shows 'Price hidden' title when hidden and has snapshot", () => {
+    it("describes hidden prices when there is a snapshot", () => {
       renderWithProviders(
         <CurrentSessionHidePriceCell
           {...createCellContext(
@@ -401,8 +399,7 @@ describe("CurrentSessionHidePriceColumn", () => {
         />,
       );
 
-      expect(screen.getByRole("checkbox")).toHaveAttribute(
-        "title",
+      expect(screen.getByRole("checkbox")).toHaveAccessibleName(
         "Price hidden from calculations",
       );
     });

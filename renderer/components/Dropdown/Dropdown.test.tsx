@@ -17,6 +17,21 @@ describe("Dropdown", () => {
     expect(screen.getByText("Open Menu")).toBeInTheDocument();
   });
 
+  it("labels an icon-only trigger", () => {
+    renderWithProviders(
+      <Dropdown
+        ariaLabel="More options"
+        trigger={<span aria-hidden>Icon</span>}
+      >
+        <li>Item</li>
+      </Dropdown>,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "More options" }),
+    ).toBeInTheDocument();
+  });
+
   it("renders children in dropdown panel", () => {
     renderWithProviders(
       <Dropdown trigger={<span>Trigger</span>}>
@@ -201,5 +216,28 @@ describe("Dropdown", () => {
     fireEvent.click(screen.getByText("Menu action"));
 
     expect(hidePopover).not.toHaveBeenCalled();
+  });
+
+  it("reports when the popover opens and closes", () => {
+    const handleOpenChange = vi.fn();
+    renderWithProviders(
+      <Dropdown trigger={<span>Trigger</span>} onOpenChange={handleOpenChange}>
+        <li>Content</li>
+      </Dropdown>,
+    );
+
+    const button = screen.getByRole("button");
+    const popoverTargetId = button.getAttribute("popovertarget")!;
+    const panel = document.getElementById(popoverTargetId)!;
+    const openEvent = new Event("toggle");
+    const closeEvent = new Event("toggle");
+    Object.defineProperty(openEvent, "newState", { value: "open" });
+    Object.defineProperty(closeEvent, "newState", { value: "closed" });
+
+    fireEvent(panel, openEvent);
+    fireEvent(panel, closeEvent);
+
+    expect(handleOpenChange).toHaveBeenNthCalledWith(1, true);
+    expect(handleOpenChange).toHaveBeenNthCalledWith(2, false);
   });
 });

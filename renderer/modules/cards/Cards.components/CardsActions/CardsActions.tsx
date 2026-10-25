@@ -10,19 +10,10 @@ import {
   RaritySourceSelect,
   Search,
 } from "~/renderer/components";
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 import { useRaritySourceChange } from "~/renderer/hooks/useRaritySourceChange/useRaritySourceChange";
 import { useCards, useRarityInsights, useSettings } from "~/renderer/store";
 import { encodeRaritySourceValue } from "~/renderer/utils";
-
-/**
- * Small helper that renders a dataset-driven menu label with a dotted
- * underline and a superscript "?" hint.
- */
-const DatasetMenuLabel = ({ label, hint }: { label: string; hint: string }) => (
-  <span className="border-b border-dotted border-b-current" title={hint}>
-    {label} <sup>?</sup>
-  </span>
-);
 
 interface CardsActionsProps {
   onFilterChange?: () => void;
@@ -75,20 +66,24 @@ export const CardsActions = ({ onFilterChange }: CardsActionsProps) => {
             value: "poe.ninja",
             label: "poe.ninja",
             menuLabel: (
-              <DatasetMenuLabel
-                label="poe.ninja"
-                hint="Price based rarity from poe.ninja market data"
-              />
+              <Tooltip
+                className="border-b border-dotted border-b-current"
+                content="Price based rarity from poe.ninja market data"
+              >
+                poe.ninja <sup>?</sup>
+              </Tooltip>
             ),
           },
           {
             value: "prohibited-library",
             label: "Prohibited Library",
             menuLabel: (
-              <DatasetMenuLabel
-                label="Prohibited Library"
-                hint="Weight based rarity from community-collected drop data"
-              />
+              <Tooltip
+                className="border-b border-dotted border-b-current"
+                content="Weight based rarity from community-collected drop data"
+              >
+                Prohibited Library <sup>?</sup>
+              </Tooltip>
             ),
           },
         ],

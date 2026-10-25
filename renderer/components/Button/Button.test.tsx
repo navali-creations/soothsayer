@@ -116,4 +116,15 @@ describe("Button", () => {
     expect(button).toHaveAttribute("type", "submit");
     expect(button).toHaveAttribute("aria-label", "Submit form");
   });
+
+  it("renders the shared tooltip without a native title", () => {
+    renderWithProviders(<Button tooltip="Helpful action">Action</Button>);
+
+    const button = screen.getByRole("button", { name: "Action" });
+    const tooltip = screen.getByRole("tooltip", { hidden: true });
+
+    expect(button).not.toHaveAttribute("title");
+    expect(button).toHaveAttribute("data-tip", "Helpful action");
+    expect(tooltip).toHaveClass("app-tooltip-bottom");
+  });
 });

@@ -153,17 +153,21 @@ describe("AppPerformanceHistoryTrends", () => {
 
     const { user } = renderWithProviders(<AppPerformanceHistoryTrends />);
 
-    expect(screen.getAllByTitle("Focus chart")).toHaveLength(3);
+    expect(screen.getAllByRole("button", { name: "Focus chart" })).toHaveLength(
+      3,
+    );
     expect(screen.getAllByTestId("trend-chart")).toHaveLength(3);
     expect(screen.getAllByTestId("trend-chart")[0]).toHaveAttribute(
       "data-brush",
       "hidden",
     );
 
-    await user.click(screen.getAllByTitle("Focus chart")[0]);
+    await user.click(screen.getAllByRole("button", { name: "Focus chart" })[0]);
 
     const focusedCharts = screen.getAllByTestId("trend-chart");
-    expect(screen.getByTitle("Collapse chart")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Collapse chart" }),
+    ).toBeInTheDocument();
     expect(focusedCharts).toHaveLength(3);
     expect(focusedCharts[0]).toHaveAttribute("data-brush", "visible");
     expect(focusedCharts[0]).toHaveAttribute("data-dense", "false");
@@ -176,9 +180,11 @@ describe("AppPerformanceHistoryTrends", () => {
       "0-60000",
     );
 
-    await user.click(screen.getByTitle("Collapse chart"));
+    await user.click(screen.getByRole("button", { name: "Collapse chart" }));
 
-    expect(screen.getAllByTitle("Focus chart")).toHaveLength(3);
+    expect(screen.getAllByRole("button", { name: "Focus chart" })).toHaveLength(
+      3,
+    );
     expect(screen.getAllByTestId("trend-chart")[0]).toHaveAttribute(
       "data-brush",
       "hidden",

@@ -183,6 +183,28 @@ describe("SessionsActions", () => {
     expect(store.setBulkMode).toHaveBeenCalledWith("export-rich");
   });
 
+  it("shows menu descriptions inline without tooltips", () => {
+    setupStore();
+    renderWithProviders(<SessionsActions />);
+
+    expect(
+      screen.getByRole("button", { name: "Export Simple CSV" }),
+    ).toHaveAccessibleDescription("Card name + total amount");
+    expect(
+      screen.getByRole("button", { name: "Export Rich CSV" }),
+    ).toHaveAccessibleDescription("Full session details per row");
+    expect(
+      screen.getByRole("button", { name: "Delete sessions" }),
+    ).toHaveAccessibleDescription("Choose which sessions to delete");
+    expect(screen.getByRole("separator")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("tooltip", { hidden: true }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "More session options" }),
+    ).toBeInTheDocument();
+  });
+
   it("starts delete mode from the menu", async () => {
     const store = setupStore();
     const { user } = renderWithProviders(<SessionsActions />);

@@ -1,5 +1,6 @@
 import type { CellContext } from "@tanstack/react-table";
 
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 import { useProfitForecast } from "~/renderer/store";
 
 import {
@@ -19,30 +20,33 @@ const PFExcludeCell = (cellProps: CellContext<CardForecastRow, unknown>) => {
   const autoExcluded = isAutoExcluded(row);
   const included = !row.excludeFromEv;
 
-  let title: string;
+  let tooltip: string;
   if (row.userOverride && autoExcluded) {
-    title =
+    tooltip =
       "Manually included — auto-detection would exclude this card. Click to revert";
   } else if (row.userOverride && !autoExcluded) {
-    title = "Manually excluded from EV calculations. Click to revert";
+    tooltip = "Manually excluded from EV calculations. Click to revert";
   } else if (autoExcluded) {
-    title = "Auto-excluded — click to override and include in EV calculations";
+    tooltip =
+      "Auto-excluded — click to override and include in EV calculations";
   } else {
-    title = "Included in EV calculations — click to exclude";
+    tooltip = "Included in EV calculations — click to exclude";
   }
 
   return (
     <div className="flex justify-center">
-      <input
-        type="checkbox"
-        className={`checkbox checkbox-sm ${
-          row.userOverride ? "checkbox-info" : ""
-        }`}
-        style={{ width: 14, height: 14, padding: 1 }}
-        checked={included}
-        onChange={() => toggleCardExclusion(row.cardName)}
-        title={title}
-      />
+      <Tooltip as="div" content={tooltip} describeChild>
+        <input
+          aria-label={tooltip}
+          type="checkbox"
+          className={`checkbox checkbox-sm ${
+            row.userOverride ? "checkbox-info" : ""
+          }`}
+          style={{ width: 14, height: 14, padding: 1 }}
+          checked={included}
+          onChange={() => toggleCardExclusion(row.cardName)}
+        />
+      </Tooltip>
     </div>
   );
 };

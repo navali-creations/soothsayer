@@ -1,6 +1,6 @@
 import { FiAlertTriangle } from "react-icons/fi";
 
-import { useOverlay } from "~/renderer/store";
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 
 import Beam from "./Beam/Beam";
 
@@ -15,20 +15,17 @@ export const DropBeamColumn = ({
   beamColor,
   isUnknownRarity,
 }: DropBeamColumnProps) => {
-  const { isLeftHalf } = useOverlay();
-
   return (
     <div className="w-10 relative shrink-0">
       {showBeam && <Beam className="absolute inset-0" color={beamColor} />}
       {isUnknownRarity && (
-        <div
-          className={`absolute inset-0 flex items-center justify-center tooltip ${
-            isLeftHalf ? "tooltip-left" : "tooltip-right"
-          } tooltip-warning`}
-          data-tip="Low confidence price"
+        <Tooltip
+          as="div"
+          className="absolute inset-0 flex items-center justify-center"
+          content="Low confidence price"
         >
           <FiAlertTriangle className="w-4 h-4 text-warning/30" />
-        </div>
+        </Tooltip>
       )}
     </div>
   );

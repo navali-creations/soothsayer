@@ -1,5 +1,10 @@
 import clsx from "clsx";
-import { type MouseEvent, type ReactNode, useId } from "react";
+import {
+  type MouseEvent,
+  type ReactNode,
+  type SyntheticEvent,
+  useId,
+} from "react";
 
 type DropdownPosition =
   | "dropdown-start"
@@ -11,6 +16,7 @@ type DropdownPosition =
   | "dropdown-right";
 
 interface DropdownProps {
+  ariaLabel?: string;
   trigger: ReactNode;
   children: ReactNode;
   position?: DropdownPosition | DropdownPosition[];
@@ -22,9 +28,12 @@ interface DropdownProps {
   padding?: string;
   /** Close the popover after any click inside the dropdown content. */
   closeOnSelect?: boolean;
+  /** Called when the popover opens or closes. */
+  onOpenChange?: (open: boolean) => void;
 }
 
 const Dropdown = ({
+  ariaLabel,
   trigger,
   children,
   position = "dropdown-end",
@@ -33,6 +42,7 @@ const Dropdown = ({
   width = "w-52",
   padding = "p-2",
   closeOnSelect = false,
+  onOpenChange,
 }: DropdownProps) => {
   const id = useId();
   const popoverId = `dropdown-${id}`;
@@ -48,9 +58,15 @@ const Dropdown = ({
     }
   };
 
+  const handleToggle = (event: SyntheticEvent<HTMLDivElement>) => {
+    const toggleEvent = event.nativeEvent as ToggleEvent;
+    onOpenChange?.(toggleEvent.newState === "open");
+  };
+
   return (
     <>
       <button
+        aria-label={ariaLabel}
         className={clsx("no-drag", className)}
         popoverTarget={popoverId}
         style={{ anchorName } as React.CSSProperties}
@@ -76,6 +92,7 @@ const Dropdown = ({
         popover="auto"
         id={popoverId}
         onClick={handleContentClick}
+        onToggle={handleToggle}
         style={{ positionAnchor: anchorName } as React.CSSProperties}
       >
         {children}

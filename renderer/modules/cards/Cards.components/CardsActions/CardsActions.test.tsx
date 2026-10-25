@@ -475,16 +475,17 @@ describe("CardsActions", () => {
       expect(label.querySelector("sup")).toHaveTextContent("?");
     });
 
-    it("DatasetMenuLabel has title attribute with hint on the inner span", () => {
+    it("DatasetMenuLabel has a custom tooltip with its hint", () => {
       setupStore();
       renderWithProviders(<CardsActions />);
 
-      // The DatasetMenuLabel renders a <span> with title={hint}
       const innerSpan = screen
         .getByTestId("menu-label-poe.ninja")
-        .querySelector("span[title]");
+        .querySelector(
+          '[data-tip="Price based rarity from poe.ninja market data"]',
+        );
       expect(innerSpan).toHaveAttribute(
-        "title",
+        "data-tip",
         "Price based rarity from poe.ninja market data",
       );
     });

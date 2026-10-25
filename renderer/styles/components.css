@@ -100,3 +100,137 @@
     var(--color-base-200) 14px
   );
 }
+
+@layer components {
+  .app-tooltip-trigger {
+    display: inline-block;
+  }
+
+  .app-tooltip {
+    --tooltip-bg: var(--color-primary);
+    --tooltip-content: var(--color-primary-content);
+
+    position: fixed;
+    container-type: anchored;
+    inset: auto;
+    width: max-content;
+    max-width: min(20rem, calc(100vw - 1rem));
+    margin: 0.5rem;
+    padding: 0.25rem 0.5rem;
+    overflow: visible;
+    border: 0;
+    border-radius: var(--radius-field);
+    background-color: var(--tooltip-bg);
+    box-shadow: 0 2px 5px oklch(0% 0 0 / 0.6);
+    color: var(--tooltip-content);
+    font-size: 0.875rem;
+    font-weight: 400;
+    line-height: 1.25;
+    text-align: center;
+    white-space: normal;
+    pointer-events: none;
+    opacity: 0;
+    transition:
+      opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+      display 0.2s allow-discrete,
+      overlay 0.2s allow-discrete;
+
+    &:popover-open {
+      opacity: 1;
+    }
+  }
+
+  .app-tooltip-caret {
+    position: fixed;
+    display: block;
+    background-color: var(--tooltip-bg);
+    pointer-events: none;
+  }
+
+  @starting-style {
+    .app-tooltip:popover-open {
+      opacity: 0;
+    }
+  }
+
+  .app-tooltip-top {
+    position-area: top;
+    position-try-fallbacks: flip-block;
+
+    & > .app-tooltip-caret {
+      top: calc(anchor(top, 0px) - 0.5rem);
+      left: anchor(center, 50%);
+      width: 0.625rem;
+      height: 0.25rem;
+      translate: -50% 0;
+      clip-path: polygon(0 0, 100% 0, 50% 100%);
+    }
+  }
+
+  .app-tooltip-bottom {
+    position-area: bottom;
+    position-try-fallbacks: flip-block;
+
+    & > .app-tooltip-caret {
+      top: calc(anchor(bottom, 0px) + 0.25rem);
+      left: anchor(center, 50%);
+      width: 0.625rem;
+      height: 0.25rem;
+      translate: -50% 0;
+      clip-path: polygon(0 100%, 50% 0, 100% 100%);
+    }
+  }
+
+  .app-tooltip-left {
+    position-area: left;
+    position-try-fallbacks: flip-inline;
+
+    & > .app-tooltip-caret {
+      top: anchor(center, 50%);
+      left: calc(anchor(left, 0px) - 0.5rem);
+      width: 0.25rem;
+      height: 0.625rem;
+      translate: 0 -50%;
+      clip-path: polygon(0 0, 100% 50%, 0 100%);
+    }
+  }
+
+  .app-tooltip-right {
+    position-area: right;
+    position-try-fallbacks: flip-inline;
+
+    & > .app-tooltip-caret {
+      top: anchor(center, 50%);
+      left: calc(anchor(right, 0px) + 0.25rem);
+      width: 0.25rem;
+      height: 0.625rem;
+      translate: 0 -50%;
+      clip-path: polygon(100% 0, 0 50%, 100% 100%);
+    }
+  }
+
+  @container anchored(fallback: flip-block) {
+    .app-tooltip-top > .app-tooltip-caret {
+      top: calc(anchor(bottom, 0px) + 0.25rem);
+      clip-path: polygon(0 100%, 50% 0, 100% 100%);
+    }
+
+    .app-tooltip-bottom > .app-tooltip-caret {
+      top: calc(anchor(top, 0px) - 0.5rem);
+      clip-path: polygon(0 0, 100% 0, 50% 100%);
+    }
+  }
+
+  @container anchored(fallback: flip-inline) {
+    .app-tooltip-left > .app-tooltip-caret {
+      left: calc(anchor(right, 0px) + 0.25rem);
+      clip-path: polygon(100% 0, 0 50%, 100% 100%);
+    }
+
+    .app-tooltip-right > .app-tooltip-caret {
+      left: calc(anchor(left, 0px) - 0.5rem);
+      clip-path: polygon(0 0, 100% 50%, 0 100%);
+    }
+  }
+
+}

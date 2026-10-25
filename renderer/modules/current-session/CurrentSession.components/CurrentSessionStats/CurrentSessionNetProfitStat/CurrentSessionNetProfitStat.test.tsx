@@ -122,7 +122,7 @@ describe("CurrentSessionNetProfitStat", () => {
 
     expect(screen.getByText("Net Profit")).toBeInTheDocument();
     expect(screen.getByText("1.50d")).toBeInTheDocument();
-    expect(screen.getByText(/decks/)).toBeInTheDocument();
+    expect(screen.getByTestId("stat-desc")).toHaveTextContent("decks");
   });
 
   it("shows unavailable pricing when there is no current session", () => {
@@ -306,14 +306,13 @@ describe("CurrentSessionNetProfitStat", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("renders the explanatory tooltip title on the stat label", () => {
+  it("renders the explanatory tooltip on the stat label", () => {
     setupStore({ session: createSession() });
 
     renderWithProviders(<CurrentSessionNetProfitStat />);
 
-    expect(screen.getByText("Net Profit")).toHaveAttribute(
-      "title",
-      "Total Value minus the cost of Stacked Decks opened. Represents actual profit if you purchased the decks.",
-    );
+    expect(
+      document.querySelector('[data-tip*="Total Value minus the cost"]'),
+    ).toBeInTheDocument();
   });
 });

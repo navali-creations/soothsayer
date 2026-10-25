@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { FiEdit2, FiX } from "react-icons/fi";
 
 import { Stat } from "~/renderer/components";
+import Tooltip from "~/renderer/components/Tooltip/Tooltip";
 import { useProfitForecast } from "~/renderer/store";
 
 function formatBaseRate(value: number): string {
@@ -159,18 +160,19 @@ const PFBaseRateStat = () => {
             <span className={clsx(hasCustomRate && "text-info")}>
               {formatBaseRate(effectiveBaseRate)} decks/div
             </span>
-            <button
+            <Tooltip
+              as="button"
               type="button"
               onClick={handleStartEditing}
               className={clsx(
-                "tooltip tooltip-bottom inline-flex items-center cursor-pointer",
+                "inline-flex items-center cursor-pointer",
                 "rounded p-0.5 transition-colors",
                 "hover:bg-base-300/80",
               )}
-              data-tip="Set custom base rate"
+              content="Set custom base rate"
             >
               <FiEdit2 className="w-3.5 h-3.5 text-base-content/50 hover:text-base-content/80 transition-colors" />
-            </button>
+            </Tooltip>
           </span>
         ) : (
           "—"
@@ -187,15 +189,16 @@ const PFBaseRateStat = () => {
             <span className="text-base-content/40 text-[11px]">
               market: {formatBaseRate(baseRate)} decks/div
             </span>
-            <button
+            <Tooltip
+              as="button"
               type="button"
               onClick={handleResetRate}
               className="badge badge-xs badge-soft badge-info gap-0.5 cursor-pointer select-none hover:brightness-110 transition-all"
-              title="Reset to market rate"
+              content="Reset to market rate"
             >
               <FiX className="w-2.5 h-2.5" />
               Reset
-            </button>
+            </Tooltip>
           </span>
         ) : dataAvailable && formattedSnapshotDate ? (
           <span className="text-base-content/50">{formattedSnapshotDate}</span>
