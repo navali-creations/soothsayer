@@ -31,7 +31,12 @@ const {
   ),
   mockSafeStorageDecryptString: vi.fn((buf: Buffer) => {
     const str = buf.toString();
-    return str.startsWith("encrypted:") ? str.slice("encrypted:".length) : str;
+    return {
+      result: str.startsWith("encrypted:")
+        ? str.slice("encrypted:".length)
+        : str,
+      shouldReEncrypt: false,
+    };
   }),
   mockFsWriteFileSync: vi.fn(),
   mockFsReadFileSync: vi.fn(),
@@ -57,9 +62,9 @@ vi.mock("electron", () => ({
     getVersion: () => "0.5.0",
   },
   safeStorage: {
-    isEncryptionAvailable: mockSafeStorageIsEncryptionAvailable,
-    encryptString: mockSafeStorageEncryptString,
-    decryptString: mockSafeStorageDecryptString,
+    isAsyncEncryptionAvailable: mockSafeStorageIsEncryptionAvailable,
+    encryptStringAsync: mockSafeStorageEncryptString,
+    decryptStringAsync: mockSafeStorageDecryptString,
   },
 }));
 
@@ -701,7 +706,7 @@ describe("SupabaseClientService", () => {
         access_token: "refreshed-access-token",
         refresh_token: "refreshed-refresh-token",
       });
-      listenerCallback("TOKEN_REFRESHED", refreshedSession);
+      await listenerCallback("TOKEN_REFRESHED", refreshedSession);
 
       expect(mockFsWriteFileSync).toHaveBeenCalledOnce();
     });
@@ -1384,9 +1389,12 @@ describe("SecureSessionStorage (via SupabaseClientService)", () => {
     );
     mockSafeStorageDecryptString.mockImplementation((buf: Buffer) => {
       const str = buf.toString();
-      return str.startsWith("encrypted:")
-        ? str.slice("encrypted:".length)
-        : str;
+      return {
+        result: str.startsWith("encrypted:")
+          ? str.slice("encrypted:".length)
+          : str,
+        shouldReEncrypt: false,
+      };
     });
     mockFsExistsSync.mockReturnValue(false);
     mockOnAuthStateChange.mockReturnValue({
@@ -1845,9 +1853,12 @@ describe("SupabaseClientService — full lifecycle", () => {
     );
     mockSafeStorageDecryptString.mockImplementation((buf: Buffer) => {
       const str = buf.toString();
-      return str.startsWith("encrypted:")
-        ? str.slice("encrypted:".length)
-        : str;
+      return {
+        result: str.startsWith("encrypted:")
+          ? str.slice("encrypted:".length)
+          : str,
+        shouldReEncrypt: false,
+      };
     });
     mockOnAuthStateChange.mockReturnValue({
       data: { subscription: { unsubscribe: vi.fn() } },
@@ -1961,7 +1972,7 @@ describe("SupabaseClientService — full lifecycle", () => {
       access_token: "new-access-token",
       refresh_token: "new-refresh-token",
     });
-    listenerCallback("TOKEN_REFRESHED", refreshedSession);
+    await listenerCallback("TOKEN_REFRESHED", refreshedSession);
 
     // Should have persisted the refreshed session
     expect(mockFsWriteFileSync).toHaveBeenCalledOnce();
@@ -2029,9 +2040,10 @@ describe("SupabaseClientService — remaining branch coverage", () => {
     mockSafeStorageEncryptString.mockImplementation((value: string) =>
       Buffer.from(`encrypted:${value}`),
     );
-    mockSafeStorageDecryptString.mockImplementation((value: Buffer) =>
-      value.toString().replace(/^encrypted:/, ""),
-    );
+    mockSafeStorageDecryptString.mockImplementation((value: Buffer) => ({
+      result: value.toString().replace(/^encrypted:/, ""),
+      shouldReEncrypt: false,
+    }));
     mockSignInAnonymously.mockResolvedValue({
       data: { session: makeSession() },
       error: null,
@@ -2296,30 +2308,30 @@ describe("SupabaseClientService — remaining branch coverage", () => {
     const service = SupabaseClientService.getInstance() as unknown as {
       sessionStorage: {
         configure: (url: string) => void;
-        load: () => unknown;
-        save: (session: ReturnType<typeof makeStoredSession>) => void;
+        load: () => Promise<unknown>;
+        save: (session: ReturnType<typeof makeStoredSession>) => Promise<void>;
       };
     };
     service.sessionStorage.configure(SUPABASE_URL);
-    service.sessionStorage.save(makeStoredSession());
+    await service.sessionStorage.save(makeStoredSession());
     expect(mockFsChmodSync).toHaveBeenCalledWith(expect.any(String), 0o600);
 
     mockFsChmodSync.mockClear();
     process.env.NODE_ENV = "development";
     mockSafeStorageIsEncryptionAvailable.mockReturnValue(false);
-    service.sessionStorage.save(makeStoredSession());
+    await service.sessionStorage.save(makeStoredSession());
     expect(mockFsChmodSync).toHaveBeenCalledWith(expect.any(String), 0o600);
 
     mockFsExistsSync.mockReturnValue(true);
     mockFsReadFileSync.mockReturnValue(
       Buffer.from(JSON.stringify(makeStoredSession())),
     );
-    expect(service.sessionStorage.load()).toMatchObject({
+    await expect(service.sessionStorage.load()).resolves.toMatchObject({
       user_id: "stored-user-id",
     });
   });
 
-  it("cleans up a production session that cannot be decrypted", () => {
+  it("cleans up a production session that cannot be decrypted", async () => {
     process.env.NODE_ENV = "production";
     mockFsExistsSync.mockReturnValue(true);
     mockFsReadFileSync.mockReturnValue(Buffer.from("corrupt"));
@@ -2329,12 +2341,12 @@ describe("SupabaseClientService — remaining branch coverage", () => {
     const service = SupabaseClientService.getInstance() as unknown as {
       sessionStorage: {
         configure: (url: string) => void;
-        load: () => unknown;
+        load: () => Promise<unknown>;
       };
     };
     service.sessionStorage.configure(SUPABASE_URL);
 
-    expect(service.sessionStorage.load()).toBeNull();
+    await expect(service.sessionStorage.load()).resolves.toBeNull();
     expect(mockFsUnlinkSync).toHaveBeenCalled();
   });
 

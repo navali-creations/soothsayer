@@ -81,9 +81,9 @@ vi.mock("electron", () => ({
   },
   ipcMain: { handle: mockIpcHandle },
   safeStorage: {
-    isEncryptionAvailable: mockSafeStorageIsAvailable,
-    encryptString: mockSafeStorageEncrypt,
-    decryptString: mockSafeStorageDecrypt,
+    isAsyncEncryptionAvailable: mockSafeStorageIsAvailable,
+    encryptStringAsync: mockSafeStorageEncrypt,
+    decryptStringAsync: mockSafeStorageDecrypt,
   },
   shell: { openExternal: mockShellOpenExternal },
 }));
@@ -246,7 +246,10 @@ function mockStoredSession(session: Record<string, unknown> | null): void {
   if (session) {
     mockFsExistsSync.mockReturnValue(true);
     mockFsReadFileSync.mockReturnValue(Buffer.from("encrypted-data"));
-    mockSafeStorageDecrypt.mockReturnValue(JSON.stringify(session));
+    mockSafeStorageDecrypt.mockReturnValue({
+      result: JSON.stringify(session),
+      shouldReEncrypt: false,
+    });
   } else {
     mockFsExistsSync.mockReturnValue(false);
   }
@@ -1235,7 +1238,7 @@ describe("GggAuthService", () => {
       );
     });
 
-    it("should use safeStorage.encryptString when saving session", async () => {
+    it("should use safeStorage.encryptStringAsync when saving session", async () => {
       const service = GggAuthService.getInstance();
 
       mockFetch.mockResolvedValueOnce(createSuccessTokenResponse());
@@ -1251,7 +1254,7 @@ describe("GggAuthService", () => {
       );
     });
 
-    it("should use safeStorage.decryptString when loading session", async () => {
+    it("should use safeStorage.decryptStringAsync when loading session", async () => {
       mockStoredSession(MOCK_SESSION);
 
       const service = GggAuthService.getInstance();

@@ -249,13 +249,13 @@ class SecureSessionStorage {
   /**
    * Save session data with OS-level encryption
    */
-  save(session: AuthSessionStore): void {
+  async save(session: AuthSessionStore): Promise<void> {
     const sessionJson = JSON.stringify(session);
 
     // Use OS-level encryption if available
-    if (safeStorage.isEncryptionAvailable()) {
+    if (await safeStorage.isAsyncEncryptionAvailable()) {
       try {
-        const encrypted = safeStorage.encryptString(sessionJson);
+        const encrypted = await safeStorage.encryptStringAsync(sessionJson);
         fs.writeFileSync(this.sessionPath, encrypted);
         // L1: Restrict session file to owner-only on Unix (Windows uses DPAPI)
         if (process.platform !== "win32") {
@@ -292,7 +292,7 @@ class SecureSessionStorage {
   /**
    * Load and decrypt session data
    */
-  load(): AuthSessionStore | null {
+  async load(): Promise<AuthSessionStore | null> {
     if (fs.existsSync(this.sessionPath)) {
       return this.loadFromPath(this.sessionPath);
     }
@@ -301,7 +301,7 @@ class SecureSessionStorage {
       this.sessionPath !== this.legacySessionPath &&
       fs.existsSync(this.legacySessionPath)
     ) {
-      const legacySession = this.loadFromPath(this.legacySessionPath);
+      const legacySession = await this.loadFromPath(this.legacySessionPath);
       if (
         legacySession &&
         this.supabaseUrl &&
@@ -318,7 +318,9 @@ class SecureSessionStorage {
     return null;
   }
 
-  private loadFromPath(sessionPath: string): AuthSessionStore | null {
+  private async loadFromPath(
+    sessionPath: string,
+  ): Promise<AuthSessionStore | null> {
     try {
       // Read as binary buffer - returns Buffer by default
       const data = fs.readFileSync(sessionPath);
@@ -326,9 +328,10 @@ class SecureSessionStorage {
       let sessionJson: string;
 
       // Try decryption first (normal case)
-      if (safeStorage.isEncryptionAvailable()) {
+      if (await safeStorage.isAsyncEncryptionAvailable()) {
         try {
-          sessionJson = safeStorage.decryptString(data);
+          ({ result: sessionJson } =
+            await safeStorage.decryptStringAsync(data));
           console.log("[SecureSessionStorage] Session decrypted and loaded");
         } catch (decryptError) {
           // If decryption fails, might be plaintext from dev mode
@@ -492,7 +495,7 @@ class SupabaseClientService {
     if (this.authPromise) return this.authPromise;
 
     this.authPromise = (async () => {
-      const storedSession = this.sessionStorage.load();
+      const storedSession = await this.sessionStorage.load();
       console.log(`[SupabaseClient] Stored session found: ${!!storedSession}`);
 
       // If we have a stored session, try to restore it
@@ -513,7 +516,7 @@ class SupabaseClientService {
               5,
             )}…`,
           );
-          this.storeSession(data.session);
+          await this.storeSession(data.session);
           this.setupSessionListener();
           return;
         }
@@ -601,7 +604,7 @@ class SupabaseClientService {
     );
 
     // Store session for persistence
-    this.storeSession(data.session);
+    await this.storeSession(data.session);
     this.setupSessionListener();
   }
 
@@ -609,14 +612,14 @@ class SupabaseClientService {
    * Store session data securely using OS-level encryption
    * Only stores what's needed to restore the session
    */
-  private storeSession(session: any): void {
+  private async storeSession(session: any): Promise<void> {
     const authSession: AuthSessionStore = {
       access_token: session.access_token,
       refresh_token: session.refresh_token,
       user_id: session.user.id,
     };
 
-    this.sessionStorage.save(authSession);
+    await this.sessionStorage.save(authSession);
   }
 
   /**
@@ -628,13 +631,13 @@ class SupabaseClientService {
     if (this.authStateListener) return; // Already listening
 
     this.authStateListener = this.client.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
         console.log(`[SupabaseClient] Auth state changed: ${event}`);
 
         if (event === "SIGNED_OUT") {
           this.sessionStorage.delete();
         } else if (session) {
-          this.storeSession(session);
+          await this.storeSession(session);
         }
       },
     );

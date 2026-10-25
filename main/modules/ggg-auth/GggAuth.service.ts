@@ -82,12 +82,12 @@ class GggSecureSessionStorage {
   /**
    * Save session data with OS-level encryption
    */
-  save(session: GggSession): void {
+  async save(session: GggSession): Promise<void> {
     const sessionJson = JSON.stringify(session);
 
-    if (safeStorage.isEncryptionAvailable()) {
+    if (await safeStorage.isAsyncEncryptionAvailable()) {
       try {
-        const encrypted = safeStorage.encryptString(sessionJson);
+        const encrypted = await safeStorage.encryptStringAsync(sessionJson);
         fs.writeFileSync(this.sessionPath, encrypted);
         // L1: Restrict session file to owner-only on Unix (Windows uses DPAPI)
         if (process.platform !== "win32") {
@@ -122,7 +122,7 @@ class GggSecureSessionStorage {
   /**
    * Load and decrypt session data
    */
-  load(): GggSession | null {
+  async load(): Promise<GggSession | null> {
     if (!fs.existsSync(this.sessionPath)) {
       return null;
     }
@@ -132,9 +132,10 @@ class GggSecureSessionStorage {
 
       let sessionJson: string;
 
-      if (safeStorage.isEncryptionAvailable()) {
+      if (await safeStorage.isAsyncEncryptionAvailable()) {
         try {
-          sessionJson = safeStorage.decryptString(data);
+          ({ result: sessionJson } =
+            await safeStorage.decryptStringAsync(data));
           console.log("[GggAuth] Session decrypted and loaded");
         } catch (decryptError) {
           if (process.env.NODE_ENV === "development") {
@@ -222,7 +223,7 @@ class GggAuthService {
   private setupHandlers(): void {
     ipcMain.handle(GggAuthChannel.GetAuthStatus, async () => {
       try {
-        const session = this.sessionStorage.load();
+        const session = await this.sessionStorage.load();
         if (!session) {
           return {
             authenticated: false,
@@ -449,7 +450,7 @@ class GggAuthService {
         expires_at: Math.floor(Date.now() / 1000) + tokenResponse.expires_in,
       };
 
-      this.sessionStorage.save(session);
+      await this.sessionStorage.save(session);
 
       console.log(
         `[GggAuth] Authentication successful for user: ${session.username}`,
@@ -571,7 +572,7 @@ class GggAuthService {
    * Returns null if no session exists or refresh fails (caller should proceed as anonymous).
    */
   public async getAccessToken(): Promise<string | null> {
-    const session = this.sessionStorage.load();
+    const session = await this.sessionStorage.load();
 
     if (!session) {
       return null;
@@ -597,7 +598,7 @@ class GggAuthService {
         expires_at: Math.floor(Date.now() / 1000) + refreshed.expires_in,
       };
 
-      this.sessionStorage.save(updatedSession);
+      await this.sessionStorage.save(updatedSession);
       console.log("[GggAuth] Token refresh successful");
 
       return updatedSession.access_token;
