@@ -94,7 +94,7 @@ export function parseClientLogLine(
       droppedAt: parsed.timestamp.toISOString(),
       localMinute:
         parsed.timestamp.getHours() * 60 + parsed.timestamp.getMinutes(),
-      utcOffsetMinutes: -parsed.timestamp.getTimezoneOffset(),
+      utcOffsetMinutes: 0 - parsed.timestamp.getTimezoneOffset(),
       location: currentLocation,
     },
   };

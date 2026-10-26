@@ -154,7 +154,7 @@ test.describe("Community card-drop context", () => {
         {
           source_event_id: "249522781",
           location: "Atlas Hideout",
-          utc_offset_minutes: -localDropTime.getTimezoneOffset(),
+          utc_offset_minutes: 0 - localDropTime.getTimezoneOffset(),
         },
       ]);
 
@@ -198,7 +198,7 @@ test.describe("Community card-drop context", () => {
           card_name: "The Scholar",
           location: "Atlas Hideout",
           local_minute: 10 * 60 + 26,
-          utc_offset_minutes: -localDropTime.getTimezoneOffset(),
+          utc_offset_minutes: 0 - localDropTime.getTimezoneOffset(),
         },
       ]);
     } finally {

@@ -811,7 +811,7 @@ describe("ClientLogReaderService", () => {
         droppedAt: historicalDropDate.toISOString(),
         location: "Atlas Hideout",
         localMinute: 626,
-        utcOffsetMinutes: -historicalDropDate.getTimezoneOffset(),
+        utcOffsetMinutes: 0 - historicalDropDate.getTimezoneOffset(),
         league: "Keepers",
       },
     ];

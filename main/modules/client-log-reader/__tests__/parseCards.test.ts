@@ -52,7 +52,7 @@ describe("parseCards", () => {
       expect(result.events[0].location).toBe("Atlas Hideout");
       expect(result.events[0].localMinute).toBe(10 * 60 + 26);
       expect(result.events[0].utcOffsetMinutes).toBe(
-        -new Date(2026, 2, 14, 10, 26, 12).getTimezoneOffset(),
+        0 - new Date(2026, 2, 14, 10, 26, 12).getTimezoneOffset(),
       );
       expect(result.events[0].droppedAt).toBe(
         new Date(2026, 2, 14, 10, 26, 12).toISOString(),
