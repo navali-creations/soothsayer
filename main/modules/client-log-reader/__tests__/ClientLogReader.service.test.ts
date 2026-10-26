@@ -793,6 +793,7 @@ describe("ClientLogReaderService", () => {
   });
 
   describe("historical card context backfill", () => {
+    const historicalDropDate = new Date(2026, 2, 14, 10, 26, 12);
     const candidate = {
       id: 1,
       eventId: "aaaaaaaa-0000-4000-8000-000000000001",
@@ -807,10 +808,10 @@ describe("ClientLogReaderService", () => {
         sessionId: "session-1",
         sourceEventId: "249522781",
         cardName: "The Scholar",
-        droppedAt: "2026-03-14T09:26:12.000Z",
+        droppedAt: historicalDropDate.toISOString(),
         location: "Atlas Hideout",
         localMinute: 626,
-        utcOffsetMinutes: 60,
+        utcOffsetMinutes: -historicalDropDate.getTimezoneOffset(),
         league: "Keepers",
       },
     ];
@@ -840,7 +841,7 @@ describe("ClientLogReaderService", () => {
       expect(mockFindHistoricalCardEventCandidate).toHaveBeenCalledWith(
         "poe1",
         "The Scholar",
-        "2026-03-14T09:26:12.000Z",
+        historicalDropDate.toISOString(),
         expect.any(Set),
       );
       expect(mockApplyHistoricalCardEventContexts).toHaveBeenCalledWith(
