@@ -40,7 +40,12 @@ import type {
   TimelineDelta,
 } from "../../../types/data-stores";
 import { CurrentSessionChannel } from "./CurrentSession.channels";
-import type { SessionCardEventDTO } from "./CurrentSession.dto";
+import type {
+  CardDropContextDTO,
+  CardEventContextUpdate,
+  HistoricalCardEventCandidate,
+  SessionCardEventDTO,
+} from "./CurrentSession.dto";
 import { CurrentSessionRepository } from "./CurrentSession.repository";
 
 interface ActiveSessionInfo {
@@ -879,6 +884,7 @@ class CurrentSessionService {
     league: string,
     cardName: string,
     processedId: string,
+    context?: CardDropContextDTO,
   ): Promise<void> {
     const perf = this.perfLogger.startTimers();
 
@@ -934,11 +940,21 @@ class CurrentSessionService {
     // transaction. This replaces the sequential awaits of incrementCardCount(),
     // saveProcessedId(), and DataStore.addCard() — eliminating ~6 event-loop
     // yields per card drop.
-    const now = new Date().toISOString();
+    const fallbackDate = new Date();
+    const droppedAt = context?.droppedAt ?? fallbackDate.toISOString();
+    const localMinute =
+      context?.localMinute ??
+      fallbackDate.getHours() * 60 + fallbackDate.getMinutes();
+    const utcOffsetMinutes =
+      context?.utcOffsetMinutes ?? -fallbackDate.getTimezoneOffset();
     this.repository.addCardSync(this.rawDb, {
       sessionId: activeSession.sessionId,
       cardName,
-      timestamp: now,
+      timestamp: droppedAt,
+      eventId: crypto.randomUUID(),
+      localMinute,
+      utcOffsetMinutes,
+      location: context?.location ?? null,
       chaosValue,
       divineValue,
       game,
@@ -954,7 +970,7 @@ class CurrentSessionService {
       cardName,
       chaosValue,
       divineValue,
-      droppedAt: now,
+      droppedAt,
     });
 
     // Emit timeline delta separately (lightweight, bypasses full session rebuild)
@@ -1004,6 +1020,38 @@ class CurrentSessionService {
         delta: cardDelta,
       });
     }
+  }
+
+  public hasHistoricalCardEventsMissingContext(
+    game: GameType,
+  ): Promise<boolean> {
+    return this.repository.hasHistoricalCardEventsMissingContext(game);
+  }
+
+  public findHistoricalCardEventCandidate(
+    game: GameType,
+    cardName: string,
+    droppedAt: string,
+    excludedIds: ReadonlySet<number>,
+  ): HistoricalCardEventCandidate | null {
+    return this.repository.findHistoricalCardEventCandidateSync(
+      this.rawDb,
+      game,
+      cardName,
+      droppedAt,
+      excludedIds,
+    );
+  }
+
+  public applyHistoricalCardEventContexts(
+    game: GameType,
+    updates: readonly CardEventContextUpdate[],
+  ): void {
+    this.repository.applyHistoricalCardEventContextsSync(
+      this.rawDb,
+      game,
+      updates,
+    );
   }
 
   // ============================================================================

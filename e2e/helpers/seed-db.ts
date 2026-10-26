@@ -20,6 +20,8 @@
  * @module e2e/helpers/seed-db
  */
 
+import { randomUUID } from "node:crypto";
+
 import type { ElectronApplication, Page } from "@playwright/test";
 
 import type { RarityInsightsCardFixture } from "../fixtures/rarity-insights-fixture";
@@ -88,6 +90,14 @@ export interface InjectCardDropOptions {
   processedId?: string;
   /** ISO timestamp for the drop. Defaults to `new Date().toISOString()`. */
   timestamp?: string;
+  /** Stable UUID used by the privacy-preserving community event outbox. */
+  eventId?: string;
+  /** In-game area associated with the drop. Omit when context is unknown. */
+  location?: string | null;
+  /** Local UTC offset at the drop, in minutes. */
+  utcOffsetMinutes?: number;
+  /** Minute of the local day. Derived from timestamp when omitted. */
+  localMinute?: number;
 }
 
 // ─── Internal: IPC wrappers ───────────────────────────────────────────────────
@@ -130,6 +140,8 @@ export async function dbExec(
  * foreign-key configuration in the test process.
  */
 export async function clearSessionHistory(page: Page): Promise<void> {
+  await dbExec(page, "DELETE FROM community_drop_event_outbox");
+  await dbExec(page, "DELETE FROM community_drop_event_upload_state");
   await dbExec(page, "DELETE FROM session_card_events");
   await dbExec(page, "DELETE FROM session_cards");
   await dbExec(page, "DELETE FROM session_summaries");
@@ -144,7 +156,7 @@ export async function clearSessionHistory(page: Page): Promise<void> {
  * The channel calls `db.prepare(sql).all(...params)` in the main process and
  * returns the result rows.
  */
-async function dbQuery<T = Record<string, unknown>>(
+export async function dbQuery<T = Record<string, unknown>>(
   page: Page,
   sql: string,
   params: unknown[] = [],
@@ -566,11 +578,13 @@ export async function seedMultipleCompletedSessions(
  * Inject a single card drop into an **active** session.
  *
  * This simulates what `CurrentSessionService.addCard()` does in the main
- * process by writing directly to the three DB tables it touches:
+ * process by writing directly to the local tables it touches:
  *
  * 1. `session_cards` — upsert the card row (increment count if it exists)
- * 2. `processed_ids` — insert a processed-ID row so `getRecentDrops()` picks it up
- * 3. `sessions` — recompute `total_count` from `session_cards`
+ * 2. `session_card_events` — insert the timeline event and optional context
+ * 3. `processed_ids` — insert a processed-ID row for duplicate detection
+ * 4. `community_drop_event_outbox` — queue contextual events only
+ * 5. `sessions` — recompute `total_count` from `session_cards`
  *
  * **Important**: this bypasses the in-memory `processedIds` Sets in the main
  * process. The main process will still consider these IDs as "new" if they
@@ -591,6 +605,11 @@ async function injectCardDrop(
       .toString(36)
       .slice(2, 8)}`,
     timestamp = new Date().toISOString(),
+    eventId = randomUUID(),
+    location = null,
+    utcOffsetMinutes = -new Date(timestamp).getTimezoneOffset(),
+    localMinute = new Date(timestamp).getHours() * 60 +
+      new Date(timestamp).getMinutes(),
   } = options;
 
   // 1. Upsert into session_cards (mirrors CurrentSessionRepository.incrementCardCount)
@@ -604,7 +623,30 @@ async function injectCardDrop(
     [sessionId, cardName, timestamp, timestamp, timestamp],
   );
 
-  // 2. Insert into processed_ids so getRecentDrops() returns this card
+  // 2. Insert the event timeline row, including context when supplied.
+  await dbExec(
+    page,
+    `INSERT INTO session_card_events (
+       session_id,
+       card_name,
+       dropped_at,
+       event_id,
+       source_event_id,
+       location,
+       utc_offset_minutes
+     ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [
+      sessionId,
+      cardName,
+      timestamp,
+      eventId,
+      processedId,
+      location,
+      utcOffsetMinutes,
+    ],
+  );
+
+  // 3. Insert into processed_ids so getRecentDrops() returns this card
   await dbExec(
     page,
     `INSERT OR IGNORE INTO processed_ids (game, scope, processed_id, card_name, created_at)
@@ -612,7 +654,46 @@ async function injectCardDrop(
     [game, processedId, cardName, timestamp],
   );
 
-  // 3. Recompute sessions.total_count from the actual session_cards rows
+  // 4. Queue only events with confidently known locations.
+  if (location) {
+    const sessionRows = await dbQuery<{ league: string }>(
+      page,
+      `SELECT l.name AS league
+       FROM sessions s
+       JOIN leagues l ON l.id = s.league_id
+       WHERE s.id = ?`,
+      [sessionId],
+    );
+    const league = sessionRows[0]?.league;
+    if (!league) {
+      throw new Error(`Session ${sessionId} has no resolvable league`);
+    }
+    await dbExec(
+      page,
+      `INSERT OR IGNORE INTO community_drop_event_outbox (
+         event_id,
+         session_id,
+         game,
+         scope,
+         card_name,
+         location,
+         local_minute,
+         utc_offset_minutes
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        eventId,
+        sessionId,
+        game,
+        league,
+        cardName,
+        location,
+        localMinute,
+        utcOffsetMinutes,
+      ],
+    );
+  }
+
+  // 5. Recompute sessions.total_count from the actual session_cards rows
   await dbExec(
     page,
     `UPDATE sessions
@@ -740,13 +821,18 @@ async function emitSessionDataUpdate(
     { game },
   );
 
-  // 2. Broadcast to all renderer windows (mirrors emitSessionDataUpdate)
+  // 2. Broadcast to all renderer windows (mirrors emitSessionDataUpdate).
+  // The overlay intentionally refetches on invalidation instead of receiving
+  // the much larger prepared session payload.
   await app.evaluate(
     ({ BrowserWindow }, { game, data }) => {
       const windows = BrowserWindow.getAllWindows();
       for (const win of windows) {
         if (!win.isDestroyed()) {
-          win.webContents.send("session:data-updated", { game, data });
+          win.webContents.send("session:data-invalidated", { game });
+          if (!win.webContents.getURL().includes("overlay.html")) {
+            win.webContents.send("session:data-updated", { game, data });
+          }
         }
       }
     },

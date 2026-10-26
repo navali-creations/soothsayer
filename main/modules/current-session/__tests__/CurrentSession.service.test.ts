@@ -333,6 +333,59 @@ describe("CurrentSessionService", () => {
     });
   });
 
+  describe("historical card event context", () => {
+    it("delegates historical context reads and writes to the repository", async () => {
+      const repository = (service as any).repository;
+      const candidates = [
+        {
+          id: 1,
+          eventId: "aaaaaaaa-0000-4000-8000-000000000001",
+          sessionId: "session-1",
+          cardName: "The Scholar",
+          league: "Keepers",
+        },
+      ];
+      const updates = [
+        {
+          id: 1,
+          eventId: "aaaaaaaa-0000-4000-8000-000000000001",
+          sessionId: "session-1",
+          sourceEventId: "249522781",
+          cardName: "The Scholar",
+          droppedAt: "2026-03-14T09:26:12.000Z",
+          location: "Atlas Hideout",
+          localMinute: 626,
+          utcOffsetMinutes: 60,
+          league: "Keepers",
+        },
+      ];
+      repository.hasHistoricalCardEventsMissingContext = vi
+        .fn()
+        .mockResolvedValue(true);
+      repository.findHistoricalCardEventCandidateSync = vi
+        .fn()
+        .mockReturnValue(candidates[0]);
+      repository.applyHistoricalCardEventContextsSync = vi.fn();
+
+      await expect(
+        service.hasHistoricalCardEventsMissingContext("poe1"),
+      ).resolves.toBe(true);
+      expect(
+        service.findHistoricalCardEventCandidate(
+          "poe1",
+          "The Scholar",
+          "2026-03-14T09:26:12.000Z",
+          new Set(),
+        ),
+      ).toEqual(candidates[0]);
+      service.applyHistoricalCardEventContexts("poe1", updates);
+
+      expect(
+        repository.applyHistoricalCardEventContextsSync,
+      ).toHaveBeenCalledWith(testDb.db, "poe1", updates);
+    });
+  });
+
   // ─── Initialize ─────────────────────────────────────────────────────────
 
   describe("initialize", () => {

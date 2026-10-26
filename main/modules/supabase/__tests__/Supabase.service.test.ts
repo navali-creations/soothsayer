@@ -92,7 +92,7 @@ vi.mock("@supabase/supabase-js", () => ({
 
 import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
 
-import { SupabaseClientService } from "../Supabase.service";
+import { EdgeFunctionError, SupabaseClientService } from "../Supabase.service";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -1298,6 +1298,31 @@ describe("SupabaseClientService", () => {
       await expect(service.callEdgeFunction("my-function", {})).rejects.toThrow(
         "Edge Function my-function failed (401): Unauthorized",
       );
+    });
+
+    it("should preserve structured edge-function error details", async () => {
+      const service = await configureService();
+      const responseBody = {
+        error: "Community upload not found",
+        code: "upload_not_found",
+      };
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 409,
+        text: () => Promise.resolve(JSON.stringify(responseBody)),
+      });
+
+      const error = await service
+        .callEdgeFunction("upload-community-drop-events", {})
+        .catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(EdgeFunctionError);
+      expect(error).toMatchObject({
+        code: "upload_not_found",
+        functionName: "upload-community-drop-events",
+        responseBody,
+        status: 409,
+      });
     });
 
     it("should pass an AbortSignal to fetch", async () => {

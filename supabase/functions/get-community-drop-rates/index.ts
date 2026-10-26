@@ -5,6 +5,14 @@ import {
   enforceRateLimitByIdentifier,
   responseJson,
 } from "../_shared/utils.ts";
+import {
+  getConfiguredWraeclastApiKey,
+  getHttpErrorStatus,
+  hashWraeclastApiKey,
+  isTrustedWraeclastCaller,
+  timingSafeEqualStrings,
+  WRAECLAST_TRUSTED_CALLER_APP_VERSION,
+} from "../_shared/wraeclast-api.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -25,7 +33,6 @@ const CORS_HEADERS = {
 // Rate limit: 100 requests per hour per API key, enforced atomically via DB
 const RATE_LIMIT_MAX = 100;
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
-const TRUSTED_CALLER_APP_VERSION = "gha:wraeclast-cards";
 const COMMUNITY_WEIGHT_ANCHOR_CARD = "Rain of Chaos";
 const COMMUNITY_WEIGHT_ANCHOR_WEIGHT = 121400;
 
@@ -67,44 +74,6 @@ function toNumber(value: number | string | null | undefined): number {
   return typeof value === "number" ? value : Number(value);
 }
 
-function getErrorStatus(error: unknown): number | undefined {
-  if (typeof error !== "object" || error === null || !("status" in error)) {
-    return undefined;
-  }
-
-  const status = (error as { status: unknown }).status;
-  return typeof status === "number" ? status : undefined;
-}
-
-function getConfiguredApiKey(): string | null {
-  return (
-    Deno.env.get("WRAECLAST_CARDS_API_KEY") ??
-    Deno.env.get("wraeclast_cards_api_key") ??
-    null
-  );
-}
-
-function getConfiguredCallerToken(): string | null {
-  return Deno.env.get("WRAECLAST_CARDS_CALLER_TOKEN") ?? null;
-}
-
-async function timingSafeEqualStrings(a: string, b: string): Promise<boolean> {
-  const encoder = new TextEncoder();
-  const [aDigest, bDigest] = await Promise.all([
-    crypto.subtle.digest("SHA-256", encoder.encode(a)),
-    crypto.subtle.digest("SHA-256", encoder.encode(b)),
-  ]);
-  const aBytes = new Uint8Array(aDigest);
-  const bBytes = new Uint8Array(bDigest);
-
-  let diff = 0;
-  for (let i = 0; i < aBytes.byteLength; i++) {
-    diff |= aBytes[i] ^ bBytes[i];
-  }
-
-  return diff === 0;
-}
-
 Deno.serve(async (req: Request) => {
   // ── CORS preflight ──────────────────────────────────────────────────
   if (req.method === "OPTIONS") {
@@ -130,7 +99,7 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  const configuredApiKey = getConfiguredApiKey();
+  const configuredApiKey = getConfiguredWraeclastApiKey();
 
   if (!configuredApiKey) {
     console.error(
@@ -151,16 +120,11 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  const configuredCallerToken = getConfiguredCallerToken();
   const callerToken = req.headers.get("x-caller-token");
   let appVersion: string | null = null;
 
-  if (
-    configuredCallerToken &&
-    callerToken &&
-    (await timingSafeEqualStrings(callerToken, configuredCallerToken))
-  ) {
-    appVersion = TRUSTED_CALLER_APP_VERSION;
+  if (await isTrustedWraeclastCaller(callerToken)) {
+    appVersion = WRAECLAST_TRUSTED_CALLER_APP_VERSION;
   }
 
   // ── Build service-role client ───────────────────────────────────────
@@ -173,13 +137,7 @@ Deno.serve(async (req: Request) => {
 
   // Rate limit by API key — atomic DB-backed enforcement via check_and_log_request
   // Uses a stable identifier derived from the API key (not the raw key itself)
-  const identifierHash = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(apiKey),
-  );
-  const identifier = `apikey:${Array.from(new Uint8Array(identifierHash))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("")}`;
+  const identifier = await hashWraeclastApiKey(apiKey);
 
   try {
     await enforceRateLimitByIdentifier({
@@ -191,7 +149,7 @@ Deno.serve(async (req: Request) => {
       appVersion,
     });
   } catch (error) {
-    const status = getErrorStatus(error);
+    const status = getHttpErrorStatus(error);
 
     if (status === 403) {
       return responseJson({
@@ -629,6 +587,7 @@ Deno.serve(async (req: Request) => {
         "id, league_id, device_id, ggg_uuid, is_verified, is_suspicious, total_cards_uploaded",
       )
       .in("league_id", leagueIds)
+      .gt("upload_count", 0)
       .order("id", { ascending: true })
       .range(uploadOffset, uploadOffset + UPLOAD_PAGE_SIZE - 1);
 

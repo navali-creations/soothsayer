@@ -5,7 +5,9 @@ import type { Database } from "~/main/modules/database";
 
 import type { GameType, KnownRarity, Rarity } from "../../../types/data-stores";
 import type {
+  CardEventContextUpdate,
   CreateSessionDTO,
+  HistoricalCardEventCandidate,
   ProcessedIdDTO,
   SessionCardDTO,
   SessionCardEventDTO,
@@ -23,6 +25,10 @@ export interface AddCardSyncParams {
   sessionId: string;
   cardName: string;
   timestamp: string;
+  eventId: string;
+  localMinute: number;
+  utcOffsetMinutes: number;
+  location: string | null;
   chaosValue: number | null;
   divineValue: number | null;
   game: GameType;
@@ -37,6 +43,8 @@ export interface AddCardSyncParams {
 export class CurrentSessionRepository {
   constructor(private kysely: Kysely<Database>) {}
 
+  private _historicalCandidateStatement: BetterSqlite3.Statement | null = null;
+
   // ============================================================================
   // Synchronous Hot-Path (better-sqlite3 prepared statements)
   // ============================================================================
@@ -50,6 +58,7 @@ export class CurrentSessionRepository {
     updateSessionTotal: BetterSqlite3.Statement;
     insertCardEvent: BetterSqlite3.Statement;
     insertProcessedId: BetterSqlite3.Statement;
+    insertCommunityDropEvent: BetterSqlite3.Statement;
     incrementGlobalStat: BetterSqlite3.Statement;
     upsertAllTimeCard: BetterSqlite3.Statement;
     upsertLeagueCard: BetterSqlite3.Statement;
@@ -80,14 +89,57 @@ export class CurrentSessionRepository {
 
     // 3. INSERT session_card_events (timeline event)
     const insertCardEvent = db.prepare(`
-      INSERT INTO session_card_events (session_id, card_name, chaos_value, divine_value, dropped_at)
-      VALUES (@sessionId, @cardName, @chaosValue, @divineValue, @timestamp)
+      INSERT INTO session_card_events (
+        session_id,
+        card_name,
+        chaos_value,
+        divine_value,
+        dropped_at,
+        event_id,
+        source_event_id,
+        location,
+        utc_offset_minutes
+      )
+      VALUES (
+        @sessionId,
+        @cardName,
+        @chaosValue,
+        @divineValue,
+        @timestamp,
+        @eventId,
+        @processedId,
+        @location,
+        @utcOffsetMinutes
+      )
     `);
 
     // 4. INSERT processed_ids (save processed ID, skip duplicates)
     const insertProcessedId = db.prepare(`
       INSERT OR IGNORE INTO processed_ids (game, scope, processed_id, card_name)
       VALUES (@game, 'global', @processedId, @cardName)
+    `);
+
+    const insertCommunityDropEvent = db.prepare(`
+      INSERT OR IGNORE INTO community_drop_event_outbox (
+        event_id,
+        session_id,
+        game,
+        scope,
+        card_name,
+        location,
+        local_minute,
+        utc_offset_minutes
+      )
+      VALUES (
+        @eventId,
+        @sessionId,
+        @game,
+        @league,
+        @cardName,
+        @location,
+        @localMinute,
+        @utcOffsetMinutes
+      )
     `);
 
     // 5. UPDATE global_stats (increment totalStackedDecksOpened)
@@ -127,12 +179,19 @@ export class CurrentSessionRepository {
         chaosValue: params.chaosValue,
         divineValue: params.divineValue,
         timestamp: params.timestamp,
+        eventId: params.eventId,
+        processedId: params.processedId,
+        location: params.location,
+        utcOffsetMinutes: params.utcOffsetMinutes,
       });
       insertProcessedId.run({
         game: params.game,
         processedId: params.processedId,
         cardName: params.cardName,
       });
+      if (params.location) {
+        insertCommunityDropEvent.run(params);
+      }
       incrementGlobalStat.run();
       upsertAllTimeCard.run({
         game: params.game,
@@ -152,6 +211,7 @@ export class CurrentSessionRepository {
       updateSessionTotal,
       insertCardEvent,
       insertProcessedId,
+      insertCommunityDropEvent,
       incrementGlobalStat,
       upsertAllTimeCard,
       upsertLeagueCard,
@@ -173,6 +233,136 @@ export class CurrentSessionRepository {
   addCardSync(db: BetterSqlite3.Database, params: AddCardSyncParams): void {
     const stmts = this.getSyncStmts(db);
     stmts.syncTransaction(params);
+  }
+
+  async hasHistoricalCardEventsMissingContext(
+    game: GameType,
+  ): Promise<boolean> {
+    const row = await this.kysely
+      .selectFrom("session_card_events as sce")
+      .innerJoin("sessions as s", "s.id", "sce.session_id")
+      .select("sce.id")
+      .where("s.game", "=", game)
+      .where("sce.location", "is", null)
+      .where("sce.event_id", "is not", null)
+      .limit(1)
+      .executeTakeFirst();
+
+    return typeof row?.id === "number";
+  }
+
+  findHistoricalCardEventCandidateSync(
+    db: BetterSqlite3.Database,
+    game: GameType,
+    cardName: string,
+    droppedAt: string,
+    excludedIds: ReadonlySet<number>,
+  ): HistoricalCardEventCandidate | null {
+    this._historicalCandidateStatement ??= db.prepare(`
+          SELECT
+            sce.id,
+            sce.event_id AS eventId,
+            sce.session_id AS sessionId,
+            sce.card_name AS cardName,
+            sce.dropped_at AS droppedAt,
+            l.name AS league
+          FROM session_card_events sce
+          JOIN sessions s ON s.id = sce.session_id
+          JOIN leagues l ON l.id = s.league_id
+          WHERE s.game = @game
+            AND sce.card_name = @cardName
+            AND sce.location IS NULL
+            AND sce.event_id IS NOT NULL
+            AND sce.dropped_at BETWEEN @lowerBound AND @upperBound
+            AND @droppedAt >= s.started_at
+            AND (
+              s.ended_at IS NULL
+              OR @droppedAt <= s.ended_at
+            )
+          ORDER BY sce.dropped_at, sce.id
+          LIMIT 201
+        `);
+
+    const droppedAtMs = Date.parse(droppedAt);
+    const rows = this._historicalCandidateStatement.all({
+      game,
+      cardName,
+      droppedAt,
+      lowerBound: new Date(droppedAtMs - 5_000).toISOString(),
+      upperBound: new Date(droppedAtMs + 5_000).toISOString(),
+    }) as Array<HistoricalCardEventCandidate & { droppedAt: string }>;
+
+    let closest: (typeof rows)[number] | null = null;
+    let closestDistance = Number.POSITIVE_INFINITY;
+    for (const row of rows) {
+      if (excludedIds.has(row.id)) continue;
+
+      const distance = Math.abs(Date.parse(row.droppedAt) - droppedAtMs);
+      if (
+        closest === null ||
+        distance < closestDistance ||
+        (distance === closestDistance && row.id < closest.id)
+      ) {
+        closest = row;
+        closestDistance = distance;
+      }
+    }
+
+    if (!closest) return null;
+    const { droppedAt: _candidateDroppedAt, ...candidate } = closest;
+    return candidate;
+  }
+
+  applyHistoricalCardEventContextsSync(
+    db: BetterSqlite3.Database,
+    game: GameType,
+    updates: readonly CardEventContextUpdate[],
+  ): void {
+    if (updates.length === 0) return;
+
+    const updateEvent = db.prepare(`
+      UPDATE session_card_events
+      SET
+        source_event_id = @sourceEventId,
+        dropped_at = @droppedAt,
+        location = @location,
+        utc_offset_minutes = @utcOffsetMinutes
+      WHERE id = @id AND location IS NULL
+    `);
+    const enqueueEvent = db.prepare(`
+      INSERT OR IGNORE INTO community_drop_event_outbox (
+        event_id,
+        session_id,
+        game,
+        scope,
+        card_name,
+        location,
+        local_minute,
+        utc_offset_minutes
+      )
+      VALUES (
+        @eventId,
+        @sessionId,
+        @game,
+        @league,
+        @cardName,
+        @location,
+        @localMinute,
+        @utcOffsetMinutes
+      )
+    `);
+    const transaction = db.transaction(
+      (contextUpdates: readonly CardEventContextUpdate[]) => {
+        for (const update of contextUpdates) {
+          const result = updateEvent.run(update);
+          if (result.changes > 0) {
+            enqueueEvent.run({ ...update, game });
+          }
+        }
+      },
+    );
+
+    transaction(updates);
   }
 
   // ============================================================================

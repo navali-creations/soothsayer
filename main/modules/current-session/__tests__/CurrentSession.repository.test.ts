@@ -61,6 +61,215 @@ describe("CurrentSessionRepository", () => {
     });
   });
 
+  describe("historical card event context", () => {
+    it("selects the closest event and resolves equal distances by row ID", async () => {
+      const leagueId = await seedLeague(getTestDb().kysely, {
+        id: "closest-event-league",
+        game: "poe1",
+        name: "Keepers",
+      });
+      await seedSession(getTestDb().kysely, {
+        id: "closest-event-session",
+        game: "poe1",
+        leagueId,
+        startedAt: "2026-03-14T09:00:00.000Z",
+        endedAt: "2026-03-14T10:00:00.000Z",
+      });
+      await getTestDb()
+        .kysely.insertInto("session_card_events")
+        .values([
+          {
+            session_id: "closest-event-session",
+            event_id: "aaaaaaaa-0000-4000-8000-000000000011",
+            card_name: "The Scholar",
+            dropped_at: "2026-03-14T09:26:14.000Z",
+          },
+          {
+            session_id: "closest-event-session",
+            event_id: "aaaaaaaa-0000-4000-8000-000000000012",
+            card_name: "The Scholar",
+            dropped_at: "2026-03-14T09:26:10.000Z",
+          },
+          {
+            session_id: "closest-event-session",
+            event_id: "aaaaaaaa-0000-4000-8000-000000000013",
+            card_name: "The Scholar",
+            dropped_at: "2026-03-14T09:26:16.000Z",
+          },
+          {
+            session_id: "closest-event-session",
+            event_id: "aaaaaaaa-0000-4000-8000-000000000014",
+            card_name: "The Scholar",
+            dropped_at: "2026-03-14T09:26:08.000Z",
+          },
+        ])
+        .execute();
+
+      const candidate = getRepository().findHistoricalCardEventCandidateSync(
+        getTestDb().db,
+        "poe1",
+        "The Scholar",
+        "2026-03-14T09:26:12.000Z",
+        new Set(),
+      );
+
+      expect(candidate?.eventId).toBe("aaaaaaaa-0000-4000-8000-000000000011");
+    });
+
+    it("finds unenriched events for the requested game and applies context once", async () => {
+      const poe1LeagueId = await seedLeague(getTestDb().kysely, {
+        id: "historical-poe1-league",
+        game: "poe1",
+        name: "Keepers",
+      });
+      const poe2LeagueId = await seedLeague(getTestDb().kysely, {
+        id: "historical-poe2-league",
+        game: "poe2",
+        name: "Dawn",
+      });
+      await seedSession(getTestDb().kysely, {
+        id: "historical-poe1-session",
+        game: "poe1",
+        leagueId: poe1LeagueId,
+        startedAt: "2026-03-14T09:00:00.000Z",
+        endedAt: "2026-03-14T10:00:00.000Z",
+      });
+      await seedSession(getTestDb().kysely, {
+        id: "historical-poe2-session",
+        game: "poe2",
+        leagueId: poe2LeagueId,
+        startedAt: "2026-03-14T09:00:00.000Z",
+      });
+
+      await getTestDb()
+        .kysely.insertInto("session_card_events")
+        .values([
+          {
+            session_id: "historical-poe1-session",
+            event_id: "aaaaaaaa-0000-4000-8000-000000000001",
+            card_name: "The Scholar",
+            dropped_at: "2026-03-14T09:26:14.000Z",
+          },
+          {
+            session_id: "historical-poe1-session",
+            event_id: "aaaaaaaa-0000-4000-8000-000000000002",
+            card_name: "Already Enriched",
+            dropped_at: "2026-03-14T09:30:00.000Z",
+            location: "Atlas Hideout",
+          },
+          {
+            session_id: "historical-poe2-session",
+            event_id: "aaaaaaaa-0000-4000-8000-000000000003",
+            card_name: "Other Game",
+            dropped_at: "2026-03-14T09:40:00.000Z",
+          },
+        ])
+        .execute();
+
+      await expect(
+        getRepository().hasHistoricalCardEventsMissingContext("poe1"),
+      ).resolves.toBe(true);
+      const candidate = getRepository().findHistoricalCardEventCandidateSync(
+        getTestDb().db,
+        "poe1",
+        "The Scholar",
+        "2026-03-14T09:26:12.000Z",
+        new Set(),
+      );
+      expect(candidate).toEqual(
+        expect.objectContaining({
+          eventId: "aaaaaaaa-0000-4000-8000-000000000001",
+          sessionId: "historical-poe1-session",
+          cardName: "The Scholar",
+          league: "Keepers",
+        }),
+      );
+      const preparedStatement = (getRepository() as any)
+        ._historicalCandidateStatement;
+      expect(preparedStatement.source).toContain(
+        "sce.dropped_at BETWEEN @lowerBound AND @upperBound",
+      );
+      expect(preparedStatement.source).not.toContain(
+        "julianday(sce.dropped_at)",
+      );
+      expect(
+        getRepository().findHistoricalCardEventCandidateSync(
+          getTestDb().db,
+          "poe1",
+          "The Scholar",
+          "2026-03-14T09:26:12.000Z",
+          new Set([candidate!.id]),
+        ),
+      ).toBeNull();
+      expect((getRepository() as any)._historicalCandidateStatement).toBe(
+        preparedStatement,
+      );
+
+      getRepository().applyHistoricalCardEventContextsSync(
+        getTestDb().db,
+        "poe1",
+        [],
+      );
+      const update = {
+        id: candidate!.id,
+        eventId: candidate!.eventId,
+        sessionId: candidate!.sessionId,
+        sourceEventId: "249522781",
+        cardName: "The Scholar",
+        droppedAt: "2026-03-14T09:26:12.000Z",
+        location: "Atlas Hideout",
+        localMinute: 626,
+        utcOffsetMinutes: 60,
+        league: "Keepers",
+      };
+      getRepository().applyHistoricalCardEventContextsSync(
+        getTestDb().db,
+        "poe1",
+        [update],
+      );
+      getRepository().applyHistoricalCardEventContextsSync(
+        getTestDb().db,
+        "poe1",
+        [update],
+      );
+
+      await expect(
+        getTestDb()
+          .kysely.selectFrom("session_card_events")
+          .select([
+            "source_event_id",
+            "dropped_at",
+            "location",
+            "utc_offset_minutes",
+          ])
+          .where("id", "=", candidate!.id)
+          .executeTakeFirstOrThrow(),
+      ).resolves.toEqual({
+        source_event_id: "249522781",
+        dropped_at: "2026-03-14T09:26:12.000Z",
+        location: "Atlas Hideout",
+        utc_offset_minutes: 60,
+      });
+      await expect(
+        getTestDb()
+          .kysely.selectFrom("community_drop_event_outbox")
+          .selectAll()
+          .execute(),
+      ).resolves.toEqual([
+        expect.objectContaining({
+          event_id: "aaaaaaaa-0000-4000-8000-000000000001",
+          session_id: "historical-poe1-session",
+          game: "poe1",
+          scope: "Keepers",
+          card_name: "The Scholar",
+          location: "Atlas Hideout",
+          local_minute: 626,
+          utc_offset_minutes: 60,
+        }),
+      ]);
+    });
+  });
+
   // ─── Session Operations ──────────────────────────────────────────────────
 
   describe("createSession", () => {

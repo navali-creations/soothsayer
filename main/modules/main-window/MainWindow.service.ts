@@ -15,7 +15,10 @@ import { AppService } from "~/main/modules/app";
 import { AppPerformanceService } from "~/main/modules/app-performance";
 import { BannersService } from "~/main/modules/banners";
 import { CardDetailsService } from "~/main/modules/card-details";
-import { ClientLogReaderService } from "~/main/modules/client-log-reader";
+import {
+  ClientLogReaderEvent,
+  ClientLogReaderService,
+} from "~/main/modules/client-log-reader";
 import { CommunityUploadService } from "~/main/modules/community-upload";
 import { CsvService } from "~/main/modules/csv";
 import { CurrentSessionService } from "~/main/modules/current-session";
@@ -88,6 +91,7 @@ class MainWindowService {
   private settingsStore: SettingsStoreService | null = null;
   private database: DatabaseService | null = null;
   private unsubscribeOverlayVisibility: (() => void) | null = null;
+  private clientLogReaderListenerRegistered = false;
 
   private static _instance: MainWindowService;
 
@@ -303,7 +307,13 @@ class MainWindowService {
     console.log("[Init] ✓ Overlay");
 
     // 11. Client Log Reader (watches client.txt for divination cards)
-    await ClientLogReaderService.getInstance(this);
+    const clientLogReader = await ClientLogReaderService.getInstance(this);
+    if (!this.clientLogReaderListenerRegistered) {
+      clientLogReader.on(ClientLogReaderEvent.HistoricalContextQueued, () => {
+        void communityUpload.flushPendingUploads();
+      });
+      this.clientLogReaderListenerRegistered = true;
+    }
     console.log("[Init] ✓ Client Log Reader");
 
     console.log("[Init] All services initialized successfully");
@@ -383,8 +393,6 @@ class MainWindowService {
     // Initialize update checker (checks GitHub releases for new versions)
     UpdaterService.getInstance().initialize(this.mainWindow);
     console.log("[Init] ✓ Updater");
-
-    await ClientLogReaderService.getInstance(this);
 
     console.log("[Init] Main window created and ready");
   }

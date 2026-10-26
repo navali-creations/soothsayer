@@ -1,8 +1,118 @@
 import { describe, expect, it } from "vitest";
 
-import { parseCards } from "../utils/parseCards";
+import {
+  type CardDropEvent,
+  parseCards,
+  parseClientLogLine,
+  parseLocationLine,
+} from "../utils/parseCards";
+
+function groupEventsByCard(events: readonly CardDropEvent[]) {
+  const grouped: Record<string, { count: number; processedIds: string[] }> = {};
+  for (const event of events) {
+    grouped[event.cardName] ??= { count: 0, processedIds: [] };
+    const entry = grouped[event.cardName];
+    entry.count++;
+    entry.processedIds.push(event.processedId);
+  }
+  return grouped;
+}
 
 describe("parseCards", () => {
+  describe("drop context", () => {
+    it("applies the latest location to subsequent card events in order", () => {
+      const result = parseCards(
+        [
+          "2026/03/14 10:21:55 249265968 cffb06dd [INFO Client 21244] : You have entered Atlas Hideout.",
+          "2026/03/14 10:26:12 249522781 cffb06dd [INFO Client 21244] : Card drawn from the deck: <divination>{The Scholar}",
+          "2026/03/14 10:27:00 249522782 cffb06dd [INFO Client 21244] : You have entered The Rogue Harbour.",
+          "2026/03/14 10:28:00 249522783 cffb06dd [INFO Client 21244] : Card drawn from the deck: <divination>{Rain of Chaos}",
+        ].join("\n"),
+      );
+
+      expect(
+        result.events.map(({ cardName, location }) => ({
+          cardName,
+          location,
+        })),
+      ).toEqual([
+        { cardName: "The Scholar", location: "Atlas Hideout" },
+        { cardName: "Rain of Chaos", location: "The Rogue Harbour" },
+      ]);
+      expect(result.lastLocation).toBe("The Rogue Harbour");
+    });
+
+    it("uses the initial location when the appended chunk has no area line", () => {
+      const result = parseCards(
+        "2026/03/14 10:26:12 249522781 cffb06dd [INFO Client 21244] : Card drawn from the deck: <divination>{The Scholar}",
+        new Set(),
+        "Atlas Hideout",
+      );
+
+      expect(result.events[0].location).toBe("Atlas Hideout");
+      expect(result.events[0].localMinute).toBe(10 * 60 + 26);
+      expect(result.events[0].utcOffsetMinutes).toBe(
+        -new Date(2026, 2, 14, 10, 26, 12).getTimezoneOffset(),
+      );
+      expect(result.events[0].droppedAt).toBe(
+        new Date(2026, 2, 14, 10, 26, 12).toISOString(),
+      );
+    });
+
+    it("deduplicates a source event ID globally across card names", () => {
+      const result = parseCards(
+        [
+          "2026/03/14 10:26:12 249522781 cffb06dd [INFO Client 21244] : Card drawn from the deck: <divination>{The Scholar}",
+          "2026/03/14 10:26:13 249522781 cffb06dd [INFO Client 21244] : Card drawn from the deck: <divination>{Rain of Chaos}",
+        ].join("\n"),
+      );
+
+      expect(result.totalCount).toBe(1);
+      expect(result.events).toHaveLength(1);
+      expect(groupEventsByCard(result.events)).not.toHaveProperty(
+        "Rain of Chaos",
+      );
+    });
+
+    it("parses both observed location message forms", () => {
+      expect(
+        parseLocationLine(
+          "2026/03/14 10:21:55 249265968 cffb06dd [INFO Client 21244] : You have entered Atlas Hideout.",
+        ),
+      ).toBe("Atlas Hideout");
+      expect(
+        parseLocationLine(
+          "2026/03/14 10:21:55 249265968 cffb06dd [INFO Client 21244] : : You have entered Atlas Hideout.",
+        ),
+      ).toBe("Atlas Hideout");
+    });
+
+    it("rejects malformed timestamps and location messages", () => {
+      expect(
+        parseLocationLine(
+          "2026/02/30 10:21:55 249265968 cffb06dd [INFO Client 21244] : You have entered Atlas Hideout.",
+        ),
+      ).toBeNull();
+      expect(
+        parseLocationLine(
+          "2026/03/14 10:21:55 249265968 cffb06dd [INFO Client 21244] : You have entered Atlas Hideout",
+        ),
+      ).toBeNull();
+      expect(
+        parseLocationLine(
+          "2026/03/14 10:21:55 249265968 cffb06dd [INFO Client 21244] : You have entered  .",
+        ),
+      ).toBeNull();
+      expect(
+        parseClientLogLine(
+          "2026/03/14 10:21:55 249265968 cffb06dd [INFO Client 21244] : You have entered  .",
+          null,
+        ),
+      ).toBeNull();
+      expect(parseClientLogLine("not a log line", null)).toBeNull();
+    });
+  });
+
   // ─── Valid Card Parsing ──────────────────────────────────────────────────
 
   describe("valid card lines", () => {
@@ -13,10 +123,14 @@ describe("parseCards", () => {
       const result = parseCards(logText);
 
       expect(result.totalCount).toBe(1);
-      expect(result.cards).toHaveProperty("The Doctor");
-      expect(result.cards["The Doctor"].count).toBe(1);
-      expect(result.cards["The Doctor"].processedIds).toHaveLength(1);
-      expect(result.cards["The Doctor"].processedIds[0]).toBe("219999828");
+      expect(groupEventsByCard(result.events)).toHaveProperty("The Doctor");
+      expect(groupEventsByCard(result.events)["The Doctor"].count).toBe(1);
+      expect(
+        groupEventsByCard(result.events)["The Doctor"].processedIds,
+      ).toHaveLength(1);
+      expect(
+        groupEventsByCard(result.events)["The Doctor"].processedIds[0],
+      ).toBe("219999828");
     });
 
     it("should parse multiple different cards from multiple lines", () => {
@@ -29,10 +143,10 @@ describe("parseCards", () => {
       const result = parseCards(logText);
 
       expect(result.totalCount).toBe(3);
-      expect(Object.keys(result.cards)).toHaveLength(3);
-      expect(result.cards["The Doctor"].count).toBe(1);
-      expect(result.cards["Rain of Chaos"].count).toBe(1);
-      expect(result.cards["The Fiend"].count).toBe(1);
+      expect(Object.keys(groupEventsByCard(result.events))).toHaveLength(3);
+      expect(groupEventsByCard(result.events)["The Doctor"].count).toBe(1);
+      expect(groupEventsByCard(result.events)["Rain of Chaos"].count).toBe(1);
+      expect(groupEventsByCard(result.events)["The Fiend"].count).toBe(1);
     });
 
     it("should aggregate multiple drops of the same card", () => {
@@ -45,9 +159,11 @@ describe("parseCards", () => {
       const result = parseCards(logText);
 
       expect(result.totalCount).toBe(3);
-      expect(Object.keys(result.cards)).toHaveLength(1);
-      expect(result.cards["Rain of Chaos"].count).toBe(3);
-      expect(result.cards["Rain of Chaos"].processedIds).toHaveLength(3);
+      expect(Object.keys(groupEventsByCard(result.events))).toHaveLength(1);
+      expect(groupEventsByCard(result.events)["Rain of Chaos"].count).toBe(3);
+      expect(
+        groupEventsByCard(result.events)["Rain of Chaos"].processedIds,
+      ).toHaveLength(3);
     });
 
     it("should extract the numeric event ID from the validated log prefix", () => {
@@ -56,7 +172,9 @@ describe("parseCards", () => {
 
       const result = parseCards(logText);
 
-      expect(result.cards["Emperor's Luck"].processedIds[0]).toBe("205270890");
+      expect(
+        groupEventsByCard(result.events)["Emperor's Luck"].processedIds[0],
+      ).toBe("205270890");
     });
 
     it("should track unique processedIds per card", () => {
@@ -67,10 +185,12 @@ describe("parseCards", () => {
 
       const result = parseCards(logText);
 
-      expect(result.cards["The Doctor"].processedIds).toEqual(
-        expect.arrayContaining(["100000001", "100000002"]),
-      );
-      expect(result.cards["The Doctor"].processedIds).toHaveLength(2);
+      expect(
+        groupEventsByCard(result.events)["The Doctor"].processedIds,
+      ).toEqual(expect.arrayContaining(["100000001", "100000002"]));
+      expect(
+        groupEventsByCard(result.events)["The Doctor"].processedIds,
+      ).toHaveLength(2);
     });
   });
 
@@ -83,7 +203,7 @@ describe("parseCards", () => {
 
       const result = parseCards(logText);
 
-      expect(result.cards).toHaveProperty("Emperor's Luck");
+      expect(groupEventsByCard(result.events)).toHaveProperty("Emperor's Luck");
     });
 
     it("should handle card names with 'The' prefix", () => {
@@ -92,7 +212,9 @@ describe("parseCards", () => {
 
       const result = parseCards(logText);
 
-      expect(result.cards).toHaveProperty("The King's Blade");
+      expect(groupEventsByCard(result.events)).toHaveProperty(
+        "The King's Blade",
+      );
     });
 
     it("should handle card names with special words", () => {
@@ -101,7 +223,9 @@ describe("parseCards", () => {
 
       const result = parseCards(logText);
 
-      expect(result.cards).toHaveProperty("A Mother's Parting Gift");
+      expect(groupEventsByCard(result.events)).toHaveProperty(
+        "A Mother's Parting Gift",
+      );
     });
 
     it("should handle single-word card names", () => {
@@ -110,8 +234,8 @@ describe("parseCards", () => {
 
       const result = parseCards(logText);
 
-      expect(result.cards).toHaveProperty("Hubris");
-      expect(result.cards.Hubris.count).toBe(1);
+      expect(groupEventsByCard(result.events)).toHaveProperty("Hubris");
+      expect(groupEventsByCard(result.events).Hubris.count).toBe(1);
     });
 
     it("should handle card names with 'of' and 'the' in the middle", () => {
@@ -120,7 +244,9 @@ describe("parseCards", () => {
 
       const result = parseCards(logText);
 
-      expect(result.cards).toHaveProperty("Luck of the Vaal");
+      expect(groupEventsByCard(result.events)).toHaveProperty(
+        "Luck of the Vaal",
+      );
     });
 
     it("should handle card names with hyphens", () => {
@@ -129,7 +255,9 @@ describe("parseCards", () => {
 
       const result = parseCards(logText);
 
-      expect(result.cards).toHaveProperty("A Chilling Wind");
+      expect(groupEventsByCard(result.events)).toHaveProperty(
+        "A Chilling Wind",
+      );
     });
   });
 
@@ -148,8 +276,8 @@ describe("parseCards", () => {
       const result = parseCards(logText, alreadyProcessed);
 
       expect(result.totalCount).toBe(1);
-      expect(Object.keys(result.cards)).toHaveLength(1);
-      expect(result.cards["Rain of Chaos"].count).toBe(1);
+      expect(Object.keys(groupEventsByCard(result.events))).toHaveLength(1);
+      expect(groupEventsByCard(result.events)["Rain of Chaos"].count).toBe(1);
     });
 
     it("should return zero results when all IDs are already processed", () => {
@@ -163,7 +291,7 @@ describe("parseCards", () => {
       const result = parseCards(logText, alreadyProcessed);
 
       expect(result.totalCount).toBe(0);
-      expect(Object.keys(result.cards)).toHaveLength(0);
+      expect(Object.keys(groupEventsByCard(result.events))).toHaveLength(0);
     });
 
     it("should work correctly with an empty previously processed set", () => {
@@ -173,7 +301,7 @@ describe("parseCards", () => {
       const result = parseCards(logText, new Set());
 
       expect(result.totalCount).toBe(1);
-      expect(result.cards["The Doctor"].count).toBe(1);
+      expect(groupEventsByCard(result.events)["The Doctor"].count).toBe(1);
     });
 
     it("should default to empty set when previouslyProcessedIds is not provided", () => {
@@ -209,8 +337,10 @@ describe("parseCards", () => {
       const result = parseCards(logText);
 
       expect(result.totalCount).toBe(1);
-      expect(result.cards["The Doctor"].count).toBe(1);
-      expect(result.cards["The Doctor"].processedIds).toHaveLength(1);
+      expect(groupEventsByCard(result.events)["The Doctor"].count).toBe(1);
+      expect(
+        groupEventsByCard(result.events)["The Doctor"].processedIds,
+      ).toHaveLength(1);
     });
 
     it("should count distinct IDs even if the same card name appears with different IDs", () => {
@@ -223,8 +353,10 @@ describe("parseCards", () => {
       const result = parseCards(logText);
 
       expect(result.totalCount).toBe(2);
-      expect(result.cards["Rain of Chaos"].count).toBe(2);
-      expect(result.cards["Rain of Chaos"].processedIds).toHaveLength(2);
+      expect(groupEventsByCard(result.events)["Rain of Chaos"].count).toBe(2);
+      expect(
+        groupEventsByCard(result.events)["Rain of Chaos"].processedIds,
+      ).toHaveLength(2);
     });
   });
 
@@ -242,8 +374,8 @@ describe("parseCards", () => {
       const result = parseCards(logText);
 
       expect(result.totalCount).toBe(1);
-      expect(Object.keys(result.cards)).toHaveLength(1);
-      expect(result.cards["The Doctor"]).toBeDefined();
+      expect(Object.keys(groupEventsByCard(result.events))).toHaveLength(1);
+      expect(groupEventsByCard(result.events)["The Doctor"]).toBeDefined();
     });
 
     it("should return zero results for a log with no card drops", () => {
@@ -256,7 +388,7 @@ describe("parseCards", () => {
       const result = parseCards(logText);
 
       expect(result.totalCount).toBe(0);
-      expect(Object.keys(result.cards)).toHaveLength(0);
+      expect(Object.keys(groupEventsByCard(result.events))).toHaveLength(0);
     });
 
     it("should handle log lines mixed with empty lines", () => {
@@ -282,21 +414,21 @@ describe("parseCards", () => {
       const result = parseCards("");
 
       expect(result.totalCount).toBe(0);
-      expect(Object.keys(result.cards)).toHaveLength(0);
+      expect(Object.keys(groupEventsByCard(result.events))).toHaveLength(0);
     });
 
     it("should return empty result for whitespace-only input", () => {
       const result = parseCards("   \n  \n   ");
 
       expect(result.totalCount).toBe(0);
-      expect(Object.keys(result.cards)).toHaveLength(0);
+      expect(Object.keys(groupEventsByCard(result.events))).toHaveLength(0);
     });
 
     it("should return empty result for a single newline", () => {
       const result = parseCards("\n");
 
       expect(result.totalCount).toBe(0);
-      expect(Object.keys(result.cards)).toHaveLength(0);
+      expect(Object.keys(groupEventsByCard(result.events))).toHaveLength(0);
     });
 
     it("should handle a single line with no newline at end", () => {
@@ -319,7 +451,7 @@ describe("parseCards", () => {
       const result = parseCards(logText);
 
       expect(result.totalCount).toBe(0);
-      expect(Object.keys(result.cards)).toHaveLength(0);
+      expect(Object.keys(groupEventsByCard(result.events))).toHaveLength(0);
     });
 
     it("should skip a marker embedded in text without a client-log prefix", () => {
@@ -329,7 +461,7 @@ describe("parseCards", () => {
       const result = parseCards(logText);
 
       expect(result.totalCount).toBe(0);
-      expect(result.cards).toEqual({});
+      expect(groupEventsByCard(result.events)).toEqual({});
     });
 
     it("should skip lines with a non-numeric event ID", () => {
@@ -339,7 +471,7 @@ describe("parseCards", () => {
       const result = parseCards(logText);
 
       expect(result.totalCount).toBe(0);
-      expect(result.cards).toEqual({});
+      expect(groupEventsByCard(result.events)).toEqual({});
     });
 
     it("should skip lines with an invalid timestamp prefix", () => {
@@ -349,7 +481,7 @@ describe("parseCards", () => {
       const result = parseCards(logText);
 
       expect(result.totalCount).toBe(0);
-      expect(result.cards).toEqual({});
+      expect(groupEventsByCard(result.events)).toEqual({});
     });
 
     it("should skip lines without the client context", () => {
@@ -359,7 +491,7 @@ describe("parseCards", () => {
       const result = parseCards(logText);
 
       expect(result.totalCount).toBe(0);
-      expect(result.cards).toEqual({});
+      expect(groupEventsByCard(result.events)).toEqual({});
     });
 
     it("should skip lines with empty curly braces", () => {
@@ -394,26 +526,28 @@ describe("parseCards", () => {
   // ─── Return Shape ───────────────────────────────────────────────────────
 
   describe("return value structure", () => {
-    it("should return a DivinationCardResult with totalCount and cards", () => {
+    it("should return a DivinationCardResult with totalCount and events", () => {
       const result = parseCards("");
 
       expect(result).toHaveProperty("totalCount");
-      expect(result).toHaveProperty("cards");
+      expect(result).toHaveProperty("events");
+      expect(result).toHaveProperty("lastLocation");
       expect(typeof result.totalCount).toBe("number");
-      expect(typeof result.cards).toBe("object");
+      expect(result.events).toBeInstanceOf(Array);
     });
 
-    it("should return cards with count and processedIds array for each entry", () => {
+    it("should return an event for each unique card drop", () => {
       const logText =
         "2025/12/01 02:07:01 100000001 abc [INFO Client 2588] : Card drawn from the deck: <divination>{The Doctor}";
 
       const result = parseCards(logText);
 
-      const entry = result.cards["The Doctor"];
-      expect(entry).toHaveProperty("count");
-      expect(entry).toHaveProperty("processedIds");
-      expect(typeof entry.count).toBe("number");
-      expect(Array.isArray(entry.processedIds)).toBe(true);
+      expect(result.events).toEqual([
+        expect.objectContaining({
+          cardName: "The Doctor",
+          processedId: "100000001",
+        }),
+      ]);
     });
 
     it("should have totalCount equal to the sum of all card counts", () => {
@@ -428,15 +562,14 @@ describe("parseCards", () => {
 
       const result = parseCards(logText);
 
-      const sumOfCounts = Object.values(result.cards).reduce(
-        (sum, entry) => sum + entry.count,
-        0,
-      );
+      const sumOfCounts = Object.values(
+        groupEventsByCard(result.events),
+      ).reduce((sum, entry) => sum + entry.count, 0);
       expect(result.totalCount).toBe(sumOfCounts);
       expect(result.totalCount).toBe(6);
-      expect(result.cards["The Doctor"].count).toBe(2);
-      expect(result.cards["Rain of Chaos"].count).toBe(1);
-      expect(result.cards["The Fiend"].count).toBe(3);
+      expect(groupEventsByCard(result.events)["The Doctor"].count).toBe(2);
+      expect(groupEventsByCard(result.events)["Rain of Chaos"].count).toBe(1);
+      expect(groupEventsByCard(result.events)["The Fiend"].count).toBe(3);
     });
 
     it("should have processedIds length equal to count for each card", () => {
@@ -448,7 +581,7 @@ describe("parseCards", () => {
 
       const result = parseCards(logText);
 
-      const entry = result.cards["Rain of Chaos"];
+      const entry = groupEventsByCard(result.events)["Rain of Chaos"];
       expect(entry.processedIds).toHaveLength(entry.count);
     });
   });
@@ -472,20 +605,24 @@ describe("parseCards", () => {
       const result = parseCards(logText);
 
       expect(result.totalCount).toBe(4);
-      expect(Object.keys(result.cards)).toHaveLength(3);
+      expect(Object.keys(groupEventsByCard(result.events))).toHaveLength(3);
 
-      expect(result.cards["The Doppelganger"].count).toBe(1);
-      expect(result.cards["The Doppelganger"].processedIds).toEqual([
-        "219999828",
-      ]);
-
-      expect(result.cards["Rain of Chaos"].count).toBe(2);
-      expect(result.cards["Rain of Chaos"].processedIds).toEqual(
-        expect.arrayContaining(["219999837", "219999842"]),
+      expect(groupEventsByCard(result.events)["The Doppelganger"].count).toBe(
+        1,
       );
+      expect(
+        groupEventsByCard(result.events)["The Doppelganger"].processedIds,
+      ).toEqual(["219999828"]);
 
-      expect(result.cards["The Doctor"].count).toBe(1);
-      expect(result.cards["The Doctor"].processedIds).toEqual(["219999847"]);
+      expect(groupEventsByCard(result.events)["Rain of Chaos"].count).toBe(2);
+      expect(
+        groupEventsByCard(result.events)["Rain of Chaos"].processedIds,
+      ).toEqual(expect.arrayContaining(["219999837", "219999842"]));
+
+      expect(groupEventsByCard(result.events)["The Doctor"].count).toBe(1);
+      expect(
+        groupEventsByCard(result.events)["The Doctor"].processedIds,
+      ).toEqual(["219999847"]);
     });
 
     it("should handle a batch of 10 rapid card drops (simulating stacked deck opening)", () => {
@@ -515,14 +652,16 @@ describe("parseCards", () => {
       expect(result.totalCount).toBe(10);
 
       // Rain of Chaos appears 4 times
-      expect(result.cards["Rain of Chaos"].count).toBe(4);
+      expect(groupEventsByCard(result.events)["Rain of Chaos"].count).toBe(4);
       // The Surgeon appears 2 times
-      expect(result.cards["The Surgeon"].count).toBe(2);
+      expect(groupEventsByCard(result.events)["The Surgeon"].count).toBe(2);
       // Single-occurrence cards
-      expect(result.cards["Emperor's Luck"].count).toBe(1);
-      expect(result.cards["The Doppelganger"].count).toBe(1);
-      expect(result.cards.Loyalty.count).toBe(1);
-      expect(result.cards["Her Mask"].count).toBe(1);
+      expect(groupEventsByCard(result.events)["Emperor's Luck"].count).toBe(1);
+      expect(groupEventsByCard(result.events)["The Doppelganger"].count).toBe(
+        1,
+      );
+      expect(groupEventsByCard(result.events).Loyalty.count).toBe(1);
+      expect(groupEventsByCard(result.events)["Her Mask"].count).toBe(1);
     });
 
     it("should correctly filter out previously processed IDs from a realistic batch", () => {
@@ -540,11 +679,11 @@ describe("parseCards", () => {
       const result = parseCards(logText, alreadyProcessed);
 
       expect(result.totalCount).toBe(2);
-      expect(Object.keys(result.cards)).toHaveLength(2);
-      expect(result.cards["Emperor's Luck"].count).toBe(1);
-      expect(result.cards["The Fiend"].count).toBe(1);
-      expect(result.cards["Rain of Chaos"]).toBeUndefined();
-      expect(result.cards["The Doctor"]).toBeUndefined();
+      expect(Object.keys(groupEventsByCard(result.events))).toHaveLength(2);
+      expect(groupEventsByCard(result.events)["Emperor's Luck"].count).toBe(1);
+      expect(groupEventsByCard(result.events)["The Fiend"].count).toBe(1);
+      expect(groupEventsByCard(result.events)["Rain of Chaos"]).toBeUndefined();
+      expect(groupEventsByCard(result.events)["The Doctor"]).toBeUndefined();
     });
 
     it("should handle Windows-style line endings (CRLF)", () => {
@@ -558,8 +697,8 @@ describe("parseCards", () => {
       const result = parseCards(logText);
 
       expect(result.totalCount).toBe(2);
-      expect(result.cards["The Doctor"]).toBeDefined();
-      expect(result.cards["Rain of Chaos"]).toBeDefined();
+      expect(groupEventsByCard(result.events)["The Doctor"]).toBeDefined();
+      expect(groupEventsByCard(result.events)["Rain of Chaos"]).toBeDefined();
     });
 
     it("should handle trailing newline at end of log text", () => {
@@ -569,7 +708,7 @@ describe("parseCards", () => {
       const result = parseCards(logText);
 
       expect(result.totalCount).toBe(1);
-      expect(result.cards["The Doctor"].count).toBe(1);
+      expect(groupEventsByCard(result.events)["The Doctor"].count).toBe(1);
     });
   });
 });

@@ -12,3 +12,13 @@ export type CommunityBackfillLeaguesResult =
 export type CommunityBackfillResult =
   | { success: true }
   | { success: false; error: string };
+
+export interface CommunityDropContextUploadStatus {
+  pendingEvents: number;
+  isUploading: boolean;
+  revision: number;
+}
+
+export type CommunityDropContextUploadStatusResult =
+  | { success: true; status: CommunityDropContextUploadStatus }
+  | { success: false; error: string };

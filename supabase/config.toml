@@ -415,3 +415,9 @@ verify_jwt = false
 
 [functions.get-community-drop-rates]
 verify_jwt = false
+
+[functions.upload-community-drop-events]
+verify_jwt = false
+
+[functions.get-community-drop-context]
+verify_jwt = false

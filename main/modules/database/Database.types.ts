@@ -73,6 +73,10 @@ export interface SessionCardEventsTable {
   chaos_value: number | null;
   divine_value: number | null;
   dropped_at: ColumnType<string, string | undefined, never>;
+  event_id: string | null;
+  source_event_id: string | null;
+  location: string | null;
+  utc_offset_minutes: number | null;
 }
 
 export interface SessionSummariesTable {
@@ -323,6 +327,26 @@ export interface CommunityUploadOutboxTable {
   updated_at: ColumnType<string, string | undefined, string>;
 }
 
+export interface CommunityDropEventOutboxTable {
+  event_id: string;
+  session_id: string;
+  game: "poe1" | "poe2";
+  scope: string;
+  card_name: string;
+  location: string;
+  local_minute: number;
+  utc_offset_minutes: number;
+  created_at: ColumnType<string, string | undefined, never>;
+}
+
+export interface CommunityDropEventUploadStateTable {
+  game: "poe1" | "poe2";
+  scope: string;
+  attempts: ColumnType<number, number | undefined, number>;
+  last_error: string | null;
+  next_attempt_at: string | null;
+}
+
 export interface DismissedBannersTable {
   banner_id: string;
   dismissed_at: ColumnType<string, string | undefined, string>;
@@ -390,6 +414,8 @@ export interface Database {
   csv_export_snapshots: CsvExportSnapshotsTable;
   community_upload_snapshot: CommunityUploadSnapshotTable;
   community_upload_outbox: CommunityUploadOutboxTable;
+  community_drop_event_outbox: CommunityDropEventOutboxTable;
+  community_drop_event_upload_state: CommunityDropEventUploadStateTable;
   dismissed_banners: DismissedBannersTable;
   app_performance_captures: AppPerformanceCapturesTable;
   app_performance_samples: AppPerformanceSamplesTable;

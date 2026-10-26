@@ -32,6 +32,11 @@ export function createStoreMock() {
     backfillLeagues: [],
     isBackfilling: false,
     backfillError: null,
+    dropContextUploadStatus: {
+      pendingEvents: 0,
+      isUploading: false,
+      revision: 0,
+    },
     checkBackfill: vi.fn(),
     triggerBackfill: vi.fn(),
     dismissBackfillBanner: vi.fn(),

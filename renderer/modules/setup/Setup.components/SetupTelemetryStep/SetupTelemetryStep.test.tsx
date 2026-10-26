@@ -138,6 +138,18 @@ describe("SetupTelemetryStep", () => {
       ).toBeInTheDocument();
     });
 
+    it("discloses drop location and coarse local-time sharing", () => {
+      renderWithProviders(<SetupTelemetryStep />);
+
+      expect(screen.getByText(/in-game area names/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/local minute and UTC offset/),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/Exact dates and timestamps stay on your device/),
+      ).toBeInTheDocument();
+    });
+
     it("shows a link to wraeclast.cards", () => {
       renderWithProviders(<SetupTelemetryStep />);
 

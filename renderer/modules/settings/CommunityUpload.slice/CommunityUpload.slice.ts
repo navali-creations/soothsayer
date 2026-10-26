@@ -1,7 +1,10 @@
 import type { StateCreator } from "zustand";
 
 import { BANNER_IDS } from "~/main/modules/banners/Banners.types";
-import type { CommunityBackfillLeague } from "~/main/modules/community-upload/CommunityUpload.dto";
+import type {
+  CommunityBackfillLeague,
+  CommunityDropContextUploadStatus,
+} from "~/main/modules/community-upload/CommunityUpload.dto";
 import type { BoundStore } from "~/renderer/store/store.types";
 
 export interface CommunityUploadSlice {
@@ -20,6 +23,7 @@ export interface CommunityUploadSlice {
     backfillLeagues: CommunityBackfillLeague[];
     isBackfilling: boolean;
     backfillError: string | null;
+    dropContextUploadStatus: CommunityDropContextUploadStatus;
 
     // Actions
     fetchStatus: () => Promise<void>;
@@ -28,6 +32,8 @@ export interface CommunityUploadSlice {
     checkBackfill: () => Promise<void>;
     triggerBackfill: () => Promise<boolean>;
     dismissBackfillBanner: () => Promise<boolean>;
+    refreshDropContextUploadStatus: () => Promise<void>;
+    startListening: () => () => void;
   };
 }
 
@@ -52,6 +58,11 @@ export const createCommunityUploadSlice: StateCreator<
     backfillLeagues: [],
     isBackfilling: false,
     backfillError: null,
+    dropContextUploadStatus: {
+      pendingEvents: 0,
+      isUploading: false,
+      revision: -1,
+    },
 
     // Actions
     fetchStatus: async () => {
@@ -271,6 +282,59 @@ export const createCommunityUploadSlice: StateCreator<
           : "communityUploadSlice/dismissBackfillBanner/error",
       );
       return dismissed;
+    },
+
+    refreshDropContextUploadStatus: async () => {
+      try {
+        const result =
+          await window.electron.communityUpload.getDropContextUploadStatus();
+        if (!result.success) {
+          console.error(
+            "[CommunityUploadSlice] Failed to fetch card-history upload status.",
+          );
+          return;
+        }
+
+        set(
+          ({ communityUpload }) => {
+            if (
+              result.status.revision >=
+              communityUpload.dropContextUploadStatus.revision
+            ) {
+              communityUpload.dropContextUploadStatus = result.status;
+            }
+          },
+          false,
+          "communityUploadSlice/refreshDropContextUploadStatus/success",
+        );
+      } catch {
+        console.error(
+          "[CommunityUploadSlice] Failed to fetch card-history upload status.",
+        );
+      }
+    },
+
+    startListening: () => {
+      const unsubscribe =
+        window.electron.communityUpload.onDropContextUploadStatusChanged(
+          (status) => {
+            set(
+              ({ communityUpload }) => {
+                if (
+                  status.revision >=
+                  communityUpload.dropContextUploadStatus.revision
+                ) {
+                  communityUpload.dropContextUploadStatus = status;
+                }
+              },
+              false,
+              "communityUploadSlice/dropContextUploadStatusChanged",
+            );
+          },
+        );
+
+      void get().communityUpload.refreshDropContextUploadStatus();
+      return unsubscribe;
     },
   },
 });

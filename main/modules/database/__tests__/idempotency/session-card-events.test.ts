@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import { MigrationRunner, migrations } from "../../migrations";
 import { migration_20260331_225900_create_session_card_events } from "../../migrations/20260331_225900_create_session_card_events";
 import {
+  BASE_SESSION_CARD_EVENTS_COLUMNS,
   createBaselineSchema,
-  EXPECTED_SESSION_CARD_EVENTS_COLUMNS,
   getColumnNames,
   getIndexNames,
   getTableNames,
@@ -53,7 +53,7 @@ describe("session_card_events migration idempotency", () => {
     migration_20260331_225900_create_session_card_events.up(db);
 
     const columns = getColumnNames(db, "session_card_events");
-    expect(columns.sort()).toEqual(EXPECTED_SESSION_CARD_EVENTS_COLUMNS.sort());
+    expect(columns.sort()).toEqual(BASE_SESSION_CARD_EVENTS_COLUMNS.sort());
   });
 
   it("should create index", () => {
@@ -73,7 +73,9 @@ describe("session_card_events migration idempotency", () => {
     runner.runMigrations(migrations);
 
     expect(getTableNames(db)).toContain("session_card_events");
-    expect(getIndexNames(db, "session_card_events")).toHaveLength(1);
+    expect(getIndexNames(db, "session_card_events")).toContain(
+      "idx_session_card_events_context_backfill",
+    );
 
     migration_20260331_225900_create_session_card_events.down(db);
 
@@ -94,7 +96,7 @@ describe("session_card_events migration idempotency", () => {
     expect(getTableNames(db)).toContain("session_card_events");
 
     const columns = getColumnNames(db, "session_card_events");
-    expect(columns.sort()).toEqual(EXPECTED_SESSION_CARD_EVENTS_COLUMNS.sort());
+    expect(columns.sort()).toEqual(BASE_SESSION_CARD_EVENTS_COLUMNS.sort());
   });
 
   it("should preserve data in other tables after down()", () => {

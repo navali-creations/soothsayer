@@ -1,7 +1,12 @@
 import EventEmitter from "node:events";
 import fs from "node:fs";
+import { createInterface } from "node:readline";
+
+import { ipcMain } from "electron";
 
 import { CurrentSessionService } from "~/main/modules/current-session";
+import type { CardEventContextUpdate } from "~/main/modules/current-session/CurrentSession.dto";
+import { DatabaseService } from "~/main/modules/database";
 import type { MainWindowServiceType } from "~/main/modules/main-window";
 import { PerformanceLoggerService } from "~/main/modules/performance-logger";
 import {
@@ -10,7 +15,18 @@ import {
 } from "~/main/modules/settings-store";
 
 import type { GameType } from "../../../types/data-stores";
-import { parseCards } from "./utils";
+import { assertTrustedSender } from "../../utils/ipc-validation";
+import { ClientLogReaderChannel } from "./ClientLogReader.channels";
+import type { HistoricalContextBackfillResult } from "./ClientLogReader.dto";
+import { ClientLogReaderRepository } from "./ClientLogReader.repository";
+import { findLatestLocation, parseCards, parseClientLogLine } from "./utils";
+
+const HISTORICAL_CONTEXT_BACKFILL_KEY_PREFIX =
+  "historical_card_context_backfill_v1";
+const HISTORICAL_CONTEXT_BACKFILL_COMPLETE = "complete";
+const ClientLogReaderEvent = {
+  HistoricalContextQueued: "historical-context-queued",
+} as const;
 
 /**
  * SQLite-based ClientLogReader service
@@ -25,6 +41,7 @@ class ClientLogReaderService extends EventEmitter {
   private session: CurrentSessionService;
   private settingsStore: SettingsStoreService;
   private perfLogger: PerformanceLoggerService;
+  private repository: ClientLogReaderRepository;
   private game: GameType | null = null;
   private clientLogPath: string | null = null;
   private initialized: boolean = false;
@@ -44,6 +61,12 @@ class ClientLogReaderService extends EventEmitter {
    * we prepend it to the next chunk so parseCards always sees whole lines.
    */
   private partialLine: string = "";
+
+  /** Most recent validated `You have entered …` location in Client.txt. */
+  private currentLocation: string | null = null;
+
+  private historicalBackfill: Promise<HistoricalContextBackfillResult> | null =
+    null;
 
   static async getInstance(
     mainWindow?: MainWindowServiceType,
@@ -66,6 +89,23 @@ class ClientLogReaderService extends EventEmitter {
     this.session = CurrentSessionService.getInstance();
     this.settingsStore = SettingsStoreService.getInstance();
     this.perfLogger = PerformanceLoggerService.getInstance();
+    this.repository = new ClientLogReaderRepository(
+      DatabaseService.getInstance().getKysely(),
+    );
+    this.setupIpcHandlers();
+  }
+
+  private setupIpcHandlers(): void {
+    ipcMain.handle(
+      ClientLogReaderChannel.RunHistoricalContextBackfill,
+      async (event) => {
+        assertTrustedSender(
+          event,
+          ClientLogReaderChannel.RunHistoricalContextBackfill,
+        );
+        return this.runHistoricalContextBackfillOnce();
+      },
+    );
   }
 
   private async initialize(): Promise<void> {
@@ -98,11 +138,13 @@ class ClientLogReaderService extends EventEmitter {
       // Seed with the current size — we only care about future appends.
       const stat = fs.fstatSync(this.fd);
       this.lastKnownSize = stat.size;
+      this.currentLocation = findLatestLocation(filePath);
     } catch {
       // File may not exist yet; that's fine — the watchFile callback will
       // keep firing and we'll try again when data arrives.
       this.fd = null;
       this.lastKnownSize = 0;
+      this.currentLocation = null;
     }
 
     this.partialLine = "";
@@ -132,7 +174,6 @@ class ClientLogReaderService extends EventEmitter {
 
     // Open a persistent fd and seed lastKnownSize.
     this.openFileDescriptor(clientLogPath);
-
     fs.watchFile(
       clientLogPath,
       { interval: 100 },
@@ -176,29 +217,6 @@ class ClientLogReaderService extends EventEmitter {
 
         this.isProcessing = true;
         try {
-          // Check if there's an active session for this game
-          perf?.start("sessionCheck");
-          const isActive = this.session.isSessionActive(currentGame);
-
-          if (!isActive) {
-            // No active session — still advance lastKnownSize so we don't
-            // re-process these bytes once a session starts.
-            this.lastKnownSize = curr.size;
-            this.partialLine = "";
-            return;
-          }
-          const sessionCheckTime = perf?.end("sessionCheck") ?? 0;
-
-          // Get current league from active session
-          perf?.start("sessionInfo");
-          const sessionInfo = this.session.getActiveSessionInfo(currentGame);
-          if (!sessionInfo) {
-            this.lastKnownSize = curr.size;
-            this.partialLine = "";
-            return;
-          }
-          const sessionInfoTime = perf?.end("sessionInfo") ?? 0;
-
           // ── Read only the new bytes ──────────────────────────────────
           perf?.start("read");
 
@@ -248,38 +266,49 @@ class ClientLogReaderService extends EventEmitter {
 
           // Parse divination cards from the new lines
           perf?.start("parse");
-          const allProcessedIds = this.session.getAllProcessedIds(currentGame);
-          const newCards = parseCards(textToParse, allProcessedIds);
+          const isActive = this.session.isSessionActive(currentGame);
+          const allProcessedIds = isActive
+            ? this.session.getAllProcessedIds(currentGame)
+            : new Set<string>();
+          const newCards = parseCards(
+            textToParse,
+            allProcessedIds,
+            this.currentLocation,
+          );
+          this.currentLocation = newCards.lastLocation;
           const parseTime = perf?.end("parse") ?? 0;
+
+          if (!isActive) return;
+
+          perf?.start("sessionInfo");
+          const sessionInfo = this.session.getActiveSessionInfo(currentGame);
+          if (!sessionInfo) return;
+          const sessionInfoTime = perf?.end("sessionInfo") ?? 0;
 
           if (newCards.totalCount > 0) {
             this.perfLogger.log("File processing", {
               "File read": readTime,
               Parse: parseTime,
-              "Session check": sessionCheckTime,
               "Session info": sessionInfoTime,
             });
 
-            // Process each new card found
-            for (const [cardName, entry] of Object.entries(newCards.cards)) {
-              for (const processedId of entry.processedIds) {
-                perf?.start("addCard");
+            for (const event of newCards.events) {
+              perf?.start("addCard");
+              await this.session.addCard(
+                currentGame,
+                sessionInfo.league,
+                event.cardName,
+                event.processedId,
+                event,
+              );
 
-                await this.session.addCard(
-                  currentGame,
-                  sessionInfo.league,
-                  cardName,
-                  processedId,
-                );
+              const addCardTime = perf?.end("addCard") ?? 0;
 
-                const addCardTime = perf?.end("addCard") ?? 0;
-
-                this.perfLogger.log(`Card added: ${cardName}`, {
-                  Game: currentGame,
-                  League: sessionInfo.league,
-                  "addCard()": addCardTime,
-                });
-              }
+              this.perfLogger.log(`Card added: ${event.cardName}`, {
+                Game: currentGame,
+                League: sessionInfo.league,
+                "addCard()": addCardTime,
+              });
             }
 
             overallTimer?.({
@@ -302,6 +331,7 @@ class ClientLogReaderService extends EventEmitter {
     this.closeFileDescriptor();
     this.lastKnownSize = 0;
     this.partialLine = "";
+    this.currentLocation = null;
     this.isProcessing = false;
   }
 
@@ -314,6 +344,166 @@ class ClientLogReaderService extends EventEmitter {
     this.clientLogPath = path;
     this.watchFile(path);
   }
+
+  public runHistoricalContextBackfillOnce(): Promise<HistoricalContextBackfillResult> {
+    if (this.historicalBackfill) return this.historicalBackfill;
+
+    const backfill = this.runHistoricalContextBackfill().finally(() => {
+      this.historicalBackfill = null;
+    });
+    this.historicalBackfill = backfill;
+    return backfill;
+  }
+
+  private async runHistoricalContextBackfill(): Promise<HistoricalContextBackfillResult> {
+    try {
+      const uploadsEnabled = await this.settingsStore.get(
+        SettingsKey.CommunityUploadsEnabled,
+      );
+      if (uploadsEnabled === false) {
+        return { status: "deferred", enrichedEvents: 0 };
+      }
+
+      const sources: Array<{
+        game: GameType;
+        setting:
+          | typeof SettingsKey.Poe1ClientTxtPath
+          | typeof SettingsKey.Poe2ClientTxtPath;
+      }> = [
+        { game: "poe1", setting: SettingsKey.Poe1ClientTxtPath },
+        { game: "poe2", setting: SettingsKey.Poe2ClientTxtPath },
+      ];
+      let enrichedEvents = 0;
+      let deferred = false;
+      let alreadyCompleted = true;
+
+      for (const { game, setting } of sources) {
+        const metadataKey = `${HISTORICAL_CONTEXT_BACKFILL_KEY_PREFIX}:${game}`;
+        const completed = await this.repository.getMetadata(metadataKey);
+        if (completed === HISTORICAL_CONTEXT_BACKFILL_COMPLETE) {
+          continue;
+        }
+        alreadyCompleted = false;
+
+        if (!(await this.session.hasHistoricalCardEventsMissingContext(game))) {
+          await this.repository.setMetadata(
+            metadataKey,
+            HISTORICAL_CONTEXT_BACKFILL_COMPLETE,
+          );
+          continue;
+        }
+
+        const filePath = await this.settingsStore.get(setting);
+        if (!filePath) {
+          deferred = true;
+          continue;
+        }
+
+        try {
+          enrichedEvents += await this.backfillHistoricalCardContexts(
+            filePath,
+            game,
+          );
+          // A complete scan is terminal even when Client.txt no longer contains
+          // every historical drop. Retrying an unchanged multi-gigabyte log on
+          // each launch cannot recover those missing entries.
+          await this.repository.setMetadata(
+            metadataKey,
+            HISTORICAL_CONTEXT_BACKFILL_COMPLETE,
+          );
+        } catch (error) {
+          deferred = true;
+          console.warn(
+            `[ClientLogReader] Historical card context backfill deferred for ${game}:`,
+            error instanceof Error ? error.message : String(error),
+          );
+        }
+      }
+
+      if (enrichedEvents > 0) {
+        this.emit(ClientLogReaderEvent.HistoricalContextQueued);
+      }
+
+      if (deferred) {
+        return { status: "deferred", enrichedEvents };
+      }
+
+      if (alreadyCompleted) {
+        return { status: "already-completed", enrichedEvents: 0 };
+      }
+
+      console.log(
+        `[ClientLogReader] Historical card context backfill completed with ${enrichedEvents} enriched event(s)`,
+      );
+      return { status: "completed", enrichedEvents };
+    } catch (error) {
+      console.warn(
+        "[ClientLogReader] Historical card context backfill deferred:",
+        error instanceof Error ? error.message : String(error),
+      );
+      return { status: "deferred", enrichedEvents: 0 };
+    }
+  }
+
+  private async backfillHistoricalCardContexts(
+    filePath: string,
+    game: GameType,
+  ): Promise<number> {
+    const lines = createInterface({
+      input: fs.createReadStream(filePath, { encoding: "utf8" }),
+      crlfDelay: Infinity,
+    });
+    const batch: CardEventContextUpdate[] = [];
+    const matchedIds = new Set<number>();
+    let currentLocation: string | null = null;
+    let enrichedEvents = 0;
+
+    const flushBatch = async () => {
+      if (batch.length === 0) return;
+      this.session.applyHistoricalCardEventContexts(game, [...batch]);
+      enrichedEvents += batch.length;
+      batch.length = 0;
+      matchedIds.clear();
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    };
+
+    for await (const line of lines) {
+      const record = parseClientLogLine(line, currentLocation);
+      if (!record) continue;
+      if (record.type === "location") {
+        currentLocation = record.location;
+        continue;
+      }
+      if (!record.event.location) continue;
+
+      const candidate = this.session.findHistoricalCardEventCandidate(
+        game,
+        record.event.cardName,
+        record.event.droppedAt,
+        matchedIds,
+      );
+      if (!candidate) continue;
+
+      matchedIds.add(candidate.id);
+      batch.push({
+        ...candidate,
+        sourceEventId: record.event.processedId,
+        droppedAt: record.event.droppedAt,
+        location: record.event.location,
+        localMinute: record.event.localMinute,
+        utcOffsetMinutes: record.event.utcOffsetMinutes,
+      });
+      if (batch.length >= 100) await flushBatch();
+    }
+
+    await flushBatch();
+    if (enrichedEvents > 0) {
+      console.log(
+        `[ClientLogReader] Enriched ${enrichedEvents} historical card event(s) for ${game}`,
+      );
+    }
+    return enrichedEvents;
+  }
 }
 
-export { ClientLogReaderService };
+export { ClientLogReaderEvent, ClientLogReaderService };

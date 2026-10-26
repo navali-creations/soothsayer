@@ -30,6 +30,30 @@ interface NormalizedSupabaseSnapshotResponse {
 
 type UnknownRecord = Record<string, unknown>;
 
+class EdgeFunctionError extends Error {
+  readonly code: string | null;
+  readonly functionName: string;
+  readonly responseBody: unknown;
+  readonly status: number;
+
+  constructor(
+    functionName: string,
+    status: number,
+    responseText: string,
+    responseBody: unknown,
+  ) {
+    super(`Edge Function ${functionName} failed (${status}): ${responseText}`);
+    this.name = "EdgeFunctionError";
+    this.functionName = functionName;
+    this.status = status;
+    this.responseBody = responseBody;
+    this.code =
+      isRecord(responseBody) && typeof responseBody.code === "string"
+        ? responseBody.code
+        : null;
+  }
+}
+
 function isRecord(value: unknown): value is UnknownRecord {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
@@ -951,26 +975,31 @@ class SupabaseClientService {
     }
 
     if (!response.ok) {
-      captureSentryException(
-        new Error(
-          `Edge Function ${functionName} failed (${response.status}): ${responseText}`,
-        ),
-        {
-          tags: {
-            module: "supabase",
-            operation: "edge-function",
-            functionName,
-          },
-          extra: {
-            status: response.status,
-            responseText: responseText.slice(0, 500),
-            retriedWithFallbackApiKey,
-          },
+      let responseBody: unknown = responseText;
+      try {
+        responseBody = JSON.parse(responseText) as unknown;
+      } catch {
+        // Preserve non-JSON error responses as plain text.
+      }
+      const edgeFunctionError = new EdgeFunctionError(
+        functionName,
+        response.status,
+        responseText,
+        responseBody,
+      );
+      captureSentryException(edgeFunctionError, {
+        tags: {
+          module: "supabase",
+          operation: "edge-function",
+          functionName,
         },
-      );
-      throw new Error(
-        `Edge Function ${functionName} failed (${response.status}): ${responseText}`,
-      );
+        extra: {
+          status: response.status,
+          responseText: responseText.slice(0, 500),
+          retriedWithFallbackApiKey,
+        },
+      });
+      throw edgeFunctionError;
     }
 
     return JSON.parse(responseText) as T;
@@ -995,4 +1024,4 @@ class SupabaseClientService {
 }
 
 export type { SupabaseLeague };
-export { SupabaseClientService };
+export { EdgeFunctionError, SupabaseClientService };

@@ -9,12 +9,18 @@ const {
   mockShowItemInFolder,
   mockClearDiagLog,
   mockGetLogPath,
+  mockHomedir,
 } = vi.hoisted(() => ({
   mockAppendFileSync: vi.fn(),
   mockIpcHandle: vi.fn(),
   mockShowItemInFolder: vi.fn(),
   mockClearDiagLog: vi.fn(),
   mockGetLogPath: vi.fn(() => "C:\\logs\\diag.log"),
+  mockHomedir: vi.fn(() => "C:\\Users\\seb"),
+}));
+
+vi.mock("node:os", () => ({
+  homedir: mockHomedir,
 }));
 
 vi.mock("node:fs", () => ({
@@ -100,6 +106,35 @@ describe("DiagLogService", () => {
     mockAppendFileSync.mockClear();
     console.warn("ExtensionLoadWarning from Electron");
     expect(mockAppendFileSync).not.toHaveBeenCalled();
+  });
+
+  it("preserves error details in the persistent diagnostic log", () => {
+    DiagLogService.getInstance();
+    const error = Object.assign(new Error("no such column: event_id"), {
+      code: "SQLITE_ERROR",
+    });
+
+    console.error("[Main] Fatal startup error:", error);
+
+    const line = mockAppendFileSync.mock.calls[0][1] as string;
+    expect(line).toContain('"name":"Error"');
+    expect(line).toContain('"message":"no such column: event_id"');
+    expect(line).toContain('"code":"SQLITE_ERROR"');
+    expect(line).toContain('"stack":"Error: no such column: event_id');
+  });
+
+  it("redacts user-home paths from error stacks", () => {
+    DiagLogService.getInstance();
+    const error = new Error("failed at C:\\Users\\seb\\private\\Client.txt");
+    error.stack =
+      "Error: failed\n    at C:\\Users\\seb\\WebstormProjects\\soothsayer\\main.ts:1:1";
+
+    console.error(error);
+
+    const line = mockAppendFileSync.mock.calls[0][1] as string;
+    expect(line).not.toContain("seb");
+    expect(line).toContain("[USER_HOME]");
+    expect(line).toContain("WebstormProjects");
   });
 
   it("caps the log and ignores later writes", () => {

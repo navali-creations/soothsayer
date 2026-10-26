@@ -1060,9 +1060,13 @@ quietTest(
       );
       assertEquals(uploadRequests.length, 2);
       assert(
-        uploadRequests.every(
-          ({ url }) => new URL(url).searchParams.get("order") === "id.asc",
-        ),
+        uploadRequests.every(({ url }) => {
+          const searchParams = new URL(url).searchParams;
+          return (
+            searchParams.get("order") === "id.asc" &&
+            searchParams.get("upload_count") === "gt.0"
+          );
+        }),
       );
 
       const cardDataRequests = fetchMock.calls.filter(({ url }) =>

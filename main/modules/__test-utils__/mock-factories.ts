@@ -493,7 +493,37 @@ export function createGggAuthServiceMock(
 export function createSupabaseClientMock(
   overrides: SupabaseClientMockOverrides = {},
 ) {
+  class MockEdgeFunctionError extends Error {
+    readonly code: string | null;
+    readonly functionName: string;
+    readonly responseBody: unknown;
+    readonly status: number;
+
+    constructor(
+      functionName: string,
+      status: number,
+      responseText: string,
+      responseBody: unknown,
+    ) {
+      super(
+        `Edge Function ${functionName} failed (${status}): ${responseText}`,
+      );
+      this.name = "EdgeFunctionError";
+      this.functionName = functionName;
+      this.status = status;
+      this.responseBody = responseBody;
+      this.code =
+        responseBody &&
+        typeof responseBody === "object" &&
+        "code" in responseBody &&
+        typeof responseBody.code === "string"
+          ? responseBody.code
+          : null;
+    }
+  }
+
   return {
+    EdgeFunctionError: MockEdgeFunctionError,
     SupabaseClientService: {
       getInstance: vi.fn(() => ({
         isConfigured: overrides.mockIsConfigured ?? vi.fn(),

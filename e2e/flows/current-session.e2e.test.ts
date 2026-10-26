@@ -524,17 +524,18 @@ test.describe("Current Session", () => {
       page,
     }) => {
       const sessionId = await startTestSession(page);
-      await injectCardDrops(page, sessionId, ["The Doctor"], { app });
-      await verifyCardsInTable(page, ["The Doctor"]);
-
       const overlayButton = page.locator('[data-onboarding="overlay-icon"]');
       await overlayButton.click();
       await waitForOverlayState(page, true);
 
       const overlayPage = await getOverlayPage(app);
+      await overlayPage.waitForLoadState("domcontentloaded");
+
+      await injectCardDrops(page, sessionId, ["The Doctor"], { app });
+      await verifyCardsInTable(page, ["The Doctor"]);
       await expect(
-        overlayPage.locator('[data-tip="View The Doctor details"]'),
-      ).toContainText("The Doctor", { timeout: 10_000 });
+        overlayPage.locator('[data-card-name="The Doctor"]'),
+      ).toBeVisible({ timeout: 10_000 });
 
       const doctorRow = page
         .locator("table tbody tr")

@@ -53,6 +53,8 @@ function installGggAuthMock() {
   const mockLogout = vi.fn();
   const mockGetBackfillLeagues = vi.fn();
   const mockTriggerBackfill = vi.fn();
+  const mockGetDropContextUploadStatus = vi.fn();
+  const mockOnDropContextUploadStatusChanged = vi.fn().mockReturnValue(vi.fn());
 
   // The setup file assigns `window.electron` in its own beforeEach which
   // runs before ours. We simply bolt gggAuth onto whatever object is there.
@@ -65,7 +67,9 @@ function installGggAuthMock() {
     },
     communityUpload: {
       getBackfillLeagues: mockGetBackfillLeagues,
+      getDropContextUploadStatus: mockGetDropContextUploadStatus,
       triggerBackfill: mockTriggerBackfill,
+      onDropContextUploadStatusChanged: mockOnDropContextUploadStatusChanged,
     },
   };
 
@@ -75,6 +79,8 @@ function installGggAuthMock() {
     mockLogout,
     mockGetBackfillLeagues,
     mockTriggerBackfill,
+    mockGetDropContextUploadStatus,
+    mockOnDropContextUploadStatusChanged,
   };
 }
 
@@ -87,6 +93,8 @@ describe("CommunityUploadSlice", () => {
   let mockLogout: ReturnType<typeof vi.fn>;
   let mockGetBackfillLeagues: ReturnType<typeof vi.fn>;
   let mockTriggerBackfill: ReturnType<typeof vi.fn>;
+  let mockGetDropContextUploadStatus: ReturnType<typeof vi.fn>;
+  let mockOnDropContextUploadStatusChanged: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -97,6 +105,9 @@ describe("CommunityUploadSlice", () => {
     mockLogout = mocks.mockLogout;
     mockGetBackfillLeagues = mocks.mockGetBackfillLeagues;
     mockTriggerBackfill = mocks.mockTriggerBackfill;
+    mockGetDropContextUploadStatus = mocks.mockGetDropContextUploadStatus;
+    mockOnDropContextUploadStatusChanged =
+      mocks.mockOnDropContextUploadStatusChanged;
     store = createTestStore();
   });
 
@@ -130,6 +141,124 @@ describe("CommunityUploadSlice", () => {
       expect(communityUpload.backfillLeagues).toEqual([]);
       expect(communityUpload.isBackfilling).toBe(false);
       expect(communityUpload.backfillError).toBeNull();
+      expect(communityUpload.dropContextUploadStatus).toEqual({
+        pendingEvents: 0,
+        isUploading: false,
+        revision: -1,
+      });
+    });
+  });
+
+  describe("drop-context upload status", () => {
+    it("loads the current status", async () => {
+      mockGetDropContextUploadStatus.mockResolvedValue({
+        success: true,
+        status: {
+          pendingEvents: 4_500,
+          isUploading: true,
+          revision: 3,
+        },
+      });
+
+      await store.getState().communityUpload.refreshDropContextUploadStatus();
+
+      expect(store.getState().communityUpload.dropContextUploadStatus).toEqual({
+        pendingEvents: 4_500,
+        isUploading: true,
+        revision: 3,
+      });
+    });
+
+    it("does not overwrite a newer event with a stale refresh", async () => {
+      store.setState((state) => {
+        state.communityUpload.dropContextUploadStatus = {
+          pendingEvents: 4_000,
+          isUploading: true,
+          revision: 4,
+        };
+      });
+      mockGetDropContextUploadStatus.mockResolvedValue({
+        success: true,
+        status: {
+          pendingEvents: 4_500,
+          isUploading: true,
+          revision: 3,
+        },
+      });
+
+      await store.getState().communityUpload.refreshDropContextUploadStatus();
+
+      expect(store.getState().communityUpload.dropContextUploadStatus).toEqual({
+        pendingEvents: 4_000,
+        isUploading: true,
+        revision: 4,
+      });
+    });
+
+    it("logs rejected and failed refreshes without clearing status", async () => {
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      mockGetDropContextUploadStatus
+        .mockResolvedValueOnce({ success: false, error: "unavailable" })
+        .mockRejectedValueOnce(new Error("IPC unavailable"));
+
+      await store.getState().communityUpload.refreshDropContextUploadStatus();
+      await store.getState().communityUpload.refreshDropContextUploadStatus();
+
+      expect(consoleSpy).toHaveBeenCalledTimes(2);
+      expect(store.getState().communityUpload.dropContextUploadStatus).toEqual({
+        pendingEvents: 0,
+        isUploading: false,
+        revision: -1,
+      });
+      consoleSpy.mockRestore();
+    });
+
+    it("subscribes to newer status events and returns the cleanup", async () => {
+      const unsubscribe = vi.fn();
+      let listener:
+        | ((status: {
+            pendingEvents: number;
+            isUploading: boolean;
+            revision: number;
+          }) => void)
+        | undefined;
+      mockOnDropContextUploadStatusChanged.mockImplementation((callback) => {
+        listener = callback;
+        return unsubscribe;
+      });
+      mockGetDropContextUploadStatus.mockResolvedValue({
+        success: true,
+        status: {
+          pendingEvents: 5_000,
+          isUploading: true,
+          revision: 1,
+        },
+      });
+
+      const cleanup = store.getState().communityUpload.startListening();
+      listener?.({
+        pendingEvents: 4_500,
+        isUploading: true,
+        revision: 2,
+      });
+      listener?.({
+        pendingEvents: 5_000,
+        isUploading: true,
+        revision: 1,
+      });
+      await vi.waitFor(() => {
+        expect(mockGetDropContextUploadStatus).toHaveBeenCalledTimes(1);
+      });
+
+      expect(store.getState().communityUpload.dropContextUploadStatus).toEqual({
+        pendingEvents: 4_500,
+        isUploading: true,
+        revision: 2,
+      });
+      cleanup();
+      expect(unsubscribe).toHaveBeenCalledTimes(1);
     });
   });
 

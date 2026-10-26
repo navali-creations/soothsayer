@@ -1,4 +1,4 @@
-import { app, ipcMain, powerMonitor } from "electron";
+import { app, BrowserWindow, ipcMain, powerMonitor } from "electron";
 import type { Kysely } from "kysely";
 
 import { DatabaseService } from "~/main/modules/database";
@@ -9,7 +9,10 @@ import {
   SettingsKey,
   SettingsStoreService,
 } from "~/main/modules/settings-store";
-import { SupabaseClientService } from "~/main/modules/supabase";
+import {
+  EdgeFunctionError,
+  SupabaseClientService,
+} from "~/main/modules/supabase";
 import {
   assertTrustedSender,
   handleValidationError,
@@ -21,12 +24,22 @@ import type {
   CommunityBackfillLeague,
   CommunityBackfillLeaguesResult,
   CommunityBackfillResult,
+  CommunityDropContextUploadStatus,
+  CommunityDropContextUploadStatusResult,
 } from "./CommunityUpload.dto";
 import { CommunityUploadRepository } from "./CommunityUpload.repository";
 
 interface CommunityUploadCard {
   card_name: string;
   count: number;
+}
+
+interface CommunityDropEvent {
+  event_id: string;
+  card_name: string;
+  location: string;
+  local_minute: number;
+  utc_offset_minutes: number;
 }
 
 interface UploadOnSessionEndOptions {
@@ -62,6 +75,8 @@ interface PreparedPendingUpload {
 type UploadQueueResult = { success: true } | { success: false; error: Error };
 
 const RETRY_DELAYS_MS = [60_000, 5 * 60_000, 15 * 60_000, 60 * 60_000];
+const DROP_EVENT_RATE_WINDOW_MS = 60 * 60_000;
+const DROP_EVENT_MAX_REQUESTS_PER_WINDOW = 240;
 const COMMUNITY_BACKFILL_ERROR =
   "Community data could not be queued. Please try again.";
 
@@ -84,7 +99,12 @@ class CommunityUploadService {
   private supabase: SupabaseClientService;
   private repository: CommunityUploadRepository;
   private sessionUploadJobs = new Map<string, Promise<UploadQueueResult>>();
+  private pendingUploadsFlushJob: Promise<void> | null = null;
   private flushJobs = new Map<string, Promise<void>>();
+  private eventFlushJobs = new Map<string, Promise<void>>();
+  private eventRateWindowStartedAt = 0;
+  private eventRequestsInWindow = 0;
+  private dropContextUploadStatusRevision = 0;
 
   static getInstance(): CommunityUploadService {
     if (!CommunityUploadService._instance) {
@@ -129,6 +149,27 @@ class CommunityUploadService {
         return toSafeIpcFailure(error, CommunityUploadChannel.TriggerBackfill);
       }
     });
+
+    ipcMain.handle(
+      CommunityUploadChannel.GetDropContextUploadStatus,
+      async (event) => {
+        try {
+          assertTrustedSender(
+            event,
+            CommunityUploadChannel.GetDropContextUploadStatus,
+          );
+          return {
+            success: true,
+            status: await this.getDropContextUploadStatus(),
+          } satisfies CommunityDropContextUploadStatusResult;
+        } catch (error) {
+          return toSafeIpcFailure(
+            error,
+            CommunityUploadChannel.GetDropContextUploadStatus,
+          );
+        }
+      },
+    );
   }
 
   // ─── Public Methods ────────────────────────────────────────────────────
@@ -159,6 +200,12 @@ class CommunityUploadService {
     if (!this.supabase.isConfigured()) return [];
 
     return this.repository.getBackfillLeagues();
+  }
+
+  public async getDropContextUploadStatus(): Promise<CommunityDropContextUploadStatus> {
+    return this.readDropContextUploadStatus(
+      this.dropContextUploadStatusRevision,
+    );
   }
 
   /**
@@ -304,7 +351,21 @@ class CommunityUploadService {
    * Successfully sent rows are removed. Failed rows stay queued with retry
    * metadata so startup/resume or a later explicit flush can try again.
    */
-  public async flushPendingUploads(): Promise<void> {
+  public flushPendingUploads(): Promise<void> {
+    if (this.pendingUploadsFlushJob) {
+      return this.pendingUploadsFlushJob;
+    }
+
+    const job = this.flushPendingUploadsInternal().finally(() => {
+      if (this.pendingUploadsFlushJob === job) {
+        this.pendingUploadsFlushJob = null;
+      }
+    });
+    this.pendingUploadsFlushJob = job;
+    return job;
+  }
+
+  private async flushPendingUploadsInternal(): Promise<void> {
     try {
       const enabled = await this.isEnabled();
       if (!enabled) {
@@ -350,6 +411,21 @@ class CommunityUploadService {
         }
         await this.flushPendingUpload(row.game, row.scope);
       }
+
+      const eventScopes = await this.getPendingDropEventScopes();
+      const eventDeviceId =
+        eventScopes.length > 0 ? await this.getDeviceId() : null;
+      for (const { game, scope } of eventScopes) {
+        if (game !== "poe1" && game !== "poe2") {
+          console.error(
+            `[CommunityUpload] Invalid card-drop outbox game "${game}"`,
+          );
+          continue;
+        }
+        if (await this.isPendingDropEventScopeDue(game, scope, nowMs)) {
+          await this.flushPendingDropEvents(game, scope, eventDeviceId!);
+        }
+      }
     } catch (error) {
       console.error(
         "[CommunityUpload] Failed to flush pending uploads:",
@@ -369,8 +445,10 @@ class CommunityUploadService {
 
   public async drainInFlightUploads(timeoutMs = 5_000): Promise<void> {
     const jobs = [
+      ...(this.pendingUploadsFlushJob ? [this.pendingUploadsFlushJob] : []),
       ...this.sessionUploadJobs.values(),
       ...this.flushJobs.values(),
+      ...this.eventFlushJobs.values(),
     ];
     if (jobs.length === 0) return;
 
@@ -410,31 +488,39 @@ class CommunityUploadService {
 
       const deviceId = await this.getDeviceId();
       const changedCards = await this.getChangedCards(game, league, sessionId);
+      const hasPendingEvents = await this.hasPendingDropEvents(game, league);
 
-      if (changedCards.length === 0) {
+      if (changedCards.length === 0 && !hasPendingEvents) {
         console.log(
           `[CommunityUpload] No changes since last upload for ${game}/${league}, skipping`,
         );
         return { success: true };
       }
 
-      const queuedCards = await this.enqueuePendingUpload(
-        game,
-        league,
-        changedCards,
-      );
+      const queuedCards =
+        changedCards.length > 0
+          ? await this.enqueuePendingUpload(game, league, changedCards)
+          : [];
 
       if (options.flush === false) {
         console.log(
-          `[CommunityUpload] Queued ${changedCards.length} card(s) for ${game}/${league}; flush deferred`,
+          `[CommunityUpload] Queued ${changedCards.length} changed card(s) for ${game}/${league}; card-drop context flush deferred`,
         );
         return { success: true };
       }
 
-      await this.flushPendingUpload(game, league, {
-        cards: queuedCards,
-        deviceId,
-      });
+      if (queuedCards.length > 0) {
+        await this.flushPendingUpload(game, league, {
+          cards: queuedCards,
+          deviceId,
+        });
+      }
+      if (
+        hasPendingEvents &&
+        (await this.isPendingDropEventScopeDue(game, league, Date.now()))
+      ) {
+        await this.flushPendingDropEvents(game, league, deviceId);
+      }
       return { success: true };
     } catch (error) {
       const uploadError =
@@ -601,7 +687,6 @@ class CommunityUploadService {
       ) {
         await this.recordPendingUploadFailure(row, error);
       }
-
       console.error(
         "[CommunityUpload] Pending upload failed:",
         error instanceof Error ? error.message : String(error),
@@ -730,14 +815,13 @@ class CommunityUploadService {
         (gggAccessToken ? " (verified)" : " (unlinked)"),
     );
 
-    const payload: Record<string, unknown> = {
+    const payload = {
       league_name: league,
       game,
       device_id: deviceId,
       cards: cardEntries,
       is_packaged: app.isPackaged,
     };
-
     const extraHeaders: Record<string, string> = {};
     if (gggAccessToken) {
       extraHeaders["X-GGG-Token"] = gggAccessToken;
@@ -882,6 +966,295 @@ class CommunityUploadService {
       card_name,
       count,
     }));
+  }
+
+  private async getPendingDropEvents(
+    game: GameType,
+    league: string,
+  ): Promise<CommunityDropEvent[]> {
+    const rows = await this.kysely
+      .selectFrom("community_drop_event_outbox")
+      .select([
+        "event_id",
+        "card_name",
+        "location",
+        "local_minute",
+        "utc_offset_minutes",
+      ])
+      .where("game", "=", game)
+      .where("scope", "=", league)
+      .orderBy("created_at", "asc")
+      .limit(500)
+      .execute();
+    if (!Array.isArray(rows)) return [];
+    return rows.filter(
+      (row): row is CommunityDropEvent =>
+        typeof row.event_id === "string" &&
+        typeof row.card_name === "string" &&
+        typeof row.location === "string" &&
+        typeof row.local_minute === "number" &&
+        typeof row.utc_offset_minutes === "number",
+    );
+  }
+
+  private async getPendingDropEventScopes(): Promise<
+    Array<{ game: string; scope: string }>
+  > {
+    return this.kysely
+      .selectFrom("community_drop_event_outbox")
+      .select(["game", "scope"])
+      .groupBy(["game", "scope"])
+      .execute();
+  }
+
+  private async hasPendingDropEvents(
+    game: GameType,
+    league: string,
+  ): Promise<boolean> {
+    const row = await this.kysely
+      .selectFrom("community_drop_event_outbox")
+      .select("event_id")
+      .where("game", "=", game)
+      .where("scope", "=", league)
+      .executeTakeFirst();
+    return typeof row?.event_id === "string";
+  }
+
+  private async flushPendingDropEvents(
+    game: GameType,
+    league: string,
+    deviceId: string,
+  ): Promise<void> {
+    const key = this.uploadKey(game, league);
+    const existing = this.eventFlushJobs.get(key);
+    if (existing) return existing;
+
+    const job = this.flushPendingDropEventLoop(game, league, deviceId).finally(
+      () => {
+        if (this.eventFlushJobs.get(key) === job) {
+          this.eventFlushJobs.delete(key);
+        }
+        void this.emitDropContextUploadStatus();
+      },
+    );
+    this.eventFlushJobs.set(key, job);
+    void this.emitDropContextUploadStatus();
+    return job;
+  }
+
+  private async flushPendingDropEventLoop(
+    game: GameType,
+    league: string,
+    deviceId: string,
+  ): Promise<void> {
+    while (true) {
+      const events = await this.getPendingDropEvents(game, league);
+      if (events.length === 0) {
+        await this.clearDropEventUploadState(game, league);
+        return;
+      }
+      if (!this.reserveDropEventRequest()) break;
+
+      try {
+        await this.sendPendingDropEvents(game, league, events, deviceId);
+        await this.deletePendingDropEvents(events);
+        await this.clearDropEventUploadState(game, league);
+        await this.emitDropContextUploadStatus();
+      } catch (error) {
+        await this.recordDropEventUploadFailure(game, league, error);
+        console.error(
+          "[CommunityUpload] Card-drop context upload failed:",
+          error instanceof Error ? error.message : String(error),
+        );
+        captureSentryException(
+          error instanceof Error ? error : new Error(String(error)),
+          {
+            tags: {
+              module: "community-upload",
+              operation: "flush-card-drop-events",
+            },
+            extra: { game, league, eventCount: events.length },
+          },
+        );
+        return;
+      }
+    }
+
+    await this.recordDropEventUploadFailure(
+      game,
+      league,
+      new Error("Hourly card-drop upload request budget reached"),
+      DROP_EVENT_RATE_WINDOW_MS,
+    );
+  }
+
+  private async sendPendingDropEvents(
+    game: GameType,
+    league: string,
+    events: readonly CommunityDropEvent[],
+    deviceId: string,
+  ): Promise<void> {
+    const result = await this.supabase.callEdgeFunction<unknown>(
+      "upload-community-drop-events",
+      {
+        league_name: league,
+        game,
+        device_id: deviceId,
+        events,
+      },
+    );
+
+    if (!result || typeof result !== "object" || Array.isArray(result)) {
+      throw new Error("Card-drop context upload returned an invalid response");
+    }
+
+    const response = result as Record<string, unknown>;
+    if (
+      response.success !== true ||
+      response.accepted_events !== events.length ||
+      typeof response.inserted_events !== "number" ||
+      !Number.isInteger(response.inserted_events) ||
+      response.inserted_events < 0 ||
+      response.inserted_events > events.length
+    ) {
+      throw new Error(
+        "Card-drop context upload did not acknowledge the complete batch",
+      );
+    }
+
+    console.log(
+      `[CommunityUpload] Uploaded ${events.length} card-drop context event(s) for ${game}/${league} (${response.inserted_events} new)`,
+    );
+  }
+
+  private async deletePendingDropEvents(
+    events: readonly CommunityDropEvent[],
+  ): Promise<void> {
+    if (events.length === 0) return;
+    await this.kysely
+      .deleteFrom("community_drop_event_outbox")
+      .where(
+        "event_id",
+        "in",
+        events.map((event) => event.event_id),
+      )
+      .execute();
+  }
+
+  private async readDropContextUploadStatus(
+    revision: number,
+  ): Promise<CommunityDropContextUploadStatus> {
+    const row = await this.kysely
+      .selectFrom("community_drop_event_outbox")
+      .select(({ fn }) => fn.countAll<number>().as("count"))
+      .executeTakeFirst();
+
+    return {
+      pendingEvents: Number(row?.count ?? 0),
+      isUploading: this.eventFlushJobs.size > 0,
+      revision,
+    };
+  }
+
+  private async emitDropContextUploadStatus(): Promise<void> {
+    const revision = ++this.dropContextUploadStatusRevision;
+    try {
+      const status = await this.readDropContextUploadStatus(revision);
+      for (const window of BrowserWindow.getAllWindows()) {
+        if (!window.isDestroyed()) {
+          window.webContents.send(
+            CommunityUploadChannel.DropContextUploadStatusChanged,
+            status,
+          );
+        }
+      }
+    } catch (error) {
+      console.warn(
+        "[CommunityUpload] Failed to publish card-history upload status:",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
+
+  private reserveDropEventRequest(nowMs = Date.now()): boolean {
+    if (
+      this.eventRateWindowStartedAt === 0 ||
+      nowMs - this.eventRateWindowStartedAt >= DROP_EVENT_RATE_WINDOW_MS
+    ) {
+      this.eventRateWindowStartedAt = nowMs;
+      this.eventRequestsInWindow = 0;
+    }
+    if (this.eventRequestsInWindow >= DROP_EVENT_MAX_REQUESTS_PER_WINDOW) {
+      return false;
+    }
+    this.eventRequestsInWindow++;
+    return true;
+  }
+
+  private async isPendingDropEventScopeDue(
+    game: GameType,
+    league: string,
+    nowMs: number,
+  ): Promise<boolean> {
+    const state = await this.kysely
+      .selectFrom("community_drop_event_upload_state")
+      .select("next_attempt_at")
+      .where("game", "=", game)
+      .where("scope", "=", league)
+      .executeTakeFirst();
+    return (
+      !state?.next_attempt_at ||
+      new Date(state.next_attempt_at).getTime() <= nowMs
+    );
+  }
+
+  private async clearDropEventUploadState(
+    game: GameType,
+    league: string,
+  ): Promise<void> {
+    await this.kysely
+      .deleteFrom("community_drop_event_upload_state")
+      .where("game", "=", game)
+      .where("scope", "=", league)
+      .execute();
+  }
+
+  private async recordDropEventUploadFailure(
+    game: GameType,
+    league: string,
+    error: unknown,
+    delayOverrideMs?: number,
+  ): Promise<void> {
+    const previous = await this.kysely
+      .selectFrom("community_drop_event_upload_state")
+      .select("attempts")
+      .where("game", "=", game)
+      .where("scope", "=", league)
+      .executeTakeFirst();
+    const attempts = (previous?.attempts ?? 0) + 1;
+    const delayMs =
+      delayOverrideMs ??
+      (error instanceof EdgeFunctionError && error.status === 429
+        ? DROP_EVENT_RATE_WINDOW_MS
+        : RETRY_DELAYS_MS[Math.min(attempts - 1, RETRY_DELAYS_MS.length - 1)]);
+
+    await this.kysely
+      .insertInto("community_drop_event_upload_state")
+      .values({
+        game,
+        scope: league,
+        attempts,
+        last_error: error instanceof Error ? error.message : String(error),
+        next_attempt_at: new Date(Date.now() + delayMs).toISOString(),
+      })
+      .onConflict((conflict) =>
+        conflict.columns(["game", "scope"]).doUpdateSet({
+          attempts,
+          last_error: error instanceof Error ? error.message : String(error),
+          next_attempt_at: new Date(Date.now() + delayMs).toISOString(),
+        }),
+      )
+      .execute();
   }
 
   private async enqueuePendingUpload(

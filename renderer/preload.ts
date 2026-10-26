@@ -6,6 +6,7 @@ import { AppPerformanceAPI } from "~/main/modules/app-performance/AppPerformance
 import { AppSetupAPI } from "~/main/modules/app-setup/AppSetup.api";
 import { BannersAPI } from "~/main/modules/banners/Banners.api";
 import { CardDetailsAPI } from "~/main/modules/card-details/CardDetails.api";
+import { ClientLogReaderAPI } from "~/main/modules/client-log-reader/ClientLogReader.api";
 import { CommunityUploadAPI } from "~/main/modules/community-upload/CommunityUpload.api";
 import { CsvAPI } from "~/main/modules/csv/Csv.api";
 import { CurrentSessionAPI } from "~/main/modules/current-session/CurrentSession.api";
@@ -67,6 +68,7 @@ contextBridge.exposeInMainWorld("electron", {
   csv: CsvAPI,
 
   cardDetails: CardDetailsAPI,
+  clientLogReader: ClientLogReaderAPI,
   diagLog: DiagLogAPI,
   session: CurrentSessionAPI,
   sessions: SessionsAPI,

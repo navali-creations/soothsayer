@@ -63,9 +63,10 @@ const SetupTelemetryStep = () => {
                 Community Drop Rates
               </h3>
               <p className="text-xs text-base-content/60 mt-1">
-                Card names and drop counts are shared with a random installation
-                ID at the end of each session to help build community drop rate
-                statistics on{" "}
+                Card names, drop counts, in-game area names, and the local
+                minute and UTC offset when a card was opened are shared with a
+                random installation ID to help build community drop statistics
+                on{" "}
                 <a
                   href="https://wraeclast.cards"
                   target="_blank"
@@ -74,8 +75,10 @@ const SetupTelemetryStep = () => {
                 >
                   wraeclast.cards <FiExternalLink className="w-3 h-3" />
                 </a>
-                . A linked Path of Exile account can associate uploads with that
-                account. You can disable this in Settings at any time.
+                . Exact dates and timestamps stay on your device. A linked Path
+                of Exile account can associate uploads with that account. You
+                can disable this in Settings at any time. Preserved Client.txt
+                entries may enrich earlier drops with the same context.
               </p>
             </div>
           </div>

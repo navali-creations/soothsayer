@@ -1,1 +1,4 @@
-export { ClientLogReaderService } from "./ClientLogReader.service";
+export {
+  ClientLogReaderEvent,
+  ClientLogReaderService,
+} from "./ClientLogReader.service";

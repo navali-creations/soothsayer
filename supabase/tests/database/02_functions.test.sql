@@ -197,7 +197,7 @@ SELECT ok(
     SELECT obj_description(
       'public.merge_community_upload_data(uuid,text,text,text,boolean,jsonb)'::regprocedure,
       'pg_proc'
-    ) COLLATE "C" = 'Atomically resolves card names, creates or updates community_uploads, merges community_card_data with GREATEST semantics, refreshes persisted community league/card aggregates, and returns the server-side upload summary. SECURITY DEFINER, service_role only.'::text COLLATE "C"
+    ) COLLATE "C" = 'Merges aggregate card data using league_id + device_id as the canonical contributor identity. GGG fields are verification metadata only.'::text COLLATE "C"
   ),
   'merge_community_upload_data should document its atomic merge and access model'
 );
@@ -1057,16 +1057,17 @@ SELECT results_eq(
     true,
     '[{"card_id":"fd000000-0000-0000-0000-000000000101","count":12}]'::jsonb
   )->>'upload_count')::int$$,
-  ARRAY[2],
-  'merge_community_upload_data should merge a new device onto an existing GGG-linked upload'
+  ARRAY[1],
+  'merge_community_upload_data should create a distinct row for a new device with the same GGG account'
 );
 
 SELECT results_eq(
   $$SELECT device_id FROM community_uploads
     WHERE league_id = 'fd000000-0000-0000-0000-000000000001'
-      AND ggg_uuid = 'ggg-merge-uuid'$$,
-  ARRAY['merge-device-3'],
-  'merge_community_upload_data should move a GGG-linked upload to the latest verified device'
+      AND ggg_uuid = 'ggg-merge-uuid'
+    ORDER BY device_id$$,
+  ARRAY['merge-device-2', 'merge-device-3'],
+  'merge_community_upload_data should keep GGG metadata separate from canonical device identity'
 );
 
 SELECT results_eq(
@@ -1132,7 +1133,7 @@ SELECT results_eq(
     FROM community_league_estimates
     WHERE league_id = 'fd000000-0000-0000-0000-000000000001'
       AND aggregate_scope = 'all'$$,
-  $$VALUES (3, 52::bigint)$$,
+  $$VALUES (4, 63::bigint)$$,
   'merge_community_upload_data should refresh persisted league aggregates after upload'
 );
 
@@ -1142,7 +1143,7 @@ SELECT results_eq(
     WHERE league_id = 'fd000000-0000-0000-0000-000000000001'
       AND aggregate_scope = 'all'
       AND card_id = 'fd000000-0000-0000-0000-000000000101'$$,
-  $$VALUES (22::bigint, 2)$$,
+  $$VALUES (33::bigint, 3)$$,
   'merge_community_upload_data should refresh persisted league/card aggregates after upload'
 );
 

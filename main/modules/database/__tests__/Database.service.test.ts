@@ -330,6 +330,19 @@ describe("DatabaseService", () => {
       expect(execSql).toContain("idx_app_perf_captures_started_at");
     });
 
+    it("leaves migration-owned event indexes until after legacy columns are added", () => {
+      DatabaseService.getInstance();
+
+      const execSql = mockDbExec.mock.calls
+        .map(([sql]: [string]) => sql)
+        .join("\n");
+
+      expect(execSql).not.toContain("idx_session_card_events_event_id");
+      expect(mockMigrationRunnerRunMigrations).toHaveBeenCalledAfter(
+        mockDbTransaction,
+      );
+    });
+
     it("registers guarded e2e IPC handlers only in non-packaged e2e runs", () => {
       process.env.E2E_TESTING = "true";
       mockAppIsPackaged.value = false;

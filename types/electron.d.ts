@@ -6,6 +6,7 @@ import type { AppPerformanceAPI } from "../main/modules/app-performance/AppPerfo
 import type { AppSetupAPI } from "../main/modules/app-setup/AppSetup.api";
 import type { BannersAPI } from "../main/modules/banners/Banners.api";
 import type { CardDetailsAPI } from "../main/modules/card-details/CardDetails.api";
+import type { ClientLogReaderAPI } from "../main/modules/client-log-reader/ClientLogReader.api";
 import type { CommunityUploadAPI } from "../main/modules/community-upload/CommunityUpload.api";
 import type { CsvAPI } from "../main/modules/csv/Csv.api";
 import type { CurrentSessionAPI } from "../main/modules/current-session/CurrentSession.api";
@@ -35,6 +36,7 @@ declare global {
       gggAuth: typeof GggAuthAPI;
       csv: typeof CsvAPI;
       cardDetails: typeof CardDetailsAPI;
+      clientLogReader: typeof ClientLogReaderAPI;
       session: typeof CurrentSessionAPI;
       sessions: typeof SessionsAPI;
       snapshots: typeof SnapshotAPI;

@@ -1,3 +1,5 @@
+import { Readable } from "node:stream";
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -10,12 +12,15 @@ import { resetSingleton } from "~/main/modules/__test-utils__/singleton-helper";
 
 // ─── Hoisted mock functions (available inside vi.mock factories) ─────────────
 const {
+  mockIpcHandle,
+  mockAssertTrustedSender,
   mockWatchFile,
   mockUnwatchFile,
   mockOpenSync,
   mockCloseSync,
   mockReadSync,
   mockFstatSync,
+  mockCreateReadStream,
   mockGetKysely,
   mockPerfLog,
   mockPerfStartTimer,
@@ -27,13 +32,22 @@ const {
   mockSettingsGet,
   mockSettingsSet,
   mockParseCards,
+  mockFindLatestLocation,
+  mockHasHistoricalCardEventsMissingContext,
+  mockFindHistoricalCardEventCandidate,
+  mockApplyHistoricalCardEventContexts,
+  mockGetMetadata,
+  mockSetMetadata,
 } = vi.hoisted(() => ({
+  mockIpcHandle: vi.fn(),
+  mockAssertTrustedSender: vi.fn(),
   mockWatchFile: vi.fn(),
   mockUnwatchFile: vi.fn(),
   mockOpenSync: vi.fn(() => 42), // fake fd
   mockCloseSync: vi.fn(),
   mockReadSync: vi.fn(() => 0),
   mockFstatSync: vi.fn(() => ({ size: 0 })),
+  mockCreateReadStream: vi.fn(),
   mockGetKysely: vi.fn(),
   mockPerfLog: vi.fn(),
   mockPerfStartTimer: vi.fn(() => null),
@@ -45,10 +59,20 @@ const {
   mockSettingsGet: vi.fn(),
   mockSettingsSet: vi.fn(),
   mockParseCards: vi.fn(),
+  mockFindLatestLocation: vi.fn(() => null),
+  mockHasHistoricalCardEventsMissingContext: vi.fn(async () => false),
+  mockFindHistoricalCardEventCandidate: vi.fn(() => null),
+  mockApplyHistoricalCardEventContexts: vi.fn(),
+  mockGetMetadata: vi.fn(async () => null),
+  mockSetMetadata: vi.fn(async () => undefined),
 }));
 
 // ─── Mock Electron before any imports that use it ────────────────────────────
-vi.mock("electron", () => createElectronMock());
+vi.mock("electron", () => createElectronMock({ mockIpcHandle }));
+
+vi.mock("~/main/utils/ipc-validation", () => ({
+  assertTrustedSender: mockAssertTrustedSender,
+}));
 
 // ─── Mock node:fs ────────────────────────────────────────────────────────────
 vi.mock("node:fs", () => ({
@@ -59,6 +83,7 @@ vi.mock("node:fs", () => ({
     closeSync: mockCloseSync,
     readSync: mockReadSync,
     fstatSync: mockFstatSync,
+    createReadStream: mockCreateReadStream,
     promises: {
       open: vi.fn(),
       writeFile: vi.fn(),
@@ -70,6 +95,7 @@ vi.mock("node:fs", () => ({
   closeSync: mockCloseSync,
   readSync: mockReadSync,
   fstatSync: mockFstatSync,
+  createReadStream: mockCreateReadStream,
   promises: {
     open: vi.fn(),
     writeFile: vi.fn(),
@@ -98,6 +124,10 @@ vi.mock("~/main/modules/current-session", () => ({
       getActiveSessionInfo: mockGetActiveSessionInfo,
       getAllProcessedIds: mockGetAllProcessedIds,
       addCard: mockAddCard,
+      hasHistoricalCardEventsMissingContext:
+        mockHasHistoricalCardEventsMissingContext,
+      findHistoricalCardEventCandidate: mockFindHistoricalCardEventCandidate,
+      applyHistoricalCardEventContexts: mockApplyHistoricalCardEventContexts,
     })),
   },
 }));
@@ -110,9 +140,18 @@ vi.mock("~/main/modules/settings-store", () =>
   }),
 );
 
+vi.mock("../ClientLogReader.repository", () => ({
+  ClientLogReaderRepository: class {
+    getMetadata = mockGetMetadata;
+    setMetadata = mockSetMetadata;
+  },
+}));
+
 // ─── Mock the parseCards util ────────────────────────────────────────────────
-vi.mock("../utils", () => ({
-  parseCards: mockParseCards,
+vi.mock("../utils", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../utils")>()),
+  parseCards: (...args: unknown[]) => mockParseCards(...args),
+  findLatestLocation: mockFindLatestLocation,
 }));
 
 import { ClientLogReaderService } from "../ClientLogReader.service";
@@ -150,6 +189,24 @@ function makeStats(
   return { size, birthtimeMs };
 }
 
+function makeParseResult(
+  processedIdsByCard: Record<string, readonly string[]> = {},
+) {
+  const events = Object.entries(processedIdsByCard).flatMap(
+    ([cardName, processedIds]) =>
+      processedIds.map((processedId) => ({
+        cardName,
+        processedId,
+        droppedAt: "2026-03-14T09:26:12.000Z",
+        localMinute: 626,
+        utcOffsetMinutes: 60,
+        location: null,
+      })),
+  );
+
+  return { totalCount: events.length, events, lastLocation: null };
+}
+
 /**
  * Helper: configure mockReadSync to write the given string into the buffer
  * that fs.readSync receives, returning the byte length written.
@@ -181,12 +238,15 @@ const mockMainWindow = {
 describe("ClientLogReaderService", () => {
   beforeEach(() => {
     // Reset all mocks
+    mockIpcHandle.mockReset();
+    mockAssertTrustedSender.mockReset();
     mockWatchFile.mockReset();
     mockUnwatchFile.mockReset();
     mockOpenSync.mockReset().mockReturnValue(42);
     mockCloseSync.mockReset();
     mockReadSync.mockReset().mockReturnValue(0);
     mockFstatSync.mockReset().mockReturnValue({ size: 0 });
+    mockCreateReadStream.mockReset().mockReturnValue(Readable.from([]));
     mockGetKysely.mockReset();
     mockPerfLog.mockReset();
     mockPerfStartTimer.mockReset().mockReturnValue(null);
@@ -198,6 +258,14 @@ describe("ClientLogReaderService", () => {
     mockSettingsGet.mockReset();
     mockSettingsSet.mockReset();
     mockParseCards.mockReset();
+    mockFindLatestLocation.mockReset().mockReturnValue(null);
+    mockHasHistoricalCardEventsMissingContext
+      .mockReset()
+      .mockResolvedValue(false);
+    mockFindHistoricalCardEventCandidate.mockReset().mockReturnValue(null);
+    mockApplyHistoricalCardEventContexts.mockReset();
+    mockGetMetadata.mockReset().mockResolvedValue(null);
+    mockSetMetadata.mockReset().mockResolvedValue(undefined);
 
     // Default settings responses
     mockSettingsGet.mockImplementation(async (key: string) => {
@@ -452,7 +520,7 @@ describe("ClientLogReaderService", () => {
       });
       const newData = "complete line\npartial line";
       mockReadSyncWith(newData);
-      mockParseCards.mockReturnValue({ totalCount: 0, cards: {} });
+      mockParseCards.mockReturnValue(makeParseResult());
       const callback = getWatchCallback();
 
       await callback(makeStats(newData.length), makeStats(0));
@@ -460,12 +528,18 @@ describe("ClientLogReaderService", () => {
       expect(mockParseCards).toHaveBeenCalledWith(
         "complete line\n",
         expect.any(Set),
+        null,
       );
       expect((_service as any).partialLine).toBe("partial line");
     });
 
-    it("should skip processing when there is no active session", async () => {
+    it("should track log context without adding cards when there is no active session", async () => {
       mockIsSessionActive.mockReturnValue(false);
+      mockParseCards.mockReturnValue({
+        totalCount: 0,
+        events: [],
+        lastLocation: "Atlas Hideout",
+      });
 
       const newData = "some log line\n";
       mockReadSyncWith(newData);
@@ -473,12 +547,19 @@ describe("ClientLogReaderService", () => {
       const callback = getWatchCallback();
       await callback(makeStats(newData.length), makeStats(0));
 
-      expect(mockParseCards).not.toHaveBeenCalled();
+      expect(mockParseCards).toHaveBeenCalledOnce();
+      expect(mockAddCard).not.toHaveBeenCalled();
+      expect((_service as any).currentLocation).toBe("Atlas Hideout");
     });
 
     it("should skip processing when session info is null", async () => {
       mockIsSessionActive.mockReturnValue(true);
       mockGetActiveSessionInfo.mockReturnValue(null);
+      mockParseCards.mockReturnValue({
+        totalCount: 0,
+        events: [],
+        lastLocation: null,
+      });
 
       const newData = "some log line\n";
       mockReadSyncWith(newData);
@@ -486,7 +567,8 @@ describe("ClientLogReaderService", () => {
       const callback = getWatchCallback();
       await callback(makeStats(newData.length), makeStats(0));
 
-      expect(mockParseCards).not.toHaveBeenCalled();
+      expect(mockParseCards).toHaveBeenCalledOnce();
+      expect(mockAddCard).not.toHaveBeenCalled();
     });
 
     it("should read only new bytes via fs.readSync", async () => {
@@ -499,7 +581,7 @@ describe("ClientLogReaderService", () => {
 
       const newData = "a new log line\n";
       mockReadSyncWith(newData);
-      mockParseCards.mockReturnValue({ totalCount: 0, cards: {} });
+      mockParseCards.mockReturnValue(makeParseResult());
 
       const callback = getWatchCallback();
       await callback(makeStats(newData.length), makeStats(0));
@@ -526,13 +608,13 @@ describe("ClientLogReaderService", () => {
 
       const newData = "some log text\n";
       mockReadSyncWith(newData);
-      mockParseCards.mockReturnValue({ totalCount: 0, cards: {} });
+      mockParseCards.mockReturnValue(makeParseResult());
 
       const callback = getWatchCallback();
       await callback(makeStats(newData.length), makeStats(0));
 
       expect(mockGetAllProcessedIds).toHaveBeenCalledWith("poe1");
-      expect(mockParseCards).toHaveBeenCalledWith(newData, processedIds);
+      expect(mockParseCards).toHaveBeenCalledWith(newData, processedIds, null);
     });
 
     it("should not call addCard when no new cards are found", async () => {
@@ -545,7 +627,7 @@ describe("ClientLogReaderService", () => {
 
       const newData = "no cards here\n";
       mockReadSyncWith(newData);
-      mockParseCards.mockReturnValue({ totalCount: 0, cards: {} });
+      mockParseCards.mockReturnValue(makeParseResult());
 
       const callback = getWatchCallback();
       await callback(makeStats(newData.length), makeStats(0));
@@ -563,19 +645,12 @@ describe("ClientLogReaderService", () => {
 
       const newData = "log with cards\n";
       mockReadSyncWith(newData);
-      mockParseCards.mockReturnValue({
-        totalCount: 3,
-        cards: {
-          "The Doctor": {
-            count: 2,
-            processedIds: ["id-100", "id-101"],
-          },
-          "Rain of Chaos": {
-            count: 1,
-            processedIds: ["id-200"],
-          },
-        },
-      });
+      mockParseCards.mockReturnValue(
+        makeParseResult({
+          "The Doctor": ["id-100", "id-101"],
+          "Rain of Chaos": ["id-200"],
+        }),
+      );
 
       const callback = getWatchCallback();
       await callback(makeStats(newData.length), makeStats(0));
@@ -587,18 +662,55 @@ describe("ClientLogReaderService", () => {
         "Settlers",
         "The Doctor",
         "id-100",
+        expect.objectContaining({ processedId: "id-100" }),
       );
       expect(mockAddCard).toHaveBeenCalledWith(
         "poe1",
         "Settlers",
         "The Doctor",
         "id-101",
+        expect.objectContaining({ processedId: "id-101" }),
       );
       expect(mockAddCard).toHaveBeenCalledWith(
         "poe1",
         "Settlers",
         "Rain of Chaos",
         "id-200",
+        expect.objectContaining({ processedId: "id-200" }),
+      );
+    });
+
+    it("passes parsed location and time context to the session", async () => {
+      mockIsSessionActive.mockReturnValue(true);
+      mockGetActiveSessionInfo.mockReturnValue({
+        sessionId: "session-1",
+        league: "Settlers",
+        startedAt: "2026-03-14T09:00:00.000Z",
+      });
+      const event = {
+        cardName: "The Scholar",
+        processedId: "249522781",
+        droppedAt: "2026-03-14T09:26:12.000Z",
+        localMinute: 626,
+        utcOffsetMinutes: 60,
+        location: "Atlas Hideout",
+      };
+      const newData = "location-aware card drop\n";
+      mockReadSyncWith(newData);
+      mockParseCards.mockReturnValue({
+        totalCount: 1,
+        events: [event],
+        lastLocation: "Atlas Hideout",
+      });
+
+      await getWatchCallback()(makeStats(newData.length), makeStats(0));
+
+      expect(mockAddCard).toHaveBeenCalledWith(
+        "poe1",
+        "Settlers",
+        "The Scholar",
+        "249522781",
+        event,
       );
     });
 
@@ -639,15 +751,9 @@ describe("ClientLogReaderService", () => {
 
       const newData = "log with cards\n";
       mockReadSyncWith(newData);
-      mockParseCards.mockReturnValue({
-        totalCount: 1,
-        cards: {
-          "The Doctor": {
-            count: 1,
-            processedIds: ["id-100"],
-          },
-        },
-      });
+      mockParseCards.mockReturnValue(
+        makeParseResult({ "The Doctor": ["id-100"] }),
+      );
       mockAddCard.mockRejectedValue(new Error("DB error"));
 
       const consoleSpy = vi
@@ -675,7 +781,7 @@ describe("ClientLogReaderService", () => {
 
       const newData = "log text\n";
       mockReadSyncWith(newData);
-      mockParseCards.mockReturnValue({ totalCount: 0, cards: {} });
+      mockParseCards.mockReturnValue(makeParseResult());
 
       const callback = getWatchCallback();
       await callback(makeStats(newData.length), makeStats(0));
@@ -683,6 +789,374 @@ describe("ClientLogReaderService", () => {
       expect(mockIsSessionActive).toHaveBeenCalledWith("poe1");
       expect(mockGetActiveSessionInfo).toHaveBeenCalledWith("poe1");
       expect(mockGetAllProcessedIds).toHaveBeenCalledWith("poe1");
+    });
+  });
+
+  describe("historical card context backfill", () => {
+    const candidate = {
+      id: 1,
+      eventId: "aaaaaaaa-0000-4000-8000-000000000001",
+      sessionId: "session-1",
+      cardName: "The Scholar",
+      league: "Keepers",
+    };
+    const updates = [
+      {
+        id: 1,
+        eventId: "aaaaaaaa-0000-4000-8000-000000000001",
+        sessionId: "session-1",
+        sourceEventId: "249522781",
+        cardName: "The Scholar",
+        droppedAt: "2026-03-14T09:26:12.000Z",
+        location: "Atlas Hideout",
+        localMinute: 626,
+        utcOffsetMinutes: 60,
+        league: "Keepers",
+      },
+    ];
+
+    it("streams the log and applies only confidently matched updates", async () => {
+      const service = await ClientLogReaderService.getInstance(
+        mockMainWindow as any,
+      );
+      const stream = Readable.from([
+        "2026/03/14 10:21:55 249265968 cffb06dd [INFO Client 21244] : You have entered Atlas Hideout.\n",
+        "2026/03/14 10:26:12 249522781 cffb06dd [INFO Client 21244] : Card drawn from the deck: <divination>{The Scholar}\n",
+      ]);
+      mockCreateReadStream.mockReturnValue(stream);
+      mockFindHistoricalCardEventCandidate.mockReturnValue(candidate);
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+      await expect(
+        (service as any).backfillHistoricalCardContexts(
+          "/game/client.txt",
+          "poe1",
+        ),
+      ).resolves.toBe(1);
+
+      expect(mockCreateReadStream).toHaveBeenCalledWith("/game/client.txt", {
+        encoding: "utf8",
+      });
+      expect(mockFindHistoricalCardEventCandidate).toHaveBeenCalledWith(
+        "poe1",
+        "The Scholar",
+        "2026-03-14T09:26:12.000Z",
+        expect.any(Set),
+      );
+      expect(mockApplyHistoricalCardEventContexts).toHaveBeenCalledWith(
+        "poe1",
+        updates,
+      );
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[ClientLogReader] Enriched 1 historical card event(s) for poe1",
+      );
+
+      mockCreateReadStream.mockReturnValue(Readable.from(["invalid\n"]));
+      mockFindHistoricalCardEventCandidate.mockReturnValue(null);
+      await expect(
+        (service as any).backfillHistoricalCardContexts(
+          "/game/client.txt",
+          "poe1",
+        ),
+      ).resolves.toBe(0);
+      expect(mockApplyHistoricalCardEventContexts).toHaveBeenCalledOnce();
+      consoleSpy.mockRestore();
+    });
+
+    it("skips cards without usable context and flushes large scans in bounded batches", async () => {
+      const service = await ClientLogReaderService.getInstance(
+        mockMainWindow as any,
+      );
+      const cardLine = (processedId: number) =>
+        `2026/03/14 10:26:12 ${processedId} cffb06dd [INFO Client 21244] : Card drawn from the deck: <divination>{The Scholar}\n`;
+      mockCreateReadStream.mockReturnValue(
+        Readable.from([
+          cardLine(249522700),
+          "2026/03/14 10:21:55 249265968 cffb06dd [INFO Client 21244] : You have entered Atlas Hideout.\n",
+          cardLine(249522701),
+          ...Array.from({ length: 100 }, (_, index) =>
+            cardLine(249522702 + index),
+          ),
+        ]),
+      );
+      mockFindHistoricalCardEventCandidate
+        .mockReturnValueOnce(null)
+        .mockImplementation((_game, _cardName, _droppedAt, excludedIds) => {
+          const id = excludedIds.size + 1;
+          return {
+            ...candidate,
+            id,
+            eventId: `aaaaaaaa-0000-4000-8000-${id.toString().padStart(12, "0")}`,
+          };
+        });
+
+      await expect(
+        (service as any).backfillHistoricalCardContexts(
+          "/game/client.txt",
+          "poe1",
+        ),
+      ).resolves.toBe(100);
+
+      expect(mockFindHistoricalCardEventCandidate).toHaveBeenCalledTimes(101);
+      expect(mockApplyHistoricalCardEventContexts).toHaveBeenCalledOnce();
+      expect(
+        mockApplyHistoricalCardEventContexts.mock.calls[0][1],
+      ).toHaveLength(100);
+    });
+
+    it("returns immediately after the feature backfill has completed", async () => {
+      const service = await ClientLogReaderService.getInstance(
+        mockMainWindow as any,
+      );
+      mockGetMetadata.mockResolvedValue("complete");
+
+      await expect(service.runHistoricalContextBackfillOnce()).resolves.toEqual(
+        { status: "already-completed", enrichedEvents: 0 },
+      );
+
+      expect(mockHasHistoricalCardEventsMissingContext).not.toHaveBeenCalled();
+      expect((service as any).historicalBackfill).toBeNull();
+    });
+
+    it("defers historical log enrichment while community uploads are disabled", async () => {
+      const service = await ClientLogReaderService.getInstance(
+        mockMainWindow as any,
+      );
+      mockSettingsGet.mockImplementation(async (key: string) =>
+        key === "communityUploadsEnabled" ? false : null,
+      );
+
+      await expect(service.runHistoricalContextBackfillOnce()).resolves.toEqual(
+        { status: "deferred", enrichedEvents: 0 },
+      );
+
+      expect(mockHasHistoricalCardEventsMissingContext).not.toHaveBeenCalled();
+      expect(mockCreateReadStream).not.toHaveBeenCalled();
+      expect(mockSetMetadata).not.toHaveBeenCalled();
+    });
+
+    it("runs once for concurrent startup hydration requests", async () => {
+      const service = await ClientLogReaderService.getInstance(
+        mockMainWindow as any,
+      );
+      let releaseMetadata!: (value: string) => void;
+      mockGetMetadata.mockReturnValue(
+        new Promise((resolve) => {
+          releaseMetadata = resolve;
+        }),
+      );
+
+      const first = service.runHistoricalContextBackfillOnce();
+      const second = service.runHistoricalContextBackfillOnce();
+      expect(second).toBe(first);
+      releaseMetadata("complete");
+
+      await expect(first).resolves.toEqual({
+        status: "already-completed",
+        enrichedEvents: 0,
+      });
+      expect(mockGetMetadata).toHaveBeenCalledTimes(2);
+    });
+
+    it("completes and marks the one-time startup scan", async () => {
+      const service = await ClientLogReaderService.getInstance(
+        mockMainWindow as any,
+      );
+      mockHasHistoricalCardEventsMissingContext
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce(false);
+      mockSettingsGet.mockImplementation(async (key: string) =>
+        key === "poe1ClientTxtPath" ? "/game/client.txt" : null,
+      );
+      mockCreateReadStream.mockReturnValue(
+        Readable.from([
+          "2026/03/14 10:21:55 249265968 cffb06dd [INFO Client 21244] : You have entered Atlas Hideout.\n",
+          "2026/03/14 10:26:12 249522781 cffb06dd [INFO Client 21244] : Card drawn from the deck: <divination>{The Scholar}\n",
+        ]),
+      );
+      mockFindHistoricalCardEventCandidate.mockReturnValue(candidate);
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+      await expect(service.runHistoricalContextBackfillOnce()).resolves.toEqual(
+        { status: "completed", enrichedEvents: 1 },
+      );
+
+      expect(mockSetMetadata).toHaveBeenCalledWith(
+        "historical_card_context_backfill_v1:poe1",
+        "complete",
+      );
+      expect(mockSetMetadata).toHaveBeenCalledWith(
+        "historical_card_context_backfill_v1:poe2",
+        "complete",
+      );
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[ClientLogReader] Historical card context backfill completed with 1 enriched event(s)",
+      );
+      consoleSpy.mockRestore();
+    });
+
+    it("marks a scan complete when there are no historical candidates", async () => {
+      const service = await ClientLogReaderService.getInstance(
+        mockMainWindow as any,
+      );
+      mockSettingsGet.mockClear();
+
+      await expect(service.runHistoricalContextBackfillOnce()).resolves.toEqual(
+        { status: "completed", enrichedEvents: 0 },
+      );
+
+      expect(mockSettingsGet).not.toHaveBeenCalledWith("poe1ClientTxtPath");
+      expect(mockSetMetadata).toHaveBeenCalledTimes(2);
+      expect(mockSetMetadata).toHaveBeenNthCalledWith(
+        1,
+        "historical_card_context_backfill_v1:poe1",
+        "complete",
+      );
+      expect(mockSetMetadata).toHaveBeenNthCalledWith(
+        2,
+        "historical_card_context_backfill_v1:poe2",
+        "complete",
+      );
+    });
+
+    it("defers the scan when candidates exist but their log is not configured", async () => {
+      const service = await ClientLogReaderService.getInstance(
+        mockMainWindow as any,
+      );
+      mockHasHistoricalCardEventsMissingContext
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce(false);
+
+      await expect(service.runHistoricalContextBackfillOnce()).resolves.toEqual(
+        { status: "deferred", enrichedEvents: 0 },
+      );
+
+      expect(mockCreateReadStream).not.toHaveBeenCalled();
+      expect(mockSetMetadata).toHaveBeenCalledOnce();
+      expect(mockSetMetadata).toHaveBeenCalledWith(
+        "historical_card_context_backfill_v1:poe2",
+        "complete",
+      );
+    });
+
+    it("does not rescan a completed game while another game remains deferred", async () => {
+      const service = await ClientLogReaderService.getInstance(
+        mockMainWindow as any,
+      );
+      const completedKeys = new Set<string>();
+      mockGetMetadata.mockImplementation(async (key: string) =>
+        completedKeys.has(key) ? "complete" : null,
+      );
+      mockSetMetadata.mockImplementation(async (key: string) => {
+        completedKeys.add(key);
+      });
+      mockHasHistoricalCardEventsMissingContext.mockResolvedValue(true);
+      mockSettingsGet.mockImplementation(async (key: string) => {
+        if (key === "communityUploadsEnabled") return true;
+        if (key === "poe1ClientTxtPath") return "/game/poe1-client.txt";
+        return null;
+      });
+      mockCreateReadStream.mockReturnValue(Readable.from(["invalid\n"]));
+
+      await expect(service.runHistoricalContextBackfillOnce()).resolves.toEqual(
+        { status: "deferred", enrichedEvents: 0 },
+      );
+      await expect(service.runHistoricalContextBackfillOnce()).resolves.toEqual(
+        { status: "deferred", enrichedEvents: 0 },
+      );
+
+      expect(mockCreateReadStream).toHaveBeenCalledOnce();
+      expect(mockCreateReadStream).toHaveBeenCalledWith(
+        "/game/poe1-client.txt",
+        { encoding: "utf8" },
+      );
+      expect(completedKeys).toContain(
+        "historical_card_context_backfill_v1:poe1",
+      );
+      expect(completedKeys).not.toContain(
+        "historical_card_context_backfill_v1:poe2",
+      );
+    });
+
+    it("defers unreadable logs without blocking other games", async () => {
+      const service = await ClientLogReaderService.getInstance(
+        mockMainWindow as any,
+      );
+      mockHasHistoricalCardEventsMissingContext.mockResolvedValue(true);
+      mockSettingsGet.mockImplementation(async (key: string) => {
+        if (key === "poe1ClientTxtPath") return "/game/poe1-client.txt";
+        if (key === "poe2ClientTxtPath") return "/game/poe2-client.txt";
+        return null;
+      });
+      mockCreateReadStream
+        .mockImplementationOnce(() => {
+          throw new Error("unreadable");
+        })
+        .mockImplementationOnce(() => {
+          throw "rotated";
+        });
+      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      await expect(service.runHistoricalContextBackfillOnce()).resolves.toEqual(
+        { status: "deferred", enrichedEvents: 0 },
+      );
+
+      expect(consoleSpy).toHaveBeenNthCalledWith(
+        1,
+        "[ClientLogReader] Historical card context backfill deferred for poe1:",
+        "unreadable",
+      );
+      expect(consoleSpy).toHaveBeenNthCalledWith(
+        2,
+        "[ClientLogReader] Historical card context backfill deferred for poe2:",
+        "rotated",
+      );
+      expect(mockSetMetadata).not.toHaveBeenCalled();
+      consoleSpy.mockRestore();
+    });
+
+    it("contains Error and non-Error startup failures for a later retry", async () => {
+      const service = await ClientLogReaderService.getInstance(
+        mockMainWindow as any,
+      );
+      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      mockGetMetadata
+        .mockRejectedValueOnce(new Error("database closed"))
+        .mockRejectedValueOnce("database busy");
+
+      for (const message of ["database closed", "database busy"]) {
+        await expect(
+          service.runHistoricalContextBackfillOnce(),
+        ).resolves.toEqual({ status: "deferred", enrichedEvents: 0 });
+        expect(consoleSpy).toHaveBeenLastCalledWith(
+          "[ClientLogReader] Historical card context backfill deferred:",
+          message,
+        );
+      }
+      consoleSpy.mockRestore();
+    });
+
+    it("exposes the one-time scan through trusted IPC", async () => {
+      const service = await ClientLogReaderService.getInstance(
+        mockMainWindow as any,
+      );
+      mockGetMetadata.mockResolvedValue("complete");
+      const handler = mockIpcHandle.mock.calls.find(
+        ([channel]: [string]) =>
+          channel === "client-log-reader:run-historical-context-backfill",
+      )?.[1];
+      const event = { sender: { id: 1 } };
+
+      await expect(handler(event)).resolves.toEqual({
+        status: "already-completed",
+        enrichedEvents: 0,
+      });
+
+      expect(mockAssertTrustedSender).toHaveBeenCalledWith(
+        event,
+        "client-log-reader:run-historical-context-backfill",
+      );
+      expect(service).toBeDefined();
     });
   });
 
@@ -792,7 +1266,7 @@ describe("ClientLogReaderService", () => {
 
       const newData = "log text\n";
       mockReadSyncWith(newData);
-      mockParseCards.mockReturnValue({ totalCount: 0, cards: {} });
+      mockParseCards.mockReturnValue(makeParseResult());
 
       // Invoke the new watcher callback (second watchFile call)
       const callback = getWatchCallback(1);
@@ -853,14 +1327,13 @@ describe("ClientLogReaderService", () => {
     it("should process cards from multiple different card types", async () => {
       const newData = "multi card log\n";
       mockReadSyncWith(newData);
-      mockParseCards.mockReturnValue({
-        totalCount: 5,
-        cards: {
-          "The Doctor": { count: 1, processedIds: ["a1"] },
-          "Rain of Chaos": { count: 2, processedIds: ["b1", "b2"] },
-          "The Nurse": { count: 2, processedIds: ["c1", "c2"] },
-        },
-      });
+      mockParseCards.mockReturnValue(
+        makeParseResult({
+          "The Doctor": ["a1"],
+          "Rain of Chaos": ["b1", "b2"],
+          "The Nurse": ["c1", "c2"],
+        }),
+      );
 
       const callback = getWatchCallback();
       await callback(makeStats(newData.length), makeStats(0));
@@ -873,42 +1346,44 @@ describe("ClientLogReaderService", () => {
         "Settlers",
         "The Doctor",
         "a1",
+        expect.objectContaining({ processedId: "a1" }),
       );
       expect(mockAddCard).toHaveBeenCalledWith(
         "poe1",
         "Settlers",
         "Rain of Chaos",
         "b1",
+        expect.objectContaining({ processedId: "b1" }),
       );
       expect(mockAddCard).toHaveBeenCalledWith(
         "poe1",
         "Settlers",
         "Rain of Chaos",
         "b2",
+        expect.objectContaining({ processedId: "b2" }),
       );
       expect(mockAddCard).toHaveBeenCalledWith(
         "poe1",
         "Settlers",
         "The Nurse",
         "c1",
+        expect.objectContaining({ processedId: "c1" }),
       );
       expect(mockAddCard).toHaveBeenCalledWith(
         "poe1",
         "Settlers",
         "The Nurse",
         "c2",
+        expect.objectContaining({ processedId: "c2" }),
       );
     });
 
     it("should handle a single card with a single processedId", async () => {
       const newData = "single card log\n";
       mockReadSyncWith(newData);
-      mockParseCards.mockReturnValue({
-        totalCount: 1,
-        cards: {
-          "The Wretched": { count: 1, processedIds: ["only-one"] },
-        },
-      });
+      mockParseCards.mockReturnValue(
+        makeParseResult({ "The Wretched": ["only-one"] }),
+      );
 
       const callback = getWatchCallback();
       await callback(makeStats(newData.length), makeStats(0));
@@ -919,6 +1394,7 @@ describe("ClientLogReaderService", () => {
         "Settlers",
         "The Wretched",
         "only-one",
+        expect.objectContaining({ processedId: "only-one" }),
       );
     });
   });
@@ -944,7 +1420,7 @@ describe("ClientLogReaderService", () => {
 
       const newData = "log\n";
       mockReadSyncWith(newData);
-      mockParseCards.mockReturnValue({ totalCount: 0, cards: {} });
+      mockParseCards.mockReturnValue(makeParseResult());
 
       const callback = getWatchCallback();
       await callback(makeStats(newData.length), makeStats(0));
@@ -979,12 +1455,9 @@ describe("ClientLogReaderService", () => {
 
       const newData = "card log\n";
       mockReadSyncWith(newData);
-      mockParseCards.mockReturnValue({
-        totalCount: 1,
-        cards: {
-          "The Doctor": { count: 1, processedIds: ["id-perf"] },
-        },
-      });
+      mockParseCards.mockReturnValue(
+        makeParseResult({ "The Doctor": ["id-perf"] }),
+      );
 
       const callback = getWatchCallback();
       await callback(makeStats(newData.length), makeStats(0));
@@ -998,39 +1471,6 @@ describe("ClientLogReaderService", () => {
   // ─── Edge cases ─────────────────────────────────────────────────────────
 
   describe("edge cases", () => {
-    it("should handle parseCards returning cards with empty processedIds array", async () => {
-      mockSettingsGet.mockImplementation(async (key: string) => {
-        if (key === "selectedGame") return "poe1";
-        if (key === "poe1ClientTxtPath") return "/game/client.txt";
-        return null;
-      });
-
-      await ClientLogReaderService.getInstance(mockMainWindow as any);
-
-      mockIsSessionActive.mockReturnValue(true);
-      mockGetActiveSessionInfo.mockReturnValue({
-        sessionId: "session-1",
-        league: "Settlers",
-        startedAt: "2025-01-01T10:00:00Z",
-      });
-
-      const newData = "log\n";
-      mockReadSyncWith(newData);
-      // totalCount > 0 but cards entry has empty processedIds
-      mockParseCards.mockReturnValue({
-        totalCount: 1,
-        cards: {
-          "The Doctor": { count: 0, processedIds: [] },
-        },
-      });
-
-      const callback = getWatchCallback();
-      await callback(makeStats(newData.length), makeStats(0));
-
-      // addCard should not be called since processedIds is empty
-      expect(mockAddCard).not.toHaveBeenCalled();
-    });
-
     it("should skip processing when a previous callback is still running (re-entrancy guard)", async () => {
       mockSettingsGet.mockImplementation(async (key: string) => {
         if (key === "selectedGame") return "poe1";
@@ -1049,12 +1489,9 @@ describe("ClientLogReaderService", () => {
 
       const newData = "log line\n";
       mockReadSyncWith(newData);
-      mockParseCards.mockReturnValue({
-        totalCount: 1,
-        cards: {
-          "The Doctor": { count: 1, processedIds: ["id-1"] },
-        },
-      });
+      mockParseCards.mockReturnValue(
+        makeParseResult({ "The Doctor": ["id-1"] }),
+      );
 
       // Make addCard hang so the first callback never finishes
       let resolveAddCard!: () => void;
@@ -1073,12 +1510,9 @@ describe("ClientLogReaderService", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
 
       // Fire a second callback while the first is still running
-      mockParseCards.mockReturnValue({
-        totalCount: 1,
-        cards: {
-          "Rain of Chaos": { count: 1, processedIds: ["id-2"] },
-        },
-      });
+      mockParseCards.mockReturnValue(
+        makeParseResult({ "Rain of Chaos": ["id-2"] }),
+      );
       const secondData = "another log line\n";
       mockReadSyncWith(secondData);
       await callback(
@@ -1093,6 +1527,7 @@ describe("ClientLogReaderService", () => {
         "Settlers",
         "The Doctor",
         "id-1",
+        expect.objectContaining({ processedId: "id-1" }),
       );
 
       // Let the first callback finish
@@ -1118,12 +1553,9 @@ describe("ClientLogReaderService", () => {
 
       const firstData = "first line\n";
       mockReadSyncWith(firstData);
-      mockParseCards.mockReturnValue({
-        totalCount: 1,
-        cards: {
-          "The Doctor": { count: 1, processedIds: ["id-1"] },
-        },
-      });
+      mockParseCards.mockReturnValue(
+        makeParseResult({ "The Doctor": ["id-1"] }),
+      );
 
       // Make first addCard hang then resolve
       let resolveAddCard!: () => void;
@@ -1145,12 +1577,9 @@ describe("ClientLogReaderService", () => {
       mockAddCard.mockResolvedValue(undefined);
       const secondData = "second line\n";
       mockReadSyncWith(secondData);
-      mockParseCards.mockReturnValue({
-        totalCount: 1,
-        cards: {
-          "Rain of Chaos": { count: 1, processedIds: ["id-2"] },
-        },
-      });
+      mockParseCards.mockReturnValue(
+        makeParseResult({ "Rain of Chaos": ["id-2"] }),
+      );
 
       await callback(
         makeStats(firstData.length + secondData.length),
@@ -1163,6 +1592,7 @@ describe("ClientLogReaderService", () => {
         "Settlers",
         "Rain of Chaos",
         "id-2",
+        expect.objectContaining({ processedId: "id-2" }),
       );
     });
 
@@ -1194,12 +1624,9 @@ describe("ClientLogReaderService", () => {
       await callback(makeStats(errorData.length), makeStats(0));
 
       // Second callback should process normally (guard was released)
-      mockParseCards.mockReturnValue({
-        totalCount: 1,
-        cards: {
-          "The Doctor": { count: 1, processedIds: ["id-1"] },
-        },
-      });
+      mockParseCards.mockReturnValue(
+        makeParseResult({ "The Doctor": ["id-1"] }),
+      );
       const secondData = "second line\n";
       mockReadSyncWith(secondData);
       mockAddCard.mockResolvedValue(undefined);
@@ -1215,6 +1642,7 @@ describe("ClientLogReaderService", () => {
         "Settlers",
         "The Doctor",
         "id-1",
+        expect.objectContaining({ processedId: "id-1" }),
       );
     });
 
@@ -1238,12 +1666,9 @@ describe("ClientLogReaderService", () => {
 
       const newData = "log line\n";
       mockReadSyncWith(newData);
-      mockParseCards.mockReturnValue({
-        totalCount: 1,
-        cards: {
-          "The Doctor": { count: 1, processedIds: ["id-1"] },
-        },
-      });
+      mockParseCards.mockReturnValue(
+        makeParseResult({ "The Doctor": ["id-1"] }),
+      );
 
       // Make addCard hang indefinitely
       mockAddCard.mockReturnValue(new Promise<void>(() => {}));
@@ -1265,12 +1690,9 @@ describe("ClientLogReaderService", () => {
       mockAddCard.mockResolvedValue(undefined);
       const freshData = "fresh line\n";
       mockReadSyncWith(freshData);
-      mockParseCards.mockReturnValue({
-        totalCount: 1,
-        cards: {
-          "Rain of Chaos": { count: 1, processedIds: ["id-2"] },
-        },
-      });
+      mockParseCards.mockReturnValue(
+        makeParseResult({ "Rain of Chaos": ["id-2"] }),
+      );
 
       const newCallback = getWatchCallback(1);
       await newCallback(makeStats(freshData.length), makeStats(0));
@@ -1280,6 +1702,7 @@ describe("ClientLogReaderService", () => {
         "Settlers",
         "Rain of Chaos",
         "id-2",
+        expect.objectContaining({ processedId: "id-2" }),
       );
     });
 
@@ -1322,20 +1745,16 @@ describe("ClientLogReaderService", () => {
       // First call: one card — file grew from 0 to 20
       const firstData = "first call\n";
       mockReadSyncWith(firstData);
-      mockParseCards.mockReturnValue({
-        totalCount: 1,
-        cards: { "Card A": { count: 1, processedIds: ["id-1"] } },
-      });
+      mockParseCards.mockReturnValue(makeParseResult({ "Card A": ["id-1"] }));
       await callback(makeStats(firstData.length), makeStats(0));
       expect(mockAddCard).toHaveBeenCalledTimes(1);
 
       // Second call: two more cards — file grew further
       const secondData = "second call\n";
       mockReadSyncWith(secondData);
-      mockParseCards.mockReturnValue({
-        totalCount: 2,
-        cards: { "Card B": { count: 2, processedIds: ["id-2", "id-3"] } },
-      });
+      mockParseCards.mockReturnValue(
+        makeParseResult({ "Card B": ["id-2", "id-3"] }),
+      );
       await callback(
         makeStats(firstData.length + secondData.length),
         makeStats(firstData.length),
@@ -1364,7 +1783,7 @@ describe("ClientLogReaderService", () => {
       // First tick: data does NOT end with newline (partial line)
       const partialData = "incomplete line without newline";
       mockReadSyncWith(partialData);
-      mockParseCards.mockReturnValue({ totalCount: 0, cards: {} });
+      mockParseCards.mockReturnValue(makeParseResult());
 
       await callback(makeStats(partialData.length), makeStats(0));
 
@@ -1374,7 +1793,7 @@ describe("ClientLogReaderService", () => {
       // Second tick: rest of the line arrives with a newline
       const restData = " finished\n";
       mockReadSyncWith(restData);
-      mockParseCards.mockReturnValue({ totalCount: 0, cards: {} });
+      mockParseCards.mockReturnValue(makeParseResult());
 
       await callback(
         makeStats(partialData.length + restData.length),
@@ -1385,6 +1804,7 @@ describe("ClientLogReaderService", () => {
       expect(mockParseCards).toHaveBeenCalledWith(
         "incomplete line without newline finished\n",
         expect.anything(),
+        null,
       );
     });
   });

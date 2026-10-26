@@ -28,6 +28,7 @@ export const DropContentColumn = ({
 
   return (
     <div
+      data-card-name={cardName}
       className={`font-fontin flex-1 flex justify-between-end text-sm py-0.5 px-1 gap-2 min-w-0 ${
         isLeftHalf ? "flex-row-reverse" : "flex-row"
       }`}

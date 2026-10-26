@@ -218,6 +218,33 @@ describe("Migrations – Fresh Install", () => {
     );
   });
 
+  it("should have community drop event outbox table after migrations", () => {
+    const db = getDb();
+    createBaselineSchema(db);
+    const runner = new MigrationRunner(db);
+    runner.runMigrations(migrations);
+
+    expect(getTableNames(db)).toContain("community_drop_event_outbox");
+    expect(getColumnNames(db, "community_drop_event_outbox")).toEqual([
+      "event_id",
+      "session_id",
+      "game",
+      "scope",
+      "card_name",
+      "location",
+      "local_minute",
+      "utc_offset_minutes",
+      "created_at",
+    ]);
+    expect(getIndexNames(db, "community_drop_event_outbox")).toContain(
+      "idx_community_drop_event_outbox_pending",
+    );
+    expect(getTableNames(db)).toContain("community_drop_event_upload_state");
+    expect(getIndexNames(db, "session_card_events")).toContain(
+      "idx_session_card_events_context_backfill",
+    );
+  });
+
   it("should default last_seen_app_version to NULL on fresh install", () => {
     const db = getDb();
     createBaselineSchema(db);

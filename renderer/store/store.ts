@@ -102,6 +102,11 @@ export const useBoundStore = create<BoundStore>()(
             setupSlice.setup.hydrate(),
           ]);
 
+          // Migrations have completed before the renderer loads. Keep the
+          // one-time historical Client.txt scan inside the existing startup
+          // loader so large logs never rescan during ordinary app use.
+          await window.electron.clientLogReader.runHistoricalContextBackfill();
+
           const hydratedSettings = a[1]().settings;
           await rarityInsightsSlice.rarityInsights.loadStoredFilters();
           rarityInsightsSlice.rarityInsights.setSelectedFilterId(
@@ -154,6 +159,8 @@ export const useBoundStore = create<BoundStore>()(
           const unsubscribePoeNinja = poeNinjaSlice.poeNinja.startListening();
           const unsubscribeOverlay = overlaySlice.overlay.startListening();
           const unsubscribeUpdater = updaterSlice.updater.startListening();
+          const unsubscribeCommunityUpload =
+            communityUploadSlice.communityUpload.startListening();
           return () => {
             unsubscribeSession();
             unsubscribeAppPerformance();
@@ -161,6 +168,7 @@ export const useBoundStore = create<BoundStore>()(
             unsubscribePoeNinja();
             unsubscribeOverlay();
             unsubscribeUpdater();
+            unsubscribeCommunityUpload();
           };
         },
 
@@ -418,6 +426,11 @@ export const useBoundStore = create<BoundStore>()(
               state.communityUpload.backfillLeagues = [];
               state.communityUpload.isBackfilling = false;
               state.communityUpload.backfillError = null;
+              state.communityUpload.dropContextUploadStatus = {
+                pendingEvents: 0,
+                isUploading: false,
+                revision: -1,
+              };
             },
           );
         },

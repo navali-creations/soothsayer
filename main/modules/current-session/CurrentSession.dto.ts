@@ -76,6 +76,34 @@ export interface SessionCardEventDTO {
   droppedAt: string;
 }
 
+export interface CardDropContextDTO {
+  droppedAt: string;
+  localMinute: number;
+  utcOffsetMinutes: number;
+  location: string | null;
+}
+
+export interface HistoricalCardEventCandidate {
+  id: number;
+  eventId: string;
+  sessionId: string;
+  cardName: string;
+  league: string;
+}
+
+export interface CardEventContextUpdate {
+  id: number;
+  eventId: string;
+  sessionId: string;
+  sourceEventId: string;
+  cardName: string;
+  droppedAt: string;
+  location: string;
+  localMinute: number;
+  utcOffsetMinutes: number;
+  league: string;
+}
+
 export interface SessionCardEventSummaryDTO {
   cardName: string;
   chaosValue: number | null;

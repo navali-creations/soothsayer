@@ -482,7 +482,7 @@ export const EXPECTED_FILTER_TIER_STYLES_COLUMNS = [
   "updated_at",
 ];
 
-export const EXPECTED_SESSION_CARD_EVENTS_COLUMNS = [
+export const BASE_SESSION_CARD_EVENTS_COLUMNS = [
   "id",
   "session_id",
   "card_name",
@@ -491,6 +491,15 @@ export const EXPECTED_SESSION_CARD_EVENTS_COLUMNS = [
   "dropped_at",
 ];
 
+export const EXPECTED_SESSION_CARD_EVENTS_COLUMNS = [
+  ...BASE_SESSION_CARD_EVENTS_COLUMNS,
+  "event_id",
+  "source_event_id",
+  "location",
+  "utc_offset_minutes",
+];
+
 export const EXPECTED_SESSION_CARD_EVENTS_INDEXES = [
   "idx_session_card_events_session",
+  "idx_session_card_events_event_id",
 ];

@@ -192,6 +192,10 @@ function initializeSchema(db: Database.Database): void {
         chaos_value REAL,
         divine_value REAL,
         dropped_at TEXT NOT NULL DEFAULT (datetime('now')),
+        event_id TEXT,
+        source_event_id TEXT,
+        location TEXT,
+        utc_offset_minutes INTEGER CHECK (utc_offset_minutes BETWEEN -840 AND 840),
         FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
       )
     `);
@@ -199,6 +203,12 @@ function initializeSchema(db: Database.Database): void {
     db.exec(`
       CREATE INDEX IF NOT EXISTS idx_session_card_events_session
         ON session_card_events(session_id, dropped_at ASC)
+    `);
+
+    db.exec(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_session_card_events_event_id
+        ON session_card_events(event_id)
+        WHERE event_id IS NOT NULL
     `);
 
     // ═══════════════════════════════════════════════════════════════
@@ -321,6 +331,42 @@ function initializeSchema(db: Database.Database): void {
     db.exec(`
       CREATE INDEX IF NOT EXISTS idx_community_upload_outbox_next_attempt
       ON community_upload_outbox(next_attempt_at)
+    `);
+
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS community_drop_event_outbox (
+        event_id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+        game TEXT NOT NULL CHECK (game IN ('poe1', 'poe2')),
+        scope TEXT NOT NULL,
+        card_name TEXT NOT NULL,
+        location TEXT NOT NULL CHECK (length(location) BETWEEN 1 AND 200),
+        local_minute INTEGER NOT NULL CHECK (local_minute BETWEEN 0 AND 1439),
+        utc_offset_minutes INTEGER NOT NULL CHECK (utc_offset_minutes BETWEEN -840 AND 840),
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_community_drop_event_outbox_pending
+      ON community_drop_event_outbox(game, scope, created_at)
+    `);
+
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS community_drop_event_upload_state (
+        game TEXT NOT NULL CHECK (game IN ('poe1', 'poe2')),
+        scope TEXT NOT NULL,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        last_error TEXT,
+        next_attempt_at TEXT,
+        PRIMARY KEY (game, scope)
+      )
+    `);
+
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_session_card_events_context_backfill
+      ON session_card_events(card_name, dropped_at, id)
+      WHERE location IS NULL AND event_id IS NOT NULL
     `);
 
     // ═══════════════════════════════════════════════════════════════

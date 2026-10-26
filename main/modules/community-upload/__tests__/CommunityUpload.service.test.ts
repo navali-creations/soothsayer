@@ -177,7 +177,58 @@ describe("CommunityUploadService", () => {
     ).toEqual([
       CommunityUploadChannel.GetBackfillLeagues,
       CommunityUploadChannel.TriggerBackfill,
+      CommunityUploadChannel.GetDropContextUploadStatus,
     ]);
+  });
+
+  describe("IPC: drop-context upload status", () => {
+    it("returns the pending event count", async () => {
+      mockGetKysely.mockReturnValue(createKyselyChain({ count: 4_500 }));
+      service = CommunityUploadService.getInstance();
+
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        CommunityUploadChannel.GetDropContextUploadStatus,
+      );
+
+      await expect(handler({ sender: { id: 1 } })).resolves.toEqual({
+        success: true,
+        status: {
+          pendingEvents: 4_500,
+          isUploading: false,
+          revision: 0,
+        },
+      });
+      expect(mockAssertTrustedSender).toHaveBeenCalledWith(
+        { sender: { id: 1 } },
+        CommunityUploadChannel.GetDropContextUploadStatus,
+      );
+    });
+
+    it("returns a safe failure for an untrusted sender", async () => {
+      mockGetKysely.mockReturnValue(createKyselyChain());
+      mockAssertTrustedSender.mockImplementation(() => {
+        throw new MockIpcValidationError(
+          CommunityUploadChannel.GetDropContextUploadStatus,
+          "untrusted sender",
+        );
+      });
+      mockHandleValidationError.mockReturnValue({
+        success: false,
+        error: "Invalid input: untrusted sender",
+      });
+      service = CommunityUploadService.getInstance();
+
+      const handler = getIpcHandler(
+        mockIpcHandle,
+        CommunityUploadChannel.GetDropContextUploadStatus,
+      );
+
+      await expect(handler({ sender: { id: 999 } })).resolves.toEqual({
+        success: false,
+        error: "Invalid input: untrusted sender",
+      });
+    });
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1464,6 +1515,49 @@ describe("CommunityUploadService", () => {
       await service.flushPendingUploads();
 
       expect(mockCallEdgeFunction).not.toHaveBeenCalled();
+    });
+
+    it("reuses an in-flight global flush", async () => {
+      service = createService();
+      let finish!: () => void;
+      const internal = vi
+        .spyOn(service as any, "flushPendingUploadsInternal")
+        .mockReturnValue(
+          new Promise<void>((resolve) => {
+            finish = resolve;
+          }),
+        );
+
+      const first = service.flushPendingUploads();
+      const second = service.flushPendingUploads();
+
+      expect(second).toBe(first);
+      expect(internal).toHaveBeenCalledOnce();
+
+      const drain = service.drainInFlightUploads();
+      finish();
+      await Promise.all([first, drain]);
+
+      await service.flushPendingUploads();
+      expect(internal).toHaveBeenCalledTimes(2);
+    });
+
+    it("keeps a replacement global flush registered during cleanup", async () => {
+      service = createService();
+      let finish!: () => void;
+      vi.spyOn(service as any, "flushPendingUploadsInternal").mockReturnValue(
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+      );
+
+      const queued = service.flushPendingUploads();
+      const replacement = Promise.resolve();
+      (service as any).pendingUploadsFlushJob = replacement;
+      finish();
+      await queued;
+
+      expect((service as any).pendingUploadsFlushJob).toBe(replacement);
     });
 
     it("skips future rows and records invalid outbox games", async () => {

@@ -15,6 +15,7 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "../helpers/electron-test";
 import { ensurePostSetup, navigateTo } from "../helpers/navigation";
 import {
+  clearSessionHistory,
   seedMultipleCompletedSessions,
   seedSessionPrerequisites,
 } from "../helpers/seed-db";
@@ -175,6 +176,7 @@ test.describe("Sessions multi-session export", () => {
   test.beforeEach(async ({ page }) => {
     await ensurePostSetup(page);
     await resetSessionsBulkState(page);
+    await clearSessionHistory(page);
     await seedExportSessions(page);
     await installDownloadCapture(page);
   });

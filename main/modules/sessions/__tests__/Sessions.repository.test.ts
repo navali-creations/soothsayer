@@ -3211,6 +3211,19 @@ describe("SessionsRepository", () => {
           droppedAt: "2025-01-01T10:15:00Z",
         },
       ]);
+      await testDb.kysely
+        .insertInto("community_drop_event_outbox")
+        .values({
+          event_id: "aaaaaaaa-0000-4000-8000-000000000001",
+          session_id: sessionId,
+          game: "poe1",
+          scope: "Settlers",
+          card_name: "The Doctor",
+          location: "Atlas Hideout",
+          local_minute: 615,
+          utc_offset_minutes: 0,
+        })
+        .execute();
       await seedSessionSummary(testDb.kysely, {
         sessionId,
         game: "poe1",
@@ -3244,10 +3257,16 @@ describe("SessionsRepository", () => {
         .select(({ fn }) => fn.countAll<number>().as("count"))
         .where("session_id", "=", sessionId)
         .executeTakeFirstOrThrow();
+      const dropEventOutbox = await testDb.kysely
+        .selectFrom("community_drop_event_outbox")
+        .select(({ fn }) => fn.countAll<number>().as("count"))
+        .where("session_id", "=", sessionId)
+        .executeTakeFirstOrThrow();
 
       expect(Number(sessionCards.count)).toBe(0);
       expect(Number(sessionEvents.count)).toBe(0);
       expect(Number(sessionSummaries.count)).toBe(0);
+      expect(Number(dropEventOutbox.count)).toBe(0);
 
       const retainedCounts = await Promise.all([
         testDb.kysely

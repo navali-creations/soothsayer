@@ -93,8 +93,12 @@ const PrivacySettingsCard = () => {
                   Community Drop Rates
                 </span>
                 <p className="mt-1 text-sm text-base-content/60">
-                  Share your stacked deck data to help build community drop rate
-                  statistics. Uploads work with or without a linked account.
+                  Share card names and counts, in-game area names, and the local
+                  minute and UTC offset of drops to build community statistics.
+                  Exact dates and timestamps stay on your device. Uploads work
+                  with or without a linked account. Preserved Client.txt entries
+                  may enrich earlier drops with the same area and time-of-day
+                  context.
                 </p>
               </div>
               <input

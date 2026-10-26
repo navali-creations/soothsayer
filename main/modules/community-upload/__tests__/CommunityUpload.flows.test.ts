@@ -129,11 +129,14 @@ vi.mock("~/main/modules/sentry/Sentry.reporter", () => ({
 
 import {
   createTestDatabase,
+  seedCards,
   seedLeague,
+  seedSession,
   seedSnapshot,
   type TestDatabase,
 } from "~/main/modules/__test-utils__/create-test-db";
 import { CurrentSessionService } from "~/main/modules/current-session/CurrentSession.service";
+import { EdgeFunctionError } from "~/main/modules/supabase";
 
 import { CommunityUploadService } from "../CommunityUpload.service";
 
@@ -142,7 +145,14 @@ interface UploadPayload {
   game: "poe1" | "poe2";
   device_id: string;
   cards: Array<{ card_name: string; count: number }>;
-  is_packaged: boolean;
+  events?: Array<{
+    event_id: string;
+    card_name: string;
+    location: string;
+    local_minute: number;
+    utc_offset_minutes: number;
+  }>;
+  is_packaged?: boolean;
 }
 
 const DEVICE_ID = "aaaaaaaa-bbbb-4ccc-9ddd-eeeeeeeeeeee";
@@ -171,6 +181,14 @@ function createEdgeResponse(uploadCount: number) {
   };
 }
 
+function createDropEventResponse(acceptedEvents = 1, insertedEvents = 1) {
+  return {
+    success: true,
+    accepted_events: acceptedEvents,
+    inserted_events: insertedEvents,
+  };
+}
+
 function getPowerMonitorHandler(eventName: "resume" | "suspend"): () => void {
   const handler = mockPowerMonitorOn.mock.calls.find(
     ([event]: [string]) => event === eventName,
@@ -181,7 +199,17 @@ function getPowerMonitorHandler(eventName: "resume" | "suspend"): () => void {
 }
 
 function lastUploadPayload(): UploadPayload {
-  const call = mockCallEdgeFunction.mock.calls.at(-1);
+  const call = [...mockCallEdgeFunction.mock.calls]
+    .reverse()
+    .find(([functionName]) => functionName === "v2-upload-community-data");
+  expect(call).toBeDefined();
+  return call?.[1] as UploadPayload;
+}
+
+function lastDropEventPayload(): UploadPayload {
+  const call = [...mockCallEdgeFunction.mock.calls]
+    .reverse()
+    .find(([functionName]) => functionName === "upload-community-drop-events");
   expect(call).toBeDefined();
   return call?.[1] as UploadPayload;
 }
@@ -262,6 +290,14 @@ describe("community upload main-process flows", () => {
       id: "snapshot-settlers",
       leagueId,
     });
+    await seedSession(testDb.kysely, {
+      id: "pending-event-session",
+      game: "poe1",
+      leagueId,
+      startedAt: "2026-03-14T09:00:00.000Z",
+      endedAt: "2026-03-14T10:00:00.000Z",
+      isActive: false,
+    });
     await testDb.kysely
       .insertInto("app_metadata")
       .values({ key: "device_id", value: DEVICE_ID })
@@ -316,6 +352,13 @@ describe("community upload main-process flows", () => {
       .where("game", "=", "poe1")
       .where("scope", "=", LEAGUE)
       .orderBy("card_name", "asc")
+      .execute();
+  }
+
+  async function getDropEventOutboxRows() {
+    return testDb.kysely
+      .selectFrom("community_drop_event_outbox")
+      .selectAll()
       .execute();
   }
 
@@ -422,5 +465,599 @@ describe("community upload main-process flows", () => {
       { card_name: "Rain of Chaos", count: 1 },
       { card_name: "The Doctor", count: 2 },
     ]);
+  });
+
+  it("uploads coarse drop context and removes its durable outbox row", async () => {
+    mockCallEdgeFunction.mockImplementation((functionName: string) =>
+      Promise.resolve(
+        functionName === "upload-community-drop-events"
+          ? createDropEventResponse()
+          : createEdgeResponse(1),
+      ),
+    );
+    await currentSession.startSession("poe1", LEAGUE);
+    await currentSession.addCard(
+      "poe1",
+      LEAGUE,
+      "The Doctor",
+      "source-drop-1",
+      {
+        droppedAt: "2026-03-14T09:26:12.000Z",
+        localMinute: 626,
+        utcOffsetMinutes: 60,
+        location: "Atlas Hideout",
+      },
+    );
+
+    await currentSession.stopSession("poe1", {
+      waitForCommunityUpload: true,
+    });
+
+    expect(lastDropEventPayload().events).toEqual([
+      {
+        event_id: expect.stringMatching(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+        ),
+        card_name: "The Doctor",
+        location: "Atlas Hideout",
+        local_minute: 626,
+        utc_offset_minutes: 60,
+      },
+    ]);
+    await expect(getDropEventOutboxRows()).resolves.toEqual([]);
+
+    const localEvent = await testDb.kysely
+      .selectFrom("session_card_events")
+      .select([
+        "source_event_id",
+        "location",
+        "dropped_at",
+        "utc_offset_minutes",
+      ])
+      .executeTakeFirstOrThrow();
+    expect(localEvent).toEqual({
+      source_event_id: "source-drop-1",
+      location: "Atlas Hideout",
+      dropped_at: "2026-03-14T09:26:12.000Z",
+      utc_offset_minutes: 60,
+    });
+  });
+
+  it("retains drop context after failure and deletes it after retry", async () => {
+    mockCallEdgeFunction
+      .mockResolvedValueOnce(createEdgeResponse(1))
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce(createDropEventResponse());
+    await currentSession.startSession("poe1", LEAGUE);
+    await currentSession.addCard(
+      "poe1",
+      LEAGUE,
+      "The Doctor",
+      "source-drop-1",
+      {
+        droppedAt: "2026-03-14T09:26:12.000Z",
+        localMinute: 626,
+        utcOffsetMinutes: 60,
+        location: "Atlas Hideout",
+      },
+    );
+    await currentSession.stopSession("poe1", {
+      waitForCommunityUpload: true,
+    });
+
+    const queuedEvents = await getDropEventOutboxRows();
+    expect(queuedEvents).toHaveLength(1);
+    expect(queuedEvents[0]).toMatchObject({
+      location: "Atlas Hideout",
+    });
+
+    await testDb.kysely
+      .updateTable("community_drop_event_upload_state")
+      .set({ next_attempt_at: "2020-01-01T00:00:00.000Z" })
+      .execute();
+
+    await communityUpload.flushPendingUploads();
+
+    expect(lastDropEventPayload().events).toHaveLength(1);
+    await expect(getDropEventOutboxRows()).resolves.toEqual([]);
+  });
+
+  it("respects persisted drop-event backoff for interactive and background flushes", async () => {
+    await testDb.kysely
+      .insertInto("community_drop_event_outbox")
+      .values({
+        event_id: "aaaaaaaa-0000-4000-8000-000000000001",
+        session_id: "pending-event-session",
+        game: "poe1",
+        scope: LEAGUE,
+        card_name: "The Doctor",
+        location: "Atlas Hideout",
+        local_minute: 626,
+        utc_offset_minutes: 60,
+      })
+      .execute();
+    await testDb.kysely
+      .insertInto("community_drop_event_upload_state")
+      .values({
+        game: "poe1",
+        scope: LEAGUE,
+        attempts: 1,
+        last_error: "offline",
+        next_attempt_at: "2999-01-01T00:00:00.000Z",
+      })
+      .execute();
+
+    await communityUpload.uploadOnSessionEnd("poe1", LEAGUE);
+    await communityUpload.flushPendingUploads();
+
+    expect(mockCallEdgeFunction).not.toHaveBeenCalled();
+    await expect(getDropEventOutboxRows()).resolves.toHaveLength(1);
+  });
+
+  it("backs off a scope when the process-wide drop-event request budget is exhausted", async () => {
+    await testDb.kysely
+      .insertInto("community_drop_event_outbox")
+      .values({
+        event_id: "aaaaaaaa-0000-4000-8000-000000000001",
+        session_id: "pending-event-session",
+        game: "poe1",
+        scope: LEAGUE,
+        card_name: "The Doctor",
+        location: "Atlas Hideout",
+        local_minute: 626,
+        utc_offset_minutes: 60,
+      })
+      .execute();
+    (communityUpload as any).eventRateWindowStartedAt = Date.now();
+    (communityUpload as any).eventRequestsInWindow = 240;
+
+    await (communityUpload as any).flushPendingDropEvents(
+      "poe1",
+      LEAGUE,
+      DEVICE_ID,
+    );
+
+    expect(mockCallEdgeFunction).not.toHaveBeenCalled();
+    await expect(
+      testDb.kysely
+        .selectFrom("community_drop_event_upload_state")
+        .select(["attempts", "last_error"])
+        .where("game", "=", "poe1")
+        .where("scope", "=", LEAGUE)
+        .executeTakeFirst(),
+    ).resolves.toEqual({
+      attempts: 1,
+      last_error: "Hourly card-drop upload request budget reached",
+    });
+  });
+
+  it("uses the hourly backoff window when the drop-event endpoint rate-limits", async () => {
+    await testDb.kysely
+      .insertInto("community_drop_event_outbox")
+      .values({
+        event_id: "aaaaaaaa-0000-4000-8000-000000000001",
+        session_id: "pending-event-session",
+        game: "poe1",
+        scope: LEAGUE,
+        card_name: "The Doctor",
+        location: "Atlas Hideout",
+        local_minute: 626,
+        utc_offset_minutes: 60,
+      })
+      .execute();
+    mockCallEdgeFunction.mockRejectedValue(
+      new EdgeFunctionError(
+        "upload-community-drop-events",
+        429,
+        "rate limited",
+      ),
+    );
+    const beforeUpload = Date.now();
+
+    await communityUpload.uploadOnSessionEnd("poe1", LEAGUE);
+
+    const state = await testDb.kysely
+      .selectFrom("community_drop_event_upload_state")
+      .select(["attempts", "last_error", "next_attempt_at"])
+      .where("game", "=", "poe1")
+      .where("scope", "=", LEAGUE)
+      .executeTakeFirstOrThrow();
+    expect(state).toMatchObject({
+      attempts: 1,
+      last_error:
+        "Edge Function upload-community-drop-events failed (429): rate limited",
+    });
+    expect(
+      new Date(state.next_attempt_at ?? 0).getTime(),
+    ).toBeGreaterThanOrEqual(beforeUpload + 60 * 60_000);
+  });
+
+  it("sends an event-only retry through the dedicated endpoint", async () => {
+    mockCallEdgeFunction.mockResolvedValue(createDropEventResponse());
+    await seedCards(testDb.kysely, [
+      {
+        game: "poe1",
+        scope: LEAGUE,
+        cardName: "The Doctor",
+        count: 2,
+      },
+    ]);
+    await testDb.kysely
+      .insertInto("community_upload_snapshot")
+      .values({
+        game: "poe1",
+        scope: LEAGUE,
+        card_name: "The Doctor",
+        count: 2,
+      })
+      .execute();
+    await testDb.kysely
+      .insertInto("community_drop_event_outbox")
+      .values({
+        event_id: "aaaaaaaa-0000-4000-8000-000000000001",
+        session_id: "pending-event-session",
+        game: "poe1",
+        scope: LEAGUE,
+        card_name: "The Doctor",
+        location: "Atlas Hideout",
+        local_minute: 626,
+        utc_offset_minutes: 60,
+      })
+      .execute();
+
+    await communityUpload.uploadOnSessionEnd("poe1", LEAGUE);
+
+    expect(mockCallEdgeFunction).toHaveBeenCalledTimes(1);
+    expect(mockCallEdgeFunction).toHaveBeenCalledWith(
+      "upload-community-drop-events",
+      expect.any(Object),
+    );
+    expect(lastDropEventPayload()).toMatchObject({
+      events: [
+        {
+          event_id: "aaaaaaaa-0000-4000-8000-000000000001",
+          card_name: "The Doctor",
+          location: "Atlas Hideout",
+          local_minute: 626,
+          utc_offset_minutes: 60,
+        },
+      ],
+    });
+    await expect(getDropEventOutboxRows()).resolves.toEqual([]);
+  });
+
+  it("handles prepared uploads without events", async () => {
+    mockCallEdgeFunction.mockResolvedValue(createEdgeResponse(1));
+    await testDb.kysely
+      .insertInto("community_upload_outbox")
+      .values({
+        game: "poe1",
+        scope: LEAGUE,
+        cards_json: JSON.stringify([{ card_name: "The Doctor", count: 1 }]),
+      })
+      .execute();
+
+    await (communityUpload as any).flushPreparedPendingUpload("poe1", LEAGUE, {
+      cards: [{ card_name: "The Doctor", count: 1 }],
+      deviceId: DEVICE_ID,
+    });
+
+    expect(lastUploadPayload().events).toBeUndefined();
+    await expect(getOutboxRows()).resolves.toEqual([]);
+  });
+
+  it("defensively ignores a non-array pending-event query result", async () => {
+    const execute = vi.fn().mockResolvedValue(null);
+    const chain = new Proxy(
+      {},
+      {
+        get: (_target, property) =>
+          property === "execute" ? execute : () => chain,
+      },
+    );
+    const originalKysely = (communityUpload as any).kysely;
+    (communityUpload as any).kysely = {
+      selectFrom: () => chain,
+    };
+
+    await expect(
+      (communityUpload as any).getPendingDropEvents("poe1", LEAGUE),
+    ).resolves.toEqual([]);
+
+    (communityUpload as any).kysely = originalKysely;
+  });
+
+  it("keeps events queued when the server does not acknowledge the full batch", async () => {
+    const event = {
+      event_id: "aaaaaaaa-0000-4000-8000-000000000001",
+      card_name: "The Doctor",
+      location: "Atlas Hideout",
+      local_minute: 626,
+      utc_offset_minutes: 60,
+    };
+    await testDb.kysely
+      .insertInto("community_drop_event_outbox")
+      .values({
+        ...event,
+        session_id: "pending-event-session",
+        game: "poe1",
+        scope: LEAGUE,
+      })
+      .execute();
+
+    mockCallEdgeFunction.mockResolvedValue(createDropEventResponse(0, 0));
+
+    await communityUpload.uploadOnSessionEnd("poe1", LEAGUE);
+
+    await expect(getDropEventOutboxRows()).resolves.toEqual([
+      expect.objectContaining({
+        event_id: event.event_id,
+      }),
+    ]);
+  });
+
+  it("keeps events queued when the server returns no acknowledgement object", async () => {
+    const event = {
+      event_id: "aaaaaaaa-0000-4000-8000-000000000001",
+      card_name: "The Doctor",
+      location: "Atlas Hideout",
+      local_minute: 626,
+      utc_offset_minutes: 60,
+    };
+    await testDb.kysely
+      .insertInto("community_drop_event_outbox")
+      .values({
+        ...event,
+        session_id: "pending-event-session",
+        game: "poe1",
+        scope: LEAGUE,
+      })
+      .execute();
+    mockCallEdgeFunction.mockResolvedValue(null);
+
+    await communityUpload.uploadOnSessionEnd("poe1", LEAGUE);
+
+    await expect(getDropEventOutboxRows()).resolves.toHaveLength(1);
+  });
+
+  it("normalizes non-Error card-drop upload failures", async () => {
+    await testDb.kysely
+      .insertInto("community_drop_event_outbox")
+      .values({
+        event_id: "aaaaaaaa-0000-4000-8000-000000000001",
+        session_id: "pending-event-session",
+        game: "poe1",
+        scope: LEAGUE,
+        card_name: "The Doctor",
+        location: "Atlas Hideout",
+        local_minute: 626,
+        utc_offset_minutes: 60,
+      })
+      .execute();
+    mockCallEdgeFunction.mockRejectedValue("offline");
+
+    await communityUpload.uploadOnSessionEnd("poe1", LEAGUE);
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "[CommunityUpload] Card-drop context upload failed:",
+      "offline",
+    );
+    expect(mockSentryCaptureException).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "offline" }),
+      expect.any(Object),
+    );
+  });
+
+  it("retains an event when the server rejects its device parent", async () => {
+    await testDb.kysely
+      .insertInto("community_drop_event_outbox")
+      .values({
+        event_id: "aaaaaaaa-0000-4000-8000-000000000001",
+        session_id: "pending-event-session",
+        game: "poe1",
+        scope: LEAGUE,
+        card_name: "The Doctor",
+        location: "Atlas Hideout",
+        local_minute: 626,
+        utc_offset_minutes: 60,
+      })
+      .execute();
+    mockCallEdgeFunction.mockRejectedValue(
+      new EdgeFunctionError(
+        "upload-community-drop-events",
+        409,
+        '{"code":"upload_not_found"}',
+        { code: "upload_not_found" },
+      ),
+    );
+
+    await communityUpload.uploadOnSessionEnd("poe1", LEAGUE);
+
+    await expect(getDropEventOutboxRows()).resolves.toHaveLength(1);
+    expect(mockCallEdgeFunction).toHaveBeenCalledTimes(1);
+    expect(mockSentryCaptureException).toHaveBeenCalledWith(
+      expect.any(EdgeFunctionError),
+      expect.any(Object),
+    );
+  });
+
+  it("coalesces concurrent event flushes without deleting a replacement job", async () => {
+    await testDb.kysely
+      .insertInto("community_drop_event_outbox")
+      .values({
+        event_id: "aaaaaaaa-0000-4000-8000-000000000001",
+        session_id: "pending-event-session",
+        game: "poe1",
+        scope: LEAGUE,
+        card_name: "The Doctor",
+        location: "Atlas Hideout",
+        local_minute: 626,
+        utc_offset_minutes: 60,
+      })
+      .execute();
+
+    let resolveUpload: ((value: unknown) => void) | undefined;
+    mockCallEdgeFunction.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveUpload = resolve;
+        }),
+    );
+
+    const first = (communityUpload as any).flushPendingDropEvents(
+      "poe1",
+      LEAGUE,
+      DEVICE_ID,
+    );
+    const second = (communityUpload as any).flushPendingDropEvents(
+      "poe1",
+      LEAGUE,
+      DEVICE_ID,
+    );
+    await waitForCondition(
+      () => typeof resolveUpload === "function",
+      "event upload did not start",
+    );
+
+    const replacement = Promise.resolve();
+    (communityUpload as any).eventFlushJobs.set(`poe1:${LEAGUE}`, replacement);
+    resolveUpload?.(createDropEventResponse());
+    await Promise.all([first, second]);
+
+    expect(mockCallEdgeFunction).toHaveBeenCalledTimes(1);
+    expect((communityUpload as any).eventFlushJobs.get(`poe1:${LEAGUE}`)).toBe(
+      replacement,
+    );
+    (communityUpload as any).eventFlushJobs.clear();
+  });
+
+  it("ignores an empty event deletion batch", async () => {
+    await expect(
+      (communityUpload as any).deletePendingDropEvents([]),
+    ).resolves.toBeUndefined();
+  });
+
+  it("publishes upload status and tolerates unavailable renderer windows", async () => {
+    await testDb.kysely
+      .insertInto("community_drop_event_outbox")
+      .values({
+        event_id: "aaaaaaaa-0000-4000-8000-000000000001",
+        session_id: "pending-event-session",
+        game: "poe1",
+        scope: LEAGUE,
+        card_name: "The Doctor",
+        location: "Atlas Hideout",
+        local_minute: 626,
+        utc_offset_minutes: 60,
+      })
+      .execute();
+    (communityUpload as any).eventFlushJobs.set(
+      `poe1:${LEAGUE}`,
+      Promise.resolve(),
+    );
+
+    await (communityUpload as any).emitDropContextUploadStatus();
+
+    expect(mockWebContentsSend).toHaveBeenCalledWith(
+      "community:drop-context-upload-status-changed",
+      {
+        pendingEvents: 1,
+        isUploading: true,
+        revision: 1,
+      },
+    );
+
+    mockWebContentsSend.mockClear();
+    mockGetAllWindows.mockReturnValueOnce([
+      {
+        isDestroyed: () => true,
+        webContents: { send: mockWebContentsSend },
+      },
+    ]);
+    await (communityUpload as any).emitDropContextUploadStatus();
+
+    expect(mockWebContentsSend).not.toHaveBeenCalled();
+    (communityUpload as any).eventFlushJobs.clear();
+  });
+
+  it("logs status publication failures without rejecting upload work", async () => {
+    const originalKysely = (communityUpload as any).kysely;
+    (communityUpload as any).kysely = {
+      selectFrom: () => {
+        throw new Error("status query failed");
+      },
+    };
+
+    await expect(
+      (communityUpload as any).emitDropContextUploadStatus(),
+    ).resolves.toBeUndefined();
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      "[CommunityUpload] Failed to publish card-history upload status:",
+      "status query failed",
+    );
+
+    (communityUpload as any).kysely = {
+      selectFrom: () => {
+        throw "status unavailable";
+      },
+    };
+    await expect(
+      (communityUpload as any).emitDropContextUploadStatus(),
+    ).resolves.toBeUndefined();
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      "[CommunityUpload] Failed to publish card-history upload status:",
+      "status unavailable",
+    );
+
+    (communityUpload as any).kysely = originalKysely;
+  });
+
+  it("does not replay aggregate cards when the event endpoint rejects a parent", async () => {
+    await seedCards(testDb.kysely, [
+      {
+        game: "poe1",
+        scope: LEAGUE,
+        cardName: "The Doctor",
+        count: 2,
+      },
+    ]);
+    await testDb.kysely
+      .insertInto("community_upload_snapshot")
+      .values({
+        game: "poe1",
+        scope: LEAGUE,
+        card_name: "The Doctor",
+        count: 2,
+      })
+      .execute();
+    await testDb.kysely
+      .insertInto("community_drop_event_outbox")
+      .values({
+        event_id: "aaaaaaaa-0000-4000-8000-000000000001",
+        session_id: "pending-event-session",
+        game: "poe1",
+        scope: LEAGUE,
+        card_name: "The Doctor",
+        location: "Atlas Hideout",
+        local_minute: 626,
+        utc_offset_minutes: 60,
+      })
+      .execute();
+
+    mockCallEdgeFunction.mockRejectedValueOnce(
+      new EdgeFunctionError(
+        "upload-community-drop-events",
+        409,
+        '{"code":"upload_not_found"}',
+        { code: "upload_not_found" },
+      ),
+    );
+
+    await communityUpload.uploadOnSessionEnd("poe1", LEAGUE);
+
+    expect(mockCallEdgeFunction.mock.calls.map(([name]) => name)).toEqual([
+      "upload-community-drop-events",
+    ]);
+    await expect(getDropEventOutboxRows()).resolves.toHaveLength(1);
   });
 });

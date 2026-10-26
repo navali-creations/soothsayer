@@ -44,6 +44,9 @@ const {
   mockAppServiceIsQuitting,
   mockScreenGetAllDisplays,
   mockSupabaseIsConfigured,
+  mockClientLogOn,
+  mockClientLogGetInstance,
+  mockCommunityUploadFlush,
 } = vi.hoisted(() => {
   class _MockIpcValidationError extends Error {
     detail: string;
@@ -103,6 +106,13 @@ const {
     mockAssertTrustedSender: vi.fn(),
     MockIpcValidationError: _MockIpcValidationError,
     mockSupabaseIsConfigured: vi.fn(() => true),
+    mockClientLogOn: vi.fn().mockReturnThis(),
+    mockClientLogGetInstance: vi.fn(() =>
+      Promise.resolve({
+        on: mockClientLogOn,
+      }),
+    ),
+    mockCommunityUploadFlush: vi.fn().mockResolvedValue(undefined),
   };
 });
 
@@ -221,19 +231,18 @@ vi.mock("~/main/modules/card-details", () => ({
 }));
 
 vi.mock("~/main/modules/client-log-reader", () => ({
+  ClientLogReaderEvent: {
+    HistoricalContextQueued: "historical-context-queued",
+  },
   ClientLogReaderService: {
-    getInstance: vi.fn(() =>
-      Promise.resolve({
-        on: vi.fn().mockReturnThis(),
-      }),
-    ),
+    getInstance: mockClientLogGetInstance,
   },
 }));
 
 vi.mock("~/main/modules/community-upload", () => ({
   CommunityUploadService: {
     getInstance: vi.fn(() => ({
-      flushPendingUploads: vi.fn().mockResolvedValue(undefined),
+      flushPendingUploads: mockCommunityUploadFlush,
     })),
   },
 }));
@@ -707,6 +716,29 @@ describe("MainWindowService", () => {
       await service.createMainWindow();
 
       expect(CommunityUploadService.getInstance).toHaveBeenCalled();
+    });
+
+    it("flushes contextual events after historical backfill queues them", async () => {
+      await service.createMainWindow();
+
+      expect(mockClientLogOn).toHaveBeenCalledWith(
+        "historical-context-queued",
+        expect.any(Function),
+      );
+      const listener = mockClientLogOn.mock.calls.find(
+        ([eventName]) => eventName === "historical-context-queued",
+      )?.[1] as (() => void) | undefined;
+      listener?.();
+
+      expect(mockCommunityUploadFlush).toHaveBeenCalled();
+    });
+
+    it("registers the historical context listener only once across window recreation", async () => {
+      await service.createMainWindow();
+      await service.createMainWindow();
+
+      expect(mockClientLogOn).toHaveBeenCalledTimes(1);
+      expect(mockClientLogGetInstance).toHaveBeenCalledTimes(2);
     });
 
     it("should route overlay visibility markers through app-performance", async () => {

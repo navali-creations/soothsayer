@@ -1,4 +1,5 @@
 import { appendFileSync } from "node:fs";
+import { homedir } from "node:os";
 
 import { ipcMain, shell } from "electron";
 
@@ -26,6 +27,20 @@ const REDACT_KEYS = new Set([
 const JWT_PATTERN = /eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g;
 
 const MAX_LOG_BYTES = 1_048_576; // 1 MB
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function redactUserPaths(message: string): string {
+  const userHome = homedir();
+  const serializedHome = userHome.replaceAll("\\", "\\\\");
+  return message
+    .replace(new RegExp(escapeRegExp(userHome), "gi"), "[USER_HOME]")
+    .replace(new RegExp(escapeRegExp(serializedHome), "gi"), "[USER_HOME]")
+    .replace(/C:(?:\\\\|\\)Users(?:\\\\|\\)[^\\/"\s]+/gi, "[USER_HOME]")
+    .replace(/\/(?:Users|home)\/[^/"\s]+/g, "[USER_HOME]");
+}
 
 class DiagLogService {
   private static _instance: DiagLogService;
@@ -81,26 +96,38 @@ class DiagLogService {
         return;
       }
 
-      const message = args
-        .map((a) => {
-          if (typeof a === "string") return a;
-          try {
-            return JSON.stringify(a, (key, value) => {
-              if (
-                key &&
-                typeof value === "string" &&
-                REDACT_KEYS.has(key.toLowerCase())
-              ) {
-                return "[REDACTED]";
-              }
-              return value;
-            });
-          } catch {
-            return String(a);
-          }
-        })
-        .join(" ")
-        .replace(JWT_PATTERN, "[JWT_REDACTED]");
+      const message = redactUserPaths(
+        args
+          .map((a) => {
+            if (typeof a === "string") return a;
+            try {
+              const serializableValue =
+                a instanceof Error
+                  ? {
+                      ...a,
+                      name: a.name,
+                      message: a.message,
+                      stack: a.stack,
+                    }
+                  : a;
+
+              return JSON.stringify(serializableValue, (key, value) => {
+                if (
+                  key &&
+                  typeof value === "string" &&
+                  REDACT_KEYS.has(key.toLowerCase())
+                ) {
+                  return "[REDACTED]";
+                }
+                return value;
+              });
+            } catch {
+              return String(a);
+            }
+          })
+          .join(" ")
+          .replace(JWT_PATTERN, "[JWT_REDACTED]"),
+      );
 
       if (NOISE_FILTERS.some((filter) => message.includes(filter))) {
         return;

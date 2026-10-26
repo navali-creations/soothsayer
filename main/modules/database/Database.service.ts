@@ -332,6 +332,10 @@ class DatabaseService {
           chaos_value REAL,
           divine_value REAL,
           dropped_at TEXT NOT NULL DEFAULT (datetime('now')),
+          event_id TEXT,
+          source_event_id TEXT,
+          location TEXT,
+          utc_offset_minutes INTEGER CHECK (utc_offset_minutes BETWEEN -840 AND 840),
           FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
         )
       `);

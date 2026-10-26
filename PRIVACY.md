@@ -40,11 +40,13 @@ When community uploads are enabled (Settings → Privacy & Telemetry), Soothsaye
 
 - A **locally-generated random ID** (UUID) is used to identify your device for deduplication — this ID is generated once and stored only on your machine. It is not linked to any personal identity.
 - Your **card drop counts** (card name + cumulative count) are uploaded per league
+- For card drops that can be matched to an entry in `Client.txt`, the **in-game area name**, **minute of the local day**, and **UTC offset** at the time of the drop are uploaded. Exact dates and timestamps are not uploaded.
+- Soothsayer may scan preserved entries in `Client.txt` to add this context to earlier locally recorded drops. Context is skipped when the log was deleted, truncated, has no preceding area entry, or cannot be matched confidently.
 - If you link your GGG account via OAuth, your **GGG account name** and **GGG account UUID** are stored alongside your uploads for a "verified" badge
 - The GGG OAuth token is used solely to verify your identity and is **not** stored server-side
 - Uploads are **on by default** but can be disabled at any time in Settings → Privacy & Telemetry
 - GGG account linking is **entirely optional** — uploads work anonymously without it
-- **Existing data** from prior sessions is never uploaded automatically. If you have drop data that hasn't been contributed yet, the app will show a one-time banner with an opt-in checkbox — your data is only uploaded if you explicitly check the box and confirm. Dismissing the banner is **permanent** (persisted locally) — it will never reappear, even after restarting the app.
+- **Existing cumulative card counts** from prior sessions are never uploaded automatically. If you have counts that have not been contributed yet, the app shows a one-time banner with an opt-in checkbox. This count backfill only runs if you explicitly check the box and confirm. Dismissing the banner is **permanent** (persisted locally). When community uploads are enabled, the contextual `Client.txt` enrichment described above may still run for earlier locally recorded drops because it uploads only area and time-of-day context for those already recorded events.
 
 ### Local App Performance Diagnostics
 
@@ -67,7 +69,7 @@ Performance diagnostic reports are **not uploaded automatically**. The app only 
 
 - Usernames or file paths (scrubbed before sending)
 - Raw IP addresses in telemetry or backend request logs
-- Game data, stash contents, or trade history
+- Game data beyond the community drop information disclosed above, stash contents, or trade history
 - Keystroke or input data
 - App performance diagnostics unless you manually export and send a report
 - Crash reports when crash reporting is disabled

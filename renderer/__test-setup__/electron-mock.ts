@@ -19,6 +19,26 @@ export function createElectronMock() {
   return {
     selectFile: vi.fn().mockResolvedValue(undefined),
 
+    clientLogReader: {
+      runHistoricalContextBackfill: vi.fn().mockResolvedValue({
+        status: "already-completed",
+        enrichedEvents: 0,
+      }),
+    },
+
+    communityUpload: {
+      getBackfillLeagues: vi.fn().mockResolvedValue({
+        success: true,
+        leagues: [],
+      }),
+      getDropContextUploadStatus: vi.fn().mockResolvedValue({
+        success: true,
+        status: { pendingEvents: 0, isUploading: false, revision: 0 },
+      }),
+      triggerBackfill: vi.fn().mockResolvedValue({ success: true }),
+      onDropContextUploadStatusChanged: mockListener(),
+    },
+
     // ── App ────────────────────────────────────────────────────────────
     app: {
       restart: vi.fn().mockResolvedValue(undefined),

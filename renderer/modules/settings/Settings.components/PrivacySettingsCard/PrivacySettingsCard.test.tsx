@@ -298,6 +298,16 @@ describe("PrivacySettingsCard", () => {
     expect(screen.getByText("Community Drop Rates")).toBeInTheDocument();
   });
 
+  it("discloses location and coarse local-time community data", () => {
+    renderWithProviders(<PrivacySettingsCard />);
+
+    expect(screen.getByText(/in-game area names/)).toBeInTheDocument();
+    expect(screen.getByText(/local minute and UTC offset/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Exact dates and timestamps stay on your device/),
+    ).toBeInTheDocument();
+  });
+
   // ── Restart warning ────────────────────────────────────────────────────
 
   it("shows restart warning alert", () => {
